@@ -1,0 +1,54 @@
+<table cellpadding="0" cellspacing="0" border="0" style="font-family: Roboto, Arial, sans-serif; font-size: 11pt; color: #595959;">
+  <tr>
+    <!-- Logo -->
+    <td style="padding-right: 16px; vertical-align: middle; text-align: center;">
+      <img src="data:image/png;base64,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"
+           width="100" height="101"
+           alt="{{ user.companyName }}"
+           style="display: block;">
+    </td>
+
+    <!-- Vertikaler Balken -->
+    <td style="border-left: 2px solid #595959; padding: 0 16px 0 0;">&nbsp;</td>
+
+    <!-- Kontaktdaten -->
+    <td style="vertical-align: top; padding-left: 12px;">
+      <p style="margin: 0 0 4px 0;">
+        <strong style="color: #595959;">{{ user.displayName }} – {{ user.companyName }}</strong>
+      </p>
+      <p style="margin: 0;">
+        Phone:&nbsp;&nbsp;&nbsp;
+        <a href="tel:{{ user.phone }}" style="color: blue;">{{ user.phone }}</a>
+      </p>
+      <p style="margin: 0;">
+        Mobile:&nbsp;&nbsp;
+        <a href="tel:{{ user.mobilePhone }}" style="color: blue;">{{ user.mobilePhone }}</a>
+      </p>
+      <p style="margin: 0;">
+        <a href="mailto:{{ user.mail }}" style="color: blue;">{{ user.mail }}</a>
+      </p>
+      <p style="margin: 0;">
+        <a href="{{ user.website }}" style="color: blue;">{{ user.website }}</a>
+      </p>
+      <p style="margin: 4px 0 0 0; color: #595959;">Triebelsstr. 4, 52066 Aachen</p>
+    </td>
+  </tr>
+</table>
+
+<!-- Bookings -->
+<table cellpadding="0" cellspacing="0" border="0" style="margin-top: 8px;">
+  <tr>
+    <td style="vertical-align: middle; padding-right: 6px;">
+      <a href="{{ user.bookingsUrl }}" style="text-decoration: none;">
+        <img src="https://res.cdn.office.net/assets/bookwithme/misc/CalendarPerson20px.png"
+             width="20" height="20" border="0" alt="Kalender">
+      </a>
+    </td>
+    <td style="vertical-align: middle;">
+      <a href="{{ user.bookingsUrl }}"
+         style="color: #0078D4; text-decoration: none; font-family: Aptos, Arial, sans-serif; font-size: 11pt;">
+        Buchen Sie einen Termin, um mich zu treffen
+      </a>
+    </td>
+  </tr>
+</table>

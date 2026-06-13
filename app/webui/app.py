@@ -23,6 +23,7 @@ _TEMPLATE_DIR = Path(__file__).parent / "templates"
 
 app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 templates = Jinja2Templates(directory=str(_TEMPLATE_DIR))
+templates.env.globals["version"] = config.VERSION
 
 # Counters (in-memory, reset on restart)
 _stats = {"processed": 0, "fallback": 0, "errors": 0}
@@ -55,11 +56,10 @@ async def health():
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request, user: str = Depends(_check_auth)):
-    return templates.TemplateResponse("dashboard.html", {
-        "request": request,
-        "stats": get_stats(),
-        "active": "dashboard",
-    })
+    return templates.TemplateResponse(
+        request=request, name="dashboard.html",
+        context={"stats": get_stats(), "active": "dashboard"},
+    )
 
 
 @app.get("/template", response_class=HTMLResponse)
@@ -70,13 +70,15 @@ async def template_editor(request: Request, user: str = Depends(_check_auth)):
     html_content = html_path.read_text() if html_path.exists() else ""
     txt_content = txt_path.read_text() if txt_path.exists() else ""
 
-    return templates.TemplateResponse("template_editor.html", {
-        "request": request,
-        "html_content": html_content,
-        "txt_content": txt_content,
-        "active": "template",
-        "saved": request.query_params.get("saved"),
-    })
+    return templates.TemplateResponse(
+        request=request, name="template_editor.html",
+        context={
+            "html_content": html_content,
+            "txt_content": txt_content,
+            "active": "template",
+            "saved": request.query_params.get("saved"),
+        },
+    )
 
 
 @app.post("/template", response_class=HTMLResponse)
@@ -112,14 +114,16 @@ async def preview(request: Request, email: str = "", user: str = Depends(_check_
 
     sig_html, sig_txt = signature_engine.render(user_data)
 
-    return templates.TemplateResponse("preview.html", {
-        "request": request,
-        "email": email,
-        "sig_html": sig_html,
-        "sig_txt": sig_txt,
-        "error": error,
-        "active": "preview",
-    })
+    return templates.TemplateResponse(
+        request=request, name="preview.html",
+        context={
+            "email": email,
+            "sig_html": sig_html,
+            "sig_txt": sig_txt,
+            "error": error,
+            "active": "preview",
+        },
+    )
 
 
 @app.get("/config-view", response_class=HTMLResponse)
@@ -138,8 +142,7 @@ async def config_view(request: Request, user: str = Depends(_check_auth)):
         "TENANT_ID": config.TENANT_ID[:8] + "…" if config.TENANT_ID else "",
         "CLIENT_ID": config.CLIENT_ID[:8] + "…" if config.CLIENT_ID else "",
     }
-    return templates.TemplateResponse("config.html", {
-        "request": request,
-        "cfg": cfg,
-        "active": "config",
-    })
+    return templates.TemplateResponse(
+        request=request, name="config.html",
+        context={"cfg": cfg, "active": "config"},
+    )

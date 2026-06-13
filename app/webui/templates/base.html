@@ -8,13 +8,15 @@
 </head>
 <body>
     <nav>
-        <div class="nav-brand">EXO Signature Service</div>
-        <ul>
-            <li><a href="/" class="{% if active == 'dashboard' %}active{% endif %}">Dashboard</a></li>
-            <li><a href="/template" class="{% if active == 'template' %}active{% endif %}">Templates</a></li>
-            <li><a href="/preview" class="{% if active == 'preview' %}active{% endif %}">Vorschau</a></li>
-            <li><a href="/config-view" class="{% if active == 'config' %}active{% endif %}">Konfiguration</a></li>
-        </ul>
+        <div class="nav-brand">EXO Signature Service <span class="nav-version">v{{ version }}</span></div>
+        <div class="nav-links">
+            <ul>
+                <li><a href="/" class="{% if active == 'dashboard' %}active{% endif %}">Dashboard</a></li>
+                <li><a href="/template" class="{% if active == 'template' %}active{% endif %}">Templates</a></li>
+                <li><a href="/preview" class="{% if active == 'preview' %}active{% endif %}">Vorschau</a></li>
+                <li><a href="/config-view" class="{% if active == 'config' %}active{% endif %}">Konfiguration</a></li>
+            </ul>
+        </div>
     </nav>
     <main>
         {% block content %}{% endblock %}

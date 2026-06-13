@@ -18,6 +18,7 @@ _SELECT_FIELDS = ",".join([
     "mobilePhone",
     "businessPhones",
     "officeLocation",
+    "businessHomePage",
     "onPremisesExtensionAttributes",
 ])
 
@@ -95,6 +96,6 @@ async def get_user(email: str) -> UserData:
         mobilePhone=data.get("mobilePhone") or "",
         phone=phones[0] if phones else "",
         officeLocation=data.get("officeLocation") or "",
-        website=ext.get("extensionAttribute1") or "",
+        website=data.get("businessHomePage") or ext.get("extensionAttribute1") or "",
         bookingsUrl=ext.get("extensionAttribute2") or "",
     )

@@ -1,9 +1,9 @@
---
-{{ user.displayName }}{% if user.jobTitle %} | {{ user.jobTitle }}{% endif %}
-{% if user.department %}{{ user.department }}{% if user.companyName %} – {{ user.companyName }}{% endif %}
-{% endif %}{% if user.phone %}Tel: {{ user.phone }}
-{% endif %}{% if user.mobilePhone %}Mobil: {{ user.mobilePhone }}
+Freundliche Grüße / Kind regards
+
+{{ user.displayName }}{% if user.companyName %} – {{ user.companyName }}{% endif %}  #gernperDu
+{% if user.phone %}Phone:   {{ user.phone }}
+{% endif %}{% if user.mobilePhone %}Mobile:  {{ user.mobilePhone }}
 {% endif %}{% if user.mail %}{{ user.mail }}
 {% endif %}{% if user.website %}{{ user.website }}
-{% endif %}{% if user.bookingsUrl %}Termin buchen: {{ user.bookingsUrl }}
 {% endif %}
+Triebelsstr. 4, 52066 Aachen

@@ -1,21 +1,57 @@
-<table cellpadding="0" cellspacing="0" style="font-family: Arial, sans-serif; font-size: 13px; color: #333; border-collapse: collapse;">
-  <tr>
-    <td style="padding-right: 16px; border-right: 2px solid #0078d4; vertical-align: top; padding-top: 4px;">
-      <img src="https://REPLACE_WITH_LOGO_URL/logo.png" width="120" alt="Logo" style="display: block;">
-    </td>
-    <td style="padding-left: 16px; vertical-align: top;">
-      <strong style="font-size: 14px; color: #111;">{{ user.displayName }}</strong><br>
-      {% if user.jobTitle %}<span style="color: #555;">{{ user.jobTitle }}</span><br>{% endif %}
-      {% if user.department %}<span style="color: #888; font-size: 12px;">{{ user.department }}</span><br>{% endif %}
-      {% if user.companyName %}<span style="color: #888; font-size: 12px;">{{ user.companyName }}</span><br>{% endif %}
-      <br>
-      {% if user.phone %}<a href="tel:{{ user.phone }}" style="color: #333; text-decoration: none;">{{ user.phone }}</a><br>{% endif %}
-      {% if user.mobilePhone %}<a href="tel:{{ user.mobilePhone }}" style="color: #333; text-decoration: none;">{{ user.mobilePhone }}</a><br>{% endif %}
-      {% if user.mail %}<a href="mailto:{{ user.mail }}" style="color: #0078d4; text-decoration: none;">{{ user.mail }}</a><br>{% endif %}
-      {% if user.website %}<a href="{{ user.website }}" style="color: #0078d4; text-decoration: none;">{{ user.website }}</a><br>{% endif %}
-      {% if user.bookingsUrl %}
-      <a href="{{ user.bookingsUrl }}" style="color: #0078d4; text-decoration: none; font-size: 12px;">Termin buchen</a>
-      {% endif %}
-    </td>
-  </tr>
-</table>
+<div style="margin-top:20px;padding-top:14px;border-top:1px solid #e0e0e0;font-family:Arial,sans-serif;font-size:13px;color:#333;line-height:1.7;">
+
+  <p style="margin:0 0 14px 0;color:#555;font-size:13px;">Freundliche Grüße / Kind regards</p>
+
+  <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+    <tr>
+      <td style="border-left:3px solid #0078d4;padding-left:14px;vertical-align:top;">
+
+        <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+          <tr>
+            <td style="vertical-align:baseline;">
+              <strong style="font-size:15px;color:#111;">{{ user.displayName }}</strong>
+            </td>
+            <td style="padding-left:10px;vertical-align:baseline;">
+              <span style="font-size:11px;color:#0078d4;font-weight:600;">#gernperDu</span>
+            </td>
+          </tr>
+        </table>
+
+        {% if user.companyName %}
+        <div style="color:#555;font-size:12px;margin-top:1px;">{{ user.companyName }}</div>
+        {% endif %}
+
+        <div style="margin-top:8px;">
+          {% if user.phone %}
+          <div>
+            <span style="color:#888;font-size:11px;display:inline-block;width:52px;">Phone</span>
+            <a href="tel:{{ user.phone }}" style="color:#333;text-decoration:none;">{{ user.phone }}</a>
+          </div>
+          {% endif %}
+          {% if user.mobilePhone %}
+          <div>
+            <span style="color:#888;font-size:11px;display:inline-block;width:52px;">Mobile</span>
+            <a href="tel:{{ user.mobilePhone }}" style="color:#333;text-decoration:none;">{{ user.mobilePhone }}</a>
+          </div>
+          {% endif %}
+          {% if user.mail %}
+          <div>
+            <span style="color:#888;font-size:11px;display:inline-block;width:52px;">Mail</span>
+            <a href="mailto:{{ user.mail }}" style="color:#0078d4;text-decoration:none;">{{ user.mail }}</a>
+          </div>
+          {% endif %}
+          {% if user.website %}
+          <div>
+            <span style="color:#888;font-size:11px;display:inline-block;width:52px;">Web</span>
+            <a href="{{ user.website }}" style="color:#0078d4;text-decoration:none;">{{ user.website | replace('https://', '') }}</a>
+          </div>
+          {% endif %}
+        </div>
+
+        <div style="margin-top:8px;font-size:11px;color:#999;">Triebelsstr. 4, 52066 Aachen</div>
+
+      </td>
+    </tr>
+  </table>
+
+</div>

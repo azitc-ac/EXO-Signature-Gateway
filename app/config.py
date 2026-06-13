@@ -38,3 +38,15 @@ LOG_LEVEL = _optional("LOG_LEVEL", "INFO").upper()
 
 # Template paths
 TEMPLATE_DIR = _optional("TEMPLATE_DIR", "/app/templates")
+
+# Version
+def _read_version() -> str:
+    for path in ("/app/VERSION", "VERSION"):
+        try:
+            with open(path) as f:
+                return f.read().strip()
+        except FileNotFoundError:
+            continue
+    return "dev"
+
+VERSION = _read_version()
