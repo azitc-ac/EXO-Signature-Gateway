@@ -130,15 +130,17 @@ def inject(msg: email.message.Message, sig_html: str, sig_txt: str) -> email.mes
     if msg.get_content_maintype() == "multipart":
         _inject_into_multipart(msg, sig_html, sig_txt)
     elif content_type == "text/html":
-        charset = msg.get_content_charset() or "utf-8"
-        payload = msg.get_payload(decode=True).decode(charset, errors="replace")
+        src_charset = msg.get_content_charset() or "utf-8"
+        payload = msg.get_payload(decode=True).decode(src_charset, errors="replace")
         payload = _strip_client_sig_divs(payload)
-        _set_part_payload(msg, _append_html_sig(payload, sig_html), charset)
+        msg.set_param("charset", "utf-8")
+        _set_part_payload(msg, _append_html_sig(payload, sig_html), "utf-8")
     elif content_type == "text/plain":
-        charset = msg.get_content_charset() or "utf-8"
-        payload = msg.get_payload(decode=True).decode(charset, errors="replace")
+        src_charset = msg.get_content_charset() or "utf-8"
+        payload = msg.get_payload(decode=True).decode(src_charset, errors="replace")
         new_payload = payload + "\n\n" + sig_txt if sig_txt else payload
-        _set_part_payload(msg, new_payload, charset)
+        msg.set_param("charset", "utf-8")
+        _set_part_payload(msg, new_payload, "utf-8")
     else:
         log.warning("Unhandled content type %s, forwarding as-is", content_type)
 
@@ -170,15 +172,17 @@ def _inject_into_multipart(msg: email.message.Message, sig_html: str, sig_txt: s
             txt_part = part
 
     if html_part is not None and sig_html:
-        charset = html_part.get_content_charset() or "utf-8"
-        payload = html_part.get_payload(decode=True).decode(charset, errors="replace")
+        src_charset = html_part.get_content_charset() or "utf-8"
+        payload = html_part.get_payload(decode=True).decode(src_charset, errors="replace")
         payload = _strip_client_sig_divs(payload)
-        _set_part_payload(html_part, _append_html_sig(payload, sig_html), charset)
+        html_part.set_param("charset", "utf-8")
+        _set_part_payload(html_part, _append_html_sig(payload, sig_html), "utf-8")
 
     if txt_part is not None and sig_txt:
-        charset = txt_part.get_content_charset() or "utf-8"
-        payload = txt_part.get_payload(decode=True).decode(charset, errors="replace")
-        _set_part_payload(txt_part, payload + "\n\n" + sig_txt, charset)
+        src_charset = txt_part.get_content_charset() or "utf-8"
+        payload = txt_part.get_payload(decode=True).decode(src_charset, errors="replace")
+        txt_part.set_param("charset", "utf-8")
+        _set_part_payload(txt_part, payload + "\n\n" + sig_txt, "utf-8")
 
 
 _CLIENT_SIG_DIV_IDS = [
