@@ -133,20 +133,10 @@ def inject(msg: email.message.Message, sig_html: str, sig_txt: str) -> email.mes
         payload = msg.get_payload(decode=True).decode(charset, errors="replace")
         _set_part_payload(msg, _append_html_sig(payload, sig_html), charset)
     elif content_type == "text/plain":
-        payload = msg.get_payload(decode=True).decode(msg.get_content_charset() or "utf-8", errors="replace")
+        charset = msg.get_content_charset() or "utf-8"
+        payload = msg.get_payload(decode=True).decode(charset, errors="replace")
         new_payload = payload + "\n\n" + sig_txt if sig_txt else payload
-        # Convert to multipart/alternative so we can add an HTML part
-        new_msg = email.mime.multipart.MIMEMultipart("alternative")
-        for key, val in msg.items():
-            if key.lower() not in _PRESERVE_HEADERS:
-                continue
-            new_msg[key] = val
-        new_msg.attach(email.mime.text.MIMEText(new_payload, "plain", "utf-8"))
-        if sig_html:
-            html_body = f"<html><body><pre>{_escape_html(payload)}</pre>{sig_html}</body></html>"
-            new_msg.attach(email.mime.text.MIMEText(html_body, "html", "utf-8"))
-        loop_detector.mark_as_signed(new_msg)
-        return new_msg
+        _set_part_payload(msg, new_payload, charset)
     else:
         log.warning("Unhandled content type %s, forwarding as-is", content_type)
 
