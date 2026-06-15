@@ -54,9 +54,14 @@ class SignatureHandler:
 
             if settings_store.get("SENT_ITEMS_UPDATE"):
                 mid = msg.get("Message-ID", "").strip()
-                html = mail_processor.extract_html(modified)
-                if mid and html:
-                    asyncio.create_task(_patch_sent_item(sender, mid, html))
+                if mid:
+                    html = mail_processor.extract_html(modified)
+                    if html is None and modified.get_content_type() == "text/plain":
+                        raw = modified.get_payload(decode=True) or b""
+                        txt = raw.decode(modified.get_content_charset() or "utf-8", errors="replace")
+                        html = f"<html><body><pre>{mail_processor._escape_html(txt)}</pre></body></html>"
+                    if html:
+                        asyncio.create_task(_patch_sent_item(sender, mid, html))
 
             return "250 OK"
 
