@@ -124,8 +124,6 @@ def send_via_graph(mail_from: str, rcpt_tos: list[str], content_bytes: bytes) ->
     to_header = _decode_header(msg.get("To", ""))
     cc_header = _decode_header(msg.get("Cc", ""))
     reply_to_header = _decode_header(msg.get("Reply-To", ""))
-    in_reply_to = msg.get("In-Reply-To", "")
-    references = msg.get("References", "")
     importance = msg.get("Importance", "")
 
     from_name, from_addr = email.utils.parseaddr(from_header)
@@ -137,14 +135,10 @@ def send_via_graph(mail_from: str, rcpt_tos: list[str], content_bytes: bytes) ->
     body_type = "html" if html_body else "text"
 
     # ── Build internet message headers ────────────────────────────────────────
-    # X-Sig-Applied prevents the Transport Rule from routing this mail back
-    # to the proxy again.  Whether EXO preserves this header during Transport
-    # Rule evaluation needs to be verified in a live tenant test.
+    # Graph API only accepts headers starting with "x-" or "X-" in this list.
+    # Standard headers like In-Reply-To / References are not supported here
+    # and cause HTTP 400 InvalidInternetMessageHeader — simply omit them.
     internet_headers = [{"name": "X-Sig-Applied", "value": "1"}]
-    if in_reply_to:
-        internet_headers.append({"name": "In-Reply-To", "value": in_reply_to})
-    if references:
-        internet_headers.append({"name": "References", "value": references})
 
     # ── Build Graph API message payload ───────────────────────────────────────
     message: dict = {
