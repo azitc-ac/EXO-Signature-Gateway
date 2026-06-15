@@ -180,6 +180,24 @@ def _inject_into_multipart(msg: email.message.Message, sig_html: str, sig_txt: s
 
 def _append_html_sig(html: str, sig_html: str) -> str:
     lower = html.lower()
+
+    # Insert before quoted content so signature sits between new text and quote.
+    # Patterns ordered by specificity: Outlook separator first, then webmail
+    # specific wrappers, then the universal <blockquote> catch-all (covers
+    # Apple Mail, Thunderbird, GMX, and most standards-compliant clients).
+    _QUOTE_PATTERNS = [
+        '<div id="divrplyfwdmsg"',   # Outlook / OWA reply separator
+        '<div id="divtagdefaultwrapper"',  # OWA forward wrapper
+        '<div class="gmail_quote"',   # Gmail
+        '<div class="yahoo_quoted"',  # Yahoo Mail
+        '<blockquote',               # Apple Mail, Thunderbird, GMX, standard
+    ]
+    for pattern in _QUOTE_PATTERNS:
+        idx = lower.find(pattern)
+        if idx != -1:
+            return html[:idx] + sig_html + html[idx:]
+
+    # No quote block found — fall back to inserting before </body>
     idx = lower.rfind("</body>")
     if idx != -1:
         return html[:idx] + sig_html + html[idx:]
