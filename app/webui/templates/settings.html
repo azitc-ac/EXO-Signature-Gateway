@@ -93,7 +93,10 @@
   <div id="graph-fields" style="display:none">
     <p class="hint" style="margin-top:8px">
       Benötigt <code>Mail.Send</code> Application Permission in der Azure App-Registrierung.
-      Sent Items werden automatisch mit signierter Version befüllt — kein separater Patch nötig.
+      Sent Items werden automatisch mit signierter Version befüllt — kein separater Patch nötig.<br>
+      <strong>Hinweis:</strong> Die Graph API erlaubt keine Standard-Threading-Header (<code>In-Reply-To</code>, <code>References</code>).
+      Antwort-Mails erscheinen beim Empfänger ggf. als separate Konversation statt eingebettet im Thread.
+      Für korrektes Threading: SMTP-Modus verwenden.
     </p>
   </div>
 </div>
