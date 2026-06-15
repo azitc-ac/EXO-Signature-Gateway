@@ -1,0 +1,685 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Einrichtung</h1>
+
+{% if auth_error %}
+<div class="alert error" style="margin-bottom:20px">
+  <strong>Fehler beim Azure-Login:</strong> {{ auth_error }}
+</div>
+{% endif %}
+
+{% if request.query_params.get('azure_done') %}
+<div class="alert success" style="margin-bottom:20px">
+  Azure-Login erfolgreich. App-Registrierung und Smarthost wurden automatisch konfiguriert.
+</div>
+{% endif %}
+
+<p style="color:#555;margin-bottom:24px;font-size:13px">
+  Dieser Assistent richtet den EXO Signature Service ein.
+  Führe die Schritte der Reihe nach aus. Bereits abgeschlossene Schritte sind grün markiert.
+</p>
+
+<div id="wizard-alert" class="alert" style="display:none"></div>
+
+<!-- ── Step 1: Admin-Passwort ──────────────────────────────────────────────── -->
+<div class="wizard-step {% if not e.password_change_needed %}done{% endif %}" id="step-1">
+  <div class="step-header">
+    <span class="step-badge">1</span>
+    <span class="step-title">Adminzugang sichern</span>
+    {% if not e.password_change_needed %}
+    <span class="step-status done">Erledigt</span>
+    {% else %}
+    <span class="step-status pending">Aktion erforderlich</span>
+    {% endif %}
+  </div>
+  <div class="step-body">
+    {% if e.password_change_needed %}
+    <p class="hint" style="margin-bottom:12px">
+      Das Standard-Passwort <code>admin</code> ist aktiv. Bitte jetzt ein sicheres Passwort setzen.
+    </p>
+    <div class="settings-row">
+      <label for="new-pw">Neues Passwort</label>
+      <input type="password" id="new-pw" placeholder="mind. 8 Zeichen" style="width:260px">
+    </div>
+    <div class="settings-row">
+      <label for="new-pw2">Wiederholen</label>
+      <input type="password" id="new-pw2" placeholder="Passwort wiederholen" style="width:260px">
+    </div>
+    <div id="pw-result" style="margin-top:8px;display:none"></div>
+    <div class="actions" style="margin-top:12px">
+      <button class="btn primary" onclick="changePassword()">Passwort setzen</button>
+    </div>
+    {% else %}
+    <p class="hint">Passwort wurde bereits geändert. <a href="#" onclick="document.getElementById('pw-change-form').style.display='block';return false">Erneut ändern</a></p>
+    <div id="pw-change-form" style="display:none;margin-top:12px">
+      <div class="settings-row">
+        <label for="new-pw">Neues Passwort</label>
+        <input type="password" id="new-pw" placeholder="mind. 8 Zeichen" style="width:260px">
+      </div>
+      <div class="settings-row">
+        <label for="new-pw2">Wiederholen</label>
+        <input type="password" id="new-pw2" placeholder="Passwort wiederholen" style="width:260px">
+      </div>
+      <div id="pw-result" style="margin-top:8px;display:none"></div>
+      <div class="actions" style="margin-top:12px">
+        <button class="btn primary" onclick="changePassword()">Passwort setzen</button>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ── Step 2: Hostname ────────────────────────────────────────────────────── -->
+<div class="wizard-step {% if e.public_hostname %}done{% endif %}" id="step-2">
+  <div class="step-header">
+    <span class="step-badge">2</span>
+    <span class="step-title">Öffentlicher Hostname</span>
+    {% if e.public_hostname %}
+    <span class="step-status done">{{ e.public_hostname }}</span>
+    {% else %}
+    <span class="step-status pending">Nicht konfiguriert</span>
+    {% endif %}
+  </div>
+  <div class="step-body">
+    <p class="hint" style="margin-bottom:12px">
+      Der öffentliche DNS-Name dieses Servers (z.B. <code>mail.zarenko.net</code>).
+      Er wird für Let's Encrypt, das TLS-Zertifikat und den EXO Outbound Connector verwendet.
+    </p>
+    <div class="settings-row">
+      <label for="hostname">Hostname</label>
+      <input type="text" id="hostname" value="{{ e.public_hostname }}" placeholder="mail.zarenko.net" style="width:300px">
+    </div>
+    <div id="hostname-result" style="margin-top:8px;display:none"></div>
+    <div class="actions" style="margin-top:12px">
+      <button class="btn primary" onclick="saveHostname()">Hostname speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Step 3: Azure-Login ────────────────────────────────────────────────── -->
+<div class="wizard-step {% if e.azure_app_created %}done{% endif %}" id="step-3">
+  <div class="step-header">
+    <span class="step-badge">3</span>
+    <span class="step-title">Azure-Login</span>
+    {% if e.azure_app_created %}
+    <span class="step-status done">Abgeschlossen</span>
+    {% elif e.bootstrap_client_id %}
+    <span class="step-status pending">App-Registrierung konfiguriert</span>
+    {% else %}
+    <span class="step-status pending">Ausstehend</span>
+    {% endif %}
+  </div>
+  <div class="step-body">
+    {% if e.azure_app_created %}
+    <div class="alert success" style="margin-bottom:0">
+      App-Registrierung erfolgreich erstellt.<br>
+      Tenant-Domain: <code>{{ e.tenant_domain }}</code><br>
+      EXO-Smarthost: <code>{{ e.exo_smarthost }}</code>
+    </div>
+    {% if e.tenant_id %}
+    <p class="hint" style="margin-top:8px">Tenant-ID: <code>{{ e.tenant_id[:8] }}…</code></p>
+    {% endif %}
+    {% if e.bootstrap_client_id %}
+    <details style="margin-top:12px">
+      <summary style="cursor:pointer;font-size:13px;color:#64748b">↩ Erneut anmelden (z.B. um Auth-Zertifikat neu zu generieren)</summary>
+      <div style="margin-top:12px">
+        <ol style="margin:0 0 14px 16px;line-height:2;font-size:13px">
+          <li>Klicke auf <strong>„Jetzt anmelden"</strong> — Microsoft-Login öffnet sich in einem neuen Tab.</li>
+          <li>Nach dem Login zeigt der Browser eine Fehler-/Verbindungsseite — <em>normal</em>.</li>
+          <li>Kopiere die <strong>komplette URL</strong> aus der Adressleiste und füge sie unten ein.</li>
+        </ol>
+        <div class="actions" style="margin-bottom:14px">
+          <button class="btn secondary" id="btn-azure-login-retry" onclick="startAzureLogin('btn-azure-login-retry','paste-section-retry')">Jetzt anmelden &rarr;</button>
+        </div>
+        <div id="paste-section-retry" style="display:none">
+          <div class="settings-row">
+            <label for="auth-url-paste-retry">URL aus der Adressleiste</label>
+            <input type="text" id="auth-url-paste-retry"
+                   placeholder="http://localhost:{{ e.webui_port }}/auth/callback?code=…&state=…"
+                   style="width:100%;font-family:monospace;font-size:12px">
+          </div>
+          <div id="paste-result-retry" style="margin-top:8px;display:none"></div>
+          <div class="actions" style="margin-top:10px">
+            <button class="btn primary" onclick="submitPastedUrl('auth-url-paste-retry','paste-result-retry')">Setup fortsetzen</button>
+          </div>
+        </div>
+      </div>
+    </details>
+    {% endif %}
+    {% else %}
+
+    <!-- 3a: Bootstrap-App-Registrierung -->
+    <details {% if e.bootstrap_client_id %}{% else %}open{% endif %} style="margin-bottom:16px">
+      <summary style="cursor:pointer;font-weight:600;font-size:13px;padding:4px 0">
+        {% if e.bootstrap_client_id %}
+        ✓ Schritt 3a: Bootstrap-App konfiguriert (<code>{{ e.bootstrap_client_id[:8] }}…</code>)
+        {% else %}
+        Schritt 3a: Einmalige Bootstrap-App-Registrierung anlegen
+        {% endif %}
+      </summary>
+      <div style="margin-top:10px;font-size:13px">
+        <p class="hint" style="margin-bottom:10px">
+          Azure benötigt für den Setup-Login eine App-Registrierung mit der passenden Redirect-URI.
+          Diese Registrierung wird nur einmalig für den Setup-Vorgang gebraucht.
+        </p>
+        <ol style="margin:0 0 12px 16px;line-height:2">
+          <li>Öffne das <a href="https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank" rel="noopener">Azure Portal → App-Registrierungen</a></li>
+          <li>Klicke <strong>„Neue Registrierung"</strong></li>
+          <li>Name: z.B. <code>EXO Signature Service Setup</code></li>
+          <li>Kontotyp: <em>Nur Konten in diesem Organisationsverzeichnis</em></li>
+          <li>Umleitungs-URI: Typ <strong>„Mobile und Desktopanwendungen"</strong> →
+            benutzerdefinierte URI: <code>http://localhost:{{ e.webui_port }}/auth/callback</code>
+            <br><small style="color:#888">Localhost-URIs sind in jedem Azure-Tenant ohne HTTPS erlaubt.</small></li>
+          <li>Klicke <strong>Registrieren</strong></li>
+          <li>Kopiere die <strong>Anwendungs-ID (Client-ID)</strong> und füge sie unten ein</li>
+        </ol>
+        <div class="settings-row">
+          <label for="bootstrap-client-id">Bootstrap Client-ID</label>
+          <input type="text" id="bootstrap-client-id"
+                 value="{{ e.bootstrap_client_id }}"
+                 placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                 style="width:320px;font-family:monospace">
+        </div>
+        <div id="bootstrap-result" style="margin-top:8px;display:none"></div>
+        <div class="actions" style="margin-top:10px">
+          <button class="btn primary" onclick="saveBootstrapClientId()">Client-ID speichern</button>
+        </div>
+      </div>
+    </details>
+
+    <!-- 3b: Login-Flow mit URL-Paste -->
+    {% if e.bootstrap_client_id %}
+    <ol style="margin:0 0 14px 16px;line-height:2;font-size:13px">
+      <li>Klicke auf <strong>„Jetzt anmelden"</strong> — Microsoft-Login öffnet sich in einem neuen Tab.</li>
+      <li>Melde dich als Azure-Administrator an (MFA wird unterstützt).<br>
+          <small>Falls ein Consent-Dialog erscheint: <em>„Im Namen der Organisation zustimmen"</em> ankreuzen.</small></li>
+      <li>Nach dem Login zeigt dein Browser eine <strong>Fehler- oder Verbindungsseite</strong> — das ist <em>normal</em>.</li>
+      <li>Kopiere die <strong>komplette URL</strong> aus der Adressleiste und füge sie unten ein.</li>
+    </ol>
+    <div class="actions" style="margin-bottom:14px">
+      <button class="btn primary" id="btn-azure-login" onclick="startAzureLogin()">Jetzt anmelden &rarr;</button>
+    </div>
+    <div id="paste-section" style="display:none">
+      <div class="settings-row">
+        <label for="auth-url-paste">URL aus der Adressleiste</label>
+        <input type="text" id="auth-url-paste"
+               placeholder="http://localhost:8080/auth/callback?code=…&state=…"
+               style="width:100%;font-family:monospace;font-size:12px">
+      </div>
+      <div id="paste-result" style="margin-top:8px;display:none"></div>
+      <div class="actions" style="margin-top:10px">
+        <button class="btn primary" id="paste-btn" onclick="submitPastedUrl()">Setup fortsetzen</button>
+      </div>
+    </div>
+    {% else %}
+    <p class="hint" style="color:#888">Zuerst Schritt 3a abschließen.</p>
+    {% endif %}
+    {% endif %}
+  </div>
+</div>
+
+<!-- ── Step 4: App-Registrierung (automatisch) ────────────────────────────── -->
+<div class="wizard-step {% if e.azure_app_created %}done{% endif %}" id="step-4">
+  <div class="step-header">
+    <span class="step-badge">4</span>
+    <span class="step-title">Azure App-Registrierung</span>
+    {% if e.azure_app_created %}
+    <span class="step-status done">Automatisch erstellt</span>
+    {% else %}
+    <span class="step-status waiting">Wird nach Schritt 3 automatisch erledigt</span>
+    {% endif %}
+  </div>
+  <div class="step-body">
+    {% if e.azure_app_created %}
+    <div class="alert success" style="margin-bottom:0">
+      App-Registrierung <strong>EXO Signature Service</strong> wurde erstellt.<br>
+      Client-ID: <code>{{ e.client_id[:8] if e.client_id else "–" }}…</code><br>
+      Berechtigungen: <code>User.Read.All</code>, <code>Mail.ReadWrite</code>, <code>Exchange.ManageAsApp</code><br>
+      Admin-Consent: erteilt &bull; Exchange-Administrator-Rolle: zugewiesen
+    </div>
+    {% else %}
+    <p class="hint">Erstellt nach erfolgreichem Azure-Login (Schritt 3).</p>
+    {% endif %}
+    {% if e.azure_app_created %}
+    <div class="actions" style="margin-top:12px">
+      <button class="btn secondary" onclick="testGraph()">Graph-Verbindung testen</button>
+    </div>
+    <div id="graph-result" style="margin-top:8px;display:none"></div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ── Step 5: Smarthost (automatisch) ────────────────────────────────────── -->
+<div class="wizard-step {% if e.exo_smarthost %}done{% endif %}" id="step-5">
+  <div class="step-header">
+    <span class="step-badge">5</span>
+    <span class="step-title">EXO Smarthost</span>
+    {% if e.exo_smarthost %}
+    <span class="step-status done">{{ e.exo_smarthost }}</span>
+    {% else %}
+    <span class="step-status waiting">Wird nach Schritt 3 automatisch erkannt</span>
+    {% endif %}
+  </div>
+  <div class="step-body">
+    {% if e.exo_smarthost %}
+    <p class="hint">Der SMTP-Proxy leitet Mails an <code>{{ e.exo_smarthost }}</code> weiter.</p>
+    {% else %}
+    <p class="hint">Wird aus der Tenant-Domain automatisch abgeleitet (nach Azure-Login).</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ── Step 6: TLS-Zertifikat ─────────────────────────────────────────────── -->
+<div class="wizard-step {% if e.cert_exists %}done{% endif %}" id="step-6">
+  <div class="step-header">
+    <span class="step-badge">6</span>
+    <span class="step-title">TLS-Zertifikat (Let's Encrypt)</span>
+    {% if e.cert_exists %}
+    <span class="step-status done">Zertifikat vorhanden</span>
+    {% else %}
+    <span class="step-status pending">Kein Zertifikat</span>
+    {% endif %}
+  </div>
+  <div class="step-body">
+    <p class="hint" style="margin-bottom:12px">
+      Port 80 muss für ACME-Validierung öffentlich erreichbar sein.
+      Domain und E-Mail werden aus den Einstellungen übernommen.
+    </p>
+    <div class="settings-row">
+      <label for="le-domain">Domain</label>
+      <input type="text" id="le-domain" value="{{ s.LE_DOMAIN or e.public_hostname }}" placeholder="mail.zarenko.net" style="width:280px">
+    </div>
+    <div class="settings-row">
+      <label for="le-email">E-Mail (ACME)</label>
+      <input type="email" id="le-email" value="{{ s.LE_EMAIL }}" placeholder="admin@domain.com" style="width:280px">
+    </div>
+    <div id="le-result" style="margin-top:8px;display:none"></div>
+    <div class="actions" style="margin-top:12px">
+      <button class="btn primary" id="le-btn" onclick="renewCert()">
+        {% if e.cert_exists %}Zertifikat erneuern{% else %}Let's Encrypt starten{% endif %}
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Step 7: EXO Connector ──────────────────────────────────────────────── -->
+<div class="wizard-step {% if e.exo_connector_created %}done{% endif %}" id="step-7">
+  <div class="step-header">
+    <span class="step-badge">7</span>
+    <span class="step-title">EXO Outbound Connector + Transport Rule</span>
+    {% if e.exo_connector_created %}
+    <span class="step-status done">Eingerichtet</span>
+    {% else %}
+    <span class="step-status pending">Ausstehend</span>
+    {% endif %}
+  </div>
+  <div class="step-body">
+    <p class="hint" style="margin-bottom:12px">
+      Erstellt in Exchange Online (Loop-Back-Architektur):
+      <ul style="margin:8px 0 0 16px;line-height:1.7">
+        <li><strong>Outbound Connector</strong> → <code>{{ e.public_hostname or "hostname" }}:25</code> (EXO → Proxy)</li>
+        <li><strong>Inbound Connector</strong> ← <code>{{ e.public_hostname or "hostname" }}</code> (Proxy → EXO, TLS required)</li>
+        <li><strong>Transport Rule</strong>: alle ausgehenden externen Mails via Proxy, außer <code>X-Sig-Applied: 1</code></li>
+      </ul>
+      <span style="color:#16a34a">EXO re-signiert mit DKIM nach der Signatur-Injektion — maximale Zustellbarkeit.</span>
+    </p>
+    {% if not e.azure_app_created %}
+    <div class="alert warn" style="margin-bottom:0">Erst Schritt 3 (Azure-Login) abschließen.</div>
+    {% elif not e.cert_exists %}
+    <div class="alert warn" style="margin-bottom:0">Empfohlen: erst ein TLS-Zertifikat einrichten (Schritt 6).</div>
+    {% endif %}
+
+    <!-- Auth-Zertifikat für Exchange Online -->
+    {% if e.azure_app_created %}
+    <div style="border:1px solid #e2e8f0;border-radius:6px;padding:12px;margin:12px 0;background:#f8fafc">
+      <strong style="font-size:13px">Auth-Zertifikat (Exchange Online App-Auth)</strong>
+      {% if e.auth_cert_exists %}
+      <div class="alert success" style="margin:8px 0 0 0;font-size:13px">✓ Vorhanden — Setup kann fortgesetzt werden.</div>
+      {% else %}
+      <p class="hint" style="margin:8px 0">Kein Auth-Zertifikat gefunden. Entweder Schritt 3 erneut ausführen <em>oder</em> hier manuell generieren und in Azure hochladen.</p>
+      <div id="cert-gen-result" style="display:none;margin-top:8px"></div>
+      <div class="actions" style="margin-top:8px">
+        <button class="btn secondary" id="cert-gen-btn" onclick="generateAuthCert()">Auth-Zertifikat generieren</button>
+      </div>
+      <div id="cert-pem-display" style="display:none;margin-top:12px;font-size:13px">
+        <p style="margin:0 0 6px 0">Lade diese <code>.crt</code>-Datei im <strong>Azure Portal</strong> hoch:<br>
+          <em>App-Registrierungen → EXO Signature Service → Zertifikate &amp; Geheimnisse → Zertifikate → Hochladen</em>
+        </p>
+        <div class="actions" style="margin-bottom:8px">
+          <button class="btn secondary" onclick="downloadAuthCert()">⬇ Zertifikat (.crt) herunterladen</button>
+        </div>
+        <details>
+          <summary style="cursor:pointer;color:#64748b">PEM-Inhalt anzeigen</summary>
+          <pre id="cert-pem-text" style="font-size:11px;background:#f1f5f9;padding:8px;border-radius:4px;overflow-x:auto;margin-top:6px;white-space:pre-wrap"></pre>
+        </details>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <div id="exo-result" style="margin-top:8px;display:none"></div>
+    <div class="actions" style="margin-top:12px">
+      <button class="btn primary" id="exo-btn"
+        onclick="setupExoConnector()"
+        {% if not e.azure_app_created %}disabled{% endif %}>
+        {% if e.exo_connector_created %}Connector neu einrichten{% else %}Exchange einrichten{% endif %}
+      </button>
+    </div>
+    {% if e.exo_connector_created %}
+    <p class="hint" style="margin-top:8px">
+      Mail-Flow: Outlook &rarr; EXO &rarr; Transport Rule &rarr; Proxy (Signatur) &rarr; EXO Smarthost &rarr; Inbound Connector &rarr; EXO Delivery (DKIM re-sign)
+    </p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ── Step 8: Verbindungstest ────────────────────────────────────────────── -->
+<div class="wizard-step {% if e.setup_complete %}done{% endif %}" id="step-8">
+  <div class="step-header">
+    <span class="step-badge">8</span>
+    <span class="step-title">Verbindungstest &amp; Abschluss</span>
+    {% if e.setup_complete %}
+    <span class="step-status done">Setup abgeschlossen</span>
+    {% else %}
+    <span class="step-status pending">Ausstehend</span>
+    {% endif %}
+  </div>
+  <div class="step-body">
+    <p class="hint" style="margin-bottom:12px">
+      Sende eine Test-Mail durch den Service und bestätige, dass die Signatur korrekt eingefügt wird.
+    </p>
+    <div class="settings-row">
+      <label for="test-from">Absender (interner Benutzer)</label>
+      <input type="email" id="test-from" placeholder="user@zarenko.net" style="width:280px">
+    </div>
+    <div class="settings-row">
+      <label for="test-to">Empfänger (extern)</label>
+      <input type="email" id="test-to" placeholder="test@gmail.com" style="width:280px">
+    </div>
+    <div id="test-result" style="margin-top:8px;display:none"></div>
+    <div class="actions" style="margin-top:12px">
+      <button class="btn primary" onclick="sendTestMail()">Test-Mail senden</button>
+      {% if not e.setup_complete %}
+      <button class="btn secondary" onclick="markComplete()">Setup als abgeschlossen markieren</button>
+      {% else %}
+      <a href="/" class="btn secondary">Zum Dashboard</a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<script>
+function showAlert(el, type, msg) {
+  if (!el) return;
+  el.className = 'alert ' + type;
+  el.innerHTML = msg;
+  el.style.display = 'block';
+}
+
+function hideAlert(el) {
+  if (el) el.style.display = 'none';
+}
+
+async function changePassword() {
+  const pw  = document.getElementById('new-pw').value;
+  const pw2 = document.getElementById('new-pw2').value;
+  const result = document.getElementById('pw-result');
+
+  if (pw.length < 8) { showAlert(result, 'error', 'Passwort muss mind. 8 Zeichen haben.'); return; }
+  if (pw !== pw2)    { showAlert(result, 'error', 'Passwörter stimmen nicht überein.'); return; }
+
+  hideAlert(result);
+  const resp = await fetch('/api/setup/change-password', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({password: pw}),
+  });
+
+  if (resp.ok) {
+    showAlert(result, 'success', 'Passwort geändert. Seite lädt neu…');
+    setTimeout(() => location.reload(), 1500);
+  } else {
+    const d = await resp.json().catch(() => ({}));
+    showAlert(result, 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));
+  }
+}
+
+async function saveHostname() {
+  const hostname = (document.getElementById('hostname').value || '').trim();
+  const result = document.getElementById('hostname-result');
+  if (!hostname) { showAlert(result, 'error', 'Hostname darf nicht leer sein.'); return; }
+
+  const resp = await fetch('/api/setup/hostname', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({hostname}),
+  });
+
+  if (resp.ok) {
+    showAlert(result, 'success', 'Hostname gespeichert: ' + hostname);
+    setTimeout(() => location.reload(), 1200);
+  } else {
+    const d = await resp.json().catch(() => ({}));
+    showAlert(result, 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));
+  }
+}
+
+async function testGraph() {
+  const result = document.getElementById('graph-result');
+  hideAlert(result);
+  const resp = await fetch('/api/setup/test-graph', {method: 'POST', headers: {'Content-Type': 'application/json'}});
+  if (resp.ok) {
+    const d = await resp.json();
+    showAlert(result, 'success', 'Graph-Verbindung OK. Organisation: <strong>' + (d.org || '?') + '</strong>');
+  } else {
+    const d = await resp.json().catch(() => ({}));
+    showAlert(result, 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));
+  }
+}
+
+async function renewCert() {
+  const domain = (document.getElementById('le-domain').value || '').trim();
+  const email  = (document.getElementById('le-email').value || '').trim();
+  const result = document.getElementById('le-result');
+  const btn    = document.getElementById('le-btn');
+
+  if (!domain || !email) { showAlert(result, 'error', 'Domain und E-Mail sind Pflichtfelder.'); return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Läuft… (kann 30 Sek. dauern)';
+  hideAlert(result);
+
+  // Persist LE fields first
+  await fetch('/settings', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({LE_DOMAIN: domain, LE_EMAIL: email}),
+  });
+
+  const resp = await fetch('/api/letsencrypt', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({domain, email}),
+  });
+
+  btn.disabled = false;
+  btn.textContent = 'Zertifikat erneuern';
+
+  if (resp.ok) {
+    const d = await resp.json();
+    showAlert(result, 'success', (d.detail || 'Zertifikat erneuert.') + ' Bitte Service neu starten.');
+    setTimeout(() => location.reload(), 3000);
+  } else {
+    const d = await resp.json().catch(() => ({}));
+    showAlert(result, 'error', 'certbot-Fehler: ' + (d.detail || 'Unbekannt'));
+  }
+}
+
+async function setupExoConnector() {
+  const result = document.getElementById('exo-result');
+  const btn    = document.getElementById('exo-btn');
+
+  btn.disabled = true;
+  btn.textContent = 'Richtet Exchange ein… (kann 2 Min. dauern)';
+  hideAlert(result);
+
+  const resp = await fetch('/api/setup/exo-connector', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+  });
+
+  btn.disabled = false;
+  btn.textContent = 'Connector neu einrichten';
+
+  if (resp.ok) {
+    const d = await resp.json();
+    const output = (d.output || '').replace(/\n/g, '<br>');
+    showAlert(result, 'success', 'EXO-Connector eingerichtet.<br><br><code style="font-size:11px">' + output + '</code>');
+    setTimeout(() => location.reload(), 3000);
+  } else {
+    const d = await resp.json().catch(() => ({}));
+    showAlert(result, 'error', 'Fehler: <pre style="margin:4px 0;font-size:11px">' + (d.detail || 'Unbekannt') + '</pre>');
+  }
+}
+
+async function sendTestMail() {
+  const from_email = (document.getElementById('test-from').value || '').trim();
+  const to_email   = (document.getElementById('test-to').value || '').trim();
+  const result     = document.getElementById('test-result');
+
+  if (!from_email || !to_email) {
+    showAlert(result, 'error', 'Bitte Absender und Empfänger angeben.');
+    return;
+  }
+  hideAlert(result);
+
+  const resp = await fetch('/api/test-mail', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({from_email, to_email}),
+  });
+
+  if (resp.ok) {
+    showAlert(result, 'success', 'Test-Mail gesendet &rarr; ' + to_email + '. Bitte Posteingang prüfen.');
+  } else {
+    const d = await resp.json().catch(() => ({}));
+    showAlert(result, 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));
+  }
+}
+
+async function saveBootstrapClientId() {
+  const clientId = (document.getElementById('bootstrap-client-id').value || '').trim();
+  const result   = document.getElementById('bootstrap-result');
+  if (!clientId) { showAlert(result, 'error', 'Client-ID darf nicht leer sein.'); return; }
+
+  const resp = await fetch('/api/setup/bootstrap-client', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({client_id: clientId}),
+  });
+  if (resp.ok) {
+    showAlert(result, 'success', 'Client-ID gespeichert. Seite lädt neu…');
+    setTimeout(() => location.reload(), 1200);
+  } else {
+    const d = await resp.json().catch(() => ({}));
+    showAlert(result, 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));
+  }
+}
+
+async function startAzureLogin(btnId, pasteSectionId) {
+  btnId = btnId || 'btn-azure-login';
+  pasteSectionId = pasteSectionId || 'paste-section';
+  const btn = document.getElementById(btnId);
+  btn.disabled = true;
+  btn.textContent = 'Öffne Login…';
+  try {
+    const resp = await fetch('/auth/start');
+    if (!resp.ok) throw new Error((await resp.json().catch(()=>({}))).detail || resp.status);
+    const data = await resp.json();
+    window.open(data.auth_url, '_blank');
+    document.getElementById(pasteSectionId).style.display = 'block';
+    btn.textContent = 'Erneut anmelden';
+  } catch (e) {
+    alert('Fehler beim Starten des Logins: ' + e.message);
+    btn.textContent = 'Jetzt anmelden →';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function submitPastedUrl(pasteInputId, resultId) {
+  pasteInputId = pasteInputId || 'auth-url-paste';
+  resultId = resultId || 'paste-result';
+  const url    = (document.getElementById(pasteInputId).value || '').trim();
+  const result = document.getElementById(resultId);
+
+  if (!url) { showAlert(result, 'error', 'Bitte die URL aus der Adressleiste einfügen.'); return; }
+
+  const btn = result.nextElementSibling?.querySelector('button') || document.getElementById('paste-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Verarbeite…'; }
+  hideAlert(result);
+
+  const resp = await fetch('/api/setup/auth-paste', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({url}),
+  });
+
+  if (btn) { btn.disabled = false; btn.textContent = 'Setup fortsetzen'; }
+
+  if (resp.ok) {
+    showAlert(result, 'success', 'Azure-Login erfolgreich! App-Registrierung eingerichtet. Seite lädt neu…');
+    setTimeout(() => location.reload(), 2500);
+  } else {
+    const d = await resp.json().catch(() => ({}));
+    showAlert(result, 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));
+  }
+}
+
+let _certPemGlobal = '';
+
+async function generateAuthCert() {
+  const btn    = document.getElementById('cert-gen-btn');
+  const result = document.getElementById('cert-gen-result');
+  btn.disabled = true;
+  btn.textContent = 'Generiere…';
+  hideAlert(result);
+
+  const resp = await fetch('/api/setup/gen-auth-cert', {method:'POST', headers:{'Content-Type':'application/json'}});
+  btn.disabled = false;
+  btn.textContent = 'Auth-Zertifikat generieren';
+
+  if (resp.ok) {
+    const d = await resp.json();
+    _certPemGlobal = d.cert_pem || '';
+    document.getElementById('cert-pem-text').textContent = _certPemGlobal;
+    document.getElementById('cert-pem-display').style.display = 'block';
+    showAlert(result, 'success', 'Zertifikat generiert und lokal gespeichert. Bitte jetzt in Azure hochladen, dann "Exchange einrichten" klicken.');
+  } else {
+    const d = await resp.json().catch(() => ({}));
+    showAlert(result, 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));
+  }
+}
+
+function downloadAuthCert() {
+  if (!_certPemGlobal) return;
+  const blob = new Blob([_certPemGlobal], {type: 'application/x-pem-file'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'exo-auth-cert.crt';
+  a.click();
+}
+
+async function markComplete() {
+  const resp = await fetch('/api/setup/mark-complete', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+  });
+  if (resp.ok) {
+    const a = document.getElementById('wizard-alert');
+    showAlert(a, 'success', 'Setup abgeschlossen! Weitergeleitet zum Dashboard…');
+    setTimeout(() => { window.location.href = '/'; }, 2000);
+  }
+}
+</script>
+{% endblock %}

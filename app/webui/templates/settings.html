@@ -1,0 +1,338 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Einstellungen</h1>
+
+<div id="page-alert" class="alert" style="display:none"></div>
+
+<!-- Allgemein -->
+<div class="settings-card">
+  <h2>Allgemein</h2>
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="fallback" {% if s.FALLBACK_ON_ERROR %}checked{% endif %}>
+      Fallback bei Fehler – Mail wird ohne Signatur weitergeleitet
+    </label>
+  </div>
+  <div class="settings-row">
+    <label for="log-level">Log-Level</label>
+    <div class="settings-control">
+      <select id="log-level">
+        {% for lvl in ["DEBUG","INFO","WARNING","ERROR"] %}
+        <option value="{{ lvl }}"{% if s.LOG_LEVEL == lvl %} selected{% endif %}>{{ lvl }}</option>
+        {% endfor %}
+      </select>
+      <span class="hint">Wirkt erst nach Neustart</span>
+    </div>
+  </div>
+  <div class="settings-row">
+    <label for="webui-username">Web-UI Benutzername</label>
+    <input type="text" id="webui-username" value="{{ s.WEBUI_USERNAME }}">
+  </div>
+  <div class="settings-row">
+    <label for="exo-port">EXO Smarthost Port</label>
+    <div class="settings-control">
+      <input type="number" id="exo-port" value="{{ s.EXO_PORT }}" min="1" max="65535" style="width:100px">
+      <span class="hint">Port für die Weiterleitung an EXO. Standard: <code>25</code>. Auf Azure (Port 25 ausgehend gesperrt): Azure Support anfragen oder SendGrid als Relay nutzen.</span>
+    </div>
+  </div>
+</div>
+
+<!-- Signatur -->
+<div class="settings-card">
+  <h2>Signatur-Verhalten</h2>
+  <div class="settings-row">
+    <label for="loop-header">Loop-Detection-Header</label>
+    <div class="settings-control">
+      <input type="text" id="loop-header" value="{{ s.LOOP_HEADER }}" placeholder="X-Sig-Applied">
+      <span class="hint">Header der gesetzten Mails kennzeichnet (verhindert Doppel-Injektion)</span>
+    </div>
+  </div>
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="sent-items" {% if s.SENT_ITEMS_UPDATE %}checked{% endif %}>
+      Signatur auch in Gesendete Elemente schreiben
+    </label>
+    <span class="hint">Benötigt <code>Mail.ReadWrite.All</code> App-Permission in der Azure-Registrierung</span>
+  </div>
+</div>
+
+<!-- Weiterleitung -->
+<div class="settings-card">
+  <h2>Weiterleitung (Re-Inject)</h2>
+  <div class="settings-row">
+    <label for="reinject-mode">Modus</label>
+    <div class="settings-control">
+      <select id="reinject-mode" onchange="toggleReinjectMode()">
+        <option value="smtp" {% if s.REINJECT_MODE != 'graph' %}selected{% endif %}>SMTP (Standard, Loop-Back via EXO Smarthost)</option>
+        <option value="graph" {% if s.REINJECT_MODE == 'graph' %}selected{% endif %}>Graph API sendMail (Azure ohne Port 25)</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="smtp-fields">
+    <div class="settings-row">
+      <label for="exo-port">EXO Smarthost Port</label>
+      <div class="settings-control">
+        <input type="number" id="exo-port" value="{{ s.EXO_PORT }}" min="1" max="65535" style="width:100px">
+        <span class="hint">Standard: <code>25</code>. Azure Enterprise nach Port-25-Freischaltung ebenfalls <code>25</code>.</span>
+      </div>
+    </div>
+    <div class="settings-row">
+      <label for="relay-user">Relay SMTP-User</label>
+      <div class="settings-control">
+        <input type="text" id="relay-user" value="{{ s.RELAY_USER }}" placeholder="leer = kein AUTH" style="width:260px">
+        <span class="hint">Optional: für SES (<code>apikey</code>) oder anderen AUTH-Relay</span>
+      </div>
+    </div>
+    <div class="settings-row">
+      <label for="relay-password">Relay Passwort / API Key</label>
+      <input type="password" id="relay-password" value="{{ s.RELAY_PASSWORD }}" placeholder="leer lassen wenn unverändert" style="width:260px">
+    </div>
+  </div>
+
+  <div id="graph-fields" style="display:none">
+    <div class="alert warn" style="margin-top:8px">
+      <strong>Experimentell</strong> — prüfe ob <code>X-Sig-Applied: 1</code> die Transport Rule Auswertung erreicht
+      (verhindert Endlosschleife). Erst in einem Test-Tenant validieren.
+    </div>
+    <p class="hint" style="margin-top:8px">
+      Benötigt <code>Mail.Send</code> Application Permission in der Azure App-Registrierung.
+      Sent Items werden automatisch mit signierter Version befüllt — kein separater Patch nötig.
+    </p>
+  </div>
+</div>
+
+<!-- Benutzer-Overrides -->
+<div class="settings-card">
+  <h2>Benutzer-Overrides</h2>
+  <p class="hint" style="margin-bottom:12px">Überschreibt Graph-Werte für einzelne Nutzer. E-Mail in Kleinbuchstaben.</p>
+
+  <h3>Website-URLs</h3>
+  <table class="kv-table">
+    <thead><tr><th>E-Mail</th><th>Website-URL</th><th></th></tr></thead>
+    <tbody id="websites-tbody">
+      {% for email, url in s.USER_WEBSITES.items() %}
+      <tr class="websites-row">
+        <td><input type="email" class="kv-email" value="{{ email }}"></td>
+        <td><input type="url" class="kv-url" value="{{ url }}" placeholder="https://..."></td>
+        <td><button type="button" class="btn secondary btn-sm" onclick="this.closest('tr').remove()">✕</button></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <button type="button" class="btn secondary btn-sm" style="margin-top:6px" onclick="addRow('websites','websites-tbody')">+ Zeile</button>
+
+  <h3 style="margin-top:20px">Booking-URLs</h3>
+  <table class="kv-table">
+    <thead><tr><th>E-Mail</th><th>Booking-URL</th><th></th></tr></thead>
+    <tbody id="bookings-tbody">
+      {% for email, url in s.USER_BOOKINGS.items() %}
+      <tr class="bookings-row">
+        <td><input type="email" class="kv-email" value="{{ email }}"></td>
+        <td><input type="url" class="kv-url" value="{{ url }}" placeholder="https://..."></td>
+        <td><button type="button" class="btn secondary btn-sm" onclick="this.closest('tr').remove()">✕</button></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <button type="button" class="btn secondary btn-sm" style="margin-top:6px" onclick="addRow('bookings','bookings-tbody')">+ Zeile</button>
+</div>
+
+<!-- Test-Mail -->
+<div class="settings-card">
+  <h2>Test-Mail senden</h2>
+  <p class="hint" style="margin-bottom:12px">Sendet eine Mail durch den lokalen SMTP-Handler inkl. Signatur-Injektion an EXO.</p>
+  <div class="settings-row">
+    <label for="test-from">Absender</label>
+    <input type="email" id="test-from" placeholder="user@zarenko.net">
+  </div>
+  <div class="settings-row">
+    <label for="test-to">Empfänger</label>
+    <input type="email" id="test-to" placeholder="empfaenger@domain.com">
+  </div>
+  <div class="actions" style="margin-top:12px">
+    <button class="btn primary" onclick="sendTestMail()">Test-Mail senden</button>
+  </div>
+  <div id="test-result" style="margin-top:10px;display:none"></div>
+</div>
+
+<!-- Let's Encrypt -->
+<div class="settings-card">
+  <h2>TLS / Let's Encrypt</h2>
+  <div class="settings-row">
+    <label>Aktuelles Zertifikat</label>
+    <span>{{ cert_expiry | safe }}</span>
+  </div>
+  <div class="settings-row">
+    <label for="le-domain">Domain</label>
+    <input type="text" id="le-domain" value="{{ s.LE_DOMAIN }}" placeholder="mail.zarenko.net">
+  </div>
+  <div class="settings-row">
+    <label for="le-email">E-Mail (ACME)</label>
+    <input type="email" id="le-email" value="{{ s.LE_EMAIL }}" placeholder="admin@zarenko.net">
+  </div>
+  <p class="hint">Port 80 muss extern erreichbar sein (Firewall/NAT). Das Zertifikat wird unter <code>./certs/</code> gespeichert.</p>
+  <div class="actions" style="margin-top:12px">
+    <button class="btn primary" id="le-btn" onclick="renewCert()">Zertifikat erneuern</button>
+  </div>
+  <div id="le-result" style="margin-top:10px;display:none"></div>
+</div>
+
+<!-- Save + Restart -->
+<div class="settings-card" style="background:transparent;border:none;box-shadow:none;padding:0">
+  <div class="actions">
+    <button class="btn primary" onclick="saveSettings()">Einstellungen speichern</button>
+    <button class="btn secondary" onclick="restartService()">Service neu starten</button>
+  </div>
+</div>
+
+<script>
+function toggleReinjectMode() {
+  const mode = document.getElementById('reinject-mode').value;
+  document.getElementById('smtp-fields').style.display = mode === 'smtp' ? '' : 'none';
+  document.getElementById('graph-fields').style.display = mode === 'graph' ? '' : 'none';
+}
+toggleReinjectMode();
+
+function showAlert(el, type, msg) {
+  el.className = 'alert ' + type;
+  el.innerHTML = msg;
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 6000);
+}
+
+function addRow(prefix, tbodyId) {
+  const tbody = document.getElementById(tbodyId);
+  const tr = document.createElement('tr');
+  tr.className = prefix + '-row';
+  tr.innerHTML =
+    '<td><input type="email" class="kv-email" placeholder="user@domain.com" style="width:100%"></td>' +
+    '<td><input type="url" class="kv-url" placeholder="https://..." style="width:100%"></td>' +
+    '<td><button type="button" class="btn secondary btn-sm" onclick="this.closest(\'tr\').remove()">✕</button></td>';
+  tbody.appendChild(tr);
+  tr.querySelector('.kv-email').focus();
+}
+
+function collectKV(rowClass) {
+  const result = {};
+  document.querySelectorAll('.' + rowClass + '-row').forEach(function(row) {
+    const email = (row.querySelector('.kv-email').value || '').trim().toLowerCase();
+    const url = (row.querySelector('.kv-url').value || '').trim();
+    if (email && url) result[email] = url;
+  });
+  return result;
+}
+
+async function saveSettings() {
+  const le_domain = (document.getElementById('le-domain').value || '').trim();
+  const le_email = (document.getElementById('le-email').value || '').trim();
+
+  // Also persist LE fields
+  if (le_domain || le_email) {
+    await fetch('/settings', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({LE_DOMAIN: le_domain, LE_EMAIL: le_email}),
+    });
+  }
+
+  const relayPass = (document.getElementById('relay-password').value || '');
+  const payload = {
+    FALLBACK_ON_ERROR: document.getElementById('fallback').checked,
+    LOG_LEVEL: document.getElementById('log-level').value,
+    WEBUI_USERNAME: (document.getElementById('webui-username').value || '').trim(),
+    REINJECT_MODE: document.getElementById('reinject-mode').value,
+    EXO_PORT: parseInt(document.getElementById('exo-port').value, 10) || 25,
+    RELAY_USER: (document.getElementById('relay-user').value || '').trim(),
+    LOOP_HEADER: (document.getElementById('loop-header').value || '').trim() || 'X-Sig-Applied',
+    SENT_ITEMS_UPDATE: document.getElementById('sent-items').checked,
+    USER_WEBSITES: collectKV('websites'),
+    USER_BOOKINGS: collectKV('bookings'),
+    LE_DOMAIN: le_domain,
+    LE_EMAIL: le_email,
+  };
+  if (relayPass) payload.RELAY_PASSWORD = relayPass;
+
+  const resp = await fetch('/settings', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(payload),
+  });
+
+  const alert = document.getElementById('page-alert');
+  if (resp.ok) {
+    showAlert(alert, 'success', 'Einstellungen gespeichert.');
+    window.scrollTo(0, 0);
+  } else {
+    showAlert(alert, 'error', 'Fehler beim Speichern.');
+  }
+}
+
+async function sendTestMail() {
+  const from_email = (document.getElementById('test-from').value || '').trim();
+  const to_email = (document.getElementById('test-to').value || '').trim();
+  const result = document.getElementById('test-result');
+
+  if (!from_email || !to_email) {
+    showAlert(result, 'error', 'Bitte Absender und Empfänger angeben.');
+    return;
+  }
+
+  result.style.display = 'none';
+  const resp = await fetch('/api/test-mail', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({from_email, to_email}),
+  });
+
+  if (resp.ok) {
+    showAlert(result, 'success', 'Test-Mail gesendet – prüfe den Posteingang von ' + to_email);
+  } else {
+    const data = await resp.json().catch(() => ({}));
+    showAlert(result, 'error', 'Fehler: ' + (data.detail || 'Unbekannt'));
+  }
+}
+
+async function renewCert() {
+  const domain = (document.getElementById('le-domain').value || '').trim();
+  const email = (document.getElementById('le-email').value || '').trim();
+  const result = document.getElementById('le-result');
+  const btn = document.getElementById('le-btn');
+
+  if (!domain || !email) {
+    showAlert(result, 'error', 'Domain und E-Mail sind Pflichtfelder.');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Läuft…';
+  result.style.display = 'none';
+
+  const resp = await fetch('/api/letsencrypt', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({domain, email}),
+  });
+
+  btn.disabled = false;
+  btn.textContent = 'Zertifikat erneuern';
+
+  if (resp.ok) {
+    const data = await resp.json();
+    showAlert(result, 'success', (data.detail || 'Zertifikat erneuert.') + ' Jetzt neu starten.');
+  } else {
+    const data = await resp.json().catch(() => ({}));
+    showAlert(result, 'error', 'certbot-Fehler: ' + (data.detail || 'Unbekannt'));
+  }
+}
+
+async function restartService() {
+  if (!confirm('Service jetzt neu starten?')) return;
+  await fetch('/api/restart', {method: 'POST'});
+  const alert = document.getElementById('page-alert');
+  showAlert(alert, 'warn', 'Service wird neu gestartet… Seite lädt in 5 Sekunden neu.');
+  window.scrollTo(0, 0);
+  setTimeout(() => location.reload(), 5000);
+}
+</script>
+{% endblock %}

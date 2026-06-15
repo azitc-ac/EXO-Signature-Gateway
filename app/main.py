@@ -2,19 +2,24 @@ import asyncio
 import logging
 import ssl
 import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 import uvicorn
 from aiosmtpd.controller import Controller
 
 import config
-from handler import SignatureHandler
-from webui.app import app as fastapi_app
+import settings_store
 
+# Must run before webui import: webui adds a MemoryLogHandler to the root logger,
+# and logging.basicConfig() is a no-op once any handler exists on root.
 logging.basicConfig(
-    level=getattr(logging, config.LOG_LEVEL, logging.INFO),
+    level=getattr(logging, config._ENV_SEEDS.get("LOG_LEVEL", "INFO"), logging.INFO),
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
+
+from handler import SignatureHandler
+from webui.app import app as fastapi_app
 log = logging.getLogger(__name__)
 
 
@@ -29,17 +34,48 @@ def _build_tls_context() -> ssl.SSLContext | None:
     return ctx
 
 
-def _run_webui():
+def _run_acme_http() -> None:
+    webroot = Path("/app/data/acme-webroot")
+    webroot.mkdir(parents=True, exist_ok=True)
+
+    class _Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            path = webroot / self.path.lstrip("/")
+            if path.is_file():
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(path.read_bytes())
+            else:
+                self.send_response(404)
+                self.end_headers()
+
+        def log_message(self, *args):
+            pass
+
+    try:
+        HTTPServer(("0.0.0.0", 80), _Handler).serve_forever()
+    except OSError as exc:
+        log.warning("ACME HTTP server could not bind on port 80: %s", exc)
+
+
+def _run_webui() -> None:
+    cert = Path(config.SMTP_TLS_CERT)
+    key = Path(config.SMTP_TLS_KEY)
+    ssl_kwargs: dict = {}
+    if cert.exists() and key.exists():
+        ssl_kwargs = {"ssl_certfile": str(cert), "ssl_keyfile": str(key)}
+        log.info("Web UI TLS enabled (https://0.0.0.0:%d)", config.WEBUI_PORT)
     uvicorn.run(
         fastapi_app,
         host="0.0.0.0",
         port=config.WEBUI_PORT,
-        log_level=config.LOG_LEVEL.lower(),
+        log_level=settings_store.get("LOG_LEVEL").lower(),
         access_log=False,
+        **ssl_kwargs,
     )
 
 
-async def _run_smtp():
+async def _run_smtp() -> None:
     tls_ctx = _build_tls_context()
     handler = SignatureHandler()
 
@@ -63,11 +99,14 @@ async def _run_smtp():
         controller.stop()
 
 
-def main():
-    log.info("Starting EXO Signature Service")
+def main() -> None:
+    settings_store.init(config._ENV_SEEDS)
 
-    webui_thread = threading.Thread(target=_run_webui, daemon=True)
-    webui_thread.start()
+    log.info("Starting EXO Signature Service v%s", config.VERSION)
+
+    threading.Thread(target=_run_acme_http, daemon=True).start()
+
+    threading.Thread(target=_run_webui, daemon=True).start()
     log.info("Web UI started on port %d", config.WEBUI_PORT)
 
     asyncio.run(_run_smtp())

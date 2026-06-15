@@ -2,11 +2,37 @@
 {% block content %}
 <h1>Signatur-Vorschau</h1>
 
-<form method="get" action="/preview" class="preview-form">
+<form method="get" action="/preview" class="preview-form" id="preview-form">
     <label for="email">E-Mail-Adresse (Graph-Lookup):</label>
-    <input type="email" id="email" name="email" value="{{ email }}" placeholder="user@domain.com">
+    <input type="email" id="email" name="email" value="{{ email }}" placeholder="user@domain.com" list="email-history">
+    <datalist id="email-history"></datalist>
     <button type="submit" class="btn primary">Vorschau laden</button>
 </form>
+<script>
+(function () {
+    const KEY = 'preview_email_history';
+    const input = document.getElementById('email');
+    const dl = document.getElementById('email-history');
+    const history = JSON.parse(localStorage.getItem(KEY) || '[]');
+
+    history.forEach(function (e) {
+        const opt = document.createElement('option');
+        opt.value = e;
+        dl.appendChild(opt);
+    });
+
+    if (!input.value && history.length) {
+        input.value = history[0];
+    }
+
+    document.getElementById('preview-form').addEventListener('submit', function () {
+        const val = input.value.trim().toLowerCase();
+        if (!val) return;
+        const updated = [val].concat(history.filter(function (e) { return e !== val; })).slice(0, 10);
+        localStorage.setItem(KEY, JSON.stringify(updated));
+    });
+}());
+</script>
 
 {% if error %}
 <div class="alert error">Graph-Fehler: {{ error }}</div>

@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>S/MIME Zertifikate</h1>
+
+<div id="page-alert" class="alert" style="display:none"></div>
+
+<div class="settings-card">
+  <h2>Zertifikat importieren</h2>
+  <p class="hint" style="margin-bottom:14px">
+    Importiere ein PKCS12-Bundle (.p12 / .pfx) das privaten Schlüssel und Zertifikat enthält.
+    Ausgehende Mails werden automatisch digital signiert, sobald ein Zertifikat für den Absender vorliegt.
+    Der private Schlüssel wird unverschlüsselt gespeichert — nur auf vertrauenswürdigen Hosts deployen.
+  </p>
+  <div class="settings-row">
+    <label for="smime-email">E-Mail-Adresse</label>
+    <input type="email" id="smime-email" placeholder="user@domain.com" style="width:280px">
+  </div>
+  <div class="settings-row">
+    <label for="smime-file">PKCS12-Datei (.p12 / .pfx)</label>
+    <input type="file" id="smime-file" accept=".p12,.pfx">
+  </div>
+  <div class="settings-row">
+    <label for="smime-password">Passwort (falls vorhanden)</label>
+    <input type="password" id="smime-password" placeholder="leer lassen wenn kein Passwort" style="width:260px">
+  </div>
+  <div class="actions" style="margin-top:12px">
+    <button class="btn primary" onclick="uploadCert()">Zertifikat importieren</button>
+  </div>
+  <div id="upload-result" style="margin-top:10px;display:none"></div>
+</div>
+
+<!-- Certificate table -->
+<h2>Vorhandene Zertifikate</h2>
+{% if certs %}
+<table class="config-table">
+  <thead>
+    <tr>
+      <th>E-Mail</th>
+      <th>Zertifikat-Subject</th>
+      <th>Gültig bis</th>
+      <th>Status</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for c in certs %}
+    <tr>
+      <td><code>{{ c.email }}</code></td>
+      <td style="font-size:12px;color:#555">{{ c.get("subject", "–") }}</td>
+      <td>
+        {% if c.get("expired") %}
+          <span style="color:#ef4444;font-weight:600">{{ c.expiry }} (abgelaufen)</span>
+        {% elif c.get("warning") %}
+          <span style="color:#f59e0b;font-weight:600">{{ c.expiry }} ({{ c.days_left }} Tage)</span>
+        {% else %}
+          <span style="color:#16a34a">{{ c.expiry }}</span>
+        {% endif %}
+      </td>
+      <td>
+        {% if c.get("error") %}
+          <span class="step-status pending">Fehler</span>
+        {% elif c.get("expired") %}
+          <span class="step-status pending">Abgelaufen</span>
+        {% else %}
+          <span class="step-status done">Aktiv</span>
+        {% endif %}
+      </td>
+      <td>
+        <button class="btn secondary btn-sm"
+          onclick="deleteCert('{{ c.email }}')">Löschen</button>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="hint">Noch keine Zertifikate importiert.</p>
+{% endif %}
+
+<script>
+function showAlert(el, type, msg) {
+  el.className = 'alert ' + type;
+  el.innerHTML = msg;
+  el.style.display = 'block';
+}
+
+async function uploadCert() {
+  const email    = (document.getElementById('smime-email').value || '').trim();
+  const file     = document.getElementById('smime-file').files[0];
+  const password = document.getElementById('smime-password').value || '';
+  const result   = document.getElementById('upload-result');
+
+  if (!email || !file) {
+    showAlert(result, 'error', 'E-Mail und Datei sind Pflichtfelder.');
+    return;
+  }
+
+  const fd = new FormData();
+  fd.append('email', email);
+  fd.append('p12_file', file);
+  fd.append('password', password);
+
+  const resp = await fetch('/api/smime/upload', {method: 'POST', body: fd});
+  if (resp.ok) {
+    const d = await resp.json();
+    const info = d.info || {};
+    showAlert(result, 'success',
+      `Zertifikat importiert für <strong>${email}</strong>.<br>` +
+      `Subject: ${info.subject || '–'} · Gültig bis: ${info.expiry || '–'}`);
+    setTimeout(() => location.reload(), 2000);
+  } else {
+    const d = await resp.json().catch(() => ({}));
+    showAlert(result, 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));
+  }
+}
+
+async function deleteCert(email) {
+  if (!confirm(`Zertifikat für ${email} wirklich löschen?`)) return;
+  const resp = await fetch('/api/smime/delete/' + encodeURIComponent(email), {method: 'POST'});
+  if (resp.ok) {
+    location.reload();
+  } else {
+    alert('Löschen fehlgeschlagen');
+  }
+}
+</script>
+{% endblock %}

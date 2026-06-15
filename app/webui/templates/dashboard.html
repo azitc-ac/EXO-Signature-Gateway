@@ -1,6 +1,14 @@
 {% extends "base.html" %}
 {% block content %}
 <h1>Dashboard</h1>
+
+{% if password_change_needed %}
+<div class="alert warn" style="margin-bottom:20px">
+  <strong>Sicherheitshinweis:</strong> Das Standard-Passwort <code>admin</code> ist noch aktiv.
+  Bitte im <a href="/setup">Einrichtungsassistenten</a> ein sicheres Passwort setzen.
+</div>
+{% endif %}
+
 <div class="stats-grid">
     <div class="stat-card">
         <div class="stat-value">{{ stats.processed }}</div>

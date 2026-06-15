@@ -1,5 +1,6 @@
 .env
 certs/
+data/
 templates/signature.html
 templates/signature.txt
 __pycache__/

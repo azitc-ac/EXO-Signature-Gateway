@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="display:flex; align-items:baseline; gap:16px; margin-bottom:16px;">
+    <h1 style="margin:0">Log</h1>
+    <div style="display:flex; gap:8px; margin-left:auto; align-items:center;">
+        <label style="font-size:12px; color:#666; display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:400; margin:0;">
+            <input type="checkbox" id="chkScroll" checked style="margin:0; width:14px; height:14px;">
+            Auto-scroll
+        </label>
+        <button class="btn secondary btn-sm" onclick="clearLog()">Leeren</button>
+        <span id="connStatus" class="log-status connecting">Verbinde…</span>
+    </div>
+</div>
+
+<div id="logWrap" class="log-wrap">
+    <pre id="logPre" class="log-pre"></pre>
+</div>
+
+<script>
+const pre    = document.getElementById('logPre');
+const wrap   = document.getElementById('logWrap');
+const status = document.getElementById('connStatus');
+const chk    = document.getElementById('chkScroll');
+let   es     = null;
+
+function levelClass(line) {
+    if (/\bCRITICAL\b/.test(line)) return 'log-critical';
+    if (/\bERROR\b/.test(line))    return 'log-error';
+    if (/\bWARNING\b/.test(line))  return 'log-warn';
+    if (/\bDEBUG\b/.test(line))    return 'log-debug';
+    return '';
+}
+
+function appendLine(text) {
+    const span = document.createElement('span');
+    const cls  = levelClass(text);
+    if (cls) span.className = cls;
+    span.textContent = text + '\n';
+    pre.appendChild(span);
+
+    // cap DOM at 2000 lines
+    while (pre.children.length > 2000) pre.removeChild(pre.firstChild);
+
+    if (chk.checked) wrap.scrollTop = wrap.scrollHeight;
+}
+
+function setStatus(label, cls) {
+    status.textContent = label;
+    status.className   = 'log-status ' + cls;
+}
+
+function connect() {
+    if (es) es.close();
+    setStatus('Verbinde…', 'connecting');
+    es = new EventSource('/log/stream?token={{ stream_token }}');
+
+    es.onopen = () => setStatus('Live', 'live');
+
+    es.onmessage = e => {
+        try { appendLine(JSON.parse(e.data)); } catch (_) {}
+    };
+
+    es.onerror = () => {
+        setStatus('Getrennt – verbinde neu…', 'connecting');
+        es.close();
+        setTimeout(connect, 3000);
+    };
+}
+
+function clearLog() {
+    pre.textContent = '';
+}
+
+connect();
+</script>
+{% endblock %}
