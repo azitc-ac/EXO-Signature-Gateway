@@ -129,8 +129,9 @@ def inject(msg: email.message.Message, sig_html: str, sig_txt: str) -> email.mes
     if msg.get_content_maintype() == "multipart":
         _inject_into_multipart(msg, sig_html, sig_txt)
     elif content_type == "text/html":
-        payload = msg.get_payload(decode=True).decode(msg.get_content_charset() or "utf-8", errors="replace")
-        msg.set_payload(_append_html_sig(payload, sig_html), charset="utf-8")
+        charset = msg.get_content_charset() or "utf-8"
+        payload = msg.get_payload(decode=True).decode(charset, errors="replace")
+        _set_part_payload(msg, _append_html_sig(payload, sig_html), charset)
     elif content_type == "text/plain":
         payload = msg.get_payload(decode=True).decode(msg.get_content_charset() or "utf-8", errors="replace")
         new_payload = payload + "\n\n" + sig_txt if sig_txt else payload
