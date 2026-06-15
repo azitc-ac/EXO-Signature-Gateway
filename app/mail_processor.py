@@ -5,6 +5,7 @@ import email.mime.multipart
 import email.mime.text
 import email.mime.base
 import logging
+import re
 from copy import deepcopy
 
 import loop_detector
@@ -131,6 +132,7 @@ def inject(msg: email.message.Message, sig_html: str, sig_txt: str) -> email.mes
     elif content_type == "text/html":
         charset = msg.get_content_charset() or "utf-8"
         payload = msg.get_payload(decode=True).decode(charset, errors="replace")
+        payload = _strip_client_sig_divs(payload)
         _set_part_payload(msg, _append_html_sig(payload, sig_html), charset)
     elif content_type == "text/plain":
         charset = msg.get_content_charset() or "utf-8"
@@ -170,12 +172,56 @@ def _inject_into_multipart(msg: email.message.Message, sig_html: str, sig_txt: s
     if html_part is not None and sig_html:
         charset = html_part.get_content_charset() or "utf-8"
         payload = html_part.get_payload(decode=True).decode(charset, errors="replace")
+        payload = _strip_client_sig_divs(payload)
         _set_part_payload(html_part, _append_html_sig(payload, sig_html), charset)
 
     if txt_part is not None and sig_txt:
         charset = txt_part.get_content_charset() or "utf-8"
         payload = txt_part.get_payload(decode=True).decode(charset, errors="replace")
         _set_part_payload(txt_part, payload + "\n\n" + sig_txt, charset)
+
+
+_CLIENT_SIG_DIV_IDS = [
+    "ms-outlook-mobile-signature",
+    "ms-outlook-mobile-body-separator-line",
+]
+
+
+def _strip_client_sig_divs(html: str) -> str:
+    """Remove known mail-client signature divs to prevent double signatures.
+
+    Outlook Mobile embeds its own signature as <div id="ms-outlook-mobile-signature">.
+    We strip it (and the separator line) so only the proxy signature remains.
+    Uses depth-counting to handle nested divs without a full HTML parser.
+    """
+    lower = html.lower()
+    for div_id in _CLIENT_SIG_DIV_IDS:
+        # Match <div ... id="div_id" ...> allowing any surrounding attributes
+        pattern = re.compile(
+            r'<div\b[^>]*\bid=["\']' + re.escape(div_id) + r'["\'][^>]*>',
+            re.IGNORECASE,
+        )
+        m = pattern.search(lower)
+        if not m:
+            continue
+        idx = m.start()
+        tag_end = m.end()
+        pos = tag_end
+        depth = 1
+        while pos < len(html) and depth > 0:
+            next_open = lower.find('<div', pos)
+            next_close = lower.find('</div>', pos)
+            if next_close == -1:
+                break
+            if next_open != -1 and next_open < next_close:
+                depth += 1
+                pos = next_open + 4
+            else:
+                depth -= 1
+                pos = next_close + 6
+        html = html[:idx] + html[pos:]
+        lower = html.lower()
+    return html
 
 
 def _append_html_sig(html: str, sig_html: str) -> str:
