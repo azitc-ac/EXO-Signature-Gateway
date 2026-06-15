@@ -19,6 +19,7 @@ Open question (requires testing):
 
 import base64
 import email as email_mod
+import email.header
 import email.policy
 import email.utils
 import logging
@@ -115,11 +116,14 @@ def send_via_graph(mail_from: str, rcpt_tos: list[str], content_bytes: bytes) ->
     msg = email_mod.message_from_bytes(content_bytes, policy=email_mod.policy.compat32)
 
     # ── Extract headers ───────────────────────────────────────────────────────
-    subject = msg.get("Subject", "(no subject)")
-    from_header = msg.get("From", mail_from)
-    to_header = msg.get("To", "")
-    cc_header = msg.get("Cc", "")
-    reply_to_header = msg.get("Reply-To", "")
+    def _decode_header(value: str) -> str:
+        return str(email.header.make_header(email.header.decode_header(value)))
+
+    subject = _decode_header(msg.get("Subject", "(no subject)"))
+    from_header = _decode_header(msg.get("From", mail_from))
+    to_header = _decode_header(msg.get("To", ""))
+    cc_header = _decode_header(msg.get("Cc", ""))
+    reply_to_header = _decode_header(msg.get("Reply-To", ""))
     in_reply_to = msg.get("In-Reply-To", "")
     references = msg.get("References", "")
     importance = msg.get("Importance", "")
