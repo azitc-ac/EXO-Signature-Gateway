@@ -153,6 +153,18 @@ def inject(msg: email.message.Message, sig_html: str, sig_txt: str) -> email.mes
     return msg
 
 
+def _set_part_payload(part: email.message.Message, text: str, charset: str = "utf-8") -> None:
+    # set_payload(str, charset) has a bug in Python's email library: when the
+    # Charset object equals its own output charset string, body_encode() is
+    # skipped and the raw string is stored while the CTE header still says
+    # "base64". Decoding that later produces binary garbage.  Work around it by
+    # setting raw bytes and letting encode_base64() do the encoding.
+    while "Content-Transfer-Encoding" in part:
+        del part["Content-Transfer-Encoding"]
+    part.set_payload(text.encode(charset))
+    email.encoders.encode_base64(part)
+
+
 def _inject_into_multipart(msg: email.message.Message, sig_html: str, sig_txt: str) -> None:
     html_part = None
     txt_part = None
@@ -167,12 +179,12 @@ def _inject_into_multipart(msg: email.message.Message, sig_html: str, sig_txt: s
     if html_part is not None and sig_html:
         charset = html_part.get_content_charset() or "utf-8"
         payload = html_part.get_payload(decode=True).decode(charset, errors="replace")
-        html_part.set_payload(_append_html_sig(payload, sig_html), charset="utf-8")
+        _set_part_payload(html_part, _append_html_sig(payload, sig_html), charset)
 
     if txt_part is not None and sig_txt:
         charset = txt_part.get_content_charset() or "utf-8"
         payload = txt_part.get_payload(decode=True).decode(charset, errors="replace")
-        txt_part.set_payload(payload + "\n\n" + sig_txt, charset="utf-8")
+        _set_part_payload(txt_part, payload + "\n\n" + sig_txt, charset)
 
 
 def _append_html_sig(html: str, sig_html: str) -> str:
