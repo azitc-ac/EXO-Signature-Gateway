@@ -91,10 +91,6 @@
   </div>
 
   <div id="graph-fields" style="display:none">
-    <div class="alert warn" style="margin-top:8px">
-      <strong>Experimentell</strong> — prüfe ob <code>X-Sig-Applied: 1</code> die Transport Rule Auswertung erreicht
-      (verhindert Endlosschleife). Erst in einem Test-Tenant validieren.
-    </div>
     <p class="hint" style="margin-top:8px">
       Benötigt <code>Mail.Send</code> Application Permission in der Azure App-Registrierung.
       Sent Items werden automatisch mit signierter Version befüllt — kein separater Patch nötig.
@@ -149,6 +145,13 @@
   <div class="settings-row">
     <label for="test-to">Empfänger</label>
     <input type="email" id="test-to" placeholder="empfaenger@domain.com">
+  </div>
+  <div class="settings-row">
+    <label for="test-type">Format</label>
+    <select id="test-type">
+      <option value="plain">Nur Text (plain text)</option>
+      <option value="html">HTML</option>
+    </select>
   </div>
   <div class="actions" style="margin-top:12px">
     <button class="btn primary" onclick="sendTestMail()">Test-Mail senden</button>
@@ -271,6 +274,7 @@ async function saveSettings() {
 async function sendTestMail() {
   const from_email = (document.getElementById('test-from').value || '').trim();
   const to_email = (document.getElementById('test-to').value || '').trim();
+  const mail_type = document.getElementById('test-type').value;
   const result = document.getElementById('test-result');
 
   if (!from_email || !to_email) {
@@ -282,7 +286,7 @@ async function sendTestMail() {
   const resp = await fetch('/api/test-mail', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({from_email, to_email}),
+    body: JSON.stringify({from_email, to_email, mail_type}),
   });
 
   if (resp.ok) {

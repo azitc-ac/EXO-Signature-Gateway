@@ -577,11 +577,23 @@ async def api_test_mail(request: Request, user: str = Depends(_check_auth)):
     data = await request.json()
     from_email = (data.get("from_email") or "").strip()
     to_email = (data.get("to_email") or "").strip()
+    mail_type = (data.get("mail_type") or "plain").strip()
     if not from_email or not to_email:
         raise HTTPException(400, "from_email und to_email sind erforderlich")
 
-    msg = MIMEText("Dies ist eine Test-Mail vom EXO Signature Service.\nDie Signatur wird durch den Service eingefügt.", "plain", "utf-8")
-    msg["Subject"] = "Test-Mail – Signaturprüfung"
+    if mail_type == "html":
+        msg = MIMEText(
+            "<html><body><p>Dies ist eine HTML Test-Mail vom EXO Signature Service.</p>"
+            "<p>Die Signatur wird durch den Service eingefügt.</p></body></html>",
+            "html", "utf-8",
+        )
+    else:
+        msg = MIMEText(
+            "Dies ist eine Nur-Text Test-Mail vom EXO Signature Service.\n"
+            "Die Signatur wird durch den Service eingefügt.",
+            "plain", "utf-8",
+        )
+    msg["Subject"] = f"Test-Mail ({mail_type}) – Signaturprüfung"
     msg["From"] = from_email
     msg["To"] = to_email
 
