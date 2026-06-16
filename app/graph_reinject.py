@@ -217,8 +217,10 @@ def send_via_graph_mime(mail_from: str, rcpt_tos: list[str], content_bytes: byte
     }
 
     try:
+        import base64
+        encoded = base64.b64encode(content_bytes)
         with httpx.Client(timeout=30) as client:
-            resp = client.post(url, content=content_bytes, headers=headers, params=params)
+            resp = client.post(url, content=encoded, headers=headers, params=params)
 
         if resp.status_code == 202:
             log.info("Graph MIME re-inject OK: from=%s to=%s", from_addr, rcpt_tos)
