@@ -1,6 +1,6 @@
 # EXO Signature Service
 
-Ein Docker-basierter SMTP-Proxy, der automatisch E-Mail-Signaturen in Exchange Online (EXO) einbettet – ohne Exchange-Server-seitige Transportregeln (die nur in E3/E5-Lizenzen verfügbar sind).
+Ein Docker-basierter SMTP-Proxy, der automatisch E-Mail-Signaturen in Exchange Online (EXO) einbettet – ohne Exchange-Server-seitige Transportregeln.
 
 ## Wie es funktioniert
 
