@@ -340,6 +340,53 @@ async def run_post_auth_setup(token: str) -> dict:
     return result
 
 
+# ── Step: run PowerShell S/MIME transport rules setup ────────────────────────
+
+def run_smime_rules_setup(
+    app_id: str,
+    tenant_domain: str,
+    connector_name: str = "EXO Signature Service - Outbound",
+) -> dict:
+    """
+    Run the PowerShell script to create the two S/MIME inbound transport rules.
+    Returns {"ok": bool, "output": str}.
+    """
+    script = Path("/app/scripts/setup_smime_rules.ps1")
+    if not script.exists():
+        return {"ok": False, "output": "PowerShell script not found"}
+
+    if not _AUTH_CERT_PATH.exists():
+        return {
+            "ok": False,
+            "output": (
+                "Auth-Zertifikat nicht gefunden (/app/data/auth.pfx). "
+                "Bitte Schritt 3 (Azure-Anmeldung) erneut durchführen."
+            ),
+        }
+
+    cmd = [
+        "pwsh", "-NoProfile", "-NonInteractive", "-File", str(script),
+        "-AppId", app_id,
+        "-Organization", tenant_domain,
+        "-CertPath", str(_AUTH_CERT_PATH),
+        "-ConnectorName", connector_name,
+    ]
+
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+        output = (proc.stdout + "\n" + proc.stderr).strip()
+        if proc.returncode == 0:
+            settings_store.update({"SMIME_RULES_CREATED": True})
+            log.info("S/MIME transport rules setup succeeded")
+            return {"ok": True, "output": output}
+        else:
+            log.error("S/MIME rules setup failed rc=%d: %s", proc.returncode, output)
+            return {"ok": False, "output": output}
+    except Exception as exc:
+        log.error("S/MIME rules setup error: %s", exc)
+        return {"ok": False, "output": str(exc)}
+
+
 # ── Step: run PowerShell EXO connector setup ──────────────────────────────────
 
 def run_exo_connector_setup(

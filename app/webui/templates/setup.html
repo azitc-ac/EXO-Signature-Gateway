@@ -373,10 +373,64 @@
   </div>
 </div>
 
-<!-- ── Step 8: Verbindungstest ────────────────────────────────────────────── -->
-<div class="wizard-step {% if e.setup_complete %}done{% endif %}" id="step-8">
+<!-- ── Steps 8+9 (opt): S/MIME Inbound Transport Rules ───────────────────── -->
+<div class="wizard-step {% if e.smime_rules_created %}done{% endif %}" id="step-smime" style="border-color:#7c3aed22">
   <div class="step-header">
-    <span class="step-badge">8</span>
+    <span class="step-badge" style="background:#7c3aed">opt</span>
+    <span class="step-title">S/MIME – Inbound Transport-Regeln</span>
+    {% if e.smime_rules_created %}
+    <span class="step-status done" style="background:#f3e8ff;color:#7c3aed">Eingerichtet</span>
+    {% else %}
+    <span class="step-status pending" style="background:#f3e8ff;color:#7c3aed">Optional</span>
+    {% endif %}
+  </div>
+  <div class="step-body">
+    <p class="hint" style="margin-bottom:12px">
+      Erstellt zwei Transport-Regeln in Exchange Online:
+    </p>
+    <ul style="margin:0 0 14px 16px;line-height:1.9;font-size:13px">
+      <li><strong>Signierte Mails</strong>: Externe signierte Eingangs-Mails werden über den Proxy geleitet.
+        Proxy entfernt S/MIME-Signatur, sammelt Public Key des Absenders und ergänzt den Betreff
+        (<code>[signiert von Max Mustermann]</code>).</li>
+      <li><strong>Verschlüsselte Mails</strong>: Proxy entschlüsselt mit dem privaten Schlüssel des
+        internen Empfängers und ergänzt Betreff (<code>[verschlüsselt]</code> oder
+        <code>[verschlüsselt, signiert von …]</code>).<br>
+        Voraussetzung: privater Schlüssel unter <a href="/smime">S/MIME → Signatur-Zertifikate</a> importiert.</li>
+    </ul>
+
+    {% if not e.exo_connector_created %}
+    <div class="alert warn" style="margin-bottom:12px">Erst Schritt 7 (EXO Connector) abschließen.</div>
+    {% endif %}
+
+    <div id="smime-rules-result" style="margin-top:8px;display:none"></div>
+    <div class="actions" style="margin-top:12px">
+      <button class="btn primary" id="smime-rules-btn"
+        onclick="setupSmimeRules()"
+        {% if not e.exo_connector_created %}disabled{% endif %}>
+        {% if e.smime_rules_created %}Transport-Regeln neu erstellen{% else %}S/MIME Transport-Regeln einrichten{% endif %}
+      </button>
+    </div>
+
+    {% if e.smime_rules_created %}
+    <p class="hint" style="margin-top:10px">
+      Regeln aktiv:<br>
+      <code>EXO Signature Service - SMIME Signed Inbound</code> (Signed → Proxy)<br>
+      <code>EXO Signature Service - SMIME Encrypted Inbound</code> (Encrypted → Proxy)
+    </p>
+    {% endif %}
+
+    <div style="margin-top:16px;padding:10px;background:#f8fafc;border-radius:6px;font-size:12px;color:#666">
+      <strong>Alternativ: Harvesting-only</strong> ohne Mail-Veränderung —
+      unter <a href="/settings">Einstellungen → S/MIME → Harvest-Adresse</a> eine interne Adresse eintragen
+      und signierte Mails per <code>AddToRecipients</code> dorthin leiten.
+    </div>
+  </div>
+</div>
+
+<!-- ── Step 10: Verbindungstest ───────────────────────────────────────────── -->
+<div class="wizard-step {% if e.setup_complete %}done{% endif %}" id="step-10">
+  <div class="step-header">
+    <span class="step-badge">10</span>
     <span class="step-title">Verbindungstest &amp; Abschluss</span>
     {% if e.setup_complete %}
     <span class="step-status done">Setup abgeschlossen</span>
@@ -668,6 +722,46 @@ function downloadAuthCert() {
   a.href = URL.createObjectURL(blob);
   a.download = 'exo-auth-cert.crt';
   a.click();
+}
+
+async function setupSmimeRules() {
+  const result = document.getElementById('smime-rules-result');
+  const btn    = document.getElementById('smime-rules-btn');
+  btn.disabled = true;
+  btn.textContent = 'Richtet Regeln ein… (kann 2 Min. dauern)';
+  hideAlert(result);
+
+  const resp = await fetch('/api/setup/smime-rules', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+  });
+
+  btn.disabled = false;
+  btn.textContent = 'S/MIME Transport-Regeln neu erstellen';
+
+  if (resp.ok) {
+    const d = await resp.json();
+    const output = (d.output || '').replace(/\n/g, '<br>');
+    showAlert(result, 'success',
+      'S/MIME Transport-Regeln eingerichtet.<br><br>' +
+      '<code style="font-size:11px">' + output + '</code>');
+    setTimeout(() => location.reload(), 3000);
+  } else {
+    const d = await resp.json().catch(() => ({}));
+    showAlert(result, 'error',
+      'Fehler: <pre style="margin:4px 0;font-size:11px">' + (d.detail || 'Unbekannt') + '</pre>');
+  }
+}
+
+function copyPS(preId, btn) {
+  const text = document.getElementById(preId).textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = 'Kopiert ✓';
+    setTimeout(() => { btn.textContent = orig; }, 2000);
+  }).catch(() => {
+    window.prompt('Bitte manuell kopieren:', text);
+  });
 }
 
 async function markComplete() {

@@ -18,6 +18,7 @@ from cryptography.hazmat.primitives.serialization import (
 
 log = logging.getLogger(__name__)
 SMIME_DIR = Path("/app/data/smime")
+RECIPIENT_DIR = Path("/app/data/smime/recipients")
 
 
 def _get_expiry(cert) -> datetime:
@@ -95,6 +96,53 @@ def list_certs() -> list[dict]:
                            "subject": "–", "expiry": "–", "days_left": 0,
                            "expired": True, "warning": False})
     return result
+
+
+# ── Recipient public key store (encryption) ───────────────────────────────────
+
+def store_recipient_cert(email: str, cert_pem: bytes) -> dict:
+    """Store a recipient's public cert (PEM). Returns cert info dict."""
+    from cryptography import x509 as _x509
+    cert = _x509.load_pem_x509_certificate(cert_pem)
+    user_dir = RECIPIENT_DIR / email.lower().strip()
+    user_dir.mkdir(parents=True, exist_ok=True)
+    (user_dir / "cert.pem").write_bytes(cert_pem)
+    log.info("Recipient S/MIME cert stored for %s", email)
+    return _cert_info(cert, email.lower().strip())
+
+
+def get_recipient_cert_path(email: str) -> Path | None:
+    p = RECIPIENT_DIR / email.lower().strip() / "cert.pem"
+    return p if p.exists() else None
+
+
+def list_recipient_certs() -> list[dict]:
+    result = []
+    if not RECIPIENT_DIR.exists():
+        return result
+    for user_dir in sorted(RECIPIENT_DIR.iterdir()):
+        cert_path = user_dir / "cert.pem"
+        if not cert_path.exists():
+            continue
+        try:
+            from cryptography import x509 as _x509
+            cert = _x509.load_pem_x509_certificate(cert_path.read_bytes())
+            result.append(_cert_info(cert, user_dir.name))
+        except Exception as exc:
+            result.append({"email": user_dir.name, "error": str(exc),
+                           "subject": "–", "expiry": "–", "days_left": 0,
+                           "expired": True, "warning": False})
+    return result
+
+
+def delete_recipient_cert(email: str) -> None:
+    p = RECIPIENT_DIR / email.lower().strip() / "cert.pem"
+    if p.exists():
+        p.unlink()
+    d = p.parent
+    if d.exists() and not any(d.iterdir()):
+        d.rmdir()
+    log.info("Recipient S/MIME cert deleted for %s", email)
 
 
 def delete_cert(email: str) -> None:

@@ -25,6 +25,13 @@
     </div>
   </div>
   <div class="settings-row">
+    <label for="log-retention">Log-Aufbewahrung (Tage)</label>
+    <div class="settings-control">
+      <input type="number" id="log-retention" value="{{ s.LOG_RETENTION_DAYS }}" min="1" max="365" style="width:80px">
+      <span class="hint">Tägliche Rotation, ältere Dateien werden automatisch gelöscht</span>
+    </div>
+  </div>
+  <div class="settings-row">
     <label for="webui-username">Web-UI Benutzername</label>
     <input type="text" id="webui-username" value="{{ s.WEBUI_USERNAME }}">
   </div>
@@ -33,6 +40,40 @@
     <div class="settings-control">
       <input type="number" id="exo-port" value="{{ s.EXO_PORT }}" min="1" max="65535" style="width:100px">
       <span class="hint">Port für die Weiterleitung an EXO. Standard: <code>25</code>. Auf Azure (Port 25 ausgehend gesperrt): Azure Support anfragen oder SendGrid als Relay nutzen.</span>
+    </div>
+  </div>
+</div>
+
+<!-- S/MIME -->
+<div class="settings-card">
+  <h2>S/MIME</h2>
+  <div class="settings-row">
+    <label for="smime-harvest-rcpt">Harvest-Adresse</label>
+    <div class="settings-control">
+      <input type="email" id="smime-harvest-rcpt" value="{{ s.SMIME_HARVEST_RCPT }}"
+        placeholder="smime-harvest@domain.com" style="width:280px">
+      <span class="hint">
+        EXO-Transportregel leitet signierte Eingangs-Mails an diese Adresse weiter.
+        Unser Proxy extrahiert dann den Public Key des Absenders automatisch.
+        Leer = deaktiviert.
+      </span>
+    </div>
+  </div>
+  <div class="settings-row">
+    <label for="smime-tag-encrypted">Tag: verschlüsselt</label>
+    <div class="settings-control">
+      <input type="text" id="smime-tag-encrypted" value="{{ s.SMIME_TAG_ENCRYPTED }}"
+        placeholder="verschlüsselt" style="width:200px">
+      <span class="hint">Text innerhalb der eckigen Klammern im Betreff für entschlüsselte Mails</span>
+    </div>
+  </div>
+  <div class="settings-row">
+    <label for="smime-tag-signed">Tag: signiert</label>
+    <div class="settings-control">
+      <input type="text" id="smime-tag-signed" value="{{ s.SMIME_TAG_SIGNED }}"
+        placeholder="signiert von {signer}" style="width:260px">
+      <span class="hint"><code>{signer}</code> wird durch den CN des Zertifikats ersetzt.
+        Kombination z.B.: <em>[verschlüsselt, signiert von Max Mustermann]</em></span>
     </div>
   </div>
 </div>
@@ -184,6 +225,22 @@
   <div id="le-result" style="margin-top:10px;display:none"></div>
 </div>
 
+<!-- Konfiguration Export / Import -->
+<div class="settings-card">
+  <h2>Konfiguration sichern &amp; wiederherstellen</h2>
+  <p class="hint" style="margin-bottom:12px">
+    Passwörter und Secrets werden <strong>nicht</strong> exportiert und müssen nach einem Import manuell ergänzt werden.
+  </p>
+  <div class="actions" style="gap:12px; flex-wrap:wrap">
+    <a class="btn secondary" href="/api/config/export" download>Konfiguration exportieren (XML)</a>
+    <label class="btn secondary" style="cursor:pointer; margin:0">
+      Konfiguration importieren (XML)
+      <input type="file" accept=".xml" style="display:none" onchange="importConfig(this)">
+    </label>
+  </div>
+  <div id="import-result" style="margin-top:10px;display:none"></div>
+</div>
+
 <!-- Save + Restart -->
 <div class="settings-card" style="background:transparent;border:none;box-shadow:none;padding:0">
   <div class="actions">
@@ -246,12 +303,16 @@ async function saveSettings() {
   const payload = {
     FALLBACK_ON_ERROR: document.getElementById('fallback').checked,
     LOG_LEVEL: document.getElementById('log-level').value,
+    LOG_RETENTION_DAYS: parseInt(document.getElementById('log-retention').value, 10) || 30,
     WEBUI_USERNAME: (document.getElementById('webui-username').value || '').trim(),
     REINJECT_MODE: document.getElementById('reinject-mode').value,
     EXO_PORT: parseInt(document.getElementById('exo-port').value, 10) || 25,
     RELAY_USER: (document.getElementById('relay-user').value || '').trim(),
     LOOP_HEADER: (document.getElementById('loop-header').value || '').trim() || 'X-Sig-Applied',
     SENT_ITEMS_UPDATE: document.getElementById('sent-items').checked,
+    SMIME_HARVEST_RCPT: (document.getElementById('smime-harvest-rcpt').value || '').trim().toLowerCase(),
+    SMIME_TAG_ENCRYPTED: (document.getElementById('smime-tag-encrypted').value || '').trim() || 'verschlüsselt',
+    SMIME_TAG_SIGNED: (document.getElementById('smime-tag-signed').value || '').trim() || 'signiert von {signer}',
     USER_WEBSITES: collectKV('websites'),
     USER_BOOKINGS: collectKV('bookings'),
     LE_DOMAIN: le_domain,
@@ -331,6 +392,27 @@ async function renewCert() {
     const data = await resp.json().catch(() => ({}));
     showAlert(result, 'error', 'certbot-Fehler: ' + (data.detail || 'Unbekannt'));
   }
+}
+
+async function importConfig(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const result = document.getElementById('import-result');
+  const fd = new FormData();
+  fd.append('xml_file', file);
+  const resp = await fetch('/api/config/import', {method: 'POST', body: fd});
+  const alert = document.getElementById('page-alert');
+  if (resp.ok) {
+    const d = await resp.json();
+    showAlert(alert, 'success', `Konfiguration importiert (${d.imported} Einstellungen). Bitte speichern und neu starten.`);
+    window.scrollTo(0, 0);
+    setTimeout(() => location.reload(), 1500);
+  } else {
+    const d = await resp.json().catch(() => ({}));
+    showAlert(result, 'error', 'Import-Fehler: ' + (d.detail || 'Unbekannt'));
+    result.style.display = 'block';
+  }
+  input.value = '';
 }
 
 async function restartService() {

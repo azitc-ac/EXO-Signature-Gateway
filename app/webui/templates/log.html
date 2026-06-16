@@ -1,7 +1,24 @@
 {% extends "base.html" %}
 {% block content %}
+
+<!-- ── Log-Suche ─────────────────────────────────────────────────────────── -->
+<div class="settings-card" style="margin-bottom:20px">
+  <h2 style="margin-top:0">Log-Suche</h2>
+  <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+    <input type="text" id="searchInput" placeholder="Suchbegriff (z.B. E-Mail-Adresse, ERROR, …)"
+      style="flex:1; min-width:200px" onkeydown="if(event.key==='Enter') doSearch()">
+    <button class="btn primary" onclick="doSearch()">Suchen</button>
+    <button class="btn secondary" onclick="clearSearch()">Leeren</button>
+  </div>
+  <div id="searchStats" style="font-size:12px;color:#666;margin-top:6px;display:none"></div>
+  <div id="searchResults" style="margin-top:10px;display:none">
+    <pre id="searchPre" class="log-pre" style="max-height:300px;overflow:auto"></pre>
+  </div>
+</div>
+
+<!-- ── Live-Log ───────────────────────────────────────────────────────────── -->
 <div style="display:flex; align-items:baseline; gap:16px; margin-bottom:16px;">
-    <h1 style="margin:0">Log</h1>
+    <h1 style="margin:0">Live-Log</h1>
     <div style="display:flex; gap:8px; margin-left:auto; align-items:center;">
         <label style="font-size:12px; color:#666; display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:400; margin:0;">
             <input type="checkbox" id="chkScroll" checked style="margin:0; width:14px; height:14px;">
@@ -17,6 +34,46 @@
 </div>
 
 <script>
+// ── Suche ──────────────────────────────────────────────────────────────────
+async function doSearch() {
+  const q = (document.getElementById('searchInput').value || '').trim();
+  if (!q) return;
+  const stats = document.getElementById('searchStats');
+  const results = document.getElementById('searchResults');
+  const pre = document.getElementById('searchPre');
+  stats.textContent = 'Suche läuft…';
+  stats.style.display = 'block';
+  results.style.display = 'none';
+
+  const resp = await fetch('/api/logs/search?q=' + encodeURIComponent(q));
+  if (!resp.ok) {
+    stats.textContent = 'Fehler bei der Suche.';
+    return;
+  }
+  const data = await resp.json();
+  const lines = data.results || [];
+  stats.textContent = `${lines.length} Treffer${lines.length === 500 ? ' (Limit erreicht)' : ''}`;
+  if (lines.length === 0) {
+    pre.textContent = '(keine Treffer)';
+  } else {
+    pre.innerHTML = '';
+    lines.forEach(function(line) {
+      const span = document.createElement('span');
+      span.className = levelClass(line);
+      span.textContent = line + '\n';
+      pre.appendChild(span);
+    });
+  }
+  results.style.display = 'block';
+}
+
+function clearSearch() {
+  document.getElementById('searchInput').value = '';
+  document.getElementById('searchStats').style.display = 'none';
+  document.getElementById('searchResults').style.display = 'none';
+}
+
+// ── Live-Log ───────────────────────────────────────────────────────────────
 const pre    = document.getElementById('logPre');
 const wrap   = document.getElementById('logWrap');
 const status = document.getElementById('connStatus');
@@ -37,10 +94,7 @@ function appendLine(text) {
     if (cls) span.className = cls;
     span.textContent = text + '\n';
     pre.appendChild(span);
-
-    // cap DOM at 2000 lines
     while (pre.children.length > 2000) pre.removeChild(pre.firstChild);
-
     if (chk.checked) wrap.scrollTop = wrap.scrollHeight;
 }
 
@@ -53,13 +107,10 @@ function connect() {
     if (es) es.close();
     setStatus('Verbinde…', 'connecting');
     es = new EventSource('/log/stream?token={{ stream_token }}');
-
     es.onopen = () => setStatus('Live', 'live');
-
     es.onmessage = e => {
         try { appendLine(JSON.parse(e.data)); } catch (_) {}
     };
-
     es.onerror = () => {
         setStatus('Getrennt – verbinde neu…', 'connecting');
         es.close();
@@ -67,9 +118,7 @@ function connect() {
     };
 }
 
-function clearLog() {
-    pre.textContent = '';
-}
+function clearLog() { pre.textContent = ''; }
 
 connect();
 </script>

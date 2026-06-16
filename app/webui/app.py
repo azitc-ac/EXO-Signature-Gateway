@@ -2,8 +2,11 @@ import asyncio
 import collections
 import hashlib
 import hmac
+import io
+import json as _json_mod
 import os
 import queue as _queue_mod
+import re as _re
 import secrets
 import shutil
 import smtplib
@@ -13,6 +16,7 @@ import sys
 import threading
 import logging
 import urllib.parse
+import xml.etree.ElementTree as _ET
 from datetime import datetime, timezone
 from email.mime.text import MIMEText
 from pathlib import Path
@@ -225,6 +229,7 @@ async def setup_wizard(
         "setup_complete": s.get("SETUP_COMPLETE", False),
         "azure_app_created": s.get("AZURE_APP_CREATED", False),
         "exo_connector_created": s.get("EXO_CONNECTOR_CREATED", False),
+        "smime_rules_created": s.get("SMIME_RULES_CREATED", False),
         "password_change_needed": _password_change_required(),
         "cert_exists": Path(config.SMTP_TLS_CERT).exists(),
         "auth_cert_exists": Path("/app/data/auth.pfx").exists(),
@@ -454,6 +459,31 @@ async def api_gen_auth_cert(request: Request, user: str = Depends(_check_auth)):
     )
     cert_pem = pem_proc.stdout.decode()
     return JSONResponse({"ok": True, "cert_pem": cert_pem})
+
+
+@app.post("/api/setup/smime-rules")
+async def api_setup_smime_rules(request: Request, user: str = Depends(_check_auth)):
+    """Create S/MIME inbound transport rules in Exchange Online."""
+    import setup_wizard
+
+    app_id = config.CLIENT_ID or settings_store.get("CLIENT_ID") or ""
+    tenant_domain = settings_store.get("TENANT_DOMAIN") or ""
+
+    missing = []
+    if not app_id:
+        missing.append("CLIENT_ID")
+    if not tenant_domain:
+        missing.append("TENANT_DOMAIN")
+    if missing:
+        raise HTTPException(400, f"Fehlende Konfiguration: {', '.join(missing)}")
+
+    result = setup_wizard.run_smime_rules_setup(
+        app_id=app_id,
+        tenant_domain=tenant_domain,
+    )
+    if result["ok"]:
+        return JSONResponse({"ok": True, "output": result["output"]})
+    raise HTTPException(500, result["output"])
 
 
 @app.post("/api/setup/mark-complete")
@@ -691,15 +721,6 @@ async def config_view(request: Request, user: str = Depends(_check_auth)):
     )
 
 
-@app.get("/smime", response_class=HTMLResponse)
-async def smime_page(request: Request, user: str = Depends(_check_auth)):
-    import smime_store
-    return templates.TemplateResponse(
-        request=request, name="smime.html",
-        context={"certs": smime_store.list_certs(), "active": "smime"},
-    )
-
-
 @app.post("/api/smime/upload")
 async def api_smime_upload(
     request: Request,
@@ -770,3 +791,150 @@ async def log_stream(request: Request, token: str = ""):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+# ── S/MIME page (updated: includes recipient certs) ───────────────────────────
+
+@app.get("/smime", response_class=HTMLResponse)
+async def smime_page_v2(request: Request, user: str = Depends(_check_auth)):
+    import smime_store
+    return templates.TemplateResponse(
+        request=request, name="smime.html",
+        context={
+            "certs": smime_store.list_certs(),
+            "recipient_certs": smime_store.list_recipient_certs(),
+            "active": "smime",
+        },
+    )
+
+
+@app.post("/api/smime/recipient/upload")
+async def api_smime_recipient_upload(
+    request: Request,
+    user: str = Depends(_check_auth),
+    email: str = Form(...),
+    cert_file: UploadFile = File(...),
+):
+    import smime_store
+    cert_bytes = await cert_file.read()
+    # Accept PEM directly; also try DER → PEM conversion via openssl
+    if not cert_bytes.strip().startswith(b"-----"):
+        result = subprocess.run(
+            ["openssl", "x509", "-inform", "DER", "-outform", "PEM"],
+            input=cert_bytes, capture_output=True, timeout=10,
+        )
+        if result.returncode != 0:
+            raise HTTPException(400, "Ungültige Zertifikatsdatei (weder PEM noch DER)")
+        cert_bytes = result.stdout
+    try:
+        info = smime_store.store_recipient_cert(email.lower().strip(), cert_bytes)
+        log.info("Recipient S/MIME cert uploaded for %s by %s", email, user)
+        return JSONResponse({"ok": True, "info": info})
+    except Exception as exc:
+        log.error("Recipient cert upload error: %s", exc)
+        raise HTTPException(400, str(exc))
+
+
+@app.post("/api/smime/recipient/delete/{cert_email}")
+async def api_smime_recipient_delete(cert_email: str, user: str = Depends(_check_auth)):
+    import smime_store
+    smime_store.delete_recipient_cert(cert_email)
+    log.info("Recipient S/MIME cert deleted for %s by %s", cert_email, user)
+    return JSONResponse({"ok": True})
+
+
+# ── Persistent log search ──────────────────────────────────────────────────────
+
+@app.get("/api/logs/search")
+async def api_logs_search(q: str = "", user: str = Depends(_check_auth)):
+    if not q:
+        raise HTTPException(400, "Suchbegriff fehlt")
+    import log_manager
+    results = log_manager.search(q, max_lines=500)
+    return JSONResponse({"results": results, "count": len(results)})
+
+
+@app.get("/api/logs/files")
+async def api_logs_files(user: str = Depends(_check_auth)):
+    import log_manager
+    return JSONResponse({"files": log_manager.list_files()})
+
+
+# ── Config export / import ─────────────────────────────────────────────────────
+
+_EXPORT_EXCLUDE = {"ADMIN_PASSWORD_HASH", "CLIENT_SECRET", "RELAY_PASSWORD"}
+
+
+@app.get("/api/config/export")
+async def api_config_export(user: str = Depends(_check_auth)):
+    root = _ET.Element("exo-signature-config")
+    root.set("version", config.VERSION)
+    root.set("exported", datetime.now(timezone.utc).isoformat())
+
+    s = settings_store.get_all()
+    for key in sorted(s):
+        if key in _EXPORT_EXCLUDE:
+            continue
+        value = s[key]
+        elem = _ET.SubElement(root, "setting")
+        elem.set("key", key)
+        if isinstance(value, (dict, list)):
+            elem.set("value", _json_mod.dumps(value, ensure_ascii=False))
+            elem.set("type", "json")
+        elif isinstance(value, bool):
+            elem.set("value", "true" if value else "false")
+            elem.set("type", "bool")
+        elif isinstance(value, int):
+            elem.set("value", str(value))
+            elem.set("type", "int")
+        else:
+            elem.set("value", str(value or ""))
+
+    xml_bytes = b'<?xml version="1.0" encoding="utf-8"?>\n' + _ET.tostring(root, encoding="unicode").encode("utf-8")
+    filename = f"exo-sig-config-{datetime.now().strftime('%Y%m%d')}.xml"
+    return StreamingResponse(
+        io.BytesIO(xml_bytes),
+        media_type="application/xml",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.post("/api/config/import")
+async def api_config_import(
+    request: Request,
+    user: str = Depends(_check_auth),
+    xml_file: UploadFile = File(...),
+):
+    content = await xml_file.read()
+    try:
+        root = _ET.fromstring(content.decode("utf-8"))
+    except _ET.ParseError as exc:
+        raise HTTPException(400, f"Ungültiges XML: {exc}")
+
+    if root.tag != "exo-signature-config":
+        raise HTTPException(400, "Kein gültiges EXO-Konfigurations-XML")
+
+    patch: dict = {}
+    for elem in root.findall("setting"):
+        key = elem.get("key", "")
+        value_str = elem.get("value", "")
+        type_hint = elem.get("type", "str")
+        if not key or key in _EXPORT_EXCLUDE or key not in settings_store.DEFAULTS:
+            continue
+        try:
+            if type_hint == "json":
+                value = _json_mod.loads(value_str)
+            elif type_hint == "bool":
+                value = value_str.lower() in ("true", "1", "yes")
+            elif type_hint == "int":
+                value = int(value_str)
+            else:
+                value = value_str
+            patch[key] = value
+        except Exception:
+            pass
+
+    settings_store.update(patch)
+    log.info("Config imported by %s: %d keys from %s", user, len(patch),
+             root.get("exported", "?"))
+    return JSONResponse({"ok": True, "imported": len(patch)})

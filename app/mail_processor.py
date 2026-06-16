@@ -138,7 +138,7 @@ def inject(msg: email.message.Message, sig_html: str, sig_txt: str) -> email.mes
     elif content_type == "text/plain":
         src_charset = msg.get_content_charset() or "utf-8"
         payload = msg.get_payload(decode=True).decode(src_charset, errors="replace")
-        new_payload = payload + "\n\n" + sig_txt if sig_txt else payload
+        new_payload = _insert_txt_sig(payload, sig_txt) if sig_txt else payload
         msg.set_param("charset", "utf-8")
         _set_part_payload(msg, new_payload, "utf-8")
     else:
@@ -182,7 +182,7 @@ def _inject_into_multipart(msg: email.message.Message, sig_html: str, sig_txt: s
         src_charset = txt_part.get_content_charset() or "utf-8"
         payload = txt_part.get_payload(decode=True).decode(src_charset, errors="replace")
         txt_part.set_param("charset", "utf-8")
-        _set_part_payload(txt_part, payload + "\n\n" + sig_txt, "utf-8")
+        _set_part_payload(txt_part, _insert_txt_sig(payload, sig_txt), "utf-8")
 
 
 _CLIENT_SIG_DIV_IDS = [
@@ -226,6 +226,46 @@ def _strip_client_sig_divs(html: str) -> str:
         html = html[:idx] + html[pos:]
         lower = html.lower()
     return html
+
+
+def _insert_txt_sig(body: str, sig_txt: str) -> str:
+    """Insert sig_txt before the quoted reply block in a plain-text body.
+
+    Detects common attribution/quote patterns from iOS Mail, GMX, Outlook,
+    and Thunderbird and places the signature before the first such line.
+    Falls back to appending at the end when no quote is found.
+    """
+    lines = body.splitlines(keepends=True)
+
+    _ATTRIBUTION_PREFIXES = (
+        "> ",
+        ">",
+        "Am ",
+        "On ",
+        "Von: ",
+        "From: ",
+        "-----Original",
+        "________________________________",
+        "---",
+    )
+
+    insert_at = None
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if any(stripped.startswith(p) for p in _ATTRIBUTION_PREFIXES):
+            # Walk back over blank lines so the sig is not separated from the body
+            start = i
+            while start > 0 and lines[start - 1].strip() == "":
+                start -= 1
+            insert_at = start
+            break
+
+    if insert_at is None:
+        return body.rstrip("\n") + "\n\n" + sig_txt
+
+    before = "".join(lines[:insert_at]).rstrip("\n")
+    after = "".join(lines[insert_at:])
+    return before + "\n\n" + sig_txt + "\n\n" + after
 
 
 def _append_html_sig(html: str, sig_html: str) -> str:

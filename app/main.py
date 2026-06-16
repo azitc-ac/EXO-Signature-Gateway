@@ -18,6 +18,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
 
+import log_manager
 from handler import SignatureHandler
 from webui.app import app as fastapi_app
 log = logging.getLogger(__name__)
@@ -101,6 +102,7 @@ async def _run_smtp() -> None:
 
 def main() -> None:
     settings_store.init(config._ENV_SEEDS)
+    log_manager.setup(retention_days=int(settings_store.get("LOG_RETENTION_DAYS") or 30))
 
     log.info("Starting EXO Signature Service v%s", config.VERSION)
 

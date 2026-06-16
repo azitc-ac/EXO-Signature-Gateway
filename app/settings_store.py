@@ -19,6 +19,10 @@ DEFAULTS: dict = {
     "USER_BOOKINGS": {},
     "LE_DOMAIN": "",
     "LE_EMAIL": "",
+    "LOG_RETENTION_DAYS": 30,
+    "SMIME_HARVEST_RCPT": "",
+    "SMIME_TAG_ENCRYPTED": "verschlüsselt",
+    "SMIME_TAG_SIGNED": "signiert von {signer}",
     # ── Re-injection ─────────────────────────────────────────────────────────
     "REINJECT_MODE": "smtp",       # "smtp" or "graph"
     "RELAY_USER": "",              # Optional SMTP AUTH user (e.g. SES "apikey")
@@ -34,6 +38,7 @@ DEFAULTS: dict = {
     "TENANT_DOMAIN": "",         # Auto-discovered (e.g. "contoso.onmicrosoft.com")
     "AZURE_APP_CREATED": False,
     "EXO_CONNECTOR_CREATED": False,
+    "SMIME_RULES_CREATED": False,
     "BOOTSTRAP_CLIENT_ID": "",   # Client-ID der eigenen Bootstrap-App-Registrierung für den Setup-Login
 }
 
