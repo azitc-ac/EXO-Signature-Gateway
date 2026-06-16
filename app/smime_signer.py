@@ -5,6 +5,7 @@ Produces multipart/signed output (detached signature, clear-text readable).
 openssl is available in the container image (installed with certbot dependencies).
 """
 
+import email as _email_mod
 import logging
 import subprocess
 import tempfile
@@ -50,8 +51,18 @@ def sign(message_bytes: bytes, sender: str) -> bytes | None:
                       sender, result.stderr.decode(errors="replace"))
             return None
 
+        # openssl puts envelope headers (To, From, Subject, …) only inside the
+        # signed content, not on the outer multipart/signed wrapper. Graph API
+        # needs them on the outer message to route the mail correctly.
+        original = _email_mod.message_from_bytes(message_bytes)
+        signed_msg = _email_mod.message_from_bytes(result.stdout)
+        for hdr in ("From", "To", "Cc", "Subject", "Date", "Message-ID",
+                    "Reply-To", "In-Reply-To", "References"):
+            if not signed_msg.get(hdr) and original.get(hdr):
+                signed_msg[hdr] = original[hdr]
+
         log.info("S/MIME signed for sender=%s", sender)
-        return result.stdout
+        return signed_msg.as_bytes()
 
     except Exception as exc:
         log.error("S/MIME signing error for %s: %s", sender, exc)
