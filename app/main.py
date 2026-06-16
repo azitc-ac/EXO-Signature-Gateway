@@ -7,6 +7,7 @@ from pathlib import Path
 
 import uvicorn
 from aiosmtpd.controller import Controller
+from aiosmtpd.smtp import SMTP as _BaseSMTP, syntax, MISSING
 
 import config
 import settings_store
@@ -22,6 +23,83 @@ import log_manager
 from handler import SignatureHandler
 from webui.app import app as fastapi_app
 log = logging.getLogger(__name__)
+
+
+class _LenientSMTP(_BaseSMTP):
+    """Like aiosmtpd.SMTP but silently discards unrecognized MAIL FROM
+    parameters instead of returning 555.  EXO may send AUTH=, REQUIRETLS
+    etc. when forwarding messages; we don't need them but must not reject."""
+
+    @syntax('MAIL FROM: <address>', extended=' [SP <mail-parameters>]')
+    async def smtp_MAIL(self, arg):
+        if await self.check_helo_needed():
+            return
+        if await self.check_auth_needed("MAIL"):
+            return
+        syntaxerr = '501 Syntax: MAIL FROM: <address>'
+        if self.session.extended_smtp:
+            syntaxerr += ' [SP <mail-parameters>]'
+        if arg is None:
+            await self.push(syntaxerr)
+            return
+        arg = self._strip_command_keyword('FROM:', arg)
+        if arg is None:
+            await self.push(syntaxerr)
+            return
+        address, addrparams = self._getaddr(arg)
+        if address is None:
+            await self.push("553 5.1.3 Error: malformed address")
+            return
+        if not address:
+            await self.push(syntaxerr)
+            return
+        if not self.session.extended_smtp and addrparams:
+            await self.push(syntaxerr)
+            return
+        if self.envelope.mail_from:
+            await self.push('503 Error: nested MAIL command')
+            return
+        mail_options = addrparams.upper().split()
+        params = self._getparams(mail_options)
+        if params is None:
+            await self.push(syntaxerr)
+            return
+        if not self._decode_data:
+            body = params.pop('BODY', '7BIT')
+            if body not in ['7BIT', '8BITMIME']:
+                await self.push('501 Error: BODY can only be one of 7BIT, 8BITMIME')
+                return
+        smtputf8 = params.pop('SMTPUTF8', False)
+        if not isinstance(smtputf8, bool):
+            await self.push('501 Error: SMTPUTF8 takes no arguments')
+            return
+        if smtputf8 and not self.enable_SMTPUTF8:
+            await self.push('501 Error: SMTPUTF8 disabled')
+            return
+        self.envelope.smtp_utf8 = smtputf8
+        size = params.pop('SIZE', None)
+        if size:
+            if isinstance(size, bool) or not size.isdigit():
+                await self.push(syntaxerr)
+                return
+            elif self.data_size_limit and int(size) > self.data_size_limit:
+                await self.push('552 Error: message size exceeds fixed maximum message size')
+                return
+        if params:
+            log.debug("Ignoring unrecognized MAIL FROM params from %s: %s",
+                      self.session.peer, list(params.keys()))
+        status = await self._call_handler_hook('MAIL', address, mail_options)
+        if status is MISSING:
+            self.envelope.mail_from = address
+            self.envelope.mail_options.extend(mail_options)
+            status = '250 OK'
+        log.info('%r sender: %s', self.session.peer, address)
+        await self.push(status)
+
+
+class _LenientController(Controller):
+    def factory(self):
+        return _LenientSMTP(self.handler, **self.SMTP_kwargs)
 
 
 def _build_tls_context() -> ssl.SSLContext | None:
@@ -80,7 +158,7 @@ async def _run_smtp() -> None:
     tls_ctx = _build_tls_context()
     handler = SignatureHandler()
 
-    controller = Controller(
+    controller = _LenientController(
         handler,
         hostname="0.0.0.0",
         port=config.SMTP_PORT,
