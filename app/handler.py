@@ -204,12 +204,11 @@ class SignatureHandler:
             modified = mail_processor.inject(msg, sig_html, sig_txt)
             outbound = modified.as_bytes()
 
-            # ── S/MIME signing (SMTP mode only) ───────────────────────────────
-            if settings_store.get("REINJECT_MODE") != "graph":
-                import smime_signer
-                signed = smime_signer.sign(outbound, sender)
-                if signed:
-                    outbound = signed
+            # ── S/MIME signing ─────────────────────────────────────────────────
+            import smime_signer
+            signed = smime_signer.sign(outbound, sender)
+            if signed:
+                outbound = signed
 
             # ── S/MIME encryption (#enc# in subject) ─────────────────────────
             if wants_encryption:

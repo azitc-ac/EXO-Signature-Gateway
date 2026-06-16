@@ -189,3 +189,45 @@ def send_via_graph(mail_from: str, rcpt_tos: list[str], content_bytes: bytes) ->
     except Exception as exc:
         log.error("Graph re-inject error: %s", exc)
         return False
+
+
+def send_via_graph_mime(mail_from: str, rcpt_tos: list[str], content_bytes: bytes) -> bool:
+    """
+    Send a raw MIME message via Graph API sendMail.
+    Unlike send_via_graph(), EXO passes the message through unchanged,
+    preserving S/MIME signatures.
+    """
+    token = graph_client._acquire_token()
+    if not token:
+        log.error("No Graph token available — cannot use Graph MIME re-inject")
+        return False
+
+    msg = email_mod.message_from_bytes(content_bytes, policy=email_mod.policy.compat32)
+    from_header = msg.get("From", mail_from)
+    _, from_addr = email.utils.parseaddr(from_header)
+    from_addr = from_addr or mail_from
+
+    save_to_sent = not bool(settings_store.get("SENT_ITEMS_UPDATE"))
+    url = f"{GRAPH}/users/{from_addr}/sendMail"
+    params = {} if save_to_sent else {"saveToSentItems": "false"}
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "text/plain",
+    }
+
+    try:
+        with httpx.Client(timeout=30) as client:
+            resp = client.post(url, content=content_bytes, headers=headers, params=params)
+
+        if resp.status_code == 202:
+            log.info("Graph MIME re-inject OK: from=%s to=%s", from_addr, rcpt_tos)
+            return True
+
+        log.error("Graph sendMail (MIME) failed: HTTP %s — %s",
+                  resp.status_code, resp.text[:400])
+        return False
+
+    except Exception as exc:
+        log.error("Graph MIME re-inject error: %s", exc)
+        return False

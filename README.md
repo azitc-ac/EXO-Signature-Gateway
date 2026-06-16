@@ -8,7 +8,7 @@ Exchange Online bietet serverseitige Transportregeln für Disclaimer – diese s
 - **Volle HTML-Freiheit** via Jinja2-Templates – kein Vergleich zu den eingeschränkten Möglichkeiten der EXO-Transportregeln
 - **Intelligente Antwort-Erkennung** – Signatur wird vor dem zitierten Text eingefügt, nicht ans Ende angehängt; keine gestapelten Signaturen in Mailverläufen
 - **Client-Signaturen werden erkannt und entfernt** (Outlook Mobile u. a.), damit keine Doppelsignaturen entstehen
-- **S/MIME Signierung und Verschlüsselung** – integriert, pro Absender konfigurierbar
+- **S/MIME Signierung und Verschlüsselung** – integriert, pro Absender konfigurierbar, funktioniert in beiden Modi (Graph und SMTP)
 
 ## Wie es funktioniert
 
@@ -182,7 +182,7 @@ Optional können Mails digital mit einem S/MIME-Zertifikat signiert (nicht versc
 
 1. PFX-Zertifikat über die Web-UI unter **S/MIME** hochladen
 2. Zertifikat wird pro Absender-Adresse zugeordnet
-3. Gilt nur im SMTP-Modus (im Graph-Modus rekonstruiert EXO die Nachricht)
+3. Funktioniert in beiden Modi: Im SMTP-Modus direkt, im Graph-Modus über Raw-MIME-Übertragung (EXO rekonstruiert die Nachricht dabei nicht)
 
 ---
 

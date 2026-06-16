@@ -16,8 +16,13 @@ def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes) -> None:
     mode = settings_store.get("REINJECT_MODE") or "smtp"
 
     if mode == "graph":
+        import email as _em
         import graph_reinject
-        ok = graph_reinject.send_via_graph(mail_from, rcpt_tos, content_bytes)
+        _ct = _em.message_from_bytes(content_bytes).get_content_type().lower()
+        if _ct == "multipart/signed":
+            ok = graph_reinject.send_via_graph_mime(mail_from, rcpt_tos, content_bytes)
+        else:
+            ok = graph_reinject.send_via_graph(mail_from, rcpt_tos, content_bytes)
         if ok:
             return
         if settings_store.get("FALLBACK_ON_ERROR"):
