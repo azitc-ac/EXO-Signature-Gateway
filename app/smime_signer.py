@@ -54,27 +54,19 @@ def sign(message_bytes: bytes, sender: str) -> bytes | None:
         # openssl puts envelope headers (To, From, Subject, …) only inside the
         # signed content, not on the outer multipart/signed wrapper. Graph API
         # needs them on the outer message to route the mail correctly.
-        # We prepend missing headers as raw bytes to avoid re-serialising the
-        # signed content (which would change byte offsets and break the signature).
-        signed_raw = result.stdout
+        # Re-serialise via Python email library to add missing headers, then
+        # normalise to CRLF (openssl outputs bare LF on Linux).
         original = _email_mod.message_from_bytes(message_bytes)
-        signed_outer = _email_mod.message_from_bytes(signed_raw)
-        extra = []
+        signed_msg = _email_mod.message_from_bytes(result.stdout)
         for hdr in ("From", "To", "Cc", "Subject", "Date", "Message-ID",
                     "Reply-To", "In-Reply-To", "References"):
-            if not signed_outer.get(hdr) and original.get(hdr):
-                extra.append(f"{hdr}: {original[hdr]}\r\n".encode())
+            if not signed_msg.get(hdr) and original.get(hdr):
+                signed_msg[hdr] = original[hdr]
 
-        if extra:
-            sep = b"\r\n\r\n" if b"\r\n\r\n" in signed_raw else b"\n\n"
-            idx = signed_raw.index(sep)
-            signed_raw = signed_raw[:idx] + b"".join(extra) + signed_raw[idx:]
-
-        # openssl outputs bare LF on Linux; normalize to CRLF for SMTP
-        signed_raw = signed_raw.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+        out = signed_msg.as_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
 
         log.info("S/MIME signed for sender=%s", sender)
-        return signed_raw
+        return out
 
     except Exception as exc:
         log.error("S/MIME signing error for %s: %s", sender, exc)
