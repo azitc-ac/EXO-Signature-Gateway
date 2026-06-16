@@ -70,6 +70,9 @@ def sign(message_bytes: bytes, sender: str) -> bytes | None:
             idx = signed_raw.index(sep)
             signed_raw = signed_raw[:idx] + b"".join(extra) + signed_raw[idx:]
 
+        # openssl outputs bare LF on Linux; normalize to CRLF for SMTP
+        signed_raw = signed_raw.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+
         log.info("S/MIME signed for sender=%s", sender)
         return signed_raw
 
