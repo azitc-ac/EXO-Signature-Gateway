@@ -159,9 +159,9 @@ class SignatureHandler:
                     parts = msg.get_payload()
                     inner_part = parts[0] if isinstance(parts, list) and parts else None
                     if inner_part and loop_detector.is_signed(inner_part):
-                        # Our own signed mail looping back via transport — forward as-is.
-                        log.debug("Loop: own S/MIME signed mail from=%s returning, forwarding", sender)
-                        reinject.send(sender, recipients, raw)
+                        # Our own signed mail looping back via transport connector.
+                        # Accept without re-injecting — EXO will deliver it.
+                        log.debug("Loop: own S/MIME signed mail from=%s returning, accepting", sender)
                         return "250 OK"
                     if inner_part and not loop_detector.is_signed(inner_part):
                         import smime_harvest

@@ -11,6 +11,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+import loop_detector
 import smime_store
 
 log = logging.getLogger(__name__)
@@ -62,6 +63,10 @@ def sign(message_bytes: bytes, sender: str) -> bytes | None:
                     "Reply-To", "In-Reply-To", "References"):
             if not signed_msg.get(hdr) and original.get(hdr):
                 signed_msg[hdr] = original[hdr]
+
+        # Mark the outer wrapper so the EXO transport rule recognises this as
+        # already processed and does not route it back through our connector.
+        loop_detector.mark_as_signed(signed_msg)
 
         out = signed_msg.as_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
 
