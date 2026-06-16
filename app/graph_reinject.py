@@ -207,9 +207,7 @@ def send_via_graph_mime(mail_from: str, rcpt_tos: list[str], content_bytes: byte
     _, from_addr = email.utils.parseaddr(from_header)
     from_addr = from_addr or mail_from
 
-    save_to_sent = not bool(settings_store.get("SENT_ITEMS_UPDATE"))
     url = f"{GRAPH}/users/{from_addr}/sendMail"
-    params = {} if save_to_sent else {"saveToSentItems": "false"}
 
     headers = {
         "Authorization": f"Bearer {token}",
@@ -220,7 +218,7 @@ def send_via_graph_mime(mail_from: str, rcpt_tos: list[str], content_bytes: byte
         import base64
         encoded = base64.b64encode(content_bytes)
         with httpx.Client(timeout=30) as client:
-            resp = client.post(url, content=encoded, headers=headers, params=params)
+            resp = client.post(url, content=encoded, headers=headers)
 
         if resp.status_code == 202:
             log.info("Graph MIME re-inject OK: from=%s to=%s", from_addr, rcpt_tos)
