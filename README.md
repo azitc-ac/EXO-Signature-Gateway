@@ -1,6 +1,14 @@
 # EXO Signature Service
 
-Ein Docker-basierter SMTP-Proxy, der automatisch E-Mail-Signaturen in Exchange Online (EXO) einbettet – ohne Exchange-Server-seitige Transportregeln.
+Ein Docker-basierter SMTP-Proxy, der automatisch personalisierte E-Mail-Signaturen in Exchange Online (EXO) einbettet.
+
+Exchange Online bietet serverseitige Transportregeln für Disclaimer – diese sind jedoch auf einfache, statische Textbausteine mit begrenzten AD-Attributen beschränkt. Dieser Service geht deutlich weiter:
+
+- **Dynamische Signaturen per Graph API** – Jobtitel, Telefon, Abteilung, Website, Booking-URLs und eigene Felder (`extensionAttributes`) werden live pro Absender abgerufen
+- **Volle HTML-Freiheit** via Jinja2-Templates – kein Vergleich zu den eingeschränkten Möglichkeiten der EXO-Transportregeln
+- **Intelligente Antwort-Erkennung** – Signatur wird vor dem zitierten Text eingefügt, nicht ans Ende angehängt; keine gestapelten Signaturen in Mailverläufen
+- **Client-Signaturen werden erkannt und entfernt** (Outlook Mobile u. a.), damit keine Doppelsignaturen entstehen
+- **S/MIME Signierung und Verschlüsselung** – integriert, pro Absender konfigurierbar
 
 ## Wie es funktioniert
 
