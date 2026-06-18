@@ -3,13 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EXO Signature Service</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <title>EXO Signature Gateway</title>
+    <link rel="stylesheet" href="/static/style.css?v={{ version }}">
 </head>
 <body>
-    <nav>
-        <div class="nav-brand">EXO Signature Service <span class="nav-version">v{{ version }}</span></div>
-        <div class="nav-links">
+    <nav id="main-nav">
+        <div class="nav-brand">EXO Signature Gateway <span class="nav-version">v{{ version }}</span></div>
+        <button class="nav-toggle" id="nav-toggle" onclick="toggleMobileNav()" aria-label="Menü">
+            <span></span><span></span><span></span>
+        </button>
+        <div class="nav-links" id="nav-links">
             <ul>
                 <li><a href="/" class="{% if active == 'dashboard' %}active{% endif %}">Dashboard</a></li>
                 <li><a href="/template" class="{% if active == 'template' %}active{% endif %}">Templates</a></li>
@@ -17,11 +20,22 @@
                 <li><a href="/smime" class="{% if active == 'smime' %}active{% endif %}">S/MIME</a></li>
                 <li><a href="/settings" class="{% if active == 'settings' %}active{% endif %}">Einstellungen</a></li>
                 <li><a href="/log" class="{% if active == 'log' %}active{% endif %}">Log</a></li>
-                <li><a href="/config-view" class="{% if active == 'config' %}active{% endif %}">System</a></li>
                 <li><a href="/setup" class="{% if active == 'setup' %}active{% endif %}">Einrichtung</a></li>
             </ul>
         </div>
     </nav>
+    <script>
+      function toggleMobileNav() {
+        var links = document.getElementById('nav-links');
+        links.classList.toggle('open');
+      }
+      // Close menu on outside click
+      document.addEventListener('click', function(e) {
+        if (!document.getElementById('main-nav').contains(e.target)) {
+          document.getElementById('nav-links').classList.remove('open');
+        }
+      });
+    </script>
     <main>
         {% block content %}{% endblock %}
     </main>

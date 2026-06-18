@@ -4,63 +4,200 @@
 
 <div id="page-alert" class="alert" style="display:none"></div>
 
-<!-- ── Eigene Signatur-Zertifikate ──────────────────────────────────────── -->
+<!-- ── Signaturzertifikate für S/MIME-aktivierte Benutzer ──────────────────── -->
 <div class="settings-card">
-  <h2>Signatur-Zertifikate (Absender)</h2>
-  <p class="hint" style="margin-bottom:14px">
-    PKCS12-Bundle (.p12 / .pfx) mit privatem Schlüssel + Zertifikat.
-    Ausgehende Mails werden automatisch digital signiert sobald ein Zertifikat für den Absender vorliegt.
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+    <h2 style="margin:0">Signaturzertifikate für S/MIME-aktivierte Benutzer</h2>
+  </div>
+  <p class="hint" style="margin-bottom:16px">
+    PKCS12-Bundle (.p12 / .pfx) mit privatem Schlüssel und Zertifikat.
+    Ausgehende Mails werden automatisch signiert, sobald ein Standardzertifikat für den Absender vorliegt.
     Der private Schlüssel wird unverschlüsselt gespeichert — nur auf vertrauenswürdigen Hosts deployen.
+    Benutzer werden unter <a href="/settings">Einstellungen → Postfach-Konfiguration</a> für S/MIME aktiviert.
   </p>
-  <div class="settings-row">
-    <label for="smime-email">E-Mail-Adresse</label>
-    <input type="email" id="smime-email" placeholder="user@domain.com" style="width:280px">
-  </div>
-  <div class="settings-row">
-    <label for="smime-file">PKCS12-Datei (.p12 / .pfx)</label>
-    <input type="file" id="smime-file" accept=".p12,.pfx">
-  </div>
-  <div class="settings-row">
-    <label for="smime-password">Passwort (falls vorhanden)</label>
-    <input type="password" id="smime-password" placeholder="leer lassen wenn kein Passwort" style="width:260px">
-  </div>
-  <div class="actions" style="margin-top:12px">
-    <button class="btn primary" onclick="uploadSignCert()">Signatur-Zertifikat importieren</button>
-  </div>
-  <div id="sign-upload-result" style="margin-top:10px;display:none"></div>
+
+  {% if smime_users %}
+    {% for u in smime_users %}
+    {% set has_certs = u.certs | length > 0 %}
+    {% set multi = u.certs | length > 1 %}
+    {% set ca_cfg = ca_user_config.get(u.email, {}) %}
+    <div style="border:1px solid #e2e8f0;border-radius:6px;margin-bottom:14px;">
+      <!-- User header -->
+      <div class="user-hdr">
+        <div class="user-hdr-info">
+          <strong style="font-size:14px">{{ u.email }}</strong>
+          {% if has_certs %}
+            <span style="font-size:11px;color:#888;background:#e2e8f0;border-radius:10px;padding:1px 7px;white-space:nowrap">
+              {{ u.certs|length }} Zertifikat{{ 's' if multi else '' }}
+            </span>
+          {% else %}
+            <span style="font-size:11px;color:#e67e22;background:#fef3e2;border-radius:10px;padding:1px 7px;white-space:nowrap">kein Zertifikat</span>
+          {% endif %}
+        </div>
+        <div class="user-hdr-actions">
+          <button class="btn secondary btn-sm" onclick="openImportModal('{{ u.email }}')">Importieren</button>
+          {% set is_castle = ca_cfg.get('backend','assisted_manual') == 'castle_acme' %}
+          <button id="ae-btn-{{ u.email | replace('@','_') | replace('.','_') }}"
+                  class="btn secondary btn-sm"
+                  {% if is_castle %}onclick="startAutoEnroll('{{ u.email }}',this)"
+                  {% else %}disabled style="opacity:.45;cursor:not-allowed" title="Nur mit CASTLE-Backend verfügbar"{% endif %}>
+            Auto-Enroll
+          </button>
+          <span id="acme-status-{{ u.email | replace('@','_') | replace('.','_') }}"
+                style="font-size:12px"></span>
+        </div>
+      </div>
+      <!-- Cert list -->
+      {% if has_certs %}
+      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+      <table style="min-width:500px;width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="background:#fcfcfc;border-bottom:1px solid #edf0f4">
+            <th style="text-align:left;padding:7px 10px;color:#666;font-weight:600">Subject / Aussteller</th>
+            <th style="text-align:left;padding:7px 10px;color:#666;font-weight:600;white-space:nowrap">Gültig bis</th>
+            <th style="text-align:left;padding:7px 10px;color:#666;font-weight:600">Status</th>
+            {% if multi %}
+            <th style="text-align:center;padding:7px 10px;color:#666;font-weight:600;width:80px">Standard</th>
+            {% endif %}
+            <th style="padding:7px 10px;width:{% if multi %}170px{% else %}140px{% endif %}"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in u.certs %}
+          <tr style="border-bottom:1px solid #f0f4f8">
+            <td style="padding:8px 10px;line-height:1.4">
+              <span style="color:#222">{{ c.get("subject","–") }}</span>
+              <span style="font-size:11px;color:#aaa;margin-left:6px">{{ c.slot_id }}</span>
+            </td>
+            <td style="padding:8px 10px;white-space:nowrap">
+              {% if c.get("error") %}<span style="color:#888">–</span>
+              {% elif c.get("expired") %}<span style="color:#ef4444;font-weight:600">{{ c.expiry }}<br><span style="font-size:11px">abgelaufen</span></span>
+              {% elif c.get("warning") %}<span style="color:#f59e0b;font-weight:600">{{ c.expiry }}<br><span style="font-size:11px">{{ c.days_left }} Tage</span></span>
+              {% else %}<span style="color:#16a34a">{{ c.expiry }}</span>{% endif %}
+            </td>
+            <td style="padding:8px 10px">
+              {% if c.get("error") %}<span class="step-status pending">Fehler</span>
+              {% elif c.get("expired") %}<span class="step-status pending">Abgelaufen</span>
+              {% elif c.get("is_default") %}<span class="step-status done">Aktiv · Standard</span>
+              {% else %}<span class="step-status done">Aktiv</span>{% endif %}
+            </td>
+            {% if multi %}
+            <td style="text-align:center;padding:8px 10px">
+              <input type="radio" name="default-{{ u.email | replace('@','_') | replace('.','_') }}"
+                     value="{{ c.slot_id }}"
+                     {% if c.get("is_default") %}checked{% endif %}
+                     {% if c.get("error") %}disabled{% endif %}
+                     onchange="setDefaultCert('{{ u.email }}','{{ c.slot_id }}',this)"
+                     title="Als Standard verwenden">
+            </td>
+            {% endif %}
+            <td style="padding:8px 10px;text-align:right;white-space:nowrap;min-width:120px">
+              <button class="btn secondary btn-sm"
+                      {% if c.get("error") %}disabled style="opacity:.4"{% else %}onclick="showCertDetails('{{ u.email }}','signing','{{ c.slot_id }}')"{% endif %}>
+                Ansicht
+              </button>
+              <button class="btn secondary btn-sm"
+                      onclick="deleteCertSlot('{{ u.email }}','{{ c.slot_id }}')">
+                Löschen
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% else %}
+      <p style="padding:11px 14px;color:#aaa;margin:0;font-size:13px;font-style:italic">
+        Noch kein Zertifikat importiert.
+      </p>
+      {% endif %}
+      <!-- Lifecycle-Einstellungen (collapsible) -->
+      <details class="lifecycle-section" style="border-top:1px solid #e2e8f0;border-radius:0 0 6px 6px;overflow:hidden">
+        <summary style="padding:9px 14px;cursor:pointer;font-size:12px;font-weight:600;color:#666;
+                        list-style:none;display:flex;align-items:center;gap:6px;user-select:none;
+                        background:#fafafa">
+          <span style="font-size:14px">⚙</span> Lifecycle / Auto-Enroll-Einstellungen
+        </summary>
+        <div style="padding:14px 16px;background:#fafafa;border-top:1px solid #f0f0f0">
+          <div class="settings-row" style="margin-bottom:10px">
+            <label style="width:160px;min-width:160px;font-size:13px">Backend</label>
+            <select class="lc-backend" data-email="{{ u.email }}"
+                    style="width:300px;font-size:13px"
+                    onchange="_onBackendChange('{{ u.email }}',this.value)">
+              {% for b in backends %}
+              <option value="{{ b.name }}"
+                      {% if ca_cfg.get('backend','assisted_manual') == b.name %}selected{% endif %}>
+                {{ b.label }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="settings-row" style="margin-bottom:10px">
+            <label style="width:160px;min-width:160px;font-size:13px">CA-Portal-URL</label>
+            <input type="url" class="lc-portal" data-email="{{ u.email }}"
+                   value="{{ ca_cfg.get('portal_url','') }}"
+                   placeholder="https://extrassl.actalis.it/portal/…"
+                   style="width:300px;font-size:13px">
+          </div>
+          <div class="settings-row" style="margin-bottom:12px">
+            <label class="checkbox-label" style="font-size:13px">
+              <input type="checkbox" class="lc-notify" data-email="{{ u.email }}"
+                     {% if ca_cfg.get('notify_user') %}checked{% endif %}>
+              Benutzer bei ablaufendem Zertifikat automatisch benachrichtigen
+            </label>
+          </div>
+          <!-- CASTLE Staging toggle (only visible for castle_acme backend) -->
+          <div class="lc-castle-opts" data-email="{{ u.email }}"
+               style="{% if ca_cfg.get('backend','assisted_manual') != 'castle_acme' %}display:none;{% endif %}margin-bottom:12px">
+            <label class="checkbox-label" style="font-size:13px">
+              <input type="checkbox" class="lc-staging" data-email="{{ u.email }}"
+                     {% if ca_cfg.get('staging') %}checked{% endif %}>
+              CASTLE Staging-Server verwenden (Test, keine echten Zertifikate)
+            </label>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+            <button class="btn secondary btn-sm"
+                    onclick="saveCaConfig('{{ u.email }}')">Speichern</button>
+            <button class="btn secondary btn-sm"
+                    onclick="sendRenewalNotification('{{ u.email }}',this)"
+                    {% if not has_certs %}disabled style="opacity:.4"{% endif %}>
+              Test-Benachrichtigung senden
+            </button>
+          </div>
+
+          <!-- Self-service link -->
+          <div style="background:#f0f4ff;border:1px solid #c7d7ff;border-radius:6px;padding:10px 14px;font-size:12px">
+            <strong style="color:#374151">Self-Service-Upload-Link</strong>
+            <span style="color:#888;margin-left:4px">(für Benutzer, ohne Admin-Login)</span>
+            <div id="token-area-{{ u.email | replace('@','_') | replace('.','_') }}"
+                 style="margin-top:8px">
+              <button class="btn secondary btn-sm"
+                      onclick="generateToken('{{ u.email }}',this)">Link generieren / erneuern</button>
+            </div>
+          </div>
+
+          <!-- ACME order reset (status shown in header) -->
+          <div id="acme-reset-{{ u.email | replace('@','_') | replace('.','_') }}"
+               style="margin-top:10px;{% if not acme_orders.get(u.email) %}display:none;{% endif %}">
+            <button class="btn secondary btn-sm"
+                    onclick="clearAcmeOrder('{{ u.email }}',this)">ACME-Auftrag zurücksetzen</button>
+          </div>
+          <div id="lc-result-{{ u.email | replace('@','_') | replace('.','_') }}"
+               class="alert" style="display:none;margin-top:8px"></div>
+        </div>
+      </details>
+    </div>
+    {% endfor %}
+  {% else %}
+  <p class="hint">
+    Keine Postfächer für S/MIME-Signatur aktiviert.
+    Aktivierung unter <a href="/settings">Einstellungen → Postfach-Konfiguration</a>
+    (Spalte <em>S/MIME</em> anhaken).
+  </p>
+  {% endif %}
 </div>
 
-<h2>Vorhandene Signatur-Zertifikate</h2>
-{% if certs %}
-<table class="config-table">
-  <thead>
-    <tr><th>E-Mail</th><th>Subject</th><th>Gültig bis</th><th>Status</th><th></th></tr>
-  </thead>
-  <tbody>
-    {% for c in certs %}
-    <tr>
-      <td><code>{{ c.email }}</code></td>
-      <td style="font-size:12px;color:#555">{{ c.get("subject","–") }}</td>
-      <td>
-        {% if c.get("expired") %}<span style="color:#ef4444;font-weight:600">{{ c.expiry }} (abgelaufen)</span>
-        {% elif c.get("warning") %}<span style="color:#f59e0b;font-weight:600">{{ c.expiry }} ({{ c.days_left }} Tage)</span>
-        {% else %}<span style="color:#16a34a">{{ c.expiry }}</span>{% endif %}
-      </td>
-      <td>
-        {% if c.get("error") %}<span class="step-status pending">Fehler</span>
-        {% elif c.get("expired") %}<span class="step-status pending">Abgelaufen</span>
-        {% else %}<span class="step-status done">Aktiv</span>{% endif %}
-      </td>
-      <td><button class="btn secondary btn-sm" onclick="deleteSignCert('{{ c.email }}')">Löschen</button></td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-{% else %}
-<p class="hint">Noch keine Signatur-Zertifikate importiert.</p>
-{% endif %}
-
-<!-- ── Empfänger-Zertifikate (Verschlüsselung) ──────────────────────────── -->
+<!-- ── Empfänger-Zertifikate (Verschlüsselung) ──────────────────────────────── -->
 <h2 style="margin-top:32px">Verschlüsselungs-Zertifikate (Empfänger)</h2>
 <p class="hint" style="margin-bottom:14px">
   Öffentliche Zertifikate externer Empfänger für S/MIME-Verschlüsselung.
@@ -87,7 +224,8 @@
 </div>
 
 {% if recipient_certs %}
-<table class="config-table">
+<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+<table class="config-table" style="min-width:600px">
   <thead>
     <tr><th>E-Mail</th><th>Subject</th><th>Gültig bis</th><th>Status</th><th></th></tr>
   </thead>
@@ -106,14 +244,59 @@
         {% elif c.get("expired") %}<span class="step-status pending">Abgelaufen</span>
         {% else %}<span class="step-status done">Aktiv</span>{% endif %}
       </td>
-      <td><button class="btn secondary btn-sm" onclick="deleteRcptCert('{{ c.email }}')">Löschen</button></td>
+      <td style="white-space:nowrap">
+        <button class="btn secondary btn-sm" onclick="showCertDetails('{{ c.email }}','recipient')">Ansicht</button>
+        <a class="btn secondary btn-sm" href="/api/smime/recipient/download/{{ c.email }}" download="{{ c.email }}.cer">Download</a>
+        <button class="btn secondary btn-sm" onclick="deleteRcptCert('{{ c.email }}')">Löschen</button>
+      </td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
+</div>
 {% else %}
 <p class="hint">Noch keine Empfänger-Zertifikate vorhanden.</p>
 {% endif %}
+
+<!-- ── Import-Modal ──────────────────────────────────────────────────────────── -->
+<div id="import-modal"
+     style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center"
+     onclick="if(event.target===this)closeImportModal()">
+  <div style="background:#fff;border-radius:8px;padding:28px 32px;max-width:480px;width:90%;position:relative">
+    <button onclick="closeImportModal()"
+            style="position:absolute;top:12px;right:16px;background:none;border:none;font-size:20px;cursor:pointer;color:#666">✕</button>
+    <h3 style="margin:0 0 6px">Signatur-Zertifikat importieren</h3>
+    <p style="font-size:13px;color:#666;margin:0 0 16px">
+      Postfach: <strong id="import-modal-email"></strong>
+    </p>
+    <input type="hidden" id="import-email">
+    <div class="settings-row">
+      <label for="import-file">PKCS12-Datei (.p12 / .pfx)</label>
+      <input type="file" id="import-file" accept=".p12,.pfx">
+    </div>
+    <div class="settings-row" style="margin-top:10px">
+      <label for="import-password">Passwort</label>
+      <input type="password" id="import-password"
+             placeholder="leer lassen wenn kein Passwort" style="width:220px">
+    </div>
+    <div id="import-modal-result" class="alert" style="display:none;margin-top:12px"></div>
+    <div class="actions" style="margin-top:16px">
+      <button class="btn primary" id="import-submit-btn" onclick="doImport()">Importieren</button>
+      <button class="btn secondary" onclick="closeImportModal()">Abbrechen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Cert-Detail-Modal ─────────────────────────────────────────────────────── -->
+<div id="cert-modal"
+     style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center"
+     onclick="if(event.target===this)this.style.display='none'">
+  <div style="background:#fff;border-radius:8px;padding:28px 32px;max-width:600px;width:90%;max-height:80vh;overflow-y:auto;position:relative">
+    <button onclick="document.getElementById('cert-modal').style.display='none'"
+            style="position:absolute;top:12px;right:16px;background:none;border:none;font-size:20px;cursor:pointer;color:#666">✕</button>
+    <div id="cert-modal-body"></div>
+  </div>
+</div>
 
 <script>
 function showAlert(el, type, msg) {
@@ -122,37 +305,291 @@ function showAlert(el, type, msg) {
   el.style.display = 'block';
 }
 
-async function uploadSignCert() {
-  const email    = (document.getElementById('smime-email').value || '').trim();
-  const file     = document.getElementById('smime-file').files[0];
-  const password = document.getElementById('smime-password').value || '';
-  const result   = document.getElementById('sign-upload-result');
-  if (!email || !file) { showAlert(result, 'error', 'E-Mail und Datei sind Pflichtfelder.'); return; }
+function _lcResultEl(email) {
+  const id = 'lc-result-' + email.replace(/@/g,'_').replace(/\./g,'_');
+  return document.getElementById(id);
+}
+
+const _ACME_LABELS = {
+  waiting_challenge: {icon:'⏳', text:'Warte auf Challenge-E-Mail…',     color:'#92400e', bg:'#fffbeb', border:'#fde68a'},
+  challenge_replied: {icon:'📤', text:'Challenge beantwortet…',          color:'#1e40af', bg:'#eff6ff', border:'#bfdbfe'},
+  validating:        {icon:'🔄', text:'CASTLE validiert…',               color:'#1e40af', bg:'#eff6ff', border:'#bfdbfe'},
+  finalizing:        {icon:'🔄', text:'Zertifikat wird ausgestellt…',    color:'#1e40af', bg:'#eff6ff', border:'#bfdbfe'},
+  error:             {icon:'❌', text:'Fehler',                           color:'#991b1b', bg:'#fef2f2', border:'#fecaca'},
+};
+const _ACME_ACTIVE = new Set(['waiting_challenge','challenge_replied','validating','finalizing']);
+const _acmeTimers = {};
+
+function _acmeKey(email) { return email.replace(/@/g,'_').replace(/\./g,'_'); }
+
+function _renderAcmeStatus(email, data) {
+  const key = _acmeKey(email);
+  const el = document.getElementById('acme-status-' + key);
+  const resetEl = document.getElementById('acme-reset-' + key);
+  if (!el) return;
+  if (!data || !data.active) {
+    el.textContent = '';
+    el.style.cssText = '';
+    if (resetEl) resetEl.style.display = 'none';
+    return;
+  }
+  const s = data.status;
+  const lbl = _ACME_LABELS[s] || {icon:'ℹ️', text: s, color:'#374151', bg:'#f3f4f6', border:'#d1d5db'};
+  const detail = s === 'error' && data.error ? ': ' + data.error : '';
+  el.innerHTML = `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;
+    border-radius:10px;background:${lbl.bg};border:1px solid ${lbl.border};color:${lbl.color}">
+    ${lbl.icon} ${lbl.text}${detail}
+    ${s === 'error' ? `<button class="btn secondary btn-sm" style="padding:1px 6px;font-size:11px;margin-left:4px"
+      onclick="clearAcmeOrder('${email}',this)">Zurücksetzen</button>` : ''}
+  </span>`;
+  if (resetEl) resetEl.style.display = (s !== 'error') ? '' : 'none';
+}
+
+async function _fetchAcmeStatus(email) {
+  const resp = await fetch('/api/smime/renewal/status/' + encodeURIComponent(email));
+  return resp.ok ? resp.json() : null;
+}
+
+function _startAcmePolling(email) {
+  const key = _acmeKey(email);
+  if (_acmeTimers[key]) return;
+  async function tick() {
+    const data = await _fetchAcmeStatus(email);
+    _renderAcmeStatus(email, data);
+    if (data && data.active && _ACME_ACTIVE.has(data.status)) {
+      _acmeTimers[key] = setTimeout(tick, 5000);
+    } else {
+      delete _acmeTimers[key];
+      if (data && data.active && data.status !== 'error') location.reload();
+    }
+  }
+  tick();
+}
+
+// Kick off polling on page load for any active orders
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('[id^="acme-status-"]').forEach(el => {
+    const key = el.id.replace('acme-status-','');
+    const email = key.replace(/_/g, match => {
+      // reconstruct email — try finding it from a data attribute nearby
+      return match;
+    });
+  });
+  // Use server-rendered initial state to start pollers
+  {% for u in smime_users %}
+  {% if acme_orders.get(u.email) %}
+  {% set ao = acme_orders[u.email] %}
+  (function(){
+    const data = {active:true, status:'{{ ao.status }}', error:{{ (ao.get('error') or '')|tojson }}};
+    _renderAcmeStatus('{{ u.email }}', data);
+    {% if ao.status in ['waiting_challenge','challenge_replied','validating','finalizing'] %}
+    _startAcmePolling('{{ u.email }}');
+    {% endif %}
+  })();
+  {% endif %}
+  {% endfor %}
+});
+
+function _onBackendChange(email, backend) {
+  const castleOpts = document.querySelector(`.lc-castle-opts[data-email="${CSS.escape(email)}"]`);
+  if (castleOpts) castleOpts.style.display = backend === 'castle_acme' ? '' : 'none';
+  const key = email.replace(/@/g,'_').replace(/\./g,'_');
+  const aeBtn = document.getElementById('ae-btn-' + key);
+  if (!aeBtn) return;
+  if (backend === 'castle_acme') {
+    aeBtn.removeAttribute('disabled');
+    aeBtn.style.opacity = '';
+    aeBtn.style.cursor = '';
+    aeBtn.title = '';
+    aeBtn.onclick = () => startAutoEnroll(email, aeBtn);
+  } else {
+    aeBtn.setAttribute('disabled', '');
+    aeBtn.style.opacity = '.45';
+    aeBtn.style.cursor = 'not-allowed';
+    aeBtn.title = 'Nur mit CASTLE-Backend verfügbar';
+    aeBtn.onclick = null;
+  }
+}
+
+async function saveCaConfig(email) {
+  const backend = document.querySelector(`.lc-backend[data-email="${CSS.escape(email)}"]`).value;
+  const portal  = document.querySelector(`.lc-portal[data-email="${CSS.escape(email)}"]`).value;
+  const notify  = document.querySelector(`.lc-notify[data-email="${CSS.escape(email)}"]`).checked;
+  const stagingEl = document.querySelector(`.lc-staging[data-email="${CSS.escape(email)}"]`);
+  const staging = stagingEl ? stagingEl.checked : false;
+  const result  = _lcResultEl(email);
+  const resp = await fetch('/api/smime/ca-config/' + encodeURIComponent(email), {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({backend, portal_url: portal, notify_user: notify, staging}),
+  });
+  showAlert(result, resp.ok ? 'success' : 'error',
+    resp.ok ? 'Lifecycle-Einstellungen gespeichert.' : 'Fehler beim Speichern.');
+}
+
+async function startAutoEnroll(email, btn) {
+  if (!confirm('ACME-Auftrag für ' + email + ' bei CASTLE starten?')) return;
+  const orig = btn.textContent.trim();
+  btn.disabled = true; btn.textContent = 'Starte…';
+  const resp = await fetch('/api/smime/renewal/initiate/' + encodeURIComponent(email), {method: 'POST'});
+  btn.disabled = false; btn.textContent = orig;
+  const d = await resp.json().catch(() => ({}));
+  if (resp.ok) {
+    _startAcmePolling(email);
+  } else {
+    showAlert(_lcResultEl(email), 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));
+  }
+}
+
+async function sendRenewalNotification(email, btn) {
+  const result = _lcResultEl(email);
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Sende…';
+  const resp = await fetch('/api/smime/renewal/notify/' + encodeURIComponent(email), {method: 'POST'});
+  btn.disabled = false; btn.textContent = orig;
+  const d = await resp.json().catch(() => ({}));
+  showAlert(result, resp.ok ? 'success' : 'error',
+    resp.ok
+      ? 'Benachrichtigung gesendet ✓<br><small>Upload-Link: <a href="' + d.upload_url + '" target="_blank">' + d.upload_url + '</a></small>'
+      : 'Fehler: ' + (d.detail || 'Unbekannt'));
+}
+
+async function generateToken(email, btn) {
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Generiere…';
+  const resp = await fetch('/api/smime/renewal/token/' + encodeURIComponent(email), {method: 'POST'});
+  btn.disabled = false; btn.textContent = orig;
+  const d = await resp.json().catch(() => ({}));
+  const area = document.getElementById('token-area-' + email.replace(/@/g,'_').replace(/\./g,'_'));
+  const result = _lcResultEl(email);
+  if (resp.ok && d.url) {
+    area.innerHTML =
+      '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:2px">' +
+      '<input type="text" readonly value="' + d.url + '" style="flex:1;min-width:200px;font-size:11px;' +
+        'border:1px solid #c7d7ff;border-radius:4px;padding:4px 6px;background:#fff" ' +
+        'onclick="this.select()">' +
+      '<button class="btn secondary btn-sm" onclick="navigator.clipboard.writeText(\'' + d.url + '\')">Kopieren</button>' +
+      '<button class="btn secondary btn-sm" onclick="generateToken(\'' + email + '\',this)">Erneuern</button>' +
+      '</div>' +
+      '<div style="color:#888;font-size:11px;margin-top:4px">Gültig für ' + d.expires_days + ' Tage</div>';
+  } else {
+    showAlert(result, 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));
+  }
+}
+
+async function clearAcmeOrder(email, btn) {
+  if (!confirm('ACME-Auftrag für ' + email + ' wirklich zurücksetzen?')) return;
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = '…';
+  const resp = await fetch('/api/smime/renewal/clear/' + encodeURIComponent(email), {method: 'POST'});
+  btn.disabled = false; btn.textContent = orig;
+  if (resp.ok) {
+    const key = _acmeKey(email);
+    clearTimeout(_acmeTimers[key]);
+    delete _acmeTimers[key];
+    _renderAcmeStatus(email, {active: false});
+  } else {
+    showAlert(_lcResultEl(email), 'error', 'Fehler beim Zurücksetzen');
+  }
+}
+
+// ── Import Modal ──────────────────────────────────────────────────────────────
+function openImportModal(email) {
+  document.getElementById('import-modal-email').textContent = email;
+  document.getElementById('import-email').value = email;
+  document.getElementById('import-file').value = '';
+  document.getElementById('import-password').value = '';
+  document.getElementById('import-modal-result').style.display = 'none';
+  document.getElementById('import-modal').style.display = 'flex';
+}
+
+function closeImportModal() {
+  document.getElementById('import-modal').style.display = 'none';
+}
+
+async function doImport() {
+  const email    = document.getElementById('import-email').value;
+  const file     = document.getElementById('import-file').files[0];
+  const password = document.getElementById('import-password').value || '';
+  const result   = document.getElementById('import-modal-result');
+  const btn      = document.getElementById('import-submit-btn');
+  if (!file) { showAlert(result, 'error', 'Bitte eine .p12/.pfx Datei auswählen.'); return; }
   const fd = new FormData();
   fd.append('email', email);
   fd.append('p12_file', file);
   fd.append('password', password);
+  btn.disabled = true;
+  btn.textContent = 'Importiere…';
   const resp = await fetch('/api/smime/upload', {method: 'POST', body: fd});
+  btn.disabled = false;
+  btn.textContent = 'Importieren';
   if (resp.ok) {
     const d = await resp.json();
     const info = d.info || {};
     showAlert(result, 'success',
-      `Signatur-Zertifikat importiert für <strong>${email}</strong>.<br>` +
-      `Subject: ${info.subject || '–'} · Gültig bis: ${info.expiry || '–'}`);
-    setTimeout(() => location.reload(), 2000);
+      `Importiert: <strong>${info.subject || '–'}</strong> · Gültig bis: ${info.expiry || '–'}`);
+    setTimeout(() => { closeImportModal(); location.reload(); }, 1500);
   } else {
     const d = await resp.json().catch(() => ({}));
     showAlert(result, 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));
   }
 }
 
-async function deleteSignCert(email) {
-  if (!confirm(`Signatur-Zertifikat für ${email} wirklich löschen?`)) return;
-  const resp = await fetch('/api/smime/delete/' + encodeURIComponent(email), {method: 'POST'});
+// ── Cert actions ──────────────────────────────────────────────────────────────
+async function deleteCertSlot(email, slotId) {
+  if (!confirm(`Zertifikat (${slotId}) für ${email} wirklich löschen?`)) return;
+  const resp = await fetch(
+    `/api/smime/delete-slot/${encodeURIComponent(email)}/${slotId}`,
+    {method: 'POST'}
+  );
   if (resp.ok) location.reload();
   else alert('Löschen fehlgeschlagen');
 }
 
+async function setDefaultCert(email, slotId, radio) {
+  const resp = await fetch(
+    `/api/smime/set-default/${encodeURIComponent(email)}/${slotId}`,
+    {method: 'POST'}
+  );
+  if (!resp.ok) {
+    alert('Fehler beim Setzen des Standard-Zertifikats');
+    location.reload();
+  }
+}
+
+async function showCertDetails(email, kind, slot) {
+  const modal = document.getElementById('cert-modal');
+  const body  = document.getElementById('cert-modal-body');
+  body.innerHTML = 'Lade…';
+  modal.style.display = 'flex';
+  try {
+    let url = `/api/smime/cert/details?email=${encodeURIComponent(email)}&kind=${kind}`;
+    if (slot) url += `&slot=${encodeURIComponent(slot)}`;
+    const resp = await fetch(url);
+    if (!resp.ok) { body.innerHTML = 'Fehler beim Laden.'; return; }
+    const d = await resp.json();
+    const row = (label, val) => val
+      ? `<tr><td style="color:#888;padding:4px 12px 4px 0;white-space:nowrap">${label}</td>` +
+        `<td style="font-family:monospace;word-break:break-all">${val}</td></tr>`
+      : '';
+    body.innerHTML = `
+      <h3 style="margin:0 0 12px">${email}</h3>
+      <table style="border-collapse:collapse;width:100%">
+        ${row('Ausgestellt für', d.subject)}
+        ${row('Aussteller', d.issuer)}
+        ${d.san && d.san.length ? row('SAN E-Mail', d.san.join(', ')) : ''}
+        ${row('Gültig ab', d.not_before)}
+        ${row('Gültig bis', d.not_after)}
+        ${row('Schlüssel', d.key)}
+        ${row('Seriennummer', d.serial)}
+        ${row('SHA-1 Fingerprint', d.sha1)}
+      </table>`;
+  } catch(e) {
+    body.innerHTML = 'Fehler: ' + e;
+  }
+}
+
+// ── Recipient certs ───────────────────────────────────────────────────────────
 async function uploadRcptCert() {
   const email  = (document.getElementById('rcpt-email').value || '').trim();
   const file   = document.getElementById('rcpt-cert-file').files[0];
@@ -164,10 +601,9 @@ async function uploadRcptCert() {
   const resp = await fetch('/api/smime/recipient/upload', {method: 'POST', body: fd});
   if (resp.ok) {
     const d = await resp.json();
-    const info = d.info || {};
     showAlert(result, 'success',
       `Empfänger-Zertifikat importiert für <strong>${email}</strong>.<br>` +
-      `Gültig bis: ${info.expiry || '–'}`);
+      `Gültig bis: ${(d.info || {}).expiry || '–'}`);
     setTimeout(() => location.reload(), 2000);
   } else {
     const d = await resp.json().catch(() => ({}));
@@ -177,7 +613,10 @@ async function uploadRcptCert() {
 
 async function deleteRcptCert(email) {
   if (!confirm(`Empfänger-Zertifikat für ${email} wirklich löschen?`)) return;
-  const resp = await fetch('/api/smime/recipient/delete/' + encodeURIComponent(email), {method: 'POST'});
+  const resp = await fetch(
+    '/api/smime/recipient/delete/' + encodeURIComponent(email),
+    {method: 'POST'}
+  );
   if (resp.ok) location.reload();
   else alert('Löschen fehlgeschlagen');
 }

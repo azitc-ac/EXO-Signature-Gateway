@@ -4,13 +4,37 @@
 
 <div id="page-alert" class="alert" style="display:none"></div>
 
+<!-- Zugangsdaten -->
+<div class="settings-card">
+  <h2>Zugangsdaten</h2>
+  <div class="settings-row">
+    <label for="webui-username">Benutzername</label>
+    <input type="text" id="webui-username" value="{{ s.WEBUI_USERNAME }}" style="width:220px">
+  </div>
+  <div style="border-top:1px solid #f0f0f0;margin:12px 0;padding-top:12px">
+    <p class="hint" style="margin-bottom:10px">Passwort ändern (leer lassen = unverändert):</p>
+    <div class="settings-row">
+      <label for="new-pw">Neues Passwort</label>
+      <input type="password" id="new-pw" placeholder="mind. 8 Zeichen" style="width:220px">
+    </div>
+    <div class="settings-row">
+      <label for="new-pw2">Wiederholen</label>
+      <input type="password" id="new-pw2" placeholder="" style="width:220px">
+    </div>
+    <div id="pw-result" style="display:none;margin-top:6px"></div>
+    <div class="actions" style="margin-top:8px">
+      <button class="btn secondary" onclick="changePassword()">Passwort setzen</button>
+    </div>
+  </div>
+</div>
+
 <!-- Allgemein -->
 <div class="settings-card">
   <h2>Allgemein</h2>
   <div class="settings-row">
     <label class="checkbox-label">
       <input type="checkbox" id="fallback" {% if s.FALLBACK_ON_ERROR %}checked{% endif %}>
-      Fallback bei Fehler – Mail wird ohne Signatur weitergeleitet
+      Fallback bei Fehler – original Mail ohne Signatur weiterleiten (gilt nicht für verschlüsselte Mails)
     </label>
   </div>
   <div class="settings-row">
@@ -32,14 +56,20 @@
     </div>
   </div>
   <div class="settings-row">
-    <label for="webui-username">Web-UI Benutzername</label>
-    <input type="text" id="webui-username" value="{{ s.WEBUI_USERNAME }}">
-  </div>
-  <div class="settings-row">
-    <label for="exo-port">EXO Smarthost Port</label>
+    <label for="log-timezone">Log-Zeitzone</label>
     <div class="settings-control">
-      <input type="number" id="exo-port" value="{{ s.EXO_PORT }}" min="1" max="65535" style="width:100px">
-      <span class="hint">Port für die Weiterleitung an EXO. Standard: <code>25</code>. Auf Azure (Port 25 ausgehend gesperrt): Azure Support anfragen oder SendGrid als Relay nutzen.</span>
+      <select id="log-timezone">
+        {% for tz in [
+          "UTC",
+          "Europe/Berlin", "Europe/Vienna", "Europe/Zurich",
+          "Europe/London", "Europe/Paris", "Europe/Amsterdam",
+          "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles",
+          "Asia/Tokyo", "Asia/Shanghai", "Australia/Sydney"
+        ] %}
+        <option value="{{ tz }}"{% if s.LOG_TIMEZONE == tz %} selected{% endif %}>{{ tz }}</option>
+        {% endfor %}
+      </select>
+      <span class="hint">Zeitzone für Log-Zeitstempel (IANA-Name). Wirkt sofort nach Speichern.</span>
     </div>
   </div>
 </div>
@@ -47,18 +77,6 @@
 <!-- S/MIME -->
 <div class="settings-card">
   <h2>S/MIME</h2>
-  <div class="settings-row">
-    <label for="smime-harvest-rcpt">Harvest-Adresse</label>
-    <div class="settings-control">
-      <input type="email" id="smime-harvest-rcpt" value="{{ s.SMIME_HARVEST_RCPT }}"
-        placeholder="smime-harvest@domain.com" style="width:280px">
-      <span class="hint">
-        EXO-Transportregel leitet signierte Eingangs-Mails an diese Adresse weiter.
-        Unser Proxy extrahiert dann den Public Key des Absenders automatisch.
-        Leer = deaktiviert.
-      </span>
-    </div>
-  </div>
   <div class="settings-row">
     <label for="smime-tag-encrypted">Tag: verschlüsselt</label>
     <div class="settings-control">
@@ -74,6 +92,23 @@
         placeholder="signiert von {signer}" style="width:260px">
       <span class="hint"><code>{signer}</code> wird durch den CN des Zertifikats ersetzt.
         Kombination z.B.: <em>[verschlüsselt, signiert von Max Mustermann]</em></span>
+    </div>
+  </div>
+  <div class="settings-row">
+    <label for="smime-tag-position">Tag-Position im Betreff</label>
+    <div class="settings-control">
+      <select id="smime-tag-position">
+        <option value="prepend" {% if s.SMIME_TAG_POSITION != 'append' %}selected{% endif %}>Vorne (Standard): [verschlüsselt] Betreff</option>
+        <option value="append"  {% if s.SMIME_TAG_POSITION == 'append'  %}selected{% endif %}>Hinten: Betreff [verschlüsselt]</option>
+      </select>
+    </div>
+  </div>
+  <div class="settings-row">
+    <label for="enc-trigger">Verschlüsselungs-Trigger</label>
+    <div class="settings-control">
+      <input type="text" id="enc-trigger" value="{{ s.ENC_TRIGGER }}"
+        placeholder="#enc#" style="width:160px">
+      <span class="hint">Schlüsselwort im Betreff, das S/MIME-Verschlüsselung auslöst. Standard: <code>#enc#</code></span>
     </div>
   </div>
 </div>
@@ -94,51 +129,6 @@
       Signatur auch in Gesendete Elemente schreiben
     </label>
     <span class="hint">Benötigt <code>Mail.ReadWrite.All</code> App-Permission in der Azure-Registrierung</span>
-  </div>
-</div>
-
-<!-- Weiterleitung -->
-<div class="settings-card">
-  <h2>Weiterleitung (Re-Inject)</h2>
-  <div class="settings-row">
-    <label for="reinject-mode">Modus</label>
-    <div class="settings-control">
-      <select id="reinject-mode" onchange="toggleReinjectMode()">
-        <option value="smtp" {% if s.REINJECT_MODE != 'graph' %}selected{% endif %}>SMTP (Standard, Loop-Back via EXO Smarthost)</option>
-        <option value="graph" {% if s.REINJECT_MODE == 'graph' %}selected{% endif %}>Graph API sendMail (Azure ohne Port 25)</option>
-      </select>
-    </div>
-  </div>
-
-  <div id="smtp-fields">
-    <div class="settings-row">
-      <label for="exo-port">EXO Smarthost Port</label>
-      <div class="settings-control">
-        <input type="number" id="exo-port" value="{{ s.EXO_PORT }}" min="1" max="65535" style="width:100px">
-        <span class="hint">Standard: <code>25</code>. Azure Enterprise nach Port-25-Freischaltung ebenfalls <code>25</code>.</span>
-      </div>
-    </div>
-    <div class="settings-row">
-      <label for="relay-user">Relay SMTP-User</label>
-      <div class="settings-control">
-        <input type="text" id="relay-user" value="{{ s.RELAY_USER }}" placeholder="leer = kein AUTH" style="width:260px">
-        <span class="hint">Optional: für SES (<code>apikey</code>) oder anderen AUTH-Relay</span>
-      </div>
-    </div>
-    <div class="settings-row">
-      <label for="relay-password">Relay Passwort / API Key</label>
-      <input type="password" id="relay-password" value="{{ s.RELAY_PASSWORD }}" placeholder="leer lassen wenn unverändert" style="width:260px">
-    </div>
-  </div>
-
-  <div id="graph-fields" style="display:none">
-    <p class="hint" style="margin-top:8px">
-      Benötigt <code>Mail.Send</code> Application Permission in der Azure App-Registrierung.
-      Sent Items werden automatisch mit signierter Version befüllt — kein separater Patch nötig.<br>
-      <strong>Hinweis:</strong> Die Graph API erlaubt keine Standard-Threading-Header (<code>In-Reply-To</code>, <code>References</code>).
-      Antwort-Mails erscheinen beim Empfänger ggf. als separate Konversation statt eingebettet im Thread.
-      Für korrektes Threading: SMTP-Modus verwenden.
-    </p>
   </div>
 </div>
 
@@ -176,6 +166,114 @@
     </tbody>
   </table>
   <button type="button" class="btn secondary btn-sm" style="margin-top:6px" onclick="addRow('bookings','bookings-tbody')">+ Zeile</button>
+</div>
+
+<!-- Postfach-Konfiguration -->
+<div class="settings-card">
+  <h2>Postfach-Konfiguration</h2>
+  <p class="hint" style="margin-bottom:12px">
+    Leer = alle Absender werden verarbeitet (Signaturen + S/MIME).<br>
+    Mit Einträgen: Nur markierte Postfächer bekommen Signatur-Injektion bzw. S/MIME-Verarbeitung.
+    Alle anderen werden unverändert weitergeleitet.<br>
+    <strong>Entra Admin Center:</strong> Beim Speichern wird die Distribution Group
+    <code>EXO Signature Gateway - Enabled Mailboxes</code> in EXO erstellt/aktualisiert
+    und die Transport-Regel darauf eingeschränkt.
+  </p>
+  <div class="actions" style="margin-bottom:8px">
+    <button class="btn secondary" id="mb-load-btn" onclick="loadMailboxes()">Postfächer aus Graph laden</button>
+    <span id="mb-load-status" style="font-size:12px;color:#888;margin-left:8px"></span>
+  </div>
+  <div id="mb-table-wrap" style="display:none">
+    <input type="text" id="mb-filter" placeholder="Filtern…" oninput="filterMailboxes(this.value)"
+           style="width:100%;max-width:320px;margin-bottom:8px;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px">
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+    <table style="min-width:380px;width:100%;border-collapse:collapse;font-size:13px">
+      <thead>
+        <tr style="border-bottom:2px solid #e2e8f0">
+          <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555">Postfach</th>
+          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:100px">Signatur</th>
+          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:100px">S/MIME</th>
+        </tr>
+      </thead>
+      <tbody id="mb-tbody"></tbody>
+    </table>
+    </div>
+  </div>
+  <div class="actions" style="margin-top:12px">
+    <button class="btn primary" id="mb-save-btn" onclick="saveMailboxes(true)" style="display:none">
+      In EXO speichern (DG + Transportregel aktualisieren)
+    </button>
+    <button class="btn secondary" id="mb-local-btn" onclick="saveMailboxes(false)" style="display:none">
+      Nur lokal speichern
+    </button>
+  </div>
+  <div id="mb-result" style="margin-top:10px;display:none"></div>
+</div>
+
+<!-- Benachrichtigungen -->
+<div class="settings-card">
+  <h2>Benachrichtigungen & Tagesbericht</h2>
+  <p class="hint" style="margin-bottom:12px">
+    Das ausgewählte Postfach erhält tägliche Statistikberichte sowie Warnungen bei Zertifikatsablauf und Container-Neustart.
+    Das Postfach muss in der Liste oben geladen sein und SMTP_SUBMIT_USER muss konfiguriert sein.
+  </p>
+  <div class="settings-row">
+    <label for="notif-mailbox">Benachrichtigungs-Postfach</label>
+    <select id="notif-mailbox" style="width:280px">
+      <option value="">-- kein --</option>
+    </select>
+  </div>
+  <h3>Tagesbericht</h3>
+  <div class="settings-row">
+    <label>Tagesbericht aktivieren</label>
+    <input type="checkbox" id="daily-report-enabled" {% if s.DAILY_REPORT_ENABLED %}checked{% endif %}>
+  </div>
+  <div class="settings-row">
+    <label for="daily-report-time">Berichtszeitpunkt</label>
+    <input type="time" id="daily-report-time" value="{{ s.DAILY_REPORT_TIME or '08:00' }}" style="width:120px">
+    <span class="hint" style="margin-left:8px">(in {{ s.LOG_TIMEZONE or 'Europe/Berlin' }})</span>
+  </div>
+
+  <h3>Sofort-Benachrichtigungen</h3>
+  <div class="settings-row">
+    <label>Welche Ereignisse sollen gemeldet werden?</label>
+    <div class="settings-control">
+      <label class="checkbox-label">
+        <input type="checkbox" id="notify-startup"
+               {% if s.NOTIFY_STARTUP is not false %}checked{% endif %}>
+        Container-Neustart
+      </label>
+      <label class="checkbox-label">
+        <input type="checkbox" id="notify-smime-expiry"
+               {% if s.NOTIFY_SMIME_EXPIRY is not false %}checked{% endif %}>
+        S/MIME Zertifikat läuft ab (Admin-Warnung)
+      </label>
+      <label class="checkbox-label">
+        <input type="checkbox" id="notify-cert-renewal"
+               {% if s.NOTIFY_CERT_RENEWAL is not false %}checked{% endif %}>
+        S/MIME Erneuerung – Erfolg &amp; Fehler
+      </label>
+      <label class="checkbox-label">
+        <input type="checkbox" id="notify-le-events"
+               {% if s.NOTIFY_LE_EVENTS is not false %}checked{% endif %}>
+        TLS-Zertifikat (Let's Encrypt) erneuert / läuft ab
+      </label>
+    </div>
+  </div>
+
+  <h3>Warnschwellen</h3>
+  <div class="settings-row">
+    <label for="cert-warn-days">S/MIME Zertifikat – Warnung ab</label>
+    <input type="number" id="cert-warn-days" value="{{ s.CERT_WARN_DAYS or 14 }}" min="1" max="90" style="width:80px"> Tage vor Ablauf
+  </div>
+  <div class="settings-row">
+    <label for="le-renew-days">Let's Encrypt – Erneuerung ab</label>
+    <input type="number" id="le-renew-days" value="{{ s.LE_RENEW_DAYS or 7 }}" min="1" max="30" style="width:80px"> Tage vor Ablauf
+  </div>
+  <div class="actions" style="margin-top:12px">
+    <button class="btn secondary" onclick="sendTestNotification()">Test-Benachrichtigung senden</button>
+    <span id="notif-test-result" style="margin-left:10px;font-size:13px"></span>
+  </div>
 </div>
 
 <!-- Test-Mail -->
@@ -250,13 +348,6 @@
 </div>
 
 <script>
-function toggleReinjectMode() {
-  const mode = document.getElementById('reinject-mode').value;
-  document.getElementById('smtp-fields').style.display = mode === 'smtp' ? '' : 'none';
-  document.getElementById('graph-fields').style.display = mode === 'graph' ? '' : 'none';
-}
-toggleReinjectMode();
-
 function showAlert(el, type, msg) {
   el.className = 'alert ' + type;
   el.innerHTML = msg;
@@ -286,39 +377,174 @@ function collectKV(rowClass) {
   return result;
 }
 
+let _mbData = [];
+
+const _currentNotifMailbox = {{ s.NOTIFICATION_MAILBOX | tojson }};
+
+async function loadMailboxes(silent) {
+  const btn = document.getElementById('mb-load-btn');
+  const status = document.getElementById('mb-load-status');
+  if (!silent) { btn.disabled = true; status.textContent = 'Lade…'; }
+  try {
+    const resp = await fetch('/api/mailboxes');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+    _mbData = data.mailboxes || [];
+    renderMailboxTable(_mbData);
+    if (!silent) status.textContent = _mbData.length + ' Postfächer geladen';
+    document.getElementById('mb-table-wrap').style.display = '';
+    document.getElementById('mb-save-btn').style.display = '';
+    document.getElementById('mb-local-btn').style.display = '';
+    _populateNotifDropdown(_mbData);
+  } catch(e) {
+    if (!silent) status.textContent = 'Fehler: ' + e.message;
+  } finally {
+    if (!silent) btn.disabled = false;
+  }
+}
+
+const _typeLabel = {user: '', shared: ' [Shared]', group: ' [Gruppe]'};
+
+function _populateNotifDropdown(mailboxes) {
+  const sel = document.getElementById('notif-mailbox');
+  const cur = _currentNotifMailbox || '';
+  sel.innerHTML = '<option value="">-- kein --</option>';
+  // Group by type for readability
+  [['shared','Freigegebene Postfächer'],['user','Benutzer-Postfächer']].forEach(function([type, label]) {
+    const items = mailboxes.filter(m => m.type === type);
+    if (!items.length) return;
+    const og = document.createElement('optgroup');
+    og.label = label;
+    items.forEach(function(mb) {
+      const opt = document.createElement('option');
+      opt.value = mb.email;
+      opt.textContent = mb.email + (mb.name && mb.name !== mb.email ? ' (' + mb.name + ')' : '');
+      if (mb.email === cur) opt.selected = true;
+      og.appendChild(opt);
+    });
+    sel.appendChild(og);
+  });
+  if (cur && !mailboxes.find(m => m.email === cur)) {
+    const opt = document.createElement('option');
+    opt.value = cur; opt.textContent = cur + ' (aktuell)'; opt.selected = true;
+    sel.appendChild(opt);
+  }
+}
+
+function renderMailboxTable(mailboxes) {
+  const tbody = document.getElementById('mb-tbody');
+  tbody.innerHTML = '';
+  mailboxes.forEach(function(mb, i) {
+    if (mb.type && mb.type !== 'user') return;
+    const tr = document.createElement('tr');
+    tr.style.borderBottom = '1px solid #f0f0f0';
+    tr.dataset.search = (mb.email + ' ' + (mb.name || '')).toLowerCase();
+    tr.innerHTML =
+      '<td style="padding:6px 8px"><strong>' + mb.email + '</strong>' +
+        (mb.name && mb.name !== mb.email ? '<br><span style="color:#888;font-size:11px">' + mb.name + '</span>' : '') + '</td>' +
+      '<td style="text-align:center;padding:6px 8px"><input type="checkbox" class="mb-sig" data-idx="' + i + '" ' + (mb.sig ? 'checked' : '') + '></td>' +
+      '<td style="text-align:center;padding:6px 8px"><input type="checkbox" class="mb-smime" data-idx="' + i + '" ' + (mb.smime ? 'checked' : '') + '></td>';
+    tbody.appendChild(tr);
+  });
+}
+
+function filterMailboxes(q) {
+  q = q.toLowerCase();
+  document.querySelectorAll('#mb-tbody tr').forEach(function(tr) {
+    tr.style.display = tr.dataset.search.includes(q) ? '' : 'none';
+  });
+}
+
+async function saveMailboxes(updateDg) {
+  const result = document.getElementById('mb-result');
+  const sigBoxes = document.querySelectorAll('.mb-sig');
+  const smimeBoxes = document.querySelectorAll('.mb-smime');
+  const payload = [];
+  sigBoxes.forEach(function(cb, i) {
+    const idx = parseInt(cb.dataset.idx);
+    payload.push({
+      email: _mbData[idx].email,
+      sig: cb.checked,
+      smime: smimeBoxes[i].checked,
+    });
+  });
+  const btn = updateDg ? document.getElementById('mb-save-btn') : document.getElementById('mb-local-btn');
+  btn.disabled = true;
+  const origText = btn.textContent;
+  btn.textContent = updateDg ? 'Wird in EXO übertragen… (kann 2 Min. dauern)' : 'Speichert…';
+  result.style.display = 'none';
+  try {
+    const resp = await fetch('/api/mailboxes/save', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({mailboxes: payload, update_dg: updateDg}),
+    });
+    const d = await resp.json().catch(() => ({}));
+    if (resp.ok && d.ok) {
+      const out = d.dg_output ? '<br><code style="font-size:11px">' + d.dg_output.replace(/\n/g,'<br>') + '</code>' : '';
+      result.className = 'alert success';
+      result.innerHTML = updateDg ? 'In EXO gespeichert.' + out : 'Lokal gespeichert.';
+    } else {
+      result.className = 'alert error';
+      result.innerHTML = 'Fehler: ' + (d.dg_output || d.detail || 'Unbekannt');
+    }
+    result.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = origText;
+  }
+}
+
+async function changePassword() {
+  const pw  = (document.getElementById('new-pw').value || '');
+  const pw2 = (document.getElementById('new-pw2').value || '');
+  const result = document.getElementById('pw-result');
+  if (pw.length < 8) { showAlert(result, 'error', 'Passwort muss mind. 8 Zeichen haben.'); return; }
+  if (pw !== pw2)    { showAlert(result, 'error', 'Passwörter stimmen nicht überein.'); return; }
+  const resp = await fetch('/api/setup/change-password', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({password: pw}),
+  });
+  if (resp.ok) {
+    showAlert(result, 'success', 'Passwort geändert.');
+    document.getElementById('new-pw').value = '';
+    document.getElementById('new-pw2').value = '';
+  } else {
+    const d = await resp.json().catch(() => ({}));
+    showAlert(result, 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));
+  }
+}
+
 async function saveSettings() {
   const le_domain = (document.getElementById('le-domain').value || '').trim();
   const le_email = (document.getElementById('le-email').value || '').trim();
 
-  // Also persist LE fields
-  if (le_domain || le_email) {
-    await fetch('/settings', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({LE_DOMAIN: le_domain, LE_EMAIL: le_email}),
-    });
-  }
-
-  const relayPass = (document.getElementById('relay-password').value || '');
   const payload = {
     FALLBACK_ON_ERROR: document.getElementById('fallback').checked,
     LOG_LEVEL: document.getElementById('log-level').value,
     LOG_RETENTION_DAYS: parseInt(document.getElementById('log-retention').value, 10) || 30,
+    LOG_TIMEZONE: document.getElementById('log-timezone').value,
     WEBUI_USERNAME: (document.getElementById('webui-username').value || '').trim(),
-    REINJECT_MODE: document.getElementById('reinject-mode').value,
-    EXO_PORT: parseInt(document.getElementById('exo-port').value, 10) || 25,
-    RELAY_USER: (document.getElementById('relay-user').value || '').trim(),
     LOOP_HEADER: (document.getElementById('loop-header').value || '').trim() || 'X-Sig-Applied',
     SENT_ITEMS_UPDATE: document.getElementById('sent-items').checked,
-    SMIME_HARVEST_RCPT: (document.getElementById('smime-harvest-rcpt').value || '').trim().toLowerCase(),
     SMIME_TAG_ENCRYPTED: (document.getElementById('smime-tag-encrypted').value || '').trim() || 'verschlüsselt',
     SMIME_TAG_SIGNED: (document.getElementById('smime-tag-signed').value || '').trim() || 'signiert von {signer}',
+    SMIME_TAG_POSITION: document.getElementById('smime-tag-position').value,
+    ENC_TRIGGER: (document.getElementById('enc-trigger').value || '').trim() || '#enc#',
     USER_WEBSITES: collectKV('websites'),
     USER_BOOKINGS: collectKV('bookings'),
     LE_DOMAIN: le_domain,
     LE_EMAIL: le_email,
+    NOTIFICATION_MAILBOX: document.getElementById('notif-mailbox').value,
+    DAILY_REPORT_ENABLED: document.getElementById('daily-report-enabled').checked,
+    DAILY_REPORT_TIME: document.getElementById('daily-report-time').value,
+    NOTIFY_STARTUP: document.getElementById('notify-startup').checked,
+    NOTIFY_SMIME_EXPIRY: document.getElementById('notify-smime-expiry').checked,
+    NOTIFY_CERT_RENEWAL: document.getElementById('notify-cert-renewal').checked,
+    NOTIFY_LE_EVENTS: document.getElementById('notify-le-events').checked,
+    CERT_WARN_DAYS: parseInt(document.getElementById('cert-warn-days').value, 10) || 14,
+    LE_RENEW_DAYS: parseInt(document.getElementById('le-renew-days').value, 10) || 7,
   };
-  if (relayPass) payload.RELAY_PASSWORD = relayPass;
 
   const resp = await fetch('/settings', {
     method: 'POST',
@@ -423,5 +649,18 @@ async function restartService() {
   window.scrollTo(0, 0);
   setTimeout(() => location.reload(), 5000);
 }
+
+async function sendTestNotification() {
+  const result = document.getElementById('notif-test-result');
+  result.textContent = 'Sende…';
+  const resp = await fetch('/api/notification/test', {method: 'POST'});
+  const d = await resp.json().catch(() => ({}));
+  result.style.color = resp.ok && d.ok ? '#27ae60' : '#e74c3c';
+  result.textContent = resp.ok && d.ok ? 'Gesendet ✓' : ('Fehler: ' + (d.detail || 'Unbekannt'));
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  loadMailboxes(true);
+});
 </script>
 {% endblock %}

@@ -26,6 +26,7 @@ EXO_SMARTHOST = _optional("EXO_SMARTHOST", "")
 # works without any env vars.
 WEBUI_SECRET_KEY = _optional("WEBUI_SECRET_KEY") or os.urandom(32).hex()
 WEBUI_PASSWORD = _optional("WEBUI_PASSWORD", "admin")
+SMIME_KEY_PASSWORD = _optional("SMIME_KEY_PASSWORD", "")  # Empty = no encryption
 
 # ── Structural (fixed at container start) ──────────────────────────────────────
 SMTP_PORT = int(_optional("SMTP_PORT", "25"))

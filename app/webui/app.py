@@ -35,7 +35,15 @@ import signature_engine
 
 log = logging.getLogger(__name__)
 
-app = FastAPI(title="EXO Signature Service")
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def _lifespan(application):
+    import acme_state
+    acme_state.resume_pending_polls()
+    yield
+
+app = FastAPI(title="EXO Signature Gateway", lifespan=_lifespan)
 security = HTTPBasic(auto_error=False)
 
 _STATIC_DIR = Path(__file__).parent / "static"
@@ -230,6 +238,7 @@ async def setup_wizard(
         "azure_app_created": s.get("AZURE_APP_CREATED", False),
         "exo_connector_created": s.get("EXO_CONNECTOR_CREATED", False),
         "smime_rules_created": s.get("SMIME_RULES_CREATED", False),
+        "imap_access_configured": s.get("IMAP_ACCESS_CONFIGURED", False),
         "password_change_needed": _password_change_required(),
         "cert_exists": Path(config.SMTP_TLS_CERT).exists(),
         "auth_cert_exists": Path("/app/data/auth.pfx").exists(),
@@ -369,7 +378,7 @@ async def auth_callback(
             },
         )
 
-    return RedirectResponse("/setup?azure_done=1", status_code=303)
+    return RedirectResponse("/setup?entra_done=1", status_code=303)
 
 
 # ── Routes: setup API endpoints ────────────────────────────────────────────────
@@ -486,6 +495,49 @@ async def api_setup_smime_rules(request: Request, user: str = Depends(_check_aut
     raise HTTPException(500, result["output"])
 
 
+@app.post("/api/setup/imap-access")
+async def api_setup_imap_access(request: Request, user: str = Depends(_check_auth)):
+    """Register EXO Service Principal and grant IMAP FullAccess to all mailboxes."""
+    import setup_wizard
+
+    app_id = config.CLIENT_ID or settings_store.get("CLIENT_ID") or ""
+    tenant_domain = settings_store.get("TENANT_DOMAIN") or ""
+
+    missing = []
+    if not app_id:
+        missing.append("CLIENT_ID")
+    if not tenant_domain:
+        missing.append("TENANT_DOMAIN")
+    if missing:
+        raise HTTPException(400, f"Fehlende Konfiguration: {', '.join(missing)}")
+
+    result = setup_wizard.run_imap_access_setup(
+        app_id=app_id,
+        tenant_domain=tenant_domain,
+    )
+    if result["ok"]:
+        return JSONResponse({"ok": True, "output": result["output"]})
+    raise HTTPException(500, result["output"])
+
+
+@app.get("/api/setup/verify/connector")
+async def api_verify_connector(_=Depends(_check_auth)):
+    import setup_wizard
+    return setup_wizard.verify_connector()
+
+
+@app.get("/api/setup/verify/imap")
+async def api_verify_imap(_=Depends(_check_auth)):
+    import setup_wizard
+    return setup_wizard.verify_imap()
+
+
+@app.get("/api/setup/verify/smime")
+async def api_verify_smime(_=Depends(_check_auth)):
+    import setup_wizard
+    return setup_wizard.verify_smime_rules()
+
+
 @app.post("/api/setup/mark-complete")
 async def api_setup_complete(request: Request, user: str = Depends(_check_auth)):
     settings_store.update({"SETUP_COMPLETE": True})
@@ -513,15 +565,89 @@ async def api_test_graph(request: Request, user: str = Depends(_check_auth)):
         raise HTTPException(500, str(exc))
 
 
+# ── Routes: mailbox config ─────────────────────────────────────────────────────
+
+@app.get("/api/mailboxes")
+async def api_get_mailboxes(_=Depends(_check_auth)):
+    """List all EXO mailboxes + their current MAILBOX_CONFIG."""
+    import graph_client
+    users = await graph_client.list_mailboxes()
+    config_map: dict = settings_store.get("MAILBOX_CONFIG") or {}
+    result = []
+    for u in users:
+        email = u["email"]
+        cfg = config_map.get(email, {})
+        result.append({
+            "email": email,
+            "name": u["name"],
+            "type": u.get("type", "user"),
+            "sig": cfg.get("sig", False),
+            "smime": cfg.get("smime", False),
+        })
+    # Also include mailboxes in config that Graph didn't return (e.g. removed users)
+    for email, cfg in config_map.items():
+        if not any(r["email"] == email for r in result):
+            result.append({
+                "email": email,
+                "name": email,
+                "type": "user",
+                "sig": cfg.get("sig", False),
+                "smime": cfg.get("smime", False),
+            })
+    return {"mailboxes": result}
+
+
+@app.post("/api/mailboxes/save")
+async def api_save_mailboxes(body: dict, _=Depends(_check_auth)):
+    """Save MAILBOX_CONFIG and update EXO Distribution Group + transport rule."""
+    mailboxes = body.get("mailboxes", [])
+    config_map = {}
+    enabled_members = []
+    for m in mailboxes:
+        email = (m.get("email") or "").lower().strip()
+        if not email:
+            continue
+        sig = bool(m.get("sig", False))
+        smime = bool(m.get("smime", False))
+        if sig or smime:
+            config_map[email] = {"sig": sig, "smime": smime}
+            enabled_members.append(email)
+        # If both false, don't include in config (passthrough by default)
+    settings_store.update({"MAILBOX_CONFIG": config_map})
+
+    # Update EXO Distribution Group if wizard is complete
+    s = settings_store.get_all()
+    app_id = s.get("CLIENT_ID") or config.CLIENT_ID
+    tenant_domain = s.get("TENANT_DOMAIN") or ""
+    if body.get("update_dg") and app_id and tenant_domain:
+        import setup_wizard
+        result = setup_wizard.run_mailbox_dg_update(app_id, tenant_domain, enabled_members)
+        return {"ok": result["ok"], "saved": True, "dg_output": result.get("output", "")}
+    return {"ok": True, "saved": True}
+
+
 # ── Routes: authenticated pages ────────────────────────────────────────────────
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request, user: str = Depends(_check_auth)):
+    import smime_store as _smime_store
+    import stats as _stats_mod2
     pw_change = _password_change_required()
+    total = get_stats()
+    daily = _stats_mod2.get_daily()
+    signing_certs = _smime_store.list_certs()
+    recipient_certs = _smime_store.list_recipient_certs()
+    warn_days = int(settings_store.get("CERT_WARN_DAYS") or 14)
+    expiring_certs = [c for c in signing_certs + recipient_certs
+                      if not c.get("error") and c.get("days_left", 999) <= warn_days]
     return templates.TemplateResponse(
         request=request, name="dashboard.html",
         context={
-            "stats": get_stats(),
+            "stats": total,
+            "stats_daily": daily,
+            "cert_expiry": _cert_expiry(),
+            "signing_certs": signing_certs,
+            "expiring_certs": expiring_certs,
             "active": "dashboard",
             "password_change_needed": pw_change,
         },
@@ -613,13 +739,13 @@ async def api_test_mail(request: Request, user: str = Depends(_check_auth)):
 
     if mail_type == "html":
         msg = MIMEText(
-            "<html><body><p>Dies ist eine HTML Test-Mail vom EXO Signature Service.</p>"
+            "<html><body><p>Dies ist eine HTML Test-Mail vom EXO Signature Gateway.</p>"
             "<p>Die Signatur wird durch den Service eingefügt.</p></body></html>",
             "html", "utf-8",
         )
     else:
         msg = MIMEText(
-            "Dies ist eine Nur-Text Test-Mail vom EXO Signature Service.\n"
+            "Dies ist eine Nur-Text Test-Mail vom EXO Signature Gateway.\n"
             "Die Signatur wird durch den Service eingefügt.",
             "plain", "utf-8",
         )
@@ -687,6 +813,19 @@ async def api_letsencrypt(request: Request, user: str = Depends(_check_auth)):
     return JSONResponse({"ok": True, "detail": "Zertifikat erneuert. Neustart erforderlich."})
 
 
+@app.post("/api/notification/test")
+async def api_notification_test(user: str = Depends(_check_auth)):
+    import notification as _notif
+    import config as _config
+    to = settings_store.get("NOTIFICATION_MAILBOX") or ""
+    if not to:
+        raise HTTPException(400, "NOTIFICATION_MAILBOX nicht konfiguriert")
+    ok = _notif.send_startup_notification(_config.VERSION)
+    if not ok:
+        raise HTTPException(500, "Senden fehlgeschlagen – SMTP-Einstellungen prüfen")
+    return JSONResponse({"ok": True})
+
+
 @app.post("/api/restart")
 async def api_restart(user: str = Depends(_check_auth)):
     log.info("Service restart requested by %s", user)
@@ -732,8 +871,8 @@ async def api_smime_upload(
     import smime_store
     p12_bytes = await p12_file.read()
     try:
-        info = smime_store.store_p12(email.lower().strip(), p12_bytes, password)
-        log.info("S/MIME cert uploaded for %s by %s", email, user)
+        info = smime_store.store_p12_slot(email.lower().strip(), p12_bytes, password)
+        log.info("S/MIME cert uploaded for %s by %s (slot %s)", email, user, info.get("slot_id"))
         return JSONResponse({"ok": True, "info": info})
     except ValueError as exc:
         raise HTTPException(400, str(exc))
@@ -746,7 +885,29 @@ async def api_smime_upload(
 async def api_smime_delete(cert_email: str, user: str = Depends(_check_auth)):
     import smime_store
     smime_store.delete_cert(cert_email)
-    log.info("S/MIME cert deleted for %s by %s", cert_email, user)
+    log.info("S/MIME certs deleted for %s by %s", cert_email, user)
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/smime/delete-slot/{cert_email}/{slot_id}")
+async def api_smime_delete_slot(cert_email: str, slot_id: str, user: str = Depends(_check_auth)):
+    import smime_store
+    try:
+        smime_store.delete_cert_slot(cert_email, slot_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    log.info("S/MIME cert slot %s deleted for %s by %s", slot_id, cert_email, user)
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/smime/set-default/{cert_email}/{slot_id}")
+async def api_smime_set_default(cert_email: str, slot_id: str, user: str = Depends(_check_auth)):
+    import smime_store
+    try:
+        smime_store.set_default_slot(cert_email, slot_id)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    log.info("S/MIME default cert set to slot %s for %s by %s", slot_id, cert_email, user)
     return JSONResponse({"ok": True})
 
 
@@ -793,17 +954,27 @@ async def log_stream(request: Request, token: str = ""):
     )
 
 
-# ── S/MIME page (updated: includes recipient certs) ───────────────────────────
-
 @app.get("/smime", response_class=HTMLResponse)
 async def smime_page_v2(request: Request, user: str = Depends(_check_auth)):
     import smime_store
+    import ca_backends as _ca
+    import acme_state as _acme_state
+    config_map: dict = settings_store.get("MAILBOX_CONFIG") or {}
+    smime_from_config = {email for email, cfg in config_map.items() if cfg.get("smime")}
+    smime_from_certs = {c["email"] for c in smime_store.list_certs()}
+    all_emails = sorted(smime_from_config | smime_from_certs)
+    smime_users = [{"email": email, "certs": smime_store.list_user_certs(email)} for email in all_emails]
+    acme_orders = {em: _acme_state.get_order(em) for em in all_emails if _acme_state.get_order(em)}
     return templates.TemplateResponse(
         request=request, name="smime.html",
         context={
-            "certs": smime_store.list_certs(),
+            "smime_users": smime_users,
+            "ca_user_config": settings_store.get("CA_USER_CONFIG") or {},
+            "backends": _ca.list_backends(),
             "recipient_certs": smime_store.list_recipient_certs(),
             "active": "smime",
+            "cert_expiry": _cert_expiry(),
+            "acme_orders": acme_orders,
         },
     )
 
@@ -843,6 +1014,272 @@ async def api_smime_recipient_delete(cert_email: str, user: str = Depends(_check
     return JSONResponse({"ok": True})
 
 
+@app.get("/api/smime/cert/details")
+async def api_smime_cert_details(
+    email: str, kind: str = "recipient", slot: str = "",
+    user: str = Depends(_check_auth),
+):
+    """Return human-readable cert details for the detail modal (no download)."""
+    import smime_store
+    from cryptography import x509 as _x509
+    from cryptography.hazmat.primitives.asymmetric import rsa, ec
+    from cryptography.x509.oid import NameOID, ExtensionOID
+    import hashlib
+
+    if kind == "signing":
+        if slot:
+            cert_path = smime_store.get_signing_cert_path_for_slot(email, slot)
+        else:
+            cert_path = smime_store.get_signing_cert_path(email)
+    else:
+        cert_path = smime_store.get_recipient_cert_path(email) or (smime_store.RECIPIENT_DIR / "nope")
+
+    if not cert_path or not cert_path.exists():
+        raise HTTPException(404, "Zertifikat nicht gefunden")
+
+    cert = _x509.load_pem_x509_certificate(cert_path.read_bytes())
+
+    def _dn(name) -> str:
+        parts = []
+        for oid in (NameOID.COMMON_NAME, NameOID.EMAIL_ADDRESS,
+                    NameOID.ORGANIZATION_NAME, NameOID.COUNTRY_NAME):
+            attrs = name.get_attributes_for_oid(oid)
+            if attrs:
+                parts.append(attrs[0].value)
+        return ", ".join(parts) if parts else name.rfc4514_string()
+
+    pub = cert.public_key()
+    if isinstance(pub, rsa.RSAPublicKey):
+        key_info = f"RSA {pub.key_size} bit"
+    elif isinstance(pub, ec.EllipticCurvePublicKey):
+        key_info = f"EC {pub.curve.name}"
+    else:
+        key_info = type(pub).__name__
+
+    der = cert.public_bytes(__import__("cryptography").hazmat.primitives.serialization.Encoding.DER)
+    sha1 = ":".join(f"{b:02X}" for b in hashlib.sha1(der).digest())
+
+    san_emails: list[str] = []
+    try:
+        san = cert.extensions.get_extension_for_oid(ExtensionOID.SUBJECT_ALTERNATIVE_NAME)
+        san_emails = san.value.get_values_for_type(_x509.RFC822Name)
+    except Exception:
+        pass
+
+    from datetime import timezone
+    try:
+        not_after = cert.not_valid_after_utc
+        not_before = cert.not_valid_before_utc
+    except AttributeError:
+        not_after = cert.not_valid_after.replace(tzinfo=timezone.utc)
+        not_before = cert.not_valid_before.replace(tzinfo=timezone.utc)
+
+    return JSONResponse({
+        "subject":  _dn(cert.subject),
+        "issuer":   _dn(cert.issuer),
+        "san":      san_emails,
+        "serial":   format(cert.serial_number, "X"),
+        "not_before": not_before.strftime("%d.%m.%Y"),
+        "not_after":  not_after.strftime("%d.%m.%Y"),
+        "key":      key_info,
+        "sha1":     sha1,
+    })
+
+
+# ── S/MIME Lifecycle: CA config + self-service ────────────────────────────────
+
+@app.get("/api/smime/ca-config")
+async def api_ca_config_get(user: str = Depends(_check_auth)):
+    import ca_backends as _ca
+    return JSONResponse({
+        "config": settings_store.get("CA_USER_CONFIG") or {},
+        "backends": _ca.list_backends(),
+    })
+
+
+@app.post("/api/smime/ca-config/{email}")
+async def api_ca_config_save(email: str, request: Request, user: str = Depends(_check_auth)):
+    data = await request.json()
+    cfg: dict = settings_store.get("CA_USER_CONFIG") or {}
+    cfg[email.lower().strip()] = {
+        "backend": data.get("backend", "assisted_manual"),
+        "portal_url": (data.get("portal_url") or "").strip(),
+        "notify_user": bool(data.get("notify_user", False)),
+        "staging": bool(data.get("staging", False)),
+    }
+    settings_store.update({"CA_USER_CONFIG": cfg})
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/smime/renewal/token/{email}")
+async def api_renewal_token_generate(email: str, user: str = Depends(_check_auth)):
+    import selfservice, scheduler
+    token = selfservice.generate_token(email)
+    gw_url = scheduler._get_gateway_url()
+    return JSONResponse({
+        "ok": True,
+        "token": token,
+        "url": f"{gw_url}/smime/renew/{token}",
+        "expires_days": selfservice.TOKEN_TTL_DAYS,
+    })
+
+
+@app.get("/api/smime/renewal/token-info/{email}")
+async def api_renewal_token_info(email: str, user: str = Depends(_check_auth)):
+    import selfservice, scheduler
+    info = selfservice.get_token_info(email)
+    if not info:
+        return JSONResponse({"exists": False})
+    gw_url = scheduler._get_gateway_url()
+    return JSONResponse({
+        "exists": True,
+        "expires": info["expires"],
+        "url": f"{gw_url}/smime/renew/{info['token']}",
+    })
+
+
+@app.post("/api/smime/renewal/notify/{email}")
+async def api_renewal_notify(email: str, user: str = Depends(_check_auth)):
+    import smime_store, selfservice, notification, scheduler
+    certs = smime_store.list_user_certs(email)
+    if not certs:
+        raise HTTPException(400, "Kein Zertifikat für diesen Benutzer vorhanden")
+    c = next((x for x in certs if x.get("is_default")), certs[0])
+    ca_cfg: dict = (settings_store.get("CA_USER_CONFIG") or {}).get(email, {})
+    token = selfservice.generate_token(email)
+    gw_url = scheduler._get_gateway_url()
+    upload_url = f"{gw_url}/smime/renew/{token}"
+    ok = notification.send_renewal_notification_to_user(
+        user_email=email,
+        cert_info=c,
+        upload_url=upload_url,
+        backend_name=ca_cfg.get("backend", "assisted_manual"),
+        user_config=ca_cfg,
+    )
+    if not ok:
+        raise HTTPException(500, "Benachrichtigung konnte nicht gesendet werden")
+    return JSONResponse({"ok": True, "upload_url": upload_url})
+
+
+@app.get("/smime/renew/{token}", response_class=HTMLResponse)
+async def smime_selfservice_page(token: str, request: Request):
+    import selfservice, smime_store
+    email = selfservice.validate_token(token)
+    if not email:
+        return HTMLResponse(
+            "<html><body style='font-family:sans-serif;padding:40px'>"
+            "<h2 style='color:#e74c3c'>Link abgelaufen oder ungültig</h2>"
+            "<p>Bitte fordern Sie beim Administrator einen neuen Link an.</p>"
+            "</body></html>",
+            status_code=403,
+        )
+    certs = smime_store.list_user_certs(email)
+    current_cert = next((c for c in certs if c.get("is_default")), certs[0] if certs else None)
+    return templates.TemplateResponse(
+        request=request, name="smime_selfservice.html",
+        context={"email": email, "token": token, "current_cert": current_cert},
+    )
+
+
+@app.post("/api/smime/renew/{token}")
+async def api_smime_selfservice_upload(
+    token: str,
+    request: Request,
+    p12_file: UploadFile = File(...),
+    password: str = Form(""),
+):
+    import selfservice, smime_store, notification
+    email = selfservice.validate_token(token)
+    if not email:
+        raise HTTPException(403, "Link abgelaufen oder ungültig")
+    try:
+        p12_bytes = await p12_file.read()
+        info = smime_store.store_p12_slot(email, p12_bytes, password)
+        log.info("Self-service cert upload for %s (slot %s)", email, info.get("slot_id"))
+        if settings_store.get("NOTIFY_CERT_RENEWAL") is not False:
+            notification.send_cert_renewal_success(email, info)
+        return JSONResponse({"ok": True, "info": info})
+    except ValueError as exc:
+        if settings_store.get("NOTIFY_CERT_RENEWAL") is not False:
+            notification.send_cert_renewal_failure(email, str(exc))
+        raise HTTPException(400, str(exc))
+    except Exception as exc:
+        log.error("Self-service upload error for %s: %s", email, exc)
+        if settings_store.get("NOTIFY_CERT_RENEWAL") is not False:
+            notification.send_cert_renewal_failure(email, str(exc))
+        raise HTTPException(500, str(exc))
+
+
+@app.get("/api/smime/renewal/status/{email}")
+async def api_acme_status(email: str, user: str = Depends(_check_auth)):
+    import acme_state
+    order = acme_state.get_order(email.lower().strip())
+    if not order:
+        return JSONResponse({"active": False})
+    return JSONResponse({
+        "active": True,
+        "status": order.get("status"),
+        "error": order.get("error"),
+        "created": order.get("created"),
+    })
+
+
+@app.post("/api/smime/renewal/clear/{email}")
+async def api_acme_clear_order(email: str, user: str = Depends(_check_auth)):
+    import acme_state
+    acme_state.clear_order(email)
+    log.info("ACME order cleared for %s by %s", email, user)
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/smime/renewal/initiate/{email}")
+async def api_acme_initiate(email: str, user: str = Depends(_check_auth)):
+    import ca_backends as _ca
+    import acme_state as _acme_state
+    email = email.lower().strip()
+    ca_cfg: dict = (settings_store.get("CA_USER_CONFIG") or {}).get(email, {})
+    backend_name = ca_cfg.get("backend", "assisted_manual")
+    backend = _ca.get_backend(backend_name)
+    if not backend.can_auto_renew():
+        raise HTTPException(400, f"Backend '{backend_name}' unterstützt kein Auto-Enroll")
+
+    # If there's already a waiting_challenge order, restart the mailbox poller
+    # instead of creating a redundant CASTLE order.
+    existing = _acme_state.get_order(email)
+    if existing and existing.get("status") == "waiting_challenge":
+        import asyncio
+        asyncio.create_task(_acme_state._poll_mailbox_for_challenge(email))
+        log.info("ACME mailbox poll restarted for %s by %s (order already placed)", email, user)
+        return JSONResponse({"ok": True, "resumed": True})
+
+    try:
+        await backend.initiate_renewal(email, ca_cfg)
+        log.info("ACME renewal initiated for %s by %s", email, user)
+        return JSONResponse({"ok": True})
+    except Exception as exc:
+        log.error("ACME initiate failed for %s: %s", email, exc)
+        raise HTTPException(500, str(exc))
+
+
+@app.get("/api/smime/recipient/download/{cert_email}")
+async def api_smime_recipient_download(cert_email: str, user: str = Depends(_check_auth)):
+    import smime_store
+    from fastapi.responses import Response
+    from cryptography import x509
+    from cryptography.hazmat.primitives.serialization import Encoding
+    p = smime_store.get_recipient_cert_path(cert_email)
+    if not p or not p.exists():
+        raise HTTPException(404, "Zertifikat nicht gefunden")
+    cert = x509.load_pem_x509_certificate(p.read_bytes())
+    der_bytes = cert.public_bytes(Encoding.DER)
+    safe_name = cert_email.replace("/", "_").replace("..", "_")
+    return Response(
+        content=der_bytes,
+        media_type="application/pkix-cert",
+        headers={"Content-Disposition": f'attachment; filename="{safe_name}.cer"'},
+    )
+
+
 # ── Persistent log search ──────────────────────────────────────────────────────
 
 @app.get("/api/logs/search")
@@ -867,6 +1304,8 @@ _EXPORT_EXCLUDE = {"ADMIN_PASSWORD_HASH", "CLIENT_SECRET", "RELAY_PASSWORD"}
 
 @app.get("/api/config/export")
 async def api_config_export(user: str = Depends(_check_auth)):
+    import base64 as _b64
+    import smime_store as _ss
     root = _ET.Element("exo-signature-config")
     root.set("version", config.VERSION)
     root.set("exported", datetime.now(timezone.utc).isoformat())
@@ -889,6 +1328,31 @@ async def api_config_export(user: str = Depends(_check_auth)):
             elem.set("type", "int")
         else:
             elem.set("value", str(value or ""))
+
+    # ── S/MIME signing certs (cert + private key) ─────────────────────────────
+    smime_dir = _ss.SMIME_DIR
+    if smime_dir.exists():
+        for user_dir in sorted(smime_dir.iterdir()):
+            cert_p = user_dir / "cert.pem"
+            key_p  = user_dir / "key.pem"
+            if not cert_p.exists():
+                continue
+            elem = _ET.SubElement(root, "smime-signing-cert")
+            elem.set("email", user_dir.name)
+            _ET.SubElement(elem, "cert").text = _b64.b64encode(cert_p.read_bytes()).decode()
+            if key_p.exists():
+                _ET.SubElement(elem, "key").text = _b64.b64encode(key_p.read_bytes()).decode()
+
+    # ── S/MIME recipient certs (public only) ──────────────────────────────────
+    rcpt_dir = _ss.RECIPIENT_DIR
+    if rcpt_dir.exists():
+        for user_dir in sorted(rcpt_dir.iterdir()):
+            cert_p = user_dir / "cert.pem"
+            if not cert_p.exists():
+                continue
+            elem = _ET.SubElement(root, "smime-recipient-cert")
+            elem.set("email", user_dir.name)
+            _ET.SubElement(elem, "cert").text = _b64.b64encode(cert_p.read_bytes()).decode()
 
     xml_bytes = b'<?xml version="1.0" encoding="utf-8"?>\n' + _ET.tostring(root, encoding="unicode").encode("utf-8")
     filename = f"exo-sig-config-{datetime.now().strftime('%Y%m%d')}.xml"
@@ -935,6 +1399,48 @@ async def api_config_import(
             pass
 
     settings_store.update(patch)
-    log.info("Config imported by %s: %d keys from %s", user, len(patch),
-             root.get("exported", "?"))
-    return JSONResponse({"ok": True, "imported": len(patch)})
+
+    # Apply timezone change immediately to all active log handlers
+    if "LOG_TIMEZONE" in patch:
+        import log_manager
+        tz_name = patch["LOG_TIMEZONE"]
+        fmt = log_manager._TZFormatter(tz_name, log_manager._LOG_FMT, datefmt=log_manager._DATE_FMT)
+        for h in logging.getLogger().handlers:
+            h.setFormatter(fmt)
+        log.info("Log timezone updated to %s", tz_name)
+
+    # ── Restore S/MIME certs ──────────────────────────────────────────────────
+    import base64 as _b64
+    import smime_store as _ss
+    certs_restored = 0
+
+    for elem in root.findall("smime-signing-cert"):
+        email_addr = elem.get("email", "").lower().strip()
+        cert_b64 = (elem.findtext("cert") or "").strip()
+        key_b64  = (elem.findtext("key")  or "").strip()
+        if not email_addr or not cert_b64:
+            continue
+        try:
+            user_dir = _ss.SMIME_DIR / email_addr
+            user_dir.mkdir(parents=True, exist_ok=True)
+            (user_dir / "cert.pem").write_bytes(_b64.b64decode(cert_b64))
+            if key_b64:
+                (user_dir / "key.pem").write_bytes(_b64.b64decode(key_b64))
+            certs_restored += 1
+        except Exception as exc:
+            log.warning("Config import: could not restore signing cert for %s: %s", email_addr, exc)
+
+    for elem in root.findall("smime-recipient-cert"):
+        email_addr = elem.get("email", "").lower().strip()
+        cert_b64 = (elem.findtext("cert") or "").strip()
+        if not email_addr or not cert_b64:
+            continue
+        try:
+            _ss.store_recipient_cert(email_addr, _b64.b64decode(cert_b64))
+            certs_restored += 1
+        except Exception as exc:
+            log.warning("Config import: could not restore recipient cert for %s: %s", email_addr, exc)
+
+    log.info("Config imported by %s: %d settings, %d certs from %s",
+             user, len(patch), certs_restored, root.get("exported", "?"))
+    return JSONResponse({"ok": True, "imported": len(patch), "certs_restored": certs_restored})

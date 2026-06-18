@@ -83,6 +83,16 @@ def _extract_parts(msg) -> tuple[str, str, list[dict]]:
             text_body = payload.decode(charset, errors="replace")
             return
 
+        # Drop S/MIME protocol-overhead parts that are invisible in normal clients
+        # but appear as confusing attachments (smime.p7b, smime.p7s) in JSON messages.
+        # Only filter detached signatures and certificate bundles — NOT signed-data
+        # (which may be the only payload if one-step signing wasn't stripped upstream).
+        smime_type_param = (part.get_param("smime-type") or "").lower()
+        if ct in ("application/pkcs7-signature", "application/x-pkcs7-signature"):
+            return
+        if smime_type_param == "certs-only":
+            return
+
         # Treat everything else as an attachment (including inline images)
         filename = part.get_filename() or f"file.{part.get_content_subtype()}"
         is_inline = "inline" in cd.lower() or (bool(cid) and not is_attachment)
@@ -100,6 +110,195 @@ def _extract_parts(msg) -> tuple[str, str, list[dict]]:
 
     _walk(msg)
     return html_body, text_body, attachments
+
+
+def _deliver_via_recipient_sendmail(
+    mail_from: str, rcpt_tos: list[str], content_bytes: bytes, from_addr: str
+) -> bool:
+    """
+    Deliver inbound external mail by calling sendMail via the first internal recipient's
+    EXO mailbox.  Messages routed through EXO's delivery pipeline arrive as normal
+    received mail — unlike /mailFolders/inbox/messages which always creates drafts
+    (PR_MESSAGE_FLAGS MSGFLAG_UNSENT set by EXO, silently reverted on PATCH).
+    saveToSentItems=False avoids a confusing copy in the recipient's Sent Items.
+    """
+    if not rcpt_tos:
+        return False
+
+    token = graph_client._acquire_token()
+    if not token:
+        return False
+
+    msg = email_mod.message_from_bytes(content_bytes, policy=email_mod.policy.compat32)
+
+    def _dh(v: str) -> str:
+        return str(email.header.make_header(email.header.decode_header(v or "")))
+
+    subject = _dh(msg.get("Subject", "(no subject)"))
+    from_header = _dh(msg.get("From", from_addr))
+    from_name, fa = email.utils.parseaddr(from_header)
+    fa = fa or from_addr
+
+    html_body, text_body, attachments = _extract_parts(msg)
+    body_content = html_body or text_body or ""
+    body_type = "html" if html_body else "text"
+
+    message: dict = {
+        "subject": subject,
+        "from": {"emailAddress": {"name": from_name or fa, "address": fa}},
+        "body": {"contentType": body_type, "content": body_content},
+        "toRecipients": [{"emailAddress": {"address": r}} for r in rcpt_tos],
+    }
+    if attachments:
+        message["attachments"] = attachments
+
+    auth_hdr = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    payload = {"message": message, "saveToSentItems": False}
+
+    try:
+        with httpx.Client(timeout=30) as client:
+            resp = client.post(
+                f"{GRAPH}/users/{rcpt_tos[0]}/sendMail",
+                json=payload,
+                headers=auth_hdr,
+            )
+        if resp.status_code == 202:
+            log.info("Recipient sendMail OK: from=%s to=%s", fa, rcpt_tos)
+            return True
+        log.warning(
+            "Recipient sendMail failed: HTTP %s — %s",
+            resp.status_code, resp.text[:300],
+        )
+    except Exception as exc:
+        log.warning("Recipient sendMail error: %s", exc)
+    return False
+
+
+def deliver_to_mailbox_mime(mail_from: str, rcpt_tos: list[str], content_bytes: bytes) -> bool:
+    """
+    Write a raw MIME message into each recipient's inbox via Graph API.
+    Unlike deliver_to_mailbox (JSON), this preserves the full MIME structure
+    so Outlook Classic renders it correctly as a real email.
+    NOTE: /mailFolders/inbox/messages expects raw MIME bytes with Content-Type:
+    text/plain — NOT base64-encoded (which is what sendMail requires).
+    Requires Mail.ReadWrite.All.
+    """
+    token = graph_client._acquire_token()
+    if not token:
+        return False
+
+    msg = email_mod.message_from_bytes(content_bytes, policy=email_mod.policy.compat32)
+    from_header = msg.get("From", mail_from)
+    _, from_addr = email.utils.parseaddr(from_header)
+    from_addr = from_addr or mail_from
+
+    auth_hdr = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "text/plain",
+    }
+    json_hdr = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    ok = True
+    with httpx.Client(timeout=30) as client:
+        for recipient in rcpt_tos:
+            resp = client.post(
+                f"{GRAPH}/users/{recipient}/mailFolders/inbox/messages",
+                content=content_bytes,
+                headers=auth_hdr,
+            )
+            if resp.status_code in (200, 201):
+                # Messages created via API land as drafts (MAPI MSGFLAG_UNSENT set).
+                # Patch isDraft + PR_MESSAGE_FLAGS (0x0E07) to mark as received.
+                try:
+                    msg_id = resp.json().get("id", "")
+                    if msg_id:
+                        client.patch(
+                            f"{GRAPH}/users/{recipient}/messages/{msg_id}",
+                            json={
+                                "isDraft": False,
+                                "singleValueExtendedProperties": [
+                                    {"id": "Integer 0x0e07", "value": "1"}
+                                ],
+                            },
+                            headers=json_hdr,
+                        )
+                except Exception:
+                    pass
+                log.info("Graph MIME mailbox inject OK: from=%s to=%s", from_addr, recipient)
+            else:
+                log.warning(
+                    "Graph MIME mailbox inject failed for %s: HTTP %s — %s",
+                    recipient, resp.status_code, resp.text[:300],
+                )
+                ok = False
+    return ok
+
+
+def deliver_to_mailbox(mail_from: str, rcpt_tos: list[str], content_bytes: bytes) -> bool:
+    """
+    Write a message into each recipient's inbox via Graph API (JSON fallback).
+    Used when the MIME path fails.  Reconstructs body+attachments from MIME.
+    Requires Mail.ReadWrite.All.
+    """
+    token = graph_client._acquire_token()
+    if not token:
+        return False
+
+    msg = email_mod.message_from_bytes(content_bytes, policy=email_mod.policy.compat32)
+
+    def _dh(val: str) -> str:
+        return str(email.header.make_header(email.header.decode_header(val or "")))
+
+    subject = _dh(msg.get("Subject", "(no subject)"))
+    from_header = _dh(msg.get("From", mail_from))
+    from_name, from_addr = email.utils.parseaddr(from_header)
+    html_body, text_body, attachments = _extract_parts(msg)
+    body_content = html_body or text_body or ""
+    body_type = "html" if html_body else "text"
+    log.info("Graph JSON mailbox inject: html=%d chars text=%d chars attachments=%d",
+             len(html_body), len(text_body), len(attachments))
+
+    message: dict = {
+        "subject": subject,
+        "from": {"emailAddress": {"name": from_name or from_addr,
+                                   "address": from_addr or mail_from}},
+        "body": {"contentType": body_type, "content": body_content},
+        "toRecipients": [{"emailAddress": {"address": r}} for r in rcpt_tos],
+        "isRead": False,
+    }
+    if attachments:
+        message["attachments"] = attachments
+
+    auth_hdr = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    ok = True
+    with httpx.Client(timeout=30) as client:
+        for recipient in rcpt_tos:
+            resp = client.post(
+                f"{GRAPH}/users/{recipient}/mailFolders/inbox/messages",
+                json=message,
+                headers=auth_hdr,
+            )
+            if resp.status_code in (200, 201):
+                try:
+                    msg_id = resp.json().get("id", "")
+                    if msg_id:
+                        client.patch(
+                            f"{GRAPH}/users/{recipient}/messages/{msg_id}",
+                            json={
+                                "isDraft": False,
+                                "singleValueExtendedProperties": [
+                                    {"id": "Integer 0x0e07", "value": "1"}
+                                ],
+                            },
+                            headers=auth_hdr,
+                        )
+                except Exception:
+                    pass
+                log.info("Graph JSON mailbox inject OK: from=%s to=%s", from_addr, recipient)
+            else:
+                log.error("Graph JSON mailbox inject failed for %s: HTTP %s — %s",
+                          recipient, resp.status_code, resp.text[:300])
+                ok = False
+    return ok
 
 
 def send_via_graph(mail_from: str, rcpt_tos: list[str], content_bytes: bytes) -> bool:
@@ -179,6 +378,22 @@ def send_via_graph(mail_from: str, rcpt_tos: list[str], content_bytes: bytes) ->
             log.info("Graph re-inject OK: from=%s to=%s", from_addr, rcpt_tos)
             return True
 
+        # External sender: sendMail as them fails — write directly to inbox.
+        error_code = ""
+        try:
+            error_code = resp.json().get("error", {}).get("code", "")
+        except Exception:
+            pass
+        if error_code == "ErrorInvalidUser":
+            log.info("Sender %s is external — SMTP submit", from_addr)
+            import smtp_submit
+            if smtp_submit.deliver_inbound(mail_from, rcpt_tos, content_bytes):
+                return True
+            if _deliver_via_recipient_sendmail(mail_from, rcpt_tos, content_bytes, from_addr):
+                return True
+            log.warning("All non-draft paths failed — inbox inject fallback (may show as draft)")
+            return deliver_to_mailbox(mail_from, rcpt_tos, content_bytes)
+
         log.error(
             "Graph sendMail failed: HTTP %s — %s",
             resp.status_code,
@@ -195,7 +410,9 @@ def send_via_graph_mime(mail_from: str, rcpt_tos: list[str], content_bytes: byte
     """
     Send a raw MIME message via Graph API sendMail.
     Unlike send_via_graph(), EXO passes the message through unchanged,
-    preserving S/MIME signatures.
+    preserving S/MIME signatures and full MIME fidelity.
+    Falls back to deliver_to_mailbox() (JSON) when the sender is external —
+    the /mailFolders/inbox/messages endpoint does not accept MIME format.
     """
     token = graph_client._acquire_token()
     if not token:
@@ -223,6 +440,28 @@ def send_via_graph_mime(mail_from: str, rcpt_tos: list[str], content_bytes: byte
         if resp.status_code == 202:
             log.info("Graph MIME re-inject OK: from=%s to=%s", from_addr, rcpt_tos)
             return True
+
+        # External sender: sendMail as them fails — inject directly into inbox.
+        # Prefer MIME format (raw bytes, NOT base64 — unlike sendMail) so that
+        # Outlook Classic renders the message as a real email.  Fall back to
+        # JSON reconstruction if the MIME path fails.
+        error_code = ""
+        try:
+            error_code = resp.json().get("error", {}).get("code", "")
+        except Exception:
+            pass
+        if error_code == "ErrorInvalidUser" or resp.status_code == 404:
+            log.info("Sender %s is external — SMTP submit", from_addr)
+            import smtp_submit
+            if smtp_submit.deliver_inbound(mail_from, rcpt_tos, content_bytes):
+                return True
+            if _deliver_via_recipient_sendmail(mail_from, rcpt_tos, content_bytes, from_addr):
+                return True
+            log.warning("All non-draft paths failed — MIME inbox inject fallback (may show as draft)")
+            if deliver_to_mailbox_mime(mail_from, rcpt_tos, content_bytes):
+                return True
+            log.warning("MIME inject failed — JSON inbox inject fallback")
+            return deliver_to_mailbox(mail_from, rcpt_tos, content_bytes)
 
         log.error("Graph sendMail (MIME) failed: HTTP %s — %s",
                   resp.status_code, resp.text[:400])

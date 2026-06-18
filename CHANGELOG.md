@@ -1,0 +1,125 @@
+# Changelog — EXO Signature Gateway
+
+Format: `v[VERSION] — [Datum] — [Kurzbeschreibung]`  
+Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext versteht.
+
+---
+
+## v1.0.84 — 2026-06-18 — PowerShell-Array-Fix, ACME-Robustheit, Sicherheitshärtung
+
+### Bugfixes
+- **PowerShell `$Members`-Array-Bug (kritisch)**: `run_mailbox_dg_update.ps1` empfing
+  Members als komma-getrennten String (`"a@x.de,b@x.de"`), behandelte es aber als
+  `[string[]]` — immer 1 Element. Exchange lehnte die komma-getrennte Adresse lautlos
+  ab. Fix: Parameter auf `[string]` geändert, Split intern im Script.  
+  _Ursache: Python `",".join(members)` → PowerShell `[string[]]` Mismatch_
+- **`Add-DistributionGroupMember` meldete falsch "Added"**: `-ErrorAction SilentlyContinue`
+  unterdrückte Fehler, aber `Write-OK` lief trotzdem. Fix: `try/catch` mit
+  `-ErrorAction Stop`.
+- **ACME stale Task nach `clear_order()`**: Laufende asyncio-Tasks wurden beim Löschen
+  einer Order nicht abgebrochen — bis zu 10 Min. Polling auf eine ungültige Order.
+  Fix: `_register_task()` + `clear_order()` bricht Task explizit ab.
+- **ACME Poll-Timeout zu kurz**: 600 s reichen für CASTLE Staging nicht. Erhöht auf
+  1800 s (30 Min).
+- **ACME token_part2 ungeprüft**: Mailbox-Poll las nie den E-Mail-Body — `token_part2`
+  kam nur aus der ACME-API. Jetzt wird der Body geholt und verglichen; bei Abweichung
+  wird der Body-Wert verwendet (RFC 8823-konform).
+
+### Sicherheit
+- Dateiberechtigungen auf `600` gesetzt: `data/auth.pfx`, `data/settings.json`,
+  `data/acme/account_key.pem`, `.env`
+
+### Neu
+- `CLAUDE.md` — technische Referenz für KI-gestützte Entwicklung
+- `CHANGELOG.md` — dieses Dokument
+
+---
+
+## v1.0.83 — 2026-06-18 — ACME Body-Verifikation, Timeout erhöht
+
+_(In v1.0.84 zusammengefasst — Zwischenstand während Debugging-Session)_
+
+---
+
+## v1.0.82 — 2026-06-18 — ACME Task-Cancellation bei clear_order
+
+_(In v1.0.84 zusammengefasst — Zwischenstand während Debugging-Session)_
+
+---
+
+## v1.0.81 — 2026-06-18 — ACME Time-Filter-Fix (0-Sekunden-Puffer)
+
+### Bugfixes
+- **ACME: alte Challenge-Mails wurden wieder aufgegriffen**: Puffer im Time-Filter war
+  60 s — zu groß. Auf 0 s reduziert (exakter Order-Erstellungszeitpunkt als Cutoff).
+
+---
+
+## v1.0.80 — 2026-06-18 — S/MIME ACME, NOTIFY-Toggles, Staging-Isolation
+
+### Features
+- CASTLE ACME email-reply-00 vollständig implementiert (S/MIME-Zertifikat für Erika)
+- Staging- und Production-ACME-Accounts getrennt (`account_url_staging.txt`)
+- `resume_pending_polls()` nimmt `validating`-Orders nach Restart wieder auf
+- ACME-Polling per API auslösbar ohne Container-Restart
+- S/MIME-Tab: Speichern-Button korrekt positioniert (war zwischen zwei Checkboxen)
+
+### Bugfixes
+- **RFC 8823 falsche Token-Reihenfolge (kritisch)**: `full_token` war `part1 + part2`
+  statt `part2 + "." + part1`. Alle vorherigen ACME-Bestellungen sind deshalb
+  fehlgeschlagen.
+- **`settings_store.update()` ohne `init()` (kritisch)**: Ein `docker exec`-Subprozess
+  rief `update()` mit leerem `_data` auf → `_save()` schrieb alle DEFAULTS (leere
+  Credentials) über die echten Werte. Fix: Guard `if not _data: init()` in `update()`.
+- **NOTIFY_*-Checkboxen wurden nicht gespeichert**: Fehlten in `DEFAULTS`-Dict —
+  `update()` ignorierte sie. Fix: alle vier `NOTIFY_*`-Keys zu DEFAULTS hinzugefügt.
+- **Container-Restart-Toggle speicherte nicht**: Selbe Ursache wie NOTIFY_*-Bug.
+
+---
+
+## v1.0.23 — S/MIME Encrypt/Decrypt, Logging, Config-Export/Import
+
+### Features
+- S/MIME eingehend: Entschlüsselung (enveloped-data) und Signatur-Stripping
+- S/MIME ausgehend: Verschlüsselung mit `#enc#`-Trigger im Betreff
+- Persistentes Logging mit konfigurierbarer Retention (`LOG_RETENTION_DAYS`)
+- Täglicher Bericht an Admin-Mailbox
+- Config-Export/Import über Web-UI
+- SMIME-Harvest: eingehende Zertifikate automatisch extrahieren
+
+### Bugfixes
+- Sent Items Patch für Plain-Text-Mails via HTML-Fallback
+- UTF-8-Erzwingung beim Re-Encoding modifizierter Mail-Teile
+- Outlook Mobile Client-Signaturen strippen (verhindert doppelte Signaturen)
+- Signatur vor zitierten Inhalten in Antwortmails einfügen
+
+---
+
+## v1.0.5 — S/MIME Signing, Setup-Wizard, Stats, Web-UI
+
+### Features
+- S/MIME-Signierung (ausgehend) über Graph API Raw-MIME
+- Setup-Wizard: Azure-App, EXO-Connector, Transport-Regel automatisch anlegen
+- Statistik-Dashboard
+- PKCE-Auth-Flow für Setup-Wizard
+- Web-UI-Überarbeitung
+
+### Bugfixes (S/MIME Graph-Modus)
+- Raw MIME: Envelope-Header als Bytes voranstellen
+- base64-Encoding des MIME-Body für Graph sendMail
+- CRLF-Normalisierung (openssl erzeugt bare LF auf Linux)
+- Loop-Detection-Header im S/MIME-Outer-Wrapper
+- `saveToSentItems`-Parameter entfernt (in MIME-sendMail nicht unterstützt)
+- MAIL FROM Parameter `AUTH=`, `REQUIRETLS` etc. akzeptieren (EXO-Forwarding)
+
+---
+
+## v1.0.0 — Initiale Implementierung
+
+- SMTP-Listener (Port 25) mit STARTTLS
+- HTML-Signaturinjection (Graph API für User-Daten)
+- Graph API Reinject (sendMail) + SMTP-Fallback
+- Exchange Online Connector-Setup
+- Transport-Regel mit Distribution-Group-Filter
+- Let's Encrypt TLS-Zertifikat (Certbot)
+- Web-UI: Mailbox-Konfiguration, Signatur-Vorschau

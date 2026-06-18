@@ -20,6 +20,7 @@ logging.basicConfig(
 )
 
 import log_manager
+import scheduler
 from handler import SignatureHandler
 from webui.app import app as fastapi_app
 log = logging.getLogger(__name__)
@@ -116,14 +117,27 @@ def _build_tls_context() -> ssl.SSLContext | None:
 def _run_acme_http() -> None:
     webroot = Path("/app/data/acme-webroot")
     webroot.mkdir(parents=True, exist_ok=True)
+    tls_active = Path(config.SMTP_TLS_CERT).exists() and Path(config.SMTP_TLS_KEY).exists()
 
     class _Handler(BaseHTTPRequestHandler):
         def do_GET(self):
-            path = webroot / self.path.lstrip("/")
-            if path.is_file():
-                self.send_response(200)
+            # Serve ACME challenges directly; redirect everything else to HTTPS
+            if self.path.startswith("/.well-known/acme-challenge/"):
+                path = webroot / self.path.lstrip("/")
+                if path.is_file():
+                    self.send_response(200)
+                    self.end_headers()
+                    self.wfile.write(path.read_bytes())
+                    return
+                self.send_response(404)
                 self.end_headers()
-                self.wfile.write(path.read_bytes())
+                return
+            if tls_active:
+                host = (self.headers.get("Host") or "").split(":")[0]
+                dest = f"https://{host}:{config.WEBUI_PORT}{self.path}"
+                self.send_response(301)
+                self.send_header("Location", dest)
+                self.end_headers()
             else:
                 self.send_response(404)
                 self.end_headers()
@@ -180,14 +194,33 @@ async def _run_smtp() -> None:
 
 def main() -> None:
     settings_store.init(config._ENV_SEEDS)
-    log_manager.setup(retention_days=int(settings_store.get("LOG_RETENTION_DAYS") or 30))
+    log_manager.setup(
+        retention_days=int(settings_store.get("LOG_RETENTION_DAYS") or 30),
+        tz_name=settings_store.get("LOG_TIMEZONE") or "UTC",
+    )
 
-    log.info("Starting EXO Signature Service v%s", config.VERSION)
+    log.info("Starting EXO Signature Gateway v%s", config.VERSION)
+
+    # Migrate S/MIME keys to encrypted storage if SMIME_KEY_PASSWORD is configured
+    try:
+        import smime_store
+        n = smime_store.migrate_keys_encryption()
+        if n:
+            log.info("Migrated %d S/MIME private key(s) to encrypted storage", n)
+    except Exception as exc:
+        log.warning("S/MIME key migration check failed: %s", exc)
 
     threading.Thread(target=_run_acme_http, daemon=True).start()
 
     threading.Thread(target=_run_webui, daemon=True).start()
     log.info("Web UI started on port %d", config.WEBUI_PORT)
+
+    scheduler.start()
+    threading.Thread(
+        target=scheduler.send_startup_notification,
+        args=(config.VERSION,),
+        daemon=True,
+    ).start()
 
     asyncio.run(_run_smtp())
 

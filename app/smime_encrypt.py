@@ -47,8 +47,14 @@ def encrypt(message_bytes: bytes, recipients: list[str]) -> tuple[bytes | None, 
                       result.stderr.decode(errors="replace")[:400])
             return None, []
 
+        import stats
+        stats.increment("smime_encrypted")
         log.info("S/MIME encrypted for %d recipient(s)", len(recipients))
-        return result.stdout, []
+        # OpenSSL outputs the legacy "x-pkcs7-mime" MIME type; normalize to the
+        # RFC 3851/5751 name so Outlook Classic recognises it as S/MIME.
+        out = result.stdout.replace(b"application/x-pkcs7-mime",
+                                    b"application/pkcs7-mime")
+        return out, []
 
     except Exception as exc:
         log.error("S/MIME encryption error: %s", exc)

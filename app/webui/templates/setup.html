@@ -4,18 +4,18 @@
 
 {% if auth_error %}
 <div class="alert error" style="margin-bottom:20px">
-  <strong>Fehler beim Azure-Login:</strong> {{ auth_error }}
+  <strong>Fehler beim Entra-Login:</strong> {{ auth_error }}
 </div>
 {% endif %}
 
-{% if request.query_params.get('azure_done') %}
+{% if request.query_params.get('entra_done') %}
 <div class="alert success" style="margin-bottom:20px">
-  Azure-Login erfolgreich. App-Registrierung und Smarthost wurden automatisch konfiguriert.
+  Entra-Login erfolgreich. Entra App-Registrierung und EXO-Smarthost wurden automatisch konfiguriert.
 </div>
 {% endif %}
 
 <p style="color:#555;margin-bottom:24px;font-size:13px">
-  Dieser Assistent richtet den EXO Signature Service ein.
+  Dieser Assistent richtet den EXO Signature Gateway ein.
   Führe die Schritte der Reihe nach aus. Bereits abgeschlossene Schritte sind grün markiert.
 </p>
 
@@ -96,11 +96,139 @@
   </div>
 </div>
 
-<!-- ── Step 3: Azure-Login ────────────────────────────────────────────────── -->
+<!-- ── Step 3: TLS-Zertifikat (Let's Encrypt) ─────────────────────────────── -->
+<div class="wizard-step {% if e.cert_exists %}done{% endif %}" id="step-le">
+  <div class="step-header">
+    <span class="step-badge">3</span>
+    <span class="step-title">TLS-Zertifikat (Let's Encrypt)</span>
+    {% if e.cert_exists %}
+    <span class="step-status done">Zertifikat vorhanden — HTTPS aktiv</span>
+    {% else %}
+    <span class="step-status pending">Kein Zertifikat</span>
+    {% endif %}
+  </div>
+  <div class="step-body">
+    <p class="hint" style="margin-bottom:12px">
+      Aktiviert HTTPS für das Web-UI und stellt das TLS-Client-Zertifikat bereit,
+      das der EXO Inbound Connector für Signaturprüfung benötigt (nur SMTP-Modus).
+      Port 80 muss für die ACME-Validierung öffentlich erreichbar sein.
+    </p>
+    <div class="settings-row">
+      <label for="le-domain">Domain</label>
+      <input type="text" id="le-domain" value="{{ s.LE_DOMAIN or e.public_hostname }}" placeholder="mail.zarenko.net" style="width:280px">
+    </div>
+    <div class="settings-row">
+      <label for="le-email">E-Mail (ACME)</label>
+      <input type="email" id="le-email" value="{{ s.LE_EMAIL }}" placeholder="admin@domain.com" style="width:280px">
+    </div>
+    <div id="le-result" style="margin-top:8px;display:none"></div>
+    <div class="actions" style="margin-top:12px">
+      <button class="btn primary" id="le-btn" onclick="renewCert()">
+        {% if e.cert_exists %}Zertifikat erneuern{% else %}Let's Encrypt starten{% endif %}
+      </button>
+    </div>
+    {% if e.cert_exists %}
+    <p class="hint" style="margin-top:8px">
+      Nach Ausstellung wechselt das Web-UI automatisch zu HTTPS — HTTP-Zugriff
+      wird auf HTTPS weitergeleitet.
+    </p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ── Step Modus & Funktionen ────────────────────────────────────────────── -->
+<!-- ── Step 2.5: Modus & Funktionen ──────────────────────────────────────── -->
+<div class="wizard-step {% if s.REINJECT_MODE %}done{% endif %}" id="step-mode">
+  <div class="step-header">
+    <span class="step-badge" style="background:#6366f1;font-size:10px">Modus</span>
+    <span class="step-title">Modus &amp; Funktionen</span>
+    {% if s.REINJECT_MODE %}
+    <span class="step-status done">
+      {% if s.REINJECT_MODE == 'smtp' %}SMTP Port 25
+      {% elif s.REINJECT_MODE == 'graph' %}Graph API
+      {% elif s.REINJECT_MODE in ('imap','smtp587') %}IMAP + Graph
+      {% else %}{{ s.REINJECT_MODE }}{% endif %}
+    </span>
+    {% else %}
+    <span class="step-status pending">Nicht konfiguriert</span>
+    {% endif %}
+  </div>
+  <div class="step-body">
+    <p style="font-size:13px;margin-bottom:14px;color:#555">
+      Wähle, wie bearbeitete Mails zurück an Exchange Online geliefert werden.
+      Die Wahl bestimmt, welche weiteren Schritte nötig sind.
+    </p>
+
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">
+
+      <label style="display:flex;gap:12px;align-items:flex-start;padding:12px;border-radius:8px;border:2px solid {% if s.REINJECT_MODE == 'smtp' %}#16a34a{% else %}#e2e8f0{% endif %};cursor:pointer" id="mode-label-smtp">
+        <input type="radio" name="reinject-mode-wizard" value="smtp" style="margin-top:3px;flex-shrink:0"
+          {% if s.REINJECT_MODE == 'smtp' or not s.REINJECT_MODE %}checked{% endif %}
+          onchange="updateModeSelection()">
+        <div>
+          <strong>SMTP Port 25</strong> — Standard<br>
+          <span style="font-size:12px;color:#555">
+            Vollfunktional: Signaturen + S/MIME.<br>
+            Voraussetzung: Port 25 ausgehend nicht gesperrt, TLS-Zertifikat für den Inbound-Connector.
+          </span>
+        </div>
+      </label>
+
+      <label style="display:flex;gap:12px;align-items:flex-start;padding:12px;border-radius:8px;border:2px solid {% if s.REINJECT_MODE == 'graph' %}#16a34a{% else %}#e2e8f0{% endif %};cursor:pointer" id="mode-label-graph">
+        <input type="radio" name="reinject-mode-wizard" value="graph" style="margin-top:3px;flex-shrink:0"
+          {% if s.REINJECT_MODE == 'graph' %}checked{% endif %}
+          onchange="updateModeSelection()">
+        <div>
+          <strong>Graph API</strong> — Azure ohne Port 25<br>
+          <span style="font-size:12px;color:#555">
+            Nur Signaturen, kein S/MIME.<br>
+            Voraussetzung: <code>Mail.Send</code> Application Permission. Kein Port 25, kein TLS-Zertifikat nötig.
+          </span>
+        </div>
+      </label>
+
+      <label style="display:flex;gap:12px;align-items:flex-start;padding:12px;border-radius:8px;border:2px solid {% if s.REINJECT_MODE in ('imap','smtp587') %}#16a34a{% else %}#e2e8f0{% endif %};cursor:pointer" id="mode-label-imap">
+        <input type="radio" name="reinject-mode-wizard" value="imap" style="margin-top:3px;flex-shrink:0"
+          {% if s.REINJECT_MODE in ('imap','smtp587') %}checked{% endif %}
+          onchange="updateModeSelection()">
+        <div>
+          <strong>IMAP + Graph</strong> — Azure ohne Port 25, mit S/MIME<br>
+          <span style="font-size:12px;color:#555">
+            Vollfunktional: Signaturen + S/MIME. Interne Empfänger per IMAP APPEND (kein Senden-Knopf),
+            externe per Graph sendMail.<br>
+            Voraussetzung: <code>IMAP.AccessAsApp</code> + Service Principal (Schritt IMAP-Zustellung). Kein Port 25 nötig.
+          </span>
+        </div>
+      </label>
+    </div>
+
+    <div style="border-top:1px solid #e2e8f0;padding-top:12px;margin-bottom:12px">
+      <label style="display:flex;gap:8px;align-items:center;cursor:pointer">
+        <input type="checkbox" id="smime-enabled-wizard"
+          {% if e.smime_rules_created or s.REINJECT_MODE in ('smtp','imap','smtp587') %}checked{% endif %}
+          onchange="updateModeSelection()">
+        <span style="font-size:13px">
+          <strong>S/MIME aktivieren</strong>
+          <span style="color:#888;font-weight:normal"> — S/MIME-Inbound-Transport-Regeln einrichten (Schritt S/MIME weiter unten)</span>
+        </span>
+      </label>
+      <p class="hint" style="margin:6px 0 0 26px">
+        S/MIME erfordert SMTP Port 25 oder IMAP+Graph. Bei Graph-only-Modus automatisch deaktiviert.
+      </p>
+    </div>
+
+    <div id="mode-result" style="display:none;margin-bottom:12px"></div>
+    <div class="actions">
+      <button class="btn primary" onclick="saveModeSelection()">Modus speichern &amp; Assistent anpassen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Step 3: Entra-Login ────────────────────────────────────────────────── -->
 <div class="wizard-step {% if e.azure_app_created %}done{% endif %}" id="step-3">
   <div class="step-header">
     <span class="step-badge">3</span>
-    <span class="step-title">Azure-Login</span>
+    <span class="step-title">Entra-Login</span>
     {% if e.azure_app_created %}
     <span class="step-status done">Abgeschlossen</span>
     {% elif e.bootstrap_client_id %}
@@ -159,17 +287,17 @@
       </summary>
       <div style="margin-top:10px;font-size:13px">
         <p class="hint" style="margin-bottom:10px">
-          Azure benötigt für den Setup-Login eine App-Registrierung mit der passenden Redirect-URI.
+          Entra benötigt für den Setup-Login eine App-Registrierung mit der passenden Redirect-URI.
           Diese Registrierung wird nur einmalig für den Setup-Vorgang gebraucht.
         </p>
         <ol style="margin:0 0 12px 16px;line-height:2">
-          <li>Öffne das <a href="https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank" rel="noopener">Azure Portal → App-Registrierungen</a></li>
+          <li>Öffne das <a href="https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank" rel="noopener">Entra Admin Center → App-Registrierungen</a></li>
           <li>Klicke <strong>„Neue Registrierung"</strong></li>
-          <li>Name: z.B. <code>EXO Signature Service Setup</code></li>
+          <li>Name: z.B. <code>EXO Signature Gateway Setup</code></li>
           <li>Kontotyp: <em>Nur Konten in diesem Organisationsverzeichnis</em></li>
           <li>Umleitungs-URI: Typ <strong>„Mobile und Desktopanwendungen"</strong> →
             benutzerdefinierte URI: <code>http://localhost:{{ e.webui_port }}/auth/callback</code>
-            <br><small style="color:#888">Localhost-URIs sind in jedem Azure-Tenant ohne HTTPS erlaubt.</small></li>
+            <br><small style="color:#888">Localhost-URIs sind in jedem Entra-Tenant ohne HTTPS erlaubt.</small></li>
           <li>Klicke <strong>Registrieren</strong></li>
           <li>Kopiere die <strong>Anwendungs-ID (Client-ID)</strong> und füge sie unten ein</li>
         </ol>
@@ -191,7 +319,7 @@
     {% if e.bootstrap_client_id %}
     <ol style="margin:0 0 14px 16px;line-height:2;font-size:13px">
       <li>Klicke auf <strong>„Jetzt anmelden"</strong> — Microsoft-Login öffnet sich in einem neuen Tab.</li>
-      <li>Melde dich als Azure-Administrator an (MFA wird unterstützt).<br>
+      <li>Melde dich als Entra-Administrator an (MFA wird unterstützt).<br>
           <small>Falls ein Consent-Dialog erscheint: <em>„Im Namen der Organisation zustimmen"</em> ankreuzen.</small></li>
       <li>Nach dem Login zeigt dein Browser eine <strong>Fehler- oder Verbindungsseite</strong> — das ist <em>normal</em>.</li>
       <li>Kopiere die <strong>komplette URL</strong> aus der Adressleiste und füge sie unten ein.</li>
@@ -222,7 +350,7 @@
 <div class="wizard-step {% if e.azure_app_created %}done{% endif %}" id="step-4">
   <div class="step-header">
     <span class="step-badge">4</span>
-    <span class="step-title">Azure App-Registrierung</span>
+    <span class="step-title">Entra App-Registrierung</span>
     {% if e.azure_app_created %}
     <span class="step-status done">Automatisch erstellt</span>
     {% else %}
@@ -232,13 +360,13 @@
   <div class="step-body">
     {% if e.azure_app_created %}
     <div class="alert success" style="margin-bottom:0">
-      App-Registrierung <strong>EXO Signature Service</strong> wurde erstellt.<br>
+      App-Registrierung <strong>EXO Signature Gateway</strong> wurde erstellt.<br>
       Client-ID: <code>{{ e.client_id[:8] if e.client_id else "–" }}…</code><br>
       Berechtigungen: <code>User.Read.All</code>, <code>Mail.ReadWrite</code>, <code>Exchange.ManageAsApp</code><br>
       Admin-Consent: erteilt &bull; Exchange-Administrator-Rolle: zugewiesen
     </div>
     {% else %}
-    <p class="hint">Erstellt nach erfolgreichem Azure-Login (Schritt 3).</p>
+    <p class="hint">Erstellt nach erfolgreichem Entra-Login (Schritt 3).</p>
     {% endif %}
     {% if e.azure_app_created %}
     <div class="actions" style="margin-top:12px">
@@ -262,43 +390,10 @@
   </div>
   <div class="step-body">
     {% if e.exo_smarthost %}
-    <p class="hint">Der SMTP-Proxy leitet Mails an <code>{{ e.exo_smarthost }}</code> weiter.</p>
+    <p class="hint">Das EXO Signature Gateway leitet Mails an <code>{{ e.exo_smarthost }}</code> weiter.</p>
     {% else %}
-    <p class="hint">Wird aus der Tenant-Domain automatisch abgeleitet (nach Azure-Login).</p>
+    <p class="hint">Wird aus der Tenant-Domain automatisch abgeleitet (nach Entra-Login).</p>
     {% endif %}
-  </div>
-</div>
-
-<!-- ── Step 6: TLS-Zertifikat ─────────────────────────────────────────────── -->
-<div class="wizard-step {% if e.cert_exists %}done{% endif %}" id="step-6">
-  <div class="step-header">
-    <span class="step-badge">6</span>
-    <span class="step-title">TLS-Zertifikat (Let's Encrypt)</span>
-    {% if e.cert_exists %}
-    <span class="step-status done">Zertifikat vorhanden</span>
-    {% else %}
-    <span class="step-status pending">Kein Zertifikat</span>
-    {% endif %}
-  </div>
-  <div class="step-body">
-    <p class="hint" style="margin-bottom:12px">
-      Port 80 muss für ACME-Validierung öffentlich erreichbar sein.
-      Domain und E-Mail werden aus den Einstellungen übernommen.
-    </p>
-    <div class="settings-row">
-      <label for="le-domain">Domain</label>
-      <input type="text" id="le-domain" value="{{ s.LE_DOMAIN or e.public_hostname }}" placeholder="mail.zarenko.net" style="width:280px">
-    </div>
-    <div class="settings-row">
-      <label for="le-email">E-Mail (ACME)</label>
-      <input type="email" id="le-email" value="{{ s.LE_EMAIL }}" placeholder="admin@domain.com" style="width:280px">
-    </div>
-    <div id="le-result" style="margin-top:8px;display:none"></div>
-    <div class="actions" style="margin-top:12px">
-      <button class="btn primary" id="le-btn" onclick="renewCert()">
-        {% if e.cert_exists %}Zertifikat erneuern{% else %}Let's Encrypt starten{% endif %}
-      </button>
-    </div>
   </div>
 </div>
 
@@ -309,6 +404,8 @@
     <span class="step-title">EXO Outbound Connector + Transport Rule</span>
     {% if e.exo_connector_created %}
     <span class="step-status done">Eingerichtet</span>
+    <button class="verify-btn" onclick="verifyStep('connector', this)" title="Konfiguration in EXO prüfen">↻</button>
+    <span class="verify-result" id="verify-connector-result"></span>
     {% else %}
     <span class="step-status pending">Ausstehend</span>
     {% endif %}
@@ -317,14 +414,14 @@
     <p class="hint" style="margin-bottom:12px">
       Erstellt in Exchange Online (Loop-Back-Architektur):
       <ul style="margin:8px 0 0 16px;line-height:1.7">
-        <li><strong>Outbound Connector</strong> → <code>{{ e.public_hostname or "hostname" }}:25</code> (EXO → Proxy)</li>
-        <li><strong>Inbound Connector</strong> ← <code>{{ e.public_hostname or "hostname" }}</code> (Proxy → EXO, TLS required)</li>
-        <li><strong>Transport Rule</strong>: alle ausgehenden externen Mails via Proxy, außer <code>X-Sig-Applied: 1</code></li>
+        <li><strong>Outbound Connector</strong> → <code>{{ e.public_hostname or "hostname" }}:25</code> (EXO → Gateway)</li>
+        <li><strong>Inbound Connector</strong> ← <code>{{ e.public_hostname or "hostname" }}</code> (Gateway → EXO, TLS required)</li>
+        <li><strong>Transport Rule</strong>: alle ausgehenden externen Mails via Gateway, außer <code>X-Sig-Applied: 1</code></li>
       </ul>
       <span style="color:#16a34a">EXO re-signiert mit DKIM nach der Signatur-Injektion — maximale Zustellbarkeit.</span>
     </p>
     {% if not e.azure_app_created %}
-    <div class="alert warn" style="margin-bottom:0">Erst Schritt 3 (Azure-Login) abschließen.</div>
+    <div class="alert warn" style="margin-bottom:0">Erst Schritt 3 (Entra-Login) abschließen.</div>
     {% elif not e.cert_exists %}
     <div class="alert warn" style="margin-bottom:0">Empfohlen: erst ein TLS-Zertifikat einrichten (Schritt 6).</div>
     {% endif %}
@@ -336,14 +433,14 @@
       {% if e.auth_cert_exists %}
       <div class="alert success" style="margin:8px 0 0 0;font-size:13px">✓ Vorhanden — Setup kann fortgesetzt werden.</div>
       {% else %}
-      <p class="hint" style="margin:8px 0">Kein Auth-Zertifikat gefunden. Entweder Schritt 3 erneut ausführen <em>oder</em> hier manuell generieren und in Azure hochladen.</p>
+      <p class="hint" style="margin:8px 0">Kein Auth-Zertifikat gefunden. Entweder Schritt 3 erneut ausführen <em>oder</em> hier manuell generieren und im Entra Admin Center hochladen.</p>
       <div id="cert-gen-result" style="display:none;margin-top:8px"></div>
       <div class="actions" style="margin-top:8px">
         <button class="btn secondary" id="cert-gen-btn" onclick="generateAuthCert()">Auth-Zertifikat generieren</button>
       </div>
       <div id="cert-pem-display" style="display:none;margin-top:12px;font-size:13px">
-        <p style="margin:0 0 6px 0">Lade diese <code>.crt</code>-Datei im <strong>Azure Portal</strong> hoch:<br>
-          <em>App-Registrierungen → EXO Signature Service → Zertifikate &amp; Geheimnisse → Zertifikate → Hochladen</em>
+        <p style="margin:0 0 6px 0">Lade diese <code>.crt</code>-Datei im <strong>Entra Admin Center</strong> hoch:<br>
+          <em>App-Registrierungen → EXO Signature Gateway → Zertifikate &amp; Geheimnisse → Zertifikate → Hochladen</em>
         </p>
         <div class="actions" style="margin-bottom:8px">
           <button class="btn secondary" onclick="downloadAuthCert()">⬇ Zertifikat (.crt) herunterladen</button>
@@ -367,8 +464,76 @@
     </div>
     {% if e.exo_connector_created %}
     <p class="hint" style="margin-top:8px">
-      Mail-Flow: Outlook &rarr; EXO &rarr; Transport Rule &rarr; Proxy (Signatur) &rarr; EXO Smarthost &rarr; Inbound Connector &rarr; EXO Delivery (DKIM re-sign)
+      Mail-Flow: Outlook &rarr; EXO &rarr; Transport Rule &rarr; Gateway (Signatur) &rarr; EXO Smarthost &rarr; Inbound Connector &rarr; EXO Delivery (DKIM re-sign)
     </p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ── Step opt-imap: IMAP-Zustellung (Azure / kein Port 25) ─────────────── -->
+<div class="wizard-step {% if e.imap_access_configured %}done{% endif %}" id="step-imap" style="border-color:#0284c722">
+  <div class="step-header">
+    <span class="step-badge" style="background:#0284c7">8</span>
+    <span class="step-title">IMAP-Zustellung konfigurieren <span style="font-weight:400;font-size:12px;color:#64748b">(Azure / kein Port 25)</span></span>
+    {% if e.imap_access_configured %}
+    <span class="step-status done" style="background:#e0f2fe;color:#0284c7">Eingerichtet</span>
+    <button class="verify-btn" style="color:#0284c7;border-color:#0284c7" onclick="verifyStep('imap', this)" title="Konfiguration in EXO prüfen">↻</button>
+    <span class="verify-result" id="verify-imap-result"></span>
+    {% else %}
+    <span class="step-status pending" style="background:#e0f2fe;color:#0284c7">Optional</span>
+    {% endif %}
+  </div>
+  <div class="step-body">
+    <div class="alert warn" style="margin-bottom:14px">
+      <strong>Nur erforderlich bei REINJECT_MODE = imap</strong> (Azure-Betrieb ohne Port-25-Ausgang).
+      Bei Port-25-Betrieb (Standard) diesen Schritt überspringen.
+    </div>
+
+    <p style="font-size:13px;margin-bottom:10px">
+      Für IMAP APPEND (kein MSGFLAG_UNSENT, originaler Absender sichtbar) sind
+      zwei EXO-Konfigurationen nötig — beide werden hier automatisch eingerichtet:
+    </p>
+    <ul style="margin:0 0 14px 16px;line-height:1.9;font-size:13px">
+      <li>
+        <strong>Service Principal in EXO</strong> (<code>New-ServicePrincipal</code>) —
+        registriert die App in Exchange Online, damit EXO IMAP-XOAUTH2-Verbindungen
+        dieser App annimmt.
+      </li>
+      <li>
+        <strong>Postfach-Zugriffsrechte</strong> (<code>Add-MailboxPermission FullAccess</code>) —
+        steuert, auf welche Postfächer die App per IMAP zugreifen darf.
+        Muss für jedes Postfach gesetzt sein (wird für alle Postfächer gleichzeitig erledigt).
+      </li>
+    </ul>
+
+    <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;padding:10px;margin-bottom:14px;font-size:13px">
+      <strong>Voraussetzung im Entra Admin Center:</strong> Die App-Registrierung muss die Permission
+      <code>IMAP.AccessAsApp</code> (Exchange Online) mit Admin-Consent haben.<br>
+      {% if e.azure_app_created %}
+      Bei Neuinstallation via Schritt 3 wird diese Permission automatisch beantragt.<br>
+      Bei bestehender Installation ohne Neustart des Wizards:
+      <em>Entra Admin Center → App-Registrierungen → EXO Signature Gateway →
+      API-Berechtigungen → Berechtigung hinzufügen → Exchange →
+      Anwendungsberechtigungen → IMAP.AccessAsApp → Admin-Zustimmung erteilen.</em>
+      {% else %}
+      Erst Schritt 3 abschließen — dann wird die Permission automatisch beantragt.
+      {% endif %}
+    </div>
+
+    {% if not e.azure_app_created %}
+    <div class="alert warn" style="margin-bottom:0">Erst Schritt 3 (Entra-Login) abschließen.</div>
+    {% else %}
+    <div id="imap-access-result" style="margin-top:8px;display:none"></div>
+    <div class="actions" style="margin-top:12px">
+      <button class="btn primary" id="imap-access-btn" onclick="setupImapAccess()">
+        {% if e.imap_access_configured %}IMAP-Zugriff neu konfigurieren{% else %}IMAP-Zugriff einrichten{% endif %}
+      </button>
+    </div>
+    {% if e.imap_access_configured %}
+    <p class="hint" style="margin-top:8px">
+      Abgeschlossen. Bei neuen Postfächern diesen Schritt erneut ausführen.
+    </p>
+    {% endif %}
     {% endif %}
   </div>
 </div>
@@ -376,10 +541,12 @@
 <!-- ── Steps 8+9 (opt): S/MIME Inbound Transport Rules ───────────────────── -->
 <div class="wizard-step {% if e.smime_rules_created %}done{% endif %}" id="step-smime" style="border-color:#7c3aed22">
   <div class="step-header">
-    <span class="step-badge" style="background:#7c3aed">opt</span>
+    <span class="step-badge" style="background:#7c3aed">9</span>
     <span class="step-title">S/MIME – Inbound Transport-Regeln</span>
     {% if e.smime_rules_created %}
     <span class="step-status done" style="background:#f3e8ff;color:#7c3aed">Eingerichtet</span>
+    <button class="verify-btn" style="color:#7c3aed;border-color:#7c3aed" onclick="verifyStep('smime', this)" title="Konfiguration in EXO prüfen">↻</button>
+    <span class="verify-result" id="verify-smime-result"></span>
     {% else %}
     <span class="step-status pending" style="background:#f3e8ff;color:#7c3aed">Optional</span>
     {% endif %}
@@ -389,10 +556,10 @@
       Erstellt zwei Transport-Regeln in Exchange Online:
     </p>
     <ul style="margin:0 0 14px 16px;line-height:1.9;font-size:13px">
-      <li><strong>Signierte Mails</strong>: Externe signierte Eingangs-Mails werden über den Proxy geleitet.
-        Proxy entfernt S/MIME-Signatur, sammelt Public Key des Absenders und ergänzt den Betreff
+      <li><strong>Signierte Mails</strong>: Externe signierte Eingangs-Mails werden über das Gateway geleitet.
+        Das Gateway entfernt S/MIME-Signatur, sammelt Public Key des Absenders und ergänzt den Betreff
         (<code>[signiert von Max Mustermann]</code>).</li>
-      <li><strong>Verschlüsselte Mails</strong>: Proxy entschlüsselt mit dem privaten Schlüssel des
+      <li><strong>Verschlüsselte Mails</strong>: Das Gateway entschlüsselt mit dem privaten Schlüssel des
         internen Empfängers und ergänzt Betreff (<code>[verschlüsselt]</code> oder
         <code>[verschlüsselt, signiert von …]</code>).<br>
         Voraussetzung: privater Schlüssel unter <a href="/smime">S/MIME → Signatur-Zertifikate</a> importiert.</li>
@@ -414,8 +581,8 @@
     {% if e.smime_rules_created %}
     <p class="hint" style="margin-top:10px">
       Regeln aktiv:<br>
-      <code>EXO Signature Service - SMIME Signed Inbound</code> (Signed → Proxy)<br>
-      <code>EXO Signature Service - SMIME Encrypted Inbound</code> (Encrypted → Proxy)
+      <code>EXO Signature Gateway - SMIME Signed Inbound</code> (Signed → Gateway)<br>
+      <code>EXO Signature Gateway - SMIME Encrypted Inbound</code> (Encrypted → Gateway)
     </p>
     {% endif %}
 
@@ -682,7 +849,7 @@ async function submitPastedUrl(pasteInputId, resultId) {
   if (btn) { btn.disabled = false; btn.textContent = 'Setup fortsetzen'; }
 
   if (resp.ok) {
-    showAlert(result, 'success', 'Azure-Login erfolgreich! App-Registrierung eingerichtet. Seite lädt neu…');
+    showAlert(result, 'success', 'Entra-Login erfolgreich! App-Registrierung eingerichtet. Seite lädt neu…');
     setTimeout(() => location.reload(), 2500);
   } else {
     const d = await resp.json().catch(() => ({}));
@@ -708,7 +875,7 @@ async function generateAuthCert() {
     _certPemGlobal = d.cert_pem || '';
     document.getElementById('cert-pem-text').textContent = _certPemGlobal;
     document.getElementById('cert-pem-display').style.display = 'block';
-    showAlert(result, 'success', 'Zertifikat generiert und lokal gespeichert. Bitte jetzt in Azure hochladen, dann "Exchange einrichten" klicken.');
+    showAlert(result, 'success', 'Zertifikat generiert und lokal gespeichert. Bitte jetzt im Entra Admin Center hochladen, dann "Exchange einrichten" klicken.');
   } else {
     const d = await resp.json().catch(() => ({}));
     showAlert(result, 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));
@@ -764,6 +931,35 @@ function copyPS(preId, btn) {
   });
 }
 
+async function setupImapAccess() {
+  const result = document.getElementById('imap-access-result');
+  const btn    = document.getElementById('imap-access-btn');
+  btn.disabled = true;
+  btn.textContent = 'Richtet IMAP-Zugriff ein… (kann 2 Min. dauern)';
+  hideAlert(result);
+
+  const resp = await fetch('/api/setup/imap-access', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+  });
+
+  btn.disabled = false;
+  btn.textContent = 'IMAP-Zugriff neu konfigurieren';
+
+  if (resp.ok) {
+    const d = await resp.json();
+    const output = (d.output || '').replace(/\n/g, '<br>');
+    showAlert(result, 'success',
+      'IMAP-Zugriff konfiguriert.<br><br>' +
+      '<code style="font-size:11px">' + output + '</code>');
+    setTimeout(() => location.reload(), 3000);
+  } else {
+    const d = await resp.json().catch(() => ({}));
+    showAlert(result, 'error',
+      'Fehler: <pre style="margin:4px 0;font-size:11px">' + (d.detail || 'Unbekannt') + '</pre>');
+  }
+}
+
 async function markComplete() {
   const resp = await fetch('/api/setup/mark-complete', {
     method: 'POST',
@@ -775,5 +971,124 @@ async function markComplete() {
     setTimeout(() => { window.location.href = '/'; }, 2000);
   }
 }
+
+function updateModeSelection() {
+  const mode = document.querySelector('input[name="reinject-mode-wizard"]:checked')?.value || 'smtp';
+  const smimeEnabled = document.getElementById('smime-enabled-wizard').checked;
+
+  // Highlight selected radio card border
+  ['smtp','graph','imap'].forEach(m => {
+    const lbl = document.getElementById('mode-label-' + m);
+    if (lbl) lbl.style.borderColor = (mode === m) ? '#16a34a' : '#e2e8f0';
+  });
+
+  // S/MIME checkbox: disable for graph mode
+  const smimeCb = document.getElementById('smime-enabled-wizard');
+  if (mode === 'graph') {
+    smimeCb.checked = false;
+    smimeCb.disabled = true;
+  } else {
+    smimeCb.disabled = false;
+  }
+
+  // Show/hide wizard steps based on mode
+  const stepTls   = document.getElementById('step-le');
+  const stepImap  = document.getElementById('step-imap');
+  const stepSmime = document.getElementById('step-smime');
+
+  // TLS cert (step 6): only needed for SMTP mode (inbound connector uses client cert)
+  if (stepTls) stepTls.style.display = (mode === 'smtp') ? '' : 'none';
+
+  // IMAP access step: only for imap mode
+  if (stepImap) stepImap.style.display = (mode === 'imap') ? '' : 'none';
+
+  // S/MIME step: only if enabled and mode supports it
+  const showSmime = (mode !== 'graph') && smimeCb.checked;
+  if (stepSmime) stepSmime.style.display = showSmime ? '' : 'none';
+}
+
+async function saveModeSelection() {
+  const mode = document.querySelector('input[name="reinject-mode-wizard"]:checked')?.value || 'smtp';
+  const result = document.getElementById('mode-result');
+  hideAlert(result);
+
+  const resp = await fetch('/settings', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({REINJECT_MODE: mode}),
+  });
+
+  if (resp.ok) {
+    showAlert(result, 'success', 'Modus gespeichert: <strong>' + mode + '</strong>. Assistent wurde angepasst.');
+    updateModeSelection();
+    setTimeout(() => location.reload(), 1500);
+  } else {
+    showAlert(result, 'error', 'Fehler beim Speichern.');
+  }
+}
+
+// Apply mode-based visibility on page load
+(function() {
+  const mode = document.querySelector('input[name="reinject-mode-wizard"]:checked')?.value || 'smtp';
+  const stepTls   = document.getElementById('step-le');
+  const stepImap  = document.getElementById('step-imap');
+  const stepSmime = document.getElementById('step-smime');
+  const smimeCb   = document.getElementById('smime-enabled-wizard');
+  if (!smimeCb) return;
+  if (mode === 'graph') { smimeCb.checked = false; smimeCb.disabled = true; }
+  if (stepTls)   stepTls.style.display   = (mode === 'smtp') ? '' : 'none';
+  if (stepImap)  stepImap.style.display  = (mode === 'imap') ? '' : 'none';
+  if (stepSmime) stepSmime.style.display = (mode !== 'graph' && smimeCb.checked) ? '' : 'none';
+})();
+
+async function verifyStep(type, btn) {
+  const resultEl = document.getElementById('verify-' + type + '-result');
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '…';
+  if (resultEl) resultEl.innerHTML = '';
+  try {
+    const r = await fetch('/api/setup/verify/' + type);
+    const d = await r.json();
+    if (d.ok) {
+      if (resultEl) resultEl.innerHTML = '<span style="color:#16a34a;font-size:12px;font-weight:500">✓ OK</span>';
+    } else {
+      const missing = [];
+      if (d.outbound  === false) missing.push('Outbound Connector');
+      if (d.inbound   === false) missing.push('Inbound Connector');
+      if (d.rule      === false) missing.push('Transport Rule');
+      if (d.signed    === false) missing.push('Signed Rule');
+      if (d.encrypted === false) missing.push('Encrypted Rule');
+      const msg = d.error || (missing.length ? missing.join(', ') + ' fehlt' : 'Nicht gefunden');
+      if (resultEl) resultEl.innerHTML = '<span style="color:#dc2626;font-size:12px;font-weight:500">✗ ' + msg + '</span>';
+    }
+  } catch(e) {
+    if (resultEl) resultEl.innerHTML = '<span style="color:#dc2626;font-size:12px">✗ Verbindungsfehler</span>';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
+}
 </script>
+
+<style>
+.verify-btn {
+  background: none;
+  border: 1px solid #16a34a;
+  color: #16a34a;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  margin-left: 6px;
+  vertical-align: middle;
+  transition: transform 0.2s;
+}
+.verify-btn:hover { transform: rotate(180deg); }
+.verify-btn:disabled { opacity: 0.5; cursor: default; transform: none; }
+.verify-result { margin-left: 6px; vertical-align: middle; }
+</style>
 {% endblock %}

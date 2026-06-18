@@ -17,16 +17,29 @@ DEFAULTS: dict = {
     "SENT_ITEMS_UPDATE": False,
     "USER_WEBSITES": {},
     "USER_BOOKINGS": {},
+    "MAILBOX_CONFIG": {},  # {email: {"sig": true, "smime": true}} — empty = all mailboxes processed
     "LE_DOMAIN": "",
     "LE_EMAIL": "",
     "LOG_RETENTION_DAYS": 30,
+    "LOG_TIMEZONE": "Europe/Berlin",
     "SMIME_HARVEST_RCPT": "",
     "SMIME_TAG_ENCRYPTED": "verschlüsselt",
     "SMIME_TAG_SIGNED": "signiert von {signer}",
+    "SMIME_TAG_POSITION": "prepend",  # "prepend" or "append"
+    "ENC_TRIGGER": "#enc#",           # Keyword in subject to request encryption
     # ── Re-injection ─────────────────────────────────────────────────────────
-    "REINJECT_MODE": "smtp",       # "smtp" or "graph"
+    "REINJECT_MODE": "smtp",       # "smtp", "graph", or "imap" (smtp587 = legacy alias for imap)
+    "GRAPH_SMTP_FALLBACK": False,  # Allow SMTP fallback when Graph re-inject fails
     "RELAY_USER": "",              # Optional SMTP AUTH user (e.g. SES "apikey")
     "RELAY_PASSWORD": "",          # Optional SMTP AUTH password
+    # ── SMTP submission (port 587) for inbound S/MIME from external senders ───
+    "SMTP_SUBMIT_HOST": "smtp.office365.com",
+    "SMTP_SUBMIT_PORT": 587,
+    "SMTP_SUBMIT_USER": "",          # EXO mailbox for SMTP AUTH envelope sender
+    "SMTP_SUBMIT_PASSWORD": "",      # Basic auth fallback (if no OAuth)
+    "SMTP_SUBMIT_CLIENT_ID": "",     # Optional: separate app reg with SMTP.SendAsApp
+    "SMTP_SUBMIT_CLIENT_SECRET": "", # Secret for SMTP_SUBMIT_CLIENT_ID
+    "IMAP_ACCESS_CONFIGURED": False, # True after New-ServicePrincipal + Add-MailboxPermission ran
     # ── Setup wizard ─────────────────────────────────────────────────────────
     "SETUP_COMPLETE": False,
     "ADMIN_PASSWORD_HASH": "",   # pbkdf2:sha256:<salt>:<hash> — empty = use WEBUI_PASSWORD env
@@ -40,6 +53,20 @@ DEFAULTS: dict = {
     "EXO_CONNECTOR_CREATED": False,
     "SMIME_RULES_CREATED": False,
     "BOOTSTRAP_CLIENT_ID": "",   # Client-ID der eigenen Bootstrap-App-Registrierung für den Setup-Login
+    # ── Notifications & scheduler ─────────────────────────────────────────────
+    "NOTIFICATION_MAILBOX": "",      # Mailbox receiving alerts + reports (also used as FROM)
+    "DAILY_REPORT_ENABLED": False,   # Send daily stats email
+    "DAILY_REPORT_TIME": "08:00",    # HH:MM in LOG_TIMEZONE
+    "CERT_WARN_DAYS": 14,            # Warn this many days before S/MIME cert expiry
+    "LE_RENEW_DAYS": 7,              # Attempt LE renewal this many days before expiry
+    "NOTIFY_STARTUP": None,          # None/True = send; False = suppress startup notification
+    "NOTIFY_SMIME_EXPIRY": None,     # None/True = send; False = suppress S/MIME expiry admin alert
+    "NOTIFY_CERT_RENEWAL": None,     # None/True = send; False = suppress renewal success/failure
+    "NOTIFY_LE_EVENTS": None,        # None/True = send; False = suppress LE cert events
+    # ── S/MIME lifecycle management ───────────────────────────────────────────
+    "GATEWAY_EXTERNAL_URL": "",      # e.g. https://mail.company.com:8080 — used in renewal links
+    "CERT_RENEWAL_THRESHOLDS": [30, 14, 7, 1],  # Notify user at these days-before-expiry
+    "CA_USER_CONFIG": {},            # {email: {backend, portal_url, notify_user}}
 }
 
 _lock = RLock()
@@ -74,6 +101,8 @@ def get_all() -> dict:
 def update(patch: dict) -> None:
     """Update and persist settings. Only keys present in DEFAULTS are accepted."""
     with _lock:
+        if not _data:
+            init()
         _data.update({k: v for k, v in patch.items() if k in DEFAULTS})
         _save()
 

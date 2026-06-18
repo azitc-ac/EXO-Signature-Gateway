@@ -1,19 +1,25 @@
 """
 S/MIME certificate store — per-user cert + private key management.
 
-Storage: /app/data/smime/{email}/cert.pem  (public certificate)
-         /app/data/smime/{email}/key.pem   (private key, unencrypted for auto-signing)
+Storage layout (new):
+    /app/data/smime/{email}/certs/{slot_id}/cert.pem
+    /app/data/smime/{email}/certs/{slot_id}/key.pem
+    /app/data/smime/{email}/default           ← active slot_id
 
-Import via PKCS12 (.p12/.pfx) upload which contains both cert and key.
+Legacy layout (auto-migrated on first access):
+    /app/data/smime/{email}/cert.pem
+    /app/data/smime/{email}/key.pem
 """
 
 import logging
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
 from cryptography import x509
+from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.serialization import (
-    Encoding, NoEncryption, PrivateFormat, pkcs12,
+    Encoding, NoEncryption, PrivateFormat, pkcs12, BestAvailableEncryption,
 )
 
 log = logging.getLogger(__name__)
@@ -21,12 +27,28 @@ SMIME_DIR = Path("/app/data/smime")
 RECIPIENT_DIR = Path("/app/data/smime/recipients")
 
 
+def _key_encryption():
+    import config
+    pw = config.SMIME_KEY_PASSWORD
+    if pw:
+        return BestAvailableEncryption(pw.encode())
+    return NoEncryption()
+
+
 def _get_expiry(cert) -> datetime:
-    """Compatible with cryptography 41 (naive) and 42+ (aware)."""
     try:
         return cert.not_valid_after_utc
     except AttributeError:
         return cert.not_valid_after.replace(tzinfo=timezone.utc)
+
+
+def _friendly_subject(cert: x509.Certificate) -> str:
+    from cryptography.x509.oid import NameOID
+    for oid in (NameOID.COMMON_NAME, NameOID.EMAIL_ADDRESS):
+        attrs = cert.subject.get_attributes_for_oid(oid)
+        if attrs:
+            return attrs[0].value
+    return cert.subject.rfc4514_string()
 
 
 def _cert_info(cert: x509.Certificate, email: str) -> dict:
@@ -35,7 +57,7 @@ def _cert_info(cert: x509.Certificate, email: str) -> dict:
     days_left = (expiry - now).days
     return {
         "email": email,
-        "subject": cert.subject.rfc4514_string(),
+        "subject": _friendly_subject(cert),
         "expiry": expiry.strftime("%d.%m.%Y"),
         "days_left": days_left,
         "expired": days_left < 0,
@@ -43,70 +65,291 @@ def _cert_info(cert: x509.Certificate, email: str) -> dict:
     }
 
 
-def store_p12(email: str, p12_bytes: bytes, password: str = "") -> dict:
-    """
-    Import a PKCS12 bundle for a user.
-    Extracts cert + key and stores as unencrypted PEM files.
-    Returns cert info dict. Raises ValueError on bad input.
-    """
+def _slot_id(cert: x509.Certificate) -> str:
+    """Stable 16-char hex ID derived from cert SHA-256 fingerprint."""
+    return cert.fingerprint(hashes.SHA256()).hex()[:16]
+
+
+def _migrate_legacy(email: str) -> None:
+    """Move old cert.pem/key.pem in user dir into new certs/{slot}/ structure."""
+    user_dir = SMIME_DIR / email.lower().strip()
+    cert_path = user_dir / "cert.pem"
+    key_path = user_dir / "key.pem"
+    if not cert_path.exists():
+        return
+    try:
+        cert = x509.load_pem_x509_certificate(cert_path.read_bytes())
+        slot = _slot_id(cert)
+        slot_dir = user_dir / "certs" / slot
+        slot_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(cert_path, slot_dir / "cert.pem")
+        if key_path.exists():
+            shutil.copy2(key_path, slot_dir / "key.pem")
+        (user_dir / "default").write_text(slot)
+        cert_path.unlink()
+        if key_path.exists():
+            key_path.unlink()
+        log.info("Migrated legacy S/MIME cert for %s → slot %s", email, slot)
+    except Exception as exc:
+        log.warning("Legacy S/MIME cert migration failed for %s: %s", email, exc)
+
+
+# ── Multi-cert API ────────────────────────────────────────────────────────────
+
+def list_user_certs(email: str) -> list[dict]:
+    """Return all cert slots for a user; each dict includes slot_id and is_default."""
+    email = email.lower().strip()
+    user_dir = SMIME_DIR / email
+    if not user_dir.exists():
+        return []
+    if (user_dir / "cert.pem").exists() and not (user_dir / "certs").exists():
+        _migrate_legacy(email)
+    certs_dir = user_dir / "certs"
+    if not certs_dir.exists():
+        return []
+    default_file = user_dir / "default"
+    default = default_file.read_text().strip() if default_file.exists() else ""
+    result = []
+    for slot_dir in sorted(certs_dir.iterdir()):
+        if not slot_dir.is_dir():
+            continue
+        cert_path = slot_dir / "cert.pem"
+        if not cert_path.exists():
+            continue
+        try:
+            cert = x509.load_pem_x509_certificate(cert_path.read_bytes())
+            info = _cert_info(cert, email)
+            info["slot_id"] = slot_dir.name
+            info["is_default"] = (slot_dir.name == default)
+            result.append(info)
+        except Exception as exc:
+            result.append({
+                "email": email, "slot_id": slot_dir.name, "error": str(exc),
+                "subject": "–", "expiry": "–", "days_left": 0,
+                "expired": True, "warning": False, "is_default": (slot_dir.name == default),
+            })
+    # Ensure exactly one default is set
+    if result and not any(c.get("is_default") for c in result):
+        result[0]["is_default"] = True
+        (user_dir / "default").write_text(result[0]["slot_id"])
+    return result
+
+
+def store_p12_slot(email: str, p12_bytes: bytes, password: str = "") -> dict:
+    """Import a PKCS12 bundle as a new cert slot. Returns cert info dict with slot_id."""
+    email = email.lower().strip()
     pw = password.encode() if password else None
     try:
         private_key, cert, _chain = pkcs12.load_key_and_certificates(p12_bytes, pw)
     except Exception as exc:
         raise ValueError(f"Ungültiges PKCS12 oder falsches Passwort: {exc}") from exc
-
     if not private_key or not cert:
         raise ValueError("PKCS12 muss privaten Schlüssel und Zertifikat enthalten")
-
-    user_dir = SMIME_DIR / email.lower().strip()
-    user_dir.mkdir(parents=True, exist_ok=True)
-
-    (user_dir / "cert.pem").write_bytes(cert.public_bytes(Encoding.PEM))
-    (user_dir / "key.pem").write_bytes(
-        private_key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption())
+    slot = _slot_id(cert)
+    user_dir = SMIME_DIR / email
+    if (user_dir / "cert.pem").exists() and not (user_dir / "certs").exists():
+        _migrate_legacy(email)
+    slot_dir = user_dir / "certs" / slot
+    slot_dir.mkdir(parents=True, exist_ok=True)
+    (slot_dir / "cert.pem").write_bytes(cert.public_bytes(Encoding.PEM))
+    (slot_dir / "key.pem").write_bytes(
+        private_key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, _key_encryption())
     )
-    log.info("S/MIME cert stored for %s — %s", email, cert.subject.rfc4514_string())
-    return _cert_info(cert, email)
+    default_file = user_dir / "default"
+    if not default_file.exists():
+        default_file.write_text(slot)
+    log.info("S/MIME cert stored for %s — slot %s — %s", email, slot, cert.subject.rfc4514_string())
+    info = _cert_info(cert, email)
+    info["slot_id"] = slot
+    info["is_default"] = (default_file.read_text().strip() == slot)
+    return info
 
+
+def set_default_slot(email: str, slot_id: str) -> None:
+    """Set the default signing cert slot for a user."""
+    email = email.lower().strip()
+    slot_dir = SMIME_DIR / email / "certs" / slot_id
+    if not (slot_dir / "cert.pem").exists():
+        raise ValueError(f"Slot {slot_id} nicht gefunden für {email}")
+    (SMIME_DIR / email / "default").write_text(slot_id)
+    log.info("Default S/MIME cert → slot %s for %s", slot_id, email)
+
+
+def delete_cert_slot(email: str, slot_id: str) -> None:
+    """Delete a single cert slot; picks a new default if needed."""
+    email = email.lower().strip()
+    user_dir = SMIME_DIR / email
+    slot_dir = user_dir / "certs" / slot_id
+    for name in ("cert.pem", "key.pem"):
+        p = slot_dir / name
+        if p.exists():
+            p.unlink()
+    if slot_dir.exists() and not any(slot_dir.iterdir()):
+        slot_dir.rmdir()
+    default_file = user_dir / "default"
+    if default_file.exists() and default_file.read_text().strip() == slot_id:
+        default_file.unlink()
+        remaining = list_user_certs(email)
+        if remaining:
+            default_file.write_text(remaining[0]["slot_id"])
+    log.info("S/MIME cert slot %s deleted for %s", slot_id, email)
+
+
+def get_signing_cert_path(email: str) -> Path | None:
+    """Return cert.pem path for the default slot (for details/export use)."""
+    email_low = email.lower().strip()
+    user_dir = SMIME_DIR / email_low
+    certs_dir = user_dir / "certs"
+    if certs_dir.exists():
+        default_file = user_dir / "default"
+        default = default_file.read_text().strip() if default_file.exists() else ""
+        if default and (certs_dir / default / "cert.pem").exists():
+            return certs_dir / default / "cert.pem"
+        for slot_dir in sorted(certs_dir.iterdir()):
+            p = slot_dir / "cert.pem"
+            if p.exists():
+                return p
+    p = user_dir / "cert.pem"
+    return p if p.exists() else None
+
+
+def get_signing_cert_path_for_slot(email: str, slot_id: str) -> Path | None:
+    p = SMIME_DIR / email.lower().strip() / "certs" / slot_id / "cert.pem"
+    return p if p.exists() else None
+
+
+# ── Signing paths (used by handler + signer) ──────────────────────────────────
 
 def get_signing_paths(email: str) -> tuple[Path, Path] | None:
-    """Return (cert_path, key_path) or None if no cert exists for this email."""
-    user_dir = SMIME_DIR / email.lower().strip()
-    cert_path = user_dir / "cert.pem"
-    key_path = user_dir / "key.pem"
-    if cert_path.exists() and key_path.exists():
-        return cert_path, key_path
+    """Return (cert_path, key_path) for the default cert slot, or None."""
+    email_low = email.lower().strip()
+    user_dir = SMIME_DIR / email_low
+    certs_dir = user_dir / "certs"
+    if certs_dir.exists():
+        default_file = user_dir / "default"
+        default = default_file.read_text().strip() if default_file.exists() else ""
+        if default:
+            slot_dir = certs_dir / default
+            c, k = slot_dir / "cert.pem", slot_dir / "key.pem"
+            if c.exists() and k.exists():
+                return c, k
+        for slot_dir in sorted(certs_dir.iterdir()):
+            if not slot_dir.is_dir():
+                continue
+            c, k = slot_dir / "cert.pem", slot_dir / "key.pem"
+            if c.exists() and k.exists():
+                return c, k
+    # Legacy fallback
+    c, k = user_dir / "cert.pem", user_dir / "key.pem"
+    if c.exists() and k.exists():
+        return c, k
     return None
 
 
+# ── Aggregate list (dashboard / notifications) ────────────────────────────────
+
 def list_certs() -> list[dict]:
-    """Return info dicts for all users that have a certificate."""
+    """Return default cert info for all users that have at least one cert."""
     result = []
     if not SMIME_DIR.exists():
         return result
     for user_dir in sorted(SMIME_DIR.iterdir()):
-        cert_path = user_dir / "cert.pem"
-        if not cert_path.exists():
+        if not user_dir.is_dir():
             continue
-        try:
-            cert = x509.load_pem_x509_certificate(cert_path.read_bytes())
-            result.append(_cert_info(cert, user_dir.name))
-        except Exception as exc:
-            result.append({"email": user_dir.name, "error": str(exc),
-                           "subject": "–", "expiry": "–", "days_left": 0,
-                           "expired": True, "warning": False})
+        email = user_dir.name
+        if email == "recipients":
+            continue
+        certs = list_user_certs(email)
+        if certs:
+            default = next((c for c in certs if c.get("is_default")), certs[0])
+            result.append(default)
+        elif (user_dir / "cert.pem").exists():
+            try:
+                cert = x509.load_pem_x509_certificate((user_dir / "cert.pem").read_bytes())
+                result.append(_cert_info(cert, email))
+            except Exception as exc:
+                result.append({"email": email, "error": str(exc),
+                               "subject": "–", "expiry": "–", "days_left": 0,
+                               "expired": True, "warning": False})
     return result
+
+
+def store_pem_slot(email: str, cert_chain_pem: bytes, key_pem: bytes) -> dict:
+    """
+    Import a (PEM cert chain, PEM private key) pair as a new slot.
+    The leaf cert (first in chain) is stored. Used by ACME auto-renewal.
+    The new cert always becomes the default for this user.
+    """
+    from cryptography.hazmat.primitives.serialization import load_pem_private_key
+
+    # Extract leaf cert (first PEM block)
+    pem_str = cert_chain_pem.decode(errors="replace")
+    begin = pem_str.find("-----BEGIN CERTIFICATE-----")
+    end = pem_str.find("-----END CERTIFICATE-----")
+    if begin == -1 or end == -1:
+        raise ValueError("Kein Zertifikat in der PEM-Kette gefunden")
+    leaf_pem = pem_str[begin : end + len("-----END CERTIFICATE-----")].encode()
+
+    cert = x509.load_pem_x509_certificate(leaf_pem)
+    import config as _cfg
+    pw = _cfg.SMIME_KEY_PASSWORD
+    private_key = load_pem_private_key(key_pem, password=pw.encode() if pw else None)
+
+    email = email.lower().strip()
+    slot = _slot_id(cert)
+    user_dir = SMIME_DIR / email
+    if (user_dir / "cert.pem").exists() and not (user_dir / "certs").exists():
+        _migrate_legacy(email)
+    slot_dir = user_dir / "certs" / slot
+    slot_dir.mkdir(parents=True, exist_ok=True)
+    (slot_dir / "cert.pem").write_bytes(leaf_pem)
+    (slot_dir / "key.pem").write_bytes(
+        private_key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, _key_encryption())
+    )
+    # ACME renewals always become the new default
+    (user_dir / "default").write_text(slot)
+    log.info("S/MIME cert (ACME) stored for %s — slot %s", email, slot)
+    info = _cert_info(cert, email)
+    info["slot_id"] = slot
+    info["is_default"] = True
+    return info
+
+
+# ── Compat wrappers (used by config export/import) ────────────────────────────
+
+def store_p12(email: str, p12_bytes: bytes, password: str = "") -> dict:
+    return store_p12_slot(email, p12_bytes, password)
+
+
+def delete_cert(email: str) -> None:
+    """Delete ALL cert slots for a user."""
+    email_low = email.lower().strip()
+    user_dir = SMIME_DIR / email_low
+    certs_dir = user_dir / "certs"
+    if certs_dir.exists():
+        shutil.rmtree(certs_dir)
+    default_file = user_dir / "default"
+    if default_file.exists():
+        default_file.unlink()
+    for name in ("cert.pem", "key.pem"):
+        p = user_dir / name
+        if p.exists():
+            p.unlink()
+    if user_dir.exists() and not any(user_dir.iterdir()):
+        user_dir.rmdir()
+    log.info("All S/MIME certs deleted for %s", email_low)
 
 
 # ── Recipient public key store (encryption) ───────────────────────────────────
 
 def store_recipient_cert(email: str, cert_pem: bytes) -> dict:
-    """Store a recipient's public cert (PEM). Returns cert info dict."""
     from cryptography import x509 as _x509
     cert = _x509.load_pem_x509_certificate(cert_pem)
     user_dir = RECIPIENT_DIR / email.lower().strip()
     user_dir.mkdir(parents=True, exist_ok=True)
     (user_dir / "cert.pem").write_bytes(cert_pem)
+    import stats
+    stats.increment("certs_harvested")
     log.info("Recipient S/MIME cert stored for %s", email)
     return _cert_info(cert, email.lower().strip())
 
@@ -145,12 +388,39 @@ def delete_recipient_cert(email: str) -> None:
     log.info("Recipient S/MIME cert deleted for %s", email)
 
 
-def delete_cert(email: str) -> None:
-    user_dir = SMIME_DIR / email.lower().strip()
-    for name in ("cert.pem", "key.pem"):
-        p = user_dir / name
-        if p.exists():
-            p.unlink()
-    if user_dir.exists() and not any(user_dir.iterdir()):
-        user_dir.rmdir()
-    log.info("S/MIME cert deleted for %s", email)
+def migrate_keys_encryption() -> int:
+    """Re-encrypt existing unencrypted key.pem files with SMIME_KEY_PASSWORD."""
+    import config
+    from cryptography.hazmat.primitives.serialization import load_pem_private_key
+    pw = config.SMIME_KEY_PASSWORD
+    if not pw:
+        return 0
+    count = 0
+    if not SMIME_DIR.exists():
+        return 0
+    for user_dir in SMIME_DIR.iterdir():
+        if not user_dir.is_dir():
+            continue
+        # Check both legacy and new slot locations
+        key_paths = [user_dir / "key.pem"]
+        certs_dir = user_dir / "certs"
+        if certs_dir.exists():
+            key_paths += [sd / "key.pem" for sd in certs_dir.iterdir() if sd.is_dir()]
+        for key_path in key_paths:
+            if not key_path.exists():
+                continue
+            try:
+                key_bytes = key_path.read_bytes()
+                try:
+                    private_key = load_pem_private_key(key_bytes, password=None)
+                except (ValueError, TypeError):
+                    continue
+                key_path.write_bytes(
+                    private_key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8,
+                                              BestAvailableEncryption(pw.encode()))
+                )
+                log.info("Migrated key to encrypted storage: %s", key_path)
+                count += 1
+            except Exception as exc:
+                log.warning("Failed to migrate key %s: %s", key_path, exc)
+    return count

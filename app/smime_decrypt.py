@@ -2,6 +2,7 @@
 import logging
 import subprocess
 
+import config
 import smime_store
 
 log = logging.getLogger(__name__)
@@ -20,10 +21,15 @@ def decrypt(message_bytes: bytes, recipient: str) -> bytes | None:
 
     cert_path, key_path = paths
     try:
+        cmd = [
+            "openssl", "smime", "-decrypt",
+            "-recip", str(cert_path),
+            "-inkey", str(key_path),
+        ]
+        if config.SMIME_KEY_PASSWORD:
+            cmd += ["-passin", f"pass:{config.SMIME_KEY_PASSWORD}"]
         result = subprocess.run(
-            ["openssl", "smime", "-decrypt",
-             "-recip", str(cert_path),
-             "-inkey", str(key_path)],
+            cmd,
             input=message_bytes,
             capture_output=True,
             timeout=15,

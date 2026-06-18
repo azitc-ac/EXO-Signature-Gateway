@@ -35,8 +35,9 @@ Exchange Online (EXO)
 - Microsoft 365 / Exchange Online Tenant
 - Azure App-Registrierung mit diesen **Application Permissions**:
   - `User.Read.All` – Benutzerdaten per Graph lesen
-  - `Mail.Send` – Mails über Graph API senden (Graph-Modus)
-  - `Mail.ReadWrite.All` *(optional)* – Gesendete Elemente aktualisieren
+  - `Mail.Send` – Mails über Graph API senden + ACME Challenge-Antwort
+  - `Mail.Read.All` – ACME Challenge-Mail im Postfach lesen (Lifecycle-Feature)
+  - `Mail.ReadWrite.All` *(optional)* – Gesendete Elemente aktualisieren (`SENT_ITEMS_UPDATE`); schließt `Mail.Read.All` ein
 
 ---
 
@@ -176,13 +177,58 @@ Im Standard-Modus (`REINJECT_MODE=graph`) sendet der Service Mails über die Mic
 
 ---
 
-## S/MIME Signierung
+## S/MIME Signierung & Verschlüsselung
 
-Optional können Mails digital mit einem S/MIME-Zertifikat signiert (nicht verschlüsselt) werden.
+Mails können pro Absender digital signiert und/oder verschlüsselt werden.
 
-1. PFX-Zertifikat über die Web-UI unter **S/MIME** hochladen
-2. Zertifikat wird pro Absender-Adresse zugeordnet
-3. Funktioniert in beiden Modi: Im SMTP-Modus direkt, im Graph-Modus über Raw-MIME-Übertragung (EXO rekonstruiert die Nachricht dabei nicht)
+1. PFX-Zertifikat über die Web-UI unter **S/MIME → Importieren** hochladen
+2. Zertifikat wird dem Absender automatisch zugeordnet; mehrere Zertifikate pro Adresse möglich
+3. Funktioniert in beiden Modi: Im SMTP-Modus direkt, im Graph-Modus über Raw-MIME-Übertragung
+
+Für die Verschlüsselung werden Empfänger-Zertifikate separat verwaltet (Bereich "Empfängerzertifikate").
+
+---
+
+## S/MIME Zertifikat-Lifecycle & Auto-Enrollment (CASTLE ACME)
+
+Der Service überwacht Zertifikatsablaufdaten und kann Erneuerungen anstoßen. Pro Benutzer ist ein CA-Backend konfigurierbar.
+
+### Verfügbare Backends
+
+| Backend | Typ | Beschreibung |
+|---|---|---|
+| **Assisted Manual** | manuell | Benutzer erhält E-Mail mit Link zum CA-Portal und Self-Service-Upload-Link |
+| **CASTLE Platform (RFC 8823)** | vollautomatisch | ACME-Auftrag wird automatisch platziert, Zertifikat wird ohne Benutzerinteraktion importiert |
+
+### CASTLE ACME – Ablauf
+
+```
+Gateway          CASTLE ACME              Exchange Online (Postfach)
+   │                  │                           │
+   │── new-order ────►│                           │
+   │◄── authz ────────│                           │
+   │                  │── Challenge-E-Mail ───────►│
+   │                  │   Subject: "ACME: <token>" │
+   │◄── Graph API inbox poll (alle 30 s) ─────────│
+   │── trigger_challenge ──►│                      │
+   │── finalize (CSR) ─────►│                      │
+   │◄── Zertifikat (PEM) ───│                      │
+   │── importiert Zertifikat, Admin-Benachrichtigung
+```
+
+**Warum Graph API Polling statt SMTP-Intercept:**  
+Der MX-Record der Kundendomain zeigt auf Exchange Online — die Challenge-E-Mail geht direkt ins Postfach, ohne den Gateway zu passieren. Der Service pollt daher aktiv das Postfach des Benutzers via `GET /v1.0/users/{email}/mailFolders/inbox/messages` (Graph API), bis die Challenge-Mail erscheint. Polling-Intervall: 15 s (erster Versuch), danach 30 s, Timeout nach 20 min.
+
+**Benötigte Graph API Permissions:**
+
+| Permission | Zweck |
+|---|---|
+| `Mail.Send` | Challenge-Antwort FROM Benutzerpostfach senden |
+| `Mail.Read.All` | Postfach des Benutzers auf Challenge-E-Mail überwachen |
+
+### Self-Service Upload
+
+Alternativ zu CASTLE kann dem Benutzer ein zeitlich begrenzter Upload-Link (30 Tage) generiert werden. Der Link führt zu einer passwortlosen Seite, auf der er sein neues PFX-Zertifikat hochladen kann.
 
 ---
 
@@ -245,7 +291,13 @@ app/
 ├── loop_detector.py     Doppel-Injektion verhindern (konfigurierbarer Header)
 ├── reinject.py          SMTP + STARTTLS Weiterleitung an EXO
 ├── smime_signer.py      S/MIME Signierung via OpenSSL
-├── smime_store.py       Zertifikat-Verwaltung
+├── smime_store.py       Zertifikat-Verwaltung (Multi-Slot, Legacy-Migration)
+├── acme_client.py       ACME v2 Client (RFC 8555, nur cryptography + httpx)
+├── acme_state.py        ACME Auftrags-State, Graph API Mailbox-Polling
+├── ca_backends/         CA-Backend-Abstraktionen (Assisted Manual, CASTLE ACME)
+├── selfservice.py       Token-basierter Self-Service-Upload
+├── scheduler.py         Täglicher Lifecycle-Check (Ablaufdaten, Benachrichtigungen)
+├── notification.py      E-Mail-Benachrichtigungen (Admin + Benutzer)
 ├── setup_wizard.py      Erstkonfigurationsassistent
 ├── pkce.py              Azure PKCE OAuth-Flow
 ├── stats.py             Mail-Statistiken

@@ -44,6 +44,42 @@ def extract_and_store(msg: Message) -> str | None:
     return None
 
 
+def strip_signed_data(msg_bytes: bytes, sender: str) -> tuple[bytes | None, str | None]:
+    """
+    Strip application/pkcs7-mime; smime-type=signed-data (one-step S/MIME signing).
+    Used by Hotmail and some clients instead of the standard multipart/signed wrapper.
+    openssl smime -verify extracts the encapsulated content and outputs the inner MIME.
+    Returns (inner_mime_bytes, signer_display_name).
+    """
+    try:
+        result = subprocess.run(
+            ["openssl", "smime", "-verify", "-noverify"],
+            input=msg_bytes,
+            capture_output=True,
+            timeout=15,
+        )
+        if result.returncode == 0 and result.stdout:
+            log.info("S/MIME signed-data stripped for sender=%s (%d→%d bytes)",
+                     sender, len(msg_bytes), len(result.stdout))
+            # Best-effort: harvest signer cert from the signed-data payload
+            try:
+                import email as _em
+                inner = _em.message_from_bytes(msg_bytes)
+                sig_bytes = inner.get_payload(decode=True)
+                if sig_bytes:
+                    signer_name = _signer_display_name(sig_bytes, sender)
+                    _store_cert(sig_bytes, sender)
+                    return result.stdout, signer_name
+            except Exception:
+                pass
+            return result.stdout, None
+        log.warning("strip_signed_data: openssl -verify failed for %s: %s",
+                    sender, result.stderr.decode(errors="replace")[:200])
+    except Exception as exc:
+        log.warning("strip_signed_data error for %s: %s", sender, exc)
+    return None, None
+
+
 def strip_and_harvest(msg: Message, sender: str) -> tuple[bytes | None, str | None]:
     """
     Full-process: strip S/MIME signature wrapper, harvest cert, return
@@ -94,6 +130,29 @@ def _sig_bytes_from_multipart(msg: Message) -> bytes | None:
     return sig_part.get_payload(decode=True) if sig_part else None
 
 
+def _leaf_cert(certs):
+    """
+    Select the end-entity (signer) certificate from a PKCS7 chain.
+    The leaf cert's subject DN is not the issuer of any other cert in the list.
+    """
+    if len(certs) == 1:
+        return certs[0]
+    issuer_dns = {c.issuer.public_bytes() for c in certs}
+    for cert in certs:
+        if cert.subject.public_bytes() not in issuer_dns:
+            return cert
+    # Fallback: first cert without CA:True BasicConstraints
+    from cryptography.x509 import BasicConstraints, ExtensionNotFound
+    for cert in certs:
+        try:
+            bc = cert.extensions.get_extension_for_class(BasicConstraints)
+            if not bc.value.ca:
+                return cert
+        except ExtensionNotFound:
+            return cert
+    return certs[0]
+
+
 def _store_cert(sig_bytes: bytes, sender: str) -> None:
     try:
         from cryptography.hazmat.primitives.serialization import pkcs7 as _pkcs7
@@ -109,7 +168,7 @@ def _store_cert(sig_bytes: bytes, sender: str) -> None:
                 pass
 
         if certs:
-            smime_store.store_recipient_cert(sender, certs[0].public_bytes(Encoding.PEM))
+            smime_store.store_recipient_cert(sender, _leaf_cert(certs).public_bytes(Encoding.PEM))
             return
     except Exception:
         pass
@@ -131,7 +190,7 @@ def _signer_display_name(sig_bytes: bytes, fallback: str) -> str:
                 pass
 
         if certs:
-            cert = certs[0]
+            cert = _leaf_cert(certs)
             for oid in (NameOID.COMMON_NAME, NameOID.EMAIL_ADDRESS):
                 attrs = cert.subject.get_attributes_for_oid(oid)
                 if attrs:

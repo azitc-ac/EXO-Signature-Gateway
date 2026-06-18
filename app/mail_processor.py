@@ -192,15 +192,10 @@ _CLIENT_SIG_DIV_IDS = [
 
 
 def _strip_client_sig_divs(html: str) -> str:
-    """Remove known mail-client signature divs to prevent double signatures.
-
-    Outlook Mobile embeds its own signature as <div id="ms-outlook-mobile-signature">.
-    We strip it (and the separator line) so only the proxy signature remains.
-    Uses depth-counting to handle nested divs without a full HTML parser.
-    """
+    """Remove known mail-client signature divs to prevent double signatures."""
     lower = html.lower()
+    # Outlook Mobile: divs with known IDs
     for div_id in _CLIENT_SIG_DIV_IDS:
-        # Match <div ... id="div_id" ...> allowing any surrounding attributes
         pattern = re.compile(
             r'<div\b[^>]*\bid=["\']' + re.escape(div_id) + r'["\'][^>]*>',
             re.IGNORECASE,
@@ -225,6 +220,72 @@ def _strip_client_sig_divs(html: str) -> str:
                 pos = next_close + 6
         html = html[:idx] + html[pos:]
         lower = html.lower()
+
+    # Outlook desktop (Word editor): signature is the first top-level <div> inside
+    # <div class="WordSection1">. Message body uses <p> elements; the signature
+    # block starts as <div><div>...</div></div> with no unique ID.
+    html = _strip_wordsection_sig(html)
+    return html
+
+
+def _strip_wordsection_sig(html: str) -> str:
+    """Strip Outlook desktop signature from inside <div class="WordSection1">."""
+    lower = html.lower()
+    m = re.search(r'<div\b[^>]*\bclass=["\'][^"\']*wordsection1[^"\']*["\'][^>]*>',
+                  lower)
+    if not m:
+        log.info("_strip_wordsection_sig: WordSection1 not found in %d-char HTML", len(html))
+        return html
+
+    inner_start = m.end()
+    depth = 0
+    pos = inner_start
+
+    while pos < len(html):
+        next_open = lower.find('<div', pos)
+        next_close = lower.find('</div>', pos)
+        if next_close == -1:
+            break
+        if next_open != -1 and next_open < next_close:
+            if depth == 0:
+                # First top-level <div> inside WordSection1 = signature container
+                sig_start = next_open
+                log.info("_strip_wordsection_sig: sig div found at pos %d (WordSection1 end=%d)",
+                          sig_start, m.end())
+                tag_end = lower.find('>', next_open) + 1
+                close_pos = tag_end
+                inner_depth = 1
+                while close_pos < len(html) and inner_depth > 0:
+                    nio = lower.find('<div', close_pos)
+                    nic = lower.find('</div>', close_pos)
+                    if nic == -1:
+                        break
+                    if nio != -1 and nio < nic:
+                        inner_depth += 1
+                        close_pos = nio + 4
+                    else:
+                        inner_depth -= 1
+                        close_pos = nic + 6
+                # Also remove the immediately preceding empty MsoNormal paragraph
+                before = html[:sig_start]
+                empty_p = re.search(
+                    r'<p\b[^>]*class=["\'][^"\']*MsoNormal[^"\']*["\'][^>]*>'
+                    r'\s*(?:<[^>]+>)*\s*(?:&nbsp;| )\s*(?:</[^>]+>\s*)*</p>\s*$',
+                    before, re.IGNORECASE)
+                if empty_p:
+                    sig_start = empty_p.start()
+                log.info("_strip_wordsection_sig: removing %d chars (pos %d..%d)",
+                          close_pos - sig_start, sig_start, close_pos)
+                html = html[:sig_start] + html[close_pos:]
+                break
+            depth += 1
+            pos = next_open + 4
+        else:
+            if depth == 0:
+                break
+            depth -= 1
+            pos = next_close + 6
+
     return html
 
 

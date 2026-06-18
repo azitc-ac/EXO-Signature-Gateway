@@ -38,6 +38,8 @@ _GRAPH_PERMISSIONS = [
 _EXO_PERMISSIONS = [
     # Exchange.ManageAsApp
     {"id": "dc50a0fb-09a3-484d-be87-e023b12c6440", "type": "Role"},
+    # IMAP.AccessAsApp — needed for IMAP APPEND (smtp587 / Azure mode)
+    {"id": "5e5addcd-3e8d-4e90-baf5-964efab2b20a", "type": "Role"},
 ]
 
 # Exchange Administrator built-in role ID (constant across all tenants)
@@ -137,13 +139,13 @@ async def _upload_key_credential(token: str, app_object_id: str, cert_der: bytes
 
 async def create_app_registration(token: str, public_hostname: str) -> dict:
     """
-    Create (or reuse) the 'EXO Signature Service' app registration.
+    Create (or reuse) the 'EXO Signature Gateway' app registration.
     Returns {"app_id": ..., "app_object_id": ..., "sp_id": ..., "client_secret": ...}
     """
     # Check if app already exists
     existing = await _gh(
         "get",
-        f"{GRAPH}/applications?$filter=displayName eq 'EXO Signature Service'&$select=id,appId",
+        f"{GRAPH}/applications?$filter=displayName eq 'EXO Signature Gateway'&$select=id,appId",
         token,
     )
     existing_apps = existing.get("value", [])
@@ -154,7 +156,7 @@ async def create_app_registration(token: str, public_hostname: str) -> dict:
         log.info("Reusing existing app: appId=%s objectId=%s", app_id, app_object_id)
     else:
         app_body = {
-            "displayName": "EXO Signature Service",
+            "displayName": "EXO Signature Gateway",
             "signInAudience": "AzureADMyOrg",
             "requiredResourceAccess": [
                 {
@@ -198,7 +200,7 @@ async def create_app_registration(token: str, public_hostname: str) -> dict:
         token,
         json={
             "passwordCredential": {
-                "displayName": "EXO Signature Service",
+                "displayName": "EXO Signature Gateway",
                 "endDateTime": "2099-12-31T00:00:00Z",
             }
         },
@@ -345,7 +347,7 @@ async def run_post_auth_setup(token: str) -> dict:
 def run_smime_rules_setup(
     app_id: str,
     tenant_domain: str,
-    connector_name: str = "EXO Signature Service - Outbound",
+    connector_name: str = "EXO Signature Gateway - Outbound",
 ) -> dict:
     """
     Run the PowerShell script to create the two S/MIME inbound transport rules.
@@ -432,3 +434,212 @@ def run_exo_connector_setup(
     except Exception as exc:
         log.error("EXO connector setup error: %s", exc)
         return {"ok": False, "output": str(exc)}
+
+
+# ── Step: IMAP access setup (smtp587 / Azure mode) ────────────────────────────
+
+def run_imap_access_setup(app_id: str, tenant_domain: str) -> dict:
+    """
+    Register the app as EXO Service Principal and grant IMAP FullAccess to all
+    user mailboxes.  Required for REINJECT_MODE=smtp587 (IMAP APPEND, Azure).
+
+    Two things happen:
+      1. New-ServicePrincipal — registers the app in EXO so IMAP XOAUTH2 works
+      2. Add-MailboxPermission (FullAccess) — grants per-mailbox IMAP access
+    """
+    import requests as _req
+
+    if not _AUTH_CERT_PATH.exists():
+        return {
+            "ok": False,
+            "output": (
+                "Auth-Zertifikat nicht gefunden (/app/data/auth.pfx). "
+                "Bitte Schritt 3 (Azure-Anmeldung) erneut durchführen."
+            ),
+        }
+
+    # Get the Entra ID service principal Object ID for New-ServicePrincipal
+    token = _gc._acquire_token()
+    if not token:
+        return {"ok": False, "output": "Graph-Token nicht verfügbar. CLIENT_ID / CLIENT_SECRET prüfen."}
+
+    try:
+        r = _req.get(
+            f"https://graph.microsoft.com/v1.0/servicePrincipals"
+            f"?$filter=appId eq '{app_id}'&$select=id",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=15,
+        )
+        items = r.json().get("value", [])
+        if not items:
+            return {
+                "ok": False,
+                "output": (
+                    f"Kein Entra-Service-Principal für App-ID {app_id} gefunden. "
+                    "App-Registrierung in Azure prüfen."
+                ),
+            }
+        sp_object_id = items[0]["id"]
+        log.info("Entra SP ObjectId for app %s: %s", app_id, sp_object_id)
+    except Exception as exc:
+        return {"ok": False, "output": f"Graph-Abfrage fehlgeschlagen: {exc}"}
+
+    ps_lines = [
+        "$ErrorActionPreference = 'Stop'",
+        "",
+        "# Zertifikat laden (PFX ohne Passwort)",
+        f"$cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(",
+        f"    '{_AUTH_CERT_PATH}', [string]$null,",
+        "    ([System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet -bor",
+        "     [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable))",
+        "",
+        f"Connect-ExchangeOnline -AppId '{app_id}' -Certificate $cert"
+        f" -Organization '{tenant_domain}' -ShowBanner:$false -ShowProgress:$false",
+        "",
+        "# 1. Service Principal in EXO registrieren",
+        f"$sp = Get-ServicePrincipal | Where-Object {{ $_.AppId -eq '{app_id}' }}",
+        "if (-not $sp) {",
+        f"    $sp = New-ServicePrincipal -AppId '{app_id}'"
+        f" -ObjectId '{sp_object_id}' -DisplayName 'EXO Signature Gateway'",
+        "    Write-Host \"Service Principal registriert: $($sp.ObjectId)\"",
+        "} else {",
+        "    Write-Host \"Service Principal bereits vorhanden: $($sp.ObjectId)\"",
+        "}",
+        "",
+        "# 2. FullAccess auf alle Postfächer setzen",
+        "$mailboxes = Get-Mailbox -RecipientTypeDetails UserMailbox -ResultSize Unlimited",
+        "$count = 0",
+        "foreach ($m in $mailboxes) {",
+        "    Add-MailboxPermission -Identity $m.PrimarySmtpAddress"
+        " -User $sp.ObjectId -AccessRights FullAccess"
+        " -AutoMapping $false -ErrorAction SilentlyContinue | Out-Null",
+        "    Write-Host \"+ $($m.PrimarySmtpAddress)\"",
+        "    $count++",
+        "}",
+        "Write-Host \"Fertig: $count Postfächer konfiguriert.\"",
+        "Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue",
+    ]
+
+    with tempfile.NamedTemporaryFile(suffix=".ps1", mode="w", delete=False) as f:
+        f.write("\n".join(ps_lines))
+        ps_path = f.name
+
+    try:
+        proc = subprocess.run(
+            ["pwsh", "-NoProfile", "-NonInteractive", "-File", ps_path],
+            capture_output=True, text=True, timeout=180,
+        )
+        output = (proc.stdout + "\n" + proc.stderr).strip()
+        ok = proc.returncode == 0
+        if ok:
+            settings_store.update({"IMAP_ACCESS_CONFIGURED": True})
+            log.info("IMAP access setup succeeded")
+        else:
+            log.error("IMAP access setup failed rc=%d: %s", proc.returncode, output)
+        return {"ok": ok, "output": output}
+    except Exception as exc:
+        log.error("IMAP access setup error: %s", exc)
+        return {"ok": False, "output": str(exc)}
+    finally:
+        Path(ps_path).unlink(missing_ok=True)
+
+
+def run_mailbox_dg_update(app_id: str, tenant_domain: str, members: list[str]) -> dict:
+    """
+    Create/update 'EXO Signature Gateway - Enabled Mailboxes' DG and
+    update the transport rule to route only DG members.
+    Returns {"ok": bool, "output": str}.
+    """
+    script = Path("/app/scripts/update_mailbox_dg.ps1")
+    if not script.exists():
+        return {"ok": False, "output": "PowerShell script not found"}
+    if not _AUTH_CERT_PATH.exists():
+        return {"ok": False, "output": "Auth-Zertifikat nicht gefunden — bitte Schritt 4 (Entra-Login) erneut ausführen."}
+
+    cmd = [
+        "pwsh", "-NoProfile", "-NonInteractive", "-File", str(script),
+        "-AppId", app_id,
+        "-Organization", tenant_domain,
+        "-CertPath", str(_AUTH_CERT_PATH),
+    ]
+    if members:
+        cmd += ["-Members", ",".join(members)]
+
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+        output = (proc.stdout + "\n" + proc.stderr).strip()
+        if proc.returncode == 0:
+            log.info("Mailbox DG update succeeded (%d members)", len(members))
+            return {"ok": True, "output": output}
+        log.error("Mailbox DG update failed rc=%d: %s", proc.returncode, output)
+        return {"ok": False, "output": output}
+    except Exception as exc:
+        log.error("Mailbox DG update error: %s", exc)
+        return {"ok": False, "output": str(exc)}
+
+
+# ── EXO state verification ────────────────────────────────────────────────────
+
+def _run_verify_ps(body: str) -> dict:
+    """Connect to EXO, run a short PS body that emits one JSON line, return it."""
+    import json as _json
+    app_id = config.CLIENT_ID or settings_store.get("CLIENT_ID") or ""
+    org = settings_store.get("TENANT_DOMAIN") or ""
+    if not app_id or not org:
+        return {"ok": False, "error": "CLIENT_ID oder TENANT_DOMAIN nicht konfiguriert"}
+    if not _AUTH_CERT_PATH.exists():
+        return {"ok": False, "error": "Auth-Zertifikat nicht gefunden"}
+    cert = str(_AUTH_CERT_PATH)
+    connect = (
+        "$ErrorActionPreference = 'SilentlyContinue'\n"
+        "$cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new("
+        f"'{cert}', [string]$null, "
+        "([System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet -bor "
+        "[System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable))\n"
+        f"Connect-ExchangeOnline -AppId '{app_id}' -Certificate $cert -Organization '{org}'"
+        " -ShowBanner:$false -ShowProgress:$false\n"
+    )
+    full = connect + body + "\nDisconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue"
+    try:
+        proc = subprocess.run(
+            ["pwsh", "-NoProfile", "-NonInteractive", "-Command", full],
+            capture_output=True, text=True, timeout=60,
+        )
+        for line in proc.stdout.strip().splitlines():
+            line = line.strip()
+            if line.startswith("{"):
+                return _json.loads(line)
+        return {"ok": False, "error": (proc.stderr or proc.stdout)[:300]}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+def verify_connector() -> dict:
+    """Check that both EXO connectors and the main transport rule exist."""
+    return _run_verify_ps(
+        '$out  = $null -ne (Get-OutboundConnector -Identity "EXO Signature Gateway - Outbound" -ErrorAction SilentlyContinue)\n'
+        '$in   = $null -ne (Get-InboundConnector  -Identity "EXO Signature Gateway - Inbound"  -ErrorAction SilentlyContinue)\n'
+        '$rule = $null -ne (Get-TransportRule      -Identity "Route via EXO Signature Gateway"  -ErrorAction SilentlyContinue)\n'
+        'Write-Output (@{ok=$out -and $in -and $rule; outbound=$out; inbound=$in; rule=$rule} | ConvertTo-Json -Compress)\n'
+    )
+
+
+def verify_imap() -> dict:
+    """Check that the Gateway app is registered as an EXO ServicePrincipal."""
+    app_id = config.CLIENT_ID or settings_store.get("CLIENT_ID") or ""
+    body = (
+        f'$sp   = Get-ServicePrincipal -AppId "{app_id}" -ErrorAction SilentlyContinue\n'
+        '$ok   = $null -ne $sp\n'
+        '$name = if ($sp) { $sp.DisplayName } else { "" }\n'
+        'Write-Output (@{ok=$ok; displayName=$name} | ConvertTo-Json -Compress)\n'
+    )
+    return _run_verify_ps(body)
+
+
+def verify_smime_rules() -> dict:
+    """Check that both S/MIME inbound transport rules exist."""
+    return _run_verify_ps(
+        '$signed = $null -ne (Get-TransportRule -Identity "EXO Signature Gateway - SMIME Signed Inbound"    -ErrorAction SilentlyContinue)\n'
+        '$enc    = $null -ne (Get-TransportRule -Identity "EXO Signature Gateway - SMIME Encrypted Inbound" -ErrorAction SilentlyContinue)\n'
+        'Write-Output (@{ok=$signed -and $enc; signed=$signed; encrypted=$enc} | ConvertTo-Json -Compress)\n'
+    )

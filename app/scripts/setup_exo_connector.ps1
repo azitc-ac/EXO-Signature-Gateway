@@ -2,10 +2,10 @@
 <#
 .SYNOPSIS
     Creates the EXO Outbound Connector, Inbound Connector and Transport Rule
-    for the EXO Signature Service loop-back architecture.
+    for the EXO Signature Gateway loop-back architecture.
 
 .PARAMETER AppId
-    Application (client) ID of the EXO Signature Service app registration.
+    Application (client) ID of the EXO Signature Gateway app registration.
 
 .PARAMETER Organization
     Initial tenant domain, e.g. "contoso.onmicrosoft.com".
@@ -30,6 +30,8 @@ $ErrorActionPreference = 'Stop'
 function Write-Step([string]$msg) { Write-Host "[EXO-SETUP] $msg" -ForegroundColor Cyan }
 function Write-OK([string]$msg)   { Write-Host "[OK] $msg"         -ForegroundColor Green }
 function Write-Warn([string]$msg) { Write-Host "[WARN] $msg"       -ForegroundColor Yellow }
+
+$managedBy = "##Managed by EXO Signature Gateway, last update: $(Get-Date -Format 'yyyy-MM-dd HH:mm')##"
 
 # ── Load certificate (PFX, no password) ──────────────────────────────────────
 Write-Step "Loading certificate from $CertPath"
@@ -62,7 +64,7 @@ Write-OK "Connected to Exchange Online"
 # ── Outbound Connector ────────────────────────────────────────────────────────
 Write-Step "Checking Outbound Connector..."
 
-$outName = "EXO Signature Service - Outbound"
+$outName = "EXO Signature Gateway - Outbound"
 $existing = Get-OutboundConnector -Identity $outName -ErrorAction SilentlyContinue
 
 if ($existing) {
@@ -71,7 +73,8 @@ if ($existing) {
         -Identity $outName `
         -SmartHosts @($SmtpProxyHostname) `
         -TlsDomain $SmtpProxyHostname `
-        -Enabled $true
+        -Enabled $true `
+        -Comment $managedBy
     Write-OK "Outbound Connector updated"
 } else {
     New-OutboundConnector `
@@ -82,7 +85,8 @@ if ($existing) {
         -SmartHosts @($SmtpProxyHostname) `
         -TlsSettings DomainValidation `
         -TlsDomain $SmtpProxyHostname `
-        -Enabled $true | Out-Null
+        -Enabled $true `
+        -Comment $managedBy | Out-Null
     Write-OK "Outbound Connector created → $SmtpProxyHostname"
 }
 
@@ -102,7 +106,7 @@ Write-OK "Connector identity resolved: $outConnectorId"
 # ── Inbound Connector ─────────────────────────────────────────────────────────
 Write-Step "Checking Inbound Connector..."
 
-$inName = "EXO Signature Service - Inbound"
+$inName = "EXO Signature Gateway - Inbound"
 $existingIn = Get-InboundConnector -Identity $inName -ErrorAction SilentlyContinue
 
 if ($existingIn) {
@@ -111,7 +115,8 @@ if ($existingIn) {
         -Identity $inName `
         -RequireTls $true `
         -TlsSenderCertificateName $SmtpProxyHostname `
-        -Enabled $true
+        -Enabled $true `
+        -Comment $managedBy
     Write-OK "Inbound Connector updated"
 } else {
     New-InboundConnector `
@@ -120,26 +125,31 @@ if ($existingIn) {
         -SenderDomains @("*") `
         -RequireTls $true `
         -TlsSenderCertificateName $SmtpProxyHostname `
-        -Enabled $true | Out-Null
+        -Enabled $true `
+        -Comment $managedBy | Out-Null
     Write-OK "Inbound Connector created ← $SmtpProxyHostname (TLS required)"
 }
 
 # ── Transport Rule ────────────────────────────────────────────────────────────
 Write-Step "Checking Transport Rule..."
 
-$ruleName = "Route via EXO Signature Service"
+$ruleName = "Route via EXO Signature Gateway"
 $existingRule = Get-TransportRule -Identity $ruleName -ErrorAction SilentlyContinue
 
 if ($existingRule) {
-    Write-Warn "Transport Rule '$ruleName' exists — skipping"
+    Write-Warn "Transport Rule '$ruleName' exists — updating comment"
+    Set-TransportRule -Identity $ruleName -Comments $managedBy | Out-Null
+    Write-OK "Transport Rule comment updated"
 } else {
     New-TransportRule `
         -Name $ruleName `
+        -FromScope InOrganization `
         -SentToScope NotInOrganization `
         -ExceptIfHeaderMatchesMessageHeader "X-Sig-Applied" `
         -ExceptIfHeaderMatchesPatterns "1" `
         -RouteMessageOutboundConnector $outConnectorId `
         -Priority 0 `
+        -Comments $managedBy `
         -Mode Enforce | Out-Null
     Write-OK "Transport Rule created (priority 0)"
 }
@@ -154,3 +164,4 @@ Write-Host "  EXO → [$outName] → $SmtpProxyHostname:25"
 Write-Host "  $SmtpProxyHostname:25 → EXO Smarthost → [$inName] → Delivery"
 Write-Host ""
 Write-Host "Loop prevention: header X-Sig-Applied: 1 (set by proxy before re-inject)"
+Write-Host "Forwarding: FromScope=InOrganization ensures only internally-composed mails are routed"

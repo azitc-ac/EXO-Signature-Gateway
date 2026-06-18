@@ -88,7 +88,7 @@ class UserData:
     bookingsUrl: str = ""
 
 
-async def update_sent_item(sender_email: str, message_id: str, html_body: str) -> bool:
+async def update_sent_item(sender_email: str, message_id: str, html_body: str) -> bool | None:
     """Find a sent message by Message-ID and patch its HTML body."""
     token = _acquire_token()
     if not token:
@@ -122,6 +122,12 @@ async def update_sent_item(sender_email: str, message_id: str, html_body: str) -
                 headers={**auth, "Content-Type": "application/json"},
                 json={"body": {"contentType": "html", "content": html_body}},
             )
+            if 400 <= resp.status_code < 500:
+                log.warning(
+                    "Sent item PATCH %d for %s (not retrying): %s",
+                    resp.status_code, sender_email, resp.text[:300],
+                )
+                return None  # permanent client error — caller must not retry
             resp.raise_for_status()
 
         log.info("Sent item updated for %s (message-id %s)", sender_email, message_id)
@@ -130,6 +136,70 @@ async def update_sent_item(sender_email: str, message_id: str, html_body: str) -
     except Exception as exc:
         log.error("update_sent_item failed for %s: %s", sender_email, exc)
         return False
+
+
+GRAPH = "https://graph.microsoft.com/v1.0"
+
+
+async def list_mailboxes() -> list[dict]:
+    """
+    List all EXO mailboxes via Graph API: licensed users, shared mailboxes,
+    and Microsoft 365 group mailboxes.
+    Returns list of {"email", "name", "type"} dicts sorted by email.
+    """
+    token = _acquire_token()
+    if not token:
+        return []
+    headers = {"Authorization": f"Bearer {token}"}
+    results: list[dict] = []
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        # ── User mailboxes (licensed = regular, unlicensed with mail = shared) ──
+        url = (f"{GRAPH}/users"
+               "?$select=mail,displayName,assignedLicenses"
+               "&$top=999")
+        while url:
+            r = await client.get(url, headers=headers)
+            if r.status_code != 200:
+                log.warning("list_mailboxes: /users returned %s", r.status_code)
+                break
+            data = r.json()
+            for u in data.get("value", []):
+                mail = (u.get("mail") or "").lower().strip()
+                if not mail:
+                    continue
+                has_license = bool(u.get("assignedLicenses"))
+                results.append({
+                    "email": mail,
+                    "name": u.get("displayName") or mail,
+                    "type": "user" if has_license else "shared",
+                })
+            url = data.get("@odata.nextLink")
+
+        # ── Microsoft 365 group mailboxes ──────────────────────────────────────
+        grp_url = (f"{GRAPH}/groups"
+                   "?$filter=groupTypes/any(c:c+eq+'Unified')"
+                   "&$select=mail,displayName"
+                   "&$top=999")
+        while grp_url:
+            r = await client.get(grp_url, headers=headers)
+            if r.status_code != 200:
+                log.debug("list_mailboxes: /groups returned %s (Group.Read.All may be missing)",
+                          r.status_code)
+                break
+            data = r.json()
+            for g in data.get("value", []):
+                mail = (g.get("mail") or "").lower().strip()
+                if not mail:
+                    continue
+                results.append({
+                    "email": mail,
+                    "name": g.get("displayName") or mail,
+                    "type": "group",
+                })
+            grp_url = data.get("@odata.nextLink")
+
+    return sorted(results, key=lambda x: x["email"])
 
 
 async def get_user(email: str) -> UserData:

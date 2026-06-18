@@ -5,7 +5,7 @@
     (signed mail signature-stripping and encrypted mail decryption).
 
 .PARAMETER AppId
-    Application (client) ID of the EXO Signature Service app registration.
+    Application (client) ID of the EXO Signature Gateway app registration.
 
 .PARAMETER Organization
     Initial tenant domain, e.g. "contoso.onmicrosoft.com".
@@ -15,14 +15,14 @@
 
 .PARAMETER ConnectorName
     Name of the existing EXO Outbound Connector to route through.
-    Default: "EXO Signature Service - Outbound"
+    Default: "EXO Signature Gateway - Outbound"
 #>
 
 param(
     [Parameter(Mandatory)][string]$AppId,
     [Parameter(Mandatory)][string]$Organization,
     [Parameter(Mandatory)][string]$CertPath,
-    [string]$ConnectorName = "EXO Signature Service - Outbound"
+    [string]$ConnectorName = "EXO Signature Gateway - Outbound"
 )
 
 Set-StrictMode -Version Latest
@@ -31,6 +31,8 @@ $ErrorActionPreference = 'Stop'
 function Write-Step([string]$msg) { Write-Host "[EXO-SMIME] $msg" -ForegroundColor Cyan }
 function Write-OK([string]$msg)   { Write-Host "[OK] $msg"         -ForegroundColor Green }
 function Write-Warn([string]$msg) { Write-Host "[WARN] $msg"       -ForegroundColor Yellow }
+
+$managedBy = "##Managed by EXO Signature Gateway, last update: $(Get-Date -Format 'yyyy-MM-dd HH:mm')##"
 
 # ── Load certificate ──────────────────────────────────────────────────────────
 Write-Step "Loading certificate from $CertPath"
@@ -72,36 +74,46 @@ Write-OK "Connector resolved: $connectorId"
 
 # ── Transport Rule: signed inbound ────────────────────────────────────────────
 Write-Step "Checking Transport Rule: signed inbound..."
-$signedRuleName = "EXO Signature Service - SMIME Signed Inbound"
+$signedRuleName = "EXO Signature Gateway - SMIME Signed Inbound"
 $existingSigned = Get-TransportRule -Identity $signedRuleName -ErrorAction SilentlyContinue
 
 if ($existingSigned) {
-    Write-Warn "Rule '$signedRuleName' already exists — skipping"
+    Write-Warn "Rule '$signedRuleName' already exists — updating comment"
+    Set-TransportRule -Identity $signedRuleName -Comments $managedBy | Out-Null
+    Write-OK "Rule comment updated: $signedRuleName"
 } else {
     New-TransportRule `
         -Name $signedRuleName `
         -FromScope NotInOrganization `
         -MessageTypeMatches Signed `
+        -ExceptIfHeaderMatchesMessageHeader "X-Sig-Applied" `
+        -ExceptIfHeaderMatchesPatterns "1" `
         -RouteMessageOutboundConnector $connectorId `
         -StopRuleProcessing $true `
+        -Comments $managedBy `
         -Mode Enforce | Out-Null
     Write-OK "Rule created: signed inbound → proxy (signature strip + cert harvest)"
 }
 
 # ── Transport Rule: encrypted inbound ─────────────────────────────────────────
 Write-Step "Checking Transport Rule: encrypted inbound..."
-$encRuleName = "EXO Signature Service - SMIME Encrypted Inbound"
+$encRuleName = "EXO Signature Gateway - SMIME Encrypted Inbound"
 $existingEnc = Get-TransportRule -Identity $encRuleName -ErrorAction SilentlyContinue
 
 if ($existingEnc) {
-    Write-Warn "Rule '$encRuleName' already exists — skipping"
+    Write-Warn "Rule '$encRuleName' already exists — updating comment"
+    Set-TransportRule -Identity $encRuleName -Comments $managedBy | Out-Null
+    Write-OK "Rule comment updated: $encRuleName"
 } else {
     New-TransportRule `
         -Name $encRuleName `
         -FromScope NotInOrganization `
         -MessageTypeMatches Encrypted `
+        -ExceptIfHeaderMatchesMessageHeader "X-Sig-Applied" `
+        -ExceptIfHeaderMatchesPatterns "1" `
         -RouteMessageOutboundConnector $connectorId `
         -StopRuleProcessing $true `
+        -Comments $managedBy `
         -Mode Enforce | Out-Null
     Write-OK "Rule created: encrypted inbound → proxy (decrypt)"
 }

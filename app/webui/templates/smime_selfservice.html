@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Zertifikat hochladen – EXO Gateway</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      background: #f4f6f9;
+      color: #333;
+      margin: 0;
+      padding: 32px 16px;
+      min-height: 100vh;
+    }
+    .card {
+      max-width: 520px;
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 2px 16px rgba(0,0,0,.1);
+      padding: 36px 40px;
+    }
+    .logo {
+      font-size: 13px;
+      color: #aaa;
+      margin-bottom: 24px;
+      font-weight: 600;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    h1 { font-size: 22px; margin: 0 0 6px; color: #1a1a2e; }
+    .email-badge {
+      display: inline-block;
+      background: #eff6ff;
+      color: #1d4ed8;
+      border-radius: 20px;
+      padding: 3px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 20px;
+    }
+    .cert-info {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin-bottom: 24px;
+      font-size: 13px;
+    }
+    .cert-info .label { color: #888; }
+    .cert-info .value { font-weight: 600; }
+    .expired { color: #e74c3c; }
+    .warning { color: #e67e22; }
+    .ok      { color: #27ae60; }
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #555;
+      margin-bottom: 5px;
+    }
+    input[type=file], input[type=password] {
+      display: block;
+      width: 100%;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 14px;
+      margin-bottom: 16px;
+    }
+    input[type=file] { background: #fafafa; cursor: pointer; }
+    .btn {
+      width: 100%;
+      padding: 11px;
+      border: none;
+      border-radius: 6px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      background: #2563eb;
+      color: #fff;
+      transition: background .15s;
+    }
+    .btn:hover { background: #1d4ed8; }
+    .btn:disabled { background: #93c5fd; cursor: not-allowed; }
+    .alert {
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin-top: 16px;
+      font-size: 14px;
+      display: none;
+    }
+    .alert.success { background: #f0fdf4; border: 1px solid #86efac; color: #166534; }
+    .alert.error   { background: #fef2f2; border: 1px solid #fca5a5; color: #991b1b; }
+    .hint { font-size: 12px; color: #aaa; margin-top: 20px; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">EXO Signature Gateway</div>
+  <h1>S/MIME-Zertifikat hochladen</h1>
+  <div class="email-badge">{{ email }}</div>
+
+  {% if current_cert %}
+  <div class="cert-info">
+    <span class="label">Aktuelles Zertifikat: </span>
+    <span class="value">{{ current_cert.get("subject", "–") }}</span><br>
+    <span class="label">Gültig bis: </span>
+    {% if current_cert.get("expired") %}
+      <span class="value expired">{{ current_cert.expiry }} (ABGELAUFEN)</span>
+    {% elif current_cert.get("warning") %}
+      <span class="value warning">{{ current_cert.expiry }} ({{ current_cert.days_left }} Tage)</span>
+    {% else %}
+      <span class="value ok">{{ current_cert.expiry }}</span>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div id="form-area">
+    <label for="p12-file">PKCS12-Datei (.p12 / .pfx)</label>
+    <input type="file" id="p12-file" accept=".p12,.pfx">
+
+    <label for="p12-password">Passwort (falls vergeben)</label>
+    <input type="password" id="p12-password" placeholder="leer lassen wenn kein Passwort">
+
+    <button class="btn" id="upload-btn" onclick="doUpload()">Zertifikat hochladen</button>
+  </div>
+
+  <div id="result" class="alert"></div>
+
+  <p class="hint">
+    Dieser Link ist personalisiert und nur für <strong>{{ email }}</strong> gültig.
+    Er läuft nach 30 Tagen ab. Bei Fragen wenden Sie sich an Ihren Administrator.
+  </p>
+</div>
+
+<script>
+async function doUpload() {
+  const file = document.getElementById('p12-file').files[0];
+  const password = document.getElementById('p12-password').value || '';
+  const btn = document.getElementById('upload-btn');
+  const result = document.getElementById('result');
+
+  if (!file) {
+    result.className = 'alert error';
+    result.textContent = 'Bitte wählen Sie eine .p12/.pfx Datei aus.';
+    result.style.display = 'block';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Wird hochgeladen…';
+  result.style.display = 'none';
+
+  const fd = new FormData();
+  fd.append('p12_file', file);
+  fd.append('password', password);
+
+  try {
+    const resp = await fetch('/api/smime/renew/{{ token }}', {method: 'POST', body: fd});
+    const d = await resp.json().catch(() => ({}));
+    if (resp.ok && d.ok) {
+      result.className = 'alert success';
+      result.innerHTML =
+        '✓ <strong>Zertifikat erfolgreich importiert.</strong><br>' +
+        'Gültig bis: ' + (d.info?.expiry || '–') + '<br>' +
+        'Subject: ' + (d.info?.subject || '–') + '<br><br>' +
+        'Ihr Administrator wurde benachrichtigt. Sie können dieses Fenster schließen.';
+      document.getElementById('form-area').style.display = 'none';
+    } else {
+      result.className = 'alert error';
+      result.textContent = 'Fehler: ' + (d.detail || 'Unbekannt');
+      btn.disabled = false;
+      btn.textContent = 'Zertifikat hochladen';
+    }
+  } catch (e) {
+    result.className = 'alert error';
+    result.textContent = 'Netzwerkfehler: ' + e.message;
+    btn.disabled = false;
+    btn.textContent = 'Zertifikat hochladen';
+  }
+  result.style.display = 'block';
+}
+</script>
+</body>
+</html>

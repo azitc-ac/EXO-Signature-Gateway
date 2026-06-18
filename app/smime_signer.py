@@ -11,6 +11,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+import config
 import loop_detector
 import smime_store
 
@@ -33,15 +34,18 @@ def sign(message_bytes: bytes, sender: str) -> bytes | None:
             tmp.write(message_bytes)
             tmp_path = tmp.name
 
+        cmd = [
+            "openssl", "smime", "-sign",
+            "-in", tmp_path,
+            "-signer", str(cert_path),
+            "-inkey", str(key_path),
+            "-md", "sha256",
+            "-outform", "SMIME",
+        ]
+        if config.SMIME_KEY_PASSWORD:
+            cmd += ["-passin", f"pass:{config.SMIME_KEY_PASSWORD}"]
         result = subprocess.run(
-            [
-                "openssl", "smime", "-sign",
-                "-in", tmp_path,
-                "-signer", str(cert_path),
-                "-inkey", str(key_path),
-                "-md", "sha256",
-                "-outform", "SMIME",
-            ],
+            cmd,
             capture_output=True,
             timeout=15,
         )
@@ -69,7 +73,11 @@ def sign(message_bytes: bytes, sender: str) -> bytes | None:
         loop_detector.mark_as_signed(signed_msg)
 
         out = signed_msg.as_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+        # Normalize legacy x- MIME type names to RFC 3851/5751 names
+        out = out.replace(b"x-pkcs7-signature", b"pkcs7-signature")
 
+        import stats
+        stats.increment("smime_signed")
         log.info("S/MIME signed for sender=%s", sender)
         return out
 

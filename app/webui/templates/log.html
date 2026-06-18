@@ -121,5 +121,14 @@ function connect() {
 function clearLog() { pre.textContent = ''; }
 
 connect();
+
+function _resizeLog() {
+    const w = document.getElementById('logWrap');
+    if (!w) return;
+    const top = w.getBoundingClientRect().top + window.scrollY;
+    w.style.height = Math.max(200, window.innerHeight - top - 20) + 'px';
+}
+window.addEventListener('resize', _resizeLog);
+_resizeLog();
 </script>
 {% endblock %}

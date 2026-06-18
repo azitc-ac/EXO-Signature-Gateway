@@ -4,14 +4,41 @@ import logging.handlers
 import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import zoneinfo
 
 LOG_DIR = Path("/app/data/logs")
 _LOG_FILENAME = "app.log"
 _ROTATED_RE = re.compile(r"app\.log\.\d{4}-\d{2}-\d{2}$")
 
+_LOG_FMT = "%(asctime)s %(levelname)-8s %(name)s: %(message)s"
+_DATE_FMT = "%Y-%m-%d %H:%M:%S"
 
-def setup(retention_days: int = 30) -> None:
+
+class _TZFormatter(logging.Formatter):
+    """Formatter that renders %(asctime)s in a configurable IANA timezone."""
+
+    def __init__(self, tz_name: str = "UTC", *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        try:
+            self._tz = zoneinfo.ZoneInfo(tz_name)
+        except Exception:
+            self._tz = timezone.utc
+
+    def formatTime(self, record, datefmt=None):
+        dt = datetime.fromtimestamp(record.created, tz=self._tz)
+        return dt.strftime(datefmt or _DATE_FMT)
+
+
+def setup(retention_days: int = 30, tz_name: str = "UTC") -> None:
     LOG_DIR.mkdir(parents=True, exist_ok=True)
+    formatter = _TZFormatter(tz_name, _LOG_FMT, datefmt=_DATE_FMT)
+
+    # Apply timezone formatter to all existing root handlers (e.g. StreamHandler
+    # added by logging.basicConfig before this function runs).
+    root = logging.getLogger()
+    for h in root.handlers:
+        h.setFormatter(formatter)
+
     handler = logging.handlers.TimedRotatingFileHandler(
         filename=str(LOG_DIR / _LOG_FILENAME),
         when="midnight",
@@ -19,11 +46,8 @@ def setup(retention_days: int = 30) -> None:
         encoding="utf-8",
         utc=False,
     )
-    handler.setFormatter(logging.Formatter(
-        "%(asctime)s %(levelname)-8s %(name)s: %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    ))
-    logging.getLogger().addHandler(handler)
+    handler.setFormatter(formatter)
+    root.addHandler(handler)
     _cleanup(retention_days)
 
 

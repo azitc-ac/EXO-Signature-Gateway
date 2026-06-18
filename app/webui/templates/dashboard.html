@@ -9,19 +9,90 @@
 </div>
 {% endif %}
 
-<div class="stats-grid">
-    <div class="stat-card">
-        <div class="stat-value">{{ stats.processed }}</div>
-        <div class="stat-label">Mails verarbeitet</div>
-    </div>
-    <div class="stat-card warn">
-        <div class="stat-value">{{ stats.fallback }}</div>
-        <div class="stat-label">Fallback (ohne Signatur)</div>
-    </div>
-    <div class="stat-card error">
-        <div class="stat-value">{{ stats.errors }}</div>
-        <div class="stat-label">Fehler</div>
-    </div>
+{% if expiring_certs %}
+<div class="alert warn" style="margin-bottom:20px">
+  <strong>⚠ Ablaufende Zertifikate:</strong>
+  {% for c in expiring_certs %}
+    <span style="margin-left:8px">{{ c.email }}
+      {% if c.expired %}<span style="color:#e74c3c;font-weight:700">ABGELAUFEN</span>
+      {% else %}<span style="color:#e67e22;font-weight:700">{{ c.days_left }} Tage</span>{% endif %}
+    </span>
+  {% endfor %}
 </div>
-<p class="hint">Zähler werden bei Container-Neustart zurückgesetzt.</p>
+{% endif %}
+
+<!-- Mail-Stats -->
+<h3 style="color:#555;font-size:14px;text-transform:uppercase;letter-spacing:.05em;margin:0 0 10px">
+  Mails <span style="font-weight:400;color:#aaa">– heute / gesamt (seit Start)</span>
+</h3>
+<div class="stats-grid" style="grid-template-columns:repeat(auto-fill,minmax(140px,1fr))">
+  <div class="stat-card">
+    <div class="stat-value">{{ stats_daily.processed }}</div>
+    <div class="stat-label">Verarbeitet heute</div>
+    <div style="color:#aaa;font-size:11px;margin-top:2px">{{ stats.processed }} gesamt</div>
+  </div>
+  <div class="stat-card" style="border-top-color:#8b5cf6">
+    <div class="stat-value" style="color:#8b5cf6">{{ stats_daily.smime_signed }}</div>
+    <div class="stat-label">S/MIME signiert heute</div>
+    <div style="color:#aaa;font-size:11px;margin-top:2px">{{ stats.smime_signed }} gesamt</div>
+  </div>
+  <div class="stat-card" style="border-top-color:#0ea5e9">
+    <div class="stat-value" style="color:#0ea5e9">{{ stats_daily.smime_encrypted }}</div>
+    <div class="stat-label">Verschlüsselt heute</div>
+    <div style="color:#aaa;font-size:11px;margin-top:2px">{{ stats.smime_encrypted }} gesamt</div>
+  </div>
+  <div class="stat-card" style="border-top-color:#10b981">
+    <div class="stat-value" style="color:#10b981">{{ stats_daily.smime_decrypted }}</div>
+    <div class="stat-label">Entschlüsselt heute</div>
+    <div style="color:#aaa;font-size:11px;margin-top:2px">{{ stats.smime_decrypted }} gesamt</div>
+  </div>
+  <div class="stat-card" style="border-top-color:#f59e0b">
+    <div class="stat-value" style="color:#f59e0b">{{ stats_daily.certs_harvested }}</div>
+    <div class="stat-label">Certs geharvestet</div>
+    <div style="color:#aaa;font-size:11px;margin-top:2px">{{ stats.certs_harvested }} gesamt</div>
+  </div>
+  <div class="stat-card warn">
+    <div class="stat-value">{{ stats_daily.fallback }}</div>
+    <div class="stat-label">Fallback heute</div>
+    <div style="color:#aaa;font-size:11px;margin-top:2px">{{ stats.fallback }} gesamt</div>
+  </div>
+  <div class="stat-card error">
+    <div class="stat-value">{{ stats_daily.errors }}</div>
+    <div class="stat-label">Fehler heute</div>
+    <div style="color:#aaa;font-size:11px;margin-top:2px">{{ stats.errors }} gesamt</div>
+  </div>
+</div>
+<p class="hint">Heute-Zähler werden täglich zum konfigurierten Berichtszeitpunkt zurückgesetzt. Gesamtzähler bei Container-Neustart.</p>
+
+<!-- TLS + S/MIME Zertifikate -->
+<h3 style="color:#555;font-size:14px;text-transform:uppercase;letter-spacing:.05em;margin:24px 0 10px">Zertifikate</h3>
+<div class="settings-card" style="padding:12px 16px">
+  <table style="width:100%;border-collapse:collapse;font-size:13px">
+    <thead>
+      <tr style="border-bottom:2px solid #e2e8f0">
+        <th style="text-align:left;padding:5px 12px 5px 0;color:#555">Zertifikat</th>
+        <th style="text-align:left;padding:5px 12px;color:#555">Typ</th>
+        <th style="text-align:left;padding:5px 0;color:#555">Ablauf</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="border-bottom:1px solid #f0f0f0">
+        <td style="padding:6px 12px 6px 0"><strong>TLS / Let's Encrypt</strong></td>
+        <td style="padding:6px 12px;color:#888">SMTP + Web UI</td>
+        <td style="padding:6px 0">{{ cert_expiry | safe }}</td>
+      </tr>
+      {% for c in signing_certs %}
+      <tr style="border-bottom:1px solid #f0f0f0">
+        <td style="padding:6px 12px 6px 0"><strong>{{ c.email }}</strong></td>
+        <td style="padding:6px 12px;color:#888">S/MIME signieren</td>
+        <td style="padding:6px 0">
+          {% if c.expired %}<span style="color:#e74c3c;font-weight:700">ABGELAUFEN</span>
+          {% elif c.warning %}<span style="color:#e67e22;font-weight:700">{{ c.days_left }} Tage (bis {{ c.expiry }})</span>
+          {% else %}<span style="color:#27ae60">{{ c.days_left }} Tage (bis {{ c.expiry }})</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
 {% endblock %}
