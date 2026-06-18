@@ -63,13 +63,14 @@ def compute_key_authorization(
     account_key: ec.EllipticCurvePrivateKey,
 ) -> str:
     """
-    RFC 8823 §3.3:
-      full_token      = token-part2 || "." || token-part1   (part2 FIRST, dot separator)
-      key-authz       = full_token + "." + base64url(SHA-256(accountKey_JWK))
+    CASTLE email-reply-00: binary byte concatenation (NOT dot-separated strings).
+      full_token      = b64url(decode(token_part1) + decode(token_part2))
+                        subject-token bytes FIRST, then API-token bytes
+      key-authz       = full_token + "." + jwk_thumbprint
       email-response  = base64url(SHA-256(key-authz))
-    Returns the base64url-encoded SHA-256 digest to put in the ACME RESPONSE block.
+    Source: polhenarejos/acme_email certbot_castle/plugins/castle/utils.py
     """
-    full_token = f"{token_part2}.{token_part1}"
+    full_token = b64url(b64url_decode(token_part1) + b64url_decode(token_part2))
     key_authz = f"{full_token}.{jwk_thumbprint(account_key)}"
     return b64url(hashlib.sha256(key_authz.encode()).digest())
 

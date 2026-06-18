@@ -5,6 +5,56 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.0.93 — 2026-06-18 — ACME Sleep auf 30s reduziert (direktes SMTP)
+
+### Bugfixes
+- **trigger_challenge Sleep**: 240s war für Graph-API-Weg nötig. Mit direktem SMTP zu
+  castle.cloud MX (Cloudflare, <5s Zustellung) reichen 30s als konservativer Puffer.
+- **Debug-Logging** aus handler.py entfernt (ACME Reply Raw MIME Header Logging).
+
+---
+
+## v1.0.92 — 2026-06-18 — ACME Reply direkt per SMTP (Exchange-Bypass) ✅ FUNKTIONIERT
+
+### Wichtigste Änderung — ACME S/MIME-Zertifikat für Erika jetzt vollständig
+- **ACME Challenge Reply: direktes SMTP statt Graph API sendMail (kritisch)**:
+  Graph API sendMail routet die Mail durch Exchange Online. Exchange modifiziert dabei:
+  - Content-Transfer-Encoding von `7bit` → `quoted-printable`
+  - Fügt ARC-Seal, DKIM-Signature, 20+ Exchange-interne Header hinzu
+  - Fügt Thread-Topic, Accept-Language, X-MS-Exchange-* Header hinzu
+  CASTLE's Validator ist gegen diese Modifikationen inkompatibel — validiert immer
+  `invalid` ohne Error-Details.  
+  Fix: Direkte SMTP-Verbindung zu castle.cloud's MX (`route2.mx.cloudflare.net:25`)
+  via DNS-over-HTTPS MX-Lookup. Keine Exchange-Zwischenschaltung, keine Modifikationen.
+  SPF für zarenko.net enthält Gateway-IP (212.117.95.233). DMARC p=none.
+  **Ergebnis: status=valid, Zertifikat ausgestellt (Slot 359940cf075acb57, exp 15.12.2026)**
+
+---
+
+## v1.0.91 — 2026-06-18 — ACME trigger_challenge Sleep auf 240s erhöht
+
+### Bugfixes
+- **ACME trigger_challenge zu früh (Timing-Fix 2)**: Die Reply-Mail geht den Weg:
+  `sendMail (Graph) → Exchange → Gateway (14s) → zarenko.mail.protection.outlook.com
+  → Exchange intern → castle.cloud (30-120s)`. Insgesamt bis zu 3 Minuten End-to-End.
+  Der bisherige Sleep von 90s war zu kurz — CASTLE validierte bevor die Mail ankam.
+  Fix: Sleep von 90s auf 240s erhöht.
+
+---
+
+## v1.0.90 — 2026-06-18 — ACME Token-Formel-Fix (CASTLE binäre Byte-Konkatenation)
+
+### Bugfixes
+- **ACME Challenge-Response immer `invalid` (kritisch)**: `compute_key_authorization()`
+  verwendete String-Dot-Konkatenation: `f"{token_part2}.{token_part1}"`. CASTLE erwartet
+  aber **binäre Byte-Konkatenation**: `b64url(decode(token_part1) + decode(token_part2))`
+  (Subject-Token-Bytes zuerst, dann API-Token-Bytes). Das war die Ursache aller bisherigen
+  ACME-Fehlschläge — CASTLE validierte unsere Antwort nie erfolgreich.  
+  Quelle: polhenarejos/acme_email `certbot_castle/plugins/castle/utils.py`.  
+  _Neue Formel: `full_token = b64url(b64url_decode(token_part1) + b64url_decode(token_part2))`_
+
+---
+
 ## v1.0.88 — 2026-06-18 — ACME Loop-Fix, Passthrough-Fix, Timing-Fix
 
 ### Bugfixes

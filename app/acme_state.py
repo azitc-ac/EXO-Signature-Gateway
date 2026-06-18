@@ -165,23 +165,19 @@ async def _send_challenge_reply(
     internet_message_id: str = "",
 ) -> bool:
     """
-    Send the ACME email-reply-00 response as a raw MIME message via Graph API.
-    Sending raw MIME bypasses Exchange formatting so the body stays text/plain,
-    and allows setting In-Reply-To / Auto-Submitted without Graph restrictions.
+    Send the ACME email-reply-00 response directly via SMTP (no Exchange routing).
+    Bypasses Exchange Online to avoid header/CTE modifications that break CASTLE
+    validation. SPF for zarenko.net includes our gateway IP.
     RFC 8823 §3.3 requirements:
       - Subject: Re: ACME: <token_part1>
       - In-Reply-To: <original Message-ID>
       - Auto-Submitted: auto-generated
       - text/plain body with only the ACME RESPONSE block
     """
+    import asyncio
     import email.message
-    import graph_client
-    import httpx as _httpx
-
-    token = graph_client._acquire_token()
-    if not token:
-        log.error("ACME challenge reply: no Graph token")
-        return False
+    import smtplib
+    import socket
 
     body_text = (
         "-----BEGIN ACME RESPONSE-----\r\n"
@@ -189,7 +185,6 @@ async def _send_challenge_reply(
         "-----END ACME RESPONSE-----\r\n"
     )
 
-    # Build RFC 2822 message manually to control every header
     mime = email.message.EmailMessage()
     mime["From"] = from_email
     mime["To"] = to_email
@@ -200,27 +195,42 @@ async def _send_challenge_reply(
         mime["References"] = internet_message_id
     mime.set_content(body_text, subtype="plain", charset="us-ascii")
 
-    import base64 as _base64
     raw_mime = mime.as_bytes()
-    b64_mime = _base64.b64encode(raw_mime)
-    log.debug("ACME reply MIME (outgoing):\n%s", mime.as_string()[:600])
+    log.info("ACME reply MIME body:\n%s", mime.as_string()[:400])
 
-    url = f"https://graph.microsoft.com/v1.0/users/{from_email}/sendMail"
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "text/plain",
-    }
+    # Resolve MX for recipient domain via DNS-over-HTTPS (no dig/nslookup in container)
+    to_domain = to_email.split("@")[1]
     try:
-        async with _httpx.AsyncClient(timeout=30) as c:
-            r = await c.post(url, content=b64_mime, headers=headers)
-        if r.status_code == 202:
-            log.info("ACME challenge reply sent (raw MIME) from %s to %s", from_email, to_email)
-            return True
-        log.error("ACME challenge reply failed: HTTP %d %s", r.status_code, r.text[:300])
-        return False
+        import httpx as _httpx
+        r = await _httpx.AsyncClient().get(
+            "https://cloudflare-dns.com/dns-query",
+            params={"name": to_domain, "type": "MX"},
+            headers={"Accept": "application/dns-json"},
+            timeout=10,
+        )
+        answers = r.json().get("Answer", [])
+        mx_hosts = sorted(
+            [(a["data"].split()[0], a["data"].split()[1].rstrip(".")) for a in answers if a.get("type") == 15],
+        )
+        mx_host = mx_hosts[0][1] if mx_hosts else to_domain
     except Exception as exc:
-        log.error("ACME challenge reply error: %s", exc)
-        return False
+        log.warning("ACME: MX lookup failed for %s: %s — using domain directly", to_domain, exc)
+        mx_host = to_domain
+
+    log.info("ACME: sending reply directly via SMTP to MX %s for %s", mx_host, to_domain)
+
+    def _smtp_send() -> bool:
+        try:
+            with smtplib.SMTP(mx_host, 25, timeout=30) as smtp:
+                smtp.ehlo("sig.zarenko.net")
+                smtp.sendmail(from_email, [to_email], raw_mime)
+            log.info("ACME challenge reply sent (direct SMTP) from %s to %s via %s", from_email, to_email, mx_host)
+            return True
+        except Exception as exc:
+            log.error("ACME challenge reply SMTP error: %s", exc)
+            return False
+
+    return await asyncio.get_event_loop().run_in_executor(None, _smtp_send)
 
 
 # ── Post-challenge background flow ────────────────────────────────────────────
@@ -243,11 +253,10 @@ async def complete_order_after_challenge(order: dict) -> None:
 
     try:
         if order.get("status") != "validating":
-            # Give Exchange time to deliver our reply email before we trigger CASTLE.
-            # External delivery via Exchange Online can take 30-90s; triggering too
-            # early causes CASTLE to validate immediately, fail (email not yet arrived),
-            # and mark the challenge "invalid" — which is unrecoverable.
-            await asyncio.sleep(90)
+            # Wait for CASTLE's MX (Cloudflare Email Routing) to deliver our reply.
+            # We send direct SMTP to castle.cloud MX — typically <5s delivery.
+            # 30s buffer is conservative; triggering too early → CASTLE marks "invalid".
+            await asyncio.sleep(30)
             # Trigger challenge validation on ACME server side
             await client.trigger_challenge(order["challenge_url"])
             save_order(email, {**order, "status": "validating"})

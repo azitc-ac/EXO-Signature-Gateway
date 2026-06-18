@@ -27,10 +27,28 @@ für die KI-gestützte Entwicklung dieses Projekts. **Immer lesen, bevor Code ge
 
 ### RFC 8823 ACME email-reply-00 (CASTLE ACME)
 ```python
-# Token-Reihenfolge: token_part2 ZUERST, dann token_part1 (nicht umgekehrt!)
-full_token = f"{token_part2}.{token_part1}"   # part2 aus ACME-API / E-Mail-Body
+# CASTLE verwendet BINÄRE BYTE-KONKATENATION, KEIN Dot-Separator!
+# token_part1 = Subject-Token aus "ACME: TOKEN" (E-Mail-Subject)
+# token_part2 = API-Token aus ACME-Challenge-Objekt
+# Reihenfolge: Subject-Bytes ZUERST, dann API-Bytes
+full_token = b64url(b64url_decode(token_part1) + b64url_decode(token_part2))
 key_authz  = f"{full_token}.{jwk_thumbprint(account_key)}"
 response   = b64url(hashlib.sha256(key_authz.encode()).digest())
+# Quelle: polhenarejos/acme_email certbot_castle/plugins/castle/utils.py
+# FALSCH (RFC 8823 Text irreführend): f"{token_part2}.{token_part1}"
+```
+
+### ACME Challenge Reply: NIEMALS via Graph API sendMail senden!
+```
+# Exchange Online modifiziert ausgehende Mails massiv:
+#   Content-Transfer-Encoding: 7bit → quoted-printable
+#   +20 Exchange-interne Header (ARC-Seal, DKIM, X-MS-Exchange-*, Thread-Topic, ...)
+# CASTLE's Validator lehnt solche Mails mit status=invalid (error=null) ab.
+# STATTDESSEN: Direktes SMTP zu castle.cloud's MX via DNS-over-HTTPS:
+#   - MX: route2.mx.cloudflare.net:25
+#   - SPF zarenko.net enthält Gateway-IP → SPF pass
+#   - DMARC zarenko.net p=none → kein Block ohne DKIM
+# Implementiert in acme_state._send_challenge_reply() via smtplib
 ```
 
 ### Graph API: sendMail vs. mailFolders/inbox
