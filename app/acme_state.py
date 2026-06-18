@@ -203,7 +203,7 @@ async def _send_challenge_reply(
     import base64 as _base64
     raw_mime = mime.as_bytes()
     b64_mime = _base64.b64encode(raw_mime)
-    log.debug("ACME reply MIME:\n%s", mime.as_string()[:400])
+    log.debug("ACME reply MIME (outgoing):\n%s", mime.as_string()[:600])
 
     url = f"https://graph.microsoft.com/v1.0/users/{from_email}/sendMail"
     headers = {
@@ -243,8 +243,11 @@ async def complete_order_after_challenge(order: dict) -> None:
 
     try:
         if order.get("status") != "validating":
-            # Give Exchange time to deliver our reply email before we trigger CASTLE
-            await asyncio.sleep(15)
+            # Give Exchange time to deliver our reply email before we trigger CASTLE.
+            # External delivery via Exchange Online can take 30-90s; triggering too
+            # early causes CASTLE to validate immediately, fail (email not yet arrived),
+            # and mark the challenge "invalid" — which is unrecoverable.
+            await asyncio.sleep(90)
             # Trigger challenge validation on ACME server side
             await client.trigger_challenge(order["challenge_url"])
             save_order(email, {**order, "status": "validating"})

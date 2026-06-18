@@ -5,6 +5,35 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.0.88 — 2026-06-18 — ACME Loop-Fix, Passthrough-Fix, Timing-Fix
+
+### Bugfixes
+- **ACME Challenge-Reply Loop (kritisch)**: Passthrough-Mails (Re: ACME:, Auto-Submitted)
+  wurden ohne `X-Sig-Applied`-Header re-injiziert. Exchange's Transportregel hat eine
+  Ausnahme nur für diesen Header — ohne ihn wurde die Mail immer wieder zurückgeroutet
+  bis Exchange mit "Hop count exceeded 5.4.14" abbricht. CASTLE hat die Antwort nie
+  erhalten.  
+  Fix: `loop_detector.mark_as_signed()` wird jetzt auch auf allen Passthrough-Pfaden
+  gesetzt, bevor re-injiziert wird.
+- **ACME Challenge-Reply wurde signiert (kritisch)**: Exchange Online strippt den
+  `Auto-Submitted`-Header beim Routing durch den Outbound-Connector. Der Auto-Submitted-
+  Check in handler.py griff dadurch nicht — die Challenge-Antwort bekam unsere E-Mail-
+  Signatur injiziert. CASTLE validiert RFC 8823 strict: Body darf NUR den ACME-Response-
+  Block enthalten → `invalid`.  
+  Fix: Explizite Prüfung auf Subject-Prefix `Re: ACME: ` vor dem Auto-Submitted-Check.
+- **ACME trigger_challenge zu früh (kritisch)**: CASTLE wurde nach nur 15 Sekunden
+  aufgefordert zu validieren. Exchange Online braucht 30–90s für externe Zustellung.
+  CASTLE prüfte sofort, fand die Mail nicht und markierte die Challenge permanent als
+  `invalid`.  
+  Fix: Sleep vor trigger_challenge von 15s auf 90s erhöht.
+
+### Logging
+- `trigger_challenge` loggt jetzt vollständigen CASTLE-Response inkl. `error`-Feld
+- `poll_order_status` loggt nur noch bei Status-Änderungen (nicht jeden Poll)
+- `Auto-Submitted`-Passthrough von DEBUG auf INFO hochgestuft
+
+---
+
 ## v1.0.86 — 2026-06-18 — Logo-Fix: data: URI → CID Inline-Attachments
 
 ### Bugfixes

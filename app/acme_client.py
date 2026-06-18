@@ -187,7 +187,7 @@ class AcmeClient:
         if r.status_code not in (200, 202):
             raise RuntimeError(f"ACME challenge trigger failed: {r.status_code} {r.text[:300]}")
         result = r.json()
-        log.info("ACME trigger_challenge → status=%s url=%s", result.get("status"), challenge_url)
+        log.info("ACME trigger_challenge → %s", json.dumps({k: result.get(k) for k in ("status", "type", "error")}))
         return result
 
     async def poll_order_status(self, order_url: str, timeout_sec: int = 600) -> dict:
