@@ -1,3 +1,4 @@
+import base64
 import email
 import email.encoders
 import email.message
@@ -125,16 +126,36 @@ def _expand_tnef(msg: email.message.Message) -> email.message.Message:
 
 def inject(msg: email.message.Message, sig_html: str, sig_txt: str) -> email.message.Message:
     msg = _expand_tnef(msg)
+
+    # Convert data: URI images in signature to CID inline attachments so they
+    # render in Outlook, Gmail, and iOS Mail (all block data: URIs for security).
+    sig_html_cid, cid_images = _extract_cid_images(sig_html)
+
     content_type = msg.get_content_type()
 
     if msg.get_content_maintype() == "multipart":
-        _inject_into_multipart(msg, sig_html, sig_txt)
+        _inject_into_multipart(msg, sig_html_cid, sig_txt)
+        if cid_images:
+            _attach_cid_images_to_msg(msg, cid_images)
     elif content_type == "text/html":
         src_charset = msg.get_content_charset() or "utf-8"
         payload = msg.get_payload(decode=True).decode(src_charset, errors="replace")
         payload = _strip_client_sig_divs(payload)
         msg.set_param("charset", "utf-8")
-        _set_part_payload(msg, _append_html_sig(payload, sig_html), "utf-8")
+        _set_part_payload(msg, _append_html_sig(payload, sig_html_cid), "utf-8")
+        if cid_images:
+            # Wrap single-part HTML message in multipart/related so images can attach
+            new_msg = email.mime.multipart.MIMEMultipart("related")
+            new_msg.set_param("type", "text/html")
+            _copy_msg_headers(msg, new_msg)
+            for key in _PRESERVE_HEADERS:
+                while key in msg:
+                    del msg[key]
+            new_msg.attach(msg)
+            for cid, mime_type, data in cid_images:
+                new_msg.attach(_make_image_part(cid, mime_type, data))
+            loop_detector.mark_as_signed(new_msg)
+            return new_msg
     elif content_type == "text/plain":
         src_charset = msg.get_content_charset() or "utf-8"
         payload = msg.get_payload(decode=True).decode(src_charset, errors="replace")
@@ -158,6 +179,83 @@ def _set_part_payload(part: email.message.Message, text: str, charset: str = "ut
         del part["Content-Transfer-Encoding"]
     part.set_payload(text.encode(charset))
     email.encoders.encode_base64(part)
+
+
+_DATA_URI_RE = re.compile(
+    r'src="data:(image/[^;"\s]+);base64,([A-Za-z0-9+/=\s]+)"',
+    re.IGNORECASE,
+)
+
+
+def _extract_cid_images(
+    html: str,
+) -> tuple[str, list[tuple[str, str, bytes]]]:
+    """Replace data: URI img sources with cid: refs. Returns (modified_html, [(cid, mime_type, bytes)])."""
+    images: list[tuple[str, str, bytes]] = []
+    counter = 0
+
+    def _replacer(m: re.Match) -> str:
+        nonlocal counter
+        mime_type = m.group(1).lower()
+        b64 = re.sub(r"\s", "", m.group(2))
+        try:
+            data = base64.b64decode(b64)
+        except Exception:
+            return m.group(0)
+        counter += 1
+        cid = f"sig-img-{counter}@exo-signature-gateway"
+        images.append((cid, mime_type, data))
+        return f'src="cid:{cid}"'
+
+    return _DATA_URI_RE.sub(_replacer, html), images
+
+
+def _make_image_part(cid: str, mime_type: str, data: bytes) -> email.mime.base.MIMEBase:
+    maintype, subtype = (mime_type.split("/", 1) + ["octet-stream"])[:2]
+    part = email.mime.base.MIMEBase(maintype, subtype)
+    part.set_payload(data)
+    email.encoders.encode_base64(part)
+    part.add_header("Content-ID", f"<{cid}>")
+    part.add_header("Content-Disposition", "inline")
+    return part
+
+
+def _find_html_part_with_parent(
+    node: email.message.Message,
+    parent: email.message.Message | None,
+) -> tuple[email.message.Message | None, email.message.Message | None]:
+    if (
+        node.get_content_type() == "text/html"
+        and not node.get_param("attachment", header="content-disposition")
+    ):
+        return node, parent
+    if node.get_content_maintype() == "multipart":
+        for child in node.get_payload():  # type: ignore[union-attr]
+            result, par = _find_html_part_with_parent(child, node)
+            if result is not None:
+                return result, par
+    return None, None
+
+
+def _attach_cid_images_to_msg(
+    msg: email.message.Message,
+    cid_images: list[tuple[str, str, bytes]],
+) -> None:
+    """Wrap the HTML body part in multipart/related and attach inline image parts."""
+    html_part, parent = _find_html_part_with_parent(msg, None)
+    if html_part is None or parent is None:
+        log.warning("CID images: no HTML part with parent found — images not attached")
+        return
+
+    related = email.mime.multipart.MIMEMultipart("related")
+    related.set_param("type", "text/html")
+    related.attach(html_part)
+    for cid, mime_type, data in cid_images:
+        related.attach(_make_image_part(cid, mime_type, data))
+
+    parent_payload: list = parent.get_payload()  # type: ignore[assignment]
+    idx = parent_payload.index(html_part)
+    parent_payload[idx] = related
 
 
 def _inject_into_multipart(msg: email.message.Message, sig_html: str, sig_txt: str) -> None:
