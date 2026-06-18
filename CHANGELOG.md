@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.0.86 — 2026-06-18 — Logo-Fix: data: URI → CID Inline-Attachments
+
+### Bugfixes
+- **Logo in E-Mail-Signatur nicht sichtbar (kritisch)**: Alle gängigen Mail-Clients
+  (iOS Mail, Outlook, Gmail) blockieren `data:` URI Bilder aus Sicherheitsgründen.
+  Das Logo war im HTML-Template als base64-`data:image/png;base64,...` eingebettet
+  und wurde daher nicht angezeigt.  
+  Fix: `mail_processor.inject()` extrahiert jetzt automatisch alle `data:` URI Bilder
+  aus der Signatur, hängt sie als `multipart/related` Inline-Parts mit `Content-ID`-
+  Header an, und ersetzt die `src="data:..."` Referenzen durch `src="cid:..."`.  
+  _Ursache: data: URIs in E-Mails sind ein XSS-Vektoren und werden von allen modernen
+  Clients blockiert; CID-Referenzen sind der RFC-konforme Weg für eingebettete Bilder._
+- **Signatur-Template nicht persistent**: Das customized Template mit Logo existierte
+  nur innerhalb des Containers (`/app/templates/`). Gerettet und in `templates/`
+  committet (wird via volume mount `./templates:/app/templates` verwendet).
+
+---
+
 ## v1.0.84 — 2026-06-18 — PowerShell-Array-Fix, ACME-Robustheit, Sicherheitshärtung
 
 ### Bugfixes
