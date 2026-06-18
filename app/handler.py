@@ -162,14 +162,26 @@ class SignatureHandler:
                         )
                         return "250 OK"
 
+            # ── ACME challenge reply passthrough ──────────────────────────────
+            # Exchange Online strips Auto-Submitted when routing through a
+            # connector, so we can't rely on that header for replies sent via
+            # Graph API sendMail.  Detect by subject prefix instead.
+            if decoded_subject.startswith("Re: ACME: "):
+                log.info("ACME challenge reply passthrough (Re: ACME subject): from=%s to=%s",
+                         sender, recipients)
+                loop_detector.mark_as_signed(msg)
+                reinject.send(sender, recipients, msg.as_bytes())
+                return "250 OK"
+
             # ── Auto-generated mail passthrough (Bookings, OOO, calendar replies) ──
             # RFC 3834: Auto-Submitted != "no" means auto-generated — skip all
             # processing (signature injection, S/MIME) and forward unchanged.
             auto_submitted = (msg.get("Auto-Submitted") or "").lower().strip()
             if auto_submitted and auto_submitted != "no":
-                log.debug("Auto-generated mail (Auto-Submitted: %s) from=%s — forwarding as-is",
-                          auto_submitted, sender)
-                reinject.send(sender, recipients, raw)
+                log.info("Auto-generated mail (Auto-Submitted: %s) from=%s — forwarding as-is",
+                         auto_submitted, sender)
+                loop_detector.mark_as_signed(msg)
+                reinject.send(sender, recipients, msg.as_bytes())
                 return "250 OK"
 
             # ── Inbound S/MIME decryption (enveloped-data) ────────────────────

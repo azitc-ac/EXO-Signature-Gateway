@@ -182,22 +182,27 @@ class AcmeClient:
         return r.json()
 
     async def trigger_challenge(self, challenge_url: str) -> dict:
-        """Tell ACME server we're ready — triggers CA to send challenge email."""
+        """POST to challenge URL — signals CASTLE to validate our reply."""
         r = await self._post(challenge_url, {})
         if r.status_code not in (200, 202):
             raise RuntimeError(f"ACME challenge trigger failed: {r.status_code} {r.text[:300]}")
-        return r.json()
+        result = r.json()
+        log.info("ACME trigger_challenge → status=%s url=%s", result.get("status"), challenge_url)
+        return result
 
     async def poll_order_status(self, order_url: str, timeout_sec: int = 600) -> dict:
         """Poll until order.status ∈ {ready, valid, invalid} or timeout."""
         import asyncio
         end = asyncio.get_event_loop().time() + timeout_sec
+        last_status = None
         while True:
             r = await self._post(order_url, None)
             r.raise_for_status()
             order = r.json()
             status = order.get("status")
-            log.debug("ACME order %s status: %s", order_url, status)
+            if status != last_status:
+                log.info("ACME order status changed: %s → %s (%s)", last_status, status, order_url)
+                last_status = status
             if status in ("ready", "valid", "invalid"):
                 return order
             if asyncio.get_event_loop().time() >= end:
