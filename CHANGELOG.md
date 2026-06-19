@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.0.115 — 2026-06-19 — fix: Tagesbericht mehrfach pro Tag + Statistiken reset bei Neustart
+
+- `scheduler._loop()`: `_DAILY_LAST_RUN` wird jetzt VOR `_run_daily()` gespeichert —
+  Container-Neustart mitten im Report-Versand löst keinen zweiten Bericht mehr aus
+  (Ursache: gestern 20+ Tagesberichte, da Container wegen ACME-Debugging häufig neugestartet)
+- `stats._load_snapshot()`: `_stats` wird beim Start aus dem letzten Snapshot initialisiert
+  statt auf 0 zu beginnen — Zählerstände überleben Container-Neustarts;
+  tägliches Delta bleibt korrekt (neue Events akkumulieren auf Snapshot-Basis)
+
 ## v1.0.113 — 2026-06-19 — feat: ACME Account Key per User + Reset-UI im Debug-Tab
 
 - `acme_state`: Account Key und Account-URLs jetzt per User (`account_key_{tag}.pem`,

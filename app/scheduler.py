@@ -234,8 +234,10 @@ def _loop() -> None:
         try:
             last_daily = settings_store.get("_DAILY_LAST_RUN") or ""
             if _should_run_daily(last_daily):
-                _run_daily()
+                # Persist BEFORE running so a mid-report container restart
+                # doesn't re-trigger the report on the next start.
                 settings_store.force_update({"_DAILY_LAST_RUN": datetime.now().strftime("%Y-%m-%d")})
+                _run_daily()
         except Exception as exc:
             log.error("scheduler loop error: %s", exc)
         time.sleep(60)

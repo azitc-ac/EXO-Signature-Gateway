@@ -19,11 +19,14 @@ _session_start: str = datetime.now(timezone.utc).isoformat()
 
 
 def _load_snapshot() -> None:
-    global _snapshot
+    global _snapshot, _stats
     try:
         if _STATS_FILE.exists():
             data = json.loads(_STATS_FILE.read_text())
             _snapshot = {k: int(data.get("snapshot", {}).get(k, 0)) for k in KEYS}
+            # Seed running stats from snapshot so totals survive container restarts.
+            # New events after restart accumulate on top; daily delta stays correct.
+            _stats = dict(_snapshot)
     except Exception as exc:
         log.warning("stats: could not load snapshot: %s", exc)
 
