@@ -1,10 +1,15 @@
 """
 ACME state management: account key, account URL, and per-user orders.
 
-Persistent storage:
-  /app/data/acme/account_key.pem   — EC P-256 account key (PEM, unencrypted)
-  /app/data/acme/account_url.txt   — registered account URL
-  /app/data/acme/orders.json       — active order state per user email
+Persistent storage (per user):
+  /app/data/acme/account_key_{tag}.pem         — EC P-256 account key (PEM, unencrypted)
+  /app/data/acme/account_url_{tag}.txt         — registered account URL (production)
+  /app/data/acme/account_url_staging_{tag}.txt — registered account URL (staging)
+  /app/data/acme/orders.json                   — active order state per user email
+
+  {tag} = email with '@' replaced by '_' (e.g. erika.mustermann_zarenko.net)
+
+Legacy global files (account_key.pem etc.) are migrated on first access per user.
 """
 import asyncio
 import json
@@ -25,10 +30,12 @@ from acme_client import AcmeClient, b64url, compute_key_authorization
 log = logging.getLogger(__name__)
 
 ACME_DIR = Path("/app/data/acme")
-_ACCOUNT_KEY_FILE = ACME_DIR / "account_key.pem"
-_ACCOUNT_URL_FILE         = ACME_DIR / "account_url.txt"
-_ACCOUNT_URL_STAGING_FILE = ACME_DIR / "account_url_staging.txt"
 _ORDERS_FILE = ACME_DIR / "orders.json"
+
+# Legacy global files — kept for one-time migration only
+_LEGACY_KEY_FILE     = ACME_DIR / "account_key.pem"
+_LEGACY_URL_FILE     = ACME_DIR / "account_url.txt"
+_LEGACY_URL_STAGING  = ACME_DIR / "account_url_staging.txt"
 
 CASTLE_DIRECTORY = "https://acme.castle.cloud/acme/directory"
 CASTLE_STAGING    = "https://acme-staging.castle.cloud/acme/directory"
@@ -39,32 +46,91 @@ _orders_loaded = False
 _running_tasks: dict[str, "asyncio.Task"] = {}   # {email: running background task}
 
 
+# ── Per-user file paths ───────────────────────────────────────────────────────
+
+def _email_tag(email: str) -> str:
+    """Convert email to a safe filename component: replace '@' with '_'."""
+    return email.replace("@", "_")
+
+
+def _account_key_file(email: str) -> Path:
+    return ACME_DIR / f"account_key_{_email_tag(email)}.pem"
+
+
+def _account_url_file(email: str, staging: bool = False) -> Path:
+    prefix = "account_url_staging" if staging else "account_url"
+    return ACME_DIR / f"{prefix}_{_email_tag(email)}.txt"
+
+
 # ── Account key ───────────────────────────────────────────────────────────────
 
-def get_or_create_account_key() -> ec.EllipticCurvePrivateKey:
-    """Load or generate the ACME account EC P-256 key."""
+def get_or_create_account_key(email: str) -> ec.EllipticCurvePrivateKey:
+    """Load or generate the per-user ACME account EC P-256 key."""
     ACME_DIR.mkdir(parents=True, exist_ok=True)
-    if _ACCOUNT_KEY_FILE.exists():
-        return serialization.load_pem_private_key(
-            _ACCOUNT_KEY_FILE.read_bytes(), password=None
-        )
+    key_file = _account_key_file(email)
+    if not key_file.exists():
+        _migrate_legacy_key(email)
+    if key_file.exists():
+        return serialization.load_pem_private_key(key_file.read_bytes(), password=None)
     key = ec.generate_private_key(ec.SECP256R1())
-    _ACCOUNT_KEY_FILE.write_bytes(
-        key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption())
-    )
-    log.info("ACME: generated new account key → %s", _ACCOUNT_KEY_FILE)
+    key_file.write_bytes(key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption()))
+    log.info("ACME: generated new account key → %s", key_file.name)
     return key
 
 
-def get_account_url(staging: bool = False) -> str:
-    f = _ACCOUNT_URL_STAGING_FILE if staging else _ACCOUNT_URL_FILE
+def get_account_url(email: str, staging: bool = False) -> str:
+    f = _account_url_file(email, staging)
+    if not f.exists():
+        _migrate_legacy_key(email)
     return f.read_text().strip() if f.exists() else ""
 
 
-def save_account_url(url: str, staging: bool = False) -> None:
+def save_account_url(url: str, email: str, staging: bool = False) -> None:
     ACME_DIR.mkdir(parents=True, exist_ok=True)
-    f = _ACCOUNT_URL_STAGING_FILE if staging else _ACCOUNT_URL_FILE
-    f.write_text(url)
+    _account_url_file(email, staging).write_text(url)
+
+
+def reset_account(email: str) -> list[str]:
+    """Delete per-user account key and URL files (+ legacy global files).
+
+    Returns list of deleted filenames. After this call a fresh key and account
+    registration will be created on the next order attempt.
+    """
+    deleted = []
+    targets = [
+        _account_key_file(email),
+        _account_url_file(email, staging=False),
+        _account_url_file(email, staging=True),
+        # Also remove legacy global files so they don't get re-migrated
+        _LEGACY_KEY_FILE,
+        _LEGACY_URL_FILE,
+        _LEGACY_URL_STAGING,
+    ]
+    for f in targets:
+        if f.exists():
+            f.unlink()
+            deleted.append(f.name)
+    log.info("ACME: account reset for %s — deleted: %s", email, deleted or "nothing")
+    return deleted
+
+
+def account_key_exists(email: str) -> bool:
+    return _account_key_file(email).exists()
+
+
+def _migrate_legacy_key(email: str) -> None:
+    """Copy legacy global account key + URLs to per-user files (once, if they exist)."""
+    import shutil
+    ACME_DIR.mkdir(parents=True, exist_ok=True)
+    pairs = [
+        (_LEGACY_KEY_FILE,    _account_key_file(email)),
+        (_LEGACY_URL_FILE,    _account_url_file(email, staging=False)),
+        (_LEGACY_URL_STAGING, _account_url_file(email, staging=True)),
+    ]
+    for src, dst in pairs:
+        if src.exists() and not dst.exists():
+            shutil.copy2(src, dst)
+            log.info("ACME: migrated %s → %s", src.name, dst.name)
 
 
 # ── Order state persistence ───────────────────────────────────────────────────
@@ -288,12 +354,12 @@ async def complete_order_after_challenge(order: dict) -> None:
     email = order["email"]
     log.info("ACME: polling order for %s after challenge reply", email)
 
-    key = get_or_create_account_key()
+    key = get_or_create_account_key(email)
     _staging = order.get("directory_url", "") == CASTLE_STAGING
     client = AcmeClient(
         order.get("directory_url", CASTLE_DIRECTORY),
         key,
-        account_url=get_account_url(staging=_staging),
+        account_url=get_account_url(email, staging=_staging),
     )
 
     try:
@@ -368,7 +434,7 @@ async def handle_challenge_email(order: dict, token_part1: str) -> None:
     email = order["email"]
     log.info("ACME: processing challenge email for %s", email)
 
-    key = get_or_create_account_key()
+    key = get_or_create_account_key(email)
     token_part2 = order["token_part2"]
     digest = compute_key_authorization(token_part1, token_part2, key)
 
@@ -526,8 +592,8 @@ async def initiate_acme_order(
     directory_url = CASTLE_STAGING if staging else CASTLE_DIRECTORY
     log.info("ACME: initiating order for %s via %s", email, directory_url)
 
-    key = get_or_create_account_key()
-    account_url = get_account_url(staging=staging)
+    key = get_or_create_account_key(email)
+    account_url = get_account_url(email, staging=staging)
     client = AcmeClient(directory_url, key, account_url=account_url)
 
     # Ensure account
@@ -535,7 +601,7 @@ async def initiate_acme_order(
         # Use NOTIFICATION_MAILBOX as ACME contact email (admin contact)
         contact = settings_store.get("NOTIFICATION_MAILBOX") or email
         account_url = await client.ensure_account(contact_email=contact)
-        save_account_url(account_url, staging=staging)
+        save_account_url(account_url, email, staging=staging)
         log.info("ACME: account registered: %s", account_url)
 
     # Place order

@@ -1633,6 +1633,44 @@ async def api_acme_reply_method_set(request: Request, user: str = Depends(_check
     return JSONResponse({"ok": True, "method": method})
 
 
+# ── ACME Account Reset ────────────────────────────────────────────────────────
+
+@app.get("/api/acme/account-users")
+async def api_acme_account_users(user: str = Depends(_check_auth)):
+    """Return users with castle_acme backend + per-user account key status."""
+    import acme_state
+    ca_cfg = settings_store.get("CA_USER_CONFIG") or {}
+    users = []
+    for email, cfg in ca_cfg.items():
+        if (cfg.get("backend") or "") != "castle_acme":
+            continue
+        # Trigger one-time migration of legacy global key to per-user file
+        if not acme_state.account_key_exists(email):
+            acme_state._migrate_legacy_key(email)
+        users.append({
+            "email": email,
+            "key_exists": acme_state.account_key_exists(email),
+            "staging": bool(cfg.get("staging")),
+        })
+    return JSONResponse({"ok": True, "users": users})
+
+
+@app.post("/api/acme/account-reset")
+async def api_acme_account_reset(request: Request, user: str = Depends(_check_auth)):
+    """Delete per-user ACME account key + account URL files."""
+    import acme_state
+    data = await request.json()
+    email = (data.get("email") or "").strip()
+    if not email:
+        return JSONResponse({"ok": False, "error": "email required"}, status_code=400)
+    ca_cfg = settings_store.get("CA_USER_CONFIG") or {}
+    if email not in ca_cfg or (ca_cfg[email].get("backend") or "") != "castle_acme":
+        return JSONResponse({"ok": False, "error": "user not found in CASTLE ACME config"}, status_code=404)
+    deleted = acme_state.reset_account(email)
+    log.info("ACME account reset for %s by %s — deleted: %s", email, user, deleted or "nothing")
+    return JSONResponse({"ok": True, "deleted": deleted})
+
+
 # ── EXO PowerShell Certificate Export ─────────────────────────────────────────
 
 @app.get("/api/cert/exo-ps-info")

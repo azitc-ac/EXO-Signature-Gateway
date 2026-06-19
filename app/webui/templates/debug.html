@@ -126,6 +126,105 @@ async function acmeSetMethod(method) {
 document.addEventListener('DOMContentLoaded', acmeMethodLoad);
 </script>
 
+<!-- ── ACME Account Key Reset ──────────────────────────────────────────────── -->
+<div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
+  <div class="step-header">
+    <span class="step-badge" style="background:#7c3aed;font-size:10px">ACME</span>
+    <span class="step-title">ACME Account Key zurücksetzen
+      <span style="font-weight:400;font-size:12px;color:#57534e"> — erzwingt neue Account-Registrierung bei CASTLE</span>
+    </span>
+  </div>
+  <div class="step-body">
+    <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
+      Löscht den gemeinsamen ACME-Account-Key und die Account-URLs (Staging + Production).
+      Beim nächsten Erneuerungsversuch wird automatisch ein neuer Key und ein neuer Account
+      bei CASTLE registriert. <strong>Bestehende S/MIME-Zertifikate sind nicht betroffen.</strong>
+    </p>
+
+    <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px">
+      <div>
+        <label style="display:block;font-size:12px;font-weight:600;color:#44403c;margin-bottom:6px">
+          CASTLE-ACME-Benutzer
+        </label>
+        <select id="acme-reset-user" onchange="acmeAccountUpdateStatus()"
+          style="padding:8px 12px;border-radius:6px;border:1px solid #e2e8f0;font-size:13px;min-width:280px;background:#fff">
+          <option value="">— wird geladen …</option>
+        </select>
+      </div>
+      <button onclick="acmeAccountReset()"
+        style="padding:8px 18px;background:#7c3aed;color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">
+        Account Key löschen
+      </button>
+    </div>
+
+    <div id="acme-reset-status" style="font-size:12px;color:#78716c;margin-bottom:6px"></div>
+    <div id="acme-reset-result" style="display:none;margin-top:8px"></div>
+  </div>
+</div>
+
+<script>
+let _acmeUsers = [];
+
+async function acmeAccountUsersLoad() {
+  const sel    = document.getElementById('acme-reset-user');
+  const status = document.getElementById('acme-reset-status');
+  try {
+    const r = await fetch('/api/acme/account-users');
+    const d = await r.json();
+    _acmeUsers = d.users || [];
+    sel.innerHTML = '';
+    if (!_acmeUsers.length) {
+      sel.innerHTML = '<option value="">Keine CASTLE-ACME-Benutzer konfiguriert</option>';
+      status.textContent = '';
+      return;
+    }
+    _acmeUsers.forEach(u => {
+      const opt = document.createElement('option');
+      opt.value = u.email;
+      opt.textContent = u.email;
+      sel.appendChild(opt);
+    });
+    acmeAccountUpdateStatus();
+  } catch(e) {
+    sel.innerHTML = '<option value="">Fehler beim Laden</option>';
+  }
+}
+
+function acmeAccountUpdateStatus() {
+  const sel    = document.getElementById('acme-reset-user');
+  const status = document.getElementById('acme-reset-status');
+  const u = _acmeUsers.find(x => x.email === sel.value);
+  if (!u) { status.textContent = ''; return; }
+  status.textContent = u.key_exists
+    ? `Account Key vorhanden (${u.staging ? 'Staging' : 'Production'}).`
+    : 'Kein Account Key — wird beim nächsten Versuch neu erstellt.';
+}
+
+async function acmeAccountReset() {
+  const sel    = document.getElementById('acme-reset-user');
+  const result = document.getElementById('acme-reset-result');
+  const email  = sel.value;
+  if (!email) return;
+  if (!confirm(`ACME Account Key für ${email} löschen?\n\nDer nächste Erneuerungsversuch registriert einen neuen Account bei CASTLE.\nBestehende S/MIME-Zertifikate bleiben erhalten.`)) return;
+
+  result.style.display = 'none';
+  const r = await fetch('/api/acme/account-reset', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({email}),
+  });
+  const d = await r.json();
+  result.className = d.ok ? 'alert success' : 'alert error';
+  result.textContent = d.ok
+    ? 'Gelöscht: ' + (d.deleted.length ? d.deleted.join(', ') : 'keine Dateien vorhanden')
+    : 'Fehler: ' + (d.error || JSON.stringify(d));
+  result.style.display = 'block';
+  await acmeAccountUsersLoad();
+}
+
+document.addEventListener('DOMContentLoaded', acmeAccountUsersLoad);
+</script>
+
 <!-- ── Exchange Header Observatory ─────────────────────────────────────── -->
 <div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
   <div class="step-header">

@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.0.113 — 2026-06-19 — feat: ACME Account Key per User + Reset-UI im Debug-Tab
+
+- `acme_state`: Account Key und Account-URLs jetzt per User (`account_key_{tag}.pem`,
+  `account_url_{tag}.txt`, `account_url_staging_{tag}.txt` mit tag = email@→_)
+- Einmalige Migration: Legacy-Dateien (`account_key.pem` etc.) werden beim ersten Zugriff
+  automatisch in per-User-Dateien kopiert; Reset löscht auch die Legacy-Dateien
+- Debug-Tab: neuer Abschnitt "ACME Account Key zurücksetzen" mit Dropdown aller
+  CASTLE-ACME-Benutzer + Status ob Key vorhanden + Reset-Knopf mit Bestätigung
+- API: GET /api/acme/account-users (per-User-Status), POST /api/acme/account-reset {email}
+
 ## v1.0.111 — 2026-06-19 — fix: ACME_REPLY_METHOD-Setting nicht persistiert (fehlte in DEFAULTS)
 
 - `settings_store.DEFAULTS`: `ACME_REPLY_METHOD: "graph"` ergänzt
