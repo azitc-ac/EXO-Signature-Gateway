@@ -567,6 +567,33 @@ async def api_test_graph(request: Request, user: str = Depends(_check_auth)):
 
 # ── Routes: mailbox config ─────────────────────────────────────────────────────
 
+@app.get("/api/templates")
+async def api_get_templates(_=Depends(_check_auth)):
+    """List available signature template names."""
+    import signature_engine
+    return {"templates": signature_engine.list_templates()}
+
+
+@app.delete("/api/templates/{name}")
+async def api_delete_template(name: str, _=Depends(_check_auth)):
+    """Delete a named template (not 'default')."""
+    if not name or name == "default":
+        raise HTTPException(400, "Das 'default'-Template kann nicht gelöscht werden")
+    html_path = Path(config.TEMPLATE_DIR) / f"{name}.html"
+    txt_path = Path(config.TEMPLATE_DIR) / f"{name}.txt"
+    deleted = []
+    for p in (html_path, txt_path):
+        if p.exists():
+            p.unlink()
+            deleted.append(p.name)
+    if not deleted:
+        raise HTTPException(404, f"Template '{name}' nicht gefunden")
+    import signature_engine
+    signature_engine._reload_env()
+    log.info("Template '%s' deleted", name)
+    return {"ok": True, "deleted": deleted}
+
+
 @app.get("/api/mailboxes")
 async def api_get_mailboxes(_=Depends(_check_auth)):
     """List all EXO mailboxes + their current MAILBOX_CONFIG."""
@@ -583,6 +610,7 @@ async def api_get_mailboxes(_=Depends(_check_auth)):
             "type": u.get("type", "user"),
             "sig": cfg.get("sig", False),
             "smime": cfg.get("smime", False),
+            "template": cfg.get("template", "default"),
         })
     # Also include mailboxes in config that Graph didn't return (e.g. removed users)
     for email, cfg in config_map.items():
@@ -593,6 +621,7 @@ async def api_get_mailboxes(_=Depends(_check_auth)):
                 "type": "user",
                 "sig": cfg.get("sig", False),
                 "smime": cfg.get("smime", False),
+                "template": cfg.get("template", "default"),
             })
     return {"mailboxes": result}
 
@@ -609,8 +638,12 @@ async def api_save_mailboxes(body: dict, _=Depends(_check_auth)):
             continue
         sig = bool(m.get("sig", False))
         smime = bool(m.get("smime", False))
+        template = (m.get("template") or "default").strip()
         if sig or smime:
-            config_map[email] = {"sig": sig, "smime": smime}
+            entry: dict = {"sig": sig, "smime": smime}
+            if template and template != "default":
+                entry["template"] = template
+            config_map[email] = entry
             enabled_members.append(email)
         # If both false, don't include in config (passthrough by default)
     settings_store.update({"MAILBOX_CONFIG": config_map})
@@ -656,8 +689,16 @@ async def dashboard(request: Request, user: str = Depends(_check_auth)):
 
 @app.get("/template", response_class=HTMLResponse)
 async def template_editor(request: Request, user: str = Depends(_check_auth)):
-    html_path = Path(config.TEMPLATE_DIR) / "signature.html"
-    txt_path = Path(config.TEMPLATE_DIR) / "signature.txt"
+    import signature_engine as _sig_engine
+    name = request.query_params.get("name") or "default"
+    # Resolve filenames
+    if name == "default":
+        html_path = Path(config.TEMPLATE_DIR) / "signature.html"
+        txt_path = Path(config.TEMPLATE_DIR) / "signature.txt"
+    else:
+        html_path = Path(config.TEMPLATE_DIR) / f"{name}.html"
+        txt_path = Path(config.TEMPLATE_DIR) / f"{name}.txt"
+    template_list = _sig_engine.list_templates()
     return templates.TemplateResponse(
         request=request, name="template_editor.html",
         context={
@@ -665,6 +706,8 @@ async def template_editor(request: Request, user: str = Depends(_check_auth)):
             "txt_content": txt_path.read_text() if txt_path.exists() else "",
             "active": "template",
             "saved": request.query_params.get("saved"),
+            "current_template": name,
+            "template_list": template_list,
         },
     )
 
@@ -674,32 +717,50 @@ async def template_save(
     request: Request,
     html_content: str = Form(""),
     txt_content: str = Form(""),
+    template_name: str = Form("default"),
     user: str = Depends(_check_auth),
 ):
-    Path(config.TEMPLATE_DIR, "signature.html").write_text(html_content)
-    Path(config.TEMPLATE_DIR, "signature.txt").write_text(txt_content)
+    # Sanitise template_name: only allow alphanumeric, dash, underscore
+    import re as _re2
+    safe_name = _re2.sub(r"[^a-zA-Z0-9_\-]", "", template_name).strip("-_") or "default"
+    if safe_name == "default":
+        html_path = Path(config.TEMPLATE_DIR, "signature.html")
+        txt_path = Path(config.TEMPLATE_DIR, "signature.txt")
+    else:
+        html_path = Path(config.TEMPLATE_DIR, f"{safe_name}.html")
+        txt_path = Path(config.TEMPLATE_DIR, f"{safe_name}.txt")
+    html_path.write_text(html_content)
+    txt_path.write_text(txt_content)
     signature_engine._reload_env()
-    log.info("Templates saved by user %s", user)
-    return RedirectResponse(url="/template?saved=1", status_code=303)
+    log.info("Template '%s' saved by user %s", safe_name, user)
+    return RedirectResponse(url=f"/template?name={safe_name}&saved=1", status_code=303)
 
 
 @app.get("/preview", response_class=HTMLResponse)
 async def preview(request: Request, email: str = "", user: str = Depends(_check_auth)):
-    user_data = graph_client.UserData()
+    return templates.TemplateResponse(
+        request=request, name="preview.html",
+        context={"email": email, "active": "preview"},
+    )
+
+
+@app.get("/api/preview-data")
+async def api_preview_data(
+    email: str = "",
+    template: str = "default",
+    user: str = Depends(_check_auth),
+):
+    """Render a signature template for a given email address (Graph lookup)."""
+    import graph_client as _gc
+    user_data = _gc.UserData()
     error = None
     if email:
         try:
-            user_data = await graph_client.get_user(email)
+            user_data = await _gc.get_user(email)
         except Exception as exc:
             error = str(exc)
-    sig_html, sig_txt = signature_engine.render(user_data)
-    return templates.TemplateResponse(
-        request=request, name="preview.html",
-        context={
-            "email": email, "sig_html": sig_html, "sig_txt": sig_txt,
-            "error": error, "active": "preview",
-        },
-    )
+    sig_html, sig_txt = signature_engine.render(user_data, template_name=template)
+    return JSONResponse({"html": sig_html, "txt": sig_txt, "error": error})
 
 
 @app.get("/settings", response_class=HTMLResponse)
@@ -909,6 +970,14 @@ async def api_smime_set_default(cert_email: str, slot_id: str, user: str = Depen
         raise HTTPException(400, str(exc))
     log.info("S/MIME default cert set to slot %s for %s by %s", slot_id, cert_email, user)
     return JSONResponse({"ok": True})
+
+
+@app.get("/debug", response_class=HTMLResponse)
+async def debug_page(request: Request, user: str = Depends(_check_auth)):
+    return templates.TemplateResponse(
+        request=request, name="debug.html",
+        context={"active": "debug"},
+    )
 
 
 @app.get("/log", response_class=HTMLResponse)
@@ -1444,3 +1513,102 @@ async def api_config_import(
     log.info("Config imported by %s: %d settings, %d certs from %s",
              user, len(patch), certs_restored, root.get("exported", "?"))
     return JSONResponse({"ok": True, "imported": len(patch), "certs_restored": certs_restored})
+
+
+# ── MIME Observatory ──────────────────────────────────────────────────────────
+
+@app.get("/api/test/acme-capture")
+async def api_acme_capture_get(user: str = Depends(_check_auth)):
+    """Return captured MIME payloads from the observatory."""
+    import mime_observatory as _obs
+    return JSONResponse({"captures": _obs.get_captures()})
+
+
+@app.delete("/api/test/acme-capture")
+async def api_acme_capture_clear(user: str = Depends(_check_auth)):
+    import mime_observatory as _obs
+    _obs.clear()
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/test/send-graph-acme")
+async def api_send_graph_acme(request: Request, user: str = Depends(_check_auth)):
+    """Send a fake ACME-style reply via Graph API so we can observe what Exchange adds.
+
+    The subject uses the 'Re: ACME: TEST-' prefix which triggers the MIME
+    Observatory capture when the mail arrives at our gateway outbound connector.
+    """
+    data = await request.json()
+    from_email = (data.get("from_email") or "").strip().lower()
+    to_email   = (data.get("to_email") or "acme@castle.cloud").strip().lower()
+    label      = (data.get("label") or "graph-default").strip()
+
+    if not from_email:
+        raise HTTPException(400, "from_email ist erforderlich")
+
+    import uuid, base64 as _b64, email.message, time as _time
+    import graph_reinject as _gr
+
+    test_id = uuid.uuid4().hex[:8]
+    subject = f"Re: ACME: TEST-{test_id}"
+    digest  = _b64.urlsafe_b64encode(b"TEST-FAKE-DIGEST-" + test_id.encode()).rstrip(b"=").decode()
+
+    body_text = (
+        "-----BEGIN ACME RESPONSE-----\r\n"
+        f"{digest}\r\n"
+        "-----END ACME RESPONSE-----\r\n"
+    )
+
+    mime = email.message.EmailMessage()
+    mime["From"]           = from_email
+    mime["To"]             = to_email
+    mime["Subject"]        = subject
+    mime["Auto-Submitted"] = "auto-generated"
+    mime.set_content(body_text, subtype="plain", charset="us-ascii")
+    raw_mime = mime.as_bytes()
+
+    import asyncio as _asyncio
+    ok = await _asyncio.get_event_loop().run_in_executor(
+        None, _gr.send_via_graph_mime, from_email, [to_email], raw_mime
+    )
+
+    log.info("Graph ACME test sent from=%s to=%s label=%s id=%s ok=%s",
+             from_email, to_email, label, test_id, ok)
+    return JSONResponse({
+        "ok": ok,
+        "test_id": test_id,
+        "subject": subject,
+        "label": label,
+        "note": "Mail sent via Graph API. Wait ~15s, then check /api/test/acme-capture for what Exchange delivered to the gateway.",
+    })
+
+
+# ── Remote Domain: castle.cloud ───────────────────────────────────────────────
+
+@app.get("/api/setup/remote-domain-castle")
+async def api_remote_domain_get(user: str = Depends(_check_auth)):
+    import setup_wizard as _sw
+    result = await asyncio.get_event_loop().run_in_executor(
+        None, _sw.get_remote_domain_castle
+    )
+    return JSONResponse(result)
+
+
+@app.post("/api/setup/remote-domain-castle")
+async def api_remote_domain_configure(user: str = Depends(_check_auth)):
+    import setup_wizard as _sw
+    result = await asyncio.get_event_loop().run_in_executor(
+        None, _sw.configure_remote_domain_castle
+    )
+    log.info("Remote Domain castle.cloud configured by %s: %s", user, result.get("ok"))
+    return JSONResponse(result)
+
+
+@app.delete("/api/setup/remote-domain-castle")
+async def api_remote_domain_remove(user: str = Depends(_check_auth)):
+    import setup_wizard as _sw
+    result = await asyncio.get_event_loop().run_in_executor(
+        None, _sw.remove_remote_domain_castle
+    )
+    log.info("Remote Domain castle.cloud removed by %s: %s", user, result)
+    return JSONResponse(result)

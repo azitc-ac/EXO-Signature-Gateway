@@ -38,17 +38,19 @@ response   = b64url(hashlib.sha256(key_authz.encode()).digest())
 # FALSCH (RFC 8823 Text irreführend): f"{token_part2}.{token_part1}"
 ```
 
-### ACME Challenge Reply: NIEMALS via Graph API sendMail senden!
+### ACME Challenge Reply: Graph API sendMail (KEIN direktes SMTP Port 25!)
 ```
-# Exchange Online modifiziert ausgehende Mails massiv:
-#   Content-Transfer-Encoding: 7bit → quoted-printable
-#   +20 Exchange-interne Header (ARC-Seal, DKIM, X-MS-Exchange-*, Thread-Topic, ...)
-# CASTLE's Validator lehnt solche Mails mit status=invalid (error=null) ab.
-# STATTDESSEN: Direktes SMTP zu castle.cloud's MX via DNS-over-HTTPS:
-#   - MX: route2.mx.cloudflare.net:25
-#   - SPF zarenko.net enthält Gateway-IP → SPF pass
-#   - DMARC zarenko.net p=none → kein Block ohne DKIM
-# Implementiert in acme_state._send_challenge_reply() via smtplib
+# Deployment nutzt IMAP+Graph-Modus — Port 25 outbound ist nicht erlaubt.
+# Graph API sendMail ist der einzige Weg für _send_challenge_reply().
+#
+# Voraussetzung: RemoteDomain für die CA-Domain (z.B. castle.cloud) mit
+#   Set-RemoteDomain -ByteEncoderTypeFor7BitCharsets Use7Bit
+# Damit verhindert Exchange die CTE 7bit→quoted-printable Umkodierung,
+# die den ACME-Token korrumpieren würde.
+#
+# Extra Exchange-Header (ARC-Seal, DKIM, Thread-Topic, ...) sind unkritisch —
+# CASTLE prüft nur den Body-Inhalt (ACME response digest), nicht die Header.
+# Implementiert in acme_state._send_challenge_reply() via graph_reinject.send_via_graph_mime
 ```
 
 ### Graph API: sendMail vs. mailFolders/inbox

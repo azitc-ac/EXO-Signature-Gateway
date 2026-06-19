@@ -2,56 +2,183 @@
 {% block content %}
 <h1>Signatur-Vorschau</h1>
 
-<form method="get" action="/preview" class="preview-form" id="preview-form">
-    <label for="email">E-Mail-Adresse (Graph-Lookup):</label>
-    <input type="email" id="email" name="email" value="{{ email }}" placeholder="user@domain.com" list="email-history">
+<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:20px">
+  <div>
+    <label for="email" style="display:block;font-size:13px;color:#555;margin-bottom:4px">E-Mail-Adresse (Graph-Lookup)</label>
+    <input type="email" id="email" value="{{ email }}" placeholder="user@domain.com"
+           list="email-history" style="width:300px"
+           onkeydown="if(event.key==='Enter'){loadPreviews()}">
     <datalist id="email-history"></datalist>
-    <button type="submit" class="btn primary">Vorschau laden</button>
-</form>
+  </div>
+  <button class="btn primary" id="load-btn" onclick="loadPreviews()">Vorschau laden</button>
+</div>
+
+<div id="error-box" class="alert error" style="display:none"></div>
+
+<!-- Template tabs + content -->
+<div id="preview-area" style="display:none">
+
+  <!-- Tab bar -->
+  <div id="tab-bar" style="display:flex;gap:0;border-bottom:2px solid #e2e8f0;margin-bottom:0;flex-wrap:wrap"></div>
+
+  <!-- Tab panels -->
+  <div id="tab-panels"></div>
+
+</div>
+
+<div id="loading-indicator" style="display:none;color:#888;font-size:13px;margin-top:12px">
+  Lädt…
+</div>
+
 <script>
 (function () {
-    const KEY = 'preview_email_history';
-    const input = document.getElementById('email');
-    const dl = document.getElementById('email-history');
-    const history = JSON.parse(localStorage.getItem(KEY) || '[]');
+  // Email history
+  const KEY = 'preview_email_history';
+  const input = document.getElementById('email');
+  const dl = document.getElementById('email-history');
+  const history = JSON.parse(localStorage.getItem(KEY) || '[]');
+  history.forEach(e => { const o = document.createElement('option'); o.value = e; dl.appendChild(o); });
+  if (!input.value && history.length) input.value = history[0];
 
-    history.forEach(function (e) {
-        const opt = document.createElement('option');
-        opt.value = e;
-        dl.appendChild(opt);
-    });
+  function saveHistory(val) {
+    const updated = [val].concat(history.filter(e => e !== val)).slice(0, 10);
+    localStorage.setItem(KEY, JSON.stringify(updated));
+  }
 
-    if (!input.value && history.length) {
-        input.value = history[0];
+  window.loadPreviews = async function () {
+    const email = input.value.trim().toLowerCase();
+    if (!email) return;
+    saveHistory(email);
+
+    document.getElementById('error-box').style.display = 'none';
+    document.getElementById('preview-area').style.display = 'none';
+    document.getElementById('loading-indicator').style.display = 'block';
+    document.getElementById('load-btn').disabled = true;
+
+    try {
+      // Fetch available templates
+      const tRes = await fetch('/api/templates');
+      const tData = await tRes.json();
+      const templateNames = tData.templates || ['default'];
+
+      // Fetch all template previews in parallel
+      const results = await Promise.all(
+        templateNames.map(name =>
+          fetch(`/api/preview-data?email=${encodeURIComponent(email)}&template=${encodeURIComponent(name)}`)
+            .then(r => r.json())
+            .then(d => ({ name, ...d }))
+            .catch(e => ({ name, error: e.message, html: '', txt: '' }))
+        )
+      );
+
+      // Check for Graph error (same for all, use first)
+      if (results[0]?.error) {
+        document.getElementById('error-box').textContent = 'Graph-Fehler: ' + results[0].error;
+        document.getElementById('error-box').style.display = 'block';
+      }
+
+      buildTabs(results);
+      document.getElementById('preview-area').style.display = '';
+
+    } catch(e) {
+      document.getElementById('error-box').textContent = 'Fehler: ' + e.message;
+      document.getElementById('error-box').style.display = 'block';
+    } finally {
+      document.getElementById('loading-indicator').style.display = 'none';
+      document.getElementById('load-btn').disabled = false;
     }
+  };
 
-    document.getElementById('preview-form').addEventListener('submit', function () {
-        const val = input.value.trim().toLowerCase();
-        if (!val) return;
-        const updated = [val].concat(history.filter(function (e) { return e !== val; })).slice(0, 10);
-        localStorage.setItem(KEY, JSON.stringify(updated));
+  function buildTabs(results) {
+    const tabBar    = document.getElementById('tab-bar');
+    const tabPanels = document.getElementById('tab-panels');
+    tabBar.innerHTML    = '';
+    tabPanels.innerHTML = '';
+
+    results.forEach((r, i) => {
+      const isActive = i === 0;
+      const tabId    = 'tab-' + r.name;
+      const panelId  = 'panel-' + r.name;
+
+      // Tab button
+      const btn = document.createElement('button');
+      btn.textContent = r.name;
+      btn.dataset.panel = panelId;
+      btn.style.cssText = [
+        'padding:8px 18px',
+        'border:none',
+        'border-bottom:3px solid ' + (isActive ? '#4f46e5' : 'transparent'),
+        'background:' + (isActive ? '#f8f7ff' : 'transparent'),
+        'color:' + (isActive ? '#4f46e5' : '#555'),
+        'font-weight:' + (isActive ? '600' : '400'),
+        'font-size:14px',
+        'cursor:pointer',
+        'white-space:nowrap',
+        'transition:all .15s',
+      ].join(';');
+      btn.onclick = () => switchTab(btn, panelId);
+      tabBar.appendChild(btn);
+
+      // Panel
+      const panel = document.createElement('div');
+      panel.id = panelId;
+      panel.style.display = isActive ? '' : 'none';
+      panel.style.paddingTop = '20px';
+
+      if (r.html) {
+        // Sub-tabs: Preview / Plaintext / Quelltext
+        panel.innerHTML = `
+          <div style="display:flex;gap:6px;margin-bottom:14px">
+            <button class="subtab-btn active" onclick="switchSubtab(this,'${panelId}-html')" style="font-size:12px;padding:4px 12px;border:1px solid #e2e8f0;border-radius:20px;background:#4f46e5;color:#fff;cursor:pointer">HTML-Vorschau</button>
+            <button class="subtab-btn" onclick="switchSubtab(this,'${panelId}-txt')"  style="font-size:12px;padding:4px 12px;border:1px solid #e2e8f0;border-radius:20px;background:transparent;color:#555;cursor:pointer">Plaintext</button>
+            <button class="subtab-btn" onclick="switchSubtab(this,'${panelId}-src')"  style="font-size:12px;padding:4px 12px;border:1px solid #e2e8f0;border-radius:20px;background:transparent;color:#555;cursor:pointer">HTML-Quelltext</button>
+          </div>
+          <div id="${panelId}-html" class="preview-frame" style="min-height:80px">${r.html}</div>
+          <pre id="${panelId}-txt"  class="code-block" style="display:none">${esc(r.txt)}</pre>
+          <pre id="${panelId}-src"  class="code-block" style="display:none">${esc(r.html)}</pre>
+        `;
+      } else {
+        panel.innerHTML = `<div class="alert warn">Kein Template-Inhalt für <strong>${esc(r.name)}</strong> gefunden.</div>`;
+      }
+
+      tabPanels.appendChild(panel);
     });
+  }
+
+  function switchTab(clickedBtn, panelId) {
+    document.querySelectorAll('#tab-bar button').forEach(b => {
+      const active = b === clickedBtn;
+      b.style.borderBottomColor = active ? '#4f46e5' : 'transparent';
+      b.style.background        = active ? '#f8f7ff' : 'transparent';
+      b.style.color             = active ? '#4f46e5' : '#555';
+      b.style.fontWeight        = active ? '600' : '400';
+    });
+    document.querySelectorAll('#tab-panels > div').forEach(p => {
+      p.style.display = p.id === panelId ? '' : 'none';
+    });
+  }
+
+  window.switchSubtab = function(clickedBtn, targetId) {
+    const panel = clickedBtn.closest('[id^="panel-"]');
+    panel.querySelectorAll('.subtab-btn').forEach(b => {
+      b.style.background = 'transparent';
+      b.style.color      = '#555';
+    });
+    clickedBtn.style.background = '#4f46e5';
+    clickedBtn.style.color      = '#fff';
+    const prefix = targetId.substring(0, targetId.lastIndexOf('-'));
+    ['html','txt','src'].forEach(s => {
+      const el = document.getElementById(prefix + '-' + s);
+      if (el) el.style.display = targetId.endsWith('-' + s) ? '' : 'none';
+    });
+  };
+
+  function esc(s) {
+    return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // Auto-load if email already set (e.g. navigated back)
+  if (input.value.trim()) loadPreviews();
 }());
 </script>
-
-{% if error %}
-<div class="alert error">Graph-Fehler: {{ error }}</div>
-{% endif %}
-
-{% if sig_html %}
-<h2>HTML-Signatur</h2>
-<div class="preview-frame">{{ sig_html | safe }}</div>
-{% elif email %}
-<div class="alert warn">Keine HTML-Signatur generiert (Template leer oder nicht vorhanden).</div>
-{% endif %}
-
-{% if sig_txt %}
-<h2>Plaintext-Signatur</h2>
-<pre class="code-block">{{ sig_txt }}</pre>
-{% endif %}
-
-{% if sig_html %}
-<h2>HTML-Quelltext</h2>
-<pre class="code-block">{{ sig_html }}</pre>
-{% endif %}
 {% endblock %}

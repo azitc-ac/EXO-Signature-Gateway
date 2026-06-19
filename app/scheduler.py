@@ -230,12 +230,12 @@ def _run_daily() -> None:
 
 
 def _loop() -> None:
-    last_daily = ""
     while True:
         try:
+            last_daily = settings_store.get("_DAILY_LAST_RUN") or ""
             if _should_run_daily(last_daily):
                 _run_daily()
-                last_daily = datetime.now().strftime("%Y-%m-%d")
+                settings_store.force_update({"_DAILY_LAST_RUN": datetime.now().strftime("%Y-%m-%d")})
         except Exception as exc:
             log.error("scheduler loop error: %s", exc)
         time.sleep(60)

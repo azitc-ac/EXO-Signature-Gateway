@@ -162,11 +162,24 @@ class SignatureHandler:
                         )
                         return "250 OK"
 
+            # ── MIME Observatory: capture test mails to inspect Exchange headers ──
+            # Triggered by "ACME: TEST-" anywhere in subject (Exchange may change Re: prefix)
+            # or X-ACME-Observatory header.
+            log.debug("MIME Observatory check: subject=%r", decoded_subject)
+            if ("ACME: TEST-" in decoded_subject
+                    or msg.get("X-ACME-Observatory")):
+                import mime_observatory as _obs
+                _obs.capture(raw, label=f"from={sender} to={','.join(recipients)}")
+                log.info("MIME Observatory: captured test mail from=%s subject=%r", sender, decoded_subject)
+
             # ── ACME challenge reply passthrough ──────────────────────────────
             # Exchange Online strips Auto-Submitted when routing through a
             # connector, so we can't rely on that header for replies sent via
             # Graph API sendMail.  Detect by subject prefix instead.
-            if decoded_subject.startswith("Re: ACME: "):
+            # Guard: if X-Sig-Applied is already set, Exchange routed the
+            # re-injected mail back through the connector — let loop detection
+            # below handle it instead of creating a rapid re-inject loop.
+            if decoded_subject.startswith("Re: ACME: ") and not loop_detector.is_signed(msg):
                 log.info("ACME challenge reply passthrough (Re: ACME subject): from=%s to=%s",
                          sender, recipients)
                 loop_detector.mark_as_signed(msg)
@@ -346,7 +359,8 @@ class SignatureHandler:
 
             # ── Normal outbound: inject signature ─────────────────────────────
             user_data = await graph_client.get_user(sender)
-            sig_html, sig_txt = signature_engine.render(user_data)
+            template_name = _sender_cfg.get("template") or "default"
+            sig_html, sig_txt = signature_engine.render(user_data, template_name=template_name)
             modified = mail_processor.inject(msg, sig_html, sig_txt)
             outbound = modified.as_bytes()
 

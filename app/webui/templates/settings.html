@@ -192,6 +192,7 @@
         <tr style="border-bottom:2px solid #e2e8f0">
           <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555">Postfach</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:100px">Signatur</th>
+          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:140px">Template</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:100px">S/MIME</th>
         </tr>
       </thead>
@@ -378,6 +379,7 @@ function collectKV(rowClass) {
 }
 
 let _mbData = [];
+let _templateList = ['default'];
 
 const _currentNotifMailbox = {{ s.NOTIFICATION_MAILBOX | tojson }};
 
@@ -386,6 +388,15 @@ async function loadMailboxes(silent) {
   const status = document.getElementById('mb-load-status');
   if (!silent) { btn.disabled = true; status.textContent = 'Lade…'; }
   try {
+    // Load template list first so renderMailboxTable can use it
+    try {
+      const tresp = await fetch('/api/templates');
+      if (tresp.ok) {
+        const tdata = await tresp.json();
+        _templateList = tdata.templates || ['default'];
+      }
+    } catch(_) { /* ignore, keep default */ }
+
     const resp = await fetch('/api/mailboxes');
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const data = await resp.json();
@@ -431,6 +442,24 @@ function _populateNotifDropdown(mailboxes) {
   }
 }
 
+function _buildTemplateSelect(idx, selectedTemplate, sigEnabled) {
+  const sel = document.createElement('select');
+  sel.className = 'mb-template';
+  sel.dataset.idx = String(idx);
+  sel.style.fontSize = '12px';
+  sel.style.maxWidth = '130px';
+  sel.disabled = !sigEnabled;
+  sel.style.opacity = sigEnabled ? '1' : '0.4';
+  _templateList.forEach(function(name) {
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    if (name === (selectedTemplate || 'default')) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  return sel;
+}
+
 function renderMailboxTable(mailboxes) {
   const tbody = document.getElementById('mb-tbody');
   tbody.innerHTML = '';
@@ -439,11 +468,49 @@ function renderMailboxTable(mailboxes) {
     const tr = document.createElement('tr');
     tr.style.borderBottom = '1px solid #f0f0f0';
     tr.dataset.search = (mb.email + ' ' + (mb.name || '')).toLowerCase();
-    tr.innerHTML =
-      '<td style="padding:6px 8px"><strong>' + mb.email + '</strong>' +
-        (mb.name && mb.name !== mb.email ? '<br><span style="color:#888;font-size:11px">' + mb.name + '</span>' : '') + '</td>' +
-      '<td style="text-align:center;padding:6px 8px"><input type="checkbox" class="mb-sig" data-idx="' + i + '" ' + (mb.sig ? 'checked' : '') + '></td>' +
-      '<td style="text-align:center;padding:6px 8px"><input type="checkbox" class="mb-smime" data-idx="' + i + '" ' + (mb.smime ? 'checked' : '') + '></td>';
+
+    // Email cell
+    const tdEmail = document.createElement('td');
+    tdEmail.style.padding = '6px 8px';
+    tdEmail.innerHTML = '<strong>' + mb.email + '</strong>' +
+      (mb.name && mb.name !== mb.email ? '<br><span style="color:#888;font-size:11px">' + mb.name + '</span>' : '');
+
+    // Sig checkbox cell
+    const tdSig = document.createElement('td');
+    tdSig.style.cssText = 'text-align:center;padding:6px 8px';
+    const sigCb = document.createElement('input');
+    sigCb.type = 'checkbox';
+    sigCb.className = 'mb-sig';
+    sigCb.dataset.idx = String(i);
+    if (mb.sig) sigCb.checked = true;
+    tdSig.appendChild(sigCb);
+
+    // Template select cell
+    const tdTpl = document.createElement('td');
+    tdTpl.style.cssText = 'text-align:center;padding:6px 8px';
+    const tplSel = _buildTemplateSelect(i, mb.template, mb.sig);
+    tdTpl.appendChild(tplSel);
+
+    // Wire sig checkbox → template select enable/disable
+    sigCb.addEventListener('change', function() {
+      tplSel.disabled = !sigCb.checked;
+      tplSel.style.opacity = sigCb.checked ? '1' : '0.4';
+    });
+
+    // S/MIME checkbox cell
+    const tdSmime = document.createElement('td');
+    tdSmime.style.cssText = 'text-align:center;padding:6px 8px';
+    const smimeCb = document.createElement('input');
+    smimeCb.type = 'checkbox';
+    smimeCb.className = 'mb-smime';
+    smimeCb.dataset.idx = String(i);
+    if (mb.smime) smimeCb.checked = true;
+    tdSmime.appendChild(smimeCb);
+
+    tr.appendChild(tdEmail);
+    tr.appendChild(tdSig);
+    tr.appendChild(tdTpl);
+    tr.appendChild(tdSmime);
     tbody.appendChild(tr);
   });
 }
@@ -459,6 +526,7 @@ async function saveMailboxes(updateDg) {
   const result = document.getElementById('mb-result');
   const sigBoxes = document.querySelectorAll('.mb-sig');
   const smimeBoxes = document.querySelectorAll('.mb-smime');
+  const templateSelects = document.querySelectorAll('.mb-template');
   const payload = [];
   sigBoxes.forEach(function(cb, i) {
     const idx = parseInt(cb.dataset.idx);
@@ -466,6 +534,7 @@ async function saveMailboxes(updateDg) {
       email: _mbData[idx].email,
       sig: cb.checked,
       smime: smimeBoxes[i].checked,
+      template: templateSelects[i] ? templateSelects[i].value : 'default',
     });
   });
   const btn = updateDg ? document.getElementById('mb-save-btn') : document.getElementById('mb-local-btn');

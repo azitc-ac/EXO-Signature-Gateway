@@ -165,19 +165,13 @@ async def _send_challenge_reply(
     internet_message_id: str = "",
 ) -> bool:
     """
-    Send the ACME email-reply-00 response directly via SMTP (no Exchange routing).
-    Bypasses Exchange Online to avoid header/CTE modifications that break CASTLE
-    validation. SPF for zarenko.net includes our gateway IP.
-    RFC 8823 §3.3 requirements:
-      - Subject: Re: ACME: <token_part1>
-      - In-Reply-To: <original Message-ID>
-      - Auto-Submitted: auto-generated
-      - text/plain body with only the ACME RESPONSE block
+    Send the ACME email-reply-00 response via Graph API sendMail.
+    Exchange must have a RemoteDomain entry for the CA domain with
+    ByteEncoderTypeFor7BitCharsets=Use7Bit so Exchange does not re-encode
+    the body as quoted-printable (which would corrupt the ACME token).
     """
     import asyncio
     import email.message
-    import smtplib
-    import socket
 
     body_text = (
         "-----BEGIN ACME RESPONSE-----\r\n"
@@ -198,39 +192,21 @@ async def _send_challenge_reply(
     raw_mime = mime.as_bytes()
     log.info("ACME reply MIME body:\n%s", mime.as_string()[:400])
 
-    # Resolve MX for recipient domain via DNS-over-HTTPS (no dig/nslookup in container)
-    to_domain = to_email.split("@")[1]
+    # Graph API sendMail → Exchange → CA domain
+    log.info("ACME: sending challenge reply via Graph API for %s → %s", from_email, to_email)
     try:
-        import httpx as _httpx
-        r = await _httpx.AsyncClient().get(
-            "https://cloudflare-dns.com/dns-query",
-            params={"name": to_domain, "type": "MX"},
-            headers={"Accept": "application/dns-json"},
-            timeout=10,
+        import graph_reinject
+        ok = await asyncio.get_event_loop().run_in_executor(
+            None, graph_reinject.send_via_graph_mime, from_email, [to_email], raw_mime
         )
-        answers = r.json().get("Answer", [])
-        mx_hosts = sorted(
-            [(a["data"].split()[0], a["data"].split()[1].rstrip(".")) for a in answers if a.get("type") == 15],
-        )
-        mx_host = mx_hosts[0][1] if mx_hosts else to_domain
+        if ok:
+            log.info("ACME challenge reply sent (Graph API) from %s to %s", from_email, to_email)
+        else:
+            log.error("ACME challenge reply Graph API send failed for %s", to_email)
+        return ok
     except Exception as exc:
-        log.warning("ACME: MX lookup failed for %s: %s — using domain directly", to_domain, exc)
-        mx_host = to_domain
-
-    log.info("ACME: sending reply directly via SMTP to MX %s for %s", mx_host, to_domain)
-
-    def _smtp_send() -> bool:
-        try:
-            with smtplib.SMTP(mx_host, 25, timeout=30) as smtp:
-                smtp.ehlo("sig.zarenko.net")
-                smtp.sendmail(from_email, [to_email], raw_mime)
-            log.info("ACME challenge reply sent (direct SMTP) from %s to %s via %s", from_email, to_email, mx_host)
-            return True
-        except Exception as exc:
-            log.error("ACME challenge reply SMTP error: %s", exc)
-            return False
-
-    return await asyncio.get_event_loop().run_in_executor(None, _smtp_send)
+        log.error("ACME challenge reply Graph API error: %s", exc)
+        return False
 
 
 # ── Post-challenge background flow ────────────────────────────────────────────

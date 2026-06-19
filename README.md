@@ -12,20 +12,25 @@ Exchange Online bietet serverseitige Transportregeln für Disclaimer – diese s
 
 ## Wie es funktioniert
 
+Outlook und andere Mail-Clients kommunizieren immer direkt mit Exchange Online (über MAPI oder REST) – nie über diesen Service. Der Service hängt sich als **serverseitiger Transport-Gateway** in den Outbound-Pfad von Exchange Online ein:
+
 ```
 Outlook / Mail-Client
-       │ SMTP (Port 25 / 587)
-       ▼
-EXO Signature Service  ◄── MS Graph API (Userdaten + Re-Inject)
-       │ Graph API sendMail  –oder–  SMTP + STARTTLS
+       │ MAPI / EAS / REST
        ▼
 Exchange Online (EXO)
+       │ Outbound Transport Connector → SMTP Port 25
+       ▼
+EXO Signature Service  ◄── MS Graph API (Absenderdaten)
+       │ Graph API sendMail  –oder–  SMTP + STARTTLS
+       ▼
+Exchange Online (EXO) → Zustellung an Empfänger
 ```
 
-1. Der Mail-Client sendet E-Mails an diesen Proxy.
-2. Der Service schlägt den Absender per Microsoft Graph API nach.
-3. Eine Jinja2-Signatur (HTML + Plaintext) wird in die Mail injiziert – auch bei Nur-Text- und TNEF-Mails (Outlook RTF).
-4. Die Mail wird per **Graph API `sendMail`** (Standard, kein Port 25 nötig) oder per **SMTP + STARTTLS** an EXO weitergeleitet.
+1. Outlook sendet die Mail wie gewohnt an Exchange Online (MAPI/REST).
+2. Eine **EXO-Transportregel** leitet ausgehende Mails der konfigurierten Absender über einen **Send Connector** an diesen Service weiter (SMTP Port 25).
+3. Der Service schlägt den Absender per Microsoft Graph API nach und injiziert die Jinja2-Signatur (HTML + Plaintext) – auch bei Nur-Text- und TNEF-Mails (Outlook RTF).
+4. Die signierte Mail wird per **Graph API `sendMail`** (Standard) oder per **SMTP + STARTTLS** an Exchange Online zurückgegeben und von dort zugestellt.
 
 ---
 

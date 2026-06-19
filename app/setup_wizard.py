@@ -15,6 +15,7 @@ from pathlib import Path
 
 import httpx
 
+import config
 import settings_store
 import graph_client as _gc
 
@@ -643,3 +644,64 @@ def verify_smime_rules() -> dict:
         '$enc    = $null -ne (Get-TransportRule -Identity "EXO Signature Gateway - SMIME Encrypted Inbound" -ErrorAction SilentlyContinue)\n'
         'Write-Output (@{ok=$signed -and $enc; signed=$signed; encrypted=$enc} | ConvertTo-Json -Compress)\n'
     )
+
+
+# ── Remote Domain: castle.cloud ───────────────────────────────────────────────
+
+def configure_remote_domain_castle() -> dict:
+    """Create (if missing) and configure the Remote Domain for castle.cloud.
+
+    Sets ByteEncoderTypeFor7BitCharsets=Use7Bit to prevent Exchange from
+    changing Content-Transfer-Encoding 7bit → quoted-printable for ACME mails.
+    """
+    body = (
+        'if (-not (Get-RemoteDomain -Identity "Castle ACME" -ErrorAction SilentlyContinue)) {\n'
+        '    New-RemoteDomain -Name "Castle ACME" -DomainName "castle.cloud" | Out-Null\n'
+        '    Write-Host "Created"\n'
+        '} else { Write-Host "Exists" }\n'
+        'Set-RemoteDomain -Identity "Castle ACME" '
+        '-ContentType MimeText '
+        '-CharacterSet us-ascii '
+        '-NonMimeCharacterSet us-ascii '
+        '-TNEFEnabled $false '
+        '-LineWrapSize Unlimited '
+        '-ByteEncoderTypeFor7BitCharsets Use7Bit\n'
+        '$d = Get-RemoteDomain -Identity "Castle ACME"\n'
+        'Write-Output (@{'
+        'ok=$true; '
+        'ContentType=[string]$d.ContentType; '
+        'CharacterSet=$d.CharacterSet; '
+        'TNEFEnabled=[bool]$d.TNEFEnabled; '
+        'LineWrapSize=[string]$d.LineWrapSize; '
+        'ByteEncoderTypeFor7BitCharsets=[string]$d.ByteEncoderTypeFor7BitCharsets'
+        '} | ConvertTo-Json -Compress)\n'
+    )
+    return _run_verify_ps(body)
+
+
+def get_remote_domain_castle() -> dict:
+    """Read current Remote Domain settings for castle.cloud."""
+    body = (
+        '$d = Get-RemoteDomain -Identity "Castle ACME" -ErrorAction SilentlyContinue\n'
+        'if ($null -eq $d) { Write-Output \'{"ok":false,"error":"not_found"}\'; exit }\n'
+        'Write-Output (@{'
+        'ok=$true; '
+        'ContentType=[string]$d.ContentType; '
+        'CharacterSet=$d.CharacterSet; '
+        'TNEFEnabled=[bool]$d.TNEFEnabled; '
+        'LineWrapSize=[string]$d.LineWrapSize; '
+        'ByteEncoderTypeFor7BitCharsets=[string]$d.ByteEncoderTypeFor7BitCharsets'
+        '} | ConvertTo-Json -Compress)\n'
+    )
+    return _run_verify_ps(body)
+
+
+def remove_remote_domain_castle() -> dict:
+    """Delete the castle.cloud Remote Domain entry."""
+    body = (
+        'if (Get-RemoteDomain -Identity "Castle ACME" -ErrorAction SilentlyContinue) {\n'
+        '    Remove-RemoteDomain -Identity "Castle ACME" -Confirm:$false\n'
+        '    Write-Output \'{"ok":true,"removed":true}\'\n'
+        '} else { Write-Output \'{"ok":true,"removed":false}\' }\n'
+    )
+    return _run_verify_ps(body)

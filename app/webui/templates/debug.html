@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Debug</h1>
+
+<!-- ── Exchange Header Observatory ─────────────────────────────────────── -->
+<div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
+  <div class="step-header">
+    <span class="step-badge" style="background:#78716c;font-size:10px">Lab</span>
+    <span class="step-title">Exchange Header Observatory
+      <span style="font-weight:400;font-size:12px;color:#57534e"> — testet welche Header Exchange bei ACME-Antwortmails hinzufügt</span>
+    </span>
+  </div>
+  <div class="step-body">
+
+    <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
+      Schickt eine Test-ACME-Reply via <strong>Graph API sendMail</strong> durch Exchange.
+      Das Gateway fängt die Nachricht auf dem Outbound-Connector ab und speichert den
+      exakten Raw-MIME — so sieht man welche Header Exchange hinzufügt bzw. verändert.<br>
+      Optional: <strong>RemoteDomain für castle.cloud</strong> setzen, dann erneut testen
+      und die Ergebnisse vergleichen.
+    </p>
+
+    <!-- RemoteDomain Block -->
+    <div style="border:1px solid #e2e8f0;border-radius:6px;padding:14px;margin-bottom:14px;background:#f8fafc">
+      <strong style="font-size:13px">Schritt A — RemoteDomain für castle.cloud</strong>
+      <p style="font-size:12px;color:#555;margin:6px 0 10px">
+        Setzt <code>ByteEncoderTypeFor7BitCharsets=Use7Bit</code>, <code>ContentType=MimeText</code>,
+        <code>TNEFEnabled=$false</code> — verhindert eventuell die CTE-Konvertierung
+        <code>7bit&nbsp;→&nbsp;quoted-printable</code>.
+        Keine Auswirkung auf andere Empfänger-Domains.
+      </p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn secondary" id="obs-rd-get-btn" onclick="obsGetRemoteDomain()">Aktuelle Einstellungen lesen</button>
+        <button class="btn primary"   id="obs-rd-set-btn" onclick="obsSetRemoteDomain()">RemoteDomain setzen / aktualisieren</button>
+        <button class="btn secondary" style="color:#dc2626;border-color:#fca5a5" id="obs-rd-del-btn" onclick="obsDeleteRemoteDomain()">Entfernen</button>
+      </div>
+      <div id="obs-rd-result" style="display:none;margin-top:10px"></div>
+      <pre id="obs-rd-detail" style="display:none;font-size:11px;background:#f1f5f9;padding:8px;border-radius:4px;margin-top:8px;overflow-x:auto;white-space:pre-wrap"></pre>
+    </div>
+
+    <!-- Test senden Block -->
+    <div style="border:1px solid #e2e8f0;border-radius:6px;padding:14px;margin-bottom:14px;background:#f8fafc">
+      <strong style="font-size:13px">Schritt B — Test-Mail via Graph API senden</strong>
+      <p style="font-size:12px;color:#555;margin:6px 0 10px">
+        Sendet eine echte MIME-Nachricht mit <code>Subject: Re: ACME: TEST-…</code>
+        via <code>sendMail</code>. Exchange schickt sie über den Outbound-Connector
+        an das Gateway, das sie abfängt und hier anzeigt.<br>
+        <strong>Empfänger-Adresse:</strong> standardmäßig <code>acme@castle.cloud</code>
+        (CASTLE ignoriert ungültige Token stillschweigend). Alternativ eine eigene Test-Adresse.
+      </p>
+      <div class="settings-row">
+        <label for="obs-from" style="min-width:100px">Absender</label>
+        <input type="email" id="obs-from" placeholder="erika.mustermann@zarenko.net" style="width:280px">
+        <span style="font-size:12px;color:#888;margin-left:8px">Muss in der EXO-DG sein (für Outbound-Connector-Routing)</span>
+      </div>
+      <div class="settings-row">
+        <label for="obs-to" style="min-width:100px">Empfänger</label>
+        <input type="email" id="obs-to" value="acme@castle.cloud" style="width:280px">
+      </div>
+      <div class="settings-row">
+        <label for="obs-label" style="min-width:100px">Label</label>
+        <input type="text" id="obs-label" placeholder="z.B. ohne-remotedomain" style="width:220px">
+        <span style="font-size:12px;color:#888;margin-left:8px">Zur Unterscheidung der Captures</span>
+      </div>
+      <div class="actions" style="margin-top:10px">
+        <button class="btn primary" id="obs-send-btn" onclick="obsSendTest()">Test-Mail senden (Graph API)</button>
+        <button class="btn secondary" style="margin-left:8px" onclick="obsRefreshCaptures()">Captures aktualisieren ↻</button>
+        <button class="btn secondary" style="margin-left:8px;color:#dc2626;border-color:#fca5a5" onclick="obsClearCaptures()">Captures löschen</button>
+      </div>
+      <div id="obs-send-result" style="display:none;margin-top:10px"></div>
+    </div>
+
+    <!-- Captures anzeigen -->
+    <div style="border:1px solid #e2e8f0;border-radius:6px;padding:14px;background:#f8fafc">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <strong style="font-size:13px">Schritt C — Captured Raw MIME</strong>
+        <span style="font-size:12px;color:#888">Automatisch aktualisiert nach "Senden"</span>
+      </div>
+      <p style="font-size:12px;color:#555;margin-bottom:10px">
+        Zeigt den <strong>exakten MIME</strong> wie er vom Gateway vom Exchange-Outbound-Connector
+        empfangen wurde — vor jeder Verarbeitung. Vergleich: <em>vor</em> vs. <em>nach</em>
+        RemoteDomain-Konfiguration zeigt, was Exchange verändert.
+      </p>
+      <div id="obs-captures-container">
+        <p style="color:#888;font-size:13px">Noch keine Captures. Test-Mail senden und ~15s warten.</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function showAlert(el, type, html) {
+  el.className = 'alert ' + type;
+  el.innerHTML = html;
+  el.style.display = 'block';
+}
+function hideAlert(el) { el.style.display = 'none'; }
+
+async function obsGetRemoteDomain() {
+  const btn = document.getElementById('obs-rd-get-btn');
+  const result = document.getElementById('obs-rd-result');
+  const detail = document.getElementById('obs-rd-detail');
+  btn.disabled = true; btn.textContent = '…';
+  const r = await fetch('/api/setup/remote-domain-castle');
+  const d = await r.json();
+  btn.disabled = false; btn.textContent = 'Aktuelle Einstellungen lesen';
+  if (d.ok) {
+    showAlert(result, 'success', 'Remote Domain gefunden.');
+    detail.textContent = JSON.stringify(d, null, 2);
+    detail.style.display = 'block';
+  } else {
+    showAlert(result, d.error === 'not_found' ? 'warn' : 'error',
+      d.error === 'not_found' ? 'Remote Domain "Castle ACME" nicht vorhanden.' : ('Fehler: ' + (d.error || 'Unbekannt')));
+    detail.style.display = 'none';
+  }
+}
+
+async function obsSetRemoteDomain() {
+  const btn = document.getElementById('obs-rd-set-btn');
+  const result = document.getElementById('obs-rd-result');
+  const detail = document.getElementById('obs-rd-detail');
+  btn.disabled = true; btn.textContent = 'Konfiguriere… (ca. 30s)';
+  hideAlert(result);
+  const r = await fetch('/api/setup/remote-domain-castle', {method:'POST', headers:{'Content-Type':'application/json'}});
+  const d = await r.json();
+  btn.disabled = false; btn.textContent = 'RemoteDomain setzen / aktualisieren';
+  if (d.ok) {
+    showAlert(result, 'success', 'Remote Domain konfiguriert: <code>ByteEncoderTypeFor7BitCharsets=' + (d.ByteEncoderTypeFor7BitCharsets||'?') + '</code>');
+    detail.textContent = JSON.stringify(d, null, 2);
+    detail.style.display = 'block';
+  } else {
+    showAlert(result, 'error', 'Fehler: ' + (d.error || JSON.stringify(d)));
+    detail.style.display = 'none';
+  }
+}
+
+async function obsDeleteRemoteDomain() {
+  if (!confirm('Remote Domain "Castle ACME" wirklich entfernen?')) return;
+  const btn = document.getElementById('obs-rd-del-btn');
+  const result = document.getElementById('obs-rd-result');
+  btn.disabled = true; btn.textContent = '…';
+  const r = await fetch('/api/setup/remote-domain-castle', {method:'DELETE', headers:{'Content-Type':'application/json'}});
+  const d = await r.json();
+  btn.disabled = false; btn.textContent = 'Entfernen';
+  showAlert(result, d.ok ? 'success' : 'error',
+    d.ok ? ('Entfernt: ' + (d.removed ? 'ja' : 'war nicht vorhanden')) : ('Fehler: ' + d.error));
+}
+
+let _obsPoller = null;
+
+async function obsSendTest() {
+  const btn = document.getElementById('obs-send-btn');
+  const result = document.getElementById('obs-send-result');
+  const from_email = (document.getElementById('obs-from').value||'').trim();
+  const to_email   = (document.getElementById('obs-to').value||'acme@castle.cloud').trim();
+  const label      = (document.getElementById('obs-label').value||'').trim() || 'test-' + Date.now();
+  if (!from_email) { showAlert(result,'error','Absender-Adresse angeben.'); return; }
+  btn.disabled = true; btn.textContent = 'Sendet…';
+  hideAlert(result);
+  const r = await fetch('/api/test/send-graph-acme', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({from_email, to_email, label}),
+  });
+  const d = await r.json();
+  btn.disabled = false; btn.textContent = 'Test-Mail senden (Graph API)';
+  if (d.ok) {
+    showAlert(result, 'success',
+      'Gesendet ✓ — Subject: <code>' + d.subject + '</code><br>'
+      + 'Warte ~15s, dann automatisch Captures laden…');
+    if (_obsPoller) clearTimeout(_obsPoller);
+    _obsPoller = setTimeout(() => { obsRefreshCaptures(); }, 15000);
+  } else {
+    showAlert(result, 'error', 'Fehler: ' + JSON.stringify(d));
+  }
+}
+
+async function obsRefreshCaptures() {
+  const r = await fetch('/api/test/acme-capture');
+  const d = await r.json();
+  const container = document.getElementById('obs-captures-container');
+  const captures = d.captures || [];
+  if (!captures.length) {
+    container.innerHTML = '<p style="color:#888;font-size:13px">Noch keine Captures.</p>';
+    return;
+  }
+  container.innerHTML = captures.map((c, i) => {
+    const ts = new Date(c.ts * 1000).toLocaleTimeString('de-DE');
+    const raw = c.raw || '';
+    const sep = raw.indexOf('\r\n\r\n') !== -1 ? '\r\n\r\n' : '\n\n';
+    const sepIdx = raw.indexOf(sep);
+    const headers = sepIdx !== -1 ? raw.substring(0, sepIdx) : raw;
+    const body    = sepIdx !== -1 ? raw.substring(sepIdx + sep.length) : '';
+    const headerLines = headers.split(/\r?\n/);
+    const interesting = ['content-transfer-encoding','content-type','content-id',
+      'from','to','subject','auto-submitted','thread-topic','thread-index',
+      'arc-seal','dkim-signature','x-ms-','mime-version'];
+    const highlighted = headerLines.map(l => {
+      const lower = l.toLowerCase();
+      const isInteresting = interesting.some(k => lower.startsWith(k));
+      if (isInteresting) {
+        const isBad = lower.startsWith('thread-') || lower.startsWith('arc-')
+          || lower.startsWith('dkim-') || lower.startsWith('x-ms-')
+          || lower.startsWith('content-id') || (lower.startsWith('content-transfer') && lower.includes('quoted'));
+        const isGood = lower.startsWith('content-transfer') && lower.includes('7bit');
+        const color = isBad ? '#dc2626' : isGood ? '#16a34a' : '#0284c7';
+        return `<span style="color:${color};font-weight:600">${obsEsc(l)}</span>`;
+      }
+      return `<span style="color:#64748b">${obsEsc(l)}</span>`;
+    }).join('\n');
+    return `<div style="margin-bottom:14px;border:1px solid #e2e8f0;border-radius:6px;overflow:hidden">
+      <div style="background:#f1f5f9;padding:6px 10px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-weight:600;font-size:13px">#${i+1} — ${ts} — <em style="color:#555;font-weight:400">${obsEsc(c.label||'')}</em></span>
+        <button onclick="obsToggle('obs-raw-${i}')" style="font-size:11px;background:none;border:1px solid #cbd5e1;border-radius:4px;padding:2px 6px;cursor:pointer">Body ▾</button>
+      </div>
+      <pre style="margin:0;padding:8px 10px;font-size:11px;overflow-x:auto;white-space:pre-wrap;max-height:400px;overflow-y:auto">${highlighted}</pre>
+      <div id="obs-raw-${i}" style="display:none;border-top:1px solid #e2e8f0;padding:8px 10px;background:#fefce8">
+        <pre style="margin:0;font-size:11px;white-space:pre-wrap">${obsEsc(body)}</pre>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function obsEsc(s) {
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function obsToggle(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
+}
+async function obsClearCaptures() {
+  await fetch('/api/test/acme-capture', {method:'DELETE', headers:{'Content-Type':'application/json'}});
+  obsRefreshCaptures();
+}
+</script>
+{% endblock %}

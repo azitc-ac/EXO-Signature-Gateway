@@ -1,0 +1,6 @@
+Freundliche Grüße / Kind regards
+{{ user.displayName }}
+
+Triebelsstr. 5, 52066 Aachen
+{% if user.mail %}{{ user.mail }}
+{% endif %}

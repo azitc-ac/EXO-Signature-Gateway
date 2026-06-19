@@ -5,6 +5,144 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.0.102 — 2026-06-19 — ACME challenge reply: Graph API als einziger Pfad (kein SMTP Port 25)
+
+### Änderungen
+- **`acme_state._send_challenge_reply()`**: Direktes SMTP Port 25 vollständig entfernt.
+  Graph API sendMail ist jetzt der einzige Sendepfad — das Deployment nutzt IMAP+Graph-Modus
+  und Port 25 outbound soll nicht verwendet werden.
+  Voraussetzung bleibt: RemoteDomain für CA-Domain (z.B. castle.cloud) mit
+  `ByteEncoderTypeFor7BitCharsets=Use7Bit` damit Exchange den Body nicht als
+  quoted-printable re-encodiert.
+- **CLAUDE.md-Invariante aktualisiert**: Alte "NIEMALS via Graph API" Aussage ersetzt —
+  mit Use7Bit ist Graph API der korrekte und einzige Weg in diesem Deployment.
+
+---
+
+## v1.0.101 — 2026-06-19 — ACME challenge reply: Graph API Fallback wenn Port 25 geblockt
+
+### Änderungen
+- **`acme_state._send_challenge_reply()`**: Primärpfad bleibt direktes SMTP (Port 25, sauberste
+  Methode, kein Exchange-Eingriff). Wenn Port 25 fehlschlägt (Azure-Umgebung), automatischer
+  Fallback auf **Graph API sendMail** via Exchange.
+  Voraussetzung für Graph-Pfad: RemoteDomain für die CA-Domain (z.B. castle.cloud) mit
+  `ByteEncoderTypeFor7BitCharsets=Use7Bit` gesetzt — sonst encodiert Exchange den Body als
+  quoted-printable und der ACME-Token wird korrumpiert.
+- **CLAUDE.md-Invariante bleibt gültig**: Graph API sendMail ist weiterhin suboptimal
+  (Exchange fügt ARC/DKIM/Thread-Headers hinzu), aber mit Use7Bit sollte der Body-Inhalt
+  unverändert bleiben. Ob CASTLE das akzeptiert muss ein echter Renewal-Test zeigen.
+
+---
+
+## v1.0.100 — 2026-06-19 — ACME-Passthrough Loop-Fix; README korrigiert
+
+### Änderungen
+- **Bug fix `handler.py`**: ACME-Passthrough (`Re: ACME:`-Subject) prüft jetzt zuerst ob
+  `X-Sig-Applied` bereits gesetzt ist. Vorher feuerte der Passthrough auch beim zweiten
+  Exchange-Connector-Delivery (nach der eigenen Re-Injection), was einen Rapid-Loop erzeugte:
+  Re-Inject → Exchange routet zurück → ACME-Passthrough → Re-Inject → … → 554 Hop count exceeded.
+  Exchange bekam kein 250 OK und legte die Mail stündlich in den Retry-Queue.
+  Fix: `and not loop_detector.is_signed(msg)` — beim zweiten Pass übernimmt die normale
+  Loop-Detection (Zeile 335) und Exchange liefert via Transport-Rule-Exception direkt.
+- **Bug fix `README.md`**: Architektur-Diagramm und Beschreibung "Wie es funktioniert" war
+  falsch — beschrieb einen direkten SMTP-Proxy (Outlook → Gateway), nicht das tatsächliche
+  EXO-Transport-Connector-Modell (Exchange → Connector → Gateway → Graph API re-inject).
+
+---
+
+## v1.0.99 — 2026-06-19 — Tagesbericht: kein Mehrfach-Versand nach Restart; Vorschau: default-Tab immer links
+
+### Änderungen
+- **Bug fix**: `scheduler._loop()` speicherte `last_daily` nur in-memory — jeder Container-Neustart
+  setzte sie auf `""` zurück, woraufhin der Tagesbericht sofort erneut versendet wurde. Fix:
+  `_DAILY_LAST_RUN` wird jetzt in `settings_store` (→ `data/settings.json`) persistiert.
+- **`signature_engine.list_templates()`**: `default`-Template wird nun immer als erstes Element
+  zurückgegeben, alle weiteren alphabetisch sortiert dahinter. Vorher kam `Privat-ohneFirma`
+  durch ASCII-Sort vor `default` (Großbuchstaben < Kleinbuchstaben).
+- **`templates/Privat-ohneFirma.html`**: Leerzeile nach `displayName` als korrekte leere
+  Tabellenzeile (`line-height:0.8em`); ungültiges `<br>` zwischen `<tr>` und `<td>` entfernt.
+
+---
+
+## v1.0.98 — 2026-06-19 — Vorschau: Multi-Template-Tabs
+
+### Änderungen
+- **`/preview`**: Vollständig auf dynamisches Tab-Interface umgestellt. E-Mail einmal eingeben,
+  alle verfügbaren Templates werden parallel per `/api/preview-data` geladen und als Tabs
+  angezeigt. Pro Template drei Sub-Tabs: HTML-Vorschau, Plaintext, HTML-Quelltext.
+- **`GET /api/preview-data?email=…&template=…`**: Neuer JSON-Endpoint liefert `{html, txt, error}`
+  für ein spezifisches Template + User. Ersetzt das serverseitige Rendering im Page-Handler.
+- **Bug fix**: Vorher wurde `signature_engine.render()` ohne `template_name` aufgerufen —
+  immer das Default-Template, egal welches gesetzt war.
+
+---
+
+## v1.0.97 — 2026-06-19 — Exchange Header Observatory + RemoteDomain castle.cloud
+
+### Neue Features
+- **MIME Observatory** (`app/mime_observatory.py`): In-Memory-Capture von Raw-MIME-Payloads.
+  Wenn der Gateway eine Mail mit `Subject: Re: ACME: TEST-…` oder `X-ACME-Observatory`-Header
+  empfängt, wird der exakte Raw-MIME gespeichert — so kann man sehen was Exchange an Headern
+  hinzufügt, bevor irgendeine Verarbeitung stattfindet.
+- **handler.py**: Observatory-Hook vor dem ACME-Passthrough eingefügt.
+- **setup_wizard.py**: `configure_remote_domain_castle()`, `get_remote_domain_castle()`,
+  `remove_remote_domain_castle()` — steuern den `Set-RemoteDomain`-Eintrag für castle.cloud
+  mit `ByteEncoderTypeFor7BitCharsets=Use7Bit`, `ContentType=MimeText`, `TNEFEnabled=$false`.
+- **API-Endpoints**:
+  - `GET/DELETE /api/test/acme-capture` — Captures lesen / löschen
+  - `POST /api/test/send-graph-acme` — sendet fake ACME-Reply via Graph API (`send_via_graph_mime`)
+  - `GET/POST/DELETE /api/setup/remote-domain-castle` — RemoteDomain lesen / setzen / entfernen
+- **Setup-Wizard UI** (`setup.html`): Neuer "Lab"-Schritt "Exchange Header Observatory":
+  - Block A: RemoteDomain lesen, setzen, entfernen (per Knopf)
+  - Block B: Test-Mail via Graph API senden (Absender, Empfänger, Label konfigurierbar)
+  - Block C: Capture-Anzeige mit Syntax-Highlighting (verdächtige Header rot, 7bit grün)
+  - Auto-Refresh nach 15s nach dem Senden
+
+### Recherche-Ergebnis (Graph API)
+- Alle Microsoft-Sendepfade (Graph API, EWS, SMTP AUTH:587) durchlaufen dieselbe Exchange
+  Transport Pipeline — MIME wird grundsätzlich re-serialisiert. Keine API-Parameter können
+  Thread-Topic, Thread-Index, ARC-Seal, DKIM, Content-ID oder CTE-Normalisierung verhindern.
+  Quellen: MS Q&A, GitHub Issues msgraph-sdk-dotnet#2209 / msgraph-metadata#389.
+
+---
+
+## v1.0.96 — 2026-06-18 — ACS-Skeleton im Setup-Wizard
+
+### Neu
+- **Setup-Wizard: ACS-Schritt (Skeleton)**: Neuer ausgegrauteter Schritt "Azure Communication
+  Services – ACME-Mails" im Einrichtungsassistenten. Erläutert warum ACS für CASTLE-ACME-
+  Antwortmails auf Azure (kein Port 25 outbound) nötig ist. Felder für Subscription, Resource
+  Group, ACS-Ressource und Domains (mit TXT-Record-Anzeige, Verify- und Test-Button pro Domain)
+  sind als Vorschau sichtbar, aber noch deaktiviert. Implementierung folgt in nächster Version.
+- **Recherche-Ergebnis dokumentiert**: Graph API, EWS und SMTP AUTH:587 durchlaufen alle
+  dieselbe Exchange Transport Pipeline — keine dieser Routen ist RFC 8823-kompatibel.
+  Quellen: MS Q&A, GitHub Issues msgraph-sdk-dotnet#2209, msgraph-metadata#389, offizielle Doku.
+
+---
+
+## v1.0.95 — 2026-06-18 — Multiple Signature Templates
+
+### Neue Features
+- **Multiple Signature Templates**: Mehrere benannte Signatur-Templates werden unterstützt.
+  Templates liegen als `{TEMPLATE_DIR}/{name}.html` und `{TEMPLATE_DIR}/{name}.txt`,
+  das bestehende `signature.html`/`signature.txt` ist weiterhin das "default"-Template.
+- **Pro-Mailbox Template-Zuweisung**: `MAILBOX_CONFIG` hat ein neues optionales Feld
+  `"template"` pro User. Fehlt es, wird "default" verwendet.
+- **signature_engine.render()**: Neuer optionaler Parameter `template_name`. Fällt auf
+  `signature.html`/`signature.txt` zurück, wenn das benannte Template nicht existiert.
+- **handler.py**: `template_name` wird aus `_sender_cfg` gelesen und an `render()` übergeben.
+- **API `GET /api/templates`**: Listet alle verfügbaren Templates (scannt TEMPLATE_DIR).
+- **API `DELETE /api/templates/{name}`**: Löscht Template-Dateien (nicht "default").
+- **API `GET /api/mailboxes`**: Gibt jetzt auch `template` pro User zurück.
+- **API `POST /api/mailboxes/save`**: Akzeptiert `template` im Payload; speichert nur,
+  wenn nicht "default" (spart Speicherplatz in settings.json).
+- **Settings-UI**: Neue "Template"-Spalte in der Postfach-Tabelle mit `<select>`-Dropdown.
+  Das Select ist deaktiviert (ausgegraut), wenn Signatur-Checkbox unchecked ist.
+- **Template-Editor**: Dropdown für Template-Auswahl, Button "Neues Template erstellen",
+  Button zum Löschen (nicht für "default"). POST-Formular schickt `template_name` mit.
+
+---
+
 ## v1.0.93 — 2026-06-18 — ACME Sleep auf 30s reduziert (direktes SMTP)
 
 ### Bugfixes

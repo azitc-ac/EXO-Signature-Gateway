@@ -3,10 +3,33 @@
 <h1>Template-Editor</h1>
 
 {% if saved %}
-<div class="alert success">Templates gespeichert.</div>
+<div class="alert success">Template "{{ current_template }}" gespeichert.</div>
 {% endif %}
 
+<!-- Template-Auswahl -->
+<div class="settings-card" style="margin-bottom:16px">
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <label style="font-weight:600;white-space:nowrap">Aktives Template:</label>
+    <select id="tpl-selector" style="min-width:180px;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px"
+            onchange="switchTemplate(this.value)">
+      {% for t in template_list %}
+      <option value="{{ t }}" {% if t == current_template %}selected{% endif %}>{{ t }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn secondary" onclick="createNewTemplate()" type="button">+ Neues Template</button>
+    {% if current_template != 'default' %}
+    <button class="btn" style="background:#dc2626;color:#fff;border:none;padding:6px 14px;border-radius:4px;cursor:pointer;font-size:13px"
+            onclick="deleteTemplate('{{ current_template }}')" type="button">Template löschen</button>
+    {% endif %}
+  </div>
+  <p class="hint" style="margin-top:8px;margin-bottom:0">
+    Template <strong>"{{ current_template }}"</strong> wird bearbeitet.
+    {% if current_template == 'default' %}Das Default-Template wird verwendet, wenn in der Postfach-Konfiguration kein anderes Template gewählt ist.{% endif %}
+  </p>
+</div>
+
 <form method="post" action="/template">
+    <input type="hidden" name="template_name" value="{{ current_template }}">
     <div class="editor-section">
         <label for="html_content"><strong>HTML-Signatur</strong> (Jinja2)</label>
         <textarea id="html_content" name="html_content" rows="20" spellcheck="false">{{ html_content }}</textarea>
@@ -28,4 +51,30 @@
     <code>user.mobilePhone</code>, <code>user.officeLocation</code>,
     <code>user.website</code>, <code>user.bookingsUrl</code>
 </div>
+
+<script>
+function switchTemplate(name) {
+  window.location.href = '/template?name=' + encodeURIComponent(name);
+}
+
+function createNewTemplate() {
+  const name = prompt('Name des neuen Templates (nur Buchstaben, Zahlen, - und _):');
+  if (!name) return;
+  const safe = name.replace(/[^a-zA-Z0-9_\-]/g, '').replace(/^[-_]+|[-_]+$/g, '');
+  if (!safe) { alert('Ungültiger Name.'); return; }
+  if (safe === 'default') { alert('"default" ist reserviert.'); return; }
+  window.location.href = '/template?name=' + encodeURIComponent(safe);
+}
+
+async function deleteTemplate(name) {
+  if (!confirm('Template "' + name + '" wirklich löschen?\n\nDie .html- und .txt-Dateien werden unwiderruflich gelöscht.')) return;
+  const resp = await fetch('/api/templates/' + encodeURIComponent(name), {method: 'DELETE'});
+  if (resp.ok) {
+    window.location.href = '/template?name=default';
+  } else {
+    const d = await resp.json().catch(() => ({}));
+    alert('Fehler: ' + (d.detail || 'Unbekannt'));
+  }
+}
+</script>
 {% endblock %}

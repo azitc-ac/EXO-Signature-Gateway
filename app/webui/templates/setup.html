@@ -99,7 +99,7 @@
 <!-- ── Step 3: TLS-Zertifikat (Let's Encrypt) ─────────────────────────────── -->
 <div class="wizard-step {% if e.cert_exists %}done{% endif %}" id="step-le">
   <div class="step-header">
-    <span class="step-badge">3</span>
+    <span class="step-badge">2.1</span>
     <span class="step-title">TLS-Zertifikat (Let's Encrypt)</span>
     {% if e.cert_exists %}
     <span class="step-status done">Zertifikat vorhanden — HTTPS aktiv</span>
@@ -140,7 +140,7 @@
 <!-- ── Step 2.5: Modus & Funktionen ──────────────────────────────────────── -->
 <div class="wizard-step {% if s.REINJECT_MODE %}done{% endif %}" id="step-mode">
   <div class="step-header">
-    <span class="step-badge" style="background:#6366f1;font-size:10px">Modus</span>
+    <span class="step-badge">3</span>
     <span class="step-title">Modus &amp; Funktionen</span>
     {% if s.REINJECT_MODE %}
     <span class="step-status done">
@@ -227,7 +227,7 @@
 <!-- ── Step 3: Entra-Login ────────────────────────────────────────────────── -->
 <div class="wizard-step {% if e.azure_app_created %}done{% endif %}" id="step-3">
   <div class="step-header">
-    <span class="step-badge">3</span>
+    <span class="step-badge">4</span>
     <span class="step-title">Entra-Login</span>
     {% if e.azure_app_created %}
     <span class="step-status done">Abgeschlossen</span>
@@ -349,7 +349,7 @@
 <!-- ── Step 4: App-Registrierung (automatisch) ────────────────────────────── -->
 <div class="wizard-step {% if e.azure_app_created %}done{% endif %}" id="step-4">
   <div class="step-header">
-    <span class="step-badge">4</span>
+    <span class="step-badge">5</span>
     <span class="step-title">Entra App-Registrierung</span>
     {% if e.azure_app_created %}
     <span class="step-status done">Automatisch erstellt</span>
@@ -380,7 +380,7 @@
 <!-- ── Step 5: Smarthost (automatisch) ────────────────────────────────────── -->
 <div class="wizard-step {% if e.exo_smarthost %}done{% endif %}" id="step-5">
   <div class="step-header">
-    <span class="step-badge">5</span>
+    <span class="step-badge">6</span>
     <span class="step-title">EXO Smarthost</span>
     {% if e.exo_smarthost %}
     <span class="step-status done">{{ e.exo_smarthost }}</span>
@@ -473,7 +473,7 @@
 <!-- ── Step opt-imap: IMAP-Zustellung (Azure / kein Port 25) ─────────────── -->
 <div class="wizard-step {% if e.imap_access_configured %}done{% endif %}" id="step-imap" style="border-color:#0284c722">
   <div class="step-header">
-    <span class="step-badge" style="background:#0284c7">8</span>
+    <span class="step-badge" style="background:#0284c7">7.1</span>
     <span class="step-title">IMAP-Zustellung konfigurieren <span style="font-weight:400;font-size:12px;color:#64748b">(Azure / kein Port 25)</span></span>
     {% if e.imap_access_configured %}
     <span class="step-status done" style="background:#e0f2fe;color:#0284c7">Eingerichtet</span>
@@ -538,10 +538,115 @@
   </div>
 </div>
 
+<!-- ── Step opt-acs: Azure Communication Services (S/MIME ACME Mails) ──────── -->
+<div class="wizard-step" id="step-acs" style="border-color:#d9770622;opacity:0.75;display:none">
+  <div class="step-header">
+    <span class="step-badge" style="background:#d97706">7.2</span>
+    <span class="step-title">Azure Communication Services – ACME-Mails
+      <span style="font-weight:400;font-size:12px;color:#92400e"> (S/MIME Zertifikat-Erneuerung ohne Port&nbsp;25)</span>
+    </span>
+    <span class="step-status pending" style="background:#fef3c7;color:#92400e">Geplant</span>
+  </div>
+  <div class="step-body">
+
+    <div class="alert warn" style="margin-bottom:16px;border-color:#fcd34d;background:#fffbeb;color:#78350f">
+      <strong>Vorschau — noch nicht aktiv.</strong>
+      Diese Konfiguration wird in einer der n&auml;chsten Versionen vollst&auml;ndig implementiert.
+      Die Felder sind noch nicht funktional.
+    </div>
+
+    <p style="font-size:13px;margin-bottom:14px;color:#555;line-height:1.6">
+      F&uuml;r die <strong>S/MIME-Zertifikatserneuerung via CASTLE ACME</strong> muss das Gateway
+      eine RFC&nbsp;8823-konforme Antwortmail senden. Exchange Online ver&auml;ndert ausgehende Mails
+      so stark (ARC-Seal, DKIM, Content-ID, Thread-Topic, CTE&nbsp;7bit&nbsp;&rarr;&nbsp;quoted-printable,
+      +25&nbsp;interne Header), dass CASTLE die Antwort als <code>invalid</code> ablehnt.<br>
+      Auf Azure-VMs ist direktes SMTP Port&nbsp;25 nach extern gesperrt.<br>
+      <strong>Azure Communication Services Email</strong> sendet die ACME-Antwortmail &uuml;ber
+      Microsofts eigene Mail-Infrastruktur (nicht Exchange Online), ohne diese Modifikationen —
+      per REST-API oder SMTP-Relay auf Port&nbsp;587/465 von unserem Code aus erreichbar.
+    </p>
+
+    <div style="background:#fef9c3;border:1px solid #fde68a;border-radius:6px;padding:10px;margin-bottom:16px;font-size:12px;color:#78350f">
+      <strong>Voraussetzung:</strong> Custom Domain <code>zarenko.net</code> (oder deine Domain) muss in ACS verifiziert sein.
+      Dann kann ACS FROM <code>erika.mustermann@zarenko.net</code> senden — RFC&nbsp;8823-konform.
+      Eine dedizierte Absenderadresse (<code>certenroll@…</code>) w&uuml;rde <em>nicht</em> funktionieren,
+      da CASTLE pr&uuml;ft, dass From: mit der zu zertifizierenden Adresse &uuml;bereinstimmt.
+    </div>
+
+    <!-- Azure-Zugangsdaten -->
+    <fieldset disabled style="border:1px solid #e2e8f0;border-radius:6px;padding:14px;margin-bottom:16px;background:#fafafa">
+      <legend style="font-size:13px;font-weight:600;padding:0 6px;color:#374151">Azure-Ressource</legend>
+
+      <div class="settings-row" style="margin-top:8px">
+        <label for="acs-subscription" style="min-width:160px">Subscription&nbsp;ID</label>
+        <input type="text" id="acs-subscription"
+               placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+               style="width:320px;font-family:monospace;font-size:13px">
+        <span style="font-size:12px;color:#888;margin-left:8px">Azure Subscription, in der die ACS-Ressource liegt</span>
+      </div>
+
+      <div class="settings-row">
+        <label for="acs-resource-group" style="min-width:160px">Resource&nbsp;Group</label>
+        <input type="text" id="acs-resource-group"
+               placeholder="z.B. rg-mail-prod"
+               style="width:260px">
+      </div>
+
+      <div class="settings-row">
+        <label for="acs-resource-name" style="min-width:160px">ACS-Ressource</label>
+        <input type="text" id="acs-resource-name"
+               placeholder="z.B. acs-signature-gateway"
+               style="width:260px">
+        <span style="font-size:12px;color:#888;margin-left:8px">Name der Communication Services Ressource in Azure</span>
+      </div>
+
+      <div class="actions" style="margin-top:10px">
+        <button class="btn secondary" disabled>Verbindung testen</button>
+      </div>
+    </fieldset>
+
+    <!-- Domain-Liste -->
+    <fieldset disabled style="border:1px solid #e2e8f0;border-radius:6px;padding:14px;margin-bottom:16px;background:#fafafa">
+      <legend style="font-size:13px;font-weight:600;padding:0 6px;color:#374151">Absender-Domains</legend>
+      <p style="font-size:12px;color:#555;margin:6px 0 12px">
+        Pro Domain wird ein <strong>TXT-Verifikationsrecord</strong> f&uuml;r ACS ausgespuckt.
+        Nach DNS-Eintrag: &bdquo;Verifizieren&ldquo;. Dann steht die Domain als Absender f&uuml;r ACME-Mails bereit.
+      </p>
+
+      <div id="acs-domains-list">
+        <!-- Beispiel-Zeile (read-only Vorschau) -->
+        <div class="acs-domain-row" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+          <input type="text" value="zarenko.net" placeholder="domain.tld"
+                 style="width:200px;font-family:monospace" disabled>
+          <span class="acs-txt-record" style="font-size:11px;font-family:monospace;background:#f1f5f9;
+                border:1px solid #cbd5e1;border-radius:4px;padding:3px 6px;color:#475569;flex:1;min-width:180px">
+            TXT-Record erscheint nach Verbindung mit Azure
+          </span>
+          <button class="btn secondary" style="font-size:12px;padding:4px 10px" disabled>Verifizieren</button>
+          <button class="btn secondary" style="font-size:12px;padding:4px 10px" disabled>Test-Mail</button>
+          <button style="background:none;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;
+                  padding:3px 8px;cursor:pointer;font-size:12px" disabled>&times;</button>
+        </div>
+      </div>
+
+      <div class="actions" style="margin-top:6px">
+        <button class="btn secondary" style="font-size:12px" disabled>+ Domain hinzuf&uuml;gen</button>
+      </div>
+    </fieldset>
+
+    <p style="font-size:12px;color:#92400e;margin-top:4px">
+      Sobald eine Domain verifiziert ist, kann unter
+      <strong>S/MIME &rarr; Einstellungen</strong> &bdquo;ACME-Mail via ACS&ldquo; aktiviert werden
+      — das Gateway verwendet dann ACS statt direktem SMTP Port&nbsp;25 f&uuml;r CASTLE-Antwortmails.
+    </p>
+
+  </div>
+</div>
+
 <!-- ── Steps 8+9 (opt): S/MIME Inbound Transport Rules ───────────────────── -->
 <div class="wizard-step {% if e.smime_rules_created %}done{% endif %}" id="step-smime" style="border-color:#7c3aed22">
   <div class="step-header">
-    <span class="step-badge" style="background:#7c3aed">9</span>
+    <span class="step-badge" style="background:#7c3aed">7.3</span>
     <span class="step-title">S/MIME – Inbound Transport-Regeln</span>
     {% if e.smime_rules_created %}
     <span class="step-status done" style="background:#f3e8ff;color:#7c3aed">Eingerichtet</span>
@@ -597,7 +702,7 @@
 <!-- ── Step 10: Verbindungstest ───────────────────────────────────────────── -->
 <div class="wizard-step {% if e.setup_complete %}done{% endif %}" id="step-10">
   <div class="step-header">
-    <span class="step-badge">10</span>
+    <span class="step-badge">8</span>
     <span class="step-title">Verbindungstest &amp; Abschluss</span>
     {% if e.setup_complete %}
     <span class="step-status done">Setup abgeschlossen</span>
@@ -994,15 +1099,19 @@ function updateModeSelection() {
   // Show/hide wizard steps based on mode
   const stepTls   = document.getElementById('step-le');
   const stepImap  = document.getElementById('step-imap');
+  const stepAcs   = document.getElementById('step-acs');
   const stepSmime = document.getElementById('step-smime');
 
-  // TLS cert (step 6): only needed for SMTP mode (inbound connector uses client cert)
-  if (stepTls) stepTls.style.display = (mode === 'smtp') ? '' : 'none';
+  // TLS cert (2.1): only needed for SMTP mode (inbound connector uses client cert)
+  if (stepTls)  stepTls.style.display  = (mode === 'smtp') ? '' : 'none';
 
-  // IMAP access step: only for imap mode
+  // IMAP access (7.1): only for imap mode
   if (stepImap) stepImap.style.display = (mode === 'imap') ? '' : 'none';
 
-  // S/MIME step: only if enabled and mode supports it
+  // ACS (7.2): only relevant when NOT using direct SMTP port 25
+  if (stepAcs)  stepAcs.style.display  = (mode !== 'smtp') ? '' : 'none';
+
+  // S/MIME (7.3): only if enabled and mode supports it
   const showSmime = (mode !== 'graph') && smimeCb.checked;
   if (stepSmime) stepSmime.style.display = showSmime ? '' : 'none';
 }
@@ -1027,17 +1136,162 @@ async function saveModeSelection() {
   }
 }
 
+// ── (Observatory moved to /debug) ────────────────────────────────────────────
+
+async function obsGetRemoteDomain() {
+  const btn = document.getElementById('obs-rd-get-btn');
+  const result = document.getElementById('obs-rd-result');
+  const detail = document.getElementById('obs-rd-detail');
+  btn.disabled = true; btn.textContent = '…';
+  const r = await fetch('/api/setup/remote-domain-castle');
+  const d = await r.json();
+  btn.disabled = false; btn.textContent = 'Aktuelle Einstellungen lesen';
+  if (d.ok) {
+    showAlert(result, 'success', 'Remote Domain gefunden.');
+    detail.textContent = JSON.stringify(d, null, 2);
+    detail.style.display = 'block';
+  } else {
+    showAlert(result, d.error === 'not_found' ? 'warn' : 'error',
+      d.error === 'not_found' ? 'Remote Domain "Castle ACME" nicht vorhanden.' : ('Fehler: ' + (d.error || 'Unbekannt')));
+    detail.style.display = 'none';
+  }
+}
+
+async function obsSetRemoteDomain() {
+  const btn = document.getElementById('obs-rd-set-btn');
+  const result = document.getElementById('obs-rd-result');
+  const detail = document.getElementById('obs-rd-detail');
+  btn.disabled = true; btn.textContent = 'Konfiguriere… (ca. 30s)';
+  hideAlert(result);
+  const r = await fetch('/api/setup/remote-domain-castle', {method:'POST', headers:{'Content-Type':'application/json'}});
+  const d = await r.json();
+  btn.disabled = false; btn.textContent = 'RemoteDomain setzen / aktualisieren';
+  if (d.ok) {
+    showAlert(result, 'success', 'Remote Domain konfiguriert: <code>ByteEncoderTypeFor7BitCharsets=' + (d.ByteEncoderTypeFor7BitCharsets||'?') + '</code>');
+    detail.textContent = JSON.stringify(d, null, 2);
+    detail.style.display = 'block';
+  } else {
+    showAlert(result, 'error', 'Fehler: ' + (d.error || JSON.stringify(d)));
+    detail.style.display = 'none';
+  }
+}
+
+async function obsDeleteRemoteDomain() {
+  if (!confirm('Remote Domain "Castle ACME" wirklich entfernen?')) return;
+  const btn = document.getElementById('obs-rd-del-btn');
+  const result = document.getElementById('obs-rd-result');
+  btn.disabled = true; btn.textContent = '…';
+  const r = await fetch('/api/setup/remote-domain-castle', {method:'DELETE', headers:{'Content-Type':'application/json'}});
+  const d = await r.json();
+  btn.disabled = false; btn.textContent = 'Entfernen';
+  showAlert(result, d.ok ? 'success' : 'error',
+    d.ok ? ('Entfernt: ' + (d.removed ? 'ja' : 'war nicht vorhanden')) : ('Fehler: ' + d.error));
+}
+
+let _obsPoller = null;
+
+async function obsSendTest() {
+  const btn = document.getElementById('obs-send-btn');
+  const result = document.getElementById('obs-send-result');
+  const from_email = (document.getElementById('obs-from').value||'').trim();
+  const to_email   = (document.getElementById('obs-to').value||'acme@castle.cloud').trim();
+  const label      = (document.getElementById('obs-label').value||'').trim() || 'test-' + Date.now();
+  if (!from_email) { showAlert(result,'error','Absender-Adresse angeben.'); return; }
+  btn.disabled = true; btn.textContent = 'Sendet…';
+  hideAlert(result);
+  const r = await fetch('/api/test/send-graph-acme', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({from_email, to_email, label}),
+  });
+  const d = await r.json();
+  btn.disabled = false; btn.textContent = 'Test-Mail senden (Graph API)';
+  if (d.ok) {
+    showAlert(result, 'success',
+      'Gesendet ✓ — Subject: <code>' + d.subject + '</code><br>'
+      + 'Warte ~15s, dann automatisch Captures laden…');
+    // Auto-refresh captures after 15s
+    if (_obsPoller) clearTimeout(_obsPoller);
+    _obsPoller = setTimeout(() => { obsRefreshCaptures(); }, 15000);
+  } else {
+    showAlert(result, 'error', 'Fehler: ' + JSON.stringify(d));
+  }
+}
+
+async function obsRefreshCaptures() {
+  const r = await fetch('/api/test/acme-capture');
+  const d = await r.json();
+  const container = document.getElementById('obs-captures-container');
+  const captures = d.captures || [];
+  if (!captures.length) {
+    container.innerHTML = '<p style="color:#888;font-size:13px">Noch keine Captures.</p>';
+    return;
+  }
+  container.innerHTML = captures.map((c, i) => {
+    const ts = new Date(c.ts * 1000).toLocaleTimeString('de-DE');
+    const raw = c.raw || '';
+    // Split headers from body
+    const sep = raw.indexOf('\r\n\r\n') !== -1 ? '\r\n\r\n' : '\n\n';
+    const sepIdx = raw.indexOf(sep);
+    const headers = sepIdx !== -1 ? raw.substring(0, sepIdx) : raw;
+    const body    = sepIdx !== -1 ? raw.substring(sepIdx + sep.length) : '';
+    const headerLines = headers.split(/\r?\n/);
+    const interesting = ['content-transfer-encoding','content-type','content-id',
+      'from','to','subject','auto-submitted','thread-topic','thread-index',
+      'arc-seal','dkim-signature','x-ms-','mime-version'];
+    const highlighted = headerLines.map(l => {
+      const lower = l.toLowerCase();
+      const isInteresting = interesting.some(k => lower.startsWith(k));
+      if (isInteresting) {
+        const isBad = lower.startsWith('thread-') || lower.startsWith('arc-')
+          || lower.startsWith('dkim-') || lower.startsWith('x-ms-')
+          || lower.startsWith('content-id') || (lower.startsWith('content-transfer') && lower.includes('quoted'));
+        const isGood = lower.startsWith('content-transfer') && lower.includes('7bit');
+        const color = isBad ? '#dc2626' : isGood ? '#16a34a' : '#0284c7';
+        return `<span style="color:${color};font-weight:600">${obsEsc(l)}</span>`;
+      }
+      return `<span style="color:#64748b">${obsEsc(l)}</span>`;
+    }).join('\n');
+    return `<div style="margin-bottom:14px;border:1px solid #e2e8f0;border-radius:6px;overflow:hidden">
+      <div style="background:#f1f5f9;padding:6px 10px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-weight:600;font-size:13px">#${i+1} — ${ts} — <em style="color:#555;font-weight:400">${obsEsc(c.label||'')}</em></span>
+        <button onclick="obsToggle('obs-raw-${i}')" style="font-size:11px;background:none;border:1px solid #cbd5e1;border-radius:4px;padding:2px 6px;cursor:pointer">Body ▾</button>
+      </div>
+      <pre style="margin:0;padding:8px 10px;font-size:11px;overflow-x:auto;white-space:pre-wrap;max-height:400px;overflow-y:auto">${highlighted}</pre>
+      <div id="obs-raw-${i}" style="display:none;border-top:1px solid #e2e8f0;padding:8px 10px;background:#fefce8">
+        <pre style="margin:0;font-size:11px;white-space:pre-wrap">${obsEsc(body)}</pre>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function obsEsc(s) {
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function obsToggle(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
+}
+
+async function obsClearCaptures() {
+  await fetch('/api/test/acme-capture', {method:'DELETE', headers:{'Content-Type':'application/json'}});
+  obsRefreshCaptures();
+}
+
 // Apply mode-based visibility on page load
 (function() {
   const mode = document.querySelector('input[name="reinject-mode-wizard"]:checked')?.value || 'smtp';
   const stepTls   = document.getElementById('step-le');
   const stepImap  = document.getElementById('step-imap');
+  const stepAcs   = document.getElementById('step-acs');
   const stepSmime = document.getElementById('step-smime');
   const smimeCb   = document.getElementById('smime-enabled-wizard');
   if (!smimeCb) return;
   if (mode === 'graph') { smimeCb.checked = false; smimeCb.disabled = true; }
   if (stepTls)   stepTls.style.display   = (mode === 'smtp') ? '' : 'none';
   if (stepImap)  stepImap.style.display  = (mode === 'imap') ? '' : 'none';
+  if (stepAcs)   stepAcs.style.display   = (mode !== 'smtp') ? '' : 'none';
   if (stepSmime) stepSmime.style.display = (mode !== 'graph' && smimeCb.checked) ? '' : 'none';
 })();
 
