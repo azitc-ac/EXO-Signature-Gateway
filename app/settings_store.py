@@ -63,6 +63,8 @@ DEFAULTS: dict = {
     "NOTIFY_SMIME_EXPIRY": None,     # None/True = send; False = suppress S/MIME expiry admin alert
     "NOTIFY_CERT_RENEWAL": None,     # None/True = send; False = suppress renewal success/failure
     "NOTIFY_LE_EVENTS": None,        # None/True = send; False = suppress LE cert events
+    # ── ACME ─────────────────────────────────────────────────────────────────
+    "ACME_REPLY_METHOD": "graph",       # "graph" or "direct_smtp" — how challenge replies are sent
     # ── S/MIME lifecycle management ───────────────────────────────────────────
     "GATEWAY_EXTERNAL_URL": "",      # e.g. https://mail.company.com:8080 — used in renewal links
     "CERT_RENEWAL_THRESHOLDS": [30, 14, 7, 1],  # Notify user at these days-before-expiry

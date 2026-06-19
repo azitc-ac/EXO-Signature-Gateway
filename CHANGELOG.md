@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.0.111 — 2026-06-19 — fix: ACME_REPLY_METHOD-Setting nicht persistiert (fehlte in DEFAULTS)
+
+- `settings_store.DEFAULTS`: `ACME_REPLY_METHOD: "graph"` ergänzt
+- Ursache: `settings_store.update()` filtert Keys die nicht in DEFAULTS sind — Setting wurde
+  zwar von der API als OK gemeldet, aber sofort verworfen; Methode blieb immer "graph"
+
 ## v1.0.109 — 2026-06-19 — Debug: ACME Challenge Reply Methode Toggle (Graph API / Direktversand MX Port 25)
 
 - Debug-Tab: neuer Abschnitt mit zwei Schaltflächen — aktive Methode farblich hervorgehoben
