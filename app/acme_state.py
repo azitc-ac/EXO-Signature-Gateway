@@ -172,6 +172,7 @@ async def _send_challenge_reply(
     """
     import asyncio
     import email.message
+    import email.policy
 
     body_text = (
         "-----BEGIN ACME RESPONSE-----\r\n"
@@ -189,8 +190,12 @@ async def _send_challenge_reply(
         mime["References"] = internet_message_id
     mime.set_content(body_text, subtype="plain", charset="us-ascii")
 
-    raw_mime = mime.as_bytes()
-    log.info("ACME reply MIME body:\n%s", mime.as_string()[:400])
+    # email.policy.SMTP ensures CRLF line endings throughout the MIME message.
+    # Without this, as_bytes() produces bare LF (\n), which Exchange rejects
+    # with 550 5.6.11 SMTPSEND.BareLinefeedsAreIllegal when delivering via
+    # the SMTP connector (and our server doesn't support BDAT as fallback).
+    raw_mime = mime.as_bytes(policy=email.policy.SMTP)
+    log.info("ACME reply MIME body:\n%s", raw_mime[:400].decode("ascii", errors="replace"))
 
     # Graph API sendMail → Exchange → CA domain
     log.info("ACME: sending challenge reply via Graph API for %s → %s", from_email, to_email)

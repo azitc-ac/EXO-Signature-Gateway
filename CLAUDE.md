@@ -43,14 +43,23 @@ response   = b64url(hashlib.sha256(key_authz.encode()).digest())
 # Deployment nutzt IMAP+Graph-Modus — Port 25 outbound ist nicht erlaubt.
 # Graph API sendMail ist der einzige Weg für _send_challenge_reply().
 #
-# Voraussetzung: RemoteDomain für die CA-Domain (z.B. castle.cloud) mit
-#   Set-RemoteDomain -ByteEncoderTypeFor7BitCharsets Use7Bit
-# Damit verhindert Exchange die CTE 7bit→quoted-printable Umkodierung,
-# die den ACME-Token korrumpieren würde.
+# ZWINGEND: mime.as_bytes(policy=email.policy.SMTP) verwenden!
+# email.message.as_bytes() ohne Policy produziert bare LF (\n).
+# Exchange lehnt solche Mails ab: 550 5.6.11 SMTPSEND.BareLinefeedsAreIllegal
+# (Exchange Message Trace: TRANSFER → Fail, FQDN=sig.zarenko.net)
 #
-# Extra Exchange-Header (ARC-Seal, DKIM, Thread-Topic, ...) sind unkritisch —
-# CASTLE prüft nur den Body-Inhalt (ACME response digest), nicht die Header.
-# Implementiert in acme_state._send_challenge_reply() via graph_reinject.send_via_graph_mime
+# RemoteDomain für castle.cloud (Name: "Castle ACME"):
+#   ByteEncoderTypeFor7BitCharsets=Use7Bit, ContentType=MimeText, TNEFEnabled=$false
+# Verhindert CTE-Konvertierung 7bit→quoted-printable, die den ACME-Token korrumpiert.
+# Prüfen via EXO PS: Get-RemoteDomain -Identity "Castle ACME"
+# Setzen via Web-UI: Debug-Tab → Schritt A, oder API /api/setup/remote-domain-castle
+#
+# Double-Hop (by design, Exchange Transport-Regel):
+#   Graph sendMail → Exchange → Connector → unser Gateway SMTP → reinject Graph → castle.cloud MX
+# Der Gateway-Passthrough baut das MIME SAUBER NEU auf (_rebuild_acme_reply in handler.py):
+#   Exchange fügt ~25KB Disclaimer/Thread-History MIT bare LF ein → castle.cloud MX lehnt ab
+#   (_rebuild_acme_reply extrahiert nur den ACME-Response-Block, baut frisches MIME mit CRLF)
+# Optional: Transport-Regel Ausnahme für rcpt=acme@castle.cloud → direkter Hop ohne Gateway
 ```
 
 ### Graph API: sendMail vs. mailFolders/inbox
@@ -126,10 +135,26 @@ Web-UI :8080 (HTTPS, FastAPI + Jinja2)
    - Liest **Body** der Mail, um `token_part2` zu verifizieren (seit v1.0.83)
    - Time-Filter: nur Mails nach `order["created"]`
 3. `handle_challenge_email()` → berechnet `response`, sendet Reply via `sendMail`
-   - Reply hat `Auto-Submitted: auto-generated` → wird vom Gateway nicht signiert
-4. `complete_order_after_challenge()` → wartet 15 s, triggert CASTLE, pollt auf `ready`
+   - MIME mit `email.policy.SMTP` serialisieren → CRLF-Zeilenenden zwingend!
+   - Exchange routet Reply über Transport-Connector zurück durch unser Gateway
+   - Gateway-Handler erkennt `Subject: Re: ACME:` → `_rebuild_acme_reply()` → sauberes MIME
+4. `complete_order_after_challenge()` → wartet 30 s, triggert CASTLE, pollt auf `ready`
    - Timeout: **1800 s** (30 min) — CASTLE Staging ist langsam
 5. Finalize mit CSR → Download cert → `smime_store.store_pem_slot()`
+
+### Diagnose bei ACME-Fehlern
+```
+Exchange Message Trace (Admin Center → Mail flow → Message trace):
+  TRANSFER → Fail:
+    FQDN=sig.zarenko.net       → bare LF in unserem MIME (policy.SMTP fehlt)
+    FQDN=route2.mx.cloudflare.net → bare LF im Exchange-modifizierten MIME
+                                    (_rebuild_acme_reply im Handler fehlt/fehlerhaft)
+  TRANSFER → Send external: OK → Mail kam bei castle.cloud an
+  Challenge status "processing" → Mail kam an, CASTLE wartet auf Reply
+  Challenge status "valid"      → Alles OK, Order geht in "ready"
+  Finalize 500 FileNotFoundError → CASTLE Production-Bug (stand 2026-06-19),
+                                   Staging als Workaround oder warten
+```
 
 ### Staging vs. Production
 - Staging:    `https://acme-staging.castle.cloud/acme/directory`

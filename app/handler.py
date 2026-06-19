@@ -31,6 +31,57 @@ async def _patch_sent_item(sender: str, message_id: str, html_body: str) -> None
     log.warning("Gave up patching Sent Item for %s after 3 attempts", sender)
 
 
+def _rebuild_acme_reply(msg: email.message.Message) -> email.message.EmailMessage | None:
+    """Extract ACME response block from Exchange-modified mail and return a clean MIME.
+
+    Exchange adds disclaimers and thread-history with bare LF before forwarding to
+    external recipients.  Rebuilding from scratch avoids those additions and
+    guarantees CRLF line endings throughout.
+    """
+    import re
+    # Extract plain-text body (handles multipart and encoded payloads)
+    body_text = ""
+    if msg.is_multipart():
+        for part in msg.walk():
+            if part.get_content_type() == "text/plain":
+                payload = part.get_payload(decode=True)
+                if payload:
+                    body_text = payload.decode("utf-8", errors="replace")
+                    break
+    else:
+        payload = msg.get_payload(decode=True)
+        if payload:
+            body_text = payload.decode("utf-8", errors="replace")
+
+    m = re.search(
+        r'-----BEGIN ACME RESPONSE-----\r?\n([A-Za-z0-9_=-]+)\r?\n-----END ACME RESPONSE-----',
+        body_text,
+    )
+    if not m:
+        return None
+
+    digest = m.group(1).strip()
+    clean_body = (
+        "-----BEGIN ACME RESPONSE-----\r\n"
+        f"{digest}\r\n"
+        "-----END ACME RESPONSE-----\r\n"
+    )
+
+    out = email.message.EmailMessage()
+    out["From"] = msg.get("From", "")
+    out["To"] = msg.get("To", "")
+    out["Subject"] = msg.get("Subject", "")
+    out["Auto-Submitted"] = "auto-generated"
+    in_reply_to = (msg.get("In-Reply-To") or "").strip()
+    references  = (msg.get("References") or in_reply_to).strip()
+    if in_reply_to:
+        out["In-Reply-To"] = in_reply_to
+    if references:
+        out["References"] = references
+    out.set_content(clean_body, subtype="plain", charset="us-ascii")
+    return out
+
+
 def _decode_subject(raw: str) -> str:
     """Decode RFC 2047 encoded subject header to plain Unicode."""
     try:
@@ -182,8 +233,21 @@ class SignatureHandler:
             if decoded_subject.startswith("Re: ACME: ") and not loop_detector.is_signed(msg):
                 log.info("ACME challenge reply passthrough (Re: ACME subject): from=%s to=%s",
                          sender, recipients)
-                loop_detector.mark_as_signed(msg)
-                reinject.send(sender, recipients, msg.as_bytes())
+                # Reconstruct a clean MIME instead of forwarding the Exchange-modified
+                # message: Exchange adds disclaimer/thread-history with bare LF (\n),
+                # which castle.cloud's MX (and our own SMTP) reject as bare linefeeds
+                # (550 5.6.11 SMTPSEND.BareLinefeedsAreIllegal).
+                clean = _rebuild_acme_reply(msg)
+                if clean is not None:
+                    import email.policy as _ep
+                    raw_out = clean.as_bytes(policy=_ep.SMTP)
+                    log.info("ACME passthrough: rebuilt clean MIME (%d bytes)", len(raw_out))
+                else:
+                    # Fallback: at least normalise CRLF in whatever Exchange sent
+                    raw_out = raw.replace(b'\r\n', b'\n').replace(b'\n', b'\r\n')
+                    log.warning("ACME passthrough: rebuild failed, forwarding CRLF-normalised Exchange copy")
+                raw_out = loop_detector.mark_as_signed_bytes(raw_out)
+                reinject.send(sender, recipients, raw_out)
                 return "250 OK"
 
             # ── Auto-generated mail passthrough (Bookings, OOO, calendar replies) ──
