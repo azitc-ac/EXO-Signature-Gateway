@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.0.118 — 2026-06-19 — fix: Stats überleben Container-Restart vollständig
+
+- `stats.json` erhält neues Feld `total` — laufender Gesamtstand, wird bei jedem
+  `increment()` auf Disk geschrieben (kein Datenverlust bei Container-Neustart)
+- `_load()`: `_stats` wird aus `total` initialisiert (statt aus `snapshot`)
+  — `snapshot` bleibt ausschließlich für das tägliche Delta (`get_daily()`)
+- `_save_snapshot()` ersetzt `_save()` und pflegt beide Felder konsistent
+- Stats manuell aus Logs korrigiert: processed=4, smime_signed=3 für heute (19.06.)
+  (karen 13:32, alexander 12:58+16:16, erika 16:14)
+
 ## v1.0.115 — 2026-06-19 — fix: Tagesbericht mehrfach pro Tag + Statistiken reset bei Neustart
 
 - `scheduler._loop()`: `_DAILY_LAST_RUN` wird jetzt VOR `_run_daily()` gespeichert —
