@@ -1612,3 +1612,51 @@ async def api_remote_domain_remove(user: str = Depends(_check_auth)):
     )
     log.info("Remote Domain castle.cloud removed by %s: %s", user, result)
     return JSONResponse(result)
+
+
+# ── EXO PowerShell Certificate Export ─────────────────────────────────────────
+
+@app.get("/api/cert/exo-ps-info")
+async def api_cert_exo_ps_info(user: str = Depends(_check_auth)):
+    """Return subject, thumbprint (SHA-1, as shown in Azure Portal) and expiry of the EXO PS auth.pfx."""
+    from cryptography.hazmat.primitives.serialization import pkcs12
+    from cryptography.hazmat.primitives import hashes
+    pfx_path = "/app/data/auth.pfx"
+    try:
+        with open(pfx_path, "rb") as f:
+            pfx_data = f.read()
+        _, cert, _ = pkcs12.load_key_and_certificates(pfx_data, password=None)
+        thumbprint_sha1 = cert.fingerprint(hashes.SHA1()).hex().upper()  # noqa: S303 — display only
+        return JSONResponse({
+            "ok": True,
+            "subject": cert.subject.rfc4514_string(),
+            "thumbprint": thumbprint_sha1,
+            "not_before": cert.not_valid_before_utc.isoformat(),
+            "not_after": cert.not_valid_after_utc.isoformat(),
+        })
+    except FileNotFoundError:
+        return JSONResponse({"ok": False, "error": "auth.pfx nicht gefunden"}, status_code=404)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+
+@app.get("/api/cert/exo-ps-export.cer")
+async def api_cert_exo_ps_export(user: str = Depends(_check_auth)):
+    """Export the public-key certificate from auth.pfx as DER-encoded .cer (no private key)."""
+    from cryptography.hazmat.primitives.serialization import pkcs12, Encoding
+    from starlette.responses import Response
+    pfx_path = "/app/data/auth.pfx"
+    try:
+        with open(pfx_path, "rb") as f:
+            pfx_data = f.read()
+        _, cert, _ = pkcs12.load_key_and_certificates(pfx_data, password=None)
+        der_bytes = cert.public_bytes(Encoding.DER)
+        return Response(
+            content=der_bytes,
+            media_type="application/pkix-cert",
+            headers={"Content-Disposition": 'attachment; filename="EXO-PS-Auth.cer"'},
+        )
+    except FileNotFoundError:
+        return JSONResponse({"ok": False, "error": "auth.pfx nicht gefunden"}, status_code=404)
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)

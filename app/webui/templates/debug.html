@@ -2,6 +2,62 @@
 {% block content %}
 <h1>Debug</h1>
 
+<!-- ── EXO PowerShell Zertifikat ──────────────────────────────────────────── -->
+<div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
+  <div class="step-header">
+    <span class="step-badge" style="background:#0369a1;font-size:10px">Cert</span>
+    <span class="step-title">EXO PowerShell Zertifikat
+      <span style="font-weight:400;font-size:12px;color:#57534e"> — auth.pfx Public Key für Azure App-Registrierung exportieren</span>
+    </span>
+  </div>
+  <div class="step-body">
+    <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
+      Exportiert den <strong>öffentlichen Schlüssel</strong> aus <code>auth.pfx</code> als DER-kodierte
+      <code>.cer</code>-Datei (kein Private Key). Diese muss in der Azure App-Registrierung
+      <strong>EXO PowerShell</strong> (<code>3f4de48c-a22a-45bd-a006-00265b27fe97</code>)
+      unter <em>Zertifikate &amp; Geheimnisse → Zertifikate</em> hochgeladen werden,
+      damit <code>Connect-ExchangeOnline</code> funktioniert.
+    </p>
+
+    <div id="cert-info-box" style="display:none;background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;padding:12px;margin-bottom:14px;font-size:12px;font-family:monospace;line-height:1.8"></div>
+
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button class="btn secondary" id="cert-info-btn" onclick="certLoadInfo()">Zertifikat-Info anzeigen</button>
+      <a id="cert-download-link" href="/api/cert/exo-ps-export.cer"
+         style="display:inline-block;padding:8px 16px;background:#0369a1;color:#fff;border-radius:6px;font-size:13px;text-decoration:none;font-weight:600">
+        ⬇ EXO-PS-Auth.cer herunterladen
+      </a>
+    </div>
+    <div id="cert-info-result" style="display:none;margin-top:10px"></div>
+  </div>
+</div>
+
+<script>
+async function certLoadInfo() {
+  const btn = document.getElementById('cert-info-btn');
+  const box = document.getElementById('cert-info-box');
+  const result = document.getElementById('cert-info-result');
+  btn.disabled = true; btn.textContent = '…';
+  const r = await fetch('/api/cert/exo-ps-info');
+  const d = await r.json();
+  btn.disabled = false; btn.textContent = 'Zertifikat-Info anzeigen';
+  if (d.ok) {
+    box.innerHTML =
+      '<strong>Subject:</strong>    ' + d.subject + '<br>' +
+      '<strong>Thumbprint:</strong> ' + d.thumbprint + '<br>' +
+      '<strong>Gültig ab:</strong>  ' + new Date(d.not_before).toLocaleDateString('de-DE') + '<br>' +
+      '<strong>Gültig bis:</strong> ' + new Date(d.not_after).toLocaleDateString('de-DE');
+    box.style.display = 'block';
+    result.style.display = 'none';
+  } else {
+    box.style.display = 'none';
+    result.className = 'alert error';
+    result.textContent = 'Fehler: ' + (d.error || 'Unbekannt');
+    result.style.display = 'block';
+  }
+}
+</script>
+
 <!-- ── Exchange Header Observatory ─────────────────────────────────────── -->
 <div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
   <div class="step-header">
