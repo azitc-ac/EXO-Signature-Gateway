@@ -58,6 +58,74 @@ async function certLoadInfo() {
 }
 </script>
 
+<!-- ── ACME Challenge Reply Methode ───────────────────────────────────────── -->
+<div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
+  <div class="step-header">
+    <span class="step-badge" style="background:#7c3aed;font-size:10px">ACME</span>
+    <span class="step-title">ACME Challenge Reply — Versandmethode
+      <span style="font-weight:400;font-size:12px;color:#57534e"> — Graph API (Standard) oder Direktversand zum Castle MX</span>
+    </span>
+  </div>
+  <div class="step-body">
+    <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
+      Steuert wie die ACME-Challenge-Antwort an <code>acme@castle.cloud</code> gesendet wird.
+      <strong>Graph API</strong> läuft über Exchange (Double-Hop via Transport-Connector).
+      <strong>Direktversand</strong> verbindet direkt zu <code>castle.cloud</code> MX auf Port&nbsp;25
+      — umgeht Exchange komplett, aber nur nutzbar wenn Port 25 outbound nicht geblockt ist.
+    </p>
+
+    <div style="display:flex;gap:12px;align-items:stretch;flex-wrap:wrap;margin-bottom:14px">
+      <button id="acme-method-graph-btn" onclick="acmeSetMethod('graph')"
+        style="flex:1;min-width:180px;padding:14px;border-radius:8px;border:2px solid #e2e8f0;background:#fff;cursor:pointer;text-align:left">
+        <div style="font-weight:600;font-size:13px;margin-bottom:4px">Graph API (Standard)</div>
+        <div style="font-size:11px;color:#666">sendMail → Exchange → Transport-Connector → Gateway → castle.cloud MX</div>
+      </button>
+      <button id="acme-method-smtp-btn" onclick="acmeSetMethod('direct_smtp')"
+        style="flex:1;min-width:180px;padding:14px;border-radius:8px;border:2px solid #e2e8f0;background:#fff;cursor:pointer;text-align:left">
+        <div style="font-weight:600;font-size:13px;margin-bottom:4px">Direktversand MX (Port 25)</div>
+        <div style="font-size:11px;color:#666">DNS-MX-Auflösung → direkt zu route2.mx.cloudflare.net:25</div>
+      </button>
+    </div>
+
+    <div id="acme-method-result" style="display:none;margin-top:8px"></div>
+  </div>
+</div>
+
+<script>
+async function acmeMethodLoad() {
+  const r = await fetch('/api/acme/reply-method');
+  const d = await r.json();
+  acmeMethodHighlight(d.method);
+}
+
+function acmeMethodHighlight(method) {
+  const graphBtn = document.getElementById('acme-method-graph-btn');
+  const smtpBtn  = document.getElementById('acme-method-smtp-btn');
+  const active   = 'border-color:#7c3aed;background:#faf5ff';
+  const inactive = 'border-color:#e2e8f0;background:#fff';
+  graphBtn.style.cssText = graphBtn.style.cssText.replace(/border-color:[^;]+;background:[^;]+/, method === 'graph' ? active : inactive);
+  smtpBtn.style.cssText  = smtpBtn.style.cssText.replace(/border-color:[^;]+;background:[^;]+/,  method === 'direct_smtp' ? active : inactive);
+}
+
+async function acmeSetMethod(method) {
+  const result = document.getElementById('acme-method-result');
+  const r = await fetch('/api/acme/reply-method', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({method}),
+  });
+  const d = await r.json();
+  result.className = d.ok ? 'alert success' : 'alert error';
+  result.textContent = d.ok
+    ? 'Methode gesetzt: ' + (d.method === 'graph' ? 'Graph API' : 'Direktversand MX Port 25')
+    : 'Fehler: ' + (d.error || JSON.stringify(d));
+  result.style.display = 'block';
+  if (d.ok) acmeMethodHighlight(d.method);
+}
+
+document.addEventListener('DOMContentLoaded', acmeMethodLoad);
+</script>
+
 <!-- ── Exchange Header Observatory ─────────────────────────────────────── -->
 <div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
   <div class="step-header">

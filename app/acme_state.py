@@ -155,22 +155,16 @@ def generate_cert_key_and_csr(email: str) -> tuple[str, bytes]:
     return key_pem, csr.public_bytes(Encoding.DER)
 
 
-# ── Graph API challenge reply ─────────────────────────────────────────────────
+# ── Challenge reply MIME builder ──────────────────────────────────────────────
 
-async def _send_challenge_reply(
+def _build_challenge_reply_mime(
     from_email: str,
     to_email: str,
     re_subject: str,
     digest: str,
     internet_message_id: str = "",
-) -> bool:
-    """
-    Send the ACME email-reply-00 response via Graph API sendMail.
-    Exchange must have a RemoteDomain entry for the CA domain with
-    ByteEncoderTypeFor7BitCharsets=Use7Bit so Exchange does not re-encode
-    the body as quoted-printable (which would corrupt the ACME token).
-    """
-    import asyncio
+) -> bytes:
+    """Return a CRLF-clean MIME bytes for the ACME email-reply-00 response."""
     import email.message
     import email.policy
 
@@ -179,7 +173,6 @@ async def _send_challenge_reply(
         f"{digest}\r\n"
         "-----END ACME RESPONSE-----\r\n"
     )
-
     mime = email.message.EmailMessage()
     mime["From"] = from_email
     mime["To"] = to_email
@@ -189,16 +182,87 @@ async def _send_challenge_reply(
         mime["In-Reply-To"] = internet_message_id
         mime["References"] = internet_message_id
     mime.set_content(body_text, subtype="plain", charset="us-ascii")
+    # email.policy.SMTP → CRLF line endings; bare LF causes Exchange to reject
+    # with 550 5.6.11 SMTPSEND.BareLinefeedsAreIllegal (no BDAT fallback).
+    return mime.as_bytes(policy=email.policy.SMTP)
 
-    # email.policy.SMTP ensures CRLF line endings throughout the MIME message.
-    # Without this, as_bytes() produces bare LF (\n), which Exchange rejects
-    # with 550 5.6.11 SMTPSEND.BareLinefeedsAreIllegal when delivering via
-    # the SMTP connector (and our server doesn't support BDAT as fallback).
-    raw_mime = mime.as_bytes(policy=email.policy.SMTP)
+
+# ── Direct SMTP to CA MX ──────────────────────────────────────────────────────
+
+def _resolve_mx(domain: str) -> str:
+    """Resolve the primary MX hostname for *domain* via DNS-over-HTTPS."""
+    import urllib.request
+    import json
+    url = f"https://cloudflare-dns.com/dns-query?name={domain}&type=MX"
+    req = urllib.request.Request(url, headers={"Accept": "application/dns-json"})
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        data = json.loads(resp.read())
+    answers = data.get("Answer") or []
+    if not answers:
+        raise RuntimeError(f"No MX record found for {domain}")
+    # Each answer data looks like "10 route2.mx.cloudflare.net."
+    records = []
+    for a in answers:
+        parts = a["data"].split()
+        prio, host = int(parts[0]), parts[1].rstrip(".")
+        records.append((prio, host))
+    records.sort()
+    return records[0][1]
+
+
+def _send_reply_direct_smtp(from_email: str, to_email: str, raw_mime: bytes) -> bool:
+    """Send *raw_mime* directly to the MX of *to_email*'s domain via port 25."""
+    import smtplib
+    import ssl
+    domain = to_email.split("@")[1]
+    mx_host = _resolve_mx(domain)
+    log.info("ACME direct SMTP: resolved MX for %s → %s", domain, mx_host)
+    ctx = ssl.create_default_context()
+    try:
+        with smtplib.SMTP(mx_host, 25, timeout=30) as smtp:
+            smtp.ehlo()
+            if smtp.has_extn("STARTTLS"):
+                smtp.starttls(context=ctx)
+                smtp.ehlo()
+            smtp.sendmail(from_email, [to_email], raw_mime)
+        log.info("ACME direct SMTP: sent to %s via %s:25", to_email, mx_host)
+        return True
+    except Exception as exc:
+        log.error("ACME direct SMTP failed: %s", exc)
+        return False
+
+
+# ── Challenge reply dispatcher ────────────────────────────────────────────────
+
+async def _send_challenge_reply(
+    from_email: str,
+    to_email: str,
+    re_subject: str,
+    digest: str,
+    internet_message_id: str = "",
+) -> bool:
+    """Send the ACME email-reply-00 response using the configured method.
+
+    Method is controlled by settings ACME_REPLY_METHOD:
+      "graph"       — Graph API sendMail via Exchange (default)
+      "direct_smtp" — direct SMTP to CA domain's MX on port 25
+    """
+    import asyncio
+
+    raw_mime = _build_challenge_reply_mime(
+        from_email, to_email, re_subject, digest, internet_message_id
+    )
     log.info("ACME reply MIME body:\n%s", raw_mime[:400].decode("ascii", errors="replace"))
 
-    # Graph API sendMail → Exchange → CA domain
-    log.info("ACME: sending challenge reply via Graph API for %s → %s", from_email, to_email)
+    method = (settings_store.get("ACME_REPLY_METHOD") or "graph").strip().lower()
+    log.info("ACME: sending challenge reply via %s for %s → %s", method, from_email, to_email)
+
+    if method == "direct_smtp":
+        return await asyncio.get_event_loop().run_in_executor(
+            None, _send_reply_direct_smtp, from_email, to_email, raw_mime
+        )
+
+    # Default: Graph API sendMail → Exchange → CA domain
     try:
         import graph_reinject
         ok = await asyncio.get_event_loop().run_in_executor(
