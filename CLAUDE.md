@@ -40,8 +40,10 @@ response   = b64url(hashlib.sha256(key_authz.encode()).digest())
 
 ### ACME Challenge Reply: Graph API sendMail (KEIN direktes SMTP Port 25!)
 ```
-# Deployment nutzt IMAP+Graph-Modus — Port 25 outbound ist nicht erlaubt.
-# Graph API sendMail ist der einzige Weg für _send_challenge_reply().
+# ACME_REPLY_METHOD = "graph" ist der korrekte und bestätigte Default.
+# Port 25 outbound ist in Azure nicht erlaubt; "direct_smtp" war nur Workaround
+# während MIME-Bugs noch nicht behoben waren (v1.0.106/107).
+# Bestätigt am 2026-06-19 16:04: Production + Graph API → 59s von Order bis Cert.
 #
 # ZWINGEND: mime.as_bytes(policy=email.policy.SMTP) verwenden!
 # email.message.as_bytes() ohne Policy produziert bare LF (\n).
@@ -60,6 +62,9 @@ response   = b64url(hashlib.sha256(key_authz.encode()).digest())
 #   Exchange fügt ~25KB Disclaimer/Thread-History MIT bare LF ein → castle.cloud MX lehnt ab
 #   (_rebuild_acme_reply extrahiert nur den ACME-Response-Block, baut frisches MIME mit CRLF)
 # Optional: Transport-Regel Ausnahme für rcpt=acme@castle.cloud → direkter Hop ohne Gateway
+#
+# Account Keys sind PER USER: account_key_{email@→_}.pem (seit v1.0.113)
+# Bei Problemen: Account Key zurücksetzen (Debug-Tab) → frischer CASTLE-Account
 ```
 
 ### Graph API: sendMail vs. mailFolders/inbox
@@ -152,14 +157,18 @@ Exchange Message Trace (Admin Center → Mail flow → Message trace):
   TRANSFER → Send external: OK → Mail kam bei castle.cloud an
   Challenge status "processing" → Mail kam an, CASTLE wartet auf Reply
   Challenge status "valid"      → Alles OK, Order geht in "ready"
-  Finalize 500 FileNotFoundError → CASTLE Production-Bug (stand 2026-06-19),
-                                   Staging als Workaround oder warten
+  Finalize 500 FileNotFoundError → CASTLE Production-Bug (zeitweise, server-seitig)
+
+Wenn Graph-Weg trotz korrekter MIME-Fixes nicht klappt:
+  → Account Key zurücksetzen (Debug-Tab "ACME Account Key zurücksetzen")
+  → viele fehlgeschlagene Versuche bringen den CASTLE-Account in Bad State
 ```
 
 ### Staging vs. Production
 - Staging:    `https://acme-staging.castle.cloud/acme/directory`
 - Production: `https://acme.castle.cloud/acme/directory`
-- **Getrennte Account-URL-Dateien**: `account_url_staging.txt` / `account_url.txt`
+- **Per-User-Dateien** (seit v1.0.113): `account_key_{tag}.pem`, `account_url_{tag}.txt`
+  wobei `{tag}` = email mit `@` → `_` (z.B. `account_key_erika.mustermann_zarenko.net.pem`)
 - Staging-Flag kommt aus `CA_USER_CONFIG[email]["staging"]`
 
 ### Task-Management
