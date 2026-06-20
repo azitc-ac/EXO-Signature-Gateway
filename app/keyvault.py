@@ -5,7 +5,7 @@ Private keys are stored in Key Vault; the Sign API is called per-message
 so the raw key material never leaves Azure.
 
 Key naming: smime-{email with @→-at-, .→-, _→-}[:127]
-Required role: "Key Vault Crypto User" on the vault.
+Required role: "Key Vault Crypto Officer" on the vault (superset of Crypto User; needed for key import).
 """
 
 import base64
@@ -110,6 +110,12 @@ async def key_exists(email: str) -> bool:
         return False
 
 
+def _kv_exportable() -> bool:
+    """Return True when KV_KEY_MODE is 'fallback' (key is importable back from KV)."""
+    import settings_store as _ss
+    return _ss.get("KV_KEY_MODE") != "strict"
+
+
 async def import_rsa_key(email: str, private_key_pem: bytes) -> str:
     """
     Import an RSA or EC private key from PEM into Key Vault.
@@ -156,7 +162,7 @@ async def import_rsa_key(email: str, private_key_pem: bytes) -> str:
             "dq": _bi(priv.dmq1),
             "qi": _bi(priv.iqmp),
         }
-        key_attrs = {"exportable": False}
+        key_attrs = {"exportable": _kv_exportable()}
 
     elif isinstance(key, EllipticCurvePrivateKey):
         curve = key.curve
@@ -181,7 +187,7 @@ async def import_rsa_key(email: str, private_key_pem: bytes) -> str:
             "y": _coord(pub_nums.y),
             "d": _coord(priv_nums.private_value),
         }
-        key_attrs = {"exportable": False}
+        key_attrs = {"exportable": _kv_exportable()}
     else:
         raise ValueError(f"Nicht unterstützter Schlüsseltyp: {type(key).__name__}")
 
@@ -333,7 +339,37 @@ async def list_resource_groups(subscription_id: str, arm_token: str | None = Non
         return False, str(exc), []
 
 
-_KV_CRYPTO_USER_ROLE = "12338af0-0e69-4776-bea7-57ae8d297424"
+async def list_vaults(subscription_id: str, arm_token: str | None = None) -> tuple[bool, str, list[dict]]:
+    """List Key Vaults in a subscription. Uses delegated user token if provided, else app SP."""
+    arm_token = arm_token or await _get_arm_token()
+    if not arm_token:
+        return False, "ARM-Token nicht verfügbar", []
+    try:
+        url = (
+            f"https://management.azure.com/subscriptions/{subscription_id}"
+            "/providers/Microsoft.KeyVault/vaults?api-version=2023-07-01"
+        )
+        async with httpx.AsyncClient(timeout=15) as c:
+            resp = await c.get(url, headers={"Authorization": f"Bearer {arm_token}"})
+        if resp.status_code != 200:
+            return False, f"HTTP {resp.status_code}", []
+        items = resp.json().get("value", [])
+        vaults = [
+            {
+                "name": v["name"],
+                "uri": v.get("properties", {}).get("vaultUri", f"https://{v['name']}.vault.azure.net").rstrip("/"),
+                "resource_id": v.get("id", ""),
+            }
+            for v in items
+        ]
+        return True, "", vaults
+    except Exception as exc:
+        log.error("list_vaults error: %s", exc)
+        return False, str(exc), []
+
+
+# Key Vault Crypto Officer — superset of Crypto User; required for key import/create/delete
+_KV_CRYPTO_OFFICER_ROLE = "14b46e9e-c2b0-4bf8-b336-e8a77c82bb72"
 
 
 async def create_vault(
@@ -347,7 +383,8 @@ async def create_vault(
     arm_token: str | None = None,
 ) -> tuple[bool, str, str]:
     """
-    Create an Azure Key Vault and assign Key Vault Crypto User role to the app SP.
+    Create an Azure Key Vault and assign Key Vault Crypto Officer role to the app SP.
+    Crypto Officer is the superset of Crypto User and additionally allows key import/create/delete.
     Uses delegated user token if provided (no Contributor role needed on app SP),
     else falls back to app SP client credentials.
     Returns (ok, message, vault_url).
@@ -429,19 +466,19 @@ async def create_vault(
             (
                 f"Key Vault wurde erstellt, aber die Rollenzuweisung schlug fehl — "
                 f"Service Principal für App {client_id} nicht gefunden. "
-                f"Bitte im Azure Portal die Rolle 'Key Vault Crypto User' manuell zuweisen."
+                f"Bitte im Azure Portal die Rolle 'Key Vault Crypto Officer' manuell zuweisen."
             ),
             vault_url_result,
         )
 
-    # Assign Key Vault Crypto User role
+    # Assign Key Vault Crypto Officer role (superset: allows sign + key import/create/delete)
     kv_scope = (
         f"/subscriptions/{subscription_id}/resourceGroups/{resource_group}"
         f"/providers/Microsoft.KeyVault/vaults/{vault_name}"
     )
     role_def_id = (
         f"/subscriptions/{subscription_id}/providers/Microsoft.Authorization"
-        f"/roleDefinitions/{_KV_CRYPTO_USER_ROLE}"
+        f"/roleDefinitions/{_KV_CRYPTO_OFFICER_ROLE}"
     )
     assignment_id = str(_uuid.uuid4())
     role_url = (
@@ -474,14 +511,116 @@ async def create_vault(
             (
                 f"Key Vault erstellt, aber Rollenzuweisung fehlgeschlagen "
                 f"(HTTP {resp.status_code}): {err}. "
-                f"Bitte im Azure Portal die Rolle 'Key Vault Crypto User' "
+                f"Bitte im Azure Portal die Rolle 'Key Vault Crypto Officer' "
                 f"für die App-Registrierung manuell zuweisen."
             ),
             vault_url_result,
         )
 
-    log.info("keyvault: Crypto User role assigned (SP %s) on vault %s", sp_object_id, vault_name)
-    return True, f"Key Vault '{vault_name}' erstellt und Rolle zugewiesen.", vault_url_result
+    log.info("keyvault: Crypto Officer role assigned (SP %s) on vault %s", sp_object_id, vault_name)
+    kv_resource_id = (
+        f"/subscriptions/{subscription_id}/resourceGroups/{resource_group}"
+        f"/providers/Microsoft.KeyVault/vaults/{vault_name}"
+    )
+    return True, f"Key Vault '{vault_name}' erstellt und Rolle zugewiesen.", vault_url_result, kv_resource_id
+
+
+async def ensure_crypto_officer_role(
+    kv_resource_id: str,
+    client_id: str,
+    arm_token: str | None = None,
+) -> tuple[bool, str]:
+    """
+    Idempotently assign Key Vault Crypto Officer role to the app SP on the given vault.
+    kv_resource_id: full ARM resource path, e.g.
+      /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.KeyVault/vaults/{name}
+    Uses a deterministic role-assignment UUID (scope+role+principal) so re-running is safe.
+    Returns (ok, message).
+    """
+    import re as _re
+    import uuid as _uuid
+
+    arm_token = arm_token or await _get_arm_token()
+    if not arm_token:
+        return False, "ARM-Token nicht verfügbar — bitte oben 'Azure-Zugriff holen' klicken."
+
+    # Extract subscription_id from resource path
+    m = _re.match(r"/subscriptions/([^/]+)/", kv_resource_id)
+    if not m:
+        return False, f"Ungültige Vault Resource-ID: {kv_resource_id}"
+    subscription_id = m.group(1)
+
+    sp_object_id = await _get_sp_object_id(client_id)
+    if not sp_object_id:
+        return False, f"Service Principal für App {client_id} nicht gefunden."
+
+    # Deterministic UUID: same scope+role+principal always yields the same assignment ID
+    assignment_id = str(_uuid.uuid5(
+        _uuid.NAMESPACE_URL,
+        f"{kv_resource_id}:{_KV_CRYPTO_OFFICER_ROLE}:{sp_object_id}",
+    ))
+    role_url = (
+        f"https://management.azure.com{kv_resource_id}/providers/Microsoft.Authorization"
+        f"/roleAssignments/{assignment_id}?api-version=2022-04-01"
+    )
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as c:
+            # Look up the role definition by name to get the canonical ARM resource ID.
+            # Avoids issues with subscription-scoped vs. global paths and hardcoded GUIDs.
+            import urllib.parse as _urlparse
+            lookup_url = (
+                f"https://management.azure.com/subscriptions/{subscription_id}"
+                f"/providers/Microsoft.Authorization/roleDefinitions"
+                f"?$filter=roleName+eq+%27Key+Vault+Crypto+Officer%27"
+                f"&api-version=2022-04-01"
+            )
+            lr = await c.get(lookup_url, headers={"Authorization": f"Bearer {arm_token}"})
+            if lr.status_code == 200 and lr.json().get("value"):
+                role_def_id = lr.json()["value"][0]["id"]
+                log.info("keyvault: role def found via lookup: %s", role_def_id)
+            else:
+                # Fall back to constructed path
+                role_def_id = (
+                    f"/subscriptions/{subscription_id}/providers/Microsoft.Authorization"
+                    f"/roleDefinitions/{_KV_CRYPTO_OFFICER_ROLE}"
+                )
+                log.warning(
+                    "keyvault: role def lookup failed (HTTP %s), using hardcoded path: %s",
+                    lr.status_code, role_def_id,
+                )
+
+            role_body = {
+                "properties": {
+                    "roleDefinitionId": role_def_id,
+                    "principalId": sp_object_id,
+                    "principalType": "ServicePrincipal",
+                }
+            }
+            log.info(
+                "keyvault: assigning role SP=%s vault=%s role_def=%s",
+                sp_object_id, kv_resource_id, role_def_id,
+            )
+            resp = await c.put(
+                role_url,
+                json=role_body,
+                headers={"Authorization": f"Bearer {arm_token}", "Content-Type": "application/json"},
+            )
+        if resp.status_code in (200, 201):
+            log.info("keyvault: Crypto Officer role ensured (SP %s) on %s", sp_object_id, kv_resource_id)
+            return True, "Rolle 'Key Vault Crypto Officer' erfolgreich zugewiesen."
+        # 409 = assignment with this ID already exists with same data → idempotent success
+        if resp.status_code == 409:
+            return True, "Rolle 'Key Vault Crypto Officer' ist bereits zugewiesen."
+        try:
+            err = resp.json().get("error", {}).get("message", resp.text[:300])
+        except Exception:
+            err = resp.text[:300]
+        log.error("keyvault: role assignment failed HTTP %s: %s", resp.status_code, resp.text[:400])
+        return False, f"Rollenzuweisung fehlgeschlagen (HTTP {resp.status_code}): {err}"
+    except Exception as exc:
+        log.error("ensure_crypto_officer_role error: %s", exc)
+        return False, str(exc)
 
 
 async def test_connection(kv_url: str | None = None) -> tuple[bool, str]:
@@ -510,7 +649,7 @@ async def test_connection(kv_url: str | None = None) -> tuple[bool, str]:
         if resp.status_code == 403:
             return False, (
                 "Zugriff verweigert (403). Die App-Registrierung braucht die Rolle "
-                "'Key Vault Crypto User' auf dem Vault "
+                "'Key Vault Crypto Officer' auf dem Vault "
                 "(Azure Portal → Key Vault → Zugriffssteuerung (IAM) → Rollenzuweisung hinzufügen)."
             )
         if resp.status_code == 404:

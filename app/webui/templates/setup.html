@@ -416,35 +416,32 @@
     <div class="alert warn" style="margin-bottom:12px">Erst Schritt 5 (Entra App-Registrierung) abschließen.</div>
     {% endif %}
 
-    <!-- Toggle: neu erstellen vs. bestehend -->
+    <!-- Toggle: Assistent aktivieren -->
     <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:14px;cursor:pointer">
       <input type="checkbox" id="kv-create-toggle" onchange="toggleKvCreate()"
              {% if not e.azure_app_created %}disabled{% endif %}>
-      <span>Neu erstellen <span style="color:#6b7280;font-weight:400">(Azure Key Vault automatisch anlegen)</span></span>
+      <span>Azure Key Vault neu erstellen oder bestehenden einbinden</span>
     </label>
 
-    <!-- Sektion: bestehenden Vault verknüpfen -->
+    <!-- Sektion: URL direkt eingeben (Assistent aus) -->
     <div id="kv-manual-section">
-      <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:10px;margin-bottom:14px;font-size:13px">
-        <strong>Voraussetzung für bestehenden Vault:</strong><br>
-        <em>Azure Portal &rarr; Key Vault &rarr; Zugriffssteuerung (IAM) &rarr; Rollenzuweisung hinzufügen
-        &rarr; Rolle: <strong>Key Vault Crypto User</strong>
-        &rarr; Mitglied: App-Registrierung <strong>EXO Signature Gateway</strong>.</em>
-      </div>
+      <p style="font-size:13px;color:#6b7280;margin-bottom:10px">
+        Key Vault URL direkt unten eintragen — oder oben den Assistenten aktivieren.
+      </p>
     </div>
 
-    <!-- Sektion: Vault neu erstellen -->
+    <!-- Sektion: Assistent (neu erstellen / bestehenden einbinden) -->
     <div id="kv-create-section" style="display:none;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:14px;margin-bottom:14px">
       <p style="font-size:13px;margin:0 0 12px 0;color:#374151">
-        Erstellt einen neuen Standard-Vault mit RBAC-Autorisierung und weist automatisch die Rolle <strong>Key Vault Crypto User</strong> zu.
-        Ressourcen werden mit <strong>deinem Azure-Konto</strong> erstellt — dafür brauchst du einmalig einen Azure-Login.
+        Wähle einen bestehenden Key Vault aus, lege einen neuen an oder gib die URL manuell ein.
+        Für neue Vaults werden Ressourcen mit <strong>deinem Azure-Konto</strong> erstellt.
       </p>
 
       <!-- Azure-Login für ARM-Zugriff -->
       <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:10px;margin-bottom:14px;font-size:13px">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <span id="kv-arm-status-icon">🔑</span>
-          <span id="kv-arm-status-text" style="flex:1;color:#374151">Azure-Login erforderlich, um Subscriptions zu laden und den Vault zu erstellen.</span>
+          <span id="kv-arm-status-text" style="flex:1;color:#374151">Azure-Login erforderlich, um Subscriptions und Vaults zu laden.</span>
           <button type="button" class="btn secondary" id="kv-arm-btn" onclick="startArmLogin()"
             style="white-space:nowrap;font-size:12px;padding:4px 10px"
             {% if not e.azure_app_created %}disabled{% endif %}>
@@ -476,50 +473,75 @@
         </div>
       </div>
 
-      <!-- Resource Group -->
+      <!-- Key Vault auswählen -->
       <div class="settings-row" style="margin-bottom:10px">
-        <label>Resource Group</label>
+        <label>Key Vault</label>
         <div>
-          <select id="kv-rg-sel" style="width:280px" onchange="onKvRgChange()" disabled>
+          <select id="kv-vault-sel" style="width:320px" onchange="onKvVaultChange()" disabled>
             <option value="">— Bitte erst Subscription wählen —</option>
           </select>
-          <input type="text" id="kv-rg-manual"
-            placeholder="vorhandene-resource-group"
-            style="display:none;margin-top:6px;width:260px">
-          <div id="kv-new-rg-row" style="display:none;margin-top:6px">
-            <span style="font-size:12px;color:#6b7280">Name der neuen Resource Group:</span>
-            <input type="text" id="kv-new-rg-name" value="rg-exo-signature" style="margin-left:8px;width:220px">
+        </div>
+      </div>
+
+      <!-- Hinweis für bestehende Vaults (IAM) -->
+      <div id="kv-existing-vault-hint" style="display:none;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px 10px;margin-bottom:12px;font-size:12px">
+        Voraussetzung: <em>Azure Portal → Key Vault → Zugriffssteuerung (IAM) → Rolle <strong>Key Vault Crypto Officer</strong> → EXO Signature Gateway.</em>
+      </div>
+
+      <!-- Neu erstellen: RG, Name, Region -->
+      <div id="kv-new-vault-section" style="display:none">
+        <div class="settings-row" style="margin-bottom:10px">
+          <label>Resource Group</label>
+          <div>
+            <select id="kv-rg-sel" style="width:280px" onchange="onKvRgChange()" disabled>
+              <option value="">— Lade… —</option>
+            </select>
+            <input type="text" id="kv-rg-manual"
+              placeholder="vorhandene-resource-group"
+              style="display:none;margin-top:6px;width:260px">
+            <div id="kv-new-rg-row" style="display:none;margin-top:6px">
+              <span style="font-size:12px;color:#6b7280">Name der neuen Resource Group:</span>
+              <input type="text" id="kv-new-rg-name" value="rg-exo-signature" style="margin-left:8px;width:220px">
+            </div>
           </div>
         </div>
-      </div>
 
-      <!-- Vault-Name -->
-      <div class="settings-row" style="margin-bottom:10px">
-        <label for="kv-vault-name">Vault-Name</label>
-        <div>
-          <input type="text" id="kv-vault-name" placeholder="exo-sig-keys" style="width:220px">
-          <span class="hint" style="display:block;margin-top:3px">3–24 Zeichen, alphanumerisch und Bindestrich</span>
+        <div class="settings-row" style="margin-bottom:10px">
+          <label for="kv-vault-name">Vault-Name</label>
+          <div>
+            <input type="text" id="kv-vault-name" placeholder="exo-sig-keys" style="width:220px">
+            <span class="hint" style="display:block;margin-top:3px">3–24 Zeichen, alphanumerisch und Bindestrich</span>
+          </div>
+        </div>
+
+        <div class="settings-row" style="margin-bottom:12px">
+          <label for="kv-location">Region</label>
+          <select id="kv-location" style="width:240px">
+            <option value="germanywestcentral">Deutschland West Mitte</option>
+            <option value="westeurope" selected>Westeuropa (Niederlande)</option>
+            <option value="northeurope">Nordeuropa (Irland)</option>
+            <option value="switzerlandnorth">Schweiz Nord</option>
+            <option value="uksouth">UK Süd</option>
+            <option value="eastus">USA Ost</option>
+            <option value="westus2">USA West 2</option>
+          </select>
         </div>
       </div>
 
-      <!-- Region -->
-      <div class="settings-row" style="margin-bottom:12px">
-        <label for="kv-location">Region</label>
-        <select id="kv-location" style="width:240px">
-          <option value="germanywestcentral">Deutschland West Mitte</option>
-          <option value="westeurope" selected>Westeuropa (Niederlande)</option>
-          <option value="northeurope">Nordeuropa (Irland)</option>
-          <option value="switzerlandnorth">Schweiz Nord</option>
-          <option value="uksouth">UK Süd</option>
-          <option value="eastus">USA Ost</option>
-          <option value="westus2">USA West 2</option>
-        </select>
+      <!-- Andere URL manuell eingeben -->
+      <div id="kv-other-url-section" style="display:none;margin-bottom:10px">
+        <div class="settings-row">
+          <label>Vault URL</label>
+          <input type="url" id="kv-other-url-input"
+            placeholder="https://myvault.vault.azure.net"
+            style="width:320px;font-family:monospace;font-size:12px">
+        </div>
       </div>
 
       <div id="kv-create-result" style="display:none;margin-bottom:10px"></div>
       <div class="actions">
-        <button class="btn primary" id="kv-create-btn" onclick="createKeyvault()"
-          {% if not e.azure_app_created %}disabled{% endif %}>Key Vault anlegen</button>
+        <button class="btn primary" id="kv-create-btn" onclick="confirmKvSelection()"
+          {% if not e.azure_app_created %}disabled{% endif %}>Key Vault wählen</button>
       </div>
     </div>
 
@@ -529,17 +551,23 @@
         <input type="url" id="kv-url-input"
           value="{{ s.KEYVAULT_URL }}"
           placeholder="https://myvault.vault.azure.net"
-          style="width:340px">
+          style="width:340px"
+          oninput="onKvUrlInput()">
         <span class="hint">Format: https://&lt;vaultname&gt;.vault.azure.net</span>
       </div>
     </div>
 
     <div id="kv-test-result" style="margin-top:8px;display:none"></div>
+    <div id="kv-assign-role-result" style="margin-top:6px;display:none"></div>
     <div class="actions" style="margin-top:12px">
       <button class="btn secondary" onclick="testKeyvault()" {% if not e.azure_app_created %}disabled{% endif %}>
         Verbindung testen
       </button>
-      <button class="btn primary" onclick="saveKeyvault()" {% if not e.azure_app_created %}disabled{% endif %}>
+      <button class="btn secondary" id="kv-assign-role-btn" onclick="assignKvRole()" style="display:none">
+        Rolle sicherstellen (Crypto Officer)
+      </button>
+      <button class="btn primary" id="kv-save-btn" onclick="saveKeyvault()"
+        {% if not e.azure_app_created or not s.KEYVAULT_URL %}disabled{% endif %}>
         Speichern
       </button>
     </div>
@@ -1418,6 +1446,8 @@ function rerunAzureSetup() {
 
 var _kvSubsLoaded = false;
 var _kvArmOk = false;
+var _kvTestPassed = {{ 'true' if s.KEYVAULT_URL else 'false' }};
+var _kvLastResourceId = '';  // ARM resource ID of the last confirmed vault (for role assignment)
 
 // Listen for ARM auth result from popup
 window.addEventListener('message', function(e) {
@@ -1496,7 +1526,6 @@ function toggleKvCreate() {
   document.getElementById('kv-manual-section').style.display = checked ? 'none' : 'block';
   document.getElementById('kv-create-section').style.display = checked ? 'block' : 'none';
   if (checked && !_kvSubsLoaded) {
-    // Try loading even without ARM login — works if app SP has Reader role
     loadKvSubscriptions();
   }
 }
@@ -1512,7 +1541,6 @@ async function loadKvSubscriptions() {
       sel.innerHTML = '<option value="__other__">— manuell eingeben —</option>';
       sel.disabled = false;
       if (!_kvArmOk) {
-        // Prompt user to do ARM login
         const statusText = document.getElementById('kv-arm-status-text');
         if (statusText) statusText.textContent = 'Kein ARM-Zugriff — bitte oben "Azure-Zugriff holen" klicken.';
       }
@@ -1543,24 +1571,77 @@ async function loadKvSubscriptions() {
   } catch(e) {
     sel.innerHTML = '<option value="__other__">— manuell eingeben —</option>';
     sel.disabled = false;
-    _showKvArmHint(false, 'Netzwerkfehler beim Laden der Subscriptions.');
     onKvSubscriptionChange();
   }
 }
-
 
 function onKvSubscriptionChange() {
   const sel = document.getElementById('kv-subscription-sel');
   const manualEl = document.getElementById('kv-subscription-id-manual');
   const isOther = sel.value === '__other__';
   manualEl.style.display = isOther ? 'block' : 'none';
-  // Reset RG dropdown
-  const rgSel = document.getElementById('kv-rg-sel');
-  rgSel.innerHTML = '<option value="">— Bitte erst Subscription wählen —</option>';
-  rgSel.disabled = true;
-  document.getElementById('kv-rg-manual').style.display = 'none';
-  document.getElementById('kv-new-rg-row').style.display = 'none';
-  if (!isOther && sel.value) loadKvResourceGroups(sel.value);
+  // Reset vault dropdown
+  const vaultSel = document.getElementById('kv-vault-sel');
+  vaultSel.innerHTML = '<option value="">— Bitte erst Subscription wählen —</option>';
+  vaultSel.disabled = true;
+  document.getElementById('kv-new-vault-section').style.display = 'none';
+  document.getElementById('kv-other-url-section').style.display = 'none';
+  document.getElementById('kv-existing-vault-hint').style.display = 'none';
+  if (!isOther && sel.value) loadKvVaults(sel.value);
+}
+
+async function loadKvVaults(subscriptionId) {
+  const sel = document.getElementById('kv-vault-sel');
+  sel.innerHTML = '<option value="">— Lade… —</option>';
+  sel.disabled = true;
+  try {
+    const r = await fetch('/api/setup/keyvault/vaults?subscription_id=' + encodeURIComponent(subscriptionId));
+    const data = await r.json();
+    sel.innerHTML = '';
+    if (data.ok && data.vaults && data.vaults.length) {
+      data.vaults.forEach(function(v) {
+        const opt = document.createElement('option');
+        opt.value = v.uri;
+        opt.textContent = v.name;
+        opt.dataset.resourceId = v.resource_id || '';
+        sel.appendChild(opt);
+      });
+      const sep = document.createElement('option');
+      sep.disabled = true; sep.textContent = '──────────────';
+      sel.appendChild(sep);
+    }
+    const newOpt = document.createElement('option');
+    newOpt.value = '__new__'; newOpt.textContent = 'Neu erstellen';
+    sel.appendChild(newOpt);
+    const otherOpt = document.createElement('option');
+    otherOpt.value = '__other__'; otherOpt.textContent = '…andere URL';
+    sel.appendChild(otherOpt);
+    sel.disabled = false;
+    onKvVaultChange();
+  } catch(e) {
+    sel.innerHTML = '<option value="__new__">Neu erstellen</option><option value="__other__">…andere URL</option>';
+    sel.disabled = false;
+    onKvVaultChange();
+  }
+}
+
+function onKvVaultChange() {
+  const val = document.getElementById('kv-vault-sel').value;
+  const isNew = val === '__new__';
+  const isOther = val === '__other__';
+  const isExisting = val && !isNew && !isOther;
+  document.getElementById('kv-new-vault-section').style.display = isNew ? 'block' : 'none';
+  document.getElementById('kv-other-url-section').style.display = isOther ? 'block' : 'none';
+  document.getElementById('kv-existing-vault-hint').style.display = isExisting ? 'block' : 'none';
+  document.getElementById('kv-create-btn').textContent = isNew ? 'Key Vault anlegen' : 'Key Vault wählen';
+  // Load RGs when user picks "Neu erstellen"
+  if (isNew) {
+    const subId = _kvGetSubscriptionId();
+    const rgSel = document.getElementById('kv-rg-sel');
+    if (subId && (rgSel.disabled || rgSel.options.length <= 1)) {
+      loadKvResourceGroups(subId);
+    }
+  }
 }
 
 async function loadKvResourceGroups(subscriptionId) {
@@ -1602,7 +1683,6 @@ function onKvRgChange() {
   const val = document.getElementById('kv-rg-sel').value;
   document.getElementById('kv-rg-manual').style.display = val === '__other__' ? 'block' : 'none';
   document.getElementById('kv-new-rg-row').style.display = val === '__new__' ? 'block' : 'none';
-  // Auto-set region when selecting an existing RG
   if (val && val !== '__new__' && val !== '__other__') {
     const sel = document.getElementById('kv-rg-sel');
     const opt = sel.options[sel.selectedIndex];
@@ -1630,47 +1710,98 @@ function _kvGetResourceGroup() {
   return val;
 }
 
-async function createKeyvault() {
-  const subscriptionId = _kvGetSubscriptionId();
-  const resourceGroup = _kvGetResourceGroup();
-  const vaultName = document.getElementById('kv-vault-name').value.trim();
-  const location = document.getElementById('kv-location').value;
+async function confirmKvSelection() {
+  const vaultVal = document.getElementById('kv-vault-sel').value;
   const resultEl = document.getElementById('kv-create-result');
   const btn = document.getElementById('kv-create-btn');
-  if (!subscriptionId || !resourceGroup || !vaultName) {
-    resultEl.className = 'alert error';
-    resultEl.textContent = 'Bitte alle Felder ausfüllen.';
-    resultEl.style.display = 'block';
+
+  function _setUrl(url, resourceId) {
+    document.getElementById('kv-url-input').value = url;
+    _kvTestPassed = false;
+    _kvLastResourceId = resourceId || '';
+    document.getElementById('kv-save-btn').disabled = true;
+    document.getElementById('kv-assign-role-btn').style.display = 'none';
+    document.getElementById('kv-test-result').style.display = 'none';
+    document.getElementById('kv-create-toggle').checked = false;
+    toggleKvCreate();
+  }
+
+  if (vaultVal && vaultVal !== '__new__' && vaultVal !== '__other__') {
+    const sel = document.getElementById('kv-vault-sel');
+    const selectedOpt = sel.options[sel.selectedIndex];
+    _setUrl(vaultVal, selectedOpt ? selectedOpt.dataset.resourceId : '');
+    await testKeyvault();
     return;
   }
-  const isNewRg = document.getElementById('kv-rg-sel').value === '__new__';
-  resultEl.className = 'alert';
-  resultEl.textContent = isNewRg
-    ? 'Resource Group und Key Vault werden angelegt… (30–60 Sekunden)'
-    : 'Key Vault wird angelegt… (30–60 Sekunden)';
-  resultEl.style.display = 'block';
-  btn.disabled = true;
-  try {
-    const r = await fetch('/api/setup/keyvault/create', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({subscription_id: subscriptionId, resource_group: resourceGroup,
-                            vault_name: vaultName, location, create_rg: isNewRg}),
-    });
-    const data = await r.json();
-    resultEl.className = 'alert ' + (data.ok ? 'success' : 'error');
-    resultEl.textContent = data.message;
-    if (data.ok && data.vault_url) {
-      document.getElementById('kv-url-input').value = data.vault_url;
-      document.getElementById('kv-create-toggle').checked = false;
-      toggleKvCreate();
+
+  if (vaultVal === '__other__') {
+    const manualUrl = (document.getElementById('kv-other-url-input').value || '').trim();
+    if (!manualUrl) {
+      resultEl.className = 'alert error';
+      resultEl.textContent = 'Bitte eine Vault URL eingeben.';
+      resultEl.style.display = 'block';
+      return;
     }
-  } catch (err) {
-    resultEl.className = 'alert error';
-    resultEl.textContent = 'Netzwerkfehler: ' + err;
-  } finally {
-    btn.disabled = false;
+    _setUrl(manualUrl, '');  // no resource_id for manual URLs
+    await testKeyvault();
+    return;
   }
+
+  if (vaultVal === '__new__') {
+    const subscriptionId = _kvGetSubscriptionId();
+    const resourceGroup = _kvGetResourceGroup();
+    const vaultName = document.getElementById('kv-vault-name').value.trim();
+    const location = document.getElementById('kv-location').value;
+    if (!subscriptionId || !resourceGroup || !vaultName) {
+      resultEl.className = 'alert error';
+      resultEl.textContent = 'Bitte alle Felder ausfüllen.';
+      resultEl.style.display = 'block';
+      return;
+    }
+    const isNewRg = document.getElementById('kv-rg-sel').value === '__new__';
+    resultEl.className = 'alert';
+    resultEl.textContent = isNewRg
+      ? 'Resource Group und Key Vault werden angelegt… (30–60 Sekunden)'
+      : 'Key Vault wird angelegt… (30–60 Sekunden)';
+    resultEl.style.display = 'block';
+    btn.disabled = true;
+    try {
+      const r = await fetch('/api/setup/keyvault/create', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({subscription_id: subscriptionId, resource_group: resourceGroup,
+                              vault_name: vaultName, location, create_rg: isNewRg}),
+      });
+      const data = await r.json();
+      resultEl.className = 'alert ' + (data.ok ? 'success' : 'error');
+      resultEl.textContent = data.message;
+      if (data.ok && data.vault_url) {
+        _setUrl(data.vault_url, data.resource_id || '');
+        // Azure RBAC braucht 1–2 Min zum Propagieren — erst dann testen
+        const testResult = document.getElementById('kv-test-result');
+        testResult.style.display = 'block';
+        testResult.className = 'alert';
+        testResult.textContent = 'Vault erstellt — Azure RBAC-Rollenzuweisung propagiert (ca. 90 Sek.). Test startet automatisch…';
+        setTimeout(async function() { await testKeyvault(); }, 90000);
+      }
+    } catch (err) {
+      resultEl.className = 'alert error';
+      resultEl.textContent = 'Netzwerkfehler: ' + err;
+    } finally {
+      btn.disabled = false;
+    }
+    return;
+  }
+
+  resultEl.className = 'alert error';
+  resultEl.textContent = 'Bitte einen Key Vault auswählen.';
+  resultEl.style.display = 'block';
+}
+
+function onKvUrlInput() {
+  _kvTestPassed = false;
+  document.getElementById('kv-save-btn').disabled = true;
+  document.getElementById('kv-test-result').style.display = 'none';
 }
 
 async function testKeyvault() {
@@ -1679,15 +1810,47 @@ async function testKeyvault() {
   resultEl.style.display = 'block';
   resultEl.className = 'alert';
   resultEl.textContent = 'Verbinde...';
+  _kvTestPassed = false;
+  document.getElementById('kv-save-btn').disabled = true;
   try {
     const params = url ? '?url=' + encodeURIComponent(url) : '';
     const r = await fetch('/api/setup/keyvault/test' + params);
     const data = await r.json();
     resultEl.className = 'alert ' + (data.ok ? 'success' : 'error');
     resultEl.textContent = data.message;
+    if (data.ok) {
+      _kvTestPassed = true;
+      document.getElementById('kv-save-btn').disabled = false;
+      const assignBtn = document.getElementById('kv-assign-role-btn');
+      if (assignBtn) assignBtn.style.display = _kvLastResourceId ? 'inline-block' : 'none';
+    }
   } catch (err) {
     resultEl.className = 'alert error';
     resultEl.textContent = 'Netzwerkfehler: ' + err;
+  }
+}
+
+async function assignKvRole() {
+  const resultEl = document.getElementById('kv-assign-role-result');
+  const btn = document.getElementById('kv-assign-role-btn');
+  resultEl.style.display = 'block';
+  resultEl.className = 'alert';
+  resultEl.textContent = 'Rolle wird zugewiesen…';
+  btn.disabled = true;
+  try {
+    const r = await fetch('/api/setup/keyvault/assign-role', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({resource_id: _kvLastResourceId}),
+    });
+    const data = await r.json();
+    resultEl.className = 'alert ' + (data.ok ? 'success' : 'error');
+    resultEl.textContent = data.message || (data.ok ? 'Rolle erfolgreich zugewiesen.' : 'Fehler');
+  } catch (err) {
+    resultEl.className = 'alert error';
+    resultEl.textContent = 'Netzwerkfehler: ' + err;
+  } finally {
+    btn.disabled = false;
   }
 }
 
@@ -1707,6 +1870,7 @@ async function saveKeyvault() {
     resultEl.className = 'alert ' + (data.ok ? 'success' : 'error');
     resultEl.textContent = data.ok ? 'Key Vault URL gespeichert.' : (data.detail || 'Fehler');
     if (data.ok) {
+      _kvTestPassed = true;
       const step = document.getElementById('step-keyvault');
       if (step) step.classList.toggle('done', !!url);
     }

@@ -154,12 +154,16 @@ def list_user_certs(email: str) -> list[dict]:
             info = _cert_info(cert, email)
             info["slot_id"] = slot_dir.name
             info["is_default"] = (slot_dir.name == default)
+            info["has_local_key"] = (slot_dir / "key.pem").exists()
+            info["has_kv_backup"] = (slot_dir / "key.pem.bak").exists()
             result.append(info)
         except Exception as exc:
             result.append({
                 "email": email, "slot_id": slot_dir.name, "error": str(exc),
                 "subject": "–", "expiry": "–", "days_left": 0,
                 "expired": True, "warning": False, "is_default": (slot_dir.name == default),
+                "has_local_key": (slot_dir / "key.pem").exists(),
+                "has_kv_backup": (slot_dir / "key.pem.bak").exists(),
             })
     # Ensure exactly one default is set
     if result and not any(c.get("is_default") for c in result):
@@ -253,8 +257,9 @@ def get_signing_cert_path_for_slot(email: str, slot_id: str) -> Path | None:
 
 # ── Signing paths (used by handler + signer) ──────────────────────────────────
 
-def get_signing_paths(email: str) -> tuple[Path, Path] | None:
-    """Return (cert_path, key_path) for the default cert slot, or None."""
+def get_signing_paths(email: str, allow_backup: bool = False) -> tuple[Path, Path] | None:
+    """Return (cert_path, key_path) for the default cert slot, or None.
+    If allow_backup=True, also considers key.pem.bak when no key.pem is present."""
     email_low = email.lower().strip()
     user_dir = SMIME_DIR / email_low
     certs_dir = user_dir / "certs"
@@ -266,16 +271,29 @@ def get_signing_paths(email: str) -> tuple[Path, Path] | None:
             c, k = slot_dir / "cert.pem", slot_dir / "key.pem"
             if c.exists() and k.exists():
                 return c, k
+            if allow_backup and c.exists() and (slot_dir / "key.pem.bak").exists():
+                return c, slot_dir / "key.pem.bak"
+        first_bak: tuple[Path, Path] | None = None
         for slot_dir in sorted(certs_dir.iterdir()):
             if not slot_dir.is_dir():
                 continue
             c, k = slot_dir / "cert.pem", slot_dir / "key.pem"
             if c.exists() and k.exists():
                 return c, k
+            if allow_backup and first_bak is None and c.exists():
+                bak = slot_dir / "key.pem.bak"
+                if bak.exists():
+                    first_bak = (c, bak)
+        if first_bak:
+            return first_bak
     # Legacy fallback
     c, k = user_dir / "cert.pem", user_dir / "key.pem"
     if c.exists() and k.exists():
         return c, k
+    if allow_backup:
+        bak = user_dir / "key.pem.bak"
+        if c.exists() and bak.exists():
+            return c, bak
     return None
 
 
@@ -421,22 +439,33 @@ def delete_recipient_cert(email: str) -> None:
     log.info("Recipient S/MIME cert deleted for %s", email)
 
 
-async def migrate_key_to_keyvault(email: str) -> dict:
+async def migrate_key_to_keyvault(email: str, slot_id: str | None = None) -> dict:
     """
     Import the local private key for email into Azure Key Vault,
     then remove the local key file (cert is kept for signing operations).
-    Returns {"ok": True, "key_id": "..."} or {"ok": False, "error": "..."}.
+    If slot_id is given, migrate that specific cert slot; otherwise use the active signing slot.
+    Returns {"ok": True, "key_id": "...", "slot_id": "..."} or {"ok": False, "error": "..."}.
     """
     import keyvault as _kv
 
     if not _kv.is_configured():
         return {"ok": False, "error": "Azure Key Vault ist nicht konfiguriert (KEYVAULT_URL fehlt)"}
 
-    paths = get_signing_paths(email)
-    if not paths:
-        return {"ok": False, "error": "Kein lokaler Schlüssel gefunden"}
-
-    cert_path, key_path = paths
+    if slot_id:
+        email_low = email.lower().strip()
+        slot_dir = SMIME_DIR / email_low / "certs" / slot_id
+        cert_path = slot_dir / "cert.pem"
+        key_path = slot_dir / "key.pem"
+        if not cert_path.exists():
+            return {"ok": False, "error": f"Zertifikat-Slot '{slot_id}' nicht gefunden"}
+        if not key_path.exists():
+            return {"ok": False, "error": f"Kein lokaler Schlüssel in Slot '{slot_id}' — bereits migriert?"}
+    else:
+        paths = get_signing_paths(email)
+        if not paths:
+            return {"ok": False, "error": "Kein lokaler Schlüssel gefunden"}
+        cert_path, key_path = paths
+        slot_id = key_path.parent.name
     try:
         key_pem = key_path.read_bytes()
     except Exception as exc:
@@ -447,13 +476,24 @@ async def migrate_key_to_keyvault(email: str) -> dict:
     except Exception as exc:
         return {"ok": False, "error": f"Key Vault Import fehlgeschlagen: {exc}"}
 
+    import settings_store as _ss
+    fallback_mode = _ss.get("KV_KEY_MODE") != "strict"
+    if fallback_mode:
+        bak_path = key_path.parent / "key.pem.bak"
+        try:
+            bak_path.write_bytes(key_pem)
+            bak_path.chmod(0o600)
+            log.info("Backup key saved to %s before KV migration", bak_path)
+        except Exception as exc:
+            log.warning("Could not save backup key for %s slot %s: %s", email, slot_id, exc)
+
     try:
         key_path.unlink()
-        log.info("Local key removed after KV migration for %s", email)
+        log.info("Local key removed after KV migration for %s slot %s", email, slot_id)
     except Exception as exc:
-        log.warning("Could not remove local key for %s after KV migration: %s", email, exc)
+        log.warning("Could not remove local key for %s slot %s after KV migration: %s", email, slot_id, exc)
         # Migration succeeded — don't fail over cleanup issue
-    return {"ok": True, "key_id": key_id}
+    return {"ok": True, "key_id": key_id, "slot_id": slot_id, "backup_saved": fallback_mode}
 
 
 def migrate_keys_encryption() -> int:

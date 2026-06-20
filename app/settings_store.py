@@ -73,6 +73,7 @@ DEFAULTS: dict = {
     "NOTIFY_LE_EVENTS": None,        # None/True = send; False = suppress LE cert events
     # ── Azure Key Vault (S/MIME private key storage) ──────────────────────────
     "KEYVAULT_URL": "",                 # e.g. https://myvault.vault.azure.net — empty = local key files
+    "KV_KEY_MODE": "fallback",          # "fallback" = exportable + local backup; "strict" = no export, no backup
     # ── ACME ─────────────────────────────────────────────────────────────────
     "ACME_REPLY_METHOD": "graph",       # "graph" or "direct_smtp" — how challenge replies are sent
     # ── S/MIME lifecycle management ───────────────────────────────────────────

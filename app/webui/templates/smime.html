@@ -9,12 +9,36 @@
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
     <h2 style="margin:0">Signaturzertifikate für S/MIME-aktivierte Benutzer</h2>
   </div>
-  <p class="hint" style="margin-bottom:16px">
-    PKCS12-Bundle (.p12 / .pfx) mit privatem Schlüssel und Zertifikat.
+  <p class="hint" style="margin-bottom:12px">
+    Import per PKCS12-Bundle (.p12 / .pfx) oder automatisch via CASTLE ACME (Auto-Enroll).
     Ausgehende Mails werden automatisch signiert, sobald ein Standardzertifikat für den Absender vorliegt.
-    Der private Schlüssel kann unter <a href="/settings#smime">Einstellungen → S/MIME</a> verschlüsselt gespeichert werden.
+    Private Schlüssel werden per Dateisystemberechtigungen (600) geschützt und können zusätzlich
+    verschlüsselt abgelegt werden (<a href="/settings#smime">Einstellungen → S/MIME</a>).
+    Empfohlen: Schlüssel in <strong>Azure Key Vault</strong> migrieren — dort verlässt der private Schlüssel
+    nie den HSM-gesicherten Speicher; das Gateway signiert über die KV-API.
     Benutzer werden unter <a href="/settings">Einstellungen → Postfach-Konfiguration</a> für S/MIME aktiviert.
   </p>
+
+  {% if has_any_local_key or (kv_configured and has_any_unmigrated_key) %}
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;padding:10px 12px;
+              background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;align-items:center">
+    <span style="font-size:12px;color:#666;font-weight:500;margin-right:4px">Schlüsselverwaltung:</span>
+    {% if has_any_local_key and kv_mode != 'strict' %}
+    <a class="btn secondary btn-sm" href="/api/smime/backup-all-keys" download
+       title="Alle lokalen Schlüssel (key.pem + key.pem.bak) als verschlüsseltes ZIP herunterladen">
+      ↓ Alle lokalen Schlüssel sichern
+    </a>
+    {% endif %}
+    {% if kv_configured and has_any_unmigrated_key and kv_mode != 'strict' %}
+    <button class="btn secondary btn-sm" style="border-color:#b45309;color:#b45309"
+            onclick="migrateAllAndBackup()"
+            title="Alle lokalen Schlüssel zu Azure Key Vault migrieren, lokale key.pem löschen (key.pem.bak bleibt als Fallback)">
+      → Alle zu KV migrieren &amp; lokal löschen
+    </button>
+    {% endif %}
+    <div id="bulk-migrate-result" style="font-size:12px;display:none"></div>
+  </div>
+  {% endif %}
 
   {% if smime_users %}
     {% for u in smime_users %}
@@ -44,14 +68,11 @@
             Auto-Enroll
           </button>
           {% if kv_configured %}
-            {% if kv_keys.get(u.email) %}
-              <span style="background:#fef3c7;color:#b45309;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;white-space:nowrap" title="Schlüssel in Azure Key Vault">KEY VAULT</span>
-            {% elif has_certs %}
-              <button class="btn secondary btn-sm" style="border-color:#b45309;color:#b45309"
-                      onclick="migrateToKv('{{ u.email }}',this)"
-                      title="Privaten Schlüssel zu Azure Key Vault migrieren">
-                Key Vault migrieren
-              </button>
+            {% set local_keys = u.certs | selectattr("has_local_key") | list %}
+            {% if local_keys | length == 0 and has_certs %}
+              <span style="background:#fef3c7;color:#b45309;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;white-space:nowrap" title="Alle Schlüssel in Azure Key Vault">KEY VAULT</span>
+            {% elif local_keys | length > 0 and (u.certs | length - local_keys | length) > 0 %}
+              <span style="background:#fff7ed;color:#b45309;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;white-space:nowrap" title="Gemischt: teils lokal, teils Key Vault">GEMISCHT</span>
             {% endif %}
           {% endif %}
           <span id="acme-status-{{ u.email | replace('@','_') | replace('.','_') }}"
@@ -67,6 +88,9 @@
             <th style="text-align:left;padding:7px 10px;color:#666;font-weight:600">Subject / Aussteller</th>
             <th style="text-align:left;padding:7px 10px;color:#666;font-weight:600;white-space:nowrap">Gültig bis</th>
             <th style="text-align:left;padding:7px 10px;color:#666;font-weight:600">Status</th>
+            {% if kv_configured %}
+            <th style="text-align:left;padding:7px 10px;color:#666;font-weight:600;white-space:nowrap">Schlüssel</th>
+            {% endif %}
             {% if multi %}
             <th style="text-align:center;padding:7px 10px;color:#666;font-weight:600;width:80px">Standard</th>
             {% endif %}
@@ -92,6 +116,17 @@
               {% elif c.get("is_default") %}<span class="step-status done">Aktiv · Standard</span>
               {% else %}<span class="step-status done">Aktiv</span>{% endif %}
             </td>
+            {% if kv_configured %}
+            <td style="padding:8px 10px;white-space:nowrap">
+              {% if c.get("has_local_key") %}
+                <span style="background:#fff7ed;color:#b45309;font-size:11px;font-weight:600;padding:2px 7px;border-radius:8px" title="Privater Schlüssel liegt lokal">Lokal</span>
+              {% elif c.get("has_kv_backup") %}
+                <span style="background:#fef3c7;color:#92400e;font-size:11px;font-weight:600;padding:2px 7px;border-radius:8px" title="Schlüssel in Azure Key Vault, lokales Backup vorhanden">KV + Backup</span>
+              {% else %}
+                <span style="background:#fef3c7;color:#92400e;font-size:11px;font-weight:600;padding:2px 7px;border-radius:8px" title="Schlüssel in Azure Key Vault">Key Vault</span>
+              {% endif %}
+            </td>
+            {% endif %}
             {% if multi %}
             <td style="text-align:center;padding:8px 10px">
               <input type="radio" name="default-{{ u.email | replace('@','_') | replace('.','_') }}"
@@ -107,6 +142,21 @@
                       {% if c.get("error") %}disabled style="opacity:.4"{% else %}onclick="showCertDetails('{{ u.email }}','signing','{{ c.slot_id }}')"{% endif %}>
                 Ansicht
               </button>
+              {% if kv_configured and c.get("has_local_key") %}
+              <button class="btn secondary btn-sm" style="border-color:#b45309;color:#b45309"
+                      onclick="migrateSlotToKv('{{ u.email }}','{{ c.slot_id }}',this)"
+                      title="Diesen Schlüssel zu Azure Key Vault migrieren">
+                → KV
+              </button>
+              {% endif %}
+              {% if kv_mode != 'strict' and (c.get("has_local_key") or c.get("has_kv_backup")) %}
+              <a class="btn secondary btn-sm"
+                 href="/api/smime/backup-key/{{ u.email | urlencode }}/{{ c.slot_id }}"
+                 download
+                 title="Schlüssel verschlüsselt herunterladen (key.pem.bak)">
+                ↓ Backup
+              </a>
+              {% endif %}
               <button class="btn secondary btn-sm"
                       onclick="deleteCertSlot('{{ u.email }}','{{ c.slot_id }}')">
                 Löschen
@@ -643,6 +693,63 @@ async function migrateToKv(email, btn) {
     const data = await resp.json();
     if (data.ok) {
       alert(`Schlüssel erfolgreich zu Key Vault migriert.\nKey-ID: ${data.key_id}`);
+      location.reload();
+    } else {
+      alert(`Migration fehlgeschlagen: ${data.detail || data.error}`);
+      btn.disabled = false;
+      btn.textContent = origText;
+    }
+  } catch (err) {
+    alert('Netzwerkfehler: ' + err);
+    btn.disabled = false;
+    btn.textContent = origText;
+  }
+}
+
+async function migrateAllAndBackup() {
+  if (!confirm(
+    'Alle lokalen Schlüssel zu Azure Key Vault migrieren?\n\n' +
+    'Die key.pem-Dateien werden gelöscht. Im Fallback-Modus bleibt je eine key.pem.bak ' +
+    'lokal als verschlüsselter Fallback-Schlüssel erhalten.\n\n' +
+    'Anschließend wird automatisch ein ZIP-Backup aller verbleibenden lokalen Schlüssel heruntergeladen.'
+  )) return;
+
+  const resultEl = document.getElementById('bulk-migrate-result');
+  resultEl.style.display = 'inline';
+  resultEl.style.color = '#555';
+  resultEl.textContent = 'Migriere…';
+
+  try {
+    const r = await fetch('/api/smime/migrate-all-to-keyvault', {method: 'POST'});
+    const data = await r.json();
+    if (data.ok) {
+      resultEl.style.color = '#16a34a';
+      resultEl.textContent = `${data.migrated} von ${data.total} Schlüssel migriert.`;
+      // Trigger backup download of remaining local files (key.pem.bak)
+      setTimeout(() => { window.location.href = '/api/smime/backup-all-keys'; }, 400);
+      setTimeout(() => { location.reload(); }, 2500);
+    } else {
+      resultEl.style.color = '#dc2626';
+      resultEl.textContent = data.detail || 'Fehler bei der Migration';
+    }
+  } catch (err) {
+    resultEl.style.color = '#dc2626';
+    resultEl.textContent = 'Netzwerkfehler: ' + err;
+  }
+}
+
+async function migrateSlotToKv(email, slotId, btn) {
+  if (!confirm(`Schlüssel von Slot ${slotId} (${email}) zu Azure Key Vault migrieren?\n\nDie lokale key.pem wird danach gelöscht. Das Zertifikat bleibt erhalten.`)) return;
+  const origText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '...';
+  try {
+    const resp = await fetch(
+      `/api/smime/keyvault/migrate/${encodeURIComponent(email)}/${encodeURIComponent(slotId)}`,
+      {method: 'POST'}
+    );
+    const data = await resp.json();
+    if (data.ok) {
       location.reload();
     } else {
       alert(`Migration fehlgeschlagen: ${data.detail || data.error}`);

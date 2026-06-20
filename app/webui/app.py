@@ -56,8 +56,11 @@ class _NotAuthenticated(Exception):
 @app.exception_handler(_NotAuthenticated)
 async def _not_authenticated_handler(request: Request, exc: _NotAuthenticated):
     if exc.is_api:
-        return JSONResponse({"detail": "Nicht angemeldet"}, status_code=401,
-                            headers={"WWW-Authenticate": "Basic"})
+        # No WWW-Authenticate header — that header triggers the browser's native Basic-Auth
+        # dialog for any fetch() call, even when the user has a valid SSO session but the
+        # session cookie was just invalidated (e.g. after container restart).
+        # JS callers receive the 401 JSON and handle it gracefully without a browser popup.
+        return JSONResponse({"detail": "Nicht angemeldet"}, status_code=401)
     next_url = urllib.parse.quote(str(request.url.path), safe="")
     return RedirectResponse(f"/auth/login?next={next_url}", status_code=302)
 
@@ -213,6 +216,20 @@ def _password_change_required() -> bool:
     return config.WEBUI_PASSWORD == "admin"
 
 
+def _setup_requires_auth() -> bool:
+    """True once any authentication method is configured (setup page must no longer be anonymous)."""
+    # Explicit password hash stored → local password was changed from default
+    if settings_store.get("ADMIN_PASSWORD_HASH"):
+        return True
+    # SSO admin users + Bootstrap client configured → Entra login possible
+    if settings_store.get("ADMIN_USERS") and settings_store.get("BOOTSTRAP_CLIENT_ID"):
+        return True
+    # Custom password via env var (not the default 'admin')
+    if config.WEBUI_PASSWORD and config.WEBUI_PASSWORD != "admin":
+        return True
+    return False
+
+
 # ── Role middleware — sets request.state.user_role for templates ───────────────
 @app.middleware("http")
 async def _attach_user_role(request: Request, call_next):
@@ -276,17 +293,22 @@ async def setup_wizard(
     request: Request,
     credentials: HTTPBasicCredentials = Depends(security),
 ):
-    """Setup wizard — accessible even with default credentials."""
-    # Allow access with default credentials or any valid credentials
-    # (so the wizard works before Azure is configured)
-    authed = False
-    if credentials:
+    """Setup wizard. Anonymous only while Step 1 (initial password) is not yet set."""
+    # Determine auth state: session cookie takes precedence, Basic-Auth as fallback
+    authed = bool(_get_session_user(request))
+    if not authed and credentials and credentials.username and credentials.password:
         username = settings_store.get("WEBUI_USERNAME") or "admin"
-        if (
+        authed = (
             secrets.compare_digest(credentials.username.encode(), username.encode())
             and _check_password(credentials.password)
-        ):
-            authed = True
+        )
+
+    # Once any auth method is configured, block anonymous access
+    if _setup_requires_auth() and not authed:
+        return RedirectResponse(
+            f"/auth/login?next={urllib.parse.quote('/setup', safe='')}",
+            status_code=302,
+        )
 
     s = settings_store.get_all()
     # Effective values (env overrides settings)
@@ -1403,6 +1425,15 @@ async def smime_page_v2(request: Request, user: str = Depends(_require_admin)):
     if kv_configured:
         for em in all_emails:
             kv_keys[em] = await _kv.key_exists(em)
+    kv_mode = settings_store.get("KV_KEY_MODE") or "fallback"
+    has_any_local_key = any(
+        c.get("has_local_key") or c.get("has_kv_backup")
+        for u in smime_users for c in u["certs"]
+    )
+    has_any_unmigrated_key = any(
+        c.get("has_local_key")
+        for u in smime_users for c in u["certs"]
+    )
     return templates.TemplateResponse(
         request=request, name="smime.html",
         context={
@@ -1416,6 +1447,9 @@ async def smime_page_v2(request: Request, user: str = Depends(_require_admin)):
             "kv_configured": kv_configured,
             "kv_keys": kv_keys,
             "kv_url": _kv.vault_url(),
+            "kv_mode": kv_mode,
+            "has_any_local_key": has_any_local_key,
+            "has_any_unmigrated_key": has_any_unmigrated_key,
         },
     )
 
@@ -1781,6 +1815,17 @@ async def api_keyvault_resource_groups(request: Request, subscription_id: str,
     return JSONResponse({"ok": ok, "message": msg, "resource_groups": rgs})
 
 
+@app.get("/api/setup/keyvault/vaults")
+async def api_keyvault_vaults(request: Request, subscription_id: str,
+                               _: str = Depends(_require_admin)):
+    """List Key Vaults in subscription — uses delegated user token if available."""
+    import keyvault
+    upn = _get_session_user(request) or ""
+    user_tok = keyvault.get_user_arm_token(upn) if upn else None
+    ok, msg, vaults = await keyvault.list_vaults(subscription_id, arm_token=user_tok)
+    return JSONResponse({"ok": ok, "message": msg, "vaults": vaults})
+
+
 @app.post("/api/setup/keyvault/create")
 async def api_keyvault_create(request: Request, user: str = Depends(_require_admin)):
     """Create a new Azure Key Vault — uses delegated user token if available."""
@@ -1799,11 +1844,30 @@ async def api_keyvault_create(request: Request, user: str = Depends(_require_adm
         raise HTTPException(400, "Entra-App-Registrierung noch nicht konfiguriert")
     upn = _get_session_user(request) or user
     user_tok = keyvault.get_user_arm_token(upn) if upn else None
-    ok, message, vault_url = await keyvault.create_vault(
+    ok, message, vault_url, *_rest = await keyvault.create_vault(
         subscription_id, resource_group, vault_name, location,
         tenant_id, client_id, create_rg, arm_token=user_tok,
     )
-    return JSONResponse({"ok": ok, "message": message, "vault_url": vault_url})
+    resource_id = _rest[0] if _rest else ""
+    return JSONResponse({"ok": ok, "message": message, "vault_url": vault_url, "resource_id": resource_id})
+
+
+@app.post("/api/setup/keyvault/assign-role")
+async def api_keyvault_assign_role(request: Request, user: str = Depends(_require_admin)):
+    """Idempotently assign Key Vault Crypto Officer role to the app SP on a given vault."""
+    import keyvault
+    import graph_client as _gc
+    data = await request.json()
+    resource_id = (data.get("resource_id") or "").strip()
+    if not resource_id:
+        raise HTTPException(400, "resource_id ist Pflichtfeld")
+    _, client_id, _ = _gc._get_effective_credentials()
+    if not client_id:
+        raise HTTPException(400, "Entra-App-Registrierung noch nicht konfiguriert")
+    upn = _get_session_user(request) or user
+    user_tok = keyvault.get_user_arm_token(upn) if upn else None
+    ok, message = await keyvault.ensure_crypto_officer_role(resource_id, client_id, arm_token=user_tok)
+    return JSONResponse({"ok": ok, "message": message})
 
 
 @app.post("/api/setup/keyvault/save")
@@ -1818,14 +1882,170 @@ async def api_keyvault_save(request: Request, _: str = Depends(_require_admin)):
 
 @app.post("/api/smime/keyvault/migrate/{email}")
 async def api_keyvault_migrate(email: str, _: str = Depends(_require_admin)):
-    """Migrate local S/MIME private key to Azure Key Vault."""
+    """Migrate active S/MIME private key slot to Azure Key Vault."""
     import smime_store
     email = email.lower().strip()
     result = await smime_store.migrate_key_to_keyvault(email)
     if not result["ok"]:
         raise HTTPException(400, result["error"])
-    log.info("S/MIME key migrated to Key Vault for %s (key_id=%s)", email, result.get("key_id"))
+    log.info("S/MIME key migrated to Key Vault for %s slot %s (key_id=%s)", email, result.get("slot_id"), result.get("key_id"))
     return JSONResponse(result)
+
+
+@app.post("/api/smime/keyvault/migrate/{email}/{slot_id}")
+async def api_keyvault_migrate_slot(email: str, slot_id: str, _: str = Depends(_require_admin)):
+    """Migrate a specific S/MIME cert slot's private key to Azure Key Vault."""
+    import smime_store
+    email = email.lower().strip()
+    result = await smime_store.migrate_key_to_keyvault(email, slot_id=slot_id)
+    if not result["ok"]:
+        raise HTTPException(400, result["error"])
+    log.info("S/MIME key migrated to Key Vault for %s slot %s (key_id=%s)", email, slot_id, result.get("key_id"))
+    return JSONResponse(result)
+
+
+@app.get("/api/smime/backup-key/{email}/{slot_id}")
+async def api_smime_backup_key_download(
+    email: str, slot_id: str, _: str = Depends(_require_admin)
+):
+    """Download the local backup key (key.pem.bak or key.pem) for a cert slot.
+    If the key is unencrypted and SMIME_KEY_PASSWORD is set, encrypt on the fly before download."""
+    from pathlib import Path as _Path
+    from fastapi.responses import Response as _Resp
+    import config as _cfg
+
+    if settings_store.get("KV_KEY_MODE") == "strict":
+        raise HTTPException(403, "Backup-Download im Strict-Modus deaktiviert")
+
+    email = email.lower().strip()
+    smime_dir = _Path("/app/data/smime")
+    slot_dir = smime_dir / email / "certs" / slot_id
+
+    bak = slot_dir / "key.pem.bak"
+    key = slot_dir / "key.pem"
+    if bak.exists():
+        key_bytes = bak.read_bytes()
+    elif key.exists():
+        key_bytes = key.read_bytes()
+    else:
+        raise HTTPException(404, "Kein lokaler Schlüssel für diesen Slot vorhanden")
+
+    # Encrypt on-the-fly if the file is plaintext PEM and a password is configured
+    pw = settings_store.get("SMIME_KEY_PASSWORD") or _cfg.SMIME_KEY_PASSWORD or ""
+    if pw and b"ENCRYPTED" not in key_bytes:
+        try:
+            from cryptography.hazmat.primitives.serialization import (
+                load_pem_private_key, Encoding, PrivateFormat, BestAvailableEncryption
+            )
+            loaded = load_pem_private_key(key_bytes, password=None)
+            key_bytes = loaded.private_bytes(
+                Encoding.PEM, PrivateFormat.TraditionalOpenSSL,
+                BestAvailableEncryption(pw.encode())
+            )
+        except Exception as exc:
+            log.warning("Could not encrypt backup key for %s/%s on download: %s", email, slot_id, exc)
+
+    safe_email = email.replace("@", "_at_").replace(".", "_")
+    filename = f"smime-backup-{safe_email}-{slot_id[:8]}.pem"
+    log.info("Backup key downloaded for %s slot %s by admin", email, slot_id)
+    return _Resp(
+        content=key_bytes,
+        media_type="application/x-pem-file",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.get("/api/smime/backup-all-keys")
+async def api_smime_backup_all_keys(_: str = Depends(_require_admin)):
+    """Download a ZIP of all local key files (key.pem + key.pem.bak), encrypted where needed."""
+    import io
+    import zipfile
+    from pathlib import Path as _Path
+    import config as _cfg
+    from fastapi.responses import Response as _Resp
+
+    if settings_store.get("KV_KEY_MODE") == "strict":
+        raise HTTPException(403, "Backup-Download im Strict-Modus deaktiviert")
+
+    smime_dir = _Path("/app/data/smime")
+    pw = settings_store.get("SMIME_KEY_PASSWORD") or _cfg.SMIME_KEY_PASSWORD or ""
+
+    buf = io.BytesIO()
+    count = 0
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for user_dir in sorted(smime_dir.iterdir()):
+            if not user_dir.is_dir() or user_dir.name == "recipients":
+                continue
+            certs_dir = user_dir / "certs"
+            if not certs_dir.exists():
+                continue
+            for slot_dir in sorted(certs_dir.iterdir()):
+                if not slot_dir.is_dir():
+                    continue
+                for fname in ("key.pem", "key.pem.bak"):
+                    key_path = slot_dir / fname
+                    if not key_path.exists():
+                        continue
+                    key_bytes = key_path.read_bytes()
+                    if pw and b"ENCRYPTED" not in key_bytes:
+                        try:
+                            from cryptography.hazmat.primitives.serialization import (
+                                load_pem_private_key, Encoding, PrivateFormat, BestAvailableEncryption,
+                            )
+                            loaded = load_pem_private_key(key_bytes, password=None)
+                            key_bytes = loaded.private_bytes(
+                                Encoding.PEM, PrivateFormat.TraditionalOpenSSL,
+                                BestAvailableEncryption(pw.encode()),
+                            )
+                        except Exception as exc:
+                            log.warning("backup-all: could not encrypt %s: %s", key_path, exc)
+                    safe_email = user_dir.name.replace("@", "_at_")
+                    zf.writestr(f"{safe_email}/{slot_dir.name}/{fname}", key_bytes)
+                    count += 1
+
+    if count == 0:
+        raise HTTPException(404, "Keine lokalen Schlüsseldateien vorhanden")
+
+    buf.seek(0)
+    log.info("Bulk key backup downloaded by admin (%d files)", count)
+    return _Resp(
+        content=buf.read(),
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="smime-key-backup.zip"'},
+    )
+
+
+@app.post("/api/smime/migrate-all-to-keyvault")
+async def api_smime_migrate_all(request: Request, _: str = Depends(_require_admin)):
+    """Migrate all local key.pem files to Azure Key Vault (creates key.pem.bak in fallback mode)."""
+    import smime_store
+    import keyvault as _kv
+    from pathlib import Path as _Path
+
+    if not _kv.is_configured():
+        raise HTTPException(400, "Azure Key Vault ist nicht konfiguriert")
+
+    smime_dir = _Path("/app/data/smime")
+    results = []
+    for user_dir in sorted(smime_dir.iterdir()):
+        if not user_dir.is_dir() or user_dir.name == "recipients":
+            continue
+        certs_dir = user_dir / "certs"
+        if not certs_dir.exists():
+            continue
+        email = user_dir.name
+        for slot_dir in sorted(certs_dir.iterdir()):
+            if not slot_dir.is_dir():
+                continue
+            if not (slot_dir / "key.pem").exists():
+                continue
+            slot_id = slot_dir.name
+            result = await smime_store.migrate_key_to_keyvault(email, slot_id=slot_id)
+            results.append({"email": email, "slot_id": slot_id, **result})
+            log.info("bulk migrate: %s/%s → %s", email, slot_id, "ok" if result["ok"] else result.get("error"))
+
+    ok_count = sum(1 for r in results if r["ok"])
+    return JSONResponse({"ok": True, "migrated": ok_count, "total": len(results), "results": results})
 
 
 @app.get("/api/smime/keyvault/status")

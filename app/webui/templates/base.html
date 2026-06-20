@@ -96,6 +96,12 @@
         fetch('/api/whoami').then(function(r){ return r.ok ? r.json() : null; }).then(function(d) {
           if (!d) return;
           var upn = d.upn || '';
+          if (!upn) {
+            // Keine Session — klar als "nicht angemeldet" kennzeichnen
+            document.getElementById('user-tt-upn').textContent = 'Nicht angemeldet';
+            document.getElementById('user-tt-role').textContent = '';
+            return;
+          }
           var role = d.role || 'admin';
           var local = upn.split('@')[0] || upn;
           var parts = local.split(/[._\-]/);
@@ -106,7 +112,7 @@
           btn.textContent = initials;
           btn.title = upn;
           document.getElementById('user-tt-avatar').textContent = initials;
-          document.getElementById('user-tt-upn').textContent = upn || 'Lokal';
+          document.getElementById('user-tt-upn').textContent = upn;
           document.getElementById('user-tt-role').textContent =
             role === 'editor' ? 'Signatur-Editor' : 'Administrator';
         }).catch(function(){});

@@ -20,12 +20,13 @@ import smime_store
 log = logging.getLogger(__name__)
 
 
-def sign(message_bytes: bytes, sender: str) -> bytes | None:
+def sign(message_bytes: bytes, sender: str, use_backup: bool = False) -> bytes | None:
     """
     Sign message_bytes with the sender's S/MIME certificate.
     Returns signed message bytes or None if no cert is available / signing fails.
+    If use_backup=True, falls back to key.pem.bak when no key.pem is present.
     """
-    paths = smime_store.get_signing_paths(sender)
+    paths = smime_store.get_signing_paths(sender, allow_backup=use_backup)
     if not paths:
         return None
 
@@ -116,7 +117,15 @@ async def sign_async(message_bytes: bytes, sender: str) -> bytes | None:
                     sender,
                 )
     except Exception as exc:
-        log.warning("Key Vault sign_async error for %s: %s — falling back to local", sender, exc)
+        import settings_store
+        if settings_store.get("KV_KEY_MODE") == "strict":
+            log.error(
+                "Key Vault unavailable for %s (strict mode, no fallback): %s", sender, exc
+            )
+            return None
+        log.warning(
+            "Key Vault unavailable for %s — trying local backup key: %s", sender, exc
+        )
 
-    # Fall back to local openssl subprocess
-    return sign(message_bytes, sender)
+    # Fallback: local key or backup key (key.pem.bak) when KV is unavailable
+    return sign(message_bytes, sender, use_backup=True)

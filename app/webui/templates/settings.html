@@ -194,6 +194,35 @@
   </div>
   <div id="kv-url-result" style="margin-top:6px;margin-left:200px;display:none"></div>
 
+  <div class="settings-row" style="align-items:flex-start;margin-top:14px">
+    <label style="min-width:200px;flex-shrink:0;font-size:13px;font-weight:500;padding-top:4px">Key Vault Modus</label>
+    <div class="settings-control">
+      <label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;cursor:pointer">
+        <input type="radio" name="kv-key-mode" value="fallback" style="margin-top:3px;flex-shrink:0"
+          {% if s.KV_KEY_MODE != 'strict' %}checked{% endif %}>
+        <span>
+          <strong>Fallback (empfohlen)</strong><br>
+          <span class="hint">Schlüssel werden als <code>exportable</code> im KV gespeichert und bei der Migration
+          als verschlüsselte <code>key.pem.bak</code> lokal gesichert. Bei KV-Ausfall signiert das
+          Gateway automatisch mit dem Backup-Schlüssel weiter.</span>
+        </span>
+      </label>
+      <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer">
+        <input type="radio" name="kv-key-mode" value="strict" style="margin-top:3px;flex-shrink:0"
+          {% if s.KV_KEY_MODE == 'strict' %}checked{% endif %}>
+        <span>
+          <strong>Strikt — kein Backup, kein Fallback</strong><br>
+          <span class="hint">Schlüssel sind <code>non-exportable</code> (HSM-Schutz ohne Rückfahrschein).
+          Bei KV-Ausfall werden Mails nicht signiert. Maximale Sicherheit auf Kosten der Verfügbarkeit.</span>
+        </span>
+      </label>
+      <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+        <button type="button" class="btn secondary btn-sm" onclick="saveKvMode()">Speichern</button>
+        <span id="kv-mode-result" style="font-size:12px;display:none"></span>
+      </div>
+    </div>
+  </div>
+
   <div style="border-top:1px solid #f0f0f0;margin:16px 0 14px"></div>
 
   <div class="settings-row" style="align-items:flex-start">
@@ -1089,6 +1118,28 @@ async function testKvUrl() {
     el.textContent = d.message;
   } catch (err) {
     el.className = 'alert error';
+    el.textContent = 'Netzwerkfehler: ' + err;
+  }
+}
+
+async function saveKvMode() {
+  const mode = document.querySelector('input[name="kv-key-mode"]:checked')?.value || 'fallback';
+  const el = document.getElementById('kv-mode-result');
+  el.style.display = 'inline';
+  el.style.color = '#555';
+  el.textContent = 'Speichere...';
+  try {
+    const r = await fetch('/settings', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({KV_KEY_MODE: mode}),
+    });
+    const d = await r.json();
+    el.style.color = d.ok ? '#16a34a' : '#dc2626';
+    el.textContent = d.ok ? 'Gespeichert.' : (d.detail || 'Fehler');
+    setTimeout(() => { el.style.display = 'none'; }, 3000);
+  } catch (err) {
+    el.style.color = '#dc2626';
     el.textContent = 'Netzwerkfehler: ' + err;
   }
 }
