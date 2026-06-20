@@ -21,7 +21,8 @@ param(
     [Parameter(Mandatory)][string]$AppId,
     [Parameter(Mandatory)][string]$Organization,
     [Parameter(Mandatory)][string]$CertPath,
-    [Parameter(Mandatory)][string]$SmtpProxyHostname
+    [Parameter(Mandatory)][string]$SmtpProxyHostname,
+    [switch]$SkipInboundConnector
 )
 
 Set-StrictMode -Version Latest
@@ -103,31 +104,33 @@ if (-not $outConnector) { throw "Outbound Connector '$outName' not found after w
 $outConnectorId = $outConnector.Identity
 Write-OK "Connector identity resolved: $outConnectorId"
 
-# ── Inbound Connector ─────────────────────────────────────────────────────────
-Write-Step "Checking Inbound Connector..."
-
-$inName = "EXO Signature Gateway - Inbound"
-$existingIn = Get-InboundConnector -Identity $inName -ErrorAction SilentlyContinue
-
-if ($existingIn) {
-    Write-Warn "Inbound Connector '$inName' exists — updating TLS"
-    Set-InboundConnector `
-        -Identity $inName `
-        -RequireTls $true `
-        -TlsSenderCertificateName $SmtpProxyHostname `
-        -Enabled $true `
-        -Comment $managedBy
-    Write-OK "Inbound Connector updated"
+# ── Inbound Connector (SMTP-Modus only) ───────────────────────────────────────
+if ($SkipInboundConnector) {
+    Write-Warn "Inbound Connector skipped (not needed for Graph/IMAP mode)"
 } else {
-    New-InboundConnector `
-        -Name $inName `
-        -ConnectorType OnPremises `
-        -SenderDomains @("*") `
-        -RequireTls $true `
-        -TlsSenderCertificateName $SmtpProxyHostname `
-        -Enabled $true `
-        -Comment $managedBy | Out-Null
-    Write-OK "Inbound Connector created ← $SmtpProxyHostname (TLS required)"
+    Write-Step "Checking Inbound Connector..."
+    $inName = "EXO Signature Gateway - Inbound"
+    $existingIn = Get-InboundConnector -Identity $inName -ErrorAction SilentlyContinue
+    if ($existingIn) {
+        Write-Warn "Inbound Connector '$inName' exists — updating TLS"
+        Set-InboundConnector `
+            -Identity $inName `
+            -RequireTls $true `
+            -TlsSenderCertificateName $SmtpProxyHostname `
+            -Enabled $true `
+            -Comment $managedBy
+        Write-OK "Inbound Connector updated"
+    } else {
+        New-InboundConnector `
+            -Name $inName `
+            -ConnectorType OnPremises `
+            -SenderDomains @("*") `
+            -RequireTls $true `
+            -TlsSenderCertificateName $SmtpProxyHostname `
+            -Enabled $true `
+            -Comment $managedBy | Out-Null
+        Write-OK "Inbound Connector created ← $SmtpProxyHostname (TLS required)"
+    }
 }
 
 # ── Transport Rule ────────────────────────────────────────────────────────────

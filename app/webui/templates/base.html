@@ -13,16 +13,53 @@
             <span></span><span></span><span></span>
         </button>
         <div class="nav-links" id="nav-links">
+            {% set _role = request.state.user_role if request.state.user_role is defined else 'admin' %}
             <ul>
-                <li><a href="/" class="{% if active == 'dashboard' %}active{% endif %}">Dashboard</a></li>
-                <li><a href="/template" class="{% if active == 'template' %}active{% endif %}">Templates</a></li>
+                <li><a href="/" class="{% if active == 'dashboard' %}active{% endif %}">Übersicht</a></li>
+                <li><a href="/template" class="{% if active == 'template' %}active{% endif %}">Vorlagen</a></li>
                 <li><a href="/preview" class="{% if active == 'preview' %}active{% endif %}">Vorschau</a></li>
+                {% if _role == 'admin' %}
                 <li><a href="/smime" class="{% if active == 'smime' %}active{% endif %}">S/MIME</a></li>
                 <li><a href="/settings" class="{% if active == 'settings' %}active{% endif %}">Einstellungen</a></li>
-                <li><a href="/log" class="{% if active == 'log' %}active{% endif %}">Log</a></li>
+                <li><a href="/log" class="{% if active == 'log' %}active{% endif %}">Protokolle</a></li>
                 <li><a href="/setup" class="{% if active == 'setup' %}active{% endif %}">Einrichtung</a></li>
-                <li><a href="/debug" class="{% if active == 'debug' %}active{% endif %}">Debug</a></li>
+                <li><a href="/debug" class="{% if active == 'debug' %}active{% endif %}">Erweitert</a></li>
+                {% endif %}
             </ul>
+        </div>
+        <span id="nav-online" style="display:flex;align-items:center;gap:5px;font-size:12px;color:rgba(255,255,255,0.75);white-space:nowrap;padding:0 8px;flex-shrink:0">
+            <span id="nav-dot" style="width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block;flex-shrink:0;transition:background 0.4s"></span>
+            <span id="nav-status-text" class="nav-online-text">online</span>
+        </span>
+        <div id="user-badge" style="position:relative;flex-shrink:0;margin:0 6px">
+          <button id="user-initials-btn" onclick="toggleUserTooltip(event)"
+            style="width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,0.18);
+                   border:1.5px solid rgba(255,255,255,0.4);color:white;font-size:11px;font-weight:700;
+                   cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;
+                   letter-spacing:0.5px;flex-shrink:0;transition:background 0.2s"
+            title="" aria-label="Benutzer">?</button>
+          <div id="user-tooltip"
+            style="display:none;position:absolute;top:calc(100% + 10px);right:0;
+                   background:white;border:1px solid #e2e8f0;border-radius:10px;
+                   padding:14px 16px;min-width:220px;
+                   box-shadow:0 8px 24px rgba(0,0,0,0.14);z-index:9999">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+              <div id="user-tt-avatar"
+                style="width:36px;height:36px;border-radius:50%;background:#1d4ed8;
+                       color:white;font-size:13px;font-weight:700;display:flex;
+                       align-items:center;justify-content:center;flex-shrink:0">?</div>
+              <div style="min-width:0">
+                <div id="user-tt-upn" style="font-size:12px;font-weight:600;color:#111;
+                     word-break:break-all;line-height:1.3">—</div>
+                <div id="user-tt-role" style="font-size:11px;color:#6b7280;margin-top:2px">—</div>
+              </div>
+            </div>
+            <div style="border-top:1px solid #f0f0f0;padding-top:8px">
+              <a href="/auth/logout"
+                style="font-size:12px;color:#dc2626;text-decoration:none;display:block;
+                       padding:4px 0;font-weight:500">Abmelden</a>
+            </div>
+          </div>
         </div>
     </nav>
     <script>
@@ -30,10 +67,61 @@
         var links = document.getElementById('nav-links');
         links.classList.toggle('open');
       }
-      // Close menu on outside click
       document.addEventListener('click', function(e) {
         if (!document.getElementById('main-nav').contains(e.target)) {
           document.getElementById('nav-links').classList.remove('open');
+        }
+      });
+      (function() {
+        var dot = document.getElementById('nav-dot');
+        var txt = document.getElementById('nav-status-text');
+        var isOnline = true;
+        function check() {
+          fetch('/health', {method:'GET', cache:'no-store'})
+            .then(function(r) { setStatus(r.ok); })
+            .catch(function() { setStatus(false); });
+        }
+        function setStatus(v) {
+          if (v === isOnline) return;
+          isOnline = v;
+          dot.style.background = v ? '#22c55e' : '#ef4444';
+          txt.textContent = v ? 'online' : 'offline';
+        }
+        check();
+        setInterval(check, 30000);
+      })();
+
+      // User initials badge
+      (function() {
+        fetch('/api/whoami').then(function(r){ return r.ok ? r.json() : null; }).then(function(d) {
+          if (!d) return;
+          var upn = d.upn || '';
+          var role = d.role || 'admin';
+          var local = upn.split('@')[0] || upn;
+          var parts = local.split(/[._\-]/);
+          var initials = parts.length >= 2
+            ? (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase()
+            : local.substring(0, 2).toUpperCase() || '?';
+          var btn = document.getElementById('user-initials-btn');
+          btn.textContent = initials;
+          btn.title = upn;
+          document.getElementById('user-tt-avatar').textContent = initials;
+          document.getElementById('user-tt-upn').textContent = upn || 'Lokal';
+          document.getElementById('user-tt-role').textContent =
+            role === 'editor' ? 'Signatur-Editor' : 'Administrator';
+        }).catch(function(){});
+      })();
+
+      function toggleUserTooltip(e) {
+        e.stopPropagation();
+        var tt = document.getElementById('user-tooltip');
+        tt.style.display = tt.style.display === 'none' ? 'block' : 'none';
+      }
+      document.addEventListener('click', function(e) {
+        var badge = document.getElementById('user-badge');
+        if (badge && !badge.contains(e.target)) {
+          var tt = document.getElementById('user-tooltip');
+          if (tt) tt.style.display = 'none';
         }
       });
     </script>

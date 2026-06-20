@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="max-width:420px;margin:60px auto">
+
+  <!-- Login illustration -->
+  <!--
+    Envelope: x=20..360, y=10..156  (340×146)
+    Flap V:   (20,18) → (190,76) → (360,18)
+    Body:     below V fold, y≈76..156
+    LEFT  zone (x=25..182): greeting text + wave
+    RIGHT zone (x=200..355): lock + wax seal
+    All elements verified within envelope bounds.
+  -->
+  <div style="margin-bottom:20px;text-align:center">
+    <svg width="100%" viewBox="0 0 380 168" xmlns="http://www.w3.org/2000/svg" style="max-width:380px;display:inline-block">
+      <defs>
+        <linearGradient id="lgBg" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:#eff6ff"/>
+          <stop offset="100%" style="stop-color:#eef2ff"/>
+        </linearGradient>
+        <linearGradient id="lgEnv" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" style="stop-color:#ffffff"/>
+          <stop offset="100%" style="stop-color:#dbeafe"/>
+        </linearGradient>
+        <!-- clip to envelope interior -->
+        <clipPath id="envClip">
+          <rect x="20" y="10" width="340" height="146" rx="9"/>
+        </clipPath>
+      </defs>
+
+      <!-- SVG background -->
+      <rect width="380" height="168" rx="14" fill="url(#lgBg)"/>
+
+      <!-- Envelope drop shadow -->
+      <rect x="23" y="13" width="340" height="146" rx="10" fill="#1d4ed8" opacity="0.06"/>
+      <!-- Envelope body -->
+      <rect x="20" y="10" width="340" height="146" rx="9" fill="url(#lgEnv)" stroke="#3b82f6" stroke-width="1.5"/>
+      <!-- Flap V: corners (20,18) and (360,18) meet at center-bottom (190,76) -->
+      <path d="M21 18 L190 76 L359 18" fill="none" stroke="#3b82f6" stroke-width="1.5" stroke-linejoin="round"/>
+      <!-- Bottom fold lines -->
+      <path d="M21 155 L88 108" stroke="#bfdbfe" stroke-width="1.2"/>
+      <path d="M359 155 L292 108" stroke="#bfdbfe" stroke-width="1.2"/>
+
+      <!-- ── LEFT: greeting + wave (clipped to envelope) ── -->
+      <g clip-path="url(#envClip)">
+        <!-- Greeting text, rotated -3° around anchor (100,112) -->
+        <g transform="rotate(-3,100,112)">
+          <text x="28" y="95"
+                font-family="Georgia,'Times New Roman',serif" font-size="14"
+                fill="#1d4ed8" opacity="0.84" font-style="italic">Viele Grüße,</text>
+          <text x="36" y="110"
+                font-family="Georgia,'Times New Roman',serif" font-size="10.5"
+                fill="#3b82f6" opacity="0.72" font-style="italic">Kind regards,</text>
+          <text x="44" y="121"
+                font-family="Georgia,'Times New Roman',serif" font-size="8.5"
+                fill="#6366f1" opacity="0.62" font-style="italic">Cordialement</text>
+        </g>
+        <!-- Signature wave -->
+        <path d="M28 133 Q42 121 56 133 Q72 147 88 129 Q104 111 120 125 Q134 137 150 125"
+              fill="none" stroke="#1d4ed8" stroke-width="2.2"
+              stroke-linecap="round" stroke-linejoin="round"/>
+        <!-- Wave baseline (dashed) -->
+        <line x1="28" y1="143" x2="158" y2="143"
+              stroke="#93c5fd" stroke-width="1" stroke-dasharray="3,4"/>
+      </g>
+
+      <!-- ── RIGHT: lock + wax seal (clipped to envelope) ── -->
+      <g clip-path="url(#envClip)">
+        <!-- Lock — centered at x=258, body top at y=88 -->
+        <!-- Shackle: arc top at y=70 (below fold line ≈52 at x=258) -->
+        <path d="M244 90 L244 76 Q244 68 258 68 Q272 68 272 76 L272 90"
+              fill="none" stroke="#059669" stroke-width="3.5" stroke-linecap="round"/>
+        <!-- Lock body -->
+        <rect x="237" y="88" width="42" height="32" rx="6" fill="#059669"/>
+        <!-- Keyhole -->
+        <circle cx="258" cy="102" r="5.5" fill="white" opacity="0.9"/>
+        <rect x="255" y="105" width="6" height="8" rx="3" fill="white" opacity="0.9"/>
+
+        <!-- Wax seal — centered at x=316, y=132 -->
+        <!-- glow -->
+        <circle cx="316" cy="132" r="21" fill="#b45309" opacity="0.11"/>
+        <!-- amber disc -->
+        <circle cx="316" cy="132" r="17" fill="#d97706"/>
+        <!-- inner decorative ring -->
+        <circle cx="316" cy="132" r="13" fill="none" stroke="#fbbf24"
+                stroke-width="1.4" stroke-dasharray="3,2"/>
+        <!-- checkmark -->
+        <path d="M307 132 L313 139 L326 121" stroke="white" stroke-width="2.6" fill="none"
+              stroke-linecap="round" stroke-linejoin="round"/>
+      </g>
+    </svg>
+  </div>
+
+  <div class="settings-card">
+    <h2 style="margin-top:0;margin-bottom:20px;text-align:center">Anmelden</h2>
+
+    {% if error %}
+    <div class="alert error" style="margin-bottom:16px">
+      {% if error == "not_admin" %}Kein Zugang — {{ upn or "dieses Konto" }} ist nicht als Admin konfiguriert.
+      {% elif error == "session_expired" %}Sitzung abgelaufen — bitte erneut anmelden.
+      {% elif error == "no_upn" %}Konto-Informationen konnten nicht gelesen werden.
+      {% else %}Fehler: {{ error }}{% endif %}
+    </div>
+    {% endif %}
+
+    {% if sso_available %}
+    <button type="button" id="btn-ms-login" class="btn primary"
+      style="display:block;width:100%;text-align:center;padding:12px;font-size:15px;margin-bottom:8px;box-sizing:border-box"
+      onclick="startSsoLogin()"
+      {% if not sso_configured %}disabled title="Noch keine Entra-Admins konfiguriert"{% endif %}>
+      Mit Microsoft anmelden
+    </button>
+    {% if not sso_configured %}
+    <p class="hint" style="text-align:center">Noch keine Entra-Admins konfiguriert — bitte Einrichtung abschließen.</p>
+    {% endif %}
+
+    <div id="sso-paste-section" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid #e2e8f0">
+      <p style="font-size:12px;color:#64748b;margin:0 0 10px 0">
+        Falls der Login-Tab eine Verbindungsfehler-Seite zeigt: kopiere die komplette URL aus der Adressleiste und füge sie hier ein.
+      </p>
+      <input type="text" id="sso-paste-url"
+        placeholder="https://sig.zarenko.net/auth/callback?code=…"
+        style="width:100%;box-sizing:border-box;font-family:monospace;font-size:11px;margin-bottom:8px">
+      <div id="sso-paste-error" class="alert error" style="display:none;margin-bottom:8px"></div>
+      <button type="button" class="btn primary" style="width:100%" onclick="submitSsoPaste()">Anmelden</button>
+    </div>
+    {% else %}
+    <p class="hint" style="text-align:center;margin-bottom:16px">Keine Bootstrap-App konfiguriert — bitte Einrichtung unter <a href="/setup">Einrichtung</a> abschließen.</p>
+    {% endif %}
+
+    <details style="margin-top:20px">
+      <summary style="font-size:12px;color:#888;cursor:pointer;user-select:none;text-align:center">Notfall-Zugang</summary>
+      <div style="margin-top:14px">
+        <div class="settings-row" style="margin-bottom:8px">
+          <label for="local-user">Benutzername</label>
+          <input type="text" id="local-user" style="width:200px" autocomplete="username">
+        </div>
+        <div class="settings-row" style="margin-bottom:12px">
+          <label for="local-pw">Passwort</label>
+          <div class="pw-wrap"><input type="password" id="local-pw" style="width:200px" autocomplete="current-password" onkeydown="if(event.key==='Enter')localLogin()"><button type="button" class="pw-eye" tabindex="-1" onmousedown="showPw('local-pw')" onmouseup="hidePw('local-pw')" onmouseleave="hidePw('local-pw')" ontouchstart="event.preventDefault();showPw('local-pw')" ontouchend="hidePw('local-pw')">&#128065;</button></div>
+        </div>
+        <div id="local-error" class="alert error" style="display:none;margin-bottom:8px"></div>
+        <button type="button" class="btn secondary" style="width:100%" onclick="localLogin()">Anmelden</button>
+      </div>
+    </details>
+  </div>
+</div>
+
+<style>
+.pw-wrap { position:relative; display:inline-block; }
+.pw-wrap input { padding-right:30px !important; box-sizing:border-box; }
+.pw-eye {
+  position:absolute; right:7px; top:50%; transform:translateY(-50%);
+  background:none; border:none; cursor:pointer; padding:2px;
+  color:#bbb; line-height:1; user-select:none; -webkit-user-select:none; font-size:14px;
+}
+.pw-eye:focus { outline:none; }
+</style>
+<script>
+function showPw(id) { var el = document.getElementById(id); if (el) el.type = 'text'; }
+function hidePw(id) { var el = document.getElementById(id); if (el) el.type = 'password'; }
+
+async function startSsoLogin() {
+  const btn = document.getElementById('btn-ms-login');
+  btn.disabled = true;
+  btn.textContent = 'Öffne Microsoft-Login…';
+  const win = window.open('about:blank', '_blank');
+  try {
+    const resp = await fetch('/api/auth/sso-url');
+    if (!resp.ok) throw new Error((await resp.json().catch(()=>({}))).detail || resp.status);
+    const data = await resp.json();
+    if (win) {
+      win.location.href = data.auth_url;
+    } else {
+      window.open(data.auth_url, '_blank');
+    }
+    document.getElementById('sso-paste-section').style.display = 'block';
+  } catch(e) {
+    if (win) win.close();
+    alert('Fehler beim Starten des Logins: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Mit Microsoft anmelden';
+  }
+}
+
+async function submitSsoPaste() {
+  const url = (document.getElementById('sso-paste-url').value || '').trim();
+  const errEl = document.getElementById('sso-paste-error');
+  errEl.style.display = 'none';
+  if (!url) { errEl.textContent = 'Bitte URL einfügen'; errEl.style.display = 'block'; return; }
+  const btn = document.querySelector('#sso-paste-section .btn.primary');
+  btn.disabled = true;
+  btn.textContent = 'Verarbeite…';
+  try {
+    const resp = await fetch('/api/auth/sso-paste', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({url}),
+    });
+    if (resp.ok) {
+      const next = new URLSearchParams(window.location.search).get('next') || '/';
+      window.location.href = next;
+    } else {
+      const d = await resp.json().catch(()=>({}));
+      errEl.textContent = d.detail || 'Fehler';
+      errEl.style.display = 'block';
+    }
+  } catch(e) {
+    errEl.textContent = 'Verbindungsfehler';
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Anmelden';
+  }
+}
+
+async function localLogin() {
+  var u = document.getElementById('local-user').value;
+  var p = document.getElementById('local-pw').value;
+  var errEl = document.getElementById('local-error');
+  errEl.style.display = 'none';
+  var resp = await fetch('/auth/local', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({username: u, password: p}),
+  });
+  if (resp.ok) {
+    var next = new URLSearchParams(window.location.search).get('next') || '/';
+    window.location.href = next;
+  } else {
+    var d = await resp.json().catch(function() { return {}; });
+    errEl.textContent = d.detail || 'Anmeldung fehlgeschlagen';
+    errEl.style.display = 'block';
+  }
+}
+</script>
+{% endblock %}

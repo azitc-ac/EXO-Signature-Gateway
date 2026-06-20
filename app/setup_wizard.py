@@ -294,6 +294,65 @@ async def _assign_exchange_admin_role(token: str, sp_id: str) -> None:
         log.warning("Could not assign Exchange Administrator role: %s", exc)
 
 
+# ── Step: get current user UPN and patch Bootstrap app redirect URI ───────────
+
+async def get_current_user_upn(token: str) -> str:
+    """Get the UPN of the currently authenticated user via Graph /me."""
+    try:
+        me = await _gh("get", f"{GRAPH}/me?$select=userPrincipalName,mail", token)
+        return me.get("userPrincipalName") or me.get("mail") or ""
+    except Exception as exc:
+        log.warning("Could not get current user UPN: %s", exc)
+        return ""
+
+
+_BOOTSTRAP_TARGET_NAME = "EXO Signature Gateway Login"
+_BOOTSTRAP_OLD_NAMES = {"EXO Signature Gateway Setup", "EXO Signature Service Setup"}
+
+
+async def patch_bootstrap_redirect_uri(token: str, hostname: str) -> None:
+    """Add the public SSO redirect URI to the Bootstrap app and normalise its displayName."""
+    if not hostname:
+        return
+    bootstrap_id = settings_store.get("BOOTSTRAP_CLIENT_ID") or ""
+    if not bootstrap_id:
+        return
+    port = config.WEBUI_PORT
+    port_suffix = f":{port}" if port and port != 443 else ""
+    public_uri = f"https://{hostname}{port_suffix}/auth/callback"
+    try:
+        resp = await _gh(
+            "get",
+            f"{GRAPH}/applications?$filter=appId eq '{bootstrap_id}'&$select=id,displayName,publicClient",
+            token,
+        )
+        apps = resp.get("value", [])
+        if not apps:
+            log.warning("Bootstrap app %s not found in directory", bootstrap_id)
+            return
+        obj_id = apps[0]["id"]
+        current_name = apps[0].get("displayName", "")
+        existing_uris = apps[0].get("publicClient", {}).get("redirectUris", [])
+
+        patch: dict = {}
+        if public_uri not in existing_uris:
+            existing_uris.append(public_uri)
+            patch["publicClient"] = {"redirectUris": existing_uris}
+            log.info("Added SSO redirect URI %s to Bootstrap app", public_uri)
+        else:
+            log.info("SSO redirect URI already present on Bootstrap app")
+
+        if current_name in _BOOTSTRAP_OLD_NAMES:
+            patch["displayName"] = _BOOTSTRAP_TARGET_NAME
+            log.info("Renamed Bootstrap app from '%s' to '%s'", current_name, _BOOTSTRAP_TARGET_NAME)
+
+        if patch:
+            await _gh("patch", f"{GRAPH}/applications/{obj_id}", token, json=patch)
+        settings_store.update({"BOOTSTRAP_REDIRECT_URIS": existing_uris})
+    except Exception as exc:
+        log.warning("Could not patch Bootstrap app: %s", exc)
+
+
 # ── Step: run full setup after PKCE callback ──────────────────────────────────
 
 async def run_post_auth_setup(token: str) -> dict:
@@ -327,6 +386,21 @@ async def run_post_auth_setup(token: str) -> dict:
         "sp_id": app_info["sp_id"],
     }
     log.info("App registration complete")
+
+    # 2b. Capture setup admin UPN and patch Bootstrap app redirect URI
+    try:
+        import sso as sso_mod
+        upn = await get_current_user_upn(token)
+        if upn:
+            users = sso_mod.normalize_users()
+            if not any(e["upn"] == upn.strip().lower() for e in users):
+                users.append({"upn": upn.strip().lower(), "role": sso_mod.ROLE_ADMIN})
+                settings_store.update({"ADMIN_USERS": users})
+                log.info("Added setup admin to ADMIN_USERS: %s", upn)
+        hostname = settings_store.get("PUBLIC_HOSTNAME") or ""
+        await patch_bootstrap_redirect_uri(token, hostname)
+    except Exception as exc:
+        log.warning("Admin UPN / redirect URI setup failed: %s", exc)
 
     # 3. Generate auth certificate and upload to Azure
     try:
@@ -396,6 +470,7 @@ def run_exo_connector_setup(
     app_id: str,
     tenant_domain: str,
     smtp_proxy_hostname: str,
+    skip_inbound_connector: bool = False,
 ) -> dict:
     """
     Run the PowerShell script to create the EXO Outbound Connector and
@@ -421,6 +496,8 @@ def run_exo_connector_setup(
         "-CertPath", str(_AUTH_CERT_PATH),
         "-SmtpProxyHostname", smtp_proxy_hostname,
     ]
+    if skip_inbound_connector:
+        cmd.append("-SkipInboundConnector")
 
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
@@ -615,14 +692,23 @@ def _run_verify_ps(body: str) -> dict:
         return {"ok": False, "error": str(exc)}
 
 
-def verify_connector() -> dict:
-    """Check that both EXO connectors and the main transport rule exist."""
-    return _run_verify_ps(
-        '$out  = $null -ne (Get-OutboundConnector -Identity "EXO Signature Gateway - Outbound" -ErrorAction SilentlyContinue)\n'
-        '$in   = $null -ne (Get-InboundConnector  -Identity "EXO Signature Gateway - Inbound"  -ErrorAction SilentlyContinue)\n'
-        '$rule = $null -ne (Get-TransportRule      -Identity "Route via EXO Signature Gateway"  -ErrorAction SilentlyContinue)\n'
-        'Write-Output (@{ok=$out -and $in -and $rule; outbound=$out; inbound=$in; rule=$rule} | ConvertTo-Json -Compress)\n'
-    )
+def verify_connector(smtp_mode: bool = False) -> dict:
+    """Check EXO connectors and transport rule. Inbound Connector only required in SMTP mode."""
+    if smtp_mode:
+        ps = (
+            '$out  = $null -ne (Get-OutboundConnector -Identity "EXO Signature Gateway - Outbound" -ErrorAction SilentlyContinue)\n'
+            '$in   = $null -ne (Get-InboundConnector  -Identity "EXO Signature Gateway - Inbound"  -ErrorAction SilentlyContinue)\n'
+            '$rule = $null -ne (Get-TransportRule      -Identity "Route via EXO Signature Gateway"  -ErrorAction SilentlyContinue)\n'
+            'Write-Output (@{ok=$out -and $in -and $rule; outbound=$out; inbound=$in; rule=$rule} | ConvertTo-Json -Compress)\n'
+        )
+    else:
+        ps = (
+            '$out  = $null -ne (Get-OutboundConnector -Identity "EXO Signature Gateway - Outbound" -ErrorAction SilentlyContinue)\n'
+            '$in   = $null -ne (Get-InboundConnector  -Identity "EXO Signature Gateway - Inbound"  -ErrorAction SilentlyContinue)\n'
+            '$rule = $null -ne (Get-TransportRule      -Identity "Route via EXO Signature Gateway"  -ErrorAction SilentlyContinue)\n'
+            'Write-Output (@{ok=$out -and $rule; outbound=$out; inbound=$in; rule=$rule} | ConvertTo-Json -Compress)\n'
+        )
+    return _run_verify_ps(ps)
 
 
 def verify_imap() -> dict:

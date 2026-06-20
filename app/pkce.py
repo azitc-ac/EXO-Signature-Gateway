@@ -35,7 +35,13 @@ BOOTSTRAP_SCOPES = [
     "offline_access",
 ]
 
-# In-memory session store: state → {verifier, created_at, redirect_uri}
+# Minimal scopes for SSO login (identity only)
+SSO_SCOPES = ["openid", "profile", "email", "User.Read", "offline_access"]
+
+# Delegated ARM scope — lets the logged-in user access their Azure subscriptions
+ARM_SCOPES = ["https://management.azure.com/user_impersonation", "offline_access"]
+
+# In-memory session store: state → {verifier, created_at, redirect_uri, flow}
 _sessions: dict[str, dict] = {}
 _SESSION_TTL = 600  # 10 minutes
 
@@ -53,10 +59,11 @@ def generate_pkce_pair() -> tuple[str, str]:
     return verifier, challenge
 
 
-def create_session(redirect_uri: str) -> tuple[str, str]:
+def create_session(redirect_uri: str, scopes: list | None = None, flow: str = "setup") -> tuple[str, str]:
     """
     Create a new PKCE session.
     Returns (state, authorization_url).
+    flow: "setup" for wizard, "sso" for login
     """
     _prune_sessions()
     state = secrets.token_urlsafe(24)
@@ -65,20 +72,22 @@ def create_session(redirect_uri: str) -> tuple[str, str]:
         "verifier": verifier,
         "redirect_uri": redirect_uri,
         "created_at": time.monotonic(),
+        "flow": flow,
     }
 
+    use_scopes = scopes if scopes is not None else BOOTSTRAP_SCOPES
     params = {
         "client_id": _get_client_id(),
         "response_type": "code",
         "redirect_uri": redirect_uri,
-        "scope": " ".join(BOOTSTRAP_SCOPES),
+        "scope": " ".join(use_scopes),
         "state": state,
         "code_challenge": challenge,
         "code_challenge_method": "S256",
         "prompt": "select_account",
     }
     auth_url = "https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize?" + urllib.parse.urlencode(params)
-    log.debug("PKCE session created state=%s", state)
+    log.debug("PKCE session created state=%s flow=%s", state, flow)
     return state, auth_url
 
 
@@ -103,7 +112,7 @@ def _prune_sessions() -> None:
         log.debug("PKCE session expired state=%s", s)
 
 
-async def exchange_code(code: str, verifier: str, redirect_uri: str) -> dict:
+async def exchange_code(code: str, verifier: str, redirect_uri: str, scopes: list | None = None) -> dict:
     """
     Exchange an authorization code for tokens using PKCE.
     Returns the full token response dict.
@@ -118,7 +127,7 @@ async def exchange_code(code: str, verifier: str, redirect_uri: str) -> dict:
         "code": code,
         "redirect_uri": redirect_uri,
         "code_verifier": verifier,
-        "scope": " ".join(BOOTSTRAP_SCOPES),
+        "scope": " ".join(scopes if scopes is not None else BOOTSTRAP_SCOPES),
     }
 
     async with httpx.AsyncClient(timeout=30) as client:

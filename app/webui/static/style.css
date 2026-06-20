@@ -98,9 +98,9 @@ nav a.active { background: rgba(255,255,255,0.25); color: #fff; font-weight: 600
 }
 
 /* Main */
-main { max-width: 1200px; margin: 32px 0; padding: 0 24px; }
+main { max-width: 960px; margin: 32px auto; padding: 0 24px; }
 @media (max-width: 600px) {
-    main { margin: 12px 0; padding: 0 10px; }
+    main { margin: 12px auto; padding: 0 10px; }
     h1 { font-size: 18px; margin-bottom: 16px; }
     .preview-form { flex-direction: column; align-items: flex-start; }
     .stats-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -249,6 +249,9 @@ input:focus { outline: none; border-color: #0078d4; }
     align-items: center;
     flex-wrap: wrap;
     flex-shrink: 0;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
 }
 @media (max-width: 600px) {
     .user-hdr-actions { width: 100%; }
@@ -451,9 +454,30 @@ input[type="password"]:focus { outline: none; border-color: #0078d4; }
 }
 .user-hdr-info span { flex-shrink: 0; }
 
+/* Pill toggle buttons (log controls) */
+.btn-toggle {
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid #d1d5db;
+    background: #f3f4f6;
+    color: #555;
+    white-space: nowrap;
+    line-height: 1.4;
+}
+.btn-toggle.active {
+    background: #0078d4;
+    color: #fff;
+    border-color: #0078d4;
+}
+.btn-toggle:hover:not(.active) { background: #e5e7eb; }
+
 /* Mobile overrides that must come after component definitions to win the cascade */
 @media (max-width: 600px) {
     .settings-card { padding: 14px 12px; }
     .config-table { font-size: 12px; }
     .config-table th, .config-table td { padding: 8px 10px; }
+    .nav-online-text { display: none; }
 }

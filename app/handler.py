@@ -102,9 +102,9 @@ def _encode_subject(text: str) -> str:
 def _build_subject_tag(enc: bool, signer_name: str | None) -> str:
     """Build [verschlüsselt] / [signiert von X] / [verschlüsselt, signiert von X]."""
     parts = []
-    if enc:
+    if enc and settings_store.get("SMIME_TAG_ENCRYPTED_ENABLED") is not False:
         parts.append(settings_store.get("SMIME_TAG_ENCRYPTED") or "verschlüsselt")
-    if signer_name:
+    if signer_name and settings_store.get("SMIME_TAG_SIGNED_ENABLED") is not False:
         tmpl = settings_store.get("SMIME_TAG_SIGNED") or "signiert von {signer}"
         parts.append(tmpl.replace("{signer}", signer_name))
     return f"[{', '.join(parts)}]" if parts else ""
@@ -135,7 +135,7 @@ def _send_ndr(original_sender: str, missing_certs: list[str] | None = None,
             f"Empfänger kein S/MIME-Verschlüsselungszertifikat vorliegt:\n\n"
             f"{missing_str}\n\n"
             f"Bitte wenden Sie sich an Ihren Administrator oder entfernen Sie\n"
-            f"{settings_store.get('ENC_TRIGGER') or '#enc#'} aus dem Betreff, um die Mail unverschlüsselt zu senden.\n"
+            f"{settings_store.get('ENC_TRIGGER') or '#enc'} aus dem Betreff, um die Mail unverschlüsselt zu senden.\n"
         )
         subject = "Zustellung fehlgeschlagen: Kein Verschlüsselungszertifikat"
     msg = email.mime.text.MIMEText(body, "plain", "utf-8")
@@ -368,21 +368,24 @@ class SignatureHandler:
                         return "250 OK"
 
                     if inner_part and not loop_detector.is_signed(inner_part):
-                        import smime_harvest
-                        outer_subject = _decode_subject(msg.get("Subject", ""))
-                        stripped, signer_name = smime_harvest.strip_and_harvest(msg, sender)
-                        if stripped:
-                            inner_msg = email.message_from_bytes(stripped)
-                            _restore_envelope_headers(inner_msg, msg)
-                            tag = _build_subject_tag(enc=False, signer_name=signer_name)
-                            _apply_subject_tag(inner_msg, tag, outer_subject)
-                            loop_detector.mark_as_signed(inner_msg)
-                            reinject.send(sender, recipients, inner_msg.as_bytes())
-                            stats.increment("processed")
-                            log.info("S/MIME inbound signed stripped from=%s signer=%s",
-                                     sender, signer_name)
-                            return "250 OK"
-                        log.warning("S/MIME strip failed for %s — forwarding signed", sender)
+                        if settings_store.get("SMIME_STRIP_INBOUND") is not False:
+                            import smime_harvest
+                            outer_subject = _decode_subject(msg.get("Subject", ""))
+                            stripped, signer_name = smime_harvest.strip_and_harvest(msg, sender)
+                            if stripped:
+                                inner_msg = email.message_from_bytes(stripped)
+                                _restore_envelope_headers(inner_msg, msg)
+                                tag = _build_subject_tag(enc=False, signer_name=signer_name)
+                                _apply_subject_tag(inner_msg, tag, outer_subject)
+                                loop_detector.mark_as_signed(inner_msg)
+                                reinject.send(sender, recipients, inner_msg.as_bytes())
+                                stats.increment("processed")
+                                log.info("S/MIME inbound signed stripped from=%s signer=%s",
+                                         sender, signer_name)
+                                return "250 OK"
+                            log.warning("S/MIME strip failed for %s — forwarding signed", sender)
+                        else:
+                            log.debug("S/MIME inbound signed pass-through (strip disabled) from=%s", sender)
                         loop_detector.mark_as_signed(msg)
                         reinject.send(sender, recipients, msg.as_bytes())
                         return "250 OK"
@@ -406,7 +409,7 @@ class SignatureHandler:
 
             # ── Early #enc# cert check ────────────────────────────────────────
             subject = _decode_subject(msg.get("Subject", ""))
-            enc_trigger = (settings_store.get("ENC_TRIGGER") or "#enc#").lower()
+            enc_trigger = (settings_store.get("ENC_TRIGGER") or "#enc").lower()
             wants_encryption = enc_trigger in subject.lower()
             log.debug("Outbound from=%s subject=%r enc_trigger=%r wants_encryption=%s",
                       sender, subject, enc_trigger, wants_encryption)
@@ -437,7 +440,7 @@ class SignatureHandler:
             _smime_ok = not _mailbox_cfg or _sender_cfg.get("smime", True)
             if not wants_encryption and _smime_ok:
                 import smime_signer
-                signed = smime_signer.sign(outbound, sender)
+                signed = await smime_signer.sign_async(outbound, sender)
                 if signed:
                     outbound = signed
 

@@ -5,6 +5,7 @@ from pathlib import Path
 
 import config
 import settings_store
+import stats
 
 log = logging.getLogger(__name__)
 
@@ -34,6 +35,7 @@ def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
         else:
             ok = graph_reinject.send_via_graph(mail_from, rcpt_tos, content_bytes)
         if ok:
+            stats.increment("graph_api_calls")
             return
         if settings_store.get("GRAPH_SMTP_FALLBACK"):
             log.warning("Graph re-inject failed — falling back to SMTP (GRAPH_SMTP_FALLBACK enabled)")
@@ -57,6 +59,8 @@ def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
                 ok = graph_reinject.send_via_graph_mime(mail_from, imap_failed, content_bytes)
             else:
                 ok = graph_reinject.send_via_graph(mail_from, imap_failed, content_bytes)
+            if ok:
+                stats.increment("graph_api_calls")
             if not ok:
                 raise RuntimeError(
                     f"IMAP APPEND and Graph re-inject both failed for {imap_failed} — "

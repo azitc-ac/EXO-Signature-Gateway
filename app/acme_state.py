@@ -318,10 +318,8 @@ async def _send_challenge_reply(
     raw_mime = _build_challenge_reply_mime(
         from_email, to_email, re_subject, digest, internet_message_id
     )
-    log.info("ACME reply MIME body:\n%s", raw_mime[:400].decode("ascii", errors="replace"))
-
     method = (settings_store.get("ACME_REPLY_METHOD") or "graph").strip().lower()
-    log.info("ACME: sending challenge reply via %s for %s → %s", method, from_email, to_email)
+    log.info("ACME: sending challenge reply via %s from %s → %s", method, from_email, to_email)
 
     if method == "direct_smtp":
         return await asyncio.get_event_loop().run_in_executor(
@@ -352,7 +350,8 @@ async def complete_order_after_challenge(order: dict) -> None:
     Polls for order 'ready', submits CSR, downloads cert, imports into smime_store.
     """
     email = order["email"]
-    log.info("ACME: polling order for %s after challenge reply", email)
+    fid = order.get("flow_id", "?")
+    log.info("[acme:%s] polling order for %s after challenge reply", fid, email)
 
     key = get_or_create_account_key(email)
     _staging = order.get("directory_url", "") == CASTLE_STAGING
@@ -371,15 +370,18 @@ async def complete_order_after_challenge(order: dict) -> None:
             # Trigger challenge validation on ACME server side
             await client.trigger_challenge(order["challenge_url"])
             save_order(email, {**order, "status": "validating"})
+            log.info("[acme:%s] challenge triggered for %s, order now validating", fid, email)
 
         # Poll until "ready" (CASTLE staging can take >10 min — use 30 min window)
+        log.info("[acme:%s] polling order status for %s (timeout 1800s)", fid, email)
         order_data = await client.poll_order_status(order["order_url"], timeout_sec=1800)
         status = order_data.get("status")
         if status != "ready":
-            log.error("ACME order for %s ended with status=%s", email, status)
+            log.error("[acme:%s] order for %s ended with status=%s", fid, email, status)
             save_order(email, {**order, "status": "error", "error": f"order status={status}"})
             return
 
+        log.info("[acme:%s] order ready for %s — submitting CSR", fid, email)
         # Finalize: submit CSR
         save_order(email, {**order, "status": "finalizing"})
         csr_der = b64url_decode_csr(order["csr_der_b64"])
@@ -397,6 +399,7 @@ async def complete_order_after_challenge(order: dict) -> None:
         else:
             raise TimeoutError("Order did not reach 'valid' after finalize")
 
+        log.info("[acme:%s] order valid for %s — downloading certificate", fid, email)
         # Download cert
         cert_pem = await client.download_certificate(cert_url)
 
@@ -404,7 +407,7 @@ async def complete_order_after_challenge(order: dict) -> None:
         import smime_store
         key_pem = order["cert_key_pem"].encode()
         info = smime_store.store_pem_slot(email, cert_pem, key_pem)
-        log.info("ACME cert imported for %s: expiry=%s slot=%s", email, info.get("expiry"), info.get("slot_id"))
+        log.info("[acme:%s] cert imported for %s: expiry=%s slot=%s", fid, email, info.get("expiry"), info.get("slot_id"))
 
         # Success notification to admin
         if settings_store.get("NOTIFY_CERT_RENEWAL") is not False:
@@ -412,10 +415,10 @@ async def complete_order_after_challenge(order: dict) -> None:
             notification.send_cert_renewal_success(email, info)
 
         clear_order(email)
-        log.info("ACME: order complete for %s", email)
+        log.info("[acme:%s] ENROLLMENT COMPLETE for %s", fid, email)
 
     except Exception as exc:
-        log.error("ACME: order completion failed for %s: %s", email, exc)
+        log.error("[acme:%s] order completion failed for %s: %s", fid, email, exc)
         save_order(email, {**order, "status": "error", "error": str(exc)})
         if settings_store.get("NOTIFY_CERT_RENEWAL") is not False:
             import notification
@@ -432,22 +435,26 @@ def b64url_decode_csr(s: str) -> bytes:
 async def handle_challenge_email(order: dict, token_part1: str) -> None:
     """Called from handler.py when an ACME challenge email is intercepted."""
     email = order["email"]
-    log.info("ACME: processing challenge email for %s", email)
+    fid = order.get("flow_id", "?")
+    log.info("[acme:%s] processing challenge email for %s (token_part1=%.8s…)", fid, email, token_part1)
 
     key = get_or_create_account_key(email)
     token_part2 = order["token_part2"]
     digest = compute_key_authorization(token_part1, token_part2, key)
+    log.info("[acme:%s] computed key authorization digest for %s", fid, email)
 
     # Send the reply
     re_subject = f"Re: ACME: {token_part1}"
     ca_email = order.get("from_address", "")
     internet_message_id = order.get("challenge_internet_msg_id", "")
+    log.info("[acme:%s] sending challenge reply from %s to %s", fid, email, ca_email)
     ok = await _send_challenge_reply(email, ca_email, re_subject, digest, internet_message_id)
     if not ok:
-        log.error("ACME: challenge reply failed for %s", email)
+        log.error("[acme:%s] challenge reply failed for %s", fid, email)
         save_order(email, {**order, "status": "error", "error": "challenge reply send failed"})
         return
 
+    log.info("[acme:%s] challenge reply sent for %s — waiting for CA validation", fid, email)
     save_order(email, {**order, "status": "challenge_replied"})
 
     # Run the rest of the flow as a background task
@@ -476,12 +483,13 @@ async def _poll_mailbox_for_challenge(email: str) -> None:
     import graph_client
     import httpx as _httpx
 
-    log.info("ACME: mailbox poll started for %s", email)
+    order0 = get_order(email)
+    fid = (order0 or {}).get("flow_id", "?")
+    log.info("[acme:%s] mailbox poll started for %s", fid, email)
 
     # Determine a cut-off time: only consider emails received after the order
     # was created (minus a 60 s buffer for clock skew).  This prevents old
     # challenge emails from previous failed orders being mistakenly reused.
-    order0 = get_order(email)
     try:
         from datetime import timedelta
         created_dt = datetime.fromisoformat(order0["created"])
@@ -503,20 +511,20 @@ async def _poll_mailbox_for_challenge(email: str) -> None:
 
         order = get_order(email)
         if not order or order.get("status") != "waiting_challenge":
-            log.info("ACME: poll for %s stopping (status=%s)", email,
+            log.info("[acme:%s] poll for %s stopping (status=%s)", fid, email,
                      order.get("status") if order else "cleared")
             return
 
         token = graph_client._acquire_token()
         if not token:
-            log.warning("ACME: poll for %s — no Graph token, retrying", email)
+            log.warning("[acme:%s] poll for %s — no Graph token, retrying", fid, email)
             continue
 
         try:
             async with _httpx.AsyncClient(timeout=20) as c:
                 r = await c.get(url, headers={"Authorization": f"Bearer {token}"})
             if r.status_code != 200:
-                log.warning("ACME: Graph poll HTTP %d for %s", r.status_code, email)
+                log.warning("[acme:%s] Graph poll HTTP %d for %s", fid, r.status_code, email)
                 continue
 
             for msg in r.json().get("value", []):
@@ -544,26 +552,26 @@ async def _poll_mailbox_for_challenge(email: str) -> None:
                 if body_token_part2:
                     if body_token_part2 != api_token_part2:
                         log.warning(
-                            "ACME: token_part2 mismatch for %s — API=%s body=%s; using body value",
-                            email, api_token_part2[:12], body_token_part2[:12],
+                            "[acme:%s] token_part2 mismatch for %s — API=%s body=%s; using body value",
+                            fid, email, api_token_part2[:12], body_token_part2[:12],
                         )
                         pending = {**pending, "token_part2": body_token_part2}
                     else:
-                        log.debug("ACME: token_part2 matches (API == body) for %s", email)
+                        log.debug("[acme:%s] token_part2 matches (API == body) for %s", fid, email)
                 else:
-                    log.debug("ACME: no token_part2 block in email body for %s (using API value)", email)
+                    log.debug("[acme:%s] no token_part2 block in email body for %s (using API value)", fid, email)
                 pending = {**pending, "from_address": ca_from, "challenge_internet_msg_id": internet_msg_id}
-                log.info("ACME: challenge email found for %s (token_part1=%.8s…)", email, token_part1)
+                log.info("[acme:%s] challenge email found for %s (token_part1=%.8s…)", fid, email, token_part1)
                 await handle_challenge_email(pending, token_part1)
                 return
 
-            log.debug("ACME: poll attempt %d/%d for %s — no challenge email yet", attempt + 1, 41, email)
+            log.debug("[acme:%s] poll attempt %d/%d for %s — no challenge email yet", fid, attempt + 1, 41, email)
 
         except Exception as exc:
-            log.warning("ACME: poll error for %s: %s", email, exc)
+            log.warning("[acme:%s] poll error for %s: %s", fid, email, exc)
 
     # Timed out
-    log.error("ACME: challenge email not received within 20 min for %s", email)
+    log.error("[acme:%s] challenge email not received within 20 min for %s", fid, email)
     order = get_order(email)
     if order and order.get("status") == "waiting_challenge":
         save_order(email, {**order, "status": "error", "error": "challenge email not received (20 min timeout)"})
@@ -587,10 +595,12 @@ async def initiate_acme_order(
     2. Place order
     3. Get authorization + challenge (email-reply-00)
     4. Save state (token-part2, order URL, etc.)
-    5. Return — handler.py will intercept the challenge email and call handle_challenge_email()
+    5. Return — Graph API mailbox poll picks up the CA challenge email
     """
+    import uuid
+    flow_id = uuid.uuid4().hex[:8]
     directory_url = CASTLE_STAGING if staging else CASTLE_DIRECTORY
-    log.info("ACME: initiating order for %s via %s", email, directory_url)
+    log.info("[acme:%s] ENROLLMENT START — %s via %s", flow_id, email, directory_url)
 
     key = get_or_create_account_key(email)
     account_url = get_account_url(email, staging=staging)
@@ -598,11 +608,10 @@ async def initiate_acme_order(
 
     # Ensure account
     if not account_url:
-        # Use NOTIFICATION_MAILBOX as ACME contact email (admin contact)
         contact = settings_store.get("NOTIFICATION_MAILBOX") or email
         account_url = await client.ensure_account(contact_email=contact)
         save_account_url(account_url, email, staging=staging)
-        log.info("ACME: account registered: %s", account_url)
+        log.info("[acme:%s] account registered: %s", flow_id, account_url)
 
     # Place order
     order_data = await client.new_order(email)
@@ -625,15 +634,13 @@ async def initiate_acme_order(
     token_part2 = challenge.get("token", "")
     challenge_url = challenge.get("url", "")
 
-    # The CA will send the challenge email FROM this address
     from_address = challenge.get("from", "") or authz.get("email", "") or "acme@castle.cloud"
 
-    # Generate the cert key + CSR now (CSR is needed at finalize step)
     cert_key_pem, csr_der = generate_cert_key_and_csr(email)
 
-    # Save state — handler.py will complete when it intercepts the CA email
     state = {
         "email": email,
+        "flow_id": flow_id,
         "directory_url": directory_url,
         "order_url": order_url,
         "authz_url": authz_urls[0],
@@ -649,10 +656,7 @@ async def initiate_acme_order(
         "expires": (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat(),
     }
     save_order(email, state)
-    log.info(
-        "ACME: order %s placed for %s — starting Graph API mailbox poll for challenge email",
-        order_url, email,
-    )
+    log.info("[acme:%s] order placed: %s — polling inbox for challenge email", flow_id, order_url)
     _register_task(email, asyncio.create_task(_poll_mailbox_for_challenge(email)))
 
 
@@ -667,10 +671,11 @@ def resume_pending_polls() -> None:
         orders = list(_orders.values())
     for order in orders:
         email = order["email"]
+        fid = order.get("flow_id", "?")
         status = order.get("status")
         if status == "waiting_challenge":
-            log.info("ACME: resuming mailbox poll for %s after restart", email)
+            log.info("[acme:%s] resuming mailbox poll for %s after restart", fid, email)
             _register_task(email, asyncio.create_task(_poll_mailbox_for_challenge(email)))
         elif status == "validating":
-            log.info("ACME: resuming validating order for %s after restart", email)
+            log.info("[acme:%s] resuming validating order for %s after restart", fid, email)
             _register_task(email, asyncio.create_task(complete_order_after_challenge(order)))

@@ -1,30 +1,46 @@
 {% extends "base.html" %}
 {% block content %}
 
-<!-- ── Log-Suche ─────────────────────────────────────────────────────────── -->
+<!-- ── Protokoll-Suche ───────────────────────────────────────────────────── -->
 <div class="settings-card" style="margin-bottom:20px">
-  <h2 style="margin-top:0">Log-Suche</h2>
+  <h2 style="margin-top:0">Protokoll-Suche</h2>
   <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
-    <input type="text" id="searchInput" placeholder="Suchbegriff (z.B. E-Mail-Adresse, ERROR, …)"
-      style="flex:1; min-width:200px" onkeydown="if(event.key==='Enter') doSearch()">
+    <input type="text" id="searchInput" placeholder="Suchbegriff (z.B. E-Mail-Adresse, ERROR, [acme:…])"
+      style="flex:1; min-width:180px" onkeydown="if(event.key==='Enter') doSearch()">
     <button class="btn primary" onclick="doSearch()">Suchen</button>
     <button class="btn secondary" onclick="clearSearch()">Leeren</button>
   </div>
+  <details id="qs-details" style="margin-top:8px">
+    <summary style="font-size:12px;color:#888;cursor:pointer;user-select:none">Schnellsuche</summary>
+    <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+      <button class="btn secondary btn-sm" onclick="quickSearch('acme')">acme</button>
+      <button class="btn secondary btn-sm" onclick="quickSearch('ERROR')">ERROR</button>
+      <button class="btn secondary btn-sm" onclick="quickSearch('WARNING')">WARNING</button>
+      <button class="btn secondary btn-sm" onclick="quickSearch('CRITICAL')">CRITICAL</button>
+      <button class="btn secondary btn-sm" onclick="quickSearch('signed')">signed</button>
+      <button class="btn secondary btn-sm" onclick="quickSearch('crypt')">crypt</button>
+    </div>
+  </details>
+  <script>if (window.innerWidth > 600) document.getElementById('qs-details').open = true;</script>
   <div id="searchStats" style="font-size:12px;color:#666;margin-top:6px;display:none"></div>
   <div id="searchResults" style="margin-top:10px;display:none">
-    <pre id="searchPre" class="log-pre" style="max-height:300px;overflow:auto"></pre>
+    <div class="log-wrap" style="max-height:300px">
+      <pre id="searchPre" class="log-pre"></pre>
+    </div>
   </div>
 </div>
 
-<!-- ── Live-Log ───────────────────────────────────────────────────────────── -->
-<div style="display:flex; align-items:baseline; gap:16px; margin-bottom:16px;">
-    <h1 style="margin:0">Live-Log</h1>
-    <div style="display:flex; gap:8px; margin-left:auto; align-items:center;">
-        <label style="font-size:12px; color:#666; display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:400; margin:0;">
-            <input type="checkbox" id="chkScroll" checked style="margin:0; width:14px; height:14px;">
-            Auto-scroll
-        </label>
+<!-- ── Live-Protokoll ─────────────────────────────────────────────────────── -->
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+    <h1 style="margin:0;flex-shrink:0">Live-Protokoll</h1>
+    <input type="text" id="liveFilter" placeholder="Live-Filter…"
+        style="flex:1;min-width:140px;padding:5px 10px;font-size:13px;border:1px solid #ccc;border-radius:6px"
+        oninput="applyFilter()">
+    <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;flex-wrap:wrap">
         <button class="btn secondary btn-sm" onclick="clearLog()">Leeren</button>
+        <button id="btnScroll"   class="btn-toggle active" onclick="toggleScroll()">autoscroll ✓</button>
+        <button id="btnVerbose"  class="btn-toggle"        onclick="toggleVerbose()">verbose ✗</button>
+        <button id="btnLogging"  class="btn-toggle active" onclick="toggleLogging()">logging ✓</button>
         <span id="connStatus" class="log-status connecting">Verbinde…</span>
     </div>
 </div>
@@ -35,30 +51,32 @@
 
 <script>
 // ── Suche ──────────────────────────────────────────────────────────────────
+function quickSearch(term) {
+  document.getElementById('searchInput').value = term;
+  doSearch();
+}
+
 async function doSearch() {
   const q = (document.getElementById('searchInput').value || '').trim();
   if (!q) return;
-  const stats = document.getElementById('searchStats');
+  const stats   = document.getElementById('searchStats');
   const results = document.getElementById('searchResults');
-  const pre = document.getElementById('searchPre');
+  const pre     = document.getElementById('searchPre');
   stats.textContent = 'Suche läuft…';
   stats.style.display = 'block';
   results.style.display = 'none';
 
   const resp = await fetch('/api/logs/search?q=' + encodeURIComponent(q));
-  if (!resp.ok) {
-    stats.textContent = 'Fehler bei der Suche.';
-    return;
-  }
-  const data = await resp.json();
+  if (!resp.ok) { stats.textContent = 'Fehler bei der Suche.'; return; }
+  const data  = await resp.json();
   const lines = data.results || [];
-  stats.textContent = `${lines.length} Treffer${lines.length === 500 ? ' (Limit erreicht)' : ''}`;
+  stats.textContent = lines.length + ' Treffer' + (lines.length === 500 ? ' (Limit erreicht)' : '');
+  pre.innerHTML = '';
   if (lines.length === 0) {
     pre.textContent = '(keine Treffer)';
   } else {
-    pre.innerHTML = '';
     lines.forEach(function(line) {
-      const span = document.createElement('span');
+      var span = document.createElement('span');
       span.className = levelClass(line);
       span.textContent = line + '\n';
       pre.appendChild(span);
@@ -77,8 +95,14 @@ function clearSearch() {
 const pre    = document.getElementById('logPre');
 const wrap   = document.getElementById('logWrap');
 const status = document.getElementById('connStatus');
-const chk    = document.getElementById('chkScroll');
-let   es     = null;
+
+const LOG_MAX    = 2000;
+let logBuffer    = [];
+let autoScroll   = true;
+let verboseOn    = false;
+let loggingOn    = true;
+let filterText   = '';
+let es           = null;
 
 function levelClass(line) {
     if (/\bCRITICAL\b/.test(line)) return 'log-critical';
@@ -88,14 +112,36 @@ function levelClass(line) {
     return '';
 }
 
+function lineVisible(line) {
+    if (!verboseOn && /\bDEBUG\b/.test(line)) return false;
+    if (filterText && line.toLowerCase().indexOf(filterText.toLowerCase()) === -1) return false;
+    return true;
+}
+
+function renderBuffer() {
+    pre.innerHTML = '';
+    logBuffer.forEach(function(line) {
+        if (!lineVisible(line)) return;
+        var span = document.createElement('span');
+        var cls  = levelClass(line);
+        if (cls) span.className = cls;
+        span.textContent = line + '\n';
+        pre.appendChild(span);
+    });
+    if (autoScroll) wrap.scrollTop = wrap.scrollHeight;
+}
+
 function appendLine(text) {
-    const span = document.createElement('span');
-    const cls  = levelClass(text);
+    logBuffer.push(text);
+    if (logBuffer.length > LOG_MAX) logBuffer.shift();
+    if (!lineVisible(text)) return;
+    var span = document.createElement('span');
+    var cls  = levelClass(text);
     if (cls) span.className = cls;
     span.textContent = text + '\n';
     pre.appendChild(span);
-    while (pre.children.length > 2000) pre.removeChild(pre.firstChild);
-    if (chk.checked) wrap.scrollTop = wrap.scrollHeight;
+    while (pre.children.length > LOG_MAX) pre.removeChild(pre.firstChild);
+    if (autoScroll) wrap.scrollTop = wrap.scrollHeight;
 }
 
 function setStatus(label, cls) {
@@ -104,28 +150,62 @@ function setStatus(label, cls) {
 }
 
 function connect() {
-    if (es) es.close();
+    if (es) { es.close(); es = null; }
     setStatus('Verbinde…', 'connecting');
     es = new EventSource('/log/stream?token={{ stream_token }}');
-    es.onopen = () => setStatus('Live', 'live');
-    es.onmessage = e => {
-        try { appendLine(JSON.parse(e.data)); } catch (_) {}
-    };
-    es.onerror = () => {
-        setStatus('Getrennt – verbinde neu…', 'connecting');
-        es.close();
-        setTimeout(connect, 3000);
+    es.onopen    = function() { setStatus('Live', 'live'); };
+    es.onmessage = function(e) { try { appendLine(JSON.parse(e.data)); } catch(_) {} };
+    es.onerror   = function() {
+        es.close(); es = null;
+        if (loggingOn) { setStatus('Verbinde…', 'connecting'); setTimeout(connect, 3000); }
     };
 }
 
-function clearLog() { pre.textContent = ''; }
+function clearLog() {
+    logBuffer = [];
+    pre.textContent = '';
+}
+
+function applyFilter() {
+    filterText = document.getElementById('liveFilter').value;
+    renderBuffer();
+}
+
+function toggleScroll() {
+    autoScroll = !autoScroll;
+    var btn = document.getElementById('btnScroll');
+    btn.textContent = autoScroll ? 'autoscroll ✓' : 'autoscroll ✗';
+    btn.classList.toggle('active', autoScroll);
+    if (autoScroll) wrap.scrollTop = wrap.scrollHeight;
+}
+
+function toggleVerbose() {
+    verboseOn = !verboseOn;
+    var btn = document.getElementById('btnVerbose');
+    btn.textContent = verboseOn ? 'verbose ✓' : 'verbose ✗';
+    btn.classList.toggle('active', verboseOn);
+    renderBuffer();
+}
+
+function toggleLogging() {
+    loggingOn = !loggingOn;
+    var btn = document.getElementById('btnLogging');
+    btn.textContent = loggingOn ? 'logging ✓' : 'logging ✗';
+    btn.classList.toggle('active', loggingOn);
+    if (loggingOn) {
+        connect();
+    } else {
+        if (es) { es.close(); es = null; }
+        setStatus('Gestoppt', 'connecting');
+    }
+}
 
 connect();
 
 function _resizeLog() {
-    const w = document.getElementById('logWrap');
+    var w = document.getElementById('logWrap');
     if (!w) return;
-    const top = w.getBoundingClientRect().top + window.scrollY;
+    var top = w.getBoundingClientRect().top + window.scrollY;
     w.style.height = Math.max(200, window.innerHeight - top - 20) + 'px';
 }
 window.addEventListener('resize', _resizeLog);

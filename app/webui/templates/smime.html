@@ -12,7 +12,7 @@
   <p class="hint" style="margin-bottom:16px">
     PKCS12-Bundle (.p12 / .pfx) mit privatem Schlüssel und Zertifikat.
     Ausgehende Mails werden automatisch signiert, sobald ein Standardzertifikat für den Absender vorliegt.
-    Der private Schlüssel wird unverschlüsselt gespeichert — nur auf vertrauenswürdigen Hosts deployen.
+    Der private Schlüssel kann unter <a href="/settings#smime">Einstellungen → S/MIME</a> verschlüsselt gespeichert werden.
     Benutzer werden unter <a href="/settings">Einstellungen → Postfach-Konfiguration</a> für S/MIME aktiviert.
   </p>
 
@@ -43,6 +43,17 @@
                   {% else %}disabled style="opacity:.45;cursor:not-allowed" title="Nur mit CASTLE-Backend verfügbar"{% endif %}>
             Auto-Enroll
           </button>
+          {% if kv_configured %}
+            {% if kv_keys.get(u.email) %}
+              <span style="background:#fef3c7;color:#b45309;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;white-space:nowrap" title="Schlüssel in Azure Key Vault">KEY VAULT</span>
+            {% elif has_certs %}
+              <button class="btn secondary btn-sm" style="border-color:#b45309;color:#b45309"
+                      onclick="migrateToKv('{{ u.email }}',this)"
+                      title="Privaten Schlüssel zu Azure Key Vault migrieren">
+                Key Vault migrieren
+              </button>
+            {% endif %}
+          {% endif %}
           <span id="acme-status-{{ u.email | replace('@','_') | replace('.','_') }}"
                 style="font-size:12px"></span>
         </div>
@@ -201,10 +212,8 @@
 <h2 style="margin-top:32px">Verschlüsselungs-Zertifikate (Empfänger)</h2>
 <p class="hint" style="margin-bottom:14px">
   Öffentliche Zertifikate externer Empfänger für S/MIME-Verschlüsselung.
-  Mails mit <code>#enc#</code> im Betreff werden automatisch verschlüsselt wenn ein Zertifikat vorhanden ist.
-  Fehlende Zertifikate führen zu einem NDR an den Absender.<br>
-  <strong>Automatisches Harvesting:</strong> EXO-Transportregel leitet signierte Eingangs-Mails
-  an die Harvest-Adresse weiter (Einstellung: <em>S/MIME Harvest-Adresse</em>).
+  Mails mit dem konfigurierten Verschlüsselungs-Trigger (→ <a href="/settings">Einstellungen → S/MIME</a>) im Betreff werden automatisch verschlüsselt, wenn ein Zertifikat vorhanden ist.
+  Fehlende Zertifikate führen zu einem NDR an den Absender.
 </p>
 
 <div class="settings-card">
@@ -335,11 +344,14 @@ function _renderAcmeStatus(email, data) {
   }
   const s = data.status;
   const lbl = _ACME_LABELS[s] || {icon:'ℹ️', text: s, color:'#374151', bg:'#f3f4f6', border:'#d1d5db'};
-  const detail = s === 'error' && data.error ? ': ' + data.error : '';
+  const errFull  = s === 'error' && data.error ? data.error : '';
+  const errShort = errFull.length > 55 ? errFull.substring(0, 55) + '…' : errFull;
+  const detail   = errFull ? ': ' + errShort : '';
   el.innerHTML = `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;
-    border-radius:10px;background:${lbl.bg};border:1px solid ${lbl.border};color:${lbl.color}">
-    ${lbl.icon} ${lbl.text}${detail}
-    ${s === 'error' ? `<button class="btn secondary btn-sm" style="padding:1px 6px;font-size:11px;margin-left:4px"
+    border-radius:10px;background:${lbl.bg};border:1px solid ${lbl.border};color:${lbl.color};
+    max-width:100%;box-sizing:border-box;overflow:hidden"${errFull ? ` title="${errFull.replace(/"/g,'&quot;')}"` : ''}>
+    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0">${lbl.icon} ${lbl.text}${detail}</span>
+    ${s === 'error' ? `<button class="btn secondary btn-sm" style="padding:1px 6px;font-size:11px;margin-left:4px;flex-shrink:0"
       onclick="clearAcmeOrder('${email}',this)">Zurücksetzen</button>` : ''}
   </span>`;
   if (resetEl) resetEl.style.display = (s !== 'error') ? '' : 'none';
@@ -619,6 +631,29 @@ async function deleteRcptCert(email) {
   );
   if (resp.ok) location.reload();
   else alert('Löschen fehlgeschlagen');
+}
+
+async function migrateToKv(email, btn) {
+  if (!confirm(`Privaten Schlüssel von ${email} zu Azure Key Vault migrieren?\n\nDie lokale Schlüsseldatei wird danach gelöscht. Das Zertifikat bleibt erhalten.`)) return;
+  const origText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Migriere...';
+  try {
+    const resp = await fetch(`/api/smime/keyvault/migrate/${encodeURIComponent(email)}`, {method:'POST'});
+    const data = await resp.json();
+    if (data.ok) {
+      alert(`Schlüssel erfolgreich zu Key Vault migriert.\nKey-ID: ${data.key_id}`);
+      location.reload();
+    } else {
+      alert(`Migration fehlgeschlagen: ${data.detail || data.error}`);
+      btn.disabled = false;
+      btn.textContent = origText;
+    }
+  } catch (err) {
+    alert('Netzwerkfehler: ' + err);
+    btn.disabled = false;
+    btn.textContent = origText;
+  }
 }
 </script>
 {% endblock %}

@@ -10,7 +10,7 @@
 
 {% if request.query_params.get('entra_done') %}
 <div class="alert success" style="margin-bottom:20px">
-  Entra-Login erfolgreich. Entra App-Registrierung und EXO-Smarthost wurden automatisch konfiguriert.
+  Entra-Login erfolgreich. Entra App-Registrierung wurde automatisch erstellt und konfiguriert.
 </div>
 {% endif %}
 
@@ -192,11 +192,12 @@
           {% if s.REINJECT_MODE in ('imap','smtp587') %}checked{% endif %}
           onchange="updateModeSelection()">
         <div>
-          <strong>IMAP + Graph</strong> — Azure ohne Port 25, mit S/MIME<br>
+          <strong>IMAP + Graph</strong> — Azure, mit S/MIME<br>
           <span style="font-size:12px;color:#555">
-            Vollfunktional: Signaturen + S/MIME. Interne Empfänger per IMAP APPEND (kein Senden-Knopf),
+            Vollfunktional: Signaturen + S/MIME. Interne Empfänger per IMAP APPEND,
             externe per Graph sendMail.<br>
-            Voraussetzung: <code>IMAP.AccessAsApp</code> + Service Principal (Schritt IMAP-Zustellung). Kein Port 25 nötig.
+            Voraussetzung: <code>IMAP.AccessAsApp</code> + Service Principal (Schritt IMAP-Zustellung).<br>
+            Kein Port 25, kein TLS-Zertifikat nötig.
           </span>
         </div>
       </label>
@@ -240,7 +241,14 @@
   <div class="step-body">
     {% if e.azure_app_created %}
     <div class="alert success" style="margin-bottom:0">
-      App-Registrierung erfolgreich erstellt.<br>
+      App-Registrierung <strong>EXO Signature Gateway Login</strong> wurde erstellt.<br>
+      {% if e.bootstrap_client_id %}App-ID: <code>{{ e.bootstrap_client_id }}</code><br>{% endif %}
+      {% if e.bootstrap_redirect_uris %}
+      Redirect-URIs in Azure:
+      {% for uri in e.bootstrap_redirect_uris %}<code>{{ uri }}</code>{% if not loop.last %}, {% endif %}{% endfor %}<br>
+      {% elif e.sso_redirect_uri %}
+      Redirect-URI: <code>{{ e.sso_redirect_uri }}</code> <span style="color:#f59e0b;font-size:12px">(noch nicht verifiziert — bitte „Erneut anmelden" ausführen)</span><br>
+      {% endif %}
       Tenant-Domain: <code>{{ e.tenant_domain }}</code><br>
       EXO-Smarthost: <code>{{ e.exo_smarthost }}</code>
     </div>
@@ -248,7 +256,7 @@
     <p class="hint" style="margin-top:8px">Tenant-ID: <code>{{ e.tenant_id[:8] }}…</code></p>
     {% endif %}
     {% if e.bootstrap_client_id %}
-    <details style="margin-top:12px">
+    <details id="retry-login-details" style="margin-top:12px">
       <summary style="cursor:pointer;font-size:13px;color:#64748b">↩ Erneut anmelden (z.B. um Auth-Zertifikat neu zu generieren)</summary>
       <div style="margin-top:12px">
         <ol style="margin:0 0 14px 16px;line-height:2;font-size:13px">
@@ -293,7 +301,7 @@
         <ol style="margin:0 0 12px 16px;line-height:2">
           <li>Öffne das <a href="https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank" rel="noopener">Entra Admin Center → App-Registrierungen</a></li>
           <li>Klicke <strong>„Neue Registrierung"</strong></li>
-          <li>Name: z.B. <code>EXO Signature Gateway Setup</code></li>
+          <li>Name: z.B. <code>EXO Signature Gateway Login</code></li>
           <li>Kontotyp: <em>Nur Konten in diesem Organisationsverzeichnis</em></li>
           <li>Umleitungs-URI: Typ <strong>„Mobile und Desktopanwendungen"</strong> →
             benutzerdefinierte URI: <code>http://localhost:{{ e.webui_port }}/auth/callback</code>
@@ -353,6 +361,8 @@
     <span class="step-title">Entra App-Registrierung</span>
     {% if e.azure_app_created %}
     <span class="step-status done">Automatisch erstellt</span>
+    <button class="verify-btn" onclick="verifyStep('azure', this)" title="Graph-Verbindung prüfen">↻</button>
+    <span class="verify-result" id="verify-azure-result"></span>
     {% else %}
     <span class="step-status waiting">Wird nach Schritt 3 automatisch erledigt</span>
     {% endif %}
@@ -361,7 +371,7 @@
     {% if e.azure_app_created %}
     <div class="alert success" style="margin-bottom:0">
       App-Registrierung <strong>EXO Signature Gateway</strong> wurde erstellt.<br>
-      Client-ID: <code>{{ e.client_id[:8] if e.client_id else "–" }}…</code><br>
+      App-ID: <code>{{ e.client_id if e.client_id else "–" }}</code><br>
       Berechtigungen: <code>User.Read.All</code>, <code>Mail.ReadWrite</code>, <code>Exchange.ManageAsApp</code><br>
       Admin-Consent: erteilt &bull; Exchange-Administrator-Rolle: zugewiesen
     </div>
@@ -371,36 +381,183 @@
     {% if e.azure_app_created %}
     <div class="actions" style="margin-top:12px">
       <button class="btn secondary" onclick="testGraph()">Graph-Verbindung testen</button>
+      <button class="btn secondary" onclick="rerunAzureSetup()">App-Registrierung neu einrichten</button>
     </div>
     <div id="graph-result" style="margin-top:8px;display:none"></div>
     {% endif %}
   </div>
 </div>
 
-<!-- ── Step 5: Smarthost (automatisch) ────────────────────────────────────── -->
-<div class="wizard-step {% if e.exo_smarthost %}done{% endif %}" id="step-5">
+
+<!-- ── Step opt-keyvault: Azure Key Vault (optional) ──────────────────────── -->
+<div class="wizard-step {% if s.KEYVAULT_URL %}done{% endif %}" id="step-keyvault"
+     style="border-color:#b4530922">
   <div class="step-header">
-    <span class="step-badge">6</span>
-    <span class="step-title">EXO Smarthost</span>
-    {% if e.exo_smarthost %}
-    <span class="step-status done">{{ e.exo_smarthost }}</span>
+    <span class="step-badge" style="background:#b45309;width:auto;padding:0 10px;border-radius:10px;font-size:12px">KEY VAULT</span>
+    <span class="step-title">Azure Key Vault (optional)</span>
+    {% if s.KEYVAULT_URL %}
+    <span class="step-status done" style="background:#fef3c7;color:#b45309">Konfiguriert</span>
     {% else %}
-    <span class="step-status waiting">Wird nach Schritt 3 automatisch erkannt</span>
+    <span class="step-status pending" style="background:#fef3c7;color:#b45309">Optional</span>
     {% endif %}
   </div>
   <div class="step-body">
-    {% if e.exo_smarthost %}
-    <p class="hint">Das EXO Signature Gateway leitet Mails an <code>{{ e.exo_smarthost }}</code> weiter.</p>
-    {% else %}
-    <p class="hint">Wird aus der Tenant-Domain automatisch abgeleitet (nach Entra-Login).</p>
+    <p style="font-size:13px;margin-bottom:10px">
+      Private S/MIME-Schlüssel werden in Azure Key Vault gespeichert.
+      Jede Signierung ruft die <strong>Key Vault Sign API</strong> auf —
+      der Schlüssel verlässt Azure nie.
+      Empfohlen für Cloud-Deployments; lokal-only (z.&nbsp;B. Raspberry&nbsp;Pi) kann diesen Schritt überspringen.
+    </p>
+    <p class="hint" style="margin-bottom:14px">
+      Kosten: ca.&nbsp;0,13&nbsp;€/Monat bei 43.000 Signaturen. Standard-Tier reicht aus.
+    </p>
+
+    {% if not e.azure_app_created %}
+    <div class="alert warn" style="margin-bottom:12px">Erst Schritt 5 (Entra App-Registrierung) abschließen.</div>
+    {% endif %}
+
+    <!-- Toggle: neu erstellen vs. bestehend -->
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:14px;cursor:pointer">
+      <input type="checkbox" id="kv-create-toggle" onchange="toggleKvCreate()"
+             {% if not e.azure_app_created %}disabled{% endif %}>
+      <span>Neu erstellen <span style="color:#6b7280;font-weight:400">(Azure Key Vault automatisch anlegen)</span></span>
+    </label>
+
+    <!-- Sektion: bestehenden Vault verknüpfen -->
+    <div id="kv-manual-section">
+      <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:10px;margin-bottom:14px;font-size:13px">
+        <strong>Voraussetzung für bestehenden Vault:</strong><br>
+        <em>Azure Portal &rarr; Key Vault &rarr; Zugriffssteuerung (IAM) &rarr; Rollenzuweisung hinzufügen
+        &rarr; Rolle: <strong>Key Vault Crypto User</strong>
+        &rarr; Mitglied: App-Registrierung <strong>EXO Signature Gateway</strong>.</em>
+      </div>
+    </div>
+
+    <!-- Sektion: Vault neu erstellen -->
+    <div id="kv-create-section" style="display:none;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:14px;margin-bottom:14px">
+      <p style="font-size:13px;margin:0 0 12px 0;color:#374151">
+        Erstellt einen neuen Standard-Vault mit RBAC-Autorisierung und weist automatisch die Rolle <strong>Key Vault Crypto User</strong> zu.
+        Ressourcen werden mit <strong>deinem Azure-Konto</strong> erstellt — dafür brauchst du einmalig einen Azure-Login.
+      </p>
+
+      <!-- Azure-Login für ARM-Zugriff -->
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:10px;margin-bottom:14px;font-size:13px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span id="kv-arm-status-icon">🔑</span>
+          <span id="kv-arm-status-text" style="flex:1;color:#374151">Azure-Login erforderlich, um Subscriptions zu laden und den Vault zu erstellen.</span>
+          <button type="button" class="btn secondary" id="kv-arm-btn" onclick="startArmLogin()"
+            style="white-space:nowrap;font-size:12px;padding:4px 10px"
+            {% if not e.azure_app_created %}disabled{% endif %}>
+            Azure-Zugriff holen
+          </button>
+        </div>
+        <div id="kv-arm-paste-section" style="display:none;margin-top:10px">
+          <p style="font-size:12px;color:#64748b;margin:0 0 6px 0">
+            Falls der Login-Tab eine Fehlerseite zeigt: URL aus der Adressleiste kopieren und hier einfügen.
+          </p>
+          <input type="text" id="kv-arm-paste-url"
+            placeholder="https://sig.zarenko.net/auth/callback?code=…"
+            style="width:100%;box-sizing:border-box;font-family:monospace;font-size:11px;margin-bottom:6px">
+          <button type="button" class="btn primary" style="font-size:12px;padding:4px 10px"
+            onclick="submitArmPaste()">Verbinden</button>
+        </div>
+      </div>
+
+      <!-- Subscription -->
+      <div class="settings-row" style="margin-bottom:10px">
+        <label>Subscription</label>
+        <div>
+          <select id="kv-subscription-sel" style="width:320px" onchange="onKvSubscriptionChange()">
+            <option value="">— Lade Subscriptions… —</option>
+          </select>
+          <input type="text" id="kv-subscription-id-manual"
+            placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+            style="display:none;margin-top:6px;width:300px;font-family:monospace;font-size:12px">
+        </div>
+      </div>
+
+      <!-- Resource Group -->
+      <div class="settings-row" style="margin-bottom:10px">
+        <label>Resource Group</label>
+        <div>
+          <select id="kv-rg-sel" style="width:280px" onchange="onKvRgChange()" disabled>
+            <option value="">— Bitte erst Subscription wählen —</option>
+          </select>
+          <input type="text" id="kv-rg-manual"
+            placeholder="vorhandene-resource-group"
+            style="display:none;margin-top:6px;width:260px">
+          <div id="kv-new-rg-row" style="display:none;margin-top:6px">
+            <span style="font-size:12px;color:#6b7280">Name der neuen Resource Group:</span>
+            <input type="text" id="kv-new-rg-name" value="rg-exo-signature" style="margin-left:8px;width:220px">
+          </div>
+        </div>
+      </div>
+
+      <!-- Vault-Name -->
+      <div class="settings-row" style="margin-bottom:10px">
+        <label for="kv-vault-name">Vault-Name</label>
+        <div>
+          <input type="text" id="kv-vault-name" placeholder="exo-sig-keys" style="width:220px">
+          <span class="hint" style="display:block;margin-top:3px">3–24 Zeichen, alphanumerisch und Bindestrich</span>
+        </div>
+      </div>
+
+      <!-- Region -->
+      <div class="settings-row" style="margin-bottom:12px">
+        <label for="kv-location">Region</label>
+        <select id="kv-location" style="width:240px">
+          <option value="germanywestcentral">Deutschland West Mitte</option>
+          <option value="westeurope" selected>Westeuropa (Niederlande)</option>
+          <option value="northeurope">Nordeuropa (Irland)</option>
+          <option value="switzerlandnorth">Schweiz Nord</option>
+          <option value="uksouth">UK Süd</option>
+          <option value="eastus">USA Ost</option>
+          <option value="westus2">USA West 2</option>
+        </select>
+      </div>
+
+      <div id="kv-create-result" style="display:none;margin-bottom:10px"></div>
+      <div class="actions">
+        <button class="btn primary" id="kv-create-btn" onclick="createKeyvault()"
+          {% if not e.azure_app_created %}disabled{% endif %}>Key Vault anlegen</button>
+      </div>
+    </div>
+
+    <div class="settings-row" style="margin-bottom:4px">
+      <label for="kv-url-input">Key Vault URL</label>
+      <div class="settings-control">
+        <input type="url" id="kv-url-input"
+          value="{{ s.KEYVAULT_URL }}"
+          placeholder="https://myvault.vault.azure.net"
+          style="width:340px">
+        <span class="hint">Format: https://&lt;vaultname&gt;.vault.azure.net</span>
+      </div>
+    </div>
+
+    <div id="kv-test-result" style="margin-top:8px;display:none"></div>
+    <div class="actions" style="margin-top:12px">
+      <button class="btn secondary" onclick="testKeyvault()" {% if not e.azure_app_created %}disabled{% endif %}>
+        Verbindung testen
+      </button>
+      <button class="btn primary" onclick="saveKeyvault()" {% if not e.azure_app_created %}disabled{% endif %}>
+        Speichern
+      </button>
+    </div>
+
+    {% if s.KEYVAULT_URL %}
+    <p class="hint" style="margin-top:10px">
+      Konfiguriert: <code>{{ s.KEYVAULT_URL }}</code><br>
+      Schlüssel migrieren: <em>S/MIME → Schlüssel-Verwaltung</em>
+    </p>
     {% endif %}
   </div>
 </div>
 
+
 <!-- ── Step 7: EXO Connector ──────────────────────────────────────────────── -->
 <div class="wizard-step {% if e.exo_connector_created %}done{% endif %}" id="step-7">
   <div class="step-header">
-    <span class="step-badge">7</span>
+    <span class="step-badge">6</span>
     <span class="step-title">EXO Outbound Connector + Transport Rule</span>
     {% if e.exo_connector_created %}
     <span class="step-status done">Eingerichtet</span>
@@ -415,15 +572,17 @@
       Erstellt in Exchange Online (Loop-Back-Architektur):
       <ul style="margin:8px 0 0 16px;line-height:1.7">
         <li><strong>Outbound Connector</strong> → <code>{{ e.public_hostname or "hostname" }}:25</code> (EXO → Gateway)</li>
+        {% if s.REINJECT_MODE == 'smtp' %}
         <li><strong>Inbound Connector</strong> ← <code>{{ e.public_hostname or "hostname" }}</code> (Gateway → EXO, TLS required)</li>
-        <li><strong>Transport Rule</strong>: alle ausgehenden externen Mails via Gateway, außer <code>X-Sig-Applied: 1</code></li>
+        {% endif %}
+        <li><strong>Transport Rule</strong>: alle ausgehenden Mails via Gateway, außer <code>X-Sig-Applied: 1</code></li>
       </ul>
       <span style="color:#16a34a">EXO re-signiert mit DKIM nach der Signatur-Injektion — maximale Zustellbarkeit.</span>
     </p>
     {% if not e.azure_app_created %}
     <div class="alert warn" style="margin-bottom:0">Erst Schritt 3 (Entra-Login) abschließen.</div>
-    {% elif not e.cert_exists %}
-    <div class="alert warn" style="margin-bottom:0">Empfohlen: erst ein TLS-Zertifikat einrichten (Schritt 6).</div>
+    {% elif not e.cert_exists and s.REINJECT_MODE == 'smtp' %}
+    <div class="alert warn" style="margin-bottom:0">Empfohlen: erst ein TLS-Zertifikat einrichten (Schritt 2.1).</div>
     {% endif %}
 
     <!-- Auth-Zertifikat für Exchange Online -->
@@ -464,59 +623,63 @@
     </div>
     {% if e.exo_connector_created %}
     <p class="hint" style="margin-top:8px">
-      Mail-Flow: Outlook &rarr; EXO &rarr; Transport Rule &rarr; Gateway (Signatur) &rarr; EXO Smarthost &rarr; Inbound Connector &rarr; EXO Delivery (DKIM re-sign)
+      {% if s.REINJECT_MODE == 'smtp' %}
+      Mail-Flow: Outlook &rarr; EXO &rarr; Transport Rule &rarr; Gateway &rarr; Inbound Connector &rarr; EXO Delivery (DKIM re-sign)
+      {% elif s.REINJECT_MODE in ('imap', 'smtp587') %}
+      Mail-Flow: Outlook &rarr; EXO &rarr; Transport Rule &rarr; Gateway &rarr; IMAP APPEND / Graph sendMail &rarr; EXO Delivery
+      {% else %}
+      Mail-Flow: Outlook &rarr; EXO &rarr; Transport Rule &rarr; Gateway &rarr; Graph sendMail &rarr; EXO Delivery
+      {% endif %}
     </p>
     {% endif %}
   </div>
 </div>
 
-<!-- ── Step opt-imap: IMAP-Zustellung (Azure / kein Port 25) ─────────────── -->
-<div class="wizard-step {% if e.imap_access_configured %}done{% endif %}" id="step-imap" style="border-color:#0284c722">
+<!-- ── Step opt-imap: IMAP-Zustellung ─────────────────────────────────────── -->
+<div class="wizard-step {% if e.imap_access_configured %}done{% endif %}" id="step-imap"
+     style="border-color:#0284c722{% if s.REINJECT_MODE not in ('imap','smtp587') %};display:none{% endif %}">
   <div class="step-header">
-    <span class="step-badge" style="background:#0284c7">7.1</span>
-    <span class="step-title">IMAP-Zustellung konfigurieren <span style="font-weight:400;font-size:12px;color:#64748b">(Azure / kein Port 25)</span></span>
+    <span class="step-badge" style="background:#0284c7;width:auto;padding:0 10px;border-radius:10px;font-size:12px">IMAP</span>
+    <span class="step-title">IMAP-Zugriff einrichten</span>
     {% if e.imap_access_configured %}
     <span class="step-status done" style="background:#e0f2fe;color:#0284c7">Eingerichtet</span>
     <button class="verify-btn" style="color:#0284c7;border-color:#0284c7" onclick="verifyStep('imap', this)" title="Konfiguration in EXO prüfen">↻</button>
     <span class="verify-result" id="verify-imap-result"></span>
     {% else %}
-    <span class="step-status pending" style="background:#e0f2fe;color:#0284c7">Optional</span>
+    <span class="step-status pending" style="background:#e0f2fe;color:#0284c7">Ausstehend</span>
     {% endif %}
   </div>
   <div class="step-body">
-    <div class="alert warn" style="margin-bottom:14px">
-      <strong>Nur erforderlich bei REINJECT_MODE = imap</strong> (Azure-Betrieb ohne Port-25-Ausgang).
-      Bei Port-25-Betrieb (Standard) diesen Schritt überspringen.
-    </div>
-
-    <p style="font-size:13px;margin-bottom:10px">
-      Für IMAP APPEND (kein MSGFLAG_UNSENT, originaler Absender sichtbar) sind
-      zwei EXO-Konfigurationen nötig — beide werden hier automatisch eingerichtet:
+    <p style="font-size:13px;margin-bottom:12px">
+      Im Modus <strong>IMAP + Graph</strong> werden ausgehende Mails mit Signatur weiterhin per
+      <strong>Graph API</strong> (<code>sendMail</code>) zugestellt. IMAP wird ausschließlich für
+      einen Sonderfall benötigt: eingehende Mails externer Absender, die S/MIME-verschlüsselt
+      ankommen, werden nach der Entschlüsselung per IMAP direkt ins Postfach des Empfängers geschrieben.<br>
+      Damit das funktioniert, muss Exchange Online der App vertrauen und Zugriff auf die Postfächer gewähren.
+      Beides wird hier automatisch eingerichtet:
     </p>
     <ul style="margin:0 0 14px 16px;line-height:1.9;font-size:13px">
       <li>
-        <strong>Service Principal in EXO</strong> (<code>New-ServicePrincipal</code>) —
-        registriert die App in Exchange Online, damit EXO IMAP-XOAUTH2-Verbindungen
-        dieser App annimmt.
+        <strong>Service Principal</strong> (<code>New-ServicePrincipal</code>) —
+        registriert die App in Exchange Online, damit EXO IMAP-Verbindungen
+        dieser App per OAuth2 akzeptiert.
       </li>
       <li>
-        <strong>Postfach-Zugriffsrechte</strong> (<code>Add-MailboxPermission FullAccess</code>) —
-        steuert, auf welche Postfächer die App per IMAP zugreifen darf.
-        Muss für jedes Postfach gesetzt sein (wird für alle Postfächer gleichzeitig erledigt).
+        <strong>Postfach-Zugriffsrecht</strong> (<code>Add-MailboxPermission FullAccess</code>) —
+        erlaubt der App, Mails in die Postfächer zu schreiben. Muss für alle betroffenen
+        Postfächer gesetzt sein (wird in einem Schritt für alle erledigt).
       </li>
     </ul>
 
     <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;padding:10px;margin-bottom:14px;font-size:13px">
-      <strong>Voraussetzung im Entra Admin Center:</strong> Die App-Registrierung muss die Permission
-      <code>IMAP.AccessAsApp</code> (Exchange Online) mit Admin-Consent haben.<br>
+      <strong>Voraussetzung:</strong> Die App-Registrierung benötigt die Permission
+      <code>IMAP.AccessAsApp</code> (Exchange) mit Admin-Consent.<br>
       {% if e.azure_app_created %}
-      Bei Neuinstallation via Schritt 3 wird diese Permission automatisch beantragt.<br>
-      Bei bestehender Installation ohne Neustart des Wizards:
-      <em>Entra Admin Center → App-Registrierungen → EXO Signature Gateway →
-      API-Berechtigungen → Berechtigung hinzufügen → Exchange →
-      Anwendungsberechtigungen → IMAP.AccessAsApp → Admin-Zustimmung erteilen.</em>
+      Diese Permission wird bei Schritt 3 automatisch beantragt.<br>
+      Falls noch nicht erteilt: <em>Entra Admin Center → App-Registrierungen →
+      EXO Signature Gateway → API-Berechtigungen → IMAP.AccessAsApp → Admin-Zustimmung erteilen.</em>
       {% else %}
-      Erst Schritt 3 abschließen — dann wird die Permission automatisch beantragt.
+      Erst Schritt 3 (Entra-Login) abschließen — die Permission wird dann automatisch beantragt.
       {% endif %}
     </div>
 
@@ -538,115 +701,10 @@
   </div>
 </div>
 
-<!-- ── Step opt-acs: Azure Communication Services (S/MIME ACME Mails) ──────── -->
-<div class="wizard-step" id="step-acs" style="border-color:#d9770622;opacity:0.75;display:none">
-  <div class="step-header">
-    <span class="step-badge" style="background:#d97706">7.2</span>
-    <span class="step-title">Azure Communication Services – ACME-Mails
-      <span style="font-weight:400;font-size:12px;color:#92400e"> (S/MIME Zertifikat-Erneuerung ohne Port&nbsp;25)</span>
-    </span>
-    <span class="step-status pending" style="background:#fef3c7;color:#92400e">Geplant</span>
-  </div>
-  <div class="step-body">
-
-    <div class="alert warn" style="margin-bottom:16px;border-color:#fcd34d;background:#fffbeb;color:#78350f">
-      <strong>Vorschau — noch nicht aktiv.</strong>
-      Diese Konfiguration wird in einer der n&auml;chsten Versionen vollst&auml;ndig implementiert.
-      Die Felder sind noch nicht funktional.
-    </div>
-
-    <p style="font-size:13px;margin-bottom:14px;color:#555;line-height:1.6">
-      F&uuml;r die <strong>S/MIME-Zertifikatserneuerung via CASTLE ACME</strong> muss das Gateway
-      eine RFC&nbsp;8823-konforme Antwortmail senden. Exchange Online ver&auml;ndert ausgehende Mails
-      so stark (ARC-Seal, DKIM, Content-ID, Thread-Topic, CTE&nbsp;7bit&nbsp;&rarr;&nbsp;quoted-printable,
-      +25&nbsp;interne Header), dass CASTLE die Antwort als <code>invalid</code> ablehnt.<br>
-      Auf Azure-VMs ist direktes SMTP Port&nbsp;25 nach extern gesperrt.<br>
-      <strong>Azure Communication Services Email</strong> sendet die ACME-Antwortmail &uuml;ber
-      Microsofts eigene Mail-Infrastruktur (nicht Exchange Online), ohne diese Modifikationen —
-      per REST-API oder SMTP-Relay auf Port&nbsp;587/465 von unserem Code aus erreichbar.
-    </p>
-
-    <div style="background:#fef9c3;border:1px solid #fde68a;border-radius:6px;padding:10px;margin-bottom:16px;font-size:12px;color:#78350f">
-      <strong>Voraussetzung:</strong> Custom Domain <code>zarenko.net</code> (oder deine Domain) muss in ACS verifiziert sein.
-      Dann kann ACS FROM <code>erika.mustermann@zarenko.net</code> senden — RFC&nbsp;8823-konform.
-      Eine dedizierte Absenderadresse (<code>certenroll@…</code>) w&uuml;rde <em>nicht</em> funktionieren,
-      da CASTLE pr&uuml;ft, dass From: mit der zu zertifizierenden Adresse &uuml;bereinstimmt.
-    </div>
-
-    <!-- Azure-Zugangsdaten -->
-    <fieldset disabled style="border:1px solid #e2e8f0;border-radius:6px;padding:14px;margin-bottom:16px;background:#fafafa">
-      <legend style="font-size:13px;font-weight:600;padding:0 6px;color:#374151">Azure-Ressource</legend>
-
-      <div class="settings-row" style="margin-top:8px">
-        <label for="acs-subscription" style="min-width:160px">Subscription&nbsp;ID</label>
-        <input type="text" id="acs-subscription"
-               placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-               style="width:320px;font-family:monospace;font-size:13px">
-        <span style="font-size:12px;color:#888;margin-left:8px">Azure Subscription, in der die ACS-Ressource liegt</span>
-      </div>
-
-      <div class="settings-row">
-        <label for="acs-resource-group" style="min-width:160px">Resource&nbsp;Group</label>
-        <input type="text" id="acs-resource-group"
-               placeholder="z.B. rg-mail-prod"
-               style="width:260px">
-      </div>
-
-      <div class="settings-row">
-        <label for="acs-resource-name" style="min-width:160px">ACS-Ressource</label>
-        <input type="text" id="acs-resource-name"
-               placeholder="z.B. acs-signature-gateway"
-               style="width:260px">
-        <span style="font-size:12px;color:#888;margin-left:8px">Name der Communication Services Ressource in Azure</span>
-      </div>
-
-      <div class="actions" style="margin-top:10px">
-        <button class="btn secondary" disabled>Verbindung testen</button>
-      </div>
-    </fieldset>
-
-    <!-- Domain-Liste -->
-    <fieldset disabled style="border:1px solid #e2e8f0;border-radius:6px;padding:14px;margin-bottom:16px;background:#fafafa">
-      <legend style="font-size:13px;font-weight:600;padding:0 6px;color:#374151">Absender-Domains</legend>
-      <p style="font-size:12px;color:#555;margin:6px 0 12px">
-        Pro Domain wird ein <strong>TXT-Verifikationsrecord</strong> f&uuml;r ACS ausgespuckt.
-        Nach DNS-Eintrag: &bdquo;Verifizieren&ldquo;. Dann steht die Domain als Absender f&uuml;r ACME-Mails bereit.
-      </p>
-
-      <div id="acs-domains-list">
-        <!-- Beispiel-Zeile (read-only Vorschau) -->
-        <div class="acs-domain-row" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
-          <input type="text" value="zarenko.net" placeholder="domain.tld"
-                 style="width:200px;font-family:monospace" disabled>
-          <span class="acs-txt-record" style="font-size:11px;font-family:monospace;background:#f1f5f9;
-                border:1px solid #cbd5e1;border-radius:4px;padding:3px 6px;color:#475569;flex:1;min-width:180px">
-            TXT-Record erscheint nach Verbindung mit Azure
-          </span>
-          <button class="btn secondary" style="font-size:12px;padding:4px 10px" disabled>Verifizieren</button>
-          <button class="btn secondary" style="font-size:12px;padding:4px 10px" disabled>Test-Mail</button>
-          <button style="background:none;border:1px solid #fca5a5;color:#dc2626;border-radius:4px;
-                  padding:3px 8px;cursor:pointer;font-size:12px" disabled>&times;</button>
-        </div>
-      </div>
-
-      <div class="actions" style="margin-top:6px">
-        <button class="btn secondary" style="font-size:12px" disabled>+ Domain hinzuf&uuml;gen</button>
-      </div>
-    </fieldset>
-
-    <p style="font-size:12px;color:#92400e;margin-top:4px">
-      Sobald eine Domain verifiziert ist, kann unter
-      <strong>S/MIME &rarr; Einstellungen</strong> &bdquo;ACME-Mail via ACS&ldquo; aktiviert werden
-      — das Gateway verwendet dann ACS statt direktem SMTP Port&nbsp;25 f&uuml;r CASTLE-Antwortmails.
-    </p>
-
-  </div>
-</div>
-
 <!-- ── Steps 8+9 (opt): S/MIME Inbound Transport Rules ───────────────────── -->
 <div class="wizard-step {% if e.smime_rules_created %}done{% endif %}" id="step-smime" style="border-color:#7c3aed22">
   <div class="step-header">
-    <span class="step-badge" style="background:#7c3aed">7.3</span>
+    <span class="step-badge" style="background:#7c3aed;width:auto;padding:0 10px;border-radius:10px;font-size:12px">S/MIME</span>
     <span class="step-title">S/MIME – Inbound Transport-Regeln</span>
     {% if e.smime_rules_created %}
     <span class="step-status done" style="background:#f3e8ff;color:#7c3aed">Eingerichtet</span>
@@ -671,7 +729,7 @@
     </ul>
 
     {% if not e.exo_connector_created %}
-    <div class="alert warn" style="margin-bottom:12px">Erst Schritt 7 (EXO Connector) abschließen.</div>
+    <div class="alert warn" style="margin-bottom:12px">Erst Schritt 6 (EXO Connector) abschließen.</div>
     {% endif %}
 
     <div id="smime-rules-result" style="margin-top:8px;display:none"></div>
@@ -690,20 +748,14 @@
       <code>EXO Signature Gateway - SMIME Encrypted Inbound</code> (Encrypted → Gateway)
     </p>
     {% endif %}
-
-    <div style="margin-top:16px;padding:10px;background:#f8fafc;border-radius:6px;font-size:12px;color:#666">
-      <strong>Alternativ: Harvesting-only</strong> ohne Mail-Veränderung —
-      unter <a href="/settings">Einstellungen → S/MIME → Harvest-Adresse</a> eine interne Adresse eintragen
-      und signierte Mails per <code>AddToRecipients</code> dorthin leiten.
-    </div>
   </div>
 </div>
 
 <!-- ── Step 10: Verbindungstest ───────────────────────────────────────────── -->
 <div class="wizard-step {% if e.setup_complete %}done{% endif %}" id="step-10">
   <div class="step-header">
-    <span class="step-badge">8</span>
-    <span class="step-title">Verbindungstest &amp; Abschluss</span>
+    <span class="step-badge">7</span>
+    <span class="step-title">Verbindungstest</span>
     {% if e.setup_complete %}
     <span class="step-status done">Setup abgeschlossen</span>
     {% else %}
@@ -728,9 +780,36 @@
       {% if not e.setup_complete %}
       <button class="btn secondary" onclick="markComplete()">Setup als abgeschlossen markieren</button>
       {% else %}
-      <a href="/" class="btn secondary">Zum Dashboard</a>
+      <a href="/" class="btn secondary">Zur Übersicht</a>
       {% endif %}
     </div>
+  </div>
+</div>
+
+<!-- ── Step: Entra-Konten ──────────────────────────────────────────────────── -->
+{% set _has_entra_users = e.bootstrap_client_id and (s.ADMIN_USERS | length > 0) %}
+<div class="wizard-step" id="step-entra-users" style="border-color:#6366f133;background:{% if _has_entra_users %}#f5f3ff{% else %}#fafafe{% endif %}">
+  <div class="step-header">
+    <span class="step-badge" style="background:#6366f1;font-size:16px;line-height:1">→</span>
+    <span class="step-title">Entra-Konten für SSO-Login</span>
+    {% if _has_entra_users %}
+    <span class="step-status done" style="background:#ede9fe;color:#6366f1">{{ s.ADMIN_USERS | length }} {{ 'Konten' if s.ADMIN_USERS | length != 1 else 'Konto' }} konfiguriert</span>
+    {% else %}
+    <span class="step-status pending" style="background:#ede9fe;color:#6366f1">Noch keine Entra-Konten</span>
+    {% endif %}
+  </div>
+  <div class="step-body">
+    {% if _has_entra_users %}
+    <p class="hint">Entra-Konten sind konfiguriert — SSO-Login ist aktiv.</p>
+    {% else %}
+    <p class="hint" style="margin-bottom:12px">
+      Ohne Entra-Konto funktioniert der SSO-Login nicht. Trage mindestens einen Admin-UPN ein,
+      damit du dich künftig mit deinem Microsoft-Konto anmelden kannst.
+    </p>
+    {% endif %}
+    <a href="/settings#admin-users" class="btn {% if _has_entra_users %}secondary{% else %}primary{% endif %}">
+      Entra-Konten verwalten →
+    </a>
   </div>
 </div>
 
@@ -918,14 +997,22 @@ async function startAzureLogin(btnId, pasteSectionId) {
   const btn = document.getElementById(btnId);
   btn.disabled = true;
   btn.textContent = 'Öffne Login…';
+  // Open blank window synchronously to preserve user-gesture context on iOS Safari.
+  // Safari blocks window.open() called after any await.
+  const win = window.open('about:blank', '_blank');
   try {
     const resp = await fetch('/auth/start');
     if (!resp.ok) throw new Error((await resp.json().catch(()=>({}))).detail || resp.status);
     const data = await resp.json();
-    window.open(data.auth_url, '_blank');
+    if (win) {
+      win.location.href = data.auth_url;
+    } else {
+      window.open(data.auth_url, '_blank');
+    }
     document.getElementById(pasteSectionId).style.display = 'block';
     btn.textContent = 'Erneut anmelden';
   } catch (e) {
+    if (win) win.close();
     alert('Fehler beim Starten des Logins: ' + e.message);
     btn.textContent = 'Jetzt anmelden →';
   } finally {
@@ -1072,7 +1159,7 @@ async function markComplete() {
   });
   if (resp.ok) {
     const a = document.getElementById('wizard-alert');
-    showAlert(a, 'success', 'Setup abgeschlossen! Weitergeleitet zum Dashboard…');
+    showAlert(a, 'success', 'Setup abgeschlossen! Weitergeleitet zur Übersicht…');
     setTimeout(() => { window.location.href = '/'; }, 2000);
   }
 }
@@ -1099,7 +1186,6 @@ function updateModeSelection() {
   // Show/hide wizard steps based on mode
   const stepTls   = document.getElementById('step-le');
   const stepImap  = document.getElementById('step-imap');
-  const stepAcs   = document.getElementById('step-acs');
   const stepSmime = document.getElementById('step-smime');
 
   // TLS cert (2.1): only needed for SMTP mode (inbound connector uses client cert)
@@ -1107,9 +1193,6 @@ function updateModeSelection() {
 
   // IMAP access (7.1): only for imap mode
   if (stepImap) stepImap.style.display = (mode === 'imap') ? '' : 'none';
-
-  // ACS (7.2): only relevant when NOT using direct SMTP port 25
-  if (stepAcs)  stepAcs.style.display  = (mode !== 'smtp') ? '' : 'none';
 
   // S/MIME (7.3): only if enabled and mode supports it
   const showSmime = (mode !== 'graph') && smimeCb.checked;
@@ -1284,14 +1367,12 @@ async function obsClearCaptures() {
   const mode = document.querySelector('input[name="reinject-mode-wizard"]:checked')?.value || 'smtp';
   const stepTls   = document.getElementById('step-le');
   const stepImap  = document.getElementById('step-imap');
-  const stepAcs   = document.getElementById('step-acs');
   const stepSmime = document.getElementById('step-smime');
   const smimeCb   = document.getElementById('smime-enabled-wizard');
   if (!smimeCb) return;
   if (mode === 'graph') { smimeCb.checked = false; smimeCb.disabled = true; }
   if (stepTls)   stepTls.style.display   = (mode === 'smtp') ? '' : 'none';
   if (stepImap)  stepImap.style.display  = (mode === 'imap') ? '' : 'none';
-  if (stepAcs)   stepAcs.style.display   = (mode !== 'smtp') ? '' : 'none';
   if (stepSmime) stepSmime.style.display = (mode !== 'graph' && smimeCb.checked) ? '' : 'none';
 })();
 
@@ -1305,7 +1386,8 @@ async function verifyStep(type, btn) {
     const r = await fetch('/api/setup/verify/' + type);
     const d = await r.json();
     if (d.ok) {
-      if (resultEl) resultEl.innerHTML = '<span style="color:#16a34a;font-size:12px;font-weight:500">✓ OK</span>';
+      const label = d.org ? '✓ OK — ' + d.org : '✓ OK';
+      if (resultEl) resultEl.innerHTML = '<span style="color:#16a34a;font-size:12px;font-weight:500">' + label + '</span>';
     } else {
       const missing = [];
       if (d.outbound  === false) missing.push('Outbound Connector');
@@ -1321,6 +1403,316 @@ async function verifyStep(type, btn) {
   } finally {
     btn.disabled = false;
     btn.textContent = orig;
+  }
+}
+
+function rerunAzureSetup() {
+  const details = document.getElementById('retry-login-details');
+  if (details) {
+    details.open = true;
+    details.scrollIntoView({behavior: 'smooth', block: 'start'});
+    const btn = document.getElementById('btn-azure-login-retry');
+    if (btn) btn.click();
+  }
+}
+
+var _kvSubsLoaded = false;
+var _kvArmOk = false;
+
+// Listen for ARM auth result from popup
+window.addEventListener('message', function(e) {
+  if (!e.data || typeof e.data !== 'object') return;
+  if (e.data.type === 'arm-auth-done') {
+    _kvArmOk = true;
+    _kvSubsLoaded = false;
+    document.getElementById('kv-arm-paste-section').style.display = 'none';
+    document.getElementById('kv-arm-status-text').textContent = 'Verbunden — lade Subscriptions…';
+    document.getElementById('kv-arm-status-text').style.color = '#16a34a';
+    document.getElementById('kv-arm-status-icon').textContent = '✓';
+    document.getElementById('kv-arm-btn').textContent = 'Erneut verbinden';
+    loadKvSubscriptions();
+  } else if (e.data.type === 'arm-auth-fail') {
+    document.getElementById('kv-arm-status-text').textContent = '✗ ' + (e.data.msg || 'Fehler');
+    document.getElementById('kv-arm-status-text').style.color = '#dc2626';
+  }
+});
+
+async function startArmLogin() {
+  const btn = document.getElementById('kv-arm-btn');
+  btn.disabled = true;
+  btn.textContent = 'Öffne Azure-Login…';
+  const win = window.open('about:blank', '_blank');
+  try {
+    const r = await fetch('/api/setup/keyvault/arm-auth-url');
+    if (!r.ok) throw new Error((await r.json().catch(()=>({}))).detail || r.status);
+    const data = await r.json();
+    if (win) win.location.href = data.auth_url;
+    else window.open(data.auth_url, '_blank');
+    // Show paste fallback in case popup blocks postMessage
+    setTimeout(function() {
+      const pasteEl = document.getElementById('kv-arm-paste-section');
+      if (!_kvArmOk && pasteEl) pasteEl.style.display = 'block';
+    }, 4000);
+  } catch(e) {
+    if (win) win.close();
+    alert('Fehler: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Azure-Zugriff holen';
+  }
+}
+
+async function submitArmPaste() {
+  const url = (document.getElementById('kv-arm-paste-url').value || '').trim();
+  if (!url) return;
+  const statusText = document.getElementById('kv-arm-status-text');
+  statusText.textContent = 'Verbinde…';
+  try {
+    const r = await fetch('/api/setup/keyvault/arm-paste', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({url}),
+    });
+    if (!r.ok) {
+      const d = await r.json().catch(()=>({}));
+      statusText.textContent = '✗ ' + (d.detail || 'Fehler');
+      return;
+    }
+    _kvArmOk = true;
+    document.getElementById('kv-arm-status-icon').textContent = '✓';
+    document.getElementById('kv-arm-status-text').style.color = '#16a34a';
+    statusText.textContent = 'Azure-Verbindung hergestellt — lade Subscriptions…';
+    document.getElementById('kv-arm-paste-section').style.display = 'none';
+    document.getElementById('kv-arm-btn').textContent = 'Erneut verbinden';
+    _kvSubsLoaded = false;
+    loadKvSubscriptions();
+  } catch(e) {
+    statusText.textContent = 'Netzwerkfehler: ' + e;
+  }
+}
+
+function toggleKvCreate() {
+  const checked = document.getElementById('kv-create-toggle').checked;
+  document.getElementById('kv-manual-section').style.display = checked ? 'none' : 'block';
+  document.getElementById('kv-create-section').style.display = checked ? 'block' : 'none';
+  if (checked && !_kvSubsLoaded) {
+    // Try loading even without ARM login — works if app SP has Reader role
+    loadKvSubscriptions();
+  }
+}
+
+async function loadKvSubscriptions() {
+  const sel = document.getElementById('kv-subscription-sel');
+  sel.innerHTML = '<option value="">— Lade… —</option>';
+  sel.disabled = true;
+  try {
+    const r = await fetch('/api/setup/keyvault/subscriptions');
+    const data = await r.json();
+    if (!data.ok || !data.subscriptions || !data.subscriptions.length) {
+      sel.innerHTML = '<option value="__other__">— manuell eingeben —</option>';
+      sel.disabled = false;
+      if (!_kvArmOk) {
+        // Prompt user to do ARM login
+        const statusText = document.getElementById('kv-arm-status-text');
+        if (statusText) statusText.textContent = 'Kein ARM-Zugriff — bitte oben "Azure-Zugriff holen" klicken.';
+      }
+      onKvSubscriptionChange();
+      return;
+    }
+    sel.innerHTML = '';
+    data.subscriptions.forEach(function(s) {
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = s.name + ' (' + s.id.substring(0,8) + '…)';
+      sel.appendChild(opt);
+    });
+    const sep = document.createElement('option');
+    sep.disabled = true; sep.textContent = '──────────────';
+    sel.appendChild(sep);
+    const other = document.createElement('option');
+    other.value = '__other__'; other.textContent = '…andere';
+    sel.appendChild(other);
+    sel.disabled = false;
+    _kvSubsLoaded = true;
+    if (data.delegated) {
+      document.getElementById('kv-arm-status-icon').textContent = '✓';
+      document.getElementById('kv-arm-status-text').textContent = 'Azure-Verbindung aktiv (' + data.subscriptions.length + ' Subscription(s) geladen).';
+      document.getElementById('kv-arm-status-text').style.color = '#16a34a';
+    }
+    onKvSubscriptionChange();
+  } catch(e) {
+    sel.innerHTML = '<option value="__other__">— manuell eingeben —</option>';
+    sel.disabled = false;
+    _showKvArmHint(false, 'Netzwerkfehler beim Laden der Subscriptions.');
+    onKvSubscriptionChange();
+  }
+}
+
+
+function onKvSubscriptionChange() {
+  const sel = document.getElementById('kv-subscription-sel');
+  const manualEl = document.getElementById('kv-subscription-id-manual');
+  const isOther = sel.value === '__other__';
+  manualEl.style.display = isOther ? 'block' : 'none';
+  // Reset RG dropdown
+  const rgSel = document.getElementById('kv-rg-sel');
+  rgSel.innerHTML = '<option value="">— Bitte erst Subscription wählen —</option>';
+  rgSel.disabled = true;
+  document.getElementById('kv-rg-manual').style.display = 'none';
+  document.getElementById('kv-new-rg-row').style.display = 'none';
+  if (!isOther && sel.value) loadKvResourceGroups(sel.value);
+}
+
+async function loadKvResourceGroups(subscriptionId) {
+  const sel = document.getElementById('kv-rg-sel');
+  sel.innerHTML = '<option value="">— Lade… —</option>';
+  sel.disabled = true;
+  try {
+    const r = await fetch('/api/setup/keyvault/resource-groups?subscription_id=' + encodeURIComponent(subscriptionId));
+    const data = await r.json();
+    sel.innerHTML = '';
+    if (data.ok && data.resource_groups.length) {
+      data.resource_groups.forEach(function(rg) {
+        const opt = document.createElement('option');
+        opt.value = rg.name;
+        opt.textContent = rg.name;
+        opt.dataset.location = rg.location;
+        sel.appendChild(opt);
+      });
+      const sep = document.createElement('option');
+      sep.disabled = true; sep.textContent = '──────────────';
+      sel.appendChild(sep);
+    }
+    const newOpt = document.createElement('option');
+    newOpt.value = '__new__'; newOpt.textContent = 'Neu: rg-exo-signature';
+    sel.appendChild(newOpt);
+    const otherOpt = document.createElement('option');
+    otherOpt.value = '__other__'; otherOpt.textContent = '…andere';
+    sel.appendChild(otherOpt);
+    sel.disabled = false;
+    onKvRgChange();
+  } catch(e) {
+    sel.innerHTML = '<option value="__new__">Neu: rg-exo-signature</option><option value="__other__">…andere</option>';
+    sel.disabled = false;
+    onKvRgChange();
+  }
+}
+
+function onKvRgChange() {
+  const val = document.getElementById('kv-rg-sel').value;
+  document.getElementById('kv-rg-manual').style.display = val === '__other__' ? 'block' : 'none';
+  document.getElementById('kv-new-rg-row').style.display = val === '__new__' ? 'block' : 'none';
+  // Auto-set region when selecting an existing RG
+  if (val && val !== '__new__' && val !== '__other__') {
+    const sel = document.getElementById('kv-rg-sel');
+    const opt = sel.options[sel.selectedIndex];
+    if (opt && opt.dataset.location) {
+      const locSel = document.getElementById('kv-location');
+      for (var i = 0; i < locSel.options.length; i++) {
+        if (locSel.options[i].value === opt.dataset.location) {
+          locSel.selectedIndex = i; break;
+        }
+      }
+    }
+  }
+}
+
+function _kvGetSubscriptionId() {
+  const sel = document.getElementById('kv-subscription-sel');
+  if (sel.value === '__other__') return document.getElementById('kv-subscription-id-manual').value.trim();
+  return sel.value.trim();
+}
+
+function _kvGetResourceGroup() {
+  const val = document.getElementById('kv-rg-sel').value;
+  if (val === '__other__') return document.getElementById('kv-rg-manual').value.trim();
+  if (val === '__new__') return document.getElementById('kv-new-rg-name').value.trim();
+  return val;
+}
+
+async function createKeyvault() {
+  const subscriptionId = _kvGetSubscriptionId();
+  const resourceGroup = _kvGetResourceGroup();
+  const vaultName = document.getElementById('kv-vault-name').value.trim();
+  const location = document.getElementById('kv-location').value;
+  const resultEl = document.getElementById('kv-create-result');
+  const btn = document.getElementById('kv-create-btn');
+  if (!subscriptionId || !resourceGroup || !vaultName) {
+    resultEl.className = 'alert error';
+    resultEl.textContent = 'Bitte alle Felder ausfüllen.';
+    resultEl.style.display = 'block';
+    return;
+  }
+  const isNewRg = document.getElementById('kv-rg-sel').value === '__new__';
+  resultEl.className = 'alert';
+  resultEl.textContent = isNewRg
+    ? 'Resource Group und Key Vault werden angelegt… (30–60 Sekunden)'
+    : 'Key Vault wird angelegt… (30–60 Sekunden)';
+  resultEl.style.display = 'block';
+  btn.disabled = true;
+  try {
+    const r = await fetch('/api/setup/keyvault/create', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({subscription_id: subscriptionId, resource_group: resourceGroup,
+                            vault_name: vaultName, location, create_rg: isNewRg}),
+    });
+    const data = await r.json();
+    resultEl.className = 'alert ' + (data.ok ? 'success' : 'error');
+    resultEl.textContent = data.message;
+    if (data.ok && data.vault_url) {
+      document.getElementById('kv-url-input').value = data.vault_url;
+      document.getElementById('kv-create-toggle').checked = false;
+      toggleKvCreate();
+    }
+  } catch (err) {
+    resultEl.className = 'alert error';
+    resultEl.textContent = 'Netzwerkfehler: ' + err;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function testKeyvault() {
+  const url = document.getElementById('kv-url-input').value.trim();
+  const resultEl = document.getElementById('kv-test-result');
+  resultEl.style.display = 'block';
+  resultEl.className = 'alert';
+  resultEl.textContent = 'Verbinde...';
+  try {
+    const params = url ? '?url=' + encodeURIComponent(url) : '';
+    const r = await fetch('/api/setup/keyvault/test' + params);
+    const data = await r.json();
+    resultEl.className = 'alert ' + (data.ok ? 'success' : 'error');
+    resultEl.textContent = data.message;
+  } catch (err) {
+    resultEl.className = 'alert error';
+    resultEl.textContent = 'Netzwerkfehler: ' + err;
+  }
+}
+
+async function saveKeyvault() {
+  const url = document.getElementById('kv-url-input').value.trim();
+  const resultEl = document.getElementById('kv-test-result');
+  resultEl.style.display = 'block';
+  resultEl.className = 'alert';
+  resultEl.textContent = 'Speichere...';
+  try {
+    const r = await fetch('/api/setup/keyvault/save', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({url}),
+    });
+    const data = await r.json();
+    resultEl.className = 'alert ' + (data.ok ? 'success' : 'error');
+    resultEl.textContent = data.ok ? 'Key Vault URL gespeichert.' : (data.detail || 'Fehler');
+    if (data.ok) {
+      const step = document.getElementById('step-keyvault');
+      if (step) step.classList.toggle('done', !!url);
+    }
+  } catch (err) {
+    resultEl.className = 'alert error';
+    resultEl.textContent = 'Netzwerkfehler: ' + err;
   }
 }
 </script>

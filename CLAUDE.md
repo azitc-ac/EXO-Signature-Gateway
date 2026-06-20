@@ -65,6 +65,11 @@ response   = b64url(hashlib.sha256(key_authz.encode()).digest())
 #
 # Account Keys sind PER USER: account_key_{email@→_}.pem (seit v1.0.113)
 # Bei Problemen: Account Key zurücksetzen (Debug-Tab) → frischer CASTLE-Account
+#
+# ACME Flow-IDs (seit v1.1.0): uuid.uuid4().hex[:8] → "[acme:xxxxxxxx]" Prefix
+# auf ALLEN Log-Meldungen in initiate_acme_order, _poll_mailbox_for_challenge,
+# handle_challenge_email, complete_order_after_challenge, resume_pending_polls.
+# flow_id wird im order-State gespeichert → grep "[acme:xxxxxxxx]" für Trace.
 ```
 
 ### Graph API: sendMail vs. mailFolders/inbox
@@ -188,7 +193,7 @@ Import-Module ExchangeOnlineManagement
 $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
     "/app/data/auth.pfx", [string]$null,
     ([System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet))
-Connect-ExchangeOnline -AppId "3f4de48c-a22a-45bd-a006-00265b27fe97" \
+Connect-ExchangeOnline -AppId "84a2df32-c395-4f62-80cf-eef82911257e" \
     -Certificate $cert -Organization "zarenko.onmicrosoft.com"
 # ... Cmdlets ...
 Disconnect-ExchangeOnline -Confirm:$false
@@ -197,6 +202,7 @@ Disconnect-ExchangeOnline -Confirm:$false
 
 - `-CertificateFilePath` schlägt fehl (Zertifikat nicht im App-Registry eingetragen für diesen Aufrufweg)
 - `-ShowBanner:$false` funktioniert in diesem Setup nicht — einfach weglassen
+- AppId = Main-App (`84a2df32`) — hat `Exchange.ManageAsApp` seit Setup-Wizard-Automatisierung
 
 ---
 
@@ -204,7 +210,7 @@ Disconnect-ExchangeOnline -Confirm:$false
 
 | Datei | Inhalt | Soll-Berechtigung |
 |-------|--------|-------------------|
-| `data/auth.pfx` | EXO PowerShell Zertifikat (privater Schlüssel, **kein Passwort**) | `600` |
+| `data/auth.pfx` | Auth-Zertifikat für `Connect-ExchangeOnline` (Main-App, privater Schlüssel, **kein Passwort**) | `600` |
 | `data/settings.json` | CLIENT_SECRET, alle Konfig-Werte | `600` |
 | `data/acme/account_key.pem` | ACME Account Key | `600` |
 | `.env` | WEBUI_PASSWORD im Klartext | `600` |
@@ -217,11 +223,12 @@ Nach neuen Dateien oder Rebuilds prüfen: `ls -la data/auth.pfx data/settings.js
 
 | App | Client-ID | Zweck |
 |-----|-----------|-------|
-| EXO Signature Gateway (Main) | `84a2df32-c395-4f62-80cf-eef82911257e` | Graph API, Mail.Send, Mail.Read |
+| EXO Signature Gateway (Main) | `84a2df32-c395-4f62-80cf-eef82911257e` | Graph API, Mail.Send, Mail.Read, Exchange.ManageAsApp |
 | Bootstrap (Setup-Wizard) | `f8a0f52a-3c2b-4c20-98db-3d76ee3f3d9f` | Nur Setup-Login, hat Loopback-Redirect |
-| EXO PowerShell | `3f4de48c-a22a-45bd-a006-00265b27fe97` | Exchange.ManageAsApp |
+| EXO PowerShell *(obsolet)* | `3f4de48c-a22a-45bd-a006-00265b27fe97` | Redundant — Main-App übernimmt Exchange.ManageAsApp |
 
-**Nicht verwechseln** — die Bootstrap-App hat keine Mail-Berechtigungen.
+**Nicht verwechseln** — die Bootstrap-App hat keine Mail-Berechtigungen.  
+Die separate EXO-PowerShell-App ist ein historisches Artefakt und wird nicht mehr benötigt.
 
 ---
 

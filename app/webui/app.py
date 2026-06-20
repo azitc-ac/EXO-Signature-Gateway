@@ -32,6 +32,7 @@ import graph_client
 import pkce as pkce_mod
 import settings_store
 import signature_engine
+import sso as sso_mod
 
 log = logging.getLogger(__name__)
 
@@ -45,6 +46,20 @@ async def _lifespan(application):
 
 app = FastAPI(title="EXO Signature Gateway", lifespan=_lifespan)
 security = HTTPBasic(auto_error=False)
+
+
+class _NotAuthenticated(Exception):
+    def __init__(self, is_api: bool = False):
+        self.is_api = is_api
+
+
+@app.exception_handler(_NotAuthenticated)
+async def _not_authenticated_handler(request: Request, exc: _NotAuthenticated):
+    if exc.is_api:
+        return JSONResponse({"detail": "Nicht angemeldet"}, status_code=401,
+                            headers={"WWW-Authenticate": "Basic"})
+    next_url = urllib.parse.quote(str(request.url.path), safe="")
+    return RedirectResponse(f"/auth/login?next={next_url}", status_code=302)
 
 _STATIC_DIR = Path(__file__).parent / "static"
 _TEMPLATE_DIR = Path(__file__).parent / "templates"
@@ -143,23 +158,50 @@ def _check_password(password: str) -> bool:
 
 # ── Auth ───────────────────────────────────────────────────────────────────────
 
-def _check_auth(credentials: HTTPBasicCredentials = Depends(security)):
-    if credentials is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Unauthorized",
-            headers={"WWW-Authenticate": "Basic"},
-        )
-    username = settings_store.get("WEBUI_USERNAME") or "admin"
-    correct_user = secrets.compare_digest(credentials.username.encode(), username.encode())
-    correct_pass = _check_password(credentials.password)
-    if not (correct_user and correct_pass):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Unauthorized",
-            headers={"WWW-Authenticate": "Basic"},
-        )
-    return credentials.username
+def _get_session_user(request: Request) -> str | None:
+    """Extract user identity from session cookie. Returns UPN/username or None."""
+    cookie = request.cookies.get(sso_mod.SESSION_COOKIE)
+    if not cookie:
+        return None
+    payload = sso_mod.verify_session_cookie(cookie)
+    if not payload:
+        return None
+    return payload.get("u")
+
+
+def _get_session_role(request: Request) -> str:
+    """Return role from session cookie ('admin' or 'editor'). Defaults to 'admin' for Basic auth."""
+    cookie = request.cookies.get(sso_mod.SESSION_COOKIE)
+    if cookie:
+        payload = sso_mod.verify_session_cookie(cookie)
+        if payload:
+            return payload.get("r", sso_mod.ROLE_ADMIN)
+    return sso_mod.ROLE_ADMIN  # HTTP Basic is always admin
+
+
+def _check_auth(request: Request, credentials: HTTPBasicCredentials = Depends(security)) -> str:
+    """Auth dependency: session cookie → local Basic auth → 401/redirect."""
+    # 1. Session cookie (SSO or local login)
+    user = _get_session_user(request)
+    if user:
+        return user
+    # 2. HTTP Basic (local admin fallback — always available as emergency access)
+    if credentials and credentials.username and credentials.password:
+        username = settings_store.get("WEBUI_USERNAME") or "admin"
+        if (secrets.compare_digest(credentials.username.encode(), username.encode())
+                and _check_password(credentials.password)):
+            return credentials.username
+    # 3. Not authenticated
+    path = request.url.path
+    is_api = path.startswith("/api/") or path.startswith("/log/")
+    raise _NotAuthenticated(is_api=is_api)
+
+
+def _require_admin(request: Request, user: str = Depends(_check_auth)) -> str:
+    """Dependency: requires admin role. Raises 403 for editors."""
+    if _get_session_role(request) != sso_mod.ROLE_ADMIN:
+        raise HTTPException(403, "Admin-Berechtigung erforderlich")
+    return user
 
 
 def _password_change_required() -> bool:
@@ -169,6 +211,19 @@ def _password_change_required() -> bool:
         return False  # Has been changed
     # Using env-var fallback — flag change required if it's the default
     return config.WEBUI_PASSWORD == "admin"
+
+
+# ── Role middleware — sets request.state.user_role for templates ───────────────
+@app.middleware("http")
+async def _attach_user_role(request: Request, call_next):
+    cookie = request.cookies.get(sso_mod.SESSION_COOKIE)
+    role = sso_mod.ROLE_ADMIN  # default: Basic auth or unauthenticated
+    if cookie:
+        payload = sso_mod.verify_session_cookie(cookie)
+        if payload:
+            role = payload.get("r", sso_mod.ROLE_ADMIN)
+    request.state.user_role = role
+    return await call_next(request)
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -193,12 +248,19 @@ def _webui_scheme() -> str:
     return "https" if Path(config.SMTP_TLS_CERT).exists() else "http"
 
 
-def _build_redirect_uri() -> str:
+def _build_redirect_uri(sso: bool = False) -> str:
     """
-    Always localhost — Azure native/desktop apps allow HTTP localhost in every tenant.
+    For SSO flow: use the public hostname (https) if configured.
+    For setup flow: always localhost — Azure native/desktop apps allow HTTP localhost in every tenant.
     After login the browser lands on localhost (fails to connect to Pi), the user
     copies the URL from the address bar and pastes it into the wizard.
     """
+    if sso:
+        hostname = settings_store.get("PUBLIC_HOSTNAME") or ""
+        if hostname:
+            port = config.WEBUI_PORT
+            suffix = f":{port}" if port and port != 443 else ""
+            return f"https://{hostname}{suffix}/auth/callback"
     return f"http://localhost:{config.WEBUI_PORT}/auth/callback"
 
 
@@ -244,6 +306,8 @@ async def setup_wizard(
         "auth_cert_exists": Path("/app/data/auth.pfx").exists(),
         "authed": authed,
         "bootstrap_client_id": s.get("BOOTSTRAP_CLIENT_ID", ""),
+        "bootstrap_redirect_uris": s.get("BOOTSTRAP_REDIRECT_URIS", []),
+        "sso_redirect_uri": _build_redirect_uri(sso=True),
         "redirect_uri": _build_redirect_uri(),
         "webui_port": config.WEBUI_PORT,
     }
@@ -256,18 +320,21 @@ async def setup_wizard(
 # ── Routes: PKCE auth flow ─────────────────────────────────────────────────────
 
 @app.get("/auth/start")
-async def auth_start(request: Request, user: str = Depends(_check_auth)):
-    """Return Azure AD auth URL as JSON (for fetch callers)."""
+async def auth_start(request: Request):
+    """Return Azure AD auth URL as JSON (for fetch callers in the setup wizard).
+    No auth required — generating a PKCE URL is harmless; privileged operations
+    are protected by the Microsoft access token returned after login.
+    """
     redirect_uri = _build_redirect_uri()
-    _state, auth_url = pkce_mod.create_session(redirect_uri)
+    _state, auth_url = pkce_mod.create_session(redirect_uri, flow="setup")
     return JSONResponse({"auth_url": auth_url})
 
 
 @app.get("/auth/start-redirect")
-async def auth_start_redirect(request: Request, user: str = Depends(_check_auth)):
-    """Redirect browser directly to Azure AD for PKCE login."""
+async def auth_start_redirect(request: Request):
+    """Redirect browser directly to Azure AD for PKCE login (setup wizard)."""
     redirect_uri = _build_redirect_uri()
-    _state, auth_url = pkce_mod.create_session(redirect_uri)
+    _state, auth_url = pkce_mod.create_session(redirect_uri, flow="setup")
     return RedirectResponse(auth_url)
 
 
@@ -321,6 +388,26 @@ async def api_auth_paste(request: Request, user: str = Depends(_check_auth)):
         raise HTTPException(500, f"Setup-Fehler nach Login: {exc}")
 
 
+def _arm_callback_page(ok: bool, msg: str = "") -> str:
+    if ok:
+        icon, heading, body_text, color = "✓", "Azure-Verbindung hergestellt", "Dieses Fenster schließt sich…", "#16a34a"
+    else:
+        icon, heading, body_text, color = "✗", "Verbindung fehlgeschlagen", msg or "Unbekannter Fehler", "#dc2626"
+    post_msg = '{"type":"arm-auth-done"}' if ok else '{"type":"arm-auth-fail","msg":' + repr(msg) + '}'
+    return f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><title>{heading}</title></head>
+<body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f8fafc">
+<div style="text-align:center;padding:40px;max-width:420px">
+  <div style="font-size:52px;margin-bottom:16px">{icon}</div>
+  <h2 style="color:{color};margin:0 0 10px">{heading}</h2>
+  <p style="color:#64748b;margin:0">{body_text}</p>
+</div>
+<script>
+  try {{ window.opener && window.opener.postMessage({post_msg}, window.opener.location.origin); }} catch(e) {{}}
+  {'setTimeout(function(){window.close();},1200);' if ok else ''}
+</script>
+</body></html>"""
+
+
 @app.get("/auth/callback", response_class=HTMLResponse)
 async def auth_callback(
     request: Request,
@@ -328,57 +415,214 @@ async def auth_callback(
     state: str = "",
     error: str = "",
     error_description: str = "",
-    user: str = Depends(_check_auth),
 ):
-    """Azure AD redirects here with the authorization code."""
+    """Azure AD redirects here with the authorization code — handles both setup and SSO flows."""
     if error:
+        session_obj = pkce_mod.pop_session(state) if state else None
+        flow = (session_obj or {}).get("flow", "setup")
+        if flow == "sso":
+            return RedirectResponse(f"/auth/login?error={urllib.parse.quote(error)}", status_code=302)
         return templates.TemplateResponse(
             request=request, name="setup.html",
-            context={
-                "s": settings_store.get_all(),
-                "e": {},
-                "active": "setup",
-                "auth_error": f"{error}: {error_description}",
-            },
+            context={"s": settings_store.get_all(), "e": {}, "active": "setup",
+                     "auth_error": f"{error}: {error_description}"},
         )
 
-    session = pkce_mod.pop_session(state)
-    if not session:
-        raise HTTPException(400, "Ungültige oder abgelaufene PKCE-Session — bitte erneut anmelden")
+    session_obj = pkce_mod.pop_session(state)
+    if not session_obj:
+        return RedirectResponse("/auth/login?error=session_expired", status_code=302)
+
+    flow = session_obj.get("flow", "setup")
 
     try:
-        token_resp = await pkce_mod.exchange_code(code, session["verifier"], session["redirect_uri"])
-        access_token = token_resp["access_token"]
+        from sso import SSO_SCOPES
+        if flow == "sso":
+            use_scopes = SSO_SCOPES
+        elif flow == "arm":
+            use_scopes = pkce_mod.ARM_SCOPES
+        else:
+            use_scopes = None
+        token_resp = await pkce_mod.exchange_code(
+            code, session_obj["verifier"], session_obj["redirect_uri"], scopes=use_scopes
+        )
     except Exception as exc:
         log.error("PKCE token exchange failed: %s", exc)
+        if flow == "sso":
+            return RedirectResponse(f"/auth/login?error={urllib.parse.quote(str(exc))}", status_code=302)
+        if flow == "arm":
+            return HTMLResponse(_arm_callback_page(ok=False, msg=str(exc)))
         return templates.TemplateResponse(
             request=request, name="setup.html",
-            context={
-                "s": settings_store.get_all(),
-                "e": {},
-                "active": "setup",
-                "auth_error": str(exc),
-            },
+            context={"s": settings_store.get_all(), "e": {}, "active": "setup",
+                     "auth_error": str(exc)},
         )
 
-    # Run tenant discovery + app creation
+    if flow == "sso":
+        # SSO login: check UPN against configured users
+        upn = sso_mod.get_upn_from_token_response(token_resp)
+        if not upn:
+            return RedirectResponse("/auth/login?error=no_upn", status_code=302)
+        role = sso_mod.get_role(upn)
+        if not role:
+            log.warning("SSO login denied for UPN: %s", upn)
+            return RedirectResponse(
+                f"/auth/login?error=not_admin&upn={urllib.parse.quote(upn)}", status_code=302
+            )
+        log.info("SSO login successful: %s (role: %s)", upn, role)
+        cookie_val = sso_mod.create_session_cookie(upn, local=False, role=role)
+        next_url = request.query_params.get("next", "/")
+        response = RedirectResponse(next_url, status_code=302)
+        response.set_cookie(
+            sso_mod.SESSION_COOKIE, cookie_val,
+            max_age=sso_mod.SESSION_TTL, httponly=True, samesite="lax", secure=True,
+        )
+        return response
+
+    elif flow == "arm":
+        # ARM delegated token: store it and close the popup
+        import keyvault
+        arm_token = token_resp.get("access_token", "")
+        expires_in = int(token_resp.get("expires_in", 3600))
+        upn = _get_session_user(request) or ""
+        if arm_token and upn:
+            keyvault.store_user_arm_token(upn, arm_token, expires_in)
+            log.info("ARM delegated token stored via callback for %s (expires_in=%s)", upn, expires_in)
+            return HTMLResponse(_arm_callback_page(ok=True))
+        return HTMLResponse(_arm_callback_page(ok=False, msg="Kein Token erhalten oder Sitzung abgelaufen."))
+
+    else:
+        # Setup flow: run post-auth setup
+        access_token = token_resp.get("access_token", "")
+        try:
+            import setup_wizard
+            result = await setup_wizard.run_post_auth_setup(access_token)
+            log.info("Post-auth setup complete: %s", result)
+        except Exception as exc:
+            log.error("Post-auth setup failed: %s", exc)
+            return templates.TemplateResponse(
+                request=request, name="setup.html",
+                context={"s": settings_store.get_all(), "e": {}, "active": "setup",
+                         "auth_error": f"Setup-Fehler nach Login: {exc}"},
+            )
+        return RedirectResponse("/setup?entra_done=1", status_code=303)
+
+
+# ── Routes: SSO login / logout ────────────────────────────────────────────────
+
+@app.get("/auth/login", response_class=HTMLResponse)
+async def auth_login(request: Request, error: str = "", next: str = "/"):
+    """Login page — shown to unauthenticated users."""
+    return templates.TemplateResponse(
+        request=request, name="login.html",
+        context={
+            "error": error,
+            "next": next,
+            "upn": request.query_params.get("upn", ""),
+            "sso_configured": sso_mod.sso_configured(),
+            "sso_available": bool((settings_store.get("BOOTSTRAP_CLIENT_ID") or "").strip()),
+        },
+    )
+
+
+@app.get("/auth/login/microsoft")
+async def auth_login_microsoft(request: Request, next: str = "/"):
+    """Start SSO PKCE flow with minimal scopes."""
+    redirect_uri = _build_redirect_uri(sso=True)
+    _state, auth_url = pkce_mod.create_session(
+        redirect_uri, scopes=sso_mod.SSO_SCOPES, flow="sso"
+    )
+    return RedirectResponse(auth_url)
+
+
+@app.get("/api/auth/sso-url")
+async def api_sso_url(request: Request):
+    """Return Microsoft SSO auth URL as JSON (for fetch callers — no auth needed)."""
+    redirect_uri = _build_redirect_uri(sso=True)
+    _state, auth_url = pkce_mod.create_session(
+        redirect_uri, scopes=sso_mod.SSO_SCOPES, flow="sso"
+    )
+    return JSONResponse({"auth_url": auth_url})
+
+
+@app.post("/api/auth/sso-paste")
+async def api_sso_paste(request: Request):
+    """Process a pasted callback URL from a failed SSO redirect."""
+    body = await request.json()
+    url = (body.get("url") or "").strip()
+    parsed = urllib.parse.urlparse(url)
+    params = urllib.parse.parse_qs(parsed.query)
+    code  = (params.get("code")  or [""])[0]
+    state = (params.get("state") or [""])[0]
+    error = (params.get("error") or [""])[0]
+
+    if error:
+        raise HTTPException(400, error)
+    if not code or not state:
+        raise HTTPException(400, "URL enthält keinen Code oder State-Parameter")
+
+    session_obj = pkce_mod.pop_session(state)
+    if not session_obj:
+        raise HTTPException(400, "Sitzung abgelaufen — bitte erneut mit Microsoft anmelden")
+
     try:
-        import setup_wizard
-        result = await setup_wizard.run_post_auth_setup(access_token)
-        log.info("Post-auth setup complete: %s", result)
-    except Exception as exc:
-        log.error("Post-auth setup failed: %s", exc)
-        return templates.TemplateResponse(
-            request=request, name="setup.html",
-            context={
-                "s": settings_store.get_all(),
-                "e": {},
-                "active": "setup",
-                "auth_error": f"Setup-Fehler nach Login: {exc}",
-            },
+        token_resp = await pkce_mod.exchange_code(
+            code, session_obj["verifier"], session_obj["redirect_uri"],
+            scopes=sso_mod.SSO_SCOPES,
         )
+    except Exception as exc:
+        raise HTTPException(400, f"Token-Austausch fehlgeschlagen: {exc}")
 
-    return RedirectResponse("/setup?entra_done=1", status_code=303)
+    upn = sso_mod.get_upn_from_token_response(token_resp)
+    if not upn:
+        raise HTTPException(400, "Konto-Informationen konnten nicht gelesen werden")
+    role = sso_mod.get_role(upn)
+    if not role:
+        raise HTTPException(403, f"{upn} ist nicht konfiguriert")
+
+    log.info("SSO login (paste) successful: %s (role: %s)", upn, role)
+    cookie_val = sso_mod.create_session_cookie(upn, local=False, role=role)
+    resp = JSONResponse({"ok": True, "upn": upn})
+    resp.set_cookie(
+        sso_mod.SESSION_COOKIE, cookie_val,
+        max_age=sso_mod.SESSION_TTL, httponly=True, samesite="lax", secure=True,
+    )
+    return resp
+
+
+@app.post("/auth/local")
+async def auth_local(request: Request):
+    """Local admin login — creates session cookie."""
+    data = await request.json()
+    username_in = (data.get("username") or "").strip()
+    password_in = (data.get("password") or "")
+    username = settings_store.get("WEBUI_USERNAME") or "admin"
+    if (secrets.compare_digest(username_in.encode(), username.encode())
+            and _check_password(password_in)):
+        cookie_val = sso_mod.create_session_cookie(username_in, local=True)
+        resp = JSONResponse({"ok": True})
+        resp.set_cookie(
+            sso_mod.SESSION_COOKIE, cookie_val,
+            max_age=sso_mod.SESSION_TTL, httponly=True, samesite="lax", secure=True,
+        )
+        log.info("Local admin login: %s", username_in)
+        return resp
+    raise HTTPException(401, "Benutzername oder Passwort falsch")
+
+
+@app.post("/auth/logout")
+async def auth_logout(request: Request):
+    """Clear session cookie."""
+    resp = JSONResponse({"ok": True})
+    resp.delete_cookie(sso_mod.SESSION_COOKIE)
+    return resp
+
+
+@app.get("/auth/logout")
+async def auth_logout_get(request: Request):
+    """Clear session cookie and redirect to login."""
+    resp = RedirectResponse("/auth/login", status_code=302)
+    resp.delete_cookie(sso_mod.SESSION_COOKIE)
+    return resp
 
 
 # ── Routes: setup API endpoints ────────────────────────────────────────────────
@@ -408,13 +652,99 @@ async def api_setup_hostname(request: Request, user: str = Depends(_check_auth))
 @app.post("/api/setup/change-password")
 async def api_change_password(request: Request, user: str = Depends(_check_auth)):
     data = await request.json()
+    old_pw = (data.get("old_password") or "").strip()
     new_pw = (data.get("password") or "").strip()
     if len(new_pw) < 8:
         raise HTTPException(400, "Passwort muss mindestens 8 Zeichen haben")
+    stored_hash = settings_store.get("ADMIN_PASSWORD_HASH") or ""
+    if stored_hash and not _verify_password(old_pw, stored_hash):
+        raise HTTPException(400, "Aktuelles Passwort falsch")
     hashed = _hash_password(new_pw)
     settings_store.update({"ADMIN_PASSWORD_HASH": hashed})
     log.info("Admin password changed by %s", user)
     return JSONResponse({"ok": True})
+
+
+@app.post("/api/smime/key-password")
+async def api_smime_key_password(request: Request, user: str = Depends(_check_auth)):
+    import smime_store as _smime
+    data = await request.json()
+    old_pw = data.get("old_password") or ""
+    new_pw = data.get("new_password") or ""
+    stored = settings_store.get("SMIME_KEY_PASSWORD") or ""
+    if stored and old_pw != stored:
+        raise HTTPException(400, "Aktuelles Passwort falsch")
+    settings_store.update({"SMIME_KEY_PASSWORD": new_pw})
+    failed = _smime.reencrypt_all_keys(old_password=stored)
+    log.info("SMIME key password changed by %s; re-encrypted keys, failed: %s", user, failed)
+    if failed:
+        return JSONResponse({"ok": True, "warnings": failed})
+    return JSONResponse({"ok": True})
+
+
+@app.get("/api/whoami")
+async def api_whoami(request: Request):
+    """Returns current user info. Returns nulls when unauthenticated — no Basic-Auth challenge."""
+    user = _get_session_user(request)
+    if not user:
+        return JSONResponse({"upn": None, "role": None})
+    return JSONResponse({"upn": user.lower(), "role": _get_session_role(request)})
+
+
+@app.get("/api/admin-users")
+async def api_get_admin_users(_=Depends(_check_auth)):
+    return JSONResponse({"users": sso_mod.normalize_users()})
+
+
+@app.post("/api/admin-users")
+async def api_add_admin_user(request: Request, user: str = Depends(_require_admin)):
+    data = await request.json()
+    upn  = (data.get("upn")  or "").strip().lower()
+    role = (data.get("role") or sso_mod.ROLE_ADMIN)
+    if not upn or "@" not in upn:
+        raise HTTPException(400, "Ungültige UPN")
+    if role not in sso_mod.VALID_ROLES:
+        raise HTTPException(400, "Ungültige Rolle")
+    users = sso_mod.normalize_users()
+    if any(e["upn"] == upn for e in users):
+        raise HTTPException(409, f"{upn} ist bereits konfiguriert")
+    users.append({"upn": upn, "role": role})
+    settings_store.update({"ADMIN_USERS": users})
+    log.info("User added: %s (role: %s) by %s", upn, role, user)
+    return JSONResponse({"ok": True, "users": users})
+
+
+@app.patch("/api/admin-users/{upn}")
+async def api_update_admin_user(upn: str, request: Request, user: str = Depends(_require_admin)):
+    data = await request.json()
+    upn  = urllib.parse.unquote(upn).strip().lower()
+    role = (data.get("role") or "")
+    if role not in sso_mod.VALID_ROLES:
+        raise HTTPException(400, "Ungültige Rolle")
+    if upn == user.strip().lower():
+        raise HTTPException(400, "Eigene Rolle kann nicht geändert werden")
+    users = sso_mod.normalize_users()
+    for entry in users:
+        if entry["upn"] == upn:
+            entry["role"] = role
+            settings_store.update({"ADMIN_USERS": users})
+            log.info("Role of %s changed to %s by %s", upn, role, user)
+            return JSONResponse({"ok": True, "users": users})
+    raise HTTPException(404, "Benutzer nicht gefunden")
+
+
+@app.delete("/api/admin-users/{upn}")
+async def api_remove_admin_user(upn: str, request: Request, user: str = Depends(_require_admin)):
+    upn = urllib.parse.unquote(upn).strip().lower()
+    if upn == user.strip().lower():
+        raise HTTPException(400, "Eigenes Konto kann nicht entfernt werden")
+    users = sso_mod.normalize_users()
+    new_users = [e for e in users if e["upn"] != upn]
+    if not any(e["role"] == sso_mod.ROLE_ADMIN for e in new_users):
+        raise HTTPException(400, "Mindestens ein Admin muss verbleiben")
+    settings_store.update({"ADMIN_USERS": new_users})
+    log.info("User removed: %s by %s", upn, user)
+    return JSONResponse({"ok": True, "users": new_users})
 
 
 @app.post("/api/setup/exo-connector")
@@ -436,10 +766,13 @@ async def api_setup_exo_connector(request: Request, user: str = Depends(_check_a
     if missing:
         raise HTTPException(400, f"Fehlende Konfiguration: {', '.join(missing)}")
 
+    reinject_mode = settings_store.get("REINJECT_MODE") or "smtp"
+    skip_inbound = reinject_mode in ("graph", "imap", "smtp587")
     result = setup_wizard.run_exo_connector_setup(
         app_id=app_id,
         tenant_domain=tenant_domain,
         smtp_proxy_hostname=hostname,
+        skip_inbound_connector=skip_inbound,
     )
     if result["ok"]:
         return JSONResponse({"ok": True, "output": result["output"]})
@@ -523,7 +856,9 @@ async def api_setup_imap_access(request: Request, user: str = Depends(_check_aut
 @app.get("/api/setup/verify/connector")
 async def api_verify_connector(_=Depends(_check_auth)):
     import setup_wizard
-    return setup_wizard.verify_connector()
+    reinject_mode = settings_store.get("REINJECT_MODE") or "smtp"
+    smtp_mode = reinject_mode == "smtp"
+    return setup_wizard.verify_connector(smtp_mode=smtp_mode)
 
 
 @app.get("/api/setup/verify/imap")
@@ -536,6 +871,25 @@ async def api_verify_imap(_=Depends(_check_auth)):
 async def api_verify_smime(_=Depends(_check_auth)):
     import setup_wizard
     return setup_wizard.verify_smime_rules()
+
+
+@app.get("/api/setup/verify/azure")
+async def api_verify_azure(_=Depends(_check_auth)):
+    token = graph_client._acquire_token()
+    if not token:
+        return JSONResponse({"ok": False, "error": "Keine Graph-Zugangsdaten konfiguriert"})
+    try:
+        async with __import__("httpx").AsyncClient(timeout=10) as client:
+            resp = await client.get(
+                "https://graph.microsoft.com/v1.0/organization?$select=displayName",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+        resp.raise_for_status()
+        orgs = resp.json().get("value", [])
+        org = orgs[0].get("displayName", "?") if orgs else "?"
+        return JSONResponse({"ok": True, "org": org})
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)})
 
 
 @app.post("/api/setup/mark-complete")
@@ -663,11 +1017,15 @@ async def api_save_mailboxes(body: dict, _=Depends(_check_auth)):
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request, user: str = Depends(_check_auth)):
+    from datetime import datetime as _dt
     import smime_store as _smime_store
     import stats as _stats_mod2
     pw_change = _password_change_required()
     total = get_stats()
     daily = _stats_mod2.get_daily()
+    now = _dt.now()
+    monthly = _stats_mod2.get_period(now.year, now.month)
+    yearly  = _stats_mod2.get_period(now.year)
     signing_certs = _smime_store.list_certs()
     recipient_certs = _smime_store.list_recipient_certs()
     warn_days = int(settings_store.get("CERT_WARN_DAYS") or 14)
@@ -678,6 +1036,10 @@ async def dashboard(request: Request, user: str = Depends(_check_auth)):
         context={
             "stats": total,
             "stats_daily": daily,
+            "stats_monthly": monthly,
+            "stats_yearly": yearly,
+            "stats_month_label": now.strftime("%B %Y"),
+            "stats_year_label": str(now.year),
             "cert_expiry": _cert_expiry(),
             "signing_certs": signing_certs,
             "expiring_certs": expiring_certs,
@@ -764,7 +1126,7 @@ async def api_preview_data(
 
 
 @app.get("/settings", response_class=HTMLResponse)
-async def settings_page(request: Request, user: str = Depends(_check_auth)):
+async def settings_page(request: Request, user: str = Depends(_require_admin)):
     return templates.TemplateResponse(
         request=request, name="settings.html",
         context={
@@ -973,15 +1335,15 @@ async def api_smime_set_default(cert_email: str, slot_id: str, user: str = Depen
 
 
 @app.get("/debug", response_class=HTMLResponse)
-async def debug_page(request: Request, user: str = Depends(_check_auth)):
+async def debug_page(request: Request, user: str = Depends(_require_admin)):
     return templates.TemplateResponse(
         request=request, name="debug.html",
-        context={"active": "debug"},
+        context={"active": "debug", "s": settings_store.get_all()},
     )
 
 
 @app.get("/log", response_class=HTMLResponse)
-async def log_page(request: Request, user: str = Depends(_check_auth)):
+async def log_page(request: Request, user: str = Depends(_require_admin)):
     return templates.TemplateResponse(
         request=request, name="log.html",
         context={"active": "log", "stream_token": _make_log_token()},
@@ -1024,16 +1386,23 @@ async def log_stream(request: Request, token: str = ""):
 
 
 @app.get("/smime", response_class=HTMLResponse)
-async def smime_page_v2(request: Request, user: str = Depends(_check_auth)):
+async def smime_page_v2(request: Request, user: str = Depends(_require_admin)):
     import smime_store
     import ca_backends as _ca
     import acme_state as _acme_state
+    import keyvault as _kv
     config_map: dict = settings_store.get("MAILBOX_CONFIG") or {}
     smime_from_config = {email for email, cfg in config_map.items() if cfg.get("smime")}
     smime_from_certs = {c["email"] for c in smime_store.list_certs()}
     all_emails = sorted(smime_from_config | smime_from_certs)
     smime_users = [{"email": email, "certs": smime_store.list_user_certs(email)} for email in all_emails]
     acme_orders = {em: _acme_state.get_order(em) for em in all_emails if _acme_state.get_order(em)}
+    # Key Vault status per email (only if configured)
+    kv_keys: dict[str, bool] = {}
+    kv_configured = _kv.is_configured()
+    if kv_configured:
+        for em in all_emails:
+            kv_keys[em] = await _kv.key_exists(em)
     return templates.TemplateResponse(
         request=request, name="smime.html",
         context={
@@ -1044,6 +1413,9 @@ async def smime_page_v2(request: Request, user: str = Depends(_check_auth)):
             "active": "smime",
             "cert_expiry": _cert_expiry(),
             "acme_orders": acme_orders,
+            "kv_configured": kv_configured,
+            "kv_keys": kv_keys,
+            "kv_url": _kv.vault_url(),
         },
     )
 
@@ -1330,6 +1702,148 @@ async def api_acme_initiate(email: str, user: str = Depends(_check_auth)):
         raise HTTPException(500, str(exc))
 
 
+# ── Azure Key Vault API endpoints ─────────────────────────────────────────────
+
+@app.get("/api/setup/keyvault/test")
+async def api_keyvault_test(url: str = "", _: str = Depends(_require_admin)):
+    """Test Key Vault connectivity. ?url=https://... to test a specific URL."""
+    import keyvault
+    ok, msg = await keyvault.test_connection(url or None)
+    return JSONResponse({"ok": ok, "message": msg})
+
+
+@app.get("/api/setup/keyvault/arm-auth-url")
+async def api_keyvault_arm_auth_url(request: Request, _: str = Depends(_require_admin)):
+    """Return an auth URL for the user to grant delegated ARM access."""
+    redirect_uri = _build_redirect_uri(sso=True)
+    _state, auth_url = pkce_mod.create_session(
+        redirect_uri, scopes=pkce_mod.ARM_SCOPES, flow="arm"
+    )
+    return JSONResponse({"auth_url": auth_url})
+
+
+@app.post("/api/setup/keyvault/arm-paste")
+async def api_keyvault_arm_paste(request: Request, user: str = Depends(_require_admin)):
+    """Exchange pasted ARM callback URL for a delegated ARM token and store it in-memory."""
+    import keyvault
+    body = await request.json()
+    url = (body.get("url") or "").strip()
+    parsed = urllib.parse.urlparse(url)
+    params = urllib.parse.parse_qs(parsed.query)
+    code  = (params.get("code")  or [""])[0]
+    state = (params.get("state") or [""])[0]
+    error = (params.get("error") or [""])[0]
+    if error:
+        raise HTTPException(400, error)
+    if not code or not state:
+        raise HTTPException(400, "URL enthält keinen Code oder State")
+    session_obj = pkce_mod.pop_session(state)
+    if not session_obj:
+        raise HTTPException(400, "Sitzung abgelaufen — bitte erneut auf 'Azure-Zugriff holen' klicken")
+    if session_obj.get("flow") != "arm":
+        raise HTTPException(400, "Falscher Flow-Typ")
+    try:
+        token_resp = await pkce_mod.exchange_code(
+            code, session_obj["verifier"], session_obj["redirect_uri"],
+            scopes=pkce_mod.ARM_SCOPES,
+        )
+    except Exception as exc:
+        raise HTTPException(400, f"Token-Austausch fehlgeschlagen: {exc}")
+    arm_token = token_resp.get("access_token")
+    if not arm_token:
+        raise HTTPException(400, "Kein ARM-Token erhalten")
+    expires_in = int(token_resp.get("expires_in", 3600))
+    upn = _get_session_user(request) or user
+    keyvault.store_user_arm_token(upn, arm_token, expires_in)
+    log.info("ARM delegated token stored for %s (expires_in=%s)", upn, expires_in)
+    return JSONResponse({"ok": True})
+
+
+@app.get("/api/setup/keyvault/subscriptions")
+async def api_keyvault_subscriptions(request: Request, _: str = Depends(_require_admin)):
+    """List Azure subscriptions — uses delegated user token if available, else app SP."""
+    import keyvault
+    upn = _get_session_user(request) or ""
+    user_tok = keyvault.get_user_arm_token(upn) if upn else None
+    ok, msg, subs = await keyvault.list_subscriptions(arm_token=user_tok)
+    return JSONResponse({"ok": ok, "message": msg, "subscriptions": subs,
+                         "delegated": bool(user_tok)})
+
+
+@app.get("/api/setup/keyvault/resource-groups")
+async def api_keyvault_resource_groups(request: Request, subscription_id: str,
+                                        _: str = Depends(_require_admin)):
+    """List resource groups — uses delegated user token if available, else app SP."""
+    import keyvault
+    upn = _get_session_user(request) or ""
+    user_tok = keyvault.get_user_arm_token(upn) if upn else None
+    ok, msg, rgs = await keyvault.list_resource_groups(subscription_id, arm_token=user_tok)
+    return JSONResponse({"ok": ok, "message": msg, "resource_groups": rgs})
+
+
+@app.post("/api/setup/keyvault/create")
+async def api_keyvault_create(request: Request, user: str = Depends(_require_admin)):
+    """Create a new Azure Key Vault — uses delegated user token if available."""
+    import keyvault
+    import graph_client as _gc
+    data = await request.json()
+    subscription_id = (data.get("subscription_id") or "").strip()
+    resource_group = (data.get("resource_group") or "").strip()
+    vault_name = (data.get("vault_name") or "").strip()
+    location = (data.get("location") or "").strip()
+    create_rg = bool(data.get("create_rg", False))
+    if not all([subscription_id, resource_group, vault_name, location]):
+        raise HTTPException(400, "subscription_id, resource_group, vault_name, location sind Pflichtfelder")
+    tenant_id, client_id, _ = _gc._get_effective_credentials()
+    if not tenant_id or not client_id:
+        raise HTTPException(400, "Entra-App-Registrierung noch nicht konfiguriert")
+    upn = _get_session_user(request) or user
+    user_tok = keyvault.get_user_arm_token(upn) if upn else None
+    ok, message, vault_url = await keyvault.create_vault(
+        subscription_id, resource_group, vault_name, location,
+        tenant_id, client_id, create_rg, arm_token=user_tok,
+    )
+    return JSONResponse({"ok": ok, "message": message, "vault_url": vault_url})
+
+
+@app.post("/api/setup/keyvault/save")
+async def api_keyvault_save(request: Request, _: str = Depends(_require_admin)):
+    """Save Key Vault URL to settings."""
+    data = await request.json()
+    kv_url = (data.get("url") or "").strip().rstrip("/")
+    settings_store.update({"KEYVAULT_URL": kv_url})
+    log.info("Key Vault URL saved: %s", kv_url or "(cleared)")
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/smime/keyvault/migrate/{email}")
+async def api_keyvault_migrate(email: str, _: str = Depends(_require_admin)):
+    """Migrate local S/MIME private key to Azure Key Vault."""
+    import smime_store
+    email = email.lower().strip()
+    result = await smime_store.migrate_key_to_keyvault(email)
+    if not result["ok"]:
+        raise HTTPException(400, result["error"])
+    log.info("S/MIME key migrated to Key Vault for %s (key_id=%s)", email, result.get("key_id"))
+    return JSONResponse(result)
+
+
+@app.get("/api/smime/keyvault/status")
+async def api_keyvault_status(_: str = Depends(_require_admin)):
+    """Return per-mailbox Key Vault key presence status."""
+    import keyvault
+    import smime_store
+    if not keyvault.is_configured():
+        return JSONResponse({"configured": False, "keys": {}})
+    config_map: dict = settings_store.get("MAILBOX_CONFIG") or {}
+    cert_emails = {c["email"] for c in smime_store.list_certs()}
+    all_emails = sorted(set(config_map.keys()) | cert_emails)
+    keys: dict[str, bool] = {}
+    for em in all_emails:
+        keys[em] = await keyvault.key_exists(em)
+    return JSONResponse({"configured": True, "vault_url": keyvault.vault_url(), "keys": keys})
+
+
 @app.get("/api/smime/recipient/download/{cert_email}")
 async def api_smime_recipient_download(cert_email: str, user: str = Depends(_check_auth)):
     import smime_store
@@ -1423,6 +1937,27 @@ async def api_config_export(user: str = Depends(_check_auth)):
             elem.set("email", user_dir.name)
             _ET.SubElement(elem, "cert").text = _b64.b64encode(cert_p.read_bytes()).decode()
 
+    # ── Signature templates (HTML + TXT) ──────────────────────────────────────
+    from pathlib import Path as _Path
+    tpl_dir = _Path(config.TEMPLATE_DIR)
+    if tpl_dir.exists():
+        for tpl_file in sorted(tpl_dir.iterdir()):
+            if tpl_file.suffix not in (".html", ".txt") or tpl_file.name.endswith(".bak"):
+                continue
+            elem = _ET.SubElement(root, "template")
+            elem.set("name", tpl_file.name)
+            elem.text = _b64.b64encode(tpl_file.read_bytes()).decode()
+
+    # ── ACME account keys + URLs ───────────────────────────────────────────────
+    import acme_state as _acme
+    if _acme.ACME_DIR.exists():
+        for acme_file in sorted(_acme.ACME_DIR.iterdir()):
+            if acme_file.suffix not in (".pem", ".txt") or acme_file.name == "orders.json":
+                continue
+            elem = _ET.SubElement(root, "acme-file")
+            elem.set("name", acme_file.name)
+            elem.text = _b64.b64encode(acme_file.read_bytes()).decode()
+
     xml_bytes = b'<?xml version="1.0" encoding="utf-8"?>\n' + _ET.tostring(root, encoding="unicode").encode("utf-8")
     filename = f"exo-sig-config-{datetime.now().strftime('%Y%m%d')}.xml"
     return StreamingResponse(
@@ -1510,9 +2045,47 @@ async def api_config_import(
         except Exception as exc:
             log.warning("Config import: could not restore recipient cert for %s: %s", email_addr, exc)
 
-    log.info("Config imported by %s: %d settings, %d certs from %s",
-             user, len(patch), certs_restored, root.get("exported", "?"))
-    return JSONResponse({"ok": True, "imported": len(patch), "certs_restored": certs_restored})
+    # ── Restore signature templates ───────────────────────────────────────────
+    from pathlib import Path as _Path
+    tpl_dir = _Path(config.TEMPLATE_DIR)
+    tpl_dir.mkdir(parents=True, exist_ok=True)
+    templates_restored = 0
+    for elem in root.findall("template"):
+        fname = elem.get("name", "").strip()
+        content_b64 = (elem.text or "").strip()
+        if not fname or not content_b64:
+            continue
+        if not (fname.endswith(".html") or fname.endswith(".txt")):
+            continue
+        try:
+            (tpl_dir / fname).write_bytes(_b64.b64decode(content_b64))
+            templates_restored += 1
+        except Exception as exc:
+            log.warning("Config import: could not restore template %s: %s", fname, exc)
+
+    # ── Restore ACME account keys + URLs ─────────────────────────────────────
+    import acme_state as _acme
+    _acme.ACME_DIR.mkdir(parents=True, exist_ok=True)
+    acme_restored = 0
+    for elem in root.findall("acme-file"):
+        fname = elem.get("name", "").strip()
+        content_b64 = (elem.text or "").strip()
+        if not fname or not content_b64:
+            continue
+        if not (fname.endswith(".pem") or fname.endswith(".txt")):
+            continue
+        try:
+            dest = _acme.ACME_DIR / fname
+            dest.write_bytes(_b64.b64decode(content_b64))
+            dest.chmod(0o600)
+            acme_restored += 1
+        except Exception as exc:
+            log.warning("Config import: could not restore ACME file %s: %s", fname, exc)
+
+    log.info("Config imported by %s: %d settings, %d certs, %d templates, %d acme-files from %s",
+             user, len(patch), certs_restored, templates_restored, acme_restored, root.get("exported", "?"))
+    return JSONResponse({"ok": True, "imported": len(patch), "certs_restored": certs_restored,
+                         "templates_restored": templates_restored, "acme_restored": acme_restored})
 
 
 # ── MIME Observatory ──────────────────────────────────────────────────────────

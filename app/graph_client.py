@@ -156,7 +156,7 @@ async def list_mailboxes() -> list[dict]:
     async with httpx.AsyncClient(timeout=30) as client:
         # ── User mailboxes (licensed = regular, unlicensed with mail = shared) ──
         url = (f"{GRAPH}/users"
-               "?$select=mail,displayName,assignedLicenses"
+               "?$select=mail,displayName,assignedLicenses,userType"
                "&$top=999")
         while url:
             r = await client.get(url, headers=headers)
@@ -166,7 +166,7 @@ async def list_mailboxes() -> list[dict]:
             data = r.json()
             for u in data.get("value", []):
                 mail = (u.get("mail") or "").lower().strip()
-                if not mail:
+                if not mail or u.get("userType") == "Guest":
                     continue
                 has_license = bool(u.get("assignedLicenses"))
                 results.append({

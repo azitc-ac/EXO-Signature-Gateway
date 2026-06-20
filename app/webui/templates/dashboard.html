@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>Dashboard</h1>
+<h1>Übersicht</h1>
 
 {% if password_change_needed %}
 <div class="alert warn" style="margin-bottom:20px">
@@ -22,47 +22,74 @@
 {% endif %}
 
 <!-- Mail-Stats -->
-<h3 style="color:#555;font-size:14px;text-transform:uppercase;letter-spacing:.05em;margin:0 0 10px">
-  Mails <span style="font-weight:400;color:#aaa">– heute / gesamt (seit Start)</span>
-</h3>
-<div class="stats-grid" style="grid-template-columns:repeat(auto-fill,minmax(140px,1fr))">
-  <div class="stat-card">
-    <div class="stat-value">{{ stats_daily.processed }}</div>
-    <div class="stat-label">Verarbeitet heute</div>
-    <div style="color:#aaa;font-size:11px;margin-top:2px">{{ stats.processed }} gesamt</div>
-  </div>
-  <div class="stat-card" style="border-top-color:#8b5cf6">
-    <div class="stat-value" style="color:#8b5cf6">{{ stats_daily.smime_signed }}</div>
-    <div class="stat-label">S/MIME signiert heute</div>
-    <div style="color:#aaa;font-size:11px;margin-top:2px">{{ stats.smime_signed }} gesamt</div>
-  </div>
-  <div class="stat-card" style="border-top-color:#0ea5e9">
-    <div class="stat-value" style="color:#0ea5e9">{{ stats_daily.smime_encrypted }}</div>
-    <div class="stat-label">Verschlüsselt heute</div>
-    <div style="color:#aaa;font-size:11px;margin-top:2px">{{ stats.smime_encrypted }} gesamt</div>
-  </div>
-  <div class="stat-card" style="border-top-color:#10b981">
-    <div class="stat-value" style="color:#10b981">{{ stats_daily.smime_decrypted }}</div>
-    <div class="stat-label">Entschlüsselt heute</div>
-    <div style="color:#aaa;font-size:11px;margin-top:2px">{{ stats.smime_decrypted }} gesamt</div>
-  </div>
-  <div class="stat-card" style="border-top-color:#f59e0b">
-    <div class="stat-value" style="color:#f59e0b">{{ stats_daily.certs_harvested }}</div>
-    <div class="stat-label">Certs geharvestet</div>
-    <div style="color:#aaa;font-size:11px;margin-top:2px">{{ stats.certs_harvested }} gesamt</div>
-  </div>
-  <div class="stat-card warn">
-    <div class="stat-value">{{ stats_daily.fallback }}</div>
-    <div class="stat-label">Fallback heute</div>
-    <div style="color:#aaa;font-size:11px;margin-top:2px">{{ stats.fallback }} gesamt</div>
-  </div>
-  <div class="stat-card error">
-    <div class="stat-value">{{ stats_daily.errors }}</div>
-    <div class="stat-label">Fehler heute</div>
-    <div style="color:#aaa;font-size:11px;margin-top:2px">{{ stats.errors }} gesamt</div>
-  </div>
+{% macro stat_row(label, d, m, y) %}
+<tr style="border-bottom:1px solid #f0f0f0">
+  <td style="padding:7px 0;font-size:13px;color:#44403c;font-weight:500">{{ label }}</td>
+  <td style="padding:7px 16px;text-align:right;font-size:15px;font-weight:700;color:#1c1917">{{ d }}</td>
+  <td style="padding:7px 16px;text-align:right;font-size:14px;color:#78716c">{{ m }}</td>
+  <td style="padding:7px 0;text-align:right;font-size:14px;color:#a8a29e">{{ y }}</td>
+</tr>
+{% endmacro %}
+
+<div style="display:flex;align-items:baseline;gap:16px;margin:0 0 10px">
+  <h3 style="color:#555;font-size:14px;text-transform:uppercase;letter-spacing:.05em;margin:0">Mails</h3>
+  <span style="font-size:12px;color:#aaa">Heute / {{ stats_month_label }} / {{ stats_year_label }}</span>
 </div>
-<p class="hint">Heute-Zähler werden täglich zum konfigurierten Berichtszeitpunkt zurückgesetzt. Gesamtzähler bei Container-Neustart.</p>
+<div class="settings-card" style="padding:0 16px">
+  <table style="width:100%;border-collapse:collapse">
+    <thead>
+      <tr style="border-bottom:2px solid #e2e8f0">
+        <th style="text-align:left;padding:8px 0;font-size:12px;color:#78716c;font-weight:600"></th>
+        <th style="text-align:right;padding:8px 16px;font-size:12px;color:#78716c;font-weight:600">Heute</th>
+        <th style="text-align:right;padding:8px 16px;font-size:12px;color:#78716c;font-weight:600">{{ stats_month_label }}</th>
+        <th style="text-align:right;padding:8px 0;font-size:12px;color:#78716c;font-weight:600">{{ stats_year_label }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ stat_row("Verarbeitet", stats_daily.processed, stats_monthly.processed, stats_yearly.processed) }}
+      {{ stat_row("S/MIME signiert", stats_daily.smime_signed, stats_monthly.smime_signed, stats_yearly.smime_signed) }}
+      {{ stat_row("S/MIME verschlüsselt", stats_daily.smime_encrypted, stats_monthly.smime_encrypted, stats_yearly.smime_encrypted) }}
+      {{ stat_row("S/MIME entschlüsselt", stats_daily.smime_decrypted, stats_monthly.smime_decrypted, stats_yearly.smime_decrypted) }}
+      {{ stat_row("Certs geharvestet", stats_daily.certs_harvested, stats_monthly.certs_harvested, stats_yearly.certs_harvested) }}
+      <tr style="border-bottom:1px solid #f0f0f0">
+        <td style="padding:7px 0;font-size:13px;color:#d97706;font-weight:500">Fallback</td>
+        <td style="padding:7px 16px;text-align:right;font-size:15px;font-weight:700;color:#d97706">{{ stats_daily.fallback }}</td>
+        <td style="padding:7px 16px;text-align:right;font-size:14px;color:#78716c">{{ stats_monthly.fallback }}</td>
+        <td style="padding:7px 0;text-align:right;font-size:14px;color:#a8a29e">{{ stats_yearly.fallback }}</td>
+      </tr>
+      <tr>
+        <td style="padding:7px 0;font-size:13px;color:#dc2626;font-weight:500">Fehler</td>
+        <td style="padding:7px 16px;text-align:right;font-size:15px;font-weight:700;color:#dc2626">{{ stats_daily.errors }}</td>
+        <td style="padding:7px 16px;text-align:right;font-size:14px;color:#78716c">{{ stats_monthly.errors }}</td>
+        <td style="padding:7px 0;text-align:right;font-size:14px;color:#a8a29e">{{ stats_yearly.errors }}</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+<p class="hint" style="margin-top:6px">Heute-Zähler werden täglich zurückgesetzt. Monat/Jahr aus persistierter Tageszeitreihe (stats_daily.json).</p>
+
+<!-- Azure API-Aufrufe -->
+<div style="display:flex;align-items:baseline;gap:16px;margin:24px 0 10px">
+  <h3 style="color:#555;font-size:14px;text-transform:uppercase;letter-spacing:.05em;margin:0">Azure API-Aufrufe</h3>
+  <span style="font-size:12px;color:#aaa">Heute / {{ stats_month_label }} / {{ stats_year_label }}</span>
+</div>
+<div class="settings-card" style="padding:0 16px">
+  <table style="width:100%;border-collapse:collapse">
+    <thead>
+      <tr style="border-bottom:2px solid #e2e8f0">
+        <th style="text-align:left;padding:8px 0;font-size:12px;color:#78716c;font-weight:600"></th>
+        <th style="text-align:right;padding:8px 16px;font-size:12px;color:#78716c;font-weight:600">Heute</th>
+        <th style="text-align:right;padding:8px 16px;font-size:12px;color:#78716c;font-weight:600">{{ stats_month_label }}</th>
+        <th style="text-align:right;padding:8px 0;font-size:12px;color:#78716c;font-weight:600">{{ stats_year_label }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{ stat_row("Graph sendMail", stats_daily.graph_api_calls, stats_monthly.graph_api_calls, stats_yearly.graph_api_calls) }}
+      {{ stat_row("Key Vault Sign", stats_daily.kv_sign_calls, stats_monthly.kv_sign_calls, stats_yearly.kv_sign_calls) }}
+    </tbody>
+  </table>
+</div>
+<p class="hint" style="margin-top:6px">Graph sendMail = Mails via Microsoft Graph API zugestellt. Key Vault Sign = S/MIME-Signaturen via Azure Key Vault. Kosten Key Vault: ~0,03 € / 10.000 Operationen (Standard-Tier).</p>
 
 <!-- TLS + S/MIME Zertifikate -->
 <h3 style="color:#555;font-size:14px;text-transform:uppercase;letter-spacing:.05em;margin:24px 0 10px">Zertifikate</h3>

@@ -127,13 +127,14 @@ Erreichbar unter `http://<host>:8080` (Basic Auth).
 
 | Seite | Funktion |
 |---|---|
-| **Dashboard** | Live-Statistiken (verarbeitete Mails, Fallbacks, Fehler) |
+| **Dashboard** | Statistiken: Heute / laufender Monat / laufendes Jahr (verarbeitete Mails, S/MIME, Fehler), Zertifikatsablauf |
 | **Templates** | Signatur-HTML und -Plaintext bearbeiten |
 | **Vorschau** | Signatur für eine beliebige E-Mail-Adresse rendern |
 | **Einstellungen** | Alle Konfigurationsoptionen, Test-Mail (HTML oder Nur-Text), Let's Encrypt |
-| **S/MIME** | Zertifikat-Upload für digitale Signierung |
+| **S/MIME** | Zertifikat-Upload, CASTLE ACME-Enrollment, Ablaufüberwachung |
 | **Log** | Live-Ansicht der Service-Logs |
 | **Setup** | Erstkonfigurationsassistent |
+| **Debug** | ACME-Versandmethode, Account Key Reset, Exchange Header Observatory, Hintergrundinformationen |
 
 ---
 
@@ -215,6 +216,9 @@ Gateway          CASTLE ACME              Exchange Online (Postfach)
    │                  │── Challenge-E-Mail ───────►│
    │                  │   Subject: "ACME: <token>" │
    │◄── Graph API inbox poll (alle 30 s) ─────────│
+   │── Graph sendMail (Re: ACME: …) ──────────────►│
+   │                  │   (Exchange → Connector → Gateway → _rebuild_acme_reply → CASTLE MX)
+   │                  │◄── RFC 8823-konforme Antwort
    │── trigger_challenge ──►│                      │
    │── finalize (CSR) ─────►│                      │
    │◄── Zertifikat (PEM) ───│                      │
@@ -224,12 +228,28 @@ Gateway          CASTLE ACME              Exchange Online (Postfach)
 **Warum Graph API Polling statt SMTP-Intercept:**  
 Der MX-Record der Kundendomain zeigt auf Exchange Online — die Challenge-E-Mail geht direkt ins Postfach, ohne den Gateway zu passieren. Der Service pollt daher aktiv das Postfach des Benutzers via `GET /v1.0/users/{email}/mailFolders/inbox/messages` (Graph API), bis die Challenge-Mail erscheint. Polling-Intervall: 15 s (erster Versuch), danach 30 s, Timeout nach 20 min.
 
+**Warum kein Port 25 / Azure Communication Services nötig:**  
+Die Challenge-Antwort wird per `Graph sendMail` gesendet (kein ausgehender Port 25 erforderlich). Exchange routet die Antwortmail über den Outbound-Connector zurück durch das Gateway — der Handler erkennt `Subject: Re: ACME:` und ruft `_rebuild_acme_reply()` auf: extrahiert ausschließlich den ACME-Response-Block und baut ein frisches MIME mit CRLF-Zeilenenden. Damit gelangt eine RFC 8823-konforme Mail an den CASTLE-MX — ohne ACS, ohne direkten Port-25-Zugang.
+
+**Empfohlene RemoteDomain-Konfiguration für castle.cloud:**  
+```powershell
+New-RemoteDomain -Name "Castle ACME" -DomainName "castle.cloud"
+Set-RemoteDomain "Castle ACME" -ContentType MimeText -TNEFEnabled $false -ByteEncoderTypeFor7BitCharsets Use7Bit
+```
+Verhindert die CTE-Konvertierung `7bit → quoted-printable`, die den ACME-Response-Token korrumpiert.
+
 **Benötigte Graph API Permissions:**
 
 | Permission | Zweck |
 |---|---|
 | `Mail.Send` | Challenge-Antwort FROM Benutzerpostfach senden |
 | `Mail.Read.All` | Postfach des Benutzers auf Challenge-E-Mail überwachen |
+
+**Diagnose:**  
+Jeder Enrollment-Vorgang erhält eine Flow-ID (`[acme:xxxxxxxx]`), die allen Log-Einträgen vorangestellt wird. Mit `grep "\[acme:xxxxxxxx\]"` lässt sich der komplette Ablauf nachverfolgen. Die Flow-ID erscheint auch im ACME-Status der Web-UI.
+
+**Pro-Benutzer ACME Account Keys:**  
+Jeder Benutzer hat einen eigenen EC P-256 Account Key (`account_key_{email_tag}.pem`). Bei Problemen kann der Key über **Debug → ACME Account Key zurücksetzen** gelöscht und neu generiert werden — bestehende S/MIME-Zertifikate sind davon nicht betroffen.
 
 ### Self-Service Upload
 

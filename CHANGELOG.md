@@ -5,6 +5,222 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.9 — 2026-06-20 — feat: Key Vault Wizard UX — delegierter Azure-Login, Vault-Erstellung, API-Zähler
+
+### Setup-Wizard: Key Vault "Neu erstellen"
+- **Delegierter Azure-Login** ("Azure-Zugriff holen"): PKCE-Popup mit `management.azure.com/user_impersonation`-Scope —
+  der Tab schließt sich nach Auth automatisch, Hauptfenster lädt Subscriptions via `postMessage`.
+  Fallback: URL-Paste (wie SSO-Login) erscheint automatisch nach 4 Sekunden.
+  Kein Azure RBAC auf dem App-SP nötig — Vault wird unter der Identität des eingeloggten Users erstellt.
+- **Subscription-Dropdown**: alle Subscriptions des Users, letzter Eintrag "…andere" → manuelles Textfeld
+- **Resource-Group-Dropdown**: alle RGs der gewählten Subscription; "Neu: rg-exo-signature" → editierbares
+  Namensfeld; "…andere" → manuelles Textfeld; Region-Dropdown wird auf RG-Region gesetzt beim Auswählen
+- Vault anlegen: ARM PUT RG (optional) + ARM PUT Vault + ARM PUT Rollenzuweisung (Key Vault Crypto User → App-SP)
+- Key Vault-Schritt jetzt direkt nach Schritt 5 (Entra App-Registrierung) statt nach S/MIME
+
+### Backend: ARM-delegierter Token-Flow
+- `pkce.py`: `ARM_SCOPES = ["https://management.azure.com/user_impersonation", "offline_access"]`
+- `auth/callback`: neuer Zweig `flow == "arm"` — speichert ARM-Token im In-Memory-Store, zeigt
+  Erfolgsseite mit `window.close()` + `postMessage`. Bisherige Flows (setup/sso) unverändert.
+- `keyvault.py`: `store_user_arm_token()` / `get_user_arm_token()` (pro UPN, 1h TTL);
+  `list_subscriptions()`, `list_resource_groups()`, `create_vault()` nehmen optionalen `arm_token`-
+  Parameter — User-Token hat Vorrang vor App-SP-Client-Credentials
+- Neue Endpoints: `GET /api/setup/keyvault/arm-auth-url`, `POST /api/setup/keyvault/arm-paste`,
+  `GET /api/setup/keyvault/subscriptions`, `GET /api/setup/keyvault/resource-groups`
+
+### Dashboard: Azure API-Aufrufe-Zähler
+- Neuer Abschnitt **"Azure API-Aufrufe"** (Heute / Monat / Jahr):
+  **Graph sendMail** (Mails via Graph API) und **Key Vault Sign** (S/MIME-Signaturen via KV)
+- `stats.py`: zwei neue persistierte Keys `graph_api_calls`, `kv_sign_calls`
+- Inkrementiert in `reinject.py` (nach erfolgreicher Graph-Zustellung) und `keyvault.py` (nach Sign-API-Call)
+- Kosten-Hinweis: ~0,03 € / 10.000 Key Vault Operationen (Standard-Tier)
+
+---
+
+## v1.4.1 — 2026-06-20 — feat: Nav-Initialen-Badge + Login-SVG + SSO-Fix
+
+### Navigation (base.html)
+- **Initialen-Kreis** oben rechts: Buchstaben aus dem UPN (z.B. "EM" für erika.mustermann@…)
+- Klick öffnet Dropdown mit UPN, Rolle (Administrator / Signatur-Editor) und Abmelden-Link
+- `/api/whoami`: gibt `{upn, role}` zurück ohne 401-Challenge — löst den Browser-Basic-Auth-Dialog
+  auf der Login-Seite (der erschien weil `_check_auth`-Dependency einen WWW-Authenticate-Header setzte)
+
+### Login-Seite (login.html)
+- **SVG-Illustration**: Briefumschlag mit Grußformeln (Viele Grüße / Kind regards / Cordialement),
+  Unterschriftswelle, Vorhängeschloss (Verschlüsselung) und Wachs-Siegel mit Häkchen —
+  alles innerhalb des Umschlags per `clipPath` beschnitten; kein externes Bild
+
+---
+
+## v1.4.0 — 2026-06-20 — feat: Azure Key Vault S/MIME-Signing (private Keys verlassen Azure nie)
+
+### Neue Dateien
+- **`app/keyvault.py`** — Key Vault REST-Client: MSAL-Token (Scope `https://vault.azure.net/.default`),
+  `import_rsa_key()` (RSA + EC als JWK, `exportable: False`), `sign()` (Sign-API RS256/ES256),
+  `key_exists()`, `test_connection()`, `list_subscriptions()`, `list_resource_groups()`, `create_vault()`
+- **`app/cms_sign.py`** — Pure-Python CMS/PKCS#7-SignedData-Assembler (kein OpenSSL-Prozess).
+  RFC-5751-kompatibles `multipart/signed` mit extern bereitgestellter Signatur.
+  Kritisch: SignedAttributes als SET (0x31) für Hashing, in SignerInfo als IMPLICIT [0] (0xA0).
+
+### Backend
+- `smime_signer.sign_async()`: Key Vault bevorzugt, transparenter Fallback auf lokalen openssl-Prozess
+- `handler.py`: Signing-Call auf `await smime_signer.sign_async()` umgestellt
+- `smime_store.migrate_key_to_keyvault()`: importiert lokalen Schlüssel, löscht lokale Datei
+- `settings_store`: `KEYVAULT_URL: ""` in DEFAULTS
+- `requirements.txt`: `asn1crypto>=1.5.0`
+
+### Web-UI
+- Setup-Wizard: "KEY VAULT"-Schritt (Amber-Badge) direkt nach Entra App-Registrierung —
+  "Neu erstellen"-Toggle, URL-Eingabe, Verbindungstest, Kosten-Hinweis (~0,13 €/Monat)
+- S/MIME-Tab: pro Postfach "KEY VAULT"-Badge oder "Key Vault migrieren"-Button
+- Neue Endpoints: `/api/setup/keyvault/test|save|create`, `/api/smime/keyvault/migrate/{email}|status`
+
+### Kompatibilität
+- `KEYVAULT_URL` leer = kein Key Vault, lokaler openssl-Pfad bleibt immer als Fallback aktiv
+
+---
+
+## v1.3.9 — 2026-06-20 — feat: Konfigurationsexport vollständig (Vorlagen, ACME-Keys) + Wizard-Schritte neu nummeriert
+
+### Konfigurationsexport / -import
+- **Signatur-Vorlagen** (`signature.html`, `signature.txt`, alle Custom-Templates) werden jetzt
+  als base64-kodierte `<template>`-Elemente exportiert und beim Import wiederhergestellt
+- **ACME Account Keys** (`account_key_*.pem`) und **Account-URLs** (`account_url_*.txt`)
+  werden als `<acme-file>`-Elemente exportiert — verhindert neuen CASTLE-Account nach Migration
+- Import-Antwort enthält jetzt `templates_restored` und `acme_restored` zusätzlich zu `certs_restored`
+- Importierte ACME-Key-Dateien erhalten Berechtigung `600`
+
+### Setup-Wizard Schrittbeschriftung
+- Schritt 7 (EXO Connector) → **Schritt 6** (lückenlose Nummerierung nach Entfernung des alten Schritt 6)
+- Schritt 8 (Verbindungstest) → **Schritt 7**
+- Interne Querverweise "Schritt 6", "Schritt 7" und "Schritt 8" entsprechend aktualisiert
+
+---
+
+## v1.3.8 — 2026-06-20 — fix: Setup-Wizard UX-Korrekturen (Plural, Badge, Farbe, Titel, IMAP-Text)
+
+### Setup-Wizard
+- **Plural-Fix**: "3 Kontoen" → "3 Konten" (fehlerhaftes Template-Muster korrigiert)
+- **Schritt Entra-Konten**: Badge `9` → Pfeil `→` (signalisiert "weiter in Einstellungen")
+- **Box-Farbe**: Entra-Konten-Schritt jetzt Indigo statt Grün — optisch "außer Konkurrenz"
+- **Titel-Fix**: "Verbindungstest & Abschluss" → "Verbindungstest"
+- **IMAP-Beschreibung** präzisiert: IMAP nur für eingehende ehemals verschlüsselte Mails;
+  ausgehende Signierung/Reinjektion läuft ausschließlich über Graph API (`sendMail`)
+
+---
+
+## v1.2.0 — 2026-06-19 — feat: Entra SSO Login (OIDC/PKCE) + Admin-Benutzerverwaltung
+
+### Authentifizierung
+- **Entra SSO**: Login via Microsoft-Konto (OIDC Authorization Code Flow mit PKCE)
+  - Scopes: `openid profile email User.Read` — minimale, delegierte Berechtigung
+  - UPN wird aus dem ID-Token extrahiert und gegen `ADMIN_USERS`-Liste geprüft
+  - Session-Cookie (signiert mit `itsdangerous`, 8h TTL, HttpOnly, Secure, SameSite=Lax)
+- **Notfall-Zugang**: lokaler Admin (Benutzername+Passwort) bleibt immer verfügbar via Login-Seite
+- **Auth-Middleware**: Session-Cookie zuerst, HTTP Basic als Fallback (kein Breaking Change)
+- Unauthentifizierte Browser-Requests → Redirect zu `/auth/login`; API-Requests → 401
+
+### Neue Dateien
+- `app/sso.py` — Session-Management, ID-Token-Decode, UPN-Extraktion, Admin-Check
+- `app/webui/templates/login.html` — Login-Seite mit Microsoft-Button + ausklappbarem Notfall-Zugang
+
+### Setup-Wizard-Integration
+- `setup_wizard.run_post_auth_setup()` trägt den UPN des Setup-Admins automatisch in `ADMIN_USERS` ein
+- `patch_bootstrap_redirect_uri()` fügt `https://{PUBLIC_HOSTNAME}/auth/callback` zur Bootstrap-App
+  hinzu — kein manueller Azure-Portal-Schritt nötig
+- `pkce.py`: `SSO_SCOPES`-Konstante; `create_session()` und `exchange_code()` parametrisierbar
+  nach `flow` (`setup` vs `sso`) und `scopes`
+
+### Einstellungen
+- Neue Karte "Admin-Konten (Entra SSO)" mit UPN-Liste, Hinzufügen/Entfernen
+- Letzter Admin kann nicht entfernt werden (API-Schutz)
+- `ADMIN_USERS: []` und `SSO_SESSION_SECRET: ""` in settings_store
+
+### Sicherheit
+- `SSO_SESSION_SECRET` wird beim ersten Start automatisch generiert und in settings.json gespeichert
+- SMIME_KEY_PASSWORD bleibt in settings.json (Verbesserung Richtung Key Vault geplant)
+
+---
+
+## v1.1.3 — 2026-06-19 — feat: S/MIME Private-Key-Verschlüsselung per UI konfigurierbar
+
+### Einstellungen → S/MIME
+- Neue Option **"Private Keys verschlüsseln"** (Standard: aktiviert) mit Passwortfeld und
+  AES-256-Verschlüsselung (`BestAvailableEncryption`)
+- Passwortfeld mit Anzeigen/Verbergen-Toggle; erscheint nur wenn Checkbox aktiv
+- Gespeichert als `SMIME_KEY_ENCRYPT` + `SMIME_KEY_PASSWORD` in `settings.json`
+- `smime_store._key_encryption()` liest nun aus `settings_store` (Fallback: `SMIME_KEY_PASSWORD`-Env-Variable)
+- Hinweis in S/MIME-Tab (`smime.html`) durch Link zu Einstellungen ersetzt
+- Alle Seiten-Umbenennungen abgeschlossen: "Template" → "Vorlage" (template_editor, settings,
+  preview), "Debug" → "Erweitert", "Log-Suche" → "Protokoll-Suche", "Live-Log" → "Live-Protokoll"
+
+---
+
+## v1.1.2 — 2026-06-19 — feat: S/MIME-Einstellungen überarbeitet (Indikatoren, Strip-Toggle, Vorschau, #enc-Trigger)
+
+### Einstellungen → S/MIME
+- **Umbenennung**: "Tag" → "Indikator" (präziser); Hinweistexte überarbeitet
+- **Gruppe "Betreff eingehender S/MIME-Mails anpassen"**: Beide Indikatoren einzeln
+  per Checkbox aktivierbar/deaktivierbar (Standard: aktiv); Textfeld wird bei Deaktivierung
+  ausgegraut
+- **Live-Vorschau** des Betreffs gemäß aktuellen Einstellungen (Beispiel: "Quartalsbericht Q2")
+- **Neues Toggle**: "S/MIME-Signaturen eingehender Mails entfernen" (Standard: aktiv)
+  → bei Deaktivierung werden signierte Mails unverändert durchgeleitet
+- **Verschlüsselungs-Trigger**: Standard von `#enc#` auf `#enc` geändert
+- Verweis auf `#enc#` in S/MIME-Tab entfernt; stattdessen Link zu Einstellungen → S/MIME
+
+### Backend
+- `_build_subject_tag()`: respektiert `SMIME_TAG_ENCRYPTED_ENABLED` / `SMIME_TAG_SIGNED_ENABLED`
+- Inbound-Strip-Pfad: respektiert `SMIME_STRIP_INBOUND`; bei Deaktivierung Pass-through
+- Neue Settings-Defaults: `SMIME_TAG_ENCRYPTED_ENABLED`, `SMIME_TAG_SIGNED_ENABLED`,
+  `SMIME_STRIP_INBOUND`, `ENC_TRIGGER` = `#enc`
+
+---
+
+## v1.1.1 — 2026-06-19 — feat: Online-Indikator in Navbar, Log-Verbesserungen (Live-Filter, Pill-Buttons, Schnellsuche)
+
+### Navigation
+- **Online-Indikator**: Grüner Punkt + "online" Text rechts in der Titelleiste; wechselt auf rot
+  "offline" wenn `/health` nicht erreichbar ist (Polling alle 30 Sekunden)
+- Auf mobilen Geräten: nur Punkt sichtbar, Text wird ausgeblendet
+
+### Log-Seite
+- **Pill-Toggle-Buttons** ersetzen die Checkbox: `autoscroll ✓/✗`, `verbose ✓/✗`, `logging ✓/✗`
+- **Live-Filter**: Texteingabe filtert den laufenden Log-Stream in Echtzeit (Puffer 2000 Zeilen)
+- **Verbose-Toggle**: Blendet DEBUG-Zeilen ein oder aus (Standard: aus)
+- **Logging-Toggle**: Startet/stoppt die SSE-Verbindung ohne die Seite neu zu laden
+- **Schnellsuche-Buttons**: `[acme:]`, `ERROR`, `WARNING`, `signed`, `CRITICAL` als Voreinstellungen
+  für die Log-Datei-Suche
+
+---
+
+## v1.1.0 — 2026-06-19 — feat: ACME bestätigt stabil (Graph API, kein Port 25), Flow-IDs, Statistiken Monat/Jahr, ACS entfernt
+
+### ACME-Enrollment (CASTLE, RFC 8823)
+- **Bestätigt in Production**: Graph API + `_rebuild_acme_reply()` funktioniert zuverlässig
+  ohne Port 25 — mig3@zarenko.net erfolgreich in 59 Sekunden enrolled (2026-06-19)
+- **Flow-IDs**: Jeder Enrollment-Vorgang bekommt eine 8-stellige Hex-ID (`[acme:xxxxxxxx]`),
+  die allen Log-Meldungen in `initiate_acme_order`, `_poll_mailbox_for_challenge`,
+  `handle_challenge_email` und `complete_order_after_challenge` vorangestellt wird
+  — `grep "[acme:xxxxxxxx]"` zeigt den kompletten Ablauf eines Enrollments
+- **ACS-Platzhalter entfernt**: Der "Azure Communication Services"-Schritt wurde aus dem
+  Setup-Wizard entfernt (war als `display:none` versteckt, nie implementiert)
+- **Debug-Tab**: Neuer Info-Block erklärt warum ACS nicht nötig ist
+  (`_rebuild_acme_reply()` + Graph API löst das Exchange-Modifikations-Problem)
+
+### Statistiken
+- **Dashboard**: Spalten "Heute / Monat / Jahr" (vorher nur Karten ohne Zeitraum-Aufteilung)
+- `stats.py`: `get_period(year, month)` aggregiert aus `stats_daily.json`
+- `stats_daily.json`: pro-Tag-Zeitreihe, fortlaufend, nie zurückgesetzt
+- `stats.json`: `total`-Feld — laufender Gesamtstand, überlebt Container-Neustarts
+
+### Weitere Korrekturen
+- Tagesbericht: Race Condition behoben — `_DAILY_LAST_RUN` wird vor dem Versand gespeichert
+- Per-User ACME Account Keys: `account_key_{email_tag}.pem` statt geteilt
+- ACME Account Key Reset: Debug-Tab, löscht User-Key + Legacy-Dateien
+- CSS: `main { margin: 32px auto }` — Layout war zu weit links (fehlte `auto`)
+- README: ACME-Abschnitt aktualisiert mit bestätigtem Flow, RemoteDomain-Konfiguration, Flow-IDs
+
 ## v1.0.118 — 2026-06-19 — fix: Stats überleben Container-Restart vollständig
 
 - `stats.json` erhält neues Feld `total` — laufender Gesamtstand, wird bei jedem

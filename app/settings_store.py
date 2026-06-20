@@ -24,9 +24,16 @@ DEFAULTS: dict = {
     "LOG_TIMEZONE": "Europe/Berlin",
     "SMIME_HARVEST_RCPT": "",
     "SMIME_TAG_ENCRYPTED": "verschlüsselt",
+    "SMIME_TAG_ENCRYPTED_ENABLED": True,
     "SMIME_TAG_SIGNED": "signiert von {signer}",
+    "SMIME_TAG_SIGNED_ENABLED": True,
     "SMIME_TAG_POSITION": "prepend",  # "prepend" or "append"
-    "ENC_TRIGGER": "#enc#",           # Keyword in subject to request encryption
+    "SMIME_STRIP_INBOUND": True,      # Strip S/MIME signature wrapper from inbound signed mails
+    "SMIME_KEY_ENCRYPT": True,        # Encrypt stored private keys with SMIME_KEY_PASSWORD
+    "SMIME_KEY_PASSWORD": "",         # AES-256 password for private key encryption (empty = no encryption)
+    "ADMIN_USERS": [],               # List of UPN strings allowed to log in via Entra SSO
+    "SSO_SESSION_SECRET": "",        # Auto-generated on first use; signs session cookies
+    "ENC_TRIGGER": "#enc",            # Keyword in subject to request encryption
     # ── Re-injection ─────────────────────────────────────────────────────────
     "REINJECT_MODE": "smtp",       # "smtp", "graph", or "imap" (smtp587 = legacy alias for imap)
     "GRAPH_SMTP_FALLBACK": False,  # Allow SMTP fallback when Graph re-inject fails
@@ -53,6 +60,7 @@ DEFAULTS: dict = {
     "EXO_CONNECTOR_CREATED": False,
     "SMIME_RULES_CREATED": False,
     "BOOTSTRAP_CLIENT_ID": "",   # Client-ID der eigenen Bootstrap-App-Registrierung für den Setup-Login
+    "BOOTSTRAP_REDIRECT_URIS": [],  # Tatsächlich in Azure registrierte Redirect-URIs (wird nach jedem Patch aktualisiert)
     # ── Notifications & scheduler ─────────────────────────────────────────────
     "NOTIFICATION_MAILBOX": "",      # Mailbox receiving alerts + reports (also used as FROM)
     "DAILY_REPORT_ENABLED": False,   # Send daily stats email
@@ -63,6 +71,8 @@ DEFAULTS: dict = {
     "NOTIFY_SMIME_EXPIRY": None,     # None/True = send; False = suppress S/MIME expiry admin alert
     "NOTIFY_CERT_RENEWAL": None,     # None/True = send; False = suppress renewal success/failure
     "NOTIFY_LE_EVENTS": None,        # None/True = send; False = suppress LE cert events
+    # ── Azure Key Vault (S/MIME private key storage) ──────────────────────────
+    "KEYVAULT_URL": "",                 # e.g. https://myvault.vault.azure.net — empty = local key files
     # ── ACME ─────────────────────────────────────────────────────────────────
     "ACME_REPLY_METHOD": "graph",       # "graph" or "direct_smtp" — how challenge replies are sent
     # ── S/MIME lifecycle management ───────────────────────────────────────────

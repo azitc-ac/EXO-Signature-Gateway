@@ -20,6 +20,7 @@ from cryptography import x509
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.serialization import (
     Encoding, NoEncryption, PrivateFormat, pkcs12, BestAvailableEncryption,
+    load_pem_private_key,
 )
 
 log = logging.getLogger(__name__)
@@ -28,11 +29,43 @@ RECIPIENT_DIR = Path("/app/data/smime/recipients")
 
 
 def _key_encryption():
-    import config
-    pw = config.SMIME_KEY_PASSWORD
+    import settings_store, config
+    if settings_store.get("SMIME_KEY_ENCRYPT") is False:
+        return NoEncryption()
+    pw = settings_store.get("SMIME_KEY_PASSWORD") or config.SMIME_KEY_PASSWORD or ""
     if pw:
         return BestAvailableEncryption(pw.encode())
     return NoEncryption()
+
+
+def reencrypt_all_keys(old_password: str = "") -> list:
+    """Re-encrypt all stored private keys with current _key_encryption().
+
+    Called after a key-password change so existing keys stay usable.
+    Tries old_password first, then falls back to no password (handles
+    previously unencrypted keys). Returns list of paths that failed.
+    """
+    new_enc = _key_encryption()
+    failed = []
+    for kp in SMIME_DIR.rglob("key.pem"):
+        try:
+            raw = kp.read_bytes()
+            # Try old password, then no password (unencrypted)
+            key = None
+            for pw in ([old_password.encode()] if old_password else []) + [None]:
+                try:
+                    key = load_pem_private_key(raw, password=pw)
+                    break
+                except Exception:
+                    continue
+            if key is None:
+                raise ValueError("Kein passendes Passwort gefunden")
+            kp.write_bytes(key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, new_enc))
+            log.info("Re-encrypted %s", kp)
+        except Exception as exc:
+            log.error("Re-encrypt failed for %s: %s", kp, exc)
+            failed.append(str(kp))
+    return failed
 
 
 def _get_expiry(cert) -> datetime:
@@ -386,6 +419,41 @@ def delete_recipient_cert(email: str) -> None:
     if d.exists() and not any(d.iterdir()):
         d.rmdir()
     log.info("Recipient S/MIME cert deleted for %s", email)
+
+
+async def migrate_key_to_keyvault(email: str) -> dict:
+    """
+    Import the local private key for email into Azure Key Vault,
+    then remove the local key file (cert is kept for signing operations).
+    Returns {"ok": True, "key_id": "..."} or {"ok": False, "error": "..."}.
+    """
+    import keyvault as _kv
+
+    if not _kv.is_configured():
+        return {"ok": False, "error": "Azure Key Vault ist nicht konfiguriert (KEYVAULT_URL fehlt)"}
+
+    paths = get_signing_paths(email)
+    if not paths:
+        return {"ok": False, "error": "Kein lokaler Schlüssel gefunden"}
+
+    cert_path, key_path = paths
+    try:
+        key_pem = key_path.read_bytes()
+    except Exception as exc:
+        return {"ok": False, "error": f"Schlüsseldatei konnte nicht gelesen werden: {exc}"}
+
+    try:
+        key_id = await _kv.import_rsa_key(email, key_pem)
+    except Exception as exc:
+        return {"ok": False, "error": f"Key Vault Import fehlgeschlagen: {exc}"}
+
+    try:
+        key_path.unlink()
+        log.info("Local key removed after KV migration for %s", email)
+    except Exception as exc:
+        log.warning("Could not remove local key for %s after KV migration: %s", email, exc)
+        # Migration succeeded — don't fail over cleanup issue
+    return {"ok": True, "key_id": key_id}
 
 
 def migrate_keys_encryption() -> int:

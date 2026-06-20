@@ -1,7 +1,9 @@
 """
-S/MIME digital signing via openssl smime subprocess.
+S/MIME digital signing via openssl smime subprocess (local) or Azure Key Vault.
 
-Produces multipart/signed output (detached signature, clear-text readable).
+Local path: calls `openssl smime -sign` subprocess with local key file.
+Key Vault path: calls Azure Key Vault Sign API via cms_sign.sign_smime_keyvault().
+
 openssl is available in the container image (installed with certbot dependencies).
 """
 
@@ -84,3 +86,37 @@ def sign(message_bytes: bytes, sender: str) -> bytes | None:
     except Exception as exc:
         log.error("S/MIME signing error for %s: %s", sender, exc)
         return None
+
+
+async def sign_async(message_bytes: bytes, sender: str) -> bytes | None:
+    """
+    Sign message_bytes for sender.
+    Prefers Azure Key Vault if configured and the key exists there.
+    Falls back to local openssl subprocess signing.
+    Returns signed bytes or None if signing fails / no cert available.
+    """
+    try:
+        import keyvault
+        if keyvault.is_configured() and await keyvault.key_exists(sender):
+            cert_path = smime_store.get_signing_cert_path(sender)
+            if cert_path and cert_path.exists():
+                import cms_sign
+                result = await cms_sign.sign_smime_keyvault(
+                    message_bytes, sender, cert_path.read_bytes()
+                )
+                if result:
+                    import stats
+                    stats.increment("smime_signed")
+                    log.info("S/MIME signed via Key Vault for sender=%s", sender)
+                    return result
+                log.warning("Key Vault signing failed for %s — falling back to local openssl", sender)
+            else:
+                log.warning(
+                    "Key Vault key exists for %s but no local cert found — falling back to local openssl",
+                    sender,
+                )
+    except Exception as exc:
+        log.warning("Key Vault sign_async error for %s: %s — falling back to local", sender, exc)
+
+    # Fall back to local openssl subprocess
+    return sign(message_bytes, sender)
