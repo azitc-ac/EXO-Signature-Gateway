@@ -5,6 +5,60 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.25 — 2026-06-21 — fix: deliver_to_mailbox_mime() — CRLF-Normalisierung für Graph MIME-Inject
+
+### Graph MIME-Inject: UnableToDeserializePostBody behoben
+- `deliver_to_mailbox_mime()`: CRLF-Normalisierung vor dem POST zu `/mailFolders/inbox/messages`
+- Handler serialisiert `inner_msg.as_bytes()` mit bare LF → Graph API lehnte ab (HTTP 400)
+- Fix: `content_bytes.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")` vor dem Request
+
+---
+
+## v1.4.24 — 2026-06-21 — fix: smtp_submit — IMAP-Fehler auf WARNING statt DEBUG
+
+### IMAP-Diagnose
+- `IMAP4.error` bei Token-Versuch von DEBUG auf WARNING hochgesetzt
+- Ermöglicht Diagnose ohne DEBUG-Log-Level: AUTHENTICATE failed → IMAP.AccessAsApp fehlt / propagiert noch
+
+---
+
+## v1.4.23 — 2026-06-21 — fix: send_via_graph() — MIME-Inject vor JSON-Fallback für externe Absender
+
+### Inbound externe Mails: kein Draft mehr (hoffentlich)
+- `send_via_graph()` fiel bisher direkt auf JSON-`deliver_to_mailbox()` zurück, wenn externe Absender
+  SMTP/sendMail-Pfade scheiterten (ErrorInvalidUser + IMAP exhausted + SendAsDenied)
+- Neu: MIME-`deliver_to_mailbox_mime()` wird ZUERST versucht — Exchange verarbeitet
+  Raw-MIME anders als JSON-Rekonstruktion und erstellt ggf. keinen Draft-Status
+- Entspricht jetzt dem Verhalten von `send_via_graph_mime()` (bereits korrekt)
+
+---
+
+## v1.4.22 — 2026-06-21 — fix: isDraft PATCH — Fehler loggen statt verschlucken (graph_reinject)
+
+### isDraft-Patch: Fehlerdiagnose
+- `deliver_to_mailbox_mime()` und `deliver_to_mailbox()`: `except Exception: pass` → `log.warning(...)`
+- PATCH-Response wird jetzt explizit auf HTTP-Status geprüft; bei ≠ 200/201/204 → WARNING mit Body
+- Ermöglicht Diagnose warum inbound Mails (Hotmail → zarenko.net) als Draft ankommen
+
+---
+
+## v1.4.21 — 2026-06-21 — fix: cms_sign — CRLF nach Boundary-Zeile fehlte (leerer Body in Gmail)
+
+### S/MIME KV-Signierung: leerer Mail-Body behoben
+- `"\r\n".join(outer_lines)` endete mit `--{boundary}` ohne abschließendes `\r\n`
+- MIME-Clients parseten Part 1 daher falsch → leerer Body
+- Fix: explizites `result += b"\r\n"` nach dem Join, vor `content_to_sign`
+
+---
+
+## v1.4.20 — 2026-06-21 — fix: cms_sign — kein Python-email-Re-Parse für multipart/signed
+
+### S/MIME KV-Signierung: MIME-Integrität
+- Python email library re-serialisiert `multipart/signed` und kann Part 1 (signed content) mangle
+- Stattdessen: Raw-Bytes-Manipulation via `replace()` + `loop_detector.mark_as_signed_bytes()`
+
+---
+
 ## v1.4.12 — 2026-06-20 — feat: Key Vault Wizard — idempotente Crypto-Officer-Rollenzuweisung
 
 ### Setup-Wizard: "Rolle sicherstellen (Crypto Officer)"

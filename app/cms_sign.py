@@ -329,6 +329,7 @@ async def sign_smime_keyvault(
     outer_lines.append(f"--{boundary}")
 
     result = "\r\n".join(outer_lines).encode("utf-8")
+    result += b"\r\n"  # CRLF terminating the --boundary line (required by MIME spec)
     result += content_to_sign
     result += b"\r\n"
 
@@ -344,15 +345,10 @@ async def sign_smime_keyvault(
     )
     result += sig_part.encode("ascii")
 
-    # 8. Add loop-detection marker
-    # Parse the assembled message to set the loop header cleanly
-    try:
-        assembled = _email_mod.message_from_bytes(result)
-        loop_detector.mark_as_signed(assembled)
-        # Normalise x-pkcs7 variant
-        out = assembled.as_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
-        out = out.replace(b"x-pkcs7-signature", b"pkcs7-signature")
-        return out
-    except Exception as exc:
-        log.warning("cms_sign: header post-processing failed (%s), returning raw bytes", exc)
-        return result
+    # 8. Normalise CRLF (base64.encodebytes uses bare \n), fix pkcs7 name, inject loop header.
+    # Do NOT re-parse through Python's email library — it re-serialises multipart/signed
+    # and can silently drop or mangle Part 1 (the signed body content).
+    result = result.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+    result = result.replace(b"x-pkcs7-signature", b"pkcs7-signature")
+    result = loop_detector.mark_as_signed_bytes(result)
+    return result

@@ -192,6 +192,9 @@ def deliver_to_mailbox_mime(mail_from: str, rcpt_tos: list[str], content_bytes: 
     _, from_addr = email.utils.parseaddr(from_header)
     from_addr = from_addr or mail_from
 
+    # Graph MIME inject requires CRLF line endings — normalize bare LF
+    content_bytes = content_bytes.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+
     auth_hdr = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "text/plain",
@@ -211,7 +214,7 @@ def deliver_to_mailbox_mime(mail_from: str, rcpt_tos: list[str], content_bytes: 
                 try:
                     msg_id = resp.json().get("id", "")
                     if msg_id:
-                        client.patch(
+                        patch_resp = client.patch(
                             f"{GRAPH}/users/{recipient}/messages/{msg_id}",
                             json={
                                 "isDraft": False,
@@ -221,8 +224,13 @@ def deliver_to_mailbox_mime(mail_from: str, rcpt_tos: list[str], content_bytes: 
                             },
                             headers=json_hdr,
                         )
-                except Exception:
-                    pass
+                        if patch_resp.status_code not in (200, 201, 204):
+                            log.warning(
+                                "Graph MIME isDraft PATCH failed for %s: HTTP %s — %s",
+                                recipient, patch_resp.status_code, patch_resp.text[:300],
+                            )
+                except Exception as exc:
+                    log.warning("Graph MIME isDraft PATCH exception for %s: %s", recipient, exc)
                 log.info("Graph MIME mailbox inject OK: from=%s to=%s", from_addr, recipient)
             else:
                 log.warning(
@@ -281,7 +289,7 @@ def deliver_to_mailbox(mail_from: str, rcpt_tos: list[str], content_bytes: bytes
                 try:
                     msg_id = resp.json().get("id", "")
                     if msg_id:
-                        client.patch(
+                        patch_resp = client.patch(
                             f"{GRAPH}/users/{recipient}/messages/{msg_id}",
                             json={
                                 "isDraft": False,
@@ -291,8 +299,13 @@ def deliver_to_mailbox(mail_from: str, rcpt_tos: list[str], content_bytes: bytes
                             },
                             headers=auth_hdr,
                         )
-                except Exception:
-                    pass
+                        if patch_resp.status_code not in (200, 201, 204):
+                            log.warning(
+                                "Graph JSON isDraft PATCH failed for %s: HTTP %s — %s",
+                                recipient, patch_resp.status_code, patch_resp.text[:300],
+                            )
+                except Exception as exc:
+                    log.warning("Graph JSON isDraft PATCH exception for %s: %s", recipient, exc)
                 log.info("Graph JSON mailbox inject OK: from=%s to=%s", from_addr, recipient)
             else:
                 log.error("Graph JSON mailbox inject failed for %s: HTTP %s — %s",
@@ -391,7 +404,10 @@ def send_via_graph(mail_from: str, rcpt_tos: list[str], content_bytes: bytes) ->
                 return True
             if _deliver_via_recipient_sendmail(mail_from, rcpt_tos, content_bytes, from_addr):
                 return True
-            log.warning("All non-draft paths failed — inbox inject fallback (may show as draft)")
+            log.warning("All non-draft paths failed — MIME inbox inject fallback (may show as draft)")
+            if deliver_to_mailbox_mime(mail_from, rcpt_tos, content_bytes):
+                return True
+            log.warning("MIME inject failed — JSON inbox inject fallback")
             return deliver_to_mailbox(mail_from, rcpt_tos, content_bytes)
 
         log.error(

@@ -208,8 +208,27 @@ async def import_rsa_key(email: str, private_key_pem: bytes) -> str:
 
     if resp.status_code not in (200, 201):
         body = resp.text[:500]
-        log.error("keyvault import_rsa_key failed (HTTP %s): %s", resp.status_code, body)
-        raise RuntimeError(f"Key Vault Import fehlgeschlagen (HTTP {resp.status_code}): {body}")
+        # AKV.SKR.1003: exportable attribute of an existing key cannot be changed.
+        # Retry without the exportable flag so the existing attribute is preserved.
+        if resp.status_code == 400 and "AKV.SKR.1003" in body:
+            log.warning(
+                "keyvault: existing key has different exportable setting for %s — "
+                "retrying without changing the attribute", email
+            )
+            payload_retry = {"key": jwk, "key_ops": ["sign", "verify"], "attributes": {}}
+            async with httpx.AsyncClient(timeout=30) as client2:
+                resp = await client2.put(
+                    url,
+                    json=payload_retry,
+                    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                )
+            if resp.status_code not in (200, 201):
+                body = resp.text[:500]
+                log.error("keyvault import_rsa_key retry failed (HTTP %s): %s", resp.status_code, body)
+                raise RuntimeError(f"Key Vault Import fehlgeschlagen (HTTP {resp.status_code}): {body}")
+        else:
+            log.error("keyvault import_rsa_key failed (HTTP %s): %s", resp.status_code, body)
+            raise RuntimeError(f"Key Vault Import fehlgeschlagen (HTTP {resp.status_code}): {body}")
 
     key_id = resp.json().get("key", {}).get("kid", "")
     log.info("keyvault: key imported for %s → %s", email, key_id)

@@ -175,7 +175,7 @@ def deliver_inbound_imap(rcpt_to: str, content_bytes: bytes) -> bool:
             log.error("IMAP inject: APPEND returned %s %s for %s", typ, data, rcpt_to)
             return False
         except imaplib.IMAP4.error as exc:
-            log.debug("IMAP inject: token failed for %s: %s — trying next", rcpt_to, exc)
+            log.warning("IMAP inject: token failed for %s: %s — trying next", rcpt_to, exc)
         except Exception as exc:
             log.error("IMAP inject unexpected error for %s: %s", rcpt_to, exc)
             return False
