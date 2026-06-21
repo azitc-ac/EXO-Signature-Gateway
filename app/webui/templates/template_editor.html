@@ -1,6 +1,11 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>Vorlagen-Editor</h1>
+<h1>Signaturen</h1>
+
+<ul class="nav-sub-tabs">
+  <li><a href="/template" class="nav-sub-tab active">Vorlagen</a></li>
+  <li><a href="/preview" class="nav-sub-tab">Vorschau</a></li>
+</ul>
 
 {% if saved %}
 <div class="alert success">Vorlage "{{ current_template }}" gespeichert.</div>

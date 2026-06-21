@@ -5,7 +5,32 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
-## v1.4.30 — 2026-06-21 — feat: UI-Redesign, KV-Status-Cache, Benachrichtigungs-DG, OID-Tracking, Lokaler-Admin-Login-Alert
+## v1.4.32 — 2026-06-21 — fix: Health-Spalte Postfächer, Nav-Umbau, DG-PS-Bug
+
+### Navigation
+- `base.html`: "Vorlagen" + "Vorschau" als Dropdown unter "Signaturen"
+- "Postfächer" als eigenständiger Top-Nav-Eintrag (→ `/settings#postfaecher`)
+- CSS: `.nav-dropdown` Hover-Menü mit Dark-Blue-Styling
+
+### Health-Spalte Postfach-Tabelle
+- `/api/mailboxes`: Gibt jetzt `health_overall`, `health_checked`, `health_checks` pro Postfach zurück
+- `renderMailboxTable()`: Neue Statusspalte mit ●ok / ✔fixed / ⚠N / ✗N Indikatoren (Tooltip zeigt Details)
+- Statusspalte erscheint automatisch sobald Health-Daten vorhanden
+- `refreshMailboxStatus()`: Ruft jetzt `POST /api/health/mailboxes` auf (führt Checks aus), nicht mehr Graph-Reload
+
+### Health-Check API
+- `GET /api/health/mailboxes`: Gibt gecachte MAILBOX_HEALTH zurück (war in v1.4.31 verloren gegangen)
+- `POST /api/health/mailboxes`: Führt alle Checks aus + gibt Ergebnis zurück (neu)
+- `GET /api/health/audit-log`: Gibt GATEWAY_AUDIT_LOG zurück (wiederhergestellt)
+
+### Notification-DG PS-Script Bug
+- `setup_wizard.py`: `Get-DistributionGroup` wurde nach `Disconnect-ExchangeOnline` aufgerufen → EXO schon getrennt
+- Fix: Email-Adresse aus `$dg.PrimarySmtpAddress` lesen VOR dem Disconnect
+- Fix: `-Alias` Parameter bei `New-DistributionGroup` verhindert "ExternalDirectoryObjectId"-Fehler
+
+---
+
+## v1.4.31 — 2026-06-21 — feat: UI-Redesign, KV-Status-Cache, Benachrichtigungs-DG, OID-Tracking, Lokaler-Admin-Login-Alert
 
 ### Feature 1 — S/MIME: Key Vault Status gecacht
 - `settings_store.py`: Neues Default `KV_KEY_STATUS: {}` — Format `{email: {exists, checked}}`

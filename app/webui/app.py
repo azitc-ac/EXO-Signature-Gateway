@@ -1000,14 +1000,16 @@ async def api_delete_template(name: str, _=Depends(_check_auth)):
 
 @app.get("/api/mailboxes")
 async def api_get_mailboxes(_=Depends(_check_auth)):
-    """List all EXO mailboxes + their current MAILBOX_CONFIG."""
+    """List all EXO mailboxes + their current MAILBOX_CONFIG + cached health status."""
     import graph_client
     users = await graph_client.list_mailboxes()
     config_map: dict = settings_store.get("MAILBOX_CONFIG") or {}
+    health_map: dict = settings_store.get("MAILBOX_HEALTH") or {}
     result = []
     for u in users:
         email = u["email"]
         cfg = config_map.get(email, {})
+        h = health_map.get(email, {})
         result.append({
             "email": email,
             "name": u["name"],
@@ -1015,10 +1017,14 @@ async def api_get_mailboxes(_=Depends(_check_auth)):
             "sig": cfg.get("sig", False),
             "smime": cfg.get("smime", False),
             "template": cfg.get("template", "default"),
+            "health_overall": h.get("overall"),
+            "health_checked": h.get("last_checked"),
+            "health_checks": h.get("checks", {}),
         })
     # Also include mailboxes in config that Graph didn't return (e.g. removed users)
     for email, cfg in config_map.items():
         if not any(r["email"] == email for r in result):
+            h = health_map.get(email, {})
             result.append({
                 "email": email,
                 "name": email,
@@ -1026,8 +1032,31 @@ async def api_get_mailboxes(_=Depends(_check_auth)):
                 "sig": cfg.get("sig", False),
                 "smime": cfg.get("smime", False),
                 "template": cfg.get("template", "default"),
+                "health_overall": h.get("overall"),
+                "health_checked": h.get("last_checked"),
+                "health_checks": h.get("checks", {}),
             })
     return {"mailboxes": result}
+
+
+@app.get("/api/health/mailboxes")
+async def api_health_mailboxes(_=Depends(_check_auth)):
+    """Return current cached MAILBOX_HEALTH data."""
+    return settings_store.get("MAILBOX_HEALTH") or {}
+
+
+@app.post("/api/health/mailboxes")
+async def api_health_run(_=Depends(_check_auth)):
+    """Run health checks for all configured mailboxes and return results."""
+    import health_check
+    results = await health_check.run_all_checks()
+    return {"ok": True, "results": results}
+
+
+@app.get("/api/health/audit-log")
+async def api_health_audit_log(_=Depends(_check_auth)):
+    """Return GATEWAY_AUDIT_LOG entries."""
+    return settings_store.get("GATEWAY_AUDIT_LOG") or []
 
 
 @app.post("/api/mailboxes/save")

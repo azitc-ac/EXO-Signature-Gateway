@@ -692,9 +692,10 @@ $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
     ([System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet))
 Connect-ExchangeOnline -AppId '{app_id}' -Certificate $cert -Organization '{org}' -ShowBanner:$false -ShowProgress:$false
 $dgName = "EXO Signature Gateway - Notification recipients"
+$dgAlias = "EXOSigGatewayNotifications"
 $dg = Get-DistributionGroup -Identity $dgName -ErrorAction SilentlyContinue
 if (-not $dg) {{
-    $dg = New-DistributionGroup -Name $dgName -Type Distribution -MemberJoinRestriction Closed -MemberDepartRestriction Closed
+    $dg = New-DistributionGroup -Name $dgName -Alias $dgAlias -Type Distribution -MemberJoinRestriction Closed -MemberDepartRestriction Closed -ErrorAction Stop
 }}
 $membersStr = '{members_csv}'
 $desired = @()
@@ -712,10 +713,9 @@ foreach ($m in $current) {{
         Remove-DistributionGroupMember -Identity $dg.Identity -Member $m -Confirm:$false -ErrorAction SilentlyContinue
     }}
 }}
-Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
-$dgRefresh = Get-DistributionGroup -Identity $dgName -ErrorAction SilentlyContinue
-$email = if ($dgRefresh) {{ $dgRefresh.PrimarySmtpAddress }} else {{ '' }}
+$email = if ($dg.PrimarySmtpAddress) {{ $dg.PrimarySmtpAddress }} else {{ '' }}
 Write-Output (@{{ok=$true; email=$email}} | ConvertTo-Json -Compress)
+Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
 """
     try:
         proc = subprocess.run(

@@ -46,6 +46,7 @@
             <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:100px">Signatur</th>
             <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:140px">Vorlage</th>
             <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:100px">S/MIME</th>
+            <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:80px" id="th-status" style="display:none">Status</th>
           </tr>
         </thead>
         <tbody id="mb-tbody"></tbody>
@@ -685,19 +686,26 @@ async function refreshMailboxStatus() {
   const status = document.getElementById('mb-load-status');
   const btn = document.getElementById('mb-status-btn');
   btn.disabled = true;
-  status.textContent = 'Aktualisiere…';
+  const orig = btn.textContent;
+  btn.textContent = 'Prüfe… (kann 1–2 Min. dauern)';
+  status.textContent = 'Health-Checks laufen…';
   try {
-    const resp = await fetch('/api/mailboxes');
+    // Run health checks (POST triggers actual checks)
+    const resp = await fetch('/api/health/mailboxes', {method: 'POST'});
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const data = await resp.json();
+    // Reload mailbox list with updated health data
+    const mbResp = await fetch('/api/mailboxes');
+    if (!mbResp.ok) throw new Error('HTTP ' + mbResp.status);
+    const data = await mbResp.json();
     _mbData = data.mailboxes || [];
     renderMailboxTable(_mbData);
-    status.textContent = _mbData.length + ' Postfächer (aktualisiert)';
     _populateNotifRecipients(_mbData);
+    status.textContent = 'Status aktualisiert';
   } catch(e) {
     status.textContent = 'Fehler: ' + e.message;
   } finally {
     btn.disabled = false;
+    btn.textContent = orig;
   }
 }
 
@@ -755,9 +763,29 @@ function _buildTemplateSelect(idx, selectedTemplate, sigEnabled) {
   return sel;
 }
 
+function _healthBadge(mb) {
+  const overall = mb.health_overall;
+  if (!overall) return '<span style="color:#bbb;font-size:11px">–</span>';
+  const checks = mb.health_checks || {};
+  const failed = Object.values(checks).filter(function(c) { return c && (c.status === 'error' || c.status === 'warn'); });
+  const fixed  = Object.values(checks).filter(function(c) { return c && c.status === 'fixed'; });
+  let title = mb.health_checked ? 'Geprüft: ' + mb.health_checked.replace('T',' ').replace('Z','') : '';
+  Object.entries(checks).forEach(function([k,v]) {
+    if (v) title += '\n' + k + ': ' + v.status + (v.detail ? ' – ' + v.detail : '');
+  });
+  if (overall === 'ok') return '<span title="' + title + '" style="color:#16a34a;font-size:16px;cursor:help">●</span>';
+  if (overall === 'fixed') return '<span title="' + title + '" style="color:#2563eb;font-size:16px;cursor:help" title="Auto-Fix durchgeführt">✔</span>';
+  const n = failed.length;
+  if (overall === 'warn') return '<span title="' + title + '" style="color:#d97706;font-size:13px;font-weight:600;cursor:help">⚠ ' + n + '</span>';
+  return '<span title="' + title + '" style="color:#dc2626;font-size:13px;font-weight:600;cursor:help">✗ ' + n + '</span>';
+}
+
 function renderMailboxTable(mailboxes) {
   const tbody = document.getElementById('mb-tbody');
   tbody.innerHTML = '';
+  const hasHealth = mailboxes.some(function(mb) { return mb.health_overall; });
+  const thStatus = document.getElementById('th-status');
+  if (thStatus) thStatus.style.display = hasHealth ? '' : 'none';
   mailboxes.forEach(function(mb, i) {
     if (mb.type && mb.type !== 'user') return;
     const tr = document.createElement('tr');
@@ -797,10 +825,16 @@ function renderMailboxTable(mailboxes) {
     if (mb.smime) smimeCb.checked = true;
     tdSmime.appendChild(smimeCb);
 
+    const tdStatus = document.createElement('td');
+    tdStatus.style.cssText = 'text-align:center;padding:6px 8px';
+    tdStatus.innerHTML = _healthBadge(mb);
+    if (!hasHealth) tdStatus.style.display = 'none';
+
     tr.appendChild(tdEmail);
     tr.appendChild(tdSig);
     tr.appendChild(tdTpl);
     tr.appendChild(tdSmime);
+    tr.appendChild(tdStatus);
     tbody.appendChild(tr);
   });
 }

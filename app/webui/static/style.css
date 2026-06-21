@@ -58,6 +58,29 @@ nav a {
 nav a:hover { background: rgba(255,255,255,0.15); }
 nav a.active { background: rgba(255,255,255,0.25); color: #fff; font-weight: 600; }
 
+/* Sub-tabs (Signaturen: Vorlagen / Vorschau) */
+.nav-sub-tabs {
+    list-style: none;
+    display: flex;
+    gap: 0;
+    padding: 0;
+    margin: 0 0 24px;
+    border-bottom: 2px solid #e2e8f0;
+}
+.nav-sub-tab {
+    display: block;
+    padding: 9px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    color: #64748b;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -2px;
+    transition: color 0.15s, border-color 0.15s;
+}
+.nav-sub-tab:hover { color: #2563eb; }
+.nav-sub-tab.active { color: #2563eb; border-bottom-color: #2563eb; }
+
 /* Hamburger toggle — hidden on wide screens */
 .nav-toggle {
     display: none;
