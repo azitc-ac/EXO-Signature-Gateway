@@ -4,504 +4,578 @@
 
 <div id="page-alert" class="alert" style="display:none"></div>
 
-<!-- Admin-Konten -->
-<div class="settings-card" id="admin-users">
-  <h2>Entra-Konten (SSO)</h2>
-  <p class="hint">Admins haben vollen Zugriff. Signatur-Editoren sehen nur Übersicht, Vorlagen und Vorschau.</p>
-  <div id="admin-users-list" style="margin-bottom:12px;overflow-x:auto"></div>
-  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-    <input type="email" id="admin-upn-input" placeholder="upn@domain.de" style="width:240px">
-    <select id="admin-role-input" style="height:34px;border:1px solid #cbd5e1;border-radius:6px;padding:0 8px;font-size:13px">
-      <option value="admin">Admin</option>
-      <option value="editor">Signatur-Editor</option>
-    </select>
-    <button class="btn secondary" onclick="addAdminUser()">Hinzufügen</button>
-  </div>
-  <div id="admin-users-alert" class="alert" style="display:none;margin-top:10px"></div>
-</div>
+<!-- Tab-Navigation -->
+<ul class="nav nav-tabs mb-4" id="settings-tabs" style="border-bottom:2px solid #e2e8f0;display:flex;gap:0;list-style:none;padding:0;margin:0 0 24px">
+  <li><a class="nav-tab-link" id="tab-postfaecher" href="#postfaecher"
+         style="display:block;padding:9px 20px;font-size:14px;font-weight:600;text-decoration:none;border-bottom:3px solid transparent;color:#64748b;cursor:pointer">
+    Postfächer
+  </a></li>
+  <li><a class="nav-tab-link" id="tab-einstellungen" href="#einstellungen"
+         style="display:block;padding:9px 20px;font-size:14px;font-weight:600;text-decoration:none;border-bottom:3px solid transparent;color:#64748b;cursor:pointer">
+    Einstellungen
+  </a></li>
+</ul>
 
-<!-- Zugangsdaten -->
-<div class="settings-card">
-  <h2>Zugangsdaten</h2>
-  <div class="settings-row">
-    <label for="webui-username">Benutzername</label>
-    <input type="text" id="webui-username" value="{{ s.WEBUI_USERNAME }}" style="width:220px">
-  </div>
-  <div style="border-top:1px solid #f0f0f0;margin:12px 0;padding-top:12px">
-    <div id="pw-change-btn-wrap">
-      <button type="button" class="btn secondary" onclick="showPwChangeForm()">Passwort ändern</button>
-    </div>
-    <div id="pw-change-form" style="display:none">
-      <div class="settings-row">
-        <label for="old-pw">Aktuelles Passwort</label>
-        <div class="pw-wrap"><input type="password" id="old-pw" placeholder="Aktuelles Passwort" style="width:220px"><button type="button" class="pw-eye" tabindex="-1" onmousedown="showPw('old-pw')" onmouseup="hidePw('old-pw')" onmouseleave="hidePw('old-pw')" ontouchstart="event.preventDefault();showPw('old-pw')" ontouchend="hidePw('old-pw')">&#128065;</button></div>
-      </div>
-      <div class="settings-row">
-        <label for="new-pw">Neues Passwort</label>
-        <div class="pw-wrap"><input type="password" id="new-pw" placeholder="mind. 8 Zeichen" style="width:220px" oninput="checkAccountPasswords()"><button type="button" class="pw-eye" tabindex="-1" onmousedown="showPw('new-pw')" onmouseup="hidePw('new-pw')" onmouseleave="hidePw('new-pw')" ontouchstart="event.preventDefault();showPw('new-pw')" ontouchend="hidePw('new-pw')">&#128065;</button></div>
-      </div>
-      <div class="settings-row">
-        <label for="new-pw2">Wiederholen</label>
-        <div class="pw-wrap"><input type="password" id="new-pw2" placeholder="Passwort bestätigen" style="width:220px" oninput="checkAccountPasswords()"><button type="button" class="pw-eye" tabindex="-1" onmousedown="showPw('new-pw2')" onmouseup="hidePw('new-pw2')" onmouseleave="hidePw('new-pw2')" ontouchstart="event.preventDefault();showPw('new-pw2')" ontouchend="hidePw('new-pw2')">&#128065;</button></div>
-      </div>
-      <span id="account-pw-mismatch" style="color:#dc2626;font-size:12px;display:none">Passwörter stimmen nicht überein.</span>
-      <div id="pw-result" style="display:none;margin-top:6px"></div>
-      <div class="actions" style="margin-top:8px">
-        <button type="button" class="btn secondary" onclick="changePassword()">Speichern</button>
-        <button type="button" class="btn secondary" onclick="hidePwChangeForm()">Abbrechen</button>
-      </div>
-    </div>
-  </div>
-</div>
+<!-- ══════════════════════ TAB: POSTFÄCHER ══════════════════════ -->
+<div id="panel-postfaecher" class="tab-panel">
 
-<!-- Allgemein -->
-<div class="settings-card">
-  <h2>Allgemein</h2>
-  <div class="settings-row">
-    <label class="checkbox-label">
-      <input type="checkbox" id="fallback" {% if s.FALLBACK_ON_ERROR %}checked{% endif %}>
-      Fallback bei Fehler – original Mail ohne Signatur weiterleiten (gilt nicht für verschlüsselte Mails)
-    </label>
+  <!-- Postfach-Konfiguration -->
+  <div class="settings-card">
+    <h2>Postfach-Konfiguration</h2>
+    <p class="hint" style="margin-bottom:12px">
+      Leer = alle Absender werden verarbeitet (Signaturen + S/MIME).<br>
+      Mit Einträgen: Nur markierte Postfächer bekommen Signatur-Injektion bzw. S/MIME-Verarbeitung.
+      Alle anderen werden unverändert weitergeleitet.<br>
+      <strong>Entra Admin Center:</strong> Beim Speichern wird die Distribution Group
+      <code>EXO Signature Gateway - Enabled Mailboxes</code> in EXO erstellt/aktualisiert
+      und die Transport-Regel darauf eingeschränkt.
+    </p>
+    <div class="actions" style="margin-bottom:8px;gap:8px;display:flex;flex-wrap:wrap;align-items:center">
+      <button class="btn secondary" id="mb-load-btn" onclick="loadMailboxes()">Postfächer aus Graph laden</button>
+      <button class="btn secondary" id="mb-status-btn" onclick="refreshMailboxStatus()" style="display:none">Status aktualisieren</button>
+      <span id="mb-load-status" style="font-size:12px;color:#888;margin-left:4px"></span>
+    </div>
+    <div id="mb-table-wrap" style="display:none">
+      <input type="text" id="mb-filter" placeholder="Filtern…" oninput="filterMailboxes(this.value)"
+             style="width:100%;max-width:320px;margin-bottom:8px;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px">
+      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+      <table style="min-width:380px;width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="border-bottom:2px solid #e2e8f0">
+            <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555">Postfach</th>
+            <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:100px">Signatur</th>
+            <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:140px">Vorlage</th>
+            <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:100px">S/MIME</th>
+          </tr>
+        </thead>
+        <tbody id="mb-tbody"></tbody>
+      </table>
+      </div>
+    </div>
+    <div class="actions" style="margin-top:12px">
+      <button class="btn primary" id="mb-save-btn" onclick="saveMailboxes(true)" style="display:none">
+        In EXO speichern (DG + Transportregel aktualisieren)
+      </button>
+      <button class="btn secondary" id="mb-local-btn" onclick="saveMailboxes(false)" style="display:none">
+        Nur lokal speichern
+      </button>
+    </div>
+    <div id="mb-result" style="margin-top:10px;display:none"></div>
   </div>
-  <div class="settings-row">
-    <label for="log-level">Log-Level</label>
-    <div class="settings-control">
-      <select id="log-level">
-        {% for lvl in ["DEBUG","INFO","WARNING","ERROR"] %}
-        <option value="{{ lvl }}"{% if s.LOG_LEVEL == lvl %} selected{% endif %}>{{ lvl }}</option>
-        {% endfor %}
+
+</div><!-- /panel-postfaecher -->
+
+
+<!-- ══════════════════════ TAB: EINSTELLUNGEN ══════════════════════ -->
+<div id="panel-einstellungen" class="tab-panel" style="display:none">
+
+  <!-- ── Admin-Konten ─────────────────────────────────────────────── -->
+  <div class="settings-card" id="admin-users">
+    <h2>Entra-Konten (SSO)</h2>
+    <p class="hint">Admins haben vollen Zugriff. Signatur-Editoren sehen nur Übersicht, Vorlagen und Vorschau.</p>
+    <p class="hint" style="color:#64748b;margin-top:4px">Konten werden anhand der Entra Object-ID eindeutig identifiziert — UPN-Änderungen werden automatisch erkannt.</p>
+    <div id="admin-users-list" style="margin-bottom:12px;overflow-x:auto"></div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input type="email" id="admin-upn-input" placeholder="upn@domain.de" style="width:240px">
+      <select id="admin-role-input" style="height:34px;border:1px solid #cbd5e1;border-radius:6px;padding:0 8px;font-size:13px">
+        <option value="admin">Admin</option>
+        <option value="editor">Signatur-Editor</option>
       </select>
-      <span class="hint">Wirkt erst nach Neustart</span>
+      <button class="btn secondary" onclick="addAdminUser()">Hinzufügen</button>
     </div>
+    <div id="admin-users-alert" class="alert" style="display:none;margin-top:10px"></div>
   </div>
-  <div class="settings-row">
-    <label for="log-retention">Log-Aufbewahrung (Tage)</label>
-    <div class="settings-control">
-      <input type="number" id="log-retention" value="{{ s.LOG_RETENTION_DAYS }}" min="1" max="365" style="width:80px">
-      <span class="hint">Tägliche Rotation, ältere Dateien werden automatisch gelöscht</span>
-    </div>
-  </div>
-  <div class="settings-row">
-    <label for="log-timezone">Log-Zeitzone</label>
-    <div class="settings-control">
-      <select id="log-timezone">
-        {% for tz in [
-          "UTC",
-          "Europe/Berlin", "Europe/Vienna", "Europe/Zurich",
-          "Europe/London", "Europe/Paris", "Europe/Amsterdam",
-          "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles",
-          "Asia/Tokyo", "Asia/Shanghai", "Australia/Sydney"
-        ] %}
-        <option value="{{ tz }}"{% if s.LOG_TIMEZONE == tz %} selected{% endif %}>{{ tz }}</option>
-        {% endfor %}
-      </select>
-      <span class="hint">Zeitzone für Log-Zeitstempel (IANA-Name). Wirkt sofort nach Speichern.</span>
-    </div>
-  </div>
-</div>
 
-<!-- S/MIME -->
-<div class="settings-card" id="smime">
-  <h2>S/MIME</h2>
-
-  <h3 style="margin-top:0;margin-bottom:12px">Betreff eingehender S/MIME-Mails anpassen</h3>
-
-  <div class="settings-row">
-    <div style="display:flex;align-items:center;gap:8px;min-width:200px;flex-shrink:0;padding-top:4px">
-      <input type="checkbox" id="smime-tag-enc-enabled"
-        {% if s.SMIME_TAG_ENCRYPTED_ENABLED is not false %}checked{% endif %}
-        onchange="toggleTagField('smime-tag-encrypted', this.checked); updateSubjectPreview()">
-      <label for="smime-tag-enc-enabled" style="font-weight:500;cursor:pointer;margin:0">Indikator: verschlüsselt</label>
+  <!-- ── Zugangsdaten lokaler Admin ─────────────────────────────────── -->
+  <div class="settings-card">
+    <h2>Zugangsdaten lokaler Admin</h2>
+    <p class="hint" style="margin-bottom:8px">Der lokale Admin-Zugang dient als Notfallzugang und sollte im normalen Betrieb nicht verwendet werden. Bei jeder Anmeldung kann eine Benachrichtigung gesendet werden (→ Benachrichtigungen).</p>
+    <div class="settings-row">
+      <label for="webui-username">Benutzername</label>
+      <input type="text" id="webui-username" value="{{ s.WEBUI_USERNAME }}" style="width:220px">
     </div>
-    <div class="settings-control">
-      <input type="text" id="smime-tag-encrypted" value="{{ s.SMIME_TAG_ENCRYPTED }}"
-        placeholder="verschlüsselt" style="width:200px"
-        {% if s.SMIME_TAG_ENCRYPTED_ENABLED is false %}disabled{% endif %}
-        oninput="updateSubjectPreview()">
-      <span class="hint">Indikator, dass eine Mail verschlüsselt war</span>
+    <div style="border-top:1px solid #f0f0f0;margin:12px 0;padding-top:12px">
+      <div id="pw-change-btn-wrap">
+        <button type="button" class="btn secondary" onclick="showPwChangeForm()">Passwort ändern</button>
+      </div>
+      <div id="pw-change-form" style="display:none">
+        <div class="settings-row">
+          <label for="old-pw">Aktuelles Passwort</label>
+          <div class="pw-wrap"><input type="password" id="old-pw" placeholder="Aktuelles Passwort" style="width:220px"><button type="button" class="pw-eye" tabindex="-1" onmousedown="showPw('old-pw')" onmouseup="hidePw('old-pw')" onmouseleave="hidePw('old-pw')" ontouchstart="event.preventDefault();showPw('old-pw')" ontouchend="hidePw('old-pw')">&#128065;</button></div>
+        </div>
+        <div class="settings-row">
+          <label for="new-pw">Neues Passwort</label>
+          <div class="pw-wrap"><input type="password" id="new-pw" placeholder="mind. 8 Zeichen" style="width:220px" oninput="checkAccountPasswords()"><button type="button" class="pw-eye" tabindex="-1" onmousedown="showPw('new-pw')" onmouseup="hidePw('new-pw')" onmouseleave="hidePw('new-pw')" ontouchstart="event.preventDefault();showPw('new-pw')" ontouchend="hidePw('new-pw')">&#128065;</button></div>
+        </div>
+        <div class="settings-row">
+          <label for="new-pw2">Wiederholen</label>
+          <div class="pw-wrap"><input type="password" id="new-pw2" placeholder="Passwort bestätigen" style="width:220px" oninput="checkAccountPasswords()"><button type="button" class="pw-eye" tabindex="-1" onmousedown="showPw('new-pw2')" onmouseup="hidePw('new-pw2')" onmouseleave="hidePw('new-pw2')" ontouchstart="event.preventDefault();showPw('new-pw2')" ontouchend="hidePw('new-pw2')">&#128065;</button></div>
+        </div>
+        <span id="account-pw-mismatch" style="color:#dc2626;font-size:12px;display:none">Passwörter stimmen nicht überein.</span>
+        <div id="pw-result" style="display:none;margin-top:6px"></div>
+        <div class="actions" style="margin-top:8px">
+          <button type="button" class="btn secondary" onclick="changePassword()">Speichern</button>
+          <button type="button" class="btn secondary" onclick="hidePwChangeForm()">Abbrechen</button>
+        </div>
+      </div>
     </div>
   </div>
 
-  <div class="settings-row">
-    <div style="display:flex;align-items:center;gap:8px;min-width:200px;flex-shrink:0;padding-top:4px">
-      <input type="checkbox" id="smime-tag-sig-enabled"
-        {% if s.SMIME_TAG_SIGNED_ENABLED is not false %}checked{% endif %}
-        onchange="toggleTagField('smime-tag-signed', this.checked); updateSubjectPreview()">
-      <label for="smime-tag-sig-enabled" style="font-weight:500;cursor:pointer;margin:0">Indikator: signiert</label>
-    </div>
-    <div class="settings-control">
-      <input type="text" id="smime-tag-signed" value="{{ s.SMIME_TAG_SIGNED }}"
-        placeholder="signiert von {signer}" style="width:260px"
-        {% if s.SMIME_TAG_SIGNED_ENABLED is false %}disabled{% endif %}
-        oninput="updateSubjectPreview()">
-      <span class="hint"><code>{signer}</code> wird durch den CN des Zertifikats ersetzt</span>
-    </div>
-  </div>
-
-  <div class="settings-row">
-    <label for="smime-tag-position">Indikator-Position</label>
-    <select id="smime-tag-position" onchange="updateSubjectPreview()">
-      <option value="prepend" {% if s.SMIME_TAG_POSITION != 'append' %}selected{% endif %}>Vorne (Standard)</option>
-      <option value="append"  {% if s.SMIME_TAG_POSITION == 'append'  %}selected{% endif %}>Hinten</option>
-    </select>
-  </div>
-
-  <div class="settings-row" style="align-items:center">
-    <label style="color:#888;font-size:12px;font-weight:400">Vorschau</label>
-    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:7px 12px;font-size:13px;color:#333;flex:1;min-width:0;font-style:italic">
-      <span id="subject-preview"></span>
-    </div>
-  </div>
-
-  <div style="border-top:1px solid #f0f0f0;margin:16px 0 14px"></div>
-
-  <div class="settings-row">
-    <label class="checkbox-label">
-      <input type="checkbox" id="smime-strip-inbound"
-        {% if s.SMIME_STRIP_INBOUND is not false %}checked{% endif %}>
-      S/MIME-Signaturen eingehender Mails entfernen
-    </label>
-    <span class="hint" style="padding-top:2px">Entfernt die Signaturumhüllung; das Absender-Zertifikat wird dabei gespeichert</span>
-  </div>
-
-  <div class="settings-row" style="margin-top:10px">
-    <label for="enc-trigger">Verschlüsselungs-Trigger</label>
-    <div class="settings-control">
-      <input type="text" id="enc-trigger" value="{{ s.ENC_TRIGGER }}"
-        placeholder="#enc" style="width:160px">
-      <span class="hint">Schlüsselwort im Betreff, das ausgehende S/MIME-Verschlüsselung auslöst</span>
-    </div>
-  </div>
-
-  <div style="border-top:1px solid #f0f0f0;margin:16px 0 14px"></div>
-
-  <h3 style="margin-top:0;margin-bottom:8px">Azure Key Vault</h3>
-  <p class="hint" style="margin-bottom:10px">
-    Private S/MIME-Schlüssel in Azure Key Vault speichern (optional).
-    Der Schlüssel verlässt Azure nie; jede Signierung ruft die Sign-API auf.
-  </p>
-  <div class="settings-row">
-    <label for="kv-url">Key Vault URL</label>
-    <div class="settings-control">
-      <input type="url" id="kv-url" value="{{ s.KEYVAULT_URL }}"
-        placeholder="https://myvault.vault.azure.net" style="width:340px">
-      <span class="hint">Leer lassen um lokale Schlüsseldateien zu verwenden</span>
-    </div>
-  </div>
-  <div style="display:flex;gap:8px;margin-top:6px;margin-left:200px">
-    <button type="button" class="btn secondary btn-sm" onclick="testKvUrl()">Verbindung testen</button>
-    <button type="button" class="btn secondary btn-sm" onclick="saveKvUrl()">Speichern</button>
-  </div>
-  <div id="kv-url-result" style="margin-top:6px;margin-left:200px;display:none"></div>
-
-  <div class="settings-row" style="align-items:flex-start;margin-top:14px">
-    <label style="min-width:200px;flex-shrink:0;font-size:13px;font-weight:500;padding-top:4px">Key Vault Modus</label>
-    <div class="settings-control">
-      <label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;cursor:pointer">
-        <input type="radio" name="kv-key-mode" value="fallback" style="margin-top:3px;flex-shrink:0"
-          {% if s.KV_KEY_MODE != 'strict' %}checked{% endif %}>
-        <span>
-          <strong>Fallback (empfohlen)</strong><br>
-          <span class="hint">Schlüssel werden als <code>exportable</code> im KV gespeichert und bei der Migration
-          als verschlüsselte <code>key.pem.bak</code> lokal gesichert. Bei KV-Ausfall signiert das
-          Gateway automatisch mit dem Backup-Schlüssel weiter.</span>
-        </span>
+  <!-- ── Allgemein ─────────────────────────────────────────────────── -->
+  <div class="settings-card" id="allgemein">
+    <h2>Allgemein</h2>
+    <div class="settings-row">
+      <label class="checkbox-label">
+        <input type="checkbox" id="fallback" {% if s.FALLBACK_ON_ERROR %}checked{% endif %}>
+        Fallback bei Fehler – original Mail ohne Signatur weiterleiten (gilt nicht für verschlüsselte Mails)
       </label>
-      <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer">
-        <input type="radio" name="kv-key-mode" value="strict" style="margin-top:3px;flex-shrink:0"
-          {% if s.KV_KEY_MODE == 'strict' %}checked{% endif %}>
-        <span>
-          <strong>Strikt — kein Backup, kein Fallback</strong><br>
-          <span class="hint">Schlüssel sind <code>non-exportable</code> (HSM-Schutz ohne Rückfahrschein).
-          Bei KV-Ausfall werden Mails nicht signiert. Maximale Sicherheit auf Kosten der Verfügbarkeit.</span>
-        </span>
+    </div>
+    <div class="settings-row">
+      <label for="log-level">Log-Level</label>
+      <div class="settings-control">
+        <select id="log-level">
+          {% for lvl in ["DEBUG","INFO","WARNING","ERROR"] %}
+          <option value="{{ lvl }}"{% if s.LOG_LEVEL == lvl %} selected{% endif %}>{{ lvl }}</option>
+          {% endfor %}
+        </select>
+        <span class="hint">Wirkt erst nach Neustart</span>
+      </div>
+    </div>
+    <div class="settings-row">
+      <label for="log-retention">Log-Aufbewahrung (Tage)</label>
+      <div class="settings-control">
+        <input type="number" id="log-retention" value="{{ s.LOG_RETENTION_DAYS }}" min="1" max="365" style="width:80px">
+        <span class="hint">Tägliche Rotation, ältere Dateien werden automatisch gelöscht</span>
+      </div>
+    </div>
+    <div class="settings-row">
+      <label for="log-timezone">Log-Zeitzone</label>
+      <div class="settings-control">
+        <select id="log-timezone">
+          {% for tz in [
+            "UTC",
+            "Europe/Berlin", "Europe/Vienna", "Europe/Zurich",
+            "Europe/London", "Europe/Paris", "Europe/Amsterdam",
+            "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles",
+            "Asia/Tokyo", "Asia/Shanghai", "Australia/Sydney"
+          ] %}
+          <option value="{{ tz }}"{% if s.LOG_TIMEZONE == tz %} selected{% endif %}>{{ tz }}</option>
+          {% endfor %}
+        </select>
+        <span class="hint">Zeitzone für Log-Zeitstempel (IANA-Name). Wirkt sofort nach Speichern.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Signaturen ────────────────────────────────────────────────── -->
+  <div class="settings-card" id="signaturen">
+    <h2>Signatur-Verhalten</h2>
+    <div class="settings-row">
+      <label for="loop-header">Loop-Detection-Header</label>
+      <div class="settings-control">
+        <input type="text" id="loop-header" value="{{ s.LOOP_HEADER }}" placeholder="X-Sig-Applied">
+        <span class="hint">Header der gesetzten Mails kennzeichnet (verhindert Doppel-Injektion)</span>
+      </div>
+    </div>
+    <div class="settings-row">
+      <label class="checkbox-label">
+        <input type="checkbox" id="sent-items" {% if s.SENT_ITEMS_UPDATE %}checked{% endif %}>
+        Signatur auch in Gesendete Elemente schreiben
       </label>
-      <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
-        <button type="button" class="btn secondary btn-sm" onclick="saveKvMode()">Speichern</button>
-        <span id="kv-mode-result" style="font-size:12px;display:none"></span>
-      </div>
+      <span class="hint">Benötigt <code>Mail.ReadWrite.All</code> App-Permission in der Entra App-Registrierung</span>
     </div>
   </div>
 
-  <div style="border-top:1px solid #f0f0f0;margin:16px 0 14px"></div>
+  <!-- ── Benutzer-Overrides ─────────────────────────────────────────── -->
+  <div class="settings-card" id="benutzer-overrides">
+    <h2>Benutzer-Overrides</h2>
+    <p class="hint" style="margin-bottom:12px">Überschreibt Graph-Werte für einzelne Nutzer. E-Mail in Kleinbuchstaben.</p>
 
-  <div class="settings-row" style="align-items:flex-start">
-    <label class="checkbox-label" style="padding-top:6px;min-width:200px;flex-shrink:0">
-      <input type="checkbox" id="smime-key-encrypt"
-        {% if s.SMIME_KEY_ENCRYPT is not false %}checked{% endif %}
-        onchange="toggleKeyEncrypt(this.checked)">
-      Private Keys verschlüsseln
-    </label>
-    <div class="settings-control" id="smime-key-password-wrap"
-      {% if s.SMIME_KEY_ENCRYPT is false %}style="display:none"{% endif %}>
-      {% if s.SMIME_KEY_PASSWORD %}
-      <div id="smime-key-pw-status" style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
-        <span style="color:#555;font-size:13px">Passwort gesetzt</span>
-        <button type="button" class="btn secondary btn-sm" onclick="showSmimeKeyPwForm()">Ändern</button>
-      </div>
-      {% endif %}
-      <div id="smime-key-pw-form" {% if s.SMIME_KEY_PASSWORD %}style="display:none"{% endif %}>
-        {% if s.SMIME_KEY_PASSWORD %}
-        <div style="margin-bottom:6px">
-          <div class="pw-wrap"><input type="password" id="smime-key-password-old" placeholder="Aktuelles Passwort" style="width:260px"><button type="button" class="pw-eye" tabindex="-1" onmousedown="showPw('smime-key-password-old')" onmouseup="hidePw('smime-key-password-old')" onmouseleave="hidePw('smime-key-password-old')" ontouchstart="event.preventDefault();showPw('smime-key-password-old')" ontouchend="hidePw('smime-key-password-old')">&#128065;</button></div>
-        </div>
-        {% endif %}
-        <div style="margin-bottom:6px">
-          <div class="pw-wrap"><input type="password" id="smime-key-password" placeholder="Neues Passwort" style="width:260px" oninput="checkKeyPasswords()"><button type="button" class="pw-eye" tabindex="-1" onmousedown="showPw('smime-key-password')" onmouseup="hidePw('smime-key-password')" onmouseleave="hidePw('smime-key-password')" ontouchstart="event.preventDefault();showPw('smime-key-password')" ontouchend="hidePw('smime-key-password')">&#128065;</button></div>
-        </div>
-        <div style="margin-bottom:6px">
-          <div class="pw-wrap"><input type="password" id="smime-key-password2" placeholder="Passwort bestätigen" style="width:260px" oninput="checkKeyPasswords()"><button type="button" class="pw-eye" tabindex="-1" onmousedown="showPw('smime-key-password2')" onmouseup="hidePw('smime-key-password2')" onmouseleave="hidePw('smime-key-password2')" ontouchstart="event.preventDefault();showPw('smime-key-password2')" ontouchend="hidePw('smime-key-password2')">&#128065;</button></div>
-        </div>
-        <span id="key-pw-mismatch" style="color:#dc2626;font-size:12px;display:none">Passwörter stimmen nicht überein.</span>
-        {% if s.SMIME_KEY_PASSWORD %}
-        <div style="display:flex;gap:6px;margin-top:6px">
-          <button type="button" class="btn secondary btn-sm" onclick="saveSmimeKeyPassword()">Speichern</button>
-          <button type="button" class="btn secondary btn-sm" onclick="hideSmimeKeyPwForm()">Abbrechen</button>
-        </div>
-        {% else %}
-        <div id="smime-key-pw-save-wrap" style="margin-top:6px;display:none">
-          <button type="button" class="btn secondary btn-sm" onclick="saveSmimeKeyPassword()">Speichern</button>
-        </div>
-        {% endif %}
-      </div>
-      <span class="hint" style="margin-top:4px;display:block">AES-256 — schützt gespeicherte private Schlüssel auf dem Host</span>
-    </div>
-  </div>
-</div>
-
-<!-- Signatur -->
-<div class="settings-card">
-  <h2>Signatur-Verhalten</h2>
-  <div class="settings-row">
-    <label for="loop-header">Loop-Detection-Header</label>
-    <div class="settings-control">
-      <input type="text" id="loop-header" value="{{ s.LOOP_HEADER }}" placeholder="X-Sig-Applied">
-      <span class="hint">Header der gesetzten Mails kennzeichnet (verhindert Doppel-Injektion)</span>
-    </div>
-  </div>
-  <div class="settings-row">
-    <label class="checkbox-label">
-      <input type="checkbox" id="sent-items" {% if s.SENT_ITEMS_UPDATE %}checked{% endif %}>
-      Signatur auch in Gesendete Elemente schreiben
-    </label>
-    <span class="hint">Benötigt <code>Mail.ReadWrite.All</code> App-Permission in der Entra App-Registrierung</span>
-  </div>
-</div>
-
-<!-- Benutzer-Overrides -->
-<div class="settings-card">
-  <h2>Benutzer-Overrides</h2>
-  <p class="hint" style="margin-bottom:12px">Überschreibt Graph-Werte für einzelne Nutzer. E-Mail in Kleinbuchstaben.</p>
-
-  <h3>Website-URLs</h3>
-  <table class="kv-table">
-    <thead><tr><th>E-Mail</th><th>Website-URL</th><th></th></tr></thead>
-    <tbody id="websites-tbody">
-      {% for email, url in s.USER_WEBSITES.items() %}
-      <tr class="websites-row">
-        <td><input type="email" class="kv-email" value="{{ email }}"></td>
-        <td><input type="url" class="kv-url" value="{{ url }}" placeholder="https://..."></td>
-        <td><button type="button" class="btn secondary btn-sm" onclick="this.closest('tr').remove()">✕</button></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  <button type="button" class="btn secondary btn-sm" style="margin-top:6px" onclick="addRow('websites','websites-tbody')">+ Zeile</button>
-
-  <h3 style="margin-top:20px">Booking-URLs</h3>
-  <table class="kv-table">
-    <thead><tr><th>E-Mail</th><th>Booking-URL</th><th></th></tr></thead>
-    <tbody id="bookings-tbody">
-      {% for email, url in s.USER_BOOKINGS.items() %}
-      <tr class="bookings-row">
-        <td><input type="email" class="kv-email" value="{{ email }}"></td>
-        <td><input type="url" class="kv-url" value="{{ url }}" placeholder="https://..."></td>
-        <td><button type="button" class="btn secondary btn-sm" onclick="this.closest('tr').remove()">✕</button></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  <button type="button" class="btn secondary btn-sm" style="margin-top:6px" onclick="addRow('bookings','bookings-tbody')">+ Zeile</button>
-</div>
-
-<!-- Postfach-Konfiguration -->
-<div class="settings-card">
-  <h2>Postfach-Konfiguration</h2>
-  <p class="hint" style="margin-bottom:12px">
-    Leer = alle Absender werden verarbeitet (Signaturen + S/MIME).<br>
-    Mit Einträgen: Nur markierte Postfächer bekommen Signatur-Injektion bzw. S/MIME-Verarbeitung.
-    Alle anderen werden unverändert weitergeleitet.<br>
-    <strong>Entra Admin Center:</strong> Beim Speichern wird die Distribution Group
-    <code>EXO Signature Gateway - Enabled Mailboxes</code> in EXO erstellt/aktualisiert
-    und die Transport-Regel darauf eingeschränkt.
-  </p>
-  <div class="actions" style="margin-bottom:8px">
-    <button class="btn secondary" id="mb-load-btn" onclick="loadMailboxes()">Postfächer aus Graph laden</button>
-    <span id="mb-load-status" style="font-size:12px;color:#888;margin-left:8px"></span>
-  </div>
-  <div id="mb-table-wrap" style="display:none">
-    <input type="text" id="mb-filter" placeholder="Filtern…" oninput="filterMailboxes(this.value)"
-           style="width:100%;max-width:320px;margin-bottom:8px;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px">
-    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
-    <table style="min-width:420px;width:100%;border-collapse:collapse;font-size:13px">
-      <thead>
-        <tr style="border-bottom:2px solid #e2e8f0">
-          <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555">Postfach</th>
-          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:100px">Signatur</th>
-          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:140px">Vorlage</th>
-          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:100px">S/MIME</th>
-          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:70px">Status</th>
+    <h3>Website-URLs</h3>
+    <table class="kv-table">
+      <thead><tr><th>E-Mail</th><th>Website-URL</th><th></th></tr></thead>
+      <tbody id="websites-tbody">
+        {% for email, url in s.USER_WEBSITES.items() %}
+        <tr class="websites-row">
+          <td><input type="email" class="kv-email" value="{{ email }}"></td>
+          <td><input type="url" class="kv-url" value="{{ url }}" placeholder="https://..."></td>
+          <td><button type="button" class="btn secondary btn-sm" onclick="this.closest('tr').remove()">✕</button></td>
         </tr>
-      </thead>
-      <tbody id="mb-tbody"></tbody>
+        {% endfor %}
+      </tbody>
     </table>
+    <button type="button" class="btn secondary btn-sm" style="margin-top:6px" onclick="addRow('websites','websites-tbody')">+ Zeile</button>
+
+    <h3 style="margin-top:20px">Booking-URLs</h3>
+    <table class="kv-table">
+      <thead><tr><th>E-Mail</th><th>Booking-URL</th><th></th></tr></thead>
+      <tbody id="bookings-tbody">
+        {% for email, url in s.USER_BOOKINGS.items() %}
+        <tr class="bookings-row">
+          <td><input type="email" class="kv-email" value="{{ email }}"></td>
+          <td><input type="url" class="kv-url" value="{{ url }}" placeholder="https://..."></td>
+          <td><button type="button" class="btn secondary btn-sm" onclick="this.closest('tr').remove()">✕</button></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <button type="button" class="btn secondary btn-sm" style="margin-top:6px" onclick="addRow('bookings','bookings-tbody')">+ Zeile</button>
+  </div>
+
+  <!-- ── S/MIME ─────────────────────────────────────────────────────── -->
+  <div class="settings-card" id="smime">
+    <h2>S/MIME</h2>
+
+    <h3 style="margin-top:0;margin-bottom:12px">Betreff eingehender S/MIME-Mails anpassen</h3>
+
+    <div class="settings-row">
+      <div style="display:flex;align-items:center;gap:8px;min-width:200px;flex-shrink:0;padding-top:4px">
+        <input type="checkbox" id="smime-tag-enc-enabled"
+          {% if s.SMIME_TAG_ENCRYPTED_ENABLED is not false %}checked{% endif %}
+          onchange="toggleTagField('smime-tag-encrypted', this.checked); updateSubjectPreview()">
+        <label for="smime-tag-enc-enabled" style="font-weight:500;cursor:pointer;margin:0">Indikator: verschlüsselt</label>
+      </div>
+      <div class="settings-control">
+        <input type="text" id="smime-tag-encrypted" value="{{ s.SMIME_TAG_ENCRYPTED }}"
+          placeholder="verschlüsselt" style="width:200px"
+          {% if s.SMIME_TAG_ENCRYPTED_ENABLED is false %}disabled{% endif %}
+          oninput="updateSubjectPreview()">
+        <span class="hint">Indikator, dass eine Mail verschlüsselt war</span>
+      </div>
+    </div>
+
+    <div class="settings-row">
+      <div style="display:flex;align-items:center;gap:8px;min-width:200px;flex-shrink:0;padding-top:4px">
+        <input type="checkbox" id="smime-tag-sig-enabled"
+          {% if s.SMIME_TAG_SIGNED_ENABLED is not false %}checked{% endif %}
+          onchange="toggleTagField('smime-tag-signed', this.checked); updateSubjectPreview()">
+        <label for="smime-tag-sig-enabled" style="font-weight:500;cursor:pointer;margin:0">Indikator: signiert</label>
+      </div>
+      <div class="settings-control">
+        <input type="text" id="smime-tag-signed" value="{{ s.SMIME_TAG_SIGNED }}"
+          placeholder="signiert von {signer}" style="width:260px"
+          {% if s.SMIME_TAG_SIGNED_ENABLED is false %}disabled{% endif %}
+          oninput="updateSubjectPreview()">
+        <span class="hint"><code>{signer}</code> wird durch den CN des Zertifikats ersetzt</span>
+      </div>
+    </div>
+
+    <div class="settings-row">
+      <label for="smime-tag-position">Indikator-Position</label>
+      <select id="smime-tag-position" onchange="updateSubjectPreview()">
+        <option value="prepend" {% if s.SMIME_TAG_POSITION != 'append' %}selected{% endif %}>Vorne (Standard)</option>
+        <option value="append"  {% if s.SMIME_TAG_POSITION == 'append'  %}selected{% endif %}>Hinten</option>
+      </select>
+    </div>
+
+    <div class="settings-row" style="align-items:center">
+      <label style="color:#888;font-size:12px;font-weight:400">Vorschau</label>
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:7px 12px;font-size:13px;color:#333;flex:1;min-width:0;font-style:italic">
+        <span id="subject-preview"></span>
+      </div>
+    </div>
+
+    <div style="border-top:1px solid #f0f0f0;margin:16px 0 14px"></div>
+
+    <div class="settings-row">
+      <label class="checkbox-label">
+        <input type="checkbox" id="smime-strip-inbound"
+          {% if s.SMIME_STRIP_INBOUND is not false %}checked{% endif %}>
+        S/MIME-Signaturen eingehender Mails entfernen
+      </label>
+      <span class="hint" style="padding-top:2px">Entfernt die Signaturumhüllung; das Absender-Zertifikat wird dabei gespeichert</span>
+    </div>
+
+    <div class="settings-row" style="margin-top:10px">
+      <label for="enc-trigger">Verschlüsselungs-Trigger</label>
+      <div class="settings-control">
+        <input type="text" id="enc-trigger" value="{{ s.ENC_TRIGGER }}"
+          placeholder="#enc" style="width:160px">
+        <span class="hint">Schlüsselwort im Betreff, das ausgehende S/MIME-Verschlüsselung auslöst</span>
+      </div>
+    </div>
+
+    <div style="border-top:1px solid #f0f0f0;margin:16px 0 14px"></div>
+
+    <h3 style="margin-top:0;margin-bottom:8px">Azure Key Vault</h3>
+    <p class="hint" style="margin-bottom:10px">
+      Private S/MIME-Schlüssel in Azure Key Vault speichern (optional).
+      Der Schlüssel verlässt Azure nie; jede Signierung ruft die Sign-API auf.
+    </p>
+    <div class="settings-row">
+      <label for="kv-url">Key Vault URL</label>
+      <div class="settings-control">
+        <input type="url" id="kv-url" value="{{ s.KEYVAULT_URL }}"
+          placeholder="https://myvault.vault.azure.net" style="width:340px">
+        <span class="hint">Leer lassen um lokale Schlüsseldateien zu verwenden</span>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:6px;margin-left:200px">
+      <button type="button" class="btn secondary btn-sm" onclick="testKvUrl()">Verbindung testen</button>
+      <button type="button" class="btn secondary btn-sm" onclick="saveKvUrl()">Speichern</button>
+    </div>
+    <div id="kv-url-result" style="margin-top:6px;margin-left:200px;display:none"></div>
+
+    <div class="settings-row" style="align-items:flex-start;margin-top:14px">
+      <label style="min-width:200px;flex-shrink:0;font-size:13px;font-weight:500;padding-top:4px">Key Vault Modus</label>
+      <div class="settings-control">
+        <label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;cursor:pointer">
+          <input type="radio" name="kv-key-mode" value="fallback" style="margin-top:3px;flex-shrink:0"
+            {% if s.KV_KEY_MODE != 'strict' %}checked{% endif %}>
+          <span>
+            <strong>Fallback (empfohlen)</strong><br>
+            <span class="hint">Schlüssel werden als <code>exportable</code> im KV gespeichert und bei der Migration
+            als verschlüsselte <code>key.pem.bak</code> lokal gesichert. Bei KV-Ausfall signiert das
+            Gateway automatisch mit dem Backup-Schlüssel weiter.</span>
+          </span>
+        </label>
+        <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer">
+          <input type="radio" name="kv-key-mode" value="strict" style="margin-top:3px;flex-shrink:0"
+            {% if s.KV_KEY_MODE == 'strict' %}checked{% endif %}>
+          <span>
+            <strong>Strikt — kein Backup, kein Fallback</strong><br>
+            <span class="hint">Schlüssel sind <code>non-exportable</code> (HSM-Schutz ohne Rückfahrschein).
+            Bei KV-Ausfall werden Mails nicht signiert. Maximale Sicherheit auf Kosten der Verfügbarkeit.</span>
+          </span>
+        </label>
+        <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+          <button type="button" class="btn secondary btn-sm" onclick="saveKvMode()">Speichern</button>
+          <span id="kv-mode-result" style="font-size:12px;display:none"></span>
+        </div>
+      </div>
+    </div>
+
+    <div style="border-top:1px solid #f0f0f0;margin:16px 0 14px"></div>
+
+    <div class="settings-row" style="align-items:flex-start">
+      <label class="checkbox-label" style="padding-top:6px;min-width:200px;flex-shrink:0">
+        <input type="checkbox" id="smime-key-encrypt"
+          {% if s.SMIME_KEY_ENCRYPT is not false %}checked{% endif %}
+          onchange="toggleKeyEncrypt(this.checked)">
+        Private Keys verschlüsseln
+      </label>
+      <div class="settings-control" id="smime-key-password-wrap"
+        {% if s.SMIME_KEY_ENCRYPT is false %}style="display:none"{% endif %}>
+        {% if s.SMIME_KEY_PASSWORD %}
+        <div id="smime-key-pw-status" style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+          <span style="color:#555;font-size:13px">Passwort gesetzt</span>
+          <button type="button" class="btn secondary btn-sm" onclick="showSmimeKeyPwForm()">Ändern</button>
+        </div>
+        {% endif %}
+        <div id="smime-key-pw-form" {% if s.SMIME_KEY_PASSWORD %}style="display:none"{% endif %}>
+          {% if s.SMIME_KEY_PASSWORD %}
+          <div style="margin-bottom:6px">
+            <div class="pw-wrap"><input type="password" id="smime-key-password-old" placeholder="Aktuelles Passwort" style="width:260px"><button type="button" class="pw-eye" tabindex="-1" onmousedown="showPw('smime-key-password-old')" onmouseup="hidePw('smime-key-password-old')" onmouseleave="hidePw('smime-key-password-old')" ontouchstart="event.preventDefault();showPw('smime-key-password-old')" ontouchend="hidePw('smime-key-password-old')">&#128065;</button></div>
+          </div>
+          {% endif %}
+          <div style="margin-bottom:6px">
+            <div class="pw-wrap"><input type="password" id="smime-key-password" placeholder="Neues Passwort" style="width:260px" oninput="checkKeyPasswords()"><button type="button" class="pw-eye" tabindex="-1" onmousedown="showPw('smime-key-password')" onmouseup="hidePw('smime-key-password')" onmouseleave="hidePw('smime-key-password')" ontouchstart="event.preventDefault();showPw('smime-key-password')" ontouchend="hidePw('smime-key-password')">&#128065;</button></div>
+          </div>
+          <div style="margin-bottom:6px">
+            <div class="pw-wrap"><input type="password" id="smime-key-password2" placeholder="Passwort bestätigen" style="width:260px" oninput="checkKeyPasswords()"><button type="button" class="pw-eye" tabindex="-1" onmousedown="showPw('smime-key-password2')" onmouseup="hidePw('smime-key-password2')" onmouseleave="hidePw('smime-key-password2')" ontouchstart="event.preventDefault();showPw('smime-key-password2')" ontouchend="hidePw('smime-key-password2')">&#128065;</button></div>
+          </div>
+          <span id="key-pw-mismatch" style="color:#dc2626;font-size:12px;display:none">Passwörter stimmen nicht überein.</span>
+          {% if s.SMIME_KEY_PASSWORD %}
+          <div style="display:flex;gap:6px;margin-top:6px">
+            <button type="button" class="btn secondary btn-sm" onclick="saveSmimeKeyPassword()">Speichern</button>
+            <button type="button" class="btn secondary btn-sm" onclick="hideSmimeKeyPwForm()">Abbrechen</button>
+          </div>
+          {% else %}
+          <div id="smime-key-pw-save-wrap" style="margin-top:6px;display:none">
+            <button type="button" class="btn secondary btn-sm" onclick="saveSmimeKeyPassword()">Speichern</button>
+          </div>
+          {% endif %}
+        </div>
+        <span class="hint" style="margin-top:4px;display:block">AES-256 — schützt gespeicherte private Schlüssel auf dem Host</span>
+      </div>
     </div>
   </div>
-  <div class="actions" style="margin-top:12px">
-    <button class="btn primary" id="mb-save-btn" onclick="saveMailboxes(true)" style="display:none">
-      In EXO speichern (DG + Transportregel aktualisieren)
-    </button>
-    <button class="btn secondary" id="mb-local-btn" onclick="saveMailboxes(false)" style="display:none">
-      Nur lokal speichern
-    </button>
-  </div>
-  <div id="mb-result" style="margin-top:10px;display:none"></div>
-</div>
 
-<!-- Benachrichtigungen -->
-<div class="settings-card">
-  <h2>Benachrichtigungen & Tagesbericht</h2>
-  <p class="hint" style="margin-bottom:12px">
-    Das ausgewählte Postfach erhält tägliche Statistikberichte sowie Warnungen bei Zertifikatsablauf und Container-Neustart.
-    Das Postfach muss in der Liste oben geladen sein. Versand erfolgt per Graph API.
-  </p>
-  <div class="settings-row">
-    <label for="notif-mailbox">Benachrichtigungs-Postfach</label>
-    <select id="notif-mailbox" style="width:280px">
-      <option value="">-- kein --</option>
-    </select>
-  </div>
-  <h3>Tagesbericht</h3>
-  <div class="settings-row">
-    <label>Tagesbericht aktivieren</label>
-    <input type="checkbox" id="daily-report-enabled" {% if s.DAILY_REPORT_ENABLED %}checked{% endif %}>
-  </div>
-  <div class="settings-row">
-    <label for="daily-report-time">Berichtszeitpunkt</label>
-    <input type="time" id="daily-report-time" value="{{ s.DAILY_REPORT_TIME or '08:00' }}" style="width:120px">
-    <span class="hint" style="margin-left:8px">(in {{ s.LOG_TIMEZONE or 'Europe/Berlin' }})</span>
-  </div>
+  <!-- ── Benachrichtigungen ─────────────────────────────────────────── -->
+  <div class="settings-card" id="benachrichtigungen">
+    <h2>Benachrichtigungen &amp; Tagesbericht</h2>
 
-  <h3>Sofort-Benachrichtigungen</h3>
-  <div class="settings-row">
-    <label>Welche Ereignisse sollen gemeldet werden?</label>
-    <div class="settings-control">
-      <label class="checkbox-label">
-        <input type="checkbox" id="notify-startup"
-               {% if s.NOTIFY_STARTUP is not false %}checked{% endif %}>
-        Container-Neustart
-      </label>
-      <label class="checkbox-label">
-        <input type="checkbox" id="notify-cert-renewal"
-               {% if s.NOTIFY_CERT_RENEWAL is not false %}checked{% endif %}>
-        S/MIME Auto-Renewal – Ergebnis (Erfolg/Fehler)
-      </label>
-      <label class="checkbox-label">
-        <input type="checkbox" id="notify-le-renewal"
-               {% if s.NOTIFY_LE_RENEWAL is not false %}checked{% endif %}>
-        Let's Encrypt – Zertifikat erneuert
+    <!-- Global enable toggle -->
+    <div class="settings-row" style="margin-bottom:10px">
+      <label class="checkbox-label" style="font-weight:600">
+        <input type="checkbox" id="notif-enabled"
+               {% if s.NOTIFICATIONS_ENABLED is not false %}checked{% endif %}
+               onchange="toggleNotifConfig(this.checked)">
+        Benachrichtigungen aktivieren
       </label>
     </div>
-  </div>
-  <p class="hint" style="margin-top:4px">S/MIME-Zertifikatsablauf und Postfach-Health-Status werden täglich im Tagesbericht gemeldet.</p>
 
-  <h3>Warnschwellen</h3>
-  <div class="settings-row">
-    <label for="cert-warn-days">S/MIME Zertifikat – Warnung ab</label>
-    <input type="number" id="cert-warn-days" value="{{ s.CERT_WARN_DAYS or 14 }}" min="1" max="90" style="width:80px"> Tage vor Ablauf
-  </div>
-  <div class="settings-row">
-    <label for="le-renew-days">Let's Encrypt – Erneuerung ab</label>
-    <input type="number" id="le-renew-days" value="{{ s.LE_RENEW_DAYS or 7 }}" min="1" max="30" style="width:80px"> Tage vor Ablauf
-  </div>
-  <div class="actions" style="margin-top:12px">
-    <button class="btn secondary" onclick="sendTestNotification()">Test-Benachrichtigung senden</button>
-    <span id="notif-test-result" style="margin-left:10px;font-size:13px"></span>
-  </div>
-</div>
+    <!-- Config block — only visible when enabled -->
+    <div id="notif-config-block" {% if s.NOTIFICATIONS_ENABLED is false %}style="display:none"{% endif %}>
 
-<!-- Test-Mail -->
-<div class="settings-card">
-  <h2>Test-Mail senden</h2>
-  <p class="hint" style="margin-bottom:12px">Sendet eine Mail durch den lokalen SMTP-Handler inkl. Signatur-Injektion an EXO.</p>
-  <div class="settings-row">
-    <label for="test-from">Absender</label>
-    <input type="email" id="test-from" placeholder="user@zarenko.net">
-  </div>
-  <div class="settings-row">
-    <label for="test-to">Empfänger</label>
-    <input type="email" id="test-to" placeholder="empfaenger@domain.com">
-  </div>
-  <div class="settings-row">
-    <label for="test-type">Format</label>
-    <select id="test-type">
-      <option value="plain">Nur Text (plain text)</option>
-      <option value="html">HTML</option>
-    </select>
-  </div>
-  <div class="actions" style="margin-top:12px">
-    <button class="btn primary" onclick="sendTestMail()">Test-Mail senden</button>
-  </div>
-  <div id="test-result" style="margin-top:10px;display:none"></div>
-</div>
+      <p class="hint" style="margin-bottom:12px">
+        Die ausgewählten Postfächer erhalten tägliche Statistikberichte sowie Warnungen bei Zertifikatsablauf und Container-Neustart.
+        Beim Speichern wird die Distribution Group
+        <code>EXO Signature Gateway - Notification recipients</code> in EXO erstellt/aktualisiert.
+        Versand erfolgt per Graph API.
+      </p>
 
-<!-- Let's Encrypt -->
-<div class="settings-card">
-  <h2>TLS / Let's Encrypt</h2>
-  <div class="settings-row">
-    <label>Aktuelles Zertifikat</label>
-    <span>{{ cert_expiry | safe }}</span>
-  </div>
-  <div class="settings-row">
-    <label for="le-domain">Domain</label>
-    <input type="text" id="le-domain" value="{{ s.LE_DOMAIN }}" placeholder="mail.zarenko.net">
-  </div>
-  <div class="settings-row">
-    <label for="le-email">E-Mail (ACME)</label>
-    <input type="email" id="le-email" value="{{ s.LE_EMAIL }}" placeholder="admin@zarenko.net">
-  </div>
-  <p class="hint">Port 80 muss extern erreichbar sein (Firewall/NAT). Das Zertifikat wird unter <code>./certs/</code> gespeichert.</p>
-  <div class="actions" style="margin-top:12px">
-    <button class="btn primary" id="le-btn" onclick="renewCert()">Zertifikat erneuern</button>
-  </div>
-  <div id="le-result" style="margin-top:10px;display:none"></div>
-</div>
+      <!-- Multi-select recipients -->
+      <div class="settings-row" style="align-items:flex-start">
+        <label style="padding-top:4px">Benachrichtigungs-Empfänger</label>
+        <div class="settings-control">
+          <select id="notif-recipients" multiple
+                  style="width:320px;min-height:100px;border:1px solid #d1d5db;border-radius:6px;padding:4px;font-size:13px">
+            <!-- Options populated from mailbox list -->
+          </select>
+          <span class="hint" style="display:block;margin-top:4px">Mehrere Postfächer auswählbar (Strg+Klick)</span>
+          {% if s.NOTIFICATION_DG_EMAIL %}
+          <div style="margin-top:6px;font-size:12px;color:#64748b">
+            Distribution Group: <code>{{ s.NOTIFICATION_DG_EMAIL }}</code>
+          </div>
+          {% endif %}
+        </div>
+      </div>
 
-<!-- Konfiguration Export / Import -->
-<div class="settings-card">
-  <h2>Konfiguration sichern &amp; wiederherstellen</h2>
-  <p class="hint" style="margin-bottom:12px">
-    Passwörter und Secrets werden <strong>nicht</strong> exportiert und müssen nach einem Import manuell ergänzt werden.
-  </p>
-  <div class="actions" style="gap:12px; flex-wrap:wrap">
-    <a class="btn secondary" href="/api/config/export" download>Konfiguration exportieren (XML)</a>
-    <label class="btn secondary" style="cursor:pointer; margin:0">
-      Konfiguration importieren (XML)
-      <input type="file" accept=".xml" style="display:none" onchange="importConfig(this)">
-    </label>
-  </div>
-  <div id="import-result" style="margin-top:10px;display:none"></div>
-</div>
+      <div style="border-top:1px solid #f0f0f0;margin:14px 0 12px"></div>
 
-<!-- Save + Restart -->
-<div class="settings-card" style="background:transparent;border:none;box-shadow:none;padding:0">
-  <div class="actions">
-    <button class="btn primary" onclick="saveSettings()">Einstellungen speichern</button>
-    <button class="btn secondary" onclick="restartService()">Service neu starten</button>
+      <h3 style="margin-top:0;margin-bottom:10px">Tagesbericht</h3>
+      <div class="settings-row">
+        <label>Tagesbericht aktivieren</label>
+        <input type="checkbox" id="daily-report-enabled" {% if s.DAILY_REPORT_ENABLED %}checked{% endif %}>
+      </div>
+      <div class="settings-row">
+        <label for="daily-report-time">Berichtszeitpunkt</label>
+        <input type="time" id="daily-report-time" value="{{ s.DAILY_REPORT_TIME or '08:00' }}" style="width:120px">
+        <span class="hint" style="margin-left:8px">(in {{ s.LOG_TIMEZONE or 'Europe/Berlin' }})</span>
+      </div>
+
+      <h3>Sofort-Benachrichtigungen</h3>
+      <div class="settings-row">
+        <label>Welche Ereignisse sollen gemeldet werden?</label>
+        <div class="settings-control">
+          <label class="checkbox-label">
+            <input type="checkbox" id="notify-startup"
+                   {% if s.NOTIFY_STARTUP is not false %}checked{% endif %}>
+            Container-Neustart
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="notify-smime-expiry"
+                   {% if s.NOTIFY_SMIME_EXPIRY is not false %}checked{% endif %}>
+            S/MIME Zertifikat läuft ab (Admin-Warnung)
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="notify-cert-renewal"
+                   {% if s.NOTIFY_CERT_RENEWAL is not false %}checked{% endif %}>
+            S/MIME Erneuerung – Erfolg &amp; Fehler
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="notify-le-events"
+                   {% if s.NOTIFY_LE_EVENTS is not false %}checked{% endif %}>
+            TLS-Zertifikat (Let's Encrypt) erneuert / läuft ab
+          </label>
+          <label class="checkbox-label" style="margin-top:6px">
+            <input type="checkbox" id="notify-local-admin-login"
+                   {% if s.NOTIFY_LOCAL_ADMIN_LOGIN is not false %}checked{% endif %}>
+            Anmeldung mit lokalem Admin
+          </label>
+          <small class="hint" style="margin-left:22px;display:block;margin-top:2px">
+            Der lokale Admin-Zugang ist nur für Notfälle vorgesehen. Bei jeder Anmeldung wird eine
+            Benachrichtigung mit IP-Adresse und Browser-Informationen gesendet.
+          </small>
+        </div>
+      </div>
+
+      <h3>Warnschwellen</h3>
+      <div class="settings-row">
+        <label for="cert-warn-days">S/MIME Zertifikat – Warnung ab</label>
+        <input type="number" id="cert-warn-days" value="{{ s.CERT_WARN_DAYS or 14 }}" min="1" max="90" style="width:80px"> Tage vor Ablauf
+      </div>
+      <div class="settings-row">
+        <label for="le-renew-days">Let's Encrypt – Erneuerung ab</label>
+        <input type="number" id="le-renew-days" value="{{ s.LE_RENEW_DAYS or 7 }}" min="1" max="30" style="width:80px"> Tage vor Ablauf
+      </div>
+      <div class="actions" style="margin-top:12px">
+        <button class="btn secondary" onclick="sendTestNotification()">Test-Benachrichtigung senden</button>
+        <span id="notif-test-result" style="margin-left:10px;font-size:13px"></span>
+      </div>
+    </div><!-- /notif-config-block -->
+
+    <!-- Legacy single mailbox field (hidden but kept for backward compat) -->
+    <input type="hidden" id="notif-mailbox" value="{{ s.NOTIFICATION_MAILBOX or '' }}">
   </div>
-</div>
+
+  <!-- ── Erweitert (Test-Mail, Let's Encrypt, Export/Import) ─────────── -->
+  <div class="settings-card" id="erweitert">
+    <h2>Test-Mail senden</h2>
+    <p class="hint" style="margin-bottom:12px">Sendet eine Mail durch den lokalen SMTP-Handler inkl. Signatur-Injektion an EXO.</p>
+    <div class="settings-row">
+      <label for="test-from">Absender</label>
+      <input type="email" id="test-from" placeholder="user@zarenko.net">
+    </div>
+    <div class="settings-row">
+      <label for="test-to">Empfänger</label>
+      <input type="email" id="test-to" placeholder="empfaenger@domain.com">
+    </div>
+    <div class="settings-row">
+      <label for="test-type">Format</label>
+      <select id="test-type">
+        <option value="plain">Nur Text (plain text)</option>
+        <option value="html">HTML</option>
+      </select>
+    </div>
+    <div class="actions" style="margin-top:12px">
+      <button class="btn primary" onclick="sendTestMail()">Test-Mail senden</button>
+    </div>
+    <div id="test-result" style="margin-top:10px;display:none"></div>
+  </div>
+
+  <!-- Let's Encrypt -->
+  <div class="settings-card" id="letsencrypt">
+    <h2>TLS / Let's Encrypt</h2>
+    <div class="settings-row">
+      <label>Aktuelles Zertifikat</label>
+      <span>{{ cert_expiry | safe }}</span>
+    </div>
+    <div class="settings-row">
+      <label for="le-domain">Domain</label>
+      <input type="text" id="le-domain" value="{{ s.LE_DOMAIN }}" placeholder="mail.zarenko.net">
+    </div>
+    <div class="settings-row">
+      <label for="le-email">E-Mail (ACME)</label>
+      <input type="email" id="le-email" value="{{ s.LE_EMAIL }}" placeholder="admin@zarenko.net">
+    </div>
+    <p class="hint">Port 80 muss extern erreichbar sein (Firewall/NAT). Das Zertifikat wird unter <code>./certs/</code> gespeichert.</p>
+    <div class="actions" style="margin-top:12px">
+      <button class="btn primary" id="le-btn" onclick="renewCert()">Zertifikat erneuern</button>
+    </div>
+    <div id="le-result" style="margin-top:10px;display:none"></div>
+  </div>
+
+  <!-- Konfiguration Export / Import -->
+  <div class="settings-card" id="konfiguration">
+    <h2>Konfiguration sichern &amp; wiederherstellen</h2>
+    <p class="hint" style="margin-bottom:12px">
+      Passwörter und Secrets werden <strong>nicht</strong> exportiert und müssen nach einem Import manuell ergänzt werden.
+    </p>
+    <div class="actions" style="gap:12px; flex-wrap:wrap">
+      <a class="btn secondary" href="/api/config/export" download>Konfiguration exportieren (XML)</a>
+      <label class="btn secondary" style="cursor:pointer; margin:0">
+        Konfiguration importieren (XML)
+        <input type="file" accept=".xml" style="display:none" onchange="importConfig(this)">
+      </label>
+    </div>
+    <div id="import-result" style="margin-top:10px;display:none"></div>
+  </div>
+
+  <!-- Save + Restart -->
+  <div class="settings-card" style="background:transparent;border:none;box-shadow:none;padding:0">
+    <div class="actions">
+      <button class="btn primary" onclick="saveSettings()">Einstellungen speichern</button>
+      <button class="btn secondary" onclick="restartService()">Service neu starten</button>
+    </div>
+  </div>
+
+</div><!-- /panel-einstellungen -->
 
 <style>
+.nav-tab-link { transition: color 0.15s, border-color 0.15s; }
+.nav-tab-link.active { color: #2563eb !important; border-bottom-color: #2563eb !important; }
 .pw-wrap { position:relative; display:inline-block; }
 .pw-wrap input { padding-right:30px !important; box-sizing:border-box; }
 .pw-eye {
@@ -512,6 +586,34 @@
 .pw-eye:focus { outline:none; }
 </style>
 <script>
+// ── Tab management ─────────────────────────────────────────────────────────────
+function _activateTab(hash) {
+  var tabs = ['postfaecher', 'einstellungen'];
+  var active = (hash || '').replace('#', '');
+  if (!tabs.includes(active)) active = 'postfaecher';
+  tabs.forEach(function(t) {
+    var link = document.getElementById('tab-' + t);
+    var panel = document.getElementById('panel-' + t);
+    var isActive = t === active;
+    link.classList.toggle('active', isActive);
+    link.style.borderBottomColor = isActive ? '#2563eb' : 'transparent';
+    link.style.color = isActive ? '#2563eb' : '#64748b';
+    panel.style.display = isActive ? '' : 'none';
+  });
+}
+
+document.querySelectorAll('.nav-tab-link').forEach(function(link) {
+  link.addEventListener('click', function(e) {
+    e.preventDefault();
+    var hash = this.getAttribute('href');
+    history.pushState(null, '', hash);
+    _activateTab(hash);
+  });
+});
+
+window.addEventListener('popstate', function() { _activateTab(location.hash); });
+
+// ── Utilities ──────────────────────────────────────────────────────────────────
 function showAlert(el, type, msg) {
   el.className = 'alert ' + type;
   el.innerHTML = msg;
@@ -543,29 +645,23 @@ function collectKV(rowClass) {
 
 let _mbData = [];
 let _templateList = ['default'];
-let _healthData = {{ health | tojson }};
 
 const _currentNotifMailbox = {{ s.NOTIFICATION_MAILBOX | tojson }};
+const _currentNotifRecipients = {{ (s.NOTIFICATION_RECIPIENTS or []) | tojson }};
 
+// ── Mailboxes ──────────────────────────────────────────────────────────────────
 async function loadMailboxes(silent) {
   const btn = document.getElementById('mb-load-btn');
   const status = document.getElementById('mb-load-status');
   if (!silent) { btn.disabled = true; status.textContent = 'Lade…'; }
   try {
-    // Load template list first so renderMailboxTable can use it
     try {
       const tresp = await fetch('/api/templates');
       if (tresp.ok) {
         const tdata = await tresp.json();
         _templateList = tdata.templates || ['default'];
       }
-    } catch(_) { /* ignore, keep default */ }
-
-    // Refresh health data
-    try {
-      const hresp = await fetch('/api/health/mailboxes');
-      if (hresp.ok) _healthData = await hresp.json();
-    } catch(_) { /* ignore */ }
+    } catch(_) {}
 
     const resp = await fetch('/api/mailboxes');
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -576,7 +672,8 @@ async function loadMailboxes(silent) {
     document.getElementById('mb-table-wrap').style.display = '';
     document.getElementById('mb-save-btn').style.display = '';
     document.getElementById('mb-local-btn').style.display = '';
-    _populateNotifDropdown(_mbData);
+    document.getElementById('mb-status-btn').style.display = '';
+    _populateNotifRecipients(_mbData);
   } catch(e) {
     if (!silent) status.textContent = 'Fehler: ' + e.message;
   } finally {
@@ -584,13 +681,34 @@ async function loadMailboxes(silent) {
   }
 }
 
-const _typeLabel = {user: '', shared: ' [Shared]', group: ' [Gruppe]'};
+async function refreshMailboxStatus() {
+  const status = document.getElementById('mb-load-status');
+  const btn = document.getElementById('mb-status-btn');
+  btn.disabled = true;
+  status.textContent = 'Aktualisiere…';
+  try {
+    const resp = await fetch('/api/mailboxes');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+    _mbData = data.mailboxes || [];
+    renderMailboxTable(_mbData);
+    status.textContent = _mbData.length + ' Postfächer (aktualisiert)';
+    _populateNotifRecipients(_mbData);
+  } catch(e) {
+    status.textContent = 'Fehler: ' + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
 
-function _populateNotifDropdown(mailboxes) {
-  const sel = document.getElementById('notif-mailbox');
-  const cur = _currentNotifMailbox || '';
-  sel.innerHTML = '<option value="">-- kein --</option>';
-  // Group by type for readability
+function _populateNotifRecipients(mailboxes) {
+  const sel = document.getElementById('notif-recipients');
+  if (!sel) return;
+  const cur = _currentNotifRecipients || [];
+  // Also include legacy single mailbox
+  const legacySingle = _currentNotifMailbox || '';
+  const allSelected = new Set([...cur, ...(legacySingle ? [legacySingle] : [])]);
+  sel.innerHTML = '';
   [['shared','Freigegebene Postfächer'],['user','Benutzer-Postfächer']].forEach(function([type, label]) {
     const items = mailboxes.filter(m => m.type === type);
     if (!items.length) return;
@@ -600,17 +718,24 @@ function _populateNotifDropdown(mailboxes) {
       const opt = document.createElement('option');
       opt.value = mb.email;
       opt.textContent = mb.email + (mb.name && mb.name !== mb.email ? ' (' + mb.name + ')' : '');
-      if (mb.email === cur) opt.selected = true;
+      if (allSelected.has(mb.email)) opt.selected = true;
       og.appendChild(opt);
     });
     sel.appendChild(og);
   });
-  if (cur && !mailboxes.find(m => m.email === cur)) {
-    const opt = document.createElement('option');
-    opt.value = cur; opt.textContent = cur + ' (aktuell)'; opt.selected = true;
-    sel.appendChild(opt);
-  }
+  // Add currently configured recipients that aren't in the mailbox list
+  allSelected.forEach(function(em) {
+    if (em && !mailboxes.find(m => m.email === em)) {
+      const opt = document.createElement('option');
+      opt.value = em;
+      opt.textContent = em + ' (aktuell)';
+      opt.selected = true;
+      sel.appendChild(opt);
+    }
+  });
 }
+
+const _typeLabel = {user: '', shared: ' [Shared]', group: ' [Gruppe]'};
 
 function _buildTemplateSelect(idx, selectedTemplate, sigEnabled) {
   const sel = document.createElement('select');
@@ -639,13 +764,11 @@ function renderMailboxTable(mailboxes) {
     tr.style.borderBottom = '1px solid #f0f0f0';
     tr.dataset.search = (mb.email + ' ' + (mb.name || '')).toLowerCase();
 
-    // Email cell
     const tdEmail = document.createElement('td');
     tdEmail.style.padding = '6px 8px';
     tdEmail.innerHTML = '<strong>' + mb.email + '</strong>' +
       (mb.name && mb.name !== mb.email ? '<br><span style="color:#888;font-size:11px">' + mb.name + '</span>' : '');
 
-    // Sig checkbox cell
     const tdSig = document.createElement('td');
     tdSig.style.cssText = 'text-align:center;padding:6px 8px';
     const sigCb = document.createElement('input');
@@ -655,19 +778,16 @@ function renderMailboxTable(mailboxes) {
     if (mb.sig) sigCb.checked = true;
     tdSig.appendChild(sigCb);
 
-    // Template select cell
     const tdTpl = document.createElement('td');
     tdTpl.style.cssText = 'text-align:center;padding:6px 8px';
     const tplSel = _buildTemplateSelect(i, mb.template, mb.sig);
     tdTpl.appendChild(tplSel);
 
-    // Wire sig checkbox → template select enable/disable
     sigCb.addEventListener('change', function() {
       tplSel.disabled = !sigCb.checked;
       tplSel.style.opacity = sigCb.checked ? '1' : '0.4';
     });
 
-    // S/MIME checkbox cell
     const tdSmime = document.createElement('td');
     tdSmime.style.cssText = 'text-align:center;padding:6px 8px';
     const smimeCb = document.createElement('input');
@@ -677,35 +797,10 @@ function renderMailboxTable(mailboxes) {
     if (mb.smime) smimeCb.checked = true;
     tdSmime.appendChild(smimeCb);
 
-    // Health status cell
-    const tdHealth = document.createElement('td');
-    tdHealth.style.cssText = 'text-align:center;padding:6px 8px';
-    const healthInfo = _healthData[mb.email] || null;
-    if (!healthInfo) {
-      tdHealth.innerHTML = '<span style="color:#bbb" title="Noch nicht geprüft">–</span>';
-    } else {
-      const overall = healthInfo.overall || 'ok';
-      const failedChecks = Object.entries(healthInfo.checks || {})
-        .filter(([,v]) => ['error','warn','fixed'].includes(v.status))
-        .map(([k,v]) => k + ': ' + v.detail)
-        .join('\n');
-      if (overall === 'ok') {
-        tdHealth.innerHTML = '<span style="color:#27ae60;font-size:16px" title="OK">●</span>';
-      } else if (overall === 'error') {
-        tdHealth.innerHTML = '<span style="color:#e74c3c;font-size:15px;font-weight:700" title="' +
-          failedChecks.replace(/"/g, '&quot;') + '">✗</span>';
-      } else {
-        const n = Object.values(healthInfo.checks || {}).filter(v => ['warn','fixed'].includes(v.status)).length;
-        tdHealth.innerHTML = '<span style="color:#e67e22;font-size:13px;font-weight:700" title="' +
-          failedChecks.replace(/"/g, '&quot;') + '">⚠ ' + n + '</span>';
-      }
-    }
-
     tr.appendChild(tdEmail);
     tr.appendChild(tdSig);
     tr.appendChild(tdTpl);
     tr.appendChild(tdSmime);
-    tr.appendChild(tdHealth);
     tbody.appendChild(tr);
   });
 }
@@ -759,6 +854,7 @@ async function saveMailboxes(updateDg) {
   }
 }
 
+// ── Passwort ───────────────────────────────────────────────────────────────────
 async function changePassword() {
   const oldPw = (document.getElementById('old-pw').value || '');
   const pw    = (document.getElementById('new-pw').value || '');
@@ -780,9 +876,17 @@ async function changePassword() {
   }
 }
 
+// ── Save Settings ──────────────────────────────────────────────────────────────
 async function saveSettings() {
   const le_domain = (document.getElementById('le-domain').value || '').trim();
   const le_email = (document.getElementById('le-email').value || '').trim();
+  const notifEnabled = document.getElementById('notif-enabled').checked;
+
+  // Collect selected notification recipients
+  const recipientsSel = document.getElementById('notif-recipients');
+  const recipients = recipientsSel
+    ? Array.from(recipientsSel.selectedOptions).map(o => o.value)
+    : [];
 
   const payload = {
     FALLBACK_ON_ERROR: document.getElementById('fallback').checked,
@@ -804,12 +908,16 @@ async function saveSettings() {
     USER_BOOKINGS: collectKV('bookings'),
     LE_DOMAIN: le_domain,
     LE_EMAIL: le_email,
+    NOTIFICATIONS_ENABLED: notifEnabled,
+    NOTIFICATION_RECIPIENTS: recipients,
     NOTIFICATION_MAILBOX: document.getElementById('notif-mailbox').value,
     DAILY_REPORT_ENABLED: document.getElementById('daily-report-enabled').checked,
     DAILY_REPORT_TIME: document.getElementById('daily-report-time').value,
     NOTIFY_STARTUP: document.getElementById('notify-startup').checked,
+    NOTIFY_SMIME_EXPIRY: document.getElementById('notify-smime-expiry').checked,
     NOTIFY_CERT_RENEWAL: document.getElementById('notify-cert-renewal').checked,
-    NOTIFY_LE_RENEWAL: document.getElementById('notify-le-renewal').checked,
+    NOTIFY_LE_EVENTS: document.getElementById('notify-le-events').checked,
+    NOTIFY_LOCAL_ADMIN_LOGIN: document.getElementById('notify-local-admin-login').checked,
     CERT_WARN_DAYS: parseInt(document.getElementById('cert-warn-days').value, 10) || 14,
     LE_RENEW_DAYS: parseInt(document.getElementById('le-renew-days').value, 10) || 7,
   };
@@ -820,15 +928,54 @@ async function saveSettings() {
     body: JSON.stringify(payload),
   });
 
-  const alert = document.getElementById('page-alert');
+  const alertEl = document.getElementById('page-alert');
+
   if (resp.ok) {
-    showAlert(alert, 'success', 'Einstellungen gespeichert.');
+    // If notifications enabled and recipients selected → update notification DG
+    if (notifEnabled && recipients.length > 0) {
+      try {
+        const dgResp = await fetch('/api/setup/notification-dg', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({recipients: recipients}),
+        });
+        const dgData = await dgResp.json().catch(() => ({}));
+        if (dgData.ok) {
+          showAlert(alertEl, 'success',
+            'Einstellungen gespeichert.' +
+            (dgData.email ? ' Benachrichtigungs-DG: <code>' + dgData.email + '</code>' : ''));
+        } else {
+          showAlert(alertEl, 'warn',
+            'Einstellungen gespeichert, aber DG-Update fehlgeschlagen: ' +
+            (dgData.output || 'Unbekannt'));
+        }
+      } catch(e) {
+        showAlert(alertEl, 'warn', 'Einstellungen gespeichert, DG-Update Fehler: ' + e.message);
+      }
+    } else {
+      showAlert(alertEl, 'success', 'Einstellungen gespeichert.');
+    }
     window.scrollTo(0, 0);
   } else {
-    showAlert(alert, 'error', 'Fehler beim Speichern.');
+    showAlert(alertEl, 'error', 'Fehler beim Speichern.');
   }
 }
 
+// ── Notifications ──────────────────────────────────────────────────────────────
+function toggleNotifConfig(enabled) {
+  document.getElementById('notif-config-block').style.display = enabled ? '' : 'none';
+}
+
+async function sendTestNotification() {
+  const result = document.getElementById('notif-test-result');
+  result.textContent = 'Sende…';
+  const resp = await fetch('/api/notification/test', {method: 'POST'});
+  const d = await resp.json().catch(() => ({}));
+  result.style.color = resp.ok && d.ok ? '#27ae60' : '#e74c3c';
+  result.textContent = resp.ok && d.ok ? 'Gesendet ✓' : ('Fehler: ' + (d.detail || 'Unbekannt'));
+}
+
+// ── Test Mail ──────────────────────────────────────────────────────────────────
 async function sendTestMail() {
   const from_email = (document.getElementById('test-from').value || '').trim();
   const to_email = (document.getElementById('test-to').value || '').trim();
@@ -855,6 +1002,7 @@ async function sendTestMail() {
   }
 }
 
+// ── Let's Encrypt ──────────────────────────────────────────────────────────────
 async function renewCert() {
   const domain = (document.getElementById('le-domain').value || '').trim();
   const email = (document.getElementById('le-email').value || '').trim();
@@ -888,6 +1036,7 @@ async function renewCert() {
   }
 }
 
+// ── Config Export/Import ───────────────────────────────────────────────────────
 async function importConfig(input) {
   const file = input.files[0];
   if (!file) return;
@@ -895,10 +1044,10 @@ async function importConfig(input) {
   const fd = new FormData();
   fd.append('xml_file', file);
   const resp = await fetch('/api/config/import', {method: 'POST', body: fd});
-  const alert = document.getElementById('page-alert');
+  const alertEl = document.getElementById('page-alert');
   if (resp.ok) {
     const d = await resp.json();
-    showAlert(alert, 'success', `Konfiguration importiert (${d.imported} Einstellungen). Bitte speichern und neu starten.`);
+    showAlert(alertEl, 'success', `Konfiguration importiert (${d.imported} Einstellungen). Bitte speichern und neu starten.`);
     window.scrollTo(0, 0);
     setTimeout(() => location.reload(), 1500);
   } else {
@@ -909,24 +1058,17 @@ async function importConfig(input) {
   input.value = '';
 }
 
+// ── Service Restart ────────────────────────────────────────────────────────────
 async function restartService() {
   if (!confirm('Service jetzt neu starten?')) return;
   await fetch('/api/restart', {method: 'POST'});
-  const alert = document.getElementById('page-alert');
-  showAlert(alert, 'warn', 'Service wird neu gestartet… Seite lädt in 5 Sekunden neu.');
+  const alertEl = document.getElementById('page-alert');
+  showAlert(alertEl, 'warn', 'Service wird neu gestartet… Seite lädt in 5 Sekunden neu.');
   window.scrollTo(0, 0);
   setTimeout(() => location.reload(), 5000);
 }
 
-async function sendTestNotification() {
-  const result = document.getElementById('notif-test-result');
-  result.textContent = 'Sende…';
-  const resp = await fetch('/api/notification/test', {method: 'POST'});
-  const d = await resp.json().catch(() => ({}));
-  result.style.color = resp.ok && d.ok ? '#27ae60' : '#e74c3c';
-  result.textContent = resp.ok && d.ok ? 'Gesendet ✓' : ('Fehler: ' + (d.detail || 'Unbekannt'));
-}
-
+// ── S/MIME UI helpers ──────────────────────────────────────────────────────────
 function toggleTagField(inputId, enabled) {
   var el = document.getElementById(inputId);
   el.disabled = !enabled;
@@ -945,6 +1087,26 @@ function checkKeyPasswords() {
   if (saveWrap) saveWrap.style.display = (p1.length > 0 && p1 === p2) ? '' : 'none';
 }
 
+function updateSubjectPreview() {
+  var encEnabled = document.getElementById('smime-tag-enc-enabled').checked;
+  var sigEnabled = document.getElementById('smime-tag-sig-enabled').checked;
+  var encText    = (document.getElementById('smime-tag-encrypted').value || 'verschlüsselt').trim();
+  var sigText    = (document.getElementById('smime-tag-signed').value || 'signiert von {signer}')
+                     .trim().replace('{signer}', 'Max Mustermann');
+  var position   = document.getElementById('smime-tag-position').value;
+  var sample     = 'Quartalsbericht Q2';
+  var parts      = [];
+  if (encEnabled) parts.push(encText);
+  if (sigEnabled) parts.push(sigText);
+  var preview = sample;
+  if (parts.length > 0) {
+    var tag = '[' + parts.join(', ') + ']';
+    preview = position === 'append' ? sample + ' ' + tag : tag + ' ' + sample;
+  }
+  document.getElementById('subject-preview').textContent = preview;
+}
+
+// ── Password UI ────────────────────────────────────────────────────────────────
 function showPw(id) { var el = document.getElementById(id); if (el) el.type = 'text'; }
 function hidePw(id) { var el = document.getElementById(id); if (el) el.type = 'password'; }
 
@@ -991,147 +1153,22 @@ async function saveSmimeKeyPassword() {
   var resp = await fetch('/api/smime/key-password', {
     method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
   });
-  var alert = document.getElementById('page-alert');
+  var alertEl = document.getElementById('page-alert');
   var d = await resp.json().catch(function() { return {}; });
   if (resp.ok) {
     var msg = d.warnings && d.warnings.length
       ? 'Passwort gespeichert — Re-Encrypt fehlgeschlagen für: ' + d.warnings.join(', ')
       : 'S/MIME Key-Passwort gespeichert. Alle gespeicherten Keys wurden neu verschlüsselt.';
-    showAlert(alert, d.warnings && d.warnings.length ? 'warn' : 'success', msg);
+    showAlert(alertEl, d.warnings && d.warnings.length ? 'warn' : 'success', msg);
     window.scrollTo(0, 0);
     setTimeout(function() { location.reload(); }, 1800);
   } else {
-    showAlert(alert, 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));
+    showAlert(alertEl, 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));
     window.scrollTo(0, 0);
   }
 }
 
-function updateSubjectPreview() {
-  var encEnabled = document.getElementById('smime-tag-enc-enabled').checked;
-  var sigEnabled = document.getElementById('smime-tag-sig-enabled').checked;
-  var encText    = (document.getElementById('smime-tag-encrypted').value || 'verschlüsselt').trim();
-  var sigText    = (document.getElementById('smime-tag-signed').value || 'signiert von {signer}')
-                     .trim().replace('{signer}', 'Max Mustermann');
-  var position   = document.getElementById('smime-tag-position').value;
-  var sample     = 'Quartalsbericht Q2';
-  var parts      = [];
-  if (encEnabled) parts.push(encText);
-  if (sigEnabled) parts.push(sigText);
-  var preview = sample;
-  if (parts.length > 0) {
-    var tag = '[' + parts.join(', ') + ']';
-    preview = position === 'append' ? sample + ' ' + tag : tag + ' ' + sample;
-  }
-  document.getElementById('subject-preview').textContent = preview;
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-  loadMailboxes(true);
-  updateSubjectPreview();
-  loadAdminUsers();
-});
-
-var _currentUserUpn = '';
-
-async function loadAdminUsers() {
-  var resp = await fetch('/api/admin-users');
-  if (!resp.ok) return;
-  var d = await resp.json();
-  // Determine current user from session (best-effort via whoami or read cookie UPN)
-  try {
-    var me = await fetch('/api/whoami');
-    if (me.ok) { var md = await me.json(); _currentUserUpn = (md.upn || '').toLowerCase(); }
-  } catch(e) {}
-  renderAdminUsers(d.users || []);
-}
-
-function renderAdminUsers(users) {
-  var el = document.getElementById('admin-users-list');
-  if (!users.length) {
-    el.innerHTML = '<p class="hint" style="color:#dc2626">Keine Entra-Konten konfiguriert — SSO-Login nicht verfügbar.</p>';
-    return;
-  }
-  var rows = users.map(function(u) {
-    var isSelf = u.upn === _currentUserUpn;
-    var select = '<select onchange="updateUserRole(\'' + u.upn.replace(/'/g,"\\'") + '\', this.value)" ' +
-      (isSelf ? 'disabled title="Eigene Rolle kann nicht geändert werden"' : '') +
-      ' style="height:28px;border:1px solid #cbd5e1;border-radius:4px;padding:0 6px;font-size:12px' +
-      (isSelf ? ';opacity:0.5;cursor:not-allowed' : '') + '">' +
-      '<option value="admin"'  + (u.role==='admin'  ? ' selected' : '') + '>Admin</option>' +
-      '<option value="editor"' + (u.role==='editor' ? ' selected' : '') + '>Signatur-Editor</option>' +
-      '</select>';
-    var removeBtn = isSelf
-      ? '<button disabled title="Eigenes Konto" style="opacity:0.4;cursor:not-allowed;background:#dc2626;color:#fff;border:none;padding:3px 10px;border-radius:4px;font-size:12px">Entfernen</button>'
-      : '<button style="background:#dc2626;color:#fff;border:none;padding:3px 10px;border-radius:4px;cursor:pointer;font-size:12px" onclick="removeAdminUser(\'' + u.upn.replace(/'/g,"\\'") + '\')">Entfernen</button>';
-    return '<tr style="' + (isSelf ? 'background:#f8fafc' : '') + '">' +
-      '<td style="padding:6px 10px;font-family:monospace;font-size:12px;white-space:nowrap">' + u.upn + '</td>' +
-      '<td style="padding:6px 8px;white-space:nowrap">' + select + '</td>' +
-      '<td style="padding:6px 8px;white-space:nowrap">' + removeBtn + '</td>' +
-      '</tr>';
-  }).join('');
-  el.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px">' +
-    '<thead><tr style="border-bottom:1px solid #e2e8f0">' +
-    '<th style="padding:4px 10px;text-align:left;font-weight:600;font-size:12px;color:#64748b">Konto</th>' +
-    '<th style="padding:4px 8px;text-align:left;font-weight:600;font-size:12px;color:#64748b">Rolle</th>' +
-    '<th style="padding:4px 8px"></th>' +
-    '</thead><tbody>' + rows + '</tbody></table>';
-}
-
-async function addAdminUser() {
-  var upn = (document.getElementById('admin-upn-input').value || '').trim().toLowerCase();
-  var role = document.getElementById('admin-role-input').value;
-  var alertEl = document.getElementById('admin-users-alert');
-  if (!upn) return;
-  var resp = await fetch('/api/admin-users', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({upn: upn, role: role}),
-  });
-  var d = await resp.json().catch(function() { return {}; });
-  if (resp.ok) {
-    document.getElementById('admin-upn-input').value = '';
-    renderAdminUsers(d.users || []);
-    alertEl.style.display = 'none';
-  } else {
-    alertEl.className = 'alert error';
-    alertEl.textContent = d.detail || 'Fehler';
-    alertEl.style.display = 'block';
-  }
-}
-
-async function updateUserRole(upn, role) {
-  var alertEl = document.getElementById('admin-users-alert');
-  var resp = await fetch('/api/admin-users/' + encodeURIComponent(upn), {
-    method: 'PATCH',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({role: role}),
-  });
-  var d = await resp.json().catch(function() { return {}; });
-  if (resp.ok) {
-    renderAdminUsers(d.users || []);
-    alertEl.style.display = 'none';
-  } else {
-    alertEl.className = 'alert error';
-    alertEl.textContent = d.detail || 'Fehler';
-    alertEl.style.display = 'block';
-    loadAdminUsers(); // revert dropdown
-  }
-}
-
-async function removeAdminUser(upn) {
-  var alertEl = document.getElementById('admin-users-alert');
-  var resp = await fetch('/api/admin-users/' + encodeURIComponent(upn), {method: 'DELETE'});
-  var d = await resp.json().catch(function() { return {}; });
-  if (resp.ok) {
-    renderAdminUsers(d.users || []);
-    alertEl.style.display = 'none';
-  } else {
-    alertEl.className = 'alert error';
-    alertEl.textContent = d.detail || 'Fehler';
-    alertEl.style.display = 'block';
-  }
-}
-
+// ── Key Vault ──────────────────────────────────────────────────────────────────
 async function testKvUrl() {
   const url = document.getElementById('kv-url').value.trim();
   const el = document.getElementById('kv-url-result');
@@ -1192,5 +1229,117 @@ async function saveKvUrl() {
     el.textContent = 'Netzwerkfehler: ' + err;
   }
 }
+
+// ── Admin Users ────────────────────────────────────────────────────────────────
+var _currentUserUpn = '';
+
+async function loadAdminUsers() {
+  var resp = await fetch('/api/admin-users');
+  if (!resp.ok) return;
+  var d = await resp.json();
+  try {
+    var me = await fetch('/api/whoami');
+    if (me.ok) { var md = await me.json(); _currentUserUpn = (md.upn || '').toLowerCase(); }
+  } catch(e) {}
+  renderAdminUsers(d.users || []);
+}
+
+function renderAdminUsers(users) {
+  var el = document.getElementById('admin-users-list');
+  if (!users.length) {
+    el.innerHTML = '<p class="hint" style="color:#dc2626">Keine Entra-Konten konfiguriert — SSO-Login nicht verfügbar.</p>';
+    return;
+  }
+  var rows = users.map(function(u) {
+    var isSelf = u.upn === _currentUserUpn;
+    var oidHint = u.id
+      ? '<span title="Entra Object-ID: ' + u.id + '" style="font-size:10px;color:#94a3b8;margin-left:4px;cursor:help">&#128274;</span>'
+      : '<span title="Object-ID noch nicht aufgelöst (wird beim nächsten SSO-Login gesetzt)" style="font-size:10px;color:#d1d5db;margin-left:4px;cursor:help">&#128274;</span>';
+    var select = '<select onchange="updateUserRole(\'' + u.upn.replace(/'/g,"\\'") + '\', this.value)" ' +
+      (isSelf ? 'disabled title="Eigene Rolle kann nicht geändert werden"' : '') +
+      ' style="height:28px;border:1px solid #cbd5e1;border-radius:4px;padding:0 6px;font-size:12px' +
+      (isSelf ? ';opacity:0.5;cursor:not-allowed' : '') + '">' +
+      '<option value="admin"'  + (u.role==='admin'  ? ' selected' : '') + '>Admin</option>' +
+      '<option value="editor"' + (u.role==='editor' ? ' selected' : '') + '>Signatur-Editor</option>' +
+      '</select>';
+    var removeBtn = isSelf
+      ? '<button disabled title="Eigenes Konto" style="opacity:0.4;cursor:not-allowed;background:#dc2626;color:#fff;border:none;padding:3px 10px;border-radius:4px;font-size:12px">Entfernen</button>'
+      : '<button style="background:#dc2626;color:#fff;border:none;padding:3px 10px;border-radius:4px;cursor:pointer;font-size:12px" onclick="removeAdminUser(\'' + u.upn.replace(/'/g,"\\'") + '\')">Entfernen</button>';
+    return '<tr style="' + (isSelf ? 'background:#f8fafc' : '') + '">' +
+      '<td style="padding:6px 10px;font-family:monospace;font-size:12px;white-space:nowrap">' + u.upn + oidHint + '</td>' +
+      '<td style="padding:6px 8px;white-space:nowrap">' + select + '</td>' +
+      '<td style="padding:6px 8px;white-space:nowrap">' + removeBtn + '</td>' +
+      '</tr>';
+  }).join('');
+  el.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px">' +
+    '<thead><tr style="border-bottom:1px solid #e2e8f0">' +
+    '<th style="padding:4px 10px;text-align:left;font-weight:600;font-size:12px;color:#64748b">Konto</th>' +
+    '<th style="padding:4px 8px;text-align:left;font-weight:600;font-size:12px;color:#64748b">Rolle</th>' +
+    '<th style="padding:4px 8px"></th>' +
+    '</thead><tbody>' + rows + '</tbody></table>';
+}
+
+async function addAdminUser() {
+  var upn = (document.getElementById('admin-upn-input').value || '').trim().toLowerCase();
+  var role = document.getElementById('admin-role-input').value;
+  var alertEl = document.getElementById('admin-users-alert');
+  if (!upn) return;
+  var resp = await fetch('/api/admin-users', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({upn: upn, role: role}),
+  });
+  var d = await resp.json().catch(function() { return {}; });
+  if (resp.ok) {
+    document.getElementById('admin-upn-input').value = '';
+    renderAdminUsers(d.users || []);
+    alertEl.style.display = 'none';
+  } else {
+    alertEl.className = 'alert error';
+    alertEl.textContent = d.detail || 'Fehler';
+    alertEl.style.display = 'block';
+  }
+}
+
+async function updateUserRole(upn, role) {
+  var alertEl = document.getElementById('admin-users-alert');
+  var resp = await fetch('/api/admin-users/' + encodeURIComponent(upn), {
+    method: 'PATCH',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({role: role}),
+  });
+  var d = await resp.json().catch(function() { return {}; });
+  if (resp.ok) {
+    renderAdminUsers(d.users || []);
+    alertEl.style.display = 'none';
+  } else {
+    alertEl.className = 'alert error';
+    alertEl.textContent = d.detail || 'Fehler';
+    alertEl.style.display = 'block';
+    loadAdminUsers();
+  }
+}
+
+async function removeAdminUser(upn) {
+  var alertEl = document.getElementById('admin-users-alert');
+  var resp = await fetch('/api/admin-users/' + encodeURIComponent(upn), {method: 'DELETE'});
+  var d = await resp.json().catch(function() { return {}; });
+  if (resp.ok) {
+    renderAdminUsers(d.users || []);
+    alertEl.style.display = 'none';
+  } else {
+    alertEl.className = 'alert error';
+    alertEl.textContent = d.detail || 'Fehler';
+    alertEl.style.display = 'block';
+  }
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  _activateTab(location.hash || '#postfaecher');
+  loadMailboxes(true);
+  updateSubjectPreview();
+  loadAdminUsers();
+});
 </script>
 {% endblock %}

@@ -74,16 +74,18 @@ DEFAULTS: dict = {
     # ── Azure Key Vault (S/MIME private key storage) ──────────────────────────
     "KEYVAULT_URL": "",                 # e.g. https://myvault.vault.azure.net — empty = local key files
     "KV_KEY_MODE": "fallback",          # "fallback" = exportable + local backup; "strict" = no export, no backup
+    "KV_KEY_STATUS": {},                # {email: {"exists": bool, "checked": "ISO8601"}} — cached KV key status
     # ── ACME ─────────────────────────────────────────────────────────────────
     "ACME_REPLY_METHOD": "graph",       # "graph" or "direct_smtp" — how challenge replies are sent
     # ── S/MIME lifecycle management ───────────────────────────────────────────
     "GATEWAY_EXTERNAL_URL": "",      # e.g. https://mail.company.com:8080 — used in renewal links
     "CERT_RENEWAL_THRESHOLDS": [30, 14, 7, 1],  # Notify user at these days-before-expiry
     "CA_USER_CONFIG": {},            # {email: {backend, portal_url, notify_user}}
-    # ── Mailbox health check ──────────────────────────────────────────────────
-    "MAILBOX_HEALTH": {},            # {email: {last_checked, overall, checks}}
-    "GATEWAY_AUDIT_LOG": [],         # Rolling list (max 200) of gateway auto-fix actions
-    "NOTIFY_LE_RENEWAL": None,       # None/True = send LE renewal success; False = suppress
+    # ── Notifications (extended) ──────────────────────────────────────────────
+    "NOTIFICATIONS_ENABLED": True,           # Global on/off switch for all notifications
+    "NOTIFICATION_RECIPIENTS": [],           # List of mailbox emails for notifications
+    "NOTIFICATION_DG_EMAIL": "",             # PrimarySmtpAddress of notification DG (auto-set)
+    "NOTIFY_LOCAL_ADMIN_LOGIN": None,        # None/True = send; False = suppress local admin login notification
 }
 
 _lock = RLock()

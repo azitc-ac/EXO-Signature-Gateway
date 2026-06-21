@@ -668,6 +668,79 @@ def run_mailbox_dg_update(app_id: str, tenant_domain: str, members: list[str]) -
         return {"ok": False, "output": str(exc)}
 
 
+def run_notification_dg_update(members: list[str]) -> dict:
+    """
+    Create/update 'EXO Signature Gateway - Notification recipients' DG and
+    synchronise the given member list.
+    Returns {"ok": bool, "email": str, "output": str}.
+    """
+    if not _AUTH_CERT_PATH.exists():
+        return {"ok": False, "email": "", "output": "Auth-Zertifikat nicht gefunden"}
+    app_id = config.CLIENT_ID or settings_store.get("CLIENT_ID") or ""
+    org = settings_store.get("TENANT_DOMAIN") or ""
+    if not app_id or not org:
+        return {"ok": False, "email": "", "output": "CLIENT_ID oder TENANT_DOMAIN nicht konfiguriert"}
+
+    cert = str(_AUTH_CERT_PATH)
+    # Build comma-separated member list for PS (PS script splits on comma internally)
+    members_csv = ",".join(members) if members else ""
+
+    ps_script = f"""
+$ErrorActionPreference = 'Stop'
+$cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
+    '{cert}', [string]$null,
+    ([System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet))
+Connect-ExchangeOnline -AppId '{app_id}' -Certificate $cert -Organization '{org}' -ShowBanner:$false -ShowProgress:$false
+$dgName = "EXO Signature Gateway - Notification recipients"
+$dg = Get-DistributionGroup -Identity $dgName -ErrorAction SilentlyContinue
+if (-not $dg) {{
+    $dg = New-DistributionGroup -Name $dgName -Type Distribution -MemberJoinRestriction Closed -MemberDepartRestriction Closed
+}}
+$membersStr = '{members_csv}'
+$desired = @()
+if ($membersStr) {{
+    $desired = $membersStr -split ',' | ForEach-Object {{ $_.Trim() }} | Where-Object {{ $_ -ne '' }}
+}}
+$current = @(Get-DistributionGroupMember -Identity $dg.Identity -ErrorAction SilentlyContinue | Select-Object -ExpandProperty PrimarySmtpAddress)
+foreach ($m in $desired) {{
+    if ($current -notcontains $m) {{
+        Add-DistributionGroupMember -Identity $dg.Identity -Member $m -ErrorAction SilentlyContinue
+    }}
+}}
+foreach ($m in $current) {{
+    if ($desired -notcontains $m) {{
+        Remove-DistributionGroupMember -Identity $dg.Identity -Member $m -Confirm:$false -ErrorAction SilentlyContinue
+    }}
+}}
+Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
+$dgRefresh = Get-DistributionGroup -Identity $dgName -ErrorAction SilentlyContinue
+$email = if ($dgRefresh) {{ $dgRefresh.PrimarySmtpAddress }} else {{ '' }}
+Write-Output (@{{ok=$true; email=$email}} | ConvertTo-Json -Compress)
+"""
+    try:
+        proc = subprocess.run(
+            ["pwsh", "-NoProfile", "-NonInteractive", "-Command", ps_script],
+            capture_output=True, text=True, timeout=180,
+        )
+        output = (proc.stdout + "\n" + proc.stderr).strip()
+        import json as _json
+        for line in proc.stdout.strip().splitlines():
+            line = line.strip()
+            if line.startswith("{"):
+                try:
+                    result = _json.loads(line)
+                    if result.get("ok"):
+                        log.info("Notification DG updated with %d members, email=%s", len(members), result.get("email"))
+                        return {"ok": True, "email": result.get("email", ""), "output": output}
+                except Exception:
+                    pass
+        log.error("Notification DG update failed rc=%d: %s", proc.returncode, output)
+        return {"ok": False, "email": "", "output": output}
+    except Exception as exc:
+        log.error("Notification DG update error: %s", exc)
+        return {"ok": False, "email": "", "output": str(exc)}
+
+
 # ── EXO state verification ────────────────────────────────────────────────────
 
 def _run_verify_ps(body: str) -> dict:

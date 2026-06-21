@@ -5,34 +5,59 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
-## v1.4.30 — 2026-06-21 — feat: Mailbox Health Check System
+## v1.4.30 — 2026-06-21 — feat: UI-Redesign, KV-Status-Cache, Benachrichtigungs-DG, OID-Tracking, Lokaler-Admin-Login-Alert
 
-### Neue Datei: `app/health_check.py`
-- Pro-Postfach-Checks: `graph_user`, `dg_member`, `imap_permission`, `template`, `smime_cert`, `smime_key`, `kv_sign`
-- Ergebnisse in `MAILBOX_HEALTH` (settings.json), Gateway-Aktionen in `GATEWAY_AUDIT_LOG` (rolling 200)
-- Auto-Fix: DG-Mitgliedschaft und IMAP-Permissions werden automatisch gesetzt (Status `"fixed"`)
-- EXO-Checks laufen in einer einzigen PowerShell-Session für alle Postfächer (effizient)
+### Feature 1 — S/MIME: Key Vault Status gecacht
+- `settings_store.py`: Neues Default `KV_KEY_STATUS: {}` — Format `{email: {exists, checked}}`
+- `smime_page_v2()`: Liest gecachten Status statt serielle `await _kv.key_exists()` Aufrufe
+- Neuer Endpoint `POST /api/smime/kv-status/refresh`: Parallel-Abfrage via `asyncio.gather()`
+- `smime.html`: Button "Key Vault Status prüfen" im Schlüsselverwaltungs-Block
 
-### `app/scheduler.py`
-- `_run_daily()` ruft `health_check.run_all_checks()` via `asyncio.run()` auf
-- LE-Ablaufwarnung entfernt aus `_try_le_renewal()` (jetzt im Tagesbericht TLS-Block)
-- `NOTIFY_LE_RENEWAL` ersetzt `NOTIFY_LE_EVENTS` für Erneuerungs-Erfolg-Meldungen (Rückwärtskompatibilität: Fallback auf `NOTIFY_LE_EVENTS`)
+### Feature 2 — S/MIME: "KEY VAULT" Label entfernt
+- `smime.html`: Badge "KEY VAULT" neben Auto-Enroll-Button entfernt (war redundant)
+- "GEMISCHT"-Badge bleibt erhalten (tatsächlich informativer Zustand)
 
-### `app/notification.py` — `send_daily_report()`
-- Neuer Abschnitt "Postfach-Health": zeigt Postfächer mit overall != "ok"
-- Zeigt Gateway-Aktionen der letzten 24 h aus `GATEWAY_AUDIT_LOG`
+### Feature 3 — S/MIME: Download-Button für Signaturzertifikat (.cer)
+- Neuer Endpoint `GET /api/smime/cert/download/{email}/{slot_id}`: PEM → DER-Konvertierung
+- Response: `application/pkix-cert` mit passendem Dateinamen
+- `smime.html`: "↓ .cer"-Button pro Signing-Cert-Slot
 
-### `app/webui/app.py`
-- Neues `GET /api/health/mailboxes` und `GET /api/health/audit-log`
-- `POST /api/mailboxes/save`: triggert `health_check.run_all_checks()` als Background-Task
-- Settings-Route: übergibt `health`-Dict ans Template
+### Feature 4 — Postfächer: "Status aktualisieren" Button
+- `settings.html`: Button "Status aktualisieren" neben Postfächer-Laden-Button
+- Ruft `/api/mailboxes` erneut ab und aktualisiert die Tabelle ohne Seitenreload
 
-### `app/webui/templates/settings.html`
-- Benachrichtigungsbereich umstrukturiert: `NOTIFY_SMIME_EXPIRY` und `NOTIFY_LE_EVENTS` durch `NOTIFY_LE_RENEWAL` ersetzt
-- Postfach-Tabelle: neue "Status"-Spalte mit grünem Punkt / ⚠ N / ✗ Indikator, Tooltip mit Details
+### Feature 5 — Settings: Tab-Struktur
+- `settings.html`: Komplett umgebaut auf Bootstrap-ähnliche Tabs
+- Tab "Postfächer": enthält Mailbox-Konfigurationsblock
+- Tab "Einstellungen": Admin-Konten, lokale Zugangsdaten, Allgemein, Signaturen, S/MIME, Benachrichtigungen, Erweitert (Test-Mail, Let's Encrypt, Export/Import)
+- URL-Hash `#postfaecher` / `#einstellungen` erhält aktiven Tab über Seitenladevorgänge
 
-### `app/settings_store.py`
-- Neue DEFAULTS: `MAILBOX_HEALTH`, `GATEWAY_AUDIT_LOG`, `NOTIFY_LE_RENEWAL`
+### Feature 6 — "Zugangsdaten" → "Zugangsdaten lokaler Admin"
+- `settings.html`: Überschrift und Hinweistext klargestellt — Notfallzugang für lokalen Admin
+
+### Feature 7 — Entra Admin-User: Object ID intern gespeichert
+- `sso.py`: `normalize_users()` speichert optionales `id`-Feld (Entra Object-ID)
+- `sso.py`: `get_role()` sucht primär per OID, dann UPN als Fallback
+- `sso.py`: Neue Funktionen `get_role_by_oid()` und `resolve_upn_to_oid()` (httpx, synchron)
+- `app.py`: SSO-Callback extrahiert `oid` aus id_token-Claims, OID-basiertes Lookup
+- `app.py`: Auto-Patching beim Login: User-Eintrag ohne `id` → wird automatisch ergänzt
+- `app.py`: `POST /api/admin-users`: `resolve_upn_to_oid()` beim Hinzufügen
+- `settings.html`: OID-Icon pro Admin-User-Zeile (Tooltip mit GUID)
+
+### Feature 8 — Lokale Admin-Anmeldung: Benachrichtigung
+- `notification.py`: `send_local_admin_login(ip, user_agent, username)` — neue Funktion
+- `settings_store.py`: Neues Default `NOTIFY_LOCAL_ADMIN_LOGIN: None`
+- `app.py`: `auth_local()` feuert Benachrichtigung via `run_in_executor`
+- `settings.html`: Checkbox "Anmeldung mit lokalem Admin" in Benachrichtigungs-Sektion
+
+### Feature 9 — Benachrichtigungen: Aktivieren-Checkbox + Multi-Select + DG
+- `settings_store.py`: Neue Defaults `NOTIFICATIONS_ENABLED`, `NOTIFICATION_RECIPIENTS`, `NOTIFICATION_DG_EMAIL`
+- `notification.py`: `_get_notify_to()` — zentrale Empfänger-Ermittlung (Enabled-Check + Recipients-List + Legacy-Fallback)
+- `notification.py`: `_should_notify(key)` — kombinierter Enabled+Key-Check für alle send_*()-Funktionen
+- Alle `send_*()` Funktionen nutzen jetzt `_get_notify_to()` und `_should_notify()`
+- `setup_wizard.py`: `run_notification_dg_update(members)` — Inline-PS-Script erstellt/aktualisiert DG
+- `app.py`: `POST /api/setup/notification-dg` — ruft `run_notification_dg_update` auf, speichert Settings
+- `settings.html`: Globale Aktivierungs-Checkbox, Multi-Select für Empfänger, DG-Info-Anzeige
 
 ---
 

@@ -65,20 +65,20 @@ def _try_le_renewal(domain: str, days_left: int, expiry_str: str) -> None:
             new_cert = x509.load_pem_x509_certificate(cert_path.read_bytes())
             new_expiry = _get_expiry(new_cert).strftime("%d.%m.%Y")
             log.info("scheduler: TLS cert renewed – new expiry %s. Restart recommended.", new_expiry)
-            # NOTIFY_LE_RENEWAL replaces NOTIFY_LE_EVENTS for renewal success
-            # Fall back to NOTIFY_LE_EVENTS for backwards compatibility
-            notify_renewal = settings_store.get("NOTIFY_LE_RENEWAL")
-            if notify_renewal is None:
-                notify_renewal = settings_store.get("NOTIFY_LE_EVENTS")
-            if notify_renewal is not False:
+            if settings_store.get("NOTIFY_LE_EVENTS") is not False:
                 import notification
                 notification.send_le_renewed(domain, new_expiry)
         else:
-            log.warning("scheduler: certbot ran (rc=%d) but cert unchanged",
+            log.warning("scheduler: certbot ran (rc=%d) but cert unchanged – sending alert",
                         proc.returncode)
-            # LE expiry is now shown in the daily report TLS block — no separate alert
+            if settings_store.get("NOTIFY_LE_EVENTS") is not False:
+                import notification
+                notification.send_le_expiry_alert(domain, days_left, expiry_str)
     except FileNotFoundError:
-        log.debug("scheduler: certbot not found — LE renewal skipped")
+        log.debug("scheduler: certbot not found — sending expiry alert")
+        if settings_store.get("NOTIFY_LE_EVENTS") is not False:
+            import notification
+            notification.send_le_expiry_alert(domain, days_left, expiry_str)
         _le_renewed_date = today
     except Exception as exc:
         log.error("scheduler: certbot error: %s", exc)
@@ -166,8 +166,6 @@ def _check_smime_lifecycle() -> None:
     today = datetime.now().strftime("%Y-%m-%d")
 
     # ── Admin alerts (all cert types) ──────────────────────────────────────
-    # Cert expiry is included in the daily report; NOTIFY_SMIME_EXPIRY still
-    # controls whether individual immediate alerts are also sent.
     all_certs = smime_store.list_certs() + smime_store.list_recipient_certs()
     for c in all_certs:
         if c.get("error"):
@@ -221,13 +219,6 @@ def _run_daily() -> None:
     # Cert checks always run (independent of report settings)
     _check_tls_cert()
     _check_smime_lifecycle()
-
-    # Mailbox health checks
-    try:
-        import health_check
-        asyncio.run(health_check.run_all_checks())
-    except Exception as exc:
-        log.error("scheduler: health check error: %s", exc)
 
     # Daily stats report (if configured)
     if settings_store.get("DAILY_REPORT_ENABLED") and settings_store.get("NOTIFICATION_MAILBOX"):

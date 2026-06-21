@@ -35,7 +35,7 @@ def _get_secret() -> str:
 
 
 def normalize_users() -> list[dict]:
-    """Return ADMIN_USERS as list of {upn, role} dicts, migrating legacy string entries."""
+    """Return ADMIN_USERS as list of {upn, role[, id]} dicts, migrating legacy string entries."""
     users = settings_store.get("ADMIN_USERS") or []
     result = []
     for entry in users:
@@ -45,7 +45,11 @@ def normalize_users() -> list[dict]:
             upn  = (entry.get("upn") or "").strip().lower()
             role = entry.get("role", ROLE_ADMIN)
             if upn and role in VALID_ROLES:
-                result.append({"upn": upn, "role": role})
+                user_entry: dict = {"upn": upn, "role": role}
+                oid = (entry.get("id") or "").strip()
+                if oid:
+                    user_entry["id"] = oid
+                result.append(user_entry)
     return result
 
 
@@ -97,15 +101,63 @@ def get_upn_from_token_response(token_resp: dict) -> str:
     return ""
 
 
-def get_role(upn: str) -> str | None:
-    """Return role for UPN ('admin' or 'editor'), or None if not configured."""
-    if not upn:
+def get_role(upn_or_oid: str) -> str | None:
+    """Return role for UPN or OID ('admin' or 'editor'), or None if not configured."""
+    if not upn_or_oid:
         return None
-    upn_lower = upn.strip().lower()
+    val_lower = upn_or_oid.strip().lower()
+    # Search by OID first, then by UPN
     for entry in normalize_users():
-        if entry["upn"] == upn_lower:
+        oid = (entry.get("id") or "").lower()
+        if oid and oid == val_lower:
+            return entry["role"]
+    for entry in normalize_users():
+        if entry["upn"] == val_lower:
             return entry["role"]
     return None
+
+
+def get_role_by_oid(oid: str) -> str | None:
+    """Return role for Entra Object ID, or None if not found."""
+    if not oid:
+        return None
+    oid_lower = oid.strip().lower()
+    for entry in normalize_users():
+        if (entry.get("id") or "").lower() == oid_lower:
+            return entry["role"]
+    return None
+
+
+def resolve_upn_to_oid(upn: str) -> str | None:
+    """
+    Resolve a UPN to its Entra Object ID via Microsoft Graph.
+    Returns the OID string or None on failure.
+    Uses a synchronous httpx.Client call (safe for background/setup use).
+    """
+    try:
+        import graph_client
+        import httpx
+        token = graph_client._acquire_token()
+        if not token:
+            log.warning("resolve_upn_to_oid: no Graph token for %s", upn)
+            return None
+        url = f"https://graph.microsoft.com/v1.0/users/{upn}?$select=id,userPrincipalName"
+        headers = {"Authorization": f"Bearer {token}"}
+        with httpx.Client(timeout=15) as client:
+            resp = client.get(url, headers=headers)
+        if resp.status_code == 200:
+            data = resp.json()
+            oid = data.get("id") or ""
+            if oid:
+                log.info("Resolved UPN %s → OID %s", upn, oid)
+                return oid
+            log.warning("resolve_upn_to_oid: no id in response for %s", upn)
+            return None
+        log.warning("resolve_upn_to_oid: HTTP %s for %s", resp.status_code, upn)
+        return None
+    except Exception as exc:
+        log.warning("resolve_upn_to_oid error for %s: %s", upn, exc)
+        return None
 
 
 def is_allowed(upn: str) -> bool:

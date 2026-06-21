@@ -19,7 +19,7 @@
     Benutzer werden unter <a href="/settings">Einstellungen → Postfach-Konfiguration</a> für S/MIME aktiviert.
   </p>
 
-  {% if has_any_local_key or (kv_configured and has_any_unmigrated_key) %}
+  {% if kv_configured or has_any_local_key or has_any_unmigrated_key %}
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;padding:10px 12px;
               background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;align-items:center">
     <span style="font-size:12px;color:#666;font-weight:500;margin-right:4px">Schlüsselverwaltung:</span>
@@ -35,6 +35,13 @@
             title="Alle lokalen Schlüssel zu Azure Key Vault migrieren, lokale key.pem löschen (key.pem.bak bleibt als Fallback)">
       → Alle zu KV migrieren &amp; lokal löschen
     </button>
+    {% endif %}
+    {% if kv_configured %}
+    <button class="btn secondary btn-sm" onclick="refreshKvStatus(this)"
+            title="Azure Key Vault auf vorhandene Schlüssel prüfen (gecachter Status wird aktualisiert)">
+      Key Vault Status prüfen
+    </button>
+    <span id="kv-status-result" style="font-size:12px;color:#64748b"></span>
     {% endif %}
     <div id="bulk-migrate-result" style="font-size:12px;display:none"></div>
   </div>
@@ -69,9 +76,7 @@
           </button>
           {% if kv_configured %}
             {% set local_keys = u.certs | selectattr("has_local_key") | list %}
-            {% if local_keys | length == 0 and has_certs %}
-              <span style="background:#fef3c7;color:#b45309;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;white-space:nowrap" title="Alle Schlüssel in Azure Key Vault">KEY VAULT</span>
-            {% elif local_keys | length > 0 and (u.certs | length - local_keys | length) > 0 %}
+            {% if local_keys | length > 0 and (u.certs | length - local_keys | length) > 0 %}
               <span style="background:#fff7ed;color:#b45309;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;white-space:nowrap" title="Gemischt: teils lokal, teils Key Vault">GEMISCHT</span>
             {% endif %}
           {% endif %}
@@ -137,11 +142,19 @@
                      title="Als Standard verwenden">
             </td>
             {% endif %}
-            <td style="padding:8px 10px;text-align:right;white-space:nowrap;min-width:120px">
+            <td style="padding:8px 10px;text-align:right;white-space:nowrap;min-width:140px">
               <button class="btn secondary btn-sm"
                       {% if c.get("error") %}disabled style="opacity:.4"{% else %}onclick="showCertDetails('{{ u.email }}','signing','{{ c.slot_id }}')"{% endif %}>
                 Ansicht
               </button>
+              {% if not c.get("error") %}
+              <a class="btn secondary btn-sm"
+                 href="/api/smime/cert/download/{{ u.email | urlencode }}/{{ c.slot_id }}"
+                 download="{{ u.email | replace('@','_') | replace('.','_') }}_{{ c.slot_id }}.cer"
+                 title="Signaturzertifikat als .cer herunterladen">
+                ↓ .cer
+              </a>
+              {% endif %}
               {% if kv_configured and c.get("has_local_key") %}
               <button class="btn secondary btn-sm" style="border-color:#b45309;color:#b45309"
                       onclick="migrateSlotToKv('{{ u.email }}','{{ c.slot_id }}',this)"
@@ -701,6 +714,33 @@ async function migrateToKv(email, btn) {
     }
   } catch (err) {
     alert('Netzwerkfehler: ' + err);
+    btn.disabled = false;
+    btn.textContent = origText;
+  }
+}
+
+async function refreshKvStatus(btn) {
+  const resultEl = document.getElementById('kv-status-result');
+  const origText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Prüfe…';
+  if (resultEl) resultEl.textContent = '';
+  try {
+    const r = await fetch('/api/smime/kv-status/refresh', {method: 'POST'});
+    const data = await r.json();
+    if (data.ok) {
+      if (resultEl) {
+        const count = Object.keys(data.results || {}).length;
+        resultEl.textContent = count + ' Postfächer geprüft — Seite wird neu geladen…';
+      }
+      setTimeout(() => location.reload(), 1200);
+    } else {
+      if (resultEl) { resultEl.style.color = '#dc2626'; resultEl.textContent = data.detail || 'Fehler'; }
+      btn.disabled = false;
+      btn.textContent = origText;
+    }
+  } catch (err) {
+    if (resultEl) { resultEl.style.color = '#dc2626'; resultEl.textContent = 'Netzwerkfehler: ' + err; }
     btn.disabled = false;
     btn.textContent = origText;
   }

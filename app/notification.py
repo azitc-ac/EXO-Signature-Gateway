@@ -12,6 +12,36 @@ log = logging.getLogger(__name__)
 GRAPH = "https://graph.microsoft.com/v1.0"
 
 
+def _get_notify_to() -> str | None:
+    """
+    Return the effective notification recipient address, or None if notifications are disabled.
+
+    Priority:
+    1. NOTIFICATIONS_ENABLED must be True (None counts as True for backwards compat).
+    2. NOTIFICATION_RECIPIENTS list → use NOTIFICATION_DG_EMAIL if set, else first recipient.
+    3. Legacy fallback: NOTIFICATION_MAILBOX.
+    """
+    enabled = settings_store.get("NOTIFICATIONS_ENABLED")
+    if enabled is False:
+        return None
+    recipients = settings_store.get("NOTIFICATION_RECIPIENTS") or []
+    if recipients:
+        dg = settings_store.get("NOTIFICATION_DG_EMAIL") or ""
+        return dg if dg else recipients[0]
+    # Legacy fallback
+    legacy = settings_store.get("NOTIFICATION_MAILBOX") or ""
+    return legacy or None
+
+
+def _should_notify(key: str) -> bool:
+    """Return True if notifications are globally enabled AND the specific key is not False."""
+    enabled = settings_store.get("NOTIFICATIONS_ENABLED")
+    if enabled is False:
+        return False
+    val = settings_store.get(key)
+    return val is not False  # None and True both mean "send"
+
+
 def _graph_send(to: str, subject: str, html: str) -> bool:
     """
     Send a notification email via Graph API sendMail.
@@ -95,7 +125,7 @@ def _html_wrap(title: str, color: str, body: str) -> str:
 
 
 def send_daily_report(daily: dict, total: dict) -> bool:
-    to = settings_store.get("NOTIFICATION_MAILBOX") or ""
+    to = _get_notify_to()
     if not to:
         return False
 
@@ -156,78 +186,17 @@ def send_daily_report(daily: dict, total: dict) -> bool:
             warn_rows += _row(c["email"], f'{label} (bis {c["expiry"]})', color)
         warn_block = f'<h3 style="color:#e74c3c;margin-top:20px">⚠ Ablaufende Zertifikate</h3><table>{warn_rows}</table>'
 
-    # ── Mailbox health summary ──
-    health_block = ""
-    try:
-        from datetime import timedelta
-        health_data: dict = settings_store.get("MAILBOX_HEALTH") or {}
-        audit_log: list = settings_store.get("GATEWAY_AUDIT_LOG") or []
-        cutoff = now - timedelta(hours=24)
-
-        problem_mailboxes = {
-            email: info for email, info in health_data.items()
-            if info.get("overall") not in ("ok", None)
-        }
-        recent_audit = [
-            e for e in audit_log
-            if datetime.fromisoformat(e["ts"].replace("Z", "+00:00")) >= cutoff
-        ]
-
-        if problem_mailboxes or recent_audit:
-            health_rows = ""
-            status_labels = {
-                "error": ('<span style="color:#e74c3c;font-weight:700">✗ Fehler</span>', "#e74c3c"),
-                "warn":  ('<span style="color:#e67e22;font-weight:700">⚠ Warnung</span>', "#e67e22"),
-                "fixed": ('<span style="color:#e67e22;font-weight:700">⚙ Korrigiert</span>', "#e67e22"),
-            }
-            for email, info in sorted(problem_mailboxes.items()):
-                overall = info.get("overall", "error")
-                label_html, _color = status_labels.get(overall, (overall, "#e74c3c"))
-                failed_checks = []
-                for check_name, check_info in (info.get("checks") or {}).items():
-                    s = check_info.get("status", "skip")
-                    if s in ("error", "warn", "fixed"):
-                        failed_checks.append(
-                            f'<li style="margin-top:3px"><code>{check_name}</code>: '
-                            f'{check_info.get("detail", "")}</li>'
-                        )
-                checks_html = (f'<ul style="margin:4px 0 0 16px;padding:0">'
-                               + "".join(failed_checks) + "</ul>") if failed_checks else ""
-                health_rows += (
-                    f'<tr><td style="padding:6px 16px 6px 0;vertical-align:top;white-space:nowrap">'
-                    f'{email}</td>'
-                    f'<td style="vertical-align:top">{label_html}{checks_html}</td></tr>'
-                )
-
-            audit_html = ""
-            if recent_audit:
-                audit_items = "".join(
-                    f'<li style="margin-top:3px">'
-                    f'<code>{e["action"]}</code> — {e["mailbox"]}: {e["detail"]}</li>'
-                    for e in recent_audit
-                )
-                audit_html = (
-                    f'<h4 style="margin:12px 0 4px;color:#555">Gateway-Aktionen (letzte 24 h)</h4>'
-                    f'<ul style="margin:0;padding-left:18px">{audit_items}</ul>'
-                )
-
-            health_block = (
-                f'<h3 style="color:#e67e22;margin-top:20px">Postfach-Health</h3>'
-                + (f'<table>{health_rows}</table>' if health_rows else "")
-                + audit_html
-            )
-    except Exception:
-        pass
-
     body = (f'<h3 style="margin-top:4px">Statistiken – {date_str}</h3>'
-            f'<table>{rows}</table>{tls_block}{warn_block}{health_block}')
+            f'<table>{rows}</table>{tls_block}{warn_block}')
     html = _html_wrap(f"EXO Gateway – Tagesbericht {date_str}", "#2c3e50", body)
 
     return _graph_send(to, f"EXO Gateway Tagesbericht – {date_str}", html)
 
 
 def send_startup_notification(version: str) -> bool:
-    to = settings_store.get("NOTIFICATION_MAILBOX") or ""
+    if not _should_notify("NOTIFY_STARTUP"):
+        return False
+    to = _get_notify_to()
     if not to:
         return False
     now = datetime.now().strftime("%d.%m.%Y %H:%M")
@@ -240,7 +209,9 @@ def send_startup_notification(version: str) -> bool:
 
 
 def send_cert_expiry_alert(cert_info: dict) -> bool:
-    to = settings_store.get("NOTIFICATION_MAILBOX") or ""
+    if not _should_notify("NOTIFY_SMIME_EXPIRY"):
+        return False
+    to = _get_notify_to()
     if not to:
         return False
     days = cert_info.get("days_left", 0)
@@ -260,7 +231,9 @@ def send_cert_expiry_alert(cert_info: dict) -> bool:
 
 
 def send_le_renewed(domain: str, new_expiry: str) -> bool:
-    to = settings_store.get("NOTIFICATION_MAILBOX") or ""
+    if not _should_notify("NOTIFY_LE_EVENTS"):
+        return False
+    to = _get_notify_to()
     if not to:
         return False
     now = datetime.now().strftime("%d.%m.%Y %H:%M")
@@ -275,7 +248,9 @@ def send_le_renewed(domain: str, new_expiry: str) -> bool:
 
 
 def send_le_expiry_alert(domain: str, days_left: int, expiry_str: str) -> bool:
-    to = settings_store.get("NOTIFICATION_MAILBOX") or ""
+    if not _should_notify("NOTIFY_LE_EVENTS"):
+        return False
+    to = _get_notify_to()
     if not to:
         return False
     body = (f'<table>'
@@ -332,7 +307,9 @@ def send_renewal_notification_to_user(
 
 def send_cert_renewal_success(user_email: str, cert_info: dict) -> bool:
     """Notify admin that a self-service cert renewal succeeded."""
-    to = settings_store.get("NOTIFICATION_MAILBOX") or ""
+    if not _should_notify("NOTIFY_CERT_RENEWAL"):
+        return False
+    to = _get_notify_to()
     if not to:
         return False
     body = (
@@ -350,7 +327,9 @@ def send_cert_renewal_success(user_email: str, cert_info: dict) -> bool:
 
 def send_cert_renewal_failure(user_email: str, error: str) -> bool:
     """Notify admin that a self-service cert upload failed."""
-    to = settings_store.get("NOTIFICATION_MAILBOX") or ""
+    if not _should_notify("NOTIFY_CERT_RENEWAL"):
+        return False
+    to = _get_notify_to()
     if not to:
         return False
     body = (
@@ -362,3 +341,26 @@ def send_cert_renewal_failure(user_email: str, error: str) -> bool:
     )
     html = _html_wrap("✗ S/MIME-Zertifikat-Upload fehlgeschlagen", "#e74c3c", body)
     return _graph_send(to, f"✗ S/MIME-Upload fehlgeschlagen – {user_email}", html)
+
+
+def send_local_admin_login(ip: str, user_agent: str, username: str) -> bool:
+    """Notify about local admin login (emergency use indicator)."""
+    if not _should_notify("NOTIFY_LOCAL_ADMIN_LOGIN"):
+        return False
+    to = _get_notify_to()
+    if not to:
+        return False
+    now = datetime.now(timezone.utc).strftime("%d.%m.%Y %H:%M:%S UTC")
+    body = (
+        f'<p>Es wurde eine Anmeldung mit dem lokalen Admin-Konto am EXO Signature Gateway erkannt.</p>'
+        f'<table>'
+        f'{_row("Benutzername", username)}'
+        f'{_row("IP-Adresse", ip)}'
+        f'{_row("Browser/Client", user_agent)}'
+        f'{_row("Zeitpunkt", now)}'
+        f'</table>'
+        f'<p style="margin-top:16px;color:#e67e22">Der lokale Admin-Zugang ist nur für Notfälle vorgesehen. '
+        f'Wenn diese Anmeldung nicht von Ihnen durchgeführt wurde, prüfen Sie sofort die Zugangsdaten.</p>'
+    )
+    html = _html_wrap("⚠ Lokale Admin-Anmeldung erkannt", "#e67e22", body)
+    return _graph_send(to, f"⚠ Lokale Admin-Anmeldung: EXO Signature Gateway ({ip})", html)

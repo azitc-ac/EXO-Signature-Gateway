@@ -480,17 +480,33 @@ async def auth_callback(
         )
 
     if flow == "sso":
-        # SSO login: check UPN against configured users
+        # SSO login: check UPN against configured users; also try OID for robustness
         upn = sso_mod.get_upn_from_token_response(token_resp)
         if not upn:
             return RedirectResponse("/auth/login?error=no_upn", status_code=302)
-        role = sso_mod.get_role(upn)
+        # Extract OID from id_token for OID-based lookup
+        id_token_claims = sso_mod.decode_id_token(token_resp.get("id_token", ""))
+        oid = (id_token_claims.get("oid") or id_token_claims.get("sub") or "").strip()
+        # Try OID first, then fall back to UPN
+        role = (sso_mod.get_role_by_oid(oid) if oid else None) or sso_mod.get_role(upn)
         if not role:
-            log.warning("SSO login denied for UPN: %s", upn)
+            log.warning("SSO login denied for UPN: %s (oid: %s)", upn, oid or "n/a")
             return RedirectResponse(
                 f"/auth/login?error=not_admin&upn={urllib.parse.quote(upn)}", status_code=302
             )
-        log.info("SSO login successful: %s (role: %s)", upn, role)
+        # Auto-patch: if user entry lacks an OID but we have one now, save it
+        if oid:
+            users = sso_mod.normalize_users()
+            patched = False
+            for entry in users:
+                if entry["upn"] == upn.lower() and not entry.get("id"):
+                    entry["id"] = oid
+                    patched = True
+                    break
+            if patched:
+                settings_store.update({"ADMIN_USERS": users})
+                log.info("Auto-patched OID for SSO user %s → %s", upn, oid)
+        log.info("SSO login successful: %s (role: %s, oid: %s)", upn, role, oid or "n/a")
         cookie_val = sso_mod.create_session_cookie(upn, local=False, role=role)
         next_url = request.query_params.get("next", "/")
         response = RedirectResponse(next_url, status_code=302)
@@ -627,6 +643,11 @@ async def auth_local(request: Request):
             max_age=sso_mod.SESSION_TTL, httponly=True, samesite="lax", secure=True,
         )
         log.info("Local admin login: %s", username_in)
+        # Send notification about local admin login (fire-and-forget)
+        import notification as _notif
+        ip = request.client.host if request.client else "unbekannt"
+        ua = request.headers.get("user-agent", "unbekannt")
+        asyncio.get_event_loop().run_in_executor(None, _notif.send_local_admin_login, ip, ua, username_in)
         return resp
     raise HTTPException(401, "Benutzername oder Passwort falsch")
 
@@ -730,9 +751,16 @@ async def api_add_admin_user(request: Request, user: str = Depends(_require_admi
     users = sso_mod.normalize_users()
     if any(e["upn"] == upn for e in users):
         raise HTTPException(409, f"{upn} ist bereits konfiguriert")
-    users.append({"upn": upn, "role": role})
+    # Resolve Entra Object ID for robust identity tracking
+    oid = await asyncio.get_event_loop().run_in_executor(None, sso_mod.resolve_upn_to_oid, upn)
+    new_entry: dict = {"upn": upn, "role": role}
+    if oid:
+        new_entry["id"] = oid
+    else:
+        log.warning("Could not resolve OID for %s — saving without id", upn)
+    users.append(new_entry)
     settings_store.update({"ADMIN_USERS": users})
-    log.info("User added: %s (role: %s) by %s", upn, role, user)
+    log.info("User added: %s (role: %s, oid: %s) by %s", upn, role, oid or "n/a", user)
     return JSONResponse({"ok": True, "users": users})
 
 
@@ -1024,16 +1052,6 @@ async def api_save_mailboxes(body: dict, _=Depends(_check_auth)):
         # If both false, don't include in config (passthrough by default)
     settings_store.update({"MAILBOX_CONFIG": config_map})
 
-    # Trigger health checks for newly added/changed mailboxes in background
-    if enabled_members:
-        async def _bg_health_checks():
-            try:
-                import health_check
-                await health_check.run_all_checks(enabled_members)
-            except Exception as exc:
-                log.warning("background health check failed: %s", exc)
-        asyncio.create_task(_bg_health_checks())
-
     # Update EXO Distribution Group if wizard is complete
     s = settings_store.get_all()
     app_id = s.get("CLIENT_ID") or config.CLIENT_ID
@@ -1043,18 +1061,6 @@ async def api_save_mailboxes(body: dict, _=Depends(_check_auth)):
         result = setup_wizard.run_mailbox_dg_update(app_id, tenant_domain, enabled_members)
         return {"ok": result["ok"], "saved": True, "dg_output": result.get("output", "")}
     return {"ok": True, "saved": True}
-
-
-@app.get("/api/health/mailboxes")
-async def api_health_mailboxes(_=Depends(_check_auth)):
-    """Return current MAILBOX_HEALTH data."""
-    return settings_store.get("MAILBOX_HEALTH") or {}
-
-
-@app.get("/api/health/audit-log")
-async def api_health_audit_log(_=Depends(_check_auth)):
-    """Return GATEWAY_AUDIT_LOG entries."""
-    return settings_store.get("GATEWAY_AUDIT_LOG") or []
 
 
 # ── Routes: authenticated pages ────────────────────────────────────────────────
@@ -1179,7 +1185,6 @@ async def settings_page(request: Request, user: str = Depends(_require_admin)):
             "cert_expiry": _cert_expiry(),
             "smtp_port": config.SMTP_PORT,
             "saved": request.query_params.get("saved"),
-            "health": settings_store.get("MAILBOX_HEALTH") or {},
         },
     )
 
@@ -1285,13 +1290,37 @@ async def api_letsencrypt(request: Request, user: str = Depends(_check_auth)):
 async def api_notification_test(user: str = Depends(_check_auth)):
     import notification as _notif
     import config as _config
-    to = settings_store.get("NOTIFICATION_MAILBOX") or ""
+    to = _notif._get_notify_to()
     if not to:
-        raise HTTPException(400, "NOTIFICATION_MAILBOX nicht konfiguriert")
-    ok = _notif.send_startup_notification(_config.VERSION)
+        raise HTTPException(400, "Kein Benachrichtigungs-Empfänger konfiguriert")
+    ok = _notif._graph_send(to, "EXO Gateway – Test-Benachrichtigung",
+                            _notif._html_wrap("Test-Benachrichtigung", "#27ae60",
+                                              "<p>Die Benachrichtigungsfunktion ist korrekt konfiguriert.</p>"))
     if not ok:
-        raise HTTPException(500, "Senden fehlgeschlagen – SMTP-Einstellungen prüfen")
+        raise HTTPException(500, "Senden fehlgeschlagen – Einstellungen prüfen")
     return JSONResponse({"ok": True})
+
+
+@app.post("/api/setup/notification-dg")
+async def api_setup_notification_dg(request: Request, user: str = Depends(_check_auth)):
+    """Create/update notification Distribution Group in EXO and save recipients."""
+    import setup_wizard
+    data = await request.json()
+    recipients = [r.strip().lower() for r in (data.get("recipients") or []) if r.strip()]
+    result = await asyncio.get_event_loop().run_in_executor(
+        None, setup_wizard.run_notification_dg_update, recipients
+    )
+    if result.get("ok"):
+        patch: dict = {"NOTIFICATION_RECIPIENTS": recipients}
+        if result.get("email"):
+            patch["NOTIFICATION_DG_EMAIL"] = result["email"]
+        settings_store.update(patch)
+        log.info("Notification DG updated by %s: %d members, DG=%s", user, len(recipients), result.get("email"))
+    return JSONResponse({
+        "ok": result.get("ok", False),
+        "email": result.get("email", ""),
+        "output": result.get("output", ""),
+    })
 
 
 @app.post("/api/restart")
@@ -1442,12 +1471,12 @@ async def smime_page_v2(request: Request, user: str = Depends(_require_admin)):
     all_emails = sorted(smime_from_config | smime_from_certs)
     smime_users = [{"email": email, "certs": smime_store.list_user_certs(email)} for email in all_emails]
     acme_orders = {em: _acme_state.get_order(em) for em in all_emails if _acme_state.get_order(em)}
-    # Key Vault status per email (only if configured)
-    kv_keys: dict[str, bool] = {}
+    # Key Vault status per email (only if configured) — use cached status, not live queries
     kv_configured = _kv.is_configured()
-    if kv_configured:
-        for em in all_emails:
-            kv_keys[em] = await _kv.key_exists(em)
+    kv_status: dict = settings_store.get("KV_KEY_STATUS") or {}
+    kv_keys: dict[str, bool | None] = {
+        em: kv_status.get(em, {}).get("exists", None) for em in all_emails
+    }
     kv_mode = settings_store.get("KV_KEY_MODE") or "fallback"
     has_any_local_key = any(
         c.get("has_local_key") or c.get("has_kv_backup")
@@ -1475,6 +1504,54 @@ async def smime_page_v2(request: Request, user: str = Depends(_require_admin)):
             "has_any_unmigrated_key": has_any_unmigrated_key,
         },
     )
+
+
+@app.post("/api/smime/kv-status/refresh")
+async def api_smime_kv_status_refresh(_=Depends(_check_auth)):
+    """Refresh Azure Key Vault key-existence status for all S/MIME users (parallel queries)."""
+    import smime_store
+    import keyvault as _kv
+    if not _kv.is_configured():
+        return JSONResponse({"ok": False, "detail": "Key Vault nicht konfiguriert"}, status_code=400)
+    config_map: dict = settings_store.get("MAILBOX_CONFIG") or {}
+    smime_from_config = {email for email, cfg in config_map.items() if cfg.get("smime")}
+    smime_from_certs = {c["email"] for c in smime_store.list_certs()}
+    all_emails = sorted(smime_from_config | smime_from_certs)
+    if not all_emails:
+        return JSONResponse({"ok": True, "results": {}})
+    results_list = await asyncio.gather(*[_kv.key_exists(em) for em in all_emails])
+    now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    new_status = {em: {"exists": bool(ex), "checked": now_iso}
+                  for em, ex in zip(all_emails, results_list)}
+    settings_store.update({"KV_KEY_STATUS": new_status})
+    log.info("KV key status refreshed for %d emails", len(all_emails))
+    return JSONResponse({"ok": True, "results": new_status})
+
+
+@app.get("/api/smime/cert/download/{email}/{slot_id}")
+async def api_smime_cert_download(email: str, slot_id: str, _=Depends(_check_auth)):
+    """Download a signing certificate as DER-encoded .cer file."""
+    from cryptography import x509
+    from cryptography.hazmat.primitives import serialization
+    from fastapi.responses import Response as _Response
+    import smime_store
+    email = urllib.parse.unquote(email).lower().strip()
+    cert_path = smime_store.SMIME_DIR / email / "certs" / slot_id / "cert.pem"
+    if not cert_path.exists():
+        raise HTTPException(404, "Zertifikat nicht gefunden")
+    try:
+        cert = x509.load_pem_x509_certificate(cert_path.read_bytes())
+        der_bytes = cert.public_bytes(serialization.Encoding.DER)
+        safe_email = email.replace("@", "_").replace(".", "_")
+        filename = f"{safe_email}_{slot_id}.cer"
+        return _Response(
+            content=der_bytes,
+            media_type="application/pkix-cert",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except Exception as exc:
+        log.error("Cert download error for %s/%s: %s", email, slot_id, exc)
+        raise HTTPException(500, str(exc))
 
 
 @app.post("/api/smime/recipient/upload")
