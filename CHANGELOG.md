@@ -5,6 +5,37 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.30 — 2026-06-21 — feat: Mailbox Health Check System
+
+### Neue Datei: `app/health_check.py`
+- Pro-Postfach-Checks: `graph_user`, `dg_member`, `imap_permission`, `template`, `smime_cert`, `smime_key`, `kv_sign`
+- Ergebnisse in `MAILBOX_HEALTH` (settings.json), Gateway-Aktionen in `GATEWAY_AUDIT_LOG` (rolling 200)
+- Auto-Fix: DG-Mitgliedschaft und IMAP-Permissions werden automatisch gesetzt (Status `"fixed"`)
+- EXO-Checks laufen in einer einzigen PowerShell-Session für alle Postfächer (effizient)
+
+### `app/scheduler.py`
+- `_run_daily()` ruft `health_check.run_all_checks()` via `asyncio.run()` auf
+- LE-Ablaufwarnung entfernt aus `_try_le_renewal()` (jetzt im Tagesbericht TLS-Block)
+- `NOTIFY_LE_RENEWAL` ersetzt `NOTIFY_LE_EVENTS` für Erneuerungs-Erfolg-Meldungen (Rückwärtskompatibilität: Fallback auf `NOTIFY_LE_EVENTS`)
+
+### `app/notification.py` — `send_daily_report()`
+- Neuer Abschnitt "Postfach-Health": zeigt Postfächer mit overall != "ok"
+- Zeigt Gateway-Aktionen der letzten 24 h aus `GATEWAY_AUDIT_LOG`
+
+### `app/webui/app.py`
+- Neues `GET /api/health/mailboxes` und `GET /api/health/audit-log`
+- `POST /api/mailboxes/save`: triggert `health_check.run_all_checks()` als Background-Task
+- Settings-Route: übergibt `health`-Dict ans Template
+
+### `app/webui/templates/settings.html`
+- Benachrichtigungsbereich umstrukturiert: `NOTIFY_SMIME_EXPIRY` und `NOTIFY_LE_EVENTS` durch `NOTIFY_LE_RENEWAL` ersetzt
+- Postfach-Tabelle: neue "Status"-Spalte mit grünem Punkt / ⚠ N / ✗ Indikator, Tooltip mit Details
+
+### `app/settings_store.py`
+- Neue DEFAULTS: `MAILBOX_HEALTH`, `GATEWAY_AUDIT_LOG`, `NOTIFY_LE_RENEWAL`
+
+---
+
 ## v1.4.25 — 2026-06-21 — fix: deliver_to_mailbox_mime() — CRLF-Normalisierung für Graph MIME-Inject
 
 ### Graph MIME-Inject: UnableToDeserializePostBody behoben

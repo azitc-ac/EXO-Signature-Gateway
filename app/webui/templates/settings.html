@@ -343,13 +343,14 @@
     <input type="text" id="mb-filter" placeholder="Filtern…" oninput="filterMailboxes(this.value)"
            style="width:100%;max-width:320px;margin-bottom:8px;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px">
     <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
-    <table style="min-width:380px;width:100%;border-collapse:collapse;font-size:13px">
+    <table style="min-width:420px;width:100%;border-collapse:collapse;font-size:13px">
       <thead>
         <tr style="border-bottom:2px solid #e2e8f0">
           <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555">Postfach</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:100px">Signatur</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:140px">Vorlage</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:100px">S/MIME</th>
+          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:70px">Status</th>
         </tr>
       </thead>
       <tbody id="mb-tbody"></tbody>
@@ -401,22 +402,18 @@
         Container-Neustart
       </label>
       <label class="checkbox-label">
-        <input type="checkbox" id="notify-smime-expiry"
-               {% if s.NOTIFY_SMIME_EXPIRY is not false %}checked{% endif %}>
-        S/MIME Zertifikat läuft ab (Admin-Warnung)
-      </label>
-      <label class="checkbox-label">
         <input type="checkbox" id="notify-cert-renewal"
                {% if s.NOTIFY_CERT_RENEWAL is not false %}checked{% endif %}>
-        S/MIME Erneuerung – Erfolg &amp; Fehler
+        S/MIME Auto-Renewal – Ergebnis (Erfolg/Fehler)
       </label>
       <label class="checkbox-label">
-        <input type="checkbox" id="notify-le-events"
-               {% if s.NOTIFY_LE_EVENTS is not false %}checked{% endif %}>
-        TLS-Zertifikat (Let's Encrypt) erneuert / läuft ab
+        <input type="checkbox" id="notify-le-renewal"
+               {% if s.NOTIFY_LE_RENEWAL is not false %}checked{% endif %}>
+        Let's Encrypt – Zertifikat erneuert
       </label>
     </div>
   </div>
+  <p class="hint" style="margin-top:4px">S/MIME-Zertifikatsablauf und Postfach-Health-Status werden täglich im Tagesbericht gemeldet.</p>
 
   <h3>Warnschwellen</h3>
   <div class="settings-row">
@@ -546,6 +543,7 @@ function collectKV(rowClass) {
 
 let _mbData = [];
 let _templateList = ['default'];
+let _healthData = {{ health | tojson }};
 
 const _currentNotifMailbox = {{ s.NOTIFICATION_MAILBOX | tojson }};
 
@@ -562,6 +560,12 @@ async function loadMailboxes(silent) {
         _templateList = tdata.templates || ['default'];
       }
     } catch(_) { /* ignore, keep default */ }
+
+    // Refresh health data
+    try {
+      const hresp = await fetch('/api/health/mailboxes');
+      if (hresp.ok) _healthData = await hresp.json();
+    } catch(_) { /* ignore */ }
 
     const resp = await fetch('/api/mailboxes');
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -673,10 +677,35 @@ function renderMailboxTable(mailboxes) {
     if (mb.smime) smimeCb.checked = true;
     tdSmime.appendChild(smimeCb);
 
+    // Health status cell
+    const tdHealth = document.createElement('td');
+    tdHealth.style.cssText = 'text-align:center;padding:6px 8px';
+    const healthInfo = _healthData[mb.email] || null;
+    if (!healthInfo) {
+      tdHealth.innerHTML = '<span style="color:#bbb" title="Noch nicht geprüft">–</span>';
+    } else {
+      const overall = healthInfo.overall || 'ok';
+      const failedChecks = Object.entries(healthInfo.checks || {})
+        .filter(([,v]) => ['error','warn','fixed'].includes(v.status))
+        .map(([k,v]) => k + ': ' + v.detail)
+        .join('\n');
+      if (overall === 'ok') {
+        tdHealth.innerHTML = '<span style="color:#27ae60;font-size:16px" title="OK">●</span>';
+      } else if (overall === 'error') {
+        tdHealth.innerHTML = '<span style="color:#e74c3c;font-size:15px;font-weight:700" title="' +
+          failedChecks.replace(/"/g, '&quot;') + '">✗</span>';
+      } else {
+        const n = Object.values(healthInfo.checks || {}).filter(v => ['warn','fixed'].includes(v.status)).length;
+        tdHealth.innerHTML = '<span style="color:#e67e22;font-size:13px;font-weight:700" title="' +
+          failedChecks.replace(/"/g, '&quot;') + '">⚠ ' + n + '</span>';
+      }
+    }
+
     tr.appendChild(tdEmail);
     tr.appendChild(tdSig);
     tr.appendChild(tdTpl);
     tr.appendChild(tdSmime);
+    tr.appendChild(tdHealth);
     tbody.appendChild(tr);
   });
 }
@@ -779,9 +808,8 @@ async function saveSettings() {
     DAILY_REPORT_ENABLED: document.getElementById('daily-report-enabled').checked,
     DAILY_REPORT_TIME: document.getElementById('daily-report-time').value,
     NOTIFY_STARTUP: document.getElementById('notify-startup').checked,
-    NOTIFY_SMIME_EXPIRY: document.getElementById('notify-smime-expiry').checked,
     NOTIFY_CERT_RENEWAL: document.getElementById('notify-cert-renewal').checked,
-    NOTIFY_LE_EVENTS: document.getElementById('notify-le-events').checked,
+    NOTIFY_LE_RENEWAL: document.getElementById('notify-le-renewal').checked,
     CERT_WARN_DAYS: parseInt(document.getElementById('cert-warn-days').value, 10) || 14,
     LE_RENEW_DAYS: parseInt(document.getElementById('le-renew-days').value, 10) || 7,
   };

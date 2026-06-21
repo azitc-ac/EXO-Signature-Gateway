@@ -156,8 +156,71 @@ def send_daily_report(daily: dict, total: dict) -> bool:
             warn_rows += _row(c["email"], f'{label} (bis {c["expiry"]})', color)
         warn_block = f'<h3 style="color:#e74c3c;margin-top:20px">⚠ Ablaufende Zertifikate</h3><table>{warn_rows}</table>'
 
+    # ── Mailbox health summary ──
+    health_block = ""
+    try:
+        from datetime import timedelta
+        health_data: dict = settings_store.get("MAILBOX_HEALTH") or {}
+        audit_log: list = settings_store.get("GATEWAY_AUDIT_LOG") or []
+        cutoff = now - timedelta(hours=24)
+
+        problem_mailboxes = {
+            email: info for email, info in health_data.items()
+            if info.get("overall") not in ("ok", None)
+        }
+        recent_audit = [
+            e for e in audit_log
+            if datetime.fromisoformat(e["ts"].replace("Z", "+00:00")) >= cutoff
+        ]
+
+        if problem_mailboxes or recent_audit:
+            health_rows = ""
+            status_labels = {
+                "error": ('<span style="color:#e74c3c;font-weight:700">✗ Fehler</span>', "#e74c3c"),
+                "warn":  ('<span style="color:#e67e22;font-weight:700">⚠ Warnung</span>', "#e67e22"),
+                "fixed": ('<span style="color:#e67e22;font-weight:700">⚙ Korrigiert</span>', "#e67e22"),
+            }
+            for email, info in sorted(problem_mailboxes.items()):
+                overall = info.get("overall", "error")
+                label_html, _color = status_labels.get(overall, (overall, "#e74c3c"))
+                failed_checks = []
+                for check_name, check_info in (info.get("checks") or {}).items():
+                    s = check_info.get("status", "skip")
+                    if s in ("error", "warn", "fixed"):
+                        failed_checks.append(
+                            f'<li style="margin-top:3px"><code>{check_name}</code>: '
+                            f'{check_info.get("detail", "")}</li>'
+                        )
+                checks_html = (f'<ul style="margin:4px 0 0 16px;padding:0">'
+                               + "".join(failed_checks) + "</ul>") if failed_checks else ""
+                health_rows += (
+                    f'<tr><td style="padding:6px 16px 6px 0;vertical-align:top;white-space:nowrap">'
+                    f'{email}</td>'
+                    f'<td style="vertical-align:top">{label_html}{checks_html}</td></tr>'
+                )
+
+            audit_html = ""
+            if recent_audit:
+                audit_items = "".join(
+                    f'<li style="margin-top:3px">'
+                    f'<code>{e["action"]}</code> — {e["mailbox"]}: {e["detail"]}</li>'
+                    for e in recent_audit
+                )
+                audit_html = (
+                    f'<h4 style="margin:12px 0 4px;color:#555">Gateway-Aktionen (letzte 24 h)</h4>'
+                    f'<ul style="margin:0;padding-left:18px">{audit_items}</ul>'
+                )
+
+            health_block = (
+                f'<h3 style="color:#e67e22;margin-top:20px">Postfach-Health</h3>'
+                + (f'<table>{health_rows}</table>' if health_rows else "")
+                + audit_html
+            )
+    except Exception:
+        pass
+
     body = (f'<h3 style="margin-top:4px">Statistiken – {date_str}</h3>'
-            f'<table>{rows}</table>{tls_block}{warn_block}')
+            f'<table>{rows}</table>{tls_block}{warn_block}{health_block}')
     html = _html_wrap(f"EXO Gateway – Tagesbericht {date_str}", "#2c3e50", body)
 
     return _graph_send(to, f"EXO Gateway Tagesbericht – {date_str}", html)

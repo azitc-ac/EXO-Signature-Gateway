@@ -80,6 +80,10 @@ DEFAULTS: dict = {
     "GATEWAY_EXTERNAL_URL": "",      # e.g. https://mail.company.com:8080 — used in renewal links
     "CERT_RENEWAL_THRESHOLDS": [30, 14, 7, 1],  # Notify user at these days-before-expiry
     "CA_USER_CONFIG": {},            # {email: {backend, portal_url, notify_user}}
+    # ── Mailbox health check ──────────────────────────────────────────────────
+    "MAILBOX_HEALTH": {},            # {email: {last_checked, overall, checks}}
+    "GATEWAY_AUDIT_LOG": [],         # Rolling list (max 200) of gateway auto-fix actions
+    "NOTIFY_LE_RENEWAL": None,       # None/True = send LE renewal success; False = suppress
 }
 
 _lock = RLock()

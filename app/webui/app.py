@@ -1024,6 +1024,16 @@ async def api_save_mailboxes(body: dict, _=Depends(_check_auth)):
         # If both false, don't include in config (passthrough by default)
     settings_store.update({"MAILBOX_CONFIG": config_map})
 
+    # Trigger health checks for newly added/changed mailboxes in background
+    if enabled_members:
+        async def _bg_health_checks():
+            try:
+                import health_check
+                await health_check.run_all_checks(enabled_members)
+            except Exception as exc:
+                log.warning("background health check failed: %s", exc)
+        asyncio.create_task(_bg_health_checks())
+
     # Update EXO Distribution Group if wizard is complete
     s = settings_store.get_all()
     app_id = s.get("CLIENT_ID") or config.CLIENT_ID
@@ -1033,6 +1043,18 @@ async def api_save_mailboxes(body: dict, _=Depends(_check_auth)):
         result = setup_wizard.run_mailbox_dg_update(app_id, tenant_domain, enabled_members)
         return {"ok": result["ok"], "saved": True, "dg_output": result.get("output", "")}
     return {"ok": True, "saved": True}
+
+
+@app.get("/api/health/mailboxes")
+async def api_health_mailboxes(_=Depends(_check_auth)):
+    """Return current MAILBOX_HEALTH data."""
+    return settings_store.get("MAILBOX_HEALTH") or {}
+
+
+@app.get("/api/health/audit-log")
+async def api_health_audit_log(_=Depends(_check_auth)):
+    """Return GATEWAY_AUDIT_LOG entries."""
+    return settings_store.get("GATEWAY_AUDIT_LOG") or []
 
 
 # ── Routes: authenticated pages ────────────────────────────────────────────────
@@ -1157,6 +1179,7 @@ async def settings_page(request: Request, user: str = Depends(_require_admin)):
             "cert_expiry": _cert_expiry(),
             "smtp_port": config.SMTP_PORT,
             "saved": request.query_params.get("saved"),
+            "health": settings_store.get("MAILBOX_HEALTH") or {},
         },
     )
 
