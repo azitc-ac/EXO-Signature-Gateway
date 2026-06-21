@@ -479,4 +479,47 @@ async function obsClearCaptures() {
     </p>
   </div>
 </div>
+
+<!-- ── Postfach-Health API ─────────────────────────────────────────────────── -->
+<div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
+  <div class="step-header">
+    <span class="step-badge" style="background:#0369a1;font-size:10px">Health</span>
+    <strong>Postfach-Health: Rohdaten</strong>
+  </div>
+  <div class="step-body">
+    <p style="font-size:13px;color:#555;margin-bottom:12px">
+      Die Health-Check-Ergebnisse aller Postfächer werden in <code>MAILBOX_HEALTH</code> gespeichert
+      und sind über die API abrufbar. Die Spalte in der Postfächer-Ansicht zeigt eine Kurzübersicht —
+      hier gibt es die vollständigen Rohdaten.
+    </p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+      <a href="/api/health/mailboxes" target="_blank" class="btn secondary" style="font-size:13px">
+        MAILBOX_HEALTH JSON öffnen ↗
+      </a>
+      <a href="/api/health/audit-log" target="_blank" class="btn secondary" style="font-size:13px">
+        Gateway-Audit-Log JSON öffnen ↗
+      </a>
+      <button class="btn secondary" style="font-size:13px" onclick="loadHealthInline()">
+        Hier anzeigen
+      </button>
+    </div>
+    <pre id="health-inline-output" style="display:none;background:#f8fafc;border:1px solid #e2e8f0;
+         border-radius:6px;padding:12px;font-size:11px;overflow-x:auto;max-height:400px;
+         white-space:pre-wrap;word-break:break-all"></pre>
+  </div>
+</div>
+<script>
+async function loadHealthInline() {
+  const pre = document.getElementById('health-inline-output');
+  pre.style.display = 'block';
+  pre.textContent = 'Lädt…';
+  try {
+    const r = await fetch('/api/health/mailboxes');
+    const data = await r.json();
+    pre.textContent = JSON.stringify(data, null, 2);
+  } catch(e) {
+    pre.textContent = 'Fehler: ' + e.message;
+  }
+}
+</script>
 {% endblock %}
