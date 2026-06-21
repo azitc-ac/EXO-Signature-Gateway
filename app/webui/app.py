@@ -1204,6 +1204,16 @@ async def api_preview_data(
     return JSONResponse({"html": sig_html, "txt": sig_txt, "error": error})
 
 
+@app.get("/mailboxes", response_class=HTMLResponse)
+async def mailboxes_page(request: Request, user: str = Depends(_require_admin)):
+    import signature_engine as _sig_engine
+    templates_list = _sig_engine.list_templates()
+    return templates.TemplateResponse(
+        request=request, name="mailboxes.html",
+        context={"active": "mailboxes", "templates_list": templates_list},
+    )
+
+
 @app.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request, user: str = Depends(_require_admin)):
     return templates.TemplateResponse(

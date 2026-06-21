@@ -1,6 +1,12 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>Erweitert</h1>
+<h1>Einstellungen</h1>
+
+<ul class="nav-sub-tabs">
+  <li><a href="/settings" class="nav-sub-tab">Allgemein</a></li>
+  <li><a href="/setup" class="nav-sub-tab">Einrichtung</a></li>
+  <li><a href="/debug" class="nav-sub-tab active">Erweitert</a></li>
+</ul>
 
 <!-- ── EXO PowerShell Zertifikat ──────────────────────────────────────────── -->
 <div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">

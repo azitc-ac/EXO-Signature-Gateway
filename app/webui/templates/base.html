@@ -16,14 +16,12 @@
             {% set _role = request.state.user_role if request.state.user_role is defined else 'admin' %}
             <ul>
                 <li><a href="/" class="{% if active == 'dashboard' %}active{% endif %}">Übersicht</a></li>
-                <li><a href="/template" class="{% if active in ('template','preview') %}active{% endif %}">Signaturen</a></li>
+                <li><a href="/template" class="{% if active in ('template', 'preview') %}active{% endif %}">Signaturen</a></li>
                 {% if _role == 'admin' %}
-                <li><a href="/settings#postfaecher" class="{% if active == 'mailboxes' %}active{% endif %}">Postfächer</a></li>
+                <li><a href="/mailboxes" class="{% if active == 'mailboxes' %}active{% endif %}">Postfächer</a></li>
                 <li><a href="/smime" class="{% if active == 'smime' %}active{% endif %}">S/MIME</a></li>
-                <li><a href="/settings#einstellungen" class="{% if active == 'settings' %}active{% endif %}">Einstellungen</a></li>
+                <li><a href="/settings" class="{% if active in ('settings', 'setup', 'debug') %}active{% endif %}">Einstellungen</a></li>
                 <li><a href="/log" class="{% if active == 'log' %}active{% endif %}">Protokolle</a></li>
-                <li><a href="/setup" class="{% if active == 'setup' %}active{% endif %}">Einrichtung</a></li>
-                <li><a href="/debug" class="{% if active == 'debug' %}active{% endif %}">Erweitert</a></li>
                 {% endif %}
             </ul>
         </div>

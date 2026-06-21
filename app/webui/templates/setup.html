@@ -1,6 +1,12 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>Einrichtung</h1>
+<h1>Einstellungen</h1>
+
+<ul class="nav-sub-tabs">
+  <li><a href="/settings" class="nav-sub-tab">Allgemein</a></li>
+  <li><a href="/setup" class="nav-sub-tab active">Einrichtung</a></li>
+  <li><a href="/debug" class="nav-sub-tab">Erweitert</a></li>
+</ul>
 
 {% if auth_error %}
 <div class="alert error" style="margin-bottom:20px">
