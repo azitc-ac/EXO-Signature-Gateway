@@ -587,14 +587,26 @@ def run_imap_access_setup(app_id: str, tenant_domain: str) -> dict:
         "# 2. FullAccess auf alle Postfächer setzen",
         "$mailboxes = Get-Mailbox -RecipientTypeDetails UserMailbox -ResultSize Unlimited",
         "$count = 0",
+        "$failed = 0",
         "foreach ($m in $mailboxes) {",
-        "    Add-MailboxPermission -Identity $m.PrimarySmtpAddress"
+        "    try {",
+        "        Add-MailboxPermission -Identity $m.PrimarySmtpAddress"
         " -User $sp.ObjectId -AccessRights FullAccess"
-        " -AutoMapping $false -ErrorAction SilentlyContinue | Out-Null",
-        "    Write-Host \"+ $($m.PrimarySmtpAddress)\"",
-        "    $count++",
+        " -AutoMapping $false -ErrorAction Stop | Out-Null",
+        "        Write-Host \"+ $($m.PrimarySmtpAddress)\"",
+        "        $count++",
+        "    } catch {",
+        "        if ($_.Exception.Message -like '*already present*') {",
+        "            Write-Host \"= $($m.PrimarySmtpAddress) (bereits vorhanden)\"",
+        "            $count++",
+        "        } else {",
+        "            Write-Host \"FEHLER $($m.PrimarySmtpAddress): $($_.Exception.Message)\"",
+        "            $failed++",
+        "        }",
+        "    }",
         "}",
-        "Write-Host \"Fertig: $count Postfächer konfiguriert.\"",
+        "Write-Host \"Fertig: $count Postfächer konfiguriert, $failed Fehler.\"",
+        "if ($failed -gt 0) { exit 1 }",
         "Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue",
     ]
 
