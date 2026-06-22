@@ -797,6 +797,69 @@ async def api_remove_admin_user(upn: str, request: Request, user: str = Depends(
     return JSONResponse({"ok": True, "users": new_users})
 
 
+@app.put("/api/admin-users")
+async def api_replace_admin_users(request: Request, actor: str = Depends(_require_admin)):
+    """Replace the entire admin users list (used by the settings page save button)."""
+    data = await request.json()
+    users = data.get("users", [])
+    if not isinstance(users, list):
+        raise HTTPException(400, "Ungültiges Format")
+    for entry in users:
+        if not entry.get("upn") or "@" not in entry["upn"]:
+            raise HTTPException(400, f"Ungültige UPN: {entry.get('upn')}")
+        if entry.get("role") not in sso_mod.VALID_ROLES:
+            raise HTTPException(400, f"Ungültige Rolle: {entry.get('role')}")
+    if not any(e.get("role") == sso_mod.ROLE_ADMIN for e in users):
+        raise HTTPException(400, "Mindestens ein Admin muss vorhanden sein")
+    # Resolve OIDs for entries that don't have one yet
+    for entry in users:
+        if not entry.get("id"):
+            oid = await asyncio.get_event_loop().run_in_executor(
+                None, sso_mod.resolve_upn_to_oid, entry["upn"]
+            )
+            if oid:
+                entry["id"] = oid
+    settings_store.update({"ADMIN_USERS": users})
+    log.info("Admin users saved by %s: %s", actor, [u["upn"] for u in users])
+    return JSONResponse({"ok": True, "users": users})
+
+
+@app.get("/api/entra/users")
+async def api_entra_users_search(q: str = "", _=Depends(_require_admin)):
+    """Search Entra tenant users via Graph API for the admin user combobox."""
+    token = graph_client._acquire_token()
+    if not token:
+        raise HTTPException(503, "Graph-Zugangsdaten nicht konfiguriert")
+    headers = {"Authorization": f"Bearer {token}"}
+    params: dict = {"$select": "id,userPrincipalName,displayName", "$top": "25"}
+    if q:
+        # $search supports UPN + displayName without needing $filter on displayName
+        # Requires ConsistencyLevel: eventual
+        q_esc = q.replace('"', '\\"')
+        params["$search"] = f'"userPrincipalName:{q_esc}" OR "displayName:{q_esc}"'
+        params["$count"] = "true"
+        headers["ConsistencyLevel"] = "eventual"
+    else:
+        params["$orderby"] = "userPrincipalName"
+    try:
+        async with __import__("httpx").AsyncClient(timeout=10) as client:
+            resp = await client.get(
+                "https://graph.microsoft.com/v1.0/users",
+                headers=headers,
+                params=params,
+            )
+        resp.raise_for_status()
+        users = resp.json().get("value", [])
+        return JSONResponse({
+            "users": [
+                {"id": u["id"], "upn": u["userPrincipalName"], "name": u.get("displayName", "")}
+                for u in users
+            ]
+        })
+    except Exception as exc:
+        raise HTTPException(500, str(exc))
+
+
 @app.post("/api/setup/exo-connector")
 async def api_setup_exo_connector(request: Request, user: str = Depends(_check_auth)):
     """Trigger PowerShell EXO connector setup."""

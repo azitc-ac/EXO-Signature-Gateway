@@ -14,16 +14,42 @@
 <div class="settings-card" id="admin-users">
   <h2>Entra-Konten (SSO)</h2>
   <p class="hint">Admins haben vollen Zugriff. Signatur-Editoren sehen nur Übersicht, Vorlagen und Vorschau.</p>
-  <div id="admin-users-list" style="margin-bottom:12px;overflow-x:auto"></div>
-  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-    <input type="email" id="admin-upn-input" placeholder="upn@domain.de" style="width:240px">
-    <select id="admin-role-input" style="height:34px;border:1px solid #cbd5e1;border-radius:6px;padding:0 8px;font-size:13px">
-      <option value="admin">Admin</option>
-      <option value="editor">Signatur-Editor</option>
-    </select>
-    <button class="btn secondary" onclick="addAdminUser()">Hinzufügen</button>
+  <div id="admin-users-list" style="margin-bottom:14px;overflow-x:auto"></div>
+
+  <!-- Benutzer-Suchfeld -->
+  <div style="max-width:420px">
+    <div style="position:relative;margin-bottom:8px">
+      <input type="text" id="admin-search-input" autocomplete="off"
+             placeholder="Benutzer suchen (Name oder E-Mail)…"
+             style="width:100%;box-sizing:border-box;height:34px;border:1px solid #d1d5db;border-radius:6px;padding:0 10px;font-size:13px"
+             oninput="_debounceAdminSearch(this.value)"
+             onfocus="_showAdminDropdown()"
+             onblur="_hideAdminDropdownDelayed()"
+             onkeydown="_adminInputKeydown(event)">
+      <div id="admin-dropdown"
+           style="display:none;position:absolute;top:38px;left:0;right:0;background:#fff;border:1px solid #d1d5db;border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:200;max-height:260px;overflow-y:auto"></div>
+    </div>
+    <div id="admin-selected"
+         style="display:none;margin-bottom:8px;padding:8px 12px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px">
+      <div style="font-size:12px;margin-bottom:8px">
+        <span id="admin-selected-name" style="font-weight:600;color:#0369a1"></span>
+        <span id="admin-selected-upn-label" style="font-family:monospace;color:#0284c7;margin-left:6px;font-size:11px"></span>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <select id="admin-role-input" style="height:30px;border:1px solid #cbd5e1;border-radius:6px;padding:0 8px;font-size:13px">
+          <option value="admin">Admin</option>
+          <option value="editor">Signatur-Editor</option>
+        </select>
+        <button class="btn primary" style="padding:4px 16px;font-size:13px" onclick="addAdminUserFromPicker()">Hinzufügen</button>
+        <button class="btn secondary" style="padding:4px 10px;font-size:13px" onclick="_clearAdminPicker()">Abbrechen</button>
+      </div>
+    </div>
   </div>
-  <div id="admin-users-alert" class="alert" style="display:none;margin-top:10px"></div>
+  <div class="actions" style="margin-top:10px">
+    <button class="btn secondary" onclick="saveAdminUsers()">Speichern</button>
+    <span id="admin-users-result" style="font-size:12px;margin-left:8px"></span>
+  </div>
+  <div id="admin-users-alert" class="alert" style="display:none;margin-top:8px"></div>
 </div>
 
 <!-- Zugangsdaten -->
@@ -31,7 +57,13 @@
   <h2>Zugangsdaten lokaler Admin</h2>
   <div class="settings-row">
     <label for="webui-username">Benutzername</label>
-    <input type="text" id="webui-username" value="{{ s.WEBUI_USERNAME }}" style="width:220px">
+    <div class="settings-control">
+      <input type="text" id="webui-username" value="{{ s.WEBUI_USERNAME }}" style="width:220px">
+      <div style="margin-top:4px">
+        <button class="btn secondary btn-sm" onclick="saveZugangsdaten()">Speichern</button>
+        <span id="zugangsdaten-result" style="font-size:12px;margin-left:8px"></span>
+      </div>
+    </div>
   </div>
   <div style="border-top:1px solid #f0f0f0;margin:12px 0;padding-top:12px">
     <div id="pw-change-btn-wrap">
@@ -103,6 +135,10 @@
       </select>
       <span class="hint">Zeitzone für Log-Zeitstempel (IANA-Name). Wirkt sofort nach Speichern.</span>
     </div>
+  </div>
+  <div class="actions" style="margin-top:4px">
+    <button class="btn secondary" onclick="saveAllgemein()">Speichern</button>
+    <span id="allgemein-result" style="font-size:12px;margin-left:8px"></span>
   </div>
 </div>
 
@@ -177,6 +213,10 @@
         placeholder="#enc" style="width:160px">
       <span class="hint">Schlüsselwort im Betreff, das ausgehende S/MIME-Verschlüsselung auslöst</span>
     </div>
+  </div>
+  <div class="actions" style="margin-top:4px">
+    <button class="btn secondary" onclick="saveSmimeSettings()">Speichern</button>
+    <span id="smime-result" style="font-size:12px;margin-left:8px"></span>
   </div>
 
   <div style="border-top:1px solid #f0f0f0;margin:16px 0 14px"></div>
@@ -292,6 +332,10 @@
     </label>
     <span class="hint">Benötigt <code>Mail.ReadWrite.All</code> App-Permission in der Entra App-Registrierung</span>
   </div>
+  <div class="actions" style="margin-top:4px">
+    <button class="btn secondary" onclick="saveSignatur()">Speichern</button>
+    <span id="signatur-result" style="font-size:12px;margin-left:8px"></span>
+  </div>
 </div>
 
 <!-- Benutzer-Overrides -->
@@ -328,72 +372,132 @@
     </tbody>
   </table>
   <button type="button" class="btn secondary btn-sm" style="margin-top:6px" onclick="addRow('bookings','bookings-tbody')">+ Zeile</button>
+  <div class="actions" style="margin-top:12px">
+    <button class="btn secondary" onclick="saveOverrides()">Speichern</button>
+    <span id="overrides-result" style="font-size:12px;margin-left:8px"></span>
+  </div>
 </div>
 
 <!-- Benachrichtigungen -->
-<div class="settings-card">
-  <h2>Benachrichtigungen & Tagesbericht</h2>
-  <p class="hint" style="margin-bottom:12px">
-    Das ausgewählte Postfach erhält tägliche Statistikberichte sowie Warnungen bei Zertifikatsablauf und Container-Neustart.
-    Das Postfach muss in der Liste oben geladen sein. Versand erfolgt per Graph API.
-  </p>
-  <div class="settings-row">
-    <label for="notif-mailbox">Benachrichtigungs-Postfach</label>
-    <select id="notif-mailbox" style="width:280px">
-      <option value="">-- kein --</option>
-    </select>
-  </div>
-  <h3>Tagesbericht</h3>
-  <div class="settings-row">
-    <label>Tagesbericht aktivieren</label>
-    <input type="checkbox" id="daily-report-enabled" {% if s.DAILY_REPORT_ENABLED %}checked{% endif %}>
-  </div>
-  <div class="settings-row">
-    <label for="daily-report-time">Berichtszeitpunkt</label>
-    <input type="time" id="daily-report-time" value="{{ s.DAILY_REPORT_TIME or '08:00' }}" style="width:120px">
-    <span class="hint" style="margin-left:8px">(in {{ s.LOG_TIMEZONE or 'Europe/Berlin' }})</span>
+<div class="settings-card" id="benachrichtigungen">
+  <h2>Benachrichtigungen &amp; Tagesbericht</h2>
+
+  <div class="settings-row" style="margin-bottom:10px">
+    <label class="checkbox-label" style="font-weight:600">
+      <input type="checkbox" id="notif-enabled"
+             {% if s.NOTIFICATIONS_ENABLED is not false %}checked{% endif %}
+             onchange="toggleNotifConfig(this.checked)">
+      Benachrichtigungen aktivieren
+    </label>
   </div>
 
-  <h3>Sofort-Benachrichtigungen</h3>
-  <div class="settings-row">
-    <label>Welche Ereignisse sollen gemeldet werden?</label>
-    <div class="settings-control">
-      <label class="checkbox-label">
-        <input type="checkbox" id="notify-startup"
-               {% if s.NOTIFY_STARTUP is not false %}checked{% endif %}>
-        Container-Neustart
-      </label>
-      <label class="checkbox-label">
-        <input type="checkbox" id="notify-smime-expiry"
-               {% if s.NOTIFY_SMIME_EXPIRY is not false %}checked{% endif %}>
-        S/MIME Zertifikat läuft ab (Admin-Warnung)
-      </label>
-      <label class="checkbox-label">
-        <input type="checkbox" id="notify-cert-renewal"
-               {% if s.NOTIFY_CERT_RENEWAL is not false %}checked{% endif %}>
-        S/MIME Erneuerung – Erfolg &amp; Fehler
-      </label>
-      <label class="checkbox-label">
-        <input type="checkbox" id="notify-le-events"
-               {% if s.NOTIFY_LE_EVENTS is not false %}checked{% endif %}>
-        TLS-Zertifikat (Let's Encrypt) erneuert / läuft ab
-      </label>
+  <div id="notif-config-block" {% if s.NOTIFICATIONS_ENABLED is false %}style="display:none"{% endif %}>
+
+    <p class="hint" style="margin-bottom:12px">
+      Die ausgewählten Postfächer erhalten tägliche Statistikberichte sowie Warnungen bei Zertifikatsablauf und Container-Neustart.
+      Beim Speichern wird die Distribution Group
+      <code>EXO Signature Gateway - Notification recipients</code> in EXO erstellt/aktualisiert.
+    </p>
+
+    <!-- Recipient picker -->
+    <div class="settings-row" style="align-items:flex-start">
+      <label style="padding-top:4px">Empfänger</label>
+      <div class="settings-control" style="flex:1;min-width:0;max-width:420px">
+        <div style="position:relative;width:100%;max-width:360px;margin-bottom:8px">
+          <input type="text" id="notif-search-input" autocomplete="off"
+                 placeholder="Postfach suchen und hinzufügen…"
+                 style="width:100%;box-sizing:border-box;height:34px;border:1px solid #d1d5db;border-radius:6px;padding:0 32px 0 10px;font-size:13px"
+                 oninput="_filterNotifDropdown(this.value)"
+                 onfocus="_showNotifDropdown()"
+                 onblur="_hideNotifDropdownDelayed()"
+                 onkeydown="_notifInputKeydown(event)">
+          <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);color:#94a3b8;pointer-events:none;font-size:12px">▼</span>
+          <div id="notif-dropdown"
+               style="display:none;position:absolute;top:38px;left:0;right:0;background:#fff;border:1px solid #d1d5db;border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:200;max-height:220px;overflow-y:auto"></div>
+        </div>
+        <div id="notif-recipients-list"
+             style="min-height:52px;width:100%;max-width:360px;box-sizing:border-box;border:1px solid #e2e8f0;border-radius:6px;padding:6px 8px;background:#f8fafc;margin-bottom:8px">
+          <span id="notif-recipients-empty" style="color:#94a3b8;font-size:12px">Keine Empfänger konfiguriert</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <button class="btn secondary" id="notif-dg-btn" onclick="saveNotifDg()">In EXO speichern (DG aktualisieren)</button>
+          <span id="notif-dg-result" style="font-size:12px"></span>
+        </div>
+        {% if s.NOTIFICATION_DG_EMAIL %}
+        <div style="margin-top:6px;font-size:12px;color:#64748b">
+          Distribution Group: <code>{{ s.NOTIFICATION_DG_EMAIL }}</code>
+        </div>
+        {% endif %}
+      </div>
     </div>
-  </div>
 
-  <h3>Warnschwellen</h3>
-  <div class="settings-row">
-    <label for="cert-warn-days">S/MIME Zertifikat – Warnung ab</label>
-    <input type="number" id="cert-warn-days" value="{{ s.CERT_WARN_DAYS or 14 }}" min="1" max="90" style="width:80px"> Tage vor Ablauf
-  </div>
-  <div class="settings-row">
-    <label for="le-renew-days">Let's Encrypt – Erneuerung ab</label>
-    <input type="number" id="le-renew-days" value="{{ s.LE_RENEW_DAYS or 7 }}" min="1" max="30" style="width:80px"> Tage vor Ablauf
-  </div>
-  <div class="actions" style="margin-top:12px">
-    <button class="btn secondary" onclick="sendTestNotification()">Test-Benachrichtigung senden</button>
-    <span id="notif-test-result" style="margin-left:10px;font-size:13px"></span>
-  </div>
+    <div style="border-top:1px solid #f0f0f0;margin:14px 0 12px"></div>
+
+    <h3 style="margin-top:0;margin-bottom:10px">Tagesbericht</h3>
+    <div class="settings-row">
+      <label>Tagesbericht aktivieren</label>
+      <input type="checkbox" id="daily-report-enabled" {% if s.DAILY_REPORT_ENABLED %}checked{% endif %}>
+    </div>
+    <div class="settings-row">
+      <label for="daily-report-time">Berichtszeitpunkt</label>
+      <input type="time" id="daily-report-time" value="{{ s.DAILY_REPORT_TIME or '08:00' }}" style="width:120px">
+      <span class="hint" style="margin-left:8px">(in {{ s.LOG_TIMEZONE or 'Europe/Berlin' }})</span>
+    </div>
+
+    <h3>Sofort-Benachrichtigungen</h3>
+    <div class="settings-row">
+      <label>Welche Ereignisse sollen gemeldet werden?</label>
+      <div class="settings-control">
+        <label class="checkbox-label">
+          <input type="checkbox" id="notify-startup"
+                 {% if s.NOTIFY_STARTUP is not false %}checked{% endif %}>
+          Container-Neustart
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="notify-smime-expiry"
+                 {% if s.NOTIFY_SMIME_EXPIRY is not false %}checked{% endif %}>
+          S/MIME Zertifikat läuft ab (Admin-Warnung)
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="notify-cert-renewal"
+                 {% if s.NOTIFY_CERT_RENEWAL is not false %}checked{% endif %}>
+          S/MIME Erneuerung – Erfolg &amp; Fehler
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="notify-le-events"
+                 {% if s.NOTIFY_LE_EVENTS is not false %}checked{% endif %}>
+          TLS-Zertifikat (Let's Encrypt) erneuert / läuft ab
+        </label>
+        <label class="checkbox-label" style="margin-top:6px">
+          <input type="checkbox" id="notify-local-admin-login"
+                 {% if s.NOTIFY_LOCAL_ADMIN_LOGIN is not false %}checked{% endif %}>
+          Anmeldung mit lokalem Admin
+        </label>
+        <small class="hint" style="margin-left:22px;display:block;margin-top:2px">
+          Notfall-Zugang: bei jeder Anmeldung wird eine Benachrichtigung mit IP-Adresse und Browser gesendet.
+        </small>
+      </div>
+    </div>
+
+    <h3>Warnschwellen</h3>
+    <div class="settings-row">
+      <label for="cert-warn-days">S/MIME Zertifikat – Warnung ab</label>
+      <input type="number" id="cert-warn-days" value="{{ s.CERT_WARN_DAYS or 14 }}" min="1" max="90" style="width:80px"> Tage vor Ablauf
+    </div>
+    <div class="settings-row">
+      <label for="le-renew-days">Let's Encrypt – Erneuerung ab</label>
+      <input type="number" id="le-renew-days" value="{{ s.LE_RENEW_DAYS or 7 }}" min="1" max="30" style="width:80px"> Tage vor Ablauf
+    </div>
+
+    <div class="actions" style="margin-top:12px;flex-wrap:wrap;gap:8px">
+      <button class="btn secondary" onclick="saveBenachrichtigungen()">Speichern</button>
+      <span id="benachrichtigungen-result" style="font-size:12px;align-self:center"></span>
+      <button class="btn secondary" onclick="sendTestNotification()" style="margin-left:16px">Test-Benachrichtigung senden</button>
+      <span id="notif-test-result" style="font-size:13px;align-self:center"></span>
+    </div>
+  </div><!-- /notif-config-block -->
+
+  <input type="hidden" id="notif-mailbox" value="{{ s.NOTIFICATION_MAILBOX or '' }}">
 </div>
 
 <!-- Test-Mail -->
@@ -437,8 +541,10 @@
     <input type="email" id="le-email" value="{{ s.LE_EMAIL }}" placeholder="admin@zarenko.net">
   </div>
   <p class="hint">Port 80 muss extern erreichbar sein (Firewall/NAT). Das Zertifikat wird unter <code>./certs/</code> gespeichert.</p>
-  <div class="actions" style="margin-top:12px">
-    <button class="btn primary" id="le-btn" onclick="renewCert()">Zertifikat erneuern</button>
+  <div class="actions" style="margin-top:12px;flex-wrap:wrap;gap:8px">
+    <button class="btn secondary" onclick="saveLetsEncrypt()">Domain &amp; E-Mail speichern</button>
+    <span id="le-save-result" style="font-size:12px;align-self:center"></span>
+    <button class="btn primary" id="le-btn" onclick="renewCert()" style="margin-left:16px">Zertifikat erneuern</button>
   </div>
   <div id="le-result" style="margin-top:10px;display:none"></div>
 </div>
@@ -459,10 +565,9 @@
   <div id="import-result" style="margin-top:10px;display:none"></div>
 </div>
 
-<!-- Save + Restart -->
+<!-- Restart -->
 <div class="settings-card" style="background:transparent;border:none;box-shadow:none;padding:0">
   <div class="actions">
-    <button class="btn primary" onclick="saveSettings()">Einstellungen speichern</button>
     <button class="btn secondary" onclick="restartService()">Service neu starten</button>
   </div>
 </div>
@@ -508,40 +613,174 @@ function collectKV(rowClass) {
 }
 
 const _currentNotifMailbox = {{ s.NOTIFICATION_MAILBOX | tojson }};
+const _currentNotifRecipients = {{ (s.NOTIFICATION_RECIPIENTS or []) | tojson }};
+var _notifRecipients = [];
+var _notifAllMailboxes = [];
 
 async function _loadMailboxesForNotif() {
   try {
     const resp = await fetch('/api/mailboxes');
     if (!resp.ok) return;
     const data = await resp.json();
-    _populateNotifDropdown(data.mailboxes || []);
+    _notifAllMailboxes = (data.mailboxes || []).filter(m => !m.type || m.type === 'user' || m.type === 'shared');
+    // Seed from saved recipients + legacy single mailbox
+    const saved = new Set(_currentNotifRecipients);
+    if (_currentNotifMailbox) saved.add(_currentNotifMailbox);
+    _notifRecipients = Array.from(saved).filter(e => e);
+    _renderNotifPicker();
   } catch(e) { /* ignore */ }
 }
 
-function _populateNotifDropdown(mailboxes) {
-  const sel = document.getElementById('notif-mailbox');
-  const cur = _currentNotifMailbox || '';
-  sel.innerHTML = '<option value="">-- kein --</option>';
-  // Group by type for readability
-  [['shared','Freigegebene Postfächer'],['user','Benutzer-Postfächer']].forEach(function([type, label]) {
-    const items = mailboxes.filter(m => m.type === type);
-    if (!items.length) return;
-    const og = document.createElement('optgroup');
-    og.label = label;
-    items.forEach(function(mb) {
-      const opt = document.createElement('option');
-      opt.value = mb.email;
-      opt.textContent = mb.email + (mb.name && mb.name !== mb.email ? ' (' + mb.name + ')' : '');
-      if (mb.email === cur) opt.selected = true;
-      og.appendChild(opt);
-    });
-    sel.appendChild(og);
-  });
-  if (cur && !mailboxes.find(m => m.email === cur)) {
-    const opt = document.createElement('option');
-    opt.value = cur; opt.textContent = cur + ' (aktuell)'; opt.selected = true;
-    sel.appendChild(opt);
+function _availableNotifMailboxes() {
+  const inUse = new Set(_notifRecipients);
+  return _notifAllMailboxes.filter(m => !inUse.has(m.email));
+}
+
+var _notifHideTimer = null;
+
+function _renderNotifDropdownItems(items) {
+  const dd = document.getElementById('notif-dropdown');
+  if (!dd) return;
+  dd.innerHTML = '';
+  if (!items.length) {
+    dd.innerHTML = '<div style="padding:10px 12px;color:#94a3b8;font-size:13px">Keine Ergebnisse</div>';
+    return;
   }
+  // Group by type
+  [['shared','Freigegebene Postfächer'],['user','Benutzer-Postfächer'],['','Weitere']].forEach(function([type, label]) {
+    const group = type === '' ? items.filter(m => !m.type || (m.type !== 'shared' && m.type !== 'user'))
+                              : items.filter(m => m.type === type);
+    if (!group.length) return;
+    const hdr = document.createElement('div');
+    hdr.style.cssText = 'padding:4px 10px;font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;background:#f8fafc;border-bottom:1px solid #f0f0f0';
+    hdr.textContent = label;
+    dd.appendChild(hdr);
+    group.forEach(function(mb) {
+      const item = document.createElement('div');
+      item.style.cssText = 'padding:7px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid #f8fafc';
+      item.innerHTML = '<span style="font-family:monospace;font-size:12px">' + mb.email + '</span>' +
+        (mb.name && mb.name !== mb.email ? '<br><span style="font-size:11px;color:#64748b">' + mb.name + '</span>' : '');
+      item.addEventListener('mousedown', function(e) {
+        e.preventDefault(); // prevent blur before click
+        addNotifRecipient(mb.email);
+        document.getElementById('notif-search-input').value = '';
+        document.getElementById('notif-dropdown').style.display = 'none';
+      });
+      item.addEventListener('mouseover', function() { item.style.background = '#eff6ff'; });
+      item.addEventListener('mouseout',  function() { item.style.background = ''; });
+      dd.appendChild(item);
+    });
+  });
+}
+
+function _showNotifDropdown() {
+  if (_notifHideTimer) { clearTimeout(_notifHideTimer); _notifHideTimer = null; }
+  const q = (document.getElementById('notif-search-input').value || '').trim().toLowerCase();
+  _filterNotifDropdown(q);
+  document.getElementById('notif-dropdown').style.display = 'block';
+}
+
+function _hideNotifDropdownDelayed() {
+  _notifHideTimer = setTimeout(function() {
+    const dd = document.getElementById('notif-dropdown');
+    if (dd) dd.style.display = 'none';
+  }, 150);
+}
+
+function _filterNotifDropdown(q) {
+  const available = _availableNotifMailboxes();
+  const filtered = q ? available.filter(m =>
+    m.email.toLowerCase().includes(q) || (m.name || '').toLowerCase().includes(q)
+  ) : available;
+  _renderNotifDropdownItems(filtered);
+  document.getElementById('notif-dropdown').style.display = 'block';
+}
+
+function _notifInputKeydown(e) {
+  const dd = document.getElementById('notif-dropdown');
+  if (e.key === 'Escape') { dd.style.display = 'none'; e.target.blur(); return; }
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const first = dd.querySelector('div[style*="cursor:pointer"]');
+    if (first) first.dispatchEvent(new MouseEvent('mousedown'));
+    return;
+  }
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    const items = dd.querySelectorAll('div[style*="cursor:pointer"]');
+    if (items.length) { items[0].focus(); }
+  }
+}
+
+function _renderNotifPicker() {
+  const list = document.getElementById('notif-recipients-list');
+  const empty = document.getElementById('notif-recipients-empty');
+  if (!list) return;
+
+  // Rebuild recipient list
+  list.querySelectorAll('.notif-recipient-row').forEach(el => el.remove());
+  if (!_notifRecipients.length) {
+    if (empty) empty.style.display = '';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  _notifRecipients.forEach(function(em) {
+    const row = document.createElement('div');
+    row.className = 'notif-recipient-row';
+    row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:4px 2px;border-bottom:1px solid #f0f0f0;font-size:13px';
+    row.innerHTML = '<span style="font-family:monospace;font-size:12px">' + em + '</span>' +
+      '<button type="button" onclick="removeNotifRecipient(\'' + em.replace(/'/g,"\\'") + '\')" ' +
+      'style="background:none;border:none;cursor:pointer;color:#dc2626;font-size:16px;padding:0 4px;line-height:1" title="Entfernen">×</button>';
+    list.appendChild(row);
+  });
+  // Refresh dropdown in case it's visible
+  const q = (document.getElementById('notif-search-input') || {}).value || '';
+  if (document.getElementById('notif-dropdown').style.display !== 'none') {
+    _filterNotifDropdown(q.toLowerCase());
+  }
+}
+
+function addNotifRecipient(email) {
+  if (!email || _notifRecipients.includes(email)) return;
+  _notifRecipients.push(email);
+  _renderNotifPicker();
+}
+
+function removeNotifRecipient(email) {
+  _notifRecipients = _notifRecipients.filter(e => e !== email);
+  _renderNotifPicker();
+}
+
+async function saveNotifDg() {
+  const btn = document.getElementById('notif-dg-btn');
+  const result = document.getElementById('notif-dg-result');
+  btn.disabled = true;
+  result.textContent = 'Wird in EXO übertragen…';
+  result.style.color = '#64748b';
+  try {
+    const resp = await fetch('/api/setup/notification-dg', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({recipients: _notifRecipients}),
+    });
+    const d = await resp.json().catch(() => ({}));
+    if (resp.ok && d.ok) {
+      result.textContent = 'Gespeichert.' + (d.email ? ' DG: ' + d.email : '');
+      result.style.color = '#16a34a';
+    } else {
+      result.textContent = 'Fehler: ' + (d.detail || 'Unbekannt');
+      result.style.color = '#dc2626';
+    }
+  } catch(e) {
+    result.textContent = 'Netzwerkfehler';
+    result.style.color = '#dc2626';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function toggleNotifConfig(enabled) {
+  document.getElementById('notif-config-block').style.display = enabled ? '' : 'none';
 }
 
 async function changePassword() {
@@ -565,18 +804,39 @@ async function changePassword() {
   }
 }
 
-async function saveSettings() {
-  const le_domain = (document.getElementById('le-domain').value || '').trim();
-  const le_email = (document.getElementById('le-email').value || '').trim();
+async function savePartial(payload, resultElId) {
+  var el = resultElId ? document.getElementById(resultElId) : null;
+  try {
+    var resp = await fetch('/settings', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    if (el) {
+      el.textContent = resp.ok ? '✓ Gespeichert' : '✗ Fehler';
+      el.style.color = resp.ok ? '#16a34a' : '#dc2626';
+      setTimeout(function() { el.textContent = ''; }, 3000);
+    }
+  } catch(e) {
+    if (el) { el.textContent = '✗ Netzwerkfehler'; el.style.color = '#dc2626'; }
+  }
+}
 
-  const payload = {
+function saveZugangsdaten() {
+  savePartial({ WEBUI_USERNAME: (document.getElementById('webui-username').value || '').trim() }, 'zugangsdaten-result');
+}
+
+function saveAllgemein() {
+  savePartial({
     FALLBACK_ON_ERROR: document.getElementById('fallback').checked,
     LOG_LEVEL: document.getElementById('log-level').value,
     LOG_RETENTION_DAYS: parseInt(document.getElementById('log-retention').value, 10) || 30,
     LOG_TIMEZONE: document.getElementById('log-timezone').value,
-    WEBUI_USERNAME: (document.getElementById('webui-username').value || '').trim(),
-    LOOP_HEADER: (document.getElementById('loop-header').value || '').trim() || 'X-Sig-Applied',
-    SENT_ITEMS_UPDATE: document.getElementById('sent-items').checked,
+  }, 'allgemein-result');
+}
+
+function saveSmimeSettings() {
+  savePartial({
     SMIME_TAG_ENCRYPTED: (document.getElementById('smime-tag-encrypted').value || '').trim() || 'verschlüsselt',
     SMIME_TAG_ENCRYPTED_ENABLED: document.getElementById('smime-tag-enc-enabled').checked,
     SMIME_TAG_SIGNED: (document.getElementById('smime-tag-signed').value || '').trim() || 'signiert von {signer}',
@@ -585,10 +845,24 @@ async function saveSettings() {
     SMIME_STRIP_INBOUND: document.getElementById('smime-strip-inbound').checked,
     SMIME_KEY_ENCRYPT: document.getElementById('smime-key-encrypt').checked,
     ENC_TRIGGER: (document.getElementById('enc-trigger').value || '').trim() || '#enc',
-    USER_WEBSITES: collectKV('websites'),
-    USER_BOOKINGS: collectKV('bookings'),
-    LE_DOMAIN: le_domain,
-    LE_EMAIL: le_email,
+  }, 'smime-result');
+}
+
+function saveSignatur() {
+  savePartial({
+    LOOP_HEADER: (document.getElementById('loop-header').value || '').trim() || 'X-Sig-Applied',
+    SENT_ITEMS_UPDATE: document.getElementById('sent-items').checked,
+  }, 'signatur-result');
+}
+
+function saveOverrides() {
+  savePartial({ USER_WEBSITES: collectKV('websites'), USER_BOOKINGS: collectKV('bookings') }, 'overrides-result');
+}
+
+function saveBenachrichtigungen() {
+  savePartial({
+    NOTIFICATIONS_ENABLED: document.getElementById('notif-enabled').checked,
+    NOTIFICATION_RECIPIENTS: _notifRecipients.slice(),
     NOTIFICATION_MAILBOX: document.getElementById('notif-mailbox').value,
     DAILY_REPORT_ENABLED: document.getElementById('daily-report-enabled').checked,
     DAILY_REPORT_TIME: document.getElementById('daily-report-time').value,
@@ -596,23 +870,17 @@ async function saveSettings() {
     NOTIFY_SMIME_EXPIRY: document.getElementById('notify-smime-expiry').checked,
     NOTIFY_CERT_RENEWAL: document.getElementById('notify-cert-renewal').checked,
     NOTIFY_LE_EVENTS: document.getElementById('notify-le-events').checked,
+    NOTIFY_LOCAL_ADMIN_LOGIN: document.getElementById('notify-local-admin-login').checked,
     CERT_WARN_DAYS: parseInt(document.getElementById('cert-warn-days').value, 10) || 14,
     LE_RENEW_DAYS: parseInt(document.getElementById('le-renew-days').value, 10) || 7,
-  };
+  }, 'benachrichtigungen-result');
+}
 
-  const resp = await fetch('/settings', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(payload),
-  });
-
-  const alert = document.getElementById('page-alert');
-  if (resp.ok) {
-    showAlert(alert, 'success', 'Einstellungen gespeichert.');
-    window.scrollTo(0, 0);
-  } else {
-    showAlert(alert, 'error', 'Fehler beim Speichern.');
-  }
+function saveLetsEncrypt() {
+  savePartial({
+    LE_DOMAIN: (document.getElementById('le-domain').value || '').trim(),
+    LE_EMAIL: (document.getElementById('le-email').value || '').trim(),
+  }, 'le-save-result');
 }
 
 async function sendTestMail() {
@@ -818,17 +1086,18 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 var _currentUserUpn = '';
+var _adminUsersLocal = [];
 
 async function loadAdminUsers() {
   var resp = await fetch('/api/admin-users');
   if (!resp.ok) return;
   var d = await resp.json();
-  // Determine current user from session (best-effort via whoami or read cookie UPN)
   try {
     var me = await fetch('/api/whoami');
     if (me.ok) { var md = await me.json(); _currentUserUpn = (md.upn || '').toLowerCase(); }
   } catch(e) {}
-  renderAdminUsers(d.users || []);
+  _adminUsersLocal = (d.users || []).map(function(u) { return Object.assign({}, u); });
+  renderAdminUsers(_adminUsersLocal);
 }
 
 function renderAdminUsers(users) {
@@ -839,6 +1108,9 @@ function renderAdminUsers(users) {
   }
   var rows = users.map(function(u) {
     var isSelf = u.upn === _currentUserUpn;
+    var oidBadge = u.id
+      ? ' <span title="Entra Object-ID: ' + u.id + '" style="cursor:help;font-size:11px;color:#94a3b8;user-select:all">🔒</span>'
+      : ' <span title="Object-ID nicht bekannt — beim nächsten Login wird sie automatisch gesetzt" style="cursor:help;font-size:11px;color:#f59e0b">⚠</span>';
     var select = '<select onchange="updateUserRole(\'' + u.upn.replace(/'/g,"\\'") + '\', this.value)" ' +
       (isSelf ? 'disabled title="Eigene Rolle kann nicht geändert werden"' : '') +
       ' style="height:28px;border:1px solid #cbd5e1;border-radius:4px;padding:0 6px;font-size:12px' +
@@ -847,10 +1119,10 @@ function renderAdminUsers(users) {
       '<option value="editor"' + (u.role==='editor' ? ' selected' : '') + '>Signatur-Editor</option>' +
       '</select>';
     var removeBtn = isSelf
-      ? '<button disabled title="Eigenes Konto" style="opacity:0.4;cursor:not-allowed;background:#dc2626;color:#fff;border:none;padding:3px 10px;border-radius:4px;font-size:12px">Entfernen</button>'
-      : '<button style="background:#dc2626;color:#fff;border:none;padding:3px 10px;border-radius:4px;cursor:pointer;font-size:12px" onclick="removeAdminUser(\'' + u.upn.replace(/'/g,"\\'") + '\')">Entfernen</button>';
+      ? '<button disabled title="Eigenes Konto" class="btn secondary btn-sm" style="opacity:0.4;cursor:not-allowed">Entfernen</button>'
+      : '<button class="btn secondary btn-sm" style="color:#dc2626;border-color:#fca5a5" onclick="removeAdminUser(\'' + u.upn.replace(/'/g,"\\'") + '\')">Entfernen</button>';
     return '<tr style="' + (isSelf ? 'background:#f8fafc' : '') + '">' +
-      '<td style="padding:6px 10px;font-family:monospace;font-size:12px;white-space:nowrap">' + u.upn + '</td>' +
+      '<td style="padding:6px 10px;font-family:monospace;font-size:12px;white-space:nowrap">' + u.upn + oidBadge + '</td>' +
       '<td style="padding:6px 8px;white-space:nowrap">' + select + '</td>' +
       '<td style="padding:6px 8px;white-space:nowrap">' + removeBtn + '</td>' +
       '</tr>';
@@ -860,61 +1132,155 @@ function renderAdminUsers(users) {
     '<th style="padding:4px 10px;text-align:left;font-weight:600;font-size:12px;color:#64748b">Konto</th>' +
     '<th style="padding:4px 8px;text-align:left;font-weight:600;font-size:12px;color:#64748b">Rolle</th>' +
     '<th style="padding:4px 8px"></th>' +
-    '</thead><tbody>' + rows + '</tbody></table>';
+    '</thead><tbody>' + rows + '</tbody></table>' +
+    '<p class="hint" style="margin-top:8px;margin-bottom:0">🔒 = Entra Object-ID verknüpft — Anmeldung erfolgt anhand der OID, nicht nur des UPN.</p>';
 }
 
-async function addAdminUser() {
-  var upn = (document.getElementById('admin-upn-input').value || '').trim().toLowerCase();
-  var role = document.getElementById('admin-role-input').value;
-  var alertEl = document.getElementById('admin-users-alert');
-  if (!upn) return;
-  var resp = await fetch('/api/admin-users', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({upn: upn, role: role}),
-  });
-  var d = await resp.json().catch(function() { return {}; });
-  if (resp.ok) {
-    document.getElementById('admin-upn-input').value = '';
-    renderAdminUsers(d.users || []);
-    alertEl.style.display = 'none';
-  } else {
-    alertEl.className = 'alert error';
-    alertEl.textContent = d.detail || 'Fehler';
-    alertEl.style.display = 'block';
+// ── Entra-Benutzer Combobox ──────────────────────────────────────────────────
+var _adminSelectedUser = null;
+var _adminSearchTimer = null;
+var _adminHideTimer = null;
+
+function _debounceAdminSearch(q) {
+  clearTimeout(_adminSearchTimer);
+  var dd = document.getElementById('admin-dropdown');
+  dd.style.display = 'block';
+  if (!q.trim()) {
+    dd.innerHTML = '<div style="padding:10px 12px;color:#94a3b8;font-size:13px">Beginne mit der Eingabe um Benutzer zu suchen</div>';
+    return;
+  }
+  dd.innerHTML = '<div style="padding:10px 12px;color:#94a3b8;font-size:13px">Suche…</div>';
+  _adminSearchTimer = setTimeout(function() { _fetchAdminUsers(q.trim()); }, 300);
+}
+
+async function _fetchAdminUsers(q) {
+  var dd = document.getElementById('admin-dropdown');
+  try {
+    var resp = await fetch('/api/entra/users?q=' + encodeURIComponent(q));
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    var data = await resp.json();
+    var users = data.users || [];
+    dd.innerHTML = '';
+    if (!users.length) {
+      dd.innerHTML = '<div style="padding:10px 12px;color:#94a3b8;font-size:13px">Keine Ergebnisse</div>';
+      return;
+    }
+    users.forEach(function(u) {
+      var item = document.createElement('div');
+      item.style.cssText = 'padding:8px 12px;cursor:pointer;border-bottom:1px solid #f8fafc;font-size:13px';
+      item.innerHTML = '<span style="font-family:monospace;font-size:12px">' + u.upn + '</span>' +
+        (u.name && u.name !== u.upn ? '<br><span style="font-size:11px;color:#64748b">' + u.name + '</span>' : '');
+      item.addEventListener('mousedown', function(e) { e.preventDefault(); _selectAdminUser(u); });
+      item.addEventListener('mouseover', function() { item.style.background = '#eff6ff'; });
+      item.addEventListener('mouseout', function() { item.style.background = ''; });
+      dd.appendChild(item);
+    });
+  } catch(e) {
+    dd.innerHTML = '<div style="padding:10px 12px;color:#dc2626;font-size:13px">Fehler: ' + e.message + '</div>';
   }
 }
 
-async function updateUserRole(upn, role) {
-  var alertEl = document.getElementById('admin-users-alert');
-  var resp = await fetch('/api/admin-users/' + encodeURIComponent(upn), {
-    method: 'PATCH',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({role: role}),
-  });
-  var d = await resp.json().catch(function() { return {}; });
-  if (resp.ok) {
-    renderAdminUsers(d.users || []);
-    alertEl.style.display = 'none';
-  } else {
-    alertEl.className = 'alert error';
-    alertEl.textContent = d.detail || 'Fehler';
-    alertEl.style.display = 'block';
-    loadAdminUsers(); // revert dropdown
+function _selectAdminUser(u) {
+  _adminSelectedUser = u;
+  document.getElementById('admin-search-input').value = u.upn;
+  document.getElementById('admin-dropdown').style.display = 'none';
+  document.getElementById('admin-selected-name').textContent = u.name || u.upn;
+  document.getElementById('admin-selected-upn-label').textContent = u.name && u.name !== u.upn ? u.upn : '';
+  document.getElementById('admin-selected').style.display = '';
+}
+
+function _clearAdminPicker() {
+  _adminSelectedUser = null;
+  document.getElementById('admin-search-input').value = '';
+  document.getElementById('admin-selected').style.display = 'none';
+  document.getElementById('admin-dropdown').style.display = 'none';
+}
+
+function _showAdminDropdown() {
+  if (_adminHideTimer) { clearTimeout(_adminHideTimer); _adminHideTimer = null; }
+  var q = document.getElementById('admin-search-input').value || '';
+  if (q.trim()) document.getElementById('admin-dropdown').style.display = 'block';
+}
+
+function _hideAdminDropdownDelayed() {
+  _adminHideTimer = setTimeout(function() {
+    var dd = document.getElementById('admin-dropdown');
+    if (dd) dd.style.display = 'none';
+  }, 150);
+}
+
+function _adminInputKeydown(e) {
+  var dd = document.getElementById('admin-dropdown');
+  if (e.key === 'Escape') { dd.style.display = 'none'; e.target.blur(); return; }
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    var first = dd.querySelector('div[style*="cursor:pointer"]');
+    if (first) first.dispatchEvent(new MouseEvent('mousedown'));
   }
 }
 
-async function removeAdminUser(upn) {
+function addAdminUserFromPicker() {
+  if (!_adminSelectedUser) return;
   var alertEl = document.getElementById('admin-users-alert');
-  var resp = await fetch('/api/admin-users/' + encodeURIComponent(upn), {method: 'DELETE'});
-  var d = await resp.json().catch(function() { return {}; });
-  if (resp.ok) {
-    renderAdminUsers(d.users || []);
-    alertEl.style.display = 'none';
-  } else {
+  var upn = _adminSelectedUser.upn;
+  if (_adminUsersLocal.some(function(u) { return u.upn === upn; })) {
     alertEl.className = 'alert error';
-    alertEl.textContent = d.detail || 'Fehler';
+    alertEl.textContent = upn + ' ist bereits konfiguriert';
     alertEl.style.display = 'block';
+    return;
+  }
+  var entry = {upn: upn, role: document.getElementById('admin-role-input').value};
+  if (_adminSelectedUser.id) entry.id = _adminSelectedUser.id;
+  _adminUsersLocal.push(entry);
+  _clearAdminPicker();
+  renderAdminUsers(_adminUsersLocal);
+  alertEl.style.display = 'none';
+}
+
+function updateUserRole(upn, role) {
+  var entry = _adminUsersLocal.find(function(u) { return u.upn === upn; });
+  if (entry) entry.role = role;
+}
+
+function removeAdminUser(upn) {
+  if (!confirm('Konto "' + upn + '" wirklich entfernen?\n(Wird erst nach "Speichern" übernommen)')) return;
+  var alertEl = document.getElementById('admin-users-alert');
+  var remaining = _adminUsersLocal.filter(function(u) { return u.upn !== upn; });
+  if (!remaining.some(function(u) { return u.role === 'admin'; })) {
+    alertEl.className = 'alert error';
+    alertEl.textContent = 'Mindestens ein Admin muss verbleiben';
+    alertEl.style.display = 'block';
+    return;
+  }
+  _adminUsersLocal = remaining;
+  renderAdminUsers(_adminUsersLocal);
+  alertEl.style.display = 'none';
+}
+
+async function saveAdminUsers() {
+  var resultEl = document.getElementById('admin-users-result');
+  var alertEl = document.getElementById('admin-users-alert');
+  try {
+    var resp = await fetch('/api/admin-users', {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({users: _adminUsersLocal}),
+    });
+    var d = await resp.json().catch(function() { return {}; });
+    if (resp.ok) {
+      _adminUsersLocal = (d.users || []).map(function(u) { return Object.assign({}, u); });
+      renderAdminUsers(_adminUsersLocal);
+      resultEl.textContent = '✓ Gespeichert';
+      resultEl.style.color = '#16a34a';
+      alertEl.style.display = 'none';
+    } else {
+      resultEl.textContent = '✗ ' + (d.detail || 'Fehler');
+      resultEl.style.color = '#dc2626';
+    }
+    setTimeout(function() { resultEl.textContent = ''; }, 3000);
+  } catch(e) {
+    resultEl.textContent = '✗ Netzwerkfehler';
+    resultEl.style.color = '#dc2626';
   }
 }
 
