@@ -7,6 +7,7 @@ import logging
 import re
 import smtplib
 import ssl
+import time
 
 import config
 import graph_client
@@ -19,16 +20,37 @@ import stats
 
 log = logging.getLogger(__name__)
 
+# Track recently-processed Message-IDs to schedule SENT_ITEMS_UPDATE cleanup
+# only once per logical email (Exchange delivers multi-recipient mail as separate
+# SMTP transactions, all with the same Message-ID).
+_processed_mids: dict[str, float] = {}
+_MID_WINDOW_S = 120
 
-async def _patch_sent_item(sender: str, message_id: str, html_body: str) -> None:
+
+def _is_first_for_mid(sender: str, mid: str) -> bool:
+    """Return True (and register) only for the first processing of this sender+MID."""
+    key = f"{sender.lower()}:{mid}"
+    now = time.monotonic()
+    for k in [k for k, t in _processed_mids.items() if now - t > _MID_WINDOW_S]:
+        del _processed_mids[k]
+    if key in _processed_mids:
+        return False
+    _processed_mids[key] = now
+    return True
+
+
+async def _cleanup_sent_item(sender: str, message_id: str, html_body: str) -> None:
+    """Delete the original unsigned Sent Item; patch the signed one if needed.
+
+    Runs three passes with back-off to give Exchange time to create the Sent Item
+    from our sendMail call before we search for duplicates.
+    """
     for delay in (8, 20, 45):
         await asyncio.sleep(delay)
-        result = await graph_client.update_sent_item(sender, message_id, html_body)
-        if result is True:
-            return
+        result = await graph_client.cleanup_sent_items(sender, message_id, html_body)
         if result is None:  # permanent 4xx — no point retrying
             return
-    log.warning("Gave up patching Sent Item for %s after 3 attempts", sender)
+    log.debug("Sent item cleanup passes done for %s", sender)
 
 
 def _rebuild_acme_reply(msg: email.message.Message) -> email.message.EmailMessage | None:
@@ -476,18 +498,21 @@ class SignatureHandler:
             stats.increment("processed")
             log.info("Mail processed OK: from=%s to=%s", sender, recipients)
 
-            if settings_store.get("SENT_ITEMS_UPDATE"):
-                mid = msg.get("Message-ID", "").strip()
-                if mid:
-                    html = mail_processor.extract_html(modified)
-                    if html is None and modified.get_content_type() == "text/plain":
-                        raw_bytes = modified.get_payload(decode=True) or b""
-                        txt = raw_bytes.decode(
-                            modified.get_content_charset() or "utf-8", errors="replace")
-                        html = (f"<html><body><pre>"
-                                f"{mail_processor._escape_html(txt)}</pre></body></html>")
-                    if html:
-                        asyncio.create_task(_patch_sent_item(sender, mid, html))
+            # Schedule Sent Item cleanup once per logical email.
+            # send_via_graph_mime deduplicates sendMail calls internally so only the
+            # first SMTP transaction actually creates a new Sent Item.  Scheduling
+            # cleanup only from the first transaction avoids redundant Graph API calls.
+            mid = msg.get("Message-ID", "").strip()
+            if settings_store.get("SENT_ITEMS_UPDATE") and mid and _is_first_for_mid(sender, mid):
+                html = mail_processor.extract_html(modified)
+                if html is None and modified.get_content_type() == "text/plain":
+                    raw_bytes = modified.get_payload(decode=True) or b""
+                    txt = raw_bytes.decode(
+                        modified.get_content_charset() or "utf-8", errors="replace")
+                    html = (f"<html><body><pre>"
+                            f"{mail_processor._escape_html(txt)}</pre></body></html>")
+                if html:
+                    asyncio.create_task(_cleanup_sent_item(sender, mid, html))
 
             return "250 OK"
 

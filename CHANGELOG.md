@@ -5,6 +5,31 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.46 — 2026-06-22 — fix: Doppelte Sent Items + sendMail-Dedup bei Multi-Empfänger-Mails
+
+### Problem
+Exchange splittet ausgehende Mails mit mehreren Empfängern in separate SMTP-Transaktionen
+(eine pro Ziel-MX). Das Gateway verarbeitete jede Transaktion unabhängig → mehrere `sendMail`-
+Aufrufe → mehrere Sent Items (Original unverändert + N signierte Kopien).
+
+### Fix: sendMail-Deduplication (`graph_reinject.py`)
+- `_is_first_sendmail(mid)`: Trackt Message-IDs mit 2-Minuten-TTL
+- `send_via_graph_mime` + `send_via_graph`: Überspringen sendMail für doppelte MIDs →
+  erster Aufruf liefert an alle To/CC-Empfänger, nachfolgende Transaktionen werden übersprungen
+- Kein Einfluss auf IMAP-Inject (läuft vor sendMail-Check)
+
+### Fix: Sent Item Cleanup (`graph_client.py` + `handler.py`)
+- `cleanup_sent_items()`: Sucht alle Sent Items mit gleicher `internetMessageId`
+  - Mehrere gefunden: löscht ältere (Original vom Mail-Client), behält neuestes (von sendMail)
+  - Nur eines gefunden: patcht es mit signiertem HTML (SMTP-Reinject-Modus)
+- `_cleanup_sent_item()` ersetzt `_patch_sent_item()` in handler.py — 3 Passes für Timing-Robustheit
+- SENT_ITEMS_UPDATE Cleanup wird nur 1× pro logischer Mail geplant (`_is_first_for_mid`)
+
+### Debug-Logging
+- `_append_html_sig()`: Loggt jetzt wo die Signatur eingefügt wurde (Quote-Pattern oder Fallback)
+
+---
+
 ## v1.4.32 — 2026-06-21 — fix: Health-Spalte Postfächer, Nav-Umbau, DG-PS-Bug
 
 ### Navigation

@@ -23,6 +23,7 @@ import email.header
 import email.policy
 import email.utils
 import logging
+import time
 
 import httpx
 
@@ -32,6 +33,27 @@ import settings_store
 log = logging.getLogger(__name__)
 
 GRAPH = "https://graph.microsoft.com/v1.0"
+
+# Exchange splits outbound mail into one SMTP transaction per destination MX.
+# All transactions share the same Message-ID.  When we call sendMail (Graph API)
+# the first call already delivers to ALL To/CC recipients in the MIME headers,
+# so subsequent calls for the same MID would cause duplicate delivery and create
+# extra Sent Items.  Track recently-sent MIDs and skip duplicate sendMail calls.
+_sendmail_dedup: dict[str, float] = {}
+_SENDMAIL_DEDUP_SECS = 120
+
+
+def _is_first_sendmail(message_id: str) -> bool:
+    """Return True (and register) for the first sendMail call with this Message-ID."""
+    if not message_id:
+        return True
+    now = time.monotonic()
+    for k in [k for k, t in _sendmail_dedup.items() if now - t > _SENDMAIL_DEDUP_SECS]:
+        del _sendmail_dedup[k]
+    if message_id in _sendmail_dedup:
+        return False
+    _sendmail_dedup[message_id] = now
+    return True
 
 
 def _addr_list(header_val: str) -> list[dict]:
@@ -327,6 +349,12 @@ def send_via_graph(mail_from: str, rcpt_tos: list[str], content_bytes: bytes) ->
 
     msg = email_mod.message_from_bytes(content_bytes, policy=email_mod.policy.compat32)
 
+    # Dedup: skip sendMail if already called for this Message-ID (see send_via_graph_mime)
+    mid = (msg.get("Message-ID") or "").strip()
+    if not _is_first_sendmail(mid):
+        log.info("Skipping duplicate sendMail (MID %.24s already sent)", mid)
+        return True
+
     # ── Extract headers ───────────────────────────────────────────────────────
     def _decode_header(value: str) -> str:
         return str(email.header.make_header(email.header.decode_header(value)))
@@ -439,6 +467,19 @@ def send_via_graph_mime(mail_from: str, rcpt_tos: list[str], content_bytes: byte
     from_header = msg.get("From", mail_from)
     _, from_addr = email.utils.parseaddr(from_header)
     from_addr = from_addr or mail_from
+
+    # Dedup: Exchange splits multi-recipient mail into one SMTP transaction per
+    # destination MX, all with the same Message-ID.  The first sendMail call
+    # already delivers to all To/CC recipients in the MIME, so later calls
+    # for the same MID would cause duplicate delivery and extra Sent Items.
+    mid = (msg.get("Message-ID") or "").strip()
+    if not _is_first_sendmail(mid):
+        log.info(
+            "Skipping duplicate sendMail (MID %.24s already sent) — "
+            "delivery already handled by earlier SMTP transaction",
+            mid,
+        )
+        return True
 
     url = f"{GRAPH}/users/{from_addr}/sendMail"
 

@@ -435,21 +435,24 @@ def _append_html_sig(html: str, sig_html: str) -> str:
     # specific wrappers, then the universal <blockquote> catch-all (covers
     # Apple Mail, Thunderbird, GMX, and most standards-compliant clients).
     _QUOTE_PATTERNS = [
-        '<div id="divrplyfwdmsg"',   # Outlook / OWA reply separator
-        '<div id="divtagdefaultwrapper"',  # OWA forward wrapper
-        '<div class="gmail_quote"',   # Gmail
-        '<div class="yahoo_quoted"',  # Yahoo Mail
-        '<blockquote',               # Apple Mail, Thunderbird, GMX, standard
+        ('<div id="divrplyfwdmsg"', "Outlook/OWA reply separator"),
+        ('<div id="divtagdefaultwrapper"', "OWA forward wrapper"),
+        ('<div class="gmail_quote"', "Gmail quote"),
+        ('<div class="yahoo_quoted"', "Yahoo quote"),
+        ('<blockquote', "blockquote (Apple Mail/Thunderbird/GMX)"),
     ]
-    for pattern in _QUOTE_PATTERNS:
+    for pattern, label in _QUOTE_PATTERNS:
         idx = lower.find(pattern)
         if idx != -1:
+            log.debug("Signature inserted before %s at pos %d", label, idx)
             return html[:idx] + sig_html + html[idx:]
 
     # No quote block found — fall back to inserting before </body>
     idx = lower.rfind("</body>")
     if idx != -1:
+        log.debug("No quote block found — signature inserted before </body> (new email or unrecognised format)")
         return html[:idx] + sig_html + html[idx:]
+    log.debug("No </body> found — signature appended at end")
     return html + sig_html
 
 

@@ -138,6 +138,105 @@ async def update_sent_item(sender_email: str, message_id: str, html_body: str) -
         return False
 
 
+async def cleanup_sent_items(
+    sender_email: str, message_id: str, html_body: str
+) -> bool | None:
+    """Find all Sent Items with this Message-ID and clean up duplicates.
+
+    Exchange creates a Sent Item when the user sends mail AND another when our
+    gateway calls sendMail.  This function:
+
+    - If multiple items found: deletes all but the newest (the one from our
+      sendMail, which already has the signed MIME body).
+    - If only one item found: patches it with html_body (covers SMTP reinject
+      mode where sendMail never runs, and the early-timing edge case in Graph
+      mode before the sendMail Sent Item has appeared — the caller retries with
+      back-off so the next pass can still delete it once it shows up).
+
+    Returns True on success, None on a permanent 4xx client error, False on
+    transient failure / not-found (caller should retry).
+    """
+    token = _acquire_token()
+    if not token:
+        return False
+
+    mid = message_id.strip()
+    if not mid.startswith("<"):
+        mid = f"<{mid}>"
+    search_filter = urllib.parse.quote(f"internetMessageId eq '{mid}'")
+    search_url = (
+        f"https://graph.microsoft.com/v1.0/users/{sender_email}"
+        f"/mailFolders/sentitems/messages"
+        f"?$filter={search_filter}&$select=id,createdDateTime&$top=10"
+    )
+    auth = {"Authorization": f"Bearer {token}"}
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(search_url, headers=auth)
+            resp.raise_for_status()
+            items = resp.json().get("value", [])
+
+        if not items:
+            return False
+
+        # Sort oldest-first; createdDateTime is ISO 8601 so lexicographic order works
+        items.sort(key=lambda x: x.get("createdDateTime", ""))
+
+        if len(items) == 1:
+            # Single item: patch its body (SMTP reinject mode, or Graph mode where
+            # the sendMail Sent Item hasn't appeared yet → caller retries)
+            item_id = items[0]["id"]
+            patch_url = (
+                f"https://graph.microsoft.com/v1.0/users/{sender_email}/messages/{item_id}"
+            )
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.patch(
+                    patch_url,
+                    headers={**auth, "Content-Type": "application/json"},
+                    json={"body": {"contentType": "html", "content": html_body}},
+                )
+                if 400 <= resp.status_code < 500:
+                    log.warning(
+                        "Sent item PATCH %d for %s (not retrying): %s",
+                        resp.status_code, sender_email, resp.text[:300],
+                    )
+                    return None
+                resp.raise_for_status()
+            log.info("Sent item patched for %s (message-id %s)", sender_email, message_id)
+            return True
+
+        # Multiple items: the oldest are the original(s) from the mail client;
+        # the newest is from our sendMail and already has the correct signed MIME body.
+        # Delete the older duplicates.
+        to_delete = items[:-1]
+        async with httpx.AsyncClient(timeout=30) as client:
+            for item in to_delete:
+                del_url = (
+                    f"https://graph.microsoft.com/v1.0/users/{sender_email}"
+                    f"/messages/{item['id']}"
+                )
+                d = await client.delete(del_url, headers=auth)
+                if d.is_success or d.status_code == 404:
+                    log.info(
+                        "Deleted original Sent Item for %s (created %s)",
+                        sender_email, item.get("createdDateTime", "?"),
+                    )
+                else:
+                    log.warning(
+                        "Failed to delete Sent Item for %s: HTTP %d %s",
+                        sender_email, d.status_code, d.text[:200],
+                    )
+        log.info(
+            "Sent items cleaned for %s: %d original(s) removed", sender_email, len(to_delete)
+        )
+        return True
+
+    except Exception as exc:
+        log.error("cleanup_sent_items failed for %s: %s", sender_email, exc)
+        return False
+
+
 GRAPH = "https://graph.microsoft.com/v1.0"
 
 
