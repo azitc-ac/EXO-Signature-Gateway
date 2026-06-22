@@ -319,11 +319,16 @@ def _strip_client_sig_divs(html: str) -> str:
         html = html[:idx] + html[pos:]
         lower = html.lower()
 
-    # Outlook desktop (Word editor): signature is the first top-level <div> inside
-    # <div class="WordSection1">. Message body uses <p> elements; the signature
-    # block starts as <div><div>...</div></div> with no unique ID.
+    # Outlook desktop (Word editor): signature is the last top-level <div> inside
+    # <div class="WordSection1"> that is NOT a known quote/forward wrapper.
     html = _strip_wordsection_sig(html)
     return html
+
+
+# Top-level div IDs inside WordSection1 that are quote/forward wrappers,
+# NOT the Outlook client signature.  Skip them so the actual trailing sig div
+# is found and removed, and the quote block survives for _append_html_sig.
+_QUOTE_WRAPPER_IDS = {"divrplyfwdmsg", "divtagdefaultwrapper", "divfwdmsg"}
 
 
 def _strip_wordsection_sig(html: str) -> str:
@@ -346,36 +351,52 @@ def _strip_wordsection_sig(html: str) -> str:
             break
         if next_open != -1 and next_open < next_close:
             if depth == 0:
-                # First top-level <div> inside WordSection1 = signature container
-                sig_start = next_open
-                log.info("_strip_wordsection_sig: sig div found at pos %d (WordSection1 end=%d)",
-                          sig_start, m.end())
-                tag_end = lower.find('>', next_open) + 1
-                close_pos = tag_end
-                inner_depth = 1
-                while close_pos < len(html) and inner_depth > 0:
-                    nio = lower.find('<div', close_pos)
-                    nic = lower.find('</div>', close_pos)
-                    if nic == -1:
-                        break
-                    if nio != -1 and nio < nic:
-                        inner_depth += 1
-                        close_pos = nio + 4
-                    else:
-                        inner_depth -= 1
-                        close_pos = nic + 6
-                # Also remove the immediately preceding empty MsoNormal paragraph
-                before = html[:sig_start]
-                empty_p = re.search(
-                    r'<p\b[^>]*class=["\'][^"\']*MsoNormal[^"\']*["\'][^>]*>'
-                    r'\s*(?:<[^>]+>)*\s*(?:&nbsp;| )\s*(?:</[^>]+>\s*)*</p>\s*$',
-                    before, re.IGNORECASE)
-                if empty_p:
-                    sig_start = empty_p.start()
-                log.info("_strip_wordsection_sig: removing %d chars (pos %d..%d)",
-                          close_pos - sig_start, sig_start, close_pos)
-                html = html[:sig_start] + html[close_pos:]
-                break
+                # Top-level <div> inside WordSection1 found.
+                # Skip known quote/forward wrapper divs — they are NOT the signature.
+                tag_end_pos = lower.find('>', next_open) + 1
+                tag_text = lower[next_open:tag_end_pos]
+                id_m = re.search(r'\bid=["\']([^"\']*)["\']', tag_text)
+                if id_m and id_m.group(1).lower() in _QUOTE_WRAPPER_IDS:
+                    log.info(
+                        "_strip_wordsection_sig: skipping quote/forward div id=%r at pos %d",
+                        id_m.group(1), next_open,
+                    )
+                    # Fall through to depth += 1 — scanner moves past this div
+                else:
+                    # Treat as the Outlook signature container and remove it
+                    sig_start = next_open
+                    log.info(
+                        "_strip_wordsection_sig: sig div found at pos %d (WordSection1 end=%d)",
+                        sig_start, m.end(),
+                    )
+                    tag_end = lower.find('>', next_open) + 1
+                    close_pos = tag_end
+                    inner_depth = 1
+                    while close_pos < len(html) and inner_depth > 0:
+                        nio = lower.find('<div', close_pos)
+                        nic = lower.find('</div>', close_pos)
+                        if nic == -1:
+                            break
+                        if nio != -1 and nio < nic:
+                            inner_depth += 1
+                            close_pos = nio + 4
+                        else:
+                            inner_depth -= 1
+                            close_pos = nic + 6
+                    # Also remove the immediately preceding empty MsoNormal paragraph
+                    before = html[:sig_start]
+                    empty_p = re.search(
+                        r'<p\b[^>]*class=["\'][^"\']*MsoNormal[^"\']*["\'][^>]*>'
+                        r'\s*(?:<[^>]+>)*\s*(?:&nbsp;| )\s*(?:</[^>]+>\s*)*</p>\s*$',
+                        before, re.IGNORECASE)
+                    if empty_p:
+                        sig_start = empty_p.start()
+                    log.info(
+                        "_strip_wordsection_sig: removing %d chars (pos %d..%d)",
+                        close_pos - sig_start, sig_start, close_pos,
+                    )
+                    html = html[:sig_start] + html[close_pos:]
+                    break
             depth += 1
             pos = next_open + 4
         else:
