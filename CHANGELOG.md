@@ -5,7 +5,7 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
-## v1.4.85 — 2026-06-26 — chore: UPDATE.md + Dockerfile/Compose bereinigt
+## v1.4.86 — 2026-06-26 — chore: UPDATE.md + Dockerfile/Compose bereinigt
 
 - `UPDATE.md` neu: Standard-Updateanleitung mit Backup-Schritt und Rollback-Anweisung.
 - `Dockerfile`: `COPY VERSION /app/VERSION` ergänzt — Version ist nun im Image eingebettet,
