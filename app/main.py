@@ -1,7 +1,9 @@
 import asyncio
 import logging
 import ssl
+import subprocess
 import threading
+import urllib.parse
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
@@ -114,6 +116,54 @@ def _build_tls_context() -> ssl.SSLContext | None:
     return ctx
 
 
+_SETUP_PAGE_TEMPLATE = """\
+<!DOCTYPE html>
+<html lang="de">
+<head><meta charset="utf-8"><title>EXO Gateway Setup</title>
+<style>
+  body{{font-family:system-ui,sans-serif;max-width:480px;margin:80px auto;padding:0 20px;color:#1c1917}}
+  h1{{font-size:22px;margin-bottom:4px}}
+  .sub{{color:#78716c;margin-bottom:32px;font-size:14px}}
+  label{{display:block;font-size:13px;font-weight:600;margin-bottom:4px;margin-top:16px}}
+  input{{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #d4d0cc;border-radius:5px;font-size:14px}}
+  button{{margin-top:24px;width:100%;padding:10px;background:#0f172a;color:#fff;border:none;border-radius:5px;font-size:15px;cursor:pointer}}
+  .note{{margin-top:20px;font-size:12px;color:#78716c;line-height:1.5}}
+  .ok{{background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:16px;margin-top:24px}}
+  .err{{background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;padding:16px;margin-top:24px}}
+  pre{{font-size:11px;white-space:pre-wrap;word-break:break-all;margin:8px 0 0}}
+</style></head>
+<body>
+<h1>EXO Signature Gateway</h1>
+<p class="sub">Erstkonfiguration — TLS-Zertifikat</p>
+{message}
+<form method="POST" action="/">
+  <label>Hostname (öffentlich erreichbar)</label>
+  <input name="hostname" type="text" placeholder="sig.example.com" value="{hostname}" required>
+  <label>E-Mail für Let's Encrypt</label>
+  <input name="email" type="email" placeholder="admin@example.com" value="{email}">
+  <button type="submit">Zertifikat beantragen</button>
+</form>
+<p class="note">DNS muss vor dem Zertifikatsantrag auf diese IP zeigen.<br>
+Nach Erfolg: Container neu starten → <strong>https://{hostname_hint}</strong> öffnen.</p>
+</body></html>
+"""
+
+_SETUP_OK = """\
+<div class="ok"><strong>Zertifikat ausgestellt.</strong><br>
+Container neu starten:<br>
+<pre>docker compose restart</pre></div>
+"""
+
+
+def _setup_page(hostname: str = "", email: str = "", message: str = "") -> bytes:
+    return _SETUP_PAGE_TEMPLATE.format(
+        hostname=hostname,
+        email=email,
+        message=message,
+        hostname_hint=hostname or "sig.example.com",
+    ).encode("utf-8")
+
+
 def _run_acme_http() -> None:
     webroot = Path("/app/data/acme-webroot")
     webroot.mkdir(parents=True, exist_ok=True)
@@ -121,7 +171,7 @@ def _run_acme_http() -> None:
 
     class _Handler(BaseHTTPRequestHandler):
         def do_GET(self):
-            # Serve ACME challenges directly; redirect everything else to HTTPS
+            # Serve ACME challenges directly
             if self.path.startswith("/.well-known/acme-challenge/"):
                 path = webroot / self.path.lstrip("/")
                 if path.is_file():
@@ -134,13 +184,87 @@ def _run_acme_http() -> None:
                 return
             if tls_active:
                 host = (self.headers.get("Host") or "").split(":")[0]
-                dest = f"https://{host}:{config.WEBUI_PORT}{self.path}"
+                dest = f"https://{host}{self.path}"
                 self.send_response(301)
                 self.send_header("Location", dest)
                 self.end_headers()
             else:
-                self.send_response(404)
+                body = _setup_page(
+                    hostname=settings_store.get("PUBLIC_HOSTNAME") or "",
+                    email=settings_store.get("LE_EMAIL") or "",
+                )
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
+                self.wfile.write(body)
+
+        def do_POST(self):
+            if tls_active:
+                self.send_response(301)
+                host = (self.headers.get("Host") or "").split(":")[0]
+                self.send_header("Location", f"https://{host}/")
+                self.end_headers()
+                return
+            length = int(self.headers.get("Content-Length", 0))
+            raw = self.rfile.read(length)
+            params = urllib.parse.parse_qs(raw.decode("utf-8", errors="replace"))
+            hostname = (params.get("hostname", [""])[0]).strip()
+            email = (params.get("email", [""])[0]).strip()
+
+            if hostname:
+                settings_store.update({"PUBLIC_HOSTNAME": hostname})
+            if email:
+                settings_store.update({"LE_EMAIL": email})
+
+            data_dir = Path("/app/data")
+            le_cfg = data_dir / "le-config"
+            le_work = data_dir / "le-work"
+            le_logs = data_dir / "le-logs"
+            for d in [webroot, le_cfg, le_work, le_logs]:
+                d.mkdir(parents=True, exist_ok=True)
+
+            result = subprocess.run(
+                ["certbot", "certonly", "--webroot",
+                 "-w", str(webroot), "-d", hostname,
+                 "--cert-name", "gateway",
+                 "--email", email, "--agree-tos", "--non-interactive",
+                 "--config-dir", str(le_cfg),
+                 "--work-dir", str(le_work),
+                 "--logs-dir", str(le_logs)],
+                capture_output=True, text=True, timeout=120,
+            )
+
+            if result.returncode == 0:
+                cert_dir = le_cfg / "live" / "gateway"
+                try:
+                    import shutil
+                    cert_dest = Path(config.SMTP_TLS_CERT)
+                    key_dest = Path(config.SMTP_TLS_KEY)
+                    cert_dest.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(cert_dir / "fullchain.pem", cert_dest)
+                    shutil.copy2(cert_dir / "privkey.pem", key_dest)
+                    message = _SETUP_OK
+                except OSError as exc:
+                    output = (result.stdout or "").strip()
+                    message = (
+                        f'<div class="err"><strong>certbot OK, aber Kopieren fehlgeschlagen:</strong><br>'
+                        f"<pre>{exc}</pre>"
+                        f"<pre>{output}</pre></div>"
+                    )
+            else:
+                output = (result.stderr or result.stdout or "certbot error").strip()
+                message = (
+                    f'<div class="err"><strong>certbot Fehler:</strong><br>'
+                    f"<pre>{output}</pre></div>"
+                )
+
+            body = _setup_page(hostname=hostname, email=email, message=message)
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
 
         def log_message(self, *args):
             pass
@@ -197,6 +321,12 @@ def main() -> None:
     log_manager.setup(
         retention_days=int(settings_store.get("LOG_RETENTION_DAYS") or 30),
         tz_name=settings_store.get("LOG_TIMEZONE") or "UTC",
+    )
+
+    import mail_audit
+    mail_audit.init_db()
+    mail_audit.prune_old_events(
+        retention_days=int(settings_store.get("LOG_RETENTION_DAYS") or 90)
     )
 
     log.info("Starting EXO Signature Gateway v%s", config.VERSION)

@@ -7,7 +7,7 @@ services:
     ports:
       - "80:80"             # ACME HTTP-01 Challenge für Let's Encrypt
       - "25:25"              # SMTP: EXO Outbound Connector → Proxy
-      - "8080:8080"
+      - "443:8080"
     cap_add:
       - NET_BIND_SERVICE
     volumes:

@@ -603,7 +603,6 @@ async def setup_wizard(
         "imap_access_configured": s.get("IMAP_ACCESS_CONFIGURED", False),
         "password_change_needed": _password_change_required(),
         "cert_exists": Path(config.SMTP_TLS_CERT).exists(),
-        "smtp_cert_exists": Path(config.SMTP_TLS_CERT_SMTP).exists(),
         "auth_cert_exists": Path("/app/data/auth.pfx").exists(),
         "authed": authed,
         "bootstrap_client_id": s.get("BOOTSTRAP_CLIENT_ID", ""),
@@ -981,12 +980,8 @@ async def api_setup_hostname(request: Request, user: str = Depends(_check_auth))
     hostname = (data.get("hostname") or "").strip()
     if not hostname:
         raise HTTPException(400, "hostname darf nicht leer sein")
-    smtp_hostname = (data.get("smtp_hostname") or "").strip()
-    update: dict = {"PUBLIC_HOSTNAME": hostname}
-    # Empty string = same as HTTP hostname (no separate SMTP hostname)
-    update["SMTP_HOSTNAME"] = smtp_hostname if smtp_hostname and smtp_hostname != hostname else ""
-    settings_store.update(update)
-    log.info("Public hostname set to %s (SMTP: %s) by %s", hostname, smtp_hostname or hostname, user)
+    settings_store.update({"PUBLIC_HOSTNAME": hostname})
+    log.info("Public hostname set to %s by %s", hostname, user)
     return JSONResponse({"ok": True})
 
 
@@ -1792,48 +1787,6 @@ async def api_letsencrypt(request: Request, user: str = Depends(_check_auth)):
         raise HTTPException(500, f"Zertifikat kopieren fehlgeschlagen: {exc}")
     log.info("Let's Encrypt cert renewed for %s by %s", domain, user)
     return JSONResponse({"ok": True, "detail": "Zertifikat erneuert. Neustart erforderlich."})
-
-
-@app.post("/api/letsencrypt/smtp")
-async def api_letsencrypt_smtp(request: Request, user: str = Depends(_check_auth)):
-    data = await request.json()
-    domain = (data.get("domain") or "").strip()
-    email = (data.get("email") or "").strip()
-    if not domain or not email:
-        raise HTTPException(400, "domain und email sind erforderlich")
-
-    data_dir = Path("/app/data")
-    webroot = data_dir / "acme-webroot"
-    le_cfg = data_dir / "le-config"
-    le_work = data_dir / "le-work"
-    le_logs = data_dir / "le-logs"
-    for d in [webroot, le_cfg, le_work, le_logs]:
-        d.mkdir(parents=True, exist_ok=True)
-
-    result = subprocess.run(
-        ["certbot", "certonly", "--webroot",
-         "-w", str(webroot), "-d", domain,
-         "--email", email, "--agree-tos", "--non-interactive",
-         "--config-dir", str(le_cfg),
-         "--work-dir", str(le_work),
-         "--logs-dir", str(le_logs)],
-        capture_output=True, text=True, timeout=120,
-    )
-
-    if result.returncode != 0:
-        detail = (result.stderr or result.stdout or "certbot error").strip()
-        log.error("certbot SMTP failed: %s", detail)
-        raise HTTPException(500, detail)
-
-    cert_dir = le_cfg / "live" / domain
-    try:
-        shutil.copy2(cert_dir / "fullchain.pem", config.SMTP_TLS_CERT_SMTP)
-        shutil.copy2(cert_dir / "privkey.pem", config.SMTP_TLS_KEY_SMTP)
-    except OSError as exc:
-        raise HTTPException(500, f"SMTP-Zertifikat kopieren fehlgeschlagen: {exc}")
-    settings_store.update({"SMTP_HOSTNAME": domain})
-    log.info("Let's Encrypt SMTP cert issued for %s by %s", domain, user)
-    return JSONResponse({"ok": True, "detail": "SMTP-Zertifikat ausgestellt. Neustart erforderlich."})
 
 
 @app.post("/api/notification/test")

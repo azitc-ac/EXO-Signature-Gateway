@@ -86,6 +86,13 @@ DEFAULTS: dict = {
     "NOTIFICATION_RECIPIENTS": [],           # List of mailbox emails for notifications
     "NOTIFICATION_DG_EMAIL": "",             # PrimarySmtpAddress of notification DG (auto-set)
     "NOTIFY_LOCAL_ADMIN_LOGIN": None,        # None/True = send; False = suppress local admin login notification
+    # ── Outlook Add-in ───────────────────────────────────────────────────────
+    "ADDIN_ENABLED": False,             # Show add-in setup section and serve manifest
+    "ADDIN_BASE_URL": "",               # External public URL override (e.g. https://sig.zarenko.net)
+    "STRIP_CLIENT_SIGS": True,          # Strip client-generated Outlook signatures before injection
+    "SIG_STRIP_MIN_MATCH_PCT": 50,      # Fingerprint match threshold % for signature stripping
+    "SKIP_DUPLICATE_SIG": True,         # Skip re-injection if gateway signature already in compose area
+    "GATEWAY_NAME": "EXO Signature Gateway",  # Prefix for EXO connectors, rules, distribution groups
 }
 
 _lock = RLock()
@@ -102,7 +109,14 @@ def init(env_seed: dict | None = None) -> None:
             try:
                 merged.update(json.loads(SETTINGS_FILE.read_text()))
             except Exception as exc:
-                log.error("Failed to load %s: %s", SETTINGS_FILE, exc)
+                log.error("Failed to load %s: %s — trying backup", SETTINGS_FILE, exc)
+                bak = SETTINGS_FILE.with_suffix(".bak")
+                if bak.exists():
+                    try:
+                        merged.update(json.loads(bak.read_text()))
+                        log.warning("Loaded settings from backup %s", bak)
+                    except Exception as bak_exc:
+                        log.error("Backup also unreadable: %s — using defaults", bak_exc)
         _data = merged
         log.info("Settings loaded (persisted file: %s)", SETTINGS_FILE.exists())
 
@@ -141,5 +155,11 @@ def _save() -> None:
     for k, v in _data.items():
         if k not in to_write:
             to_write[k] = v
-    SETTINGS_FILE.write_text(json.dumps(to_write, indent=2, ensure_ascii=False))
+    # Atomic write: temp → rename so a crash mid-write never corrupts settings.
+    # Keep a .bak of the last known-good state for recovery.
+    tmp = SETTINGS_FILE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(to_write, indent=2, ensure_ascii=False))
+    if SETTINGS_FILE.exists():
+        SETTINGS_FILE.replace(SETTINGS_FILE.with_suffix(".bak"))
+    tmp.replace(SETTINGS_FILE)
     log.info("Settings saved to %s", SETTINGS_FILE)

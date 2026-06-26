@@ -5,6 +5,7 @@
 <ul class="nav-sub-tabs">
   <li><a href="/settings" class="nav-sub-tab">Allgemein</a></li>
   <li><a href="/setup" class="nav-sub-tab active">Einrichtung</a></li>
+  <li><a href="/outlook-addin" class="nav-sub-tab">Outlook Add-in</a></li>
   <li><a href="/debug" class="nav-sub-tab">Erweitert</a></li>
 </ul>
 
@@ -21,7 +22,7 @@
 {% endif %}
 
 <p style="color:#555;margin-bottom:24px;font-size:13px">
-  Dieser Assistent richtet den EXO Signature Gateway ein.
+  Dieser Assistent richtet den {{ gateway_name or 'EXO Signature Gateway' }} ein.
   Führe die Schritte der Reihe nach aus. Bereits abgeschlossene Schritte sind grün markiert.
 </p>
 
@@ -92,12 +93,12 @@
       Er wird für Let's Encrypt, das TLS-Zertifikat und den EXO Outbound Connector verwendet.
     </p>
     <div class="settings-row">
-      <label for="hostname">Hostname</label>
+      <label for="hostname">HTTP-Hostname</label>
       <input type="text" id="hostname" value="{{ e.public_hostname }}" placeholder="mail.zarenko.net" style="width:300px">
     </div>
     <div id="hostname-result" style="margin-top:8px;display:none"></div>
     <div class="actions" style="margin-top:12px">
-      <button class="btn primary" onclick="saveHostname()">Hostname speichern</button>
+      <button class="btn primary" onclick="saveHostname()">Hostnamen speichern</button>
     </div>
   </div>
 </div>
@@ -778,8 +779,8 @@
     {% if e.smime_rules_created %}
     <p class="hint" style="margin-top:10px">
       Regeln aktiv:<br>
-      <code>EXO Signature Gateway - SMIME Signed Inbound</code> (Signed → Gateway)<br>
-      <code>EXO Signature Gateway - SMIME Encrypted Inbound</code> (Encrypted → Gateway)
+      <code>{{ gateway_name }} - SMIME Signed Inbound</code> (Signed → Gateway)<br>
+      <code>{{ gateway_name }} - SMIME Encrypted Inbound</code> (Encrypted → Gateway)
     </p>
     {% endif %}
   </div>
@@ -895,7 +896,7 @@ async function saveHostname() {
   });
 
   if (resp.ok) {
-    showAlert(result, 'success', 'Hostname gespeichert: ' + hostname);
+    showAlert(result, 'success', `Hostname gespeichert: ${hostname}`);
     setTimeout(() => location.reload(), 1200);
   } else {
     const d = await resp.json().catch(() => ({}));
@@ -1222,8 +1223,8 @@ function updateModeSelection() {
   const stepImap  = document.getElementById('step-imap');
   const stepSmime = document.getElementById('step-smime');
 
-  // TLS cert (2.1): only needed for SMTP mode (inbound connector uses client cert)
-  if (stepTls)  stepTls.style.display  = (mode === 'smtp') ? '' : 'none';
+  // TLS cert (2.1): always shown — needed for SMTP listener (all modes) and HTTPS
+  if (stepTls)  stepTls.style.display  = '';
 
   // IMAP access (7.1): only for imap mode
   if (stepImap) stepImap.style.display = (mode === 'imap') ? '' : 'none';
@@ -1405,7 +1406,7 @@ async function obsClearCaptures() {
   const smimeCb   = document.getElementById('smime-enabled-wizard');
   if (!smimeCb) return;
   if (mode === 'graph') { smimeCb.checked = false; smimeCb.disabled = true; }
-  if (stepTls)   stepTls.style.display   = (mode === 'smtp') ? '' : 'none';
+  if (stepTls)   stepTls.style.display   = ''; // always visible — needed for SMTP listener in all modes
   if (stepImap)  stepImap.style.display  = (mode === 'imap') ? '' : 'none';
   if (stepSmime) stepSmime.style.display = (mode !== 'graph' && smimeCb.checked) ? '' : 'none';
 })();

@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.91 — 2026-06-27 — feat: Port 443 statt 8080 + Port-80-Setup-Wizard + SMTP_HOSTNAME entfernt
+
+- docker-compose.yml: 8080:8080 → 443:8080 (App intern auf 8080, extern 443)
+- main.py Port-80-Handler: Minimal-Setup-Seite wenn kein cert.pem (Hostname + LE-Email →
+  certbot direkt), Redirect-Ziel auf 443 korrigiert (war :8080)
+- _build_tls_context(): smtp-cert.pem-Sonderlogik entfernt
+- config.py: SMTP_TLS_CERT_SMTP / SMTP_TLS_KEY_SMTP entfernt
+- settings_store.py: SMTP_HOSTNAME aus DEFAULTS entfernt
+- webui/app.py: /api/letsencrypt/smtp entfernt; smtp_hostname aus /api/setup/hostname entfernt;
+  smtp_cert_exists aus Setup-Kontext entfernt
+- setup.html: SMTP-Hostname-Sektion + JS-Funktionen (toggleSmtpHost, renewSmtpCert) entfernt
+
+---
+
 ## v1.4.89 — 2026-06-27 — docs: Netzwerk-Anforderungen in README (Inbound/Outbound je Modus)
 
 - README: neue Sektion "Netzwerk-Anforderungen" mit vollständigen Inbound- und
