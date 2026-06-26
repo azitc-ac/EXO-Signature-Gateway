@@ -14,9 +14,6 @@ services:
       - ./templates:/app/templates
       - ./certs:/app/certs
       - ./data:/app/data
-      - ./app/webui/static:/app/webui/static:ro
-      - ./app/webui/templates:/app/webui/templates:ro
-      - ./VERSION:/app/VERSION:ro
     environment:
       # Azure AD / MS Graph
       TENANT_ID: ${TENANT_ID}

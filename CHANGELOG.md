@@ -5,6 +5,462 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.85 — 2026-06-26 — chore: UPDATE.md + Dockerfile/Compose bereinigt
+
+- `UPDATE.md` neu: Standard-Updateanleitung mit Backup-Schritt und Rollback-Anweisung.
+- `Dockerfile`: `COPY VERSION /app/VERSION` ergänzt — Version ist nun im Image eingebettet,
+  kein Bind-Mount mehr nötig.
+- `docker-compose.yml`: 3 redundante Bind-Mounts entfernt (`app/webui/static`, `app/webui/templates`,
+  `VERSION`). Image ist jetzt self-contained; kein Repo-Checkout mehr zur Laufzeit nötig.
+
+---
+
+## v1.4.83 — 2026-06-26 — feat: Separater SMTP-Hostname mit eigenem Let's Encrypt Zertifikat
+
+- Setup-Wizard Schritt 2: Checkbox "Gleicher Hostname für SMTP"; wenn deaktiviert erscheint
+  Feld "SMTP-Hostname" + Let's Encrypt-Abschnitt im TLS-Block (Schritt 2.1).
+- Neues Setting `SMTP_HOSTNAME` in settings_store.
+- Neuer API-Endpunkt `POST /api/letsencrypt/smtp` — certbot für SMTP-Domain,
+  Cert landet in `/app/certs/smtp-cert.pem` (statt `cert.pem`).
+- `main.py` `_build_tls_context()`: bevorzugt `smtp-cert.pem` wenn vorhanden,
+  Fallback auf `cert.pem` (abwärtskompatibel).
+- Hintergrund: AAP (Azure App Proxy) kann kein SMTP — separater Hostname mit direktem
+  Port-Forwarding (Port 25 + 80) nötig.
+
+---
+
+## v1.4.82 — 2026-06-26 — fix: Signatur-Ersetzen nach Tippen im Compose-Bereich
+
+- Outlook's Word-Editor strippt HTML-Kommentare aus dem Body wenn der Nutzer tippt →
+  `<!-- exo-sig-start/end -->` verschwinden → `replaceSig()` kann Marker nicht finden →
+  hängt neue Signatur an statt zu ersetzen.
+- Fix: `marked_html` enthält zusätzlich `<div id="exo-sig-s/e">` Sentinels (echte Elemente,
+  Outlook strippt deren id-Attribute nicht). `replaceSig()` fällt auf diese zurück.
+- Gateway (`_has_own_sig_in_compose_area`, `_strip_sig`) fällt ebenfalls auf Div-Marker zurück.
+- Struktur: `<!-- exo-sig-start --><div id="exo-sig-s"></div>[sig]<div id="exo-sig-e"></div><!-- exo-sig-end -->`
+
+---
+
+## v1.4.81 — 2026-06-26 — fix: Add-in Auto-Insert erkennt jetzt Replies/Forwards korrekt
+
+- `_autoInsertIfNew()`: Prüfung auf leeren Body entfernt — Outlook fügt immer HTML-Struktur /
+  native Signatur in neue Mails ein, daher war `textContent` nie wirklich leer → Auto-Insert
+  sprang nie an.
+- Neue Logik: Auto-Insert nur wenn (a) kein `<!-- exo-sig-start -->`-Marker vorhanden,
+  (b) kein Reply (`item.inReplyTo` gesetzt), (c) kein Forward (`divRplyFwdMsg` im Body).
+
+---
+
+## v1.4.80 — 2026-06-26 — fix: Add-in Auto-Insert + Template-Wechsel Doppelsignatur
+
+- Auto-Insert auf neue Mail: `_doInsert()` nutzte `setSelectedDataAsync` → scheitert wenn
+  Cursor im "An:"-Feld steht (nicht im Body). Umgestellt auf `setAsync` (Full-Body-Set).
+- Template-Wechsel fügte neue Signatur ZUSÄTZLICH ein statt zu ersetzen: `insertSig()` nutzte
+  `setSelectedDataAsync`, Outlook strippt dabei HTML-Kommentare → Marker gingen verloren →
+  `replaceSig()` fand keinen Marker und hängte an. Fix: `insertSig()` entfernt, "Einfügen"-Button
+  ruft direkt `replaceSig()` auf (nutzt `setAsync`, Marker bleiben erhalten).
+- "Ersetzen"-Button entfernt (war funktionsgleich mit "Einfügen" nach dem Fix).
+- `showLoginRequired()` und Lade-Zustand bereinigt (keine `btn-replace`-Referenz mehr).
+
+---
+
+## v1.4.79 — 2026-06-26 — feat: Doppel-Sig-Schutz, Gateway-Name nach Erweitert, Dashboard Historik-Spalten
+
+- `SKIP_DUPLICATE_SIG` (default: `True`): wenn die Gateway-Signatur bereits im Nachrichtenbereich
+  erkannt wird (Marker `<!-- exo-sig-start -->` vor Quote-Block), wird `inject()` übersprungen
+- Grayed-out Platzhalter "Minimalsignatur bei Antworten" vorbereitet (noch nicht implementiert)
+- `GATEWAY_NAME` jetzt in `settings_store.DEFAULTS` und korrekt persistierbar
+- Gateway-Name-Karte aus Einstellungen → Allgemein entfernt, nach Erweitert verschoben
+- Dashboard: extra Spalten für M-2, M-1 (zwei Vormonat) und Vorjahr; CSS-responsive
+  (col-m2/col-m1 ausgeblendet <860px, col-py ausgeblendet <660px)
+- Deutsche Monatsnamen für Stats-Spaltenköpfe
+
+---
+
+## v1.4.74 — 2026-06-26 — feat: Mehrere Signaturen im Add-in + pro-Postfach Vorlagen-Freigabe
+
+- Neue Spalte "Add-in Vorlagen" in der Postfächer-Tabelle:
+  - Master-Checkbox "Alle (inkl. zukünftige)" → `addin_templates: "*"`
+  - Einzelne Checkboxen pro Template → explizite Liste
+  - Keine Auswahl → nur Standard-Vorlage des Postfachs
+- Neuer Endpoint `GET /api/addin/templates?email=` gibt erlaubte Vorlagen zurück
+- `GET /api/addin/signature` akzeptiert nun `?template=` Parameter
+- Hilfsfunktion `_addin_allowed_templates()` wertet `addin_templates` aus
+- Add-in Compose: Template-Dropdown erscheint automatisch wenn >1 Vorlage verfügbar
+- Vorlagenwechsel lädt Vorschau sofort neu
+
+---
+
+## v1.4.73 — 2026-06-25 — fix: Add-in Login + SSO next-URL-Verlust + /addin/compose 500
+
+- `/addin/compose` warf 500 (TypeError: unhashable type dict) — alte Starlette-Syntax in TemplateResponse korrigiert
+- SSO-Login ignorierte `next`-Parameter nach PKCE-Roundtrip (redirect landete immer auf `/`)
+  → `next_url` wird jetzt in der PKCE-Session gespeichert und im Callback korrekt verwendet
+- Outlook Add-in: nach Login landet man jetzt wieder in `/addin/compose` statt auf dem Dashboard
+
+---
+
+## v1.4.72 — 2026-06-24 — refactor: Outlook Add-in als eigener Settings-Tab (/outlook-addin)
+
+- Neuer Sub-Tab "Outlook Add-in" parallel zu Allgemein / Einrichtung / Erweitert
+- Eigene Route `GET /outlook-addin` + Template `addin.html`
+- Add-in-Card aus settings.html entfernt (war thematisch fehl am Platz)
+- Nav-Tab in allen vier Einstellungs-Templates ergänzt
+- base.html: 'outlook-addin' in active-Prüfung für Haupt-Nav aufgenommen
+- `addin_uri_patched`-Redirect zeigt jetzt auf `/outlook-addin` statt `/settings`
+
+---
+
+## v1.4.71 — 2026-06-24 — fix: SSO Redirect URI für Azure App Proxy (ADDIN_BASE_URL-Priorität)
+
+### SSO-Login über App Proxy funktioniert jetzt ohne Port-Konflikt
+- `_build_redirect_uri(sso=True)`: ADDIN_BASE_URL hat Priorität (kein `:8080`-Suffix),
+  Fallback auf PUBLIC_HOSTNAME + Port, dann localhost
+- `patch_bootstrap_redirect_uri`: ebenfalls ADDIN_BASE_URL-first — registriert `https://sig.zarenko.net/auth/callback`
+- Neues PKCE-Flow `patch_redirect_uri`: Registrierung der neuen URI ohne Setup-Wizard-Neustart
+- Neuer Route `GET /api/addin/update-redirect-uri`: startet PKCE mit alter `:8080`-URI (bereits registriert)
+- Settings.html: SSO-Redirect-URI-Status bei gesetzter ADDIN_BASE_URL (✓ registriert / ⚠️ nicht registriert)
+- Bugfix: `smtp_port` (Port 25) in Hinweistext durch `webui_port` (Port 8080) ersetzt
+- DEFAULTS ergänzt: `ADDIN_ENABLED`, `ADDIN_BASE_URL`, `STRIP_CLIENT_SIGS`, `SIG_STRIP_MIN_MATCH_PCT`
+  (fehlten bisher → stille Persistenz-Fehler bei Container-Restart)
+
+---
+
+## v1.4.70 — 2026-06-24 — feat: ADDIN_ENABLED Checkbox + URL-Warndreieck
+
+### Redesign: Add-in Sektion mit expliziter Aktivierung
+- Neue `ADDIN_ENABLED`-Checkbox (default: false) — klappt den gesamten Setup-Bereich ein/aus
+- URL-Bewertung per `_addin_url_warning()`: ⚠️ bei non-HTTPS, non-Standard-Port oder privater IP
+- Bei Warnung: URL-Override-Feld direkt sichtbar (prominent), Kopieren/Download ausgeblendet
+- Ohne Warnung (✓): Buttons Kopieren/Öffnen/Herunterladen/Erreichbarkeit, Override unter `<details>`
+- Azure-Deployment ohne Konfiguration: Proxy-Header → kein Port → ✓ sofort bereit
+- Entfernt: separates `_addin_ready()` — vereinfacht durch direktes Warning-Konzept
+
+---
+
+## v1.4.69 — 2026-06-24 — feat: Add-in UI erkennt automatisch ob Gateway öffentlich erreichbar ist
+
+### Intelligente Zustandserkennung statt manuellem Flag
+- Neuer `_addin_ready(base_url)` Check: HTTPS + kein expliziter Port (≠ 443) = bereit
+- In Azure oder hinter App Proxy (X-Forwarded-Host): sofort vollständige Anleitung, kein Config nötig
+- Raspi intern (:8080): URL-Eingabefeld prominent, Anleitung ausgeblendet bis externe URL gesetzt
+- URL-Override (`ADDIN_BASE_URL`) erscheint nach Bedarf: prominent wenn nicht bereit, als `<details>` wenn bereit
+- Gate ist jetzt `addin_ready` (URL-Qualität), nicht `ADDIN_BASE_URL` (ob manuell gesetzt)
+
+---
+
+## v1.4.68 — 2026-06-24 — feat: Add-in UI zeigt Einrichtungsschritte nur nach URL-Konfiguration
+
+### UX: Zustandsabhängige Darstellung der Add-in-Sektion
+- Ohne `ADDIN_BASE_URL`: nur URL-Eingabefeld + grauer Hinweis "…erscheinen nach dem Speichern"
+- Mit `ADDIN_BASE_URL`: Manifest-URL mit Kopieren/Öffnen/Herunterladen, Erreichbarkeitstest,
+  nummerierte Deployment-Anleitung (Schritt 1–5), kompakte Voraussetzungen
+- Label zeigt ✓ (grün) wenn URL gesetzt, "1." (gelb) wenn noch offen
+- `ADDIN_BASE_URL` ist damit implizites Aktivierungssignal — kein separater Checkbox nötig
+
+---
+
+## v1.4.67 — 2026-06-24 — fix: STRIP_CLIENT_SIGS + SIG_STRIP_MIN_MATCH_PCT fehlten in DEFAULTS
+
+### Bugfix: Signatur-Stripping-Einstellungen wurden nach Restart nicht persistiert
+- `STRIP_CLIENT_SIGS` und `SIG_STRIP_MIN_MATCH_PCT` fehlten in `settings_store.DEFAULTS`
+- `settings_save()` filtert unbekannte Keys heraus → Werte wurden nie in `data.json` geschrieben
+- Effekt: Einstellungen schienen zu funktionieren (Fallback `None is not False` / `or 50`),
+  aber nach Container-Restart waren sie immer zurückgesetzt
+- Fix: beide Keys in DEFAULTS aufgenommen (zusammen mit neuem `ADDIN_BASE_URL`)
+
+---
+
+## v1.4.66 — 2026-06-24 — feat: ADDIN_BASE_URL Setting für externe Gateway-URL
+
+### Feature: Konfigurierbare externe URL für Add-in Manifest
+- Neues Setting `ADDIN_BASE_URL` (z.B. `https://sig.zarenko.net`) — überschreibt automatische Erkennung
+- Manifest-Endpunkt und Settings-UI nutzen gemeinsame `_addin_base_url()` Hilfsfunktion
+- Priorität: ADDIN_BASE_URL > X-Forwarded-Host Header > request.url (mit Port)
+- Settings-UI: Manifest-URL wird serverseitig gerendert (korrekte externe URL auch beim internen Zugriff auf :8080)
+- Neues Eingabefeld "Externe Gateway-URL" direkt in der Add-in-Sektion — Speichern triggert Seitenreload
+
+---
+
+## v1.4.65 — 2026-06-24 — feat: Add-in Einrichtungs-UI in Settings
+
+### Neue Sektion "Outlook Add-in" in `/settings`
+- **Manifest-URL** dynamisch aus `window.location.origin` generiert — immer passend zur aktuellen Gateway-URL
+- Buttons: Kopieren, Öffnen (neuer Tab), Herunterladen als `.xml`
+- Schritt-für-Schritt-Anleitung für M365 Admin Center (admin.microsoft.com → Integrierte Apps)
+- Voraussetzungen-Checkliste (HTTPS Port 443, App Proxy Passthrough, Nutzer-Login)
+- Schnellvalidierung per Klick: prüft ob Manifest-URL erreichbar + XML parsbar
+
+---
+
+## v1.4.64 — 2026-06-24 — fix: Office Add-in Manifest vollständig schema-valide
+
+### Alle Schema-Fehler behoben (via `office-addin-manifest validate`)
+
+**Fehler 1 — `<bt:Images>` Reihenfolge in `<Resources>`:**
+- Office XML-Schema: `<bt:Images>` muss erstes Kind von `<Resources>` sein (vor `bt:Urls` etc.)
+- Bei falscher Reihenfolge: "invalid child element 'Images'" — irreführende Fehlermeldung
+
+**Fehler 2 — `<RequestedHeight>` in Compose-Formular:**
+- `<RequestedHeight>` ist nur im Reading Pane (`ItemRead`) erlaubt, nicht in `ItemEdit` (compose)
+- Entfernt aus `<Form xsi:type="ItemEdit"><DesktopSettings>`
+
+**Fehler 3 — `<SupportsPinning>` nur in V1_1:**
+- `<SupportsPinning>` erfordert `VersionOverridesV1_1` — in V1_0-Manifest invalide
+- Entfernt; Taskpane funktioniert ohne Pinning-Option
+
+**Fehler 4 — Icon-URLs ohne Extension:**
+- M365 lehnt Icon-URLs ohne `.png`/`.jpg`-Extension ab
+- Icon-Route akzeptiert jetzt `/addin/icon/32.png` (`{size_str}.split(".")[0]`)
+- Alle Icon-URLs im Manifest auf `.png` umgestellt
+
+**Fehler 5 — `<bt:Image DefaultValue>` statt `resid` in `<Icon>`:**
+- `<bt:Image>` innerhalb `<Icon>` im `<Control>` erfordert zwingend `resid`-Attribut
+- `DefaultValue` ist nur in `<bt:Images><bt:Image>` in Resources erlaubt
+- Zurück zu `resid`-Referenzen, die auf `<bt:Images>` in Resources zeigen
+
+**Ergebnis:** `office-addin-manifest validate` → "The manifest is valid." ✓
+
+---
+
+## v1.4.61 — 2026-06-24 — fix: Manifest-URLs korrekt hinter Azure Application Proxy
+
+### Fix: `https://sig.zarenko.net:8080` in Manifest-URLs
+- `addin_manifest` liest jetzt `X-Forwarded-Host` / `X-Forwarded-Proto` aus
+- App Proxy sendet diese Header → Manifest enthält `https://sig.zarenko.net` (kein :8080)
+- Fallback auf `request.url` wenn kein Proxy-Header vorhanden (lokaler Zugriff)
+
+---
+
+## v1.4.60 — 2026-06-23 — fix: Outlook Add-in Manifest + /addin/function Route
+
+### Fix: Manifest XML-Validierungsfehler (M365 Admin Center)
+- `xmlns:bt` fehlte im `<VersionOverrides>`-Element → alle `bt:`-Prefixe invalide
+- `<FunctionFile resid="functionFile"/>` im `<DesktopFormFactor>` ergänzt (Pflichtfeld)
+- `<bt:Url id="functionFile">` in Resources ergänzt
+- `MobileMessageComposeCommandSurface` entfernt (erfordert V1_1, war falsch platziert)
+- Neue Route `GET /addin/function` — minimale Office.js-Seite die von `FunctionFile` referenziert wird
+- `GET /api/addin/signature` jetzt mit `Depends(_check_auth)` (war versehentlich public)
+
+---
+
+## v1.4.58 — 2026-06-23 — feat: Outlook Add-in + UI-Verbesserungen
+
+### Feature: Outlook Add-in (`addin_compose.html`, `app.py`)
+Neues Office-Add-in, das die Gateway-Signatur direkt in Outlook sichtbar macht.
+
+**Funktionsumfang:**
+- Taskpane zeigt die Signatur-Vorschau für den angemeldeten Benutzer
+- **Einfügen**: fügt an Cursorposition ein (für Reply-Mails die richtige Position)
+- **Ersetzen**: sucht im Body nach `<!-- exo-sig-start/end -->` Markern, ersetzt nur den
+  Gateway-Signaturteil — restlicher Inhalt bleibt erhalten
+- **Auto-Insert**: bei leerer neuer Mail wird die Signatur automatisch eingefügt
+- Marker werden direkt durch das Add-in gesetzt → Gateway findet sie beim Versand
+  deterministisch und strippt nie user content (erstes-Durchlauf-Problem gelöst)
+
+**Neue Routen (öffentlich, kein Login):**
+- `GET /addin/compose` — Taskpane HTML
+- `GET /addin/manifest.xml` — Manifest dynamisch generiert aus der aktuellen Base-URL
+  (UUID stabil aus Hostname abgeleitet, für Deployment in M365 Admin Center herunterladen)
+- `GET /addin/icon/{size}` — Solid-Color PNG-Icon (16/32/64/80 px), ohne PIL
+- `GET /api/addin/signature?email=...` — rendert die Signatur für einen Nutzer, gibt
+  `{marked_html, preview_html}` zurück; Signatur-HTML ist nicht sensitiv
+
+**Plattform-Support:**
+- Outlook Desktop Win/Mac: vollständig (Taskpane pinbar für Auto-Insert bei jeder neuen Mail)
+- OWA: vollständig
+- Outlook Mobile: Button vorhanden, Taskpane eingeschränkt; kein automatischer Insert-Event
+
+**Deployment:** M365 Admin Center → Apps → Integrierte Apps → Benutzerdefinierte App →
+Manifest-URL eingeben: `https://<deine-domain>:8080/addin/manifest.xml`
+
+### Fix: Checkbox-Label doppelte Verneinung (`settings.html`, `mail_processor.py`)
+- `DISABLE_SIG_STRIP` → `STRIP_CLIENT_SIGS` (positives Flag, default True)
+- Label: "Selbsterstellte Client-Signaturen entfernen" (Checkbox aktiv = stripping an)
+- Schieberegler wird ausgeblendet wenn Checkbox deaktiviert (kein Stripping = kein Schwellenwert nötig)
+
+---
+
+## v1.4.57 — 2026-06-23 — feat: Signatur-Strip-Steuerung per UI (Checkbox + Schwellenwert)
+
+### Einstellungen → Signatur-Verhalten (`settings.html`, `mail_processor.py`)
+- **Checkbox „Client-Signatur-Entfernung deaktivieren"** (`DISABLE_SIG_STRIP`):
+  Wenn aktiviert, überspringt `_strip_client_sig_divs` alle Entfernungsoperationen.
+  Die eingehende Mail wird unverändert zur Signatur-Injektion weitergegeben.
+  Sicherheitsnetz wenn der Fingerprint-Algorithmus fälschlicherweise Inhalt entfernt.
+- **Schieberegler „Erkennungs-Schwellenwert"** (`SIG_STRIP_MIN_MATCH_PCT`, 20–80 %, Schritt 5):
+  Steuert, wie viel % der Signatur-Template-Tokens im Kandidat-Div gefunden werden müssen,
+  bevor dieser entfernt wird. Default 50 %. Wird von `_matches_sig_fp()` zur Laufzeit
+  gelesen (kein Restart nötig). Schieberegler wird ausgeblendet wenn Checkbox aktiv.
+
+---
+
+## v1.4.56 — 2026-06-23 — feat: Template-Fingerprint-Schutz gegen Inhaltsverlust
+
+### Kritische Verbesserung: `_strip_wordsection_sig` entfernt nur noch echte Signaturen (`mail_processor.py`)
+Bisherige Heuristik: „letzter unbenannter top-level `<div>` in `WordSection1`" — kein
+Inhaltscheck. Konsequenz: wenn kein Outlook-Desktop-Sig-Div existiert oder user content
+in einem namenlosen Div steht (wie die Dirk-Theisen-Mail), wurde user-Inhalt gelöscht.
+
+**Neuer Ansatz: Template-Fingerprint-Vergleich**
+- `_sig_fingerprint(sig_html)` extrahiert markante Tokens (≥4 Zeichen) aus dem gerenderten
+  Signatur-Template des Absenders (Firmenname, Domain, Adresse, Name, Telefon etc.) und
+  filtert generische Wörter heraus (Grußformeln, Füllwörter).
+- `_matches_sig_fp(candidate_html, fp)` prüft: Enthält der Kandidat-Div ≥50% der
+  Template-Tokens? Nur dann → STRIP. Sonst → KEEP.
+- `_strip_client_sig_divs(html, sig_html)` nimmt jetzt `sig_html` entgegen und gibt den
+  Fingerprint an `_strip_wordsection_sig` weiter.
+- `_strip_wordsection_sig(html, sig_fingerprint)` prüft den Fingerprint direkt vor dem
+  Entfernen; loggt Token-Treffer-Quote für Debugging.
+
+**Warum die Dirk-Mail jetzt überleben würde:**
+Der letzte Div hatte „Zusatzvereinbarung", „A12", Vertragstext — 0% Übereinstimmung
+mit den Zarenko-Signatur-Tokens → KEEP → kein Inhaltsverlust.
+
+**Fallback:** Wenn `sig_html` leer (kein Template), greift die Strukturheuristik wie
+bisher (rückwärtskompatibel). Wenn Fingerprint < 2 Token, ebenfalls Heuristik.
+
+---
+
+## v1.4.55 — 2026-06-23 — feat: markerbasierte Signaturidentifikation
+
+### Feature: `<!-- exo-sig-start -->` / `<!-- exo-sig-end -->` Marker (`mail_processor.py`)
+Bisher musste `_strip_wordsection_sig` per Heuristik raten, welcher `<div>` die
+Outlook-Desktop-Signatur ist. Bei Text-Only-Signaturen und Mails ohne Standardstruktur
+(z.B. Inhalt nach `---`-Linien) konnte das schiefgehen.
+
+**Neue Strategie:**
+- `_append_html_sig` umschließt die injizierte Signatur mit Marker-Kommentaren:
+  `<!-- exo-sig-start -->[sig-html]<!-- exo-sig-end -->`
+- `_strip_client_sig_divs` sucht beim nächsten Durchlauf zuerst nach diesen Markern.
+  Wird ein Marker **vor** dem ersten Quote-Wrapper-Div gefunden, wird genau dieser
+  Bereich entfernt — deterministisch, ohne Heuristik.
+- Neue Hilfsfunktion `_find_first_quote_wrapper_pos()` liefert den Beginn des ersten
+  `divRplyFwdMsg` / `divTagDefaultWrapper` / `divFwdMsg` im HTML.
+- Fallback: Ist kein Marker vorhanden (erste Mail, Outlook-Desktop-Signatur von Client),
+  greift weiterhin die `_strip_wordsection_sig`-Heuristik (letzter unbenannter top-level
+  `<div>` in `WordSection1`).
+
+**Effekt:** Mails, die bereits einmal durch das Gateway gelaufen sind, werden beim
+nächsten Durchlauf (Reply/Forward) sicher gestrippt — kein Inhaltsverlust mehr durch
+falsche Div-Identifikation.
+
+---
+
+## v1.4.54 — 2026-06-23 — fix: Inhaltsverlust bei --- Trennlinien + Audit-Log
+
+### Kritischer Bug-Fix: `_strip_wordsection_sig` entfernte User-Inhalt (`mail_processor.py`)
+Outlook schreibt die Signatur immer als **letzten** top-level `<div>` in `WordSection1`.
+Bisher wurde der **erste** unbenannte `<div>` entfernt — wenn Outlook Inhalt nach einer
+`---`-Linie in einen namenlosen `<div>` wickelte, wurde dieser Inhalt fälschlich als
+Signatur gestripped und gelöscht. Betroffen: Mail an Dirk Theisen 11:00 (Zusatzvereinbarung A12).
+Fix: Scanner sammelt jetzt ALLE top-level divs, entfernt nur den **letzten** unbenannten.
+
+### Feature: Per-Mail Audit-Log (`mail_audit.py`)
+- SQLite-Datenbank `/app/data/mail_audit.db` — effizient, kein Extra-Service
+- Jede verarbeitete SMTP-Transaktion schreibt eine Zeile:
+  Zeitpunkt, Absender, Empfänger, Betreff, Message-ID, Aktion, Größe, Dauer (ms), Fehler
+- Actions: `signed`, `smime_signed`, `smime_encrypted`, `smime_decrypted`,
+  `auto_submitted`, `calendar`, `fallback`, `error`
+- Retention: `LOG_RETENTION_DAYS` (default 90 Tage), Bereinigung beim Start
+- API: `GET /api/audit/events?date=YYYY-MM-DD&action=...&limit=...&offset=...`
+- Dashboard: Heute-Zahlen sind klickbar → Modal mit Detailliste (Datum, Absender,
+  Empfänger, Betreff, Aktion, Dauer) mit Paginierung
+
+---
+
+## v1.4.53 — 2026-06-22 — fix: Code-Review-Findings R2 + R3 + R4 + M4 + L1 + settings-Backup
+
+### R2 — ACME Race Condition: Doppelter Challenge-Trigger (`acme_state.py`)
+`handle_challenge_email` wechselt jetzt am Anfang atomisch (unter Lock) von
+`waiting_challenge` → `processing_challenge`. Zweiter Aufruf (SMTP-Intercept und Graph-Poll
+können gleichzeitig feuern) sieht den geänderten Status und bricht sofort ab.
+Verhindert zwei parallele Challenge-Trigger bei CASTLE → Order bleibt gültig.
+
+### R3 — ACME Stale Order nach Restart (`acme_state.py`)
+`_poll_mailbox_for_challenge` gibt früh zurück wenn `order0` beim Taskstart bereits
+None ist (Order wurde inzwischen gelöscht). Cutoff-Berechnungsfehler loggt jetzt
+eine explizite Warnung statt stumm `time_filter=""` zu setzen.
+Inbox-Poll-Limit: `$top=20` → `$top=50`.
+
+### R4 — Kein 429-Retry bei Graph sendMail (`graph_reinject.py`)
+`_post_with_429_retry()`: wartet `Retry-After` (max. 30s) und wiederholt einmal.
+Greift in `send_via_graph` und `send_via_graph_mime`. Verhindert stille Mail-Verluste
+bei Graph-API-Throttling.
+
+### M4 — MSAL blockiert asyncio Event-Loop (`graph_client.py`)
+`_acquire_token_async()`: Wrapper mit `loop.run_in_executor(None, _acquire_token)`.
+Alle async-Funktionen (`update_sent_item`, `cleanup_sent_items`, `list_mailboxes`,
+`get_user`) und `_poll_mailbox_for_challenge` nutzen jetzt den nicht-blockierenden
+Pfad. ACME-Polling läuft ohne Event-Loop-Blockade beim Token-Refresh.
+
+### L1 — NDR-Absenderadresse war ungültig (`handler.py`)
+`no-reply@zarenko` (aus Smarthost-Hostname) → `NOTIFICATION_MAILBOX` wenn konfiguriert,
+sonst `no-reply@<domain-des-original-senders>` (z.B. `no-reply@zarenko.net`).
+
+### Bonus — settings.json Backup (`settings_store.py`)
+Nach jedem erfolgreichen Save: alte Datei → `.bak`. Beim Laden: wenn `settings.json`
+korrupt → Fallback auf `.bak` statt sofort mit Defaults weiterzumachen.
+
+---
+
+## v1.4.52 — 2026-06-22 — fix: Code-Review-Findings H1 + L4 + L5 + L6 + M2
+
+### H1 — bare LF in Auto-Submitted- und Calendar-Passthrough (`handler.py`)
+`msg.as_bytes()` (produziert bare LF auf Linux) wurde in beiden Passthrough-Pfaden durch
+`loop_detector.mark_as_signed_bytes(raw)` ersetzt — das originale MIME-Bytestream mit CRLF
+wird direkt weitergegeben. Verhindert 550 5.6.11 SMTPSEND.BareLinefeedsAreIllegal bei Exchange.
+
+### M2 — ACME-Task nicht in `_running_tasks` registriert (`handler.py`)
+`asyncio.create_task(handle_challenge_email(...))` wurde nicht in `_running_tasks` registriert.
+Bei doppelter SMTP-Delivery desselben ACME-Mails durch Exchange konnten zwei parallele Tasks
+gleichzeitig den Challenge-Trigger bei CASTLE senden → Order invalidiert. Fix: Task wird direkt
+nach Erstellung via `_acme_state._register_task(rcpt, task)` registriert.
+
+### L4 — Jinja2 ohne HTML-Autoescape (`signature_engine.py`)
+`autoescape=False` → `autoescape=select_autoescape(["html"])`. Graph-API-Felder wie
+`displayName` werden jetzt HTML-escaped — verhindert HTML-Injection durch manipulierte
+Exchange-Displaynamen (z.B. `</td><img src="tracker.example.com">`).
+
+### L5 — Temp-Dateien in `smime_harvest._extract_via_openssl` (`smime_harvest.py`)
+Bei Exception in `subprocess.run` blieben `.p7s`-Dateien (PKCS7-Material) in `/tmp` liegen.
+Fix: `try/finally` stellt sicher dass `tmp_path` und `cert_path` immer gelöscht werden.
+
+### L6 — Nicht-atomisches settings.json-Write (`settings_store.py`)
+`SETTINGS_FILE.write_text(...)` direkt → Container-Kill mid-Write → korrupte/leere
+`settings.json` → alle Einstellungen inkl. CLIENT_SECRET verloren. Fix: atomisches Write
+via `.tmp`-Datei + `os.replace()` (`Path.replace()`).
+
+---
+
+## v1.4.51 — 2026-06-22 — fix: Signatur landet am Ende bei Antworten (Quote-Pattern robust)
+
+### Problem
+`_append_html_sig` suchte Quote-Wrapper mit exakter String-Suche inkl. Doppelquotes:
+`<div id="divrplyfwdmsg"`. Exchange/Outlook emittiert manchmal single-quotes (`id='...'`)
+oder andere Attribute vor `id=` (z.B. `dir="ltr"`), sodass der Match scheiterte → Fallback
+auf `</body>` → Signatur am Ende der Mail statt zwischen Antwort-Text und zitierter Mail.
+
+### Fix
+- `_append_html_sig`: Alle Quote-Pattern auf `re.compile(..., re.IGNORECASE)` umgestellt
+  - `<div\b[^>]*\bid=["']divrplyfwdmsg["']` — Attributreihenfolge + Quote-Stil egal
+  - Analog für `divtagdefaultwrapper`, `gmail_quote`, `yahoo_quoted`, `blockquote`
+- Log-Level der Einfüge-Meldung von DEBUG → INFO (sichtbar in app.log)
+
+---
+
+## v1.4.50 — 2026-06-22 — feat: Calendar-Passthrough (Termine/Besprechungsanfragen ausschließen)
+
+### Änderung
+- `handler.py`: Mails mit `text/calendar`-Part (Besprechungsanfragen, Terminabsagen,
+  Kalender-Updates) werden vor der Signatur-/S/MIME-Verarbeitung erkannt und unverändert
+  weitergeleitet — weder Signatur noch S/MIME wird angewendet.
+- Erkennung via `_has_calendar_part()`: prüft Top-Level-Content-Type UND alle MIME-Parts
+  (multipart/mixed mit iCalendar-Anhang).
+- Einordnung im Flow: nach Auto-Submitted-Passthrough, vor inbound S/MIME-Verarbeitung.
+
+---
+
 ## v1.4.46 — 2026-06-22 — fix: Doppelte Sent Items + sendMail-Dedup bei Multi-Empfänger-Mails
 
 ### Problem
