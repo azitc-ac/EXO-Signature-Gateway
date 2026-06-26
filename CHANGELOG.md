@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.89 — 2026-06-27 — docs: Netzwerk-Anforderungen in README (Inbound/Outbound je Modus)
+
+- README: neue Sektion "Netzwerk-Anforderungen" mit vollständigen Inbound- und
+  Outbound-Port-Tabellen inkl. Zweck, Ziel und Modus-Abhängigkeit.
+  Ersetzt die unvollständige Azure-Tabelle.
+- Azure-Sektion gestrafft: Betrieb auf Azure erklärt sich jetzt aus der Port-Tabelle.
+
+---
+
 ## v1.4.88 — 2026-06-27 — feat: Mail-Logs-Kachel + README/UPDATE.md aktualisiert
 
 - System-Kachel Dashboard: neue Kachel "Mail-Logs" (Gesamtgröße data/logs/ in KB/MB).

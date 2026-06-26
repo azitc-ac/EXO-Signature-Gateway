@@ -49,19 +49,39 @@ Exchange Online (EXO) → Zustellung an Empfänger
 
 ---
 
+## Netzwerk-Anforderungen
+
+### Inbound (Firewall / Port-Forwarding auf dem Host)
+
+| Port | Protokoll | Von wem | Zweck | Wann nötig |
+|------|-----------|---------|-------|------------|
+| **25** | SMTP + STARTTLS | Exchange Online (Transport Connector) | Eingehende Mails zur Verarbeitung | **immer** |
+| **80** | HTTP | Let's Encrypt-Server | HTTP-01 ACME Challenge | nur während Zertifikatsausstellung |
+| **8080** | HTTPS | Admins / Browser | Web-UI & REST-API | **immer** |
+
+> Hinweis: Port 80 und 25 müssen ggf. auf **unterschiedliche Hostnamen** zeigen, wenn der Web-Hostname hinter einem Reverse-Proxy (z. B. Azure Application Proxy) liegt, der kein SMTP durchleitet. In diesem Fall `SMTP_HOSTNAME` konfigurieren (Setup-Wizard Schritt 2).
+
+### Outbound (Container → Internet)
+
+| Port | Protokoll | Ziel | Zweck | Re-inject-Modus |
+|------|-----------|------|-------|-----------------|
+| **443** | HTTPS | `graph.microsoft.com` | Graph API: Userdaten, sendMail, Mailbox-Polling | alle |
+| **443** | HTTPS | `login.microsoftonline.com` | Azure AD Token-Endpunkt | alle |
+| **443** | HTTPS | `acme.castle.cloud` | CASTLE ACME (S/MIME-Zertifikate) | bei CASTLE-Enrollment |
+| **443** | HTTPS | `acme-v02.api.letsencrypt.org` | Let's Encrypt TLS-Zertifikat | bei Let's Encrypt |
+| **993** | IMAPS | `outlook.office365.com` | IMAP APPEND (Inbox-Inject ohne Draft-Flag) | `imap` |
+| **25** | SMTP | `<tenant>.mail.protection.outlook.com` | Re-inject via SMTP | `smtp` (nicht Azure-kompatibel) |
+
+Azure VMs blockieren ausgehenden Port 25. Mit `REINJECT_MODE=graph` oder `imap` ist der Service vollständig ohne outbound Port 25 betreibbar.
+
+---
+
 ## Betrieb auf Azure (kein ausgehender Port 25)
 
-Azure Virtual Machines blockieren ausgehenden SMTP-Port 25 standardmäßig. Mit `REINJECT_MODE=imap` ist der Service vollständig ohne outbound Port 25 betreibbar:
-
-| Verbindung | Port | Protokoll | Azure-kompatibel |
-|---|---|---|---|
-| Exchange → Gateway (Transport Connector) | 25 | SMTP (eingehend) | ✓ |
-| Gateway → Exchange (Outbound Re-inject) | 443 | Graph API HTTPS | ✓ |
-| Gateway → Exchange (Inbound Inbox-Inject) | 993 | IMAPS (XOAUTH2) | ✓ |
-| Gateway → Let's Encrypt / CASTLE ACME | 443 | HTTPS | ✓ |
+Mit `REINJECT_MODE=graph` (Standard) oder `imap` läuft der Service ohne ausgehenden Port 25. Der Graph-Modus benötigt nur ausgehend Port 443.
 
 **Warum IMAP statt Graph API für Inbox-Inject?**  
-Die Graph API (`POST /mailFolders/inbox/messages`) erstellt Nachrichten immer mit gesetztem `MSGFLAG_UNSENT`-Flag – Outlook zeigt sie dann als Entwurf mit Senden-Knopf. IMAP APPEND setzt dieses Flag nicht, die Nachricht landet direkt als echte empfangene Mail im Postfach.
+Die Graph API (`POST /mailFolders/inbox/messages`) erstellt Nachrichten mit gesetztem `MSGFLAG_UNSENT`-Flag — Outlook zeigt sie als Entwurf mit Senden-Knopf. IMAP APPEND setzt dieses Flag nicht; die Nachricht landet direkt als echte empfangene Mail im Postfach.
 
 ### Voraussetzungen für IMAP-Modus
 
