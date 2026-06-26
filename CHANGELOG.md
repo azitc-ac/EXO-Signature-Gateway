@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.88 — 2026-06-27 — feat: Mail-Logs-Kachel + README/UPDATE.md aktualisiert
+
+- System-Kachel Dashboard: neue Kachel "Mail-Logs" (Gesamtgröße data/logs/ in KB/MB).
+- `/api/system/info`: `logs_size_kb`-Feld ergänzt.
+- `README.md`: Web-UI-Tabelle um Postfächer + Add-in ergänzt; Dashboard-Beschreibung
+  aktualisiert; Architektur-Listing um 7 fehlende Module ergänzt; Let's Encrypt-Abschnitt
+  korrigiert (Port 80 bereits offen; separater SMTP-Hostname erwähnt).
+- `UPDATE.md`: veralteten `git checkout v1.4.84`-Tag-Verweis durch generischen
+  Hash-basierten Rollback ersetzt; Rückweg zu main dokumentiert.
+
+---
+
 ## v1.4.87 — 2026-06-26 — feat: System-Kachel im Dashboard (Disk, RAM, Uptime, In-Flight, Ø ms)
 
 - Neuer API-Endpunkt `GET /api/system/info`: Disk-Nutzung `/app/data`, SQLite-DB-Größe,

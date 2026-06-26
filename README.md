@@ -181,13 +181,15 @@ Erreichbar unter `https://<host>:8080`.
 
 | Seite | Funktion |
 |---|---|
-| **Dashboard** | Statistiken: Heute / laufender Monat / laufendes Jahr (verarbeitete Mails, S/MIME, Fehler), Zertifikatsablauf |
+| **Dashboard** | Mail-Statistiken (Heute / Monat / Jahr), S/MIME-Zähler, Fehler, Zertifikatsablauf, System-Monitoring (RAM, Disk, Logs, In-Flight, Ø Verarbeitungszeit) |
+| **Postfächer** | Aktivierte Postfächer verwalten, EXO-Verteilerliste synchronisieren |
 | **Templates** | Signatur-HTML und -Plaintext bearbeiten |
 | **Vorschau** | Signatur für eine beliebige E-Mail-Adresse rendern |
-| **Einstellungen** | Alle Konfigurationsoptionen, Test-Mail, Let's Encrypt, Re-inject-Modus |
+| **Einstellungen** | Alle Konfigurationsoptionen, Test-Mail, Let's Encrypt, Re-inject-Modus, Entra-App |
 | **S/MIME** | Zertifikat-Upload, Azure Key Vault Migration, CASTLE ACME-Enrollment |
 | **Log** | Live-Ansicht der Service-Logs |
-| **Setup** | Erstkonfigurationsassistent (App-Registrierung, Connector, IMAP-Zugriff) |
+| **Add-in** | Office-Add-in für Outlook (Signatur-Vorschau und -Auswahl im Compose-Fenster) |
+| **Setup** | Erstkonfigurationsassistent (App-Registrierung, Connector, IMAP-Zugriff, SMTP-Hostname) |
 | **Debug** | ACME-Versandmethode, Account Key Reset, Exchange Header Observatory |
 
 ---
@@ -279,15 +281,14 @@ Der Service verarbeitet alle gängigen MIME-Formate korrekt:
 
 ## Let's Encrypt
 
-1. Port 80 in `docker-compose.yml` aktivieren (Zeile auskommentieren):
-   ```yaml
-   ports:
-     - "80:80"
-   ```
-2. Sicherstellen dass Port 80 extern erreichbar ist (Firewall / NAT-Regel).
-3. In der Web-UI unter **Einstellungen → TLS / Let's Encrypt** Domain und E-Mail eintragen.
-4. Button **Zertifikat erneuern** klicken.
-5. Nach Erfolg: **Service neu starten** (Button in Einstellungen oder `docker compose restart`).
+Port 80 ist im mitgelieferten `docker-compose.yml` bereits offen (HTTP-01 Challenge).
+
+1. Sicherstellen dass Port 80 und Port 25 extern erreichbar sind (Firewall / NAT-Regel).
+2. In der Web-UI unter **Einstellungen → TLS / Let's Encrypt** Domain und E-Mail eintragen.
+3. Button **Zertifikat erneuern** klicken.
+4. Nach Erfolg: **Service neu starten** (Button in Einstellungen oder `docker compose restart`).
+
+**Separater SMTP-Hostname:** Falls der Web-Hostname hinter einem Reverse-Proxy / Azure Application Proxy liegt und kein SMTP empfangen kann, lässt sich ein separater `SMTP_HOSTNAME` mit eigenem Zertifikat konfigurieren (Setup-Wizard Schritt 2).
 
 ---
 
@@ -317,18 +318,24 @@ app/
 ├── config.py            Secrets aus Umgebungsvariablen
 ├── settings_store.py    Persistente Einstellungen (data/settings.json)
 ├── handler.py           SMTP-Handler (Loop-Check → Graph → Signatur → Reinject)
-├── graph_client.py      MS Graph API (Userdaten, Sent-Items-Update)
-├── graph_reinject.py    Graph API sendMail + Inbox-Inject (Re-Inject ohne Port 25)
-├── smtp_submit.py       IMAP APPEND / SMTP-Auth Port 587 (Inbox-Inject, Azure-Modus)
+├── graph_client.py      MS Graph API (Userdaten, Sent-Items-Update, Inbox-Polling)
+├── graph_reinject.py    Graph API sendMail + Inbox-Inject
+├── smtp_submit.py       IMAP APPEND (Inbox-Inject ohne Draft-Flag, Azure-Modus)
 ├── reinject.py          Re-inject-Routing (imap / graph / smtp)
 ├── mail_processor.py    Signatur-Injektion (HTML, Plaintext, TNEF)
+├── mail_audit.py        SQLite-Audit-Log aller verarbeiteten Mails (data/mail_audit.db)
 ├── signature_engine.py  Jinja2-Rendering
 ├── loop_detector.py     Doppel-Injektion verhindern (konfigurierbarer Header)
+├── health_check.py      /health-Endpunkt für Docker-Healthcheck
+├── log_manager.py       Rotierende Log-Dateien (data/logs/)
 ├── smime_signer.py      S/MIME Signierung (lokal oder via Azure Key Vault)
+├── smime_encrypt.py     S/MIME Verschlüsselung (Empfänger-Zertifikate)
+├── smime_decrypt.py     S/MIME Entschlüsselung eingehender Mails
 ├── cms_sign.py          PKCS#7 / CMS SignedData Builder (Key Vault Sign API)
 ├── keyvault.py          Azure Key Vault Integration (Import, Sign, RBAC)
 ├── smime_store.py       Zertifikat-Verwaltung (Multi-Slot, KV-Migration, Backup)
-├── smime_harvest.py     Eingehende S/MIME-Zertifikate ernten / Signatur strippen
+├── smime_harvest.py     Eingehende S/MIME-Zertifikate ernten
+├── mime_observatory.py  Exchange-Header-Analyse (Debug-Tab)
 ├── acme_client.py       ACME v2 Client (RFC 8555)
 ├── acme_state.py        ACME Auftrags-State, Graph API Mailbox-Polling
 ├── ca_backends/         CA-Backend-Abstraktionen (Assisted Manual, CASTLE ACME)
@@ -337,7 +344,8 @@ app/
 ├── notification.py      E-Mail-Benachrichtigungen (Admin + Benutzer)
 ├── setup_wizard.py      Erstkonfigurationsassistent
 ├── pkce.py              Azure PKCE OAuth-Flow
-├── stats.py             Mail-Statistiken
+├── sso.py               Entra-SSO (OIDC/PKCE), Session-Management, RBAC
+├── stats.py             Mail-Statistiken (In-Memory + tägliche JSON-Zeitreihe)
 └── webui/
     ├── app.py           FastAPI Web-UI (Routen, API-Endpunkte)
     └── templates/       Jinja2-HTML-Templates der Web-UI

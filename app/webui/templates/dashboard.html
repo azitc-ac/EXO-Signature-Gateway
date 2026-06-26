@@ -200,7 +200,8 @@
         tile('Uptime', fmt_uptime(d.uptime_s), 'Prozess läuft seit') +
         tile('Disk belegt', d.disk_used_mb != null ? d.disk_used_mb + ' MB' : '—', d.disk_pct != null ? d.disk_pct + '% von ' + d.disk_total_mb + ' MB' : '', diskClass) +
         tile('Disk frei', d.disk_free_mb != null ? d.disk_free_mb + ' MB' : '—', '/app/data') +
-        tile('Audit-DB', d.db_size_kb != null ? d.db_size_kb + ' KB' : '—', 'mail_audit.db');
+        tile('Audit-DB', d.db_size_kb != null ? d.db_size_kb + ' KB' : '—', 'mail_audit.db') +
+        tile('Mail-Logs', d.logs_size_kb != null ? (d.logs_size_kb >= 1024 ? (d.logs_size_kb/1024).toFixed(1)+' MB' : d.logs_size_kb+' KB') : '—', 'data/logs/ gesamt');
       document.getElementById('sysRefreshNote').textContent = 'aktualisiert ' + new Date().toLocaleTimeString('de-DE');
     } catch(e) {
       document.getElementById('sysRefreshNote').textContent = 'Fehler: ' + e.message;

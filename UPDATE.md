@@ -41,22 +41,24 @@ Sichert `settings.json`, `mail_audit.db`, Logs und ACME-Account-Keys.
 Falls nach einem Update etwas nicht stimmt:
 
 ```bash
-# Auf den letzten stabilen Commit zurück
-git log --oneline -10          # Commit-Hash des letzten guten Stands ermitteln
+# Commit-Hash des letzten funktionierenden Stands ermitteln:
+git log --oneline -10
+
+# Auf diesen Stand zurücksetzen:
 git checkout <commit-hash>
 docker compose up -d --build
 ```
 
-Oder per Tag (wenn vorhanden):
+`./data/` bleibt dabei unangetastet — die ältere Version liest das vorhandene
+`settings.json` weiterhin. Unbekannte (neuere) Einstellungsfelder werden ignoriert.
+
+Um wieder auf den aktuellen Stand zu kommen:
 
 ```bash
-git checkout v1.4.84
+git checkout main
+git pull
 docker compose up -d --build
 ```
-
-`./data/` bleibt dabei unangetastet — die neue Version liest das vorhandene
-`settings.json` weiterhin. Falls eine Einstellung weggefallen ist, wird sie
-einfach ignoriert.
 
 ---
 

@@ -3216,6 +3216,13 @@ async def api_system_info(user: str = Depends(_check_auth)):
     except Exception:
         db_size_kb = None
 
+    # Log files total size
+    logs_path = data_path / "logs"
+    try:
+        logs_size_kb = round(sum(f.stat().st_size for f in logs_path.iterdir() if f.is_file()) / 1024, 1)
+    except Exception:
+        logs_size_kb = None
+
     # Process RSS memory from /proc/self/status
     rss_mb = None
     try:
@@ -3258,6 +3265,7 @@ async def api_system_info(user: str = Depends(_check_auth)):
         "disk_free_mb":   disk_free_mb,
         "disk_pct":       disk_pct,
         "db_size_kb":     db_size_kb,
+        "logs_size_kb":   logs_size_kb,
         "rss_mb":         rss_mb,
         "uptime_s":       uptime_s,
         "in_flight":      in_flight,
