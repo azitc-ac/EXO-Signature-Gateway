@@ -12,6 +12,7 @@ import time
 import config
 import graph_client
 import loop_detector
+import mail_audit
 import mail_processor
 import reinject
 import settings_store
@@ -19,6 +20,9 @@ import signature_engine
 import stats
 
 log = logging.getLogger(__name__)
+
+# Number of SMTP transactions currently inside handle_DATA (asyncio single-thread, no lock needed)
+_in_flight: int = 0
 
 # Track recently-processed Message-IDs to schedule SENT_ITEMS_UPDATE cleanup
 # only once per logical email (Exchange delivers multi-recipient mail as separate
@@ -162,7 +166,10 @@ def _send_ndr(original_sender: str, missing_certs: list[str] | None = None,
         subject = "Zustellung fehlgeschlagen: Kein Verschlüsselungszertifikat"
     msg = email.mime.text.MIMEText(body, "plain", "utf-8")
     msg["Subject"] = subject
-    ndr_from = "no-reply@" + (config.EXO_SMARTHOST or "localhost").split(".")[0]
+    ndr_from = (
+        settings_store.get("NOTIFICATION_MAILBOX")
+        or "no-reply@" + (original_sender.split("@", 1)[-1] if "@" in original_sender else "localhost")
+    )
     msg["From"] = ndr_from
     msg["To"] = original_sender
     loop_detector.mark_as_signed(msg)
@@ -198,9 +205,32 @@ class SignatureHandler:
         recipients = envelope.rcpt_tos
         raw = envelope.content
         wants_encryption = False  # tracked for fallback safety
+        _t0 = time.monotonic()
 
+        def _audit(action: str, *, subject: str = "", error: str | None = None) -> None:
+            try:
+                mail_audit.log_event(
+                    sender=sender,
+                    recipients=recipients,
+                    subject=subject or _subject,
+                    message_id=_mid,
+                    action=action,
+                    size_bytes=len(raw),
+                    processing_ms=int((time.monotonic() - _t0) * 1000),
+                    error=error,
+                )
+            except Exception:
+                pass
+
+        _subject = ""
+        _mid = ""
+
+        global _in_flight
+        _in_flight += 1
         try:
             msg = email.message_from_bytes(raw)
+            _subject = _decode_subject(msg.get("Subject", ""))
+            _mid = (msg.get("Message-ID") or "").strip()
             ct = msg.get_content_type().lower()
 
             # ── Harvest-only mode (BCC to harvest address) ────────────────────
@@ -230,9 +260,10 @@ class SignatureHandler:
                         if "<" in ca_from:
                             ca_from = ca_from.split("<", 1)[1].rstrip(">").strip()
                         pending = {**pending, "from_address": ca_from or pending.get("from_address", "")}
-                        asyncio.create_task(
+                        _task = asyncio.create_task(
                             _acme_state.handle_challenge_email(pending, token_part1)
                         )
+                        _acme_state._register_task(rcpt.lower(), _task)
                         return "250 OK"
 
             # ── MIME Observatory: capture test mails to inspect Exchange headers ──
@@ -279,8 +310,26 @@ class SignatureHandler:
             if auto_submitted and auto_submitted != "no":
                 log.info("Auto-generated mail (Auto-Submitted: %s) from=%s — forwarding as-is",
                          auto_submitted, sender)
-                loop_detector.mark_as_signed(msg)
-                reinject.send(sender, recipients, msg.as_bytes())
+                reinject.send(sender, recipients, loop_detector.mark_as_signed_bytes(raw))
+                _audit("auto_submitted")
+                return "250 OK"
+
+            # ── Calendar item passthrough (Termine, Einladungen, iCalendar) ────
+            # Mails mit text/calendar-Teil (Besprechungsanfragen, Absagen, Updates)
+            # werden unverändert weitergeleitet — keine Signatur, kein S/MIME.
+            def _has_calendar_part(m: email.message.Message) -> bool:
+                if m.get_content_type().lower() == "text/calendar":
+                    return True
+                if m.is_multipart():
+                    for part in m.walk():
+                        if part.get_content_type().lower() == "text/calendar":
+                            return True
+                return False
+
+            if _has_calendar_part(msg):
+                log.info("Calendar item (text/calendar) from=%s — forwarding as-is", sender)
+                reinject.send(sender, recipients, loop_detector.mark_as_signed_bytes(raw))
+                _audit("calendar")
                 return "250 OK"
 
             # ── Inbound S/MIME decryption (enveloped-data) ────────────────────
@@ -460,11 +509,13 @@ class SignatureHandler:
             # decryption if the signing cert is not in their trust store.
             # For encrypted mail the pkcs7 envelope itself provides integrity.
             _smime_ok = not _mailbox_cfg or _sender_cfg.get("smime", True)
+            _smime_signed = False
             if not wants_encryption and _smime_ok:
                 import smime_signer
                 signed = await smime_signer.sign_async(outbound, sender)
                 if signed:
                     outbound = signed
+                    _smime_signed = True
 
             # ── S/MIME encryption (#enc# in subject) ─────────────────────────
             if wants_encryption and not _smime_ok:
@@ -498,6 +549,9 @@ class SignatureHandler:
             stats.increment("processed")
             log.info("Mail processed OK: from=%s to=%s", sender, recipients)
 
+            _action = "smime_encrypted" if wants_encryption else ("smime_signed" if _smime_signed else "signed")
+            _audit(_action)
+
             # Schedule Sent Item cleanup once per logical email.
             # send_via_graph_mime deduplicates sendMail calls internally so only the
             # first SMTP transaction actually creates a new Sent Item.  Scheduling
@@ -519,6 +573,7 @@ class SignatureHandler:
         except Exception as exc:
             log.error("Processing failed for mail from=%s: %s", sender, exc)
             stats.increment("errors")
+            _audit("error", error=str(exc))
             if wants_encryption:
                 # Never fall back to sending the original unencrypted mail.
                 # The user explicitly requested encryption — deliver nothing rather
@@ -542,3 +597,5 @@ class SignatureHandler:
                     return "451 Temporary processing error"
                 return "250 OK"
             return "451 Temporary processing error"
+        finally:
+            _in_flight -= 1

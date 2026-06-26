@@ -16,6 +16,7 @@ import sys
 import threading
 import logging
 import urllib.parse
+import uuid as _uuid
 import xml.etree.ElementTree as _ET
 from datetime import datetime, timezone
 from email.mime.text import MIMEText
@@ -29,6 +30,7 @@ from fastapi.templating import Jinja2Templates
 
 import config
 import graph_client
+import mail_processor
 import pkce as pkce_mod
 import settings_store
 import signature_engine
@@ -70,6 +72,13 @@ _TEMPLATE_DIR = Path(__file__).parent / "templates"
 app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 templates = Jinja2Templates(directory=str(_TEMPLATE_DIR))
 templates.env.globals["version"] = config.VERSION
+
+
+def _gateway_name() -> str:
+    """Return the configured gateway name (dynamically read so changes take effect without restart)."""
+    return settings_store.get("GATEWAY_NAME") or "EXO Signature Gateway"
+
+
 
 # ── In-memory stats (reset on restart) ────────────────────────────────────────
 import sys as _sys
@@ -267,12 +276,15 @@ def _webui_scheme() -> str:
 
 def _build_redirect_uri(sso: bool = False) -> str:
     """
-    For SSO flow: use the public hostname (https) if configured.
+    For SSO flow: prefer ADDIN_BASE_URL (canonical external URL, no port) over PUBLIC_HOSTNAME+port.
     For setup flow: always localhost — Azure native/desktop apps allow HTTP localhost in every tenant.
     After login the browser lands on localhost (fails to connect to Pi), the user
     copies the URL from the address bar and pastes it into the wizard.
     """
     if sso:
+        external = (settings_store.get("ADDIN_BASE_URL") or "").rstrip("/")
+        if external:
+            return f"{external}/auth/callback"
         hostname = settings_store.get("PUBLIC_HOSTNAME") or ""
         if hostname:
             port = config.WEBUI_PORT
@@ -286,6 +298,272 @@ def _build_redirect_uri(sso: bool = False) -> str:
 @app.get("/health")
 async def health():
     return JSONResponse({"status": "ok", "service": "exo-signature-service"})
+
+
+# ── Outlook Add-in (no auth — signatures are not sensitive, gateway is internal) ──
+
+@app.get("/addin/compose", response_class=HTMLResponse)
+async def addin_compose(request: Request):
+    return templates.TemplateResponse(request=request, name="addin_compose.html", context={})
+
+
+@app.get("/addin/manifest.xml")
+async def addin_manifest(request: Request):
+    """Generate the Office Add-in manifest dynamically.
+
+    Base URL priority: 1) ADDIN_BASE_URL setting  2) X-Forwarded-Host  3) request.url
+    """
+    base = _addin_base_url(request)
+    hostname = base.split("://")[-1].split(":")[0]
+    # Stable add-in ID derived from the hostname so it never changes across restarts.
+    addin_id = str(_uuid.uuid5(_uuid.NAMESPACE_DNS, f"exo-signature-addin.{hostname}"))
+    xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<OfficeApp
+  xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+  xsi:type="MailApp">
+
+  <Id>{addin_id}</Id>
+  <Version>1.0.0</Version>
+  <ProviderName>{_gateway_name()}</ProviderName>
+  <DefaultLocale>de-DE</DefaultLocale>
+  <DisplayName DefaultValue="EXO Signatur"/>
+  <Description DefaultValue="Zeigt und fügt die Gateway-Signatur beim Verfassen ein"/>
+  <IconUrl DefaultValue="{base}/addin/icon/32.png"/>
+  <HighResolutionIconUrl DefaultValue="{base}/addin/icon/64.png"/>
+  <SupportUrl DefaultValue="{base}"/>
+  <AppDomains>
+    <AppDomain>{hostname}</AppDomain>
+  </AppDomains>
+  <Hosts>
+    <Host Name="Mailbox"/>
+  </Hosts>
+  <Requirements>
+    <Sets>
+      <Set Name="Mailbox" MinVersion="1.1"/>
+    </Sets>
+  </Requirements>
+  <FormSettings>
+    <Form xsi:type="ItemEdit">
+      <DesktopSettings>
+        <SourceLocation DefaultValue="{base}/addin/compose"/>
+      </DesktopSettings>
+    </Form>
+  </FormSettings>
+  <Permissions>ReadWriteItem</Permissions>
+  <Rule xsi:type="RuleCollection" Mode="Or">
+    <Rule xsi:type="ItemIs" ItemType="Message" FormType="Edit"/>
+  </Rule>
+
+  <VersionOverrides
+    xmlns="http://schemas.microsoft.com/office/mailappversionoverrides"
+    xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+    xsi:type="VersionOverridesV1_0">
+
+    <Requirements>
+      <bt:Sets DefaultMinVersion="1.3">
+        <bt:Set Name="Mailbox"/>
+      </bt:Sets>
+    </Requirements>
+
+    <Hosts>
+      <Host xsi:type="MailHost">
+        <DesktopFormFactor>
+          <FunctionFile resid="functionFile"/>
+          <ExtensionPoint xsi:type="MessageComposeCommandSurface">
+            <OfficeTab id="TabDefault">
+              <Group id="exo.sig.group">
+                <Label resid="groupLabel"/>
+                <Control xsi:type="Button" id="exo.sig.btn">
+                  <Label resid="btnLabel"/>
+                  <Supertip>
+                    <Title resid="btnTitle"/>
+                    <Description resid="btnDesc"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="icon16"/>
+                    <bt:Image size="32" resid="icon32"/>
+                    <bt:Image size="80" resid="icon80"/>
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <SourceLocation resid="taskpaneUrl"/>
+                  </Action>
+                </Control>
+              </Group>
+            </OfficeTab>
+          </ExtensionPoint>
+        </DesktopFormFactor>
+      </Host>
+    </Hosts>
+
+    <Resources>
+      <bt:Images>
+        <bt:Image id="icon16" DefaultValue="{base}/addin/icon/16.png"/>
+        <bt:Image id="icon32" DefaultValue="{base}/addin/icon/32.png"/>
+        <bt:Image id="icon80" DefaultValue="{base}/addin/icon/80.png"/>
+      </bt:Images>
+      <bt:Urls>
+        <bt:Url id="functionFile" DefaultValue="{base}/addin/function"/>
+        <bt:Url id="taskpaneUrl"  DefaultValue="{base}/addin/compose"/>
+      </bt:Urls>
+      <bt:ShortStrings>
+        <bt:String id="groupLabel" DefaultValue="Signatur"/>
+        <bt:String id="btnLabel"   DefaultValue="Signatur"/>
+        <bt:String id="btnTitle"   DefaultValue="EXO Signatur"/>
+      </bt:ShortStrings>
+      <bt:LongStrings>
+        <bt:String id="btnDesc" DefaultValue="Gateway-Signatur einfügen"/>
+      </bt:LongStrings>
+    </Resources>
+  </VersionOverrides>
+</OfficeApp>"""
+    from fastapi.responses import Response
+    return Response(content=xml, media_type="application/xml")
+
+
+@app.get("/addin/icon/{size_str}")
+async def addin_icon(size_str: str):
+    """Serve a pen+signature icon as PNG (no PIL required)."""
+    import struct, zlib
+    size = max(16, min(int(size_str.split(".")[0]), 128))
+    BR, BG, BB = 0, 120, 212   # #0078d4 blue background
+    WR, WG, WB = 255, 255, 255  # white foreground
+
+    pixels = [[(BR, BG, BB)] * size for _ in range(size)]
+
+    def put(row: int, col: int) -> None:
+        if 0 <= row < size and 0 <= col < size:
+            pixels[row][col] = (WR, WG, WB)
+
+    def bline(r1: int, c1: int, r2: int, c2: int, w: int = 1) -> None:
+        dr, dc = abs(r2 - r1), abs(c2 - c1)
+        sr, sc = (1 if r1 < r2 else -1), (1 if c1 < c2 else -1)
+        err = dr - dc
+        while True:
+            for tr in range(-(w // 2), w // 2 + 1):
+                for tc in range(-(w // 2), w // 2 + 1):
+                    put(r1 + tr, c1 + tc)
+            if r1 == r2 and c1 == c2:
+                break
+            e2 = 2 * err
+            if e2 > -dc:
+                err -= dc; r1 += sr
+            if e2 < dr:
+                err += dr; c1 += sc
+
+    s = size / 32.0
+    sw = max(1, round(2 * s))  # stroke width
+
+    # Pen body: diagonal from top-right to lower-left
+    bline(round(2*s), round(24*s), round(20*s), round(6*s), sw)
+    # Pen nib: small filled triangle at the tip
+    tip_r, tip_c = round(22*s), round(4*s)
+    for i in range(max(1, round(4*s))):
+        for j in range(max(1, round(3*s)) - i):
+            put(tip_r + i, tip_c + j)
+            put(tip_r + i, tip_c - j)
+    # Signature underline near bottom
+    sig_row = round(27*s)
+    for c in range(round(3*s), round(29*s)):
+        for dr in range(sw):
+            put(sig_row + dr, c)
+    # Small flourish: short curve at end of signature line
+    for i in range(max(1, round(3*s))):
+        put(sig_row + sw + i, round(26*s) + i)
+
+    raw = b""
+    for row in pixels:
+        raw += b"\x00" + b"".join(bytes(px) for px in row)
+
+    def _chunk(tag: bytes, data: bytes) -> bytes:
+        c = struct.pack(">I", len(data)) + tag + data
+        return c + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+
+    png = (
+        b"\x89PNG\r\n\x1a\n"
+        + _chunk(b"IHDR", struct.pack(">IIBBBBB", size, size, 8, 2, 0, 0, 0))
+        + _chunk(b"IDAT", zlib.compress(raw))
+        + _chunk(b"IEND", b"")
+    )
+    from fastapi.responses import Response
+    return Response(content=png, media_type="image/png")
+
+
+@app.get("/addin/function", response_class=HTMLResponse)
+async def addin_function(request: Request):
+    """Minimal function-file page required by Office Add-in DesktopFormFactor."""
+    html = (
+        "<!DOCTYPE html><html><head>"
+        '<meta charset="UTF-8">'
+        '<script src="https://appsforoffice.microsoft.com/lib/1.1/hosted/office.js"></script>'
+        "<script>Office.onReady(function(){});</script>"
+        "</head><body></body></html>"
+    )
+    return HTMLResponse(content=html)
+
+
+@app.get("/api/addin/signature")
+async def api_addin_signature(email: str, template: str = "", user: str = Depends(_check_auth)):
+    """Return the rendered (marked) signature HTML for the add-in taskpane."""
+    email = (email or "").strip().lower()
+    if not email:
+        return JSONResponse({"marked_html": "", "preview_html": ""})
+
+    mailbox_cfg = (settings_store.get("MAILBOX_CONFIG") or {}).get(email, {})
+    default_template = mailbox_cfg.get("template") if isinstance(mailbox_cfg, dict) else None
+
+    # Use requested template only if it's in the user's allowed set
+    allowed = _addin_allowed_templates(email, mailbox_cfg)
+    req = (template or "").strip()
+    template_name = req if (req and req in allowed) else default_template
+
+    try:
+        user_data = await graph_client.get_user(email)
+    except Exception:
+        user_data = graph_client.UserData(mail=email)
+
+    sig_html, _sig_txt = signature_engine.render(user_data, template_name)
+    if not sig_html:
+        return JSONResponse({"marked_html": "", "preview_html": ""})
+
+    # Wrap with both comment markers (survived by Exchange, used by gateway) and
+    # div ID sentinels (survived by Outlook editor, used by add-in replaceSig()).
+    marked = (
+        mail_processor._SIG_MARKER_START
+        + '<div id="exo-sig-s"></div>'
+        + sig_html
+        + '<div id="exo-sig-e"></div>'
+        + mail_processor._SIG_MARKER_END
+    )
+    return JSONResponse({"marked_html": marked, "preview_html": sig_html})
+
+
+@app.get("/api/addin/templates")
+async def api_addin_templates(email: str, user: str = Depends(_check_auth)):
+    """Return list of templates available for this user in the add-in."""
+    email = (email or "").strip().lower()
+    mailbox_cfg = (settings_store.get("MAILBOX_CONFIG") or {}).get(email, {})
+    allowed = _addin_allowed_templates(email, mailbox_cfg)
+    default_template = (mailbox_cfg.get("template") if isinstance(mailbox_cfg, dict) else None) or "default"
+    return JSONResponse({"templates": allowed, "default": default_template})
+
+
+@app.get("/api/addin/update-redirect-uri")
+async def addin_update_redirect_uri(request: Request, user: str = Depends(_require_admin)):
+    """Start PKCE flow to add the external (no-port) redirect URI to the Bootstrap app in Entra.
+
+    Uses the OLD registered URI (with port) as PKCE callback so the roundtrip completes
+    when triggered from the internal URL (e.g. https://sig.zarenko.net:8080).
+    The callback handler then registers the NEW no-port URI via patch_bootstrap_redirect_uri.
+    Afterwards SSO via App Proxy (port 443) works without hitting :8080.
+    """
+    hostname = settings_store.get("PUBLIC_HOSTNAME") or ""
+    port = config.WEBUI_PORT
+    suffix = f":{port}" if port and port != 443 else ""
+    old_uri = f"https://{hostname}{suffix}/auth/callback" if hostname else f"http://localhost:{port}/auth/callback"
+    _state, auth_url = pkce_mod.create_session(old_uri, flow="patch_redirect_uri")
+    return RedirectResponse(auth_url)
 
 
 @app.get("/setup", response_class=HTMLResponse)
@@ -325,6 +603,7 @@ async def setup_wizard(
         "imap_access_configured": s.get("IMAP_ACCESS_CONFIGURED", False),
         "password_change_needed": _password_change_required(),
         "cert_exists": Path(config.SMTP_TLS_CERT).exists(),
+        "smtp_cert_exists": Path(config.SMTP_TLS_CERT_SMTP).exists(),
         "auth_cert_exists": Path("/app/data/auth.pfx").exists(),
         "authed": authed,
         "bootstrap_client_id": s.get("BOOTSTRAP_CLIENT_ID", ""),
@@ -335,7 +614,7 @@ async def setup_wizard(
     }
     return templates.TemplateResponse(
         request=request, name="setup.html",
-        context={"s": s, "e": effective, "active": "setup"},
+        context={"s": s, "e": effective, "active": "setup", "gateway_name": _gateway_name()},
     )
 
 
@@ -447,7 +726,8 @@ async def auth_callback(
         return templates.TemplateResponse(
             request=request, name="setup.html",
             context={"s": settings_store.get_all(), "e": {}, "active": "setup",
-                     "auth_error": f"{error}: {error_description}"},
+                     "auth_error": f"{error}: {error_description}",
+                     "gateway_name": _gateway_name()},
         )
 
     session_obj = pkce_mod.pop_session(state)
@@ -476,7 +756,7 @@ async def auth_callback(
         return templates.TemplateResponse(
             request=request, name="setup.html",
             context={"s": settings_store.get_all(), "e": {}, "active": "setup",
-                     "auth_error": str(exc)},
+                     "auth_error": str(exc), "gateway_name": _gateway_name()},
         )
 
     if flow == "sso":
@@ -508,7 +788,7 @@ async def auth_callback(
                 log.info("Auto-patched OID for SSO user %s → %s", upn, oid)
         log.info("SSO login successful: %s (role: %s, oid: %s)", upn, role, oid or "n/a")
         cookie_val = sso_mod.create_session_cookie(upn, local=False, role=role)
-        next_url = request.query_params.get("next", "/")
+        next_url = session_obj.get("next_url") or request.query_params.get("next", "/")
         response = RedirectResponse(next_url, status_code=302)
         response.set_cookie(
             sso_mod.SESSION_COOKIE, cookie_val,
@@ -528,6 +808,18 @@ async def auth_callback(
             return HTMLResponse(_arm_callback_page(ok=True))
         return HTMLResponse(_arm_callback_page(ok=False, msg="Kein Token erhalten oder Sitzung abgelaufen."))
 
+    elif flow == "patch_redirect_uri":
+        # Triggered from Settings → Add-in → "Redirect URI aktualisieren"
+        access_token = token_resp.get("access_token", "")
+        hostname = settings_store.get("PUBLIC_HOSTNAME") or ""
+        try:
+            import setup_wizard
+            await setup_wizard.patch_bootstrap_redirect_uri(access_token, hostname)
+            log.info("Add-in: Bootstrap redirect URI patched via settings flow")
+        except Exception as exc:
+            log.warning("Add-in redirect URI patch failed: %s", exc)
+        return RedirectResponse("/outlook-addin?addin_uri_patched=1", status_code=303)
+
     else:
         # Setup flow: run post-auth setup
         access_token = token_resp.get("access_token", "")
@@ -540,7 +832,8 @@ async def auth_callback(
             return templates.TemplateResponse(
                 request=request, name="setup.html",
                 context={"s": settings_store.get_all(), "e": {}, "active": "setup",
-                         "auth_error": f"Setup-Fehler nach Login: {exc}"},
+                         "auth_error": f"Setup-Fehler nach Login: {exc}",
+                         "gateway_name": _gateway_name()},
             )
         return RedirectResponse("/setup?entra_done=1", status_code=303)
 
@@ -558,6 +851,7 @@ async def auth_login(request: Request, error: str = "", next: str = "/"):
             "upn": request.query_params.get("upn", ""),
             "sso_configured": sso_mod.sso_configured(),
             "sso_available": bool((settings_store.get("BOOTSTRAP_CLIENT_ID") or "").strip()),
+            "gateway_name": _gateway_name(),
         },
     )
 
@@ -567,7 +861,7 @@ async def auth_login_microsoft(request: Request, next: str = "/"):
     """Start SSO PKCE flow with minimal scopes."""
     redirect_uri = _build_redirect_uri(sso=True)
     _state, auth_url = pkce_mod.create_session(
-        redirect_uri, scopes=sso_mod.SSO_SCOPES, flow="sso"
+        redirect_uri, scopes=sso_mod.SSO_SCOPES, flow="sso", next_url=next
     )
     return RedirectResponse(auth_url)
 
@@ -687,8 +981,12 @@ async def api_setup_hostname(request: Request, user: str = Depends(_check_auth))
     hostname = (data.get("hostname") or "").strip()
     if not hostname:
         raise HTTPException(400, "hostname darf nicht leer sein")
-    settings_store.update({"PUBLIC_HOSTNAME": hostname})
-    log.info("Public hostname set to %s by %s", hostname, user)
+    smtp_hostname = (data.get("smtp_hostname") or "").strip()
+    update: dict = {"PUBLIC_HOSTNAME": hostname}
+    # Empty string = same as HTTP hostname (no separate SMTP hostname)
+    update["SMTP_HOSTNAME"] = smtp_hostname if smtp_hostname and smtp_hostname != hostname else ""
+    settings_store.update(update)
+    log.info("Public hostname set to %s (SMTP: %s) by %s", hostname, smtp_hostname or hostname, user)
     return JSONResponse({"ok": True})
 
 
@@ -1080,6 +1378,7 @@ async def api_get_mailboxes(_=Depends(_check_auth)):
             "sig": cfg.get("sig", False),
             "smime": cfg.get("smime", False),
             "template": cfg.get("template", "default"),
+            "addin_templates": cfg.get("addin_templates", []),
             "health_overall": h.get("overall"),
             "health_checked": h.get("last_checked"),
             "health_checks": h.get("checks", {}),
@@ -1095,6 +1394,7 @@ async def api_get_mailboxes(_=Depends(_check_auth)):
                 "sig": cfg.get("sig", False),
                 "smime": cfg.get("smime", False),
                 "template": cfg.get("template", "default"),
+                "addin_templates": cfg.get("addin_templates", []),
                 "health_overall": h.get("overall"),
                 "health_checked": h.get("last_checked"),
                 "health_checks": h.get("checks", {}),
@@ -1135,10 +1435,13 @@ async def api_save_mailboxes(body: dict, _=Depends(_check_auth)):
         sig = bool(m.get("sig", False))
         smime = bool(m.get("smime", False))
         template = (m.get("template") or "default").strip()
+        addin_tpl = m.get("addin_templates", [])
         if sig or smime:
             entry: dict = {"sig": sig, "smime": smime}
             if template and template != "default":
                 entry["template"] = template
+            if addin_tpl == "*" or (isinstance(addin_tpl, list) and addin_tpl):
+                entry["addin_templates"] = addin_tpl
             config_map[email] = entry
             enabled_members.append(email)
         # If both false, don't include in config (passthrough by default)
@@ -1157,6 +1460,19 @@ async def api_save_mailboxes(body: dict, _=Depends(_check_auth)):
 
 # ── Routes: authenticated pages ────────────────────────────────────────────────
 
+_DE_MONTHS = ["Januar","Februar","März","April","Mai","Juni",
+              "Juli","August","September","Oktober","November","Dezember"]
+
+
+def _prev_month(year: int, month: int, delta: int = 1) -> tuple[int, int]:
+    """Return (year, month) shifted back by delta months."""
+    m = month - delta
+    while m < 1:
+        m += 12
+        year -= 1
+    return year, m
+
+
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request, user: str = Depends(_check_auth)):
     from datetime import datetime as _dt
@@ -1168,6 +1484,9 @@ async def dashboard(request: Request, user: str = Depends(_check_auth)):
     now = _dt.now()
     monthly = _stats_mod2.get_period(now.year, now.month)
     yearly  = _stats_mod2.get_period(now.year)
+    prev_year = now.year - 1
+    m1y, m1m = _prev_month(now.year, now.month, 1)
+    m2y, m2m = _prev_month(now.year, now.month, 2)
     signing_certs = _smime_store.list_certs()
     recipient_certs = _smime_store.list_recipient_certs()
     warn_days = int(settings_store.get("CERT_WARN_DAYS") or 14)
@@ -1179,14 +1498,22 @@ async def dashboard(request: Request, user: str = Depends(_check_auth)):
             "stats": total,
             "stats_daily": daily,
             "stats_monthly": monthly,
+            "stats_monthly_m1": _stats_mod2.get_period(m1y, m1m),
+            "stats_monthly_m2": _stats_mod2.get_period(m2y, m2m),
             "stats_yearly": yearly,
-            "stats_month_label": now.strftime("%B %Y"),
+            "stats_prev_yearly": _stats_mod2.get_period(prev_year),
+            "stats_month_label": f"{_DE_MONTHS[now.month - 1]} {now.year}",
+            "stats_month_m1_label": f"{_DE_MONTHS[m1m - 1]} {m1y}",
+            "stats_month_m2_label": f"{_DE_MONTHS[m2m - 1]} {m2y}",
             "stats_year_label": str(now.year),
+            "stats_prev_year_label": str(prev_year),
+            "today": now.strftime("%Y-%m-%d"),
             "cert_expiry": _cert_expiry(),
             "signing_certs": signing_certs,
             "expiring_certs": expiring_certs,
             "active": "dashboard",
             "password_change_needed": pw_change,
+            "gateway_name": _gateway_name(),
         },
     )
 
@@ -1212,6 +1539,7 @@ async def template_editor(request: Request, user: str = Depends(_check_auth)):
             "saved": request.query_params.get("saved"),
             "current_template": name,
             "template_list": template_list,
+            "gateway_name": _gateway_name(),
         },
     )
 
@@ -1244,7 +1572,7 @@ async def template_save(
 async def preview(request: Request, email: str = "", user: str = Depends(_check_auth)):
     return templates.TemplateResponse(
         request=request, name="preview.html",
-        context={"email": email, "active": "preview"},
+        context={"email": email, "active": "preview", "gateway_name": _gateway_name()},
     )
 
 
@@ -1273,8 +1601,68 @@ async def mailboxes_page(request: Request, user: str = Depends(_require_admin)):
     templates_list = _sig_engine.list_templates()
     return templates.TemplateResponse(
         request=request, name="mailboxes.html",
-        context={"active": "mailboxes", "templates_list": templates_list},
+        context={"active": "mailboxes", "templates_list": templates_list,
+                 "gateway_name": _gateway_name(),
+                 "addin_enabled": bool(settings_store.get("ADDIN_ENABLED"))},
     )
+
+
+def _addin_base_url(request: Request) -> str:
+    """Return the public base URL for the add-in manifest.
+
+    Priority: 1) ADDIN_BASE_URL setting  2) X-Forwarded-Host header  3) request.url
+    """
+    explicit = (settings_store.get("ADDIN_BASE_URL") or "").rstrip("/")
+    if explicit:
+        return explicit
+    fwd_host  = request.headers.get("x-forwarded-host") or request.headers.get("x-original-host")
+    fwd_proto = request.headers.get("x-forwarded-proto") or request.url.scheme
+    if fwd_host:
+        return f"{fwd_proto}://{fwd_host.split(':')[0]}"
+    return f"{request.url.scheme}://{request.url.netloc}"
+
+
+def _addin_allowed_templates(email: str, mailbox_cfg: dict) -> list[str]:
+    """Return sorted list of templates the user may access in the add-in.
+
+    addin_templates == "*"  → all available templates
+    addin_templates == []   → only the mailbox default template
+    addin_templates == [..] → explicit list (intersected with existing templates)
+    """
+    all_tpls = signature_engine.list_templates()
+    default = (mailbox_cfg.get("template") if isinstance(mailbox_cfg, dict) else None) or "default"
+    setting = mailbox_cfg.get("addin_templates") if isinstance(mailbox_cfg, dict) else None
+    if setting == "*":
+        return all_tpls
+    if isinstance(setting, list) and setting:
+        # keep declared order, filter non-existing
+        known = set(all_tpls)
+        result = [t for t in setting if t in known]
+        if default not in result:
+            result = [default] + result
+        return result
+    # No setting → only the default template
+    return [default] if default in all_tpls else ["default"]
+
+
+def _addin_url_warning(base_url: str) -> str:
+    """Return a warning string if the URL is unlikely to be publicly reachable, else ''."""
+    from urllib.parse import urlparse
+    import ipaddress
+    p = urlparse(base_url)
+    if p.scheme != "https":
+        return "Kein HTTPS — M365 erfordert eine sichere Verbindung"
+    if p.port:
+        return f"Nicht-Standard-Port :{p.port} — extern möglicherweise nicht erreichbar"
+    host = p.hostname or ""
+    try:
+        addr = ipaddress.ip_address(host)
+        if addr.is_private or addr.is_loopback:
+            return "Private/lokale IP-Adresse — extern nicht erreichbar"
+    except ValueError:
+        if host in ("localhost",):
+            return "Localhost — extern nicht erreichbar"
+    return ""
 
 
 @app.get("/settings", response_class=HTMLResponse)
@@ -1286,7 +1674,25 @@ async def settings_page(request: Request, user: str = Depends(_require_admin)):
             "active": "settings",
             "cert_expiry": _cert_expiry(),
             "smtp_port": config.SMTP_PORT,
+            "webui_port": config.WEBUI_PORT,
             "saved": request.query_params.get("saved"),
+            "gateway_name": _gateway_name(),
+        },
+    )
+
+
+@app.get("/outlook-addin", response_class=HTMLResponse)
+async def outlook_addin_page(request: Request, user: str = Depends(_require_admin)):
+    base_url = _addin_base_url(request)
+    return templates.TemplateResponse(
+        request=request, name="addin.html",
+        context={
+            "s": settings_store.get_all(),
+            "active": "outlook-addin",
+            "webui_port": config.WEBUI_PORT,
+            "addin_manifest_url": base_url + "/addin/manifest.xml",
+            "addin_url_warning": _addin_url_warning(base_url),
+            "gateway_name": _gateway_name(),
         },
     )
 
@@ -1388,6 +1794,48 @@ async def api_letsencrypt(request: Request, user: str = Depends(_check_auth)):
     return JSONResponse({"ok": True, "detail": "Zertifikat erneuert. Neustart erforderlich."})
 
 
+@app.post("/api/letsencrypt/smtp")
+async def api_letsencrypt_smtp(request: Request, user: str = Depends(_check_auth)):
+    data = await request.json()
+    domain = (data.get("domain") or "").strip()
+    email = (data.get("email") or "").strip()
+    if not domain or not email:
+        raise HTTPException(400, "domain und email sind erforderlich")
+
+    data_dir = Path("/app/data")
+    webroot = data_dir / "acme-webroot"
+    le_cfg = data_dir / "le-config"
+    le_work = data_dir / "le-work"
+    le_logs = data_dir / "le-logs"
+    for d in [webroot, le_cfg, le_work, le_logs]:
+        d.mkdir(parents=True, exist_ok=True)
+
+    result = subprocess.run(
+        ["certbot", "certonly", "--webroot",
+         "-w", str(webroot), "-d", domain,
+         "--email", email, "--agree-tos", "--non-interactive",
+         "--config-dir", str(le_cfg),
+         "--work-dir", str(le_work),
+         "--logs-dir", str(le_logs)],
+        capture_output=True, text=True, timeout=120,
+    )
+
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "certbot error").strip()
+        log.error("certbot SMTP failed: %s", detail)
+        raise HTTPException(500, detail)
+
+    cert_dir = le_cfg / "live" / domain
+    try:
+        shutil.copy2(cert_dir / "fullchain.pem", config.SMTP_TLS_CERT_SMTP)
+        shutil.copy2(cert_dir / "privkey.pem", config.SMTP_TLS_KEY_SMTP)
+    except OSError as exc:
+        raise HTTPException(500, f"SMTP-Zertifikat kopieren fehlgeschlagen: {exc}")
+    settings_store.update({"SMTP_HOSTNAME": domain})
+    log.info("Let's Encrypt SMTP cert issued for %s by %s", domain, user)
+    return JSONResponse({"ok": True, "detail": "SMTP-Zertifikat ausgestellt. Neustart erforderlich."})
+
+
 @app.post("/api/notification/test")
 async def api_notification_test(user: str = Depends(_check_auth)):
     import notification as _notif
@@ -1455,7 +1903,7 @@ async def config_view(request: Request, user: str = Depends(_check_auth)):
     }
     return templates.TemplateResponse(
         request=request, name="config.html",
-        context={"cfg": cfg, "active": "config"},
+        context={"cfg": cfg, "active": "config", "gateway_name": _gateway_name()},
     )
 
 
@@ -1514,7 +1962,8 @@ async def api_smime_set_default(cert_email: str, slot_id: str, user: str = Depen
 async def debug_page(request: Request, user: str = Depends(_require_admin)):
     return templates.TemplateResponse(
         request=request, name="debug.html",
-        context={"active": "debug", "s": settings_store.get_all()},
+        context={"active": "debug", "s": settings_store.get_all(),
+                 "gateway_name": _gateway_name()},
     )
 
 
@@ -1522,7 +1971,8 @@ async def debug_page(request: Request, user: str = Depends(_require_admin)):
 async def log_page(request: Request, user: str = Depends(_require_admin)):
     return templates.TemplateResponse(
         request=request, name="log.html",
-        context={"active": "log", "stream_token": _make_log_token()},
+        context={"active": "log", "stream_token": _make_log_token(),
+                 "gateway_name": _gateway_name()},
     )
 
 
@@ -1604,6 +2054,7 @@ async def smime_page_v2(request: Request, user: str = Depends(_require_admin)):
             "kv_mode": kv_mode,
             "has_any_local_key": has_any_local_key,
             "has_any_unmigrated_key": has_any_unmigrated_key,
+            "gateway_name": _gateway_name(),
         },
     )
 
@@ -2712,3 +3163,105 @@ async def api_cert_exo_ps_export(user: str = Depends(_check_auth)):
         return JSONResponse({"ok": False, "error": "auth.pfx nicht gefunden"}, status_code=404)
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+
+# ── Audit log API ─────────────────────────────────────────────────────────────
+
+@app.get("/api/audit/events")
+async def api_audit_events(
+    request: Request,
+    _user: str = Depends(_check_auth),
+    date: str | None = None,
+    action: str | None = None,
+    sender: str | None = None,
+    limit: int = 200,
+    offset: int = 0,
+):
+    import mail_audit as _audit_mod
+    import json as _json
+    events = _audit_mod.query_events(
+        date=date, action=action, sender=sender,
+        limit=min(limit, 500), offset=offset,
+    )
+    total = _audit_mod.count_events(date=date, action=action, sender=sender)
+    for e in events:
+        try:
+            e["recipients"] = _json.loads(e["recipients"] or "[]")
+        except Exception:
+            e["recipients"] = []
+    return {"events": events, "total": total, "offset": offset, "limit": limit}
+
+
+@app.get("/api/system/info")
+async def api_system_info(user: str = Depends(_check_auth)):
+    import time as _time_mod
+    import mail_audit as _audit_mod
+    import handler as _handler_mod
+
+    # Disk usage of /app/data
+    data_path = Path("/app/data")
+    try:
+        du = shutil.disk_usage(str(data_path))
+        disk_total_mb  = round(du.total / 1024 / 1024, 1)
+        disk_used_mb   = round(du.used  / 1024 / 1024, 1)
+        disk_free_mb   = round(du.free  / 1024 / 1024, 1)
+        disk_pct       = round(du.used / du.total * 100, 1) if du.total else 0
+    except Exception:
+        disk_total_mb = disk_used_mb = disk_free_mb = disk_pct = None
+
+    # SQLite DB size
+    db_path = _audit_mod.DB_PATH
+    try:
+        db_size_kb = round(db_path.stat().st_size / 1024, 1)
+    except Exception:
+        db_size_kb = None
+
+    # Process RSS memory from /proc/self/status
+    rss_mb = None
+    try:
+        for line in Path("/proc/self/status").read_text().splitlines():
+            if line.startswith("VmRSS:"):
+                rss_mb = round(int(line.split()[1]) / 1024, 1)
+                break
+    except Exception:
+        pass
+
+    # Process uptime
+    uptime_s = None
+    try:
+        pid_stat = Path("/proc/self/stat").read_text().split()
+        # field 22 (0-indexed 21) = starttime in clock ticks
+        clk_tck = os.sysconf("SC_CLK_TCK")
+        uptime_total = float(Path("/proc/uptime").read_text().split()[0])
+        proc_start_ticks = int(pid_stat[21])
+        uptime_s = int(uptime_total - proc_start_ticks / clk_tck)
+    except Exception:
+        pass
+
+    # In-flight mail count
+    in_flight = _handler_mod._in_flight
+
+    # Avg processing time last 24h
+    since_24h = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    # rewind 24h
+    from datetime import timedelta
+    since_24h = (datetime.now(timezone.utc) - timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    avg_ms = _audit_mod.avg_processing_ms(since_24h)
+
+    # Peak hour today
+    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    peak = _audit_mod.peak_hour(today_str)
+
+    return {
+        "disk_total_mb":  disk_total_mb,
+        "disk_used_mb":   disk_used_mb,
+        "disk_free_mb":   disk_free_mb,
+        "disk_pct":       disk_pct,
+        "db_size_kb":     db_size_kb,
+        "rss_mb":         rss_mb,
+        "uptime_s":       uptime_s,
+        "in_flight":      in_flight,
+        "avg_ms_24h":     avg_ms,
+        "peak_hour":      peak[0] if peak else None,
+        "peak_hour_cnt":  peak[1] if peak else None,
+    }

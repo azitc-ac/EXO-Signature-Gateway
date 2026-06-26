@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.87 — 2026-06-26 — feat: System-Kachel im Dashboard (Disk, RAM, Uptime, In-Flight, Ø ms)
+
+- Neuer API-Endpunkt `GET /api/system/info`: Disk-Nutzung `/app/data`, SQLite-DB-Größe,
+  Prozess-RAM (RSS), Prozess-Uptime, aktuell in Verarbeitung befindliche Mails (In-Flight),
+  Ø Verarbeitungszeit letzte 24h, geschäftigste Stunde heute.
+- `handler.py`: Modul-globaler `_in_flight`-Counter (atomares Inkrement/Dekrement in asyncio-Loop,
+  kein Lock nötig); try/finally um gesamten `handle_DATA`-Body.
+- `mail_audit.py`: `avg_processing_ms(since_iso)` und `peak_hour(date)` Hilfsfunktionen.
+- Dashboard: neue "System"-Sektion mit 8 Kacheln, auto-refresh alle 10 Sekunden.
+  Disk-Nutzung > 75% → orange, > 90% → rot. In-Flight > 0 → orange.
+
+---
+
 ## v1.4.86 — 2026-06-26 — chore: UPDATE.md + Dockerfile/Compose bereinigt
 
 - `UPDATE.md` neu: Standard-Updateanleitung mit Backup-Schritt und Rollback-Anweisung.
