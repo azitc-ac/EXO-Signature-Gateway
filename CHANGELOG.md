@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.125 — 2026-06-27 — fix: _get_msal_app / _get_effective_credentials fehlend → Mail-Verarbeitung kaputt
+
+- graph_client.py: Pool-Architektur hatte _get_msal_app() und _get_effective_credentials() entfernt,
+  aber keyvault.py (Zeilen 68, 278) und smtp_submit.py (Zeilen 67, 124) riefen sie noch auf →
+  "module 'graph_client' has no attribute '_get_msal_app'" bei jedem eingehenden Mail
+- Beide Funktionen als Compatibility-Shims re-added: _get_msal_app() gibt den ersten
+  verfügbaren Pool-Eintrag zurück; _get_effective_credentials() gibt (tenant, client_id, client_secret)
+- Connector-Validierung und Mail-Verarbeitung sollten damit wieder funktionieren
+
 ## v1.4.113 — 2026-06-27 — feat: Mails-Tabelle — alle Perioden-Zahlen klickbar (Monat, Vorjahr, Jahr)
 
 - mail_audit.py: _add_date_condition() unterstützt jetzt YYYY-MM-DD, YYYY-MM und YYYY

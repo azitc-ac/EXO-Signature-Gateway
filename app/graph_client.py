@@ -233,6 +233,40 @@ async def _acquire_token_async() -> str | None:
     return await loop.run_in_executor(None, _acquire_token)
 
 
+def _get_msal_app():
+    """Return the first available MSAL ConfidentialClientApplication from the pool.
+
+    Used by keyvault.py and smtp_submit.py for non-Graph scopes (vault.azure.net,
+    management.azure.com, outlook.office365.com).
+    """
+    _rebuild_pool_if_needed()
+    now = time.monotonic()
+    with _pool_lock:
+        if not _pool_entries:
+            return None
+        free = [e for e in _pool_entries if now >= _throttled_until.get(e["client_id"], 0)]
+        entry = (free[0] if free else _pool_entries[0])
+        return entry["msal"]
+
+
+def _get_effective_credentials() -> tuple[str, str, str]:
+    """Return (tenant_id, client_id, client_secret) of the first pool entry."""
+    _rebuild_pool_if_needed()
+    tenant = config.TENANT_ID or settings_store.get("TENANT_ID") or ""
+    raw_pool: list[dict] = settings_store.get("APP_POOL") or []
+    with _pool_lock:
+        if _pool_entries:
+            cid = _pool_entries[0]["client_id"]
+            secret = next(
+                (e.get("client_secret", "") for e in raw_pool if e.get("client_id") == cid),
+                config.CLIENT_SECRET or settings_store.get("CLIENT_SECRET") or "",
+            )
+            return tenant, cid, secret
+    client_id = config.CLIENT_ID or settings_store.get("CLIENT_ID") or ""
+    client_secret = config.CLIENT_SECRET or settings_store.get("CLIENT_SECRET") or ""
+    return tenant, client_id, client_secret
+
+
 @dataclass
 class UserData:
     displayName: str = ""
