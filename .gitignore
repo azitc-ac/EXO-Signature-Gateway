@@ -7,3 +7,15 @@ __pycache__/
 *.pyc
 *.pyo
 .pytest_cache/
+
+# Interne Entwicklungs- und Testdateien
+CLAUDE.md
+inject_test.py
+test_smime.py
+ui_test.py
+
+# Kunden-/tenant-spezifische Signaturvorlagen
+templates/*.bak
+templates/Privat-*.html
+templates/Privat-*.txt
+templates/default-without-greeting.*

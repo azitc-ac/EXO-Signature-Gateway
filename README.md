@@ -83,7 +83,7 @@ Mit `REINJECT_MODE=graph` (Standard) oder `imap` läuft der Service ohne ausgehe
 
 ### Azure VM anlegen (PowerShell-Skript)
 
-Das mitgelieferte Skript `azure-vm-setup.ps1` legt eine Standard_B2s-VM (Ubuntu 24.04,
+Das mitgelieferte Skript `azure-vm-setup.ps1` legt eine Standard_B1ms-VM (Ubuntu 24.04,
 32 GB Disk) mit statischer IP und vorkonfigurierter Firewall an und installiert Docker + das Gateway:
 
 ```powershell

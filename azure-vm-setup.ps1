@@ -189,17 +189,17 @@ Write-Host ""
 Write-Host " Nächste Schritte:" -ForegroundColor White
 Write-Host ""
 Write-Host " 1. DNS setzen:" -ForegroundColor Cyan
-Write-Host "    sig.zarenko.net  A  $publicIp"
+Write-Host "    sig.example.com  A  $publicIp"
 Write-Host ""
 Write-Host " 2. Setup-Wizard aufrufen (nach DNS-Propagation, ca. 5 Min.):" -ForegroundColor Cyan
 Write-Host "    http://$publicIp" -ForegroundColor Yellow
-Write-Host "    oder nach DNS: http://sig.zarenko.net"
+Write-Host "    oder nach DNS: http://sig.example.com"
 Write-Host ""
 Write-Host " 3. Hostname + Let's Encrypt konfigurieren → Cert beantragen"
 Write-Host "    → docker compose restart (auf der VM)"
 Write-Host ""
 Write-Host " 4. HTTPS-Setup-Wizard:" -ForegroundColor Cyan
-Write-Host "    https://sig.zarenko.net"
+Write-Host "    https://sig.example.com"
 Write-Host ""
 Write-Host " 5. .env auf der VM ergänzen:" -ForegroundColor Cyan
 Write-Host "    ssh $AdminUser@$publicIp"
