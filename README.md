@@ -91,7 +91,7 @@ Das mitgelieferte Skript `azure-vm-setup.ps1` legt eine Standard_B2s-VM (Ubuntu 
     -ResourceGroup "exo-gateway-rg" `
     -Location "germanywestcentral" `
     -SshPublicKeyFile "~/.ssh/id_rsa.pub" `
-    -RepoUrl "https://github.com/DEIN-REPO/EXO-signature-service.git"
+    -RepoUrl "https://github.com/azitc-ac/EXO-signature-service.git"
 ```
 
 Nach Abschluss zeigt das Skript die öffentliche IP und die nächsten Schritte (DNS setzen,
@@ -162,7 +162,7 @@ Der Modus wird in der Web-UI unter **Einstellungen → Re-inject-Modus** oder vi
 ### 1. Repository klonen
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/azitc-ac/EXO-signature-service.git
 cd EXO-signature-service
 ```
 

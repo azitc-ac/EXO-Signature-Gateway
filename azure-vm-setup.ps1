@@ -36,7 +36,7 @@ param(
     [string]$VmName         = "exo-gateway",
     [string]$AdminUser      = "azureuser",
     [string]$SshPublicKeyFile = "~/.ssh/id_rsa.pub",
-    [string]$RepoUrl        = "https://github.com/DEIN-REPO/EXO-signature-service.git"
+    [string]$RepoUrl        = "https://github.com/azitc-ac/EXO-signature-service.git"
 )
 
 Set-StrictMode -Version Latest
