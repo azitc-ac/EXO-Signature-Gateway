@@ -310,8 +310,8 @@ async def list_sender_mailboxes() -> list[dict]:
                 if not mail or u.get("userType") == "Guest":
                     continue
                 proxy = u.get("proxyAddresses") or []
-                if not any(p.upper().startswith("SMTP:") for p in proxy):
-                    continue  # kein Exchange-Postfach
+                if not any(".onmicrosoft.com" in p.lower() for p in proxy):
+                    continue  # kein Exchange Online Postfach
                 has_license = bool(u.get("assignedLicenses"))
                 results.append({
                     "email": mail,
