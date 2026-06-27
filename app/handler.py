@@ -487,6 +487,18 @@ class SignatureHandler:
             subject = _decode_subject(msg.get("Subject", ""))
             enc_trigger = (settings_store.get("ENC_TRIGGER") or "#enc").lower()
             wants_encryption = enc_trigger in subject.lower()
+
+            # Auto-encrypt replies/forwards to encrypted mails:
+            # The gateway tags decrypted inbound mails with [verschlüsselt] (configurable).
+            # If that tag appears in the outbound subject the user is replying/forwarding
+            # an encrypted thread — keep it encrypted automatically.
+            if not wants_encryption and settings_store.get("SMIME_TAG_ENCRYPTED_ENABLED") is not False:
+                import re as _re
+                _enc_tag = settings_store.get("SMIME_TAG_ENCRYPTED") or "verschlüsselt"
+                if _re.search(_re.escape(f"[{_enc_tag}"), subject):
+                    wants_encryption = True
+                    log.info("Auto-encrypt: enc tag in subject for %s → %r", sender, subject)
+
             log.debug("Outbound from=%s subject=%r enc_trigger=%r wants_encryption=%s",
                       sender, subject, enc_trigger, wants_encryption)
             if wants_encryption:

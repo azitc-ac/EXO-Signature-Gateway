@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.139 — 2026-06-27 — feat: Auto-Verschlüsselung bei Antworten auf verschlüsselte Mails
+
+- handler.py: wenn der ausgehende Betreff das konfigurierte Verschlüsselungs-Tag
+  enthält (z.B. "[verschlüsselt]"), wird wants_encryption automatisch gesetzt —
+  ohne dass der Nutzer #enc manuell hinzufügen muss
+- Erkennt Re:/AW: auf verschlüsselte Mails und Weiterleitungen gleichermaßen
+- Respektiert SMIME_TAG_ENCRYPTED (konfigurierbarer Tag-Text) und
+  SMIME_TAG_ENCRYPTED_ENABLED (deaktivierbar)
+
 ## v1.4.137 — 2026-06-27 — fix: KV-Decrypt Response-Feld "value" statt "result"
 
 - smime_decrypt.py: KV /decrypt gibt {"value": "..."} zurück, nicht {"result": "..."}
