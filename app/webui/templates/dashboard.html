@@ -382,9 +382,9 @@ var _sysToday = new Date().toISOString().slice(0,10);
     return m + 'min';
   }
   function tile(label, val, sub, extraClass, onclick) {
-    var oc = onclick ? ' onclick="' + onclick + '"' : '';
-    var cp = onclick ? ';cursor:pointer' : '';
-    return '<div class="sys-tile"' + oc + ' style="' + cp + '">' +
+    var oc = onclick ? " onclick='" + onclick + "'" : '';
+    var st = onclick ? ' style="cursor:pointer"' : '';
+    return '<div class="sys-tile"' + oc + st + '>' +
       '<div class="sys-val' + (extraClass?' '+extraClass:'') + '">' + val + '</div>' +
       '<div class="sys-label">' + label + '</div>' +
       (sub ? '<div class="sys-sub">' + sub + '</div>' : '') +
