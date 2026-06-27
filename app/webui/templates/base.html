@@ -17,7 +17,6 @@
             <ul>
                 <li><a href="/" class="{% if active == 'dashboard' %}active{% endif %}">Übersicht</a></li>
                 <li><a href="/template" class="{% if active in ('template', 'preview') %}active{% endif %}">Signaturen</a></li>
-                <li><a href="#" class="nav-planned" title="Geplantes Feature — noch nicht verfügbar" onclick="return false" tabindex="-1">Banner <span class="nav-planned-badge">geplant</span></a></li>
                 {% if _role == 'admin' %}
                 <li><a href="/mailboxes" class="{% if active == 'mailboxes' %}active{% endif %}">Postfächer</a></li>
                 <li><a href="/smime" class="{% if active == 'smime' %}active{% endif %}">S/MIME</a></li>

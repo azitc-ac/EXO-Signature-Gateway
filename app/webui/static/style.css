@@ -59,7 +59,10 @@ nav a:hover { background: rgba(255,255,255,0.15); }
 nav a.active { background: rgba(255,255,255,0.25); color: #fff; font-weight: 600; }
 nav a.nav-planned { opacity: 0.45; cursor: default; }
 nav a.nav-planned:hover { background: none; }
+.nav-sub-tab.nav-planned { opacity: 0.4; cursor: default; color: #94a3b8; }
+.nav-sub-tab.nav-planned:hover { color: #94a3b8; }
 .nav-planned-badge { font-size: 9px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; background: rgba(255,255,255,0.25); border-radius: 3px; padding: 1px 4px; margin-left: 4px; vertical-align: middle; }
+.nav-sub-tab .nav-planned-badge { background: #e2e8f0; color: #94a3b8; }
 
 /* Sub-tabs (Signaturen: Vorlagen / Vorschau) */
 .nav-sub-tabs {
