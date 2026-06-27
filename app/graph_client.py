@@ -282,6 +282,38 @@ async def cleanup_sent_items(
 GRAPH = "https://graph.microsoft.com/v1.0"
 
 
+async def list_sender_mailboxes() -> list[dict]:
+    """User- und Shared-Mailboxen für Absender-Auswahl (nur accountEnabled=True, kein Guest)."""
+    token = await _acquire_token_async()
+    if not token:
+        return []
+    headers = {"Authorization": f"Bearer {token}"}
+    results = []
+    url = (f"{GRAPH}/users"
+           "?$filter=accountEnabled eq true"
+           "&$select=mail,displayName,assignedLicenses,userType"
+           "&$top=999")
+    async with httpx.AsyncClient(timeout=20) as client:
+        while url:
+            r = await client.get(url, headers=headers)
+            if r.status_code != 200:
+                log.warning("list_sender_mailboxes: /users returned %s", r.status_code)
+                break
+            data = r.json()
+            for u in data.get("value", []):
+                mail = (u.get("mail") or "").lower().strip()
+                if not mail or u.get("userType") == "Guest":
+                    continue
+                has_license = bool(u.get("assignedLicenses"))
+                results.append({
+                    "email": mail,
+                    "name": u.get("displayName") or mail,
+                    "type": "user" if has_license else "shared",
+                })
+            url = data.get("@odata.nextLink")
+    return sorted(results, key=lambda x: x["email"])
+
+
 async def list_mailboxes() -> list[dict]:
     """
     List all EXO mailboxes via Graph API: licensed users, shared mailboxes,

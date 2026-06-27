@@ -1660,45 +1660,10 @@ def _addin_url_warning(base_url: str) -> str:
     return ""
 
 
-async def _list_sender_mailboxes() -> list[dict]:
-    """User- und Shared-Mailboxen für den Notification-Absender-Dropdown.
-
-    Nur accountEnabled=True, kein Guest — schließt AD-Sync-Kontakte und
-    deaktivierte Service-Accounts aus, die sonst als 'shared' erscheinen.
-    """
-    token = await graph_client._acquire_token_async()
-    if not token:
-        return []
-    headers = {"Authorization": f"Bearer {token}"}
-    results = []
-    url = (f"{graph_client.GRAPH}/users"
-           "?$filter=accountEnabled eq true"
-           "&$select=mail,displayName,assignedLicenses,userType"
-           "&$top=999")
-    async with httpx.AsyncClient(timeout=20) as client:
-        while url:
-            r = await client.get(url, headers=headers)
-            if r.status_code != 200:
-                break
-            data = r.json()
-            for u in data.get("value", []):
-                mail = (u.get("mail") or "").lower().strip()
-                if not mail or u.get("userType") == "Guest":
-                    continue
-                has_license = bool(u.get("assignedLicenses"))
-                results.append({
-                    "email": mail,
-                    "name": u.get("displayName") or mail,
-                    "type": "user" if has_license else "shared",
-                })
-            url = data.get("@odata.nextLink")
-    return sorted(results, key=lambda x: x["email"])
-
-
 @app.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request, user: str = Depends(_require_admin)):
     try:
-        sender_mailboxes = await _list_sender_mailboxes()
+        sender_mailboxes = await graph_client.list_sender_mailboxes()
     except Exception:
         sender_mailboxes = []
     return templates.TemplateResponse(
