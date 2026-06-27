@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.113 — 2026-06-27 — feat: Mails-Tabelle — alle Perioden-Zahlen klickbar (Monat, Vorjahr, Jahr)
+
+- mail_audit.py: _add_date_condition() unterstützt jetzt YYYY-MM-DD, YYYY-MM und YYYY
+- app.py: today_month, today_year, prev_month_1/2, prev_year_str als Template-Kontext
+- dashboard.html: stat_row-Macro nutzt stat_cell für alle Spalten → Monat/Jahres-Zahlen klickbar
+- openAuditModal: Perioden-Label "Jun 2026" statt rohem "2026-06" im Titel; _fmtPeriod() Hilfsfunktion
+
 ## v1.4.112 — 2026-06-27 — feat: Dashboard Reporting — DB-Persistenz, Filter-Tabs, klickbare Kacheln
 
 - mail_audit.py: neue Tabelle graph_api_calls (app_id, date, hour, count); flush_graph_calls(),

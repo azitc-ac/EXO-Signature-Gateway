@@ -33,11 +33,11 @@
 <tr style="border-bottom:1px solid #f0f0f0">
   <td style="padding:7px 0;font-size:13px;color:#44403c;font-weight:500">{{ label }}</td>
   <td style="padding:7px 16px;text-align:right;font-size:15px;font-weight:700;color:#1c1917">{{ stat_cell(d, action, today) }}</td>
-  <td class="col-m2" style="padding:7px 10px;text-align:right;font-size:13px;color:#a8a29e">{{ m2 }}</td>
-  <td class="col-m1" style="padding:7px 10px;text-align:right;font-size:13px;color:#a8a29e">{{ m1 }}</td>
-  <td style="padding:7px 16px;text-align:right;font-size:14px;color:#78716c">{{ m }}</td>
-  <td class="col-py" style="padding:7px 10px;text-align:right;font-size:13px;color:#a8a29e">{{ py }}</td>
-  <td style="padding:7px 0;text-align:right;font-size:14px;color:#a8a29e">{{ y }}</td>
+  <td class="col-m2" style="padding:7px 10px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(m2, action, prev_month_2) }}</td>
+  <td class="col-m1" style="padding:7px 10px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(m1, action, prev_month_1) }}</td>
+  <td style="padding:7px 16px;text-align:right;font-size:14px;color:#78716c">{{ stat_cell(m, action, today_month) }}</td>
+  <td class="col-py" style="padding:7px 10px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(py, action, prev_year_str) }}</td>
+  <td style="padding:7px 0;text-align:right;font-size:14px;color:#a8a29e">{{ stat_cell(y, action, today_year) }}</td>
 </tr>
 {% endmacro %}
 
@@ -546,14 +546,25 @@ document.querySelectorAll('.audit-link').forEach(el => {
   });
 });
 
+const _DE_MONTHS_SHORT = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+function _fmtPeriod(date) {
+  if (!date) return 'Alle';
+  if (date.length === 10) return date;           // YYYY-MM-DD
+  if (date.length === 7) {                        // YYYY-MM
+    const [y, m] = date.split('-');
+    return _DE_MONTHS_SHORT[parseInt(m)-1] + ' ' + y;
+  }
+  return date;                                    // YYYY
+}
+
 function openAuditModal(date, action, hour) {
-  _auditParams = {date, action, offset: 0, limit: 100};
+  _auditParams = {date: date || '', action: action || '', offset: 0, limit: 100};
   document.getElementById('auditModal').style.display = 'block';
   document.body.style.overflow = 'hidden';
-  const label = action ? (_ACTION_LABELS[action] || action) : 'Alle';
+  const actionLabel = action ? (' — ' + (_ACTION_LABELS[action] || action)) : '';
   const hourStr = (hour != null && hour !== 'null' && hour !== '') ? ' — ' + hour + ':00 Uhr' : '';
   document.getElementById('auditModalTitle').textContent =
-    'Mail-Protokoll — ' + (date || 'Heute') + (action ? ' — ' + label : '') + hourStr;
+    'Mail-Protokoll — ' + _fmtPeriod(date) + actionLabel + hourStr;
   loadAuditPage();
 }
 

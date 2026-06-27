@@ -98,6 +98,21 @@ def log_event(
         log.warning("mail_audit: write failed: %s", exc)
 
 
+def _add_date_condition(date: str, conditions: list, params: list) -> None:
+    """Fügt Zeitbereichs-Bedingung für YYYY-MM-DD, YYYY-MM oder YYYY hinzu."""
+    if len(date) == 10:  # Tag
+        conditions.append("ts >= ? AND ts <= ?")
+        params += [f"{date}T00:00:00Z", f"{date}T23:59:59Z"]
+    elif len(date) == 7:  # Monat YYYY-MM
+        y, m = int(date[:4]), int(date[5:])
+        ny, nm = (y + 1, 1) if m == 12 else (y, m + 1)
+        conditions.append("ts >= ? AND ts < ?")
+        params += [f"{date}-01T00:00:00Z", f"{ny:04d}-{nm:02d}-01T00:00:00Z"]
+    elif len(date) == 4:  # Jahr YYYY
+        conditions.append("ts >= ? AND ts < ?")
+        params += [f"{date}-01-01T00:00:00Z", f"{int(date)+1:04d}-01-01T00:00:00Z"]
+
+
 def query_events(
     *,
     date: str | None = None,
@@ -112,8 +127,7 @@ def query_events(
     conditions: list[str] = []
     params: list = []
     if date:
-        conditions.append("ts >= ? AND ts <= ?")
-        params += [f"{date}T00:00:00Z", f"{date}T23:59:59Z"]
+        _add_date_condition(date, conditions, params)
     if action:
         conditions.append("action = ?")
         params.append(action)
@@ -145,8 +159,7 @@ def count_events(
     conditions: list[str] = []
     params: list = []
     if date:
-        conditions.append("ts >= ? AND ts <= ?")
-        params += [f"{date}T00:00:00Z", f"{date}T23:59:59Z"]
+        _add_date_condition(date, conditions, params)
     if action:
         conditions.append("action = ?")
         params.append(action)
