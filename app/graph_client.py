@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import hashlib
 import json
 import logging
@@ -35,6 +36,7 @@ _pool_idx: int = 0
 _pool_hash: str = ""
 _throttled_until: dict[str, float] = {}   # client_id → monotonic timestamp
 _last_used_client_id: str = ""            # für mark_throttled nach 429
+_call_stats: dict[str, dict] = {}        # client_id → {date, hours[24], peak_hour, peak_count}
 
 
 def _rebuild_pool_if_needed() -> None:
@@ -79,6 +81,21 @@ def reset_msal_app() -> None:
     _pool_hash = ""
 
 
+def _record_call(client_id: str) -> None:
+    """Stündliche Aufrufstatistik — muss unter _pool_lock aufgerufen werden."""
+    now_dt = datetime.datetime.now()
+    date_str = now_dt.strftime("%Y-%m-%d")
+    hour = now_dt.hour
+    s = _call_stats.get(client_id)
+    if s is None or s["date"] != date_str:
+        s = {"date": date_str, "hours": [0] * 24, "peak_hour": -1, "peak_count": 0}
+        _call_stats[client_id] = s
+    s["hours"][hour] += 1
+    if s["hours"][hour] > s["peak_count"]:
+        s["peak_count"] = s["hours"][hour]
+        s["peak_hour"] = hour
+
+
 def mark_throttled(client_id: str, retry_after_s: int) -> None:
     """Markiert einen Pool-Eintrag als gedrosselt bis Retry-After abgelaufen ist."""
     with _pool_lock:
@@ -87,19 +104,36 @@ def mark_throttled(client_id: str, retry_after_s: int) -> None:
 
 
 def get_pool_status() -> list[dict]:
-    """Pool-Einträge ohne Secrets, inkl. Throttle-Status für Dashboard."""
+    """Pool-Einträge ohne Secrets, inkl. Throttle-Status und Aufrufstatistik für Dashboard."""
     _rebuild_pool_if_needed()
     now = time.monotonic()
+    now_hour = datetime.datetime.now().hour
+    today = datetime.date.today().isoformat()
     with _pool_lock:
-        return [
-            {
-                "client_id": e["client_id"],
+        result = []
+        for e in _pool_entries:
+            cid = e["client_id"]
+            s = _call_stats.get(cid)
+            if s is None or s["date"] != today:
+                hours = [0] * 24
+                peak_hour = -1
+                peak_count = 0
+            else:
+                hours = list(s["hours"])
+                peak_hour = s["peak_hour"]
+                peak_count = s["peak_count"]
+            result.append({
+                "client_id": cid,
                 "label": e["label"],
-                "throttled": now < _throttled_until.get(e["client_id"], 0),
-                "throttled_until_s": max(0.0, _throttled_until.get(e["client_id"], 0) - now),
-            }
-            for e in _pool_entries
-        ]
+                "throttled": now < _throttled_until.get(cid, 0),
+                "throttled_until_s": max(0.0, _throttled_until.get(cid, 0) - now),
+                "calls_this_hour": hours[now_hour],
+                "calls_today": sum(hours),
+                "peak_hour": peak_hour,
+                "peak_count": peak_count,
+                "hours_today": hours,
+            })
+        return result
 
 
 def _acquire_token() -> str | None:
@@ -123,6 +157,7 @@ def _acquire_token() -> str | None:
         _pool_idx += 1
         global _last_used_client_id
         _last_used_client_id = entry["client_id"]
+        _record_call(entry["client_id"])
     result = entry["msal"].acquire_token_silent(_SCOPES, account=None)
     if not result:
         result = entry["msal"].acquire_token_for_client(scopes=_SCOPES)

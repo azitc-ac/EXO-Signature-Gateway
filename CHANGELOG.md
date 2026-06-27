@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.110 — 2026-06-27 — feat: App-Pool Dashboard — stündliche Aufruf-Statistik + Detail-Modal
+
+- graph_client.py: _record_call() zählt Graph-API-Aufrufe pro App und Stunde (Reset um Mitternacht)
+- get_pool_status() liefert calls_this_hour, calls_today, peak_hour, peak_count, hours_today[24]
+- _record_call() wird in _acquire_token() unter _pool_lock aufgerufen (thread-safe)
+- dashboard.html: Pool-Zeile zeigt jetzt "X / h · Peak: Y @ Zh · heute N ges."
+- Klick auf App-Zeile öffnet Modal mit 24h-Balkendiagramm (aktuelle Stunde blau hervorgehoben)
+- Modal: Kacheln calls_this_hour + calls_today + Peak-Text + Status + Hinweis "seit Container-Start"
+
 ## v1.4.108 — 2026-06-27 — feat: Throttle-aware App-Pool + Dashboard Pool-Status Tile
 
 - graph_client.py: _throttled_until dict + _last_used_client_id
