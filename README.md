@@ -11,11 +11,11 @@ Exchange Online bietet serverseitige Transportregeln für Disclaimer – diese s
 
 - **Dynamische Signaturen per Graph API** – Jobtitel, Telefon, Abteilung, Website, Booking-URLs und eigene Felder (`extensionAttributes`) werden live pro Absender abgerufen
 - **Volle HTML-Freiheit** via Jinja2-Templates – kein Vergleich zu den eingeschränkten Möglichkeiten der EXO-Transportregeln
-- **Intelligente Antwort-Erkennung** – Signatur wird vor dem zitierten Text eingefügt, nicht ans Ende angehängt; keine gestapelten Signaturen in Mailverläufen
+- **Intelligente Antwort-Erkennung** – Signatur wird vor dem zitierten Text eingefügt, nicht ans Ende angehängt; keine gestapelten Signaturen in Mailverläufen; bereits vorhandene Signatur im Thread wird erkannt und nicht ein zweites Mal eingefügt
 - **Client-Signaturen werden erkannt und entfernt** (Outlook Mobile u. a.), damit keine Doppelsignaturen entstehen
 - **S/MIME Signierung und Verschlüsselung** – integriert, pro Absender konfigurierbar, mit Azure Key Vault-Unterstützung
-- **Automatisches S/MIME Zertifikat-Lifecycle** via CASTLE ACME (RFC 8823) – vollautomatische Erneuerung ohne Benutzerinteraktion
-- **Azure-kompatibel (REINJECT_MODE=imap)** – kein ausgehender Port 25 erforderlich; alle Verbindungen nach außen laufen über HTTPS (Graph API) und IMAPS (Port 993)
+- **Automatisches S/MIME Zertifikat-Lifecycle** via CASTLE ACME (RFC 8823) – vollautomatische Erneuerung ohne Benutzerinteraktion (unterscheidet sich von Let's Encrypt ACME, das nur TLS-Zertifikate ausstellt)
+- **Azure-kompatibel** – kein ausgehender Port 25 erforderlich; alle Verbindungen nach außen laufen über HTTPS (Graph API) und IMAPS (Port 993)
 
 ---
 
@@ -32,12 +32,12 @@ Exchange Online (EXO)
        ▼
 EXO Signature Service  ◄── MS Graph API (Absenderdaten)
        │
-       ├─ IMAP-Modus (Azure):   IMAPS Port 993  (intern)
-       │                        Graph API HTTPS  (extern / Fallback)
+       ├─ graph-Modus (Standard/Azure): Graph API sendMail HTTPS
        │
-       └─ Graph-Modus (Standard): Graph API sendMail HTTPS
+       ├─ imap-Modus (Azure, S/MIME-Inbound): Graph API sendMail HTTPS (ausgehend)
+       │                                       IMAP APPEND Port 993 (S/MIME-Entschlüsselung)
        │
-       └─ SMTP-Modus (klassisch): SMTP Port 25 → EXO Smarthost
+       └─ smtp-Modus (klassisch): SMTP Port 25 → EXO Smarthost
        ▼
 Exchange Online (EXO) → Zustellung an Empfänger
 ```
@@ -79,7 +79,7 @@ Azure VMs blockieren ausgehenden Port 25. Mit `REINJECT_MODE=graph` oder `imap` 
 
 ## Betrieb auf Azure (kein ausgehender Port 25)
 
-Mit `REINJECT_MODE=graph` (Standard) oder `imap` läuft der Service ohne ausgehenden Port 25. Der Graph-Modus benötigt nur ausgehend Port 443.
+Mit `REINJECT_MODE=graph` (Standard) oder `imap` läuft der Service ohne ausgehenden Port 25. Beide Modi benötigen nur ausgehend Port 443 (HTTPS). Der `imap`-Modus ergänzt dies um IMAPS Port 993 für einen speziellen Anwendungsfall (siehe unten).
 
 ### Azure VM anlegen (PowerShell-Skript)
 
@@ -101,10 +101,10 @@ Setup-Wizard aufrufen).
 braucht kurzzeitig ~1,5 GB; im Dauerbetrieb reichen ~70–150 MB. B1ms (~14 €/Monat)
 ist der Sweet Spot für bis zu einige hundert Postfächer.
 
-**Warum IMAP statt Graph API für Inbox-Inject?**  
-Die Graph API (`POST /mailFolders/inbox/messages`) erstellt Nachrichten mit gesetztem `MSGFLAG_UNSENT`-Flag — Outlook zeigt sie als Entwurf mit Senden-Knopf. IMAP APPEND setzt dieses Flag nicht; die Nachricht landet direkt als echte empfangene Mail im Postfach.
+**Wann wird IMAP APPEND benötigt?**  
+Nur in einem spezifischen Fall: Ein externer Absender schickt eine S/MIME-verschlüsselte Mail an einen internen Empfänger. Der Gateway entschlüsselt sie und muss das Ergebnis direkt ins Postfach des Empfängers legen. Die Graph API (`POST /mailFolders/inbox/messages`) setzt dabei das `MSGFLAG_UNSENT`-Flag — Outlook zeigt die Mail als Entwurf mit Senden-Knopf. IMAP APPEND setzt dieses Flag nicht; die Nachricht landet als echte empfangene Mail. **Ausgehende Mails** (Signatur-Injektion) laufen im `imap`-Modus weiterhin über Graph API sendMail.
 
-### Voraussetzungen für IMAP-Modus
+### Voraussetzungen für imap-Modus
 
 Zusätzlich zu den Standard-Berechtigungen:
 
@@ -127,27 +127,29 @@ Zusätzlich zu den Standard-Berechtigungen:
 | `Exchange.ManageAsApp` | ✓ | EXO PowerShell (Connector/DG-Setup via Wizard) |
 | `IMAP.AccessAsApp` | IMAP-Modus | IMAP APPEND in Empfänger-Postfächer (kein Draft) |
 
-*\* Schließt `Mail.Read.All` ein (für ACME Mailbox-Polling benötigt).*
+*\* Schließt `Mail.Read.All` ein (für CASTLE ACME Mailbox-Polling benötigt).*
 
 ---
 
 ## Re-inject-Modi
 
+> **Begriffe:** Der *Modus* (`REINJECT_MODE`) bestimmt, wie der Gateway fertig verarbeitete Mails zurück an Exchange übergibt. IMAP APPEND ist kein eigener Modus, sondern ein Mechanismus innerhalb des `imap`-Modus für einen spezifischen Fall (S/MIME-Entschlüsselung).
+
 Der Modus wird in der Web-UI unter **Einstellungen → Re-inject-Modus** oder via `REINJECT_MODE` konfiguriert.
 
-### `imap` — Empfohlen für Azure
+### `graph` — Standard / Azure
 
-- **Ausgehende Mails** (signiert): Graph API `sendMail` (HTTPS) für externe Empfänger; IMAP APPEND (Port 993) für interne Empfänger im selben Tenant
-- **Eingehende Mails** (S/MIME-Stripping): IMAP APPEND direkt ins Postfach des Empfängers – kein Draft-Flag
+- **Alle** Re-injects über Graph API `sendMail` (HTTPS)
+- Kein Port 25 erforderlich; funktioniert auf Azure
+- S/MIME-entschlüsselte Inbound-Mails werden über `/mailFolders/inbox/messages` injiziert – kann Draft-Status erzeugen
+- Kein `IMAP.AccessAsApp` erforderlich
+
+### `imap` — Azure mit S/MIME-Inbound ohne Draft-Flag
+
+- **Ausgehende Mails** (Signatur-Injektion): identisch zu `graph` — Graph API `sendMail` (HTTPS)
+- **S/MIME-entschlüsselte Inbound-Mails**: IMAP APPEND (Port 993) direkt ins Postfach des Empfängers — kein Draft-Flag, keine "Senden"-Schaltfläche in Outlook
 - **Kein ausgehender Port 25** erforderlich
 - Erfordert `IMAP.AccessAsApp` + EXO Service Principal (via Setup-Wizard einrichtbar)
-
-### `graph` — Standard
-
-- Alle Re-injects über Graph API `sendMail` (HTTPS)
-- Kein Port 25 erforderlich; funktioniert auf Azure
-- Inbound-Inject (externe S/MIME-Mails) nutzt `/mailFolders/inbox/messages` als Fallback – kann Draft-Status erzeugen, wenn kein IMAP konfiguriert ist
-- Kein `IMAP.AccessAsApp` erforderlich
 
 ### `smtp` — Klassisch / On-Premises
 

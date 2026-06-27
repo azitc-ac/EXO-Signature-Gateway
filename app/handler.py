@@ -462,13 +462,13 @@ class SignatureHandler:
                         return "250 OK"
 
             # ── Active mailbox filter ──────────────────────────────────────────
-            # If MAILBOX_CONFIG is configured, only senders with sig=true or
-            # smime=true are processed. All others pass through unchanged.
+            # Empty MAILBOX_CONFIG → nothing is processed (pass-through for all).
+            # With entries: only senders with sig=true or smime=true are processed.
             # Inbound S/MIME (above) already ran regardless of this filter.
             _mailbox_cfg: dict = settings_store.get("MAILBOX_CONFIG") or {}
-            _sender_cfg: dict = _mailbox_cfg.get(sender.lower(), {}) if _mailbox_cfg else {}
-            if _mailbox_cfg and not (_sender_cfg.get("sig") or _sender_cfg.get("smime")):
-                log.debug("Sender %s not activated in MAILBOX_CONFIG — forwarding as-is", sender)
+            _sender_cfg: dict = _mailbox_cfg.get(sender.lower(), {})
+            if not _mailbox_cfg or not (_sender_cfg.get("sig") or _sender_cfg.get("smime")):
+                log.debug("Sender %s not in active MAILBOX_CONFIG — forwarding as-is", sender)
                 reinject.send(sender, recipients, raw)
                 return "250 OK"
 

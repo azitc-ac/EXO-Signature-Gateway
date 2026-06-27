@@ -803,4 +803,35 @@ async function migrateSlotToKv(email, slotId, btn) {
   }
 }
 </script>
+
+<!-- Secure Message Portal — geplantes Feature -->
+<style>
+.planned-card { opacity:.45; pointer-events:none; user-select:none; }
+.planned-badge { display:inline-block; font-size:10px; font-weight:700; letter-spacing:.06em;
+  text-transform:uppercase; background:#e2e8f0; color:#64748b; border-radius:4px;
+  padding:2px 7px; margin-left:8px; vertical-align:middle; }
+</style>
+<div class="planned-card settings-card" style="margin-top:24px">
+  <h2>Secure Message Portal <span class="planned-badge">geplant</span></h2>
+  <p class="hint">
+    Für Empfänger ohne eigenes S/MIME-Zertifikat: Verschlüsselte Mail wird sicher hinterlegt.
+    Der Empfänger erhält einen zeitlich befristeten OTP-Link — die Entschlüsselung erfolgt clientseitig im Browser,
+    der private Schlüssel verlässt den Server nie.
+  </p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-bottom:14px">
+    <div style="background:#f8f7f6;border-radius:6px;padding:10px 14px">
+      <div style="font-size:11px;color:#78716c;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Gesicherte Nachrichten</div>
+      <div style="font-size:22px;font-weight:700;color:#cbd5e1">—</div>
+    </div>
+    <div style="background:#f8f7f6;border-radius:6px;padding:10px 14px">
+      <div style="font-size:11px;color:#78716c;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">OTP-Links aktiv</div>
+      <div style="font-size:22px;font-weight:700;color:#cbd5e1">—</div>
+    </div>
+    <div style="background:#f8f7f6;border-radius:6px;padding:10px 14px">
+      <div style="font-size:11px;color:#78716c;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Aufbewahrung</div>
+      <div style="font-size:22px;font-weight:700;color:#cbd5e1">7 Tage</div>
+    </div>
+  </div>
+  <button class="btn primary" disabled>Portal konfigurieren</button>
+</div>
 {% endblock %}

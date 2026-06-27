@@ -1482,4 +1482,60 @@ async function saveKvUrl() {
   }
 }
 </script>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     GEPLANTE FEATURES — ausgegraut, noch nicht implementiert
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<style>
+.planned-card { opacity:.45; pointer-events:none; user-select:none; }
+.planned-badge { display:inline-block; font-size:10px; font-weight:700; letter-spacing:.06em;
+  text-transform:uppercase; background:#e2e8f0; color:#64748b; border-radius:4px;
+  padding:2px 7px; margin-left:8px; vertical-align:middle; }
+.planned-card h2 { color:#94a3b8 !important; }
+</style>
+
+<!-- Signaturvariablen & Bookings-URL -->
+<div class="planned-card settings-card" style="margin-top:24px">
+  <h2>Signaturvariablen <span class="planned-badge">geplant</span></h2>
+  <p class="hint">Übersicht der verfügbaren Jinja2-Variablen und ihrer Herkunft aus Entra-Attributen. Benutzer-Overrides werden direkt darunter konfiguriert.</p>
+  <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:14px">
+    <thead>
+      <tr style="border-bottom:2px solid #e2e8f0">
+        <th style="text-align:left;padding:6px 0;color:#555">Variable</th>
+        <th style="text-align:left;padding:6px 16px;color:#555">Entra-Attribut</th>
+        <th style="text-align:left;padding:6px 0;color:#555">Benutzer-Override</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.displayName</code></td><td style="padding:5px 16px;color:#888">displayName</td><td style="padding:5px 0;color:#aaa">—</td></tr>
+      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.jobTitle</code></td><td style="padding:5px 16px;color:#888">jobTitle</td><td style="padding:5px 0;color:#aaa">—</td></tr>
+      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.phone</code></td><td style="padding:5px 16px;color:#888">businessPhones[0]</td><td style="padding:5px 0;color:#aaa">—</td></tr>
+      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.website</code></td><td style="padding:5px 16px;color:#888">businessHomePage → extensionAttribute1</td><td style="padding:5px 0;color:#aaa">USER_WEBSITES</td></tr>
+      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.bookingsUrl</code></td><td style="padding:5px 16px;color:#888"><em>Automatisch via Graph Bookings API (geplant)</em></td><td style="padding:5px 0;color:#aaa">USER_BOOKINGS</td></tr>
+    </tbody>
+  </table>
+  <p class="hint" style="margin-top:0">Benutzer-Overrides und Bookings-URL-Automatik können hier pro Postfach konfiguriert werden.</p>
+  <button class="btn secondary" disabled>Variablen-Mapping konfigurieren</button>
+</div>
+
+<!-- Software-Update -->
+<div class="planned-card settings-card" style="margin-top:16px">
+  <h2>Software-Update <span class="planned-badge">geplant</span></h2>
+  <p class="hint">Gateway auf die neueste Version aktualisieren — git pull, automatisches Backup und Container-Rebuild in einem Schritt.</p>
+  <button class="btn primary" disabled>Jetzt aktualisieren</button>
+  <button class="btn secondary" disabled style="margin-left:8px">Changelog anzeigen</button>
+</div>
+
+<!-- Backup & Wiederherstellung -->
+<div class="planned-card settings-card" style="margin-top:16px">
+  <h2>Backup &amp; Wiederherstellung <span class="planned-badge">geplant</span></h2>
+  <p class="hint">Vollständiges verschlüsseltes Backup aller Konfigurationsdaten, S/MIME-Schlüssel und Zertifikate. Die Backup-Datei wird mit einer Passphrase verschlüsselt (AES-256) — ohne diese ist kein Zugriff möglich.</p>
+  <div class="settings-row" style="pointer-events:none">
+    <label>Passphrase</label>
+    <input type="password" placeholder="Mindestens 12 Zeichen" style="width:240px" disabled>
+  </div>
+  <button class="btn primary" disabled style="margin-top:8px">Backup erstellen &amp; herunterladen</button>
+  <button class="btn secondary" disabled style="margin-left:8px">Backup einspielen</button>
+</div>
+
 {% endblock %}

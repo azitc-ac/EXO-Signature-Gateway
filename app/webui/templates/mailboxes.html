@@ -7,12 +7,12 @@
 <!-- Postfach-Konfiguration -->
 <div class="settings-card">
   <p class="hint" style="margin-bottom:12px">
-    Leer = alle Absender werden verarbeitet (Signaturen + S/MIME).<br>
-    Mit Einträgen: Nur markierte Postfächer bekommen Signatur-Injektion bzw. S/MIME-Verarbeitung.
-    Alle anderen werden unverändert weitergeleitet.<br>
-    <strong>Entra Admin Center:</strong> Beim Speichern wird die Distribution Group
-    <code>{{ gateway_name }} - Enabled Mailboxes</code> in EXO erstellt/aktualisiert
-    und die Transport-Regel darauf eingeschränkt.
+    Nur markierte Postfächer erhalten Signatur-Injektion bzw. S/MIME-Verarbeitung.
+    Alle anderen Nachrichten fließen unverändert durch das Gateway.<br>
+    Sind keine Postfächer markiert, verarbeitet das Gateway <strong>nichts</strong> — alle Mails werden unverändert weitergeleitet.<br>
+    <strong>EXO-Steuerung:</strong> Beim Speichern wird die Distribution Group
+    <code>{{ gateway_name }} - Enabled Mailboxes</code> automatisch aktualisiert.
+    Die EXO-Transportregel leitet nur Mails von Mitgliedern dieser Gruppe über das Gateway.
   </p>
   <div class="actions" style="margin-bottom:8px">
     <button class="btn secondary" id="mb-load-btn" onclick="loadMailboxes()">Postfächer aus Graph laden</button>

@@ -382,6 +382,10 @@
       Berechtigungen: <code>User.Read.All</code>, <code>Mail.ReadWrite</code>, <code>Exchange.ManageAsApp</code><br>
       Admin-Consent: erteilt &bull; Exchange-Administrator-Rolle: zugewiesen
     </div>
+    <div style="margin-top:10px;padding:10px 14px;background:#f8f7f6;border-radius:6px;opacity:.5;font-size:12px;color:#64748b">
+      <strong>Geplant:</strong> Aufteilung in zwei Apps nach Least-Privilege-Prinzip —
+      App A (Laufzeit, kein <code>Exchange.ManageAsApp</code>) · App B (Setup-Wizard only).
+    </div>
     {% else %}
     <p class="hint">Erstellt nach erfolgreichem Entra-Login (Schritt 3).</p>
     {% endif %}

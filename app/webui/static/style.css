@@ -57,6 +57,9 @@ nav a {
 }
 nav a:hover { background: rgba(255,255,255,0.15); }
 nav a.active { background: rgba(255,255,255,0.25); color: #fff; font-weight: 600; }
+nav a.nav-planned { opacity: 0.45; cursor: default; }
+nav a.nav-planned:hover { background: none; }
+.nav-planned-badge { font-size: 9px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; background: rgba(255,255,255,0.25); border-radius: 3px; padding: 1px 4px; margin-left: 4px; vertical-align: middle; }
 
 /* Sub-tabs (Signaturen: Vorlagen / Vorschau) */
 .nav-sub-tabs {
