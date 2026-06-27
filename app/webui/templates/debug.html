@@ -5,8 +5,37 @@
 <ul class="nav-sub-tabs">
   <li><a href="/settings" class="nav-sub-tab">Allgemein</a></li>
   <li><a href="/setup" class="nav-sub-tab">Einrichtung</a></li>
+  <li><a href="/outlook-addin" class="nav-sub-tab">Outlook Add-in</a></li>
   <li><a href="/debug" class="nav-sub-tab active">Erweitert</a></li>
 </ul>
+
+<!-- ── Gateway-Name ─────────────────────────────────────────────────────── -->
+<div class="settings-card" style="margin-bottom:20px">
+  <h2>Gateway-Name</h2>
+  <div class="settings-row">
+    <label for="gateway-name">Gateway-Name</label>
+    <div class="settings-control">
+      <input type="text" id="gateway-name" value="{{ s.GATEWAY_NAME or 'EXO Signature Gateway' }}" style="width:320px">
+      <span class="hint">Prefix für EXO-Objekte (Connectors, Rules, Distribution Groups). Änderung gilt erst nach erneutem Ausführen des Setup-Assistenten.</span>
+      <div style="margin-top:6px">
+        <button class="btn secondary btn-sm" onclick="saveGatewayName()">Speichern</button>
+        <span id="gateway-name-result" style="font-size:12px;margin-left:8px"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+async function saveGatewayName() {
+  const val = (document.getElementById('gateway-name').value || '').trim() || 'EXO Signature Gateway';
+  const el = document.getElementById('gateway-name-result');
+  try {
+    const r = await fetch('/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({GATEWAY_NAME: val})});
+    el.textContent = r.ok ? '✓ Gespeichert' : '✗ Fehler';
+    el.style.color = r.ok ? '#16a34a' : '#dc2626';
+  } catch(e) { el.textContent = '✗ Netzwerkfehler'; el.style.color = '#dc2626'; }
+  setTimeout(function() { el.textContent = ''; }, 3000);
+}
+</script>
 
 <!-- ── EXO PowerShell Zertifikat ──────────────────────────────────────────── -->
 <div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">

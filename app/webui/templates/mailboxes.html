@@ -11,7 +11,7 @@
     Mit Einträgen: Nur markierte Postfächer bekommen Signatur-Injektion bzw. S/MIME-Verarbeitung.
     Alle anderen werden unverändert weitergeleitet.<br>
     <strong>Entra Admin Center:</strong> Beim Speichern wird die Distribution Group
-    <code>EXO Signature Gateway - Enabled Mailboxes</code> in EXO erstellt/aktualisiert
+    <code>{{ gateway_name }} - Enabled Mailboxes</code> in EXO erstellt/aktualisiert
     und die Transport-Regel darauf eingeschränkt.
   </p>
   <div class="actions" style="margin-bottom:8px">
@@ -29,6 +29,7 @@
           <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555">Postfach</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:100px">Signatur</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:140px">Vorlage</th>
+          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">Add-in Vorlagen</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:100px">S/MIME</th>
           <th id="th-status" style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:70px;display:none">Status</th>
         </tr>
@@ -61,6 +62,7 @@
 <script>
 var _mbData = [];
 var _templateList = {{ templates_list | tojson }};
+var _addinEnabled = {{ 'true' if addin_enabled else 'false' }};
 
 function showAlert(el, type, msg) {
   el.className = 'alert ' + type;
@@ -136,6 +138,98 @@ function _buildTemplateSelect(idx, selectedTemplate, sigEnabled) {
     sel.appendChild(opt);
   });
   return sel;
+}
+
+function _buildAddinTemplatesControl(idx, addinTemplates, sigEnabled) {
+  // addinTemplates: "*" | [] | ["t1","t2"]
+  var isAll = addinTemplates === '*';
+  var selected = Array.isArray(addinTemplates) ? addinTemplates : [];
+  var active = _addinEnabled && sigEnabled;
+
+  // Outer details element (collapsed by default)
+  var details = document.createElement('details');
+  details.dataset.addinIdx = String(idx);
+  if (!active) {
+    details.style.opacity = '0.4';
+    details.style.pointerEvents = 'none';
+    details.title = 'Outlook Add-in ist nicht aktiviert (Einstellungen → Outlook Add-in)';
+  }
+
+  var summary = document.createElement('summary');
+  summary.style.cssText = 'font-size:11px;cursor:pointer;user-select:none;white-space:nowrap;list-style:none;display:flex;align-items:center;gap:4px';
+  summary.innerHTML = '<span style="font-size:10px;color:#64748b">▶</span><span style="color:#374151">' +
+    (isAll ? 'Alle' : (selected.length ? selected.length + ' gewählt' : 'Nur Standard')) + '</span>';
+  details.appendChild(summary);
+
+  // Toggle arrow on open/close
+  details.addEventListener('toggle', function() {
+    summary.querySelector('span').textContent = details.open ? '▼' : '▶';
+  });
+
+  var inner = document.createElement('div');
+  inner.style.cssText = 'padding:6px 2px 2px;display:flex;flex-direction:column;gap:3px';
+
+  // Master checkbox "Alle"
+  var masterLabel = document.createElement('label');
+  masterLabel.style.cssText = 'display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap;font-size:11px;font-weight:600';
+  var masterCb = document.createElement('input');
+  masterCb.type = 'checkbox';
+  masterCb.className = 'addin-all';
+  masterCb.dataset.idx = String(idx);
+  if (isAll) masterCb.checked = true;
+  masterLabel.appendChild(masterCb);
+  masterLabel.appendChild(document.createTextNode('Alle (inkl. zukünftige)'));
+  inner.appendChild(masterLabel);
+
+  // Divider
+  var hr = document.createElement('div');
+  hr.style.cssText = 'border-top:1px solid #e2e8f0;margin:3px 0';
+  inner.appendChild(hr);
+
+  // Per-template checkboxes
+  var tplWrap = document.createElement('div');
+  tplWrap.style.cssText = 'display:flex;flex-direction:column;gap:2px';
+  if (isAll) tplWrap.style.opacity = '0.4';
+  _templateList.forEach(function(name) {
+    var lbl = document.createElement('label');
+    lbl.style.cssText = 'display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap;font-size:11px';
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.className = 'addin-tpl';
+    cb.value = name;
+    cb.dataset.idx = String(idx);
+    if (isAll || selected.includes(name)) cb.checked = true;
+    if (isAll) cb.disabled = true;
+    lbl.appendChild(cb);
+    lbl.appendChild(document.createTextNode(name));
+    tplWrap.appendChild(lbl);
+  });
+  inner.appendChild(tplWrap);
+  details.appendChild(inner);
+
+  // Master toggles individual checkboxes + updates summary
+  masterCb.addEventListener('change', function() {
+    var all = masterCb.checked;
+    tplWrap.querySelectorAll('.addin-tpl').forEach(function(cb) {
+      cb.checked = all;
+      cb.disabled = all;
+    });
+    tplWrap.style.opacity = all ? '0.4' : '1';
+    _updateAddinSummary(details, summary);
+  });
+  tplWrap.querySelectorAll('.addin-tpl').forEach(function(cb) {
+    cb.addEventListener('change', function() { _updateAddinSummary(details, summary); });
+  });
+
+  return details;
+}
+
+function _updateAddinSummary(details, summary) {
+  var masterCb = details.querySelector('.addin-all');
+  var isAll = masterCb && masterCb.checked;
+  var count = isAll ? null : details.querySelectorAll('.addin-tpl:checked').length;
+  var label = isAll ? 'Alle' : (count ? count + ' gewählt' : 'Nur Standard');
+  summary.querySelector('span:last-child').textContent = label;
 }
 
 var _hasHealthData = false;
@@ -216,10 +310,18 @@ function renderMailboxTable(mailboxes) {
     var tplSel = _buildTemplateSelect(i, mb.template, mb.sig);
     tdTpl.appendChild(tplSel);
 
-    // Wire sig checkbox → template select enable/disable
+    // Add-in Vorlagen cell
+    var tdAddin = document.createElement('td');
+    tdAddin.style.cssText = 'padding:6px 8px';
+    var addinCtrl = _buildAddinTemplatesControl(i, mb.addin_templates || [], mb.sig);
+    tdAddin.appendChild(addinCtrl);
+
+    // Wire sig checkbox → template select + addin control enable/disable
     sigCb.addEventListener('change', function() {
       tplSel.disabled = !sigCb.checked;
       tplSel.style.opacity = sigCb.checked ? '1' : '0.4';
+      addinCtrl.style.opacity = sigCb.checked ? '1' : '0.4';
+      addinCtrl.style.pointerEvents = sigCb.checked ? '' : 'none';
     });
 
     // S/MIME checkbox cell
@@ -240,6 +342,7 @@ function renderMailboxTable(mailboxes) {
     tr.appendChild(tdEmail);
     tr.appendChild(tdSig);
     tr.appendChild(tdTpl);
+    tr.appendChild(tdAddin);
     tr.appendChild(tdSmime);
     tr.appendChild(tdStatus);
     tbody.appendChild(tr);
@@ -261,11 +364,25 @@ async function saveMailboxes(updateDg) {
   var payload = [];
   sigBoxes.forEach(function(cb, i) {
     var idx = parseInt(cb.dataset.idx);
+    // Read addin_templates from the control for this row
+    var addinWrap = document.querySelector('details[data-addin-idx="' + idx + '"]');
+    var addinTemplates = [];
+    if (addinWrap) {
+      var masterCb = addinWrap.querySelector('.addin-all');
+      if (masterCb && masterCb.checked) {
+        addinTemplates = '*';
+      } else {
+        addinWrap.querySelectorAll('.addin-tpl').forEach(function(tcb) {
+          if (tcb.checked) addinTemplates.push(tcb.value);
+        });
+      }
+    }
     payload.push({
       email: _mbData[idx].email,
       sig: cb.checked,
       smime: smimeBoxes[i].checked,
       template: templateSelects[i] ? templateSelects[i].value : 'default',
+      addin_templates: addinTemplates,
     });
   });
   var btn = updateDg ? document.getElementById('mb-save-btn') : document.getElementById('mb-local-btn');

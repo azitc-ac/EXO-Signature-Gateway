@@ -33,6 +33,18 @@ import settings_store
 log = logging.getLogger(__name__)
 
 GRAPH = "https://graph.microsoft.com/v1.0"
+_MAX_RETRY_AFTER_S = 30  # cap for Retry-After header on 429 responses
+
+
+def _post_with_429_retry(client: httpx.Client, url: str, **kwargs) -> httpx.Response:
+    """POST with one automatic retry on HTTP 429 (Graph API throttling)."""
+    resp = client.post(url, **kwargs)
+    if resp.status_code == 429:
+        retry_after = min(int(resp.headers.get("Retry-After", 10)), _MAX_RETRY_AFTER_S)
+        log.warning("Graph API throttled (429) — retrying in %ds (url=%s)", retry_after, url)
+        time.sleep(retry_after)
+        resp = client.post(url, **kwargs)
+    return resp
 
 # Exchange splits outbound mail into one SMTP transaction per destination MX.
 # All transactions share the same Message-ID.  When we call sendMail (Graph API)
@@ -413,7 +425,7 @@ def send_via_graph(mail_from: str, rcpt_tos: list[str], content_bytes: bytes) ->
 
     try:
         with httpx.Client(timeout=30) as client:
-            resp = client.post(url, json=payload, headers=headers)
+            resp = _post_with_429_retry(client, url, json=payload, headers=headers)
 
         if resp.status_code == 202:
             log.info("Graph re-inject OK: from=%s to=%s", from_addr, rcpt_tos)
@@ -492,7 +504,7 @@ def send_via_graph_mime(mail_from: str, rcpt_tos: list[str], content_bytes: byte
         import base64
         encoded = base64.b64encode(content_bytes)
         with httpx.Client(timeout=30) as client:
-            resp = client.post(url, content=encoded, headers=headers)
+            resp = _post_with_429_retry(client, url, content=encoded, headers=headers)
 
         if resp.status_code == 202:
             log.info("Graph MIME re-inject OK: from=%s to=%s", from_addr, rcpt_tos)

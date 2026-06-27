@@ -5,6 +5,7 @@
 <ul class="nav-sub-tabs">
   <li><a href="/settings" class="nav-sub-tab active">Allgemein</a></li>
   <li><a href="/setup" class="nav-sub-tab">Einrichtung</a></li>
+  <li><a href="/outlook-addin" class="nav-sub-tab">Outlook Add-in</a></li>
   <li><a href="/debug" class="nav-sub-tab">Erweitert</a></li>
 </ul>
 
@@ -332,6 +333,53 @@
     </label>
     <span class="hint">Benötigt <code>Mail.ReadWrite.All</code> App-Permission in der Entra App-Registrierung</span>
   </div>
+
+  <div style="border-top:1px solid #f0f0f0;margin:14px 0 12px"></div>
+
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="skip-duplicate-sig"
+             {% if s.SKIP_DUPLICATE_SIG is not false %}checked{% endif %}>
+      Doppelte Gateway-Signatur überspringen
+    </label>
+    <span class="hint">Wenn die Gateway-Signatur bereits im Nachrichtenbereich erkannt wird (z.&nbsp;B. durch das Outlook Add-in), wird sie nicht erneut injiziert</span>
+  </div>
+
+  <div class="settings-row" style="opacity:0.45;pointer-events:none" title="Kommt in einer späteren Version">
+    <label class="checkbox-label">
+      <input type="checkbox" disabled>
+      Minimalsignatur bei Antworten einfügen <span style="font-size:11px;color:#94a3b8">(demnächst)</span>
+    </label>
+    <span class="hint">Fügt eine verkürzte Signatur direkt unter dem Antworttext ein statt am Thread-Ende — erfordert eine separate Minimalsignatur-Definition</span>
+  </div>
+
+  <div style="border-top:1px solid #f0f0f0;margin:14px 0 12px"></div>
+
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="strip-client-sigs"
+             {% if s.STRIP_CLIENT_SIGS is not false %}checked{% endif %}
+             onchange="toggleSigStripConfig(this.checked)">
+      Selbsterstellte Client-Signaturen entfernen
+    </label>
+    <span class="hint">Outlook-Signaturen werden vor der Gateway-Injektion entfernt — verhindert Doppel-Signaturen</span>
+  </div>
+
+  <div id="sig-strip-config" {% if s.STRIP_CLIENT_SIGS is false %}style="display:none"{% endif %}>
+    <div class="settings-row" style="align-items:center">
+      <label for="sig-strip-pct" style="min-width:200px;flex-shrink:0">Erkennungs-Schwellenwert</label>
+      <div class="settings-control" style="display:flex;align-items:center;gap:12px">
+        <input type="range" id="sig-strip-pct"
+               min="20" max="80" step="5"
+               value="{{ s.SIG_STRIP_MIN_MATCH_PCT or 50 }}"
+               oninput="document.getElementById('sig-strip-pct-val').textContent = this.value + ' %'"
+               style="width:180px">
+        <span id="sig-strip-pct-val" style="font-size:13px;font-weight:600;min-width:40px">{{ s.SIG_STRIP_MIN_MATCH_PCT or 50 }} %</span>
+        <span class="hint" style="margin:0">Mindestanteil der Signatur-Tokens, der im Kandidat-Div gefunden werden muss</span>
+      </div>
+    </div>
+  </div>
+
   <div class="actions" style="margin-top:4px">
     <button class="btn secondary" onclick="saveSignatur()">Speichern</button>
     <span id="signatur-result" style="font-size:12px;margin-left:8px"></span>
@@ -396,7 +444,7 @@
     <p class="hint" style="margin-bottom:12px">
       Die ausgewählten Postfächer erhalten tägliche Statistikberichte sowie Warnungen bei Zertifikatsablauf und Container-Neustart.
       Beim Speichern wird die Distribution Group
-      <code>EXO Signature Gateway - Notification recipients</code> in EXO erstellt/aktualisiert.
+      <code>{{ gateway_name }} - Notification recipients</code> in EXO erstellt/aktualisiert.
     </p>
 
     <!-- Recipient picker -->
@@ -852,7 +900,14 @@ function saveSignatur() {
   savePartial({
     LOOP_HEADER: (document.getElementById('loop-header').value || '').trim() || 'X-Sig-Applied',
     SENT_ITEMS_UPDATE: document.getElementById('sent-items').checked,
+    SKIP_DUPLICATE_SIG: document.getElementById('skip-duplicate-sig').checked,
+    STRIP_CLIENT_SIGS: document.getElementById('strip-client-sigs').checked,
+    SIG_STRIP_MIN_MATCH_PCT: parseInt(document.getElementById('sig-strip-pct').value, 10),
   }, 'signatur-result');
+}
+
+function toggleSigStripConfig(enabled) {
+  document.getElementById('sig-strip-config').style.display = enabled ? '' : 'none';
 }
 
 function saveOverrides() {
@@ -1081,6 +1136,7 @@ function updateSubjectPreview() {
 
 document.addEventListener('DOMContentLoaded', function() {
   _loadMailboxesForNotif();
+  _preloadAdminUsers();
   updateSubjectPreview();
   loadAdminUsers();
 });
@@ -1140,42 +1196,73 @@ function renderAdminUsers(users) {
 var _adminSelectedUser = null;
 var _adminSearchTimer = null;
 var _adminHideTimer = null;
+var _adminAllUsers = [];
+
+async function _preloadAdminUsers() {
+  try {
+    var resp = await fetch('/api/entra/users');
+    if (!resp.ok) return;
+    var data = await resp.json();
+    _adminAllUsers = data.users || [];
+  } catch(e) { /* ignore */ }
+}
+
+function _adminAvailable() {
+  var inUse = new Set(_adminUsersLocal.map(function(u) { return u.upn; }));
+  return _adminAllUsers.filter(function(u) { return !inUse.has(u.upn); });
+}
+
+function _renderAdminDropdownItems(users) {
+  var dd = document.getElementById('admin-dropdown');
+  dd.innerHTML = '';
+  if (!users.length) {
+    dd.innerHTML = '<div style="padding:10px 12px;color:#94a3b8;font-size:13px">Keine Ergebnisse</div>';
+    return;
+  }
+  users.forEach(function(u) {
+    var item = document.createElement('div');
+    item.style.cssText = 'padding:8px 12px;cursor:pointer;border-bottom:1px solid #f8fafc;font-size:13px';
+    item.innerHTML = '<span style="font-family:monospace;font-size:12px">' + u.upn + '</span>' +
+      (u.name && u.name !== u.upn ? '<br><span style="font-size:11px;color:#64748b">' + u.name + '</span>' : '');
+    item.addEventListener('mousedown', function(e) { e.preventDefault(); _selectAdminUser(u); });
+    item.addEventListener('mouseover', function() { item.style.background = '#eff6ff'; });
+    item.addEventListener('mouseout', function() { item.style.background = ''; });
+    dd.appendChild(item);
+  });
+}
 
 function _debounceAdminSearch(q) {
   clearTimeout(_adminSearchTimer);
-  var dd = document.getElementById('admin-dropdown');
-  dd.style.display = 'block';
-  if (!q.trim()) {
-    dd.innerHTML = '<div style="padding:10px 12px;color:#94a3b8;font-size:13px">Beginne mit der Eingabe um Benutzer zu suchen</div>';
+  document.getElementById('admin-dropdown').style.display = 'block';
+  var ql = q.trim().toLowerCase();
+  if (!ql) {
+    _renderAdminDropdownItems(_adminAvailable());
     return;
   }
-  dd.innerHTML = '<div style="padding:10px 12px;color:#94a3b8;font-size:13px">Suche…</div>';
-  _adminSearchTimer = setTimeout(function() { _fetchAdminUsers(q.trim()); }, 300);
+  // Sofort lokal filtern für schnelle Rückmeldung
+  _renderAdminDropdownItems(_adminAvailable().filter(function(u) {
+    return u.upn.toLowerCase().includes(ql) || (u.name || '').toLowerCase().includes(ql);
+  }));
+  // Parallel API-Suche für vollständigere Ergebnisse
+  _adminSearchTimer = setTimeout(function() { _fetchAdminUsers(q.trim()); }, 350);
 }
 
 async function _fetchAdminUsers(q) {
-  var dd = document.getElementById('admin-dropdown');
   try {
     var resp = await fetch('/api/entra/users?q=' + encodeURIComponent(q));
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    if (!resp.ok) return;
     var data = await resp.json();
     var users = data.users || [];
-    dd.innerHTML = '';
-    if (!users.length) {
-      dd.innerHTML = '<div style="padding:10px 12px;color:#94a3b8;font-size:13px">Keine Ergebnisse</div>';
-      return;
-    }
+    // In lokalen Cache mergen
     users.forEach(function(u) {
-      var item = document.createElement('div');
-      item.style.cssText = 'padding:8px 12px;cursor:pointer;border-bottom:1px solid #f8fafc;font-size:13px';
-      item.innerHTML = '<span style="font-family:monospace;font-size:12px">' + u.upn + '</span>' +
-        (u.name && u.name !== u.upn ? '<br><span style="font-size:11px;color:#64748b">' + u.name + '</span>' : '');
-      item.addEventListener('mousedown', function(e) { e.preventDefault(); _selectAdminUser(u); });
-      item.addEventListener('mouseover', function() { item.style.background = '#eff6ff'; });
-      item.addEventListener('mouseout', function() { item.style.background = ''; });
-      dd.appendChild(item);
+      if (!_adminAllUsers.some(function(x) { return x.upn === u.upn; })) _adminAllUsers.push(u);
     });
+    var ql = q.toLowerCase();
+    _renderAdminDropdownItems(_adminAvailable().filter(function(u) {
+      return u.upn.toLowerCase().includes(ql) || (u.name || '').toLowerCase().includes(ql);
+    }));
   } catch(e) {
+    var dd = document.getElementById('admin-dropdown');
     dd.innerHTML = '<div style="padding:10px 12px;color:#dc2626;font-size:13px">Fehler: ' + e.message + '</div>';
   }
 }
@@ -1198,8 +1285,13 @@ function _clearAdminPicker() {
 
 function _showAdminDropdown() {
   if (_adminHideTimer) { clearTimeout(_adminHideTimer); _adminHideTimer = null; }
-  var q = document.getElementById('admin-search-input').value || '';
-  if (q.trim()) document.getElementById('admin-dropdown').style.display = 'block';
+  var q = (document.getElementById('admin-search-input').value || '').trim().toLowerCase();
+  var available = _adminAvailable();
+  if (q) available = available.filter(function(u) {
+    return u.upn.toLowerCase().includes(q) || (u.name || '').toLowerCase().includes(q);
+  });
+  _renderAdminDropdownItems(available);
+  document.getElementById('admin-dropdown').style.display = 'block';
 }
 
 function _hideAdminDropdownDelayed() {

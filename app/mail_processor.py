@@ -5,11 +5,13 @@ import email.message
 import email.mime.multipart
 import email.mime.text
 import email.mime.base
+import html as _html_lib
 import logging
 import re
 from copy import deepcopy
 
 import loop_detector
+import settings_store
 
 log = logging.getLogger(__name__)
 
@@ -124,7 +126,29 @@ def _expand_tnef(msg: email.message.Message) -> email.message.Message:
     return new_msg
 
 
+def _has_own_sig_in_compose_area(msg: email.message.Message) -> bool:
+    """Return True if our gateway signature marker is already present before the quote block."""
+    html = extract_html(msg)
+    if not html:
+        return False
+    marker_pos = html.find(_SIG_MARKER_START)
+    if marker_pos == -1:
+        # Fallback: div sentinels survive Outlook editing even when comments are stripped.
+        attr_pos = html.find(_SIG_DIV_ATTR_S)
+        if attr_pos != -1:
+            marker_pos = html.rfind('<', 0, attr_pos)
+    if marker_pos == -1:
+        return False
+    first_quote = _find_first_quote_wrapper_pos(html)
+    return first_quote is None or marker_pos < first_quote
+
+
 def inject(msg: email.message.Message, sig_html: str, sig_txt: str) -> email.message.Message:
+    if settings_store.get("SKIP_DUPLICATE_SIG") and _has_own_sig_in_compose_area(msg):
+        log.info("Gateway signature already present in compose area — skipping injection (SKIP_DUPLICATE_SIG)")
+        loop_detector.mark_as_signed(msg)
+        return msg
+
     msg = _expand_tnef(msg)
 
     # Convert data: URI images in signature to CID inline attachments so they
@@ -140,7 +164,7 @@ def inject(msg: email.message.Message, sig_html: str, sig_txt: str) -> email.mes
     elif content_type == "text/html":
         src_charset = msg.get_content_charset() or "utf-8"
         payload = msg.get_payload(decode=True).decode(src_charset, errors="replace")
-        payload = _strip_client_sig_divs(payload)
+        payload = _strip_client_sig_divs(payload, sig_html_cid)
         msg.set_param("charset", "utf-8")
         _set_part_payload(msg, _append_html_sig(payload, sig_html_cid), "utf-8")
         if cid_images:
@@ -272,7 +296,7 @@ def _inject_into_multipart(msg: email.message.Message, sig_html: str, sig_txt: s
     if html_part is not None and sig_html:
         src_charset = html_part.get_content_charset() or "utf-8"
         payload = html_part.get_payload(decode=True).decode(src_charset, errors="replace")
-        payload = _strip_client_sig_divs(payload)
+        payload = _strip_client_sig_divs(payload, sig_html)
         html_part.set_param("charset", "utf-8")
         _set_part_payload(html_part, _append_html_sig(payload, sig_html), "utf-8")
 
@@ -288,9 +312,55 @@ _CLIENT_SIG_DIV_IDS = [
     "ms-outlook-mobile-body-separator-line",
 ]
 
+# Words that appear in virtually every German/English email signature and therefore
+# carry no discriminating power when comparing against the sender's template.
+_SIG_FP_STOP = frozenset({
+    "mailto", "http", "https",
+    "regards", "with", "kind", "best", "sincerely",
+    "mit", "freundlichen", "vielen", "lieben", "grüßen", "gruessen",
+    "von", "und", "der", "die", "das",
+})
+_MIN_FP_MATCH_RATIO = 0.50   # ≥50 % of template tokens must appear in candidate
+_MIN_FP_MATCH_COUNT = 2      # and at least 2 tokens in absolute terms
 
-def _strip_client_sig_divs(html: str) -> str:
+
+def _html_to_text(markup: str) -> str:
+    """Strip HTML tags and unescape entities, return lowercased plain text."""
+    text = re.sub(r'<[^>]+>', ' ', markup)
+    text = _html_lib.unescape(text)
+    return re.sub(r'\s+', ' ', text).strip().lower()
+
+
+def _sig_fingerprint(sig_html: str) -> frozenset[str]:
+    """Distil a set of distinctive tokens from the rendered signature HTML."""
+    tokens = re.findall(r'[a-zA-Z0-9äöüÄÖÜß@.\-+]{4,}', _html_to_text(sig_html))
+    return frozenset(t for t in tokens if t not in _SIG_FP_STOP)
+
+
+def _matches_sig_fp(candidate_html: str, fp: frozenset[str]) -> bool:
+    """Return True if *candidate_html* looks like the sender's signature template.
+
+    If the fingerprint is too small to be reliable (< _MIN_FP_MATCH_COUNT tokens)
+    we fall back to trusting the structural heuristic unconditionally.
+    """
+    if len(fp) < _MIN_FP_MATCH_COUNT:
+        return True
+    threshold = float(settings_store.get("SIG_STRIP_MIN_MATCH_PCT") or 50) / 100.0
+    cand = set(re.findall(r'[a-zA-Z0-9äöüÄÖÜß@.\-+]{4,}', _html_to_text(candidate_html)))
+    matches = fp & cand
+    ratio = len(matches) / len(fp)
+    log.info(
+        "_strip_sig fp: %d/%d template tokens found in candidate (%.0f%% vs threshold %.0f%%) — %s",
+        len(matches), len(fp), ratio * 100, threshold * 100,
+        "STRIP" if ratio >= threshold else "KEEP (no match)",
+    )
+    return ratio >= threshold and len(matches) >= _MIN_FP_MATCH_COUNT
+
+
+def _strip_client_sig_divs(html: str, sig_html: str = "") -> str:
     """Remove known mail-client signature divs to prevent double signatures."""
+    if settings_store.get("STRIP_CLIENT_SIGS") is False:
+        return html
     lower = html.lower()
     # Outlook Mobile: divs with known IDs
     for div_id in _CLIENT_SIG_DIV_IDS:
@@ -319,9 +389,51 @@ def _strip_client_sig_divs(html: str) -> str:
         html = html[:idx] + html[pos:]
         lower = html.lower()
 
+    # Prefer deterministic removal of our own previously-injected signature.
+    # Only act if the marker appears BEFORE any quote-wrapper div (i.e. it is in
+    # the compose area, not buried inside quoted thread history).
+    marker_pos = html.find(_SIG_MARKER_START)
+    if marker_pos != -1:
+        first_quote = _find_first_quote_wrapper_pos(html)
+        if first_quote is None or marker_pos < first_quote:
+            end_pos = html.find(_SIG_MARKER_END, marker_pos)
+            if end_pos != -1:
+                end_pos += len(_SIG_MARKER_END)
+                log.info(
+                    "_strip_sig: marker-delimited gateway sig at pos %d..%d — removing deterministically",
+                    marker_pos, end_pos,
+                )
+                return html[:marker_pos] + html[end_pos:]
+            log.warning(
+                "_strip_sig: start marker at %d without end marker — falling back to heuristic",
+                marker_pos,
+            )
+    else:
+        # Fallback: div sentinels survive Outlook editing even when comments are stripped.
+        attr_pos = html.find(_SIG_DIV_ATTR_S)
+        if attr_pos != -1:
+            div_start = html.rfind('<', 0, attr_pos)
+            first_quote = _find_first_quote_wrapper_pos(html)
+            if first_quote is None or div_start < first_quote:
+                e_attr = html.find(_SIG_DIV_ATTR_E, div_start)
+                if e_attr != -1:
+                    e_tag_end = html.find('>', e_attr)
+                    if e_tag_end != -1:
+                        e_close = html.find('</div>', e_tag_end)
+                        if e_close != -1:
+                            end_pos = e_close + len('</div>')
+                            log.info(
+                                "_strip_sig: div-sentinel gateway sig at pos %d..%d — removing",
+                                div_start, end_pos,
+                            )
+                            return html[:div_start] + html[end_pos:]
+
     # Outlook desktop (Word editor): signature is the last top-level <div> inside
     # <div class="WordSection1"> that is NOT a known quote/forward wrapper.
-    html = _strip_wordsection_sig(html)
+    # Pass the sender's signature fingerprint so only divs that actually resemble
+    # the expected signature are removed (guards against stripping user content).
+    fp = _sig_fingerprint(sig_html) if sig_html else frozenset()
+    html = _strip_wordsection_sig(html, fp)
     return html
 
 
@@ -330,9 +442,42 @@ def _strip_client_sig_divs(html: str) -> str:
 # is found and removed, and the quote block survives for _append_html_sig.
 _QUOTE_WRAPPER_IDS = {"divrplyfwdmsg", "divtagdefaultwrapper", "divfwdmsg"}
 
+# Marker comments injected around our signature so future gateway passes can
+# locate and remove it deterministically instead of relying on heuristics.
+_SIG_MARKER_START = "<!-- exo-sig-start -->"
+_SIG_MARKER_END   = "<!-- exo-sig-end -->"
+# Div ID sentinels used by the Outlook Add-in. Outlook's Word editor strips HTML
+# comments during body editing, so the add-in also wraps in real elements whose
+# id attributes survive editing. The gateway also checks these as fallback.
+_SIG_DIV_ATTR_S = 'id="exo-sig-s"'
+_SIG_DIV_ATTR_E = 'id="exo-sig-e"'
 
-def _strip_wordsection_sig(html: str) -> str:
-    """Strip Outlook desktop signature from inside <div class="WordSection1">."""
+
+def _find_first_quote_wrapper_pos(html: str) -> int | None:
+    """Return the start position of the first quote-wrapper div in *html*, or None."""
+    best: int | None = None
+    for wrap_id in _QUOTE_WRAPPER_IDS:
+        pattern = re.compile(
+            r'<div\b[^>]*\bid=["\']' + re.escape(wrap_id) + r'["\']', re.IGNORECASE
+        )
+        m = pattern.search(html)
+        if m:
+            best = m.start() if best is None else min(best, m.start())
+    return best
+
+
+def _strip_wordsection_sig(html: str, sig_fingerprint: frozenset[str] = frozenset()) -> str:
+    """Strip Outlook desktop signature from inside <div class="WordSection1">.
+
+    Outlook always appends the signature as the LAST top-level <div> inside
+    WordSection1.  Earlier unnamed divs may contain user content (e.g. text
+    after a --- horizontal rule).  We therefore scan ALL top-level divs and
+    remember the last unnamed one as the signature candidate.
+
+    If *sig_fingerprint* is provided the candidate is only removed when its
+    content matches ≥_MIN_FP_MATCH_RATIO of the template tokens — preventing
+    accidental removal of user content that happens to sit in an unnamed div.
+    """
     lower = html.lower()
     m = re.search(r'<div\b[^>]*\bclass=["\'][^"\']*wordsection1[^"\']*["\'][^>]*>',
                   lower)
@@ -344,6 +489,12 @@ def _strip_wordsection_sig(html: str) -> str:
     depth = 0
     pos = inner_start
 
+    # Track the last unnamed (non-quote-wrapper) top-level div as the sig candidate.
+    # Variables hold the open-tag position and close position of that candidate.
+    cand_open: int | None = None       # position of the <div ...> opening tag
+    cand_close: int | None = None      # position just past the matching </div>
+    current_top_open: int | None = None  # open pos of the top-level div currently being scanned
+
     while pos < len(html):
         next_open = lower.find('<div', pos)
         next_close = lower.find('</div>', pos)
@@ -351,61 +502,67 @@ def _strip_wordsection_sig(html: str) -> str:
             break
         if next_open != -1 and next_open < next_close:
             if depth == 0:
-                # Top-level <div> inside WordSection1 found.
-                # Skip known quote/forward wrapper divs — they are NOT the signature.
                 tag_end_pos = lower.find('>', next_open) + 1
                 tag_text = lower[next_open:tag_end_pos]
                 id_m = re.search(r'\bid=["\']([^"\']*)["\']', tag_text)
-                if id_m and id_m.group(1).lower() in _QUOTE_WRAPPER_IDS:
+                div_id = id_m.group(1).lower() if id_m else None
+                if div_id and div_id in _QUOTE_WRAPPER_IDS:
                     log.info(
                         "_strip_wordsection_sig: skipping quote/forward div id=%r at pos %d",
-                        id_m.group(1), next_open,
+                        div_id, next_open,
                     )
-                    # Fall through to depth += 1 — scanner moves past this div
+                    current_top_open = None  # not a sig candidate
                 else:
-                    # Treat as the Outlook signature container and remove it
-                    sig_start = next_open
-                    log.info(
-                        "_strip_wordsection_sig: sig div found at pos %d (WordSection1 end=%d)",
-                        sig_start, m.end(),
-                    )
-                    tag_end = lower.find('>', next_open) + 1
-                    close_pos = tag_end
-                    inner_depth = 1
-                    while close_pos < len(html) and inner_depth > 0:
-                        nio = lower.find('<div', close_pos)
-                        nic = lower.find('</div>', close_pos)
-                        if nic == -1:
-                            break
-                        if nio != -1 and nio < nic:
-                            inner_depth += 1
-                            close_pos = nio + 4
-                        else:
-                            inner_depth -= 1
-                            close_pos = nic + 6
-                    # Also remove the immediately preceding empty MsoNormal paragraph
-                    before = html[:sig_start]
-                    empty_p = re.search(
-                        r'<p\b[^>]*class=["\'][^"\']*MsoNormal[^"\']*["\'][^>]*>'
-                        r'\s*(?:<[^>]+>)*\s*(?:&nbsp;| )\s*(?:</[^>]+>\s*)*</p>\s*$',
-                        before, re.IGNORECASE)
-                    if empty_p:
-                        sig_start = empty_p.start()
-                    log.info(
-                        "_strip_wordsection_sig: removing %d chars (pos %d..%d)",
-                        close_pos - sig_start, sig_start, close_pos,
-                    )
-                    html = html[:sig_start] + html[close_pos:]
-                    break
+                    current_top_open = next_open  # potential sig candidate
             depth += 1
             pos = next_open + 4
         else:
             if depth == 0:
-                break
+                break  # closing tag of WordSection1 itself
             depth -= 1
+            if depth == 0:
+                # Just closed a top-level div
+                if current_top_open is not None:
+                    # This unnamed top-level div is now the most recent candidate
+                    cand_open = current_top_open
+                    cand_close = next_close + 6
+                current_top_open = None
             pos = next_close + 6
 
-    return html
+    if cand_open is None:
+        log.info("_strip_wordsection_sig: no sig candidate found in %d-char HTML", len(html))
+        return html
+
+    log.info(
+        "_strip_wordsection_sig: sig candidate (last unnamed top-level div) at pos %d (WordSection1 end=%d)",
+        cand_open, m.end(),
+    )
+
+    # Fingerprint guard: only remove the candidate if its content actually
+    # resembles the sender's signature template.  Without a fingerprint (first
+    # gateway pass with no sig_html supplied) we trust the structural heuristic.
+    if sig_fingerprint and not _matches_sig_fp(html[cand_open:cand_close], sig_fingerprint):
+        log.info(
+            "_strip_wordsection_sig: candidate at %d does not match sig template — keeping (user content?)",
+            cand_open,
+        )
+        return html
+
+    # Also remove the immediately preceding empty MsoNormal paragraph
+    sig_start = cand_open
+    before = html[:sig_start]
+    empty_p = re.search(
+        r'<p\b[^>]*class=["\'][^"\']*MsoNormal[^"\']*["\'][^>]*>'
+        r'\s*(?:<[^>]+>)*\s*(?:&nbsp;| )\s*(?:</[^>]+>\s*)*</p>\s*$',
+        before, re.IGNORECASE)
+    if empty_p:
+        sig_start = empty_p.start()
+
+    log.info(
+        "_strip_wordsection_sig: removing %d chars (pos %d..%d)",
+        cand_close - sig_start, sig_start, cand_close,
+    )
+    return html[:sig_start] + html[cand_close:]
 
 
 def _insert_txt_sig(body: str, sig_txt: str) -> str:
@@ -452,29 +609,40 @@ def _append_html_sig(html: str, sig_html: str) -> str:
     lower = html.lower()
 
     # Insert before quoted content so signature sits between new text and quote.
+    # Use regex so that attribute ordering and quote style (single vs double)
+    # don't cause a miss — Exchange/Outlook sometimes emits id='...' or places
+    # dir="ltr" before id="..." in the opening tag.
+    #
     # Patterns ordered by specificity: Outlook separator first, then webmail
-    # specific wrappers, then the universal <blockquote> catch-all (covers
-    # Apple Mail, Thunderbird, GMX, and most standards-compliant clients).
+    # specific wrappers, then the universal <blockquote> catch-all.
     _QUOTE_PATTERNS = [
-        ('<div id="divrplyfwdmsg"', "Outlook/OWA reply separator"),
-        ('<div id="divtagdefaultwrapper"', "OWA forward wrapper"),
-        ('<div class="gmail_quote"', "Gmail quote"),
-        ('<div class="yahoo_quoted"', "Yahoo quote"),
-        ('<blockquote', "blockquote (Apple Mail/Thunderbird/GMX)"),
+        (re.compile(r'<div\b[^>]*\bid=["\']divrplyfwdmsg["\']', re.IGNORECASE),
+         "Outlook/OWA reply separator"),
+        (re.compile(r'<div\b[^>]*\bid=["\']divtagdefaultwrapper["\']', re.IGNORECASE),
+         "OWA forward wrapper"),
+        (re.compile(r'<div\b[^>]*\bclass=["\'][^"\']*gmail_quote[^"\']*["\']', re.IGNORECASE),
+         "Gmail quote"),
+        (re.compile(r'<div\b[^>]*\bclass=["\'][^"\']*yahoo_quoted[^"\']*["\']', re.IGNORECASE),
+         "Yahoo quote"),
+        (re.compile(r'<blockquote\b', re.IGNORECASE),
+         "blockquote (Apple Mail/Thunderbird/GMX)"),
     ]
+    marked_sig = _SIG_MARKER_START + sig_html + _SIG_MARKER_END
+
     for pattern, label in _QUOTE_PATTERNS:
-        idx = lower.find(pattern)
-        if idx != -1:
-            log.debug("Signature inserted before %s at pos %d", label, idx)
-            return html[:idx] + sig_html + html[idx:]
+        m = pattern.search(html)
+        if m:
+            idx = m.start()
+            log.info("Signature inserted before %s at pos %d", label, idx)
+            return html[:idx] + marked_sig + html[idx:]
 
     # No quote block found — fall back to inserting before </body>
     idx = lower.rfind("</body>")
     if idx != -1:
-        log.debug("No quote block found — signature inserted before </body> (new email or unrecognised format)")
-        return html[:idx] + sig_html + html[idx:]
-    log.debug("No </body> found — signature appended at end")
-    return html + sig_html
+        log.info("No quote block found — signature inserted before </body> (new email or unrecognised format)")
+        return html[:idx] + marked_sig + html[idx:]
+    log.info("No </body> found — signature appended at end")
+    return html + marked_sig
 
 
 def extract_html(msg: email.message.Message) -> str | None:

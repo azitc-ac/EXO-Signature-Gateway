@@ -116,11 +116,12 @@ def _row(label: str, value, color: str = "") -> str:
 
 
 def _html_wrap(title: str, color: str, body: str) -> str:
+    gw_name = settings_store.get("GATEWAY_NAME") or "EXO Signature Gateway"
     return f"""<html><body style="font-family:Arial,sans-serif;color:#333;max-width:620px;margin:0 auto">
 <h2 style="color:{color};margin-bottom:4px">{title}</h2>
 {body}
 <hr style="border:none;border-top:1px solid #eee;margin:28px 0 12px">
-<p style="color:#bbb;font-size:11px">EXO Signature Gateway – automatischer Bericht</p>
+<p style="color:#bbb;font-size:11px">{gw_name} – automatischer Bericht</p>
 </body></html>"""
 
 
@@ -204,7 +205,8 @@ def send_startup_notification(version: str) -> bool:
             f'{_row("Zeitpunkt", now)}'
             f'{_row("Version", version)}'
             f'</table>')
-    html = _html_wrap("✓ EXO Signature Gateway gestartet", "#27ae60", body)
+    gw_name = settings_store.get("GATEWAY_NAME") or "EXO Signature Gateway"
+    html = _html_wrap(f"✓ {gw_name} gestartet", "#27ae60", body)
     return _graph_send(to, f"EXO Gateway gestartet – {now}", html)
 
 

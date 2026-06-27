@@ -1,0 +1,9 @@
+#gernperDu
+
+{{ user.companyName }}
+{% if user.phone %}Phone:   {{ user.phone }}
+{% endif %}{% if user.mobilePhone %}Mobile:  {{ user.mobilePhone }}
+{% endif %}{% if user.mail %}{{ user.mail }}
+{% endif %}{% if user.website %}{{ user.website }}
+{% endif %}
+Triebelsstr. 4, 52066 Aachen

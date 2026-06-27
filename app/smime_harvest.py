@@ -203,6 +203,8 @@ def _signer_display_name(sig_bytes: bytes, fallback: str) -> str:
 def _extract_via_openssl(data: bytes, sender: str) -> None:
     if not data:
         return
+    tmp_path = None
+    cert_path = None
     try:
         with tempfile.NamedTemporaryFile(suffix=".p7s", delete=False) as tmp:
             tmp.write(data)
@@ -214,9 +216,12 @@ def _extract_via_openssl(data: bytes, sender: str) -> None:
              "-signer", str(cert_path), "-out", "/dev/null"],
             capture_output=True, timeout=10,
         )
-        tmp_path.unlink(missing_ok=True)
         if result.returncode == 0 and cert_path.exists():
             smime_store.store_recipient_cert(sender, cert_path.read_bytes())
-        cert_path.unlink(missing_ok=True)
     except Exception as exc:
         log.warning("S/MIME openssl harvest failed for %s: %s", sender, exc)
+    finally:
+        if tmp_path:
+            tmp_path.unlink(missing_ok=True)
+        if cert_path:
+            cert_path.unlink(missing_ok=True)

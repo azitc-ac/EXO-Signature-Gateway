@@ -1,6 +1,6 @@
 import os
 import logging
-from jinja2 import Environment, FileSystemLoader, TemplateNotFound
+from jinja2 import Environment, FileSystemLoader, TemplateNotFound, select_autoescape
 
 import config
 from graph_client import UserData
@@ -15,7 +15,7 @@ def _get_env() -> Environment:
     if _env is None:
         _env = Environment(
             loader=FileSystemLoader(config.TEMPLATE_DIR),
-            autoescape=False,
+            autoescape=select_autoescape(["html"]),
         )
     return _env
 

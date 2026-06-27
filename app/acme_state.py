@@ -194,7 +194,8 @@ def get_pending_order_for_challenge(email: str) -> dict | None:
         order = _orders.get(email)
         if not order:
             return None
-        if order.get("status") != "waiting_challenge":
+        # processing_challenge means another path already claimed it — don't hand it out again
+        if order.get("status") not in ("waiting_challenge",):
             return None
         return order
 
@@ -436,6 +437,23 @@ async def handle_challenge_email(order: dict, token_part1: str) -> None:
     """Called from handler.py when an ACME challenge email is intercepted."""
     email = order["email"]
     fid = order.get("flow_id", "?")
+
+    # Atomically claim this challenge: transition waiting_challenge →
+    # processing_challenge under the lock.  Both the SMTP intercept path and
+    # the Graph API poll path can call this function; the first caller wins and
+    # the second sees a non-waiting status and exits immediately.
+    with _lock:
+        _load_orders()
+        current = _orders.get(email)
+        if not current or current.get("status") != "waiting_challenge":
+            log.info(
+                "[acme:%s] challenge for %s already claimed (status=%s) — skipping duplicate",
+                fid, email, (current or {}).get("status"),
+            )
+            return
+        _orders[email] = {**current, "status": "processing_challenge"}
+        _save_orders()
+
     log.info("[acme:%s] processing challenge email for %s (token_part1=%.8s…)", fid, email, token_part1)
 
     key = get_or_create_account_key(email)
@@ -484,24 +502,27 @@ async def _poll_mailbox_for_challenge(email: str) -> None:
     import httpx as _httpx
 
     order0 = get_order(email)
-    fid = (order0 or {}).get("flow_id", "?")
+    if not order0:
+        log.warning("[acme:?] poll started but order already cleared for %s — stopping", email)
+        return
+    fid = order0.get("flow_id", "?")
     log.info("[acme:%s] mailbox poll started for %s", fid, email)
 
     # Determine a cut-off time: only consider emails received after the order
-    # was created (minus a 60 s buffer for clock skew).  This prevents old
-    # challenge emails from previous failed orders being mistakenly reused.
+    # was created.  Prevents old challenge emails from previous failed orders
+    # from being mistakenly reused — critical after container restarts.
     try:
-        from datetime import timedelta
         created_dt = datetime.fromisoformat(order0["created"])
         cutoff = created_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
         time_filter = f"&$filter=receivedDateTime gt {cutoff}"
     except Exception:
+        log.warning("[acme:%s] could not parse order created timestamp — polling without time filter", fid)
         time_filter = ""
 
     url = (
         f"https://graph.microsoft.com/v1.0/users/{email}"
         f"/mailFolders/inbox/messages"
-        f"?$select=subject,from,receivedDateTime,internetMessageId,body&$top=20"
+        f"?$select=subject,from,receivedDateTime,internetMessageId,body&$top=50"
         f"&$orderby=receivedDateTime desc{time_filter}"
     )
 
@@ -515,7 +536,7 @@ async def _poll_mailbox_for_challenge(email: str) -> None:
                      order.get("status") if order else "cleared")
             return
 
-        token = graph_client._acquire_token()
+        token = await graph_client._acquire_token_async()
         if not token:
             log.warning("[acme:%s] poll for %s — no Graph token, retrying", fid, email)
             continue

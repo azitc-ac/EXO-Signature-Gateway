@@ -5,6 +5,28 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.97 — 2026-06-27 — feat: Dup-Sig-Erkennung, GATEWAY_NAME, Add-in-Vorlagen-Auswahl, 429-Retry
+
+- mail_processor.py: SKIP_DUPLICATE_SIG — Gateway-Signatur im Compose-Bereich erkennen
+  (Sentinel-Marker + Positions-Check vor Quote-Block), Injection überspringen falls vorhanden
+- mail_processor.py: STRIP_CLIENT_SIGS — Outlook-Signaturen vor Injection entfernen;
+  Fingerprinting via Token-Set aus Signatur-HTML; Schwellenwert SIG_STRIP_MIN_MATCH_PCT
+  (_strip_client_sig_divs, _sig_fingerprint, _matches_sig_fp, _strip_wordsection_sig überarbeitet)
+- settings_store.py: SKIP_DUPLICATE_SIG (default: True), STRIP_CLIENT_SIGS (default: True),
+  SIG_STRIP_MIN_MATCH_PCT (default: 50), GATEWAY_NAME (default: "EXO Signature Gateway")
+- settings.html: Neue Sektion "Signatur-Injection" — Checkboxen + Schwellenwert-Slider
+- debug.html: Gateway-Name-Feld mit Speichern-Button
+- health_check.py / notification.py: GATEWAY_NAME überall statt Hardcode
+- base.html: Browsertitel + Nav-Brand aus GATEWAY_NAME
+- mailboxes.html: Neue Spalte "Add-in Vorlagen" (Details/Summary, Multi-Select per Postfach)
+- webui/templates/addin.html + addin_compose.html: Outlook Add-in Seiten (neu)
+- templates/default-without-greeting.html/txt: Neue Signaturvorlage ohne Anrede
+- graph_reinject.py: _post_with_429_retry — bei HTTP 429 einmal nach Retry-After warten
+- signature_engine.py: Jinja2 autoescape für .html-Templates aktiviert (XSS-Schutz)
+- smime_harvest.py: tempfile-Cleanup in finally-Block (Leak bei Ausnahme behoben)
+- acme_state.py: Race-Condition-Fix beim Challenge-Claiming (Claim-basierte Sperre)
+- pkce.py: next_url-Parameter für Post-Auth-Redirect
+
 ## v1.4.96 — 2026-06-27 — feat: Graph API App-Pool (Round-Robin über mehrere App-Registrierungen)
 
 - graph_client.py: Pool-Round-Robin — APP_POOL-Setting, mehrere MSAL-Apps, get_pool_status()

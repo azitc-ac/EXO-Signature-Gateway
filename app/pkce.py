@@ -59,7 +59,7 @@ def generate_pkce_pair() -> tuple[str, str]:
     return verifier, challenge
 
 
-def create_session(redirect_uri: str, scopes: list | None = None, flow: str = "setup") -> tuple[str, str]:
+def create_session(redirect_uri: str, scopes: list | None = None, flow: str = "setup", next_url: str = "/") -> tuple[str, str]:
     """
     Create a new PKCE session.
     Returns (state, authorization_url).
@@ -73,6 +73,7 @@ def create_session(redirect_uri: str, scopes: list | None = None, flow: str = "s
         "redirect_uri": redirect_uri,
         "created_at": time.monotonic(),
         "flow": flow,
+        "next_url": next_url if next_url.startswith("/") else "/",
     }
 
     use_scopes = scopes if scopes is not None else BOOTSTRAP_SCOPES

@@ -120,7 +120,8 @@ def _check_exo_batch_sync(emails: list[str]) -> dict:
         return {e: dict(error_result) for e in emails}
 
     check_imap = (reinject_mode == "imap")
-    dg_name = "EXO Signature Gateway - Enabled Mailboxes"
+    gw = settings_store.get("GATEWAY_NAME") or "EXO Signature Gateway"
+    dg_name = f"{gw} - Enabled Mailboxes"
 
     # Build email list as JSON for PS
     emails_json = json.dumps(emails)

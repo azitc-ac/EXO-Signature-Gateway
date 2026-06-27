@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EXO Signature Gateway</title>
+    <title>{{ gateway_name or 'EXO Signature Gateway' }}</title>
     <link rel="stylesheet" href="/static/style.css?v={{ version }}">
 </head>
 <body>
     <nav id="main-nav">
-        <div class="nav-brand">EXO Signature Gateway <span class="nav-version">v{{ version }}</span></div>
+        <div class="nav-brand">{{ gateway_name or 'EXO Signature Gateway' }} <span class="nav-version">v{{ version }}</span></div>
         <button class="nav-toggle" id="nav-toggle" onclick="toggleMobileNav()" aria-label="Menü">
             <span></span><span></span><span></span>
         </button>
@@ -20,7 +20,7 @@
                 {% if _role == 'admin' %}
                 <li><a href="/mailboxes" class="{% if active == 'mailboxes' %}active{% endif %}">Postfächer</a></li>
                 <li><a href="/smime" class="{% if active == 'smime' %}active{% endif %}">S/MIME</a></li>
-                <li><a href="/settings" class="{% if active in ('settings', 'setup', 'debug') %}active{% endif %}">Einstellungen</a></li>
+                <li><a href="/settings" class="{% if active in ('settings', 'setup', 'debug', 'outlook-addin') %}active{% endif %}">Einstellungen</a></li>
                 <li><a href="/log" class="{% if active == 'log' %}active{% endif %}">Protokolle</a></li>
                 {% endif %}
             </ul>
