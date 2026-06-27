@@ -56,10 +56,11 @@ Exchange Online (EXO) → Zustellung an Empfänger
 | Port | Protokoll | Von wem | Zweck | Wann nötig |
 |------|-----------|---------|-------|------------|
 | **25** | SMTP + STARTTLS | Exchange Online (Transport Connector) | Eingehende Mails zur Verarbeitung | **immer** |
-| **80** | HTTP | Let's Encrypt-Server | HTTP-01 ACME Challenge | nur während Zertifikatsausstellung |
-| **8080** | HTTPS | Admins / Browser | Web-UI & REST-API | **immer** |
+| **80** | HTTP | Let's Encrypt-Server / Browser | HTTP-01 ACME Challenge; First-Run-Setup-Wizard | **immer** |
+| **443** | HTTPS | Admins / Browser | Web-UI & REST-API | **immer** |
 
-> Hinweis: Port 80 und 25 müssen ggf. auf **unterschiedliche Hostnamen** zeigen, wenn der Web-Hostname hinter einem Reverse-Proxy (z. B. Azure Application Proxy) liegt, der kein SMTP durchleitet. In diesem Fall `SMTP_HOSTNAME` konfigurieren (Setup-Wizard Schritt 2).
+> Intern hört der Container auf Port 8080; Docker mappt `443:8080`. Am Router / in der VM-Firewall
+> nur Port 443 (nicht 8080) öffnen.
 
 ### Outbound (Container → Internet)
 
@@ -79,6 +80,26 @@ Azure VMs blockieren ausgehenden Port 25. Mit `REINJECT_MODE=graph` oder `imap` 
 ## Betrieb auf Azure (kein ausgehender Port 25)
 
 Mit `REINJECT_MODE=graph` (Standard) oder `imap` läuft der Service ohne ausgehenden Port 25. Der Graph-Modus benötigt nur ausgehend Port 443.
+
+### Azure VM anlegen (PowerShell-Skript)
+
+Das mitgelieferte Skript `azure-vm-setup.ps1` legt eine Standard_B2s-VM (Ubuntu 24.04,
+32 GB Disk) mit statischer IP und vorkonfigurierter Firewall an und installiert Docker + das Gateway:
+
+```powershell
+.\azure-vm-setup.ps1 `
+    -ResourceGroup "exo-gateway-rg" `
+    -Location "germanywestcentral" `
+    -SshPublicKeyFile "~/.ssh/id_rsa.pub" `
+    -RepoUrl "https://github.com/DEIN-REPO/EXO-signature-service.git"
+```
+
+Nach Abschluss zeigt das Skript die öffentliche IP und die nächsten Schritte (DNS setzen,
+Setup-Wizard aufrufen).
+
+**Warum B2s statt B1s?** Der Container baut PowerShell + ExchangeOnlineManagement-Modul
+(~400 MB) — 1 GB RAM reicht während des Builds zu knapp. Im Betrieb (nach dem Build)
+wäre B1s ausreichend.
 
 **Warum IMAP statt Graph API für Inbox-Inject?**  
 Die Graph API (`POST /mailFolders/inbox/messages`) erstellt Nachrichten mit gesetztem `MSGFLAG_UNSENT`-Flag — Outlook zeigt sie als Entwurf mit Senden-Knopf. IMAP APPEND setzt dieses Flag nicht; die Nachricht landet direkt als echte empfangene Mail im Postfach.
@@ -145,22 +166,47 @@ git clone <repo-url>
 cd EXO-signature-service
 ```
 
-### 2. Starten & Setup-Wizard
+### 2. Starten
 
 ```bash
 docker compose up -d
 ```
 
-Beim ersten Start ist **kein `.env` nötig** — der Setup-Wizard führt durch die komplette Erstkonfiguration:
+### 3. First-Run — TLS-Zertifikat via Port 80
+
+Beim allerersten Start existiert noch kein TLS-Zertifikat. Der Service startet einen
+minimalen Setup-Wizard auf **Port 80 (HTTP)**:
+
+```
+http://<öffentliche-IP>
+```
+
+> DNS muss noch nicht gesetzt sein — IP-Zugriff reicht für diesen Schritt.
+
+Dort Hostname (`sig.example.com`) und Let's Encrypt E-Mail eintragen → **Zertifikat beantragen**.
+Voraussetzung: DNS des Hostnamens zeigt bereits auf diese IP (Let's Encrypt validiert via DNS).
+
+Nach Erfolg:
+
+```bash
+docker compose restart
+```
+
+### 4. HTTPS-Setup-Wizard
+
+Ab jetzt ist die Web-UI über HTTPS erreichbar:
+
+```
+https://sig.example.com
+```
+
+Der Setup-Wizard führt durch die Erstkonfiguration:
 
 - Azure App-Registrierung (automatisch via PKCE-Flow inkl. Admin-Consent)
 - EXO Connector, Transportregel, Verteilerliste
-- TLS-Zertifikat (Let's Encrypt oder eigenes)
-- Optional: IMAP-Zugriff für Azure-Betrieb
+- Optional: IMAP-Zugriff für Azure-Betrieb (`REINJECT_MODE=imap`)
 
-Web-UI erreichbar unter: `https://<host>:8080`
-
-### 3. Optionales `.env` für Secrets
+### 5. Optionales `.env` für Secrets
 
 ```bash
 cp .env.example .env

@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.92 — 2026-06-27 — docs: README First-Run-Flow + Azure VM Skript
+
+- README: Schnellstart-Abschnitt überarbeitet — First-Run über Port 80, dann HTTPS-Wizard
+- README: Netzwerk-Tabelle: 8080 → 443 (Docker-Mapping), Port-80-Rolle präzisiert
+- README: Azure-Abschnitt: PowerShell-Skript-Dokumentation + B2s-Empfehlung
+- `azure-vm-setup.ps1` neu: VM anlegen (B2s, Ubuntu 24.04, statische IP), NSG-Regeln
+  (22/80/443/25), Docker-Installation, Gateway-Clone + Start via cloud-init; abschließende
+  Schritt-für-Schritt-Ausgabe mit IP und DNS-Hinweis
+
+---
+
 ## v1.4.91 — 2026-06-27 — feat: Port 443 statt 8080 + Port-80-Setup-Wizard + SMTP_HOSTNAME entfernt
 
 - docker-compose.yml: 8080:8080 → 443:8080 (App intern auf 8080, extern 443)
