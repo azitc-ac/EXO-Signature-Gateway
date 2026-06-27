@@ -152,7 +152,7 @@ async def import_rsa_key(email: str, private_key_pem: bytes) -> str:
 
         jwk = {
             "kty": kty,
-            "key_ops": ["sign", "verify"],
+            "key_ops": ["sign", "verify", "decrypt", "unwrapKey"],
             "n": _bi(pub.n),
             "e": _bi(pub.e),
             "d": _bi(priv.d),
@@ -182,7 +182,7 @@ async def import_rsa_key(email: str, private_key_pem: bytes) -> str:
         jwk = {
             "kty": "EC",
             "crv": crv,
-            "key_ops": ["sign", "verify"],
+            "key_ops": ["sign", "verify", "decrypt", "unwrapKey"],
             "x": _coord(pub_nums.x),
             "y": _coord(pub_nums.y),
             "d": _coord(priv_nums.private_value),
@@ -197,7 +197,8 @@ async def import_rsa_key(email: str, private_key_pem: bytes) -> str:
         raise RuntimeError("Key Vault Token konnte nicht abgerufen werden")
 
     url = f"{vault_url()}/keys/{key_name}/import?api-version={_KV_API}"
-    payload = {"key": jwk, "key_ops": ["sign", "verify"], "attributes": key_attrs}
+    _full_ops = ["sign", "verify", "decrypt", "unwrapKey"]
+    payload = {"key": jwk, "key_ops": _full_ops, "attributes": key_attrs}
 
     async with httpx.AsyncClient(timeout=30) as client:
         resp = await client.put(
@@ -233,6 +234,31 @@ async def import_rsa_key(email: str, private_key_pem: bytes) -> str:
     key_id = resp.json().get("key", {}).get("kid", "")
     log.info("keyvault: key imported for %s → %s", email, key_id)
     return key_id
+
+
+async def patch_key_ops(email: str) -> bool:
+    """Add decrypt + unwrapKey to an existing KV key that was imported without those ops."""
+    key_name = _email_to_key_name(email)
+    token = await _get_kv_token()
+    if not token:
+        return False
+    url = f"{vault_url()}/keys/{key_name}?api-version={_KV_API}"
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.patch(
+                url,
+                json={"key_ops": ["sign", "verify", "decrypt", "unwrapKey"]},
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            )
+        if resp.status_code in (200, 201):
+            log.info("keyvault: key_ops patched for %s (added decrypt/unwrapKey)", email)
+            return True
+        log.error("keyvault: patch_key_ops failed HTTP %s for %s: %s",
+                  resp.status_code, email, resp.text[:300])
+        return False
+    except Exception as exc:
+        log.error("keyvault: patch_key_ops error for %s: %s", email, exc)
+        return False
 
 
 async def sign(email: str, digest_bytes: bytes, algorithm: str = "RS256") -> bytes:

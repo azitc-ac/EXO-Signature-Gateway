@@ -17,13 +17,15 @@ def _decrypt_local(message_bytes: bytes, recipient: str) -> bytes | None:
     if not paths:
         return None
     cert_path, key_path = paths
+    import settings_store as _ss
+    password = (config.SMIME_KEY_PASSWORD
+                or _ss.get("SMIME_KEY_PASSWORD") or "")
     cmd = [
         "openssl", "smime", "-decrypt",
         "-recip", str(cert_path),
         "-inkey", str(key_path),
+        "-passin", f"pass:{password}",   # always explicit — avoids interactive prompt
     ]
-    if config.SMIME_KEY_PASSWORD:
-        cmd += ["-passin", f"pass:{config.SMIME_KEY_PASSWORD}"]
     try:
         result = subprocess.run(cmd, input=message_bytes, capture_output=True, timeout=15)
         if result.returncode != 0:
@@ -143,6 +145,17 @@ async def _decrypt_keyvault(message_bytes: bytes, recipient: str) -> bytes | Non
                          "Content-Type": "application/json"},
                 json={"alg": "RSA1_5", "value": enc_b64},
             )
+        if resp.status_code == 403 and "KeyOperationForbidden" in resp.text:
+            log.warning("KV decrypt: key missing decrypt op for %s — patching key_ops", recipient)
+            patched = await _kv.patch_key_ops(recipient)
+            if patched:
+                async with httpx.AsyncClient(timeout=15) as client2:
+                    resp = await client2.post(
+                        f"{_kv.vault_url()}/keys/{key_name}/decrypt?api-version=7.4",
+                        headers={"Authorization": f"Bearer {kv_token}",
+                                 "Content-Type": "application/json"},
+                        json={"alg": "RSA1_5", "value": enc_b64},
+                    )
         if resp.status_code != 200:
             log.error("KV decrypt: RSA1_5 failed HTTP %s for %s: %s",
                       resp.status_code, recipient, resp.text[:300])

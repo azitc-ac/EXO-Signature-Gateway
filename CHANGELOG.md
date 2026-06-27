@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.135 — 2026-06-27 — fix: KV-Decrypt 403 (fehlende key_ops) + lokales Backup-Passwort
+
+- keyvault.py import_rsa_key(): key_ops jetzt ["sign","verify","decrypt","unwrapKey"]
+  (vorher nur sign/verify → KV lehnte /decrypt mit 403 KeyOperationForbidden ab)
+- keyvault.py: neue Funktion patch_key_ops() — patcht bestehende KV-Schlüssel ohne decrypt-Op
+- smime_decrypt.py _decrypt_keyvault(): bei 403 KeyOperationForbidden automatisch
+  patch_key_ops() aufrufen und einmal wiederholen (self-healing für bereits importierte Schlüssel)
+- smime_decrypt.py _decrypt_local(): SMIME_KEY_PASSWORD auch aus settings_store lesen
+  (nicht nur config.*); -passin immer explizit setzen um interaktive Passwort-Abfrage zu vermeiden
+
 ## v1.4.133 — 2026-06-27 — fix: S/MIME-Decrypt-Priorität — KV primär, lokales Backup nur als Fallback
 
 - smime_decrypt.decrypt(): wenn KV konfiguriert, immer KV zuerst versuchen
