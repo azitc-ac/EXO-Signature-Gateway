@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.98 — 2026-06-27 — fix: Notification-Absender von TO getrennt — DG als Empfänger funktioniert jetzt
+
+- notification.py: _get_sender() bestimmt Absender unabhängig vom Empfänger
+  (Priorität: NOTIFICATION_MAILBOX → SMTP_SUBMIT_USER → erster NOTIFICATION_RECIPIENTS-Eintrag)
+- _graph_send() sendet FROM sender TO to — DGs und M365-Gruppen als Empfänger funktionieren
+  (vorher: FROM=TO, schlägt bei Gruppenpostfächern mit 404/ErrorInvalidUser fehl)
+- Fallback-Retry-Logik entfernt (nicht mehr nötig)
+
 ## v1.4.97 — 2026-06-27 — feat: Dup-Sig-Erkennung, GATEWAY_NAME, Add-in-Vorlagen-Auswahl, 429-Retry
 
 - mail_processor.py: SKIP_DUPLICATE_SIG — Gateway-Signatur im Compose-Bereich erkennen

@@ -42,15 +42,37 @@ def _should_notify(key: str) -> bool:
     return val is not False  # None and True both mean "send"
 
 
+def _get_sender() -> str | None:
+    """
+    Return the sender mailbox for Graph sendMail (must be a licensed user mailbox).
+
+    Priority:
+    1. NOTIFICATION_MAILBOX  — explicit sender setting
+    2. SMTP_SUBMIT_USER      — fallback sender for SMTP AUTH, reused here
+    3. First entry in NOTIFICATION_RECIPIENTS (only if it looks like a user, not a DG)
+    """
+    mb = (settings_store.get("NOTIFICATION_MAILBOX") or "").strip()
+    if mb:
+        return mb
+    su = (settings_store.get("SMTP_SUBMIT_USER") or "").strip()
+    if su:
+        return su
+    recipients = settings_store.get("NOTIFICATION_RECIPIENTS") or []
+    dg = (settings_store.get("NOTIFICATION_DG_EMAIL") or "").strip()
+    for r in recipients:
+        if r and r != dg:
+            return r
+    return None
+
+
 def _graph_send(to: str, subject: str, html: str) -> bool:
     """
     Send a notification email via Graph API sendMail.
 
-    FROM = NOTIFICATION_MAILBOX (works for user + shared mailboxes because the
-    app has Mail.Send application permission and can impersonate any EXO mailbox).
-    For Microsoft 365 group mailboxes the /sendMail endpoint is not available —
-    in that case we fall back to sending from SMTP_SUBMIT_USER if configured.
+    Sender = NOTIFICATION_MAILBOX (or SMTP_SUBMIT_USER as fallback) — always a
+    licensed user mailbox.  Recipient can be any address including DGs/M365 groups.
     """
+    sender = _get_sender() or to
     token = graph_client._acquire_token()
     if not token:
         log.warning("notification: no Graph token — skipping")
@@ -66,44 +88,15 @@ def _graph_send(to: str, subject: str, html: str) -> bool:
     }
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
-    # Try sending FROM the notification mailbox itself (user / shared mailbox).
-    url = f"{GRAPH}/users/{to}/sendMail"
+    url = f"{GRAPH}/users/{sender}/sendMail"
     try:
         with httpx.Client(timeout=30) as client:
             resp = client.post(url, json=payload, headers=headers)
         if resp.status_code == 202:
-            log.info("Notification sent to %s: %s", to, subject)
+            log.info("Notification sent from=%s to=%s: %s", sender, to, subject)
             return True
-
-        # 404 / ErrorInvalidUser → notification mailbox is a group mailbox.
-        # Group mailboxes can't be used as sendMail sender.  Fall back to
-        # SMTP_SUBMIT_USER if configured (which is a licensed user mailbox).
-        err_code = ""
-        try:
-            err_code = resp.json().get("error", {}).get("code", "")
-        except Exception:
-            pass
-
-        if resp.status_code == 404 or err_code in ("ErrorInvalidUser", "ResourceNotFound"):
-            fallback = settings_store.get("SMTP_SUBMIT_USER") or ""
-            if fallback and fallback.lower() != to.lower():
-                log.debug("notification: %s is a group mailbox, retrying from %s", to, fallback)
-                url2 = f"{GRAPH}/users/{fallback}/sendMail"
-                with httpx.Client(timeout=30) as client:
-                    resp2 = client.post(url2, json=payload, headers=headers)
-                if resp2.status_code == 202:
-                    log.info("Notification sent to %s (via %s): %s", to, fallback, subject)
-                    return True
-                log.error("notification fallback sendMail failed: HTTP %s — %s",
-                          resp2.status_code, resp2.text[:300])
-                return False
-            log.error("notification: %s appears to be a group mailbox and no "
-                      "SMTP_SUBMIT_USER is configured as fallback sender", to)
-            return False
-
         log.error("notification sendMail failed: HTTP %s — %s", resp.status_code, resp.text[:300])
         return False
-
     except Exception as exc:
         log.error("notification: sendMail error for %s: %s", to, exc)
         return False
