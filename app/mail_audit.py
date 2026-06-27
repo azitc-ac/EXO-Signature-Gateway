@@ -49,6 +49,15 @@ def init_db() -> None:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_ts     ON mail_log(ts)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_action ON mail_log(action)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_sender ON mail_log(sender)")
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS graph_api_calls (
+                app_id  TEXT    NOT NULL,
+                date    TEXT    NOT NULL,
+                hour    INTEGER NOT NULL,
+                count   INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (app_id, date, hour)
+            )
+        """)
     _initialised = True
     log.info("mail_audit: DB ready at %s", DB_PATH)
 
@@ -190,6 +199,78 @@ def peak_hour(date: str) -> tuple[str, int] | None:
     except Exception as exc:
         log.warning("mail_audit: peak_hour failed: %s", exc)
         return None
+
+
+def flush_graph_calls(records: list[tuple]) -> None:
+    """Upsert Graph API call counts. records = [(app_id, date, hour, count)]."""
+    if not _initialised or not records:
+        return
+    try:
+        with _lock, _conn() as conn:
+            conn.executemany(
+                "INSERT INTO graph_api_calls (app_id, date, hour, count) VALUES (?, ?, ?, ?)"
+                " ON CONFLICT(app_id, date, hour) DO UPDATE SET count = excluded.count",
+                records,
+            )
+    except Exception as exc:
+        log.warning("mail_audit: flush_graph_calls failed: %s", exc)
+
+
+def get_graph_calls_hours(app_id: str, date: str) -> list[int]:
+    """Return 24-element list of call counts for app_id on date."""
+    if not _initialised:
+        return [0] * 24
+    try:
+        with _conn() as conn:
+            rows = conn.execute(
+                "SELECT hour, count FROM graph_api_calls WHERE app_id=? AND date=?",
+                (app_id, date),
+            ).fetchall()
+        result = [0] * 24
+        for r in rows:
+            result[r["hour"]] = r["count"]
+        return result
+    except Exception as exc:
+        log.warning("mail_audit: get_graph_calls_hours failed: %s", exc)
+        return [0] * 24
+
+
+def get_graph_calls_range(app_id: str, days: int) -> list[dict]:
+    """Return [{date, total}] for the last N days, oldest first."""
+    if not _initialised:
+        return []
+    try:
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
+        with _conn() as conn:
+            rows = conn.execute(
+                "SELECT date, SUM(count) AS total FROM graph_api_calls "
+                "WHERE app_id=? AND date >= ? GROUP BY date ORDER BY date",
+                (app_id, cutoff),
+            ).fetchall()
+        return [{"date": r["date"], "total": r["total"]} for r in rows]
+    except Exception as exc:
+        log.warning("mail_audit: get_graph_calls_range failed: %s", exc)
+        return []
+
+
+def get_mail_hourly(date: str) -> list[dict]:
+    """Per-hour stats from mail_log for date (YYYY-MM-DD)."""
+    if not _initialised:
+        return []
+    try:
+        with _conn() as conn:
+            rows = conn.execute(
+                "SELECT substr(ts,12,2) AS hour, COUNT(*) AS count, "
+                "CAST(AVG(CASE WHEN processing_ms > 0 THEN processing_ms END) AS INTEGER) AS avg_ms, "
+                "MAX(processing_ms) AS peak_ms "
+                "FROM mail_log WHERE ts >= ? AND ts <= ? "
+                "GROUP BY hour ORDER BY hour",
+                (f"{date}T00:00:00Z", f"{date}T23:59:59Z"),
+            ).fetchall()
+        return [dict(r) for r in rows]
+    except Exception as exc:
+        log.warning("mail_audit: get_mail_hourly failed: %s", exc)
+        return []
 
 
 def prune_old_events(retention_days: int = 90) -> int:

@@ -39,6 +39,58 @@ _last_used_client_id: str = ""            # für mark_throttled nach 429
 _call_stats: dict[str, dict] = {}        # client_id → {date, hours[24], peak_hour, peak_count}
 
 
+def _flush_to_db() -> None:
+    """Schreibt akkumulierte Stundenzähler in die SQLite-DB. Läuft im Hintergrund-Thread."""
+    try:
+        import mail_audit as _ma
+        with _pool_lock:
+            records = [
+                (cid, s["date"], h, cnt)
+                for cid, s in _call_stats.items()
+                for h, cnt in enumerate(s["hours"])
+                if cnt > 0
+            ]
+        if records:
+            _ma.flush_graph_calls(records)
+    except Exception as exc:
+        log.warning("graph_client: _flush_to_db failed: %s", exc)
+
+
+def _restore_from_db(entries: list[dict]) -> None:
+    """Stellt Tages-Statistik aus DB wieder her (nach Container-Neustart)."""
+    try:
+        import mail_audit as _ma
+        today = datetime.date.today().isoformat()
+        with _pool_lock:
+            for e in entries:
+                cid = e["client_id"]
+                if cid in _call_stats:
+                    continue  # bereits initialisiert
+                hours = _ma.get_graph_calls_hours(cid, today)
+                if any(h > 0 for h in hours):
+                    peak_h = max(range(24), key=lambda i: hours[i])
+                    _call_stats[cid] = {
+                        "date": today,
+                        "hours": hours,
+                        "peak_hour": peak_h if hours[peak_h] > 0 else -1,
+                        "peak_count": hours[peak_h],
+                    }
+    except Exception as exc:
+        log.warning("graph_client: _restore_from_db failed: %s", exc)
+
+
+def _start_flush_thread() -> None:
+    def _loop():
+        while True:
+            time.sleep(60)
+            _flush_to_db()
+    t = threading.Thread(target=_loop, daemon=True, name="graph-stats-flush")
+    t.start()
+
+
+_start_flush_thread()
+
+
 def _rebuild_pool_if_needed() -> None:
     global _pool_entries, _pool_hash, _pool_idx
     tenant = config.TENANT_ID or settings_store.get("TENANT_ID") or ""
@@ -73,6 +125,7 @@ def _rebuild_pool_if_needed() -> None:
         _pool_hash = new_hash
         _pool_idx = 0
     log.info("Graph app pool rebuilt: %d app(s)", len(new_entries))
+    _restore_from_db(new_entries)
 
 
 def reset_msal_app() -> None:

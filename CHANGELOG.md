@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.112 — 2026-06-27 — feat: Dashboard Reporting — DB-Persistenz, Filter-Tabs, klickbare Kacheln
+
+- mail_audit.py: neue Tabelle graph_api_calls (app_id, date, hour, count); flush_graph_calls(),
+  get_graph_calls_hours(), get_graph_calls_range(), get_mail_hourly()
+- graph_client.py: Hintergrund-Thread flusht Stundenzähler alle 60s in SQLite; _restore_from_db()
+  stellt heutige Zähler nach Container-Neustart wieder her
+- Neue API-Endpoints: /api/setup/app-pool/history (Tagesreihe), /api/setup/app-pool/day (24h-Drill),
+  /api/system/mail-hourly (stündl. Mail-Stats), /api/system/log-tail (Log-Buffer)
+- dashboard.html: Pool-Modal bekommt Tabs Heute / 7 Tage / 30 Tage; Tagesbalken klickbar →
+  24h-Drill-Down mit ← Zurück; Hinweis-Text entfernt ("Heute-Zähler werden täglich zurückgesetzt…")
+- System-Kacheln klickbar: Ø Verarbeitungszeit → Stunden-Modal mit Balkendiagramm + Tabelle;
+  Peak heute → Audit-Filter auf Peak-Stunde; Audit-DB → alle Einträge; Mail-Logs → Log-Tail-Modal
+
 ## v1.4.110 — 2026-06-27 — feat: App-Pool Dashboard — stündliche Aufruf-Statistik + Detail-Modal
 
 - graph_client.py: _record_call() zählt Graph-API-Aufrufe pro App und Stunde (Reset um Mitternacht)

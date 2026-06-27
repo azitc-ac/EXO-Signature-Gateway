@@ -90,7 +90,6 @@
     </tbody>
   </table>
 </div>
-<p class="hint" style="margin-top:6px">Heute-Zähler werden täglich zurückgesetzt. Monat/Jahr aus persistierter Tageszeitreihe (stats_daily.json). <strong>Heute-Zahlen sind klickbar</strong> → Detailliste.</p>
 
 <!-- Azure API-Aufrufe -->
 <div style="display:flex;align-items:baseline;gap:16px;margin:24px 0 10px">
@@ -194,46 +193,29 @@
 <script>
 var _poolData = [];
 
+var _poolActiveTab = 'today';
+var _poolActiveIdx = 0;
+var _poolLastHistoryTab = '7d';
+
 function openPoolModal(idx) {
   var p = _poolData[idx];
   if (!p) return;
-  var hours = p.hours_today || new Array(24).fill(0);
-  var maxH  = Math.max.apply(null, hours.concat([1]));
-  var nowH  = new Date().getHours();
+  _poolActiveIdx = idx;
   var throttled = p.throttled;
   var remS  = throttled ? Math.ceil(p.throttled_until_s || 0) : 0;
   var label = p.label || p.client_id.slice(0,8);
   var thisH = p.calls_this_hour != null ? p.calls_this_hour : 0;
   var today = p.calls_today != null ? p.calls_today : 0;
-
-  // Balkendiagramm 24h
-  var bars = '<div style="display:flex;align-items:flex-end;gap:2px;height:64px;padding:0 0 0 0">';
-  hours.forEach(function(cnt, h) {
-    var pct = Math.round(cnt / maxH * 100);
-    var isNow = h === nowH;
-    var col = throttled ? (isNow ? '#dc2626' : '#fca5a5')
-                        : (isNow ? '#2563eb' : '#93c5fd');
-    bars += '<div style="flex:1;background:' + col + ';height:' + (cnt > 0 ? Math.max(pct, 3) : 0) + '%;' +
-      'border-radius:2px 2px 0 0;min-height:' + (cnt>0?'3':'0') + 'px" ' +
-      'title="' + h + ':00 — ' + cnt + ' Aufrufe"></div>';
-  });
-  bars += '</div>';
-
-  // Stunden-Labels 0 / 6 / 12 / 18 / 24
-  var lbl = '<div style="display:flex;font-size:10px;color:#a8a29e;margin-top:3px">';
-  lbl += '<div style="flex:6;text-align:left">0h</div>';
-  lbl += '<div style="flex:6;text-align:center">6h</div>';
-  lbl += '<div style="flex:6;text-align:center">12h</div>';
-  lbl += '<div style="flex:6;text-align:center">18h</div>';
-  lbl += '<div style="flex:0;white-space:nowrap">24h</div>';
-  lbl += '</div>';
-
   var peakTxt = (p.peak_hour != null && p.peak_hour >= 0)
     ? p.peak_count + ' Aufrufe um ' + p.peak_hour + ':xx Uhr'
     : '— (noch keine Daten)';
   var statusHtml = throttled
     ? '<span style="color:#dc2626">● gedrosselt (noch ' + remS + 's)</span>'
     : '<span style="color:#16a34a">● verfügbar</span>';
+
+  var tabStyle = 'padding:5px 12px;border:none;border-radius:4px;cursor:pointer;font-size:12px;margin-right:4px;';
+  var activeStyle = tabStyle + 'background:#1c1917;color:#fff;';
+  var inactiveStyle = tabStyle + 'background:#f0f0f0;color:#555;';
 
   document.getElementById('poolModalTitle').textContent = label + ' — Graph API Aufrufe';
   document.getElementById('poolModalContent').innerHTML =
@@ -242,17 +224,154 @@ function openPoolModal(idx) {
       '<div class="sys-tile"><div class="sys-val">' + today + '</div><div class="sys-label">Aufrufe heute gesamt</div></div>' +
     '</div>' +
     '<div style="margin-bottom:6px;font-size:12px;color:#44403c">Peak heute: <strong>' + peakTxt + '</strong></div>' +
-    '<div style="margin-bottom:16px;font-size:12px;color:#44403c">Status: ' + statusHtml + '</div>' +
-    '<div style="font-size:10px;color:#a8a29e;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Aufrufe pro Stunde (seit 0:00 Uhr)</div>' +
-    '<div style="background:#f8f7f6;border-radius:6px;padding:10px 10px 6px">' + bars + lbl + '</div>' +
-    '<div style="margin-top:10px;font-size:10px;color:#a8a29e">Aktuell aktive Stunde in Blau · Daten seit letztem Container-Start</div>';
+    '<div style="margin-bottom:14px;font-size:12px;color:#44403c">Status: ' + statusHtml + '</div>' +
+    '<div style="margin-bottom:10px">' +
+      '<button id="poolTab_today" style="' + activeStyle + '" onclick="showPoolTab(\'today\',' + idx + ')">Heute</button>' +
+      '<button id="poolTab_7d"    style="' + inactiveStyle + '" onclick="showPoolTab(\'7d\',' + idx + ')">7 Tage</button>' +
+      '<button id="poolTab_30d"   style="' + inactiveStyle + '" onclick="showPoolTab(\'30d\',' + idx + ')">30 Tage</button>' +
+    '</div>' +
+    '<div id="poolChartArea"><span style="color:#94a3b8;font-size:12px">Laden…</span></div>';
 
   document.getElementById('poolModal').style.display = 'flex';
+  showPoolTab('today', idx);
+}
+
+function _poolRender24hBars(hours, throttled) {
+  var maxH  = Math.max.apply(null, hours.concat([1]));
+  var nowH  = new Date().getHours();
+  var bars = '<div style="display:flex;align-items:flex-end;gap:2px;height:64px">';
+  hours.forEach(function(cnt, h) {
+    var pct = Math.round(cnt / maxH * 100);
+    var isNow = h === nowH;
+    var col = throttled ? (isNow ? '#dc2626' : '#fca5a5')
+                        : (isNow ? '#2563eb' : '#93c5fd');
+    bars += '<div style="flex:1;background:' + (cnt > 0 ? col : 'transparent') + ';height:' + (cnt > 0 ? Math.max(pct, 3) : 0) + '%;' +
+      'border-radius:2px 2px 0 0;min-height:' + (cnt>0?'3':'0') + 'px" ' +
+      'title="' + h + ':00 — ' + cnt + ' Aufrufe"></div>';
+  });
+  bars += '</div>';
+  var lbl = '<div style="display:flex;font-size:10px;color:#a8a29e;margin-top:3px">' +
+    '<div style="flex:6;text-align:left">0h</div>' +
+    '<div style="flex:6;text-align:center">6h</div>' +
+    '<div style="flex:6;text-align:center">12h</div>' +
+    '<div style="flex:6;text-align:center">18h</div>' +
+    '<div style="flex:0;white-space:nowrap">24h</div>' +
+    '</div>';
+  return '<div style="font-size:10px;color:#a8a29e;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Aufrufe pro Stunde</div>' +
+    '<div style="background:#f8f7f6;border-radius:6px;padding:10px 10px 6px">' + bars + lbl + '</div>' +
+    '<div style="margin-top:10px;font-size:10px;color:#a8a29e">Aktuell aktive Stunde blau · Historische Daten aus DB geladen</div>';
+}
+
+function _poolSetTabStyles(activeTab) {
+  var tabStyle = 'padding:5px 12px;border:none;border-radius:4px;cursor:pointer;font-size:12px;margin-right:4px;';
+  var activeStyle = tabStyle + 'background:#1c1917;color:#fff;';
+  var inactiveStyle = tabStyle + 'background:#f0f0f0;color:#555;';
+  ['today','7d','30d'].forEach(function(t) {
+    var el = document.getElementById('poolTab_' + t);
+    if (el) el.style.cssText = (t === activeTab ? activeStyle : inactiveStyle);
+  });
+}
+
+function showPoolTab(tabName, appIdx) {
+  _poolActiveTab = tabName;
+  _poolActiveIdx = appIdx;
+  _poolSetTabStyles(tabName);
+  var area = document.getElementById('poolChartArea');
+  if (!area) return;
+
+  if (tabName === 'today') {
+    var p = _poolData[appIdx];
+    if (!p) { area.innerHTML = '<span style="color:#94a3b8;font-size:12px">Keine Daten</span>'; return; }
+    var hours = p.hours_today || new Array(24).fill(0);
+    area.innerHTML = _poolRender24hBars(hours, p.throttled);
+    return;
+  }
+
+  // 7d / 30d: fetch history
+  var days = tabName === '7d' ? 7 : 30;
+  area.innerHTML = '<span style="color:#94a3b8;font-size:12px">Laden…</span>';
+  var p = _poolData[appIdx];
+  var app_id = p ? p.client_id : '';
+  _poolLastHistoryTab = tabName;
+
+  fetch('/api/setup/app-pool/history?days=' + days)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      // data = {pool: [{client_id, days: [{date, total}]}]}
+      var poolArr = data.pool || data;
+      var entry = null;
+      if (Array.isArray(poolArr)) {
+        for (var i = 0; i < poolArr.length; i++) {
+          if (poolArr[i].client_id === app_id) { entry = poolArr[i]; break; }
+        }
+      }
+      var dayRows = (entry && entry.days) ? entry.days : [];
+      if (!dayRows.length) {
+        area.innerHTML = '<span style="color:#94a3b8;font-size:12px">Keine historischen Daten verfügbar</span>';
+        return;
+      }
+      var maxT = Math.max.apply(null, dayRows.map(function(d) { return d.total; }).concat([1]));
+      var bars = '<div style="display:flex;align-items:flex-end;gap:3px;height:64px;margin-bottom:4px">';
+      dayRows.forEach(function(dr) {
+        var pct = Math.round(dr.total / maxT * 100);
+        bars += '<div style="flex:1;background:#93c5fd;height:' + (dr.total > 0 ? Math.max(pct, 3) : 0) + '%;' +
+          'border-radius:2px 2px 0 0;min-height:' + (dr.total>0?'3':'0') + 'px;cursor:pointer" ' +
+          'title="' + dr.date + ' — ' + dr.total + ' Aufrufe" ' +
+          'onclick="showPoolDayDrill(' + appIdx + ',\'' + dr.date + '\')">' +
+          '</div>';
+      });
+      bars += '</div>';
+      // Datums-Labels: erster und letzter Tag
+      var labelHtml = '<div style="display:flex;justify-content:space-between;font-size:10px;color:#a8a29e;margin-bottom:4px">' +
+        '<span>' + dayRows[0].date.slice(5) + '</span>' +
+        '<span>' + dayRows[dayRows.length-1].date.slice(5) + '</span>' +
+        '</div>';
+      area.innerHTML =
+        '<div style="font-size:10px;color:#a8a29e;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Aufrufe pro Tag</div>' +
+        '<div style="background:#f8f7f6;border-radius:6px;padding:10px 10px 6px">' + bars + labelHtml + '</div>' +
+        '<div style="margin-top:10px;font-size:10px;color:#a8a29e">Auf einen Balken klicken → Stundenansicht des Tages</div>';
+    })
+    .catch(function(e) {
+      area.innerHTML = '<span style="color:#dc2626;font-size:12px">Fehler: ' + e.message + '</span>';
+    });
+}
+
+function showPoolDayDrill(appIdx, date) {
+  var area = document.getElementById('poolChartArea');
+  if (!area) return;
+  var p = _poolData[appIdx];
+  var app_id = p ? p.client_id : '';
+  area.innerHTML = '<span style="color:#94a3b8;font-size:12px">Laden…</span>';
+
+  fetch('/api/setup/app-pool/day?app_id=' + encodeURIComponent(app_id) + '&date=' + encodeURIComponent(date))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      // data = {hours: [0,0,...]} oder {hours: {0: 3, 14: 7, ...}} 24 Einträge
+      var hoursArr = new Array(24).fill(0);
+      if (Array.isArray(data.hours)) {
+        hoursArr = data.hours;
+      } else if (data.hours && typeof data.hours === 'object') {
+        Object.keys(data.hours).forEach(function(k) { hoursArr[parseInt(k)] = data.hours[k]; });
+      }
+      var backBtn = '<button onclick="showPoolTab(\'' + _poolLastHistoryTab + '\',' + appIdx + ')" ' +
+        'style="padding:4px 10px;border:1px solid #e2e8f0;border-radius:4px;background:#f8f7f6;cursor:pointer;font-size:12px;margin-bottom:10px">← Zurück</button>';
+      var throttled = p ? p.throttled : false;
+      area.innerHTML = backBtn +
+        '<div style="font-size:11px;color:#78716c;margin-bottom:6px">Stunden am ' + date + '</div>' +
+        _poolRender24hBars(hoursArr, throttled);
+    })
+    .catch(function(e) {
+      var backBtn = '<button onclick="showPoolTab(\'' + _poolLastHistoryTab + '\',' + appIdx + ')" ' +
+        'style="padding:4px 10px;border:1px solid #e2e8f0;border-radius:4px;background:#f8f7f6;cursor:pointer;font-size:12px;margin-bottom:10px">← Zurück</button>';
+      area.innerHTML = backBtn + '<span style="color:#dc2626;font-size:12px">Fehler: ' + e.message + '</span>';
+    });
 }
 
 function closePoolModal() {
   document.getElementById('poolModal').style.display = 'none';
 }
+
+var _sysToday = new Date().toISOString().slice(0,10);
 
 (function(){
   function fmt_uptime(s) {
@@ -262,9 +381,14 @@ function closePoolModal() {
     if (h > 0) return h + 'h ' + m + 'min';
     return m + 'min';
   }
-  function tile(label, val, sub, extraClass) {
-    return '<div class="sys-tile"><div class="sys-val' + (extraClass?' '+extraClass:'') + '">' + val +
-      '</div><div class="sys-label">' + label + '</div>' + (sub ? '<div class="sys-sub">' + sub + '</div>' : '') + '</div>';
+  function tile(label, val, sub, extraClass, onclick) {
+    var oc = onclick ? ' onclick="' + onclick + '"' : '';
+    var cp = onclick ? ';cursor:pointer' : '';
+    return '<div class="sys-tile"' + oc + ' style="' + cp + '">' +
+      '<div class="sys-val' + (extraClass?' '+extraClass:'') + '">' + val + '</div>' +
+      '<div class="sys-label">' + label + '</div>' +
+      (sub ? '<div class="sys-sub">' + sub + '</div>' : '') +
+      '</div>';
   }
   async function loadSys() {
     try {
@@ -273,16 +397,17 @@ function closePoolModal() {
       const diskClass = d.disk_pct >= 90 ? 'sys-disk-crit' : d.disk_pct >= 75 ? 'sys-disk-warn' : '';
       const infClass  = d.in_flight > 0 ? 'sys-inflight-pos' : 'sys-inflight-0';
       const grid = document.getElementById('sysGrid');
+      const peakOnclick = d.peak_hour != null ? 'openAuditModal("' + _sysToday + '","","' + d.peak_hour + '")' : null;
       grid.innerHTML =
         tile('In Flight', d.in_flight, 'Mails in Verarbeitung', infClass) +
-        tile('Ø Verarbeitungszeit', d.avg_ms_24h != null ? d.avg_ms_24h + ' ms' : '—', 'letzte 24 h') +
-        tile('Peak heute', d.peak_hour != null ? d.peak_hour + ':xx Uhr (' + d.peak_hour_cnt + ' Mails)' : '—', 'geschäftigste Stunde') +
+        tile('Ø Verarbeitungszeit', d.avg_ms_24h != null ? d.avg_ms_24h + ' ms' : '—', 'letzte 24 h', '', 'openMailHourlyModal()') +
+        tile('Peak heute', d.peak_hour != null ? d.peak_hour + ':xx Uhr (' + d.peak_hour_cnt + ' Mails)' : '—', 'geschäftigste Stunde', '', peakOnclick) +
         tile('RAM (Prozess)', d.rss_mb != null ? d.rss_mb + ' MB' : '—', 'RSS') +
         tile('Uptime', fmt_uptime(d.uptime_s), 'Prozess läuft seit') +
         tile('Disk belegt', d.disk_used_mb != null ? d.disk_used_mb + ' MB' : '—', d.disk_pct != null ? d.disk_pct + '% von ' + d.disk_total_mb + ' MB' : '', diskClass) +
         tile('Disk frei', d.disk_free_mb != null ? d.disk_free_mb + ' MB' : '—', '/app/data') +
-        tile('Audit-DB', d.db_size_kb != null ? d.db_size_kb + ' KB' : '—', 'mail_audit.db') +
-        tile('Mail-Logs', d.logs_size_kb != null ? (d.logs_size_kb >= 1024 ? (d.logs_size_kb/1024).toFixed(1)+' MB' : d.logs_size_kb+' KB') : '—', 'data/logs/ gesamt');
+        tile('Audit-DB', d.db_size_kb != null ? d.db_size_kb + ' KB' : '—', 'mail_audit.db', '', 'openAuditModal("","",null)') +
+        tile('Mail-Logs', d.logs_size_kb != null ? (d.logs_size_kb >= 1024 ? (d.logs_size_kb/1024).toFixed(1)+' MB' : d.logs_size_kb+' KB') : '—', 'data/logs/ gesamt', '', 'openLogTailModal()');
       document.getElementById('sysRefreshNote').textContent = 'aktualisiert ' + new Date().toLocaleTimeString('de-DE');
     } catch(e) {
       document.getElementById('sysRefreshNote').textContent = 'Fehler: ' + e.message;
@@ -331,6 +456,28 @@ function closePoolModal() {
   setInterval(loadSys, 10000);
 })();
 </script>
+
+<!-- Mail-Stunden-Modal -->
+<div id="mailHourlyModal" onclick="if(event.target===this)closeMailHourlyModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:910;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:10px;padding:22px 24px;max-width:560px;width:92%;box-shadow:0 6px 24px rgba(0,0,0,.2)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h3 style="margin:0;font-size:15px;font-weight:700;color:#1c1917">Mail-Verarbeitung — heute stündlich</h3>
+      <button onclick="closeMailHourlyModal()" style="border:none;background:none;font-size:22px;line-height:1;cursor:pointer;color:#78716c">×</button>
+    </div>
+    <div id="mailHourlyContent"><span style="color:#94a3b8">Laden…</span></div>
+  </div>
+</div>
+
+<!-- Log-Tail-Modal -->
+<div id="logTailModal" onclick="if(event.target===this)closeLogTailModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:910;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:10px;padding:22px 24px;max-width:800px;width:95%;max-height:80vh;overflow-y:auto;box-shadow:0 6px 24px rgba(0,0,0,.2)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h3 style="margin:0;font-size:15px;font-weight:700;color:#1c1917">Mail-Logs — letzte Einträge</h3>
+      <button onclick="closeLogTailModal()" style="border:none;background:none;font-size:22px;cursor:pointer;color:#78716c">×</button>
+    </div>
+    <div id="logTailContent" style="font-family:monospace;font-size:11px;line-height:1.6;white-space:pre-wrap;color:#374151"><span style="color:#94a3b8">Laden…</span></div>
+  </div>
+</div>
 
 <!-- Audit-Detail-Modal -->
 <div id="auditModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;overflow-y:auto">
@@ -399,13 +546,14 @@ document.querySelectorAll('.audit-link').forEach(el => {
   });
 });
 
-function openAuditModal(date, action) {
+function openAuditModal(date, action, hour) {
   _auditParams = {date, action, offset: 0, limit: 100};
   document.getElementById('auditModal').style.display = 'block';
   document.body.style.overflow = 'hidden';
   const label = action ? (_ACTION_LABELS[action] || action) : 'Alle';
+  const hourStr = (hour != null && hour !== 'null' && hour !== '') ? ' — ' + hour + ':00 Uhr' : '';
   document.getElementById('auditModalTitle').textContent =
-    'Mail-Protokoll — ' + (date || 'Heute') + (action ? ' — ' + label : '');
+    'Mail-Protokoll — ' + (date || 'Heute') + (action ? ' — ' + label : '') + hourStr;
   loadAuditPage();
 }
 
@@ -476,5 +624,65 @@ function escHtml(s) {
 document.getElementById('auditModal').addEventListener('click', function(e) {
   if (e.target === this) closeAuditModal();
 });
+
+async function openMailHourlyModal() {
+  document.getElementById('mailHourlyModal').style.display = 'flex';
+  document.getElementById('mailHourlyContent').innerHTML = '<span style="color:#94a3b8">Laden…</span>';
+  try {
+    const r = await fetch('/api/system/mail-hourly');
+    const rows = await r.json();
+    if (!rows.length) {
+      document.getElementById('mailHourlyContent').innerHTML = '<span style="color:#94a3b8">Keine Daten für heute</span>';
+      return;
+    }
+    const maxC = Math.max(...rows.map(r2 => r2.count), 1);
+    var hours = new Array(24).fill(null);
+    rows.forEach(function(r2) { hours[parseInt(r2.hour)] = r2; });
+    var bars = '<div style="display:flex;align-items:flex-end;gap:2px;height:64px;margin-bottom:8px">';
+    hours.forEach(function(r2, h) {
+      var cnt = r2 ? r2.count : 0;
+      var pct = cnt ? Math.max(Math.round(cnt/maxC*100), 3) : 0;
+      var nowH = new Date().getHours();
+      var col = h === nowH ? '#2563eb' : '#93c5fd';
+      var tip = r2 ? h + ':00 — ' + cnt + ' Mails, Ø ' + r2.avg_ms + 'ms' : h + ':00 — 0 Mails';
+      bars += '<div style="flex:1;background:' + (cnt?col:'transparent') + ';height:' + pct + '%;border-radius:2px 2px 0 0;min-height:' + (cnt?'3':'0') + 'px" title="' + tip + '"></div>';
+    });
+    bars += '</div>';
+    var tableRows = rows.map(function(r2) {
+      return '<tr style="border-bottom:1px solid #f5f4f3">' +
+        '<td style="padding:4px 8px;color:#555">' + r2.hour + ':00</td>' +
+        '<td style="padding:4px 8px;text-align:right;font-weight:600">' + r2.count + '</td>' +
+        '<td style="padding:4px 8px;text-align:right;color:#78716c">' + (r2.avg_ms||'—') + ' ms</td>' +
+        '<td style="padding:4px 8px;text-align:right;color:#a8a29e">' + (r2.peak_ms||'—') + ' ms</td>' +
+        '</tr>';
+    }).join('');
+    document.getElementById('mailHourlyContent').innerHTML = bars +
+      '<table style="width:100%;border-collapse:collapse;font-size:12px">' +
+      '<thead><tr style="border-bottom:2px solid #e2e8f0"><th style="text-align:left;padding:4px 8px;color:#78716c">Stunde</th><th style="text-align:right;padding:4px 8px;color:#78716c">Mails</th><th style="text-align:right;padding:4px 8px;color:#78716c">Ø ms</th><th style="text-align:right;padding:4px 8px;color:#78716c">Peak ms</th></tr></thead>' +
+      '<tbody>' + tableRows + '</tbody></table>';
+  } catch(e) {
+    document.getElementById('mailHourlyContent').innerHTML = '<span style="color:#dc2626">Fehler: ' + e.message + '</span>';
+  }
+}
+
+function closeMailHourlyModal() {
+  document.getElementById('mailHourlyModal').style.display = 'none';
+}
+
+async function openLogTailModal() {
+  document.getElementById('logTailModal').style.display = 'flex';
+  document.getElementById('logTailContent').textContent = 'Laden…';
+  try {
+    const r = await fetch('/api/system/log-tail');
+    const d = await r.json();
+    document.getElementById('logTailContent').textContent = (d.lines || []).join('\n') || '(keine Einträge)';
+  } catch(e) {
+    document.getElementById('logTailContent').textContent = 'Fehler: ' + e.message;
+  }
+}
+
+function closeLogTailModal() {
+  document.getElementById('logTailModal').style.display = 'none';
+}
 </script>
 {% endblock %}

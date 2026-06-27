@@ -3317,3 +3317,43 @@ async def api_system_info(user: str = Depends(_check_auth)):
         "peak_hour":      peak[0] if peak else None,
         "peak_hour_cnt":  peak[1] if peak else None,
     }
+
+
+@app.get("/api/system/mail-hourly")
+async def api_mail_hourly(user: str = Depends(_check_auth)):
+    """Stündliche Mail-Statistik für heute aus mail_audit.db."""
+    import mail_audit as _audit_mod
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return _audit_mod.get_mail_hourly(today)
+
+
+@app.get("/api/system/log-tail")
+async def api_log_tail(n: int = 150, user: str = Depends(_check_auth)):
+    """Letzte N Zeilen aus dem In-Memory-Log-Buffer."""
+    lines = list(_LOG_BUFFER)[-n:]
+    return {"lines": lines}
+
+
+@app.get("/api/setup/app-pool/history")
+async def api_pool_history(days: int = 7, user: str = Depends(_check_auth)):
+    """Tägliche Graph-API-Aufrufhistorie pro App aus mail_audit.db."""
+    import mail_audit as _audit_mod
+    pool = graph_client.get_pool_status()
+    return {
+        "pool": [
+            {
+                "client_id": p["client_id"],
+                "label": p["label"],
+                "days": _audit_mod.get_graph_calls_range(p["client_id"], days),
+            }
+            for p in pool
+        ]
+    }
+
+
+@app.get("/api/setup/app-pool/day")
+async def api_pool_day(app_id: str, date: str, user: str = Depends(_check_auth)):
+    """24h-Stundendaten für eine App an einem bestimmten Tag."""
+    import mail_audit as _audit_mod
+    hours = _audit_mod.get_graph_calls_hours(app_id, date)
+    return {"app_id": app_id, "date": date, "hours": hours}
