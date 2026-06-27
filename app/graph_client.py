@@ -283,7 +283,12 @@ GRAPH = "https://graph.microsoft.com/v1.0"
 
 
 async def list_sender_mailboxes() -> list[dict]:
-    """User- und Shared-Mailboxen für Absender-Auswahl (nur accountEnabled=True, kein Guest)."""
+    """User- und Shared-Mailboxen für Absender-Auswahl.
+
+    Zuverlässiges Merkmal für ein echtes EXO-Postfach: proxyAddresses enthält
+    mindestens einen SMTP-Eintrag (setzt Exchange beim Provisioning automatisch).
+    Entra-User ohne Mailbox haben mail gesetzt aber keine proxyAddresses.
+    """
     token = await _acquire_token_async()
     if not token:
         return []
@@ -291,7 +296,7 @@ async def list_sender_mailboxes() -> list[dict]:
     results = []
     url = (f"{GRAPH}/users"
            "?$filter=accountEnabled eq true"
-           "&$select=mail,displayName,assignedLicenses,userType"
+           "&$select=mail,displayName,assignedLicenses,userType,proxyAddresses"
            "&$top=999")
     async with httpx.AsyncClient(timeout=20) as client:
         while url:
@@ -304,6 +309,9 @@ async def list_sender_mailboxes() -> list[dict]:
                 mail = (u.get("mail") or "").lower().strip()
                 if not mail or u.get("userType") == "Guest":
                     continue
+                proxy = u.get("proxyAddresses") or []
+                if not any(p.upper().startswith("SMTP:") for p in proxy):
+                    continue  # kein Exchange-Postfach
                 has_license = bool(u.get("assignedLicenses"))
                 results.append({
                     "email": mail,
