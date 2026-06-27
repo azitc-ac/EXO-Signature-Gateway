@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.127 — 2026-06-27 — fix: doppeltes "Sent item patched" nach Graph sendMail
+
+- cleanup_sent_items: DELETE-Pfad gibt jetzt "deleted" statt True zurück
+- _cleanup_sent_item in handler.py: Loop bricht bei "deleted" ab (sendMail-Copy hat bereits
+  die korrekte signierte MIME-Body — kein PATCH nötig)
+- Vorher: alle 3 Retry-Pässe liefen immer durch; nach erfolgreichem DELETE in Pass 1
+  patchten Pässe 2+3 das verbleibende Sent Item redundant zweimal
+
 ## v1.4.125 — 2026-06-27 — fix: _get_msal_app / _get_effective_credentials fehlend → Mail-Verarbeitung kaputt
 
 - graph_client.py: Pool-Architektur hatte _get_msal_app() und _get_effective_credentials() entfernt,

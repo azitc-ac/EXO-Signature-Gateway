@@ -423,7 +423,7 @@ async def cleanup_sent_items(
         log.info(
             "Sent items cleaned for %s: %d original(s) removed", sender_email, len(to_delete)
         )
-        return True
+        return "deleted"  # sendMail copy already has correct body — caller can stop
 
     except Exception as exc:
         log.error("cleanup_sent_items failed for %s: %s", sender_email, exc)

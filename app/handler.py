@@ -52,7 +52,9 @@ async def _cleanup_sent_item(sender: str, message_id: str, html_body: str) -> No
     for delay in (8, 20, 45):
         await asyncio.sleep(delay)
         result = await graph_client.cleanup_sent_items(sender, message_id, html_body)
-        if result is None:  # permanent 4xx — no point retrying
+        if result is None:           # permanent 4xx — no point retrying
+            return
+        if result == "deleted":      # duplicates removed; sendMail copy is correct as-is
             return
     log.debug("Sent item cleanup passes done for %s", sender)
 
