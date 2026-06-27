@@ -345,12 +345,15 @@ class SignatureHandler:
             if ct == "application/pkcs7-mime" and smime_type == "enveloped-data":
                 import smime_store as _ss
                 import smime_decrypt
+                import keyvault as _kv_mod
+                _kv_ready = _kv_mod.is_configured()
                 decrypt_rcpt = next(
-                    (r for r in recipients if _ss.get_signing_paths(r.lower(), allow_backup=True)),
+                    (r for r in recipients
+                     if _ss.get_signing_paths(r.lower(), allow_backup=True) or _kv_ready),
                     None,
                 )
                 if decrypt_rcpt:
-                    decrypted = smime_decrypt.decrypt(raw, decrypt_rcpt.lower())
+                    decrypted = await smime_decrypt.decrypt(raw, decrypt_rcpt.lower())
                     if decrypted:
                         inner_msg = email.message_from_bytes(decrypted)
                         outer_subject = _decode_subject(msg.get("Subject", ""))

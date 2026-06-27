@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.131 — 2026-06-27 — feat: S/MIME-Entschlüsselung via Azure Key Vault (RSA1_5 + AES/3DES)
+
+- smime_decrypt.py komplett überarbeitet: decrypt() ist jetzt async
+  1. Lokaler Schlüssel (key.pem / key.pem.bak) → openssl smime -decrypt (unverändert)
+  2. Kein lokaler Schlüssel + KV konfiguriert → _decrypt_keyvault():
+     - CMS EnvelopedData mit asn1crypto parsen
+     - KeyTransRecipientInfo per Seriennummer matchen
+     - KV POST /keys/{name}/decrypt (RSA1_5) → Session-Key
+     - Symmetrisch entschlüsseln (AES-CBC oder 3DES-CBC via cryptography)
+- handler.py: await smime_decrypt.decrypt(); Capability-Check schließt KV ein
+- Damit funktioniert KV_KEY_MODE=strict vollständig: Signing UND Decryption via KV,
+  kein privater Schlüssel verlässt den Vault
+
 ## v1.4.129 — 2026-06-27 — fix: S/MIME-Entschlüsselung schlägt fehl wenn Schlüssel in Key Vault (KV_KEY_MODE=fallback)
 
 - smime_decrypt.py + handler.py: get_signing_paths() mit allow_backup=True aufrufen,
