@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.99 — 2026-06-27 — feat: Absende-Postfach Dropdown in Benachrichtigungs-Einstellungen
+
+- settings.html: NOTIFICATION_MAILBOX hidden input → sichtbares <select> "Absende-Postfach"
+- Dropdown wird dynamisch aus NOTIFICATION_RECIPIENTS befüllt (_renderNotifPicker)
+- Option "— Automatisch (erster Empfänger) —" als Leer-Default (value="")
+- Auswahl bleibt erhalten beim Hinzufügen/Entfernen von Empfängern
+
 ## v1.4.98 — 2026-06-27 — fix: Notification-Absender von TO getrennt — DG als Empfänger funktioniert jetzt
 
 - notification.py: _get_sender() bestimmt Absender unabhängig vom Empfänger

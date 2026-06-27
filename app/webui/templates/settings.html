@@ -479,6 +479,16 @@
       </div>
     </div>
 
+    <div class="settings-row" style="margin-top:10px">
+      <label for="notif-mailbox">Absende-Postfach</label>
+      <div class="settings-control">
+        <select id="notif-mailbox" style="width:300px;max-width:100%">
+          <option value="">— Automatisch (erster Empfänger) —</option>
+        </select>
+        <span class="hint">Wird als FROM-Adresse für alle Notifications verwendet. Muss ein User-Postfach sein (keine DG).</span>
+      </div>
+    </div>
+
     <div style="border-top:1px solid #f0f0f0;margin:14px 0 12px"></div>
 
     <h3 style="margin-top:0;margin-bottom:10px">Tagesbericht</h3>
@@ -545,7 +555,6 @@
     </div>
   </div><!-- /notif-config-block -->
 
-  <input type="hidden" id="notif-mailbox" value="{{ s.NOTIFICATION_MAILBOX or '' }}">
 </div>
 
 <!-- Test-Mail -->
@@ -769,18 +778,33 @@ function _renderNotifPicker() {
   list.querySelectorAll('.notif-recipient-row').forEach(el => el.remove());
   if (!_notifRecipients.length) {
     if (empty) empty.style.display = '';
-    return;
+  } else {
+    if (empty) empty.style.display = 'none';
+    _notifRecipients.forEach(function(em) {
+      const row = document.createElement('div');
+      row.className = 'notif-recipient-row';
+      row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:4px 2px;border-bottom:1px solid #f0f0f0;font-size:13px';
+      row.innerHTML = '<span style="font-family:monospace;font-size:12px">' + em + '</span>' +
+        '<button type="button" onclick="removeNotifRecipient(\'' + em.replace(/'/g,"\\'") + '\')" ' +
+        'style="background:none;border:none;cursor:pointer;color:#dc2626;font-size:16px;padding:0 4px;line-height:1" title="Entfernen">×</button>';
+      list.appendChild(row);
+    });
   }
-  if (empty) empty.style.display = 'none';
-  _notifRecipients.forEach(function(em) {
-    const row = document.createElement('div');
-    row.className = 'notif-recipient-row';
-    row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:4px 2px;border-bottom:1px solid #f0f0f0;font-size:13px';
-    row.innerHTML = '<span style="font-family:monospace;font-size:12px">' + em + '</span>' +
-      '<button type="button" onclick="removeNotifRecipient(\'' + em.replace(/'/g,"\\'") + '\')" ' +
-      'style="background:none;border:none;cursor:pointer;color:#dc2626;font-size:16px;padding:0 4px;line-height:1" title="Entfernen">×</button>';
-    list.appendChild(row);
-  });
+
+  // Rebuild sender select — restore previous selection if still available
+  const sel = document.getElementById('notif-mailbox');
+  if (sel) {
+    const prev = sel.value || _currentNotifMailbox || '';
+    sel.innerHTML = '<option value="">— Automatisch (erster Empfänger) —</option>';
+    _notifRecipients.forEach(function(em) {
+      const opt = document.createElement('option');
+      opt.value = em;
+      opt.textContent = em;
+      sel.appendChild(opt);
+    });
+    if (prev && _notifRecipients.includes(prev)) sel.value = prev;
+  }
+
   // Refresh dropdown in case it's visible
   const q = (document.getElementById('notif-search-input') || {}).value || '';
   if (document.getElementById('notif-dropdown').style.display !== 'none') {
