@@ -217,6 +217,70 @@ async def create_app_registration(token: str, public_hostname: str) -> dict:
     }
 
 
+async def create_pool_app(token: str, index: int) -> dict:
+    """
+    Create/reuse 'EXO Signature Gateway (Pool N)' with runtime-only permissions.
+    No Exchange.ManageAsApp — pool apps are for mail processing only.
+    Returns {"client_id": ..., "client_secret": ..., "label": ...}
+    """
+    display_name = f"EXO Signature Gateway (Pool {index})"
+    existing = await _gh(
+        "get",
+        f"{GRAPH}/applications?$filter=displayName eq '{display_name}'&$select=id,appId",
+        token,
+    )
+    existing_apps = existing.get("value", [])
+    if existing_apps:
+        app_object_id = existing_apps[0]["id"]
+        app_id        = existing_apps[0]["appId"]
+        log.info("Reusing existing pool app %d: appId=%s", index, app_id)
+    else:
+        app_body = {
+            "displayName": display_name,
+            "signInAudience": "AzureADMyOrg",
+            "requiredResourceAccess": [
+                {
+                    "resourceAppId": _GRAPH_APP_ID,
+                    "resourceAccess": _GRAPH_PERMISSIONS,   # same Graph scopes, no EXO
+                },
+            ],
+        }
+        app = await _gh("post", f"{GRAPH}/applications", token, json=app_body)
+        app_object_id = app["id"]
+        app_id        = app["appId"]
+        log.info("Pool app %d created: appId=%s", index, app_id)
+
+    # Service principal
+    sp_resp = await _gh(
+        "get",
+        f"{GRAPH}/servicePrincipals?$filter=appId eq '{app_id}'&$select=id",
+        token,
+    )
+    sp_items = sp_resp.get("value", [])
+    if sp_items:
+        sp_id = sp_items[0]["id"]
+    else:
+        sp = await _gh("post", f"{GRAPH}/servicePrincipals", token, json={"appId": app_id})
+        sp_id = sp["id"]
+
+    await _grant_admin_consent(token, sp_id)
+
+    secret_resp = await _gh(
+        "post",
+        f"{GRAPH}/applications/{app_object_id}/addPassword",
+        token,
+        json={"passwordCredential": {
+            "displayName": f"EXO Gateway Pool {index}",
+            "endDateTime": "2099-12-31T00:00:00Z",
+        }},
+    )
+    return {
+        "client_id":     app_id,
+        "client_secret": secret_resp["secretText"],
+        "label":         display_name,
+    }
+
+
 async def _get_sp_id_for_resource(token: str, resource_app_id: str) -> str:
     """Look up the service principal object ID for a well-known app."""
     data = await _gh(
@@ -317,9 +381,14 @@ async def patch_bootstrap_redirect_uri(token: str, hostname: str) -> None:
     bootstrap_id = settings_store.get("BOOTSTRAP_CLIENT_ID") or ""
     if not bootstrap_id:
         return
-    port = config.WEBUI_PORT
-    port_suffix = f":{port}" if port and port != 443 else ""
-    public_uri = f"https://{hostname}{port_suffix}/auth/callback"
+    # Prefer ADDIN_BASE_URL (canonical external URL without port, works behind App Proxy)
+    external_base = (settings_store.get("ADDIN_BASE_URL") or "").rstrip("/")
+    if external_base:
+        public_uri = f"{external_base}/auth/callback"
+    else:
+        port = config.WEBUI_PORT
+        port_suffix = f":{port}" if port and port != 443 else ""
+        public_uri = f"https://{hostname}{port_suffix}/auth/callback"
     try:
         resp = await _gh(
             "get",

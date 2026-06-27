@@ -3118,6 +3118,82 @@ async def api_cert_exo_ps_export(user: str = Depends(_check_auth)):
         return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
 
 
+# ── App-Pool API ──────────────────────────────────────────────────────────────
+
+@app.get("/api/setup/app-pool/status")
+async def api_app_pool_status(user: str = Depends(_check_auth)):
+    import graph_client as _gc
+    pool = _gc.get_pool_status()
+    raw = settings_store.get("APP_POOL") or []
+    return {"pool": pool, "count": len(pool), "configured": len(raw)}
+
+
+@app.post("/api/setup/app-pool/add")
+async def api_app_pool_add(request: Request, user: str = Depends(_require_admin)):
+    """Create a new pool app via Bootstrap PKCE token and append to APP_POOL."""
+    data = await request.json()
+    token = (data.get("token") or "").strip()
+    if not token:
+        raise HTTPException(400, "PKCE-Token fehlt")
+    import setup_wizard as _sw
+    import graph_client as _gc
+    current_pool: list[dict] = list(settings_store.get("APP_POOL") or [])
+    # Primary app counts as index 1, pool starts at 2
+    index = len(current_pool) + 2
+    try:
+        entry = await _sw.create_pool_app(token, index)
+    except Exception as exc:
+        raise HTTPException(500, f"App-Erstellung fehlgeschlagen: {exc}")
+    current_pool.append(entry)
+    settings_store.update({"APP_POOL": current_pool})
+    _gc.reset_msal_app()
+    log.info("App pool extended to %d entries by %s", len(current_pool) + 1, user)
+    return {"ok": True, "label": entry["label"], "client_id": entry["client_id"], "pool_size": len(current_pool) + 1}
+
+
+@app.post("/api/setup/app-pool/add-from-url")
+async def api_app_pool_add_from_url(request: Request, user: str = Depends(_require_admin)):
+    """Accept callback URL from PKCE flow, exchange code, create pool app."""
+    data = await request.json()
+    pasted = (data.get("url") or "").strip()
+    if not pasted:
+        raise HTTPException(400, "URL fehlt")
+    try:
+        parsed = urllib.parse.urlparse(pasted)
+        params = urllib.parse.parse_qs(parsed.query)
+        code  = params.get("code",  [""])[0]
+        state = params.get("state", [""])[0]
+        error = params.get("error", [""])[0]
+    except Exception:
+        raise HTTPException(400, "Ungültige URL")
+    if error:
+        err_desc = urllib.parse.parse_qs(urllib.parse.urlparse(pasted).query).get("error_description", [""])[0]
+        raise HTTPException(400, f"Azure-Fehler: {error} — {err_desc}")
+    if not code or not state:
+        raise HTTPException(400, "URL enthält keinen Code oder State.")
+    session = pkce_mod.pop_session(state)
+    if not session:
+        raise HTTPException(400, "PKCE-Session abgelaufen — bitte erneut auf 'Anmelden' klicken.")
+    try:
+        token_resp = await pkce_mod.exchange_code(code, session["verifier"], session["redirect_uri"])
+        access_token = token_resp["access_token"]
+    except Exception as exc:
+        raise HTTPException(500, f"Token-Austausch fehlgeschlagen: {exc}")
+    import setup_wizard as _sw
+    import graph_client as _gc
+    current_pool: list[dict] = list(settings_store.get("APP_POOL") or [])
+    index = len(current_pool) + 2
+    try:
+        entry = await _sw.create_pool_app(access_token, index)
+    except Exception as exc:
+        raise HTTPException(500, f"App-Erstellung fehlgeschlagen: {exc}")
+    current_pool.append(entry)
+    settings_store.update({"APP_POOL": current_pool})
+    _gc.reset_msal_app()
+    log.info("App pool extended to %d entries (via URL paste) by %s", len(current_pool) + 1, user)
+    return {"ok": True, "label": entry["label"], "client_id": entry["client_id"], "pool_size": len(current_pool) + 1}
+
+
 # ── Audit log API ─────────────────────────────────────────────────────────────
 
 @app.get("/api/audit/events")

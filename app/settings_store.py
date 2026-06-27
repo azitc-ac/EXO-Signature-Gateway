@@ -93,6 +93,7 @@ DEFAULTS: dict = {
     "SIG_STRIP_MIN_MATCH_PCT": 50,      # Fingerprint match threshold % for signature stripping
     "SKIP_DUPLICATE_SIG": True,         # Skip re-injection if gateway signature already in compose area
     "GATEWAY_NAME": "EXO Signature Gateway",  # Prefix for EXO connectors, rules, distribution groups
+    "APP_POOL": [],   # [{client_id, client_secret, label}] — leer = primäre CLIENT_ID/SECRET nutzen
 }
 
 _lock = RLock()

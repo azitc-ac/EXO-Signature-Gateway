@@ -1,4 +1,8 @@
+import asyncio
+import hashlib
+import json
 import logging
+import threading
 import urllib.parse
 from dataclasses import dataclass
 
@@ -24,54 +28,92 @@ _SELECT_FIELDS = ",".join([
     "onPremisesExtensionAttributes",
 ])
 
-_msal_app: msal.ConfidentialClientApplication | None = None
-_msal_credentials: tuple[str, str, str] | None = None  # (tenant, client, secret)
+_pool_entries: list[dict] = []   # [{client_id, label, msal}]
+_pool_lock = threading.Lock()
+_pool_idx: int = 0
+_pool_hash: str = ""
 
 
-def _get_effective_credentials() -> tuple[str, str, str]:
-    """Return (tenant_id, client_id, client_secret) — env vars override settings."""
+def _rebuild_pool_if_needed() -> None:
+    global _pool_entries, _pool_hash, _pool_idx
     tenant = config.TENANT_ID or settings_store.get("TENANT_ID") or ""
-    client = config.CLIENT_ID or settings_store.get("CLIENT_ID") or ""
-    secret = config.CLIENT_SECRET or settings_store.get("CLIENT_SECRET") or ""
-    return tenant, client, secret
-
-
-def _get_msal_app() -> msal.ConfidentialClientApplication | None:
-    global _msal_app, _msal_credentials
-    tenant, client, secret = _get_effective_credentials()
-    if not (tenant and client and secret):
-        return None
-    creds = (tenant, client, secret)
-    if _msal_app is None or _msal_credentials != creds:
+    raw_pool: list[dict] = settings_store.get("APP_POOL") or []
+    if not raw_pool:
+        client = config.CLIENT_ID or settings_store.get("CLIENT_ID") or ""
+        secret = config.CLIENT_SECRET or settings_store.get("CLIENT_SECRET") or ""
+        if client and secret:
+            raw_pool = [{"client_id": client, "client_secret": secret, "label": "App 1"}]
+    new_hash = hashlib.md5(
+        f"{tenant}:{json.dumps(raw_pool, sort_keys=True)}".encode()
+    ).hexdigest()
+    if new_hash == _pool_hash:
+        return
+    new_entries: list[dict] = []
+    for entry in raw_pool:
+        cid  = entry.get("client_id", "")
+        csec = entry.get("client_secret", "")
+        if not (cid and csec and tenant):
+            continue
         authority = f"https://login.microsoftonline.com/{tenant}"
-        _msal_app = msal.ConfidentialClientApplication(
-            client,
-            authority=authority,
-            client_credential=secret,
+        msal_app = msal.ConfidentialClientApplication(
+            cid, authority=authority, client_credential=csec,
         )
-        _msal_credentials = creds
-    return _msal_app
+        new_entries.append({
+            "client_id": cid,
+            "label": entry.get("label", f"App {len(new_entries) + 1}"),
+            "msal": msal_app,
+        })
+    with _pool_lock:
+        _pool_entries = new_entries
+        _pool_hash = new_hash
+        _pool_idx = 0
+    log.info("Graph app pool rebuilt: %d app(s)", len(new_entries))
 
 
 def reset_msal_app() -> None:
-    """Force MSAL app re-creation on next call (call after credentials change)."""
-    global _msal_app, _msal_credentials
-    _msal_app = None
-    _msal_credentials = None
+    """Force pool rebuild on next call (after credentials change)."""
+    global _pool_hash
+    _pool_hash = ""
+
+
+def get_pool_status() -> list[dict]:
+    """Return pool entries without secrets, for dashboard display."""
+    _rebuild_pool_if_needed()
+    with _pool_lock:
+        return [{"client_id": e["client_id"], "label": e["label"]} for e in _pool_entries]
 
 
 def _acquire_token() -> str | None:
-    app = _get_msal_app()
-    if not app:
-        log.warning("Graph credentials not configured — skipping token acquisition")
-        return None
-    result = app.acquire_token_silent(_SCOPES, account=None)
+    global _pool_idx
+    _rebuild_pool_if_needed()
+    with _pool_lock:
+        entries = list(_pool_entries)
+        if not entries:
+            log.warning("Graph credentials not configured — skipping token acquisition")
+            return None
+        idx = _pool_idx % len(entries)
+        _pool_idx += 1
+        entry = entries[idx]
+    result = entry["msal"].acquire_token_silent(_SCOPES, account=None)
     if not result:
-        result = app.acquire_token_for_client(scopes=_SCOPES)
+        result = entry["msal"].acquire_token_for_client(scopes=_SCOPES)
     if "access_token" in result:
+        log.debug("Graph token acquired from pool entry '%s'", entry["label"])
         return result["access_token"]
-    log.error("Failed to acquire Graph token: %s", result.get("error_description"))
+    log.error("Failed to acquire Graph token from '%s': %s",
+              entry["label"], result.get("error_description"))
     return None
+
+
+async def _acquire_token_async() -> str | None:
+    """Non-blocking token acquisition for async callers.
+
+    MSAL makes synchronous HTTP calls to Microsoft Identity which can block
+    the asyncio event loop for 50–200ms (longer on token cache miss).
+    Running in an executor keeps the loop free for ACME polling and other tasks.
+    """
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, _acquire_token)
 
 
 @dataclass
@@ -90,7 +132,7 @@ class UserData:
 
 async def update_sent_item(sender_email: str, message_id: str, html_body: str) -> bool | None:
     """Find a sent message by Message-ID and patch its HTML body."""
-    token = _acquire_token()
+    token = await _acquire_token_async()
     if not token:
         return False
 
@@ -156,7 +198,7 @@ async def cleanup_sent_items(
     Returns True on success, None on a permanent 4xx client error, False on
     transient failure / not-found (caller should retry).
     """
-    token = _acquire_token()
+    token = await _acquire_token_async()
     if not token:
         return False
 
@@ -246,7 +288,7 @@ async def list_mailboxes() -> list[dict]:
     and Microsoft 365 group mailboxes.
     Returns list of {"email", "name", "type"} dicts sorted by email.
     """
-    token = _acquire_token()
+    token = await _acquire_token_async()
     if not token:
         return []
     headers = {"Authorization": f"Bearer {token}"}
@@ -302,7 +344,7 @@ async def list_mailboxes() -> list[dict]:
 
 
 async def get_user(email: str) -> UserData:
-    token = _acquire_token()
+    token = await _acquire_token_async()
     if not token:
         return UserData(mail=email)
 

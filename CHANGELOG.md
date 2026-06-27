@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.96 — 2026-06-27 — feat: Graph API App-Pool (Round-Robin über mehrere App-Registrierungen)
+
+- graph_client.py: Pool-Round-Robin — APP_POOL-Setting, mehrere MSAL-Apps, get_pool_status()
+- settings_store.py: APP_POOL-Default (leer = primäre CLIENT_ID/SECRET)
+- setup_wizard.py: create_pool_app(token, index) — Pool-App ohne Exchange.ManageAsApp
+- webui/app.py: GET /api/setup/app-pool/status, POST /api/setup/app-pool/add,
+  POST /api/setup/app-pool/add-from-url (PKCE-Code-Exchange + Pool-App anlegen)
+- setup.html: Schritt App-Pool nach App-Registrierung — Empfehlung nach Postfachanzahl +
+  Mailaufkommen, Login-Flow mit URL-Paste, automatische Pool-Status-Anzeige
+
+---
+
 ## v1.4.92 — 2026-06-27 — docs: README First-Run-Flow + Azure VM Skript
 
 - README: Schnellstart-Abschnitt überarbeitet — First-Run über Port 80, dann HTTPS-Wizard
