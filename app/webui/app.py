@@ -1664,7 +1664,7 @@ def _addin_url_warning(base_url: str) -> str:
 async def settings_page(request: Request, user: str = Depends(_require_admin)):
     try:
         all_mbs = await graph_client.list_mailboxes()
-        sender_mailboxes = [m for m in all_mbs if m.get("type") in ("user", "shared")]
+        sender_mailboxes = [m for m in all_mbs if m.get("type") == "user"]
     except Exception:
         sender_mailboxes = []
     return templates.TemplateResponse(

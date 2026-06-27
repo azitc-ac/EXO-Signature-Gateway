@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.101 — 2026-06-27 — fix: Absender-Dropdown — Label, Filter nur User-Mailboxen, Duplikat entfernt
+
+- settings.html: Label "Absende-Postfach" → "Absender", Hint entfernt
+- webui/app.py: Filter type=="user" statt user+shared
+- Doppelten <select> aus vorheriger Iteration entfernt
+
 ## v1.4.100 — 2026-06-27 — feat: Absende-Postfach Dropdown aus Graph API (server-seitig)
 
 - webui/app.py: settings_page lädt list_mailboxes() (user+shared), übergibt als sender_mailboxes

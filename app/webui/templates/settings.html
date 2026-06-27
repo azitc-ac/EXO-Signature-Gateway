@@ -448,7 +448,7 @@
     </p>
 
     <div class="settings-row">
-      <label for="notif-mailbox">Absende-Postfach</label>
+      <label for="notif-mailbox">Absender</label>
       <div class="settings-control">
         <select id="notif-mailbox" style="width:300px;max-width:100%">
           <option value="">— Automatisch (erster Empfänger) —</option>
@@ -458,7 +458,6 @@
           </option>
           {% endfor %}
         </select>
-        <span class="hint">FROM-Adresse für Notifications. Muss ein User- oder Shared-Postfach sein (keine DG).</span>
       </div>
     </div>
 
@@ -491,16 +490,6 @@
           Distribution Group: <code>{{ s.NOTIFICATION_DG_EMAIL }}</code>
         </div>
         {% endif %}
-      </div>
-    </div>
-
-    <div class="settings-row" style="margin-top:10px">
-      <label for="notif-mailbox">Absende-Postfach</label>
-      <div class="settings-control">
-        <select id="notif-mailbox" style="width:300px;max-width:100%">
-          <option value="">— Automatisch (erster Empfänger) —</option>
-        </select>
-        <span class="hint">Wird als FROM-Adresse für alle Notifications verwendet. Muss ein User-Postfach sein (keine DG).</span>
       </div>
     </div>
 
