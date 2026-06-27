@@ -80,14 +80,14 @@ $publicIp = (az network public-ip show `
 Write-Ok "Öffentliche IP: $publicIp"
 
 # ── VM anlegen ─────────────────────────────────────────────────────────────────
-Write-Step "VM '$VmName' anlegen (Standard_B2s, Ubuntu 24.04 LTS)"
+Write-Step "VM '$VmName' anlegen (Standard_B1ms, Ubuntu 24.04 LTS)"
 Write-Info "Das dauert ca. 2–3 Minuten..."
 
 az vm create `
     --resource-group $ResourceGroup `
     --name $VmName `
     --image Ubuntu2404 `
-    --size Standard_B2s `
+    --size Standard_B1ms `
     --admin-username $AdminUser `
     --ssh-key-values $sshKeyContent `
     --public-ip-address "$VmName-ip" `

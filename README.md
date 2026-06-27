@@ -97,9 +97,9 @@ Das mitgelieferte Skript `azure-vm-setup.ps1` legt eine Standard_B2s-VM (Ubuntu 
 Nach Abschluss zeigt das Skript die öffentliche IP und die nächsten Schritte (DNS setzen,
 Setup-Wizard aufrufen).
 
-**Warum B2s statt B1s?** Der Container baut PowerShell + ExchangeOnlineManagement-Modul
-(~400 MB) — 1 GB RAM reicht während des Builds zu knapp. Im Betrieb (nach dem Build)
-wäre B1s ausreichend.
+**Warum B1ms?** 2 GB RAM — der Build von PowerShell + ExchangeOnlineManagement-Modul
+braucht kurzzeitig ~1,5 GB; im Dauerbetrieb reichen ~70–150 MB. B1ms (~14 €/Monat)
+ist der Sweet Spot für bis zu einige hundert Postfächer.
 
 **Warum IMAP statt Graph API für Inbox-Inject?**  
 Die Graph API (`POST /mailFolders/inbox/messages`) erstellt Nachrichten mit gesetztem `MSGFLAG_UNSENT`-Flag — Outlook zeigt sie als Entwurf mit Senden-Knopf. IMAP APPEND setzt dieses Flag nicht; die Nachricht landet direkt als echte empfangene Mail im Postfach.
