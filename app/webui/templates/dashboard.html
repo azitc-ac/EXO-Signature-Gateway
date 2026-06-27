@@ -388,10 +388,17 @@ function openInFlightInfo(count) {
 }
 
 (function(){
+  function fmt_uptime(s) {
+    if (s == null) return '—';
+    var d = Math.floor(s/86400), h = Math.floor((s%86400)/3600), m = Math.floor((s%3600)/60);
+    if (d > 0) return d + 'd ' + h + 'h';
+    if (h > 0) return h + 'h ' + m + 'min';
+    return m + 'min';
+  }
   function fmt_start(uptime_s) {
-    if (uptime_s == null) return '—';
+    if (uptime_s == null) return null;
     var started = new Date(Date.now() - uptime_s * 1000);
-    return started.toLocaleString('de-DE', {
+    return 'letzter Start: ' + started.toLocaleString('de-DE', {
       day: '2-digit', month: '2-digit', year: 'numeric',
       hour: '2-digit', minute: '2-digit'
     }) + ' Uhr';
@@ -419,7 +426,7 @@ function openInFlightInfo(count) {
         tile('Ø Zeit / Mail', avgMs, 'pro Nachricht, letzte 24 h', '', 'openMailHourlyModal()') +
         tile('Mail-Peak heute', d.peak_hour != null ? d.peak_hour + ':xx Uhr · ' + d.peak_hour_cnt + ' Mails' : '—', 'geschäftigste Stunde', '', peakOnclick) +
         tile('RAM (Prozess)', d.rss_mb != null ? d.rss_mb + ' MB' : '—', 'RSS') +
-        tile('Letzter Start', fmt_start(d.uptime_s), null) +
+        tile('Uptime', fmt_uptime(d.uptime_s), fmt_start(d.uptime_s)) +
         tile('Disk belegt', d.disk_used_mb != null ? d.disk_used_mb + ' MB' : '—', d.disk_pct != null ? d.disk_pct + '% von ' + d.disk_total_mb + ' MB' : '', diskClass) +
         tile('Disk frei', d.disk_free_mb != null ? d.disk_free_mb + ' MB' : '—', '/app/data') +
         tile('Audit-DB', d.db_size_kb != null ? d.db_size_kb + ' KB' : '—', 'mail_audit.db', '', 'openAuditModal("","",null)') +
