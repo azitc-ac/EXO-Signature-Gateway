@@ -72,20 +72,20 @@
       <tr style="border-bottom:1px solid #f0f0f0">
         <td style="padding:7px 0;font-size:13px;color:#d97706;font-weight:500">Fallback</td>
         <td style="padding:7px 16px;text-align:right;font-size:15px;font-weight:700;color:#d97706">{{ stat_cell(stats_daily.fallback, "fallback", today) }}</td>
-        <td class="col-m2" style="padding:7px 10px;text-align:right;font-size:13px;color:#a8a29e">{{ stats_monthly_m2.fallback }}</td>
-        <td class="col-m1" style="padding:7px 10px;text-align:right;font-size:13px;color:#a8a29e">{{ stats_monthly_m1.fallback }}</td>
-        <td style="padding:7px 16px;text-align:right;font-size:14px;color:#78716c">{{ stats_monthly.fallback }}</td>
-        <td class="col-py" style="padding:7px 10px;text-align:right;font-size:13px;color:#a8a29e">{{ stats_prev_yearly.fallback }}</td>
-        <td style="padding:7px 0;text-align:right;font-size:14px;color:#a8a29e">{{ stats_yearly.fallback }}</td>
+        <td class="col-m2" style="padding:7px 10px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(stats_monthly_m2.fallback, "fallback", prev_month_2) }}</td>
+        <td class="col-m1" style="padding:7px 10px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(stats_monthly_m1.fallback, "fallback", prev_month_1) }}</td>
+        <td style="padding:7px 16px;text-align:right;font-size:14px;color:#78716c">{{ stat_cell(stats_monthly.fallback, "fallback", today_month) }}</td>
+        <td class="col-py" style="padding:7px 10px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(stats_prev_yearly.fallback, "fallback", prev_year_str) }}</td>
+        <td style="padding:7px 0;text-align:right;font-size:14px;color:#a8a29e">{{ stat_cell(stats_yearly.fallback, "fallback", today_year) }}</td>
       </tr>
       <tr>
         <td style="padding:7px 0;font-size:13px;color:#dc2626;font-weight:500">Fehler</td>
         <td style="padding:7px 16px;text-align:right;font-size:15px;font-weight:700;color:#dc2626">{{ stat_cell(stats_daily.errors, "error", today) }}</td>
-        <td class="col-m2" style="padding:7px 10px;text-align:right;font-size:13px;color:#a8a29e">{{ stats_monthly_m2.errors }}</td>
-        <td class="col-m1" style="padding:7px 10px;text-align:right;font-size:13px;color:#a8a29e">{{ stats_monthly_m1.errors }}</td>
-        <td style="padding:7px 16px;text-align:right;font-size:14px;color:#78716c">{{ stats_monthly.errors }}</td>
-        <td class="col-py" style="padding:7px 10px;text-align:right;font-size:13px;color:#a8a29e">{{ stats_prev_yearly.errors }}</td>
-        <td style="padding:7px 0;text-align:right;font-size:14px;color:#a8a29e">{{ stats_yearly.errors }}</td>
+        <td class="col-m2" style="padding:7px 10px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(stats_monthly_m2.errors, "error", prev_month_2) }}</td>
+        <td class="col-m1" style="padding:7px 10px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(stats_monthly_m1.errors, "error", prev_month_1) }}</td>
+        <td style="padding:7px 16px;text-align:right;font-size:14px;color:#78716c">{{ stat_cell(stats_monthly.errors, "error", today_month) }}</td>
+        <td class="col-py" style="padding:7px 10px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(stats_prev_yearly.errors, "error", prev_year_str) }}</td>
+        <td style="padding:7px 0;text-align:right;font-size:14px;color:#a8a29e">{{ stat_cell(stats_yearly.errors, "error", today_year) }}</td>
       </tr>
     </tbody>
   </table>
