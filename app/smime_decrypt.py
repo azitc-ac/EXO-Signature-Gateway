@@ -199,19 +199,24 @@ async def decrypt(message_bytes: bytes, recipient: str) -> bytes | None:
     Decrypt an S/MIME enveloped-data message for recipient.
 
     Priority:
-      1. Local key file (key.pem or key.pem.bak) — fastest, always used if available
-      2. Azure Key Vault RSA1_5 decrypt — used when no local key (strict KV mode)
+      1. Azure Key Vault (RSA1_5) — primary when KV is configured
+      2. Local key file (key.pem or key.pem.bak) — fallback if KV unreachable
     """
-    # Try local key first (sync, no network round-trip)
-    result = _decrypt_local(message_bytes, recipient)
-    if result is not None:
-        return result
-
-    # Fall back to Key Vault if configured
     import keyvault as _kv
     if _kv.is_configured():
-        log.debug("S/MIME decrypt: no local key for %s, trying Key Vault", recipient)
-        return await _decrypt_keyvault(message_bytes, recipient)
+        result = await _decrypt_keyvault(message_bytes, recipient)
+        if result is not None:
+            return result
+        # KV failed — fall back to local backup if available
+        local = _decrypt_local(message_bytes, recipient)
+        if local is not None:
+            log.warning("S/MIME decrypt: KV failed for %s, used local backup key", recipient)
+            return local
+        log.warning("S/MIME decrypt: KV failed and no local key for %s", recipient)
+        return None
 
-    log.warning("S/MIME decrypt: no local key and Key Vault not configured for %s", recipient)
-    return None
+    # No KV — local only
+    result = _decrypt_local(message_bytes, recipient)
+    if result is None:
+        log.warning("S/MIME decrypt: no local key and Key Vault not configured for %s", recipient)
+    return result

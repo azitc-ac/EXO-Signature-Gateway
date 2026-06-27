@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.133 — 2026-06-27 — fix: S/MIME-Decrypt-Priorität — KV primär, lokales Backup nur als Fallback
+
+- smime_decrypt.decrypt(): wenn KV konfiguriert, immer KV zuerst versuchen
+- Lokale key.pem.bak nur wenn KV nicht erreichbar (Netzwerk-/Token-Fehler)
+- Ohne KV: weiterhin lokaler Schlüssel direkt
+
 ## v1.4.131 — 2026-06-27 — feat: S/MIME-Entschlüsselung via Azure Key Vault (RSA1_5 + AES/3DES)
 
 - smime_decrypt.py komplett überarbeitet: decrypt() ist jetzt async
