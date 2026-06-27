@@ -42,6 +42,7 @@ def _post_with_429_retry(client: httpx.Client, url: str, **kwargs) -> httpx.Resp
     if resp.status_code == 429:
         retry_after = min(int(resp.headers.get("Retry-After", 10)), _MAX_RETRY_AFTER_S)
         log.warning("Graph API throttled (429) — retrying in %ds (url=%s)", retry_after, url)
+        graph_client.mark_throttled(graph_client._last_used_client_id, retry_after)
         time.sleep(retry_after)
         resp = client.post(url, **kwargs)
     return resp

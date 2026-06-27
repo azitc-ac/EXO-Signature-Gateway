@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.108 — 2026-06-27 — feat: Throttle-aware App-Pool + Dashboard Pool-Status Tile
+
+- graph_client.py: _throttled_until dict + _last_used_client_id
+- _acquire_token(): bevorzugt nicht-gedrosselte Pool-Einträge; alle gedrosselt → früheste Freigabe
+- mark_throttled(client_id, retry_after_s): von graph_reinject.py bei 429 aufgerufen
+- get_pool_status(): gibt jetzt throttled + throttled_until_s zurück
+- graph_reinject.py: _post_with_429_retry ruft mark_throttled(_last_used_client_id) auf
+- dashboard.html: Graph App-Pool Abschnitt mit grün/rot Ampel pro App, Restzeit bei Throttle
+
 ## v1.4.106 — 2026-06-27 — feat: Absender-Mailboxen via mailFolders/inbox-Batch verifiziert + Cache + Refresh
 
 - graph_client.py: _verify_mailboxes_batch() — POST /$batch mit /mailFolders/inbox?$select=id

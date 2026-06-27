@@ -33,6 +33,8 @@ _pool_entries: list[dict] = []   # [{client_id, label, msal}]
 _pool_lock = threading.Lock()
 _pool_idx: int = 0
 _pool_hash: str = ""
+_throttled_until: dict[str, float] = {}   # client_id → monotonic timestamp
+_last_used_client_id: str = ""            # für mark_throttled nach 429
 
 
 def _rebuild_pool_if_needed() -> None:
@@ -77,24 +79,50 @@ def reset_msal_app() -> None:
     _pool_hash = ""
 
 
-def get_pool_status() -> list[dict]:
-    """Return pool entries without secrets, for dashboard display."""
-    _rebuild_pool_if_needed()
+def mark_throttled(client_id: str, retry_after_s: int) -> None:
+    """Markiert einen Pool-Eintrag als gedrosselt bis Retry-After abgelaufen ist."""
     with _pool_lock:
-        return [{"client_id": e["client_id"], "label": e["label"]} for e in _pool_entries]
+        _throttled_until[client_id] = time.monotonic() + retry_after_s
+    log.warning("Graph pool: app '%s' throttled for %ds", client_id[:8], retry_after_s)
+
+
+def get_pool_status() -> list[dict]:
+    """Pool-Einträge ohne Secrets, inkl. Throttle-Status für Dashboard."""
+    _rebuild_pool_if_needed()
+    now = time.monotonic()
+    with _pool_lock:
+        return [
+            {
+                "client_id": e["client_id"],
+                "label": e["label"],
+                "throttled": now < _throttled_until.get(e["client_id"], 0),
+                "throttled_until_s": max(0.0, _throttled_until.get(e["client_id"], 0) - now),
+            }
+            for e in _pool_entries
+        ]
 
 
 def _acquire_token() -> str | None:
     global _pool_idx
     _rebuild_pool_if_needed()
+    now = time.monotonic()
     with _pool_lock:
         entries = list(_pool_entries)
         if not entries:
             log.warning("Graph credentials not configured — skipping token acquisition")
             return None
-        idx = _pool_idx % len(entries)
+        # Bevorzuge nicht-gedrosselte Einträge; Round-Robin innerhalb der freien Apps
+        free = [e for e in entries if now >= _throttled_until.get(e["client_id"], 0)]
+        if free:
+            entry = free[_pool_idx % len(free)]
+        else:
+            # Alle gedrosselt — nimm den mit der kürzesten Restzeit
+            entry = min(entries, key=lambda e: _throttled_until.get(e["client_id"], 0))
+            log.warning("Graph pool: all %d app(s) throttled, using earliest ('%s')",
+                        len(entries), entry["label"])
         _pool_idx += 1
-        entry = entries[idx]
+        global _last_used_client_id
+        _last_used_client_id = entry["client_id"]
     result = entry["msal"].acquire_token_silent(_SCOPES, account=None)
     if not result:
         result = entry["msal"].acquire_token_for_client(scopes=_SCOPES)

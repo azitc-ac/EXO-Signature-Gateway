@@ -161,6 +161,14 @@
   </div>
 </div>
 
+<!-- App-Pool Status -->
+<div style="display:flex;align-items:baseline;gap:16px;margin:20px 0 10px">
+  <h3 style="color:#555;font-size:14px;text-transform:uppercase;letter-spacing:.05em;margin:0">Graph App-Pool</h3>
+</div>
+<div class="settings-card" style="padding:14px 16px;max-width:480px">
+  <div id="poolStatusBlock" style="color:#94a3b8;font-size:12px">wird geladen…</div>
+</div>
+
 <style>
 .sys-tile { background:#f8f7f6;border-radius:6px;padding:10px 14px;min-width:0 }
 .sys-tile .sys-val { font-size:22px;font-weight:700;color:#1c1917;line-height:1.1 }
@@ -206,6 +214,26 @@
     } catch(e) {
       document.getElementById('sysRefreshNote').textContent = 'Fehler: ' + e.message;
     }
+    // Pool-Status
+    try {
+      const pr = await fetch('/api/setup/app-pool/status');
+      const pd = await pr.json();
+      const pool = pd.pool || [];
+      let poolHtml = '';
+      pool.forEach(function(p) {
+        const throttled = p.throttled;
+        const remS = p.throttled_until_s != null ? Math.ceil(p.throttled_until_s) : 0;
+        const dot = throttled
+          ? '<span style="color:#dc2626;font-size:18px" title="Gedrosselt noch ' + remS + 's">●</span>'
+          : '<span style="color:#16a34a;font-size:18px" title="Verfügbar">●</span>';
+        poolHtml += '<div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:3px 0;border-bottom:1px solid #f0f0f0">' +
+          dot + '<span style="font-family:monospace">' + (p.label || p.client_id.slice(0,8)) + '</span>' +
+          (throttled ? '<span style="color:#dc2626;font-size:11px">gedrosselt (' + remS + 's)</span>' : '<span style="color:#16a34a;font-size:11px">OK</span>') +
+          '</div>';
+      });
+      if (!pool.length) poolHtml = '<span style="color:#94a3b8;font-size:12px">Kein Pool konfiguriert</span>';
+      document.getElementById('poolStatusBlock').innerHTML = poolHtml;
+    } catch(e) { /* ignore */ }
   }
   loadSys();
   setInterval(loadSys, 10000);
