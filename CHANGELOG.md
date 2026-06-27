@@ -5,6 +5,11 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.137 — 2026-06-27 — fix: KV-Decrypt Response-Feld "value" statt "result"
+
+- smime_decrypt.py: KV /decrypt gibt {"value": "..."} zurück, nicht {"result": "..."}
+- Führte zu KeyError → Fallback auf lokales Backup trotz erfolgreichem KV-Aufruf (HTTP 200)
+
 ## v1.4.135 — 2026-06-27 — fix: KV-Decrypt 403 (fehlende key_ops) + lokales Backup-Passwort
 
 - keyvault.py import_rsa_key(): key_ops jetzt ["sign","verify","decrypt","unwrapKey"]

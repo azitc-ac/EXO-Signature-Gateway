@@ -160,7 +160,7 @@ async def _decrypt_keyvault(message_bytes: bytes, recipient: str) -> bytes | Non
             log.error("KV decrypt: RSA1_5 failed HTTP %s for %s: %s",
                       resp.status_code, recipient, resp.text[:300])
             return None
-        result_b64 = resp.json()["result"]
+        result_b64 = resp.json()["value"]
         pad = (4 - len(result_b64) % 4) % 4
         session_key = base64.urlsafe_b64decode(result_b64 + "=" * pad)
     except Exception as exc:
