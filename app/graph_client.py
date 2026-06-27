@@ -3,6 +3,7 @@ import hashlib
 import json
 import logging
 import threading
+import time
 import urllib.parse
 from dataclasses import dataclass
 
@@ -282,23 +283,64 @@ async def cleanup_sent_items(
 GRAPH = "https://graph.microsoft.com/v1.0"
 
 
-async def list_sender_mailboxes() -> list[dict]:
-    """User- und Shared-Mailboxen für Absender-Auswahl.
+_sender_mb_cache: list[dict] = []
+_sender_mb_cache_ts: float = 0.0
+_SENDER_MB_TTL = 3600.0  # 1 Stunde
 
-    Zuverlässiges Merkmal für ein echtes EXO-Postfach: proxyAddresses enthält
-    mindestens einen SMTP-Eintrag (setzt Exchange beim Provisioning automatisch).
-    Entra-User ohne Mailbox haben mail gesetzt aber keine proxyAddresses.
+
+def invalidate_sender_mailboxes_cache() -> None:
+    global _sender_mb_cache_ts
+    _sender_mb_cache_ts = 0.0
+
+
+async def _verify_mailboxes_batch(
+    client: httpx.AsyncClient, headers: dict, candidates: list[dict]
+) -> list[dict]:
+    """Prüft via /$batch ob Kandidaten ein echtes EXO-Postfach haben."""
+    BATCH = "https://graph.microsoft.com/v1.0/$batch"
+    verified: list[dict] = []
+    for chunk_start in range(0, len(candidates), 20):
+        chunk = candidates[chunk_start:chunk_start + 20]
+        batch_body = {
+            "requests": [
+                {"id": str(i), "method": "GET",
+                 "url": f"/users/{c['email']}/mailFolders/inbox?$select=id"}
+                for i, c in enumerate(chunk)
+            ]
+        }
+        r = await client.post(BATCH, json=batch_body, headers=headers)
+        if r.status_code != 200:
+            log.warning("mailbox inbox batch failed: %s", r.status_code)
+            # Fallback: alle Kandidaten dieses Chunks übernehmen
+            verified.extend(chunk)
+            continue
+        id_to_status = {resp["id"]: resp["status"]
+                        for resp in r.json().get("responses", [])}
+        for i, c in enumerate(chunk):
+            if id_to_status.get(str(i)) == 200:
+                verified.append(c)
+    return verified
+
+
+async def list_sender_mailboxes() -> list[dict]:
+    """User- und Shared-Mailboxen mit echtem EXO-Postfach (via mailFolders/inbox-Batch).
+
+    Ergebnis wird 1 Stunde gecacht. invalidate_sender_mailboxes_cache() erzwingt Neuladen.
     """
+    global _sender_mb_cache, _sender_mb_cache_ts
+    if _sender_mb_cache and (time.monotonic() - _sender_mb_cache_ts) < _SENDER_MB_TTL:
+        return _sender_mb_cache
+
     token = await _acquire_token_async()
     if not token:
         return []
-    headers = {"Authorization": f"Bearer {token}"}
-    results = []
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    candidates: list[dict] = []
     url = (f"{GRAPH}/users"
            "?$filter=accountEnabled eq true"
            "&$select=mail,displayName,assignedLicenses,userType,proxyAddresses"
            "&$top=999")
-    async with httpx.AsyncClient(timeout=20) as client:
+    async with httpx.AsyncClient(timeout=30) as client:
         while url:
             r = await client.get(url, headers=headers)
             if r.status_code != 200:
@@ -311,15 +353,22 @@ async def list_sender_mailboxes() -> list[dict]:
                     continue
                 proxy = u.get("proxyAddresses") or []
                 if not any(".onmicrosoft.com" in p.lower() for p in proxy):
-                    continue  # kein Exchange Online Postfach
+                    continue
                 has_license = bool(u.get("assignedLicenses"))
-                results.append({
+                candidates.append({
                     "email": mail,
                     "name": u.get("displayName") or mail,
                     "type": "user" if has_license else "shared",
                 })
             url = data.get("@odata.nextLink")
-    return sorted(results, key=lambda x: x["email"])
+
+        verified = await _verify_mailboxes_batch(client, headers, candidates)
+
+    result = sorted(verified, key=lambda x: x["email"])
+    _sender_mb_cache = result
+    _sender_mb_cache_ts = time.monotonic()
+    log.info("list_sender_mailboxes: %d mailboxes cached", len(result))
+    return result
 
 
 async def list_mailboxes() -> list[dict]:

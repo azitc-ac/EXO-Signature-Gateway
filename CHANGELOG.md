@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.106 — 2026-06-27 — feat: Absender-Mailboxen via mailFolders/inbox-Batch verifiziert + Cache + Refresh
+
+- graph_client.py: _verify_mailboxes_batch() — POST /$batch mit /mailFolders/inbox?$select=id
+  (Mail.ReadWrite.All vorhanden; mailboxSettings erfordert MailboxSettings.Read — nicht vergeben)
+  Status 200 = echtes EXO-Postfach, sonst verworfen
+- graph_client.py: 1-Stunden-Cache (_sender_mb_cache) + invalidate_sender_mailboxes_cache()
+- webui/app.py: POST /api/settings/sender-mailboxes/refresh — invalidiert Cache, gibt neue Liste zurück
+- settings.html: Refresh-Button ↻ neben Dropdown, aktualisiert Select ohne Seitenreload
+
 ## v1.4.101 — 2026-06-27 — fix: Absender-Dropdown — Label, Filter nur User-Mailboxen, Duplikat entfernt
 
 - settings.html: Label "Absende-Postfach" → "Absender", Hint entfernt

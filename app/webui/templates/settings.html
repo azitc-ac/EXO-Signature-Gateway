@@ -450,14 +450,19 @@
     <div class="settings-row">
       <label for="notif-mailbox">Absender</label>
       <div class="settings-control">
-        <select id="notif-mailbox" style="width:300px;max-width:100%">
-          <option value="">— Automatisch (erster Empfänger) —</option>
-          {% for m in sender_mailboxes %}
-          <option value="{{ m.email }}" {% if m.email == s.NOTIFICATION_MAILBOX %}selected{% endif %}>
-            {{ m.email }}{% if m.name and m.name != m.email %} – {{ m.name }}{% endif %}
-          </option>
-          {% endfor %}
-        </select>
+        <div style="display:flex;align-items:center;gap:8px">
+          <select id="notif-mailbox" style="width:300px;max-width:100%">
+            <option value="">— Automatisch (erster Empfänger) —</option>
+            {% for m in sender_mailboxes %}
+            <option value="{{ m.email }}" {% if m.email == s.NOTIFICATION_MAILBOX %}selected{% endif %}>
+              {{ m.email }}{% if m.name and m.name != m.email %} – {{ m.name }}{% endif %}
+            </option>
+            {% endfor %}
+          </select>
+          <button type="button" class="btn secondary btn-sm" onclick="refreshSenderMailboxes(this)"
+                  title="Postfachliste neu laden">↻</button>
+          <span id="sender-mb-refresh-result" style="font-size:12px;color:#64748b"></span>
+        </div>
       </div>
     </div>
 
@@ -840,6 +845,35 @@ async function saveNotifDg() {
 
 function toggleNotifConfig(enabled) {
   document.getElementById('notif-config-block').style.display = enabled ? '' : 'none';
+}
+
+async function refreshSenderMailboxes(btn) {
+  const result = document.getElementById('sender-mb-refresh-result');
+  btn.disabled = true;
+  result.textContent = 'Wird geladen…';
+  try {
+    const r = await fetch('/api/settings/sender-mailboxes/refresh', {method: 'POST'});
+    const d = await r.json();
+    if (!r.ok) { result.textContent = '✗ Fehler'; result.style.color = '#dc2626'; return; }
+    const sel = document.getElementById('notif-mailbox');
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">— Automatisch (erster Empfänger) —</option>';
+    (d.mailboxes || []).forEach(function(m) {
+      const opt = document.createElement('option');
+      opt.value = m.email;
+      opt.textContent = m.email + (m.name && m.name !== m.email ? ' – ' + m.name : '');
+      if (m.email === prev) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    result.textContent = '✓ ' + (d.mailboxes || []).length + ' Postfächer';
+    result.style.color = '#16a34a';
+  } catch(e) {
+    result.textContent = '✗ Netzwerkfehler';
+    result.style.color = '#dc2626';
+  } finally {
+    btn.disabled = false;
+    setTimeout(function() { result.textContent = ''; }, 4000);
+  }
 }
 
 async function changePassword() {

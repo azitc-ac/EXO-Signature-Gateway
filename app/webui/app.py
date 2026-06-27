@@ -1660,6 +1660,16 @@ def _addin_url_warning(base_url: str) -> str:
     return ""
 
 
+@app.post("/api/settings/sender-mailboxes/refresh")
+async def api_refresh_sender_mailboxes(user: str = Depends(_require_admin)):
+    graph_client.invalidate_sender_mailboxes_cache()
+    try:
+        mailboxes = await graph_client.list_sender_mailboxes()
+    except Exception as exc:
+        raise HTTPException(500, str(exc))
+    return JSONResponse({"ok": True, "mailboxes": mailboxes})
+
+
 @app.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request, user: str = Depends(_require_admin)):
     try:
