@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.129 — 2026-06-27 — fix: S/MIME-Entschlüsselung schlägt fehl wenn Schlüssel in Key Vault (KV_KEY_MODE=fallback)
+
+- smime_decrypt.py + handler.py: get_signing_paths() mit allow_backup=True aufrufen,
+  damit key.pem.bak (Backup nach KV-Migration im fallback-Modus) für Entschlüsselung genutzt wird
+- Vorher: "Encrypted inbound — no private key for ['alexander@zarenko.net'], forwarding as-is"
+  obwohl key.pem.bak vorhanden und Schlüssel in Key Vault gespeichert
+
 ## v1.4.127 — 2026-06-27 — fix: doppeltes "Sent item patched" nach Graph sendMail
 
 - cleanup_sent_items: DELETE-Pfad gibt jetzt "deleted" statt True zurück

@@ -346,7 +346,7 @@ class SignatureHandler:
                 import smime_store as _ss
                 import smime_decrypt
                 decrypt_rcpt = next(
-                    (r for r in recipients if _ss.get_signing_paths(r.lower())),
+                    (r for r in recipients if _ss.get_signing_paths(r.lower(), allow_backup=True)),
                     None,
                 )
                 if decrypt_rcpt:

@@ -14,7 +14,7 @@ def decrypt(message_bytes: bytes, recipient: str) -> bytes | None:
     The private key must exist in the signing cert store (same cert used for outbound signing).
     Returns the decrypted inner MIME bytes, or None on failure.
     """
-    paths = smime_store.get_signing_paths(recipient)
+    paths = smime_store.get_signing_paths(recipient, allow_backup=True)
     if not paths:
         log.warning("S/MIME decrypt: no private key for %s", recipient)
         return None
