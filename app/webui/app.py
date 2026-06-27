@@ -1662,6 +1662,11 @@ def _addin_url_warning(base_url: str) -> str:
 
 @app.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request, user: str = Depends(_require_admin)):
+    try:
+        all_mbs = await graph_client.list_mailboxes()
+        sender_mailboxes = [m for m in all_mbs if m.get("type") in ("user", "shared")]
+    except Exception:
+        sender_mailboxes = []
     return templates.TemplateResponse(
         request=request, name="settings.html",
         context={
@@ -1672,6 +1677,7 @@ async def settings_page(request: Request, user: str = Depends(_require_admin)):
             "webui_port": config.WEBUI_PORT,
             "saved": request.query_params.get("saved"),
             "gateway_name": _gateway_name(),
+            "sender_mailboxes": sender_mailboxes,
         },
     )
 

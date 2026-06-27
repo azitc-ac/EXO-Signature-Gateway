@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.100 — 2026-06-27 — feat: Absende-Postfach Dropdown aus Graph API (server-seitig)
+
+- webui/app.py: settings_page lädt list_mailboxes() (user+shared), übergibt als sender_mailboxes
+- settings.html: <select id="notif-mailbox"> server-seitig mit Jinja2 befüllt; kein JS nötig
+- Vorherige komplexe JS-Variante (_renderNotifPicker rebuild) rückgängig gemacht
+
 ## v1.4.99 — 2026-06-27 — feat: Absende-Postfach Dropdown in Benachrichtigungs-Einstellungen
 
 - settings.html: NOTIFICATION_MAILBOX hidden input → sichtbares <select> "Absende-Postfach"
