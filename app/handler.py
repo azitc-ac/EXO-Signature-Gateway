@@ -54,7 +54,7 @@ async def _cleanup_sent_item(sender: str, message_id: str, html_body: str) -> No
         result = await graph_client.cleanup_sent_items(sender, message_id, html_body)
         if result is None:           # permanent 4xx — no point retrying
             return
-        if result == "deleted":      # duplicates removed; sendMail copy is correct as-is
+        if result:                   # True — success, stop retrying
             return
     log.debug("Sent item cleanup passes done for %s", sender)
 
@@ -138,10 +138,27 @@ def _build_subject_tag(enc: bool, signer_name: str | None) -> str:
     return f"[{', '.join(parts)}]" if parts else ""
 
 
+def _strip_subject_tags(subject: str) -> str:
+    """Remove gateway-added [verschlüsselt …] / [signiert von …] blocks from subject."""
+    enc_tag = settings_store.get("SMIME_TAG_ENCRYPTED") or "verschlüsselt"
+    signed_tmpl = settings_store.get("SMIME_TAG_SIGNED") or "signiert von {signer}"
+    signed_prefix = signed_tmpl.split("{signer}")[0]
+    pattern = (
+        r"\s*\[(?:"
+        + re.escape(enc_tag)
+        + r"|"
+        + re.escape(signed_prefix)
+        + r")[^\]]*\]"
+    )
+    return re.sub(pattern, "", subject, flags=re.IGNORECASE).strip()
+
+
 def _apply_subject_tag(msg: email.message.Message, tag: str, outer_subject: str) -> None:
     if not tag:
         return
-    decoded = _decode_subject(outer_subject)
+    # Strip any previously-added gateway tags before prepending/appending the new one
+    # so that ping-pong threads don't accumulate stacked [verschlüsselt] annotations.
+    decoded = _strip_subject_tags(_decode_subject(outer_subject))
     if settings_store.get("SMIME_TAG_POSITION") == "append":
         new_subj = f"{decoded} {tag}".strip()
     else:
@@ -516,7 +533,8 @@ class SignatureHandler:
             user_data = await graph_client.get_user(sender)
             template_name = _sender_cfg.get("template") or "default"
             sig_html, sig_txt = signature_engine.render(user_data, template_name=template_name)
-            modified = mail_processor.inject(msg, sig_html, sig_txt)
+            modified = mail_processor.inject(msg, sig_html, sig_txt,
+                                              use_cid_images=not wants_encryption)
             outbound = modified.as_bytes()
 
             # ── S/MIME signing ─────────────────────────────────────────────────
@@ -551,6 +569,9 @@ class SignatureHandler:
                     new_subject = re.sub(
                         r"\s*" + re.escape(enc_trigger) + r"\s*", " ",
                         subject, flags=re.IGNORECASE).strip()
+                    # Strip inbound gateway tags (e.g. [verschlüsselt, signiert von ...])
+                    # that appear in replies/forwards — they accumulate on each hop.
+                    new_subject = _strip_subject_tags(new_subject)
                     enc_msg = email.message_from_bytes(encrypted)
                     # openssl smime -encrypt strips envelope headers — restore them
                     _restore_envelope_headers(enc_msg, msg)
@@ -573,8 +594,16 @@ class SignatureHandler:
             # send_via_graph_mime deduplicates sendMail calls internally so only the
             # first SMTP transaction actually creates a new Sent Item.  Scheduling
             # cleanup only from the first transaction avoids redundant Graph API calls.
+            #
+            # For encrypted mails the Sent Item copy is the S/MIME ciphertext — the
+            # sender can't read their own sent mails. Always patch it with the
+            # pre-encryption plaintext body so Sent Items stay readable.
             mid = msg.get("Message-ID", "").strip()
-            if settings_store.get("SENT_ITEMS_UPDATE") and mid and _is_first_for_mid(sender, mid):
+            _do_cleanup = (
+                mid and _is_first_for_mid(sender, mid)
+                and (wants_encryption or settings_store.get("SENT_ITEMS_UPDATE"))
+            )
+            if _do_cleanup:
                 html = mail_processor.extract_html(modified)
                 if html is None and modified.get_content_type() == "text/plain":
                     raw_bytes = modified.get_payload(decode=True) or b""

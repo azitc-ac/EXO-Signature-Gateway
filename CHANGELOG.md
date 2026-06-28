@@ -5,6 +5,80 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.150 — 2026-06-28 — fix: Sent Items bei verschlüsselten Mails — Patch nach Delete
+
+graph_client.cleanup_sent_items(): in der Mehrfach-Item-Logik (Original + sendMail-Kopie)
+wurde bisher nur das Original gelöscht und die sendMail-Kopie unberührt gelassen.
+Für verschlüsselte Mails war die sendMail-Kopie aber ebenfalls verschlüsselt → Sent Items
+waren unlesbar. Jetzt: Original(e) löschen UND danach die verbliebene neueste Kopie
+mit dem unverschlüsselten HTML patchen (identisch zur Einzel-Item-Logik).
+handler.py: `if result == "deleted": return` → `if result: return` (True statt "deleted").
+
+## v1.4.149 — 2026-06-28 — fix: Signatur-Stacking (Fingerabdruck-Fallback) + Sent Items bei Encrypt
+
+Signatur-Stacking:
+- mail_processor.py _has_sig_in_thread(): 3-stufige Erkennung
+  1. HTML-Kommentar <!-- exo-sig-start --> (kann von iOS Mail beim Zitieren entfernt werden)
+  2. Div-Sentinel id="exo-sig-s" (kann von einigen Clients entfernt werden)
+  3. Fingerabdruck-Match auf den zitierten Teil des HTML — survives all sanitisation,
+     basiert auf sichtbarem Text (Name, Telefon, Adresse …); kein Marker nötig
+- sig_html wird jetzt von inject() an _has_sig_in_thread() übergeben
+
+Sent Items bei verschlüsselten Mails:
+- handler.py: für wants_encryption=True wird Sent Item IMMER mit unverschlüsseltem
+  HTML (aus modified, vor der Verschlüsselung) gepatcht — unabhängig von SENT_ITEMS_UPDATE
+- Vorher: gesendete verschlüsselte Mails lagen unlesbar als Kryptogramm in Sent Items
+
+## v1.4.147 — 2026-06-28 — fix: Signatur- und Betreff-Stacking bei Ping-Pong-Threads
+
+Signatur-Stacking:
+- mail_processor.py: neue Funktion _has_sig_in_thread() — prüft ob Gateway-Marker
+  IRGENDWO in der Mail vorkommt (auch im zitierten Inhalt von Vorgänger-Mails)
+- inject(): immer aktiv, kein SKIP_DUPLICATE_SIG-Setting nötig — bei Antworten auf
+  eine Mail die bereits eine Gateway-Signatur enthält wird KEINE neue injiziert
+- Vorher: Marker im Quote-Block wurde ignoriert (nur Compose-Area wurde geprüft)
+
+Betreff-Stacking:
+- handler.py: neue Funktion _strip_subject_tags() — entfernt [verschlüsselt…] und
+  [signiert von …] Blöcke aus einem Betreff-String
+- _apply_subject_tag(): ruft _strip_subject_tags() vor dem Anhängen auf, so dass
+  jede Hop nur einen einzigen aktuellen Tag trägt
+- Outbound-Encrypt: _strip_subject_tags() entfernt eingehende Tags aus dem Betreff
+  bevor die Mail verschlüsselt wird (verhindert Weitergabe fremder Tags)
+
+## v1.4.145 — 2026-06-28 — fix: Signatur-Logo in verschlüsselten Mails — CMS + data: URI
+
+- handler.py: use_cid_images=False wenn wants_encryption aktiv (reaktiviert)
+- iOS Mail löst CID-Referenzen innerhalb von S/MIME-verschlüsseltem Inhalt nicht auf
+  (bestätigt durch Test mit CMS-Encryption v1.4.143 — Text sichtbar, Bild defekt)
+- Kombination: CMS-Encrypt (vollständige MIME-Struktur) + data: URI (iOS Mail-kompatibel)
+- Signed mails: CID-Bilder (Standard, Outlook Classic kompatibel) — unverändert
+
+## v1.4.143 — 2026-06-27 — feat: S/MIME-Verschlüsselung via Python CMS (cryptography + asn1crypto)
+
+- smime_encrypt.py: vollständige Neuentwicklung; primärer Pfad ist _encrypt_cms()
+  mit cryptography + asn1crypto — baut CMS EnvelopedData direkt auf
+- Der gesamte MIME-Byte-Stream (inkl. multipart/related mit CID-Bildern) wird als
+  Oktett-Blob AES-256-CBC-verschlüsselt; nichts wird weggeworfen
+- openssl smime -encrypt bleibt als Fallback (z.B. für nicht-RSA-Zertifikate);
+  loggt Warnung wenn genutzt
+- handler.py: use_cid_images wieder auf True (Standard) — CID-Bilder überleben
+  das korrekte CMS-Encrypt, data: URI-Kompromiss nicht mehr nötig
+- mail_processor.py: use_cid_images-Parameter bleibt erhalten (für Tests / Fallback)
+- Ursache des Originalproblems: openssl smime -encrypt nimmt nur den ersten MIME-Part
+  in den CMS-Envelope, alle weiteren (Bild-Parts) werden stillschweigend verworfen
+
+## v1.4.141 — 2026-06-27 — fix: Signatur-Logo bei verschlüsselten Mails defekt (CID → data: URI)
+
+- mail_processor.inject(): neuer Parameter use_cid_images (default True)
+  Bei False werden data:-URI-Bilder NICHT in CID-Referenzen umgewandelt —
+  das Bild bleibt direkt im HTML-Body eingebettet
+- handler.py: use_cid_images=False wenn wants_encryption aktiv
+- Ursache: openssl smime -encrypt nimmt nur den ERSTEN MIME-Part in den CMS-Envelope
+  auf; bei multipart/related werden alle Teile nach dem ersten (also das Bild) schlicht
+  weggeworfen. Beim Entschlüsseln ist das <img src="cid:..."> dann ein defekter Platzhalter.
+  Mit data: URI ist der HTML-Body selbsttragend — kein externer CID-Lookup nötig.
+
 ## v1.4.139 — 2026-06-27 — feat: Auto-Verschlüsselung bei Antworten auf verschlüsselte Mails
 
 - handler.py: wenn der ausgehende Betreff das konfigurierte Verschlüsselungs-Tag

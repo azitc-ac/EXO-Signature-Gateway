@@ -400,9 +400,10 @@ async def cleanup_sent_items(
             return True
 
         # Multiple items: the oldest are the original(s) from the mail client;
-        # the newest is from our sendMail and already has the correct signed MIME body.
-        # Delete the older duplicates.
+        # the newest is from our sendMail. Delete the older duplicates, then
+        # patch the newest with html_body so encrypted Sent Items stay readable.
         to_delete = items[:-1]
+        newest_id = items[-1]["id"]
         async with httpx.AsyncClient(timeout=30) as client:
             for item in to_delete:
                 del_url = (
@@ -423,7 +424,24 @@ async def cleanup_sent_items(
         log.info(
             "Sent items cleaned for %s: %d original(s) removed", sender_email, len(to_delete)
         )
-        return "deleted"  # sendMail copy already has correct body — caller can stop
+        patch_url = (
+            f"https://graph.microsoft.com/v1.0/users/{sender_email}/messages/{newest_id}"
+        )
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.patch(
+                patch_url,
+                headers={**auth, "Content-Type": "application/json"},
+                json={"body": {"contentType": "html", "content": html_body}},
+            )
+            if 400 <= resp.status_code < 500:
+                log.warning(
+                    "Sent item PATCH %d for %s (not retrying): %s",
+                    resp.status_code, sender_email, resp.text[:300],
+                )
+                return None
+            resp.raise_for_status()
+        log.info("Sent item patched for %s (message-id %s)", sender_email, message_id)
+        return True
 
     except Exception as exc:
         log.error("cleanup_sent_items failed for %s: %s", sender_email, exc)
