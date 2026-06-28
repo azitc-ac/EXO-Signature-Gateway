@@ -58,7 +58,12 @@ if (-not (Get-Command az -ErrorAction SilentlyContinue)) {
 }
 $login = $null
 try { $login = (az account show 2>$null) | ConvertFrom-Json } catch {}
-if (-not $login) { throw "Nicht bei Azure angemeldet. Bitte 'az login' ausführen." }
+if (-not $login) {
+    Write-Info "Nicht angemeldet — öffne Browser für az login..."
+    az login | Out-Null
+    try { $login = (az account show 2>$null) | ConvertFrom-Json } catch {}
+    if (-not $login) { throw "Anmeldung fehlgeschlagen. Bitte 'az login' manuell ausführen." }
+}
 Write-Ok "Azure CLI OK — Subscription: $($login.name)"
 
 $sshKey = (Resolve-Path $SshPublicKeyFile -ErrorAction Stop).Path

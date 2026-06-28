@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.192 — 2026-06-28 — feat: azure-vm-setup.ps1 az login automatisch starten
+
+Wenn az account show kein Login erkennt, wird az login automatisch
+aufgerufen (öffnet Browser). Danach nochmaliger Check — nur wenn
+auch das fehlschlägt, wird abgebrochen.
+
 ## v1.4.190 — 2026-06-28 — fix: azure-vm-setup.ps1 az-Login-Check NativeCommandError
 
 try/catch um az account show — PS 5.x wirft NativeCommandError wenn az auf
