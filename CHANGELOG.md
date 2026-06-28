@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.162 — 2026-06-28 — feat: permanentes Debug-Logging für Subject-Verarbeitung
+
+handler.py: log.debug() für alle Subject-Transformationen (bei LOG_LEVEL=DEBUG sichtbar):
+- Eingehend (_apply_subject_tag): original → neuer Betreff mit Tag
+- Ausgehend verschlüsselt: original → Delivery-Betreff (trigger entfernt)
+- Ausgehend verschlüsselt: Sent-Item-Betreff (mit [verschlüsselt]-Tag)
+
 ## v1.4.160 — 2026-06-28 — feat: drei neue Settings + [verschlüsselt]-Tag im Sent Item
 
 Neue Settings (alle standardmäßig aktiv):

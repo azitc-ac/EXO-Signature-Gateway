@@ -177,6 +177,7 @@ def _apply_subject_tag(msg: email.message.Message, tag: str, outer_subject: str)
         new_subj = f"{decoded} {tag}".strip()
     else:
         new_subj = f"{tag} {decoded}".strip()
+    log.debug("Subject tag (inbound): %r → %r", outer_subject, new_subj)
     if "Subject" in msg:
         del msg["Subject"]
     msg["Subject"] = _encode_subject(new_subj)
@@ -594,6 +595,10 @@ class SignatureHandler:
                     # that appear in replies/forwards — they accumulate on each hop.
                     if settings_store.get("STRIP_SUBJECT_TAGS") is not False:
                         new_subject = _strip_subject_tags(new_subject)
+                    log.debug(
+                        "Subject (outbound enc): %r → delivery %r (trigger stripped)",
+                        subject, new_subject,
+                    )
                     # Sent Item subject gets the [verschlüsselt] tag so the sender sees
                     # at a glance that the mail was sent encrypted — symmetric to how
                     # decrypted inbound mails get the tag in the inbox.
@@ -605,6 +610,9 @@ class SignatureHandler:
                             _sent_subject = f"{_enc_tag} {new_subject}".strip()
                     else:
                         _sent_subject = new_subject
+                    log.debug(
+                        "Subject (outbound enc): sent-item %r", _sent_subject,
+                    )
                     enc_msg = email.message_from_bytes(encrypted)
                     # openssl smime -encrypt strips envelope headers — restore them
                     _restore_envelope_headers(enc_msg, msg)
