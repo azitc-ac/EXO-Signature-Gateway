@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.172 — 2026-06-28 — feat: Bundle-Download + Relay-Vorschau im Debug-Tab
+
+GET /api/support/download: gibt Bundle als ZIP-Download zurück (kein Blob-Upload nötig).
+Debug-Tab: "Bundle herunterladen" (funktional, fetch+Blob-URL) neben ausgegrautem
+"An Support senden"-Button (Relay-Vorschau mit BALD-Badge, kommt mit Relay-Service).
+Direkter Blob-Upload (SUPPORT_BLOB_URL_TEMPLATE) bleibt als ausgeklappte Sektion erhalten.
+
 ## v1.4.170 — 2026-06-28 — feat: Support-Bundle-Upload zu Azure Blob Storage
 
 Neues Modul `app/support_upload.py`: Ein-Klick-Upload eines Diagnose-ZIP-Pakets

@@ -3370,6 +3370,22 @@ async def api_pool_day(app_id: str, date: str, user: str = Depends(_check_auth))
     return {"app_id": app_id, "date": date, "hours": hours}
 
 
+@app.get("/api/support/download")
+async def api_support_download(user: str = Depends(_require_admin)):
+    """Support-Bundle als ZIP herunterladen (lokal speichern)."""
+    import support_upload as _sup
+    import asyncio as _aio
+    from fastapi.responses import Response as _Resp
+    zip_bytes, blob_name = await _aio.get_event_loop().run_in_executor(
+        None, _sup.build_bundle, list(_LOG_BUFFER)
+    )
+    return _Resp(
+        content=zip_bytes,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{blob_name}"'},
+    )
+
+
 @app.post("/api/support/upload")
 async def api_support_upload(user: str = Depends(_require_admin)):
     """Support-Bundle (Logs, Settings, Audit) zu Azure Blob Storage hochladen."""
