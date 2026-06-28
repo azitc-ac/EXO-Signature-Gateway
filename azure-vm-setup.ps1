@@ -126,7 +126,7 @@ foreach ($r in $rules) {
 Write-Step "Docker + EXO Gateway auf VM installieren"
 Write-Info "cloud-init läuft nach dem ersten Boot im Hintergrund (~3–5 Min.)..."
 
-$cloudInit = @"
+$cloudInit = @'
 #cloud-config
 package_update: true
 package_upgrade: false
@@ -140,17 +140,17 @@ runcmd:
   - install -m 0755 -d /etc/apt/keyrings
   - curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
   - chmod a+r /etc/apt/keyrings/docker.asc
-  - echo "deb [arch=\$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian \$(. /etc/os-release && echo \"\$VERSION_CODENAME\") stable" > /etc/apt/sources.list.d/docker.list
+  - echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list
   - apt-get update -qq
   - apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-compose-plugin
-  - usermod -aG docker $AdminUser
+  - usermod -aG docker %%ADMIN_USER%%
   - systemctl enable docker
   # Repository klonen
-  - git clone $RepoUrl /opt/exo-gateway
-  - chown -R $AdminUser`:$AdminUser /opt/exo-gateway
+  - git clone %%REPO_URL%% /opt/exo-gateway
+  - chown -R %%ADMIN_USER%%:%%ADMIN_USER%% /opt/exo-gateway
   # .env anlegen (Platzhalter — User muss ergänzen)
   - |
-    cat > /opt/exo-gateway/.env << 'ENVEOF'
+    cat > /opt/exo-gateway/.env << ENVEOF
     WEBUI_SECRET_KEY=$(openssl rand -hex 32)
     WEBUI_PASSWORD=changeme
     TENANT_ID=
@@ -158,11 +158,12 @@ runcmd:
     CLIENT_SECRET=
     EXO_SMARTHOST=
     ENVEOF
-  - chown $AdminUser`:$AdminUser /opt/exo-gateway/.env
+  - chown %%ADMIN_USER%%:%%ADMIN_USER%% /opt/exo-gateway/.env
   - chmod 600 /opt/exo-gateway/.env
   # Gateway starten
   - cd /opt/exo-gateway && docker compose up -d
-"@
+'@ -replace '%%ADMIN_USER%%', $AdminUser `
+   -replace '%%REPO_URL%%', $RepoUrl
 
 $cloudInitFile = [System.IO.Path]::GetTempFileName()
 $cloudInit | Set-Content $cloudInitFile -Encoding UTF8
