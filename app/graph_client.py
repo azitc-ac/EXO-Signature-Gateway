@@ -378,42 +378,63 @@ async def cleanup_sent_items(
         # Sort oldest-first; createdDateTime is ISO 8601 so lexicographic order works
         items.sort(key=lambda x: x.get("createdDateTime", ""))
 
-        if len(items) == 1:
-            if replace_all:
-                # Encrypted mail: single item means sendMail copy hasn't appeared yet.
-                # Return False so the caller retries — we'll catch both copies next pass.
-                log.debug(
-                    "Sent item cleanup: only 1 item for %s — waiting for sendMail copy",
-                    sender_email,
-                )
-                return False
-            # Signed mail (or SMTP mode): patch the single item and we're done.
-            item_id = items[0]["id"]
-            patch_url = (
+        # Patch helper — patches body (and optionally subject) of a Sent Item.
+        # Returns True on success, None on permanent 4xx.
+        async def _patch_item(item_id: str, patch_subject: str = "") -> bool | None:
+            patch_data: dict = {"body": {"contentType": "html", "content": html_body}}
+            if patch_subject:
+                patch_data["subject"] = patch_subject
+            url = (
                 f"https://graph.microsoft.com/v1.0/users/{sender_email}/messages/{item_id}"
             )
             async with httpx.AsyncClient(timeout=15) as client:
-                resp = await client.patch(
-                    patch_url,
+                r = await client.patch(
+                    url,
                     headers={**auth, "Content-Type": "application/json"},
-                    json={"body": {"contentType": "html", "content": html_body}},
+                    json=patch_data,
                 )
-                if 400 <= resp.status_code < 500:
-                    log.warning(
-                        "Sent item PATCH %d for %s (not retrying): %s",
-                        resp.status_code, sender_email, resp.text[:300],
-                    )
+            if 400 <= r.status_code < 500:
+                log.warning(
+                    "Sent item PATCH %d for %s (not retrying): %s",
+                    r.status_code, sender_email, r.text[:300],
+                )
+                return None
+            r.raise_for_status()
+            return True
+
+        if len(items) == 1:
+            if replace_all:
+                # Encrypted: patch the single item immediately so it's readable,
+                # then keep retrying — the sendMail copy (encrypted) will appear soon.
+                r = await _patch_item(items[0]["id"], patch_subject=subject)
+                if r is None:
                     return None
-                resp.raise_for_status()
+                log.debug(
+                    "Sent item cleanup: patched 1 item for %s — retrying for sendMail copy",
+                    sender_email,
+                )
+                return False  # caller retries to catch & delete the sendMail copy
+            # Signed mail: patch the single item and we're done.
+            r = await _patch_item(items[0]["id"])
+            if r is None:
+                return None
             log.info("Sent item patched for %s (message-id %s)", sender_email, message_id)
             return True
 
         if replace_all:
-            # Encrypted mail: delete ALL copies (Outlook original + encrypted sendMail),
-            # then create a fresh readable JSON item — avoids PATCHing raw MIME which
-            # Exchange/Outlook Classic may not surface correctly.
+            # Encrypted mail, multiple items: the OLDEST item is the Outlook-created
+            # Sent Item (not a draft, MAPI-native → PATCH works correctly). The newer
+            # item(s) are encrypted sendMail copies. Strategy: patch the oldest to make
+            # it readable, delete all newer encrypted copies.
+            oldest_id = items[0]["id"]
+            r = await _patch_item(oldest_id, patch_subject=subject)
+            if r is None:
+                return None
+            log.info(
+                "Sent item patched (oldest) for %s (message-id %s)", sender_email, message_id
+            )
             async with httpx.AsyncClient(timeout=30) as client:
-                for item in items:
+                for item in items[1:]:
                     del_url = (
                         f"https://graph.microsoft.com/v1.0/users/{sender_email}"
                         f"/messages/{item['id']}"
@@ -421,7 +442,7 @@ async def cleanup_sent_items(
                     d = await client.delete(del_url, headers=auth)
                     if d.is_success or d.status_code == 404:
                         log.info(
-                            "Deleted Sent Item for %s (created %s)",
+                            "Deleted encrypted sendMail copy for %s (created %s)",
                             sender_email, item.get("createdDateTime", "?"),
                         )
                     else:
@@ -429,56 +450,6 @@ async def cleanup_sent_items(
                             "Failed to delete Sent Item for %s: HTTP %d %s",
                             sender_email, d.status_code, d.text[:200],
                         )
-            log.info(
-                "Sent items deleted for %s: %d item(s) removed", sender_email, len(items)
-            )
-
-            # Build new Sent Item as plain JSON — Exchange stores it as MAPI-native,
-            # which Outlook Classic renders correctly (unlike raw MIME PATCH).
-            new_item: dict = {
-                "subject": subject or "(kein Betreff)",
-                "body": {"contentType": "html", "content": html_body},
-                "from": {"emailAddress": {"address": sender_email}},
-                "sender": {"emailAddress": {"address": sender_email}},
-            }
-            if to_recipients:
-                new_item["toRecipients"] = [
-                    {"emailAddress": {"address": r}} for r in to_recipients
-                ]
-            create_url = (
-                f"https://graph.microsoft.com/v1.0/users/{sender_email}"
-                f"/mailFolders/sentitems/messages"
-            )
-            async with httpx.AsyncClient(timeout=15) as client:
-                resp = await client.post(
-                    create_url,
-                    headers={**auth, "Content-Type": "application/json"},
-                    json=new_item,
-                )
-                if 400 <= resp.status_code < 500:
-                    log.warning(
-                        "Sent item CREATE %d for %s (not retrying): %s",
-                        resp.status_code, sender_email, resp.text[:300],
-                    )
-                    return None
-                resp.raise_for_status()
-                new_id = resp.json()["id"]
-
-            # Mark as sent (not draft) so Outlook shows it in Sent Items correctly.
-            patch_url = (
-                f"https://graph.microsoft.com/v1.0/users/{sender_email}/messages/{new_id}"
-            )
-            async with httpx.AsyncClient(timeout=15) as client:
-                resp = await client.patch(
-                    patch_url,
-                    headers={**auth, "Content-Type": "application/json"},
-                    json={"isDraft": False},
-                )
-                resp.raise_for_status()
-
-            log.info(
-                "Sent item replaced for %s (message-id %s)", sender_email, message_id
-            )
             return True
 
         # Signed mail, multiple items: delete originals, keep sendMail copy.

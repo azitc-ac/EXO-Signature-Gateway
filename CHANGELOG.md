@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.154 — 2026-06-28 — fix: Sent Items verschlüsselt — PATCH ältestes Item statt Create-New
+
+POST zu sentitems erstellt immer einen Draft; isDraft=false PATCH wird ignoriert.
+Richtiger Ansatz: das älteste Sent Item (Outlook-original, kein Draft, MAPI-nativ)
+per PATCH mit neuem body + subject aktualisieren, dann alle neueren Kopien (verschlüsselte
+sendMail-Kopien) löschen. PATCH auf MAPI-nativem Item funktioniert wo PATCH auf
+raw-MIME-sendMail-Item (pkcs7-Ciphertext) scheiterte.
+
 ## v1.4.152 — 2026-06-28 — fix: Sent Items bei verschlüsselten Mails — Delete-All + Create-New
 
 Vorheriger Ansatz (PATCH des sendMail-Items) funktioniert nicht: Exchange speichert
