@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.186 — 2026-06-28 — fix: azure-vm-setup.ps1 Here-String PS5-kompatibel
+
+azure-vm-setup.ps1: @"..."@ → @'...'@ (single-quoted here-string).
+Verhindert Parse-Fehler auf Windows PowerShell 5.x, wo && innerhalb eines
+doppelt-gequoteten Here-Strings als ungültiges Token gilt.
+$AdminUser/$RepoUrl werden per -replace '%%PLACEHOLDER%%' eingesetzt.
+Nebenfix: << 'ENVEOF' → << ENVEOF, damit $(openssl rand -hex 32) wirklich
+ausgeführt wird und WEBUI_SECRET_KEY einen echten Wert erhält.
+
 ## v1.4.184 — 2026-06-28 — fix: azure-vm-setup.ps1 auf Debian 12 Bookworm umgestellt
 
 azure-vm-setup.ps1:
