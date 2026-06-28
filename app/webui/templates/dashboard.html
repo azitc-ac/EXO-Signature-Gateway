@@ -32,18 +32,19 @@
 {% macro stat_row(label, d, d3, m2, m1, m, py, y, action) %}
 <tr style="border-bottom:1px solid #f0f0f0">
   <td style="padding:7px 0;font-size:13px;color:#44403c;font-weight:500">{{ label }}</td>
-  <td style="padding:7px 14px;text-align:right;font-size:15px;font-weight:700;color:#1c1917">{{ stat_cell(d, action, today) }}</td>
-  <td style="padding:7px 14px;text-align:right;font-size:14px;font-weight:600;color:#44403c">{{ d3 or 0 }}</td>
-  <td class="col-m2" style="padding:7px 10px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(m2, action, prev_month_2) }}</td>
-  <td class="col-m1" style="padding:7px 10px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(m1, action, prev_month_1) }}</td>
-  <td style="padding:7px 14px;text-align:right;font-size:14px;color:#78716c">{{ stat_cell(m, action, today_month) }}</td>
-  <td class="col-py" style="padding:7px 10px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(py, action, prev_year_str) }}</td>
-  <td style="padding:7px 0;text-align:right;font-size:14px;color:#a8a29e">{{ stat_cell(y, action, today_year) }}</td>
+  <td style="padding:7px 10px;text-align:right;font-size:15px;font-weight:700;color:#1c1917">{{ stat_cell(d, action, today) }}</td>
+  <td style="padding:7px 10px;text-align:right;font-size:14px;font-weight:600;color:#44403c">{{ d3 or 0 }}</td>
+  <td class="col-m2" style="padding:7px 8px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(m2, action, prev_month_2) }}</td>
+  <td class="col-m1" style="padding:7px 8px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(m1, action, prev_month_1) }}</td>
+  <td style="padding:7px 10px;text-align:right;font-size:14px;color:#78716c">{{ stat_cell(m, action, today_month) }}</td>
+  <td class="col-py" style="padding:7px 8px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(py, action, prev_year_str) }}</td>
+  <td class="col-y" style="padding:7px 0 7px 8px;text-align:right;font-size:14px;color:#a8a29e">{{ stat_cell(y, action, today_year) }}</td>
 </tr>
 {% endmacro %}
 
 <style>
 @media (max-width: 520px) { .col-m2, .col-m1 { display:none; } }
+@media (max-width: 480px) { .col-y  { display:none; } }
 @media (max-width: 420px) { .col-py { display:none; } }
 </style>
 
@@ -52,17 +53,17 @@
   <span style="font-size:12px;color:#aaa">Heute / 3 Tage / {{ stats_month_label }} / {{ stats_year_label }}</span>
 </div>
 <div class="settings-card" style="padding:0 16px;overflow-x:auto">
-  <table style="width:100%;border-collapse:collapse;min-width:380px">
+  <table style="width:100%;border-collapse:collapse;min-width:300px">
     <thead>
       <tr style="border-bottom:2px solid #e2e8f0">
         <th style="text-align:left;padding:8px 0;font-size:12px;color:#78716c;font-weight:600"></th>
-        <th style="text-align:right;padding:8px 14px;font-size:12px;color:#78716c;font-weight:600">Heute</th>
-        <th style="text-align:right;padding:8px 14px;font-size:12px;color:#78716c;font-weight:600">3 Tage</th>
-        <th class="col-m2" style="text-align:right;padding:8px 10px;font-size:11px;color:#a8a29e;font-weight:500">{{ stats_month_m2_label }}</th>
-        <th class="col-m1" style="text-align:right;padding:8px 10px;font-size:11px;color:#a8a29e;font-weight:500">{{ stats_month_m1_label }}</th>
-        <th style="text-align:right;padding:8px 14px;font-size:12px;color:#78716c;font-weight:600">{{ stats_month_label }}</th>
-        <th class="col-py" style="text-align:right;padding:8px 10px;font-size:11px;color:#a8a29e;font-weight:500">{{ stats_prev_year_label }}</th>
-        <th style="text-align:right;padding:8px 0;font-size:12px;color:#78716c;font-weight:600">{{ stats_year_label }}</th>
+        <th style="text-align:right;padding:8px 10px;font-size:12px;color:#78716c;font-weight:600;white-space:nowrap">Heute</th>
+        <th style="text-align:right;padding:8px 10px;font-size:12px;color:#78716c;font-weight:600;white-space:nowrap">3 Tage</th>
+        <th class="col-m2" style="text-align:right;padding:8px 8px;font-size:11px;color:#a8a29e;font-weight:500;white-space:nowrap">{{ stats_month_m2_label }}</th>
+        <th class="col-m1" style="text-align:right;padding:8px 8px;font-size:11px;color:#a8a29e;font-weight:500;white-space:nowrap">{{ stats_month_m1_label }}</th>
+        <th style="text-align:right;padding:8px 10px;font-size:12px;color:#78716c;font-weight:600;white-space:nowrap">{{ stats_month_label }}</th>
+        <th class="col-py" style="text-align:right;padding:8px 8px;font-size:11px;color:#a8a29e;font-weight:500;white-space:nowrap">{{ stats_prev_year_label }}</th>
+        <th class="col-y" style="text-align:right;padding:8px 0 8px 8px;font-size:12px;color:#78716c;font-weight:600;white-space:nowrap">{{ stats_year_label }}</th>
       </tr>
     </thead>
     <tbody>
@@ -73,23 +74,23 @@
       {{ stat_row("Certs geharvestet", stats_daily.certs_harvested, stats_3d.certs_harvested, stats_monthly_m2.certs_harvested, stats_monthly_m1.certs_harvested, stats_monthly.certs_harvested, stats_prev_yearly.certs_harvested, stats_yearly.certs_harvested, "") }}
       <tr style="border-bottom:1px solid #f0f0f0">
         <td style="padding:7px 0;font-size:13px;color:#d97706;font-weight:500">Fallback</td>
-        <td style="padding:7px 14px;text-align:right;font-size:15px;font-weight:700;color:#d97706">{{ stat_cell(stats_daily.fallback, "fallback", today) }}</td>
-        <td style="padding:7px 14px;text-align:right;font-size:14px;font-weight:600;color:#d97706">{{ stats_3d.fallback or 0 }}</td>
-        <td class="col-m2" style="padding:7px 10px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(stats_monthly_m2.fallback, "fallback", prev_month_2) }}</td>
-        <td class="col-m1" style="padding:7px 10px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(stats_monthly_m1.fallback, "fallback", prev_month_1) }}</td>
-        <td style="padding:7px 14px;text-align:right;font-size:14px;color:#78716c">{{ stat_cell(stats_monthly.fallback, "fallback", today_month) }}</td>
-        <td class="col-py" style="padding:7px 10px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(stats_prev_yearly.fallback, "fallback", prev_year_str) }}</td>
-        <td style="padding:7px 0;text-align:right;font-size:14px;color:#a8a29e">{{ stat_cell(stats_yearly.fallback, "fallback", today_year) }}</td>
+        <td style="padding:7px 10px;text-align:right;font-size:15px;font-weight:700;color:#d97706">{{ stat_cell(stats_daily.fallback, "fallback", today) }}</td>
+        <td style="padding:7px 10px;text-align:right;font-size:14px;font-weight:600;color:#d97706">{{ stats_3d.fallback or 0 }}</td>
+        <td class="col-m2" style="padding:7px 8px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(stats_monthly_m2.fallback, "fallback", prev_month_2) }}</td>
+        <td class="col-m1" style="padding:7px 8px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(stats_monthly_m1.fallback, "fallback", prev_month_1) }}</td>
+        <td style="padding:7px 10px;text-align:right;font-size:14px;color:#78716c">{{ stat_cell(stats_monthly.fallback, "fallback", today_month) }}</td>
+        <td class="col-py" style="padding:7px 8px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(stats_prev_yearly.fallback, "fallback", prev_year_str) }}</td>
+        <td class="col-y" style="padding:7px 0 7px 8px;text-align:right;font-size:14px;color:#a8a29e">{{ stat_cell(stats_yearly.fallback, "fallback", today_year) }}</td>
       </tr>
       <tr>
         <td style="padding:7px 0;font-size:13px;color:#dc2626;font-weight:500">Fehler</td>
-        <td style="padding:7px 14px;text-align:right;font-size:15px;font-weight:700;color:#dc2626">{{ stat_cell(stats_daily.errors, "error", today) }}</td>
-        <td style="padding:7px 14px;text-align:right;font-size:14px;font-weight:600;color:#dc2626">{{ stats_3d.errors or 0 }}</td>
-        <td class="col-m2" style="padding:7px 10px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(stats_monthly_m2.errors, "error", prev_month_2) }}</td>
-        <td class="col-m1" style="padding:7px 10px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(stats_monthly_m1.errors, "error", prev_month_1) }}</td>
-        <td style="padding:7px 14px;text-align:right;font-size:14px;color:#78716c">{{ stat_cell(stats_monthly.errors, "error", today_month) }}</td>
-        <td class="col-py" style="padding:7px 10px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(stats_prev_yearly.errors, "error", prev_year_str) }}</td>
-        <td style="padding:7px 0;text-align:right;font-size:14px;color:#a8a29e">{{ stat_cell(stats_yearly.errors, "error", today_year) }}</td>
+        <td style="padding:7px 10px;text-align:right;font-size:15px;font-weight:700;color:#dc2626">{{ stat_cell(stats_daily.errors, "error", today) }}</td>
+        <td style="padding:7px 10px;text-align:right;font-size:14px;font-weight:600;color:#dc2626">{{ stats_3d.errors or 0 }}</td>
+        <td class="col-m2" style="padding:7px 8px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(stats_monthly_m2.errors, "error", prev_month_2) }}</td>
+        <td class="col-m1" style="padding:7px 8px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(stats_monthly_m1.errors, "error", prev_month_1) }}</td>
+        <td style="padding:7px 10px;text-align:right;font-size:14px;color:#78716c">{{ stat_cell(stats_monthly.errors, "error", today_month) }}</td>
+        <td class="col-py" style="padding:7px 8px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(stats_prev_yearly.errors, "error", prev_year_str) }}</td>
+        <td class="col-y" style="padding:7px 0 7px 8px;text-align:right;font-size:14px;color:#a8a29e">{{ stat_cell(stats_yearly.errors, "error", today_year) }}</td>
       </tr>
     </tbody>
   </table>
@@ -101,17 +102,17 @@
   <span style="font-size:12px;color:#aaa">Heute / 3 Tage / {{ stats_month_label }} / {{ stats_year_label }}</span>
 </div>
 <div class="settings-card" style="padding:0 16px;overflow-x:auto">
-  <table style="width:100%;border-collapse:collapse;min-width:380px">
+  <table style="width:100%;border-collapse:collapse;min-width:300px">
     <thead>
       <tr style="border-bottom:2px solid #e2e8f0">
         <th style="text-align:left;padding:8px 0;font-size:12px;color:#78716c;font-weight:600"></th>
-        <th style="text-align:right;padding:8px 14px;font-size:12px;color:#78716c;font-weight:600">Heute</th>
-        <th style="text-align:right;padding:8px 14px;font-size:12px;color:#78716c;font-weight:600">3 Tage</th>
-        <th class="col-m2" style="text-align:right;padding:8px 10px;font-size:11px;color:#a8a29e;font-weight:500">{{ stats_month_m2_label }}</th>
-        <th class="col-m1" style="text-align:right;padding:8px 10px;font-size:11px;color:#a8a29e;font-weight:500">{{ stats_month_m1_label }}</th>
-        <th style="text-align:right;padding:8px 14px;font-size:12px;color:#78716c;font-weight:600">{{ stats_month_label }}</th>
-        <th class="col-py" style="text-align:right;padding:8px 10px;font-size:11px;color:#a8a29e;font-weight:500">{{ stats_prev_year_label }}</th>
-        <th style="text-align:right;padding:8px 0;font-size:12px;color:#78716c;font-weight:600">{{ stats_year_label }}</th>
+        <th style="text-align:right;padding:8px 10px;font-size:12px;color:#78716c;font-weight:600;white-space:nowrap">Heute</th>
+        <th style="text-align:right;padding:8px 10px;font-size:12px;color:#78716c;font-weight:600;white-space:nowrap">3 Tage</th>
+        <th class="col-m2" style="text-align:right;padding:8px 8px;font-size:11px;color:#a8a29e;font-weight:500;white-space:nowrap">{{ stats_month_m2_label }}</th>
+        <th class="col-m1" style="text-align:right;padding:8px 8px;font-size:11px;color:#a8a29e;font-weight:500;white-space:nowrap">{{ stats_month_m1_label }}</th>
+        <th style="text-align:right;padding:8px 10px;font-size:12px;color:#78716c;font-weight:600;white-space:nowrap">{{ stats_month_label }}</th>
+        <th class="col-py" style="text-align:right;padding:8px 8px;font-size:11px;color:#a8a29e;font-weight:500;white-space:nowrap">{{ stats_prev_year_label }}</th>
+        <th class="col-y" style="text-align:right;padding:8px 0 8px 8px;font-size:12px;color:#78716c;font-weight:600;white-space:nowrap">{{ stats_year_label }}</th>
       </tr>
     </thead>
     <tbody>

@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.176 — 2026-06-28 — fix: Dashboard-Tabelle — Zeilenumbruch, Padding, Jahr auf Mobile ausblenden
+
+white-space:nowrap auf alle <th>-Elemente → kein Zeilenumbruch bei "3 Tage".
+col-y-Klasse für Jahr-Spalte: ausgeblendet bei ≤480px (alle iPhones im Hochformat).
+Padding aller Spalten reduziert (10px statt 14-16px, Sekundärspalten 8px) → weniger Lücken.
+min-width von 380px auf 300px reduziert.
+
 ## v1.4.174 — 2026-06-28 — feat: Dashboard — Spalte "Letzte 3 Tage"
 
 stats.py: get_last_n_days(n) summiert stats_daily.json über n Kalendertage inkl. heute.
