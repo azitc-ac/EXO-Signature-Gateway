@@ -56,7 +56,8 @@ $env:Path = [System.Environment]::GetEnvironmentVariable('Path', 'Machine') + ';
 if (-not (Get-Command az -ErrorAction SilentlyContinue)) {
     throw "Azure CLI (az) nicht gefunden. Installation: https://aka.ms/installazurecliwindows`nFalls gerade installiert: PowerShell-Fenster neu starten und Skript erneut ausführen."
 }
-$login = az account show 2>$null | ConvertFrom-Json
+$login = $null
+try { $login = (az account show 2>$null) | ConvertFrom-Json } catch {}
 if (-not $login) { throw "Nicht bei Azure angemeldet. Bitte 'az login' ausführen." }
 Write-Ok "Azure CLI OK — Subscription: $($login.name)"
 

@@ -5,6 +5,11 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.190 — 2026-06-28 — fix: azure-vm-setup.ps1 az-Login-Check NativeCommandError
+
+try/catch um az account show — PS 5.x wirft NativeCommandError wenn az auf
+stderr schreibt (auch mit 2>$null), weil $ErrorActionPreference=Stop greift.
+
 ## v1.4.188 — 2026-06-28 — fix: azure-vm-setup.ps1 PATH-Refresh vor az-Check
 
 $env:Path aus der Registry neu laden bevor Get-Command az aufgerufen wird.
