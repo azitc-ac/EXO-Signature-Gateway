@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.152 — 2026-06-28 — fix: Sent Items bei verschlüsselten Mails — Delete-All + Create-New
+
+Vorheriger Ansatz (PATCH des sendMail-Items) funktioniert nicht: Exchange speichert
+sendMail-Nachrichten als raw MIME (pkcs7-mime), und Outlook Classic rendert
+Graph-PATCH auf Body dabei nicht — sieht weiter verschlüsselt aus (PATCH 200 OK, aber
+keine sichtbare Änderung).
+
+Neuer Ansatz für replace_all=True (wants_encryption):
+- Alle Sent Items mit dieser Message-ID löschen (Original UND sendMail-Kopie)
+- Danach frisches Sent Item per Graph JSON POST erstellen (MAPI-nativ)
+- isDraft=false PATCH damit Outlook es korrekt als gesendet zeigt
+- Für ein einzelnes Item (sendMail-Kopie noch nicht da): False zurückgeben, Caller
+  retryt bis beide Items da sind
+
 ## v1.4.150 — 2026-06-28 — fix: Sent Items bei verschlüsselten Mails — Patch nach Delete
 
 graph_client.cleanup_sent_items(): in der Mehrfach-Item-Logik (Original + sendMail-Kopie)

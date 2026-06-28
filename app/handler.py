@@ -43,15 +43,25 @@ def _is_first_for_mid(sender: str, mid: str) -> bool:
     return True
 
 
-async def _cleanup_sent_item(sender: str, message_id: str, html_body: str) -> None:
-    """Delete the original unsigned Sent Item; patch the signed one if needed.
+async def _cleanup_sent_item(
+    sender: str, message_id: str, html_body: str,
+    subject: str = "", to_recipients: list[str] | None = None,
+    replace_all: bool = False,
+) -> None:
+    """Delete the original unsigned Sent Item; for encrypted mails replace all copies.
 
     Runs three passes with back-off to give Exchange time to create the Sent Item
     from our sendMail call before we search for duplicates.
+    replace_all=True (encrypted): delete ALL copies, create fresh readable JSON item.
+    replace_all=False (signed): delete originals only, keep sendMail copy.
     """
     for delay in (8, 20, 45):
         await asyncio.sleep(delay)
-        result = await graph_client.cleanup_sent_items(sender, message_id, html_body)
+        result = await graph_client.cleanup_sent_items(
+            sender, message_id, html_body,
+            subject=subject, to_recipients=to_recipients or [],
+            replace_all=replace_all,
+        )
         if result is None:           # permanent 4xx — no point retrying
             return
         if result:                   # True — success, stop retrying
@@ -553,6 +563,7 @@ class SignatureHandler:
                     _smime_signed = True
 
             # ── S/MIME encryption (#enc# in subject) ─────────────────────────
+            _sent_subject = subject  # updated below when encryption succeeds
             if wants_encryption and not _smime_ok:
                 wants_encryption = False
                 log.debug("S/MIME disabled for %s in MAILBOX_CONFIG — skipping encryption", sender)
@@ -572,6 +583,7 @@ class SignatureHandler:
                     # Strip inbound gateway tags (e.g. [verschlüsselt, signiert von ...])
                     # that appear in replies/forwards — they accumulate on each hop.
                     new_subject = _strip_subject_tags(new_subject)
+                    _sent_subject = new_subject
                     enc_msg = email.message_from_bytes(encrypted)
                     # openssl smime -encrypt strips envelope headers — restore them
                     _restore_envelope_headers(enc_msg, msg)
@@ -612,7 +624,12 @@ class SignatureHandler:
                     html = (f"<html><body><pre>"
                             f"{mail_processor._escape_html(txt)}</pre></body></html>")
                 if html:
-                    asyncio.create_task(_cleanup_sent_item(sender, mid, html))
+                    asyncio.create_task(_cleanup_sent_item(
+                        sender, mid, html,
+                        subject=_sent_subject,
+                        to_recipients=recipients,
+                        replace_all=wants_encryption,
+                    ))
 
             return "250 OK"
 
