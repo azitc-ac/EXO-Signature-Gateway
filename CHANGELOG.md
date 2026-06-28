@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.168 — 2026-06-28 — feat: MIME Observatory Schritt D — automatische Analyse-Ergebnisse
+
+debug.html: Neuer Abschnitt "Schritt D — Analyse-Ergebnisse" im Exchange Header Observatory.
+Knopf "Analyse anzeigen" läuft über alle vorhandenen Captures und prüft:
+- Content-Transfer-Encoding (7bit vs. quoted-printable)
+- ACME Response Block (vorhanden/fehlt)
+- Zeilenenden im Body (CRLF vs. bare LF)
+- Thread-Topic / Thread-Index (Exchange-Overhead)
+- ARC-Seal / ARC-Signature / DKIM-Signature (Anzahl + Größe)
+- X-MS-* Header (Anzahl)
+- Gesamtgröße vs. geschätzte Rebuild-Größe (_rebuild_acme_reply)
+Bei ≥2 Captures: automatischer Vergleich "vorher → nachher" (z. B. vor/nach RemoteDomain).
+Jeder Capture bekommt Ampel-Urteil: CASTLE-kompatibel / Hinweise / Probleme.
+
 ## v1.4.166 — 2026-06-28 — fix: MIME Observatory — CRLF, Date/Message-ID, Label-Weitergabe
 
 Testmail-Konstruktion in api_send_graph_acme (webui/app.py):

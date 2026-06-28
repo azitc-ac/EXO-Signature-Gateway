@@ -333,6 +333,22 @@ document.addEventListener('DOMContentLoaded', acmeAccountUsersLoad);
       </div>
     </div>
 
+    <!-- Schritt D: Analyse -->
+    <div style="border:1px solid #e2e8f0;border-radius:6px;padding:14px;margin-top:12px;background:#f8fafc">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <strong style="font-size:13px">Schritt D — Analyse-Ergebnisse</strong>
+        <button class="btn primary" onclick="obsRunAnalysis()">Analyse anzeigen</button>
+      </div>
+      <p style="font-size:12px;color:#555;margin-bottom:10px">
+        Bewertet jeden Capture automatisch: CTE, Thread-Header, ACME-Block-Integrität, Zeilenenden,
+        Exchange-Overhead und CASTLE-Kompatibilität. Bei mehreren Captures werden Unterschiede
+        hervorgehoben (z.&nbsp;B. vor/nach RemoteDomain).
+      </p>
+      <div id="obs-analysis-container">
+        <p style="color:#888;font-size:13px">Noch keine Analyse. "Analyse anzeigen" klicken.</p>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -479,6 +495,220 @@ function obsToggle(id) {
 async function obsClearCaptures() {
   await fetch('/api/test/acme-capture', {method:'DELETE', headers:{'Content-Type':'application/json'}});
   obsRefreshCaptures();
+}
+
+/* ── Schritt D: MIME-Analyse ───────────────────────────────────────────── */
+
+function _obsParseHeaders(raw) {
+  const sep = raw.indexOf('\r\n\r\n') !== -1 ? '\r\n\r\n' : '\n\n';
+  const sepIdx = raw.indexOf(sep);
+  const headerBlock = sepIdx !== -1 ? raw.substring(0, sepIdx) : raw;
+  const body        = sepIdx !== -1 ? raw.substring(sepIdx + sep.length) : '';
+  const map = {};
+  const lines = headerBlock.split(/\r?\n/);
+  let cur = null;
+  for (const line of lines) {
+    if (/^[ \t]/.test(line)) {
+      if (cur) map[cur] += ' ' + line.trim();
+    } else {
+      const ci = line.indexOf(':');
+      if (ci > 0) { cur = line.substring(0, ci).toLowerCase(); map[cur] = line.substring(ci + 1).trim(); }
+    }
+  }
+  return { map, headerBlock, body, allLines: lines };
+}
+
+function _obsAnalyzeOne(raw, label) {
+  const { map, body, allLines } = _obsParseHeaders(raw);
+  const checks = [];
+  let issues = 0;
+  let warnings = 0;
+
+  // 1 — Content-Transfer-Encoding
+  const cte = (map['content-transfer-encoding'] || '').trim() || '(nicht gesetzt)';
+  const cteIs7bit = /7bit/i.test(cte);
+  const cteIsQP   = /quoted-printable/i.test(cte);
+  checks.push({
+    name: 'Content-Transfer-Encoding',
+    value: cte,
+    status: cteIs7bit ? 'ok' : cteIsQP ? 'warn' : 'info',
+    note: cteIs7bit
+      ? 'Token-sicher — Exchange kodiert den Body nicht um.'
+      : cteIsQP
+        ? 'Exchange hat auf quoted-printable umkodiert! RemoteDomain (Schritt A) behebt das. <em>_rebuild_acme_reply</em> kompensiert, weil Pythons email-Bibliothek QP-Body korrekt dekodiert.'
+        : 'Unbekannte Kodierung — prüfen.',
+  });
+  if (cteIsQP) warnings++;
+
+  // 2 — ACME Response Block
+  const hasBlock = body.includes('-----BEGIN ACME RESPONSE-----')
+                && body.includes('-----END ACME RESPONSE-----');
+  checks.push({
+    name: 'ACME Response Block',
+    value: hasBlock ? 'vorhanden' : 'FEHLT',
+    status: hasBlock ? 'ok' : 'fail',
+    note: hasBlock
+      ? '<em>_rebuild_acme_reply</em> kann den Token extrahieren.'
+      : 'Block fehlt — Rebuild nicht möglich, CASTLE würde keine gültige Antwort erhalten!',
+  });
+  if (!hasBlock) issues++;
+
+  // 3 — Zeilenenden im Body
+  const hasCRLF    = body.includes('\r\n');
+  const hasBareLF  = /[^\r]\n/.test(body) || body.startsWith('\n');
+  let leStatus, leNote;
+  if (hasCRLF && !hasBareLF)      { leStatus = 'ok';   leNote = 'CRLF — castle.cloud MX akzeptiert.'; }
+  else if (hasBareLF && !hasCRLF) { leStatus = 'fail'; leNote = 'Bare LF (\\n) — castle.cloud MX würde mit 550 5.6.11 ablehnen. <em>_rebuild_acme_reply</em> baut das MIME neu mit CRLF.'; issues++; }
+  else if (hasBareLF && hasCRLF)  { leStatus = 'warn'; leNote = 'Gemischte Zeilenenden — <em>_rebuild_acme_reply</em> normalisiert auf CRLF.'; warnings++; }
+  else                             { leStatus = 'info'; leNote = 'Kein Body-Inhalt erkennbar.'; }
+  checks.push({ name: 'Zeilenenden (Body)', value: hasCRLF && !hasBareLF ? 'CRLF' : hasBareLF ? 'bare LF' : '(leer)', status: leStatus, note: leNote });
+
+  // 4 — Thread-Topic / Thread-Index
+  const hasThread = ('thread-topic' in map) || ('thread-index' in map);
+  checks.push({
+    name: 'Thread-Topic / Thread-Index',
+    value: hasThread ? 'vorhanden' : 'nicht vorhanden',
+    status: hasThread ? 'warn' : 'ok',
+    note: hasThread
+      ? 'Exchange hat Thread-Header hinzugefügt (+Overhead). <em>_rebuild_acme_reply</em> verwirft sie.'
+      : 'Nicht vorhanden — keine Thread-Header-Inflation.',
+  });
+  if (hasThread) warnings++;
+
+  // 5 — ARC / DKIM
+  const arcLines  = allLines.filter(l => /^arc-/i.test(l));
+  const hasDkim   = 'dkim-signature' in map;
+  const arcNote   = arcLines.length
+    ? `${arcLines.length} ARC-Header (+${Math.round(arcLines.join('').length/1024*10)/10} KB). <em>_rebuild_acme_reply</em> verwirft sie.`
+    : 'Nicht vorhanden.';
+  checks.push({ name: 'ARC-Seal / ARC-Signature', value: arcLines.length ? `${arcLines.length} Header` : 'nicht vorhanden', status: 'info', note: arcNote });
+  checks.push({
+    name: 'DKIM-Signature',
+    value: hasDkim ? 'vorhanden' : 'nicht vorhanden',
+    status: 'info',
+    note: hasDkim ? 'Exchange DKIM — irrelevant für CASTLE, wird verworfen.' : 'Nicht vorhanden.',
+  });
+
+  // 6 — X-MS-* Headers
+  const xmsLines = allLines.filter(l => /^x-ms-/i.test(l));
+  checks.push({
+    name: 'X-MS-* Header',
+    value: `${xmsLines.length} Header`,
+    status: 'info',
+    note: `Exchange-internes Routing-Metadaten. <em>_rebuild_acme_reply</em> verwirft alle.`,
+  });
+
+  // 7 — Auto-Submitted
+  const autoSub = map['auto-submitted'] || '(nicht gesetzt)';
+  checks.push({
+    name: 'Auto-Submitted',
+    value: autoSub,
+    status: 'info',
+    note: '<em>_rebuild_acme_reply</em> setzt diesen Header in der gesäuberten Mail auf "auto-generated".',
+  });
+
+  // 8 — Gesamtgröße vs. Rebuild-Ergebnis
+  const totalKB = (raw.length / 1024).toFixed(1);
+  let acmeBlockSize = 0;
+  const bm = body.match(/-----BEGIN ACME RESPONSE-----[\r\n]+([A-Za-z0-9_=\-+/]+)[\r\n]+-----END ACME RESPONSE-----/);
+  if (bm) {
+    const rebuilt = '-----BEGIN ACME RESPONSE-----\r\n' + bm[1].trim() + '\r\n-----END ACME RESPONSE-----\r\n';
+    acmeBlockSize = Math.round(rebuilt.length + 250); // + approx. minimal headers
+  }
+  checks.push({
+    name: 'Gesamtgröße / Rebuild',
+    value: `${totalKB} KB`,
+    status: 'info',
+    note: acmeBlockSize
+      ? `Exchange-Mail: ${totalKB} KB. Nach <em>_rebuild_acme_reply</em>: ~${acmeBlockSize} Bytes — nur ACME-Block + Envelope-Header.`
+      : `Exchange-Mail: ${totalKB} KB.`,
+  });
+
+  // Verdict
+  const verdict = issues > 0 ? 'fail' : warnings > 0 ? 'warn' : 'ok';
+  return { label, checks, verdict, issues, warnings };
+}
+
+function _obsRenderAnalysis(analyses) {
+  if (!analyses.length) return '<p style="color:#888;font-size:13px">Keine Captures vorhanden.</p>';
+
+  const statusIcon = s => s === 'ok' ? '✓' : s === 'warn' ? '⚠' : s === 'fail' ? '✗' : 'ℹ';
+  const statusColor = s => s === 'ok' ? '#16a34a' : s === 'warn' ? '#b45309' : s === 'fail' ? '#dc2626' : '#64748b';
+  const verdictLabel = v => v === 'ok' ? 'CASTLE-kompatibel ✓' : v === 'warn' ? 'Hinweise — Rebuild kompensiert ⚠' : 'Probleme — Rebuild evtl. beeinträchtigt ✗';
+  const verdictBg = v => v === 'ok' ? '#f0fdf4' : v === 'warn' ? '#fffbeb' : '#fef2f2';
+  const verdictBorder = v => v === 'ok' ? '#86efac' : v === 'warn' ? '#fcd34d' : '#fca5a5';
+  const verdictTextColor = v => v === 'ok' ? '#15803d' : v === 'warn' ? '#92400e' : '#991b1b';
+
+  // Comparison delta (if >=2 captures): which checks changed?
+  let deltaHtml = '';
+  if (analyses.length >= 2) {
+    const a = analyses[analyses.length - 2]; // second-to-last = "vorher"
+    const b = analyses[analyses.length - 1]; // last = "nachher"
+    const changed = [];
+    for (let i = 0; i < Math.min(a.checks.length, b.checks.length); i++) {
+      if (a.checks[i].status !== b.checks[i].status || a.checks[i].value !== b.checks[i].value) {
+        changed.push(`<strong>${obsEsc(a.checks[i].name)}</strong>:
+          <span style="color:${statusColor(a.checks[i].status)}">${obsEsc(a.checks[i].value)}</span>
+          → <span style="color:${statusColor(b.checks[i].status)}">${obsEsc(b.checks[i].value)}</span>`);
+      }
+    }
+    if (changed.length) {
+      deltaHtml = `<div style="border:1px solid #bae6fd;background:#f0f9ff;border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:12px">
+        <strong style="display:block;margin-bottom:6px;color:#0369a1">Unterschiede: "${obsEsc(a.label)}" → "${obsEsc(b.label)}"</strong>
+        ${changed.map(c => `<div style="margin-bottom:3px">• ${c}</div>`).join('')}
+      </div>`;
+    } else {
+      deltaHtml = `<div style="border:1px solid #d1fae5;background:#f0fdf4;border-radius:6px;padding:8px 14px;margin-bottom:14px;font-size:12px;color:#15803d">
+        Kein Unterschied zwischen "${obsEsc(a.label)}" und "${obsEsc(b.label)}" — beide Captures sind identisch.
+      </div>`;
+    }
+  }
+
+  const cards = analyses.map((a, idx) => {
+    const rows = a.checks.map(c => `
+      <tr>
+        <td style="padding:5px 10px;font-size:12px;color:#374151;border-bottom:1px solid #f1f5f9;white-space:nowrap">${obsEsc(c.name)}</td>
+        <td style="padding:5px 10px;font-size:12px;font-family:monospace;border-bottom:1px solid #f1f5f9;white-space:nowrap">
+          <span style="color:${statusColor(c.status)};font-weight:600">${statusIcon(c.status)} ${obsEsc(c.value)}</span>
+        </td>
+        <td style="padding:5px 10px;font-size:11px;color:#555;border-bottom:1px solid #f1f5f9;line-height:1.5">${c.note}</td>
+      </tr>`).join('');
+
+    return `<div style="margin-bottom:14px;border:1px solid ${verdictBorder(a.verdict)};border-radius:6px;overflow:hidden">
+      <div style="background:${verdictBg(a.verdict)};padding:8px 12px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-weight:600;font-size:13px;color:${verdictTextColor(a.verdict)}">${verdictLabel(a.verdict)}</span>
+        <span style="font-size:12px;color:#555">${obsEsc(a.label)}</span>
+      </div>
+      <table style="width:100%;border-collapse:collapse;background:#fff">
+        <thead>
+          <tr style="background:#f8fafc">
+            <th style="padding:5px 10px;font-size:11px;text-align:left;color:#6b7280;width:200px">Prüfung</th>
+            <th style="padding:5px 10px;font-size:11px;text-align:left;color:#6b7280;width:180px">Wert</th>
+            <th style="padding:5px 10px;font-size:11px;text-align:left;color:#6b7280">Bewertung</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+  }).join('');
+
+  return deltaHtml + cards;
+}
+
+async function obsRunAnalysis() {
+  const container = document.getElementById('obs-analysis-container');
+  container.innerHTML = '<p style="color:#888;font-size:13px">Lade Captures…</p>';
+  const r = await fetch('/api/test/acme-capture');
+  const d = await r.json();
+  const captures = d.captures || [];
+  if (!captures.length) {
+    container.innerHTML = '<p style="color:#888;font-size:13px">Keine Captures vorhanden. Erst Schritt B ausführen.</p>';
+    return;
+  }
+  // Analyse läuft auf umgekehrter Reihenfolge (API: neueste zuerst), wir kehren um für Vergleich alt→neu
+  const sorted = [...captures].reverse();
+  const analyses = sorted.map(c => _obsAnalyzeOne(c.raw || '', c.label || ''));
+  container.innerHTML = _obsRenderAnalysis(analyses);
 }
 </script>
 <!-- ── Hintergrund: Warum kein ACS nötig ist ──────────────────────────────── -->
