@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.202 — 2026-06-28 — fix: azure-vm-setup.ps1 UTF-8 BOM hinzugefügt
+
+BOM (EF BB BF) an Dateianfang gesetzt. PowerShell 5.x liest .ps1-Dateien
+ohne BOM als ANSI/Windows-1252 — dabei werden UTF-8-Mehrbyte-Sequenzen
+(→, —, ━, Umlaute) falsch dekodiert. Bytes wie \x92 (''), \x93/94 ("")
+gelten als String-Delimiter und verursachen kaskadierte Parse-Fehler.
+Mit BOM erkennt PS 5.x die korrekte UTF-8-Codierung.
+
 ## v1.4.200 — 2026-06-28 — fix: azure-vm-setup.ps1 here-string durch Array-join ersetzt
 
 @'...'@-here-string → @(...) -join "`n" — PS 5.x unter Windows erkennt
