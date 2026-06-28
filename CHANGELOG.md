@@ -1,7 +1,7 @@
 # Changelog — EXO Signature Gateway
 
 Format: `v[VERSION] — [Datum] — [Kurzbeschreibung]`  
-Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext versteht.
+Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
