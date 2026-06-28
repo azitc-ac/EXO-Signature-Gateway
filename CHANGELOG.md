@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.188 — 2026-06-28 — fix: azure-vm-setup.ps1 PATH-Refresh vor az-Check
+
+$env:Path aus der Registry neu laden bevor Get-Command az aufgerufen wird.
+Verhindert "Azure CLI nicht gefunden"-Fehler direkt nach der Installation,
+wenn die laufende PS-Session den aktualisierten PATH noch nicht kennt.
+
 ## v1.4.186 — 2026-06-28 — fix: azure-vm-setup.ps1 Here-String PS5-kompatibel
 
 azure-vm-setup.ps1: @"..."@ → @'...'@ (single-quoted here-string).

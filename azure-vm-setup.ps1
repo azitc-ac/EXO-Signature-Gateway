@@ -49,8 +49,12 @@ function Write-Info($msg) { Write-Host "    $msg" -ForegroundColor Gray }
 # ── Prüfungen ──────────────────────────────────────────────────────────────────
 Write-Step "Voraussetzungen prüfen"
 
+# PATH aus der Registry neu laden — nötig wenn Azure CLI gerade erst installiert wurde
+$env:Path = [System.Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' +
+            [System.Environment]::GetEnvironmentVariable('Path', 'User')
+
 if (-not (Get-Command az -ErrorAction SilentlyContinue)) {
-    throw "Azure CLI (az) nicht gefunden. Installation: https://aka.ms/installazurecliwindows"
+    throw "Azure CLI (az) nicht gefunden. Installation: https://aka.ms/installazurecliwindows`nFalls gerade installiert: PowerShell-Fenster neu starten und Skript erneut ausführen."
 }
 $login = az account show 2>$null | ConvertFrom-Json
 if (-not $login) { throw "Nicht bei Azure angemeldet. Bitte 'az login' ausführen." }
