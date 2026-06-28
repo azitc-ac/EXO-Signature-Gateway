@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.196 — 2026-06-28 — fix: azure-vm-setup.ps1 Invoke-Az Wrapper gegen NativeCommandError
+
+Neue Hilfsfunktion Invoke-Az { scriptblock } kapselt alle az-Aufrufe:
+- $ErrorActionPreference="Continue" + 2>$null intern — stderr von az (Warnings,
+  Infomeldungen wie "region cost") wird vollständig unterdrückt
+- $LASTEXITCODE-Prüfung danach — echte Fehler werfen trotzdem eine Exception
+Alle az-Aufrufe im Script auf Invoke-Az { az ... } umgestellt.
+
 ## v1.4.194 — 2026-06-28 — fix: azure-vm-setup.ps1 AZURE_CORE_ONLY_SHOW_ERRORS
 
 $env:AZURE_CORE_ONLY_SHOW_ERRORS=true am Skriptanfang gesetzt.

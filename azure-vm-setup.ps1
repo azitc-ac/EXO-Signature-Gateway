@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env pwsh
+#!/usr/bin/env pwsh
 <#
 .SYNOPSIS
     Erstellt eine Azure VM für den EXO Signature Gateway.
@@ -42,12 +42,23 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-# Az CLI: nur echte Fehler auf stderr, keine Warnings — verhindert NativeCommandError in PS 5.x
+# Az CLI: Infomeldungen und Warnings nicht auf stderr ausgeben
 $env:AZURE_CORE_ONLY_SHOW_ERRORS = 'true'
 
 function Write-Step($msg) { Write-Host "`n==> $msg" -ForegroundColor Cyan }
 function Write-Ok($msg)   { Write-Host "    OK: $msg" -ForegroundColor Green }
 function Write-Info($msg) { Write-Host "    $msg" -ForegroundColor Gray }
+
+# Wrapper für az-Aufrufe: stderr intern unterdrücken, bei echtem Fehler abbrechen.
+# PS 5.x behandelt jede stderr-Ausgabe nativer Befehle als NativeCommandError —
+# das verhindert diese Funktion, ohne echte Fehler zu verschlucken.
+function Invoke-Az([scriptblock]$cmd) {
+    $ErrorActionPreference = "Continue"
+    $result = & $cmd 2>$null
+    $ec = $LASTEXITCODE
+    if ($ec -ne 0) { throw "az-Aufruf fehlgeschlagen (ExitCode $ec)" }
+    $result
+}
 
 # ── Prüfungen ──────────────────────────────────────────────────────────────────
 Write-Step "Voraussetzungen prüfen"
@@ -59,6 +70,7 @@ $env:Path = [System.Environment]::GetEnvironmentVariable('Path', 'Machine') + ';
 if (-not (Get-Command az -ErrorAction SilentlyContinue)) {
     throw "Azure CLI (az) nicht gefunden. Installation: https://aka.ms/installazurecliwindows`nFalls gerade installiert: PowerShell-Fenster neu starten und Skript erneut ausführen."
 }
+
 $login = $null
 try { $login = (az account show 2>$null) | ConvertFrom-Json } catch {}
 if (-not $login) {
@@ -75,39 +87,44 @@ Write-Ok "SSH-Key: $sshKey"
 
 # ── Ressourcengruppe ───────────────────────────────────────────────────────────
 Write-Step "Ressourcengruppe '$ResourceGroup' in '$Location'"
-az group create --name $ResourceGroup --location $Location --output none
+Invoke-Az { az group create --name $ResourceGroup --location $Location --output none }
 Write-Ok "Ressourcengruppe bereit"
 
 # ── Statische öffentliche IP ───────────────────────────────────────────────────
 Write-Step "Statische öffentliche IP anlegen"
-az network public-ip create `
-    --resource-group $ResourceGroup `
-    --name "$VmName-ip" `
-    --allocation-method Static `
-    --sku Standard `
-    --output none
-$publicIp = (az network public-ip show `
-    --resource-group $ResourceGroup `
-    --name "$VmName-ip" `
-    --query "ipAddress" -o tsv)
+Invoke-Az {
+    az network public-ip create `
+        --resource-group $ResourceGroup `
+        --name "$VmName-ip" `
+        --allocation-method Static `
+        --sku Standard `
+        --output none
+}
+$publicIp = Invoke-Az {
+    az network public-ip show `
+        --resource-group $ResourceGroup `
+        --name "$VmName-ip" `
+        --query "ipAddress" -o tsv
+}
 Write-Ok "Öffentliche IP: $publicIp"
 
 # ── VM anlegen ─────────────────────────────────────────────────────────────────
 Write-Step "VM '$VmName' anlegen (Standard_B1ms, Debian 12 Bookworm)"
 Write-Info "Das dauert ca. 2–3 Minuten..."
 
-az vm create `
-    --resource-group $ResourceGroup `
-    --name $VmName `
-    --image Debian:debian-12:12:latest `
-    --size Standard_B1ms `
-    --admin-username $AdminUser `
-    --ssh-key-values $sshKeyContent `
-    --public-ip-address "$VmName-ip" `
-    --public-ip-sku Standard `
-    --os-disk-size-gb 32 `
-    --output none
-
+Invoke-Az {
+    az vm create `
+        --resource-group $ResourceGroup `
+        --name $VmName `
+        --image Debian:debian-12:12:latest `
+        --size Standard_B1ms `
+        --admin-username $AdminUser `
+        --ssh-key-values $sshKeyContent `
+        --public-ip-address "$VmName-ip" `
+        --public-ip-sku Standard `
+        --os-disk-size-gb 32 `
+        --output none
+}
 Write-Ok "VM erstellt"
 
 # ── Netzwerk-Sicherheitsgruppe: Ports öffnen ──────────────────────────────────
@@ -121,17 +138,19 @@ $rules = @(
 )
 
 foreach ($r in $rules) {
-    az network nsg rule create `
-        --resource-group $ResourceGroup `
-        --nsg-name "$VmName-NSG" `
-        --name $r.name `
-        --priority $r.prio `
-        --protocol Tcp `
-        --destination-port-ranges $r.port `
-        --access Allow `
-        --direction Inbound `
-        --description $r.desc `
-        --output none
+    Invoke-Az {
+        az network nsg rule create `
+            --resource-group $ResourceGroup `
+            --nsg-name "$VmName-NSG" `
+            --name $r.name `
+            --priority $r.prio `
+            --protocol Tcp `
+            --destination-port-ranges $r.port `
+            --access Allow `
+            --direction Inbound `
+            --description $r.desc `
+            --output none
+    }
     Write-Ok "Port $($r.port) ($($r.name)) geöffnet"
 }
 
@@ -181,13 +200,14 @@ runcmd:
 $cloudInitFile = [System.IO.Path]::GetTempFileName()
 $cloudInit | Set-Content $cloudInitFile -Encoding UTF8
 
-az vm run-command invoke `
-    --resource-group $ResourceGroup `
-    --name $VmName `
-    --command-id RunShellScript `
-    --scripts (Get-Content $cloudInitFile -Raw) `
-    --output none
-
+Invoke-Az {
+    az vm run-command invoke `
+        --resource-group $ResourceGroup `
+        --name $VmName `
+        --command-id RunShellScript `
+        --scripts (Get-Content $cloudInitFile -Raw) `
+        --output none
+}
 Remove-Item $cloudInitFile
 
 Write-Ok "Installations-Skript gestartet"
