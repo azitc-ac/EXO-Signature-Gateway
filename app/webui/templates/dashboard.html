@@ -29,11 +29,18 @@
 {% else %}{{ val }}{% endif %}
 {% endmacro %}
 
+{% macro stat_cell_3d(val, action) %}
+{% if val and val > 0 %}
+<a href="#" class="audit-link-3d" data-action="{{ action }}"
+   style="color:inherit;text-decoration:none;border-bottom:1px dotted #aaa;cursor:pointer">{{ val }}</a>
+{% else %}{{ val or 0 }}{% endif %}
+{% endmacro %}
+
 {% macro stat_row(label, d, d3, m2, m1, m, py, y, action) %}
 <tr style="border-bottom:1px solid #f0f0f0">
   <td style="padding:7px 0;font-size:13px;color:#44403c;font-weight:500">{{ label }}</td>
   <td style="padding:7px 10px;text-align:right;font-size:15px;font-weight:700;color:#1c1917">{{ stat_cell(d, action, today) }}</td>
-  <td style="padding:7px 10px;text-align:right;font-size:14px;font-weight:600;color:#44403c">{{ d3 or 0 }}</td>
+  <td style="padding:7px 10px;text-align:right;font-size:14px;font-weight:600;color:#44403c">{{ stat_cell_3d(d3, action) }}</td>
   <td class="col-m2" style="padding:7px 8px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(m2, action, prev_month_2) }}</td>
   <td class="col-m1" style="padding:7px 8px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(m1, action, prev_month_1) }}</td>
   <td style="padding:7px 10px;text-align:right;font-size:14px;color:#78716c">{{ stat_cell(m, action, today_month) }}</td>
@@ -75,7 +82,7 @@
       <tr style="border-bottom:1px solid #f0f0f0">
         <td style="padding:7px 0;font-size:13px;color:#d97706;font-weight:500">Fallback</td>
         <td style="padding:7px 10px;text-align:right;font-size:15px;font-weight:700;color:#d97706">{{ stat_cell(stats_daily.fallback, "fallback", today) }}</td>
-        <td style="padding:7px 10px;text-align:right;font-size:14px;font-weight:600;color:#d97706">{{ stats_3d.fallback or 0 }}</td>
+        <td style="padding:7px 10px;text-align:right;font-size:14px;font-weight:600;color:#d97706">{{ stat_cell_3d(stats_3d.fallback, "fallback") }}</td>
         <td class="col-m2" style="padding:7px 8px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(stats_monthly_m2.fallback, "fallback", prev_month_2) }}</td>
         <td class="col-m1" style="padding:7px 8px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(stats_monthly_m1.fallback, "fallback", prev_month_1) }}</td>
         <td style="padding:7px 10px;text-align:right;font-size:14px;color:#78716c">{{ stat_cell(stats_monthly.fallback, "fallback", today_month) }}</td>
@@ -85,7 +92,7 @@
       <tr>
         <td style="padding:7px 0;font-size:13px;color:#dc2626;font-weight:500">Fehler</td>
         <td style="padding:7px 10px;text-align:right;font-size:15px;font-weight:700;color:#dc2626">{{ stat_cell(stats_daily.errors, "error", today) }}</td>
-        <td style="padding:7px 10px;text-align:right;font-size:14px;font-weight:600;color:#dc2626">{{ stats_3d.errors or 0 }}</td>
+        <td style="padding:7px 10px;text-align:right;font-size:14px;font-weight:600;color:#dc2626">{{ stat_cell_3d(stats_3d.errors, "error") }}</td>
         <td class="col-m2" style="padding:7px 8px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(stats_monthly_m2.errors, "error", prev_month_2) }}</td>
         <td class="col-m1" style="padding:7px 8px;text-align:right;font-size:13px;color:#a8a29e">{{ stat_cell(stats_monthly_m1.errors, "error", prev_month_1) }}</td>
         <td style="padding:7px 10px;text-align:right;font-size:14px;color:#78716c">{{ stat_cell(stats_monthly.errors, "error", today_month) }}</td>
@@ -563,15 +570,26 @@ const _ACTION_COLORS = {
   error: '#dc2626',
 };
 
-let _auditParams = {date: '', action: '', offset: 0, limit: 100};
+let _auditParams = {date: '', date_from: '', date_to: '', action: '', offset: 0, limit: 100};
 let _auditTotal = 0;
 
 document.querySelectorAll('.audit-link').forEach(el => {
   el.addEventListener('click', e => {
     e.preventDefault();
+    openAuditModal(el.dataset.date || '', el.dataset.action || '');
+  });
+});
+
+document.querySelectorAll('.audit-link-3d').forEach(el => {
+  el.addEventListener('click', e => {
+    e.preventDefault();
     const action = el.dataset.action || '';
-    const date   = el.dataset.date  || '';
-    openAuditModal(date, action);
+    _auditParams = {date: '', date_from: '{{ date_3d_from }}', date_to: '{{ today }}', action, offset: 0, limit: 100};
+    document.getElementById('auditModal').style.display = 'block';
+    document.body.style.overflow = 'hidden';
+    const actionLabel = action ? ' — ' + (_ACTION_LABELS[action] || action) : '';
+    document.getElementById('auditModalTitle').textContent = 'Mail-Protokoll — Letzte 3 Tage' + actionLabel;
+    loadAuditPage();
   });
 });
 
@@ -587,7 +605,7 @@ function _fmtPeriod(date) {
 }
 
 function openAuditModal(date, action, hour) {
-  _auditParams = {date: date || '', action: action || '', offset: 0, limit: 100};
+  _auditParams = {date: date || '', date_from: '', date_to: '', action: action || '', offset: 0, limit: 100};
   document.getElementById('auditModal').style.display = 'block';
   document.body.style.overflow = 'hidden';
   const actionLabel = action ? (' — ' + (_ACTION_LABELS[action] || action)) : '';
@@ -612,8 +630,10 @@ async function loadAuditPage() {
   document.getElementById('auditContent').style.display = 'none';
   const p = _auditParams;
   const qs = new URLSearchParams();
-  if (p.date)   qs.set('date',   p.date);
-  if (p.action) qs.set('action', p.action);
+  if (p.date)      qs.set('date',      p.date);
+  if (p.date_from) qs.set('date_from', p.date_from);
+  if (p.date_to)   qs.set('date_to',   p.date_to);
+  if (p.action)    qs.set('action',    p.action);
   qs.set('limit',  p.limit);
   qs.set('offset', p.offset);
   try {

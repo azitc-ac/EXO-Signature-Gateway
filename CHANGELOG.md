@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.178 — 2026-06-28 — feat: Dashboard "3 Tage"-Spalte klickbar → Audit-Modal mit Datumsbereich
+
+mail_audit.py: query_events + count_events akzeptieren date_from/date_to (YYYY-MM-DD).
+API /api/audit/events: date_from/date_to als Query-Parameter weitergereicht.
+Dashboard: stat_cell_3d-Macro rendert klickbaren Link; JS audit-link-3d-Listener öffnet
+Audit-Modal mit "Letzte 3 Tage"-Filter (date_from/date_to statt einzelnem Datum).
+date_3d_from im Dashboard-Context (today − 2 Tage).
+
 ## v1.4.176 — 2026-06-28 — fix: Dashboard-Tabelle — Zeilenumbruch, Padding, Jahr auf Mobile ausblenden
 
 white-space:nowrap auf alle <th>-Elemente → kein Zeilenumbruch bei "3 Tage".

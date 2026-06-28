@@ -1493,6 +1493,7 @@ async def dashboard(request: Request, user: str = Depends(_check_auth)):
             "stats": total,
             "stats_daily": daily,
             "stats_3d": _stats_mod2.get_last_n_days(3),
+            "date_3d_from": (now - __import__("datetime").timedelta(days=2)).strftime("%Y-%m-%d"),
             "stats_monthly": monthly,
             "stats_monthly_m1": _stats_mod2.get_period(m1y, m1m),
             "stats_monthly_m2": _stats_mod2.get_period(m2y, m2m),
@@ -3228,6 +3229,8 @@ async def api_audit_events(
     request: Request,
     _user: str = Depends(_check_auth),
     date: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
     action: str | None = None,
     sender: str | None = None,
     limit: int = 200,
@@ -3236,10 +3239,12 @@ async def api_audit_events(
     import mail_audit as _audit_mod
     import json as _json
     events = _audit_mod.query_events(
-        date=date, action=action, sender=sender,
+        date=date, date_from=date_from, date_to=date_to,
+        action=action, sender=sender,
         limit=min(limit, 500), offset=offset,
     )
-    total = _audit_mod.count_events(date=date, action=action, sender=sender)
+    total = _audit_mod.count_events(date=date, date_from=date_from, date_to=date_to,
+                                    action=action, sender=sender)
     for e in events:
         try:
             e["recipients"] = _json.loads(e["recipients"] or "[]")

@@ -116,6 +116,8 @@ def _add_date_condition(date: str, conditions: list, params: list) -> None:
 def query_events(
     *,
     date: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
     action: str | None = None,
     sender: str | None = None,
     limit: int = 200,
@@ -128,6 +130,13 @@ def query_events(
     params: list = []
     if date:
         _add_date_condition(date, conditions, params)
+    elif date_from or date_to:
+        if date_from:
+            conditions.append("ts >= ?")
+            params.append(f"{date_from}T00:00:00Z")
+        if date_to:
+            conditions.append("ts <= ?")
+            params.append(f"{date_to}T23:59:59Z")
     if action:
         conditions.append("action = ?")
         params.append(action)
@@ -151,6 +160,8 @@ def query_events(
 def count_events(
     *,
     date: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
     action: str | None = None,
     sender: str | None = None,
 ) -> int:
@@ -160,6 +171,13 @@ def count_events(
     params: list = []
     if date:
         _add_date_condition(date, conditions, params)
+    elif date_from or date_to:
+        if date_from:
+            conditions.append("ts >= ?")
+            params.append(f"{date_from}T00:00:00Z")
+        if date_to:
+            conditions.append("ts <= ?")
+            params.append(f"{date_to}T23:59:59Z")
     if action:
         conditions.append("action = ?")
         params.append(action)
