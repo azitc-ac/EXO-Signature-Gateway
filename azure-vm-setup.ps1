@@ -214,6 +214,11 @@ $cloudInit = @(
     '    ENVEOF',
     "  - chown ${AdminUser}:${AdminUser} /opt/exo-gateway/.env",
     '  - chmod 600 /opt/exo-gateway/.env',
+    '  # Bind-Mount-Verzeichnisse dem Container-User (appuser, UID 1000) uebereignen.',
+    '  # Sonst legt der Docker-Daemon data/ + certs/ beim ersten Mount als root an',
+    '  # und der als appuser laufende Container crasht mit PermissionError (Restart-Loop).',
+    '  - mkdir -p /opt/exo-gateway/data /opt/exo-gateway/certs',
+    '  - chown -R 1000:1000 /opt/exo-gateway/data /opt/exo-gateway/certs',
     '  # Gateway starten',
     '  - cd /opt/exo-gateway && docker compose up -d'
 ) -join "`n"

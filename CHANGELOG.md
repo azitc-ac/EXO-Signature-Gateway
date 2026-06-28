@@ -5,6 +5,25 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.211 — 2026-06-29 — fix: azure-vm-setup.ps1 legt data/ + certs/ vor docker compose an
+
+Frischer Azure-Deploy lief in einen Restart-Loop: Der Docker-Daemon legt die
+Bind-Mount-Ziele ./data und ./certs beim ersten `up` als root an. Der Container
+läuft aber als appuser (UID 1000, Dockerfile: useradd -m appuser) und kann darin
+kein /app/data/logs anlegen → PermissionError in log_manager.setup → Exit 1 →
+Restart-Loop. Das bestehende `chown -R $AdminUser` (cloud-init) griff nicht, weil
+data/certs zum chown-Zeitpunkt noch nicht existieren.
+Fix: vor `docker compose up -d` die Verzeichnisse explizit anlegen und auf
+UID 1000 chownen (= appuser im Container; auf Azure ist AdminUser ohnehin 1000).
+Manueller Workaround auf bereits deployten VMs: `sudo chown -R 1000:1000 data certs`
+in /opt/exo-gateway, dann `docker compose up -d`.
+
+## v1.4.210 — 2026-06-28 — docs: englisches README als Haupt-README + Sprachumschalter
+
+README.md ins Englische übersetzt (neue Haupt-README), bisheriger deutscher Inhalt
+nach README.de.md verschoben. Sprachumschalter (🇬🇧 English | 🇩🇪 Deutsch) oben in
+beiden Dateien, jeweils aktive Sprache fett. Lizenzname/-link unverändert.
+
 ## v1.4.208 — 2026-06-28 — feat: azure-vm-setup.ps1 ARM64 Default (Standard_B2ps_v2)
 
 Gateway läuft bereits auf Raspi (ARM64) — ARM64 Azure-VMs sind günstiger und
