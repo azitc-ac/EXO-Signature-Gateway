@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.200 — 2026-06-28 — fix: azure-vm-setup.ps1 here-string durch Array-join ersetzt
+
+@'...'@-here-string → @(...) -join "`n" — PS 5.x unter Windows erkennt
+single-quoted here-strings mit LF-Zeilenenden nicht korrekt (Parse-Fehler
+auf Zeile 170). Array-join funktioniert auf allen PS-Versionen zuverlässig.
+$AdminUser/$RepoUrl direkt per doppelt-gequoteten Array-Elementen eingebaut,
+kein -replace-Platzhalter mehr nötig.
+
 ## v1.4.198 — 2026-06-28 — feat: azure-vm-setup.ps1 Kosten-Hinweis bei teureren Regionen
 
 Wenn Location nicht northeurope/westeurope: Write-Info-Hinweis auf günstigere
