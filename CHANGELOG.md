@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.166 — 2026-06-28 — fix: MIME Observatory — CRLF, Date/Message-ID, Label-Weitergabe
+
+Testmail-Konstruktion in api_send_graph_acme (webui/app.py):
+- email.policy.SMTP für CRLF-Zeilenenden (bare LF → Exchange-Relay-Abbruch während DATA)
+- Date: und Message-ID: Header ergänzt (fehlten, Exchange muss sie intern hinzufügen)
+- X-ACME-Observatory: {label} Header — überträgt UI-Label ins MIME für handler.py
+
+handler.py: Observatory-Capture liest X-ACME-Observatory-Header als Label statt
+Fest-String "from=... to=..." — Observatory-Label aus der UI erscheint jetzt im Capture.
+
 ## v1.4.164 — 2026-06-28 — feat: erweitertes Debug-Logging (Decrypt/Sign-Pfad, Image-Mode, Signing-Entscheidung)
 
 smime_decrypt.py: Pfad-Tracing welche Decrypt-Methode versucht wird (KV vs. local key)

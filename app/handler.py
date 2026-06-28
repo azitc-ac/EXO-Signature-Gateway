@@ -307,8 +307,10 @@ class SignatureHandler:
             if ("ACME: TEST-" in decoded_subject
                     or msg.get("X-ACME-Observatory")):
                 import mime_observatory as _obs
-                _obs.capture(raw, label=f"from={sender} to={','.join(recipients)}")
-                log.info("MIME Observatory: captured test mail from=%s subject=%r", sender, decoded_subject)
+                _obs_label = (msg.get("X-ACME-Observatory") or "").strip() or f"from={sender}"
+                _obs.capture(raw, label=_obs_label)
+                log.info("MIME Observatory: captured test mail from=%s subject=%r label=%r",
+                         sender, decoded_subject, _obs_label)
 
             # ── ACME challenge reply passthrough ──────────────────────────────
             # Exchange Online strips Auto-Submitted when routing through a

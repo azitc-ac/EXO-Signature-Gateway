@@ -2965,7 +2965,7 @@ async def api_send_graph_acme(request: Request, user: str = Depends(_check_auth)
     if not from_email:
         raise HTTPException(400, "from_email ist erforderlich")
 
-    import uuid, base64 as _b64, email.message, time as _time
+    import uuid, base64 as _b64, email.message, email.policy, email.utils, time as _time
     import graph_reinject as _gr
 
     test_id = uuid.uuid4().hex[:8]
@@ -2982,9 +2982,13 @@ async def api_send_graph_acme(request: Request, user: str = Depends(_check_auth)
     mime["From"]           = from_email
     mime["To"]             = to_email
     mime["Subject"]        = subject
+    mime["Date"]           = email.utils.formatdate(localtime=False)
+    mime["Message-ID"]     = email.utils.make_msgid(domain=from_email.split("@", 1)[-1])
     mime["Auto-Submitted"] = "auto-generated"
+    mime["X-ACME-Observatory"] = label
     mime.set_content(body_text, subtype="plain", charset="us-ascii")
-    raw_mime = mime.as_bytes()
+    # SMTP policy ensures CRLF line endings — Exchange rejects bare-LF MIME on relay
+    raw_mime = mime.as_bytes(policy=email.policy.SMTP)
 
     import asyncio as _asyncio
     ok = await _asyncio.get_event_loop().run_in_executor(
