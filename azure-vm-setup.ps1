@@ -42,6 +42,9 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+# Az CLI: nur echte Fehler auf stderr, keine Warnings — verhindert NativeCommandError in PS 5.x
+$env:AZURE_CORE_ONLY_SHOW_ERRORS = 'true'
+
 function Write-Step($msg) { Write-Host "`n==> $msg" -ForegroundColor Cyan }
 function Write-Ok($msg)   { Write-Host "    OK: $msg" -ForegroundColor Green }
 function Write-Info($msg) { Write-Host "    $msg" -ForegroundColor Gray }

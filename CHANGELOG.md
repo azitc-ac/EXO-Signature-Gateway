@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.194 — 2026-06-28 — fix: azure-vm-setup.ps1 AZURE_CORE_ONLY_SHOW_ERRORS
+
+$env:AZURE_CORE_ONLY_SHOW_ERRORS=true am Skriptanfang gesetzt.
+Az CLI schreibt dann nur echte Fehler auf stderr, keine Warnings.
+Verhindert NativeCommandError in PS 5.x bei jedem az-Aufruf.
+
 ## v1.4.192 — 2026-06-28 — feat: azure-vm-setup.ps1 az login automatisch starten
 
 Wenn az account show kein Login erkennt, wird az login automatisch
