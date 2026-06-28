@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Einstellungen</h1>
+
+<ul class="nav-sub-tabs">
+  <li><a href="/settings" class="nav-sub-tab">Allgemein</a></li>
+  <li><a href="/setup" class="nav-sub-tab">Einrichtung</a></li>
+  <li><a href="/outlook-addin" class="nav-sub-tab">Outlook Add-in</a></li>
+  <li><a href="/debug" class="nav-sub-tab">Erweitert</a></li>
+  <li><a href="/backup" class="nav-sub-tab active">Backup</a></li>
+</ul>
+
+<!-- ── Backup erstellen ────────────────────────────────────────────────────── -->
+<div class="settings-card" style="margin-bottom:20px">
+  <h2>Backup erstellen</h2>
+  <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
+    Erstellt ein vollständiges ZIP-Archiv aller kritischen Gateway-Daten — geeignet
+    für Migrationen, Umzüge auf neue Server oder als regelmäßige Sicherungskopie.
+  </p>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;max-width:640px">
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px">
+      <div style="font-size:12px;font-weight:600;color:#166534;margin-bottom:8px">Im Backup enthalten</div>
+      <ul style="font-size:12px;color:#15803d;margin:0;padding-left:16px;line-height:1.8">
+        <li><code>settings.json</code> — Konfiguration</li>
+        <li><code>auth.pfx</code> — EXO-Auth-Zertifikat</li>
+        <li><code>smime/</code> — S/MIME Keys &amp; Certs</li>
+        <li><code>acme/</code> — ACME Account Keys &amp; Orders</li>
+        <li><code>mail_audit.db</code> — Audit-Protokoll</li>
+        <li><code>stats*.json</code> — Statistiken</li>
+        <li><code>templates/</code> — Signatur-Vorlagen</li>
+      </ul>
+    </div>
+    <div style="background:#fef9f0;border:1px solid #fed7aa;border-radius:8px;padding:12px">
+      <div style="font-size:12px;font-weight:600;color:#9a3412;margin-bottom:8px">Nicht enthalten</div>
+      <ul style="font-size:12px;color:#c2410c;margin:0;padding-left:16px;line-height:1.8">
+        <li><code>logs/</code> — Laufzeit-Logs</li>
+        <li><code>le-config/</code> — Let's Encrypt</li>
+        <li>TLS-Zertifikate</li>
+        <li style="color:#888;list-style:none;padding-left:0;margin-top:4px;font-style:italic">↳ werden auf dem Zielsystem<br>&nbsp;&nbsp;&nbsp;neu ausgestellt</li>
+      </ul>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+    <button class="btn primary" id="backup-dl-btn" onclick="backupDownload()">
+      Backup herunterladen
+    </button>
+    <span id="backup-dl-spinner" style="display:none;font-size:13px;color:#555">Erstelle ZIP…</span>
+    <span style="font-size:12px;color:#94a3b8">v{{ version }}</span>
+  </div>
+  <div id="backup-dl-result" style="display:none;margin-top:10px"></div>
+</div>
+
+<!-- ── Backup wiederherstellen ─────────────────────────────────────────────── -->
+<div class="settings-card" style="margin-bottom:20px">
+  <h2>Backup wiederherstellen</h2>
+
+  <div class="alert warn" style="margin-bottom:16px">
+    <strong>Achtung:</strong> Die Wiederherstellung überschreibt alle vorhandenen Konfigurationsdaten.
+    Nach der Wiederherstellung muss der Container neu gestartet werden.
+  </div>
+
+  <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
+    Backup-ZIP auswählen und hochladen. Logs und Let's Encrypt-Zertifikate werden
+    dabei nicht überschrieben — diese werden auf dem neuen System neu erstellt.
+  </p>
+
+  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+    <input type="file" id="backup-file-input" accept=".zip"
+           style="font-size:13px;border:1px solid #e2e8f0;border-radius:6px;padding:6px 10px;background:#fff">
+    <button class="btn primary" id="backup-restore-btn" onclick="backupRestoreConfirm()"
+            style="background:#dc2626;border-color:#dc2626">
+      Wiederherstellen
+    </button>
+    <span id="backup-restore-spinner" style="display:none;font-size:13px;color:#555">
+      Wird wiederhergestellt…
+    </span>
+  </div>
+  <div id="backup-restore-result" style="display:none;margin-top:10px"></div>
+</div>
+
+<!-- ── Migrations-Anleitung ────────────────────────────────────────────────── -->
+<div class="wizard-step" style="border-color:#0369a133;margin-bottom:20px">
+  <div class="step-header">
+    <span class="step-badge" style="background:#0369a1;font-size:10px">Info</span>
+    <strong>Migration auf einen neuen Server</strong>
+  </div>
+  <div class="step-body">
+    <p style="font-size:13px;color:#555;margin-bottom:12px;line-height:1.6">
+      Zum Umzug auf eine neue VM (z.&nbsp;B. von Raspberry Pi → Azure):
+    </p>
+    <ol style="font-size:13px;color:#555;margin:0 0 0 18px;line-height:2">
+      <li>Backup auf dem alten Server herunterladen (Button oben)</li>
+      <li>Gateway auf dem neuen Server installieren (<code>docker compose up -d</code>)</li>
+      <li>Im Web-UI des neuen Servers: Backup hochladen &amp; wiederherstellen</li>
+      <li>Container neu starten: <code>docker compose restart</code></li>
+      <li>DNS-Eintrag auf die neue IP umstellen</li>
+      <li>TLS-Zertifikat neu ausstellen (ACME läuft automatisch nach Neustart)</li>
+    </ol>
+    <div class="alert success" style="margin-top:14px;margin-bottom:0">
+      <strong>S/MIME &amp; ACME:</strong> Account Keys, Zertifikate und ACME-State werden
+      vollständig migriert — keine manuelle Neuregistrierung nötig.
+    </div>
+  </div>
+</div>
+
+<script>
+async function backupDownload() {
+  const btn     = document.getElementById('backup-dl-btn');
+  const spinner = document.getElementById('backup-dl-spinner');
+  const result  = document.getElementById('backup-dl-result');
+  btn.disabled = true;
+  spinner.style.display = 'inline';
+  result.style.display  = 'none';
+  try {
+    const r = await fetch('/api/backup/download');
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const blob  = await r.blob();
+    const cd    = r.headers.get('Content-Disposition') || '';
+    const match = cd.match(/filename="([^"]+)"/);
+    const fname = match ? match[1] : 'backup.zip';
+    const url   = URL.createObjectURL(blob);
+    const a     = document.createElement('a');
+    a.href = url; a.download = fname; a.click();
+    URL.revokeObjectURL(url);
+    const kb = Math.round(blob.size / 1024);
+    result.innerHTML = `<div class="alert success">
+      <strong>${fname}</strong> heruntergeladen (${kb} KB).
+    </div>`;
+  } catch(e) {
+    result.innerHTML = `<div class="alert error"><strong>Fehler:</strong> ${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    spinner.style.display = 'none';
+    result.style.display  = 'block';
+  }
+}
+
+function backupRestoreConfirm() {
+  const input = document.getElementById('backup-file-input');
+  if (!input.files.length) {
+    alert('Bitte zuerst eine Backup-ZIP-Datei auswählen.');
+    return;
+  }
+  const fname = input.files[0].name;
+  if (!confirm(
+    `Backup "${fname}" wiederherstellen?\n\n` +
+    `Alle vorhandenen Konfigurationsdaten werden überschrieben.\n` +
+    `Danach ist ein Container-Neustart erforderlich.\n\n` +
+    `Fortfahren?`
+  )) return;
+  backupRestore();
+}
+
+async function backupRestore() {
+  const input   = document.getElementById('backup-file-input');
+  const btn     = document.getElementById('backup-restore-btn');
+  const spinner = document.getElementById('backup-restore-spinner');
+  const result  = document.getElementById('backup-restore-result');
+  btn.disabled = true;
+  spinner.style.display = 'inline';
+  result.style.display  = 'none';
+  try {
+    const fd = new FormData();
+    fd.append('file', input.files[0]);
+    const r = await fetch('/api/backup/restore', {method: 'POST', body: fd});
+    const d = await r.json();
+    if (d.ok) {
+      const warns = (d.warnings || []).map(w =>
+        `<li style="color:#92400e">${w}</li>`).join('');
+      result.innerHTML = `<div class="alert success">
+        <strong>Wiederhergestellt!</strong> ${d.restored_files} Dateien.
+        ${warns ? `<ul style="margin:8px 0 0;padding-left:18px">${warns}</ul>` : ''}
+        <div style="margin-top:10px;font-weight:600;color:#166534">
+          ➔ Bitte Container jetzt neu starten:
+          <code style="background:#dcfce7;padding:2px 6px;border-radius:4px">docker compose restart</code>
+        </div>
+      </div>`;
+    } else {
+      result.innerHTML = `<div class="alert error">
+        <strong>Fehler:</strong> ${d.error || 'Unbekannter Fehler'}
+      </div>`;
+    }
+  } catch(e) {
+    result.innerHTML = `<div class="alert error"><strong>Netzwerkfehler:</strong> ${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    spinner.style.display = 'none';
+    result.style.display  = 'block';
+  }
+}
+</script>
+{% endblock %}

@@ -1933,6 +1933,45 @@ async def api_smime_set_default(cert_email: str, slot_id: str, user: str = Depen
     return JSONResponse({"ok": True})
 
 
+@app.get("/backup", response_class=HTMLResponse)
+async def backup_page(request: Request, user: str = Depends(_require_admin)):
+    return templates.TemplateResponse(
+        request=request, name="backup.html",
+        context={"active": "backup", "gateway_name": _gateway_name(),
+                 "version": config.VERSION},
+    )
+
+
+@app.get("/api/backup/download")
+async def api_backup_download(user: str = Depends(_require_admin)):
+    """Vollständiges Backup als ZIP herunterladen."""
+    import backup_manager as _bm
+    import asyncio as _aio
+    from fastapi.responses import Response as _Resp
+    zip_bytes, filename = await _aio.get_event_loop().run_in_executor(
+        None, _bm.create_backup
+    )
+    return _Resp(
+        content=zip_bytes,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.post("/api/backup/restore")
+async def api_backup_restore(
+    file: UploadFile = File(...),
+    _user: str = Depends(_require_admin),
+):
+    """Backup-ZIP hochladen und wiederherstellen."""
+    import backup_manager as _bm
+    data = await file.read()
+    result = await __import__("asyncio").get_event_loop().run_in_executor(
+        None, _bm.restore_backup, data
+    )
+    return JSONResponse(result)
+
+
 @app.get("/debug", response_class=HTMLResponse)
 async def debug_page(request: Request, user: str = Depends(_require_admin)):
     import support_upload as _sup

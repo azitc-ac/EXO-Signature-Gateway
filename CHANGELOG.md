@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.182 — 2026-06-28 — feat: Backup & Wiederherstellung
+
+Neues Modul app/backup_manager.py:
+- create_backup(): ZIP mit data/ (settings, auth.pfx, smime/, acme/, mail_audit.db,
+  stats*.json, selfservice_tokens.json) + templates/ (*.html, *.txt)
+  Nicht enthalten: logs/, le-config/, le-logs/, le-work/, acme-webroot/
+- validate_backup(): prüft data/settings.json als Mindestanforderung
+- restore_backup(): entpackt selektiv, Pfad-Traversal-Schutz, settings_store.init() danach
+
+webui/app.py:
+- GET  /backup           — neue Seite (Admin)
+- GET  /api/backup/download — ZIP-Download
+- POST /api/backup/restore  — ZIP-Upload, Wiederherstellung
+
+backup.html: Backup/Restore-UI mit Was-ist-enthalten-Übersicht,
+Bestätigungs-Dialog vor Restore, Migrationsanleitung (RPi → Azure).
+Sub-Tab "Backup" in settings, setup, debug, addin eingefügt.
+
 ## v1.4.180 — 2026-06-28 — fix: Harvest — Cert nur speichern wenn Fingerprint neu
 
 smime_store.store_recipient_cert: vergleicht SHA-256-Fingerprint des neuen Certs
