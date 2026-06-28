@@ -99,6 +99,7 @@ async def sign_async(message_bytes: bytes, sender: str) -> bytes | None:
     try:
         import keyvault
         if keyvault.is_configured() and await keyvault.key_exists(sender):
+            log.debug("S/MIME sign_async: trying Key Vault for %s", sender)
             cert_path = smime_store.get_signing_cert_path(sender)
             if cert_path and cert_path.exists():
                 import cms_sign
@@ -128,4 +129,5 @@ async def sign_async(message_bytes: bytes, sender: str) -> bytes | None:
         )
 
     # Fallback: local key or backup key (key.pem.bak) when KV is unavailable
+    log.debug("S/MIME sign_async: using local openssl for %s", sender)
     return sign(message_bytes, sender, use_backup=True)

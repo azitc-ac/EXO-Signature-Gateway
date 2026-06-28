@@ -217,10 +217,12 @@ async def decrypt(message_bytes: bytes, recipient: str) -> bytes | None:
     """
     import keyvault as _kv
     if _kv.is_configured():
+        log.debug("S/MIME decrypt: trying Key Vault for %s", recipient)
         result = await _decrypt_keyvault(message_bytes, recipient)
         if result is not None:
             return result
         # KV failed — fall back to local backup if available
+        log.debug("S/MIME decrypt: KV failed, trying local backup key for %s", recipient)
         local = _decrypt_local(message_bytes, recipient)
         if local is not None:
             log.warning("S/MIME decrypt: KV failed for %s, used local backup key", recipient)
@@ -229,6 +231,7 @@ async def decrypt(message_bytes: bytes, recipient: str) -> bytes | None:
         return None
 
     # No KV — local only
+    log.debug("S/MIME decrypt: no KV configured, trying local key for %s", recipient)
     result = _decrypt_local(message_bytes, recipient)
     if result is None:
         log.warning("S/MIME decrypt: no local key and Key Vault not configured for %s", recipient)

@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.164 — 2026-06-28 — feat: erweitertes Debug-Logging (Decrypt/Sign-Pfad, Image-Mode, Signing-Entscheidung)
+
+smime_decrypt.py: Pfad-Tracing welche Decrypt-Methode versucht wird (KV vs. local key)
+smime_signer.py: Pfad-Tracing welche Sign-Methode verwendet wird (Key Vault vs. local openssl)
+handler.py: log.debug() für Image-Mode-Entscheidung (SIG_IMAGE_MODE → use_cid_images)
+handler.py: log.debug() für S/MIME-Signing-Entscheidung (smime_ok, wants_encryption, signed)
+
 ## v1.4.162 — 2026-06-28 — feat: permanentes Debug-Logging für Subject-Verarbeitung
 
 handler.py: log.debug() für alle Subject-Transformationen (bei LOG_LEVEL=DEBUG sichtbar):

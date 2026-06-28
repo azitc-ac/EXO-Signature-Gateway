@@ -554,6 +554,8 @@ class SignatureHandler:
                 else False if _img_mode == "inline"
                 else not wants_encryption  # auto: CID for plain/signed, inline for encrypted
             )
+            log.debug("Image mode: %r → use_cid_images=%s (wants_encryption=%s)",
+                      _img_mode, _use_cid, wants_encryption)
             modified = mail_processor.inject(msg, sig_html, sig_txt,
                                               use_cid_images=_use_cid)
             outbound = modified.as_bytes()
@@ -566,12 +568,15 @@ class SignatureHandler:
             # For encrypted mail the pkcs7 envelope itself provides integrity.
             _smime_ok = not _mailbox_cfg or _sender_cfg.get("smime", True)
             _smime_signed = False
+            log.debug("S/MIME signing: smime_ok=%s, wants_encryption=%s for %s",
+                      _smime_ok, wants_encryption, sender)
             if not wants_encryption and _smime_ok:
                 import smime_signer
                 signed = await smime_signer.sign_async(outbound, sender)
                 if signed:
                     outbound = signed
                     _smime_signed = True
+            log.debug("S/MIME signing: signed=%s for %s", _smime_signed, sender)
 
             # ── S/MIME encryption (#enc# in subject) ─────────────────────────
             _sent_subject = subject  # updated below when encryption succeeds
