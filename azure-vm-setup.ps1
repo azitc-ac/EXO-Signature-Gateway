@@ -87,6 +87,10 @@ Write-Ok "SSH-Key: $sshKey"
 
 # ── Ressourcengruppe ───────────────────────────────────────────────────────────
 Write-Step "Ressourcengruppe '$ResourceGroup' in '$Location'"
+if ($Location -notin @('northeurope','westeurope')) {
+    Write-Info "Tipp: 'northeurope' oder 'westeurope' sind oft günstiger als '$Location'."
+    Write-Info "      Für strenge EU-Datenschutzanforderungen bleibt '$Location' die richtige Wahl."
+}
 Invoke-Az { az group create --name $ResourceGroup --location $Location --output none }
 Write-Ok "Ressourcengruppe bereit"
 

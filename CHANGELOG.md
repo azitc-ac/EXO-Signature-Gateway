@@ -5,6 +5,11 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.198 — 2026-06-28 — feat: azure-vm-setup.ps1 Kosten-Hinweis bei teureren Regionen
+
+Wenn Location nicht northeurope/westeurope: Write-Info-Hinweis auf günstigere
+Alternativen — statt auf az-Stderr-Meldung zu verlassen (wird jetzt unterdrückt).
+
 ## v1.4.196 — 2026-06-28 — fix: azure-vm-setup.ps1 Invoke-Az Wrapper gegen NativeCommandError
 
 Neue Hilfsfunktion Invoke-Az { scriptblock } kapselt alle az-Aufrufe:
