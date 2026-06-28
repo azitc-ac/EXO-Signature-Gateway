@@ -5,6 +5,11 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.204 — 2026-06-28 — fix: Invoke-Az zeigt az-Fehlermeldung bei ExitCode != 0
+
+2>&1 statt 2>$null: ErrorRecord-Objekte werden bei Fehler in Rot ausgegeben,
+damit der eigentliche az-Fehlertext sichtbar ist statt nur ExitCode 1.
+
 ## v1.4.202 — 2026-06-28 — fix: azure-vm-setup.ps1 UTF-8 BOM hinzugefügt
 
 BOM (EF BB BF) an Dateianfang gesetzt. PowerShell 5.x liest .ps1-Dateien

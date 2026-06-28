@@ -54,9 +54,14 @@ function Write-Info($msg) { Write-Host "    $msg" -ForegroundColor Gray }
 # das verhindert diese Funktion, ohne echte Fehler zu verschlucken.
 function Invoke-Az([scriptblock]$cmd) {
     $ErrorActionPreference = "Continue"
-    $result = & $cmd 2>$null
-    $ec = $LASTEXITCODE
-    if ($ec -ne 0) { throw "az-Aufruf fehlgeschlagen (ExitCode $ec)" }
+    $output = & $cmd 2>&1
+    $ec     = $LASTEXITCODE
+    $errors = $output | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] }
+    $result = $output | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] }
+    if ($ec -ne 0) {
+        if ($errors) { Write-Host ($errors -join "`n") -ForegroundColor Red }
+        throw "az-Aufruf fehlgeschlagen (ExitCode $ec)"
+    }
     $result
 }
 
