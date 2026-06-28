@@ -34,7 +34,7 @@
         -SshPublicKeyFile "~/.ssh/id_rsa.pub"
 
 .EXAMPLE
-    .\azure-vm-setup.ps1 -Location "northeurope" -VmSize "Standard_B1ms" `
+    .\azure-vm-setup.ps1 -Location "northeurope" -VmSize "Standard_B2ps_v2" `
         -SshPublicKeyFile "~/.ssh/id_rsa.pub"
 #>
 
@@ -43,7 +43,8 @@ param(
     [string]$Location       = "germanywestcentral",
     [string]$VmName         = "exo-gateway",
     [string]$AdminUser      = "azureuser",
-    [string]$VmSize         = "Standard_B2s",
+    [string]$VmSize         = "Standard_B2ps_v2",
+    [string]$VmImage        = "Debian:debian-12-arm64:12-arm64:latest",
     [string]$SshPublicKeyFile = "~/.ssh/id_rsa.pub",
     [string]$RepoUrl        = "https://github.com/azitc-ac/EXO-signature-service.git"
 )
@@ -135,7 +136,7 @@ Invoke-Az {
     az vm create `
         --resource-group $ResourceGroup `
         --name $VmName `
-        --image Debian:debian-12:12:latest `
+        --image $VmImage `
         --size $VmSize `
         --admin-username $AdminUser `
         --ssh-key-values $sshKeyContent `

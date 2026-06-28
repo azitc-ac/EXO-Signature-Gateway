@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.208 — 2026-06-28 — feat: azure-vm-setup.ps1 ARM64 Default (Standard_B2ps_v2)
+
+Gateway läuft bereits auf Raspi (ARM64) — ARM64 Azure-VMs sind günstiger und
+proven. Default VmSize: Standard_B2ps_v2 (Ampere Altra, 2 vCPU, 4 GB).
+Neuer -VmImage Parameter, Default: Debian:debian-12-arm64:12-arm64:latest.
+x64-Fallback: -VmSize Standard_B2s -VmImage Debian:debian-12:12:latest
+
 ## v1.4.206 — 2026-06-28 — fix: azure-vm-setup.ps1 VmSize-Parameter + Standard_B2s Default
 
 Standard_B1ms ist in GermanyWestCentral derzeit nicht verfügbar (Kapazität).
