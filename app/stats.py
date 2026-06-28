@@ -92,6 +92,24 @@ def get_daily() -> dict:
         return {k: max(0, _stats[k] - _snapshot.get(k, 0)) for k in KEYS}
 
 
+def get_last_n_days(n: int) -> dict:
+    """Sum stats for the last n calendar days including today."""
+    from datetime import date, timedelta
+    result = {k: 0 for k in KEYS}
+    try:
+        if not _DAILY_FILE.exists():
+            return result
+        data = json.loads(_DAILY_FILE.read_text())
+        today = date.today()
+        for i in range(n):
+            counts = data.get((today - timedelta(days=i)).strftime("%Y-%m-%d"), {})
+            for k in KEYS:
+                result[k] += int(counts.get(k, 0))
+    except Exception as exc:
+        log.warning("stats: get_last_n_days error: %s", exc)
+    return result
+
+
 def get_period(year: int, month: int | None = None) -> dict:
     """Aggregate stats_daily.json for a given year (and optionally month).
 

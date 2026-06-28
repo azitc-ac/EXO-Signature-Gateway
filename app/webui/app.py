@@ -1492,6 +1492,7 @@ async def dashboard(request: Request, user: str = Depends(_check_auth)):
         context={
             "stats": total,
             "stats_daily": daily,
+            "stats_3d": _stats_mod2.get_last_n_days(3),
             "stats_monthly": monthly,
             "stats_monthly_m1": _stats_mod2.get_period(m1y, m1m),
             "stats_monthly_m2": _stats_mod2.get_period(m2y, m2m),

@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.174 — 2026-06-28 — feat: Dashboard — Spalte "Letzte 3 Tage"
+
+stats.py: get_last_n_days(n) summiert stats_daily.json über n Kalendertage inkl. heute.
+dashboard.html: neue Spalte "3 Tage" in beiden Tabellen (Mails + Azure API-Aufrufe),
+direkt nach "Heute". Spalte hat keine col-xxx-Klasse → immer sichtbar, höhere Priorität
+als Monate/Vorjahr die bei kleinen Bildschirmen ausgeblendet werden.
+Fallback- und Fehler-Zeilen ebenfalls aktualisiert (Farbe beibehalten).
+
 ## v1.4.172 — 2026-06-28 — feat: Bundle-Download + Relay-Vorschau im Debug-Tab
 
 GET /api/support/download: gibt Bundle als ZIP-Download zurück (kein Blob-Upload nötig).
