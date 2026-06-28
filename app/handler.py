@@ -578,7 +578,7 @@ class SignatureHandler:
                     return "250 OK"
                 if encrypted:
                     new_subject = re.sub(
-                        r"\s*" + re.escape(enc_trigger) + r"\s*", " ",
+                        r"\s*" + re.escape(enc_trigger) + r"#?\s*", " ",
                         subject, flags=re.IGNORECASE).strip()
                     # Strip inbound gateway tags (e.g. [verschlüsselt, signiert von ...])
                     # that appear in replies/forwards — they accumulate on each hop.

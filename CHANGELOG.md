@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.156 — 2026-06-28 — fix: ENC_TRIGGER-Rest-# bleibt beim Empfänger im Betreff
+
+ENC_TRIGGER = "#enc" (ohne abschließendes #), User tippt "#enc#".
+Regex \s*\#enc\s* streift nur "#enc" — das nachfolgende "#" blieb im Betreff stehen.
+Fix: r"\s*" + re.escape(enc_trigger) + r"#?\s*" — optionales # am Ende konsumieren.
+
 ## v1.4.154 — 2026-06-28 — fix: Sent Items verschlüsselt — PATCH ältestes Item statt Create-New
 
 POST zu sentitems erstellt immer einen Draft; isDraft=false PATCH wird ignoriert.
