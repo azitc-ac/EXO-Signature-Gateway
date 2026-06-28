@@ -1933,10 +1933,12 @@ async def api_smime_set_default(cert_email: str, slot_id: str, user: str = Depen
 
 @app.get("/debug", response_class=HTMLResponse)
 async def debug_page(request: Request, user: str = Depends(_require_admin)):
+    import support_upload as _sup
     return templates.TemplateResponse(
         request=request, name="debug.html",
         context={"active": "debug", "s": settings_store.get_all(),
-                 "gateway_name": _gateway_name()},
+                 "gateway_name": _gateway_name(),
+                 "support_configured": _sup.is_configured()},
     )
 
 
@@ -3366,3 +3368,11 @@ async def api_pool_day(app_id: str, date: str, user: str = Depends(_check_auth))
     import mail_audit as _audit_mod
     hours = _audit_mod.get_graph_calls_hours(app_id, date)
     return {"app_id": app_id, "date": date, "hours": hours}
+
+
+@app.post("/api/support/upload")
+async def api_support_upload(user: str = Depends(_require_admin)):
+    """Support-Bundle (Logs, Settings, Audit) zu Azure Blob Storage hochladen."""
+    import support_upload as _sup
+    result = await _sup.upload_bundle(list(_LOG_BUFFER))
+    return JSONResponse(result)

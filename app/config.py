@@ -47,6 +47,14 @@ _ENV_SEEDS: dict = {
     "SENT_ITEMS_UPDATE": _optional("SENT_ITEMS_UPDATE", "false").lower() == "true",
 }
 
+# ── Support Upload ────────────────────────────────────────────────────────────
+# Azure Blob Storage SAS-URL für Support-Bundles.
+# Format: "https://{account}.blob.core.windows.net/{container}/{blob_name}?sv=...&sig=..."
+# {blob_name} wird beim Upload durch den generierten Dateinamen ersetzt.
+# SAS-Berechtigungen: Create + Write (sp=cw), Container-Scope (sr=c).
+# In docker-compose.yml setzen: SUPPORT_BLOB_URL_TEMPLATE=https://...
+SUPPORT_BLOB_URL_TEMPLATE = _optional("SUPPORT_BLOB_URL_TEMPLATE", "")
+
 # ── Version ───────────────────────────────────────────────────────────────────
 def _read_version() -> str:
     for path in ("/app/VERSION", "VERSION"):

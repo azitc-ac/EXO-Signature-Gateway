@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.170 — 2026-06-28 — feat: Support-Bundle-Upload zu Azure Blob Storage
+
+Neues Modul `app/support_upload.py`: Ein-Klick-Upload eines Diagnose-ZIP-Pakets
+(Logs, Settings, Audit-Events, ACME-Status) in ein Azure Blob Storage via SAS-URL.
+- Sensible Settings-Keys (CLIENT_SECRET, WEBUI_PASSWORD, …) werden vor dem Upload mit "***" maskiert
+- Bundle enthält: system_info.json, settings_sanitized.json, mailbox_health.json,
+  acme/*.json (ohne Private Keys), audit_events.jsonl (letzte 7 Tage),
+  logs/runtime.txt (In-Memory-Buffer), logs/app.log* (letzte 3 Rotationen, max. 4 MB/Datei)
+- Blob-Name: `support-{host}-{datum}-{rand}.zip` (Ticket-ID für den Support)
+- config.py: SUPPORT_BLOB_URL_TEMPLATE (Env-Var) — Platzhalter `{blob_name}` für Dateinamen
+- webui/app.py: POST /api/support/upload (erfordert Admin-Login)
+- debug.html: Sektion "Diagnose-Bundle an Support senden" mit Spinner + Ticket-ID-Anzeige;
+  zeigt Hinweis wenn SUPPORT_BLOB_URL_TEMPLATE nicht konfiguriert
+
 ## v1.4.168 — 2026-06-28 — feat: MIME Observatory Schritt D — automatische Analyse-Ergebnisse
 
 debug.html: Neuer Abschnitt "Schritt D — Analyse-Ergebnisse" im Exchange Header Observatory.
