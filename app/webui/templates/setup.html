@@ -292,19 +292,49 @@
     {% endif %}
     {% else %}
 
-    <!-- 3a: Bootstrap-App-Registrierung -->
-    <details {% if e.bootstrap_client_id %}{% else %}open{% endif %} style="margin-bottom:16px">
+    <!-- Login-Flow (primär) — nutzt standardmäßig den Microsoft-Public-Client (kein manuelles App-Setup nötig) -->
+    <p class="hint" style="margin-bottom:10px">
+      Melde dich einmalig als Entra-Administrator an. Main-App und Bootstrap-App werden
+      danach <strong>automatisch</strong> angelegt — eine eigene App-Registrierung ist
+      normalerweise nicht nötig.
+    </p>
+    <ol style="margin:0 0 14px 16px;line-height:2;font-size:13px">
+      <li>Klicke auf <strong>„Jetzt anmelden"</strong> — Microsoft-Login öffnet sich in einem neuen Tab.</li>
+      <li>Melde dich als Entra-Administrator an (MFA wird unterstützt).<br>
+          <small>Falls ein Consent-Dialog erscheint: <em>„Im Namen der Organisation zustimmen"</em> ankreuzen.</small></li>
+      <li>Nach dem Login zeigt dein Browser eine <strong>Fehler- oder Verbindungsseite</strong> — das ist <em>normal</em>.</li>
+      <li>Kopiere die <strong>komplette URL</strong> aus der Adressleiste und füge sie unten ein.</li>
+    </ol>
+    <div class="actions" style="margin-bottom:14px">
+      <button class="btn primary" id="btn-azure-login" onclick="startAzureLogin()">Jetzt anmelden &rarr;</button>
+    </div>
+    <div id="paste-section" style="display:none">
+      <div class="settings-row">
+        <label for="auth-url-paste">URL aus der Adressleiste</label>
+        <input type="text" id="auth-url-paste"
+               placeholder="http://localhost:8080/auth/callback?code=…&state=…"
+               style="width:100%;font-family:monospace;font-size:12px">
+      </div>
+      <div id="paste-result" style="margin-top:8px;display:none"></div>
+      <div class="actions" style="margin-top:10px">
+        <button class="btn primary" id="paste-btn" onclick="submitPastedUrl()">Setup fortsetzen</button>
+      </div>
+    </div>
+
+    <!-- Optionaler Fallback: eigene Bootstrap-App, falls der Standard-Login im Tenant gesperrt ist -->
+    <details {% if e.bootstrap_client_id %}open{% endif %} style="margin-top:18px">
       <summary style="cursor:pointer;font-weight:600;font-size:13px;padding:4px 0">
         {% if e.bootstrap_client_id %}
-        ✓ Schritt 3a: Bootstrap-App konfiguriert (<code>{{ e.bootstrap_client_id[:8] }}…</code>)
+        ✓ Eigene Bootstrap-App konfiguriert (<code>{{ e.bootstrap_client_id[:8] }}…</code>)
         {% else %}
-        Schritt 3a: Einmalige Bootstrap-App-Registrierung anlegen
+        Optional: eigene Bootstrap-App verwenden (nur falls der Login oben fehlschlägt)
         {% endif %}
       </summary>
       <div style="margin-top:10px;font-size:13px">
         <p class="hint" style="margin-bottom:10px">
-          Entra benötigt für den Setup-Login eine App-Registrierung mit der passenden Redirect-URI.
-          Diese Registrierung wird nur einmalig für den Setup-Vorgang gebraucht.
+          Nur nötig, wenn der Standard-Login fehlschlägt — etwa wenn dein Tenant die
+          Redirect-URIs des Microsoft-Public-Clients einschränkt. Dann legst du einmalig
+          eine eigene App-Registrierung für den Setup-Login an und trägst ihre Client-ID hier ein.
         </p>
         <ol style="margin:0 0 12px 16px;line-height:2">
           <li>Öffne das <a href="https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank" rel="noopener">Entra Admin Center → App-Registrierungen</a></li>
@@ -330,34 +360,6 @@
         </div>
       </div>
     </details>
-
-    <!-- 3b: Login-Flow mit URL-Paste -->
-    {% if e.bootstrap_client_id %}
-    <ol style="margin:0 0 14px 16px;line-height:2;font-size:13px">
-      <li>Klicke auf <strong>„Jetzt anmelden"</strong> — Microsoft-Login öffnet sich in einem neuen Tab.</li>
-      <li>Melde dich als Entra-Administrator an (MFA wird unterstützt).<br>
-          <small>Falls ein Consent-Dialog erscheint: <em>„Im Namen der Organisation zustimmen"</em> ankreuzen.</small></li>
-      <li>Nach dem Login zeigt dein Browser eine <strong>Fehler- oder Verbindungsseite</strong> — das ist <em>normal</em>.</li>
-      <li>Kopiere die <strong>komplette URL</strong> aus der Adressleiste und füge sie unten ein.</li>
-    </ol>
-    <div class="actions" style="margin-bottom:14px">
-      <button class="btn primary" id="btn-azure-login" onclick="startAzureLogin()">Jetzt anmelden &rarr;</button>
-    </div>
-    <div id="paste-section" style="display:none">
-      <div class="settings-row">
-        <label for="auth-url-paste">URL aus der Adressleiste</label>
-        <input type="text" id="auth-url-paste"
-               placeholder="http://localhost:8080/auth/callback?code=…&state=…"
-               style="width:100%;font-family:monospace;font-size:12px">
-      </div>
-      <div id="paste-result" style="margin-top:8px;display:none"></div>
-      <div class="actions" style="margin-top:10px">
-        <button class="btn primary" id="paste-btn" onclick="submitPastedUrl()">Setup fortsetzen</button>
-      </div>
-    </div>
-    {% else %}
-    <p class="hint" style="color:#888">Zuerst Schritt 3a abschließen.</p>
-    {% endif %}
     {% endif %}
   </div>
 </div>

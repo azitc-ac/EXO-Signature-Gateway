@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.214 — 2026-06-29 — fix: Setup-Wizard Entra-Login ohne manuelle Bootstrap-App (Altlast)
+
+Der Entra-Login-Schritt verlangte fälschlich, dass zuerst manuell eine Bootstrap-
+App-Registrierung angelegt und deren Client-ID eingetragen wird ("Schritt 3a"),
+bevor der "Jetzt anmelden"-Button überhaupt erschien — sonst stand dort nur
+"Zuerst Schritt 3a abschließen" (Sackgasse). Das widersprach dem eigentlichen
+Design: pkce.py hat einen Fallback-Public-Client (Microsoft Graph CLI App,
+14d82eec-204b-4c2f-b7e8-296a70dab67e), mit dem der PKCE-Login OHNE eigene App
+funktioniert; run_post_auth_setup() legt Main- und Bootstrap-App danach automatisch
+an. Die manuelle Registrierung ist nur Fallback für Tenants mit Redirect-URI-
+Restriktionen für den Public Client.
+Fix (setup.html): Login-Flow (3b) immer sichtbar als Primärweg, manuelle App-
+Registrierung zu optionalem, eingeklapptem Fallback-<details> degradiert, toter
+"Zuerst Schritt 3a abschließen"-Hinweis entfernt. Jinja-Balance geprüft (74/74 if).
+
 ## v1.4.213 — 2026-06-29 — feat: First-Run Auto-Restart nach Cert + fix: Wizard erkennt changeme
 
 Drei zusammenhängende First-Run-Verbesserungen nach Azure-Deploy-Erfahrung:
