@@ -398,10 +398,19 @@ def store_recipient_cert(email: str, cert_pem: bytes) -> dict:
     cert = _x509.load_pem_x509_certificate(cert_pem)
     user_dir = RECIPIENT_DIR / email.lower().strip()
     user_dir.mkdir(parents=True, exist_ok=True)
+    existing_path = user_dir / "cert.pem"
+    if existing_path.exists():
+        try:
+            existing = _x509.load_pem_x509_certificate(existing_path.read_bytes())
+            if existing.fingerprint(hashes.SHA256()) == cert.fingerprint(hashes.SHA256()):
+                log.debug("Recipient S/MIME cert unchanged for %s — skipping", email)
+                return _cert_info(cert, email.lower().strip())
+        except Exception:
+            pass  # korrupte gespeicherte Cert → überschreiben
     (user_dir / "cert.pem").write_bytes(cert_pem)
     import stats
     stats.increment("certs_harvested")
-    log.info("Recipient S/MIME cert stored for %s", email)
+    log.info("Recipient S/MIME cert stored for %s (new/updated)", email)
     return _cert_info(cert, email.lower().strip())
 
 

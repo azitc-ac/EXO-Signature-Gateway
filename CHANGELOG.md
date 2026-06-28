@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.180 — 2026-06-28 — fix: Harvest — Cert nur speichern wenn Fingerprint neu
+
+smime_store.store_recipient_cert: vergleicht SHA-256-Fingerprint des neuen Certs
+mit dem bereits gespeicherten. Nur bei Unterschied (neues oder erneuertes Cert)
+wird überschrieben und certs_harvested inkrementiert.
+Gleiches Cert → log.debug + early return, kein Zählerzuwachs.
+Korrupte gespeicherte Cert → wird still überschrieben.
+
 ## v1.4.178 — 2026-06-28 — feat: Dashboard "3 Tage"-Spalte klickbar → Audit-Modal mit Datumsbereich
 
 mail_audit.py: query_events + count_events akzeptieren date_from/date_to (YYYY-MM-DD).
