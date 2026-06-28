@@ -294,9 +294,10 @@
 
     <!-- Login-Flow (primär) — nutzt standardmäßig den Microsoft-Public-Client (kein manuelles App-Setup nötig) -->
     <p class="hint" style="margin-bottom:10px">
-      Melde dich einmalig als Entra-Administrator an. Main-App und Bootstrap-App werden
-      danach <strong>automatisch</strong> angelegt — eine eigene App-Registrierung ist
-      normalerweise nicht nötig.
+      Melde dich einmalig als Entra-Administrator an — Main-App und EXO-Konfiguration
+      werden danach <strong>automatisch</strong> eingerichtet. Voraussetzung ist eine
+      Login-App (Bootstrap-App) mit der Redirect-URI dieses Servers; trage ihre Client-ID
+      im Abschnitt unten ein, falls noch nicht vorhanden.
     </p>
     <ol style="margin:0 0 14px 16px;line-height:2;font-size:13px">
       <li>Klicke auf <strong>„Jetzt anmelden"</strong> — Microsoft-Login öffnet sich in einem neuen Tab.</li>
@@ -327,14 +328,14 @@
         {% if e.bootstrap_client_id %}
         ✓ Eigene Bootstrap-App konfiguriert (<code>{{ e.bootstrap_client_id[:8] }}…</code>)
         {% else %}
-        Optional: eigene Bootstrap-App verwenden (nur falls der Login oben fehlschlägt)
+        Bootstrap-App (Login-Registrierung) — Client-ID eintragen oder neu anlegen
         {% endif %}
       </summary>
       <div style="margin-top:10px;font-size:13px">
         <p class="hint" style="margin-bottom:10px">
-          Nur nötig, wenn der Standard-Login fehlschlägt — etwa wenn dein Tenant die
-          Redirect-URIs des Microsoft-Public-Clients einschränkt. Dann legst du einmalig
-          eine eigene App-Registrierung für den Setup-Login an und trägst ihre Client-ID hier ein.
+          Für den Setup-Login wird eine eigene App-Registrierung benötigt (Microsoft-
+          Public-Clients erlauben unsere Redirect-URI <code>/auth/callback</code> nicht).
+          Hast du bereits eine, trage nur die Client-ID ein — andernfalls lege sie so an:
         </p>
         <ol style="margin:0 0 12px 16px;line-height:2">
           <li>Öffne das <a href="https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank" rel="noopener">Entra Admin Center → App-Registrierungen</a></li>
@@ -1117,6 +1118,16 @@ async function startAzureLogin(btnId, pasteSectionId) {
     btn.disabled = false;
   }
 }
+
+// Auto-Close-Login: das HTTPS-Popup meldet Erfolg/Fehler per postMessage zurück
+window.addEventListener('message', function(e) {
+  if (!e.data || typeof e.data !== 'object') return;
+  if (e.data.type === 'setup-auth-done') {
+    location.reload();
+  } else if (e.data.type === 'setup-auth-fail') {
+    alert('Setup-Fehler nach Login: ' + (e.data.msg || 'Unbekannt'));
+  }
+});
 
 async function submitPastedUrl(pasteInputId, resultId) {
   pasteInputId = pasteInputId || 'auth-url-paste';

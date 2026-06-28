@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.215 — 2026-06-29 — feat: Setup-Login selbstschließendes HTTPS-Popup + ehrliches Wording
+
+Korrektur zu v1.4.214: Der Fallback-Public-Client (Graph CLI App) kann unsere
+Redirect-URI /auth/callback NICHT nutzen — Microsoft-First-Party-Apps erlauben nur
+ihre eigenen registrierten Redirects → AADSTS50011. Eine eigene Bootstrap-App ist
+also doch erforderlich. Wording im Wizard entsprechend ehrlich gesetzt
+(„Login-App nötig" statt „optional").
+Zusätzlich Auto-Close-Login analog ARM-/Key-Vault-Flow: /auth/start nutzt die
+öffentliche HTTPS-Redirect-URI, sobald diese an der Bootstrap-App registriert ist
+(BOOTSTRAP_REDIRECT_URIS) → Popup landet auf /auth/callback, run_post_auth_setup
+läuft, _setup_callback_page schickt postMessage('setup-auth-done') an den Opener
+und schließt sich (window.close). Wizard-Tab lädt automatisch neu.
+Erst-Login (HTTPS-Redirect noch nicht registriert): weiterhin Localhost-Paste —
+kein AADSTS50011-Regressionsrisiko für frische Bootstrap-Apps. Paste bleibt als
+Fallback erhalten. Verifiziert: py_compile, Jinja 74/74, Self-Close-Render.
+
 ## v1.4.214 — 2026-06-29 — fix: Setup-Wizard Entra-Login ohne manuelle Bootstrap-App (Altlast)
 
 Der Entra-Login-Schritt verlangte fälschlich, dass zuerst manuell eine Bootstrap-

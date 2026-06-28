@@ -301,6 +301,24 @@ def _build_redirect_uri(sso: bool = False) -> str:
     return f"http://localhost:{config.WEBUI_PORT}/auth/callback"
 
 
+def _setup_redirect_uri() -> str:
+    """Redirect URI for the popup setup-login.
+
+    Uses the public HTTPS callback — which lands back on this gateway, so the popup
+    can self-close (postMessage + window.close) — but only once that HTTPS redirect is
+    actually registered on the Bootstrap app (recorded in BOOTSTRAP_REDIRECT_URIS after
+    the first login / by patch_bootstrap_redirect_uri). Otherwise falls back to the
+    localhost callback (copy-paste flow), which works on the very first login before the
+    HTTPS redirect has been added — avoids AADSTS50011 on a fresh Bootstrap app.
+    """
+    https_uri = _build_redirect_uri(sso=True)
+    if https_uri.startswith("https://"):
+        registered = settings_store.get("BOOTSTRAP_REDIRECT_URIS") or []
+        if https_uri in registered:
+            return https_uri
+    return _build_redirect_uri()
+
+
 # ── Routes: public (no auth) ───────────────────────────────────────────────────
 
 @app.get("/health")
@@ -633,7 +651,7 @@ async def auth_start(request: Request):
     No auth required — generating a PKCE URL is harmless; privileged operations
     are protected by the Microsoft access token returned after login.
     """
-    redirect_uri = _build_redirect_uri()
+    redirect_uri = _setup_redirect_uri()
     _state, auth_url = pkce_mod.create_session(redirect_uri, flow="setup")
     return JSONResponse({"auth_url": auth_url})
 
@@ -694,6 +712,28 @@ async def api_auth_paste(request: Request, user: str = Depends(_check_auth)):
     except Exception as exc:
         log.error("Post-auth setup failed: %s", exc)
         raise HTTPException(500, f"Setup-Fehler nach Login: {exc}")
+
+
+def _setup_callback_page(ok: bool, msg: str = "") -> str:
+    """Self-closing page for the popup setup-login (HTTPS-redirect variant).
+    Signals the opener (wizard tab) to reload, then closes the popup."""
+    if ok:
+        icon, heading, body_text, color = "✓", "Entra-Login abgeschlossen", "App-Registrierung eingerichtet. Dieses Fenster schließt sich…", "#16a34a"
+    else:
+        icon, heading, body_text, color = "✗", "Setup fehlgeschlagen", msg or "Unbekannter Fehler", "#dc2626"
+    post_msg = '{"type":"setup-auth-done"}' if ok else '{"type":"setup-auth-fail","msg":' + repr(msg) + '}'
+    return f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><title>{heading}</title></head>
+<body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f8fafc">
+<div style="text-align:center;padding:40px;max-width:420px">
+  <div style="font-size:52px;margin-bottom:16px">{icon}</div>
+  <h2 style="color:{color};margin:0 0 10px">{heading}</h2>
+  <p style="color:#64748b;margin:0">{body_text}</p>
+</div>
+<script>
+  try {{ window.opener && window.opener.postMessage({post_msg}, window.opener.location.origin); }} catch(e) {{}}
+  {'setTimeout(function(){window.close();},1200);' if ok else ''}
+</script>
+</body></html>"""
 
 
 def _arm_callback_page(ok: bool, msg: str = "") -> str:
@@ -828,7 +868,9 @@ async def auth_callback(
         return RedirectResponse("/outlook-addin?addin_uri_patched=1", status_code=303)
 
     else:
-        # Setup flow: run post-auth setup
+        # Setup flow (popup, HTTPS redirect): run post-auth setup, then self-close
+        # the popup and signal the opener (wizard tab) to reload. The localhost
+        # copy-paste flow (/api/setup/auth-paste) remains as fallback.
         access_token = token_resp.get("access_token", "")
         try:
             import setup_wizard
@@ -836,13 +878,8 @@ async def auth_callback(
             log.info("Post-auth setup complete: %s", result)
         except Exception as exc:
             log.error("Post-auth setup failed: %s", exc)
-            return templates.TemplateResponse(
-                request=request, name="setup.html",
-                context={"s": settings_store.get_all(), "e": {}, "active": "setup",
-                         "auth_error": f"Setup-Fehler nach Login: {exc}",
-                         "gateway_name": _gateway_name()},
-            )
-        return RedirectResponse("/setup?entra_done=1", status_code=303)
+            return HTMLResponse(_setup_callback_page(ok=False, msg=str(exc)))
+        return HTMLResponse(_setup_callback_page(ok=True))
 
 
 # ── Routes: SSO login / logout ────────────────────────────────────────────────
