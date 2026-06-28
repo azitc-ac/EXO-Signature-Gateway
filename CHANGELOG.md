@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.206 — 2026-06-28 — fix: azure-vm-setup.ps1 VmSize-Parameter + Standard_B2s Default
+
+Standard_B1ms ist in GermanyWestCentral derzeit nicht verfügbar (Kapazität).
+Neuer Default: Standard_B2s (breiter verfügbar). Neuer -VmSize Parameter
+zum Überschreiben. az config set core.display_region_identified=false
+deaktiviert den Region-Kosten-Hinweis dauerhaft nach erstem Lauf.
+
 ## v1.4.204 — 2026-06-28 — fix: Invoke-Az zeigt az-Fehlermeldung bei ExitCode != 0
 
 2>&1 statt 2>$null: ErrorRecord-Objekte werden bei Fehler in Rot ausgegeben,

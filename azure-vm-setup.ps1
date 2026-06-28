@@ -4,7 +4,7 @@
     Erstellt eine Azure VM für den EXO Signature Gateway.
 
 .DESCRIPTION
-    Legt eine Debian 12 Bookworm-VM (Standard_B1ms) mit statischer öffentlicher IP an,
+    Legt eine Debian 12 Bookworm-VM (Standard_B2s) mit statischer öffentlicher IP an,
     öffnet die benötigten Ports (80, 443, 25, 22) und installiert Docker + das Gateway.
 
 .PARAMETER ResourceGroup
@@ -22,11 +22,19 @@
 .PARAMETER SshPublicKeyFile
     Pfad zur lokalen SSH-Public-Key-Datei (z.B. ~/.ssh/id_rsa.pub).
 
+.PARAMETER VmSize
+    Azure-VM-Groesse (Standard_B2s ist breit verfuegbar; Standard_B1ms kann je nach
+    Region/Kapazitaet nicht verfuegbar sein).
+
 .PARAMETER RepoUrl
     Git-Repository-URL des Gateways.
 
 .EXAMPLE
     .\azure-vm-setup.ps1 -ResourceGroup "exo-gateway-rg" -Location "germanywestcentral" `
+        -SshPublicKeyFile "~/.ssh/id_rsa.pub"
+
+.EXAMPLE
+    .\azure-vm-setup.ps1 -Location "northeurope" -VmSize "Standard_B1ms" `
         -SshPublicKeyFile "~/.ssh/id_rsa.pub"
 #>
 
@@ -35,6 +43,7 @@ param(
     [string]$Location       = "germanywestcentral",
     [string]$VmName         = "exo-gateway",
     [string]$AdminUser      = "azureuser",
+    [string]$VmSize         = "Standard_B2s",
     [string]$SshPublicKeyFile = "~/.ssh/id_rsa.pub",
     [string]$RepoUrl        = "https://github.com/azitc-ac/EXO-signature-service.git"
 )
@@ -42,8 +51,9 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-# Az CLI: Infomeldungen und Warnings nicht auf stderr ausgeben
+# Az CLI: nur echte Fehler auf stderr; Region-Kosten-Hinweis dauerhaft deaktivieren
 $env:AZURE_CORE_ONLY_SHOW_ERRORS = 'true'
+$null = az config set core.display_region_identified=false 2>$null
 
 function Write-Step($msg) { Write-Host "`n==> $msg" -ForegroundColor Cyan }
 function Write-Ok($msg)   { Write-Host "    OK: $msg" -ForegroundColor Green }
@@ -118,7 +128,7 @@ $publicIp = Invoke-Az {
 Write-Ok "Öffentliche IP: $publicIp"
 
 # ── VM anlegen ─────────────────────────────────────────────────────────────────
-Write-Step "VM '$VmName' anlegen (Standard_B1ms, Debian 12 Bookworm)"
+Write-Step "VM '$VmName' anlegen ($VmSize, Debian 12 Bookworm)"
 Write-Info "Das dauert ca. 2–3 Minuten..."
 
 Invoke-Az {
@@ -126,7 +136,7 @@ Invoke-Az {
         --resource-group $ResourceGroup `
         --name $VmName `
         --image Debian:debian-12:12:latest `
-        --size Standard_B1ms `
+        --size $VmSize `
         --admin-username $AdminUser `
         --ssh-key-values $sshKeyContent `
         --public-ip-address "$VmName-ip" `
