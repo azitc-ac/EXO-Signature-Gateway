@@ -1,8 +1,10 @@
 import asyncio
 import logging
+import os
 import ssl
 import subprocess
 import threading
+import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -144,15 +146,44 @@ _SETUP_PAGE_TEMPLATE = """\
   <button type="submit">Zertifikat beantragen</button>
 </form>
 <p class="note">DNS muss vor dem Zertifikatsantrag auf diese IP zeigen.<br>
-Nach Erfolg: Container neu starten → <strong>https://{hostname_hint}</strong> öffnen.</p>
+Nach Erfolg startet der Dienst automatisch neu und leitet auf <strong>https://{hostname_hint}</strong> weiter.</p>
 </body></html>
 """
 
-_SETUP_OK = """\
+_RESTART_DELAY = 2.0      # Sekunden bis Self-Exit (Response zuerst ausliefern)
+_REDIRECT_COUNTDOWN = 12  # Sekunden bis Browser-Redirect auf HTTPS
+
+
+def _setup_ok_message(hostname: str) -> str:
+    """Erfolgsseite: Dienst startet automatisch neu, Browser leitet auf HTTPS um."""
+    target = f"https://{hostname}/" if hostname else "/"
+    return f"""\
 <div class="ok"><strong>Zertifikat ausgestellt.</strong><br>
-Container neu starten:<br>
-<pre>docker compose restart</pre></div>
+Der Dienst startet automatisch neu — danach läuft die Web-UI über HTTPS.<br>
+<span id="cd">Weiterleitung in {_REDIRECT_COUNTDOWN} Sekunden…</span></div>
+<script>
+(function(){{
+  var n={_REDIRECT_COUNTDOWN}, el=document.getElementById('cd');
+  var t=setInterval(function(){{
+    n--;
+    if(el){{el.textContent='Weiterleitung in '+n+' Sekunde'+(n===1?'':'n')+'…';}}
+    if(n<=0){{clearInterval(t); location.href={target!r};}}
+  }},1000);
+}})();
+</script>
 """
+
+
+def _schedule_self_restart() -> None:
+    """Prozess nach kurzer Verzögerung beenden, damit Dockers restart-Policy
+    (restart: unless-stopped) den Container neu startet. Beim Neustart existiert
+    das Zertifikat → tls_active=True → Web-UI lauscht auf HTTPS. Die kurze
+    Verzögerung stellt sicher, dass die HTTP-Antwort vorher beim Browser ankommt."""
+    def _exit() -> None:
+        time.sleep(_RESTART_DELAY)
+        log.info("Neustart nach Zertifikatsausstellung (Self-Exit → Docker restart policy)")
+        os._exit(0)
+    threading.Thread(target=_exit, daemon=True).start()
 
 
 def _setup_page(hostname: str = "", email: str = "", message: str = "") -> bytes:
@@ -244,7 +275,8 @@ def _run_acme_http() -> None:
                     cert_dest.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(cert_dir / "fullchain.pem", cert_dest)
                     shutil.copy2(cert_dir / "privkey.pem", key_dest)
-                    message = _SETUP_OK
+                    message = _setup_ok_message(hostname)
+                    _schedule_self_restart()
                 except OSError as exc:
                     output = (result.stdout or "").strip()
                     message = (

@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.213 — 2026-06-29 — feat: First-Run Auto-Restart nach Cert + fix: Wizard erkennt changeme
+
+Drei zusammenhängende First-Run-Verbesserungen nach Azure-Deploy-Erfahrung:
+
+1. main.py: Nach erfolgreichem Zertifikatsantrag zeigt die Setup-Seite jetzt
+   "Der Dienst startet automatisch neu" mit Countdown und leitet nach 12 s per
+   JS auf https://<hostname>/ um. Der Prozess beendet sich nach 2 s selbst
+   (os._exit) — Dockers restart: unless-stopped zieht den Container neu hoch,
+   beim Neustart ist tls_active=True → Web-UI auf HTTPS. Kein manuelles
+   `docker compose restart` mehr nötig.
+2. webui/app.py: _password_change_required() erkannte nur "admin" als Default-
+   Passwort. azure-vm-setup.ps1 schreibt aber "changeme" in die .env → der Setup-
+   Wizard meldete Schritt 1 (Passwort ändern) fälschlich als erledigt. Neuer
+   _DEFAULT_PASSWORDS-Set {"admin","changeme",""} schließt Code-Default und
+   Deploy-Platzhalter ein. (Schema-Versatz Deploy ↔ Code — vgl. Update-Sicherheit.)
+3. README.md/README.de.md: Standard-Login admin/admin (bzw. admin/changeme auf
+   Azure-VMs) dokumentiert, mit Hinweis dass der Wizard einen Wechsel erzwingt.
+
 ## v1.4.212 — 2026-06-29 — fix: First-Run ACME-HTTP-Server ThreadingHTTPServer (Deadlock)
 
 First-Run TLS-Antrag lief in Timeout/„Some challenges have failed". Ursache:

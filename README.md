@@ -204,6 +204,10 @@ From now on the Web UI is reachable over HTTPS:
 https://sig.example.com
 ```
 
+> **Default login:** username `admin`, password `admin` — or `changeme` on Azure VMs
+> provisioned by `azure-vm-setup.ps1` (it writes the placeholder into `.env`). The setup
+> wizard's first step forces you to set a new password before anything else.
+
 The setup wizard guides you through the initial configuration:
 
 - Azure app registration (automatically via PKCE flow incl. admin consent)

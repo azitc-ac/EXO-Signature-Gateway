@@ -204,6 +204,10 @@ Ab jetzt ist die Web-UI über HTTPS erreichbar:
 https://sig.example.com
 ```
 
+> **Standard-Login:** Benutzer `admin`, Passwort `admin` — bzw. `changeme` auf Azure-VMs,
+> die per `azure-vm-setup.ps1` angelegt wurden (das Skript schreibt den Platzhalter in die
+> `.env`). Der erste Schritt des Setup-Wizards erzwingt das Setzen eines neuen Passworts.
+
 Der Setup-Wizard führt durch die Erstkonfiguration:
 
 - Azure App-Registrierung (automatisch via PKCE-Flow inkl. Admin-Consent)

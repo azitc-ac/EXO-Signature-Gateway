@@ -216,13 +216,21 @@ def _require_admin(request: Request, user: str = Depends(_check_auth)) -> str:
     return user
 
 
+# Platzhalter-Passwörter, die als unsicher gelten und einen Wechsel erzwingen:
+#   "admin"    = Code-Default (config.py)
+#   "changeme" = Platzhalter aus azure-vm-setup.ps1 cloud-init (.env)
+# Beide MÜSSEN hier stehen, sonst meldet der Setup-Wizard Schritt 1 (Passwort
+# ändern) fälschlich als erledigt, wenn noch der Deploy-Platzhalter aktiv ist.
+_DEFAULT_PASSWORDS = {"admin", "changeme", ""}
+
+
 def _password_change_required() -> bool:
-    """True if the user is still on the default 'admin' password."""
+    """True if the user is still on a default/placeholder password."""
     stored_hash = settings_store.get("ADMIN_PASSWORD_HASH") or ""
     if stored_hash:
         return False  # Has been changed
-    # Using env-var fallback — flag change required if it's the default
-    return config.WEBUI_PASSWORD == "admin"
+    # Using env-var fallback — flag change required if it's a known placeholder
+    return config.WEBUI_PASSWORD in _DEFAULT_PASSWORDS
 
 
 def _setup_requires_auth() -> bool:
