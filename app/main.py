@@ -4,7 +4,7 @@ import ssl
 import subprocess
 import threading
 import urllib.parse
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import uvicorn
@@ -270,7 +270,11 @@ def _run_acme_http() -> None:
             pass
 
     try:
-        HTTPServer(("0.0.0.0", 80), _Handler).serve_forever()
+        # ThreadingHTTPServer (nicht HTTPServer): do_POST blockiert während des
+        # synchronen certbot-Laufs bis zu 120 s. Single-threaded würde dabei den
+        # GET auf /.well-known/acme-challenge/ blockieren, den Let's Encrypt zur
+        # Validierung braucht → Selbst-Deadlock, HTTP-01 läuft in Timeout.
+        ThreadingHTTPServer(("0.0.0.0", 80), _Handler).serve_forever()
     except OSError as exc:
         log.warning("ACME HTTP server could not bind on port 80: %s", exc)
 

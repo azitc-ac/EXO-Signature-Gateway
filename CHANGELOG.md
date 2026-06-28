@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.212 — 2026-06-29 — fix: First-Run ACME-HTTP-Server ThreadingHTTPServer (Deadlock)
+
+First-Run TLS-Antrag lief in Timeout/„Some challenges have failed". Ursache:
+main.py betreibt den Port-80-Server als single-threaded HTTPServer. Der Button
+„Zertifikat beantragen" startet certbot certonly --webroot SYNCHRON in do_POST
+(subprocess.run, timeout=120) und blockiert damit den einzigen Server-Thread.
+certbot wartet auf die Let's-Encrypt-Validierung, die per GET die Challenge-Datei
+unter /.well-known/acme-challenge/ abholen muss — exakt vom blockierten Server.
+→ Selbst-Deadlock, HTTP-01 Timeout („Timeout after connect"), obwohl DNS, NSG
+Port 80 und der Server an sich einwandfrei erreichbar sind (extern in 50 ms getestet).
+Fix: ThreadingHTTPServer statt HTTPServer — der Challenge-GET wird in einem
+eigenen Thread bedient, während do_POST in certbot blockiert.
+Workaround ohne Rebuild: certbot per `docker exec` laufen lassen (dann ist der
+Server idle und liefert die Challenge aus), Cert nach /app/certs kopieren, restart.
+
 ## v1.4.211 — 2026-06-29 — fix: azure-vm-setup.ps1 legt data/ + certs/ vor docker compose an
 
 Frischer Azure-Deploy lief in einen Restart-Loop: Der Docker-Daemon legt die
