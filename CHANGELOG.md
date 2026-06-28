@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.184 — 2026-06-28 — fix: azure-vm-setup.ps1 auf Debian 12 Bookworm umgestellt
+
+azure-vm-setup.ps1:
+- Image: Ubuntu2404 → Debian:debian-12:12:latest
+- Docker-GPG + apt-Repo: linux/ubuntu → linux/debian
+- Beschreibung: Ubuntu-VM → Debian 12 Bookworm-VM
+
 ## v1.4.182 — 2026-06-28 — feat: Backup & Wiederherstellung
 
 Neues Modul app/backup_manager.py:

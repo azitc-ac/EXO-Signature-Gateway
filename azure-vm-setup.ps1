@@ -4,7 +4,7 @@
     Erstellt eine Azure VM für den EXO Signature Gateway.
 
 .DESCRIPTION
-    Legt eine Ubuntu-VM (Standard_B2s) mit statischer öffentlicher IP an,
+    Legt eine Debian 12 Bookworm-VM (Standard_B1ms) mit statischer öffentlicher IP an,
     öffnet die benötigten Ports (80, 443, 25, 22) und installiert Docker + das Gateway.
 
 .PARAMETER ResourceGroup
@@ -80,13 +80,13 @@ $publicIp = (az network public-ip show `
 Write-Ok "Öffentliche IP: $publicIp"
 
 # ── VM anlegen ─────────────────────────────────────────────────────────────────
-Write-Step "VM '$VmName' anlegen (Standard_B1ms, Ubuntu 24.04 LTS)"
+Write-Step "VM '$VmName' anlegen (Standard_B1ms, Debian 12 Bookworm)"
 Write-Info "Das dauert ca. 2–3 Minuten..."
 
 az vm create `
     --resource-group $ResourceGroup `
     --name $VmName `
-    --image Ubuntu2404 `
+    --image Debian:debian-12:12:latest `
     --size Standard_B1ms `
     --admin-username $AdminUser `
     --ssh-key-values $sshKeyContent `
@@ -138,9 +138,9 @@ packages:
 runcmd:
   # Docker installieren
   - install -m 0755 -d /etc/apt/keyrings
-  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  - curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
   - chmod a+r /etc/apt/keyrings/docker.asc
-  - echo "deb [arch=\$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \$(. /etc/os-release && echo \"\$VERSION_CODENAME\") stable" > /etc/apt/sources.list.d/docker.list
+  - echo "deb [arch=\$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian \$(. /etc/os-release && echo \"\$VERSION_CODENAME\") stable" > /etc/apt/sources.list.d/docker.list
   - apt-get update -qq
   - apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-compose-plugin
   - usermod -aG docker $AdminUser
