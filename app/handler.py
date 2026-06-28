@@ -168,7 +168,11 @@ def _apply_subject_tag(msg: email.message.Message, tag: str, outer_subject: str)
         return
     # Strip any previously-added gateway tags before prepending/appending the new one
     # so that ping-pong threads don't accumulate stacked [verschlüsselt] annotations.
-    decoded = _strip_subject_tags(_decode_subject(outer_subject))
+    decoded = (
+        _strip_subject_tags(_decode_subject(outer_subject))
+        if settings_store.get("STRIP_SUBJECT_TAGS") is not False
+        else _decode_subject(outer_subject)
+    )
     if settings_store.get("SMIME_TAG_POSITION") == "append":
         new_subj = f"{decoded} {tag}".strip()
     else:
@@ -543,8 +547,14 @@ class SignatureHandler:
             user_data = await graph_client.get_user(sender)
             template_name = _sender_cfg.get("template") or "default"
             sig_html, sig_txt = signature_engine.render(user_data, template_name=template_name)
+            _img_mode = settings_store.get("SIG_IMAGE_MODE") or "auto"
+            _use_cid = (
+                True if _img_mode == "cid"
+                else False if _img_mode == "inline"
+                else not wants_encryption  # auto: CID for plain/signed, inline for encrypted
+            )
             modified = mail_processor.inject(msg, sig_html, sig_txt,
-                                              use_cid_images=not wants_encryption)
+                                              use_cid_images=_use_cid)
             outbound = modified.as_bytes()
 
             # ── S/MIME signing ─────────────────────────────────────────────────
@@ -582,8 +592,19 @@ class SignatureHandler:
                         subject, flags=re.IGNORECASE).strip()
                     # Strip inbound gateway tags (e.g. [verschlüsselt, signiert von ...])
                     # that appear in replies/forwards — they accumulate on each hop.
-                    new_subject = _strip_subject_tags(new_subject)
-                    _sent_subject = new_subject
+                    if settings_store.get("STRIP_SUBJECT_TAGS") is not False:
+                        new_subject = _strip_subject_tags(new_subject)
+                    # Sent Item subject gets the [verschlüsselt] tag so the sender sees
+                    # at a glance that the mail was sent encrypted — symmetric to how
+                    # decrypted inbound mails get the tag in the inbox.
+                    _enc_tag = _build_subject_tag(enc=True, signer_name=None)
+                    if _enc_tag:
+                        if settings_store.get("SMIME_TAG_POSITION") == "append":
+                            _sent_subject = f"{new_subject} {_enc_tag}".strip()
+                        else:
+                            _sent_subject = f"{_enc_tag} {new_subject}".strip()
+                    else:
+                        _sent_subject = new_subject
                     enc_msg = email.message_from_bytes(encrypted)
                     # openssl smime -encrypt strips envelope headers — restore them
                     _restore_envelope_headers(enc_msg, msg)

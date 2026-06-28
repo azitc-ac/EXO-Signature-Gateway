@@ -196,6 +196,15 @@
     </div>
   </div>
 
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="strip-subject-tags"
+             {% if s.STRIP_SUBJECT_TAGS is not false %}checked{% endif %}>
+      Betreff-Tag-Stacking verhindern
+    </label>
+    <span class="hint">Entfernt vorhandene [verschlüsselt / signiert von&nbsp;…] Tags im Betreff vor dem Hinzufügen eines neuen — verhindert Anhäufung in Antwort-Ketten</span>
+  </div>
+
   <div style="border-top:1px solid #f0f0f0;margin:16px 0 14px"></div>
 
   <div class="settings-row">
@@ -343,6 +352,27 @@
       Doppelte Gateway-Signatur überspringen
     </label>
     <span class="hint">Wenn die Gateway-Signatur bereits im Nachrichtenbereich erkannt wird (z.&nbsp;B. durch das Outlook Add-in), wird sie nicht erneut injiziert</span>
+  </div>
+
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="skip-sig-in-thread"
+             {% if s.SKIP_SIG_IN_THREAD is not false %}checked{% endif %}>
+      Signatur-Stacking in Antwort-Ketten verhindern
+    </label>
+    <span class="hint">Wenn eine Gateway-Signatur in einer zitierten Vorgänger-Mail erkannt wird, wird keine neue Signatur eingefügt — verhindert Stacking bei Ping-Pong-Threads</span>
+  </div>
+
+  <div class="settings-row">
+    <label for="sig-image-mode">Signaturbilder einbetten</label>
+    <div class="settings-control">
+      <select id="sig-image-mode">
+        <option value="auto"   {% if s.SIG_IMAGE_MODE != 'cid' and s.SIG_IMAGE_MODE != 'inline' %}selected{% endif %}>Automatisch (CID bei normalen, eingebettet bei verschlüsselten Mails)</option>
+        <option value="cid"    {% if s.SIG_IMAGE_MODE == 'cid'    %}selected{% endif %}>Immer als Anhang (CID) — optimale Outlook-Kompatibilität</option>
+        <option value="inline" {% if s.SIG_IMAGE_MODE == 'inline' %}selected{% endif %}>Immer eingebettet (data:&nbsp;URI) — funktioniert auch in iOS Mail bei verschlüsselten Mails</option>
+      </select>
+      <span class="hint">CID = Bild als MIME-Anhang verlinkt; data:&nbsp;URI = Bild direkt im HTML eingebettet</span>
+    </div>
   </div>
 
   <div class="settings-row" style="opacity:0.45;pointer-events:none" title="Kommt in einer späteren Version">
@@ -935,6 +965,7 @@ function saveSmimeSettings() {
     SMIME_TAG_SIGNED: (document.getElementById('smime-tag-signed').value || '').trim() || 'signiert von {signer}',
     SMIME_TAG_SIGNED_ENABLED: document.getElementById('smime-tag-sig-enabled').checked,
     SMIME_TAG_POSITION: document.getElementById('smime-tag-position').value,
+    STRIP_SUBJECT_TAGS: document.getElementById('strip-subject-tags').checked,
     SMIME_STRIP_INBOUND: document.getElementById('smime-strip-inbound').checked,
     SMIME_KEY_ENCRYPT: document.getElementById('smime-key-encrypt').checked,
     ENC_TRIGGER: (document.getElementById('enc-trigger').value || '').trim() || '#enc',
@@ -946,8 +977,10 @@ function saveSignatur() {
     LOOP_HEADER: (document.getElementById('loop-header').value || '').trim() || 'X-Sig-Applied',
     SENT_ITEMS_UPDATE: document.getElementById('sent-items').checked,
     SKIP_DUPLICATE_SIG: document.getElementById('skip-duplicate-sig').checked,
+    SKIP_SIG_IN_THREAD: document.getElementById('skip-sig-in-thread').checked,
     STRIP_CLIENT_SIGS: document.getElementById('strip-client-sigs').checked,
     SIG_STRIP_MIN_MATCH_PCT: parseInt(document.getElementById('sig-strip-pct').value, 10),
+    SIG_IMAGE_MODE: document.getElementById('sig-image-mode').value,
   }, 'signatur-result');
 }
 

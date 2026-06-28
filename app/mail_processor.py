@@ -180,7 +180,7 @@ def inject(
     # content from previous mails), don't inject another one — prevents stacking
     # in ping-pong threads. The existing SKIP_DUPLICATE_SIG setting additionally
     # checks only the compose area for stricter control when explicitly enabled.
-    if _has_sig_in_thread(msg, sig_html):
+    if settings_store.get("SKIP_SIG_IN_THREAD") is not False and _has_sig_in_thread(msg, sig_html):
         log.debug("Gateway signature already present in thread — skipping injection")
         loop_detector.mark_as_signed(msg)
         return msg

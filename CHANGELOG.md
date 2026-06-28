@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert, damit die KI den Kontext vers
 
 ---
 
+## v1.4.160 — 2026-06-28 — feat: drei neue Settings + [verschlüsselt]-Tag im Sent Item
+
+Neue Settings (alle standardmäßig aktiv):
+- SKIP_SIG_IN_THREAD: Signatur-Stacking in Antwort-Ketten verhindern (steuert
+  _has_sig_in_thread() in inject())
+- STRIP_SUBJECT_TAGS: Betreff-Tag-Stacking verhindern (steuert _strip_subject_tags())
+- SIG_IMAGE_MODE: auto/cid/inline — Wahl zwischen CID-Anhang und data:URI-Einbettung
+  für Signaturbilder (auto = CID bei normalen, inline bei verschlüsselten Mails)
+
+[verschlüsselt]-Tag im Betreff des gepatchten Sent Items (handler.py):
+Gesendete verschlüsselte Mails erhalten denselben [verschlüsselt]-Tag im Betreff
+wie empfangene entschlüsselte Mails in der Inbox — symmetrische Kennzeichnung.
+
 ## v1.4.156 — 2026-06-28 — fix: ENC_TRIGGER-Rest-# bleibt beim Empfänger im Betreff
 
 ENC_TRIGGER = "#enc" (ohne abschließendes #), User tippt "#enc#".
