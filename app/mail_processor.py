@@ -143,7 +143,47 @@ def _has_own_sig_in_compose_area(msg: email.message.Message) -> bool:
     return first_quote is None or marker_pos < first_quote
 
 
-def inject(msg: email.message.Message, sig_html: str, sig_txt: str) -> email.message.Message:
+def _has_sig_in_thread(msg: email.message.Message, sig_html: str = "") -> bool:
+    """
+    Return True if a gateway signature is already present anywhere in the message.
+
+    Detection layers (in order):
+    1. HTML comment marker <!-- exo-sig-start --> — may be stripped by iOS Mail quoting
+    2. Div sentinel id="exo-sig-s" — may be stripped by some clients
+    3. Signature fingerprint match in the quoted part — survives all HTML sanitisation
+       because it's based on visible text tokens (name, phone, address …)
+    """
+    html = extract_html(msg)
+    if not html:
+        return False
+    if html.find(_SIG_MARKER_START) != -1 or html.find(_SIG_DIV_ATTR_S) != -1:
+        return True
+    if sig_html:
+        fp = _sig_fingerprint(sig_html)
+        if fp:
+            # Check the quoted part specifically to avoid false-positives in the compose area.
+            first_quote = _find_first_quote_wrapper_pos(html)
+            search_area = html[first_quote:] if first_quote is not None else html
+            if _matches_sig_fp(search_area, fp):
+                log.debug("Sig fingerprint found in thread quote — skipping injection")
+                return True
+    return False
+
+
+def inject(
+    msg: email.message.Message,
+    sig_html: str,
+    sig_txt: str,
+    use_cid_images: bool = True,
+) -> email.message.Message:
+    # If a gateway signature exists anywhere in the thread (compose area or quoted
+    # content from previous mails), don't inject another one — prevents stacking
+    # in ping-pong threads. The existing SKIP_DUPLICATE_SIG setting additionally
+    # checks only the compose area for stricter control when explicitly enabled.
+    if _has_sig_in_thread(msg, sig_html):
+        log.debug("Gateway signature already present in thread — skipping injection")
+        loop_detector.mark_as_signed(msg)
+        return msg
     if settings_store.get("SKIP_DUPLICATE_SIG") and _has_own_sig_in_compose_area(msg):
         log.info("Gateway signature already present in compose area — skipping injection (SKIP_DUPLICATE_SIG)")
         loop_detector.mark_as_signed(msg)
@@ -151,9 +191,14 @@ def inject(msg: email.message.Message, sig_html: str, sig_txt: str) -> email.mes
 
     msg = _expand_tnef(msg)
 
-    # Convert data: URI images in signature to CID inline attachments so they
-    # render in Outlook, Gmail, and iOS Mail (all block data: URIs for security).
-    sig_html_cid, cid_images = _extract_cid_images(sig_html)
+    # For encrypted mails, keep data: URIs embedded in the HTML — openssl smime
+    # -encrypt only includes the first MIME part inside the CMS envelope, so
+    # CID-referenced image parts would be stripped and arrive as broken placeholders.
+    # With data: URIs the HTML is self-contained and survives encryption intact.
+    if use_cid_images:
+        sig_html_cid, cid_images = _extract_cid_images(sig_html)
+    else:
+        sig_html_cid, cid_images = sig_html, []
 
     content_type = msg.get_content_type()
 
