@@ -93,20 +93,7 @@
   </div>
 </div>
 
-<!-- Allgemein -->
-<div class="settings-card">
-  <h2>Allgemein</h2>
-  <div class="settings-row">
-    <label class="checkbox-label">
-      <input type="checkbox" id="fallback" {% if s.FALLBACK_ON_ERROR %}checked{% endif %}>
-      Fallback bei Fehler – original Mail ohne Signatur weiterleiten (gilt nicht für verschlüsselte Mails)
-    </label>
-  </div>
-  <div class="actions" style="margin-top:4px">
-    <button class="btn secondary" onclick="saveAllgemein()">Speichern</button>
-    <span id="allgemein-result" style="font-size:12px;margin-left:8px"></span>
-  </div>
-</div>
+<!-- Allgemein (leer – Fallback wurde nach Signatur verschoben) -->
 
 <!-- Benachrichtigungen (direkt nach Allgemein) -->
 <div class="settings-card" id="benachrichtigungen">
@@ -432,7 +419,13 @@
 <!-- Signatur -->
 <div class="settings-card">
   <h2>Signatur</h2>
-  <h3 style="margin-top:0;margin-bottom:12px">Verhalten</h3>
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="fallback" {% if s.FALLBACK_ON_ERROR %}checked{% endif %}>
+      Fallback bei Fehler – original Mail ohne Signatur weiterleiten (gilt nicht für verschlüsselte Mails)
+    </label>
+  </div>
+  <div style="border-top:1px solid #f0f0f0;margin:14px 0 12px"></div>
   <div class="settings-row">
     <label for="loop-header">Loop-Detection-Header</label>
     <div class="settings-control">
@@ -1153,12 +1146,6 @@ function saveZugangsdaten() {
   savePartial({ WEBUI_USERNAME: (document.getElementById('webui-username').value || '').trim() }, 'zugangsdaten-result');
 }
 
-function saveAllgemein() {
-  savePartial({
-    FALLBACK_ON_ERROR: document.getElementById('fallback').checked,
-  }, 'allgemein-result');
-}
-
 function saveSmimeSettings() {
   savePartial({
     SMIME_TAG_ENCRYPTED: (document.getElementById('smime-tag-encrypted').value || '').trim() || 'verschlüsselt',
@@ -1175,6 +1162,7 @@ function saveSmimeSettings() {
 
 function saveSignatur() {
   savePartial({
+    FALLBACK_ON_ERROR: document.getElementById('fallback').checked,
     LOOP_HEADER: (document.getElementById('loop-header').value || '').trim() || 'X-Sig-Applied',
     SENT_ITEMS_UPDATE: document.getElementById('sent-items').checked,
     SKIP_DUPLICATE_SIG: document.getElementById('skip-duplicate-sig').checked,

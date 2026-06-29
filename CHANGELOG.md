@@ -5,6 +5,8 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.241 — 2026-06-30 — refactor: Fallback-Checkbox nach Signatur-Card verschoben
+
 ## v1.4.239 — 2026-06-30 — refactor: Allgemein-Tab neu strukturiert
 
 Benachrichtigungen direkt nach Allgemein verschoben.
