@@ -789,6 +789,78 @@ async function loadHealthInline() {
 }
 </script>
 
+<!-- ── Logging ─────────────────────────────────────────────────────────────── -->
+<div class="wizard-step" style="border-color:#64748b33;margin-bottom:20px">
+  <div class="step-header">
+    <span class="step-badge" style="background:#64748b;font-size:10px">Logging</span>
+    <strong>Logging</strong>
+  </div>
+  <div class="step-body">
+    <div class="settings-row">
+      <label for="log-level">Log-Level</label>
+      <div class="settings-control">
+        <select id="log-level">
+          {% for lvl in ["DEBUG","INFO","WARNING","ERROR"] %}
+          <option value="{{ lvl }}"{% if s.LOG_LEVEL == lvl %} selected{% endif %}>{{ lvl }}</option>
+          {% endfor %}
+        </select>
+        <span class="hint">Wirkt erst nach Neustart</span>
+      </div>
+    </div>
+    <div class="settings-row">
+      <label for="log-retention">Log-Aufbewahrung (Tage)</label>
+      <div class="settings-control">
+        <input type="number" id="log-retention" value="{{ s.LOG_RETENTION_DAYS }}" min="1" max="365" style="width:80px">
+        <span class="hint">Tägliche Rotation, ältere Dateien werden automatisch gelöscht</span>
+      </div>
+    </div>
+    <div class="settings-row">
+      <label for="log-timezone">Log-Zeitzone</label>
+      <div class="settings-control">
+        <select id="log-timezone">
+          {% for tz in ["UTC","Europe/Berlin","Europe/Vienna","Europe/Zurich","Europe/London","Europe/Paris","Europe/Amsterdam","America/New_York","America/Chicago","America/Denver","America/Los_Angeles","Asia/Tokyo","Asia/Shanghai","Australia/Sydney"] %}
+          <option value="{{ tz }}"{% if s.LOG_TIMEZONE == tz %} selected{% endif %}>{{ tz }}</option>
+          {% endfor %}
+        </select>
+        <span class="hint">Zeitzone für Log-Zeitstempel (IANA-Name). Wirkt sofort nach Speichern.</span>
+      </div>
+    </div>
+    <div class="actions" style="margin-top:8px">
+      <button class="btn secondary" onclick="saveLogging()">Speichern</button>
+      <span id="logging-result" style="font-size:12px;margin-left:8px"></span>
+    </div>
+  </div>
+</div>
+
+<!-- ── TLS / Let's Encrypt ─────────────────────────────────────────────────── -->
+<div class="wizard-step" style="border-color:#64748b33;margin-bottom:20px">
+  <div class="step-header">
+    <span class="step-badge" style="background:#64748b;font-size:10px">TLS</span>
+    <strong>TLS / Let's Encrypt</strong>
+  </div>
+  <div class="step-body">
+    <div class="settings-row">
+      <label>Aktuelles Zertifikat</label>
+      <span>{{ cert_expiry | safe }}</span>
+    </div>
+    <div class="settings-row">
+      <label for="le-domain">Domain</label>
+      <input type="text" id="le-domain" value="{{ s.LE_DOMAIN }}" placeholder="mail.zarenko.net">
+    </div>
+    <div class="settings-row">
+      <label for="le-email">E-Mail (ACME)</label>
+      <input type="email" id="le-email" value="{{ s.LE_EMAIL }}" placeholder="admin@zarenko.net">
+    </div>
+    <p class="hint">Port 80 muss extern erreichbar sein (Firewall/NAT). Das Zertifikat wird unter <code>./certs/</code> gespeichert.</p>
+    <div class="actions" style="margin-top:12px;flex-wrap:wrap;gap:8px">
+      <button class="btn secondary" onclick="saveLetsEncrypt()">Domain &amp; E-Mail speichern</button>
+      <span id="le-save-result" style="font-size:12px;align-self:center"></span>
+      <button class="btn primary" id="le-btn" onclick="renewCert()" style="margin-left:16px">Zertifikat erneuern</button>
+    </div>
+    <div id="le-result" style="margin-top:10px;display:none"></div>
+  </div>
+</div>
+
 <!-- ── Support-Bundle ──────────────────────────────────────────────────────── -->
 <div class="wizard-step" style="border-color:#7c3aed33;margin-bottom:20px">
   <div class="step-header">
@@ -910,6 +982,56 @@ async function supportUpload() {
     btn.disabled = false;
     spinner.style.display = 'none';
     result.style.display  = 'block';
+  }
+}
+</script>
+
+<script>
+function saveLogging() {
+  const body = {
+    LOG_LEVEL: document.getElementById('log-level').value,
+    LOG_RETENTION_DAYS: parseInt(document.getElementById('log-retention').value, 10) || 30,
+    LOG_TIMEZONE: document.getElementById('log-timezone').value,
+  };
+  fetch('/api/settings/partial', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
+    .then(r => r.json())
+    .then(d => {
+      const el = document.getElementById('logging-result');
+      el.textContent = d.ok ? 'Gespeichert.' : ('Fehler: ' + (d.error||'?'));
+      el.style.color = d.ok ? '#16a34a' : '#dc2626';
+    });
+}
+
+function saveLetsEncrypt() {
+  const body = {
+    LE_DOMAIN: (document.getElementById('le-domain').value || '').trim(),
+    LE_EMAIL:  (document.getElementById('le-email').value  || '').trim(),
+  };
+  fetch('/api/settings/partial', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
+    .then(r => r.json())
+    .then(d => {
+      const el = document.getElementById('le-save-result');
+      el.textContent = d.ok ? 'Gespeichert.' : ('Fehler: ' + (d.error||'?'));
+      el.style.color = d.ok ? '#16a34a' : '#dc2626';
+    });
+}
+
+async function renewCert() {
+  const btn = document.getElementById('le-btn');
+  const out = document.getElementById('le-result');
+  btn.disabled = true;
+  out.style.display = 'none';
+  try {
+    const r = await fetch('/api/system/renew-cert', {method:'POST'});
+    const d = await r.json();
+    out.innerHTML = d.ok
+      ? `<div class="alert success">${d.message || 'Zertifikat erneuert.'}</div>`
+      : `<div class="alert" style="background:#fef2f2;border-color:#fca5a5;color:#991b1b"><strong>Fehler:</strong> ${d.error || '?'}</div>`;
+  } catch(e) {
+    out.innerHTML = `<div class="alert" style="background:#fef2f2;border-color:#fca5a5;color:#991b1b"><strong>Netzwerkfehler:</strong> ${e.message}</div>`;
+  } finally {
+    out.style.display = 'block';
+    btn.disabled = false;
   }
 }
 </script>

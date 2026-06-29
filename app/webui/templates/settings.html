@@ -12,9 +12,10 @@
 
 <div id="page-alert" class="alert" style="display:none"></div>
 
-<!-- Admin-Konten -->
+<!-- Zugangsdaten -->
 <div class="settings-card" id="admin-users">
-  <h2>Entra-Konten (SSO)</h2>
+  <h2>Zugangsdaten</h2>
+  <h3 style="margin-top:0;margin-bottom:8px">Entra-Konten (SSO)</h3>
   <p class="hint">Admins haben vollen Zugriff. Signatur-Editoren sehen nur Übersicht, Vorlagen und Vorschau.</p>
   <div id="admin-users-list" style="margin-bottom:14px;overflow-x:auto"></div>
 
@@ -52,11 +53,9 @@
     <span id="admin-users-result" style="font-size:12px;margin-left:8px"></span>
   </div>
   <div id="admin-users-alert" class="alert" style="display:none;margin-top:8px"></div>
-</div>
 
-<!-- Zugangsdaten -->
-<div class="settings-card">
-  <h2>Zugangsdaten lokaler Admin</h2>
+  <div style="border-top:1px solid #f0f0f0;margin:20px 0 16px"></div>
+  <h3 style="margin-bottom:12px">Lokaler Admin</h3>
   <div class="settings-row">
     <label for="webui-username">Benutzername</label>
     <div class="settings-control">
@@ -103,45 +102,149 @@
       Fallback bei Fehler – original Mail ohne Signatur weiterleiten (gilt nicht für verschlüsselte Mails)
     </label>
   </div>
-  <div class="settings-row">
-    <label for="log-level">Log-Level</label>
-    <div class="settings-control">
-      <select id="log-level">
-        {% for lvl in ["DEBUG","INFO","WARNING","ERROR"] %}
-        <option value="{{ lvl }}"{% if s.LOG_LEVEL == lvl %} selected{% endif %}>{{ lvl }}</option>
-        {% endfor %}
-      </select>
-      <span class="hint">Wirkt erst nach Neustart</span>
-    </div>
-  </div>
-  <div class="settings-row">
-    <label for="log-retention">Log-Aufbewahrung (Tage)</label>
-    <div class="settings-control">
-      <input type="number" id="log-retention" value="{{ s.LOG_RETENTION_DAYS }}" min="1" max="365" style="width:80px">
-      <span class="hint">Tägliche Rotation, ältere Dateien werden automatisch gelöscht</span>
-    </div>
-  </div>
-  <div class="settings-row">
-    <label for="log-timezone">Log-Zeitzone</label>
-    <div class="settings-control">
-      <select id="log-timezone">
-        {% for tz in [
-          "UTC",
-          "Europe/Berlin", "Europe/Vienna", "Europe/Zurich",
-          "Europe/London", "Europe/Paris", "Europe/Amsterdam",
-          "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles",
-          "Asia/Tokyo", "Asia/Shanghai", "Australia/Sydney"
-        ] %}
-        <option value="{{ tz }}"{% if s.LOG_TIMEZONE == tz %} selected{% endif %}>{{ tz }}</option>
-        {% endfor %}
-      </select>
-      <span class="hint">Zeitzone für Log-Zeitstempel (IANA-Name). Wirkt sofort nach Speichern.</span>
-    </div>
-  </div>
   <div class="actions" style="margin-top:4px">
     <button class="btn secondary" onclick="saveAllgemein()">Speichern</button>
     <span id="allgemein-result" style="font-size:12px;margin-left:8px"></span>
   </div>
+</div>
+
+<!-- Benachrichtigungen (direkt nach Allgemein) -->
+<div class="settings-card" id="benachrichtigungen">
+  <h2>Benachrichtigungen &amp; Tagesbericht</h2>
+
+  <div class="settings-row" style="margin-bottom:10px">
+    <label class="checkbox-label" style="font-weight:600">
+      <input type="checkbox" id="notif-enabled"
+             {% if s.NOTIFICATIONS_ENABLED is not false %}checked{% endif %}
+             onchange="toggleNotifConfig(this.checked)">
+      Benachrichtigungen aktivieren
+    </label>
+  </div>
+
+  <div id="notif-config-block" {% if s.NOTIFICATIONS_ENABLED is false %}style="display:none"{% endif %}>
+
+    <p class="hint" style="margin-bottom:12px">
+      Die ausgewählten Postfächer erhalten tägliche Statistikberichte sowie Warnungen bei Zertifikatsablauf und Container-Neustart.
+      Beim Speichern wird die Distribution Group
+      <code>{{ gateway_name }} - Notification recipients</code> in EXO erstellt/aktualisiert.
+    </p>
+
+    <div class="settings-row">
+      <label for="notif-mailbox">Absender</label>
+      <div class="settings-control">
+        <div style="display:flex;align-items:center;gap:8px">
+          <select id="notif-mailbox" style="width:300px;max-width:100%">
+            <option value="">— Automatisch (erster Empfänger) —</option>
+            {% for m in sender_mailboxes %}
+            <option value="{{ m.email }}" {% if m.email == s.NOTIFICATION_MAILBOX %}selected{% endif %}>
+              {{ m.email }}{% if m.name and m.name != m.email %} – {{ m.name }}{% endif %}
+            </option>
+            {% endfor %}
+          </select>
+          <button type="button" class="btn secondary btn-sm" onclick="refreshSenderMailboxes(this)"
+                  title="Postfachliste neu laden">↻</button>
+          <span id="sender-mb-refresh-result" style="font-size:12px;color:#64748b"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recipient picker -->
+    <div class="settings-row" style="align-items:flex-start">
+      <label style="padding-top:4px">Empfänger</label>
+      <div class="settings-control" style="flex:1;min-width:0;max-width:420px">
+        <div style="position:relative;width:100%;max-width:360px;margin-bottom:8px">
+          <input type="text" id="notif-search-input" autocomplete="off"
+                 placeholder="Postfach suchen und hinzufügen…"
+                 style="width:100%;box-sizing:border-box;height:34px;border:1px solid #d1d5db;border-radius:6px;padding:0 32px 0 10px;font-size:13px"
+                 oninput="_filterNotifDropdown(this.value)"
+                 onfocus="_showNotifDropdown()"
+                 onblur="_hideNotifDropdownDelayed()"
+                 onkeydown="_notifInputKeydown(event)">
+          <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);color:#94a3b8;pointer-events:none;font-size:12px">▼</span>
+          <div id="notif-dropdown"
+               style="display:none;position:absolute;top:38px;left:0;right:0;background:#fff;border:1px solid #d1d5db;border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:200;max-height:220px;overflow-y:auto"></div>
+        </div>
+        <div id="notif-recipients-list"
+             style="min-height:52px;width:100%;max-width:360px;box-sizing:border-box;border:1px solid #e2e8f0;border-radius:6px;padding:6px 8px;background:#f8fafc;margin-bottom:8px">
+          <span id="notif-recipients-empty" style="color:#94a3b8;font-size:12px">Keine Empfänger konfiguriert</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <button class="btn secondary" id="notif-dg-btn" onclick="saveNotifDg()">In EXO speichern (DG aktualisieren)</button>
+          <span id="notif-dg-result" style="font-size:12px"></span>
+        </div>
+        {% if s.NOTIFICATION_DG_EMAIL %}
+        <div style="margin-top:6px;font-size:12px;color:#64748b">
+          Distribution Group: <code>{{ s.NOTIFICATION_DG_EMAIL }}</code>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div style="border-top:1px solid #f0f0f0;margin:14px 0 12px"></div>
+
+    <h3 style="margin-top:0;margin-bottom:10px">Tagesbericht</h3>
+    <div class="settings-row">
+      <label>Tagesbericht aktivieren</label>
+      <input type="checkbox" id="daily-report-enabled" {% if s.DAILY_REPORT_ENABLED %}checked{% endif %}>
+    </div>
+    <div class="settings-row">
+      <label for="daily-report-time">Berichtszeitpunkt</label>
+      <input type="time" id="daily-report-time" value="{{ s.DAILY_REPORT_TIME or '08:00' }}" style="width:120px">
+      <span class="hint" style="margin-left:8px">(in {{ s.LOG_TIMEZONE or 'Europe/Berlin' }})</span>
+    </div>
+
+    <h3>Sofort-Benachrichtigungen</h3>
+    <div class="settings-row">
+      <label>Welche Ereignisse sollen gemeldet werden?</label>
+      <div class="settings-control">
+        <label class="checkbox-label">
+          <input type="checkbox" id="notify-startup"
+                 {% if s.NOTIFY_STARTUP is not false %}checked{% endif %}>
+          Container-Neustart
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="notify-smime-expiry"
+                 {% if s.NOTIFY_SMIME_EXPIRY is not false %}checked{% endif %}>
+          S/MIME Zertifikat läuft ab (Admin-Warnung)
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="notify-cert-renewal"
+                 {% if s.NOTIFY_CERT_RENEWAL is not false %}checked{% endif %}>
+          S/MIME Erneuerung – Erfolg &amp; Fehler
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="notify-le-events"
+                 {% if s.NOTIFY_LE_EVENTS is not false %}checked{% endif %}>
+          TLS-Zertifikat (Let's Encrypt) erneuert / läuft ab
+        </label>
+        <label class="checkbox-label" style="margin-top:6px">
+          <input type="checkbox" id="notify-local-admin-login"
+                 {% if s.NOTIFY_LOCAL_ADMIN_LOGIN is not false %}checked{% endif %}>
+          Anmeldung mit lokalem Admin
+        </label>
+        <small class="hint" style="margin-left:22px;display:block;margin-top:2px">
+          Notfall-Zugang: bei jeder Anmeldung wird eine Benachrichtigung mit IP-Adresse und Browser gesendet.
+        </small>
+      </div>
+    </div>
+
+    <h3>Warnschwellen</h3>
+    <div class="settings-row">
+      <label for="cert-warn-days">S/MIME Zertifikat – Warnung ab</label>
+      <input type="number" id="cert-warn-days" value="{{ s.CERT_WARN_DAYS or 14 }}" min="1" max="90" style="width:80px"> Tage vor Ablauf
+    </div>
+    <div class="settings-row">
+      <label for="le-renew-days">Let's Encrypt – Erneuerung ab</label>
+      <input type="number" id="le-renew-days" value="{{ s.LE_RENEW_DAYS or 7 }}" min="1" max="30" style="width:80px"> Tage vor Ablauf
+    </div>
+
+    <div class="actions" style="margin-top:12px;flex-wrap:wrap;gap:8px">
+      <button class="btn secondary" onclick="saveBenachrichtigungen()">Speichern</button>
+      <span id="benachrichtigungen-result" style="font-size:12px;align-self:center"></span>
+      <button class="btn secondary" onclick="sendTestNotification()" style="margin-left:16px">Test-Benachrichtigung senden</button>
+      <span id="notif-test-result" style="font-size:13px;align-self:center"></span>
+    </div>
+  </div><!-- /notif-config-block -->
 </div>
 
 <!-- S/MIME -->
@@ -328,7 +431,8 @@
 
 <!-- Signatur -->
 <div class="settings-card">
-  <h2>Signatur-Verhalten</h2>
+  <h2>Signatur</h2>
+  <h3 style="margin-top:0;margin-bottom:12px">Verhalten</h3>
   <div class="settings-row">
     <label for="loop-header">Loop-Detection-Header</label>
     <div class="settings-control">
@@ -415,11 +519,9 @@
     <button class="btn secondary" onclick="saveSignatur()">Speichern</button>
     <span id="signatur-result" style="font-size:12px;margin-left:8px"></span>
   </div>
-</div>
 
-<!-- Benutzer-Overrides -->
-<div class="settings-card">
-  <h2>Benutzer-Overrides</h2>
+  <div style="border-top:1px solid #f0f0f0;margin:20px 0 16px"></div>
+  <h3 id="overrides" style="margin-bottom:8px">Benutzer-Overrides</h3>
   <p class="hint" style="margin-bottom:12px">Überschreibt Graph-Werte für einzelne Nutzer. E-Mail in Kleinbuchstaben.</p>
 
   <h3>Website-URLs</h3>
@@ -455,146 +557,30 @@
     <button class="btn secondary" onclick="saveOverrides()">Speichern</button>
     <span id="overrides-result" style="font-size:12px;margin-left:8px"></span>
   </div>
-</div>
 
-<!-- Benachrichtigungen -->
-<div class="settings-card" id="benachrichtigungen">
-  <h2>Benachrichtigungen &amp; Tagesbericht</h2>
-
-  <div class="settings-row" style="margin-bottom:10px">
-    <label class="checkbox-label" style="font-weight:600">
-      <input type="checkbox" id="notif-enabled"
-             {% if s.NOTIFICATIONS_ENABLED is not false %}checked{% endif %}
-             onchange="toggleNotifConfig(this.checked)">
-      Benachrichtigungen aktivieren
-    </label>
-  </div>
-
-  <div id="notif-config-block" {% if s.NOTIFICATIONS_ENABLED is false %}style="display:none"{% endif %}>
-
-    <p class="hint" style="margin-bottom:12px">
-      Die ausgewählten Postfächer erhalten tägliche Statistikberichte sowie Warnungen bei Zertifikatsablauf und Container-Neustart.
-      Beim Speichern wird die Distribution Group
-      <code>{{ gateway_name }} - Notification recipients</code> in EXO erstellt/aktualisiert.
-    </p>
-
-    <div class="settings-row">
-      <label for="notif-mailbox">Absender</label>
-      <div class="settings-control">
-        <div style="display:flex;align-items:center;gap:8px">
-          <select id="notif-mailbox" style="width:300px;max-width:100%">
-            <option value="">— Automatisch (erster Empfänger) —</option>
-            {% for m in sender_mailboxes %}
-            <option value="{{ m.email }}" {% if m.email == s.NOTIFICATION_MAILBOX %}selected{% endif %}>
-              {{ m.email }}{% if m.name and m.name != m.email %} – {{ m.name }}{% endif %}
-            </option>
-            {% endfor %}
-          </select>
-          <button type="button" class="btn secondary btn-sm" onclick="refreshSenderMailboxes(this)"
-                  title="Postfachliste neu laden">↻</button>
-          <span id="sender-mb-refresh-result" style="font-size:12px;color:#64748b"></span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Recipient picker -->
-    <div class="settings-row" style="align-items:flex-start">
-      <label style="padding-top:4px">Empfänger</label>
-      <div class="settings-control" style="flex:1;min-width:0;max-width:420px">
-        <div style="position:relative;width:100%;max-width:360px;margin-bottom:8px">
-          <input type="text" id="notif-search-input" autocomplete="off"
-                 placeholder="Postfach suchen und hinzufügen…"
-                 style="width:100%;box-sizing:border-box;height:34px;border:1px solid #d1d5db;border-radius:6px;padding:0 32px 0 10px;font-size:13px"
-                 oninput="_filterNotifDropdown(this.value)"
-                 onfocus="_showNotifDropdown()"
-                 onblur="_hideNotifDropdownDelayed()"
-                 onkeydown="_notifInputKeydown(event)">
-          <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);color:#94a3b8;pointer-events:none;font-size:12px">▼</span>
-          <div id="notif-dropdown"
-               style="display:none;position:absolute;top:38px;left:0;right:0;background:#fff;border:1px solid #d1d5db;border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,0.12);z-index:200;max-height:220px;overflow-y:auto"></div>
-        </div>
-        <div id="notif-recipients-list"
-             style="min-height:52px;width:100%;max-width:360px;box-sizing:border-box;border:1px solid #e2e8f0;border-radius:6px;padding:6px 8px;background:#f8fafc;margin-bottom:8px">
-          <span id="notif-recipients-empty" style="color:#94a3b8;font-size:12px">Keine Empfänger konfiguriert</span>
-        </div>
-        <div style="display:flex;align-items:center;gap:10px">
-          <button class="btn secondary" id="notif-dg-btn" onclick="saveNotifDg()">In EXO speichern (DG aktualisieren)</button>
-          <span id="notif-dg-result" style="font-size:12px"></span>
-        </div>
-        {% if s.NOTIFICATION_DG_EMAIL %}
-        <div style="margin-top:6px;font-size:12px;color:#64748b">
-          Distribution Group: <code>{{ s.NOTIFICATION_DG_EMAIL }}</code>
-        </div>
-        {% endif %}
-      </div>
-    </div>
-
-    <div style="border-top:1px solid #f0f0f0;margin:14px 0 12px"></div>
-
-    <h3 style="margin-top:0;margin-bottom:10px">Tagesbericht</h3>
-    <div class="settings-row">
-      <label>Tagesbericht aktivieren</label>
-      <input type="checkbox" id="daily-report-enabled" {% if s.DAILY_REPORT_ENABLED %}checked{% endif %}>
-    </div>
-    <div class="settings-row">
-      <label for="daily-report-time">Berichtszeitpunkt</label>
-      <input type="time" id="daily-report-time" value="{{ s.DAILY_REPORT_TIME or '08:00' }}" style="width:120px">
-      <span class="hint" style="margin-left:8px">(in {{ s.LOG_TIMEZONE or 'Europe/Berlin' }})</span>
-    </div>
-
-    <h3>Sofort-Benachrichtigungen</h3>
-    <div class="settings-row">
-      <label>Welche Ereignisse sollen gemeldet werden?</label>
-      <div class="settings-control">
-        <label class="checkbox-label">
-          <input type="checkbox" id="notify-startup"
-                 {% if s.NOTIFY_STARTUP is not false %}checked{% endif %}>
-          Container-Neustart
-        </label>
-        <label class="checkbox-label">
-          <input type="checkbox" id="notify-smime-expiry"
-                 {% if s.NOTIFY_SMIME_EXPIRY is not false %}checked{% endif %}>
-          S/MIME Zertifikat läuft ab (Admin-Warnung)
-        </label>
-        <label class="checkbox-label">
-          <input type="checkbox" id="notify-cert-renewal"
-                 {% if s.NOTIFY_CERT_RENEWAL is not false %}checked{% endif %}>
-          S/MIME Erneuerung – Erfolg &amp; Fehler
-        </label>
-        <label class="checkbox-label">
-          <input type="checkbox" id="notify-le-events"
-                 {% if s.NOTIFY_LE_EVENTS is not false %}checked{% endif %}>
-          TLS-Zertifikat (Let's Encrypt) erneuert / läuft ab
-        </label>
-        <label class="checkbox-label" style="margin-top:6px">
-          <input type="checkbox" id="notify-local-admin-login"
-                 {% if s.NOTIFY_LOCAL_ADMIN_LOGIN is not false %}checked{% endif %}>
-          Anmeldung mit lokalem Admin
-        </label>
-        <small class="hint" style="margin-left:22px;display:block;margin-top:2px">
-          Notfall-Zugang: bei jeder Anmeldung wird eine Benachrichtigung mit IP-Adresse und Browser gesendet.
-        </small>
-      </div>
-    </div>
-
-    <h3>Warnschwellen</h3>
-    <div class="settings-row">
-      <label for="cert-warn-days">S/MIME Zertifikat – Warnung ab</label>
-      <input type="number" id="cert-warn-days" value="{{ s.CERT_WARN_DAYS or 14 }}" min="1" max="90" style="width:80px"> Tage vor Ablauf
-    </div>
-    <div class="settings-row">
-      <label for="le-renew-days">Let's Encrypt – Erneuerung ab</label>
-      <input type="number" id="le-renew-days" value="{{ s.LE_RENEW_DAYS or 7 }}" min="1" max="30" style="width:80px"> Tage vor Ablauf
-    </div>
-
-    <div class="actions" style="margin-top:12px;flex-wrap:wrap;gap:8px">
-      <button class="btn secondary" onclick="saveBenachrichtigungen()">Speichern</button>
-      <span id="benachrichtigungen-result" style="font-size:12px;align-self:center"></span>
-      <button class="btn secondary" onclick="sendTestNotification()" style="margin-left:16px">Test-Benachrichtigung senden</button>
-      <span id="notif-test-result" style="font-size:13px;align-self:center"></span>
-    </div>
-  </div><!-- /notif-config-block -->
-
+  <div style="border-top:1px solid #f0f0f0;margin:20px 0 16px"></div>
+  <h3 style="margin-bottom:8px">Signaturvariablen</h3>
+  <p class="hint">Verfügbare Jinja2-Variablen in Signaturvorlagen und ihre Herkunft aus Entra-Attributen.</p>
+  <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:14px">
+    <thead>
+      <tr style="border-bottom:2px solid #e2e8f0">
+        <th style="text-align:left;padding:6px 0;color:#555">Variable</th>
+        <th style="text-align:left;padding:6px 16px;color:#555">Entra-Attribut</th>
+        <th style="text-align:left;padding:6px 0;color:#555">Benutzer-Override</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.displayName</code></td><td style="padding:5px 16px;color:#555">displayName</td><td style="padding:5px 0;color:#aaa">—</td></tr>
+      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.jobTitle</code></td><td style="padding:5px 16px;color:#555">jobTitle</td><td style="padding:5px 0;color:#aaa">—</td></tr>
+      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.phone</code></td><td style="padding:5px 16px;color:#555">businessPhones[0]</td><td style="padding:5px 0;color:#aaa">—</td></tr>
+      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.website</code></td><td style="padding:5px 16px;color:#555">businessHomePage → extensionAttribute1</td><td style="padding:5px 0"><a href="#overrides" style="color:#0369a1;font-size:12px">USER_WEBSITES</a></td></tr>
+      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.bookingsUrl</code></td><td style="padding:5px 16px;color:#555">Bookings-Seite (Kalender-URL)</td><td style="padding:5px 0"><a href="#overrides" style="color:#0369a1;font-size:12px">USER_BOOKINGS</a></td></tr>
+      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.department</code></td><td style="padding:5px 16px;color:#555">department</td><td style="padding:5px 0;color:#aaa">—</td></tr>
+      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.companyName</code></td><td style="padding:5px 16px;color:#555">companyName</td><td style="padding:5px 0;color:#aaa">—</td></tr>
+      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.officeLocation</code></td><td style="padding:5px 16px;color:#555">officeLocation</td><td style="padding:5px 0;color:#aaa">—</td></tr>
+      <tr><td style="padding:5px 0"><code>user.email</code></td><td style="padding:5px 16px;color:#555">mail</td><td style="padding:5px 0;color:#aaa">—</td></tr>
+    </tbody>
+  </table>
 </div>
 
 <!-- Test-Mail -->
@@ -620,30 +606,6 @@
     <button class="btn primary" onclick="sendTestMail()">Test-Mail senden</button>
   </div>
   <div id="test-result" style="margin-top:10px;display:none"></div>
-</div>
-
-<!-- Let's Encrypt -->
-<div class="settings-card">
-  <h2>TLS / Let's Encrypt</h2>
-  <div class="settings-row">
-    <label>Aktuelles Zertifikat</label>
-    <span>{{ cert_expiry | safe }}</span>
-  </div>
-  <div class="settings-row">
-    <label for="le-domain">Domain</label>
-    <input type="text" id="le-domain" value="{{ s.LE_DOMAIN }}" placeholder="mail.zarenko.net">
-  </div>
-  <div class="settings-row">
-    <label for="le-email">E-Mail (ACME)</label>
-    <input type="email" id="le-email" value="{{ s.LE_EMAIL }}" placeholder="admin@zarenko.net">
-  </div>
-  <p class="hint">Port 80 muss extern erreichbar sein (Firewall/NAT). Das Zertifikat wird unter <code>./certs/</code> gespeichert.</p>
-  <div class="actions" style="margin-top:12px;flex-wrap:wrap;gap:8px">
-    <button class="btn secondary" onclick="saveLetsEncrypt()">Domain &amp; E-Mail speichern</button>
-    <span id="le-save-result" style="font-size:12px;align-self:center"></span>
-    <button class="btn primary" id="le-btn" onclick="renewCert()" style="margin-left:16px">Zertifikat erneuern</button>
-  </div>
-  <div id="le-result" style="margin-top:10px;display:none"></div>
 </div>
 
 <!-- Gateway-Update -->
@@ -871,9 +833,11 @@ async function _updCheckWatcher() {
 })();
 </script>
 
-<!-- Konfiguration Export / Import -->
+<!-- Konfiguration & Neustart -->
 <div class="settings-card">
-  <h2>Konfiguration sichern &amp; wiederherstellen</h2>
+  <h2>Konfiguration &amp; Neustart</h2>
+
+  <h3 style="margin-top:0;margin-bottom:8px">Sichern &amp; Wiederherstellen</h3>
   <p class="hint" style="margin-bottom:12px">
     Passwörter und Secrets werden <strong>nicht</strong> exportiert und müssen nach einem Import manuell ergänzt werden.
   </p>
@@ -885,13 +849,10 @@ async function _updCheckWatcher() {
     </label>
   </div>
   <div id="import-result" style="margin-top:10px;display:none"></div>
-</div>
 
-<!-- Neustart -->
-<div class="settings-card">
-  <h2>Neustart</h2>
+  <div style="border-top:1px solid #f0f0f0;margin:20px 0 16px"></div>
+  <h3 style="margin-bottom:12px">Neustart</h3>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:4px" class="restart-grid">
-
     <div style="border:1px solid #e2e8f0;border-radius:8px;padding:14px">
       <div style="font-weight:600;font-size:13px;margin-bottom:4px">Prozess neu starten</div>
       <p style="font-size:12px;color:#64748b;margin:0 0 12px">
@@ -899,7 +860,6 @@ async function _updCheckWatcher() {
       </p>
       <button class="btn secondary" onclick="restartService()">Prozess neu starten</button>
     </div>
-
     <div style="border:1px solid #e2e8f0;border-radius:8px;padding:14px">
       <div style="font-weight:600;font-size:13px;margin-bottom:4px">Container neu starten</div>
       <p style="font-size:12px;color:#64748b;margin:0 0 12px">
@@ -908,7 +868,6 @@ async function _updCheckWatcher() {
       </p>
       <button class="btn secondary" id="restart-container-btn" onclick="restartContainer()">Container neu starten</button>
     </div>
-
   </div>
   <div id="restart-container-status" style="display:none;margin-top:10px"></div>
 </div>
@@ -1197,9 +1156,6 @@ function saveZugangsdaten() {
 function saveAllgemein() {
   savePartial({
     FALLBACK_ON_ERROR: document.getElementById('fallback').checked,
-    LOG_LEVEL: document.getElementById('log-level').value,
-    LOG_RETENTION_DAYS: parseInt(document.getElementById('log-retention').value, 10) || 30,
-    LOG_TIMEZONE: document.getElementById('log-timezone').value,
   }, 'allgemein-result');
 }
 
@@ -1254,13 +1210,6 @@ function saveBenachrichtigungen() {
   }, 'benachrichtigungen-result');
 }
 
-function saveLetsEncrypt() {
-  savePartial({
-    LE_DOMAIN: (document.getElementById('le-domain').value || '').trim(),
-    LE_EMAIL: (document.getElementById('le-email').value || '').trim(),
-  }, 'le-save-result');
-}
-
 async function sendTestMail() {
   const from_email = (document.getElementById('test-from').value || '').trim();
   const to_email = (document.getElementById('test-to').value || '').trim();
@@ -1284,39 +1233,6 @@ async function sendTestMail() {
   } else {
     const data = await resp.json().catch(() => ({}));
     showAlert(result, 'error', 'Fehler: ' + (data.detail || 'Unbekannt'));
-  }
-}
-
-async function renewCert() {
-  const domain = (document.getElementById('le-domain').value || '').trim();
-  const email = (document.getElementById('le-email').value || '').trim();
-  const result = document.getElementById('le-result');
-  const btn = document.getElementById('le-btn');
-
-  if (!domain || !email) {
-    showAlert(result, 'error', 'Domain und E-Mail sind Pflichtfelder.');
-    return;
-  }
-
-  btn.disabled = true;
-  btn.textContent = 'Läuft…';
-  result.style.display = 'none';
-
-  const resp = await fetch('/api/letsencrypt', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({domain, email}),
-  });
-
-  btn.disabled = false;
-  btn.textContent = 'Zertifikat erneuern';
-
-  if (resp.ok) {
-    const data = await resp.json();
-    showAlert(result, 'success', (data.detail || 'Zertifikat erneuert.') + ' Jetzt neu starten.');
-  } else {
-    const data = await resp.json().catch(() => ({}));
-    showAlert(result, 'error', 'certbot-Fehler: ' + (data.detail || 'Unbekannt'));
   }
 }
 
@@ -1794,32 +1710,5 @@ async function saveKvUrl() {
   padding:2px 7px; margin-left:8px; vertical-align:middle; }
 .planned-card h2 { color:#94a3b8 !important; }
 </style>
-
-<!-- Signaturvariablen -->
-<div class="settings-card" style="margin-top:24px">
-  <h2>Signaturvariablen</h2>
-  <p class="hint">Verfügbare Jinja2-Variablen in Signaturvorlagen und ihre Herkunft aus Entra-Attributen.</p>
-  <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:14px">
-    <thead>
-      <tr style="border-bottom:2px solid #e2e8f0">
-        <th style="text-align:left;padding:6px 0;color:#555">Variable</th>
-        <th style="text-align:left;padding:6px 16px;color:#555">Entra-Attribut</th>
-        <th style="text-align:left;padding:6px 0;color:#555">Benutzer-Override</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.displayName</code></td><td style="padding:5px 16px;color:#555">displayName</td><td style="padding:5px 0;color:#aaa">—</td></tr>
-      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.jobTitle</code></td><td style="padding:5px 16px;color:#555">jobTitle</td><td style="padding:5px 0;color:#aaa">—</td></tr>
-      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.phone</code></td><td style="padding:5px 16px;color:#555">businessPhones[0]</td><td style="padding:5px 0;color:#aaa">—</td></tr>
-      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.website</code></td><td style="padding:5px 16px;color:#555">businessHomePage → extensionAttribute1</td><td style="padding:5px 0"><a href="/settings#overrides" style="color:#0369a1;font-size:12px">USER_WEBSITES</a></td></tr>
-      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.bookingsUrl</code></td><td style="padding:5px 16px;color:#555">Bookings-Seite (Kalender-URL)</td><td style="padding:5px 0"><a href="/settings#overrides" style="color:#0369a1;font-size:12px">USER_BOOKINGS</a></td></tr>
-      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.department</code></td><td style="padding:5px 16px;color:#555">department</td><td style="padding:5px 0;color:#aaa">—</td></tr>
-      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.companyName</code></td><td style="padding:5px 16px;color:#555">companyName</td><td style="padding:5px 0;color:#aaa">—</td></tr>
-      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.officeLocation</code></td><td style="padding:5px 16px;color:#555">officeLocation</td><td style="padding:5px 0;color:#aaa">—</td></tr>
-      <tr><td style="padding:5px 0"><code>user.email</code></td><td style="padding:5px 16px;color:#555">mail</td><td style="padding:5px 0;color:#aaa">—</td></tr>
-    </tbody>
-  </table>
-  <p class="hint" style="margin-top:0">Benutzer-Overrides für Website und Bookings-URL werden unter <a href="/settings#overrides">Benutzer-Overrides</a> konfiguriert.</p>
-</div>
 
 {% endblock %}

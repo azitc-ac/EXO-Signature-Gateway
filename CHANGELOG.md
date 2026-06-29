@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.239 — 2026-06-30 — refactor: Allgemein-Tab neu strukturiert
+
+Benachrichtigungen direkt nach Allgemein verschoben.
+Signatur-Verhalten + Benutzer-Overrides + Signaturvariablen in eine Card zusammengeführt.
+TLS / Let's Encrypt und Log-Einstellungen (Log-Level, -Aufbewahrung, -Zeitzone) nach Erweitert verschoben.
+Konfiguration sichern + Neustart in eine Card zusammengeführt.
+
 ## v1.4.238 — 2026-06-30 — feat: Tagesbericht erweitert (Monatsstats, Graph/KV-Calls, Gateway-Info)
 
 ## v1.4.237 — 2026-06-30 — feat: "Container neu starten" Button (docker compose restart via Watcher)
