@@ -3457,6 +3457,17 @@ async def api_log_tail(n: int = 150, user: str = Depends(_check_auth)):
     return {"lines": lines}
 
 
+@app.post("/api/system/restart-container")
+async def api_restart_container(user: str = Depends(_require_admin)):
+    """Trigger-Datei schreiben → Host-Watcher führt docker compose restart aus."""
+    import updater
+    result = updater.request_container_restart(user)
+    if not result["ok"]:
+        return JSONResponse(result, status_code=409)
+    log.info("Container restart requested by %s", user)
+    return JSONResponse(result)
+
+
 @app.get("/api/system/update/check")
 async def api_update_check(channel: str = "main", user: str = Depends(_require_admin)):
     """GitHub-Prüfung: gibt es eine neuere Version im gewählten Kanal?"""

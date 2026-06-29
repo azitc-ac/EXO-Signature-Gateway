@@ -2,6 +2,7 @@
 set -euo pipefail
 REPO=/opt/exo-gateway
 TRIGGER=$REPO/data/.update-trigger
+RESTART_TRIGGER=$REPO/data/.restart-trigger
 STATUS=$REPO/data/.update-status
 HEARTBEAT=$REPO/data/.update-heartbeat
 
@@ -26,6 +27,11 @@ _hb_counter=0
 while true; do
   _hb_counter=$(( _hb_counter + 1 ))
   if [ $(( _hb_counter % 12 )) -eq 0 ]; then write_heartbeat; fi
+
+  if [ -f "$RESTART_TRIGGER" ]; then
+    rm -f "$RESTART_TRIGGER"
+    cd "$REPO" && docker compose restart 2>&1 || true
+  fi
 
   if [ -f "$TRIGGER" ]; then
     VER_BEFORE=$(cat "$REPO/VERSION" 2>/dev/null | tr -d "[:space:]" || echo "?")

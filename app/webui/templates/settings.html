@@ -887,11 +887,30 @@ async function _updCheckWatcher() {
   <div id="import-result" style="margin-top:10px;display:none"></div>
 </div>
 
-<!-- Restart -->
-<div class="settings-card" style="background:transparent;border:none;box-shadow:none;padding:0">
-  <div class="actions">
-    <button class="btn secondary" onclick="restartService()">Service neu starten</button>
+<!-- Neustart -->
+<div class="settings-card">
+  <h2>Neustart</h2>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:4px" class="restart-grid">
+
+    <div style="border:1px solid #e2e8f0;border-radius:8px;padding:14px">
+      <div style="font-weight:600;font-size:13px;margin-bottom:4px">Prozess neu starten</div>
+      <p style="font-size:12px;color:#64748b;margin:0 0 12px">
+        Startet nur den Python-Prozess im Container neu (~2 s). Gut nach Einstellungsänderungen.
+      </p>
+      <button class="btn secondary" onclick="restartService()">Prozess neu starten</button>
+    </div>
+
+    <div style="border:1px solid #e2e8f0;border-radius:8px;padding:14px">
+      <div style="font-weight:600;font-size:13px;margin-bottom:4px">Container neu starten</div>
+      <p style="font-size:12px;color:#64748b;margin:0 0 12px">
+        Führt <code>docker compose restart</code> auf dem Host aus (~15 s). Nötig nach Umgebungsvariablen-Änderungen.
+        Erfordert den Watcher-Service.
+      </p>
+      <button class="btn secondary" id="restart-container-btn" onclick="restartContainer()">Container neu starten</button>
+    </div>
+
   </div>
+  <div id="restart-container-status" style="display:none;margin-top:10px"></div>
 </div>
 
 <style>
@@ -1323,12 +1342,35 @@ async function importConfig(input) {
 }
 
 async function restartService() {
-  if (!confirm('Service jetzt neu starten?')) return;
+  if (!confirm('Prozess jetzt neu starten?')) return;
   await fetch('/api/restart', {method: 'POST'});
   const alert = document.getElementById('page-alert');
   showAlert(alert, 'warn', 'Service wird neu gestartet… Seite lädt in 5 Sekunden neu.');
   window.scrollTo(0, 0);
   setTimeout(() => location.reload(), 5000);
+}
+
+async function restartContainer() {
+  if (!confirm('Container jetzt neu starten? Die Seite ist ca. 15 Sekunden nicht erreichbar.')) return;
+  const btn = document.getElementById('restart-container-btn');
+  const status = document.getElementById('restart-container-status');
+  btn.disabled = true;
+  status.style.display = 'block';
+  status.innerHTML = '<span style="color:#64748b;font-size:13px">⏳ Neustart-Befehl wird an Watcher übergeben…</span>';
+  try {
+    const r = await fetch('/api/system/restart-container', {method: 'POST'});
+    const d = await r.json();
+    if (!d.ok) {
+      status.innerHTML = `<span style="color:#dc2626;font-size:13px">Fehler: ${d.error || 'Unbekannt'}</span>`;
+      btn.disabled = false;
+      return;
+    }
+    status.innerHTML = '<span style="color:#0369a1;font-size:13px">⏳ Container wird neu gestartet… Seite lädt in 20 Sekunden neu.</span>';
+    setTimeout(() => location.reload(), 20000);
+  } catch(e) {
+    status.innerHTML = `<span style="color:#dc2626;font-size:13px">Fehler: ${e.message}</span>`;
+    btn.disabled = false;
+  }
 }
 
 async function sendTestNotification() {

@@ -13,10 +13,11 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
-_DATA     = Path("/app/data")
-TRIGGER   = _DATA / ".update-trigger"
-STATUS    = _DATA / ".update-status"
-HEARTBEAT = _DATA / ".update-heartbeat"
+_DATA           = Path("/app/data")
+TRIGGER         = _DATA / ".update-trigger"
+STATUS          = _DATA / ".update-status"
+HEARTBEAT       = _DATA / ".update-heartbeat"
+RESTART_TRIGGER = _DATA / ".restart-trigger"
 
 GITHUB_REPO = "azitc-ac/EXO-signature-service"
 
@@ -110,6 +111,21 @@ def clear_status() -> None:
         STATUS.unlink(missing_ok=True)
     except Exception:
         pass
+
+
+def request_container_restart(requested_by: str) -> dict:
+    """Write restart trigger → watcher runs docker compose restart."""
+    if get_status().get("state") == "running":
+        return {"ok": False, "error": "Update läuft bereits — bitte warten"}
+    try:
+        RESTART_TRIGGER.write_text(json.dumps({
+            "requested_by": requested_by,
+            "requested_at": datetime.now(timezone.utc).isoformat(),
+        }))
+        RESTART_TRIGGER.chmod(0o644)
+    except OSError as e:
+        return {"ok": False, "error": str(e)}
+    return {"ok": True}
 
 
 def watcher_ok() -> bool:
