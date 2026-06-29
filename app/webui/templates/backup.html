@@ -94,7 +94,7 @@
       <li>Backup auf dem alten Server herunterladen (Button oben)</li>
       <li>Gateway auf dem neuen Server installieren (<code>docker compose up -d</code>)</li>
       <li>Im Web-UI des neuen Servers: Backup hochladen &amp; wiederherstellen</li>
-      <li>Container neu starten: <code>docker compose restart</code></li>
+      <li>Neu starten (Button „Jetzt neu starten" nach dem Restore, oder <code>docker compose restart</code>)</li>
       <li>DNS-Eintrag auf die neue IP umstellen</li>
       <li>TLS-Zertifikat neu ausstellen (ACME läuft automatisch nach Neustart)</li>
     </ol>
@@ -137,6 +137,22 @@ async function backupDownload() {
   }
 }
 
+async function restartNow() {
+  const btn  = document.getElementById('restart-btn');
+  const note = document.getElementById('restart-note');
+  if (btn)  { btn.disabled = true; btn.textContent = 'Neustart läuft…'; }
+  try {
+    await fetch('/api/restart', {method: 'POST'});
+  } catch(e) { /* Verbindung bricht beim Neustart erwartungsgemäß ab */ }
+  let n = 8;
+  const tick = () => {
+    if (note) note.textContent = `Dienst startet neu — Seite lädt in ${n}s neu…`;
+    if (n-- <= 0) { clearInterval(t); location.reload(); }
+  };
+  const t = setInterval(tick, 1000);
+  tick();
+}
+
 function backupRestoreConfirm() {
   const input = document.getElementById('backup-file-input');
   if (!input.files.length) {
@@ -172,9 +188,9 @@ async function backupRestore() {
       result.innerHTML = `<div class="alert success">
         <strong>Wiederhergestellt!</strong> ${d.restored_files} Dateien.
         ${warns ? `<ul style="margin:8px 0 0;padding-left:18px">${warns}</ul>` : ''}
-        <div style="margin-top:10px;font-weight:600;color:#166534">
-          ➔ Bitte Container jetzt neu starten:
-          <code style="background:#dcfce7;padding:2px 6px;border-radius:4px">docker compose restart</code>
+        <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button class="btn primary" id="restart-btn" onclick="restartNow()">Jetzt neu starten</button>
+          <span id="restart-note" style="font-size:12px;color:#555">Übernimmt die wiederhergestellten Daten. (Alternativ: <code>docker compose restart</code>)</span>
         </div>
       </div>`;
     } else {

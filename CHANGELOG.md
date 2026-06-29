@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.221 — 2026-06-29 — feat: „Jetzt neu starten"-Button nach Backup-Restore
+
+Statt nur den Hinweis „docker compose restart" anzuzeigen, bietet die Backup-Seite
+nach erfolgreichem Restore jetzt einen Button „Jetzt neu starten" — ruft das
+bestehende /api/restart (os.execv, In-Place-Re-Exec) auf, zeigt einen Countdown
+und lädt die Seite neu. docker compose restart bleibt als Alternative genannt.
+
 ## v1.4.220 — 2026-06-29 — fix: azure-vm-setup.ps1 chownt auch templates/ (Backup-Restore PermissionError)
 
 Backup-Restore brach mit "[Errno 13] Permission denied: '/app/templates/...'" ab.
