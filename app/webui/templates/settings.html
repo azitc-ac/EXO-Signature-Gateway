@@ -552,28 +552,53 @@
   </div>
 
   <div style="border-top:1px solid #f0f0f0;margin:20px 0 16px"></div>
-  <h3 style="margin-bottom:8px">Signaturvariablen</h3>
-  <p class="hint">Verfügbare Jinja2-Variablen in Signaturvorlagen und ihre Herkunft aus Entra-Attributen.</p>
-  <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:14px">
-    <thead>
-      <tr style="border-bottom:2px solid #e2e8f0">
-        <th style="text-align:left;padding:6px 0;color:#555">Variable</th>
-        <th style="text-align:left;padding:6px 16px;color:#555">Entra-Attribut</th>
-        <th style="text-align:left;padding:6px 0;color:#555">Benutzer-Override</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.displayName</code></td><td style="padding:5px 16px;color:#555">displayName</td><td style="padding:5px 0;color:#aaa">—</td></tr>
-      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.jobTitle</code></td><td style="padding:5px 16px;color:#555">jobTitle</td><td style="padding:5px 0;color:#aaa">—</td></tr>
-      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.phone</code></td><td style="padding:5px 16px;color:#555">businessPhones[0]</td><td style="padding:5px 0;color:#aaa">—</td></tr>
-      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.website</code></td><td style="padding:5px 16px;color:#555">businessHomePage → extensionAttribute1</td><td style="padding:5px 0"><a href="#overrides" style="color:#0369a1;font-size:12px">USER_WEBSITES</a></td></tr>
-      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.bookingsUrl</code></td><td style="padding:5px 16px;color:#555">Bookings-Seite (Kalender-URL)</td><td style="padding:5px 0"><a href="#overrides" style="color:#0369a1;font-size:12px">USER_BOOKINGS</a></td></tr>
-      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.department</code></td><td style="padding:5px 16px;color:#555">department</td><td style="padding:5px 0;color:#aaa">—</td></tr>
-      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.companyName</code></td><td style="padding:5px 16px;color:#555">companyName</td><td style="padding:5px 0;color:#aaa">—</td></tr>
-      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.officeLocation</code></td><td style="padding:5px 16px;color:#555">officeLocation</td><td style="padding:5px 0;color:#aaa">—</td></tr>
-      <tr><td style="padding:5px 0"><code>user.email</code></td><td style="padding:5px 16px;color:#555">mail</td><td style="padding:5px 0;color:#aaa">—</td></tr>
-    </tbody>
-  </table>
+  <h3 style="margin-bottom:4px">Signaturvariablen</h3>
+  <p class="hint" style="margin-bottom:10px">Feste Variablen (immer verfügbar) und eigene Variablen aus beliebigen Entra-Attributen.</p>
+
+  <details style="margin-bottom:16px">
+    <summary style="cursor:pointer;font-size:13px;color:#0369a1;user-select:none">Feste Variablen anzeigen</summary>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:8px">
+      <thead>
+        <tr style="border-bottom:2px solid #e2e8f0">
+          <th style="text-align:left;padding:5px 0;color:#555">Variable</th>
+          <th style="text-align:left;padding:5px 16px;color:#555">Entra-Attribut</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0"><code>user.displayName</code></td><td style="padding:4px 16px;color:#555">displayName</td></tr>
+        <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0"><code>user.jobTitle</code></td><td style="padding:4px 16px;color:#555">jobTitle</td></tr>
+        <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0"><code>user.phone</code></td><td style="padding:4px 16px;color:#555">businessPhones[0]</td></tr>
+        <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0"><code>user.mobilePhone</code></td><td style="padding:4px 16px;color:#555">mobilePhone</td></tr>
+        <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0"><code>user.website</code></td><td style="padding:4px 16px;color:#555">businessHomePage → extensionAttribute1 (+ USER_WEBSITES)</td></tr>
+        <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0"><code>user.bookingsUrl</code></td><td style="padding:4px 16px;color:#555">extensionAttribute2 (+ USER_BOOKINGS)</td></tr>
+        <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0"><code>user.department</code></td><td style="padding:4px 16px;color:#555">department</td></tr>
+        <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0"><code>user.companyName</code></td><td style="padding:4px 16px;color:#555">companyName</td></tr>
+        <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0"><code>user.officeLocation</code></td><td style="padding:4px 16px;color:#555">officeLocation</td></tr>
+        <tr><td style="padding:4px 0"><code>user.email</code></td><td style="padding:4px 16px;color:#555">mail</td></tr>
+      </tbody>
+    </table>
+  </details>
+
+  <div style="font-weight:600;font-size:13px;margin-bottom:6px">Eigene Variablen</div>
+  <p class="hint" style="margin-bottom:10px">
+    In Vorlagen als <code>{{ "{{" }} custom.varname {{ "}}" }}</code> verwenden. Variablenname: nur Buchstaben, Ziffern, Underscore.
+  </p>
+
+  <!-- Dropdown-Datalist für Entra-Felder -->
+  <datalist id="entra-fields-list">
+    {% for f in custom_var_entra_fields %}
+    <option value="{{ f.value }}">{{ f.label }}</option>
+    {% endfor %}
+  </datalist>
+
+  <div id="custom-vars-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px"></div>
+
+  <button type="button" class="btn secondary btn-sm" onclick="addCustomVar()" style="margin-bottom:12px">+ Variable hinzufügen</button>
+
+  <div class="actions" style="margin-top:0">
+    <button class="btn secondary" onclick="saveCustomVars()">Speichern</button>
+    <span id="custom-vars-result" style="font-size:12px;margin-left:8px"></span>
+  </div>
 </div>
 
 <!-- Test-Mail -->
@@ -1176,6 +1201,59 @@ function saveSignatur() {
 function toggleSigStripConfig(enabled) {
   document.getElementById('sig-strip-config').style.display = enabled ? '' : 'none';
 }
+
+// ── Custom Template Vars ──────────────────────────────────────────────────────
+const _entraFields = {{ custom_var_entra_fields | tojson }};
+
+function _customVarRow(name, entraField) {
+  const row = document.createElement('div');
+  row.className = 'custom-var-row';
+  row.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap';
+  row.innerHTML = `
+    <span style="font-size:12px;color:#64748b;white-space:nowrap;min-width:70px">custom.</span>
+    <input type="text" placeholder="varname" value="${_esc(name)}"
+           style="width:140px;font-family:monospace;font-size:13px"
+           class="cv-name"
+           oninput="this.value=this.value.replace(/[^a-zA-Z0-9_]/g,'')">
+    <div style="position:relative;flex:1;min-width:220px;max-width:340px">
+      <input type="text" placeholder="Entra-Feld suchen…" value="${_esc(entraField)}"
+             list="entra-fields-list"
+             style="width:100%;box-sizing:border-box;font-size:13px"
+             class="cv-field">
+    </div>
+    <button type="button" onclick="this.closest('.custom-var-row').remove()"
+            style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:16px;line-height:1;padding:2px 4px"
+            title="Entfernen">✕</button>`;
+  return row;
+}
+
+function _esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
+
+function addCustomVar(name, field) {
+  document.getElementById('custom-vars-list').appendChild(_customVarRow(name||'', field||''));
+}
+
+function saveCustomVars() {
+  const rows = document.querySelectorAll('.custom-var-row');
+  const vars = [];
+  for (const row of rows) {
+    const name  = row.querySelector('.cv-name').value.trim();
+    const field = row.querySelector('.cv-field').value.trim();
+    if (!name || !field) continue;
+    if (!/^[a-zA-Z0-9_]+$/.test(name)) {
+      document.getElementById('custom-vars-result').textContent = `Ungültiger Name: "${name}"`;
+      document.getElementById('custom-vars-result').style.color = '#dc2626';
+      return;
+    }
+    vars.push({name, entra_field: field});
+  }
+  savePartial({ CUSTOM_TEMPLATE_VARS: vars }, 'custom-vars-result');
+}
+
+(function initCustomVars() {
+  const saved = {{ (s.CUSTOM_TEMPLATE_VARS or []) | tojson }};
+  for (const cv of saved) addCustomVar(cv.name, cv.entra_field);
+})();
 
 function saveOverrides() {
   savePartial({ USER_WEBSITES: collectKV('websites'), USER_BOOKINGS: collectKV('bookings') }, 'overrides-result');

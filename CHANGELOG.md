@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.243 — 2026-06-30 — feat: Eigene Template-Variablen aus Entra-Attributen (custom.*)
+
+Neue Sektion "Eigene Variablen" in Signatur-Card: beliebige Entra-Attribute
+als {{ custom.varname }} in Signaturvorlagen verwenden.
+Dropdown mit Filterfunktion (datalist) für alle verfügbaren Entra-Felder.
+Feste Variablen als aufklappbare Referenz erhalten.
+graph_client: _SELECT_FIELDS erweitert (givenName, surname, streetAddress, city,
+state, postalCode, country, faxNumber, employeeId), custom dict in UserData.
+signature_engine: custom als eigener Template-Context-Key.
+
 ## v1.4.241 — 2026-06-30 — refactor: Fallback-Checkbox nach Signatur-Card verschoben
 
 ## v1.4.239 — 2026-06-30 — refactor: Allgemein-Tab neu strukturiert

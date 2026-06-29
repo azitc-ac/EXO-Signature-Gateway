@@ -37,6 +37,7 @@ def render(user: UserData, template_name: str | None = None) -> tuple[str, str]:
     env = _get_env()
     ctx = {
         "user": user,
+        "custom": user.custom,
     }
 
     html_file, txt_file = _resolve_template_names(template_name)

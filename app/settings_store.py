@@ -17,6 +17,7 @@ DEFAULTS: dict = {
     "SENT_ITEMS_UPDATE": False,
     "USER_WEBSITES": {},
     "USER_BOOKINGS": {},
+    "CUSTOM_TEMPLATE_VARS": [],   # [{"name": "mobile", "entra_field": "mobilePhone"}, ...]
     "MAILBOX_CONFIG": {},  # {email: {"sig": true, "smime": true}} — empty = all mailboxes processed
     "LE_DOMAIN": "",
     "LE_EMAIL": "",

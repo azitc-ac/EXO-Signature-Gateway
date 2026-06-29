@@ -17,18 +17,57 @@ import settings_store
 log = logging.getLogger(__name__)
 
 _SCOPES = ["https://graph.microsoft.com/.default"]
-_SELECT_FIELDS = ",".join([
-    "displayName",
-    "jobTitle",
-    "department",
-    "companyName",
-    "mail",
-    "mobilePhone",
-    "businessPhones",
-    "officeLocation",
+_BASE_SELECT_FIELDS = [
+    "displayName", "givenName", "surname",
+    "jobTitle", "department", "companyName",
+    "mail", "userPrincipalName",
+    "mobilePhone", "businessPhones", "faxNumber",
+    "officeLocation", "streetAddress", "city", "state", "postalCode", "country",
     "businessHomePage",
     "onPremisesExtensionAttributes",
-])
+    "employeeId",
+]
+
+# Entra-Attribute die für Custom-Template-Vars wählbar sind (für das UI)
+CUSTOM_VAR_ENTRA_FIELDS: list[dict] = [
+    {"value": "displayName",         "label": "Anzeigename (displayName)"},
+    {"value": "givenName",           "label": "Vorname (givenName)"},
+    {"value": "surname",             "label": "Nachname (surname)"},
+    {"value": "jobTitle",            "label": "Berufsbezeichnung (jobTitle)"},
+    {"value": "department",          "label": "Abteilung (department)"},
+    {"value": "companyName",         "label": "Unternehmen (companyName)"},
+    {"value": "mail",                "label": "E-Mail (mail)"},
+    {"value": "userPrincipalName",   "label": "UPN (userPrincipalName)"},
+    {"value": "mobilePhone",         "label": "Mobiltelefon (mobilePhone)"},
+    {"value": "businessPhones[0]",   "label": "Telefon geschäftlich (businessPhones[0])"},
+    {"value": "faxNumber",           "label": "Fax (faxNumber)"},
+    {"value": "officeLocation",      "label": "Bürostandort (officeLocation)"},
+    {"value": "streetAddress",       "label": "Straße (streetAddress)"},
+    {"value": "city",                "label": "Stadt (city)"},
+    {"value": "state",               "label": "Bundesland/Kanton (state)"},
+    {"value": "postalCode",          "label": "PLZ (postalCode)"},
+    {"value": "country",             "label": "Land (country)"},
+    {"value": "businessHomePage",    "label": "Webseite (businessHomePage)"},
+    {"value": "employeeId",          "label": "Mitarbeiter-ID (employeeId)"},
+    *[{"value": f"extensionAttribute{i}", "label": f"Erweiterungsattribut {i} (extensionAttribute{i})"} for i in range(1, 16)],
+]
+
+def _build_select_fields() -> str:
+    """Build $select string, adding any extra fields needed for custom template vars."""
+    from settings_store import get as _sg
+    custom_vars: list[dict] = _sg("CUSTOM_TEMPLATE_VARS") or []
+    extra = set()
+    for cv in custom_vars:
+        field = cv.get("entra_field", "")
+        if "[" in field:
+            field = field.split("[")[0]
+        if field.startswith("extensionAttribute"):
+            extra.add("onPremisesExtensionAttributes")
+        elif field and field not in _BASE_SELECT_FIELDS:
+            extra.add(field)
+    return ",".join(_BASE_SELECT_FIELDS + sorted(extra))
+
+_SELECT_FIELDS = ",".join(_BASE_SELECT_FIELDS)
 
 _pool_entries: list[dict] = []   # [{client_id, label, msal}]
 _pool_lock = threading.Lock()
@@ -279,6 +318,11 @@ class UserData:
     officeLocation: str = ""
     website: str = ""
     bookingsUrl: str = ""
+    custom: dict = None  # populated from CUSTOM_TEMPLATE_VARS
+
+    def __post_init__(self):
+        if self.custom is None:
+            self.custom = {}
 
 
 async def update_sent_item(sender_email: str, message_id: str, html_body: str) -> bool | None:
@@ -633,12 +677,21 @@ async def list_mailboxes() -> list[dict]:
     return sorted(results, key=lambda x: x["email"])
 
 
+def _resolve_entra_field(field: str, data: dict, ext: dict, phones: list) -> str:
+    """Resolve a single Entra field name to its string value from the API response."""
+    if field == "businessPhones[0]":
+        return phones[0] if phones else ""
+    if field.startswith("extensionAttribute"):
+        return ext.get(field) or ""
+    return str(data.get(field) or "")
+
+
 async def get_user(email: str) -> UserData:
     token = await _acquire_token_async()
     if not token:
         return UserData(mail=email)
 
-    url = f"https://graph.microsoft.com/v1.0/users/{email}?$select={_SELECT_FIELDS}"
+    url = f"https://graph.microsoft.com/v1.0/users/{email}?$select={_build_select_fields()}"
     headers = {"Authorization": f"Bearer {token}"}
 
     try:
@@ -662,6 +715,13 @@ async def get_user(email: str) -> UserData:
     user_websites: dict = settings_store.get("USER_WEBSITES") or {}
     user_bookings: dict = settings_store.get("USER_BOOKINGS") or {}
 
+    custom_vars: list[dict] = settings_store.get("CUSTOM_TEMPLATE_VARS") or []
+    custom: dict = {
+        cv["name"]: _resolve_entra_field(cv["entra_field"], data, ext, phones)
+        for cv in custom_vars
+        if cv.get("name") and cv.get("entra_field")
+    }
+
     return UserData(
         displayName=data.get("displayName") or "",
         jobTitle=data.get("jobTitle") or "",
@@ -673,4 +733,5 @@ async def get_user(email: str) -> UserData:
         officeLocation=data.get("officeLocation") or "",
         website=user_websites.get(resolved_mail.lower()) or data.get("businessHomePage") or ext.get("extensionAttribute1") or "",
         bookingsUrl=user_bookings.get(resolved_mail.lower()) or ext.get("extensionAttribute2") or "",
+        custom=custom,
     )

@@ -1760,6 +1760,7 @@ async def settings_page(request: Request, user: str = Depends(_require_admin)):
             "gateway_name": _gateway_name(),
             "sender_mailboxes": sender_mailboxes,
             "current_version": config.VERSION,
+            "custom_var_entra_fields": graph_client.CUSTOM_VAR_ENTRA_FIELDS,
         },
     )
 
