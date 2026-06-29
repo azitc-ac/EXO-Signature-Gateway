@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.232 — 2026-06-29 — feat: update-watcher.sh ins Repo aufgenommen + Selbst-Neustart
+
+update-watcher.sh liegt jetzt im Repo-Root und wird via git pull automatisch
+aktualisiert. Nach erfolgreichem docker compose up startet der Watcher sich
+via systemctl restart selbst neu — so läuft immer die aktuelle Version.
+azure-vm-setup.ps1 vereinfacht (kein inline-Script mehr, chmod reicht).
+Setup-Tab-Snippet entsprechend gekürzt.
+
 ## v1.4.230 — 2026-06-29 — fix: update-watcher.sh: git safe.directory für root-Ausführung
 
 Watcher läuft als root, Repo gehört azureuser → Git verweigert pull mit
