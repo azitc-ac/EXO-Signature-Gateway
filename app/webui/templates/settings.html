@@ -1560,16 +1560,4 @@ async function saveKvUrl() {
   <button class="btn secondary" disabled style="margin-left:8px">Changelog anzeigen</button>
 </div>
 
-<!-- Backup & Wiederherstellung -->
-<div class="planned-card settings-card" style="margin-top:16px">
-  <h2>Backup &amp; Wiederherstellung <span class="planned-badge">geplant</span></h2>
-  <p class="hint">Vollständiges verschlüsseltes Backup aller Konfigurationsdaten, S/MIME-Schlüssel und Zertifikate. Die Backup-Datei wird mit einer Passphrase verschlüsselt (AES-256) — ohne diese ist kein Zugriff möglich.</p>
-  <div class="settings-row" style="pointer-events:none">
-    <label>Passphrase</label>
-    <input type="password" placeholder="Mindestens 12 Zeichen" style="width:240px" disabled>
-  </div>
-  <button class="btn primary" disabled style="margin-top:8px">Backup erstellen &amp; herunterladen</button>
-  <button class="btn secondary" disabled style="margin-left:8px">Backup einspielen</button>
-</div>
-
 {% endblock %}

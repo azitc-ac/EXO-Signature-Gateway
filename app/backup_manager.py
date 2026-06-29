@@ -112,9 +112,13 @@ def restore_backup(zip_bytes: bytes) -> dict:
 
     try:
         with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
+            # settings.json ZULETZT schreiben: Es ist der Konsistenz-Anker (REINJECT_MODE,
+            # MAILBOX_CONFIG, …). Scheitert vorher ein anderer File-Write (z.B. templates/
+            # mit PermissionError), bleibt die alte settings.json unberührt → kein Halbzustand,
+            # bei dem die Postfach-Flags schon neu, der Modus aber noch alt ist.
             for entry in zf.infolist():
                 name = entry.filename
-                if entry.is_dir() or name in ("README.txt",):
+                if entry.is_dir() or name in ("README.txt", "data/settings.json"):
                     continue
 
                 if name.startswith("data/"):
@@ -140,6 +144,14 @@ def restore_backup(zip_bytes: bytes) -> dict:
                         continue
                     target.parent.mkdir(parents=True, exist_ok=True)
                     target.write_bytes(zf.read(name))
+                    restored += 1
+
+            # Jetzt – nach allen anderen Dateien – die settings.json schreiben.
+            if "data/settings.json" in zf.namelist():
+                target = (DATA_DIR / "settings.json").resolve()
+                if str(target).startswith(str(DATA_DIR.resolve())):
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_bytes(zf.read("data/settings.json"))
                     restored += 1
 
         # Settings live neu laden

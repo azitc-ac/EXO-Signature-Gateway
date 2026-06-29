@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.222 — 2026-06-29 — fix: Restore schreibt settings.json zuletzt (Konsistenz) + „geplant"-Backup-Eintrag raus
+
+1. backup_manager.restore_backup: settings.json wird jetzt ZULETZT geschrieben (nach
+   data/ und templates/). Damit hinterlässt ein Teilfehler — z.B. PermissionError beim
+   Schreiben von templates/ — keinen Halbzustand mehr, bei dem die Postfach-Flags
+   (MAILBOX_CONFIG) schon aus dem Backup stammen, der Modus (REINJECT_MODE) aber noch
+   der alte ist. settings.json ist der Konsistenz-Anker → alles-oder-nichts.
+   (Hintergrund: Backup enthält REINJECT_MODE=imap; ein vollständiger Restore bringt
+   den Modus passend zu den S/MIME-Postfächern mit — der zuvor beobachtete Mismatch
+   stammte vom abgebrochenen ersten Restore mit Templates-PermissionError.)
+2. Einstellungen → Allgemein: „Backup & Wiederherstellung (geplant)"-Platzhalter
+   entfernt — Backup/Restore ist über die eigene Seite längst implementiert.
+
 ## v1.4.221 — 2026-06-29 — feat: „Jetzt neu starten"-Button nach Backup-Restore
 
 Statt nur den Hinweis „docker compose restart" anzuzeigen, bietet die Backup-Seite
