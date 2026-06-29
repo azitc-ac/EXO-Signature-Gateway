@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.224 — 2026-06-29 — fix: S/MIME-Entschlüsselung wird jetzt ins Audit-Log geschrieben
+
+`_audit("smime_decrypted")` fehlte im Decrypt-Pfad (handler.py). Stats-Zähler
+lief korrekt hoch, aber kein Eintrag in der Audit-DB → Dashboard-Zahl klickbar,
+Liste leer. Fix: `_audit()`-Aufruf nach `stats.increment("smime_decrypted")`.
+
 ## v1.4.223 — 2026-06-29 — fix: Passwort-Warnung nennt korrekt admin/changeme (nicht nur admin)
 
 Der Sicherheitshinweis (Dashboard + Setup) war auf "Standard-Passwort admin"

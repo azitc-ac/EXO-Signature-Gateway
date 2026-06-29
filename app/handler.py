@@ -430,6 +430,7 @@ class SignatureHandler:
                                       force_mime=True)
                         stats.increment("processed")
                         stats.increment("smime_decrypted")
+                        _audit("smime_decrypted")
                         log.info("S/MIME decrypted%s for %s",
                                  "+stripped" if signer_name else "", decrypt_rcpt)
                         return "250 OK"
