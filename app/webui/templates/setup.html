@@ -292,19 +292,22 @@
     {% endif %}
     {% else %}
 
-    <!-- Login-Flow (primär) — nutzt standardmäßig den Microsoft-Public-Client (kein manuelles App-Setup nötig) -->
+    <!-- Login-Flow — Voraussetzung ist eine Bootstrap-App mit der HTTPS-Redirect-URI (siehe Abschnitt unten) -->
     <p class="hint" style="margin-bottom:10px">
       Melde dich einmalig als Entra-Administrator an — Main-App und EXO-Konfiguration
-      werden danach <strong>automatisch</strong> eingerichtet. Voraussetzung ist eine
-      Login-App (Bootstrap-App) mit der Redirect-URI dieses Servers; trage ihre Client-ID
-      im Abschnitt unten ein, falls noch nicht vorhanden.
+      werden danach <strong>automatisch</strong> eingerichtet.
+      <strong>Voraussetzung:</strong> eine Login-App (Bootstrap-App) mit genau dieser Redirect-URI:
+    </p>
+    <p style="margin:0 0 10px"><code style="font-size:12px;background:#f1f5f9;padding:3px 6px;border-radius:4px">{{ e.sso_redirect_uri }}</code></p>
+    <p class="hint" style="margin-bottom:10px">
+      Lege sie im Abschnitt <strong>„Bootstrap-App"</strong> unten an (oder trage die Client-ID
+      einer bestehenden ein), dann hier anmelden:
     </p>
     <ol style="margin:0 0 14px 16px;line-height:2;font-size:13px">
-      <li>Klicke auf <strong>„Jetzt anmelden"</strong> — Microsoft-Login öffnet sich in einem neuen Tab.</li>
+      <li>Klicke auf <strong>„Jetzt anmelden"</strong> — Microsoft-Login öffnet sich in einem neuen Fenster.</li>
       <li>Melde dich als Entra-Administrator an (MFA wird unterstützt).<br>
           <small>Falls ein Consent-Dialog erscheint: <em>„Im Namen der Organisation zustimmen"</em> ankreuzen.</small></li>
-      <li>Nach dem Login zeigt dein Browser eine <strong>Fehler- oder Verbindungsseite</strong> — das ist <em>normal</em>.</li>
-      <li>Kopiere die <strong>komplette URL</strong> aus der Adressleiste und füge sie unten ein.</li>
+      <li>Das Fenster <strong>schließt sich automatisch</strong> und das Setup läuft weiter.</li>
     </ol>
     <div class="actions" style="margin-bottom:6px">
       <button class="btn primary" id="btn-azure-login" onclick="startAzureLogin()">Jetzt anmelden &rarr;</button>
@@ -346,9 +349,11 @@
           <li>Klicke <strong>„Neue Registrierung"</strong></li>
           <li>Name: z.B. <code>EXO Signature Gateway Login</code></li>
           <li>Kontotyp: <em>Nur Konten in diesem Organisationsverzeichnis</em></li>
-          <li>Umleitungs-URI: Typ <strong>„Mobile und Desktopanwendungen"</strong> →
-            benutzerdefinierte URI: <code>http://localhost:{{ e.webui_port }}/auth/callback</code>
-            <br><small style="color:#888">Localhost-URIs sind in jedem Entra-Tenant ohne HTTPS erlaubt.</small></li>
+          <li>Plattform <strong>„Web"</strong> hinzufügen → Umleitungs-URI <strong>exakt</strong>:
+            <br><code style="font-size:12px;background:#f1f5f9;padding:2px 5px;border-radius:4px">{{ e.sso_redirect_uri }}</code>
+            <br><small style="color:#888">Genau diese URI (kein Port, kein Slash am Ende) — sonst AADSTS50011.</small></li>
+          <li><em>Optional</em> (für den Localhost-Notausgang): Plattform <strong>„Mobile und Desktopanwendungen"</strong> →
+            <code>http://localhost:{{ e.webui_port }}/auth/callback</code></li>
           <li>Klicke <strong>Registrieren</strong></li>
           <li>Kopiere die <strong>Anwendungs-ID (Client-ID)</strong> und füge sie unten ein</li>
         </ol>

@@ -295,9 +295,11 @@ def _build_redirect_uri(sso: bool = False) -> str:
             return f"{external}/auth/callback"
         hostname = settings_store.get("PUBLIC_HOSTNAME") or ""
         if hostname:
-            port = config.WEBUI_PORT
-            suffix = f":{port}" if port and port != 443 else ""
-            return f"https://{hostname}{suffix}/auth/callback"
+            # Öffentlich wird HTTPS auf 443 ausgeliefert (Docker mappt 443:WEBUI_PORT).
+            # WEBUI_PORT ist NUR der interne Bind-Port und darf NICHT in die öffentliche
+            # Redirect-URI gelangen — sonst sendet der Wizard https://host:8080/... und es
+            # gibt AADSTS50011. Für nicht-Standard-Außenports ADDIN_BASE_URL setzen.
+            return f"https://{hostname}/auth/callback"
     return f"http://localhost:{config.WEBUI_PORT}/auth/callback"
 
 

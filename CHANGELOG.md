@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.217 — 2026-06-29 — fix: HTTPS-Redirect-URI ohne internen Port 8080 (AADSTS50011) + Wizard-Klarheit
+
+Hartnäckiges AADSTS50011 trotz korrekt erscheinender App-Registrierung. Ursache:
+_build_redirect_uri(sso=True) hängte den INTERNEN Bind-Port (WEBUI_PORT=8080) an die
+öffentliche Redirect-URI → der Wizard sendete https://sig.zarenko.net:8080/auth/callback,
+während der Nutzer https://sig.zarenko.net/auth/callback (Port 443 extern, Docker
+mappt 443:8080) registriert → Mismatch. Fix: öffentliche HTTPS-Redirect-URI ohne Port
+(443 implizit); für nicht-Standard-Außenports ADDIN_BASE_URL setzen.
+Zusätzlich Setup-Wizard entwirrt: zeigt jetzt die EXAKT zu registrierende Redirect-URI
+({{ e.sso_redirect_uri }}) an; Anleitung registriert HTTPS-Redirect (Plattform „Web")
+als Primär statt nur Localhost-Loopback; Login-Schritte beschreiben Auto-Close statt
+Copy-Paste; veralteter „kein App-Setup nötig"-Kommentar entfernt.
+
 ## v1.4.216 — 2026-06-29 — feat: Auto-Close schon beim ersten Login + Localhost-Notausgang
 
 Feinschliff zu v1.4.215: Beim Speichern der Bootstrap-Client-ID
