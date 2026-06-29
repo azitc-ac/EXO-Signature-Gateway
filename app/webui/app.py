@@ -1759,6 +1759,7 @@ async def settings_page(request: Request, user: str = Depends(_require_admin)):
             "saved": request.query_params.get("saved"),
             "gateway_name": _gateway_name(),
             "sender_mailboxes": sender_mailboxes,
+            "current_version": config.VERSION,
         },
     )
 
