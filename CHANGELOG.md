@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.223 — 2026-06-29 — fix: Passwort-Warnung nennt korrekt admin/changeme (nicht nur admin)
+
+Der Sicherheitshinweis (Dashboard + Setup) war auf "Standard-Passwort admin"
+hartkodiert. Auf Azure-VMs ist der Platzhalter aber changeme (.env aus
+azure-vm-setup.ps1) — der Text war damit irreführend. Jetzt: "Standard-/Platzhalter-
+Passwort (admin bzw. changeme)". Auslöser bleibt _password_change_required().
+(Hintergrund: Nach Backup-Restore vom Raspi fehlt ADMIN_PASSWORD_HASH in der
+restaurierten settings.json — der Raspi nutzte das .env-Passwort, und .env ist
+nicht Teil des Backups → auf der VM greift der changeme-Platzhalter → Warnung. Fix:
+im Wizard ein Passwort setzen, dann liegt der Hash in settings.json.)
+
 ## v1.4.222 — 2026-06-29 — fix: Restore schreibt settings.json zuletzt (Konsistenz) + „geplant"-Backup-Eintrag raus
 
 1. backup_manager.restore_backup: settings.json wird jetzt ZULETZT geschrieben (nach
