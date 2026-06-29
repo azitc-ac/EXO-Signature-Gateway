@@ -123,29 +123,72 @@ def send_daily_report(daily: dict, total: dict) -> bool:
     if not to:
         return False
 
+    import socket
     import smime_store
+    import stats as _stats_mod
     import config
     from pathlib import Path
 
     now = datetime.now(timezone.utc)
     date_str = now.strftime("%d.%m.%Y")
+    monthly = _stats_mod.get_period(now.year, now.month)
 
-    # ── Stats table ──
-    def val(key):
-        d = daily.get(key, 0)
-        t = total.get(key, 0)
-        return f"{d} heute / {t} gesamt"
+    # ── Heute ──
+    def dval(key):
+        return daily.get(key, 0)
 
-    rows = "".join([
-        _row("Mails verarbeitet", val("processed")),
-        _row("S/MIME signiert", val("smime_signed")),
-        _row("S/MIME verschlüsselt", val("smime_encrypted")),
-        _row("S/MIME entschlüsselt", val("smime_decrypted")),
-        _row("Zertifikate geharvestet", val("certs_harvested")),
-        _row("Fallbacks", val("fallback"),
-             "#e67e22" if daily.get("fallback", 0) else ""),
-        _row("Fehler", val("errors"),
-             "#e74c3c" if daily.get("errors", 0) else ""),
+    def mval(key):
+        return monthly.get(key, 0)
+
+    rows_today = "".join([
+        _row("Mails verarbeitet",      dval("processed")),
+        _row("S/MIME signiert",        dval("smime_signed")),
+        _row("S/MIME verschlüsselt",   dval("smime_encrypted")),
+        _row("S/MIME entschlüsselt",   dval("smime_decrypted")),
+        _row("Zertifikate geharvestet",dval("certs_harvested")),
+        _row("Graph API Aufrufe",      dval("graph_api_calls")),
+        _row("Key Vault Signaturen",   dval("kv_sign_calls")),
+        _row("Fallbacks",  dval("fallback"), "#e67e22" if dval("fallback") else ""),
+        _row("Fehler",     dval("errors"),   "#e74c3c" if dval("errors")   else ""),
+    ])
+
+    # ── Diesen Monat ──
+    month_label = now.strftime("%B %Y")
+    rows_month = "".join([
+        _row("Mails verarbeitet",      mval("processed")),
+        _row("S/MIME signiert",        mval("smime_signed")),
+        _row("S/MIME verschlüsselt",   mval("smime_encrypted")),
+        _row("S/MIME entschlüsselt",   mval("smime_decrypted")),
+        _row("Zertifikate geharvestet",mval("certs_harvested")),
+        _row("Fallbacks",  mval("fallback"), "#e67e22" if mval("fallback") else ""),
+        _row("Fehler",     mval("errors"),   "#e74c3c" if mval("errors")   else ""),
+    ])
+
+    # ── Gateway-Info ──
+    hostname = settings_store.get("PUBLIC_HOSTNAME") or ""
+    ip_str = ""
+    if hostname:
+        try:
+            ip_str = socket.gethostbyname(hostname)
+        except Exception:
+            pass
+    container_host = socket.gethostname()
+    uptime_str = ""
+    try:
+        started = _stats_mod.get_session_start()
+        if started:
+            delta = now - datetime.fromisoformat(started)
+            h, rem = divmod(int(delta.total_seconds()), 3600)
+            m = rem // 60
+            uptime_str = f"{h}h {m}m"
+    except Exception:
+        pass
+
+    gw_rows = "".join([
+        _row("Version",           config.VERSION),
+        _row("Hostname",          hostname or container_host),
+        *([ _row("IP-Adresse", ip_str) ] if ip_str else []),
+        *([ _row("Container-Uptime", uptime_str) ] if uptime_str else []),
     ])
 
     # ── TLS cert ──
@@ -180,8 +223,15 @@ def send_daily_report(daily: dict, total: dict) -> bool:
             warn_rows += _row(c["email"], f'{label} (bis {c["expiry"]})', color)
         warn_block = f'<h3 style="color:#e74c3c;margin-top:20px">⚠ Ablaufende Zertifikate</h3><table>{warn_rows}</table>'
 
-    body = (f'<h3 style="margin-top:4px">Statistiken – {date_str}</h3>'
-            f'<table>{rows}</table>{tls_block}{warn_block}')
+    body = (
+        f'<h3 style="margin-top:4px">Statistiken heute – {date_str}</h3>'
+        f'<table>{rows_today}</table>'
+        f'<h3 style="margin-top:20px">Statistiken {month_label}</h3>'
+        f'<table>{rows_month}</table>'
+        f'<h3 style="margin-top:20px">Gateway</h3>'
+        f'<table>{gw_rows}</table>'
+        f'{tls_block}{warn_block}'
+    )
     html = _html_wrap(f"EXO Gateway – Tagesbericht {date_str}", "#2c3e50", body)
 
     return _graph_send(to, f"EXO Gateway Tagesbericht – {date_str}", html)

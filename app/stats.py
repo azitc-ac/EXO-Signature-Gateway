@@ -166,4 +166,10 @@ def _save_snapshot(snapshot: dict) -> None:
         log.warning("stats: could not persist snapshot: %s", exc)
 
 
+
+def get_session_start() -> str:
+    """ISO timestamp of when this container process started."""
+    return _session_start
+
+
 _load()

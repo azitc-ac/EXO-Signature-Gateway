@@ -5,6 +5,8 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.238 — 2026-06-30 — feat: Tagesbericht erweitert (Monatsstats, Graph/KV-Calls, Gateway-Info)
+
 ## v1.4.237 — 2026-06-30 — feat: "Container neu starten" Button (docker compose restart via Watcher)
 
 ## v1.4.236 — 2026-06-29 — fix: git pull → git fetch+reset --hard (verhindert "would be overwritten"-Fehler)
