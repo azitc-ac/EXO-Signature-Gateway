@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.230 — 2026-06-29 — fix: update-watcher.sh: git safe.directory für root-Ausführung
+
+Watcher läuft als root, Repo gehört azureuser → Git verweigert pull mit
+"dubious ownership". Fix: git config --global --add safe.directory am Script-Start.
+Betrifft azure-vm-setup.ps1 und das Script-Snippet im Einrichtungs-Tab.
+
 ## v1.4.228 — 2026-06-29 — feat: Update-UI vollständig + Watcher-Check in Einrichtung
 
 - settings.html: "Software-Update"-Platzhalter entfernt; "Signaturvariablen" live

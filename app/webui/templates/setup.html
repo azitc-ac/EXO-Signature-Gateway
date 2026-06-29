@@ -2140,6 +2140,7 @@ STATUS=$REPO/data/.update-status
 HEARTBEAT=$REPO/data/.update-heartbeat
 write_status() { printf "%s" "$1" > "$STATUS"; chown 1000:1000 "$STATUS" 2>/dev/null || true; }
 write_heartbeat() { date -u +%Y-%m-%dT%H:%M:%SZ > "$HEARTBEAT"; chown 1000:1000 "$HEARTBEAT" 2>/dev/null || true; }
+git config --global --add safe.directory "$REPO" 2>/dev/null || true
 _hb_counter=0
 while true; do
   _hb_counter=$(( _hb_counter + 1 ))
