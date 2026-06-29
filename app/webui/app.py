@@ -1530,6 +1530,10 @@ def _prev_month(year: int, month: int, delta: int = 1) -> tuple[int, int]:
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request, user: str = Depends(_check_auth)):
+    # Solange das Setup nicht abgeschlossen ist, immer im Wizard landen (statt Dashboard) —
+    # gilt für alle Login-Wege (lokal/SSO) und nach Session-Ablauf.
+    if not settings_store.get("SETUP_COMPLETE"):
+        return RedirectResponse("/setup", status_code=302)
     from datetime import datetime as _dt
     import smime_store as _smime_store
     import stats as _stats_mod2

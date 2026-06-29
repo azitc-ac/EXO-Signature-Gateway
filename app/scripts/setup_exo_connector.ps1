@@ -163,8 +163,14 @@ Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
 Write-OK "Setup complete."
 Write-Host ""
 Write-Host "Mail flow:"
-Write-Host "  EXO → [$outName] → $SmtpProxyHostname:25"
-Write-Host "  $SmtpProxyHostname:25 → EXO Smarthost → [$inName] → Delivery"
+if ($SkipInboundConnector) {
+    # Graph/IMAP-Modus: Re-inject ohne Inbound-Connector/Smarthost ($inName ist hier nicht gesetzt)
+    Write-Host "  EXO → [$outName] → Gateway"
+    Write-Host "  Gateway → EXO (Graph API sendMail / IMAP APPEND, kein Port 25)"
+} else {
+    Write-Host "  EXO → [$outName] → $SmtpProxyHostname:25"
+    Write-Host "  $SmtpProxyHostname:25 → EXO Smarthost → [$inName] → Delivery"
+}
 Write-Host ""
 Write-Host "Loop prevention: header X-Sig-Applied: 1 (set by proxy before re-inject)"
 Write-Host "Forwarding: FromScope=InOrganization ensures only internally-composed mails are routed"

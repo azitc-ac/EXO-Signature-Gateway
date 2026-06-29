@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.219 — 2026-06-29 — fix: PS-Connector $inName im Graph/IMAP-Modus + Login landet im Wizard bis Setup fertig
+
+1. setup_exo_connector.ps1: Die "Mail flow"-Zusammenfassung referenzierte $inName
+   (Inbound-Connector-Name) unbedingt — im Graph/IMAP-Modus wird der Inbound-Connector
+   aber übersprungen, $inName ist nie gesetzt → StrictMode-Abbruch
+   ("variable '$inName' cannot be retrieved") nach erfolgreichem Setup. Ausgabe jetzt
+   modusabhängig: Graph/IMAP zeigt den Re-inject-Weg ohne Inbound/Smarthost.
+2. Dashboard-Guard: Solange SETUP_COMPLETE=False, leitet GET / auf /setup um. Damit
+   landet man nach Login/Session-Ablauf immer im Setup-Wizard statt im Dashboard,
+   solange das Setup nicht abgeschlossen ist (deckt lokalen Login + SSO ab).
+
+## v1.4.218 — 2026-06-29 — fix: Bootstrap-App-Abschnitt im Setup-Wizard standardmäßig ausgeklappt
+
+Der Bootstrap-App-/Login-Abschnitt im Entra-Login-Schritt war nur bei bereits
+gesetzter Client-ID aufgeklappt — also nicht in der Situation, in der man die
+Anleitung zum Anlegen am dringendsten braucht. Jetzt immer `<details open>`.
+
 ## v1.4.217 — 2026-06-29 — fix: HTTPS-Redirect-URI ohne internen Port 8080 (AADSTS50011) + Wizard-Klarheit
 
 Hartnäckiges AADSTS50011 trotz korrekt erscheinender App-Registrierung. Ursache:
