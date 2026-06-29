@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.220 — 2026-06-29 — fix: azure-vm-setup.ps1 chownt auch templates/ (Backup-Restore PermissionError)
+
+Backup-Restore brach mit "[Errno 13] Permission denied: '/app/templates/...'" ab.
+Ursache wie beim data/certs-Fix (v1.4.211): der Docker-Daemon legt das Bind-Mount-Ziel
+templates/ beim ersten Mount als root an, der Container laeuft als appuser (UID 1000)
+→ kein Schreibzugriff. v1.4.211 chownte nur data/ + certs/. Jetzt auch templates/.
+Bestehende VMs: sudo chown -R 1000:1000 /opt/exo-gateway/templates (data/certs analog).
+
 ## v1.4.219 — 2026-06-29 — fix: PS-Connector $inName im Graph/IMAP-Modus + Login landet im Wizard bis Setup fertig
 
 1. setup_exo_connector.ps1: Die "Mail flow"-Zusammenfassung referenzierte $inName
