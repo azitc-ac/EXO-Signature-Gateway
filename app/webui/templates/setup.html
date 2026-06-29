@@ -330,7 +330,7 @@
     </div>
 
     <!-- Optionaler Fallback: eigene Bootstrap-App, falls der Standard-Login im Tenant gesperrt ist -->
-    <details {% if e.bootstrap_client_id %}open{% endif %} style="margin-top:18px">
+    <details open style="margin-top:18px">
       <summary style="cursor:pointer;font-weight:600;font-size:13px;padding:4px 0">
         {% if e.bootstrap_client_id %}
         ✓ Eigene Bootstrap-App konfiguriert (<code>{{ e.bootstrap_client_id[:8] }}…</code>)
