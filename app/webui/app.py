@@ -2043,7 +2043,8 @@ async def debug_page(request: Request, user: str = Depends(_require_admin)):
         request=request, name="debug.html",
         context={"active": "debug", "s": settings_store.get_all(),
                  "gateway_name": _gateway_name(),
-                 "support_configured": _sup.is_configured()},
+                 "support_configured": _sup.is_configured(),
+                 "current_version": config.VERSION},
     )
 
 
@@ -3452,6 +3453,32 @@ async def api_log_tail(n: int = 150, user: str = Depends(_check_auth)):
     """Letzte N Zeilen aus dem In-Memory-Log-Buffer."""
     lines = list(_LOG_BUFFER)[-n:]
     return {"lines": lines}
+
+
+@app.post("/api/system/update")
+async def api_system_update(user: str = Depends(_require_admin)):
+    """Trigger-Datei schreiben → Host-Watcher führt git pull + docker compose up --build aus."""
+    import updater
+    result = updater.request_update(user, config.VERSION)
+    if not result["ok"]:
+        return JSONResponse(result, status_code=409)
+    log.info("Update requested by %s (current version: %s)", user, config.VERSION)
+    return JSONResponse(result)
+
+
+@app.get("/api/system/update/status")
+async def api_system_update_status(user: str = Depends(_require_admin)):
+    """Aktuellen Update-Status aus data/.update-status lesen."""
+    import updater
+    return JSONResponse(updater.get_status())
+
+
+@app.post("/api/system/update/clear")
+async def api_system_update_clear(user: str = Depends(_require_admin)):
+    """Status-Datei löschen (nach erfolgreichem Update oder Fehler)."""
+    import updater
+    updater.clear_status()
+    return JSONResponse({"ok": True})
 
 
 @app.get("/api/setup/app-pool/history")

@@ -789,6 +789,166 @@ async function loadHealthInline() {
 }
 </script>
 
+<!-- ── Gateway-Update ──────────────────────────────────────────────────────── -->
+<div class="wizard-step" style="border-color:#0369a133;margin-bottom:20px">
+  <div class="step-header">
+    <span class="step-badge" style="background:#0369a1;font-size:10px">Update</span>
+    <strong>Gateway aktualisieren</strong>
+  </div>
+  <div class="step-body">
+    <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
+      Lädt die aktuelle Version aus dem Git-Repository und baut den Container neu.
+      Ein vollständiges Backup von <code>./data/</code> wird <strong>vor</strong> dem
+      Update automatisch angelegt.<br>
+      <span style="color:#b45309;font-size:12px">
+        Voraussetzung: der Host-Watcher-Service (<code>exo-gateway-updater.service</code>)
+        muss auf der Azure-VM laufen.
+      </span>
+    </p>
+
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+      <div style="font-size:13px;color:#374151">
+        Aktuelle Version: <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px">{{ current_version or 'unbekannt' }}</code>
+      </div>
+      <button class="btn primary" id="upd-btn" onclick="startUpdate()" style="display:flex;align-items:center;gap:6px">
+        Jetzt aktualisieren
+      </button>
+      <span id="upd-spinner" style="display:none;font-size:13px;color:#64748b">Warte auf Watcher…</span>
+    </div>
+
+    <div id="upd-status" style="display:none"></div>
+  </div>
+</div>
+<script>
+let _updPollTimer = null;
+let _updPollStart = null;
+const UPD_WATCHER_TIMEOUT = 60000; // 60 s
+
+async function startUpdate() {
+  const btn     = document.getElementById('upd-btn');
+  const spinner = document.getElementById('upd-spinner');
+  const status  = document.getElementById('upd-status');
+  btn.disabled = true;
+  spinner.style.display = 'inline';
+  status.style.display  = 'none';
+  clearInterval(_updPollTimer);
+  try {
+    const r = await fetch('/api/system/update', {method: 'POST'});
+    const d = await r.json();
+    if (!d.ok) {
+      _updShowError(d.error || `HTTP ${r.status}`);
+      btn.disabled = false;
+      spinner.style.display = 'none';
+      return;
+    }
+    _updPollStart = Date.now();
+    _updPollTimer = setInterval(_updPoll, 3000);
+    _updPoll();
+  } catch(e) {
+    _updShowError(e.message);
+    btn.disabled = false;
+    spinner.style.display = 'none';
+  }
+}
+
+async function _updPoll() {
+  try {
+    const r = await fetch('/api/system/update/status');
+    const d = await r.json();
+    const state = d.state || 'idle';
+
+    if (state === 'idle' && (Date.now() - _updPollStart) > UPD_WATCHER_TIMEOUT) {
+      clearInterval(_updPollTimer);
+      _updShowError(
+        'Kein Signal vom Host-Watcher nach 60 Sekunden. ' +
+        'Bitte prüfen: <code>systemctl status exo-gateway-updater</code>'
+      );
+      document.getElementById('upd-btn').disabled = false;
+      document.getElementById('upd-spinner').style.display = 'none';
+      return;
+    }
+
+    if (state === 'running') {
+      _updShowRunning(d.log || '');
+      return;
+    }
+
+    clearInterval(_updPollTimer);
+    document.getElementById('upd-spinner').style.display = 'none';
+
+    if (state === 'success') {
+      _updShowSuccess(d);
+    } else if (state === 'error') {
+      _updShowError(d.log || 'Unbekannter Fehler');
+      document.getElementById('upd-btn').disabled = false;
+    }
+  } catch(e) { /* Netzwerkfehler während Neustart ist normal */ }
+}
+
+function _updShowRunning(log) {
+  const el = document.getElementById('upd-status');
+  el.style.display = 'block';
+  el.innerHTML = `<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;padding:12px;font-size:12px">
+    <strong style="color:#0369a1">Update läuft…</strong>
+    <pre style="margin:8px 0 0;white-space:pre-wrap;font-size:11px;max-height:200px;overflow-y:auto;color:#374151">${_esc(log)}</pre>
+  </div>`;
+}
+
+function _updShowSuccess(d) {
+  const el = document.getElementById('upd-status');
+  el.style.display = 'block';
+  el.innerHTML = `<div class="alert success" style="font-size:13px">
+    <strong>Update erfolgreich!</strong>
+    ${d.version_before ? `${d.version_before} → <strong>${d.version_after || '?'}</strong>` : ''}
+    <pre style="margin:8px 0 0;white-space:pre-wrap;font-size:11px;max-height:200px;overflow-y:auto">${_esc(d.log || '')}</pre>
+    <div style="margin-top:10px;display:flex;gap:8px">
+      <button class="btn primary btn-sm" onclick="location.reload()">Seite neu laden</button>
+      <button class="btn secondary btn-sm" onclick="_updClear()">Status zurücksetzen</button>
+    </div>
+  </div>`;
+}
+
+function _updShowError(msg) {
+  const el = document.getElementById('upd-status');
+  el.style.display = 'block';
+  el.innerHTML = `<div class="alert" style="background:#fef2f2;border-color:#fca5a5;color:#991b1b;font-size:13px">
+    <strong>Fehler:</strong> ${msg}
+    <div style="margin-top:8px">
+      <button class="btn secondary btn-sm" onclick="_updClear()">Status zurücksetzen</button>
+    </div>
+  </div>`;
+}
+
+async function _updClear() {
+  await fetch('/api/system/update/clear', {method: 'POST'});
+  document.getElementById('upd-status').style.display = 'none';
+  document.getElementById('upd-btn').disabled = false;
+}
+
+function _esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Beim Laden: laufenden oder abgeschlossenen Status anzeigen
+(async function() {
+  try {
+    const r = await fetch('/api/system/update/status');
+    const d = await r.json();
+    if (d.state === 'running') {
+      document.getElementById('upd-btn').disabled = true;
+      document.getElementById('upd-spinner').style.display = 'inline';
+      _updShowRunning(d.log || '');
+      _updPollStart = Date.now();
+      _updPollTimer = setInterval(_updPoll, 3000);
+    } else if (d.state === 'success') {
+      _updShowSuccess(d);
+    } else if (d.state === 'error') {
+      _updShowError(d.log || 'Unbekannter Fehler');
+    }
+  } catch(e) {}
+})();
+</script>
+
 <!-- ── Support-Bundle ──────────────────────────────────────────────────────── -->
 <div class="wizard-step" style="border-color:#7c3aed33;margin-bottom:20px">
   <div class="step-header">

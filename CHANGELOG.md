@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.226 — 2026-06-29 — feat: Gateway-Update per Web UI (Trigger-Datei + Host-Watcher)
+
+Neues Feature: "Gateway aktualisieren" im Erweitert-Tab.
+- Container schreibt data/.update-trigger → Host-Watcher führt git pull +
+  docker compose up -d --build aus → Ergebnis in data/.update-status
+- Polling alle 3 s, Timeout-Warnung nach 60 s wenn Watcher nicht antwortet
+- Anzeige von version_before/version_after, vollständigem Build-Log
+- azure-vm-setup.ps1: legt update-watcher.sh + exo-gateway-updater.service an
+  und aktiviert den Service automatisch beim ersten Deploy
+
 ## v1.4.224 — 2026-06-29 — fix: S/MIME-Entschlüsselung wird jetzt ins Audit-Log geschrieben
 
 `_audit("smime_decrypted")` fehlte im Decrypt-Pfad (handler.py). Stats-Zähler
