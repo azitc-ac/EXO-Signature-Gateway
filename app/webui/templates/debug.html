@@ -813,9 +813,14 @@ async function loadHealthInline() {
       <button class="btn primary" id="upd-btn" onclick="startUpdate()" style="display:flex;align-items:center;gap:6px">
         Jetzt aktualisieren
       </button>
+      <button class="btn secondary" id="cl-btn" onclick="toggleChangelog()" style="display:flex;align-items:center;gap:6px">
+        Changelog anzeigen
+      </button>
       <span id="upd-spinner" style="display:none;font-size:13px;color:#64748b">Warte auf Watcher…</span>
     </div>
 
+    <div id="upd-watcher-badge" style="margin-bottom:10px;font-size:12px"></div>
+    <div id="upd-changelog" style="display:none;margin-bottom:12px"></div>
     <div id="upd-status" style="display:none"></div>
   </div>
 </div>
@@ -929,8 +934,58 @@ function _esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-// Beim Laden: laufenden oder abgeschlossenen Status anzeigen
+let _clVisible = false;
+async function toggleChangelog() {
+  const box = document.getElementById('upd-changelog');
+  const btn = document.getElementById('cl-btn');
+  if (_clVisible) {
+    box.style.display = 'none';
+    btn.textContent = 'Changelog anzeigen';
+    _clVisible = false;
+    return;
+  }
+  btn.textContent = 'Lade…';
+  try {
+    const r = await fetch('/api/system/changelog?n=8');
+    const d = await r.json();
+    if (d.error) { box.innerHTML = `<p style="color:#dc2626;font-size:13px">${_esc(d.error)}</p>`; }
+    else {
+      box.innerHTML = d.entries.map(e => {
+        const lines = e.split('\n');
+        const header = lines[0].replace(/^## /, '');
+        const body   = lines.slice(1).join('\n').trim();
+        return `<div style="border-left:3px solid #e2e8f0;padding:8px 12px;margin-bottom:8px">
+          <div style="font-weight:600;font-size:13px;color:#1e293b">${_esc(header)}</div>
+          ${body ? `<pre style="margin:4px 0 0;font-size:11px;color:#475569;white-space:pre-wrap;font-family:inherit">${_esc(body)}</pre>` : ''}
+        </div>`;
+      }).join('');
+    }
+    box.style.display = 'block';
+    btn.textContent = 'Changelog ausblenden';
+    _clVisible = true;
+  } catch(e) {
+    btn.textContent = 'Changelog anzeigen';
+  }
+}
+
+async function _updCheckWatcher() {
+  const badge = document.getElementById('upd-watcher-badge');
+  try {
+    const r = await fetch('/api/system/update/watcher-status');
+    const d = await r.json();
+    if (d.ok) {
+      badge.innerHTML = '<span style="color:#16a34a">● Watcher aktiv</span>';
+    } else {
+      badge.innerHTML = '<span style="color:#b45309">● Watcher nicht erkannt — bitte <a href="/setup#step-watcher" style="color:#b45309">Einrichtung → Update-Watcher</a> prüfen</span>';
+      document.getElementById('upd-btn').disabled = true;
+      document.getElementById('upd-btn').title = 'Watcher nicht aktiv';
+    }
+  } catch(e) {}
+}
+
+// Beim Laden: laufenden oder abgeschlossenen Status anzeigen + Watcher prüfen
 (async function() {
+  _updCheckWatcher();
   try {
     const r = await fetch('/api/system/update/status');
     const d = await r.json();

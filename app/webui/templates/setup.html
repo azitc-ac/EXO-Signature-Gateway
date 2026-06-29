@@ -2095,4 +2095,97 @@ async function submitPoolAppUrl() {
 .verify-btn:disabled { opacity: 0.5; cursor: default; transform: none; }
 .verify-result { margin-left: 6px; vertical-align: middle; }
 </style>
+
+<!-- ── Update-Watcher-Service ────────────────────────────────────────────── -->
+<div class="wizard-step {% if e.watcher_ok %}done{% endif %}" id="step-watcher" style="border-color:#0369a133">
+  <div class="step-header">
+    <span class="step-badge" style="background:#0369a1;width:auto;padding:0 10px;border-radius:10px;font-size:12px">WATCHER</span>
+    <span class="step-title">Update-Watcher-Service</span>
+    {% if e.watcher_ok %}
+    <span class="step-status done">Aktiv</span>
+    {% else %}
+    <span class="step-status waiting">Nicht erkannt</span>
+    {% endif %}
+  </div>
+  <div class="step-body">
+    <p style="font-size:13px;color:#555;margin-bottom:12px;line-height:1.6">
+      Der Update-Watcher ist ein systemd-Service auf dem Host, der Aktualisierungen
+      aus dem Web UI (<em>Erweitert → Gateway aktualisieren</em>) entgegennimmt.
+      Er wird bei einer Neuinstallation via <code>azure-vm-setup.ps1</code>
+      automatisch eingerichtet.<br>
+      {% if e.watcher_ok %}
+      <span style="color:#16a34a;font-weight:600">● Service läuft und schreibt Heartbeat.</span>
+      {% else %}
+      <span style="color:#b45309;font-weight:600">● Service nicht erkannt — bitte einmalig per SSH einrichten.</span>
+      {% endif %}
+    </p>
+
+    {% if not e.watcher_ok %}
+    <details open style="margin-bottom:12px">
+      <summary style="font-size:13px;font-weight:600;color:#0369a1;cursor:pointer;user-select:none;margin-bottom:10px">
+        Einrichtung per SSH (einmalig)
+      </summary>
+
+      <p style="font-size:12px;color:#555;margin-bottom:8px;line-height:1.5">
+        Verbinde dich per SSH mit der Azure-VM und führe den folgenden Block einmalig aus:
+      </p>
+      <pre style="background:#0f172a;color:#e2e8f0;border-radius:8px;padding:14px 16px;font-size:11px;line-height:1.7;overflow-x:auto;white-space:pre;margin-bottom:10px"><code>ssh azureuser@{{ e.public_hostname or 'HOSTNAME' }}
+
+sudo bash -c 'cat > /opt/exo-gateway/update-watcher.sh' &lt;&lt; 'WATCHEOF'
+#!/bin/bash
+set -euo pipefail
+REPO=/opt/exo-gateway
+TRIGGER=$REPO/data/.update-trigger
+STATUS=$REPO/data/.update-status
+HEARTBEAT=$REPO/data/.update-heartbeat
+write_status() { printf "%s" "$1" > "$STATUS"; chown 1000:1000 "$STATUS" 2>/dev/null || true; }
+write_heartbeat() { date -u +%Y-%m-%dT%H:%M:%SZ > "$HEARTBEAT"; chown 1000:1000 "$HEARTBEAT" 2>/dev/null || true; }
+_hb_counter=0
+while true; do
+  _hb_counter=$(( _hb_counter + 1 ))
+  if [ $(( _hb_counter % 12 )) -eq 0 ]; then write_heartbeat; fi
+  if [ -f "$TRIGGER" ]; then
+    VER_BEFORE=$(cat "$REPO/VERSION" 2>/dev/null | tr -d "[:space:]" || echo "?")
+    rm -f "$TRIGGER"
+    write_status "{\"state\":\"running\",\"log\":\"git pull...\",\"version_before\":\"$VER_BEFORE\"}"
+    LOG=$(cd "$REPO" &amp;&amp; git pull 2&gt;&amp;1) &amp;&amp; \
+      LOG2=$(cd "$REPO" &amp;&amp; docker compose up -d --build 2&gt;&amp;1) &amp;&amp; \
+      VER_AFTER=$(cat "$REPO/VERSION" 2>/dev/null | tr -d "[:space:]" || echo "?") &amp;&amp; \
+      write_status "{\"state\":\"success\",\"finished\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"version_before\":\"$VER_BEFORE\",\"version_after\":\"$VER_AFTER\",\"log\":$(printf "%s\n%s" "$LOG" "$LOG2" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')}" || \
+      write_status "{\"state\":\"error\",\"finished\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"log\":$(printf "%s\n%s" "$LOG" "${LOG2:-}" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')}"
+  fi
+  sleep 5
+done
+WATCHEOF
+
+sudo chmod 755 /opt/exo-gateway/update-watcher.sh
+
+sudo tee /etc/systemd/system/exo-gateway-updater.service &gt; /dev/null &lt;&lt; 'UNITEOF'
+[Unit]
+Description=EXO Gateway Update Watcher
+After=docker.service
+Requires=docker.service
+
+[Service]
+ExecStart=/opt/exo-gateway/update-watcher.sh
+Restart=always
+RestartSec=10
+User=root
+
+[Install]
+WantedBy=multi-user.target
+UNITEOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now exo-gateway-updater
+sudo systemctl status exo-gateway-updater --no-pager</code></pre>
+
+      <p style="font-size:12px;color:#64748b">
+        Nach ca. 60 Sekunden schreibt der Service seinen ersten Heartbeat —
+        dann wird dieser Schritt automatisch als erledigt markiert (Seite neu laden).
+      </p>
+    </details>
+    {% endif %}
+  </div>
+</div>
 {% endblock %}

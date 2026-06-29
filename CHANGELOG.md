@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.228 — 2026-06-29 — feat: Update-UI vollständig + Watcher-Check in Einrichtung
+
+- settings.html: "Software-Update"-Platzhalter entfernt; "Signaturvariablen" live
+  (alle verfügbaren Template-Variablen, Links zu Benutzer-Overrides)
+- debug.html: "Changelog anzeigen"-Button (letzte 8 Einträge aus CHANGELOG.md),
+  Watcher-Status-Badge; Update-Button deaktiviert wenn Watcher nicht antwortet
+- setup.html: neuer Schritt "Update-Watcher-Service" — grün wenn Heartbeat aktiv,
+  sonst SSH-Script + Anleitung zum Einrichten
+- updater.py: watcher_ok() prüft data/.update-heartbeat (max. 2 min alt)
+- update-watcher.sh: schreibt alle 60 s einen Heartbeat nach data/.update-heartbeat
+- Dockerfile: CHANGELOG.md wird ins Image kopiert (für /api/system/changelog)
+
 ## v1.4.226 — 2026-06-29 — feat: Gateway-Update per Web UI (Trigger-Datei + Host-Watcher)
 
 Neues Feature: "Gateway aktualisieren" im Erweitert-Tab.

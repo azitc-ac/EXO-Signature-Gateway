@@ -632,6 +632,7 @@ async def setup_wizard(
         "password_change_needed": _password_change_required(),
         "cert_exists": Path(config.SMTP_TLS_CERT).exists(),
         "auth_cert_exists": Path("/app/data/auth.pfx").exists(),
+        "watcher_ok": __import__("updater").watcher_ok(),
         "authed": authed,
         "bootstrap_client_id": s.get("BOOTSTRAP_CLIENT_ID", ""),
         "bootstrap_redirect_uris": s.get("BOOTSTRAP_REDIRECT_URIS", []),
@@ -3479,6 +3480,37 @@ async def api_system_update_clear(user: str = Depends(_require_admin)):
     import updater
     updater.clear_status()
     return JSONResponse({"ok": True})
+
+
+@app.get("/api/system/update/watcher-status")
+async def api_watcher_status(user: str = Depends(_require_admin)):
+    """Prüft ob der Host-Watcher-Service läuft (Heartbeat-Datei)."""
+    import updater
+    return JSONResponse({"ok": updater.watcher_ok()})
+
+
+@app.get("/api/system/changelog")
+async def api_changelog(n: int = 10, user: str = Depends(_check_auth)):
+    """Letzte N Einträge aus CHANGELOG.md."""
+    try:
+        text = (Path("/app/CHANGELOG.md")).read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return JSONResponse({"entries": [], "error": "CHANGELOG.md nicht gefunden"})
+    entries = []
+    current: list[str] = []
+    for line in text.splitlines():
+        if line.startswith("## ") and current:
+            entries.append("\n".join(current).strip())
+            current = [line]
+            if len(entries) >= n:
+                break
+        elif line.startswith("## "):
+            current = [line]
+        elif current:
+            current.append(line)
+    if current and len(entries) < n:
+        entries.append("\n".join(current).strip())
+    return JSONResponse({"entries": entries})
 
 
 @app.get("/api/setup/app-pool/history")

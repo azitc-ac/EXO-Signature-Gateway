@@ -1528,10 +1528,10 @@ async function saveKvUrl() {
 .planned-card h2 { color:#94a3b8 !important; }
 </style>
 
-<!-- Signaturvariablen & Bookings-URL -->
-<div class="planned-card settings-card" style="margin-top:24px">
-  <h2>Signaturvariablen <span class="planned-badge">geplant</span></h2>
-  <p class="hint">Übersicht der verfügbaren Jinja2-Variablen und ihrer Herkunft aus Entra-Attributen. Benutzer-Overrides werden direkt darunter konfiguriert.</p>
+<!-- Signaturvariablen -->
+<div class="settings-card" style="margin-top:24px">
+  <h2>Signaturvariablen</h2>
+  <p class="hint">Verfügbare Jinja2-Variablen in Signaturvorlagen und ihre Herkunft aus Entra-Attributen.</p>
   <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:14px">
     <thead>
       <tr style="border-bottom:2px solid #e2e8f0">
@@ -1541,23 +1541,18 @@ async function saveKvUrl() {
       </tr>
     </thead>
     <tbody>
-      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.displayName</code></td><td style="padding:5px 16px;color:#888">displayName</td><td style="padding:5px 0;color:#aaa">—</td></tr>
-      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.jobTitle</code></td><td style="padding:5px 16px;color:#888">jobTitle</td><td style="padding:5px 0;color:#aaa">—</td></tr>
-      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.phone</code></td><td style="padding:5px 16px;color:#888">businessPhones[0]</td><td style="padding:5px 0;color:#aaa">—</td></tr>
-      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.website</code></td><td style="padding:5px 16px;color:#888">businessHomePage → extensionAttribute1</td><td style="padding:5px 0;color:#aaa">USER_WEBSITES</td></tr>
-      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.bookingsUrl</code></td><td style="padding:5px 16px;color:#888"><em>Automatisch via Graph Bookings API (geplant)</em></td><td style="padding:5px 0;color:#aaa">USER_BOOKINGS</td></tr>
+      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.displayName</code></td><td style="padding:5px 16px;color:#555">displayName</td><td style="padding:5px 0;color:#aaa">—</td></tr>
+      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.jobTitle</code></td><td style="padding:5px 16px;color:#555">jobTitle</td><td style="padding:5px 0;color:#aaa">—</td></tr>
+      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.phone</code></td><td style="padding:5px 16px;color:#555">businessPhones[0]</td><td style="padding:5px 0;color:#aaa">—</td></tr>
+      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.website</code></td><td style="padding:5px 16px;color:#555">businessHomePage → extensionAttribute1</td><td style="padding:5px 0"><a href="/settings#overrides" style="color:#0369a1;font-size:12px">USER_WEBSITES</a></td></tr>
+      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.bookingsUrl</code></td><td style="padding:5px 16px;color:#555">Bookings-Seite (Kalender-URL)</td><td style="padding:5px 0"><a href="/settings#overrides" style="color:#0369a1;font-size:12px">USER_BOOKINGS</a></td></tr>
+      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.department</code></td><td style="padding:5px 16px;color:#555">department</td><td style="padding:5px 0;color:#aaa">—</td></tr>
+      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.companyName</code></td><td style="padding:5px 16px;color:#555">companyName</td><td style="padding:5px 0;color:#aaa">—</td></tr>
+      <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:5px 0"><code>user.officeLocation</code></td><td style="padding:5px 16px;color:#555">officeLocation</td><td style="padding:5px 0;color:#aaa">—</td></tr>
+      <tr><td style="padding:5px 0"><code>user.email</code></td><td style="padding:5px 16px;color:#555">mail</td><td style="padding:5px 0;color:#aaa">—</td></tr>
     </tbody>
   </table>
-  <p class="hint" style="margin-top:0">Benutzer-Overrides und Bookings-URL-Automatik können hier pro Postfach konfiguriert werden.</p>
-  <button class="btn secondary" disabled>Variablen-Mapping konfigurieren</button>
-</div>
-
-<!-- Software-Update -->
-<div class="planned-card settings-card" style="margin-top:16px">
-  <h2>Software-Update <span class="planned-badge">geplant</span></h2>
-  <p class="hint">Gateway auf die neueste Version aktualisieren — git pull, automatisches Backup und Container-Rebuild in einem Schritt.</p>
-  <button class="btn primary" disabled>Jetzt aktualisieren</button>
-  <button class="btn secondary" disabled style="margin-left:8px">Changelog anzeigen</button>
+  <p class="hint" style="margin-top:0">Benutzer-Overrides für Website und Bookings-URL werden unter <a href="/settings#overrides">Benutzer-Overrides</a> konfiguriert.</p>
 </div>
 
 {% endblock %}

@@ -39,6 +39,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # ── App code ──────────────────────────────────────────────────────────────────
 COPY app/ .
 COPY VERSION /app/VERSION
+COPY CHANGELOG.md /app/CHANGELOG.md
 
 RUN useradd -m appuser && chown -R appuser /app
 USER appuser

@@ -11,12 +11,15 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-_DATA    = Path("/app/data")
-TRIGGER  = _DATA / ".update-trigger"
-STATUS   = _DATA / ".update-status"
+_DATA     = Path("/app/data")
+TRIGGER   = _DATA / ".update-trigger"
+STATUS    = _DATA / ".update-status"
+HEARTBEAT = _DATA / ".update-heartbeat"
 
 # How long (seconds) the UI polls before declaring the watcher absent
 WATCHER_TIMEOUT_S = 60
+# Heartbeat older than this → watcher considered dead
+HEARTBEAT_MAX_AGE_S = 120
 
 
 def request_update(requested_by: str, current_version: str) -> dict:
@@ -53,3 +56,12 @@ def clear_status() -> None:
         STATUS.unlink(missing_ok=True)
     except Exception:
         pass
+
+
+def watcher_ok() -> bool:
+    """True if the host-side watcher wrote a heartbeat within the last 2 minutes."""
+    try:
+        age = datetime.now(timezone.utc).timestamp() - HEARTBEAT.stat().st_mtime
+        return age < HEARTBEAT_MAX_AGE_S
+    except Exception:
+        return False
