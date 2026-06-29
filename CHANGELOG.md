@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.216 — 2026-06-29 — feat: Auto-Close schon beim ersten Login + Localhost-Notausgang
+
+Feinschliff zu v1.4.215: Beim Speichern der Bootstrap-Client-ID
+(/api/setup/bootstrap-client) wird die HTTPS-Redirect-URI optimistisch in
+BOOTSTRAP_REDIRECT_URIS vorgemerkt → schon der ERSTE Login nutzt das
+selbstschließende Popup (statt Localhost-Paste), sofern die URI an der App
+registriert ist (typisch bei Migration auf gleichem Hostnamen). Echtes Vorbefüllen
+aus Azure AD ist vor dem Login mangels Token nicht möglich; patch_bootstrap_redirect_uri
+korrigiert BOOTSTRAP_REDIRECT_URIS nach dem ersten Login ohnehin auf den Ist-Stand
+(selbstheilend).
+Notausgang: /auth/start?localhost=1 erzwingt den Localhost/Copy-Paste-Redirect;
+im Wizard als Link „Per Localhost anmelden" unter dem Login-Button — fängt den Fall
+ab, dass die HTTPS-URI doch nicht registriert ist (AADSTS50011).
+
 ## v1.4.215 — 2026-06-29 — feat: Setup-Login selbstschließendes HTTPS-Popup + ehrliches Wording
 
 Korrektur zu v1.4.214: Der Fallback-Public-Client (Graph CLI App) kann unsere

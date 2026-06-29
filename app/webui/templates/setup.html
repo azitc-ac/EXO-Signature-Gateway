@@ -306,9 +306,13 @@
       <li>Nach dem Login zeigt dein Browser eine <strong>Fehler- oder Verbindungsseite</strong> — das ist <em>normal</em>.</li>
       <li>Kopiere die <strong>komplette URL</strong> aus der Adressleiste und füge sie unten ein.</li>
     </ol>
-    <div class="actions" style="margin-bottom:14px">
+    <div class="actions" style="margin-bottom:6px">
       <button class="btn primary" id="btn-azure-login" onclick="startAzureLogin()">Jetzt anmelden &rarr;</button>
     </div>
+    <p class="hint" style="margin:0 0 14px;font-size:12px;color:#888">
+      Login bricht mit <code>AADSTS50011</code> (Redirect-URI) ab?
+      <a href="#" onclick="startAzureLogin('btn-azure-login','paste-section',true);return false;">Per Localhost anmelden (Copy-Paste)</a>
+    </p>
     <div id="paste-section" style="display:none">
       <div class="settings-row">
         <label for="auth-url-paste">URL aus der Adressleiste</label>
@@ -1090,7 +1094,7 @@ async function saveBootstrapClientId() {
   }
 }
 
-async function startAzureLogin(btnId, pasteSectionId) {
+async function startAzureLogin(btnId, pasteSectionId, forceLocalhost) {
   btnId = btnId || 'btn-azure-login';
   pasteSectionId = pasteSectionId || 'paste-section';
   const btn = document.getElementById(btnId);
@@ -1100,7 +1104,7 @@ async function startAzureLogin(btnId, pasteSectionId) {
   // Safari blocks window.open() called after any await.
   const win = window.open('about:blank', '_blank');
   try {
-    const resp = await fetch('/auth/start');
+    const resp = await fetch('/auth/start' + (forceLocalhost ? '?localhost=1' : ''));
     if (!resp.ok) throw new Error((await resp.json().catch(()=>({}))).detail || resp.status);
     const data = await resp.json();
     if (win) {

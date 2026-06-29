@@ -651,7 +651,10 @@ async def auth_start(request: Request):
     No auth required — generating a PKCE URL is harmless; privileged operations
     are protected by the Microsoft access token returned after login.
     """
-    redirect_uri = _setup_redirect_uri()
+    # ?localhost=1 erzwingt den Localhost/Copy-Paste-Redirect (Notausgang, falls die
+    # HTTPS-Redirect-URI an der Bootstrap-App doch nicht registriert ist → AADSTS50011).
+    force_localhost = request.query_params.get("localhost") in ("1", "true")
+    redirect_uri = _build_redirect_uri() if force_localhost else _setup_redirect_uri()
     _state, auth_url = pkce_mod.create_session(redirect_uri, flow="setup")
     return JSONResponse({"auth_url": auth_url})
 
@@ -1015,6 +1018,16 @@ async def api_setup_bootstrap_client(request: Request, user: str = Depends(_chec
     if not client_id:
         raise HTTPException(400, "client_id darf nicht leer sein")
     settings_store.update({"BOOTSTRAP_CLIENT_ID": client_id})
+    # Feinschliff: HTTPS-Redirect optimistisch vormerken, damit bereits der ERSTE Login
+    # das selbstschließende Popup nutzt statt Localhost-Paste. Greift nur, wenn diese URI
+    # an der App registriert ist (z.B. Migration auf gleichem Hostnamen); andernfalls
+    # nutzt der Nutzer den Localhost-Notausgang. patch_bootstrap_redirect_uri korrigiert
+    # BOOTSTRAP_REDIRECT_URIS nach dem ersten erfolgreichen Login auf den echten Stand.
+    https_uri = _build_redirect_uri(sso=True)
+    if https_uri.startswith("https://"):
+        uris = settings_store.get("BOOTSTRAP_REDIRECT_URIS") or []
+        if https_uri not in uris:
+            settings_store.update({"BOOTSTRAP_REDIRECT_URIS": uris + [https_uri]})
     log.info("Bootstrap client ID set by %s", user)
     return JSONResponse({"ok": True, "redirect_uri": _build_redirect_uri()})
 
