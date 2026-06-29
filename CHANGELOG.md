@@ -5,6 +5,8 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.236 — 2026-06-29 — fix: git pull → git fetch+reset --hard (verhindert "would be overwritten"-Fehler)
+
 ## v1.4.235 — 2026-06-29 — refactor: Gateway-Update von Erweitert nach Allgemein verschoben
 
 ## v1.4.234 — 2026-06-29 — feat: Update-Channel (main/release) + GitHub-Check vor Update

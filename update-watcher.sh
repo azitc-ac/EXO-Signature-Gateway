@@ -13,10 +13,10 @@ do_git_update() {
     cd "$REPO" && git fetch --tags 2>&1
     LATEST=$(git tag -l 'v*' | sort -V | tail -1)
     if [ -z "$LATEST" ]; then echo "FEHLER: Keine Release-Tags gefunden"; return 1; fi
-    git checkout "$LATEST" 2>&1
+    git reset --hard "$LATEST" 2>&1
     echo "→ Release $LATEST ausgecheckt"
   else
-    cd "$REPO" && git pull 2>&1
+    cd "$REPO" && git fetch origin main 2>&1 && git reset --hard origin/main 2>&1
   fi
 }
 
