@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.234 — 2026-06-29 — feat: Update-Channel (main/release) + GitHub-Check vor Update
+
+Update-UI zeigt jetzt verfügbare Versionen an bevor das Update gestartet wird.
+Kanal-Wahl: "Entwicklungsstand (main)" oder "Releases (stabil)".
+Watcher-Script unterstützt release-Kanal via git fetch --tags + git checkout.
+Auto-Check beim Laden der Seite wenn Watcher aktiv ist.
+/api/system/update/check — neuer Endpunkt für GitHub-Versionsabfrage.
+
 ## v1.4.232 — 2026-06-29 — feat: update-watcher.sh ins Repo aufgenommen + Selbst-Neustart
 
 update-watcher.sh liegt jetzt im Repo-Root und wird via git pull automatisch

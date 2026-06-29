@@ -806,11 +806,27 @@ async function loadHealthInline() {
       </span>
     </p>
 
+    <!-- Kanal + Prüfen -->
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+      <label style="font-size:13px;color:#374151;font-weight:500">Kanal:</label>
+      <select id="upd-channel" onchange="_updSaveChannel()" style="font-size:13px;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;background:#fff">
+        <option value="main">Entwicklungsstand (main)</option>
+        <option value="release">Releases (stabil)</option>
+      </select>
+      <button class="btn secondary btn-sm" id="upd-check-btn" onclick="checkUpdate()" style="font-size:12px">
+        Auf Updates prüfen
+      </button>
+    </div>
+
+    <!-- Check-Ergebnis + Version + Buttons -->
     <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
       <div style="font-size:13px;color:#374151">
         Aktuelle Version: <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px">{{ current_version or 'unbekannt' }}</code>
       </div>
-      <button class="btn primary" id="upd-btn" onclick="startUpdate()" style="display:flex;align-items:center;gap:6px">
+      <div id="upd-check-result" style="font-size:13px"></div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+      <button class="btn primary" id="upd-btn" onclick="startUpdate()" disabled style="display:flex;align-items:center;gap:6px">
         Jetzt aktualisieren
       </button>
       <button class="btn secondary" id="cl-btn" onclick="toggleChangelog()" style="display:flex;align-items:center;gap:6px">
@@ -827,7 +843,56 @@ async function loadHealthInline() {
 <script>
 let _updPollTimer = null;
 let _updPollStart = null;
+let _watcherOk = false;
 const UPD_WATCHER_TIMEOUT = 60000; // 60 s
+
+function _updGetChannel() {
+  return document.getElementById('upd-channel').value;
+}
+function _updSaveChannel() {
+  try { localStorage.setItem('exo_upd_channel', _updGetChannel()); } catch(e) {}
+  // Kanal geändert → Ergebnis zurücksetzen, Button deaktivieren
+  document.getElementById('upd-check-result').innerHTML = '';
+  document.getElementById('upd-btn').disabled = true;
+}
+function _updLoadChannel() {
+  try {
+    const ch = localStorage.getItem('exo_upd_channel');
+    if (ch) document.getElementById('upd-channel').value = ch;
+  } catch(e) {}
+}
+
+async function checkUpdate() {
+  const btn = document.getElementById('upd-check-btn');
+  const result = document.getElementById('upd-check-result');
+  const updBtn = document.getElementById('upd-btn');
+  btn.disabled = true;
+  btn.textContent = 'Prüfe…';
+  result.innerHTML = '<span style="color:#64748b">Verbinde mit GitHub…</span>';
+  updBtn.disabled = true;
+  try {
+    const ch = _updGetChannel();
+    const r = await fetch(`/api/system/update/check?channel=${encodeURIComponent(ch)}`);
+    const d = await r.json();
+    if (!d.ok) {
+      result.innerHTML = `<span style="color:#b45309">⚠ ${_esc(d.error)}</span>`;
+      if (_watcherOk) updBtn.disabled = false; // Fehler beim Check → trotzdem erlauben
+    } else if (d.available) {
+      result.innerHTML = `<span style="color:#16a34a;font-weight:600">▲ Update verfügbar: ${_esc(d.latest)}</span>` +
+        (d.url ? ` <a href="${_esc(d.url)}" target="_blank" style="font-size:11px;color:#64748b">Release-Notes</a>` : '');
+      if (_watcherOk) updBtn.disabled = false;
+    } else if (d.note) {
+      result.innerHTML = `<span style="color:#64748b">${_esc(d.note)}</span>`;
+    } else {
+      result.innerHTML = `<span style="color:#64748b">✓ Bereits aktuell (${_esc(d.latest || '?')})</span>`;
+    }
+  } catch(e) {
+    result.innerHTML = `<span style="color:#dc2626">Fehler: ${_esc(e.message)}</span>`;
+    if (_watcherOk) updBtn.disabled = false;
+  }
+  btn.disabled = false;
+  btn.textContent = 'Auf Updates prüfen';
+}
 
 async function startUpdate() {
   const btn     = document.getElementById('upd-btn');
@@ -838,7 +903,11 @@ async function startUpdate() {
   status.style.display  = 'none';
   clearInterval(_updPollTimer);
   try {
-    const r = await fetch('/api/system/update', {method: 'POST'});
+    const r = await fetch('/api/system/update', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({channel: _updGetChannel()}),
+    });
     const d = await r.json();
     if (!d.ok) {
       _updShowError(d.error || `HTTP ${r.status}`);
@@ -973,6 +1042,7 @@ async function _updCheckWatcher() {
   try {
     const r = await fetch('/api/system/update/watcher-status');
     const d = await r.json();
+    _watcherOk = d.ok;
     if (d.ok) {
       badge.innerHTML = '<span style="color:#16a34a">● Watcher aktiv</span>';
     } else {
@@ -983,9 +1053,10 @@ async function _updCheckWatcher() {
   } catch(e) {}
 }
 
-// Beim Laden: laufenden oder abgeschlossenen Status anzeigen + Watcher prüfen
+// Beim Laden: Kanal wiederherstellen, Watcher prüfen, Status anzeigen, Auto-Check
 (async function() {
-  _updCheckWatcher();
+  _updLoadChannel();
+  await _updCheckWatcher();
   try {
     const r = await fetch('/api/system/update/status');
     const d = await r.json();
@@ -1001,6 +1072,8 @@ async function _updCheckWatcher() {
       _updShowError(d.log || 'Unbekannter Fehler');
     }
   } catch(e) {}
+  // Auto-Check im Hintergrund
+  if (_watcherOk) checkUpdate();
 })();
 </script>
 

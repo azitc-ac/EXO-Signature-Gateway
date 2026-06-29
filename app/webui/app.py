@@ -3456,14 +3456,27 @@ async def api_log_tail(n: int = 150, user: str = Depends(_check_auth)):
     return {"lines": lines}
 
 
+@app.get("/api/system/update/check")
+async def api_update_check(channel: str = "main", user: str = Depends(_require_admin)):
+    """GitHub-Prüfung: gibt es eine neuere Version im gewählten Kanal?"""
+    import updater
+    return JSONResponse(updater.check_update(channel, config.VERSION))
+
+
 @app.post("/api/system/update")
-async def api_system_update(user: str = Depends(_require_admin)):
+async def api_system_update(request: Request, user: str = Depends(_require_admin)):
     """Trigger-Datei schreiben → Host-Watcher führt git pull + docker compose up --build aus."""
     import updater
-    result = updater.request_update(user, config.VERSION)
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+    channel = body.get("channel", "main")
+    result = updater.request_update(user, config.VERSION, channel=channel)
     if not result["ok"]:
         return JSONResponse(result, status_code=409)
-    log.info("Update requested by %s (current version: %s)", user, config.VERSION)
+    log.info("Update requested by %s (channel: %s, current version: %s)", user, channel, config.VERSION)
     return JSONResponse(result)
 
 
