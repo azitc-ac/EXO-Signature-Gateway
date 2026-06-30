@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.289 — 2026-06-30 — feat: Benutzer-Overrides dynamisiert
+
+Neue einheitliche Override-Tabelle: E-Mail per Dropdown (aktive Postfächer)
+oder manueller Eingabe, Variablen-Auswahl aus allen vordefinierten (user.*)
+und eigenen Variablen (custom.*), freie Texteingabe für den Wert.
+Speichert in USER_OVERRIDES; rückwärtskompatibel mit USER_WEBSITES.
+Backend (graph_client.py) wendet USER_OVERRIDES mit höchster Priorität an.
+
 ## v1.4.288 — 2026-06-30 — fix: Was-ist-neu Daten im check-Endpoint mitliefern
 
 Changelog-Differenz wird jetzt direkt im /api/system/update/check Response

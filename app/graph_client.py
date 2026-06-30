@@ -712,6 +712,7 @@ async def get_user(email: str) -> UserData:
 
     user_websites: dict = settings_store.get("USER_WEBSITES") or {}
     user_bookings: dict = settings_store.get("USER_BOOKINGS") or {}
+    user_overrides: dict = (settings_store.get("USER_OVERRIDES") or {}).get(resolved_mail.lower(), {})
 
     custom_vars: list[dict] = settings_store.get("CUSTOM_TEMPLATE_VARS") or []
     custom: dict = {
@@ -720,16 +721,20 @@ async def get_user(email: str) -> UserData:
         if cv.get("name") and cv.get("entra_field")
     }
 
-    return UserData(
-        displayName=data.get("displayName") or "",
-        jobTitle=data.get("jobTitle") or "",
-        department=data.get("department") or "",
-        companyName=data.get("companyName") or "",
+    ud = UserData(
+        displayName=user_overrides.get("user.displayName") or data.get("displayName") or "",
+        jobTitle=user_overrides.get("user.jobTitle") or data.get("jobTitle") or "",
+        department=user_overrides.get("user.department") or data.get("department") or "",
+        companyName=user_overrides.get("user.companyName") or data.get("companyName") or "",
         mail=resolved_mail,
-        mobilePhone=data.get("mobilePhone") or "",
-        phone=phones[0] if phones else "",
-        officeLocation=data.get("officeLocation") or "",
-        website=user_websites.get(resolved_mail.lower()) or settings_store.get("WEBSITE_URL") or "",
-        bookingsUrl=user_bookings.get(resolved_mail.lower()) or "",
+        mobilePhone=user_overrides.get("user.mobilePhone") or data.get("mobilePhone") or "",
+        phone=user_overrides.get("user.phone") or (phones[0] if phones else ""),
+        officeLocation=user_overrides.get("user.officeLocation") or data.get("officeLocation") or "",
+        website=user_overrides.get("user.website") or user_websites.get(resolved_mail.lower()) or settings_store.get("WEBSITE_URL") or "",
+        bookingsUrl=user_overrides.get("user.bookingsUrl") or user_bookings.get(resolved_mail.lower()) or "",
         custom=custom,
     )
+    for key, val in user_overrides.items():
+        if key.startswith("custom.") and val:
+            ud.custom[key[7:]] = val
+    return ud

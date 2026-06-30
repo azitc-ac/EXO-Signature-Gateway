@@ -515,37 +515,18 @@
 
   <div style="border-top:1px solid #f0f0f0;margin:20px 0 16px"></div>
   <h3 id="overrides" style="margin-bottom:8px">Benutzer-Overrides</h3>
-  <p class="hint" style="margin-bottom:12px">Überschreibt Graph-Werte für einzelne Nutzer. E-Mail in Kleinbuchstaben.</p>
+  <p class="hint" style="margin-bottom:12px">Überschreibt Graph-Werte für einzelne Nutzer. Eigene Variablen (custom.*) müssen vorher im Abschnitt „Eigene Variablen" definiert sein.</p>
 
-  <h3>Website-URLs</h3>
-  <table class="kv-table">
-    <thead><tr><th>E-Mail</th><th>Website-URL</th><th></th></tr></thead>
-    <tbody id="websites-tbody">
-      {% for email, url in s.USER_WEBSITES.items() %}
-      <tr class="websites-row">
-        <td><input type="email" class="kv-email" value="{{ email }}"></td>
-        <td><input type="url" class="kv-url" value="{{ url }}" placeholder="https://..."></td>
-        <td><button type="button" class="btn secondary btn-sm" onclick="this.closest('tr').remove()">✕</button></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  <button type="button" class="btn secondary btn-sm" style="margin-top:6px" onclick="addRow('websites','websites-tbody')">+ Zeile</button>
-
-  <h3 style="margin-top:20px">Booking-URLs</h3>
-  <table class="kv-table">
-    <thead><tr><th>E-Mail</th><th>Booking-URL</th><th></th></tr></thead>
-    <tbody id="bookings-tbody">
-      {% for email, url in s.USER_BOOKINGS.items() %}
-      <tr class="bookings-row">
-        <td><input type="email" class="kv-email" value="{{ email }}"></td>
-        <td><input type="url" class="kv-url" value="{{ url }}" placeholder="https://..."></td>
-        <td><button type="button" class="btn secondary btn-sm" onclick="this.closest('tr').remove()">✕</button></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  <button type="button" class="btn secondary btn-sm" style="margin-top:6px" onclick="addRow('bookings','bookings-tbody')">+ Zeile</button>
+  <div style="overflow-x:auto">
+    <table class="kv-table" style="table-layout:fixed;min-width:480px">
+      <colgroup>
+        <col style="width:38%"><col style="width:26%"><col style="width:30%"><col style="width:6%">
+      </colgroup>
+      <thead><tr><th>E-Mail</th><th>Variable</th><th>Wert</th><th></th></tr></thead>
+      <tbody id="overrides-tbody"></tbody>
+    </table>
+  </div>
+  <button type="button" class="btn secondary btn-sm" style="margin-top:6px" onclick="addOverrideRow()">+ Zeile</button>
   <div class="actions" style="margin-top:12px">
     <button class="btn secondary" onclick="saveOverrides()">Speichern</button>
     <span id="overrides-result" style="font-size:12px;margin-left:8px"></span>
@@ -1000,27 +981,82 @@ function showAlert(el, type, msg) {
   setTimeout(() => { el.style.display = 'none'; }, 6000);
 }
 
-function addRow(prefix, tbodyId) {
-  const tbody = document.getElementById(tbodyId);
-  const tr = document.createElement('tr');
-  tr.className = prefix + '-row';
-  tr.innerHTML =
-    '<td><input type="email" class="kv-email" placeholder="user@domain.com" style="width:100%"></td>' +
-    '<td><input type="url" class="kv-url" placeholder="https://..." style="width:100%"></td>' +
-    '<td><button type="button" class="btn secondary btn-sm" onclick="this.closest(\'tr\').remove()">✕</button></td>';
-  tbody.appendChild(tr);
-  tr.querySelector('.kv-email').focus();
+const _orMailboxes = {{ sender_mailboxes | tojson }};
+const _orVarOptions = [
+  {key:"user.displayName",label:"user.displayName"},
+  {key:"user.jobTitle",label:"user.jobTitle"},
+  {key:"user.department",label:"user.department"},
+  {key:"user.companyName",label:"user.companyName"},
+  {key:"user.phone",label:"user.phone"},
+  {key:"user.mobilePhone",label:"user.mobilePhone"},
+  {key:"user.officeLocation",label:"user.officeLocation"},
+  {key:"user.website",label:"user.website"},
+  {key:"user.bookingsUrl",label:"user.bookingsUrl"},
+];
+{% for cv in (s.CUSTOM_TEMPLATE_VARS or []) %}{% if cv.name %}_orVarOptions.push({key:"custom.{{ cv.name }}",label:"custom.{{ cv.name }}"});{% endif %}
+{% endfor %}
+
+function _orBuildVarSelect(sel) {
+  const predef = _orVarOptions.filter(v => v.key.startsWith('user.'));
+  const custom = _orVarOptions.filter(v => v.key.startsWith('custom.'));
+  let h = '<optgroup label="Vordefinierte Variablen">';
+  for (const v of predef) h += `<option value="${_esc(v.key)}"${sel===v.key?' selected':''}>${_esc(v.label)}</option>`;
+  h += '</optgroup>';
+  if (custom.length) {
+    h += '<optgroup label="Eigene Variablen">';
+    for (const v of custom) h += `<option value="${_esc(v.key)}"${sel===v.key?' selected':''}>${_esc(v.label)}</option>`;
+    h += '</optgroup>';
+  }
+  return `<select class="or-var" style="width:100%">${h}</select>`;
 }
 
-function collectKV(rowClass) {
-  const result = {};
-  document.querySelectorAll('.' + rowClass + '-row').forEach(function(row) {
-    const email = (row.querySelector('.kv-email').value || '').trim().toLowerCase();
-    const url = (row.querySelector('.kv-url').value || '').trim();
-    if (email && url) result[email] = url;
-  });
-  return result;
+function _orBuildEmailCell(email) {
+  const known = _orMailboxes.find(m => m.email.toLowerCase() === (email||'').toLowerCase());
+  let opts = '<option value="">— Auswählen —</option>';
+  for (const m of _orMailboxes) {
+    const s2 = (known && m.email.toLowerCase()===(email||'').toLowerCase()) ? ' selected' : '';
+    const lbl = (m.name && m.name!==m.email) ? `${_esc(m.email)} – ${_esc(m.name)}` : _esc(m.email);
+    opts += `<option value="${_esc(m.email)}"${s2}>${lbl}</option>`;
+  }
+  const manSel = (!known && email) ? ' selected' : '';
+  opts += `<option value="__manual__"${manSel}>✏ Eigene Adresse…</option>`;
+  const txtHide = (!known && email) ? '' : 'display:none;';
+  const txtVal = (!known && email) ? ` value="${_esc(email)}"` : '';
+  return `<div><select class="or-email-sel" style="width:100%" onchange="_orEmailChange(this)">${opts}</select>`
+       + `<input type="email" class="or-email-txt" placeholder="user@domain.com" style="${txtHide}margin-top:4px;width:100%"${txtVal}></div>`;
 }
+
+function _orEmailChange(sel) {
+  const txt = sel.closest('td').querySelector('.or-email-txt');
+  if (sel.value==='__manual__') { txt.style.display=''; txt.focus(); }
+  else { txt.style.display='none'; txt.value=''; }
+}
+
+function addOverrideRow(email, varKey, value) {
+  const tbody = document.getElementById('overrides-tbody');
+  const tr = document.createElement('tr');
+  tr.className = 'override-row';
+  const td1=document.createElement('td'); td1.innerHTML=_orBuildEmailCell(email||'');
+  const td2=document.createElement('td'); td2.innerHTML=_orBuildVarSelect(varKey||(_orVarOptions[0]&&_orVarOptions[0].key)||'');
+  const td3=document.createElement('td'); td3.innerHTML=`<input type="text" class="or-val" value="${_esc(value||'')}" style="width:100%">`;
+  const td4=document.createElement('td'); td4.innerHTML=`<button type="button" class="btn secondary btn-sm" onclick="this.closest('tr').remove()">✕</button>`;
+  tr.append(td1,td2,td3,td4);
+  tbody.appendChild(tr);
+  if (!email) td1.querySelector('.or-email-sel').focus();
+}
+
+(function initOverrides() {
+  const saved = {{ (s.USER_OVERRIDES or {}) | tojson }};
+  const websites = {{ (s.USER_WEBSITES or {}) | tojson }};
+  const shown = {};
+  for (const [email, vars] of Object.entries(saved)) {
+    shown[email] = shown[email] || {};
+    for (const [k, v] of Object.entries(vars)) { shown[email][k] = true; addOverrideRow(email, k, v); }
+  }
+  for (const [email, url] of Object.entries(websites)) {
+    if (!(shown[email] && shown[email]['user.website'])) addOverrideRow(email, 'user.website', url);
+  }
+})();
 
 const _currentNotifMailbox = {{ s.NOTIFICATION_MAILBOX | tojson }};
 const _currentNotifRecipients = {{ (s.NOTIFICATION_RECIPIENTS or []) | tojson }};
@@ -1350,7 +1386,19 @@ function saveCustomVars() {
 })();
 
 function saveOverrides() {
-  savePartial({ USER_WEBSITES: collectKV('websites'), USER_BOOKINGS: collectKV('bookings') }, 'overrides-result');
+  const overrides = {}, websites = {};
+  document.querySelectorAll('.override-row').forEach(tr => {
+    const sel = tr.querySelector('.or-email-sel');
+    const txt = tr.querySelector('.or-email-txt');
+    const email = (sel.value==='__manual__' ? txt.value : sel.value).trim().toLowerCase();
+    const varKey = tr.querySelector('.or-var').value;
+    const value = tr.querySelector('.or-val').value.trim();
+    if (!email || !varKey || !value) return;
+    if (!overrides[email]) overrides[email] = {};
+    overrides[email][varKey] = value;
+    if (varKey==='user.website') websites[email] = value;
+  });
+  savePartial({ USER_OVERRIDES: overrides, USER_WEBSITES: websites }, 'overrides-result');
 }
 
 function saveWebsiteField() {
