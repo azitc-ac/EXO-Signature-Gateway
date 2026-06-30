@@ -1353,14 +1353,14 @@ function saveWebsiteField() {
 async function fetchBookingsUrls() {
   const btn = document.getElementById('bookings-fetch-btn');
   const res = document.getElementById('bookings-fetch-result');
-  btn.disabled = true; btn.textContent = '⟳ Ermittle…';
+  btn.disabled = true; btn.innerHTML = _spin('Ermittle…');
   res.textContent = ''; res.style.color = '';
   try {
     const r = await fetch('/api/mailboxes/fetch-bookings-urls', {method: 'POST'});
     const d = await r.json();
     if (d.ok) {
       const count = Object.keys(d.urls || {}).length;
-      res.textContent = `✓ ${count} URL${count !== 1 ? 's' : ''} gespeichert — Seite neu laden für Tabelle`;
+      res.textContent = `✓ ${count} Adresse${count !== 1 ? 'n' : ''} eingerichtet`;
       res.style.color = '#16a34a';
     } else {
       res.textContent = `✗ ${d.error || d.output || 'Fehler'}`;

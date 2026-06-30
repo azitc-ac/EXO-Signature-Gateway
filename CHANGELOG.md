@@ -5,6 +5,11 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.283 — 2026-06-30 — fix: Booking-URL-Feedback verbessert
+
+Meldung nach Ermittlung: "N Adressen eingerichtet" statt "N URLs gespeichert".
+Spinner animiert waehrend des Ladens.
+
 ## v1.4.282 — 2026-06-30 — fix: Changelog-Rendering und _esc-Duplikat behoben
 
 Doppelte _esc-Definition: zweite Version (Zeile 1313) escapte kein < und >, dadurch
