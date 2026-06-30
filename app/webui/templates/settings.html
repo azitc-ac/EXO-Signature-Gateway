@@ -768,10 +768,12 @@ async function _loadWhatsNew(latestVersion) {
 }
 
 // --- Update starten ---
+function _spin(text) { return `<span style="display:inline-block;animation:spin 1s linear infinite">⟳</span> ${text}`; }
+
 async function startUpdate() {
   _updInitiatedHere = true;
   document.getElementById('upd-btn').disabled = true;
-  document.getElementById('upd-btn').innerHTML = '⟳ Wird gestartet…';
+  document.getElementById('upd-btn').innerHTML = _spin('Wird gestartet…');
   document.getElementById('upd-status').style.display = 'none';
   clearInterval(_updPollTimer);
   try {
@@ -800,7 +802,7 @@ async function _updPoll() {
     const d = await r.json();
     const state = d.state || 'idle';
     if (state === 'running') {
-      document.getElementById('upd-btn').innerHTML = '⟳ Aktualisiert…';
+      document.getElementById('upd-btn').innerHTML = _spin('Aktualisiert…');
       _updShowRunning(d.log || '');
       if (Date.now() - _updPollStart > TIMEOUT_MS) {
         clearInterval(_updPollTimer);
@@ -815,7 +817,7 @@ async function _updPoll() {
     else { _updBtnReset(); } // idle: Watcher hat Status bereits gecleart
   } catch(e) {
     // Container nicht erreichbar — noch am neustarten
-    document.getElementById('upd-btn').innerHTML = '⟳ Neustart…';
+    document.getElementById('upd-btn').innerHTML = _spin('Neustart…');
     _updShowRunning('Container wird neu gestartet…');
     if (Date.now() - _updPollStart > TIMEOUT_MS) {
       clearInterval(_updPollTimer);
@@ -925,7 +927,7 @@ async function toggleChangelog() {
     const d = await r.json();
     if (d.state === 'running') {
       document.getElementById('upd-btn').disabled = true;
-      document.getElementById('upd-btn').innerHTML = '⟳ Aktualisiert…';
+      document.getElementById('upd-btn').innerHTML = _spin('Aktualisiert…');
       _updShowRunning(d.log || '');
       _updStartPolling();
     } else if (d.state === 'success') {
