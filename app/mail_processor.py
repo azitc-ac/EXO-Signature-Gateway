@@ -503,11 +503,16 @@ def _find_first_quote_wrapper_pos(html: str) -> int | None:
     best: int | None = None
     for wrap_id in _QUOTE_WRAPPER_IDS:
         pattern = re.compile(
-            r'<div\b[^>]*\bid=["\']' + re.escape(wrap_id) + r'["\']', re.IGNORECASE
+            r'<div\b[^>]*\bid=["\'](?:x_)?' + re.escape(wrap_id) + r'["\']', re.IGNORECASE
         )
         m = pattern.search(html)
         if m:
             best = m.start() if best is None else min(best, m.start())
+    # Outlook Desktop reply separator (border:none;border-top:solid ...)
+    m = re.search(r'<div\b[^>]*style=["\'][^"\']*border\s*:\s*none[^"\']*border-top\s*:\s*solid',
+                  html, re.IGNORECASE)
+    if m:
+        best = m.start() if best is None else min(best, m.start())
     return best
 
 
@@ -654,17 +659,26 @@ def _append_html_sig(html: str, sig_html: str) -> str:
     lower = html.lower()
 
     # Insert before quoted content so signature sits between new text and quote.
-    # Use regex so that attribute ordering and quote style (single vs double)
-    # don't cause a miss — Exchange/Outlook sometimes emits id='...' or places
-    # dir="ltr" before id="..." in the opening tag.
+    # IMPORTANT: we take the EARLIEST match across ALL patterns, not just the
+    # first pattern that happens to match somewhere.  Without this, an inner
+    # forward separator buried deep in a thread (e.g. Markus→KELLY inside an
+    # Outlook-Desktop reply) would be picked over the true outer reply boundary.
     #
-    # Patterns ordered by specificity: Outlook separator first, then webmail
-    # specific wrappers, then the universal <blockquote> catch-all.
+    # Patterns: all quote/forward wrappers from known clients.
+    # Outlook Desktop uses a border-top hr-equivalent div instead of divRplyFwdMsg.
     _QUOTE_PATTERNS = [
         (re.compile(r'<div\b[^>]*\bid=["\']divrplyfwdmsg["\']', re.IGNORECASE),
-         "Outlook/OWA reply separator"),
+         "OWA reply separator"),
+        (re.compile(r'<div\b[^>]*\bid=["\']x_divrplyfwdmsg["\']', re.IGNORECASE),
+         "OWA reply separator (Exchange x_ prefix)"),
         (re.compile(r'<div\b[^>]*\bid=["\']divtagdefaultwrapper["\']', re.IGNORECASE),
          "OWA forward wrapper"),
+        (re.compile(r'<div\b[^>]*\bid=["\']divfwdmsg["\']', re.IGNORECASE),
+         "OWA forward message"),
+        # Outlook Desktop reply separator: <div style="border:none;border-top:solid #E1E1E1 1.0pt;...">
+        # This is the standard separator Outlook Desktop injects between compose area and quoted content.
+        (re.compile(r'<div\b[^>]*style=["\'][^"\']*border\s*:\s*none[^"\']*border-top\s*:\s*solid', re.IGNORECASE),
+         "Outlook Desktop reply separator (border-top)"),
         (re.compile(r'<div\b[^>]*\bclass=["\'][^"\']*gmail_quote[^"\']*["\']', re.IGNORECASE),
          "Gmail quote"),
         (re.compile(r'<div\b[^>]*\bclass=["\'][^"\']*yahoo_quoted[^"\']*["\']', re.IGNORECASE),
@@ -674,12 +688,19 @@ def _append_html_sig(html: str, sig_html: str) -> str:
     ]
     marked_sig = _SIG_MARKER_START + sig_html + _SIG_MARKER_END
 
+    # Find the EARLIEST match across all patterns so an inner nested separator
+    # (e.g. a forward inside a reply) does not win over the real outer boundary.
+    best_idx: int | None = None
+    best_label: str = ""
     for pattern, label in _QUOTE_PATTERNS:
         m = pattern.search(html)
-        if m:
-            idx = m.start()
-            log.info("Signature inserted before %s at pos %d", label, idx)
-            return html[:idx] + marked_sig + html[idx:]
+        if m and (best_idx is None or m.start() < best_idx):
+            best_idx = m.start()
+            best_label = label
+
+    if best_idx is not None:
+        log.info("Signature inserted before %s at pos %d", best_label, best_idx)
+        return html[:best_idx] + marked_sig + html[best_idx:]
 
     # No quote block found — fall back to inserting before </body>
     idx = lower.rfind("</body>")

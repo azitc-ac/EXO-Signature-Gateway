@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.305 — 2026-06-30 — fix: Signatur in Outlook-Desktop-Antworten am falschen Ort
+
+Ursache: Bei Outlook-Desktop-Antworten mit verschachteltem Forward in der Mail-Kette
+gab es keinen äußeren divRplyFwdMsg (OWA-Format). Das einzige divRplyFwdMsg war der
+innere Markus→KELLY-Forward. Die Signatur landete daher mitten in der Mailkette
+statt direkt nach dem neuen Antworttext.
+
+Zwei Fixes:
+1. Outlook-Desktop-Reply-Trenner erkannt: <div style="border:none;border-top:solid ...">
+   (Standard-Trenner den Outlook Desktop zwischen Antworttext und Zitat einfügt)
+2. Früheste Position statt "erstes treffsicheres Muster": _append_html_sig prüft
+   jetzt alle Patterns und nimmt die kleinste Position — verhindert, dass ein
+   tief verschachtelter innerer Separator gewinnt.
+Zusätzlich: x_divRplyFwdMsg (Exchange x_-Prefix), divfwdmsg ergänzt.
+
 ## v1.4.303 — 2026-06-30 — feat: Vorlagenrichtlinien Add-in Vorlagen produktiv
 
 Standard-Richtlinie "Add-in Vorlagen" ist jetzt funktional:
