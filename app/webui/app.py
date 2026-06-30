@@ -1514,6 +1514,26 @@ async def api_save_mailboxes(body: dict, _=Depends(_check_auth)):
     return {"ok": True, "saved": True}
 
 
+@app.post("/api/mailboxes/fetch-bookings-urls")
+async def api_fetch_bookings_urls(_=Depends(_check_auth)):
+    """Fetch ExchangeGuid for all configured mailboxes via PS and compute Bookings URLs."""
+    import setup_wizard as _sw
+    app_id = settings_store.get("APP_ID") or ""
+    tenant = settings_store.get("TENANT_DOMAIN") or ""
+    mailbox_cfg: dict = settings_store.get("MAILBOX_CONFIG") or {}
+    emails = list(mailbox_cfg.keys())
+    if not emails:
+        return JSONResponse({"ok": False, "error": "Keine Postfächer in MAILBOX_CONFIG konfiguriert."})
+    result = await asyncio.get_event_loop().run_in_executor(
+        None, lambda: _sw.run_fetch_bookings_urls(app_id, tenant, emails)
+    )
+    if result["ok"] and result["urls"]:
+        existing: dict = settings_store.get("USER_BOOKINGS") or {}
+        existing.update(result["urls"])
+        settings_store.update({"USER_BOOKINGS": existing})
+    return JSONResponse(result)
+
+
 # ── Routes: authenticated pages ────────────────────────────────────────────────
 
 _DE_MONTHS = ["Januar","Februar","März","April","Mai","Juni",

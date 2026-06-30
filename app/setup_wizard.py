@@ -737,6 +737,64 @@ def run_mailbox_dg_update(app_id: str, tenant_domain: str, members: list[str]) -
         return {"ok": False, "output": str(exc)}
 
 
+def run_fetch_bookings_urls(app_id: str, tenant_domain: str, emails: list[str]) -> dict:
+    """
+    Fetch ExchangeGuid for each mailbox via PS and compute Bookings URLs.
+    Returns {"ok": bool, "urls": {email: url}, "output": str}.
+    """
+    if not _AUTH_CERT_PATH.exists():
+        return {"ok": False, "urls": {}, "output": "Auth-Zertifikat nicht gefunden."}
+    if not emails:
+        return {"ok": False, "urls": {}, "output": "Keine Postfächer konfiguriert."}
+
+    emails_ps = ",".join(f'"{e}"' for e in emails)
+    ps_cmd = f"""
+Import-Module ExchangeOnlineManagement
+$cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
+    "/app/data/auth.pfx", [string]$null,
+    ([System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet))
+Connect-ExchangeOnline -AppId "{app_id}" -Certificate $cert -Organization "{tenant_domain}" -ShowBanner:$false
+$emails = @({emails_ps})
+$results = $emails | ForEach-Object {{
+    try {{
+        $m = Get-Mailbox -Identity $_ -ErrorAction Stop
+        [PSCustomObject]@{{
+            email = $m.PrimarySmtpAddress.ToString().ToLower()
+            guid  = $m.ExchangeGuid.ToString("N")
+        }}
+    }} catch {{ $null }}
+}} | Where-Object {{ $_ -ne $null }}
+$results | ConvertTo-Json -Compress
+Disconnect-ExchangeOnline -Confirm:$false
+"""
+    try:
+        proc = subprocess.run(
+            ["pwsh", "-NoProfile", "-NonInteractive", "-Command", ps_cmd],
+            capture_output=True, text=True, timeout=120,
+        )
+        output = (proc.stdout + "\n" + proc.stderr).strip()
+        if proc.returncode != 0:
+            return {"ok": False, "urls": {}, "output": output}
+
+        import json as _json, re as _re
+        json_match = _re.search(r'(\[.*\]|\{.*\})', proc.stdout, _re.DOTALL)
+        if not json_match:
+            return {"ok": False, "urls": {}, "output": f"Keine JSON-Ausgabe.\n{output}"}
+        raw = _json.loads(json_match.group(1))
+        if isinstance(raw, dict):
+            raw = [raw]
+        urls = {}
+        for item in raw:
+            email = item.get("email", "")
+            guid = item.get("guid", "")
+            if email and guid:
+                domain = email.split("@", 1)[1] if "@" in email else tenant_domain
+                urls[email] = f"https://outlook.office.com/bookwithme/user/{guid}@{domain}?anonymous&ep=signature"
+        return {"ok": True, "urls": urls, "output": output}
+    except Exception as exc:
+        return {"ok": False, "urls": {}, "output": str(exc)}
+
+
 def run_notification_dg_update(members: list[str]) -> dict:
     """
     Create/update 'EXO Signature Gateway - Notification recipients' DG and

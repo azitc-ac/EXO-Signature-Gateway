@@ -553,15 +553,15 @@
 
   <div style="border-top:1px solid #f0f0f0;margin:20px 0 16px"></div>
   <h3 style="margin-bottom:4px">Signaturvariablen</h3>
-  <p class="hint" style="margin-bottom:10px">Feste Variablen (immer verfügbar) und eigene Variablen aus beliebigen Entra-Attributen.</p>
+  <p class="hint" style="margin-bottom:10px">Vordefinierte Variablen (immer verfügbar) und eigene Variablen aus beliebigen Entra-Attributen.</p>
 
   <details style="margin-bottom:16px">
-    <summary style="cursor:pointer;font-size:13px;color:#0369a1;user-select:none">Feste Variablen anzeigen</summary>
+    <summary style="cursor:pointer;font-size:13px;color:#0369a1;user-select:none">Vordefinierte Variablen anzeigen</summary>
     <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:8px">
       <thead>
         <tr style="border-bottom:2px solid #e2e8f0">
           <th style="text-align:left;padding:5px 0;color:#555">Variable</th>
-          <th style="text-align:left;padding:5px 16px;color:#555">Entra-Attribut</th>
+          <th style="text-align:left;padding:5px 16px;color:#555">Entra-Attribut / Quelle</th>
         </tr>
       </thead>
       <tbody>
@@ -569,12 +569,32 @@
         <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0"><code>user.jobTitle</code></td><td style="padding:4px 16px;color:#555">jobTitle</td></tr>
         <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0"><code>user.phone</code></td><td style="padding:4px 16px;color:#555">businessPhones[0]</td></tr>
         <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0"><code>user.mobilePhone</code></td><td style="padding:4px 16px;color:#555">mobilePhone</td></tr>
-        <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0"><code>user.website</code></td><td style="padding:4px 16px;color:#555">businessHomePage → extensionAttribute1 (+ USER_WEBSITES)</td></tr>
-        <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0"><code>user.bookingsUrl</code></td><td style="padding:4px 16px;color:#555">extensionAttribute2 (+ USER_BOOKINGS)</td></tr>
         <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0"><code>user.department</code></td><td style="padding:4px 16px;color:#555">department</td></tr>
         <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0"><code>user.companyName</code></td><td style="padding:4px 16px;color:#555">companyName</td></tr>
         <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0"><code>user.officeLocation</code></td><td style="padding:4px 16px;color:#555">officeLocation</td></tr>
-        <tr><td style="padding:4px 0"><code>user.email</code></td><td style="padding:4px 16px;color:#555">mail</td></tr>
+        <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0"><code>user.email</code></td><td style="padding:4px 16px;color:#555">mail</td></tr>
+        <tr style="border-bottom:1px solid #f0f0f0">
+          <td style="padding:4px 0"><code>user.website</code></td>
+          <td style="padding:4px 16px">
+            <select id="website-entra-field" style="font-size:12px;padding:2px 6px;border:1px solid #d1d5db;border-radius:4px">
+              {% for f in custom_var_entra_fields %}
+              <option value="{{ f.value }}" {% if (s.WEBSITE_ENTRA_FIELD or 'businessHomePage') == f.value %}selected{% endif %}>{{ f.label }}</option>
+              {% endfor %}
+            </select>
+            <button class="btn secondary btn-sm" style="margin-left:6px" onclick="saveWebsiteField()">Speichern</button>
+            <span id="website-field-result" style="font-size:11px;margin-left:4px"></span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:6px 0"><code>user.bookingsUrl</code></td>
+          <td style="padding:6px 16px">
+            <span style="font-size:11px;color:#64748b;display:block;margin-bottom:4px">
+              outlook.office.com/bookwithme/user/<em>{ExchangeGuid}</em>@<em>{domain}</em>
+            </span>
+            <button class="btn secondary btn-sm" id="bookings-fetch-btn" onclick="fetchBookingsUrls()">Booking-URLs jetzt ermitteln</button>
+            <span id="bookings-fetch-result" style="font-size:11px;margin-left:6px"></span>
+          </td>
+        </tr>
       </tbody>
     </table>
   </details>
@@ -1326,6 +1346,36 @@ function saveCustomVars() {
 
 function saveOverrides() {
   savePartial({ USER_WEBSITES: collectKV('websites'), USER_BOOKINGS: collectKV('bookings') }, 'overrides-result');
+}
+
+function saveWebsiteField() {
+  const field = document.getElementById('website-entra-field').value;
+  const res = document.getElementById('website-field-result');
+  savePartial({ WEBSITE_ENTRA_FIELD: field }, null);
+  res.textContent = '✓ gespeichert'; res.style.color = '#16a34a';
+  setTimeout(() => res.textContent = '', 2000);
+}
+
+async function fetchBookingsUrls() {
+  const btn = document.getElementById('bookings-fetch-btn');
+  const res = document.getElementById('bookings-fetch-result');
+  btn.disabled = true; btn.textContent = '⟳ Ermittle…';
+  res.textContent = ''; res.style.color = '';
+  try {
+    const r = await fetch('/api/mailboxes/fetch-bookings-urls', {method: 'POST'});
+    const d = await r.json();
+    if (d.ok) {
+      const count = Object.keys(d.urls || {}).length;
+      res.textContent = `✓ ${count} URL${count !== 1 ? 's' : ''} gespeichert — Seite neu laden für Tabelle`;
+      res.style.color = '#16a34a';
+    } else {
+      res.textContent = `✗ ${d.error || d.output || 'Fehler'}`;
+      res.style.color = '#dc2626';
+    }
+  } catch(e) {
+    res.textContent = `✗ ${e.message}`; res.style.color = '#dc2626';
+  }
+  btn.disabled = false; btn.textContent = 'Booking-URLs jetzt ermitteln';
 }
 
 function saveBenachrichtigungen() {

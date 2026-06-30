@@ -53,12 +53,13 @@ CUSTOM_VAR_ENTRA_FIELDS: list[dict] = [
 ]
 
 def _build_select_fields() -> str:
-    """Build $select string, adding any extra fields needed for custom template vars."""
+    """Build $select string, adding extra fields for custom vars and configurable fields."""
     from settings_store import get as _sg
-    custom_vars: list[dict] = _sg("CUSTOM_TEMPLATE_VARS") or []
     extra = set()
-    for cv in custom_vars:
-        field = cv.get("entra_field", "")
+    for field in [
+        *[cv.get("entra_field", "") for cv in (_sg("CUSTOM_TEMPLATE_VARS") or [])],
+        _sg("WEBSITE_ENTRA_FIELD") or "",
+    ]:
         if "[" in field:
             field = field.split("[")[0]
         if field.startswith("extensionAttribute"):
@@ -731,7 +732,8 @@ async def get_user(email: str) -> UserData:
         mobilePhone=data.get("mobilePhone") or "",
         phone=phones[0] if phones else "",
         officeLocation=data.get("officeLocation") or "",
-        website=user_websites.get(resolved_mail.lower()) or data.get("businessHomePage") or ext.get("extensionAttribute1") or "",
-        bookingsUrl=user_bookings.get(resolved_mail.lower()) or ext.get("extensionAttribute2") or "",
+        website=user_websites.get(resolved_mail.lower()) or _resolve_entra_field(
+            settings_store.get("WEBSITE_ENTRA_FIELD") or "businessHomePage", data, ext, phones) or "",
+        bookingsUrl=user_bookings.get(resolved_mail.lower()) or "",
         custom=custom,
     )
