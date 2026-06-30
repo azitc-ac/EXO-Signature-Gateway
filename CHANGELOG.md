@@ -15,6 +15,8 @@ graph_client: _SELECT_FIELDS erweitert (givenName, surname, streetAddress, city,
 state, postalCode, country, faxNumber, employeeId), custom dict in UserData.
 signature_engine: custom als eigener Template-Context-Key.
 
+## v1.4.247 — 2026-06-30 — fix: update-watcher.sh setzt HOME explizit (Azure Run Command)
+
 ## v1.4.245 — 2026-06-30 — fix: Update-UI zeigt Feedback bei Container-Neustart + Watcher-Heartbeat sofort
 
 Update-Polling zeigt jetzt "Container wird neu gestartet" statt still einzufrieren

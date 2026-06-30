@@ -21,6 +21,7 @@ do_git_update() {
   fi
 }
 
+export HOME="${HOME:-/root}"
 git config --global --add safe.directory "$REPO" 2>/dev/null || true
 
 write_heartbeat  # sofort beim Start schreiben, nicht erst nach 60s
