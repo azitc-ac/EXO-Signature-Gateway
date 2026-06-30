@@ -19,21 +19,25 @@
     <input type="text" id="mb-filter" placeholder="Filtern…" oninput="filterMailboxes(this.value)"
            style="width:100%;max-width:320px;margin-bottom:8px;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px">
     <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
-      <button class="btn secondary" onclick="activateAll('sig')" style="font-size:12px;padding:4px 10px">Alle Signatur aktivieren</button>
+      <button class="btn secondary" onclick="activateAll('sig')" style="font-size:12px;padding:4px 10px">Alle Standardsignatur aktivieren</button>
       <button class="btn secondary" onclick="activateAll('smime')" style="font-size:12px;padding:4px 10px">Alle S/MIME aktivieren</button>
     </div>
     <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
-    <table style="min-width:380px;width:100%;border-collapse:collapse;font-size:13px">
+    <table style="min-width:600px;width:100%;border-collapse:collapse;font-size:13px">
       <thead>
         <tr style="border-bottom:2px solid #e2e8f0">
           <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555">Postfach</th>
-          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:100px">Signatur</th>
+          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:110px">Standardsignatur</th>
+          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:140px">Vorlage</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">
             Minimalsignatur
             <span style="font-size:10px;font-weight:500;background:#e2e8f0;color:#64748b;padding:1px 5px;border-radius:8px;display:block;margin-top:2px">Demnächst</span>
           </th>
-          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:140px">Vorlage</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">Add-in Vorlagen</th>
+          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">
+            Vorlagenrichtlinien
+            <span style="font-size:10px;font-weight:500;background:#e2e8f0;color:#64748b;padding:1px 5px;border-radius:8px;display:block;margin-top:2px">Demnächst</span>
+          </th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:100px">S/MIME</th>
           <th id="th-status" style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:70px;display:none">Status</th>
         </tr>
@@ -51,6 +55,167 @@
     </button>
   </div>
   <div id="mb-result" style="margin-top:10px;display:none"></div>
+</div>
+
+<!-- Vorlagenrichtlinien (Demnächst) -->
+<div class="settings-card" style="margin-top:20px">
+  <h2 style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+    Vorlagenrichtlinien
+    <span style="font-size:11px;font-weight:500;background:#e2e8f0;color:#64748b;padding:2px 8px;border-radius:10px">Demnächst</span>
+  </h2>
+  <p class="hint" style="margin-bottom:14px;line-height:1.6">
+    Definiere Regeln, nach denen Postfächern automatisch Signaturvorlagen zugewiesen werden —
+    nach Entra-Attributen (Abteilung, Standort …), internen Gruppen oder Zeiträumen.
+    Postfächer mit aktivierter <em>Vorlagenrichtlinien</em>-Option übernehmen die Vorlage aus der höchstpriorisierten zutreffenden Regel.
+    Per-Postfach-Overrides sind weiterhin möglich, indem die Option deaktiviert wird.
+  </p>
+
+  <div style="opacity:0.48;pointer-events:none;user-select:none">
+
+    <!-- Standard-Richtlinien (nicht löschbar) -->
+    <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:6px;display:flex;align-items:center;gap:8px">
+      Standard-Richtlinien
+      <span style="font-size:11px;font-weight:400;color:#888">(gelten für alle Postfächer · nicht löschbar)</span>
+    </div>
+    <div style="overflow-x:auto;margin-bottom:16px">
+    <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:520px">
+      <thead>
+        <tr style="border-bottom:2px solid #e2e8f0">
+          <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555;width:180px">Typ</th>
+          <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555">Kriterium</th>
+          <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555;width:160px">Vorlage</th>
+          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:50px"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-bottom:1px solid #f0f0f0">
+          <td style="padding:6px 8px;font-size:12px;font-weight:500">Standardsignatur</td>
+          <td style="padding:6px 8px;font-size:12px;color:#888">Alle Postfächer</td>
+          <td style="padding:6px 8px">
+            <select disabled style="font-size:12px;width:140px">
+              <option>default</option>
+            </select>
+          </td>
+          <td style="text-align:center;padding:6px 8px;font-size:14px;color:#94a3b8" title="Nicht löschbar">🔒</td>
+        </tr>
+        <tr style="border-bottom:1px solid #f0f0f0">
+          <td style="padding:6px 8px;font-size:12px;font-weight:500">Minimalsignatur</td>
+          <td style="padding:6px 8px;font-size:12px;color:#888">Alle Postfächer</td>
+          <td style="padding:6px 8px">
+            <select disabled style="font-size:12px;width:140px">
+              <option>default</option>
+            </select>
+          </td>
+          <td style="text-align:center;padding:6px 8px;font-size:14px;color:#94a3b8" title="Nicht löschbar">🔒</td>
+        </tr>
+        <tr style="border-bottom:1px solid #f0f0f0">
+          <td style="padding:6px 8px;font-size:12px;font-weight:500">Add-in Vorlagen</td>
+          <td style="padding:6px 8px;font-size:12px;color:#888">Alle Postfächer</td>
+          <td style="padding:6px 8px">
+            <select disabled style="font-size:12px;width:140px">
+              <option>Alle (inkl. zukünftige)</option>
+            </select>
+          </td>
+          <td style="text-align:center;padding:6px 8px;font-size:14px;color:#94a3b8" title="Nicht löschbar">🔒</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+
+    <!-- Benutzerdefinierte Richtlinien (höhere Priorität) -->
+    <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:6px;display:flex;align-items:center;gap:8px">
+      Benutzerdefinierte Richtlinien
+      <span style="font-size:11px;font-weight:400;color:#888">(höhere Priorität als Standard · werden in Reihenfolge ausgewertet)</span>
+    </div>
+    <div style="overflow-x:auto;margin-bottom:10px">
+    <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:620px">
+      <thead>
+        <tr style="border-bottom:2px solid #e2e8f0">
+          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:40px">#</th>
+          <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555;width:160px">Kriteriumstyp</th>
+          <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555">Bedingung</th>
+          <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555;width:130px">Betrifft</th>
+          <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555;width:140px">Vorlage</th>
+          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:50px"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Beispielzeile -->
+        <tr style="border-bottom:1px solid #f0f0f0">
+          <td style="text-align:center;padding:6px 8px;color:#94a3b8;font-size:12px">1</td>
+          <td style="padding:6px 8px">
+            <select disabled style="font-size:12px;width:140px">
+              <option>Entra-Attribut</option>
+              <option>Interne Gruppe</option>
+              <option>Zeitraum</option>
+            </select>
+          </td>
+          <td style="padding:6px 8px;display:flex;gap:6px;align-items:center">
+            <select disabled style="font-size:12px;width:120px">
+              <option>Abteilung (department)</option>
+              <option>Standort (officeLocation)</option>
+              <option>Titel (jobTitle)</option>
+            </select>
+            <span style="color:#94a3b8;font-size:11px">=</span>
+            <input type="text" disabled value="Marketing" style="font-size:12px;width:100px;padding:3px 6px;border:1px solid #d1d5db;border-radius:4px">
+          </td>
+          <td style="padding:6px 8px">
+            <select disabled style="font-size:12px;width:120px">
+              <option>Standardsignatur</option>
+              <option>Minimalsignatur</option>
+              <option>Add-in Vorlagen</option>
+            </select>
+          </td>
+          <td style="padding:6px 8px">
+            <select disabled style="font-size:12px;width:130px">
+              <option>default</option>
+            </select>
+          </td>
+          <td style="text-align:center;padding:6px 8px">
+            <button class="btn secondary" disabled style="font-size:11px;padding:2px 8px">✕</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button class="btn secondary" disabled style="font-size:12px">+ Entra-Attribut-Regel</button>
+      <button class="btn secondary" disabled style="font-size:12px">+ Gruppen-Regel</button>
+      <button class="btn secondary" disabled style="font-size:12px">+ Zeitraum-Regel</button>
+      <button class="btn primary" disabled>Speichern</button>
+    </div>
+
+    <!-- Interne Gruppen Vorschau -->
+    <div style="margin-top:18px;border-top:1px solid #e2e8f0;padding-top:14px">
+      <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:6px;display:flex;align-items:center;gap:8px">
+        Interne Gruppen
+        <span style="font-size:11px;font-weight:400;color:#888">(keine Entra-Gruppen — rein interne Zuordnungen)</span>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;max-width:500px">
+        <thead>
+          <tr style="border-bottom:2px solid #e2e8f0">
+            <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555">Gruppenname</th>
+            <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555">Mitglieder</th>
+            <th style="text-align:center;padding:6px 8px;width:50px"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid #f0f0f0">
+            <td style="padding:6px 8px"><input type="text" disabled value="Vertrieb" style="font-size:12px;width:130px;padding:3px 6px;border:1px solid #d1d5db;border-radius:4px"></td>
+            <td style="padding:6px 8px;font-size:12px;color:#555">3 Postfächer</td>
+            <td style="text-align:center;padding:6px 8px">
+              <button class="btn secondary" disabled style="font-size:11px;padding:2px 8px">✕</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div style="margin-top:8px">
+        <button class="btn secondary" disabled style="font-size:12px">+ Gruppe erstellen</button>
+      </div>
+    </div>
+
+  </div><!-- /opacity wrapper -->
 </div>
 
 <!-- Health-Detail-Modal -->
@@ -128,14 +293,15 @@ async function refreshMailboxStatus() {
   setTimeout(function() { status.textContent = ''; }, 3000);
 }
 
-function _buildTemplateSelect(idx, selectedTemplate, sigEnabled) {
+function _buildTemplateSelect(idx, selectedTemplate, sigEnabled, policyActive) {
   var sel = document.createElement('select');
   sel.className = 'mb-template';
   sel.dataset.idx = String(idx);
   sel.style.fontSize = '12px';
   sel.style.maxWidth = '130px';
-  sel.disabled = !sigEnabled;
-  sel.style.opacity = sigEnabled ? '1' : '0.4';
+  var enabled = sigEnabled && !policyActive;
+  sel.disabled = !enabled;
+  sel.style.opacity = enabled ? '1' : '0.4';
   _templateList.forEach(function(name) {
     var opt = document.createElement('option');
     opt.value = name;
@@ -146,11 +312,11 @@ function _buildTemplateSelect(idx, selectedTemplate, sigEnabled) {
   return sel;
 }
 
-function _buildAddinTemplatesControl(idx, addinTemplates, sigEnabled) {
+function _buildAddinTemplatesControl(idx, addinTemplates, sigEnabled, policyActive) {
   // addinTemplates: "*" | [] | ["t1","t2"]
   var isAll = addinTemplates === '*';
   var selected = Array.isArray(addinTemplates) ? addinTemplates : [];
-  var active = _addinEnabled && sigEnabled;
+  var active = _addinEnabled && sigEnabled && !policyActive;
 
   // Outer details element (collapsed by default)
   var details = document.createElement('details');
@@ -158,7 +324,9 @@ function _buildAddinTemplatesControl(idx, addinTemplates, sigEnabled) {
   if (!active) {
     details.style.opacity = '0.4';
     details.style.pointerEvents = 'none';
-    details.title = 'Outlook Add-in ist nicht aktiviert (Einstellungen → Outlook Add-in)';
+    details.title = policyActive
+      ? 'Wird durch Vorlagenrichtlinie gesteuert'
+      : (_addinEnabled ? 'Signatur deaktiviert' : 'Outlook Add-in ist nicht aktiviert (Einstellungen → Outlook Add-in)');
   }
 
   var summary = document.createElement('summary');
@@ -341,7 +509,7 @@ function renderMailboxTable(mailboxes) {
     tdEmail.innerHTML = '<strong>' + mb.email + '</strong>' +
       (mb.name && mb.name !== mb.email ? '<br><span style="color:#888;font-size:11px">' + mb.name + '</span>' : '');
 
-    // Sig checkbox cell
+    // Standardsignatur checkbox cell
     var tdSig = document.createElement('td');
     tdSig.style.cssText = 'text-align:center;padding:6px 8px';
     var sigCb = document.createElement('input');
@@ -350,6 +518,26 @@ function renderMailboxTable(mailboxes) {
     sigCb.dataset.idx = String(i);
     if (mb.sig) sigCb.checked = true;
     tdSig.appendChild(sigCb);
+
+    // Vorlagenrichtlinien-übernehmen checkbox (policy) — default on
+    // (currently Demnächst: visible but disabled/greyed; controls greyout of template cols)
+    var tdPolicy = document.createElement('td');
+    tdPolicy.style.cssText = 'text-align:center;padding:6px 8px;opacity:0.5';
+    tdPolicy.title = 'Funktion noch nicht verfügbar — Vorlagenrichtlinien demnächst';
+    var policyCb = document.createElement('input');
+    policyCb.type = 'checkbox';
+    policyCb.className = 'mb-policy';
+    policyCb.dataset.idx = String(i);
+    policyCb.checked = true; // default: übernehmen
+    policyCb.disabled = true;
+    tdPolicy.appendChild(policyCb);
+    var policyActive = true; // policyCb.checked — always true while Demnächst
+
+    // Vorlage select cell — greyed when policyActive
+    var tdTpl = document.createElement('td');
+    tdTpl.style.cssText = 'text-align:center;padding:6px 8px';
+    var tplSel = _buildTemplateSelect(i, mb.template, mb.sig, policyActive);
+    tdTpl.appendChild(tplSel);
 
     // Minimalsignatur cell (placeholder — no effect yet)
     var tdMinSig = document.createElement('td');
@@ -374,24 +562,19 @@ function renderMailboxTable(mailboxes) {
     });
     tdMinSig.appendChild(minSigSel);
 
-    // Template select cell
-    var tdTpl = document.createElement('td');
-    tdTpl.style.cssText = 'text-align:center;padding:6px 8px';
-    var tplSel = _buildTemplateSelect(i, mb.template, mb.sig);
-    tdTpl.appendChild(tplSel);
-
-    // Add-in Vorlagen cell
+    // Add-in Vorlagen cell — greyed when policyActive
     var tdAddin = document.createElement('td');
     tdAddin.style.cssText = 'padding:6px 8px';
-    var addinCtrl = _buildAddinTemplatesControl(i, mb.addin_templates || [], mb.sig);
+    var addinCtrl = _buildAddinTemplatesControl(i, mb.addin_templates || [], mb.sig, policyActive);
     tdAddin.appendChild(addinCtrl);
 
-    // Wire sig checkbox → template select + addin control enable/disable
+    // Wire sig checkbox → template select + addin enable/disable (respecting policy)
     sigCb.addEventListener('change', function() {
-      tplSel.disabled = !sigCb.checked;
-      tplSel.style.opacity = sigCb.checked ? '1' : '0.4';
-      addinCtrl.style.opacity = sigCb.checked ? '1' : '0.4';
-      addinCtrl.style.pointerEvents = sigCb.checked ? '' : 'none';
+      var pol = policyCb.checked;
+      tplSel.disabled = !sigCb.checked || pol;
+      tplSel.style.opacity = (!sigCb.checked || pol) ? '0.4' : '1';
+      addinCtrl.style.opacity = (!sigCb.checked || pol) ? '0.4' : '1';
+      addinCtrl.style.pointerEvents = (!sigCb.checked || pol) ? 'none' : '';
     });
 
     // S/MIME checkbox cell
@@ -409,11 +592,13 @@ function renderMailboxTable(mailboxes) {
     tdStatus.style.cssText = 'text-align:center;padding:6px 8px;' + (_hasHealthData ? '' : 'display:none');
     tdStatus.innerHTML = _healthBadge(mb);
 
+    // Column order: Postfach, Standardsignatur, Vorlage, Minimalsignatur, Add-In Vorlagen, Vorlagenrichtlinien, S/MIME, Status
     tr.appendChild(tdEmail);
     tr.appendChild(tdSig);
-    tr.appendChild(tdMinSig);
     tr.appendChild(tdTpl);
+    tr.appendChild(tdMinSig);
     tr.appendChild(tdAddin);
+    tr.appendChild(tdPolicy);
     tr.appendChild(tdSmime);
     tr.appendChild(tdStatus);
     tbody.appendChild(tr);

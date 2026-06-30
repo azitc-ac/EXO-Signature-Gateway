@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.299 — 2026-06-30 — feat: Vorlagenrichtlinien Sektion + Spaltenumbau Postfächer
+
+Postfächer-Seite: Spalten umbenannt und neu geordnet (Standardsignatur, Vorlage,
+Minimalsignatur, Add-in Vorlagen, Vorlagenrichtlinien übernehmen, S/MIME, Status).
+Neue Spalte "Vorlagenrichtlinien übernehmen" (Demnächst, default an) — wenn aktiv,
+werden Vorlage/Minimalsignatur/Add-in-Vorlagen-Dropdowns pro Zeile ausgegraut.
+Vorlagenrichtlinien-Block von Einstellungen → Postfächer verschoben, umbenannt
+in "Vorlagenrichtlinien"; erweitert um Standard-Richtlinien (3 nicht löschbare)
+und Benutzerdefinierte Richtlinien mit Vorschau (Entra-Attribut / Interne Gruppe / Zeitraum).
+
 ## v1.4.297 — 2026-06-30 — feat: Alle-aktivieren Buttons + Platzhalter Vorlagen-Regeln
 
 Postfächer-Seite: zwei Buttons unterhalb der Filterbox — "Alle Signatur aktivieren"
