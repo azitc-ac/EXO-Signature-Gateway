@@ -5,6 +5,45 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.264 — 2026-06-30 — refactor: Update-JS komplett neu geschrieben, kein localStorage
+
+Update-Mechanismus von Grund auf überarbeitet. Kein localStorage mehr — Status-Datei
+ist einzige Wahrheitsquelle. `_updInitiatedHere`-Flag steuert 30s-Auto-Reload
+(nur wenn dieses Tab das Update gestartet hat). Ein Code-Pfad statt Init + Poll-Pfad.
+`_updClear()` vor location.reload() verhindert Reload-Loop dauerhaft.
+
+## v1.4.262 — 2026-06-30 — fix: Execute-Bit update-watcher.sh nach Edit wiederherstellen
+
+Edit-Tool setzt Datei-Permissions auf 644 zurück. Nach Edit von update-watcher.sh
+zwingend `git update-index --chmod=+x` nötig, sonst 203/EXEC auf der VM.
+
+## v1.4.260 — 2026-06-30 — fix: Stale-running-Status und Endlos-Spinner
+
+Drei Schutzmaßnahmen: Watcher löscht veraltetes state=running beim Start,
+Polling-Timeout gilt auch bei state=running (nicht nur idle), "Abbrechen"-Button
+im Spinner-Zustand sichtbar.
+
+## v1.4.258 — 2026-06-30 — fix: Update-Reload-Schleife nach erfolgreichem Update
+
+Init-Block fand state=success → _updShowSuccess mit autoReload=true → Reload →
+Loop. Fix: Init nutzt autoReload=false; 5s-Countdown ohne _updClear().
+
+## v1.4.256 — 2026-06-30 — feat: Neuerungen vor dem Update anzeigen
+
+Nach "Auf Updates prüfen" werden CHANGELOG-Einträge zwischen installierter und
+verfügbarer Version von GitHub geholt und als aufklappbare Liste angezeigt.
+Neuer Endpoint: GET /api/system/update/whats-new?from_version=&to_version=
+
+## v1.4.254 — 2026-06-30 — fix: update-watcher.sh als ausführbar in git markiert
+
+git reset --hard stellte Datei immer als 644 wieder her (100644 im Index).
+`git update-index --chmod=+x` behebt das dauerhaft (100755).
+
+## v1.4.252 — 2026-06-30 — fix: Update-Button zeigt Fortschritt direkt im Button-Text
+
+Spinner war unsichtbar (kleiner grauer Text außerhalb des sichtbaren Bereichs).
+Button-Text selbst ändert sich: "⟳ Wird gestartet…" → "⟳ Aktualisiert…".
+
 ## v1.4.249 — 2026-06-30 — fix: Update-Status überlebt Seiten-Refresh (localStorage) + Heartbeat-Timeout 5min
 
 ## v1.4.243 — 2026-06-30 — feat: Eigene Template-Variablen aus Entra-Attributen (custom.*)
