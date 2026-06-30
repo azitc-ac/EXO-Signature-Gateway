@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.287 — 2026-06-30 — feat: Was-ist-neu Modal bei verfügbarem Update
+
+"Was ist neu?"-Link erscheint neben "Update verfügbar: X.X.X".
+Zeigt Changelog-Differenz zwischen installierter und neuer Version
+in einem Modal an. Eintragsanzahl wird nach dem Laden angezeigt.
+
 ## v1.4.286 — 2026-06-30 — fix: Untermenü horizontal scrollbar auf Mobile
 
 overflow-x:auto + white-space:nowrap auf .nav-sub-tabs — nur das Menü

@@ -668,9 +668,6 @@
     <div id="upd-check-result" style="font-size:13px"></div>
   </div>
 
-  <!-- Neuerungen -->
-  <div id="upd-whats-new" style="display:none;margin-bottom:12px"></div>
-
   <!-- Buttons -->
   <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
     <button class="btn primary" id="upd-btn" onclick="startUpdate()" disabled style="display:flex;align-items:center;gap:6px;min-width:180px;justify-content:center">
@@ -684,6 +681,16 @@
   <div id="upd-watcher-badge" style="font-size:12px;margin-bottom:8px"></div>
   <div id="upd-changelog" style="display:none;margin-bottom:12px"></div>
   <div id="upd-status" style="display:none"></div>
+</div>
+
+<!-- Was-ist-neu Modal -->
+<div id="whats-new-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:12px;max-width:540px;width:92%;max-height:82vh;overflow-y:auto;padding:24px;position:relative;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
+    <button onclick="document.getElementById('whats-new-overlay').style.display='none'"
+      style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:22px;cursor:pointer;color:#888;line-height:1">✕</button>
+    <h2 id="whats-new-title" style="margin:0 0 16px;font-size:15px;color:#1e40af"></h2>
+    <div id="whats-new-body"></div>
+  </div>
 </div>
 <script>
 let _updPollTimer = null;
@@ -721,7 +728,9 @@ async function checkUpdate() {
     if (!d.ok) {
       result.innerHTML = `<span style="color:#b45309">⚠ ${_esc(d.error)}</span>`;
     } else if (d.available) {
-      result.innerHTML = `<span style="color:#16a34a;font-weight:600">▲ Update verfügbar: ${_esc(d.latest)}</span>`;
+      result.innerHTML = `<span style="color:#16a34a;font-weight:600">▲ Update verfügbar: ${_esc(d.latest)}</span>`
+        + ` <a href="#" onclick="showWhatsNew();return false" style="font-size:12px;color:#0369a1;margin-left:6px">Was ist neu?</a>`
+        + ` <span id="whats-new-loading" style="font-size:11px;color:#94a3b8;margin-left:4px"></span>`;
       if (_watcherOk) document.getElementById('upd-btn').disabled = false;
       _loadWhatsNew(d.latest);
     } else if (d.note) {
@@ -736,27 +745,44 @@ async function checkUpdate() {
   checkBtn.disabled = false; checkBtn.textContent = 'Auf Updates prüfen';
 }
 
+var _whatsNewEntries = null;
+var _whatsNewLatest = '';
+
 async function _loadWhatsNew(latestVersion) {
-  const box = document.getElementById('upd-whats-new');
+  _whatsNewEntries = null;
+  _whatsNewLatest = latestVersion;
+  const loading = document.getElementById('whats-new-loading');
+  if (loading) loading.textContent = '(lädt…)';
   const current = {{ (current_version or '') | tojson }};
-  box.style.display = 'block';
-  box.innerHTML = '<span style="font-size:12px;color:#64748b">Lade Änderungen…</span>';
   try {
     const r = await fetch(`/api/system/update/whats-new?from_version=${encodeURIComponent(current)}&to_version=${encodeURIComponent(latestVersion)}`);
     const d = await r.json();
-    if (d.error || !d.entries || !d.entries.length) { box.style.display = 'none'; return; }
-    box.innerHTML = `<div style="border:1px solid #bae6fd;border-radius:8px;background:#f0f9ff;padding:12px 14px">
-      <div style="font-size:12px;font-weight:600;color:#0369a1;margin-bottom:8px">
-        Neuerungen (${d.entries.length} Version${d.entries.length !== 1 ? 'en' : ''}):
-      </div>
-      ${d.entries.map(e => `<details style="margin-bottom:6px">
-        <summary style="cursor:pointer;font-size:12px;color:#0c4a6e;list-style:none">
-          <span style="font-weight:600">${_esc(e.header.replace(/^## /, ''))}</span>
-        </summary>
-        ${e.body ? `<pre style="margin:6px 0 0;font-size:11px;color:#374151;white-space:pre-wrap;font-family:inherit;line-height:1.5">${_esc(e.body)}</pre>` : ''}
-      </details>`).join('')}
-    </div>`;
-  } catch(e) { box.style.display = 'none'; }
+    if (d.error || !d.entries || !d.entries.length) {
+      if (loading) loading.textContent = '';
+      return;
+    }
+    _whatsNewEntries = d.entries;
+    if (loading) loading.textContent = `(${d.entries.length} Änderung${d.entries.length !== 1 ? 'en' : ''})`;
+  } catch(e) {
+    if (loading) loading.textContent = '';
+  }
+}
+
+function showWhatsNew() {
+  const overlay = document.getElementById('whats-new-overlay');
+  const title = document.getElementById('whats-new-title');
+  const body = document.getElementById('whats-new-body');
+  title.textContent = `Neuerungen in ${_whatsNewLatest}`;
+  if (!_whatsNewEntries) {
+    body.innerHTML = '<p style="color:#64748b;font-size:13px">Keine Änderungsinformationen verfügbar.</p>';
+  } else {
+    body.innerHTML = _whatsNewEntries.map(e => `
+      <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid #f0f0f0">
+        <div style="font-size:13px;font-weight:600;color:#1e293b;margin-bottom:4px">${_esc(e.header.replace(/^## /, ''))}</div>
+        ${e.body ? `<pre style="margin:0;font-size:12px;color:#475569;white-space:pre-wrap;font-family:inherit;line-height:1.6">${_esc(e.body)}</pre>` : ''}
+      </div>`).join('');
+  }
+  overlay.style.display = 'flex';
 }
 
 // --- Update starten ---
