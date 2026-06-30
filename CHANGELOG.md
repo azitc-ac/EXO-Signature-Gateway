@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.295 — 2026-06-30 — fix: Backup-Restore merged USER_BOOKINGS; fetch-bookings-urls CLIENT_ID Bug
+
+Backup-Restore: USER_BOOKINGS (Bookings-URLs) aus dem laufenden System werden in
+die wiederhergestellten Settings gemergt — URL-Daten gehen beim Restore nicht
+mehr verloren. Nebenfix: api_fetch_bookings_urls verwendete falschen Key
+"APP_ID" statt "CLIENT_ID" → Endpoint funktioniert jetzt korrekt.
+
 ## v1.4.294 — 2026-06-30 — fix: Backup-Restore warnt wenn auth.pfx überschrieben wird
 
 Nach Restore: gelbes Warn-Banner wenn auth.pfx aus dem Backup wiederhergestellt

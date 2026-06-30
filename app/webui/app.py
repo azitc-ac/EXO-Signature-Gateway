@@ -1537,7 +1537,7 @@ async def api_save_mailboxes(body: dict, _=Depends(_check_auth)):
 async def api_fetch_bookings_urls(_=Depends(_check_auth)):
     """Fetch ExchangeGuid for all configured mailboxes via PS and compute Bookings URLs."""
     import setup_wizard as _sw
-    app_id = settings_store.get("APP_ID") or ""
+    app_id = settings_store.get("CLIENT_ID") or config.CLIENT_ID or ""
     tenant = settings_store.get("TENANT_DOMAIN") or ""
     mailbox_cfg: dict = settings_store.get("MAILBOX_CONFIG") or {}
     emails = list(mailbox_cfg.keys())

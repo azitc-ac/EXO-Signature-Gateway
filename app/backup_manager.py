@@ -15,6 +15,7 @@ Nicht enthalten (werden auf dem Zielsystem neu erstellt):
 """
 
 import io
+import json
 import logging
 import re
 import secrets
@@ -154,11 +155,31 @@ def restore_backup(zip_bytes: bytes) -> dict:
                     restored += 1
 
             # Jetzt – nach allen anderen Dateien – die settings.json schreiben.
+            # USER_BOOKINGS (auto-ermittelte Bookings-URLs) aus dem laufenden System
+            # mergen, damit nach dem Restore ermittelte URLs nicht verloren gehen.
             if "data/settings.json" in zf.namelist():
                 target = (DATA_DIR / "settings.json").resolve()
                 if str(target).startswith(str(DATA_DIR.resolve())):
                     target.parent.mkdir(parents=True, exist_ok=True)
-                    target.write_bytes(zf.read("data/settings.json"))
+                    backup_settings_bytes = zf.read("data/settings.json")
+                    try:
+                        current_settings_path = DATA_DIR / "settings.json"
+                        if current_settings_path.exists():
+                            current = json.loads(current_settings_path.read_bytes())
+                            backup_settings = json.loads(backup_settings_bytes)
+                            # Merge: current USER_BOOKINGS win over backup (auto-fetched data)
+                            live_bookings = current.get("USER_BOOKINGS") or {}
+                            if live_bookings:
+                                merged = {**backup_settings.get("USER_BOOKINGS", {}), **live_bookings}
+                                backup_settings["USER_BOOKINGS"] = merged
+                                backup_settings_bytes = json.dumps(backup_settings, ensure_ascii=False, indent=2).encode()
+                                warnings.append(
+                                    f"USER_BOOKINGS: {len(live_bookings)} Bookings-URL(s) aus dem "
+                                    "laufenden System in die wiederhergestellten Einstellungen übernommen."
+                                )
+                    except Exception as merge_exc:
+                        log.warning("Backup restore: USER_BOOKINGS merge failed: %s", merge_exc)
+                    target.write_bytes(backup_settings_bytes)
                     restored += 1
 
         # Settings live neu laden
