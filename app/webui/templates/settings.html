@@ -721,18 +721,19 @@ async function checkUpdate() {
   checkBtn.disabled = true; checkBtn.textContent = 'Prüfe…';
   result.innerHTML = '<span style="color:#64748b">Verbinde mit GitHub…</span>';
   document.getElementById('upd-btn').disabled = true;
-  document.getElementById('upd-whats-new').style.display = 'none';
   try {
     const r = await fetch(`/api/system/update/check?channel=${encodeURIComponent(_updGetChannel())}`);
     const d = await r.json();
     if (!d.ok) {
       result.innerHTML = `<span style="color:#b45309">⚠ ${_esc(d.error)}</span>`;
     } else if (d.available) {
-      result.innerHTML = `<span style="color:#16a34a;font-weight:600">▲ Update verfügbar: ${_esc(d.latest)}</span>`
-        + ` <a href="#" onclick="showWhatsNew();return false" style="font-size:12px;color:#0369a1;margin-left:6px">Was ist neu?</a>`
-        + ` <span id="whats-new-loading" style="font-size:11px;color:#94a3b8;margin-left:4px"></span>`;
+      _whatsNewEntries = (d.changelog_entries && d.changelog_entries.length) ? d.changelog_entries : null;
+      _whatsNewLatest = d.latest;
+      const wn = _whatsNewEntries
+        ? ` <a href="#" onclick="showWhatsNew();return false" style="font-size:12px;color:#0369a1;margin-left:6px">Was ist neu? (${_whatsNewEntries.length} Änderung${_whatsNewEntries.length !== 1 ? 'en' : ''})</a>`
+        : '';
+      result.innerHTML = `<span style="color:#16a34a;font-weight:600">▲ Update verfügbar: ${_esc(d.latest)}</span>${wn}`;
       if (_watcherOk) document.getElementById('upd-btn').disabled = false;
-      _loadWhatsNew(d.latest);
     } else if (d.note) {
       result.innerHTML = `<span style="color:#64748b">${_esc(d.note)}</span>`;
     } else {
@@ -748,25 +749,6 @@ async function checkUpdate() {
 var _whatsNewEntries = null;
 var _whatsNewLatest = '';
 
-async function _loadWhatsNew(latestVersion) {
-  _whatsNewEntries = null;
-  _whatsNewLatest = latestVersion;
-  const loading = document.getElementById('whats-new-loading');
-  if (loading) loading.textContent = '(lädt…)';
-  const current = {{ (current_version or '') | tojson }};
-  try {
-    const r = await fetch(`/api/system/update/whats-new?from_version=${encodeURIComponent(current)}&to_version=${encodeURIComponent(latestVersion)}`);
-    const d = await r.json();
-    if (d.error || !d.entries || !d.entries.length) {
-      if (loading) loading.textContent = '';
-      return;
-    }
-    _whatsNewEntries = d.entries;
-    if (loading) loading.textContent = `(${d.entries.length} Änderung${d.entries.length !== 1 ? 'en' : ''})`;
-  } catch(e) {
-    if (loading) loading.textContent = '';
-  }
-}
 
 function showWhatsNew() {
   const overlay = document.getElementById('whats-new-overlay');

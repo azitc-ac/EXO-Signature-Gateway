@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.288 — 2026-06-30 — fix: Was-ist-neu Daten im check-Endpoint mitliefern
+
+Changelog-Differenz wird jetzt direkt im /api/system/update/check Response
+mitgeliefert (kein separater GitHub-Fetch mehr). Behebt den Fehler, dass
+der "Was ist neu?"-Link auf der Azure VM nie erschien (zweiter Fetch schlug
+still fehl).
+
 ## v1.4.287 — 2026-06-30 — feat: Was-ist-neu Modal bei verfügbarem Update
 
 "Was ist neu?"-Link erscheint neben "Update verfügbar: X.X.X".

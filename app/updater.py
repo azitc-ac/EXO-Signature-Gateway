@@ -35,6 +35,36 @@ def _version_tuple(v: str) -> tuple:
         return (0,)
 
 
+def _fetch_changelog_entries(from_version: str, to_version: str) -> list:
+    import re
+    try:
+        url = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/CHANGELOG.md"
+        req = urllib.request.Request(url, headers={"User-Agent": "EXO-Gateway/1"})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            text = r.read().decode()
+        from_v = _version_tuple(from_version)
+        to_v = _version_tuple(to_version)
+        entries, cur_header, cur_body = [], "", []
+
+        def _flush():
+            if cur_header:
+                m = re.match(r"## v([\d.]+)", cur_header)
+                if m and from_v < _version_tuple(m.group(1)) <= to_v:
+                    entries.append({"header": cur_header, "body": "\n".join(cur_body).strip()})
+
+        for line in text.splitlines():
+            if line.startswith("## v"):
+                _flush()
+                cur_header = line
+                cur_body = []
+            elif cur_header:
+                cur_body.append(line)
+        _flush()
+        return entries
+    except Exception:
+        return []
+
+
 def check_update(channel: str, current_version: str) -> dict:
     """
     Check GitHub for a newer version.
@@ -63,6 +93,9 @@ def check_update(channel: str, current_version: str) -> dict:
             release_url = ""
 
         available = _version_tuple(latest) > _version_tuple(current_version)
+        changelog_entries = []
+        if available:
+            changelog_entries = _fetch_changelog_entries(current_version, latest)
         return {
             "ok": True,
             "channel": channel,
@@ -70,6 +103,7 @@ def check_update(channel: str, current_version: str) -> dict:
             "latest": latest,
             "available": available,
             "url": release_url,
+            "changelog_entries": changelog_entries,
         }
     except urllib.error.URLError as e:
         return {"ok": False, "error": f"GitHub nicht erreichbar: {e.reason}", "channel": channel}
