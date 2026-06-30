@@ -23,6 +23,8 @@ do_git_update() {
 
 git config --global --add safe.directory "$REPO" 2>/dev/null || true
 
+write_heartbeat  # sofort beim Start schreiben, nicht erst nach 60s
+
 _hb_counter=0
 while true; do
   _hb_counter=$(( _hb_counter + 1 ))

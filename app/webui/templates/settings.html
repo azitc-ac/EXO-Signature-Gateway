@@ -737,10 +737,16 @@ async function startUpdate() {
   } catch(e) { _updShowError(e.message); btn.disabled = false; spinner.style.display = 'none'; }
 }
 
+let _updConnLost = false;
+
 async function _updPoll() {
   try {
     const r = await fetch('/api/system/update/status');
     const d = await r.json();
+    if (_updConnLost) {
+      // Verbindung wiederhergestellt nach Container-Neustart
+      _updConnLost = false;
+    }
     const state = d.state || 'idle';
     if (state === 'idle' && (Date.now() - _updPollStart) > UPD_WATCHER_TIMEOUT) {
       clearInterval(_updPollTimer);
@@ -754,7 +760,11 @@ async function _updPoll() {
     document.getElementById('upd-spinner').style.display = 'none';
     if (state === 'success') { _updShowSuccess(d); }
     else if (state === 'error') { _updShowError(d.log || 'Unbekannter Fehler'); document.getElementById('upd-btn').disabled = false; }
-  } catch(e) {}
+  } catch(e) {
+    // Container ist wahrscheinlich gerade im Neustart — sichtbar kommunizieren
+    _updConnLost = true;
+    _updShowRunning('⟳  Container wird neu gestartet, Verbindung wird wiederhergestellt…');
+  }
 }
 
 function _updShowRunning(log) {
@@ -766,15 +776,24 @@ function _updShowRunning(log) {
 }
 function _updShowSuccess(d) {
   const el = document.getElementById('upd-status'); el.style.display = 'block';
+  const versionStr = d.version_before ? `${_esc(d.version_before)} → <strong>${_esc(d.version_after || '?')}</strong>` : '';
   el.innerHTML = `<div class="alert success" style="font-size:13px">
-    <strong>Update erfolgreich!</strong>
-    ${d.version_before ? `${_esc(d.version_before)} → <strong>${_esc(d.version_after || '?')}</strong>` : ''}
+    <strong>Update erfolgreich!</strong> ${versionStr}
     <pre style="margin:8px 0 0;white-space:pre-wrap;font-size:11px;max-height:200px;overflow-y:auto">${_esc(d.log || '')}</pre>
-    <div style="margin-top:10px;display:flex;gap:8px">
+    <div style="margin-top:10px;display:flex;align-items:center;gap:8px">
       <button class="btn primary btn-sm" onclick="location.reload()">Seite neu laden</button>
       <button class="btn secondary btn-sm" onclick="_updClear()">Status zurücksetzen</button>
+      <span id="upd-reload-countdown" style="font-size:12px;color:#15803d"></span>
     </div>
   </div>`;
+  // Auto-Reload nach 5s
+  let t = 5;
+  const cd = document.getElementById('upd-reload-countdown');
+  const iv = setInterval(() => {
+    t--;
+    if (cd) cd.textContent = `(Seite lädt in ${t}s neu…)`;
+    if (t <= 0) { clearInterval(iv); location.reload(); }
+  }, 1000);
 }
 function _updShowError(msg) {
   const el = document.getElementById('upd-status'); el.style.display = 'block';

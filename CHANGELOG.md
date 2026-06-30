@@ -15,6 +15,13 @@ graph_client: _SELECT_FIELDS erweitert (givenName, surname, streetAddress, city,
 state, postalCode, country, faxNumber, employeeId), custom dict in UserData.
 signature_engine: custom als eigener Template-Context-Key.
 
+## v1.4.245 — 2026-06-30 — fix: Update-UI zeigt Feedback bei Container-Neustart + Watcher-Heartbeat sofort
+
+Update-Polling zeigt jetzt "Container wird neu gestartet" statt still einzufrieren
+wenn die Verbindung während docker compose up kurz abbricht.
+Nach erfolgreichem Update automatischer Seiten-Reload nach 5s.
+update-watcher.sh: Heartbeat wird jetzt sofort beim Start geschrieben (nicht erst nach 60s).
+
 ## v1.4.241 — 2026-06-30 — refactor: Fallback-Checkbox nach Signatur-Card verschoben
 
 ## v1.4.239 — 2026-06-30 — refactor: Allgemein-Tab neu strukturiert
