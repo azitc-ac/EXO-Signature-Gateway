@@ -103,16 +103,11 @@
         </td>
         <td style="text-align:center;padding:6px 8px;color:#94a3b8;font-size:14px" title="Nicht löschbar">🔒</td>
       </tr>
-      <!-- Add-in Vorlagen — Demnächst -->
-      <tr style="border-bottom:1px solid #f0f0f0;opacity:0.45">
-        <td style="padding:6px 8px;font-size:12px;font-weight:500">
-          Add-in Vorlagen
-          <span style="font-size:10px;font-weight:500;background:#e2e8f0;color:#64748b;padding:1px 5px;border-radius:8px;margin-left:4px">Demnächst</span>
-        </td>
+      <!-- Add-in Vorlagen — aktiv -->
+      <tr style="border-bottom:1px solid #f0f0f0">
+        <td style="padding:6px 8px;font-size:12px;font-weight:500">Add-in Vorlagen</td>
         <td style="padding:6px 8px;font-size:12px;color:#555">Alle Postfächer mit Richtlinie</td>
-        <td style="padding:6px 8px">
-          <select disabled style="font-size:12px;width:160px"><option>Alle (inkl. zukünftige)</option></select>
-        </td>
+        <td style="padding:6px 8px"><div id="policy-addin-ctrl"></div></td>
         <td style="text-align:center;padding:6px 8px;color:#94a3b8;font-size:14px" title="Nicht löschbar">🔒</td>
       </tr>
     </tbody>
@@ -242,29 +237,120 @@ function showAlert(el, type, msg) {
 
 // ── Vorlagenrichtlinien laden + speichern ────────────────────────────────────
 
+function _buildPolicyAddinControl(addinValue) {
+  var isAll = addinValue === '*';
+  var selected = Array.isArray(addinValue) ? addinValue : [];
+
+  var details = document.createElement('details');
+  details.id = 'policy-addin-details';
+
+  var summary = document.createElement('summary');
+  summary.style.cssText = 'font-size:11px;cursor:pointer;user-select:none;list-style:none;display:flex;align-items:center;gap:4px';
+  summary.innerHTML = '<span style="font-size:10px;color:#64748b">▶</span><span id="policy-addin-summary-label" style="color:#374151">' +
+    (isAll ? 'Alle' : (selected.length ? selected.length + ' gewählt' : 'Nur Standard')) + '</span>';
+  details.appendChild(summary);
+  details.addEventListener('toggle', function() {
+    summary.querySelector('span').textContent = details.open ? '▼' : '▶';
+  });
+
+  var inner = document.createElement('div');
+  inner.style.cssText = 'padding:6px 2px 2px;display:flex;flex-direction:column;gap:3px';
+
+  var masterLabel = document.createElement('label');
+  masterLabel.style.cssText = 'display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap;font-size:11px;font-weight:600';
+  var masterCb = document.createElement('input');
+  masterCb.type = 'checkbox'; masterCb.id = 'policy-addin-all';
+  if (isAll) masterCb.checked = true;
+  masterLabel.appendChild(masterCb);
+  masterLabel.appendChild(document.createTextNode('Alle (inkl. zukünftige)'));
+  inner.appendChild(masterLabel);
+
+  var hr = document.createElement('div');
+  hr.style.cssText = 'border-top:1px solid #e2e8f0;margin:3px 0';
+  inner.appendChild(hr);
+
+  var tplWrap = document.createElement('div');
+  tplWrap.id = 'policy-addin-tpls';
+  tplWrap.style.cssText = 'display:flex;flex-direction:column;gap:2px' + (isAll ? ';opacity:0.4' : '');
+  _templateList.forEach(function(name) {
+    var lbl = document.createElement('label');
+    lbl.style.cssText = 'display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap;font-size:11px';
+    var cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.className = 'policy-addin-tpl'; cb.value = name;
+    if (isAll || selected.includes(name)) cb.checked = true;
+    if (isAll) cb.disabled = true;
+    lbl.appendChild(cb); lbl.appendChild(document.createTextNode(name));
+    tplWrap.appendChild(lbl);
+  });
+  inner.appendChild(tplWrap);
+  details.appendChild(inner);
+
+  function _updateLabel() {
+    var all = masterCb.checked;
+    var cnt = all ? null : tplWrap.querySelectorAll('.policy-addin-tpl:checked').length;
+    document.getElementById('policy-addin-summary-label').textContent =
+      all ? 'Alle' : (cnt ? cnt + ' gewählt' : 'Nur Standard');
+  }
+  masterCb.addEventListener('change', function() {
+    var all = masterCb.checked;
+    tplWrap.querySelectorAll('.policy-addin-tpl').forEach(function(cb) {
+      cb.checked = all; cb.disabled = all;
+    });
+    tplWrap.style.opacity = all ? '0.4' : '1';
+    _updateLabel();
+  });
+  tplWrap.querySelectorAll('.policy-addin-tpl').forEach(function(cb) {
+    cb.addEventListener('change', _updateLabel);
+  });
+
+  return details;
+}
+
 async function loadPolicies() {
   try {
     var r = await fetch('/api/settings/template-policies');
     if (!r.ok) return;
     var d = await r.json();
-    var sigTpl = d.sig || 'default';
-    var sel = document.getElementById('policy-sig-tpl');
-    if (!sel) return;
-    sel.innerHTML = '';
-    _templateList.forEach(function(name) {
-      var opt = document.createElement('option');
-      opt.value = name;
-      opt.textContent = name;
-      if (name === sigTpl) opt.selected = true;
-      sel.appendChild(opt);
-    });
+
+    // Standardsignatur
+    var sigSel = document.getElementById('policy-sig-tpl');
+    if (sigSel) {
+      sigSel.innerHTML = '';
+      _templateList.forEach(function(name) {
+        var opt = document.createElement('option');
+        opt.value = name; opt.textContent = name;
+        if (name === (d.sig || 'default')) opt.selected = true;
+        sigSel.appendChild(opt);
+      });
+    }
+
+    // Add-in Vorlagen
+    var addinCtrl = document.getElementById('policy-addin-ctrl');
+    if (addinCtrl) {
+      addinCtrl.innerHTML = '';
+      addinCtrl.appendChild(_buildPolicyAddinControl(d.addin !== undefined ? d.addin : '*'));
+    }
   } catch(_) {}
 }
 
 async function savePolicies() {
-  var sel = document.getElementById('policy-sig-tpl');
+  var sigSel = document.getElementById('policy-sig-tpl');
   var res = document.getElementById('policy-save-result');
-  var policies = { sig: sel ? sel.value : 'default' };
+
+  // Read addin value
+  var addinMaster = document.getElementById('policy-addin-all');
+  var addinValue = '*';
+  if (addinMaster && !addinMaster.checked) {
+    addinValue = [];
+    document.querySelectorAll('.policy-addin-tpl:checked').forEach(function(cb) {
+      addinValue.push(cb.value);
+    });
+  }
+
+  var policies = {
+    sig: sigSel ? sigSel.value : 'default',
+    addin: addinValue,
+  };
   try {
     var r = await fetch('/settings', {
       method: 'POST',

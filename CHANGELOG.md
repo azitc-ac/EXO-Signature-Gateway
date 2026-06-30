@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.303 — 2026-06-30 — feat: Vorlagenrichtlinien Add-in Vorlagen produktiv
+
+Standard-Richtlinie "Add-in Vorlagen" ist jetzt funktional:
+- TEMPLATE_POLICIES.addin: "*" | [liste] — steuert welche Templates im Outlook
+  Add-in für Postfächer mit use_policy=true angezeigt werden
+- api_addin_templates: respektiert use_policy → liefert Templates aus Policy
+  (addin + sig für default_template) statt per-Postfach-Wert
+- UI: Add-in Vorlagen-Zeile in Standard-Richtlinien mit vollständigem
+  Details-Control (Alle / Einzelauswahl), savePolicies schreibt TEMPLATE_POLICIES.addin
+
 ## v1.4.301 — 2026-06-30 — feat: Vorlagenrichtlinien in Betrieb (Standard-Richtlinie aktiv)
 
 Standard-Richtlinie "Standardsignatur" ist jetzt funktional:

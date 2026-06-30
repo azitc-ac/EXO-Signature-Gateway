@@ -572,6 +572,11 @@ async def api_addin_templates(email: str, user: str = Depends(_check_auth)):
     """Return list of templates available for this user in the add-in."""
     email = (email or "").strip().lower()
     mailbox_cfg = (settings_store.get("MAILBOX_CONFIG") or {}).get(email, {})
+    if mailbox_cfg.get("use_policy", True):
+        policies = settings_store.get("TEMPLATE_POLICIES") or {}
+        mailbox_cfg = dict(mailbox_cfg)
+        mailbox_cfg["addin_templates"] = policies.get("addin", "*")
+        mailbox_cfg["template"] = policies.get("sig") or mailbox_cfg.get("template") or "default"
     allowed = _addin_allowed_templates(email, mailbox_cfg)
     default_template = (mailbox_cfg.get("template") if isinstance(mailbox_cfg, dict) else None) or "default"
     return JSONResponse({"templates": allowed, "default": default_template})
