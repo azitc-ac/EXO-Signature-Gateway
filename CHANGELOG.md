@@ -2157,3 +2157,6 @@ _(In v1.0.84 zusammengefasst — Zwischenstand während Debugging-Session)_
 _updInitiatedHere-Flag war zu fragil: manuelle Seitenaktualisierung während
 des Updates setzte es zurück, danach kein Countdown und kein Auto-Reload mehr.
 Gelöst durch Entfernen des Flags — Countdown erscheint jetzt immer bei success.
+## v1.4.281 — 2026-06-30 — fix: user.website und user.bookingsUrl zweizeilig in Variablentabelle
+
+colspan="2" + Label oben, Eingabefeld/Button darunter — bessere Lesbarkeit auf kleinen Screens.

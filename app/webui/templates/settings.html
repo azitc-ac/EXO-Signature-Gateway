@@ -574,22 +574,26 @@
         <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0"><code>user.officeLocation</code></td><td style="padding:4px 16px;color:#555">officeLocation</td></tr>
         <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0"><code>user.email</code></td><td style="padding:4px 16px;color:#555">mail</td></tr>
         <tr style="border-bottom:1px solid #f0f0f0">
-          <td style="padding:4px 0"><code>user.website</code></td>
-          <td style="padding:4px 16px">
-            <input type="url" id="website-url" value="{{ s.WEBSITE_URL or '' }}" placeholder="https://www.beispiel.de"
-              style="font-size:12px;padding:3px 8px;border:1px solid #d1d5db;border-radius:4px;width:280px">
-            <button class="btn secondary btn-sm" style="margin-left:6px" onclick="saveWebsiteField()">Speichern</button>
-            <span id="website-field-result" style="font-size:11px;margin-left:4px"></span>
+          <td colspan="2" style="padding:6px 0">
+            <code>user.website</code>
+            <div style="margin-top:5px;display:flex;align-items:center;gap:6px">
+              <input type="url" id="website-url" value="{{ s.WEBSITE_URL or '' }}" placeholder="https://www.beispiel.de"
+                style="font-size:12px;padding:3px 8px;border:1px solid #d1d5db;border-radius:4px;width:280px">
+              <button class="btn secondary btn-sm" onclick="saveWebsiteField()">Speichern</button>
+              <span id="website-field-result" style="font-size:11px"></span>
+            </div>
           </td>
         </tr>
         <tr>
-          <td style="padding:6px 0"><code>user.bookingsUrl</code></td>
-          <td style="padding:6px 16px">
-            <span style="font-size:11px;color:#64748b;display:block;margin-bottom:4px">
-              outlook.office.com/bookwithme/user/<em>{ExchangeGuid}</em>@<em>{domain}</em>
-            </span>
-            <button class="btn secondary btn-sm" id="bookings-fetch-btn" onclick="fetchBookingsUrls()">Booking-URLs jetzt ermitteln</button>
-            <span id="bookings-fetch-result" style="font-size:11px;margin-left:6px"></span>
+          <td colspan="2" style="padding:6px 0">
+            <code>user.bookingsUrl</code>
+            <div style="margin-top:5px">
+              <span style="font-size:11px;color:#64748b;display:block;margin-bottom:4px">
+                outlook.office.com/bookwithme/user/<em>{ExchangeGuid}</em>@<em>{domain}</em>
+              </span>
+              <button class="btn secondary btn-sm" id="bookings-fetch-btn" onclick="fetchBookingsUrls()">Booking-URLs jetzt ermitteln</button>
+              <span id="bookings-fetch-result" style="font-size:11px;margin-left:6px"></span>
+            </div>
           </td>
         </tr>
       </tbody>
