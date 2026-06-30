@@ -230,7 +230,7 @@ $cloudInit = @(
     '    After=docker.service',
     '    Requires=docker.service',
     '    [Service]',
-    '    ExecStart=/opt/exo-gateway/update-watcher.sh',
+    '    ExecStart=/bin/bash /opt/exo-gateway/update-watcher.sh',
     '    Restart=always',
     '    RestartSec=10',
     '    User=root',
