@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.293 — 2026-06-30 — fix: DG-Check falsch-negativ bei EXO-Verbindungsfehler + scrollbare S/MIME-Regeln-Tabelle
+
+PS-Skript: Connect-ExchangeOnline jetzt mit ErrorAction Stop — schlägt die
+Verbindung fehl, erscheint ein klarer Fehler statt fälschlicherweise
+„Nicht in Distribution Group". DG-Abruf-Fehler ($dgFetchError) wird
+ebenfalls explizit gemeldet statt als Mitgliedschaft-Negativ gewertet.
+S/MIME-Regeln-Platzhalter: Tabelle jetzt horizontal scrollbar.
+
 ## v1.4.292 — 2026-06-30 — feat: Minimalsignatur-Platzhalter in Einstellungen und Postfächer
 
 Einstellungen: Minimalsignatur-Zeile zu vollständigem Platzhalter-Block

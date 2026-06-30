@@ -134,7 +134,12 @@ $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
     '{_AUTH_CERT_PATH}', [string]$null,
     ([System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet -bor
      [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable))
-Connect-ExchangeOnline -AppId '{app_id}' -Certificate $cert -Organization '{tenant_domain}' -ShowBanner:$false -ShowProgress:$false
+try {{
+    Connect-ExchangeOnline -AppId '{app_id}' -Certificate $cert -Organization '{tenant_domain}' -ShowBanner:$false -ShowProgress:$false -ErrorAction Stop
+}} catch {{
+    @{{error="EXO-Verbindung fehlgeschlagen: $($_.Exception.Message)"}} | ConvertTo-Json -Compress
+    exit 1
+}}
 
 $dgName = '{dg_name}'
 $checkImap = [int]'{ps_check_imap}'
@@ -149,21 +154,35 @@ if ($checkImap -eq 1) {{
 
 # Get current DG members
 $dgMembers = @()
+$dgFetchError = $null
 try {{
     $dg = Get-DistributionGroup -Identity $dgName -ErrorAction Stop
-    $dgMemberObjs = Get-DistributionGroupMember -Identity $dgName -ResultSize Unlimited -ErrorAction SilentlyContinue
+    $dgMemberObjs = Get-DistributionGroupMember -Identity $dgName -ResultSize Unlimited -ErrorAction Stop
     $dgMembers = @($dgMemberObjs | ForEach-Object {{ $_.PrimarySmtpAddress.ToLower() }})
 }} catch {{
-    # DG doesn't exist yet
+    $dgFetchError = $_.Exception.Message
 }}
 
 $results = @{{}}
 foreach ($email in $emails) {{
     $emailLow = $email.ToLower()
-    $dgMember = $dgMembers -contains $emailLow
     $dgFixed = $false
     $imapPerm = $null
     $imapFixed = $false
+
+    if ($dgFetchError) {{
+        # DG fetch failed — report error, skip auto-fix attempt
+        $results[$emailLow] = @{{
+            dg_member = $false
+            dg_fixed = $false
+            imap_perm = $imapPerm
+            imap_fixed = $imapFixed
+            error = "DG-Abruf fehlgeschlagen: $dgFetchError"
+        }}
+        continue
+    }}
+
+    $dgMember = $dgMembers -contains $emailLow
 
     # Auto-fix: add to DG if missing
     if (-not $dgMember) {{
@@ -172,7 +191,7 @@ foreach ($email in $emails) {{
             $dgMember = $true
             $dgFixed = $true
         }} catch {{
-            if ($_.Exception.Message -like '*already*' -or $_.Exception.Message -like '*Duplicate*') {{
+            if ($_.Exception.Message -like '*already*' -or $_.Exception.Message -like '*Duplicate*' -or $_.Exception.Message -like '*member*') {{
                 $dgMember = $true
             }}
         }}
@@ -227,24 +246,36 @@ Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
         Path(ps_path).unlink(missing_ok=True)
 
         output = proc.stdout.strip()
-        # Find JSON line
+        # Find JSON line(s)
         for line in output.splitlines():
             line = line.strip()
-            if line.startswith("{"):
-                try:
-                    raw = json.loads(line)
-                    # Normalize keys to lowercase email
-                    result = {}
-                    for k, v in raw.items():
-                        result[k.lower()] = {
-                            "dg_member": bool(v.get("dg_member", False)),
-                            "dg_fixed": bool(v.get("dg_fixed", False)),
-                            "imap_perm": v.get("imap_perm"),  # None if not checked
-                            "imap_fixed": bool(v.get("imap_fixed", False)),
-                        }
-                    return result
-                except Exception as exc:
-                    log.warning("health_check: PS JSON parse error: %s — %s", exc, line[:300])
+            if not line.startswith("{"):
+                continue
+            try:
+                raw = json.loads(line)
+                # Connection-error sentinel: {"error": "..."}
+                if "error" in raw and len(raw) == 1:
+                    err_msg = raw["error"]
+                    log.warning("health_check: PS EXO connect error: %s", err_msg)
+                    error_result = {"dg_member": False, "dg_fixed": False,
+                                    "imap_perm": None, "imap_fixed": False,
+                                    "error": err_msg}
+                    return {e.lower(): dict(error_result) for e in emails}
+                # Normal result: {email: {dg_member, ...}}
+                result = {}
+                for k, v in raw.items():
+                    if not isinstance(v, dict):
+                        continue
+                    result[k.lower()] = {
+                        "dg_member": bool(v.get("dg_member", False)),
+                        "dg_fixed": bool(v.get("dg_fixed", False)),
+                        "imap_perm": v.get("imap_perm"),
+                        "imap_fixed": bool(v.get("imap_fixed", False)),
+                        "error": v.get("error"),
+                    }
+                return result
+            except Exception as exc:
+                log.warning("health_check: PS JSON parse error: %s — %s", exc, line[:300])
 
         err_msg = (proc.stderr or proc.stdout or "Kein Output")[:300]
         log.warning("health_check: PS batch check failed rc=%d: %s", proc.returncode, err_msg)

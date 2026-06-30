@@ -355,36 +355,38 @@
       Regeln definieren, nach denen ausgehende Mails automatisch verschlüsselt oder signiert werden —
       abhängig von Absender, Empfänger oder einer Kombination aus beiden.
     </p>
-    <table class="kv-table" style="table-layout:fixed;min-width:480px;margin-bottom:8px">
-      <colgroup>
-        <col style="width:26%"><col style="width:28%"><col style="width:28%"><col style="width:12%"><col style="width:6%">
-      </colgroup>
-      <thead>
-        <tr>
-          <th>Aktion</th>
-          <th>Absender (optional)</th>
-          <th>Empfänger (optional)</th>
-          <th>Bedingung</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><select disabled style="width:100%">
-            <option>Verschlüsseln</option>
-            <option>Signieren</option>
-            <option>Nicht signieren</option>
-          </select></td>
-          <td><input type="email" disabled placeholder="alle Absender" style="width:100%"></td>
-          <td><input type="email" disabled placeholder="alle Empfänger" style="width:100%"></td>
-          <td><select disabled style="width:100%">
-            <option>Absender UND Empfänger</option>
-            <option>Absender ODER Empfänger</option>
-          </select></td>
-          <td><button class="btn secondary btn-sm" disabled>✕</button></td>
-        </tr>
-      </tbody>
-    </table>
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:8px">
+      <table class="kv-table" style="table-layout:fixed;min-width:560px;width:100%">
+        <colgroup>
+          <col style="width:140px"><col style="width:160px"><col style="width:160px"><col style="width:160px"><col style="width:40px">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>Aktion</th>
+            <th>Absender (optional)</th>
+            <th>Empfänger (optional)</th>
+            <th>Bedingung</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><select disabled style="width:100%">
+              <option>Verschlüsseln</option>
+              <option>Signieren</option>
+              <option>Nicht signieren</option>
+            </select></td>
+            <td><input type="email" disabled placeholder="alle Absender" style="width:100%"></td>
+            <td><input type="email" disabled placeholder="alle Empfänger" style="width:100%"></td>
+            <td><select disabled style="width:100%">
+              <option>Absender UND Empfänger</option>
+              <option>Absender ODER Empfänger</option>
+            </select></td>
+            <td><button class="btn secondary btn-sm" disabled>✕</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
     <button class="btn secondary btn-sm" disabled>+ Regel hinzufügen</button>
     <div class="actions" style="margin-top:10px">
       <button class="btn secondary" disabled>Speichern</button>
