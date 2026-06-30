@@ -5,6 +5,8 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.249 — 2026-06-30 — fix: Update-Status überlebt Seiten-Refresh (localStorage) + Heartbeat-Timeout 5min
+
 ## v1.4.243 — 2026-06-30 — feat: Eigene Template-Variablen aus Entra-Attributen (custom.*)
 
 Neue Sektion "Eigene Variablen" in Signatur-Card: beliebige Entra-Attribute

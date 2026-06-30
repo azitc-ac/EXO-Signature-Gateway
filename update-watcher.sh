@@ -45,7 +45,7 @@ while true; do
       LOG2=$(cd "$REPO" && docker compose up -d --build 2>&1) && \
       VER_AFTER=$(cat "$REPO/VERSION" 2>/dev/null | tr -d "[:space:]" || echo "?") && \
       write_status "{\"state\":\"success\",\"finished\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"version_before\":\"$VER_BEFORE\",\"version_after\":\"$VER_AFTER\",\"channel\":\"$CHANNEL\",\"log\":$(printf "%s\n%s" "$LOG" "$LOG2" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')}" && \
-      systemctl restart exo-gateway-updater || \
+      write_heartbeat && systemctl restart exo-gateway-updater || \
       write_status "{\"state\":\"error\",\"finished\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"log\":$(printf "%s\n%s" "$LOG" "${LOG2:-}" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')}"
   fi
 

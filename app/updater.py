@@ -24,7 +24,8 @@ GITHUB_REPO = "azitc-ac/EXO-signature-service"
 # How long (seconds) the UI polls before declaring the watcher absent
 WATCHER_TIMEOUT_S = 60
 # Heartbeat older than this → watcher considered dead
-HEARTBEAT_MAX_AGE_S = 120
+# 300s covers a full docker compose build cycle
+HEARTBEAT_MAX_AGE_S = 300
 
 
 def _version_tuple(v: str) -> tuple:

@@ -675,6 +675,7 @@ let _updPollTimer = null;
 let _updPollStart = null;
 let _watcherOk = false;
 const UPD_WATCHER_TIMEOUT = 60000;
+const _UPD_LS_KEY = 'exo_update_pending';
 
 function _updGetChannel() { return document.getElementById('upd-channel').value; }
 function _updSaveChannel() {
@@ -731,6 +732,7 @@ async function startUpdate() {
     });
     const d = await r.json();
     if (!d.ok) { _updShowError(d.error || `HTTP ${r.status}`); btn.disabled = false; spinner.style.display = 'none'; return; }
+    try { localStorage.setItem(_UPD_LS_KEY, String(Date.now())); } catch(e) {}
     _updPollStart = Date.now();
     _updPollTimer = setInterval(_updPoll, 3000);
     _updPoll();
@@ -775,6 +777,7 @@ function _updShowRunning(log) {
   </div>`;
 }
 function _updShowSuccess(d) {
+  try { localStorage.removeItem(_UPD_LS_KEY); } catch(e) {}
   const el = document.getElementById('upd-status'); el.style.display = 'block';
   const versionStr = d.version_before ? `${_esc(d.version_before)} → <strong>${_esc(d.version_after || '?')}</strong>` : '';
   el.innerHTML = `<div class="alert success" style="font-size:13px">
@@ -786,7 +789,6 @@ function _updShowSuccess(d) {
       <span id="upd-reload-countdown" style="font-size:12px;color:#15803d"></span>
     </div>
   </div>`;
-  // Auto-Reload nach 5s
   let t = 5;
   const cd = document.getElementById('upd-reload-countdown');
   const iv = setInterval(() => {
@@ -804,6 +806,7 @@ function _updShowError(msg) {
 }
 async function _updClear() {
   await fetch('/api/system/update/clear', {method: 'POST'});
+  try { localStorage.removeItem(_UPD_LS_KEY); } catch(e) {}
   document.getElementById('upd-status').style.display = 'none';
   document.getElementById('upd-btn').disabled = false;
 }
@@ -851,6 +854,15 @@ async function _updCheckWatcher() {
 (async function() {
   _updLoadChannel();
   await _updCheckWatcher();
+
+  // Update-State aus localStorage wiederherstellen (überlebt Seiten-Refresh)
+  let resumeFromStorage = false;
+  try {
+    const ts = parseInt(localStorage.getItem(_UPD_LS_KEY) || '0', 10);
+    if (ts && (Date.now() - ts) < 5 * 60 * 1000) resumeFromStorage = true;
+    else if (ts) localStorage.removeItem(_UPD_LS_KEY); // abgelaufen
+  } catch(e) {}
+
   try {
     const r = await fetch('/api/system/update/status');
     const d = await r.json();
@@ -860,13 +872,37 @@ async function _updCheckWatcher() {
       _updShowRunning(d.log || '');
       _updPollStart = Date.now();
       _updPollTimer = setInterval(_updPoll, 3000);
+      return;
     } else if (d.state === 'success') {
-      _updShowSuccess(d);
+      _updShowSuccess(d); return;
     } else if (d.state === 'error') {
       _updShowError(d.log || 'Unbekannter Fehler');
+      try { localStorage.removeItem(_UPD_LS_KEY); } catch(e) {}
+      return;
     }
-  } catch(e) {}
-  if (_watcherOk) checkUpdate();
+  } catch(e) {
+    // Container ist down — wenn Update aus localStorage bekannt: Polling starten
+    if (resumeFromStorage) {
+      document.getElementById('upd-btn').disabled = true;
+      document.getElementById('upd-spinner').style.display = 'inline';
+      _updShowRunning('⟳  Container wird neu gestartet, Verbindung wird wiederhergestellt…');
+      _updPollStart = Date.now();
+      _updPollTimer = setInterval(_updPoll, 3000);
+      return;
+    }
+  }
+
+  // Kein aktives Update — bei laufendem Watcher Version prüfen
+  if (resumeFromStorage) {
+    // Status war idle aber localStorage sagt Update lief — Polling starten
+    document.getElementById('upd-btn').disabled = true;
+    document.getElementById('upd-spinner').style.display = 'inline';
+    _updShowRunning('⟳  Warte auf Watcher-Rückmeldung…');
+    _updPollStart = Date.now();
+    _updPollTimer = setInterval(_updPoll, 3000);
+  } else if (_watcherOk) {
+    checkUpdate();
+  }
 })();
 </script>
 
