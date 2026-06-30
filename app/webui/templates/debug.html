@@ -1058,12 +1058,13 @@ async function loadHealthInline() {
     </div>
     <div id="selftest-result" style="display:none">
       <div id="selftest-summary" style="margin-bottom:12px;font-weight:600;font-size:14px"></div>
-      <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <table style="width:100%;border-collapse:collapse;font-size:13px" id="selftest-table">
         <thead>
           <tr style="border-bottom:1px solid #e2e8f0">
             <th style="text-align:left;padding:6px 8px;color:#64748b;font-weight:500">Test</th>
-            <th style="text-align:center;padding:6px 8px;color:#64748b;font-weight:500;width:60px">Status</th>
+            <th style="text-align:center;padding:6px 8px;color:#64748b;font-weight:500;width:56px">Status</th>
             <th style="text-align:left;padding:6px 8px;color:#64748b;font-weight:500">Detail</th>
+            <th style="text-align:center;padding:6px 8px;color:#64748b;font-weight:500;width:76px">Vorschau</th>
           </tr>
         </thead>
         <tbody id="selftest-rows"></tbody>
@@ -1071,7 +1072,36 @@ async function loadHealthInline() {
     </div>
   </div>
 </div>
+
+<!-- Preview modal -->
+<div id="selftest-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:10px;width:92vw;max-width:1300px;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #e2e8f0">
+      <strong id="modal-title" style="font-size:14px"></strong>
+      <button onclick="closeModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b;line-height:1">×</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;flex:1;overflow:hidden">
+      <div style="display:flex;flex-direction:column;border-right:1px solid #e2e8f0">
+        <div style="padding:8px 14px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#64748b;background:#f8fafc;border-bottom:1px solid #e2e8f0">
+          Eingabe · Mail-Client
+        </div>
+        <iframe id="modal-input-frame" sandbox="allow-same-origin"
+          style="flex:1;border:none;width:100%" src="about:blank"></iframe>
+      </div>
+      <div style="display:flex;flex-direction:column">
+        <div style="padding:8px 14px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#0ea5e9;background:#f0f9ff;border-bottom:1px solid #bae6fd">
+          Ausgabe · Gateway-injiziert
+        </div>
+        <iframe id="modal-output-frame" sandbox="allow-same-origin"
+          style="flex:1;border:none;width:100%" src="about:blank"></iframe>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
+var _selftestData = [];
+
 async function runSelfTest() {
   document.getElementById('selftest-btn').disabled = true;
   document.getElementById('selftest-spinner').style.display = '';
@@ -1079,13 +1109,14 @@ async function runSelfTest() {
   try {
     const r = await fetch('/api/test/mail-processor', {method: 'POST'});
     const d = await r.json();
+    _selftestData = d.results;
     const allPassed = d.failed === 0;
     const summary = document.getElementById('selftest-summary');
     summary.innerHTML = allPassed
       ? `<span style="color:#16a34a">✓ Alle ${d.total} Tests bestanden</span>`
       : `<span style="color:#dc2626">${d.failed} von ${d.total} Tests fehlgeschlagen</span>`;
     const rows = document.getElementById('selftest-rows');
-    rows.innerHTML = d.results.map(t => `
+    rows.innerHTML = d.results.map((t, i) => `
       <tr style="border-bottom:1px solid #f1f5f9;${t.passed ? '' : 'background:#fef2f2'}">
         <td style="padding:7px 8px">${t.name}</td>
         <td style="text-align:center;padding:7px 8px">
@@ -1094,6 +1125,13 @@ async function runSelfTest() {
             : '<span style="color:#dc2626;font-size:16px">✗</span>'}
         </td>
         <td style="padding:7px 8px;color:#57534e;font-family:monospace;font-size:12px">${t.detail}</td>
+        <td style="text-align:center;padding:6px 8px">
+          ${(t.input_html || t.output_html)
+            ? `<button onclick="openPreview(${i})"
+                style="font-size:11px;padding:3px 9px;border:1px solid #cbd5e1;border-radius:4px;
+                       background:#f8fafc;cursor:pointer;color:#475569">Vorschau</button>`
+            : '<span style="color:#cbd5e1;font-size:11px">—</span>'}
+        </td>
       </tr>`).join('');
     document.getElementById('selftest-result').style.display = '';
   } catch(e) {
@@ -1104,6 +1142,32 @@ async function runSelfTest() {
   document.getElementById('selftest-btn').disabled = false;
   document.getElementById('selftest-spinner').style.display = 'none';
 }
+
+function openPreview(idx) {
+  const t = _selftestData[idx];
+  document.getElementById('modal-title').textContent = t.name;
+  const wrapHtml = (html, label) =>
+    html
+      ? html
+      : `<html><body style="font-family:sans-serif;color:#94a3b8;padding:24px">${label} nicht verfügbar</body></html>`;
+  document.getElementById('modal-input-frame').srcdoc = wrapHtml(t.input_html, 'Eingabe');
+  document.getElementById('modal-output-frame').srcdoc = wrapHtml(t.output_html, 'Ausgabe');
+  const modal = document.getElementById('selftest-modal');
+  modal.style.display = 'flex';
+}
+
+function closeModal() {
+  document.getElementById('selftest-modal').style.display = 'none';
+  document.getElementById('modal-input-frame').srcdoc = '';
+  document.getElementById('modal-output-frame').srcdoc = '';
+}
+
+document.getElementById('selftest-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeModal();
+});
 </script>
 
 <!-- ── TLS / Let's Encrypt ─────────────────────────────────────────────────── -->

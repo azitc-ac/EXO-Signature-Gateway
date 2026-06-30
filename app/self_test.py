@@ -12,14 +12,13 @@ from __future__ import annotations
 import email.mime.multipart
 import email.mime.text
 import textwrap
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 import mail_processor
 import settings_store
 
 # ── Test signature ─────────────────────────────────────────────────────────────
-# Distinctive tokens for fingerprint tests: zarenko, gmbh, 12345678, etc.
 _SIG_HTML = textwrap.dedent("""\
     <div style="font-family:Arial,sans-serif;font-size:11pt">
     <b>Alexander Zarenko</b><br>
@@ -32,7 +31,7 @@ _SIG_HTML = textwrap.dedent("""\
 
 _SIG_TXT = "Alexander Zarenko | Zarenko GmbH | +49 30 123 45678 | alexander@zarenko.net"
 
-# Outlook client sig with same key tokens → fingerprint match → STRIP in WordSection1
+# Outlook client sig — same key tokens → fingerprint match → STRIP in WordSection1
 _CLIENT_SIG = (
     '<div>'
     'Alexander Zarenko<br>'
@@ -52,7 +51,6 @@ _OUTLOOK_SEP = (
     '</div>'
 )
 
-# Same separator but with CSS properties in reversed order (Outlook quirk)
 _OUTLOOK_SEP_REVERSED_CSS = (
     '<div style="padding:3.0pt 0cm 0cm 0cm;border-top:solid #E1E1E1 1.0pt;border:none">'
     '<p class="MsoNormal"><b>Von:</b> Erika Musterfrau &lt;erika@example.com&gt;</p>'
@@ -65,7 +63,6 @@ _QUOTED_CONTENT = (
     '<p class="MsoNormal">Mit freundlichen Gr&uuml;&szlig;en, Erika Musterfrau</p>'
 )
 
-# Nested thread: inner forward wrapper buried inside a quoted email
 _NESTED_INNER = (
     '<p class="MsoNormal">Von: Max Mustermann &lt;max@example.de&gt;</p>'
     '<p class="MsoNormal">Hallo, anbei die Anfrage von Erika:</p>'
@@ -119,16 +116,16 @@ class TestResult:
     name: str
     passed: bool
     detail: str
+    input_html: str = field(default="")
+    output_html: str = field(default="")
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
-def _run(msg: email.message.Message) -> email.message.Message:
-    return mail_processor.inject(msg, _SIG_HTML, _SIG_TXT)
-
-
-def _html(msg: email.message.Message) -> str:
-    return mail_processor.extract_html(msg) or ""
+def _run(msg: email.message.Message) -> tuple[email.message.Message, str]:
+    """Inject and return (result_msg, output_html)."""
+    result = mail_processor.inject(msg, _SIG_HTML, _SIG_TXT)
+    return result, mail_processor.extract_html(result) or ""
 
 
 def _sig_pos(html: str) -> Optional[int]:
@@ -137,7 +134,6 @@ def _sig_pos(html: str) -> Optional[int]:
 
 
 def _find(html: str, *fragments: str) -> Optional[int]:
-    """Return the position of the first fragment found, or None."""
     for f in fragments:
         p = html.lower().find(f.lower())
         if p != -1:
@@ -145,12 +141,12 @@ def _find(html: str, *fragments: str) -> Optional[int]:
     return None
 
 
-def _ok(name: str, detail: str) -> TestResult:
-    return TestResult(name, True, detail)
+def _ok(name: str, detail: str, i: str = "", o: str = "") -> TestResult:
+    return TestResult(name, True, detail, i, o)
 
 
-def _fail(name: str, detail: str) -> TestResult:
-    return TestResult(name, False, detail)
+def _fail(name: str, detail: str, i: str = "", o: str = "") -> TestResult:
+    return TestResult(name, False, detail, i, o)
 
 
 # ── Individual tests ───────────────────────────────────────────────────────────
@@ -163,48 +159,46 @@ def test_new_email() -> TestResult:
         "<p>bitte finden Sie anbei unser Angebot.</p>"
         "</body></html>"
     )
-    result = _run(_multipart(html_in))
-    html = _html(result)
-    sp = _sig_pos(html)
+    _, html_out = _run(_multipart(html_in))
+    sp = _sig_pos(html_out)
     if sp is None:
-        return _fail(name, "Gateway-Sig-Marker nicht im Ergebnis gefunden")
-    body_pos = html.lower().rfind("</body>")
+        return _fail(name, "Gateway-Sig-Marker nicht im Ergebnis gefunden", html_in, html_out)
+    body_pos = html_out.lower().rfind("</body>")
     if body_pos == -1:
-        return _fail(name, "Kein </body> im Ergebnis")
+        return _fail(name, "Kein </body> im Ergebnis", html_in, html_out)
     if sp < body_pos:
-        return _ok(name, f"Sig vor </body> bei pos {sp} (</body> bei {body_pos})")
-    return _fail(name, f"Sig-Marker bei {sp} ist NACH </body> bei {body_pos}")
+        return _ok(name, f"Sig vor </body> bei pos {sp} (</body> bei {body_pos})", html_in, html_out)
+    return _fail(name, f"Sig-Marker bei {sp} ist NACH </body> bei {body_pos}", html_in, html_out)
 
 
 def test_outlook_desktop_reply() -> TestResult:
     name = "Outlook Desktop Reply (Separator border:none + 1pt)"
-    result = _run(_multipart(_outlook_html()))
-    html = _html(result)
-    sp = _sig_pos(html)
+    html_in = _outlook_html()
+    _, html_out = _run(_multipart(html_in))
+    sp = _sig_pos(html_out)
     if sp is None:
-        return _fail(name, "Gateway-Sig-Marker nicht im Ergebnis gefunden")
-    sep_pos = _find(html, "border:none", "border-top:solid")
+        return _fail(name, "Gateway-Sig-Marker nicht im Ergebnis gefunden", html_in, html_out)
+    sep_pos = _find(html_out, "border:none", "border-top:solid")
     if sep_pos is None:
-        return _fail(name, "Outlook-Separator nicht im Ergebnis gefunden")
+        return _fail(name, "Outlook-Separator nicht im Ergebnis gefunden", html_in, html_out)
     if sp < sep_pos:
-        return _ok(name, f"Sig bei pos {sp}, vor Separator bei {sep_pos} ✓")
-    return _fail(name, f"Sig bei {sp} ist NACH Separator bei {sep_pos}")
+        return _ok(name, f"Sig bei pos {sp}, vor Separator bei {sep_pos} ✓", html_in, html_out)
+    return _fail(name, f"Sig bei {sp} ist NACH Separator bei {sep_pos}", html_in, html_out)
 
 
 def test_outlook_desktop_css_order() -> TestResult:
     name = "Outlook Desktop: CSS-Properties in umgekehrter Reihenfolge"
     html_in = _outlook_html(separator=_OUTLOOK_SEP_REVERSED_CSS)
-    result = _run(_multipart(html_in))
-    html = _html(result)
-    sp = _sig_pos(html)
+    _, html_out = _run(_multipart(html_in))
+    sp = _sig_pos(html_out)
     if sp is None:
-        return _fail(name, "Gateway-Sig-Marker nicht gefunden — Separator vermutlich nicht erkannt")
-    sep_pos = _find(html, "padding:3.0pt", "border-top:solid")
+        return _fail(name, "Gateway-Sig-Marker nicht gefunden — Separator vermutlich nicht erkannt", html_in, html_out)
+    sep_pos = _find(html_out, "padding:3.0pt", "border-top:solid")
     if sep_pos is None:
-        return _fail(name, "Separator im Ergebnis nicht auffindbar")
+        return _fail(name, "Separator im Ergebnis nicht auffindbar", html_in, html_out)
     if sp < sep_pos:
-        return _ok(name, f"Sig bei {sp}, vor umgekehrtem Separator bei {sep_pos} ✓")
-    return _fail(name, f"Sig bei {sp} ist NACH Separator bei {sep_pos}")
+        return _ok(name, f"Sig bei {sp}, vor umgekehrtem Separator bei {sep_pos} ✓", html_in, html_out)
+    return _fail(name, f"Sig bei {sp} ist NACH Separator bei {sep_pos}", html_in, html_out)
 
 
 def test_owa_reply() -> TestResult:
@@ -220,17 +214,16 @@ def test_owa_reply() -> TestResult:
         "<p>Vorherige Nachricht hier.</p>"
         "</body></html>"
     )
-    result = _run(_multipart(html_in))
-    html = _html(result)
-    sp = _sig_pos(html)
+    _, html_out = _run(_multipart(html_in))
+    sp = _sig_pos(html_out)
     if sp is None:
-        return _fail(name, "Gateway-Sig-Marker nicht gefunden")
-    sep_pos = _find(html, 'id="divRplyFwdMsg"', "id='divrplyfwdmsg'")
+        return _fail(name, "Gateway-Sig-Marker nicht gefunden", html_in, html_out)
+    sep_pos = _find(html_out, 'id="divRplyFwdMsg"', "id='divrplyfwdmsg'")
     if sep_pos is None:
-        return _fail(name, "divRplyFwdMsg nicht im Ergebnis gefunden")
+        return _fail(name, "divRplyFwdMsg nicht im Ergebnis gefunden", html_in, html_out)
     if sp < sep_pos:
-        return _ok(name, f"Sig bei {sp}, vor divRplyFwdMsg bei {sep_pos} ✓")
-    return _fail(name, f"Sig bei {sp} ist NACH divRplyFwdMsg bei {sep_pos}")
+        return _ok(name, f"Sig bei {sp}, vor divRplyFwdMsg bei {sep_pos} ✓", html_in, html_out)
+    return _fail(name, f"Sig bei {sp} ist NACH divRplyFwdMsg bei {sep_pos}", html_in, html_out)
 
 
 def test_ios_mail_reply() -> TestResult:
@@ -244,17 +237,16 @@ def test_ios_mail_reply() -> TestResult:
         "</blockquote>"
         "</body></html>"
     )
-    result = _run(_multipart(html_in))
-    html = _html(result)
-    sp = _sig_pos(html)
+    _, html_out = _run(_multipart(html_in))
+    sp = _sig_pos(html_out)
     if sp is None:
-        return _fail(name, "Gateway-Sig-Marker nicht gefunden")
-    bq_pos = _find(html, "<blockquote")
+        return _fail(name, "Gateway-Sig-Marker nicht gefunden", html_in, html_out)
+    bq_pos = _find(html_out, "<blockquote")
     if bq_pos is None:
-        return _fail(name, "blockquote nicht im Ergebnis gefunden")
+        return _fail(name, "blockquote nicht im Ergebnis gefunden", html_in, html_out)
     if sp < bq_pos:
-        return _ok(name, f"Sig bei {sp}, vor blockquote bei {bq_pos} ✓")
-    return _fail(name, f"Sig bei {sp} ist NACH blockquote bei {bq_pos}")
+        return _ok(name, f"Sig bei {sp}, vor blockquote bei {bq_pos} ✓", html_in, html_out)
+    return _fail(name, f"Sig bei {sp} ist NACH blockquote bei {bq_pos}", html_in, html_out)
 
 
 def test_nested_thread() -> TestResult:
@@ -269,22 +261,21 @@ def test_nested_thread() -> TestResult:
         + _CLIENT_SIG
         + "</div></body></html>"
     )
-    result = _run(_multipart(html_in))
-    html = _html(result)
-    sp = _sig_pos(html)
+    _, html_out = _run(_multipart(html_in))
+    sp = _sig_pos(html_out)
     if sp is None:
-        return _fail(name, "Gateway-Sig-Marker nicht gefunden")
-    sep_pos = _find(html, "border:none", "border-top:solid")
-    inner_pos = _find(html, 'id="divRplyFwdMsg"')
+        return _fail(name, "Gateway-Sig-Marker nicht gefunden", html_in, html_out)
+    sep_pos = _find(html_out, "border:none", "border-top:solid")
+    inner_pos = _find(html_out, 'id="divRplyFwdMsg"')
     if sep_pos is None:
-        return _fail(name, "Äußerer Outlook-Separator nicht im Ergebnis gefunden")
+        return _fail(name, "Äußerer Outlook-Separator nicht im Ergebnis gefunden", html_in, html_out)
     if inner_pos is None:
-        return _fail(name, "Innerer divRplyFwdMsg nicht im Ergebnis gefunden")
+        return _fail(name, "Innerer divRplyFwdMsg nicht im Ergebnis gefunden", html_in, html_out)
     if sp > inner_pos:
-        return _fail(name, f"Sig bei {sp} ist NACH innerem divRplyFwdMsg bei {inner_pos} — falscher Einsetzpunkt")
+        return _fail(name, f"Sig bei {sp} ist NACH innerem divRplyFwdMsg bei {inner_pos} — falscher Einsetzpunkt", html_in, html_out)
     if sp < sep_pos:
-        return _ok(name, f"Sig bei {sp}, vor äußerem Separator bei {sep_pos} (innerer bei {inner_pos}) ✓")
-    return _fail(name, f"Sig bei {sp} ist NACH äußerem Separator bei {sep_pos}")
+        return _ok(name, f"Sig bei {sp}, vor äußerem Separator bei {sep_pos} (innerer bei {inner_pos}) ✓", html_in, html_out)
+    return _fail(name, f"Sig bei {sp} ist NACH äußerem Separator bei {sep_pos}", html_in, html_out)
 
 
 def test_skip_on_marker() -> TestResult:
@@ -302,22 +293,18 @@ def test_skip_on_marker() -> TestResult:
         + _QUOTED_CONTENT
         + "</body></html>"
     )
-    result = _run(_multipart(html_in))
-    html = _html(result)
-    count = html.count(mail_processor._SIG_MARKER_START)
+    _, html_out = _run(_multipart(html_in))
+    count = html_out.count(mail_processor._SIG_MARKER_START)
     if count == 1:
-        return _ok(name, "SKIP korrekt — nur 1 Sig-Marker im Ergebnis ✓")
+        return _ok(name, "SKIP korrekt — nur 1 Sig-Marker im Ergebnis ✓", html_in, html_out)
     if count == 0:
-        return _fail(name, "Kein Marker im Ergebnis — Marker aus Eingabe verschwunden?")
-    return _fail(name, f"Doppelte Injection! {count} Marker im Ergebnis")
+        return _fail(name, "Kein Marker im Ergebnis — Marker aus Eingabe verschwunden?", html_in, html_out)
+    return _fail(name, f"Doppelte Injection! {count} Marker im Ergebnis", html_in, html_out)
 
 
 def test_skip_on_class_sentinel() -> TestResult:
     name = "SKIP: Class-Sentinel (exo-gateway-sig) im Thread — iOS Mail Szenario"
-    # Simulates iOS Mail having stripped the comment but kept the class attribute
-    prev_sig_ios = (
-        f'<div class="{mail_processor._SIG_CLASS}">' + _SIG_HTML + "</div>"
-    )
+    prev_sig_ios = f'<div class="{mail_processor._SIG_CLASS}">' + _SIG_HTML + "</div>"
     html_in = (
         "<html><body>"
         "<p>Neue Antwort hier.</p>"
@@ -325,22 +312,18 @@ def test_skip_on_class_sentinel() -> TestResult:
         + '<blockquote type="cite"><p>Vorherige Mail.</p></blockquote>'
         + "</body></html>"
     )
-    result = _run(_multipart(html_in))
-    html = _html(result)
-    # A new marker should NOT be injected (SKIP triggered by class sentinel)
-    count = html.count(mail_processor._SIG_MARKER_START)
-    class_count = html.count(f'class="{mail_processor._SIG_CLASS}"')
+    _, html_out = _run(_multipart(html_in))
+    count = html_out.count(mail_processor._SIG_MARKER_START)
+    class_count = html_out.count(f'class="{mail_processor._SIG_CLASS}"')
     if count == 0 and class_count >= 1:
-        return _ok(name, "SKIP korrekt — kein neuer Marker injiziert, Class-Sentinel erkannt ✓")
+        return _ok(name, "SKIP korrekt — kein neuer Marker injiziert, Class-Sentinel erkannt ✓", html_in, html_out)
     if count > 0:
-        return _fail(name, f"Doppelte Injection! {count} Marker im Ergebnis — Class-Sentinel wurde nicht erkannt")
-    return _fail(name, f"Unerwarteter Zustand: marker={count}, class={class_count}")
+        return _fail(name, f"Doppelte Injection! {count} Marker im Ergebnis — Class-Sentinel wurde nicht erkannt", html_in, html_out)
+    return _fail(name, f"Unerwarteter Zustand: marker={count}, class={class_count}", html_in, html_out)
 
 
 def test_no_false_skip_on_client_sig() -> TestResult:
     name = "Kein falscher SKIP: Nur Outlook-Client-Sig, kein Gateway-Marker"
-    # Thread has Alexander's regular Outlook sig from a previous REAL email,
-    # but NO gateway marker/sentinel — must NOT be skipped.
     html_in = (
         "<html><head></head><body>"
         '<div class="WordSection1">'
@@ -348,16 +331,15 @@ def test_no_false_skip_on_client_sig() -> TestResult:
         + _OUTLOOK_SEP
         + _QUOTED_CONTENT
         + "<p>Beste Gr&uuml;&szlig;e aus der Vorgeschichte:</p>"
-        + _CLIENT_SIG  # regular client sig in quoted area, no gateway markers
-        + _CLIENT_SIG  # Alexander's current client sig
+        + _CLIENT_SIG
+        + _CLIENT_SIG
         + "</div></body></html>"
     )
-    result = _run(_multipart(html_in))
-    html = _html(result)
-    sp = _sig_pos(html)
+    _, html_out = _run(_multipart(html_in))
+    sp = _sig_pos(html_out)
     if sp is None:
-        return _fail(name, "Gateway-Sig wurde NICHT injiziert — falscher SKIP_SIG_IN_THREAD!")
-    return _ok(name, f"Korrekt injiziert bei pos {sp} — kein falscher SKIP ✓")
+        return _fail(name, "Gateway-Sig wurde NICHT injiziert — falscher SKIP_SIG_IN_THREAD!", html_in, html_out)
+    return _ok(name, f"Korrekt injiziert bei pos {sp} — kein falscher SKIP ✓", html_in, html_out)
 
 
 def test_client_sig_stripped() -> TestResult:
@@ -365,42 +347,38 @@ def test_client_sig_stripped() -> TestResult:
     if settings_store.get("STRIP_CLIENT_SIGS") is False:
         return TestResult(name, True, "STRIP_CLIENT_SIGS deaktiviert — Test übersprungen")
     html_in = _outlook_html(include_client_sig=True)
-    result = _run(_multipart(html_in))
-    html = _html(result)
-    sp = _sig_pos(html)
+    _, html_out = _run(_multipart(html_in))
+    sp = _sig_pos(html_out)
     if sp is None:
-        return _fail(name, "Gateway-Sig nicht gefunden")
-    # After STRIP, check that the gateway sig appears only ONCE
-    # (client sig tokens should be gone, gateway sig present)
-    count = html.count(mail_processor._SIG_MARKER_START)
+        return _fail(name, "Gateway-Sig nicht gefunden", html_in, html_out)
+    count = html_out.count(mail_processor._SIG_MARKER_START)
     if count != 1:
-        return _fail(name, f"Erwartet 1 Sig-Marker, gefunden: {count}")
-    return _ok(name, f"Gateway-Sig korrekt bei pos {sp}, Client-Sig gestrippt ✓")
+        return _fail(name, f"Erwartet 1 Sig-Marker, gefunden: {count}", html_in, html_out)
+    return _ok(name, f"Gateway-Sig korrekt bei pos {sp}, Client-Sig gestrippt ✓", html_in, html_out)
 
 
 def test_outlook_separator_not_stripped() -> TestResult:
     name = "Outlook-Separator wird NICHT als Sig-Kandidat gestrippt"
-    html_in = _outlook_html(include_client_sig=False)  # no client sig, only separator
-    result = _run(_multipart(html_in))
-    html = _html(result)
-    sp = _sig_pos(html)
+    html_in = _outlook_html(include_client_sig=False)
+    _, html_out = _run(_multipart(html_in))
+    sp = _sig_pos(html_out)
     if sp is None:
-        return _fail(name, "Gateway-Sig nicht gefunden — Separator wurde möglicherweise fälschlich gestrippt")
-    sep_pos = _find(html, "border:none", "border-top:solid")
+        return _fail(name, "Gateway-Sig nicht gefunden — Separator wurde möglicherweise fälschlich gestrippt", html_in, html_out)
+    sep_pos = _find(html_out, "border:none", "border-top:solid")
     if sep_pos is None:
-        return _fail(name, "Outlook-Separator wurde aus dem Ergebnis entfernt — fälschlich gestrippt!")
+        return _fail(name, "Outlook-Separator wurde aus dem Ergebnis entfernt — fälschlich gestrippt!", html_in, html_out)
     if sp < sep_pos:
-        return _ok(name, f"Separator erhalten bei {sep_pos}, Sig korrekt davor bei {sp} ✓")
-    return _fail(name, f"Sig bei {sp} ist NACH Separator bei {sep_pos}")
+        return _ok(name, f"Separator erhalten bei {sep_pos}, Sig korrekt davor bei {sp} ✓", html_in, html_out)
+    return _fail(name, f"Sig bei {sp} ist NACH Separator bei {sep_pos}", html_in, html_out)
 
 
 def test_class_sentinel_in_result() -> TestResult:
-    name = "Ergebnis enthält class=\"exo-gateway-sig\" Wrapper"
-    result = _run(_multipart("<html><body><p>Test</p></body></html>"))
-    html = _html(result)
-    if f'class="{mail_processor._SIG_CLASS}"' in html:
-        return _ok(name, "class=\"exo-gateway-sig\" Wrapper im Ergebnis vorhanden ✓")
-    return _fail(name, "class=\"exo-gateway-sig\" fehlt — iOS Mail Sentinel nicht eingebaut")
+    name = 'Ergebnis enthält class="exo-gateway-sig" Wrapper'
+    html_in = "<html><body><p>Test</p></body></html>"
+    _, html_out = _run(_multipart(html_in))
+    if f'class="{mail_processor._SIG_CLASS}"' in html_out:
+        return _ok(name, 'class="exo-gateway-sig" Wrapper im Ergebnis vorhanden ✓', html_in, html_out)
+    return _fail(name, 'class="exo-gateway-sig" fehlt — iOS Mail Sentinel nicht eingebaut', html_in, html_out)
 
 
 # ── Runner ─────────────────────────────────────────────────────────────────────
@@ -436,7 +414,13 @@ def run_all() -> dict:
         "passed": passed,
         "failed": len(results) - passed,
         "results": [
-            {"name": r.name, "passed": r.passed, "detail": r.detail}
+            {
+                "name": r.name,
+                "passed": r.passed,
+                "detail": r.detail,
+                "input_html": r.input_html,
+                "output_html": r.output_html,
+            }
             for r in results
         ],
     }

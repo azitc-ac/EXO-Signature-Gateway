@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.322 — 2026-06-30 — feat: Selbsttest-Vorschau (Eingabe vs. Ausgabe Modal)
+
+Selbsttest zeigt pro Test einen "Vorschau"-Knopf. Klick öffnet Modal mit zwei
+sandboxed iframes nebeneinander: links "Eingabe · Mail-Client" (synthetisches MIME),
+rechts "Ausgabe · Gateway-injiziert" (Ergebnis nach inject()). Schließen per ×,
+Klick neben Modal oder Escape.
+
 ## v1.4.321 — 2026-06-30 — feat: In-Process Selbsttest (12 Tests, Knopf in Erweitert)
 
 Neues Modul app/self_test.py mit 12 synthetischen MIME-Tests für mail_processor.inject():
