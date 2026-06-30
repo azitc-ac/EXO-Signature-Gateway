@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.292 — 2026-06-30 — feat: Minimalsignatur-Platzhalter in Einstellungen und Postfächer
+
+Einstellungen: Minimalsignatur-Zeile zu vollständigem Platzhalter-Block
+ausgebaut (gleicher Stil wie automatische S/MIME-Regeln, ausgegraut).
+Postfächer: neue Spalte „Minimalsignatur" mit Vorlage-Dropdown direkt
+rechts neben „Signatur", Spalten-Header mit „Demnächst"-Badge.
+
 ## v1.4.291 — 2026-06-30 — feat: Platzhalter für automatische S/MIME-Regeln
 
 Ausgegraut-Vorschau der geplanten Funktion „Automatische S/MIME-Regeln"

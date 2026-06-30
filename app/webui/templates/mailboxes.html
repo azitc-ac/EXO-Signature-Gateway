@@ -24,6 +24,10 @@
         <tr style="border-bottom:2px solid #e2e8f0">
           <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555">Postfach</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:100px">Signatur</th>
+          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">
+            Minimalsignatur
+            <span style="font-size:10px;font-weight:500;background:#e2e8f0;color:#64748b;padding:1px 5px;border-radius:8px;display:block;margin-top:2px">Demnächst</span>
+          </th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:140px">Vorlage</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">Add-in Vorlagen</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:100px">S/MIME</th>
@@ -343,6 +347,29 @@ function renderMailboxTable(mailboxes) {
     if (mb.sig) sigCb.checked = true;
     tdSig.appendChild(sigCb);
 
+    // Minimalsignatur cell (placeholder — no effect yet)
+    var tdMinSig = document.createElement('td');
+    tdMinSig.style.cssText = 'text-align:center;padding:6px 8px;opacity:0.5';
+    tdMinSig.title = 'Funktion noch nicht verfügbar';
+    var minSigSel = document.createElement('select');
+    minSigSel.className = 'mb-min-sig';
+    minSigSel.dataset.idx = String(i);
+    minSigSel.style.cssText = 'font-size:12px;max-width:120px';
+    minSigSel.disabled = true;
+    var optNone = document.createElement('option');
+    optNone.value = '';
+    optNone.textContent = '— keine —';
+    if (!mb.min_sig_template) optNone.selected = true;
+    minSigSel.appendChild(optNone);
+    _templateList.forEach(function(name) {
+      var opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      if (name === mb.min_sig_template) opt.selected = true;
+      minSigSel.appendChild(opt);
+    });
+    tdMinSig.appendChild(minSigSel);
+
     // Template select cell
     var tdTpl = document.createElement('td');
     tdTpl.style.cssText = 'text-align:center;padding:6px 8px';
@@ -380,6 +407,7 @@ function renderMailboxTable(mailboxes) {
 
     tr.appendChild(tdEmail);
     tr.appendChild(tdSig);
+    tr.appendChild(tdMinSig);
     tr.appendChild(tdTpl);
     tr.appendChild(tdAddin);
     tr.appendChild(tdSmime);
