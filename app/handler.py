@@ -11,6 +11,7 @@ import time
 
 import config
 import graph_client
+import held_mails
 import loop_detector
 import mail_audit
 import mail_processor
@@ -643,6 +644,16 @@ class SignatureHandler:
                     enc_msg["Subject"] = _encode_subject(new_subject)
                     outbound = enc_msg.as_bytes()
                     log.info("Mail encrypted for %s", recipients)
+
+            if settings_store.get("MAINTENANCE_MODE"):
+                held_mails.hold(sender, recipients, outbound, modified)
+                stats.increment("held")
+                log.warning(
+                    "MAINTENANCE MODE: mail from=%s to=%s held (not delivered) — "
+                    "%d mail(s) in queue", sender, recipients, held_mails.count()
+                )
+                _audit("held")
+                return "250 OK"
 
             reinject.send(sender, recipients, outbound)
             stats.increment("processed")

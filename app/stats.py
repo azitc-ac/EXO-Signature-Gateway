@@ -22,7 +22,7 @@ _lock = RLock()
 _daily_lock = RLock()
 
 KEYS = (
-    "processed", "fallback", "errors",
+    "processed", "fallback", "errors", "held",
     "smime_signed", "smime_encrypted", "smime_decrypted", "certs_harvested",
     "graph_api_calls", "kv_sign_calls",
 )

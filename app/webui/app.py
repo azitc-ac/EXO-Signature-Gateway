@@ -30,6 +30,7 @@ from fastapi.templating import Jinja2Templates
 
 import config
 import graph_client
+import held_mails as _held_mails_mod
 import mail_processor
 import pkce as pkce_mod
 import settings_store
@@ -1784,6 +1785,56 @@ async def api_get_template_policies(_=Depends(_check_auth)):
     return JSONResponse(settings_store.get("TEMPLATE_POLICIES") or {"sig": "default"})
 
 
+# ── Wartungsmodus / Held Mails ────────────────────────────────────────────────
+
+@app.get("/api/maintenance/mails")
+async def api_held_mails_list(_: str = Depends(_require_admin)):
+    return JSONResponse({
+        "maintenance_mode": bool(settings_store.get("MAINTENANCE_MODE")),
+        "mails": _held_mails_mod.list_all(),
+    })
+
+
+@app.get("/api/maintenance/mails/{mail_id}/preview", response_class=HTMLResponse)
+async def api_held_mail_preview(mail_id: str, _: str = Depends(_require_admin)):
+    html = _held_mails_mod.get_preview_html(mail_id)
+    if html is None:
+        raise HTTPException(404, "Mail not found")
+    return HTMLResponse(html or "<em>(kein HTML-Inhalt)</em>")
+
+
+@app.delete("/api/maintenance/mails/{mail_id}")
+async def api_held_mail_delete(mail_id: str, _: str = Depends(_require_admin)):
+    if not _held_mails_mod.delete(mail_id):
+        raise HTTPException(404, "Mail not found")
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/maintenance/mails/{mail_id}/release")
+async def api_held_mail_release(mail_id: str, _: str = Depends(_require_admin)):
+    import reinject as _reinject
+    result = _held_mails_mod.get_raw(mail_id)
+    if result is None:
+        raise HTTPException(404, "Mail not found")
+    from_addr, to_addrs, raw_bytes = result
+    try:
+        await asyncio.get_event_loop().run_in_executor(
+            None, lambda: _reinject.send(from_addr, to_addrs, raw_bytes)
+        )
+    except Exception as exc:
+        raise HTTPException(500, f"Zustellung fehlgeschlagen: {exc}")
+    _held_mails_mod.delete(mail_id)
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/maintenance/mode")
+async def api_set_maintenance_mode(request: Request, _: str = Depends(_require_admin)):
+    body = await request.json()
+    enabled = bool(body.get("enabled", False))
+    settings_store.update({"MAINTENANCE_MODE": enabled})
+    return JSONResponse({"ok": True, "maintenance_mode": enabled})
+
+
 @app.post("/api/settings/sender-mailboxes/refresh")
 async def api_refresh_sender_mailboxes(user: str = Depends(_require_admin)):
     graph_client.invalidate_sender_mailboxes_cache()
@@ -3480,18 +3531,20 @@ async def api_system_info(user: str = Depends(_check_auth)):
     peak = _audit_mod.peak_hour(today_str)
 
     return {
-        "disk_total_mb":  disk_total_mb,
-        "disk_used_mb":   disk_used_mb,
-        "disk_free_mb":   disk_free_mb,
-        "disk_pct":       disk_pct,
-        "db_size_kb":     db_size_kb,
-        "logs_size_kb":   logs_size_kb,
-        "rss_mb":         rss_mb,
-        "uptime_s":       uptime_s,
-        "in_flight":      in_flight,
-        "avg_ms_24h":     avg_ms,
-        "peak_hour":      peak[0] if peak else None,
-        "peak_hour_cnt":  peak[1] if peak else None,
+        "disk_total_mb":    disk_total_mb,
+        "disk_used_mb":     disk_used_mb,
+        "disk_free_mb":     disk_free_mb,
+        "disk_pct":         disk_pct,
+        "db_size_kb":       db_size_kb,
+        "logs_size_kb":     logs_size_kb,
+        "rss_mb":           rss_mb,
+        "uptime_s":         uptime_s,
+        "in_flight":        in_flight,
+        "avg_ms_24h":       avg_ms,
+        "peak_hour":        peak[0] if peak else None,
+        "peak_hour_cnt":    peak[1] if peak else None,
+        "maintenance_mode": bool(settings_store.get("MAINTENANCE_MODE")),
+        "held_mail_count":  _held_mails_mod.count(),
     }
 
 

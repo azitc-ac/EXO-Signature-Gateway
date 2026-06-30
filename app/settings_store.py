@@ -100,6 +100,7 @@ DEFAULTS: dict = {
     "SKIP_DUPLICATE_SIG": True,         # Skip re-injection if gateway signature already in compose area
     "GATEWAY_NAME": "EXO Signature Gateway",  # Prefix for EXO connectors, rules, distribution groups
     "APP_POOL": [],   # [{client_id, client_secret, label}] — leer = primäre CLIENT_ID/SECRET nutzen
+    "MAINTENANCE_MODE": False,  # Wenn True: Mails werden verarbeitet aber nicht zugestellt (Test-Modus)
 }
 
 _lock = RLock()

@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.309 — 2026-06-30 — feat: Wartungsmodus (Mails halten statt zustellen)
+
+Neuer Modus unter Einstellungen → Erweitert → Wartungsmodus:
+- Mails werden vollständig verarbeitet (Signatur, S/MIME), aber NICHT zugestellt
+- Zurückgehaltene Mails (max. 100) in /app/data/held_mails/ gespeichert (Container-Restart-sicher)
+- Web UI: Tabelle mit Von/An/Betreff/Zeit, Preview-Modal (iframe), Löschen, Zustellen
+- Dashboard-Banner wenn Modus aktiv (Anzahl zurückgehaltener Mails, Link zu Erweitert)
+- Neuer stats-Key "held"; API: /api/maintenance/mails, /preview, DELETE, /release, /mode
+- Nur Outbound-Kanal betroffen (ACME-Replies, Auto-Submitted, Calendar-Pass-Through unberührt)
+
 ## v1.4.307 — 2026-06-30 — feat: Thunderbird-Pattern + Positions-Warnung bei verdächtig tiefem Separator
 
 - Thunderbird `moz-cite-prefix` als neues Quote-Pattern in `_append_html_sig`
