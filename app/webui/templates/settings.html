@@ -818,7 +818,7 @@ function _updShowRunning(log) {
     <pre style="margin:8px 0 0;white-space:pre-wrap;font-size:11px;max-height:200px;overflow-y:auto;color:#374151">${_esc(log)}</pre>
   </div>`;
 }
-function _updShowSuccess(d) {
+function _updShowSuccess(d, autoReload = true) {
   try { localStorage.removeItem(_UPD_LS_KEY); } catch(e) {}
   const b = document.getElementById('upd-btn'); if(b) { b.innerHTML = 'Jetzt aktualisieren'; }
   const el = document.getElementById('upd-status'); el.style.display = 'block';
@@ -827,11 +827,12 @@ function _updShowSuccess(d) {
     <strong>Update erfolgreich!</strong> ${versionStr}
     <pre style="margin:8px 0 0;white-space:pre-wrap;font-size:11px;max-height:200px;overflow-y:auto">${_esc(d.log || '')}</pre>
     <div style="margin-top:10px;display:flex;align-items:center;gap:8px">
-      <button class="btn primary btn-sm" onclick="location.reload()">Seite neu laden</button>
+      <button class="btn primary btn-sm" onclick="_updClear().then(()=>location.reload())">Seite neu laden</button>
       <button class="btn secondary btn-sm" onclick="_updClear()">Status zurücksetzen</button>
-      <span id="upd-reload-countdown" style="font-size:12px;color:#15803d"></span>
+      ${autoReload ? '<span id="upd-reload-countdown" style="font-size:12px;color:#15803d"></span>' : ''}
     </div>
   </div>`;
+  if (!autoReload) return;
   let t = 5;
   const cd = document.getElementById('upd-reload-countdown');
   const iv = setInterval(() => {
@@ -917,7 +918,7 @@ async function _updCheckWatcher() {
       _updPollTimer = setInterval(_updPoll, 3000);
       return;
     } else if (d.state === 'success') {
-      _updShowSuccess(d); return;
+      _updShowSuccess(d, false); return;
     } else if (d.state === 'error') {
       _updShowError(d.log || 'Unbekannter Fehler');
       try { localStorage.removeItem(_UPD_LS_KEY); } catch(e) {}
