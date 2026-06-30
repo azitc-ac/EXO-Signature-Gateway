@@ -24,6 +24,11 @@ do_git_update() {
 export HOME="${HOME:-/root}"
 git config --global --add safe.directory "$REPO" 2>/dev/null || true
 
+# Veraltetes "running" vom letzten Absturz wegräumen
+if python3 -c "import json,sys; d=json.load(open('$STATUS')); sys.exit(0 if d.get('state')=='running' else 1)" 2>/dev/null; then
+  rm -f "$STATUS"
+fi
+
 write_heartbeat  # sofort beim Start schreiben, nicht erst nach 60s
 
 _hb_counter=0

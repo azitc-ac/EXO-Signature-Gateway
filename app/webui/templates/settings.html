@@ -791,9 +791,10 @@ async function _updPoll() {
       _updConnLost = false;
     }
     const state = d.state || 'idle';
-    if (state === 'idle' && (Date.now() - _updPollStart) > UPD_WATCHER_TIMEOUT) {
+    const elapsed = Date.now() - _updPollStart;
+    if ((state === 'idle' || state === 'running') && elapsed > UPD_WATCHER_TIMEOUT) {
       clearInterval(_updPollTimer);
-      _updShowError('Kein Signal vom Host-Watcher nach 60 Sekunden. Bitte prüfen: <code>systemctl status exo-gateway-updater</code>');
+      _updShowError('Timeout: kein Abschluss nach 5 Minuten. Status prüfen oder zurücksetzen.');
       const b = document.getElementById('upd-btn'); b.disabled = false; b.innerHTML = 'Jetzt aktualisieren';
       return;
     }
@@ -816,6 +817,7 @@ function _updShowRunning(log) {
   el.innerHTML = `<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;padding:12px;font-size:12px">
     <strong style="color:#0369a1">Update läuft…</strong>
     <pre style="margin:8px 0 0;white-space:pre-wrap;font-size:11px;max-height:200px;overflow-y:auto;color:#374151">${_esc(log)}</pre>
+    <div style="margin-top:8px"><button class="btn secondary btn-sm" onclick="_updClear().then(()=>location.reload())">Abbrechen / Status zurücksetzen</button></div>
   </div>`;
 }
 function _updShowSuccess(d, autoReload = true) {
