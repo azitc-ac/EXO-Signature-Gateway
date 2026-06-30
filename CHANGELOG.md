@@ -5,6 +5,11 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.286 — 2026-06-30 — fix: Untermenü horizontal scrollbar auf Mobile
+
+overflow-x:auto + white-space:nowrap auf .nav-sub-tabs — nur das Menü
+scrollt, nicht die ganze Seite. Scrollbar unsichtbar (scrollbar-width:none).
+
 ## v1.4.285 — 2026-06-30 — fix: Update-Spinner und Countdown funktionieren jetzt wirklich
 
 Race Condition: Browser pollte Status sofort nach Trigger, fand state=idle
