@@ -657,13 +657,12 @@
 
   <!-- Buttons -->
   <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
-    <button class="btn primary" id="upd-btn" onclick="startUpdate()" disabled style="display:flex;align-items:center;gap:6px">
+    <button class="btn primary" id="upd-btn" onclick="startUpdate()" disabled style="display:flex;align-items:center;gap:6px;min-width:180px;justify-content:center">
       Jetzt aktualisieren
     </button>
     <button class="btn secondary" id="cl-btn" onclick="toggleChangelog()" style="display:flex;align-items:center;gap:6px">
       Changelog anzeigen
     </button>
-    <span id="upd-spinner" style="display:none;font-size:13px;color:#64748b">Warte auf Watcher…</span>
   </div>
 
   <div id="upd-watcher-badge" style="font-size:12px;margin-bottom:8px"></div>
@@ -719,10 +718,17 @@ async function checkUpdate() {
   btn.disabled = false; btn.textContent = 'Auf Updates prüfen';
 }
 
+function _updSetBtnState(text, active) {
+  const btn = document.getElementById('upd-btn');
+  btn.disabled = true;
+  btn.innerHTML = active
+    ? `<span style="display:inline-block;animation:spin 1s linear infinite;margin-right:4px">⟳</span> ${text}`
+    : text;
+}
+
 async function startUpdate() {
   const btn = document.getElementById('upd-btn');
-  const spinner = document.getElementById('upd-spinner');
-  btn.disabled = true; spinner.style.display = 'inline';
+  _updSetBtnState('Wird gestartet…', true);
   document.getElementById('upd-status').style.display = 'none';
   clearInterval(_updPollTimer);
   try {
@@ -731,12 +737,13 @@ async function startUpdate() {
       body: JSON.stringify({channel: _updGetChannel()}),
     });
     const d = await r.json();
-    if (!d.ok) { _updShowError(d.error || `HTTP ${r.status}`); btn.disabled = false; spinner.style.display = 'none'; return; }
+    if (!d.ok) { _updShowError(d.error || `HTTP ${r.status}`); btn.disabled = false; btn.innerHTML = 'Jetzt aktualisieren'; return; }
+    _updSetBtnState('Aktualisiert…', true);
     try { localStorage.setItem(_UPD_LS_KEY, String(Date.now())); } catch(e) {}
     _updPollStart = Date.now();
     _updPollTimer = setInterval(_updPoll, 3000);
     _updPoll();
-  } catch(e) { _updShowError(e.message); btn.disabled = false; spinner.style.display = 'none'; }
+  } catch(e) { _updShowError(e.message); btn.disabled = false; btn.innerHTML = 'Jetzt aktualisieren'; }
 }
 
 let _updConnLost = false;
@@ -753,19 +760,20 @@ async function _updPoll() {
     if (state === 'idle' && (Date.now() - _updPollStart) > UPD_WATCHER_TIMEOUT) {
       clearInterval(_updPollTimer);
       _updShowError('Kein Signal vom Host-Watcher nach 60 Sekunden. Bitte prüfen: <code>systemctl status exo-gateway-updater</code>');
-      document.getElementById('upd-btn').disabled = false;
-      document.getElementById('upd-spinner').style.display = 'none';
+      const b = document.getElementById('upd-btn'); b.disabled = false; b.innerHTML = 'Jetzt aktualisieren';
       return;
     }
-    if (state === 'running') { _updShowRunning(d.log || ''); return; }
+    if (state === 'running') { _updSetBtnState('Aktualisiert…', true); _updShowRunning(d.log || ''); return; }
     clearInterval(_updPollTimer);
-    document.getElementById('upd-spinner').style.display = 'none';
     if (state === 'success') { _updShowSuccess(d); }
-    else if (state === 'error') { _updShowError(d.log || 'Unbekannter Fehler'); document.getElementById('upd-btn').disabled = false; }
+    else if (state === 'error') {
+      _updShowError(d.log || 'Unbekannter Fehler');
+      const b = document.getElementById('upd-btn'); b.disabled = false; b.innerHTML = 'Jetzt aktualisieren';
+    }
   } catch(e) {
-    // Container ist wahrscheinlich gerade im Neustart — sichtbar kommunizieren
     _updConnLost = true;
-    _updShowRunning('⟳  Container wird neu gestartet, Verbindung wird wiederhergestellt…');
+    _updSetBtnState('Neustart…', true);
+    _updShowRunning('Container wird neu gestartet, Verbindung wird wiederhergestellt…');
   }
 }
 
@@ -778,6 +786,7 @@ function _updShowRunning(log) {
 }
 function _updShowSuccess(d) {
   try { localStorage.removeItem(_UPD_LS_KEY); } catch(e) {}
+  const b = document.getElementById('upd-btn'); if(b) { b.innerHTML = 'Jetzt aktualisieren'; }
   const el = document.getElementById('upd-status'); el.style.display = 'block';
   const versionStr = d.version_before ? `${_esc(d.version_before)} → <strong>${_esc(d.version_after || '?')}</strong>` : '';
   el.innerHTML = `<div class="alert success" style="font-size:13px">
@@ -883,9 +892,8 @@ async function _updCheckWatcher() {
   } catch(e) {
     // Container ist down — wenn Update aus localStorage bekannt: Polling starten
     if (resumeFromStorage) {
-      document.getElementById('upd-btn').disabled = true;
-      document.getElementById('upd-spinner').style.display = 'inline';
-      _updShowRunning('⟳  Container wird neu gestartet, Verbindung wird wiederhergestellt…');
+      _updSetBtnState('Neustart…', true);
+      _updShowRunning('Container wird neu gestartet, Verbindung wird wiederhergestellt…');
       _updPollStart = Date.now();
       _updPollTimer = setInterval(_updPoll, 3000);
       return;
@@ -904,6 +912,11 @@ async function _updCheckWatcher() {
     checkUpdate();
   }
 })();
+</script>
+<style>
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
+<script>
 </script>
 
 <!-- Konfiguration & Neustart -->
