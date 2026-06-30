@@ -18,6 +18,10 @@
   <div id="mb-table-wrap" style="display:none">
     <input type="text" id="mb-filter" placeholder="Filtern…" oninput="filterMailboxes(this.value)"
            style="width:100%;max-width:320px;margin-bottom:8px;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px">
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+      <button class="btn secondary" onclick="activateAll('sig')" style="font-size:12px;padding:4px 10px">Alle Signatur aktivieren</button>
+      <button class="btn secondary" onclick="activateAll('smime')" style="font-size:12px;padding:4px 10px">Alle S/MIME aktivieren</button>
+    </div>
     <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
     <table style="min-width:380px;width:100%;border-collapse:collapse;font-size:13px">
       <thead>
@@ -420,6 +424,17 @@ function filterMailboxes(q) {
   q = q.toLowerCase();
   document.querySelectorAll('#mb-tbody tr').forEach(function(tr) {
     tr.style.display = tr.dataset.search.includes(q) ? '' : 'none';
+  });
+}
+
+function activateAll(type) {
+  var cls = type === 'sig' ? '.mb-sig' : '.mb-smime';
+  var boxes = document.querySelectorAll(cls);
+  if (!boxes.length) return;
+  var allChecked = Array.from(boxes).every(function(cb) { return cb.checked; });
+  boxes.forEach(function(cb) {
+    cb.checked = !allChecked;
+    cb.dispatchEvent(new Event('change'));
   });
 }
 

@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.297 — 2026-06-30 — feat: Alle-aktivieren Buttons + Platzhalter Vorlagen-Regeln
+
+Postfächer-Seite: zwei Buttons unterhalb der Filterbox — "Alle Signatur aktivieren"
+und "Alle S/MIME aktivieren" (Toggle: alle an / alle aus wenn schon alle an).
+Einstellungen: neuer Demnächst-Platzhalter "Regeln zum Zuweisen von Vorlagen"
+(Vorschau der geplanten Regel-Tabelle mit Bedingung/Wert/Vorlage).
+
 ## v1.4.295 — 2026-06-30 — fix: Backup-Restore merged USER_BOOKINGS; fetch-bookings-urls CLIENT_ID Bug
 
 Backup-Restore: USER_BOOKINGS (Bookings-URLs) aus dem laufenden System werden in
