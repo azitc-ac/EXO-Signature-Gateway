@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.317 — 2026-06-30 — fix: _has_sig_in_thread Fingerprint nur bei erkannter Quote-Grenze
+
+Verfeinerung von v1.4.315/316: Fingerprint-Check wird wieder verwendet, aber nur wenn
+_find_first_quote_wrapper_pos einen Quote-Boundary findet (first_quote is not None).
+Ohne erkannte Grenze wäre search_area die gesamte E-Mail inkl. Compose-Bereich, was
+die eigene Client-Sig des Senders als False Positive trifft.
+Mit erkannter Grenze (z.B. blockquote bei iOS Mail) ist die Suche auf den zitierten
+Bereich eingeschränkt — so bleibt der iOS-Mail-Fallback erhalten.
+
 ## v1.4.315 — 2026-06-30 — fix: _has_sig_in_thread Fingerprint-Check entfernt (false positive bei Thread-History)
 
 Ursache: Der Fingerprint-Check in _has_sig_in_thread verwendete dieselben Tokens wie der

@@ -147,21 +147,38 @@ def _has_sig_in_thread(msg: email.message.Message, sig_html: str = "") -> bool:
     """
     Return True if a gateway signature is already present anywhere in the message.
 
-    Only uses gateway-specific markers/sentinels — NOT fingerprint.
-    Fingerprint would false-positive on the sender's own regular Outlook client sig
-    appearing in deep thread history (same tokens as the gateway sig template).
+    Detection layers:
+    1. Gateway-specific HTML comment/sentinel — most reliable
+    2. Fingerprint match — ONLY when a quote boundary is detected (first_quote is not None).
+       Without a known boundary the search area would be the entire email including the
+       sender's own compose-area client sig, which has the same tokens as the gateway
+       sig template and would cause a false-positive SKIP on every reply.
     """
     html = extract_html(msg)
     if not html:
         return False
-    # Check for both the x_-prefixed variant (Exchange sometimes adds this prefix
-    # when quoting HTML content through transport rules).
+    # Check for gateway-specific markers (incl. x_-prefix Exchange may add when quoting).
     if (html.find(_SIG_MARKER_START) != -1
             or html.find(_SIG_DIV_ATTR_S) != -1
             or html.find('id="x_exo-sig-s"') != -1
             or html.find("id='x_exo-sig-s'") != -1):
         log.info("_has_sig_in_thread: gateway marker/sentinel found — skipping injection")
         return True
+    # Fingerprint fallback for clients that strip HTML comments/attributes (e.g. iOS Mail).
+    # Only safe when a quote boundary is identified — otherwise search_area = entire email
+    # and the sender's current client sig (same tokens) would cause a false positive.
+    if sig_html:
+        fp = _sig_fingerprint(sig_html)
+        if fp:
+            first_quote = _find_first_quote_wrapper_pos(html)
+            if first_quote is not None:
+                search_area = html[first_quote:]
+                if _matches_sig_fp(search_area, fp):
+                    log.info(
+                        "_has_sig_in_thread: fingerprint found in quoted area (pos %d) — skipping injection",
+                        first_quote,
+                    )
+                    return True
     return False
 
 
