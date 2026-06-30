@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.313 — 2026-06-30 — fix: Outlook-Desktop-Separator wird als Sig-Kandidat gestrippt + Diagnose-Logs
+
+Ursache: _strip_wordsection_sig markierte alle unnamed top-level divs als potenzielle
+Sig-Kandidaten. Die Outlook-Desktop-Separator-Div (border:none + 1pt solid) hat keine
+bekannte ID und wurde daher als letzter Kandidat gewählt und via Fingerprint-Check (61%)
+entfernt. Damit war kein Quote-Block mehr vorhanden und _append_html_sig konnte die
+Signatur nirgends vor dem Zitat platzieren.
+
+Fix: Separator-Divs werden jetzt in _strip_wordsection_sig wie divrplyfwdmsg behandelt
+und übersprungen. Zusätzlich INFO-Logs in _inject_into_multipart, _append_html_sig und
+beim SKIP_SIG_IN_THREAD-Guard für bessere Diagnosierbarkeit.
+
 ## v1.4.312 — 2026-06-30 — fix: Outlook-Desktop-Separator Regex reihenfolgeabhängig
 
 Ursache: CSS-Properties im style-Attribut können in beliebiger Reihenfolge stehen.

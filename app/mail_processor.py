@@ -181,7 +181,7 @@ def inject(
     # in ping-pong threads. The existing SKIP_DUPLICATE_SIG setting additionally
     # checks only the compose area for stricter control when explicitly enabled.
     if settings_store.get("SKIP_SIG_IN_THREAD") is not False and _has_sig_in_thread(msg, sig_html):
-        log.debug("Gateway signature already present in thread — skipping injection")
+        log.info("inject: SKIP_SIG_IN_THREAD — gateway sig already in thread, skipping injection")
         loop_detector.mark_as_signed(msg)
         return msg
     if settings_store.get("SKIP_DUPLICATE_SIG") and _has_own_sig_in_compose_area(msg):
@@ -338,6 +338,7 @@ def _inject_into_multipart(msg: email.message.Message, sig_html: str, sig_txt: s
         elif txt_part is None and ct == "text/plain" and not part.get_param("attachment", header="content-disposition"):
             txt_part = part
 
+    log.info("_inject_into_multipart: html_part=%s txt_part=%s", html_part is not None, txt_part is not None)
     if html_part is not None and sig_html:
         src_charset = html_part.get_content_charset() or "utf-8"
         payload = html_part.get_payload(decode=True).decode(src_charset, errors="replace")
@@ -559,10 +560,21 @@ def _strip_wordsection_sig(html: str, sig_fingerprint: frozenset[str] = frozense
                 tag_text = lower[next_open:tag_end_pos]
                 id_m = re.search(r'\bid=["\']([^"\']*)["\']', tag_text)
                 div_id = id_m.group(1).lower() if id_m else None
+                is_outlook_sep = bool(re.search(
+                    r'style=["\']'
+                    r'(?=[^"\']*\bborder\s*:\s*none\b)'
+                    r'(?=[^"\']*\bborder-top\s*:\s*solid\s+#[0-9a-fA-F]{3,6}\s+1[.\d]*pt\b)',
+                    tag_text, re.IGNORECASE))
                 if div_id and div_id in _QUOTE_WRAPPER_IDS:
                     log.info(
                         "_strip_wordsection_sig: skipping quote/forward div id=%r at pos %d",
                         div_id, next_open,
+                    )
+                    current_top_open = None  # not a sig candidate
+                elif is_outlook_sep:
+                    log.info(
+                        "_strip_wordsection_sig: skipping Outlook Desktop separator div at pos %d",
+                        next_open,
                     )
                     current_top_open = None  # not a sig candidate
                 else:
@@ -659,6 +671,7 @@ def _insert_txt_sig(body: str, sig_txt: str) -> str:
 
 
 def _append_html_sig(html: str, sig_html: str) -> str:
+    log.info("_append_html_sig: called, html_len=%d", len(html))
     lower = html.lower()
 
     # Insert before quoted content so signature sits between new text and quote.
