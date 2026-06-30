@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.291 — 2026-06-30 — feat: Platzhalter für automatische S/MIME-Regeln
+
+Ausgegraut-Vorschau der geplanten Funktion „Automatische S/MIME-Regeln"
+im S/MIME-Abschnitt: Verschlüsseln / Signieren / Nicht signieren nach
+Absender, Empfänger oder Kombination. Noch nicht implementiert.
+
 ## v1.4.290 — 2026-06-30 — feat: Signierung global ein/ausschalten + Nicht-signieren-Trigger
 
 Neuer Schalter „Automatisch signieren" (Standard: ein) steuert ob S/MIME-
