@@ -2152,3 +2152,8 @@ _(In v1.0.84 zusammengefasst — Zwischenstand während Debugging-Session)_
 - Transport-Regel mit Distribution-Group-Filter
 - Let's Encrypt TLS-Zertifikat (Certbot)
 - Web-UI: Mailbox-Konfiguration, Signatur-Vorschau
+## v1.4.279 — 2026-06-30 — fix: Countdown immer anzeigen, _updInitiatedHere entfernt
+
+_updInitiatedHere-Flag war zu fragil: manuelle Seitenaktualisierung während
+des Updates setzte es zurück, danach kein Countdown und kein Auto-Reload mehr.
+Gelöst durch Entfernen des Flags — Countdown erscheint jetzt immer bei success.

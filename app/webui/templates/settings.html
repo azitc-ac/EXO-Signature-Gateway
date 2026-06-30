@@ -686,7 +686,6 @@
 let _updPollTimer = null;
 let _updPollStart = null;
 let _watcherOk = false;
-let _updInitiatedHere = false; // true wenn dieses Tab das Update ausgelöst hat
 let _updReloadTimer = null;
 
 function _esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -761,7 +760,6 @@ async function _loadWhatsNew(latestVersion) {
 function _spin(text) { return `<span style="display:inline-block;animation:spin 1s linear infinite">⟳</span> ${text}`; }
 
 async function startUpdate() {
-  _updInitiatedHere = true;
   document.getElementById('upd-btn').disabled = true;
   document.getElementById('upd-btn').innerHTML = _spin('Wird gestartet…');
   document.getElementById('upd-status').style.display = 'none';
@@ -835,17 +833,15 @@ function _updShowSuccess(d) {
   const el = document.getElementById('upd-status'); el.style.display = 'block';
   const versionStr = d.version_before
     ? `${_esc(d.version_before)} → <strong>${_esc(d.version_after || '?')}</strong>` : '';
-  const showCountdown = _updInitiatedHere;
   el.innerHTML = `<div class="alert success" style="font-size:13px">
     <strong>Update erfolgreich!</strong> ${versionStr}
     <pre style="margin:8px 0 0;white-space:pre-wrap;font-size:11px;max-height:200px;overflow-y:auto">${_esc(d.log || '')}</pre>
     <div style="margin-top:10px;display:flex;align-items:center;gap:8px">
       <button class="btn primary btn-sm" onclick="clearInterval(_updReloadTimer);_updClear().then(()=>location.reload())">Jetzt neu laden</button>
       <button class="btn secondary btn-sm" onclick="clearInterval(_updReloadTimer);_updClear()">Später</button>
-      ${showCountdown ? '<span id="upd-countdown" style="font-size:12px;color:#15803d"></span>' : ''}
+      <span id="upd-countdown" style="font-size:12px;color:#15803d"></span>
     </div>
   </div>`;
-  if (!showCountdown) return;
   let t = 30;
   const cd = document.getElementById('upd-countdown');
   if (cd) cd.textContent = `(Seite lädt automatisch in ${t}s neu)`;
@@ -921,7 +917,7 @@ async function toggleChangelog() {
       _updShowRunning(d.log || '');
       _updStartPolling();
     } else if (d.state === 'success') {
-      _updShowSuccess(d); // _updInitiatedHere = false → kein Auto-Reload
+      _updShowSuccess(d);
     } else if (d.state === 'error') {
       _updShowError(d.log || 'Unbekannter Fehler');
     } else if (_watcherOk) {
