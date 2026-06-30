@@ -120,11 +120,16 @@ class TestResult:
     output_html: str = field(default="")
 
 
+# ── Active sig (set by run_all, used by every test via _run) ──────────────────
+_active_sig_html: str = _SIG_HTML
+_active_sig_txt: str = _SIG_TXT
+
+
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 def _run(msg: email.message.Message) -> tuple[email.message.Message, str]:
     """Inject and return (result_msg, output_html)."""
-    result = mail_processor.inject(msg, _SIG_HTML, _SIG_TXT)
+    result = mail_processor.inject(msg, _active_sig_html, _active_sig_txt)
     return result, mail_processor.extract_html(result) or ""
 
 
@@ -399,20 +404,29 @@ _ALL_TESTS = [
 ]
 
 
-def run_all() -> dict:
-    results = []
-    for fn in _ALL_TESTS:
-        try:
-            r = fn()
-        except Exception as exc:
-            r = TestResult(name=fn.__name__, passed=False, detail=f"Exception: {exc}")
-        results.append(r)
+def run_all(sig_html: str | None = None, sig_txt: str | None = None) -> dict:
+    global _active_sig_html, _active_sig_txt
+    _active_sig_html = sig_html if sig_html is not None else _SIG_HTML
+    _active_sig_txt  = sig_txt  if sig_txt  is not None else _SIG_TXT
+    using_real_sig = sig_html is not None
+    try:
+        results = []
+        for fn in _ALL_TESTS:
+            try:
+                r = fn()
+            except Exception as exc:
+                r = TestResult(name=fn.__name__, passed=False, detail=f"Exception: {exc}")
+            results.append(r)
+    finally:
+        _active_sig_html = _SIG_HTML
+        _active_sig_txt  = _SIG_TXT
 
     passed = sum(1 for r in results if r.passed)
     return {
         "total": len(results),
         "passed": passed,
         "failed": len(results) - passed,
+        "using_real_sig": using_real_sig,
         "results": [
             {
                 "name": r.name,

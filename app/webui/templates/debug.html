@@ -1047,24 +1047,40 @@ async function loadHealthInline() {
     <strong>Selbsttest: Mail-Processor</strong>
   </div>
   <div class="step-body">
-    <p style="font-size:13px;color:#57534e;margin:0 0 14px">
-      Prüft <code>mail_processor.inject()</code> in-process mit synthetischen MIME-Nachrichten —
-      kein Netzwerk, keine Exchange-Verbindung, kein Postfach nötig.
+    <p style="font-size:13px;color:#57534e;margin:0 0 16px">
+      Prüft <code>mail_processor.inject()</code> in-process mit synthetischen MIME-Nachrichten.
       Simuliert Outlook Desktop, OWA, iOS Mail und verschachtelte Threads.
+      Mit echter Vorlage und Benutzer wird die reale gerenderete Signatur verwendet.
     </p>
-    <div class="actions" style="margin-bottom:14px">
-      <button class="btn primary" id="selftest-btn" onclick="runSelfTest()">Selbsttest ausführen</button>
-      <span id="selftest-spinner" style="display:none;margin-left:12px;font-size:13px;color:#57534e">Läuft…</span>
+
+    <div style="display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;margin-bottom:16px">
+      <div>
+        <label style="display:block;font-size:12px;color:#64748b;margin-bottom:5px;font-weight:500">Signaturvorlage</label>
+        <select id="selftest-template" style="font-size:13px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:6px;min-width:180px">
+          <option value="">— Testdaten (intern) —</option>
+        </select>
+      </div>
+      <div>
+        <label style="display:block;font-size:12px;color:#64748b;margin-bottom:5px;font-weight:500">Benutzer</label>
+        <select id="selftest-email" style="font-size:13px;padding:6px 10px;border:1px solid #cbd5e1;border-radius:6px;min-width:220px">
+          <option value="">— kein (Testdaten) —</option>
+        </select>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="btn primary" id="selftest-btn" onclick="runSelfTest()">Selbsttest ausführen</button>
+        <span id="selftest-spinner" style="display:none;font-size:13px;color:#57534e">Läuft…</span>
+      </div>
     </div>
+
     <div id="selftest-result" style="display:none">
-      <div id="selftest-summary" style="margin-bottom:12px;font-weight:600;font-size:14px"></div>
-      <table style="width:100%;border-collapse:collapse;font-size:13px" id="selftest-table">
+      <div id="selftest-summary" style="margin-bottom:10px;font-weight:600;font-size:14px"></div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
         <thead>
           <tr style="border-bottom:1px solid #e2e8f0">
             <th style="text-align:left;padding:6px 8px;color:#64748b;font-weight:500">Test</th>
             <th style="text-align:center;padding:6px 8px;color:#64748b;font-weight:500;width:56px">Status</th>
             <th style="text-align:left;padding:6px 8px;color:#64748b;font-weight:500">Detail</th>
-            <th style="text-align:center;padding:6px 8px;color:#64748b;font-weight:500;width:76px">Vorschau</th>
+            <th style="text-align:center;padding:6px 8px;color:#64748b;font-weight:500;width:80px">Vorschau</th>
           </tr>
         </thead>
         <tbody id="selftest-rows"></tbody>
@@ -1073,27 +1089,27 @@ async function loadHealthInline() {
   </div>
 </div>
 
-<!-- Preview modal -->
-<div id="selftest-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:10px;width:92vw;max-width:1300px;max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #e2e8f0">
-      <strong id="modal-title" style="font-size:14px"></strong>
-      <button onclick="closeModal()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b;line-height:1">×</button>
+<!-- Preview modal — nimmt fast den ganzen Bildschirm -->
+<div id="selftest-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;align-items:stretch;justify-content:stretch;padding:16px;box-sizing:border-box">
+  <div style="background:#fff;border-radius:10px;width:100%;height:100%;display:flex;flex-direction:column;box-shadow:0 24px 80px rgba(0,0,0,.35);overflow:hidden">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:1px solid #e2e8f0;flex-shrink:0">
+      <strong id="modal-title" style="font-size:14px;color:#0f172a"></strong>
+      <button onclick="closeModal()" style="background:none;border:none;font-size:24px;line-height:1;cursor:pointer;color:#94a3b8;padding:0 4px" title="Schließen (Esc)">×</button>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;flex:1;overflow:hidden">
-      <div style="display:flex;flex-direction:column;border-right:1px solid #e2e8f0">
-        <div style="padding:8px 14px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#64748b;background:#f8fafc;border-bottom:1px solid #e2e8f0">
+    <div style="display:grid;grid-template-columns:1fr 1fr;flex:1;overflow:hidden;min-height:0">
+      <div style="display:flex;flex-direction:column;border-right:1px solid #e2e8f0;overflow:hidden">
+        <div style="padding:7px 16px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#64748b;background:#f8fafc;border-bottom:1px solid #e2e8f0;flex-shrink:0">
           Eingabe · Mail-Client
         </div>
         <iframe id="modal-input-frame" sandbox="allow-same-origin"
-          style="flex:1;border:none;width:100%" src="about:blank"></iframe>
+          style="flex:1;border:none;width:100%;min-height:0" src="about:blank"></iframe>
       </div>
-      <div style="display:flex;flex-direction:column">
-        <div style="padding:8px 14px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#0ea5e9;background:#f0f9ff;border-bottom:1px solid #bae6fd">
+      <div style="display:flex;flex-direction:column;overflow:hidden">
+        <div style="padding:7px 16px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#0284c7;background:#f0f9ff;border-bottom:1px solid #bae6fd;flex-shrink:0">
           Ausgabe · Gateway-injiziert
         </div>
         <iframe id="modal-output-frame" sandbox="allow-same-origin"
-          style="flex:1;border:none;width:100%" src="about:blank"></iframe>
+          style="flex:1;border:none;width:100%;min-height:0" src="about:blank"></iframe>
       </div>
     </div>
   </div>
@@ -1102,72 +1118,91 @@ async function loadHealthInline() {
 <script>
 var _selftestData = [];
 
+(async function loadSelftestOptions() {
+  try {
+    const r = await fetch('/api/test/mail-processor/options');
+    if (!r.ok) return;
+    const d = await r.json();
+    const tmplSel = document.getElementById('selftest-template');
+    d.templates.forEach(t => {
+      const o = document.createElement('option');
+      o.value = t; o.textContent = t;
+      tmplSel.appendChild(o);
+    });
+    const emailSel = document.getElementById('selftest-email');
+    d.emails.forEach(e => {
+      const o = document.createElement('option');
+      o.value = e; o.textContent = e;
+      emailSel.appendChild(o);
+    });
+  } catch(_) {}
+})();
+
 async function runSelfTest() {
-  document.getElementById('selftest-btn').disabled = true;
+  const btn = document.getElementById('selftest-btn');
+  btn.disabled = true;
   document.getElementById('selftest-spinner').style.display = '';
   document.getElementById('selftest-result').style.display = 'none';
+  const template = document.getElementById('selftest-template').value;
+  const email    = document.getElementById('selftest-email').value;
+  const body = (template || email) ? JSON.stringify({template, email}) : undefined;
   try {
-    const r = await fetch('/api/test/mail-processor', {method: 'POST'});
+    const r = await fetch('/api/test/mail-processor', {
+      method: 'POST',
+      headers: body ? {'Content-Type': 'application/json'} : {},
+      body,
+    });
     const d = await r.json();
     _selftestData = d.results;
     const allPassed = d.failed === 0;
-    const summary = document.getElementById('selftest-summary');
-    summary.innerHTML = allPassed
-      ? `<span style="color:#16a34a">✓ Alle ${d.total} Tests bestanden</span>`
-      : `<span style="color:#dc2626">${d.failed} von ${d.total} Tests fehlgeschlagen</span>`;
-    const rows = document.getElementById('selftest-rows');
-    rows.innerHTML = d.results.map((t, i) => `
+    const sigNote = d.using_real_sig
+      ? ` <span style="font-size:12px;font-weight:400;color:#0284c7">(echte Signatur: ${template || '—'} / ${email || '—'})</span>`
+      : '';
+    document.getElementById('selftest-summary').innerHTML = allPassed
+      ? `<span style="color:#16a34a">✓ Alle ${d.total} Tests bestanden</span>${sigNote}`
+      : `<span style="color:#dc2626">${d.failed} von ${d.total} Tests fehlgeschlagen</span>${sigNote}`;
+    document.getElementById('selftest-rows').innerHTML = d.results.map((t, i) => `
       <tr style="border-bottom:1px solid #f1f5f9;${t.passed ? '' : 'background:#fef2f2'}">
         <td style="padding:7px 8px">${t.name}</td>
         <td style="text-align:center;padding:7px 8px">
-          ${t.passed
-            ? '<span style="color:#16a34a;font-size:16px">✓</span>'
-            : '<span style="color:#dc2626;font-size:16px">✗</span>'}
+          ${t.passed ? '<span style="color:#16a34a;font-size:16px">✓</span>'
+                     : '<span style="color:#dc2626;font-size:16px">✗</span>'}
         </td>
         <td style="padding:7px 8px;color:#57534e;font-family:monospace;font-size:12px">${t.detail}</td>
         <td style="text-align:center;padding:6px 8px">
           ${(t.input_html || t.output_html)
             ? `<button onclick="openPreview(${i})"
-                style="font-size:11px;padding:3px 9px;border:1px solid #cbd5e1;border-radius:4px;
-                       background:#f8fafc;cursor:pointer;color:#475569">Vorschau</button>`
+                style="font-size:11px;padding:3px 10px;border:1px solid #cbd5e1;border-radius:4px;background:#f8fafc;cursor:pointer;color:#475569;white-space:nowrap">Vorschau</button>`
             : '<span style="color:#cbd5e1;font-size:11px">—</span>'}
         </td>
       </tr>`).join('');
     document.getElementById('selftest-result').style.display = '';
   } catch(e) {
-    document.getElementById('selftest-summary').innerHTML =
-      `<span style="color:#dc2626">Netzwerkfehler: ${e.message}</span>`;
+    document.getElementById('selftest-summary').innerHTML = `<span style="color:#dc2626">Netzwerkfehler: ${e.message}</span>`;
     document.getElementById('selftest-result').style.display = '';
   }
-  document.getElementById('selftest-btn').disabled = false;
+  btn.disabled = false;
   document.getElementById('selftest-spinner').style.display = 'none';
 }
 
 function openPreview(idx) {
   const t = _selftestData[idx];
   document.getElementById('modal-title').textContent = t.name;
-  const wrapHtml = (html, label) =>
-    html
-      ? html
-      : `<html><body style="font-family:sans-serif;color:#94a3b8;padding:24px">${label} nicht verfügbar</body></html>`;
-  document.getElementById('modal-input-frame').srcdoc = wrapHtml(t.input_html, 'Eingabe');
-  document.getElementById('modal-output-frame').srcdoc = wrapHtml(t.output_html, 'Ausgabe');
-  const modal = document.getElementById('selftest-modal');
-  modal.style.display = 'flex';
+  const placeholder = label =>
+    `<html><body style="font-family:sans-serif;color:#94a3b8;padding:32px;font-size:14px">${label} nicht verfügbar</body></html>`;
+  document.getElementById('modal-input-frame').srcdoc  = t.input_html  || placeholder('Eingabe');
+  document.getElementById('modal-output-frame').srcdoc = t.output_html || placeholder('Ausgabe');
+  document.getElementById('selftest-modal').style.display = 'flex';
 }
 
 function closeModal() {
   document.getElementById('selftest-modal').style.display = 'none';
-  document.getElementById('modal-input-frame').srcdoc = '';
+  document.getElementById('modal-input-frame').srcdoc  = '';
   document.getElementById('modal-output-frame').srcdoc = '';
 }
 
-document.getElementById('selftest-modal').addEventListener('click', function(e) {
-  if (e.target === this) closeModal();
-});
-document.addEventListener('keydown', function(e) {
-  if (e.key === 'Escape') closeModal();
-});
+document.getElementById('selftest-modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 </script>
 
 <!-- ── TLS / Let's Encrypt ─────────────────────────────────────────────────── -->

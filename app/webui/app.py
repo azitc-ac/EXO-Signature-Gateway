@@ -3249,13 +3249,48 @@ async def api_send_graph_acme(request: Request, user: str = Depends(_check_auth)
 
 # ── Mail-Processor Self-Tests ─────────────────────────────────────────────────
 
+@app.get("/api/test/mail-processor/options")
+async def api_test_mail_processor_options(user: str = Depends(_check_auth)):
+    """Return available templates and configured mailbox emails for the self-test UI."""
+    import os
+    templates = []
+    try:
+        for f in sorted(os.listdir(config.TEMPLATE_DIR)):
+            if f.endswith(".html") and not f.endswith(".bak"):
+                templates.append(f[:-5])
+    except Exception:
+        pass
+    mailbox_cfg = settings_store.get("MAILBOX_CONFIG") or {}
+    emails = sorted(mailbox_cfg.keys()) if mailbox_cfg else []
+    return JSONResponse({"templates": templates, "emails": emails})
+
+
 @app.post("/api/test/mail-processor")
-async def api_test_mail_processor(user: str = Depends(_check_auth)):
-    """Run in-process self-tests for mail_processor.inject()."""
+async def api_test_mail_processor(request: Request, user: str = Depends(_check_auth)):
+    """Run in-process self-tests for mail_processor.inject().
+
+    Accepts optional JSON body {"template": "...", "email": "..."}.
+    When both are given the real rendered signature is used instead of the
+    built-in test signature.
+    """
     import self_test as _st
     import asyncio
+    import signature_engine
+    from graph_client import get_user
+
+    sig_html = sig_txt = None
+    try:
+        body = await request.json()
+        template = (body.get("template") or "").strip() or None
+        email = (body.get("email") or "").strip() or None
+        if template or email:
+            ud = await get_user(email) if email else __import__("graph_client").UserData(mail="test@example.com")
+            sig_html, sig_txt = signature_engine.render(ud, template)
+    except Exception:
+        pass  # malformed body or graph error → fall back to test sig
+
     loop = asyncio.get_event_loop()
-    result = await loop.run_in_executor(None, _st.run_all)
+    result = await loop.run_in_executor(None, lambda: _st.run_all(sig_html, sig_txt))
     return JSONResponse(result)
 
 

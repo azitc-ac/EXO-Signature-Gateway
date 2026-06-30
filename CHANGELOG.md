@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.325 — 2026-07-01 — feat: Selbsttest mit echten Signaturen + Vollbild-Vorschau
+
+Selbsttest: Dropdowns "Signaturvorlage" und "Benutzer" (aus MAILBOX_CONFIG + templates/).
+Bei Auswahl wird die echte gerrenderte Signatur via signature_engine.render() + Graph
+get_user() verwendet. Neuer Endpoint GET /api/test/mail-processor/options.
+Vorschau-Modal jetzt Vollbild (padding:16px inset statt max-width/max-height),
+iframes füllen den verfügbaren Platz vollständig (flex:1, min-height:0).
+
 ## v1.4.324 — 2026-06-30 — fix: update-watcher.sh portabel (REPO auto-detect, exec statt systemctl restart)
 
 REPO wird jetzt aus dem Skript-Verzeichnis ermittelt (dirname $0) statt hardcoded
