@@ -183,11 +183,18 @@ async function backupRestore() {
     const r = await fetch('/api/backup/restore', {method: 'POST', body: fd});
     const d = await r.json();
     if (d.ok) {
-      const warns = (d.warnings || []).map(w =>
-        `<li style="color:#92400e">${w}</li>`).join('');
+      const authWarn = (d.warnings || []).find(w => w.startsWith('AUTH_PFX_RESTORED'));
+      const otherWarns = (d.warnings || []).filter(w => !w.startsWith('AUTH_PFX_RESTORED'));
+      const warnItems = otherWarns.map(w => `<li style="color:#92400e">${w}</li>`).join('');
+      const authBanner = authWarn ? `<div style="margin-top:10px;padding:10px 12px;background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;font-size:13px">
+        ⚠ <strong>auth.pfx wurde wiederhergestellt</strong> — bitte in der Entra App-Registrierung prüfen ob das Zertifikat noch hinterlegt ist
+        (<a href="/settings#debug" style="color:#92400e">Einstellungen → Debug → EXO PowerShell Zertifikat</a>).
+        Stimmt es nicht überein, schlägt die EXO PowerShell-Verbindung fehl.
+      </div>` : '';
       result.innerHTML = `<div class="alert success">
         <strong>Wiederhergestellt!</strong> ${d.restored_files} Dateien.
-        ${warns ? `<ul style="margin:8px 0 0;padding-left:18px">${warns}</ul>` : ''}
+        ${warnItems ? `<ul style="margin:8px 0 0;padding-left:18px">${warnItems}</ul>` : ''}
+        ${authBanner}
         <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <button class="btn primary" id="restart-btn" onclick="restartNow()">Jetzt neu starten</button>
           <span id="restart-note" style="font-size:12px;color:#555">Übernimmt die wiederhergestellten Daten. (Alternativ: <code>docker compose restart</code>)</span>

@@ -5,6 +5,11 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.294 — 2026-06-30 — fix: Backup-Restore warnt wenn auth.pfx überschrieben wird
+
+Nach Restore: gelbes Warn-Banner wenn auth.pfx aus dem Backup wiederhergestellt
+wurde — mit Hinweis zur Prüfung der Entra App-Registrierung.
+
 ## v1.4.293 — 2026-06-30 — fix: DG-Check falsch-negativ bei EXO-Verbindungsfehler + scrollbare S/MIME-Regeln-Tabelle
 
 PS-Skript: Connect-ExchangeOnline jetzt mit ErrorAction Stop — schlägt die

@@ -135,6 +135,13 @@ def restore_backup(zip_bytes: bytes) -> dict:
                     target.parent.mkdir(parents=True, exist_ok=True)
                     target.write_bytes(zf.read(name))
                     restored += 1
+                    if rel == "auth.pfx":
+                        warnings.append(
+                            "AUTH_PFX_RESTORED: auth.pfx wurde aus dem Backup "
+                            "wiederhergestellt — bitte in Entra App-Registrierung "
+                            "prüfen ob dieses Zertifikat noch hinterlegt ist "
+                            "(Einstellungen → Debug → EXO PowerShell Zertifikat)."
+                        )
 
                 elif name.startswith("templates/"):
                     rel    = name[len("templates/"):]
