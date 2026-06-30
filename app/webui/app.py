@@ -1503,10 +1503,26 @@ async def api_save_mailboxes(body: dict, _=Depends(_check_auth)):
         # If both false, don't include in config (passthrough by default)
     settings_store.update({"MAILBOX_CONFIG": config_map})
 
-    # Update EXO Distribution Group if wizard is complete
     s = settings_store.get_all()
     app_id = s.get("CLIENT_ID") or config.CLIENT_ID
     tenant_domain = s.get("TENANT_DOMAIN") or ""
+
+    # Bookings-URLs für neu hinzugekommene Postfächer im Hintergrund ermitteln
+    existing_bookings: dict = settings_store.get("USER_BOOKINGS") or {}
+    new_emails = [e for e in enabled_members if e not in existing_bookings]
+    if new_emails and app_id and tenant_domain:
+        import setup_wizard as _sw
+        async def _fetch_new():
+            result = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: _sw.run_fetch_bookings_urls(app_id, tenant_domain, new_emails)
+            )
+            if result.get("ok") and result.get("urls"):
+                current: dict = settings_store.get("USER_BOOKINGS") or {}
+                current.update(result["urls"])
+                settings_store.update({"USER_BOOKINGS": current})
+        asyncio.create_task(_fetch_new())
+
+    # Update EXO Distribution Group if wizard is complete
     if body.get("update_dg") and app_id and tenant_domain:
         import setup_wizard
         result = setup_wizard.run_mailbox_dg_update(app_id, tenant_domain, enabled_members)
