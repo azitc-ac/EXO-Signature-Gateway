@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.312 — 2026-06-30 — fix: Outlook-Desktop-Separator Regex reihenfolgeabhängig
+
+Ursache: CSS-Properties im style-Attribut können in beliebiger Reihenfolge stehen.
+Das vorherige Regex setzte border:none vor border-top vor padding voraus.
+Outlook Desktop gibt die Properties manchmal in anderer Reihenfolge aus, daher kein Match.
+
+Fix: Lookahead-basierte Regex die jede Property unabhängig von Position prüft.
+Padding-Pflicht entfernt (border:none + 1pt solid reicht als Erkennungsmerkmal).
+Gleiche Änderung in _find_first_quote_wrapper_pos. 11 Testfälle grün.
+
 ## v1.4.311 — 2026-06-30 — fix: border-top Pattern zu breit — trifft dekorative Trenner in Firmen-Templates
 
 Ursache: Das Regex für Outlook-Desktop-Antwort-Trenner matchte jedes
