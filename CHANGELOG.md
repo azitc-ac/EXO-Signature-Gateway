@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.284 — 2026-06-30 — feat: Bookings URL im Postfach-Status-Dialog
+
+Knopf aus Einstellungen entfernt. Bookings URL wird jetzt im Detaildialog
+(i-Button) pro Postfach angezeigt. Bei "Status aktualisieren" werden URLs
+automatisch mitermittelt. Einzelne URL per Knopf im Dialog abrufbar.
+
 ## v1.4.283 — 2026-06-30 — fix: Booking-URL-Feedback verbessert
 
 Meldung nach Ermittlung: "N Adressen eingerichtet" statt "N URLs gespeichert".

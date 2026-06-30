@@ -1422,6 +1422,7 @@ async def api_get_mailboxes(_=Depends(_check_auth)):
     users = await graph_client.list_mailboxes()
     config_map: dict = settings_store.get("MAILBOX_CONFIG") or {}
     health_map: dict = settings_store.get("MAILBOX_HEALTH") or {}
+    bookings_map: dict = settings_store.get("USER_BOOKINGS") or {}
     result = []
     for u in users:
         email = u["email"]
@@ -1438,6 +1439,7 @@ async def api_get_mailboxes(_=Depends(_check_auth)):
             "health_overall": h.get("overall"),
             "health_checked": h.get("last_checked"),
             "health_checks": h.get("checks", {}),
+            "bookings_url": bookings_map.get(email, ""),
         })
     # Also include mailboxes in config that Graph didn't return (e.g. removed users)
     for email, cfg in config_map.items():
@@ -1454,6 +1456,7 @@ async def api_get_mailboxes(_=Depends(_check_auth)):
                 "health_overall": h.get("overall"),
                 "health_checked": h.get("last_checked"),
                 "health_checks": h.get("checks", {}),
+                "bookings_url": bookings_map.get(email, ""),
             })
     return {"mailboxes": result}
 

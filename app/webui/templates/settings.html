@@ -591,8 +591,7 @@
               <span style="font-size:11px;color:#64748b;display:block;margin-bottom:4px">
                 outlook.office.com/bookwithme/user/<em>{ExchangeGuid}</em>@<em>{domain}</em>
               </span>
-              <button class="btn secondary btn-sm" id="bookings-fetch-btn" onclick="fetchBookingsUrls()">Booking-URLs jetzt ermitteln</button>
-              <span id="bookings-fetch-result" style="font-size:11px;margin-left:6px"></span>
+              <span style="font-size:11px;color:#64748b">URL wird unter Postfächer → ℹ angezeigt</span>
             </div>
           </td>
         </tr>
@@ -1350,27 +1349,6 @@ function saveWebsiteField() {
   setTimeout(() => res.textContent = '', 2000);
 }
 
-async function fetchBookingsUrls() {
-  const btn = document.getElementById('bookings-fetch-btn');
-  const res = document.getElementById('bookings-fetch-result');
-  btn.disabled = true; btn.innerHTML = _spin('Ermittle…');
-  res.textContent = ''; res.style.color = '';
-  try {
-    const r = await fetch('/api/mailboxes/fetch-bookings-urls', {method: 'POST'});
-    const d = await r.json();
-    if (d.ok) {
-      const count = Object.keys(d.urls || {}).length;
-      res.textContent = `✓ ${count} Adresse${count !== 1 ? 'n' : ''} eingerichtet`;
-      res.style.color = '#16a34a';
-    } else {
-      res.textContent = `✗ ${d.error || d.output || 'Fehler'}`;
-      res.style.color = '#dc2626';
-    }
-  } catch(e) {
-    res.textContent = `✗ ${e.message}`; res.style.color = '#dc2626';
-  }
-  btn.disabled = false; btn.textContent = 'Booking-URLs jetzt ermitteln';
-}
 
 function saveBenachrichtigungen() {
   savePartial({

@@ -102,7 +102,7 @@ async function refreshMailboxStatus() {
   var btn = document.getElementById('mb-refresh-btn');
   var status = document.getElementById('mb-load-status');
   btn.disabled = true;
-  status.textContent = 'Prüfe… (kann 30 s dauern)';
+  status.textContent = 'Prüfe… (kann 60 s dauern)';
   try {
     var resp = await fetch('/api/health/mailboxes', {method: 'POST'});
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -111,6 +111,8 @@ async function refreshMailboxStatus() {
     btn.disabled = false;
     return;
   }
+  // Bookings URLs gleich mitermitteln
+  try { await fetch('/api/mailboxes/fetch-bookings-urls', {method: 'POST'}); } catch(_) {}
   await loadMailboxes(true);
   document.getElementById('th-status').style.display = '';
   status.textContent = 'Aktualisiert.';
@@ -247,9 +249,11 @@ function _healthBadge(mb) {
     'style="background:none;border:none;cursor:pointer;color:#64748b;font-size:13px;padding:0 2px;vertical-align:middle" title="Details">ℹ</button>';
 }
 
+function _escH(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
 function showHealthModal(mb) {
   document.getElementById('health-modal-title').innerHTML =
-    '<span style="font-size:13px;font-weight:700;color:#1e40af">' + mb.email + '</span>' +
+    '<span style="font-size:13px;font-weight:700;color:#1e40af">' + _escH(mb.email) + '</span>' +
     (mb.health_checked ? '<span style="font-size:11px;color:#64748b;margin-left:10px">geprüft ' +
       new Date(mb.health_checked).toLocaleString('de-DE') + '</span>' : '');
   var checks = mb.health_checks || {};
@@ -260,13 +264,52 @@ function showHealthModal(mb) {
     return '<tr style="border-bottom:1px solid #f0f0f0">' +
       '<td style="padding:6px 10px;font-size:12px;font-weight:600;white-space:nowrap">' + (_CHECK_LABELS[key] || key) + '</td>' +
       '<td style="padding:6px 8px;font-size:12px;color:' + sColor + ';white-space:nowrap;font-weight:700">' + sSym + '</td>' +
-      '<td style="padding:6px 8px;font-size:12px;color:#374151;word-break:break-word">' + (c.detail || '') + '</td>' +
+      '<td style="padding:6px 8px;font-size:12px;color:#374151;word-break:break-word">' + _escH(c.detail || '') + '</td>' +
       '</tr>';
   }).join('');
-  document.getElementById('health-modal-body').innerHTML = rows
+
+  // Bookings URL section
+  var bookingsHtml = '<div style="margin-top:16px;border-top:1px solid #e2e8f0;padding-top:12px">' +
+    '<div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:6px">Bookings URL</div>';
+  if (mb.bookings_url) {
+    bookingsHtml += '<div style="font-size:11px;color:#0369a1;word-break:break-all">' +
+      '<a href="' + _escH(mb.bookings_url) + '" target="_blank" style="color:#0369a1">' + _escH(mb.bookings_url) + '</a></div>';
+  } else {
+    bookingsHtml += '<div style="font-size:11px;color:#888;display:flex;align-items:center;gap:8px">' +
+      '<span>Nicht ermittelt</span>' +
+      '<button onclick="fetchOneBookingsUrl(\'' + _escH(mb.email) + '\')" id="bk-fetch-btn-modal" ' +
+      'style="font-size:11px;padding:2px 8px;border:1px solid #d1d5db;border-radius:4px;background:#f8fafc;cursor:pointer">Jetzt ermitteln</button>' +
+      '<span id="bk-fetch-modal-result"></span></div>';
+  }
+  bookingsHtml += '</div>';
+
+  document.getElementById('health-modal-body').innerHTML = (rows
     ? '<table style="width:100%;border-collapse:collapse"><tbody>' + rows + '</tbody></table>'
-    : '<p style="color:#888;font-size:13px">Keine Detaildaten vorhanden.</p>';
+    : '<p style="color:#888;font-size:13px">Keine Detaildaten vorhanden — Status aktualisieren drücken.</p>')
+    + bookingsHtml;
   document.getElementById('health-modal-overlay').style.display = 'flex';
+}
+
+async function fetchOneBookingsUrl(email) {
+  var btn = document.getElementById('bk-fetch-btn-modal');
+  var res = document.getElementById('bk-fetch-modal-result');
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  try {
+    var r = await fetch('/api/mailboxes/fetch-bookings-urls', {method: 'POST'});
+    var d = await r.json();
+    if (d.ok && d.urls && d.urls[email]) {
+      if (res) { res.textContent = '✓'; res.style.color = '#16a34a'; }
+      // Update cached data and re-render modal
+      var mb = _mbData.find(function(m) { return m.email === email; });
+      if (mb) { mb.bookings_url = d.urls[email]; showHealthModal(mb); }
+    } else {
+      if (res) { res.textContent = d.error || 'Fehler'; res.style.color = '#dc2626'; }
+      if (btn) { btn.disabled = false; btn.textContent = 'Jetzt ermitteln'; }
+    }
+  } catch(e) {
+    if (res) { res.textContent = e.message; res.style.color = '#dc2626'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Jetzt ermitteln'; }
+  }
 }
 
 function renderMailboxTable(mailboxes) {
