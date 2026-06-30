@@ -147,26 +147,21 @@ def _has_sig_in_thread(msg: email.message.Message, sig_html: str = "") -> bool:
     """
     Return True if a gateway signature is already present anywhere in the message.
 
-    Detection layers (in order):
-    1. HTML comment marker <!-- exo-sig-start --> — may be stripped by iOS Mail quoting
-    2. Div sentinel id="exo-sig-s" — may be stripped by some clients
-    3. Signature fingerprint match in the quoted part — survives all HTML sanitisation
-       because it's based on visible text tokens (name, phone, address …)
+    Only uses gateway-specific markers/sentinels — NOT fingerprint.
+    Fingerprint would false-positive on the sender's own regular Outlook client sig
+    appearing in deep thread history (same tokens as the gateway sig template).
     """
     html = extract_html(msg)
     if not html:
         return False
-    if html.find(_SIG_MARKER_START) != -1 or html.find(_SIG_DIV_ATTR_S) != -1:
+    # Check for both the x_-prefixed variant (Exchange sometimes adds this prefix
+    # when quoting HTML content through transport rules).
+    if (html.find(_SIG_MARKER_START) != -1
+            or html.find(_SIG_DIV_ATTR_S) != -1
+            or html.find('id="x_exo-sig-s"') != -1
+            or html.find("id='x_exo-sig-s'") != -1):
+        log.info("_has_sig_in_thread: gateway marker/sentinel found — skipping injection")
         return True
-    if sig_html:
-        fp = _sig_fingerprint(sig_html)
-        if fp:
-            # Check the quoted part specifically to avoid false-positives in the compose area.
-            first_quote = _find_first_quote_wrapper_pos(html)
-            search_area = html[first_quote:] if first_quote is not None else html
-            if _matches_sig_fp(search_area, fp):
-                log.debug("Sig fingerprint found in thread quote — skipping injection")
-                return True
     return False
 
 

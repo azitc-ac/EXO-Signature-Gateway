@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.315 — 2026-06-30 — fix: _has_sig_in_thread Fingerprint-Check entfernt (false positive bei Thread-History)
+
+Ursache: Der Fingerprint-Check in _has_sig_in_thread verwendete dieselben Tokens wie der
+Sender's eigene Outlook-Client-Signatur in alten Thread-Nachrichten. Bei Replies auf Threads
+mit historischen echten E-Mails trat SKIP_SIG_IN_THREAD fälschlicherweise ein → keine Sig.
+Fix: Fingerprint aus _has_sig_in_thread entfernt. Nur noch Marker (<!-- exo-sig-start -->)
+und Sentinel (id="exo-sig-s" inkl. x_-Präfix von Exchange) werden geprüft.
+Marker-Erkennung bei Return True jetzt sichtbar als INFO (nicht mehr stumm).
+
 ## v1.4.313 — 2026-06-30 — fix: Outlook-Desktop-Separator wird als Sig-Kandidat gestrippt + Diagnose-Logs
 
 Ursache: _strip_wordsection_sig markierte alle unnamed top-level divs als potenzielle
