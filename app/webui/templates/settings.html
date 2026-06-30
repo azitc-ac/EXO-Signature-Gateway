@@ -576,11 +576,8 @@
         <tr style="border-bottom:1px solid #f0f0f0">
           <td style="padding:4px 0"><code>user.website</code></td>
           <td style="padding:4px 16px">
-            <select id="website-entra-field" style="font-size:12px;padding:2px 6px;border:1px solid #d1d5db;border-radius:4px">
-              {% for f in custom_var_entra_fields %}
-              <option value="{{ f.value }}" {% if (s.WEBSITE_ENTRA_FIELD or 'businessHomePage') == f.value %}selected{% endif %}>{{ f.label }}</option>
-              {% endfor %}
-            </select>
+            <input type="url" id="website-url" value="{{ s.WEBSITE_URL or '' }}" placeholder="https://www.beispiel.de"
+              style="font-size:12px;padding:3px 8px;border:1px solid #d1d5db;border-radius:4px;width:280px">
             <button class="btn secondary btn-sm" style="margin-left:6px" onclick="saveWebsiteField()">Speichern</button>
             <span id="website-field-result" style="font-size:11px;margin-left:4px"></span>
           </td>
@@ -1351,9 +1348,9 @@ function saveOverrides() {
 }
 
 function saveWebsiteField() {
-  const field = document.getElementById('website-entra-field').value;
+  const url = document.getElementById('website-url').value.trim();
   const res = document.getElementById('website-field-result');
-  savePartial({ WEBSITE_ENTRA_FIELD: field }, null);
+  savePartial({ WEBSITE_URL: url }, null);
   res.textContent = '✓ gespeichert'; res.style.color = '#16a34a';
   setTimeout(() => res.textContent = '', 2000);
 }
