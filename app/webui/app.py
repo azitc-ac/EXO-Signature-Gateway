@@ -3220,6 +3220,18 @@ async def api_send_graph_acme(request: Request, user: str = Depends(_check_auth)
     })
 
 
+# ── Mail-Processor Self-Tests ─────────────────────────────────────────────────
+
+@app.post("/api/test/mail-processor")
+async def api_test_mail_processor(user: str = Depends(_check_auth)):
+    """Run in-process self-tests for mail_processor.inject()."""
+    import self_test as _st
+    import asyncio
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, _st.run_all)
+    return JSONResponse(result)
+
+
 # ── Remote Domain: castle.cloud ───────────────────────────────────────────────
 
 @app.get("/api/setup/remote-domain-castle")

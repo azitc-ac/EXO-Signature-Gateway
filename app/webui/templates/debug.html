@@ -1040,6 +1040,72 @@ async function loadHealthInline() {
   </div>
 </div>
 
+<!-- ── Mail-Processor Selbsttest ───────────────────────────────────────────── -->
+<div class="wizard-step" style="border-color:#0ea5e933;margin-bottom:20px" id="selftest">
+  <div class="step-header">
+    <span class="step-badge" style="background:#0ea5e9;font-size:10px">Test</span>
+    <strong>Selbsttest: Mail-Processor</strong>
+  </div>
+  <div class="step-body">
+    <p style="font-size:13px;color:#57534e;margin:0 0 14px">
+      Prüft <code>mail_processor.inject()</code> in-process mit synthetischen MIME-Nachrichten —
+      kein Netzwerk, keine Exchange-Verbindung, kein Postfach nötig.
+      Simuliert Outlook Desktop, OWA, iOS Mail und verschachtelte Threads.
+    </p>
+    <div class="actions" style="margin-bottom:14px">
+      <button class="btn primary" id="selftest-btn" onclick="runSelfTest()">Selbsttest ausführen</button>
+      <span id="selftest-spinner" style="display:none;margin-left:12px;font-size:13px;color:#57534e">Läuft…</span>
+    </div>
+    <div id="selftest-result" style="display:none">
+      <div id="selftest-summary" style="margin-bottom:12px;font-weight:600;font-size:14px"></div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="border-bottom:1px solid #e2e8f0">
+            <th style="text-align:left;padding:6px 8px;color:#64748b;font-weight:500">Test</th>
+            <th style="text-align:center;padding:6px 8px;color:#64748b;font-weight:500;width:60px">Status</th>
+            <th style="text-align:left;padding:6px 8px;color:#64748b;font-weight:500">Detail</th>
+          </tr>
+        </thead>
+        <tbody id="selftest-rows"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<script>
+async function runSelfTest() {
+  document.getElementById('selftest-btn').disabled = true;
+  document.getElementById('selftest-spinner').style.display = '';
+  document.getElementById('selftest-result').style.display = 'none';
+  try {
+    const r = await fetch('/api/test/mail-processor', {method: 'POST'});
+    const d = await r.json();
+    const allPassed = d.failed === 0;
+    const summary = document.getElementById('selftest-summary');
+    summary.innerHTML = allPassed
+      ? `<span style="color:#16a34a">✓ Alle ${d.total} Tests bestanden</span>`
+      : `<span style="color:#dc2626">${d.failed} von ${d.total} Tests fehlgeschlagen</span>`;
+    const rows = document.getElementById('selftest-rows');
+    rows.innerHTML = d.results.map(t => `
+      <tr style="border-bottom:1px solid #f1f5f9;${t.passed ? '' : 'background:#fef2f2'}">
+        <td style="padding:7px 8px">${t.name}</td>
+        <td style="text-align:center;padding:7px 8px">
+          ${t.passed
+            ? '<span style="color:#16a34a;font-size:16px">✓</span>'
+            : '<span style="color:#dc2626;font-size:16px">✗</span>'}
+        </td>
+        <td style="padding:7px 8px;color:#57534e;font-family:monospace;font-size:12px">${t.detail}</td>
+      </tr>`).join('');
+    document.getElementById('selftest-result').style.display = '';
+  } catch(e) {
+    document.getElementById('selftest-summary').innerHTML =
+      `<span style="color:#dc2626">Netzwerkfehler: ${e.message}</span>`;
+    document.getElementById('selftest-result').style.display = '';
+  }
+  document.getElementById('selftest-btn').disabled = false;
+  document.getElementById('selftest-spinner').style.display = 'none';
+}
+</script>
+
 <!-- ── TLS / Let's Encrypt ─────────────────────────────────────────────────── -->
 <div class="wizard-step" style="border-color:#64748b33;margin-bottom:20px">
   <div class="step-header">

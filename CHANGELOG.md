@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.321 — 2026-06-30 — feat: In-Process Selbsttest (12 Tests, Knopf in Erweitert)
+
+Neues Modul app/self_test.py mit 12 synthetischen MIME-Tests für mail_processor.inject():
+Outlook Desktop Reply/CSS-Reihenfolge, OWA, iOS Mail, verschachtelter Thread,
+SKIP-auf-Marker, SKIP-auf-Class-Sentinel, kein falscher SKIP, Client-Sig-Strip,
+Separator-Schutz, Class-Sentinel-Wrapper. Neuer API-Endpoint POST /api/test/mail-processor,
+Knopf "Selbsttest ausführen" in Erweitert-Tab mit tabellarischer Ergebnisanzeige.
+
+fix: Fingerprint komplett aus _has_sig_in_thread entfernt — die Class-Sentinel
+(class="exo-gateway-sig") deckt den iOS-Mail-Fall ab; Fingerprint verursachte
+false-positive SKIP wenn Sender's Client-Sig im zitierten Bereich lag.
+
 ## v1.4.319 — 2026-06-30 — feat: class="exo-gateway-sig" Sentinel für iOS Mail Detection
 
 Ergänzt den gateway-injizierten Sig-Wrapper mit class="exo-gateway-sig".
