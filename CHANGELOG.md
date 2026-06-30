@@ -5,6 +5,11 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.307 — 2026-06-30 — feat: Thunderbird-Pattern + Positions-Warnung bei verdächtig tiefem Separator
+
+- Thunderbird `moz-cite-prefix` als neues Quote-Pattern in `_append_html_sig`
+- WARNING-Log wenn Einfügepunkt > 8 000 Zeichen ins Dokument (hinweist auf möglichen Fehlmatch)
+
 ## v1.4.305 — 2026-06-30 — fix: Signatur in Outlook-Desktop-Antworten am falschen Ort
 
 Ursache: Bei Outlook-Desktop-Antworten mit verschachteltem Forward in der Mail-Kette

@@ -683,6 +683,9 @@ def _append_html_sig(html: str, sig_html: str) -> str:
          "Gmail quote"),
         (re.compile(r'<div\b[^>]*\bclass=["\'][^"\']*yahoo_quoted[^"\']*["\']', re.IGNORECASE),
          "Yahoo quote"),
+        # Thunderbird cite prefix (<div class="moz-cite-prefix">Gesendet von ...</div>)
+        (re.compile(r'<div\b[^>]*\bclass=["\'][^"\']*moz-cite-prefix[^"\']*["\']', re.IGNORECASE),
+         "Thunderbird cite prefix"),
         (re.compile(r'<blockquote\b', re.IGNORECASE),
          "blockquote (Apple Mail/Thunderbird/GMX)"),
     ]
@@ -699,7 +702,14 @@ def _append_html_sig(html: str, sig_html: str) -> str:
             best_label = label
 
     if best_idx is not None:
-        log.info("Signature inserted before %s at pos %d", best_label, best_idx)
+        if best_idx > 8000:
+            log.warning(
+                "Signature insertion point is far into the document (pos %d) — "
+                "matched '%s'; possible wrong separator in nested thread",
+                best_idx, best_label,
+            )
+        else:
+            log.info("Signature inserted before %s at pos %d", best_label, best_idx)
         return html[:best_idx] + marked_sig + html[best_idx:]
 
     # No quote block found — fall back to inserting before </body>
