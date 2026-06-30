@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.319 — 2026-06-30 — feat: class="exo-gateway-sig" Sentinel für iOS Mail Detection
+
+Ergänzt den gateway-injizierten Sig-Wrapper mit class="exo-gateway-sig".
+Class-Attribute überleben iOS Mail quoting (anders als HTML-Kommentare und IDs).
+_has_sig_in_thread prüft jetzt zusätzlich auf diesen Class-Sentinel.
+Damit ist die iOS Mail SKIP_SIG_IN_THREAD-Erkennung ohne Fingerprint korrekt.
+
 ## v1.4.317 — 2026-06-30 — fix: _has_sig_in_thread Fingerprint nur bei erkannter Quote-Grenze
 
 Verfeinerung von v1.4.315/316: Fingerprint-Check wird wieder verwendet, aber nur wenn

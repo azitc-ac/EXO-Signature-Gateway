@@ -157,11 +157,16 @@ def _has_sig_in_thread(msg: email.message.Message, sig_html: str = "") -> bool:
     html = extract_html(msg)
     if not html:
         return False
-    # Check for gateway-specific markers (incl. x_-prefix Exchange may add when quoting).
+    # Check for gateway-specific markers/sentinels.
+    # Exchange sometimes adds an x_ prefix to element IDs when quoting — check both.
+    # The class sentinel survives iOS Mail quoting (iOS Mail strips comments and IDs
+    # but generally preserves class attributes).
     if (html.find(_SIG_MARKER_START) != -1
             or html.find(_SIG_DIV_ATTR_S) != -1
             or html.find('id="x_exo-sig-s"') != -1
-            or html.find("id='x_exo-sig-s'") != -1):
+            or html.find("id='x_exo-sig-s'") != -1
+            or html.find(f'class="{_SIG_CLASS}"') != -1
+            or html.find(f"class='{_SIG_CLASS}'") != -1):
         log.info("_has_sig_in_thread: gateway marker/sentinel found — skipping injection")
         return True
     # Fingerprint fallback for clients that strip HTML comments/attributes (e.g. iOS Mail).
@@ -509,6 +514,11 @@ _SIG_MARKER_END   = "<!-- exo-sig-end -->"
 # id attributes survive editing. The gateway also checks these as fallback.
 _SIG_DIV_ATTR_S = 'id="exo-sig-s"'
 _SIG_DIV_ATTR_E = 'id="exo-sig-e"'
+# Class sentinel added by the gateway to its injected sig wrapper div.
+# Class attributes survive iOS Mail quoting (unlike HTML comments and custom IDs)
+# and allow _has_sig_in_thread to detect a previous gateway sig even after iOS Mail
+# has stripped the <!-- exo-sig-start --> comment.
+_SIG_CLASS = "exo-gateway-sig"
 
 
 def _find_first_quote_wrapper_pos(html: str) -> int | None:
@@ -726,7 +736,13 @@ def _append_html_sig(html: str, sig_html: str) -> str:
         (re.compile(r'<blockquote\b', re.IGNORECASE),
          "blockquote (Apple Mail/Thunderbird/GMX)"),
     ]
-    marked_sig = _SIG_MARKER_START + sig_html + _SIG_MARKER_END
+    marked_sig = (
+        _SIG_MARKER_START
+        + f'<div class="{_SIG_CLASS}">'
+        + sig_html
+        + "</div>"
+        + _SIG_MARKER_END
+    )
 
     # Find the EARLIEST match across all patterns so an inner nested separator
     # (e.g. a forward inside a reply) does not win over the real outer boundary.
