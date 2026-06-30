@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.285 — 2026-06-30 — fix: Update-Spinner und Countdown funktionieren jetzt wirklich
+
+Race Condition: Browser pollte Status sofort nach Trigger, fand state=idle
+(Watcher in sleep 5), stoppte das Polling und setzte Button zurueck.
+Erster Poll jetzt erst nach 6s Wartezeit — Watcher hat dann den Trigger
+sicher aufgenommen und state=running geschrieben.
+
 ## v1.4.284 — 2026-06-30 — feat: Bookings URL im Postfach-Status-Dialog
 
 Knopf aus Einstellungen entfernt. Bookings URL wird jetzt im Detaildialog

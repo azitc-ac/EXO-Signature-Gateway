@@ -779,11 +779,15 @@ async function startUpdate() {
 }
 
 // --- Polling ---
-function _updStartPolling() {
+function _updStartPolling(delayMs) {
   _updPollStart = Date.now();
   clearInterval(_updPollTimer);
-  _updPollTimer = setInterval(_updPoll, 3000);
-  _updPoll();
+  // Watcher braucht bis zu 5s um den Trigger aufzunehmen.
+  // Erster Poll erst nach 6s, sonst findet er state=idle und bricht ab.
+  setTimeout(function() {
+    _updPoll();
+    _updPollTimer = setInterval(_updPoll, 3000);
+  }, delayMs !== undefined ? delayMs : 6000);
 }
 
 async function _updPoll() {
