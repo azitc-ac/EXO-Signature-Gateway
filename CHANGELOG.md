@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.290 — 2026-06-30 — feat: Signierung global ein/ausschalten + Nicht-signieren-Trigger
+
+Neuer Schalter „Automatisch signieren" (Standard: ein) steuert ob S/MIME-
+Signaturen für alle Nutzer mit vorhandenem Zertifikat angewendet werden.
+Neuer „Nicht-signieren-Trigger" (Standard: #nosig): Schlüsselwort im Betreff
+unterdrückt die Signierung für eine einzelne Mail.
+
 ## v1.4.289 — 2026-06-30 — feat: Benutzer-Overrides dynamisiert
 
 Neue einheitliche Override-Tabelle: E-Mail per Dropdown (aktive Postfächer)

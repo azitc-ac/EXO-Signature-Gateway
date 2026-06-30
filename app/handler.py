@@ -569,7 +569,15 @@ class SignatureHandler:
             # which some clients (Outlook Classic) render as blank after
             # decryption if the signing cert is not in their trust store.
             # For encrypted mail the pkcs7 envelope itself provides integrity.
-            _smime_ok = not _mailbox_cfg or _sender_cfg.get("smime", True)
+            _smime_ok = (
+                settings_store.get("SMIME_SIGNING_ENABLED") is not False
+                and (not _mailbox_cfg or _sender_cfg.get("smime", True))
+            )
+            if _smime_ok:
+                _nosig = (settings_store.get("NOSIG_TRIGGER") or "#nosig").lower()
+                if _nosig and _nosig in subject.lower():
+                    _smime_ok = False
+                    log.info("S/MIME signing suppressed by %r trigger in subject for %s", _nosig, sender)
             _smime_signed = False
             log.debug("S/MIME signing: smime_ok=%s, wants_encryption=%s for %s",
                       _smime_ok, wants_encryption, sender)

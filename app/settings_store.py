@@ -37,6 +37,8 @@ DEFAULTS: dict = {
     "ADMIN_USERS": [],               # List of UPN strings allowed to log in via Entra SSO
     "SSO_SESSION_SECRET": "",        # Auto-generated on first use; signs session cookies
     "ENC_TRIGGER": "#enc",            # Keyword in subject to request encryption
+    "SMIME_SIGNING_ENABLED": True,    # Automatically sign outbound mails when a cert exists
+    "NOSIG_TRIGGER": "#nosig",        # Keyword in subject to suppress signing for this mail
     # ── Re-injection ─────────────────────────────────────────────────────────
     "REINJECT_MODE": "smtp",       # "smtp", "graph", or "imap" (smtp587 = legacy alias for imap)
     "GRAPH_SMTP_FALLBACK": False,  # Allow SMTP fallback when Graph re-inject fails
