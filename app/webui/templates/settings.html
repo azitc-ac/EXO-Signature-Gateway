@@ -676,40 +676,41 @@
 let _updPollTimer = null;
 let _updPollStart = null;
 let _watcherOk = false;
-const UPD_WATCHER_TIMEOUT = 60000;
-const _UPD_LS_KEY = 'exo_update_pending';
+let _updInitiatedHere = false; // true wenn dieses Tab das Update ausgelöst hat
+let _updReloadTimer = null;
 
+function _esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function _updGetChannel() { return document.getElementById('upd-channel').value; }
 function _updSaveChannel() {
   try { localStorage.setItem('exo_upd_channel', _updGetChannel()); } catch(e) {}
   document.getElementById('upd-check-result').innerHTML = '';
-  document.getElementById('upd-btn').disabled = true;
+  document.getElementById('upd-btn').disabled = !_watcherOk;
 }
 function _updLoadChannel() {
   try { const ch = localStorage.getItem('exo_upd_channel'); if (ch) document.getElementById('upd-channel').value = ch; } catch(e) {}
 }
+function _updBtnReset() {
+  const b = document.getElementById('upd-btn');
+  b.disabled = !_watcherOk;
+  b.innerHTML = 'Jetzt aktualisieren';
+}
 
-function _esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-
+// --- Versions-Check ---
 async function checkUpdate() {
-  const btn = document.getElementById('upd-check-btn');
+  const checkBtn = document.getElementById('upd-check-btn');
   const result = document.getElementById('upd-check-result');
-  const updBtn = document.getElementById('upd-btn');
-  btn.disabled = true; btn.textContent = 'Prüfe…';
+  checkBtn.disabled = true; checkBtn.textContent = 'Prüfe…';
   result.innerHTML = '<span style="color:#64748b">Verbinde mit GitHub…</span>';
-  updBtn.disabled = true;
+  document.getElementById('upd-btn').disabled = true;
+  document.getElementById('upd-whats-new').style.display = 'none';
   try {
-    const ch = _updGetChannel();
-    const r = await fetch(`/api/system/update/check?channel=${encodeURIComponent(ch)}`);
+    const r = await fetch(`/api/system/update/check?channel=${encodeURIComponent(_updGetChannel())}`);
     const d = await r.json();
-    const wnBox = document.getElementById('upd-whats-new');
-    wnBox.style.display = 'none'; wnBox.innerHTML = '';
     if (!d.ok) {
       result.innerHTML = `<span style="color:#b45309">⚠ ${_esc(d.error)}</span>`;
-      if (_watcherOk) updBtn.disabled = false;
     } else if (d.available) {
       result.innerHTML = `<span style="color:#16a34a;font-weight:600">▲ Update verfügbar: ${_esc(d.latest)}</span>`;
-      if (_watcherOk) updBtn.disabled = false;
+      if (_watcherOk) document.getElementById('upd-btn').disabled = false;
       _loadWhatsNew(d.latest);
     } else if (d.note) {
       result.innerHTML = `<span style="color:#64748b">${_esc(d.note)}</span>`;
@@ -718,9 +719,9 @@ async function checkUpdate() {
     }
   } catch(e) {
     result.innerHTML = `<span style="color:#dc2626">Fehler: ${_esc(e.message)}</span>`;
-    if (_watcherOk) updBtn.disabled = false;
+    if (_watcherOk) document.getElementById('upd-btn').disabled = false;
   }
-  btn.disabled = false; btn.textContent = 'Auf Updates prüfen';
+  checkBtn.disabled = false; checkBtn.textContent = 'Auf Updates prüfen';
 }
 
 async function _loadWhatsNew(latestVersion) {
@@ -731,38 +732,26 @@ async function _loadWhatsNew(latestVersion) {
   try {
     const r = await fetch(`/api/system/update/whats-new?from_version=${encodeURIComponent(current)}&to_version=${encodeURIComponent(latestVersion)}`);
     const d = await r.json();
-    if (d.error || !d.entries || !d.entries.length) {
-      box.style.display = 'none'; return;
-    }
-    box.innerHTML = `
-      <div style="border:1px solid #bae6fd;border-radius:8px;background:#f0f9ff;padding:12px 14px">
-        <div style="font-size:12px;font-weight:600;color:#0369a1;margin-bottom:8px">
-          Neuerungen in diesem Update (${d.entries.length} Version${d.entries.length !== 1 ? 'en' : ''}):
-        </div>
-        ${d.entries.map(e => `
-          <details style="margin-bottom:6px">
-            <summary style="cursor:pointer;font-size:12px;color:#0c4a6e;list-style:none;display:flex;align-items:baseline;gap:6px">
-              <span style="font-weight:600">${_esc(e.header.replace(/^## /, ''))}</span>
-            </summary>
-            ${e.body ? `<pre style="margin:6px 0 0 0;font-size:11px;color:#374151;white-space:pre-wrap;font-family:inherit;line-height:1.5">${_esc(e.body)}</pre>` : ''}
-          </details>`).join('')}
-      </div>`;
-  } catch(e) {
-    box.style.display = 'none';
-  }
+    if (d.error || !d.entries || !d.entries.length) { box.style.display = 'none'; return; }
+    box.innerHTML = `<div style="border:1px solid #bae6fd;border-radius:8px;background:#f0f9ff;padding:12px 14px">
+      <div style="font-size:12px;font-weight:600;color:#0369a1;margin-bottom:8px">
+        Neuerungen (${d.entries.length} Version${d.entries.length !== 1 ? 'en' : ''}):
+      </div>
+      ${d.entries.map(e => `<details style="margin-bottom:6px">
+        <summary style="cursor:pointer;font-size:12px;color:#0c4a6e;list-style:none">
+          <span style="font-weight:600">${_esc(e.header.replace(/^## /, ''))}</span>
+        </summary>
+        ${e.body ? `<pre style="margin:6px 0 0;font-size:11px;color:#374151;white-space:pre-wrap;font-family:inherit;line-height:1.5">${_esc(e.body)}</pre>` : ''}
+      </details>`).join('')}
+    </div>`;
+  } catch(e) { box.style.display = 'none'; }
 }
 
-function _updSetBtnState(text, active) {
-  const btn = document.getElementById('upd-btn');
-  btn.disabled = true;
-  btn.innerHTML = active
-    ? `<span style="display:inline-block;animation:spin 1s linear infinite;margin-right:4px">⟳</span> ${text}`
-    : text;
-}
-
+// --- Update starten ---
 async function startUpdate() {
-  const btn = document.getElementById('upd-btn');
-  _updSetBtnState('Wird gestartet…', true);
+  _updInitiatedHere = true;
+  document.getElementById('upd-btn').disabled = true;
+  document.getElementById('upd-btn').innerHTML = '⟳ Wird gestartet…';
   document.getElementById('upd-status').style.display = 'none';
   clearInterval(_updPollTimer);
   try {
@@ -771,78 +760,90 @@ async function startUpdate() {
       body: JSON.stringify({channel: _updGetChannel()}),
     });
     const d = await r.json();
-    if (!d.ok) { _updShowError(d.error || `HTTP ${r.status}`); btn.disabled = false; btn.innerHTML = 'Jetzt aktualisieren'; return; }
-    _updSetBtnState('Aktualisiert…', true);
-    try { localStorage.setItem(_UPD_LS_KEY, String(Date.now())); } catch(e) {}
-    _updPollStart = Date.now();
-    _updPollTimer = setInterval(_updPoll, 3000);
-    _updPoll();
-  } catch(e) { _updShowError(e.message); btn.disabled = false; btn.innerHTML = 'Jetzt aktualisieren'; }
+    if (!d.ok) { _updShowError(d.error || `HTTP ${r.status}`); _updBtnReset(); return; }
+    _updStartPolling();
+  } catch(e) { _updShowError(e.message); _updBtnReset(); }
 }
 
-let _updConnLost = false;
+// --- Polling ---
+function _updStartPolling() {
+  _updPollStart = Date.now();
+  clearInterval(_updPollTimer);
+  _updPollTimer = setInterval(_updPoll, 3000);
+  _updPoll();
+}
 
 async function _updPoll() {
+  const TIMEOUT_MS = 10 * 60 * 1000;
   try {
     const r = await fetch('/api/system/update/status');
     const d = await r.json();
-    if (_updConnLost) {
-      // Verbindung wiederhergestellt nach Container-Neustart
-      _updConnLost = false;
-    }
     const state = d.state || 'idle';
-    const elapsed = Date.now() - _updPollStart;
-    if ((state === 'idle' || state === 'running') && elapsed > UPD_WATCHER_TIMEOUT) {
-      clearInterval(_updPollTimer);
-      _updShowError('Timeout: kein Abschluss nach 5 Minuten. Status prüfen oder zurücksetzen.');
-      const b = document.getElementById('upd-btn'); b.disabled = false; b.innerHTML = 'Jetzt aktualisieren';
+    if (state === 'running') {
+      document.getElementById('upd-btn').innerHTML = '⟳ Aktualisiert…';
+      _updShowRunning(d.log || '');
+      if (Date.now() - _updPollStart > TIMEOUT_MS) {
+        clearInterval(_updPollTimer);
+        _updShowError('Timeout nach 10 Minuten. Status zurücksetzen und Watcher prüfen.');
+        _updBtnReset();
+      }
       return;
     }
-    if (state === 'running') { _updSetBtnState('Aktualisiert…', true); _updShowRunning(d.log || ''); return; }
     clearInterval(_updPollTimer);
     if (state === 'success') { _updShowSuccess(d); }
-    else if (state === 'error') {
-      _updShowError(d.log || 'Unbekannter Fehler');
-      const b = document.getElementById('upd-btn'); b.disabled = false; b.innerHTML = 'Jetzt aktualisieren';
-    }
+    else if (state === 'error') { _updShowError(d.log || 'Unbekannter Fehler'); _updBtnReset(); }
+    else { _updBtnReset(); } // idle: Watcher hat Status bereits gecleart
   } catch(e) {
-    _updConnLost = true;
-    _updSetBtnState('Neustart…', true);
-    _updShowRunning('Container wird neu gestartet, Verbindung wird wiederhergestellt…');
+    // Container nicht erreichbar — noch am neustarten
+    document.getElementById('upd-btn').innerHTML = '⟳ Neustart…';
+    _updShowRunning('Container wird neu gestartet…');
+    if (Date.now() - _updPollStart > TIMEOUT_MS) {
+      clearInterval(_updPollTimer);
+      _updShowError('Container nach 10 Minuten nicht erreichbar.');
+      _updBtnReset();
+    }
   }
 }
 
+// --- Zustand anzeigen ---
 function _updShowRunning(log) {
   const el = document.getElementById('upd-status'); el.style.display = 'block';
   el.innerHTML = `<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;padding:12px;font-size:12px">
     <strong style="color:#0369a1">Update läuft…</strong>
     <pre style="margin:8px 0 0;white-space:pre-wrap;font-size:11px;max-height:200px;overflow-y:auto;color:#374151">${_esc(log)}</pre>
-    <div style="margin-top:8px"><button class="btn secondary btn-sm" onclick="_updClear().then(()=>location.reload())">Abbrechen / Status zurücksetzen</button></div>
+    <div style="margin-top:8px">
+      <button class="btn secondary btn-sm" onclick="clearInterval(_updPollTimer);_updClear().then(()=>location.reload())">Abbrechen / Status zurücksetzen</button>
+    </div>
   </div>`;
 }
-function _updShowSuccess(d, autoReload = true) {
-  try { localStorage.removeItem(_UPD_LS_KEY); } catch(e) {}
-  const b = document.getElementById('upd-btn'); if(b) { b.innerHTML = 'Jetzt aktualisieren'; }
+
+function _updShowSuccess(d) {
+  if (_updReloadTimer) { clearInterval(_updReloadTimer); _updReloadTimer = null; }
+  _updBtnReset();
   const el = document.getElementById('upd-status'); el.style.display = 'block';
-  const versionStr = d.version_before ? `${_esc(d.version_before)} → <strong>${_esc(d.version_after || '?')}</strong>` : '';
+  const versionStr = d.version_before
+    ? `${_esc(d.version_before)} → <strong>${_esc(d.version_after || '?')}</strong>` : '';
+  const showCountdown = _updInitiatedHere;
   el.innerHTML = `<div class="alert success" style="font-size:13px">
     <strong>Update erfolgreich!</strong> ${versionStr}
     <pre style="margin:8px 0 0;white-space:pre-wrap;font-size:11px;max-height:200px;overflow-y:auto">${_esc(d.log || '')}</pre>
     <div style="margin-top:10px;display:flex;align-items:center;gap:8px">
-      <button class="btn primary btn-sm" onclick="_updClear().then(()=>location.reload())">Seite neu laden</button>
-      <button class="btn secondary btn-sm" onclick="_updClear()">Status zurücksetzen</button>
-      ${autoReload ? '<span id="upd-reload-countdown" style="font-size:12px;color:#15803d"></span>' : ''}
+      <button class="btn primary btn-sm" onclick="clearInterval(_updReloadTimer);_updClear().then(()=>location.reload())">Jetzt neu laden</button>
+      <button class="btn secondary btn-sm" onclick="clearInterval(_updReloadTimer);_updClear()">Später</button>
+      ${showCountdown ? '<span id="upd-countdown" style="font-size:12px;color:#15803d"></span>' : ''}
     </div>
   </div>`;
-  if (!autoReload) return;
-  let t = 5;
-  const cd = document.getElementById('upd-reload-countdown');
-  const iv = setInterval(() => {
+  if (!showCountdown) return;
+  let t = 30;
+  const cd = document.getElementById('upd-countdown');
+  if (cd) cd.textContent = `(Seite lädt automatisch in ${t}s neu)`;
+  _updReloadTimer = setInterval(() => {
     t--;
-    if (cd) cd.textContent = `(Seite lädt in ${t}s neu…)`;
-    if (t <= 0) { clearInterval(iv); location.reload(); }
+    if (cd) cd.textContent = t > 0 ? `(Seite lädt automatisch in ${t}s neu)` : '';
+    if (t <= 0) { clearInterval(_updReloadTimer); _updClear().catch(()=>{}).finally(()=>location.reload()); }
   }, 1000);
 }
+
 function _updShowError(msg) {
   const el = document.getElementById('upd-status'); el.style.display = 'block';
   el.innerHTML = `<div class="alert" style="background:#fef2f2;border-color:#fca5a5;color:#991b1b;font-size:13px">
@@ -850,13 +851,28 @@ function _updShowError(msg) {
     <div style="margin-top:8px"><button class="btn secondary btn-sm" onclick="_updClear()">Status zurücksetzen</button></div>
   </div>`;
 }
+
 async function _updClear() {
-  await fetch('/api/system/update/clear', {method: 'POST'});
-  try { localStorage.removeItem(_UPD_LS_KEY); } catch(e) {}
+  try { await fetch('/api/system/update/clear', {method: 'POST'}); } catch(e) {}
   document.getElementById('upd-status').style.display = 'none';
-  document.getElementById('upd-btn').disabled = false;
+  _updBtnReset();
 }
 
+// --- Watcher-Badge ---
+async function _updCheckWatcher() {
+  const badge = document.getElementById('upd-watcher-badge');
+  try {
+    const r = await fetch('/api/system/update/watcher-status');
+    const d = await r.json();
+    _watcherOk = d.ok;
+    badge.innerHTML = d.ok
+      ? '<span style="color:#16a34a">● Watcher aktiv</span>'
+      : '<span style="color:#b45309">● Watcher nicht erkannt — <a href="/setup#step-watcher" style="color:#b45309">Einrichtung → Update-Watcher</a></span>';
+    if (!d.ok) document.getElementById('upd-btn').disabled = true;
+  } catch(e) {}
+}
+
+// --- Changelog ---
 let _clVisible = false;
 async function toggleChangelog() {
   const box = document.getElementById('upd-changelog');
@@ -866,95 +882,43 @@ async function toggleChangelog() {
   try {
     const r = await fetch('/api/system/changelog?n=8');
     const d = await r.json();
-    if (d.error) { box.innerHTML = `<p style="color:#dc2626;font-size:13px">${_esc(d.error)}</p>`; }
-    else {
-      box.innerHTML = d.entries.map(e => {
-        const lines = e.split('\n');
-        const header = lines[0].replace(/^## /, '');
-        const body = lines.slice(1).join('\n').trim();
-        return `<div style="border-left:3px solid #e2e8f0;padding:8px 12px;margin-bottom:8px">
-          <div style="font-weight:600;font-size:13px;color:#1e293b">${_esc(header)}</div>
-          ${body ? `<pre style="margin:4px 0 0;font-size:11px;color:#475569;white-space:pre-wrap;font-family:inherit">${_esc(body)}</pre>` : ''}
-        </div>`;
-      }).join('');
-    }
+    box.innerHTML = d.error ? `<p style="color:#dc2626;font-size:13px">${_esc(d.error)}</p>`
+      : d.entries.map(e => {
+          const lines = e.split('\n');
+          const header = lines[0].replace(/^## /, '');
+          const body = lines.slice(1).join('\n').trim();
+          return `<div style="border-left:3px solid #e2e8f0;padding:8px 12px;margin-bottom:8px">
+            <div style="font-weight:600;font-size:13px;color:#1e293b">${_esc(header)}</div>
+            ${body ? `<pre style="margin:4px 0 0;font-size:11px;color:#475569;white-space:pre-wrap;font-family:inherit">${_esc(body)}</pre>` : ''}
+          </div>`;
+        }).join('');
     box.style.display = 'block'; btn.textContent = 'Changelog ausblenden'; _clVisible = true;
   } catch(e) { btn.textContent = 'Changelog anzeigen'; }
 }
 
-async function _updCheckWatcher() {
-  const badge = document.getElementById('upd-watcher-badge');
-  try {
-    const r = await fetch('/api/system/update/watcher-status');
-    const d = await r.json();
-    _watcherOk = d.ok;
-    if (d.ok) {
-      badge.innerHTML = '<span style="color:#16a34a">● Watcher aktiv</span>';
-    } else {
-      badge.innerHTML = '<span style="color:#b45309">● Watcher nicht erkannt — bitte <a href="/setup#step-watcher" style="color:#b45309">Einrichtung → Update-Watcher</a> prüfen</span>';
-      document.getElementById('upd-btn').disabled = true;
-    }
-  } catch(e) {}
-}
-
+// --- Init ---
 (async function() {
   _updLoadChannel();
   await _updCheckWatcher();
-
-  // Update-State aus localStorage wiederherstellen (überlebt Seiten-Refresh)
-  let resumeFromStorage = false;
-  try {
-    const ts = parseInt(localStorage.getItem(_UPD_LS_KEY) || '0', 10);
-    if (ts && (Date.now() - ts) < 5 * 60 * 1000) resumeFromStorage = true;
-    else if (ts) localStorage.removeItem(_UPD_LS_KEY); // abgelaufen
-  } catch(e) {}
-
   try {
     const r = await fetch('/api/system/update/status');
     const d = await r.json();
     if (d.state === 'running') {
       document.getElementById('upd-btn').disabled = true;
-      document.getElementById('upd-spinner').style.display = 'inline';
+      document.getElementById('upd-btn').innerHTML = '⟳ Aktualisiert…';
       _updShowRunning(d.log || '');
-      _updPollStart = Date.now();
-      _updPollTimer = setInterval(_updPoll, 3000);
-      return;
+      _updStartPolling();
     } else if (d.state === 'success') {
-      _updShowSuccess(d, false); return;
+      _updShowSuccess(d); // _updInitiatedHere = false → kein Auto-Reload
     } else if (d.state === 'error') {
       _updShowError(d.log || 'Unbekannter Fehler');
-      try { localStorage.removeItem(_UPD_LS_KEY); } catch(e) {}
-      return;
+    } else if (_watcherOk) {
+      checkUpdate();
     }
-  } catch(e) {
-    // Container ist down — wenn Update aus localStorage bekannt: Polling starten
-    if (resumeFromStorage) {
-      _updSetBtnState('Neustart…', true);
-      _updShowRunning('Container wird neu gestartet, Verbindung wird wiederhergestellt…');
-      _updPollStart = Date.now();
-      _updPollTimer = setInterval(_updPoll, 3000);
-      return;
-    }
-  }
-
-  // Kein aktives Update — bei laufendem Watcher Version prüfen
-  if (resumeFromStorage) {
-    // Status war idle aber localStorage sagt Update lief — Polling starten
-    document.getElementById('upd-btn').disabled = true;
-    document.getElementById('upd-spinner').style.display = 'inline';
-    _updShowRunning('⟳  Warte auf Watcher-Rückmeldung…');
-    _updPollStart = Date.now();
-    _updPollTimer = setInterval(_updPoll, 3000);
-  } else if (_watcherOk) {
-    checkUpdate();
-  }
+  } catch(e) { /* Container kurzzeitig nicht erreichbar */ }
 })();
 </script>
-<style>
-@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-</style>
-<script>
-</script>
+<style>@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }</style>
 
 <!-- Konfiguration & Neustart -->
 <div class="settings-card">
