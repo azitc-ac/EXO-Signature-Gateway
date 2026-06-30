@@ -601,13 +601,6 @@
     In Vorlagen als <code>{{ "{{" }} custom.varname {{ "}}" }}</code> verwenden. Variablenname: nur Buchstaben, Ziffern, Underscore.
   </p>
 
-  <!-- Dropdown-Datalist für Entra-Felder -->
-  <datalist id="entra-fields-list">
-    {% for f in custom_var_entra_fields %}
-    <option value="{{ f.value }}">{{ f.label }}</option>
-    {% endfor %}
-  </datalist>
-
   <div id="custom-vars-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px"></div>
 
   <button type="button" class="btn secondary btn-sm" onclick="addCustomVar()" style="margin-bottom:12px">+ Variable hinzufügen</button>
@@ -1293,22 +1286,24 @@ function toggleSigStripConfig(enabled) {
 // ── Custom Template Vars ──────────────────────────────────────────────────────
 const _entraFields = {{ custom_var_entra_fields | tojson }};
 
+const _ENTRA_FIELDS = {{ custom_var_entra_fields | tojson }};
+
 function _customVarRow(name, entraField) {
+  const opts = _ENTRA_FIELDS.map(f =>
+    `<option value="${_esc(f.value)}"${entraField === f.value ? ' selected' : ''}>${_esc(f.label)}</option>`
+  ).join('');
   const row = document.createElement('div');
   row.className = 'custom-var-row';
   row.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap';
   row.innerHTML = `
     <span style="font-size:12px;color:#64748b;white-space:nowrap;min-width:70px">custom.</span>
     <input type="text" placeholder="varname" value="${_esc(name)}"
-           style="width:140px;font-family:monospace;font-size:13px"
-           class="cv-name"
+           style="width:140px;font-family:monospace;font-size:13px" class="cv-name"
            oninput="this.value=this.value.replace(/[^a-zA-Z0-9_]/g,'')">
-    <div style="position:relative;flex:1;min-width:220px;max-width:340px">
-      <input type="text" placeholder="Entra-Feld suchen…" value="${_esc(entraField)}"
-             list="entra-fields-list"
-             style="width:100%;box-sizing:border-box;font-size:13px"
-             class="cv-field">
-    </div>
+    <select class="cv-field" style="flex:1;min-width:220px;max-width:340px;font-size:13px;padding:4px 6px;border:1px solid #d1d5db;border-radius:6px">
+      <option value="">— Entra-Feld wählen —</option>
+      ${opts}
+    </select>
     <button type="button" onclick="this.closest('.custom-var-row').remove()"
             style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:16px;line-height:1;padding:2px 4px"
             title="Entfernen">✕</button>`;
