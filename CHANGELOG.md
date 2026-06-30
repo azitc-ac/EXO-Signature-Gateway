@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.311 — 2026-06-30 — fix: border-top Pattern zu breit — trifft dekorative Trenner in Firmen-Templates
+
+Ursache: Das Regex für Outlook-Desktop-Antwort-Trenner matchte jedes
+<div style="border:none;border-top:solid..."> — viele E-Mail-Templates nutzen
+dasselbe Muster für dekorative Linien. Dadurch wurde die Signatur an eine
+falsche (unsichtbare) Stelle im gequoteten Inhalt eingefügt.
+
+Fix: Enge Regex die nur das exakte Outlook-Desktop-Muster trifft:
+  border:none; + border-top:solid #XXXXXX 1pt + padding:3pt
+(Alle drei Merkmale zusammen sind einzigartig für Outlooks Attribution-Div.)
+Dekorative Trenner (andere Breite, ohne padding:3pt) werden nicht mehr getroffen.
+Gleiche Änderung in _find_first_quote_wrapper_pos.
+
 ## v1.4.310 — 2026-06-30 — fix: Wartungsmodus Preview-Button funktionslos (JS Infinite Loop)
 
 Ursache 1: applyMaintenanceState → loadHeldMails → applyMaintenanceState → endlose Rekursion.

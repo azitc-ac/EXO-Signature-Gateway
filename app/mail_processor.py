@@ -508,9 +508,13 @@ def _find_first_quote_wrapper_pos(html: str) -> int | None:
         m = pattern.search(html)
         if m:
             best = m.start() if best is None else min(best, m.start())
-    # Outlook Desktop reply separator (border:none;border-top:solid ...)
-    m = re.search(r'<div\b[^>]*style=["\'][^"\']*border\s*:\s*none[^"\']*border-top\s*:\s*solid',
-                  html, re.IGNORECASE)
+    # Outlook Desktop reply separator — same tight pattern as _append_html_sig
+    m = re.search(
+        r'<div\b[^>]*style=["\'][^"\']*'
+        r'border\s*:\s*none\s*;[^"\']*'
+        r'border-top\s*:\s*solid\s+#[0-9a-fA-F]{3,6}\s+1[.\d]*pt[^"\']*'
+        r'padding\s*:\s*3[.\d]*pt',
+        html, re.IGNORECASE)
     if m:
         best = m.start() if best is None else min(best, m.start())
     return best
@@ -675,10 +679,19 @@ def _append_html_sig(html: str, sig_html: str) -> str:
          "OWA forward wrapper"),
         (re.compile(r'<div\b[^>]*\bid=["\']divfwdmsg["\']', re.IGNORECASE),
          "OWA forward message"),
-        # Outlook Desktop reply separator: <div style="border:none;border-top:solid #E1E1E1 1.0pt;...">
-        # This is the standard separator Outlook Desktop injects between compose area and quoted content.
-        (re.compile(r'<div\b[^>]*style=["\'][^"\']*border\s*:\s*none[^"\']*border-top\s*:\s*solid', re.IGNORECASE),
-         "Outlook Desktop reply separator (border-top)"),
+        # Outlook Desktop reply separator:
+        #   <div style="border:none;border-top:solid #E1E1E1 1.0pt;padding:3.0pt 0cm 0cm 0cm">
+        # The full combination of border:none + 1pt top border + 3pt top padding is unique
+        # to Outlook's attribution header div.  A broad match on just "border-top:solid"
+        # is too risky — many company email templates use decorative border-top dividers
+        # (e.g. a coloured horizontal rule) that would then be matched instead.
+        (re.compile(
+            r'<div\b[^>]*style=["\'][^"\']*'
+            r'border\s*:\s*none\s*;[^"\']*'
+            r'border-top\s*:\s*solid\s+#[0-9a-fA-F]{3,6}\s+1[.\d]*pt[^"\']*'
+            r'padding\s*:\s*3[.\d]*pt',
+            re.IGNORECASE),
+         "Outlook Desktop reply separator (border:none + 1pt + padding:3pt)"),
         (re.compile(r'<div\b[^>]*\bclass=["\'][^"\']*gmail_quote[^"\']*["\']', re.IGNORECASE),
          "Gmail quote"),
         (re.compile(r'<div\b[^>]*\bclass=["\'][^"\']*yahoo_quoted[^"\']*["\']', re.IGNORECASE),
