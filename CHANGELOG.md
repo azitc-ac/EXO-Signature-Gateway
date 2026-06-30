@@ -5,6 +5,40 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.276 — 2026-06-30 — refactor: Eigene Variablen — Select-Dropdown statt Datalist
+
+Text-Input mit Freitext-Suche durch sauberes <select>-Dropdown ersetzt,
+einheitlich mit dem Website-Feld.
+
+## v1.4.274 — 2026-06-30 — fix: user.website als globaler fester URL-Wert für alle Nutzer
+
+WEBSITE_URL-Einstellung statt Entra-Feld-Selektor. Ein URL-Wert gilt für
+alle Nutzer; per-User-Overrides (USER_WEBSITES) bleiben als Vorrang erhalten.
+
+## v1.4.272 — 2026-06-30 — fix: Spinner-Animation im Update-Button wiederhergestellt
+
+⟳ im Update-Button drehte sich nicht (statisches Zeichen nach Refactoring).
+_spin()-Hilfsfunktion stellt CSS-Animation für alle Zustände wieder her.
+
+## v1.4.270 — 2026-06-30 — fix: Watcher-Service via /bin/bash statt direktem Exec
+
+ExecStart=/bin/bash /opt/exo-gateway/update-watcher.sh verhindert
+203/EXEC dauerhaft — Datei-Modus (644 vs. 755) spielt keine Rolle mehr.
+Bestehende VM: Service-File manuell patchen + systemctl daemon-reload.
+
+## v1.4.268 — 2026-06-30 — feat: Bookings-URL automatisch bei neuem Postfach ermitteln
+
+Beim Speichern der Postfach-Konfiguration werden Bookings-URLs für neue
+Einträge (nicht in USER_BOOKINGS) im Hintergrund via PS ermittelt.
+
+## v1.4.266 — 2026-06-30 — feat: user.website + Bookings-URL konfigurierbar
+
+- "Feste Variablen" → "Vordefinierte Variablen"
+- user.website: globaler URL-Wert, einmal eingetragen gilt für alle
+- user.bookingsUrl: URL-Schema angezeigt; Button "Booking-URLs ermitteln"
+  ruft PS Get-Mailbox .ExchangeGuid.ToString("N") auf → URL berechnet
+- Neuer Endpoint: POST /api/mailboxes/fetch-bookings-urls
+
 ## v1.4.264 — 2026-06-30 — refactor: Update-JS komplett neu geschrieben, kein localStorage
 
 Update-Mechanismus von Grund auf überarbeitet. Kein localStorage mehr — Status-Datei
