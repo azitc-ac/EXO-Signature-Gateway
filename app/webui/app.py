@@ -3515,6 +3515,49 @@ async def api_watcher_status(user: str = Depends(_require_admin)):
     return JSONResponse({"ok": updater.watcher_ok()})
 
 
+@app.get("/api/system/update/whats-new")
+async def api_update_whats_new(from_version: str, to_version: str, user: str = Depends(_check_auth)):
+    """Fetch changelog entries from GitHub between from_version (excl.) and to_version (incl.)."""
+    import re, httpx
+    url = f"https://raw.githubusercontent.com/{updater.GITHUB_REPO}/main/CHANGELOG.md"
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.get(url)
+            r.raise_for_status()
+            text = r.text
+    except Exception as exc:
+        return JSONResponse({"entries": [], "error": str(exc)})
+
+    def _pv(v: str) -> tuple:
+        try:
+            return tuple(int(x) for x in v.lstrip("v").split("."))
+        except Exception:
+            return (0,)
+
+    from_v, to_v = _pv(from_version), _pv(to_version)
+    entries: list[dict] = []
+    cur_lines: list[str] = []
+    cur_ver: tuple = (0,)
+
+    def _flush():
+        if cur_lines and from_v < cur_ver <= to_v:
+            header = cur_lines[0]
+            body = "\n".join(cur_lines[1:]).strip()
+            entries.append({"header": header, "body": body})
+
+    for line in text.splitlines():
+        if line.startswith("## v"):
+            _flush()
+            m = re.match(r"## v([\d.]+)", line)
+            cur_ver = _pv(m.group(1)) if m else (0,)
+            cur_lines = [line]
+        elif cur_lines:
+            cur_lines.append(line)
+    _flush()
+
+    return JSONResponse({"entries": entries})
+
+
 @app.get("/api/system/changelog")
 async def api_changelog(n: int = 10, user: str = Depends(_check_auth)):
     """Letzte N Einträge aus CHANGELOG.md."""
