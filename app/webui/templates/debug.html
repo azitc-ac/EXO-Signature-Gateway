@@ -66,19 +66,19 @@
 <script>
 (function() {
   var _currentPreviewId = null;
+  var _initialMode = {{ 'true' if s.MAINTENANCE_MODE else 'false' }};
 
-  window._maintenanceMode = {{ 'true' if s.MAINTENANCE_MODE else 'false' }};
-
-  function applyMaintenanceState(enabled) {
-    window._maintenanceMode = enabled;
+  // Update toggle + status label only — no recursion into loadHeldMails
+  function _applyModeUI(enabled) {
     var toggle = document.getElementById('maintenance-toggle');
     var statusText = document.getElementById('maintenance-status-text');
     var queue = document.getElementById('maintenance-queue');
     if (toggle) toggle.checked = enabled;
-    if (statusText) statusText.textContent = enabled ? 'Aktiv — Mails werden zurückgehalten' : 'Deaktiviert';
-    if (statusText) statusText.style.color = enabled ? '#b45309' : '#57534e';
+    if (statusText) {
+      statusText.textContent = enabled ? 'Aktiv — Mails werden zurückgehalten' : 'Deaktiviert';
+      statusText.style.color = enabled ? '#b45309' : '#57534e';
+    }
     if (queue) queue.style.display = enabled ? 'block' : 'none';
-    if (enabled) loadHeldMails();
   }
 
   window.setMaintenanceMode = async function(enabled) {
@@ -88,113 +88,127 @@
       body: JSON.stringify({enabled: enabled})
     });
     if (!r.ok) { alert('Fehler beim Speichern'); return; }
-    applyMaintenanceState(enabled);
+    _applyModeUI(enabled);
+    if (enabled) window.loadHeldMails();
   };
 
   window.loadHeldMails = async function() {
-    var r = await fetch('/api/maintenance/mails');
-    if (!r.ok) return;
-    var d = await r.json();
-    applyMaintenanceState(d.maintenance_mode);
-    document.getElementById('held-count').textContent = d.mails.length;
-    var container = document.getElementById('held-mails-table');
-    if (!d.mails.length) {
-      container.innerHTML = '<p style="color:#a8a29e;font-size:13px">Keine zurückgehaltenen Mails.</p>';
-      return;
+    try {
+      var r = await fetch('/api/maintenance/mails');
+      if (!r.ok) return;
+      var d = await r.json();
+      // Update mode UI without recursing
+      _applyModeUI(d.maintenance_mode);
+      document.getElementById('held-count').textContent = d.mails.length;
+      var container = document.getElementById('held-mails-table');
+      if (!d.mails.length) {
+        container.innerHTML = '<p style="color:#a8a29e;font-size:13px">Keine zurückgehaltenen Mails.</p>';
+        return;
+      }
+      var rows = d.mails.map(function(m) {
+        var ts = new Date(m.timestamp).toLocaleString('de-DE');
+        return '<tr>' +
+          '<td style="font-size:12px;color:#78716c;white-space:nowrap">' + ts + '</td>' +
+          '<td style="font-size:13px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + m.from_addr + '">' + m.from_addr + '</td>' +
+          '<td style="font-size:13px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (m.to_addrs||[]).join(", ") + '">' + (m.to_addrs||[]).join(", ") + '</td>' +
+          '<td style="font-size:13px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (m.subject||'') + '">' + (m.subject || '(kein Betreff)') + '</td>' +
+          '<td style="white-space:nowrap">' +
+            '<button class="btn secondary" onclick="openPreview(\'' + m.id + '\',this)" style="font-size:11px;padding:3px 8px;margin-right:4px">Preview</button>' +
+            '<button class="btn secondary" onclick="releaseSingle(\'' + m.id + '\',this)" style="font-size:11px;padding:3px 8px;margin-right:4px">Zustellen</button>' +
+            '<button class="btn danger" onclick="deleteSingle(\'' + m.id + '\',this)" style="font-size:11px;padding:3px 8px">Löschen</button>' +
+          '</td>' +
+        '</tr>';
+      });
+      container.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px">' +
+        '<thead><tr>' +
+          '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid #e7e5e4;font-size:11px;color:#78716c">Zeit</th>' +
+          '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid #e7e5e4;font-size:11px;color:#78716c">Von</th>' +
+          '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid #e7e5e4;font-size:11px;color:#78716c">An</th>' +
+          '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid #e7e5e4;font-size:11px;color:#78716c">Betreff</th>' +
+          '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid #e7e5e4;font-size:11px;color:#78716c">Aktionen</th>' +
+        '</tr></thead>' +
+        '<tbody>' + rows.join('') + '</tbody>' +
+        '</table>';
+    } catch(e) {
+      console.error('loadHeldMails error:', e);
     }
-    var rows = d.mails.map(function(m) {
-      var ts = new Date(m.timestamp).toLocaleString('de-DE');
-      return '<tr>' +
-        '<td style="font-size:12px;color:#78716c;white-space:nowrap">' + ts + '</td>' +
-        '<td style="font-size:13px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + m.from_addr + '">' + m.from_addr + '</td>' +
-        '<td style="font-size:13px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + m.to_addrs.join(", ") + '">' + m.to_addrs.join(", ") + '</td>' +
-        '<td style="font-size:13px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (m.subject||'') + '">' + (m.subject || '(kein Betreff)') + '</td>' +
-        '<td style="white-space:nowrap">' +
-          (m.has_preview ? '<button class="btn secondary" onclick="openPreview(\'' + m.id + '\',this)" style="font-size:11px;padding:3px 8px;margin-right:4px">Preview</button>' : '') +
-          '<button class="btn secondary" onclick="releaseSingle(\'' + m.id + '\',this)" style="font-size:11px;padding:3px 8px;margin-right:4px">Zustellen</button>' +
-          '<button class="btn danger" onclick="deleteSingle(\'' + m.id + '\',this)" style="font-size:11px;padding:3px 8px">Löschen</button>' +
-        '</td>' +
-      '</tr>';
-    });
-    container.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px">' +
-      '<thead><tr>' +
-        '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid #e7e5e4;font-size:11px;color:#78716c">Zeit</th>' +
-        '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid #e7e5e4;font-size:11px;color:#78716c">Von</th>' +
-        '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid #e7e5e4;font-size:11px;color:#78716c">An</th>' +
-        '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid #e7e5e4;font-size:11px;color:#78716c">Betreff</th>' +
-        '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid #e7e5e4;font-size:11px;color:#78716c">Aktionen</th>' +
-      '</tr></thead>' +
-      '<tbody>' + rows.join('') + '</tbody>' +
-      '</table>';
   };
 
-  window.openPreview = async function(id, btn) {
-    _currentPreviewId = id;
-    var mails = document.querySelectorAll('#held-mails-table tbody tr');
-    // find metadata from button row
-    var row = btn ? btn.closest('tr') : null;
-    var subject = row ? row.cells[3].title || row.cells[3].textContent : '';
-    var meta = row ? ('Von: ' + row.cells[1].title + '   An: ' + row.cells[2].title) : '';
-    document.getElementById('preview-modal-subject').textContent = subject;
-    document.getElementById('preview-modal-meta').textContent = meta;
-    document.getElementById('preview-release-btn').dataset.id = id;
-    document.getElementById('preview-delete-btn').dataset.id = id;
-    var modal = document.getElementById('held-preview-modal');
-    modal.style.display = 'flex';
-    var iframe = document.getElementById('preview-iframe');
-    iframe.src = '/api/maintenance/mails/' + id + '/preview';
+  window.openPreview = function(id, btn) {
+    try {
+      _currentPreviewId = id;
+      var row = btn ? btn.closest('tr') : null;
+      var subject = row ? (row.cells[3].title || row.cells[3].textContent) : id;
+      var meta = row ? ('Von: ' + row.cells[1].title + '   An: ' + row.cells[2].title) : '';
+      document.getElementById('preview-modal-subject').textContent = subject;
+      document.getElementById('preview-modal-meta').textContent = meta;
+      var modal = document.getElementById('held-preview-modal');
+      modal.style.display = 'flex';
+      var iframe = document.getElementById('preview-iframe');
+      iframe.src = '/api/maintenance/mails/' + id + '/preview';
+    } catch(e) {
+      alert('Preview-Fehler: ' + e.message);
+    }
   };
 
   window.closePreview = function() {
     document.getElementById('held-preview-modal').style.display = 'none';
-    document.getElementById('preview-iframe').src = '';
+    document.getElementById('preview-iframe').src = 'about:blank';
     _currentPreviewId = null;
   };
 
   window.releaseHeld = async function() {
     if (!_currentPreviewId) return;
-    await releaseSingle(_currentPreviewId);
-    closePreview();
+    await window.releaseSingle(_currentPreviewId);
+    window.closePreview();
   };
 
   window.deleteHeld = async function() {
     if (!_currentPreviewId) return;
-    await deleteSingle(_currentPreviewId);
-    closePreview();
+    await window.deleteSingle(_currentPreviewId);
+    window.closePreview();
   };
 
   window.releaseSingle = async function(id, btn) {
     if (!confirm('Mail jetzt zustellen?')) return;
     if (btn) { btn.disabled = true; btn.textContent = '...'; }
     var r = await fetch('/api/maintenance/mails/' + id + '/release', {method:'POST'});
-    if (!r.ok) { var d = await r.json(); alert('Fehler: ' + (d.detail || 'unbekannt')); if (btn) { btn.disabled=false; btn.textContent='Zustellen'; } return; }
-    loadHeldMails();
+    if (!r.ok) {
+      try { var d = await r.json(); alert('Fehler: ' + (d.detail || r.status)); } catch(e) { alert('Fehler ' + r.status); }
+      if (btn) { btn.disabled = false; btn.textContent = 'Zustellen'; }
+      return;
+    }
+    window.loadHeldMails();
   };
 
   window.deleteSingle = async function(id, btn) {
     if (!confirm('Mail endgültig löschen?')) return;
-    if (btn) { btn.disabled = true; }
+    if (btn) btn.disabled = true;
     await fetch('/api/maintenance/mails/' + id, {method:'DELETE'});
-    loadHeldMails();
+    window.loadHeldMails();
   };
 
   window.deleteAllHeld = async function() {
     if (!confirm('Alle zurückgehaltenen Mails löschen?')) return;
     var r = await fetch('/api/maintenance/mails');
     var d = await r.json();
-    for (var m of d.mails) await fetch('/api/maintenance/mails/' + m.id, {method:'DELETE'});
-    loadHeldMails();
+    for (var m of (d.mails || [])) {
+      await fetch('/api/maintenance/mails/' + m.id, {method:'DELETE'});
+    }
+    window.loadHeldMails();
   };
 
-  // Init
-  applyMaintenanceState(window._maintenanceMode);
+  // Init — apply UI state from server-rendered value, then load queue if active
+  _applyModeUI(_initialMode);
+  if (_initialMode) window.loadHeldMails();
 
-  // Click outside modal closes it
-  document.getElementById('held-preview-modal').addEventListener('click', function(e) {
-    if (e.target === this) closePreview();
+  // Click outside modal to close
+  var _modal = document.getElementById('held-preview-modal');
+  if (_modal) _modal.addEventListener('click', function(e) {
+    if (e.target === this) window.closePreview();
   });
 
-  // Scroll to anchor on load
+  // Smooth-scroll to section when navigated via anchor
   if (window.location.hash === '#maintenance') {
     setTimeout(function() {
       var el = document.getElementById('maintenance');

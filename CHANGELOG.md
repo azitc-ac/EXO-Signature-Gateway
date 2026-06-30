@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.310 — 2026-06-30 — fix: Wartungsmodus Preview-Button funktionslos (JS Infinite Loop)
+
+Ursache 1: applyMaintenanceState → loadHeldMails → applyMaintenanceState → endlose Rekursion.
+Getrennt in _applyModeUI (nur Toggle/Label) und loadHeldMails (nur Daten), kein gegenseitiger Aufruf.
+Ursache 2: openPreview war async → silent Promise-Rejection bei fehlendem DOM-Element.
+Jetzt sync mit try/catch + alert. Preview-Button immer gerendert (has_preview-Flag entfernt).
+
 ## v1.4.309 — 2026-06-30 — feat: Wartungsmodus (Mails halten statt zustellen)
 
 Neuer Modus unter Einstellungen → Erweitert → Wartungsmodus:
