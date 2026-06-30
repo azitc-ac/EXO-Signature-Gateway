@@ -5,9 +5,25 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.282 — 2026-06-30 — fix: Changelog-Rendering und _esc-Duplikat behoben
+
+Doppelte _esc-Definition: zweite Version (Zeile 1313) escapte kein < und >, dadurch
+wurde z.B. <select> in CHANGELOG-Texten als echtes HTML-Element gerendert.
+Zusammengefasst in eine korrekte Definition. Neue CHANGELOG-Eintraege werden jetzt
+oben eingefuegt statt am Ende angehaengt.
+
+## v1.4.281 — 2026-06-30 — fix: user.website und user.bookingsUrl zweizeilig in Variablentabelle
+
+colspan="2" + Label oben, Eingabefeld/Button darunter — bessere Lesbarkeit auf kleinen Screens.
+
+## v1.4.279 — 2026-06-30 — fix: Countdown immer anzeigen, _updInitiatedHere entfernt
+
+_updInitiatedHere-Flag war zu fragil: manuelle Seitenaktualisierung während
+des Updates setzte es zurück, danach kein Countdown und kein Auto-Reload mehr.
+Gelöst durch Entfernen des Flags — Countdown erscheint jetzt immer bei success.
 ## v1.4.276 — 2026-06-30 — refactor: Eigene Variablen — Select-Dropdown statt Datalist
 
-Text-Input mit Freitext-Suche durch sauberes <select>-Dropdown ersetzt,
+Text-Input mit Freitext-Suche durch sauberes `<select>`-Dropdown ersetzt,
 einheitlich mit dem Website-Feld.
 
 ## v1.4.274 — 2026-06-30 — fix: user.website als globaler fester URL-Wert für alle Nutzer
@@ -80,6 +96,15 @@ Button-Text selbst ändert sich: "⟳ Wird gestartet…" → "⟳ Aktualisiert�
 
 ## v1.4.249 — 2026-06-30 — fix: Update-Status überlebt Seiten-Refresh (localStorage) + Heartbeat-Timeout 5min
 
+## v1.4.247 — 2026-06-30 — fix: update-watcher.sh setzt HOME explizit (Azure Run Command)
+
+## v1.4.245 — 2026-06-30 — fix: Update-UI zeigt Feedback bei Container-Neustart + Watcher-Heartbeat sofort
+
+Update-Polling zeigt jetzt "Container wird neu gestartet" statt still einzufrieren
+wenn die Verbindung während docker compose up kurz abbricht.
+Nach erfolgreichem Update automatischer Seiten-Reload nach 5s.
+update-watcher.sh: Heartbeat wird jetzt sofort beim Start geschrieben (nicht erst nach 60s).
+
 ## v1.4.243 — 2026-06-30 — feat: Eigene Template-Variablen aus Entra-Attributen (custom.*)
 
 Neue Sektion "Eigene Variablen" in Signatur-Card: beliebige Entra-Attribute
@@ -89,15 +114,6 @@ Feste Variablen als aufklappbare Referenz erhalten.
 graph_client: _SELECT_FIELDS erweitert (givenName, surname, streetAddress, city,
 state, postalCode, country, faxNumber, employeeId), custom dict in UserData.
 signature_engine: custom als eigener Template-Context-Key.
-
-## v1.4.247 — 2026-06-30 — fix: update-watcher.sh setzt HOME explizit (Azure Run Command)
-
-## v1.4.245 — 2026-06-30 — fix: Update-UI zeigt Feedback bei Container-Neustart + Watcher-Heartbeat sofort
-
-Update-Polling zeigt jetzt "Container wird neu gestartet" statt still einzufrieren
-wenn die Verbindung während docker compose up kurz abbricht.
-Nach erfolgreichem Update automatischer Seiten-Reload nach 5s.
-update-watcher.sh: Heartbeat wird jetzt sofort beim Start geschrieben (nicht erst nach 60s).
 
 ## v1.4.241 — 2026-06-30 — refactor: Fallback-Checkbox nach Signatur-Card verschoben
 
@@ -760,7 +776,7 @@ Betreff-Stacking:
 
 - settings.html: Label "Absende-Postfach" → "Absender", Hint entfernt
 - webui/app.py: Filter type=="user" statt user+shared
-- Doppelten <select> aus vorheriger Iteration entfernt
+- Doppelten `<select>` aus vorheriger Iteration entfernt
 
 ## v1.4.100 — 2026-06-27 — feat: Absende-Postfach Dropdown aus Graph API (server-seitig)
 
@@ -770,7 +786,7 @@ Betreff-Stacking:
 
 ## v1.4.99 — 2026-06-27 — feat: Absende-Postfach Dropdown in Benachrichtigungs-Einstellungen
 
-- settings.html: NOTIFICATION_MAILBOX hidden input → sichtbares <select> "Absende-Postfach"
+- settings.html: NOTIFICATION_MAILBOX hidden input → sichtbares `<select>` "Absende-Postfach"
 - Dropdown wird dynamisch aus NOTIFICATION_RECIPIENTS befüllt (_renderNotifPicker)
 - Option "— Automatisch (erster Empfänger) —" als Leer-Default (value="")
 - Auswahl bleibt erhalten beim Hinzufügen/Entfernen von Empfängern
@@ -1930,7 +1946,7 @@ Aufrufe → mehrere Sent Items (Original unverändert + N signierte Kopien).
 - **API `GET /api/mailboxes`**: Gibt jetzt auch `template` pro User zurück.
 - **API `POST /api/mailboxes/save`**: Akzeptiert `template` im Payload; speichert nur,
   wenn nicht "default" (spart Speicherplatz in settings.json).
-- **Settings-UI**: Neue "Template"-Spalte in der Postfach-Tabelle mit `<select>`-Dropdown.
+- **Settings-UI**: Neue "Template"-Spalte in der Postfach-Tabelle mit ``<select>``-Dropdown.
   Das Select ist deaktiviert (ausgegraut), wenn Signatur-Checkbox unchecked ist.
 - **Template-Editor**: Dropdown für Template-Auswahl, Button "Neues Template erstellen",
   Button zum Löschen (nicht für "default"). POST-Formular schickt `template_name` mit.
@@ -2152,11 +2168,3 @@ _(In v1.0.84 zusammengefasst — Zwischenstand während Debugging-Session)_
 - Transport-Regel mit Distribution-Group-Filter
 - Let's Encrypt TLS-Zertifikat (Certbot)
 - Web-UI: Mailbox-Konfiguration, Signatur-Vorschau
-## v1.4.279 — 2026-06-30 — fix: Countdown immer anzeigen, _updInitiatedHere entfernt
-
-_updInitiatedHere-Flag war zu fragil: manuelle Seitenaktualisierung während
-des Updates setzte es zurück, danach kein Countdown und kein Auto-Reload mehr.
-Gelöst durch Entfernen des Flags — Countdown erscheint jetzt immer bei success.
-## v1.4.281 — 2026-06-30 — fix: user.website und user.bookingsUrl zweizeilig in Variablentabelle
-
-colspan="2" + Label oben, Eingabefeld/Button darunter — bessere Lesbarkeit auf kleinen Screens.

@@ -692,7 +692,7 @@ let _updPollStart = null;
 let _watcherOk = false;
 let _updReloadTimer = null;
 
-function _esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function _esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function _updGetChannel() { return document.getElementById('upd-channel').value; }
 function _updSaveChannel() {
   try { localStorage.setItem('exo_upd_channel', _updGetChannel()); } catch(e) {}
@@ -1310,7 +1310,7 @@ function _customVarRow(name, entraField) {
   return row;
 }
 
-function _esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
+
 
 function addCustomVar(name, field) {
   document.getElementById('custom-vars-list').appendChild(_customVarRow(name||'', field||''));
