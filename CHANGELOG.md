@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.323 — 2026-06-30 — fix: SSO-Button nur wenn Request-Host zur konfigurierten Domain passt
+
+Login-Seite prüft ob der Browser-Host (Host-Header) mit dem SSO-Redirect-Host
+(ADDIN_BASE_URL / PUBLIC_HOSTNAME) übereinstimmt. Bei Mismatch (z.B. Raspi via
+lokaler IP): kein SSO-Button, stattdessen Hinweis "nur über sig.zarenko.net
+verfügbar" + lokaler Login direkt aufgeklappt (open). Verhindert dass der User
+nach lokalem Login auf der Azure-VM landet (SSO-Callback geht immer zu sig.zarenko.net).
+
 ## v1.4.322 — 2026-06-30 — feat: Selbsttest-Vorschau (Eingabe vs. Ausgabe Modal)
 
 Selbsttest zeigt pro Test einen "Vorschau"-Knopf. Klick öffnet Modal mit zwei

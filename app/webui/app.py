@@ -283,6 +283,30 @@ def _webui_scheme() -> str:
     return "https" if Path(config.SMTP_TLS_CERT).exists() else "http"
 
 
+def _sso_external_host() -> str:
+    """Return the hostname the SSO redirect_uri is registered for, or ''."""
+    external = (settings_store.get("ADDIN_BASE_URL") or "").rstrip("/")
+    if external:
+        return urllib.parse.urlparse(external).hostname or ""
+    hostname = settings_store.get("PUBLIC_HOSTNAME") or ""
+    return hostname.split(":")[0]
+
+
+def _sso_host_matches(request: Request) -> bool:
+    """True if the browser's Host header matches the configured SSO hostname.
+
+    When False, the SSO button would redirect the user to a different host
+    (the Azure VM) after login — so we hide it and surface local login instead.
+    Returns True when no external hostname is configured (no mismatch possible).
+    """
+    ext = _sso_external_host()
+    if not ext:
+        return True
+    req_host = (request.headers.get("x-forwarded-host") or request.headers.get("host") or "").lower()
+    req_host = req_host.split(":")[0]
+    return req_host == ext.lower()
+
+
 def _build_redirect_uri(sso: bool = False) -> str:
     """
     For SSO flow: prefer ADDIN_BASE_URL (canonical external URL, no port) over PUBLIC_HOSTNAME+port.
@@ -899,6 +923,7 @@ async def auth_callback(
 @app.get("/auth/login", response_class=HTMLResponse)
 async def auth_login(request: Request, error: str = "", next: str = "/"):
     """Login page — shown to unauthenticated users."""
+    ext_host = _sso_external_host()
     return templates.TemplateResponse(
         request=request, name="login.html",
         context={
@@ -907,6 +932,8 @@ async def auth_login(request: Request, error: str = "", next: str = "/"):
             "upn": request.query_params.get("upn", ""),
             "sso_configured": sso_mod.sso_configured(),
             "sso_available": bool((settings_store.get("BOOTSTRAP_CLIENT_ID") or "").strip()),
+            "sso_host_matches": _sso_host_matches(request),
+            "sso_external_host": ext_host,
             "gateway_name": _gateway_name(),
         },
     )
