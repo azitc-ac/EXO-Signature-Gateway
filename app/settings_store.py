@@ -20,7 +20,8 @@ DEFAULTS: dict = {
     "USER_OVERRIDES": {},  # {email: {"user.jobTitle": "...", "custom.var": "..."}} — per-user overrides
     "WEBSITE_URL": "",  # Globale Website-URL für alle Nutzer (user.website)
     "CUSTOM_TEMPLATE_VARS": [],   # [{"name": "mobile", "entra_field": "mobilePhone"}, ...]
-    "MAILBOX_CONFIG": {},  # {email: {"sig": true, "smime": true}} — empty = all mailboxes processed
+    "MAILBOX_CONFIG": {},  # {email: {"sig": true, "smime": true, "use_policy": true}} — empty = all mailboxes processed
+    "TEMPLATE_POLICIES": {"sig": "default"},  # Standard-Richtlinien: {sig: template_name}
     "LE_DOMAIN": "",
     "LE_EMAIL": "",
     "LOG_RETENTION_DAYS": 30,

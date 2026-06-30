@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.301 — 2026-06-30 — feat: Vorlagenrichtlinien in Betrieb (Standard-Richtlinie aktiv)
+
+Standard-Richtlinie "Standardsignatur" ist jetzt funktional:
+- Neuer Setting-Key TEMPLATE_POLICIES {sig: template_name} — gespeichert via
+  Speichern-Button im Vorlagenrichtlinien-Block auf der Postfächer-Seite
+- Neue Spalte "Vorlagenrichtlinien" (Checkbox, default an) wird mit Postfach-
+  Config gespeichert (use_policy: true/false im MAILBOX_CONFIG-Eintrag)
+- handler.py: wenn use_policy=true → template aus TEMPLATE_POLICIES.sig statt
+  per-Postfach-Template; Vorlage-Dropdown wird ausgegraut
+- GET /api/settings/template-policies gibt aktuelle Richtlinien zurück
+- Benutzerdefinierte Richtlinien + Interne Gruppen bleiben Demnächst
+
 ## v1.4.299 — 2026-06-30 — feat: Vorlagenrichtlinien Sektion + Spaltenumbau Postfächer
 
 Postfächer-Seite: Spalten umbenannt und neu geordnet (Standardsignatur, Vorlage,

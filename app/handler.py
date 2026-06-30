@@ -549,7 +549,11 @@ class SignatureHandler:
 
             # ── Normal outbound: inject signature ─────────────────────────────
             user_data = await graph_client.get_user(sender)
-            template_name = _sender_cfg.get("template") or "default"
+            if _sender_cfg.get("use_policy", True):
+                _policies = settings_store.get("TEMPLATE_POLICIES") or {}
+                template_name = _policies.get("sig") or "default"
+            else:
+                template_name = _sender_cfg.get("template") or "default"
             sig_html, sig_txt = signature_engine.render(user_data, template_name=template_name)
             _img_mode = settings_store.get("SIG_IMAGE_MODE") or "auto"
             _use_cid = (

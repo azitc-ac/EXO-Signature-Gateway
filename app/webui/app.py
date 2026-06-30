@@ -1436,6 +1436,7 @@ async def api_get_mailboxes(_=Depends(_check_auth)):
             "smime": cfg.get("smime", False),
             "template": cfg.get("template", "default"),
             "addin_templates": cfg.get("addin_templates", []),
+            "use_policy": cfg.get("use_policy", True),
             "health_overall": h.get("overall"),
             "health_checked": h.get("last_checked"),
             "health_checks": h.get("checks", {}),
@@ -1453,6 +1454,7 @@ async def api_get_mailboxes(_=Depends(_check_auth)):
                 "smime": cfg.get("smime", False),
                 "template": cfg.get("template", "default"),
                 "addin_templates": cfg.get("addin_templates", []),
+                "use_policy": cfg.get("use_policy", True),
                 "health_overall": h.get("overall"),
                 "health_checked": h.get("last_checked"),
                 "health_checks": h.get("checks", {}),
@@ -1495,8 +1497,9 @@ async def api_save_mailboxes(body: dict, _=Depends(_check_auth)):
         smime = bool(m.get("smime", False))
         template = (m.get("template") or "default").strip()
         addin_tpl = m.get("addin_templates", [])
+        use_policy = bool(m.get("use_policy", True))
         if sig or smime:
-            entry: dict = {"sig": sig, "smime": smime}
+            entry: dict = {"sig": sig, "smime": smime, "use_policy": use_policy}
             if template and template != "default":
                 entry["template"] = template
             if addin_tpl == "*" or (isinstance(addin_tpl, list) and addin_tpl):
@@ -1769,6 +1772,11 @@ def _addin_url_warning(base_url: str) -> str:
         if host in ("localhost",):
             return "Localhost — extern nicht erreichbar"
     return ""
+
+
+@app.get("/api/settings/template-policies")
+async def api_get_template_policies(_=Depends(_check_auth)):
+    return JSONResponse(settings_store.get("TEMPLATE_POLICIES") or {"sig": "default"})
 
 
 @app.post("/api/settings/sender-mailboxes/refresh")

@@ -23,7 +23,7 @@
       <button class="btn secondary" onclick="activateAll('smime')" style="font-size:12px;padding:4px 10px">Alle S/MIME aktivieren</button>
     </div>
     <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
-    <table style="min-width:600px;width:100%;border-collapse:collapse;font-size:13px">
+    <table style="min-width:640px;width:100%;border-collapse:collapse;font-size:13px">
       <thead>
         <tr style="border-bottom:2px solid #e2e8f0">
           <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555">Postfach</th>
@@ -34,10 +34,8 @@
             <span style="font-size:10px;font-weight:500;background:#e2e8f0;color:#64748b;padding:1px 5px;border-radius:8px;display:block;margin-top:2px">Demnächst</span>
           </th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">Add-in Vorlagen</th>
-          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">
-            Vorlagenrichtlinien
-            <span style="font-size:10px;font-weight:500;background:#e2e8f0;color:#64748b;padding:1px 5px;border-radius:8px;display:block;margin-top:2px">Demnächst</span>
-          </th>
+          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:120px"
+              title="Wenn aktiv: Vorlage wird aus Vorlagenrichtlinien übernommen">Vorlagenrichtlinien</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:100px">S/MIME</th>
           <th id="th-status" style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:70px;display:none">Status</th>
         </tr>
@@ -57,75 +55,81 @@
   <div id="mb-result" style="margin-top:10px;display:none"></div>
 </div>
 
-<!-- Vorlagenrichtlinien (Demnächst) -->
+<!-- Vorlagenrichtlinien -->
 <div class="settings-card" style="margin-top:20px">
-  <h2 style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
-    Vorlagenrichtlinien
-    <span style="font-size:11px;font-weight:500;background:#e2e8f0;color:#64748b;padding:2px 8px;border-radius:10px">Demnächst</span>
-  </h2>
+  <h2 style="margin-bottom:4px">Vorlagenrichtlinien</h2>
   <p class="hint" style="margin-bottom:14px;line-height:1.6">
-    Definiere Regeln, nach denen Postfächern automatisch Signaturvorlagen zugewiesen werden —
-    nach Entra-Attributen (Abteilung, Standort …), internen Gruppen oder Zeiträumen.
-    Postfächer mit aktivierter <em>Vorlagenrichtlinien</em>-Option übernehmen die Vorlage aus der höchstpriorisierten zutreffenden Regel.
-    Per-Postfach-Overrides sind weiterhin möglich, indem die Option deaktiviert wird.
+    Legt fest, welche Signaturvorlage gateway-weit als Standard gilt.
+    Postfächer mit aktivierter <em>Vorlagenrichtlinien</em>-Option übernehmen automatisch die hier hinterlegte Vorlage —
+    individuelle Abweichungen sind möglich, indem die Option pro Postfach deaktiviert wird.
   </p>
 
-  <div style="opacity:0.48;pointer-events:none;user-select:none">
+  <!-- Standard-Richtlinien (aktiv) -->
+  <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:6px">
+    Standard-Richtlinien
+    <span style="font-size:11px;font-weight:400;color:#888;margin-left:4px">(gelten für alle Postfächer mit aktivierter Vorlagenrichtlinien-Option)</span>
+  </div>
+  <div style="overflow-x:auto;margin-bottom:12px">
+  <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:480px">
+    <thead>
+      <tr style="border-bottom:2px solid #e2e8f0">
+        <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555;width:180px">Typ</th>
+        <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555">Gilt für</th>
+        <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555;width:200px">Vorlage</th>
+        <th style="text-align:center;padding:6px 8px;width:40px"></th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- Standardsignatur — aktiv -->
+      <tr style="border-bottom:1px solid #f0f0f0">
+        <td style="padding:6px 8px;font-size:12px;font-weight:500">Standardsignatur</td>
+        <td style="padding:6px 8px;font-size:12px;color:#555">Alle Postfächer mit Richtlinie</td>
+        <td style="padding:6px 8px">
+          <select id="policy-sig-tpl" style="font-size:12px;width:160px">
+            <!-- filled by JS -->
+          </select>
+        </td>
+        <td style="text-align:center;padding:6px 8px;color:#94a3b8;font-size:14px" title="Nicht löschbar">🔒</td>
+      </tr>
+      <!-- Minimalsignatur — Demnächst -->
+      <tr style="border-bottom:1px solid #f0f0f0;opacity:0.45">
+        <td style="padding:6px 8px;font-size:12px;font-weight:500">
+          Minimalsignatur
+          <span style="font-size:10px;font-weight:500;background:#e2e8f0;color:#64748b;padding:1px 5px;border-radius:8px;margin-left:4px">Demnächst</span>
+        </td>
+        <td style="padding:6px 8px;font-size:12px;color:#555">Alle Postfächer mit Richtlinie</td>
+        <td style="padding:6px 8px">
+          <select disabled style="font-size:12px;width:160px"><option>— keine —</option></select>
+        </td>
+        <td style="text-align:center;padding:6px 8px;color:#94a3b8;font-size:14px" title="Nicht löschbar">🔒</td>
+      </tr>
+      <!-- Add-in Vorlagen — Demnächst -->
+      <tr style="border-bottom:1px solid #f0f0f0;opacity:0.45">
+        <td style="padding:6px 8px;font-size:12px;font-weight:500">
+          Add-in Vorlagen
+          <span style="font-size:10px;font-weight:500;background:#e2e8f0;color:#64748b;padding:1px 5px;border-radius:8px;margin-left:4px">Demnächst</span>
+        </td>
+        <td style="padding:6px 8px;font-size:12px;color:#555">Alle Postfächer mit Richtlinie</td>
+        <td style="padding:6px 8px">
+          <select disabled style="font-size:12px;width:160px"><option>Alle (inkl. zukünftige)</option></select>
+        </td>
+        <td style="text-align:center;padding:6px 8px;color:#94a3b8;font-size:14px" title="Nicht löschbar">🔒</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <button class="btn primary" onclick="savePolicies()">Speichern</button>
+    <span id="policy-save-result" style="font-size:12px"></span>
+  </div>
 
-    <!-- Standard-Richtlinien (nicht löschbar) -->
-    <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:6px;display:flex;align-items:center;gap:8px">
-      Standard-Richtlinien
-      <span style="font-size:11px;font-weight:400;color:#888">(gelten für alle Postfächer · nicht löschbar)</span>
-    </div>
-    <div style="overflow-x:auto;margin-bottom:16px">
-    <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:520px">
-      <thead>
-        <tr style="border-bottom:2px solid #e2e8f0">
-          <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555;width:180px">Typ</th>
-          <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555">Kriterium</th>
-          <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555;width:160px">Vorlage</th>
-          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:50px"></th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr style="border-bottom:1px solid #f0f0f0">
-          <td style="padding:6px 8px;font-size:12px;font-weight:500">Standardsignatur</td>
-          <td style="padding:6px 8px;font-size:12px;color:#888">Alle Postfächer</td>
-          <td style="padding:6px 8px">
-            <select disabled style="font-size:12px;width:140px">
-              <option>default</option>
-            </select>
-          </td>
-          <td style="text-align:center;padding:6px 8px;font-size:14px;color:#94a3b8" title="Nicht löschbar">🔒</td>
-        </tr>
-        <tr style="border-bottom:1px solid #f0f0f0">
-          <td style="padding:6px 8px;font-size:12px;font-weight:500">Minimalsignatur</td>
-          <td style="padding:6px 8px;font-size:12px;color:#888">Alle Postfächer</td>
-          <td style="padding:6px 8px">
-            <select disabled style="font-size:12px;width:140px">
-              <option>default</option>
-            </select>
-          </td>
-          <td style="text-align:center;padding:6px 8px;font-size:14px;color:#94a3b8" title="Nicht löschbar">🔒</td>
-        </tr>
-        <tr style="border-bottom:1px solid #f0f0f0">
-          <td style="padding:6px 8px;font-size:12px;font-weight:500">Add-in Vorlagen</td>
-          <td style="padding:6px 8px;font-size:12px;color:#888">Alle Postfächer</td>
-          <td style="padding:6px 8px">
-            <select disabled style="font-size:12px;width:140px">
-              <option>Alle (inkl. zukünftige)</option>
-            </select>
-          </td>
-          <td style="text-align:center;padding:6px 8px;font-size:14px;color:#94a3b8" title="Nicht löschbar">🔒</td>
-        </tr>
-      </tbody>
-    </table>
-    </div>
+  <!-- Benutzerdefinierte Richtlinien + Interne Gruppen (Demnächst) -->
+  <div style="margin-top:20px;border-top:1px solid #e2e8f0;padding-top:16px;opacity:0.45;pointer-events:none;user-select:none">
 
-    <!-- Benutzerdefinierte Richtlinien (höhere Priorität) -->
     <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:6px;display:flex;align-items:center;gap:8px">
       Benutzerdefinierte Richtlinien
-      <span style="font-size:11px;font-weight:400;color:#888">(höhere Priorität als Standard · werden in Reihenfolge ausgewertet)</span>
+      <span style="font-size:11px;font-weight:500;background:#e2e8f0;color:#64748b;padding:2px 7px;border-radius:10px">Demnächst</span>
+      <span style="font-size:11px;font-weight:400;color:#888">(höhere Priorität · werden in Reihenfolge ausgewertet)</span>
     </div>
     <div style="overflow-x:auto;margin-bottom:10px">
     <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:620px">
@@ -140,7 +144,6 @@
         </tr>
       </thead>
       <tbody>
-        <!-- Beispielzeile -->
         <tr style="border-bottom:1px solid #f0f0f0">
           <td style="text-align:center;padding:6px 8px;color:#94a3b8;font-size:12px">1</td>
           <td style="padding:6px 8px">
@@ -167,9 +170,7 @@
             </select>
           </td>
           <td style="padding:6px 8px">
-            <select disabled style="font-size:12px;width:130px">
-              <option>default</option>
-            </select>
+            <select disabled style="font-size:12px;width:130px"><option>default</option></select>
           </td>
           <td style="text-align:center;padding:6px 8px">
             <button class="btn secondary" disabled style="font-size:11px;padding:2px 8px">✕</button>
@@ -178,21 +179,20 @@
       </tbody>
     </table>
     </div>
-
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:18px">
       <button class="btn secondary" disabled style="font-size:12px">+ Entra-Attribut-Regel</button>
       <button class="btn secondary" disabled style="font-size:12px">+ Gruppen-Regel</button>
       <button class="btn secondary" disabled style="font-size:12px">+ Zeitraum-Regel</button>
       <button class="btn primary" disabled>Speichern</button>
     </div>
 
-    <!-- Interne Gruppen Vorschau -->
-    <div style="margin-top:18px;border-top:1px solid #e2e8f0;padding-top:14px">
+    <div style="border-top:1px solid #e2e8f0;padding-top:14px">
       <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:6px;display:flex;align-items:center;gap:8px">
         Interne Gruppen
+        <span style="font-size:11px;font-weight:500;background:#e2e8f0;color:#64748b;padding:2px 7px;border-radius:10px">Demnächst</span>
         <span style="font-size:11px;font-weight:400;color:#888">(keine Entra-Gruppen — rein interne Zuordnungen)</span>
       </div>
-      <table style="width:100%;border-collapse:collapse;font-size:13px;max-width:500px">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;max-width:480px">
         <thead>
           <tr style="border-bottom:2px solid #e2e8f0">
             <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555">Gruppenname</th>
@@ -215,7 +215,7 @@
       </div>
     </div>
 
-  </div><!-- /opacity wrapper -->
+  </div><!-- /Demnächst wrapper -->
 </div>
 
 <!-- Health-Detail-Modal -->
@@ -240,6 +240,48 @@ function showAlert(el, type, msg) {
   setTimeout(function() { el.style.display = 'none'; }, 6000);
 }
 
+// ── Vorlagenrichtlinien laden + speichern ────────────────────────────────────
+
+async function loadPolicies() {
+  try {
+    var r = await fetch('/api/settings/template-policies');
+    if (!r.ok) return;
+    var d = await r.json();
+    var sigTpl = d.sig || 'default';
+    var sel = document.getElementById('policy-sig-tpl');
+    if (!sel) return;
+    sel.innerHTML = '';
+    _templateList.forEach(function(name) {
+      var opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      if (name === sigTpl) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  } catch(_) {}
+}
+
+async function savePolicies() {
+  var sel = document.getElementById('policy-sig-tpl');
+  var res = document.getElementById('policy-save-result');
+  var policies = { sig: sel ? sel.value : 'default' };
+  try {
+    var r = await fetch('/settings', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({TEMPLATE_POLICIES: policies}),
+    });
+    res.textContent = r.ok ? '✓ Gespeichert' : '✗ Fehler';
+    res.style.color = r.ok ? '#16a34a' : '#dc2626';
+  } catch(e) {
+    res.textContent = '✗ ' + e.message;
+    res.style.color = '#dc2626';
+  }
+  setTimeout(function() { res.textContent = ''; }, 3000);
+}
+
+// ── Postfächer ───────────────────────────────────────────────────────────────
+
 async function loadMailboxes(silent) {
   var btn = document.getElementById('mb-load-btn');
   var status = document.getElementById('mb-load-status');
@@ -259,6 +301,7 @@ async function loadMailboxes(silent) {
     var data = await resp.json();
     _mbData = data.mailboxes || [];
     renderMailboxTable(_mbData);
+    await loadPolicies();
     if (!silent) status.textContent = _mbData.length + ' Postfächer geladen';
     document.getElementById('mb-table-wrap').style.display = '';
     document.getElementById('mb-save-btn').style.display = '';
@@ -302,6 +345,7 @@ function _buildTemplateSelect(idx, selectedTemplate, sigEnabled, policyActive) {
   var enabled = sigEnabled && !policyActive;
   sel.disabled = !enabled;
   sel.style.opacity = enabled ? '1' : '0.4';
+  if (policyActive) sel.title = 'Wird durch Vorlagenrichtlinie gesteuert';
   _templateList.forEach(function(name) {
     var opt = document.createElement('option');
     opt.value = name;
@@ -313,12 +357,10 @@ function _buildTemplateSelect(idx, selectedTemplate, sigEnabled, policyActive) {
 }
 
 function _buildAddinTemplatesControl(idx, addinTemplates, sigEnabled, policyActive) {
-  // addinTemplates: "*" | [] | ["t1","t2"]
   var isAll = addinTemplates === '*';
   var selected = Array.isArray(addinTemplates) ? addinTemplates : [];
   var active = _addinEnabled && sigEnabled && !policyActive;
 
-  // Outer details element (collapsed by default)
   var details = document.createElement('details');
   details.dataset.addinIdx = String(idx);
   if (!active) {
@@ -326,7 +368,7 @@ function _buildAddinTemplatesControl(idx, addinTemplates, sigEnabled, policyActi
     details.style.pointerEvents = 'none';
     details.title = policyActive
       ? 'Wird durch Vorlagenrichtlinie gesteuert'
-      : (_addinEnabled ? 'Signatur deaktiviert' : 'Outlook Add-in ist nicht aktiviert (Einstellungen → Outlook Add-in)');
+      : (_addinEnabled ? 'Signatur deaktiviert' : 'Outlook Add-in nicht aktiviert (Einstellungen → Outlook Add-in)');
   }
 
   var summary = document.createElement('summary');
@@ -335,7 +377,6 @@ function _buildAddinTemplatesControl(idx, addinTemplates, sigEnabled, policyActi
     (isAll ? 'Alle' : (selected.length ? selected.length + ' gewählt' : 'Nur Standard')) + '</span>';
   details.appendChild(summary);
 
-  // Toggle arrow on open/close
   details.addEventListener('toggle', function() {
     summary.querySelector('span').textContent = details.open ? '▼' : '▶';
   });
@@ -343,7 +384,6 @@ function _buildAddinTemplatesControl(idx, addinTemplates, sigEnabled, policyActi
   var inner = document.createElement('div');
   inner.style.cssText = 'padding:6px 2px 2px;display:flex;flex-direction:column;gap:3px';
 
-  // Master checkbox "Alle"
   var masterLabel = document.createElement('label');
   masterLabel.style.cssText = 'display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap;font-size:11px;font-weight:600';
   var masterCb = document.createElement('input');
@@ -355,12 +395,10 @@ function _buildAddinTemplatesControl(idx, addinTemplates, sigEnabled, policyActi
   masterLabel.appendChild(document.createTextNode('Alle (inkl. zukünftige)'));
   inner.appendChild(masterLabel);
 
-  // Divider
   var hr = document.createElement('div');
   hr.style.cssText = 'border-top:1px solid #e2e8f0;margin:3px 0';
   inner.appendChild(hr);
 
-  // Per-template checkboxes
   var tplWrap = document.createElement('div');
   tplWrap.style.cssText = 'display:flex;flex-direction:column;gap:2px';
   if (isAll) tplWrap.style.opacity = '0.4';
@@ -381,7 +419,6 @@ function _buildAddinTemplatesControl(idx, addinTemplates, sigEnabled, policyActi
   inner.appendChild(tplWrap);
   details.appendChild(inner);
 
-  // Master toggles individual checkboxes + updates summary
   masterCb.addEventListener('change', function() {
     var all = masterCb.checked;
     tplWrap.querySelectorAll('.addin-tpl').forEach(function(cb) {
@@ -444,7 +481,6 @@ function showHealthModal(mb) {
       '</tr>';
   }).join('');
 
-  // Bookings URL section
   var bookingsHtml = '<div style="margin-top:16px;border-top:1px solid #e2e8f0;padding-top:12px">' +
     '<div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:6px">Bookings URL</div>';
   if (mb.bookings_url) {
@@ -475,7 +511,6 @@ async function fetchOneBookingsUrl(email) {
     var d = await r.json();
     if (d.ok && d.urls && d.urls[email]) {
       if (res) { res.textContent = '✓'; res.style.color = '#16a34a'; }
-      // Update cached data and re-render modal
       var mb = _mbData.find(function(m) { return m.email === email; });
       if (mb) { mb.bookings_url = d.urls[email]; showHealthModal(mb); }
     } else {
@@ -509,7 +544,7 @@ function renderMailboxTable(mailboxes) {
     tdEmail.innerHTML = '<strong>' + mb.email + '</strong>' +
       (mb.name && mb.name !== mb.email ? '<br><span style="color:#888;font-size:11px">' + mb.name + '</span>' : '');
 
-    // Standardsignatur checkbox cell
+    // Standardsignatur checkbox
     var tdSig = document.createElement('td');
     tdSig.style.cssText = 'text-align:center;padding:6px 8px';
     var sigCb = document.createElement('input');
@@ -519,27 +554,25 @@ function renderMailboxTable(mailboxes) {
     if (mb.sig) sigCb.checked = true;
     tdSig.appendChild(sigCb);
 
-    // Vorlagenrichtlinien-übernehmen checkbox (policy) — default on
-    // (currently Demnächst: visible but disabled/greyed; controls greyout of template cols)
+    // Vorlagenrichtlinien übernehmen checkbox
+    var policyActive = (mb.use_policy !== false); // default true
     var tdPolicy = document.createElement('td');
-    tdPolicy.style.cssText = 'text-align:center;padding:6px 8px;opacity:0.5';
-    tdPolicy.title = 'Funktion noch nicht verfügbar — Vorlagenrichtlinien demnächst';
+    tdPolicy.style.cssText = 'text-align:center;padding:6px 8px';
     var policyCb = document.createElement('input');
     policyCb.type = 'checkbox';
     policyCb.className = 'mb-policy';
     policyCb.dataset.idx = String(i);
-    policyCb.checked = true; // default: übernehmen
-    policyCb.disabled = true;
+    policyCb.checked = policyActive;
+    policyCb.title = 'Vorlage aus Vorlagenrichtlinien übernehmen';
     tdPolicy.appendChild(policyCb);
-    var policyActive = true; // policyCb.checked — always true while Demnächst
 
-    // Vorlage select cell — greyed when policyActive
+    // Vorlage select — greyed when policyActive
     var tdTpl = document.createElement('td');
     tdTpl.style.cssText = 'text-align:center;padding:6px 8px';
     var tplSel = _buildTemplateSelect(i, mb.template, mb.sig, policyActive);
     tdTpl.appendChild(tplSel);
 
-    // Minimalsignatur cell (placeholder — no effect yet)
+    // Minimalsignatur (Demnächst)
     var tdMinSig = document.createElement('td');
     tdMinSig.style.cssText = 'text-align:center;padding:6px 8px;opacity:0.5';
     tdMinSig.title = 'Funktion noch nicht verfügbar';
@@ -551,33 +584,22 @@ function renderMailboxTable(mailboxes) {
     var optNone = document.createElement('option');
     optNone.value = '';
     optNone.textContent = '— keine —';
-    if (!mb.min_sig_template) optNone.selected = true;
     minSigSel.appendChild(optNone);
     _templateList.forEach(function(name) {
       var opt = document.createElement('option');
-      opt.value = name;
-      opt.textContent = name;
+      opt.value = name; opt.textContent = name;
       if (name === mb.min_sig_template) opt.selected = true;
       minSigSel.appendChild(opt);
     });
     tdMinSig.appendChild(minSigSel);
 
-    // Add-in Vorlagen cell — greyed when policyActive
+    // Add-in Vorlagen — greyed when policyActive
     var tdAddin = document.createElement('td');
     tdAddin.style.cssText = 'padding:6px 8px';
     var addinCtrl = _buildAddinTemplatesControl(i, mb.addin_templates || [], mb.sig, policyActive);
     tdAddin.appendChild(addinCtrl);
 
-    // Wire sig checkbox → template select + addin enable/disable (respecting policy)
-    sigCb.addEventListener('change', function() {
-      var pol = policyCb.checked;
-      tplSel.disabled = !sigCb.checked || pol;
-      tplSel.style.opacity = (!sigCb.checked || pol) ? '0.4' : '1';
-      addinCtrl.style.opacity = (!sigCb.checked || pol) ? '0.4' : '1';
-      addinCtrl.style.pointerEvents = (!sigCb.checked || pol) ? 'none' : '';
-    });
-
-    // S/MIME checkbox cell
+    // S/MIME checkbox
     var tdSmime = document.createElement('td');
     tdSmime.style.cssText = 'text-align:center;padding:6px 8px';
     var smimeCb = document.createElement('input');
@@ -587,12 +609,26 @@ function renderMailboxTable(mailboxes) {
     if (mb.smime) smimeCb.checked = true;
     tdSmime.appendChild(smimeCb);
 
-    // Health status cell
+    // Health status
     var tdStatus = document.createElement('td');
     tdStatus.style.cssText = 'text-align:center;padding:6px 8px;' + (_hasHealthData ? '' : 'display:none');
     tdStatus.innerHTML = _healthBadge(mb);
 
-    // Column order: Postfach, Standardsignatur, Vorlage, Minimalsignatur, Add-In Vorlagen, Vorlagenrichtlinien, S/MIME, Status
+    // Wire policy checkbox → grey/enable tplSel and addinCtrl
+    function _applyPolicy() {
+      var pol = policyCb.checked;
+      var sig = sigCb.checked;
+      tplSel.disabled = !sig || pol;
+      tplSel.style.opacity = (!sig || pol) ? '0.4' : '1';
+      tplSel.title = pol ? 'Wird durch Vorlagenrichtlinie gesteuert' : '';
+      addinCtrl.style.opacity = (!sig || pol) ? '0.4' : '1';
+      addinCtrl.style.pointerEvents = (!sig || pol) ? 'none' : '';
+      addinCtrl.title = pol ? 'Wird durch Vorlagenrichtlinie gesteuert' : '';
+    }
+    policyCb.addEventListener('change', _applyPolicy);
+    sigCb.addEventListener('change', _applyPolicy);
+
+    // Column order: Postfach, Standardsignatur, Vorlage, Minimalsignatur, Add-in Vorlagen, Vorlagenrichtlinien, S/MIME, Status
     tr.appendChild(tdEmail);
     tr.appendChild(tdSig);
     tr.appendChild(tdTpl);
@@ -628,10 +664,10 @@ async function saveMailboxes(updateDg) {
   var sigBoxes = document.querySelectorAll('.mb-sig');
   var smimeBoxes = document.querySelectorAll('.mb-smime');
   var templateSelects = document.querySelectorAll('.mb-template');
+  var policyBoxes = document.querySelectorAll('.mb-policy');
   var payload = [];
   sigBoxes.forEach(function(cb, i) {
     var idx = parseInt(cb.dataset.idx);
-    // Read addin_templates from the control for this row
     var addinWrap = document.querySelector('details[data-addin-idx="' + idx + '"]');
     var addinTemplates = [];
     if (addinWrap) {
@@ -650,6 +686,7 @@ async function saveMailboxes(updateDg) {
       smime: smimeBoxes[i].checked,
       template: templateSelects[i] ? templateSelects[i].value : 'default',
       addin_templates: addinTemplates,
+      use_policy: policyBoxes[i] ? policyBoxes[i].checked : true,
     });
   });
   var btn = updateDg ? document.getElementById('mb-save-btn') : document.getElementById('mb-local-btn');
