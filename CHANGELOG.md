@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.324 — 2026-06-30 — fix: update-watcher.sh portabel (REPO auto-detect, exec statt systemctl restart)
+
+REPO wird jetzt aus dem Skript-Verzeichnis ermittelt (dirname $0) statt hardcoded
+/opt/exo-gateway — funktioniert auf Azure-VM und Raspi-Dev. systemctl restart
+exo-gateway-updater ersetzt durch exec "$0" (re-exec in-place, systemd startet
+Service bei Prozessende automatisch neu). Executable-Bit in git persistiert (100755).
+
 ## v1.4.323 — 2026-06-30 — fix: SSO-Button nur wenn Request-Host zur konfigurierten Domain passt
 
 Login-Seite prüft ob der Browser-Host (Host-Header) mit dem SSO-Redirect-Host
