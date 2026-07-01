@@ -2,6 +2,7 @@ import json
 import logging
 from pathlib import Path
 from threading import RLock
+from typing import Callable
 
 log = logging.getLogger(__name__)
 
@@ -104,6 +105,49 @@ DEFAULTS: dict = {
     "LEXWARE_FIX_FORMAT": False,  # Zentrierte Lexware-Nachrichten (id="templateBody") auf linksbündig umstellen
 }
 
+# ── Schema versioning / migrations ────────────────────────────────────────────
+# Bump SETTINGS_SCHEMA_VERSION and append a migration function whenever a
+# setting's SHAPE changes (renamed key, changed type, restructured nesting) in
+# a way that requires transforming already-persisted values. Simply adding a
+# new DEFAULTS key does NOT need a migration — that's handled automatically by
+# the dict-merge in init(). Migrations run once, in order, and are recorded via
+# the internal "_SCHEMA_VERSION" key so they never re-run on an already-migrated file.
+SETTINGS_SCHEMA_VERSION = 1
+
+
+def _migrate_v0_to_v1(data: dict) -> dict:
+    """
+    Baseline migration for settings.json files that predate schema versioning.
+    No structural changes — just establishes the version marker so future
+    migrations have a known starting point to diff against.
+    """
+    return data
+
+
+# Ordered list of (target_version, migration_fn). Each fn receives the full
+# settings dict and returns the migrated dict. Append new entries as the
+# schema evolves — never remove, reorder, or renumber existing ones, since a
+# settings.json on an old version must be able to replay the full chain.
+_MIGRATIONS: list[tuple[int, Callable[[dict], dict]]] = [
+    (1, _migrate_v0_to_v1),
+]
+
+
+def _run_migrations(data: dict) -> tuple[dict, bool]:
+    """Apply any pending migrations in order. Returns (data, changed)."""
+    current = data.get("_SCHEMA_VERSION", 0)
+    changed = False
+    for target_version, fn in _MIGRATIONS:
+        if current < target_version:
+            log.info("settings_store: migrating settings.json v%d → v%d", current, target_version)
+            data = fn(data)
+            current = target_version
+            changed = True
+    if changed:
+        data["_SCHEMA_VERSION"] = current
+    return data, changed
+
+
 _lock = RLock()
 _data: dict = {}
 
@@ -126,8 +170,12 @@ def init(env_seed: dict | None = None) -> None:
                         log.warning("Loaded settings from backup %s", bak)
                     except Exception as bak_exc:
                         log.error("Backup also unreadable: %s — using defaults", bak_exc)
+        merged, migrated = _run_migrations(merged)
         _data = merged
-        log.info("Settings loaded (persisted file: %s)", SETTINGS_FILE.exists())
+        log.info("Settings loaded (persisted file: %s, schema v%d)",
+                  SETTINGS_FILE.exists(), merged.get("_SCHEMA_VERSION", 0))
+        if migrated:
+            _save()
 
 
 def get(key: str):

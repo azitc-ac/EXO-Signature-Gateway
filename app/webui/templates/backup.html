@@ -8,9 +8,9 @@
   <li><a href="/settings" class="nav-sub-tab">Allgemein</a></li>
   <li><a href="/settings/signature" class="nav-sub-tab">Signatur</a></li>
   <li><a href="/settings/smime" class="nav-sub-tab">S/MIME</a></li>
+  <li><a href="/backup" class="nav-sub-tab active">Update &amp; Backup</a></li>
   <li><a href="/debug" class="nav-sub-tab">Erweitert</a></li>
   <li><a href="/setup" class="nav-sub-tab">Einrichtung</a></li>
-  <li><a href="/backup" class="nav-sub-tab active">Update &amp; Backup</a></li>
 </ul>
 
 <!-- ── Gateway-Update ──────────────────────────────────────────────────────── -->
@@ -175,16 +175,13 @@
     <strong>Migration auf einen neuen Server</strong>
   </div>
   <div class="step-body">
-    <p style="font-size:13px;color:#555;margin-bottom:12px;line-height:1.6">
-      Zum Umzug auf eine neue VM (z.&nbsp;B. von Raspberry Pi → Azure):
-    </p>
     <ol style="font-size:13px;color:#555;margin:0 0 0 18px;line-height:2">
       <li>Backup auf dem alten Server herunterladen (Button oben)</li>
-      <li>Gateway auf dem neuen Server installieren (<code>docker compose up -d</code>)</li>
+      <li>Gateway auf dem neuen Server installieren (<code>azure-vm-setup.ps1</code> ausführen)</li>
       <li>Im Web-UI des neuen Servers: Backup hochladen &amp; wiederherstellen</li>
       <li>Neu starten (Button „Jetzt neu starten" nach dem Restore, oder <code>docker compose restart</code>)</li>
       <li>DNS-Eintrag auf die neue IP umstellen</li>
-      <li>TLS-Zertifikat neu ausstellen (ACME läuft automatisch nach Neustart)</li>
+      <li>Einrichtungsassistent durchlaufen</li>
     </ol>
     <div class="alert success" style="margin-top:14px;margin-bottom:0">
       <strong>S/MIME &amp; ACME:</strong> Account Keys, Zertifikate und ACME-State werden

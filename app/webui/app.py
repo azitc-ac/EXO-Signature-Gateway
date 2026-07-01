@@ -3000,7 +3000,7 @@ async def api_logs_files(user: str = Depends(_check_auth)):
 
 # ── Config export / import ─────────────────────────────────────────────────────
 
-_EXPORT_EXCLUDE = {"ADMIN_PASSWORD_HASH", "CLIENT_SECRET", "RELAY_PASSWORD"}
+_EXPORT_EXCLUDE = {"ADMIN_PASSWORD_HASH", "CLIENT_SECRET", "RELAY_PASSWORD", "_SCHEMA_VERSION"}
 
 
 @app.get("/api/config/export")

@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.354 — 2026-07-02 — feat: settings.json Schema-Versionierung + Backup-UI-Feinschliff
+
+settings_store.py: SETTINGS_SCHEMA_VERSION + geordnete Migrations-Liste. Bei
+strukturellen Änderungen an einem Setting (Umbenennung, Typwechsel, Restrukturierung
+verschachtelter Werte) wird künftig eine Migrationsfunktion angehängt statt SQLite
+einzuführen — SQLite hätte das eigentliche Problem (Migrationslogik) nicht gelöst,
+da die meisten Settings ohnehin verschachtelte JSON-Strukturen sind (MAILBOX_CONFIG,
+USER_OVERRIDES, CA_USER_CONFIG) und SQLite dafür auch nur JSON-Spalten bräuchte.
+Migrationen laufen einmalig beim Laden, Fortschritt wird in "_SCHEMA_VERSION"
+persistiert (interner Key, von Config-Export ausgeschlossen). Baseline-Migration
+v0→v1 ist ein No-Op — reine Weichenstellung für künftige echte Migrationen.
+
+Backup&Update-Seite: Migrationsanleitung korrigiert — "docker compose up -d" durch
+"azure-vm-setup.ps1 ausführen" ersetzt (tatsächlicher Installationsweg), "TLS-
+Zertifikat neu ausstellen" durch "Einrichtungsassistent durchlaufen" ersetzt
+(Assistent deckt TLS mit ab), Einleitungssatz entfernt. Tab-Reihenfolge: Update
+& Backup jetzt vor Erweitert (häufiger gebraucht).
+
 ## v1.4.352 — 2026-07-02 — refactor: Einstellungen auf 6 Tabs konsolidiert + Postfächer-Umbenennungen
 
 Nach Rückmeldung weiter konsolidiert: Update-Tab mit Backup zusammengelegt (Tab
