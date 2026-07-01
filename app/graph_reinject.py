@@ -524,7 +524,11 @@ def send_via_graph_mime(mail_from: str, rcpt_tos: list[str], content_bytes: byte
 
     try:
         import base64
-        encoded = base64.b64encode(content_bytes)
+        # Strip display names from To/Cc/Bcc before sending — Exchange validates
+        # display names against the GAL and rejects external contacts with
+        # unrecognised names (ErrorInvalidRecipients).  Bare addresses always work.
+        payload_bytes = _strip_display_names(content_bytes)
+        encoded = base64.b64encode(payload_bytes)
         with httpx.Client(timeout=30) as client:
             resp = _post_with_429_retry(client, url, content=encoded, headers=headers)
 
@@ -553,25 +557,6 @@ def send_via_graph_mime(mail_from: str, rcpt_tos: list[str], content_bytes: byte
                 return True
             log.warning("MIME inject failed — JSON inbox inject fallback")
             return deliver_to_mailbox(mail_from, rcpt_tos, content_bytes)
-
-        if error_code == "ErrorInvalidRecipients":
-            # Exchange cannot resolve a display name in the To/CC headers
-            # (e.g. "Werf" <bwerf@external.de> — unresolvable in GAL).
-            # Retry with bare email addresses stripped of display names.
-            log.warning(
-                "Graph sendMail ErrorInvalidRecipients — retrying with bare addresses: %s",
-                rcpt_tos,
-            )
-            clean_bytes = _strip_display_names(content_bytes)
-            encoded2 = base64.b64encode(clean_bytes)
-            with httpx.Client(timeout=30) as client:
-                resp2 = _post_with_429_retry(client, url, content=encoded2, headers=headers)
-            if resp2.status_code == 202:
-                log.info("Graph MIME re-inject OK (bare addresses): from=%s to=%s", from_addr, rcpt_tos)
-                return True
-            log.error("Graph sendMail retry (bare addresses) failed: HTTP %s — %s",
-                      resp2.status_code, resp2.text[:400])
-            return False
 
         log.error("Graph sendMail (MIME) failed: HTTP %s — %s",
                   resp.status_code, resp.text[:400])

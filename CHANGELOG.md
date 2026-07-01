@@ -15,9 +15,23 @@ Ursache: CASTLE ACME stellt EC-Zertifikate (P-256) aus; KV-Health-Check und
 CMS-Signierung haben RS256 hardcoded — führt zu HTTP 400 BadParameter in Key Vault.
 
 graph_reinject: Bei sendMail HTTP 400 ErrorInvalidRecipients (Exchange kann
-Display-Name nicht im GAL auflösen) wird automatisch ein zweiter Versuch ohne
-Display-Namen gestartet (_strip_display_names). Ursache: "Werf" <bwerf@...>
-unresolvable → Graph lehnt Mail ab → Zustellung fehlgeschlagen.
+Display-Name nicht im GAL auflösen) wurde zunächst ein Retry ohne Display-Namen
+eingebaut — in v1.4.328 durch einen strukturellen Fix ersetzt (siehe dort).
+
+## v1.4.328 — 2026-07-01 — fix: Display-Namen immer entfernen (kein Retry) + Kalender-Ausnahme in Transport-Regel
+
+graph_reinject: send_via_graph_mime() entfernt Display-Namen aus To/Cc/Bcc
+jetzt IMMER vor dem ersten sendMail-Call (_strip_display_names), statt nur
+als Retry nach einem fehlgeschlagenen ersten Versuch. Der SMTP-Envelope
+(RCPT TO) war schon immer korrekt — das Problem lag ausschließlich im
+MIME-To-Header, den Exchange gegen den GAL validiert und bei unbekannten
+Display-Namen (z.B. "Werf" <bwerf@shu-ulm.de>) mit 400 ErrorInvalidRecipients
+ablehnt. Betrifft jeden Absender, der so adressiert — nicht nur Einzelfälle.
+
+Exchange Transport-Regel "Route via EXO Signature Gateway": ExceptIfMessageTypeMatches
+= Calendaring gesetzt. Kalendereinladungen/-absagen/-updates erreichen das Gateway
+jetzt gar nicht mehr (vorher: Gateway leitete sie unverändert durch, aber sie
+liefen unnötig durch IMAP+Graph-Pfad und konnten im Wartungsmodus hängen bleiben).
 
 ## v1.4.325 — 2026-07-01 — feat: Selbsttest mit echten Signaturen + Vollbild-Vorschau
 
