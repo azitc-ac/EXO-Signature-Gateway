@@ -81,6 +81,27 @@ def _addr_list(header_val: str) -> list[dict]:
     return result
 
 
+def _fold_header_line(hdr_name: str, addrs: list[str], eol: bytes, max_line: int = 200) -> bytes:
+    """
+    Build a header line for a list of bare <addr> tokens, folding at
+    RFC 5322 continuation boundaries (CRLF + single leading space) once
+    max_line is exceeded — needed for distribution lists with many
+    recipients, where a single unfolded line could exceed the 998-octet
+    SMTP line limit.
+    """
+    lines = []
+    current = f"{hdr_name}: "
+    for addr in addrs:
+        token = addr if current.endswith(": ") else ", " + addr
+        if current != f"{hdr_name}: " and len(current) + len(token) > max_line:
+            lines.append(current)
+            current = " " + addr
+        else:
+            current += token
+    lines.append(current)
+    return eol.join(l.encode() for l in lines)
+
+
 def _strip_display_names(content_bytes: bytes) -> bytes:
     """
     Return a copy of the MIME message with display names removed from
@@ -111,11 +132,9 @@ def _strip_display_names(content_bytes: bytes) -> bytes:
         val = msg.get(hdr)
         if not val:
             continue
-        bare = ", ".join(
-            f"<{addr}>" for _, addr in email.utils.getaddresses([val]) if addr
-        )
-        if bare:
-            replacements[hdr.lower()] = f"{hdr}: {bare}".encode()
+        addrs = [f"<{addr}>" for _, addr in email.utils.getaddresses([val]) if addr]
+        if addrs:
+            replacements[hdr.lower()] = _fold_header_line(hdr, addrs, eol)
     if not replacements:
         return content_bytes
 

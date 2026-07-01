@@ -18,6 +18,15 @@ graph_reinject: Bei sendMail HTTP 400 ErrorInvalidRecipients (Exchange kann
 Display-Name nicht im GAL auflösen) wurde zunächst ein Retry ohne Display-Namen
 eingebaut — in v1.4.328 durch einen strukturellen Fix ersetzt (siehe dort).
 
+## v1.4.338 — 2026-07-01 — fix: _strip_display_names — Header-Folding für viele Empfänger
+
+_strip_display_names schrieb die bereinigte To/Cc/Bcc-Zeile bisher unfolded auf eine
+einzige Zeile. Bei vielen Empfängern (z.B. Verteiler) hätte das die 998-Oktett
+SMTP-Zeilenlängengrenze (RFC 5321/5322) überschreiten können. Neue Hilfsfunktion
+_fold_header_line faltet bei >200 Zeichen an RFC-5322-Continuation-Grenzen (CRLF +
+ein Leerzeichen). Mit 20 synthetischen Empfängern getestet: korrekt gefaltet
+(max. Zeilenlänge 189), Body weiterhin byte-identisch, kein bare LF.
+
 ## v1.4.336 — 2026-07-01 — fix: _strip_display_names produzierte bare LF (Exchange 550 5.6.11)
 
 Regression aus v1.4.328/330: _strip_display_names rief msg.as_bytes(policy=compat32)
