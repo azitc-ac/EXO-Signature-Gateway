@@ -670,9 +670,15 @@ async def setup_wizard(
         "redirect_uri": _build_redirect_uri(),
         "webui_port": config.WEBUI_PORT,
     }
+    addin_base_url = _addin_base_url(request)
     return templates.TemplateResponse(
         request=request, name="setup.html",
-        context={"s": s, "e": effective, "active": "setup", "gateway_name": _gateway_name()},
+        context={
+            "s": s, "e": effective, "active": "setup", "gateway_name": _gateway_name(),
+            "addin_manifest_url": addin_base_url + "/addin/manifest.xml",
+            "addin_url_warning": _addin_url_warning(addin_base_url),
+            "webui_port": config.WEBUI_PORT,
+        },
     )
 
 
@@ -901,7 +907,7 @@ async def auth_callback(
             log.info("Add-in: Bootstrap redirect URI patched via settings flow")
         except Exception as exc:
             log.warning("Add-in redirect URI patch failed: %s", exc)
-        return RedirectResponse("/outlook-addin?addin_uri_patched=1", status_code=303)
+        return RedirectResponse("/setup?addin_uri_patched=1#step-addin", status_code=303)
 
     else:
         # Setup flow (popup, HTTPS redirect): run post-auth setup, then self-close
@@ -1924,34 +1930,16 @@ async def settings_smime_page(request: Request, user: str = Depends(_require_adm
     )
 
 
-@app.get("/settings/update", response_class=HTMLResponse)
-async def settings_update_page(request: Request, user: str = Depends(_require_admin)):
-    return templates.TemplateResponse(
-        request=request, name="settings_update.html",
-        context={
-            "s": settings_store.get_all(),
-            "active": "settings-update",
-            "saved": request.query_params.get("saved"),
-            "gateway_name": _gateway_name(),
-            "current_version": config.VERSION,
-        },
-    )
+@app.get("/settings/update")
+async def settings_update_redirect(user: str = Depends(_require_admin)):
+    # Update-Tab wurde mit Backup zusammengelegt
+    return RedirectResponse("/backup", status_code=308)
 
 
-@app.get("/outlook-addin", response_class=HTMLResponse)
-async def outlook_addin_page(request: Request, user: str = Depends(_require_admin)):
-    base_url = _addin_base_url(request)
-    return templates.TemplateResponse(
-        request=request, name="addin.html",
-        context={
-            "s": settings_store.get_all(),
-            "active": "outlook-addin",
-            "webui_port": config.WEBUI_PORT,
-            "addin_manifest_url": base_url + "/addin/manifest.xml",
-            "addin_url_warning": _addin_url_warning(base_url),
-            "gateway_name": _gateway_name(),
-        },
-    )
+@app.get("/outlook-addin")
+async def outlook_addin_page_redirect(user: str = Depends(_require_admin)):
+    # Outlook Add-in ist jetzt Teil von Einrichtung (eigener wizard-step)
+    return RedirectResponse("/setup#step-addin", status_code=308)
 
 
 @app.post("/settings")

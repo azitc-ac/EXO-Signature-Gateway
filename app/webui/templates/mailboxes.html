@@ -32,12 +32,16 @@
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:100px">S/MIME</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:120px"
               title="Wenn aktiv: Vorlage wird aus Vorlagen-Richtlinien übernommen">Vorlagen-Richtlinien</th>
-          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">Standard-Vorlage</th>
+          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">Standardsignatur</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:100px">
-            Minimal-Signatur
+            Minimalsignatur
             <span style="font-size:10px;font-weight:500;background:#e2e8f0;color:#64748b;padding:1px 5px;border-radius:8px;display:block;margin-top:2px">Demnächst</span>
           </th>
-          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">Add-in Vorlagen</th>
+          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:110px">
+            Werbebanner
+            <span style="font-size:10px;font-weight:500;background:#e2e8f0;color:#64748b;padding:1px 5px;border-radius:8px;display:block;margin-top:2px">Demnächst</span>
+          </th>
+          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">Outlook Add-In</th>
         </tr>
       </thead>
       <tbody id="mb-tbody"></tbody>
@@ -103,9 +107,21 @@
         </td>
         <td style="text-align:center;padding:6px 8px;color:#94a3b8;font-size:14px" title="Nicht löschbar">🔒</td>
       </tr>
-      <!-- Add-in Vorlagen — aktiv -->
+      <!-- Werbebanner — Demnächst -->
+      <tr style="border-bottom:1px solid #f0f0f0;opacity:0.45">
+        <td style="padding:6px 8px;font-size:12px;font-weight:500">
+          Werbebanner
+          <span style="font-size:10px;font-weight:500;background:#e2e8f0;color:#64748b;padding:1px 5px;border-radius:8px;margin-left:4px">Demnächst</span>
+        </td>
+        <td style="padding:6px 8px;font-size:12px;color:#555">Alle Postfächer mit Richtlinie</td>
+        <td style="padding:6px 8px">
+          <select disabled style="font-size:12px;width:160px"><option>— keine —</option></select>
+        </td>
+        <td style="text-align:center;padding:6px 8px;color:#94a3b8;font-size:14px" title="Nicht löschbar">🔒</td>
+      </tr>
+      <!-- Outlook Add-In — aktiv -->
       <tr style="border-bottom:1px solid #f0f0f0">
-        <td style="padding:6px 8px;font-size:12px;font-weight:500">Add-in Vorlagen</td>
+        <td style="padding:6px 8px;font-size:12px;font-weight:500">Outlook Add-In</td>
         <td style="padding:6px 8px;font-size:12px;color:#555">Alle Postfächer mit Richtlinie</td>
         <td style="padding:6px 8px"><div id="policy-addin-ctrl"></div></td>
         <td style="text-align:center;padding:6px 8px;color:#94a3b8;font-size:14px" title="Nicht löschbar">🔒</td>
@@ -161,7 +177,8 @@
             <select disabled style="font-size:12px;width:120px">
               <option>Standardsignatur</option>
               <option>Minimalsignatur</option>
-              <option>Add-in Vorlagen</option>
+              <option>Werbebanner</option>
+              <option>Outlook Add-In</option>
             </select>
           </td>
           <td style="padding:6px 8px">
@@ -679,6 +696,17 @@ function renderMailboxTable(mailboxes) {
     });
     tdMinSig.appendChild(minSigSel);
 
+    // Werbebanner (Demnächst)
+    var tdBanner = document.createElement('td');
+    tdBanner.style.cssText = 'text-align:center;padding:6px 8px;opacity:0.5';
+    tdBanner.title = 'Funktion noch nicht verfügbar';
+    var bannerCb = document.createElement('input');
+    bannerCb.type = 'checkbox';
+    bannerCb.className = 'mb-banner';
+    bannerCb.dataset.idx = String(i);
+    bannerCb.disabled = true;
+    tdBanner.appendChild(bannerCb);
+
     // Add-in Vorlagen — greyed when policyActive
     var tdAddin = document.createElement('td');
     tdAddin.style.cssText = 'padding:6px 8px';
@@ -714,7 +742,7 @@ function renderMailboxTable(mailboxes) {
     policyCb.addEventListener('change', _applyPolicy);
     sigCb.addEventListener('change', _applyPolicy);
 
-    // Column order: Status, Postfach, Signatur, S/MIME, Vorlagen-Richtlinien, Standard-Vorlage, Minimal-Signatur, Add-in Vorlagen
+    // Column order: Status, Postfach, Signatur, S/MIME, Vorlagen-Richtlinien, Standardsignatur, Minimalsignatur, Werbebanner, Outlook Add-In
     tr.appendChild(tdStatus);
     tr.appendChild(tdEmail);
     tr.appendChild(tdSig);
@@ -722,6 +750,7 @@ function renderMailboxTable(mailboxes) {
     tr.appendChild(tdPolicy);
     tr.appendChild(tdTpl);
     tr.appendChild(tdMinSig);
+    tr.appendChild(tdBanner);
     tr.appendChild(tdAddin);
     tbody.appendChild(tr);
   });

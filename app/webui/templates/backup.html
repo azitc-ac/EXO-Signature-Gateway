@@ -8,12 +8,77 @@
   <li><a href="/settings" class="nav-sub-tab">Allgemein</a></li>
   <li><a href="/settings/signature" class="nav-sub-tab">Signatur</a></li>
   <li><a href="/settings/smime" class="nav-sub-tab">S/MIME</a></li>
-  <li><a href="/settings/update" class="nav-sub-tab">Update</a></li>
   <li><a href="/debug" class="nav-sub-tab">Erweitert</a></li>
   <li><a href="/setup" class="nav-sub-tab">Einrichtung</a></li>
-  <li><a href="/outlook-addin" class="nav-sub-tab">Outlook Add-in</a></li>
-  <li><a href="/backup" class="nav-sub-tab active">Backup</a></li>
+  <li><a href="/backup" class="nav-sub-tab active">Update &amp; Backup</a></li>
 </ul>
+
+<!-- ── Gateway-Update ──────────────────────────────────────────────────────── -->
+<div class="settings-card" style="margin-bottom:20px">
+  <h2>Gateway aktualisieren</h2>
+  <p class="hint" style="margin-bottom:12px">
+    Lädt die aktuelle Version aus dem Git-Repository und baut den Container neu.
+    Voraussetzung: der Host-Watcher-Service (<code>exo-gateway-updater.service</code>) muss auf der Azure-VM laufen
+    (Einrichtung → <a href="/setup#step-watcher">Update-Watcher</a>).
+    Im Kanal "Releases" kann gezielt eine bestimmte Version gewählt werden — auch ein
+    Rollback auf eine ältere Version ist damit möglich (Code-Stand; Einstellungen bleiben unverändert).
+  </p>
+
+  <!-- Kanal + Prüfen -->
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+    <label style="font-size:13px;color:#374151;font-weight:500">Kanal:</label>
+    <select id="upd-channel" onchange="_updSaveChannel()" style="font-size:13px;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;background:#fff">
+      <option value="main">Entwicklungsstand (main)</option>
+      <option value="release">Releases (stabil)</option>
+    </select>
+    <button class="btn secondary btn-sm" id="upd-check-btn" onclick="checkUpdate()" style="font-size:12px">
+      Auf Updates prüfen
+    </button>
+  </div>
+
+  <!-- Ziel-Version (nur Release-Kanal) — erlaubt gezielten Wechsel inkl. Rollback -->
+  <div id="upd-version-picker" style="display:none;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+    <label style="font-size:13px;color:#374151;font-weight:500">Ziel-Version:</label>
+    <select id="upd-target-version" onchange="_updOnTargetChange()" style="font-size:13px;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;background:#fff;min-width:160px">
+      <option value="">Neueste (Standard)</option>
+    </select>
+    <span id="upd-rollback-warn" style="display:none;font-size:12px;color:#b45309">
+      ⚠ Rollback auf ältere Version — Einstellungen (settings.json) werden nicht automatisch zurückgesetzt.
+    </span>
+  </div>
+
+  <!-- Version + Check-Ergebnis -->
+  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+    <div style="font-size:13px;color:#374151">
+      Aktuelle Version: <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px">{{ version or 'unbekannt' }}</code>
+    </div>
+    <div id="upd-check-result" style="font-size:13px"></div>
+  </div>
+
+  <!-- Buttons -->
+  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+    <button class="btn primary" id="upd-btn" onclick="startUpdate()" disabled style="display:flex;align-items:center;gap:6px;min-width:180px;justify-content:center">
+      Jetzt aktualisieren
+    </button>
+    <button class="btn secondary" id="cl-btn" onclick="toggleChangelog()" style="display:flex;align-items:center;gap:6px">
+      Changelog anzeigen
+    </button>
+  </div>
+
+  <div id="upd-watcher-badge" style="font-size:12px;margin-bottom:8px"></div>
+  <div id="upd-changelog" style="display:none;margin-bottom:12px"></div>
+  <div id="upd-status" style="display:none"></div>
+</div>
+
+<!-- Was-ist-neu Modal -->
+<div id="whats-new-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:12px;max-width:540px;width:92%;max-height:82vh;overflow-y:auto;padding:24px;position:relative;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
+    <button onclick="document.getElementById('whats-new-overlay').style.display='none'"
+      style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:22px;cursor:pointer;color:#888;line-height:1">✕</button>
+    <h2 id="whats-new-title" style="margin:0 0 16px;font-size:15px;color:#1e40af"></h2>
+    <div id="whats-new-body"></div>
+  </div>
+</div>
 
 <!-- ── Backup erstellen ────────────────────────────────────────────────────── -->
 <div class="settings-card" style="margin-bottom:20px">
@@ -136,6 +201,300 @@ function showAlert(el, type, msg) {
   setTimeout(() => { el.style.display = 'none'; }, 6000);
 }
 
+function _esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+let _updPollTimer = null;
+let _updPollStart = null;
+let _watcherOk = false;
+let _updReloadTimer = null;
+
+function _updGetChannel() { return document.getElementById('upd-channel').value; }
+function _updGetTargetVersion() {
+  const el = document.getElementById('upd-target-version');
+  return el ? el.value : '';
+}
+function _updSaveChannel() {
+  try { localStorage.setItem('exo_upd_channel', _updGetChannel()); } catch(e) {}
+  document.getElementById('upd-check-result').innerHTML = '';
+  document.getElementById('upd-btn').disabled = !_watcherOk;
+  _updRefreshVersionPicker();
+}
+function _updLoadChannel() {
+  try { const ch = localStorage.getItem('exo_upd_channel'); if (ch) document.getElementById('upd-channel').value = ch; } catch(e) {}
+}
+
+let _updReleaseList = [];
+function _updRefreshVersionPicker() {
+  const picker = document.getElementById('upd-version-picker');
+  if (_updGetChannel() !== 'release') {
+    picker.style.display = 'none';
+    return;
+  }
+  picker.style.display = 'flex';
+  _updLoadReleaseList();
+}
+
+async function _updLoadReleaseList() {
+  const sel = document.getElementById('upd-target-version');
+  try {
+    const r = await fetch('/api/system/update/releases');
+    const d = await r.json();
+    _updReleaseList = d.releases || [];
+    sel.innerHTML = '<option value="">Neueste (Standard)</option>' +
+      _updReleaseList.map(rel => `<option value="${_esc(rel.version)}">v${_esc(rel.version)}${rel.published_at ? ' — ' + _esc(rel.published_at.slice(0,10)) : ''}</option>`).join('');
+  } catch(e) {
+    sel.innerHTML = '<option value="">Neueste (Standard)</option>';
+  }
+  _updOnTargetChange();
+}
+
+function _updOnTargetChange() {
+  const target = _updGetTargetVersion();
+  const warn = document.getElementById('upd-rollback-warn');
+  const current = "{{ version or '0' }}";
+  if (!target) { warn.style.display = 'none'; return; }
+  const cur = current.split('.').map(Number);
+  const tgt = target.split('.').map(Number);
+  let isOlder = false;
+  for (let i = 0; i < Math.max(cur.length, tgt.length); i++) {
+    const c = cur[i] || 0, t = tgt[i] || 0;
+    if (t < c) { isOlder = true; break; }
+    if (t > c) break;
+  }
+  warn.style.display = isOlder ? 'inline' : 'none';
+}
+function _updBtnReset() {
+  const b = document.getElementById('upd-btn');
+  b.disabled = !_watcherOk;
+  b.innerHTML = 'Jetzt aktualisieren';
+}
+
+// --- Versions-Check ---
+async function checkUpdate() {
+  const checkBtn = document.getElementById('upd-check-btn');
+  const result = document.getElementById('upd-check-result');
+  checkBtn.disabled = true; checkBtn.textContent = 'Prüfe…';
+  result.innerHTML = '<span style="color:#64748b">Verbinde mit GitHub…</span>';
+  document.getElementById('upd-btn').disabled = true;
+  try {
+    const r = await fetch(`/api/system/update/check?channel=${encodeURIComponent(_updGetChannel())}`);
+    const d = await r.json();
+    if (!d.ok) {
+      result.innerHTML = `<span style="color:#b45309">⚠ ${_esc(d.error)}</span>`;
+    } else if (d.available) {
+      _whatsNewEntries = (d.changelog_entries && d.changelog_entries.length) ? d.changelog_entries : null;
+      _whatsNewLatest = d.latest;
+      const wn = _whatsNewEntries
+        ? ` <a href="#" onclick="showWhatsNew();return false" style="font-size:12px;color:#0369a1;margin-left:6px">Was ist neu? (${_whatsNewEntries.length} Änderung${_whatsNewEntries.length !== 1 ? 'en' : ''})</a>`
+        : '';
+      result.innerHTML = `<span style="color:#16a34a;font-weight:600">▲ Update verfügbar: ${_esc(d.latest)}</span>${wn}`;
+      if (_watcherOk) document.getElementById('upd-btn').disabled = false;
+    } else if (d.note) {
+      result.innerHTML = `<span style="color:#64748b">${_esc(d.note)}</span>`;
+    } else {
+      result.innerHTML = `<span style="color:#64748b">✓ Bereits aktuell (${_esc(d.latest || '?')})</span>`;
+    }
+  } catch(e) {
+    result.innerHTML = `<span style="color:#dc2626">Fehler: ${_esc(e.message)}</span>`;
+    if (_watcherOk) document.getElementById('upd-btn').disabled = false;
+  }
+  checkBtn.disabled = false; checkBtn.textContent = 'Auf Updates prüfen';
+}
+
+var _whatsNewEntries = null;
+var _whatsNewLatest = '';
+
+function showWhatsNew() {
+  const overlay = document.getElementById('whats-new-overlay');
+  const title = document.getElementById('whats-new-title');
+  const body = document.getElementById('whats-new-body');
+  title.textContent = `Neuerungen in ${_whatsNewLatest}`;
+  if (!_whatsNewEntries) {
+    body.innerHTML = '<p style="color:#64748b;font-size:13px">Keine Änderungsinformationen verfügbar.</p>';
+  } else {
+    body.innerHTML = _whatsNewEntries.map(e => `
+      <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid #f0f0f0">
+        <div style="font-size:13px;font-weight:600;color:#1e293b;margin-bottom:4px">${_esc(e.header.replace(/^## /, ''))}</div>
+        ${e.body ? `<pre style="margin:0;font-size:12px;color:#475569;white-space:pre-wrap;font-family:inherit;line-height:1.6">${_esc(e.body)}</pre>` : ''}
+      </div>`).join('');
+  }
+  overlay.style.display = 'flex';
+}
+
+// --- Update starten ---
+function _spin(text) { return `<span style="display:inline-block;animation:spin 1s linear infinite">⟳</span> ${text}`; }
+
+async function startUpdate() {
+  document.getElementById('upd-btn').disabled = true;
+  document.getElementById('upd-btn').innerHTML = _spin('Wird gestartet…');
+  document.getElementById('upd-status').style.display = 'none';
+  clearInterval(_updPollTimer);
+  try {
+    const r = await fetch('/api/system/update', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({channel: _updGetChannel(), target_version: _updGetTargetVersion()}),
+    });
+    const d = await r.json();
+    if (!d.ok) { _updShowError(d.error || `HTTP ${r.status}`); _updBtnReset(); return; }
+    _updStartPolling();
+  } catch(e) { _updShowError(e.message); _updBtnReset(); }
+}
+
+// --- Polling ---
+function _updStartPolling(delayMs) {
+  _updPollStart = Date.now();
+  clearInterval(_updPollTimer);
+  setTimeout(function() {
+    _updPoll();
+    _updPollTimer = setInterval(_updPoll, 3000);
+  }, delayMs !== undefined ? delayMs : 6000);
+}
+
+async function _updPoll() {
+  const TIMEOUT_MS = 10 * 60 * 1000;
+  try {
+    const r = await fetch('/api/system/update/status');
+    const d = await r.json();
+    const state = d.state || 'idle';
+    if (state === 'running') {
+      document.getElementById('upd-btn').innerHTML = _spin('Aktualisiert…');
+      _updShowRunning(d.log || '');
+      if (Date.now() - _updPollStart > TIMEOUT_MS) {
+        clearInterval(_updPollTimer);
+        _updShowError('Timeout nach 10 Minuten. Status zurücksetzen und Watcher prüfen.');
+        _updBtnReset();
+      }
+      return;
+    }
+    clearInterval(_updPollTimer);
+    if (state === 'success') { _updShowSuccess(d); }
+    else if (state === 'error') { _updShowError(d.log || 'Unbekannter Fehler'); _updBtnReset(); }
+    else { _updBtnReset(); }
+  } catch(e) {
+    document.getElementById('upd-btn').innerHTML = _spin('Neustart…');
+    _updShowRunning('Container wird neu gestartet…');
+    if (Date.now() - _updPollStart > TIMEOUT_MS) {
+      clearInterval(_updPollTimer);
+      _updShowError('Container nach 10 Minuten nicht erreichbar.');
+      _updBtnReset();
+    }
+  }
+}
+
+// --- Zustand anzeigen ---
+function _updShowRunning(log) {
+  const el = document.getElementById('upd-status'); el.style.display = 'block';
+  el.innerHTML = `<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;padding:12px;font-size:12px">
+    <strong style="color:#0369a1">Update läuft…</strong>
+    <pre style="margin:8px 0 0;white-space:pre-wrap;font-size:11px;max-height:200px;overflow-y:auto;color:#374151">${_esc(log)}</pre>
+    <div style="margin-top:8px">
+      <button class="btn secondary btn-sm" onclick="clearInterval(_updPollTimer);_updClear().then(()=>location.reload())">Abbrechen / Status zurücksetzen</button>
+    </div>
+  </div>`;
+}
+
+function _updShowSuccess(d) {
+  if (_updReloadTimer) { clearInterval(_updReloadTimer); _updReloadTimer = null; }
+  _updBtnReset();
+  const el = document.getElementById('upd-status'); el.style.display = 'block';
+  const versionStr = d.version_before
+    ? `${_esc(d.version_before)} → <strong>${_esc(d.version_after || '?')}</strong>` : '';
+  el.innerHTML = `<div class="alert success" style="font-size:13px">
+    <strong>Update erfolgreich!</strong> ${versionStr}
+    <pre style="margin:8px 0 0;white-space:pre-wrap;font-size:11px;max-height:200px;overflow-y:auto">${_esc(d.log || '')}</pre>
+    <div style="margin-top:10px;display:flex;align-items:center;gap:8px">
+      <button class="btn primary btn-sm" onclick="clearInterval(_updReloadTimer);_updClear().then(()=>location.reload())">Jetzt neu laden</button>
+      <button class="btn secondary btn-sm" onclick="clearInterval(_updReloadTimer);_updClear()">Später</button>
+      <span id="upd-countdown" style="font-size:12px;color:#15803d"></span>
+    </div>
+  </div>`;
+  let t = 30;
+  const cd = document.getElementById('upd-countdown');
+  if (cd) cd.textContent = `(Seite lädt automatisch in ${t}s neu)`;
+  _updReloadTimer = setInterval(() => {
+    t--;
+    if (cd) cd.textContent = t > 0 ? `(Seite lädt automatisch in ${t}s neu)` : '';
+    if (t <= 0) { clearInterval(_updReloadTimer); _updClear().catch(()=>{}).finally(()=>location.reload()); }
+  }, 1000);
+}
+
+function _updShowError(msg) {
+  const el = document.getElementById('upd-status'); el.style.display = 'block';
+  el.innerHTML = `<div class="alert" style="background:#fef2f2;border-color:#fca5a5;color:#991b1b;font-size:13px">
+    <strong>Fehler:</strong> ${msg}
+    <div style="margin-top:8px"><button class="btn secondary btn-sm" onclick="_updClear()">Status zurücksetzen</button></div>
+  </div>`;
+}
+
+async function _updClear() {
+  try { await fetch('/api/system/update/clear', {method: 'POST'}); } catch(e) {}
+  document.getElementById('upd-status').style.display = 'none';
+  _updBtnReset();
+}
+
+// --- Watcher-Badge ---
+async function _updCheckWatcher() {
+  const badge = document.getElementById('upd-watcher-badge');
+  try {
+    const r = await fetch('/api/system/update/watcher-status');
+    const d = await r.json();
+    _watcherOk = d.ok;
+    badge.innerHTML = d.ok
+      ? '<span style="color:#16a34a">● Watcher aktiv</span>'
+      : '<span style="color:#b45309">● Watcher nicht erkannt — <a href="/setup#step-watcher" style="color:#b45309">Einrichtung → Update-Watcher</a></span>';
+    if (!d.ok) document.getElementById('upd-btn').disabled = true;
+  } catch(e) {}
+}
+
+// --- Changelog ---
+let _clVisible = false;
+async function toggleChangelog() {
+  const box = document.getElementById('upd-changelog');
+  const btn = document.getElementById('cl-btn');
+  if (_clVisible) { box.style.display = 'none'; btn.textContent = 'Changelog anzeigen'; _clVisible = false; return; }
+  btn.textContent = 'Lade…';
+  try {
+    const r = await fetch('/api/system/changelog?n=8');
+    const d = await r.json();
+    box.innerHTML = d.error ? `<p style="color:#dc2626;font-size:13px">${_esc(d.error)}</p>`
+      : d.entries.map(e => {
+          const lines = e.split('\n');
+          const header = lines[0].replace(/^## /, '');
+          const body = lines.slice(1).join('\n').trim();
+          return `<div style="border-left:3px solid #e2e8f0;padding:8px 12px;margin-bottom:8px">
+            <div style="font-weight:600;font-size:13px;color:#1e293b">${_esc(header)}</div>
+            ${body ? `<pre style="margin:4px 0 0;font-size:11px;color:#475569;white-space:pre-wrap;font-family:inherit">${_esc(body)}</pre>` : ''}
+          </div>`;
+        }).join('');
+    box.style.display = 'block'; btn.textContent = 'Changelog ausblenden'; _clVisible = true;
+  } catch(e) { btn.textContent = 'Changelog anzeigen'; }
+}
+
+(async function() {
+  _updLoadChannel();
+  _updRefreshVersionPicker();
+  await _updCheckWatcher();
+  try {
+    const r = await fetch('/api/system/update/status');
+    const d = await r.json();
+    if (d.state === 'running') {
+      document.getElementById('upd-btn').disabled = true;
+      document.getElementById('upd-btn').innerHTML = _spin('Aktualisiert…');
+      _updShowRunning(d.log || '');
+      _updStartPolling();
+    } else if (d.state === 'success') {
+      _updShowSuccess(d);
+    } else if (d.state === 'error') {
+      _updShowError(d.log || 'Unbekannter Fehler');
+    } else if (_watcherOk) {
+      checkUpdate();
+    }
+  } catch(e) { /* Container kurzzeitig nicht erreichbar */ }
+})();
+</script>
+<style>@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }</style>
+
+<script>
 async function importConfig(input) {
   const file = input.files[0];
   if (!file) return;

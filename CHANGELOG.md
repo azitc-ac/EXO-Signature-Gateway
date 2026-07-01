@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.352 — 2026-07-02 — refactor: Einstellungen auf 6 Tabs konsolidiert + Postfächer-Umbenennungen
+
+Nach Rückmeldung weiter konsolidiert: Update-Tab mit Backup zusammengelegt (Tab
+"Update & Backup" unter /backup), Outlook Add-in als eigener wizard-step in
+Einrichtung integriert (/setup#step-addin) statt eigener Tab. /settings/update
+und /outlook-addin liefern jetzt 308-Redirects auf die neuen Ziele. Ergebnis:
+6 Tabs (Allgemein, Signatur, S/MIME, Erweitert, Einrichtung, Update & Backup).
+
+Weitere Anpassungen:
+- Zugangsdaten: Schloss-/Warn-Symbole (🔒/⚠) neben Entra-Konten sowie die
+  Erklärzeile "🔒 = Entra Object-ID verknüpft..." entfernt (unnötige Detailtiefe).
+- Postfächer-Tabelle: "Standard-Vorlage" → "Standardsignatur", "Minimal-Signatur"
+  → "Minimalsignatur", "Add-in Vorlagen" → "Outlook Add-In" (auch in
+  Vorlagen-Richtlinien-Sektion). Neue Platzhalter-Spalte "Werbebanner" (Demnächst)
+  vor Outlook Add-In eingefügt, ebenso als neue Zeile in Vorlagen-Richtlinien.
+- Zwei verwaiste Testdateien aus dem Arbeitsverzeichnis entfernt
+  (CHANGELOG.md.new, templates/Test.html/.txt — nie committet).
+
 ## v1.4.350 — 2026-07-02 — refactor: Einstellungen in 8 Tabs aufgeteilt + mehrere Fixes
 
 Einstellungen war auf 7 Abschnitte in einer Seite angewachsen. Neue Struktur:

@@ -6,11 +6,9 @@
   <li><a href="/settings" class="nav-sub-tab active">Allgemein</a></li>
   <li><a href="/settings/signature" class="nav-sub-tab">Signatur</a></li>
   <li><a href="/settings/smime" class="nav-sub-tab">S/MIME</a></li>
-  <li><a href="/settings/update" class="nav-sub-tab">Update</a></li>
   <li><a href="/debug" class="nav-sub-tab">Erweitert</a></li>
   <li><a href="/setup" class="nav-sub-tab">Einrichtung</a></li>
-  <li><a href="/outlook-addin" class="nav-sub-tab">Outlook Add-in</a></li>
-  <li><a href="/backup" class="nav-sub-tab">Backup</a></li>
+  <li><a href="/backup" class="nav-sub-tab">Update &amp; Backup</a></li>
 </ul>
 
 <div id="page-alert" class="alert" style="display:none"></div>
@@ -345,9 +343,6 @@ function renderAdminUsers(users) {
   }
   var rows = users.map(function(u) {
     var isSelf = u.upn === _currentUserUpn;
-    var oidBadge = u.id
-      ? ' <span title="Entra Object-ID: ' + u.id + '" style="cursor:help;font-size:11px;color:#94a3b8;user-select:all">🔒</span>'
-      : ' <span title="Object-ID nicht bekannt — beim nächsten Login wird sie automatisch gesetzt" style="cursor:help;font-size:11px;color:#f59e0b">⚠</span>';
     var select = '<select onchange="updateUserRole(\'' + u.upn.replace(/'/g,"\\'") + '\', this.value)" ' +
       (isSelf ? 'disabled title="Eigene Rolle kann nicht geändert werden"' : '') +
       ' style="height:28px;border:1px solid #cbd5e1;border-radius:4px;padding:0 6px;font-size:12px' +
@@ -359,7 +354,7 @@ function renderAdminUsers(users) {
       ? '<button disabled title="Eigenes Konto" class="btn secondary btn-sm" style="opacity:0.4;cursor:not-allowed">Entfernen</button>'
       : '<button class="btn secondary btn-sm" style="color:#dc2626;border-color:#fca5a5" onclick="removeAdminUser(\'' + u.upn.replace(/'/g,"\\'") + '\')">Entfernen</button>';
     return '<tr style="' + (isSelf ? 'background:#f8fafc' : '') + '">' +
-      '<td style="padding:6px 10px;font-family:monospace;font-size:12px;white-space:nowrap">' + u.upn + oidBadge + '</td>' +
+      '<td style="padding:6px 10px;font-family:monospace;font-size:12px;white-space:nowrap">' + u.upn + '</td>' +
       '<td style="padding:6px 8px;white-space:nowrap">' + select + '</td>' +
       '<td style="padding:6px 8px;white-space:nowrap">' + removeBtn + '</td>' +
       '</tr>';
@@ -369,8 +364,7 @@ function renderAdminUsers(users) {
     '<th style="padding:4px 10px;text-align:left;font-weight:600;font-size:12px;color:#64748b">Konto</th>' +
     '<th style="padding:4px 8px;text-align:left;font-weight:600;font-size:12px;color:#64748b">Rolle</th>' +
     '<th style="padding:4px 8px"></th>' +
-    '</thead><tbody>' + rows + '</tbody></table>' +
-    '<p class="hint" style="margin-top:8px;margin-bottom:0">🔒 = Entra Object-ID verknüpft — Anmeldung erfolgt anhand der OID, nicht nur des UPN.</p>';
+    '</thead><tbody>' + rows + '</tbody></table>';
 }
 
 async function _preloadAdminUsers() {
