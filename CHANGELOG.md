@@ -18,6 +18,21 @@ graph_reinject: Bei sendMail HTTP 400 ErrorInvalidRecipients (Exchange kann
 Display-Name nicht im GAL auflösen) wurde zunächst ein Retry ohne Display-Namen
 eingebaut — in v1.4.328 durch einen strukturellen Fix ersetzt (siehe dort).
 
+## v1.4.344 — 2026-07-01 — feat: Lexware-Formatkorrektur erweitert um Padding-Einzug
+
+_fix_lexware_padding: nullt horizontales Padding (links/rechts) in verschachtelten
+Lexware-Zellen, behält vertikales Padding für Absatzabstand. Ursache: selbst nach
+align=left blieb ein sichtbarer Einzug durch echtes CSS-Padding (z.B.
+padding:0cm 13.5pt 6.75pt 13.5pt auf der Text-Zelle, padding:7.5pt auf der
+äußeren Wrapper-Zelle). Regex-Fix: padding-Deklaration muss nicht mehr zwingend
+mit ";" enden — griff vorher nicht, wenn padding die letzte Style-Deklaration
+vor dem schließenden Anführungszeichen war.
+_fix_lexware_format bricht jetzt zusätzlich ab, falls bereits ein exo-sig-start-
+Marker im Text steckt (Verteidigung gegen SKIP_SIG_IN_THREAD=False-Edge-Case) —
+in der Standard-Pipeline strukturell ohnehin ausgeschlossen.
+Mit realistischem Pipeline-Test verifiziert (Fix vor Signatur-Injektion,
+Signatur danach unverändert angehängt).
+
 ## v1.4.342 — 2026-07-01 — feat: Lexware-Formatkorrektur erweitert um Schrift (Calibri 11pt)
 
 _fix_lexware_font: normalisiert font-family/mso-fareast-font-family/mso-bidi-font-family

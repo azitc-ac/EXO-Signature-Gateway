@@ -478,12 +478,61 @@ def _fix_lexware_font(html: str) -> str:
     return html[:tag_end] + new_region + html[end:]
 
 
+_PADDING_RE = re.compile(r'(padding\s*:\s*)([^;\'"]+?)(;|(?=[\'"]))', re.IGNORECASE)
+
+
+def _zero_horizontal_padding(value: str) -> str:
+    """Zero the left/right components of a CSS padding shorthand, keep top/bottom."""
+    parts = value.split()
+    if len(parts) == 1:
+        v = parts[0]
+        return f"{v} 0 {v} 0"
+    if len(parts) == 2:
+        vert, _horiz = parts
+        return f"{vert} 0 {vert} 0"
+    if len(parts) == 3:
+        top, _horiz, bottom = parts
+        return f"{top} 0 {bottom} 0"
+    if len(parts) == 4:
+        top, _right, bottom, _left = parts
+        return f"{top} 0 {bottom} 0"
+    return value  # unexpected shorthand — leave untouched
+
+
+def _fix_lexware_padding(html: str) -> str:
+    """
+    Lexware setzt auf mehreren verschachtelten Zellen horizontales Padding
+    (z.B. padding:0cm 13.5pt 6.75pt 13.5pt) — das erzeugt einen sichtbaren
+    Einzug, selbst nachdem die umgebenden <div align=center>-Blöcke schon
+    auf left umgestellt sind. Nullt links/rechts, behält oben/unten für
+    den vertikalen Abstand zwischen Absätzen.
+    """
+    if not _LEXWARE_MARKER_RE.search(html):
+        return html
+
+    def _repl(m: re.Match) -> str:
+        prefix, value, terminator = m.group(1), m.group(2), m.group(3)
+        new_val = _zero_horizontal_padding(value.strip())
+        return f"{prefix}{new_val}{terminator}"
+
+    fixed = _PADDING_RE.sub(_repl, html)
+    if fixed != html:
+        log.info("_fix_lexware_padding: horizontales Padding in Lexware-Struktur auf 0 gesetzt")
+    return fixed
+
+
 def _fix_lexware_format(html: str) -> str:
-    """Wendet alle Lexware-Formatkorrekturen an (Ausrichtung + Schrift), falls aktiviert."""
+    """Wendet alle Lexware-Formatkorrekturen an (Ausrichtung + Schrift + Padding), falls aktiviert."""
     if not settings_store.get("LEXWARE_FIX_FORMAT"):
+        return html
+    # Defensive: falls doch schon eine Gateway-Signatur im Text steckt (z.B. bei
+    # SKIP_SIG_IN_THREAD=False), lieber nichts anfassen statt versehentlich in
+    # bereits zitierten/quotierten Inhalt einzugreifen.
+    if _SIG_MARKER_START in html:
         return html
     html = _fix_lexware_centering(html)
     html = _fix_lexware_font(html)
+    html = _fix_lexware_padding(html)
     return html
 
 
