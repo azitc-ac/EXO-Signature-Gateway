@@ -210,7 +210,7 @@ def inject(
         src_charset = msg.get_content_charset() or "utf-8"
         payload = msg.get_payload(decode=True).decode(src_charset, errors="replace")
         payload = _strip_client_sig_divs(payload, sig_html_cid)
-        payload = _fix_lexware_centering(payload)
+        payload = _fix_lexware_format(payload)
         msg.set_param("charset", "utf-8")
         _set_part_payload(msg, _append_html_sig(payload, sig_html_cid), "utf-8")
         if cid_images:
@@ -344,7 +344,7 @@ def _inject_into_multipart(msg: email.message.Message, sig_html: str, sig_txt: s
         src_charset = html_part.get_content_charset() or "utf-8"
         payload = html_part.get_payload(decode=True).decode(src_charset, errors="replace")
         payload = _strip_client_sig_divs(payload, sig_html)
-        payload = _fix_lexware_centering(payload)
+        payload = _fix_lexware_format(payload)
         html_part.set_param("charset", "utf-8")
         _set_part_payload(html_part, _append_html_sig(payload, sig_html), "utf-8")
 
@@ -407,6 +407,9 @@ def _matches_sig_fp(candidate_html: str, fp: frozenset[str]) -> bool:
 
 _LEXWARE_MARKER_RE = re.compile(r'id=["\']?templateBody["\']?', re.IGNORECASE)
 _DIV_ALIGN_CENTER_RE = re.compile(r'(<div\b[^>]*\balign\s*=\s*)(["\']?)center\2', re.IGNORECASE)
+_LEXWARE_TD_OPEN_RE = re.compile(r'<td\b[^>]*\bid=["\']?templatebody["\']?[^>]*>', re.IGNORECASE)
+_FONT_FAMILY_RE = re.compile(r'(font-family|mso-fareast-font-family|mso-bidi-font-family)\s*:\s*[^;]+;', re.IGNORECASE)
+_FONT_SIZE_RE = re.compile(r'font-size\s*:\s*[0-9.]+pt', re.IGNORECASE)
 
 
 def _fix_lexware_centering(html: str) -> str:
@@ -418,8 +421,6 @@ def _fix_lexware_centering(html: str) -> str:
     LEXWARE_FIX_FORMAT: dreht nur diese div-Ausrichtungen auf left, alles
     andere (inkl. der noch nicht injizierten Gateway-Signatur) bleibt unberührt.
     """
-    if not settings_store.get("LEXWARE_FIX_FORMAT"):
-        return html
     if not _LEXWARE_MARKER_RE.search(html):
         return html
 
@@ -431,6 +432,59 @@ def _fix_lexware_centering(html: str) -> str:
     if fixed != html:
         log.info("_fix_lexware_centering: Lexware-Marker gefunden, zentrierte divs auf left umgestellt")
     return fixed
+
+
+def _fix_lexware_font(html: str) -> str:
+    """
+    Normalisiert Schriftart/-größe im Lexware-Nachrichtentext (Zelle mit
+    id="templateBody") auf Calibri 11pt. Lexware nutzt dort teils Web-Fonts
+    (z.B. "Merriweather Sans"), die auf den meisten Windows-Systemen nicht
+    installiert sind — Outlook fällt dann auf mso-fareast-/mso-bidi-font-family
+    zurück (häufig Times New Roman), was den Nachrichtentext optisch abweichen
+    lässt. Betrifft nur die Zelle selbst, nicht die restliche Mail.
+    """
+    lower = html.lower()
+    m = _LEXWARE_TD_OPEN_RE.search(lower)
+    if not m:
+        return html
+    tag_end = m.end()
+    pos = tag_end
+    depth = 1
+    while pos < len(html) and depth > 0:
+        next_open = lower.find('<td', pos)
+        next_close = lower.find('</td>', pos)
+        if next_close == -1:
+            return html  # malformed — leave untouched
+        if next_open != -1 and next_open < next_close:
+            depth += 1
+            pos = next_open + 3
+        else:
+            depth -= 1
+            pos = next_close + 5
+    end = pos
+    region = html[tag_end:end]
+
+    def _fam_repl(mm: re.Match) -> str:
+        prop = mm.group(1)
+        if prop.lower() == "font-family":
+            return 'font-family:"Calibri",sans-serif;'
+        return f'{prop}:Calibri;'
+
+    new_region = _FONT_FAMILY_RE.sub(_fam_repl, region)
+    new_region = _FONT_SIZE_RE.sub('font-size:11.0pt', new_region)
+    if new_region == region:
+        return html
+    log.info("_fix_lexware_font: Schrift im Lexware-Nachrichtentext auf Calibri 11pt normalisiert")
+    return html[:tag_end] + new_region + html[end:]
+
+
+def _fix_lexware_format(html: str) -> str:
+    """Wendet alle Lexware-Formatkorrekturen an (Ausrichtung + Schrift), falls aktiviert."""
+    if not settings_store.get("LEXWARE_FIX_FORMAT"):
+        return html
+    html = _fix_lexware_centering(html)
+    html = _fix_lexware_font(html)
+    return html
 
 
 def _strip_client_sig_divs(html: str, sig_html: str = "") -> str:

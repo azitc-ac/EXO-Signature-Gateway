@@ -50,9 +50,11 @@
   <h2>Format von Lexware Nachrichten korrigieren</h2>
   <p style="font-size:13px;color:#57534e;margin:0 0 14px">
     Lexware-Rechnungsmails wickeln den Nachrichtentext in verschachtelte zentrierte
-    Blöcke (erkennbar am internen <code>templateBody</code>-Marker) — dadurch erscheint
-    die Mail als schmale zentrierte Spalte statt linksbündig. Bei Aktivierung werden
-    nur diese Blöcke auf linksbündig umgestellt; die Gateway-Signatur ist davon nicht betroffen.
+    Blöcke (erkennbar am internen <code>templateBody</code>-Marker) und verwenden dort
+    teils Web-Fonts (z.B. "Merriweather Sans"), die auf den meisten Windows-Systemen
+    fehlen — Outlook zeigt dann oft Times New Roman als Fallback. Bei Aktivierung werden
+    diese Blöcke auf linksbündig sowie Schrift auf Calibri 11pt umgestellt;
+    die Gateway-Signatur ist davon nicht betroffen.
   </p>
   <div class="settings-row" style="align-items:center">
     <label for="lexware-fix-toggle">Format korrigieren</label>

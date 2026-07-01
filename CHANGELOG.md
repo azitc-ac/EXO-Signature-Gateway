@@ -18,6 +18,17 @@ graph_reinject: Bei sendMail HTTP 400 ErrorInvalidRecipients (Exchange kann
 Display-Name nicht im GAL auflösen) wurde zunächst ein Retry ohne Display-Namen
 eingebaut — in v1.4.328 durch einen strukturellen Fix ersetzt (siehe dort).
 
+## v1.4.342 — 2026-07-01 — feat: Lexware-Formatkorrektur erweitert um Schrift (Calibri 11pt)
+
+_fix_lexware_font: normalisiert font-family/mso-fareast-font-family/mso-bidi-font-family
+und font-size innerhalb der templateBody-Zelle auf Calibri 11pt. Ursache: Lexware
+setzt dort "Merriweather Sans" (Web-Font, auf den meisten Windows-Systemen nicht
+installiert) — Outlook fällt dann auf mso-fareast-font-family zurück (hier:
+"Times New Roman"), was optisch vom Rest der Mail abweicht.
+_fix_lexware_centering + _fix_lexware_font zusammengefasst unter _fix_lexware_format
+als einzigem Aufrufpunkt in mail_processor.inject(). Mit echter Lexware-Beispielmail
+getestet: Signatur-Block bleibt byte-identisch unangetastet.
+
 ## v1.4.340 — 2026-07-01 — feat: Format von Lexware-Nachrichten korrigieren
 
 Lexware-Rechnungsmails wickeln den Nachrichtentext in verschachtelte
