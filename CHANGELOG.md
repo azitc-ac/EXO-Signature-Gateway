@@ -18,6 +18,15 @@ graph_reinject: Bei sendMail HTTP 400 ErrorInvalidRecipients (Exchange kann
 Display-Name nicht im GAL auflösen) wurde zunächst ein Retry ohne Display-Namen
 eingebaut — in v1.4.328 durch einen strukturellen Fix ersetzt (siehe dort).
 
+## v1.4.346 — 2026-07-01 — feat: Lexware-Formatkorrektur entfernt überflüssige Leerzeile
+
+_fix_lexware_empty_row: entfernt eine komplett leere Tabellenzeile
+(<tr><td></td></tr>), die Lexware unmittelbar vor dem eigentlichen
+Nachrichtentext (id="templateBody") einfügt — erzeugte eine sichtbare
+Leerzeile direkt über "Sehr geehrte Damen und Herren...". Nur die
+unmittelbar vorangehende leere Zeile wird entfernt (Lookahead auf
+templateBody), keine anderen Tabellenzeilen betroffen.
+
 ## v1.4.344 — 2026-07-01 — feat: Lexware-Formatkorrektur erweitert um Padding-Einzug
 
 _fix_lexware_padding: nullt horizontales Padding (links/rechts) in verschachtelten

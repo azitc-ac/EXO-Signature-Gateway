@@ -521,8 +521,30 @@ def _fix_lexware_padding(html: str) -> str:
     return fixed
 
 
+_EMPTY_TR_BEFORE_TEMPLATEBODY_RE = re.compile(
+    r'<tr\b[^>]*>\s*<td\b[^>]*>\s*</td>\s*</tr>\s*'
+    r'(?=<tr\b[^>]*>\s*<td\b[^>]*\bid=["\']?templatebody["\']?)',
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def _fix_lexware_empty_row(html: str) -> str:
+    """
+    Lexware fügt vor dem eigentlichen Nachrichtentext (id="templateBody") oft
+    eine komplett leere Tabellenzeile ein (<tr><td></td></tr> ohne Inhalt) —
+    die erzeugt eine überflüssige Leerzeile direkt über dem Anschreiben.
+    Entfernt genau diese leere Zeile, sofern sie unmittelbar vor templateBody steht.
+    """
+    if not _LEXWARE_MARKER_RE.search(html):
+        return html
+    fixed = _EMPTY_TR_BEFORE_TEMPLATEBODY_RE.sub('', html)
+    if fixed != html:
+        log.info("_fix_lexware_empty_row: leere Zeile vor Lexware-Nachrichtentext entfernt")
+    return fixed
+
+
 def _fix_lexware_format(html: str) -> str:
-    """Wendet alle Lexware-Formatkorrekturen an (Ausrichtung + Schrift + Padding), falls aktiviert."""
+    """Wendet alle Lexware-Formatkorrekturen an (Ausrichtung + Schrift + Padding + Leerzeile), falls aktiviert."""
     if not settings_store.get("LEXWARE_FIX_FORMAT"):
         return html
     # Defensive: falls doch schon eine Gateway-Signatur im Text steckt (z.B. bei
@@ -533,6 +555,7 @@ def _fix_lexware_format(html: str) -> str:
     html = _fix_lexware_centering(html)
     html = _fix_lexware_font(html)
     html = _fix_lexware_padding(html)
+    html = _fix_lexware_empty_row(html)
     return html
 
 
