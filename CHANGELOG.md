@@ -18,6 +18,18 @@ graph_reinject: Bei sendMail HTTP 400 ErrorInvalidRecipients (Exchange kann
 Display-Name nicht im GAL auflösen) wurde zunächst ein Retry ohne Display-Namen
 eingebaut — in v1.4.328 durch einen strukturellen Fix ersetzt (siehe dort).
 
+## v1.4.340 — 2026-07-01 — feat: Format von Lexware-Nachrichten korrigieren
+
+Lexware-Rechnungsmails wickeln den Nachrichtentext in verschachtelte
+<div align=center>-Blöcke, erkennbar am internen id="templateBody"-Marker —
+dadurch erscheint die ganze Mail als schmale zentrierte Spalte statt
+linksbündig. Neue Option unter Erweitert (LEXWARE_FIX_FORMAT, Standard: aus):
+stellt bei Erkennung des Markers alle betroffenen div-Ausrichtungen auf
+left um. Wirkt nur auf den Original-Nachrichtentext VOR der Signatur-
+Injektion — die Gateway-Signatur selbst ist strukturell nicht betroffen.
+Ohne templateBody-Marker bleibt jede Mail unangetastet (auch bei zufälligem
+align=center in anderen Mails), getestet mit echter Lexware-Beispielmail.
+
 ## v1.4.338 — 2026-07-01 — fix: _strip_display_names — Header-Folding für viele Empfänger
 
 _strip_display_names schrieb die bereinigte To/Cc/Bcc-Zeile bisher unfolded auf eine

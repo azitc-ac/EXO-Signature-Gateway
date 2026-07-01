@@ -101,6 +101,7 @@ DEFAULTS: dict = {
     "GATEWAY_NAME": "EXO Signature Gateway",  # Prefix for EXO connectors, rules, distribution groups
     "APP_POOL": [],   # [{client_id, client_secret, label}] — leer = primäre CLIENT_ID/SECRET nutzen
     "MAINTENANCE_MODE": False,  # Wenn True: Mails werden verarbeitet aber nicht zugestellt (Test-Modus)
+    "LEXWARE_FIX_FORMAT": False,  # Zentrierte Lexware-Nachrichten (id="templateBody") auf linksbündig umstellen
 }
 
 _lock = RLock()

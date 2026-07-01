@@ -210,6 +210,7 @@ def inject(
         src_charset = msg.get_content_charset() or "utf-8"
         payload = msg.get_payload(decode=True).decode(src_charset, errors="replace")
         payload = _strip_client_sig_divs(payload, sig_html_cid)
+        payload = _fix_lexware_centering(payload)
         msg.set_param("charset", "utf-8")
         _set_part_payload(msg, _append_html_sig(payload, sig_html_cid), "utf-8")
         if cid_images:
@@ -343,6 +344,7 @@ def _inject_into_multipart(msg: email.message.Message, sig_html: str, sig_txt: s
         src_charset = html_part.get_content_charset() or "utf-8"
         payload = html_part.get_payload(decode=True).decode(src_charset, errors="replace")
         payload = _strip_client_sig_divs(payload, sig_html)
+        payload = _fix_lexware_centering(payload)
         html_part.set_param("charset", "utf-8")
         _set_part_payload(html_part, _append_html_sig(payload, sig_html), "utf-8")
 
@@ -401,6 +403,34 @@ def _matches_sig_fp(candidate_html: str, fp: frozenset[str]) -> bool:
         "STRIP" if ratio >= threshold else "KEEP (no match)",
     )
     return ratio >= threshold and len(matches) >= _MIN_FP_MATCH_COUNT
+
+
+_LEXWARE_MARKER_RE = re.compile(r'id=["\']?templateBody["\']?', re.IGNORECASE)
+_DIV_ALIGN_CENTER_RE = re.compile(r'(<div\b[^>]*\balign\s*=\s*)(["\']?)center\2', re.IGNORECASE)
+
+
+def _fix_lexware_centering(html: str) -> str:
+    """
+    Lexware (Buchhaltungssoftware) wickelt den eigentlichen Nachrichtentext in
+    verschachtelte <div align=center>-Blöcke — erkennbar am id="templateBody"-
+    Marker, den Lexware selbst einfügt. Das zentriert die ganze Mail als schmale
+    Spalte statt des üblichen linksbündigen Layouts. Opt-in via
+    LEXWARE_FIX_FORMAT: dreht nur diese div-Ausrichtungen auf left, alles
+    andere (inkl. der noch nicht injizierten Gateway-Signatur) bleibt unberührt.
+    """
+    if not settings_store.get("LEXWARE_FIX_FORMAT"):
+        return html
+    if not _LEXWARE_MARKER_RE.search(html):
+        return html
+
+    def _to_left(m: re.Match) -> str:
+        prefix, quote = m.group(1), m.group(2)
+        return f"{prefix}{quote}left{quote}"
+
+    fixed = _DIV_ALIGN_CENTER_RE.sub(_to_left, html)
+    if fixed != html:
+        log.info("_fix_lexware_centering: Lexware-Marker gefunden, zentrierte divs auf left umgestellt")
+    return fixed
 
 
 def _strip_client_sig_divs(html: str, sig_html: str = "") -> str:
