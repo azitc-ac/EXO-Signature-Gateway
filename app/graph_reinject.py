@@ -80,6 +80,27 @@ def _addr_list(header_val: str) -> list[dict]:
     return result
 
 
+def _strip_display_names(content_bytes: bytes) -> bytes:
+    """
+    Return a copy of the MIME message with display names removed from
+    To/Cc/Bcc address headers, leaving only bare <email@domain> addresses.
+    Exchange cannot always resolve unrecognised display names (GAL lookup),
+    which causes sendMail to return 400 ErrorInvalidRecipients.
+    """
+    msg = email_mod.message_from_bytes(content_bytes, policy=email_mod.policy.compat32)
+    for hdr in ("To", "Cc", "Bcc"):
+        val = msg.get(hdr)
+        if not val:
+            continue
+        bare = ", ".join(
+            f"<{addr}>" for _, addr in email.utils.getaddresses([val]) if addr
+        )
+        if bare:
+            del msg[hdr]
+            msg[hdr] = bare
+    return msg.as_bytes(policy=email_mod.policy.compat32)
+
+
 def _extract_parts(msg) -> tuple[str, str, list[dict]]:
     """
     Recursively walk a MIME message.
@@ -532,6 +553,25 @@ def send_via_graph_mime(mail_from: str, rcpt_tos: list[str], content_bytes: byte
                 return True
             log.warning("MIME inject failed — JSON inbox inject fallback")
             return deliver_to_mailbox(mail_from, rcpt_tos, content_bytes)
+
+        if error_code == "ErrorInvalidRecipients":
+            # Exchange cannot resolve a display name in the To/CC headers
+            # (e.g. "Werf" <bwerf@external.de> — unresolvable in GAL).
+            # Retry with bare email addresses stripped of display names.
+            log.warning(
+                "Graph sendMail ErrorInvalidRecipients — retrying with bare addresses: %s",
+                rcpt_tos,
+            )
+            clean_bytes = _strip_display_names(content_bytes)
+            encoded2 = base64.b64encode(clean_bytes)
+            with httpx.Client(timeout=30) as client:
+                resp2 = _post_with_429_retry(client, url, content=encoded2, headers=headers)
+            if resp2.status_code == 202:
+                log.info("Graph MIME re-inject OK (bare addresses): from=%s to=%s", from_addr, rcpt_tos)
+                return True
+            log.error("Graph sendMail retry (bare addresses) failed: HTTP %s — %s",
+                      resp2.status_code, resp2.text[:400])
+            return False
 
         log.error("Graph sendMail (MIME) failed: HTTP %s — %s",
                   resp.status_code, resp.text[:400])

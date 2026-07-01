@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.326 — 2026-07-01 — fix: EC-Schlüssel in Key Vault (ES256 statt RS256) + Graph ErrorInvalidRecipients-Retry
+
+cms_sign: Algorithmus wird jetzt aus dem Zertifikat ermittelt (EC → ES256, RSA → RS256).
+EC-Rohsignatur von Key Vault (r||s) wird in DER-kodiertes SEQUENCE{r,s} konvertiert.
+signatureAlgorithm-OID im PKCS#7 SignerInfo: ecdsa-with-SHA256 für EC-Certs.
+health_check: _check_kv_sign ermittelt Algorithmus ebenfalls aus dem Zertifikat.
+Ursache: CASTLE ACME stellt EC-Zertifikate (P-256) aus; KV-Health-Check und
+CMS-Signierung haben RS256 hardcoded — führt zu HTTP 400 BadParameter in Key Vault.
+
+graph_reinject: Bei sendMail HTTP 400 ErrorInvalidRecipients (Exchange kann
+Display-Name nicht im GAL auflösen) wird automatisch ein zweiter Versuch ohne
+Display-Namen gestartet (_strip_display_names). Ursache: "Werf" <bwerf@...>
+unresolvable → Graph lehnt Mail ab → Zustellung fehlgeschlagen.
+
 ## v1.4.325 — 2026-07-01 — feat: Selbsttest mit echten Signaturen + Vollbild-Vorschau
 
 Selbsttest: Dropdowns "Signaturvorlage" und "Benutzer" (aus MAILBOX_CONFIG + templates/).

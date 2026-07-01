@@ -370,9 +370,21 @@ def _check_smime_key(email: str) -> dict:
 async def _check_kv_sign(email: str) -> dict:
     """Test the Key Vault sign API with a health-check digest."""
     import keyvault
+    import smime_store
+    from cms_sign import _get_cert_key_type, _parse_cert_der
     try:
         digest = hashlib.sha256(b"health-check").digest()
-        await keyvault.sign(email, digest, algorithm="RS256")
+        # Determine algorithm from cert key type (EC→ES256, RSA→RS256)
+        algo = "RS256"
+        try:
+            cert_path = smime_store.get_signing_cert_path(email)
+            if cert_path and cert_path.exists():
+                cert_pem = cert_path.read_bytes()
+                cert_der = _parse_cert_der(cert_pem)
+                algo = "ES256" if _get_cert_key_type(cert_der) == "EC" else "RS256"
+        except Exception:
+            pass
+        await keyvault.sign(email, digest, algorithm=algo)
         return _make_result("ok", "Sign API erreichbar")
     except Exception as exc:
         return _make_result("error", f"Sign API Fehler: {exc}")

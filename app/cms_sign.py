@@ -98,6 +98,7 @@ OID_SHA256         = bytes([0x60, 0x86, 0x48, 0x01, 0x86, 0xF8, 0x4D, 0x01, 0x02
 OID_SHA256_ALT     = bytes([0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01])
 OID_RSA            = bytes([0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x01])
 OID_RSAPKCS1V15    = bytes([0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x0B])  # sha256WithRSAEncryption
+OID_ECDSA_SHA256   = bytes([0x2A, 0x86, 0x48, 0xCE, 0x3D, 0x04, 0x03, 0x02])         # ecdsa-with-SHA256
 OID_CONTENT_TYPE   = bytes([0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x09, 0x03])
 OID_SIGNING_TIME   = bytes([0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x09, 0x05])
 OID_MESSAGE_DIGEST = bytes([0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x09, 0x04])
@@ -110,6 +111,11 @@ def _sha256_alg_id() -> bytes:
 
 def _rsa_alg_id() -> bytes:
     return _seq(_oid(OID_RSAPKCS1V15) + _tlv(0x05, b""))  # sha256WithRSAEncryption + NULL
+
+
+def _ecdsa_sha256_alg_id() -> bytes:
+    # RFC 5480: ecdsa-with-SHA256 has absent (not NULL) parameters
+    return _seq(_oid(OID_ECDSA_SHA256))
 
 
 # ── Certificate parsing ────────────────────────────────────────────────────────
@@ -135,6 +141,25 @@ def _get_cert_issuer_serial(cert_der: bytes) -> tuple[bytes, bytes]:
     issuer_der = cert.issuer.public_bytes()
     serial = cert.serial_number
     return issuer_der, serial
+
+
+def _get_cert_key_type(cert_der: bytes) -> str:
+    """Return 'EC' or 'RSA' based on the certificate's public key type."""
+    from cryptography import x509
+    from cryptography.hazmat.primitives.asymmetric import ec
+    cert = x509.load_der_x509_certificate(cert_der)
+    return "EC" if isinstance(cert.public_key(), ec.EllipticCurvePublicKey) else "RSA"
+
+
+def _ec_raw_to_der_sig(raw_sig: bytes) -> bytes:
+    """
+    Convert Key Vault ES256 raw signature (64 bytes r||s for P-256) to
+    DER-encoded ECDSASignature ::= SEQUENCE { r INTEGER, s INTEGER }.
+    """
+    half = len(raw_sig) // 2
+    r = int.from_bytes(raw_sig[:half], "big")
+    s = int.from_bytes(raw_sig[half:], "big")
+    return _seq(_integer(r) + _integer(s))
 
 
 # ── Signed Attributes ─────────────────────────────────────────────────────────
@@ -182,7 +207,8 @@ def _signed_attrs_as_implicit(signed_attrs_set: bytes) -> bytes:
 def _build_pkcs7(
     cert_der: bytes,
     signed_attrs_set: bytes,   # DER-encoded SET (tag 0x31) — used to build SignerInfo
-    signature_bytes: bytes,    # raw RSA signature from Key Vault
+    signature_bytes: bytes,    # signature from Key Vault (RSA: raw PKCS#1; EC: DER SEQUENCE)
+    key_type: str = "RSA",     # "RSA" or "EC"
 ) -> bytes:
     """
     Build a DER-encoded PKCS#7 / CMS SignedData structure with detached content.
@@ -199,6 +225,8 @@ def _build_pkcs7(
     # SignedAttributes in SignerInfo use [0] IMPLICIT tag
     signed_attrs_implicit = _signed_attrs_as_implicit(signed_attrs_set)
 
+    sig_alg_id = _ecdsa_sha256_alg_id() if key_type == "EC" else _rsa_alg_id()
+
     # SignerInfo ::= SEQUENCE {
     #   version CMSVersion,
     #   sid SignerIdentifier,
@@ -212,7 +240,7 @@ def _build_pkcs7(
         signer_id +                    # IssuerAndSerialNumber
         _sha256_alg_id() +             # digestAlgorithm
         signed_attrs_implicit +        # signedAttrs [0]
-        _rsa_alg_id() +               # signatureAlgorithm
+        sig_alg_id +                   # signatureAlgorithm (RSA or ECDSA)
         _octet_string(signature_bytes)  # signature
     )
 
@@ -286,16 +314,20 @@ async def sign_smime_keyvault(
     # 3. SHA-256 of the signed attributes SET (this is what Key Vault signs)
     digest_to_sign = hashlib.sha256(signed_attrs_set).digest()
 
-    # 4. Call Key Vault Sign API
+    # 4. Call Key Vault Sign API — algorithm depends on key type (RSA→RS256, EC→ES256)
+    key_type = _get_cert_key_type(cert_der)
+    kv_algo = "ES256" if key_type == "EC" else "RS256"
     try:
-        kv_sig = await keyvault.sign(sender_email, digest_to_sign, algorithm="RS256")
+        kv_sig = await keyvault.sign(sender_email, digest_to_sign, algorithm=kv_algo)
     except Exception as exc:
         log.error("cms_sign: Key Vault sign failed for %s: %s", sender_email, exc)
         return None
+    if key_type == "EC":
+        kv_sig = _ec_raw_to_der_sig(kv_sig)
 
     # 5. Build PKCS#7 DER structure
     try:
-        pkcs7_der = _build_pkcs7(cert_der, signed_attrs_set, kv_sig)
+        pkcs7_der = _build_pkcs7(cert_der, signed_attrs_set, kv_sig, key_type=key_type)
     except Exception as exc:
         log.error("cms_sign: PKCS#7 build failed for %s: %s", sender_email, exc)
         return None
