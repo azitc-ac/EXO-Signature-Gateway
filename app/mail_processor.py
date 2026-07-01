@@ -410,6 +410,28 @@ _DIV_ALIGN_CENTER_RE = re.compile(r'(<div\b[^>]*\balign\s*=\s*)(["\']?)center\2'
 _LEXWARE_TD_OPEN_RE = re.compile(r'<td\b[^>]*\bid=["\']?templatebody["\']?[^>]*>', re.IGNORECASE)
 _FONT_FAMILY_RE = re.compile(r'(font-family|mso-fareast-font-family|mso-bidi-font-family)\s*:\s*[^;]+;', re.IGNORECASE)
 _FONT_SIZE_RE = re.compile(r'font-size\s*:\s*[0-9.]+pt', re.IGNORECASE)
+_EMPTY_P_BEFORE_CENTER_DIV_RE = re.compile(
+    r'<p\b[^>]*>(?:\s|&nbsp;|<o:p>|</o:p>)*</p>\s*'
+    r'(?=<div\b[^>]*\balign\s*=\s*["\']?center)',
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def _fix_lexware_empty_p(html: str) -> str:
+    """
+    Lexware fügt einen leeren Absatz (nur &nbsp;) zwischen dem Metadaten-Block
+    (Von:/Gesendet:/An:/Betreff:/Anlagen:/Signiert von:) und dem eigentlichen
+    zentrierten Inhaltsblock ein — erzeugt eine sichtbare Leerzeile direkt über
+    dem Anschreiben. Entfernt genau diesen leeren Absatz, sofern er unmittelbar
+    vor dem zentrierten Lexware-Block steht. Läuft vor _fix_lexware_centering,
+    solange der Block noch align=center ist (Erkennungsmerkmal).
+    """
+    if not _LEXWARE_MARKER_RE.search(html):
+        return html
+    fixed = _EMPTY_P_BEFORE_CENTER_DIV_RE.sub('', html)
+    if fixed != html:
+        log.info("_fix_lexware_empty_p: leerer Absatz vor Lexware-Inhaltsblock entfernt")
+    return fixed
 
 
 def _fix_lexware_centering(html: str) -> str:
@@ -543,6 +565,39 @@ def _fix_lexware_empty_row(html: str) -> str:
     return fixed
 
 
+def _fix_lexware_top_gap(html: str) -> str:
+    """
+    Die erste verschachtelte Zelle direkt innerhalb von templateBody trägt bei
+    Lexware oft noch reines padding-top (z.B. 6.75pt) — erzeugt einen kleinen
+    Rest-Abstand direkt über dem Anschreiben, auch nach den anderen Korrekturen.
+    Nullt nur den ersten (top-)Wert im padding-Shorthand der ERSTEN Zelle
+    innerhalb von templateBody, lässt alle anderen Zellen unangetastet.
+    """
+    if not _LEXWARE_MARKER_RE.search(html):
+        return html
+    m = _LEXWARE_TD_OPEN_RE.search(html)
+    if not m:
+        return html
+    tag_end = m.end()
+    td_m = re.search(r'<td\b[^>]*style\s*=\s*[\'"][^\'"]*[\'"][^>]*>', html[tag_end:], re.IGNORECASE)
+    if not td_m:
+        return html
+    abs_start = tag_end + td_m.start()
+    abs_end = tag_end + td_m.end()
+    segment = html[abs_start:abs_end]
+    new_segment = re.sub(
+        r'(padding\s*:\s*)([0-9.]+(?:pt|cm|px|em))(\s)',
+        lambda mm: f"{mm.group(1)}0{mm.group(3)}",
+        segment,
+        count=1,
+        flags=re.IGNORECASE,
+    )
+    if new_segment == segment:
+        return html
+    log.info("_fix_lexware_top_gap: padding-top der ersten templateBody-Zelle auf 0 gesetzt")
+    return html[:abs_start] + new_segment + html[abs_end:]
+
+
 def _fix_lexware_format(html: str) -> str:
     """Wendet alle Lexware-Formatkorrekturen an (Ausrichtung + Schrift + Padding + Leerzeile), falls aktiviert."""
     if not settings_store.get("LEXWARE_FIX_FORMAT"):
@@ -552,9 +607,11 @@ def _fix_lexware_format(html: str) -> str:
     # bereits zitierten/quotierten Inhalt einzugreifen.
     if _SIG_MARKER_START in html:
         return html
+    html = _fix_lexware_empty_p(html)
     html = _fix_lexware_centering(html)
     html = _fix_lexware_font(html)
     html = _fix_lexware_padding(html)
+    html = _fix_lexware_top_gap(html)
     html = _fix_lexware_empty_row(html)
     return html
 

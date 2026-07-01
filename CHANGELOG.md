@@ -18,6 +18,21 @@ graph_reinject: Bei sendMail HTTP 400 ErrorInvalidRecipients (Exchange kann
 Display-Name nicht im GAL auflösen) wurde zunächst ein Retry ohne Display-Namen
 eingebaut — in v1.4.328 durch einen strukturellen Fix ersetzt (siehe dort).
 
+## v1.4.348 — 2026-07-01 — fix: Lexware-Formatkorrektur — zwei weitere Leerraum-Quellen
+
+Screenshot-Vergleich zeigte weiterhin deutlichen Abstand zwischen dem Metadaten-
+Block (Von:/Gesendet:/.../Signiert von:) und "Sehr geehrte...". Zwei zusätzliche
+Quellen identifiziert und behoben:
+- _fix_lexware_empty_p: entfernt einen leeren <p><o:p>&nbsp;</o:p></p>-Absatz,
+  den Lexware zwischen Metadaten-Block und dem zentrierten Inhaltsblock einfügt.
+  Läuft vor _fix_lexware_centering, solange align=center noch als Erkennungsmerkmal
+  vorhanden ist.
+- _fix_lexware_top_gap: nullt das verbleibende padding-top (z.B. 6.75pt) der
+  ERSTEN Zelle direkt innerhalb von templateBody — vorher blieb dort ein
+  kleiner Rest-Abstand über dem Anschreiben, da _fix_lexware_padding bewusst
+  nur horizontales Padding nullt. Betrifft nur diese eine Zelle, nicht die
+  gesamte templateBody-Struktur (keine anderen Absatzabstände verändert).
+
 ## v1.4.346 — 2026-07-01 — feat: Lexware-Formatkorrektur entfernt überflüssige Leerzeile
 
 _fix_lexware_empty_row: entfernt eine komplett leere Tabellenzeile
