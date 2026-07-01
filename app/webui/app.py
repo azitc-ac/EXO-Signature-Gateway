@@ -3655,6 +3655,13 @@ async def api_update_check(channel: str = "main", user: str = Depends(_require_a
     return JSONResponse(updater.check_update(channel, config.VERSION))
 
 
+@app.get("/api/system/update/releases")
+async def api_update_releases(user: str = Depends(_require_admin)):
+    """Liste aller veröffentlichten Release-Tags (für Versionsauswahl / Rollback)."""
+    import updater
+    return JSONResponse({"releases": updater.list_release_tags()})
+
+
 @app.post("/api/system/update")
 async def api_system_update(request: Request, user: str = Depends(_require_admin)):
     """Trigger-Datei schreiben → Host-Watcher führt git pull + docker compose up --build aus."""
@@ -3665,10 +3672,12 @@ async def api_system_update(request: Request, user: str = Depends(_require_admin
     except Exception:
         pass
     channel = body.get("channel", "main")
-    result = updater.request_update(user, config.VERSION, channel=channel)
+    target_version = (body.get("target_version") or "").strip() or None
+    result = updater.request_update(user, config.VERSION, channel=channel, target_version=target_version)
     if not result["ok"]:
         return JSONResponse(result, status_code=409)
-    log.info("Update requested by %s (channel: %s, current version: %s)", user, channel, config.VERSION)
+    log.info("Update requested by %s (channel: %s, current version: %s, target: %s)",
+              user, channel, config.VERSION, target_version or "latest")
     return JSONResponse(result)
 
 

@@ -12,10 +12,20 @@ write_heartbeat() { date -u +%Y-%m-%dT%H:%M:%SZ > "$HEARTBEAT"; chown 1000:1000 
 do_git_update() {
   if [ "$CHANNEL" = "release" ]; then
     cd "$REPO" && git fetch --tags 2>&1
-    LATEST=$(git tag -l 'v*' | sort -V | tail -1)
-    if [ -z "$LATEST" ]; then echo "FEHLER: Keine Release-Tags gefunden"; return 1; fi
-    git reset --hard "$LATEST" 2>&1
-    echo "→ Release $LATEST ausgecheckt"
+    if [ -n "${TARGET_VERSION:-}" ]; then
+      TAG="v${TARGET_VERSION#v}"
+      if ! git rev-parse "$TAG" >/dev/null 2>&1; then
+        echo "FEHLER: Tag $TAG nicht gefunden (git fetch --tags ausgeführt)"
+        return 1
+      fi
+      git reset --hard "$TAG" 2>&1
+      echo "→ Release $TAG ausgecheckt (gezielt gewählt — ggf. Rollback)"
+    else
+      LATEST=$(git tag -l 'v*' | sort -V | tail -1)
+      if [ -z "$LATEST" ]; then echo "FEHLER: Keine Release-Tags gefunden"; return 1; fi
+      git reset --hard "$LATEST" 2>&1
+      echo "→ Release $LATEST ausgecheckt"
+    fi
   else
     cd "$REPO" && git fetch origin main 2>&1 && git reset --hard origin/main 2>&1
   fi
@@ -44,8 +54,10 @@ while true; do
   if [ -f "$TRIGGER" ]; then
     VER_BEFORE=$(cat "$REPO/VERSION" 2>/dev/null | tr -d "[:space:]" || echo "?")
     CHANNEL=$(python3 -c "import json; print(json.load(open('$TRIGGER')).get('channel','main'))" 2>/dev/null || echo "main")
+    TARGET_VERSION=$(python3 -c "import json; print(json.load(open('$TRIGGER')).get('target_version','') or '')" 2>/dev/null || echo "")
     rm -f "$TRIGGER"
-    write_status "{\"state\":\"running\",\"log\":\"Kanal ${CHANNEL}: wird aktualisiert...\",\"version_before\":\"$VER_BEFORE\"}"
+    _log_target=""; [ -n "$TARGET_VERSION" ] && _log_target=" (Ziel: v${TARGET_VERSION})"
+    write_status "{\"state\":\"running\",\"log\":\"Kanal ${CHANNEL}${_log_target}: wird aktualisiert...\",\"version_before\":\"$VER_BEFORE\"}"
     LOG=$(do_git_update 2>&1) && \
       LOG2=$(cd "$REPO" && docker compose up -d --build 2>&1) && \
       VER_AFTER=$(cat "$REPO/VERSION" 2>/dev/null | tr -d "[:space:]" || echo "?") && \

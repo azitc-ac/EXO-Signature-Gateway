@@ -18,6 +18,19 @@ graph_reinject: Bei sendMail HTTP 400 ErrorInvalidRecipients (Exchange kann
 Display-Name nicht im GAL auflösen) wurde zunächst ein Retry ohne Display-Namen
 eingebaut — in v1.4.328 durch einen strukturellen Fix ersetzt (siehe dort).
 
+## v1.4.334 — 2026-07-01 — feat: Rollback auf gewählte Release-Version
+
+Bisher kannte der Updater nur "neuester main-Commit" oder "neuestes Release-Tag" —
+kein Weg, gezielt eine bestimmte (ältere) Version zu wählen. Neu im Kanal "Releases":
+Dropdown mit allen veröffentlichten Versionen (GET /api/system/update/releases,
+liest GitHub Releases). Auswahl einer älteren Version als der laufenden zeigt eine
+Rollback-Warnung. POST /api/system/update akzeptiert jetzt target_version; der
+Host-Watcher (update-watcher.sh) checkt bei gesetztem TARGET_VERSION exakt diesen
+Tag aus (git reset --hard vX.Y.Z) statt immer das neueste Tag.
+Ohne target_version bleibt das bisherige Verhalten (neuestes Tag) unverändert.
+Hinweis: nur der Code-Stand wird gewechselt — data/settings.json bleibt unverändert
+und ist nicht automatisch mit einer älteren Version rückwärtskompatibel geprüft.
+
 ## v1.4.332 — 2026-07-01 — fix: Preview-Button in Wartungsmodus-Queue erneut funktionslos (Namenskollision)
 
 Zwei globale Funktionen namens openPreview: Wartungsmodus-Queue (window.openPreview,

@@ -111,9 +111,13 @@ def check_update(channel: str, current_version: str) -> dict:
         return {"ok": False, "error": str(e), "channel": channel}
 
 
-def request_update(requested_by: str, current_version: str, channel: str = "main") -> dict:
+def request_update(requested_by: str, current_version: str, channel: str = "main",
+                    target_version: str | None = None) -> dict:
     """
     Write the trigger file to start an update.
+    target_version: specific release tag to check out (release channel only).
+    None means "latest" (existing behaviour) — used for both upgrades and,
+    when set to an older version than current, rollbacks.
     Returns {"ok": True} or {"ok": False, "error": "..."}.
     """
     status = get_status()
@@ -125,12 +129,38 @@ def request_update(requested_by: str, current_version: str, channel: str = "main
         "current_version": current_version,
         "channel": channel,
     }
+    if target_version:
+        payload["target_version"] = target_version
     try:
         TRIGGER.write_text(json.dumps(payload))
         TRIGGER.chmod(0o644)
     except OSError as e:
         return {"ok": False, "error": str(e)}
     return {"ok": True}
+
+
+def list_release_tags(limit: int = 30) -> list:
+    """
+    Fetch published GitHub Releases (tag + date + URL), newest first.
+    Used by the UI to offer a specific version to roll back / forward to.
+    """
+    try:
+        url = f"https://api.github.com/repos/{GITHUB_REPO}/releases?per_page={limit}"
+        req = urllib.request.Request(url, headers={"User-Agent": "EXO-Gateway/1"})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            data = json.loads(r.read())
+        return [
+            {
+                "version": rel["tag_name"].lstrip("v"),
+                "published_at": rel.get("published_at", ""),
+                "url": rel.get("html_url", ""),
+                "name": rel.get("name") or rel["tag_name"],
+            }
+            for rel in data
+            if rel.get("tag_name") and not rel.get("draft")
+        ]
+    except Exception:
+        return []
 
 
 def get_status() -> dict:

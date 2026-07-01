@@ -719,6 +719,8 @@
     Lädt die aktuelle Version aus dem Git-Repository und baut den Container neu.
     Voraussetzung: der Host-Watcher-Service (<code>exo-gateway-updater.service</code>) muss auf der Azure-VM laufen
     (Einrichtung → <a href="/setup#step-watcher">Update-Watcher</a>).
+    Im Kanal "Releases" kann gezielt eine bestimmte Version gewählt werden — auch ein
+    Rollback auf eine ältere Version ist damit möglich (Code-Stand; Einstellungen bleiben unverändert).
   </p>
 
   <!-- Kanal + Prüfen -->
@@ -731,6 +733,17 @@
     <button class="btn secondary btn-sm" id="upd-check-btn" onclick="checkUpdate()" style="font-size:12px">
       Auf Updates prüfen
     </button>
+  </div>
+
+  <!-- Ziel-Version (nur Release-Kanal) — erlaubt gezielten Wechsel inkl. Rollback -->
+  <div id="upd-version-picker" style="display:none;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+    <label style="font-size:13px;color:#374151;font-weight:500">Ziel-Version:</label>
+    <select id="upd-target-version" onchange="_updOnTargetChange()" style="font-size:13px;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;background:#fff;min-width:160px">
+      <option value="">Neueste (Standard)</option>
+    </select>
+    <span id="upd-rollback-warn" style="display:none;font-size:12px;color:#b45309">
+      ⚠ Rollback auf ältere Version — Einstellungen (settings.json) werden nicht automatisch zurückgesetzt.
+    </span>
   </div>
 
   <!-- Version + Check-Ergebnis -->
@@ -773,13 +786,59 @@ let _updReloadTimer = null;
 
 function _esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function _updGetChannel() { return document.getElementById('upd-channel').value; }
+function _updGetTargetVersion() {
+  const el = document.getElementById('upd-target-version');
+  return el ? el.value : '';
+}
 function _updSaveChannel() {
   try { localStorage.setItem('exo_upd_channel', _updGetChannel()); } catch(e) {}
   document.getElementById('upd-check-result').innerHTML = '';
   document.getElementById('upd-btn').disabled = !_watcherOk;
+  _updRefreshVersionPicker();
 }
 function _updLoadChannel() {
   try { const ch = localStorage.getItem('exo_upd_channel'); if (ch) document.getElementById('upd-channel').value = ch; } catch(e) {}
+}
+
+let _updReleaseList = [];
+function _updRefreshVersionPicker() {
+  const picker = document.getElementById('upd-version-picker');
+  if (_updGetChannel() !== 'release') {
+    picker.style.display = 'none';
+    return;
+  }
+  picker.style.display = 'flex';
+  _updLoadReleaseList();
+}
+
+async function _updLoadReleaseList() {
+  const sel = document.getElementById('upd-target-version');
+  try {
+    const r = await fetch('/api/system/update/releases');
+    const d = await r.json();
+    _updReleaseList = d.releases || [];
+    sel.innerHTML = '<option value="">Neueste (Standard)</option>' +
+      _updReleaseList.map(rel => `<option value="${_esc(rel.version)}">v${_esc(rel.version)}${rel.published_at ? ' — ' + _esc(rel.published_at.slice(0,10)) : ''}</option>`).join('');
+  } catch(e) {
+    sel.innerHTML = '<option value="">Neueste (Standard)</option>';
+  }
+  _updOnTargetChange();
+}
+
+function _updOnTargetChange() {
+  const target = _updGetTargetVersion();
+  const warn = document.getElementById('upd-rollback-warn');
+  const current = "{{ current_version or '0' }}";
+  if (!target) { warn.style.display = 'none'; return; }
+  const cur = current.split('.').map(Number);
+  const tgt = target.split('.').map(Number);
+  let isOlder = false;
+  for (let i = 0; i < Math.max(cur.length, tgt.length); i++) {
+    const c = cur[i] || 0, t = tgt[i] || 0;
+    if (t < c) { isOlder = true; break; }
+    if (t > c) break;
+  }
+  warn.style.display = isOlder ? 'inline' : 'none';
 }
 function _updBtnReset() {
   const b = document.getElementById('upd-btn');
@@ -851,7 +910,7 @@ async function startUpdate() {
   try {
     const r = await fetch('/api/system/update', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({channel: _updGetChannel()}),
+      body: JSON.stringify({channel: _updGetChannel(), target_version: _updGetTargetVersion()}),
     });
     const d = await r.json();
     if (!d.ok) { _updShowError(d.error || `HTTP ${r.status}`); _updBtnReset(); return; }
@@ -995,6 +1054,7 @@ async function toggleChangelog() {
 // --- Init ---
 (async function() {
   _updLoadChannel();
+  _updRefreshVersionPicker();
   await _updCheckWatcher();
   try {
     const r = await fetch('/api/system/update/status');
