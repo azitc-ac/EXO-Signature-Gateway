@@ -18,6 +18,14 @@ graph_reinject: Bei sendMail HTTP 400 ErrorInvalidRecipients (Exchange kann
 Display-Name nicht im GAL auflösen) wurde zunächst ein Retry ohne Display-Namen
 eingebaut — in v1.4.328 durch einen strukturellen Fix ersetzt (siehe dort).
 
+## v1.4.330 — 2026-07-01 — fix: Calendaring-Ausnahme in setup_exo_connector.ps1 verankert
+
+Die Transport-Regel-Ausnahme ExceptIfMessageTypeMatches=Calendaring (v1.4.328) wurde
+zunächst nur ad-hoc live auf dem Tenant gesetzt, nicht im Setup-Code. Jetzt in
+setup_exo_connector.ps1 nachgezogen (New-TransportRule + Set-TransportRule bei
+bestehender Regel), damit sie bei jedem Setup/Re-Setup automatisch mitkommt statt
+bei einem Reset verloren zu gehen.
+
 ## v1.4.328 — 2026-07-01 — fix: Display-Namen immer entfernen (kein Retry) + Kalender-Ausnahme in Transport-Regel
 
 graph_reinject: send_via_graph_mime() entfernt Display-Namen aus To/Cc/Bcc

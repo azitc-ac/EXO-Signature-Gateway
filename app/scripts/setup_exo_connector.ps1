@@ -140,9 +140,9 @@ $ruleName = "Route via EXO Signature Gateway"
 $existingRule = Get-TransportRule -Identity $ruleName -ErrorAction SilentlyContinue
 
 if ($existingRule) {
-    Write-Warn "Transport Rule '$ruleName' exists — updating comment"
-    Set-TransportRule -Identity $ruleName -Comments $managedBy | Out-Null
-    Write-OK "Transport Rule comment updated"
+    Write-Warn "Transport Rule '$ruleName' exists — updating comment + Calendaring-Ausnahme"
+    Set-TransportRule -Identity $ruleName -Comments $managedBy -ExceptIfMessageTypeMatches Calendaring | Out-Null
+    Write-OK "Transport Rule comment + Calendaring-Ausnahme aktualisiert"
 } else {
     New-TransportRule `
         -Name $ruleName `
@@ -150,11 +150,12 @@ if ($existingRule) {
         -SentToScope NotInOrganization `
         -ExceptIfHeaderMatchesMessageHeader "X-Sig-Applied" `
         -ExceptIfHeaderMatchesPatterns "1" `
+        -ExceptIfMessageTypeMatches Calendaring `
         -RouteMessageOutboundConnector $outConnectorId `
         -Priority 0 `
         -Comments $managedBy `
         -Mode Enforce | Out-Null
-    Write-OK "Transport Rule created (priority 0)"
+    Write-OK "Transport Rule created (priority 0, Kalender-Einladungen ausgenommen)"
 }
 
 # ── Done ──────────────────────────────────────────────────────────────────────
