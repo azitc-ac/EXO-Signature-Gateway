@@ -23,6 +23,7 @@ import email.header
 import email.policy
 import email.utils
 import logging
+import re
 import time
 
 import httpx
@@ -86,8 +87,26 @@ def _strip_display_names(content_bytes: bytes) -> bytes:
     To/Cc/Bcc address headers, leaving only bare <email@domain> addresses.
     Exchange cannot always resolve unrecognised display names (GAL lookup),
     which causes sendMail to return 400 ErrorInvalidRecipients.
+
+    IMPORTANT: rewrites only the affected header lines via raw byte
+    manipulation — does NOT reparse/reserialize the full message through
+    email.generator (msg.as_bytes()). Re-serialising rewrites line endings
+    to bare LF under compat32 policy, which Exchange rejects (550 5.6.11
+    SMTPSEND.BareLinefeedsAreIllegal), and can reformat/invalidate an
+    S/MIME signature that covers the original byte-exact MIME body.
     """
+    for sep in (b"\r\n\r\n", b"\n\n"):
+        idx = content_bytes.find(sep)
+        if idx != -1:
+            header_block = content_bytes[:idx]
+            body = content_bytes[idx + len(sep):]
+            eol = b"\r\n" if sep == b"\r\n\r\n" else b"\n"
+            break
+    else:
+        return content_bytes  # no header/body boundary found — leave untouched
+
     msg = email_mod.message_from_bytes(content_bytes, policy=email_mod.policy.compat32)
+    replacements = {}
     for hdr in ("To", "Cc", "Bcc"):
         val = msg.get(hdr)
         if not val:
@@ -96,9 +115,28 @@ def _strip_display_names(content_bytes: bytes) -> bytes:
             f"<{addr}>" for _, addr in email.utils.getaddresses([val]) if addr
         )
         if bare:
-            del msg[hdr]
-            msg[hdr] = bare
-    return msg.as_bytes(policy=email_mod.policy.compat32)
+            replacements[hdr.lower()] = f"{hdr}: {bare}".encode()
+    if not replacements:
+        return content_bytes
+
+    lines = header_block.split(eol)
+    out_lines = []
+    skipping = False
+    for line in lines:
+        if skipping:
+            if line[:1] in (b" ", b"\t"):
+                continue  # folded continuation of a header we're replacing
+            skipping = False
+        m = re.match(rb"^([A-Za-z-]+):", line)
+        if m and m.group(1).decode().lower() in replacements:
+            skipping = True
+            continue
+        out_lines.append(line)
+    for hdr_lower, new_line in replacements.items():
+        out_lines.append(new_line)
+
+    new_header_block = eol.join(out_lines)
+    return new_header_block + eol + eol + body
 
 
 def _extract_parts(msg) -> tuple[str, str, list[dict]]:

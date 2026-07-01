@@ -18,6 +18,18 @@ graph_reinject: Bei sendMail HTTP 400 ErrorInvalidRecipients (Exchange kann
 Display-Name nicht im GAL auflösen) wurde zunächst ein Retry ohne Display-Namen
 eingebaut — in v1.4.328 durch einen strukturellen Fix ersetzt (siehe dort).
 
+## v1.4.336 — 2026-07-01 — fix: _strip_display_names produzierte bare LF (Exchange 550 5.6.11)
+
+Regression aus v1.4.328/330: _strip_display_names rief msg.as_bytes(policy=compat32)
+auf, um To/Cc/Bcc ohne Display-Namen neu zu schreiben. compat32 erzwingt KEIN CRLF —
+die komplette Nachricht (inkl. S/MIME-signiertem Body) wurde mit bare LF (\n) neu
+serialisiert. Exchange (vivawest.de) lehnte die Mail mit 550 5.6.11
+SMTPSEND.BareLinefeedsAreIllegal ab (NDR). Gleicher Fallstrick wie in CLAUDE.md für
+ACME-Replies dokumentiert — diesmal im normalen S/MIME-Outbound-Pfad.
+Fix: _strip_display_names manipuliert jetzt nur die betroffenen Header-Zeilen auf
+Byte-Ebene (Header-Block vor der ersten Leerzeile), Body bleibt exakt byte-identisch —
+kein Re-Serialisieren über email.generator, keine Gefährdung der S/MIME-Signatur.
+
 ## v1.4.334 — 2026-07-01 — feat: Rollback auf gewählte Release-Version
 
 Bisher kannte der Updater nur "neuester main-Commit" oder "neuestes Release-Tag" —
