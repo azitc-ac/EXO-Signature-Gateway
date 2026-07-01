@@ -5,18 +5,29 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
-## v1.4.326 — 2026-07-01 — fix: EC-Schlüssel in Key Vault (ES256 statt RS256) + Graph ErrorInvalidRecipients-Retry
+## v1.4.350 — 2026-07-02 — refactor: Einstellungen in 8 Tabs aufgeteilt + mehrere Fixes
 
-cms_sign: Algorithmus wird jetzt aus dem Zertifikat ermittelt (EC → ES256, RSA → RS256).
-EC-Rohsignatur von Key Vault (r||s) wird in DER-kodiertes SEQUENCE{r,s} konvertiert.
-signatureAlgorithm-OID im PKCS#7 SignerInfo: ecdsa-with-SHA256 für EC-Certs.
-health_check: _check_kv_sign ermittelt Algorithmus ebenfalls aus dem Zertifikat.
-Ursache: CASTLE ACME stellt EC-Zertifikate (P-256) aus; KV-Health-Check und
-CMS-Signierung haben RS256 hardcoded — führt zu HTTP 400 BadParameter in Key Vault.
+Einstellungen war auf 7 Abschnitte in einer Seite angewachsen. Neue Struktur:
+Allgemein (Zugangsdaten+Benachrichtigungen), Signatur, S/MIME, Update, Erweitert
+(+ Test-Mail senden, Neustart-Buttons), Einrichtung, Outlook Add-in, Backup
+(+ Konfiguration-Export/Import). Neue Routen /settings/signature, /settings/smime,
+/settings/update. POST /settings bleibt unverändert (generischer Save-Endpoint).
 
-graph_reinject: Bei sendMail HTTP 400 ErrorInvalidRecipients (Exchange kann
-Display-Name nicht im GAL auflösen) wurde zunächst ein Retry ohne Display-Namen
-eingebaut — in v1.4.328 durch einen strukturellen Fix ersetzt (siehe dort).
+Zusätzliche Fixes im selben Rutsch:
+- Dashboard "Fallback"-Zahl war klickbar, zeigte aber leeres Audit-Protokoll —
+  stats.increment("fallback") hatte kein passendes _audit("fallback", ...) im
+  Code (handler.py); Audit-Log-Query fand nie etwas. Ergänzt.
+- Dashboard "In Flight"-Kachel zeigt jetzt aktive Verarbeitung + im Wartungsmodus
+  zurückgehaltene Mails zusammen (vorher nur aktive Verarbeitung, praktisch immer 0
+  da Verarbeitung nur Millisekunden dauert).
+- Template-Editor "Verfügbare Variablen" listet jetzt zusätzlich konfigurierte
+  custom.*-Variablen dynamisch (vorher nur statische user.*-Liste).
+- Signatur → Signaturvariablen: "user.email" korrigiert zu "user.mail" (korrekter
+  Jinja-Variablenname, siehe graph_client.UserData).
+- Postfächer-Tabelle: Spalten umbenannt (Vorlage→Standard-Vorlage, Minimalsignatur→
+  Minimal-Signatur, Standardsignatur→Signatur, Vorlagenrichtlinien→Vorlagen-
+  Richtlinien) und neu sortiert: Status, Postfach, Signatur, S/MIME,
+  Vorlagen-Richtlinien, Standard-Vorlage, Minimal-Signatur, Add-in Vorlagen.
 
 ## v1.4.348 — 2026-07-01 — fix: Lexware-Formatkorrektur — zwei weitere Leerraum-Quellen
 
@@ -147,6 +158,19 @@ Exchange Transport-Regel "Route via EXO Signature Gateway": ExceptIfMessageTypeM
 = Calendaring gesetzt. Kalendereinladungen/-absagen/-updates erreichen das Gateway
 jetzt gar nicht mehr (vorher: Gateway leitete sie unverändert durch, aber sie
 liefen unnötig durch IMAP+Graph-Pfad und konnten im Wartungsmodus hängen bleiben).
+
+## v1.4.326 — 2026-07-01 — fix: EC-Schlüssel in Key Vault (ES256 statt RS256) + Graph ErrorInvalidRecipients-Retry
+
+cms_sign: Algorithmus wird jetzt aus dem Zertifikat ermittelt (EC → ES256, RSA → RS256).
+EC-Rohsignatur von Key Vault (r||s) wird in DER-kodiertes SEQUENCE{r,s} konvertiert.
+signatureAlgorithm-OID im PKCS#7 SignerInfo: ecdsa-with-SHA256 für EC-Certs.
+health_check: _check_kv_sign ermittelt Algorithmus ebenfalls aus dem Zertifikat.
+Ursache: CASTLE ACME stellt EC-Zertifikate (P-256) aus; KV-Health-Check und
+CMS-Signierung haben RS256 hardcoded — führt zu HTTP 400 BadParameter in Key Vault.
+
+graph_reinject: Bei sendMail HTTP 400 ErrorInvalidRecipients (Exchange kann
+Display-Name nicht im GAL auflösen) wurde zunächst ein Retry ohne Display-Namen
+eingebaut — in v1.4.328 durch einen strukturellen Fix ersetzt (siehe dort).
 
 ## v1.4.325 — 2026-07-01 — feat: Selbsttest mit echten Signaturen + Vollbild-Vorschau
 

@@ -1672,6 +1672,7 @@ async def template_editor(request: Request, user: str = Depends(_check_auth)):
         html_path = Path(config.TEMPLATE_DIR) / f"{name}.html"
         txt_path = Path(config.TEMPLATE_DIR) / f"{name}.txt"
     template_list = _sig_engine.list_templates()
+    custom_vars = [cv["name"] for cv in (settings_store.get("CUSTOM_TEMPLATE_VARS") or []) if cv.get("name")]
     return templates.TemplateResponse(
         request=request, name="template_editor.html",
         context={
@@ -1681,6 +1682,7 @@ async def template_editor(request: Request, user: str = Depends(_check_auth)):
             "saved": request.query_params.get("saved"),
             "current_template": name,
             "template_list": template_list,
+            "custom_vars": custom_vars,
             "gateway_name": _gateway_name(),
         },
     )
@@ -1883,14 +1885,55 @@ async def settings_page(request: Request, user: str = Depends(_require_admin)):
         context={
             "s": settings_store.get_all(),
             "active": "settings",
-            "cert_expiry": _cert_expiry(),
-            "smtp_port": config.SMTP_PORT,
-            "webui_port": config.WEBUI_PORT,
             "saved": request.query_params.get("saved"),
             "gateway_name": _gateway_name(),
             "sender_mailboxes": sender_mailboxes,
-            "current_version": config.VERSION,
+        },
+    )
+
+
+@app.get("/settings/signature", response_class=HTMLResponse)
+async def settings_signature_page(request: Request, user: str = Depends(_require_admin)):
+    try:
+        sender_mailboxes = await graph_client.list_sender_mailboxes()
+    except Exception:
+        sender_mailboxes = []
+    return templates.TemplateResponse(
+        request=request, name="settings_signature.html",
+        context={
+            "s": settings_store.get_all(),
+            "active": "settings-signature",
+            "saved": request.query_params.get("saved"),
+            "gateway_name": _gateway_name(),
+            "sender_mailboxes": sender_mailboxes,
             "custom_var_entra_fields": graph_client.CUSTOM_VAR_ENTRA_FIELDS,
+        },
+    )
+
+
+@app.get("/settings/smime", response_class=HTMLResponse)
+async def settings_smime_page(request: Request, user: str = Depends(_require_admin)):
+    return templates.TemplateResponse(
+        request=request, name="settings_smime.html",
+        context={
+            "s": settings_store.get_all(),
+            "active": "settings-smime",
+            "saved": request.query_params.get("saved"),
+            "gateway_name": _gateway_name(),
+        },
+    )
+
+
+@app.get("/settings/update", response_class=HTMLResponse)
+async def settings_update_page(request: Request, user: str = Depends(_require_admin)):
+    return templates.TemplateResponse(
+        request=request, name="settings_update.html",
+        context={
+            "s": settings_store.get_all(),
+            "active": "settings-update",
+            "saved": request.query_params.get("saved"),
+            "gateway_name": _gateway_name(),
+            "current_version": config.VERSION,
         },
     )
 

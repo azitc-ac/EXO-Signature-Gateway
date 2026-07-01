@@ -20,7 +20,7 @@
                 {% if _role == 'admin' %}
                 <li><a href="/mailboxes" class="{% if active == 'mailboxes' %}active{% endif %}">Postfächer</a></li>
                 <li><a href="/smime" class="{% if active == 'smime' %}active{% endif %}">S/MIME</a></li>
-                <li><a href="/settings" class="{% if active in ('settings', 'setup', 'debug', 'outlook-addin', 'backup') %}active{% endif %}">Einstellungen</a></li>
+                <li><a href="/settings" class="{% if active in ('settings', 'settings-signature', 'settings-smime', 'settings-update', 'setup', 'debug', 'outlook-addin', 'backup') %}active{% endif %}">Einstellungen</a></li>
                 <li><a href="/log" class="{% if active == 'log' %}active{% endif %}">Protokolle</a></li>
                 {% endif %}
             </ul>

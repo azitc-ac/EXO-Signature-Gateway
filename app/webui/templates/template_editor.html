@@ -55,7 +55,9 @@
     <code>user.displayName</code>, <code>user.jobTitle</code>, <code>user.department</code>,
     <code>user.companyName</code>, <code>user.mail</code>, <code>user.phone</code>,
     <code>user.mobilePhone</code>, <code>user.officeLocation</code>,
-    <code>user.website</code>, <code>user.bookingsUrl</code>
+    <code>user.website</code>, <code>user.bookingsUrl</code>{% if custom_vars %},
+    {% for cv in custom_vars %}<code>custom.{{ cv }}</code>{% if not loop.last %}, {% endif %}{% endfor %}
+    <span style="color:#888">(eigene Variablen, siehe Signatur → Variablen)</span>{% endif %}
 </div>
 
 <script>

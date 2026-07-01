@@ -26,18 +26,18 @@
     <table style="min-width:640px;width:100%;border-collapse:collapse;font-size:13px">
       <thead>
         <tr style="border-bottom:2px solid #e2e8f0">
+          <th id="th-status" style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:70px;display:none">Status</th>
           <th style="text-align:left;padding:6px 8px;font-weight:600;color:#555">Postfach</th>
-          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:110px">Standardsignatur</th>
-          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:140px">Vorlage</th>
-          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">
-            Minimalsignatur
+          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:90px">Signatur</th>
+          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:100px">S/MIME</th>
+          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:120px"
+              title="Wenn aktiv: Vorlage wird aus Vorlagen-Richtlinien übernommen">Vorlagen-Richtlinien</th>
+          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">Standard-Vorlage</th>
+          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:100px">
+            Minimal-Signatur
             <span style="font-size:10px;font-weight:500;background:#e2e8f0;color:#64748b;padding:1px 5px;border-radius:8px;display:block;margin-top:2px">Demnächst</span>
           </th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">Add-in Vorlagen</th>
-          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:120px"
-              title="Wenn aktiv: Vorlage wird aus Vorlagenrichtlinien übernommen">Vorlagenrichtlinien</th>
-          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:100px">S/MIME</th>
-          <th id="th-status" style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:70px;display:none">Status</th>
         </tr>
       </thead>
       <tbody id="mb-tbody"></tbody>
@@ -714,15 +714,15 @@ function renderMailboxTable(mailboxes) {
     policyCb.addEventListener('change', _applyPolicy);
     sigCb.addEventListener('change', _applyPolicy);
 
-    // Column order: Postfach, Standardsignatur, Vorlage, Minimalsignatur, Add-in Vorlagen, Vorlagenrichtlinien, S/MIME, Status
+    // Column order: Status, Postfach, Signatur, S/MIME, Vorlagen-Richtlinien, Standard-Vorlage, Minimal-Signatur, Add-in Vorlagen
+    tr.appendChild(tdStatus);
     tr.appendChild(tdEmail);
     tr.appendChild(tdSig);
+    tr.appendChild(tdSmime);
+    tr.appendChild(tdPolicy);
     tr.appendChild(tdTpl);
     tr.appendChild(tdMinSig);
     tr.appendChild(tdAddin);
-    tr.appendChild(tdPolicy);
-    tr.appendChild(tdSmime);
-    tr.appendChild(tdStatus);
     tbody.appendChild(tr);
   });
 }

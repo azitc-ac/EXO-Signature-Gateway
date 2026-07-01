@@ -715,6 +715,7 @@ class SignatureHandler:
                 try:
                     reinject.send(sender, recipients, raw)
                     stats.increment("fallback")
+                    _audit("fallback", error=str(exc))
                 except Exception as fallback_exc:
                     log.error("Fallback re-inject also failed: %s", fallback_exc)
                     return "451 Temporary processing error"

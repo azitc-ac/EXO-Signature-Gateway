@@ -1,0 +1,407 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Einstellungen</h1>
+
+<ul class="nav-sub-tabs">
+  <li><a href="/settings" class="nav-sub-tab">Allgemein</a></li>
+  <li><a href="/settings/signature" class="nav-sub-tab active">Signatur</a></li>
+  <li><a href="/settings/smime" class="nav-sub-tab">S/MIME</a></li>
+  <li><a href="/settings/update" class="nav-sub-tab">Update</a></li>
+  <li><a href="/debug" class="nav-sub-tab">Erweitert</a></li>
+  <li><a href="/setup" class="nav-sub-tab">Einrichtung</a></li>
+  <li><a href="/outlook-addin" class="nav-sub-tab">Outlook Add-in</a></li>
+  <li><a href="/backup" class="nav-sub-tab">Backup</a></li>
+</ul>
+
+<div id="page-alert" class="alert" style="display:none"></div>
+
+<!-- Signatur -->
+<div class="settings-card">
+  <h2>Signatur</h2>
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="fallback" {% if s.FALLBACK_ON_ERROR %}checked{% endif %}>
+      Fallback bei Fehler – original Mail ohne Signatur weiterleiten (gilt nicht für verschlüsselte Mails)
+    </label>
+  </div>
+  <div style="border-top:1px solid #f0f0f0;margin:14px 0 12px"></div>
+  <div class="settings-row">
+    <label for="loop-header">Loop-Detection-Header</label>
+    <div class="settings-control">
+      <input type="text" id="loop-header" value="{{ s.LOOP_HEADER }}" placeholder="X-Sig-Applied">
+      <span class="hint">Header der gesetzten Mails kennzeichnet (verhindert Doppel-Injektion)</span>
+    </div>
+  </div>
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="sent-items" {% if s.SENT_ITEMS_UPDATE %}checked{% endif %}>
+      Signatur auch in Gesendete Elemente schreiben
+    </label>
+    <span class="hint">Benötigt <code>Mail.ReadWrite.All</code> App-Permission in der Entra App-Registrierung</span>
+  </div>
+
+  <div style="border-top:1px solid #f0f0f0;margin:14px 0 12px"></div>
+
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="skip-duplicate-sig"
+             {% if s.SKIP_DUPLICATE_SIG is not false %}checked{% endif %}>
+      Doppelte Gateway-Signatur überspringen
+    </label>
+    <span class="hint">Wenn die Gateway-Signatur bereits im Nachrichtenbereich erkannt wird (z.&nbsp;B. durch das Outlook Add-in), wird sie nicht erneut injiziert</span>
+  </div>
+
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="skip-sig-in-thread"
+             {% if s.SKIP_SIG_IN_THREAD is not false %}checked{% endif %}>
+      Signatur-Stacking in Antwort-Ketten verhindern
+    </label>
+    <span class="hint">Wenn eine Gateway-Signatur in einer zitierten Vorgänger-Mail erkannt wird, wird keine neue Signatur eingefügt — verhindert Stacking bei Ping-Pong-Threads</span>
+  </div>
+
+  <div class="settings-row">
+    <label for="sig-image-mode">Signaturbilder einbetten</label>
+    <div class="settings-control">
+      <select id="sig-image-mode">
+        <option value="auto"   {% if s.SIG_IMAGE_MODE != 'cid' and s.SIG_IMAGE_MODE != 'inline' %}selected{% endif %}>Automatisch (CID bei normalen, eingebettet bei verschlüsselten Mails)</option>
+        <option value="cid"    {% if s.SIG_IMAGE_MODE == 'cid'    %}selected{% endif %}>Immer als Anhang (CID) — optimale Outlook-Kompatibilität</option>
+        <option value="inline" {% if s.SIG_IMAGE_MODE == 'inline' %}selected{% endif %}>Immer eingebettet (data:&nbsp;URI) — funktioniert auch in iOS Mail bei verschlüsselten Mails</option>
+      </select>
+      <span class="hint">CID = Bild als MIME-Anhang verlinkt; data:&nbsp;URI = Bild direkt im HTML eingebettet</span>
+    </div>
+  </div>
+
+  <div style="opacity:0.45;pointer-events:none;user-select:none">
+    <h3 style="margin:16px 0 4px;display:flex;align-items:center;gap:8px">
+      Minimalsignatur bei Antworten
+      <span style="font-size:11px;font-weight:500;background:#e2e8f0;color:#64748b;padding:2px 7px;border-radius:10px">Demnächst</span>
+    </h3>
+    <p class="hint" style="margin-bottom:10px">Fügt eine verkürzte Signatur direkt unter dem Antworttext ein statt am Thread-Ende. Pro Postfach wählbar (Spalte „Minimal-Signatur" in der Postfächer-Übersicht).</p>
+    <div class="settings-row">
+      <label class="checkbox-label">
+        <input type="checkbox" disabled>
+        Minimalsignatur bei Antworten aktivieren
+      </label>
+    </div>
+    <div class="settings-row" style="margin-top:8px">
+      <label>Erkennung Antwort / Weiterleitung</label>
+      <div class="settings-control">
+        <select disabled style="width:260px">
+          <option>Antwort-Zitat im Body (In-Reply-To / References)</option>
+          <option>Betreff beginnt mit Re: / Fwd: / AW: / WG:</option>
+          <option>Beides (eine Bedingung genügt)</option>
+        </select>
+      </div>
+    </div>
+    <div class="actions" style="margin-top:8px">
+      <button class="btn secondary" disabled>Speichern</button>
+    </div>
+  </div>
+
+  <div style="border-top:1px solid #f0f0f0;margin:14px 0 12px"></div>
+
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="strip-client-sigs"
+             {% if s.STRIP_CLIENT_SIGS is not false %}checked{% endif %}
+             onchange="toggleSigStripConfig(this.checked)">
+      Selbsterstellte Client-Signaturen entfernen
+    </label>
+    <span class="hint">Outlook-Signaturen werden vor der Gateway-Injektion entfernt — verhindert Doppel-Signaturen</span>
+  </div>
+
+  <div id="sig-strip-config" {% if s.STRIP_CLIENT_SIGS is false %}style="display:none"{% endif %}>
+    <div class="settings-row" style="align-items:center">
+      <label for="sig-strip-pct" style="min-width:200px;flex-shrink:0">Erkennungs-Schwellenwert</label>
+      <div class="settings-control" style="display:flex;align-items:center;gap:12px">
+        <input type="range" id="sig-strip-pct"
+               min="20" max="80" step="5"
+               value="{{ s.SIG_STRIP_MIN_MATCH_PCT or 50 }}"
+               oninput="document.getElementById('sig-strip-pct-val').textContent = this.value + ' %'"
+               style="width:180px">
+        <span id="sig-strip-pct-val" style="font-size:13px;font-weight:600;min-width:40px">{{ s.SIG_STRIP_MIN_MATCH_PCT or 50 }} %</span>
+        <span class="hint" style="margin:0">Mindestanteil der Signatur-Tokens, der im Kandidat-Div gefunden werden muss</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="actions" style="margin-top:4px">
+    <button class="btn secondary" onclick="saveSignatur()">Speichern</button>
+    <span id="signatur-result" style="font-size:12px;margin-left:8px"></span>
+  </div>
+
+  <div style="border-top:1px solid #f0f0f0;margin:20px 0 16px"></div>
+  <h3 id="overrides" style="margin-bottom:8px">Benutzer-Overrides</h3>
+  <p class="hint" style="margin-bottom:12px">Überschreibt Graph-Werte für einzelne Nutzer. Eigene Variablen (custom.*) müssen vorher im Abschnitt „Eigene Variablen" definiert sein.</p>
+
+  <div style="overflow-x:auto">
+    <table class="kv-table" style="table-layout:fixed;min-width:480px">
+      <colgroup>
+        <col style="width:38%"><col style="width:26%"><col style="width:30%"><col style="width:6%">
+      </colgroup>
+      <thead><tr><th>E-Mail</th><th>Variable</th><th>Wert</th><th></th></tr></thead>
+      <tbody id="overrides-tbody"></tbody>
+    </table>
+  </div>
+  <button type="button" class="btn secondary btn-sm" style="margin-top:6px" onclick="addOverrideRow()">+ Zeile</button>
+  <div class="actions" style="margin-top:12px">
+    <button class="btn secondary" onclick="saveOverrides()">Speichern</button>
+    <span id="overrides-result" style="font-size:12px;margin-left:8px"></span>
+  </div>
+
+  <div style="border-top:1px solid #f0f0f0;margin:20px 0 16px"></div>
+  <h3 style="margin-bottom:4px">Signaturvariablen</h3>
+  <p class="hint" style="margin-bottom:10px">Vordefinierte Variablen (immer verfügbar) und eigene Variablen aus beliebigen Entra-Attributen.</p>
+
+  <details style="margin-bottom:16px">
+    <summary style="cursor:pointer;font-size:13px;color:#0369a1;user-select:none">Vordefinierte Variablen anzeigen</summary>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:8px">
+      <thead>
+        <tr style="border-bottom:2px solid #e2e8f0">
+          <th style="text-align:left;padding:5px 0;color:#555">Variable</th>
+          <th style="text-align:left;padding:5px 16px;color:#555">Entra-Attribut / Quelle</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0"><code>user.displayName</code></td><td style="padding:4px 16px;color:#555">displayName</td></tr>
+        <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0"><code>user.jobTitle</code></td><td style="padding:4px 16px;color:#555">jobTitle</td></tr>
+        <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0"><code>user.phone</code></td><td style="padding:4px 16px;color:#555">businessPhones[0]</td></tr>
+        <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0"><code>user.mobilePhone</code></td><td style="padding:4px 16px;color:#555">mobilePhone</td></tr>
+        <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0"><code>user.department</code></td><td style="padding:4px 16px;color:#555">department</td></tr>
+        <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0"><code>user.companyName</code></td><td style="padding:4px 16px;color:#555">companyName</td></tr>
+        <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0"><code>user.officeLocation</code></td><td style="padding:4px 16px;color:#555">officeLocation</td></tr>
+        <tr style="border-bottom:1px solid #f0f0f0"><td style="padding:4px 0"><code>user.mail</code></td><td style="padding:4px 16px;color:#555">mail</td></tr>
+        <tr style="border-bottom:1px solid #f0f0f0">
+          <td colspan="2" style="padding:6px 0">
+            <code>user.website</code>
+            <div style="margin-top:5px;display:flex;align-items:center;gap:6px">
+              <input type="url" id="website-url" value="{{ s.WEBSITE_URL or '' }}" placeholder="https://www.beispiel.de"
+                style="font-size:12px;padding:3px 8px;border:1px solid #d1d5db;border-radius:4px;width:280px">
+              <button class="btn secondary btn-sm" onclick="saveWebsiteField()">Speichern</button>
+              <span id="website-field-result" style="font-size:11px"></span>
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td colspan="2" style="padding:6px 0">
+            <code>user.bookingsUrl</code>
+            <div style="margin-top:5px">
+              <span style="font-size:11px;color:#64748b;display:block;margin-bottom:4px">
+                outlook.office.com/bookwithme/user/<em>{ExchangeGuid}</em>@<em>{domain}</em>
+              </span>
+              <span style="font-size:11px;color:#64748b">URL wird unter Postfächer → ℹ angezeigt</span>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </details>
+
+  <div style="font-weight:600;font-size:13px;margin-bottom:6px">Eigene Variablen</div>
+  <p class="hint" style="margin-bottom:10px">
+    In Vorlagen als <code>{{ "{{" }} custom.varname {{ "}}" }}</code> verwenden. Variablenname: nur Buchstaben, Ziffern, Underscore.
+  </p>
+
+  <div id="custom-vars-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px"></div>
+
+  <button type="button" class="btn secondary btn-sm" onclick="addCustomVar()" style="margin-bottom:12px">+ Variable hinzufügen</button>
+
+  <div class="actions" style="margin-top:0">
+    <button class="btn secondary" onclick="saveCustomVars()">Speichern</button>
+    <span id="custom-vars-result" style="font-size:12px;margin-left:8px"></span>
+  </div>
+</div>
+
+<script>
+function _esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+async function savePartial(payload, resultElId) {
+  var el = resultElId ? document.getElementById(resultElId) : null;
+  try {
+    var resp = await fetch('/settings', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    if (el) {
+      el.textContent = resp.ok ? '✓ Gespeichert' : '✗ Fehler';
+      el.style.color = resp.ok ? '#16a34a' : '#dc2626';
+      setTimeout(function() { el.textContent = ''; }, 3000);
+    }
+  } catch(e) {
+    if (el) { el.textContent = '✗ Netzwerkfehler'; el.style.color = '#dc2626'; }
+  }
+}
+
+function saveSignatur() {
+  savePartial({
+    FALLBACK_ON_ERROR: document.getElementById('fallback').checked,
+    LOOP_HEADER: (document.getElementById('loop-header').value || '').trim() || 'X-Sig-Applied',
+    SENT_ITEMS_UPDATE: document.getElementById('sent-items').checked,
+    SKIP_DUPLICATE_SIG: document.getElementById('skip-duplicate-sig').checked,
+    SKIP_SIG_IN_THREAD: document.getElementById('skip-sig-in-thread').checked,
+    STRIP_CLIENT_SIGS: document.getElementById('strip-client-sigs').checked,
+    SIG_STRIP_MIN_MATCH_PCT: parseInt(document.getElementById('sig-strip-pct').value, 10),
+    SIG_IMAGE_MODE: document.getElementById('sig-image-mode').value,
+  }, 'signatur-result');
+}
+
+function toggleSigStripConfig(enabled) {
+  document.getElementById('sig-strip-config').style.display = enabled ? '' : 'none';
+}
+
+// ── Custom Template Vars ──────────────────────────────────────────────────────
+const _entraFields = {{ custom_var_entra_fields | tojson }};
+const _ENTRA_FIELDS = {{ custom_var_entra_fields | tojson }};
+
+function _customVarRow(name, entraField) {
+  const opts = _ENTRA_FIELDS.map(f =>
+    `<option value="${_esc(f.value)}"${entraField === f.value ? ' selected' : ''}>${_esc(f.label)}</option>`
+  ).join('');
+  const row = document.createElement('div');
+  row.className = 'custom-var-row';
+  row.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap';
+  row.innerHTML = `
+    <span style="font-size:12px;color:#64748b;white-space:nowrap;min-width:70px">custom.</span>
+    <input type="text" placeholder="varname" value="${_esc(name)}"
+           style="width:140px;font-family:monospace;font-size:13px" class="cv-name"
+           oninput="this.value=this.value.replace(/[^a-zA-Z0-9_]/g,'')">
+    <select class="cv-field" style="flex:1;min-width:220px;max-width:340px;font-size:13px;padding:4px 6px;border:1px solid #d1d5db;border-radius:6px">
+      <option value="">— Entra-Feld wählen —</option>
+      ${opts}
+    </select>
+    <button type="button" onclick="this.closest('.custom-var-row').remove()"
+            style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:16px;line-height:1;padding:2px 4px"
+            title="Entfernen">✕</button>`;
+  return row;
+}
+
+function addCustomVar(name, field) {
+  document.getElementById('custom-vars-list').appendChild(_customVarRow(name||'', field||''));
+}
+
+function saveCustomVars() {
+  const rows = document.querySelectorAll('.custom-var-row');
+  const vars = [];
+  for (const row of rows) {
+    const name  = row.querySelector('.cv-name').value.trim();
+    const field = row.querySelector('.cv-field').value.trim();
+    if (!name || !field) continue;
+    if (!/^[a-zA-Z0-9_]+$/.test(name)) {
+      document.getElementById('custom-vars-result').textContent = `Ungültiger Name: "${name}"`;
+      document.getElementById('custom-vars-result').style.color = '#dc2626';
+      return;
+    }
+    vars.push({name, entra_field: field});
+  }
+  savePartial({ CUSTOM_TEMPLATE_VARS: vars }, 'custom-vars-result');
+}
+
+(function initCustomVars() {
+  const saved = {{ (s.CUSTOM_TEMPLATE_VARS or []) | tojson }};
+  for (const cv of saved) addCustomVar(cv.name, cv.entra_field);
+})();
+
+const _orMailboxes = {{ sender_mailboxes | tojson }};
+const _orVarOptions = [
+  {key:"user.displayName",label:"user.displayName"},
+  {key:"user.jobTitle",label:"user.jobTitle"},
+  {key:"user.department",label:"user.department"},
+  {key:"user.companyName",label:"user.companyName"},
+  {key:"user.phone",label:"user.phone"},
+  {key:"user.mobilePhone",label:"user.mobilePhone"},
+  {key:"user.officeLocation",label:"user.officeLocation"},
+  {key:"user.website",label:"user.website"},
+  {key:"user.bookingsUrl",label:"user.bookingsUrl"},
+];
+{% for cv in (s.CUSTOM_TEMPLATE_VARS or []) %}{% if cv.name %}_orVarOptions.push({key:"custom.{{ cv.name }}",label:"custom.{{ cv.name }}"});{% endif %}
+{% endfor %}
+
+function _orBuildVarSelect(sel) {
+  const predef = _orVarOptions.filter(v => v.key.startsWith('user.'));
+  const custom = _orVarOptions.filter(v => v.key.startsWith('custom.'));
+  let h = '<optgroup label="Vordefinierte Variablen">';
+  for (const v of predef) h += `<option value="${_esc(v.key)}"${sel===v.key?' selected':''}>${_esc(v.label)}</option>`;
+  h += '</optgroup>';
+  if (custom.length) {
+    h += '<optgroup label="Eigene Variablen">';
+    for (const v of custom) h += `<option value="${_esc(v.key)}"${sel===v.key?' selected':''}>${_esc(v.label)}</option>`;
+    h += '</optgroup>';
+  }
+  return `<select class="or-var" style="width:100%">${h}</select>`;
+}
+
+function _orBuildEmailCell(email) {
+  const known = _orMailboxes.find(m => m.email.toLowerCase() === (email||'').toLowerCase());
+  let opts = '<option value="">— Auswählen —</option>';
+  for (const m of _orMailboxes) {
+    const s2 = (known && m.email.toLowerCase()===(email||'').toLowerCase()) ? ' selected' : '';
+    const lbl = (m.name && m.name!==m.email) ? `${_esc(m.email)} – ${_esc(m.name)}` : _esc(m.email);
+    opts += `<option value="${_esc(m.email)}"${s2}>${lbl}</option>`;
+  }
+  const manSel = (!known && email) ? ' selected' : '';
+  opts += `<option value="__manual__"${manSel}>✏ Eigene Adresse…</option>`;
+  const txtHide = (!known && email) ? '' : 'display:none;';
+  const txtVal = (!known && email) ? ` value="${_esc(email)}"` : '';
+  return `<div><select class="or-email-sel" style="width:100%" onchange="_orEmailChange(this)">${opts}</select>`
+       + `<input type="email" class="or-email-txt" placeholder="user@domain.com" style="${txtHide}margin-top:4px;width:100%"${txtVal}></div>`;
+}
+
+function _orEmailChange(sel) {
+  const txt = sel.closest('td').querySelector('.or-email-txt');
+  if (sel.value==='__manual__') { txt.style.display=''; txt.focus(); }
+  else { txt.style.display='none'; txt.value=''; }
+}
+
+function addOverrideRow(email, varKey, value) {
+  const tbody = document.getElementById('overrides-tbody');
+  const tr = document.createElement('tr');
+  tr.className = 'override-row';
+  const td1=document.createElement('td'); td1.innerHTML=_orBuildEmailCell(email||'');
+  const td2=document.createElement('td'); td2.innerHTML=_orBuildVarSelect(varKey||(_orVarOptions[0]&&_orVarOptions[0].key)||'');
+  const td3=document.createElement('td'); td3.innerHTML=`<input type="text" class="or-val" value="${_esc(value||'')}" style="width:100%">`;
+  const td4=document.createElement('td'); td4.innerHTML=`<button type="button" class="btn secondary btn-sm" onclick="this.closest('tr').remove()">✕</button>`;
+  tr.append(td1,td2,td3,td4);
+  tbody.appendChild(tr);
+  if (!email) td1.querySelector('.or-email-sel').focus();
+}
+
+(function initOverrides() {
+  const saved = {{ (s.USER_OVERRIDES or {}) | tojson }};
+  const websites = {{ (s.USER_WEBSITES or {}) | tojson }};
+  const shown = {};
+  for (const [email, vars] of Object.entries(saved)) {
+    shown[email] = shown[email] || {};
+    for (const [k, v] of Object.entries(vars)) { shown[email][k] = true; addOverrideRow(email, k, v); }
+  }
+  for (const [email, url] of Object.entries(websites)) {
+    if (!(shown[email] && shown[email]['user.website'])) addOverrideRow(email, 'user.website', url);
+  }
+})();
+
+function saveOverrides() {
+  const overrides = {}, websites = {};
+  document.querySelectorAll('.override-row').forEach(tr => {
+    const sel = tr.querySelector('.or-email-sel');
+    const txt = tr.querySelector('.or-email-txt');
+    const email = (sel.value==='__manual__' ? txt.value : sel.value).trim().toLowerCase();
+    const varKey = tr.querySelector('.or-var').value;
+    const value = tr.querySelector('.or-val').value.trim();
+    if (!email || !varKey || !value) return;
+    if (!overrides[email]) overrides[email] = {};
+    overrides[email][varKey] = value;
+    if (varKey==='user.website') websites[email] = value;
+  });
+  savePartial({ USER_OVERRIDES: overrides, USER_WEBSITES: websites }, 'overrides-result');
+}
+
+function saveWebsiteField() {
+  const url = document.getElementById('website-url').value.trim();
+  const res = document.getElementById('website-field-result');
+  savePartial({ WEBSITE_URL: url }, null);
+  res.textContent = '✓ gespeichert'; res.style.color = '#16a34a';
+  setTimeout(() => res.textContent = '', 2000);
+}
+</script>
+{% endblock %}

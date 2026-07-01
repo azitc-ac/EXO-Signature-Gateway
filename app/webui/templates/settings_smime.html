@@ -1,0 +1,470 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Einstellungen</h1>
+
+<ul class="nav-sub-tabs">
+  <li><a href="/settings" class="nav-sub-tab">Allgemein</a></li>
+  <li><a href="/settings/signature" class="nav-sub-tab">Signatur</a></li>
+  <li><a href="/settings/smime" class="nav-sub-tab active">S/MIME</a></li>
+  <li><a href="/settings/update" class="nav-sub-tab">Update</a></li>
+  <li><a href="/debug" class="nav-sub-tab">Erweitert</a></li>
+  <li><a href="/setup" class="nav-sub-tab">Einrichtung</a></li>
+  <li><a href="/outlook-addin" class="nav-sub-tab">Outlook Add-in</a></li>
+  <li><a href="/backup" class="nav-sub-tab">Backup</a></li>
+</ul>
+
+<div id="page-alert" class="alert" style="display:none"></div>
+
+<!-- S/MIME -->
+<div class="settings-card" id="smime">
+  <h2>S/MIME</h2>
+
+  <h3 style="margin-top:0;margin-bottom:12px">Betreff eingehender S/MIME-Mails anpassen</h3>
+
+  <div class="settings-row">
+    <div style="display:flex;align-items:center;gap:8px;min-width:200px;flex-shrink:0;padding-top:4px">
+      <input type="checkbox" id="smime-tag-enc-enabled"
+        {% if s.SMIME_TAG_ENCRYPTED_ENABLED is not false %}checked{% endif %}
+        onchange="toggleTagField('smime-tag-encrypted', this.checked); updateSubjectPreview()">
+      <label for="smime-tag-enc-enabled" style="font-weight:500;cursor:pointer;margin:0">Indikator: verschlüsselt</label>
+    </div>
+    <div class="settings-control">
+      <input type="text" id="smime-tag-encrypted" value="{{ s.SMIME_TAG_ENCRYPTED }}"
+        placeholder="verschlüsselt" style="width:200px"
+        {% if s.SMIME_TAG_ENCRYPTED_ENABLED is false %}disabled{% endif %}
+        oninput="updateSubjectPreview()">
+      <span class="hint">Indikator, dass eine Mail verschlüsselt war</span>
+    </div>
+  </div>
+
+  <div class="settings-row">
+    <div style="display:flex;align-items:center;gap:8px;min-width:200px;flex-shrink:0;padding-top:4px">
+      <input type="checkbox" id="smime-tag-sig-enabled"
+        {% if s.SMIME_TAG_SIGNED_ENABLED is not false %}checked{% endif %}
+        onchange="toggleTagField('smime-tag-signed', this.checked); updateSubjectPreview()">
+      <label for="smime-tag-sig-enabled" style="font-weight:500;cursor:pointer;margin:0">Indikator: signiert</label>
+    </div>
+    <div class="settings-control">
+      <input type="text" id="smime-tag-signed" value="{{ s.SMIME_TAG_SIGNED }}"
+        placeholder="signiert von {signer}" style="width:260px"
+        {% if s.SMIME_TAG_SIGNED_ENABLED is false %}disabled{% endif %}
+        oninput="updateSubjectPreview()">
+      <span class="hint"><code>{signer}</code> wird durch den CN des Zertifikats ersetzt</span>
+    </div>
+  </div>
+
+  <div class="settings-row">
+    <label for="smime-tag-position">Indikator-Position</label>
+    <select id="smime-tag-position" onchange="updateSubjectPreview()">
+      <option value="prepend" {% if s.SMIME_TAG_POSITION != 'append' %}selected{% endif %}>Vorne (Standard)</option>
+      <option value="append"  {% if s.SMIME_TAG_POSITION == 'append'  %}selected{% endif %}>Hinten</option>
+    </select>
+  </div>
+
+  <div class="settings-row" style="align-items:center">
+    <label style="color:#888;font-size:12px;font-weight:400">Vorschau</label>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:7px 12px;font-size:13px;color:#333;flex:1;min-width:0;font-style:italic">
+      <span id="subject-preview"></span>
+    </div>
+  </div>
+
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="strip-subject-tags"
+             {% if s.STRIP_SUBJECT_TAGS is not false %}checked{% endif %}>
+      Betreff-Tag-Stacking verhindern
+    </label>
+    <span class="hint">Entfernt vorhandene [verschlüsselt / signiert von&nbsp;…] Tags im Betreff vor dem Hinzufügen eines neuen — verhindert Anhäufung in Antwort-Ketten</span>
+  </div>
+
+  <div style="border-top:1px solid #f0f0f0;margin:16px 0 14px"></div>
+
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="smime-strip-inbound"
+        {% if s.SMIME_STRIP_INBOUND is not false %}checked{% endif %}>
+      S/MIME-Signaturen eingehender Mails entfernen
+    </label>
+    <span class="hint" style="padding-top:2px">Entfernt die Signaturumhüllung; das Absender-Zertifikat wird dabei gespeichert</span>
+  </div>
+
+  <div class="settings-row" style="margin-top:10px">
+    <label>Automatisch signieren</label>
+    <div class="settings-control">
+      <div style="display:flex;align-items:center;gap:8px">
+        <input type="checkbox" id="smime-signing-enabled"
+          {% if s.SMIME_SIGNING_ENABLED is not false %}checked{% endif %}>
+        <label for="smime-signing-enabled" style="font-weight:500;cursor:pointer;margin:0">
+          Ausgehende Mails signieren, wenn ein Zertifikat vorliegt
+        </label>
+      </div>
+      <span class="hint">Standard: eingeschaltet. Deaktivieren stoppt die automatische Signierung für alle Nutzer.</span>
+    </div>
+  </div>
+
+  <div class="settings-row" style="margin-top:10px">
+    <label for="nosig-trigger">Nicht-signieren-Trigger</label>
+    <div class="settings-control">
+      <input type="text" id="nosig-trigger" value="{{ s.NOSIG_TRIGGER or '#nosig' }}"
+        placeholder="#nosig" style="width:160px">
+      <span class="hint">Schlüsselwort im Betreff, das die S/MIME-Signierung für diese Mail unterdrückt</span>
+    </div>
+  </div>
+
+  <div class="settings-row" style="margin-top:10px">
+    <label for="enc-trigger">Verschlüsselungs-Trigger</label>
+    <div class="settings-control">
+      <input type="text" id="enc-trigger" value="{{ s.ENC_TRIGGER }}"
+        placeholder="#enc" style="width:160px">
+      <span class="hint">Schlüsselwort im Betreff, das ausgehende S/MIME-Verschlüsselung auslöst</span>
+    </div>
+  </div>
+  <div class="actions" style="margin-top:4px">
+    <button class="btn secondary" onclick="saveSmimeSettings()">Speichern</button>
+    <span id="smime-result" style="font-size:12px;margin-left:8px"></span>
+  </div>
+
+  <div style="border-top:1px solid #f0f0f0;margin:16px 0 14px"></div>
+
+  <!-- Platzhalter: Automatische S/MIME-Regeln (noch nicht implementiert) -->
+  <div style="opacity:0.45;pointer-events:none;user-select:none">
+    <h3 style="margin-top:0;margin-bottom:4px;display:flex;align-items:center;gap:8px">
+      Automatische S/MIME-Regeln
+      <span style="font-size:11px;font-weight:500;background:#e2e8f0;color:#64748b;padding:2px 7px;border-radius:10px;vertical-align:middle">Demnächst</span>
+    </h3>
+    <p class="hint" style="margin-bottom:12px">
+      Regeln definieren, nach denen ausgehende Mails automatisch verschlüsselt oder signiert werden —
+      abhängig von Absender, Empfänger oder einer Kombination aus beiden.
+    </p>
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:8px">
+      <table class="kv-table" style="table-layout:fixed;min-width:560px;width:100%">
+        <colgroup>
+          <col style="width:140px"><col style="width:160px"><col style="width:160px"><col style="width:160px"><col style="width:40px">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>Aktion</th>
+            <th>Absender (optional)</th>
+            <th>Empfänger (optional)</th>
+            <th>Bedingung</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><select disabled style="width:100%">
+              <option>Verschlüsseln</option>
+              <option>Signieren</option>
+              <option>Nicht signieren</option>
+            </select></td>
+            <td><input type="email" disabled placeholder="alle Absender" style="width:100%"></td>
+            <td><input type="email" disabled placeholder="alle Empfänger" style="width:100%"></td>
+            <td><select disabled style="width:100%">
+              <option>Absender UND Empfänger</option>
+              <option>Absender ODER Empfänger</option>
+            </select></td>
+            <td><button class="btn secondary btn-sm" disabled>✕</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <button class="btn secondary btn-sm" disabled>+ Regel hinzufügen</button>
+    <div class="actions" style="margin-top:10px">
+      <button class="btn secondary" disabled>Speichern</button>
+    </div>
+  </div>
+
+  <div style="border-top:1px solid #f0f0f0;margin:16px 0 14px"></div>
+
+  <h3 style="margin-top:0;margin-bottom:8px">Azure Key Vault</h3>
+  <p class="hint" style="margin-bottom:10px">
+    Private S/MIME-Schlüssel in Azure Key Vault speichern (optional).
+    Der Schlüssel verlässt Azure nie; jede Signierung ruft die Sign-API auf.
+  </p>
+  <div class="settings-row">
+    <label for="kv-url">Key Vault URL</label>
+    <div class="settings-control">
+      <input type="url" id="kv-url" value="{{ s.KEYVAULT_URL }}"
+        placeholder="https://myvault.vault.azure.net" style="width:340px">
+      <span class="hint">Leer lassen um lokale Schlüsseldateien zu verwenden</span>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;margin-top:6px;margin-left:200px">
+    <button type="button" class="btn secondary btn-sm" onclick="testKvUrl()">Verbindung testen</button>
+    <button type="button" class="btn secondary btn-sm" onclick="saveKvUrl()">Speichern</button>
+  </div>
+  <div id="kv-url-result" style="margin-top:6px;margin-left:200px;display:none"></div>
+
+  <div class="settings-row" style="align-items:flex-start;margin-top:14px">
+    <label style="min-width:200px;flex-shrink:0;font-size:13px;font-weight:500;padding-top:4px">Key Vault Modus</label>
+    <div class="settings-control">
+      <label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;cursor:pointer">
+        <input type="radio" name="kv-key-mode" value="fallback" style="margin-top:3px;flex-shrink:0"
+          {% if s.KV_KEY_MODE != 'strict' %}checked{% endif %}>
+        <span>
+          <strong>Fallback (empfohlen)</strong><br>
+          <span class="hint">Schlüssel werden als <code>exportable</code> im KV gespeichert und bei der Migration
+          als verschlüsselte <code>key.pem.bak</code> lokal gesichert. Bei KV-Ausfall signiert das
+          Gateway automatisch mit dem Backup-Schlüssel weiter.</span>
+        </span>
+      </label>
+      <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer">
+        <input type="radio" name="kv-key-mode" value="strict" style="margin-top:3px;flex-shrink:0"
+          {% if s.KV_KEY_MODE == 'strict' %}checked{% endif %}>
+        <span>
+          <strong>Strikt — kein Backup, kein Fallback</strong><br>
+          <span class="hint">Schlüssel sind <code>non-exportable</code> (HSM-Schutz ohne Rückfahrschein).
+          Bei KV-Ausfall werden Mails nicht signiert. Maximale Sicherheit auf Kosten der Verfügbarkeit.</span>
+        </span>
+      </label>
+      <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+        <button type="button" class="btn secondary btn-sm" onclick="saveKvMode()">Speichern</button>
+        <span id="kv-mode-result" style="font-size:12px;display:none"></span>
+      </div>
+    </div>
+  </div>
+
+  <div style="border-top:1px solid #f0f0f0;margin:16px 0 14px"></div>
+
+  <div class="settings-row" style="align-items:flex-start">
+    <label class="checkbox-label" style="padding-top:6px;min-width:200px;flex-shrink:0">
+      <input type="checkbox" id="smime-key-encrypt"
+        {% if s.SMIME_KEY_ENCRYPT is not false %}checked{% endif %}
+        onchange="toggleKeyEncrypt(this.checked)">
+      Private Keys verschlüsseln
+    </label>
+    <div class="settings-control" id="smime-key-password-wrap"
+      {% if s.SMIME_KEY_ENCRYPT is false %}style="display:none"{% endif %}>
+      {% if s.SMIME_KEY_PASSWORD %}
+      <div id="smime-key-pw-status" style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <span style="color:#555;font-size:13px">Passwort gesetzt</span>
+        <button type="button" class="btn secondary btn-sm" onclick="showSmimeKeyPwForm()">Ändern</button>
+      </div>
+      {% endif %}
+      <div id="smime-key-pw-form" {% if s.SMIME_KEY_PASSWORD %}style="display:none"{% endif %}>
+        {% if s.SMIME_KEY_PASSWORD %}
+        <div style="margin-bottom:6px">
+          <div class="pw-wrap"><input type="password" id="smime-key-password-old" placeholder="Aktuelles Passwort" style="width:260px"><button type="button" class="pw-eye" tabindex="-1" onmousedown="showPw('smime-key-password-old')" onmouseup="hidePw('smime-key-password-old')" onmouseleave="hidePw('smime-key-password-old')" ontouchstart="event.preventDefault();showPw('smime-key-password-old')" ontouchend="hidePw('smime-key-password-old')">&#128065;</button></div>
+        </div>
+        {% endif %}
+        <div style="margin-bottom:6px">
+          <div class="pw-wrap"><input type="password" id="smime-key-password" placeholder="Neues Passwort" style="width:260px" oninput="checkKeyPasswords()"><button type="button" class="pw-eye" tabindex="-1" onmousedown="showPw('smime-key-password')" onmouseup="hidePw('smime-key-password')" onmouseleave="hidePw('smime-key-password')" ontouchstart="event.preventDefault();showPw('smime-key-password')" ontouchend="hidePw('smime-key-password')">&#128065;</button></div>
+        </div>
+        <div style="margin-bottom:6px">
+          <div class="pw-wrap"><input type="password" id="smime-key-password2" placeholder="Passwort bestätigen" style="width:260px" oninput="checkKeyPasswords()"><button type="button" class="pw-eye" tabindex="-1" onmousedown="showPw('smime-key-password2')" onmouseup="hidePw('smime-key-password2')" onmouseleave="hidePw('smime-key-password2')" ontouchstart="event.preventDefault();showPw('smime-key-password2')" ontouchend="hidePw('smime-key-password2')">&#128065;</button></div>
+        </div>
+        <span id="key-pw-mismatch" style="color:#dc2626;font-size:12px;display:none">Passwörter stimmen nicht überein.</span>
+        {% if s.SMIME_KEY_PASSWORD %}
+        <div style="display:flex;gap:6px;margin-top:6px">
+          <button type="button" class="btn secondary btn-sm" onclick="saveSmimeKeyPassword()">Speichern</button>
+          <button type="button" class="btn secondary btn-sm" onclick="hideSmimeKeyPwForm()">Abbrechen</button>
+        </div>
+        {% else %}
+        <div id="smime-key-pw-save-wrap" style="margin-top:6px;display:none">
+          <button type="button" class="btn secondary btn-sm" onclick="saveSmimeKeyPassword()">Speichern</button>
+        </div>
+        {% endif %}
+      </div>
+      <span class="hint" style="margin-top:4px;display:block">AES-256 — schützt gespeicherte private Schlüssel auf dem Host</span>
+    </div>
+  </div>
+</div>
+
+<style>
+.pw-wrap { position:relative; display:inline-block; }
+.pw-wrap input { padding-right:30px !important; box-sizing:border-box; }
+.pw-eye {
+  position:absolute; right:7px; top:50%; transform:translateY(-50%);
+  background:none; border:none; cursor:pointer; padding:2px;
+  color:#bbb; line-height:1; user-select:none; -webkit-user-select:none; font-size:14px;
+}
+.pw-eye:focus { outline:none; }
+</style>
+<script>
+function showAlert(el, type, msg) {
+  el.className = 'alert ' + type;
+  el.innerHTML = msg;
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 6000);
+}
+
+async function savePartial(payload, resultElId) {
+  var el = resultElId ? document.getElementById(resultElId) : null;
+  try {
+    var resp = await fetch('/settings', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    if (el) {
+      el.textContent = resp.ok ? '✓ Gespeichert' : '✗ Fehler';
+      el.style.color = resp.ok ? '#16a34a' : '#dc2626';
+      setTimeout(function() { el.textContent = ''; }, 3000);
+    }
+  } catch(e) {
+    if (el) { el.textContent = '✗ Netzwerkfehler'; el.style.color = '#dc2626'; }
+  }
+}
+
+function saveSmimeSettings() {
+  savePartial({
+    SMIME_TAG_ENCRYPTED: (document.getElementById('smime-tag-encrypted').value || '').trim() || 'verschlüsselt',
+    SMIME_TAG_ENCRYPTED_ENABLED: document.getElementById('smime-tag-enc-enabled').checked,
+    SMIME_TAG_SIGNED: (document.getElementById('smime-tag-signed').value || '').trim() || 'signiert von {signer}',
+    SMIME_TAG_SIGNED_ENABLED: document.getElementById('smime-tag-sig-enabled').checked,
+    SMIME_TAG_POSITION: document.getElementById('smime-tag-position').value,
+    STRIP_SUBJECT_TAGS: document.getElementById('strip-subject-tags').checked,
+    SMIME_STRIP_INBOUND: document.getElementById('smime-strip-inbound').checked,
+    SMIME_KEY_ENCRYPT: document.getElementById('smime-key-encrypt').checked,
+    SMIME_SIGNING_ENABLED: document.getElementById('smime-signing-enabled').checked,
+    NOSIG_TRIGGER: (document.getElementById('nosig-trigger').value || '').trim() || '#nosig',
+    ENC_TRIGGER: (document.getElementById('enc-trigger').value || '').trim() || '#enc',
+  }, 'smime-result');
+}
+
+function toggleTagField(inputId, enabled) {
+  var el = document.getElementById(inputId);
+  el.disabled = !enabled;
+  el.style.opacity = enabled ? '' : '0.4';
+}
+
+function toggleKeyEncrypt(checked) {
+  document.getElementById('smime-key-password-wrap').style.display = checked ? '' : 'none';
+}
+
+function checkKeyPasswords() {
+  var p1 = document.getElementById('smime-key-password').value;
+  var p2 = document.getElementById('smime-key-password2').value;
+  document.getElementById('key-pw-mismatch').style.display = (p2.length > 0 && p1 !== p2) ? '' : 'none';
+  var saveWrap = document.getElementById('smime-key-pw-save-wrap');
+  if (saveWrap) saveWrap.style.display = (p1.length > 0 && p1 === p2) ? '' : 'none';
+}
+
+function showPw(id) { var el = document.getElementById(id); if (el) el.type = 'text'; }
+function hidePw(id) { var el = document.getElementById(id); if (el) el.type = 'password'; }
+
+function showSmimeKeyPwForm() {
+  var s = document.getElementById('smime-key-pw-status');
+  if (s) s.style.display = 'none';
+  document.getElementById('smime-key-pw-form').style.display = '';
+}
+function hideSmimeKeyPwForm() {
+  document.getElementById('smime-key-pw-form').style.display = 'none';
+  var s = document.getElementById('smime-key-pw-status');
+  if (s) s.style.display = '';
+  ['smime-key-password-old','smime-key-password','smime-key-password2'].forEach(function(id) {
+    var el = document.getElementById(id); if (el) el.value = '';
+  });
+  document.getElementById('key-pw-mismatch').style.display = 'none';
+}
+
+async function saveSmimeKeyPassword() {
+  var oldEl = document.getElementById('smime-key-password-old');
+  var p1 = document.getElementById('smime-key-password').value;
+  var p2 = document.getElementById('smime-key-password2').value;
+  if (p1 !== p2) { document.getElementById('key-pw-mismatch').style.display = ''; return; }
+  var body = {new_password: p1};
+  if (oldEl) body.old_password = oldEl.value;
+  var resp = await fetch('/api/smime/key-password', {
+    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
+  });
+  var alert = document.getElementById('page-alert');
+  var d = await resp.json().catch(function() { return {}; });
+  if (resp.ok) {
+    var msg = d.warnings && d.warnings.length
+      ? 'Passwort gespeichert — Re-Encrypt fehlgeschlagen für: ' + d.warnings.join(', ')
+      : 'S/MIME Key-Passwort gespeichert. Alle gespeicherten Keys wurden neu verschlüsselt.';
+    showAlert(alert, d.warnings && d.warnings.length ? 'warn' : 'success', msg);
+    window.scrollTo(0, 0);
+    setTimeout(function() { location.reload(); }, 1800);
+  } else {
+    showAlert(alert, 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));
+    window.scrollTo(0, 0);
+  }
+}
+
+function updateSubjectPreview() {
+  var encEnabled = document.getElementById('smime-tag-enc-enabled').checked;
+  var sigEnabled = document.getElementById('smime-tag-sig-enabled').checked;
+  var encText    = (document.getElementById('smime-tag-encrypted').value || 'verschlüsselt').trim();
+  var sigText    = (document.getElementById('smime-tag-signed').value || 'signiert von {signer}')
+                     .trim().replace('{signer}', 'Max Mustermann');
+  var position   = document.getElementById('smime-tag-position').value;
+  var sample     = 'Quartalsbericht Q2';
+  var parts      = [];
+  if (encEnabled) parts.push(encText);
+  if (sigEnabled) parts.push(sigText);
+  var preview = sample;
+  if (parts.length > 0) {
+    var tag = '[' + parts.join(', ') + ']';
+    preview = position === 'append' ? sample + ' ' + tag : tag + ' ' + sample;
+  }
+  document.getElementById('subject-preview').textContent = preview;
+}
+
+async function testKvUrl() {
+  const url = document.getElementById('kv-url').value.trim();
+  const el = document.getElementById('kv-url-result');
+  el.style.display = 'block';
+  el.className = 'alert';
+  el.textContent = 'Verbinde...';
+  try {
+    const params = url ? '?url=' + encodeURIComponent(url) : '';
+    const r = await fetch('/api/setup/keyvault/test' + params);
+    const d = await r.json();
+    el.className = 'alert ' + (d.ok ? 'success' : 'error');
+    el.textContent = d.message;
+  } catch (err) {
+    el.className = 'alert error';
+    el.textContent = 'Netzwerkfehler: ' + err;
+  }
+}
+
+async function saveKvMode() {
+  const mode = document.querySelector('input[name="kv-key-mode"]:checked')?.value || 'fallback';
+  const el = document.getElementById('kv-mode-result');
+  el.style.display = 'inline';
+  el.style.color = '#555';
+  el.textContent = 'Speichere...';
+  try {
+    const r = await fetch('/settings', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({KV_KEY_MODE: mode}),
+    });
+    const d = await r.json();
+    el.style.color = d.ok ? '#16a34a' : '#dc2626';
+    el.textContent = d.ok ? 'Gespeichert.' : (d.detail || 'Fehler');
+    setTimeout(() => { el.style.display = 'none'; }, 3000);
+  } catch (err) {
+    el.style.color = '#dc2626';
+    el.textContent = 'Netzwerkfehler: ' + err;
+  }
+}
+
+async function saveKvUrl() {
+  const url = document.getElementById('kv-url').value.trim();
+  const el = document.getElementById('kv-url-result');
+  el.style.display = 'block';
+  el.className = 'alert';
+  el.textContent = 'Speichere...';
+  try {
+    const r = await fetch('/api/setup/keyvault/save', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({url}),
+    });
+    const d = await r.json();
+    el.className = 'alert ' + (d.ok ? 'success' : 'error');
+    el.textContent = d.ok ? 'Key Vault URL gespeichert.' : (d.detail || 'Fehler');
+  } catch (err) {
+    el.className = 'alert error';
+    el.textContent = 'Netzwerkfehler: ' + err;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  updateSubjectPreview();
+});
+</script>
+{% endblock %}

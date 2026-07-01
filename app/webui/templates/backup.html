@@ -2,11 +2,16 @@
 {% block content %}
 <h1>Einstellungen</h1>
 
+<div id="page-alert" class="alert" style="display:none"></div>
+
 <ul class="nav-sub-tabs">
   <li><a href="/settings" class="nav-sub-tab">Allgemein</a></li>
+  <li><a href="/settings/signature" class="nav-sub-tab">Signatur</a></li>
+  <li><a href="/settings/smime" class="nav-sub-tab">S/MIME</a></li>
+  <li><a href="/settings/update" class="nav-sub-tab">Update</a></li>
+  <li><a href="/debug" class="nav-sub-tab">Erweitert</a></li>
   <li><a href="/setup" class="nav-sub-tab">Einrichtung</a></li>
   <li><a href="/outlook-addin" class="nav-sub-tab">Outlook Add-in</a></li>
-  <li><a href="/debug" class="nav-sub-tab">Erweitert</a></li>
   <li><a href="/backup" class="nav-sub-tab active">Backup</a></li>
 </ul>
 
@@ -80,6 +85,24 @@
   <div id="backup-restore-result" style="display:none;margin-top:10px"></div>
 </div>
 
+<!-- ── Konfiguration exportieren/importieren ──────────────────────────────────── -->
+<div class="settings-card" style="margin-bottom:20px">
+  <h2>Konfiguration exportieren/importieren</h2>
+  <p class="hint" style="margin-bottom:12px">
+    Leichtgewichtiger Export nur der Einstellungen (XML) — im Unterschied zum vollständigen
+    Backup oben ohne Zertifikate/Keys/Logs. Passwörter und Secrets werden <strong>nicht</strong>
+    exportiert und müssen nach einem Import manuell ergänzt werden.
+  </p>
+  <div class="actions" style="gap:12px; flex-wrap:wrap">
+    <a class="btn secondary" href="/api/config/export" download>Konfiguration exportieren (XML)</a>
+    <label class="btn secondary" style="cursor:pointer; margin:0">
+      Konfiguration importieren (XML)
+      <input type="file" accept=".xml" style="display:none" onchange="importConfig(this)">
+    </label>
+  </div>
+  <div id="import-result" style="margin-top:10px;display:none"></div>
+</div>
+
 <!-- ── Migrations-Anleitung ────────────────────────────────────────────────── -->
 <div class="wizard-step" style="border-color:#0369a133;margin-bottom:20px">
   <div class="step-header">
@@ -106,6 +129,34 @@
 </div>
 
 <script>
+function showAlert(el, type, msg) {
+  el.className = 'alert ' + type;
+  el.innerHTML = msg;
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 6000);
+}
+
+async function importConfig(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const result = document.getElementById('import-result');
+  const fd = new FormData();
+  fd.append('xml_file', file);
+  const resp = await fetch('/api/config/import', {method: 'POST', body: fd});
+  const alert = document.getElementById('page-alert');
+  if (resp.ok) {
+    const d = await resp.json();
+    showAlert(alert, 'success', `Konfiguration importiert (${d.imported} Einstellungen). Bitte speichern und neu starten.`);
+    window.scrollTo(0, 0);
+    setTimeout(() => location.reload(), 1500);
+  } else {
+    const d = await resp.json().catch(() => ({}));
+    showAlert(result, 'error', 'Import-Fehler: ' + (d.detail || 'Unbekannt'));
+    result.style.display = 'block';
+  }
+  input.value = '';
+}
+
 async function backupDownload() {
   const btn     = document.getElementById('backup-dl-btn');
   const spinner = document.getElementById('backup-dl-spinner');
