@@ -1171,7 +1171,7 @@ async function runSelfTest() {
         <td style="padding:7px 8px;color:#57534e;font-family:monospace;font-size:12px">${t.detail}</td>
         <td style="text-align:center;padding:6px 8px">
           ${(t.input_html || t.output_html)
-            ? `<button onclick="openPreview(${i})"
+            ? `<button onclick="openSelftestPreview(${i})"
                 style="font-size:11px;padding:3px 10px;border:1px solid #cbd5e1;border-radius:4px;background:#f8fafc;cursor:pointer;color:#475569;white-space:nowrap">Vorschau</button>`
             : '<span style="color:#cbd5e1;font-size:11px">—</span>'}
         </td>
@@ -1185,7 +1185,7 @@ async function runSelfTest() {
   document.getElementById('selftest-spinner').style.display = 'none';
 }
 
-function openPreview(idx) {
+function openSelftestPreview(idx) {
   const t = _selftestData[idx];
   document.getElementById('modal-title').textContent = t.name;
   const placeholder = label =>

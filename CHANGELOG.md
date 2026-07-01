@@ -18,6 +18,17 @@ graph_reinject: Bei sendMail HTTP 400 ErrorInvalidRecipients (Exchange kann
 Display-Name nicht im GAL auflösen) wurde zunächst ein Retry ohne Display-Namen
 eingebaut — in v1.4.328 durch einen strukturellen Fix ersetzt (siehe dort).
 
+## v1.4.332 — 2026-07-01 — fix: Preview-Button in Wartungsmodus-Queue erneut funktionslos (Namenskollision)
+
+Zwei globale Funktionen namens openPreview: Wartungsmodus-Queue (window.openPreview,
+in IIFE) vs. Selbsttest-Vorschau (function openPreview, global deklariert, weiter unten
+im Dokument). Die spätere globale function-Deklaration überschreibt window.openPreview
+beim Parsen — Klick auf "Preview" in der Held-Mails-Tabelle rief die Selbsttest-Funktion
+mit der Mail-UUID als Array-Index auf → TypeError auf undefined, Modal öffnete sich nie,
+kein sichtbarer Fehler. Selbsttest-Funktion umbenannt zu openSelftestPreview.
+Regression seit v1.4.310 (dort war der Preview-Button schon einmal kaputt und gefixt,
+aber die neu hinzugekommene Selbsttest-Funktion hat den Namen erneut überschrieben).
+
 ## v1.4.330 — 2026-07-01 — fix: Calendaring-Ausnahme in setup_exo_connector.ps1 verankert
 
 Die Transport-Regel-Ausnahme ExceptIfMessageTypeMatches=Calendaring (v1.4.328) wurde
