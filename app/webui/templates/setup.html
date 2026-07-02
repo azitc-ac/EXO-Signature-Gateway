@@ -250,7 +250,7 @@
   <div class="step-body">
     {% if e.azure_app_created %}
     <div class="alert success" style="margin-bottom:0">
-      App-Registrierung <strong>EXO Signature Gateway Login</strong> wurde erstellt.<br>
+      App-Registrierung <strong>{{ s.GATEWAY_NAME or 'EXO Signature Gateway' }} Login</strong> wurde erstellt.<br>
       {% if e.bootstrap_client_id %}App-ID: <code>{{ e.bootstrap_client_id }}</code><br>{% endif %}
       {% if e.bootstrap_redirect_uris %}
       Redirect-URIs in Azure:
@@ -348,7 +348,7 @@
         <ol style="margin:0 0 12px 16px;line-height:2">
           <li>Öffne das <a href="https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank" rel="noopener">Entra Admin Center → App-Registrierungen</a></li>
           <li>Klicke <strong>„Neue Registrierung"</strong></li>
-          <li>Name: z.B. <code>EXO Signature Gateway Login</code></li>
+          <li>Name: z.B. <code>{{ s.GATEWAY_NAME or 'EXO Signature Gateway' }} Login</code></li>
           <li>Kontotyp: <em>Nur Konten in diesem Organisationsverzeichnis</em></li>
           <li>Plattform <strong>„Mobile and desktop applications"</strong> hinzufügen → im Feld für
             benutzerdefinierte Redirect-URIs <strong>exakt</strong>:
@@ -1554,7 +1554,7 @@ function rerunAzureSetup() {
 var _kvSubsLoaded = false;
 var _kvArmOk = false;
 var _kvTestPassed = {{ 'true' if s.KEYVAULT_URL else 'false' }};
-var _kvLastResourceId = '';  // ARM resource ID of the last confirmed vault (for role assignment)
+var _kvLastResourceId = {{ (s.KEYVAULT_RESOURCE_ID or '') | tojson }};  // ARM resource ID of the last confirmed vault (for role assignment)
 
 // Toggles the ARM-Zugriff box between "kein Zugriff" (gelb, auffällig) und
 // "verbunden" (blau, ruhig) — und blendet die Subscription/Vault-Auswahl erst
@@ -1953,11 +1953,15 @@ async function testKeyvault() {
     const data = await r.json();
     resultEl.className = 'alert ' + (data.ok ? 'success' : 'error');
     resultEl.textContent = data.message;
+    const assignBtn = document.getElementById('kv-assign-role-btn');
     if (data.ok) {
       _kvTestPassed = true;
       document.getElementById('kv-save-btn').disabled = false;
-      const assignBtn = document.getElementById('kv-assign-role-btn');
-      if (assignBtn) assignBtn.style.display = _kvLastResourceId ? 'inline-block' : 'none';
+      if (assignBtn) assignBtn.style.display = 'none';
+    } else if (assignBtn) {
+      // Verbindung fehlgeschlagen (z.B. 403) — Retry-Button anbieten; der Server kann
+      // die ARM Resource-ID notfalls per Vault-Name selbst auflösen (vault_url reicht)
+      assignBtn.style.display = url ? 'inline-block' : 'none';
     }
   } catch (err) {
     resultEl.className = 'alert error';
@@ -1973,14 +1977,16 @@ async function assignKvRole() {
   resultEl.textContent = 'Rolle wird zugewiesen…';
   btn.disabled = true;
   try {
+    const url = document.getElementById('kv-url-input').value.trim();
     const r = await fetch('/api/setup/keyvault/assign-role', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({resource_id: _kvLastResourceId}),
+      body: JSON.stringify({resource_id: _kvLastResourceId, vault_url: url}),
     });
     const data = await r.json();
     resultEl.className = 'alert ' + (data.ok ? 'success' : 'error');
     resultEl.textContent = data.message || (data.ok ? 'Rolle erfolgreich zugewiesen.' : 'Fehler');
+    if (data.resource_id) _kvLastResourceId = data.resource_id;
     if (data.ok) {
       setTimeout(async function() { await testKeyvault(); }, 15000);
     }
@@ -2002,7 +2008,7 @@ async function saveKeyvault() {
     const r = await fetch('/api/setup/keyvault/save', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({url}),
+      body: JSON.stringify({url, resource_id: _kvLastResourceId}),
     });
     const data = await r.json();
     resultEl.className = 'alert ' + (data.ok ? 'success' : 'error');

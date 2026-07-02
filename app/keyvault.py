@@ -341,6 +341,45 @@ async def _get_sp_object_id(client_id: str) -> str | None:
         return None
 
 
+async def find_vault_resource_id(vault_url: str, arm_token: str | None = None) -> str | None:
+    """
+    Resolve the ARM resource ID of a vault by its vault name, searching across all
+    subscriptions the caller can see (Azure Resource Graph — single call, no need to
+    know which subscription/resource group the vault lives in).
+    Used as a fallback when the frontend doesn't have the resource_id cached
+    (e.g. after a page reload where only KEYVAULT_URL is known).
+    """
+    vault_name = vault_url.strip().rstrip("/").split("//")[-1].split(".")[0]
+    if not vault_name:
+        return None
+    arm_token = arm_token or await _get_arm_token()
+    if not arm_token:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=20) as c:
+            resp = await c.post(
+                "https://management.azure.com/providers/Microsoft.ResourceGraph"
+                "/resources?api-version=2021-03-01",
+                json={
+                    "query": (
+                        "resources | where type =~ 'microsoft.keyvault/vaults' "
+                        f"and name =~ '{vault_name}' | project id"
+                    )
+                },
+                headers={"Authorization": f"Bearer {arm_token}", "Content-Type": "application/json"},
+            )
+        if resp.status_code == 200:
+            rows = resp.json().get("data", [])
+            if rows:
+                return rows[0].get("id")
+        else:
+            log.error("find_vault_resource_id: HTTP %s: %s", resp.status_code, resp.text[:300])
+        return None
+    except Exception as exc:
+        log.error("find_vault_resource_id error: %s", exc)
+        return None
+
+
 async def list_subscriptions(arm_token: str | None = None) -> tuple[bool, str, list[dict]]:
     """List Azure subscriptions. Uses delegated user token if provided, else app SP."""
     arm_token = arm_token or await _get_arm_token()

@@ -5,6 +5,25 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.372 — 2026-07-02 — fix: Key-Vault-Retry-Button erschien nie + Bootstrap-App-Dialog zeigte falschen Namen
+
+Zwei Nachbesserungen zum vorherigen Key-Vault-Fix (v1.4.370):
+
+1. `testKeyvault()` blendete den "Rolle zuweisen"-Retry-Button nur bei **Erfolg** ein,
+   nie bei Fehlschlag — genau der Fall, in dem man ihn braucht. Betraf jeden Vault-Test
+   nach einem Seiten-Reload (nicht nur den Frisch-erstellt-Pfad aus v1.4.370).
+2. `_kvLastResourceId` (JS) wurde beim Seitenaufbau nie aus den gespeicherten Settings
+   vorbelegt — nach einem Reload war sie leer, selbst wenn der Vault vorher erfolgreich
+   angelegt wurde. Fix: neues Setting `KEYVAULT_RESOURCE_ID`, wird beim Erstellen/Testen/
+   Zuweisen persistiert und beim Seitenaufbau in `_kvLastResourceId` vorbelegt.
+3. Fallback-Auflösung: `/api/setup/keyvault/assign-role` kann die ARM Resource-ID jetzt
+   auch nachträglich per Vault-Name auflösen (Azure Resource Graph, `find_vault_resource_id()`
+   in keyvault.py) — falls `_kvLastResourceId` aus irgendeinem Grund doch leer ist, reicht
+   die Vault-URL.
+4. Bootstrap-App-Dialog (Schritt 4 "Entra-Login") zeigte hartcodiert "EXO Signature
+   Gateway Login wurde erstellt" statt `{{ s.GATEWAY_NAME }} Login` — betraf sowohl den
+   Beispieltext ("Name: z.B. …") als auch die Erfolgsmeldung nach dem Login.
+
 ## v1.4.370 — 2026-07-02 — fix: Key-Vault-Rollenzuweisung — Fehler wurde als Erfolg (grün) angezeigt
 
 Bug: `create_vault()` gab bei fehlgeschlagener Rollenzuweisung ("Key Vault Crypto

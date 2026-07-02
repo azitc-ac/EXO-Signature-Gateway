@@ -2757,15 +2757,31 @@ async def api_keyvault_assign_role(request: Request, user: str = Depends(_requir
     import graph_client as _gc
     data = await request.json()
     resource_id = (data.get("resource_id") or "").strip()
+    vault_url = (data.get("vault_url") or "").strip()
+    upn = _get_session_user(request) or user
+    user_tok = keyvault.get_user_arm_token(upn) if upn else None
     if not resource_id:
-        raise HTTPException(400, "resource_id ist Pflichtfeld")
+        # Frontend doesn't always know the resource_id (e.g. after a page reload where
+        # only KEYVAULT_URL was persisted) — resolve it by vault name via Resource Graph.
+        if not vault_url:
+            raise HTTPException(400, "resource_id oder vault_url ist Pflichtfeld")
+        resource_id = await keyvault.find_vault_resource_id(vault_url, arm_token=user_tok) or ""
+        if not resource_id:
+            return JSONResponse({
+                "ok": False,
+                "message": (
+                    f"Vault '{vault_url}' wurde in keiner sichtbaren Subscription gefunden — "
+                    "prüfe, ob das angemeldete Azure-Konto Zugriff auf die Subscription/Resource "
+                    "Group des Vaults hat."
+                ),
+            })
     _, client_id, _ = _gc._get_effective_credentials()
     if not client_id:
         raise HTTPException(400, "Entra-App-Registrierung noch nicht konfiguriert")
-    upn = _get_session_user(request) or user
-    user_tok = keyvault.get_user_arm_token(upn) if upn else None
     ok, message = await keyvault.ensure_crypto_officer_role(resource_id, client_id, arm_token=user_tok)
-    return JSONResponse({"ok": ok, "message": message})
+    if ok:
+        settings_store.update({"KEYVAULT_RESOURCE_ID": resource_id})
+    return JSONResponse({"ok": ok, "message": message, "resource_id": resource_id})
 
 
 @app.post("/api/setup/keyvault/save")
@@ -2773,7 +2789,11 @@ async def api_keyvault_save(request: Request, _: str = Depends(_require_admin)):
     """Save Key Vault URL to settings."""
     data = await request.json()
     kv_url = (data.get("url") or "").strip().rstrip("/")
-    settings_store.update({"KEYVAULT_URL": kv_url})
+    resource_id = (data.get("resource_id") or "").strip()
+    to_save = {"KEYVAULT_URL": kv_url}
+    if resource_id:
+        to_save["KEYVAULT_RESOURCE_ID"] = resource_id
+    settings_store.update(to_save)
     log.info("Key Vault URL saved: %s", kv_url or "(cleared)")
     return JSONResponse({"ok": True})
 
