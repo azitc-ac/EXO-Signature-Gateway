@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.362 — 2026-07-02 — fix: Bootstrap-App-Anleitung — Toggle-Empfehlung fehlte
+
+Anleitung (v1.4.360) erwähnte "Öffentliche Clientflows zulassen" nur beiläufig
+im Kontext des Web-Plattform-Fehlschlags, gab aber keine klare Anweisung für
+den finalen, korrekten Weg (Mobile and desktop applications). Jetzt als eigener
+Schritt: Toggle auf Ja stellen, explizit als eigenständige Aktion nach dem
+Registrieren — nicht automatisch impliziert durch die Plattformwahl in der
+Portal-UI.
+
 ## v1.4.360 — 2026-07-02 — fix: Bootstrap-App-Anleitung — "Mobile and desktop applications" ist die richtige Plattform
 
 Fortsetzung von v1.4.358: SPA-Plattform schlug live ebenfalls fehl —
