@@ -311,16 +311,23 @@ async def _send_challenge_reply(
     """Send the ACME email-reply-00 response using the configured method.
 
     Method is controlled by settings ACME_REPLY_METHOD:
-      "auto"        — follow REINJECT_MODE: graph→graph, smtp/imap→direct_smtp (default)
-      "graph"       — Graph API sendMail via Exchange
-      "direct_smtp" — direct SMTP to CA domain's MX on port 25
+      "auto"        — relay through Exchange via the normal reinject path (reinject.py),
+                      i.e. the SAME authenticated outbound route any other outbound mail
+                      takes, following REINJECT_MODE (graph/smtp/imap). Default.
+      "graph"       — force Graph API sendMail via Exchange, regardless of REINJECT_MODE
+      "direct_smtp" — direct SMTP straight to the CA domain's MX, bypassing Exchange
+                      entirely. UNRELIABLE for any domain with real SPF/DKIM — the
+                      receiving MTA will typically reject it as unauthenticated
+                      (confirmed 2026-07-02: Cloudflare Email Routing 550 5.7.26
+                      "Cannot forward emails that are not authenticated" for castle.cloud).
+                      Kept only as an explicit manual override — "auto" never selects it.
 
-    "auto" exists because ACME_REPLY_METHOD used to hardcode "graph" regardless of the
-    gateway's general REINJECT_MODE — correct for the Azure VM gateway (port 25/587
-    outbound blocked there), but wrong for a gateway explicitly run in SMTP mode: it
-    silently used Graph for the initial reply while the CA's double-hop reply-passthrough
-    still went out via the (broken/blocked) SMTP path, since that passthrough always
-    follows REINJECT_MODE regardless of ACME_REPLY_METHOD.
+    Earlier version of "auto" resolved smtp/imap REINJECT_MODE to "direct_smtp", which
+    caused exactly the above 550 rejection — direct-to-MX bypasses Exchange's own
+    SPF/DKIM-aligned outbound path, so any real-world CA that checks sender
+    authentication (like CASTLE's Cloudflare-routed inbox) rejects it. Routing through
+    the normal reinject path instead keeps the mail inside Exchange's authenticated
+    path just like Graph does, regardless of which REINJECT_MODE is configured.
     """
     import asyncio
 
@@ -328,9 +335,6 @@ async def _send_challenge_reply(
         from_email, to_email, re_subject, digest, internet_message_id
     )
     method = (settings_store.get("ACME_REPLY_METHOD") or "auto").strip().lower()
-    if method == "auto":
-        reinject_mode = (settings_store.get("REINJECT_MODE") or "smtp").strip().lower()
-        method = "graph" if reinject_mode == "graph" else "direct_smtp"
     log.info("ACME: sending challenge reply via %s from %s → %s", method, from_email, to_email)
 
     if method == "direct_smtp":
@@ -338,7 +342,21 @@ async def _send_challenge_reply(
             None, _send_reply_direct_smtp, from_email, to_email, raw_mime
         )
 
-    # Default: Graph API sendMail → Exchange → CA domain
+    if method == "auto":
+        try:
+            import reinject
+            import functools
+            await asyncio.get_event_loop().run_in_executor(
+                None, functools.partial(reinject.send, from_email, [to_email], raw_mime, force_mime=True)
+            )
+            log.info("ACME challenge reply sent (reinject/%s) from %s to %s",
+                      settings_store.get("REINJECT_MODE") or "smtp", from_email, to_email)
+            return True
+        except Exception as exc:
+            log.error("ACME challenge reply reinject error: %s", exc)
+            return False
+
+    # "graph": force Graph API sendMail → Exchange → CA domain
     try:
         import graph_reinject
         ok = await asyncio.get_event_loop().run_in_executor(

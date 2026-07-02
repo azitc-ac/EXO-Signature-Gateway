@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.384 — 2026-07-02 — fix: ACME "auto"-Methode sendete unauthentifiziert direkt an CA-MX — 550 Cloudflare-Ablehnung
+
+Der Vorgänger-Fix (v1.4.382) ließ "auto" bei REINJECT_MODE=smtp/imap auf "direct_smtp"
+auflösen — das sendet direkt und unauthentifiziert von der Gateway-IP an die MX der
+CA-Domain, komplett an Exchange vorbei. CASTLEs Mailserver (Cloudflare Email Routing)
+lehnt das erwartungsgemäß ab:
+  550 5.7.26 Cannot forward emails that are not authenticated
+Kein Graph- oder Netzwerkproblem — strukturell unzuverlässig für jede Domain mit
+echtem SPF/DKIM, weil die Mail nicht über den autorisierten Exchange-Online-Absender
+läuft.
+
+Fix: "auto" nutzt jetzt den normalen `reinject.send()`-Pfad (denselben, den jede
+andere ausgehende Mail nimmt) statt des CA-MX-Bypasses — dieser Pfad läuft immer
+durch Exchange und ist damit genauso authentifiziert wie Graph, unabhängig vom
+konfigurierten REINJECT_MODE. "direct_smtp" bleibt als expliziter manueller
+Override verfügbar, wird aber von "auto" nicht mehr gewählt.
+
 ## v1.4.382 — 2026-07-02 — fix: ACME_REPLY_METHOD folgt jetzt REINJECT_MODE + EXO_PORT 587 auf diesem Gateway unerreichbar
 
 Zwei zusammenhängende Netzwerk/Konfig-Probleme, gefunden beim Debuggen eines ACME-Laufs
