@@ -404,7 +404,7 @@
   <div class="step-body">
     {% if e.azure_app_created %}
     <div class="alert success" style="margin-bottom:0">
-      App-Registrierung <strong>EXO Signature Gateway</strong> wurde erstellt.<br>
+      App-Registrierung <strong>{{ s.GATEWAY_NAME or 'EXO Signature Gateway' }}</strong> wurde erstellt.<br>
       App-ID: <code>{{ e.client_id if e.client_id else "–" }}</code><br>
       Berechtigungen: <code>User.Read.All</code>, <code>Mail.ReadWrite</code>, <code>Exchange.ManageAsApp</code><br>
       Admin-Consent: erteilt &bull; Exchange-Administrator-Rolle: zugewiesen
@@ -579,7 +579,7 @@
 
       <!-- Hinweis für bestehende Vaults (IAM) -->
       <div id="kv-existing-vault-hint" style="display:none;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px 10px;margin-bottom:12px;font-size:12px">
-        Voraussetzung: <em>Azure Portal → Key Vault → Zugriffssteuerung (IAM) → Rolle <strong>Key Vault Crypto Officer</strong> → EXO Signature Gateway.</em>
+        Voraussetzung: <em>Azure Portal → Key Vault → Zugriffssteuerung (IAM) → Rolle <strong>Key Vault Crypto Officer</strong> → {{ s.GATEWAY_NAME or 'EXO Signature Gateway' }}.</em>
       </div>
 
       <!-- Neu erstellen: RG, Name, Region -->
@@ -721,7 +721,7 @@
       </div>
       <div id="cert-pem-display" style="display:none;margin-top:12px;font-size:13px">
         <p style="margin:0 0 6px 0">Lade diese <code>.crt</code>-Datei im <strong>Entra Admin Center</strong> hoch:<br>
-          <em>App-Registrierungen → EXO Signature Gateway → Zertifikate &amp; Geheimnisse → Zertifikate → Hochladen</em>
+          <em>App-Registrierungen → {{ s.GATEWAY_NAME or 'EXO Signature Gateway' }} → Zertifikate &amp; Geheimnisse → Zertifikate → Hochladen</em>
         </p>
         <div class="actions" style="margin-bottom:8px">
           <button class="btn secondary" onclick="downloadAuthCert()">⬇ Zertifikat (.crt) herunterladen</button>
@@ -799,7 +799,7 @@
       {% if e.azure_app_created %}
       Diese Permission wird bei Schritt 3 automatisch beantragt.<br>
       Falls noch nicht erteilt: <em>Entra Admin Center → App-Registrierungen →
-      EXO Signature Gateway → API-Berechtigungen → IMAP.AccessAsApp → Admin-Zustimmung erteilen.</em>
+      {{ s.GATEWAY_NAME or 'EXO Signature Gateway' }} → API-Berechtigungen → IMAP.AccessAsApp → Admin-Zustimmung erteilen.</em>
       {% else %}
       Erst Schritt 3 (Entra-Login) abschließen — die Permission wird dann automatisch beantragt.
       {% endif %}
@@ -2258,7 +2258,7 @@ sudo systemctl status exo-gateway-updater --no-pager</code></pre>
         </li>
         <li><strong>Apps hochladen</strong> → <em>Office-Add-In</em></li>
         <li><strong>Link zur Manifestdatei</strong> → obige URL einfügen → <strong>Validieren</strong></li>
-        <li>Benutzer/Gruppen zuweisen (z.&nbsp;B. <em>EXO Signature Gateway – Enabled Mailboxes</em>)</li>
+        <li>Benutzer/Gruppen zuweisen (z.&nbsp;B. <em>{{ s.GATEWAY_NAME or 'EXO Signature Gateway' }} – Enabled Mailboxes</em>)</li>
         <li>Das Add-in erscheint in Outlook nach <strong>bis zu 24 Stunden</strong></li>
       </ol>
 

@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.366 — 2026-07-02 — fix: Wizard-Anleitungstexte zeigten weiter hardcodiert "EXO Signature Gateway"
+
+Nachtrag zu v1.4.364: die App wurde bereits korrekt mit GATEWAY_NAME angelegt,
+aber fünf Textstellen im Wizard (Erfolgsmeldung nach App-Erstellung + vier
+Navigationspfad-Hinweise für Key-Vault-IAM, Zertifikat-Upload, IMAP-Consent,
+Add-in-Gruppenzuweisung) zeigten weiterhin den hardcodierten Default-Namen.
+Alle jetzt auf {{ s.GATEWAY_NAME or 'EXO Signature Gateway' }} umgestellt.
+
 ## v1.4.364 — 2026-07-02 — fix: GATEWAY_NAME steuert jetzt alle EXO-Objekte, nicht nur den Anzeigenamen
 
 Beim Einrichten eines zweiten, separat benannten Gateways (GATEWAY_NAME =
