@@ -8,6 +8,7 @@ param(
     [Parameter(Mandatory)][string]$AppId,
     [Parameter(Mandatory)][string]$Organization,
     [Parameter(Mandatory)][string]$CertPath,
+    [string]$GatewayName = "EXO Signature Gateway",
     [string]$Members = ""
 )
 
@@ -23,10 +24,10 @@ function Write-Step([string]$msg) { Write-Host "[DG-SETUP] $msg" -ForegroundColo
 function Write-OK([string]$msg)   { Write-Host "[OK] $msg"       -ForegroundColor Green }
 function Write-Warn([string]$msg) { Write-Host "[WARN] $msg"     -ForegroundColor Yellow }
 
-$managedBy = "##Managed by EXO Signature Gateway, last update: $(Get-Date -Format 'yyyy-MM-dd HH:mm')##"
+$managedBy = "##Managed by $GatewayName, last update: $(Get-Date -Format 'yyyy-MM-dd HH:mm')##"
 
-$dgName   = "EXO Signature Gateway - Enabled Mailboxes"
-$ruleName = "Route via EXO Signature Gateway"
+$dgName   = "$GatewayName - Enabled Mailboxes"
+$ruleName = "Route via $GatewayName"
 
 # ── Load certificate ──────────────────────────────────────────────────────────
 Write-Step "Loading certificate from $CertPath"

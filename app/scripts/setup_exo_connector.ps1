@@ -22,6 +22,7 @@ param(
     [Parameter(Mandatory)][string]$Organization,
     [Parameter(Mandatory)][string]$CertPath,
     [Parameter(Mandatory)][string]$SmtpProxyHostname,
+    [string]$GatewayName = "EXO Signature Gateway",
     [switch]$SkipInboundConnector
 )
 
@@ -32,7 +33,7 @@ function Write-Step([string]$msg) { Write-Host "[EXO-SETUP] $msg" -ForegroundCol
 function Write-OK([string]$msg)   { Write-Host "[OK] $msg"         -ForegroundColor Green }
 function Write-Warn([string]$msg) { Write-Host "[WARN] $msg"       -ForegroundColor Yellow }
 
-$managedBy = "##Managed by EXO Signature Gateway, last update: $(Get-Date -Format 'yyyy-MM-dd HH:mm')##"
+$managedBy = "##Managed by $GatewayName, last update: $(Get-Date -Format 'yyyy-MM-dd HH:mm')##"
 
 # ── Load certificate (PFX, no password) ──────────────────────────────────────
 Write-Step "Loading certificate from $CertPath"
@@ -65,7 +66,7 @@ Write-OK "Connected to Exchange Online"
 # ── Outbound Connector ────────────────────────────────────────────────────────
 Write-Step "Checking Outbound Connector..."
 
-$outName = "EXO Signature Gateway - Outbound"
+$outName = "$GatewayName - Outbound"
 $existing = Get-OutboundConnector -Identity $outName -ErrorAction SilentlyContinue
 
 if ($existing) {
@@ -109,7 +110,7 @@ if ($SkipInboundConnector) {
     Write-Warn "Inbound Connector skipped (not needed for Graph/IMAP mode)"
 } else {
     Write-Step "Checking Inbound Connector..."
-    $inName = "EXO Signature Gateway - Inbound"
+    $inName = "$GatewayName - Inbound"
     $existingIn = Get-InboundConnector -Identity $inName -ErrorAction SilentlyContinue
     if ($existingIn) {
         Write-Warn "Inbound Connector '$inName' exists — updating TLS"
@@ -136,7 +137,7 @@ if ($SkipInboundConnector) {
 # ── Transport Rule ────────────────────────────────────────────────────────────
 Write-Step "Checking Transport Rule..."
 
-$ruleName = "Route via EXO Signature Gateway"
+$ruleName = "Route via $GatewayName"
 $existingRule = Get-TransportRule -Identity $ruleName -ErrorAction SilentlyContinue
 
 if ($existingRule) {

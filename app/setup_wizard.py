@@ -140,13 +140,15 @@ async def _upload_key_credential(token: str, app_object_id: str, cert_der: bytes
 
 async def create_app_registration(token: str, public_hostname: str) -> dict:
     """
-    Create (or reuse) the 'EXO Signature Gateway' app registration.
+    Create (or reuse) the '{GATEWAY_NAME}' app registration.
     Returns {"app_id": ..., "app_object_id": ..., "sp_id": ..., "client_secret": ...}
     """
+    gateway_name = settings_store.get("GATEWAY_NAME") or "EXO Signature Gateway"
+    gateway_name_odata = gateway_name.replace("'", "''")  # OData string literal escaping
     # Check if app already exists
     existing = await _gh(
         "get",
-        f"{GRAPH}/applications?$filter=displayName eq 'EXO Signature Gateway'&$select=id,appId",
+        f"{GRAPH}/applications?$filter=displayName eq '{gateway_name_odata}'&$select=id,appId",
         token,
     )
     existing_apps = existing.get("value", [])
@@ -157,7 +159,7 @@ async def create_app_registration(token: str, public_hostname: str) -> dict:
         log.info("Reusing existing app: appId=%s objectId=%s", app_id, app_object_id)
     else:
         app_body = {
-            "displayName": "EXO Signature Gateway",
+            "displayName": gateway_name,
             "signInAudience": "AzureADMyOrg",
             "requiredResourceAccess": [
                 {
@@ -201,7 +203,7 @@ async def create_app_registration(token: str, public_hostname: str) -> dict:
         token,
         json={
             "passwordCredential": {
-                "displayName": "EXO Signature Gateway",
+                "displayName": gateway_name,
                 "endDateTime": "2099-12-31T00:00:00Z",
             }
         },
@@ -219,14 +221,16 @@ async def create_app_registration(token: str, public_hostname: str) -> dict:
 
 async def create_pool_app(token: str, index: int) -> dict:
     """
-    Create/reuse 'EXO Signature Gateway (Pool N)' with runtime-only permissions.
+    Create/reuse '{GATEWAY_NAME} (Pool N)' with runtime-only permissions.
     No Exchange.ManageAsApp — pool apps are for mail processing only.
     Returns {"client_id": ..., "client_secret": ..., "label": ...}
     """
-    display_name = f"EXO Signature Gateway (Pool {index})"
+    gateway_name = settings_store.get("GATEWAY_NAME") or "EXO Signature Gateway"
+    display_name = f"{gateway_name} (Pool {index})"
+    display_name_odata = display_name.replace("'", "''")
     existing = await _gh(
         "get",
-        f"{GRAPH}/applications?$filter=displayName eq '{display_name}'&$select=id,appId",
+        f"{GRAPH}/applications?$filter=displayName eq '{display_name_odata}'&$select=id,appId",
         token,
     )
     existing_apps = existing.get("value", [])
@@ -270,7 +274,7 @@ async def create_pool_app(token: str, index: int) -> dict:
         f"{GRAPH}/applications/{app_object_id}/addPassword",
         token,
         json={"passwordCredential": {
-            "displayName": f"EXO Gateway Pool {index}",
+            "displayName": display_name,
             "endDateTime": "2099-12-31T00:00:00Z",
         }},
     )
@@ -491,7 +495,7 @@ async def run_post_auth_setup(token: str) -> dict:
 def run_smime_rules_setup(
     app_id: str,
     tenant_domain: str,
-    connector_name: str = "EXO Signature Gateway - Outbound",
+    connector_name: str | None = None,
 ) -> dict:
     """
     Run the PowerShell script to create the two S/MIME inbound transport rules.
@@ -510,11 +514,16 @@ def run_smime_rules_setup(
             ),
         }
 
+    gateway_name = settings_store.get("GATEWAY_NAME") or "EXO Signature Gateway"
+    if connector_name is None:
+        connector_name = f"{gateway_name} - Outbound"
+
     cmd = [
         "pwsh", "-NoProfile", "-NonInteractive", "-File", str(script),
         "-AppId", app_id,
         "-Organization", tenant_domain,
         "-CertPath", str(_AUTH_CERT_PATH),
+        "-GatewayName", gateway_name,
         "-ConnectorName", connector_name,
     ]
 
@@ -558,12 +567,14 @@ def run_exo_connector_setup(
             ),
         }
 
+    gateway_name = settings_store.get("GATEWAY_NAME") or "EXO Signature Gateway"
     cmd = [
         "pwsh", "-NoProfile", "-NonInteractive", "-File", str(script),
         "-AppId", app_id,
         "-Organization", tenant_domain,
         "-CertPath", str(_AUTH_CERT_PATH),
         "-SmtpProxyHostname", smtp_proxy_hostname,
+        "-GatewayName", gateway_name,
     ]
     if skip_inbound_connector:
         cmd.append("-SkipInboundConnector")
@@ -715,11 +726,13 @@ def run_mailbox_dg_update(app_id: str, tenant_domain: str, members: list[str]) -
     if not _AUTH_CERT_PATH.exists():
         return {"ok": False, "output": "Auth-Zertifikat nicht gefunden — bitte Schritt 4 (Entra-Login) erneut ausführen."}
 
+    gateway_name = settings_store.get("GATEWAY_NAME") or "EXO Signature Gateway"
     cmd = [
         "pwsh", "-NoProfile", "-NonInteractive", "-File", str(script),
         "-AppId", app_id,
         "-Organization", tenant_domain,
         "-CertPath", str(_AUTH_CERT_PATH),
+        "-GatewayName", gateway_name,
     ]
     if members:
         cmd += ["-Members", ",".join(members)]
@@ -811,6 +824,8 @@ def run_notification_dg_update(members: list[str]) -> dict:
     cert = str(_AUTH_CERT_PATH)
     # Build comma-separated member list for PS (PS script splits on comma internally)
     members_csv = ",".join(members) if members else ""
+    gateway_name = settings_store.get("GATEWAY_NAME") or "EXO Signature Gateway"
+    dg_alias = "".join(ch for ch in gateway_name if ch.isalnum()) + "Notifications"
 
     ps_script = f"""
 $ErrorActionPreference = 'Stop'
@@ -818,8 +833,8 @@ $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
     '{cert}', [string]$null,
     ([System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet))
 Connect-ExchangeOnline -AppId '{app_id}' -Certificate $cert -Organization '{org}' -ShowBanner:$false -ShowProgress:$false
-$dgName = "EXO Signature Gateway - Notification recipients"
-$dgAlias = "EXOSigGatewayNotifications"
+$dgName = "{gateway_name} - Notification recipients"
+$dgAlias = "{dg_alias}"
 $dg = Get-DistributionGroup -Identity $dgName -ErrorAction SilentlyContinue
 if (-not $dg) {{
     $dg = New-DistributionGroup -Name $dgName -Alias $dgAlias -Type Distribution -MemberJoinRestriction Closed -MemberDepartRestriction Closed -ErrorAction Stop
@@ -906,18 +921,19 @@ def _run_verify_ps(body: str) -> dict:
 
 def verify_connector(smtp_mode: bool = False) -> dict:
     """Check EXO connectors and transport rule. Inbound Connector only required in SMTP mode."""
+    gw = (settings_store.get("GATEWAY_NAME") or "EXO Signature Gateway").replace('"', '`"')
     if smtp_mode:
         ps = (
-            '$out  = $null -ne (Get-OutboundConnector -Identity "EXO Signature Gateway - Outbound" -ErrorAction SilentlyContinue)\n'
-            '$in   = $null -ne (Get-InboundConnector  -Identity "EXO Signature Gateway - Inbound"  -ErrorAction SilentlyContinue)\n'
-            '$rule = $null -ne (Get-TransportRule      -Identity "Route via EXO Signature Gateway"  -ErrorAction SilentlyContinue)\n'
+            f'$out  = $null -ne (Get-OutboundConnector -Identity "{gw} - Outbound" -ErrorAction SilentlyContinue)\n'
+            f'$in   = $null -ne (Get-InboundConnector  -Identity "{gw} - Inbound"  -ErrorAction SilentlyContinue)\n'
+            f'$rule = $null -ne (Get-TransportRule      -Identity "Route via {gw}"  -ErrorAction SilentlyContinue)\n'
             'Write-Output (@{ok=$out -and $in -and $rule; outbound=$out; inbound=$in; rule=$rule} | ConvertTo-Json -Compress)\n'
         )
     else:
         ps = (
-            '$out  = $null -ne (Get-OutboundConnector -Identity "EXO Signature Gateway - Outbound" -ErrorAction SilentlyContinue)\n'
-            '$in   = $null -ne (Get-InboundConnector  -Identity "EXO Signature Gateway - Inbound"  -ErrorAction SilentlyContinue)\n'
-            '$rule = $null -ne (Get-TransportRule      -Identity "Route via EXO Signature Gateway"  -ErrorAction SilentlyContinue)\n'
+            f'$out  = $null -ne (Get-OutboundConnector -Identity "{gw} - Outbound" -ErrorAction SilentlyContinue)\n'
+            f'$in   = $null -ne (Get-InboundConnector  -Identity "{gw} - Inbound"  -ErrorAction SilentlyContinue)\n'
+            f'$rule = $null -ne (Get-TransportRule      -Identity "Route via {gw}"  -ErrorAction SilentlyContinue)\n'
             'Write-Output (@{ok=$out -and $rule; outbound=$out; inbound=$in; rule=$rule} | ConvertTo-Json -Compress)\n'
         )
     return _run_verify_ps(ps)
@@ -937,9 +953,10 @@ def verify_imap() -> dict:
 
 def verify_smime_rules() -> dict:
     """Check that both S/MIME inbound transport rules exist."""
+    gw = (settings_store.get("GATEWAY_NAME") or "EXO Signature Gateway").replace('"', '`"')
     return _run_verify_ps(
-        '$signed = $null -ne (Get-TransportRule -Identity "EXO Signature Gateway - SMIME Signed Inbound"    -ErrorAction SilentlyContinue)\n'
-        '$enc    = $null -ne (Get-TransportRule -Identity "EXO Signature Gateway - SMIME Encrypted Inbound" -ErrorAction SilentlyContinue)\n'
+        f'$signed = $null -ne (Get-TransportRule -Identity "{gw} - SMIME Signed Inbound"    -ErrorAction SilentlyContinue)\n'
+        f'$enc    = $null -ne (Get-TransportRule -Identity "{gw} - SMIME Encrypted Inbound" -ErrorAction SilentlyContinue)\n'
         'Write-Output (@{ok=$signed -and $enc; signed=$signed; encrypted=$enc} | ConvertTo-Json -Compress)\n'
     )
 

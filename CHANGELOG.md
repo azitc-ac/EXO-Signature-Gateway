@@ -5,6 +5,37 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.364 — 2026-07-02 — fix: GATEWAY_NAME steuert jetzt alle EXO-Objekte, nicht nur den Anzeigenamen
+
+Beim Einrichten eines zweiten, separat benannten Gateways (GATEWAY_NAME =
+"EXO Signature Gateway RASPI") fand Schritt 5 des Wizards die BESTEHENDE
+App-Registrierung "EXO Signature Gateway" (vom ersten Gateway im selben
+Tenant) und nutzte sie weiter, statt eine neue mit dem konfigurierten Namen
+anzulegen — GATEWAY_NAME wurde nirgends in den Objekt-Namen verwendet,
+nur im UI-Anzeigenamen oben links.
+
+Betroffen und jetzt korrigiert (überall dynamisch aus GATEWAY_NAME statt
+hardcodiert "EXO Signature Gateway"):
+- setup_wizard.py: create_app_registration() — Such-Filter + Anlage-Body +
+  Client-Secret-Name; create_pool_app() — Pool-App-Namen
+- setup_wizard.py: run_notification_dg_update() — DG-Name UND DG-Alias
+  (Alias war hardcodiert "EXOSigGatewayNotifications" — hätte bei zwei
+  Gateways im selben Tenant kollidiert)
+- setup_wizard.py: verify_connector(), verify_smime_rules() — Status-Prüfungen
+  suchten sonst nach dem falschen (Default-)Namen, Wizard hätte fertige
+  Schritte fälschlich als "nicht erledigt" angezeigt
+- setup_exo_connector.ps1, setup_smime_rules.ps1, update_mailbox_dg.ps1:
+  neuer -GatewayName Parameter (Default "EXO Signature Gateway" für
+  Rückwärtskompatibilität bestehender Installationen), alle Connector-/
+  Regel-/DG-Namen werden jetzt daraus abgeleitet statt hardcodiert
+- setup_wizard.py: run_smime_rules_setup(), run_exo_connector_setup(),
+  run_mailbox_dg_update() übergeben -GatewayName jetzt an die PS-Skripte
+
+Für spätere Session: GATEWAY_NAME-Einstellung von Erweitert in den Setup-
+Wizard verschieben (User-Vorschlag: als Schritt 2, alle anderen Schritte um
+1 nach hinten) — Reihenfolge aktuell ungünstig, GATEWAY_NAME muss VOR
+Schritt 5 (App-Registrierung) gesetzt sein, steht aber in einem anderen Tab.
+
 ## v1.4.362 — 2026-07-02 — fix: Bootstrap-App-Anleitung — Toggle-Empfehlung fehlte
 
 Anleitung (v1.4.360) erwähnte "Öffentliche Clientflows zulassen" nur beiläufig

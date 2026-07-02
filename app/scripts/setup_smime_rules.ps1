@@ -22,6 +22,7 @@ param(
     [Parameter(Mandatory)][string]$AppId,
     [Parameter(Mandatory)][string]$Organization,
     [Parameter(Mandatory)][string]$CertPath,
+    [string]$GatewayName = "EXO Signature Gateway",
     [string]$ConnectorName = "EXO Signature Gateway - Outbound"
 )
 
@@ -32,7 +33,7 @@ function Write-Step([string]$msg) { Write-Host "[EXO-SMIME] $msg" -ForegroundCol
 function Write-OK([string]$msg)   { Write-Host "[OK] $msg"         -ForegroundColor Green }
 function Write-Warn([string]$msg) { Write-Host "[WARN] $msg"       -ForegroundColor Yellow }
 
-$managedBy = "##Managed by EXO Signature Gateway, last update: $(Get-Date -Format 'yyyy-MM-dd HH:mm')##"
+$managedBy = "##Managed by $GatewayName, last update: $(Get-Date -Format 'yyyy-MM-dd HH:mm')##"
 
 # ── Load certificate ──────────────────────────────────────────────────────────
 Write-Step "Loading certificate from $CertPath"
@@ -74,7 +75,7 @@ Write-OK "Connector resolved: $connectorId"
 
 # ── Transport Rule: signed inbound ────────────────────────────────────────────
 Write-Step "Checking Transport Rule: signed inbound..."
-$signedRuleName = "EXO Signature Gateway - SMIME Signed Inbound"
+$signedRuleName = "$GatewayName - SMIME Signed Inbound"
 $existingSigned = Get-TransportRule -Identity $signedRuleName -ErrorAction SilentlyContinue
 
 if ($existingSigned) {
@@ -97,7 +98,7 @@ if ($existingSigned) {
 
 # ── Transport Rule: encrypted inbound ─────────────────────────────────────────
 Write-Step "Checking Transport Rule: encrypted inbound..."
-$encRuleName = "EXO Signature Gateway - SMIME Encrypted Inbound"
+$encRuleName = "$GatewayName - SMIME Encrypted Inbound"
 $existingEnc = Get-TransportRule -Identity $encRuleName -ErrorAction SilentlyContinue
 
 if ($existingEnc) {
