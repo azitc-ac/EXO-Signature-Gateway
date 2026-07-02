@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.388 — 2026-07-02 — fix: ACME-Fehler-Response-Body wurde bei poll_order_status/get_authorization/download_certificate nicht geloggt
+
+`poll_order_status()`, `get_authorization()` und `download_certificate()` in acme_client.py
+riefen `raise_for_status()` auf, ohne vorher den Response-Body zu loggen (anders als
+`trigger_challenge()`/`finalize()`, die den Body schon immer mitschreiben). Bei einem
+400-Fehler von CASTLE während des Order-Pollings (mig3@azitc.eu, Order PSELFKgff8u,
+nach 22 Min. ungewöhnlich langer "pending"-Phase) stand daher nur die generische
+httpx-Meldung "400 Bad Request" im Log, ohne CASTLEs eigentlichen Fehlergrund. Jetzt
+wird der Response-Body (bis 500 Zeichen) vor raise_for_status() geloggt.
+
 ## v1.4.386 — 2026-07-02 — fix: Debug-UI für ACME-Versandmethode kannte "auto" nicht — hätte Fix stillschweigend zurückgesetzt
 
 Übersehene Debug-Seite (debug.html, Abschnitt "ACME Challenge Reply — Versandmethode")

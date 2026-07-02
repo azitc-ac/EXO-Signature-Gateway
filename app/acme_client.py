@@ -179,6 +179,8 @@ class AcmeClient:
 
     async def get_authorization(self, authz_url: str) -> dict:
         r = await self._post(authz_url, None)
+        if r.status_code >= 400:
+            log.error("ACME get_authorization failed: %s %s (%s)", r.status_code, r.text[:500], authz_url)
         r.raise_for_status()
         return r.json()
 
@@ -198,6 +200,8 @@ class AcmeClient:
         last_status = None
         while True:
             r = await self._post(order_url, None)
+            if r.status_code >= 400:
+                log.error("ACME order poll failed: %s %s (%s)", r.status_code, r.text[:500], order_url)
             r.raise_for_status()
             order = r.json()
             status = order.get("status")
@@ -219,5 +223,7 @@ class AcmeClient:
     async def download_certificate(self, cert_url: str) -> bytes:
         """Download issued cert chain (PEM)."""
         r = await self._post(cert_url, None)
+        if r.status_code >= 400:
+            log.error("ACME download_certificate failed: %s %s (%s)", r.status_code, r.text[:500], cert_url)
         r.raise_for_status()
         return r.content
