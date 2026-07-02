@@ -15,10 +15,13 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# Python passes members as a single comma-separated string — split into array
-$MemberList = if ($Members) {
-    @($Members -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne "" })
-} else { @() }
+# Python passes members as a single comma-separated string — split into array.
+# NOTE: the outer @() must wrap the whole if/else, not just the branches — otherwise
+# an empty result collapses to $null on assignment (PowerShell pipeline-flattening),
+# and .Count throws under Set-StrictMode.
+$MemberList = @(if ($Members) {
+    $Members -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne "" }
+} else { @() })
 
 function Write-Step([string]$msg) { Write-Host "[DG-SETUP] $msg" -ForegroundColor Cyan }
 function Write-OK([string]$msg)   { Write-Host "[OK] $msg"       -ForegroundColor Green }

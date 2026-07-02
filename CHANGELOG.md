@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.378 — 2026-07-02 — fix: update_mailbox_dg.ps1 crashte bei leerer Mitgliederliste
+
+`$MemberList = if ($Members) { @(...) } else { @() }` — klassische PowerShell-Falle:
+wenn der ausgeführte Zweig leer ist, kollabiert die Zuweisung zu `$null`, NICHT zu einer
+leeren Array (das innere `@()` wird beim Pipeline-Flattening durch die if/else-
+Zuweisung "aufgelöst"). Unter `Set-StrictMode -Version Latest` wirft `$null.Count`
+dann `PropertyNotFoundException: The property 'Count' cannot be found on this object.`
+
+Betraf sowohl 0 als auch genau 1 aktiviertes Postfach — bei 0 kollabiert die Zuweisung
+zu `$null` (leerer else-Zweig), bei genau 1 Element "entpackt" PowerShell die Pipeline-
+Ausgabe zum nackten String statt zur 1-elementigen Array (dieselbe Ursache, anderer
+Auslöser). Erst ab 2 Elementen funktionierte der ursprüngliche Code zufällig richtig.
+Reproduziert und verifiziert per `pwsh` direkt im Container für alle drei Fälle (0/1/2+).
+
+Fix: äußeres `@(...)` muss die GESAMTE if/else-Anweisung umschließen, nicht nur die
+einzelnen Zweige — dann bleibt das Ergebnis auch bei 0 Elementen eine echte Array.
+
 ## v1.4.376 — 2026-07-02 — fix: veraltete "Schritt 3"-Verweise + stille Auth-Zertifikat-Fehler jetzt sichtbar
 
 Die Wizard-Schritte wurden im Lauf der letzten Sessions umnummeriert (Entra-Login ist
