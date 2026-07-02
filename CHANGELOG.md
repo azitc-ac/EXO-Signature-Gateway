@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.380 — 2026-07-02 — feat: Postfächer-Bulk-Buttons — Aktivieren/Deaktivieren getrennt, nur auf gefilterte Zeilen angewendet
+
+"Alle Standardsignatur aktivieren" / "Alle S/MIME aktivieren" waren Toggle-Buttons
+(ein Klick kehrte den Zustand aller Zeilen um) und wirkten immer auf ALLE Postfächer,
+auch wenn die Tabelle gerade gefiltert war. Jetzt vier separate Buttons ("Alle für
+Signatur aktivieren/deaktivieren", "Alle für S/MIME aktivieren/deaktivieren") mit
+explizitem Ziel-Zustand statt Toggle, und wirken nur auf Zeilen, die durch den aktuellen
+Filter sichtbar sind (`tr.style.display !== 'none'`).
+
 ## v1.4.378 — 2026-07-02 — fix: update_mailbox_dg.ps1 crashte bei leerer Mitgliederliste
 
 `$MemberList = if ($Members) { @(...) } else { @() }` — klassische PowerShell-Falle:

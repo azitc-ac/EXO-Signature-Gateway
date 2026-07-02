@@ -19,8 +19,10 @@
     <input type="text" id="mb-filter" placeholder="Filtern…" oninput="filterMailboxes(this.value)"
            style="width:100%;max-width:320px;margin-bottom:8px;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px">
     <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
-      <button class="btn secondary" onclick="activateAll('sig')" style="font-size:12px;padding:4px 10px">Alle Standardsignatur aktivieren</button>
-      <button class="btn secondary" onclick="activateAll('smime')" style="font-size:12px;padding:4px 10px">Alle S/MIME aktivieren</button>
+      <button class="btn secondary" onclick="setAllVisible('sig', true)" style="font-size:12px;padding:4px 10px">Alle für Signatur aktivieren</button>
+      <button class="btn secondary" onclick="setAllVisible('sig', false)" style="font-size:12px;padding:4px 10px">Alle für Signatur deaktivieren</button>
+      <button class="btn secondary" onclick="setAllVisible('smime', true)" style="font-size:12px;padding:4px 10px">Alle für S/MIME aktivieren</button>
+      <button class="btn secondary" onclick="setAllVisible('smime', false)" style="font-size:12px;padding:4px 10px">Alle für S/MIME deaktivieren</button>
     </div>
     <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
     <table style="min-width:640px;width:100%;border-collapse:collapse;font-size:13px">
@@ -763,13 +765,16 @@ function filterMailboxes(q) {
   });
 }
 
-function activateAll(type) {
+function setAllVisible(type, state) {
+  // Nur Zeilen, die aktuell nicht durch den Filter ausgeblendet sind (tr.style.display !== 'none')
   var cls = type === 'sig' ? '.mb-sig' : '.mb-smime';
-  var boxes = document.querySelectorAll(cls);
+  var boxes = Array.from(document.querySelectorAll(cls)).filter(function(cb) {
+    var tr = cb.closest('tr');
+    return tr && tr.style.display !== 'none';
+  });
   if (!boxes.length) return;
-  var allChecked = Array.from(boxes).every(function(cb) { return cb.checked; });
   boxes.forEach(function(cb) {
-    cb.checked = !allChecked;
+    cb.checked = state;
     cb.dispatchEvent(new Event('change'));
   });
 }
