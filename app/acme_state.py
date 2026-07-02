@@ -311,15 +311,26 @@ async def _send_challenge_reply(
     """Send the ACME email-reply-00 response using the configured method.
 
     Method is controlled by settings ACME_REPLY_METHOD:
-      "graph"       — Graph API sendMail via Exchange (default)
+      "auto"        — follow REINJECT_MODE: graph→graph, smtp/imap→direct_smtp (default)
+      "graph"       — Graph API sendMail via Exchange
       "direct_smtp" — direct SMTP to CA domain's MX on port 25
+
+    "auto" exists because ACME_REPLY_METHOD used to hardcode "graph" regardless of the
+    gateway's general REINJECT_MODE — correct for the Azure VM gateway (port 25/587
+    outbound blocked there), but wrong for a gateway explicitly run in SMTP mode: it
+    silently used Graph for the initial reply while the CA's double-hop reply-passthrough
+    still went out via the (broken/blocked) SMTP path, since that passthrough always
+    follows REINJECT_MODE regardless of ACME_REPLY_METHOD.
     """
     import asyncio
 
     raw_mime = _build_challenge_reply_mime(
         from_email, to_email, re_subject, digest, internet_message_id
     )
-    method = (settings_store.get("ACME_REPLY_METHOD") or "graph").strip().lower()
+    method = (settings_store.get("ACME_REPLY_METHOD") or "auto").strip().lower()
+    if method == "auto":
+        reinject_mode = (settings_store.get("REINJECT_MODE") or "smtp").strip().lower()
+        method = "graph" if reinject_mode == "graph" else "direct_smtp"
     log.info("ACME: sending challenge reply via %s from %s → %s", method, from_email, to_email)
 
     if method == "direct_smtp":

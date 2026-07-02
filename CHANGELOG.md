@@ -5,6 +5,28 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.382 — 2026-07-02 — fix: ACME_REPLY_METHOD folgt jetzt REINJECT_MODE + EXO_PORT 587 auf diesem Gateway unerreichbar
+
+Zwei zusammenhängende Netzwerk/Konfig-Probleme, gefunden beim Debuggen eines ACME-Laufs
+auf dem SMTP-Modus-Gateway (Raspi):
+
+1. `ACME_REPLY_METHOD` hatte hart "graph" als Default — unabhängig vom allgemeinen
+   `REINJECT_MODE`. Auf einem Gateway, das explizit im SMTP-Modus läuft, sendete die
+   initiale Challenge-Antwort trotzdem per Graph, während der CASTLE-Double-Hop-Rückweg
+   (Exchange routet die Antwort zurück durchs Gateway) den allgemeinen Reinject-Pfad
+   nutzt und damit dem SMTP-Modus folgt — inkonsistent, und funktioniert nur zufällig,
+   weil die erste (Graph-)Antwort schon reicht.
+   Fix: neuer Default `"auto"` — leitet die Methode aus `REINJECT_MODE` ab
+   (graph→graph, smtp/imap→direct_smtp). Bestehende Installationen mit explizit
+   gespeichertem "graph" (z. B. Azure-VM-Produktivgateway) sind nicht betroffen.
+
+2. `EXO_PORT` war auf 587 konfiguriert, aber von diesem Raspi aus ist Port 587 zum
+   EXO-Smarthost nicht erreichbar (`[Errno 101] Network is unreachable`, reproduziert
+   per `smtplib.SMTP()`) — Port 25 funktioniert dagegen einwandfrei (vollständiger
+   STARTTLS-Handshake getestet). `EXO_PORT` für dieses Gateway auf 25 umgestellt.
+   Kein UI-Feld für `EXO_PORT`/`ACME_REPLY_METHOD` vorhanden — Werte direkt in
+   settings.json angepasst.
+
 ## v1.4.380 — 2026-07-02 — feat: Postfächer-Bulk-Buttons — Aktivieren/Deaktivieren getrennt, nur auf gefilterte Zeilen angewendet
 
 "Alle Standardsignatur aktivieren" / "Alle S/MIME aktivieren" waren Toggle-Buttons
