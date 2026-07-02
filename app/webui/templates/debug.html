@@ -352,20 +352,29 @@ async function certLoadInfo() {
   <div class="step-header">
     <span class="step-badge" style="background:#7c3aed;font-size:10px">ACME</span>
     <span class="step-title">ACME Challenge Reply — Versandmethode
-      <span style="font-weight:400;font-size:12px;color:#57534e"> — Graph API (Standard) oder Direktversand zum Castle MX</span>
+      <span style="font-weight:400;font-size:12px;color:#57534e"> — Standard: folgt dem allgemeinen Gateway-Modus (REINJECT_MODE)</span>
     </span>
   </div>
   <div class="step-body">
     <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
       <select id="acme-method-select" style="width:320px;max-width:100%">
-        <option value="graph">Graph API (Standard) — über Exchange</option>
-        <option value="direct_smtp">Direktversand MX Port 25 — direkt zu castle.cloud</option>
+        <option value="auto">Automatisch (Standard) — folgt Gateway-Modus über Exchange</option>
+        <option value="graph">Graph API erzwingen — über Exchange</option>
+        <option value="direct_smtp">Debug: Direktversand zum CA-MX — an Exchange vorbei</option>
       </select>
       <button class="btn primary" onclick="acmeSetMethod()">Speichern</button>
     </div>
     <p class="hint" style="margin-bottom:0">
-      <strong>Graph API</strong>: sendMail → Exchange → Transport-Connector → Gateway → castle.cloud MX.<br>
-      <strong>Direktversand</strong>: DNS-MX-Auflösung → direkt zu route2.mx.cloudflare.net:25 — nur wenn Port 25 outbound verfügbar.
+      <strong>Automatisch</strong>: sendet über denselben Weg wie jede andere ausgehende Mail
+      (REINJECT_MODE-Einstellung) — bei SMTP-Modus über den EXO-Smarthost (Port {{ s.EXO_PORT or 25 }}),
+      bei Graph-Modus per Graph sendMail. In beiden Fällen läuft die Mail durch Exchange und ist damit
+      SPF/DKIM-authentifiziert.<br>
+      <strong>Graph API erzwingen</strong>: sendMail → Exchange → Transport-Connector → Gateway → CA-MX,
+      unabhängig vom REINJECT_MODE.<br>
+      <strong style="color:#b45309">Debug: Direktversand</strong> — DNS-MX-Auflösung → direkt zur CA-MX
+      auf Port 25, komplett an Exchange vorbei. <u>Nur zu Diagnosezwecken.</u> Wird von der CA in der
+      Regel als unauthentifiziert abgelehnt (z. B. CASTLE/Cloudflare: 550 5.7.26 "not authenticated"),
+      da die Mail nicht über den SPF/DKIM-autorisierten Exchange-Absender läuft.
     </p>
 
     <div id="acme-method-result" style="display:none;margin-top:10px"></div>
@@ -377,7 +386,7 @@ async function acmeMethodLoad() {
   const r = await fetch('/api/acme/reply-method');
   const d = await r.json();
   const sel = document.getElementById('acme-method-select');
-  if (sel) sel.value = d.method || 'graph';
+  if (sel) sel.value = d.method || 'auto';
 }
 
 async function acmeSetMethod() {
@@ -389,9 +398,10 @@ async function acmeSetMethod() {
     body: JSON.stringify({method}),
   });
   const d = await r.json();
+  const labels = {auto: 'Automatisch (folgt Gateway-Modus)', graph: 'Graph API erzwingen', direct_smtp: 'Debug: Direktversand zum CA-MX'};
   result.className = d.ok ? 'alert success' : 'alert error';
   result.textContent = d.ok
-    ? 'Gespeichert: ' + (d.method === 'graph' ? 'Graph API' : 'Direktversand MX Port 25')
+    ? 'Gespeichert: ' + (labels[d.method] || d.method)
     : 'Fehler: ' + (d.error || JSON.stringify(d));
   result.style.display = 'block';
 }

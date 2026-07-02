@@ -3380,16 +3380,16 @@ async def api_remote_domain_remove(user: str = Depends(_check_auth)):
 
 @app.get("/api/acme/reply-method")
 async def api_acme_reply_method_get(user: str = Depends(_check_auth)):
-    method = (settings_store.get("ACME_REPLY_METHOD") or "graph").strip().lower()
+    method = (settings_store.get("ACME_REPLY_METHOD") or "auto").strip().lower()
     return JSONResponse({"ok": True, "method": method})
 
 
 @app.post("/api/acme/reply-method")
 async def api_acme_reply_method_set(request: Request, user: str = Depends(_check_auth)):
     data = await request.json()
-    method = (data.get("method") or "graph").strip().lower()
-    if method not in ("graph", "direct_smtp"):
-        return JSONResponse({"ok": False, "error": "method must be 'graph' or 'direct_smtp'"}, status_code=400)
+    method = (data.get("method") or "auto").strip().lower()
+    if method not in ("auto", "graph", "direct_smtp"):
+        return JSONResponse({"ok": False, "error": "method must be 'auto', 'graph' or 'direct_smtp'"}, status_code=400)
     settings_store.update({"ACME_REPLY_METHOD": method})
     log.info("ACME reply method set to '%s' by %s", method, user)
     return JSONResponse({"ok": True, "method": method})

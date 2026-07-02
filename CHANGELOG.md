@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.386 — 2026-07-02 — fix: Debug-UI für ACME-Versandmethode kannte "auto" nicht — hätte Fix stillschweigend zurückgesetzt
+
+Übersehene Debug-Seite (debug.html, Abschnitt "ACME Challenge Reply — Versandmethode")
+erlaubte nur "graph"/"direct_smtp", kein "auto". Hätte jemand die Seite geöffnet und
+gespeichert, wäre der in v1.4.384 eingeführte "auto"-Default stillschweigend auf "graph"
+zurückgesetzt worden. Backend-Endpoint (`/api/acme/reply-method`) akzeptiert jetzt auch
+"auto"; Dropdown umbenannt und "Direktversand" explizit als Debug-only markiert
+(sendet unauthentifiziert direkt an die CA-MX, an Exchange vorbei — wird von den
+meisten CAs mit SPF/DKIM-Prüfung abgelehnt, siehe v1.4.384).
+
 ## v1.4.384 — 2026-07-02 — fix: ACME "auto"-Methode sendete unauthentifiziert direkt an CA-MX — 550 Cloudflare-Ablehnung
 
 Der Vorgänger-Fix (v1.4.382) ließ "auto" bei REINJECT_MODE=smtp/imap auf "direct_smtp"
