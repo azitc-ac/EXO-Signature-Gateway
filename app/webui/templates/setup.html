@@ -532,7 +532,7 @@
       </p>
 
       <!-- Azure-Login für ARM-Zugriff -->
-      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:10px;margin-bottom:14px;font-size:13px">
+      <div id="kv-arm-box" style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:10px;margin-bottom:14px;font-size:13px">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <span id="kv-arm-status-icon">🔑</span>
           <span id="kv-arm-status-text" style="flex:1;color:#374151">Azure-Login erforderlich, um Subscriptions und Vaults zu laden.</span>
@@ -554,26 +554,29 @@
         </div>
       </div>
 
-      <!-- Subscription -->
-      <div class="settings-row" style="margin-bottom:10px">
-        <label>Subscription</label>
-        <div>
-          <select id="kv-subscription-sel" style="width:320px" onchange="onKvSubscriptionChange()">
-            <option value="">— Lade Subscriptions… —</option>
-          </select>
-          <input type="text" id="kv-subscription-id-manual"
-            placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-            style="display:none;margin-top:6px;width:300px;font-family:monospace;font-size:12px">
+      <!-- Subscription + Key Vault — erst sichtbar sobald Azure-Zugriff besteht -->
+      <div id="kv-selection-rows" style="display:none">
+        <!-- Subscription -->
+        <div class="settings-row" style="margin-bottom:10px">
+          <label>Subscription</label>
+          <div>
+            <select id="kv-subscription-sel" style="width:320px" onchange="onKvSubscriptionChange()">
+              <option value="">— Lade Subscriptions… —</option>
+            </select>
+            <input type="text" id="kv-subscription-id-manual"
+              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+              style="display:none;margin-top:6px;width:300px;font-family:monospace;font-size:12px">
+          </div>
         </div>
-      </div>
 
-      <!-- Key Vault auswählen -->
-      <div class="settings-row" style="margin-bottom:10px">
-        <label>Key Vault</label>
-        <div>
-          <select id="kv-vault-sel" style="width:320px" onchange="onKvVaultChange()" disabled>
-            <option value="">— Bitte erst Subscription wählen —</option>
-          </select>
+        <!-- Key Vault auswählen -->
+        <div class="settings-row" style="margin-bottom:10px">
+          <label>Key Vault</label>
+          <div>
+            <select id="kv-vault-sel" style="width:320px" onchange="onKvVaultChange()" disabled>
+              <option value="">— Bitte erst Subscription wählen —</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -1553,12 +1556,26 @@ var _kvArmOk = false;
 var _kvTestPassed = {{ 'true' if s.KEYVAULT_URL else 'false' }};
 var _kvLastResourceId = '';  // ARM resource ID of the last confirmed vault (for role assignment)
 
+// Toggles the ARM-Zugriff box between "kein Zugriff" (gelb, auffällig) und
+// "verbunden" (blau, ruhig) — und blendet die Subscription/Vault-Auswahl erst
+// ein, sobald wirklich Zugriff besteht (vorher ist sie ohnehin nutzlos).
+function _kvSetArmBoxOk(ok) {
+  const box = document.getElementById('kv-arm-box');
+  const rows = document.getElementById('kv-selection-rows');
+  if (box) {
+    box.style.background = ok ? '#eff6ff' : '#fffbeb';
+    box.style.borderColor = ok ? '#bfdbfe' : '#fde68a';
+  }
+  if (rows) rows.style.display = ok ? '' : 'none';
+}
+
 // Listen for ARM auth result from popup
 window.addEventListener('message', function(e) {
   if (!e.data || typeof e.data !== 'object') return;
   if (e.data.type === 'arm-auth-done') {
     _kvArmOk = true;
     _kvSubsLoaded = false;
+    _kvSetArmBoxOk(true);
     document.getElementById('kv-arm-paste-section').style.display = 'none';
     document.getElementById('kv-arm-status-text').textContent = 'Verbunden — lade Subscriptions…';
     document.getElementById('kv-arm-status-text').style.color = '#16a34a';
@@ -1566,6 +1583,7 @@ window.addEventListener('message', function(e) {
     document.getElementById('kv-arm-btn').textContent = 'Erneut verbinden';
     loadKvSubscriptions();
   } else if (e.data.type === 'arm-auth-fail') {
+    _kvSetArmBoxOk(false);
     document.getElementById('kv-arm-status-text').textContent = '✗ ' + (e.data.msg || 'Fehler');
     document.getElementById('kv-arm-status-text').style.color = '#dc2626';
   }
@@ -1613,6 +1631,7 @@ async function submitArmPaste() {
       return;
     }
     _kvArmOk = true;
+    _kvSetArmBoxOk(true);
     document.getElementById('kv-arm-status-icon').textContent = '✓';
     document.getElementById('kv-arm-status-text').style.color = '#16a34a';
     statusText.textContent = 'Azure-Verbindung hergestellt — lade Subscriptions…';
@@ -1645,8 +1664,13 @@ async function loadKvSubscriptions() {
       sel.innerHTML = '<option value="__other__">— manuell eingeben —</option>';
       sel.disabled = false;
       if (!_kvArmOk) {
+        _kvSetArmBoxOk(false);
         const statusText = document.getElementById('kv-arm-status-text');
-        if (statusText) statusText.textContent = 'Kein ARM-Zugriff — bitte oben "Azure-Zugriff holen" klicken.';
+        if (statusText) statusText.textContent = 'Kein Azure-Zugriff — bitte oben "Azure-Zugriff holen" klicken.';
+      } else {
+        // Zugriff besteht, aber keine Subscriptions gefunden — Auswahl trotzdem
+        // zeigen, damit "manuell eingeben" erreichbar bleibt.
+        _kvSetArmBoxOk(true);
       }
       onKvSubscriptionChange();
       return;
@@ -1666,6 +1690,7 @@ async function loadKvSubscriptions() {
     sel.appendChild(other);
     sel.disabled = false;
     _kvSubsLoaded = true;
+    _kvSetArmBoxOk(true);
     if (data.delegated) {
       document.getElementById('kv-arm-status-icon').textContent = '✓';
       document.getElementById('kv-arm-status-text').textContent = 'Azure-Verbindung aktiv (' + data.subscriptions.length + ' Subscription(s) geladen).';

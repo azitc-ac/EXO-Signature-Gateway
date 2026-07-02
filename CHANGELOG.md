@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.368 — 2026-07-02 — feat: Key-Vault-Assistent — klarerer Hinweis bei fehlendem Azure-Zugriff
+
+Drei UX-Korrekturen am ARM-Zugriff-Bereich im Key-Vault-Schritt:
+- "Kein ARM-Zugriff" → "Kein Azure-Zugriff" (ARM = Azure Resource Manager ist
+  internes Detail, verwirrt ohne Mehrwert)
+- Statusbox jetzt gelb/auffällig (#fffbeb) solange kein Zugriff besteht, wechselt
+  erst nach erfolgreichem "Azure-Zugriff holen" zu ruhigem Blau (#eff6ff) —
+  vorher permanent blau, unabhängig vom tatsächlichen Zustand
+- Subscription-/Key-Vault-Auswahl (kv-selection-rows) ist jetzt standardmäßig
+  ausgeblendet und erscheint erst, sobald tatsächlich Azure-Zugriff besteht —
+  vorher immer sichtbar, aber ohne Zugriff wirkungslos (nur "Lade…"-Platzhalter)
+
 ## v1.4.366 — 2026-07-02 — fix: Wizard-Anleitungstexte zeigten weiter hardcodiert "EXO Signature Gateway"
 
 Nachtrag zu v1.4.364: die App wurde bereits korrekt mit GATEWAY_NAME angelegt,
