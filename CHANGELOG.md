@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.376 — 2026-07-02 — fix: veraltete "Schritt 3"-Verweise + stille Auth-Zertifikat-Fehler jetzt sichtbar
+
+Die Wizard-Schritte wurden im Lauf der letzten Sessions umnummeriert (Entra-Login ist
+jetzt Schritt 4, App-Registrierung Schritt 5), aber mehrere Fehlermeldungen verwiesen
+noch auf das alte "Schritt 3". Betraf sowohl setup.html (Auth-Zertifikat-Hinweis in
+Schritt 6) als auch 4 Fehlermeldungen in setup_wizard.py (SMIME-Regeln, EXO-Connector,
+Mailbox-DG-Update).
+
+Wichtiger: `create_app_registration()` generiert und lädt das Auth-Zertifikat in einem
+separaten try/except-Block NACH der App-Registrierung hoch — schlägt das fehl (z.B.
+Graph-API-Timing), wird der Fehler nur geloggt (`auth_cert_error`), aber nirgends in
+der UI angezeigt. Schritt 5 zeigte dann trotzdem einen vollständig grünen Erfolgskasten,
+obwohl das Zertifikat fehlte — der Fehler fiel erst in Schritt 6 auf, ohne ersichtlichen
+Zusammenhang.
+
+Fix: Schritt 5 zeigt jetzt eine rote Warnung, wenn `e.auth_cert_exists` False ist,
+obwohl die App-Registrierung erfolgreich war — mit direktem Hinweis auf "App-
+Registrierung neu einrichten" als Lösung (App wird dabei wiederverwendet, nur das
+Zertifikat wird neu generiert/hochgeladen).
+
 ## v1.4.374 — 2026-07-02 — fix: Key-Vault-Verbindungstest nach Rollenzuweisung zu früh aufgegeben
 
 Nach "Rolle zuweisen" (grüner Erfolg — ARM-Rollenzuweisung ist sofort sichtbar) wurde

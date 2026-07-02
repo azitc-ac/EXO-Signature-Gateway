@@ -398,7 +398,7 @@
     <button class="verify-btn" onclick="verifyStep('azure', this)" title="Graph-Verbindung prüfen">↻</button>
     <span class="verify-result" id="verify-azure-result"></span>
     {% else %}
-    <span class="step-status waiting">Wird nach Schritt 3 automatisch erledigt</span>
+    <span class="step-status waiting">Wird nach Schritt 4 automatisch erledigt</span>
     {% endif %}
   </div>
   <div class="step-body">
@@ -409,12 +409,23 @@
       Berechtigungen: <code>User.Read.All</code>, <code>Mail.ReadWrite</code>, <code>Exchange.ManageAsApp</code><br>
       Admin-Consent: erteilt &bull; Exchange-Administrator-Rolle: zugewiesen
     </div>
+    {% if not e.auth_cert_exists %}
+    <div class="alert error" style="margin-top:10px">
+      <strong>Auth-Zertifikat fehlt.</strong> Die App-Registrierung wurde erstellt, aber die
+      automatische Zertifikat-Generierung/-Hochladung ist dabei fehlgeschlagen (kann bei
+      Graph-API-Timing passieren). Ohne dieses Zertifikat funktioniert die Exchange-Online-
+      Anbindung in Schritt 6 nicht.<br>
+      Fix: unten „Erneut anmelden" ausführen — die App-Registrierung wird dabei
+      wiederverwendet (nicht neu angelegt), nur das Zertifikat wird neu generiert und
+      hochgeladen.
+    </div>
+    {% endif %}
     <div style="margin-top:10px;padding:10px 14px;background:#f8f7f6;border-radius:6px;opacity:.5;font-size:12px;color:#64748b">
       <strong>Geplant:</strong> Aufteilung in zwei Apps nach Least-Privilege-Prinzip —
       App A (Laufzeit, kein <code>Exchange.ManageAsApp</code>) · App B (Setup-Wizard only).
     </div>
     {% else %}
-    <p class="hint">Erstellt nach erfolgreichem Entra-Login (Schritt 3).</p>
+    <p class="hint">Erstellt nach erfolgreichem Entra-Login (Schritt 4).</p>
     {% endif %}
     {% if e.azure_app_created %}
     <div class="actions" style="margin-top:12px">
@@ -717,7 +728,7 @@
       {% if e.auth_cert_exists %}
       <div class="alert success" style="margin:8px 0 0 0;font-size:13px">✓ Vorhanden — Setup kann fortgesetzt werden.</div>
       {% else %}
-      <p class="hint" style="margin:8px 0">Kein Auth-Zertifikat gefunden. Entweder Schritt 3 erneut ausführen <em>oder</em> hier manuell generieren und im Entra Admin Center hochladen.</p>
+      <p class="hint" style="margin:8px 0">Kein Auth-Zertifikat gefunden. Entweder oben in Schritt 5 „Erneut anmelden" ausführen (generiert & lädt automatisch hoch) <em>oder</em> hier manuell generieren und im Entra Admin Center hochladen.</p>
       <div id="cert-gen-result" style="display:none;margin-top:8px"></div>
       <div class="actions" style="margin-top:8px">
         <button class="btn secondary" id="cert-gen-btn" onclick="generateAuthCert()">Auth-Zertifikat generieren</button>
