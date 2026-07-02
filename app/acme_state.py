@@ -383,6 +383,14 @@ async def complete_order_after_challenge(order: dict) -> None:
             return
 
         log.info("[acme:%s] order ready for %s — submitting CSR", fid, email)
+        # Grace period before finalize: CASTLE's order-status endpoint appears to
+        # report "ready" slightly before its own backend has fully settled
+        # whatever it needs for the finalize handler (observed as a hard
+        # 500 FileNotFoundError when finalize is called in the same instant
+        # "ready" is detected — reproduced twice, including on a freshly reset
+        # ACME account/order, so it isn't tied to account state). A short
+        # buffer works around this CASTLE-side race condition.
+        await asyncio.sleep(5)
         # Finalize: submit CSR
         save_order(email, {**order, "status": "finalizing"})
         csr_der = b64url_decode_csr(order["csr_der_b64"])

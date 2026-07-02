@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.356 — 2026-07-02 — fix: ACME Finalize 500 FileNotFoundError — Race Condition behoben
+
+complete_order_after_challenge() rief finalize() direkt im selben Sekundentakt
+auf, in dem poll_order_status() den Status "ready" erkannte — ohne jeden Puffer.
+Reproduziert mit komplett frisch zurückgesetztem ACME-Account (neuer Account-Key,
+neue Account-URL, neue Order, Flow-ID 73eeacd5) — identischer 500 FileNotFoundError
+beim Finalize, obwohl Account-Reset laut bisheriger Annahme hätte helfen sollen.
+Das widerlegt die "Account im Bad State"-Theorie: CASTLEs Order-Status-Endpoint
+meldet "ready" offenbar knapp bevor das eigene Backend intern alles fertig
+persistiert hat, was der Finalize-Handler braucht — eine Race Condition auf
+CASTLE-Seite, kein Validierungsfehler, sondern ein harter Server-Absturz.
+Fix: 5s Wartezeit zwischen "ready" erkannt und finalize()-Aufruf. Behebt CASTLEs
+Bug nicht, umgeht ihn aber defensiv. CLAUDE.md aktualisiert (Account-Reset-Hinweis
+korrigiert — hilft hier NICHT).
+
 ## v1.4.354 — 2026-07-02 — feat: settings.json Schema-Versionierung + Backup-UI-Feinschliff
 
 settings_store.py: SETTINGS_SCHEMA_VERSION + geordnete Migrations-Liste. Bei
