@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.358 — 2026-07-02 — fix: Bootstrap-App-Anleitung — SPA-Plattform statt Web (AADSTS7000218)
+
+Setup-Wizard Schritt "Entra-Login" wies an, die Bootstrap-App-Redirect-URI unter
+Plattform "Web" zu registrieren. Unsere App nutzt reines PKCE ohne Client-Secret
+(bestätigt: pkce.py sendet nirgends client_secret) — bei Plattform "Web" verlangt
+Entra für den Authorization-Code-Austausch aber weiterhin ein Secret, und zwar
+UNABHÄNGIG vom "Öffentliche Clientflows zulassen"-Schalter (der wirkt nur auf
+andere Flow-Typen wie Device Code/ROPC, nicht zuverlässig auf Code+PKCE bei einer
+Web-Redirect-URI). Ergebnis: AADSTS7000218 client_assertion/client_secret required,
+reproduziert live bei Ersteinrichtung eines zweiten Gateways — auch mit aktiviertem
+Toggle weiterhin fehlgeschlagen. Anleitung korrigiert: Plattform "Single-page
+application (SPA)" statt "Web" — dafür ist PKCE-ohne-Secret über eine HTTPS-
+Redirect-URI explizit vorgesehen (Azure verweigert bei SPA sogar aktiv das Anlegen
+eines Secrets für diese URI).
+
 ## v1.4.356 — 2026-07-02 — fix: ACME Finalize 500 FileNotFoundError — Race Condition behoben
 
 complete_order_after_challenge() rief finalize() direkt im selben Sekundentakt

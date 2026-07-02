@@ -350,9 +350,14 @@
           <li>Klicke <strong>„Neue Registrierung"</strong></li>
           <li>Name: z.B. <code>EXO Signature Gateway Login</code></li>
           <li>Kontotyp: <em>Nur Konten in diesem Organisationsverzeichnis</em></li>
-          <li>Plattform <strong>„Web"</strong> hinzufügen → Umleitungs-URI <strong>exakt</strong>:
+          <li>Plattform <strong>„Single-page application"</strong> hinzufügen → Umleitungs-URI <strong>exakt</strong>:
             <br><code style="font-size:12px;background:#f1f5f9;padding:2px 5px;border-radius:4px">{{ e.sso_redirect_uri }}</code>
-            <br><small style="color:#888">Genau diese URI (kein Port, kein Slash am Ende) — sonst AADSTS50011.</small></li>
+            <br><small style="color:#888">Genau diese URI (kein Port, kein Slash am Ende) — sonst AADSTS50011.</small>
+            <br><small style="color:#b45309"><strong>Nicht</strong> „Web" verwenden — unsere App nutzt PKCE ohne
+            Client-Secret; bei Plattform „Web" verlangt Entra für den Code-Austausch weiterhin ein Secret,
+            selbst wenn „Öffentliche Clientflows zulassen" aktiviert ist (betrifft nur andere Flow-Typen).
+            Ergebnis wäre <code>AADSTS7000218: client_assertion or client_secret required</code>.
+            Plattform „SPA" ist genau für PKCE-ohne-Secret über eine HTTPS-Redirect-URI gedacht.</small></li>
           <li><em>Optional</em> (für den Localhost-Notausgang): Plattform <strong>„Mobile und Desktopanwendungen"</strong> →
             <code>http://localhost:{{ e.webui_port }}/auth/callback</code></li>
           <li>Klicke <strong>Registrieren</strong></li>
