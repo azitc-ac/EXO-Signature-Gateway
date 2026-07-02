@@ -1904,14 +1904,20 @@ async function confirmKvSelection() {
       const data = await r.json();
       resultEl.className = 'alert ' + (data.ok ? 'success' : 'error');
       resultEl.textContent = data.message;
-      if (data.ok && data.vault_url) {
+      if (data.vault_url) {
         _setUrl(data.vault_url, data.resource_id || '');
-        // Azure RBAC braucht 1–2 Min zum Propagieren — erst dann testen
-        const testResult = document.getElementById('kv-test-result');
-        testResult.style.display = 'block';
-        testResult.className = 'alert';
-        testResult.textContent = 'Vault erstellt — Azure RBAC-Rollenzuweisung propagiert (ca. 90 Sek.). Test startet automatisch…';
-        setTimeout(async function() { await testKeyvault(); }, 90000);
+        if (data.ok) {
+          // Azure RBAC braucht 1–2 Min zum Propagieren — erst dann testen
+          const testResult = document.getElementById('kv-test-result');
+          testResult.style.display = 'block';
+          testResult.className = 'alert';
+          testResult.textContent = 'Vault erstellt — Azure RBAC-Rollenzuweisung propagiert (ca. 90 Sek.). Test startet automatisch…';
+          setTimeout(async function() { await testKeyvault(); }, 90000);
+        } else if (_kvLastResourceId) {
+          // Vault existiert, aber Rollenzuweisung schlug fehl — Retry-Button anbieten
+          const assignBtn = document.getElementById('kv-assign-role-btn');
+          if (assignBtn) assignBtn.style.display = 'inline-block';
+        }
       }
     } catch (err) {
       resultEl.className = 'alert error';
@@ -1975,6 +1981,9 @@ async function assignKvRole() {
     const data = await r.json();
     resultEl.className = 'alert ' + (data.ok ? 'success' : 'error');
     resultEl.textContent = data.message || (data.ok ? 'Rolle erfolgreich zugewiesen.' : 'Fehler');
+    if (data.ok) {
+      setTimeout(async function() { await testKeyvault(); }, 15000);
+    }
   } catch (err) {
     resultEl.className = 'alert error';
     resultEl.textContent = 'Netzwerkfehler: ' + err;

@@ -503,31 +503,34 @@ async def create_vault(
 
     log.info("keyvault: vault created: %s", vault_url_result)
 
+    kv_resource_id = (
+        f"/subscriptions/{subscription_id}/resourceGroups/{resource_group}"
+        f"/providers/Microsoft.KeyVault/vaults/{vault_name}"
+    )
+
     # Get SP object ID for role assignment
     sp_object_id = await _get_sp_object_id(client_id)
     if not sp_object_id:
         return (
-            True,
+            False,
             (
                 f"Key Vault wurde erstellt, aber die Rollenzuweisung schlug fehl — "
                 f"Service Principal für App {client_id} nicht gefunden. "
-                f"Bitte im Azure Portal die Rolle 'Key Vault Crypto Officer' manuell zuweisen."
+                f"Bitte im Azure Portal die Rolle 'Key Vault Crypto Officer' manuell zuweisen, "
+                f"oder hier erneut versuchen."
             ),
             vault_url_result,
+            kv_resource_id,
         )
 
     # Assign Key Vault Crypto Officer role (superset: allows sign + key import/create/delete)
-    kv_scope = (
-        f"/subscriptions/{subscription_id}/resourceGroups/{resource_group}"
-        f"/providers/Microsoft.KeyVault/vaults/{vault_name}"
-    )
     role_def_id = (
         f"/subscriptions/{subscription_id}/providers/Microsoft.Authorization"
         f"/roleDefinitions/{_KV_CRYPTO_OFFICER_ROLE}"
     )
     assignment_id = str(_uuid.uuid4())
     role_url = (
-        f"{arm_base}{kv_scope}/providers/Microsoft.Authorization"
+        f"{arm_base}{kv_resource_id}/providers/Microsoft.Authorization"
         f"/roleAssignments/{assignment_id}?api-version=2022-04-01"
     )
     role_body = {
@@ -551,22 +554,26 @@ async def create_vault(
         except Exception:
             err = resp.text[:400]
         log.error("create_vault role assignment failed (HTTP %s): %s", resp.status_code, err)
+        perm_hint = (
+            " Hinweis: Für die Rollenzuweisung selbst reicht die Rolle 'Contributor' NICHT — "
+            "das angemeldete Azure-Konto braucht 'Owner' oder 'User Access Administrator' "
+            "auf der Subscription/Resource Group, um andere Rollen zuweisen zu dürfen."
+            if resp.status_code == 403 else ""
+        )
         return (
-            True,
+            False,
             (
                 f"Key Vault erstellt, aber Rollenzuweisung fehlgeschlagen "
                 f"(HTTP {resp.status_code}): {err}. "
                 f"Bitte im Azure Portal die Rolle 'Key Vault Crypto Officer' "
-                f"für die App-Registrierung manuell zuweisen."
+                f"für die App-Registrierung manuell zuweisen, oder hier erneut versuchen."
+                f"{perm_hint}"
             ),
             vault_url_result,
+            kv_resource_id,
         )
 
     log.info("keyvault: Crypto Officer role assigned (SP %s) on vault %s", sp_object_id, vault_name)
-    kv_resource_id = (
-        f"/subscriptions/{subscription_id}/resourceGroups/{resource_group}"
-        f"/providers/Microsoft.KeyVault/vaults/{vault_name}"
-    )
     return True, f"Key Vault '{vault_name}' erstellt und Rolle zugewiesen.", vault_url_result, kv_resource_id
 
 
@@ -662,7 +669,13 @@ async def ensure_crypto_officer_role(
         except Exception:
             err = resp.text[:300]
         log.error("keyvault: role assignment failed HTTP %s: %s", resp.status_code, resp.text[:400])
-        return False, f"Rollenzuweisung fehlgeschlagen (HTTP {resp.status_code}): {err}"
+        perm_hint = (
+            " Hinweis: Für die Rollenzuweisung selbst reicht die Rolle 'Contributor' NICHT — "
+            "das angemeldete Azure-Konto braucht 'Owner' oder 'User Access Administrator' "
+            "auf der Subscription/Resource Group, um andere Rollen zuweisen zu dürfen."
+            if resp.status_code == 403 else ""
+        )
+        return False, f"Rollenzuweisung fehlgeschlagen (HTTP {resp.status_code}): {err}{perm_hint}"
     except Exception as exc:
         log.error("ensure_crypto_officer_role error: %s", exc)
         return False, str(exc)

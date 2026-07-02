@@ -5,6 +5,33 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.370 — 2026-07-02 — fix: Key-Vault-Rollenzuweisung — Fehler wurde als Erfolg (grün) angezeigt
+
+Bug: `create_vault()` gab bei fehlgeschlagener Rollenzuweisung ("Key Vault Crypto
+Officer") trotzdem `ok=True` zurück — im Wizard erschien das fälschlich grün, obwohl
+die App-Registrierung keine Berechtigung auf den Vault erhalten hatte. Zusätzlich
+fehlte in diesem Fehlerfall die `resource_id` im Rückgabewert, wodurch der manuelle
+"Rolle zuweisen"-Retry-Button gar nicht erst sichtbar wurde — der 403-Fehler beim
+Speichern/Testen ließ sich also nicht über die UI beheben, ganz gleich wie lange
+gewartet wurde.
+
+Fix:
+- `create_vault()` gibt jetzt `ok=False` zurück, wenn die Rollenzuweisung fehlschlägt
+  (Vault selbst wurde trotzdem erstellt — `resource_id` wird jetzt immer mitgeliefert)
+- Wizard-JS zeigt den Fehler jetzt korrekt rot an und blendet den "Rolle zuweisen"-Button
+  ein, sobald eine `resource_id` vorhanden ist — auch nach fehlgeschlagener Erstzuweisung
+- 403-Fehlermeldungen (Erstzuweisung UND manueller Retry) enthalten jetzt den Hinweis,
+  dass die Rolle "Contributor" für Rollenzuweisungen selbst NICHT ausreicht — nötig ist
+  "Owner" oder "User Access Administrator" auf Subscription/Resource Group
+- Nach erfolgreichem manuellem "Rolle zuweisen" startet automatisch ein Verbindungstest
+
+Ursache des ursprünglichen Nutzerberichts (403 "auch mehrere Minuten später"): kein
+RBAC-Propagierungsproblem, sondern das verwendete Azure-Konto hatte vermutlich nur
+Contributor statt Owner/User Access Administrator — Rollenzuweisung schlägt dann
+dauerhaft fehl, nicht nur vorübergehend.
+
+## v1.4.369 — 2026-07-02 — chore: VERSION-Bump ohne separaten Changelog-Eintrag nachgetragen
+
 ## v1.4.368 — 2026-07-02 — feat: Key-Vault-Assistent — klarerer Hinweis bei fehlendem Azure-Zugriff
 
 Drei UX-Korrekturen am ARM-Zugriff-Bereich im Key-Vault-Schritt:
