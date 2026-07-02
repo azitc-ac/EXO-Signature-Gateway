@@ -5,7 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
-## v1.4.358 — 2026-07-02 — fix: Bootstrap-App-Anleitung — SPA-Plattform statt Web (AADSTS7000218)
+## v1.4.360 — 2026-07-02 — fix: Bootstrap-App-Anleitung — "Mobile and desktop applications" ist die richtige Plattform
+
+Fortsetzung von v1.4.358: SPA-Plattform schlug live ebenfalls fehl —
+AADSTS9002327 (Tokens issued for the 'Single-Page Application' client-type
+may only be redeemed via cross-origin requests). SPA verlangt, dass der
+Token-Austausch selbst per Browser-CORS-Request erfolgt; unser Token-Austausch
+läuft aber serverseitig in pkce.py, ganz ohne Origin-Header.
+
+Damit sind alle drei Plattformtypen durchprobiert und ihr jeweiliger Fehlschlag
+verstanden — Anleitung korrigiert auf die tatsächlich passende:
+"Mobile and desktop applications" (public client) erlaubt PKCE ohne Secret UND
+einen serverseitigen Token-Austausch ohne CORS-/Origin-Zwang — exakt unser Fall.
+Anleitung erklärt jetzt explizit alle drei Fehlerbilder (Web→7000218, SPA→9002327),
+damit dieselbe Sackgasse künftig nicht nochmal durchlaufen wird.
 
 Setup-Wizard Schritt "Entra-Login" wies an, die Bootstrap-App-Redirect-URI unter
 Plattform "Web" zu registrieren. Unsere App nutzt reines PKCE ohne Client-Secret
