@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.374 — 2026-07-02 — fix: Key-Vault-Verbindungstest nach Rollenzuweisung zu früh aufgegeben
+
+Nach "Rolle zuweisen" (grüner Erfolg — ARM-Rollenzuweisung ist sofort sichtbar) wurde
+nur EIN einziger Verbindungstest nach 15 Sekunden nachgeschoben. Azure dokumentiert
+aber, dass eine RBAC-Rollenzuweisung bis zu ~10 Minuten braucht, um auf der Key-Vault-
+Datenebene tatsächlich zu greifen — 15s reichten praktisch nie, der Nutzer sah danach
+weiterhin 403, obwohl die Zuweisung korrekt war.
+
+Fix: `_kvPollAfterAssign()` pollt jetzt alle 30s bis zu 10x (~5 Min.), zeigt den
+Testversuch-Zähler live an und bricht ab, sobald der Verbindungstest erfolgreich ist.
+Kein Bug in der Rollenzuweisung selbst — reine Geduld-vs-UI-Frist-Fehleinschätzung.
+
 ## v1.4.372 — 2026-07-02 — fix: Key-Vault-Retry-Button erschien nie + Bootstrap-App-Dialog zeigte falschen Namen
 
 Zwei Nachbesserungen zum vorherigen Key-Vault-Fix (v1.4.370):

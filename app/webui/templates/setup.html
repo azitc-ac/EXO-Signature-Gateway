@@ -1988,13 +1988,44 @@ async function assignKvRole() {
     resultEl.textContent = data.message || (data.ok ? 'Rolle erfolgreich zugewiesen.' : 'Fehler');
     if (data.resource_id) _kvLastResourceId = data.resource_id;
     if (data.ok) {
-      setTimeout(async function() { await testKeyvault(); }, 15000);
+      _kvPollAfterAssign();
     }
   } catch (err) {
     resultEl.className = 'alert error';
     resultEl.textContent = 'Netzwerkfehler: ' + err;
   } finally {
     btn.disabled = false;
+  }
+}
+
+async function _kvPollAfterAssign() {
+  // Azure RBAC role assignments propagate instantly on the control plane (ARM PUT
+  // returns 200/201 right away) but can take documented up to ~10 min to actually
+  // be honored on the Key Vault data plane. Poll instead of a single early guess.
+  const resultEl = document.getElementById('kv-assign-role-result');
+  const maxAttempts = 10;
+  const intervalMs = 30000;
+  for (let i = 1; i <= maxAttempts; i++) {
+    await new Promise(function(res) { setTimeout(res, intervalMs); });
+    if (resultEl) {
+      resultEl.className = 'alert';
+      resultEl.textContent = 'Rolle zugewiesen — warte auf Azure RBAC-Propagierung (Testversuch ' + i + '/' + maxAttempts + ')…';
+    }
+    await testKeyvault();
+    if (_kvTestPassed) {
+      if (resultEl) {
+        resultEl.className = 'alert success';
+        resultEl.textContent = 'Rolle zugewiesen und Verbindung erfolgreich getestet.';
+      }
+      return;
+    }
+  }
+  if (resultEl) {
+    resultEl.className = 'alert error';
+    resultEl.textContent = 'Rolle wurde zugewiesen, aber der Verbindungstest schlägt auch nach 5 Minuten (' +
+      maxAttempts + ' Versuche) noch fehl. Bitte im Azure Portal unter Key Vault → ' +
+      'Zugriffssteuerung (IAM) → Rollenzuweisungen prüfen, ob die Zuweisung dort wirklich ' +
+      'sichtbar ist, und danach ggf. später erneut "Verbindung testen" klicken.';
   }
 }
 
