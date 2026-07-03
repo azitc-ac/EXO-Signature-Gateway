@@ -86,6 +86,10 @@ DEFAULTS: dict = {
     "KV_KEY_STATUS": {},                # {email: {"exists": bool, "checked": "ISO8601"}} — cached KV key status
     # ── ACME ─────────────────────────────────────────────────────────────────
     "ACME_REPLY_METHOD": "auto",         # "auto" (follow REINJECT_MODE), "graph", or "direct_smtp"
+    "ACME_HTTP_PROXY": "",               # e.g. http://user:pass@gw.dataimpulse.com:823 — routes ONLY
+                                         # the ACME/CASTLE HTTP calls (new-order/finalize/etc.) through
+                                         # a residential proxy; empty = direct connection. Some CAs
+                                         # (confirmed: CASTLE) reject finalize() from datacenter IPs.
     # ── S/MIME lifecycle management ───────────────────────────────────────────
     "GATEWAY_EXTERNAL_URL": "",      # e.g. https://mail.company.com:8080 — used in renewal links
     "CERT_RENEWAL_THRESHOLDS": [30, 14, 7, 1],  # Notify user at these days-before-expiry

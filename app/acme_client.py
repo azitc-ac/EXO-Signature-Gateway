@@ -13,7 +13,20 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature
 
+import settings_store
+
 log = logging.getLogger(__name__)
+
+
+def _acme_proxy() -> str | None:
+    """
+    Optional residential-proxy URL for ACME/CA traffic only (settings ACME_HTTP_PROXY).
+    Some CAs (confirmed: CASTLE) reject finalize() when the request originates from a
+    datacenter IP (Azure and other cloud ASNs) — reproduced with a 500 FileNotFoundError,
+    identical across Azure and an unrelated third-party datacenter proxy. A residential
+    IP is the only egress type that has worked reliably in testing (2026-07-02).
+    """
+    return (settings_store.get("ACME_HTTP_PROXY") or "").strip() or None
 
 
 # ── Base64url helpers ─────────────────────────────────────────────────────────
@@ -100,7 +113,7 @@ class AcmeClient:
 
     async def _fetch_directory(self) -> dict:
         if not self._directory:
-            async with httpx.AsyncClient(timeout=15) as c:
+            async with httpx.AsyncClient(timeout=15, proxy=_acme_proxy()) as c:
                 r = await c.get(self.directory_url)
                 r.raise_for_status()
                 self._directory = r.json()
@@ -108,7 +121,7 @@ class AcmeClient:
 
     async def _new_nonce(self) -> str:
         d = await self._fetch_directory()
-        async with httpx.AsyncClient(timeout=10) as c:
+        async with httpx.AsyncClient(timeout=10, proxy=_acme_proxy()) as c:
             r = await c.head(d["newNonce"])
             return r.headers["Replay-Nonce"]
 
@@ -141,7 +154,7 @@ class AcmeClient:
     async def _post(self, url: str, payload: dict | None) -> httpx.Response:
         nonce = await self._get_nonce()
         body = self._jws(url, payload, nonce)
-        async with httpx.AsyncClient(timeout=20) as c:
+        async with httpx.AsyncClient(timeout=20, proxy=_acme_proxy()) as c:
             r = await c.post(
                 url, json=body,
                 headers={"Content-Type": "application/jose+json"},

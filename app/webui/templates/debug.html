@@ -381,6 +381,86 @@ async function certLoadInfo() {
   </div>
 </div>
 
+<!-- ── ACME HTTP-Proxy (Residential-Proxy für CASTLE) ─────────────────────── -->
+<div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
+  <div class="step-header">
+    <span class="step-badge" style="background:#0369a1;font-size:10px">ACME</span>
+    <span class="step-title">ACME HTTP-Proxy — nur für CASTLE-Verbindung
+      <span style="font-weight:400;font-size:12px;color:#57534e"> — optional, leer = Direktverbindung</span>
+    </span>
+  </div>
+  <div class="step-body">
+    <p class="hint" style="margin-bottom:10px">
+      CASTLE lehnt <code>finalize</code> von Rechenzentrums-IPs reproduzierbar mit einem
+      serverseitigen 500-Fehler ab (bestätigt für Azure UND einen unabhängigen Drittanbieter-
+      Rechenzentrums-Proxy — betrifft also Cloud-Hosting generell, nicht nur Azure). Ein
+      <strong>Residential-Proxy</strong> (echte Consumer-ISP-IP) hat sich als einziger
+      zuverlässig funktionierender Weg erwiesen. Betrifft ausschließlich die ACME/CASTLE-
+      HTTP-Aufrufe (new-order, finalize, etc.) — Graph-API, EXO-SMTP und alles andere
+      bleiben unverändert.
+    </p>
+    <div class="settings-row" style="margin-bottom:10px">
+      <label for="acme-proxy-input">Proxy-URL</label>
+      <input type="text" id="acme-proxy-input" placeholder="http://user:pass@gw.anbieter.com:823"
+             style="width:100%;max-width:480px;font-family:monospace;font-size:12px">
+    </div>
+    <div class="actions" style="margin-bottom:10px">
+      <button class="btn secondary" onclick="acmeProxyTest()">Verbindung testen</button>
+      <button class="btn primary" onclick="acmeProxySave()">Speichern</button>
+    </div>
+    <div id="acme-proxy-result" style="display:none;margin-top:10px"></div>
+  </div>
+</div>
+
+<script>
+async function acmeProxyLoad() {
+  const r = await fetch('/api/acme/http-proxy');
+  const d = await r.json();
+  const el = document.getElementById('acme-proxy-input');
+  if (el) el.value = d.proxy || '';
+}
+
+async function acmeProxySave() {
+  const proxy = document.getElementById('acme-proxy-input').value.trim();
+  const result = document.getElementById('acme-proxy-result');
+  const r = await fetch('/api/acme/http-proxy', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({proxy}),
+  });
+  const d = await r.json();
+  result.className = d.ok ? 'alert success' : 'alert error';
+  result.textContent = d.ok
+    ? (d.proxy ? 'Gespeichert: ' + d.proxy : 'Gespeichert: Direktverbindung (kein Proxy)')
+    : 'Fehler: ' + (d.error || JSON.stringify(d));
+  result.style.display = 'block';
+}
+
+async function acmeProxyTest() {
+  const result = document.getElementById('acme-proxy-result');
+  result.className = 'alert';
+  result.textContent = 'Teste Verbindung…';
+  result.style.display = 'block';
+  // Speichert vorher, damit der Test die gerade eingegebene URL prüft
+  await acmeProxySaveSilent();
+  const r = await fetch('/api/acme/http-proxy/test', {method: 'POST'});
+  const d = await r.json();
+  result.className = 'alert ' + (d.ok ? 'success' : 'error');
+  result.textContent = d.message;
+}
+
+async function acmeProxySaveSilent() {
+  const proxy = document.getElementById('acme-proxy-input').value.trim();
+  await fetch('/api/acme/http-proxy', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({proxy}),
+  });
+}
+
+document.addEventListener('DOMContentLoaded', acmeProxyLoad);
+</script>
+
 <script>
 async function acmeMethodLoad() {
   const r = await fetch('/api/acme/reply-method');

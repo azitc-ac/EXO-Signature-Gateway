@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.390 — 2026-07-03 — feat: ACME HTTP-Proxy (Residential-Proxy für CASTLE) — Debug-Tab
+
+Neue Einstellung `ACME_HTTP_PROXY` (Debug-Tab) — routet ausschließlich die ACME/CASTLE-
+HTTP-Aufrufe (new-account, new-order, finalize, etc.) über einen konfigurierbaren Proxy,
+alles andere (Graph API, EXO-SMTP) bleibt unverändert.
+
+Hintergrund: CASTLEs `finalize`-Endpunkt lehnt reproduzierbar mit einem serverseitigen
+500 (`FileNotFoundError`) ab, wenn die Anfrage von einer Rechenzentrums-IP kommt —
+bestätigt sowohl für die Azure-VM als auch für einen unabhängigen Drittanbieter-
+Rechenzentrums-Proxy (andere ASN, anderer Kontinent, identischer Fehler). Nur eine
+echte Residential-IP hat sich als zuverlässig funktionierend erwiesen. Details siehe
+CHANGELOG-Historie zu den vorherigen ACME-Fixes dieser Session.
+
+Neue Endpunkte: `GET/POST /api/acme/http-proxy` (Wert lesen/setzen),
+`POST /api/acme/http-proxy/test` (Verbindungstest gegen die CASTLE-Directory-URL).
+`acme_client.py` liest die Einstellung live bei jedem Request (kein Neustart nötig).
+
 ## v1.4.388 — 2026-07-02 — fix: ACME-Fehler-Response-Body wurde bei poll_order_status/get_authorization/download_certificate nicht geloggt
 
 `poll_order_status()`, `get_authorization()` und `download_certificate()` in acme_client.py

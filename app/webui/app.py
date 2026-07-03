@@ -3395,6 +3395,40 @@ async def api_acme_reply_method_set(request: Request, user: str = Depends(_check
     return JSONResponse({"ok": True, "method": method})
 
 
+@app.get("/api/acme/http-proxy")
+async def api_acme_http_proxy_get(user: str = Depends(_check_auth)):
+    proxy = settings_store.get("ACME_HTTP_PROXY") or ""
+    return JSONResponse({"ok": True, "proxy": proxy})
+
+
+@app.post("/api/acme/http-proxy")
+async def api_acme_http_proxy_set(request: Request, user: str = Depends(_check_auth)):
+    data = await request.json()
+    proxy = (data.get("proxy") or "").strip()
+    if proxy and not (proxy.startswith("http://") or proxy.startswith("https://") or proxy.startswith("socks5://")):
+        return JSONResponse({"ok": False, "error": "proxy muss mit http://, https:// oder socks5:// beginnen"}, status_code=400)
+    settings_store.update({"ACME_HTTP_PROXY": proxy})
+    log.info("ACME HTTP proxy %s by %s", "cleared" if not proxy else "set", user)
+    return JSONResponse({"ok": True, "proxy": proxy})
+
+
+@app.post("/api/acme/http-proxy/test")
+async def api_acme_http_proxy_test(request: Request, user: str = Depends(_check_auth)):
+    """Test connectivity to the configured CA directory through the ACME HTTP proxy."""
+    import httpx as _httpx
+    import acme_state as _acme_state
+    proxy = settings_store.get("ACME_HTTP_PROXY") or None
+    directory_url = _acme_state.CASTLE_DIRECTORY
+    try:
+        async with _httpx.AsyncClient(timeout=15, proxy=proxy) as c:
+            r = await c.get(directory_url)
+        if r.status_code == 200:
+            return JSONResponse({"ok": True, "message": f"Verbindung erfolgreich (HTTP {r.status_code}) über {'Proxy' if proxy else 'Direktverbindung'}."})
+        return JSONResponse({"ok": False, "message": f"Unerwarteter Status {r.status_code}: {r.text[:200]}"})
+    except Exception as exc:
+        return JSONResponse({"ok": False, "message": f"Verbindung fehlgeschlagen: {exc}"})
+
+
 # ── ACME Account Reset ────────────────────────────────────────────────────────
 
 @app.get("/api/acme/account-users")
