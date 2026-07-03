@@ -3020,7 +3020,7 @@ async def api_logs_files(user: str = Depends(_check_auth)):
 
 # ── Config export / import ─────────────────────────────────────────────────────
 
-_EXPORT_EXCLUDE = {"ADMIN_PASSWORD_HASH", "CLIENT_SECRET", "RELAY_PASSWORD", "_SCHEMA_VERSION"}
+_EXPORT_EXCLUDE = {"ADMIN_PASSWORD_HASH", "CLIENT_SECRET", "RELAY_PASSWORD", "SECTIGO_PASSWORD", "_SCHEMA_VERSION"}
 
 
 @app.get("/api/config/export")
@@ -3424,6 +3424,64 @@ async def api_acme_http_proxy_test(request: Request, user: str = Depends(_check_
             r = await c.get(directory_url)
         if r.status_code == 200:
             return JSONResponse({"ok": True, "message": f"Verbindung erfolgreich (HTTP {r.status_code}) über {'Proxy' if proxy else 'Direktverbindung'}."})
+        return JSONResponse({"ok": False, "message": f"Unerwarteter Status {r.status_code}: {r.text[:200]}"})
+    except Exception as exc:
+        return JSONResponse({"ok": False, "message": f"Verbindung fehlgeschlagen: {exc}"})
+
+
+# ── Sectigo Certificate Manager config ────────────────────────────────────────
+
+_SECTIGO_KEYS = ["SECTIGO_API_BASE", "SECTIGO_LOGIN", "SECTIGO_PASSWORD",
+                 "SECTIGO_CUSTOMER_URI", "SECTIGO_ORG_ID", "SECTIGO_CERT_TYPE", "SECTIGO_TERM"]
+
+
+@app.get("/api/sectigo/config")
+async def api_sectigo_config_get(user: str = Depends(_check_auth)):
+    cfg = {k: settings_store.get(k) or "" for k in _SECTIGO_KEYS}
+    # Never return the password itself — only whether one is set.
+    cfg["SECTIGO_PASSWORD"] = ""
+    cfg["password_set"] = bool(settings_store.get("SECTIGO_PASSWORD"))
+    return JSONResponse({"ok": True, "config": cfg})
+
+
+@app.post("/api/sectigo/config")
+async def api_sectigo_config_set(request: Request, user: str = Depends(_check_auth)):
+    data = await request.json()
+    updates = {}
+    for k in _SECTIGO_KEYS:
+        if k not in data:
+            continue
+        val = data.get(k)
+        # Keep existing password if the field was left blank (avoid clobbering on save).
+        if k == "SECTIGO_PASSWORD" and not (val or "").strip():
+            continue
+        updates[k] = (val or "").strip()
+    if updates:
+        settings_store.update(updates)
+    log.info("Sectigo config updated by %s (%d fields)", user, len(updates))
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/sectigo/config/test")
+async def api_sectigo_config_test(user: str = Depends(_check_auth)):
+    """Lightweight connectivity/auth check against the SCM API (organization list)."""
+    import httpx as _httpx
+    base = (settings_store.get("SECTIGO_API_BASE") or "https://cert-manager.com/api").strip().rstrip("/")
+    login = (settings_store.get("SECTIGO_LOGIN") or "").strip()
+    password = settings_store.get("SECTIGO_PASSWORD") or ""
+    customer = (settings_store.get("SECTIGO_CUSTOMER_URI") or "").strip()
+    if not (login and password and customer):
+        return JSONResponse({"ok": False, "message": "Login, Passwort und Customer-URI müssen gesetzt sein."})
+    headers = {"login": login, "password": password, "customerUri": customer,
+               "Content-Type": "application/json;charset=utf-8"}
+    try:
+        # /organization/v1 is a common read-only endpoint that validates auth.
+        async with _httpx.AsyncClient(timeout=15) as c:
+            r = await c.get(f"{base}/organization/v1", headers=headers)
+        if r.status_code == 200:
+            return JSONResponse({"ok": True, "message": "SCM-Authentifizierung erfolgreich (Organisationen abrufbar)."})
+        if r.status_code in (401, 403):
+            return JSONResponse({"ok": False, "message": f"Authentifizierung abgelehnt (HTTP {r.status_code}) — Login/Passwort/Customer-URI prüfen."})
         return JSONResponse({"ok": False, "message": f"Unerwarteter Status {r.status_code}: {r.text[:200]}"})
     except Exception as exc:
         return JSONResponse({"ok": False, "message": f"Verbindung fehlgeschlagen: {exc}"})

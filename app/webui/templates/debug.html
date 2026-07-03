@@ -460,6 +460,107 @@ async function acmeProxySaveSilent() {
 document.addEventListener('DOMContentLoaded', acmeProxyLoad);
 </script>
 
+<!-- ── Sectigo Certificate Manager (S/MIME CA) ────────────────────────────── -->
+<div class="wizard-step" style="border-color:#dc262622;margin-bottom:20px">
+  <div class="step-header">
+    <span class="step-badge" style="background:#dc2626;font-size:10px">CA</span>
+    <span class="step-title">Sectigo Certificate Manager
+      <span style="font-weight:400;font-size:12px;color:#57534e"> — S/MIME-Zertifikate per SCM REST API (optional)</span>
+    </span>
+  </div>
+  <div class="step-body">
+    <p class="hint" style="margin-bottom:12px">
+      Alternativer Zertifikatsanbieter neben CASTLE. Der private Schlüssel wird lokal erzeugt
+      und verlässt das Gateway nie — nur der CSR geht an Sectigo. Nach dem Speichern der
+      Zugangsdaten kann pro Postfach im S/MIME-Tab das Backend „Sectigo" gewählt werden.<br>
+      <span style="color:#b45309">Hinweis:</span> <code>Org-ID</code>, <code>Cert-Type</code>
+      und <code>Term</code> sind kontospezifisch und müssen zum eigenen SCM-Account passen
+      (aus dem Sectigo-Dashboard). Ohne gültiges Konto ist dies nur vorbereitet, nicht getestet.
+    </p>
+    <div class="settings-row" style="margin-bottom:8px"><label>API-Base (optional)</label>
+      <input type="text" id="sec-base" placeholder="https://cert-manager.com/api" style="width:100%;max-width:420px;font-size:13px"></div>
+    <div class="settings-row" style="margin-bottom:8px"><label>Login</label>
+      <input type="text" id="sec-login" autocomplete="off" style="width:100%;max-width:420px;font-size:13px"></div>
+    <div class="settings-row" style="margin-bottom:8px"><label>Passwort</label>
+      <input type="password" id="sec-password" autocomplete="new-password" placeholder="(unverändert lassen zum Beibehalten)" style="width:100%;max-width:420px;font-size:13px"></div>
+    <div class="settings-row" style="margin-bottom:8px"><label>Customer-URI</label>
+      <input type="text" id="sec-customer" autocomplete="off" style="width:100%;max-width:420px;font-size:13px"></div>
+    <div class="settings-row" style="margin-bottom:8px"><label>Org-ID</label>
+      <input type="text" id="sec-org" style="width:100%;max-width:220px;font-size:13px"></div>
+    <div class="settings-row" style="margin-bottom:8px"><label>Cert-Type</label>
+      <input type="text" id="sec-certtype" style="width:100%;max-width:220px;font-size:13px"></div>
+    <div class="settings-row" style="margin-bottom:10px"><label>Term</label>
+      <input type="text" id="sec-term" placeholder="z.B. 365" style="width:100%;max-width:220px;font-size:13px"></div>
+    <div class="actions" style="margin-bottom:10px">
+      <button class="btn secondary" onclick="sectigoTest()">Zugang testen</button>
+      <button class="btn primary" onclick="sectigoSave()">Speichern</button>
+    </div>
+    <div id="sec-result" style="display:none;margin-top:8px"></div>
+  </div>
+</div>
+
+<script>
+async function sectigoLoad() {
+  const r = await fetch('/api/sectigo/config');
+  const d = await r.json();
+  if (!d.ok) return;
+  const c = d.config;
+  document.getElementById('sec-base').value = c.SECTIGO_API_BASE || '';
+  document.getElementById('sec-login').value = c.SECTIGO_LOGIN || '';
+  document.getElementById('sec-customer').value = c.SECTIGO_CUSTOMER_URI || '';
+  document.getElementById('sec-org').value = c.SECTIGO_ORG_ID || '';
+  document.getElementById('sec-certtype').value = c.SECTIGO_CERT_TYPE || '';
+  document.getElementById('sec-term').value = c.SECTIGO_TERM || '';
+  document.getElementById('sec-password').placeholder = c.password_set
+    ? '•••••• (gesetzt — leer lassen zum Beibehalten)' : '(kein Passwort gesetzt)';
+}
+
+function _sectigoBody() {
+  return {
+    SECTIGO_API_BASE: document.getElementById('sec-base').value.trim(),
+    SECTIGO_LOGIN: document.getElementById('sec-login').value.trim(),
+    SECTIGO_PASSWORD: document.getElementById('sec-password').value,
+    SECTIGO_CUSTOMER_URI: document.getElementById('sec-customer').value.trim(),
+    SECTIGO_ORG_ID: document.getElementById('sec-org').value.trim(),
+    SECTIGO_CERT_TYPE: document.getElementById('sec-certtype').value.trim(),
+    SECTIGO_TERM: document.getElementById('sec-term').value.trim(),
+  };
+}
+
+async function sectigoSave() {
+  const result = document.getElementById('sec-result');
+  const r = await fetch('/api/sectigo/config', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(_sectigoBody()),
+  });
+  const d = await r.json();
+  result.className = 'alert ' + (d.ok ? 'success' : 'error');
+  result.textContent = d.ok ? 'Sectigo-Konfiguration gespeichert.' : ('Fehler: ' + (d.error || 'Unbekannt'));
+  result.style.display = 'block';
+  document.getElementById('sec-password').value = '';
+  sectigoLoad();
+}
+
+async function sectigoTest() {
+  const result = document.getElementById('sec-result');
+  result.className = 'alert';
+  result.textContent = 'Teste SCM-Zugang…';
+  result.style.display = 'block';
+  // Save first so the test uses the entered values
+  await fetch('/api/sectigo/config', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(_sectigoBody()),
+  });
+  const r = await fetch('/api/sectigo/config/test', {method: 'POST'});
+  const d = await r.json();
+  result.className = 'alert ' + (d.ok ? 'success' : 'error');
+  result.textContent = d.message;
+  document.getElementById('sec-password').value = '';
+}
+
+document.addEventListener('DOMContentLoaded', sectigoLoad);
+</script>
+
 <script>
 async function acmeMethodLoad() {
   const r = await fetch('/api/acme/reply-method');

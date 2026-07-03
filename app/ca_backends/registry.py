@@ -1,10 +1,12 @@
 from .assisted_manual import AssistedManualBackend
 from .castle_acme import CastleAcmeBackend
+from .sectigo import SectigoBackend
 from .base import CABackend
 
 _BACKENDS: dict[str, CABackend] = {
     "assisted_manual": AssistedManualBackend(),
     "castle_acme": CastleAcmeBackend(),
+    "sectigo": SectigoBackend(),
 }
 
 

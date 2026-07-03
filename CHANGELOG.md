@@ -5,6 +5,31 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.394 — 2026-07-03 — feat: Sectigo Certificate Manager als CA-Backend (S/MIME REST API) — Gerüst
+
+Neues CA-Backend `sectigo` neben `castle_acme` und `assisted_manual`. Erscheint automatisch
+in der Backend-Auswahl (pro Postfach im S/MIME-Tab). Nutzt Sectigos SCM REST API
+(`POST /api/smime/v1/enroll` → `GET /api/smime/v1/collect/{orderNumber}`): CSR + privater
+Schlüssel werden LOKAL erzeugt, nur der CSR geht an Sectigo — der private Schlüssel verlässt
+das Gateway nie.
+
+Konfiguration im Erweitert-Tab (neuer Abschnitt „Sectigo Certificate Manager"): Login,
+Passwort, Customer-URI, Org-ID, Cert-Type, Term, optionale API-Base. Neue Settings-Keys
+`SECTIGO_*`; `SECTIGO_PASSWORD` ist vom Config-Export ausgeschlossen. Endpunkte
+`GET/POST /api/sectigo/config` und `POST /api/sectigo/config/test` (Auth-Check gegen die
+SCM-Organisations-API).
+
+WICHTIG: Gerüst auf Basis der ÖFFENTLICHEN Sectigo-API-Doku — noch NICHT gegen einen
+Live-SCM-Account getestet. `Org-ID`, `Cert-Type`, `Term` und exakte Enroll-Feldnamen sind
+konto-/versionsspezifisch und müssen mit dem eigenen Account abgeglichen werden. Sectigo-
+S/MIME-Ausstellung setzt i.d.R. voraus, dass Organisation/Person/E-Mail im SCM vorab
+freigegeben sind; vollautomatische Erneuerung funktioniert nur bei entsprechend
+provisioniertem Konto. Bei unvollständiger Konfiguration wirft das Backend eine klare
+Fehlermeldung → Fallback auf manuelle Benachrichtigung.
+
+Quellen: https://scm.devx.sectigo.com/ · https://docs.sectigo.com/ ·
+Sectigo SCM REST API (smime/v1 enroll & collect).
+
 ## v1.4.392 — 2026-07-03 — fix: CASTLE-Erneuerung repariert — bestehendes Zert vor Neuausstellung widerrufen
 
 **Root-Cause endlich gefunden und behoben.** CASTLEs `finalize` warf reproduzierbar

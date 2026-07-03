@@ -90,6 +90,14 @@ DEFAULTS: dict = {
                                          # the ACME/CASTLE HTTP calls (new-order/finalize/etc.) through
                                          # a residential proxy; empty = direct connection. Some CAs
                                          # (confirmed: CASTLE) reject finalize() from datacenter IPs.
+    # ── Sectigo Certificate Manager (S/MIME REST API backend) ─────────────────
+    "SECTIGO_API_BASE": "",          # empty = https://cert-manager.com/api (region-specific base override)
+    "SECTIGO_LOGIN": "",             # SCM API user login
+    "SECTIGO_PASSWORD": "",          # SCM API user password (secret)
+    "SECTIGO_CUSTOMER_URI": "",      # SCM customer URI (the short account identifier)
+    "SECTIGO_ORG_ID": "",            # Organization ID the S/MIME profile belongs to (account-specific)
+    "SECTIGO_CERT_TYPE": "",         # Certificate profile / type ID for S/MIME (account-specific)
+    "SECTIGO_TERM": "",              # Validity term accepted by the profile (e.g. 365 days or 1 year)
     # ── S/MIME lifecycle management ───────────────────────────────────────────
     "GATEWAY_EXTERNAL_URL": "",      # e.g. https://mail.company.com:8080 — used in renewal links
     "CERT_RENEWAL_THRESHOLDS": [30, 14, 7, 1],  # Notify user at these days-before-expiry
