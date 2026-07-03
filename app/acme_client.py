@@ -240,3 +240,57 @@ class AcmeClient:
             log.error("ACME download_certificate failed: %s %s (%s)", r.status_code, r.text[:500], cert_url)
         r.raise_for_status()
         return r.content
+
+    def _interpret_revoke_response(self, r: httpx.Response, reason: int) -> None:
+        # 200 = revoked; some servers return 200 with empty body.
+        # 400 alreadyRevoked is idempotent-OK (the cert is already gone — our goal).
+        if r.status_code == 200:
+            log.info("ACME certificate revoked (reason=%d)", reason)
+            return
+        body = r.text[:300]
+        if r.status_code == 400 and "alreadyRevoked" in body:
+            log.info("ACME certificate already revoked — treating as success")
+            return
+        raise RuntimeError(f"ACME revoke failed: {r.status_code} {body}")
+
+    async def revoke_certificate(self, cert_der: bytes, reason: int = 0) -> None:
+        """Revoke a certificate (RFC 8555 §7.6), signed with the ACCOUNT key.
+
+        cert_der: the leaf certificate in DER form.
+        reason: RFC 5280 CRLReason (0 = unspecified, 4 = superseded).
+        Only valid if this account issued the cert (or is authorized for it).
+        """
+        d = await self._fetch_directory()
+        if not d.get("revokeCert"):
+            raise RuntimeError("ACME directory has no revokeCert endpoint")
+        r = await self._post(d["revokeCert"], {"certificate": b64url(cert_der), "reason": reason})
+        self._interpret_revoke_response(r, reason)
+
+    async def revoke_with_cert_key(
+        self, cert_der: bytes, cert_key: ec.EllipticCurvePrivateKey, reason: int = 0
+    ) -> None:
+        """Revoke a certificate signed with the CERTIFICATE'S OWN keypair (RFC 8555 §7.6).
+
+        This works regardless of ACME account state (even if the issuing account key
+        was reset/lost) because it proves possession of the cert's private key via a
+        JWK-embedded JWS. Requires an EC (P-256) cert key — our ACME-issued S/MIME
+        certs always are.
+        """
+        d = await self._fetch_directory()
+        revoke_url = d.get("revokeCert")
+        if not revoke_url:
+            raise RuntimeError("ACME directory has no revokeCert endpoint")
+        nonce = await self._get_nonce()
+        header = {"alg": "ES256", "nonce": nonce, "url": revoke_url,
+                  "jwk": ec_key_to_jwk(cert_key)}
+        protected_b64 = b64url(json.dumps(header, separators=(",", ":")).encode())
+        payload_b64 = b64url(json.dumps(
+            {"certificate": b64url(cert_der), "reason": reason}, separators=(",", ":")
+        ).encode())
+        sig = _es256_sign(cert_key, f"{protected_b64}.{payload_b64}".encode())
+        body = {"protected": protected_b64, "payload": payload_b64, "signature": b64url(sig)}
+        async with httpx.AsyncClient(timeout=20, proxy=_acme_proxy()) as c:
+            r = await c.post(revoke_url, json=body,
+                             headers={"Content-Type": "application/jose+json"})
+        self._nonce = r.headers.get("Replay-Nonce", "")
+        self._interpret_revoke_response(r, reason)

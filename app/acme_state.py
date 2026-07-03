@@ -412,13 +412,9 @@ async def complete_order_after_challenge(order: dict) -> None:
             return
 
         log.info("[acme:%s] order ready for %s — submitting CSR", fid, email)
-        # Grace period before finalize: CASTLE's order-status endpoint appears to
-        # report "ready" slightly before its own backend has fully settled
-        # whatever it needs for the finalize handler (observed as a hard
-        # 500 FileNotFoundError when finalize is called in the same instant
-        # "ready" is detected — reproduced twice, including on a freshly reset
-        # ACME account/order, so it isn't tied to account state). A short
-        # buffer works around this CASTLE-side race condition.
+        # (Existing-cert revocation for the CASTLE renewal bug happens at order
+        # creation time in initiate_acme_order — it must precede new-order, not
+        # finalize.) Small grace period before finalize (eventual-consistency).
         await asyncio.sleep(5)
         # Finalize: submit CSR
         save_order(email, {**order, "status": "finalizing"})
@@ -466,6 +462,65 @@ async def complete_order_after_challenge(order: dict) -> None:
 def b64url_decode_csr(s: str) -> bytes:
     from acme_client import b64url_decode
     return b64url_decode(s)
+
+
+async def _revoke_existing_cert_before_reissue(email: str, client: "AcmeClient", fid: str) -> None:
+    """Revoke the identity's current signing cert before finalizing a new order.
+
+    CASTLE (acme.castle.cloud) has a server-side bug: finalize() throws a hard
+    500 FileNotFoundError whenever a *valid* certificate already exists for the
+    email identity — i.e. every renewal/re-issuance fails, while first issuance
+    works. Verified 2026-07-03 across all egress IPs (Raspi/Azure/datacenter &
+    residential proxy) and with fresh ACME accounts, so it is neither an IP nor
+    an account-state problem. Revoking the existing cert first clears CASTLE's
+    broken state and lets re-issuance succeed (STEP1 issue → revoke → STEP3
+    re-issue: all COMPLETE in controlled test).
+
+    We revoke using the OLD certificate's own private key (JWK-signed), so this
+    works even if the issuing ACME account was reset/lost (the stuck-identity
+    case, e.g. after a Debug "reset account"). Revocation does NOT touch our
+    locally stored private key, so decryption of previously-encrypted mail keeps
+    working. Failure here is logged but non-fatal — we still attempt finalize.
+    """
+    import smime_store
+    from cryptography import x509
+    from cryptography.hazmat.primitives.serialization import Encoding, load_pem_private_key
+    from cryptography.hazmat.primitives.asymmetric import ec as _ec
+
+    paths = smime_store.get_signing_paths(email)
+    if not paths:
+        return  # first issuance — nothing to revoke
+    cert_path, key_path = paths
+    try:
+        cert = x509.load_pem_x509_certificate(cert_path.read_bytes())
+        cert_der = cert.public_bytes(Encoding.DER)
+    except Exception as exc:
+        log.warning("[acme:%s] could not load existing cert for %s (%s) — skipping revoke", fid, email, exc)
+        return
+
+    # Primary: revoke signed with the ACCOUNT key. This is the path CASTLE accepts
+    # (verified) and covers the normal renewal case where the account is reused.
+    try:
+        await client.revoke_certificate(cert_der, reason=4)  # superseded
+        log.info("[acme:%s] revoked existing cert for %s (account-key) before re-issue", fid, email)
+        return
+    except Exception as exc_acct:
+        log.warning("[acme:%s] account-key revoke for %s failed (%s) — trying cert keypair", fid, email, exc_acct)
+
+    # Fallback: revoke signed with the cert's own keypair — works even if the
+    # issuing account was reset/lost (stuck-identity recovery). Requires an EC key.
+    try:
+        import config as _cfg
+        pw = _cfg.SMIME_KEY_PASSWORD
+        cert_key = load_pem_private_key(key_path.read_bytes(), password=pw.encode() if pw else None)
+        if isinstance(cert_key, _ec.EllipticCurvePrivateKey):
+            await client.revoke_with_cert_key(cert_der, cert_key, reason=4)
+            log.info("[acme:%s] revoked existing cert for %s (cert keypair) before re-issue", fid, email)
+        else:
+            log.warning("[acme:%s] existing cert for %s is non-EC — cannot keypair-revoke; finalize may fail", fid, email)
+    except Exception as exc_key:
+        log.warning("[acme:%s] cert-keypair revoke for %s failed (%s) — continuing to finalize anyway",
+                    fid, email, exc_key)
 
 
 # ── Entry point: handle intercepted challenge email ───────────────────────────
@@ -670,6 +725,15 @@ async def initiate_acme_order(
         account_url = await client.ensure_account(contact_email=contact)
         save_account_url(account_url, email, staging=staging)
         log.info("[acme:%s] account registered: %s", flow_id, account_url)
+
+    # CASTLE renewal workaround: revoke any existing cert for this identity BEFORE
+    # placing the new order. CASTLE links the identity's existing valid cert at
+    # ORDER-CREATION time; if a valid cert exists when new-order runs, the order is
+    # born into a state whose finalize() later dies with 500 FileNotFoundError.
+    # Revoking after order creation does NOT help (verified) — it must precede
+    # new-order. No-op on first issuance. See helper docstring for full diagnosis.
+    if not staging:
+        await _revoke_existing_cert_before_reissue(email, client, flow_id)
 
     # Place order
     order_data = await client.new_order(email)

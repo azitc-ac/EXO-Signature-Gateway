@@ -391,13 +391,12 @@ async function certLoadInfo() {
   </div>
   <div class="step-body">
     <p class="hint" style="margin-bottom:10px">
-      CASTLE lehnt <code>finalize</code> von Rechenzentrums-IPs reproduzierbar mit einem
-      serverseitigen 500-Fehler ab (bestätigt für Azure UND einen unabhängigen Drittanbieter-
-      Rechenzentrums-Proxy — betrifft also Cloud-Hosting generell, nicht nur Azure). Ein
-      <strong>Residential-Proxy</strong> (echte Consumer-ISP-IP) hat sich als einziger
-      zuverlässig funktionierender Weg erwiesen. Betrifft ausschließlich die ACME/CASTLE-
-      HTTP-Aufrufe (new-order, finalize, etc.) — Graph-API, EXO-SMTP und alles andere
-      bleiben unverändert.
+      Optionaler Proxy nur für die ACME/CASTLE-HTTP-Aufrufe (new-order, finalize, etc.) —
+      Graph-API, EXO-SMTP und alles andere bleiben unverändert. In der Regel <strong>nicht
+      nötig</strong>: Der frühere CASTLE-500-FileNotFoundError bei Erneuerungen lag NICHT an
+      der Absender-IP, sondern an einem CASTLE-Bug bei bestehendem Zertifikat — behoben seit
+      v1.4.392 (Widerruf vor Neuausstellung). Diese Option bleibt als Werkzeug für andere
+      Netzwerk-/CA-Szenarien erhalten.
     </p>
     <div class="settings-row" style="margin-bottom:10px">
       <label for="acme-proxy-input">Proxy-URL</label>

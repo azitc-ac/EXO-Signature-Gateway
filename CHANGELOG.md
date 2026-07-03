@@ -5,6 +5,46 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.392 — 2026-07-03 — fix: CASTLE-Erneuerung repariert — bestehendes Zert vor Neuausstellung widerrufen
+
+**Root-Cause endlich gefunden und behoben.** CASTLEs `finalize` warf reproduzierbar
+500 FileNotFoundError — aber NICHT wegen der Absender-IP (Azure/Rechenzentrum), wie
+über Tage vermutet. Kontrollierte Tests am 2026-07-03 haben das eindeutig widerlegt:
+
+- Erstausstellung für eine E-Mail-Identität → funktioniert immer (auch von Azure).
+- Jede Folge-/Erneuerungs-Ausstellung für dieselbe Identität → 500 FileNotFoundError,
+  UNABHÄNGIG von IP (Raspi/Azure/Rechenzentrums-Proxy/Residential-Proxy — alle scheitern),
+  Account (auch nach komplettem Reset) und Gateway.
+- Beweis: `test.user1@zarenko.net` — gestern erstausgestellt (Erfolg), heute exakt
+  gleicher Weg als Wiederausstellung (Fehler). Einziger Unterschied: es existierte
+  bereits ein gültiges Zert für die Identität.
+
+Ursache: CASTLE verknüpft ein bestehendes gültiges Zertifikat der Identität bereits bei
+der **Order-Erstellung** (`new-order`); die Order gerät dadurch in einen Zustand, dessen
+`finalize` serverseitig abstürzt.
+
+Fix (`initiate_acme_order`): Vor `new-order` wird ein vorhandenes Signatur-Zertifikat der
+Identität per ACME **widerrufen** (`revoke`, reason=superseded). Reihenfolge ist kritisch —
+der Widerruf muss VOR der Order liegen, nicht vor finalize (nachträglicher Widerruf
+repariert die bereits erzeugte Order nicht; verifiziert). Widerruf primär mit dem
+Account-Key (den CASTLE akzeptiert), Fallback auf das Cert-eigene Keypair für den Fall
+eines zwischenzeitlich zurückgesetzten Accounts (stuck-identity-Recovery, z. B. erika).
+
+Der lokale private Schlüssel bleibt erhalten (Widerruf betrifft nur die CA-Gültigkeit) —
+Entschlüsselung früher verschlüsselter Mails funktioniert weiter. No-op bei Erstausstellung
+und im Staging.
+
+End-to-End verifiziert: Erneuerung einer Identität mit gültigem Bestands-Zert läuft jetzt
+über den normalen Flow (denselben, den der Scheduler nutzt) sauber durch — frisches Zert
+mit neuer Seriennummer ausgestellt.
+
+Neue ACME-Client-Methoden: `revoke_certificate` (Account-Key) und `revoke_with_cert_key`
+(Cert-Keypair, JWK-signiert — account-unabhängig).
+
+Hinweis: Die in v1.4.390/391 gebaute `ACME_HTTP_PROXY`-Option löst dieses Problem NICHT
+(die IP war nie die Ursache). Sie bleibt als optionales Werkzeug erhalten, ist für den
+CASTLE-Renewal-Bug aber wirkungslos.
+
 ## v1.4.390 — 2026-07-03 — feat: ACME HTTP-Proxy (Residential-Proxy für CASTLE) — Debug-Tab
 
 Neue Einstellung `ACME_HTTP_PROXY` (Debug-Tab) — routet ausschließlich die ACME/CASTLE-
