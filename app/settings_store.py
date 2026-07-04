@@ -40,7 +40,8 @@ DEFAULTS: dict = {
     "SSO_SESSION_SECRET": "",        # Auto-generated on first use; signs session cookies
     "ENC_TRIGGER": "#enc",            # Keyword in subject to request encryption
     "SMIME_SIGNING_ENABLED": True,    # Automatically sign outbound mails when a cert exists
-    "NOSIG_TRIGGER": "#nosig",        # Keyword in subject to suppress signing for this mail
+    "NOSIG_TRIGGER": "#nosig",        # Keyword in subject → suppress HTML auto-signature for this mail
+    "NODIGSIG_TRIGGER": "#nodigsig",  # Keyword in subject → suppress S/MIME (digital) signature for this mail
     # ── Re-injection ─────────────────────────────────────────────────────────
     "REINJECT_MODE": "smtp",       # "smtp", "graph", or "imap" (smtp587 = legacy alias for imap)
     "GRAPH_SMTP_FALLBACK": False,  # Allow SMTP fallback when Graph re-inject fails

@@ -124,6 +124,19 @@
     </div>
   </div>
 
+  <div style="border-top:1px solid #f0f0f0;margin:14px 0 12px"></div>
+
+  <div class="settings-row">
+    <label for="nosig-trigger">Nicht-signieren-Trigger</label>
+    <div class="settings-control">
+      <input type="text" id="nosig-trigger" value="{{ s.NOSIG_TRIGGER or '#nosig' }}"
+        placeholder="#nosig" style="width:160px">
+      <span class="hint">Schlüsselwort im Betreff, das die automatische HTML-Signatur für diese Mail
+        unterdrückt. Das Schlüsselwort wird aus dem zugestellten Betreff entfernt.
+        Nicht verwechseln mit dem „Nicht-digital-signieren-Trigger" (S/MIME) unter Einstellungen → S/MIME.</span>
+    </div>
+  </div>
+
   <div class="actions" style="margin-top:4px">
     <button class="btn secondary" onclick="saveSignatur()">Speichern</button>
     <span id="signatur-result" style="font-size:12px;margin-left:8px"></span>
@@ -242,6 +255,7 @@ function saveSignatur() {
     STRIP_CLIENT_SIGS: document.getElementById('strip-client-sigs').checked,
     SIG_STRIP_MIN_MATCH_PCT: parseInt(document.getElementById('sig-strip-pct').value, 10),
     SIG_IMAGE_MODE: document.getElementById('sig-image-mode').value,
+    NOSIG_TRIGGER: (document.getElementById('nosig-trigger').value || '').trim() || '#nosig',
   }, 'signatur-result');
 }
 

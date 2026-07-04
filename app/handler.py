@@ -535,6 +535,29 @@ class SignatureHandler:
                     wants_encryption = True
                     log.info("Auto-encrypt: enc tag in subject for %s → %r", sender, subject)
 
+            # ── Signatur-/Signier-Trigger im Betreff ──────────────────────────
+            #   #nosig    → HTML-Auto-Signatur für diese Mail unterdrücken
+            #   #nodigsig → S/MIME- (digitale) Signatur für diese Mail unterdrücken
+            # Beide Schlüsselwörter werden aus dem zugestellten Betreff entfernt
+            # (analog zum #enc-Trigger), damit der Empfänger sie nicht sieht.
+            _nosig_kw = (settings_store.get("NOSIG_TRIGGER") or "#nosig").lower()
+            _nodigsig_kw = (settings_store.get("NODIGSIG_TRIGGER") or "#nodigsig").lower()
+            suppress_html_sig = bool(_nosig_kw and _nosig_kw in subject.lower())
+            suppress_smime_sig = bool(_nodigsig_kw and _nodigsig_kw in subject.lower())
+            if suppress_html_sig or suppress_smime_sig:
+                cleaned = subject
+                for _kw in (_nodigsig_kw, _nosig_kw):   # längeren Token zuerst entfernen
+                    if _kw:
+                        cleaned = re.sub(r"\s*" + re.escape(_kw) + r"\s*", " ",
+                                         cleaned, flags=re.IGNORECASE)
+                cleaned = cleaned.strip()
+                subject = cleaned
+                if "Subject" in msg:
+                    del msg["Subject"]
+                msg["Subject"] = _encode_subject(cleaned)
+                log.info("Betreff-Trigger für %s: HTML-Sig unterdrücken=%s, S/MIME unterdrücken=%s",
+                         sender, suppress_html_sig, suppress_smime_sig)
+
             log.debug("Outbound from=%s subject=%r enc_trigger=%r wants_encryption=%s",
                       sender, subject, enc_trigger, wants_encryption)
             if wants_encryption:
@@ -564,9 +587,14 @@ class SignatureHandler:
             )
             log.debug("Image mode: %r → use_cid_images=%s (wants_encryption=%s)",
                       _img_mode, _use_cid, wants_encryption)
-            modified = mail_processor.inject(msg, sig_html, sig_txt,
-                                              use_cid_images=_use_cid)
-            outbound = modified.as_bytes()
+            if suppress_html_sig:
+                modified = msg
+                outbound = msg.as_bytes()
+                log.info("HTML-Auto-Signatur durch %r-Trigger unterdrückt für %s", _nosig_kw, sender)
+            else:
+                modified = mail_processor.inject(msg, sig_html, sig_txt,
+                                                  use_cid_images=_use_cid)
+                outbound = modified.as_bytes()
 
             # ── S/MIME signing ─────────────────────────────────────────────────
             # Skip signing when encryption is requested: sign-then-encrypt
@@ -578,11 +606,9 @@ class SignatureHandler:
                 settings_store.get("SMIME_SIGNING_ENABLED") is not False
                 and (not _mailbox_cfg or _sender_cfg.get("smime", True))
             )
-            if _smime_ok:
-                _nosig = (settings_store.get("NOSIG_TRIGGER") or "#nosig").lower()
-                if _nosig and _nosig in subject.lower():
-                    _smime_ok = False
-                    log.info("S/MIME signing suppressed by %r trigger in subject for %s", _nosig, sender)
+            if _smime_ok and suppress_smime_sig:
+                _smime_ok = False
+                log.info("S/MIME-Signierung durch %r-Trigger unterdrückt für %s", _nodigsig_kw, sender)
             _smime_signed = False
             log.debug("S/MIME signing: smime_ok=%s, wants_encryption=%s for %s",
                       _smime_ok, wants_encryption, sender)

@@ -101,11 +101,12 @@
   </div>
 
   <div class="settings-row" style="margin-top:10px">
-    <label for="nosig-trigger">Nicht-signieren-Trigger</label>
+    <label for="nodigsig-trigger">Nicht-digital-signieren-Trigger</label>
     <div class="settings-control">
-      <input type="text" id="nosig-trigger" value="{{ s.NOSIG_TRIGGER or '#nosig' }}"
-        placeholder="#nosig" style="width:160px">
-      <span class="hint">Schlüsselwort im Betreff, das die S/MIME-Signierung für diese Mail unterdrückt</span>
+      <input type="text" id="nodigsig-trigger" value="{{ s.NODIGSIG_TRIGGER or '#nodigsig' }}"
+        placeholder="#nodigsig" style="width:160px">
+      <span class="hint">Schlüsselwort im Betreff, das die S/MIME- (digitale) Signatur für diese Mail unterdrückt.
+        Nicht verwechseln mit dem „Nicht-signieren-Trigger" (HTML-Signatur) unter Einstellungen → Signatur.</span>
     </div>
   </div>
 
@@ -315,7 +316,7 @@ function saveSmimeSettings() {
     SMIME_STRIP_INBOUND: document.getElementById('smime-strip-inbound').checked,
     SMIME_KEY_ENCRYPT: document.getElementById('smime-key-encrypt').checked,
     SMIME_SIGNING_ENABLED: document.getElementById('smime-signing-enabled').checked,
-    NOSIG_TRIGGER: (document.getElementById('nosig-trigger').value || '').trim() || '#nosig',
+    NODIGSIG_TRIGGER: (document.getElementById('nodigsig-trigger').value || '').trim() || '#nodigsig',
     ENC_TRIGGER: (document.getElementById('enc-trigger').value || '').trim() || '#enc',
   }, 'smime-result');
 }

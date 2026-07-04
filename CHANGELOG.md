@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.400 — 2026-07-04 — feat: „Nicht-signieren-Trigger" (HTML-Signatur) + Umbenennung des S/MIME-Triggers
+
+Zwei getrennte Betreff-Trigger zum Übersteuern der Auto-Signatur pro Mail:
+- NEU **Nicht-signieren-Trigger** (`NOSIG_TRIGGER`, Default `#nosig`) unter
+  Einstellungen → Signatur: unterdrückt die automatische HTML-Signatur für diese Mail.
+- Umbenannt **Nicht-digital-signieren-Trigger** (`NODIGSIG_TRIGGER`, Default `#nodigsig`)
+  unter Einstellungen → S/MIME: unterdrückt die S/MIME- (digitale) Signatur.
+  (Das war zuvor `NOSIG_TRIGGER`/`#nosig` — dieses Schlüsselwort steuert jetzt die
+  HTML-Signatur, daher die klare Abgrenzung.)
+
+Beide Schlüsselwörter werden aus dem zugestellten Betreff entfernt (analog zu `#enc`),
+Erkennung case-insensitive, beide gleichzeitig kombinierbar. Handler-Logik verarbeitet
+die Trigger vor Signatur-Injektion bzw. S/MIME-Signierung.
+
+Migrationshinweis: Wer bisher `#nosig` zum Unterdrücken der S/MIME-Signatur nutzte, muss
+künftig `#nodigsig` verwenden; `#nosig` unterdrückt jetzt die HTML-Signatur.
+
 ## v1.4.398 — 2026-07-04 — feat: Cert-Reseller-Schiene über Provider-Hub + Sectigo-Modus-Umschalter
 
 Zweite, vom Support getrennte Hub-Schiene für den Zertifikatsbezug — eigene Registrierung,
