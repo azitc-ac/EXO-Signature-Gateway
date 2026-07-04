@@ -460,6 +460,80 @@ async function acmeProxySaveSilent() {
 document.addEventListener('DOMContentLoaded', acmeProxyLoad);
 </script>
 
+<!-- ── Cert-Provider-Hub (Reseller-Registrierung, separat vom Support) ─────── -->
+<div class="wizard-step" style="border-color:#0369a133;margin-bottom:20px">
+  <div class="step-header">
+    <span class="step-badge" style="background:#0369a1;font-size:10px">CERT</span>
+    <span class="step-title">Cert-Provider-Hub
+      <span style="font-weight:400;font-size:12px;color:#57534e"> — Reseller-Registrierung für Zertifikatsbezug (separat)</span>
+    </span>
+  </div>
+  <div class="step-body">
+    <p class="hint" style="margin-bottom:12px">
+      Für den Reseller-Bezugsweg (Sectigo-Modus „Über Provider-Hub"): dieses Gateway
+      <strong>separat</strong> beim Cert-Hub des Betreibers registrieren — eigener API-Key,
+      unabhängig von der Support-Registrierung. Nach Freigabe laufen S/MIME-Bestellungen über
+      den Hub; die CA-Zugangsdaten liegen beim Betreiber, hier geht nur der CSR raus.
+    </p>
+    <div class="settings-row" style="margin-bottom:8px"><label>Cert-Hub-Adresse</label>
+      <input type="url" id="certhub-base" placeholder="https://certdeploy.zarenko.net" style="width:100%;max-width:360px;font-size:13px"></div>
+    <div class="settings-row" style="margin-bottom:8px"><label>Deine E-Mail</label>
+      <input type="email" id="certhub-email" placeholder="kunde@firma.de" style="width:100%;max-width:360px;font-size:13px"></div>
+    <div class="settings-row" style="margin-bottom:8px"><label>Name (optional)</label>
+      <input type="text" id="certhub-name" style="width:100%;max-width:360px;font-size:13px"></div>
+    <div class="actions" style="margin:6px 0 10px">
+      <button class="btn secondary" onclick="certHubSaveConfig()">Speichern</button>
+      <button class="btn secondary" onclick="certHubRegister()">Registrieren</button>
+    </div>
+    <div class="settings-row" style="margin-bottom:8px"><label>API-Key (nach Freigabe)</label>
+      <input type="password" id="certhub-key" autocomplete="new-password"
+             placeholder="{% if hub_cert_registered %}•••••• (gesetzt — leer lassen zum Beibehalten){% else %}vom Betreiber erhalten{% endif %}"
+             style="width:100%;max-width:360px;font-size:13px">
+      <button class="btn secondary" onclick="certHubSaveKey()">Key speichern</button></div>
+    <div id="certhub-result" style="display:none;margin-top:8px"></div>
+  </div>
+</div>
+
+<script>
+function _certHubMsg(html, ok) {
+  const el = document.getElementById('certhub-result');
+  el.className = 'alert ' + (ok ? 'success' : 'error');
+  el.innerHTML = html; el.style.display = 'block';
+}
+async function certHubLoad() {
+  try {
+    const d = await (await fetch('/api/hub/cert/config')).json();
+    document.getElementById('certhub-base').value = d.base_url || '';
+    document.getElementById('certhub-email').value = d.email || '';
+    document.getElementById('certhub-name').value = d.name || '';
+  } catch(e) {}
+}
+async function certHubSaveConfig() {
+  const body = {
+    base_url: document.getElementById('certhub-base').value.trim(),
+    email: document.getElementById('certhub-email').value.trim(),
+    name: document.getElementById('certhub-name').value.trim(),
+  };
+  const d = await (await fetch('/api/hub/cert/config', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})).json();
+  _certHubMsg(d.ok ? 'Cert-Hub-Konfiguration gespeichert.' : ('Fehler: ' + (d.error||'')), d.ok);
+}
+async function certHubRegister() {
+  await certHubSaveConfig();
+  _certHubMsg('Registriere…', true);
+  const d = await (await fetch('/api/hub/cert/register', {method:'POST'})).json();
+  if (d.ok) _certHubMsg('Registrierung übermittelt (Status: <strong>'+(d.status||'pending')+'</strong>). '+(d.message||'Nach Freigabe den API-Key eintragen.'), true);
+  else _certHubMsg('Fehler: ' + (d.error||'Unbekannt'), false);
+}
+async function certHubSaveKey() {
+  const key = document.getElementById('certhub-key').value;
+  if (!key) { _certHubMsg('Bitte API-Key eingeben.', false); return; }
+  const d = await (await fetch('/api/hub/cert/api-key', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({api_key:key})})).json();
+  if (d.ok) { document.getElementById('certhub-key').value=''; _certHubMsg('API-Key gespeichert.', true); }
+  else _certHubMsg('Fehler beim Speichern.', false);
+}
+document.addEventListener('DOMContentLoaded', certHubLoad);
+</script>
+
 <!-- ── Sectigo Certificate Manager (S/MIME CA) ────────────────────────────── -->
 <div class="wizard-step" style="border-color:#dc262622;margin-bottom:20px">
   <div class="step-header">
@@ -470,29 +544,41 @@ document.addEventListener('DOMContentLoaded', acmeProxyLoad);
   </div>
   <div class="step-body">
     <p class="hint" style="margin-bottom:12px">
-      Alternativer Zertifikatsanbieter neben CASTLE. Der private Schlüssel wird lokal erzeugt
-      und verlässt das Gateway nie — nur der CSR geht an Sectigo. Nach dem Speichern der
-      Zugangsdaten kann pro Postfach im S/MIME-Tab das Backend „Sectigo" gewählt werden.<br>
-      <span style="color:#b45309">Hinweis:</span> <code>Org-ID</code>, <code>Cert-Type</code>
-      und <code>Term</code> sind kontospezifisch und müssen zum eigenen SCM-Account passen
-      (aus dem Sectigo-Dashboard). Ohne gültiges Konto ist dies nur vorbereitet, nicht getestet.
+      Zertifikatsanbieter neben CASTLE. Der private Schlüssel wird immer lokal erzeugt und
+      verlässt das Gateway nie — nur der CSR geht raus. Pro Postfach im S/MIME-Tab wählbar.
     </p>
-    <div class="settings-row" style="margin-bottom:8px"><label>API-Base (optional)</label>
-      <input type="text" id="sec-base" placeholder="https://cert-manager.com/api" style="width:100%;max-width:420px;font-size:13px"></div>
-    <div class="settings-row" style="margin-bottom:8px"><label>Login</label>
-      <input type="text" id="sec-login" autocomplete="off" style="width:100%;max-width:420px;font-size:13px"></div>
-    <div class="settings-row" style="margin-bottom:8px"><label>Passwort</label>
-      <input type="password" id="sec-password" autocomplete="new-password" placeholder="(unverändert lassen zum Beibehalten)" style="width:100%;max-width:420px;font-size:13px"></div>
-    <div class="settings-row" style="margin-bottom:8px"><label>Customer-URI</label>
-      <input type="text" id="sec-customer" autocomplete="off" style="width:100%;max-width:420px;font-size:13px"></div>
-    <div class="settings-row" style="margin-bottom:8px"><label>Org-ID</label>
-      <input type="text" id="sec-org" style="width:100%;max-width:220px;font-size:13px"></div>
-    <div class="settings-row" style="margin-bottom:8px"><label>Cert-Type</label>
-      <input type="text" id="sec-certtype" style="width:100%;max-width:220px;font-size:13px"></div>
-    <div class="settings-row" style="margin-bottom:10px"><label>Term</label>
-      <input type="text" id="sec-term" placeholder="z.B. 365" style="width:100%;max-width:220px;font-size:13px"></div>
+    <div class="settings-row" style="margin-bottom:10px"><label>Bezugsweg</label>
+      <select id="sec-mode" onchange="sectigoModeChanged()" style="width:100%;max-width:420px;font-size:13px">
+        <option value="reseller">Über Provider-Hub (Reseller) — Standard</option>
+        <option value="direct">Direktkauf mit eigenem Sectigo-Konto</option>
+      </select>
+    </div>
+    <p class="hint" id="sec-mode-hint" style="margin:0 0 12px"></p>
+
+    <div id="sec-direct-fields">
+      <p class="hint" style="margin-bottom:10px">
+        <span style="color:#b45309">Direktkauf:</span> eigenes SCM-Konto nötig.
+        <code>Org-ID</code>, <code>Cert-Type</code>, <code>Term</code> sind kontospezifisch
+        (aus dem Sectigo-Dashboard). Ohne gültiges Konto nur vorbereitet, nicht getestet.
+      </p>
+      <div class="settings-row" style="margin-bottom:8px"><label>API-Base (optional)</label>
+        <input type="text" id="sec-base" placeholder="https://cert-manager.com/api" style="width:100%;max-width:420px;font-size:13px"></div>
+      <div class="settings-row" style="margin-bottom:8px"><label>Login</label>
+        <input type="text" id="sec-login" autocomplete="off" style="width:100%;max-width:420px;font-size:13px"></div>
+      <div class="settings-row" style="margin-bottom:8px"><label>Passwort</label>
+        <input type="password" id="sec-password" autocomplete="new-password" placeholder="(unverändert lassen zum Beibehalten)" style="width:100%;max-width:420px;font-size:13px"></div>
+      <div class="settings-row" style="margin-bottom:8px"><label>Customer-URI</label>
+        <input type="text" id="sec-customer" autocomplete="off" style="width:100%;max-width:420px;font-size:13px"></div>
+      <div class="settings-row" style="margin-bottom:8px"><label>Org-ID</label>
+        <input type="text" id="sec-org" style="width:100%;max-width:220px;font-size:13px"></div>
+      <div class="settings-row" style="margin-bottom:8px"><label>Cert-Type</label>
+        <input type="text" id="sec-certtype" style="width:100%;max-width:220px;font-size:13px"></div>
+      <div class="settings-row" style="margin-bottom:10px"><label>Term</label>
+        <input type="text" id="sec-term" placeholder="z.B. 365" style="width:100%;max-width:220px;font-size:13px"></div>
+      <button class="btn secondary" onclick="sectigoTest()" style="margin-bottom:10px">Zugang testen</button>
+    </div>
+
     <div class="actions" style="margin-bottom:10px">
-      <button class="btn secondary" onclick="sectigoTest()">Zugang testen</button>
       <button class="btn primary" onclick="sectigoSave()">Speichern</button>
     </div>
     <div id="sec-result" style="display:none;margin-top:8px"></div>
@@ -500,11 +586,21 @@ document.addEventListener('DOMContentLoaded', acmeProxyLoad);
 </div>
 
 <script>
+function sectigoModeChanged() {
+  const mode = document.getElementById('sec-mode').value;
+  const direct = document.getElementById('sec-direct-fields');
+  direct.style.display = (mode === 'direct') ? '' : 'none';
+  document.getElementById('sec-mode-hint').innerHTML = (mode === 'direct')
+    ? 'Bestellungen laufen über dein <strong>eigenes Sectigo-SCM-Konto</strong>. Du rechnest direkt mit Sectigo ab.'
+    : 'Bestellungen laufen über den <strong>Provider-Hub deines Betreibers</strong> (Reseller). Konfiguration im Abschnitt „Cert-Provider-Hub" oben. Kein eigenes Sectigo-Konto nötig.';
+}
+
 async function sectigoLoad() {
   const r = await fetch('/api/sectigo/config');
   const d = await r.json();
   if (!d.ok) return;
   const c = d.config;
+  document.getElementById('sec-mode').value = (c.SECTIGO_MODE === 'direct') ? 'direct' : 'reseller';
   document.getElementById('sec-base').value = c.SECTIGO_API_BASE || '';
   document.getElementById('sec-login').value = c.SECTIGO_LOGIN || '';
   document.getElementById('sec-customer').value = c.SECTIGO_CUSTOMER_URI || '';
@@ -513,10 +609,12 @@ async function sectigoLoad() {
   document.getElementById('sec-term').value = c.SECTIGO_TERM || '';
   document.getElementById('sec-password').placeholder = c.password_set
     ? '•••••• (gesetzt — leer lassen zum Beibehalten)' : '(kein Passwort gesetzt)';
+  sectigoModeChanged();
 }
 
 function _sectigoBody() {
   return {
+    SECTIGO_MODE: document.getElementById('sec-mode').value,
     SECTIGO_API_BASE: document.getElementById('sec-base').value.trim(),
     SECTIGO_LOGIN: document.getElementById('sec-login').value.trim(),
     SECTIGO_PASSWORD: document.getElementById('sec-password').value,

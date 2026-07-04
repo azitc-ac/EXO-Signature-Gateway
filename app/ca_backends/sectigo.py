@@ -132,11 +132,52 @@ class SectigoBackend(CABackend):
     # ── Automated issuance ────────────────────────────────────────────────────
 
     async def initiate_renewal(self, email: str, user_config: dict) -> bool:
-        """Enroll a new S/MIME cert via SCM, poll until issued, import locally.
+        """Enroll a new S/MIME cert. Two modes (setting SECTIGO_MODE):
 
-        Raises on misconfiguration so the caller can fall back to manual
-        notification (mirrors how the ACME backend surfaces failures).
+          "reseller" (default): route the order through the operator's provider hub
+             (certdeploy) — the operator holds the Sectigo reseller credentials, this
+             gateway only sends a locally-generated CSR. No SCM creds needed here.
+          "direct": use this gateway's own SCM account credentials (SECTIGO_*).
+
+        Raises on misconfiguration so the caller can fall back to manual notification.
         """
+        mode = (settings_store.get("SECTIGO_MODE") or "reseller").strip().lower()
+        # Only an explicit "direct" uses the gateway's own SCM account; the default
+        # (and any unrecognised value) routes through the operator's reseller hub.
+        if mode == "direct":
+            return await self._direct_order(email, user_config)
+        return await self._reseller_order(email, user_config)
+
+    async def _reseller_order(self, email: str, user_config: dict) -> bool:
+        """Submit a CSR to the operator's provider hub (reseller relay)."""
+        import hub_client
+        if not hub_client.cert_is_registered():
+            raise RuntimeError(
+                "Reseller-Modus: Cert-Provider-Hub nicht registriert/freigegeben "
+                "(Erweitert-Tab → Cert-Provider-Hub)."
+            )
+        _key_pem, csr_pem = _generate_key_and_csr_pem(email)
+        extra = {k: user_config[k] for k in
+                 ("firstName", "lastName", "orgId", "certType", "term") if user_config.get(k)}
+        result = await hub_client.cert_order(email, csr_pem.decode(), extra)
+        if not result.get("ok"):
+            raise RuntimeError(f"Reseller-Order fehlgeschlagen: {result.get('error')}")
+        # If the hub returned a finished cert synchronously, import it; else it's queued.
+        cert_pem = result.get("cert_pem")
+        if cert_pem:
+            import smime_store
+            info = smime_store.store_pem_slot(email, cert_pem.encode(), _key_pem)
+            log.info("Sectigo (reseller): cert imported for %s slot=%s", email, info.get("slot_id"))
+            return True
+        log.info("Sectigo (reseller): order submitted for %s (ref=%s, status=%s) — "
+                 "cert wird nach Ausstellung nachgeliefert",
+                 email, result.get("ref"), result.get("status"))
+        # NOTE: async issuance — retrieving the finished cert from the hub is a
+        # follow-up (hub currently returns 'submitted'). Returning True marks the
+        # order as placed; admin is notified via the scheduler's normal path.
+        return True
+
+    async def _direct_order(self, email: str, user_config: dict) -> bool:
         import smime_store
 
         login = (settings_store.get("SECTIGO_LOGIN") or "").strip()

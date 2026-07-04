@@ -90,12 +90,18 @@ DEFAULTS: dict = {
                                          # the ACME/CASTLE HTTP calls (new-order/finalize/etc.) through
                                          # a residential proxy; empty = direct connection. Some CAs
                                          # (confirmed: CASTLE) reject finalize() from datacenter IPs.
-    # ── Provider Hub (sig-provider) — support upload + cert relay client ──────
-    "HUB_BASE_URL": "",              # e.g. https://sigsupport.zarenko.net — the provider hub
+    # ── Provider Hub (sig-provider) — SUPPORT upload track ────────────────────
+    "HUB_BASE_URL": "",              # e.g. https://sigsupport.zarenko.net — the provider hub (support)
     "HUB_CUSTOMER_EMAIL": "",        # this gateway's registered email (username at the hub)
     "HUB_CUSTOMER_NAME": "",         # display name sent on registration
     "HUB_API_KEY": "",               # issued by the hub after approval (secret)
+    # ── Provider Hub (sig-provider) — CERT deployment track (separate reg/key) ─
+    "HUB_CERT_BASE_URL": "",         # e.g. https://certdeploy.zarenko.net — the cert relay hub
+    "HUB_CERT_EMAIL": "",            # separately registered email for the cert track
+    "HUB_CERT_NAME": "",             # display name sent on cert registration
+    "HUB_CERT_API_KEY": "",          # separate key issued for the cert track (secret)
     # ── Sectigo Certificate Manager (S/MIME REST API backend) ─────────────────
+    "SECTIGO_MODE": "reseller",      # "reseller" (default → via provider hub) or "direct" (own SCM account)
     "SECTIGO_API_BASE": "",          # empty = https://cert-manager.com/api (region-specific base override)
     "SECTIGO_LOGIN": "",             # SCM API user login
     "SECTIGO_PASSWORD": "",          # SCM API user password (secret)

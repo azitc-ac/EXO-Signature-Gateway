@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.398 — 2026-07-04 — feat: Cert-Reseller-Schiene über Provider-Hub + Sectigo-Modus-Umschalter
+
+Zweite, vom Support getrennte Hub-Schiene für den Zertifikatsbezug — eigene Registrierung,
+eigener API-Key, eigene Hub-Adresse (certdeploy). Debug-Tab: neuer Abschnitt
+„Cert-Provider-Hub" (Adresse/E-Mail → Registrieren mit want=cert → nach Freigabe API-Key).
+Neue Settings `HUB_CERT_BASE_URL/EMAIL/NAME/API_KEY` (Key export-excluded), Endpunkte
+`GET/POST /api/hub/cert/config`, `POST /api/hub/cert/register`, `POST /api/hub/cert/api-key`.
+hub_client: `cert_register()`, `cert_order()`, `cert_is_registered()`.
+
+Sectigo-Backend bekommt einen Bezugsweg-Umschalter (`SECTIGO_MODE`):
+- „reseller" (Standard): S/MIME-Order läuft über den Provider-Hub des Betreibers — die
+  CA-Zugangsdaten liegen dort, das Gateway sendet nur den lokal erzeugten CSR.
+- „direct": eigenes Sectigo-SCM-Konto (die bisherigen `SECTIGO_*`-Felder).
+Defensiv: nur explizit „direct" nutzt das eigene Konto, alles andere → Reseller.
+UI: Umschalter blendet die Direktkauf-Felder nur bei „direct" ein.
+
+Hinweis: Die Reseller-Order reicht den CSR beim Hub ein (`/api/cert/order`); das Nachladen
+des fertigen Zertifikats vom Hub (async Ausstellung) ist noch offen — wie die Sectigo-
+Integration insgesamt Gerüst, bis ein Live-SCM-Konto vorliegt.
+
 ## v1.4.396 — 2026-07-04 — feat: Provider-Hub-Client — Support-Upload läuft über den Hub statt Azure Blob
 
 Neuer `hub_client.py`: Registrierung, Status-Abfrage und Diagnose-Bundle-Upload gegen den

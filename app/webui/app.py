@@ -2209,6 +2209,7 @@ async def debug_page(request: Request, user: str = Depends(_require_admin)):
                  "gateway_name": _gateway_name(),
                  "hub_configured": hub_client.is_configured(),
                  "hub_registered": hub_client.is_registered(),
+                 "hub_cert_registered": hub_client.cert_is_registered(),
                  "current_version": config.VERSION},
     )
 
@@ -3021,7 +3022,8 @@ async def api_logs_files(user: str = Depends(_check_auth)):
 
 # ── Config export / import ─────────────────────────────────────────────────────
 
-_EXPORT_EXCLUDE = {"ADMIN_PASSWORD_HASH", "CLIENT_SECRET", "RELAY_PASSWORD", "SECTIGO_PASSWORD", "HUB_API_KEY", "_SCHEMA_VERSION"}
+_EXPORT_EXCLUDE = {"ADMIN_PASSWORD_HASH", "CLIENT_SECRET", "RELAY_PASSWORD", "SECTIGO_PASSWORD",
+                   "HUB_API_KEY", "HUB_CERT_API_KEY", "_SCHEMA_VERSION"}
 
 
 @app.get("/api/config/export")
@@ -3432,7 +3434,7 @@ async def api_acme_http_proxy_test(request: Request, user: str = Depends(_check_
 
 # ── Sectigo Certificate Manager config ────────────────────────────────────────
 
-_SECTIGO_KEYS = ["SECTIGO_API_BASE", "SECTIGO_LOGIN", "SECTIGO_PASSWORD",
+_SECTIGO_KEYS = ["SECTIGO_MODE", "SECTIGO_API_BASE", "SECTIGO_LOGIN", "SECTIGO_PASSWORD",
                  "SECTIGO_CUSTOMER_URI", "SECTIGO_ORG_ID", "SECTIGO_CERT_TYPE", "SECTIGO_TERM"]
 
 
@@ -4011,3 +4013,46 @@ async def api_hub_set_key(request: Request, user: str = Depends(_require_admin))
 async def api_hub_status(user: str = Depends(_require_admin)):
     import hub_client
     return JSONResponse(await hub_client.status())
+
+
+# ── Provider Hub — CERT deployment track (separate registration + key) ────────
+
+@app.get("/api/hub/cert/config")
+async def api_hub_cert_config_get(user: str = Depends(_require_admin)):
+    import hub_client
+    return JSONResponse({
+        "ok": True,
+        "base_url": settings_store.get("HUB_CERT_BASE_URL") or "",
+        "email": settings_store.get("HUB_CERT_EMAIL") or "",
+        "name": settings_store.get("HUB_CERT_NAME") or "",
+        "registered": hub_client.cert_is_registered(),
+    })
+
+
+@app.post("/api/hub/cert/config")
+async def api_hub_cert_config_set(request: Request, user: str = Depends(_require_admin)):
+    data = await request.json()
+    updates = {
+        "HUB_CERT_BASE_URL": (data.get("base_url") or "").strip().rstrip("/"),
+        "HUB_CERT_EMAIL": (data.get("email") or "").strip().lower(),
+        "HUB_CERT_NAME": (data.get("name") or "").strip(),
+    }
+    if updates["HUB_CERT_BASE_URL"] and not updates["HUB_CERT_BASE_URL"].startswith(("http://", "https://")):
+        return JSONResponse({"ok": False, "error": "Hub-Adresse muss mit http(s):// beginnen."}, status_code=400)
+    settings_store.update(updates)
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/hub/cert/register")
+async def api_hub_cert_register(user: str = Depends(_require_admin)):
+    import hub_client
+    return JSONResponse(await hub_client.cert_register())
+
+
+@app.post("/api/hub/cert/api-key")
+async def api_hub_cert_set_key(request: Request, user: str = Depends(_require_admin)):
+    data = await request.json()
+    key = (data.get("api_key") or "").strip()
+    settings_store.update({"HUB_CERT_API_KEY": key})
+    log.info("Hub CERT API key %s by %s", "cleared" if not key else "set", user)
+    return JSONResponse({"ok": True})
