@@ -1473,54 +1473,51 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal()
   <div class="step-body">
     <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
       Erstellt ein ZIP-Paket mit Logs, Konfiguration (Secrets maskiert), Audit-Events
-      und ACME-Status. Kann lokal gespeichert und per E-Mail weitergegeben werden —
-      oder künftig direkt an den Support-Relay-Service übertragen.
+      und ACME-Status. Lokal speichern und per E-Mail weitergeben — oder direkt an den
+      Provider-Hub übertragen (Registrierung erforderlich).
     </p>
 
-    <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;margin-bottom:14px">
-
-      <!-- Download (funktional) -->
-      <div style="display:flex;flex-direction:column;gap:4px">
-        <button class="btn primary" id="sup-dl-btn" onclick="supportDownload()">
-          Bundle herunterladen
-        </button>
-        <span id="sup-dl-spinner" style="display:none;font-size:12px;color:#64748b;text-align:center">
-          Erstelle ZIP…
-        </span>
-        <span style="font-size:11px;color:#94a3b8;text-align:center">lokal speichern · per E-Mail senden</span>
-      </div>
-
-      <!-- Relay-Upload (Vorschau, ausgegraut) -->
-      <div style="display:flex;flex-direction:column;gap:4px">
-        <button class="btn primary" disabled
-                style="opacity:0.38;cursor:not-allowed;display:flex;align-items:center;gap:6px"
-                title="Relay-Service noch nicht verfügbar — in Entwicklung">
-          An Support senden
-          <span style="font-size:9px;background:#7c3aed;color:#fff;border-radius:3px;
-                       padding:1px 5px;letter-spacing:.4px;font-weight:600">BALD</span>
-        </button>
-        <span style="font-size:11px;color:#94a3b8;text-align:center">Relay-Service · in Entwicklung</span>
-      </div>
-
+    <div style="display:flex;flex-direction:column;gap:4px;max-width:240px;margin-bottom:16px">
+      <button class="btn primary" id="sup-dl-btn" onclick="supportDownload()">Bundle herunterladen</button>
+      <span id="sup-dl-spinner" style="display:none;font-size:12px;color:#64748b;text-align:center">Erstelle ZIP…</span>
+      <span style="font-size:11px;color:#94a3b8;text-align:center">lokal speichern · per E-Mail senden</span>
     </div>
+    <div id="sup-dl-result" style="display:none;margin-bottom:14px"></div>
 
-    <div id="sup-dl-result" style="display:none;margin-top:4px"></div>
-
-    {% if support_configured %}
-    <!-- Direkter Blob-Upload (nur wenn SUPPORT_BLOB_URL_TEMPLATE konfiguriert) -->
-    <details style="margin-top:10px;border-top:1px solid #e2e8f0;padding-top:10px">
-      <summary style="font-size:12px;color:#64748b;cursor:pointer;user-select:none">
-        Direkter Blob-Upload (konfiguriert via SUPPORT_BLOB_URL_TEMPLATE)
-      </summary>
-      <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <button class="btn secondary" id="sup-upload-btn" onclick="supportUpload()" style="font-size:13px">
-          Jetzt hochladen
+    <!-- Provider-Hub -->
+    <div style="border-top:1px solid #e2e8f0;padding-top:14px">
+      <strong style="font-size:13px">Provider-Hub</strong>
+      <p class="hint" style="margin:6px 0 12px">
+        Registriere dieses Gateway einmalig beim Support-Hub deines Betreibers. Nach dessen
+        Freigabe trägst du den erhaltenen API-Key ein — danach kannst du Diagnose-Bundles
+        direkt hochladen (Vorqualifikation + Zuordnung erfolgt beim Betreiber).
+      </p>
+      <div class="settings-row" style="margin-bottom:8px"><label>Hub-Adresse</label>
+        <input type="url" id="hub-base" placeholder="https://sigsupport.zarenko.net" style="width:100%;max-width:360px;font-size:13px"></div>
+      <div class="settings-row" style="margin-bottom:8px"><label>Deine E-Mail</label>
+        <input type="email" id="hub-email" placeholder="kunde@firma.de" style="width:100%;max-width:360px;font-size:13px"></div>
+      <div class="settings-row" style="margin-bottom:8px"><label>Name (optional)</label>
+        <input type="text" id="hub-name" style="width:100%;max-width:360px;font-size:13px"></div>
+      <div class="actions" style="margin:6px 0 10px">
+        <button class="btn secondary" onclick="hubSaveConfig()">Speichern</button>
+        <button class="btn secondary" onclick="hubRegister()">Registrieren</button>
+        <button class="btn secondary" onclick="hubStatus()">Status prüfen</button>
+      </div>
+      <div class="settings-row" style="margin-bottom:8px"><label>API-Key (nach Freigabe)</label>
+        <input type="password" id="hub-key" autocomplete="new-password"
+               placeholder="{% if hub_registered %}•••••• (gesetzt — leer lassen zum Beibehalten){% else %}vom Betreiber erhalten{% endif %}"
+               style="width:100%;max-width:360px;font-size:13px">
+        <button class="btn secondary" onclick="hubSaveKey()">Key speichern</button></div>
+      <div id="hub-result" style="display:none;margin:8px 0"></div>
+      <div style="margin-top:10px">
+        <button class="btn primary" id="sup-upload-btn" onclick="supportUpload()"
+                {% if not hub_registered %}disabled title="Erst registrieren und API-Key eintragen"{% endif %}>
+          Bundle an Hub senden
         </button>
-        <span id="sup-upload-spinner" style="display:none;font-size:13px;color:#555">Lädt hoch…</span>
+        <span id="sup-upload-spinner" style="display:none;font-size:13px;color:#555;margin-left:8px">Lädt hoch…</span>
       </div>
       <div id="sup-upload-result" style="display:none;margin-top:8px"></div>
-    </details>
-    {% endif %}
+    </div>
   </div>
 </div>
 <script>
@@ -1568,9 +1565,11 @@ async function supportUpload() {
     const r = await fetch('/api/support/upload', {method: 'POST'});
     const d = await r.json();
     if (d.ok) {
+      const a = d.analysis || {};
+      const extra = (a.priority ? ` &nbsp;|&nbsp; Analyse: ${a.priority}${a.error_hits ? ' ('+a.error_hits+' Fehler-Treffer)' : ''}` : '');
       result.innerHTML = `<div class="alert success">
-        <strong>Hochgeladen!</strong>
-        Ticket-ID: <code>${d.ticket_id}</code> &nbsp;|&nbsp; ${d.size_kb} KB
+        <strong>An Hub gesendet!</strong>
+        <code>${d.ticket_id}</code> &nbsp;|&nbsp; ${d.size_kb} KB${extra}
       </div>`;
     } else {
       result.innerHTML = `<div class="alert" style="background:#fef2f2;border-color:#fca5a5;color:#991b1b">
@@ -1587,6 +1586,53 @@ async function supportUpload() {
     result.style.display  = 'block';
   }
 }
+
+// ── Provider-Hub ─────────────────────────────────────────────────────────────
+function _hubMsg(html, ok) {
+  const el = document.getElementById('hub-result');
+  el.className = 'alert ' + (ok ? 'success' : 'error');
+  el.innerHTML = html; el.style.display = 'block';
+}
+async function hubLoadConfig() {
+  try {
+    const d = await (await fetch('/api/hub/config')).json();
+    document.getElementById('hub-base').value = d.base_url || '';
+    document.getElementById('hub-email').value = d.email || '';
+    document.getElementById('hub-name').value = d.name || '';
+  } catch(e) {}
+}
+async function hubSaveConfig() {
+  const body = {
+    base_url: document.getElementById('hub-base').value.trim(),
+    email: document.getElementById('hub-email').value.trim(),
+    name: document.getElementById('hub-name').value.trim(),
+  };
+  const r = await fetch('/api/hub/config', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  const d = await r.json();
+  _hubMsg(d.ok ? 'Hub-Konfiguration gespeichert.' : ('Fehler: ' + (d.error||'')), d.ok);
+}
+async function hubRegister() {
+  await hubSaveConfig();
+  _hubMsg('Registriere…', true);
+  const d = await (await fetch('/api/hub/register', {method:'POST'})).json();
+  if (d.ok) _hubMsg('Registrierung übermittelt (Status: <strong>'+(d.status||'pending')+'</strong>). '+(d.message||'Nach Freigabe den API-Key eintragen.'), true);
+  else _hubMsg('Fehler: ' + (d.error||'Unbekannt'), false);
+}
+async function hubSaveKey() {
+  const key = document.getElementById('hub-key').value;
+  if (!key) { _hubMsg('Bitte API-Key eingeben.', false); return; }
+  const r = await fetch('/api/hub/api-key', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({api_key:key})});
+  const d = await r.json();
+  if (d.ok) { document.getElementById('hub-key').value=''; _hubMsg('API-Key gespeichert. Bitte Seite neu laden, um den Upload zu aktivieren.', true); }
+  else _hubMsg('Fehler beim Speichern.', false);
+}
+async function hubStatus() {
+  _hubMsg('Prüfe Status…', true);
+  const d = await (await fetch('/api/hub/status')).json();
+  if (d.ok) _hubMsg('Freigegeben: Log-Upload <strong>'+(d.log_upload_enabled?'an':'aus')+'</strong>, Kontingent '+d.quota_mb_per_day+' MB/Tag (heute '+d.used_today_mb+' MB genutzt).', true);
+  else _hubMsg('Status: ' + (d.error||'nicht verfügbar'), false);
+}
+document.addEventListener('DOMContentLoaded', hubLoadConfig);
 </script>
 
 <script>

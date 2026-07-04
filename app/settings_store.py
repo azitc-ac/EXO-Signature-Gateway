@@ -90,6 +90,11 @@ DEFAULTS: dict = {
                                          # the ACME/CASTLE HTTP calls (new-order/finalize/etc.) through
                                          # a residential proxy; empty = direct connection. Some CAs
                                          # (confirmed: CASTLE) reject finalize() from datacenter IPs.
+    # ── Provider Hub (sig-provider) — support upload + cert relay client ──────
+    "HUB_BASE_URL": "",              # e.g. https://sigsupport.zarenko.net — the provider hub
+    "HUB_CUSTOMER_EMAIL": "",        # this gateway's registered email (username at the hub)
+    "HUB_CUSTOMER_NAME": "",         # display name sent on registration
+    "HUB_API_KEY": "",               # issued by the hub after approval (secret)
     # ── Sectigo Certificate Manager (S/MIME REST API backend) ─────────────────
     "SECTIGO_API_BASE": "",          # empty = https://cert-manager.com/api (region-specific base override)
     "SECTIGO_LOGIN": "",             # SCM API user login

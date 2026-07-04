@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.396 — 2026-07-04 — feat: Provider-Hub-Client — Support-Upload läuft über den Hub statt Azure Blob
+
+Neuer `hub_client.py`: Registrierung, Status-Abfrage und Diagnose-Bundle-Upload gegen den
+sig-provider-Hub des Betreibers. Der bisherige direkte Azure-Blob-Upload
+(`support_upload.upload_bundle` / `SUPPORT_BLOB_URL_TEMPLATE`) ist entfernt — `build_bundle`
+bleibt (für den lokalen Download und den Hub-Upload).
+
+Ablauf im Debug-Tab (Abschnitt „Diagnose-Bundle → Provider-Hub"): Hub-Adresse + E-Mail
+eintragen → „Registrieren" (`POST {hub}/api/register`) → nach Freigabe durch den Betreiber
+den erhaltenen API-Key eintragen → „Bundle an Hub senden" (`POST {hub}/api/support/upload`,
+`X-API-Key`). „Status prüfen" zeigt Freigabe + Tageskontingent. Die Vorqualifikation des
+Uploads (Priorität/Fehler-Treffer) wird zurückgemeldet.
+
+Neue Settings `HUB_BASE_URL`, `HUB_CUSTOMER_EMAIL`, `HUB_CUSTOMER_NAME`, `HUB_API_KEY`
+(letzterer vom Config-Export ausgeschlossen). Endpunkte `GET/POST /api/hub/config`,
+`POST /api/hub/register`, `POST /api/hub/api-key`, `GET /api/hub/status`.
+
 ## v1.4.394 — 2026-07-03 — feat: Sectigo Certificate Manager als CA-Backend (S/MIME REST API) — Gerüst
 
 Neues CA-Backend `sectigo` neben `castle_acme` und `assisted_manual`. Erscheint automatisch

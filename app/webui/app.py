@@ -2202,12 +2202,13 @@ async def api_backup_restore(
 
 @app.get("/debug", response_class=HTMLResponse)
 async def debug_page(request: Request, user: str = Depends(_require_admin)):
-    import support_upload as _sup
+    import hub_client
     return templates.TemplateResponse(
         request=request, name="debug.html",
         context={"active": "debug", "s": settings_store.get_all(),
                  "gateway_name": _gateway_name(),
-                 "support_configured": _sup.is_configured(),
+                 "hub_configured": hub_client.is_configured(),
+                 "hub_registered": hub_client.is_registered(),
                  "current_version": config.VERSION},
     )
 
@@ -3020,7 +3021,7 @@ async def api_logs_files(user: str = Depends(_check_auth)):
 
 # ── Config export / import ─────────────────────────────────────────────────────
 
-_EXPORT_EXCLUDE = {"ADMIN_PASSWORD_HASH", "CLIENT_SECRET", "RELAY_PASSWORD", "SECTIGO_PASSWORD", "_SCHEMA_VERSION"}
+_EXPORT_EXCLUDE = {"ADMIN_PASSWORD_HASH", "CLIENT_SECRET", "RELAY_PASSWORD", "SECTIGO_PASSWORD", "HUB_API_KEY", "_SCHEMA_VERSION"}
 
 
 @app.get("/api/config/export")
@@ -3956,7 +3957,57 @@ async def api_support_download(user: str = Depends(_require_admin)):
 
 @app.post("/api/support/upload")
 async def api_support_upload(user: str = Depends(_require_admin)):
-    """Support-Bundle (Logs, Settings, Audit) zu Azure Blob Storage hochladen."""
-    import support_upload as _sup
-    result = await _sup.upload_bundle(list(_LOG_BUFFER))
+    """Support-Bundle (Logs, Settings, Audit) an den Provider-Hub hochladen."""
+    import hub_client
+    result = await hub_client.upload_bundle(list(_LOG_BUFFER))
     return JSONResponse(result)
+
+
+# ── Provider Hub (sig-provider) client ────────────────────────────────────────
+
+@app.get("/api/hub/config")
+async def api_hub_config_get(user: str = Depends(_require_admin)):
+    import hub_client
+    return JSONResponse({
+        "ok": True,
+        "base_url": settings_store.get("HUB_BASE_URL") or "",
+        "email": settings_store.get("HUB_CUSTOMER_EMAIL") or "",
+        "name": settings_store.get("HUB_CUSTOMER_NAME") or "",
+        "registered": hub_client.is_registered(),
+    })
+
+
+@app.post("/api/hub/config")
+async def api_hub_config_set(request: Request, user: str = Depends(_require_admin)):
+    data = await request.json()
+    updates = {
+        "HUB_BASE_URL": (data.get("base_url") or "").strip().rstrip("/"),
+        "HUB_CUSTOMER_EMAIL": (data.get("email") or "").strip().lower(),
+        "HUB_CUSTOMER_NAME": (data.get("name") or "").strip(),
+    }
+    if updates["HUB_BASE_URL"] and not updates["HUB_BASE_URL"].startswith(("http://", "https://")):
+        return JSONResponse({"ok": False, "error": "Hub-Adresse muss mit http(s):// beginnen."}, status_code=400)
+    settings_store.update(updates)
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/hub/register")
+async def api_hub_register(user: str = Depends(_require_admin)):
+    import hub_client
+    return JSONResponse(await hub_client.register())
+
+
+@app.post("/api/hub/api-key")
+async def api_hub_set_key(request: Request, user: str = Depends(_require_admin)):
+    """Store the API key the operator issued after approving this gateway."""
+    data = await request.json()
+    key = (data.get("api_key") or "").strip()
+    settings_store.update({"HUB_API_KEY": key})
+    log.info("Hub API key %s by %s", "cleared" if not key else "set", user)
+    return JSONResponse({"ok": True})
+
+
+@app.get("/api/hub/status")
+async def api_hub_status(user: str = Depends(_require_admin)):
+    import hub_client
+    return JSONResponse(await hub_client.status())
