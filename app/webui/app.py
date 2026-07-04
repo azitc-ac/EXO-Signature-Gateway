@@ -1930,6 +1930,21 @@ async def settings_smime_page(request: Request, user: str = Depends(_require_adm
     )
 
 
+@app.get("/settings/connect", response_class=HTMLResponse)
+async def settings_connect_page(request: Request, user: str = Depends(_require_admin)):
+    import hub_client
+    return templates.TemplateResponse(
+        request=request, name="settings_connect.html",
+        context={
+            "s": settings_store.get_all(),
+            "active": "settings-connect",
+            "gateway_name": _gateway_name(),
+            "hub_registered": hub_client.is_registered(),
+            "hub_cert_registered": hub_client.cert_is_registered(),
+        },
+    )
+
+
 @app.get("/settings/update")
 async def settings_update_redirect(user: str = Depends(_require_admin)):
     # Update-Tab wurde mit Backup zusammengelegt

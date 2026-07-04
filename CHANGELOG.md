@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.404 — 2026-07-04 — feat: neuer Einstellungen-Tab „Anbindung" — Provider-/Bezugs-Optionen gebündelt
+
+Die verstreuten Provider-Blöcke sind in einen eigenen Untertab „Anbindung" umgezogen
+(Route `/settings/connect`, nav zwischen S/MIME und Update & Backup):
+- Support-Hub (Registrierung + API-Key)
+- Cert-Hub (separate Reseller-Registrierung + API-Key)
+- Zertifikatsbezug Sectigo (Modus-Umschalter reseller/direct + Direktkauf-Felder)
+
+Aus dem Erweitert-Tab (debug.html) entfernt und dorthin verschoben: die Sectigo-Karte
+und die Cert-Provider-Hub-Karte komplett; im Diagnose-Bundle bleibt nur der Upload-Button
+(„Bundle an Hub senden") plus ein Hinweis/Link zur Registrierung unter Anbindung. Der
+Erweitert-Tab enthält damit wieder nur Diagnose (ACME-Reply-Methode, Proxy, Resets,
+Diagnose-Bundle). Nav-Eintrag in allen Settings-Vorlagen + Top-Nav-Highlight ergänzt.
+
 ## v1.4.402 — 2026-07-04 — feat: CA-Backend „Sectigo" ausgegraut bis Einrichtung abgeschlossen
 
 Backends melden jetzt einen `is_ready()`-Status (Basis-Default True). Sectigo ist erst
