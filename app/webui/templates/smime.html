@@ -199,9 +199,12 @@
                     style="width:300px;font-size:13px"
                     onchange="_onBackendChange('{{ u.email }}',this.value)">
               {% for b in backends %}
+              {% set is_selected = ca_cfg.get('backend','assisted_manual') == b.name %}
               <option value="{{ b.name }}"
-                      {% if ca_cfg.get('backend','assisted_manual') == b.name %}selected{% endif %}>
-                {{ b.label }}
+                      {% if is_selected %}selected{% endif %}
+                      {% if not b.ready and not is_selected %}disabled{% endif %}
+                      title="{% if not b.ready %}{{ b.not_ready_reason }}{% endif %}">
+                {{ b.label }}{% if not b.ready %} — nicht eingerichtet{% endif %}
               </option>
               {% endfor %}
             </select>

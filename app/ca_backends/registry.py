@@ -16,6 +16,7 @@ def get_backend(name: str) -> CABackend:
 
 def list_backends() -> list[dict]:
     return [
-        {"name": b.get_name(), "label": b.get_label(), "auto": b.can_auto_renew()}
+        {"name": b.get_name(), "label": b.get_label(), "auto": b.can_auto_renew(),
+         "ready": b.is_ready(), "not_ready_reason": b.not_ready_reason()}
         for b in _BACKENDS.values()
     ]

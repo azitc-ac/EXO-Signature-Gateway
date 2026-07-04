@@ -16,6 +16,18 @@ class CABackend(ABC):
     def can_auto_renew(self) -> bool:
         """True if this backend supports fully automated renewal without user action."""
 
+    def is_ready(self) -> bool:
+        """True if this backend is fully configured and selectable.
+
+        Backends needing setup (credentials / hub registration) override this and
+        return False until configuration is complete; the UI greys them out.
+        """
+        return True
+
+    def not_ready_reason(self) -> str:
+        """Short hint shown in the UI when is_ready() is False."""
+        return ""
+
     @abstractmethod
     def get_portal_url(self, email: str, user_config: dict) -> str:
         """Return the CA portal URL for manual renewal steps."""

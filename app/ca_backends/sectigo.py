@@ -98,6 +98,23 @@ class SectigoBackend(CABackend):
         # error if the account config is incomplete (then manual notification kicks in).
         return True
 
+    def is_ready(self) -> bool:
+        """Selectable only once its chosen path is fully configured."""
+        mode = (settings_store.get("SECTIGO_MODE") or "reseller").strip().lower()
+        if mode == "direct":
+            return all(settings_store.get(k) for k in
+                       ("SECTIGO_LOGIN", "SECTIGO_PASSWORD", "SECTIGO_CUSTOMER_URI",
+                        "SECTIGO_ORG_ID", "SECTIGO_CERT_TYPE"))
+        # reseller (default): needs the cert-provider hub registered (base + API key)
+        import hub_client
+        return hub_client.cert_is_registered()
+
+    def not_ready_reason(self) -> str:
+        mode = (settings_store.get("SECTIGO_MODE") or "reseller").strip().lower()
+        if mode == "direct":
+            return "Direktkauf: Sectigo-SCM-Zugangsdaten unvollständig (Erweitert-Tab)."
+        return "Reseller: Cert-Provider-Hub noch nicht registriert/freigegeben (Erweitert-Tab)."
+
     def get_portal_url(self, email: str, user_config: dict) -> str:
         return (user_config.get("portal_url") or "").strip() or _PORTAL
 

@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.402 — 2026-07-04 — feat: CA-Backend „Sectigo" ausgegraut bis Einrichtung abgeschlossen
+
+Backends melden jetzt einen `is_ready()`-Status (Basis-Default True). Sectigo ist erst
+auswählbar, wenn der gewählte Bezugsweg vollständig konfiguriert ist:
+- Reseller (Standard): Cert-Provider-Hub registriert (Base-URL + API-Key vorhanden).
+- Direkt: SCM-Login/Passwort/Customer-URI/Org-ID/Cert-Type vollständig.
+In der Postfach-Backend-Auswahl (S/MIME-Tab) ist ein nicht eingerichtetes Backend
+`disabled` und mit „— nicht eingerichtet" + Tooltip (Grund) markiert; ein bereits
+zugewiesenes Backend bleibt sichtbar/auswählbar. `list_backends()` liefert `ready`
+und `not_ready_reason` mit.
+
 ## v1.4.400 — 2026-07-04 — feat: „Nicht-signieren-Trigger" (HTML-Signatur) + Umbenennung des S/MIME-Triggers
 
 Zwei getrennte Betreff-Trigger zum Übersteuern der Auto-Signatur pro Mail:
