@@ -176,7 +176,8 @@ class SectigoBackend(CABackend):
         _key_pem, csr_pem = _generate_key_and_csr_pem(email)
         extra = {k: user_config[k] for k in
                  ("firstName", "lastName", "orgId", "certType", "term") if user_config.get(k)}
-        result = await hub_client.cert_order(email, csr_pem.decode(), extra)
+        provider = (settings_store.get("CERT_PROVIDER") or "sectigo").strip().lower()
+        result = await hub_client.cert_order(email, csr_pem.decode(), extra, provider=provider)
         if not result.get("ok"):
             raise RuntimeError(f"Reseller-Order fehlgeschlagen: {result.get('error')}")
         # If the hub returned a finished cert synchronously, import it; else it's queued.

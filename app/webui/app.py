@@ -1933,6 +1933,7 @@ async def settings_smime_page(request: Request, user: str = Depends(_require_adm
 @app.get("/settings/connect", response_class=HTMLResponse)
 async def settings_connect_page(request: Request, user: str = Depends(_require_admin)):
     import hub_client
+    import ca_backends as _ca
     return templates.TemplateResponse(
         request=request, name="settings_connect.html",
         context={
@@ -1941,6 +1942,7 @@ async def settings_connect_page(request: Request, user: str = Depends(_require_a
             "gateway_name": _gateway_name(),
             "hub_registered": hub_client.is_registered(),
             "hub_cert_registered": hub_client.cert_is_registered(),
+            "sectigo_ready": _ca.get_backend("sectigo").is_ready(),
         },
     )
 
@@ -3449,7 +3451,7 @@ async def api_acme_http_proxy_test(request: Request, user: str = Depends(_check_
 
 # ── Sectigo Certificate Manager config ────────────────────────────────────────
 
-_SECTIGO_KEYS = ["SECTIGO_MODE", "SECTIGO_API_BASE", "SECTIGO_LOGIN", "SECTIGO_PASSWORD",
+_SECTIGO_KEYS = ["SECTIGO_MODE", "CERT_PROVIDER", "SECTIGO_API_BASE", "SECTIGO_LOGIN", "SECTIGO_PASSWORD",
                  "SECTIGO_CUSTOMER_URI", "SECTIGO_ORG_ID", "SECTIGO_CERT_TYPE", "SECTIGO_TERM"]
 
 

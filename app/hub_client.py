@@ -152,14 +152,15 @@ async def cert_register() -> dict:
         return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
 
 
-async def cert_order(target_email: str, csr_pem: str, extra: dict | None = None) -> dict:
+async def cert_order(target_email: str, csr_pem: str, extra: dict | None = None,
+                     provider: str = "sectigo") -> dict:
     """Submit an S/MIME cert order to the reseller hub (operator holds the CA creds)."""
     base = _cert_base()
     if not base:
         return {"ok": False, "error": "Cert-Hub-Adresse (HUB_CERT_BASE_URL) nicht gesetzt."}
     if not _cert_key():
         return {"ok": False, "error": "Cert-Track nicht registriert/freigegeben — kein API-Key."}
-    body = {"provider": "sectigo", "email": target_email, "csr": csr_pem, "extra": extra or {}}
+    body = {"provider": provider or "sectigo", "email": target_email, "csr": csr_pem, "extra": extra or {}}
     try:
         async with httpx.AsyncClient(timeout=60) as c:
             r = await c.post(f"{base}/api/cert/order",

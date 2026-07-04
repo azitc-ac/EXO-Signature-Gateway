@@ -101,6 +101,8 @@ DEFAULTS: dict = {
     "HUB_CERT_EMAIL": "",            # separately registered email for the cert track
     "HUB_CERT_NAME": "",             # display name sent on cert registration
     "HUB_CERT_API_KEY": "",          # separate key issued for the cert track (secret)
+    # ── Managed certificate acquisition (via provider hub) ────────────────────
+    "CERT_PROVIDER": "sectigo",      # CA chosen for managed ("reseller") acquisition; more later (swisssign…)
     # ── Sectigo Certificate Manager (S/MIME REST API backend) ─────────────────
     "SECTIGO_MODE": "reseller",      # "reseller" (default → via provider hub) or "direct" (own SCM account)
     "SECTIGO_API_BASE": "",          # empty = https://cert-manager.com/api (region-specific base override)

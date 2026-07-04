@@ -12,20 +12,29 @@
   <li><a href="/setup" class="nav-sub-tab">Einrichtung</a></li>
 </ul>
 
+<style>
+  .conn-badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 9px;border-radius:10px;margin-left:8px;vertical-align:middle}
+  .conn-ok{background:#dcfce7;color:#166534}
+  .conn-wait{background:#fef3c7;color:#92400e}
+</style>
+
 <p class="hint" style="margin-bottom:16px">
-  Verbindungen dieses Gateways zu einem Provider-Hub — für Support (Log-Upload) und für den
-  Zertifikatsbezug (Reseller). Jede Schiene wird <strong>separat</strong> registriert und hat
-  einen eigenen API-Key. Nach der Registrierung gibt der Betreiber die Nutzung frei.
+  Verbindungen dieses Gateways zum Support-Anbieter — für Support (Log-Upload) und für den
+  Zertifikatsbezug. Jede Schiene wird <strong>separat</strong> registriert (eigener API-Key)
+  und vom Anbieter freigegeben.
 </p>
 
-<!-- ── Provider-Hub: Support ──────────────────────────────────────────────── -->
+<!-- ── Support-Anbindung ──────────────────────────────────────────────────── -->
 <div class="settings-card" style="margin-bottom:18px">
-  <h2 style="margin-top:0">Support-Hub</h2>
+  <h2 style="margin-top:0">Support-Anbindung
+    {% if hub_registered %}<span class="conn-badge conn-ok">✓ registriert</span>
+    {% else %}<span class="conn-badge conn-wait">⚠ nicht registriert</span>{% endif %}
+  </h2>
   <p class="hint" style="margin-bottom:12px">
-    Registrierung für den Log-/Diagnose-Upload (z.&nbsp;B. <code>sigsupport.…</code>). Der eigentliche
-    Upload läuft über Erweitert → „Diagnose-Bundle → An Hub senden".
+    Registrierung für den Log-/Diagnose-Upload zum Support-Anbieter per Knopfdruck. Der
+    Upload erfolgt über Erweitert → „Diagnose-Bundle → An Hub senden".
   </p>
-  <div class="settings-row" style="margin-bottom:8px"><label>Hub-Adresse</label>
+  <div class="settings-row" style="margin-bottom:8px"><label>Anbieter-Adresse</label>
     <input type="url" id="hub-base" placeholder="https://sigsupport.zarenko.net" style="width:100%;max-width:360px;font-size:13px"></div>
   <div class="settings-row" style="margin-bottom:8px"><label>Deine E-Mail</label>
     <input type="email" id="hub-email" placeholder="kunde@firma.de" style="width:100%;max-width:360px;font-size:13px"></div>
@@ -38,60 +47,67 @@
   </div>
   <div class="settings-row" style="margin-bottom:8px"><label>API-Key (nach Freigabe)</label>
     <input type="password" id="hub-key" autocomplete="new-password"
-           placeholder="{% if hub_registered %}•••••• (gesetzt — leer lassen zum Beibehalten){% else %}vom Betreiber erhalten{% endif %}"
+           placeholder="{% if hub_registered %}•••••• (gesetzt — leer lassen zum Beibehalten){% else %}vom Anbieter erhalten{% endif %}"
            style="width:100%;max-width:360px;font-size:13px">
     <button class="btn secondary" onclick="hubSaveKey()">Key speichern</button></div>
   <div id="hub-result" style="display:none;margin-top:8px"></div>
 </div>
 
-<!-- ── Provider-Hub: Zertifikate ──────────────────────────────────────────── -->
+<!-- ── Zertifikatsbezug ───────────────────────────────────────────────────── -->
 <div class="settings-card" style="margin-bottom:18px">
-  <h2 style="margin-top:0">Cert-Hub <span style="font-weight:400;font-size:13px;color:#64748b">— Reseller-Registrierung</span></h2>
+  <h2 style="margin-top:0">Zertifikatsbezug
+    {% if sectigo_ready %}<span class="conn-badge conn-ok">✓ eingerichtet</span>
+    {% else %}<span class="conn-badge conn-wait">⚠ ausstehend</span>{% endif %}
+  </h2>
   <p class="hint" style="margin-bottom:12px">
-    Separate Registrierung für den Zertifikatsbezug über den Betreiber (z.&nbsp;B.
-    <code>certdeploy.…</code>) — eigener API-Key, unabhängig vom Support. Wird für den
-    Sectigo-Bezugsweg „Reseller" (unten) benötigt. Die CA-Zugangsdaten liegen beim Betreiber,
-    hier geht nur der CSR raus.
+    S/MIME-Zertifikate über den Support-Anbieter beziehen. Der private Schlüssel wird immer
+    lokal erzeugt und verlässt das Gateway nie — nur der CSR geht raus. Pro Postfach im
+    S/MIME-Tab wählbar (dort erst auswählbar, sobald hier eingerichtet).
   </p>
-  <div class="settings-row" style="margin-bottom:8px"><label>Cert-Hub-Adresse</label>
-    <input type="url" id="certhub-base" placeholder="https://certdeploy.zarenko.net" style="width:100%;max-width:360px;font-size:13px"></div>
-  <div class="settings-row" style="margin-bottom:8px"><label>Deine E-Mail</label>
-    <input type="email" id="certhub-email" placeholder="kunde@firma.de" style="width:100%;max-width:360px;font-size:13px"></div>
-  <div class="settings-row" style="margin-bottom:8px"><label>Name (optional)</label>
-    <input type="text" id="certhub-name" style="width:100%;max-width:360px;font-size:13px"></div>
-  <div class="actions" style="margin:6px 0 10px">
-    <button class="btn secondary" onclick="certHubSaveConfig()">Speichern</button>
-    <button class="btn secondary" onclick="certHubRegister()">Registrieren</button>
-  </div>
-  <div class="settings-row" style="margin-bottom:8px"><label>API-Key (nach Freigabe)</label>
-    <input type="password" id="certhub-key" autocomplete="new-password"
-           placeholder="{% if hub_cert_registered %}•••••• (gesetzt — leer lassen zum Beibehalten){% else %}vom Betreiber erhalten{% endif %}"
-           style="width:100%;max-width:360px;font-size:13px">
-    <button class="btn secondary" onclick="certHubSaveKey()">Key speichern</button></div>
-  <div id="certhub-result" style="display:none;margin-top:8px"></div>
-</div>
 
-<!-- ── Zertifikatsbezug (Sectigo) ─────────────────────────────────────────── -->
-<div class="settings-card" style="margin-bottom:18px">
-  <h2 style="margin-top:0">Zertifikatsbezug — Sectigo</h2>
-  <p class="hint" style="margin-bottom:12px">
-    Zertifikatsanbieter neben CASTLE. Der private Schlüssel wird immer lokal erzeugt und
-    verlässt das Gateway nie — nur der CSR geht raus. Pro Postfach im S/MIME-Tab wählbar
-    (erst auswählbar, sobald hier eingerichtet).
-  </p>
   <div class="settings-row" style="margin-bottom:10px"><label>Bezugsweg</label>
     <select id="sec-mode" onchange="sectigoModeChanged()" style="width:100%;max-width:420px;font-size:13px">
-      <option value="reseller">Über Provider-Hub (Reseller) — Standard</option>
-      <option value="direct">Direktkauf mit eigenem Sectigo-Konto</option>
+      <option value="reseller">Verwaltet über den Anbieter — Standard</option>
+      <option value="direct">Eigenes CA-Konto (direkt)</option>
     </select>
   </div>
-  <p class="hint" id="sec-mode-hint" style="margin:0 0 12px"></p>
 
+  <!-- Verwaltet: Registrierung beim Anbieter + Anbieter-Auswahl -->
+  <div id="sec-managed-fields">
+    <div class="settings-row" style="margin-bottom:10px"><label>Zertifizierungsstelle</label>
+      <select id="cert-provider" style="width:100%;max-width:420px;font-size:13px">
+        <option value="sectigo">Sectigo</option>
+        <option value="swisssign" disabled>SwissSign — bald</option>
+      </select>
+    </div>
+    <p class="hint" style="margin:0 0 12px">
+      Die Bestellung läuft über deinen Anbieter — kein eigenes CA-Konto nötig. Voraussetzung:
+      Registrierung unten (eigener API-Key, separat von der Support-Anbindung).
+    </p>
+    <div class="settings-row" style="margin-bottom:8px"><label>Anbieter-Adresse</label>
+      <input type="url" id="certhub-base" placeholder="https://certdeploy.zarenko.net" style="width:100%;max-width:360px;font-size:13px"></div>
+    <div class="settings-row" style="margin-bottom:8px"><label>Deine E-Mail</label>
+      <input type="email" id="certhub-email" placeholder="kunde@firma.de" style="width:100%;max-width:360px;font-size:13px"></div>
+    <div class="settings-row" style="margin-bottom:8px"><label>Name (optional)</label>
+      <input type="text" id="certhub-name" style="width:100%;max-width:360px;font-size:13px"></div>
+    <div class="actions" style="margin:6px 0 10px">
+      <button class="btn secondary" onclick="certHubSaveConfig()">Speichern</button>
+      <button class="btn secondary" onclick="certHubRegister()">Registrieren</button>
+    </div>
+    <div class="settings-row" style="margin-bottom:8px"><label>API-Key (nach Freigabe)</label>
+      <input type="password" id="certhub-key" autocomplete="new-password"
+             placeholder="{% if hub_cert_registered %}•••••• (gesetzt — leer lassen zum Beibehalten){% else %}vom Anbieter erhalten{% endif %}"
+             style="width:100%;max-width:360px;font-size:13px">
+      <button class="btn secondary" onclick="certHubSaveKey()">Key speichern</button></div>
+    <div id="certhub-result" style="display:none;margin-top:8px"></div>
+  </div>
+
+  <!-- Direkt: eigenes Sectigo-SCM-Konto (fortgeschritten) -->
   <div id="sec-direct-fields">
-    <p class="hint" style="margin-bottom:10px">
+    <p class="hint" style="margin:0 0 10px">
       <span style="color:#b45309">Direktkauf:</span> eigenes SCM-Konto nötig.
       <code>Org-ID</code>, <code>Cert-Type</code>, <code>Term</code> sind kontospezifisch
-      (aus dem Sectigo-Dashboard). Ohne gültiges Konto nur vorbereitet, nicht getestet.
+      (aus dem Sectigo-Dashboard). Für Endkunden i.&nbsp;d.&nbsp;R. nicht relevant.
     </p>
     <div class="settings-row" style="margin-bottom:8px"><label>API-Base (optional)</label>
       <input type="text" id="sec-base" placeholder="https://cert-manager.com/api" style="width:100%;max-width:420px;font-size:13px"></div>
@@ -117,49 +133,48 @@
 </div>
 
 <script>
-// ── Support-Hub ──────────────────────────────────────────────────────────────
+// ── Support-Anbindung ────────────────────────────────────────────────────────
 function _hubMsg(html, ok) { const el=document.getElementById('hub-result'); el.className='alert '+(ok?'success':'error'); el.innerHTML=html; el.style.display='block'; }
 async function hubLoadConfig() { try { const d=await (await fetch('/api/hub/config')).json();
   document.getElementById('hub-base').value=d.base_url||''; document.getElementById('hub-email').value=d.email||''; document.getElementById('hub-name').value=d.name||''; } catch(e){} }
 async function hubSaveConfig() { const body={base_url:document.getElementById('hub-base').value.trim(),email:document.getElementById('hub-email').value.trim(),name:document.getElementById('hub-name').value.trim()};
   const d=await (await fetch('/api/hub/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
-  _hubMsg(d.ok?'Support-Hub-Konfiguration gespeichert.':('Fehler: '+(d.error||'')), d.ok); }
+  _hubMsg(d.ok?'Support-Anbindung gespeichert.':('Fehler: '+(d.error||'')), d.ok); }
 async function hubRegister() { await hubSaveConfig(); _hubMsg('Registriere…',true);
   const d=await (await fetch('/api/hub/register',{method:'POST'})).json();
   if(d.ok)_hubMsg('Registrierung übermittelt (Status: <strong>'+(d.status||'pending')+'</strong>). '+(d.message||'Nach Freigabe den API-Key eintragen.'),true); else _hubMsg('Fehler: '+(d.error||'Unbekannt'),false); }
 async function hubSaveKey() { const key=document.getElementById('hub-key').value; if(!key){_hubMsg('Bitte API-Key eingeben.',false);return;}
   const d=await (await fetch('/api/hub/api-key',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({api_key:key})})).json();
-  if(d.ok){document.getElementById('hub-key').value='';_hubMsg('API-Key gespeichert.',true);} else _hubMsg('Fehler beim Speichern.',false); }
+  if(d.ok){document.getElementById('hub-key').value='';_hubMsg('API-Key gespeichert. Bitte Seite neu laden.',true);} else _hubMsg('Fehler beim Speichern.',false); }
 async function hubStatus() { _hubMsg('Prüfe Status…',true); const d=await (await fetch('/api/hub/status')).json();
   if(d.ok)_hubMsg('Freigegeben: Log-Upload <strong>'+(d.log_upload_enabled?'an':'aus')+'</strong>, Kontingent '+d.quota_mb_per_day+' MB/Tag (heute '+d.used_today_mb+' MB genutzt).',true); else _hubMsg('Status: '+(d.error||'nicht verfügbar'),false); }
 document.addEventListener('DOMContentLoaded', hubLoadConfig);
 
-// ── Cert-Hub ─────────────────────────────────────────────────────────────────
+// ── Zertifikatsbezug: Anbieter-Registrierung ─────────────────────────────────
 function _certHubMsg(html, ok) { const el=document.getElementById('certhub-result'); el.className='alert '+(ok?'success':'error'); el.innerHTML=html; el.style.display='block'; }
 async function certHubLoad() { try { const d=await (await fetch('/api/hub/cert/config')).json();
   document.getElementById('certhub-base').value=d.base_url||''; document.getElementById('certhub-email').value=d.email||''; document.getElementById('certhub-name').value=d.name||''; } catch(e){} }
 async function certHubSaveConfig() { const body={base_url:document.getElementById('certhub-base').value.trim(),email:document.getElementById('certhub-email').value.trim(),name:document.getElementById('certhub-name').value.trim()};
   const d=await (await fetch('/api/hub/cert/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
-  _certHubMsg(d.ok?'Cert-Hub-Konfiguration gespeichert.':('Fehler: '+(d.error||'')), d.ok); }
+  _certHubMsg(d.ok?'Anbieter-Registrierung gespeichert.':('Fehler: '+(d.error||'')), d.ok); }
 async function certHubRegister() { await certHubSaveConfig(); _certHubMsg('Registriere…',true);
   const d=await (await fetch('/api/hub/cert/register',{method:'POST'})).json();
   if(d.ok)_certHubMsg('Registrierung übermittelt (Status: <strong>'+(d.status||'pending')+'</strong>). '+(d.message||'Nach Freigabe den API-Key eintragen.'),true); else _certHubMsg('Fehler: '+(d.error||'Unbekannt'),false); }
 async function certHubSaveKey() { const key=document.getElementById('certhub-key').value; if(!key){_certHubMsg('Bitte API-Key eingeben.',false);return;}
   const d=await (await fetch('/api/hub/cert/api-key',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({api_key:key})})).json();
-  if(d.ok){document.getElementById('certhub-key').value='';_certHubMsg('API-Key gespeichert.',true);} else _certHubMsg('Fehler beim Speichern.',false); }
+  if(d.ok){document.getElementById('certhub-key').value='';_certHubMsg('API-Key gespeichert. Bitte Seite neu laden.',true);} else _certHubMsg('Fehler beim Speichern.',false); }
 document.addEventListener('DOMContentLoaded', certHubLoad);
 
-// ── Sectigo ──────────────────────────────────────────────────────────────────
+// ── Zertifikatsbezug: Bezugsweg + Sectigo ────────────────────────────────────
 function sectigoModeChanged() {
   const mode=document.getElementById('sec-mode').value;
+  document.getElementById('sec-managed-fields').style.display=(mode==='direct')?'none':'';
   document.getElementById('sec-direct-fields').style.display=(mode==='direct')?'':'none';
-  document.getElementById('sec-mode-hint').innerHTML=(mode==='direct')
-    ? 'Bestellungen laufen über dein <strong>eigenes Sectigo-SCM-Konto</strong>. Du rechnest direkt mit Sectigo ab.'
-    : 'Bestellungen laufen über den <strong>Provider-Hub deines Betreibers</strong> (Reseller). Voraussetzung: „Cert-Hub" oben registriert. Kein eigenes Sectigo-Konto nötig.';
 }
 async function sectigoLoad() {
   const d=await (await fetch('/api/sectigo/config')).json(); if(!d.ok)return; const c=d.config;
   document.getElementById('sec-mode').value=(c.SECTIGO_MODE==='direct')?'direct':'reseller';
+  document.getElementById('cert-provider').value=c.CERT_PROVIDER||'sectigo';
   document.getElementById('sec-base').value=c.SECTIGO_API_BASE||''; document.getElementById('sec-login').value=c.SECTIGO_LOGIN||'';
   document.getElementById('sec-customer').value=c.SECTIGO_CUSTOMER_URI||''; document.getElementById('sec-org').value=c.SECTIGO_ORG_ID||'';
   document.getElementById('sec-certtype').value=c.SECTIGO_CERT_TYPE||''; document.getElementById('sec-term').value=c.SECTIGO_TERM||'';
@@ -168,13 +183,14 @@ async function sectigoLoad() {
 }
 function _sectigoBody() { return {
   SECTIGO_MODE:document.getElementById('sec-mode').value,
+  CERT_PROVIDER:document.getElementById('cert-provider').value,
   SECTIGO_API_BASE:document.getElementById('sec-base').value.trim(), SECTIGO_LOGIN:document.getElementById('sec-login').value.trim(),
   SECTIGO_PASSWORD:document.getElementById('sec-password').value, SECTIGO_CUSTOMER_URI:document.getElementById('sec-customer').value.trim(),
   SECTIGO_ORG_ID:document.getElementById('sec-org').value.trim(), SECTIGO_CERT_TYPE:document.getElementById('sec-certtype').value.trim(),
   SECTIGO_TERM:document.getElementById('sec-term').value.trim() }; }
 async function sectigoSave() { const r=document.getElementById('sec-result');
   const d=await (await fetch('/api/sectigo/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(_sectigoBody())})).json();
-  r.className='alert '+(d.ok?'success':'error'); r.textContent=d.ok?'Sectigo-Konfiguration gespeichert.':('Fehler: '+(d.error||'Unbekannt')); r.style.display='block';
+  r.className='alert '+(d.ok?'success':'error'); r.textContent=d.ok?'Zertifikatsbezug gespeichert. Bitte Seite neu laden.':('Fehler: '+(d.error||'Unbekannt')); r.style.display='block';
   document.getElementById('sec-password').value=''; sectigoLoad(); }
 async function sectigoTest() { const r=document.getElementById('sec-result'); r.className='alert'; r.textContent='Teste SCM-Zugang…'; r.style.display='block';
   await fetch('/api/sectigo/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(_sectigoBody())});

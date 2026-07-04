@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.406 — 2026-07-04 — feat: Anbindung-Tab überarbeitet — „Support-Anbindung" + zusammengeführter „Zertifikatsbezug"
+
+- „Support-Hub" → „Support-Anbindung" (neuer Hinweistext).
+- Die zwei Cert-Abschnitte (Cert-Hub-Registrierung + Sectigo) zu EINEM Abschnitt
+  „Zertifikatsbezug" zusammengeführt. Bezugsweg-Umschalter jetzt „Verwaltet über den
+  Anbieter" (Standard) vs „Eigenes CA-Konto (direkt)". Im verwalteten Modus: Anbieter-
+  Registrierung + neue Auswahl „Zertifizierungsstelle" (Dropdown: Sectigo; SwissSign als
+  „bald" vorgesehen). Direktkauf-Felder nur im Direkt-Modus, als fortgeschrittene Option.
+- Status-Badges pro Abschnitt („✓ registriert/eingerichtet" bzw. „⚠ ausstehend").
+- Neues Setting `CERT_PROVIDER` (Default „sectigo") — der verwaltete Reseller-Order sendet
+  die gewählte Zertifizierungsstelle an den Hub (`hub_client.cert_order(..., provider=…)`),
+  vorbereitet für weitere CAs über die Sig-Provider-Lösung.
+
 ## v1.4.404 — 2026-07-04 — feat: neuer Einstellungen-Tab „Anbindung" — Provider-/Bezugs-Optionen gebündelt
 
 Die verstreuten Provider-Blöcke sind in einen eigenen Untertab „Anbindung" umgezogen
