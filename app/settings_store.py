@@ -91,16 +91,11 @@ DEFAULTS: dict = {
                                          # the ACME/CASTLE HTTP calls (new-order/finalize/etc.) through
                                          # a residential proxy; empty = direct connection. Some CAs
                                          # (confirmed: CASTLE) reject finalize() from datacenter IPs.
-    # ── Provider Hub (sig-provider) — SUPPORT upload track ────────────────────
-    "HUB_BASE_URL": "",              # e.g. https://sigsupport.zarenko.net — the provider hub (support)
+    # ── Provider Hub (EXO Signature Hub) — ONE account (support + cert) ────────
+    "HUB_BASE_URL": "",              # e.g. https://sighub.zarenko.net — the provider hub
     "HUB_CUSTOMER_EMAIL": "",        # this gateway's registered email (username at the hub)
     "HUB_CUSTOMER_NAME": "",         # display name sent on registration
-    "HUB_API_KEY": "",               # issued by the hub after approval (secret)
-    # ── Provider Hub (sig-provider) — CERT deployment track (separate reg/key) ─
-    "HUB_CERT_BASE_URL": "",         # e.g. https://certdeploy.zarenko.net — the cert relay hub
-    "HUB_CERT_EMAIL": "",            # separately registered email for the cert track
-    "HUB_CERT_NAME": "",             # display name sent on cert registration
-    "HUB_CERT_API_KEY": "",          # separate key issued for the cert track (secret)
+    "HUB_API_KEY": "",               # issued by the hub after approval (secret) — used for support AND cert
     # ── Managed certificate acquisition (via provider hub) ────────────────────
     "CERT_PROVIDER": "sectigo",      # CA chosen for managed ("reseller") acquisition; more later (swisssign…)
     # ── Sectigo Certificate Manager (S/MIME REST API backend) ─────────────────

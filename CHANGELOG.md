@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.412 — 2026-07-05 — feat: Gateway-Anbindung zusammengeführt — EINE Registrierung/ein Key
+
+Die zwei getrennten Registrierungen (Support HUB_* + Cert HUB_CERT_*) sind zu EINER
+Anbindung zusammengeführt: ein Konto, ein API-Key für Support-Upload UND Zertifikatsbezug.
+`HUB_CERT_*`-Settings entfernt; hub_client-Cert-Funktionen nutzen HUB_BASE_URL/HUB_API_KEY.
+Cert ist eine kostenpflichtige Zusatzfähigkeit auf demselben Konto (want=cert), die der
+Anbieter freischaltet.
+
+Anbindung-Tab: „Support-Anbindung" → „Anbindung" (ein Block). Zertifikatsbezug ohne zweite
+Registrierung; stattdessen „Kostenpflichtigen Cert-Bezug beantragen" (Fähigkeit anfragen),
+„Nutzungsbedingungen akzeptieren" und eine Live-Berechtigungsanzeige (darf bestellen / Grund,
+Monatskontingent, verifizierte Domains). Neue Gateway-Endpunkte /api/hub/cert/accept-terms
+und /api/hub/cert/eligibility (Proxy zum Hub); /api/hub/cert/config und /api/hub/cert/api-key
+entfernt. End-to-end gegen den Hub verifiziert (ein Konto: register → cert-register →
+Freigabe → AGB → eligibility → order; Domain-Bindung greift).
+
 ## v1.4.410 — 2026-07-04 — chore: Anbindung-Tab — Cert-Platzhalter certenroll + Intro-Text gekürzt
 
 Anbieter-Adresse (Zertifikatsbezug): Platzhalter → <code>https://certenroll.zarenko.net</code>.

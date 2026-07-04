@@ -3040,7 +3040,7 @@ async def api_logs_files(user: str = Depends(_check_auth)):
 # ── Config export / import ─────────────────────────────────────────────────────
 
 _EXPORT_EXCLUDE = {"ADMIN_PASSWORD_HASH", "CLIENT_SECRET", "RELAY_PASSWORD", "SECTIGO_PASSWORD",
-                   "HUB_API_KEY", "HUB_CERT_API_KEY", "_SCHEMA_VERSION"}
+                   "HUB_API_KEY", "_SCHEMA_VERSION"}
 
 
 @app.get("/api/config/export")
@@ -4032,44 +4032,23 @@ async def api_hub_status(user: str = Depends(_require_admin)):
     return JSONResponse(await hub_client.status())
 
 
-# ── Provider Hub — CERT deployment track (separate registration + key) ────────
-
-@app.get("/api/hub/cert/config")
-async def api_hub_cert_config_get(user: str = Depends(_require_admin)):
-    import hub_client
-    return JSONResponse({
-        "ok": True,
-        "base_url": settings_store.get("HUB_CERT_BASE_URL") or "",
-        "email": settings_store.get("HUB_CERT_EMAIL") or "",
-        "name": settings_store.get("HUB_CERT_NAME") or "",
-        "registered": hub_client.cert_is_registered(),
-    })
-
-
-@app.post("/api/hub/cert/config")
-async def api_hub_cert_config_set(request: Request, user: str = Depends(_require_admin)):
-    data = await request.json()
-    updates = {
-        "HUB_CERT_BASE_URL": (data.get("base_url") or "").strip().rstrip("/"),
-        "HUB_CERT_EMAIL": (data.get("email") or "").strip().lower(),
-        "HUB_CERT_NAME": (data.get("name") or "").strip(),
-    }
-    if updates["HUB_CERT_BASE_URL"] and not updates["HUB_CERT_BASE_URL"].startswith(("http://", "https://")):
-        return JSONResponse({"ok": False, "error": "Hub-Adresse muss mit http(s):// beginnen."}, status_code=400)
-    settings_store.update(updates)
-    return JSONResponse({"ok": True})
-
+# ── Provider Hub — CERT capability (same account/key as the support anbindung) ─
 
 @app.post("/api/hub/cert/register")
 async def api_hub_cert_register(user: str = Depends(_require_admin)):
+    """Request the (paid) cert capability on the one hub account (want=cert)."""
     import hub_client
     return JSONResponse(await hub_client.cert_register())
 
 
-@app.post("/api/hub/cert/api-key")
-async def api_hub_cert_set_key(request: Request, user: str = Depends(_require_admin)):
+@app.post("/api/hub/cert/accept-terms")
+async def api_hub_cert_accept_terms(request: Request, user: str = Depends(_require_admin)):
+    import hub_client
     data = await request.json()
-    key = (data.get("api_key") or "").strip()
-    settings_store.update({"HUB_CERT_API_KEY": key})
-    log.info("Hub CERT API key %s by %s", "cleared" if not key else "set", user)
-    return JSONResponse({"ok": True})
+    return JSONResponse(await hub_client.cert_accept_terms(version=str(data.get("version") or "1")))
+
+
+@app.get("/api/hub/cert/eligibility")
+async def api_hub_cert_eligibility(user: str = Depends(_require_admin)):
+    import hub_client
+    return JSONResponse(await hub_client.cert_eligibility())

@@ -19,23 +19,23 @@
 </style>
 
 <p class="hint" style="margin-bottom:16px">
-  Verbindungen dieses Gateways zum Support-Anbieter — für Log-Upload und für den
-  Zertifikatsbezug. Jede Schiene wird <strong>separat</strong> registriert (eigener API-Key)
-  und vom Anbieter freigegeben.
+  Anbindung dieses Gateways an den Support-Anbieter — <strong>eine</strong> Registrierung mit
+  einem API-Key. Support (Log-Upload) ist inklusive; der Zertifikatsbezug ist eine
+  <strong>kostenpflichtige</strong> Zusatzfähigkeit, die der Anbieter für dein Konto freischaltet.
 </p>
 
-<!-- ── Support-Anbindung ──────────────────────────────────────────────────── -->
+<!-- ── Anbindung (eine Registrierung) ─────────────────────────────────────── -->
 <div class="settings-card" style="margin-bottom:18px">
-  <h2 style="margin-top:0">Support-Anbindung
+  <h2 style="margin-top:0">Anbindung
     {% if hub_registered %}<span class="conn-badge conn-ok">✓ registriert</span>
     {% else %}<span class="conn-badge conn-wait">⚠ nicht registriert</span>{% endif %}
   </h2>
   <p class="hint" style="margin-bottom:12px">
-    Registrierung für den Log-/Diagnose-Upload zum Support-Anbieter per Knopfdruck. Der
-    Upload erfolgt über Erweitert → „Diagnose-Bundle → An Hub senden".
+    Registriere dieses Gateway einmalig beim Anbieter. Nach dessen Freigabe trägst du den
+    erhaltenen API-Key ein — er gilt für Support-Upload und (falls freigeschaltet) Zertifikatsbezug.
   </p>
   <div class="settings-row" style="margin-bottom:8px"><label>Anbieter-Adresse</label>
-    <input type="url" id="hub-base" placeholder="https://sigsupport.zarenko.net" style="width:100%;max-width:360px;font-size:13px"></div>
+    <input type="url" id="hub-base" placeholder="https://sighub.zarenko.net" style="width:100%;max-width:360px;font-size:13px"></div>
   <div class="settings-row" style="margin-bottom:8px"><label>Deine E-Mail</label>
     <input type="email" id="hub-email" placeholder="kunde@firma.de" style="width:100%;max-width:360px;font-size:13px"></div>
   <div class="settings-row" style="margin-bottom:8px"><label>Name (optional)</label>
@@ -56,13 +56,14 @@
 <!-- ── Zertifikatsbezug ───────────────────────────────────────────────────── -->
 <div class="settings-card" style="margin-bottom:18px">
   <h2 style="margin-top:0">Zertifikatsbezug
+    <span class="muted" style="font-size:13px;font-weight:400">— kostenpflichtig</span>
     {% if sectigo_ready %}<span class="conn-badge conn-ok">✓ eingerichtet</span>
     {% else %}<span class="conn-badge conn-wait">⚠ ausstehend</span>{% endif %}
   </h2>
   <p class="hint" style="margin-bottom:12px">
-    S/MIME-Zertifikate über den Support-Anbieter beziehen. Der private Schlüssel wird immer
-    lokal erzeugt und verlässt das Gateway nie — nur der CSR geht raus. Pro Postfach im
-    S/MIME-Tab wählbar (dort erst auswählbar, sobald hier eingerichtet).
+    S/MIME-Zertifikate über den Anbieter beziehen — nutzt die <strong>Anbindung oben</strong>
+    (keine zweite Registrierung). Der private Schlüssel wird immer lokal erzeugt und verlässt das
+    Gateway nie. Pro Postfach im S/MIME-Tab wählbar (dort erst, sobald hier eingerichtet).
   </p>
 
   <div class="settings-row" style="margin-bottom:10px"><label>Bezugsweg</label>
@@ -72,7 +73,7 @@
     </select>
   </div>
 
-  <!-- Verwaltet: Registrierung beim Anbieter + Anbieter-Auswahl -->
+  <!-- Verwaltet: Anbieter-Auswahl + kostenpflichtige Freischaltung -->
   <div id="sec-managed-fields">
     <div class="settings-row" style="margin-bottom:10px"><label>Zertifizierungsstelle</label>
       <select id="cert-provider" style="width:100%;max-width:420px;font-size:13px">
@@ -80,26 +81,18 @@
         <option value="swisssign" disabled>SwissSign — bald</option>
       </select>
     </div>
-    <p class="hint" style="margin:0 0 12px">
-      Die Bestellung läuft über deinen Anbieter — kein eigenes CA-Konto nötig. Voraussetzung:
-      Registrierung unten (eigener API-Key, separat von der Support-Anbindung).
-    </p>
-    <div class="settings-row" style="margin-bottom:8px"><label>Anbieter-Adresse</label>
-      <input type="url" id="certhub-base" placeholder="https://certenroll.zarenko.net" style="width:100%;max-width:360px;font-size:13px"></div>
-    <div class="settings-row" style="margin-bottom:8px"><label>Deine E-Mail</label>
-      <input type="email" id="certhub-email" placeholder="kunde@firma.de" style="width:100%;max-width:360px;font-size:13px"></div>
-    <div class="settings-row" style="margin-bottom:8px"><label>Name (optional)</label>
-      <input type="text" id="certhub-name" style="width:100%;max-width:360px;font-size:13px"></div>
-    <div class="actions" style="margin:6px 0 10px">
-      <button class="btn secondary" onclick="certHubSaveConfig()">Speichern</button>
-      <button class="btn secondary" onclick="certHubRegister()">Registrieren</button>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:12px;margin-bottom:12px">
+      <div id="cert-eligibility" class="hint" style="margin:0 0 10px">Prüfe Berechtigung…</div>
+      <button class="btn secondary" onclick="certRequest()">Kostenpflichtigen Cert-Bezug beantragen</button>
+      <button class="btn secondary" onclick="certAcceptTerms()">Nutzungsbedingungen akzeptieren</button>
+      <button class="btn secondary" onclick="certLoadEligibility()">Aktualisieren</button>
     </div>
-    <div class="settings-row" style="margin-bottom:8px"><label>API-Key (nach Freigabe)</label>
-      <input type="password" id="certhub-key" autocomplete="new-password"
-             placeholder="{% if hub_cert_registered %}•••••• (gesetzt — leer lassen zum Beibehalten){% else %}vom Anbieter erhalten{% endif %}"
-             style="width:100%;max-width:360px;font-size:13px">
-      <button class="btn secondary" onclick="certHubSaveKey()">Key speichern</button></div>
-    <div id="certhub-result" style="display:none;margin-top:8px"></div>
+    <p class="hint" style="margin:0">
+      Ablauf: „Beantragen" meldet dem Anbieter deinen Wunsch → er prüft, erfasst Abrechnungsdaten
+      und schaltet den Bezug frei (kostenpflichtig) → du akzeptierst die Nutzungsbedingungen →
+      danach kannst du pro Postfach Zertifikate beziehen.
+    </p>
+    <div id="cert-msg" style="display:none;margin-top:10px"></div>
   </div>
 
   <!-- Direkt: eigenes Sectigo-SCM-Konto (fortgeschritten) -->
@@ -133,13 +126,13 @@
 </div>
 
 <script>
-// ── Support-Anbindung ────────────────────────────────────────────────────────
+// ── Anbindung (eine Registrierung) ───────────────────────────────────────────
 function _hubMsg(html, ok) { const el=document.getElementById('hub-result'); el.className='alert '+(ok?'success':'error'); el.innerHTML=html; el.style.display='block'; }
 async function hubLoadConfig() { try { const d=await (await fetch('/api/hub/config')).json();
   document.getElementById('hub-base').value=d.base_url||''; document.getElementById('hub-email').value=d.email||''; document.getElementById('hub-name').value=d.name||''; } catch(e){} }
 async function hubSaveConfig() { const body={base_url:document.getElementById('hub-base').value.trim(),email:document.getElementById('hub-email').value.trim(),name:document.getElementById('hub-name').value.trim()};
   const d=await (await fetch('/api/hub/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
-  _hubMsg(d.ok?'Support-Anbindung gespeichert.':('Fehler: '+(d.error||'')), d.ok); }
+  _hubMsg(d.ok?'Anbindung gespeichert.':('Fehler: '+(d.error||'')), d.ok); }
 async function hubRegister() { await hubSaveConfig(); _hubMsg('Registriere…',true);
   const d=await (await fetch('/api/hub/register',{method:'POST'})).json();
   if(d.ok)_hubMsg('Registrierung übermittelt (Status: <strong>'+(d.status||'pending')+'</strong>). '+(d.message||'Nach Freigabe den API-Key eintragen.'),true); else _hubMsg('Fehler: '+(d.error||'Unbekannt'),false); }
@@ -150,26 +143,31 @@ async function hubStatus() { _hubMsg('Prüfe Status…',true); const d=await (aw
   if(d.ok)_hubMsg('Freigegeben: Log-Upload <strong>'+(d.log_upload_enabled?'an':'aus')+'</strong>, Kontingent '+d.quota_mb_per_day+' MB/Tag (heute '+d.used_today_mb+' MB genutzt).',true); else _hubMsg('Status: '+(d.error||'nicht verfügbar'),false); }
 document.addEventListener('DOMContentLoaded', hubLoadConfig);
 
-// ── Zertifikatsbezug: Anbieter-Registrierung ─────────────────────────────────
-function _certHubMsg(html, ok) { const el=document.getElementById('certhub-result'); el.className='alert '+(ok?'success':'error'); el.innerHTML=html; el.style.display='block'; }
-async function certHubLoad() { try { const d=await (await fetch('/api/hub/cert/config')).json();
-  document.getElementById('certhub-base').value=d.base_url||''; document.getElementById('certhub-email').value=d.email||''; document.getElementById('certhub-name').value=d.name||''; } catch(e){} }
-async function certHubSaveConfig() { const body={base_url:document.getElementById('certhub-base').value.trim(),email:document.getElementById('certhub-email').value.trim(),name:document.getElementById('certhub-name').value.trim()};
-  const d=await (await fetch('/api/hub/cert/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
-  _certHubMsg(d.ok?'Anbieter-Registrierung gespeichert.':('Fehler: '+(d.error||'')), d.ok); }
-async function certHubRegister() { await certHubSaveConfig(); _certHubMsg('Registriere…',true);
+// ── Zertifikatsbezug: kostenpflichtige Fähigkeit auf demselben Konto ─────────
+function _certMsg(html, ok) { const el=document.getElementById('cert-msg'); el.className='alert '+(ok?'success':'error'); el.innerHTML=html; el.style.display='block'; }
+async function certRequest() {
   const d=await (await fetch('/api/hub/cert/register',{method:'POST'})).json();
-  if(d.ok)_certHubMsg('Registrierung übermittelt (Status: <strong>'+(d.status||'pending')+'</strong>). '+(d.message||'Nach Freigabe den API-Key eintragen.'),true); else _certHubMsg('Fehler: '+(d.error||'Unbekannt'),false); }
-async function certHubSaveKey() { const key=document.getElementById('certhub-key').value; if(!key){_certHubMsg('Bitte API-Key eingeben.',false);return;}
-  const d=await (await fetch('/api/hub/cert/api-key',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({api_key:key})})).json();
-  if(d.ok){document.getElementById('certhub-key').value='';_certHubMsg('API-Key gespeichert. Bitte Seite neu laden.',true);} else _certHubMsg('Fehler beim Speichern.',false); }
-document.addEventListener('DOMContentLoaded', certHubLoad);
+  if(d.ok)_certMsg('Cert-Bezug beantragt (Status: <strong>'+(d.status||'pending')+'</strong>). Der Anbieter schaltet nach Prüfung frei.',true); else _certMsg('Fehler: '+(d.error||'Unbekannt'),false); }
+async function certAcceptTerms() {
+  if(!confirm('Kostenpflichtige Nutzungsbedingungen für den Zertifikatsbezug akzeptieren?')) return;
+  const d=await (await fetch('/api/hub/cert/accept-terms',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({version:'1'})})).json();
+  if(d.ok){_certMsg('Nutzungsbedingungen akzeptiert.',true); certLoadEligibility();} else _certMsg('Fehler: '+(d.error||'Unbekannt'),false); }
+async function certLoadEligibility() {
+  const el=document.getElementById('cert-eligibility');
+  try {
+    const d=await (await fetch('/api/hub/cert/eligibility')).json();
+    if(d.ok){ el.innerHTML='<strong style="color:#166534">✓ Darf Zertifikate beziehen.</strong> '
+      +'Kontingent '+(d.used_this_month||0)+'/'+(d.monthly_limit||0)+' diesen Monat · Domains: '+((d.verified_domains||[]).join(', ')||'–'); }
+    else { el.innerHTML='<strong style="color:#92400e">⚠ Noch nicht bezugsberechtigt:</strong> '+(d.reason||d.error||'unbekannt'); }
+  } catch(e){ el.textContent='Berechtigung konnte nicht geprüft werden.'; }
+}
 
 // ── Zertifikatsbezug: Bezugsweg + Sectigo ────────────────────────────────────
 function sectigoModeChanged() {
   const mode=document.getElementById('sec-mode').value;
   document.getElementById('sec-managed-fields').style.display=(mode==='direct')?'none':'';
   document.getElementById('sec-direct-fields').style.display=(mode==='direct')?'':'none';
+  if(mode!=='direct') certLoadEligibility();
 }
 async function sectigoLoad() {
   const d=await (await fetch('/api/sectigo/config')).json(); if(!d.ok)return; const c=d.config;

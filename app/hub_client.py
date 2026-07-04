@@ -37,22 +37,24 @@ def is_registered() -> bool:
     return bool(_base() and _key())
 
 
-# ── Cert deployment track (separate registration + key) ───────────────────────
+# ── Cert capability — SAME account/key as support (unified registration) ──────
+# Cert is a paid capability on the one hub account; it reuses HUB_BASE_URL /
+# HUB_API_KEY. Enabling + billing + terms are handled per-account at the hub.
 
 def _cert_base() -> str:
-    return (settings_store.get("HUB_CERT_BASE_URL") or "").strip().rstrip("/")
+    return _base()
 
 
 def _cert_key() -> str:
-    return (settings_store.get("HUB_CERT_API_KEY") or "").strip()
+    return _key()
 
 
 def cert_is_configured() -> bool:
-    return bool(_cert_base())
+    return is_configured()
 
 
 def cert_is_registered() -> bool:
-    return bool(_cert_base() and _cert_key())
+    return is_registered()
 
 
 async def register() -> dict:
@@ -132,14 +134,14 @@ async def upload_bundle(runtime_log_lines: list[str]) -> dict:
 
 
 async def cert_register() -> dict:
-    """Register this gateway with the cert-deployment hub (want=cert, separate key)."""
-    base = _cert_base()
-    email = (settings_store.get("HUB_CERT_EMAIL") or "").strip().lower()
-    name = (settings_store.get("HUB_CERT_NAME") or "").strip()
+    """Flag the cert capability on the ONE hub account (want=cert, same email)."""
+    base = _base()
+    email = (settings_store.get("HUB_CUSTOMER_EMAIL") or "").strip().lower()
+    name = (settings_store.get("HUB_CUSTOMER_NAME") or "").strip()
     if not base:
-        return {"ok": False, "error": "Cert-Hub-Adresse (HUB_CERT_BASE_URL) nicht gesetzt."}
+        return {"ok": False, "error": "Hub-Adresse (HUB_BASE_URL) nicht gesetzt."}
     if "@" not in email:
-        return {"ok": False, "error": "Gültige Cert-Kunden-E-Mail erforderlich."}
+        return {"ok": False, "error": "Gültige Kunden-E-Mail erforderlich (Anbindung)."}
     try:
         async with httpx.AsyncClient(timeout=20) as c:
             r = await c.post(f"{base}/api/register",
@@ -152,14 +154,45 @@ async def cert_register() -> dict:
         return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
 
 
+async def cert_accept_terms(version: str = "1") -> dict:
+    """Accept the paid terms for the cert capability (uses the one account key)."""
+    base = _base()
+    if not (base and _key()):
+        return {"ok": False, "error": "Nicht registriert (Anbindung fehlt)."}
+    try:
+        async with httpx.AsyncClient(timeout=20) as c:
+            r = await c.post(f"{base}/api/cert/accept-terms",
+                             headers={"X-API-Key": _key()}, json={"version": version})
+        if r.status_code == 200:
+            return {"ok": True, **r.json()}
+        return {"ok": False, "error": f"HTTP {r.status_code}: {r.text[:200]}"}
+    except Exception as exc:
+        return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
+
+
+async def cert_eligibility() -> dict:
+    """Ask the hub whether this account may currently order certs (and why not)."""
+    base = _base()
+    if not (base and _key()):
+        return {"ok": False, "error": "Nicht registriert (Anbindung fehlt)."}
+    try:
+        async with httpx.AsyncClient(timeout=20) as c:
+            r = await c.get(f"{base}/api/cert/eligibility", headers={"X-API-Key": _key()})
+        if r.status_code == 200:
+            return r.json()
+        return {"ok": False, "error": f"HTTP {r.status_code}: {r.text[:200]}"}
+    except Exception as exc:
+        return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
+
+
 async def cert_order(target_email: str, csr_pem: str, extra: dict | None = None,
                      provider: str = "sectigo") -> dict:
-    """Submit an S/MIME cert order to the reseller hub (operator holds the CA creds)."""
-    base = _cert_base()
+    """Submit an S/MIME cert order via the ONE hub account (operator holds CA creds)."""
+    base = _base()
     if not base:
-        return {"ok": False, "error": "Cert-Hub-Adresse (HUB_CERT_BASE_URL) nicht gesetzt."}
-    if not _cert_key():
-        return {"ok": False, "error": "Cert-Track nicht registriert/freigegeben — kein API-Key."}
+        return {"ok": False, "error": "Hub-Adresse (HUB_BASE_URL) nicht gesetzt."}
+    if not _key():
+        return {"ok": False, "error": "Nicht registriert/freigegeben — kein API-Key."}
     body = {"provider": provider or "sectigo", "email": target_email, "csr": csr_pem, "extra": extra or {}}
     try:
         async with httpx.AsyncClient(timeout=60) as c:
