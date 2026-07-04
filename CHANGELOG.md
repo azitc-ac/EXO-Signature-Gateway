@@ -5,6 +5,11 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.410 — 2026-07-04 — chore: Anbindung-Tab — Cert-Platzhalter certenroll + Intro-Text gekürzt
+
+Anbieter-Adresse (Zertifikatsbezug): Platzhalter → <code>https://certenroll.zarenko.net</code>.
+Intro-Text: „für Support (Log-Upload)" → „für Log-Upload".
+
 ## v1.4.406 — 2026-07-04 — feat: Anbindung-Tab überarbeitet — „Support-Anbindung" + zusammengeführter „Zertifikatsbezug"
 
 - „Support-Hub" → „Support-Anbindung" (neuer Hinweistext).
