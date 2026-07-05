@@ -697,6 +697,11 @@ async def _poll_mailbox_for_challenge(email: str) -> None:
 
 # ── Full initiation flow (called from castle_acme.py) ────────────────────────
 
+class EnrollmentNotAllowed(Exception):
+    """Raised when a mailbox may not obtain a certificate — e.g. it is not
+    activated for S/MIME. S/MIME activation is a prerequisite for enrollment."""
+
+
 async def initiate_acme_order(
     email: str,
     user_config: dict,
@@ -712,6 +717,18 @@ async def initiate_acme_order(
     """
     import uuid
     flow_id = uuid.uuid4().hex[:8]
+
+    # ── Guard: S/MIME activation is a prerequisite for enrollment ──────────────
+    # A certificate is only useful if the mailbox actually S/MIME-signs; enrolling
+    # (and, via the hub, paying) for a mailbox that isn't activated is waste/abuse.
+    # Enforced HERE in the core so no caller/path can bypass it. Checked before any
+    # account key or CASTLE order is created, so a blocked attempt has no side effects.
+    _mb = (settings_store.get("MAILBOX_CONFIG") or {}).get(email.lower(), {})
+    if not _mb.get("smime"):
+        log.warning("[acme:%s] enrollment blocked for %s — mailbox not S/MIME-activated", flow_id, email)
+        raise EnrollmentNotAllowed(
+            f"Postfach {email} ist nicht für S/MIME aktiviert (MAILBOX_CONFIG.smime) — Enrollment abgelehnt.")
+
     directory_url = CASTLE_STAGING if staging else CASTLE_DIRECTORY
     log.info("[acme:%s] ENROLLMENT START — %s via %s", flow_id, email, directory_url)
 

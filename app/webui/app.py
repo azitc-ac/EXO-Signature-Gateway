@@ -2635,6 +2635,12 @@ async def api_acme_initiate(email: str, user: str = Depends(_check_auth)):
     if not backend.can_auto_renew():
         raise HTTPException(400, f"Backend '{backend_name}' unterstützt kein Auto-Enroll")
 
+    # Guard: a mailbox must be activated for S/MIME before it may obtain a cert
+    # (clean 400 here; also enforced in initiate_acme_order so nothing bypasses it).
+    if not (settings_store.get("MAILBOX_CONFIG") or {}).get(email, {}).get("smime"):
+        raise HTTPException(400, f"Postfach {email} ist nicht für S/MIME aktiviert — "
+                                 f"erst das Postfach für S/MIME aktivieren, dann Zertifikat beziehen.")
+
     # If there's already a waiting_challenge order, restart the mailbox poller
     # instead of creating a redundant CASTLE order.
     existing = _acme_state.get_order(email)
@@ -2648,6 +2654,8 @@ async def api_acme_initiate(email: str, user: str = Depends(_check_auth)):
         await backend.initiate_renewal(email, ca_cfg)
         log.info("ACME renewal initiated for %s by %s", email, user)
         return JSONResponse({"ok": True})
+    except _acme_state.EnrollmentNotAllowed as exc:
+        raise HTTPException(400, str(exc))
     except Exception as exc:
         log.error("ACME initiate failed for %s: %s", email, exc)
         raise HTTPException(500, str(exc))

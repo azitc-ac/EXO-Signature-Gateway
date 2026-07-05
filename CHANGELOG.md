@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.2 — 2026-07-05 — fix: Enrollment-Guard — Zertifikatsbezug nur für S/MIME-aktivierte Postfächer
+
+Ein ACME-Enrollment ist jetzt nur noch erlaubt, wenn das Postfach in
+`MAILBOX_CONFIG` mit `smime=true` aktiviert ist. Vorher konnte für jede Identität
+mit CA-Backend ein Zert gezogen werden — unabhängig davon, ob das Postfach
+überhaupt signiert (Verschwendung/Missbrauch, besonders da Enrollment über den Hub
+kostenpflichtig ist). Erzwungen im Kern (`acme_state.initiate_acme_order`, vor jeder
+Account-/Order-Erzeugung → keine Seiteneffekte bei Blockade) via neuer Exception
+`EnrollmentNotAllowed`; zusätzlich saubere 400-Frühabweisung im Initiate-Endpoint.
+Hinweis: Der Check ist aktuell e-mail-keyed; im geplanten GUID-Anker-Refactor
+wandert er auf den stabilen Identifier.
+
 ## v1.5.1 — 2026-07-05 — feat: Anbindung-Tab — Prepaid-Guthaben anzeigen + „Aufladen" (Stripe)
 
 Der Zertifikatsbezug zeigt jetzt das Prepaid-Guthaben des Hub-Kontos + Preis pro
