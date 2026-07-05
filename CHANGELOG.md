@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.7 — 2026-07-06 — feat: Selbstbedienungs-Anbindung — „Verbinden" + Claim-Token-Key-Relay + Entfernen
+
+Der Anbindung-Tab hat jetzt „Verbinden": Registrierung mit Claim-Token → der Hub
+schickt eine Bestätigungsmail; nach dem Klick auf den Link zieht das Gateway den
+API-Key automatisch (poll_claim, /api/hub/claim) — kein Copy-Paste mehr. Manueller
+Key-Eintrag bleibt als Fallback. Neu: „Anbindung entfernen" (hub_client.disconnect,
+/api/hub/disconnect) und „Zertifikatsbezug abbestellen" (cert_opt_out,
+/api/hub/cert/opt-out).
+
 ## v1.5.6 — 2026-07-05 — feat: Gateway identifiziert sich beim Hub (X-Gateway-Id/Host/Version)
 
 hub_client sendet auf allen authentifizierten Hub-Calls die Gateway-Identität:

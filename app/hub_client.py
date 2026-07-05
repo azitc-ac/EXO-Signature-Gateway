@@ -12,6 +12,7 @@ Hub endpoints used:
 """
 import asyncio
 import logging
+import secrets
 
 import httpx
 
@@ -84,7 +85,8 @@ def cert_is_registered() -> bool:
 
 
 async def register() -> dict:
-    """Register this gateway with the hub. Email is the username."""
+    """Start the self-service connection: send a claim token so the gateway can
+    later pull the issued API key (after the operator confirms via email)."""
     base = _base()
     email = (settings_store.get("HUB_CUSTOMER_EMAIL") or "").strip().lower()
     name = (settings_store.get("HUB_CUSTOMER_NAME") or "").strip()
@@ -92,16 +94,70 @@ async def register() -> dict:
         return {"ok": False, "error": "Hub-Adresse (HUB_BASE_URL) nicht gesetzt."}
     if "@" not in email:
         return {"ok": False, "error": "Gültige Kunden-E-Mail erforderlich."}
+    claim = secrets.token_urlsafe(32)
+    settings_store.update({"HUB_CLAIM_TOKEN": claim})
     try:
         async with httpx.AsyncClient(timeout=20) as c:
             r = await c.post(f"{base}/api/register",
-                             json={"email": email, "name": name, "want": "support"})
+                             json={"email": email, "name": name, "want": "support", "claim_token": claim})
         data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
         if r.status_code == 200 and data.get("ok"):
-            return {"ok": True, "status": data.get("status"), "message": data.get("message", "")}
+            return {"ok": True, "status": data.get("status"),
+                    "email_sent": data.get("email_sent"), "message": data.get("message", "")}
         return {"ok": False, "error": data.get("detail") or f"HTTP {r.status_code}: {r.text[:200]}"}
     except Exception as exc:
         return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
+
+
+async def poll_claim() -> dict:
+    """After the operator confirmed via email, pull the API key once and store it.
+    Returns {ok, connected, status}."""
+    base = _base()
+    claim = (settings_store.get("HUB_CLAIM_TOKEN") or "").strip()
+    if not base:
+        return {"ok": False, "error": "Hub-Adresse (HUB_BASE_URL) nicht gesetzt."}
+    if not claim:
+        return {"ok": False, "error": "Kein Claim-Token — erst „Verbinden“ auslösen."}
+    try:
+        async with httpx.AsyncClient(timeout=20) as c:
+            r = await c.get(f"{base}/api/register/claim", headers={"X-Claim-Token": claim})
+        data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+        if r.status_code == 200 and data.get("ok") and data.get("api_key"):
+            settings_store.update({"HUB_API_KEY": data["api_key"], "HUB_CLAIM_TOKEN": ""})
+            log.info("Hub API key received via claim-token relay — connected.")
+            return {"ok": True, "connected": True}
+        return {"ok": True, "connected": False, "status": data.get("status", "pending_confirmation")}
+    except Exception as exc:
+        return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
+
+
+async def cert_opt_out() -> dict:
+    """Ask the hub to disable the (paid) cert capability for this account."""
+    base = _base()
+    if not (base and _key()):
+        return {"ok": False, "error": "Nicht registriert (Anbindung fehlt)."}
+    try:
+        async with httpx.AsyncClient(timeout=20) as c:
+            r = await c.post(f"{base}/api/cert/opt-out", headers=_gateway_headers())
+        data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+        return {"ok": r.status_code == 200 and data.get("ok"),
+                "cert_issuing_enabled": data.get("cert_issuing_enabled")}
+    except Exception as exc:
+        return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
+
+
+async def disconnect(close_remote: bool = False) -> dict:
+    """Remove the local hub binding. Optionally tell the hub to close the account."""
+    base = _base()
+    if close_remote and base and _key():
+        try:
+            async with httpx.AsyncClient(timeout=20) as c:
+                await c.post(f"{base}/api/account/disconnect", headers=_gateway_headers())
+        except Exception as exc:
+            log.warning("hub disconnect (remote) failed: %s", exc)
+    settings_store.update({"HUB_API_KEY": "", "HUB_CLAIM_TOKEN": ""})
+    log.info("Hub-Anbindung lokal entfernt.")
+    return {"ok": True}
 
 
 async def status() -> dict:

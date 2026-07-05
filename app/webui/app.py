@@ -4105,6 +4105,27 @@ async def api_hub_register(user: str = Depends(_require_admin)):
     return JSONResponse(await hub_client.register())
 
 
+@app.post("/api/hub/claim")
+async def api_hub_claim(user: str = Depends(_require_admin)):
+    """Poll the hub for the issued API key after email confirmation (self-service)."""
+    import hub_client
+    return JSONResponse(await hub_client.poll_claim())
+
+
+@app.post("/api/hub/cert/opt-out")
+async def api_hub_cert_opt_out(user: str = Depends(_require_admin)):
+    import hub_client
+    return JSONResponse(await hub_client.cert_opt_out())
+
+
+@app.post("/api/hub/disconnect")
+async def api_hub_disconnect(request: Request, user: str = Depends(_require_admin)):
+    import hub_client
+    ctype = request.headers.get("content-type", "")
+    data = await request.json() if ctype.startswith("application/json") else {}
+    return JSONResponse(await hub_client.disconnect(close_remote=bool(data.get("close_remote"))))
+
+
 @app.post("/api/hub/api-key")
 async def api_hub_set_key(request: Request, user: str = Depends(_require_admin)):
     """Store the API key the operator issued after approving this gateway."""

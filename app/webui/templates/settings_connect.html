@@ -42,10 +42,13 @@
     <input type="text" id="hub-name" style="width:100%;max-width:360px;font-size:13px"></div>
   <div class="actions" style="margin:6px 0 10px">
     <button class="btn secondary" onclick="hubSaveConfig()">Speichern</button>
-    <button class="btn secondary" onclick="hubRegister()">Registrieren</button>
+    <button class="btn primary" onclick="hubConnect()">Verbinden</button>
+    <button class="btn secondary" onclick="hubPollClaim(true)">Bestätigung prüfen</button>
     <button class="btn secondary" onclick="hubStatus()">Status prüfen</button>
+    {% if hub_registered %}<button class="btn danger" onclick="hubDisconnect()" style="float:right">Anbindung entfernen</button>{% endif %}
   </div>
-  <div class="settings-row" style="margin-bottom:8px"><label>API-Key (nach Freigabe)</label>
+  <p class="hint" style="margin:0 0 10px;font-size:12px">„Verbinden" schickt dir eine Bestätigungsmail — nach dem Klick auf den Link trägt sich der Zugang automatisch ein. (Manuell: API-Key unten eintragen.)</p>
+  <div class="settings-row" style="margin-bottom:8px"><label>API-Key (manuell)</label>
     <input type="password" id="hub-key" autocomplete="new-password"
            placeholder="{% if hub_registered %}•••••• (gesetzt — leer lassen zum Beibehalten){% else %}vom Anbieter erhalten{% endif %}"
            style="width:100%;max-width:360px;font-size:13px">
@@ -93,6 +96,7 @@
       <button class="btn secondary" onclick="certRequest()">Kostenpflichtigen Cert-Bezug beantragen</button>
       <button class="btn secondary" onclick="certAcceptTerms()">Nutzungsbedingungen akzeptieren</button>
       <button class="btn secondary" onclick="certLoadEligibility()">Aktualisieren</button>
+      <button class="btn danger" onclick="certOptOut()">Zertifikatsbezug abbestellen</button>
     </div>
     <p class="hint" style="margin:0">
       Ablauf: „Beantragen" meldet dem Anbieter deinen Wunsch → er prüft, erfasst Abrechnungsdaten
@@ -140,9 +144,31 @@ async function hubLoadConfig() { try { const d=await (await fetch('/api/hub/conf
 async function hubSaveConfig() { const body={base_url:document.getElementById('hub-base').value.trim(),email:document.getElementById('hub-email').value.trim(),name:document.getElementById('hub-name').value.trim()};
   const d=await (await fetch('/api/hub/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
   _hubMsg(d.ok?'Anbindung gespeichert.':('Fehler: '+(d.error||'')), d.ok); }
-async function hubRegister() { await hubSaveConfig(); _hubMsg('Registriere…',true);
+let _hubPollTimer=null;
+async function hubConnect() { await hubSaveConfig(); _hubMsg('Verbinde… Registrierung wird übermittelt.',true);
   const d=await (await fetch('/api/hub/register',{method:'POST'})).json();
-  if(d.ok)_hubMsg('Registrierung übermittelt (Status: <strong>'+(d.status||'pending')+'</strong>). '+(d.message||'Nach Freigabe den API-Key eintragen.'),true); else _hubMsg('Fehler: '+(d.error||'Unbekannt'),false); }
+  if(!d.ok){ _hubMsg('Fehler: '+(d.error||'Unbekannt'),false); return; }
+  if(d.email_sent){
+    _hubMsg('📧 Bestätigungsmail an <strong>'+document.getElementById('hub-email').value.trim()+'</strong> gesendet. '
+      +'Bitte den Link darin öffnen — danach verbindet sich das Gateway automatisch. <em>Warte auf Bestätigung…</em>',true);
+    _startHubPoll();
+  } else {
+    _hubMsg('Registrierung übermittelt (Status: <strong>'+(d.status||'pending')+'</strong>). '
+      +(d.message||'Nach Freigabe den API-Key manuell eintragen.'),true);
+  }
+}
+function _startHubPoll(){ let tries=0; clearInterval(_hubPollTimer);
+  _hubPollTimer=setInterval(async()=>{ tries++; if(tries>75){clearInterval(_hubPollTimer);return;}
+    try{ const d=await (await fetch('/api/hub/claim',{method:'POST'})).json();
+      if(d.ok&&d.connected){ clearInterval(_hubPollTimer);
+        _hubMsg('✓ Verbunden! Der Zugang wurde automatisch eingetragen. Seite lädt neu…',true);
+        setTimeout(()=>location.reload(),1500); } }catch(e){} },4000); }
+async function hubPollClaim(manual){ const d=await (await fetch('/api/hub/claim',{method:'POST'})).json();
+  if(d.ok&&d.connected){ _hubMsg('✓ Verbunden! Seite lädt neu…',true); setTimeout(()=>location.reload(),1200); }
+  else if(manual){ _hubMsg('Noch nicht bestätigt (Status: '+((d.status)||d.error||'wartet')+'). Bitte den Link in der E-Mail öffnen.',false); } }
+async function hubDisconnect(){ if(!confirm('Anbindung an den Hub entfernen? Der lokale API-Key wird gelöscht.'))return;
+  const d=await (await fetch('/api/hub/disconnect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({close_remote:false})})).json();
+  if(d.ok){ _hubMsg('Anbindung entfernt. Seite lädt neu…',true); setTimeout(()=>location.reload(),1000);} else _hubMsg('Fehler.',false); }
 async function hubSaveKey() { const key=document.getElementById('hub-key').value; if(!key){_hubMsg('Bitte API-Key eingeben.',false);return;}
   const d=await (await fetch('/api/hub/api-key',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({api_key:key})})).json();
   if(d.ok){document.getElementById('hub-key').value='';_hubMsg('API-Key gespeichert. Bitte Seite neu laden.',true);} else _hubMsg('Fehler beim Speichern.',false); }
@@ -152,6 +178,9 @@ document.addEventListener('DOMContentLoaded', hubLoadConfig);
 
 // ── Zertifikatsbezug: kostenpflichtige Fähigkeit auf demselben Konto ─────────
 function _certMsg(html, ok) { const el=document.getElementById('cert-msg'); el.className='alert '+(ok?'success':'error'); el.innerHTML=html; el.style.display='block'; }
+async function certOptOut() { if(!confirm('Zertifikatsbezug für dieses Konto abbestellen? (Wieder aktivieren nur über den Anbieter.)'))return;
+  const d=await (await fetch('/api/hub/cert/opt-out',{method:'POST'})).json();
+  if(d.ok){_certMsg('Zertifikatsbezug abbestellt.',true); certLoadEligibility();} else _certMsg('Fehler: '+(d.error||'Unbekannt'),false); }
 async function certRequest() {
   const d=await (await fetch('/api/hub/cert/register',{method:'POST'})).json();
   if(d.ok)_certMsg('Cert-Bezug beantragt (Status: <strong>'+(d.status||'pending')+'</strong>). Der Anbieter schaltet nach Prüfung frei.',true); else _certMsg('Fehler: '+(d.error||'Unbekannt'),false); }
