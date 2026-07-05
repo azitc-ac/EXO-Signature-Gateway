@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.3 — 2026-07-05 — feat: exo_mailboxes.py — autoritative Postfach-Enumeration (EXO, ExchangeGuid)
+
+Fundament für den MAILBOX_CONFIG-GUID-Refactor: neues Modul `exo_mailboxes.py`
+listet echte Postfächer autoritativ über EXO `Get-EXOMailbox` (User- + Shared),
+liefert **ExchangeGuid** + alle SMTP-Adressen, und löst `email→ExchangeGuid` für
+jeden Alias auf (`resolve_guid`). Ersetzt perspektivisch die Graph-Heuristik
+(`/users`-Filter + Inbox-Probing). Gecacht (TTL 1h), EXO-Aufruf nur außerhalb des
+Hot-Paths. Noch NICHT verdrahtet — reines Fundament, getestet (Parsing inkl.
+String/Array-Normalisierung, Alias-/Case-Auflösung).
+
 ## v1.5.2 — 2026-07-05 — fix: Enrollment-Guard — Zertifikatsbezug nur für S/MIME-aktivierte Postfächer
 
 Ein ACME-Enrollment ist jetzt nur noch erlaubt, wenn das Postfach in
