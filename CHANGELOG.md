@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.4.413 — 2026-07-05 — fix: NameError in /api/system/update/whats-new behoben
+
+`import updater` fehlte in `api_update_whats_new` (app.py) — Aufruf des Endpunkts
+hätte `NameError: name 'updater' is not defined` geworfen.
+(Endpunkt wird im aktuellen UI noch nicht direkt aufgerufen, aber im Backend vorhanden.)
+
 ## v1.4.412 — 2026-07-05 — feat: Gateway-Anbindung zusammengeführt — EINE Registrierung/ein Key
 
 Die zwei getrennten Registrierungen (Support HUB_* + Cert HUB_CERT_*) sind zu EINER

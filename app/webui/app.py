@@ -3869,7 +3869,7 @@ async def api_watcher_status(user: str = Depends(_require_admin)):
 @app.get("/api/system/update/whats-new")
 async def api_update_whats_new(from_version: str, to_version: str, user: str = Depends(_check_auth)):
     """Fetch changelog entries from GitHub between from_version (excl.) and to_version (incl.)."""
-    import re, httpx
+    import re, httpx, updater
     url = f"https://raw.githubusercontent.com/{updater.GITHUB_REPO}/main/CHANGELOG.md"
     try:
         async with httpx.AsyncClient(timeout=10) as client:
