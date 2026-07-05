@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.6 — 2026-07-05 — feat: Gateway identifiziert sich beim Hub (X-Gateway-Id/Host/Version)
+
+hub_client sendet auf allen authentifizierten Hub-Calls die Gateway-Identität:
+`X-Gateway-Id` (stabile UUID in Setting GATEWAY_ID), `X-Gateway-Host`,
+`X-Gateway-Version`. Der Hub trackt damit pro Kunde, welche(s) Gateway(s)
+dahinterstehen (mehrere pro Kunde möglich).
+
 ## v1.5.5 — 2026-07-05 — feat: MAILBOX_CONFIG ExchangeGuid-Anker verdrahtet (Hot-Path + Guard + UI + Apply)
 
 `mailbox_match.py`: address→cfg Reverse-Index, versteht e-mail- UND guid-keyed

@@ -29,6 +29,32 @@ def _key() -> str:
     return (settings_store.get("HUB_API_KEY") or "").strip()
 
 
+def _gateway_headers(key: str | None = None) -> dict:
+    """Auth + identify this gateway to the hub (X-Gateway-*), so the hub can show
+    which gateway(s) sit behind a customer. Multiple gateways per customer are OK."""
+    gid = (settings_store.get("GATEWAY_ID") or "").strip()
+    if not gid:
+        import uuid
+        gid = uuid.uuid4().hex
+        settings_store.update({"GATEWAY_ID": gid})
+    import socket
+    host = (settings_store.get("PUBLIC_HOSTNAME") or "").strip() or socket.gethostname()
+    ver = ""
+    try:
+        import config as _cfg
+        ver = str(getattr(_cfg, "VERSION", "") or "")
+    except Exception:
+        ver = ""
+    if not ver:
+        try:
+            from pathlib import Path
+            ver = Path("/app/VERSION").read_text().strip()
+        except Exception:
+            ver = ""
+    return {"X-API-Key": key or _key(), "X-Gateway-Id": gid,
+            "X-Gateway-Host": host, "X-Gateway-Version": ver}
+
+
 def is_configured() -> bool:
     return bool(_base())
 
@@ -85,7 +111,7 @@ async def status() -> dict:
         return {"ok": False, "error": "Hub-Adresse oder API-Key fehlt."}
     try:
         async with httpx.AsyncClient(timeout=20) as c:
-            r = await c.get(f"{base}/api/support/me", headers={"X-API-Key": _key()})
+            r = await c.get(f"{base}/api/support/me", headers=_gateway_headers())
         if r.status_code == 200:
             return {"ok": True, **r.json()}
         if r.status_code in (401, 403):
@@ -115,7 +141,7 @@ async def upload_bundle(runtime_log_lines: list[str]) -> dict:
         async with httpx.AsyncClient(timeout=180) as c:
             r = await c.post(
                 f"{base}/api/support/upload",
-                headers={"X-API-Key": _key()},
+                headers=_gateway_headers(),
                 files={"file": (name, zip_bytes, "application/zip")},
             )
         if r.status_code == 200:
@@ -162,7 +188,7 @@ async def cert_accept_terms(version: str = "1") -> dict:
     try:
         async with httpx.AsyncClient(timeout=20) as c:
             r = await c.post(f"{base}/api/cert/accept-terms",
-                             headers={"X-API-Key": _key()}, json={"version": version})
+                             headers=_gateway_headers(), json={"version": version})
         if r.status_code == 200:
             return {"ok": True, **r.json()}
         return {"ok": False, "error": f"HTTP {r.status_code}: {r.text[:200]}"}
@@ -177,7 +203,7 @@ async def cert_eligibility() -> dict:
         return {"ok": False, "error": "Nicht registriert (Anbindung fehlt)."}
     try:
         async with httpx.AsyncClient(timeout=20) as c:
-            r = await c.get(f"{base}/api/cert/eligibility", headers={"X-API-Key": _key()})
+            r = await c.get(f"{base}/api/cert/eligibility", headers=_gateway_headers())
         if r.status_code == 200:
             return r.json()
         return {"ok": False, "error": f"HTTP {r.status_code}: {r.text[:200]}"}
@@ -197,7 +223,7 @@ async def cert_order(target_email: str, csr_pem: str, extra: dict | None = None,
     try:
         async with httpx.AsyncClient(timeout=60) as c:
             r = await c.post(f"{base}/api/cert/order",
-                             headers={"X-API-Key": _cert_key()}, json=body)
+                             headers=_gateway_headers(_cert_key()), json=body)
         data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
         if r.status_code == 200 and data.get("ok"):
             log.info("Cert order submitted to reseller hub for %s → %s", target_email, data.get("status"))
@@ -220,7 +246,7 @@ async def cert_topup(amount_cents: int) -> dict:
     try:
         async with httpx.AsyncClient(timeout=30) as c:
             r = await c.post(f"{base}/api/billing/topup",
-                             headers={"X-API-Key": _key()},
+                             headers=_gateway_headers(),
                              json={"amount_cents": int(amount_cents)})
         data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
         if r.status_code == 200 and data.get("ok"):
