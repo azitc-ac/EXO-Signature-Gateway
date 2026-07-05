@@ -83,6 +83,13 @@
     </div>
     <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:12px;margin-bottom:12px">
       <div id="cert-eligibility" class="hint" style="margin:0 0 10px">Prüfe Berechtigung…</div>
+      <div id="cert-billing" style="display:none;margin:0 0 10px;padding-top:10px;border-top:1px solid #e2e8f0">
+        <span id="cert-balance" style="font-weight:600"></span>
+        <span id="cert-topup-row" style="display:none;margin-left:8px">·
+          <input type="number" id="cert-topup-amount" min="10" step="1" value="20" style="width:78px"> €
+          <button class="btn secondary" onclick="certTopup()">Guthaben aufladen</button>
+        </span>
+      </div>
       <button class="btn secondary" onclick="certRequest()">Kostenpflichtigen Cert-Bezug beantragen</button>
       <button class="btn secondary" onclick="certAcceptTerms()">Nutzungsbedingungen akzeptieren</button>
       <button class="btn secondary" onclick="certLoadEligibility()">Aktualisieren</button>
@@ -159,7 +166,30 @@ async function certLoadEligibility() {
     if(d.ok){ el.innerHTML='<strong style="color:#166534">✓ Darf Zertifikate beziehen.</strong> '
       +'Kontingent '+(d.used_this_month||0)+'/'+(d.monthly_limit||0)+' diesen Monat · Domains: '+((d.verified_domains||[]).join(', ')||'–'); }
     else { el.innerHTML='<strong style="color:#92400e">⚠ Noch nicht bezugsberechtigt:</strong> '+(d.reason||d.error||'unbekannt'); }
+    _certBilling(d);
   } catch(e){ el.textContent='Berechtigung konnte nicht geprüft werden.'; }
+}
+function _certBilling(d) {
+  const bill=document.getElementById('cert-billing');
+  if(!d || !d.billing_mode){ bill.style.display='none'; return; }
+  bill.style.display='block';
+  const balEl=document.getElementById('cert-balance');
+  const topRow=document.getElementById('cert-topup-row');
+  if(d.billing_mode==='invoice'){
+    balEl.textContent='Abrechnung: Rechnung (nach Vertrag) — kein Guthaben nötig.';
+    topRow.style.display='none';
+  } else {
+    const bal=((d.balance_cents||0)/100).toFixed(2), price=((d.cert_price_cents||0)/100).toFixed(2);
+    balEl.textContent='Guthaben: '+bal+' €  (Preis pro Zertifikat: '+price+' €)';
+    topRow.style.display=d.stripe_enabled?'inline':'none';
+  }
+}
+async function certTopup() {
+  const eur=parseFloat(document.getElementById('cert-topup-amount').value);
+  if(!eur||eur<10){ _certMsg('Mindestbetrag 10 €.',false); return; }
+  const d=await (await fetch('/api/hub/cert/topup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amount_eur:eur})})).json();
+  if(d.ok&&d.checkout_url){ window.open(d.checkout_url,'_blank'); _certMsg('Bezahlseite geöffnet. Nach der Zahlung wird das Guthaben automatisch gutgeschrieben — dann „Aktualisieren".',true); }
+  else _certMsg('Aufladen fehlgeschlagen: '+(d.error||d.message||'Unbekannt'),false);
 }
 
 // ── Zertifikatsbezug: Bezugsweg + Sectigo ────────────────────────────────────

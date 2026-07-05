@@ -209,3 +209,22 @@ async def cert_order(target_email: str, csr_pem: str, extra: dict | None = None,
     except Exception as exc:
         log.error("hub cert order error: %s", exc)
         return {"ok": False, "error": f"Netzwerkfehler: {exc}"}
+
+
+async def cert_topup(amount_cents: int) -> dict:
+    """Ask the hub to create a Stripe Checkout session for a prepaid top-up.
+    Returns {"ok": True, "checkout_url": ...} — the browser opens that URL."""
+    base = _base()
+    if not (base and _key()):
+        return {"ok": False, "error": "Nicht registriert (Anbindung fehlt)."}
+    try:
+        async with httpx.AsyncClient(timeout=30) as c:
+            r = await c.post(f"{base}/api/billing/topup",
+                             headers={"X-API-Key": _key()},
+                             json={"amount_cents": int(amount_cents)})
+        data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+        if r.status_code == 200 and data.get("ok"):
+            return {"ok": True, "checkout_url": data.get("checkout_url")}
+        return {"ok": False, "error": data.get("message") or f"Hub HTTP {r.status_code}: {r.text[:200]}"}
+    except Exception as exc:
+        return {"ok": False, "error": f"Netzwerkfehler: {exc}"}

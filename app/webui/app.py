@@ -4052,3 +4052,19 @@ async def api_hub_cert_accept_terms(request: Request, user: str = Depends(_requi
 async def api_hub_cert_eligibility(user: str = Depends(_require_admin)):
     import hub_client
     return JSONResponse(await hub_client.cert_eligibility())
+
+
+@app.post("/api/hub/cert/topup")
+async def api_hub_cert_topup(request: Request, user: str = Depends(_require_admin)):
+    """Create a prepaid top-up Checkout session at the hub; return its URL."""
+    import hub_client
+    data = await request.json()
+    amount_cents = data.get("amount_cents")
+    if amount_cents is None and data.get("amount_eur") is not None:
+        try:
+            amount_cents = int(round(float(data["amount_eur"]) * 100))
+        except (TypeError, ValueError):
+            amount_cents = None
+    if not amount_cents:
+        raise HTTPException(400, "Betrag erforderlich.")
+    return JSONResponse(await hub_client.cert_topup(int(amount_cents)))

@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.1 — 2026-07-05 — feat: Anbindung-Tab — Prepaid-Guthaben anzeigen + „Aufladen" (Stripe)
+
+Der Zertifikatsbezug zeigt jetzt das Prepaid-Guthaben des Hub-Kontos + Preis pro
+Zertifikat und bietet einen „Guthaben aufladen"-Button (freier Betrag), der eine
+Stripe-Checkout-Seite öffnet. Bei billing_mode=invoice wird stattdessen „Rechnung
+(nach Vertrag)" angezeigt. hub_client.cert_topup() + /api/hub/cert/topup; die
+eligibility-Antwort des Hubs liefert billing_mode/balance_cents/cert_price_cents/
+stripe_enabled mit.
+
 ## v1.5.0 — 2026-07-05 — release: Erstes stabiles Release
 
 Erste offizielle stabile Version. Inhaltlich identisch zu 1.4.413 (nur Versions-Bump):
