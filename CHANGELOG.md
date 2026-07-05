@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.0 — 2026-07-05 — release: Erstes stabiles Release
+
+Erste offizielle stabile Version. Inhaltlich identisch zu 1.4.413 (nur Versions-Bump):
+bewusster Minor-Bump als Meilenstein-Nummer für das erste öffentliche GitHub-Release —
+statt der vom Auto-Bump-Hook aufgelaufenen Patch-Zahl `1.4.413`. Kein Breaking Change;
+die 2.0 bleibt für einen echten Meilenstein (z. B. Billing/kostenpflichtige Zert-Fähigkeit)
+reserviert. Ab hier läuft der Build-Zähler als `1.5.x` weiter.
+
 ## v1.4.413 — 2026-07-05 — fix: NameError in /api/system/update/whats-new behoben
 
 `import updater` fehlte in `api_update_whats_new` (app.py) — Aufruf des Endpunkts
