@@ -1522,6 +1522,31 @@ async def api_health_audit_log(_=Depends(_check_auth)):
     return settings_store.get("GATEWAY_AUDIT_LOG") or []
 
 
+@app.get("/api/mailboxes/migrate/preview")
+async def api_mailbox_migrate_preview(user: str = Depends(_require_admin)):
+    """Dry-run: show how MAILBOX_CONFIG would migrate to ExchangeGuid anchors.
+    Reads live EXO mailboxes; writes NOTHING."""
+    import asyncio
+    import exo_mailboxes
+    import mailbox_migrate
+    mailboxes = await asyncio.to_thread(exo_mailboxes.list_mailboxes, True)
+    if not mailboxes:
+        return JSONResponse({"ok": False, "error": "EXO-Postfachliste leer/nicht verfügbar."},
+                            status_code=503)
+    current: dict = settings_store.get("MAILBOX_CONFIG") or {}
+    plan = mailbox_migrate.plan_migration(current, mailboxes)
+    return JSONResponse({
+        "ok": True,
+        "exo_mailbox_count": len(mailboxes),
+        "current_keys": list(current.keys()),
+        "migrated": plan["migrated"],
+        "merges": plan["merges"],
+        "orphans": plan["orphans"],
+        "kept": plan["kept"],
+        "new_config": plan["new_config"],
+    })
+
+
 @app.post("/api/mailboxes/save")
 async def api_save_mailboxes(body: dict, _=Depends(_check_auth)):
     """Save MAILBOX_CONFIG and update EXO Distribution Group + transport rule."""

@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.4 — 2026-07-05 — feat: MAILBOX_CONFIG-Migration (guid) + Dry-Run-Preview (read-only)
+
+`mailbox_migrate.plan_migration`: e-mail-keyed MAILBOX_CONFIG → ExchangeGuid-keyed
+mit `known_addresses`-Cache; verschmilzt Einträge, die auf dieselbe Mailbox zeigen
+(Alias→Primär, z.B. erika.mustermann@ + erika@ → eine Guid, Policy-Flags OR-gemergt),
+und flaggt nicht auflösbare Einträge als `_orphan` (nichts geht verloren). Neuer
+read-only Endpoint `GET /api/mailboxes/migrate/preview` zeigt den Plan gegen Live-EXO
+— schreibt NICHTS. Kein Apply, solange handler.py noch e-mail-keyed matcht.
+
 ## v1.5.3 — 2026-07-05 — feat: exo_mailboxes.py — autoritative Postfach-Enumeration (EXO, ExchangeGuid)
 
 Fundament für den MAILBOX_CONFIG-GUID-Refactor: neues Modul `exo_mailboxes.py`
