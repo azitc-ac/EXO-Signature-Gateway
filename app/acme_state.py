@@ -723,7 +723,8 @@ async def initiate_acme_order(
     # (and, via the hub, paying) for a mailbox that isn't activated is waste/abuse.
     # Enforced HERE in the core so no caller/path can bypass it. Checked before any
     # account key or CASTLE order is created, so a blocked attempt has no side effects.
-    _mb = (settings_store.get("MAILBOX_CONFIG") or {}).get(email.lower(), {})
+    import mailbox_match
+    _mb = mailbox_match.match_sender(settings_store.get("MAILBOX_CONFIG") or {}, email)
     if not _mb.get("smime"):
         log.warning("[acme:%s] enrollment blocked for %s — mailbox not S/MIME-activated", flow_id, email)
         raise EnrollmentNotAllowed(

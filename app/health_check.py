@@ -410,9 +410,10 @@ async def run_checks_for_mailbox(email: str, exo_data: dict | None = None) -> di
     Updates settings_store under MAILBOX_HEALTH[email].
     Returns the check result dict for this mailbox.
     """
+    import mailbox_match
     email = email.lower().strip()
     mailbox_config: dict = settings_store.get("MAILBOX_CONFIG") or {}
-    cfg = mailbox_config.get(email, {})
+    cfg = mailbox_match.match_sender(mailbox_config, email)
     reinject_mode = settings_store.get("REINJECT_MODE") or "smtp"
     kv_url = (settings_store.get("KEYVAULT_URL") or "").strip()
     smime_active = cfg.get("smime_sign") or cfg.get("smime_encrypt") or cfg.get("smime")
@@ -539,9 +540,10 @@ async def run_all_checks(emails: list[str] | None = None) -> dict:
     Uses a single PS session for EXO batch checks (efficiency).
     Updates settings_store. Returns {email: result_dict}.
     """
+    import mailbox_match
     mailbox_config: dict = settings_store.get("MAILBOX_CONFIG") or {}
     if emails is None:
-        emails = list(mailbox_config.keys())
+        emails = mailbox_match.configured_addresses(mailbox_config)
     if not emails:
         log.info("health_check: no mailboxes configured — skipping")
         return {}

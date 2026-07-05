@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.5 — 2026-07-05 — feat: MAILBOX_CONFIG ExchangeGuid-Anker verdrahtet (Hot-Path + Guard + UI + Apply)
+
+`mailbox_match.py`: address→cfg Reverse-Index, versteht e-mail- UND guid-keyed
+(rückwärtskompatibel, matcht auch Aliase → überlebt Rename/Adressänderung).
+handler.py (Signier-Match), Enrollment-Guard, health_check und der Postfächer-GET
+lösen jetzt darüber auf. `/api/mailboxes/save` schreibt guid-keyed (ExchangeGuid +
+known_addresses, graceful E-Mail-Fallback wenn EXO nicht auflöst). Neuer Apply-
+Endpoint `/api/mailboxes/migrate/apply`. Docstring-Korrektur: der Postfächer-
+Speichern-Button ändert nur die DL-Mitgliedschaft, NICHT die Transportregel.
+
 ## v1.5.4 — 2026-07-05 — feat: MAILBOX_CONFIG-Migration (guid) + Dry-Run-Preview (read-only)
 
 `mailbox_migrate.plan_migration`: e-mail-keyed MAILBOX_CONFIG → ExchangeGuid-keyed

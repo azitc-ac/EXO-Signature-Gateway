@@ -1458,6 +1458,7 @@ async def api_delete_template(name: str, _=Depends(_check_auth)):
 async def api_get_mailboxes(_=Depends(_check_auth)):
     """List all EXO mailboxes + their current MAILBOX_CONFIG + cached health status."""
     import graph_client
+    import mailbox_match
     users = await graph_client.list_mailboxes()
     config_map: dict = settings_store.get("MAILBOX_CONFIG") or {}
     health_map: dict = settings_store.get("MAILBOX_HEALTH") or {}
@@ -1465,7 +1466,7 @@ async def api_get_mailboxes(_=Depends(_check_auth)):
     result = []
     for u in users:
         email = u["email"]
-        cfg = config_map.get(email, {})
+        cfg = mailbox_match.match_sender(config_map, email)
         h = health_map.get(email, {})
         result.append({
             "email": email,
@@ -1481,13 +1482,14 @@ async def api_get_mailboxes(_=Depends(_check_auth)):
             "health_checks": h.get("checks", {}),
             "bookings_url": bookings_map.get(email, ""),
         })
-    # Also include mailboxes in config that Graph didn't return (e.g. removed users)
-    for email, cfg in config_map.items():
-        if not any(r["email"] == email for r in result):
-            h = health_map.get(email, {})
+    # Also include configured mailboxes Graph didn't return (removed users / guid-keyed).
+    for key, cfg in config_map.items():
+        cemail = key.lower() if "@" in key else (cfg.get("primary") or "").lower()
+        if cemail and not any(r["email"] == cemail for r in result):
+            h = health_map.get(cemail, {})
             result.append({
-                "email": email,
-                "name": email,
+                "email": cemail,
+                "name": cfg.get("display_name") or cemail,
                 "type": "user",
                 "sig": cfg.get("sig", False),
                 "smime": cfg.get("smime", False),
@@ -1497,7 +1499,7 @@ async def api_get_mailboxes(_=Depends(_check_auth)):
                 "health_overall": h.get("overall"),
                 "health_checked": h.get("last_checked"),
                 "health_checks": h.get("checks", {}),
-                "bookings_url": bookings_map.get(email, ""),
+                "bookings_url": bookings_map.get(cemail, ""),
             })
     return {"mailboxes": result}
 
@@ -1547,30 +1549,83 @@ async def api_mailbox_migrate_preview(user: str = Depends(_require_admin)):
     })
 
 
+@app.post("/api/mailboxes/migrate/apply")
+async def api_mailbox_migrate_apply(user: str = Depends(_require_admin)):
+    """Apply the guid migration: rewrite MAILBOX_CONFIG to ExchangeGuid anchors.
+    Safe because handler/guard/health/UI all resolve via the address reverse-index."""
+    import asyncio
+    import exo_mailboxes
+    import mailbox_migrate
+    mailboxes = await asyncio.to_thread(exo_mailboxes.list_mailboxes, True)
+    if not mailboxes:
+        return JSONResponse({"ok": False, "error": "EXO-Postfachliste leer/nicht verfügbar."},
+                            status_code=503)
+    current: dict = settings_store.get("MAILBOX_CONFIG") or {}
+    plan = mailbox_migrate.plan_migration(current, mailboxes)
+    settings_store.update({"MAILBOX_CONFIG": plan["new_config"]})
+    log.info("MAILBOX_CONFIG migrated to guid anchors by %s: %d entries, %d orphans",
+             user, len(plan["new_config"]), len(plan["orphans"]))
+    return JSONResponse({"ok": True, "entries": len(plan["new_config"]),
+                         "migrated": plan["migrated"], "merges": plan["merges"],
+                         "orphans": plan["orphans"]})
+
+
 @app.post("/api/mailboxes/save")
 async def api_save_mailboxes(body: dict, _=Depends(_check_auth)):
-    """Save MAILBOX_CONFIG and update EXO Distribution Group + transport rule."""
+    """Save MAILBOX_CONFIG (ExchangeGuid-anchored) and update the EXO Distribution
+    Group membership. (The transport rule 'Route via EXO Signature Gateway' is NOT
+    touched — it targets the DG via FromMemberOf; only DG members change here.)
+
+    Each mailbox is keyed by its ExchangeGuid + an address cache so the config
+    survives rename/address changes; falls back to the e-mail key if EXO can't
+    resolve it (nothing lost)."""
+    import asyncio
+    import exo_mailboxes
     mailboxes = body.get("mailboxes", [])
-    config_map = {}
-    enabled_members = []
+    # address → EXO record (cached; empty on EXO failure → graceful e-mail-key fallback)
+    exo_list = await asyncio.to_thread(exo_mailboxes.list_mailboxes, False)
+    addr_to_mb: dict = {}
+    for mb in exo_list:
+        for a in mb.get("addresses", []):
+            addr_to_mb[str(a).lower()] = mb
+        p = (mb.get("primary") or "").lower()
+        if p:
+            addr_to_mb[p] = mb
+    config_map: dict = {}
+    enabled_members: list[str] = []
     for m in mailboxes:
         email = (m.get("email") or "").lower().strip()
         if not email:
             continue
         sig = bool(m.get("sig", False))
         smime = bool(m.get("smime", False))
+        if not (sig or smime):
+            continue    # both off → passthrough by default, not stored
         template = (m.get("template") or "default").strip()
         addin_tpl = m.get("addin_templates", [])
         use_policy = bool(m.get("use_policy", True))
-        if sig or smime:
-            entry: dict = {"sig": sig, "smime": smime, "use_policy": use_policy}
-            if template and template != "default":
-                entry["template"] = template
-            if addin_tpl == "*" or (isinstance(addin_tpl, list) and addin_tpl):
-                entry["addin_templates"] = addin_tpl
-            config_map[email] = entry
-            enabled_members.append(email)
-        # If both false, don't include in config (passthrough by default)
+        entry: dict = {"sig": sig, "smime": smime, "use_policy": use_policy}
+        if template and template != "default":
+            entry["template"] = template
+        if addin_tpl == "*" or (isinstance(addin_tpl, list) and addin_tpl):
+            entry["addin_templates"] = addin_tpl
+        mb = addr_to_mb.get(email)
+        if mb:
+            key = mb["guid"]
+            entry["known_addresses"] = list(mb.get("addresses", []))
+            entry["primary"] = mb.get("primary", email)
+            entry["display_name"] = mb.get("display_name", "")
+            member = mb.get("primary", email)
+        else:
+            key = email          # EXO couldn't resolve → keep e-mail-keyed
+            member = email
+        if key in config_map:    # two addresses of the same mailbox → OR the flags
+            config_map[key]["sig"] = config_map[key].get("sig") or sig
+            config_map[key]["smime"] = config_map[key].get("smime") or smime
+        else:
+            config_map[key] = entry
+        if member not in enabled_members:
+            enabled_members.append(member)
     settings_store.update({"MAILBOX_CONFIG": config_map})
 
     s = settings_store.get_all()
@@ -2662,7 +2717,8 @@ async def api_acme_initiate(email: str, user: str = Depends(_check_auth)):
 
     # Guard: a mailbox must be activated for S/MIME before it may obtain a cert
     # (clean 400 here; also enforced in initiate_acme_order so nothing bypasses it).
-    if not (settings_store.get("MAILBOX_CONFIG") or {}).get(email, {}).get("smime"):
+    import mailbox_match
+    if not mailbox_match.match_sender(settings_store.get("MAILBOX_CONFIG") or {}, email).get("smime"):
         raise HTTPException(400, f"Postfach {email} ist nicht für S/MIME aktiviert — "
                                  f"erst das Postfach für S/MIME aktivieren, dann Zertifikat beziehen.")
 
