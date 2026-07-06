@@ -375,6 +375,8 @@
 </div>
 
 <script>
+const _BACKEND_CAPS = {{ backends | tojson }};
+
 function showAlert(el, type, msg) {
   el.className = 'alert ' + type;
   el.innerHTML = msg;
@@ -475,7 +477,9 @@ function _onBackendChange(email, backend) {
   const key = email.replace(/@/g,'_').replace(/\./g,'_');
   const aeBtn = document.getElementById('ae-btn-' + key);
   if (!aeBtn) return;
-  if (backend === 'castle_acme') {
+  const info = _BACKEND_CAPS.find(b => b.name === backend) || {};
+  const canAuto = !!(info.auto && info.ready);
+  if (canAuto) {
     aeBtn.removeAttribute('disabled');
     aeBtn.style.opacity = '';
     aeBtn.style.cursor = '';
@@ -485,7 +489,9 @@ function _onBackendChange(email, backend) {
     aeBtn.setAttribute('disabled', '');
     aeBtn.style.opacity = '.45';
     aeBtn.style.cursor = 'not-allowed';
-    aeBtn.title = 'Nur mit CASTLE-Backend verfügbar';
+    aeBtn.title = (info.auto && !info.ready)
+      ? (info.not_ready_reason || 'Backend noch nicht vollständig konfiguriert')
+      : `Backend „${info.label || backend}“ unterstützt kein Auto-Enroll`;
     aeBtn.onclick = null;
   }
 }

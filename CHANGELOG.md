@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.40 — 2026-07-07 — fix: Auto-Enroll-Button nach Backend-Wechsel wieder grau (JS-seitig)
+
+Der Server-seitige Fix in v1.5.39 (Auto-Enroll nicht mehr hart auf CASTLE
+beschränkt) hatte ein clientseitiges Gegenstück übersehen: `_onBackendChange()`
+im Backend-Dropdown schaltete den Button live per JS um — und zwar mit
+derselben hartcodierten `=== 'castle_acme'`-Prüfung. Wechselte man im Dropdown
+zu Castle und zurück zu Sectigo, überschrieb dieser JS-Handler den korrekten
+Server-Zustand wieder mit "ausgegraut", bis man die Seite neu lud. Jetzt nutzt
+auch der JS-Handler die echte Backend-Capability (`_BACKEND_CAPS`, aus
+derselben Registry wie beim Seitenaufbau) statt eines hartcodierten Namens.
+
+---
+
 ## v1.5.39 — 2026-07-07 — fix: Auto-Enroll-Button fälschlich auf CASTLE beschränkt
 
 `/smime` prüfte für den "Auto-Enroll"-Button hart auf `backend == 'castle_acme'`
