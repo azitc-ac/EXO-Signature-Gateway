@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.13 — 2026-07-06 — fix: Anbindung-Poll — Endlosschleife bei bereits verbundenem Gateway behoben
+
+„Jetzt prüfen"/Auto-Poll loopte endlos, wenn kein Claim-Token mehr existierte
+(bereits verbunden / Token verbraucht). Der Poll beendet jetzt terminale Zustände
+sauber: bei registriertem Gateway → „bereits verbunden" + Reload, sonst Hinweis
+„erneut Verbinden". Nur `pending_confirmation` zählt weiter runter.
+
 ## v1.5.12 — 2026-07-06 — fix: HTML-Seiten mit Cache-Control: no-store (kein veraltetes UI/JS nach Update)
 
 Middleware setzt auf text/html-Antworten `Cache-Control: no-store`. Verhindert,

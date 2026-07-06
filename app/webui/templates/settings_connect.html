@@ -164,6 +164,21 @@ function _hubWaitMsg(secs, sentTo){
     +'Nächste automatische Prüfung in <strong id="hub-cd">'+secs+'</strong>s. '
     +'<button class="btn secondary" style="margin-left:6px;padding:2px 8px" onclick="hubPollClaim(true)">Jetzt prüfen</button>', true);
 }
+async function _hubClaimTick(){
+  try{
+    const d=await (await fetch('/api/hub/claim',{method:'POST'})).json();
+    if(d.ok&&d.connected){ clearInterval(_hubTimer);
+      _hubMsg('✓ Verbunden! Der Zugang wurde automatisch eingetragen. Seite lädt neu…',true);
+      setTimeout(()=>location.reload(),1500); return 'connected'; }
+    if(d.status==='pending_confirmation'){ return 'pending'; }   // weiter warten
+    // terminal (kein Token / used / invalid / expired) → NICHT weiter loopen
+    clearInterval(_hubTimer);
+    const cfg=await (await fetch('/api/hub/config')).json();
+    if(cfg.registered){ _hubMsg('✓ Bereits verbunden. Seite lädt neu…',true); setTimeout(()=>location.reload(),1200); }
+    else { _hubMsg('Anbindung nicht abgeschlossen — bitte erneut „Verbinden“ auslösen (Bestätigungslink evtl. abgelaufen).',false); }
+    return 'terminal';
+  }catch(e){ return 'error'; }
+}
 function _startHubPoll(sentTo){
   clearInterval(_hubTimer);
   let secs=HUB_POLL_SECS;
@@ -173,17 +188,12 @@ function _startHubPoll(sentTo){
     const el=document.getElementById('hub-cd');
     if(secs>0){ if(el) el.textContent=secs; return; }
     secs=HUB_POLL_SECS; if(el) el.textContent=secs;
-    try{ const d=await (await fetch('/api/hub/claim',{method:'POST'})).json();
-      if(d.ok&&d.connected){ clearInterval(_hubTimer);
-        _hubMsg('✓ Verbunden! Der Zugang wurde automatisch eingetragen. Seite lädt neu…',true);
-        setTimeout(()=>location.reload(),1500); }
-    }catch(e){}
+    await _hubClaimTick();
   },1000);
 }
 async function hubPollClaim(manual){
-  const d=await (await fetch('/api/hub/claim',{method:'POST'})).json();
-  if(d.ok&&d.connected){ clearInterval(_hubTimer); _hubMsg('✓ Verbunden! Seite lädt neu…',true); setTimeout(()=>location.reload(),1200); return; }
-  if(manual){ _startHubPoll(); }   // noch nicht bestätigt → Countdown neu starten
+  const st=await _hubClaimTick();
+  if(manual && st==='pending'){ _startHubPoll(); }   // wirklich noch offen → Countdown zeigen
 }
 async function hubDisconnect(){ if(!confirm('Anbindung an den Hub entfernen? Der lokale API-Key wird gelöscht.'))return;
   const d=await (await fetch('/api/hub/disconnect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({close_remote:false})})).json();
