@@ -5,6 +5,8 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.36 — 2026-07-06 — fix: veralteten "CASTLE ACME ohne ACS"-Erklärblock im Erweitert-Tab entfernt
+
 ## v1.5.35 — 2026-07-06 — fix: S/MIME-Erklärtext gekürzt + Anbieter-neutral
 
 Von 5 auf 4 kürzere Sätze; "CASTLE ACME" durch "die konfigurierte

@@ -1050,40 +1050,6 @@ async function obsRunAnalysis() {
   container.innerHTML = _obsRenderAnalysis(analyses);
 }
 </script>
-<!-- ── Hintergrund: Warum kein ACS nötig ist ──────────────────────────────── -->
-<div class="wizard-step" style="border-color:#16a34a33;margin-bottom:20px">
-  <div class="step-header">
-    <span class="step-badge" style="background:#16a34a;font-size:10px">Info</span>
-    <span class="step-title">CASTLE ACME ohne Azure Communication Services
-      <span style="font-weight:400;font-size:12px;color:#57534e"> — warum Graph API + Exchange ausreicht</span>
-    </span>
-  </div>
-  <div class="step-body">
-    <p style="font-size:13px;color:#555;margin-bottom:10px;line-height:1.6">
-      Früher war geplant, <strong>Azure Communication Services (ACS)</strong> zu nutzen, um CASTLE
-      ACME-Antwortmails an den CA-Server zu senden — weil Exchange Online die Mails so stark
-      verändert (ARC-Seal, DKIM, Thread-Topic, CTE 7bit → quoted-printable, ~25 interne Header),
-      dass CASTLE die Antwort als <code>invalid</code> ablehnt, und auf Azure-VMs Port&nbsp;25
-      outbound gesperrt ist.
-    </p>
-    <div class="alert success" style="margin-bottom:10px">
-      <strong>Gelöst in v1.1.0:</strong> Das Gateway sendet die ACME-Antwortmail über
-      <strong>Graph API sendMail</strong> — Exchange routet sie über den Outbound-Connector zurück
-      zum Gateway. Der Handler erkennt <code>Subject: Re: ACME:</code> und ruft
-      <code>_rebuild_acme_reply()</code> auf: extrahiert nur den reinen ACME-Response-Block,
-      baut ein frisches MIME mit CRLF-Zeilenenden auf und leitet es sauber weiter.
-      So erreicht CASTLE eine RFC&nbsp;8823-konforme Mail — ohne ACS, ohne Port&nbsp;25.
-    </div>
-    <p style="font-size:12px;color:#666;line-height:1.6">
-      <strong>Voraussetzungen:</strong>
-      RemoteDomain <em>Castle ACME</em> für <code>castle.cloud</code> mit
-      <code>ContentType=MimeText</code>, <code>TNEFEnabled=$false</code>, <code>ByteEncoderTypeFor7BitCharsets=Use7Bit</code>
-      verhindert zuverlässig die CTE-Konvertierung (Schritt A im Header Observatory oben).
-      Der Double-Hop (Graph → Exchange → Connector → Gateway → Castle) ist by design.
-    </p>
-  </div>
-</div>
-
 <!-- ── Postfach-Health API ─────────────────────────────────────────────────── -->
 <div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
   <div class="step-header">
