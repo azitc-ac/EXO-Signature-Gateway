@@ -49,10 +49,10 @@
       <option value="https://sighub.zarenko.net">https://sighub.zarenko.net</option>
       <option value="__other__">…andere</option>
     </select>
-    <input type="url" id="hub-base" placeholder="https://..." style="width:100%;max-width:360px;font-size:13px;margin-top:6px;display:none">
+    <input type="url" id="hub-base" placeholder="https://..." style="width:100%;max-width:360px;font-size:13px;margin-top:6px;display:none" autocapitalize="off" autocorrect="off" spellcheck="false">
   </div>
   <div class="settings-row" style="margin-bottom:8px"><label>Deine E-Mail</label>
-    <input type="email" id="hub-email" placeholder="kunde@firma.de" style="width:100%;max-width:360px;font-size:13px"></div>
+    <input type="email" id="hub-email" placeholder="kunde@firma.de" style="width:100%;max-width:360px;font-size:13px" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
   <div class="settings-row" style="margin-bottom:8px"><label>Name (optional)</label>
     <input type="text" id="hub-name" style="width:100%;max-width:360px;font-size:13px"></div>
   <div class="actions" style="margin:6px 0 10px">
@@ -65,7 +65,7 @@
   <div class="settings-row" style="margin-bottom:8px"><label>API-Key (manuell)</label>
     <input type="password" id="hub-key" autocomplete="new-password"
            placeholder="vom Anbieter erhalten"
-           style="width:100%;max-width:360px;font-size:13px">
+           style="width:100%;max-width:360px;font-size:13px" autocapitalize="off" autocorrect="off" spellcheck="false">
     <button class="btn secondary" onclick="hubSaveKey()">Key speichern</button></div>
   <div id="hub-result" style="display:none;margin-top:8px"></div>
   <div id="hub-gwid" class="hint" style="font-size:12px;margin-top:8px"></div>
@@ -134,7 +134,7 @@
       <div style="display:flex;flex-direction:column;gap:6px;max-width:420px">
         <input type="text" id="cert-bill-company" placeholder="Firma / Rechtsform" style="font-size:13px">
         <input type="text" id="cert-bill-address" placeholder="Rechnungsadresse" style="font-size:13px">
-        <input type="text" id="cert-bill-vat" placeholder="USt-IdNr (optional)" style="font-size:13px">
+        <input type="text" id="cert-bill-vat" placeholder="USt-IdNr (optional)" style="font-size:13px" autocapitalize="off" autocorrect="off" spellcheck="false">
         <input type="text" id="cert-bill-contact" placeholder="Ansprechpartner (optional)" style="font-size:13px">
       </div>
       <div style="margin-top:8px"><button class="btn secondary" onclick="certSaveBilling()">Speichern</button></div>
@@ -148,7 +148,7 @@
       </p>
       <div id="cert-domains-list" style="margin-bottom:10px"></div>
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-        <input type="text" id="cert-domain-input" placeholder="firma.de" style="width:200px;font-size:13px">
+        <input type="text" id="cert-domain-input" placeholder="firma.de" style="width:200px;font-size:13px" autocapitalize="off" autocorrect="off" spellcheck="false">
         <button class="btn secondary" onclick="certDomainRequest()">TXT-Eintrag anfordern</button>
       </div>
       <div id="cert-domain-record" style="display:none;margin-top:10px;padding:10px;background:#fff;border:1px solid #e2e8f0;border-radius:6px;font-size:12px"></div>
@@ -173,19 +173,19 @@
       (aus dem Sectigo-Dashboard). Für Endkunden i.&nbsp;d.&nbsp;R. nicht relevant.
     </p>
     <div class="settings-row" style="margin-bottom:8px"><label>API-Base (optional)</label>
-      <input type="text" id="sec-base" placeholder="https://cert-manager.com/api" style="width:100%;max-width:420px;font-size:13px"></div>
+      <input type="text" id="sec-base" placeholder="https://cert-manager.com/api" style="width:100%;max-width:420px;font-size:13px" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
     <div class="settings-row" style="margin-bottom:8px"><label>Login</label>
-      <input type="text" id="sec-login" autocomplete="off" style="width:100%;max-width:420px;font-size:13px"></div>
+      <input type="text" id="sec-login" autocomplete="off" style="width:100%;max-width:420px;font-size:13px" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
     <div class="settings-row" style="margin-bottom:8px"><label>Passwort</label>
       <input type="password" id="sec-password" autocomplete="new-password" placeholder="(unverändert lassen zum Beibehalten)" style="width:100%;max-width:420px;font-size:13px"></div>
     <div class="settings-row" style="margin-bottom:8px"><label>Customer-URI</label>
-      <input type="text" id="sec-customer" autocomplete="off" style="width:100%;max-width:420px;font-size:13px"></div>
+      <input type="text" id="sec-customer" autocomplete="off" style="width:100%;max-width:420px;font-size:13px" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
     <div class="settings-row" style="margin-bottom:8px"><label>Org-ID</label>
-      <input type="text" id="sec-org" style="width:100%;max-width:220px;font-size:13px"></div>
+      <input type="text" id="sec-org" style="width:100%;max-width:220px;font-size:13px" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
     <div class="settings-row" style="margin-bottom:8px"><label>Cert-Type</label>
-      <input type="text" id="sec-certtype" style="width:100%;max-width:220px;font-size:13px"></div>
+      <input type="text" id="sec-certtype" style="width:100%;max-width:220px;font-size:13px" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
     <div class="settings-row" style="margin-bottom:10px"><label>Term</label>
-      <input type="text" id="sec-term" placeholder="z.B. 365" style="width:100%;max-width:220px;font-size:13px"></div>
+      <input type="text" id="sec-term" placeholder="z.B. 365" style="width:100%;max-width:220px;font-size:13px" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
     <button class="btn secondary" onclick="sectigoTest()" style="margin-bottom:10px">Zugang testen</button>
   </div>
 

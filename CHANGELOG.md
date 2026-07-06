@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.24 — 2026-07-06 — fix: Mobile Autokorrektur/Autokapitalisierung bei Domains, Benutzernamen, IDs deaktiviert
+
+27 Text-Eingabefelder (Anbindung, Login, Erweitert-Tab, Einrichtung) hatten keine
+autocapitalize/autocorrect-Attribute — mobile Tastaturen (v.a. iOS Safari)
+großschrieben automatisch den ersten Buchstaben von Domains, Benutzernamen,
+Tenant-/Client-IDs, Ressourcennamen etc. Betroffen u.a.: Anbieter-Adresse,
+Hub-E-Mail, API-Keys, Domain-Verifizierung, Sectigo-Zugangsdaten, lokaler
+Benutzername, LE-Domain, Hostname, Bootstrap-Client-ID, Key-Vault-Namen.
+Namens-/Adressfelder (Ansprechpartner, Rechnungsadresse, Firma) bewusst
+unverändert gelassen — dort ist normale Großschreibung erwünscht.
+
 ## v1.5.23 — 2026-07-06 — fix: Header-Badge zeigte irreführend "eingerichtet" statt echter Berechtigung + Rechnungsstellung als Antrag
 
 - Der Zertifikatsbezug-Header-Badge prüfte bisher nur "ist irgendeine Hub-

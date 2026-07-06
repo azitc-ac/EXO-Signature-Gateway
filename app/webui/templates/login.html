@@ -37,7 +37,7 @@
       </p>
       <input type="text" id="sso-paste-url"
         placeholder="https://{{ sso_external_host }}/auth/callback?code=…"
-        style="width:100%;box-sizing:border-box;font-family:monospace;font-size:11px;margin-bottom:8px">
+        style="width:100%;box-sizing:border-box;font-family:monospace;font-size:11px;margin-bottom:8px" autocapitalize="off" autocorrect="off" spellcheck="false">
       <div id="sso-paste-error" class="alert error" style="display:none;margin-bottom:8px"></div>
       <button type="button" class="btn primary" style="width:100%" onclick="submitSsoPaste()">Anmelden</button>
     </div>
@@ -58,7 +58,7 @@
       <div style="margin-top:14px">
         <div class="settings-row" style="margin-bottom:8px">
           <label for="local-user">Benutzername</label>
-          <input type="text" id="local-user" style="width:200px" autocomplete="username">
+          <input type="text" id="local-user" style="width:200px" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false">
         </div>
         <div class="settings-row" style="margin-bottom:12px">
           <label for="local-pw">Passwort</label>
