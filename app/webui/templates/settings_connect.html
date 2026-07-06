@@ -76,8 +76,8 @@
 <div class="settings-card" style="margin-bottom:18px">
   <h2 style="margin-top:0">Zertifikatsbezug
     <span class="muted" style="font-size:13px;font-weight:400">— kostenpflichtig</span>
-    {% if sectigo_ready %}<span class="conn-badge conn-ok">✓ eingerichtet</span>
-    {% else %}<span class="conn-badge conn-wait">⚠ ausstehend</span>{% endif %}
+    {% if sectigo_ready %}<span class="conn-badge conn-wait" id="cert-header-badge">Prüfe Berechtigung…</span>
+    {% else %}<span class="conn-badge conn-wait" id="cert-header-badge">⚠ Anbindung ausstehend</span>{% endif %}
   </h2>
   <p class="hint" style="margin-bottom:12px">
     S/MIME-Zertifikate über den Anbieter beziehen — nutzt die <strong>Anbindung oben</strong>
@@ -119,9 +119,18 @@
       </div>
     </div>
 
-    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:14px;margin-bottom:12px">
+    <div id="cert-invoice-request-box" style="display:none;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:14px;margin-bottom:12px">
+      <strong>Rechnungsstellung (statt Prepaid)</strong>
+      <p class="hint" style="margin:2px 0 8px">
+        Auf Wunsch stellen wir statt Prepaid-Guthaben auf Rechnung um — dafür braucht es eine
+        kurze Prüfung/Freigabe durch den Anbieter.
+      </p>
+      <div id="cert-invoice-request-body"></div>
+    </div>
+
+    <div id="cert-billing-box" style="display:none;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:14px;margin-bottom:12px">
       <strong>Abrechnungsdaten</strong>
-      <p class="hint" style="margin:2px 0 8px">Für Rechnungsstellung erforderlich (Firma + Adresse) — einmalig hinterlegen.</p>
+      <p class="hint" style="margin:2px 0 8px">Für die Rechnungsstellung erforderlich (Firma + Adresse) — einmalig hinterlegen.</p>
       <div style="display:flex;flex-direction:column;gap:6px;max-width:420px">
         <input type="text" id="cert-bill-company" placeholder="Firma / Rechtsform" style="font-size:13px">
         <input type="text" id="cert-bill-address" placeholder="Rechnungsadresse" style="font-size:13px">
@@ -329,7 +338,7 @@ async function certLoadEligibility(manual) {
   catch(e){ el.textContent='Berechtigung konnte nicht geprüft werden.'; return; }
   _renderCertSteps(d);
   _renderCertDomains(d);
-  _fillBillingFields(d);
+  _renderBillingSection(d);
   if(d.ok){ el.innerHTML='<strong style="color:#166534">✓ Darf Zertifikate beziehen.</strong> '
     +'Kontingent '+(d.used_this_month||0)+'/'+((d.monthly_limit>0)?d.monthly_limit:'∞')+' diesen Monat · Domains: '+((d.verified_domains||[]).join(', ')||'–'); }
   else if(d.cert_issuing_enabled){ el.innerHTML='<strong style="color:#92400e">⚠ Freigeschaltet, aber noch nicht bezugsbereit:</strong> '+(d.reason||d.error||'unbekannt'); }
@@ -337,6 +346,12 @@ async function certLoadEligibility(manual) {
   const optBtn=document.getElementById('cert-optout-btn'), optHint=document.getElementById('cert-optout-hint');
   optBtn.style.display = d.cert_issuing_enabled ? 'inline-block' : 'none';
   optHint.style.display = d.cert_issuing_enabled ? 'block' : 'none';
+  const badge=document.getElementById('cert-header-badge');
+  if(badge){
+    if(d.ok){ badge.className='conn-badge conn-ok'; badge.textContent='✓ aktiv — kann Zertifikate beziehen'; }
+    else if(d.cert_issuing_enabled){ badge.className='conn-badge conn-wait'; badge.textContent='⚠ freigeschaltet, Voraussetzung fehlt: '+(d.reason||'unbekannt'); }
+    else { badge.className='conn-badge conn-wait'; badge.textContent='⚠ noch nicht aktiv'; }
+  }
   if(manual){ _certMsg('✓ Aktualisiert ('+new Date().toLocaleTimeString('de-DE')+')', true); }
 }
 function _renderCertDomains(d) {
@@ -348,6 +363,27 @@ function _renderCertDomains(d) {
   verified.forEach(dm=>{ html+='<span class="conn-badge conn-ok" style="margin:0 6px 4px 0">✓ '+dm+'</span>'; });
   pending.forEach(([dm,v])=>{ if(!v.verified) html+='<span class="conn-badge conn-wait" style="margin:0 6px 4px 0">⏳ '+dm+' (ausstehend)</span>'; });
   list.innerHTML = html || '<span class="muted">Noch keine Domain verifiziert.</span>';
+}
+function _renderBillingSection(d) {
+  const billBox=document.getElementById('cert-billing-box'), reqBox=document.getElementById('cert-invoice-request-box');
+  if(!billBox || !reqBox) return;
+  if(d.billing_mode === 'invoice') {
+    billBox.style.display='block'; reqBox.style.display='none';
+    _fillBillingFields(d);
+  } else {
+    billBox.style.display='none'; reqBox.style.display='block';
+    const body=document.getElementById('cert-invoice-request-body');
+    if(d.invoice_requested_at){
+      body.innerHTML='<span class="muted">Antrag gestellt am '+d.invoice_requested_at.slice(0,10)+' — wartet auf Freigabe durch den Anbieter.</span>';
+    } else {
+      body.innerHTML='<button class="btn secondary" onclick="certRequestInvoice()">Rechnungsstellung beantragen</button>';
+    }
+  }
+}
+async function certRequestInvoice() {
+  const d=await (await fetch('/api/hub/cert/request-invoice',{method:'POST'})).json();
+  if(d.ok){ _certMsg('Antrag gestellt — der Anbieter wurde benachrichtigt.',true); certLoadEligibility(); }
+  else { _certMsg('Fehler: '+(d.error||'Unbekannt'),false); }
 }
 let _billingFilled=false;
 function _fillBillingFields(d) {

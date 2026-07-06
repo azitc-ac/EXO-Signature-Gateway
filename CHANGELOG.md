@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.23 — 2026-07-06 — fix: Header-Badge zeigte irreführend "eingerichtet" statt echter Berechtigung + Rechnungsstellung als Antrag
+
+- Der Zertifikatsbezug-Header-Badge prüfte bisher nur "ist irgendeine Hub-
+  Verbindung konfiguriert" (immer grün nach Verbinden) statt der echten
+  Bezugsberechtigung — und wurde von "Aktualisieren" nie neu berechnet (rein
+  serverseitig beim Seitenladen gerendert). Jetzt JS-getrieben aus der echten
+  Eligibility-Antwort, aktualisiert sich korrekt mit "Aktualisieren".
+- Abrechnungsdaten-Karte erscheint erst, wenn billing_mode=invoice freigegeben
+  ist. Prepaid-Kunden sehen stattdessen "Rechnungsstellung beantragen" — der
+  Antrag landet im Hub, der Anbieter wird per Mail benachrichtigt, Freigabe
+  bleibt manueller Schritt.
+
 ## v1.5.22 — 2026-07-06 — feat: Abrechnungsdaten per Selbstbedienung erfassbar
 
 Neue Karte „Abrechnungsdaten" im Zertifikatsbezug: Firma/Rechnungsadresse (Pflicht)

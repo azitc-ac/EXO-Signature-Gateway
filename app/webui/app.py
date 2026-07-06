@@ -4130,6 +4130,12 @@ async def api_hub_claim(user: str = Depends(_require_admin)):
     return JSONResponse(await hub_client.poll_claim())
 
 
+@app.post("/api/hub/cert/request-invoice")
+async def api_hub_cert_request_invoice(user: str = Depends(_require_admin)):
+    import hub_client
+    return JSONResponse(await hub_client.cert_request_invoice())
+
+
 @app.post("/api/hub/cert/billing")
 async def api_hub_cert_billing(request: Request, user: str = Depends(_require_admin)):
     import hub_client
