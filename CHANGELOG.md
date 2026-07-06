@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.25 — 2026-07-06 — fix: Domain-Verifizierung übersteht Seiten-Refresh ("Jetzt prüfen" bleibt sichtbar)
+
+Ausstehende Domain-Verifizierungen zeigen jetzt direkt in der Domains-Liste
+einen "Jetzt prüfen"-Button (mit Record-Namen) — verschwindet nicht mehr nach
+einem Seiten-Refresh (vorher nur client-seitiger State). Kombiniert mit der
+Hub-seitigen Idempotenz (v0.9.5): erneutes Anfordern überschreibt den bereits
+im DNS veröffentlichten Token nicht mehr.
+
 ## v1.5.24 — 2026-07-06 — fix: Mobile Autokorrektur/Autokapitalisierung bei Domains, Benutzernamen, IDs deaktiviert
 
 27 Text-Eingabefelder (Anbindung, Login, Erweitert-Tab, Einrichtung) hatten keine

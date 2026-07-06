@@ -361,7 +361,8 @@ function _renderCertDomains(d) {
   const pending=Object.entries(d.domain_verifications||{}).filter(([dom])=>!verified.includes(dom));
   let html='';
   verified.forEach(dm=>{ html+='<span class="conn-badge conn-ok" style="margin:0 6px 4px 0">✓ '+dm+'</span>'; });
-  pending.forEach(([dm,v])=>{ if(!v.verified) html+='<span class="conn-badge conn-wait" style="margin:0 6px 4px 0">⏳ '+dm+' (ausstehend)</span>'; });
+  pending.forEach(([dm,v])=>{ if(!v.verified) html+='<span class="conn-badge conn-wait" style="margin:0 6px 8px 0">⏳ '+dm+' (ausstehend — '+v.record_name+')'
+    +' <button class="btn secondary" style="padding:0 6px;font-size:11px;margin-left:4px" onclick="certDomainVerify(\''+dm+'\')">Jetzt prüfen</button></span>'; });
   list.innerHTML = html || '<span class="muted">Noch keine Domain verifiziert.</span>';
 }
 function _renderBillingSection(d) {
@@ -421,12 +422,15 @@ async function certDomainRequest() {
     +'<p class="hint" style="margin:6px 0 0">DNS-Propagation kann einige Minuten dauern.</p>';
 }
 let _pendingDomain=null;
-async function certDomainVerify() {
-  if(!_pendingDomain) return;
-  const d=await (await fetch('/api/hub/cert/domain/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain:_pendingDomain})})).json();
-  if(d.ok){ _certMsg('✓ Domain '+_pendingDomain+' verifiziert.',true); document.getElementById('cert-domain-record').style.display='none';
-    document.getElementById('cert-domain-input').value=''; certLoadEligibility(); }
-  else { _certMsg('Noch nicht verifiziert: '+(d.message||d.error||'unbekannt'),false); }
+async function certDomainVerify(domainArg) {
+  const domain = domainArg || _pendingDomain;
+  if(!domain) return;
+  const d=await (await fetch('/api/hub/cert/domain/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})).json();
+  if(d.ok){ _certMsg('✓ Domain '+domain+' verifiziert.',true);
+    const rec=document.getElementById('cert-domain-record'); if(rec) rec.style.display='none';
+    const inp=document.getElementById('cert-domain-input'); if(inp) inp.value='';
+    certLoadEligibility(); }
+  else { _certMsg('Noch nicht verifiziert ('+domain+'): '+(d.message||d.error||'unbekannt'),false); }
 }
 function _renderCertSteps(d) {
   const s1dot=document.getElementById('cert-step1-dot'), s1body=document.getElementById('cert-step1-body');
