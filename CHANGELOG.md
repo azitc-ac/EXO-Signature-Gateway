@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.31 — 2026-07-06 — feat: Bulk-Aktionen kompakter — "Signatur/S-MIME aktivieren: Alle | Kein"
+
+Vier Buttons ("Alle für Signatur aktivieren/deaktivieren", "Alle für S/MIME
+aktivieren/deaktivieren") zu zwei kompakten Label+Alle/Kein-Gruppen
+zusammengefasst. Reine Anzeige-Optimierung, Funktion (setAllVisible)
+unverändert.
+
 ## v1.5.30 — 2026-07-06 — fix: Guid-"Leichen" auf der S/MIME-Seite (Nachwirkung des MAILBOX_CONFIG-Refactors)
 
 Sechs Stellen behandelten den MAILBOX_CONFIG-Schlüssel weiterhin direkt als
