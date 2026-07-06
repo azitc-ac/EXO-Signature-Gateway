@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.11 — 2026-07-06 — fix: HUB_CLAIM_TOKEN + GATEWAY_ID in settings DEFAULTS (Selbstbedienung war kaputt)
+
+settings_store.update() akzeptiert nur Keys aus DEFAULTS — die neu eingeführten
+HUB_CLAIM_TOKEN (Claim-Token-Relay) und GATEWAY_ID (Gateway-Tracking) fehlten dort
+und wurden bei jedem update() STILL verworfen. Folge: der Claim-Token wurde nie
+persistiert → poll_claim fand ihn leer → das Gateway holte den Key nie ab („nichts
+passiert"), und GATEWAY_ID wurde bei jedem Hub-Call neu erzeugt. Beide Keys jetzt in
+DEFAULTS → Selbstbedienung + stabile Gateway-Identität funktionieren.
+
 ## v1.5.10 — 2026-07-06 — feat: Anbindung — sichtbarer Countdown bis zur nächsten Bestätigungs-Prüfung
 
 Der „Verbinden"-Warte-Zustand zeigt jetzt „Nächste automatische Prüfung in Xs" mit

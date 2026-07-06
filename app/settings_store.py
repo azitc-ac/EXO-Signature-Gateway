@@ -96,6 +96,8 @@ DEFAULTS: dict = {
     "HUB_CUSTOMER_EMAIL": "",        # this gateway's registered email (username at the hub)
     "HUB_CUSTOMER_NAME": "",         # display name sent on registration
     "HUB_API_KEY": "",               # issued by the hub after approval (secret) — used for support AND cert
+    "HUB_CLAIM_TOKEN": "",           # single-use token to pull the issued API key (self-service registration)
+    "GATEWAY_ID": "",                # stable per-install id sent to the hub (X-Gateway-Id, gateway tracking)
     # ── Managed certificate acquisition (via provider hub) ────────────────────
     "CERT_PROVIDER": "sectigo",      # CA chosen for managed ("reseller") acquisition; more later (swisssign…)
     # ── Sectigo Certificate Manager (S/MIME REST API backend) ─────────────────
