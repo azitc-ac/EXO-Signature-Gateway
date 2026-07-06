@@ -5,6 +5,10 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.15 — 2026-07-06 — feat: Eligibility zeigt „∞" bei unlimitiertem Monatskontingent
+
+Bei monthly_limit=0 (unlimitiert) zeigt der Anbindung-Tab „X/∞" statt „X/0".
+
 ## v1.5.14 — 2026-07-06 — feat: eigene Gateway-ID im Anbindung-Tab anzeigen
 
 /api/hub/config liefert gateway_id; die Anbindung-Karte zeigt „Diese Gateway-ID".

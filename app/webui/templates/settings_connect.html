@@ -224,7 +224,7 @@ async function certLoadEligibility() {
   try {
     const d=await (await fetch('/api/hub/cert/eligibility')).json();
     if(d.ok){ el.innerHTML='<strong style="color:#166534">✓ Darf Zertifikate beziehen.</strong> '
-      +'Kontingent '+(d.used_this_month||0)+'/'+(d.monthly_limit||0)+' diesen Monat · Domains: '+((d.verified_domains||[]).join(', ')||'–'); }
+      +'Kontingent '+(d.used_this_month||0)+'/'+((d.monthly_limit>0)?d.monthly_limit:'∞')+' diesen Monat · Domains: '+((d.verified_domains||[]).join(', ')||'–'); }
     else { el.innerHTML='<strong style="color:#92400e">⚠ Noch nicht bezugsberechtigt:</strong> '+(d.reason||d.error||'unbekannt'); }
     _certBilling(d);
   } catch(e){ el.textContent='Berechtigung konnte nicht geprüft werden.'; }
