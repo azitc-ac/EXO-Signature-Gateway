@@ -385,7 +385,13 @@ function showAlert(el, type, msg) {
 
 function _lcResultEl(email) {
   const id = 'lc-result-' + email.replace(/@/g,'_').replace(/\./g,'_');
-  return document.getElementById(id);
+  const el = document.getElementById(id);
+  // Result lives inside the collapsible Lifecycle-Bereich — auto-expand it so
+  // errors/success messages from the always-visible Auto-Enroll button aren't
+  // silently hidden in a collapsed <details>.
+  const details = el && el.closest('details.lifecycle-section');
+  if (details) details.open = true;
+  return el;
 }
 
 const _ACME_LABELS = {

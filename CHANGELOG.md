@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.41 — 2026-07-07 — fix: Auto-Enroll-Fehlermeldung im eingeklappten Lifecycle-Bereich versteckt
+
+Der Auto-Enroll-Button sitzt im immer sichtbaren Karten-Header, die
+Ergebnis-Meldung (`lc-result-…`) liegt aber im einklappbaren
+"Lifecycle / Auto-Enroll-Einstellungen"-Bereich — bei Fehlern (z. B. "Sectigo-
+Reseller-Zugang am Hub nicht konfiguriert") sah es aus, als würde nichts
+passieren, wenn der Bereich zugeklappt war. `_lcResultEl()` klappt den
+`<details>`-Bereich jetzt automatisch auf, sobald er die Meldung anzeigt.
+
+---
+
 ## v1.5.40 — 2026-07-07 — fix: Auto-Enroll-Button nach Backend-Wechsel wieder grau (JS-seitig)
 
 Der Server-seitige Fix in v1.5.39 (Auto-Enroll nicht mehr hart auf CASTLE
