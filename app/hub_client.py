@@ -223,27 +223,6 @@ async def upload_bundle(runtime_log_lines: list[str]) -> dict:
         return {"ok": False, "error": f"Netzwerkfehler: {exc}"}
 
 
-async def cert_register() -> dict:
-    """Flag the cert capability on the ONE hub account (want=cert, same email)."""
-    base = _base()
-    email = (settings_store.get("HUB_CUSTOMER_EMAIL") or "").strip().lower()
-    name = (settings_store.get("HUB_CUSTOMER_NAME") or "").strip()
-    if not base:
-        return {"ok": False, "error": "Hub-Adresse (HUB_BASE_URL) nicht gesetzt."}
-    if "@" not in email:
-        return {"ok": False, "error": "Gültige Kunden-E-Mail erforderlich (Anbindung)."}
-    try:
-        async with httpx.AsyncClient(timeout=20) as c:
-            r = await c.post(f"{base}/api/register",
-                             json={"email": email, "name": name, "want": "cert"})
-        data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
-        if r.status_code == 200 and data.get("ok"):
-            return {"ok": True, "status": data.get("status"), "message": data.get("message", "")}
-        return {"ok": False, "error": data.get("detail") or f"HTTP {r.status_code}: {r.text[:200]}"}
-    except Exception as exc:
-        return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
-
-
 async def cert_accept_terms(version: str = "1") -> dict:
     """Accept the paid terms for the cert capability (uses the one account key)."""
     base = _base()

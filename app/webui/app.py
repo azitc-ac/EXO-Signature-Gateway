@@ -4150,13 +4150,8 @@ async def api_hub_status(user: str = Depends(_require_admin)):
 
 
 # ── Provider Hub — CERT capability (same account/key as the support anbindung) ─
-
-@app.post("/api/hub/cert/register")
-async def api_hub_cert_register(user: str = Depends(_require_admin)):
-    """Request the (paid) cert capability on the one hub account (want=cert)."""
-    import hub_client
-    return JSONResponse(await hub_client.cert_register())
-
+# Accepting the paid terms IS the request (no separate "beantragen" step) — the
+# hub auto-enables the capability once terms are accepted + a balance is loaded.
 
 @app.post("/api/hub/cert/accept-terms")
 async def api_hub_cert_accept_terms(request: Request, user: str = Depends(_require_admin)):

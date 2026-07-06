@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.17 — 2026-07-06 — feat: Zertifikatsbezug als 2-Schritte-Flow (Terms → Guthaben, automatisch)
+
+Der Anbindung-Tab zeigt den Cert-Bezug jetzt als zwei aufeinander aufbauende
+Schritte: (1) Nutzungsbedingungen akzeptieren — das IST der Antrag, kein
+separates „Beantragen" mehr — schaltet (2) Guthaben aufladen frei. Sobald
+Guthaben geladen ist, wird der Zertifikatsbezug automatisch freigeschaltet
+(Hub-seitig, keine manuelle Freigabe nötig). „Abbestellen" erscheint erst,
+sobald der Bezug aktiv ist, mit Hinweis auf Guthaben-Rückerstattung. Der alte
+„Kostenpflichtigen Cert-Bezug beantragen"-Button + hub_client.cert_register()
+und der zugehörige Endpoint sind entfernt (unbenutzt/überflüssig).
+
 ## v1.5.16 — 2026-07-06 — feat: „Anbindung entfernen" deaktiviert das Gateway beim Hub
 
 hub_client.disconnect meldet dem Hub POST /api/gateway/deactivate (per Gateway-ID),

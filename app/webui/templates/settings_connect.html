@@ -85,24 +85,31 @@
         <option value="swisssign" disabled>SwissSign — bald</option>
       </select>
     </div>
-    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:12px;margin-bottom:12px">
-      <div id="cert-eligibility" class="hint" style="margin:0 0 10px">Prüfe Berechtigung…</div>
-      <div id="cert-billing" style="display:none;margin:0 0 10px;padding-top:10px;border-top:1px solid #e2e8f0">
-        <span id="cert-balance" style="font-weight:600"></span>
-        <span id="cert-topup-row" style="display:none;margin-left:8px">·
-          <input type="number" id="cert-topup-amount" min="10" step="1" value="20" style="width:78px"> €
-          <button class="btn secondary" onclick="certTopup()">Guthaben aufladen</button>
-        </span>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:14px;margin-bottom:12px">
+      <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:14px">
+        <div id="cert-step1-dot" style="flex:0 0 22px;height:22px;border-radius:50%;background:#e2e8f0;color:#334155;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700">1</div>
+        <div style="flex:1">
+          <strong>Nutzungsbedingungen akzeptieren</strong>
+          <p class="hint" style="margin:2px 0 8px">Die Akzeptanz ist zugleich der Antrag auf Zertifikatsbezug — ein separater Antrag ist nicht nötig.</p>
+          <div id="cert-step1-body"><button class="btn secondary" onclick="certAcceptTerms()">Nutzungsbedingungen akzeptieren</button></div>
+        </div>
       </div>
-      <button class="btn secondary" onclick="certRequest()">Kostenpflichtigen Cert-Bezug beantragen</button>
-      <button class="btn secondary" onclick="certAcceptTerms()">Nutzungsbedingungen akzeptieren</button>
-      <button class="btn secondary" onclick="certLoadEligibility()">Aktualisieren</button>
-      <button class="btn danger" onclick="certOptOut()">Zertifikatsbezug abbestellen</button>
+      <div id="cert-step2-row" style="display:flex;gap:10px;align-items:flex-start;opacity:.45;pointer-events:none">
+        <div id="cert-step2-dot" style="flex:0 0 22px;height:22px;border-radius:50%;background:#e2e8f0;color:#334155;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700">2</div>
+        <div style="flex:1">
+          <strong>Guthaben aufladen</strong>
+          <p class="hint" style="margin:2px 0 8px">Sobald Guthaben vorhanden ist, wird der Zertifikatsbezug automatisch freigeschaltet — keine gesonderte Freigabe nötig.</p>
+          <div id="cert-step2-body"><span class="muted">Erst nach Schritt 1 verfügbar.</span></div>
+        </div>
+      </div>
     </div>
-    <p class="hint" style="margin:0">
-      Ablauf: „Beantragen" meldet dem Anbieter deinen Wunsch → er prüft, erfasst Abrechnungsdaten
-      und schaltet den Bezug frei (kostenpflichtig) → du akzeptierst die Nutzungsbedingungen →
-      danach kannst du pro Postfach Zertifikate beziehen.
+    <div id="cert-eligibility" class="hint" style="margin:0 0 10px"></div>
+    <div class="actions" style="margin-bottom:6px">
+      <button class="btn secondary" onclick="certLoadEligibility()">Aktualisieren</button>
+      <button class="btn danger" id="cert-optout-btn" style="display:none" onclick="certOptOut()">Zertifikatsbezug abbestellen</button>
+    </div>
+    <p class="hint" id="cert-optout-hint" style="display:none;margin:0">
+      Bei Abbestellung erstatten wir dir dein verbleibendes Guthaben.
     </p>
     <div id="cert-msg" style="display:none;margin-top:10px"></div>
   </div>
@@ -208,41 +215,69 @@ async function hubStatus() { _hubMsg('Prüfe Status…',true); const d=await (aw
 document.addEventListener('DOMContentLoaded', hubLoadConfig);
 
 // ── Zertifikatsbezug: kostenpflichtige Fähigkeit auf demselben Konto ─────────
+// Schritt 1 (Nutzungsbedingungen akzeptieren = der Antrag) schaltet Schritt 2
+// (Guthaben aufladen) frei; sobald Guthaben da ist, wird automatisch freigeschaltet.
 function _certMsg(html, ok) { const el=document.getElementById('cert-msg'); el.className='alert '+(ok?'success':'error'); el.innerHTML=html; el.style.display='block'; }
-async function certOptOut() { if(!confirm('Zertifikatsbezug für dieses Konto abbestellen? (Wieder aktivieren nur über den Anbieter.)'))return;
+async function certOptOut() { if(!confirm('Zertifikatsbezug für dieses Konto abbestellen? Verbleibendes Guthaben wird erstattet.'))return;
   const d=await (await fetch('/api/hub/cert/opt-out',{method:'POST'})).json();
-  if(d.ok){_certMsg('Zertifikatsbezug abbestellt.',true); certLoadEligibility();} else _certMsg('Fehler: '+(d.error||'Unbekannt'),false); }
-async function certRequest() {
-  const d=await (await fetch('/api/hub/cert/register',{method:'POST'})).json();
-  if(d.ok)_certMsg('Cert-Bezug beantragt (Status: <strong>'+(d.status||'pending')+'</strong>). Der Anbieter schaltet nach Prüfung frei.',true); else _certMsg('Fehler: '+(d.error||'Unbekannt'),false); }
+  if(d.ok){_certMsg('Zertifikatsbezug abbestellt. Verbleibendes Guthaben wird erstattet.',true); certLoadEligibility();} else _certMsg('Fehler: '+(d.error||'Unbekannt'),false); }
 async function certAcceptTerms() {
-  if(!confirm('Kostenpflichtige Nutzungsbedingungen für den Zertifikatsbezug akzeptieren?')) return;
+  if(!confirm('Kostenpflichtige Nutzungsbedingungen für den Zertifikatsbezug akzeptieren? Damit ist der Zertifikatsbezug beantragt.')) return;
   const d=await (await fetch('/api/hub/cert/accept-terms',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({version:'1'})})).json();
-  if(d.ok){_certMsg('Nutzungsbedingungen akzeptiert.',true); certLoadEligibility();} else _certMsg('Fehler: '+(d.error||'Unbekannt'),false); }
+  if(d.ok){_certMsg('Nutzungsbedingungen akzeptiert — Antrag gestellt.',true); certLoadEligibility();} else _certMsg('Fehler: '+(d.error||'Unbekannt'),false); }
+async function certTopup() {
+  const eur=parseFloat(document.getElementById('cert-topup-amount').value);
+  if(!eur||eur<10){ _certMsg('Mindestbetrag 10 €.',false); return; }
+  const d=await (await fetch('/api/hub/cert/topup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amount_eur:eur})})).json();
+  if(d.ok&&d.checkout_url){ window.open(d.checkout_url,'_blank'); _certMsg('Bezahlseite geöffnet. Nach der Zahlung wird das Guthaben gutgeschrieben und der Zertifikatsbezug automatisch freigeschaltet — dann „Aktualisieren".',true); }
+  else _certMsg('Aufladen fehlgeschlagen: '+(d.error||d.message||'Unbekannt'),false);
+}
 async function certLoadEligibility() {
   const el=document.getElementById('cert-eligibility');
-  try {
-    const d=await (await fetch('/api/hub/cert/eligibility')).json();
-    if(d.ok){ el.innerHTML='<strong style="color:#166534">✓ Darf Zertifikate beziehen.</strong> '
-      +'Kontingent '+(d.used_this_month||0)+'/'+((d.monthly_limit>0)?d.monthly_limit:'∞')+' diesen Monat · Domains: '+((d.verified_domains||[]).join(', ')||'–'); }
-    else { el.innerHTML='<strong style="color:#92400e">⚠ Noch nicht bezugsberechtigt:</strong> '+(d.reason||d.error||'unbekannt'); }
-    _certBilling(d);
-  } catch(e){ el.textContent='Berechtigung konnte nicht geprüft werden.'; }
+  let d;
+  try { d = await (await fetch('/api/hub/cert/eligibility')).json(); }
+  catch(e){ el.textContent='Berechtigung konnte nicht geprüft werden.'; return; }
+  _renderCertSteps(d);
+  if(d.ok){ el.innerHTML='<strong style="color:#166534">✓ Darf Zertifikate beziehen.</strong> '
+    +'Kontingent '+(d.used_this_month||0)+'/'+((d.monthly_limit>0)?d.monthly_limit:'∞')+' diesen Monat · Domains: '+((d.verified_domains||[]).join(', ')||'–'); }
+  else if(d.cert_issuing_enabled){ el.innerHTML='<strong style="color:#92400e">⚠ Freigeschaltet, aber noch nicht bezugsbereit:</strong> '+(d.reason||d.error||'unbekannt'); }
+  else { el.innerHTML=''; }
+  const optBtn=document.getElementById('cert-optout-btn'), optHint=document.getElementById('cert-optout-hint');
+  optBtn.style.display = d.cert_issuing_enabled ? 'inline-block' : 'none';
+  optHint.style.display = d.cert_issuing_enabled ? 'block' : 'none';
 }
-function _certBilling(d) {
-  const bill=document.getElementById('cert-billing');
-  if(!d || !d.billing_mode){ bill.style.display='none'; return; }
-  bill.style.display='block';
-  const balEl=document.getElementById('cert-balance');
-  const topRow=document.getElementById('cert-topup-row');
-  if(d.billing_mode==='invoice'){
-    balEl.textContent='Abrechnung: Rechnung (nach Vertrag) — kein Guthaben nötig.';
-    topRow.style.display='none';
+function _renderCertSteps(d) {
+  const s1dot=document.getElementById('cert-step1-dot'), s1body=document.getElementById('cert-step1-body');
+  const s2row=document.getElementById('cert-step2-row'), s2dot=document.getElementById('cert-step2-dot'), s2body=document.getElementById('cert-step2-body');
+  const termsOk = !!(d && d.terms_accepted), certOn = !!(d && d.cert_issuing_enabled);
+  if(termsOk){
+    s1dot.style.background='#166534'; s1dot.style.color='#fff'; s1dot.textContent='✓';
+    s1body.innerHTML='<span style="color:#166534;font-weight:600">Akzeptiert'+(d.terms_accepted_at?(' am '+d.terms_accepted_at.slice(0,10)):'')+'</span>';
   } else {
-    const bal=((d.balance_cents||0)/100).toFixed(2), price=((d.cert_price_cents||0)/100).toFixed(2);
-    balEl.textContent='Guthaben: '+bal+' €  (Preis pro Zertifikat: '+price+' €)';
-    topRow.style.display=d.stripe_enabled?'inline':'none';
+    s1dot.style.background='#e2e8f0'; s1dot.style.color='#334155'; s1dot.textContent='1';
+    s1body.innerHTML='<button class="btn secondary" onclick="certAcceptTerms()">Nutzungsbedingungen akzeptieren</button>';
   }
+  if(!termsOk){
+    s2row.style.opacity='.45'; s2row.style.pointerEvents='none';
+    s2dot.style.background='#e2e8f0'; s2dot.style.color='#334155'; s2dot.textContent='2';
+    s2body.innerHTML='<span class="muted">Erst nach Schritt 1 verfügbar.</span>';
+    return;
+  }
+  s2row.style.opacity='1'; s2row.style.pointerEvents='auto';
+  if(d.billing_mode==='invoice'){
+    s2dot.style.background='#166534'; s2dot.style.color='#fff'; s2dot.textContent='✓';
+    s2body.innerHTML='<span class="muted">Abrechnung: Rechnung (nach Vertrag) — kein Guthaben nötig.</span>';
+    return;
+  }
+  s2dot.style.background = certOn ? '#166534' : '#e2e8f0';
+  s2dot.style.color = certOn ? '#fff' : '#334155';
+  s2dot.textContent = certOn ? '✓' : '2';
+  const bal=((d.balance_cents||0)/100).toFixed(2), price=((d.cert_price_cents||0)/100).toFixed(2);
+  const topupHtml = d.stripe_enabled
+    ? '<input type="number" id="cert-topup-amount" min="10" step="1" value="20" style="width:78px"> € <button class="btn secondary" onclick="certTopup()">Guthaben aufladen</button>'
+    : '';
+  s2body.innerHTML='<span style="font-weight:600">Guthaben: '+bal+' €</span> <span class="muted">(Preis pro Zertifikat: '+price+' €)</span>'
+    +'<div style="margin-top:6px">'+topupHtml+'</div>';
 }
 async function certTopup() {
   const eur=parseFloat(document.getElementById('cert-topup-amount').value);
