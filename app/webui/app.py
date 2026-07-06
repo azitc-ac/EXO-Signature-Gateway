@@ -1973,6 +1973,21 @@ async def api_refresh_sender_mailboxes(user: str = Depends(_require_admin)):
     return JSONResponse({"ok": True, "mailboxes": exo_mailboxes.as_sender_list()})
 
 
+@app.post("/api/settings/notification-mailbox/create-shared")
+async def api_create_notification_shared_mailbox(user: str = Depends(_require_admin)):
+    import asyncio
+    import setup_wizard
+    import exo_mailboxes
+    result = await asyncio.to_thread(setup_wizard.run_create_notification_mailbox)
+    if not result.get("ok"):
+        raise HTTPException(500, result.get("output") or "Anlage fehlgeschlagen")
+    try:
+        await asyncio.to_thread(exo_mailboxes.list_mailboxes, True)
+    except Exception:
+        pass
+    return JSONResponse({"ok": True, "email": result.get("email", ""), "mailboxes": exo_mailboxes.as_sender_list()})
+
+
 @app.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request, user: str = Depends(_require_admin)):
     import asyncio

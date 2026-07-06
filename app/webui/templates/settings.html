@@ -120,17 +120,22 @@
       <label for="notif-mailbox">Absender</label>
       <div class="settings-control">
         <div style="display:flex;align-items:center;gap:8px">
-          <select id="notif-mailbox" style="width:300px;max-width:100%">
+          <select id="notif-mailbox" style="width:300px;max-width:100%" onchange="_onNotifMailboxChange(this.value)">
             <option value="">— Automatisch (erster Empfänger) —</option>
             {% for m in sender_mailboxes %}
             <option value="{{ m.email }}" {% if m.email == s.NOTIFICATION_MAILBOX %}selected{% endif %}>
               {{ m.email }}{% if m.name and m.name != m.email %} – {{ m.name }}{% endif %}
             </option>
             {% endfor %}
+            <option value="__create_shared__">+ Neue Shared Mailbox „EXOSignatureGateway-Notification" anlegen…</option>
           </select>
           <button type="button" class="btn secondary btn-sm" onclick="refreshSenderMailboxes(this)"
                   title="Postfachliste neu laden">↻</button>
           <span id="sender-mb-refresh-result" style="font-size:12px;color:#64748b"></span>
+        </div>
+        <div id="notif-create-shared-row" style="display:none;margin-top:8px;align-items:center;gap:8px">
+          <button type="button" class="btn secondary btn-sm" onclick="createNotificationSharedMailbox(this)">Erstellen</button>
+          <span id="notif-create-shared-status" style="font-size:12px;color:#64748b"></span>
         </div>
       </div>
     </div>
@@ -548,6 +553,50 @@ function toggleNotifConfig(enabled) {
   document.getElementById('notif-config-block').style.display = enabled ? '' : 'none';
 }
 
+function _onNotifMailboxChange(val) {
+  document.getElementById('notif-create-shared-row').style.display = (val === '__create_shared__') ? 'flex' : 'none';
+}
+
+function _populateNotifMailboxSelect(mailboxes, selectedEmail) {
+  const sel = document.getElementById('notif-mailbox');
+  sel.innerHTML = '<option value="">— Automatisch (erster Empfänger) —</option>';
+  (mailboxes || []).forEach(function(m) {
+    const opt = document.createElement('option');
+    opt.value = m.email;
+    opt.textContent = m.email + (m.name && m.name !== m.email ? ' – ' + m.name : '');
+    sel.appendChild(opt);
+  });
+  const createOpt = document.createElement('option');
+  createOpt.value = '__create_shared__';
+  createOpt.textContent = '+ Neue Shared Mailbox „EXOSignatureGateway-Notification" anlegen…';
+  sel.appendChild(createOpt);
+  if (selectedEmail) sel.value = selectedEmail;
+}
+
+async function createNotificationSharedMailbox(btn) {
+  const status = document.getElementById('notif-create-shared-status');
+  btn.disabled = true;
+  status.style.color = '#64748b';
+  status.textContent = 'Wird angelegt… (kann bis zu einer Minute dauern)';
+  try {
+    const r = await fetch('/api/settings/notification-mailbox/create-shared', {method: 'POST'});
+    const d = await r.json();
+    if (!r.ok || !d.ok) {
+      status.textContent = '✗ Fehler: ' + (d.detail || 'unbekannt');
+      status.style.color = '#dc2626';
+      btn.disabled = false;
+      return;
+    }
+    _populateNotifMailboxSelect(d.mailboxes, d.email);
+    document.getElementById('notif-create-shared-row').style.display = 'none';
+    status.textContent = '';
+  } catch(e) {
+    status.textContent = '✗ Netzwerkfehler';
+    status.style.color = '#dc2626';
+    btn.disabled = false;
+  }
+}
+
 async function refreshSenderMailboxes(btn) {
   const result = document.getElementById('sender-mb-refresh-result');
   btn.disabled = true;
@@ -556,16 +605,8 @@ async function refreshSenderMailboxes(btn) {
     const r = await fetch('/api/settings/sender-mailboxes/refresh', {method: 'POST'});
     const d = await r.json();
     if (!r.ok) { result.textContent = '✗ Fehler'; result.style.color = '#dc2626'; return; }
-    const sel = document.getElementById('notif-mailbox');
-    const prev = sel.value;
-    sel.innerHTML = '<option value="">— Automatisch (erster Empfänger) —</option>';
-    (d.mailboxes || []).forEach(function(m) {
-      const opt = document.createElement('option');
-      opt.value = m.email;
-      opt.textContent = m.email + (m.name && m.name !== m.email ? ' – ' + m.name : '');
-      if (m.email === prev) opt.selected = true;
-      sel.appendChild(opt);
-    });
+    const prev = document.getElementById('notif-mailbox').value;
+    _populateNotifMailboxSelect(d.mailboxes, prev === '__create_shared__' ? '' : prev);
     result.textContent = '✓ ' + (d.mailboxes || []).length + ' Postfächer';
     result.style.color = '#16a34a';
   } catch(e) {

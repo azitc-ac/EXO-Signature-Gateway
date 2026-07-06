@@ -5,6 +5,36 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.38 — 2026-07-07 — feat: Notification-Shared-Mailbox + Dashboard-Plausibilität + Mobile-Subnav
+
+**Neu**: Absender-Dropdown bei Benachrichtigungen hat jetzt die Option "Neue
+Shared Mailbox anlegen" — legt `EXOSignatureGateway-Notification` per
+`New-Mailbox -Shared` in EXO an (idempotent) und übernimmt sie direkt als
+Absender-Kandidat, ohne dass man vorher manuell ein Postfach anlegen muss.
+
+**Fix Dashboard-Plausibilität**: Die Zeilen "Graph sendMail", "Key Vault Sign"
+und "Certs harvested" (vormals "Certs geharvestet") verlinkten mit leerem
+Action-Filter auf das Mail-Protokoll-Modal — diese drei Zähler zählen
+technische API-Aufrufe (mehrere pro Mail möglich, auch 0 trotz erfolgreicher
+Verarbeitung), nicht einzelne Mail-Aktionen. Das Modal zeigte deshalb
+irreführend beliebige Mails des Tages statt tatsächlich zusammengehöriger
+Treffer (z. B. 3 "Key Vault Sign"-Hits → 4 angezeigte Mails, 3 davon ohne
+KV-Bezug). Diese drei Zellen sind jetzt bewusst nicht mehr anklickbar.
+
+**Diagnose-Härtung**: `fallback`-Zähler und Mail-Protokoll konnten historisch
+auseinanderlaufen (ein Fallback-Event am 2026-07-01 zählte mit, erzeugte aber
+keine mail_log-Zeile — Ursache im Nachhinein nicht mehr rekonstruierbar, da
+der Schreibfehler bisher komplett stumm verschluckt wurde). `_audit()` in
+handler.py und `mail_audit.log_event()` loggen Fehlschläge jetzt als WARNING,
+damit ein künftiges Divergieren nachvollziehbar bleibt.
+
+**Fix Mobile**: Die Einstellungen-Unternavigation (Allgemein/Signatur/S-MIME/…)
+war horizontal scrollbar — beim vertikalen Wischen auf dem Handy rutschte die
+Leiste seitlich mit. Verhält sich jetzt wie das Hauptmenü: bricht auf
+Mobilgrößen in feste Zeilen um, kein Scroll-Einfangen mehr.
+
+---
+
 ## v1.5.37 — 2026-07-06 — fix: Gateway-Audit-Log inline statt leerer neuer Tab
 
 Der Link "Gateway-Audit-Log JSON öffnen" wirkte kaputt, weil das Log meist

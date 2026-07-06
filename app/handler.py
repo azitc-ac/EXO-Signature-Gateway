@@ -254,8 +254,9 @@ class SignatureHandler:
                     processing_ms=int((time.monotonic() - _t0) * 1000),
                     error=error,
                 )
-            except Exception:
-                pass
+            except Exception as exc:
+                log.warning("mail_audit: _audit(%s) failed — dashboard/stats counter "
+                            "will diverge from mail log for this event: %s", action, exc)
 
         _subject = ""
         _mid = ""

@@ -132,6 +132,12 @@ nav a.nav-planned:hover { background: none; }
     .nav-links.open { display: block; }
     nav ul { flex-direction: column; gap: 2px; }
     nav a { padding: 10px 12px; font-size: 14px; border-radius: 6px; }
+    .nav-sub-tabs {
+        overflow-x: visible;
+        flex-wrap: wrap;
+        white-space: normal;
+    }
+    .nav-sub-tab { padding: 8px 12px; font-size: 13px; }
 }
 
 /* Main */

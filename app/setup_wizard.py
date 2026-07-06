@@ -883,6 +883,61 @@ Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
         return {"ok": False, "email": "", "output": str(exc)}
 
 
+def run_create_notification_mailbox() -> dict:
+    """
+    Create the shared mailbox 'EXOSignatureGateway-Notification' if it doesn't
+    already exist (idempotent), for use as the notification sender.
+    Returns {"ok": bool, "email": str, "output": str}.
+    """
+    if not _AUTH_CERT_PATH.exists():
+        return {"ok": False, "email": "", "output": "Auth-Zertifikat nicht gefunden"}
+    app_id = config.CLIENT_ID or settings_store.get("CLIENT_ID") or ""
+    org = settings_store.get("TENANT_DOMAIN") or ""
+    if not app_id or not org:
+        return {"ok": False, "email": "", "output": "CLIENT_ID oder TENANT_DOMAIN nicht konfiguriert"}
+
+    cert = str(_AUTH_CERT_PATH)
+    alias = "EXOSignatureGateway-Notification"
+    display_name = "EXO Signature Gateway Notification"
+
+    ps_script = f"""
+$ErrorActionPreference = 'Stop'
+$cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
+    '{cert}', [string]$null,
+    ([System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet))
+Connect-ExchangeOnline -AppId '{app_id}' -Certificate $cert -Organization '{org}' -ShowBanner:$false -ShowProgress:$false
+$mbx = Get-Mailbox -Identity '{alias}' -ErrorAction SilentlyContinue
+if (-not $mbx) {{
+    $mbx = New-Mailbox -Shared -Name '{display_name}' -DisplayName '{display_name}' -Alias '{alias}' -ErrorAction Stop
+}}
+$email = if ($mbx.PrimarySmtpAddress) {{ $mbx.PrimarySmtpAddress }} else {{ '' }}
+Write-Output (@{{ok=$true; email=$email}} | ConvertTo-Json -Compress)
+Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
+"""
+    try:
+        proc = subprocess.run(
+            ["pwsh", "-NoProfile", "-NonInteractive", "-Command", ps_script],
+            capture_output=True, text=True, timeout=120,
+        )
+        output = (proc.stdout + "\n" + proc.stderr).strip()
+        import json as _json
+        for line in proc.stdout.strip().splitlines():
+            line = line.strip()
+            if line.startswith("{"):
+                try:
+                    result = _json.loads(line)
+                    if result.get("ok"):
+                        log.info("Notification-Shared-Mailbox angelegt/vorhanden: %s", result.get("email"))
+                        return {"ok": True, "email": result.get("email", ""), "output": output}
+                except Exception:
+                    pass
+        log.error("Notification-Shared-Mailbox-Anlage fehlgeschlagen rc=%d: %s", proc.returncode, output)
+        return {"ok": False, "email": "", "output": output}
+    except Exception as exc:
+        log.error("Notification-Shared-Mailbox-Anlage Fehler: %s", exc)
+        return {"ok": False, "email": "", "output": str(exc)}
+
+
 # ── EXO state verification ────────────────────────────────────────────────────
 
 def _run_verify_ps(body: str) -> dict:

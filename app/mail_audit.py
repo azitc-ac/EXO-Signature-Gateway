@@ -74,6 +74,7 @@ def log_event(
     error: str | None = None,
 ) -> None:
     if not _initialised:
+        log.warning("mail_audit: log_event(%s) dropped — DB not yet initialised", action)
         return
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     try:
