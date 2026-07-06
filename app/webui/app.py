@@ -1461,9 +1461,13 @@ async def api_delete_template(name: str, _=Depends(_check_auth)):
 @app.get("/api/mailboxes")
 async def api_get_mailboxes(_=Depends(_check_auth)):
     """List all EXO mailboxes + their current MAILBOX_CONFIG + cached health status."""
-    import graph_client
+    import asyncio
+    import exo_mailboxes
     import mailbox_match
-    users = await graph_client.list_mailboxes()
+    raw = await asyncio.to_thread(exo_mailboxes.list_mailboxes)
+    users = [{"email": m["primary"], "name": m.get("display_name") or m["primary"],
+             "type": "user" if m.get("type") == "UserMailbox" else "shared"}
+            for m in raw if m.get("primary")]
     config_map: dict = settings_store.get("MAILBOX_CONFIG") or {}
     health_map: dict = settings_store.get("MAILBOX_HEALTH") or {}
     bookings_map: dict = settings_store.get("USER_BOOKINGS") or {}
@@ -1956,18 +1960,22 @@ async def api_set_maintenance_mode(request: Request, _: str = Depends(_require_a
 
 @app.post("/api/settings/sender-mailboxes/refresh")
 async def api_refresh_sender_mailboxes(user: str = Depends(_require_admin)):
-    graph_client.invalidate_sender_mailboxes_cache()
+    import asyncio
+    import exo_mailboxes
     try:
-        mailboxes = await graph_client.list_sender_mailboxes()
+        await asyncio.to_thread(exo_mailboxes.list_mailboxes, True)  # force refresh
     except Exception as exc:
         raise HTTPException(500, str(exc))
-    return JSONResponse({"ok": True, "mailboxes": mailboxes})
+    return JSONResponse({"ok": True, "mailboxes": exo_mailboxes.as_sender_list()})
 
 
 @app.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request, user: str = Depends(_require_admin)):
+    import asyncio
+    import exo_mailboxes
     try:
-        sender_mailboxes = await graph_client.list_sender_mailboxes()
+        await asyncio.to_thread(exo_mailboxes.list_mailboxes)
+        sender_mailboxes = exo_mailboxes.as_sender_list()
     except Exception:
         sender_mailboxes = []
     return templates.TemplateResponse(
@@ -1984,8 +1992,11 @@ async def settings_page(request: Request, user: str = Depends(_require_admin)):
 
 @app.get("/settings/signature", response_class=HTMLResponse)
 async def settings_signature_page(request: Request, user: str = Depends(_require_admin)):
+    import asyncio
+    import exo_mailboxes
     try:
-        sender_mailboxes = await graph_client.list_sender_mailboxes()
+        await asyncio.to_thread(exo_mailboxes.list_mailboxes)
+        sender_mailboxes = exo_mailboxes.as_sender_list()
     except Exception:
         sender_mailboxes = []
     return templates.TemplateResponse(

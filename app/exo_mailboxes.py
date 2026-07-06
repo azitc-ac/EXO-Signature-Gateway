@@ -149,6 +149,18 @@ def resolve_guid(email: str) -> str | None:
     return None
 
 
+def as_sender_list() -> list[dict]:
+    """list_mailboxes(), reshaped to {"email","name","type"} for UI dropdowns
+    (e.g. notification-sender selection) — both User and Shared mailboxes are
+    valid senders. Sorted by email."""
+    out = [{
+        "email": m["primary"],
+        "name": m.get("display_name") or m["primary"],
+        "type": "user" if m.get("type") == "UserMailbox" else "shared",
+    } for m in list_mailboxes() if m.get("primary")]
+    return sorted(out, key=lambda x: x["email"])
+
+
 def invalidate() -> None:
     """Force the next list_mailboxes() to re-query EXO."""
     global _cache_ts

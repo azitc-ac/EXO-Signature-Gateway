@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.19 — 2026-07-06 — feat: GUID-Refactor Schritt 4 — Postfächer/Health-Check auf EXO statt Graph umgestellt
+
+Wie vor ~20h angekündigt: die Graph-Heuristiken für Postfach-Enumeration sind auf
+`exo_mailboxes` (Get-EXOMailbox, autoritativ) umgestellt.
+
+- Health-Check „Graph-Benutzer/Lizenz aktiv" ersetzt durch „EXO-Postfach" —
+  prüft Existenz via exo_mailboxes.resolve_guid() statt Graph assignedPlans.
+  Behebt Falschwarnung „Keine aktive Exchange-Lizenz" bei Shared Mailboxes
+  (die naturgemäß keine Lizenz haben, aber valide EXO-Postfächer sind).
+- `/api/mailboxes` (Postfächer laden) nutzt jetzt exo_mailboxes statt der
+  Graph-/users-Heuristik (Lizenz-Rateverfahren + Inbox-Probing entfällt).
+- „Postfachliste neu laden" (Benachrichtigungs-Absender in Einstellungen/
+  Signatur) ebenfalls auf exo_mailboxes umgestellt (as_sender_list()).
+- graph_client.list_mailboxes/list_sender_mailboxes/_verify_mailboxes_batch/
+  invalidate_sender_mailboxes_cache entfernt (nach Umstellung unbenutzt).
+
 ## v1.5.18 — 2026-07-06 — feat: AGB-Dialog + Anbieter-Adresse-Dropdown + reduzierte UI nach Verbindung
 
 „Nutzungsbedingungen akzeptieren" öffnet jetzt einen Dialog mit dem vollständigen

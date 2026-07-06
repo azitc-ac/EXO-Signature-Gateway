@@ -18,8 +18,6 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-import httpx
-
 import settings_store
 
 log = logging.getLogger(__name__)
@@ -53,47 +51,25 @@ def _make_result(status: str, detail: str) -> dict:
     return {"status": status, "checked_at": _now_str(), "detail": detail}
 
 
-# ── Check 1: graph_user ───────────────────────────────────────────────────────
+# ── Check 1: exo_mailbox ──────────────────────────────────────────────────────
 
-def _check_graph_user_sync(email: str) -> dict:
+def _check_exo_mailbox_sync(email: str) -> dict:
     """
-    GET /users/{email}?$select=accountEnabled,assignedPlans
-    Check user exists, is enabled, has Exchange service plan.
-    Returns check result dict.
+    Authoritative existence check via EXO (Get-EXOMailbox, through exo_mailboxes'
+    cached enumeration + alias resolution) — replaces the former Graph/license-
+    based check.
+
+    Why: Graph /users assignedPlans answers "does this account have an Exchange
+    license", not "does this mailbox exist and work". That produced a false
+    "Keine aktive Exchange-Lizenz" warning for Shared Mailboxes, which have no
+    license but are perfectly valid, functioning EXO mailboxes. EXO's own
+    Get-EXOMailbox is the direct, correct answer to "does this mailbox exist".
     """
-    import graph_client
-    token = graph_client._acquire_token()
-    if not token:
-        return _make_result("warn", "Graph-Token nicht verfügbar")
-
-    url = (f"https://graph.microsoft.com/v1.0/users/{email}"
-           "?$select=accountEnabled,assignedPlans")
-    headers = {"Authorization": f"Bearer {token}"}
-    try:
-        with httpx.Client(timeout=15) as client:
-            resp = client.get(url, headers=headers)
-    except Exception as exc:
-        return _make_result("error", f"Graph-Abfrage fehlgeschlagen: {exc}")
-
-    if resp.status_code == 404:
-        return _make_result("error", "Benutzer nicht gefunden")
-    if resp.status_code != 200:
-        return _make_result("error", f"Graph HTTP {resp.status_code}")
-
-    data = resp.json()
-    if not data.get("accountEnabled", True):
-        return _make_result("error", "Konto deaktiviert")
-
-    plans = data.get("assignedPlans") or []
-    has_exchange = any(
-        p.get("service", "").lower() == "exchange"
-        and p.get("capabilityStatus", "") == "Enabled"
-        for p in plans
-    )
-    if not has_exchange:
-        return _make_result("warn", "Keine aktive Exchange-Lizenz erkannt")
-
-    return _make_result("ok", "Lizenz aktiv")
+    import exo_mailboxes
+    guid = exo_mailboxes.resolve_guid(email)
+    if guid:
+        return _make_result("ok", "Postfach in EXO vorhanden")
+    return _make_result("error", "Postfach nicht in EXO gefunden (auch nicht als Alias)")
 
 
 # ── Check 2+3: dg_member + imap_permission (single PS run for all mailboxes) ─
@@ -420,9 +396,9 @@ async def run_checks_for_mailbox(email: str, exo_data: dict | None = None) -> di
 
     checks: dict = {}
 
-    # 1. graph_user (sync, wrapped in executor)
+    # 1. exo_mailbox (sync, wrapped in executor)
     loop = asyncio.get_event_loop()
-    checks["graph_user"] = await loop.run_in_executor(None, _check_graph_user_sync, email)
+    checks["exo_mailbox"] = await loop.run_in_executor(None, _check_exo_mailbox_sync, email)
 
     # 2+3. dg_member + imap_permission — use pre-fetched data if available
     if exo_data is not None:
@@ -564,7 +540,7 @@ async def run_all_checks(emails: list[str] | None = None) -> dict:
             results[email] = {
                 "last_checked": _now_str(),
                 "overall": "error",
-                "checks": {"graph_user": _make_result("error", str(exc))},
+                "checks": {"exo_mailbox": _make_result("error", str(exc))},
             }
 
     return results
