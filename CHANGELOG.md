@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.43 — 2026-07-07 — fix: Auto-Enroll-/ACME-Fehlermeldungen im Header umbrechen statt abschneiden
+
+Die Fehlertexte im `acme-status-…`-Span (Auto-Enroll-Fehler seit v1.5.42,
+sowie laufende ACME-Order-Fehler) wurden bei ~55–60 Zeichen abgeschnitten
+(„…" + Tooltip für den vollen Text). Jetzt Zeilenumbruch statt Kürzung —
+voller Text direkt sichtbar, kein Hover mehr nötig.
+
+---
+
 ## v1.5.42 — 2026-07-07 — fix: Auto-Enroll-Fehler zurück in den Header (statt Lifecycle-Bereich)
 
 v1.5.41 hatte die Fehlermeldung sichtbar gemacht, indem der einklappbare

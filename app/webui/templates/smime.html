@@ -419,13 +419,12 @@ function _renderAcmeStatus(email, data) {
   }
   const s = data.status;
   const lbl = _ACME_LABELS[s] || {icon:'ℹ️', text: s, color:'#374151', bg:'#f3f4f6', border:'#d1d5db'};
-  const errFull  = s === 'error' && data.error ? data.error : '';
-  const errShort = errFull.length > 55 ? errFull.substring(0, 55) + '…' : errFull;
-  const detail   = errFull ? ': ' + errShort : '';
-  el.innerHTML = `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;
+  const errFull = s === 'error' && data.error ? data.error : '';
+  const detail  = errFull ? ': ' + errFull : '';
+  el.innerHTML = `<span style="display:inline-flex;align-items:flex-start;gap:4px;padding:2px 8px;
     border-radius:10px;background:${lbl.bg};border:1px solid ${lbl.border};color:${lbl.color};
-    max-width:100%;box-sizing:border-box;overflow:hidden"${errFull ? ` title="${errFull.replace(/"/g,'&quot;')}"` : ''}>
-    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0">${lbl.icon} ${lbl.text}${detail}</span>
+    max-width:100%;box-sizing:border-box">
+    <span style="overflow-wrap:anywhere;white-space:normal;flex:1;min-width:0">${lbl.icon} ${lbl.text}${detail}</span>
     ${s === 'error' ? `<button class="btn secondary btn-sm" style="padding:1px 6px;font-size:11px;margin-left:4px;flex-shrink:0"
       onclick="clearAcmeOrder('${email}',this)">Zurücksetzen</button>` : ''}
   </span>`;
@@ -521,11 +520,10 @@ async function saveCaConfig(email) {
 function _showAeError(email, msg) {
   const el = document.getElementById('acme-status-' + _acmeKey(email));
   if (!el) return;
-  const short = msg.length > 60 ? msg.substring(0, 60) + '…' : msg;
-  el.innerHTML = `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;
+  el.innerHTML = `<span style="display:inline-flex;align-items:flex-start;gap:4px;padding:2px 8px;
     border-radius:10px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;
-    max-width:100%;box-sizing:border-box;overflow:hidden" title="${msg.replace(/"/g,'&quot;')}">
-    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">❌ ${short}</span>
+    max-width:100%;box-sizing:border-box">
+    <span style="overflow-wrap:anywhere;white-space:normal">❌ ${msg}</span>
   </span>`;
 }
 
