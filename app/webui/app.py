@@ -1509,6 +1509,7 @@ async def api_get_mailboxes(_=Depends(_check_auth)):
                 "health_checks": h.get("checks", {}),
                 "bookings_url": bookings_map.get(cemail, ""),
             })
+    result.sort(key=lambda r: (r.get("name") or r["email"]).lower())
     return {"mailboxes": result}
 
 

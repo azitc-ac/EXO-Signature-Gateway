@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.28 — 2026-07-06 — feat: Postfächer-Tabelle alphabetisch nach Name sortiert
+
+/api/mailboxes lieferte die EXO-interne (praktisch beliebige) Reihenfolge ohne
+jede Sortierung. Jetzt case-insensitiv alphabetisch nach Anzeigename (Fallback
+E-Mail, falls kein Name) sortiert — inkl. der konfigurierten, von EXO nicht
+zurückgelieferten Einträge.
+
 ## v1.5.27 — 2026-07-06 — feat: Mini-Copy-Buttons (Entra-Stil) für Domains/IDs/Keys/Ticket-IDs
 
 Kleiner Copy-to-Clipboard-Button neben allen Feldern, die ein Gateway-Admin
