@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.39 — 2026-07-07 — fix: Auto-Enroll-Button fälschlich auf CASTLE beschränkt
+
+`/smime` prüfte für den "Auto-Enroll"-Button hart auf `backend == 'castle_acme'`
+statt die tatsächliche Backend-Fähigkeit (`can_auto_renew()` + `is_ready()`,
+beide bereits in `backends` im Template-Context vorhanden). Sectigo unterstützt
+Auto-Enroll (Sectigo SCM REST API) und war trotz vollständig erfüllter
+Voraussetzungen (Hub registriert, `is_ready()==True`) permanent ausgegraut.
+Button prüft jetzt generisch über die Backend-Registry; Tooltip zeigt bei
+fehlenden Voraussetzungen den echten `not_ready_reason` statt einer pauschalen
+"Nur mit CASTLE"-Meldung.
+
+---
+
 ## v1.5.38 — 2026-07-07 — feat: Notification-Shared-Mailbox + Dashboard-Plausibilität + Mobile-Subnav
 
 **Neu**: Absender-Dropdown bei Benachrichtigungen hat jetzt die Option "Neue

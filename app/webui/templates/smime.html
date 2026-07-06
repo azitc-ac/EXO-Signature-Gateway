@@ -65,11 +65,14 @@
         </div>
         <div class="user-hdr-actions">
           <button class="btn secondary btn-sm" onclick="openImportModal('{{ u.email }}')">Importieren</button>
-          {% set is_castle = ca_cfg.get('backend','assisted_manual') == 'castle_acme' %}
+          {% set _backend_name = ca_cfg.get('backend','assisted_manual') %}
+          {% set _backend_info = (backends | selectattr('name','equalto',_backend_name) | list | first) or {} %}
+          {% set _can_auto = _backend_info.get('auto', false) and _backend_info.get('ready', false) %}
           <button id="ae-btn-{{ u.email | replace('@','_') | replace('.','_') }}"
                   class="btn secondary btn-sm"
-                  {% if is_castle %}onclick="startAutoEnroll('{{ u.email }}',this)"
-                  {% else %}disabled style="opacity:.45;cursor:not-allowed" title="Nur mit CASTLE-Backend verfügbar"{% endif %}>
+                  {% if _can_auto %}onclick="startAutoEnroll('{{ u.email }}',this)"
+                  {% else %}disabled style="opacity:.45;cursor:not-allowed"
+                  title="{% if _backend_info.get('auto') and not _backend_info.get('ready') %}{{ _backend_info.get('not_ready_reason') or 'Backend noch nicht vollständig konfiguriert' }}{% else %}Backend „{{ _backend_info.get('label', _backend_name) }}“ unterstützt kein Auto-Enroll{% endif %}"{% endif %}>
             Auto-Enroll
           </button>
           {% if kv_configured %}
@@ -504,7 +507,7 @@ async function saveCaConfig(email) {
 }
 
 async function startAutoEnroll(email, btn) {
-  if (!confirm('ACME-Auftrag für ' + email + ' bei CASTLE starten?')) return;
+  if (!confirm('Automatischen Zertifikatsbezug für ' + email + ' starten?')) return;
   const orig = btn.textContent.trim();
   btn.disabled = true; btn.textContent = 'Starte…';
   const resp = await fetch('/api/smime/renewal/initiate/' + encodeURIComponent(email), {method: 'POST'});
