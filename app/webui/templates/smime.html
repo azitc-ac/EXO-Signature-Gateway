@@ -10,13 +10,11 @@
     <h2 style="margin:0">Signaturzertifikate für S/MIME-aktivierte Benutzer</h2>
   </div>
   <p class="hint" style="margin-bottom:12px">
-    Import per PKCS12-Bundle (.p12 / .pfx) oder automatisch via CASTLE ACME (Auto-Enroll).
-    Ausgehende Mails werden automatisch signiert, sobald ein Standardzertifikat für den Absender vorliegt.
-    Private Schlüssel werden per Dateisystemberechtigungen (600) geschützt und können zusätzlich
-    verschlüsselt abgelegt werden (<a href="/settings#smime">Einstellungen → S/MIME</a>).
-    Empfohlen: Schlüssel in <strong>Azure Key Vault</strong> migrieren — dort verlässt der private Schlüssel
-    nie den HSM-gesicherten Speicher; das Gateway signiert über die KV-API.
-    Benutzer werden unter <a href="/settings">Einstellungen → Postfach-Konfiguration</a> für S/MIME aktiviert.
+    Import per PKCS12-Bundle (.p12 / .pfx) oder automatisch über die konfigurierte Zertifizierungsstelle (Auto-Enroll).
+    Ausgehende Mails werden signiert, sobald ein Standardzertifikat vorliegt.
+    Empfohlen: Schlüssel in <strong>Azure Key Vault</strong> migrieren (<a href="/settings#smime">Einstellungen → S/MIME</a>) —
+    dort verlässt der private Schlüssel nie den HSM-Speicher.
+    Benutzer werden unter <a href="/settings">Einstellungen → Postfach-Konfiguration</a> aktiviert.
   </p>
 
   {% if kv_configured or has_any_local_key or has_any_unmigrated_key %}

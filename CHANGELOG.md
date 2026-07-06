@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.35 — 2026-07-06 — fix: S/MIME-Erklärtext gekürzt + Anbieter-neutral
+
+Von 5 auf 4 kürzere Sätze; "CASTLE ACME" durch "die konfigurierte
+Zertifizierungsstelle" ersetzt (Sectigo und weitere Backends existieren
+inzwischen); Detail zu Dateisystemberechtigungen (600) entfernt — steht
+bereits ausführlicher unter Einstellungen -> S/MIME.
+
 ## v1.5.34 — 2026-07-06 — fix: Überschrift "S/MIME Zertifikate" -> "S/MIME"
 
 ## v1.5.33 — 2026-07-06 — fix: Key-Vault-Signiertest lief fälschlich für Postfächer mit rein lokalem Schlüssel
