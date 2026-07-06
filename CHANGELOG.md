@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.16 — 2026-07-06 — feat: „Anbindung entfernen" deaktiviert das Gateway beim Hub
+
+hub_client.disconnect meldet dem Hub POST /api/gateway/deactivate (per Gateway-ID),
+bevor der lokale Key gelöscht wird → das Gateway wird beim Hub inaktiv gesetzt,
+das Kundenkonto bleibt. Ohne aktives Gateway sind Upload + Cert dort inaktiv.
+
 ## v1.5.15 — 2026-07-06 — feat: Eligibility zeigt „∞" bei unlimitiertem Monatskontingent
 
 Bei monthly_limit=0 (unlimitiert) zeigt der Anbindung-Tab „X/∞" statt „X/0".

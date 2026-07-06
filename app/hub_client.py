@@ -147,16 +147,24 @@ async def cert_opt_out() -> dict:
 
 
 async def disconnect(close_remote: bool = False) -> dict:
-    """Remove the local hub binding. Optionally tell the hub to close the account."""
+    """Remove the local hub binding AND tell the hub to deactivate THIS gateway
+    (the customer account stays). Optionally also close the whole account."""
     base = _base()
-    if close_remote and base and _key():
+    if base and _key():
+        # Deactivate this gateway at the hub (best-effort; needs the key → do it first).
         try:
             async with httpx.AsyncClient(timeout=20) as c:
-                await c.post(f"{base}/api/account/disconnect", headers=_gateway_headers())
+                await c.post(f"{base}/api/gateway/deactivate", headers=_gateway_headers())
         except Exception as exc:
-            log.warning("hub disconnect (remote) failed: %s", exc)
+            log.warning("hub gateway-deactivate failed: %s", exc)
+        if close_remote:
+            try:
+                async with httpx.AsyncClient(timeout=20) as c:
+                    await c.post(f"{base}/api/account/disconnect", headers=_gateway_headers())
+            except Exception as exc:
+                log.warning("hub account-disconnect failed: %s", exc)
     settings_store.update({"HUB_API_KEY": "", "HUB_CLAIM_TOKEN": ""})
-    log.info("Hub-Anbindung lokal entfernt.")
+    log.info("Hub-Anbindung lokal entfernt (Gateway beim Hub deaktiviert).")
     return {"ok": True}
 
 
