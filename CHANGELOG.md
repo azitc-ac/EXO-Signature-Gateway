@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.42 — 2026-07-07 — fix: Auto-Enroll-Fehler zurück in den Header (statt Lifecycle-Bereich)
+
+v1.5.41 hatte die Fehlermeldung sichtbar gemacht, indem der einklappbare
+Lifecycle-Bereich beim Anzeigen automatisch aufklappt — funktional korrekt,
+aber der Nutzer bevorzugt die ursprüngliche Position direkt neben dem
+Auto-Enroll-Button im Karten-Header (dort, wo auch der laufende ACME-Order-
+Status erscheint), trotz weniger Platz dort. `startAutoEnroll()` zeigt
+Fehler jetzt kompakt (mit Tooltip für den vollen Text) im vorhandenen
+`acme-status-…`-Span an statt im Lifecycle-Ergebnis-Feld.
+
+---
+
 ## v1.5.41 — 2026-07-07 — fix: Auto-Enroll-Fehlermeldung im eingeklappten Lifecycle-Bereich versteckt
 
 Der Auto-Enroll-Button sitzt im immer sichtbaren Karten-Header, die

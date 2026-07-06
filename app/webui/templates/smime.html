@@ -518,6 +518,17 @@ async function saveCaConfig(email) {
     resp.ok ? 'Lifecycle-Einstellungen gespeichert.' : 'Fehler beim Speichern.');
 }
 
+function _showAeError(email, msg) {
+  const el = document.getElementById('acme-status-' + _acmeKey(email));
+  if (!el) return;
+  const short = msg.length > 60 ? msg.substring(0, 60) + '…' : msg;
+  el.innerHTML = `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;
+    border-radius:10px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;
+    max-width:100%;box-sizing:border-box;overflow:hidden" title="${msg.replace(/"/g,'&quot;')}">
+    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">❌ ${short}</span>
+  </span>`;
+}
+
 async function startAutoEnroll(email, btn) {
   if (!confirm('Automatischen Zertifikatsbezug für ' + email + ' starten?')) return;
   const orig = btn.textContent.trim();
@@ -528,7 +539,7 @@ async function startAutoEnroll(email, btn) {
   if (resp.ok) {
     _startAcmePolling(email);
   } else {
-    showAlert(_lcResultEl(email), 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));
+    _showAeError(email, d.detail || 'Unbekannt');
   }
 }
 
