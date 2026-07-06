@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.21 — 2026-07-06 — feat: DNS-TXT-Domain-Verifizierung + vollständige Kündigung + AGB erneut ansehen + Aktualisieren-Feedback
+
+- Neue Karte „Verifizierte Domains" im Zertifikatsbezug: Domain eingeben →
+  TXT-Eintrag anfordern → Hub prüft per DNS-Lookup. Ersetzt die zu schwache
+  automatische Domain-Freigabe per E-Mail-Bestätigung (siehe Hub v0.9.0).
+- „Anbindung entfernen" fragt jetzt zusätzlich, ob das Konto beim Anbieter
+  vollständig gekündigt werden soll (inkl. Zertifikatsbezug + Guthaben-
+  Rückerstattung) oder nur dieses Gateway getrennt wird (Konto bleibt bestehen).
+- Nutzungsbedingungen können nach der Akzeptanz jederzeit erneut angesehen
+  werden („Text ansehen"-Link neben dem Akzeptiert-Status).
+- „Aktualisieren"-Button zeigt jetzt sichtbares Feedback ("✓ Aktualisiert HH:MM:SS").
+- Aufräumen: doppelt vorhandene certTopup()-Funktion entfernt.
+
 ## v1.5.20 — 2026-07-06 — fix: Scheduler-Auto-Renewal umgeht den S/MIME-Enrollment-Guard nicht mehr
 
 Der periodische Renewal-Scheduler rief `backend.initiate_renewal` bisher direkt

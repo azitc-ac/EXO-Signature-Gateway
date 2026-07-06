@@ -4130,6 +4130,20 @@ async def api_hub_claim(user: str = Depends(_require_admin)):
     return JSONResponse(await hub_client.poll_claim())
 
 
+@app.post("/api/hub/cert/domain/request")
+async def api_hub_cert_domain_request(request: Request, user: str = Depends(_require_admin)):
+    import hub_client
+    data = await request.json()
+    return JSONResponse(await hub_client.cert_domain_request((data.get("domain") or "").strip()))
+
+
+@app.post("/api/hub/cert/domain/verify")
+async def api_hub_cert_domain_verify(request: Request, user: str = Depends(_require_admin)):
+    import hub_client
+    data = await request.json()
+    return JSONResponse(await hub_client.cert_domain_verify((data.get("domain") or "").strip()))
+
+
 @app.post("/api/hub/cert/opt-out")
 async def api_hub_cert_opt_out(user: str = Depends(_require_admin)):
     import hub_client

@@ -118,9 +118,24 @@
         </div>
       </div>
     </div>
+
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:14px;margin-bottom:12px">
+      <strong>Verifizierte Domains</strong>
+      <p class="hint" style="margin:2px 0 8px">
+        Zertifikate werden nur für Domains ausgestellt, deren Kontrolle du per DNS-TXT-Eintrag
+        nachgewiesen hast — eine bestätigte E-Mail allein reicht dafür nicht aus.
+      </p>
+      <div id="cert-domains-list" style="margin-bottom:10px"></div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <input type="text" id="cert-domain-input" placeholder="firma.de" style="width:200px;font-size:13px">
+        <button class="btn secondary" onclick="certDomainRequest()">TXT-Eintrag anfordern</button>
+      </div>
+      <div id="cert-domain-record" style="display:none;margin-top:10px;padding:10px;background:#fff;border:1px solid #e2e8f0;border-radius:6px;font-size:12px"></div>
+    </div>
+
     <div id="cert-eligibility" class="hint" style="margin:0 0 10px"></div>
     <div class="actions" style="margin-bottom:6px">
-      <button class="btn secondary" onclick="certLoadEligibility()">Aktualisieren</button>
+      <button class="btn secondary" onclick="certLoadEligibility(true)">Aktualisieren</button>
       <button class="btn danger" id="cert-optout-btn" style="display:none" onclick="certOptOut()">Zertifikatsbezug abbestellen</button>
     </div>
     <p class="hint" id="cert-optout-hint" style="display:none;margin:0">
@@ -167,8 +182,8 @@
     </div>
     <div id="terms-text" style="padding:16px 20px;overflow-y:auto;white-space:pre-wrap;font-size:13px;line-height:1.5;color:#334155;flex:1">Lade…</div>
     <div style="padding:12px 20px;border-top:1px solid #e2e8f0;display:flex;justify-content:flex-end;gap:8px">
-      <button class="btn secondary" onclick="_termsClose()">Abbrechen</button>
-      <button class="btn primary" onclick="_termsConfirm()">Akzeptieren</button>
+      <button class="btn secondary" id="terms-cancel-btn" onclick="_termsClose()">Abbrechen</button>
+      <button class="btn primary" id="terms-confirm-btn" onclick="_termsConfirm()">Akzeptieren</button>
     </div>
   </div>
 </div>
@@ -245,9 +260,13 @@ async function hubPollClaim(manual){
   const st=await _hubClaimTick();
   if(manual && st==='pending'){ _startHubPoll(); }   // wirklich noch offen → Countdown zeigen
 }
-async function hubDisconnect(){ if(!confirm('Anbindung an den Hub entfernen? Der lokale API-Key wird gelöscht.'))return;
-  const d=await (await fetch('/api/hub/disconnect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({close_remote:false})})).json();
-  if(d.ok){ _hubMsg('Anbindung entfernt. Seite lädt neu…',true); setTimeout(()=>location.reload(),1000);} else _hubMsg('Fehler.',false); }
+async function hubDisconnect(){
+  if(!confirm('Anbindung an den Hub entfernen? Der lokale API-Key wird gelöscht.'))return;
+  const full=confirm('Zusätzlich das Konto beim Anbieter vollständig kündigen (deregistrieren)?\n\n'
+    +'Das kündigt auch den Zertifikatsbezug — verbleibendes Guthaben wird erstattet.\n\n'
+    +'OK = vollständig kündigen · Abbrechen = nur dieses Gateway trennen (Konto bleibt bestehen, später wieder verbindbar)');
+  const d=await (await fetch('/api/hub/disconnect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({close_remote:full})})).json();
+  if(d.ok){ _hubMsg((full?'Anbindung entfernt und Konto beim Anbieter gekündigt.':'Anbindung entfernt.')+' Seite lädt neu…',true); setTimeout(()=>location.reload(),1200);} else _hubMsg('Fehler.',false); }
 async function hubSaveKey() { const key=document.getElementById('hub-key').value; if(!key){_hubMsg('Bitte API-Key eingeben.',false);return;}
   const d=await (await fetch('/api/hub/api-key',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({api_key:key})})).json();
   if(d.ok){document.getElementById('hub-key').value='';_hubMsg('API-Key gespeichert. Bitte Seite neu laden.',true);} else _hubMsg('Fehler beim Speichern.',false); }
@@ -263,8 +282,13 @@ async function certOptOut() { if(!confirm('Zertifikatsbezug für dieses Konto ab
   const d=await (await fetch('/api/hub/cert/opt-out',{method:'POST'})).json();
   if(d.ok){_certMsg('Zertifikatsbezug abbestellt. Verbleibendes Guthaben wird erstattet.',true); certLoadEligibility();} else _certMsg('Fehler: '+(d.error||'Unbekannt'),false); }
 let _termsVersion='1';
-async function certAcceptTerms() {
+let _termsViewOnly=false;
+async function _openTermsModal(viewOnly) {
+  _termsViewOnly = viewOnly;
   const modal=document.getElementById('terms-modal'), txt=document.getElementById('terms-text');
+  const confirmBtn=document.getElementById('terms-confirm-btn'), cancelBtn=document.getElementById('terms-cancel-btn');
+  confirmBtn.style.display = viewOnly ? 'none' : '';
+  cancelBtn.textContent = viewOnly ? 'Schließen' : 'Abbrechen';
   txt.textContent='Lade…'; modal.style.display='flex';
   try {
     const d=await (await fetch('/api/hub/cert/terms')).json();
@@ -272,6 +296,8 @@ async function certAcceptTerms() {
     else { txt.textContent='Nutzungsbedingungen konnten nicht geladen werden: '+(d.error||'Unbekannt'); }
   } catch(e){ txt.textContent='Nutzungsbedingungen konnten nicht geladen werden.'; }
 }
+async function certAcceptTerms() { await _openTermsModal(false); }
+async function certViewTerms() { await _openTermsModal(true); }
 function _termsClose(){ document.getElementById('terms-modal').style.display='none'; }
 async function _termsConfirm() {
   _termsClose();
@@ -284,12 +310,13 @@ async function certTopup() {
   if(d.ok&&d.checkout_url){ window.open(d.checkout_url,'_blank'); _certMsg('Bezahlseite geöffnet. Nach der Zahlung wird das Guthaben gutgeschrieben und der Zertifikatsbezug automatisch freigeschaltet — dann „Aktualisieren".',true); }
   else _certMsg('Aufladen fehlgeschlagen: '+(d.error||d.message||'Unbekannt'),false);
 }
-async function certLoadEligibility() {
+async function certLoadEligibility(manual) {
   const el=document.getElementById('cert-eligibility');
   let d;
   try { d = await (await fetch('/api/hub/cert/eligibility')).json(); }
   catch(e){ el.textContent='Berechtigung konnte nicht geprüft werden.'; return; }
   _renderCertSteps(d);
+  _renderCertDomains(d);
   if(d.ok){ el.innerHTML='<strong style="color:#166534">✓ Darf Zertifikate beziehen.</strong> '
     +'Kontingent '+(d.used_this_month||0)+'/'+((d.monthly_limit>0)?d.monthly_limit:'∞')+' diesen Monat · Domains: '+((d.verified_domains||[]).join(', ')||'–'); }
   else if(d.cert_issuing_enabled){ el.innerHTML='<strong style="color:#92400e">⚠ Freigeschaltet, aber noch nicht bezugsbereit:</strong> '+(d.reason||d.error||'unbekannt'); }
@@ -297,6 +324,38 @@ async function certLoadEligibility() {
   const optBtn=document.getElementById('cert-optout-btn'), optHint=document.getElementById('cert-optout-hint');
   optBtn.style.display = d.cert_issuing_enabled ? 'inline-block' : 'none';
   optHint.style.display = d.cert_issuing_enabled ? 'block' : 'none';
+  if(manual){ _certMsg('✓ Aktualisiert ('+new Date().toLocaleTimeString('de-DE')+')', true); }
+}
+function _renderCertDomains(d) {
+  const list=document.getElementById('cert-domains-list');
+  if(!list) return;
+  const verified=d.verified_domains||[];
+  const pending=Object.entries(d.domain_verifications||{}).filter(([dom])=>!verified.includes(dom));
+  let html='';
+  verified.forEach(dm=>{ html+='<span class="conn-badge conn-ok" style="margin:0 6px 4px 0">✓ '+dm+'</span>'; });
+  pending.forEach(([dm,v])=>{ if(!v.verified) html+='<span class="conn-badge conn-wait" style="margin:0 6px 4px 0">⏳ '+dm+' (ausstehend)</span>'; });
+  list.innerHTML = html || '<span class="muted">Noch keine Domain verifiziert.</span>';
+}
+async function certDomainRequest() {
+  const domain=document.getElementById('cert-domain-input').value.trim().toLowerCase();
+  if(!domain||!domain.includes('.')){ _certMsg('Gültige Domain erforderlich.',false); return; }
+  const d=await (await fetch('/api/hub/cert/domain/request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})).json();
+  if(!d.ok){ _certMsg('Fehler: '+(d.error||'Unbekannt'),false); return; }
+  _pendingDomain=domain;
+  const rec=document.getElementById('cert-domain-record');
+  rec.style.display='block';
+  rec.innerHTML='Bitte folgenden DNS-TXT-Eintrag bei deinem Domain-Provider anlegen:<br><br>'
+    +'Name: <code>'+d.record_name+'</code><br>Typ: <code>TXT</code><br>Wert: <code>'+d.record_value+'</code>'
+    +'<div style="margin-top:10px"><button class="btn primary" onclick="certDomainVerify()">Jetzt prüfen</button></div>'
+    +'<p class="hint" style="margin:6px 0 0">DNS-Propagation kann einige Minuten dauern.</p>';
+}
+let _pendingDomain=null;
+async function certDomainVerify() {
+  if(!_pendingDomain) return;
+  const d=await (await fetch('/api/hub/cert/domain/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain:_pendingDomain})})).json();
+  if(d.ok){ _certMsg('✓ Domain '+_pendingDomain+' verifiziert.',true); document.getElementById('cert-domain-record').style.display='none';
+    document.getElementById('cert-domain-input').value=''; certLoadEligibility(); }
+  else { _certMsg('Noch nicht verifiziert: '+(d.message||d.error||'unbekannt'),false); }
 }
 function _renderCertSteps(d) {
   const s1dot=document.getElementById('cert-step1-dot'), s1body=document.getElementById('cert-step1-body');
@@ -304,7 +363,8 @@ function _renderCertSteps(d) {
   const termsOk = !!(d && d.terms_accepted), certOn = !!(d && d.cert_issuing_enabled);
   if(termsOk){
     s1dot.style.background='#166534'; s1dot.style.color='#fff'; s1dot.textContent='✓';
-    s1body.innerHTML='<span style="color:#166534;font-weight:600">Akzeptiert'+(d.terms_accepted_at?(' am '+d.terms_accepted_at.slice(0,10)):'')+'</span>';
+    s1body.innerHTML='<span style="color:#166534;font-weight:600">Akzeptiert'+(d.terms_accepted_at?(' am '+d.terms_accepted_at.slice(0,10)):'')+'</span>'
+      +' <button class="btn secondary" style="padding:1px 8px;font-size:11px;margin-left:6px" onclick="certViewTerms()">Text ansehen</button>';
   } else {
     s1dot.style.background='#e2e8f0'; s1dot.style.color='#334155'; s1dot.textContent='1';
     s1body.innerHTML='<button class="btn secondary" onclick="certAcceptTerms()">Nutzungsbedingungen akzeptieren</button>';
@@ -330,13 +390,6 @@ function _renderCertSteps(d) {
     : '';
   s2body.innerHTML='<span style="font-weight:600">Guthaben: '+bal+' €</span> <span class="muted">(Preis pro Zertifikat: '+price+' €)</span>'
     +'<div style="margin-top:6px">'+topupHtml+'</div>';
-}
-async function certTopup() {
-  const eur=parseFloat(document.getElementById('cert-topup-amount').value);
-  if(!eur||eur<10){ _certMsg('Mindestbetrag 10 €.',false); return; }
-  const d=await (await fetch('/api/hub/cert/topup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amount_eur:eur})})).json();
-  if(d.ok&&d.checkout_url){ window.open(d.checkout_url,'_blank'); _certMsg('Bezahlseite geöffnet. Nach der Zahlung wird das Guthaben automatisch gutgeschrieben — dann „Aktualisieren".',true); }
-  else _certMsg('Aufladen fehlgeschlagen: '+(d.error||d.message||'Unbekannt'),false);
 }
 
 // ── Zertifikatsbezug: Bezugsweg + Sectigo ────────────────────────────────────

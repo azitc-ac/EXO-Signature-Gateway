@@ -131,6 +131,39 @@ async def poll_claim() -> dict:
         return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
 
 
+async def cert_domain_request(domain: str) -> dict:
+    """Start DNS-TXT domain-control verification for a domain."""
+    base = _base()
+    if not (base and _key()):
+        return {"ok": False, "error": "Nicht registriert (Anbindung fehlt)."}
+    try:
+        async with httpx.AsyncClient(timeout=20) as c:
+            r = await c.post(f"{base}/api/cert/domain/request",
+                             headers=_gateway_headers(), json={"domain": domain})
+        data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+        if r.status_code == 200 and data.get("ok"):
+            return data
+        return {"ok": False, "error": data.get("detail") or f"HTTP {r.status_code}: {r.text[:200]}"}
+    except Exception as exc:
+        return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
+
+
+async def cert_domain_verify(domain: str) -> dict:
+    """Trigger the DNS TXT check for a pending domain verification."""
+    base = _base()
+    if not (base and _key()):
+        return {"ok": False, "error": "Nicht registriert (Anbindung fehlt)."}
+    try:
+        async with httpx.AsyncClient(timeout=30) as c:
+            r = await c.post(f"{base}/api/cert/domain/verify",
+                             headers=_gateway_headers(), json={"domain": domain})
+        data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+        return {"ok": r.status_code == 200 and bool(data.get("ok")),
+                "message": data.get("message") or data.get("detail") or data.get("error", "")}
+    except Exception as exc:
+        return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
+
+
 async def cert_opt_out() -> dict:
     """Ask the hub to disable the (paid) cert capability for this account."""
     base = _base()
