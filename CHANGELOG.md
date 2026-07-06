@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.18 — 2026-07-06 — feat: AGB-Dialog + Anbieter-Adresse-Dropdown + reduzierte UI nach Verbindung
+
+„Nutzungsbedingungen akzeptieren" öffnet jetzt einen Dialog mit dem vollständigen
+Text (vom Hub geladen, GET /api/hub/cert/terms → /api/cert/terms), erst nach
+„Akzeptieren" im Dialog wird der Antrag gestellt. Anbieter-Adresse ist ein
+Dropdown (sighub.zarenko.net voreingestellt, „…andere" für freie Eingabe). Sobald
+das Gateway registriert ist, blendet die Anbindung-Karte Adress-/E-Mail-/Name-
+Felder, Speichern/Verbinden/Bestätigung-prüfen sowie API-Key-Eingabe+Button aus —
+übrig bleiben Status/Entfernen + Gateway-ID.
+
 ## v1.5.17 — 2026-07-06 — feat: Zertifikatsbezug als 2-Schritte-Flow (Terms → Guthaben, automatisch)
 
 Der Anbindung-Tab zeigt den Cert-Bezug jetzt als zwei aufeinander aufbauende

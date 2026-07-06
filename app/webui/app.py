@@ -4153,6 +4153,12 @@ async def api_hub_status(user: str = Depends(_require_admin)):
 # Accepting the paid terms IS the request (no separate "beantragen" step) — the
 # hub auto-enables the capability once terms are accepted + a balance is loaded.
 
+@app.get("/api/hub/cert/terms")
+async def api_hub_cert_terms(user: str = Depends(_require_admin)):
+    import hub_client
+    return JSONResponse(await hub_client.cert_terms())
+
+
 @app.post("/api/hub/cert/accept-terms")
 async def api_hub_cert_accept_terms(request: Request, user: str = Depends(_require_admin)):
     import hub_client

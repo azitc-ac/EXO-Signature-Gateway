@@ -223,6 +223,22 @@ async def upload_bundle(runtime_log_lines: list[str]) -> dict:
         return {"ok": False, "error": f"Netzwerkfehler: {exc}"}
 
 
+async def cert_terms() -> dict:
+    """Fetch the current terms text from the hub (public, no key needed) so the
+    gateway can show it before the customer accepts."""
+    base = _base()
+    if not base:
+        return {"ok": False, "error": "Hub-Adresse (HUB_BASE_URL) nicht gesetzt."}
+    try:
+        async with httpx.AsyncClient(timeout=20) as c:
+            r = await c.get(f"{base}/api/cert/terms")
+        if r.status_code == 200:
+            return {"ok": True, **r.json()}
+        return {"ok": False, "error": f"HTTP {r.status_code}"}
+    except Exception as exc:
+        return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
+
+
 async def cert_accept_terms(version: str = "1") -> dict:
     """Accept the paid terms for the cert capability (uses the one account key)."""
     base = _base()

@@ -30,12 +30,27 @@
     {% if hub_registered %}<span class="conn-badge conn-ok">✓ registriert</span>
     {% else %}<span class="conn-badge conn-wait">⚠ nicht registriert</span>{% endif %}
   </h2>
+
+  {% if hub_registered %}
+  <p class="hint" style="margin-bottom:10px">Dieses Gateway ist mit dem Anbieter verbunden.</p>
+  <div id="hub-gwid" class="hint" style="font-size:12px;margin-bottom:10px"></div>
+  <div class="actions" style="margin:6px 0 10px">
+    <button class="btn secondary" onclick="hubStatus()">Status prüfen</button>
+    <button class="btn danger" onclick="hubDisconnect()" style="float:right">Anbindung entfernen</button>
+  </div>
+  <div id="hub-result" style="display:none;margin-top:8px"></div>
+  {% else %}
   <p class="hint" style="margin-bottom:12px">
     Registriere dieses Gateway einmalig beim Anbieter. Nach dessen Freigabe trägst du den
     erhaltenen API-Key ein — er gilt für Support-Upload und (falls freigeschaltet) Zertifikatsbezug.
   </p>
   <div class="settings-row" style="margin-bottom:8px"><label>Anbieter-Adresse</label>
-    <input type="url" id="hub-base" placeholder="https://sighub.zarenko.net" style="width:100%;max-width:360px;font-size:13px"></div>
+    <select id="hub-base-select" onchange="hubBaseSelectChanged()" style="width:100%;max-width:360px;font-size:13px">
+      <option value="https://sighub.zarenko.net">https://sighub.zarenko.net</option>
+      <option value="__other__">…andere</option>
+    </select>
+    <input type="url" id="hub-base" placeholder="https://..." style="width:100%;max-width:360px;font-size:13px;margin-top:6px;display:none">
+  </div>
   <div class="settings-row" style="margin-bottom:8px"><label>Deine E-Mail</label>
     <input type="email" id="hub-email" placeholder="kunde@firma.de" style="width:100%;max-width:360px;font-size:13px"></div>
   <div class="settings-row" style="margin-bottom:8px"><label>Name (optional)</label>
@@ -45,16 +60,16 @@
     <button class="btn primary" onclick="hubConnect()">Verbinden</button>
     <button class="btn secondary" onclick="hubPollClaim(true)">Bestätigung prüfen</button>
     <button class="btn secondary" onclick="hubStatus()">Status prüfen</button>
-    {% if hub_registered %}<button class="btn danger" onclick="hubDisconnect()" style="float:right">Anbindung entfernen</button>{% endif %}
   </div>
   <p class="hint" style="margin:0 0 10px;font-size:12px">„Verbinden" schickt dir eine Bestätigungsmail — nach dem Klick auf den Link trägt sich der Zugang automatisch ein. (Manuell: API-Key unten eintragen.)</p>
   <div class="settings-row" style="margin-bottom:8px"><label>API-Key (manuell)</label>
     <input type="password" id="hub-key" autocomplete="new-password"
-           placeholder="{% if hub_registered %}•••••• (gesetzt — leer lassen zum Beibehalten){% else %}vom Anbieter erhalten{% endif %}"
+           placeholder="vom Anbieter erhalten"
            style="width:100%;max-width:360px;font-size:13px">
     <button class="btn secondary" onclick="hubSaveKey()">Key speichern</button></div>
   <div id="hub-result" style="display:none;margin-top:8px"></div>
   <div id="hub-gwid" class="hint" style="font-size:12px;margin-top:8px"></div>
+  {% endif %}
 </div>
 
 <!-- ── Zertifikatsbezug ───────────────────────────────────────────────────── -->
@@ -144,12 +159,38 @@
   <div id="sec-result" style="display:none;margin-top:8px"></div>
 </div>
 
+<!-- ── Nutzungsbedingungen-Dialog ─────────────────────────────────────────── -->
+<div id="terms-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:8px;max-width:560px;width:92%;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+    <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0">
+      <strong>Nutzungsbedingungen — Zertifikatsbezug</strong>
+    </div>
+    <div id="terms-text" style="padding:16px 20px;overflow-y:auto;white-space:pre-wrap;font-size:13px;line-height:1.5;color:#334155;flex:1">Lade…</div>
+    <div style="padding:12px 20px;border-top:1px solid #e2e8f0;display:flex;justify-content:flex-end;gap:8px">
+      <button class="btn secondary" onclick="_termsClose()">Abbrechen</button>
+      <button class="btn primary" onclick="_termsConfirm()">Akzeptieren</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ── Anbindung (eine Registrierung) ───────────────────────────────────────────
 function _hubMsg(html, ok) { const el=document.getElementById('hub-result'); el.className='alert '+(ok?'success':'error'); el.innerHTML=html; el.style.display='block'; }
+const HUB_DEFAULT_BASE='https://sighub.zarenko.net';
+function hubBaseSelectChanged(){
+  const sel=document.getElementById('hub-base-select'), b=document.getElementById('hub-base');
+  if(!sel||!b) return;
+  if(sel.value==='__other__'){ b.style.display=''; if(b.value===HUB_DEFAULT_BASE) b.value=''; b.focus(); }
+  else { b.style.display='none'; b.value=sel.value; }
+}
 async function hubLoadConfig() { try { const d=await (await fetch('/api/hub/config')).json();
-  document.getElementById('hub-base').value=d.base_url||''; document.getElementById('hub-email').value=d.email||''; document.getElementById('hub-name').value=d.name||'';
-  if(d.gateway_id){ document.getElementById('hub-gwid').innerHTML='Diese Gateway-ID: <code>'+d.gateway_id+'</code>'; }
+  const b=document.getElementById('hub-base'), e=document.getElementById('hub-email'), n=document.getElementById('hub-name'), sel=document.getElementById('hub-base-select');
+  if(e) e.value=d.email||''; if(n) n.value=d.name||'';
+  if(b){
+    b.value = d.base_url || HUB_DEFAULT_BASE;
+    if(sel){ sel.value = (d.base_url && d.base_url!==HUB_DEFAULT_BASE) ? '__other__' : HUB_DEFAULT_BASE; hubBaseSelectChanged(); }
+  }
+  const gw=document.getElementById('hub-gwid'); if(gw && d.gateway_id) gw.innerHTML='Diese Gateway-ID: <code>'+d.gateway_id+'</code>';
   if(d.claim_pending){ _startHubPoll(); }
   } catch(e){} }
 async function hubSaveConfig() { const body={base_url:document.getElementById('hub-base').value.trim(),email:document.getElementById('hub-email').value.trim(),name:document.getElementById('hub-name').value.trim()};
@@ -221,9 +262,20 @@ function _certMsg(html, ok) { const el=document.getElementById('cert-msg'); el.c
 async function certOptOut() { if(!confirm('Zertifikatsbezug für dieses Konto abbestellen? Verbleibendes Guthaben wird erstattet.'))return;
   const d=await (await fetch('/api/hub/cert/opt-out',{method:'POST'})).json();
   if(d.ok){_certMsg('Zertifikatsbezug abbestellt. Verbleibendes Guthaben wird erstattet.',true); certLoadEligibility();} else _certMsg('Fehler: '+(d.error||'Unbekannt'),false); }
+let _termsVersion='1';
 async function certAcceptTerms() {
-  if(!confirm('Kostenpflichtige Nutzungsbedingungen für den Zertifikatsbezug akzeptieren? Damit ist der Zertifikatsbezug beantragt.')) return;
-  const d=await (await fetch('/api/hub/cert/accept-terms',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({version:'1'})})).json();
+  const modal=document.getElementById('terms-modal'), txt=document.getElementById('terms-text');
+  txt.textContent='Lade…'; modal.style.display='flex';
+  try {
+    const d=await (await fetch('/api/hub/cert/terms')).json();
+    if(d.ok){ txt.textContent=d.text; _termsVersion=d.version||'1'; }
+    else { txt.textContent='Nutzungsbedingungen konnten nicht geladen werden: '+(d.error||'Unbekannt'); }
+  } catch(e){ txt.textContent='Nutzungsbedingungen konnten nicht geladen werden.'; }
+}
+function _termsClose(){ document.getElementById('terms-modal').style.display='none'; }
+async function _termsConfirm() {
+  _termsClose();
+  const d=await (await fetch('/api/hub/cert/accept-terms',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({version:_termsVersion})})).json();
   if(d.ok){_certMsg('Nutzungsbedingungen akzeptiert — Antrag gestellt.',true); certLoadEligibility();} else _certMsg('Fehler: '+(d.error||'Unbekannt'),false); }
 async function certTopup() {
   const eur=parseFloat(document.getElementById('cert-topup-amount').value);
