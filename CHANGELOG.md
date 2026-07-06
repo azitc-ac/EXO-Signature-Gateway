@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.33 — 2026-07-06 — fix: Key-Vault-Signiertest lief fälschlich für Postfächer mit rein lokalem Schlüssel
+
+Der kv_sign-Check prüfte nur "ist Key Vault GLOBAL konfiguriert" + "ist S/MIME
+aktiv" — nicht, ob DIESES Postfach seinen Signierschlüssel tatsächlich im
+Vault hat. Für ein Postfach mit rein lokalem Schlüssel (nie migriert) versuchte
+der Check trotzdem einen KV-Signiertest und scheiterte mit einem alarmierenden
+"HTTP 404 KeyNotFound" — obwohl das lokale Signieren einwandfrei funktioniert.
+Neuer Helper _has_local_key() (gleiche Logik wie smime_key-Check) — kv_sign
+wird jetzt korrekt übersprungen ("Lokaler Schlüssel — nicht in Key Vault"),
+wenn kein lokaler Schlüssel fehlt UND kein KV-Schlüssel existiert.
+
 ## v1.5.32 — 2026-07-06 — perf: Postfächer laden von ~7-31s auf <0,1s — proaktives Cache-Warmhalten
 
 Gemessen: Get-EXOMailbox selbst ist schnell, die Verzögerung kam fast komplett
