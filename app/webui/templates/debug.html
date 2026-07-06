@@ -1066,16 +1066,25 @@ async function obsRunAnalysis() {
       <a href="/api/health/mailboxes" target="_blank" class="btn secondary" style="font-size:13px">
         MAILBOX_HEALTH JSON öffnen ↗
       </a>
-      <a href="/api/health/audit-log" target="_blank" class="btn secondary" style="font-size:13px">
-        Gateway-Audit-Log JSON öffnen ↗
-      </a>
       <button class="btn secondary" style="font-size:13px" onclick="loadHealthInline()">
-        Hier anzeigen
+        Health-Rohdaten anzeigen
+      </button>
+      <button class="btn secondary" style="font-size:13px" onclick="loadAuditLogInline()">
+        Gateway-Audit-Log anzeigen
       </button>
     </div>
     <pre id="health-inline-output" style="display:none;background:#f8fafc;border:1px solid #e2e8f0;
          border-radius:6px;padding:12px;font-size:11px;overflow-x:auto;max-height:400px;
          white-space:pre-wrap;word-break:break-all"></pre>
+    <div id="audit-inline-output" style="display:none">
+      <p class="hint" style="margin:0 0 8px">
+        Enthält nur Einträge, wenn der Health-Check automatisch etwas repariert hat
+        (z.&nbsp;B. fehlende DG-Mitgliedschaft ergänzt) — sonst leer, das ist normal.
+      </p>
+      <pre id="audit-inline-pre" style="background:#f8fafc;border:1px solid #e2e8f0;
+           border-radius:6px;padding:12px;font-size:11px;overflow-x:auto;max-height:400px;
+           white-space:pre-wrap;word-break:break-all"></pre>
+    </div>
   </div>
 </div>
 <script>
@@ -1087,6 +1096,19 @@ async function loadHealthInline() {
     const r = await fetch('/api/health/mailboxes');
     const data = await r.json();
     pre.textContent = JSON.stringify(data, null, 2);
+  } catch(e) {
+    pre.textContent = 'Fehler: ' + e.message;
+  }
+}
+async function loadAuditLogInline() {
+  const wrap = document.getElementById('audit-inline-output');
+  const pre = document.getElementById('audit-inline-pre');
+  wrap.style.display = 'block';
+  pre.textContent = 'Lädt…';
+  try {
+    const r = await fetch('/api/health/audit-log');
+    const data = await r.json();
+    pre.textContent = (data && data.length) ? JSON.stringify(data, null, 2) : 'Keine Einträge.';
   } catch(e) {
     pre.textContent = 'Fehler: ' + e.message;
   }

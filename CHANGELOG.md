@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.37 — 2026-07-06 — fix: Gateway-Audit-Log inline statt leerer neuer Tab
+
+Der Link "Gateway-Audit-Log JSON öffnen" wirkte kaputt, weil das Log meist
+leer ist (nur befüllt bei automatischen Health-Check-Fixes) — ein leeres
+JSON-`[]` in neuem Tab sieht wie ein Fehler aus. Jetzt ein "Gateway-Audit-Log
+anzeigen"-Button (analog zum bestehenden Health-Rohdaten-Button auf derselben
+Karte) mit klarer Leer-Meldung statt bloßem `[]`. Das Dashboard-Audit-Modal
+("Mail-Protokoll") wurde bewusst nicht wiederverwendet — andere Datenquelle
+(mail_audit.db statt GATEWAY_AUDIT_LOG) und andere Struktur (Paging/Filter);
+das bestehende Inline-Muster direkt daneben passte konsistenter.
+
 ## v1.5.36 — 2026-07-06 — fix: veralteten "CASTLE ACME ohne ACS"-Erklärblock im Erweitert-Tab entfernt
 
 ## v1.5.35 — 2026-07-06 — fix: S/MIME-Erklärtext gekürzt + Anbieter-neutral
