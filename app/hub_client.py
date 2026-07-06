@@ -131,6 +131,24 @@ async def poll_claim() -> dict:
         return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
 
 
+async def cert_submit_billing(company: str, address: str, vat: str, contact: str) -> dict:
+    """Submit/update this account's billing info (self-service)."""
+    base = _base()
+    if not (base and _key()):
+        return {"ok": False, "error": "Nicht registriert (Anbindung fehlt)."}
+    try:
+        async with httpx.AsyncClient(timeout=20) as c:
+            r = await c.post(f"{base}/api/cert/billing", headers=_gateway_headers(),
+                             json={"billing_company": company, "billing_address": address,
+                                   "billing_vat": vat, "billing_contact": contact})
+        data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+        if r.status_code == 200 and data.get("ok"):
+            return {"ok": True}
+        return {"ok": False, "error": data.get("detail") or f"HTTP {r.status_code}: {r.text[:200]}"}
+    except Exception as exc:
+        return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
+
+
 async def cert_domain_request(domain: str) -> dict:
     """Start DNS-TXT domain-control verification for a domain."""
     base = _base()

@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.22 — 2026-07-06 — feat: Abrechnungsdaten per Selbstbedienung erfassbar
+
+Neue Karte „Abrechnungsdaten" im Zertifikatsbezug: Firma/Rechnungsadresse (Pflicht)
++ USt-IdNr/Ansprechpartner (optional), direkt vom Kunden erfassbar statt nur über
+den Hub-Admin. Schließt die letzte Lücke in der Selbstbedienungskette
+(Terms → Abrechnungsdaten → Domain → Guthaben → vollständige Bezugsberechtigung
+ohne Admin-Eingriff).
+
 ## v1.5.21 — 2026-07-06 — feat: DNS-TXT-Domain-Verifizierung + vollständige Kündigung + AGB erneut ansehen + Aktualisieren-Feedback
 
 - Neue Karte „Verifizierte Domains" im Zertifikatsbezug: Domain eingeben →

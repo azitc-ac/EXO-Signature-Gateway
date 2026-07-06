@@ -120,6 +120,18 @@
     </div>
 
     <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:14px;margin-bottom:12px">
+      <strong>Abrechnungsdaten</strong>
+      <p class="hint" style="margin:2px 0 8px">Für Rechnungsstellung erforderlich (Firma + Adresse) — einmalig hinterlegen.</p>
+      <div style="display:flex;flex-direction:column;gap:6px;max-width:420px">
+        <input type="text" id="cert-bill-company" placeholder="Firma / Rechtsform" style="font-size:13px">
+        <input type="text" id="cert-bill-address" placeholder="Rechnungsadresse" style="font-size:13px">
+        <input type="text" id="cert-bill-vat" placeholder="USt-IdNr (optional)" style="font-size:13px">
+        <input type="text" id="cert-bill-contact" placeholder="Ansprechpartner (optional)" style="font-size:13px">
+      </div>
+      <div style="margin-top:8px"><button class="btn secondary" onclick="certSaveBilling()">Speichern</button></div>
+    </div>
+
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:14px;margin-bottom:12px">
       <strong>Verifizierte Domains</strong>
       <p class="hint" style="margin:2px 0 8px">
         Zertifikate werden nur für Domains ausgestellt, deren Kontrolle du per DNS-TXT-Eintrag
@@ -317,6 +329,7 @@ async function certLoadEligibility(manual) {
   catch(e){ el.textContent='Berechtigung konnte nicht geprüft werden.'; return; }
   _renderCertSteps(d);
   _renderCertDomains(d);
+  _fillBillingFields(d);
   if(d.ok){ el.innerHTML='<strong style="color:#166534">✓ Darf Zertifikate beziehen.</strong> '
     +'Kontingent '+(d.used_this_month||0)+'/'+((d.monthly_limit>0)?d.monthly_limit:'∞')+' diesen Monat · Domains: '+((d.verified_domains||[]).join(', ')||'–'); }
   else if(d.cert_issuing_enabled){ el.innerHTML='<strong style="color:#92400e">⚠ Freigeschaltet, aber noch nicht bezugsbereit:</strong> '+(d.reason||d.error||'unbekannt'); }
@@ -336,6 +349,28 @@ function _renderCertDomains(d) {
   pending.forEach(([dm,v])=>{ if(!v.verified) html+='<span class="conn-badge conn-wait" style="margin:0 6px 4px 0">⏳ '+dm+' (ausstehend)</span>'; });
   list.innerHTML = html || '<span class="muted">Noch keine Domain verifiziert.</span>';
 }
+let _billingFilled=false;
+function _fillBillingFields(d) {
+  if(_billingFilled) return;   // don't clobber in-progress edits on a later "Aktualisieren"
+  const map={'cert-bill-company':'billing_company','cert-bill-address':'billing_address',
+             'cert-bill-vat':'billing_vat','cert-bill-contact':'billing_contact'};
+  let any=false;
+  for(const [id,key] of Object.entries(map)){
+    const el=document.getElementById(id);
+    if(el && d[key]){ el.value=d[key]; any=true; }
+  }
+  if(any) _billingFilled=true;
+}
+async function certSaveBilling() {
+  const body={
+    billing_company:document.getElementById('cert-bill-company').value.trim(),
+    billing_address:document.getElementById('cert-bill-address').value.trim(),
+    billing_vat:document.getElementById('cert-bill-vat').value.trim(),
+    billing_contact:document.getElementById('cert-bill-contact').value.trim(),
+  };
+  if(!body.billing_company||!body.billing_address){ _certMsg('Firma und Rechnungsadresse sind erforderlich.',false); return; }
+  const d=await (await fetch('/api/hub/cert/billing',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
+  if(d.ok){ _billingFilled=true; _certMsg('Abrechnungsdaten gespeichert.',true); certLoadEligibility(); } else _certMsg('Fehler: '+(d.error||'Unbekannt'),false); }
 async function certDomainRequest() {
   const domain=document.getElementById('cert-domain-input').value.trim().toLowerCase();
   if(!domain||!domain.includes('.')){ _certMsg('Gültige Domain erforderlich.',false); return; }

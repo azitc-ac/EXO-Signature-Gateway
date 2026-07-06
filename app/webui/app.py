@@ -4130,6 +4130,15 @@ async def api_hub_claim(user: str = Depends(_require_admin)):
     return JSONResponse(await hub_client.poll_claim())
 
 
+@app.post("/api/hub/cert/billing")
+async def api_hub_cert_billing(request: Request, user: str = Depends(_require_admin)):
+    import hub_client
+    data = await request.json()
+    return JSONResponse(await hub_client.cert_submit_billing(
+        (data.get("billing_company") or "").strip(), (data.get("billing_address") or "").strip(),
+        (data.get("billing_vat") or "").strip(), (data.get("billing_contact") or "").strip()))
+
+
 @app.post("/api/hub/cert/domain/request")
 async def api_hub_cert_domain_request(request: Request, user: str = Depends(_require_admin)):
     import hub_client
