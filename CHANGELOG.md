@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.32 — 2026-07-06 — perf: Postfächer laden von ~7-31s auf <0,1s — proaktives Cache-Warmhalten
+
+Gemessen: Get-EXOMailbox selbst ist schnell, die Verzögerung kam fast komplett
+vom Aufbau der EXO-PowerShell-Session (Modul laden + Zertifikat-Auth, ~30s
+kalt) — nicht von der Postfach-Anzahl (19 Postfächer luden beim Cache-Hit in
+0,03-0,06s). Skaliert also nicht linear schlecht mit mehr Postfächern, aber
+jeder kalte Klick war trotzdem unangenehm langsam.
+
+Fix: der Gateway-eigene Scheduler (läuft ohnehin alle 60s im Hintergrund)
+wärmt den exo_mailboxes-Cache jetzt proaktiv vor — einmal beim Start (im
+ersten Tick) und danach alle 45 Minuten (vor Ablauf der 1h-Cache-TTL). Ein
+Admin-Klick auf "Postfächer laden" trifft dadurch praktisch immer den warmen
+Cache. Zusätzlich: die Ladeanzeige erklärt nach 3s Wartezeit, was passiert
+("Verbinde mit Exchange Online…"), falls doch mal ein kalter Fall auftritt
+(z.B. kurz nach einem Neustart).
+
 ## v1.5.31 — 2026-07-06 — feat: Bulk-Aktionen kompakter — "Signatur/S-MIME aktivieren: Alle | Kein"
 
 Vier Buttons ("Alle für Signatur aktivieren/deaktivieren", "Alle für S/MIME

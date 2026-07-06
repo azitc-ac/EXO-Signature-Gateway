@@ -15,6 +15,8 @@ log = logging.getLogger(__name__)
 _cert_alerts_sent: set[str] = set()   # admin alert dedup
 _user_notif_sent: set[str] = set()    # user renewal notification dedup
 _le_renewed_date: str = ""
+_last_mailbox_refresh: float = 0.0     # monotonic; 0 = never (triggers warm-up on first tick)
+_MAILBOX_REFRESH_INTERVAL = 45 * 60    # refresh before exo_mailboxes' own 1h cache TTL expires
 
 
 # ── TLS / Let's Encrypt ───────────────────────────────────────────────────────
@@ -239,6 +241,22 @@ def _run_daily() -> None:
         notification.send_daily_report(daily, total)
 
 
+def _refresh_mailbox_cache() -> None:
+    """Proactively re-warm exo_mailboxes' cache in the background so an admin
+    clicking "Postfächer laden" almost never hits a cold EXO PowerShell session
+    (which dominates load time — ~30s for session setup, largely independent
+    of mailbox count — vs. ~30ms once cached)."""
+    global _last_mailbox_refresh
+    try:
+        import exo_mailboxes
+        n = len(exo_mailboxes.list_mailboxes(force=True))
+        log.info("scheduler: mailbox cache pre-warmed (%d mailboxes)", n)
+    except Exception as exc:
+        log.warning("scheduler: mailbox cache pre-warm failed: %s", exc)
+    finally:
+        _last_mailbox_refresh = time.monotonic()
+
+
 def _loop() -> None:
     while True:
         try:
@@ -248,6 +266,8 @@ def _loop() -> None:
                 # doesn't re-trigger the report on the next start.
                 settings_store.force_update({"_DAILY_LAST_RUN": datetime.now().strftime("%Y-%m-%d")})
                 _run_daily()
+            if time.monotonic() - _last_mailbox_refresh > _MAILBOX_REFRESH_INTERVAL:
+                _refresh_mailbox_cache()
         except Exception as exc:
             log.error("scheduler loop error: %s", exc)
         time.sleep(60)

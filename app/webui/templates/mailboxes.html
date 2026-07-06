@@ -396,7 +396,16 @@ async function savePolicies() {
 async function loadMailboxes(silent) {
   var btn = document.getElementById('mb-load-btn');
   var status = document.getElementById('mb-load-status');
-  if (!silent) { btn.disabled = true; status.textContent = 'Lade…'; }
+  var slowHint = null;
+  if (!silent) {
+    btn.disabled = true; status.textContent = 'Lade…';
+    // Normally near-instant (Postfachliste ist im Hintergrund vorgewärmt).
+    // Falls es doch länger dauert (z.B. kurz nach einem Neustart), erklären
+    // statt den Nutzer im Unklaren zu lassen.
+    slowHint = setTimeout(function() {
+      status.textContent = 'Verbinde mit Exchange Online… (kann beim ersten Laden nach einem Neustart bis zu 30s dauern)';
+    }, 3000);
+  }
   try {
     // Refresh template list
     try {
@@ -413,12 +422,14 @@ async function loadMailboxes(silent) {
     _mbData = data.mailboxes || [];
     renderMailboxTable(_mbData);
     await loadPolicies();
+    if (slowHint) clearTimeout(slowHint);
     if (!silent) status.textContent = _mbData.length + ' Postfächer geladen';
     document.getElementById('mb-table-wrap').style.display = '';
     document.getElementById('mb-save-btn').style.display = '';
     document.getElementById('mb-local-btn').style.display = '';
     document.getElementById('mb-refresh-btn').style.display = '';
   } catch(e) {
+    if (slowHint) clearTimeout(slowHint);
     if (!silent) status.textContent = 'Fehler: ' + e.message;
   } finally {
     if (!silent) btn.disabled = false;
