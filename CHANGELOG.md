@@ -5,6 +5,11 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.12 — 2026-07-06 — fix: HTML-Seiten mit Cache-Control: no-store (kein veraltetes UI/JS nach Update)
+
+Middleware setzt auf text/html-Antworten `Cache-Control: no-store`. Verhindert,
+dass der Browser eine alte UI-Version (z.B. ohne Countdown) aus dem Cache zeigt.
+
 ## v1.5.11 — 2026-07-06 — fix: HUB_CLAIM_TOKEN + GATEWAY_ID in settings DEFAULTS (Selbstbedienung war kaputt)
 
 settings_store.update() akzeptiert nur Keys aus DEFAULTS — die neu eingeführten

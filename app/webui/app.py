@@ -258,7 +258,11 @@ async def _attach_user_role(request: Request, call_next):
         if payload:
             role = payload.get("r", sso_mod.ROLE_ADMIN)
     request.state.user_role = role
-    return await call_next(request)
+    response = await call_next(request)
+    # Never cache dynamic HTML — avoids stale UI (e.g. old JS) after an update.
+    if response.headers.get("content-type", "").startswith("text/html"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
