@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.9 — 2026-07-06 — fix: Anbindung-Poll refresh-fest (setzt bei claim_pending fort)
+
+/api/hub/config liefert `claim_pending`; die Anbindung-Seite startet den Claim-
+Poll beim Laden automatisch neu, wenn eine Bestätigung aussteht. Damit „bricht"
+ein Refresh/Tab-Wechsel den Selbstbedienungs-Flow nicht mehr — der Key wird
+geholt, sobald die E-Mail bestätigt ist.
+
 ## v1.5.8 — 2026-07-06 — fix: Gateway-SSO-Login im selben Tab (statt neuer Tab)
 
 startSsoLogin navigiert jetzt das aktuelle Fenster (window.location) zum Microsoft-

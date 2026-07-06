@@ -140,7 +140,13 @@
 // ── Anbindung (eine Registrierung) ───────────────────────────────────────────
 function _hubMsg(html, ok) { const el=document.getElementById('hub-result'); el.className='alert '+(ok?'success':'error'); el.innerHTML=html; el.style.display='block'; }
 async function hubLoadConfig() { try { const d=await (await fetch('/api/hub/config')).json();
-  document.getElementById('hub-base').value=d.base_url||''; document.getElementById('hub-email').value=d.email||''; document.getElementById('hub-name').value=d.name||''; } catch(e){} }
+  document.getElementById('hub-base').value=d.base_url||''; document.getElementById('hub-email').value=d.email||''; document.getElementById('hub-name').value=d.name||'';
+  if(d.claim_pending){
+    _hubMsg('⏳ Warte auf E-Mail-Bestätigung — sobald du den Link in der Mail geöffnet hast, verbindet sich das Gateway automatisch. '
+      +'<button class="btn secondary" style="margin-left:6px;padding:2px 8px" onclick="hubPollClaim(true)">Jetzt prüfen</button>',true);
+    _startHubPoll();
+  }
+  } catch(e){} }
 async function hubSaveConfig() { const body={base_url:document.getElementById('hub-base').value.trim(),email:document.getElementById('hub-email').value.trim(),name:document.getElementById('hub-name').value.trim()};
   const d=await (await fetch('/api/hub/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
   _hubMsg(d.ok?'Anbindung gespeichert.':('Fehler: '+(d.error||'')), d.ok); }
