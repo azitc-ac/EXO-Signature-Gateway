@@ -11,7 +11,7 @@
     Beim Speichern wird <code>{{ gateway_name }} - Enabled Mailboxes</code> aktualisiert; die EXO-Transportregel leitet nur Mitglieder dieser Gruppe über das Gateway.
   </p>
   <div class="actions" style="margin-bottom:8px">
-    <button class="btn secondary" id="mb-load-btn" onclick="loadMailboxes()">Postfächer aus Graph laden</button>
+    <button class="btn secondary" id="mb-load-btn" onclick="loadMailboxes()">Postfächer laden</button>
     <button class="btn secondary" id="mb-refresh-btn" onclick="refreshMailboxStatus()" style="display:none">Status aktualisieren</button>
     <span id="mb-load-status" style="font-size:12px;color:#888;margin-left:8px"></span>
   </div>
@@ -52,7 +52,7 @@
   </div>
   <div class="actions" style="margin-top:12px">
     <button class="btn primary" id="mb-save-btn" onclick="saveMailboxes(true)" style="display:none">
-      In EXO speichern (DG + Transportregel aktualisieren)
+      In EXO speichern (DG aktualisieren)
     </button>
     <button class="btn secondary" id="mb-local-btn" onclick="saveMailboxes(false)" style="display:none">
       Nur lokal speichern

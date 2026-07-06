@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.29 — 2026-07-06 — fix: Zwei veraltete Button-Beschriftungen korrigiert
+
+„Postfächer aus Graph laden" → „Postfächer laden" (läuft seit v1.5.19 über EXO,
+nicht mehr Graph). „In EXO speichern (DG + Transportregel aktualisieren)" →
+„In EXO speichern (DG aktualisieren)" — der Button ändert NIE die Transportregel,
+nur die DG-Mitgliedschaft (bestätigt, keine Funktionsänderung, nur die
+irreführende Beschriftung entfernt).
+
 ## v1.5.28 — 2026-07-06 — feat: Postfächer-Tabelle alphabetisch nach Name sortiert
 
 /api/mailboxes lieferte die EXO-interne (praktisch beliebige) Reihenfolge ohne
