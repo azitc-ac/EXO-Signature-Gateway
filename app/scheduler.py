@@ -124,7 +124,13 @@ def _send_user_renewal_notification(
     token = selfservice.generate_token(email)
     upload_url = f"{_get_gateway_url()}/smime/renew/{token}"
 
-    if backend.can_auto_renew():
+    import mailbox_match
+    smime_active = mailbox_match.match_sender(
+        settings_store.get("MAILBOX_CONFIG") or {}, email).get("smime")
+    if not smime_active:
+        log.warning("scheduler: skipping auto-renewal for %s — S/MIME deactivated "
+                    "since original issuance; falling back to manual notification", email)
+    elif backend.can_auto_renew():
         # Try automated renewal first; fall back to manual notification on failure
         try:
             asyncio.run(backend.initiate_renewal(email, user_cfg))

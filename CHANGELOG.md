@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.20 — 2026-07-06 — fix: Scheduler-Auto-Renewal umgeht den S/MIME-Enrollment-Guard nicht mehr
+
+Der periodische Renewal-Scheduler rief `backend.initiate_renewal` bisher direkt
+auf, ohne den in v1.5.2 eingeführten Guard (MAILBOX_CONFIG[email].smime muss
+True sein). Betraf beide CA-Backends (CASTLE + Sectigo) gleichermaßen — relevant
+insbesondere für Sectigo, dessen Reseller-API im Gegensatz zu CASTLEs ACME
+email-reply-00 KEINE eigene Mailbox-Challenge pro Order hat und sich stattdessen
+auf eine einmalige Organisation/Person-Validierung im SCM-Konto verlässt. Wird
+S/MIME für ein Postfach nachträglich deaktiviert, versucht der Scheduler jetzt
+keine automatische Erneuerung mehr, sondern fällt auf die manuelle
+Benachrichtigung zurück.
+
 ## v1.5.19 — 2026-07-06 — feat: GUID-Refactor Schritt 4 — Postfächer/Health-Check auf EXO statt Graph umgestellt
 
 Wie vor ~20h angekündigt: die Graph-Heuristiken für Postfach-Enumeration sind auf
