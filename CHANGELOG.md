@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.10 — 2026-07-06 — feat: Anbindung — sichtbarer Countdown bis zur nächsten Bestätigungs-Prüfung
+
+Der „Verbinden"-Warte-Zustand zeigt jetzt „Nächste automatische Prüfung in Xs" mit
+sekündlichem Countdown. Auto-Poll alle 5s, solange die Seite offen ist (kein 5-Min-
+Limit mehr). „Jetzt prüfen" bleibt als Sofort-Check.
+
 ## v1.5.9 — 2026-07-06 — fix: Anbindung-Poll refresh-fest (setzt bei claim_pending fort)
 
 /api/hub/config liefert `claim_pending`; die Anbindung-Seite startet den Claim-

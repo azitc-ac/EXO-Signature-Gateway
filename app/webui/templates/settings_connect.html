@@ -141,37 +141,50 @@
 function _hubMsg(html, ok) { const el=document.getElementById('hub-result'); el.className='alert '+(ok?'success':'error'); el.innerHTML=html; el.style.display='block'; }
 async function hubLoadConfig() { try { const d=await (await fetch('/api/hub/config')).json();
   document.getElementById('hub-base').value=d.base_url||''; document.getElementById('hub-email').value=d.email||''; document.getElementById('hub-name').value=d.name||'';
-  if(d.claim_pending){
-    _hubMsg('⏳ Warte auf E-Mail-Bestätigung — sobald du den Link in der Mail geöffnet hast, verbindet sich das Gateway automatisch. '
-      +'<button class="btn secondary" style="margin-left:6px;padding:2px 8px" onclick="hubPollClaim(true)">Jetzt prüfen</button>',true);
-    _startHubPoll();
-  }
+  if(d.claim_pending){ _startHubPoll(); }
   } catch(e){} }
 async function hubSaveConfig() { const body={base_url:document.getElementById('hub-base').value.trim(),email:document.getElementById('hub-email').value.trim(),name:document.getElementById('hub-name').value.trim()};
   const d=await (await fetch('/api/hub/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
   _hubMsg(d.ok?'Anbindung gespeichert.':('Fehler: '+(d.error||'')), d.ok); }
-let _hubPollTimer=null;
+let _hubTimer=null;
+const HUB_POLL_SECS=5;   // Auto-Prüfung alle 5s, solange die Seite offen ist
 async function hubConnect() { await hubSaveConfig(); _hubMsg('Verbinde… Registrierung wird übermittelt.',true);
   const d=await (await fetch('/api/hub/register',{method:'POST'})).json();
   if(!d.ok){ _hubMsg('Fehler: '+(d.error||'Unbekannt'),false); return; }
   if(d.email_sent){
-    _hubMsg('📧 Bestätigungsmail an <strong>'+document.getElementById('hub-email').value.trim()+'</strong> gesendet. '
-      +'Bitte den Link darin öffnen — danach verbindet sich das Gateway automatisch. <em>Warte auf Bestätigung…</em>',true);
-    _startHubPoll();
+    _startHubPoll(document.getElementById('hub-email').value.trim());
   } else {
     _hubMsg('Registrierung übermittelt (Status: <strong>'+(d.status||'pending')+'</strong>). '
       +(d.message||'Nach Freigabe den API-Key manuell eintragen.'),true);
   }
 }
-function _startHubPoll(){ let tries=0; clearInterval(_hubPollTimer);
-  _hubPollTimer=setInterval(async()=>{ tries++; if(tries>75){clearInterval(_hubPollTimer);return;}
+function _hubWaitMsg(secs, sentTo){
+  const intro = sentTo ? ('📧 Bestätigungsmail an <strong>'+sentTo+'</strong> gesendet. ') : '';
+  _hubMsg(intro+'⏳ Öffne den Link in der Mail — dann verbindet sich das Gateway automatisch. '
+    +'Nächste automatische Prüfung in <strong id="hub-cd">'+secs+'</strong>s. '
+    +'<button class="btn secondary" style="margin-left:6px;padding:2px 8px" onclick="hubPollClaim(true)">Jetzt prüfen</button>', true);
+}
+function _startHubPoll(sentTo){
+  clearInterval(_hubTimer);
+  let secs=HUB_POLL_SECS;
+  _hubWaitMsg(secs, sentTo);
+  _hubTimer=setInterval(async()=>{
+    secs--;
+    const el=document.getElementById('hub-cd');
+    if(secs>0){ if(el) el.textContent=secs; return; }
+    secs=HUB_POLL_SECS; if(el) el.textContent=secs;
     try{ const d=await (await fetch('/api/hub/claim',{method:'POST'})).json();
-      if(d.ok&&d.connected){ clearInterval(_hubPollTimer);
+      if(d.ok&&d.connected){ clearInterval(_hubTimer);
         _hubMsg('✓ Verbunden! Der Zugang wurde automatisch eingetragen. Seite lädt neu…',true);
-        setTimeout(()=>location.reload(),1500); } }catch(e){} },4000); }
-async function hubPollClaim(manual){ const d=await (await fetch('/api/hub/claim',{method:'POST'})).json();
-  if(d.ok&&d.connected){ _hubMsg('✓ Verbunden! Seite lädt neu…',true); setTimeout(()=>location.reload(),1200); }
-  else if(manual){ _hubMsg('Noch nicht bestätigt (Status: '+((d.status)||d.error||'wartet')+'). Bitte den Link in der E-Mail öffnen.',false); } }
+        setTimeout(()=>location.reload(),1500); }
+    }catch(e){}
+  },1000);
+}
+async function hubPollClaim(manual){
+  const d=await (await fetch('/api/hub/claim',{method:'POST'})).json();
+  if(d.ok&&d.connected){ clearInterval(_hubTimer); _hubMsg('✓ Verbunden! Seite lädt neu…',true); setTimeout(()=>location.reload(),1200); return; }
+  if(manual){ _startHubPoll(); }   // noch nicht bestätigt → Countdown neu starten
+}
 async function hubDisconnect(){ if(!confirm('Anbindung an den Hub entfernen? Der lokale API-Key wird gelöscht.'))return;
   const d=await (await fetch('/api/hub/disconnect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({close_remote:false})})).json();
   if(d.ok){ _hubMsg('Anbindung entfernt. Seite lädt neu…',true); setTimeout(()=>location.reload(),1000);} else _hubMsg('Fehler.',false); }
