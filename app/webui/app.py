@@ -4088,6 +4088,7 @@ async def api_hub_config_get(user: str = Depends(_require_admin)):
         "registered": hub_client.is_registered(),
         "claim_pending": bool((settings_store.get("HUB_CLAIM_TOKEN") or "").strip()
                               and not (settings_store.get("HUB_API_KEY") or "").strip()),
+        "gateway_id": settings_store.get("GATEWAY_ID") or "",
     })
 
 

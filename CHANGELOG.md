@@ -5,6 +5,10 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.14 — 2026-07-06 — feat: eigene Gateway-ID im Anbindung-Tab anzeigen
+
+/api/hub/config liefert gateway_id; die Anbindung-Karte zeigt „Diese Gateway-ID".
+
 ## v1.5.13 — 2026-07-06 — fix: Anbindung-Poll — Endlosschleife bei bereits verbundenem Gateway behoben
 
 „Jetzt prüfen"/Auto-Poll loopte endlos, wenn kein Claim-Token mehr existierte

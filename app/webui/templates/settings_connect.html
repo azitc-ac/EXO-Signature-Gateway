@@ -54,6 +54,7 @@
            style="width:100%;max-width:360px;font-size:13px">
     <button class="btn secondary" onclick="hubSaveKey()">Key speichern</button></div>
   <div id="hub-result" style="display:none;margin-top:8px"></div>
+  <div id="hub-gwid" class="hint" style="font-size:12px;margin-top:8px"></div>
 </div>
 
 <!-- ── Zertifikatsbezug ───────────────────────────────────────────────────── -->
@@ -141,6 +142,7 @@
 function _hubMsg(html, ok) { const el=document.getElementById('hub-result'); el.className='alert '+(ok?'success':'error'); el.innerHTML=html; el.style.display='block'; }
 async function hubLoadConfig() { try { const d=await (await fetch('/api/hub/config')).json();
   document.getElementById('hub-base').value=d.base_url||''; document.getElementById('hub-email').value=d.email||''; document.getElementById('hub-name').value=d.name||'';
+  if(d.gateway_id){ document.getElementById('hub-gwid').innerHTML='Diese Gateway-ID: <code>'+d.gateway_id+'</code>'; }
   if(d.claim_pending){ _startHubPoll(); }
   } catch(e){} }
 async function hubSaveConfig() { const body={base_url:document.getElementById('hub-base').value.trim(),email:document.getElementById('hub-email').value.trim(),name:document.getElementById('hub-name').value.trim()};
