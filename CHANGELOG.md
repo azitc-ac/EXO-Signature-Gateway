@@ -5,6 +5,8 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.34 — 2026-07-06 — fix: Überschrift "S/MIME Zertifikate" -> "S/MIME"
+
 ## v1.5.33 — 2026-07-06 — fix: Key-Vault-Signiertest lief fälschlich für Postfächer mit rein lokalem Schlüssel
 
 Der kv_sign-Check prüfte nur "ist Key Vault GLOBAL konfiguriert" + "ist S/MIME
