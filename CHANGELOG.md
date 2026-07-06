@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.30 — 2026-07-06 — fix: Guid-"Leichen" auf der S/MIME-Seite (Nachwirkung des MAILBOX_CONFIG-Refactors)
+
+Sechs Stellen behandelten den MAILBOX_CONFIG-Schlüssel weiterhin direkt als
+E-Mail-Adresse, obwohl er seit v1.5.5 eine ExchangeGuid sein kann (guid-keyed
+Einträge nach dem Postfach-Refactor). Auf der S/MIME-Seite erschienen dadurch
+zwei zusätzliche "Postfächer" mit dem rohen Guid als Name und ohne Zertifikat
+(smime_store fand naturgemäß kein `data/smime/<guid>/`-Verzeichnis) — nicht
+entfernbar, da es keine echten Einträge waren. Betraf außerdem den Key-Vault-
+Status-Refresh, die Bookings-URL-Abfrage, den Add-in-Taskpane und die Add-in-
+Vorlagenliste (dort silent statt sichtbar: Konfiguration wurde für guid-
+gekeyte Postfächer schlicht nicht gefunden). Alle sechs Stellen nutzen jetzt
+mailbox_match.match_sender()/configured_addresses() zur korrekten Auflösung.
+
 ## v1.5.29 — 2026-07-06 — fix: Zwei veraltete Button-Beschriftungen korrigiert
 
 „Postfächer aus Graph laden" → „Postfächer laden" (läuft seit v1.5.19 über EXO,

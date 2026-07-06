@@ -567,7 +567,8 @@ async def api_addin_signature(email: str, template: str = "", user: str = Depend
     if not email:
         return JSONResponse({"marked_html": "", "preview_html": ""})
 
-    mailbox_cfg = (settings_store.get("MAILBOX_CONFIG") or {}).get(email, {})
+    import mailbox_match
+    mailbox_cfg = mailbox_match.match_sender(settings_store.get("MAILBOX_CONFIG") or {}, email)
     default_template = mailbox_cfg.get("template") if isinstance(mailbox_cfg, dict) else None
 
     # Use requested template only if it's in the user's allowed set
@@ -600,7 +601,8 @@ async def api_addin_signature(email: str, template: str = "", user: str = Depend
 async def api_addin_templates(email: str, user: str = Depends(_check_auth)):
     """Return list of templates available for this user in the add-in."""
     email = (email or "").strip().lower()
-    mailbox_cfg = (settings_store.get("MAILBOX_CONFIG") or {}).get(email, {})
+    import mailbox_match
+    mailbox_cfg = mailbox_match.match_sender(settings_store.get("MAILBOX_CONFIG") or {}, email)
     if mailbox_cfg.get("use_policy", True):
         policies = settings_store.get("TEMPLATE_POLICIES") or {}
         mailbox_cfg = dict(mailbox_cfg)
@@ -1670,8 +1672,9 @@ async def api_fetch_bookings_urls(_=Depends(_check_auth)):
     import setup_wizard as _sw
     app_id = settings_store.get("CLIENT_ID") or config.CLIENT_ID or ""
     tenant = settings_store.get("TENANT_DOMAIN") or ""
+    import mailbox_match
     mailbox_cfg: dict = settings_store.get("MAILBOX_CONFIG") or {}
-    emails = list(mailbox_cfg.keys())
+    emails = mailbox_match.configured_addresses(mailbox_cfg)
     if not emails:
         return JSONResponse({"ok": False, "error": "Keine Postfächer in MAILBOX_CONFIG konfiguriert."})
     result = await asyncio.get_event_loop().run_in_executor(
@@ -2378,7 +2381,10 @@ async def smime_page_v2(request: Request, user: str = Depends(_require_admin)):
     import acme_state as _acme_state
     import keyvault as _kv
     config_map: dict = settings_store.get("MAILBOX_CONFIG") or {}
-    smime_from_config = {email for email, cfg in config_map.items() if cfg.get("smime")}
+    smime_from_config = {
+        (key.lower() if "@" in key else (cfg.get("primary") or "").lower())
+        for key, cfg in config_map.items() if cfg.get("smime")
+    } - {""}
     smime_from_certs = {c["email"] for c in smime_store.list_certs()}
     all_emails = sorted(smime_from_config | smime_from_certs)
     smime_users = [{"email": email, "certs": smime_store.list_user_certs(email)} for email in all_emails]
@@ -2427,7 +2433,10 @@ async def api_smime_kv_status_refresh(_=Depends(_check_auth)):
     if not _kv.is_configured():
         return JSONResponse({"ok": False, "detail": "Key Vault nicht konfiguriert"}, status_code=400)
     config_map: dict = settings_store.get("MAILBOX_CONFIG") or {}
-    smime_from_config = {email for email, cfg in config_map.items() if cfg.get("smime")}
+    smime_from_config = {
+        (key.lower() if "@" in key else (cfg.get("primary") or "").lower())
+        for key, cfg in config_map.items() if cfg.get("smime")
+    } - {""}
     smime_from_certs = {c["email"] for c in smime_store.list_certs()}
     all_emails = sorted(smime_from_config | smime_from_certs)
     if not all_emails:
@@ -3097,9 +3106,10 @@ async def api_keyvault_status(_: str = Depends(_require_admin)):
     import smime_store
     if not keyvault.is_configured():
         return JSONResponse({"configured": False, "keys": {}})
+    import mailbox_match
     config_map: dict = settings_store.get("MAILBOX_CONFIG") or {}
     cert_emails = {c["email"] for c in smime_store.list_certs()}
-    all_emails = sorted(set(config_map.keys()) | cert_emails)
+    all_emails = sorted(set(mailbox_match.configured_addresses(config_map)) | cert_emails)
     keys: dict[str, bool] = {}
     for em in all_emails:
         keys[em] = await keyvault.key_exists(em)
@@ -3436,8 +3446,9 @@ async def api_test_mail_processor_options(user: str = Depends(_check_auth)):
                 templates.append(f[:-5])
     except Exception:
         pass
+    import mailbox_match
     mailbox_cfg = settings_store.get("MAILBOX_CONFIG") or {}
-    emails = sorted(mailbox_cfg.keys()) if mailbox_cfg else []
+    emails = sorted(mailbox_match.configured_addresses(mailbox_cfg))
     return JSONResponse({"templates": templates, "emails": emails})
 
 
