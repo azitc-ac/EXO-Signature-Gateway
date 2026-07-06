@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.45 — 2026-07-07 — content: Anbindung-Intro erwähnt Partnerunternehmen
+
+Einleitungstext ergänzt: "EXO Signature HUB ist ein Dienst von Alexander
+Zarenko - IT Consulting und autorisierten Partnerunternehmen." — bereitet
+den Text auf mögliches künftiges Partner-Wachstum vor. Beliebige Hub-URLs
+waren bereits vorher über die Dropdown-Option "…andere" eintragbar.
+
+---
+
 ## v1.5.44 — 2026-07-07 — content: Anbindung-Tab nennt "EXO Signature HUB" statt "Anbieter"
 
 Einleitungstext neu formuliert; alle weiteren Stellen im Tab, die sich auf
