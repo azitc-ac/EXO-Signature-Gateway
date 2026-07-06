@@ -179,6 +179,8 @@ h3 { font-size: 13px; font-weight: 600; margin: 16px 0 8px; color: #555; }
     border-radius: 6px;
     margin-bottom: 20px;
     font-size: 13px;
+    overflow-wrap: anywhere;
+    max-width: 100%;
 }
 .alert.success { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
 .alert.error   { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
@@ -510,6 +512,26 @@ input[type="password"]:focus { outline: none; border-color: #0078d4; }
     border-color: #0078d4;
 }
 .btn-toggle:hover:not(.active) { background: #e5e7eb; }
+
+/* Mini copy-to-clipboard button (Entra-style icon next to a value) */
+.copy-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    margin-left: 4px;
+    border: none;
+    background: transparent;
+    color: #2563eb;
+    cursor: pointer;
+    border-radius: 4px;
+    vertical-align: middle;
+    flex-shrink: 0;
+}
+.copy-btn:hover { background: #eff6ff; }
+.copy-btn.copied { color: #16a34a; }
 
 /* Mobile overrides that must come after component definitions to win the cascade */
 @media (max-width: 600px) {

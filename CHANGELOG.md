@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.26 — 2026-07-06 — fix: Renewal-Link hatte fälschlich :8080 + lange URLs sprengten die Alert-Box
+
+_get_gateway_url() hängte bei fehlendem GATEWAY_EXTERNAL_URL fälschlich ":8080"
+an die LE_DOMAIN an — das ist nur der interne Container-Port (docker-compose
+mappt Host-443 → Container-8080), von außen ist immer Standard-HTTPS (443)
+korrekt. Produktiv-Symptom: Renewal-Benachrichtigung enthielt
+"https://sig.zarenko.net:8080/smime/renew/…" statt der korrekten URL ohne Port.
+Zusätzlich: .alert-Boxen hatten kein Wortumbruch-Handling — eine lange URL
+(z.B. dieser Renewal-Link) sprengte die Box seitlich statt umzubrechen. Fix:
+overflow-wrap:anywhere + max-width:100%.
+
 ## v1.5.25 — 2026-07-06 — fix: Domain-Verifizierung übersteht Seiten-Refresh ("Jetzt prüfen" bleibt sichtbar)
 
 Ausstehende Domain-Verifizierungen zeigen jetzt direkt in der Domains-Liste

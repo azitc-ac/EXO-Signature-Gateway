@@ -110,7 +110,7 @@ DEFAULTS: dict = {
     "SECTIGO_CERT_TYPE": "",         # Certificate profile / type ID for S/MIME (account-specific)
     "SECTIGO_TERM": "",              # Validity term accepted by the profile (e.g. 365 days or 1 year)
     # ── S/MIME lifecycle management ───────────────────────────────────────────
-    "GATEWAY_EXTERNAL_URL": "",      # e.g. https://mail.company.com:8080 — used in renewal links
+    "GATEWAY_EXTERNAL_URL": "",      # e.g. https://mail.company.com (no port — 8080 is only the internal container port) — used in renewal links
     "CERT_RENEWAL_THRESHOLDS": [30, 14, 7, 1],  # Notify user at these days-before-expiry
     "CA_USER_CONFIG": {},            # {email: {backend, portal_url, notify_user}}
     # ── Notifications (extended) ──────────────────────────────────────────────

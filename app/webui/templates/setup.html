@@ -252,18 +252,18 @@
     {% if e.azure_app_created %}
     <div class="alert success" style="margin-bottom:0">
       App-Registrierung <strong>{{ s.GATEWAY_NAME or 'EXO Signature Gateway' }} Login</strong> wurde erstellt.<br>
-      {% if e.bootstrap_client_id %}App-ID: <code>{{ e.bootstrap_client_id }}</code><br>{% endif %}
+      {% if e.bootstrap_client_id %}App-ID: <code>{{ e.bootstrap_client_id }}</code><button class="copy-btn" data-copy="{{ e.bootstrap_client_id }}" title="Kopieren" type="button"></button><br>{% endif %}
       {% if e.bootstrap_redirect_uris %}
       Redirect-URIs in Azure:
-      {% for uri in e.bootstrap_redirect_uris %}<code>{{ uri }}</code>{% if not loop.last %}, {% endif %}{% endfor %}<br>
+      {% for uri in e.bootstrap_redirect_uris %}<code>{{ uri }}</code><button class="copy-btn" data-copy="{{ uri }}" title="Kopieren" type="button"></button>{% if not loop.last %}, {% endif %}{% endfor %}<br>
       {% elif e.sso_redirect_uri %}
-      Redirect-URI: <code>{{ e.sso_redirect_uri }}</code> <span style="color:#f59e0b;font-size:12px">(noch nicht verifiziert — bitte „Erneut anmelden" ausführen)</span><br>
+      Redirect-URI: <code>{{ e.sso_redirect_uri }}</code><button class="copy-btn" data-copy="{{ e.sso_redirect_uri }}" title="Kopieren" type="button"></button> <span style="color:#f59e0b;font-size:12px">(noch nicht verifiziert — bitte „Erneut anmelden" ausführen)</span><br>
       {% endif %}
-      Tenant-Domain: <code>{{ e.tenant_domain }}</code><br>
-      EXO-Smarthost: <code>{{ e.exo_smarthost }}</code>
+      Tenant-Domain: <code>{{ e.tenant_domain }}</code><button class="copy-btn" data-copy="{{ e.tenant_domain }}" title="Kopieren" type="button"></button><br>
+      EXO-Smarthost: <code>{{ e.exo_smarthost }}</code><button class="copy-btn" data-copy="{{ e.exo_smarthost }}" title="Kopieren" type="button"></button>
     </div>
     {% if e.tenant_id %}
-    <p class="hint" style="margin-top:8px">Tenant-ID: <code>{{ e.tenant_id[:8] }}…</code></p>
+    <p class="hint" style="margin-top:8px">Tenant-ID: <code>{{ e.tenant_id[:8] }}…</code><button class="copy-btn" data-copy="{{ e.tenant_id }}" title="Volle Tenant-ID kopieren" type="button"></button></p>
     {% endif %}
     {% if e.bootstrap_client_id %}
     <details id="retry-login-details" style="margin-top:12px">
@@ -406,7 +406,7 @@
     {% if e.azure_app_created %}
     <div class="alert success" style="margin-bottom:0">
       App-Registrierung <strong>{{ s.GATEWAY_NAME or 'EXO Signature Gateway' }}</strong> wurde erstellt.<br>
-      App-ID: <code>{{ e.client_id if e.client_id else "–" }}</code><br>
+      App-ID: <code>{{ e.client_id if e.client_id else "–" }}</code>{% if e.client_id %}<button class="copy-btn" data-copy="{{ e.client_id }}" title="Kopieren" type="button"></button>{% endif %}<br>
       Berechtigungen: <code>User.Read.All</code>, <code>Mail.ReadWrite</code>, <code>Exchange.ManageAsApp</code><br>
       Admin-Consent: erteilt &bull; Exchange-Administrator-Rolle: zugewiesen
     </div>
@@ -683,7 +683,7 @@
 
     {% if s.KEYVAULT_URL %}
     <p class="hint" style="margin-top:10px">
-      Konfiguriert: <code>{{ s.KEYVAULT_URL }}</code><br>
+      Konfiguriert: <code>{{ s.KEYVAULT_URL }}</code><button class="copy-btn" data-copy="{{ s.KEYVAULT_URL }}" title="Kopieren" type="button"></button><br>
       Schlüssel migrieren: <em>S/MIME → Schlüssel-Verwaltung</em>
     </p>
     {% endif %}
@@ -2226,7 +2226,10 @@ async function submitPoolAppUrl() {
       <p style="font-size:12px;color:#555;margin-bottom:8px;line-height:1.5">
         Verbinde dich per SSH mit der Azure-VM und führe den folgenden Block einmalig aus:
       </p>
-      <pre style="background:#0f172a;color:#e2e8f0;border-radius:8px;padding:14px 16px;font-size:11px;line-height:1.7;overflow-x:auto;white-space:pre;margin-bottom:10px"><code>ssh azureuser@{{ e.public_hostname or 'HOSTNAME' }}
+      <div style="position:relative">
+        <button type="button" class="copy-btn" data-copy-target="ssh-updater-script" title="Ganzen Block kopieren"
+                style="position:absolute;top:10px;right:10px;background:#1e293b;color:#e2e8f0"></button>
+        <pre style="background:#0f172a;color:#e2e8f0;border-radius:8px;padding:14px 16px;font-size:11px;line-height:1.7;overflow-x:auto;white-space:pre;margin-bottom:10px"><code id="ssh-updater-script">ssh azureuser@{{ e.public_hostname or 'HOSTNAME' }}
 
 sudo chmod 755 /opt/exo-gateway/update-watcher.sh
 
@@ -2249,6 +2252,7 @@ UNITEOF
 sudo systemctl daemon-reload
 sudo systemctl enable --now exo-gateway-updater
 sudo systemctl status exo-gateway-updater --no-pager</code></pre>
+      </div>
 
       <p style="font-size:12px;color:#64748b">
         Nach ca. 60 Sekunden schreibt der Service seinen ersten Heartbeat —

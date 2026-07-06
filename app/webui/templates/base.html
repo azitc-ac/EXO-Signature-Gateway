@@ -128,6 +128,51 @@
           if (tt) tt.style.display = 'none';
         }
       });
+
+      // Mini copy-to-clipboard buttons (Entra-style). Works via event delegation,
+      // so it also covers .copy-btn elements added later via innerHTML (JS-rendered
+      // values like Gateway-ID, DNS-TXT record, ticket IDs).
+      var COPY_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+      var CHECK_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+      document.addEventListener('click', function(e) {
+        var btn = e.target.closest('.copy-btn');
+        if (!btn) return;
+        var text = btn.getAttribute('data-copy');
+        if (text == null) {
+          // data-copy-target: copy the live textContent of another element
+          // (used for whole code blocks — avoids escaping multi-line/special
+          // characters into an HTML attribute).
+          var targetId = btn.getAttribute('data-copy-target');
+          var targetEl = targetId && document.getElementById(targetId);
+          text = targetEl ? targetEl.textContent : '';
+        }
+        if (!text) return;
+        navigator.clipboard.writeText(text).then(function() {
+          if (btn.dataset.busy) return;
+          btn.dataset.busy = '1';
+          var orig = btn.innerHTML;
+          btn.innerHTML = CHECK_ICON;
+          btn.classList.add('copied');
+          setTimeout(function() {
+            btn.innerHTML = orig;
+            btn.classList.remove('copied');
+            delete btn.dataset.busy;
+          }, 1200);
+        }).catch(function() {});
+      });
+      // Static (Jinja-rendered) copy buttons ship empty <button class="copy-btn"
+      // data-copy="...">; fill the icon once on load.
+      document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.copy-btn').forEach(function(btn) {
+          if (!btn.innerHTML.trim()) btn.innerHTML = COPY_ICON;
+        });
+      });
+      // For JS-rendered snippets (innerHTML strings), build the button with the
+      // icon already inlined: '...' + copyBtnHtml(value) + '...'
+      function copyBtnHtml(value) {
+        var v = String(value == null ? '' : value).replace(/"/g, '&quot;');
+        return '<button type="button" class="copy-btn" data-copy="' + v + '" title="Kopieren">' + COPY_ICON + '</button>';
+      }
     </script>
     <main>
         {% block content %}{% endblock %}

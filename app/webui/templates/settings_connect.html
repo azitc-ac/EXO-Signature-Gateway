@@ -226,7 +226,7 @@ async function hubLoadConfig() { try { const d=await (await fetch('/api/hub/conf
     b.value = d.base_url || HUB_DEFAULT_BASE;
     if(sel){ sel.value = (d.base_url && d.base_url!==HUB_DEFAULT_BASE) ? '__other__' : HUB_DEFAULT_BASE; hubBaseSelectChanged(); }
   }
-  const gw=document.getElementById('hub-gwid'); if(gw && d.gateway_id) gw.innerHTML='Diese Gateway-ID: <code>'+d.gateway_id+'</code>';
+  const gw=document.getElementById('hub-gwid'); if(gw && d.gateway_id) gw.innerHTML='Diese Gateway-ID: <code>'+d.gateway_id+'</code>'+copyBtnHtml(d.gateway_id);
   if(d.claim_pending){ _startHubPoll(); }
   } catch(e){} }
 async function hubSaveConfig() { const body={base_url:document.getElementById('hub-base').value.trim(),email:document.getElementById('hub-email').value.trim(),name:document.getElementById('hub-name').value.trim()};
@@ -362,6 +362,7 @@ function _renderCertDomains(d) {
   let html='';
   verified.forEach(dm=>{ html+='<span class="conn-badge conn-ok" style="margin:0 6px 4px 0">✓ '+dm+'</span>'; });
   pending.forEach(([dm,v])=>{ if(!v.verified) html+='<span class="conn-badge conn-wait" style="margin:0 6px 8px 0">⏳ '+dm+' (ausstehend — '+v.record_name+')'
+    +copyBtnHtml(v.record_name)
     +' <button class="btn secondary" style="padding:0 6px;font-size:11px;margin-left:4px" onclick="certDomainVerify(\''+dm+'\')">Jetzt prüfen</button></span>'; });
   list.innerHTML = html || '<span class="muted">Noch keine Domain verifiziert.</span>';
 }
@@ -417,7 +418,9 @@ async function certDomainRequest() {
   const rec=document.getElementById('cert-domain-record');
   rec.style.display='block';
   rec.innerHTML='Bitte folgenden DNS-TXT-Eintrag bei deinem Domain-Provider anlegen:<br><br>'
-    +'Name: <code>'+d.record_name+'</code><br>Typ: <code>TXT</code><br>Wert: <code>'+d.record_value+'</code>'
+    +'Name: <code>'+d.record_name+'</code>'+copyBtnHtml(d.record_name)+'<br>'
+    +'Typ: <code>TXT</code><br>'
+    +'Wert: <code>'+d.record_value+'</code>'+copyBtnHtml(d.record_value)
     +'<div style="margin-top:10px"><button class="btn primary" onclick="certDomainVerify()">Jetzt prüfen</button></div>'
     +'<p class="hint" style="margin:6px 0 0">DNS-Propagation kann einige Minuten dauern.</p>';
 }

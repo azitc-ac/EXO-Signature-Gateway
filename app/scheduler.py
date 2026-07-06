@@ -97,13 +97,17 @@ def _check_tls_cert() -> None:
 # ── S/MIME cert alerts + lifecycle ───────────────────────────────────────────
 
 def _get_gateway_url() -> str:
-    """Construct the gateway's external URL for self-service links."""
+    """Construct the gateway's external URL for self-service links.
+
+    8080 is only the CONTAINER's internal webui port (docker-compose maps
+    host 443 -> container 8080) — external callers always use plain HTTPS
+    (443), so the domain-based fallback must NOT append :8080."""
     url = (settings_store.get("GATEWAY_EXTERNAL_URL") or "").strip()
     if url:
         return url.rstrip("/")
     domain = (settings_store.get("LE_DOMAIN") or "").strip()
     if domain:
-        return f"https://{domain}:8080"
+        return f"https://{domain}"
     return "https://localhost:8080"
 
 
