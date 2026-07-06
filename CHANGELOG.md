@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.8 — 2026-07-06 — fix: Gateway-SSO-Login im selben Tab (statt neuer Tab)
+
+startSsoLogin navigiert jetzt das aktuelle Fenster (window.location) zum Microsoft-
+Login statt window.open(_blank). Der Button erscheint ohnehin nur, wenn der aktuelle
+Host = SSO-Host ist, daher kommt der Callback sicher zurück — same-tab wie beim Hub.
+
 ## v1.5.7 — 2026-07-06 — feat: Selbstbedienungs-Anbindung — „Verbinden" + Claim-Token-Key-Relay + Entfernen
 
 Der Anbindung-Tab hat jetzt „Verbinden": Registrierung mit Claim-Token → der Hub

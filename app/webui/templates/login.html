@@ -89,21 +89,15 @@ async function startSsoLogin() {
   const btn = document.getElementById('btn-ms-login');
   btn.disabled = true;
   btn.textContent = 'Öffne Microsoft-Login…';
-  const win = window.open('about:blank', '_blank');
   try {
     const resp = await fetch('/api/auth/sso-url');
     if (!resp.ok) throw new Error((await resp.json().catch(()=>({}))).detail || resp.status);
     const data = await resp.json();
-    if (win) {
-      win.location.href = data.auth_url;
-    } else {
-      window.open(data.auth_url, '_blank');
-    }
-    document.getElementById('sso-paste-section').style.display = 'block';
+    // Same-tab navigation (wie der Hub) — der Button erscheint nur, wenn der
+    // aktuelle Host = SSO-Host ist, daher kommt der Callback sicher hierher zurück.
+    window.location.href = data.auth_url;
   } catch(e) {
-    if (win) win.close();
     alert('Fehler beim Starten des Logins: ' + e.message);
-  } finally {
     btn.disabled = false;
     btn.textContent = 'Mit Microsoft anmelden';
   }
