@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.27 — 2026-07-06 — feat: Mini-Copy-Buttons (Entra-Stil) für Domains/IDs/Keys/Ticket-IDs
+
+Kleiner Copy-to-Clipboard-Button neben allen Feldern, die ein Gateway-Admin
+typischerweise kopieren möchte: Gateway-ID, DNS-TXT-Verifizierung (Name+Wert,
+auch bei ausstehenden Domains), Azure/Entra-IDs im Einrichtungs-Assistenten
+(Tenant-ID, App-IDs, Redirect-URIs, Tenant-Domain, EXO-Smarthost, Key-Vault-URL),
+der komplette SSH-Migrations-Befehlsblock (kopiert den ganzen Block, nicht nur
+eine Zeile), App-ID + Zertifikat-Thumbprint im Erweitert-Tab, S/MIME-
+Zertifikat-Seriennummer, Support-Upload-Ticket-ID. Zentrale Infrastruktur in
+base.html (Event-Delegation, funktioniert auch für JS-nachträglich eingefügte
+Elemente) + copy-btn-CSS in style.css.
+
 ## v1.5.26 — 2026-07-06 — fix: Renewal-Link hatte fälschlich :8080 + lange URLs sprengten die Alert-Box
 
 _get_gateway_url() hängte bei fehlendem GATEWAY_EXTERNAL_URL fälschlich ":8080"

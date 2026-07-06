@@ -303,7 +303,7 @@ async function saveGatewayName() {
       damit <code>Connect-ExchangeOnline</code> funktioniert.<br>
       {% set ps_app_id = s.CLIENT_ID or "" %}
       {% if ps_app_id %}
-      App-ID (aus Einstellungen): <code>{{ ps_app_id }}</code>
+      App-ID (aus Einstellungen): <code>{{ ps_app_id }}</code><button class="copy-btn" data-copy="{{ ps_app_id }}" title="Kopieren" type="button"></button>
       {% else %}
       <span style="color:#b45309">App-ID noch nicht konfiguriert (Schritt 3 im Einrichtungs-Assistenten).</span>
       {% endif %}
@@ -334,7 +334,7 @@ async function certLoadInfo() {
   if (d.ok) {
     box.innerHTML =
       '<strong>Subject:</strong>    ' + d.subject + '<br>' +
-      '<strong>Thumbprint:</strong> ' + d.thumbprint + '<br>' +
+      '<strong>Thumbprint:</strong> ' + d.thumbprint + copyBtnHtml(d.thumbprint) + '<br>' +
       '<strong>Gültig ab:</strong>  ' + new Date(d.not_before).toLocaleDateString('de-DE') + '<br>' +
       '<strong>Gültig bis:</strong> ' + new Date(d.not_after).toLocaleDateString('de-DE');
     box.style.display = 'block';
@@ -1454,7 +1454,7 @@ async function supportUpload() {
       const extra = (a.priority ? ` &nbsp;|&nbsp; Analyse: ${a.priority}${a.error_hits ? ' ('+a.error_hits+' Fehler-Treffer)' : ''}` : '');
       result.innerHTML = `<div class="alert success">
         <strong>An Hub gesendet!</strong>
-        <code>${d.ticket_id}</code> &nbsp;|&nbsp; ${d.size_kb} KB${extra}
+        <code>${d.ticket_id}</code>${copyBtnHtml(d.ticket_id)} &nbsp;|&nbsp; ${d.size_kb} KB${extra}
       </div>`;
     } else {
       result.innerHTML = `<div class="alert" style="background:#fef2f2;border-color:#fca5a5;color:#991b1b">

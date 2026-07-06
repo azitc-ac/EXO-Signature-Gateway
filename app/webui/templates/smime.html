@@ -659,7 +659,7 @@ async function showCertDetails(email, kind, slot) {
         ${row('Gültig ab', d.not_before)}
         ${row('Gültig bis', d.not_after)}
         ${row('Schlüssel', d.key)}
-        ${row('Seriennummer', d.serial)}
+        ${row('Seriennummer', d.serial ? d.serial + copyBtnHtml(d.serial) : '')}
         ${row('SHA-1 Fingerprint', d.sha1)}
       </table>`;
   } catch(e) {
