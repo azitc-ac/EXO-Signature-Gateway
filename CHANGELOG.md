@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.44 — 2026-07-07 — content: Anbindung-Tab nennt "EXO Signature HUB" statt "Anbieter"
+
+Einleitungstext neu formuliert; alle weiteren Stellen im Tab, die sich auf
+den Dienst selbst beziehen (verbunden/registriert/gekündigt/benachrichtigt
+etc.), nennen jetzt "EXO Signature HUB" statt der generischen Bezeichnung
+"Anbieter". Die Erwähnung "kommerzieller Anbieter" (Zertifizierungsstellen
+wie Sectigo) bleibt unverändert — bezieht sich auf etwas anderes.
+
+---
+
 ## v1.5.43 — 2026-07-07 — fix: Auto-Enroll-/ACME-Fehlermeldungen im Header umbrechen statt abschneiden
 
 Die Fehlertexte im `acme-status-…`-Span (Auto-Enroll-Fehler seit v1.5.42,

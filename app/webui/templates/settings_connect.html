@@ -19,9 +19,11 @@
 </style>
 
 <p class="hint" style="margin-bottom:16px">
-  Anbindung dieses Gateways an den Support-Anbieter — <strong>eine</strong> Registrierung mit
-  einem API-Key. Support (Log-Upload) ist inklusive; der Zertifikatsbezug ist eine
-  <strong>kostenpflichtige</strong> Zusatzfähigkeit, die der Anbieter für dein Konto freischaltet.
+  EXO Signature HUB ist ein Dienst von Alexander Zarenko - IT Consulting.
+  Du kannst dein Gateway mit EXO Signature HUB verbinden und mit einem API-Key registrieren.
+  Solltest du Support benötigen, kannst du darüber Diagnose Log-Bundles direkt (kostenlos)
+  hochladen; der Bezug von Zertifikaten kommerzieller Anbieter ist über EXO Signature HUB
+  ebenso möglich — dieser ist eine <strong>kostenpflichtige</strong> Zusatzfähigkeit.
 </p>
 
 <!-- ── Anbindung (eine Registrierung) ─────────────────────────────────────── -->
@@ -32,7 +34,7 @@
   </h2>
 
   {% if hub_registered %}
-  <p class="hint" style="margin-bottom:10px">Dieses Gateway ist mit dem Anbieter verbunden.</p>
+  <p class="hint" style="margin-bottom:10px">Dieses Gateway ist mit EXO Signature HUB verbunden.</p>
   <div id="hub-gwid" class="hint" style="font-size:12px;margin-bottom:10px"></div>
   <div class="actions" style="margin:6px 0 10px">
     <button class="btn secondary" onclick="hubStatus()">Status prüfen</button>
@@ -41,10 +43,10 @@
   <div id="hub-result" style="display:none;margin-top:8px"></div>
   {% else %}
   <p class="hint" style="margin-bottom:12px">
-    Registriere dieses Gateway einmalig beim Anbieter. Nach dessen Freigabe trägst du den
+    Registriere dieses Gateway einmalig bei EXO Signature HUB. Nach dessen Freigabe trägst du den
     erhaltenen API-Key ein — er gilt für Support-Upload und (falls freigeschaltet) Zertifikatsbezug.
   </p>
-  <div class="settings-row" style="margin-bottom:8px"><label>Anbieter-Adresse</label>
+  <div class="settings-row" style="margin-bottom:8px"><label>EXO Signature HUB-Adresse</label>
     <select id="hub-base-select" onchange="hubBaseSelectChanged()" style="width:100%;max-width:360px;font-size:13px">
       <option value="https://sighub.zarenko.net">https://sighub.zarenko.net</option>
       <option value="__other__">…andere</option>
@@ -64,7 +66,7 @@
   <p class="hint" style="margin:0 0 10px;font-size:12px">„Verbinden" schickt dir eine Bestätigungsmail — nach dem Klick auf den Link trägt sich der Zugang automatisch ein. (Manuell: API-Key unten eintragen.)</p>
   <div class="settings-row" style="margin-bottom:8px"><label>API-Key (manuell)</label>
     <input type="password" id="hub-key" autocomplete="new-password"
-           placeholder="vom Anbieter erhalten"
+           placeholder="von EXO Signature HUB erhalten"
            style="width:100%;max-width:360px;font-size:13px" autocapitalize="off" autocorrect="off" spellcheck="false">
     <button class="btn secondary" onclick="hubSaveKey()">Key speichern</button></div>
   <div id="hub-result" style="display:none;margin-top:8px"></div>
@@ -80,19 +82,19 @@
     {% else %}<span class="conn-badge conn-wait" id="cert-header-badge">⚠ Anbindung ausstehend</span>{% endif %}
   </h2>
   <p class="hint" style="margin-bottom:12px">
-    S/MIME-Zertifikate über den Anbieter beziehen — nutzt die <strong>Anbindung oben</strong>
+    S/MIME-Zertifikate über EXO Signature HUB beziehen — nutzt die <strong>Anbindung oben</strong>
     (keine zweite Registrierung). Der private Schlüssel wird immer lokal erzeugt und verlässt das
     Gateway nie. Pro Postfach im S/MIME-Tab wählbar (dort erst, sobald hier eingerichtet).
   </p>
 
   <div class="settings-row" style="margin-bottom:10px"><label>Bezugsweg</label>
     <select id="sec-mode" onchange="sectigoModeChanged()" style="width:100%;max-width:420px;font-size:13px">
-      <option value="reseller">Verwaltet über den Anbieter — Standard</option>
+      <option value="reseller">Verwaltet über EXO Signature HUB — Standard</option>
       <option value="direct">Eigenes CA-Konto (direkt)</option>
     </select>
   </div>
 
-  <!-- Verwaltet: Anbieter-Auswahl + kostenpflichtige Freischaltung -->
+  <!-- Verwaltet: CA-Auswahl + kostenpflichtige Freischaltung -->
   <div id="sec-managed-fields">
     <div class="settings-row" style="margin-bottom:10px"><label>Zertifizierungsstelle</label>
       <select id="cert-provider" style="width:100%;max-width:420px;font-size:13px">
@@ -123,7 +125,7 @@
       <strong>Rechnungsstellung (statt Prepaid)</strong>
       <p class="hint" style="margin:2px 0 8px">
         Auf Wunsch stellen wir statt Prepaid-Guthaben auf Rechnung um — dafür braucht es eine
-        kurze Prüfung/Freigabe durch den Anbieter.
+        kurze Prüfung/Freigabe durch EXO Signature HUB.
       </p>
       <div id="cert-invoice-request-body"></div>
     </div>
@@ -283,11 +285,11 @@ async function hubPollClaim(manual){
 }
 async function hubDisconnect(){
   if(!confirm('Anbindung an den Hub entfernen? Der lokale API-Key wird gelöscht.'))return;
-  const full=confirm('Zusätzlich das Konto beim Anbieter vollständig kündigen (deregistrieren)?\n\n'
+  const full=confirm('Zusätzlich das Konto bei EXO Signature HUB vollständig kündigen (deregistrieren)?\n\n'
     +'Das kündigt auch den Zertifikatsbezug — verbleibendes Guthaben wird erstattet.\n\n'
     +'OK = vollständig kündigen · Abbrechen = nur dieses Gateway trennen (Konto bleibt bestehen, später wieder verbindbar)');
   const d=await (await fetch('/api/hub/disconnect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({close_remote:full})})).json();
-  if(d.ok){ _hubMsg((full?'Anbindung entfernt und Konto beim Anbieter gekündigt.':'Anbindung entfernt.')+' Seite lädt neu…',true); setTimeout(()=>location.reload(),1200);} else _hubMsg('Fehler.',false); }
+  if(d.ok){ _hubMsg((full?'Anbindung entfernt und Konto bei EXO Signature HUB gekündigt.':'Anbindung entfernt.')+' Seite lädt neu…',true); setTimeout(()=>location.reload(),1200);} else _hubMsg('Fehler.',false); }
 async function hubSaveKey() { const key=document.getElementById('hub-key').value; if(!key){_hubMsg('Bitte API-Key eingeben.',false);return;}
   const d=await (await fetch('/api/hub/api-key',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({api_key:key})})).json();
   if(d.ok){document.getElementById('hub-key').value='';_hubMsg('API-Key gespeichert. Bitte Seite neu laden.',true);} else _hubMsg('Fehler beim Speichern.',false); }
@@ -376,7 +378,7 @@ function _renderBillingSection(d) {
     billBox.style.display='none'; reqBox.style.display='block';
     const body=document.getElementById('cert-invoice-request-body');
     if(d.invoice_requested_at){
-      body.innerHTML='<span class="muted">Antrag gestellt am '+d.invoice_requested_at.slice(0,10)+' — wartet auf Freigabe durch den Anbieter.</span>';
+      body.innerHTML='<span class="muted">Antrag gestellt am '+d.invoice_requested_at.slice(0,10)+' — wartet auf Freigabe durch EXO Signature HUB.</span>';
     } else {
       body.innerHTML='<button class="btn secondary" onclick="certRequestInvoice()">Rechnungsstellung beantragen</button>';
     }
@@ -384,7 +386,7 @@ function _renderBillingSection(d) {
 }
 async function certRequestInvoice() {
   const d=await (await fetch('/api/hub/cert/request-invoice',{method:'POST'})).json();
-  if(d.ok){ _certMsg('Antrag gestellt — der Anbieter wurde benachrichtigt.',true); certLoadEligibility(); }
+  if(d.ok){ _certMsg('Antrag gestellt — EXO Signature HUB wurde benachrichtigt.',true); certLoadEligibility(); }
   else { _certMsg('Fehler: '+(d.error||'Unbekannt'),false); }
 }
 let _billingFilled=false;
