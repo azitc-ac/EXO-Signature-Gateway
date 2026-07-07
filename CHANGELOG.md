@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.48 — 2026-07-07 — fix: "Lokaler Schlüssel" fälschlich bei KV-migrierten Schlüsseln mit Backup
+
+`_has_local_key()` nutzte `get_signing_paths(..., allow_backup=True)` — das
+zählt auch `key.pem.bak` (Backup-Kopie eines nach Key Vault migrierten
+Schlüssels) als "lokal". Bei Alexander: nur `cert.pem` + `key.pem.bak`
+vorhanden (kein `key.pem`) — der Schlüssel liegt also tatsächlich in Key
+Vault, der Health-Check zeigte aber "Key Vault: skip — Lokaler Schlüssel,
+nicht in Key Vault" (Rückwärts-Aussage). Jetzt `allow_backup=False`: nur ein
+echtes `key.pem` zählt als lokal, ein `key.pem.bak` löst den kv_sign-Test
+korrekt aus.
+
+---
+
 ## v1.5.47 — 2026-07-07 — fix: Aussteller-Anzeige zu spärlich (nur CN)
 
 v1.5.46 zeigte beim Aussteller nur die CN (z.B. "IRE1") — zu wenig, welche CA

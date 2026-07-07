@@ -320,13 +320,19 @@ def _check_smime_cert(email: str) -> dict:
 # ── Check 6: smime_key ────────────────────────────────────────────────────────
 
 def _has_local_key(email: str) -> bool:
-    """True if this mailbox's signing key is stored locally (cert.pem/key.pem
-    or a key.pem.bak backup) — i.e. it is NOT Key-Vault-backed. Key Vault being
+    """True only if this mailbox's default signing key is a REAL local key
+    (key.pem present) — i.e. it is NOT Key-Vault-backed. Key Vault being
     configured globally (KEYVAULT_URL set) does not mean every S/MIME-active
-    mailbox's key actually lives there; some may never have been migrated."""
+    mailbox's key actually lives there; some may never have been migrated.
+
+    A key.pem.bak WITHOUT key.pem means the key WAS migrated to Key Vault and
+    only a local backup remains — that mailbox's signing happens in KV, so it
+    must NOT count as "local" here (allow_backup=False), or the kv_sign check
+    gets skipped with a misleading "local key" message for an account whose
+    key is actually in Key Vault."""
     import smime_store
     try:
-        return bool(smime_store.get_signing_paths(email, allow_backup=True))
+        return smime_store.get_signing_paths(email, allow_backup=False) is not None
     except Exception:
         return False
 
