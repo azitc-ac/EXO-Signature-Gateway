@@ -5,7 +5,7 @@
 > **License:** [PolyForm Internal Use License 1.0.0](LICENSE.md) (Community
 > Edition) — free for your own/internal use (including within a company)
 > for **up to 100 mailboxes**. Beyond that, a paid Commercial License is
-> required — contact zarenko@gmx.net. Not permitted regardless of size:
+> required — contact alexander@zarenko.net. Not permitted regardless of size:
 > redistribution, operation as a service for third parties, or
 > selling/offering as a service by anyone other than the licensor.
 

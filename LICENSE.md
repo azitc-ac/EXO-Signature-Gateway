@@ -8,7 +8,7 @@ mailboxes with signature and/or S/MIME processing enabled, within one
 organization).
 
 Organizations exceeding 100 mailboxes require a separate, paid Commercial
-License from the licensor. Contact zarenko@gmx.net to obtain one.
+License from the licensor. Contact alexander@zarenko.net to obtain one.
 
 This limit is in addition to, and does not relax, the restrictions in the
 PolyForm Internal Use License below — redistribution and operating the

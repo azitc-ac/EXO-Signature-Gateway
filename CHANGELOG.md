@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.50 — 2026-07-08 — legal: Lizenz-Kontaktadresse korrigiert
+
+Kontaktadresse in LICENSE.md/README.md/README.de.md von zarenko@gmx.net auf
+alexander@zarenko.net geändert.
+
+---
+
 ## v1.5.49 — 2026-07-07 — legal: Community Edition — kostenlos bis 100 Postfächer
 
 LICENSE.md, README.md und README.de.md ergänzt: PolyForm Internal Use License

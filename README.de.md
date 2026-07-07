@@ -5,7 +5,7 @@
 > **Lizenz:** [PolyForm Internal Use License 1.0.0](LICENSE.md) (Community
 > Edition) — frei nutzbar für eigene/interne Zwecke (auch im Unternehmen)
 > für **bis zu 100 Postfächer**. Darüber hinaus ist eine kostenpflichtige
-> kommerzielle Lizenz erforderlich — Kontakt: zarenko@gmx.net. Unabhängig
+> kommerzielle Lizenz erforderlich — Kontakt: alexander@zarenko.net. Unabhängig
 > von der Größe nicht erlaubt: Weiterverteilung, Betrieb als Dienstleistung
 > für Dritte oder Verkauf/Anbieten als Service durch andere als den
 > Lizenzgeber.
