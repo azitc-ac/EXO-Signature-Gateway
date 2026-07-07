@@ -5,6 +5,40 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.62 — 2026-07-07 — fix: ROOT CAUSE der Mail-Loops — mark_as_signed_bytes zerstörte gefaltete Header
+
+Die eigentliche Ursache aller X-Sig-Applied-Loop-Probleme gefunden und
+behoben (per Roh-Header-Analyse einer durchgelaufenen Mail nachgewiesen,
+nicht vermutet):
+
+`loop_detector.mark_as_signed_bytes()` fügte den Header NACH der ersten
+CRLF-Zeile ein. Eingehende Exchange-Mails beginnen aber praktisch immer mit
+einem GEFALTETEN (mehrzeiligen) `Received:`-Header. Das Einfügen mittendrin
+zerriss die Faltung: die Fortsetzungszeile („ by <host> … id …;") wurde in
+den `X-Sig-Applied`-Wert hineingefaltet → aus „1" wurde
+„1 by AMBPR05MB… id 15.21…;". Dieser korrumpierte Wert:
+  - matchte die Transportregel-Ausnahme (`ExceptIfHeaderMatchesPatterns=1`)
+    nicht mehr zuverlässig → Regel griff erneut → Mail zurück zum Gateway,
+  - brach zusätzlich die interne `is_signed()`-Prüfung (`== "1"`).
+Beides führte je nach Faltung des ersten Headers zu Loops — erklärt, warum
+das Problem intermittierend war und gestern erst über den 587-Pfad sichtbar
+wurde.
+
+Fix: Header wird jetzt VORANGESTELLT (erster Header im Block) — die einzige
+Position, die niemals eine Faltung zerreißen kann. Zusätzlich: nutzt das
+Zeilenende der Nachricht (kein bare-LF), idempotent (kein Doppel-Header).
+Betraf FÜNF Roh-Weiterleitungspfade (ACME-Reply, Auto-Submitted, Kalender,
+internal_only_skip, KeyVault-S/MIME). Die Message-Objekt-Variante
+`mark_as_signed()` war nie betroffen (daher lief der 587-Signatur-Pfad
+korrekt).
+
+Bedeutung für den Graph-only-Reply-All-Fall (v1.5.60/61): mit korrektem
+X-Sig-Applied könnte der Send-to-all-Ansatz jetzt tatsächlich funktionieren
+(die zurückgeroutete interne Fork wäre nicht mehr passiert). GRAPH_SEND_TO_
+ALL_FALLBACK bleibt vorerst trotzdem Default-aus, bis erneut sauber getestet.
+
+---
+
 ## v1.5.61 — 2026-07-07 — hotfix: Graph-Send-to-all-Fallback verursachte Mailverlust — hinter Default-aus-Schalter
 
 Live-Test des v1.5.60-Fallbacks auf dem Raspi (Graph-Modus, App ohne
