@@ -533,15 +533,33 @@ class SignatureHandler:
                 import exo_mailboxes
                 _known = exo_mailboxes.known_addresses()
                 if _known and all(r.strip().lower() in _known for r in recipients):
-                    log.debug("All recipients internal, SIGN_INTERNAL_ONLY_MAIL off — "
-                              "forwarding as-is: %s", recipients)
-                    # mark_as_signed_bytes is MANDATORY here: the forwarded copy
-                    # re-enters Exchange transport (esp. via the 587 path), and
-                    # without X-Sig-Applied the FromMemberOf rule routes it right
-                    # back to us — infinite loop (happened live on 2026-07-07).
-                    reinject.send(sender, recipients, loop_detector.mark_as_signed_bytes(raw))
-                    _audit("internal_only_skip")
-                    return "250 OK"
+                    # Exception: a bifurcated fork of a MIXED mail has an
+                    # all-internal ENVELOPE but external recipients in its
+                    # To/Cc HEADERS. In send_to_all mode that fork must be
+                    # SIGNED and sent-to-all (reinject handles it), not skipped
+                    # unsigned — otherwise the externals would receive the
+                    # unsigned copy. Only a TRULY internal-only mail (no
+                    # external in the headers) is skipped here.
+                    import reinject as _rj
+                    _fork_mode = (settings_store.get("GRAPH_MIXED_FORK_MODE") or "scoped").strip().lower()
+                    _rmode = settings_store.get("REINJECT_MODE") or "smtp"
+                    _hdr_rcpts = _rj._header_recipients(raw)
+                    _hdr_all_internal = (not _hdr_rcpts) or all(a in _known for a in _hdr_rcpts)
+                    _is_mixed_fork = (_rmode in ("graph", "imap")
+                                       and _fork_mode == "send_to_all"
+                                       and not _hdr_all_internal)
+                    if not _is_mixed_fork:
+                        log.debug("All recipients internal, SIGN_INTERNAL_ONLY_MAIL off — "
+                                  "forwarding as-is: %s", recipients)
+                        # mark_as_signed_bytes is MANDATORY here: the forwarded copy
+                        # re-enters Exchange transport (esp. via the 587 path), and
+                        # without X-Sig-Applied the FromMemberOf rule routes it right
+                        # back to us — infinite loop (happened live on 2026-07-07).
+                        reinject.send(sender, recipients, loop_detector.mark_as_signed_bytes(raw))
+                        _audit("internal_only_skip")
+                        return "250 OK"
+                    log.debug("Bifurcated internal fork of a mixed mail (send_to_all) — "
+                              "signing + send-to-all instead of skipping: %s", recipients)
 
             # ── Early #enc# cert check ────────────────────────────────────────
             subject = _decode_subject(msg.get("Subject", ""))

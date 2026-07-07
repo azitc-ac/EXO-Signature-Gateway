@@ -1,6 +1,8 @@
 import smtplib
 import ssl
 import logging
+import threading
+import time as _time
 from pathlib import Path
 
 import config
@@ -8,6 +10,81 @@ import settings_store
 import stats
 
 log = logging.getLogger(__name__)
+
+# Mixed-fork "send_to_all" registry: Message-ID -> monotonic timestamp of a
+# CONFIRMED send-to-all. When Exchange bifurcates a mixed internal/external
+# mail, both forks reach the gateway with the same Message-ID. In send_to_all
+# mode the FIRST fork signs and sends to ALL header recipients (one delivery
+# per recipient, verified); the sibling then finds the MID here and drops
+# (its recipients are already covered). Only CONFIRMED (Graph-accepted) sends
+# register — a failed send never registers, so a sibling never drops into a
+# hole (fail-safe: it retries or delivers scoped, never loss).
+_mixed_fork_registry: dict[str, float] = {}
+_mixed_fork_lock = threading.Lock()
+_MIXED_FORK_TTL = 180  # seconds
+
+
+def _message_id(content_bytes: bytes) -> str:
+    import email as _em
+    try:
+        return (_em.message_from_bytes(content_bytes).get("Message-ID") or "").strip()
+    except Exception:
+        return ""
+
+
+def _handle_mixed_fork(mail_from: str, rcpt_tos: list[str],
+                        content_bytes: bytes, force_mime: bool) -> bool:
+    """send_to_all handling of ONE bifurcated fork.
+
+    Returns True  -> fork fully handled (this fork became the send-to-all
+                     carrier, OR a sibling already did a confirmed send-to-all
+                     so this fork is safely dropped).
+    Returns False -> caller must deliver THIS fork normally (scoped): the
+                     fail-safe path when no confirmed send-to-all exists (no
+                     Message-ID, no header recipients, or the send-to-all
+                     Graph call failed). Never drops without a confirmed
+                     alternative delivery -> never loses mail.
+    """
+    import email as _em
+    import graph_reinject
+
+    mid = _message_id(content_bytes)
+    if not mid:
+        return False  # cannot dedup safely -> deliver scoped (fail-safe)
+
+    now = _time.monotonic()
+    with _mixed_fork_lock:
+        for k in [k for k, t in _mixed_fork_registry.items() if now - t > _MIXED_FORK_TTL]:
+            del _mixed_fork_registry[k]
+        if mid in _mixed_fork_registry:
+            log.info("Mixed-fork: sibling fork for MID %.24s already covered by a "
+                     "confirmed send-to-all — dropping %s (Reply-All preserved)",
+                     mid, rcpt_tos)
+            return True
+
+    header_rcpts = _header_recipients(content_bytes)
+    if not header_rcpts:
+        return False  # nothing to expand to -> deliver scoped (fail-safe)
+
+    _ct = _em.message_from_bytes(content_bytes).get_content_type().lower()
+    log.info("Mixed-fork: first fork for MID %.24s — send-to-all %s -> %s "
+             "(signed, full headers)", mid, rcpt_tos, header_rcpts)
+    if force_mime or _ct in ("multipart/signed", "application/pkcs7-mime"):
+        ok = graph_reinject.send_via_graph_mime(mail_from, header_rcpts, content_bytes)
+    else:
+        ok = graph_reinject.send_via_graph(mail_from, header_rcpts, content_bytes)
+
+    if ok:
+        stats.increment("graph_api_calls")
+        with _mixed_fork_lock:
+            _mixed_fork_registry[mid] = _time.monotonic()  # confirm -> siblings drop
+        return True
+
+    # Send-to-all FAILED — do NOT register (so a sibling can retry and no fork
+    # drops into a hole). Fall through to scoped delivery of THIS fork.
+    log.warning("Mixed-fork: send-to-all failed for MID %.24s — delivering this "
+                "fork scoped instead (fail-safe, no loss)", mid)
+    return False
 
 
 def _header_recipients(content_bytes: bytes) -> list[str]:
@@ -79,62 +156,26 @@ def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
         if smtp_submit.deliver_outbound_as_sender(mail_from, rcpt_tos, content_bytes):
             return
 
-        # ── Graph-only fallback (send-to-all + fork-drop) ─────────────────
-        # ⚠️ DEFAULT OFF — live test on 2026-07-07 revealed MAIL LOSS: the
-        # send-to-all copy's own internal-recipient fork gets routed back to
-        # the gateway by Exchange (X-Sig-Applied apparently not honoured at
-        # rule evaluation for Graph raw-MIME submissions, unlike 587
-        # submissions where it demonstrably works), and the drop logic then
-        # discards it — the internal recipient ends up with ZERO copies
-        # (verified via mailbox check + message trace). Until the returning-
-        # fork behaviour is fully understood (Get-MessageTraceDetail
-        # investigation pending), the safe default is the scoped-header path
-        # below: delivery always correct, no duplicates, only Reply-All
-        # incomplete in pure-Graph mode. 587 (SMTP.SendAsApp) remains the
-        # production-ready Reply-All solution.
-        import exo_mailboxes
-        known = exo_mailboxes.known_addresses()
-        if not settings_store.get("GRAPH_SEND_TO_ALL_FALLBACK"):
-            log.info("587 unavailable, GRAPH_SEND_TO_ALL_FALLBACK off — using "
-                     "scoped %s path (headers reduced to envelope; Reply-All "
-                     "incomplete for this fork)", mode)
-        elif known:
-            all_internal = all(r.strip().lower() in known for r in rcpt_tos)
-            if all_internal:
-                # Internal-only fork of a mixed send: the sibling fork
-                # carrying the external recipients does a send-to-all (below)
-                # that already covers these recipients with full headers —
-                # delivering this fork too would duplicate. Drop it.
-                log.info("Bifurcated internal-only fork dropped (no 587) — "
-                         "recipients %s are covered by the external fork's "
-                         "send-to-all delivery", rcpt_tos)
+        # ── Graph-only handling of bifurcated forks (no SMTP.SendAsApp) ────
+        # GRAPH_MIXED_FORK_MODE (see settings_store):
+        #   "send_to_all" — first fork signs + sends to ALL header recipients
+        #      (delivers exactly once per recipient via the X-Sig-Applied rule
+        #      exception, verified no round-trip); siblings drop once the
+        #      send-to-all is CONFIRMED; a failed send-to-all falls through to
+        #      scoped delivery (never loss). Full Reply-All. Slight delay
+        #      possible when the two forks arrive a few seconds apart.
+        #   "scoped" (default) — fall through to the per-mode path below, which
+        #      reduces headers to this fork's envelope: no duplicate, no loss,
+        #      Reply-All incomplete for this fork.
+        fork_mode = (settings_store.get("GRAPH_MIXED_FORK_MODE") or "scoped").strip().lower()
+        if fork_mode == "send_to_all":
+            if _handle_mixed_fork(mail_from, rcpt_tos, content_bytes, force_mime):
                 return
-            header_rcpts = _header_recipients(content_bytes)
-            if header_rcpts:
-                # Send-to-all must go out as ONE Graph send with the full
-                # header list — the imap path would split it again (APPEND
-                # for internal + header-scoped Graph for external), breaking
-                # header completeness. So bypass the per-mode flow entirely.
-                import email as _em
-                import graph_reinject
-                log.info("Graph send-to-all fallback for bifurcated fork: "
-                         "expanding delivery %s → %s (full headers, MID-deduped)",
-                         rcpt_tos, header_rcpts)
-                _ct = _em.message_from_bytes(content_bytes).get_content_type().lower()
-                if force_mime or _ct in ("multipart/signed", "application/pkcs7-mime"):
-                    ok = graph_reinject.send_via_graph_mime(mail_from, header_rcpts, content_bytes)
-                else:
-                    ok = graph_reinject.send_via_graph(mail_from, header_rcpts, content_bytes)
-                if ok:
-                    stats.increment("graph_api_calls")
-                    return
-                raise RuntimeError(
-                    "Graph send-to-all for bifurcated fork failed — "
-                    f"recipients {header_rcpts}")
+            log.info("Mixed-fork send_to_all not applicable/failed — scoped %s "
+                     "delivery for %s (fail-safe)", mode, rcpt_tos)
         else:
-            log.warning("Bifurcated fork but mailbox cache empty — cannot "
-                        "classify internal/external, using scoped %s path "
-                        "(headers reduced to envelope)", mode)
+            log.info("587 unavailable, GRAPH_MIXED_FORK_MODE=scoped — scoped %s "
+                     "delivery for %s (Reply-All incomplete)", mode, rcpt_tos)
 
     if mode == "graph":
         import email as _em

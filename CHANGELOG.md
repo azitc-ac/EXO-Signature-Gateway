@@ -5,6 +5,34 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.64 — 2026-07-08 — feat: GRAPH_MIXED_FORK_MODE=send_to_all (Reply-All im Graph-Modus ohne 587)
+
+Ersetzt das fehlerhafte, verlustbehaftete GRAPH_SEND_TO_ALL_FALLBACK durch
+ein sauberes, fail-safe Design. Neue Einstellung `GRAPH_MIXED_FORK_MODE`:
+
+- **"scoped"** (Default): bisheriges Verhalten — jede bifurkierte Fork wird
+  auf ihre Envelope-Empfänger beschnitten. Kein Duplikat, kein Verlust,
+  Reply-All unvollständig.
+- **"send_to_all"**: Bei gemischten intern/extern-Mails wird die ERSTE
+  eintreffende Fork signiert und an ALLE Header-Empfänger zugestellt
+  (Send-to-all). Kernmessung 2026-07-08 bestätigt: der signierte Send-to-all
+  wird über die X-Sig-Applied-Regel-Ausnahme DIREKT zugestellt — genau 1
+  Kopie pro internem Empfänger, KEIN Rücklauf, KEIN Loop (die früher
+  vermutete Doppelzustellung war ein Self-Addressing-Artefakt des Tests).
+  Die Geschwister-Fork wird erst verworfen, wenn der Send-to-all bestätigt
+  ist (Registry nach Message-ID); scheitert der Send-to-all, wird die Fork
+  scoped zugestellt — **nie Verlust**. Volle Reply-All für alle Empfänger.
+
+Reihenfolge-unabhängig: egal welche Fork zuerst kommt, sie wird zur
+Send-to-all-Trägerin, die andere fällt weg. handler.py signiert dafür jetzt
+auch die interne Fork einer gemischten Mail (statt sie unsigniert zu
+überspringen), damit Externe eine signierte Kopie bekommen.
+
+Fail-safe-Garantie: dropt nie ohne bestätigte Ersatzzustellung. Worst Case
+ein Duplikat (harmlos) oder leichte Verzögerung — nie Mailverlust.
+
+---
+
 ## v1.5.63 — 2026-07-08 — fix: stiller Mailverlust an externe Empfänger im Graph-Modus (Dedup-Bug)
 
 Root Cause per Live-Log gefunden: `graph_reinject._is_first_sendmail()`

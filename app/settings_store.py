@@ -49,9 +49,20 @@ DEFAULTS: dict = {
     # ── Re-injection ─────────────────────────────────────────────────────────
     "REINJECT_MODE": "smtp",       # "smtp", "graph", or "imap" (smtp587 = legacy alias for imap)
     "GRAPH_SMTP_FALLBACK": False,  # Allow SMTP fallback when Graph re-inject fails
-    "GRAPH_SEND_TO_ALL_FALLBACK": False,  # EXPERIMENTAL, verursacht ohne weiteren Fix MAILVERLUST
-                                           # (siehe reinject.py) — Reply-All-Fix für Graph-only-Mode;
-                                           # produktionsreif ist nur der 587-Weg (SMTP.SendAsApp)
+    # Graph-Modus, Behandlung gemischter intern/extern-Mails (bifurkierte Forks)
+    # ohne SMTP.SendAsApp. Werte:
+    #   "scoped"      — Default. Jede Fork wird auf ihre Envelope-Empfänger
+    #                   beschnitten zugestellt. Kein Duplikat, keine Verzögerung,
+    #                   aber Externe sehen den internen Mitempfänger NICHT
+    #                   (Reply-All unvollständig).
+    #   "send_to_all" — Erste eintreffende Fork wird signiert und an ALLE
+    #                   Header-Empfänger zugestellt (Send-to-all, liefert direkt
+    #                   über die X-Sig-Applied-Ausnahme, verifiziert genau 1 Kopie
+    #                   pro internem Empfänger). Geschwister-Forks werden verworfen,
+    #                   sobald der Send-to-all bestätigt ist — sonst zugestellt
+    #                   (fail-safe, nie Verlust). Volle Reply-All. Leichte
+    #                   Verzögerung möglich, wenn Forks nacheinander eintreffen.
+    "GRAPH_MIXED_FORK_MODE": "scoped",
     "RELAY_USER": "",              # Optional SMTP AUTH user (e.g. SES "apikey")
     "RELAY_PASSWORD": "",          # Optional SMTP AUTH password
     # ── SMTP submission (port 587) for inbound S/MIME from external senders ───
