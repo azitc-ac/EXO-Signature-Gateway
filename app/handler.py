@@ -535,7 +535,11 @@ class SignatureHandler:
                 if _known and all(r.strip().lower() in _known for r in recipients):
                     log.debug("All recipients internal, SIGN_INTERNAL_ONLY_MAIL off — "
                               "forwarding as-is: %s", recipients)
-                    reinject.send(sender, recipients, raw)
+                    # mark_as_signed_bytes is MANDATORY here: the forwarded copy
+                    # re-enters Exchange transport (esp. via the 587 path), and
+                    # without X-Sig-Applied the FromMemberOf rule routes it right
+                    # back to us — infinite loop (happened live on 2026-07-07).
+                    reinject.send(sender, recipients, loop_detector.mark_as_signed_bytes(raw))
                     _audit("internal_only_skip")
                     return "250 OK"
 
