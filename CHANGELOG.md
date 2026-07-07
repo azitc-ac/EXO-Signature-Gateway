@@ -5,6 +5,31 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.61 — 2026-07-07 — hotfix: Graph-Send-to-all-Fallback verursachte Mailverlust — hinter Default-aus-Schalter
+
+Live-Test des v1.5.60-Fallbacks auf dem Raspi (Graph-Modus, App ohne
+SMTP.SendAsApp) deckte MAILVERLUST auf: der interne Empfänger einer
+gemischten Mail erhielt NULL Kopien (per Postfach-Check + Message Trace
+verifiziert). Ursache: die interne Fork UNSERER EIGENEN Send-to-all-Kopie
+wird von Exchange erneut zum Gateway geroutet (X-Sig-Applied wird bei
+Graph-raw-MIME-Submissions an der Transportregel offenbar nicht wirksam —
+anders als bei 587-Submissions, wo es nachweislich greift) — und die
+Drop-Logik verwarf auch diese Fork. Beide Zustellwege des internen
+Empfängers endeten damit am Gateway.
+
+Hotfix: der Send-to-all+Drop-Fallback liegt jetzt hinter
+`GRAPH_SEND_TO_ALL_FALLBACK` (Default: AUS, als experimentell markiert).
+Standard-Verhalten ohne 587 ist wieder das sichere Header-Scoping
+(Zustellung immer korrekt, keine Duplikate, nur Reply-All in reinen
+Graph-Deployments unvollständig). Der 587-Weg (SMTP.SendAsApp) bleibt die
+produktionsreife Reply-All-Lösung — auf der VM aktiv und getestet.
+
+Offen: Get-MessageTraceDetail-Analyse, warum die Rückroutung der
+Send-to-all-Kopie nur die interne Fork betrifft (externe Zustellung der
+Kopie kam an) — erst danach ggf. neuer Anlauf für den Graph-only-Fall.
+
+---
+
 ## v1.5.60 — 2026-07-07 — feat: Graph-only Reply-All-Fix (Send-to-all + Fork-Drop)
 
 Vervollständigt den Reply-All-Fix für Deployments OHNE SMTP.SendAsApp

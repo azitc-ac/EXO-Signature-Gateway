@@ -79,10 +79,26 @@ def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
         if smtp_submit.deliver_outbound_as_sender(mail_from, rcpt_tos, content_bytes):
             return
 
-        # ── Graph-only fallback ───────────────────────────────────────────
+        # ── Graph-only fallback (send-to-all + fork-drop) ─────────────────
+        # ⚠️ DEFAULT OFF — live test on 2026-07-07 revealed MAIL LOSS: the
+        # send-to-all copy's own internal-recipient fork gets routed back to
+        # the gateway by Exchange (X-Sig-Applied apparently not honoured at
+        # rule evaluation for Graph raw-MIME submissions, unlike 587
+        # submissions where it demonstrably works), and the drop logic then
+        # discards it — the internal recipient ends up with ZERO copies
+        # (verified via mailbox check + message trace). Until the returning-
+        # fork behaviour is fully understood (Get-MessageTraceDetail
+        # investigation pending), the safe default is the scoped-header path
+        # below: delivery always correct, no duplicates, only Reply-All
+        # incomplete in pure-Graph mode. 587 (SMTP.SendAsApp) remains the
+        # production-ready Reply-All solution.
         import exo_mailboxes
         known = exo_mailboxes.known_addresses()
-        if known:
+        if not settings_store.get("GRAPH_SEND_TO_ALL_FALLBACK"):
+            log.info("587 unavailable, GRAPH_SEND_TO_ALL_FALLBACK off — using "
+                     "scoped %s path (headers reduced to envelope; Reply-All "
+                     "incomplete for this fork)", mode)
+        elif known:
             all_internal = all(r.strip().lower() in known for r in rcpt_tos)
             if all_internal:
                 # Internal-only fork of a mixed send: the sibling fork
