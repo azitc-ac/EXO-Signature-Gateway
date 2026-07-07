@@ -1962,6 +1962,19 @@ async def api_set_maintenance_mode(request: Request, _: str = Depends(_require_a
     return JSONResponse({"ok": True, "maintenance_mode": enabled})
 
 
+@app.post("/api/settings/partial")
+async def api_settings_partial(request: Request, _: str = Depends(_require_admin)):
+    """Generic single/multi-key settings update for simple admin toggles
+    (Lexware-Formatkorrektur, Logging, Let's Encrypt domain/email, …) that
+    don't warrant their own dedicated endpoint. Caller is trusted to send
+    only known setting keys — this is admin-authenticated already."""
+    body = await request.json()
+    if not isinstance(body, dict) or not body:
+        raise HTTPException(400, "Leerer oder ungültiger Request-Body")
+    settings_store.update(body)
+    return JSONResponse({"ok": True})
+
+
 @app.post("/api/settings/sender-mailboxes/refresh")
 async def api_refresh_sender_mailboxes(user: str = Depends(_require_admin)):
     import asyncio

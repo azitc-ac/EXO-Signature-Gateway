@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.55 — 2026-07-07 — fix: Lexware-Formatkorrektur-Haken (und Logging/Let's-Encrypt-Felder) speicherten nie
+
+`POST /api/settings/partial` — der Endpunkt, den der Lexware-Korrektur-Haken
+im Erweitert-Tab beim Speichern aufruft — existierte im Backend gar nicht
+(404, nie implementiert). Betraf still drei Stellen im selben Tab: Lexware-
+Formatkorrektur, Logging-Einstellungen (Level/Aufbewahrung/Zeitzone) und
+Let's-Encrypt-Domain/E-Mail — alle drei riefen denselben nicht existierenden
+Endpunkt auf. Jetzt als generischer Mehrfeld-Settings-Update ergänzt (analog
+zu `/api/maintenance/mode`).
+
+---
+
 ## v1.5.54 — 2026-07-07 — fix: Mail kam bei gemischten intern/extern-Empfängern doppelt an
 
 Root Cause (bestätigt per Get-TransportRule + mail_audit.db-Analyse): Die
