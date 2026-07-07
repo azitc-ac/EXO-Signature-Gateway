@@ -155,6 +155,20 @@ def deliver_inbound_imap(rcpt_to: str, content_bytes: bytes) -> bool:
 
     Requires IMAP.AccessAsApp application permission on at least one app.
     """
+    # Skip the attempt entirely for recipients we already know aren't in this
+    # tenant — IMAP APPEND only ever works for same-tenant mailboxes (see
+    # reinject.py), so trying it for a known-external address just wastes a
+    # token acquisition + IMAP round trip and logs a warning for something
+    # that's expected behaviour, not a problem. Only applies once the mailbox
+    # cache is actually populated — an empty cache means "unknown", so fall
+    # back to the old try-it-anyway behaviour rather than risk a false skip.
+    import exo_mailboxes
+    known = exo_mailboxes.known_addresses()
+    if known and rcpt_to.strip().lower() not in known:
+        log.info("IMAP inject: skipped for %s — not a known mailbox in this tenant, "
+                  "using Graph directly", rcpt_to)
+        return False
+
     host = settings_store.get("SMTP_SUBMIT_HOST") or "outlook.office365.com"
     tokens = _acquire_imap_tokens()
     if not tokens:

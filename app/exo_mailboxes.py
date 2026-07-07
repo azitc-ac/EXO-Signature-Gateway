@@ -139,6 +139,22 @@ def list_mailboxes(force: bool = False) -> list[dict]:
         return mbs or _cache
 
 
+def known_addresses() -> set[str]:
+    """All known primary + alias addresses from the CURRENT cache snapshot,
+    lowercased. Unlike list_mailboxes(), this NEVER triggers a PowerShell
+    fetch — safe to call from the SMTP hot path (e.g. to decide whether IMAP
+    APPEND is even worth attempting for a given recipient). Empty set if the
+    cache hasn't been populated yet (callers must treat that as "unknown",
+    not "no mailboxes exist")."""
+    with _lock:
+        result: set[str] = set()
+        for m in _cache:
+            if m.get("primary"):
+                result.add(m["primary"])
+            result.update(m.get("addresses") or [])
+        return result
+
+
 def resolve_guid(email: str) -> str | None:
     """ExchangeGuid for ANY of a mailbox's SMTP addresses (primary or alias).
     This is what makes config survive rename/address changes."""

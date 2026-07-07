@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.53 — 2026-07-07 — fix: unnötige IMAP-APPEND-Versuche für bekannt externe Empfänger
+
+IMAP APPEND funktioniert grundsätzlich nur für Postfächer im eigenen Tenant —
+für externe Empfänger war ein Versuch (inkl. Token-Beschaffung + IMAP-
+Verbindung) und die WARNING-Logzeile "all tokens exhausted" also von
+vornherein aussichtslos, reines Rauschen im Log. Neue `exo_mailboxes.
+known_addresses()` liest den bereits vorhandenen (durch den Scheduler warm
+gehaltenen) Postfach-Cache aus, ohne je eine PowerShell-Session auszulösen
+(sicher für den Mail-Hot-Path). `deliver_inbound_imap()` überspringt den
+Versuch jetzt komplett für Empfänger, die nachweislich kein Postfach in
+diesem Tenant sind — Log-Zeile dafür nur noch INFO statt WARNING. Bei leerem
+Cache (noch nicht aufgewärmt) bleibt das alte Verhalten (Versuch trotzdem)
+erhalten, um keine Regression zu riskieren.
+
+---
+
 ## v1.5.52 — 2026-07-07 — feat: Problembeschreibung beim Support-Bundle-Upload
 
 Neues optionales Mehrzeilen-Textfeld im Erweitert-Tab beim "Bundle an Hub
