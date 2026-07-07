@@ -462,15 +462,25 @@ function _renderCertSteps(d) {
     s2body.innerHTML='<span class="muted">Abrechnung: Rechnung (nach Vertrag) — kein Guthaben nötig.</span>';
     return;
   }
-  s2dot.style.background = certOn ? '#166534' : '#e2e8f0';
-  s2dot.style.color = certOn ? '#fff' : '#334155';
-  s2dot.textContent = certOn ? '✓' : '2';
-  const bal=((d.balance_cents||0)/100).toFixed(2), price=((d.cert_price_cents||0)/100).toFixed(2);
+  // A price of 0 means "unset" (no balance gate, see CERT_PRICE_CENTS) — only
+  // treat balance as insufficient when a real price is configured.
+  const priceCents = d.cert_price_cents||0;
+  const balanceOk = priceCents===0 ? true : (d.balance_cents||0) >= priceCents;
+  if(certOn && balanceOk){
+    s2dot.style.background='#166534'; s2dot.style.color='#fff'; s2dot.textContent='✓';
+  } else if(certOn && !balanceOk){
+    s2dot.style.background='#fef3c7'; s2dot.style.color='#92400e'; s2dot.textContent='⚠';
+  } else {
+    s2dot.style.background='#e2e8f0'; s2dot.style.color='#334155'; s2dot.textContent='2';
+  }
+  const bal=((d.balance_cents||0)/100).toFixed(2), price=(priceCents/100).toFixed(2);
   const topupHtml = d.stripe_enabled
     ? '<input type="number" id="cert-topup-amount" min="10" step="1" value="20" style="width:78px"> € <button class="btn secondary" onclick="certTopup()">Guthaben aufladen</button>'
     : '';
+  const lowBalanceHint = (certOn && !balanceOk)
+    ? '<div style="margin-top:4px;color:#92400e;font-size:12px">⚠ Guthaben reicht nicht für den nächsten Zertifikatsbezug.</div>' : '';
   s2body.innerHTML='<span style="font-weight:600">Guthaben: '+bal+' €</span> <span class="muted">(Preis pro Zertifikat: '+price+' €)</span>'
-    +'<div style="margin-top:6px">'+topupHtml+'</div>';
+    +lowBalanceHint+'<div style="margin-top:6px">'+topupHtml+'</div>';
 }
 
 // ── Zertifikatsbezug: Bezugsweg + Sectigo ────────────────────────────────────

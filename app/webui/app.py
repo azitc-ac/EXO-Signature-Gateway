@@ -2586,9 +2586,12 @@ async def api_smime_cert_details(
         not_after = cert.not_valid_after.replace(tzinfo=timezone.utc)
         not_before = cert.not_valid_before.replace(tzinfo=timezone.utc)
 
+    issuer_cn_attrs = cert.issuer.get_attributes_for_oid(NameOID.COMMON_NAME)
+    issuer_cn = issuer_cn_attrs[0].value if issuer_cn_attrs else cert.issuer.rfc4514_string()
+
     return JSONResponse({
         "subject":  _dn(cert.subject),
-        "issuer":   _dn(cert.issuer),
+        "issuer":   issuer_cn,
         "san":      san_emails,
         "serial":   format(cert.serial_number, "X"),
         "not_before": not_before.strftime("%d.%m.%Y"),

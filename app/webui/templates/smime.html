@@ -108,7 +108,7 @@
           <tr style="border-bottom:1px solid #f0f4f8">
             <td style="padding:8px 10px;line-height:1.4">
               <span style="color:#222">{{ c.get("subject","–") }}</span>
-              <span style="font-size:11px;color:#aaa;margin-left:6px">{{ c.slot_id }}</span>
+              <span style="font-size:11px;color:#aaa;margin-left:6px">{{ c.get("issuer","–") }}</span>
             </td>
             <td style="padding:8px 10px;white-space:nowrap">
               {% if c.get("error") %}<span style="color:#888">–</span>

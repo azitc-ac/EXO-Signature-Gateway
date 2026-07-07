@@ -84,6 +84,17 @@ def _friendly_subject(cert: x509.Certificate) -> str:
     return cert.subject.rfc4514_string()
 
 
+def _friendly_issuer(cert: x509.Certificate) -> str:
+    """CN of the issuing CA — e.g. 'CASTLE Client Certificate Authority', not
+    the full DN (which can include an internal node code that looks like a
+    meaningless serial to a human reader)."""
+    from cryptography.x509.oid import NameOID
+    attrs = cert.issuer.get_attributes_for_oid(NameOID.COMMON_NAME)
+    if attrs:
+        return attrs[0].value
+    return cert.issuer.rfc4514_string()
+
+
 def _cert_info(cert: x509.Certificate, email: str) -> dict:
     now = datetime.now(timezone.utc)
     expiry = _get_expiry(cert)
@@ -91,6 +102,7 @@ def _cert_info(cert: x509.Certificate, email: str) -> dict:
     return {
         "email": email,
         "subject": _friendly_subject(cert),
+        "issuer": _friendly_issuer(cert),
         "expiry": expiry.strftime("%d.%m.%Y"),
         "days_left": days_left,
         "expired": days_left < 0,

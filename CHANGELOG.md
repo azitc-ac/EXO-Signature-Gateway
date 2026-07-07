@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.46 — 2026-07-07 — fix: Aussteller-CN statt Slot-Hash + Guthaben-Warnung bei 0€
+
+**Aussteller zeigte eine "Nummer"**: In der Zertifikatsliste stand neben dem
+Subject der interne Slot-Hash (z.B. "2e64d57d88c67ba2") — die Spalten-
+überschrift heißt aber "Subject / Aussteller". `_cert_info()` berechnete gar
+keinen Aussteller. Jetzt: `_friendly_issuer()` liefert die CN der
+ausstellenden CA (z.B. "IRE1" bei CASTLE Staging statt Slot-Hash). Im
+Detail-Modal wurde der Aussteller zusätzlich vereinfacht — vorher CN+Org+Land
+verkettet, jetzt nur die CN (wie gewünscht).
+
+**Grüner Haken trotz 0€ Guthaben**: Der Status-Punkt bei "Guthaben aufladen"
+im Anbindung-Tab zeigte ✓ sobald `cert_issuing_enabled` aktiv war — unabhängig
+vom tatsächlichen Guthaben. Nach einer Erstattung (Guthaben = 0€) blieb der
+Haken grün, obwohl der nächste Zertifikatsbezug mangels Guthaben fehlschlagen
+würde. Zeigt jetzt ⚠ (gelb) + Hinweistext, wenn das Guthaben den
+Zertifikatspreis unterschreitet (bei `CERT_PRICE_CENTS=0`, also ohne
+Guthaben-Sperre, bleibt es beim grünen Haken).
+
+---
+
 ## v1.5.45 — 2026-07-07 — content: Anbindung-Intro erwähnt Partnerunternehmen
 
 Einleitungstext ergänzt: "EXO Signature HUB ist ein Dienst von Alexander
