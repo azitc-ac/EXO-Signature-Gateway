@@ -5,6 +5,34 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.59 — 2026-07-07 — hotfix: Mail-Loop im 587-Pfad + Testergebnis Reply-All-Fix
+
+**Loop (behoben, Commit 3bca56f als Notfall-Hotfix ohne Hook)**: Der
+`internal_only_skip`-Pfad (v1.5.56) leitete die rohe Mail OHNE
+`X-Sig-Applied`-Markierung weiter. Im Graph-Pfad war das zufällig loop-sicher
+(send_via_graph setzt den Header explizit), aber der neue 587-Pfad (v1.5.58)
+sendet die Bytes unverändert → Transportregel routete die Fork zurück zum
+Gateway → Endlos-Zirkulation (~80 Iterationen à 1,5s zwischen Gateway und
+Exchange, live am 2026-07-07 20:14–20:20 UTC). WICHTIG: kein einziges
+Duplikat erreichte ein Postfach — die Mail zirkulierte nur im Transport;
+nach dem Fix wurde genau EINE Kopie zugestellt. Fix: `mark_as_signed_bytes()`
+im Skip-Pfad (wie bei den anderen Passthroughs schon immer).
+
+**Testergebnis 587-Reply-All-Fix (funktioniert)**: SMTP.SendAsApp erteilt,
+XOAUTH2-Auth als beliebiger interner Absender bestätigt — OHNE zusätzlichen
+Exchange-seitigen Schritt (vorhandene Service-Principal-Registrierung +
+FullAccess-Grants vom IMAP-Setup reichen). Gemischte Testmail (Erika →
+intern + 2 extern): externe Fork signiert per 587 mit VOLLSTÄNDIGEN
+Original-To-Headern zugestellt, interne Fork korrekt einmalig unsigniert.
+
+**Wichtige Erkenntnis-Korrektur zu v1.5.56**: Nach Entfernen der
+SentToScope-Bedingung erreicht die interne Fork das Gateway DOCH über den
+Connector (bifurkiert, aber beide Forks kommen an) — die frühere Aussage
+"Connector transportiert nie interne Empfänger" war durch die damalige
+Regel-Bedingung verfälscht. CLAUDE.md entsprechend korrigiert.
+
+---
+
 ## v1.5.58 — 2026-07-07 — feat: SMTP-587-Reinject für bifurkierte Mails (Reply-All-Fix, Teil 1)
 
 Löst die in v1.5.56 als "strukturell unlösbar" dokumentierte Allen-antworten-
