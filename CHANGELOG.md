@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.47 — 2026-07-07 — fix: Aussteller-Anzeige zu spärlich (nur CN)
+
+v1.5.46 zeigte beim Aussteller nur die CN (z.B. "IRE1") — zu wenig, welche CA
+das ist, war so gar nicht erkennbar (z.B. "CASTLE"). `_friendly_issuer()`
+zeigt jetzt CN + Organisation + Land (z.B. "IRE1, CASTLE Platform, ES"):
+in der Liste bis 100 Zeichen, sonst Fallback auf nur CN (Platzgründe);
+im Detail-Modal immer die volle Kombination (genug Platz vorhanden).
+
+---
+
 ## v1.5.46 — 2026-07-07 — fix: Aussteller-CN statt Slot-Hash + Guthaben-Warnung bei 0€
 
 **Aussteller zeigte eine "Nummer"**: In der Zertifikatsliste stand neben dem

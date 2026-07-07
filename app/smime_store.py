@@ -84,15 +84,28 @@ def _friendly_subject(cert: x509.Certificate) -> str:
     return cert.subject.rfc4514_string()
 
 
-def _friendly_issuer(cert: x509.Certificate) -> str:
-    """CN of the issuing CA — e.g. 'CASTLE Client Certificate Authority', not
-    the full DN (which can include an internal node code that looks like a
-    meaningless serial to a human reader)."""
+def _friendly_issuer(cert: x509.Certificate, full: bool = False) -> str:
+    """Human-readable issuer — CN, Organization, Country (e.g. 'IRE1, CASTLE
+    Platform, ES') rather than the raw DN. A short CA-internal CN alone
+    (e.g. just 'IRE1') doesn't say which CA that actually is, so we prefer
+    the fuller combo whenever it's still reasonably short.
+
+    full=True (detail modal, plenty of room): always the full combo.
+    full=False (list view, tight space): full combo if <=100 chars, else
+    just the CN, so long Organization/Country values don't blow up the row."""
     from cryptography.x509.oid import NameOID
-    attrs = cert.issuer.get_attributes_for_oid(NameOID.COMMON_NAME)
-    if attrs:
-        return attrs[0].value
-    return cert.issuer.rfc4514_string()
+    parts = []
+    for oid in (NameOID.COMMON_NAME, NameOID.ORGANIZATION_NAME, NameOID.COUNTRY_NAME):
+        attrs = cert.issuer.get_attributes_for_oid(oid)
+        if attrs:
+            parts.append(attrs[0].value)
+    combined = ", ".join(parts)
+    if not combined:
+        return cert.issuer.rfc4514_string()
+    if full or len(combined) <= 100:
+        return combined
+    cn_attrs = cert.issuer.get_attributes_for_oid(NameOID.COMMON_NAME)
+    return cn_attrs[0].value if cn_attrs else combined
 
 
 def _cert_info(cert: x509.Certificate, email: str) -> dict:
