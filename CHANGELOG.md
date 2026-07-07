@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.65 — 2026-07-08 — security: Quell-IP-Allowlist für den SMTP-Listener (:25)
+
+Defense-in-depth für den Inbound-SMTP-Listener: legitimer Verkehr kommt nur vom
+Exchange-Online-Connector, daher werden Verbindungen auf Microsofts offizielle
+Exchange-Online-IP-Ranges beschränkt.
+
+Neu `smtp_acl.py`: Allowlist aus dem Endpunkt-Service (endpoints.office.com,
+Exchange-Service-Area), auf Disk gecacht und 2×/Tag über den Scheduler
+aktualisiert — nie hartkodiert/veraltet. `handle_DATA` weist Verbindungen
+außerhalb der Ranges mit `554 5.7.1 Access denied` ab.
+
+FAIL-SAFE: leere Rangeliste → alles erlaubt (kein Blockieren). Loopback +
+`SMTP_ACL_EXTRA_CIDRS` immer erlaubt. Einstellung `SMTP_SOURCE_ACL_ENABLED`
+(Default an). Unit-getestet inkl. Fail-safe- und Disabled-Pfade.
+
+---
+
 ## v1.5.64 — 2026-07-08 — feat: GRAPH_MIXED_FORK_MODE=send_to_all (Reply-All im Graph-Modus ohne 587)
 
 Ersetzt das fehlerhafte, verlustbehaftete GRAPH_SEND_TO_ALL_FALLBACK durch

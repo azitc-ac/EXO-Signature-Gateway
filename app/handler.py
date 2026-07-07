@@ -236,6 +236,21 @@ def _restore_envelope_headers(inner_msg: email.message.Message,
 
 class SignatureHandler:
     async def handle_DATA(self, server, session, envelope):
+        # ── Source-IP allowlist (reject before any processing) ─────────────
+        # Only Exchange Online's connector may reach :25; anything else could
+        # abuse the gateway to inject/relay mail via the trusted connector.
+        peer_ip = ""
+        try:
+            peer_ip = (session.peer or ("",))[0]
+        except Exception:
+            pass
+        if peer_ip:
+            import smtp_acl
+            if not smtp_acl.is_allowed(peer_ip):
+                log.warning("SMTP: rejected connection from %s — not an allowed "
+                            "source (Exchange Online allowlist)", peer_ip)
+                return "554 5.7.1 Access denied"
+
         sender = envelope.mail_from
         recipients = envelope.rcpt_tos
         raw = envelope.content

@@ -17,6 +17,8 @@ _user_notif_sent: set[str] = set()    # user renewal notification dedup
 _le_renewed_date: str = ""
 _last_mailbox_refresh: float = 0.0     # monotonic; 0 = never (triggers warm-up on first tick)
 _MAILBOX_REFRESH_INTERVAL = 45 * 60    # refresh before exo_mailboxes' own 1h cache TTL expires
+_last_acl_refresh: float = 0.0         # monotonic; 0 = never (triggers fetch on first tick)
+_ACL_REFRESH_INTERVAL = 12 * 60 * 60   # Exchange IP ranges change rarely — twice a day is plenty
 
 
 # ── TLS / Let's Encrypt ───────────────────────────────────────────────────────
@@ -257,6 +259,19 @@ def _refresh_mailbox_cache() -> None:
         _last_mailbox_refresh = time.monotonic()
 
 
+def _refresh_smtp_acl() -> None:
+    """Keep the SMTP source-IP allowlist (Exchange Online ranges) current."""
+    global _last_acl_refresh
+    try:
+        import smtp_acl
+        n = smtp_acl.refresh()
+        log.info("scheduler: SMTP ACL refreshed (%d Exchange ranges)", n)
+    except Exception as exc:
+        log.warning("scheduler: SMTP ACL refresh failed: %s", exc)
+    finally:
+        _last_acl_refresh = time.monotonic()
+
+
 def _loop() -> None:
     while True:
         try:
@@ -268,6 +283,8 @@ def _loop() -> None:
                 _run_daily()
             if time.monotonic() - _last_mailbox_refresh > _MAILBOX_REFRESH_INTERVAL:
                 _refresh_mailbox_cache()
+            if time.monotonic() - _last_acl_refresh > _ACL_REFRESH_INTERVAL:
+                _refresh_smtp_acl()
         except Exception as exc:
             log.error("scheduler loop error: %s", exc)
         time.sleep(60)

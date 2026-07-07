@@ -63,6 +63,15 @@ DEFAULTS: dict = {
     #                   (fail-safe, nie Verlust). Volle Reply-All. Leichte
     #                   Verzögerung möglich, wenn Forks nacheinander eintreffen.
     "GRAPH_MIXED_FORK_MODE": "scoped",
+    # ── SMTP-Listener Quell-IP-Härtung ───────────────────────────────────────
+    # Nur Exchange Online (Outbound-Connector) darf legitim auf :25 zugreifen.
+    # Ohne diese Prüfung könnte ein Angreifer mit Netzwerkzugang das Gateway zum
+    # Einliefern gefälschter Mail über den vertrauten Inbound-Connector nutzen.
+    # Ranges kommen aus Microsofts offiziellem Endpunkt-Service (smtp_acl.py),
+    # werden gecacht + periodisch aktualisiert. FAIL-SAFE: leere Liste = alles
+    # erlaubt (kein Blockieren), Loopback + Extra-CIDRs immer erlaubt.
+    "SMTP_SOURCE_ACL_ENABLED": True,   # False = Prüfung aus (nur Netzwerk-Firewall)
+    "SMTP_ACL_EXTRA_CIDRS": [],        # zusätzliche erlaubte CIDRs (z.B. eigenes Monitoring)
     "RELAY_USER": "",              # Optional SMTP AUTH user (e.g. SES "apikey")
     "RELAY_PASSWORD": "",          # Optional SMTP AUTH password
     # ── SMTP submission (port 587) for inbound S/MIME from external senders ───
