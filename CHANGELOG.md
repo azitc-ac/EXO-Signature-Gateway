@@ -5,6 +5,35 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.60 — 2026-07-07 — feat: Graph-only Reply-All-Fix (Send-to-all + Fork-Drop)
+
+Vervollständigt den Reply-All-Fix für Deployments OHNE SMTP.SendAsApp
+(reiner Graph-Modus). Bei bifurkierten Forks, wenn der 587-Pfad nicht
+verfügbar ist:
+
+- **Fork mit externen Envelope-Empfängern**: sendet per Graph an die
+  VOLLSTÄNDIGE Header-Empfängerliste (Send-to-all) — bei Graph sind
+  Zustellung und Anzeige gekoppelt, hier ist das genau richtig: alle
+  bekommen die Mail mit kompletter An-Liste, Reply-All funktioniert.
+  Message-ID-Dedup (`_is_first_sendmail`) verhindert Doppel-Sends, wenn
+  mehrere externe Forks ankommen. Läuft bewusst als EIN direkter
+  Graph-Send am imap-Modus-Flow vorbei (der würde die Zustellung wieder
+  in APPEND intern + gescopten Graph-Send extern zerlegen).
+- **Rein-interne Fork** (alle Envelope-Empfänger im Tenant): wird
+  VERWORFEN — ihre Empfänger sind von der Send-to-all-Zustellung der
+  Geschwister-Fork abgedeckt. Einfacher als der ursprünglich geplante
+  "Duplikat aus Postfach löschen"-Ansatz, weil beide Forks das Gateway
+  erreichen (Erkenntnis aus dem 587-Test) — kein Postfach-Eingriff nötig.
+- **Leerer Postfach-Cache** (z.B. direkt nach Neustart): konservativer
+  Rückfall auf das bisherige Header-Scoping (nie Send-to-all mit
+  potenziell unsignierter Fork — Signaturverlust wäre schlimmer als
+  unvollständiges Reply-All).
+
+5 Logikpfade unit-getestet (extern→Send-to-all, intern→Drop, normal
+unverändert, leerer Cache konservativ, imap-Modus-Bypass).
+
+---
+
 ## v1.5.59 — 2026-07-07 — hotfix: Mail-Loop im 587-Pfad + Testergebnis Reply-All-Fix
 
 **Loop (behoben, Commit 3bca56f als Notfall-Hotfix ohne Hook)**: Der

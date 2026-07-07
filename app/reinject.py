@@ -10,22 +10,32 @@ import stats
 log = logging.getLogger(__name__)
 
 
-def _is_bifurcated(rcpt_tos: list[str], content_bytes: bytes) -> bool:
-    """True when the message's To/Cc headers list recipients that are NOT in
-    this transaction's SMTP envelope — the signature of an Exchange-bifurcated
-    mixed internal/external send (the missing header recipients' copies were
-    delivered directly by Exchange, bypassing the gateway)."""
+def _header_recipients(content_bytes: bytes) -> list[str]:
+    """All To/Cc addresses from the MIME headers, lowercased, deduped."""
     import email as _em
     import email.utils as _eu
     try:
         msg = _em.message_from_bytes(content_bytes)
-        header_addrs = {
-            addr.strip().lower()
-            for hdr in ("To", "Cc")
-            for _, addr in _eu.getaddresses([msg.get(hdr) or ""])
-            if addr
-        }
+        seen: set[str] = set()
+        out: list[str] = []
+        for hdr in ("To", "Cc"):
+            for _, addr in _eu.getaddresses([msg.get(hdr) or ""]):
+                a = addr.strip().lower()
+                if a and a not in seen:
+                    seen.add(a)
+                    out.append(a)
+        return out
     except Exception:
+        return []
+
+
+def _is_bifurcated(rcpt_tos: list[str], content_bytes: bytes) -> bool:
+    """True when the message's To/Cc headers list recipients that are NOT in
+    this transaction's SMTP envelope — the signature of an Exchange-bifurcated
+    mixed internal/external send (each fork's envelope covers a subset while
+    the headers still show the full original recipient list)."""
+    header_addrs = set(_header_recipients(content_bytes))
+    if not header_addrs:
         return False
     rcpt_set = {r.strip().lower() for r in rcpt_tos}
     return bool(header_addrs - rcpt_set)
@@ -43,14 +53,22 @@ def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
     attachments and avoid lossy JSON reconstruction).
 
     Bifurcated transactions (To/Cc headers list more recipients than this
-    transaction's envelope — mixed internal/external sends split by Exchange)
-    are preferentially sent via authenticated SMTP submission (port 587,
-    XOAUTH2 as the sender, requires SMTP.SendAsApp): only SMTP separates
-    envelope recipients from displayed headers, so the external recipients
-    keep seeing the FULL original To/Cc (Reply-All stays intact) while
-    delivery goes only to this transaction's actual envelope recipients.
-    Graph sendMail cannot express that separation (delivery and display are
-    the same field there) — used as fallback with header-scoping instead.
+    transaction's envelope — mixed internal/external sends split by Exchange;
+    BOTH forks reach the gateway with FromMemberOf-only transport rules):
+
+      1. Preferred: authenticated SMTP submission (port 587, XOAUTH2 as the
+         sender, requires SMTP.SendAsApp). Only SMTP separates envelope
+         recipients from displayed headers — every fork delivers exactly to
+         its own envelope while everyone sees the full original To/Cc
+         (Reply-All intact).
+      2. Graph-only fallback (no SMTP.SendAsApp): Graph cannot separate
+         delivery from display, so instead the fork that carries EXTERNAL
+         envelope recipients sends to the FULL header list (send-to-all:
+         correct headers AND correct delivery for everyone in one shot,
+         Message-ID dedup prevents double sends across forks), while forks
+         whose envelope is entirely covered by another fork's send-to-all
+         (e.g. the internal-only fork of a mixed send) are DROPPED here —
+         their recipients already receive the send-to-all copy.
     """
     mode = settings_store.get("REINJECT_MODE") or "smtp"
 
@@ -60,8 +78,47 @@ def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
                  "trying SMTP 587 as-sender for header-preserving delivery: to=%s", rcpt_tos)
         if smtp_submit.deliver_outbound_as_sender(mail_from, rcpt_tos, content_bytes):
             return
-        log.info("SMTP 587 as-sender unavailable — continuing with regular %s path "
-                 "(headers will be scoped to envelope)", mode)
+
+        # ── Graph-only fallback ───────────────────────────────────────────
+        import exo_mailboxes
+        known = exo_mailboxes.known_addresses()
+        if known:
+            all_internal = all(r.strip().lower() in known for r in rcpt_tos)
+            if all_internal:
+                # Internal-only fork of a mixed send: the sibling fork
+                # carrying the external recipients does a send-to-all (below)
+                # that already covers these recipients with full headers —
+                # delivering this fork too would duplicate. Drop it.
+                log.info("Bifurcated internal-only fork dropped (no 587) — "
+                         "recipients %s are covered by the external fork's "
+                         "send-to-all delivery", rcpt_tos)
+                return
+            header_rcpts = _header_recipients(content_bytes)
+            if header_rcpts:
+                # Send-to-all must go out as ONE Graph send with the full
+                # header list — the imap path would split it again (APPEND
+                # for internal + header-scoped Graph for external), breaking
+                # header completeness. So bypass the per-mode flow entirely.
+                import email as _em
+                import graph_reinject
+                log.info("Graph send-to-all fallback for bifurcated fork: "
+                         "expanding delivery %s → %s (full headers, MID-deduped)",
+                         rcpt_tos, header_rcpts)
+                _ct = _em.message_from_bytes(content_bytes).get_content_type().lower()
+                if force_mime or _ct in ("multipart/signed", "application/pkcs7-mime"):
+                    ok = graph_reinject.send_via_graph_mime(mail_from, header_rcpts, content_bytes)
+                else:
+                    ok = graph_reinject.send_via_graph(mail_from, header_rcpts, content_bytes)
+                if ok:
+                    stats.increment("graph_api_calls")
+                    return
+                raise RuntimeError(
+                    "Graph send-to-all for bifurcated fork failed — "
+                    f"recipients {header_rcpts}")
+        else:
+            log.warning("Bifurcated fork but mailbox cache empty — cannot "
+                        "classify internal/external, using scoped %s path "
+                        "(headers reduced to envelope)", mode)
 
     if mode == "graph":
         import email as _em
