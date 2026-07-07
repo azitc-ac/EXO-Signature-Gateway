@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.57 — 2026-07-07 — fix: Checkbox-Layout, Notification-Mailbox-Name + Dropdown-Auswahl
+
+- **Wartungsmodus/Lexware-Checkboxen**: erschienen höher als der zugehörige
+  Text — globales `.settings-row label:first-child { padding-top:6px }`
+  kollidierte mit dem lokalen `align-items:center` dieser beiden Zeilen.
+  `padding-top:0` auf beiden Labels ergänzt.
+- **Notification-Shared-Mailbox-Name**: war hartkodiert
+  ("EXOSignatureGateway-Notification"), wird jetzt von `GATEWAY_NAME`
+  abgeleitet (alphanumerisch bereinigt + "-Notification"-Suffix). Ändert
+  sich der Gateway-Name später, legt der bestehende `Get-Mailbox`-Idempotenz-
+  Check im PowerShell-Skript automatisch eine neue Mailbox unter dem neuen
+  Namen an, statt die alte stillschweigend weiterzuverwenden.
+- **Dropdown nach Erstellung leer**: die frisch angelegte Mailbox war in der
+  EXO-Enumeration (`Get-EXOMailbox`) noch nicht sichtbar (Verzeichnis-
+  Propagationsverzögerung), daher fehlte sie im nachgeladenen Dropdown bis
+  zu einem manuellen Seiten-Reload. Wird jetzt unabhängig von der
+  Enumeration immer explizit als Option ergänzt und direkt ausgewählt.
+
+---
+
 ## v1.5.56 — 2026-07-07 — feat: Transportregel-Fix für den Duplikat-Bug (Fortsetzung v1.5.54)
 
 Der Code-Fix aus v1.5.54 (Empfänger auf `rcpt_tos` statt MIME-Header

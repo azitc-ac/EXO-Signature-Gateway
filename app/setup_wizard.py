@@ -885,8 +885,12 @@ Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
 
 def run_create_notification_mailbox() -> dict:
     """
-    Create the shared mailbox 'EXOSignatureGateway-Notification' if it doesn't
-    already exist (idempotent), for use as the notification sender.
+    Create the shared mailbox "{GatewayName}-Notification" (alias derived from
+    the configured GATEWAY_NAME, no hardcoded product name) if it doesn't
+    already exist (idempotent — Get-Mailbox check before New-Mailbox below).
+    If GATEWAY_NAME changes later, the alias changes too, so this naturally
+    creates a fresh mailbox under the new name rather than silently reusing
+    the old one.
     Returns {"ok": bool, "email": str, "output": str}.
     """
     if not _AUTH_CERT_PATH.exists():
@@ -897,8 +901,9 @@ def run_create_notification_mailbox() -> dict:
         return {"ok": False, "email": "", "output": "CLIENT_ID oder TENANT_DOMAIN nicht konfiguriert"}
 
     cert = str(_AUTH_CERT_PATH)
-    alias = "EXOSignatureGateway-Notification"
-    display_name = "EXO Signature Gateway Notification"
+    gateway_name = settings_store.get("GATEWAY_NAME") or "EXO Signature Gateway"
+    alias = "".join(ch for ch in gateway_name if ch.isalnum()) + "-Notification"
+    display_name = f"{gateway_name} Notification"
 
     ps_script = f"""
 $ErrorActionPreference = 'Stop'

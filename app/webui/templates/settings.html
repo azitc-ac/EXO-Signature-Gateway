@@ -127,7 +127,7 @@
               {{ m.email }}{% if m.name and m.name != m.email %} – {{ m.name }}{% endif %}
             </option>
             {% endfor %}
-            <option value="__create_shared__">+ Neue Shared Mailbox „EXOSignatureGateway-Notification" anlegen…</option>
+            <option value="__create_shared__">+ Neue Shared Mailbox für Benachrichtigungen anlegen…</option>
           </select>
           <button type="button" class="btn secondary btn-sm" onclick="refreshSenderMailboxes(this)"
                   title="Postfachliste neu laden">↻</button>
@@ -560,15 +560,26 @@ function _onNotifMailboxChange(val) {
 function _populateNotifMailboxSelect(mailboxes, selectedEmail) {
   const sel = document.getElementById('notif-mailbox');
   sel.innerHTML = '<option value="">— Automatisch (erster Empfänger) —</option>';
+  let found = false;
   (mailboxes || []).forEach(function(m) {
     const opt = document.createElement('option');
     opt.value = m.email;
     opt.textContent = m.email + (m.name && m.name !== m.email ? ' – ' + m.name : '');
     sel.appendChild(opt);
+    if (selectedEmail && m.email === selectedEmail) found = true;
   });
+  if (selectedEmail && !found) {
+    // A just-created mailbox may not show up in the EXO enumeration yet
+    // (directory propagation lag) — add it explicitly so it's selectable
+    // immediately instead of only after a page reload.
+    const opt = document.createElement('option');
+    opt.value = selectedEmail;
+    opt.textContent = selectedEmail + ' (gerade angelegt)';
+    sel.appendChild(opt);
+  }
   const createOpt = document.createElement('option');
   createOpt.value = '__create_shared__';
-  createOpt.textContent = '+ Neue Shared Mailbox „EXOSignatureGateway-Notification" anlegen…';
+  createOpt.textContent = '+ Neue Shared Mailbox für Benachrichtigungen anlegen…';
   sel.appendChild(createOpt);
   if (selectedEmail) sel.value = selectedEmail;
 }
