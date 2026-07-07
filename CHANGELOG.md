@@ -5,6 +5,41 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.54 — 2026-07-07 — fix: Mail kam bei gemischten intern/extern-Empfängern doppelt an
+
+Root Cause (bestätigt per Get-TransportRule + mail_audit.db-Analyse): Die
+Transportregel "Route via EXO Signature Gateway" hat die Bedingung
+`SentToScope=NotInOrganization` — bei gemischten internen/externen
+Empfängern bifurkiert Exchange die Mail: eine Kopie (nur externe Empfänger)
+läuft über die Regel zum Gateway, die andere (nur interne Empfänger) wird
+direkt zugestellt, komplett am Gateway vorbei — unsigniert, für uns
+unsichtbar. Die MIME-Header der Gateway-Kopie enthalten aber weiterhin den
+**vollständigen ursprünglichen** Empfängerkreis (Bifurkation trennt nur den
+SMTP-Envelope, nicht den Nachrichteninhalt). `graph_reinject.py` hat beim
+Senden bisher den Header (`To`/`Cc`) statt des tatsächlichen Envelopes
+(`rcpt_tos`) für die Zustellung benutzt — dadurch bekam der interne
+Empfänger die signierte Kopie zusätzlich zur bereits direkt zugestellten
+unsignierten.
+
+Fix: `toRecipients`/`ccRecipients` (JSON-Pfad `send_via_graph`) und die
+To/Cc-Header vor dem Senden (roher MIME-Pfad `send_via_graph_mime`, u.a.
+für S/MIME-signierte Mails) werden jetzt auf `rcpt_tos` — den tatsächlichen
+Envelope dieser Transaktion — beschränkt. `rcpt_tos` ist unabhängig von
+Annahmen über Exchange-Verhalten immer die maßgebliche Quelle: es liefert
+nie mehr und nie weniger, als diese eine Transaktion tatsächlich zustellen
+soll. Header-Umschreibung erfolgt über denselben bereits produktiv
+laufenden byte-genauen Mechanismus wie das bestehende Display-Name-
+Stripping (`_strip_display_names`) — reserialisiert nicht über
+`email.generator`, daher keine Auswirkung auf CRLF-Formatierung oder eine
+bereits vorhandene S/MIME-Signatur (die deckt laut `smime_signer.py` ohnehin
+nur den inneren Payload ab, nicht den äußeren Header-Wrapper).
+
+Verifiziert mit gezielten Tests gegen die Original-Bug-Konstellation (intern
++ 2 extern, gemischt in To) sowie einen BCC-artigen Edge-Case — noch nicht
+gegen eine echte Live-Zustellung getestet, das folgt als Nächstes.
+
+---
+
 ## v1.5.53 — 2026-07-07 — fix: unnötige IMAP-APPEND-Versuche für bekannt externe Empfänger
 
 IMAP APPEND funktioniert grundsätzlich nur für Postfächer im eigenen Tenant —

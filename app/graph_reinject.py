@@ -81,6 +81,46 @@ def _addr_list(header_val: str) -> list[dict]:
     return result
 
 
+def _split_recipients_to_envelope(to_header: str, cc_header: str,
+                                   rcpt_tos: list[str]) -> tuple[list[str], list[str]]:
+    """
+    Restrict a message's To/Cc recipients to THIS transaction's actual SMTP
+    envelope (rcpt_tos).
+
+    Why: EXO can bifurcate one logical multi-recipient message into several
+    separate SMTP transactions to this gateway — same Message-ID, but each
+    transaction's envelope covers only a subset of the original recipients
+    (e.g. a transport rule condition like SentToScope=NotInOrganization only
+    matches some of them; the rest are delivered directly, bypassing the
+    gateway). Every such transaction's MIME headers still carry the FULL
+    original To/Cc list, even though its envelope covers only a subset.
+    Sending to whatever's in the headers (the old behaviour) can re-deliver
+    to a recipient already handled by a *different* bifurcated transaction —
+    this was the root cause of a confirmed duplicate-delivery bug (recipient
+    received the mail twice: once signed via the gateway, once unsigned via
+    direct internal routing).
+
+    rcpt_tos is always the authoritative source of truth for who this
+    specific transaction must deliver to, regardless of what the headers say.
+    """
+    to_addrs = [addr for _, addr in email.utils.getaddresses([to_header or ""]) if addr]
+    cc_addrs = [addr for _, addr in email.utils.getaddresses([cc_header or ""]) if addr]
+    rcpt_set = {r.strip().lower() for r in rcpt_tos}
+
+    to_scoped = [a for a in to_addrs if a.strip().lower() in rcpt_set]
+    cc_scoped = [a for a in cc_addrs if a.strip().lower() in rcpt_set]
+
+    covered = {a.strip().lower() for a in to_scoped} | {a.strip().lower() for a in cc_scoped}
+    leftover = [r for r in rcpt_tos if r.strip().lower() not in covered]
+    to_scoped += leftover  # e.g. Bcc recipients, absent from To/Cc headers entirely
+
+    return to_scoped, cc_scoped
+
+
+def _to_graph_addrs(addrs: list[str]) -> list[dict]:
+    return [{"emailAddress": {"name": a, "address": a}} for a in addrs]
+
+
 def _fold_header_line(hdr_name: str, addrs: list[str], eol: bytes, max_line: int = 200) -> bytes:
     """
     Build a header line for a list of bare <addr> tokens, folding at
@@ -102,12 +142,23 @@ def _fold_header_line(hdr_name: str, addrs: list[str], eol: bytes, max_line: int
     return eol.join(l.encode() for l in lines)
 
 
-def _strip_display_names(content_bytes: bytes) -> bytes:
+def _strip_display_names(content_bytes: bytes, rcpt_tos: list[str] | None = None) -> bytes:
     """
     Return a copy of the MIME message with display names removed from
     To/Cc/Bcc address headers, leaving only bare <email@domain> addresses.
     Exchange cannot always resolve unrecognised display names (GAL lookup),
     which causes sendMail to return 400 ErrorInvalidRecipients.
+
+    If rcpt_tos is given, ALSO restricts To/Cc/Bcc to addresses actually in
+    rcpt_tos (this transaction's SMTP envelope) — see
+    _split_recipients_to_envelope() for the full rationale: EXO can
+    bifurcate one logical message into several SMTP transactions with the
+    same Message-ID but disjoint envelope recipients, while each
+    transaction's MIME headers still list the FULL original recipients.
+    This function is the only place raw-MIME Graph sendMail (which reads
+    recipients purely from these headers, with no separate envelope field)
+    can be scoped — leaving rcpt_tos unset preserves the old
+    display-name-only behaviour.
 
     IMPORTANT: rewrites only the affected header lines via raw byte
     manipulation — does NOT reparse/reserialize the full message through
@@ -127,14 +178,35 @@ def _strip_display_names(content_bytes: bytes) -> bytes:
         return content_bytes  # no header/body boundary found — leave untouched
 
     msg = email_mod.message_from_bytes(content_bytes, policy=email_mod.policy.compat32)
-    replacements = {}
+
+    header_addrs: dict[str, list[str]] = {}
+    had_header: dict[str, bool] = {}
     for hdr in ("To", "Cc", "Bcc"):
         val = msg.get(hdr)
-        if not val:
-            continue
-        addrs = [f"<{addr}>" for _, addr in email.utils.getaddresses([val]) if addr]
+        had_header[hdr] = bool(val)
+        header_addrs[hdr] = [addr for _, addr in email.utils.getaddresses([val or ""]) if addr]
+
+    if rcpt_tos is not None:
+        rcpt_set = {r.strip().lower() for r in rcpt_tos}
+        covered: set[str] = set()
+        for hdr in ("To", "Cc", "Bcc"):
+            scoped = [a for a in header_addrs[hdr] if a.strip().lower() in rcpt_set]
+            covered.update(a.strip().lower() for a in scoped)
+            header_addrs[hdr] = scoped
+        leftover = [r for r in rcpt_tos if r.strip().lower() not in covered]
+        header_addrs["To"] = header_addrs["To"] + leftover  # e.g. Bcc, absent from any header
+        had_header["To"] = had_header["To"] or bool(leftover)
+
+    replacements: dict[str, bytes | None] = {}
+    for hdr in ("To", "Cc", "Bcc"):
+        addrs = header_addrs[hdr]
         if addrs:
-            replacements[hdr.lower()] = _fold_header_line(hdr, addrs, eol)
+            replacements[hdr.lower()] = _fold_header_line(hdr, [f"<{a}>" for a in addrs], eol)
+        elif had_header[hdr]:
+            # Header existed originally but every address was scoped out of
+            # this transaction's envelope — drop the line, don't leave it
+            # empty or stale.
+            replacements[hdr.lower()] = None
     if not replacements:
         return content_bytes
 
@@ -152,7 +224,8 @@ def _strip_display_names(content_bytes: bytes) -> bytes:
             continue
         out_lines.append(line)
     for hdr_lower, new_line in replacements.items():
-        out_lines.append(new_line)
+        if new_line is not None:
+            out_lines.append(new_line)
 
     new_header_block = eol.join(out_lines)
     return new_header_block + eol + eol + body
@@ -471,6 +544,10 @@ def send_via_graph(mail_from: str, rcpt_tos: list[str], content_bytes: bytes) ->
     # and cause HTTP 400 InvalidInternetMessageHeader — simply omit them.
     internet_headers = [{"name": "X-Sig-Applied", "value": "1"}]
 
+    # Scope recipients to this transaction's actual SMTP envelope — see
+    # _split_recipients_to_envelope() docstring for why this matters.
+    to_scoped, cc_scoped = _split_recipients_to_envelope(to_header, cc_header, rcpt_tos)
+
     # ── Build Graph API message payload ───────────────────────────────────────
     message: dict = {
         "subject": subject,
@@ -478,12 +555,12 @@ def send_via_graph(mail_from: str, rcpt_tos: list[str], content_bytes: bytes) ->
             "emailAddress": {"name": from_name or from_addr, "address": from_addr}
         },
         "body": {"contentType": body_type, "content": body_content},
-        "toRecipients": _addr_list(to_header),
+        "toRecipients": _to_graph_addrs(to_scoped),
         "internetMessageHeaders": internet_headers,
     }
 
-    if cc_header:
-        message["ccRecipients"] = _addr_list(cc_header)
+    if cc_scoped:
+        message["ccRecipients"] = _to_graph_addrs(cc_scoped)
     if reply_to_header:
         message["replyTo"] = _addr_list(reply_to_header)
     if attachments:
@@ -584,7 +661,9 @@ def send_via_graph_mime(mail_from: str, rcpt_tos: list[str], content_bytes: byte
         # Strip display names from To/Cc/Bcc before sending — Exchange validates
         # display names against the GAL and rejects external contacts with
         # unrecognised names (ErrorInvalidRecipients).  Bare addresses always work.
-        payload_bytes = _strip_display_names(content_bytes)
+        # Also scope recipients to rcpt_tos (this transaction's SMTP envelope) —
+        # see _split_recipients_to_envelope() docstring for why this matters.
+        payload_bytes = _strip_display_names(content_bytes, rcpt_tos=rcpt_tos)
         encoded = base64.b64encode(payload_bytes)
         with httpx.Client(timeout=30) as client:
             resp = _post_with_429_retry(client, url, content=encoded, headers=headers)
