@@ -521,6 +521,24 @@ class SignatureHandler:
                 reinject.send(sender, recipients, raw)
                 return "250 OK"
 
+            # ── Internal-only mail: optionally skip signing entirely ───────────
+            # The transport rule now routes ALL sender-DG mail through the
+            # gateway unconditionally (a recipient-scoped condition here would
+            # bifurcate mixed-recipient messages — see CLAUDE.md "Bifurkations-
+            # Falle"). That means purely-internal mail (every recipient a known
+            # mailbox in this tenant) reaches us too now. Default: skip signing
+            # for it, matching the old behaviour where a transport-rule
+            # condition kept internal-only mail from ever reaching the gateway.
+            if settings_store.get("SIGN_INTERNAL_ONLY_MAIL") is not True:
+                import exo_mailboxes
+                _known = exo_mailboxes.known_addresses()
+                if _known and all(r.strip().lower() in _known for r in recipients):
+                    log.debug("All recipients internal, SIGN_INTERNAL_ONLY_MAIL off — "
+                              "forwarding as-is: %s", recipients)
+                    reinject.send(sender, recipients, raw)
+                    _audit("internal_only_skip")
+                    return "250 OK"
+
             # ── Early #enc# cert check ────────────────────────────────────────
             subject = _decode_subject(msg.get("Subject", ""))
             enc_trigger = (settings_store.get("ENC_TRIGGER") or "#enc").lower()

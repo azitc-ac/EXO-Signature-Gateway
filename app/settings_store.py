@@ -42,6 +42,10 @@ DEFAULTS: dict = {
     "SMIME_SIGNING_ENABLED": True,    # Automatically sign outbound mails when a cert exists
     "NOSIG_TRIGGER": "#nosig",        # Keyword in subject → suppress HTML auto-signature for this mail
     "NODIGSIG_TRIGGER": "#nodigsig",  # Keyword in subject → suppress S/MIME (digital) signature for this mail
+    "SIGN_INTERNAL_ONLY_MAIL": False,  # False (default) = skip signing when EVERY recipient is a known
+                                        # tenant mailbox (no external recipient at all). Needed since the
+                                        # transport rule routes all sender-DG mail through the gateway
+                                        # unconditionally now (see CLAUDE.md "Bifurkations-Falle").
     # ── Re-injection ─────────────────────────────────────────────────────────
     "REINJECT_MODE": "smtp",       # "smtp", "graph", or "imap" (smtp587 = legacy alias for imap)
     "GRAPH_SMTP_FALLBACK": False,  # Allow SMTP fallback when Graph re-inject fails

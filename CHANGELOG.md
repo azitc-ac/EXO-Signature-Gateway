@@ -5,6 +5,43 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.56 — 2026-07-07 — feat: Transportregel-Fix für den Duplikat-Bug (Fortsetzung v1.5.54)
+
+Der Code-Fix aus v1.5.54 (Empfänger auf `rcpt_tos` statt MIME-Header
+beschränken) hat die Doppelzustellung zwar verhindert, aber ein neues,
+echtes Problem aufgedeckt: Externe sahen dann nur noch sich selbst im
+An-Feld — Allen-antworten hätte den internen Mitempfänger stillschweigend
+ausgeschlossen.
+
+Root Cause tiefer verstanden: JEDE empfängerbezogene Transportregel-
+Bedingung (SentToScope, RecipientDomainIs, …) bifurkiert Exchange bei
+gemischten Empfängern — unabhängig von der Regel-Priorität oder ob sie
+"stoppt" oder "routet". Ein Zwischenversuch (neue Stop-Regel für rein-
+interne Mails + SentToScope aus den Gateway-Regeln entfernt) hat sich live
+als wirkungslos erwiesen: die neue Regel bifurkiert selbst genauso.
+
+**Endgültiger Fix**: Transportregeln laufen jetzt komplett ohne
+empfängerbezogene Bedingung (nur noch `FromMemberOf`) — keine Bifurkation
+mehr möglich, jede Mail läuft als eine ungeteilte Transaktion durchs
+Gateway. Die "rein intern → nicht signieren"-Entscheidung liegt jetzt im
+Gateway-Code selbst (`handler.py`), wo die vollständige, unbifurkierte
+Empfängerliste bekannt ist:
+
+- Neue Einstellung `SIGN_INTERNAL_ONLY_MAIL` (Standard: aus) unter
+  Einstellungen → Signatur. Wenn aus: Mails, bei denen ALLE Empfänger
+  bekannte Postfächer in diesem Tenant sind, werden unverändert
+  durchgereicht (kein HTML, kein S/MIME) — entspricht dem alten Verhalten
+  vor dieser Änderung.
+- Interne Prüfung nutzt `exo_mailboxes.known_addresses()` (nicht-
+  blockierender Cache-Snapshot, sicher für den Mail-Hot-Path). Bei leerem
+  Cache (noch nicht aufgewärmt) wird sicherheitshalber normal verarbeitet,
+  nicht übersprungen.
+
+Vollständige Architektur-Dokumentation der Bifurkations-Problematik in
+CLAUDE.md unter "EXO Transport-Routing".
+
+---
+
 ## v1.5.55 — 2026-07-07 — fix: Lexware-Formatkorrektur-Haken (und Logging/Let's-Encrypt-Felder) speicherten nie
 
 `POST /api/settings/partial` — der Endpunkt, den der Lexware-Korrektur-Haken

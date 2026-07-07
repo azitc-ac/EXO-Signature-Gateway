@@ -128,6 +128,21 @@
   <div style="border-top:1px solid #f0f0f0;margin:14px 0 12px"></div>
 
   <div class="settings-row">
+    <label for="sign-internal-only">Rein interne Mails auch signieren</label>
+    <div class="settings-control">
+      <label class="checkbox-label">
+        <input type="checkbox" id="sign-internal-only"
+               {% if s.SIGN_INTERNAL_ONLY_MAIL %}checked{% endif %}> aktiv
+      </label>
+      <span class="hint">Mails, bei denen <strong>alle</strong> Empfänger interne Postfächer sind (kein
+        externer Empfänger), werden standardmäßig unverändert durchgereicht — keine HTML-Signatur, kein
+        S/MIME. Aktivieren, um auch rein interne Mails wie externe zu behandeln.</span>
+    </div>
+  </div>
+
+  <div style="border-top:1px solid #f0f0f0;margin:14px 0 12px"></div>
+
+  <div class="settings-row">
     <label for="nosig-trigger">Nicht-signieren-Trigger</label>
     <div class="settings-control">
       <input type="text" id="nosig-trigger" value="{{ s.NOSIG_TRIGGER or '#nosig' }}"
@@ -257,6 +272,7 @@ function saveSignatur() {
     SIG_STRIP_MIN_MATCH_PCT: parseInt(document.getElementById('sig-strip-pct').value, 10),
     SIG_IMAGE_MODE: document.getElementById('sig-image-mode').value,
     NOSIG_TRIGGER: (document.getElementById('nosig-trigger').value || '').trim() || '#nosig',
+    SIGN_INTERNAL_ONLY_MAIL: document.getElementById('sign-internal-only').checked,
   }, 'signatur-result');
 }
 
