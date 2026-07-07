@@ -258,3 +258,59 @@ def deliver_inbound(mail_from: str, rcpt_tos: list[str], content_bytes: bytes) -
     except Exception as exc:
         log.error("SMTP submit unexpected error: %s", exc)
     return False
+
+
+def deliver_outbound_as_sender(sender: str, rcpt_tos: list[str],
+                                content_bytes: bytes) -> bool:
+    """
+    Submit an OUTBOUND message via SMTP AUTH (XOAUTH2, port 587),
+    authenticated AS THE SENDER themselves (requires the SMTP.SendAsApp
+    application permission — the app token authorises acting as any mailbox).
+
+    Why this exists: this is the ONLY reinject path that decouples the SMTP
+    envelope (RCPT TO = rcpt_tos, who actually receives this transaction)
+    from the displayed To:/Cc: headers in content_bytes (which may list MORE
+    recipients — e.g. an internal colleague whose copy Exchange already
+    delivered directly via a bifurcated transaction). Graph sendMail cannot
+    do this: its toRecipients/ccRecipients are simultaneously the delivery
+    AND display list, with no envelope override (verified against the Graph
+    Message resource schema — no envelope-only field exists). Standard SMTP
+    has always separated the two (same mechanism Bcc relies on), and this is
+    how CodeTwo/Exclaimer solve the identical problem per their own docs.
+
+    Unlike deliver_inbound(), no From-rewrite happens here — envelope MAIL
+    FROM and header From: are both the real sender, so SPF/DKIM/DMARC see a
+    perfectly ordinary submission.
+    """
+    host = settings_store.get("SMTP_SUBMIT_HOST") or "smtp.office365.com"
+    port = int(settings_store.get("SMTP_SUBMIT_PORT") or 587)
+    tls_ctx = ssl.create_default_context()
+
+    token = _acquire_smtp_token()
+    if not token:
+        log.warning("SMTP outbound-as-sender: no OAuth token — cannot attempt")
+        return False
+
+    try:
+        with smtplib.SMTP(host, port, timeout=30) as smtp:
+            smtp.ehlo()
+            smtp.starttls(context=tls_ctx)
+            smtp.ehlo()
+            auth_str = f"user={sender}\x01auth=Bearer {token}\x01\x01"
+            smtp.auth("XOAUTH2", lambda challenge=None: auth_str, initial_response_ok=True)
+            smtp.sendmail(sender, rcpt_tos, content_bytes)
+        log.info("SMTP outbound-as-sender OK: from=%s to=%s via %s:%s",
+                 sender, rcpt_tos, host, port)
+        return True
+    except smtplib.SMTPAuthenticationError as exc:
+        log.warning(
+            "SMTP outbound-as-sender auth failed for %s: %s — "
+            "SMTP.SendAsApp granted & propagated? Falling back to Graph.",
+            sender, exc,
+        )
+    except smtplib.SMTPException as exc:
+        log.warning("SMTP outbound-as-sender error (%s:%s): %s — falling back to Graph",
+                    host, port, exc)
+    except Exception as exc:
+        log.error("SMTP outbound-as-sender unexpected error: %s", exc)
+    return False

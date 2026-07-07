@@ -10,6 +10,27 @@ import stats
 log = logging.getLogger(__name__)
 
 
+def _is_bifurcated(rcpt_tos: list[str], content_bytes: bytes) -> bool:
+    """True when the message's To/Cc headers list recipients that are NOT in
+    this transaction's SMTP envelope — the signature of an Exchange-bifurcated
+    mixed internal/external send (the missing header recipients' copies were
+    delivered directly by Exchange, bypassing the gateway)."""
+    import email as _em
+    import email.utils as _eu
+    try:
+        msg = _em.message_from_bytes(content_bytes)
+        header_addrs = {
+            addr.strip().lower()
+            for hdr in ("To", "Cc")
+            for _, addr in _eu.getaddresses([msg.get(hdr) or ""])
+            if addr
+        }
+    except Exception:
+        return False
+    rcpt_set = {r.strip().lower() for r in rcpt_tos}
+    return bool(header_addrs - rcpt_set)
+
+
 def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
          force_mime: bool = False) -> None:
     """
@@ -20,8 +41,27 @@ def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
     force_mime=True routes through the raw-MIME Graph path even for plain
     multipart messages (e.g. inbound decrypted mail that must preserve
     attachments and avoid lossy JSON reconstruction).
+
+    Bifurcated transactions (To/Cc headers list more recipients than this
+    transaction's envelope — mixed internal/external sends split by Exchange)
+    are preferentially sent via authenticated SMTP submission (port 587,
+    XOAUTH2 as the sender, requires SMTP.SendAsApp): only SMTP separates
+    envelope recipients from displayed headers, so the external recipients
+    keep seeing the FULL original To/Cc (Reply-All stays intact) while
+    delivery goes only to this transaction's actual envelope recipients.
+    Graph sendMail cannot express that separation (delivery and display are
+    the same field there) — used as fallback with header-scoping instead.
     """
     mode = settings_store.get("REINJECT_MODE") or "smtp"
+
+    if mode in ("graph", "imap", "smtp587") and _is_bifurcated(rcpt_tos, content_bytes):
+        import smtp_submit
+        log.info("Bifurcated transaction detected (envelope ⊂ headers) — "
+                 "trying SMTP 587 as-sender for header-preserving delivery: to=%s", rcpt_tos)
+        if smtp_submit.deliver_outbound_as_sender(mail_from, rcpt_tos, content_bytes):
+            return
+        log.info("SMTP 587 as-sender unavailable — continuing with regular %s path "
+                 "(headers will be scoped to envelope)", mode)
 
     if mode == "graph":
         import email as _em

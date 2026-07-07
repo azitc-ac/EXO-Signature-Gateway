@@ -5,6 +5,38 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.58 — 2026-07-07 — feat: SMTP-587-Reinject für bifurkierte Mails (Reply-All-Fix, Teil 1)
+
+Löst die in v1.5.56 als "strukturell unlösbar" dokumentierte Allen-antworten-
+Einschränkung bei gemischten intern/extern-Empfängern — die Einschätzung war
+falsch (User hat zu Recht widersprochen). Recherche-Ergebnis (Graph-Message-
+Schema, EWS-SendItem-Schema, CodeTwo/Exclaimer-Doku): Graph sendMail und EWS
+können Envelope-Empfänger tatsächlich nicht von den angezeigten To/Cc-Headern
+entkoppeln — rohes SMTP kann es aber schon immer (derselbe Mechanismus wie
+BCC), und genau so lösen es CodeTwo/Exclaimer laut deren eigener Doku.
+
+Neu:
+- `smtp_submit.deliver_outbound_as_sender()`: authentifizierte SMTP-Submission
+  (Port 587, XOAUTH2 **als der Absender selbst** — kein Relay-Konto-Umweg,
+  Envelope-From = Header-From = echter Absender, SPF/DKIM/DMARC sehen eine
+  völlig normale Einreichung). Braucht die Anwendungsberechtigung
+  `SMTP.SendAsApp` (Office 365 Exchange Online).
+- `reinject._is_bifurcated()`: erkennt Transaktionen, deren To/Cc-Header mehr
+  Empfänger listen als der SMTP-Envelope (= Exchange-Bifurkation bei
+  gemischten Sends).
+- `reinject.send()`: bifurkierte Transaktionen laufen bevorzugt über den
+  587-Pfad — Zustellung nur an die Envelope-Empfänger, aber vollständige
+  Original-To/Cc-Header bleiben sichtbar → Allen-antworten funktioniert.
+  Ohne `SMTP.SendAsApp` (Auth schlägt fehl) sauberer Fallback auf den
+  bisherigen Graph-Pfad mit Header-Scoping.
+
+**Noch offen (Teil 2)**: `SMTP.SendAsApp` muss noch in Entra erteilt werden
+(explizite Freigabe des Admins erforderlich), danach Live-Test der gesamten
+Kette inkl. Loop-Schutz (X-Sig-Applied-Ausnahme der Transportregel muss die
+587-resubmittete Mail vor erneutem Gateway-Routing bewahren).
+
+---
+
 ## v1.5.57 — 2026-07-07 — fix: Checkbox-Layout, Notification-Mailbox-Name + Dropdown-Auswahl
 
 - **Wartungsmodus/Lexware-Checkboxen**: erschienen höher als der zugehörige
