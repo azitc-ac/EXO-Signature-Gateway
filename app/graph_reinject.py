@@ -48,25 +48,36 @@ def _post_with_429_retry(client: httpx.Client, url: str, **kwargs) -> httpx.Resp
         resp = client.post(url, **kwargs)
     return resp
 
-# Exchange splits outbound mail into one SMTP transaction per destination MX.
-# All transactions share the same Message-ID.  When we call sendMail (Graph API)
-# the first call already delivers to ALL To/CC recipients in the MIME headers,
-# so subsequent calls for the same MID would cause duplicate delivery and create
-# extra Sent Items.  Track recently-sent MIDs and skip duplicate sendMail calls.
-_sendmail_dedup: dict[str, float] = {}
+# Exchange splits (bifurcates) outbound mail into separate transactions that
+# all share the same Message-ID.  We dedup on (Message-ID + RECIPIENT SET) —
+# NOT Message-ID alone.
+#
+# Why the recipient set matters: bifurcated forks of a mixed internal/external
+# send have the SAME Message-ID but DISJOINT envelopes (e.g. one fork to the
+# internal recipient, another to the external one), and we now deliver each
+# fork scoped to its own recipients. Deduping on Message-ID alone would let the
+# first fork register the MID and then SILENTLY DROP every other fork —
+# losing delivery to the recipients only that fork covered (observed live
+# 2026-07-07: the internal fork sent first, the external gmail fork was then
+# skipped as a "duplicate" and never delivered). Keying on (MID, recipients)
+# still blocks a genuine duplicate (same MID AND same recipients, e.g. Exchange
+# handing us the identical fork twice) while letting disjoint forks through.
+_sendmail_dedup: dict[tuple, float] = {}
 _SENDMAIL_DEDUP_SECS = 120
 
 
-def _is_first_sendmail(message_id: str) -> bool:
-    """Return True (and register) for the first sendMail call with this Message-ID."""
+def _is_first_sendmail(message_id: str, recipients: list[str] | None = None) -> bool:
+    """Return True (and register) for the first sendMail with this
+    (Message-ID, recipient-set). Empty Message-ID never dedups."""
     if not message_id:
         return True
+    key = (message_id, frozenset((r or "").strip().lower() for r in (recipients or [])))
     now = time.monotonic()
     for k in [k for k, t in _sendmail_dedup.items() if now - t > _SENDMAIL_DEDUP_SECS]:
         del _sendmail_dedup[k]
-    if message_id in _sendmail_dedup:
+    if key in _sendmail_dedup:
         return False
-    _sendmail_dedup[message_id] = now
+    _sendmail_dedup[key] = now
     return True
 
 
@@ -513,10 +524,11 @@ def send_via_graph(mail_from: str, rcpt_tos: list[str], content_bytes: bytes) ->
 
     msg = email_mod.message_from_bytes(content_bytes, policy=email_mod.policy.compat32)
 
-    # Dedup: skip sendMail if already called for this Message-ID (see send_via_graph_mime)
+    # Dedup: skip only if this exact (Message-ID, recipient-set) was already
+    # sent — disjoint bifurcated forks must NOT dedup each other (see helper).
     mid = (msg.get("Message-ID") or "").strip()
-    if not _is_first_sendmail(mid):
-        log.info("Skipping duplicate sendMail (MID %.24s already sent)", mid)
+    if not _is_first_sendmail(mid, rcpt_tos):
+        log.info("Skipping duplicate sendMail (MID %.24s, same recipients already sent)", mid)
         return True
 
     # ── Extract headers ───────────────────────────────────────────────────────
@@ -636,15 +648,13 @@ def send_via_graph_mime(mail_from: str, rcpt_tos: list[str], content_bytes: byte
     _, from_addr = email.utils.parseaddr(from_header)
     from_addr = from_addr or mail_from
 
-    # Dedup: Exchange splits multi-recipient mail into one SMTP transaction per
-    # destination MX, all with the same Message-ID.  The first sendMail call
-    # already delivers to all To/CC recipients in the MIME, so later calls
-    # for the same MID would cause duplicate delivery and extra Sent Items.
+    # Dedup on (Message-ID, recipient-set): only a genuine duplicate (same MID
+    # AND same recipients) is skipped. Disjoint bifurcated forks share the MID
+    # but not the recipients, so they must each go through (see helper).
     mid = (msg.get("Message-ID") or "").strip()
-    if not _is_first_sendmail(mid):
+    if not _is_first_sendmail(mid, rcpt_tos):
         log.info(
-            "Skipping duplicate sendMail (MID %.24s already sent) — "
-            "delivery already handled by earlier SMTP transaction",
+            "Skipping duplicate sendMail (MID %.24s, same recipients already sent)",
             mid,
         )
         return True

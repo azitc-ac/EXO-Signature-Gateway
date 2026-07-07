@@ -5,6 +5,29 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.63 — 2026-07-08 — fix: stiller Mailverlust an externe Empfänger im Graph-Modus (Dedup-Bug)
+
+Root Cause per Live-Log gefunden: `graph_reinject._is_first_sendmail()`
+deduplizierte nur nach **Message-ID**. Bifurkierte Forks einer gemischten
+Mail haben aber dieselbe Message-ID bei disjunkten Empfängern. Der interne
+Fork (z.B. mig3) wurde zuerst verarbeitet, registrierte die Message-ID, und
+der externe Fork (gmail) wurde dann als „Duplikat" **übersprungen und nie
+zugestellt** — obwohl er ganz andere Empfänger hatte. Erklärt, warum die
+früheren Graph-Modus-Tests nie bei Gmail ankamen.
+
+Die Dedup-Annahme („erster Send deckt alle Empfänger ab") stammte aus der
+Zeit, als `send_via_graph` die vollen MIME-Header als Empfänger nutzte. Seit
+dem Header-Scoping pro Fork ist sie falsch.
+
+Fix: Dedup-Schlüssel ist jetzt **(Message-ID + Empfängermenge)**. Echte
+Duplikate (gleiche MID UND gleiche Empfänger) werden weiter geblockt,
+disjunkte Forks gehen beide durch. Unit-getestet.
+
+Betrifft nur den Graph-Reinject-Pfad — der 587-Pfad (VM-Produktion) war nie
+betroffen (geht nicht durch diese Dedup), daher lief die VM korrekt.
+
+---
+
 ## v1.5.62 — 2026-07-07 — fix: ROOT CAUSE der Mail-Loops — mark_as_signed_bytes zerstörte gefaltete Header
 
 Die eigentliche Ursache aller X-Sig-Applied-Loop-Probleme gefunden und
