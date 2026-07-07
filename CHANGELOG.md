@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.49 — 2026-07-07 — legal: Community Edition — kostenlos bis 100 Postfächer
+
+LICENSE.md, README.md und README.de.md ergänzt: PolyForm Internal Use License
+bleibt Basis, zusätzlich ein "Community Edition"-Feld-of-Use-Abschnitt —
+kostenlos bis 100 Postfächer, darüber kommerzielle Lizenz erforderlich
+(Kontakt: zarenko@gmx.net). Kein Code-/Verhaltensänderung, reine
+Lizenz-/Doku-Klarstellung, bevor das Repo öffentlich anders interpretiert
+werden könnte.
+
+---
+
 ## v1.5.48 — 2026-07-07 — fix: "Lokaler Schlüssel" fälschlich bei KV-migrierten Schlüsseln mit Backup
 
 `_has_local_key()` nutzte `get_signing_paths(..., allow_backup=True)` — das

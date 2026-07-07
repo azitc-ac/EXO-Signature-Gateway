@@ -2,10 +2,13 @@
 
 # EXO Signature Service
 
-> **Lizenz:** [PolyForm Internal Use License 1.0.0](LICENSE.md) — frei
-> einsehbar und nutzbar für eigene/interne Zwecke (auch im Unternehmen).
-> Nicht erlaubt: Weiterverteilung, Betrieb als Dienstleistung für Dritte
-> oder Verkauf/Anbieten als Service durch andere als den Lizenzgeber.
+> **Lizenz:** [PolyForm Internal Use License 1.0.0](LICENSE.md) (Community
+> Edition) — frei nutzbar für eigene/interne Zwecke (auch im Unternehmen)
+> für **bis zu 100 Postfächer**. Darüber hinaus ist eine kostenpflichtige
+> kommerzielle Lizenz erforderlich — Kontakt: zarenko@gmx.net. Unabhängig
+> von der Größe nicht erlaubt: Weiterverteilung, Betrieb als Dienstleistung
+> für Dritte oder Verkauf/Anbieten als Service durch andere als den
+> Lizenzgeber.
 
 Ein Docker-basierter SMTP-Proxy, der automatisch personalisierte E-Mail-Signaturen in Exchange Online (EXO) einbettet – und **vollständig auf Azure betrieben werden kann, ohne ausgehenden Port 25**.
 
@@ -429,4 +432,6 @@ app/
 
 ## Lizenz
 
-[PolyForm Internal Use License 1.0.0](LICENSE.md) — siehe vollständigen Text in `LICENSE.md`.
+[PolyForm Internal Use License 1.0.0](LICENSE.md) (Community Edition) — frei
+für bis zu 100 Postfächer; darüber hinaus ist eine kostenpflichtige
+kommerzielle Lizenz erforderlich. Siehe vollständigen Text in `LICENSE.md`.
