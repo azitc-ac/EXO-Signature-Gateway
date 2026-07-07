@@ -98,9 +98,9 @@
   <!-- Verwaltet: CA-Auswahl + kostenpflichtige Freischaltung -->
   <div id="sec-managed-fields">
     <div class="settings-row" style="margin-bottom:10px"><label>Zertifizierungsstelle</label>
-      <select id="cert-provider" style="width:100%;max-width:420px;font-size:13px">
+      <select id="cert-provider" onchange="certProviderChanged()" style="width:100%;max-width:420px;font-size:13px">
         <option value="sectigo">Sectigo</option>
-        <option value="swisssign" disabled>SwissSign — bald</option>
+        <option value="swisssign">SwissSign</option>
       </select>
     </div>
     <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:14px;margin-bottom:12px">
@@ -192,8 +192,28 @@
     <button class="btn secondary" onclick="sectigoTest()" style="margin-bottom:10px">Zugang testen</button>
   </div>
 
+  <!-- Direkt: eigenes SwissSign-RA-Konto (fortgeschritten) -->
+  <div id="swisssign-direct-fields" style="display:none">
+    <p class="hint" style="margin:0 0 10px">
+      <span style="color:#b45309">Direktkauf:</span> eigenes SwissSign-RA-Konto nötig.
+      <code>Produkt-Referenz</code> und <code>Client-Referenz</code> sind kontospezifisch
+      (aus dem SwissSign-RA-Portal). Für Endkunden i.&nbsp;d.&nbsp;R. nicht relevant.
+    </p>
+    <div class="settings-row" style="margin-bottom:8px"><label>API-Base (optional)</label>
+      <input type="text" id="ss-base" placeholder="https://api.ra.swisssign.ch" style="width:100%;max-width:420px;font-size:13px" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+    <div class="settings-row" style="margin-bottom:8px"><label>Benutzername</label>
+      <input type="text" id="ss-username" autocomplete="off" style="width:100%;max-width:420px;font-size:13px" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+    <div class="settings-row" style="margin-bottom:8px"><label>API-Key</label>
+      <input type="password" id="ss-apikey" autocomplete="new-password" placeholder="(unverändert lassen zum Beibehalten)" style="width:100%;max-width:420px;font-size:13px"></div>
+    <div class="settings-row" style="margin-bottom:8px"><label>Produkt-Referenz</label>
+      <input type="text" id="ss-product" placeholder="pma-..." style="width:100%;max-width:420px;font-size:13px" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+    <div class="settings-row" style="margin-bottom:10px"><label>Client-Referenz</label>
+      <input type="text" id="ss-client" placeholder="cli-..." style="width:100%;max-width:420px;font-size:13px" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+    <button class="btn secondary" onclick="swissSignTest()" style="margin-bottom:10px">Zugang testen</button>
+  </div>
+
   <div class="actions" style="margin-bottom:10px">
-    <button class="btn primary" onclick="sectigoSave()">Speichern</button>
+    <button class="btn primary" onclick="certProviderSave()">Speichern</button>
   </div>
   <div id="sec-result" style="display:none;margin-top:8px"></div>
 </div>
@@ -483,21 +503,33 @@ function _renderCertSteps(d) {
     +lowBalanceHint+'<div style="margin-top:6px">'+topupHtml+'</div>';
 }
 
-// ── Zertifikatsbezug: Bezugsweg + Sectigo ────────────────────────────────────
+// ── Zertifikatsbezug: Bezugsweg + Zertifizierungsstelle ──────────────────────
+function certProviderChanged() {
+  const provider=document.getElementById('cert-provider').value;
+  document.getElementById('sec-mode').value = (provider==='swisssign' ? _ssMode : _sectigoMode) || 'reseller';
+  sectigoModeChanged();
+}
 function sectigoModeChanged() {
   const mode=document.getElementById('sec-mode').value;
+  const provider=document.getElementById('cert-provider').value;
   document.getElementById('sec-managed-fields').style.display=(mode==='direct')?'none':'';
-  document.getElementById('sec-direct-fields').style.display=(mode==='direct')?'':'none';
+  document.getElementById('sec-direct-fields').style.display=(mode==='direct' && provider==='sectigo')?'':'none';
+  document.getElementById('swisssign-direct-fields').style.display=(mode==='direct' && provider==='swisssign')?'':'none';
   if(mode!=='direct') certLoadEligibility();
 }
+async function certProviderSave() {
+  return document.getElementById('cert-provider').value==='swisssign' ? swissSignSave() : sectigoSave();
+}
+let _sectigoMode='reseller', _ssMode='reseller';
 async function sectigoLoad() {
   const d=await (await fetch('/api/sectigo/config')).json(); if(!d.ok)return; const c=d.config;
-  document.getElementById('sec-mode').value=(c.SECTIGO_MODE==='direct')?'direct':'reseller';
+  _sectigoMode=(c.SECTIGO_MODE==='direct')?'direct':'reseller';
   document.getElementById('cert-provider').value=c.CERT_PROVIDER||'sectigo';
   document.getElementById('sec-base').value=c.SECTIGO_API_BASE||''; document.getElementById('sec-login').value=c.SECTIGO_LOGIN||'';
   document.getElementById('sec-customer').value=c.SECTIGO_CUSTOMER_URI||''; document.getElementById('sec-org').value=c.SECTIGO_ORG_ID||'';
   document.getElementById('sec-certtype').value=c.SECTIGO_CERT_TYPE||''; document.getElementById('sec-term').value=c.SECTIGO_TERM||'';
   document.getElementById('sec-password').placeholder=c.password_set?'•••••• (gesetzt — leer lassen zum Beibehalten)':'(kein Passwort gesetzt)';
+  document.getElementById('sec-mode').value = (document.getElementById('cert-provider').value==='swisssign') ? _ssMode : _sectigoMode;
   sectigoModeChanged();
 }
 function _sectigoBody() { return {
@@ -515,6 +547,28 @@ async function sectigoTest() { const r=document.getElementById('sec-result'); r.
   await fetch('/api/sectigo/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(_sectigoBody())});
   const d=await (await fetch('/api/sectigo/config/test',{method:'POST'})).json();
   r.className='alert '+(d.ok?'success':'error'); r.textContent=d.message; document.getElementById('sec-password').value=''; }
-document.addEventListener('DOMContentLoaded', sectigoLoad);
+async function swissSignLoad() {
+  const d=await (await fetch('/api/swisssign/config')).json(); if(!d.ok)return; const c=d.config;
+  _ssMode=(c.SWISSSIGN_MODE==='direct')?'direct':'reseller';
+  document.getElementById('ss-base').value=c.SWISSSIGN_API_BASE||''; document.getElementById('ss-username').value=c.SWISSSIGN_USERNAME||'';
+  document.getElementById('ss-product').value=c.SWISSSIGN_PRODUCT_REFERENCE||''; document.getElementById('ss-client').value=c.SWISSSIGN_CLIENT_REFERENCE||'';
+  document.getElementById('ss-apikey').placeholder=c.api_key_set?'•••••• (gesetzt — leer lassen zum Beibehalten)':'(kein API-Key gesetzt)';
+  if(document.getElementById('cert-provider').value==='swisssign'){ document.getElementById('sec-mode').value=_ssMode; sectigoModeChanged(); }
+}
+function _swissSignBody() { return {
+  SWISSSIGN_MODE:document.getElementById('sec-mode').value,
+  CERT_PROVIDER:document.getElementById('cert-provider').value,
+  SWISSSIGN_API_BASE:document.getElementById('ss-base').value.trim(), SWISSSIGN_USERNAME:document.getElementById('ss-username').value.trim(),
+  SWISSSIGN_API_KEY:document.getElementById('ss-apikey').value,
+  SWISSSIGN_PRODUCT_REFERENCE:document.getElementById('ss-product').value.trim(), SWISSSIGN_CLIENT_REFERENCE:document.getElementById('ss-client').value.trim() }; }
+async function swissSignSave() { const r=document.getElementById('sec-result');
+  const d=await (await fetch('/api/swisssign/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(_swissSignBody())})).json();
+  r.className='alert '+(d.ok?'success':'error'); r.textContent=d.ok?'Zertifikatsbezug gespeichert. Bitte Seite neu laden.':('Fehler: '+(d.error||'Unbekannt')); r.style.display='block';
+  document.getElementById('ss-apikey').value=''; swissSignLoad(); }
+async function swissSignTest() { const r=document.getElementById('sec-result'); r.className='alert'; r.textContent='Teste RA-Zugang…'; r.style.display='block';
+  await fetch('/api/swisssign/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(_swissSignBody())});
+  const d=await (await fetch('/api/swisssign/config/test',{method:'POST'})).json();
+  r.className='alert '+(d.ok?'success':'error'); r.textContent=d.message; document.getElementById('ss-apikey').value=''; }
+document.addEventListener('DOMContentLoaded', async function(){ await sectigoLoad(); await swissSignLoad(); });
 </script>
 {% endblock %}

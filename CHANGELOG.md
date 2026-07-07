@@ -5,6 +5,32 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.51 — 2026-07-08 — feat: SwissSign Managed PKI als neues CA-Backend (Gerüst)
+
+Neues Backend `ca_backends/swisssign.py`, gebaut gegen SwissSigns öffentliche
+RA-REST-API-Spec (OpenAPI, github.com/SwissSign-AG/RaApi) — analog zu
+Sectigo: Reseller-Modus (über EXO Signature HUB) und Direktkauf-Modus
+(eigenes RA-Konto: Benutzername/API-Key/Produkt-Referenz/Client-Referenz).
+Private Schlüssel wird immer lokal erzeugt, nur der CSR geht raus.
+
+ACME schied als Weg aus — SwissSigns ACME-Endpunkt deckt nur klassische
+Server-/TLS-Zertifikate ab (HTTP-01/DNS-01/TLS-ALPN-01), kein RFC-8823-
+E-Mail-Challenge für S/MIME. Die REST-API ist damit der einzige Weg, analog
+zu Sectigo.
+
+**Achtung**: Gerüst auf Basis der öffentlichen Spec, noch nicht gegen einen
+echten RA-Account getestet. Manche SwissSign-Zertifikatsprodukte verlangen
+zusätzlich zur Domain-Validierung eine Postfach-Bestätigung per Link
+(`isEmailBoxValidationRequired`) — ob das RA-Produkt das braucht, ist noch
+offen; falls ja, ist synchrone Ausstellung nicht möglich und es müsste auf
+Polling umgestellt werden.
+
+Neu im Anbindung-Tab: "Zertifizierungsstelle"-Dropdown zeigt jetzt SwissSign
+als Option (vorher deaktiviert/"bald"), eigener Direktkauf-Konfigurationsblock
+mit Verbindungstest, analog zu Sectigo.
+
+---
+
 ## v1.5.50 — 2026-07-08 — legal: Lizenz-Kontaktadresse korrigiert
 
 Kontaktadresse in LICENSE.md/README.md/README.de.md von zarenko@gmx.net auf
