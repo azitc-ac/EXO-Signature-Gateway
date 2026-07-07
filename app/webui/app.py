@@ -4164,10 +4164,15 @@ async def api_support_download(user: str = Depends(_require_admin)):
 
 
 @app.post("/api/support/upload")
-async def api_support_upload(user: str = Depends(_require_admin)):
+async def api_support_upload(request: Request, user: str = Depends(_require_admin)):
     """Support-Bundle (Logs, Settings, Audit) an den Provider-Hub hochladen."""
     import hub_client
-    result = await hub_client.upload_bundle(list(_LOG_BUFFER))
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    note = str((body or {}).get("note") or "").strip()[:2000]
+    result = await hub_client.upload_bundle(list(_LOG_BUFFER), note=note)
     return JSONResponse(result)
 
 

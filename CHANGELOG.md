@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.52 — 2026-07-07 — feat: Problembeschreibung beim Support-Bundle-Upload
+
+Neues optionales Mehrzeilen-Textfeld im Erweitert-Tab beim "Bundle an Hub
+senden" — kurze Problembeschreibung wird mitgeschickt, erscheint beim Hub in
+der Admin-Benachrichtigung und einklappbar auf der Kunden-Detailseite.
+Button zeigt nach dem Senden einen 60s-Countdown (Hub limitiert serverseitig
+ohnehin auf 1 Upload/Minute — Anzeige verhindert nur unnötige 429-Fehler).
+
+---
+
 ## v1.5.51 — 2026-07-08 — feat: SwissSign Managed PKI als neues CA-Backend (Gerüst)
 
 Neues Backend `ca_backends/swisssign.py`, gebaut gegen SwissSigns öffentliche

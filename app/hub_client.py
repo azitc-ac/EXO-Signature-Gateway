@@ -252,7 +252,7 @@ async def status() -> dict:
         return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
 
 
-async def upload_bundle(runtime_log_lines: list[str]) -> dict:
+async def upload_bundle(runtime_log_lines: list[str], note: str = "") -> dict:
     """Build the diagnostic bundle and upload it to the hub."""
     base = _base()
     if not base:
@@ -274,6 +274,7 @@ async def upload_bundle(runtime_log_lines: list[str]) -> dict:
                 f"{base}/api/support/upload",
                 headers=_gateway_headers(),
                 files={"file": (name, zip_bytes, "application/zip")},
+                data={"note": note or ""},
             )
         if r.status_code == 200:
             d = r.json()
@@ -282,6 +283,8 @@ async def upload_bundle(runtime_log_lines: list[str]) -> dict:
                     "analysis": d.get("analysis", {})}
         if r.status_code == 413:
             return {"ok": False, "error": f"Vom Hub abgelehnt (Kontingent/Größe): {r.text[:200]}"}
+        if r.status_code == 429:
+            return {"ok": False, "error": "Höchstens 1 Upload pro Minute — kurz warten und erneut versuchen."}
         if r.status_code in (401, 403):
             return {"ok": False, "error": f"Nicht freigegeben/ungültiger Key (HTTP {r.status_code})."}
         return {"ok": False, "error": f"Hub HTTP {r.status_code}: {r.text[:200]}"}

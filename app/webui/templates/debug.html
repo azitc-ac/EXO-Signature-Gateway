@@ -1375,8 +1375,15 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal()
     <!-- An Hub senden (Registrierung/Key unter Einstellungen → Anbindung) -->
     <div style="border-top:1px solid #e2e8f0;padding-top:14px">
       {% if hub_registered %}
-      <button class="btn primary" id="sup-upload-btn" onclick="supportUpload()">Bundle an Hub senden</button>
-      <span id="sup-upload-spinner" style="display:none;font-size:13px;color:#555;margin-left:8px">Lädt hoch…</span>
+      <label for="sup-note" style="display:block;font-size:12px;color:#555;margin-bottom:4px">
+        Problem kurz beschreiben (optional)</label>
+      <textarea id="sup-note" rows="3" maxlength="2000" placeholder="z.B. seit heute Morgen kommen Signaturen doppelt an…"
+                style="width:100%;max-width:520px;box-sizing:border-box;font-size:13px;font-family:inherit;
+                       padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;resize:vertical;margin-bottom:10px"></textarea>
+      <div>
+        <button class="btn primary" id="sup-upload-btn" onclick="supportUpload()">Bundle an Hub senden</button>
+        <span id="sup-upload-spinner" style="display:none;font-size:13px;color:#555;margin-left:8px">Lädt hoch…</span>
+      </div>
       {% else %}
       <p class="hint" style="margin:0">
         Zum direkten Übertragen an den Support-Hub muss dieses Gateway erst registriert und
@@ -1431,12 +1438,19 @@ async function supportUpload() {
   const btn     = document.getElementById('sup-upload-btn');
   const spinner = document.getElementById('sup-upload-spinner');
   const result  = document.getElementById('sup-upload-result');
+  const noteEl  = document.getElementById('sup-note');
+  const note    = noteEl ? noteEl.value.trim() : '';
   btn.disabled = true;
   spinner.style.display = 'inline';
   result.style.display  = 'none';
   try {
-    const r = await fetch('/api/support/upload', {method: 'POST'});
+    const r = await fetch('/api/support/upload', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({note}),
+    });
     const d = await r.json();
+    spinner.style.display = 'none';
+    result.style.display  = 'block';
     if (d.ok) {
       const a = d.analysis || {};
       const extra = (a.priority ? ` &nbsp;|&nbsp; Analyse: ${a.priority}${a.error_hits ? ' ('+a.error_hits+' Fehler-Treffer)' : ''}` : '');
@@ -1444,19 +1458,30 @@ async function supportUpload() {
         <strong>An Hub gesendet!</strong>
         <code>${d.ticket_id}</code>${copyBtnHtml(d.ticket_id)} &nbsp;|&nbsp; ${d.size_kb} KB${extra}
       </div>`;
+      // Server limits to 1 upload/minute anyway — mirror that client-side so
+      // the button doesn't just bounce off a 429 on a second click.
+      let remaining = 60;
+      const origText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = `Bundle an Hub senden (${remaining}s)`;
+      const tick = setInterval(() => {
+        remaining--;
+        if (remaining <= 0) { clearInterval(tick); btn.disabled = false; btn.textContent = origText; return; }
+        btn.textContent = `Bundle an Hub senden (${remaining}s)`;
+      }, 1000);
     } else {
+      btn.disabled = false;
       result.innerHTML = `<div class="alert" style="background:#fef2f2;border-color:#fca5a5;color:#991b1b">
         <strong>Fehler:</strong> ${d.error || 'Unbekannter Fehler'}
       </div>`;
     }
   } catch(e) {
-    result.innerHTML = `<div class="alert" style="background:#fef2f2;border-color:#fca5a5;color:#991b1b">
-      <strong>Netzwerkfehler:</strong> ${e.message}
-    </div>`;
-  } finally {
     btn.disabled = false;
     spinner.style.display = 'none';
     result.style.display  = 'block';
+    result.innerHTML = `<div class="alert" style="background:#fef2f2;border-color:#fca5a5;color:#991b1b">
+      <strong>Netzwerkfehler:</strong> ${e.message}
+    </div>`;
   }
 }
 
