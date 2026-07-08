@@ -84,7 +84,7 @@
     <button class="btn btn-secondary" onclick="loadSig()" style="font-size:12px;margin-left:4px">Erneut versuchen</button>
   </div>
 
-  <div id="tpl-row" style="display:none;margin-bottom:6px;display:flex;align-items:center;gap:6px">
+  <div id="tpl-row" style="display:none;margin-bottom:6px;align-items:center;gap:6px">
     <label style="font-size:11px;color:#64748b;white-space:nowrap">Vorlage:</label>
     <select id="tpl-select" onchange="loadAndApply()"
             style="font-size:12px;height:26px;border:1px solid #d1d5db;border-radius:4px;padding:0 6px;flex:1;min-width:0"></select>
@@ -305,7 +305,8 @@
           if (ok) {
             document.getElementById('login-required').style.display = 'none';
             showStatus('Angemeldet ✓', 'ok');
-            loadSig();
+            // Re-fetch the template list too — the first attempt ran pre-login (401).
+            _loadTemplateList(_email).then(function() { loadSig(); });
           } else {
             showStatus('Anmeldung nicht abgeschlossen. Bitte erneut versuchen.', 'err');
           }

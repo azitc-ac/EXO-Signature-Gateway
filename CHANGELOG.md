@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.72 — 2026-07-08 — fix: Add-in-Vorlagen-Dropdown blieb nach Login leer
+
+Zwei Bugs: (1) `_loadTemplateList` lief nur beim `Office.onReady` — also **vor**
+dem Login (401 → leer); der Dialog-Login rief danach nur `loadSig()`, nicht die
+Vorlagenliste neu → Dropdown blieb leer. Jetzt nach erfolgreichem Login
+`_loadTemplateList` + `loadSig`. (2) `tpl-row` hatte im Inline-Style **zweimal
+`display`** (`display:none;…;display:flex`) → die spätere Regel gewann, die Zeile
+war immer sichtbar (auch leer). `display:flex` entfernt; das JS steuert die
+Sichtbarkeit (nur ab >1 Vorlage). Betrifft nur die frische Erstanmeldung — bei
+Folge-Öffnungen liegt der Token schon in localStorage.
+
 ## v1.5.71 — 2026-07-08 — fix: Outlook-Add-in-Login (Office-Dialog statt Taskpane-Navigation)
 
 Der „Jetzt anmelden"-Button navigierte das **Taskpane-Webview** direkt zu Azure AD.
