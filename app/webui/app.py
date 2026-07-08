@@ -172,8 +172,12 @@ def _check_password(password: str) -> bool:
 # ── Auth ───────────────────────────────────────────────────────────────────────
 
 def _get_session_user(request: Request) -> str | None:
-    """Extract user identity from session cookie. Returns UPN/username or None."""
-    cookie = request.cookies.get(sso_mod.SESSION_COOKIE)
+    """Extract user identity from the session cookie — or, for the Office add-in,
+    from the X-Addin-Session header. The add-in's login runs in an Office dialog
+    whose session cookie is NOT reliably shared with the taskpane webview, so the
+    dialog passes the signed session token back and the taskpane sends it here as
+    a header. Same signed token, same verification — just a different transport."""
+    cookie = request.cookies.get(sso_mod.SESSION_COOKIE) or request.headers.get("X-Addin-Session")
     if not cookie:
         return None
     payload = sso_mod.verify_session_cookie(cookie)
@@ -362,6 +366,35 @@ async def health():
 @app.get("/addin/compose", response_class=HTMLResponse)
 async def addin_compose(request: Request):
     return templates.TemplateResponse(request=request, name="addin_compose.html", context={})
+
+
+@app.get("/addin/auth-complete", response_class=HTMLResponse)
+async def addin_auth_complete(request: Request):
+    """Landing page for the add-in login dialog.
+
+    The dialog runs the full OIDC flow; the callback set the session cookie on
+    THIS (dialog) context. HttpOnly cookies aren't readable via JS but ARE sent
+    to the server, so we read it here and hand the signed token back to the
+    taskpane via Office's messageParent — the taskpane then sends it as the
+    X-Addin-Session header (cookie sharing between dialog and taskpane is not
+    guaranteed). If opened outside a dialog, messageParent throws → show a hint."""
+    token = request.cookies.get(sso_mod.SESSION_COOKIE) or ""
+    payload = _json_mod.dumps({"status": "ok" if token else "no_session", "token": token})
+    html = (
+        "<!DOCTYPE html><html lang=\"de\"><head><meta charset=\"UTF-8\">"
+        "<title>Anmeldung…</title>"
+        "<script src=\"https://appsforoffice.microsoft.com/lib/1.1/hosted/office.js\"></script>"
+        "</head><body style=\"font-family:'Segoe UI',Arial,sans-serif;padding:20px;color:#1e293b;font-size:13px\">"
+        "<p id=\"msg\">Anmeldung abgeschlossen – Fenster schließt…</p>"
+        "<script>"
+        "Office.onReady(function(){"
+        "  try { Office.context.ui.messageParent(JSON.stringify(" + payload + ")); }"
+        "  catch(e){ document.getElementById('msg').textContent = "
+        "    'Anmeldung abgeschlossen. Bitte dieses Fenster schließen und im Add-in „Erneut versuchen“ klicken.'; }"
+        "});"
+        "</script></body></html>"
+    )
+    return HTMLResponse(content=html)
 
 
 @app.get("/addin/manifest.xml")

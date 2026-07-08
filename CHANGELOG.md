@@ -5,6 +5,25 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.71 — 2026-07-08 — fix: Outlook-Add-in-Login (Office-Dialog statt Taskpane-Navigation)
+
+Der „Jetzt anmelden"-Button navigierte das **Taskpane-Webview** direkt zu Azure AD.
+Azure ADs Login-Seite setzt `X-Frame-Options: DENY` → kann im Add-in-Iframe nicht
+laden → der Flow brach in den **externen Browser** aus, das Session-Cookie wurde
+dort gesetzt und erreichte das Taskpane **nie** (Outlook Desktop = isoliertes
+Webview). Der Login-Button hat damit auf dem Desktop **nie funktioniert**; frühere
+Erfolge liefen über host-spezifische Nebenpfade (OWA teilt das Browser-Cookie mit
+dem Taskpane, oder gecachte Basic-Auth).
+
+Fix (Microsoft-Best-Practice): Der Login läuft jetzt in einem **Office-Dialog**
+(`displayDialogAsync`) — ein echtes Popup, das Azure AD laden darf. Nach dem OIDC-
+Flow gibt die neue Seite `/addin/auth-complete` den signierten Session-Token per
+`messageParent` zurück; das Taskpane speichert ihn (localStorage) und sendet ihn
+als **`X-Addin-Session`-Header**. `_get_session_user` akzeptiert diesen Header
+(gleicher signierter Token, anderer Transport) — kein Cookie-Sharing zwischen
+Dialog und Taskpane mehr nötig, funktioniert auf **Desktop und Web**. Direkte
+Navigation bleibt als Fallback nur für sehr alte Hosts ohne Dialog-API.
+
 ## v1.5.70 — 2026-07-08 — fix: kaputte Toggle-Optik (Wartungsmodus + Lexware) + Filter auf /smime
 
 1. Der Wartungsmodus- und der Lexware-Toggle im Erweitert-Tab nutzten CSS-Klassen

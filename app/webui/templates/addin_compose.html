@@ -108,6 +108,9 @@
     var _DIV_ATTR_S = 'id="exo-sig-s"';
     var _DIV_ATTR_E = 'id="exo-sig-e"';
     var _email = '';
+    var _addinSession = '';
+    try { _addinSession = localStorage.getItem('exo_addin_session') || ''; } catch(_) {}
+    function _authHeaders() { return _addinSession ? { 'X-Addin-Session': _addinSession } : {}; }
 
     Office.onReady(function(info) {
       if (info.host !== Office.HostType.Outlook) return;
@@ -119,7 +122,7 @@
     async function _loadTemplateList(email) {
       if (!email) return;
       try {
-        var r = await fetch('/api/addin/templates?email=' + encodeURIComponent(email));
+        var r = await fetch('/api/addin/templates?email=' + encodeURIComponent(email), { headers: _authHeaders() });
         if (!r.ok) return;
         var d = await r.json();
         var list = d.templates || [];
@@ -147,7 +150,7 @@
       document.getElementById('btn-insert').disabled = true;
       document.getElementById('hint-auto').style.display = 'none';
 
-      fetch('/api/addin/signature?email=' + encodeURIComponent(email) + tpl)
+      fetch('/api/addin/signature?email=' + encodeURIComponent(email) + tpl, { headers: _authHeaders() })
         .then(function(r) {
           if (r.status === 401) { showLoginRequired(); throw null; }
           if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -270,9 +273,47 @@
     }
 
     function doLogin() {
-      // Navigate the taskpane directly into the PKCE flow — bypasses the login page popup.
-      // After Azure AD auth, the callback redirects back to /addin/compose within the taskpane.
-      window.location.href = '/auth/login/microsoft?next=' + encodeURIComponent('/addin/compose');
+      var url = window.location.origin + '/auth/login/microsoft?next=' + encodeURIComponent('/addin/auth-complete');
+      // Azure AD refuses to be framed inside the taskpane (X-Frame-Options), so the
+      // login MUST run in an Office dialog (a real popup window). The dialog completes
+      // the OIDC flow and hands the signed session token back via messageParent; we
+      // store it and send it as X-Addin-Session (the dialog's cookie is not reliably
+      // shared with the taskpane webview). Direct taskpane navigation would escape to
+      // an external browser and the session would never reach the taskpane.
+      if (!(Office.context.ui && Office.context.ui.displayDialogAsync)) {
+        window.location.href = url; // last-resort fallback for very old hosts
+        return;
+      }
+      showStatus('Anmeldefenster geöffnet…', 'loading');
+      Office.context.ui.displayDialogAsync(url, { height: 60, width: 30, promptBeforeOpen: false }, function(res) {
+        if (res.status !== Office.AsyncResultStatus.Succeeded) {
+          showStatus('Anmeldefenster konnte nicht geöffnet werden: ' + ((res.error && res.error.message) || ''), 'err');
+          return;
+        }
+        var dlg = res.value;
+        dlg.addEventHandler(Office.EventType.DialogMessageReceived, function(arg) {
+          var ok = false;
+          try {
+            var d = JSON.parse(arg.message || '{}');
+            if (d.status === 'ok' && d.token) {
+              _addinSession = d.token;
+              try { localStorage.setItem('exo_addin_session', d.token); } catch(_) {}
+              ok = true;
+            }
+          } catch(_) {}
+          try { dlg.close(); } catch(_) {}
+          if (ok) {
+            document.getElementById('login-required').style.display = 'none';
+            showStatus('Angemeldet ✓', 'ok');
+            loadSig();
+          } else {
+            showStatus('Anmeldung nicht abgeschlossen. Bitte erneut versuchen.', 'err');
+          }
+        });
+        dlg.addEventHandler(Office.EventType.DialogEventReceived, function() {
+          // e.g. 12006 = dialog closed by user — leave the login prompt visible.
+        });
+      });
     }
 
     function showStatus(msg, cls) {
