@@ -5,6 +5,11 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.77 — 2026-07-08 — feat: Versionsnummer im Add-in-Taskpane
+
+Dezente Versionsanzeige (`v{{ version }}`) unten im Taskpane — damit sofort
+erkennbar ist, ob Outlook den aktuellen Code geladen hat (Cache-Diagnose).
+
 ## v1.5.76 — 2026-07-08 — fix: Add-in-Seiten no-store (Taskpane-Cache verhinderte Fix-Wirkung)
 
 Die Add-in-Seiten (/addin/compose, /addin/auth-complete, /addin/function) wurden
