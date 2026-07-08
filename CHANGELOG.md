@@ -5,6 +5,25 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.74 — 2026-07-08 — fix: Add-in-Signatur ersetzt jetzt korrekt + platziert über dem Zitat
+
+Zwei Bugs im „Einfügen" des Taskpanes:
+1. **Erkennung**: Das Add-in fand eine bestehende Gateway-Signatur nie und hängte
+   stets eine neue an. Grund: die Gateway-Signatur ist in
+   `<div class="exo-gateway-sig">` + Kommentar-Markern gewrappt, das Add-in suchte
+   aber nur den Kommentar (den Outlook beim Zitieren strippt) und `id="exo-sig-s"`
+   **ohne** den `x_`-Präfix, den Exchange IDs in Zitaten voranstellt. Jetzt spiegelt
+   das Add-in die Erkennung des Gateways: Kommentar **oder** `class="exo-gateway-sig"`
+   **oder** `id="(x_)exo-sig-s/e"`.
+2. **Platzierung**: Die Signatur landete immer ganz am Ende (in Antworten unter dem
+   gesamten Zitat). Jetzt wird sie **über dem Zitat** eingefügt (Erkennung der
+   Zitat-/Weiterleitungsgrenzen von Outlook Desktop/OWA/Gmail/Yahoo/Thunderbird/
+   Apple Mail, analog zu `_QUOTE_PATTERNS` des Gateways) — eine bereits im neuen Text
+   vorhandene Gateway-/Add-in-Signatur wird ersetzt (kein Duplikat), eine im
+   zitierten Original wird NICHT angetastet.
+
+Logik gegen 6 Body-Szenarien unit-getestet (Node).
+
 ## v1.5.73 — 2026-07-08 — fix: Add-in-Ribbon-Icon (kräftiges Kuvert statt filigraner Stift)
 
 Das prozedural gezeichnete Icon war ein dünner weißer Stift (Bresenham, ~2px) auf
