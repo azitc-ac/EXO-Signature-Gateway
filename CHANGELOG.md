@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.75 — 2026-07-08 — fix: Add-in-Signatur idempotent (3x Einfügen = 1 Signatur)
+
+Das Add-in wrappte seine eingefügte Signatur mit Kommentar-Markern + LEEREN
+`id="exo-sig-s/e"`-Sentinel-Divs. Beides überlebt den Outlook-Compose-Editor
+NICHT (leere Divs und Kommentare werden gestrippt) → beim nächsten „Einfügen"
+fand `replaceSig` die vorherige Signatur nicht und hängte eine weitere an
+(3x drücken = 3 Signaturen). Fix: Das Add-in wrappt jetzt EXAKT wie das Gateway
+(`_append_html_sig`) — Kommentar + `<div class="exo-gateway-sig">` (nicht-leerer
+Div, Klasse überlebt). Damit erkennen Add-in UND Gateway die Signatur wieder →
+erneutes Einfügen ersetzt in-place (idempotent). Node-getestet inkl.
+Kommentar-Strip-Simulation.
+
 ## v1.5.74 — 2026-07-08 — fix: Add-in-Signatur ersetzt jetzt korrekt + platziert über dem Zitat
 
 Zwei Bugs im „Einfügen" des Taskpanes:

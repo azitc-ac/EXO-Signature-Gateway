@@ -614,13 +614,18 @@ async def api_addin_signature(email: str, template: str = "", user: str = Depend
     if not sig_html:
         return JSONResponse({"marked_html": "", "preview_html": ""})
 
-    # Wrap with both comment markers (survived by Exchange, used by gateway) and
-    # div ID sentinels (survived by Outlook editor, used by add-in replaceSig()).
+    # Wrap EXACTLY like the gateway's _append_html_sig: comment markers PLUS a
+    # class="exo-gateway-sig" wrapper. The empty id-sentinel divs used before did
+    # NOT survive the Outlook compose editor (empty divs get stripped, comments
+    # too), so pressing "Einfügen" again couldn't find the previous signature and
+    # appended a duplicate. The class wrapper is on a NON-empty div → it survives,
+    # and both the add-in (replaceSig) and the gateway (send-time dup check) detect
+    # it → re-insert replaces in place (idempotent).
     marked = (
         mail_processor._SIG_MARKER_START
-        + '<div id="exo-sig-s"></div>'
+        + f'<div class="{mail_processor._SIG_CLASS}">'
         + sig_html
-        + '<div id="exo-sig-e"></div>'
+        + "</div>"
         + mail_processor._SIG_MARKER_END
     )
     return JSONResponse({"marked_html": marked, "preview_html": sig_html})
