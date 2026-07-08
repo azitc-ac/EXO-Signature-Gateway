@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.82 — 2026-07-08 — feat: Minimalsignatur-Template + Richtlinien-Default
+
+Minimal.html / Minimal.txt als eigenständige Git-Dateien aufgenommen (waren untracked).
+TEMPLATE_POLICIES-Default um `"min": "Minimal"` ergänzt — neue Instanzen erhalten
+die Antwort-Signatur-Richtlinie direkt out-of-the-box.
+
 ## v1.5.80 — 2026-07-08 — feat: Antwort-Signatur (Minimalsignatur-Modell finalisiert)
 
 Spalte „Minimalsignatur" → **„Antwort-Signatur"**: pro Postfach wählbar (Vorlage
