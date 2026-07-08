@@ -41,9 +41,10 @@
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:120px"
               title="Wenn aktiv: Vorlage wird aus Vorlagen-Richtlinien übernommen">Vorlagen-Richtlinien</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">Standardsignatur</th>
-          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:100px">
-            Minimalsignatur
-            <span style="font-size:10px;font-weight:500;background:#e2e8f0;color:#64748b;padding:1px 5px;border-radius:8px;display:block;margin-top:2px">Demnächst</span>
+          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:120px"
+              title="Signatur ab der ZWEITEN eigenen Mail im Thread. Die erste Antwort (und neue Mails) bekommen weiter die Standardsignatur.">
+            Antwort-Signatur
+            <span style="font-size:10px;font-weight:400;color:#94a3b8;display:block;margin-top:2px">ab 2. eigener Mail im Thread</span>
           </th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:110px">
             Werbebanner
@@ -75,28 +76,11 @@
     Postfächer mit aktivierter <em>Vorlagenrichtlinien</em>-Option übernehmen automatisch die hier hinterlegte Vorlage —
     individuelle Abweichungen sind möglich, indem die Option pro Postfach deaktiviert wird.
   </p>
-
-  <label class="checkbox-label" style="margin-bottom:14px;font-weight:600 !important">
-    <input type="checkbox" id="minimal-sig-toggle" {% if minimal_sig_on_reply %}checked{% endif %} onchange="saveMinimalToggle(this.checked)">
-    Minimalsignatur bei Antworten aktiv
-    <span style="font-weight:400;font-size:12px;color:#64748b;margin-left:8px">
-      Antwortet ein Absender in einem Thread, in dem er schon geschrieben hat, wird der volle Signaturblock nicht erneut
-      angehängt — stattdessen die unten/pro Postfach gewählte Minimalsignatur (oder nichts, wenn „— keine —"). Die erste
-      eigene Mail im Thread bekommt weiter die volle Signatur.
-    </span>
-    <span id="minimal-sig-toggle-result" style="font-size:12px;margin-left:6px"></span>
-  </label>
-  <script>
-  async function saveMinimalToggle(on) {
-    var el = document.getElementById('minimal-sig-toggle-result');
-    try {
-      var r = await fetch('/api/settings/partial', {method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({MINIMAL_SIG_ON_REPLY: on})});
-      el.textContent = r.ok ? '✓' : '✗'; el.style.color = r.ok ? '#16a34a' : '#dc2626';
-    } catch(e) { el.textContent = '✗'; el.style.color = '#dc2626'; }
-    setTimeout(function(){ el.textContent=''; }, 2000);
-  }
-  </script>
+  <p class="hint" style="margin-bottom:14px;line-height:1.6">
+    <strong>Antwort-Signatur:</strong> Antwortet ein Absender in einem Thread, in dem er <em>schon geschrieben</em> hat
+    (ab der 2. eigenen Mail), wird nicht erneut der volle Block angehängt — sondern die hier/pro Postfach gewählte
+    Antwort-Signatur (oder nichts bei „— keine —"). Neue Mails und die <em>erste</em> Antwort bekommen weiter die Standardsignatur.
+  </p>
 
   <!-- Standard-Richtlinien (aktiv) -->
   <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:6px">
@@ -128,8 +112,8 @@
       <!-- Minimalsignatur -->
       <tr style="border-bottom:1px solid #f0f0f0">
         <td style="padding:6px 8px;font-size:12px;font-weight:500">
-          Minimalsignatur
-          <span style="font-size:10px;font-weight:400;color:#94a3b8;display:block">bei Antworten (Thread schon signiert)</span>
+          Antwort-Signatur
+          <span style="font-size:10px;font-weight:400;color:#94a3b8;display:block">ab 2. eigener Mail im Thread</span>
         </td>
         <td style="padding:6px 8px;font-size:12px;color:#555">Alle Postfächer mit aktivierter Richtlinien-Übernahme</td>
         <td style="padding:6px 8px">
@@ -734,15 +718,13 @@ function renderMailboxTable(mailboxes) {
     var tplSel = _buildTemplateSelect(i, mb.template, mb.sig, policyActive);
     tdTpl.appendChild(tplSel);
 
-    // Minimalsignatur (Demnächst)
+    // Antwort-Signatur (ab 2. eigener Mail im Thread) — greyed when policyActive
     var tdMinSig = document.createElement('td');
-    tdMinSig.style.cssText = 'text-align:center;padding:6px 8px;opacity:0.5';
-    tdMinSig.title = 'Funktion noch nicht verfügbar';
+    tdMinSig.style.cssText = 'text-align:center;padding:6px 8px';
     var minSigSel = document.createElement('select');
     minSigSel.className = 'mb-min-sig';
     minSigSel.dataset.idx = String(i);
-    minSigSel.style.cssText = 'font-size:12px;max-width:120px';
-    minSigSel.disabled = true;
+    minSigSel.style.cssText = 'font-size:12px;max-width:130px';
     var optNone = document.createElement('option');
     optNone.value = '';
     optNone.textContent = '— keine —';
@@ -750,9 +732,13 @@ function renderMailboxTable(mailboxes) {
     _templateList.forEach(function(name) {
       var opt = document.createElement('option');
       opt.value = name; opt.textContent = name;
-      if (name === mb.min_sig_template) opt.selected = true;
+      if (name === mb.min_template) opt.selected = true;
       minSigSel.appendChild(opt);
     });
+    var _minDisabled = !mb.sig || policyActive;
+    minSigSel.disabled = _minDisabled;
+    minSigSel.style.opacity = _minDisabled ? '0.4' : '1';
+    if (policyActive) minSigSel.title = 'Wird durch Vorlagenrichtlinie gesteuert';
     tdMinSig.appendChild(minSigSel);
 
     // Werbebanner (Demnächst)
@@ -794,6 +780,9 @@ function renderMailboxTable(mailboxes) {
       tplSel.disabled = !sig || pol;
       tplSel.style.opacity = (!sig || pol) ? '0.4' : '1';
       tplSel.title = pol ? 'Wird durch Vorlagenrichtlinie gesteuert' : '';
+      minSigSel.disabled = !sig || pol;
+      minSigSel.style.opacity = (!sig || pol) ? '0.4' : '1';
+      minSigSel.title = pol ? 'Wird durch Vorlagenrichtlinie gesteuert' : '';
       addinCtrl.style.opacity = (!sig || pol) ? '0.4' : '1';
       addinCtrl.style.pointerEvents = (!sig || pol) ? 'none' : '';
       addinCtrl.title = pol ? 'Wird durch Vorlagenrichtlinie gesteuert' : '';
@@ -841,6 +830,7 @@ async function saveMailboxes(updateDg) {
   var sigBoxes = document.querySelectorAll('.mb-sig');
   var smimeBoxes = document.querySelectorAll('.mb-smime');
   var templateSelects = document.querySelectorAll('.mb-template');
+  var minSigSelects = document.querySelectorAll('.mb-min-sig');
   var policyBoxes = document.querySelectorAll('.mb-policy');
   var payload = [];
   sigBoxes.forEach(function(cb, i) {
@@ -862,6 +852,7 @@ async function saveMailboxes(updateDg) {
       sig: cb.checked,
       smime: smimeBoxes[i].checked,
       template: templateSelects[i] ? templateSelects[i].value : 'default',
+      min_template: minSigSelects[i] ? minSigSelects[i].value : '',
       addin_templates: addinTemplates,
       use_policy: policyBoxes[i] ? policyBoxes[i].checked : true,
     });

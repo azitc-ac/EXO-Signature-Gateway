@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.80 — 2026-07-08 — feat: Antwort-Signatur (Minimalsignatur-Modell finalisiert)
+
+Spalte „Minimalsignatur" → **„Antwort-Signatur"**: pro Postfach wählbar (Vorlage
+oder „— keine —"), ausgegraut bei aktiver Richtlinien-Übernahme; die Richtlinien-
+Zeile „Antwort-Signatur" setzt den Default für alle Übernehmer. **Globaler Schalter
+entfernt** — gesteuert allein durch die Zuweisung.
+
+Verhalten: neue Mail + **erste** eigene Mail im Thread (auch spät per To/Cc dazu) →
+Standardsignatur; **ab der 2. eigenen Mail** → Antwort-Signatur (gewählte Vorlage)
+bzw. nichts bei „— keine —". Spalten-Hinweis stellt klar, dass die erste Antwort
+NICHT gemeint ist. Out-of-the-box-Vorlage **„Minimal"** (Freundliche Grüße + voller
+Name) mitgeliefert (app/templates/).
+
 ## v1.5.79 — 2026-07-08 — fix: klarerer „Gilt für"-Text in Vorlagenrichtlinien
 
 „Alle Postfächer mit Richtlinie" → „Alle Postfächer mit aktivierter

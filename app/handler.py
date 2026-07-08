@@ -649,18 +649,17 @@ class SignatureHandler:
             if not suppress_html_sig and mail_processor._has_own_sig_in_compose_area(msg):
                 suppress_html_sig = True
                 log.info("Signatur bereits im Compose-Bereich (z.B. Add-in) — überspringe für %s", sender)
-            elif (not suppress_html_sig
-                    and settings_store.get("MINIMAL_SIG_ON_REPLY") is not False
-                    and mail_processor.sender_already_in_thread(msg, {sender.lower()})):
+            elif not suppress_html_sig and mail_processor.sender_already_in_thread(msg, {sender.lower()}):
+                # Ab der 2. eigenen Mail im Thread: Antwort-Signatur statt vollem Block.
                 _min_tpl = ((_policies.get("min") or "") if _use_pol
                             else (_sender_cfg.get("min_template") or "")).strip()
                 if _min_tpl:
                     template_name = _min_tpl
                     _force_sig = True
-                    log.info("Minimalsignatur %r für Antwort von %s (bereits im Thread)", _min_tpl, sender)
+                    log.info("Antwort-Signatur %r für Antwort von %s (bereits im Thread)", _min_tpl, sender)
                 else:
                     suppress_html_sig = True
-                    log.info("Antwort im signierten Thread, keine Minimalsignatur gewählt — keine Signatur für %s", sender)
+                    log.info("Antwort im Thread, keine Antwort-Signatur gewählt — keine Signatur für %s", sender)
 
             if not suppress_html_sig and not _force_sig:
                 template_name = (_policies.get("sig") or "default") if _use_pol \

@@ -1892,7 +1892,6 @@ async def mailboxes_page(request: Request, user: str = Depends(_require_admin)):
         request=request, name="mailboxes.html",
         context={"active": "mailboxes", "templates_list": templates_list,
                  "gateway_name": _gateway_name(),
-                 "minimal_sig_on_reply": settings_store.get("MINIMAL_SIG_ON_REPLY") is True,
                  "addin_enabled": bool(settings_store.get("ADDIN_ENABLED"))},
     )
 
