@@ -363,9 +363,17 @@ async def health():
 
 # ── Outlook Add-in (no auth — signatures are not sensitive, gateway is internal) ──
 
+_NO_STORE = "no-store, no-cache, must-revalidate, max-age=0"
+
+
 @app.get("/addin/compose", response_class=HTMLResponse)
 async def addin_compose(request: Request):
-    return templates.TemplateResponse(request=request, name="addin_compose.html", context={})
+    # no-store: the taskpane is loaded in Outlook's WebView, which otherwise
+    # caches it aggressively — an updated add-in never reaches the user until
+    # they clear the Office web cache. Always serve fresh.
+    resp = templates.TemplateResponse(request=request, name="addin_compose.html", context={})
+    resp.headers["Cache-Control"] = _NO_STORE
+    return resp
 
 
 @app.get("/addin/auth-complete", response_class=HTMLResponse)
@@ -394,7 +402,8 @@ async def addin_auth_complete(request: Request):
         "});"
         "</script></body></html>"
     )
-    return HTMLResponse(content=html)
+    # no-store: the page carries the session token — never cache it.
+    return HTMLResponse(content=html, headers={"Cache-Control": _NO_STORE})
 
 
 @app.get("/addin/manifest.xml")
@@ -586,7 +595,7 @@ async def addin_function(request: Request):
         "<script>Office.onReady(function(){});</script>"
         "</head><body></body></html>"
     )
-    return HTMLResponse(content=html)
+    return HTMLResponse(content=html, headers={"Cache-Control": _NO_STORE})
 
 
 @app.get("/api/addin/signature")

@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.76 — 2026-07-08 — fix: Add-in-Seiten no-store (Taskpane-Cache verhinderte Fix-Wirkung)
+
+Die Add-in-Seiten (/addin/compose, /addin/auth-complete, /addin/function) wurden
+ OHNE Cache-Header ausgeliefert → Outlooks WebView cachte das Taskpane hartnäckig,
+sodass Code-Updates (z.B. die Signatur-Idempotenz v1.5.75) den Nutzer nie
+erreichten — jeder „Einfügen"-Druck hängte weiter an, weil altes JS lief. Jetzt
+`Cache-Control: no-store` auf allen Add-in-Seiten; /addin/auth-complete ohnehin
+sicherheitsrelevant (trägt den Session-Token). Bestehender Cache muss einmalig
+geleert werden (Office-Wef-Ordner bzw. Add-in entfernen/neu hinzufügen).
+
 ## v1.5.75 — 2026-07-08 — fix: Add-in-Signatur idempotent (3x Einfügen = 1 Signatur)
 
 Das Add-in wrappte seine eingefügte Signatur mit Kommentar-Markern + LEEREN
