@@ -5,6 +5,29 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.68 — 2026-07-08 — fix: Bifurkations-/send_to_all-Pfad nur noch OUTBOUND (Inbound-Doppelzustellung)
+
+Root cause: Der Bifurkations-/587-/send_to_all-Block in `reinject.send()` lief
+für JEDE Mail mit Header ⊋ Envelope — auch für **eingehende externe** Mail. Eine
+eingehende, S/MIME-signierte SwissSign-Mail mit externer Cc wurde dadurch als
+„mixed fork" behandelt: `send_to_all` injizierte dem internen Empfänger eine
+Kopie (Graph JSON inject OK), scheiterte am externen Cc (`ErrorInvalidUser`,
+kein Tenant-User), stufte send-to-all deshalb als „failed" ein und lieferte per
+scoped-Fallback **erneut** (IMAP inject) → **Doppelzustellung**. Trat erst durch
+die send_to_all-Default-Umstellung (v1.5.67) auf der VM (imap-Modus) zutage;
+live per Message Trace + Gateway-Log verifiziert (2x inject an denselben
+internen Empfänger).
+
+Fix: Guard `_sender_internal` (via `exo_mailboxes.known_addresses()`) — der
+Bifurkations-Block läuft nur noch, wenn der **Absender ein Tenant-Postfach**
+ist (outbound). Eingehende externe Mail geht direkt in den normalen
+Zustellpfad = genau eine Zustellung. Leerer Adress-Cache = „unbekannt" =
+konservativ nicht-intern (schlimmstenfalls scoped, nie Duplikat). Gleicher
+Guard in `handler.py`'s `_is_mixed_fork`. `send_to_all` bleibt gefahrlos
+Default: für einen internen Absender macht `send_via_graph` einen einzigen
+sendMail an alle Empfänger (kein Per-Empfänger-Inject, kein Teil-Fehler).
+Guard gegen extern/intern/Cold-Cache unit-getestet.
+
 ## v1.5.67 — 2026-07-08 — change: send_to_all ist Default; Graph-only als „Preview" gekennzeichnet
 
 Zwei bewusste Produktentscheidungen:

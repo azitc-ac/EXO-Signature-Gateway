@@ -560,8 +560,13 @@ class SignatureHandler:
                     _rmode = settings_store.get("REINJECT_MODE") or "smtp"
                     _hdr_rcpts = _rj._header_recipients(raw)
                     _hdr_all_internal = (not _hdr_rcpts) or all(a in _known for a in _hdr_rcpts)
+                    # A mixed fork is OUTBOUND from a tenant mailbox; an inbound
+                    # external sender must never be treated as one (see the
+                    # _sender_internal guard in reinject.send — 2026-07-08 dup bug).
+                    _sender_internal = (sender or "").strip().lower() in _known
                     _is_mixed_fork = (_rmode in ("graph", "imap")
                                        and _fork_mode == "send_to_all"
+                                       and _sender_internal
                                        and not _hdr_all_internal)
                     if not _is_mixed_fork:
                         log.debug("All recipients internal, SIGN_INTERNAL_ONLY_MAIL off — "

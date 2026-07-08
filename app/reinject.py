@@ -131,7 +131,10 @@ def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
 
     Bifurcated transactions (To/Cc headers list more recipients than this
     transaction's envelope — mixed internal/external sends split by Exchange;
-    BOTH forks reach the gateway with FromMemberOf-only transport rules):
+    BOTH forks reach the gateway with FromMemberOf-only transport rules).
+    OUTBOUND ONLY — the sender must be a tenant mailbox; inbound external mail
+    is delivered by the normal per-mode path below (see the _sender_internal
+    guard):
 
       1. Preferred: authenticated SMTP submission (port 587, XOAUTH2 as the
          sender, requires SMTP.SendAsApp). Only SMTP separates envelope
@@ -149,7 +152,23 @@ def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
     """
     mode = settings_store.get("REINJECT_MODE") or "smtp"
 
-    if mode in ("graph", "imap", "smtp587") and _is_bifurcated(rcpt_tos, content_bytes):
+    # Bifurcation handling (587 as-sender + send_to_all) is an OUTBOUND-only
+    # feature: it only makes sense for mail SENT BY a tenant mailbox that
+    # Exchange split into forks. Inbound external mail (e.g. an S/MIME-signed
+    # message from a CA with an external Cc) can ALSO show To/Cc header
+    # recipients outside this fork's envelope, but it must NEVER enter this
+    # path — the sender isn't ours, so 587 as-sender auth fails and send_to_all
+    # degrades into per-recipient mailbox injects that double-deliver
+    # (2026-07-08: an inbound SwissSign mail with an external Cc was delivered
+    # to the internal recipient TWICE). Empty known-set = "unknown" -> treat as
+    # NOT internal (conservative: at worst scoped delivery, never a duplicate).
+    import exo_mailboxes
+    _known = exo_mailboxes.known_addresses()
+    _sender_internal = bool(_known) and (mail_from or "").strip().lower() in _known
+
+    if (mode in ("graph", "imap", "smtp587")
+            and _sender_internal
+            and _is_bifurcated(rcpt_tos, content_bytes)):
         import smtp_submit
         log.info("Bifurcated transaction detected (envelope ⊂ headers) — "
                  "trying SMTP 587 as-sender for header-preserving delivery: to=%s", rcpt_tos)
