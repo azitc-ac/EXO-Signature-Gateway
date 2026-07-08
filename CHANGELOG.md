@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.70 — 2026-07-08 — fix: kaputte Toggle-Optik (Wartungsmodus + Lexware) + Filter auf /smime
+
+1. Der Wartungsmodus- und der Lexware-Toggle im Erweitert-Tab nutzten CSS-Klassen
+   (`toggle-switch`/`toggle-slider`), die **nie definiert** wurden → gerenderte
+   nackte Checkbox mit gebrochenem Layout. Auf das app-übliche `checkbox-label`-
+   Muster umgestellt (IDs unverändert, JS bleibt kompatibel).
+2. `/smime`: Filterfeld (wie auf `/mailboxes`) unter der Schlüsselverwaltung —
+   blendet Benutzer-Blöcke live nach **E-Mail, Zertifikat-Subject und -Aussteller**
+   ein/aus (`data-search` + `filterSmimeUsers`, „Keine Treffer"-Hinweis).
+
 ## v1.5.69 — 2026-07-08 — feat: SMTP-Quell-IP-Allowlist im Erweitert-Tab (UI-Panel)
 
 Panel für die in v1.5.65 gebaute `smtp_acl`: Toggle `SMTP_SOURCE_ACL_ENABLED`,

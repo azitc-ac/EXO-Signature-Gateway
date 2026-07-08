@@ -46,11 +46,30 @@
   {% endif %}
 
   {% if smime_users %}
+  <input type="text" id="smime-filter" placeholder="Filtern nach E-Mail oder Zertifikat…"
+         oninput="filterSmimeUsers(this.value)"
+         style="width:100%;max-width:340px;padding:7px 10px;border:1px solid #ccc;border-radius:6px;font-size:14px;margin-bottom:14px">
+  <p id="smime-noresults" style="display:none;color:#a8a29e;font-size:13px">Keine Treffer.</p>
+  <script>
+  function filterSmimeUsers(q) {
+    q = (q || '').trim().toLowerCase();
+    var blocks = document.querySelectorAll('.smime-user');
+    var shown = 0;
+    blocks.forEach(function(b) {
+      var match = !q || (b.dataset.search || '').indexOf(q) !== -1;
+      b.style.display = match ? '' : 'none';
+      if (match) shown++;
+    });
+    var nr = document.getElementById('smime-noresults');
+    if (nr) nr.style.display = (shown === 0 && blocks.length) ? 'block' : 'none';
+  }
+  </script>
     {% for u in smime_users %}
     {% set has_certs = u.certs | length > 0 %}
     {% set multi = u.certs | length > 1 %}
     {% set ca_cfg = ca_user_config.get(u.email, {}) %}
-    <div style="border:1px solid #e2e8f0;border-radius:6px;margin-bottom:14px;">
+    {% set _search = (u.email ~ ' ' ~ (u.certs | map(attribute='subject') | select | join(' ')) ~ ' ' ~ (u.certs | map(attribute='issuer') | select | join(' '))) | lower %}
+    <div class="smime-user" data-search="{{ _search }}" style="border:1px solid #e2e8f0;border-radius:6px;margin-bottom:14px;">
       <!-- User header -->
       <div class="user-hdr">
         <div class="user-hdr-info">

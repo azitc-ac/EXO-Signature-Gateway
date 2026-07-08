@@ -21,16 +21,11 @@
     Warteschlange unten und können dort als Preview angesehen und einzeln gelöscht werden.
     Ideal zum geräuschlosen Testen am lebenden Objekt.
   </p>
-  <div class="settings-row" style="align-items:center">
-    <label for="maintenance-toggle" style="padding-top:0">Wartungsmodus</label>
-    <div class="settings-control" style="display:flex;align-items:center;gap:14px">
-      <label class="toggle-switch" style="margin:0">
-        <input type="checkbox" id="maintenance-toggle" onchange="setMaintenanceMode(this.checked)">
-        <span class="toggle-slider"></span>
-      </label>
-      <span id="maintenance-status-text" style="font-size:13px;color:#57534e">Deaktiviert</span>
-    </div>
-  </div>
+  <label class="checkbox-label" style="font-weight:600 !important">
+    <input type="checkbox" id="maintenance-toggle" onchange="setMaintenanceMode(this.checked)">
+    Wartungsmodus aktivieren
+    <span id="maintenance-status-text" style="font-weight:400;font-size:13px;color:#57534e;margin-left:8px">Deaktiviert</span>
+  </label>
 
   <!-- Warteschlange -->
   <div id="maintenance-queue" style="margin-top:20px;display:none">
@@ -60,18 +55,13 @@
     und Leerzeile sowie Schrift auf Calibri 11pt umgestellt; die Gateway-Signatur
     ist davon nicht betroffen.
   </p>
-  <div class="settings-row" style="align-items:center">
-    <label for="lexware-fix-toggle" style="padding-top:0">Format korrigieren</label>
-    <div class="settings-control" style="display:flex;align-items:center;gap:14px">
-      <label class="toggle-switch" style="margin:0">
-        <input type="checkbox" id="lexware-fix-toggle"
-               {% if s.LEXWARE_FIX_FORMAT %}checked{% endif %}
-               onchange="saveLexwareFix(this.checked)">
-        <span class="toggle-slider"></span>
-      </label>
-      <span id="lexware-fix-result" style="font-size:12px"></span>
-    </div>
-  </div>
+  <label class="checkbox-label" style="font-weight:600 !important">
+    <input type="checkbox" id="lexware-fix-toggle"
+           {% if s.LEXWARE_FIX_FORMAT %}checked{% endif %}
+           onchange="saveLexwareFix(this.checked)">
+    Format korrigieren
+    <span id="lexware-fix-result" style="font-weight:400;font-size:12px;margin-left:8px"></span>
+  </label>
 </div>
 <script>
 function saveLexwareFix(enabled) {
