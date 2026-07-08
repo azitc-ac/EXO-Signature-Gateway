@@ -33,6 +33,25 @@ _ENDPOINT = "https://endpoints.office.com/endpoints/worldwide"
 _lock = threading.RLock()
 _networks: list = []          # list[ipaddress.ip_network] from Microsoft
 _loaded = False
+_last_refresh_ts: float = 0.0   # epoch of last SUCCESSFUL network refresh (0 = never)
+_recent_rejects: "deque" = __import__("collections").deque(maxlen=50)  # (epoch, ip) blocked conns
+
+
+def record_reject(ip: str) -> None:
+    """Remember a blocked source IP (for the admin UI). Best-effort, bounded."""
+    import time as _t
+    with _lock:
+        _recent_rejects.append((_t.time(), ip))
+
+
+def recent_rejects() -> list:
+    """Most-recent-first list of (epoch, ip) blocked connections."""
+    with _lock:
+        return list(reversed(_recent_rejects))
+
+
+def last_refresh_ts() -> float:
+    return _last_refresh_ts
 
 
 def _always_allowed_networks() -> list:
@@ -85,8 +104,11 @@ def refresh() -> int:
             log.warning("smtp_acl: refresh returned 0 ranges — keeping existing %d",
                         len(_networks))
             return len(_networks)
+        import time as _t
+        global _last_refresh_ts
         with _lock:
             _networks = nets
+            _last_refresh_ts = _t.time()
         try:
             _CACHE_FILE.write_text(json.dumps(sorted(cidrs)))
         except Exception as exc:

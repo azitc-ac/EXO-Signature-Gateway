@@ -336,6 +336,93 @@ async function saveMixedFork() {
 }
 </script>
 
+<!-- ── SMTP-Quell-IP-Allowlist ────────────────────────────────────────────── -->
+<div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
+  <div class="step-header">
+    <span class="step-badge" style="background:#0369a1;font-size:10px">Security</span>
+    <span class="step-title">SMTP-Quell-IP-Allowlist (:25)
+      <span style="font-weight:400;font-size:12px;color:#57534e"> — nur Exchange Online darf einliefern</span>
+    </span>
+  </div>
+  <div class="step-body">
+    <p style="font-size:13px;color:#555;margin-bottom:12px;line-height:1.6">
+      Der SMTP-Listener nimmt Verbindungen nur von Microsofts offiziellen
+      Exchange-Online-IP-Bereichen an (2×/Tag automatisch aktualisiert); andere
+      Quellen werden mit <code>554</code> abgewiesen.
+      <span style="color:#57534e">Fail-safe: sind keine Bereiche geladen (0),
+      wird nichts blockiert — dann gilt wieder „alle erlaubt".</span>
+    </p>
+
+    <label style="display:flex;gap:10px;align-items:center;margin-bottom:12px;cursor:pointer">
+      <input type="checkbox" id="acl-enabled" {% if s.SMTP_SOURCE_ACL_ENABLED != false %}checked{% endif %} onchange="aclToggle()">
+      <span style="font-size:13px">Allowlist aktiv</span>
+      <span id="acl-enabled-result" style="font-size:12px;margin-left:6px"></span>
+    </label>
+
+    <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;font-size:13px;margin-bottom:14px">
+      <div>Geladene Bereiche: <strong id="acl-count">…</strong></div>
+      <div>Letzte Aktualisierung: <strong id="acl-refresh">…</strong></div>
+      <button class="btn secondary btn-sm" onclick="aclRefresh()">Jetzt aktualisieren</button>
+      <span id="acl-refresh-result" style="font-size:12px"></span>
+    </div>
+
+    <div style="margin-bottom:12px">
+      <label for="acl-extra" style="font-size:13px;font-weight:600">Zusätzlich erlaubte CIDRs</label>
+      <span class="hint" style="display:block;margin-bottom:4px">z.B. Monitoring/Jump-Host — eine pro Zeile oder komma-getrennt. Loopback ist immer erlaubt.</span>
+      <textarea id="acl-extra" rows="3" style="width:100%;max-width:480px;font-family:monospace;font-size:12px">{{ (s.SMTP_ACL_EXTRA_CIDRS or [])|join('\n') }}</textarea>
+      <div style="margin-top:6px">
+        <button class="btn secondary btn-sm" onclick="aclSaveExtra()">CIDRs speichern</button>
+        <span id="acl-extra-result" style="font-size:12px;margin-left:6px"></span>
+      </div>
+    </div>
+
+    <details>
+      <summary style="cursor:pointer;font-size:13px;color:#57534e">Zuletzt abgewiesene Quellen</summary>
+      <div id="acl-rejects" style="font-size:12px;font-family:monospace;margin-top:8px;color:#555">…</div>
+    </details>
+  </div>
+</div>
+<script>
+async function aclLoadStatus() {
+  try {
+    const r = await fetch('/api/smtp-acl/status'); const d = await r.json();
+    document.getElementById('acl-count').textContent = d.range_count;
+    document.getElementById('acl-refresh').textContent =
+      d.last_refresh ? new Date(d.last_refresh).toLocaleString('de-DE') : 'noch nie (Cache/aus)';
+    const rj = document.getElementById('acl-rejects');
+    rj.innerHTML = d.recent_rejects.length
+      ? d.recent_rejects.map(x => new Date(x.ts).toLocaleString('de-DE') + '  ' + x.ip).join('<br>')
+      : 'keine';
+  } catch(e) {}
+}
+async function aclToggle() {
+  const el = document.getElementById('acl-enabled-result');
+  const r = await fetch('/api/settings/partial', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({SMTP_SOURCE_ACL_ENABLED: document.getElementById('acl-enabled').checked})});
+  el.textContent = r.ok ? '✓' : '✗'; el.style.color = r.ok ? '#16a34a' : '#dc2626';
+  setTimeout(function(){ el.textContent=''; }, 2000);
+}
+async function aclRefresh() {
+  const el = document.getElementById('acl-refresh-result'); el.textContent = '…';
+  try {
+    const r = await fetch('/api/smtp-acl/refresh', {method:'POST'}); const d = await r.json();
+    el.textContent = r.ok ? ('✓ ' + d.range_count + ' Bereiche') : '✗ Fehler';
+    el.style.color = r.ok ? '#16a34a' : '#dc2626';
+    aclLoadStatus();
+  } catch(e) { el.textContent = '✗ Netzwerkfehler'; el.style.color = '#dc2626'; }
+  setTimeout(function(){ el.textContent=''; }, 3000);
+}
+async function aclSaveExtra() {
+  const list = document.getElementById('acl-extra').value.split(/[\s,]+/).map(function(s){return s.trim();}).filter(Boolean);
+  const el = document.getElementById('acl-extra-result');
+  const r = await fetch('/api/settings/partial', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({SMTP_ACL_EXTRA_CIDRS: list})});
+  el.textContent = r.ok ? '✓ Gespeichert' : '✗ Fehler'; el.style.color = r.ok ? '#16a34a' : '#dc2626';
+  setTimeout(function(){ el.textContent=''; }, 3000);
+}
+aclLoadStatus();
+</script>
+
 <!-- ── EXO PowerShell Zertifikat ──────────────────────────────────────────── -->
 <div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
   <div class="step-header">

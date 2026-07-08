@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.69 — 2026-07-08 — feat: SMTP-Quell-IP-Allowlist im Erweitert-Tab (UI-Panel)
+
+Panel für die in v1.5.65 gebaute `smtp_acl`: Toggle `SMTP_SOURCE_ACL_ENABLED`,
+Anzeige der geladenen Exchange-Bereiche + Zeitpunkt der letzten Aktualisierung,
+Button „Jetzt aktualisieren", editierbare Zusatz-CIDRs (`SMTP_ACL_EXTRA_CIDRS`,
+zeilen-/komma-getrennt) und eine einklappbare Liste der zuletzt abgewiesenen
+Quell-IPs. Fail-safe (0 Bereiche = alle erlaubt) im Panel erklärt.
+
+Neu in `smtp_acl`: `record_reject()`/`recent_rejects()` (Ringpuffer, 50) +
+`last_refresh_ts()`; `handler` zeichnet abgewiesene IPs auf. Endpunkte
+`GET /api/smtp-acl/status` + `POST /api/smtp-acl/refresh`. Panel + Endpunkte
+gegen aktiv/inaktiv unit-/render-getestet.
+
 ## v1.5.68 — 2026-07-08 — fix: Bifurkations-/send_to_all-Pfad nur noch OUTBOUND (Inbound-Doppelzustellung)
 
 Root cause: Der Bifurkations-/587-/send_to_all-Block in `reinject.send()` lief

@@ -249,6 +249,7 @@ class SignatureHandler:
             if not smtp_acl.is_allowed(peer_ip):
                 log.warning("SMTP: rejected connection from %s — not an allowed "
                             "source (Exchange Online allowlist)", peer_ip)
+                smtp_acl.record_reject(peer_ip)
                 return "554 5.7.1 Access denied"
 
         sender = envelope.mail_from

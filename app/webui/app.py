@@ -1975,6 +1975,34 @@ async def api_settings_partial(request: Request, _: str = Depends(_require_admin
     return JSONResponse({"ok": True})
 
 
+@app.get("/api/smtp-acl/status")
+async def api_smtp_acl_status(_: str = Depends(_require_admin)):
+    """State of the SMTP source-IP allowlist for the Erweitert-Tab panel."""
+    import smtp_acl
+    from datetime import datetime, timezone
+    ts = smtp_acl.last_refresh_ts()
+    rejects = [
+        {"ts": datetime.fromtimestamp(t, timezone.utc).isoformat(), "ip": ip}
+        for t, ip in smtp_acl.recent_rejects()[:25]
+    ]
+    return JSONResponse({
+        "enabled": settings_store.get("SMTP_SOURCE_ACL_ENABLED") is not False,
+        "range_count": smtp_acl.range_count(),
+        "last_refresh": (datetime.fromtimestamp(ts, timezone.utc).isoformat() if ts else None),
+        "extra_cidrs": settings_store.get("SMTP_ACL_EXTRA_CIDRS") or [],
+        "recent_rejects": rejects,
+    })
+
+
+@app.post("/api/smtp-acl/refresh")
+async def api_smtp_acl_refresh(_: str = Depends(_require_admin)):
+    """Fetch the current Exchange Online IP ranges on demand."""
+    import asyncio
+    import smtp_acl
+    n = await asyncio.to_thread(smtp_acl.refresh)
+    return JSONResponse({"ok": True, "range_count": n})
+
+
 @app.post("/api/settings/sender-mailboxes/refresh")
 async def api_refresh_sender_mailboxes(user: str = Depends(_require_admin)):
     import asyncio
