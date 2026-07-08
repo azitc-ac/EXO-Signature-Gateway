@@ -5,6 +5,11 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.79 — 2026-07-08 — fix: klarerer „Gilt für"-Text in Vorlagenrichtlinien
+
+„Alle Postfächer mit Richtlinie" → „Alle Postfächer mit aktivierter
+Richtlinien-Übernahme" (4 Stellen) — eindeutiger, worauf sich die Richtlinie bezieht.
+
 ## v1.5.78 — 2026-07-08 — feat: Minimalsignatur bei Antworten (Opt-in)
 
 Antwortet ein Absender in einem Thread, in dem er **schon beigetragen** hat, wird
