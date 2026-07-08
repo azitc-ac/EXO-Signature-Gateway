@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.73 — 2026-07-08 — fix: Add-in-Ribbon-Icon (kräftiges Kuvert statt filigraner Stift)
+
+Das prozedural gezeichnete Icon war ein dünner weißer Stift (Bresenham, ~2px) auf
+blauem Grund — bei 16/32px im Outlook-Ribbon nicht erkennbar („blauer Kasten").
+Ersetzt durch ein **kräftiges weißes Kuvert-Outline** (dicke Striche, Klappe),
+das auch bei 16px klar liest. Weiter ohne Bildabhängigkeit (PNG on-the-fly).
+
 ## v1.5.72 — 2026-07-08 — fix: Add-in-Vorlagen-Dropdown blieb nach Login leer
 
 Zwei Bugs: (1) `_loadTemplateList` lief nur beim `Office.onReady` — also **vor**

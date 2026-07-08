@@ -514,7 +514,7 @@ async def addin_manifest(request: Request):
 
 @app.get("/addin/icon/{size_str}")
 async def addin_icon(size_str: str):
-    """Serve a pen+signature icon as PNG (no PIL required)."""
+    """Serve an envelope icon as PNG (no PIL required)."""
     import struct, zlib
     size = max(16, min(int(size_str.split(".")[0]), 128))
     BR, BG, BB = 0, 120, 212   # #0078d4 blue background
@@ -543,24 +543,20 @@ async def addin_icon(size_str: str):
                 err += dr; c1 += sc
 
     s = size / 32.0
-    sw = max(1, round(2 * s))  # stroke width
+    w = max(2, round(2.5 * s))  # bold stroke so the shape reads at 16px
 
-    # Pen body: diagonal from top-right to lower-left
-    bline(round(2*s), round(24*s), round(20*s), round(6*s), sw)
-    # Pen nib: small filled triangle at the tip
-    tip_r, tip_c = round(22*s), round(4*s)
-    for i in range(max(1, round(4*s))):
-        for j in range(max(1, round(3*s)) - i):
-            put(tip_r + i, tip_c + j)
-            put(tip_r + i, tip_c - j)
-    # Signature underline near bottom
-    sig_row = round(27*s)
-    for c in range(round(3*s), round(29*s)):
-        for dr in range(sw):
-            put(sig_row + dr, c)
-    # Small flourish: short curve at end of signature line
-    for i in range(max(1, round(3*s))):
-        put(sig_row + sw + i, round(26*s) + i)
+    # Envelope — a bold white outline on the blue tile. A thin pen glyph
+    # disappears at 16/32px (reads as a plain blue box); a chunky envelope
+    # outline stays legible at ribbon sizes.
+    top, bot = round(9 * s), round(24 * s)
+    left, right = round(5 * s), round(27 * s)
+    midR, midC = round(17 * s), round(16 * s)
+    bline(top, left,  top,  right, w)   # top edge
+    bline(bot, left,  bot,  right, w)   # bottom edge
+    bline(top, left,  bot,  left,  w)   # left edge
+    bline(top, right, bot,  right, w)   # right edge
+    bline(top, left,  midR, midC,  w)   # flap: left corner → centre
+    bline(top, right, midR, midC,  w)   # flap: right corner → centre
 
     raw = b""
     for row in pixels:
