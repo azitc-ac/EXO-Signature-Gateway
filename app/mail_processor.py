@@ -127,20 +127,21 @@ def _expand_tnef(msg: email.message.Message) -> email.message.Message:
 
 
 def _has_own_sig_in_compose_area(msg: email.message.Message) -> bool:
-    """Return True if our gateway signature marker is already present before the quote block."""
+    """Return True if our gateway signature is already present in the COMPOSE area
+    (before the first quote block) — e.g. inserted by the add-in. Detects all
+    markers the add-in/gateway use: comment, class="exo-gateway-sig", and the
+    exo-sig-s sentinel incl. the x_ prefix Exchange adds."""
     html = extract_html(msg)
     if not html:
         return False
-    marker_pos = html.find(_SIG_MARKER_START)
-    if marker_pos == -1:
-        # Fallback: div sentinels survive Outlook editing even when comments are stripped.
-        attr_pos = html.find(_SIG_DIV_ATTR_S)
-        if attr_pos != -1:
-            marker_pos = html.rfind('<', 0, attr_pos)
-    if marker_pos == -1:
-        return False
     first_quote = _find_first_quote_wrapper_pos(html)
-    return first_quote is None or marker_pos < first_quote
+    area = html if first_quote is None else html[:first_quote]
+    return (_SIG_MARKER_START in area
+            or _SIG_DIV_ATTR_S in area
+            or 'id="x_exo-sig-s"' in area
+            or "id='x_exo-sig-s'" in area
+            or f'class="{_SIG_CLASS}"' in area
+            or f"class='{_SIG_CLASS}'" in area)
 
 
 def _has_sig_in_thread(msg: email.message.Message, sig_html: str = "") -> bool:
@@ -170,21 +171,72 @@ def _has_sig_in_thread(msg: email.message.Message, sig_html: str = "") -> bool:
     return False
 
 
+def _strip_to_lines(h: str) -> str:
+    """HTML → text, keeping block/line breaks so quoted header lines stay separate."""
+    h = re.sub(r'(?is)<(style|script).*?</\1>', ' ', h)
+    h = re.sub(r'(?i)<br\s*/?>', '\n', h)
+    h = re.sub(r'(?i)</(p|div|tr|li|table)>', '\n', h)
+    h = re.sub(r'<[^>]+>', '', h)
+    import html as _H
+    return _H.unescape(h)
+
+
+def sender_already_in_thread(msg: email.message.Message, sender_addrs) -> bool:
+    """True if the SENDER has already contributed to THIS thread.
+
+    Used to pick full vs minimal signature: the first reply (sender not yet in
+    the thread — e.g. a fresh reply, or being added to an existing ping-pong via
+    To/Cc) gets the FULL block; later replies get the minimal one.
+
+    Two signals on the QUOTED region (below the first quote wrapper):
+      1. A quoted message whose `Von:`/`From:` line is one of the sender's own
+         addresses (matched per-line so the sender merely sitting in `An:`/`Cc:`
+         does NOT count — that is exactly the "added later" case).
+      2. A gateway signature marker in the quote (belt-and-suspenders; survives
+         when the `Von:` line is formatted unusually but often stripped itself).
+    Returns False when there is no quoted thread at all (→ first contribution).
+    """
+    addrs = {a.strip().lower() for a in ([sender_addrs] if isinstance(sender_addrs, str) else sender_addrs) if a}
+    if not addrs:
+        return False
+    html = extract_html(msg) or ""
+    if not html:
+        return False
+    qpos = _find_first_quote_wrapper_pos(html)
+    if qpos is None:
+        return False  # no quoted thread → sender's first contribution
+    region = html[qpos:]
+    if (_SIG_MARKER_START in region
+            or f'class="{_SIG_CLASS}"' in region
+            or f"class='{_SIG_CLASS}'" in region
+            or 'id="x_exo-sig-s"' in region
+            or "id='x_exo-sig-s'" in region):
+        return True
+    text = _strip_to_lines(region)
+    for line in text.splitlines():
+        if re.match(r'\s*(?:Von|From|De|Van)\s*:', line, re.IGNORECASE):
+            low = line.lower()
+            if any(a in low for a in addrs):
+                return True
+    return False
+
+
 def inject(
     msg: email.message.Message,
     sig_html: str,
     sig_txt: str,
     use_cid_images: bool = True,
+    force: bool = False,
 ) -> email.message.Message:
     # If a gateway signature exists anywhere in the thread (compose area or quoted
     # content from previous mails), don't inject another one — prevents stacking
     # in ping-pong threads. The existing SKIP_DUPLICATE_SIG setting additionally
     # checks only the compose area for stricter control when explicitly enabled.
-    if settings_store.get("SKIP_SIG_IN_THREAD") is not False and _has_sig_in_thread(msg, sig_html):
+    if not force and settings_store.get("SKIP_SIG_IN_THREAD") is not False and _has_sig_in_thread(msg, sig_html):
         log.info("inject: SKIP_SIG_IN_THREAD — gateway sig already in thread, skipping injection")
         loop_detector.mark_as_signed(msg)
         return msg
-    if settings_store.get("SKIP_DUPLICATE_SIG") and _has_own_sig_in_compose_area(msg):
+    if not force and settings_store.get("SKIP_DUPLICATE_SIG") and _has_own_sig_in_compose_area(msg):
         log.info("Gateway signature already present in compose area — skipping injection (SKIP_DUPLICATE_SIG)")
         loop_detector.mark_as_signed(msg)
         return msg

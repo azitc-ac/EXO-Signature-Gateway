@@ -76,6 +76,28 @@
     individuelle Abweichungen sind möglich, indem die Option pro Postfach deaktiviert wird.
   </p>
 
+  <label class="checkbox-label" style="margin-bottom:14px;font-weight:600 !important">
+    <input type="checkbox" id="minimal-sig-toggle" {% if minimal_sig_on_reply %}checked{% endif %} onchange="saveMinimalToggle(this.checked)">
+    Minimalsignatur bei Antworten aktiv
+    <span style="font-weight:400;font-size:12px;color:#64748b;margin-left:8px">
+      Antwortet ein Absender in einem Thread, in dem er schon geschrieben hat, wird der volle Signaturblock nicht erneut
+      angehängt — stattdessen die unten/pro Postfach gewählte Minimalsignatur (oder nichts, wenn „— keine —"). Die erste
+      eigene Mail im Thread bekommt weiter die volle Signatur.
+    </span>
+    <span id="minimal-sig-toggle-result" style="font-size:12px;margin-left:6px"></span>
+  </label>
+  <script>
+  async function saveMinimalToggle(on) {
+    var el = document.getElementById('minimal-sig-toggle-result');
+    try {
+      var r = await fetch('/api/settings/partial', {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({MINIMAL_SIG_ON_REPLY: on})});
+      el.textContent = r.ok ? '✓' : '✗'; el.style.color = r.ok ? '#16a34a' : '#dc2626';
+    } catch(e) { el.textContent = '✗'; el.style.color = '#dc2626'; }
+    setTimeout(function(){ el.textContent=''; }, 2000);
+  }
+  </script>
+
   <!-- Standard-Richtlinien (aktiv) -->
   <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:6px">
     Standard-Richtlinien
@@ -103,15 +125,15 @@
         </td>
         <td style="text-align:center;padding:6px 8px;color:#94a3b8;font-size:14px" title="Nicht löschbar">🔒</td>
       </tr>
-      <!-- Minimalsignatur — Demnächst -->
-      <tr style="border-bottom:1px solid #f0f0f0;opacity:0.45">
+      <!-- Minimalsignatur -->
+      <tr style="border-bottom:1px solid #f0f0f0">
         <td style="padding:6px 8px;font-size:12px;font-weight:500">
           Minimalsignatur
-          <span style="font-size:10px;font-weight:500;background:#e2e8f0;color:#64748b;padding:1px 5px;border-radius:8px;margin-left:4px">Demnächst</span>
+          <span style="font-size:10px;font-weight:400;color:#94a3b8;display:block">bei Antworten (Thread schon signiert)</span>
         </td>
         <td style="padding:6px 8px;font-size:12px;color:#555">Alle Postfächer mit Richtlinie</td>
         <td style="padding:6px 8px">
-          <select disabled style="font-size:12px;width:160px"><option>— keine —</option></select>
+          <select id="policy-min-tpl" style="font-size:12px;width:160px"></select>
         </td>
         <td style="text-align:center;padding:6px 8px;color:#94a3b8;font-size:14px" title="Nicht löschbar">🔒</td>
       </tr>
@@ -349,6 +371,22 @@ async function loadPolicies() {
       });
     }
 
+    // Minimalsignatur (— keine — + Vorlagen)
+    var minSel = document.getElementById('policy-min-tpl');
+    if (minSel) {
+      minSel.innerHTML = '';
+      var none = document.createElement('option');
+      none.value = ''; none.textContent = '— keine —';
+      if (!d.min) none.selected = true;
+      minSel.appendChild(none);
+      _templateList.forEach(function(name) {
+        var opt = document.createElement('option');
+        opt.value = name; opt.textContent = name;
+        if (name === d.min) opt.selected = true;
+        minSel.appendChild(opt);
+      });
+    }
+
     // Add-in Vorlagen
     var addinCtrl = document.getElementById('policy-addin-ctrl');
     if (addinCtrl) {
@@ -372,8 +410,10 @@ async function savePolicies() {
     });
   }
 
+  var minSel = document.getElementById('policy-min-tpl');
   var policies = {
     sig: sigSel ? sigSel.value : 'default',
+    min: minSel ? minSel.value : '',
     addin: addinValue,
   };
   try {

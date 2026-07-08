@@ -1528,6 +1528,7 @@ async def api_get_mailboxes(_=Depends(_check_auth)):
             "sig": cfg.get("sig", False),
             "smime": cfg.get("smime", False),
             "template": cfg.get("template", "default"),
+            "min_template": cfg.get("min_template", ""),
             "addin_templates": cfg.get("addin_templates", []),
             "use_policy": cfg.get("use_policy", True),
             "health_overall": h.get("overall"),
@@ -1656,11 +1657,14 @@ async def api_save_mailboxes(body: dict, _=Depends(_check_auth)):
         if not (sig or smime):
             continue    # both off → passthrough by default, not stored
         template = (m.get("template") or "default").strip()
+        min_template = (m.get("min_template") or "").strip()
         addin_tpl = m.get("addin_templates", [])
         use_policy = bool(m.get("use_policy", True))
         entry: dict = {"sig": sig, "smime": smime, "use_policy": use_policy}
         if template and template != "default":
             entry["template"] = template
+        if min_template:
+            entry["min_template"] = min_template
         if addin_tpl == "*" or (isinstance(addin_tpl, list) and addin_tpl):
             entry["addin_templates"] = addin_tpl
         mb = addr_to_mb.get(email)
@@ -1888,6 +1892,7 @@ async def mailboxes_page(request: Request, user: str = Depends(_require_admin)):
         request=request, name="mailboxes.html",
         context={"active": "mailboxes", "templates_list": templates_list,
                  "gateway_name": _gateway_name(),
+                 "minimal_sig_on_reply": settings_store.get("MINIMAL_SIG_ON_REPLY") is True,
                  "addin_enabled": bool(settings_store.get("ADDIN_ENABLED"))},
     )
 

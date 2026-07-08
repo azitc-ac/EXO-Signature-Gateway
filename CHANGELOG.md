@@ -5,6 +5,31 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.78 — 2026-07-08 — feat: Minimalsignatur bei Antworten (Opt-in)
+
+Antwortet ein Absender in einem Thread, in dem er **schon beigetragen** hat, wird
+nicht erneut der volle Signaturblock angehängt — stattdessen eine konfigurierte
+**Minimalsignatur** (oder nichts, wenn keine gewählt). Die **erste** eigene Mail
+im Thread bekommt weiter die volle Signatur — auch wenn man erst spät per To/Cc
+zu einer laufenden Kette hinzukommt.
+
+Erkennung „schon beigetragen" (zustandslos, robust gegen Marker-Stripping):
+`mail_processor.sender_already_in_thread` prüft im ZITAT (unter der ersten
+Quote-Grenze), ob eine Nachricht die eigene Adresse als **`Von:`/`From:`** trägt
+(zeilenweise — reine `An:`/`Cc:`-Nennung zählt NICHT, das ist der „später
+hinzugefügt"-Fall) ODER ein Gateway-Marker im Zitat steckt. 7 Fälle Node-/Python-
+unit-getestet.
+
+Handler entscheidet voll/minimal/nichts; `inject()` bekommt `force` (umgeht
+SKIP_SIG_IN_THREAD für die bewusste Minimalinjektion); `_has_own_sig_in_compose_area`
+erkennt jetzt auch `class`/`x_`-Marker (kein Doppel mit Add-in-Signatur).
+
+Steuerung: globaler Schalter `MINIMAL_SIG_ON_REPLY` (**Default AUS**, Opt-in — damit
+Postfächer, deren Nutzer sich auf die Gateway-Signatur verlassen, nicht unerwartet
+signaturlos werden). Minimalvorlage aktuell auf **Richtlinien-Ebene** wählbar
+(Postfächer-Seite → Vorlagenrichtlinien → Minimalsignatur). Per-Postfach-Spalte
+folgt separat.
+
 ## v1.5.77 — 2026-07-08 — feat: Versionsnummer im Add-in-Taskpane
 
 Dezente Versionsanzeige (`v{{ version }}`) unten im Taskpane — damit sofort

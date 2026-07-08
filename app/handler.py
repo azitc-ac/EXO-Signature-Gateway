@@ -636,12 +636,41 @@ class SignatureHandler:
 
             # ── Normal outbound: inject signature ─────────────────────────────
             user_data = await graph_client.get_user(sender)
-            if _sender_cfg.get("use_policy", True):
-                _policies = settings_store.get("TEMPLATE_POLICIES") or {}
-                template_name = _policies.get("sig") or "default"
+            _policies = settings_store.get("TEMPLATE_POLICIES") or {}
+            _use_pol = _sender_cfg.get("use_policy", True)
+            _force_sig = False
+
+            # Minimalsignatur bei Antworten: Hat der Absender in DIESEM Thread
+            # schon beigetragen (eigene "Von:"-Zeile im Zitat oder Gateway-Marker),
+            # wird nicht der volle Block erneut angehängt — stattdessen die
+            # konfigurierte Minimalsignatur, oder (wenn keine gewählt) gar nichts.
+            # Die ERSTE eigene Mail im Thread (auch spät per To/Cc hinzugefügt)
+            # bekommt die volle Signatur. #nosig-Trigger hat Vorrang.
+            if not suppress_html_sig and mail_processor._has_own_sig_in_compose_area(msg):
+                suppress_html_sig = True
+                log.info("Signatur bereits im Compose-Bereich (z.B. Add-in) — überspringe für %s", sender)
+            elif (not suppress_html_sig
+                    and settings_store.get("MINIMAL_SIG_ON_REPLY") is not False
+                    and mail_processor.sender_already_in_thread(msg, {sender.lower()})):
+                _min_tpl = ((_policies.get("min") or "") if _use_pol
+                            else (_sender_cfg.get("min_template") or "")).strip()
+                if _min_tpl:
+                    template_name = _min_tpl
+                    _force_sig = True
+                    log.info("Minimalsignatur %r für Antwort von %s (bereits im Thread)", _min_tpl, sender)
+                else:
+                    suppress_html_sig = True
+                    log.info("Antwort im signierten Thread, keine Minimalsignatur gewählt — keine Signatur für %s", sender)
+
+            if not suppress_html_sig and not _force_sig:
+                template_name = (_policies.get("sig") or "default") if _use_pol \
+                    else (_sender_cfg.get("template") or "default")
+
+            if suppress_html_sig:
+                sig_html, sig_txt = "", ""
             else:
-                template_name = _sender_cfg.get("template") or "default"
-            sig_html, sig_txt = signature_engine.render(user_data, template_name=template_name)
+                sig_html, sig_txt = signature_engine.render(user_data, template_name=template_name)
+
             _img_mode = settings_store.get("SIG_IMAGE_MODE") or "auto"
             _use_cid = (
                 True if _img_mode == "cid"
@@ -653,10 +682,10 @@ class SignatureHandler:
             if suppress_html_sig:
                 modified = msg
                 outbound = msg.as_bytes()
-                log.info("HTML-Auto-Signatur durch %r-Trigger unterdrückt für %s", _nosig_kw, sender)
+                log.info("HTML-Auto-Signatur unterdrückt für %s", sender)
             else:
                 modified = mail_processor.inject(msg, sig_html, sig_txt,
-                                                  use_cid_images=_use_cid)
+                                                  use_cid_images=_use_cid, force=_force_sig)
                 outbound = modified.as_bytes()
 
             # ── S/MIME signing ─────────────────────────────────────────────────
