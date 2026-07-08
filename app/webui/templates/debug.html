@@ -287,6 +287,55 @@ async function saveGatewayName() {
 }
 </script>
 
+<!-- ── Gemischte Mails: interne + externe Empfänger (Antworten-an-Alle) ────── -->
+<div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
+  <div class="step-header">
+    <span class="step-badge" style="background:#0369a1;font-size:10px">Graph</span>
+    <span class="step-title">Gemischte Mails — Antworten-an-Alle
+      <span style="font-weight:400;font-size:12px;color:#57534e"> — nur im Graph-Modus relevant</span>
+    </span>
+  </div>
+  <div class="step-body">
+    <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
+      Schickt jemand eine Mail gleichzeitig an interne <em>und</em> externe Empfänger, teilt
+      Exchange sie in getrennte Teilnachrichten auf. Diese Einstellung steuert, wie das Gateway
+      im <strong>Graph-Modus</strong> damit umgeht.
+      <span style="color:#57534e">(Im SMTP- bzw. 587-Modus ist Antworten-an-Alle technisch
+      ohnehin vollständig — dann hat diese Option keine Wirkung.)</span>
+    </p>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+      <select id="mixed-fork-select" style="width:360px;max-width:100%">
+        <option value="send_to_all" {% if s.GRAPH_MIXED_FORK_MODE == 'send_to_all' %}selected{% endif %}>Vollständige Empfängerliste (empfohlen)</option>
+        <option value="scoped" {% if (s.GRAPH_MIXED_FORK_MODE or 'scoped') != 'send_to_all' %}selected{% endif %}>Getrennte Zustellung (Standard)</option>
+      </select>
+      <button class="btn primary" onclick="saveMixedFork()">Speichern</button>
+      <span id="mixed-fork-result" style="font-size:12px;margin-left:4px"></span>
+    </div>
+    <p class="hint" style="margin-bottom:0">
+      <strong>Vollständige Empfängerliste</strong>: Der interne Empfänger bekommt genau
+      <strong>eine</strong> signierte Kopie, in deren Kopfzeile <em>alle</em> Empfänger (auch die
+      externen) stehen — Antworten-an-Alle erreicht damit den ganzen Verteiler. Weil das Gateway
+      dafür kurz abwartet, ob die zusammengehörige externe Teilnachricht eintrifft, kann diese
+      Kopie <strong>wenige Sekunden später</strong> ankommen. Kein Duplikat, kein Verlust.<br>
+      <strong>Getrennte Zustellung</strong>: Jede Teilnachricht geht sofort nur an ihre eigenen
+      Empfänger. Am schnellsten, aber in der Kopfzeile der internen Kopie fehlen die externen
+      Empfänger — Antworten-an-Alle ist dort <strong>unvollständig</strong>.
+    </p>
+  </div>
+</div>
+<script>
+async function saveMixedFork() {
+  const val = document.getElementById('mixed-fork-select').value;
+  const el = document.getElementById('mixed-fork-result');
+  try {
+    const r = await fetch('/api/settings/partial', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({GRAPH_MIXED_FORK_MODE: val})});
+    el.textContent = r.ok ? '✓ Gespeichert' : '✗ Fehler';
+    el.style.color = r.ok ? '#16a34a' : '#dc2626';
+  } catch(e) { el.textContent = '✗ Netzwerkfehler'; el.style.color = '#dc2626'; }
+  setTimeout(function(){ el.textContent = ''; }, 3000);
+}
+</script>
+
 <!-- ── EXO PowerShell Zertifikat ──────────────────────────────────────────── -->
 <div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
   <div class="step-header">

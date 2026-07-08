@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.66 — 2026-07-08 — feat: GRAPH_MIXED_FORK_MODE im Erweitert-Tab wählbar
+
+Die in v1.5.64 eingeführte Einstellung `GRAPH_MIXED_FORK_MODE` ist jetzt in der
+Weboberfläche (Einstellungen → Erweitert) statt nur über die Konfigurationsdatei
+einstellbar. Neue Sektion „Gemischte Mails — Antworten-an-Alle" mit Auswahl:
+
+- **Vollständige Empfängerliste** (`send_to_all`, empfohlen): interner Empfänger
+  bekommt eine signierte Kopie mit vollständiger Empfängerliste im Header →
+  Antworten-an-Alle vollständig; Kopie kann wenige Sekunden später eintreffen.
+- **Getrennte Zustellung** (`scoped`, Code-Default): sofort, aber Antworten-an-Alle
+  beim internen Empfänger unvollständig.
+
+Der Hinweistext benennt die leichte Verzögerung explizit. Nur im Graph-Modus
+wirksam (SMTP/587 trennen Envelope/Header ohnehin nativ). Speichern über den
+generischen `/api/settings/partial`-Endpunkt.
+
 ## v1.5.65 — 2026-07-08 — security: Quell-IP-Allowlist für den SMTP-Listener (:25)
 
 Defense-in-depth für den Inbound-SMTP-Listener: legitimer Verkehr kommt nur vom
