@@ -155,7 +155,7 @@
     {% if s.REINJECT_MODE %}
     <span class="step-status done">
       {% if s.REINJECT_MODE == 'smtp' %}SMTP Port 25
-      {% elif s.REINJECT_MODE == 'graph' %}Graph API
+      {% elif s.REINJECT_MODE == 'graph' %}Graph API (Preview)
       {% elif s.REINJECT_MODE in ('imap','smtp587') %}IMAP + Graph
       {% else %}{{ s.REINJECT_MODE }}{% endif %}
     </span>
@@ -189,10 +189,13 @@
           {% if s.REINJECT_MODE == 'graph' %}checked{% endif %}
           onchange="updateModeSelection()">
         <div>
-          <strong>Graph API</strong> — Azure ohne Port 25<br>
+          <strong>Graph API</strong> — Azure ohne Port 25
+          <span style="display:inline-block;font-size:10px;font-weight:700;color:#92400e;background:#fef3c7;border:1px solid #fcd34d;border-radius:4px;padding:1px 6px;margin-left:6px;vertical-align:middle">PREVIEW</span><br>
           <span style="font-size:12px;color:#555">
             Nur Signaturen, kein S/MIME.<br>
-            Voraussetzung: <code>Mail.Send</code> Application Permission. Kein Port 25, kein TLS-Zertifikat nötig.
+            Voraussetzung: <code>Mail.Send</code> Application Permission. Kein Port 25, kein TLS-Zertifikat nötig.<br>
+            <span style="color:#92400e">Preview: Bei gemischten intern/externen Mails gilt die
+            Einstellung „Gemischte Mails" (Erweitert). SMTP- oder IMAP+Graph-Modus sind ausgereifter.</span>
           </span>
         </div>
       </label>

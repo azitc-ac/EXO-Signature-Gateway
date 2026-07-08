@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.67 — 2026-07-08 — change: send_to_all ist Default; Graph-only als „Preview" gekennzeichnet
+
+Zwei bewusste Produktentscheidungen:
+
+1. **`GRAPH_MIXED_FORK_MODE` Default `scoped` → `send_to_all`.** Der bisherige
+   Default lieferte bei gemischten intern/externen Mails ein unvollständiges
+   Antworten-an-Alle (interne Kopie ohne externe Empfänger im Header) — ein
+   Zustand, den praktisch niemand will. `send_to_all` ist getestet und fail-safe
+   (bestätigter Send-to-all vor Geschwister-Drop, sonst scoped-Zustellung, nie
+   Verlust); geändert in settings_store.py, reinject.py, handler.py, debug.html.
+2. **Reiner Graph-Modus (`REINJECT_MODE=graph`) als „Preview".** Badge im
+   Setup-Wizard-Modusselektor + Statusanzeige „Graph API (Preview)". SMTP- und
+   IMAP+Graph-Modus sind ausgereifter (native Envelope/Header-Trennung); der
+   Graph-only-Weg hängt an der Mixed-Fork-Logik.
+
 ## v1.5.66 — 2026-07-08 — feat: GRAPH_MIXED_FORK_MODE im Erweitert-Tab wählbar
 
 Die in v1.5.64 eingeführte Einstellung `GRAPH_MIXED_FORK_MODE` ist jetzt in der

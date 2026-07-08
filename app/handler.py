@@ -556,7 +556,7 @@ class SignatureHandler:
                     # unsigned copy. Only a TRULY internal-only mail (no
                     # external in the headers) is skipped here.
                     import reinject as _rj
-                    _fork_mode = (settings_store.get("GRAPH_MIXED_FORK_MODE") or "scoped").strip().lower()
+                    _fork_mode = (settings_store.get("GRAPH_MIXED_FORK_MODE") or "send_to_all").strip().lower()
                     _rmode = settings_store.get("REINJECT_MODE") or "smtp"
                     _hdr_rcpts = _rj._header_recipients(raw)
                     _hdr_all_internal = (not _hdr_rcpts) or all(a in _known for a in _hdr_rcpts)

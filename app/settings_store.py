@@ -51,18 +51,17 @@ DEFAULTS: dict = {
     "GRAPH_SMTP_FALLBACK": False,  # Allow SMTP fallback when Graph re-inject fails
     # Graph-Modus, Behandlung gemischter intern/extern-Mails (bifurkierte Forks)
     # ohne SMTP.SendAsApp. Werte:
-    #   "scoped"      — Default. Jede Fork wird auf ihre Envelope-Empfänger
-    #                   beschnitten zugestellt. Kein Duplikat, keine Verzögerung,
-    #                   aber Externe sehen den internen Mitempfänger NICHT
-    #                   (Reply-All unvollständig).
-    #   "send_to_all" — Erste eintreffende Fork wird signiert und an ALLE
+    #   "send_to_all" — Default. Erste eintreffende Fork wird signiert und an ALLE
     #                   Header-Empfänger zugestellt (Send-to-all, liefert direkt
     #                   über die X-Sig-Applied-Ausnahme, verifiziert genau 1 Kopie
     #                   pro internem Empfänger). Geschwister-Forks werden verworfen,
     #                   sobald der Send-to-all bestätigt ist — sonst zugestellt
     #                   (fail-safe, nie Verlust). Volle Reply-All. Leichte
     #                   Verzögerung möglich, wenn Forks nacheinander eintreffen.
-    "GRAPH_MIXED_FORK_MODE": "scoped",
+    #   "scoped"      — Jede Fork wird auf ihre Envelope-Empfänger beschnitten
+    #                   zugestellt. Kein Duplikat, keine Verzögerung, aber Externe
+    #                   sehen den internen Mitempfänger NICHT (Reply-All unvollständig).
+    "GRAPH_MIXED_FORK_MODE": "send_to_all",
     # ── SMTP-Listener Quell-IP-Härtung ───────────────────────────────────────
     # Nur Exchange Online (Outbound-Connector) darf legitim auf :25 zugreifen.
     # Ohne diese Prüfung könnte ein Angreifer mit Netzwerkzugang das Gateway zum

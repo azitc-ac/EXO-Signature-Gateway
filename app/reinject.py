@@ -164,10 +164,11 @@ def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
         #      send-to-all is CONFIRMED; a failed send-to-all falls through to
         #      scoped delivery (never loss). Full Reply-All. Slight delay
         #      possible when the two forks arrive a few seconds apart.
-        #   "scoped" (default) — fall through to the per-mode path below, which
+        #   "scoped" — fall through to the per-mode path below, which
         #      reduces headers to this fork's envelope: no duplicate, no loss,
         #      Reply-All incomplete for this fork.
-        fork_mode = (settings_store.get("GRAPH_MIXED_FORK_MODE") or "scoped").strip().lower()
+        # Default is "send_to_all" (full Reply-All, fail-safe).
+        fork_mode = (settings_store.get("GRAPH_MIXED_FORK_MODE") or "send_to_all").strip().lower()
         if fork_mode == "send_to_all":
             if _handle_mixed_fork(mail_from, rcpt_tos, content_bytes, force_mime):
                 return

@@ -305,8 +305,8 @@ async function saveGatewayName() {
     </p>
     <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
       <select id="mixed-fork-select" style="width:360px;max-width:100%">
-        <option value="send_to_all" {% if s.GRAPH_MIXED_FORK_MODE == 'send_to_all' %}selected{% endif %}>Vollständige Empfängerliste (empfohlen)</option>
-        <option value="scoped" {% if (s.GRAPH_MIXED_FORK_MODE or 'scoped') != 'send_to_all' %}selected{% endif %}>Getrennte Zustellung (Standard)</option>
+        <option value="send_to_all" {% if (s.GRAPH_MIXED_FORK_MODE or 'send_to_all') == 'send_to_all' %}selected{% endif %}>Vollständige Empfängerliste (Standard, empfohlen)</option>
+        <option value="scoped" {% if s.GRAPH_MIXED_FORK_MODE == 'scoped' %}selected{% endif %}>Getrennte Zustellung</option>
       </select>
       <button class="btn primary" onclick="saveMixedFork()">Speichern</button>
       <span id="mixed-fork-result" style="font-size:12px;margin-left:4px"></span>
