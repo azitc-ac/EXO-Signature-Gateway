@@ -203,7 +203,11 @@
     // _QUOTE_PATTERNS): everything from here down is the quoted original.
     var _QUOTE_RES = [
       /<div\b[^>]*\bid=["'](?:x_)?divrplyfwdmsg["']/i,
-      /<div\b[^>]*\bid=["'](?:x_)?divtagdefaultwrapper["']/i,
+      // divtagdefaultwrapper intentionally excluded: OWA uses it as a compose-area
+      // wrapper in fresh mails, not just as a quote boundary. Including it would set
+      // limit=0 after the first setAsync (OWA wraps the body on return from getAsync),
+      // making _findSigRegion unable to locate the previously inserted sig → duplicates.
+      // In replies, divrplyfwdmsg fires first and is the reliable boundary.
       /<div\b[^>]*\bid=["'](?:x_)?divfwdmsg["']/i,
       // Outlook Desktop reply separator: border:none + 1pt solid top border.
       /<div\b[^>]*style=["'](?=[^"']*border\s*:\s*none\b)(?=[^"']*border-top\s*:\s*solid\s+#[0-9a-fA-F]{3,6}\s+1[.\d]*pt\b)/i,
@@ -252,6 +256,13 @@
       var limit = (qpos === -1) ? body.length : qpos;
       var region = _findSigRegion(body, limit);
       if (region) return { body: body.slice(0, region.start) + _markedSig + body.slice(region.end), replaced: true };
+      // Fallback: if the sig somehow ended up past the detected quote boundary
+      // (e.g. OWA compose wrapper confuses the boundary detection), search the
+      // full body so we still replace rather than duplicate.
+      if (!region && qpos !== -1) {
+        var fullRegion = _findSigRegion(body, body.length);
+        if (fullRegion) return { body: body.slice(0, fullRegion.start) + _markedSig + body.slice(fullRegion.end), replaced: true };
+      }
       if (qpos !== -1) return { body: body.slice(0, qpos) + _markedSig + body.slice(qpos), replaced: false };
       var bc = body.lastIndexOf('</body>');
       return { body: bc !== -1 ? body.slice(0, bc) + _markedSig + body.slice(bc) : body + _markedSig, replaced: false };

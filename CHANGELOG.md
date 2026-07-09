@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.84 — 2026-07-10 — fix: Add-in doppelte Signatur bei mehrfachem Einfügen
+
+`divtagdefaultwrapper` aus `_QUOTE_RES` entfernt. OWA wickelt nach `setAsync` den
+gesamten Body in `<div id="divtagdefaultwrapper">` ein; das setzte `limit = 0` und
+`_findSigRegion` konnte die bereits eingefügte Signatur nicht mehr finden → jeder
+weitere Klick auf „Einfügen" fügte eine neue Signatur hinter der vorherigen ein.
+In echten Antworten schlägt `divrplyfwdmsg` als zuverlässige Grenze an; der Wrapper
+ist dort redundant. Zusätzlich: Defense-in-depth-Fallback in `_computeInsert` — sucht
+bei Nicht-Fund den gesamten Body durch, damit Edge-Cases keine Duplikate erzeugen.
+
 ## v1.5.82 — 2026-07-08 — feat: Minimalsignatur-Template + Richtlinien-Default
 
 Minimal.html / Minimal.txt als eigenständige Git-Dateien aufgenommen (waren untracked).
