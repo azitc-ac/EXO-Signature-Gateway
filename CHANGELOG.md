@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.106 — 2026-07-11 — feat: Banner-Richtlinie editierbar
+
+Banner-Zeile in den Standard-Richtlinien aktiviert (war "Demnächst"):
+policy-banner-tpl-Select mit „— keine —" + allen Vorlagen. savePolicies()
+speichert banner-Feld in TEMPLATE_POLICIES. loadPolicies() befüllt das
+Select. handler.py liest bei use_policy=True den Banner aus TEMPLATE_POLICIES
+statt aus sender_cfg. Per-Postfach-Banner-Select wird bei aktiver Richtlinie
+ausgegraut und zeigt den Richtlinien-Wert (wie Standardsignatur).
+
 ## v1.5.105 — 2026-07-10 — feat: Vorschau-Dropdowns + Umbenennung Banner
 
 Vorschau-Seite: E-Mail-Text-Input und Vorlagen-Tabs durch je ein Dropdown

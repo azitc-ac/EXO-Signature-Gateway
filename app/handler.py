@@ -669,7 +669,8 @@ class SignatureHandler:
                 sig_html, sig_txt = "", ""
             else:
                 sig_html, sig_txt = signature_engine.render(user_data, template_name=template_name)
-                _banner_tpl = _sender_cfg.get("banner_template", "").strip()
+                _banner_tpl = ((_policies.get("banner") or "") if _use_pol
+                               else _sender_cfg.get("banner_template", "")).strip()
                 if _banner_tpl:
                     _banner_html, _ = signature_engine.render(user_data, template_name=_banner_tpl)
                     if _banner_html:
