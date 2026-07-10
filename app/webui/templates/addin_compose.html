@@ -101,6 +101,11 @@
     Signatur wurde automatisch eingefügt. Vorlage wechseln oder <strong>Einfügen</strong> klicken zum Aktualisieren.
   </p>
   <div style="margin-top:12px;font-size:10px;color:#cbd5e1;text-align:right">v{{ version }}</div>
+  <details style="margin-top:8px;font-size:10px;color:#64748b">
+    <summary style="cursor:pointer;color:#94a3b8">Debug</summary>
+    <button class="btn btn-secondary" onclick="runDebug()" style="font-size:10px;margin-top:4px;padding:3px 8px">Body analysieren</button>
+    <pre id="dbg-out" style="white-space:pre-wrap;word-break:break-all;font-size:9px;margin-top:4px;background:#f8fafc;padding:6px;border:1px solid #e2e8f0;border-radius:4px;max-height:200px;overflow-y:auto"></pre>
+  </details>
 
   <script>
     var _markedSig = '';
@@ -356,6 +361,53 @@
         dlg.addEventHandler(Office.EventType.DialogEventReceived, function() {
           // e.g. 12006 = dialog closed by user — leave the login prompt visible.
         });
+      });
+    }
+
+    function runDebug() {
+      var out = document.getElementById('dbg-out');
+      out.textContent = 'Lese Body…';
+      Office.context.mailbox.item.body.getAsync(Office.CoercionType.Html, function(r) {
+        if (r.status !== Office.AsyncResultStatus.Succeeded) {
+          out.textContent = 'Fehler: ' + r.error.message; return;
+        }
+        var body = r.value || '';
+        var lines = [];
+        lines.push('Länge: ' + body.length);
+
+        var aSM = body.match(/<a\b[^>]*\bname=["'](?:x_)?exo-sig-s["'][^>]*>(?:<\/a>)?/i);
+        lines.push('<a name exo-sig-s>: ' + (aSM ? 'JA @ ' + aSM.index + ' → "' + aSM[0].slice(0,60) + '"' : 'NEIN'));
+        if (aSM) {
+          var aEM = body.match(/<a\b[^>]*\bname=["'](?:x_)?exo-sig-e["'][^>]*>(?:<\/a>)?/i);
+          lines.push('<a name exo-sig-e>: ' + (aEM ? 'JA @ ' + aEM.index : 'NEIN'));
+        }
+
+        var c = body.indexOf('<!-- exo-sig-start -->');
+        lines.push('<!-- exo-sig-start -->: ' + (c !== -1 ? 'JA @ ' + c : 'NEIN'));
+        var ce = body.indexOf('<!-- exo-sig-end -->');
+        lines.push('<!-- exo-sig-end -->: ' + (ce !== -1 ? 'JA @ ' + ce : 'NEIN'));
+
+        var gM = body.match(/<div\b[^>]*\bclass=["'][^"']*exo-gateway-sig[^"']*["'][^>]*>/i);
+        lines.push('class=exo-gateway-sig: ' + (gM ? 'JA @ ' + gM.index : 'NEIN'));
+
+        var qpos = _findQuoteInsertPos(body);
+        lines.push('qpos: ' + qpos);
+
+        var limit = qpos === -1 ? body.length : qpos;
+        var region = _findSigRegion(body, limit);
+        lines.push('_findSigRegion: ' + (region ? 'gefunden @ ' + region.start + '–' + region.end : 'NICHTS'));
+        if (!region && qpos !== -1) {
+          var fr = _findSigRegion(body, body.length);
+          lines.push('_findSigRegion (ganzer Body): ' + (fr ? 'gefunden @ ' + fr.start + '–' + fr.end : 'NICHTS'));
+        }
+
+        // snippet around sig-start if found
+        if (aSM) {
+          lines.push('--- Snippet @ exo-sig-s ---');
+          lines.push(body.slice(Math.max(0, aSM.index - 50), aSM.index + 200));
+        }
+
+        out.textContent = lines.join('\n');
       });
     }
 

@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.88 — 2026-07-10 — debug: Body-Analyse-Button in Add-in Taskpane
+
+Temporäres Debug-Panel (Details > Debug > Body analysieren): zeigt nach
+getAsync welche Marker (Anker, Kommentare, Klasse) Outlook im Body noch
+sieht, wo qpos liegt und ob _findSigRegion etwas findet.
+
 ## v1.5.86 — 2026-07-10 — fix: Add-in doppelte Signatur in Outlook Classic
 
 Root-Cause v2: Outlook Classic's getAsync streicht nicht nur HTML-Kommentare,
