@@ -623,19 +623,20 @@ async def api_addin_signature(email: str, template: str = "", user: str = Depend
     if not sig_html:
         return JSONResponse({"marked_html": "", "preview_html": ""})
 
-    # Wrap EXACTLY like the gateway's _append_html_sig: comment markers PLUS a
-    # class="exo-gateway-sig" wrapper. The empty id-sentinel divs used before did
-    # NOT survive the Outlook compose editor (empty divs get stripped, comments
-    # too), so pressing "Einfügen" again couldn't find the previous signature and
-    # appended a duplicate. The class wrapper is on a NON-empty div → it survives,
-    # and both the add-in (replaceSig) and the gateway (send-time dup check) detect
-    # it → re-insert replaces in place (idempotent).
+    # Outlook Classic's getAsync strips HTML comments AND custom class attributes
+    # from div elements (evidenced by exported mails showing bare <div> where we
+    # set class="exo-gateway-sig"). The only attributes that reliably survive are
+    # <a name="..."> anchors (Outlook itself uses _MailEndCompose / _MailOriginal).
+    # Strategy: use <a name="exo-sig-s/e"> as primary markers + keep comment/class
+    # markers as fallback for OWA and other clients.
     marked = (
-        mail_processor._SIG_MARKER_START
+        '<a name="exo-sig-s"></a>'
+        + mail_processor._SIG_MARKER_START
         + f'<div class="{mail_processor._SIG_CLASS}">'
         + sig_html
         + "</div>"
         + mail_processor._SIG_MARKER_END
+        + '<a name="exo-sig-e"></a>'
     )
     return JSONResponse({"marked_html": marked, "preview_html": sig_html})
 

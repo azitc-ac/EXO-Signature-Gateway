@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.86 — 2026-07-10 — fix: Add-in doppelte Signatur in Outlook Classic
+
+Root-Cause v2: Outlook Classic's getAsync streicht nicht nur HTML-Kommentare,
+sondern auch custom class-Attribute (class="exo-gateway-sig" → nacktes <div>).
+Deshalb blieb die Erkennung beim 2. Einfügen leer → Duplikat.
+
+Fix: <a name="exo-sig-s/e"></a> als primäre Marker — Outlook Classic preserviert
+<a name>-Attribute nachweislich (eigene _MailEndCompose/_MailOriginal-Anker
+überleben ebenfalls). Beide Marker werden jetzt in marked_html eingefügt; die
+JS-Erkennung prüft sie zuerst (inkl. x_-Prefix für Exchange-gequotete Inhalte).
+Kommentare + class bleiben als Fallback für OWA.
+
 ## v1.5.84 — 2026-07-10 — fix: Add-in doppelte Signatur bei mehrfachem Einfügen
 
 `divtagdefaultwrapper` aus `_QUOTE_RES` entfernt. OWA wickelt nach `setAsync` den
