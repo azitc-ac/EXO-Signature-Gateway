@@ -1545,6 +1545,7 @@ async def api_get_mailboxes(_=Depends(_check_auth)):
                 "sig": cfg.get("sig", False),
                 "smime": cfg.get("smime", False),
                 "template": cfg.get("template", "default"),
+                "min_template": cfg.get("min_template", ""),
                 "addin_templates": cfg.get("addin_templates", []),
                 "use_policy": cfg.get("use_policy", True),
                 "health_overall": h.get("overall"),

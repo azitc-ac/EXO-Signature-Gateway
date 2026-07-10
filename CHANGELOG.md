@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.99 — 2026-07-10 — fix: min_template im Fallback-Pfad der Postfächer-API
+
+GET /api/mailboxes: der Fallback-Eintrag für Postfächer, die Graph nicht mehr
+zurückgibt (GUID-konfiguriert, gelöschte User), enthielt kein min_template-Feld.
+Kein Einfluss auf aktive Postfächer; Vollständigkeit wiederhergestellt.
+
 ## v1.5.97 — 2026-07-10 — fix: wachsende Leerzeile nach Sig bei Template-Wechsel
 
 Outlooks Word-Renderer fügt nach jedem Block-Element (div/table) beim
