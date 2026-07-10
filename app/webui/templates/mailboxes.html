@@ -482,7 +482,7 @@ async function refreshMailboxStatus() {
   setTimeout(function() { status.textContent = ''; }, 3000);
 }
 
-function _buildTemplateSelect(idx, selectedTemplate, sigEnabled, policyActive) {
+function _buildTemplateSelect(idx, selectedTemplate, sigEnabled, policyActive, policyTemplate) {
   var sel = document.createElement('select');
   sel.className = 'mb-template';
   sel.dataset.idx = String(idx);
@@ -492,11 +492,13 @@ function _buildTemplateSelect(idx, selectedTemplate, sigEnabled, policyActive) {
   sel.disabled = !enabled;
   sel.style.opacity = enabled ? '1' : '0.4';
   if (policyActive) sel.title = 'Wird durch Vorlagenrichtlinie gesteuert';
+  var effective = policyActive ? (policyTemplate || selectedTemplate || 'default')
+                               : (selectedTemplate || 'default');
   _templateList.forEach(function(name) {
     var opt = document.createElement('option');
     opt.value = name;
     opt.textContent = name;
-    if (name === (selectedTemplate || 'default')) opt.selected = true;
+    if (name === effective) opt.selected = true;
     sel.appendChild(opt);
   });
   return sel;
@@ -715,7 +717,8 @@ function renderMailboxTable(mailboxes) {
     // Vorlage select — greyed when policyActive
     var tdTpl = document.createElement('td');
     tdTpl.style.cssText = 'text-align:center;padding:6px 8px';
-    var tplSel = _buildTemplateSelect(i, mb.template, mb.sig, policyActive);
+    var tplSel = _buildTemplateSelect(i, mb.template, mb.sig, policyActive,
+                                     document.getElementById('policy-sig-tpl').value);
     tdTpl.appendChild(tplSel);
 
     // Antwort-Signatur (ab 2. eigener Mail im Thread) — greyed when policyActive
@@ -729,10 +732,13 @@ function renderMailboxTable(mailboxes) {
     optNone.value = '';
     optNone.textContent = '— keine —';
     minSigSel.appendChild(optNone);
+    var _effectiveMinTpl = policyActive
+      ? (document.getElementById('policy-min-tpl').value || '')
+      : (mb.min_template || '');
     _templateList.forEach(function(name) {
       var opt = document.createElement('option');
       opt.value = name; opt.textContent = name;
-      if (name === mb.min_template) opt.selected = true;
+      if (name === _effectiveMinTpl) opt.selected = true;
       minSigSel.appendChild(opt);
     });
     var _minDisabled = !mb.sig || policyActive;
@@ -780,9 +786,13 @@ function renderMailboxTable(mailboxes) {
       tplSel.disabled = !sig || pol;
       tplSel.style.opacity = (!sig || pol) ? '0.4' : '1';
       tplSel.title = pol ? 'Wird durch Vorlagenrichtlinie gesteuert' : '';
+      tplSel.value = pol ? (document.getElementById('policy-sig-tpl').value || 'default')
+                         : (mb.template || 'default');
       minSigSel.disabled = !sig || pol;
       minSigSel.style.opacity = (!sig || pol) ? '0.4' : '1';
       minSigSel.title = pol ? 'Wird durch Vorlagenrichtlinie gesteuert' : '';
+      minSigSel.value = pol ? (document.getElementById('policy-min-tpl').value || '')
+                            : (mb.min_template || '');
       addinCtrl.style.opacity = (!sig || pol) ? '0.4' : '1';
       addinCtrl.style.pointerEvents = (!sig || pol) ? 'none' : '';
       addinCtrl.title = pol ? 'Wird durch Vorlagenrichtlinie gesteuert' : '';

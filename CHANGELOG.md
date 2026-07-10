@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.101 — 2026-07-10 — fix: ausgegrauete Dropdowns spiegeln Richtlinien-Wert
+
+Bei aktiver Vorlagenrichtlinie zeigten Standardsignatur- und Antwort-Signatur-
+Dropdown den leeren per-Postfach-Wert statt den konfigurierten Richtlinien-Wert.
+_buildTemplateSelect und minSigSel lesen jetzt bei policyActive=true den Wert aus
+#policy-sig-tpl bzw. #policy-min-tpl. _applyPolicy aktualisiert die Selects auch
+live beim Umschalten der Richtlinien-Checkbox.
+
 ## v1.5.99 — 2026-07-10 — fix: min_template im Fallback-Pfad der Postfächer-API
 
 GET /api/mailboxes: der Fallback-Eintrag für Postfächer, die Graph nicht mehr
