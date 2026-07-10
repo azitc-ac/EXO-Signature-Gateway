@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.107 — 2026-07-11 — feat: Dark Theme (Gateway + Hub)
+
+Toggle-Button (☾/☀) in beiden Navigationsleisten. Theme-Wahl wird in
+localStorage ('exo-theme') persistiert; Respektiert prefers-color-scheme
+als Default. Gateway: neues dark-mode.css (additiv, kein Umbau des
+bestehenden style.css). Hub: inline <style> in base.html. Flash-Schutz:
+Anti-flash-Script in <head> setzt data-theme vor dem ersten Paint.
+
 ## v1.5.106 — 2026-07-11 — feat: Banner-Richtlinie editierbar
 
 Banner-Zeile in den Standard-Richtlinien aktiviert (war "Demnächst"):
