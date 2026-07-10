@@ -272,15 +272,26 @@
       return region;
     }
     // --- Text-probe sig detection (Outlook Classic) ----------------------------
-    // Extract the first substantial ASCII-only text node from sig HTML.
-    // Used as a fallback locator when HTML markers are stripped.
+    // Extract a text node from sig HTML to use as a body probe.
+    // Prefers text appearing EXACTLY ONCE: a probe occurring twice in the sig
+    // (e.g. the sender's name in both the name row AND the inner contact table)
+    // causes lastIndexOf to land on the inner element instead of the outer
+    // wrapper, so _regionAroundProbeIdx would detect only that inner element —
+    // leaving the surrounding sig structure as an accumulated artifact.
     function _computeSigProbe(html) {
       var re = />([^<\s][^<]{7,})</g, m;
+      var ascii = [];
       while ((m = re.exec(html)) !== null) {
         var t = m[1].trim();
-        if (t.length >= 8 && /^[\x20-\x7E]+$/.test(t)) return t.slice(0, 60);
+        if (t.length >= 8 && /^[\x20-\x7E]+$/.test(t)) ascii.push(t.slice(0, 60));
       }
-      // Fallback: allow non-ASCII if no ASCII candidate found
+      // 1st choice: ASCII text that appears exactly once (most reliable anchor)
+      for (var i = 0; i < ascii.length; i++) {
+        if (html.indexOf(ascii[i]) === html.lastIndexOf(ascii[i])) return ascii[i];
+      }
+      // 2nd: first ASCII candidate even if it appears more than once
+      if (ascii.length) return ascii[0];
+      // 3rd: first text node ≥ 8 chars even if non-ASCII
       m = html.match(/>([^<\s][^<]{7,})</);
       return m ? m[1].trim().slice(0, 60) : '';
     }
@@ -332,8 +343,16 @@
     // (covers replies where the sig was appended after the quote on first insert).
     function _findSigByProbe(body, qpos) {
       var probes = [];
-      if (_sigTextProbe) probes.push(_sigTextProbe);
-      if (_prevSigTextProbe && _prevSigTextProbe !== _sigTextProbe) probes.push(_prevSigTextProbe);
+      // When the template has changed, try the OLD probe first: it matches the
+      // currently-displayed sig's structure, so _regionAroundProbeIdx finds the
+      // full old sig region rather than a same-named text node in a different template.
+      var templateChanged = _prevSigTextProbe && _prevSigTextProbe !== _sigTextProbe;
+      if (templateChanged) {
+        probes.push(_prevSigTextProbe);
+        if (_sigTextProbe) probes.push(_sigTextProbe);
+      } else {
+        if (_sigTextProbe) probes.push(_sigTextProbe);
+      }
       for (var pi = 0; pi < probes.length; pi++) {
         var probe = probes[pi];
         var idx = (qpos !== -1 ? body.slice(0, qpos) : body).lastIndexOf(probe);

@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.95 — 2026-07-10 — fix: Artefakt-Akkumulation beim Template-Wechsel
+
+Ursache: _computeSigProbe() wählte den ersten ASCII-Textknoten mit ≥ 8 Zeichen,
+auch wenn dieser Text mehrfach im Sig-HTML vorkommt (z. B. der Anzeigename im
+Namens-Zeile-Row UND nochmals im inneren Kontaktblock). lastIndexOf() fand dann
+das LETZTE Vorkommen → _regionAroundProbeIdx landete im inneren Kontakttabellen-
+Element statt im äußeren Sig-Wrapper → nur der innere Block wurde ersetzt, der
+Rest (#gernperDu-Zeile, Bookings-Hinweis o. ä.) blieb als Artefakt.
+
+Fix 1 — _computeSigProbe() Eindeutigkeits-Check:
+  Alle ASCII-Kandidaten sammeln; bevorzuge den, der genau einmal im Sig-HTML
+  vorkommt. Für eine Sig mit Name im äußeren Row + Name im inneren Kontaktblock
+  wird stattdessen der erste einmal vorkommende Text (z. B. ein Hashtag-Zusatz)
+  als Probe gewählt, der vor dem inneren Block liegt.
+
+Fix 2 — _findSigByProbe() Probe-Reihenfolge bei Template-Wechsel:
+  Wenn _prevSigTextProbe ≠ _sigTextProbe (Template hat gewechselt), wird der
+  ALTE Probe zuerst gesucht — er passt zur aktuell im Body befindlichen alten
+  Signatur und findet deren äußeren Wrapper korrekt. Der neue Probe ist Fallback.
+
 ## v1.5.93 — 2026-07-10 — fix: _regionAroundProbeIdx innermost statt outermost
 
 Bug in v1.5.92: Rückwärts-Walk durch <div>/<table> hatte kein break nach
