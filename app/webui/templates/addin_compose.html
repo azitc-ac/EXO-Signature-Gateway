@@ -336,6 +336,17 @@
           if (tM) { oIdx = wStart; endIdx += tM[0].length; }
         }
       }
+      // Consume trailing blank elements that Outlook's Word renderer appends after
+      // block elements on each setAsync→getAsync cycle (empty <p> or bare <br>).
+      // Without this each template swap adds one more blank line.
+      // The pattern matches: optional whitespace, then either a bare <br> or a <p>
+      // whose content is only whitespace / &nbsp; / sub-tags with no visible text.
+      var trailRe = /^(\s*(?:<br\b[^>]*\/?>|<p\b[^>]*>(?:\s|&nbsp;|<[^>]+>)*<\/p\s*>))/i;
+      var trailSlice = body.slice(endIdx), trailM;
+      while ((trailM = trailRe.exec(trailSlice)) !== null) {
+        endIdx += trailM[1].length;
+        trailSlice = body.slice(endIdx);
+      }
       return { start: oIdx, end: endIdx };
     }
     // Locate an existing sig by text-probe search — tries current then previous probe.

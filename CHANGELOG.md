@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.97 — 2026-07-10 — fix: wachsende Leerzeile nach Sig bei Template-Wechsel
+
+Outlooks Word-Renderer fügt nach jedem Block-Element (div/table) beim
+setAsync→getAsync-Zyklus ein leeres Paragraph-Element ein (<p class="MsoNormal">
+<o:p>&nbsp;</o:p></p> oder ähnlich). Dieses lag nach region.end und wurde
+deshalb in body.slice(region.end) mitgenommen; beim nächsten Zyklus kam ein
+weiteres hinzu → wachsende Leerzeilen.
+
+Fix in _regionAroundProbeIdx: nach Berechnung von endIdx wird über eine while-
+Schleife alles konsumiert, was direkt dahintersteht und dem Muster eines leeren
+Elements entspricht (<br> oder <p> mit ausschließlich Whitespace/&nbsp;/Sub-Tags).
+Echte Inhalte (Quote-Separator-Div, normaler Paragraph-Text) bleiben unangetastet.
+
 ## v1.5.95 — 2026-07-10 — fix: Artefakt-Akkumulation beim Template-Wechsel
 
 Ursache: _computeSigProbe() wählte den ersten ASCII-Textknoten mit ≥ 8 Zeichen,
