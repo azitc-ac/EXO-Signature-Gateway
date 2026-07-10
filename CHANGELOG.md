@@ -5,6 +5,25 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.91 — 2026-07-10 — fix: Add-in Doppel-Einfügen durch _lastSetBody-Strategie
+
+Root cause: Outlook Classic's getAsync während Compose strippt ALLE Custom-Marker
+(id, class, <a name>, HTML-Kommentare) — kein HTML-Marker überlebt den
+setAsync→getAsync-Roundtrip durch den Word-Renderer.  Daher war _findSigRegion
+immer null → jeder Klick auf "Einfügen" inserierte eine weitere Signatur.
+
+Fix: replaceSig() speichert das HTML das wir an setAsync übergeben haben in
+_lastSetBody (Marker noch intakt).  Beim 2. Klick nutzen wir _lastSetBody statt
+getAsync aufzurufen: _findSigRegion findet die Signatur, ersetzt sie, schreibt
+aktualisiertes _lastSetBody.  Erste Einfügung läuft weiterhin über getAsync.
+
+Limitation (akzeptiert): Tippt der User zwischen zwei Einfügen-Klicks neuen Text,
+geht dieser beim zweiten Klick verloren (wir schreiben _lastSetBody zurück).
+Dieser Edge Case ist selten (typisch: 2x klicken oder Template wechseln ohne
+Zwischentippt); besser als dauerhafte Duplikate.
+
+Debug-Panel: zeigt jetzt auch _lastSetBody-Status (null / gesetzt mit Länge).
+
 ## v1.5.90 — 2026-07-10 — debug+fix: div id="exo-sig-s" als Marker-Strategie
 
 <a name> wurde ebenfalls von Outlook Classic gestripped. Neuer Ansatz:

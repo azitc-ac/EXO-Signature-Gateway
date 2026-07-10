@@ -112,6 +112,12 @@
     var _MARKER_START = '<!-- exo-sig-start -->';
     var _MARKER_END   = '<!-- exo-sig-end -->';
     var _email = '';
+    // Outlook Classic's getAsync strips ALL custom HTML markers (class, id, <a name>,
+    // HTML comments) during the setAsync→getAsync round-trip through the Word renderer.
+    // We can't detect the existing sig in the Outlook-rendered body.  Instead, keep a
+    // copy of the body we last passed to setAsync — it still has our markers intact —
+    // and use THAT for subsequent replacements (skip getAsync entirely on 2nd+ insert).
+    var _lastSetBody = null;
     var _addinSession = '';
     try { _addinSession = localStorage.getItem('exo_addin_session') || ''; } catch(_) {}
     function _authHeaders() { return _addinSession ? { 'X-Addin-Session': _addinSession } : {}; }
@@ -276,6 +282,28 @@
 
     function replaceSig() {
       if (!_markedSig) return;
+
+      // Fast path (2nd+ insert): use the body we last passed to setAsync — it still
+      // has our markers.  Outlook Classic strips them on getAsync, so we bypass that
+      // entirely and work on our own copy.
+      if (_lastSetBody !== null) {
+        var qp  = _findQuoteInsertPos(_lastSetBody);
+        var lim = (qp === -1) ? _lastSetBody.length : qp;
+        var reg = _findSigRegion(_lastSetBody, lim) || _findSigRegion(_lastSetBody, _lastSetBody.length);
+        if (reg) {
+          var nb = _lastSetBody.slice(0, reg.start) + _markedSig + _lastSetBody.slice(reg.end);
+          _lastSetBody = nb;
+          Office.context.mailbox.item.body.setAsync(nb, { coercionType: Office.CoercionType.Html }, function(wr) {
+            showStatus(
+              wr.status === Office.AsyncResultStatus.Succeeded ? 'Signatur ersetzt ✓' : 'Fehler: ' + wr.error.message,
+              wr.status === Office.AsyncResultStatus.Succeeded ? 'ok' : 'err'
+            );
+          });
+          return;
+        }
+      }
+
+      // Normal path (first insert, or _lastSetBody has no detectable sig).
       Office.context.mailbox.item.body.getAsync(Office.CoercionType.Html, function(r) {
         if (r.status !== Office.AsyncResultStatus.Succeeded) {
           showStatus('Lesevorgang fehlgeschlagen: ' + r.error.message, 'err');
@@ -283,11 +311,11 @@
         }
         var body = r.value || '';
         var res = _computeInsert(body);
-        var newBody = res.body, replaced = res.replaced;
-        Office.context.mailbox.item.body.setAsync(newBody, { coercionType: Office.CoercionType.Html }, function(wr) {
+        _lastSetBody = res.body;
+        Office.context.mailbox.item.body.setAsync(res.body, { coercionType: Office.CoercionType.Html }, function(wr) {
           showStatus(
             wr.status === Office.AsyncResultStatus.Succeeded
-              ? (replaced ? 'Signatur ersetzt ✓' : 'Signatur eingefügt ✓')
+              ? (res.replaced ? 'Signatur ersetzt ✓' : 'Signatur eingefügt ✓')
               : 'Fehler: ' + wr.error.message,
             wr.status === Office.AsyncResultStatus.Succeeded ? 'ok' : 'err'
           );
@@ -385,6 +413,8 @@
         // snippet of body[0..300]
         lines.push('--- Body[0..300] ---');
         lines.push(body.slice(0, 300));
+
+        lines.push('_lastSetBody: ' + (_lastSetBody !== null ? 'gesetzt (' + _lastSetBody.length + ' Z.)' : 'null'));
 
         var qpos = _findQuoteInsertPos(body);
         lines.push('qpos: ' + qpos);
