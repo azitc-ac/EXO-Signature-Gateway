@@ -444,8 +444,8 @@ async function loadMailboxes(silent) {
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     var data = await resp.json();
     _mbData = data.mailboxes || [];
+    await loadPolicies();       // policy selects must be filled before row rendering reads them
     renderMailboxTable(_mbData);
-    await loadPolicies();
     if (slowHint) clearTimeout(slowHint);
     if (!silent) status.textContent = _mbData.length + ' Postfächer geladen';
     document.getElementById('mb-table-wrap').style.display = '';

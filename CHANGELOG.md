@@ -5,6 +5,11 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.103 — 2026-07-10 — fix: loadPolicies vor renderMailboxTable
+
+renderMailboxTable las policy-min-tpl/policy-sig-tpl bevor loadPolicies() die
+Selects befüllt hatte → Dropdowns zeigten immer "— keine —". Reihenfolge getauscht.
+
 ## v1.5.101 — 2026-07-10 — fix: ausgegrauete Dropdowns spiegeln Richtlinien-Wert
 
 Bei aktiver Vorlagenrichtlinie zeigten Standardsignatur- und Antwort-Signatur-
