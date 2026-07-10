@@ -46,7 +46,7 @@
             Antwort-Signatur
             <span style="font-size:10px;font-weight:400;color:#94a3b8;display:block;margin-top:2px">ab 2. eigener Mail im Thread</span>
           </th>
-          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">Werbebanner</th>
+          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">Banner</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">Outlook Add-In</th>
         </tr>
       </thead>
@@ -118,10 +118,10 @@
         </td>
         <td style="text-align:center;padding:6px 8px;color:#94a3b8;font-size:14px" title="Nicht löschbar">🔒</td>
       </tr>
-      <!-- Werbebanner — Demnächst -->
+      <!-- Banner — Demnächst -->
       <tr style="border-bottom:1px solid #f0f0f0;opacity:0.45">
         <td style="padding:6px 8px;font-size:12px;font-weight:500">
-          Werbebanner
+          Banner
           <span style="font-size:10px;font-weight:500;background:#e2e8f0;color:#64748b;padding:1px 5px;border-radius:8px;margin-left:4px">Demnächst</span>
         </td>
         <td style="padding:6px 8px;font-size:12px;color:#555">Alle Postfächer mit aktivierter Richtlinien-Übernahme</td>
@@ -188,7 +188,7 @@
             <select disabled style="font-size:12px;width:120px">
               <option>Standardsignatur</option>
               <option>Minimalsignatur</option>
-              <option>Werbebanner</option>
+              <option>Banner</option>
               <option>Outlook Add-In</option>
             </select>
           </td>
@@ -811,7 +811,7 @@ function renderMailboxTable(mailboxes) {
     policyCb.addEventListener('change', _applyPolicy);
     sigCb.addEventListener('change', _applyPolicy);
 
-    // Column order: Status, Postfach, Signatur, S/MIME, Vorlagen-Richtlinien, Standardsignatur, Minimalsignatur, Werbebanner, Outlook Add-In
+    // Column order: Status, Postfach, Signatur, S/MIME, Vorlagen-Richtlinien, Standardsignatur, Minimalsignatur, Banner, Outlook Add-In
     tr.appendChild(tdStatus);
     tr.appendChild(tdEmail);
     tr.appendChild(tdSig);

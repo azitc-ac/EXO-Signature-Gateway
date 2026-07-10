@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.105 — 2026-07-10 — feat: Vorschau-Dropdowns + Umbenennung Banner
+
+Vorschau-Seite: E-Mail-Text-Input und Vorlagen-Tabs durch je ein Dropdown
+ersetzt (Postfach-Liste aus /api/mailboxes, Vorlagen aus /api/templates);
+Vorschau lädt automatisch bei Auswahl. "Werbebanner"-Tab in Vorlagen-Editor
+entfernt. "Werbebanner" in Spaltenüberschrift und Richtlinien-Tabelle zu
+"Banner" umbenannt.
+
 ## v1.5.104 — 2026-07-10 — feat: Werbebanner pro Postfach + Vorschau
 
 Werbebanner-Spalte in Postfach-Tabelle aktiviert: Select-Dropdown mit allen
