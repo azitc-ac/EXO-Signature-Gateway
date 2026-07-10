@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.90 — 2026-07-10 — debug+fix: div id="exo-sig-s" als Marker-Strategie
+
+<a name> wurde ebenfalls von Outlook Classic gestripped. Neuer Ansatz:
+div id="exo-sig-s" (id-Attr überlebt im Compose-Modus laut MS-Doku).
+Template hat keine inneren divs → _matchCloseDiv zuverlässig.
+Debug-Panel zeigt jetzt div-id, a-name, Kommentar, Klasse, Text-Probe
+und Body[0..300]-Schnipsel für schnelle visuelle Diagnose.
+
 ## v1.5.88 — 2026-07-10 — debug: Body-Analyse-Button in Add-in Taskpane
 
 Temporäres Debug-Panel (Details > Debug > Body analysieren): zeigt nach

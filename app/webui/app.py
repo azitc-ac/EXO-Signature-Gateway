@@ -623,20 +623,16 @@ async def api_addin_signature(email: str, template: str = "", user: str = Depend
     if not sig_html:
         return JSONResponse({"marked_html": "", "preview_html": ""})
 
-    # Outlook Classic's getAsync strips HTML comments AND custom class attributes
-    # from div elements (evidenced by exported mails showing bare <div> where we
-    # set class="exo-gateway-sig"). The only attributes that reliably survive are
-    # <a name="..."> anchors (Outlook itself uses _MailEndCompose / _MailOriginal).
-    # Strategy: use <a name="exo-sig-s/e"> as primary markers + keep comment/class
-    # markers as fallback for OWA and other clients.
+    # Outlook Classic compose getAsync strips: HTML comments, custom class attrs,
+    # <a name> anchors. id attrs on block elements survive in compose mode (only
+    # x_-prefixed in read/quote mode). Template has no inner divs → _matchCloseDiv
+    # is reliable. Comment/class markers kept as OWA fallback.
     marked = (
-        '<a name="exo-sig-s"></a>'
-        + mail_processor._SIG_MARKER_START
-        + f'<div class="{mail_processor._SIG_CLASS}">'
+        mail_processor._SIG_MARKER_START
+        + f'<div id="exo-sig-s" class="{mail_processor._SIG_CLASS}">'
         + sig_html
         + "</div>"
         + mail_processor._SIG_MARKER_END
-        + '<a name="exo-sig-e"></a>'
     )
     return JSONResponse({"marked_html": marked, "preview_html": sig_html})
 
