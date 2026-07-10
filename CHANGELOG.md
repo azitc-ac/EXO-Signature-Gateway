@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.104 — 2026-07-10 — feat: Werbebanner pro Postfach + Vorschau
+
+Werbebanner-Spalte in Postfach-Tabelle aktiviert: Select-Dropdown mit allen
+Vorlagen (statt deaktivierter Checkbox). banner_template wird in MAILBOX_CONFIG
+gespeichert. handler.py hängt den Banner nach der Hauptsignatur an. Vorschau
+zeigt Sig + Banner kombiniert; der HTML-Vorschau-Tab nennt den Banner-Namen.
+/api/preview-data gibt jetzt banner_html + banner_template zurück.
+
 ## v1.5.103 — 2026-07-10 — fix: loadPolicies vor renderMailboxTable
 
 renderMailboxTable las policy-min-tpl/policy-sig-tpl bevor loadPolicies() die

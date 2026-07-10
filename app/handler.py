@@ -669,6 +669,11 @@ class SignatureHandler:
                 sig_html, sig_txt = "", ""
             else:
                 sig_html, sig_txt = signature_engine.render(user_data, template_name=template_name)
+                _banner_tpl = _sender_cfg.get("banner_template", "").strip()
+                if _banner_tpl:
+                    _banner_html, _ = signature_engine.render(user_data, template_name=_banner_tpl)
+                    if _banner_html:
+                        sig_html = sig_html + _banner_html
 
             _img_mode = settings_store.get("SIG_IMAGE_MODE") or "auto"
             _use_cid = (

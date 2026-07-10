@@ -46,10 +46,7 @@
             Antwort-Signatur
             <span style="font-size:10px;font-weight:400;color:#94a3b8;display:block;margin-top:2px">ab 2. eigener Mail im Thread</span>
           </th>
-          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:110px">
-            Werbebanner
-            <span style="font-size:10px;font-weight:500;background:#e2e8f0;color:#64748b;padding:1px 5px;border-radius:8px;display:block;margin-top:2px">Demnächst</span>
-          </th>
+          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">Werbebanner</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">Outlook Add-In</th>
         </tr>
       </thead>
@@ -747,16 +744,28 @@ function renderMailboxTable(mailboxes) {
     if (policyActive) minSigSel.title = 'Wird durch Vorlagenrichtlinie gesteuert';
     tdMinSig.appendChild(minSigSel);
 
-    // Werbebanner (Demnächst)
+    // Werbebanner — select (like min_template but not policy-controlled)
     var tdBanner = document.createElement('td');
-    tdBanner.style.cssText = 'text-align:center;padding:6px 8px;opacity:0.5';
-    tdBanner.title = 'Funktion noch nicht verfügbar';
-    var bannerCb = document.createElement('input');
-    bannerCb.type = 'checkbox';
-    bannerCb.className = 'mb-banner';
-    bannerCb.dataset.idx = String(i);
-    bannerCb.disabled = true;
-    tdBanner.appendChild(bannerCb);
+    tdBanner.style.cssText = 'text-align:center;padding:6px 8px';
+    var bannerSel = document.createElement('select');
+    bannerSel.className = 'mb-banner';
+    bannerSel.dataset.idx = String(i);
+    bannerSel.style.cssText = 'font-size:12px;max-width:130px';
+    var bannerOptNone = document.createElement('option');
+    bannerOptNone.value = '';
+    bannerOptNone.textContent = '— kein Banner —';
+    bannerSel.appendChild(bannerOptNone);
+    var _selectedBanner = mb.banner_template || '';
+    _templateList.forEach(function(name) {
+      var opt = document.createElement('option');
+      opt.value = name; opt.textContent = name;
+      if (name === _selectedBanner) opt.selected = true;
+      bannerSel.appendChild(opt);
+    });
+    var _bannerDisabled = !mb.sig;
+    bannerSel.disabled = _bannerDisabled;
+    bannerSel.style.opacity = _bannerDisabled ? '0.4' : '1';
+    tdBanner.appendChild(bannerSel);
 
     // Add-in Vorlagen — greyed when policyActive
     var tdAddin = document.createElement('td');
@@ -779,7 +788,7 @@ function renderMailboxTable(mailboxes) {
     tdStatus.style.cssText = 'text-align:center;padding:6px 8px;' + (_hasHealthData ? '' : 'display:none');
     tdStatus.innerHTML = _healthBadge(mb);
 
-    // Wire policy checkbox → grey/enable tplSel and addinCtrl
+    // Wire policy checkbox → grey/enable tplSel, minSigSel, bannerSel and addinCtrl
     function _applyPolicy() {
       var pol = policyCb.checked;
       var sig = sigCb.checked;
@@ -793,6 +802,8 @@ function renderMailboxTable(mailboxes) {
       minSigSel.title = pol ? 'Wird durch Vorlagenrichtlinie gesteuert' : '';
       minSigSel.value = pol ? (document.getElementById('policy-min-tpl').value || '')
                             : (mb.min_template || '');
+      bannerSel.disabled = !sig;
+      bannerSel.style.opacity = !sig ? '0.4' : '1';
       addinCtrl.style.opacity = (!sig || pol) ? '0.4' : '1';
       addinCtrl.style.pointerEvents = (!sig || pol) ? 'none' : '';
       addinCtrl.title = pol ? 'Wird durch Vorlagenrichtlinie gesteuert' : '';
@@ -841,6 +852,7 @@ async function saveMailboxes(updateDg) {
   var smimeBoxes = document.querySelectorAll('.mb-smime');
   var templateSelects = document.querySelectorAll('.mb-template');
   var minSigSelects = document.querySelectorAll('.mb-min-sig');
+  var bannerSelects = document.querySelectorAll('.mb-banner');
   var policyBoxes = document.querySelectorAll('.mb-policy');
   var payload = [];
   sigBoxes.forEach(function(cb, i) {
@@ -863,6 +875,7 @@ async function saveMailboxes(updateDg) {
       smime: smimeBoxes[i].checked,
       template: templateSelects[i] ? templateSelects[i].value : 'default',
       min_template: minSigSelects[i] ? minSigSelects[i].value : '',
+      banner_template: bannerSelects[i] ? bannerSelects[i].value : '',
       addin_templates: addinTemplates,
       use_policy: policyBoxes[i] ? policyBoxes[i].checked : true,
     });

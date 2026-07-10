@@ -4,7 +4,6 @@
 
 <ul class="nav-sub-tabs">
   <li><a href="/template" class="nav-sub-tab">Vorlagen</a></li>
-  <li><a href="#" class="nav-sub-tab nav-planned" onclick="return false" tabindex="-1" title="Geplantes Feature">Werbebanner <span class="nav-planned-badge">geplant</span></a></li>
   <li><a href="/preview" class="nav-sub-tab active">Vorschau</a></li>
 </ul>
 
@@ -132,14 +131,17 @@
       panel.style.paddingTop = '20px';
 
       if (r.html) {
+        const bannerHtml   = r.banner_html || '';
+        const bannerLabel  = r.banner_template ? ` <span style="font-size:11px;color:#64748b;font-weight:400">+ ${r.banner_template}</span>` : '';
+        const combinedHtml = r.html + bannerHtml;
         // Sub-tabs: Preview / Plaintext / Quelltext
         panel.innerHTML = `
           <div style="display:flex;gap:6px;margin-bottom:14px">
-            <button class="subtab-btn active" onclick="switchSubtab(this,'${panelId}-html')" style="font-size:12px;padding:4px 12px;border:1px solid #e2e8f0;border-radius:20px;background:#4f46e5;color:#fff;cursor:pointer">HTML-Vorschau</button>
+            <button class="subtab-btn active" onclick="switchSubtab(this,'${panelId}-html')" style="font-size:12px;padding:4px 12px;border:1px solid #e2e8f0;border-radius:20px;background:#4f46e5;color:#fff;cursor:pointer">HTML-Vorschau${bannerLabel}</button>
             <button class="subtab-btn" onclick="switchSubtab(this,'${panelId}-txt')"  style="font-size:12px;padding:4px 12px;border:1px solid #e2e8f0;border-radius:20px;background:transparent;color:#555;cursor:pointer">Plaintext</button>
             <button class="subtab-btn" onclick="switchSubtab(this,'${panelId}-src')"  style="font-size:12px;padding:4px 12px;border:1px solid #e2e8f0;border-radius:20px;background:transparent;color:#555;cursor:pointer">HTML-Quelltext</button>
           </div>
-          <div id="${panelId}-html" class="preview-frame" style="min-height:80px">${r.html}</div>
+          <div id="${panelId}-html" class="preview-frame" style="min-height:80px">${combinedHtml}</div>
           <pre id="${panelId}-txt"  class="code-block" style="display:none">${esc(r.txt)}</pre>
           <pre id="${panelId}-src"  class="code-block" style="display:none">${esc(r.html)}</pre>
         `;
