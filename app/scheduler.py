@@ -234,6 +234,15 @@ def _run_daily() -> None:
     _check_tls_cert()
     _check_smime_lifecycle()
 
+    # Portal cleanup
+    try:
+        import portal_store
+        n = portal_store.cleanup_expired()
+        if n:
+            log.info("scheduler: portal cleanup: %d expired messages removed", n)
+    except Exception as exc:
+        log.warning("scheduler: portal cleanup failed: %s", exc)
+
     # Daily stats report (if configured)
     if settings_store.get("DAILY_REPORT_ENABLED") and settings_store.get("NOTIFICATION_MAILBOX"):
         import stats

@@ -65,7 +65,7 @@ def _get_sender() -> str | None:
     return None
 
 
-def _graph_send(to: str, subject: str, html: str) -> bool:
+def _graph_send(to: str, subject: str, html: str, reply_to: str = "") -> bool:
     """
     Send a notification email via Graph API sendMail.
 
@@ -86,6 +86,8 @@ def _graph_send(to: str, subject: str, html: str) -> bool:
         },
         "saveToSentItems": False,
     }
+    if reply_to:
+        payload["message"]["replyTo"] = [{"emailAddress": {"address": reply_to}}]
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
     url = f"{GRAPH}/users/{sender}/sendMail"
@@ -386,6 +388,91 @@ def send_cert_renewal_failure(user_email: str, error: str) -> bool:
     )
     html = _html_wrap("✗ S/MIME-Zertifikat-Upload fehlgeschlagen", "#e74c3c", body)
     return _graph_send(to, f"✗ S/MIME-Upload fehlgeschlagen – {user_email}", html)
+
+
+def send_portal_notification(
+    sender_email: str,
+    sender_name: str,
+    recipient_email: str,
+    subject: str,
+    portal_url: str,
+    retention_days: int,
+) -> bool:
+    """Notify recipient that a secure message is available in the portal."""
+    display = f"{sender_name} &lt;{sender_email}&gt;" if sender_name else sender_email
+    body = (
+        f'<p>Sie haben eine verschlüsselte Nachricht von <strong>{display}</strong> erhalten.</p>'
+        f'<p style="margin-top:12px">Betreff: <strong>{subject}</strong></p>'
+        f'<p style="margin-top:20px">'
+        f'<a href="{portal_url}" style="background:#2563eb;color:#fff;padding:10px 20px;'
+        f'border-radius:6px;text-decoration:none;font-weight:600;display:inline-block">'
+        f'🔒 Verschlüsselte Nachricht öffnen</a></p>'
+        f'<p style="margin-top:20px;color:#6b7280;font-size:13px">'
+        f'Der Link ist {retention_days} Tage gültig. '
+        f'Bewahren Sie ihn vertraulich auf — wer diesen Link besitzt, kann die Nachricht lesen.<br>'
+        f'Die Entschlüsselung erfolgt ausschließlich in Ihrem Browser; '
+        f'der Server sieht den Inhalt der Nachricht nicht.</p>'
+    )
+    html = _html_wrap("🔒 Verschlüsselte Nachricht für Sie", "#2563eb", body)
+    return _graph_send(
+        recipient_email,
+        f"Verschlüsselte Nachricht von {sender_name or sender_email}: {subject}",
+        html,
+    )
+
+
+def send_portal_read_receipt(msg: dict) -> bool:
+    """Notify original sender that their portal message was read."""
+    sender_email    = msg["sender_email"]
+    recipient_email = msg["recipient_email"]
+    subject         = msg["subject"]
+    read_at         = msg.get("read_at", "")
+    try:
+        from datetime import datetime
+        dt = datetime.fromisoformat(read_at)
+        read_str = dt.strftime("%d.%m.%Y %H:%M UTC")
+    except Exception:
+        read_str = read_at or "gerade eben"
+    body = (
+        f'<p>Ihre verschlüsselte Nachricht wurde gelesen.</p>'
+        f'<table>'
+        f'{_row("Empfänger", recipient_email)}'
+        f'{_row("Betreff", subject)}'
+        f'{_row("Gelesen am", read_str, "#16a34a")}'
+        f'</table>'
+    )
+    html = _html_wrap("✓ Sichere Nachricht gelesen", "#16a34a", body)
+    return _graph_send(sender_email, f"✓ Lesebestätigung: {subject}", html)
+
+
+def send_portal_reply(msg: dict, reply_text: str, reply_name: str = "") -> bool:
+    """Forward a portal reply to the original sender."""
+    sender_email    = msg["sender_email"]
+    recipient_email = msg["recipient_email"]
+    subject         = msg["subject"]
+    attribution = reply_name or recipient_email
+    escaped = (reply_text
+               .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+               .replace("\n", "<br>"))
+    body = (
+        f'<p>Sie haben eine Antwort auf Ihre sichere Nachricht erhalten.</p>'
+        f'<table>'
+        f'{_row("Von", attribution)}'
+        f'{_row("E-Mail", recipient_email)}'
+        f'{_row("Betreff", subject)}'
+        f'</table>'
+        f'<hr style="border:none;border-top:1px solid #eee;margin:16px 0">'
+        f'<div style="background:#f8fafc;border-left:4px solid #2563eb;padding:12px 16px;border-radius:4px">'
+        f'{escaped}'
+        f'</div>'
+    )
+    html = _html_wrap(f"↩ Antwort von {attribution}", "#2563eb", body)
+    return _graph_send(
+        sender_email,
+        f"Re: {subject} — Antwort von {attribution}",
+        html,
+        reply_to=recipient_email,
+    )
 
 
 def send_local_admin_login(ip: str, user_agent: str, username: str) -> bool:

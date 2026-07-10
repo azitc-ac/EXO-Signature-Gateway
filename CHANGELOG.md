@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.108 — 2026-07-11 — feat: Secure Message Portal
+
+Wenn #enc-Mails Empfänger ohne S/MIME-Zertifikat haben: statt NDR wird die Mail
+AES-256-GCM-verschlüsselt im Portal abgelegt (data/portal/). Empfänger bekommt
+Benachrichtigungsmail mit Link (Entschlüsselungsschlüssel im URL-Fragment, nie am
+Server). Clientseitige Entschlüsselung via Web Crypto API. Lesebestätigung an
+Absender bei erstem Öffnen. "Antworten"-Funktion im Portal. 14 Tage Retention mit
+täglichem Cleanup. Einstellungen: SECURE_PORTAL_ENABLED,
+SECURE_PORTAL_RETENTION_DAYS, SECURE_PORTAL_BASE_URL.
+
+---
+
 ## v1.5.107 — 2026-07-11 — feat: Dark Theme (Gateway + Hub)
 
 Toggle-Button (☾/☀) in beiden Navigationsleisten. Theme-Wahl wird in

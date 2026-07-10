@@ -1900,6 +1900,76 @@ async def api_preview_data(
                          "banner_html": banner_html, "banner_template": banner})
 
 
+# ── Secure Message Portal ────────────────────────────────────────────────────
+
+@app.get("/portal/{token}", response_class=HTMLResponse)
+async def portal_page(request: Request, token: str):
+    """Public portal page — no auth required. Token is the access credential."""
+    return templates.TemplateResponse(request=request, name="portal.html", context={"token": token})
+
+
+@app.get("/api/portal/message/{token}")
+async def portal_get_message(token: str):
+    """Return encrypted blob for client-side decryption. No auth — token IS the credential."""
+    import base64
+    import portal_store
+    msg = portal_store.get_message(token)
+    if not msg or portal_store.is_expired(msg):
+        raise HTTPException(status_code=404, detail="Nachricht nicht gefunden oder abgelaufen")
+    blob = portal_store.get_blob(token)
+    if not blob:
+        raise HTTPException(status_code=404, detail="Nachricht nicht gefunden")
+    return JSONResponse({
+        "blob":         base64.b64encode(blob).decode(),
+        "sender_name":  msg["sender_name"],
+        "sender_email": msg["sender_email"],
+        "subject":      msg["subject"],
+        "expires_at":   msg["expires_at"],
+        "read_at":      msg["read_at"],
+    })
+
+
+@app.post("/api/portal/read/{token}")
+async def portal_mark_read(token: str):
+    """Mark as read (first call only) and trigger read-receipt notification."""
+    import asyncio as _aio
+    import portal_store
+    msg = portal_store.get_message(token)
+    if not msg or portal_store.is_expired(msg):
+        raise HTTPException(status_code=404)
+    first_read = portal_store.mark_read(token)
+    if first_read:
+        import notification as _notif
+        _msg_copy = dict(msg)
+        _aio.get_event_loop().run_in_executor(
+            None, lambda: _notif.send_portal_read_receipt(_msg_copy)
+        )
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/portal/reply/{token}")
+async def portal_reply(token: str, body: dict):
+    """Send a reply from the portal user to the original sender."""
+    import asyncio as _aio
+    import portal_store
+    msg = portal_store.get_message(token)
+    if not msg or portal_store.is_expired(msg):
+        raise HTTPException(status_code=404)
+    reply_text = (body.get("text") or "").strip()
+    reply_name = (body.get("name") or "").strip()
+    if not reply_text:
+        raise HTTPException(status_code=400, detail="Antworttext fehlt")
+    import notification as _notif
+    _msg_copy = dict(msg)
+    ok = await _aio.get_event_loop().run_in_executor(
+        None, lambda: _notif.send_portal_reply(_msg_copy, reply_text, reply_name)
+    )
+    if ok:
+        import portal_store as _ps
+        _ps.mark_replied(token)
+    return JSONResponse({"ok": ok})
+
+
 @app.get("/mailboxes", response_class=HTMLResponse)
 async def mailboxes_page(request: Request, user: str = Depends(_require_admin)):
     import signature_engine as _sig_engine

@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verschlüsselte Nachricht</title>
+<style>
+:root {
+  --bg: #f4f6f9; --surface: #fff; --border: #e2e8f0;
+  --text: #1f2937; --muted: #6b7280; --accent: #2563eb;
+  --badge-bg: #eff6ff; --badge-color: #1d4ed8;
+  --warn-bg: #fef3c7; --warn-color: #92400e;
+  --reply-bg: #f8fafc;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1117; --surface: #1a1d27; --border: #2a2d3e;
+    --text: #e2e8f0; --muted: #94a3b8; --accent: #4e9de8;
+    --badge-bg: #1e3a5f; --badge-color: #93c5fd;
+    --warn-bg: #1f1500; --warn-color: #fbbf24;
+    --reply-bg: #1e2230;
+  }
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: -apple-system, Segoe UI, sans-serif; font-size: 15px; min-height: 100vh; }
+.header { background: #111827; color: #fff; padding: 14px 20px; display: flex; align-items: center; gap: 10px; }
+.header .lock { font-size: 20px; }
+.header .title { font-weight: 700; font-size: 15px; }
+.header .subtitle { font-size: 12px; color: #9ca3af; margin-top: 1px; }
+.wrap { max-width: 720px; margin: 28px auto; padding: 0 16px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.meta { padding: 16px 20px; border-bottom: 1px solid var(--border); }
+.meta-row { display: flex; gap: 8px; margin-bottom: 6px; font-size: 13px; }
+.meta-row:last-child { margin-bottom: 0; }
+.meta-label { color: var(--muted); min-width: 60px; flex-shrink: 0; }
+.meta-value { color: var(--text); font-weight: 500; word-break: break-all; }
+.subject-row { font-size: 17px; font-weight: 700; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+.body-wrap { padding: 20px; }
+.body-plain { white-space: pre-wrap; font-size: 14px; line-height: 1.6; color: var(--text); }
+.attachments { padding: 14px 20px; border-top: 1px solid var(--border); }
+.attachments h3 { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 10px; }
+.att-item { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.att-link { font-size: 13px; color: var(--accent); text-decoration: none; word-break: break-all; }
+.att-link:hover { text-decoration: underline; }
+.att-size { font-size: 12px; color: var(--muted); }
+.actions { margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap; }
+.btn { padding: 9px 18px; border-radius: 7px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; }
+.btn-reply { background: var(--accent); color: #fff; }
+.btn-reply:hover { opacity: .9; }
+.btn-sec { background: var(--border); color: var(--text); }
+.btn-sec:hover { opacity: .85; }
+.reply-box { margin-top: 16px; background: var(--reply-bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px; display: none; }
+.reply-box h3 { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+.reply-box textarea { width: 100%; min-height: 120px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; resize: vertical; background: var(--surface); color: var(--text); margin-bottom: 10px; }
+.reply-box input { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; background: var(--surface); color: var(--text); margin-bottom: 10px; }
+.reply-status { margin-top: 8px; font-size: 13px; }
+.status-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+.badge-enc { background: var(--badge-bg); color: var(--badge-color); }
+.badge-exp { background: var(--warn-bg); color: var(--warn-color); }
+.expiry-bar { margin-top: 12px; font-size: 12px; color: var(--muted); }
+#loading, #err { text-align: center; padding: 60px 20px; }
+#err { color: #dc2626; }
+.spinner { display: inline-block; width: 28px; height: 28px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.footer { text-align: center; font-size: 12px; color: var(--muted); margin: 24px 0 12px; }
+</style>
+</head>
+<body>
+<div class="header">
+  <span class="lock">🔒</span>
+  <div>
+    <div class="title">Verschlüsselte Nachricht</div>
+    <div class="subtitle">Ende-zu-Ende-verschlüsselt · Entschlüsselung erfolgt nur in Ihrem Browser</div>
+  </div>
+</div>
+<div class="wrap">
+  <div id="loading"><div class="spinner"></div><p style="margin-top:14px;color:var(--muted)">Entschlüsselung läuft…</p></div>
+  <div id="err" style="display:none"></div>
+  <div id="msg" style="display:none">
+    <div class="card">
+      <div class="meta" id="meta"></div>
+      <div class="subject-row" id="subject"></div>
+      <div class="body-wrap"><div id="body-content"></div></div>
+      <div class="attachments" id="att-section" style="display:none">
+        <h3>Anhänge</h3>
+        <div id="att-list"></div>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-reply" onclick="showReply()">Antworten</button>
+    </div>
+    <div class="reply-box" id="reply-box">
+      <h3>Antwort verfassen</h3>
+      <textarea id="reply-text" placeholder="Ihre Antwort…"></textarea>
+      <input type="text" id="reply-name" placeholder="Ihr Name (optional)">
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-reply" onclick="sendReply()">Senden</button>
+        <button class="btn btn-sec" onclick="hideReply()">Abbrechen</button>
+      </div>
+      <div class="reply-status" id="reply-status"></div>
+    </div>
+    <div class="expiry-bar" id="expiry-bar"></div>
+    <div class="footer">
+      Gesichert durch EXO Signature Gateway ·
+      <span class="status-badge badge-enc">🔒 Ende-zu-Ende verschlüsselt</span>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+function b64uDecode(s) {
+  s = s.replace(/-/g,'+').replace(/_/g,'/');
+  while(s.length%4) s+='=';
+  var bin = atob(s);
+  var bytes = new Uint8Array(bin.length);
+  for(var i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+  return bytes.buffer;
+}
+function b64Decode(s) {
+  while(s.length%4) s+='=';
+  var bin = atob(s);
+  var bytes = new Uint8Array(bin.length);
+  for(var i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+  return bytes.buffer;
+}
+function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function showErr(msg){ document.getElementById('loading').style.display='none'; var e=document.getElementById('err'); e.innerHTML='<p>⚠️ '+esc(msg)+'</p>'; e.style.display=''; }
+
+var pathParts = window.location.pathname.split('/');
+var token = pathParts[pathParts.length-1];
+var fragment = window.location.hash.slice(1);
+if(!token || !fragment){ showErr('Ungültiger Link — Entschlüsselungsschlüssel fehlt.'); return; }
+
+(async function(){
+  try {
+    var resp = await fetch('/api/portal/message/'+encodeURIComponent(token));
+    if(resp.status===404){ showErr('Nachricht nicht gefunden oder abgelaufen.'); return; }
+    if(!resp.ok){ showErr('Server-Fehler ('+resp.status+').'); return; }
+    var meta = await resp.json();
+
+    var keyBuf = b64uDecode(fragment);
+    var cryptoKey;
+    try {
+      cryptoKey = await crypto.subtle.importKey('raw', keyBuf, {name:'AES-GCM'}, false, ['decrypt']);
+    } catch(e){ showErr('Ungültiger Entschlüsselungsschlüssel.'); return; }
+
+    var combined = new Uint8Array(b64Decode(meta.blob));
+    if(combined.length < 13){ showErr('Ungültige verschlüsselte Nachricht.'); return; }
+    var nonce = combined.slice(0,12);
+    var ct    = combined.slice(12);
+    var plain;
+    try {
+      plain = await crypto.subtle.decrypt({name:'AES-GCM', iv:nonce}, cryptoKey, ct);
+    } catch(e){ showErr('Entschlüsselung fehlgeschlagen — möglicherweise falscher Schlüssel.'); return; }
+
+    var payload = JSON.parse(new TextDecoder().decode(plain));
+
+    document.getElementById('loading').style.display='none';
+    var msgEl = document.getElementById('msg');
+
+    var metaEl = document.getElementById('meta');
+    function metaRow(label,val){
+      return '<div class="meta-row"><span class="meta-label">'+esc(label)+'</span>'
+            +'<span class="meta-value">'+esc(val||'—')+'</span></div>';
+    }
+    metaEl.innerHTML = metaRow('Von:', payload.from||meta.sender_email)
+      + metaRow('An:', payload.to)
+      + (payload.cc ? metaRow('Cc:', payload.cc) : '')
+      + metaRow('Datum:', payload.date);
+
+    document.getElementById('subject').textContent = payload.subject || meta.subject;
+
+    var bodyEl = document.getElementById('body-content');
+    if(payload.html){
+      var iframe = document.createElement('iframe');
+      iframe.sandbox = 'allow-same-origin';
+      iframe.style.cssText = 'width:100%;border:none;background:#fff;border-radius:6px';
+      bodyEl.appendChild(iframe);
+      var doc = iframe.contentDocument || iframe.contentWindow.document;
+      doc.open(); doc.write(payload.html); doc.close();
+      var resize = function(){ iframe.style.height = (doc.documentElement.scrollHeight||doc.body.scrollHeight) + 8 + 'px'; };
+      iframe.addEventListener('load', resize);
+      setTimeout(resize, 200);
+    } else if(payload.text){
+      var pre = document.createElement('div');
+      pre.className='body-plain'; pre.textContent=payload.text;
+      bodyEl.appendChild(pre);
+    }
+
+    if(payload.attachments && payload.attachments.length){
+      var attSec = document.getElementById('att-section');
+      attSec.style.display='';
+      var attList = document.getElementById('att-list');
+      payload.attachments.forEach(function(a){
+        var sizeKB = Math.round(atob(a.data).length/1024);
+        var href = 'data:'+a.type+';base64,'+a.data;
+        attList.innerHTML += '<div class="att-item">📎 <a class="att-link" href="'+href+'" download="'+esc(a.name)+'">'+esc(a.name)+'</a><span class="att-size">'+sizeKB+' KB</span></div>';
+      });
+    }
+
+    var exp = new Date(meta.expires_at);
+    var diffDays = Math.ceil((exp-Date.now())/(1000*86400));
+    var expBar = document.getElementById('expiry-bar');
+    if(diffDays > 0){
+      expBar.textContent = 'Diese Nachricht ist noch '+diffDays+' Tag'+(diffDays===1?'':'e')+' verfügbar (bis '+exp.toLocaleDateString('de-DE')+').';
+    } else {
+      expBar.innerHTML = '<span class="status-badge badge-exp">⚠ Abgelaufen</span>';
+    }
+
+    msgEl.style.display='';
+
+    fetch('/api/portal/read/'+encodeURIComponent(token), {method:'POST'}).catch(function(){});
+
+  } catch(e){
+    showErr('Unerwarteter Fehler: '+e.message);
+  }
+})();
+
+window.showReply = function(){ document.getElementById('reply-box').style.display=''; };
+window.hideReply = function(){ document.getElementById('reply-box').style.display='none'; };
+window.sendReply = async function(){
+  var text = document.getElementById('reply-text').value.trim();
+  var name = document.getElementById('reply-name').value.trim();
+  var status = document.getElementById('reply-status');
+  if(!text){ status.innerHTML='<span style="color:#dc2626">Bitte einen Antworttext eingeben.</span>'; return; }
+  status.innerHTML='<span style="color:var(--muted)">Wird gesendet…</span>';
+  try {
+    var resp = await fetch('/api/portal/reply/'+encodeURIComponent(token), {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({text:text,name:name}),
+    });
+    if(resp.ok){
+      status.innerHTML='<span style="color:#16a34a">✓ Antwort gesendet.</span>';
+      document.getElementById('reply-text').value='';
+      document.getElementById('reply-name').value='';
+    } else {
+      status.innerHTML='<span style="color:#dc2626">Fehler beim Senden.</span>';
+    }
+  } catch(e){
+    status.innerHTML='<span style="color:#dc2626">Netzwerkfehler.</span>';
+  }
+};
+}());
+</script>
+</body>
+</html>

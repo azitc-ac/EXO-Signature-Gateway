@@ -22,6 +22,17 @@ import stats
 
 log = logging.getLogger(__name__)
 
+
+def _portal_base_url() -> str:
+    url = (settings_store.get("SECURE_PORTAL_BASE_URL") or "").rstrip("/")
+    if url:
+        return url
+    hostname = (settings_store.get("PUBLIC_HOSTNAME") or "").strip()
+    if hostname:
+        return f"https://{hostname}:8080"
+    return "https://localhost:8080"
+
+
 # Number of SMTP transactions currently inside handle_DATA (asyncio single-thread, no lock needed)
 _in_flight: int = 0
 
@@ -223,6 +234,49 @@ def _send_ndr(original_sender: str, missing_certs: list[str] | None = None,
         log.info("NDR sent to %s for missing certs: %s", original_sender, missing_certs)
     except Exception as exc:
         log.error("Failed to send NDR to %s: %s", original_sender, exc)
+
+
+def _extract_mime_payload(msg_bytes: bytes, from_header: str, to_header: str,
+                          cc_header: str, subject: str, date_header: str) -> dict:
+    """Extract HTML body, plain text, and attachments from MIME bytes for portal storage."""
+    import base64 as _b64
+    try:
+        msg = email.message_from_bytes(msg_bytes)
+    except Exception:
+        return {"from": from_header, "to": to_header, "cc": cc_header,
+                "subject": subject, "date": date_header, "html": "", "text": "", "attachments": []}
+
+    html_body, plain_body, attachments = "", "", []
+    for part in (msg.walk() if msg.is_multipart() else [msg]):
+        ct = part.get_content_type()
+        cd = part.get("Content-Disposition", "")
+        if part.get_payload() is None:
+            continue
+        is_att = "attachment" in cd.lower() or bool(part.get_filename())
+        if ct == "text/html" and not is_att and not html_body:
+            try:
+                charset = part.get_param("charset") or "utf-8"
+                html_body = (part.get_payload(decode=True) or b"").decode(charset, errors="replace")
+            except Exception:
+                pass
+        elif ct == "text/plain" and not is_att and not plain_body:
+            try:
+                charset = part.get_param("charset") or "utf-8"
+                plain_body = (part.get_payload(decode=True) or b"").decode(charset, errors="replace")
+            except Exception:
+                pass
+        elif is_att:
+            try:
+                data = part.get_payload(decode=True)
+                if data:
+                    fname = part.get_filename() or "attachment"
+                    attachments.append({"name": fname, "type": ct,
+                                        "data": _b64.b64encode(data).decode()})
+            except Exception:
+                pass
+    return {"from": from_header, "to": to_header, "cc": cc_header or "",
+            "subject": subject, "date": date_header,
+            "html": html_body, "text": plain_body, "attachments": attachments}
 
 
 def _restore_envelope_headers(inner_msg: email.message.Message,
@@ -628,11 +682,14 @@ class SignatureHandler:
                 missing_early = [r for r in recipients
                                  if not _ss.get_recipient_cert_path(r)]
                 if missing_early:
-                    _send_ndr(sender, missing_early)
-                    log.warning("Encryption blocked: no cert for %s — NDR sent to %s",
-                                missing_early, sender)
-                    stats.increment("errors")
-                    return "250 OK"
+                    if settings_store.get("SECURE_PORTAL_ENABLED"):
+                        pass  # handled in the late S/MIME block below
+                    else:
+                        _send_ndr(sender, missing_early)
+                        log.warning("Encryption blocked: no cert for %s — NDR sent to %s",
+                                    missing_early, sender)
+                        stats.increment("errors")
+                        return "250 OK"
 
             # ── Normal outbound: inject signature ─────────────────────────────
             user_data = await graph_client.get_user(sender)
@@ -726,11 +783,37 @@ class SignatureHandler:
                 import smime_encrypt
                 encrypted, missing = smime_encrypt.encrypt(outbound, recipients)
                 if missing:
-                    _send_ndr(sender, missing)
-                    log.warning("Encryption blocked: no cert for %s — NDR sent to %s",
-                                missing, sender)
-                    stats.increment("errors")
-                    return "250 OK"
+                    if settings_store.get("SECURE_PORTAL_ENABLED"):
+                        import portal_store as _portal
+                        import notification as _notif
+                        _sender_name = user_data.display_name or sender
+                        _portal_payload = _extract_mime_payload(
+                            outbound, msg.get("From", ""), msg.get("To", ""),
+                            msg.get("Cc", ""), subject, msg.get("Date", ""))
+                        _base_url = _portal_base_url()
+                        _retention = int(settings_store.get("SECURE_PORTAL_RETENTION_DAYS") or 14)
+                        for _rcpt in missing:
+                            try:
+                                _tok, _key = _portal.create_message(
+                                    sender, _sender_name, _rcpt, subject, _portal_payload)
+                                _portal_url = f"{_base_url}/portal/{_tok}#{_key}"
+                                _notif.send_portal_notification(
+                                    sender, _sender_name, _rcpt, subject,
+                                    _portal_url, _retention)
+                                log.info("Portal message created for %s (no cert)", _rcpt)
+                                _audit("portal")
+                            except Exception as _exc:
+                                log.error("Portal creation failed for %s: %s", _rcpt, _exc)
+                        # All missing recipients handled via portal — no cert_rcpts since
+                        # smime_encrypt returns (None, all_rcpts) when ANY cert is missing.
+                        stats.increment("processed")
+                        return "250 OK"
+                    else:
+                        _send_ndr(sender, missing)
+                        log.warning("Encryption blocked: no cert for %s — NDR sent to %s",
+                                    missing, sender)
+                        stats.increment("errors")
+                        return "250 OK"
                 if encrypted:
                     new_subject = re.sub(
                         r"\s*" + re.escape(enc_trigger) + r"#?\s*", " ",
