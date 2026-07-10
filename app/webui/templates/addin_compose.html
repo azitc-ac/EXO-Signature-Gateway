@@ -285,7 +285,9 @@
       return m ? m[1].trim().slice(0, 60) : '';
     }
     // Helper: given a probe position, walk backward through <div>/<table> tags to
-    // find the outermost unclosed opening tag, then forward to its matching close.
+    // find the INNERMOST unclosed opening tag (closest to probe), then forward to
+    // its matching close.  "Outermost" would grab Word's outer WordSection1 div and
+    // replace the entire body — we want only the sig's immediate container.
     function _regionAroundProbeIdx(body, probeIdx) {
       var re = /<\/?(table|div)\b[^>]*>/gi, ms = [], m;
       while ((m = re.exec(body.slice(0, probeIdx))) !== null)
@@ -294,18 +296,36 @@
       for (var i = ms.length - 1; i >= 0; i--) {
         var ev = ms[i];
         if (!ev.open) { if (ev.tag === 'table') dT++; else dD++; }
-        else if (ev.tag === 'table') { if (dT === 0) { oIdx = ev.idx; oTag = 'table'; } else dT--; }
-        else                         { if (dD === 0) { oIdx = ev.idx; oTag = 'div';   } else dD--; }
+        else if (ev.tag === 'table') {
+          if (dT === 0) { oIdx = ev.idx; oTag = 'table'; break; }  // stop at innermost
+          else dT--;
+        } else {
+          if (dD === 0) { oIdx = ev.idx; oTag = 'div';   break; }  // stop at innermost
+          else dD--;
+        }
       }
       if (oIdx === -1) return null;
+      // Forward walk: find matching close tag
       re = /<\/?(table|div)\b[^>]*>/gi; re.lastIndex = oIdx;
-      var depth = 0;
+      var depth = 0, endIdx = -1;
       while ((m = re.exec(body)) !== null) {
         if (m[1].toLowerCase() !== oTag) continue;
         if (m[0].charAt(1) !== '/') depth++;
-        else { depth--; if (depth === 0) return { start: oIdx, end: m.index + m[0].length }; }
+        else { depth--; if (depth === 0) { endIdx = m.index + m[0].length; break; } }
       }
-      return null;
+      if (endIdx === -1) return null;
+      // If we found a <table>, check whether a <div> wrapper immediately precedes it
+      // (our sig div, stripped of id/class by Outlook).  Include the wrapper so that
+      // repeated inserts don't accumulate nested divs.
+      if (oTag === 'table') {
+        var wM = body.slice(0, oIdx).match(/<div\b[^>]*>\s*$/i);
+        if (wM) {
+          var wStart = oIdx - wM[0].length;
+          var tM = body.slice(endIdx).match(/^\s*<\/div\b[^>]*>/i);
+          if (tM) { oIdx = wStart; endIdx += tM[0].length; }
+        }
+      }
+      return { start: oIdx, end: endIdx };
     }
     // Locate an existing sig by text-probe search — tries current then previous probe.
     // Prefers searching in the new-content area (before qpos); falls back to full body

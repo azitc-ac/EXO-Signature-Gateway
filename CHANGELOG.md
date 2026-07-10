@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.93 — 2026-07-10 — fix: _regionAroundProbeIdx innermost statt outermost
+
+Bug in v1.5.92: Rückwärts-Walk durch <div>/<table> hatte kein break nach
+dem ersten gefundenen ungeclosed Element — er lief weiter bis zum
+WordSection1-Div von Word, der den gesamten Body umschließt. Dadurch wurde
+region.start=0 und region.end=body.length gesetzt → setAsync(_markedSig)
+ersetzte den gesamten Nachrichtentext durch nur die Signatur.
+
+Fix: break nach dem ersten (innersten) ungeclosed Element; danach separate
+Prüfung ob direkt davor ein <div>-Wrapper liegt (unser sig-wrapper, von
+Outlook um den id/class bereinigt) → eingeschlossen, damit keine Divs
+akkumulieren.
+
 ## v1.5.92 — 2026-07-10 — fix: Text-Probe-Detektion für Sig-Ersatz (User-Text erhalten)
 
 Outlook Classic strippt alle HTML-Marker im setAsync→getAsync-Roundtrip.
