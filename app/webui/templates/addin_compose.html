@@ -114,9 +114,18 @@
     var _email = '';
     // Outlook Classic's getAsync strips ALL custom HTML markers (class, id, <a name>,
     // HTML comments) during the setAsync→getAsync round-trip through the Word renderer.
-    // We can't detect the existing sig in the Outlook-rendered body.  Instead, keep a
-    // copy of the body we last passed to setAsync — it still has our markers intact —
-    // and use THAT for subsequent replacements (skip getAsync entirely on 2nd+ insert).
+    // Two complementary strategies to detect an existing sig in the Outlook-rendered body:
+    //   1. _sigTextProbe / _prevSigTextProbe: first substantial ASCII text node from the
+    //      sig HTML.  Walk backward from probe position to outermost unclosed <div>/<table>
+    //      for exact region boundaries.  Tries current and previous template's probe to
+    //      handle template switches (Minimal→Full: old probe "#gernperDu" isn't in Minimal;
+    //      Full→Minimal: new probe "Alexander Zarenko" IS in Full → works directly).
+    //   2. _lastSetBody: last body we passed to setAsync (markers still intact).  Used as
+    //      fallback when both probes fail (edge case: probe text truly absent from old sig).
+    //      Warning: replaces from _lastSetBody as base, so user text typed between two
+    //      "Einfügen" clicks may be overwritten.  Rare but documented trade-off.
+    var _sigTextProbe  = '';   // probe from current sig
+    var _prevSigTextProbe = ''; // probe from previous sig (template switch support)
     var _lastSetBody = null;
     var _addinSession = '';
     try { _addinSession = localStorage.getItem('exo_addin_session') || ''; } catch(_) {}
@@ -169,7 +178,9 @@
         .then(function(d) {
           if (!d) return;
           document.getElementById('login-required').style.display = 'none';
+          _prevSigTextProbe = _sigTextProbe;  // keep old probe for template-switch detection
           _markedSig = d.marked_html || '';
+          _sigTextProbe = _computeSigProbe(_markedSig);
           if (_markedSig) {
             document.getElementById('preview').innerHTML = d.preview_html || '';
             document.getElementById('btn-insert').disabled = false;
@@ -260,6 +271,61 @@
       if (gM) { var ge = _matchCloseDiv(body, gM.index); if (ge !== -1) consider(gM.index, ge); }
       return region;
     }
+    // --- Text-probe sig detection (Outlook Classic) ----------------------------
+    // Extract the first substantial ASCII-only text node from sig HTML.
+    // Used as a fallback locator when HTML markers are stripped.
+    function _computeSigProbe(html) {
+      var re = />([^<\s][^<]{7,})</g, m;
+      while ((m = re.exec(html)) !== null) {
+        var t = m[1].trim();
+        if (t.length >= 8 && /^[\x20-\x7E]+$/.test(t)) return t.slice(0, 60);
+      }
+      // Fallback: allow non-ASCII if no ASCII candidate found
+      m = html.match(/>([^<\s][^<]{7,})</);
+      return m ? m[1].trim().slice(0, 60) : '';
+    }
+    // Helper: given a probe position, walk backward through <div>/<table> tags to
+    // find the outermost unclosed opening tag, then forward to its matching close.
+    function _regionAroundProbeIdx(body, probeIdx) {
+      var re = /<\/?(table|div)\b[^>]*>/gi, ms = [], m;
+      while ((m = re.exec(body.slice(0, probeIdx))) !== null)
+        ms.push({ idx: m.index, tag: m[1].toLowerCase(), open: m[0].charAt(1) !== '/' });
+      var dT = 0, dD = 0, oIdx = -1, oTag = null;
+      for (var i = ms.length - 1; i >= 0; i--) {
+        var ev = ms[i];
+        if (!ev.open) { if (ev.tag === 'table') dT++; else dD++; }
+        else if (ev.tag === 'table') { if (dT === 0) { oIdx = ev.idx; oTag = 'table'; } else dT--; }
+        else                         { if (dD === 0) { oIdx = ev.idx; oTag = 'div';   } else dD--; }
+      }
+      if (oIdx === -1) return null;
+      re = /<\/?(table|div)\b[^>]*>/gi; re.lastIndex = oIdx;
+      var depth = 0;
+      while ((m = re.exec(body)) !== null) {
+        if (m[1].toLowerCase() !== oTag) continue;
+        if (m[0].charAt(1) !== '/') depth++;
+        else { depth--; if (depth === 0) return { start: oIdx, end: m.index + m[0].length }; }
+      }
+      return null;
+    }
+    // Locate an existing sig by text-probe search — tries current then previous probe.
+    // Prefers searching in the new-content area (before qpos); falls back to full body
+    // (covers replies where the sig was appended after the quote on first insert).
+    function _findSigByProbe(body, qpos) {
+      var probes = [];
+      if (_sigTextProbe) probes.push(_sigTextProbe);
+      if (_prevSigTextProbe && _prevSigTextProbe !== _sigTextProbe) probes.push(_prevSigTextProbe);
+      for (var pi = 0; pi < probes.length; pi++) {
+        var probe = probes[pi];
+        var idx = (qpos !== -1 ? body.slice(0, qpos) : body).lastIndexOf(probe);
+        if (idx === -1 && qpos !== -1) idx = body.lastIndexOf(probe);
+        if (idx === -1) continue;
+        var r = _regionAroundProbeIdx(body, idx);
+        if (r) return r;
+      }
+      return null;
+    }
+    // --- End text-probe detection -----------------------------------------------
+
     // Decide where the signature goes: replace an existing one in the NEW content
     // (never the copy buried in a quoted thread), else insert directly above the
     // quote, else append at the end (plain new mail).
@@ -282,40 +348,44 @@
 
     function replaceSig() {
       if (!_markedSig) return;
-
-      // Fast path (2nd+ insert): use the body we last passed to setAsync — it still
-      // has our markers.  Outlook Classic strips them on getAsync, so we bypass that
-      // entirely and work on our own copy.
-      if (_lastSetBody !== null) {
-        var qp  = _findQuoteInsertPos(_lastSetBody);
-        var lim = (qp === -1) ? _lastSetBody.length : qp;
-        var reg = _findSigRegion(_lastSetBody, lim) || _findSigRegion(_lastSetBody, _lastSetBody.length);
-        if (reg) {
-          var nb = _lastSetBody.slice(0, reg.start) + _markedSig + _lastSetBody.slice(reg.end);
-          _lastSetBody = nb;
-          Office.context.mailbox.item.body.setAsync(nb, { coercionType: Office.CoercionType.Html }, function(wr) {
-            showStatus(
-              wr.status === Office.AsyncResultStatus.Succeeded ? 'Signatur ersetzt ✓' : 'Fehler: ' + wr.error.message,
-              wr.status === Office.AsyncResultStatus.Succeeded ? 'ok' : 'err'
-            );
-          });
-          return;
-        }
-      }
-
-      // Normal path (first insert, or _lastSetBody has no detectable sig).
+      // Always read the current body so user text typed between inserts is preserved.
       Office.context.mailbox.item.body.getAsync(Office.CoercionType.Html, function(r) {
         if (r.status !== Office.AsyncResultStatus.Succeeded) {
-          showStatus('Lesevorgang fehlgeschlagen: ' + r.error.message, 'err');
-          return;
+          showStatus('Lesevorgang fehlgeschlagen: ' + r.error.message, 'err'); return;
         }
         var body = r.value || '';
-        var res = _computeInsert(body);
-        _lastSetBody = res.body;
-        Office.context.mailbox.item.body.setAsync(res.body, { coercionType: Office.CoercionType.Html }, function(wr) {
+        var qpos  = _findQuoteInsertPos(body);
+        var limit = (qpos === -1) ? body.length : qpos;
+        // 1. HTML-marker detection (OWA / future Outlook with preserved markers)
+        var region = _findSigRegion(body, limit);
+        if (!region && qpos !== -1) region = _findSigRegion(body, body.length);
+        // 2. Text-probe detection (Outlook Classic: markers stripped, text content survives)
+        if (!region) region = _findSigByProbe(body, qpos);
+        var newBody, replaced;
+        if (region) {
+          // Found in current body → replace directly (user text preserved)
+          newBody = body.slice(0, region.start) + _markedSig + body.slice(region.end);
+          replaced = true;
+        } else if (_lastSetBody !== null) {
+          // Fallback: use last body we set (has markers, but may not reflect user edits
+          // made after the previous insert)
+          var qpL = _findQuoteInsertPos(_lastSetBody);
+          var limL = (qpL === -1) ? _lastSetBody.length : qpL;
+          var regL = _findSigRegion(_lastSetBody, limL) || _findSigRegion(_lastSetBody, _lastSetBody.length);
+          if (regL) {
+            newBody = _lastSetBody.slice(0, regL.start) + _markedSig + _lastSetBody.slice(regL.end);
+            replaced = true;
+          } else {
+            var res = _computeInsert(body); newBody = res.body; replaced = res.replaced;
+          }
+        } else {
+          var res = _computeInsert(body); newBody = res.body; replaced = res.replaced;
+        }
+        _lastSetBody = newBody;
+        Office.context.mailbox.item.body.setAsync(newBody, { coercionType: Office.CoercionType.Html }, function(wr) {
           showStatus(
             wr.status === Office.AsyncResultStatus.Succeeded
-              ? (res.replaced ? 'Signatur ersetzt ✓' : 'Signatur eingefügt ✓')
+              ? (replaced ? 'Signatur ersetzt ✓' : 'Signatur eingefügt ✓')
               : 'Fehler: ' + wr.error.message,
             wr.status === Office.AsyncResultStatus.Succeeded ? 'ok' : 'err'
           );
@@ -329,7 +399,11 @@
       Office.context.mailbox.item.body.setAsync(
         _markedSig,
         { coercionType: Office.CoercionType.Html },
-        function(r) { cb(r.status === Office.AsyncResultStatus.Succeeded); }
+        function(r) {
+          var ok = r.status === Office.AsyncResultStatus.Succeeded;
+          if (ok) _lastSetBody = _markedSig;  // enables _lastSetBody fallback if probe fails
+          cb(ok);
+        }
       );
     }
 
@@ -414,7 +488,12 @@
         lines.push('--- Body[0..300] ---');
         lines.push(body.slice(0, 300));
 
+        lines.push('_sigTextProbe: "' + _sigTextProbe + '"');
+        lines.push('_prevSigTextProbe: "' + _prevSigTextProbe + '"');
         lines.push('_lastSetBody: ' + (_lastSetBody !== null ? 'gesetzt (' + _lastSetBody.length + ' Z.)' : 'null'));
+        // Test text-probe detection on current body
+        var probeRegion = _findSigByProbe(body, _findQuoteInsertPos(body));
+        lines.push('_findSigByProbe: ' + (probeRegion ? 'gefunden @ ' + probeRegion.start + '–' + probeRegion.end : 'NICHTS'));
 
         var qpos = _findQuoteInsertPos(body);
         lines.push('qpos: ' + qpos);

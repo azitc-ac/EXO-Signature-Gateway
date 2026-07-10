@@ -5,6 +5,30 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.92 — 2026-07-10 — fix: Text-Probe-Detektion für Sig-Ersatz (User-Text erhalten)
+
+Outlook Classic strippt alle HTML-Marker im setAsync→getAsync-Roundtrip.
+v1.5.91 nutzte _lastSetBody als Basis für den 2. Insert (Marker intakt,
+aber User-Text der zwischen zwei Klicks getippt wurde ging verloren).
+
+Neuer Ansatz (Text-Probe + strukturelles HTML-Walking):
+- _computeSigProbe(): extrahiert ersten ASCII-Textknoten (≥ 8 Zeichen) aus
+  dem Sig-HTML als stabilen Fingerprint (z.B. "#gernperDu" für Full-Sig,
+  "Alexander Zarenko" für Minimal-Sig).
+- _regionAroundProbeIdx(): geht von der Probe-Position im Body rückwärts
+  durch <div>/<table>-Tags mit Tiefenzählung → findet äußerstes ungeclostes
+  öffnendes Tag → geht vorwärts bis passendes Schließ-Tag → exakte Region.
+- _findSigByProbe(): sucht mit aktuellem UND vorherigem Probe-Text (Wechsel
+  Full→Minimal: neuer Probe "Alexander Zarenko" trifft alten Full-Sig;
+  Minimal→Full: _prevSigTextProbe="#gernperDu" findet den alten Full-Sig).
+- replaceSig() liest jetzt immer den aktuellen Body (getAsync), versucht
+  Marker → Text-Probe → _lastSetBody-Fallback in dieser Reihenfolge.
+  User-Text bleibt bei Marker- UND Text-Probe-Erkennung erhalten.
+  _lastSetBody-Fallback (Textverlust-Risiko) nur noch für den extrem seltenen
+  Fall, dass keiner der Probes im Body auftaucht.
+- _doInsert setzt _lastSetBody = _markedSig nach Auto-Insert (ermöglicht
+  Fallback bei Template-Wechsel in New-Compose).
+
 ## v1.5.91 — 2026-07-10 — fix: Add-in Doppel-Einfügen durch _lastSetBody-Strategie
 
 Root cause: Outlook Classic's getAsync während Compose strippt ALLE Custom-Marker
