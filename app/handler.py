@@ -216,13 +216,33 @@ def _send_ndr(original_sender: str, missing_certs: list[str] | None = None,
         subject = "Zustellung fehlgeschlagen: Kein Verschlüsselungszertifikat"
     msg = email.mime.text.MIMEText(body, "plain", "utf-8")
     msg["Subject"] = subject
-    ndr_from = (
-        settings_store.get("NOTIFICATION_MAILBOX")
-        or "no-reply@" + (original_sender.split("@", 1)[-1] if "@" in original_sender else "localhost")
-    )
-    msg["From"] = ndr_from
+    # Graph sendMail versendet immer als das angegebene Postfach — ein
+    # abweichendes no-reply-From würde ErrorSendAsDenied auslösen. Die NDR
+    # kommt daher vom Absender-Postfach selbst (existiert immer, ist intern).
+    msg["From"] = original_sender
     msg["To"] = original_sender
+    msg["Date"] = email.utils.formatdate(localtime=True)
+    msg["Message-ID"] = email.utils.make_msgid(
+        domain=original_sender.split("@", 1)[-1] if "@" in original_sender else None)
+    # Der Absender ist DL-Mitglied → die FromMemberOf-Regel routet die NDR
+    # zurück zum Gateway. Auto-Submitted + X-Sig-Applied sorgen dafür, dass
+    # sie dort unverändert durchgereicht wird (keine Signatur, kein Loop).
+    msg["Auto-Submitted"] = "auto-replied"
     loop_detector.mark_as_signed(msg)
+    import email.policy as _ep
+    ndr_bytes = msg.as_bytes(policy=_ep.SMTP)
+
+    # Primär: Graph sendMail — Port 25 outbound ist z.B. in Azure blockiert,
+    # der SMTP-Smarthost-Weg schlug dort mit "Network is unreachable" fehl.
+    try:
+        import graph_reinject
+        if graph_reinject.send_via_graph_mime(original_sender, [original_sender], ndr_bytes):
+            log.info("NDR sent via Graph to %s for missing certs: %s",
+                     original_sender, missing_certs)
+            return
+        log.warning("NDR via Graph returned False — trying SMTP smarthost")
+    except Exception as exc:
+        log.warning("NDR via Graph failed (%s) — trying SMTP smarthost", exc)
 
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
@@ -234,7 +254,7 @@ def _send_ndr(original_sender: str, missing_certs: list[str] | None = None,
             smtp.ehlo()
             smtp.starttls(context=ctx)
             smtp.ehlo()
-            smtp.sendmail("", [original_sender], msg.as_bytes())
+            smtp.sendmail("", [original_sender], ndr_bytes)
         log.info("NDR sent to %s for missing certs: %s", original_sender, missing_certs)
     except Exception as exc:
         log.error("Failed to send NDR to %s: %s", original_sender, exc)

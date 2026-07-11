@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.111 — 2026-07-11 — fix: NDR via Graph sendMail (Port 25 outbound in Azure blockiert)
+
+_send_ndr versuchte direktes SMTP zum Smarthost — auf der Azure-VM schlug das
+mit "Network is unreachable" fehl (Port 25 outbound gesperrt), NDRs gingen dort
+still verloren. Jetzt primär Graph sendMail (send_via_graph_mime) vom
+Absender-Postfach an sich selbst; SMTP-Smarthost nur noch als Fallback.
+Auto-Submitted: auto-replied + X-Sig-Applied verhindern Re-Processing beim
+Rücklauf durchs Gateway (Absender ist DL-Mitglied). MIME mit policy.SMTP
+serialisiert (CRLF-Invariante).
+
+---
+
 ## v1.5.110 — 2026-07-11 — fix: Portal-Links ohne :8080 (extern lauscht 443)
 
 docker-compose mappt 443→8080 — der Fallback in _portal_base_url() hängte
