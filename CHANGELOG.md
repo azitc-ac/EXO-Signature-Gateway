@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.118 — 2026-07-11 — fix: Antwort auf Portal-Antwort bleibt verschlüsselt
+
+Die Antwort-Benachrichtigung an den Absender trägt jetzt das
+[verschlüsselt]-Tag im Betreff. Antwortet der Absender in Outlook darauf,
+greift der bestehende Auto-Encrypt-Mechanismus → der Empfänger ohne Cert
+bekommt automatisch eine neue Portal-Nachricht (neuer Link/Key/OTP).
+Vorher wäre ein argloses "Antworten" UNVERSCHLÜSSELT rausgegangen
+(weder #enc noch Tag im Betreff).
+
+---
+
 ## v1.5.117 — 2026-07-11 — feat: Portal-Antworten mit Anhängen + Antwort-Historie
 
 Feedback des ersten Portal-Nutzers umgesetzt:

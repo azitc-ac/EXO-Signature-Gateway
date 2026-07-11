@@ -555,9 +555,17 @@ def send_portal_reply(msg: dict, reply_text: str, reply_name: str = "",
         f'</div>'
     )
     html = _html_wrap(f"↩ Antwort von {attribution_esc}", "#2563eb", body)
+    subject_line = f"Re: {subject} — Antwort von {attribution}"
+    # [verschlüsselt]-Tag voranstellen: Antwortet der Absender in Outlook auf
+    # diese Mail, bleibt das Tag im Betreff → Auto-Encrypt im Gateway greift →
+    # der Empfänger ohne Cert bekommt automatisch eine NEUE Portal-Nachricht.
+    # Ohne Tag ginge ein argloses "Antworten" unverschlüsselt raus.
+    if settings_store.get("SMIME_TAG_ENCRYPTED_ENABLED") is not False:
+        _tag = settings_store.get("SMIME_TAG_ENCRYPTED") or "verschlüsselt"
+        subject_line = f"[{_tag}] {subject_line}"
     return _graph_send(
         sender_email,
-        f"Re: {subject} — Antwort von {attribution}",
+        subject_line,
         html,
         reply_to=recipient_email,
         sender=sender_email,
