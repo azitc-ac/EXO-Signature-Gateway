@@ -317,7 +317,12 @@ async function loadMessage(){
 }
 loadMessage();
 
-window.showReply = function(){ document.getElementById('reply-box').style.display=''; };
+// 'block' zwingend — die Box ist per CSS-Klasse versteckt, ein leerer
+// Inline-Style fällt auf display:none aus der Klasse zurück (Knopf tat nichts)
+window.showReply = function(){
+  document.getElementById('reply-box').style.display='block';
+  document.getElementById('reply-text').focus();
+};
 window.hideReply = function(){ document.getElementById('reply-box').style.display='none'; };
 window.sendReply = async function(){
   var text = document.getElementById('reply-text').value.trim();

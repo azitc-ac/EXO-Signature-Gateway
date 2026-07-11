@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.116 — 2026-07-11 — fix: Portal-Antworten-Knopf tat nichts
+
+Die Reply-Box ist per CSS-Klasse versteckt (display:none); showReply() setzte
+nur style.display='' — der leere Inline-Style fällt auf die Klassenregel
+zurück, die Box blieb unsichtbar. Fix: display='block' + Fokus ins Textfeld.
+
+---
+
 ## v1.5.115 — 2026-07-11 — fix: "What's new" beim Update war oft leer (Off-by-one)
 
 Der Pre-Commit-Hook bumpt VERSION erst beim Commit — die CHANGELOG-Überschrift
