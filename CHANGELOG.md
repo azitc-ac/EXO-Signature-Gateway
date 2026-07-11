@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.119 — 2026-07-11 — fix: Platzhalter für Antworten vor Einführung der Historie
+
+Antworten, die vor v1.5.117 gesendet wurden, haben keinen gespeicherten
+Inhalt (zero-knowledge — nachträglich nicht rekonstruierbar). Das Portal
+zeigt dafür jetzt wenigstens "✓ Antwort gesendet am {replied_at}" mit dem
+Hinweis, dass der Inhalt nicht gespeichert wurde, statt gar nichts.
+
+---
+
 ## v1.5.118 — 2026-07-11 — fix: Antwort auf Portal-Antwort bleibt verschlüsselt
 
 Die Antwort-Benachrichtigung an den Absender trägt jetzt das

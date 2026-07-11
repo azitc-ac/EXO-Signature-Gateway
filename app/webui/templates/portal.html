@@ -221,15 +221,23 @@ function replyItemHtml(entry, createdAt){
        + '<div class="ri-text">' + esc(entry.text) + '</div>' + att + '</div>';
 }
 
-async function renderReplies(replies){
-  if(!replies || !replies.length) return;
+async function renderReplies(replies, repliedAt){
   var list = document.getElementById('replies-list');
   var html = '';
-  for(var i=0;i<replies.length;i++){
+  for(var i=0;i<(replies||[]).length;i++){
     try {
       var entry = await decryptHistory(replies[i].cipher);
       html += replyItemHtml(entry, replies[i].created_at);
     } catch(e){ /* einzelne defekte Einträge überspringen */ }
+  }
+  // Antworten von vor Einführung der Historie: nur der Zeitstempel ist bekannt,
+  // der Inhalt wurde damals nicht gespeichert (zero-knowledge, nicht nachholbar)
+  if(!html && repliedAt){
+    var dt = new Date(repliedAt);
+    var when = isNaN(dt) ? '' : ' am ' + dt.toLocaleDateString('de-DE') + ' '
+      + dt.toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit'});
+    html = '<div class="reply-item"><div class="ri-head">✓ Antwort gesendet' + when + '</div>'
+         + '<div class="ri-att">Der Inhalt dieser früheren Antwort wurde nicht gespeichert.</div></div>';
   }
   if(html){
     list.innerHTML = html;
@@ -375,7 +383,7 @@ async function loadMessage(){
     }
 
     msgEl.style.display='';
-    renderReplies(meta.replies);
+    renderReplies(meta.replies, meta.replied_at);
 
     fetch('/api/portal/read/'+encodeURIComponent(token),
           {method:'POST', headers: accessHeaders()}).catch(function(){});

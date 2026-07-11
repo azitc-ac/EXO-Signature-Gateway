@@ -2031,6 +2031,7 @@ async def portal_get_message(token: str, request: Request):
         "subject":      msg["subject"],
         "expires_at":   msg["expires_at"],
         "read_at":      msg["read_at"],
+        "replied_at":   msg["replied_at"],
         "replies":      portal_store.get_replies(token),
     })
 
