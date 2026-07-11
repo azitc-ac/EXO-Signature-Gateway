@@ -1900,6 +1900,23 @@ async def api_preview_data(
                          "banner_html": banner_html, "banner_template": banner})
 
 
+@app.get("/api/cert/catalog")
+async def api_cert_catalog(_=Depends(_check_auth)):
+    """Anbieter-Katalog des Hubs für die Anzeige (Anbindung-Seite)."""
+    import hub_catalog as _hub_cat
+    import hub_client
+    try:
+        await _hub_cat.refresh()
+    except Exception:
+        pass
+    return JSONResponse({
+        "registered": hub_client.cert_is_registered(),
+        "providers": _hub_cat.cached(),
+        "currency": _hub_cat.currency(),
+        "vat_percent": _hub_cat.vat_percent(),
+    })
+
+
 # ── Fair-Use-Lizenz ──────────────────────────────────────────────────────────
 
 @app.get("/api/license/status")

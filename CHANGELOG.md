@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.132 — 2026-07-11 — feat: Anbieter-Katalog auf der Anbindung-Seite sichtbar
+
+Vervollständigt die dynamische Katalog-Anzeige (Teil 1 der ursprünglichen
+Anforderung): Der Zertifikatsbezug-Abschnitt unter Einstellungen → Anbindung
+zeigt jetzt die verfügbaren Zertifizierungsstellen als Tabelle (Anbieter,
+Beschreibung, Laufzeit, Preis netto zzgl. MwSt.) — live vom Hub
+(GET /api/cert/catalog, refresht hub_catalog). Box erscheint nur bei
+registrierter Anbindung mit nicht-leerem Katalog. Die Auswahl selbst bleibt
+pro Postfach im S/MIME-Tab.
+
+---
+
 ## v1.5.131 — 2026-07-11 — feat: Log-Zeitfilter + Mail-Trace-IDs + Scanner-Lärm gedämpft
 
 - Protokoll-Suche: Von/Bis-Zeitfilter (datetime-local); mit Zeitraum darf der
