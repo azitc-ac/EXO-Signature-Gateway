@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.114 — 2026-07-11 — feat: Corporate Branding für Portal-Mails + Portal-Seite
+
+Mails an Portal-Empfänger (Benachrichtigung, Zugangscode) und die Portal-Seite
+zeigen jetzt Firmenlogo + Firmenname — der externe Empfänger erkennt, von
+welchem Unternehmen die Nachricht stammt (Vertrauens-Signal; die Mail kommt
+ohnehin vom echten Absender-Postfach mit SPF/DKIM des Tenants).
+- PORTAL_BRAND_NAME (Einstellungen → S/MIME); Logo-Upload PNG/JPEG/GIF max.
+  512 KB, sofort wirksam, öffentlich unter /portal/logo (Cache 1h)
+- Footer der Empfänger-Mails: "Sicher zugestellt für {Firma}" statt
+  "automatischer Bericht" (_html_wrap hat jetzt footer-Parameter)
+- _portal_base_url() nach portal_store.base_url() zentralisiert
+  (handler + notification nutzen dieselbe Quelle)
+
+---
+
 ## v1.5.113 — 2026-07-11 — feat: Portal-OTP — Zugangscode beim Öffnen (Default an)
 
 Abwägung revidiert: Token-only schützt nicht gegen weitergeleitete Links,

@@ -24,17 +24,8 @@ log = logging.getLogger(__name__)
 
 
 def _portal_base_url() -> str:
-    # Extern lauscht 443 (docker-compose mappt 443→8080) — Links daher ohne Port.
-    url = (settings_store.get("SECURE_PORTAL_BASE_URL") or "").rstrip("/")
-    if url:
-        return url
-    url = (settings_store.get("ADDIN_BASE_URL") or "").rstrip("/")
-    if url:
-        return url
-    hostname = (settings_store.get("PUBLIC_HOSTNAME") or "").strip().split(":")[0]
-    if hostname:
-        return f"https://{hostname}"
-    return "https://localhost"
+    import portal_store
+    return portal_store.base_url()
 
 
 # Number of SMTP transactions currently inside handle_DATA (asyncio single-thread, no lock needed)

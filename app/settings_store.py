@@ -44,6 +44,7 @@ DEFAULTS: dict = {
     "SECURE_PORTAL_BASE_URL": "",         # Öffentliche Basis-URL für Portal-Links (leer = aus Hostname)
     "SECURE_PORTAL_RETENTION_DAYS": 14,   # Aufbewahrung in Tagen, danach täglicher Cleanup
     "SECURE_PORTAL_OTP": True,            # Zugangscode per Mail beim Öffnen (wie Microsoft OME)
+    "PORTAL_BRAND_NAME": "",              # Firmenname in Portal-Mails/-Seite (Vertrauen beim Empfänger)
     "SMIME_SIGNING_ENABLED": True,    # Automatically sign outbound mails when a cert exists
     "NOSIG_TRIGGER": "#nosig",        # Keyword in subject → suppress HTML auto-signature for this mail
     "NODIGSIG_TRIGGER": "#nodigsig",  # Keyword in subject → suppress S/MIME (digital) signature for this mail

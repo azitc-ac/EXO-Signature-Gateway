@@ -69,9 +69,14 @@ body { background: var(--bg); color: var(--text); font-family: -apple-system, Se
 </head>
 <body>
 <div class="header">
+  {% if has_logo %}
+  <img src="/portal/logo" alt="{{ brand_name or 'Logo' }}"
+       style="max-height:36px;max-width:160px;border-radius:4px;background:#fff;padding:3px 6px">
+  {% else %}
   <span class="lock">🔒</span>
+  {% endif %}
   <div>
-    <div class="title">Verschlüsselte Nachricht</div>
+    <div class="title">{% if brand_name %}{{ brand_name }} — {% endif %}Verschlüsselte Nachricht</div>
     <div class="subtitle">Ende-zu-Ende-verschlüsselt · Entschlüsselung erfolgt nur in Ihrem Browser</div>
   </div>
 </div>

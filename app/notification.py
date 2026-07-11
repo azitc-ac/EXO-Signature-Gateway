@@ -112,14 +112,22 @@ def _row(label: str, value, color: str = "") -> str:
             f'<td{style}>{value}</td></tr>')
 
 
-def _html_wrap(title: str, color: str, body: str) -> str:
+def _html_wrap(title: str, color: str, body: str, footer: str | None = None) -> str:
     gw_name = settings_store.get("GATEWAY_NAME") or "EXO Signature Gateway"
+    if footer is None:
+        footer = f"{gw_name} – automatischer Bericht"
     return f"""<html><body style="font-family:Arial,sans-serif;color:#333;max-width:620px;margin:0 auto">
 <h2 style="color:{color};margin-bottom:4px">{title}</h2>
 {body}
 <hr style="border:none;border-top:1px solid #eee;margin:28px 0 12px">
-<p style="color:#bbb;font-size:11px">{gw_name} – automatischer Bericht</p>
+<p style="color:#bbb;font-size:11px">{footer}</p>
 </body></html>"""
+
+
+def _portal_footer() -> str:
+    """Footer für Mails an externe Portal-Empfänger — Firmenname statt 'Bericht'."""
+    name = (settings_store.get("PORTAL_BRAND_NAME") or "").strip()
+    return f"Sicher zugestellt für {name}" if name else "Sichere Zustellung"
 
 
 def send_daily_report(daily: dict, total: dict) -> bool:
@@ -392,6 +400,30 @@ def send_cert_renewal_failure(user_email: str, error: str) -> bool:
     return _graph_send(to, f"✗ S/MIME-Upload fehlgeschlagen – {user_email}", html)
 
 
+def _portal_brand_header() -> str:
+    """Corporate-Branding-Kopf (Logo + Firmenname) für Mails an Portal-Empfänger.
+    Leerer String, wenn nichts konfiguriert ist."""
+    import html as _h
+    import portal_store
+    name = (settings_store.get("PORTAL_BRAND_NAME") or "").strip()
+    logo = portal_store.has_logo()
+    if not (name or logo):
+        return ""
+    parts = []
+    if logo:
+        alt = _h.escape(name) if name else "Logo"
+        parts.append(
+            f'<img src="{portal_store.base_url()}/portal/logo" alt="{alt}" '
+            f'style="max-height:52px;max-width:240px;display:inline-block">')
+    if name:
+        parts.append(
+            f'<div style="font-size:13px;color:#6b7280;margin-top:6px;'
+            f'letter-spacing:.02em">{_h.escape(name)}</div>')
+    return ('<div style="text-align:center;padding:4px 0 14px;'
+            'border-bottom:1px solid #eee;margin-bottom:18px">'
+            + "".join(parts) + '</div>')
+
+
 def send_portal_notification(
     sender_email: str,
     sender_name: str,
@@ -424,7 +456,8 @@ def send_portal_notification(
         + f'<br>Die Entschlüsselung erfolgt ausschließlich in Ihrem Browser; '
         f'der Server sieht den Inhalt der Nachricht nicht.</p>'
     )
-    html = _html_wrap("🔒 Verschlüsselte Nachricht für Sie", "#2563eb", body)
+    html = _html_wrap("🔒 Verschlüsselte Nachricht für Sie", "#2563eb",
+                      _portal_brand_header() + body, footer=_portal_footer())
     return _graph_send(
         recipient_email,
         f"Verschlüsselte Nachricht von {sender_name or sender_email}: {subject}",
@@ -450,7 +483,8 @@ def send_portal_otp(msg: dict, code: str) -> bool:
         f'Der Code ist 15 Minuten gültig. Wenn Sie ihn nicht angefordert haben, '
         f'können Sie diese E-Mail ignorieren — die Nachricht bleibt geschützt.</p>'
     )
-    html = _html_wrap("🔑 Ihr Zugangscode", "#2563eb", body)
+    html = _html_wrap("🔑 Ihr Zugangscode", "#2563eb",
+                      _portal_brand_header() + body, footer=_portal_footer())
     return _graph_send(recipient_email, "Ihr Zugangscode für die verschlüsselte Nachricht",
                        html, sender=sender_email)
 

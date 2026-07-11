@@ -71,6 +71,55 @@ def _retention_days() -> int:
     return int(settings_store.get("SECURE_PORTAL_RETENTION_DAYS") or 14)
 
 
+def base_url() -> str:
+    """Öffentliche Basis-URL des Gateways für Portal-Links und Logo-Referenzen.
+    Extern lauscht 443 (docker-compose mappt 443→8080) — daher ohne Port."""
+    url = (settings_store.get("SECURE_PORTAL_BASE_URL") or "").rstrip("/")
+    if url:
+        return url
+    url = (settings_store.get("ADDIN_BASE_URL") or "").rstrip("/")
+    if url:
+        return url
+    hostname = (settings_store.get("PUBLIC_HOSTNAME") or "").strip().split(":")[0]
+    if hostname:
+        return f"https://{hostname}"
+    return "https://localhost"
+
+
+# ── Branding (Logo für Portal-Seite + Benachrichtigungsmails) ────────────────
+
+_LOGO_PATH = Path("/app/data/portal_logo.img")
+_LOGO_TYPE_PATH = Path("/app/data/portal_logo.type")
+
+LOGO_ALLOWED_TYPES = {"image/png", "image/jpeg", "image/gif"}
+LOGO_MAX_BYTES = 512 * 1024
+
+
+def save_logo(data: bytes, content_type: str) -> None:
+    _LOGO_PATH.write_bytes(data)
+    _LOGO_TYPE_PATH.write_text(content_type)
+    os.chmod(_LOGO_PATH, 0o644)
+
+
+def get_logo() -> tuple[bytes, str] | None:
+    """(bytes, content_type) oder None, wenn kein Logo hochgeladen."""
+    if not _LOGO_PATH.exists():
+        return None
+    ctype = "image/png"
+    if _LOGO_TYPE_PATH.exists():
+        ctype = _LOGO_TYPE_PATH.read_text().strip() or ctype
+    return _LOGO_PATH.read_bytes(), ctype
+
+
+def has_logo() -> bool:
+    return _LOGO_PATH.exists()
+
+
+def delete_logo() -> None:
+    _LOGO_PATH.unlink(missing_ok=True)
+    _LOGO_TYPE_PATH.unlink(missing_ok=True)
+
+
 def encrypt_payload(payload: dict) -> tuple[bytes, bytes]:
     """AES-256-GCM encrypt. Returns (nonce+ciphertext, raw_key_bytes)."""
     key   = os.urandom(32)

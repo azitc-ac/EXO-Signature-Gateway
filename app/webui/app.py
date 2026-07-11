@@ -23,7 +23,7 @@ from email.mime.text import MIMEText
 from pathlib import Path
 
 from fastapi import FastAPI, Request, Form, Depends, HTTPException, status, UploadFile, File
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, Response, StreamingResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -1902,10 +1902,52 @@ async def api_preview_data(
 
 # ── Secure Message Portal ────────────────────────────────────────────────────
 
+@app.get("/portal/logo")
+async def portal_logo():
+    """Öffentliches Branding-Logo — referenziert von Portal-Seite und Mails."""
+    import portal_store
+    logo = portal_store.get_logo()
+    if not logo:
+        raise HTTPException(status_code=404)
+    data, ctype = logo
+    return Response(content=data, media_type=ctype,
+                    headers={"Cache-Control": "public, max-age=3600"})
+
+
+@app.post("/api/portal/branding/logo")
+async def portal_upload_logo(file: UploadFile = File(...), user: str = Depends(_require_admin)):
+    """Admin: Branding-Logo hochladen (PNG/JPEG/GIF, max. 512 KB)."""
+    import portal_store
+    ctype = (file.content_type or "").lower()
+    if ctype not in portal_store.LOGO_ALLOWED_TYPES:
+        raise HTTPException(400, "Nur PNG, JPEG oder GIF erlaubt")
+    data = await file.read()
+    if len(data) > portal_store.LOGO_MAX_BYTES:
+        raise HTTPException(400, "Logo zu groß (max. 512 KB)")
+    if not data:
+        raise HTTPException(400, "Leere Datei")
+    portal_store.save_logo(data, ctype)
+    log.info("Portal branding logo uploaded by %s (%d bytes, %s)", user, len(data), ctype)
+    return JSONResponse({"ok": True})
+
+
+@app.delete("/api/portal/branding/logo")
+async def portal_delete_logo(user: str = Depends(_require_admin)):
+    import portal_store
+    portal_store.delete_logo()
+    log.info("Portal branding logo removed by %s", user)
+    return JSONResponse({"ok": True})
+
+
 @app.get("/portal/{token}", response_class=HTMLResponse)
 async def portal_page(request: Request, token: str):
     """Public portal page — no auth required. Token is the access credential."""
-    return templates.TemplateResponse(request=request, name="portal.html", context={"token": token})
+    import portal_store
+    return templates.TemplateResponse(
+        request=request, name="portal.html",
+        context={"token": token,
+                 "brand_name": (settings_store.get("PORTAL_BRAND_NAME") or "").strip(),
+                 "has_logo": portal_store.has_logo()})
 
 
 def _portal_otp_required() -> bool:

@@ -174,6 +174,35 @@
       <span class="hint">Nach Ablauf werden Portal-Nachrichten endgültig gelöscht (täglicher Cleanup). Standard: 14.</span>
     </div>
   </div>
+  <div class="settings-row" style="margin-top:10px">
+    <label for="portal-brand-name">Firmenname (Branding)</label>
+    <div class="settings-control">
+      <input type="text" id="portal-brand-name" value="{{ s.PORTAL_BRAND_NAME or '' }}"
+        placeholder="z.B. Zarenko GmbH" style="width:320px">
+      <span class="hint">Erscheint in den Mails an Portal-Empfänger und im Portal-Kopf —
+        der Empfänger erkennt so, von welchem Unternehmen die Nachricht stammt.</span>
+    </div>
+  </div>
+  <div class="settings-row" style="margin-top:10px">
+    <label>Firmenlogo (Branding)</label>
+    <div class="settings-control">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <img id="portal-logo-preview" src="/portal/logo" alt=""
+          style="max-height:44px;max-width:200px;border:1px solid #e2e8f0;border-radius:6px;
+                 padding:4px 8px;background:#fff;display:none">
+        <input type="file" id="portal-logo-file" accept="image/png,image/jpeg,image/gif" style="display:none"
+          onchange="uploadPortalLogo(this)">
+        <button class="btn secondary btn-sm" type="button"
+          onclick="document.getElementById('portal-logo-file').click()">Logo hochladen…</button>
+        <button class="btn secondary btn-sm" type="button" id="portal-logo-remove"
+          style="display:none" onclick="removePortalLogo()">Entfernen</button>
+        <span id="portal-logo-result" style="font-size:12px"></span>
+      </div>
+      <span class="hint">PNG, JPEG oder GIF, max. 512&nbsp;KB. Wird in den Benachrichtigungs- und
+        Zugangscode-Mails sowie im Portal-Kopf angezeigt. Das Logo ist öffentlich unter
+        <code>/portal/logo</code> abrufbar. Sofort wirksam — Speichern-Button nicht nötig.</span>
+    </div>
+  </div>
 
   <div class="actions" style="margin-top:4px">
     <button class="btn secondary" onclick="saveSmimeSettings()">Speichern</button>
@@ -379,7 +408,56 @@ function saveSmimeSettings() {
     SECURE_PORTAL_BASE_URL: (document.getElementById('portal-base-url').value || '').trim(),
     SECURE_PORTAL_RETENTION_DAYS: parseInt(document.getElementById('portal-retention').value, 10) || 14,
     SECURE_PORTAL_OTP: document.getElementById('portal-otp').checked,
+    PORTAL_BRAND_NAME: (document.getElementById('portal-brand-name').value || '').trim(),
   }, 'smime-result');
+}
+
+function refreshPortalLogo() {
+  var img = document.getElementById('portal-logo-preview');
+  var rm  = document.getElementById('portal-logo-remove');
+  var probe = new Image();
+  probe.onload = function() {
+    img.src = probe.src; img.style.display = ''; rm.style.display = '';
+  };
+  probe.onerror = function() { img.style.display = 'none'; rm.style.display = 'none'; };
+  probe.src = '/portal/logo?t=' + Date.now();
+}
+refreshPortalLogo();
+
+async function uploadPortalLogo(input) {
+  var file = input.files && input.files[0];
+  if (!file) return;
+  input.value = '';
+  var res = document.getElementById('portal-logo-result');
+  if (file.size > 512 * 1024) {
+    res.textContent = '✗ Zu groß (max. 512 KB)'; res.style.color = '#dc2626'; return;
+  }
+  res.textContent = 'Wird hochgeladen…'; res.style.color = '';
+  var fd = new FormData();
+  fd.append('file', file);
+  try {
+    var resp = await fetch('/api/portal/branding/logo', {method: 'POST', body: fd});
+    if (resp.ok) {
+      res.textContent = '✓ Logo gespeichert'; res.style.color = '#16a34a';
+      refreshPortalLogo();
+    } else {
+      var d = await resp.json().catch(function(){ return {}; });
+      res.textContent = '✗ ' + (d.detail || 'Fehler'); res.style.color = '#dc2626';
+    }
+  } catch(e) { res.textContent = '✗ Netzwerkfehler'; res.style.color = '#dc2626'; }
+  setTimeout(function(){ res.textContent = ''; }, 4000);
+}
+
+async function removePortalLogo() {
+  if (!confirm('Logo entfernen?')) return;
+  var res = document.getElementById('portal-logo-result');
+  try {
+    var resp = await fetch('/api/portal/branding/logo', {method: 'DELETE'});
+    res.textContent = resp.ok ? '✓ Entfernt' : '✗ Fehler';
+    res.style.color = resp.ok ? '#16a34a' : '#dc2626';
+    refreshPortalLogo();
+  } catch(e) { res.textContent = '✗ Netzwerkfehler'; res.style.color = '#dc2626'; }
+  setTimeout(function(){ res.textContent = ''; }, 3000);
 }
 
 function toggleTagField(inputId, enabled) {
