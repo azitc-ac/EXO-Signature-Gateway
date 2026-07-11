@@ -2381,7 +2381,6 @@ async def settings_smime_page(request: Request, user: str = Depends(_require_adm
 @app.get("/settings/connect", response_class=HTMLResponse)
 async def settings_connect_page(request: Request, user: str = Depends(_require_admin)):
     import hub_client
-    import ca_backends as _ca
     return templates.TemplateResponse(
         request=request, name="settings_connect.html",
         context={
@@ -2390,7 +2389,6 @@ async def settings_connect_page(request: Request, user: str = Depends(_require_a
             "gateway_name": _gateway_name(),
             "hub_registered": hub_client.is_registered(),
             "hub_cert_registered": hub_client.cert_is_registered(),
-            "sectigo_ready": _ca.get_backend("sectigo").is_ready(),
         },
     )
 
@@ -3926,120 +3924,6 @@ async def api_acme_http_proxy_test(request: Request, user: str = Depends(_check_
 
 
 # ── Sectigo Certificate Manager config ────────────────────────────────────────
-
-_SECTIGO_KEYS = ["SECTIGO_MODE", "CERT_PROVIDER", "SECTIGO_API_BASE", "SECTIGO_LOGIN", "SECTIGO_PASSWORD",
-                 "SECTIGO_CUSTOMER_URI", "SECTIGO_ORG_ID", "SECTIGO_CERT_TYPE", "SECTIGO_TERM"]
-
-
-@app.get("/api/sectigo/config")
-async def api_sectigo_config_get(user: str = Depends(_check_auth)):
-    cfg = {k: settings_store.get(k) or "" for k in _SECTIGO_KEYS}
-    # Never return the password itself — only whether one is set.
-    cfg["SECTIGO_PASSWORD"] = ""
-    cfg["password_set"] = bool(settings_store.get("SECTIGO_PASSWORD"))
-    return JSONResponse({"ok": True, "config": cfg})
-
-
-@app.post("/api/sectigo/config")
-async def api_sectigo_config_set(request: Request, user: str = Depends(_check_auth)):
-    data = await request.json()
-    updates = {}
-    for k in _SECTIGO_KEYS:
-        if k not in data:
-            continue
-        val = data.get(k)
-        # Keep existing password if the field was left blank (avoid clobbering on save).
-        if k == "SECTIGO_PASSWORD" and not (val or "").strip():
-            continue
-        updates[k] = (val or "").strip()
-    if updates:
-        settings_store.update(updates)
-    log.info("Sectigo config updated by %s (%d fields)", user, len(updates))
-    return JSONResponse({"ok": True})
-
-
-@app.post("/api/sectigo/config/test")
-async def api_sectigo_config_test(user: str = Depends(_check_auth)):
-    """Lightweight connectivity/auth check against the SCM API (organization list)."""
-    import httpx as _httpx
-    base = (settings_store.get("SECTIGO_API_BASE") or "https://cert-manager.com/api").strip().rstrip("/")
-    login = (settings_store.get("SECTIGO_LOGIN") or "").strip()
-    password = settings_store.get("SECTIGO_PASSWORD") or ""
-    customer = (settings_store.get("SECTIGO_CUSTOMER_URI") or "").strip()
-    if not (login and password and customer):
-        return JSONResponse({"ok": False, "message": "Login, Passwort und Customer-URI müssen gesetzt sein."})
-    headers = {"login": login, "password": password, "customerUri": customer,
-               "Content-Type": "application/json;charset=utf-8"}
-    try:
-        # /organization/v1 is a common read-only endpoint that validates auth.
-        async with _httpx.AsyncClient(timeout=15) as c:
-            r = await c.get(f"{base}/organization/v1", headers=headers)
-        if r.status_code == 200:
-            return JSONResponse({"ok": True, "message": "SCM-Authentifizierung erfolgreich (Organisationen abrufbar)."})
-        if r.status_code in (401, 403):
-            return JSONResponse({"ok": False, "message": f"Authentifizierung abgelehnt (HTTP {r.status_code}) — Login/Passwort/Customer-URI prüfen."})
-        return JSONResponse({"ok": False, "message": f"Unerwarteter Status {r.status_code}: {r.text[:200]}"})
-    except Exception as exc:
-        return JSONResponse({"ok": False, "message": f"Verbindung fehlgeschlagen: {exc}"})
-
-
-# ── SwissSign Managed PKI config ───────────────────────────────────────────────
-
-_SWISSSIGN_KEYS = ["SWISSSIGN_MODE", "CERT_PROVIDER", "SWISSSIGN_API_BASE", "SWISSSIGN_USERNAME",
-                   "SWISSSIGN_API_KEY", "SWISSSIGN_PRODUCT_REFERENCE", "SWISSSIGN_CLIENT_REFERENCE"]
-
-
-@app.get("/api/swisssign/config")
-async def api_swisssign_config_get(user: str = Depends(_check_auth)):
-    cfg = {k: settings_store.get(k) or "" for k in _SWISSSIGN_KEYS}
-    # Never return the API key itself — only whether one is set.
-    cfg["SWISSSIGN_API_KEY"] = ""
-    cfg["api_key_set"] = bool(settings_store.get("SWISSSIGN_API_KEY"))
-    return JSONResponse({"ok": True, "config": cfg})
-
-
-@app.post("/api/swisssign/config")
-async def api_swisssign_config_set(request: Request, user: str = Depends(_check_auth)):
-    data = await request.json()
-    updates = {}
-    for k in _SWISSSIGN_KEYS:
-        if k not in data:
-            continue
-        val = data.get(k)
-        # Keep existing API key if the field was left blank (avoid clobbering on save).
-        if k == "SWISSSIGN_API_KEY" and not (val or "").strip():
-            continue
-        updates[k] = (val or "").strip()
-    if updates:
-        settings_store.update(updates)
-    log.info("SwissSign config updated by %s (%d fields)", user, len(updates))
-    return JSONResponse({"ok": True})
-
-
-@app.post("/api/swisssign/config/test")
-async def api_swisssign_config_test(user: str = Depends(_check_auth)):
-    """Lightweight connectivity/auth check against the RA API (fetch a JWT)."""
-    import httpx as _httpx
-    base = (settings_store.get("SWISSSIGN_API_BASE") or "https://api.ra.swisssign.ch").strip().rstrip("/")
-    username = (settings_store.get("SWISSSIGN_USERNAME") or "").strip()
-    api_key = settings_store.get("SWISSSIGN_API_KEY") or ""
-    if not (username and api_key):
-        return JSONResponse({"ok": False, "message": "Benutzername und API-Key müssen gesetzt sein."})
-    try:
-        async with _httpx.AsyncClient(timeout=15) as c:
-            r = await c.post(
-                f"{base}/v2/jwt/{username}",
-                data={"userSecret": api_key},
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
-            )
-        if r.status_code == 200:
-            return JSONResponse({"ok": True, "message": "RA-Authentifizierung erfolgreich (JWT erhalten)."})
-        if r.status_code in (401, 403):
-            return JSONResponse({"ok": False, "message": f"Authentifizierung abgelehnt (HTTP {r.status_code}) — Benutzername/API-Key prüfen."})
-        return JSONResponse({"ok": False, "message": f"Unerwarteter Status {r.status_code}: {r.text[:200]}"})
-    except Exception as exc:
-        return JSONResponse({"ok": False, "message": f"Verbindung fehlgeschlagen: {exc}"})
-
 
 # ── ACME Account Reset ────────────────────────────────────────────────────────
 

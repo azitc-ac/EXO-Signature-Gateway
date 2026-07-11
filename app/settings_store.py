@@ -132,23 +132,10 @@ DEFAULTS: dict = {
     "HUB_CLAIM_TOKEN": "",           # single-use token to pull the issued API key (self-service registration)
     "GATEWAY_ID": "",                # stable per-install id sent to the hub (X-Gateway-Id, gateway tracking)
     # ── Managed certificate acquisition (via provider hub) ────────────────────
-    "CERT_PROVIDER": "sectigo",      # CA chosen for managed ("reseller") acquisition; more later (swisssign…)
+    # CA-Anbieter kommen dynamisch aus dem Hub-Katalog (hub_catalog) — die
+    # frühere Direktanbindung (SECTIGO_*/SWISSSIGN_*, CERT_PROVIDER) wurde
+    # entfernt (v1.5.125): kein CA-Zugang je Gateway, komplette Musik im Hub.
     # ── Sectigo Certificate Manager (S/MIME REST API backend) ─────────────────
-    "SECTIGO_MODE": "reseller",      # "reseller" (default → via provider hub) or "direct" (own SCM account)
-    "SECTIGO_API_BASE": "",          # empty = https://cert-manager.com/api (region-specific base override)
-    "SECTIGO_LOGIN": "",             # SCM API user login
-    "SECTIGO_PASSWORD": "",          # SCM API user password (secret)
-    "SECTIGO_CUSTOMER_URI": "",      # SCM customer URI (the short account identifier)
-    "SECTIGO_ORG_ID": "",            # Organization ID the S/MIME profile belongs to (account-specific)
-    "SECTIGO_CERT_TYPE": "",         # Certificate profile / type ID for S/MIME (account-specific)
-    "SECTIGO_TERM": "",              # Validity term accepted by the profile (e.g. 365 days or 1 year)
-    # ── SwissSign Managed PKI (RA REST API backend) ───────────────────────────
-    "SWISSSIGN_MODE": "reseller",    # "reseller" (default → via provider hub) or "direct" (own RA account)
-    "SWISSSIGN_API_BASE": "",        # empty = https://api.ra.swisssign.ch (pre-prod: https://api.ra.pre.swisssign.ch)
-    "SWISSSIGN_USERNAME": "",        # RA API username
-    "SWISSSIGN_API_KEY": "",         # RA API key (secret) — exchanged for a short-lived JWT per request
-    "SWISSSIGN_PRODUCT_REFERENCE": "",   # S/MIME certificate product UUID ("pma-...", account-specific)
-    "SWISSSIGN_CLIENT_REFERENCE": "",    # RA client UUID ("cli-...", needed for domain pre-validation)
     # ── S/MIME lifecycle management ───────────────────────────────────────────
     "GATEWAY_EXTERNAL_URL": "",      # e.g. https://mail.company.com (no port — 8080 is only the internal container port) — used in renewal links
     "CERT_RENEWAL_THRESHOLDS": [30, 14, 7, 1],  # Notify user at these days-before-expiry

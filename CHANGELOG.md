@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.125 — 2026-07-11 — feat: CA-Direktanbindung entfernt — Hub ist der einzige Bezugsweg
+
+Bewusste Entscheidung: Die nie produktiv getestete Direktanbindung an
+Sectigo (SCM) und SwissSign (RA) fliegt raus — SwissSign autorisiert für den
+Auto-Bezug ohnehin nur Reseller, und für andere CAs fehlt der Überblick.
+Sollte Direktbezug später für Endkunden sinnvoll abbildbar sein, kommt er
+getestet zurück. Entfernt:
+- ca_backends/sectigo.py + swisssign.py (CSR-Helfer nach ca_backends/csr.py)
+- 14 Settings-Keys (SECTIGO_*, SWISSSIGN_*, CERT_PROVIDER)
+- 6 API-Routen (/api/sectigo/config*, /api/swisssign/config*)
+- UI Anbindung-Tab: Bezugsweg-Umschalter, CA-Auswahl (global) und beide
+  Direktkonto-Formulare — die CA wird jetzt ausschließlich pro Postfach im
+  S/MIME-Tab aus dem dynamischen Hub-Katalog gewählt
+Gegenstück im Hub bereits live (sig-provider v0.13.0): Katalog-Verwaltung,
+Preise pro Anbieter, Order-Erfüllung im Admin-UI.
+
+---
+
 ## v1.5.124 — 2026-07-11 — feat: CA-Anbieter dynamisch vom Hub (Katalog + Preise)
 
 Die komplette CA-Musik (Sectigo, SwissSign, künftige Anbieter) liegt jetzt

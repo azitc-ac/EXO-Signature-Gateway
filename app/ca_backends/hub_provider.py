@@ -9,7 +9,7 @@ oder Preisänderungen brauchen kein Gateway-Release.
 import logging
 
 from .base import CABackend
-from .sectigo import _generate_key_and_csr_pem
+from .csr import generate_key_and_csr_pem as _generate_key_and_csr_pem
 
 log = logging.getLogger(__name__)
 
