@@ -786,19 +786,29 @@ class SignatureHandler:
                     if settings_store.get("SECURE_PORTAL_ENABLED"):
                         import portal_store as _portal
                         import notification as _notif
-                        _sender_name = user_data.display_name or sender
+                        _sender_name = user_data.displayName or sender
+                        # Trigger-Keyword aus dem Betreff entfernen — der Empfänger
+                        # soll "#enc" nie sehen (analog zum Verschlüsselungspfad unten)
+                        _p_subject = re.sub(
+                            r"\s*" + re.escape(enc_trigger) + r"#?\s*", " ",
+                            subject, flags=re.IGNORECASE).strip()
+                        if settings_store.get("STRIP_SUBJECT_TAGS") is not False:
+                            _p_subject = _strip_subject_tags(_p_subject)
                         _portal_payload = _extract_mime_payload(
-                            outbound, msg.get("From", ""), msg.get("To", ""),
-                            msg.get("Cc", ""), subject, msg.get("Date", ""))
+                            outbound,
+                            _decode_subject(msg.get("From", "")),
+                            _decode_subject(msg.get("To", "")),
+                            _decode_subject(msg.get("Cc", "")),
+                            _p_subject, msg.get("Date", ""))
                         _base_url = _portal_base_url()
                         _retention = int(settings_store.get("SECURE_PORTAL_RETENTION_DAYS") or 14)
                         for _rcpt in missing:
                             try:
                                 _tok, _key = _portal.create_message(
-                                    sender, _sender_name, _rcpt, subject, _portal_payload)
+                                    sender, _sender_name, _rcpt, _p_subject, _portal_payload)
                                 _portal_url = f"{_base_url}/portal/{_tok}#{_key}"
                                 _notif.send_portal_notification(
-                                    sender, _sender_name, _rcpt, subject,
+                                    sender, _sender_name, _rcpt, _p_subject,
                                     _portal_url, _retention)
                                 log.info("Portal message created for %s (no cert)", _rcpt)
                                 _audit("portal")

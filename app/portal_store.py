@@ -49,6 +49,12 @@ def _init():
     _BLOB_DIR.mkdir(parents=True, exist_ok=True)
     with _conn() as con:
         con.execute(_SCHEMA)
+    # DB enthält Metadaten (Adressen, Betreffs) — restriktive Rechte erzwingen
+    try:
+        os.chmod(_BLOB_DIR, 0o700)
+        os.chmod(_DB_PATH, 0o600)
+    except OSError:
+        pass
 
 
 def _retention_days() -> int:
@@ -112,7 +118,8 @@ def mark_read(token: str) -> bool:
             "UPDATE portal_messages SET read_at=? WHERE token=? AND read_at IS NULL AND deleted=0",
             (now, token),
         )
-    return cur.rowcount > 0
+        first = cur.rowcount > 0
+    return first
 
 
 def mark_replied(token: str) -> None:

@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
 <title>Verschlüsselte Nachricht</title>
 <style>
 :root {
@@ -123,7 +125,7 @@ function b64Decode(s) {
   for(var i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
   return bytes.buffer;
 }
-function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function showErr(msg){ document.getElementById('loading').style.display='none'; var e=document.getElementById('err'); e.innerHTML='<p>⚠️ '+esc(msg)+'</p>'; e.style.display=''; }
 
 var pathParts = window.location.pathname.split('/');

@@ -39,6 +39,10 @@ DEFAULTS: dict = {
     "ADMIN_USERS": [],               # List of UPN strings allowed to log in via Entra SSO
     "SSO_SESSION_SECRET": "",        # Auto-generated on first use; signs session cookies
     "ENC_TRIGGER": "#enc",            # Keyword in subject to request encryption
+    # ── Secure Message Portal ────────────────────────────────────────────────
+    "SECURE_PORTAL_ENABLED": False,       # Portal statt NDR für Empfänger ohne S/MIME-Cert
+    "SECURE_PORTAL_BASE_URL": "",         # Öffentliche Basis-URL für Portal-Links (leer = aus Hostname)
+    "SECURE_PORTAL_RETENTION_DAYS": 14,   # Aufbewahrung in Tagen, danach täglicher Cleanup
     "SMIME_SIGNING_ENABLED": True,    # Automatically sign outbound mails when a cert exists
     "NOSIG_TRIGGER": "#nosig",        # Keyword in subject → suppress HTML auto-signature for this mail
     "NODIGSIG_TRIGGER": "#nodigsig",  # Keyword in subject → suppress S/MIME (digital) signature for this mail

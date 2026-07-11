@@ -65,14 +65,16 @@ def _get_sender() -> str | None:
     return None
 
 
-def _graph_send(to: str, subject: str, html: str, reply_to: str = "") -> bool:
+def _graph_send(to: str, subject: str, html: str, reply_to: str = "",
+                sender: str = "") -> bool:
     """
     Send a notification email via Graph API sendMail.
 
-    Sender = NOTIFICATION_MAILBOX (or SMTP_SUBMIT_USER as fallback) — always a
-    licensed user mailbox.  Recipient can be any address including DGs/M365 groups.
+    Sender = explicit `sender` param, else NOTIFICATION_MAILBOX (or
+    SMTP_SUBMIT_USER as fallback) — always a licensed user mailbox.
+    Recipient can be any address including DGs/M365 groups.
     """
-    sender = _get_sender() or to
+    sender = sender or _get_sender() or to
     token = graph_client._acquire_token()
     if not token:
         log.warning("notification: no Graph token — skipping")
@@ -398,11 +400,18 @@ def send_portal_notification(
     portal_url: str,
     retention_days: int,
 ) -> bool:
-    """Notify recipient that a secure message is available in the portal."""
-    display = f"{sender_name} &lt;{sender_email}&gt;" if sender_name else sender_email
+    """Notify recipient that a secure message is available in the portal.
+
+    Gesendet DIREKT vom Postfach des ursprünglichen Absenders (Mail.Send gilt
+    app-weit) — der Empfänger erkennt so den Absender, und der Versand hängt
+    nicht von einem konfigurierten NOTIFICATION_MAILBOX ab.
+    """
+    import html as _h
+    display = f"{_h.escape(sender_name)} &lt;{_h.escape(sender_email)}&gt;" \
+        if sender_name else _h.escape(sender_email)
     body = (
         f'<p>Sie haben eine verschlüsselte Nachricht von <strong>{display}</strong> erhalten.</p>'
-        f'<p style="margin-top:12px">Betreff: <strong>{subject}</strong></p>'
+        f'<p style="margin-top:12px">Betreff: <strong>{_h.escape(subject)}</strong></p>'
         f'<p style="margin-top:20px">'
         f'<a href="{portal_url}" style="background:#2563eb;color:#fff;padding:10px 20px;'
         f'border-radius:6px;text-decoration:none;font-weight:600;display:inline-block">'
@@ -418,6 +427,7 @@ def send_portal_notification(
         recipient_email,
         f"Verschlüsselte Nachricht von {sender_name or sender_email}: {subject}",
         html,
+        sender=sender_email,
     )
 
 
@@ -433,16 +443,19 @@ def send_portal_read_receipt(msg: dict) -> bool:
         read_str = dt.strftime("%d.%m.%Y %H:%M UTC")
     except Exception:
         read_str = read_at or "gerade eben"
+    import html as _h
     body = (
         f'<p>Ihre verschlüsselte Nachricht wurde gelesen.</p>'
         f'<table>'
-        f'{_row("Empfänger", recipient_email)}'
-        f'{_row("Betreff", subject)}'
+        f'{_row("Empfänger", _h.escape(recipient_email))}'
+        f'{_row("Betreff", _h.escape(subject))}'
         f'{_row("Gelesen am", read_str, "#16a34a")}'
         f'</table>'
     )
     html = _html_wrap("✓ Sichere Nachricht gelesen", "#16a34a", body)
-    return _graph_send(sender_email, f"✓ Lesebestätigung: {subject}", html)
+    # Vom eigenen Postfach an sich selbst — unabhängig vom NOTIFICATION_MAILBOX
+    return _graph_send(sender_email, f"✓ Lesebestätigung: {subject}", html,
+                       sender=sender_email)
 
 
 def send_portal_reply(msg: dict, reply_text: str, reply_name: str = "") -> bool:
@@ -450,28 +463,30 @@ def send_portal_reply(msg: dict, reply_text: str, reply_name: str = "") -> bool:
     sender_email    = msg["sender_email"]
     recipient_email = msg["recipient_email"]
     subject         = msg["subject"]
+    import html as _h
     attribution = reply_name or recipient_email
-    escaped = (reply_text
-               .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-               .replace("\n", "<br>"))
+    # reply_name/reply_text kommen vom anonymen Portal-Nutzer — zwingend escapen
+    attribution_esc = _h.escape(attribution)
+    escaped = _h.escape(reply_text).replace("\n", "<br>")
     body = (
         f'<p>Sie haben eine Antwort auf Ihre sichere Nachricht erhalten.</p>'
         f'<table>'
-        f'{_row("Von", attribution)}'
-        f'{_row("E-Mail", recipient_email)}'
-        f'{_row("Betreff", subject)}'
+        f'{_row("Von", attribution_esc)}'
+        f'{_row("E-Mail", _h.escape(recipient_email))}'
+        f'{_row("Betreff", _h.escape(subject))}'
         f'</table>'
         f'<hr style="border:none;border-top:1px solid #eee;margin:16px 0">'
         f'<div style="background:#f8fafc;border-left:4px solid #2563eb;padding:12px 16px;border-radius:4px">'
         f'{escaped}'
         f'</div>'
     )
-    html = _html_wrap(f"↩ Antwort von {attribution}", "#2563eb", body)
+    html = _html_wrap(f"↩ Antwort von {attribution_esc}", "#2563eb", body)
     return _graph_send(
         sender_email,
         f"Re: {subject} — Antwort von {attribution}",
         html,
         reply_to=recipient_email,
+        sender=sender_email,
     )
 
 

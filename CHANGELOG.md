@@ -5,6 +5,28 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.109 — 2026-07-11 — fix: Portal-Review — 4 Bugs vor Erst-Test behoben
+
+Gründliche Prüfung des Secure Message Portals vor dem ersten Test:
+- **settings_store**: SECURE_PORTAL_*-Keys fehlten in DEFAULTS — der
+  /settings-Endpoint hätte sie stillschweigend verworfen (Speichern hätte
+  "✓" gezeigt, aber nichts gespeichert). Feature wäre nicht aktivierbar gewesen.
+- **handler**: `user_data.display_name` → `displayName` (AttributeError genau
+  beim Portal-Pfad); #enc-Trigger wird jetzt vor Portal-Ablage aus dem Betreff
+  entfernt (Empfänger sah sonst "#enc" in Benachrichtigung und Portal);
+  From/To/Cc werden RFC2047-dekodiert (Umlaute in Namen).
+- **notification**: Portal-Mails werden direkt vom Postfach des ursprünglichen
+  Absenders gesendet (vorher: NOTIFICATION_MAILBOX-Fallback → bei fehlender
+  Konfiguration wäre die Mail still verloren gegangen, da sendMail als externer
+  Empfänger fehlschlägt). reply_name/reply_text vom anonymen Portal-Nutzer
+  werden jetzt HTML-escaped (Injection in die Mail an den Absender).
+- **UI**: Portal-Einstellungen (aktivieren, Basis-URL, Aufbewahrung) unter
+  Einstellungen → S/MIME ergänzt — vorher gab es kein UI-Feld dafür.
+- Härtung: noindex/no-referrer-Metatags im Portal, esc() escapt Anführungszeichen,
+  chmod 600/700 auf portal.db und Blob-Verzeichnis.
+
+---
+
 ## v1.5.108 — 2026-07-11 — feat: Secure Message Portal
 
 Wenn #enc-Mails Empfänger ohne S/MIME-Zertifikat haben: statt NDR wird die Mail

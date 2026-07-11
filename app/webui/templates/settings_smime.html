@@ -119,6 +119,46 @@
       <span class="hint">Schlüsselwort im Betreff, das ausgehende S/MIME-Verschlüsselung auslöst</span>
     </div>
   </div>
+
+  <div style="border-top:1px solid #f0f0f0;margin:16px 0 14px"></div>
+
+  <h3 style="margin-top:0;margin-bottom:4px">Secure Message Portal</h3>
+  <p class="hint" style="margin-bottom:12px">
+    Hat ein Empfänger einer <code>{{ s.ENC_TRIGGER or '#enc' }}</code>-Mail kein S/MIME-Zertifikat, wird die Mail
+    statt eines Unzustellbarkeitsberichts verschlüsselt im Portal abgelegt. Der Empfänger erhält einen Link;
+    die Entschlüsselung erfolgt ausschließlich im Browser (Schlüssel im URL-Fragment, nie am Server).
+  </p>
+  <div class="settings-row">
+    <label>Portal aktivieren</label>
+    <div class="settings-control">
+      <div style="display:flex;align-items:center;gap:8px">
+        <input type="checkbox" id="portal-enabled"
+          {% if s.SECURE_PORTAL_ENABLED %}checked{% endif %}>
+        <label for="portal-enabled" style="font-weight:500;cursor:pointer;margin:0">
+          Mails für Empfänger ohne Zertifikat im Portal bereitstellen
+        </label>
+      </div>
+      <span class="hint">Standard: aus — dann wird wie bisher ein Unzustellbarkeitsbericht an den Absender gesendet.</span>
+    </div>
+  </div>
+  <div class="settings-row" style="margin-top:10px">
+    <label for="portal-base-url">Portal-Basis-URL</label>
+    <div class="settings-control">
+      <input type="url" id="portal-base-url" value="{{ s.SECURE_PORTAL_BASE_URL or '' }}"
+        placeholder="https://sig.example.com:8080" style="width:320px">
+      <span class="hint">Öffentlich erreichbare Adresse dieses Gateways — wird für die Portal-Links verwendet.
+        Leer = automatisch aus dem Hostnamen abgeleitet.</span>
+    </div>
+  </div>
+  <div class="settings-row" style="margin-top:10px">
+    <label for="portal-retention">Aufbewahrung (Tage)</label>
+    <div class="settings-control">
+      <input type="number" id="portal-retention" value="{{ s.SECURE_PORTAL_RETENTION_DAYS or 14 }}"
+        min="1" max="365" style="width:90px">
+      <span class="hint">Nach Ablauf werden Portal-Nachrichten endgültig gelöscht (täglicher Cleanup). Standard: 14.</span>
+    </div>
+  </div>
+
   <div class="actions" style="margin-top:4px">
     <button class="btn secondary" onclick="saveSmimeSettings()">Speichern</button>
     <span id="smime-result" style="font-size:12px;margin-left:8px"></span>
@@ -319,6 +359,9 @@ function saveSmimeSettings() {
     SMIME_SIGNING_ENABLED: document.getElementById('smime-signing-enabled').checked,
     NODIGSIG_TRIGGER: (document.getElementById('nodigsig-trigger').value || '').trim() || '#nodigsig',
     ENC_TRIGGER: (document.getElementById('enc-trigger').value || '').trim() || '#enc',
+    SECURE_PORTAL_ENABLED: document.getElementById('portal-enabled').checked,
+    SECURE_PORTAL_BASE_URL: (document.getElementById('portal-base-url').value || '').trim(),
+    SECURE_PORTAL_RETENTION_DAYS: parseInt(document.getElementById('portal-retention').value, 10) || 14,
   }, 'smime-result');
 }
 
