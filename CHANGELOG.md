@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.110 — 2026-07-11 — fix: Portal-Links ohne :8080 (extern lauscht 443)
+
+docker-compose mappt 443→8080 — der Fallback in _portal_base_url() hängte
+aber ":8080" an, was extern nicht erreichbar ist. Jetzt: SECURE_PORTAL_BASE_URL
+→ ADDIN_BASE_URL → https://{PUBLIC_HOSTNAME} (ohne Port). UI-Hinweis angepasst.
+Auf dem Raspi ergibt der Fallback damit korrekt https://sig.azitc.eu.
+
+---
+
 ## v1.5.109 — 2026-07-11 — fix: Portal-Review — 4 Bugs vor Erst-Test behoben
 
 Gründliche Prüfung des Secure Message Portals vor dem ersten Test:
