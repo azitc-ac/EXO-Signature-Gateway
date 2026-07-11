@@ -418,8 +418,10 @@ def send_portal_notification(
         f'🔒 Verschlüsselte Nachricht öffnen</a></p>'
         f'<p style="margin-top:20px;color:#6b7280;font-size:13px">'
         f'Der Link ist {retention_days} Tage gültig. '
-        f'Bewahren Sie ihn vertraulich auf — wer diesen Link besitzt, kann die Nachricht lesen.<br>'
-        f'Die Entschlüsselung erfolgt ausschließlich in Ihrem Browser; '
+        + ('Beim Öffnen erhalten Sie einen Zugangscode an diese E-Mail-Adresse. '
+           if settings_store.get("SECURE_PORTAL_OTP") is not False else
+           'Bewahren Sie ihn vertraulich auf — wer diesen Link besitzt, kann die Nachricht lesen. ')
+        + f'<br>Die Entschlüsselung erfolgt ausschließlich in Ihrem Browser; '
         f'der Server sieht den Inhalt der Nachricht nicht.</p>'
     )
     html = _html_wrap("🔒 Verschlüsselte Nachricht für Sie", "#2563eb", body)
@@ -429,6 +431,28 @@ def send_portal_notification(
         html,
         sender=sender_email,
     )
+
+
+def send_portal_otp(msg: dict, code: str) -> bool:
+    """Zugangscode für eine Portal-Nachricht an den Empfänger senden."""
+    import html as _h
+    recipient_email = msg["recipient_email"]
+    sender_email    = msg["sender_email"]
+    sender_name     = msg.get("sender_name") or sender_email
+    body = (
+        f'<p>Ihr Zugangscode für die verschlüsselte Nachricht von '
+        f'<strong>{_h.escape(sender_name)}</strong>:</p>'
+        f'<p style="margin:20px 0;text-align:center">'
+        f'<span style="display:inline-block;font-size:32px;font-weight:700;'
+        f'letter-spacing:8px;background:#f1f5f9;color:#1e293b;'
+        f'padding:14px 28px;border-radius:8px">{code}</span></p>'
+        f'<p style="color:#6b7280;font-size:13px">'
+        f'Der Code ist 15 Minuten gültig. Wenn Sie ihn nicht angefordert haben, '
+        f'können Sie diese E-Mail ignorieren — die Nachricht bleibt geschützt.</p>'
+    )
+    html = _html_wrap("🔑 Ihr Zugangscode", "#2563eb", body)
+    return _graph_send(recipient_email, "Ihr Zugangscode für die verschlüsselte Nachricht",
+                       html, sender=sender_email)
 
 
 def send_portal_read_receipt(msg: dict) -> bool:

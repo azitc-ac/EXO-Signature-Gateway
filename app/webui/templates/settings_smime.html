@@ -152,6 +152,21 @@
     </div>
   </div>
   <div class="settings-row" style="margin-top:10px">
+    <label>Zugangscode (OTP)</label>
+    <div class="settings-control">
+      <div style="display:flex;align-items:center;gap:8px">
+        <input type="checkbox" id="portal-otp"
+          {% if s.SECURE_PORTAL_OTP is not false %}checked{% endif %}>
+        <label for="portal-otp" style="font-weight:500;cursor:pointer;margin:0">
+          Beim Öffnen Zugangscode an das Empfänger-Postfach senden
+        </label>
+      </div>
+      <span class="hint">Empfohlen (Standard: ein). Bindet das Lesen an aktuellen Postfachzugriff —
+        weitergeleitete Links oder Browser-Historie genügen dann nicht. Gleiches Modell wie
+        Microsoft Purview OME. Nach erfolgreicher Eingabe bleibt der Browser 24&nbsp;h freigeschaltet.</span>
+    </div>
+  </div>
+  <div class="settings-row" style="margin-top:10px">
     <label for="portal-retention">Aufbewahrung (Tage)</label>
     <div class="settings-control">
       <input type="number" id="portal-retention" value="{{ s.SECURE_PORTAL_RETENTION_DAYS or 14 }}"
@@ -363,6 +378,7 @@ function saveSmimeSettings() {
     SECURE_PORTAL_ENABLED: document.getElementById('portal-enabled').checked,
     SECURE_PORTAL_BASE_URL: (document.getElementById('portal-base-url').value || '').trim(),
     SECURE_PORTAL_RETENTION_DAYS: parseInt(document.getElementById('portal-retention').value, 10) || 14,
+    SECURE_PORTAL_OTP: document.getElementById('portal-otp').checked,
   }, 'smime-result');
 }
 

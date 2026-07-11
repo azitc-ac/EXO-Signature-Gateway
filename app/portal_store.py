@@ -1,8 +1,10 @@
 """Secure Message Portal — encrypted message storage."""
 import base64
+import hashlib
 import json
 import logging
 import os
+import secrets
 import sqlite3
 import uuid
 from contextlib import contextmanager
@@ -49,6 +51,14 @@ def _init():
     _BLOB_DIR.mkdir(parents=True, exist_ok=True)
     with _conn() as con:
         con.execute(_SCHEMA)
+        # OTP-Spalten (v1.5.113) — ADD COLUMN ist idempotent via Exception
+        for col, decl in (("otp_hash", "TEXT"), ("otp_expires", "TEXT"),
+                          ("otp_attempts", "INTEGER DEFAULT 0"), ("otp_sent_at", "TEXT"),
+                          ("access_token", "TEXT"), ("access_expires", "TEXT")):
+            try:
+                con.execute(f"ALTER TABLE portal_messages ADD COLUMN {col} {decl}")
+            except sqlite3.OperationalError:
+                pass  # Spalte existiert schon
     # DB enthält Metadaten (Adressen, Betreffs) — restriktive Rechte erzwingen
     try:
         os.chmod(_BLOB_DIR, 0o700)
@@ -85,7 +95,10 @@ def create_message(
     (_BLOB_DIR / f"{token}.enc").write_bytes(blob)
     with _conn() as con:
         con.execute(
-            "INSERT INTO portal_messages VALUES (?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO portal_messages "
+            "(token, sender_email, sender_name, recipient_email, subject, "
+            " created_at, expires_at, read_at, replied_at, deleted) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?)",
             (token, sender_email, sender_name, recipient_email, subject,
              now.isoformat(), expires.isoformat(), None, None, 0),
         )
@@ -130,6 +143,98 @@ def mark_replied(token: str) -> None:
             "UPDATE portal_messages SET replied_at=? WHERE token=? AND deleted=0",
             (now, token),
         )
+
+
+# ── OTP (Zugangscode) ────────────────────────────────────────────────────────
+# Bindet das Lesen an AKTUELLEN Postfachzugriff des Empfängers statt an
+# einmaligen Link-Besitz (weitergeleitete Links / Browser-Historie nutzlos).
+# Gleiches Modell wie Microsoft Purview OME.
+
+OTP_VALIDITY_MIN   = 15    # Code-Gültigkeit
+OTP_MAX_ATTEMPTS   = 5     # Fehlversuche pro Code
+OTP_SEND_COOLDOWN  = 60    # Sekunden zwischen zwei Code-Anforderungen
+ACCESS_VALIDITY_H  = 24    # Gültigkeit der Freischaltung nach erfolgreichem OTP
+
+
+def generate_otp(token: str) -> str | None:
+    """Neuen 6-stelligen Code erzeugen. None = Cooldown aktiv."""
+    _init()
+    msg = get_message(token)
+    if not msg:
+        return None
+    now = datetime.now(timezone.utc)
+    sent_at = msg.get("otp_sent_at")
+    if sent_at:
+        try:
+            prev = datetime.fromisoformat(sent_at)
+            if prev.tzinfo is None:
+                prev = prev.replace(tzinfo=timezone.utc)
+            if (now - prev).total_seconds() < OTP_SEND_COOLDOWN:
+                return None
+        except ValueError:
+            pass
+    code = f"{secrets.randbelow(1000000):06d}"
+    expires = now + timedelta(minutes=OTP_VALIDITY_MIN)
+    with _conn() as con:
+        con.execute(
+            "UPDATE portal_messages SET otp_hash=?, otp_expires=?, otp_attempts=0, "
+            "otp_sent_at=? WHERE token=? AND deleted=0",
+            (hashlib.sha256(code.encode()).hexdigest(), expires.isoformat(),
+             now.isoformat(), token),
+        )
+    return code
+
+
+def verify_otp(token: str, code: str) -> str | None:
+    """Code prüfen. Bei Erfolg: Access-Token (24h gültig), sonst None.
+    Der Code ist single-use — nach Erfolg wird otp_hash gelöscht."""
+    _init()
+    msg = get_message(token)
+    if not msg or not msg.get("otp_hash"):
+        return None
+    now = datetime.now(timezone.utc)
+    try:
+        exp = datetime.fromisoformat(msg["otp_expires"])
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        return None
+    if now > exp or int(msg.get("otp_attempts") or 0) >= OTP_MAX_ATTEMPTS:
+        return None
+    given = hashlib.sha256((code or "").strip().encode()).hexdigest()
+    if not secrets.compare_digest(given, msg["otp_hash"]):
+        with _conn() as con:
+            con.execute(
+                "UPDATE portal_messages SET otp_attempts=otp_attempts+1 "
+                "WHERE token=? AND deleted=0", (token,),
+            )
+        return None
+    access = secrets.token_hex(16)
+    access_exp = now + timedelta(hours=ACCESS_VALIDITY_H)
+    with _conn() as con:
+        con.execute(
+            "UPDATE portal_messages SET access_token=?, access_expires=?, otp_hash=NULL "
+            "WHERE token=? AND deleted=0",
+            (access, access_exp.isoformat(), token),
+        )
+    return access
+
+
+def check_access(token: str, access: str) -> bool:
+    """True, wenn das Access-Token gültig und nicht abgelaufen ist."""
+    _init()
+    msg = get_message(token)
+    if not msg or not msg.get("access_token") or not access:
+        return False
+    if not secrets.compare_digest(access, msg["access_token"]):
+        return False
+    try:
+        exp = datetime.fromisoformat(msg["access_expires"])
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        return False
+    return datetime.now(timezone.utc) <= exp
 
 
 def list_messages(include_expired: bool = False) -> list[dict]:

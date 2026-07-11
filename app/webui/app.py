@@ -1908,14 +1908,77 @@ async def portal_page(request: Request, token: str):
     return templates.TemplateResponse(request=request, name="portal.html", context={"token": token})
 
 
+def _portal_otp_required() -> bool:
+    return settings_store.get("SECURE_PORTAL_OTP") is not False
+
+
+def _mask_email(addr: str) -> str:
+    """papazar73@gmail.com → pa*******@gmail.com (Hinweis, wohin der Code geht)."""
+    local, _, domain = (addr or "").partition("@")
+    if len(local) <= 2:
+        return f"{local[:1]}*@{domain}"
+    return f"{local[:2]}{'*' * (len(local) - 2)}@{domain}"
+
+
+def _portal_check_access(token: str, request: Request) -> None:
+    """Raise 401 mit otp_required, wenn OTP aktiv und keine gültige Freischaltung."""
+    import portal_store
+    if not _portal_otp_required():
+        return
+    access = request.headers.get("X-Portal-Access") or ""
+    if not portal_store.check_access(token, access):
+        msg = portal_store.get_message(token)
+        raise HTTPException(
+            status_code=401,
+            detail={"otp_required": True,
+                    "recipient_hint": _mask_email(msg["recipient_email"]) if msg else ""},
+        )
+
+
+@app.post("/api/portal/otp/{token}")
+async def portal_request_otp(token: str):
+    """Zugangscode anfordern — wird an das Empfänger-Postfach gesendet."""
+    import asyncio as _aio
+    import portal_store
+    msg = portal_store.get_message(token)
+    if not msg or portal_store.is_expired(msg):
+        raise HTTPException(status_code=404)
+    code = portal_store.generate_otp(token)
+    if not code:
+        raise HTTPException(status_code=429,
+                            detail="Bitte warten Sie eine Minute, bevor Sie einen neuen Code anfordern.")
+    import notification as _notif
+    _msg_copy = dict(msg)
+    ok = await _aio.get_event_loop().run_in_executor(
+        None, lambda: _notif.send_portal_otp(_msg_copy, code)
+    )
+    if not ok:
+        raise HTTPException(status_code=502, detail="Code-Versand fehlgeschlagen")
+    return JSONResponse({"ok": True, "recipient_hint": _mask_email(msg["recipient_email"])})
+
+
+@app.post("/api/portal/verify/{token}")
+async def portal_verify_otp(token: str, body: dict):
+    """Code prüfen; bei Erfolg 24h-Freischaltung für diesen Browser."""
+    import portal_store
+    msg = portal_store.get_message(token)
+    if not msg or portal_store.is_expired(msg):
+        raise HTTPException(status_code=404)
+    access = portal_store.verify_otp(token, (body.get("code") or "").strip())
+    if not access:
+        raise HTTPException(status_code=403, detail="Code ungültig oder abgelaufen")
+    return JSONResponse({"access": access})
+
+
 @app.get("/api/portal/message/{token}")
-async def portal_get_message(token: str):
-    """Return encrypted blob for client-side decryption. No auth — token IS the credential."""
+async def portal_get_message(token: str, request: Request):
+    """Return encrypted blob for client-side decryption. Token + ggf. OTP-Freischaltung."""
     import base64
     import portal_store
     msg = portal_store.get_message(token)
     if not msg or portal_store.is_expired(msg):
         raise HTTPException(status_code=404, detail="Nachricht nicht gefunden oder abgelaufen")
+    _portal_check_access(token, request)
     blob = portal_store.get_blob(token)
     if not blob:
         raise HTTPException(status_code=404, detail="Nachricht nicht gefunden")
@@ -1930,13 +1993,14 @@ async def portal_get_message(token: str):
 
 
 @app.post("/api/portal/read/{token}")
-async def portal_mark_read(token: str):
+async def portal_mark_read(token: str, request: Request):
     """Mark as read (first call only) and trigger read-receipt notification."""
     import asyncio as _aio
     import portal_store
     msg = portal_store.get_message(token)
     if not msg or portal_store.is_expired(msg):
         raise HTTPException(status_code=404)
+    _portal_check_access(token, request)
     first_read = portal_store.mark_read(token)
     if first_read:
         import notification as _notif
@@ -1972,13 +2036,14 @@ async def portal_admin_delete(token: str, user: str = Depends(_check_auth)):
 
 
 @app.post("/api/portal/reply/{token}")
-async def portal_reply(token: str, body: dict):
+async def portal_reply(token: str, body: dict, request: Request):
     """Send a reply from the portal user to the original sender."""
     import asyncio as _aio
     import portal_store
     msg = portal_store.get_message(token)
     if not msg or portal_store.is_expired(msg):
         raise HTTPException(status_code=404)
+    _portal_check_access(token, request)
     reply_text = (body.get("text") or "").strip()
     reply_name = (body.get("name") or "").strip()
     if not reply_text:

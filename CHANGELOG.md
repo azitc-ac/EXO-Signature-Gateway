@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.113 — 2026-07-11 — feat: Portal-OTP — Zugangscode beim Öffnen (Default an)
+
+Abwägung revidiert: Token-only schützt nicht gegen weitergeleitete Links,
+Browser-Historie oder einmaligen Link-Besitz. E-Mail-OTP bindet das Lesen an
+AKTUELLEN Postfachzugriff (gleiches Modell wie Microsoft Purview OME) — der
+Server gated die Blob-Herausgabe, der Fragment-Schlüssel allein nützt nichts.
+- 6-stelliger Code an das Empfänger-Postfach, 15 min gültig, max. 5 Versuche,
+  single-use, 60s Cooldown zwischen Anforderungen
+- Nach Erfolg 24h-Freischaltung pro Browser (Access-Token, sessionStorage)
+- Alle Portal-Endpoints (Blob, Read, Reply) OTP-gated; SECURE_PORTAL_OTP
+  (Default an) unter Einstellungen → S/MIME abschaltbar
+- Benachrichtigungsmail weist auf den Code-Schritt hin
+- fix: INSERT mit explizitem Spaltenverzeichnis (brach nach OTP-Migration
+  mit 16 Spalten — vom E2E-Test gefangen)
+
+---
+
 ## v1.5.112 — 2026-07-11 — feat: Portal-Verwaltung auf der S/MIME-Seite
 
 Die "geplant"-Platzhalterkarte (noch mit OTP-Link/7 Tagen aus der Planungsphase)

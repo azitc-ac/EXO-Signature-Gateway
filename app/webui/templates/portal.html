@@ -78,6 +78,35 @@ body { background: var(--bg); color: var(--text); font-family: -apple-system, Se
 <div class="wrap">
   <div id="loading"><div class="spinner"></div><p style="margin-top:14px;color:var(--muted)">Entschlüsselung läuft…</p></div>
   <div id="err" style="display:none"></div>
+  <div id="otp-screen" style="display:none">
+    <div class="card" style="padding:28px 24px;text-align:center">
+      <div style="font-size:36px;margin-bottom:10px">🔑</div>
+      <h2 style="font-size:17px;margin-bottom:8px">Zugangscode erforderlich</h2>
+      <p style="font-size:14px;color:var(--muted);margin-bottom:18px">
+        Zum Schutz dieser Nachricht senden wir Ihnen einen Zugangscode an
+        <strong id="otp-hint" style="color:var(--text)">Ihre E-Mail-Adresse</strong>.
+      </p>
+      <div id="otp-step-request">
+        <button class="btn btn-reply" onclick="requestOtp()">Code anfordern</button>
+      </div>
+      <div id="otp-step-enter" style="display:none">
+        <p style="font-size:13px;color:var(--muted);margin-bottom:12px">
+          Der Code wurde gesendet — bitte prüfen Sie Ihren Posteingang (ggf. auch Spam).
+        </p>
+        <input type="text" id="otp-code" inputmode="numeric" autocomplete="one-time-code"
+          maxlength="6" placeholder="······"
+          style="font-size:26px;letter-spacing:10px;text-align:center;width:220px;padding:10px;
+                 border:1px solid var(--border);border-radius:8px;background:var(--surface);
+                 color:var(--text);margin-bottom:14px"
+          onkeydown="if(event.key==='Enter')verifyOtp()">
+        <div style="display:flex;gap:8px;justify-content:center">
+          <button class="btn btn-reply" onclick="verifyOtp()">Freischalten</button>
+          <button class="btn btn-sec" onclick="requestOtp()">Code erneut senden</button>
+        </div>
+      </div>
+      <div id="otp-status" style="margin-top:12px;font-size:13px"></div>
+    </div>
+  </div>
   <div id="msg" style="display:none">
     <div class="card">
       <div class="meta" id="meta"></div>
@@ -133,10 +162,73 @@ var token = pathParts[pathParts.length-1];
 var fragment = window.location.hash.slice(1);
 if(!token || !fragment){ showErr('Ungültiger Link — Entschlüsselungsschlüssel fehlt.'); return; }
 
-(async function(){
+// OTP-Freischaltung dieses Browsers (nach erfolgreichem Code 24h serverseitig gültig)
+var accessKey = 'portal-access-' + token;
+function accessHeaders(){
+  var a = sessionStorage.getItem(accessKey);
+  return a ? {'X-Portal-Access': a} : {};
+}
+
+function showOtpScreen(hint){
+  document.getElementById('loading').style.display='none';
+  document.getElementById('msg').style.display='none';
+  if(hint) document.getElementById('otp-hint').textContent = hint;
+  document.getElementById('otp-screen').style.display='';
+}
+
+window.requestOtp = async function(){
+  var status = document.getElementById('otp-status');
+  status.innerHTML='<span style="color:var(--muted)">Code wird gesendet…</span>';
   try {
-    var resp = await fetch('/api/portal/message/'+encodeURIComponent(token));
+    var resp = await fetch('/api/portal/otp/'+encodeURIComponent(token), {method:'POST'});
+    if(resp.status===429){
+      status.innerHTML='<span style="color:#d97706">Bitte warten Sie eine Minute, bevor Sie einen neuen Code anfordern.</span>';
+      return;
+    }
+    if(!resp.ok){ status.innerHTML='<span style="color:#dc2626">Code-Versand fehlgeschlagen.</span>'; return; }
+    var d = await resp.json();
+    if(d.recipient_hint) document.getElementById('otp-hint').textContent = d.recipient_hint;
+    document.getElementById('otp-step-request').style.display='none';
+    document.getElementById('otp-step-enter').style.display='';
+    status.innerHTML='';
+    document.getElementById('otp-code').focus();
+  } catch(e){ status.innerHTML='<span style="color:#dc2626">Netzwerkfehler.</span>'; }
+};
+
+window.verifyOtp = async function(){
+  var code = document.getElementById('otp-code').value.trim();
+  var status = document.getElementById('otp-status');
+  if(code.length !== 6){ status.innerHTML='<span style="color:#dc2626">Bitte den 6-stelligen Code eingeben.</span>'; return; }
+  status.innerHTML='<span style="color:var(--muted)">Wird geprüft…</span>';
+  try {
+    var resp = await fetch('/api/portal/verify/'+encodeURIComponent(token), {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({code:code}),
+    });
+    if(!resp.ok){
+      status.innerHTML='<span style="color:#dc2626">Code ungültig oder abgelaufen — bitte erneut versuchen.</span>';
+      return;
+    }
+    var d = await resp.json();
+    sessionStorage.setItem(accessKey, d.access);
+    document.getElementById('otp-screen').style.display='none';
+    document.getElementById('loading').style.display='';
+    loadMessage();
+  } catch(e){ status.innerHTML='<span style="color:#dc2626">Netzwerkfehler.</span>'; }
+};
+
+async function loadMessage(){
+  try {
+    var resp = await fetch('/api/portal/message/'+encodeURIComponent(token), {headers: accessHeaders()});
     if(resp.status===404){ showErr('Nachricht nicht gefunden oder abgelaufen.'); return; }
+    if(resp.status===401){
+      var hint = '';
+      try { var ed = await resp.json(); hint = (ed.detail && ed.detail.recipient_hint) || ''; } catch(e){}
+      // Abgelaufene Freischaltung entfernen, sonst klebt sie an weiteren Requests
+      sessionStorage.removeItem(accessKey);
+      showOtpScreen(hint);
+      return;
+    }
     if(!resp.ok){ showErr('Server-Fehler ('+resp.status+').'); return; }
     var meta = await resp.json();
 
@@ -211,12 +303,14 @@ if(!token || !fragment){ showErr('Ungültiger Link — Entschlüsselungsschlüss
 
     msgEl.style.display='';
 
-    fetch('/api/portal/read/'+encodeURIComponent(token), {method:'POST'}).catch(function(){});
+    fetch('/api/portal/read/'+encodeURIComponent(token),
+          {method:'POST', headers: accessHeaders()}).catch(function(){});
 
   } catch(e){
     showErr('Unerwarteter Fehler: '+e.message);
   }
-})();
+}
+loadMessage();
 
 window.showReply = function(){ document.getElementById('reply-box').style.display=''; };
 window.hideReply = function(){ document.getElementById('reply-box').style.display='none'; };
@@ -227,9 +321,11 @@ window.sendReply = async function(){
   if(!text){ status.innerHTML='<span style="color:#dc2626">Bitte einen Antworttext eingeben.</span>'; return; }
   status.innerHTML='<span style="color:var(--muted)">Wird gesendet…</span>';
   try {
+    var hdrs = accessHeaders();
+    hdrs['Content-Type'] = 'application/json';
     var resp = await fetch('/api/portal/reply/'+encodeURIComponent(token), {
       method:'POST',
-      headers:{'Content-Type':'application/json'},
+      headers: hdrs,
       body: JSON.stringify({text:text,name:name}),
     });
     if(resp.ok){
