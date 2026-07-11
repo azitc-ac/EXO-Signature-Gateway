@@ -2048,7 +2048,9 @@ async def portal_mark_read(token: str, request: Request):
     first_read = portal_store.mark_read(token)
     if first_read:
         import notification as _notif
-        _msg_copy = dict(msg)
+        # Frisch lesen — msg wurde VOR mark_read geholt, read_at wäre sonst
+        # None und die Lesebestätigung zeigte nur "gerade eben"
+        _msg_copy = portal_store.get_message(token) or dict(msg)
         _aio.get_event_loop().run_in_executor(
             None, lambda: _notif.send_portal_read_receipt(_msg_copy)
         )

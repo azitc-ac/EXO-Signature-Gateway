@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.122 — 2026-07-11 — fix: Lesebestätigung zeigte "gerade eben" statt Zeitstempel
+
+Die Route kopierte die Nachricht VOR mark_read() — read_at war in der Kopie
+noch None, die Mail fiel auf den "gerade eben"-Fallback zurück. Jetzt wird
+nach dem Markieren frisch aus der DB gelesen. Außerdem: Zeitstempel in
+deutscher Zeit (Europe/Berlin, "11.07.2026 12:10 Uhr") statt UTC.
+
+---
+
 ## v1.5.121 — 2026-07-11 — fix: Anhang-Download im Portal tat nichts (data:-URI)
 
 Anhang-Links nutzten data:-URIs im href — iOS Safari (und teils andere

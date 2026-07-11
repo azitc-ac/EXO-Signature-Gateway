@@ -507,8 +507,12 @@ def send_portal_read_receipt(msg: dict) -> bool:
     read_at         = msg.get("read_at", "")
     try:
         from datetime import datetime
+        from zoneinfo import ZoneInfo
         dt = datetime.fromisoformat(read_at)
-        read_str = dt.strftime("%d.%m.%Y %H:%M UTC")
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.astimezone(ZoneInfo("Europe/Berlin"))
+        read_str = dt.strftime("%d.%m.%Y %H:%M Uhr")
     except Exception:
         read_str = read_at or "gerade eben"
     import html as _h
