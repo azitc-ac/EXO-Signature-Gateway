@@ -2031,6 +2031,7 @@ async def portal_get_message(token: str, request: Request):
         "subject":      msg["subject"],
         "expires_at":   msg["expires_at"],
         "read_at":      msg["read_at"],
+        "replies":      portal_store.get_replies(token),
     })
 
 
@@ -2087,17 +2088,40 @@ async def portal_reply(token: str, body: dict, request: Request):
         raise HTTPException(status_code=404)
     _portal_check_access(token, request)
     reply_text = (body.get("text") or "").strip()
-    reply_name = (body.get("name") or "").strip()
-    if not reply_text:
-        raise HTTPException(status_code=400, detail="Antworttext fehlt")
+    reply_name = (body.get("name") or "").strip()[:200]
+    if not reply_text or len(reply_text) > 100_000:
+        raise HTTPException(status_code=400, detail="Antworttext fehlt oder zu lang")
+
+    # Anhänge: Graph sendMail hat ~4 MB Request-Limit → 3 MB Nutzdaten gesamt
+    import base64 as _b64
+    import os.path as _osp
+    attachments = []
+    total = 0
+    for a in (body.get("attachments") or [])[:5]:
+        name = _osp.basename((a.get("name") or "anhang").strip())[:120] or "anhang"
+        data = a.get("data") or ""
+        try:
+            raw_len = len(_b64.b64decode(data, validate=True))
+        except Exception:
+            raise HTTPException(status_code=400, detail=f"Anhang {name}: ungültige Daten")
+        total += raw_len
+        if total > 3 * 1024 * 1024:
+            raise HTTPException(status_code=400, detail="Anhänge zu groß (max. 3 MB gesamt)")
+        attachments.append({"name": name, "type": (a.get("type") or "")[:100], "data": data})
+
     import notification as _notif
     _msg_copy = dict(msg)
     ok = await _aio.get_event_loop().run_in_executor(
-        None, lambda: _notif.send_portal_reply(_msg_copy, reply_text, reply_name)
+        None, lambda: _notif.send_portal_reply(_msg_copy, reply_text, reply_name, attachments)
     )
     if ok:
         import portal_store as _ps
         _ps.mark_replied(token)
+        # Antwort-Historie: clientseitig verschlüsselt (URL-Fragment-Key),
+        # der Server speichert nur den Ciphertext
+        cipher = (body.get("cipher") or "").strip()
+        if cipher and len(cipher) <= 300_000:
+            _ps.add_reply(token, cipher)
     return JSONResponse({"ok": ok})
 
 

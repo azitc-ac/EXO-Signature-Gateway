@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.117 — 2026-07-11 — feat: Portal-Antworten mit Anhängen + Antwort-Historie
+
+Feedback des ersten Portal-Nutzers umgesetzt:
+- Anhänge in der Antwort (max. 5 Dateien, 3 MB gesamt — Graph-sendMail-Limit);
+  Zustellung als echte fileAttachments an den ursprünglichen Absender
+- Antwort-Historie im Portal: "Ihre bisherigen Antworten" mit Zeitstempel,
+  Text und Anhangsnamen. Zero-knowledge: die Historie wird CLIENTSEITIG mit
+  dem URL-Fragment-Schlüssel verschlüsselt (AES-GCM) und der Server speichert
+  nur den Ciphertext (Tabelle portal_replies) — konsistent zum Nachrichten-Blob
+- Widerruf/Cleanup löschen die Historie mit
+
+---
+
 ## v1.5.116 — 2026-07-11 — fix: Portal-Antworten-Knopf tat nichts
 
 Die Reply-Box ist per CSS-Klasse versteckt (display:none); showReply() setzte

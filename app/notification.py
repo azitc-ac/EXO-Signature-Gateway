@@ -66,13 +66,15 @@ def _get_sender() -> str | None:
 
 
 def _graph_send(to: str, subject: str, html: str, reply_to: str = "",
-                sender: str = "") -> bool:
+                sender: str = "", attachments: list[dict] | None = None) -> bool:
     """
     Send a notification email via Graph API sendMail.
 
     Sender = explicit `sender` param, else NOTIFICATION_MAILBOX (or
     SMTP_SUBMIT_USER as fallback) — always a licensed user mailbox.
     Recipient can be any address including DGs/M365 groups.
+    attachments: [{"name", "type", "data"}] mit data = base64 (Graph-Limit:
+    ~4 MB Gesamt-Request — Aufrufer muss die Größe begrenzen).
     """
     sender = sender or _get_sender() or to
     token = graph_client._acquire_token()
@@ -90,6 +92,14 @@ def _graph_send(to: str, subject: str, html: str, reply_to: str = "",
     }
     if reply_to:
         payload["message"]["replyTo"] = [{"emailAddress": {"address": reply_to}}]
+    if attachments:
+        payload["message"]["attachments"] = [
+            {"@odata.type": "#microsoft.graph.fileAttachment",
+             "name": a["name"],
+             "contentType": a.get("type") or "application/octet-stream",
+             "contentBytes": a["data"]}
+            for a in attachments
+        ]
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
     url = f"{GRAPH}/users/{sender}/sendMail"
@@ -516,8 +526,9 @@ def send_portal_read_receipt(msg: dict) -> bool:
                        sender=sender_email)
 
 
-def send_portal_reply(msg: dict, reply_text: str, reply_name: str = "") -> bool:
-    """Forward a portal reply to the original sender."""
+def send_portal_reply(msg: dict, reply_text: str, reply_name: str = "",
+                      attachments: list[dict] | None = None) -> bool:
+    """Forward a portal reply (optional mit Anhängen) to the original sender."""
     sender_email    = msg["sender_email"]
     recipient_email = msg["recipient_email"]
     subject         = msg["subject"]
@@ -526,12 +537,17 @@ def send_portal_reply(msg: dict, reply_text: str, reply_name: str = "") -> bool:
     # reply_name/reply_text kommen vom anonymen Portal-Nutzer — zwingend escapen
     attribution_esc = _h.escape(attribution)
     escaped = _h.escape(reply_text).replace("\n", "<br>")
+    att_note = ""
+    if attachments:
+        names = ", ".join(_h.escape(a["name"]) for a in attachments)
+        att_note = f'{_row("Anhänge", f"📎 {names}")}'
     body = (
         f'<p>Sie haben eine Antwort auf Ihre sichere Nachricht erhalten.</p>'
         f'<table>'
         f'{_row("Von", attribution_esc)}'
         f'{_row("E-Mail", _h.escape(recipient_email))}'
         f'{_row("Betreff", _h.escape(subject))}'
+        f'{att_note}'
         f'</table>'
         f'<hr style="border:none;border-top:1px solid #eee;margin:16px 0">'
         f'<div style="background:#f8fafc;border-left:4px solid #2563eb;padding:12px 16px;border-radius:4px">'
@@ -545,6 +561,7 @@ def send_portal_reply(msg: dict, reply_text: str, reply_name: str = "") -> bool:
         html,
         reply_to=recipient_email,
         sender=sender_email,
+        attachments=attachments,
     )
 
 

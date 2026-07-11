@@ -56,6 +56,13 @@ body { background: var(--bg); color: var(--text); font-family: -apple-system, Se
 .reply-box textarea { width: 100%; min-height: 120px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; resize: vertical; background: var(--surface); color: var(--text); margin-bottom: 10px; }
 .reply-box input { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; background: var(--surface); color: var(--text); margin-bottom: 10px; }
 .reply-status { margin-top: 8px; font-size: 13px; }
+.reply-files-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.reply-file-list { font-size: 12px; color: var(--muted); }
+.reply-item { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; margin-bottom: 10px; }
+.reply-item .ri-head { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.reply-item .ri-text { font-size: 14px; white-space: pre-wrap; }
+.reply-item .ri-att { font-size: 12px; color: var(--muted); margin-top: 6px; }
+.replies-h { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin: 18px 0 10px; }
 .status-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
 .badge-enc { background: var(--badge-bg); color: var(--badge-color); }
 .badge-exp { background: var(--warn-bg); color: var(--warn-color); }
@@ -129,11 +136,21 @@ body { background: var(--bg); color: var(--text); font-family: -apple-system, Se
       <h3>Antwort verfassen</h3>
       <textarea id="reply-text" placeholder="Ihre Antwort…"></textarea>
       <input type="text" id="reply-name" placeholder="Ihr Name (optional)">
+      <div class="reply-files-row">
+        <input type="file" id="reply-files" multiple style="display:none" onchange="updateFileList()">
+        <button class="btn btn-sec" type="button"
+          onclick="document.getElementById('reply-files').click()">📎 Anhang hinzufügen</button>
+        <span class="reply-file-list" id="reply-file-list"></span>
+      </div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-reply" onclick="sendReply()">Senden</button>
         <button class="btn btn-sec" onclick="hideReply()">Abbrechen</button>
       </div>
       <div class="reply-status" id="reply-status"></div>
+    </div>
+    <div id="replies-section" style="display:none">
+      <div class="replies-h">Ihre bisherigen Antworten</div>
+      <div id="replies-list"></div>
     </div>
     <div class="expiry-bar" id="expiry-bar"></div>
     <div class="footer">
@@ -159,6 +176,11 @@ function b64Decode(s) {
   for(var i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
   return bytes.buffer;
 }
+function b64Encode(buf) {
+  var u = new Uint8Array(buf), bin = '';
+  for(var i=0;i<u.length;i++) bin += String.fromCharCode(u[i]);
+  return btoa(bin);
+}
 function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function showErr(msg){ document.getElementById('loading').style.display='none'; var e=document.getElementById('err'); e.innerHTML='<p>⚠️ '+esc(msg)+'</p>'; e.style.display=''; }
 
@@ -169,6 +191,51 @@ if(!token || !fragment){ showErr('Ungültiger Link — Entschlüsselungsschlüss
 
 // OTP-Freischaltung dieses Browsers (nach erfolgreichem Code 24h serverseitig gültig)
 var accessKey = 'portal-access-' + token;
+var cryptoKey = null;  // AES-GCM-Key aus dem URL-Fragment (für Nachricht + Antwort-Historie)
+
+async function encryptForHistory(obj){
+  var nonce = crypto.getRandomValues(new Uint8Array(12));
+  var ct = await crypto.subtle.encrypt({name:'AES-GCM', iv:nonce}, cryptoKey,
+                                       new TextEncoder().encode(JSON.stringify(obj)));
+  var combined = new Uint8Array(12 + ct.byteLength);
+  combined.set(nonce); combined.set(new Uint8Array(ct), 12);
+  return b64Encode(combined.buffer);
+}
+
+async function decryptHistory(cipherB64){
+  var combined = new Uint8Array(b64Decode(cipherB64));
+  var plain = await crypto.subtle.decrypt({name:'AES-GCM', iv:combined.slice(0,12)},
+                                          cryptoKey, combined.slice(12));
+  return JSON.parse(new TextDecoder().decode(plain));
+}
+
+function replyItemHtml(entry, createdAt){
+  var dt = createdAt ? new Date(createdAt) : null;
+  var when = (dt && !isNaN(dt))
+    ? dt.toLocaleDateString('de-DE') + ' ' + dt.toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit'})
+    : '';
+  var head = 'Gesendet' + (when ? ' am ' + when : '') + (entry.name ? ' — ' + esc(entry.name) : '');
+  var att = (entry.att && entry.att.length)
+    ? '<div class="ri-att">📎 ' + entry.att.map(esc).join(', ') + '</div>' : '';
+  return '<div class="reply-item"><div class="ri-head">✓ ' + head + '</div>'
+       + '<div class="ri-text">' + esc(entry.text) + '</div>' + att + '</div>';
+}
+
+async function renderReplies(replies){
+  if(!replies || !replies.length) return;
+  var list = document.getElementById('replies-list');
+  var html = '';
+  for(var i=0;i<replies.length;i++){
+    try {
+      var entry = await decryptHistory(replies[i].cipher);
+      html += replyItemHtml(entry, replies[i].created_at);
+    } catch(e){ /* einzelne defekte Einträge überspringen */ }
+  }
+  if(html){
+    list.innerHTML = html;
+    document.getElementById('replies-section').style.display='block';
+  }
+}
 function accessHeaders(){
   var a = sessionStorage.getItem(accessKey);
   return a ? {'X-Portal-Access': a} : {};
@@ -238,9 +305,10 @@ async function loadMessage(){
     var meta = await resp.json();
 
     var keyBuf = b64uDecode(fragment);
-    var cryptoKey;
     try {
-      cryptoKey = await crypto.subtle.importKey('raw', keyBuf, {name:'AES-GCM'}, false, ['decrypt']);
+      // encrypt zusätzlich zu decrypt: die Antwort-Historie wird clientseitig
+      // mit demselben Schlüssel verschlüsselt gespeichert (Server sieht nur Ciphertext)
+      cryptoKey = await crypto.subtle.importKey('raw', keyBuf, {name:'AES-GCM'}, false, ['encrypt','decrypt']);
     } catch(e){ showErr('Ungültiger Entschlüsselungsschlüssel.'); return; }
 
     var combined = new Uint8Array(b64Decode(meta.blob));
@@ -307,6 +375,7 @@ async function loadMessage(){
     }
 
     msgEl.style.display='';
+    renderReplies(meta.replies);
 
     fetch('/api/portal/read/'+encodeURIComponent(token),
           {method:'POST', headers: accessHeaders()}).catch(function(){});
@@ -324,26 +393,69 @@ window.showReply = function(){
   document.getElementById('reply-text').focus();
 };
 window.hideReply = function(){ document.getElementById('reply-box').style.display='none'; };
+window.updateFileList = function(){
+  var files = document.getElementById('reply-files').files;
+  var names = [];
+  var total = 0;
+  for(var i=0;i<files.length;i++){ names.push(files[i].name); total += files[i].size; }
+  var el = document.getElementById('reply-file-list');
+  el.textContent = names.length ? names.join(', ') + ' (' + Math.round(total/1024) + ' KB)' : '';
+  if(total > 3*1024*1024){
+    el.textContent += ' — zu groß, max. 3 MB gesamt';
+    el.style.color = '#dc2626';
+  } else {
+    el.style.color = '';
+  }
+};
+
 window.sendReply = async function(){
   var text = document.getElementById('reply-text').value.trim();
   var name = document.getElementById('reply-name').value.trim();
   var status = document.getElementById('reply-status');
   if(!text){ status.innerHTML='<span style="color:#dc2626">Bitte einen Antworttext eingeben.</span>'; return; }
+
+  // Anhänge einlesen (max. 3 MB gesamt — Graph-sendMail-Limit)
+  var fileInput = document.getElementById('reply-files');
+  var files = fileInput.files;
+  var attachments = [];
+  var total = 0;
+  for(var i=0;i<files.length && i<5;i++){ total += files[i].size; }
+  if(total > 3*1024*1024){
+    status.innerHTML='<span style="color:#dc2626">Anhänge zu groß (max. 3 MB gesamt).</span>'; return;
+  }
   status.innerHTML='<span style="color:var(--muted)">Wird gesendet…</span>';
   try {
+    for(var i=0;i<files.length && i<5;i++){
+      var buf = await files[i].arrayBuffer();
+      attachments.push({name: files[i].name, type: files[i].type || 'application/octet-stream',
+                        data: b64Encode(buf)});
+    }
+    // Historie: verschlüsselt mit dem URL-Fragment-Key — der Server kann sie nicht lesen
+    var histEntry = {text: text, name: name,
+                     att: attachments.map(function(a){ return a.name; })};
+    var cipher = '';
+    try { cipher = await encryptForHistory(histEntry); } catch(e){}
+
     var hdrs = accessHeaders();
     hdrs['Content-Type'] = 'application/json';
     var resp = await fetch('/api/portal/reply/'+encodeURIComponent(token), {
       method:'POST',
       headers: hdrs,
-      body: JSON.stringify({text:text,name:name}),
+      body: JSON.stringify({text:text, name:name, attachments:attachments, cipher:cipher}),
     });
     if(resp.ok){
       status.innerHTML='<span style="color:#16a34a">✓ Antwort gesendet.</span>';
       document.getElementById('reply-text').value='';
       document.getElementById('reply-name').value='';
+      fileInput.value='';
+      updateFileList();
+      // Sofort in der Historie anzeigen
+      var list = document.getElementById('replies-list');
+      list.innerHTML += replyItemHtml(histEntry, new Date().toISOString());
+      document.getElementById('replies-section').style.display='block';
     } else {
-      status.innerHTML='<span style="color:#dc2626">Fehler beim Senden.</span>';
+      var d = await resp.json().catch(function(){ return {}; });
+      status.innerHTML='<span style="color:#dc2626">'+esc(d.detail || 'Fehler beim Senden.')+'</span>';
     }
   } catch(e){
     status.innerHTML='<span style="color:#dc2626">Netzwerkfehler.</span>';

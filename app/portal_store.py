@@ -36,6 +36,16 @@ CREATE TABLE IF NOT EXISTS portal_messages (
 """
 
 
+_REPLIES_SCHEMA = """
+CREATE TABLE IF NOT EXISTS portal_replies (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    token      TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    cipher     TEXT NOT NULL
+)
+"""
+
+
 @contextmanager
 def _conn():
     con = sqlite3.connect(str(_DB_PATH), check_same_thread=False)
@@ -51,6 +61,7 @@ def _init():
     _BLOB_DIR.mkdir(parents=True, exist_ok=True)
     with _conn() as con:
         con.execute(_SCHEMA)
+        con.execute(_REPLIES_SCHEMA)
         # OTP-Spalten (v1.5.113) — ADD COLUMN ist idempotent via Exception
         for col, decl in (("otp_hash", "TEXT"), ("otp_expires", "TEXT"),
                           ("otp_attempts", "INTEGER DEFAULT 0"), ("otp_sent_at", "TEXT"),
@@ -184,6 +195,28 @@ def mark_read(token: str) -> bool:
     return first
 
 
+def add_reply(token: str, cipher: str) -> None:
+    """Antwort-Historie speichern. cipher = base64(nonce+ct), clientseitig mit
+    dem URL-Fragment-Schlüssel verschlüsselt — der Server kann sie nicht lesen."""
+    _init()
+    now = datetime.now(timezone.utc).isoformat()
+    with _conn() as con:
+        con.execute(
+            "INSERT INTO portal_replies (token, created_at, cipher) VALUES (?,?,?)",
+            (token, now, cipher),
+        )
+
+
+def get_replies(token: str) -> list[dict]:
+    _init()
+    with _conn() as con:
+        rows = con.execute(
+            "SELECT created_at, cipher FROM portal_replies WHERE token=? ORDER BY id",
+            (token,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def mark_replied(token: str) -> None:
     _init()
     now = datetime.now(timezone.utc).isoformat()
@@ -307,6 +340,7 @@ def delete_message(token: str) -> bool:
             "UPDATE portal_messages SET deleted=1 WHERE token=? AND deleted=0", (token,)
         )
         found = cur.rowcount > 0
+        con.execute("DELETE FROM portal_replies WHERE token=?", (token,))
     (_BLOB_DIR / f"{token}.enc").unlink(missing_ok=True)
     if found:
         log.info("Portal message revoked: token=%s", token)
@@ -325,6 +359,7 @@ def cleanup_expired() -> int:
         if tokens:
             ph = ",".join("?" * len(tokens))
             con.execute(f"UPDATE portal_messages SET deleted=1 WHERE token IN ({ph})", tokens)
+            con.execute(f"DELETE FROM portal_replies WHERE token IN ({ph})", tokens)
     if tokens:
         log.info("Portal cleanup: %d expired messages removed", len(tokens))
     return len(tokens)
