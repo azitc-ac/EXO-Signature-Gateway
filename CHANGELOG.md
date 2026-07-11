@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.6.1 — 2026-07-12 — feat: Rechnungsantrag mit Abrechnungsdaten + Webseite
+
+Der "Rechnungsstellung beantragen"-Bereich (Einstellungen → Anbindung) ist
+jetzt ein Formular: Firma/Rechtsform*, Rechnungsadresse*, USt-IdNr,
+Ansprechpartner*, Webseite (* Pflicht). Die Daten werden mit dem Antrag an
+den Hub übermittelt und dort automatisch eingetragen — der Admin sieht den
+Antrag im Hub-Dashboard und genehmigt per Klick (danach wechselt der
+Abrechnungsmodus automatisch auf Rechnung). Webseite-Feld auch im
+Abrechnungsdaten-Block (nach Genehmigung editierbar).
+Gegenstück: Hub v0.16.0.
+
+---
+
 ## v1.6.0 — 2026-07-11 — Release: Portal, Hub-CA-Katalog, Lizenzen, Downgrade
 
 Meilenstein-Release seit v1.5.0. Sammelt die Arbeit dieser Iteration:

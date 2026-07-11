@@ -4578,9 +4578,18 @@ async def api_hub_claim(user: str = Depends(_require_admin)):
 
 
 @app.post("/api/hub/cert/request-invoice")
-async def api_hub_cert_request_invoice(user: str = Depends(_require_admin)):
+async def api_hub_cert_request_invoice(request: Request, user: str = Depends(_require_admin)):
     import hub_client
-    return JSONResponse(await hub_client.cert_request_invoice())
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    billing = {k: (data.get(k) or "").strip() for k in
+               ("billing_company", "billing_address", "billing_vat",
+                "billing_contact", "billing_website")}
+    if not billing["billing_company"] or not billing["billing_address"] or not billing["billing_contact"]:
+        raise HTTPException(400, "Firma, Rechnungsadresse und Ansprechpartner sind erforderlich.")
+    return JSONResponse(await hub_client.cert_request_invoice(billing))
 
 
 @app.post("/api/hub/cert/billing")
@@ -4589,7 +4598,8 @@ async def api_hub_cert_billing(request: Request, user: str = Depends(_require_ad
     data = await request.json()
     return JSONResponse(await hub_client.cert_submit_billing(
         (data.get("billing_company") or "").strip(), (data.get("billing_address") or "").strip(),
-        (data.get("billing_vat") or "").strip(), (data.get("billing_contact") or "").strip()))
+        (data.get("billing_vat") or "").strip(), (data.get("billing_contact") or "").strip(),
+        (data.get("billing_website") or "").strip()))
 
 
 @app.post("/api/hub/cert/domain/request")

@@ -134,7 +134,8 @@
       <strong>Rechnungsstellung (statt Prepaid)</strong>
       <p class="hint" style="margin:2px 0 8px">
         Auf Wunsch stellen wir statt Prepaid-Guthaben auf Rechnung um — dafür braucht es eine
-        kurze Prüfung/Freigabe durch EXO Signature HUB.
+        kurze Prüfung/Freigabe durch EXO Signature HUB. Die Abrechnungsdaten werden mit dem
+        Antrag übermittelt.
       </p>
       <div id="cert-invoice-request-body"></div>
     </div>
@@ -146,7 +147,8 @@
         <input type="text" id="cert-bill-company" placeholder="Firma / Rechtsform" style="font-size:13px">
         <input type="text" id="cert-bill-address" placeholder="Rechnungsadresse" style="font-size:13px">
         <input type="text" id="cert-bill-vat" placeholder="USt-IdNr (optional)" style="font-size:13px" autocapitalize="off" autocorrect="off" spellcheck="false">
-        <input type="text" id="cert-bill-contact" placeholder="Ansprechpartner (optional)" style="font-size:13px">
+        <input type="text" id="cert-bill-contact" placeholder="Ansprechpartner" style="font-size:13px">
+        <input type="text" id="cert-bill-website" placeholder="Webseite (optional)" style="font-size:13px" autocapitalize="off" autocorrect="off" spellcheck="false">
       </div>
       <div style="margin-top:8px"><button class="btn secondary" onclick="certSaveBilling()">Speichern</button></div>
     </div>
@@ -407,20 +409,41 @@ function _renderBillingSection(d) {
     if(d.invoice_requested_at){
       body.innerHTML='<span class="muted">Antrag gestellt am '+d.invoice_requested_at.slice(0,10)+' — wartet auf Freigabe durch EXO Signature HUB.</span>';
     } else {
-      body.innerHTML='<button class="btn secondary" onclick="certRequestInvoice()">Rechnungsstellung beantragen</button>';
+      body.innerHTML=
+        '<div style="display:flex;flex-direction:column;gap:6px;max-width:420px">'
+        +'<input type="text" id="inv-req-company" placeholder="Firma / Rechtsform *" style="font-size:13px" value="'+_escAttr(d.billing_company)+'">'
+        +'<input type="text" id="inv-req-address" placeholder="Rechnungsadresse *" style="font-size:13px" value="'+_escAttr(d.billing_address)+'">'
+        +'<input type="text" id="inv-req-vat" placeholder="USt-IdNr (optional)" autocapitalize="off" autocorrect="off" spellcheck="false" style="font-size:13px" value="'+_escAttr(d.billing_vat)+'">'
+        +'<input type="text" id="inv-req-contact" placeholder="Ansprechpartner *" style="font-size:13px" value="'+_escAttr(d.billing_contact)+'">'
+        +'<input type="text" id="inv-req-website" placeholder="Webseite (optional)" autocapitalize="off" autocorrect="off" spellcheck="false" style="font-size:13px" value="'+_escAttr(d.billing_website)+'">'
+        +'</div>'
+        +'<div style="margin-top:8px"><button class="btn secondary" onclick="certRequestInvoice()">Rechnungsstellung beantragen</button></div>';
     }
   }
 }
+function _escAttr(s){ return (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
 async function certRequestInvoice() {
-  const d=await (await fetch('/api/hub/cert/request-invoice',{method:'POST'})).json();
+  const body={
+    billing_company:(document.getElementById('inv-req-company').value||'').trim(),
+    billing_address:(document.getElementById('inv-req-address').value||'').trim(),
+    billing_vat:(document.getElementById('inv-req-vat').value||'').trim(),
+    billing_contact:(document.getElementById('inv-req-contact').value||'').trim(),
+    billing_website:(document.getElementById('inv-req-website').value||'').trim(),
+  };
+  if(!body.billing_company||!body.billing_address||!body.billing_contact){
+    _certMsg('Firma, Rechnungsadresse und Ansprechpartner sind erforderlich.',false); return;
+  }
+  const d=await (await fetch('/api/hub/cert/request-invoice',{method:'POST',
+    headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
   if(d.ok){ _certMsg('Antrag gestellt — EXO Signature HUB wurde benachrichtigt.',true); certLoadEligibility(); }
-  else { _certMsg('Fehler: '+(d.error||'Unbekannt'),false); }
+  else { _certMsg('Fehler: '+(d.detail||d.error||'Unbekannt'),false); }
 }
 let _billingFilled=false;
 function _fillBillingFields(d) {
   if(_billingFilled) return;   // don't clobber in-progress edits on a later "Aktualisieren"
   const map={'cert-bill-company':'billing_company','cert-bill-address':'billing_address',
-             'cert-bill-vat':'billing_vat','cert-bill-contact':'billing_contact'};
+             'cert-bill-vat':'billing_vat','cert-bill-contact':'billing_contact',
+             'cert-bill-website':'billing_website'};
   let any=false;
   for(const [id,key] of Object.entries(map)){
     const el=document.getElementById(id);
@@ -434,6 +457,7 @@ async function certSaveBilling() {
     billing_address:document.getElementById('cert-bill-address').value.trim(),
     billing_vat:document.getElementById('cert-bill-vat').value.trim(),
     billing_contact:document.getElementById('cert-bill-contact').value.trim(),
+    billing_website:document.getElementById('cert-bill-website').value.trim(),
   };
   if(!body.billing_company||!body.billing_address){ _certMsg('Firma und Rechnungsadresse sind erforderlich.',false); return; }
   const d=await (await fetch('/api/hub/cert/billing',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
