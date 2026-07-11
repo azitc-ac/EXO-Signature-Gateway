@@ -66,11 +66,37 @@ def _cleanup(retention_days: int) -> None:
                 pass
 
 
-def search(query: str, max_lines: int = 500) -> list[str]:
-    """Return log lines matching query (case-insensitive) across all log files, newest first."""
-    if not query or not LOG_DIR.exists():
+_TS_RE = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}")
+
+
+def _norm_ts(v: str) -> str:
+    """'2026-07-11T14:30' (datetime-local) → '2026-07-11 14:30' — lexikalisch
+    vergleichbar mit dem Zeilen-Prefix des Log-Formats (%Y-%m-%d %H:%M:%S)."""
+    return (v or "").strip().replace("T", " ")[:16]
+
+
+def search(query: str, max_lines: int = 500,
+           time_from: str = "", time_to: str = "") -> list[str]:
+    """Log-Zeilen suchen (case-insensitive), optional auf einen Zeitraum
+    eingegrenzt. Bei gesetztem Zeitraum darf query leer sein (alles im
+    Zeitfenster). Zeilen ohne Zeitstempel (z.B. Traceback-Folgezeilen)
+    passieren den Zeitfilter."""
+    time_from, time_to = _norm_ts(time_from), _norm_ts(time_to)
+    if not query and not (time_from or time_to):
         return []
-    pattern = re.compile(re.escape(query), re.IGNORECASE)
+    if not LOG_DIR.exists():
+        return []
+    pattern = re.compile(re.escape(query), re.IGNORECASE) if query else None
+
+    _has_time_filter = bool(time_from or time_to)
+
+    def _ts_in_range(ts: str) -> bool:
+        if time_from and ts < time_from:
+            return False
+        if time_to and ts > time_to:
+            return False
+        return True
+
     results: list[str] = []
 
     # Collect all matching files: rotated (newest first) + current
@@ -84,8 +110,16 @@ def search(query: str, max_lines: int = 500) -> list[str]:
 
     for f in files:
         try:
+            matches: list[str] = []
             with f.open(encoding="utf-8", errors="replace") as fh:
-                matches = [ln.rstrip("\n") for ln in fh if pattern.search(ln)]
+                # Zeilen ohne Zeitstempel (Tracebacks, Uvicorn-Banner) erben
+                # die Zeitraum-Entscheidung der letzten gestempelten Zeile
+                in_range = not _has_time_filter
+                for ln in fh:
+                    if _has_time_filter and _TS_RE.match(ln):
+                        in_range = _ts_in_range(ln[:16])
+                    if in_range and (pattern is None or pattern.search(ln)):
+                        matches.append(ln.rstrip("\n"))
             # From each file, take matches in reverse (newest lines first)
             results.extend(reversed(matches))
             if len(results) >= max_lines:

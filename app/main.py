@@ -358,6 +358,12 @@ def main() -> None:
         retention_days=int(settings_store.get("LOG_RETENTION_DAYS") or 30),
         tz_name=settings_store.get("LOG_TIMEZONE") or "UTC",
     )
+    import mail_trace
+    mail_trace.install()
+    # aiosmtpd loggt jede Verbindung mehrzeilig auf INFO — Internet-Scanner
+    # (AUTH-Brute-Force auf :25) fluten damit das Log. Die relevanten Ereignisse
+    # loggt unsere Pipeline selbst; Verbindungs-Low-Level nur noch ab WARNING.
+    logging.getLogger("mail.log").setLevel(logging.WARNING)
 
     import mail_audit
     mail_audit.init_db()

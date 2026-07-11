@@ -3585,11 +3585,13 @@ async def api_smime_recipient_download(cert_email: str, user: str = Depends(_che
 # ── Persistent log search ──────────────────────────────────────────────────────
 
 @app.get("/api/logs/search")
-async def api_logs_search(q: str = "", user: str = Depends(_check_auth)):
-    if not q:
-        raise HTTPException(400, "Suchbegriff fehlt")
+async def api_logs_search(q: str = "", time_from: str = "", time_to: str = "",
+                          user: str = Depends(_check_auth)):
+    if not q and not (time_from or time_to):
+        raise HTTPException(400, "Suchbegriff oder Zeitraum fehlt")
     import log_manager
-    results = log_manager.search(q, max_lines=500)
+    results = log_manager.search(q, max_lines=500,
+                                 time_from=time_from, time_to=time_to)
     return JSONResponse({"results": results, "count": len(results)})
 
 

@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.131 — 2026-07-11 — feat: Log-Zeitfilter + Mail-Trace-IDs + Scanner-Lärm gedämpft
+
+- Protokoll-Suche: Von/Bis-Zeitfilter (datetime-local); mit Zeitraum darf der
+  Suchbegriff leer sein. Zeilen ohne Zeitstempel (Tracebacks) erben die
+  Entscheidung der letzten gestempelten Zeile.
+- Mail-Trace-IDs: Jede SMTP-Transaktion bekommt "[mail:xxxxxxxx]" als Prefix
+  auf ALLEN Log-Zeilen (mail_trace.py: contextvar + logging.Filter auf den
+  Root-Handlern — kein einziger Log-Aufruf musste angefasst werden; analog zu
+  den ACME-Flow-IDs, asyncio-Task-isoliert für parallele Transaktionen).
+  Anker-Zeile mit from/to/subject/mid verknüpft Adress-Suche → Trace-ID;
+  Suche nach der ID liefert das komplette Bild einer Nachricht.
+- aiosmtpd "mail.log" auf WARNING: Internet-Scanner (AUTH-Brute-Force auf :25,
+  z.B. ylmf-pc-Botnet) fluteten das Log mit 8 Zeilen pro Verbindungsversuch.
+  Kein Sicherheitsproblem (kein Authenticator konfiguriert — AUTH kann nie
+  erfolgreich sein; Quell-IP-ACL blockt Verarbeitung), aber Lärm.
+
+---
+
 ## v1.5.130 — 2026-07-11 — feat: Netto-Preise mit MwSt.-Vermerk (Lizenz + Zertifikate)
 
 Alle angezeigten Preise sind netto: Backend-Labels der CA-Anbieter tragen

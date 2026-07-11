@@ -340,6 +340,11 @@ def _restore_envelope_headers(inner_msg: email.message.Message,
 
 class SignatureHandler:
     async def handle_DATA(self, server, session, envelope):
+        # Trace-ID: ab hier trägt jede Log-Zeile dieser Transaktion den
+        # "[mail:xxxxxxxx]"-Prefix (mail_trace.TraceFilter) — Suche nach der
+        # ID liefert das komplette Bild der Nachricht
+        import mail_trace
+        mail_trace.new_trace()
         # ── Source-IP allowlist (reject before any processing) ─────────────
         # Only Exchange Online's connector may reach :25; anything else could
         # abuse the gateway to inject/relay mail via the trusted connector.
@@ -388,6 +393,10 @@ class SignatureHandler:
             _subject = _decode_subject(msg.get("Subject", ""))
             _mid = (msg.get("Message-ID") or "").strip()
             ct = msg.get_content_type().lower()
+            # Anker-Zeile: verknüpft Absender/Empfänger/Message-ID mit der
+            # Trace-ID — Suche nach Adresse oder MID liefert die [mail:…]-ID
+            log.info("Eingang: from=%s to=%s subject=%r mid=%s",
+                     sender, recipients, _subject[:80], _mid)
 
             # ── Harvest-only mode (BCC to harvest address) ────────────────────
             harvest_rcpt = (settings_store.get("SMIME_HARVEST_RCPT") or "").lower().strip()

@@ -5,10 +5,18 @@
 <div class="settings-card" style="margin-bottom:20px">
   <h2 style="margin-top:0">Protokoll-Suche</h2>
   <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
-    <input type="text" id="searchInput" placeholder="Suchbegriff (z.B. E-Mail-Adresse, ERROR, [acme:…])"
+    <input type="text" id="searchInput" placeholder="Suchbegriff (z.B. E-Mail-Adresse, ERROR, [mail:…], [acme:…])"
       style="flex:1; min-width:180px" onkeydown="if(event.key==='Enter') doSearch()">
     <button class="btn primary" onclick="doSearch()">Suchen</button>
     <button class="btn secondary" onclick="clearSearch()">Leeren</button>
+  </div>
+  <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px">
+    <label style="font-size:12px;color:#888">Von</label>
+    <input type="datetime-local" id="searchFrom" style="font-size:13px">
+    <label style="font-size:12px;color:#888">Bis</label>
+    <input type="datetime-local" id="searchTo" style="font-size:13px">
+    <span class="hint" style="font-size:12px">Zeitraum optional — mit Zeitraum darf der Suchbegriff auch leer sein.
+      Tipp: Jede Mail trägt eine <code>[mail:…]</code>-Trace-ID; danach suchen zeigt alle Einträge dieser Nachricht.</span>
   </div>
   <details id="qs-details" style="margin-top:8px">
     <summary style="font-size:12px;color:#888;cursor:pointer;user-select:none">Schnellsuche</summary>
@@ -57,8 +65,10 @@ function quickSearch(term) {
 }
 
 async function doSearch() {
-  const q = (document.getElementById('searchInput').value || '').trim();
-  if (!q) return;
+  const q    = (document.getElementById('searchInput').value || '').trim();
+  const from = document.getElementById('searchFrom').value;
+  const to   = document.getElementById('searchTo').value;
+  if (!q && !from && !to) return;
   const stats   = document.getElementById('searchStats');
   const results = document.getElementById('searchResults');
   const pre     = document.getElementById('searchPre');
@@ -66,7 +76,8 @@ async function doSearch() {
   stats.style.display = 'block';
   results.style.display = 'none';
 
-  const resp = await fetch('/api/logs/search?q=' + encodeURIComponent(q));
+  const resp = await fetch('/api/logs/search?q=' + encodeURIComponent(q)
+    + '&time_from=' + encodeURIComponent(from) + '&time_to=' + encodeURIComponent(to));
   if (!resp.ok) { stats.textContent = 'Fehler bei der Suche.'; return; }
   const data  = await resp.json();
   const lines = data.results || [];
@@ -87,6 +98,8 @@ async function doSearch() {
 
 function clearSearch() {
   document.getElementById('searchInput').value = '';
+  document.getElementById('searchFrom').value = '';
+  document.getElementById('searchTo').value = '';
   document.getElementById('searchStats').style.display = 'none';
   document.getElementById('searchResults').style.display = 'none';
 }
