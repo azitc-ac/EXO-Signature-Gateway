@@ -368,6 +368,25 @@ async def cert_order(target_email: str, csr_pem: str, extra: dict | None = None,
         return {"ok": False, "error": f"Netzwerkfehler: {exc}"}
 
 
+async def get_license() -> dict:
+    """Für dieses Konto hinterlegte Fair-Use-Lizenz vom Hub abrufen."""
+    base = _base()
+    if not (base and _key()):
+        return {"ok": False, "error": "Nicht registriert (Anbindung fehlt)."}
+    try:
+        async with httpx.AsyncClient(timeout=20) as c:
+            r = await c.get(f"{base}/api/license", headers=_gateway_headers())
+        data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+        if r.status_code == 200 and data.get("ok"):
+            return {"ok": True, "license": data.get("license") or ""}
+        if r.status_code == 404:
+            return {"ok": False, "error": "Für dieses Konto ist beim Hub keine Lizenz hinterlegt."}
+        return {"ok": False, "error": data.get("detail") or data.get("message")
+                or f"HTTP {r.status_code}: {r.text[:200]}"}
+    except Exception as exc:
+        return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
+
+
 async def cert_get_catalog() -> dict:
     """Anbieter-Katalog des Hubs (Label, Beschreibung, Preis, Verfügbarkeit)."""
     base = _base()

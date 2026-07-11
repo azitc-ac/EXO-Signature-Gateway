@@ -2,6 +2,28 @@
 {% block content %}
 <h1>Postfächer</h1>
 
+<div id="fairuse-banner" style="display:none;margin-bottom:16px">
+  <div class="alert warn">
+    <strong>Fair-Use-Hinweis:</strong> <span id="fairuse-text"></span>
+    Lizenz über die <a href="/settings/connect" style="color:inherit;font-weight:700">Hub-Anbindung</a>
+    beziehen oder per Mail an <a href="mailto:support@zarenko.net" style="color:inherit;font-weight:700">support@zarenko.net</a>.
+  </div>
+</div>
+<script>
+function refreshFairUse(){
+  fetch('/api/license/status').then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
+    var b = document.getElementById('fairuse-banner');
+    if (!d || !d.exceeded) { b.style.display = 'none'; return; }
+    document.getElementById('fairuse-text').textContent =
+      d.count + ' Postfächer sind für Signatur/S/MIME aktiviert — ' +
+      (d.licensed ? 'das lizenzierte Limit (' + d.limit + ') ist überschritten. '
+                  : 'die Fair-Use-Grenze (' + d.limit + ') ist überschritten. ');
+    b.style.display = '';
+  }).catch(function(){});
+}
+refreshFairUse();
+</script>
+
 <div id="page-alert" class="alert" style="display:none"></div>
 
 <!-- Postfach-Konfiguration -->
@@ -917,6 +939,7 @@ async function saveMailboxes(updateDg) {
       var out = d.dg_output ? '<br><code style="font-size:11px">' + d.dg_output.replace(/\n/g,'<br>') + '</code>' : '';
       result.className = 'alert success';
       result.innerHTML = updateDg ? 'In EXO gespeichert.' + out : 'Lokal gespeichert.';
+      refreshFairUse();
     } else {
       result.className = 'alert error';
       result.innerHTML = 'Fehler: ' + (d.dg_output || d.detail || 'Unbekannt');

@@ -157,6 +157,35 @@
 
 </div>
 
+<!-- ── Fair-Use-Lizenz ────────────────────────────────────────────────────── -->
+<div class="settings-card" style="margin-bottom:18px">
+  <h2 style="margin-top:0">Lizenz
+    <span class="conn-badge conn-wait" id="lic-badge">…</span>
+  </h2>
+  <p class="hint" style="margin-bottom:12px">
+    Bis {{ 100 }} aktivierte Postfächer (Signatur und/oder S/MIME) ist der Betrieb frei (Fair Use).
+    Darüber hinaus braucht es eine Lizenz — über die Hub-Anbindung oder per Mail an
+    <a href="mailto:support@zarenko.net">support@zarenko.net</a>. Die Prüfung läuft komplett offline
+    (Ed25519-signiert, an deinen Microsoft-Tenant gebunden) — keine Online-Verifizierung, kein Zwang zur Anbindung.
+  </p>
+  <div id="lic-status" class="hint" style="margin-bottom:10px">Lade…</div>
+  <div id="lic-input-row" style="display:none">
+    <div class="settings-row" style="margin-bottom:8px"><label>Lizenzschlüssel</label>
+      <input type="text" id="lic-key" placeholder="EXOSIG1.…"
+        style="width:100%;max-width:520px;font-size:12px;font-family:monospace"
+        autocapitalize="off" autocorrect="off" spellcheck="false">
+    </div>
+    <div class="actions" style="margin-bottom:6px">
+      <button class="btn primary" onclick="licApply()">Lizenz einspielen</button>
+      <button class="btn secondary" onclick="licFetchHub()">Über Hub-Anbindung abrufen</button>
+    </div>
+  </div>
+  <div id="lic-remove-row" style="display:none" class="actions">
+    <button class="btn secondary" onclick="licRemove()">Lizenz entfernen</button>
+  </div>
+  <div id="lic-result" style="display:none;margin-top:8px"></div>
+</div>
+
 <!-- ── Nutzungsbedingungen-Dialog ─────────────────────────────────────────── -->
 <div id="terms-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:1000;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:8px;max-width:560px;width:92%;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)">
@@ -443,6 +472,59 @@ function _renderCertSteps(d) {
 }
 
 // ── Zertifikatsbezug: Berechtigung/Guthaben beim Laden prüfen ────────────────
-document.addEventListener('DOMContentLoaded', function(){ certLoadEligibility(); });
+document.addEventListener('DOMContentLoaded', function(){ certLoadEligibility(); licLoad(); });
+
+// ── Fair-Use-Lizenz ──────────────────────────────────────────────────────────
+function _licMsg(text, ok) {
+  const el = document.getElementById('lic-result');
+  el.className = 'alert ' + (ok ? 'success' : 'error');
+  el.textContent = text; el.style.display = 'block';
+}
+async function licLoad() {
+  try {
+    const d = await (await fetch('/api/license/status')).json();
+    const badge = document.getElementById('lic-badge');
+    const status = document.getElementById('lic-status');
+    if (d.licensed) {
+      badge.textContent = '✓ lizenziert'; badge.className = 'conn-badge conn-ok';
+      status.innerHTML = 'Lizenziert für <strong>' + (d.customer || '—') + '</strong> — ' +
+        (d.mailboxes > 0 ? d.mailboxes + ' Postfächer' : 'unbegrenzte Postfächer') +
+        (d.expires ? ' (gültig bis ' + d.expires + ')' : '') +
+        ' · aktuell aktiviert: ' + d.count +
+        (d.exceeded ? ' <span style="color:#d97706;font-weight:600">— Limit überschritten!</span>' : '');
+      document.getElementById('lic-input-row').style.display = 'none';
+      document.getElementById('lic-remove-row').style.display = '';
+    } else {
+      badge.textContent = 'Fair Use'; badge.className = 'conn-badge conn-wait';
+      status.innerHTML = 'Keine Lizenz eingespielt — aktuell <strong>' + d.count +
+        '</strong> von ' + d.limit + ' Fair-Use-Postfächern aktiviert.' +
+        (d.exceeded ? ' <span style="color:#d97706;font-weight:600">Limit überschritten — bitte Lizenz besorgen.</span>' : '') +
+        (d.reason ? '<br><span style="color:#dc2626">Hinterlegter Schlüssel ungültig: ' + d.reason + '</span>' : '');
+      document.getElementById('lic-input-row').style.display = '';
+      document.getElementById('lic-remove-row').style.display = d.reason ? '' : 'none';
+    }
+  } catch(e) { document.getElementById('lic-status').textContent = 'Status nicht abrufbar.'; }
+}
+async function licApply() {
+  const key = document.getElementById('lic-key').value.trim();
+  if (!key) { _licMsg('Bitte Lizenzschlüssel eingeben.', false); return; }
+  const r = await fetch('/api/license', {method:'POST',
+    headers:{'Content-Type':'application/json'}, body: JSON.stringify({key})});
+  const d = await r.json().catch(() => ({}));
+  if (r.ok) { _licMsg('✓ Lizenz eingespielt.', true); document.getElementById('lic-key').value=''; licLoad(); }
+  else _licMsg(d.detail || 'Fehler beim Einspielen.', false);
+}
+async function licFetchHub() {
+  _licMsg('Rufe Lizenz vom Hub ab…', true);
+  const r = await fetch('/api/license/fetch-hub', {method:'POST'});
+  const d = await r.json().catch(() => ({}));
+  if (r.ok) { _licMsg('✓ Lizenz vom Hub abgerufen und eingespielt.', true); licLoad(); }
+  else _licMsg(d.detail || 'Abruf fehlgeschlagen.', false);
+}
+async function licRemove() {
+  if (!confirm('Lizenz entfernen? Der Fair-Use-Hinweis erscheint dann ggf. wieder.')) return;
+  await fetch('/api/license', {method:'DELETE'});
+  licLoad();
+}
 </script>
 {% endblock %}

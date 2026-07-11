@@ -1900,6 +1900,60 @@ async def api_preview_data(
                          "banner_html": banner_html, "banner_template": banner})
 
 
+# ── Fair-Use-Lizenz ──────────────────────────────────────────────────────────
+
+@app.get("/api/license/status")
+async def api_license_status(_=Depends(_check_auth)):
+    import license as _lic
+    return JSONResponse(_lic.fair_use_state())
+
+
+@app.post("/api/license")
+async def api_license_set(body: dict, user: str = Depends(_require_admin)):
+    """Lizenzschlüssel einspielen — Offline-Prüfung (Signatur + Tenant)."""
+    import license as _lic
+    key = (body.get("key") or "").strip()
+    if not key:
+        raise HTTPException(400, "Lizenzschlüssel fehlt")
+    payload, err = _lic.verify(key)
+    if err:
+        raise HTTPException(400, err)
+    terr = _lic.tenant_error(payload)
+    if terr:
+        raise HTTPException(400, terr)
+    settings_store.update({"LICENSE_KEY": key})
+    log.info("Lizenz eingespielt von %s: lic_id=%s customer=%s mailboxes=%s",
+             user, payload.get("lic_id"), payload.get("customer"), payload.get("mailboxes"))
+    return JSONResponse(_lic.fair_use_state())
+
+
+@app.post("/api/license/fetch-hub")
+async def api_license_fetch_hub(user: str = Depends(_require_admin)):
+    """Lizenz automatisch über die Hub-Anbindung abrufen und einspielen."""
+    import hub_client
+    import license as _lic
+    res = await hub_client.get_license()
+    if not res.get("ok"):
+        raise HTTPException(400, res.get("error") or "Abruf fehlgeschlagen")
+    key = res.get("license") or ""
+    payload, err = _lic.verify(key)
+    if err:
+        raise HTTPException(400, f"Hub lieferte ungültige Lizenz: {err}")
+    terr = _lic.tenant_error(payload)
+    if terr:
+        raise HTTPException(400, terr)
+    settings_store.update({"LICENSE_KEY": key})
+    log.info("Lizenz via Hub abgerufen von %s: lic_id=%s", user, payload.get("lic_id"))
+    return JSONResponse(_lic.fair_use_state())
+
+
+@app.delete("/api/license")
+async def api_license_delete(user: str = Depends(_require_admin)):
+    settings_store.update({"LICENSE_KEY": ""})
+    log.info("Lizenz entfernt von %s", user)
+    return JSONResponse({"ok": True})
+
+
 # ── Secure Message Portal ────────────────────────────────────────────────────
 
 @app.get("/portal/logo")

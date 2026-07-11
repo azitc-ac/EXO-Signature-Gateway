@@ -5,6 +5,27 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.127 — 2026-07-11 — feat: Fair-Use-Hinweis + Offline-Lizenz (Ed25519, Tenant-gebunden)
+
+Ab 100 aktivierten Postfächern (Signatur und/oder S/MIME; leere
+MAILBOX_CONFIG = alle → EXO-Zahl) erscheint ein nicht-blockierender
+Fair-Use-Hinweis auf Dashboard + Postfächer-Seite (Lizenz über Hub-Anbindung
+oder support@zarenko.net).
+- license.py: Verifizierung KOMPLETT OFFLINE — Ed25519-Signatur (öffentlicher
+  Schlüssel eingebettet, privater nur im Hub) + Bindung an die eigene
+  Microsoft-TENANT_ID (kopierter Key ist für fremde Tenants wertlos; mehrere
+  Gateways im selben Tenant legitim). Optionales Ablaufdatum. Postfachlimit
+  steckt in der signierten Payload (0 = unbegrenzt) → gestaffelte Lizenzen
+  später ohne Gateway-Änderung.
+- Key-Format: EXOSIG1.<b64url(payload)>.<b64url(sig)>
+- UI: Karte "Lizenz" unter Einstellungen → Anbindung (Status, Einspielen per
+  Copy-Paste, Abruf über Hub-Anbindung, Entfernen)
+- API: GET /api/license/status, POST /api/license, POST /api/license/fetch-hub,
+  DELETE /api/license; hub_client.get_license()
+- Gegenstück im Hub: Lizenz-Erstellung/-Versand (Admin-UI), GET /api/license
+
+---
+
 ## v1.5.126 — 2026-07-11 — chore: deployment-spezifische Banner-Templates aus Repo entfernt
 
 app/templates/Blog-Banner* waren versehentlich mit committet (Überbleibsel;

@@ -2,6 +2,26 @@
 {% block content %}
 <h1>Übersicht</h1>
 
+<div id="fairuse-banner" style="display:none;margin-bottom:20px">
+  <div class="alert warn">
+    <strong>Fair-Use-Hinweis:</strong> <span id="fairuse-text"></span>
+    Lizenz über die <a href="/settings/connect" style="color:inherit;font-weight:700">Hub-Anbindung</a>
+    beziehen oder per Mail an <a href="mailto:support@zarenko.net" style="color:inherit;font-weight:700">support@zarenko.net</a>.
+  </div>
+</div>
+<script>
+(function(){
+  fetch('/api/license/status').then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
+    if (!d || !d.exceeded) return;
+    document.getElementById('fairuse-text').textContent =
+      d.count + ' Postfächer sind für Signatur/S/MIME aktiviert — ' +
+      (d.licensed ? 'das lizenzierte Limit (' + d.limit + ') ist überschritten. '
+                  : 'die Fair-Use-Grenze (' + d.limit + ') ist überschritten. ');
+    document.getElementById('fairuse-banner').style.display = '';
+  }).catch(function(){});
+})();
+</script>
+
 <div id="maintenance-banner" style="display:none;margin-bottom:20px">
   <div class="alert warn" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
     <div>
