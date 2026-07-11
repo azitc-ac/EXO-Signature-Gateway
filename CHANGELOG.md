@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.123 — 2026-07-11 — feat: Automatische S/MIME-Regeln + UI-Aufräumen
+
+Der "Demnächst"-Platzhalter unter Einstellungen → S/MIME ist jetzt funktional:
+Regeln (Aktion Verschlüsseln / Signieren / Nicht signieren) nach Absender
+und/oder Empfänger — exakte Adresse oder @domain.de, leer = alle.
+- Empfänger-Regel greift, wenn MINDESTENS EIN Envelope-Empfänger passt
+  (bifurkierte Forks werden einzeln bewertet)
+- Bedingung UND/ODER; bei ODER zählen leere Felder nicht als Treffer
+- Priorität: Betreff-Trigger (#nodigsig) > Regel nosign > Regel sign >
+  globaler/Postfach-Default; encrypt-Regel nutzt denselben Pfad wie #enc
+  (inkl. Portal für Empfänger ohne Cert)
+- Warnung im UI vor Catch-all-Verschlüsseln-Regeln
+- Setting SMIME_AUTO_RULES; Auswertung in handler._eval_smime_rules()
+Außerdem: veralteter "Minimalsignatur (Demnächst)"-Block aus Einstellungen →
+Signatur entfernt — das Feature existiert seit v1.5.78 als Antwort-Signatur.
+
+---
+
 ## v1.5.122 — 2026-07-11 — fix: Lesebestätigung zeigte "gerade eben" statt Zeitstempel
 
 Die Route kopierte die Nachricht VOR mark_read() — read_at war in der Kopie

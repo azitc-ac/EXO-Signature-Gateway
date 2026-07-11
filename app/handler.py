@@ -28,6 +28,41 @@ def _portal_base_url() -> str:
     return portal_store.base_url()
 
 
+def _match_rule_addr(pattern: str, addr: str) -> bool:
+    """'' = beliebig; '@domain.de' = Domain-Suffix; sonst exakte Adresse."""
+    pattern = (pattern or "").strip().lower()
+    if not pattern:
+        return True
+    addr = (addr or "").lower()
+    if pattern.startswith("@"):
+        return addr.endswith(pattern)
+    return addr == pattern
+
+
+def _eval_smime_rules(sender: str, recipients: list[str]) -> dict:
+    """SMIME_AUTO_RULES auswerten → {"encrypt","sign","nosign": bool}.
+
+    Empfänger-Muster greift, wenn MINDESTENS EIN Envelope-Empfänger passt
+    (bifurkierte Forks werden damit einzeln bewertet). Bedingung "and":
+    Absender UND Empfänger müssen passen (leeres Feld = beliebig);
+    "or": eines von beiden genügt — leere Felder zählen dabei nicht als
+    Treffer, sonst würde eine halb ausgefüllte Regel immer feuern."""
+    out = {"encrypt": False, "sign": False, "nosign": False}
+    for rule in settings_store.get("SMIME_AUTO_RULES") or []:
+        action = rule.get("action") or ""
+        s_pat = (rule.get("sender") or "").strip()
+        r_pat = (rule.get("recipient") or "").strip()
+        s_hit = _match_rule_addr(s_pat, sender)
+        r_hit = any(_match_rule_addr(r_pat, r) for r in recipients) if recipients else not r_pat
+        if (rule.get("mode") or "and") == "or":
+            hit = (bool(s_pat) and s_hit) or (bool(r_pat) and r_hit)
+        else:
+            hit = s_hit and r_hit
+        if hit and action in out:
+            out[action] = True
+    return out
+
+
 # Number of SMTP transactions currently inside handle_DATA (asyncio single-thread, no lock needed)
 _in_flight: int = 0
 
@@ -690,6 +725,18 @@ class SignatureHandler:
                 log.info("Betreff-Trigger für %s: HTML-Sig unterdrücken=%s, S/MIME unterdrücken=%s",
                          sender, suppress_html_sig, suppress_smime_sig)
 
+            # ── Automatische S/MIME-Regeln (Absender/Empfänger) ──────────────
+            # Priorität: Betreff-Trigger (#nodigsig) > Regel "nosign" >
+            # Regel "sign" > globaler/Postfach-Default
+            _rule_hits = _eval_smime_rules(sender, recipients)
+            if _rule_hits["encrypt"] and not wants_encryption:
+                wants_encryption = True
+                log.info("S/MIME-Regel: automatische Verschlüsselung %s → %s",
+                         sender, recipients)
+            if _rule_hits["nosign"] and not suppress_smime_sig:
+                suppress_smime_sig = True
+                log.info("S/MIME-Regel: Signierung unterdrückt für %s", sender)
+
             log.debug("Outbound from=%s subject=%r enc_trigger=%r wants_encryption=%s",
                       sender, subject, enc_trigger, wants_encryption)
             if wants_encryption:
@@ -778,6 +825,9 @@ class SignatureHandler:
             if _smime_ok and suppress_smime_sig:
                 _smime_ok = False
                 log.info("S/MIME-Signierung durch %r-Trigger unterdrückt für %s", _nodigsig_kw, sender)
+            if not _smime_ok and not suppress_smime_sig and _rule_hits["sign"]:
+                _smime_ok = True
+                log.info("S/MIME-Regel: Signierung erzwungen für %s", sender)
             _smime_signed = False
             log.debug("S/MIME signing: smime_ok=%s, wants_encryption=%s for %s",
                       _smime_ok, wants_encryption, sender)

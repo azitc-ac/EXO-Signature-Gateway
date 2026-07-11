@@ -211,20 +211,18 @@
 
   <div style="border-top:1px solid #f0f0f0;margin:16px 0 14px"></div>
 
-  <!-- Platzhalter: Automatische S/MIME-Regeln (noch nicht implementiert) -->
-  <div style="opacity:0.45;pointer-events:none;user-select:none">
-    <h3 style="margin-top:0;margin-bottom:4px;display:flex;align-items:center;gap:8px">
-      Automatische S/MIME-Regeln
-      <span style="font-size:11px;font-weight:500;background:#e2e8f0;color:#64748b;padding:2px 7px;border-radius:10px;vertical-align:middle">Demnächst</span>
-    </h3>
+  <div>
+    <h3 style="margin-top:0;margin-bottom:4px">Automatische S/MIME-Regeln</h3>
     <p class="hint" style="margin-bottom:12px">
-      Regeln definieren, nach denen ausgehende Mails automatisch verschlüsselt oder signiert werden —
-      abhängig von Absender, Empfänger oder einer Kombination aus beiden.
+      Ausgehende Mails automatisch verschlüsseln oder (nicht) signieren — abhängig von Absender
+      und/oder Empfänger, zusätzlich zu den Betreff-Triggern. Adressen: exakte E-Mail oder
+      <code>@domain.de</code> (Domain); leer = alle. Eine Empfänger-Regel greift, wenn mindestens
+      ein Empfänger passt. Priorität: Betreff-Trigger &gt; „Nicht signieren"-Regel &gt; „Signieren"-Regel.
     </p>
     <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:8px">
       <table class="kv-table" style="table-layout:fixed;min-width:560px;width:100%">
         <colgroup>
-          <col style="width:140px"><col style="width:160px"><col style="width:160px"><col style="width:160px"><col style="width:40px">
+          <col style="width:140px"><col style="width:160px"><col style="width:160px"><col style="width:180px"><col style="width:40px">
         </colgroup>
         <thead>
           <tr>
@@ -235,27 +233,14 @@
             <th></th>
           </tr>
         </thead>
-        <tbody>
-          <tr>
-            <td><select disabled style="width:100%">
-              <option>Verschlüsseln</option>
-              <option>Signieren</option>
-              <option>Nicht signieren</option>
-            </select></td>
-            <td><input type="email" disabled placeholder="alle Absender" style="width:100%"></td>
-            <td><input type="email" disabled placeholder="alle Empfänger" style="width:100%"></td>
-            <td><select disabled style="width:100%">
-              <option>Absender UND Empfänger</option>
-              <option>Absender ODER Empfänger</option>
-            </select></td>
-            <td><button class="btn secondary btn-sm" disabled>✕</button></td>
-          </tr>
-        </tbody>
+        <tbody id="smime-rules-tbody"></tbody>
       </table>
     </div>
-    <button class="btn secondary btn-sm" disabled>+ Regel hinzufügen</button>
+    <div id="smime-rules-empty" class="hint" style="display:none;margin-bottom:8px">Keine Regeln definiert.</div>
+    <button class="btn secondary btn-sm" type="button" onclick="addSmimeRule()">+ Regel hinzufügen</button>
     <div class="actions" style="margin-top:10px">
-      <button class="btn secondary" disabled>Speichern</button>
+      <button class="btn secondary" onclick="saveSmimeRules()">Speichern</button>
+      <span id="smime-rules-result" style="font-size:12px;margin-left:8px"></span>
     </div>
   </div>
 
@@ -411,6 +396,71 @@ function saveSmimeSettings() {
     PORTAL_BRAND_NAME: (document.getElementById('portal-brand-name').value || '').trim(),
   }, 'smime-result');
 }
+
+// ── Automatische S/MIME-Regeln ─────────────────────────────────────────────
+var smimeRules = {{ (s.SMIME_AUTO_RULES or []) | tojson }};
+
+function escR(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function renderSmimeRules() {
+  var tbody = document.getElementById('smime-rules-tbody');
+  var empty = document.getElementById('smime-rules-empty');
+  tbody.innerHTML = smimeRules.map(function(r, i) {
+    function sel(val, opt) { return val === opt ? ' selected' : ''; }
+    return '<tr>'
+      + '<td><select class="rule-action" style="width:100%">'
+      +   '<option value="encrypt"' + sel(r.action, 'encrypt') + '>Verschlüsseln</option>'
+      +   '<option value="sign"' + sel(r.action, 'sign') + '>Signieren</option>'
+      +   '<option value="nosign"' + sel(r.action, 'nosign') + '>Nicht signieren</option>'
+      + '</select></td>'
+      + '<td><input type="text" class="rule-sender" value="' + escR(r.sender) + '" placeholder="alle Absender" style="width:100%"></td>'
+      + '<td><input type="text" class="rule-recipient" value="' + escR(r.recipient) + '" placeholder="alle Empfänger" style="width:100%"></td>'
+      + '<td><select class="rule-mode" style="width:100%">'
+      +   '<option value="and"' + sel(r.mode || 'and', 'and') + '>Absender UND Empfänger</option>'
+      +   '<option value="or"' + sel(r.mode, 'or') + '>Absender ODER Empfänger</option>'
+      + '</select></td>'
+      + '<td><button class="btn secondary btn-sm" type="button" onclick="removeSmimeRule(' + i + ')">✕</button></td>'
+      + '</tr>';
+  }).join('');
+  empty.style.display = smimeRules.length ? 'none' : '';
+}
+
+function collectSmimeRules() {
+  var rows = document.querySelectorAll('#smime-rules-tbody tr');
+  var rules = [];
+  rows.forEach(function(tr) {
+    rules.push({
+      action:    tr.querySelector('.rule-action').value,
+      sender:    tr.querySelector('.rule-sender').value.trim(),
+      recipient: tr.querySelector('.rule-recipient').value.trim(),
+      mode:      tr.querySelector('.rule-mode').value,
+    });
+  });
+  return rules;
+}
+
+function addSmimeRule() {
+  smimeRules = collectSmimeRules();
+  smimeRules.push({action: 'encrypt', sender: '', recipient: '', mode: 'and'});
+  renderSmimeRules();
+}
+
+function removeSmimeRule(i) {
+  smimeRules = collectSmimeRules();
+  smimeRules.splice(i, 1);
+  renderSmimeRules();
+}
+
+async function saveSmimeRules() {
+  smimeRules = collectSmimeRules();
+  // Regeln ohne jede Bedingung mit Aktion "Verschlüsseln" würden ALLES verschlüsseln — warnen
+  var catchAll = smimeRules.some(function(r){ return r.action === 'encrypt' && !r.sender && !r.recipient; });
+  if (catchAll && !confirm('Achtung: Eine Verschlüsseln-Regel ohne Absender UND ohne Empfänger ' +
+      'verschlüsselt JEDE ausgehende Mail. Wirklich speichern?')) return;
+  await savePartial({SMIME_AUTO_RULES: smimeRules}, 'smime-rules-result');
+}
+
+renderSmimeRules();
 
 function refreshPortalLogo() {
   var img = document.getElementById('portal-logo-preview');
