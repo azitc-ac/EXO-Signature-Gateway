@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.121 — 2026-07-11 — fix: Anhang-Download im Portal tat nichts (data:-URI)
+
+Anhang-Links nutzten data:-URIs im href — iOS Safari (und teils andere
+Browser) ignorieren große data-URLs mit download-Attribut stillschweigend.
+Jetzt: Blob + Object-URL beim Klick (delegierter Handler), betrifft sowohl
+die Anhänge der Originalnachricht als auch die der Antwort-Historie.
+
+---
+
 ## v1.5.120 — 2026-07-11 — feat: Anhänge in der Antwort-Historie erneut herunterladbar
 
 Die Anhang-Daten wandern jetzt komplett (clientseitig verschlüsselt) mit in

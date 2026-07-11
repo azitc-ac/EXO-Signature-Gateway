@@ -182,6 +182,36 @@ function b64Encode(buf) {
   return btoa(bin);
 }
 function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// Download-Link für Anhänge: KEIN data:-URI im href — iOS Safari (u.a.)
+// ignoriert große data-URLs mit download-Attribut stillschweigend.
+// Stattdessen Blob + Object-URL beim Klick (delegierter Handler unten).
+function attLinkHtml(name, type, dataB64){
+  return '<a class="att-link att-dl" href="#" data-name="' + esc(name)
+       + '" data-type="' + esc(type || 'application/octet-stream')
+       + '" data-b64="' + dataB64 + '">' + esc(name) + '</a>';
+}
+document.addEventListener('click', function(ev){
+  var a = ev.target.closest ? ev.target.closest('.att-dl') : null;
+  if(!a) return;
+  ev.preventDefault();
+  try {
+    var bin = atob(a.getAttribute('data-b64'));
+    var u8 = new Uint8Array(bin.length);
+    for(var i=0;i<bin.length;i++) u8[i] = bin.charCodeAt(i);
+    var blob = new Blob([u8], {type: a.getAttribute('data-type')});
+    var url = URL.createObjectURL(blob);
+    var tmp = document.createElement('a');
+    tmp.href = url;
+    tmp.download = a.getAttribute('data-name') || 'anhang';
+    document.body.appendChild(tmp);
+    tmp.click();
+    tmp.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 30000);
+  } catch(e){
+    alert('Download fehlgeschlagen: ' + e.message);
+  }
+});
 function showErr(msg){ document.getElementById('loading').style.display='none'; var e=document.getElementById('err'); e.innerHTML='<p>⚠️ '+esc(msg)+'</p>'; e.style.display=''; }
 
 var pathParts = window.location.pathname.split('/');
@@ -219,9 +249,7 @@ function replyItemHtml(entry, createdAt){
   if(entry.att && entry.att.length){
     var parts = entry.att.map(function(a){
       if(typeof a === 'string') return esc(a);  // Alt-Format: nur der Name
-      if(a && a.data)
-        return '<a class="att-link" href="data:' + esc(a.type || 'application/octet-stream')
-             + ';base64,' + a.data + '" download="' + esc(a.name) + '">' + esc(a.name) + '</a>';
+      if(a && a.data) return attLinkHtml(a.name, a.type, a.data);
       return esc((a && a.name) || '');
     });
     att = '<div class="ri-att">📎 ' + parts.join(', ') + '</div>';
@@ -377,8 +405,8 @@ async function loadMessage(){
       var attList = document.getElementById('att-list');
       payload.attachments.forEach(function(a){
         var sizeKB = Math.round(atob(a.data).length/1024);
-        var href = 'data:'+a.type+';base64,'+a.data;
-        attList.innerHTML += '<div class="att-item">📎 <a class="att-link" href="'+href+'" download="'+esc(a.name)+'">'+esc(a.name)+'</a><span class="att-size">'+sizeKB+' KB</span></div>';
+        attList.innerHTML += '<div class="att-item">📎 ' + attLinkHtml(a.name, a.type, a.data)
+                           + '<span class="att-size">'+sizeKB+' KB</span></div>';
       });
     }
 
