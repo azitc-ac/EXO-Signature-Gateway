@@ -249,17 +249,39 @@ async function _updLoadReleaseList() {
 function _updOnTargetChange() {
   const target = _updGetTargetVersion();
   const warn = document.getElementById('upd-rollback-warn');
+  const btn = document.getElementById('upd-btn');
   const current = "{{ version or '0' }}";
-  if (!target) { warn.style.display = 'none'; return; }
+  if (!target) {
+    // Zurück auf "Neueste" → normaler Check-gesteuerter Ablauf
+    warn.style.display = 'none';
+    document.getElementById('upd-check-result').innerHTML = '';
+    btn.disabled = true;
+    btn.innerHTML = 'Jetzt aktualisieren';
+    return;
+  }
   const cur = current.split('.').map(Number);
   const tgt = target.split('.').map(Number);
-  let isOlder = false;
+  let isOlder = false, isSame = true;
   for (let i = 0; i < Math.max(cur.length, tgt.length); i++) {
     const c = cur[i] || 0, t = tgt[i] || 0;
+    if (t !== c) isSame = false;
     if (t < c) { isOlder = true; break; }
     if (t > c) break;
   }
   warn.style.display = isOlder ? 'inline' : 'none';
+  // Explizite Versionswahl ist eine direkte Aktion — Button ohne Check freigeben
+  // (der Check meldet bei Downgrade sonst "bereits aktuell" und blockiert)
+  const res = document.getElementById('upd-check-result');
+  if (isSame) {
+    res.innerHTML = '<span style="color:#16a34a">✓ Diese Version läuft bereits</span>';
+    btn.disabled = true;
+    btn.innerHTML = 'Jetzt aktualisieren';
+  } else {
+    res.innerHTML = '<span style="color:#334155">Ziel gewählt: <strong>v' + _esc(target)
+      + '</strong>' + (isOlder ? ' (Downgrade)' : '') + '</span>';
+    btn.disabled = !_watcherOk;
+    btn.innerHTML = (isOlder ? 'Downgrade auf v' : 'Wechsel auf v') + _esc(target);
+  }
 }
 function _updBtnReset() {
   const b = document.getElementById('upd-btn');

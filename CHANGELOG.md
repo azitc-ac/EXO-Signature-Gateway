@@ -5,6 +5,29 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.6.0 — 2026-07-11 — Release: Portal, Hub-CA-Katalog, Lizenzen, Downgrade
+
+Meilenstein-Release seit v1.5.0. Sammelt die Arbeit dieser Iteration:
+- **Secure Message Portal**: verschlüsselte Zustellung für Empfänger ohne
+  S/MIME-Cert (AES-256-GCM, Schlüssel im URL-Fragment), E-Mail-OTP wie
+  Microsoft OME, Antworten mit Anhängen + zero-knowledge-Historie, Corporate
+  Branding (Logo/Firmenname), Admin-Verwaltung mit Widerruf.
+- **CA-Bezug über den Hub**: Direktanbindung (Sectigo/SwissSign) entfernt;
+  Anbieter + Preise kommen dynamisch aus dem Hub-Katalog, pro GW lokal
+  abwählbar; Order-Polling mit lokaler Schlüssel-Persistenz.
+- **Fair-Use-Lizenzen**: ab 100 aktivierten Postfächern Hinweis; Offline-
+  Prüfung (Ed25519, Tenant-gebunden); Kauf/Verlängerung übers Hub-Konto,
+  Ablauf-Erinnerungen; 1-Jahr-Laufzeit.
+- **Abrechnung**: Netto-Preise mit MwSt.-Vermerk, Brutto-Guthaben/-Abbuchung,
+  USt.-Satz pro Kunde (Reverse Charge/Ausland), Ledger-CSV-Export.
+- **Betrieb**: Log-Zeitfilter + [mail:…]-Trace-IDs, Scanner-Lärm gedämpft,
+  NDR via Graph, Dark-Theme-Kontrast, What's-new drift-immun.
+- **Update/Downgrade**: Release-Kanal mit gezielter Versionswahl inkl.
+  Rollback auf ältere Releases (Button "Downgrade auf vX"; Einstellungen
+  bleiben erhalten).
+
+---
+
 ## v1.5.135 — 2026-07-11 — feat: Katalog-Abwahl + Dark-Theme-Boxen + What's-new drift-immun
 
 (Versionssprung 133->135 gleicht den Changelog wieder an die VERSION-Datei an —
