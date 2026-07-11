@@ -1912,9 +1912,29 @@ async def api_cert_catalog(_=Depends(_check_auth)):
     return JSONResponse({
         "registered": hub_client.cert_is_registered(),
         "providers": _hub_cat.cached(),
+        "disabled": settings_store.get("CATALOG_PROVIDERS_DISABLED") or [],
         "currency": _hub_cat.currency(),
         "vat_percent": _hub_cat.vat_percent(),
     })
+
+
+@app.post("/api/cert/catalog/toggle")
+async def api_cert_catalog_toggle(body: dict, user: str = Depends(_require_admin)):
+    """Anbieter lokal an-/abwählen — abgewählte erscheinen nicht in der
+    Backend-Auswahl pro Postfach (bereits bestehende Zuordnungen bleiben)."""
+    pid = (body.get("provider_id") or "").strip()
+    enabled = bool(body.get("enabled"))
+    if not pid:
+        raise HTTPException(400, "provider_id fehlt")
+    disabled = list(settings_store.get("CATALOG_PROVIDERS_DISABLED") or [])
+    if enabled:
+        disabled = [d for d in disabled if d != pid]
+    elif pid not in disabled:
+        disabled.append(pid)
+    settings_store.update({"CATALOG_PROVIDERS_DISABLED": disabled})
+    log.info("Katalog-Anbieter %s %s von %s", pid,
+             "aktiviert" if enabled else "abgewählt", user)
+    return JSONResponse({"ok": True, "disabled": disabled})
 
 
 # ── Fair-Use-Lizenz ──────────────────────────────────────────────────────────
@@ -4405,34 +4425,32 @@ async def api_update_whats_new(from_version: str, to_version: str, user: str = D
     except Exception as exc:
         return JSONResponse({"entries": [], "error": str(exc)})
 
-    def _pv(v: str) -> tuple:
-        try:
-            return tuple(int(x) for x in v.lstrip("v").split("."))
-        except Exception:
-            return (0,)
+    def _vnum(v: str) -> int:
+        # 1.5.135 → 1005135 — flache, vergleichbare Zahl (Distanz = Release-Schritte)
+        parts = (list(int(x) for x in v.lstrip("v").split(".")) + [0, 0, 0])[:3]
+        return parts[0] * 1_000_000 + parts[1] * 1_000 + parts[2]
 
-    from_v, to_v = _pv(from_version), _pv(to_version)
-    entries: list[dict] = []
+    # Alle Einträge in Datei-Reihenfolge (neueste zuerst) sammeln
+    all_entries: list[dict] = []
     cur_lines: list[str] = []
-    cur_ver: tuple = (0,)
-
-    def _flush():
-        # from_v INKLUSIVE — CHANGELOG-Überschrift "vX" gehört zum Commit mit
-        # VERSION X+1 (Pre-Commit-Hook bumpt nach dem Eintrag), s. updater.py
-        if cur_lines and from_v <= cur_ver <= to_v:
-            header = cur_lines[0]
-            body = "\n".join(cur_lines[1:]).strip()
-            entries.append({"header": header, "body": body})
-
     for line in text.splitlines():
         if line.startswith("## v"):
-            _flush()
-            m = re.match(r"## v([\d.]+)", line)
-            cur_ver = _pv(m.group(1)) if m else (0,)
+            if cur_lines:
+                all_entries.append({"header": cur_lines[0],
+                                    "body": "\n".join(cur_lines[1:]).strip()})
             cur_lines = [line]
         elif cur_lines:
             cur_lines.append(line)
-    _flush()
+    if cur_lines:
+        all_entries.append({"header": cur_lines[0],
+                            "body": "\n".join(cur_lines[1:]).strip()})
+
+    # DRIFT-IMMUN: Changelog-Nummern driften von der VERSION-Datei (Hand-
+    # Nummerierung + Pre-Commit-Bump). Statt Nummern zu matchen, zeigen wir die
+    # obersten K Einträge, K = Versions-Distanz (Anzahl Releases seit dem
+    # installierten Stand). So ist die Anzeige unabhängig von der Nummerierung.
+    steps = max(1, _vnum(to_version) - _vnum(from_version))
+    entries = all_entries[:min(steps, len(all_entries), 25)]
 
     return JSONResponse({"entries": entries})
 

@@ -42,29 +42,26 @@ def _fetch_changelog_entries(from_version: str, to_version: str) -> list:
         req = urllib.request.Request(url, headers={"User-Agent": "EXO-Gateway/1"})
         with urllib.request.urlopen(req, timeout=10) as r:
             text = r.read().decode()
-        from_v = _version_tuple(from_version)
-        to_v = _version_tuple(to_version)
-        entries, cur_header, cur_body = [], "", []
+        def _vnum(v: str) -> int:
+            parts = (list(int(x) for x in v.lstrip("v").split(".")) + [0, 0, 0])[:3]
+            return parts[0] * 1_000_000 + parts[1] * 1_000 + parts[2]
 
-        def _flush():
-            if cur_header:
-                m = re.match(r"## v([\d.]+)", cur_header)
-                # Untere Grenze INKLUSIVE: Der Pre-Commit-Hook bumpt VERSION erst
-                # beim Commit — die CHANGELOG-Überschrift "vX" gehört zum Commit
-                # mit VERSION X+1. Beim Update von X nach X+1 ist der neue Eintrag
-                # also mit "vX" überschrieben; strikt ">" ließ What's new leer.
-                if m and from_v <= _version_tuple(m.group(1)) <= to_v:
-                    entries.append({"header": cur_header, "body": "\n".join(cur_body).strip()})
-
+        # Alle Einträge in Reihenfolge (neueste zuerst)
+        all_entries, cur_header, cur_body = [], "", []
         for line in text.splitlines():
             if line.startswith("## v"):
-                _flush()
-                cur_header = line
-                cur_body = []
+                if cur_header:
+                    all_entries.append({"header": cur_header, "body": "\n".join(cur_body).strip()})
+                cur_header, cur_body = line, []
             elif cur_header:
                 cur_body.append(line)
-        _flush()
-        return entries
+        if cur_header:
+            all_entries.append({"header": cur_header, "body": "\n".join(cur_body).strip()})
+
+        # DRIFT-IMMUN (s. app.py api_update_whats_new): oberste K Einträge,
+        # K = Versions-Distanz. Changelog-Nummern driften von der VERSION-Datei.
+        steps = max(1, _vnum(to_version) - _vnum(from_version))
+        return all_entries[:min(steps, len(all_entries), 25)]
     except Exception:
         return []
 

@@ -47,6 +47,7 @@ DEFAULTS: dict = {
     "PORTAL_BRAND_NAME": "",              # Firmenname in Portal-Mails/-Seite (Vertrauen beim Empfänger)
     "SMIME_AUTO_RULES": [],               # [{action: encrypt|sign|nosign, sender, recipient, mode: and|or}]
     "LICENSE_KEY": "",                    # Fair-Use-Lizenz (EXOSIG1.…, Ed25519-signiert, Tenant-gebunden)
+    "CATALOG_PROVIDERS_DISABLED": [],     # Hub-Anbieter-IDs, die der GW-Betreiber lokal ausblendet
     "SMIME_SIGNING_ENABLED": True,    # Automatically sign outbound mails when a cert exists
     "NOSIG_TRIGGER": "#nosig",        # Keyword in subject → suppress HTML auto-signature for this mail
     "NODIGSIG_TRIGGER": "#nodigsig",  # Keyword in subject → suppress S/MIME (digital) signature for this mail

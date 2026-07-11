@@ -52,7 +52,7 @@ def list_backends() -> list[dict]:
          "hub": False}
         for b in _STATIC.values()
     ]
-    for p in hub_catalog.cached():
+    for p in hub_catalog.enabled():   # lokal abgewählte Anbieter erscheinen nicht pro Postfach
         b = HubProviderBackend(p)
         out.append({
             "name": b.get_name(), "label": b.get_label(), "auto": True,

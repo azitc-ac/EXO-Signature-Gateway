@@ -94,11 +94,13 @@
       <strong>Verfügbare Zertifizierungsstellen</strong>
       <p class="hint" style="margin:2px 0 8px">
         Kommen dynamisch vom HUB (Anbieter, Laufzeit, Preis) — die Auswahl triffst du pro
-        Postfach im S/MIME-Tab. Alle Preise netto zzgl. MwSt.
+        Postfach im S/MIME-Tab. Alle Preise netto zzgl. MwSt. Über die Spalte <em>Aktiv</em>
+        blendest du einzelne Anbieter aus, die dann nicht mehr zur Auswahl stehen.
       </p>
       <div style="overflow-x:auto">
-        <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:480px">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:520px">
           <thead><tr style="border-bottom:2px solid #e2e8f0">
+            <th style="text-align:center;padding:5px 8px;color:#555;width:50px">Aktiv</th>
             <th style="text-align:left;padding:5px 8px;color:#555">Anbieter</th>
             <th style="text-align:left;padding:5px 8px;color:#555">Beschreibung</th>
             <th style="text-align:left;padding:5px 8px;color:#555;width:80px">Laufzeit</th>
@@ -107,6 +109,7 @@
           <tbody id="cert-catalog-tbody"></tbody>
         </table>
       </div>
+      <span id="cert-catalog-result" style="font-size:12px"></span>
     </div>
     <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:14px;margin-bottom:12px">
       <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:14px">
@@ -515,10 +518,15 @@ async function certLoadCatalog() {
     const d = await (await fetch('/api/cert/catalog')).json();
     const provs = (d.providers || []).filter(function(p){ return p.available !== false; });
     if (!d.registered || !provs.length) return;   // Box nur zeigen, wenn es etwas zu zeigen gibt
-    function escC(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    const disabled = d.disabled || [];
+    function escC(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
     function price(c){ return c > 0 ? (c/100).toFixed(2).replace('.', ',') + ' € zzgl. MwSt.' : '—'; }
     document.getElementById('cert-catalog-tbody').innerHTML = provs.map(function(p){
-      return '<tr style="border-bottom:1px solid #f0f0f0">'
+      const on = disabled.indexOf(p.id) === -1;
+      const dim = on ? '' : 'opacity:.5;';
+      return '<tr style="border-bottom:1px solid #f0f0f0;' + dim + '">'
+        + '<td style="padding:5px 8px;text-align:center"><input type="checkbox" '
+          + (on ? 'checked' : '') + ' onchange="certToggleProvider(\'' + escC(p.id) + '\', this.checked)"></td>'
         + '<td style="padding:5px 8px;font-weight:600">' + escC(p.label || p.id) + '</td>'
         + '<td style="padding:5px 8px;color:#666">' + escC(p.description || '') + '</td>'
         + '<td style="padding:5px 8px">' + (p.validity_months ? p.validity_months + ' Mon.' : '—') + '</td>'
@@ -527,6 +535,20 @@ async function certLoadCatalog() {
     }).join('');
     document.getElementById('cert-catalog-box').style.display = '';
   } catch(e) { /* Katalog nicht erreichbar — Box bleibt aus */ }
+}
+async function certToggleProvider(pid, enabled) {
+  const res = document.getElementById('cert-catalog-result');
+  try {
+    const r = await fetch('/api/cert/catalog/toggle', {method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({provider_id: pid, enabled: enabled})});
+    if (r.ok) {
+      res.textContent = enabled ? '✓ Anbieter aktiviert' : '✓ Anbieter ausgeblendet';
+      res.style.color = '#16a34a';
+      certLoadCatalog();
+    } else { res.textContent = '✗ Fehler'; res.style.color = '#dc2626'; }
+  } catch(e) { res.textContent = '✗ Netzwerkfehler'; res.style.color = '#dc2626'; }
+  setTimeout(function(){ res.textContent = ''; }, 3000);
 }
 
 // ── Fair-Use-Lizenz ──────────────────────────────────────────────────────────

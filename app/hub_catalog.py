@@ -41,7 +41,22 @@ async def refresh(force: bool = False) -> list[dict]:
 
 
 def cached() -> list[dict]:
+    """Alle Anbieter aus dem Hub-Katalog (auch lokal abgewählte)."""
     return list(_cache["providers"])
+
+
+def enabled() -> list[dict]:
+    """Anbieter, die der GW-Betreiber NICHT lokal abgewählt hat — dies ist die
+    Quelle für die Backend-Auswahl pro Postfach."""
+    import settings_store
+    disabled = set(settings_store.get("CATALOG_PROVIDERS_DISABLED") or [])
+    return [p for p in _cache["providers"] if p.get("id") not in disabled]
+
+
+def is_enabled(provider_id: str) -> bool:
+    import settings_store
+    disabled = set(settings_store.get("CATALOG_PROVIDERS_DISABLED") or [])
+    return provider_id not in disabled
 
 
 def currency() -> str:

@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.135 — 2026-07-11 — feat: Katalog-Abwahl + Dark-Theme-Boxen + What's-new drift-immun
+
+(Versionssprung 133->135 gleicht den Changelog wieder an die VERSION-Datei an —
+der Hand-Nummerierungs-Drift war Ursache des leeren "What's new".)
+- **Katalog-Anbieter lokal abwaehlbar** (Einstellungen -> Anbindung): Aktiv-Spalte
+  mit Checkbox pro Zertifizierungsstelle; abgewaehlte erscheinen NICHT mehr in
+  der Backend-Auswahl pro Postfach (Setting CATALOG_PROVIDERS_DISABLED;
+  hub_catalog.enabled() filtert, cached() zeigt fuer die Tabelle weiter alle).
+  Bereits zugeordnete Postfaecher bleiben unberuehrt.
+- **Dark Theme**: verschachtelte Info-Boxen (background:#f8fafc/#fff …) jetzt
+  EINGESENKT (#14171f, dunkler als die Card) statt aufhellend — behebt die zu
+  helle Anbindung-Seite; Signatur-Vorschau bleibt bewusst weiss.
+- **What's new drift-immun**: zeigt die obersten K Changelog-Eintraege
+  (K = Versions-Distanz) statt Nummern zu matchen — unabhaengig vom
+  Nummerierungs-Drift zwischen Changelog und VERSION-Datei.
+
+---
+
 ## v1.5.133 — 2026-07-11 — fix: Dark Theme — Kontrast-Überarbeitung
 
 - color-scheme: dark → der Browser rendert native Widgets dunkel; behebt die

@@ -181,14 +181,25 @@
    Bewusst NICHT überschrieben: background:#fff (Signatur-Vorschau muss auf
    Weiß rendern, wie beim Empfänger). */
 
-/* Helle Info-/Karten-Hintergründe → dunkle Fläche */
+/* Helle Info-/Karten-Hintergründe → EINGESENKTE Fläche (dunkler als die Card
+   #1a1d27, damit verschachtelte Boxen die Seite nicht aufhellen — die
+   Anbindung-Seite ist besonders box-lastig und wirkte sonst insgesamt zu hell) */
 [data-theme="dark"] [style*="background:#f8fafc"],
 [data-theme="dark"] [style*="background:#f8f7f6"],
 [data-theme="dark"] [style*="background:#f1f5f9"],
 [data-theme="dark"] [style*="background:#eff6ff"],
 [data-theme="dark"] [style*="background:#f3f4f6"],
-[data-theme="dark"] [style*="background:#fafafa"] {
-  background: #1e2230 !important;
+[data-theme="dark"] [style*="background:#fafafa"],
+[data-theme="dark"] [style*="background:#fff"],
+[data-theme="dark"] [style*="background: #fff"],
+[data-theme="dark"] [style*="background:white"] {
+  background: #14171f !important;
+}
+/* Ausnahme: die Signatur-Vorschau MUSS auf Weiß rendern (wie beim Empfänger) */
+[data-theme="dark"] .preview-frame [style*="background:#fff"],
+[data-theme="dark"] #pv-html,
+[data-theme="dark"] .sig-preview-white {
+  background: #ffffff !important;
 }
 
 /* Gelbe Warn-Flächen → dunkle Warn-Fläche (Textfarben dort meist #92400e/#b45309
