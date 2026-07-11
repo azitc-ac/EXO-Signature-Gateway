@@ -4385,7 +4385,9 @@ async def api_update_whats_new(from_version: str, to_version: str, user: str = D
     cur_ver: tuple = (0,)
 
     def _flush():
-        if cur_lines and from_v < cur_ver <= to_v:
+        # from_v INKLUSIVE — CHANGELOG-Überschrift "vX" gehört zum Commit mit
+        # VERSION X+1 (Pre-Commit-Hook bumpt nach dem Eintrag), s. updater.py
+        if cur_lines and from_v <= cur_ver <= to_v:
             header = cur_lines[0]
             body = "\n".join(cur_lines[1:]).strip()
             entries.append({"header": header, "body": body})

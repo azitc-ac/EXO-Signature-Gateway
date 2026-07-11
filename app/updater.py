@@ -49,7 +49,11 @@ def _fetch_changelog_entries(from_version: str, to_version: str) -> list:
         def _flush():
             if cur_header:
                 m = re.match(r"## v([\d.]+)", cur_header)
-                if m and from_v < _version_tuple(m.group(1)) <= to_v:
+                # Untere Grenze INKLUSIVE: Der Pre-Commit-Hook bumpt VERSION erst
+                # beim Commit — die CHANGELOG-Überschrift "vX" gehört zum Commit
+                # mit VERSION X+1. Beim Update von X nach X+1 ist der neue Eintrag
+                # also mit "vX" überschrieben; strikt ">" ließ What's new leer.
+                if m and from_v <= _version_tuple(m.group(1)) <= to_v:
                     entries.append({"header": cur_header, "body": "\n".join(cur_body).strip()})
 
         for line in text.splitlines():

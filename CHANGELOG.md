@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.115 — 2026-07-11 — fix: "What's new" beim Update war oft leer (Off-by-one)
+
+Der Pre-Commit-Hook bumpt VERSION erst beim Commit — die CHANGELOG-Überschrift
+"vX" gehört daher zum Commit mit VERSION X+1. Der What's-new-Filter
+(from < v <= to) schloss damit genau den relevanten Eintrag aus: Bei einem
+einzelnen neuen Commit war die Anzeige immer leer, bei mehreren fehlte der
+älteste. Fix: untere Grenze inklusive (from <= v <= to), in updater.py und
+/api/system/update/whats-new. Außerdem: Branding-Platzhalter neutraler
+formuliert (auch Freiberufler, keine GmbH-Annahme).
+
+---
+
 ## v1.5.114 — 2026-07-11 — feat: Corporate Branding für Portal-Mails + Portal-Seite
 
 Mails an Portal-Empfänger (Benachrichtigung, Zugangscode) und die Portal-Seite
