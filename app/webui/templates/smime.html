@@ -848,34 +848,133 @@ async function migrateSlotToKv(email, slotId, btn) {
 }
 </script>
 
-<!-- Secure Message Portal — geplantes Feature -->
+<!-- Secure Message Portal — Verwaltung -->
 <style>
-.planned-card { opacity:.45; pointer-events:none; user-select:none; }
-.planned-badge { display:inline-block; font-size:10px; font-weight:700; letter-spacing:.06em;
-  text-transform:uppercase; background:#e2e8f0; color:#64748b; border-radius:4px;
-  padding:2px 7px; margin-left:8px; vertical-align:middle; }
+.portal-badge { display:inline-block; font-size:10px; font-weight:700; letter-spacing:.06em;
+  text-transform:uppercase; border-radius:4px; padding:2px 7px; margin-left:8px; vertical-align:middle; }
+.portal-badge.on  { background:#dcfce7; color:#166534; }
+.portal-badge.off { background:#e2e8f0; color:#64748b; }
+[data-theme="dark"] .portal-badge.on  { background:#0a1f10; color:#4ade80; }
+[data-theme="dark"] .portal-badge.off { background:#1e2230; color:#94a3b8; }
+.portal-stat { background:#f8f7f6; border-radius:6px; padding:10px 14px; }
+.portal-stat .l { font-size:11px; color:#78716c; text-transform:uppercase; letter-spacing:.04em; margin-bottom:4px; }
+.portal-stat .n { font-size:22px; font-weight:700; color:#1f2937; }
+[data-theme="dark"] .portal-stat { background:#1e2230; }
+[data-theme="dark"] .portal-stat .l { color:#94a3b8; }
+[data-theme="dark"] .portal-stat .n { color:#e2e8f0; }
+.portal-msg-status { display:inline-block; font-size:11px; font-weight:600; border-radius:10px; padding:2px 8px; }
+.pms-unread   { background:#fef3c7; color:#92400e; }
+.pms-read     { background:#dcfce7; color:#166534; }
+.pms-replied  { background:#dbeafe; color:#1e40af; }
+[data-theme="dark"] .pms-unread  { background:#1f1500; color:#fbbf24; }
+[data-theme="dark"] .pms-read    { background:#0a1f10; color:#4ade80; }
+[data-theme="dark"] .pms-replied { background:#1e3a5f; color:#93c5fd; }
 </style>
-<div class="planned-card settings-card" style="margin-top:24px">
-  <h2>Secure Message Portal <span class="planned-badge">geplant</span></h2>
+<div class="settings-card" style="margin-top:24px">
+  <h2>Secure Message Portal <span id="portal-status-badge" class="portal-badge off">–</span></h2>
   <p class="hint">
-    Für Empfänger ohne eigenes S/MIME-Zertifikat: Verschlüsselte Mail wird sicher hinterlegt.
-    Der Empfänger erhält einen zeitlich befristeten OTP-Link — die Entschlüsselung erfolgt clientseitig im Browser,
-    der private Schlüssel verlässt den Server nie.
+    Für Empfänger ohne eigenes S/MIME-Zertifikat: Die Mail wird AES-256-verschlüsselt hinterlegt,
+    der Empfänger erhält einen zeitlich befristeten Link. Der Entschlüsselungsschlüssel steckt im
+    URL-Fragment und erreicht den Server nie — die Entschlüsselung erfolgt clientseitig im Browser.
+    Lesebestätigung und Antworten landen als E-Mail beim Absender.
   </p>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-bottom:14px">
-    <div style="background:#f8f7f6;border-radius:6px;padding:10px 14px">
-      <div style="font-size:11px;color:#78716c;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Gesicherte Nachrichten</div>
-      <div style="font-size:22px;font-weight:700;color:#cbd5e1">—</div>
-    </div>
-    <div style="background:#f8f7f6;border-radius:6px;padding:10px 14px">
-      <div style="font-size:11px;color:#78716c;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">OTP-Links aktiv</div>
-      <div style="font-size:22px;font-weight:700;color:#cbd5e1">—</div>
-    </div>
-    <div style="background:#f8f7f6;border-radius:6px;padding:10px 14px">
-      <div style="font-size:11px;color:#78716c;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Aufbewahrung</div>
-      <div style="font-size:22px;font-weight:700;color:#cbd5e1">7 Tage</div>
-    </div>
+    <div class="portal-stat"><div class="l">Aktive Nachrichten</div><div class="n" id="portal-stat-active">–</div></div>
+    <div class="portal-stat"><div class="l">Ungelesen</div><div class="n" id="portal-stat-unread">–</div></div>
+    <div class="portal-stat"><div class="l">Beantwortet</div><div class="n" id="portal-stat-replied">–</div></div>
+    <div class="portal-stat"><div class="l">Aufbewahrung</div><div class="n" id="portal-stat-retention">–</div></div>
   </div>
-  <button class="btn primary" disabled>Portal konfigurieren</button>
+  <div id="portal-msg-wrap" style="display:none;overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:12px">
+    <table class="config-table" style="min-width:640px;width:100%">
+      <thead>
+        <tr>
+          <th>Empfänger</th>
+          <th>Absender</th>
+          <th>Betreff</th>
+          <th>Erstellt</th>
+          <th>Läuft ab</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="portal-msg-tbody"></tbody>
+    </table>
+  </div>
+  <div id="portal-empty" class="hint" style="display:none;margin-bottom:12px">Keine aktiven Portal-Nachrichten.</div>
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <a class="btn secondary" href="/settings/smime" style="text-decoration:none">Portal konfigurieren</a>
+    <span id="portal-admin-result" style="font-size:12px"></span>
+  </div>
 </div>
+<script>
+async function loadPortalAdmin() {
+  try {
+    var resp = await fetch('/api/portal/admin/list');
+    if (!resp.ok) return;
+    var d = await resp.json();
+
+    var badge = document.getElementById('portal-status-badge');
+    badge.textContent = d.enabled ? 'aktiv' : 'inaktiv';
+    badge.className = 'portal-badge ' + (d.enabled ? 'on' : 'off');
+
+    var msgs = d.messages || [];
+    var unread  = msgs.filter(function(m){ return !m.read_at; }).length;
+    var replied = msgs.filter(function(m){ return m.replied_at; }).length;
+    document.getElementById('portal-stat-active').textContent = msgs.length;
+    document.getElementById('portal-stat-unread').textContent = unread;
+    document.getElementById('portal-stat-replied').textContent = replied;
+    document.getElementById('portal-stat-retention').textContent = d.retention_days + ' Tage';
+
+    var wrap = document.getElementById('portal-msg-wrap');
+    var empty = document.getElementById('portal-empty');
+    if (!msgs.length) { wrap.style.display = 'none'; empty.style.display = ''; return; }
+    wrap.style.display = ''; empty.style.display = 'none';
+
+    function escP(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+    function fmtDate(iso){
+      if (!iso) return '–';
+      var dt = new Date(iso);
+      return isNaN(dt) ? iso : dt.toLocaleDateString('de-DE') + ' ' +
+        dt.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
+    }
+    var tbody = document.getElementById('portal-msg-tbody');
+    tbody.innerHTML = msgs.map(function(m){
+      var status = m.replied_at
+        ? '<span class="portal-msg-status pms-replied">beantwortet</span>'
+        : m.read_at
+          ? '<span class="portal-msg-status pms-read">gelesen</span>'
+          : '<span class="portal-msg-status pms-unread">ungelesen</span>';
+      return '<tr>'
+        + '<td>' + escP(m.recipient_email) + '</td>'
+        + '<td>' + escP(m.sender_email) + '</td>'
+        + '<td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escP(m.subject) + '">' + escP(m.subject) + '</td>'
+        + '<td style="white-space:nowrap">' + fmtDate(m.created_at) + '</td>'
+        + '<td style="white-space:nowrap">' + fmtDate(m.expires_at) + '</td>'
+        + '<td>' + status + '</td>'
+        + '<td><button class="btn secondary btn-sm" onclick="revokePortalMsg(\'' + escP(m.token) + '\', this)">Widerrufen</button></td>'
+        + '</tr>';
+    }).join('');
+  } catch(e) { /* Seite bleibt ohne Portal-Daten nutzbar */ }
+}
+
+async function revokePortalMsg(token, btn) {
+  if (!confirm('Diese Portal-Nachricht widerrufen? Der Link wird sofort ungültig.')) return;
+  btn.disabled = true;
+  var res = document.getElementById('portal-admin-result');
+  try {
+    var resp = await fetch('/api/portal/admin/' + encodeURIComponent(token), {method:'DELETE'});
+    if (resp.ok) {
+      res.textContent = '✓ Widerrufen'; res.style.color = '#16a34a';
+      loadPortalAdmin();
+    } else {
+      res.textContent = '✗ Fehler'; res.style.color = '#dc2626'; btn.disabled = false;
+    }
+  } catch(e) {
+    res.textContent = '✗ Netzwerkfehler'; res.style.color = '#dc2626'; btn.disabled = false;
+  }
+  setTimeout(function(){ res.textContent = ''; }, 3000);
+}
+
+loadPortalAdmin();
+</script>
 {% endblock %}

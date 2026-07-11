@@ -1947,6 +1947,30 @@ async def portal_mark_read(token: str):
     return JSONResponse({"ok": True})
 
 
+@app.get("/api/portal/admin/list")
+async def portal_admin_list(_=Depends(_check_auth)):
+    """Admin: aktive Portal-Nachrichten + Status für die S/MIME-Seite."""
+    import portal_store
+    msgs = portal_store.list_messages()
+    fields = ("token", "sender_email", "recipient_email", "subject",
+              "created_at", "expires_at", "read_at", "replied_at")
+    return JSONResponse({
+        "enabled": bool(settings_store.get("SECURE_PORTAL_ENABLED")),
+        "retention_days": int(settings_store.get("SECURE_PORTAL_RETENTION_DAYS") or 14),
+        "messages": [{k: m[k] for k in fields} for m in msgs],
+    })
+
+
+@app.delete("/api/portal/admin/{token}")
+async def portal_admin_delete(token: str, user: str = Depends(_check_auth)):
+    """Admin: Portal-Nachricht widerrufen (Link sofort ungültig)."""
+    import portal_store
+    ok = portal_store.delete_message(token)
+    if ok:
+        log.info("Portal message %s revoked by %s", token, user)
+    return JSONResponse({"ok": ok})
+
+
 @app.post("/api/portal/reply/{token}")
 async def portal_reply(token: str, body: dict):
     """Send a reply from the portal user to the original sender."""

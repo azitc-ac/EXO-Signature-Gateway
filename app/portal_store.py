@@ -132,6 +132,33 @@ def mark_replied(token: str) -> None:
         )
 
 
+def list_messages(include_expired: bool = False) -> list[dict]:
+    """Alle nicht gelöschten Portal-Nachrichten, neueste zuerst."""
+    _init()
+    with _conn() as con:
+        rows = con.execute(
+            "SELECT * FROM portal_messages WHERE deleted=0 ORDER BY created_at DESC"
+        ).fetchall()
+    msgs = [dict(r) for r in rows]
+    if not include_expired:
+        msgs = [m for m in msgs if not is_expired(m)]
+    return msgs
+
+
+def delete_message(token: str) -> bool:
+    """Nachricht widerrufen: Blob löschen, Eintrag als gelöscht markieren."""
+    _init()
+    with _conn() as con:
+        cur = con.execute(
+            "UPDATE portal_messages SET deleted=1 WHERE token=? AND deleted=0", (token,)
+        )
+        found = cur.rowcount > 0
+    (_BLOB_DIR / f"{token}.enc").unlink(missing_ok=True)
+    if found:
+        log.info("Portal message revoked: token=%s", token)
+    return found
+
+
 def cleanup_expired() -> int:
     _init()
     now = datetime.now(timezone.utc).isoformat()

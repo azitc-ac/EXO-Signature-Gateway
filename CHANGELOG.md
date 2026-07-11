@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.112 — 2026-07-11 — feat: Portal-Verwaltung auf der S/MIME-Seite
+
+Die "geplant"-Platzhalterkarte (noch mit OTP-Link/7 Tagen aus der Planungsphase)
+durch eine Live-Verwaltungskarte ersetzt: Status-Badge (aktiv/inaktiv),
+Statistiken (aktiv/ungelesen/beantwortet/Aufbewahrung), Tabelle der aktiven
+Portal-Nachrichten mit Gelesen-/Beantwortet-Status und Widerrufen-Button
+(Link sofort ungültig, Blob gelöscht). Neu: portal_store.list_messages() /
+delete_message(); Admin-Endpoints GET /api/portal/admin/list und
+DELETE /api/portal/admin/{token} (auth-pflichtig). Dark-Theme-Styles inklusive.
+
+---
+
 ## v1.5.111 — 2026-07-11 — fix: NDR via Graph sendMail (Port 25 outbound in Azure blockiert)
 
 _send_ndr versuchte direktes SMTP zum Smarthost — auf der Azure-VM schlug das
