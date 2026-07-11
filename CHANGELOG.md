@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.129 — 2026-07-11 — feat: Lizenzkauf direkt im Gateway (über Hub-Konto)
+
+Die Lizenz-Karte (Einstellungen → Anbindung) hat jetzt einen Kauf-Bereich:
+Postfachzahl eingeben (Vorschlag: aktueller Bedarf auf 10er gerundet, bei
+bestehender Lizenz mind. das bisherige Limit), Live-Preis, Kauf mit
+Bestätigungsdialog. Abrechnung über das bestehende Hub-Konto wie beim
+Zertifikatsbezug (Prepaid-Guthaben oder Rechnungsmodus); bei zu wenig
+Guthaben klare Meldung mit Fehlbetrag. Die gekaufte Lizenz wird sofort
+offline verifiziert (Signatur + Tenant) und eingespielt. Verlängerung
+rechnet Hub-seitig ab dem aktuellen Ablaufdatum weiter — keine
+Restlaufzeit geht verloren. Manueller Weg (support@zarenko.net) bleibt.
+Gegenstück: Hub v0.15.0 (POST /api/license/purchase).
+
+---
+
 ## v1.5.128 — 2026-07-11 — feat: Erinnerung vor Lizenzablauf (30/14/7/1 Tage)
 
 Täglicher Scheduler-Check: Admin-Mail bei 30/14/7/1 Tagen Restlaufzeit der

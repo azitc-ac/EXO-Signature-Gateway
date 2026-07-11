@@ -387,6 +387,28 @@ async def get_license() -> dict:
         return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
 
 
+async def purchase_license(tenant_id: str, tenant_domain: str, mailboxes: int) -> dict:
+    """Fair-Use-Lizenz kaufen — Abrechnung über das Hub-Konto (Guthaben/Rechnung)."""
+    base = _base()
+    if not (base and _key()):
+        return {"ok": False, "error": "Nicht registriert (Anbindung fehlt)."}
+    try:
+        async with httpx.AsyncClient(timeout=30) as c:
+            r = await c.post(f"{base}/api/license/purchase", headers=_gateway_headers(),
+                             json={"tenant_id": tenant_id, "tenant_domain": tenant_domain,
+                                   "mailboxes": int(mailboxes)})
+        data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+        if r.status_code == 200 and data.get("ok"):
+            return data
+        return {"ok": False, "status_code": r.status_code,
+                "missing_cents": data.get("missing_cents"),
+                "price_cents": data.get("price_cents"),
+                "error": data.get("message") or data.get("detail")
+                or f"HTTP {r.status_code}: {r.text[:200]}"}
+    except Exception as exc:
+        return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
+
+
 async def cert_get_catalog() -> dict:
     """Anbieter-Katalog des Hubs (Label, Beschreibung, Preis, Verfügbarkeit)."""
     base = _base()

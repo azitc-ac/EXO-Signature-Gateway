@@ -1947,6 +1947,39 @@ async def api_license_fetch_hub(user: str = Depends(_require_admin)):
     return JSONResponse(_lic.fair_use_state())
 
 
+@app.post("/api/license/purchase")
+async def api_license_purchase(body: dict, user: str = Depends(_require_admin)):
+    """Lizenz über das Hub-Konto kaufen (Guthaben/Rechnung) und direkt einspielen."""
+    import hub_client
+    import license as _lic
+    try:
+        mailboxes = int(body.get("mailboxes") or 0)
+    except (TypeError, ValueError):
+        raise HTTPException(400, "Postfachzahl ungültig")
+    tenant_id = (settings_store.get("TENANT_ID") or "").strip()
+    tenant_domain = (settings_store.get("TENANT_DOMAIN") or "").strip()
+    if not tenant_id:
+        raise HTTPException(400, "Eigene Tenant-ID nicht konfiguriert (Einrichtung unvollständig)")
+    res = await hub_client.purchase_license(tenant_id, tenant_domain, mailboxes)
+    if not res.get("ok"):
+        detail = res.get("error") or "Kauf fehlgeschlagen"
+        raise HTTPException(res.get("status_code") if res.get("status_code") in (400, 402, 403) else 400, detail)
+    key = res.get("license") or ""
+    payload, err = _lic.verify(key)
+    if err:
+        raise HTTPException(502, f"Hub lieferte ungültige Lizenz: {err}")
+    terr = _lic.tenant_error(payload)
+    if terr:
+        raise HTTPException(502, terr)
+    settings_store.update({"LICENSE_KEY": key})
+    log.info("Lizenz gekauft von %s: lic_id=%s mailboxes=%s preis=%s¢ bis %s",
+             user, res.get("lic_id"), res.get("mailboxes"),
+             res.get("price_cents"), res.get("expires"))
+    return JSONResponse({**_lic.fair_use_state(),
+                         "price_cents": res.get("price_cents"),
+                         "expires": res.get("expires")})
+
+
 @app.delete("/api/license")
 async def api_license_delete(user: str = Depends(_require_admin)):
     settings_store.update({"LICENSE_KEY": ""})
