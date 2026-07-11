@@ -215,8 +215,17 @@ function replyItemHtml(entry, createdAt){
     ? dt.toLocaleDateString('de-DE') + ' ' + dt.toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit'})
     : '';
   var head = 'Gesendet' + (when ? ' am ' + when : '') + (entry.name ? ' — ' + esc(entry.name) : '');
-  var att = (entry.att && entry.att.length)
-    ? '<div class="ri-att">📎 ' + entry.att.map(esc).join(', ') + '</div>' : '';
+  var att = '';
+  if(entry.att && entry.att.length){
+    var parts = entry.att.map(function(a){
+      if(typeof a === 'string') return esc(a);  // Alt-Format: nur der Name
+      if(a && a.data)
+        return '<a class="att-link" href="data:' + esc(a.type || 'application/octet-stream')
+             + ';base64,' + a.data + '" download="' + esc(a.name) + '">' + esc(a.name) + '</a>';
+      return esc((a && a.name) || '');
+    });
+    att = '<div class="ri-att">📎 ' + parts.join(', ') + '</div>';
+  }
   return '<div class="reply-item"><div class="ri-head">✓ ' + head + '</div>'
        + '<div class="ri-text">' + esc(entry.text) + '</div>' + att + '</div>';
 }
@@ -438,9 +447,10 @@ window.sendReply = async function(){
       attachments.push({name: files[i].name, type: files[i].type || 'application/octet-stream',
                         data: b64Encode(buf)});
     }
-    // Historie: verschlüsselt mit dem URL-Fragment-Key — der Server kann sie nicht lesen
-    var histEntry = {text: text, name: name,
-                     att: attachments.map(function(a){ return a.name; })};
+    // Historie: verschlüsselt mit dem URL-Fragment-Key — der Server kann sie
+    // nicht lesen. Anhänge komplett mit rein, damit sie später erneut
+    // heruntergeladen werden können.
+    var histEntry = {text: text, name: name, att: attachments};
     var cipher = '';
     try { cipher = await encryptForHistory(histEntry); } catch(e){}
 

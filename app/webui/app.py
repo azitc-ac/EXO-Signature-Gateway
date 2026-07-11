@@ -2119,9 +2119,11 @@ async def portal_reply(token: str, body: dict, request: Request):
         import portal_store as _ps
         _ps.mark_replied(token)
         # Antwort-Historie: clientseitig verschlüsselt (URL-Fragment-Key),
-        # der Server speichert nur den Ciphertext
+        # der Server speichert nur den Ciphertext. Limit 8 MB: enthält auch
+        # die Anhänge (3 MB raw → doppelt base64 ≈ 5,5 MB), damit der
+        # Empfänger sie später erneut herunterladen kann.
         cipher = (body.get("cipher") or "").strip()
-        if cipher and len(cipher) <= 300_000:
+        if cipher and len(cipher) <= 8_000_000:
             _ps.add_reply(token, cipher)
     return JSONResponse({"ok": ok})
 

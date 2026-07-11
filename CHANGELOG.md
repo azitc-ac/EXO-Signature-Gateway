@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.120 — 2026-07-11 — feat: Anhänge in der Antwort-Historie erneut herunterladbar
+
+Die Anhang-Daten wandern jetzt komplett (clientseitig verschlüsselt) mit in
+den Historie-Eintrag — der Empfänger kann seine gesendeten Anhänge in der
+Portal-Ansicht jederzeit erneut herunterladen (Download-Link statt nur Name).
+Server-Cipher-Limit 300 KB → 8 MB (3 MB Anhänge ≈ 5,5 MB doppelt base64).
+Alt-Einträge (nur Namen) werden weiterhin korrekt angezeigt.
+
+---
+
 ## v1.5.119 — 2026-07-11 — fix: Platzhalter für Antworten vor Einführung der Historie
 
 Antworten, die vor v1.5.117 gesendet wurden, haben keinen gespeicherten
