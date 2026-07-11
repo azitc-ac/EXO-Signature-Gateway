@@ -14,7 +14,7 @@ import time
 log = logging.getLogger(__name__)
 
 _TTL = 600  # Sekunden — Katalog gilt als frisch
-_cache: dict = {"ts": 0.0, "providers": [], "currency": "EUR"}
+_cache: dict = {"ts": 0.0, "providers": [], "currency": "EUR", "vat_percent": 19}
 
 
 async def refresh(force: bool = False) -> list[dict]:
@@ -32,6 +32,7 @@ async def refresh(force: bool = False) -> list[dict]:
     if res.get("ok"):
         _cache["providers"] = res.get("providers") or []
         _cache["currency"] = res.get("currency") or "EUR"
+        _cache["vat_percent"] = int(res.get("vat_percent") or 19)
         _cache["ts"] = time.monotonic()
         log.debug("hub_catalog: %d Anbieter geladen", len(_cache["providers"]))
     else:
@@ -54,8 +55,12 @@ def get(provider_id: str) -> dict | None:
     return None
 
 
+def vat_percent() -> int:
+    return int(_cache.get("vat_percent") or 19)
+
+
 def format_price(price_cents, cur: str | None = None) -> str:
-    """4900 → '49,00 €' (bzw. Währungscode, wenn nicht EUR)."""
+    """4900 → '49,00 €' (bzw. Währungscode, wenn nicht EUR). Preise sind NETTO."""
     try:
         cents = int(price_cents)
     except (TypeError, ValueError):

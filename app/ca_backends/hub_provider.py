@@ -29,7 +29,7 @@ class HubProviderBackend(CABackend):
         months = self._p.get("validity_months")
         parts = [label]
         if price:
-            parts.append(f"{price}/Zertifikat")
+            parts.append(f"{price}/Zertifikat zzgl. MwSt.")
         if months:
             parts.append(f"{months} Monate")
         return " — ".join(parts) + " (über Hub)"

@@ -1977,6 +1977,8 @@ async def api_license_purchase(body: dict, user: str = Depends(_require_admin)):
              res.get("price_cents"), res.get("expires"))
     return JSONResponse({**_lic.fair_use_state(),
                          "price_cents": res.get("price_cents"),
+                         "price_gross_cents": res.get("price_gross_cents"),
+                         "vat_percent": res.get("vat_percent"),
                          "expires": res.get("expires")})
 
 

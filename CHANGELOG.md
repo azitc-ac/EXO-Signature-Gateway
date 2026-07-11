@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.130 — 2026-07-11 — feat: Netto-Preise mit MwSt.-Vermerk (Lizenz + Zertifikate)
+
+Alle angezeigten Preise sind netto: Backend-Labels der CA-Anbieter tragen
+"zzgl. MwSt." ("Sectigo — 49,00 €/Zertifikat zzgl. MwSt. — 12 Monate"),
+der Lizenzkauf zeigt "… €/Jahr netto zzgl. MwSt." samt Hinweis auf
+Brutto-Abbuchung; Bestätigungsdialog nennt netto, die Erfolgsmeldung den
+tatsächlich belasteten Bruttobetrag inkl. MwSt.-Satz aus der Hub-Antwort.
+hub_catalog cached vat_percent vom Hub. Gegenstück: Hub v0.15.1
+(Brutto-Debit/-Erstattung, SP_VAT_PERCENT Default 19).
+
+---
+
 ## v1.5.129 — 2026-07-11 — feat: Lizenzkauf direkt im Gateway (über Hub-Konto)
 
 Die Lizenz-Karte (Einstellungen → Anbindung) hat jetzt einen Kauf-Bereich:

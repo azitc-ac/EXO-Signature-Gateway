@@ -578,14 +578,15 @@ function licBuyPrice() {
   btn.disabled = false;
   const price = (n - 100) * 12;
   el.textContent = 'Preis: ' + (n - 100) + ' Postfächer über Fair Use × 12 €/Jahr = '
-                 + price + ' €/Jahr (Laufzeit 1 Jahr' +
-                 (_licState && _licState.licensed ? ', ab aktuellem Ablaufdatum' : '') + ').';
+                 + price + ' €/Jahr netto zzgl. MwSt. (Laufzeit 1 Jahr' +
+                 (_licState && _licState.licensed ? ', ab aktuellem Ablaufdatum' : '') +
+                 '). Abbuchung vom Guthaben erfolgt brutto.';
 }
 async function licBuy() {
   const n = parseInt(document.getElementById('lic-buy-mailboxes').value, 10) || 0;
   const price = (n - 100) * 12;
   if (!confirm('Lizenz für ' + n + ' Postfächer kaufen — ' + price +
-               ' €/Jahr werden deinem Hub-Konto belastet?')) return;
+               ' €/Jahr netto zzgl. MwSt.? Der Bruttobetrag wird deinem Hub-Konto belastet.')) return;
   const btn = document.getElementById('lic-buy-btn');
   btn.disabled = true;
   _licMsg('Kauf läuft…', true);
@@ -594,8 +595,11 @@ async function licBuy() {
       headers: {'Content-Type': 'application/json'}, body: JSON.stringify({mailboxes: n})});
     const d = await r.json().catch(() => ({}));
     if (r.ok) {
+      var gross = d.price_gross_cents ? (d.price_gross_cents / 100).toFixed(2) + ' € brutto'
+                                      : ((d.price_cents || 0) / 100) + ' €';
       _licMsg('✓ Lizenz gekauft und eingespielt — gültig bis ' + (d.expires || '?') +
-              ' (' + ((d.price_cents || 0) / 100) + ' € belastet).', true);
+              ' (' + gross + ' belastet' +
+              (d.vat_percent ? ', inkl. ' + d.vat_percent + ' % MwSt.' : '') + ').', true);
       document.getElementById('lic-buy-mailboxes').value = '';
       licLoad();
     } else {
