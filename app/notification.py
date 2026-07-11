@@ -434,6 +434,37 @@ def _portal_brand_header() -> str:
             + "".join(parts) + '</div>')
 
 
+def send_license_expiry_warning(st: dict, days_left: int) -> bool:
+    """Admin-Erinnerung: Fair-Use-Lizenz läuft ab (oder ist abgelaufen)."""
+    to = _get_notify_to()
+    if not to:
+        return False
+    lic = f'{st.get("customer", "")} (ID {st.get("lic_id", "?")})'
+    mb = st.get("mailboxes") or 0
+    mb_str = f"{mb} Postfächer" if mb else "unbegrenzte Postfächer"
+    if days_left < 0:
+        title, color = "✗ Lizenz abgelaufen", "#e74c3c"
+        lead = (f'<p>Die Fair-Use-Lizenz ist am <strong>{st.get("expires", "?")}</strong> '
+                f'abgelaufen — der Fair-Use-Hinweis erscheint wieder, sobald mehr als '
+                f'100 Postfächer aktiviert sind.</p>')
+        subject = "✗ Fair-Use-Lizenz abgelaufen"
+    else:
+        title, color = "⏰ Lizenz läuft bald ab", "#d97706"
+        lead = (f'<p>Die Fair-Use-Lizenz läuft in <strong>{days_left} Tag'
+                f'{"" if days_left == 1 else "en"}</strong> ab '
+                f'(am {st.get("expires", "?")}).</p>')
+        subject = f"⏰ Fair-Use-Lizenz läuft in {days_left} Tagen ab"
+    body = (
+        lead
+        + f'<table>{_row("Lizenz", lic)}{_row("Umfang", mb_str)}'
+        + f'{_row("Gültig bis", st.get("expires", "?"), color)}</table>'
+        + '<p style="margin-top:12px">Verlängerung über die Hub-Anbindung '
+          '(Einstellungen → Anbindung → Lizenz) oder per Mail an '
+          'support@zarenko.net.</p>'
+    )
+    return _graph_send(to, subject, _html_wrap(title, color, body))
+
+
 def send_hub_cert_issued(email: str, provider: str) -> bool:
     """Admin-Info: Hub-Zertifikatsbestellung ausgestellt und importiert."""
     to = _get_notify_to()

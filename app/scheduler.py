@@ -231,10 +231,48 @@ def _should_run_daily(last_run_date: str) -> bool:
     return now.hour > hour or (now.hour == hour and now.minute >= minute)
 
 
+def _check_license_expiry() -> None:
+    """Erinnerung an ablaufende Fair-Use-Lizenz (30/14/7/1 Tage + abgelaufen).
+    Dedup in-memory pro Schwelle — nach Container-Restart maximal eine
+    Wiederholung, gleiche Semantik wie die Zertifikats-Warnungen."""
+    try:
+        import license as _lic
+        import notification
+        st = _lic.status()
+        if not st.get("licensed") and not st.get("reason"):
+            return  # keine Lizenz eingespielt — nichts zu erinnern
+        expires = st.get("expires") or ""
+        # Abgelaufene Lizenz: status() liefert licensed=False mit reason
+        if not st.get("licensed") and "abgelaufen" in (st.get("reason") or ""):
+            key_full = (settings_store.get("LICENSE_KEY") or "").strip()
+            payload, _ = _lic.verify(key_full, check_expiry=False)
+            dedup = "license:expired"
+            if payload and dedup not in _cert_alerts_sent:
+                notification.send_license_expiry_warning(payload, -1)
+                _cert_alerts_sent.add(dedup)
+            return
+        if not expires:
+            return
+        from datetime import date
+        days_left = (date.fromisoformat(expires) - date.today()).days
+        # Aufsteigend: die KLEINSTE passende Schwelle zählt (10 Tage Rest → 14),
+        # sonst würde immer 30 matchen und die Eskalationen 14/7/1 nie feuern
+        for t in (1, 7, 14, 30):
+            if days_left <= t:
+                dedup = f"license:{st.get('lic_id')}:{t}"
+                if dedup not in _cert_alerts_sent:
+                    notification.send_license_expiry_warning(st, days_left)
+                    _cert_alerts_sent.add(dedup)
+                break
+    except Exception as exc:
+        log.warning("scheduler: license expiry check failed: %s", exc)
+
+
 def _run_daily() -> None:
     # Cert checks always run (independent of report settings)
     _check_tls_cert()
     _check_smime_lifecycle()
+    _check_license_expiry()
 
     # Portal cleanup
     try:

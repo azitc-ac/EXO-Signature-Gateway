@@ -33,9 +33,11 @@ def _b64url_decode(s: str) -> bytes:
     return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
 
 
-def verify(key_str: str) -> tuple[dict | None, str]:
+def verify(key_str: str, check_expiry: bool = True) -> tuple[dict | None, str]:
     """Signatur + Format prüfen. Rückgabe (payload, "") oder (None, fehler).
-    Die Tenant-Bindung wird separat geprüft (tenant_error)."""
+    Die Tenant-Bindung wird separat geprüft (tenant_error).
+    check_expiry=False: Payload trotz Ablauf liefern (z.B. für die
+    Ablauf-Erinnerung, die Kundendaten der abgelaufenen Lizenz braucht)."""
     key_str = (key_str or "").strip()
     parts = key_str.split(".")
     if len(parts) != 3 or parts[0] != "EXOSIG1":
@@ -56,7 +58,7 @@ def verify(key_str: str) -> tuple[dict | None, str]:
     except Exception:
         return None, "Payload nicht lesbar"
     expires = payload.get("expires")
-    if expires:
+    if expires and check_expiry:
         try:
             if date.fromisoformat(expires) < date.today():
                 return None, f"Lizenz am {expires} abgelaufen"

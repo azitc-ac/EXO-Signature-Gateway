@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.128 — 2026-07-11 — feat: Erinnerung vor Lizenzablauf (30/14/7/1 Tage)
+
+Täglicher Scheduler-Check: Admin-Mail bei 30/14/7/1 Tagen Restlaufzeit der
+Fair-Use-Lizenz (kleinste passende Schwelle, Dedup pro Schwelle wie bei den
+Zertifikats-Warnungen) und einmalig nach Ablauf. license.verify() hat dafür
+ein check_expiry-Flag (Payload der abgelaufenen Lizenz für die Mail).
+Passend dazu Hub v0.14.2: Laufzeit-Default 1 Jahr (expires = issued+365d in
+der signierten Payload) + Live-Preisvorschlag im Lizenz-Formular
+((Postfächer − 100) × 12 €/Jahr).
+
+---
+
 ## v1.5.127 — 2026-07-11 — feat: Fair-Use-Hinweis + Offline-Lizenz (Ed25519, Tenant-gebunden)
 
 Ab 100 aktivierten Postfächern (Signatur und/oder S/MIME; leere
