@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.126 — 2026-07-11 — chore: deployment-spezifische Banner-Templates aus Repo entfernt
+
+app/templates/Blog-Banner* waren versehentlich mit committet (Überbleibsel;
+aktive Kopien liegen im Host-Volume ./templates/), enthalten persönliche URL.
+
+---
+
 ## v1.5.125 — 2026-07-11 — feat: CA-Direktanbindung entfernt — Hub ist der einzige Bezugsweg
 
 Bewusste Entscheidung: Die nie produktiv getestete Direktanbindung an
