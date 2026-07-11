@@ -357,6 +357,8 @@ async def cert_order(target_email: str, csr_pem: str, extra: dict | None = None,
         if r.status_code == 200 and data.get("ok"):
             log.info("Cert order submitted to reseller hub for %s → %s", target_email, data.get("status"))
             return {"ok": True, "status": data.get("status"), "ref": data.get("ref"),
+                    "order_id": data.get("order_id"),
+                    "price_cents": data.get("price_cents"),
                     "message": data.get("message", ""), "cert_pem": data.get("cert_pem")}
         if r.status_code in (401, 403):
             return {"ok": False, "error": f"Nicht freigegeben/ungültiger Key (HTTP {r.status_code})."}
@@ -364,6 +366,41 @@ async def cert_order(target_email: str, csr_pem: str, extra: dict | None = None,
     except Exception as exc:
         log.error("hub cert order error: %s", exc)
         return {"ok": False, "error": f"Netzwerkfehler: {exc}"}
+
+
+async def cert_get_catalog() -> dict:
+    """Anbieter-Katalog des Hubs (Label, Beschreibung, Preis, Verfügbarkeit)."""
+    base = _base()
+    if not (base and _cert_key()):
+        return {"ok": False, "error": "Nicht registriert (Anbindung fehlt)."}
+    try:
+        async with httpx.AsyncClient(timeout=20) as c:
+            r = await c.get(f"{base}/api/cert/providers",
+                            headers=_gateway_headers(_cert_key()))
+        data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+        if r.status_code == 200 and data.get("ok"):
+            return {"ok": True, "providers": data.get("providers") or [],
+                    "currency": data.get("currency") or "EUR"}
+        return {"ok": False, "error": data.get("detail") or f"HTTP {r.status_code}: {r.text[:200]}"}
+    except Exception as exc:
+        return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
+
+
+async def cert_get_order(order_id: str) -> dict:
+    """Status einer Zertifikatsbestellung abfragen (issued → enthält cert_pem)."""
+    base = _base()
+    if not (base and _cert_key()):
+        return {"ok": False, "error": "Nicht registriert (Anbindung fehlt)."}
+    try:
+        async with httpx.AsyncClient(timeout=20) as c:
+            r = await c.get(f"{base}/api/cert/order/{order_id}",
+                            headers=_gateway_headers(_cert_key()))
+        data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+        if r.status_code == 200 and data.get("ok"):
+            return data
+        return {"ok": False, "error": data.get("detail") or f"HTTP {r.status_code}: {r.text[:200]}"}
+    except Exception as exc:
+        return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
 
 
 async def cert_topup(amount_cents: int) -> dict:

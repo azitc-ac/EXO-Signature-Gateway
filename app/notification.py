@@ -434,6 +434,37 @@ def _portal_brand_header() -> str:
             + "".join(parts) + '</div>')
 
 
+def send_hub_cert_issued(email: str, provider: str) -> bool:
+    """Admin-Info: Hub-Zertifikatsbestellung ausgestellt und importiert."""
+    to = _get_notify_to()
+    if not to:
+        return False
+    body = (
+        f'<p>Ein über den Hub bestelltes S/MIME-Zertifikat wurde ausgestellt '
+        f'und automatisch eingespielt.</p>'
+        f'<table>{_row("Postfach", email)}{_row("Anbieter", provider)}</table>'
+    )
+    html = _html_wrap("✓ S/MIME-Zertifikat ausgestellt", "#16a34a", body)
+    return _graph_send(to, f"✓ S/MIME-Zertifikat für {email} eingespielt", html)
+
+
+def send_hub_cert_rejected(email: str, provider: str, note: str = "") -> bool:
+    """Admin-Warnung: Hub-Zertifikatsbestellung abgelehnt."""
+    to = _get_notify_to()
+    if not to:
+        return False
+    import html as _h
+    body = (
+        f'<p>Eine Hub-Zertifikatsbestellung wurde abgelehnt.</p>'
+        f'<table>{_row("Postfach", email)}{_row("Anbieter", provider)}'
+        f'{_row("Grund", _h.escape(note) or "—", "#e74c3c")}</table>'
+        f'<p style="margin-top:12px">Ein etwaiger Prepaid-Betrag wurde vom Hub '
+        f'zurückerstattet. Bitte ggf. manuell erneuern oder Anbieter wechseln.</p>'
+    )
+    html = _html_wrap("✗ S/MIME-Zertifikatsbestellung abgelehnt", "#e74c3c", body)
+    return _graph_send(to, f"✗ Zertifikatsbestellung für {email} abgelehnt", html)
+
+
 def send_portal_notification(
     sender_email: str,
     sender_name: str,

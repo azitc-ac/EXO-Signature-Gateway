@@ -5,6 +5,31 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.124 — 2026-07-11 — feat: CA-Anbieter dynamisch vom Hub (Katalog + Preise)
+
+Die komplette CA-Musik (Sectigo, SwissSign, künftige Anbieter) liegt jetzt
+beim Hub — das Gateway ist diesbezüglich feature-complete und offen für
+Anbieter-Wegfall/Preisänderungen ohne Gateway-Release:
+- hub_catalog.py: gecachter Anbieter-Katalog vom Hub (GET /api/cert/providers)
+  mit Label, Beschreibung, Laufzeit, Standardpreis pro Anbieter; Preis wird
+  im Backend-Label angezeigt ("Sectigo S/MIME — 49,00 €/Zertifikat — 12 Monate")
+- Registry dynamisch: lokale Backends (castle_acme, assisted_manual) + ein
+  generisches hub:<id>-Backend je Katalog-Eintrag; Legacy-Namen
+  sectigo/swisssign aliasen auf hub:sectigo/hub:swisssign (CA_USER_CONFIG
+  bleibt gültig); Direktanbindungs-Backends aus der Registry entfernt
+- hub_orders.py: FIX der Schlüssel-Lücke — bei asynchroner Ausstellung wurde
+  der lokal erzeugte private Schlüssel bisher weggeworfen (Cert wäre nie
+  paarbar gewesen). Jetzt: data/hub_orders/{id}.key (0600) + Scheduler-Polling
+  alle 15 min; bei "issued" automatischer Import in den smime_store-Slot,
+  bei "rejected" Admin-Benachrichtigung. Schlüssel werden NIE automatisch
+  gelöscht (nur bei Import/Ablehnung)
+- hub_client: cert_get_catalog(), cert_get_order(); cert_order reicht
+  order_id/price_cents durch
+- Gegenstück im Hub (sig-provider): Anbieter-Katalog mit Preisen,
+  Order-Lifecycle mit manueller Erfüllung im Admin-UI
+
+---
+
 ## v1.5.123 — 2026-07-11 — feat: Automatische S/MIME-Regeln + UI-Aufräumen
 
 Der "Demnächst"-Platzhalter unter Einstellungen → S/MIME ist jetzt funktional:

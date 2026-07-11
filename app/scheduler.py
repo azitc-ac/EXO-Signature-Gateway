@@ -19,6 +19,8 @@ _last_mailbox_refresh: float = 0.0     # monotonic; 0 = never (triggers warm-up 
 _MAILBOX_REFRESH_INTERVAL = 45 * 60    # refresh before exo_mailboxes' own 1h cache TTL expires
 _last_acl_refresh: float = 0.0         # monotonic; 0 = never (triggers fetch on first tick)
 _ACL_REFRESH_INTERVAL = 12 * 60 * 60   # Exchange IP ranges change rarely — twice a day is plenty
+_last_hub_orders_poll: float = 0.0     # monotonic; 0 = never (triggers poll on first tick)
+_HUB_ORDERS_INTERVAL = 15 * 60         # offene Hub-Zertifikatsbestellungen + Katalog-Refresh
 
 
 # ── TLS / Let's Encrypt ───────────────────────────────────────────────────────
@@ -281,6 +283,26 @@ def _refresh_smtp_acl() -> None:
         _last_acl_refresh = time.monotonic()
 
 
+def _poll_hub_orders() -> None:
+    """Offene Hub-Zertifikatsbestellungen abfragen + Anbieter-Katalog auffrischen."""
+    global _last_hub_orders_poll
+    try:
+        import asyncio
+        import hub_catalog
+        import hub_client
+        import hub_orders
+        if hub_client.cert_is_registered():
+            asyncio.run(hub_catalog.refresh())
+            if hub_orders.list_pending():
+                n = hub_orders.poll_all_sync()
+                if n:
+                    log.info("scheduler: %d Hub-Zertifikatsbestellung(en) abgeschlossen", n)
+    except Exception as exc:
+        log.warning("scheduler: hub orders poll failed: %s", exc)
+    finally:
+        _last_hub_orders_poll = time.monotonic()
+
+
 def _loop() -> None:
     while True:
         try:
@@ -294,6 +316,8 @@ def _loop() -> None:
                 _refresh_mailbox_cache()
             if time.monotonic() - _last_acl_refresh > _ACL_REFRESH_INTERVAL:
                 _refresh_smtp_acl()
+            if time.monotonic() - _last_hub_orders_poll > _HUB_ORDERS_INTERVAL:
+                _poll_hub_orders()
         except Exception as exc:
             log.error("scheduler loop error: %s", exc)
         time.sleep(60)

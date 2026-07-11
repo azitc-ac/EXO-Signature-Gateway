@@ -2729,6 +2729,12 @@ async def smime_page_v2(request: Request, user: str = Depends(_require_admin)):
     import ca_backends as _ca
     import acme_state as _acme_state
     import keyvault as _kv
+    import hub_catalog as _hub_cat
+    try:
+        # Anbieter/Preise kommen dynamisch vom Hub — vor dem Rendern auffrischen
+        await _hub_cat.refresh()
+    except Exception:
+        pass
     config_map: dict = settings_store.get("MAILBOX_CONFIG") or {}
     smime_from_config = {
         (key.lower() if "@" in key else (cfg.get("primary") or "").lower())
@@ -2937,6 +2943,11 @@ async def api_smime_cert_details(
 @app.get("/api/smime/ca-config")
 async def api_ca_config_get(user: str = Depends(_check_auth)):
     import ca_backends as _ca
+    import hub_catalog as _hub_cat
+    try:
+        await _hub_cat.refresh()
+    except Exception:
+        pass
     return JSONResponse({
         "config": settings_store.get("CA_USER_CONFIG") or {},
         "backends": _ca.list_backends(),
