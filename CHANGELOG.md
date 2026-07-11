@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.5.133 — 2026-07-11 — fix: Dark Theme — Kontrast-Überarbeitung
+
+- color-scheme: dark → der Browser rendert native Widgets dunkel; behebt die
+  helle Options-Liste unter dunklen Dropdowns (Haupt-Kontrastproblem) sowie
+  Datepicker und Scrollbalken
+- Input-Abdeckung erweitert (date, datetime-local, time, search, file),
+  select option explizit, disabled-Zustände gedimmt statt unlesbar
+- Inline-Style-Überschreibungen per Attribut-Selektor: die ~250 inline
+  gesetzten Hell-Farben (color:#555/#888 …, background:#f8fafc …,
+  border #e2e8f0 …) werden zentral auf Dunkel-Äquivalente gemappt — ohne
+  ein Template anzufassen. Signatur-Vorschau (background:#fff) bewusst
+  ausgenommen: sie muss auf Weiß rendern wie beim Empfänger
+- Warn-Flächen (#fef3c7) und Badge-Pillen (#e2e8f0) dunkel; kv-Tabellen
+- Hub: gleiche Fixes (color-scheme, option, Inline-Overrides) in base.html
+
+---
+
 ## v1.5.132 — 2026-07-11 — feat: Anbieter-Katalog auf der Anbindung-Seite sichtbar
 
 Vervollständigt die dynamische Katalog-Anzeige (Teil 1 der ursprünglichen

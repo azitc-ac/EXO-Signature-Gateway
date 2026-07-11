@@ -2,6 +2,11 @@
    Applied via [data-theme="dark"] on <html>. All other styles stay as-is.
    ────────────────────────────────────────────────────────────────────────── */
 
+/* color-scheme: lässt den BROWSER native Widgets dunkel rendern —
+   Select-Popups (Options-Liste!), Datepicker, Scrollbalken, Checkboxen.
+   Ohne dies: helle Options-Liste unter dunklem Select = Kontrast-Chaos. */
+[data-theme="dark"] { color-scheme: dark; }
+
 /* Page background & base text */
 [data-theme="dark"] body {
   background: #0f1117;
@@ -87,11 +92,25 @@
 [data-theme="dark"] input[type="password"],
 [data-theme="dark"] input[type="number"],
 [data-theme="dark"] input[type="url"],
+[data-theme="dark"] input[type="date"],
+[data-theme="dark"] input[type="datetime-local"],
+[data-theme="dark"] input[type="time"],
+[data-theme="dark"] input[type="search"],
+[data-theme="dark"] input[type="file"],
 [data-theme="dark"] select,
 [data-theme="dark"] textarea {
   background: #1a1d27;
   border-color: #2a2d3e;
   color: #e2e8f0;
+}
+[data-theme="dark"] select option {
+  background: #1a1d27;
+  color: #e2e8f0;
+}
+[data-theme="dark"] select:disabled,
+[data-theme="dark"] input:disabled {
+  opacity: 0.5;
+  color: #94a3b8;
 }
 [data-theme="dark"] input:focus,
 [data-theme="dark"] select:focus,
@@ -154,6 +173,75 @@
 [data-theme="dark"] #user-tt-upn { color: #e2e8f0; }
 [data-theme="dark"] #user-tt-role { color: #94a3b8; }
 [data-theme="dark"] #user-tooltip [style*="border-top"] { border-top-color: #2a2d3e !important; }
+
+/* ── Inline-Style-Überschreibungen ────────────────────────────────────────
+   Die Templates setzen hunderte Farben inline (style="…"), die eine additive
+   CSS-Datei normal nicht erreicht. Attribut-Selektoren + !important fangen
+   die wiederkehrenden Muster zentral ab — Templates bleiben unangetastet.
+   Bewusst NICHT überschrieben: background:#fff (Signatur-Vorschau muss auf
+   Weiß rendern, wie beim Empfänger). */
+
+/* Helle Info-/Karten-Hintergründe → dunkle Fläche */
+[data-theme="dark"] [style*="background:#f8fafc"],
+[data-theme="dark"] [style*="background:#f8f7f6"],
+[data-theme="dark"] [style*="background:#f1f5f9"],
+[data-theme="dark"] [style*="background:#eff6ff"],
+[data-theme="dark"] [style*="background:#f3f4f6"],
+[data-theme="dark"] [style*="background:#fafafa"] {
+  background: #1e2230 !important;
+}
+
+/* Gelbe Warn-Flächen → dunkle Warn-Fläche (Textfarben dort meist #92400e/#b45309
+   — auf Dunkel ok lesbar, zusätzlich leicht aufgehellt) */
+[data-theme="dark"] [style*="background:#fef3c7"] {
+  background: #241a00 !important;
+}
+[data-theme="dark"] [style*="color:#92400e"] { color: #fbbf24 !important; }
+[data-theme="dark"] [style*="color:#b45309"] { color: #f59e0b !important; }
+
+/* Dunkle Inline-Textfarben → helle Entsprechungen */
+[data-theme="dark"] [style*="color:#555"],
+[data-theme="dark"] [style*="color:#374151"],
+[data-theme="dark"] [style*="color:#334155"],
+[data-theme="dark"] [style*="color:#1e293b"],
+[data-theme="dark"] [style*="color:#111"] {
+  color: #cbd5e1 !important;
+}
+[data-theme="dark"] [style*="color:#666"],
+[data-theme="dark"] [style*="color:#888"],
+[data-theme="dark"] [style*="color:#6b7280"],
+[data-theme="dark"] [style*="color:#64748b"],
+[data-theme="dark"] [style*="color:#78716c"],
+[data-theme="dark"] [style*="color:#94a3b8"],
+[data-theme="dark"] [style*="color:#9ca3af"] {
+  color: #94a3b8 !important;
+}
+
+/* Helle Inline-Rahmen → dunkle Rahmen */
+[data-theme="dark"] [style*="border:1px solid #e2e8f0"],
+[data-theme="dark"] [style*="border:1px solid #e5e7eb"],
+[data-theme="dark"] [style*="border:1px solid #d1d5db"],
+[data-theme="dark"] [style*="border:1px solid #f0f0f0"] {
+  border-color: #2a2d3e !important;
+}
+[data-theme="dark"] [style*="border-bottom:2px solid #e2e8f0"],
+[data-theme="dark"] [style*="border-bottom:1px solid #f0f0f0"],
+[data-theme="dark"] [style*="border-bottom:1px solid #e2e8f0"],
+[data-theme="dark"] [style*="border-top:1px solid #f0f0f0"],
+[data-theme="dark"] [style*="border-top:1px solid #e2e8f0"],
+[data-theme="dark"] [style*="border-top:1px solid #eee"] {
+  border-color: #2a2d3e !important;
+}
+
+/* Helle Badge-Pillen (z.B. "Demnächst", Statuszähler) */
+[data-theme="dark"] [style*="background:#e2e8f0"] {
+  background: #2a2d3e !important;
+  color: #94a3b8 !important;
+}
+
+/* kv-Tabellen (Regel-Editoren u.ä.) */
+[data-theme="dark"] .kv-table th { color: #94a3b8; border-color: #2a2d3e; }
+[data-theme="dark"] .kv-table td { border-color: #2a2d3e; }
 
 /* Theme toggle button in nav */
 #theme-toggle {
