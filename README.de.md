@@ -166,6 +166,23 @@ Der Modus wird in der Web-UI unter **Einstellungen → Re-inject-Modus** oder vi
 
 ## Schnellstart
 
+### Unterstützte Architekturen — x86-64 (amd64) und ARM64
+
+Das Image baut **nativ auf `linux/amd64` (x86-64) und `linux/arm64`** — ein
+Selbsthosting läuft also gleichermaßen auf einem gewöhnlichen x64-Server/-VM
+wie auf einem Raspberry Pi. Es ist nichts zu konfigurieren:
+`docker compose up -d --build` erkennt die Host-Architektur und baut das
+passende Image (Base-Image, PowerShell und alle Python-Abhängigkeiten sind
+Multi-Arch).
+
+> **Nativ auf der Ziel-Architektur bauen.** Das Image **nicht** per QEMU-
+> Emulation cross-bauen (z.B. `docker buildx --platform linux/amd64` auf einem
+> ARM-Host): Der Build installiert das PowerShell-Modul
+> `ExchangeOnlineManagement`, das .NET ausführt — und .NET bricht unter
+> QEMU-User-Emulation ab (SIGABRT / Exit 134). Das ist eine Emulations-Grenze,
+> **kein** Architektur-Problem. Für x64 auf einer echten x64-Maschine bauen,
+> für ARM auf ARM.
+
 ### 1. Repository klonen
 
 ```bash

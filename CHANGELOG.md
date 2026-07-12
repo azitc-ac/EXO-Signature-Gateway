@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.6.3 — 2026-07-12 — docs: x64/ARM64-Multi-Arch im README (nativer Selbstbau)
+
+README.md + README.de.md: Abschnitt "Unterstützte Architekturen" im
+Schnellstart — Image baut nativ auf amd64 (x64) und arm64, `compose up --build`
+erkennt die Host-Arch automatisch; Warnhinweis, nicht per QEMU cross-zu-bauen
+(pwsh/.NET-SIGABRT). Für On-Prem-x64-Selbsthoster.
+
+---
+
 ## v1.6.2 — 2026-07-12 — docs: x64-Support bestätigt + Cross-Build-Fallstrick dokumentiert
 
 Geprüft, ob das Gateway auf x86_64 (amd64) läuft — JA, nativ. Der Dockerfile
