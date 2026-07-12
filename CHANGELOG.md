@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.6.2 — 2026-07-12 — docs: x64-Support bestätigt + Cross-Build-Fallstrick dokumentiert
+
+Geprüft, ob das Gateway auf x86_64 (amd64) läuft — JA, nativ. Der Dockerfile
+ist bereits arch-aware (python:3.11-slim multi-arch, PowerShell per
+dpkg-Arch-Erkennung, alle Python-Deps mit x86_64-Wheels). Emulierter
+amd64-Testbau (QEMU auf ARM-Raspi): ALLE Layer bauen sauber inkl.
+PowerShell-x64-Binary — nur das AUSFÜHREN von pwsh beim Modul-Install kippt
+mit SIGABRT (Exit 134), bekannte QEMU/.NET-Emulationsschwäche, KEIN x64-Bug.
+Konsequenz: Multi-Arch-Images nur NATIV bauen (Hardware/Runner je Arch), nicht
+cross via Emulation. Fallstrick als ARCH-HINWEIS im Dockerfile dokumentiert.
+On-Prem-x64-Selbsthoster: `docker compose up -d --build` auf x64 baut nativ,
+keine Änderung nötig.
+
+---
+
 ## v1.6.1 — 2026-07-12 — feat: Rechnungsantrag mit Abrechnungsdaten + Webseite
 
 Der "Rechnungsstellung beantragen"-Bereich (Einstellungen → Anbindung) ist

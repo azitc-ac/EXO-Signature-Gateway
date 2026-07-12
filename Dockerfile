@@ -28,6 +28,14 @@ RUN set -eux; \
     ln -sf /opt/microsoft/powershell/7/pwsh /usr/local/bin/pwsh
 
 # ── ExchangeOnlineManagement PowerShell module ────────────────────────────────
+# ARCH-HINWEIS: Dieser Schritt FÜHRT pwsh aus. amd64 und arm64 bauen NATIV
+# problemlos (x64 ist PowerShells Hauptplattform). Ein CROSS-Build via QEMU
+# (z.B. `buildx --platform linux/amd64` auf einem ARM-Host) CRASHT hier mit
+# Exit 134/SIGABRT — .NET läuft nicht zuverlässig unter QEMU-User-Emulation.
+# → Multi-Arch-Images NUR nativ bauen (Hardware/Runner je Arch) oder in einer
+#   CI-Matrix mit nativen amd64- + arm64-Runnern. Verifiziert 2026-07-12:
+#   amd64-Layer bis hier (Base, Pakete, pwsh-x64-Binary) bauen emuliert sauber;
+#   erst das AUSFÜHREN von pwsh kippt — reines Emulations-Artefakt, kein x64-Bug.
 RUN pwsh -NoProfile -NonInteractive -Command \
     "Set-PSRepository PSGallery -InstallationPolicy Trusted; \
      Install-Module ExchangeOnlineManagement -Force -AllowClobber -Scope AllUsers"
