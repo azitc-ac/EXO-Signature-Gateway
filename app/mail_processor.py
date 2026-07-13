@@ -461,8 +461,11 @@ _LEXWARE_MARKER_RE = re.compile(r'id=["\']?templateBody["\']?', re.IGNORECASE)
 _DIV_ALIGN_CENTER_RE = re.compile(r'(<div\b[^>]*\balign\s*=\s*)(["\']?)center\2', re.IGNORECASE)
 _CENTER_TAG_RE = re.compile(r'</?center\b[^>]*>', re.IGNORECASE)
 _LEXWARE_TD_OPEN_RE = re.compile(r'<td\b[^>]*\bid=["\']?templatebody["\']?[^>]*>', re.IGNORECASE)
-_FONT_FAMILY_RE = re.compile(r'(font-family|mso-fareast-font-family|mso-bidi-font-family)\s*:\s*[^;]+;', re.IGNORECASE)
-_EMPTY_FONT_FAMILY_RE = re.compile(r'font-family\s*:\s*(?=[;"\'>\s])', re.IGNORECASE)
+# Wertezeichen bewusst ohne " < > — sonst läuft das Match bei leerem/abgeschnittenem
+# Wert über das Attribut-Ende hinaus bis zum nächsten ';' (z.B. dem einer HTML-Entity
+# wie &uuml; im Nachrichtentext) und verschluckt Mail-Inhalt.
+_FONT_FAMILY_RE = re.compile(r'(font-family|mso-fareast-font-family|mso-bidi-font-family)\s*:\s*[^;<>"]+;', re.IGNORECASE)
+_EMPTY_FONT_FAMILY_RE = re.compile(r'(?<![\w-])font-family\s*:\s*(?=[;"\'>])', re.IGNORECASE)
 _FONT_SIZE_RE = re.compile(r'font-size\s*:\s*[0-9.]+(?:pt|px|em|rem)', re.IGNORECASE)
 _EMPTY_P_BEFORE_CENTER_DIV_RE = re.compile(
     r'<p\b[^>]*>(?:\s|&nbsp;|<o:p>|</o:p>)*</p>\s*'
@@ -551,9 +554,10 @@ def _fix_lexware_font(html: str) -> str:
             return 'font-family:Calibri,sans-serif;'
         return f'{prop}:Calibri;'
 
-    new_region = _FONT_FAMILY_RE.sub(_fam_repl, region)
-    # Leere font-family: (kein Wert) → Calibri + 11pt in einem Schritt setzen
-    new_region = _EMPTY_FONT_FAMILY_RE.sub('font-family:Calibri,sans-serif; font-size:11.0pt; ', new_region)
+    # Leere font-family: (kein Wert) ZUERST behandeln — Calibri + 11pt setzen,
+    # damit der Wert-Regex danach nicht mehr auf den Leer-Fall treffen kann
+    new_region = _EMPTY_FONT_FAMILY_RE.sub('font-family:Calibri,sans-serif; font-size:11.0pt; ', region)
+    new_region = _FONT_FAMILY_RE.sub(_fam_repl, new_region)
     new_region = _FONT_SIZE_RE.sub('font-size:11.0pt', new_region)
     if new_region == region:
         return html

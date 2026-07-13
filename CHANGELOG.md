@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.6.7 — 2026-07-13 — fix: _FONT_FAMILY_RE konnte Nachrichtentext verschlucken (kritisch)
+
+Nachtest von v1.6.6 deckte auf: Bei leerem `font-family:` im style-Attribut
+lief `_FONT_FAMILY_RE` (`[^;]+;`) über das Attribut-Ende hinaus bis zum
+Semikolon der nächsten HTML-Entity (z.B. `&uuml;` in „Verfügung") — und
+ersetzte dabei den halben Nachrichtentext durch `font-family:Calibri…`.
+Die echte Orbit-Mail blieb nur intakt, weil Lexware UTF-8 direkt kodiert
+(kein `;` im Textbereich). Fix: Wertezeichen auf `[^;<>"]` eingeschränkt
+(Match kann Attributgrenzen nicht mehr überlaufen), Leer-Fall läuft jetzt
+VOR dem Wert-Regex, `_EMPTY_FONT_FAMILY_RE` mit `(?<![\w-])` verankert
+(matcht nicht mehr das Ende von `mso-…-font-family`). Verifiziert mit
+4 Unit-Fällen + echtem Orbit-Mail-Body durch die komplette Pipeline.
+
+---
+
 ## v1.6.6 — 2026-07-13 — fix: Lexware-Schrift auf Calibri 11pt auch bei leerer font-family (v1.6.6)
 
 `_fix_lexware_font` griff bisher nicht bei der neueren Lexware-Belegversand-Vorlage:
