@@ -198,7 +198,8 @@ async def cert_domain_verify(domain: str) -> dict:
                              headers=_gateway_headers(), json={"domain": domain})
         data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
         return {"ok": r.status_code == 200 and bool(data.get("ok")),
-                "message": data.get("message") or data.get("detail") or data.get("error", "")}
+                "message": data.get("message") or data.get("detail") or data.get("error", ""),
+                "digicert": data.get("digicert")}
     except Exception as exc:
         return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
 

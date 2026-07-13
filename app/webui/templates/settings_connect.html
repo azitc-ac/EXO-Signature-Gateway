@@ -470,19 +470,34 @@ async function certDomainRequest() {
   _pendingDomain=domain;
   const rec=document.getElementById('cert-domain-record');
   rec.style.display='block';
-  rec.innerHTML='Bitte folgenden DNS-TXT-Eintrag bei deinem Domain-Provider anlegen:<br><br>'
+  const extra=(d.additional_records||[]);
+  let html='Bitte folgende'+(extra.length?'n':'n')+' DNS-TXT-Eintr'+(extra.length?'äge':'ag')+' bei deinem Domain-Provider anlegen:<br><br>'
+    +'<strong>1. Hub-Verifikation</strong><br>'
     +'Name: <code>'+d.record_name+'</code>'+copyBtnHtml(d.record_name)+'<br>'
     +'Typ: <code>TXT</code><br>'
-    +'Wert: <code>'+d.record_value+'</code>'+copyBtnHtml(d.record_value)
-    +'<div style="margin-top:10px"><button class="btn primary" onclick="certDomainVerify()">Jetzt prüfen</button></div>'
-    +'<p class="hint" style="margin:6px 0 0">DNS-Propagation kann einige Minuten dauern.</p>';
+    +'Wert: <code>'+d.record_value+'</code>'+copyBtnHtml(d.record_value);
+  extra.forEach((r,i)=>{
+    html+='<br><br><strong>'+(i+2)+'. CA-Prevalidierung'+(r.purpose?(' ('+r.purpose+')'):'')+'</strong><br>'
+      +'Name: <code>'+r.record_name+'</code>'+copyBtnHtml(r.record_name)+'<br>'
+      +'Typ: <code>'+(r.record_type||'TXT')+'</code><br>'
+      +'Wert: <code>'+r.record_value+'</code>'+copyBtnHtml(r.record_value)
+      +(r.hint?('<br><span class="hint">'+r.hint+'</span>'):'');
+  });
+  html+='<div style="margin-top:10px"><button class="btn primary" onclick="certDomainVerify()">Jetzt prüfen</button></div>'
+    +'<p class="hint" style="margin:6px 0 0">DNS-Propagation kann einige Minuten dauern.'
+    +(extra.length?' Beide Einträge können in derselben DNS-Sitzung gesetzt werden.':'')+'</p>';
+  rec.innerHTML=html;
 }
 let _pendingDomain=null;
 async function certDomainVerify(domainArg) {
   const domain = domainArg || _pendingDomain;
   if(!domain) return;
   const d=await (await fetch('/api/hub/cert/domain/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})).json();
-  if(d.ok){ _certMsg('✓ Domain '+domain+' verifiziert.',true);
+  if(d.ok){
+    let m='✓ Domain '+domain+' verifiziert.';
+    if(d.digicert==='validated') m+=' CA-Prevalidierung ebenfalls bestätigt.';
+    else if(d.digicert) m+=' CA-Prevalidierung: '+d.digicert;
+    _certMsg(m,true);
     const rec=document.getElementById('cert-domain-record'); if(rec) rec.style.display='none';
     const inp=document.getElementById('cert-domain-input'); if(inp) inp.value='';
     certLoadEligibility(); }

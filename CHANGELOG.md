@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.6.8 — 2026-07-14 — feat: Domain-Verifikation zeigt CA-Prevalidierungs-Records mit an
+
+Gegenstück zu Hub v0.19.0 (kombinierter Domain-Flow): Liefert der Hub bei
+/api/cert/domain/request zusätzliche DNS-Records (additional_records[], z.B.
+DigiCert-DCV-TXT am Domain-Apex), zeigt die Anbindungs-Seite jetzt beide
+TXT-Einträge nummeriert in einem Schritt an ("Hub-Verifikation" +
+"CA-Prevalidierung", mit Copy-Buttons und Hinweis). Beim Prüfen wird der
+digicert-Status der Hub-Antwort mit ausgegeben (hub_client.cert_domain_verify
+reichte das Feld bisher nicht durch). Ohne DigiCert-Konfig am Hub bleibt
+alles unverändert einspaltig.
+
+---
+
 ## v1.6.7 — 2026-07-13 — fix: _FONT_FAMILY_RE konnte Nachrichtentext verschlucken (kritisch)
 
 Nachtest von v1.6.6 deckte auf: Bei leerem `font-family:` im style-Attribut
