@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.6.6 — 2026-07-13 — fix: Lexware-Schrift auf Calibri 11pt auch bei leerer font-family (v1.6.6)
+
+`_fix_lexware_font` griff bisher nicht bei der neueren Lexware-Belegversand-Vorlage:
+Dort ist `font-family:` im `<td class="mcnTextContent">` leer (kein Wert, kein Semikolon),
+die tatsächliche Schrift kam aus dem CSS-`<style>`-Block (`Helvetica 16px`).
+`_FONT_FAMILY_RE` (erfordert `[^;]+`) und `_FONT_SIZE_RE` (nur `pt`) matchten beide nicht.
+Fix: neues `_EMPTY_FONT_FAMILY_RE` setzt bei leerem `font-family:` direkt
+`font-family:Calibri,sans-serif; font-size:11.0pt` als Inline-Style (überschreibt CSS-Klasse).
+`_FONT_SIZE_RE` erkennt jetzt auch `px`, `em` und `rem`-Einheiten.
+
+---
+
 ## v1.6.4 — 2026-07-13 — fix: Lexware `<center>`-Tags werden jetzt korrekt auf linksbündig korrigiert
 
 `_fix_lexware_centering` (mail_processor.py) behandelte bisher nur

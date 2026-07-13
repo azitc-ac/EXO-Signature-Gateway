@@ -462,7 +462,8 @@ _DIV_ALIGN_CENTER_RE = re.compile(r'(<div\b[^>]*\balign\s*=\s*)(["\']?)center\2'
 _CENTER_TAG_RE = re.compile(r'</?center\b[^>]*>', re.IGNORECASE)
 _LEXWARE_TD_OPEN_RE = re.compile(r'<td\b[^>]*\bid=["\']?templatebody["\']?[^>]*>', re.IGNORECASE)
 _FONT_FAMILY_RE = re.compile(r'(font-family|mso-fareast-font-family|mso-bidi-font-family)\s*:\s*[^;]+;', re.IGNORECASE)
-_FONT_SIZE_RE = re.compile(r'font-size\s*:\s*[0-9.]+pt', re.IGNORECASE)
+_EMPTY_FONT_FAMILY_RE = re.compile(r'font-family\s*:\s*(?=[;"\'>\s])', re.IGNORECASE)
+_FONT_SIZE_RE = re.compile(r'font-size\s*:\s*[0-9.]+(?:pt|px|em|rem)', re.IGNORECASE)
 _EMPTY_P_BEFORE_CENTER_DIV_RE = re.compile(
     r'<p\b[^>]*>(?:\s|&nbsp;|<o:p>|</o:p>)*</p>\s*'
     r'(?=(?:<div\b[^>]*\balign\s*=\s*["\']?center|<center\b))',
@@ -518,11 +519,10 @@ def _fix_lexware_centering(html: str) -> str:
 def _fix_lexware_font(html: str) -> str:
     """
     Normalisiert Schriftart/-größe im Lexware-Nachrichtentext (Zelle mit
-    id="templateBody") auf Calibri 11pt. Lexware nutzt dort teils Web-Fonts
-    (z.B. "Merriweather Sans"), die auf den meisten Windows-Systemen nicht
-    installiert sind — Outlook fällt dann auf mso-fareast-/mso-bidi-font-family
-    zurück (häufig Times New Roman), was den Nachrichtentext optisch abweichen
-    lässt. Betrifft nur die Zelle selbst, nicht die restliche Mail.
+    id="templateBody") auf Calibri 11pt. Behandelt zwei Fälle:
+    1. Explizite font-family-Werte (z.B. Helvetica, Merriweather Sans) → Calibri
+    2. Leere font-family-Deklaration (font-family: ohne Wert) → Calibri + 11pt
+    Außerdem wird font-size in pt, px, em oder rem auf 11pt normalisiert.
     """
     lower = html.lower()
     m = _LEXWARE_TD_OPEN_RE.search(lower)
@@ -548,10 +548,12 @@ def _fix_lexware_font(html: str) -> str:
     def _fam_repl(mm: re.Match) -> str:
         prop = mm.group(1)
         if prop.lower() == "font-family":
-            return 'font-family:"Calibri",sans-serif;'
+            return 'font-family:Calibri,sans-serif;'
         return f'{prop}:Calibri;'
 
     new_region = _FONT_FAMILY_RE.sub(_fam_repl, region)
+    # Leere font-family: (kein Wert) → Calibri + 11pt in einem Schritt setzen
+    new_region = _EMPTY_FONT_FAMILY_RE.sub('font-family:Calibri,sans-serif; font-size:11.0pt; ', new_region)
     new_region = _FONT_SIZE_RE.sub('font-size:11.0pt', new_region)
     if new_region == region:
         return html
