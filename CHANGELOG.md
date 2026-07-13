@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.6.4 — 2026-07-13 — fix: Lexware `<center>`-Tags werden jetzt korrekt auf linksbündig korrigiert
+
+`_fix_lexware_centering` (mail_processor.py) behandelte bisher nur
+`<div align=center>` — neuere Lexware-Vorlagen (z.B. RE202607-0060 an Orbit)
+wickeln den gesamten Body in `<center>…</center>` statt in `<div>`.
+Neues Regex `_CENTER_TAG_RE` ersetzt `<center>` → `<div>` / `</center>` → `</div>`,
+sodass der Inhalt linksbündig bleibt. Auch `_EMPTY_P_BEFORE_CENTER_DIV_RE`
+erkennt jetzt beide Varianten (lookahead auf `<center>` ergänzt).
+
+---
+
 ## v1.6.3 — 2026-07-12 — docs: x64/ARM64-Multi-Arch im README (nativer Selbstbau)
 
 README.md + README.de.md: Abschnitt "Unterstützte Architekturen" im

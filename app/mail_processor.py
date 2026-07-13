@@ -459,12 +459,13 @@ def _matches_sig_fp(candidate_html: str, fp: frozenset[str]) -> bool:
 
 _LEXWARE_MARKER_RE = re.compile(r'id=["\']?templateBody["\']?', re.IGNORECASE)
 _DIV_ALIGN_CENTER_RE = re.compile(r'(<div\b[^>]*\balign\s*=\s*)(["\']?)center\2', re.IGNORECASE)
+_CENTER_TAG_RE = re.compile(r'</?center\b[^>]*>', re.IGNORECASE)
 _LEXWARE_TD_OPEN_RE = re.compile(r'<td\b[^>]*\bid=["\']?templatebody["\']?[^>]*>', re.IGNORECASE)
 _FONT_FAMILY_RE = re.compile(r'(font-family|mso-fareast-font-family|mso-bidi-font-family)\s*:\s*[^;]+;', re.IGNORECASE)
 _FONT_SIZE_RE = re.compile(r'font-size\s*:\s*[0-9.]+pt', re.IGNORECASE)
 _EMPTY_P_BEFORE_CENTER_DIV_RE = re.compile(
     r'<p\b[^>]*>(?:\s|&nbsp;|<o:p>|</o:p>)*</p>\s*'
-    r'(?=<div\b[^>]*\balign\s*=\s*["\']?center)',
+    r'(?=(?:<div\b[^>]*\balign\s*=\s*["\']?center|<center\b))',
     re.IGNORECASE | re.DOTALL,
 )
 
@@ -488,12 +489,10 @@ def _fix_lexware_empty_p(html: str) -> str:
 
 def _fix_lexware_centering(html: str) -> str:
     """
-    Lexware (Buchhaltungssoftware) wickelt den eigentlichen Nachrichtentext in
-    verschachtelte <div align=center>-Blöcke — erkennbar am id="templateBody"-
-    Marker, den Lexware selbst einfügt. Das zentriert die ganze Mail als schmale
-    Spalte statt des üblichen linksbündigen Layouts. Opt-in via
-    LEXWARE_FIX_FORMAT: dreht nur diese div-Ausrichtungen auf left, alles
-    andere (inkl. der noch nicht injizierten Gateway-Signatur) bleibt unberührt.
+    Lexware wickelt den Nachrichtentext in verschachtelte <div align=center>-Blöcke
+    oder (neuere Vorlage) in <center>-Tags — erkennbar am id="templateBody"-Marker.
+    Dreht alle div-Ausrichtungen auf left und ersetzt <center>-Tags durch <div>,
+    damit die Mail linksbündig dargestellt wird statt als schmale zentrierte Spalte.
     """
     if not _LEXWARE_MARKER_RE.search(html):
         return html
@@ -504,8 +503,16 @@ def _fix_lexware_centering(html: str) -> str:
 
     fixed = _DIV_ALIGN_CENTER_RE.sub(_to_left, html)
     if fixed != html:
-        log.info("_fix_lexware_centering: Lexware-Marker gefunden, zentrierte divs auf left umgestellt")
-    return fixed
+        log.info("_fix_lexware_centering: zentrierte divs auf left umgestellt")
+
+    def _center_to_div(m: re.Match) -> str:
+        return '</div>' if m.group(0).startswith('</') else '<div>'
+
+    fixed2 = _CENTER_TAG_RE.sub(_center_to_div, fixed)
+    if fixed2 != fixed:
+        log.info("_fix_lexware_centering: <center>-Tags auf <div> umgestellt")
+
+    return fixed2
 
 
 def _fix_lexware_font(html: str) -> str:
