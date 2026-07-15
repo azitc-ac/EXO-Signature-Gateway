@@ -34,7 +34,11 @@ def _init() -> None:
 
 
 def save_pending(order_id: str, email: str, provider: str,
-                 key_pem: bytes, price_cents: int = 0) -> None:
+                 key_pem: bytes, price_cents: int = 0,
+                 source: str = "hub") -> None:
+    """source: "hub" (Order beim Betreiber-Hub) oder "digicert_direct"
+    (Order im EIGENEN CertCentral-Konto des Kunden — poll_all fragt dann
+    DigiCert direkt statt den Hub)."""
     _init()
     key_path = _DIR / f"{order_id}.key"
     key_path.write_bytes(key_pem)
@@ -44,10 +48,11 @@ def save_pending(order_id: str, email: str, provider: str,
         "email": email,
         "provider": provider,
         "price_cents": price_cents,
+        "source": source,
         "created": datetime.now(timezone.utc).isoformat(),
     }))
-    log.info("hub_orders: pending order %s gespeichert (%s via %s)",
-             order_id, email, provider)
+    log.info("hub_orders: pending order %s gespeichert (%s via %s, source=%s)",
+             order_id, email, provider, source)
 
 
 def list_pending() -> list[dict]:
@@ -72,14 +77,19 @@ def _remove(order_id: str) -> None:
 
 
 async def poll_all() -> int:
-    """Alle offenen Orders beim Hub abfragen. Rückgabe: Anzahl abgeschlossener."""
+    """Alle offenen Orders abfragen (Hub bzw. DigiCert-Direkt je nach source).
+    Rückgabe: Anzahl abgeschlossener."""
     import hub_client
     done = 0
     for meta in list_pending():
         order_id = meta["order_id"]
         email = meta["email"]
         try:
-            res = await hub_client.cert_get_order(order_id)
+            if meta.get("source") == "digicert_direct":
+                import digicert_client
+                res = await digicert_client.collect(order_id)
+            else:
+                res = await hub_client.cert_get_order(order_id)
         except Exception as exc:
             log.warning("hub_orders: poll %s fehlgeschlagen: %s", order_id, exc)
             continue

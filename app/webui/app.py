@@ -4616,6 +4616,68 @@ async def api_hub_cert_domain_verify(request: Request, user: str = Depends(_requ
     return JSONResponse(await hub_client.cert_domain_verify((data.get("domain") or "").strip()))
 
 
+# ── DigiCert-Direktanbindung (eigenes CertCentral-Konto des Kunden) ───────────
+
+@app.get("/api/digicert/config")
+async def api_digicert_config_get(user: str = Depends(_require_admin)):
+    import digicert_client
+    return JSONResponse({
+        "ok": True,
+        "configured": digicert_client.is_configured(),
+        "api_base": settings_store.get("DIGICERT_API_BASE") or "",
+        "org_id": str(settings_store.get("DIGICERT_ORG_ID") or ""),
+        "validity_days": settings_store.get("DIGICERT_VALIDITY_DAYS") or 365,
+        "payment_method": settings_store.get("DIGICERT_PAYMENT_METHOD") or "profile",
+    })
+
+
+@app.post("/api/digicert/config")
+async def api_digicert_config_save(request: Request, user: str = Depends(_require_admin)):
+    data = await request.json()
+    to_save = {
+        "DIGICERT_API_BASE": (data.get("api_base") or "").strip()
+                             or "https://www.digicert.com/services/v2",
+        "DIGICERT_ORG_ID": (data.get("org_id") or "").strip(),
+        "DIGICERT_PAYMENT_METHOD": data.get("payment_method")
+                                   if data.get("payment_method") in ("profile", "balance")
+                                   else "profile",
+    }
+    try:
+        to_save["DIGICERT_VALIDITY_DAYS"] = max(1, min(825, int(data.get("validity_days") or 365)))
+    except (TypeError, ValueError):
+        to_save["DIGICERT_VALIDITY_DAYS"] = 365
+    key = (data.get("api_key") or "").strip()
+    if key:  # leer = unverändert lassen
+        to_save["DIGICERT_API_KEY"] = key
+    settings_store.update(to_save)
+    log.info("DigiCert-Direktanbindung konfiguriert von %s (key %s)",
+             user, "gesetzt" if key else "unverändert")
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/digicert/test")
+async def api_digicert_test(user: str = Depends(_require_admin)):
+    import digicert_client
+    return JSONResponse(await digicert_client.test())
+
+
+@app.post("/api/digicert/domain/setup")
+async def api_digicert_domain_setup(request: Request, user: str = Depends(_require_admin)):
+    import digicert_client
+    data = await request.json()
+    return JSONResponse(await digicert_client.domain_setup((data.get("domain") or "").strip()))
+
+
+@app.post("/api/digicert/domain/check")
+async def api_digicert_domain_check(request: Request, user: str = Depends(_require_admin)):
+    import digicert_client
+    data = await request.json()
+    domain_id = data.get("domain_id")
+    if not domain_id:
+        raise HTTPException(400, "domain_id erforderlich.")
+    return JSONResponse(await digicert_client.domain_check(domain_id))
+
+
 @app.post("/api/hub/cert/opt-out")
 async def api_hub_cert_opt_out(user: str = Depends(_require_admin)):
     import hub_client

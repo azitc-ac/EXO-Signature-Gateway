@@ -180,6 +180,106 @@
 
 </div>
 
+<!-- ── DigiCert-Direktanbindung (eigenes CertCentral-Konto) ───────────────── -->
+<div class="settings-card" style="margin-bottom:18px">
+  <h2 style="margin-top:0">DigiCert-Direktanbindung
+    <span class="muted" style="font-size:13px;font-weight:400">— eigenes CertCentral-Konto (optional)</span>
+    <span class="conn-badge conn-wait" id="dc-badge" style="display:none"></span>
+  </h2>
+  <p class="hint" style="margin-bottom:12px">
+    Alternative zum Zertifikatsbezug über den HUB: Wer sein <strong>eigenes
+    DigiCert-CertCentral-Konto</strong> nutzen möchte, hinterlegt hier den API-Key —
+    Bestellung, Abholung und Einspielen laufen trotzdem vollautomatisch über das Gateway,
+    abgerechnet wird direkt zwischen dir und DigiCert. Der private Schlüssel bleibt
+    immer lokal. Die CA-Auswahl triffst du danach pro Postfach im S/MIME-Tab
+    („DigiCert — eigenes CertCentral-Konto").
+  </p>
+  <div style="display:flex;flex-direction:column;gap:6px;max-width:460px">
+    <input type="password" id="dc-api-key" placeholder="API-Key (X-DC-DEVKEY) — leer lassen = unverändert" style="font-size:13px" autocomplete="new-password">
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <input type="text" id="dc-org-id" placeholder="Org-ID (numerisch)" style="width:150px;font-size:13px" autocapitalize="off" spellcheck="false">
+      <input type="text" id="dc-validity" placeholder="Laufzeit Tage (365)" style="width:150px;font-size:13px">
+      <select id="dc-payment" style="font-size:13px">
+        <option value="profile">Hinterlegte Kreditkarte</option>
+        <option value="balance">Konto-Guthaben</option>
+      </select>
+    </div>
+  </div>
+  <div class="actions" style="margin-top:10px;margin-bottom:6px">
+    <button class="btn secondary" onclick="dcSaveConfig()">Speichern</button>
+    <button class="btn secondary" onclick="dcTest()">Verbindung testen</button>
+    <span id="dc-msg" class="hint"></span>
+  </div>
+  <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:14px;margin-top:10px">
+    <strong>Domain in CertCentral prevalidieren</strong>
+    <p class="hint" style="margin:2px 0 8px">
+      DigiCert stellt erst aus, wenn die Mail-Domain in <em>deinem</em> CertCentral-Konto
+      validiert ist (DNS-TXT am Domain-Apex, 398 Tage gültig). Hier anlegen, TXT setzen, prüfen.
+    </p>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <input type="text" id="dc-domain-input" placeholder="firma.de" style="width:200px;font-size:13px" autocapitalize="off" autocorrect="off" spellcheck="false">
+      <button class="btn secondary" onclick="dcDomainSetup()">TXT-Eintrag anfordern</button>
+    </div>
+    <div id="dc-domain-record" style="display:none;margin-top:10px;padding:10px;background:#fff;border:1px solid #e2e8f0;border-radius:6px;font-size:12px"></div>
+  </div>
+</div>
+<script>
+async function dcLoadConfig(){
+  try{
+    const d=await (await fetch('/api/digicert/config')).json();
+    if(!d.ok) return;
+    document.getElementById('dc-org-id').value=d.org_id||'';
+    document.getElementById('dc-validity').value=d.validity_days||'';
+    document.getElementById('dc-payment').value=d.payment_method||'profile';
+    const badge=document.getElementById('dc-badge');
+    if(d.configured){ badge.style.display=''; badge.className='conn-badge conn-ok'; badge.textContent='✓ konfiguriert'; }
+  }catch(e){}
+}
+function _dcMsg(t,ok){ const el=document.getElementById('dc-msg'); el.textContent=t; el.style.color=ok?'#166534':'#991b1b'; }
+async function dcSaveConfig(){
+  const body={
+    api_key:document.getElementById('dc-api-key').value,
+    org_id:document.getElementById('dc-org-id').value.trim(),
+    validity_days:document.getElementById('dc-validity').value.trim(),
+    payment_method:document.getElementById('dc-payment').value,
+  };
+  const d=await (await fetch('/api/digicert/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
+  _dcMsg(d.ok?'Gespeichert.':'Fehler beim Speichern.',d.ok);
+  if(d.ok){ document.getElementById('dc-api-key').value=''; dcLoadConfig(); }
+}
+async function dcTest(){
+  _dcMsg('Teste…',true);
+  const d=await (await fetch('/api/digicert/test',{method:'POST'})).json();
+  _dcMsg(d.message||(d.ok?'OK':'Fehler'),d.ok);
+}
+let _dcDomainId=null;
+async function dcDomainSetup(){
+  const domain=document.getElementById('dc-domain-input').value.trim().toLowerCase();
+  if(!domain||!domain.includes('.')){ _dcMsg('Gültige Domain erforderlich.',false); return; }
+  const d=await (await fetch('/api/digicert/domain/setup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})).json();
+  if(!d.ok){ _dcMsg(d.message||'Fehler',false); return; }
+  _dcDomainId=d.domain_id;
+  const rec=document.getElementById('dc-domain-record');
+  rec.style.display='block';
+  rec.innerHTML='DNS-TXT-Eintrag am <strong>Domain-Apex</strong> anlegen (Name leer bzw. @):<br><br>'
+    +'Name: <code>'+domain+'</code>'+copyBtnHtml(domain)+'<br>'
+    +'Typ: <code>TXT</code><br>'
+    +'Wert: <code>'+d.token+'</code>'+copyBtnHtml(d.token)
+    +'<div style="margin-top:10px"><button class="btn primary" onclick="dcDomainCheck()">Jetzt prüfen</button></div>'
+    +'<p class="hint" style="margin:6px 0 0">Token 30 Tage gültig; erfolgreiche Validierung hält 398 Tage.</p>';
+  _dcMsg(d.message||'Token erzeugt.',true);
+}
+async function dcDomainCheck(){
+  if(!_dcDomainId) return;
+  const d=await (await fetch('/api/digicert/domain/check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain_id:_dcDomainId})})).json();
+  if(d.ok){ _dcMsg('✓ '+(d.message||'Validiert.'),true);
+    const rec=document.getElementById('dc-domain-record'); if(rec) rec.style.display='none';
+    const inp=document.getElementById('dc-domain-input'); if(inp) inp.value=''; }
+  else _dcMsg(d.message||'Noch nicht validiert.',false);
+}
+dcLoadConfig();
+</script>
+
 <!-- ── Fair-Use-Lizenz ────────────────────────────────────────────────────── -->
 <div class="settings-card" style="margin-bottom:18px">
   <h2 style="margin-top:0">Lizenz

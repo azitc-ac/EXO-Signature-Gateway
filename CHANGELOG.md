@@ -5,6 +5,35 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.6.9 — 2026-07-15 — feat: DigiCert-Direktanbindung — Kunden können ihr eigenes CertCentral-Konto nutzen
+
+Bewusste Ausnahme zur Hub-only-Regel (v1.5.125), Entscheidung 2026-07-15:
+Kunden sollen die Wahl haben — wer sich selbst kümmern will, nutzt sein
+EIGENES CertCentral-Konto (Abrechnung direkt mit DigiCert); wer es einfach
+will, geht über den Hub (hub:digicert). Transparent nebeneinander.
+
+- digicert_client.py: Gateway-seitiger CertCentral-Client (Spiegel der
+  Hub-Implementierung): order (secure_email_mailbox, profile/balance),
+  collect (Status + pem_noroot-Download), test (/user/me), domain_setup/
+  domain_check (Prevalidierung im EIGENEN Konto, TXT am Apex).
+- ca_backends/digicert_direct.py: neues statisches Backend
+  "digicert_direct" (auto-renew; not-ready bis API-Key hinterlegt);
+  pro Postfach im S/MIME-Tab wählbar.
+- hub_orders: Records tragen jetzt source (hub | digicert_direct);
+  poll_all() fragt Direkt-Orders bei DigiCert statt beim Hub ab —
+  gleiche Schlüssel-Persistenz, gleicher 15-min-Scheduler.
+- Anbindung-Tab: neue Karte "DigiCert-Direktanbindung" (API-Key maskiert,
+  Org-ID, Laufzeit, Zahlungsart, Verbindungstest) inkl. Domain-
+  Prevalidierungs-Helfer (Domain anlegen → Apex-TXT anzeigen → prüfen).
+- settings_store: DIGICERT_*-Defaults (DEFAULTS-Whitelist).
+
+Verifiziert im Container: Registry/not-ready, Order-Body per httpx-Mock
+(payment/validity/org/Header), Poller-Dispatch mit Beweis, dass der Hub
+für Direkt-Orders NIE kontaktiert wird, Key-Import + Datei-Cleanup.
+Live-Test gegen echtes CertCentral-Konto steht aus.
+
+---
+
 ## v1.6.8 — 2026-07-14 — feat: Domain-Verifikation zeigt CA-Prevalidierungs-Records mit an
 
 Gegenstück zu Hub v0.19.0 (kombinierter Domain-Flow): Liefert der Hub bei

@@ -137,6 +137,15 @@ DEFAULTS: dict = {
     # CA-Anbieter kommen dynamisch aus dem Hub-Katalog (hub_catalog) — die
     # frühere Direktanbindung (SECTIGO_*/SWISSSIGN_*, CERT_PROVIDER) wurde
     # entfernt (v1.5.125): kein CA-Zugang je Gateway, komplette Musik im Hub.
+    # ── DigiCert CertCentral Direktanbindung (eigenes Kundenkonto) ────────────
+    # Bewusste Ausnahme zur Hub-only-Regel (Entscheidung 2026-07-15): Kunden,
+    # die sich selbst kümmern wollen, nutzen ihr EIGENES CertCentral-Konto —
+    # transparent neben dem Hub-Angebot. Zugangsdaten bleiben im Gateway.
+    "DIGICERT_API_BASE": "https://www.digicert.com/services/v2",
+    "DIGICERT_API_KEY": "",             # X-DC-DEVKEY aus CertCentral (secret)
+    "DIGICERT_ORG_ID": "",              # numerische Organisations-ID (für Domains Pflicht)
+    "DIGICERT_VALIDITY_DAYS": 365,      # Zertifikatslaufzeit in Tagen (max. 825)
+    "DIGICERT_PAYMENT_METHOD": "profile",  # profile = hinterlegte Kreditkarte | balance
     # ── Sectigo Certificate Manager (S/MIME REST API backend) ─────────────────
     # ── S/MIME lifecycle management ───────────────────────────────────────────
     "GATEWAY_EXTERNAL_URL": "",      # e.g. https://mail.company.com (no port — 8080 is only the internal container port) — used in renewal links

@@ -1,21 +1,24 @@
 """Backend-Registry — statische lokale Backends + dynamische Hub-Anbieter.
 
-Lokal bleiben nur Backends, die zwingend Postfach-/Gateway-Zugriff brauchen:
-  - castle_acme (ACME email-reply-00 pollt die Mailbox — geht nicht im Hub)
-  - assisted_manual (Anleitung + manueller Upload)
+Lokal: Backends, die zwingend Postfach-/Gateway-Zugriff brauchen
+(castle_acme pollt die Mailbox, assisted_manual = Anleitung+Upload) — sowie
+seit 2026-07-15 die DigiCert-DIREKTANBINDUNG als bewusste Ausnahme zur
+Hub-only-Regel: Kunden mit eigenem CertCentral-Konto sollen die Wahl haben
+(transparent neben dem Hub-Angebot; wer es einfach will, nimmt hub:digicert).
 
-Alle kommerziellen CA-Anbieter (Sectigo, SwissSign, künftige) kommen dynamisch
-aus dem Hub-Katalog (hub_catalog) als "hub:<id>"-Backends. Anbieter-Wegfall,
-Preisänderung oder neue Anbieter sind damit reine Hub-Konfiguration.
+Kommerzielle CA-Anbieter über den Betreiber (Sectigo, SwissSign, DigiCert-
+managed) kommen dynamisch aus dem Hub-Katalog als "hub:<id>"-Backends.
 """
 from .assisted_manual import AssistedManualBackend
 from .castle_acme import CastleAcmeBackend
+from .digicert_direct import DigiCertDirectBackend
 from .hub_provider import HubProviderBackend
 from .base import CABackend
 
 _STATIC: dict[str, CABackend] = {
     "assisted_manual": AssistedManualBackend(),
     "castle_acme": CastleAcmeBackend(),
+    "digicert_direct": DigiCertDirectBackend(),
 }
 
 # Historische Backend-Namen (Direktanbindung im Gateway, nie produktiv) →
