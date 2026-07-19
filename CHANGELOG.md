@@ -5,6 +5,11 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.6.24 — 2026-07-20 — App-Pool entfernt (Einrichtung + Übersicht)
+
+- **Einrichtung**: Step „App-Pool konfigurieren (optional)" inkl. aller zugehörigen JS-Funktionen entfernt (`updatePoolRecommendation`, `loadPoolStatus`, `startPoolAppLogin`, `submitPoolAppUrl`).
+- **Übersicht**: „Graph App-Pool"-Karte und Pool-Status-Ladeblock aus `loadSys` entfernt. Pool-Detailfunktionen (`openPoolModal`, `_poolRender24hBars`, `showPoolTab`, `showPoolDayDrill`) entfernt. Modal bleibt als generisches Info-Modal für die In-Flight-Tile (`openInFlightInfo`).
+
 ## v1.6.23 — 2026-07-20 — Einrichtung: Migrations-Card Done-State + Entra-Hintergrund
 
 - **Migrations-Card**: `↩`-Badge links, Buttons rechts; Klick auf „Ohne Backup starten" → Card wechselt in Done-State (grüner linker Rand, „Erledigt"-Badge, Titel zeigt gewählte Option). Backup-Erfolg setzt ebenfalls Done-State und hält Panel offen um Erfolgsmeldung anzuzeigen.
