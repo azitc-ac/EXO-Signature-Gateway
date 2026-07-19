@@ -31,6 +31,35 @@
 
 <div id="wizard-alert" class="alert" style="display:none"></div>
 
+<!-- ── Restore (Migration) ─────────────────────────────────────────────────── -->
+<div style="margin-bottom:20px;padding:12px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+    <span style="font-size:13px;color:#555">
+      Du migrierst dieses Gateway auf einen neuen Server und hast ein Backup?
+    </span>
+    <button type="button" class="btn secondary btn-sm" onclick="toggleSetupRestorePanel()">
+      Backup wiederherstellen
+    </button>
+  </div>
+  <div id="setup-restore-panel" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0">
+    <p class="hint" style="margin-bottom:10px">
+      Backup-ZIP vom alten Server hochladen. Konfiguration, Zertifikate und Schlüssel werden
+      überschrieben — Logs und Let's&nbsp;Encrypt-Zertifikate bleiben erhalten.
+      Nach der Wiederherstellung ist ein Neustart erforderlich.
+    </p>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+      <input type="file" id="setup-restore-file" accept=".zip"
+             style="font-size:13px;border:1px solid #e2e8f0;border-radius:6px;padding:5px 8px;background:#fff">
+      <button class="btn secondary" id="setup-restore-btn" onclick="setupRestoreConfirm()"
+              style="background:#dc2626;border-color:#dc2626;color:#fff">
+        Wiederherstellen
+      </button>
+      <span id="setup-restore-spinner" style="display:none;font-size:13px;color:#555">Wird wiederhergestellt…</span>
+    </div>
+    <div id="setup-restore-result" style="display:none;margin-top:8px"></div>
+  </div>
+</div>
+
 <!-- ── Step 1: Admin-Passwort ──────────────────────────────────────────────── -->
 <div class="wizard-step {% if not e.password_change_needed %}done{% endif %}" id="step-1">
   <div class="step-header">
@@ -2429,6 +2458,63 @@ function copyManifestUrl() {
     var ok = document.getElementById('addin-copy-ok');
     if (ok) { ok.style.display = ''; setTimeout(function() { ok.style.display = 'none'; }, 2000); }
   });
+}
+
+// ── Restore (Migration) ───────────────────────────────────────────────────────
+function toggleSetupRestorePanel() {
+  var p = document.getElementById('setup-restore-panel');
+  p.style.display = p.style.display === 'none' ? '' : 'none';
+}
+
+function setupRestoreConfirm() {
+  var input = document.getElementById('setup-restore-file');
+  if (!input.files.length) { alert('Bitte zuerst eine Backup-ZIP-Datei auswählen.'); return; }
+  var fname = input.files[0].name;
+  if (!confirm('Backup "' + fname + '" wiederherstellen?\n\nAlle Konfigurationsdaten werden überschrieben.\nDanach ist ein Neustart erforderlich.\n\nFortfahren?')) return;
+  setupRestore();
+}
+
+async function setupRestore() {
+  var input   = document.getElementById('setup-restore-file');
+  var btn     = document.getElementById('setup-restore-btn');
+  var spinner = document.getElementById('setup-restore-spinner');
+  var result  = document.getElementById('setup-restore-result');
+  btn.disabled = true;
+  spinner.style.display = 'inline';
+  result.style.display  = 'none';
+  try {
+    var fd = new FormData();
+    fd.append('file', input.files[0]);
+    var r = await fetch('/api/backup/restore', {method: 'POST', body: fd});
+    var d = await r.json();
+    result.style.display = 'block';
+    if (d.ok) {
+      var warns = (d.warnings || []).filter(function(w) { return !w.startsWith('AUTH_PFX_RESTORED'); })
+                                    .map(function(w) { return '<li style="color:#92400e">' + w + '</li>'; }).join('');
+      result.innerHTML = '<div class="alert success"><strong>Wiederhergestellt!</strong> ' + d.restored_files + ' Dateien.'
+        + (warns ? '<ul style="margin:8px 0 0;padding-left:18px">' + warns + '</ul>' : '')
+        + '<div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">'
+        + '<button class="btn primary" id="setup-restart-btn" onclick="setupRestartNow()">Jetzt neu starten</button>'
+        + '<span id="setup-restart-note" style="font-size:12px;color:#555">Übernimmt die wiederhergestellten Daten.</span>'
+        + '</div></div>';
+    } else {
+      result.innerHTML = '<div class="alert error"><strong>Fehler:</strong> ' + (d.error || 'Unbekannter Fehler') + '</div>';
+      btn.disabled = false;
+    }
+  } catch(e) {
+    result.innerHTML = '<div class="alert error"><strong>Netzwerkfehler:</strong> ' + e.message + '</div>';
+    btn.disabled = false;
+  }
+  spinner.style.display = 'none';
+}
+
+async function setupRestartNow() {
+  var btn  = document.getElementById('setup-restart-btn');
+  var note = document.getElementById('setup-restart-note');
+  if (btn) btn.disabled = true;
+  if (note) note.textContent = 'Startet neu…';
+  try { await fetch('/api/restart', {method: 'POST'}); } catch(e) {}
+  setTimeout(function() { window.location.reload(); }, 4000);
 }
 
 function saveAddinBaseUrl() {

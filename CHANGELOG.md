@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.6.17 — 2026-07-19 — UI: Restore-Button im ersten Setup-Schritt (P7)
+
+- **Einrichtung-Seite**: Aufklappbare Box „Du migrierst dieses Gateway? → Backup wiederherstellen" direkt vor Step 1 eingefügt (collapsed by default, per Button-Klick aufklappbar).
+- File-Upload + Restore-Button (gleiche API `/api/backup/restore` wie Update&Backup-Seite), eigene JS-Funktionen (`toggleSetupRestorePanel`, `setupRestoreConfirm`, `setupRestore`, `setupRestartNow`) mit namespaced Element-IDs (`setup-restore-*`).
+- Nach erfolgreichem Restore: Inline-Erfolgsmeldung + „Jetzt neu starten"-Button (ruft `/api/restart`), kein Page-Reload nötig.
+- Schliesst die Lücke in der Migrations-Anleitung in `backup.html` (dort stand: „Wiederherstellung wird bereits im ersten Setup-Schritt angeboten").
+
 ## v1.6.16 — 2026-07-19 — UI: Erweiterte Einstellungen per Rubrik einklappbar (P5)
 
 - **4 Settings-Seiten** bekommen je eine „Erweiterte Einstellungen anzeigen"-Checkbox in der Kartenüberschrift (Default: eingeklappt, Zustand in localStorage persistiert).
