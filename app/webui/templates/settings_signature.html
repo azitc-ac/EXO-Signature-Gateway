@@ -76,9 +76,10 @@
       <input type="checkbox" id="strip-client-sigs"
              {% if s.STRIP_CLIENT_SIGS is not false %}checked{% endif %}
              onchange="toggleSigStripConfig(this.checked)">
-      Selbsterstellte Client-Signaturen entfernen
+      Selbsterstellte Client-Signaturen entfernen <span style="color:#b45309;font-weight:600">(experimentell)</span>
     </label>
-    <span class="hint">Outlook-Signaturen werden vor der Gateway-Injektion entfernt — verhindert Doppel-Signaturen</span>
+    <span class="hint">Outlook-Signaturen werden vor der Gateway-Injektion entfernt — verhindert Doppel-Signaturen.<br>
+    <strong style="color:#b45309">⚠ Auf eigene Gefahr — Feature in Entwicklung:</strong> kann Mails im Einzelfall fehlerhaft zuschneiden. Im Zweifel deaktiviert lassen.</span>
   </div>
 
   <div id="sig-strip-config" {% if s.STRIP_CLIENT_SIGS is false %}style="display:none"{% endif %}>

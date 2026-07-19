@@ -167,7 +167,7 @@ def send_daily_report(daily: dict, total: dict) -> bool:
         _row("S/MIME signiert",        dval("smime_signed")),
         _row("S/MIME verschlüsselt",   dval("smime_encrypted")),
         _row("S/MIME entschlüsselt",   dval("smime_decrypted")),
-        _row("Zertifikate geharvestet",dval("certs_harvested")),
+        _row("Zertifikate gesammelt",dval("certs_harvested")),
         _row("Graph API Aufrufe",      dval("graph_api_calls")),
         _row("Key Vault Signaturen",   dval("kv_sign_calls")),
         _row("Fallbacks",  dval("fallback"), "#e67e22" if dval("fallback") else ""),
@@ -181,7 +181,7 @@ def send_daily_report(daily: dict, total: dict) -> bool:
         _row("S/MIME signiert",        mval("smime_signed")),
         _row("S/MIME verschlüsselt",   mval("smime_encrypted")),
         _row("S/MIME entschlüsselt",   mval("smime_decrypted")),
-        _row("Zertifikate geharvestet",mval("certs_harvested")),
+        _row("Zertifikate gesammelt",mval("certs_harvested")),
         _row("Fallbacks",  mval("fallback"), "#e67e22" if mval("fallback") else ""),
         _row("Fehler",     mval("errors"),   "#e74c3c" if mval("errors")   else ""),
     ])

@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.6.11 — 2026-07-19 — UI-Überarbeitung Phase 1 (Quick Wins)
+
+- Dashboard: „Certs harvested" → „Zertifikate gesammelt" (auch in der Statistik-Mail).
+- Key-Vault-Kostentext vom Dashboard in die AKV-Sektion unter Einstellungen → S/MIME verschoben.
+- Verbindung: „Darf Zertifikate beziehen" → „Zertifikatsbezug aktiviert" (Text + Badge).
+- Postfächer: Buttons „Postfächer laden"/„Status aktualisieren" kompakter (btn-sm).
+- Signatur: „Selbsterstellte Client-Signaturen entfernen" als (experimentell) markiert + Warnhinweis „auf eigene Gefahr, Feature in Entwicklung".
+- Backup/Migration: „(azure-vm-setup.ps1 ausführen)" entfernt; Hinweis ergänzt, dass die Ersteinrichtung begonnen werden muss (Restore im ersten Setup-Schritt).
+- Lizenzkauf: Eingabe ist jetzt die Netto-Zahl der zu kaufenden Lizenzen (über die 100 Fair-Use hinaus) statt der Gesamt-Postfachzahl — Backend-Vertrag unverändert (UI rechnet +100).
+
+
 ## v1.6.9 — 2026-07-15 — feat: DigiCert-Direktanbindung — Kunden können ihr eigenes CertCentral-Konto nutzen
 
 Bewusste Ausnahme zur Hub-only-Regel (v1.5.125), Entscheidung 2026-07-15:

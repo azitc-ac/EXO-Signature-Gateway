@@ -112,7 +112,7 @@
       {{ stat_row("S/MIME signiert", stats_daily.smime_signed, stats_3d.smime_signed, stats_monthly_m2.smime_signed, stats_monthly_m1.smime_signed, stats_monthly.smime_signed, stats_prev_yearly.smime_signed, stats_yearly.smime_signed, "smime_signed") }}
       {{ stat_row("S/MIME verschlüsselt", stats_daily.smime_encrypted, stats_3d.smime_encrypted, stats_monthly_m2.smime_encrypted, stats_monthly_m1.smime_encrypted, stats_monthly.smime_encrypted, stats_prev_yearly.smime_encrypted, stats_yearly.smime_encrypted, "smime_encrypted") }}
       {{ stat_row("S/MIME entschlüsselt", stats_daily.smime_decrypted, stats_3d.smime_decrypted, stats_monthly_m2.smime_decrypted, stats_monthly_m1.smime_decrypted, stats_monthly.smime_decrypted, stats_prev_yearly.smime_decrypted, stats_yearly.smime_decrypted, "smime_decrypted") }}
-      {{ stat_row("Certs harvested", stats_daily.certs_harvested, stats_3d.certs_harvested, stats_monthly_m2.certs_harvested, stats_monthly_m1.certs_harvested, stats_monthly.certs_harvested, stats_prev_yearly.certs_harvested, stats_yearly.certs_harvested, "") }}
+      {{ stat_row("Zertifikate gesammelt", stats_daily.certs_harvested, stats_3d.certs_harvested, stats_monthly_m2.certs_harvested, stats_monthly_m1.certs_harvested, stats_monthly.certs_harvested, stats_prev_yearly.certs_harvested, stats_yearly.certs_harvested, "") }}
       <tr style="border-bottom:1px solid #f0f0f0">
         <td style="padding:7px 0;font-size:13px;color:#d97706;font-weight:500">Fallback</td>
         <td style="padding:7px 10px;text-align:right;font-size:15px;font-weight:700;color:#d97706">{{ stat_cell(stats_daily.fallback, "fallback", today) }}</td>
@@ -162,7 +162,7 @@
     </tbody>
   </table>
 </div>
-<p class="hint" style="margin-top:6px">Graph sendMail = Mails via Microsoft Graph API zugestellt. Key Vault Sign = S/MIME-Signaturen via Azure Key Vault. Kosten Key Vault: ~0,03 € / 10.000 Operationen (Standard-Tier).</p>
+<p class="hint" style="margin-top:6px">Graph sendMail = Mails via Microsoft Graph API zugestellt. Key Vault Sign = S/MIME-Signaturen via Azure Key Vault.</p>
 
 <!-- TLS + S/MIME Zertifikate -->
 <h3 style="color:#555;font-size:14px;text-transform:uppercase;letter-spacing:.05em;margin:24px 0 10px">Zertifikate</h3>

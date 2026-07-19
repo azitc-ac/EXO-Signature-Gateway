@@ -178,8 +178,9 @@
   <div class="step-body">
     <ol style="font-size:13px;color:#555;margin:0 0 0 18px;line-height:2">
       <li>Backup auf dem alten Server herunterladen (Button oben)</li>
-      <li>Gateway auf dem neuen Server installieren (<code>azure-vm-setup.ps1</code> ausführen)</li>
-      <li>Im Web-UI des neuen Servers: Backup hochladen &amp; wiederherstellen</li>
+      <li>Gateway auf dem neuen Server installieren</li>
+      <li>Ersteinrichtung im Web-UI des neuen Servers <em>beginnen</em> — die Wiederherstellung wird bereits im ersten Setup-Schritt angeboten (ohne begonnene Einrichtung gibt es noch keinen Restore-Knopf)</li>
+      <li>Backup hochladen &amp; wiederherstellen</li>
       <li>Neu starten (Button „Jetzt neu starten" nach dem Restore, oder <code>docker compose restart</code>)</li>
       <li>DNS-Eintrag auf die neue IP umstellen</li>
       <li>Einrichtungsassistent durchlaufen</li>
