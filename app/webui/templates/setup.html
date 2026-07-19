@@ -475,6 +475,62 @@
 </div>
 
 
+<!-- ── Step: App-Pool (optional) ──────────────────────────────────────────── -->
+<div class="wizard-step" id="step-app-pool" style="border-color:#0369a122">
+  <div class="step-header">
+    <span class="step-badge" style="background:#0369a1;width:auto;padding:0 10px;border-radius:10px;font-size:12px">POOL</span>
+    <span class="step-title">App-Pool konfigurieren (optional)</span>
+    <span class="step-status pending" style="background:#e0f2fe;color:#0369a1" id="step-app-pool-status">Optional</span>
+  </div>
+  <div class="step-body">
+    <p style="font-size:13px;color:#555;margin:0 0 12px">
+      Für sehr hohes Mail-Aufkommen können mehrere App-Registrierungen im Round-Robin genutzt werden,
+      um die Graph-API-Drosselung zu verteilen.
+    </p>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px">
+      <div style="flex:1;min-width:160px">
+        <label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Anzahl Postfächer</label>
+        <input type="number" id="poolMailboxCount" value="100" min="1" max="10000"
+               oninput="updatePoolRecommendation()"
+               style="width:100%;padding:6px 8px;border:1px solid #d4d0cc;border-radius:4px;font-size:13px">
+      </div>
+      <div style="flex:1;min-width:160px">
+        <label style="font-size:12px;color:#555;display:block;margin-bottom:4px">Mailaufkommen</label>
+        <select id="poolVolume" onchange="updatePoolRecommendation()"
+                style="width:100%;padding:6px 8px;border:1px solid #d4d0cc;border-radius:4px;font-size:13px">
+          <option value="low">Niedrig (&lt; 20 Mails/Tag/User)</option>
+          <option value="medium" selected>Mittel (20–50 Mails/Tag/User)</option>
+          <option value="high">Hoch (&gt; 50 Mails/Tag/User)</option>
+        </select>
+      </div>
+    </div>
+    <div id="poolRecommendation" style="background:#f8f7f6;border-radius:6px;padding:10px 14px;font-size:13px;margin-bottom:14px"></div>
+    <div id="poolCurrentStatus" style="margin-bottom:12px;font-size:13px;color:#555"></div>
+    <div id="poolAddSection" style="display:none">
+      <button id="btnAddPoolApp" onclick="startPoolAppLogin()" class="btn">+ App-Registrierung anlegen &rarr;</button>
+      <div id="poolPasteSection" style="display:none;margin-top:12px">
+        <p style="font-size:13px;color:#555;margin:0 0 8px">
+          Nach dem Login: URL aus der Adressleiste kopieren und hier einfügen.
+        </p>
+        <div class="settings-row">
+          <label for="pool-auth-url-paste">URL aus der Adressleiste</label>
+          <input type="text" id="pool-auth-url-paste"
+                 placeholder="http://localhost/auth/callback?code=…&state=…"
+                 style="width:100%;font-family:monospace;font-size:12px" autocapitalize="off" autocorrect="off" spellcheck="false">
+        </div>
+        <div id="poolPasteResult" style="margin-top:8px;display:none"></div>
+        <div class="actions" style="margin-top:10px">
+          <button class="btn primary" id="poolPasteBtn" onclick="submitPoolAppUrl()">Pool-App anlegen</button>
+        </div>
+      </div>
+    </div>
+    <p style="margin-top:14px;font-size:12px;color:#aaa">
+      Dieser Schritt ist optional. Bei &lt; 500 Postfächern ist eine App ausreichend.
+    </p>
+  </div>
+</div>
+
+
 <!-- ── Step opt-keyvault: Azure Key Vault (optional) ──────────────────────── -->
 <div class="wizard-step {% if s.KEYVAULT_URL %}done{% endif %}" id="step-keyvault"
      style="border-color:#b4530922">
@@ -2230,8 +2286,7 @@ sudo systemctl status exo-gateway-updater --no-pager</code></pre>
 
       <p class="hint" style="line-height:1.7">
         <strong>Plattformen:</strong> Outlook Desktop (Windows &amp; Mac), OWA, Outlook Web &nbsp;·&nbsp;
-        <strong>Auth:</strong> Nutzer werden beim ersten Öffnen zur Gateway-Anmeldung geleitet &nbsp;·&nbsp;
-        <strong>Proxy:</strong> Azure Application Proxy Pre-Authentication auf <em>Passthrough</em> setzen
+        <strong>Auth:</strong> Nutzer werden beim ersten Öffnen zur Gateway-Anmeldung geleitet
       </p>
 
       {% if s.ADDIN_BASE_URL %}
@@ -2241,13 +2296,13 @@ sudo systemctl status exo-gateway-updater --no-pager</code></pre>
       {% set new_uri_registered = sso_uri in (s.BOOTSTRAP_REDIRECT_URIS or []) %}
       {% if new_uri_registered %}
       <p style="font-size:12px;color:#16a34a">
-        ✓ <code>{{ sso_uri }}</code> ist in Entra registriert — SSO über App Proxy funktioniert.
+        ✓ <code>{{ sso_uri }}</code> ist in Entra registriert — SSO-Login funktioniert.
       </p>
       {% else %}
       <p style="font-size:12px;color:#b45309;margin-bottom:8px">
         ⚠️ Die Redirect URI <code>{{ sso_uri }}</code> ist noch nicht in Entra registriert.<br>
         Aktuell registriert: {% for u in (s.BOOTSTRAP_REDIRECT_URIS or []) %}<code>{{ u }}</code> {% endfor %}<br>
-        <strong>SSO-Login über App Proxy wird fehlschlagen bis die URI aktualisiert wurde.</strong>
+        <strong>SSO-Login wird fehlschlagen bis die Redirect URI aktualisiert wurde.</strong>
       </p>
       <a href="/api/addin/update-redirect-uri" class="btn secondary btn-sm"
          onclick="return confirm('Entra-Login öffnen um Redirect URI zu aktualisieren?')">
@@ -2382,6 +2437,107 @@ function saveAddinBaseUrl() {
   savePartial({ ADDIN_BASE_URL: val || null }, 'addin-url-result');
   setTimeout(function() { window.location.reload(); }, 1200);
 }
+
+// App-Pool
+function updatePoolRecommendation() {
+  const n = parseInt(document.getElementById('poolMailboxCount').value) || 0;
+  const vol = document.getElementById('poolVolume').value;
+  const callsPerDay = n * (vol === 'low' ? 20 : vol === 'medium' ? 35 : 70) * 2;
+  const callsPer10min = Math.ceil(callsPerDay / 144);
+  const recommended = callsPer10min < 6000 ? 1 : callsPer10min < 9000 ? 2 : 3;
+  const el = document.getElementById('poolRecommendation');
+  const color = recommended === 1 ? '#27ae60' : recommended === 2 ? '#d97706' : '#e74c3c';
+  el.innerHTML = `Geschätzter Peak: <strong>~${callsPer10min} Graph-Calls / 10 min</strong> &nbsp;&rarr;&nbsp;
+    <strong style="color:${color}">Empfehlung: ${recommended} App-Registrierung${recommended > 1 ? 'en' : ''}</strong>
+    <br><span style="font-size:11px;color:#aaa">Limit: 10.000 Calls / 10 min pro App</span>`;
+  loadPoolStatus();
+}
+
+async function loadPoolStatus() {
+  try {
+    const r = await fetch('/api/setup/app-pool/status');
+    const d = await r.json();
+    const total = d.count;
+    const el = document.getElementById('poolCurrentStatus');
+    if (d.configured === 0) {
+      el.textContent = `Aktuell: 1 App (primäre App-Registrierung)`;
+    } else {
+      el.textContent = `Aktuell: ${total} Apps im Pool (${d.configured} zusätzliche)`;
+    }
+    const n = parseInt(document.getElementById('poolMailboxCount').value) || 0;
+    const vol = document.getElementById('poolVolume').value;
+    const callsPerDay = n * (vol === 'low' ? 20 : vol === 'medium' ? 35 : 70) * 2;
+    const callsPer10min = Math.ceil(callsPerDay / 144);
+    const recommended = callsPer10min < 6000 ? 1 : callsPer10min < 9000 ? 2 : 3;
+    const addSection = document.getElementById('poolAddSection');
+    if (addSection) {
+      addSection.style.display = (total < recommended) ? '' : 'none';
+    }
+    const btn = document.getElementById('btnAddPoolApp');
+    if (btn) btn.textContent = `+ App-Registrierung ${total + 1} anlegen`;
+    const statusEl = document.getElementById('step-app-pool-status');
+    if (statusEl && d.configured > 0) {
+      statusEl.textContent = `${total} Apps konfiguriert`;
+      statusEl.style.background = '#dcfce7';
+      statusEl.style.color = '#16a34a';
+    }
+  } catch(e) {}
+}
+
+async function startPoolAppLogin() {
+  const btn = document.getElementById('btnAddPoolApp');
+  btn.disabled = true;
+  btn.textContent = 'Öffne Login…';
+  const win = window.open('about:blank', '_blank');
+  try {
+    const resp = await fetch('/auth/start');
+    if (!resp.ok) throw new Error((await resp.json().catch(()=>({}))).detail || resp.status);
+    const data = await resp.json();
+    if (win) win.location.href = data.auth_url;
+    else window.open(data.auth_url, '_blank');
+    document.getElementById('poolPasteSection').style.display = 'block';
+    btn.textContent = 'Erneut anmelden';
+  } catch(e) {
+    if (win) win.close();
+    showAlert(document.getElementById('wizard-alert'), 'error', 'Fehler beim Login: ' + e.message);
+    btn.textContent = '+ App-Registrierung anlegen';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function submitPoolAppUrl() {
+  const url = (document.getElementById('pool-auth-url-paste').value || '').trim();
+  const result = document.getElementById('poolPasteResult');
+  const btn = document.getElementById('poolPasteBtn');
+  if (!url) { showAlert(result, 'error', 'Bitte die URL aus der Adressleiste einfügen.'); return; }
+  btn.disabled = true;
+  btn.textContent = 'Verarbeite…';
+  hideAlert(result);
+  try {
+    const r = await fetch('/api/setup/app-pool/add-from-url', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({url}),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || 'Fehler');
+    showAlert(result, 'success', `${d.label} angelegt (Pool jetzt: ${d.pool_size} Apps)`);
+    document.getElementById('poolPasteSection').style.display = 'none';
+    document.getElementById('pool-auth-url-paste').value = '';
+    loadPoolStatus();
+  } catch(e) {
+    showAlert(result, 'error', 'Fehler: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Pool-App anlegen';
+  }
+}
+
+(function() {
+  const poolStep = document.getElementById('step-app-pool');
+  if (poolStep) { updatePoolRecommendation(); }
+})();
 
 async function validateAddinManifest() {
   var el = document.getElementById('addin-validate-result');

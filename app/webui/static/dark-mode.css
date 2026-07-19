@@ -399,6 +399,27 @@
 [data-theme="dark"] [style*="color:#7c3aed"],
 [data-theme="dark"] [style*="color:#6366f1"] { color: #a78bfa !important; }
 
+/* ── Klassen-basierte Texte: Erklärungen / Hints / Labels ──────────────────
+   .hint (color:#666), .step-body ul (color:#555), h3 (color:#555),
+   .stat-label (color:#666) — alle nicht per Inline-Style gesetzt */
+[data-theme="dark"] .hint                { color: #94a3b8 !important; }
+[data-theme="dark"] .step-body .hint     { color: #94a3b8 !important; }
+[data-theme="dark"] .step-body ul        { color: #cbd5e1 !important; }
+[data-theme="dark"] .step-body p         { color: #cbd5e1 !important; }
+[data-theme="dark"] .stat-label          { color: #94a3b8 !important; }
+[data-theme="dark"] h3                   { color: #94a3b8 !important; }
+[data-theme="dark"] label                { color: #cbd5e1 !important; }
+[data-theme="dark"] .checkbox-label      { color: #cbd5e1 !important; }
+/* details/summary Erklärungstexte */
+[data-theme="dark"] details summary      { color: #94a3b8; }
+/* settings-card body-text */
+[data-theme="dark"] .settings-card p     { color: #cbd5e1 !important; }
+[data-theme="dark"] .settings-card li    { color: #cbd5e1 !important; }
+/* adv-section (Advanced-Toggle) Texte */
+[data-theme="dark"] .adv-section         { color: #cbd5e1; }
+/* code-Blöcke in hints */
+[data-theme="dark"] .hint code           { background: #1e2230 !important; color: #93c5fd !important; }
+
 /* Theme toggle button in nav */
 #theme-toggle {
   background: none;

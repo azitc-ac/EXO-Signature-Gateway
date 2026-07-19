@@ -207,7 +207,15 @@
   </div>
 </div>
 
-<!-- Info-Modal (In-Flight u.ä.) -->
+<!-- App-Pool Status -->
+<div style="display:flex;align-items:baseline;gap:16px;margin:20px 0 10px">
+  <h3 style="color:#555;font-size:14px;text-transform:uppercase;letter-spacing:.05em;margin:0">Graph App-Pool</h3>
+</div>
+<div class="settings-card" style="padding:6px 0;max-width:520px">
+  <div id="poolStatusBlock" style="color:#94a3b8;font-size:12px;padding:8px 16px">wird geladen…</div>
+</div>
+
+<!-- Pool-Detail-Modal / Info-Modal -->
 <div id="poolModal" onclick="if(event.target===this)closePoolModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:900;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:10px;padding:22px 24px;max-width:560px;width:92%;box-shadow:0 6px 24px rgba(0,0,0,.2);max-height:90vh;overflow-y:auto">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
@@ -230,6 +238,174 @@
 </style>
 
 <script>
+
+var _poolData = [];
+var _poolActiveTab = 'today';
+var _poolActiveIdx = 0;
+var _poolLastHistoryTab = '7d';
+
+function openPoolModal(idx) {
+  var p = _poolData[idx];
+  if (!p) return;
+  _poolActiveIdx = idx;
+  var throttled = p.throttled;
+  var remS  = throttled ? Math.ceil(p.throttled_until_s || 0) : 0;
+  var label = p.label || p.client_id.slice(0,8);
+  var thisH = p.calls_this_hour != null ? p.calls_this_hour : 0;
+  var today = p.calls_today != null ? p.calls_today : 0;
+  var peakTxt = (p.peak_hour != null && p.peak_hour >= 0)
+    ? p.peak_count + ' Aufrufe um ' + p.peak_hour + ':xx Uhr'
+    : '— (noch keine Daten)';
+  var statusHtml = throttled
+    ? '<span style="color:#dc2626">● gedrosselt (noch ' + remS + 's)</span>'
+    : '<span style="color:#16a34a">● verfügbar</span>';
+  var tabStyle = 'padding:5px 12px;border:none;border-radius:4px;cursor:pointer;font-size:12px;margin-right:4px;';
+  var activeStyle = tabStyle + 'background:#1c1917;color:#fff;';
+  var inactiveStyle = tabStyle + 'background:#f0f0f0;color:#555;';
+  document.getElementById('poolModalTitle').textContent = label + ' — Graph API Aufrufe';
+  document.getElementById('poolModalContent').innerHTML =
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">' +
+      '<div class="sys-tile"><div class="sys-val">' + thisH + '</div><div class="sys-label">Aufrufe diese Stunde</div></div>' +
+      '<div class="sys-tile"><div class="sys-val">' + today + '</div><div class="sys-label">Aufrufe heute gesamt</div></div>' +
+    '</div>' +
+    '<div style="margin-bottom:6px;font-size:12px;color:#44403c">Peak heute: <strong>' + peakTxt + '</strong></div>' +
+    '<div style="margin-bottom:14px;font-size:12px;color:#44403c">Status: ' + statusHtml + '</div>' +
+    '<div style="margin-bottom:10px">' +
+      '<button id="poolTab_today" style="' + activeStyle + '" onclick="showPoolTab(\'today\',' + idx + ')">Heute</button>' +
+      '<button id="poolTab_7d"    style="' + inactiveStyle + '" onclick="showPoolTab(\'7d\',' + idx + ')">7 Tage</button>' +
+      '<button id="poolTab_30d"   style="' + inactiveStyle + '" onclick="showPoolTab(\'30d\',' + idx + ')">30 Tage</button>' +
+    '</div>' +
+    '<div id="poolChartArea"><span style="color:#94a3b8;font-size:12px">Laden…</span></div>';
+  document.getElementById('poolModal').style.display = 'flex';
+  showPoolTab('today', idx);
+}
+
+function _poolRender24hBars(hours, throttled) {
+  var maxH  = Math.max.apply(null, hours.concat([1]));
+  var nowH  = new Date().getHours();
+  var bars = '<div style="display:flex;align-items:flex-end;gap:2px;height:64px">';
+  hours.forEach(function(cnt, h) {
+    var pct = Math.round(cnt / maxH * 100);
+    var isNow = h === nowH;
+    var col = throttled ? (isNow ? '#dc2626' : '#fca5a5')
+                        : (isNow ? '#2563eb' : '#93c5fd');
+    bars += '<div style="flex:1;background:' + (cnt > 0 ? col : 'transparent') + ';height:' + (cnt > 0 ? Math.max(pct, 3) : 0) + '%;' +
+      'border-radius:2px 2px 0 0;min-height:' + (cnt>0?'3':'0') + 'px" ' +
+      'title="' + h + ':00 — ' + cnt + ' Aufrufe"></div>';
+  });
+  bars += '</div>';
+  var lbl = '<div style="display:flex;font-size:10px;color:#a8a29e;margin-top:3px">' +
+    '<div style="flex:6;text-align:left">0h</div>' +
+    '<div style="flex:6;text-align:center">6h</div>' +
+    '<div style="flex:6;text-align:center">12h</div>' +
+    '<div style="flex:6;text-align:center">18h</div>' +
+    '<div style="flex:0;white-space:nowrap">24h</div>' +
+    '</div>';
+  return '<div style="font-size:10px;color:#a8a29e;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Aufrufe pro Stunde</div>' +
+    '<div style="background:#f8f7f6;border-radius:6px;padding:10px 10px 6px">' + bars + lbl + '</div>' +
+    '<div style="margin-top:10px;font-size:10px;color:#a8a29e">Aktuell aktive Stunde blau · Historische Daten aus DB geladen</div>';
+}
+
+function _poolSetTabStyles(activeTab) {
+  var tabStyle = 'padding:5px 12px;border:none;border-radius:4px;cursor:pointer;font-size:12px;margin-right:4px;';
+  var activeStyle = tabStyle + 'background:#1c1917;color:#fff;';
+  var inactiveStyle = tabStyle + 'background:#f0f0f0;color:#555;';
+  ['today','7d','30d'].forEach(function(t) {
+    var el = document.getElementById('poolTab_' + t);
+    if (el) el.style.cssText = (t === activeTab ? activeStyle : inactiveStyle);
+  });
+}
+
+function showPoolTab(tabName, appIdx) {
+  _poolActiveTab = tabName;
+  _poolActiveIdx = appIdx;
+  _poolSetTabStyles(tabName);
+  var area = document.getElementById('poolChartArea');
+  if (!area) return;
+  if (tabName === 'today') {
+    var p = _poolData[appIdx];
+    if (!p) { area.innerHTML = '<span style="color:#94a3b8;font-size:12px">Keine Daten</span>'; return; }
+    var hours = p.hours_today || new Array(24).fill(0);
+    area.innerHTML = _poolRender24hBars(hours, p.throttled);
+    return;
+  }
+  var days = tabName === '7d' ? 7 : 30;
+  area.innerHTML = '<span style="color:#94a3b8;font-size:12px">Laden…</span>';
+  var p = _poolData[appIdx];
+  var app_id = p ? p.client_id : '';
+  _poolLastHistoryTab = tabName;
+  fetch('/api/setup/app-pool/history?days=' + days)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var poolArr = data.pool || data;
+      var entry = null;
+      if (Array.isArray(poolArr)) {
+        for (var i = 0; i < poolArr.length; i++) {
+          if (poolArr[i].client_id === app_id) { entry = poolArr[i]; break; }
+        }
+      }
+      var dayRows = (entry && entry.days) ? entry.days : [];
+      if (!dayRows.length) {
+        area.innerHTML = '<span style="color:#94a3b8;font-size:12px">Keine historischen Daten verfügbar</span>';
+        return;
+      }
+      var maxT = Math.max.apply(null, dayRows.map(function(d) { return d.total; }).concat([1]));
+      var bars = '<div style="display:flex;align-items:flex-end;gap:3px;height:64px;margin-bottom:4px">';
+      dayRows.forEach(function(dr) {
+        var pct = Math.round(dr.total / maxT * 100);
+        bars += '<div style="flex:1;background:#93c5fd;height:' + (dr.total > 0 ? Math.max(pct, 3) : 0) + '%;' +
+          'border-radius:2px 2px 0 0;min-height:' + (dr.total>0?'3':'0') + 'px;cursor:pointer" ' +
+          'title="' + dr.date + ' — ' + dr.total + ' Aufrufe" ' +
+          'onclick="showPoolDayDrill(' + appIdx + ',\'' + dr.date + '\')">' +
+          '</div>';
+      });
+      bars += '</div>';
+      var labelHtml = '<div style="display:flex;justify-content:space-between;font-size:10px;color:#a8a29e;margin-bottom:4px">' +
+        '<span>' + dayRows[0].date.slice(5) + '</span>' +
+        '<span>' + dayRows[dayRows.length-1].date.slice(5) + '</span>' +
+        '</div>';
+      area.innerHTML =
+        '<div style="font-size:10px;color:#a8a29e;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Aufrufe pro Tag</div>' +
+        '<div style="background:#f8f7f6;border-radius:6px;padding:10px 10px 6px">' + bars + labelHtml + '</div>' +
+        '<div style="margin-top:10px;font-size:10px;color:#a8a29e">Auf einen Balken klicken → Stundenansicht des Tages</div>';
+    })
+    .catch(function(e) {
+      area.innerHTML = '<span style="color:#dc2626;font-size:12px">Fehler: ' + e.message + '</span>';
+    });
+}
+
+function showPoolDayDrill(appIdx, date) {
+  var area = document.getElementById('poolChartArea');
+  if (!area) return;
+  var p = _poolData[appIdx];
+  var app_id = p ? p.client_id : '';
+  area.innerHTML = '<span style="color:#94a3b8;font-size:12px">Laden…</span>';
+  fetch('/api/setup/app-pool/day?app_id=' + encodeURIComponent(app_id) + '&date=' + encodeURIComponent(date))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var hoursArr = new Array(24).fill(0);
+      if (Array.isArray(data.hours)) {
+        hoursArr = data.hours;
+      } else if (data.hours && typeof data.hours === 'object') {
+        Object.keys(data.hours).forEach(function(k) { hoursArr[parseInt(k)] = data.hours[k]; });
+      }
+      var backBtn = '<button onclick="showPoolTab(\'' + _poolLastHistoryTab + '\',' + appIdx + ')" ' +
+        'style="padding:4px 10px;border:1px solid #e2e8f0;border-radius:4px;background:#f8f7f6;cursor:pointer;font-size:12px;margin-bottom:10px">← Zurück</button>';
+      var throttled = p ? p.throttled : false;
+      area.innerHTML = backBtn +
+        '<div style="font-size:11px;color:#78716c;margin-bottom:6px">Stunden am ' + date + '</div>' +
+        _poolRender24hBars(hoursArr, throttled);
+    })
+    .catch(function(e) {
+      var backBtn = '<button onclick="showPoolTab(\'' + _poolLastHistoryTab + '\',' + appIdx + ')" ' +
+        'style="padding:4px 10px;border:1px solid #e2e8f0;border-radius:4px;background:#f8f7f6;cursor:pointer;font-size:12px;margin-bottom:10px">← Zurück</button>';
+      area.innerHTML = backBtn + '<span style="color:#dc2626;font-size:12px">Fehler: ' + e.message + '</span>';
+    });
+}
+
+function closePoolModal() {
+  document.getElementById('poolModal').style.display = 'none';
+}
 
 var _sysToday = new Date().toISOString().slice(0,10);
 
@@ -318,6 +494,45 @@ function openInFlightInfo(active, held) {
     } catch(e) {
       document.getElementById('sysRefreshNote').textContent = 'Fehler: ' + e.message;
     }
+    // Pool-Status
+    try {
+      const pr = await fetch('/api/setup/app-pool/status');
+      const pd = await pr.json();
+      _poolData = pd.pool || [];
+      const nowH = new Date().getHours();
+      let poolHtml = '';
+      _poolData.forEach(function(p, i) {
+        const throttled = p.throttled;
+        const remS = throttled ? Math.ceil(p.throttled_until_s || 0) : 0;
+        const dotColor = throttled ? '#dc2626' : '#16a34a';
+        const label = p.label || p.client_id.slice(0,8);
+        const thisH  = p.calls_this_hour != null ? p.calls_this_hour : 0;
+        const today  = p.calls_today != null ? p.calls_today : 0;
+        let peakStr = '—';
+        if (p.peak_hour != null && p.peak_hour >= 0) {
+          peakStr = p.peak_count + ' @ ' + p.peak_hour + 'h';
+        }
+        const statusStr = throttled
+          ? '<span style="color:#dc2626">gedrosselt (' + remS + 's)</span>'
+          : '<span style="color:#16a34a">verfügbar</span>';
+        poolHtml += '<div onclick="openPoolModal(' + i + ')" style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid #f5f4f3;cursor:pointer;transition:background .15s" ' +
+          'onmouseover="this.style.background=\'#fafaf9\'" onmouseout="this.style.background=\'\'">' +
+          '<span style="color:' + dotColor + ';font-size:20px;flex-shrink:0">●</span>' +
+          '<div style="flex:1;min-width:0">' +
+            '<div style="font-size:13px;font-weight:600;color:#1c1917">' + label + '</div>' +
+            '<div style="font-size:11px;color:#78716c;margin-top:2px">' +
+              '<span title="Aufrufe in dieser Stunde">' + thisH + ' / h</span>' +
+              ' &nbsp;·&nbsp; <span title="Peak heute">Peak: ' + peakStr + '</span>' +
+              ' &nbsp;·&nbsp; <span title="Aufrufe heute gesamt">heute ' + today + ' ges.</span>' +
+              ' &nbsp;·&nbsp; ' + statusStr +
+            '</div>' +
+          '</div>' +
+          '<span style="color:#a8a29e;font-size:13px">▸</span>' +
+          '</div>';
+      });
+      if (!_poolData.length) poolHtml = '<span style="color:#94a3b8;font-size:12px;display:block;padding:8px 16px">Kein Pool konfiguriert</span>';
+      document.getElementById('poolStatusBlock').innerHTML = poolHtml;
+    } catch(e) { /* ignore */ }
   }
   loadSys();
   setInterval(loadSys, 10000);

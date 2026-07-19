@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.6.25 — 2026-07-20 — App-Pool wiederhergestellt; App-Proxy-Texte entfernt; Dark-Mode Erklärungstexte
+
+- **Korrektur v1.6.24**: App-Pool-Feature (mehrere App-Registrierungen für Skalierung) versehentlich entfernt — vollständig wiederhergestellt in `setup.html` (Step + JS-Funktionen) und `dashboard.html` (Graph-App-Pool-Karte + Pool-Detailfunktionen + `loadSys`-Block).
+- **App-Proxy-Texte**: Referenzen auf „Azure Application Proxy" aus Add-in-Step (Einrichtung) entfernt/neutralisiert — Proxy-Hinweis im Plattform-Text, „App Proxy"-Formulierung in SSO-Statusmeldungen.
+- **Dark Mode**: Klassen-basierte Erklärungstexte jetzt korrekt umgefärbt — `.hint`, `.step-body p`, `.step-body ul`, `label`, `h3`, `.stat-label`, `details summary`, `.settings-card p/li`. Vorher waren diese #666-Grautöne auf dunklem Hintergrund kaum lesbar.
+
 ## v1.6.24 — 2026-07-20 — App-Pool entfernt (Einrichtung + Übersicht)
 
 - **Einrichtung**: Step „App-Pool konfigurieren (optional)" inkl. aller zugehörigen JS-Funktionen entfernt (`updatePoolRecommendation`, `loadPoolStatus`, `startPoolAppLogin`, `submitPoolAppUrl`).
