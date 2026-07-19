@@ -185,7 +185,9 @@
   <h2 style="margin-top:0">DigiCert-Direktanbindung
     <span class="muted" style="font-size:13px;font-weight:400">— eigenes CertCentral-Konto (optional)</span>
     <span class="conn-badge conn-wait" id="dc-badge" style="display:none"></span>
+    <span style="float:right;font-size:11px;font-weight:400"><label style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;color:#64748b"><input type="checkbox" id="adv-cb-digicert" style="margin:0" onchange="_toggleAdv('digicert',this.checked)"> Einstellungen anzeigen</label></span>
   </h2>
+  <div data-adv="digicert" style="display:none">
   <p class="hint" style="margin-bottom:12px">
     Alternative zum Zertifikatsbezug über den HUB: Wer sein <strong>eigenes
     DigiCert-CertCentral-Konto</strong> nutzen möchte, hinterlegt hier den API-Key —
@@ -222,8 +224,23 @@
     </div>
     <div id="dc-domain-record" style="display:none;margin-top:10px;padding:10px;background:#fff;border:1px solid #e2e8f0;border-radius:6px;font-size:12px"></div>
   </div>
+  </div>
 </div>
 <script>
+function _initAdv(id) {
+  var show = localStorage.getItem('advsec_' + id) === '1';
+  var cb = document.getElementById('adv-cb-' + id);
+  if (cb) cb.checked = show;
+  document.querySelectorAll('[data-adv="' + id + '"]').forEach(function(el) {
+    el.style.display = show ? '' : 'none';
+  });
+}
+function _toggleAdv(id, show) {
+  localStorage.setItem('advsec_' + id, show ? '1' : '0');
+  document.querySelectorAll('[data-adv="' + id + '"]').forEach(function(el) {
+    el.style.display = show ? '' : 'none';
+  });
+}
 async function dcLoadConfig(){
   try{
     const d=await (await fetch('/api/digicert/config')).json();
@@ -278,6 +295,7 @@ async function dcDomainCheck(){
   else _dcMsg(d.message||'Noch nicht validiert.',false);
 }
 dcLoadConfig();
+_initAdv('digicert');
 </script>
 
 <!-- ── Fair-Use-Lizenz ────────────────────────────────────────────────────── -->

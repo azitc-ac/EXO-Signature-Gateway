@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.6.16 — 2026-07-19 — UI: Erweiterte Einstellungen per Rubrik einklappbar (P5)
+
+- **4 Settings-Seiten** bekommen je eine „Erweiterte Einstellungen anzeigen"-Checkbox in der Kartenüberschrift (Default: eingeklappt, Zustand in localStorage persistiert).
+- **Signatur**: Loop-Detection-Header, Signaturbilder einbetten, Client-Signaturen entfernen (+ Slider), Rein interne Mails signieren, NoSig-Trigger, Benutzer-Overrides-Tabelle → eingeblendet per Toggle.
+- **S/MIME**: Betreff-Tag-Stacking, Inbound-Strip, NoDigSig- und Verschlüsselungs-Trigger, Portal-OTP/Aufbewahrung/Branding/Logo, Key-Vault-Modus, Private-Keys-Sektion → eingeblendet per Toggle.
+- **Allgemein** (Benachrichtigungen): Warnschwellen-Sektion (cert-warn-days, le-renew-days) → eingeblendet per Toggle.
+- **Anbindung**: DigiCert-Direktanbindung-Karte → Karte bleibt sichtbar, Inhalt per Toggle aufklappbar.
+- Kein Backend-Eingriff. Alle `data-adv`-Blöcke sind reines HTML; `_initAdv`/`_toggleAdv` ≤ 12 Zeilen JS pro Seite.
+
 ## v1.6.15 — 2026-07-19 — feat: Interne Gruppen + Benutzerdefinierte Richtlinien (P6)
 
 - **Interne Gruppen** (`INTERNAL_GROUPS` in settings.json): benannte Mengen von Postfach-Config-Keys (ExchangeGuid); verwaltbar über neue UI-Sektion in Postfächer → Richtlinien-Tab mit Mitglieder-Modal.
