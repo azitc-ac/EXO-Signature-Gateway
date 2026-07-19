@@ -2,108 +2,70 @@
    Applied via [data-theme="dark"] on <html>. All other styles stay as-is.
    ────────────────────────────────────────────────────────────────────────── */
 
-/* color-scheme: lässt den BROWSER native Widgets dunkel rendern —
-   Select-Popups (Options-Liste!), Datepicker, Scrollbalken, Checkboxen.
-   Ohne dies: helle Options-Liste unter dunklem Select = Kontrast-Chaos. */
+/* color-scheme lässt den Browser native Widgets dunkel rendern:
+   Select-Popups, Scrollbalken, Checkboxen. */
 [data-theme="dark"] { color-scheme: dark; }
 
-/* Nav bar — ersetze #0078d4 durch dunkles Navy */
+/* ── Basis ───────────────────────────────────────────────────────────────── */
+[data-theme="dark"] body  { background: #0f1117; color: #e2e8f0; }
+[data-theme="dark"] h1    { color: #e2e8f0; }
+[data-theme="dark"] h2    { color: #cbd5e1; }
+[data-theme="dark"] h3    { color: #94a3b8; }
+[data-theme="dark"] label { color: #cbd5e1; }
+[data-theme="dark"] .checkbox-label { color: #cbd5e1; }
+[data-theme="dark"] details summary  { color: #94a3b8; }
+[data-theme="dark"] code  { background: #2a2d3e; color: #94a3b8; }
+
+/* ── Navigation ─────────────────────────────────────────────────────────── */
 [data-theme="dark"] nav {
   background: #0e1c2e;
   box-shadow: 0 2px 8px rgba(0,0,0,0.4);
 }
-/* Mobile Nav-Dropdown folgt der Nav-Farbe */
 [data-theme="dark"] .nav-links {
   background: #0e1c2e;
   border-top-color: rgba(255,255,255,0.08);
 }
+[data-theme="dark"] .nav-sub-tabs  { border-bottom-color: #2a2d3e; }
+[data-theme="dark"] .nav-sub-tab   { color: #94a3b8; }
+[data-theme="dark"] .nav-sub-tab:hover { color: #5b9bd5; }
+[data-theme="dark"] .nav-sub-tab.active { color: #5b9bd5; border-bottom-color: #5b9bd5; }
+[data-theme="dark"] .nav-sub-tab.nav-planned { color: #4a5568; }
+[data-theme="dark"] .nav-planned-badge { background: #2a2d3e !important; }
 
-/* Page background & base text */
-[data-theme="dark"] body {
-  background: #0f1117;
-  color: #e2e8f0;
-}
-[data-theme="dark"] h1 { color: #e2e8f0; }
-[data-theme="dark"] h2 { color: #cbd5e1; }
-[data-theme="dark"] h3 { color: #94a3b8; }
-
-/* Cards / surfaces */
+/* ── Cards & Wizard-Steps ────────────────────────────────────────────────── */
 [data-theme="dark"] .settings-card {
-  background: #1a1d27;
-  border-color: #2a2d3e;
+  background: #1a1d27 !important;
+  border-color: #2a2d3e !important;
 }
 [data-theme="dark"] .settings-card h2 { color: #5b9bd5; }
-[data-theme="dark"] .stat-card {
-  background: #1a1d27;
-  border-color: #2a2d3e;
-  border-top-color: #5b9bd5;
-}
-[data-theme="dark"] .stat-value { color: #5b9bd5; }
-[data-theme="dark"] .stat-label { color: #94a3b8; }
+[data-theme="dark"] .settings-card p  { color: #cbd5e1; }
+[data-theme="dark"] .settings-card li { color: #cbd5e1; }
 
-[data-theme="dark"] .preview-frame {
-  background: #1a1d27;
-  border-color: #2a2d3e;
-}
-
-/* Wizard steps */
 [data-theme="dark"] .wizard-step {
-  background: #1a1d27;
-  border-color: #2a2d3e;
+  background: #1a1d27 !important;
+  border-color: #2a2d3e !important;
 }
-[data-theme="dark"] .wizard-step.done { border-left-color: #22c55e; }
-[data-theme="dark"] .wizard-step:not(.done) { border-left-color: #2a2d3e; }
+[data-theme="dark"] .wizard-step.done     { border-left-color: #22c55e !important; }
+[data-theme="dark"] .wizard-step:not(.done) { border-left-color: #2a2d3e !important; }
+
 [data-theme="dark"] .step-header {
   background: #1e2230;
   border-bottom-color: #2a2d3e;
 }
 [data-theme="dark"] .wizard-step.done .step-header { background: #0d2018; }
-[data-theme="dark"] .step-title { color: #e2e8f0; }
-[data-theme="dark"] .step-body .hint { color: #94a3b8; }
-[data-theme="dark"] .step-body ul { color: #94a3b8; }
+[data-theme="dark"] .step-title  { color: #e2e8f0; }
+[data-theme="dark"] .step-badge  { background: #1e4060; }
 
-/* Config / kv tables */
-[data-theme="dark"] .config-table {
-  background: #1a1d27;
-  border-color: #2a2d3e;
-}
-[data-theme="dark"] .config-table th {
-  background: #1e2230;
-  color: #94a3b8;
-}
-[data-theme="dark"] .config-table td { border-top-color: #2a2d3e; }
-[data-theme="dark"] .config-table tr:hover td { background: #1e2230; }
-[data-theme="dark"] .config-table code {
-  background: #2a2d3e;
-  color: #94a3b8;
-}
+[data-theme="dark"] .step-status.done    { background: #0a1f10 !important; color: #4ade80 !important; }
+[data-theme="dark"] .step-status.pending { background: #1f1500 !important; color: #fbbf24 !important; }
+[data-theme="dark"] .step-status.waiting { background: #1e2230 !important; color: #94a3b8 !important; }
 
-/* Generic tables (mailboxes, S/MIME, etc.) */
-[data-theme="dark"] table { color: #e2e8f0; }
-/* Tabellenzeilen-Trennlinien: JS setzt border via .style.borderBottom=…
-   was zu rgb(…) normalisiert wird — Attribut-Selektoren greifen nicht.
-   !important schlägt auch inline styles. */
-[data-theme="dark"] table tr { border-bottom-color: #2a2d3e !important; }
-[data-theme="dark"] table th { border-bottom-color: #2a2d3e !important; color: #94a3b8; }
-[data-theme="dark"] table td { border-color: #2a2d3e !important; }
+[data-theme="dark"] .stat-card  { background: #1a1d27; border-color: #2a2d3e; border-top-color: #5b9bd5; }
+[data-theme="dark"] .stat-value { color: #5b9bd5; }
+[data-theme="dark"] .stat-label { color: #94a3b8; }
+[data-theme="dark"] .preview-frame { background: #1a1d27; border-color: #2a2d3e; }
 
-/* User header (S/MIME card top bar) */
-[data-theme="dark"] .user-hdr {
-  background: #1e2230;
-  border-bottom-color: #2a2d3e;
-}
-
-/* Sub-navigation tabs */
-[data-theme="dark"] .nav-sub-tabs { border-bottom-color: #2a2d3e; }
-[data-theme="dark"] .nav-sub-tab { color: #94a3b8; }
-[data-theme="dark"] .nav-sub-tab:hover { color: #5b9bd5; }
-[data-theme="dark"] .nav-sub-tab.active {
-  color: #5b9bd5;
-  border-bottom-color: #5b9bd5;
-}
-[data-theme="dark"] .nav-sub-tab.nav-planned { color: #4a5568; }
-
-/* Forms */
+/* ── Formulare ───────────────────────────────────────────────────────────── */
 [data-theme="dark"] input[type="email"],
 [data-theme="dark"] input[type="text"],
 [data-theme="dark"] input[type="password"],
@@ -120,340 +82,228 @@
   border-color: #2a2d3e;
   color: #e2e8f0;
 }
-[data-theme="dark"] select option {
-  background: #1a1d27;
-  color: #e2e8f0;
-}
+[data-theme="dark"] select option       { background: #1a1d27; color: #e2e8f0; }
 [data-theme="dark"] select:disabled,
-[data-theme="dark"] input:disabled {
-  opacity: 0.5;
-  color: #94a3b8;
-}
+[data-theme="dark"] input:disabled      { opacity: 0.5; color: #94a3b8; }
 [data-theme="dark"] input:focus,
 [data-theme="dark"] select:focus,
-[data-theme="dark"] textarea:focus {
-  border-color: #5b9bd5;
-  box-shadow: 0 0 0 2px rgba(78,157,232,0.18);
-}
+[data-theme="dark"] textarea:focus      { border-color: #5b9bd5; box-shadow: 0 0 0 2px rgba(78,157,232,0.18); }
 [data-theme="dark"] input[type="checkbox"] { accent-color: #5b9bd5; }
 
-/* Hint / secondary text */
-[data-theme="dark"] .hint { color: #94a3b8; }
-[data-theme="dark"] .hint code { background: #2a2d3e; color: #94a3b8; }
-[data-theme="dark"] code { background: #2a2d3e; color: #94a3b8; }
-
-/* Alerts */
-[data-theme="dark"] .alert.success {
-  background: #0a1f10;
-  border-color: #166534;
-  color: #4ade80;
-}
-[data-theme="dark"] .alert.error {
-  background: #1f0a0a;
-  border-color: #991b1b;
-  color: #fca5a5;
-}
-[data-theme="dark"] .alert.warn {
-  background: #1f1500;
-  border-color: #92400e;
-  color: #fbbf24;
-}
-
-/* Buttons */
-[data-theme="dark"] .btn.primary { background: #2563eb; }
-[data-theme="dark"] .btn.primary:hover { background: #3b82f6; }
-[data-theme="dark"] .btn.secondary { background: #1e2230; color: #e2e8f0; }
-[data-theme="dark"] .btn.secondary:hover { background: #2a2d3e; }
-[data-theme="dark"] .btn-sm.secondary { background: #1e2230; color: #e2e8f0; }
-[data-theme="dark"] .btn-toggle {
-  background: #1e2230;
-  border-color: #2a2d3e;
-  color: #94a3b8;
-}
-[data-theme="dark"] .btn-toggle.active {
-  background: #2563eb;
-  border-color: #2563eb;
-  color: #fff;
-}
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+[data-theme="dark"] .btn.primary          { background: #2563eb; }
+[data-theme="dark"] .btn.primary:hover    { background: #3b82f6; }
+[data-theme="dark"] .btn.secondary        { background: #1e2230; color: #e2e8f0; }
+[data-theme="dark"] .btn.secondary:hover  { background: #2a2d3e; }
+[data-theme="dark"] .btn-sm.secondary     { background: #1e2230; color: #e2e8f0; }
+[data-theme="dark"] .btn-toggle           { background: #1e2230; border-color: #2a2d3e; color: #94a3b8; }
+[data-theme="dark"] .btn-toggle.active    { background: #2563eb; border-color: #2563eb; color: #fff; }
 [data-theme="dark"] .btn-toggle:hover:not(.active) { background: #2a2d3e; }
+[data-theme="dark"] .copy-btn             { color: #5b9bd5; }
+[data-theme="dark"] .copy-btn:hover       { background: #1e2230; }
 
-/* Copy button */
-[data-theme="dark"] .copy-btn { color: #5b9bd5; }
-[data-theme="dark"] .copy-btn:hover { background: #1e2230; }
+/* ── Alerts ──────────────────────────────────────────────────────────────── */
+[data-theme="dark"] .alert.success { background: #0a1f10; border-color: #166534; color: #4ade80; }
+[data-theme="dark"] .alert.error   { background: #1f0a0a; border-color: #991b1b; color: #fca5a5; }
+[data-theme="dark"] .alert.warn    { background: #1f1500; border-color: #92400e; color: #fbbf24; }
 
-/* User tooltip dropdown */
-[data-theme="dark"] #user-tooltip {
-  background: #1a1d27;
-  border-color: #2a2d3e;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
-}
-[data-theme="dark"] #user-tt-upn { color: #e2e8f0; }
-[data-theme="dark"] #user-tt-role { color: #94a3b8; }
-[data-theme="dark"] #user-tooltip [style*="border-top"] { border-top-color: #2a2d3e !important; }
-
-/* ── Inline-Style-Überschreibungen ────────────────────────────────────────
-   Die Templates setzen hunderte Farben inline (style="…"), die eine additive
-   CSS-Datei normal nicht erreicht. Attribut-Selektoren + !important fangen
-   die wiederkehrenden Muster zentral ab — Templates bleiben unangetastet.
-   Bewusst NICHT überschrieben: background:#fff (Signatur-Vorschau muss auf
-   Weiß rendern, wie beim Empfänger). */
-
-/* Helle Info-/Karten-Hintergründe → EINGESENKTE Fläche (dunkler als die Card
-   #1a1d27, damit verschachtelte Boxen die Seite nicht aufhellen — die
-   Anbindung-Seite ist besonders box-lastig und wirkte sonst insgesamt zu hell) */
-[data-theme="dark"] [style*="background:#f8fafc"],
-[data-theme="dark"] [style*="background:#f8f7f6"],
-[data-theme="dark"] [style*="background:#f1f5f9"],
-[data-theme="dark"] [style*="background:#eff6ff"],
-[data-theme="dark"] [style*="background:#f3f4f6"],
-[data-theme="dark"] [style*="background:#fafafa"],
-[data-theme="dark"] [style*="background:#fff"],
-[data-theme="dark"] [style*="background: #fff"],
-[data-theme="dark"] [style*="background:white"] {
-  background: #14171f !important;
-}
-/* Ausnahme: die Signatur-Vorschau MUSS auf Weiß rendern (wie beim Empfänger) */
-[data-theme="dark"] .preview-frame [style*="background:#fff"],
-[data-theme="dark"] #pv-html,
-[data-theme="dark"] .sig-preview-white {
-  background: #ffffff !important;
-}
-
-/* Gelbe Warn-Flächen → dunkle Warn-Fläche (Textfarben dort meist #92400e/#b45309
-   — auf Dunkel ok lesbar, zusätzlich leicht aufgehellt) */
-[data-theme="dark"] [style*="background:#fef3c7"] {
-  background: #241a00 !important;
-}
-[data-theme="dark"] [style*="color:#92400e"] { color: #fbbf24 !important; }
-[data-theme="dark"] [style*="color:#b45309"] { color: #f59e0b !important; }
-
-/* Dunkle Inline-Textfarben → helle Entsprechungen */
-[data-theme="dark"] [style*="color:#555"],
-[data-theme="dark"] [style*="color:#374151"],
-[data-theme="dark"] [style*="color:#334155"],
-[data-theme="dark"] [style*="color:#1e293b"],
-[data-theme="dark"] [style*="color:#1c1917"],
-[data-theme="dark"] [style*="color:#44403c"],
-[data-theme="dark"] [style*="color:#333"],
-[data-theme="dark"] [style*="color:#111"] {
-  color: #cbd5e1 !important;
-}
-[data-theme="dark"] [style*="color:#666"],
-[data-theme="dark"] [style*="color:#888"],
-[data-theme="dark"] [style*="color:#6b7280"],
-[data-theme="dark"] [style*="color:#64748b"],
-[data-theme="dark"] [style*="color:#78716c"],
-[data-theme="dark"] [style*="color:#57534e"],
-[data-theme="dark"] [style*="color:#475569"],
-[data-theme="dark"] [style*="color:#94a3b8"],
-[data-theme="dark"] [style*="color:#9ca3af"],
-[data-theme="dark"] [style*="color:#a8a29e"],
-[data-theme="dark"] [style*="color:#aaa"],
-[data-theme="dark"] [style*="color:#bbb"] {
-  color: #94a3b8 !important;
-}
-/* Dunkelorange/Rostbraun → helles Orange */
-[data-theme="dark"] [style*="color:#9a3412"],
-[data-theme="dark"] [style*="color:#c2410c"] { color: #fb923c !important; }
-/* Grüne Erfolgs-Textfarben (Zertifikatstatus) */
-[data-theme="dark"] [style*="color:#27ae60"],
-[data-theme="dark"] [style*="color:#16a34a"] { color: #4ade80 !important; }
-/* Amber (Fallback-Zähler) */
-[data-theme="dark"] [style*="color:#d97706"] { color: #fbbf24 !important; }
-
-/* Helle Inline-Rahmen → dunkle Rahmen */
-[data-theme="dark"] [style*="border:1px solid #e2e8f0"],
-[data-theme="dark"] [style*="border:1px solid #e5e7eb"],
-[data-theme="dark"] [style*="border:1px solid #d1d5db"],
-[data-theme="dark"] [style*="border:1px solid #f0f0f0"],
-[data-theme="dark"] [style*="border:1px solid #e7e5e4"] {
-  border-color: #2a2d3e !important;
-}
-[data-theme="dark"] [style*="border-bottom:2px solid #e2e8f0"],
-[data-theme="dark"] [style*="border-bottom:1px solid #f0f0f0"],
-[data-theme="dark"] [style*="border-bottom:1px solid #e2e8f0"],
-[data-theme="dark"] [style*="border-bottom:1px solid #e7e5e4"],
-[data-theme="dark"] [style*="border-top:1px solid #f0f0f0"],
-[data-theme="dark"] [style*="border-top:1px solid #e2e8f0"],
-[data-theme="dark"] [style*="border-top:1px solid #eee"] {
-  border-color: #2a2d3e !important;
-}
-
-/* Helle Badge-Pillen (z.B. "Demnächst", Statuszähler) */
-[data-theme="dark"] [style*="background:#e2e8f0"] {
-  background: #2a2d3e !important;
-  color: #94a3b8 !important;
-}
-
-/* kv-Tabellen (Regel-Editoren u.ä.) */
+/* ── Tabellen ────────────────────────────────────────────────────────────── */
+[data-theme="dark"] table             { color: #e2e8f0; }
+/* JS normalisiert border zu rgb() → !important nötig */
+[data-theme="dark"] table tr { border-bottom-color: #2a2d3e !important; }
+[data-theme="dark"] table th { border-bottom-color: #2a2d3e !important; color: #94a3b8; }
+[data-theme="dark"] table td { border-color: #2a2d3e !important; }
 [data-theme="dark"] .kv-table th { color: #94a3b8; border-color: #2a2d3e; }
 [data-theme="dark"] .kv-table td { border-color: #2a2d3e; }
+[data-theme="dark"] .config-table    { background: #1a1d27; border-color: #2a2d3e; }
+[data-theme="dark"] .config-table th { background: #1e2230; color: #94a3b8; }
+[data-theme="dark"] .config-table td { border-top-color: #2a2d3e; }
+[data-theme="dark"] .config-table tr:hover td { background: #1e2230; }
+[data-theme="dark"] .config-table code { background: #2a2d3e; color: #94a3b8; }
 
-/* Settings-Row-Trennlinien (class-basiert, border-bottom via style.css) */
-[data-theme="dark"] .settings-row { border-bottom-color: #2a2d3e; }
+/* ── Hints / Sekundärtexte ───────────────────────────────────────────────── */
+[data-theme="dark"] .hint            { color: #94a3b8 !important; }
+[data-theme="dark"] .hint code       { background: #1e2230 !important; color: #93c5fd !important; }
+[data-theme="dark"] .step-body .hint { color: #94a3b8 !important; }
+[data-theme="dark"] .step-body p     { color: #cbd5e1 !important; }
+[data-theme="dark"] .step-body ul    { color: #cbd5e1 !important; }
+[data-theme="dark"] .adv-section     { color: #cbd5e1; }
+[data-theme="dark"] .settings-row    { border-bottom-color: #2a2d3e; }
+[data-theme="dark"] .step-header     { border-bottom-color: #2a2d3e; }
 
-/* Step-Header-Trennlinie (class-basiert) */
-[data-theme="dark"] .step-header { border-bottom-color: #2a2d3e; }
-
-/* Log-Status-Badges (class-basiert) */
+/* ── Status-Badges ───────────────────────────────────────────────────────── */
+[data-theme="dark"] .conn-ok   { background: #0a1f10 !important; color: #4ade80 !important; }
+[data-theme="dark"] .conn-wait { background: #1f1500 !important; color: #fbbf24 !important; }
 [data-theme="dark"] .log-status.live       { background: #0a1f10; color: #4ade80; }
 [data-theme="dark"] .log-status.connecting { background: #1f1500; color: #fbbf24; }
 
-/* Setup-Badge-Kreis (Step-Nummer, #0078d4 → gedimmtes Navy) */
-[data-theme="dark"] .step-badge { background: #1e4060; }
-
-/* Setup-Wizard: step-status Badges (class-basiert, keine Inline-Styles) */
-[data-theme="dark"] .step-status.done    { background: #0a1f10 !important; color: #4ade80 !important; }
-[data-theme="dark"] .step-status.pending { background: #1f1500 !important; color: #fbbf24 !important; }
-[data-theme="dark"] .step-status.waiting { background: #1e2230 !important; color: #94a3b8 !important; }
-
-/* Dashboard: System-Tiles (class-basiert) */
-[data-theme="dark"] .sys-tile           { background: #1e2230 !important; }
-[data-theme="dark"] .sys-tile .sys-val  { color: #e2e8f0 !important; }
+/* ── Dashboard: System-Tiles ─────────────────────────────────────────────── */
+[data-theme="dark"] .sys-tile        { background: #1e2230 !important; }
+[data-theme="dark"] .sys-tile .sys-val   { color: #e2e8f0 !important; }
 [data-theme="dark"] .sys-tile .sys-label { color: #94a3b8 !important; }
-[data-theme="dark"] .sys-tile .sys-sub  { color: #64748b !important; }
+[data-theme="dark"] .sys-tile .sys-sub   { color: #64748b !important; }
 
-/* ── Status-Badges (class-basiert, nicht via Attribut-Selektor erreichbar) ─── */
-/* .conn-ok / .conn-wait in settings_connect.html */
-[data-theme="dark"] .conn-ok  { background: #0a1f10 !important; color: #4ade80 !important; }
-[data-theme="dark"] .conn-wait { background: #1f1500 !important; color: #fbbf24 !important; }
+/* ── User-Tooltip ────────────────────────────────────────────────────────── */
+[data-theme="dark"] #user-tooltip {
+  background: #1a1d27; border-color: #2a2d3e;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+[data-theme="dark"] #user-tt-upn  { color: #e2e8f0; }
+[data-theme="dark"] #user-tt-role { color: #94a3b8; }
+[data-theme="dark"] #user-tooltip [style*="border-top"] { border-top-color: #2a2d3e !important; }
 
-/* ── Semantische Inline-Hintergründe ────────────────────────────────────────
-   Grün (Erfolg / "Im Backup enthalten" / Delta-Box) */
+/* ── Inline-Style-Überschreibungen ───────────────────────────────────────────
+   Templates setzen hunderte Farben als style="…". Attribut-Selektoren +
+   !important überschreiben sie zentral ohne Template-Änderungen.          */
+
+/* Hintergründe: fast-weiß / hell-grau → dunkel */
+[data-theme="dark"] [style*="background:#fff"],
+[data-theme="dark"] [style*="background: #fff"],
+[data-theme="dark"] [style*="background:white"],
+[data-theme="dark"] [style*="background:#f8fafc"],
+[data-theme="dark"] [style*="background:#f8f9fa"],
+[data-theme="dark"] [style*="background:#f8f7f6"],
+[data-theme="dark"] [style*="background:#f1f5f9"],
+[data-theme="dark"] [style*="background:#f3f4f6"],
+[data-theme="dark"] [style*="background:#fafafa"],
+[data-theme="dark"] [style*="background:#fcfcfc"],
+[data-theme="dark"] [style*="background:#f0f0f0"] {
+  background: #14171f !important;
+}
+/* Ausnahme: Signatur-Vorschau muss auf Weiß rendern */
+[data-theme="dark"] .preview-frame [style*="background:#fff"],
+[data-theme="dark"] #pv-html,
+[data-theme="dark"] .sig-preview-white { background: #ffffff !important; }
+
+/* Hintergründe: semantische Farben */
 [data-theme="dark"] [style*="background:#f0fdf4"],
-[data-theme="dark"] [style*="background:#dcfce7"] {
-  background: #0a1f10 !important;
-}
-/* Rot (Fehler-Alert-Boxen, dynamisch per innerHTML) */
-[data-theme="dark"] [style*="background:#fef2f2"] {
-  background: #1f0a0a !important;
-}
-/* Blau (Info-Boxen, Cert-Info, Setup-Hinweise) */
+[data-theme="dark"] [style*="background:#dcfce7"] { background: #0a1f10 !important; }
+
+[data-theme="dark"] [style*="background:#fef2f2"] { background: #1f0a0a !important; }
+
 [data-theme="dark"] [style*="background:#f0f9ff"],
 [data-theme="dark"] [style*="background:#e0f2fe"],
-[data-theme="dark"] [style*="background:#dbeafe"] {
-  background: #0a1827 !important;
-}
-/* Blau-Lila (S/MIME-Hinweis-Box) */
-[data-theme="dark"] [style*="background:#f0f4ff"] {
-  background: #0f1530 !important;
-}
-/* Lila (Setup-Step-Status-Badges + Entra-Step-Hintergrund) */
+[data-theme="dark"] [style*="background:#dbeafe"] { background: #0a1827 !important; }
+
+[data-theme="dark"] [style*="background:#f0f4ff"] { background: #0f1530 !important; }
+
 [data-theme="dark"] [style*="background:#ede9fe"],
 [data-theme="dark"] [style*="background:#f3e8ff"],
 [data-theme="dark"] [style*="background:#f5f3ff"],
-[data-theme="dark"] [style*="background:#fafafe"] {
-  background: #1a0d2e !important;
-}
-/* Gelb/Orange/Creme (Warn-Boxen, KV-Hint, Add-In-Login, Observatory-Raw) */
+[data-theme="dark"] [style*="background:#fafafe"] { background: #1a0d2e !important; }
+
 [data-theme="dark"] [style*="background:#fffbeb"],
 [data-theme="dark"] [style*="background:#fefce8"],
 [data-theme="dark"] [style*="background:#fef9c3"],
 [data-theme="dark"] [style*="background:#fef3e2"],
 [data-theme="dark"] [style*="background:#fff7ed"],
-[data-theme="dark"] [style*="background:#fef9f0"] {
-  background: #1a1200 !important;
-}
-/* Hell-Grau (Dashboard-Tabs inaktiv, S/MIME-Alt-Zeile) */
-[data-theme="dark"] [style*="background:#f0f0f0"],
-[data-theme="dark"] [style*="background:#fcfcfc"] {
-  background: #14171f !important;
-}
-/* Weiße Card-/Modal-/Select-Hintergründe (class-basiert) */
-[data-theme="dark"] .settings-card {
-  background: #1a1e2a !important;
-  border-color: #2a2d3e !important;
-}
-[data-theme="dark"] .wizard-step {
-  background: #1a1e2a !important;
-  border-color: #2a2d3e !important;
-}
-/* Weiße/Fast-weiße Hintergründe (inline) */
-[data-theme="dark"] [style*="background:#fff"],
-[data-theme="dark"] [style*="background:#f8fafc"],
-[data-theme="dark"] [style*="background:#f8f9fa"] {
-  background: #1a1e2a !important;
+[data-theme="dark"] [style*="background:#fef9f0"],
+[data-theme="dark"] [style*="background:#fef3c7"] { background: #1a1200 !important; }
+
+[data-theme="dark"] [style*="background:#e2e8f0"] {
+  background: #2a2d3e !important;
+  color: #94a3b8 !important;
 }
 
-/* ── Semantische Rahmenfarben ────────────────────────────────────────────── */
-/* Grüne Rahmen */
-[data-theme="dark"] [style*="border:1px solid #bbf7d0"],
-[data-theme="dark"] [style*="border:1px solid #d1fae5"] {
-  border-color: #166534 !important;
-}
-/* Blaue Rahmen */
-[data-theme="dark"] [style*="border:1px solid #bae6fd"],
-[data-theme="dark"] [style*="border-color:#bae6fd"],
-[data-theme="dark"] [style*="border:1px solid #c7d7ff"] {
-  border-color: #1e4060 !important;
-}
-/* Rote Rahmen */
-[data-theme="dark"] [style*="border-color:#fca5a5"],
-[data-theme="dark"] [style*="border:1px solid #fecaca"] {
-  border-color: #7f1d1d !important;
-}
-/* Orange/Creme-Rahmen */
-[data-theme="dark"] [style*="border:1px solid #fed7aa"],
-[data-theme="dark"] [style*="border:1px solid #fde68a"],
-[data-theme="dark"] [style*="border:1px solid #fde047"] {
-  border-color: #78350f !important;
-}
-/* Lila Rahmen */
-[data-theme="dark"] [style*="border:1px solid #c4b5fd"],
-[data-theme="dark"] [style*="border:1px solid #ddd6fe"] {
-  border-color: #4c1d95 !important;
-}
+/* Textfarben: dunkel → hell */
+[data-theme="dark"] [style*="color:#111"],
+[data-theme="dark"] [style*="color:#222"],
+[data-theme="dark"] [style*="color:#333"],
+[data-theme="dark"] [style*="color:#1c1917"],
+[data-theme="dark"] [style*="color:#1e293b"],
+[data-theme="dark"] [style*="color:#1f2937"],
+[data-theme="dark"] [style*="color:#334155"],
+[data-theme="dark"] [style*="color:#374151"],
+[data-theme="dark"] [style*="color:#44403c"],
+[data-theme="dark"] [style*="color:#555"] { color: #cbd5e1 !important; }
 
-/* ── Semantische Inline-Textfarben ──────────────────────────────────────── */
-/* Dunkelgrün → Hellgrün */
+[data-theme="dark"] [style*="color:#475569"],
+[data-theme="dark"] [style*="color:#57534e"],
+[data-theme="dark"] [style*="color:#64748b"],
+[data-theme="dark"] [style*="color:#666"],
+[data-theme="dark"] [style*="color:#6b7280"],
+[data-theme="dark"] [style*="color:#78716c"],
+[data-theme="dark"] [style*="color:#888"],
+[data-theme="dark"] [style*="color:#94a3b8"],
+[data-theme="dark"] [style*="color:#9ca3af"],
+[data-theme="dark"] [style*="color:#a8a29e"],
+[data-theme="dark"] [style*="color:#aaa"],
+[data-theme="dark"] [style*="color:#bbb"] { color: #94a3b8 !important; }
+
+/* Grün */
+[data-theme="dark"] [style*="color:#15803d"],
 [data-theme="dark"] [style*="color:#166534"],
-[data-theme="dark"] [style*="color:#15803d"] {
-  color: #4ade80 !important;
-}
-/* Dunkelrot → Hellrot */
+[data-theme="dark"] [style*="color:#16a34a"],
+[data-theme="dark"] [style*="color:#27ae60"] { color: #4ade80 !important; }
+
+/* Rot */
 [data-theme="dark"] [style*="color:#991b1b"] { color: #fca5a5 !important; }
-/* Dunkelblau → Hellblau */
+
+/* Blau */
+[data-theme="dark"] [style*="color:#0078d4"] { color: #5b9bd5 !important; }
+[data-theme="dark"] [style*="color:#0284c7"],
+[data-theme="dark"] [style*="color:#0369a1"] { color: #7dd3fc !important; }
 [data-theme="dark"] [style*="color:#1e40af"] { color: #60a5fa !important; }
-[data-theme="dark"] [style*="color:#0369a1"],
-[data-theme="dark"] [style*="color:#0284c7"] { color: #7dd3fc !important; }
-/* Orange → Amber */
+
+/* Orange / Bernstein */
+[data-theme="dark"] [style*="color:#92400e"] { color: #fbbf24 !important; }
+[data-theme="dark"] [style*="color:#b45309"] { color: #f59e0b !important; }
+[data-theme="dark"] [style*="color:#c2410c"],
+[data-theme="dark"] [style*="color:#9a3412"] { color: #fb923c !important; }
+[data-theme="dark"] [style*="color:#d97706"] { color: #fbbf24 !important; }
 [data-theme="dark"] [style*="color:#e67e22"] { color: #fb923c !important; }
-/* Lila → Hellviolett */
-[data-theme="dark"] [style*="color:#7c3aed"],
-[data-theme="dark"] [style*="color:#6366f1"] { color: #a78bfa !important; }
 
-/* ── Klassen-basierte Texte: Erklärungen / Hints / Labels ──────────────────
-   .hint (color:#666), .step-body ul (color:#555), h3 (color:#555),
-   .stat-label (color:#666) — alle nicht per Inline-Style gesetzt */
-[data-theme="dark"] .hint                { color: #94a3b8 !important; }
-[data-theme="dark"] .step-body .hint     { color: #94a3b8 !important; }
-[data-theme="dark"] .step-body ul        { color: #cbd5e1 !important; }
-[data-theme="dark"] .step-body p         { color: #cbd5e1 !important; }
-[data-theme="dark"] .stat-label          { color: #94a3b8 !important; }
-[data-theme="dark"] h3                   { color: #94a3b8 !important; }
-[data-theme="dark"] label                { color: #cbd5e1 !important; }
-[data-theme="dark"] .checkbox-label      { color: #cbd5e1 !important; }
-/* details/summary Erklärungstexte */
-[data-theme="dark"] details summary      { color: #94a3b8; }
-/* settings-card body-text */
-[data-theme="dark"] .settings-card p     { color: #cbd5e1 !important; }
-[data-theme="dark"] .settings-card li    { color: #cbd5e1 !important; }
-/* adv-section (Advanced-Toggle) Texte */
-[data-theme="dark"] .adv-section         { color: #cbd5e1; }
-/* code-Blöcke in hints */
-[data-theme="dark"] .hint code           { background: #1e2230 !important; color: #93c5fd !important; }
+/* Lila */
+[data-theme="dark"] [style*="color:#6366f1"],
+[data-theme="dark"] [style*="color:#7c3aed"] { color: #a78bfa !important; }
 
-/* Theme toggle button in nav */
+/* Rahmen: neutral → dunkel */
+[data-theme="dark"] [style*="border:1px solid #d4d0cc"],
+[data-theme="dark"] [style*="border:1px solid #d1d5db"],
+[data-theme="dark"] [style*="border:1px solid #e0e0e0"],
+[data-theme="dark"] [style*="border:1px solid #e2e8f0"],
+[data-theme="dark"] [style*="border:1px solid #e5e7eb"],
+[data-theme="dark"] [style*="border:1px solid #e7e5e4"],
+[data-theme="dark"] [style*="border:1px solid #eee"],
+[data-theme="dark"] [style*="border:1px solid #f0f0f0"] { border-color: #2a2d3e !important; }
+
+[data-theme="dark"] [style*="border-bottom:1px solid #e2e8f0"],
+[data-theme="dark"] [style*="border-bottom:1px solid #e7e5e4"],
+[data-theme="dark"] [style*="border-bottom:1px solid #edf0f4"],
+[data-theme="dark"] [style*="border-bottom:1px solid #f0f0f0"],
+[data-theme="dark"] [style*="border-bottom:1px solid #f5f4f3"],
+[data-theme="dark"] [style*="border-bottom:1px solid #f5f5f5"],
+[data-theme="dark"] [style*="border-bottom:2px solid #e2e8f0"],
+[data-theme="dark"] [style*="border-top:1px solid #e2e8f0"],
+[data-theme="dark"] [style*="border-top:1px solid #eee"],
+[data-theme="dark"] [style*="border-top:1px solid #f0f0f0"] { border-color: #2a2d3e !important; }
+
+/* Rahmen: semantische Farben */
+[data-theme="dark"] [style*="border:1px solid #bae6fd"],
+[data-theme="dark"] [style*="border:1px solid #bfdbfe"],
+[data-theme="dark"] [style*="border:1px solid #c7d7ff"],
+[data-theme="dark"] [style*="border-color:#bae6fd"] { border-color: #1e4060 !important; }
+
+[data-theme="dark"] [style*="border:1px solid #bbf7d0"],
+[data-theme="dark"] [style*="border:1px solid #d1fae5"] { border-color: #166534 !important; }
+
+[data-theme="dark"] [style*="border-color:#fca5a5"],
+[data-theme="dark"] [style*="border:1px solid #fecaca"] { border-color: #7f1d1d !important; }
+
+[data-theme="dark"] [style*="border:1px solid #c4b5fd"],
+[data-theme="dark"] [style*="border:1px solid #ddd6fe"] { border-color: #4c1d95 !important; }
+
+[data-theme="dark"] [style*="border:1px solid #fcd34d"],
+[data-theme="dark"] [style*="border:1px solid #fde047"],
+[data-theme="dark"] [style*="border:1px solid #fde68a"],
+[data-theme="dark"] [style*="border:1px solid #fed7aa"] { border-color: #78350f !important; }
+
+/* ── Theme-Toggle-Button ─────────────────────────────────────────────────── */
 #theme-toggle {
-  background: none;
-  border: none;
+  background: none; border: none;
   color: rgba(255,255,255,0.75);
-  cursor: pointer;
-  font-size: 16px;
-  line-height: 1;
-  padding: 4px 6px;
-  border-radius: 4px;
-  flex-shrink: 0;
+  cursor: pointer; font-size: 16px; line-height: 1;
+  padding: 4px 6px; border-radius: 4px; flex-shrink: 0;
   transition: color 0.15s, background 0.15s;
 }
 #theme-toggle:hover { color: #fff; background: rgba(255,255,255,0.12); }

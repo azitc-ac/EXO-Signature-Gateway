@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.6.29 — 2026-07-20 — Dark Mode: vollständiger Audit + konsolidierte CSS
+
+Vollständiger Einmal-Durchlauf aller Templates (advanced, backup, dashboard,
+setup, settings_connect/general/signature/smime, mailboxes, base).
+dark-mode.css neu geschrieben — keine Duplikate, alle Lücken geschlossen:
+- Neu: `color:#222`, `#1f2937`, `#0078d4` (Link-Blau)
+- Neu: `border-bottom:#f5f4f3`, `#f5f5f5`, `#edf0f4`, `#d4d0cc`; `border:#bfdbfe`, `#fcd34d`
+- Neu: `.nav-planned-badge`-Klasse
+- Konsolidiert: alle bisherigen Regeln ohne Duplikate zusammengefasst
+
 ## v1.6.28 — 2026-07-20 — Dark Mode: weiße Cards in Anbindung
 
 - `.settings-card` und `.wizard-step` (beide class-basiert mit `background:#fff`) jetzt explizit dunkel (`#1a1e2a`, Rahmen `#2a2d3e`).
