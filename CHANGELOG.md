@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.6.14 — 2026-07-19 — Debug/Erweitert-Split: link-lose Debug-Seite
+
+- Die bisherige „Erweitert"-Seite liegt jetzt unter `/advanced` (Route + alle Nav-Links + Dashboard-Deeplinks umgestellt).
+- Neue **link-lose Debug-Seite** unter `/debug` (bewusst NICHT im Menü, nur per URL erreichbar; mit Warnbanner „nur für Support"). Verschoben: Selbsttest Mail-Processor, Postfach-Health Rohdaten, Exchange Header Observatory, ACME Account Key zurücksetzen, ACME HTTP-Proxy.
+- Geteilte Alert-Helfer (`showAlert`/`hideAlert`) nach `base.html` gehoben, damit die auf „Erweitert" verbliebene Neustart-Sektion sie behält; die Reply-Methoden-JS (`acmeMethodLoad`/`acmeSetMethod`) bewusst bei ihrer Sektion auf „Erweitert" belassen. Split adversarial verifiziert (Sektionsverteilung, Div-/Script-Balance, Jinja-Compile, Cross-Dependency-Analyse).
+
 ## v1.6.13 — 2026-07-19 — Bugfix: Key-Vault-Modus-Anzeige bei kv+backup
 
 - Postfach-Health „kv_sign": Status wird jetzt nach dem Schlüssel-Ort des DEFAULT-Signatur-Slots bestimmt (neue Funktion `smime_store.default_key_location`). Ursache: `_has_local_key` fiel über `get_signing_paths` auf beliebige *andere* Slots zurück — ein Postfach im Modus kv+backup (Schlüssel in Key Vault, lokales `key.pem.bak`) wurde fälschlich als „Lokaler Schlüssel — nicht in Key Vault" gemeldet, sobald in irgendeinem anderen Slot noch eine lokale `key.pem` lag. Jetzt korrekt „Sign API erreichbar (Key Vault + lokales Backup)". Nur der Default-Slot (der tatsächlich signiert) zählt.

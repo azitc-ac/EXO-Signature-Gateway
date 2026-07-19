@@ -2789,18 +2789,32 @@ async def api_backup_restore(
     return JSONResponse(result)
 
 
+def _advanced_debug_context() -> dict:
+    """Gemeinsamer Kontext für die Erweitert- (/advanced) und die link-lose
+    Debug-Seite (/debug) — beide teilen sich denselben Template-Baukasten."""
+    import hub_client
+    return {"s": settings_store.get_all(),
+            "gateway_name": _gateway_name(),
+            "hub_configured": hub_client.is_configured(),
+            "hub_registered": hub_client.is_registered(),
+            "hub_cert_registered": hub_client.cert_is_registered(),
+            "current_version": config.VERSION}
+
+
+@app.get("/advanced", response_class=HTMLResponse)
+async def advanced_page(request: Request, user: str = Depends(_require_admin)):
+    ctx = _advanced_debug_context()
+    ctx["active"] = "advanced"
+    return templates.TemplateResponse(request=request, name="advanced.html", context=ctx)
+
+
+# /debug: link-lose Diagnoseseite — bewusst NICHT im Menü, nur direkt per URL
+# erreichbar (Selbsttest, Postfach-Health-Rohdaten, Observatory, ACME-Reset/-Proxy).
 @app.get("/debug", response_class=HTMLResponse)
 async def debug_page(request: Request, user: str = Depends(_require_admin)):
-    import hub_client
-    return templates.TemplateResponse(
-        request=request, name="debug.html",
-        context={"active": "debug", "s": settings_store.get_all(),
-                 "gateway_name": _gateway_name(),
-                 "hub_configured": hub_client.is_configured(),
-                 "hub_registered": hub_client.is_registered(),
-                 "hub_cert_registered": hub_client.cert_is_registered(),
-                 "current_version": config.VERSION},
-    )
+    ctx = _advanced_debug_context()
+    ctx["active"] = "debug"
+    return templates.TemplateResponse(request=request, name="debug.html", context=ctx)
 
 
 @app.get("/log", response_class=HTMLResponse)

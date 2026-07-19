@@ -28,7 +28,7 @@
                 {% if _role == 'admin' %}
                 <li><a href="/mailboxes" class="{% if active == 'mailboxes' %}active{% endif %}">Postfächer</a></li>
                 <li><a href="/smime" class="{% if active == 'smime' %}active{% endif %}">S/MIME</a></li>
-                <li><a href="/settings" class="{% if active in ('settings', 'settings-signature', 'settings-smime', 'settings-connect', 'setup', 'debug', 'backup') %}active{% endif %}">Einstellungen</a></li>
+                <li><a href="/settings" class="{% if active in ('settings', 'settings-signature', 'settings-smime', 'settings-connect', 'setup', 'advanced', 'debug', 'backup') %}active{% endif %}">Einstellungen</a></li>
                 <li><a href="/log" class="{% if active == 'log' %}active{% endif %}">Protokolle</a></li>
                 {% endif %}
             </ul>
@@ -70,6 +70,10 @@
         </div>
     </nav>
     <script>
+      // Geteilte Alert-Helfer (global, damit sie auf allen Seiten verfügbar sind —
+      // z. B. Erweitert/Neustart nach dem Auslagern des Observatory auf /debug).
+      function showAlert(el, type, html){ if(!el) return; el.className='alert '+type; el.innerHTML=html; el.style.display='block'; }
+      function hideAlert(el){ if(el) el.style.display='none'; }
       // Theme toggle
       (function(){
         var btn=document.getElementById('theme-toggle');
