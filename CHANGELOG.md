@@ -5,7 +5,11 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
-## v1.6.11 — 2026-07-19 — UI-Überarbeitung Phase 1 (Quick Wins)
+## v1.6.13 — 2026-07-19 — Bugfix: Key-Vault-Modus-Anzeige bei kv+backup
+
+- Postfach-Health „kv_sign": Status wird jetzt nach dem Schlüssel-Ort des DEFAULT-Signatur-Slots bestimmt (neue Funktion `smime_store.default_key_location`). Ursache: `_has_local_key` fiel über `get_signing_paths` auf beliebige *andere* Slots zurück — ein Postfach im Modus kv+backup (Schlüssel in Key Vault, lokales `key.pem.bak`) wurde fälschlich als „Lokaler Schlüssel — nicht in Key Vault" gemeldet, sobald in irgendeinem anderen Slot noch eine lokale `key.pem` lag. Jetzt korrekt „Sign API erreichbar (Key Vault + lokales Backup)". Nur der Default-Slot (der tatsächlich signiert) zählt.
+
+## v1.6.12 — 2026-07-19 — UI-Überarbeitung Phase 1 (Quick Wins)
 
 - Dashboard: „Certs harvested" → „Zertifikate gesammelt" (auch in der Statistik-Mail).
 - Key-Vault-Kostentext vom Dashboard in die AKV-Sektion unter Einstellungen → S/MIME verschoben.

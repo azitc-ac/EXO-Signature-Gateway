@@ -322,6 +322,44 @@ def get_signing_paths(email: str, allow_backup: bool = False) -> tuple[Path, Pat
     return None
 
 
+def default_key_location(email: str) -> str:
+    """Where the DEFAULT signing slot's private key lives — the slot that
+    actually signs. Returns one of:
+        'local'      — real key.pem present (signs locally)
+        'kv_backup'  — no key.pem but key.pem.bak present (migrated to Key Vault,
+                       local backup retained → signs via KV)
+        'kv'         — no local key file at all, cert present (key in KV only)
+        'none'       — no cert for this mailbox
+    ONLY the default slot is considered: a leftover local key in ANOTHER slot
+    must not make a KV-backed mailbox look purely local (that was the cause of
+    the misleading 'Lokaler Schlüssel — nicht in Key Vault' health-check status
+    for kv+backup mailboxes)."""
+    email_low = email.lower().strip()
+    user_dir = SMIME_DIR / email_low
+    certs_dir = user_dir / "certs"
+    slot_dir: Path | None = None
+    if certs_dir.exists():
+        default_file = user_dir / "default"
+        default = default_file.read_text().strip() if default_file.exists() else ""
+        if default and (certs_dir / default / "cert.pem").exists():
+            slot_dir = certs_dir / default
+        else:
+            for d in sorted(certs_dir.iterdir()):
+                if d.is_dir() and (d / "cert.pem").exists():
+                    slot_dir = d
+                    break
+    if slot_dir is None:  # legacy flat layout
+        if (user_dir / "cert.pem").exists():
+            slot_dir = user_dir
+        else:
+            return "none"
+    if (slot_dir / "key.pem").exists():
+        return "local"
+    if (slot_dir / "key.pem.bak").exists():
+        return "kv_backup"
+    return "kv"
+
+
 # ── Aggregate list (dashboard / notifications) ────────────────────────────────
 
 def list_certs() -> list[dict]:

@@ -319,24 +319,6 @@ def _check_smime_cert(email: str) -> dict:
 
 # ── Check 6: smime_key ────────────────────────────────────────────────────────
 
-def _has_local_key(email: str) -> bool:
-    """True only if this mailbox's default signing key is a REAL local key
-    (key.pem present) — i.e. it is NOT Key-Vault-backed. Key Vault being
-    configured globally (KEYVAULT_URL set) does not mean every S/MIME-active
-    mailbox's key actually lives there; some may never have been migrated.
-
-    A key.pem.bak WITHOUT key.pem means the key WAS migrated to Key Vault and
-    only a local backup remains — that mailbox's signing happens in KV, so it
-    must NOT count as "local" here (allow_backup=False), or the kv_sign check
-    gets skipped with a misleading "local key" message for an account whose
-    key is actually in Key Vault."""
-    import smime_store
-    try:
-        return smime_store.get_signing_paths(email, allow_backup=False) is not None
-    except Exception:
-        return False
-
-
 def _check_smime_key(email: str) -> dict:
     """Check whether a signing key is available (local, backup, or Key Vault)."""
     import smime_store
@@ -504,12 +486,18 @@ async def run_checks_for_mailbox(email: str, exo_data: dict | None = None) -> di
     else:
         checks["smime_key"] = _make_result("skip", "S/MIME nicht aktiviert")
 
-    # 7. kv_sign — kv_url configured GLOBALLY doesn't mean THIS mailbox's key
-    # lives in Key Vault; some mailboxes may still have a purely local key
-    # (never migrated). Only attempt the KV sign-test if there's no local key.
-    if kv_url and smime_active and not _has_local_key(email):
-        checks["kv_sign"] = await _check_kv_sign(email)
-    elif kv_url and smime_active:
+    # 7. kv_sign — decide by where the DEFAULT signing slot's key actually lives.
+    # kv_url configured GLOBALLY doesn't mean THIS mailbox's key is in Key Vault,
+    # and a leftover local key in a NON-default slot must not make a KV-backed
+    # mailbox (kv+backup) look purely local.
+    import smime_store as _sst
+    key_loc = _sst.default_key_location(email)   # local | kv_backup | kv | none
+    if kv_url and smime_active and key_loc in ("kv", "kv_backup"):
+        res = await _check_kv_sign(email)
+        if res.get("status") == "ok" and key_loc == "kv_backup":
+            res = _make_result("ok", "Sign API erreichbar (Key Vault + lokales Backup)")
+        checks["kv_sign"] = res
+    elif smime_active and key_loc == "local":
         checks["kv_sign"] = _make_result("skip", "Lokaler Schlüssel — nicht in Key Vault")
     else:
         checks["kv_sign"] = _make_result("skip", "Key Vault nicht konfiguriert oder S/MIME inaktiv")
