@@ -23,6 +23,8 @@ DEFAULTS: dict = {
     "CUSTOM_TEMPLATE_VARS": [],   # [{"name": "mobile", "entra_field": "mobilePhone"}, ...]
     "MAILBOX_CONFIG": {},  # {email: {"sig": true, "smime": true, "use_policy": true}} — empty = all mailboxes processed
     "TEMPLATE_POLICIES": {"sig": "default", "min": "Minimal", "addin": "*"},  # {sig, min (Antwort-Signatur), addin}
+    "INTERNAL_GROUPS": {},      # {"Vertrieb": ["<guid>", ...], ...} — interne Postfach-Gruppen
+    "CUSTOM_POLICIES": [],      # [{"condition_type": "group", "group_name": "...", "applies_to": "sig|min|banner", "template": "..."}] — first-match-wins
     "LE_DOMAIN": "",
     "LE_EMAIL": "",
     "LOG_RETENTION_DAYS": 30,

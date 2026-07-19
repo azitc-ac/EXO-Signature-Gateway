@@ -1520,6 +1520,7 @@ async def api_get_mailboxes(_=Depends(_check_auth)):
         h = health_map.get(email, {})
         result.append({
             "email": email,
+            "config_key": mailbox_match.match_sender_key(config_map, email) or email,
             "name": u["name"],
             "type": u.get("type", "user"),
             "sig": cfg.get("sig", False),
@@ -1541,6 +1542,7 @@ async def api_get_mailboxes(_=Depends(_check_auth)):
             h = health_map.get(cemail, {})
             result.append({
                 "email": cemail,
+                "config_key": key,
                 "name": cfg.get("display_name") or cemail,
                 "type": "user",
                 "sig": cfg.get("sig", False),
@@ -2329,6 +2331,36 @@ def _addin_url_warning(base_url: str) -> str:
 @app.get("/api/settings/template-policies")
 async def api_get_template_policies(_=Depends(_check_auth)):
     return JSONResponse(settings_store.get("TEMPLATE_POLICIES") or {"sig": "default"})
+
+
+@app.get("/api/settings/internal-groups")
+async def api_get_internal_groups(_=Depends(_check_auth)):
+    return JSONResponse(settings_store.get("INTERNAL_GROUPS") or {})
+
+
+@app.post("/api/settings/internal-groups/save")
+async def api_save_internal_groups(request: Request, _=Depends(_check_auth)):
+    data = await request.json()
+    groups = data.get("groups")
+    if not isinstance(groups, dict):
+        raise HTTPException(400, "groups must be a dict")
+    settings_store.update({"INTERNAL_GROUPS": groups})
+    return JSONResponse({"ok": True})
+
+
+@app.get("/api/settings/custom-policies")
+async def api_get_custom_policies(_=Depends(_check_auth)):
+    return JSONResponse(settings_store.get("CUSTOM_POLICIES") or [])
+
+
+@app.post("/api/settings/custom-policies/save")
+async def api_save_custom_policies(request: Request, _=Depends(_check_auth)):
+    data = await request.json()
+    policies = data.get("policies")
+    if not isinstance(policies, list):
+        raise HTTPException(400, "policies must be a list")
+    settings_store.update({"CUSTOM_POLICIES": policies})
+    return JSONResponse({"ok": True})
 
 
 # ── Wartungsmodus / Held Mails ────────────────────────────────────────────────

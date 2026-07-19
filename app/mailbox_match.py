@@ -37,6 +37,25 @@ def match_sender(mailbox_config: dict, sender: str) -> dict:
     return build_address_index(mailbox_config).get(sender.lower(), {})
 
 
+def match_sender_key(mailbox_config: dict, sender: str) -> str:
+    """Return the MAILBOX_CONFIG key (ExchangeGuid or email) for a sender, or '' if not found."""
+    if not mailbox_config or not sender:
+        return ""
+    sender_l = sender.lower()
+    for key, cfg in mailbox_config.items():
+        if not isinstance(cfg, dict):
+            continue
+        if "@" in key:
+            if key.lower() == sender_l:
+                return key
+        else:
+            if (cfg.get("primary") or "").lower() == sender_l:
+                return key
+            if sender_l in [str(a).lower() for a in cfg.get("known_addresses", [])]:
+                return key
+    return ""
+
+
 def configured_addresses(mailbox_config: dict) -> list[str]:
     """The primary address of each config entry — the key itself for e-mail-keyed
     entries, or the cached `primary` for guid-keyed ones. Used wherever code needs

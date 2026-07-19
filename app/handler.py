@@ -768,6 +768,25 @@ class SignatureHandler:
             _use_pol = _sender_cfg.get("use_policy", True)
             _force_sig = False
 
+            # Custom Policies (first-match-wins pro Slot, nur wenn use_policy aktiv)
+            if _use_pol:
+                _custom_policies = settings_store.get("CUSTOM_POLICIES") or []
+                _internal_groups = settings_store.get("INTERNAL_GROUPS") or {}
+                if _custom_policies and _internal_groups:
+                    import mailbox_match as _mm
+                    _sender_key = _mm.match_sender_key(
+                        settings_store.get("MAILBOX_CONFIG") or {}, sender)
+                    _overrides: dict[str, str] = {}
+                    for _pol in _custom_policies:
+                        if _pol.get("condition_type") == "group":
+                            _guids = _internal_groups.get(_pol.get("group_name", ""), [])
+                            if _sender_key and _sender_key in _guids:
+                                _slot = _pol.get("applies_to", "")
+                                if _slot and _slot not in _overrides:
+                                    _overrides[_slot] = _pol.get("template", "")
+                    if _overrides:
+                        _policies = {**_policies, **_overrides}
+
             # Minimalsignatur bei Antworten: Hat der Absender in DIESEM Thread
             # schon beigetragen (eigene "Von:"-Zeile im Zitat oder Gateway-Marker),
             # wird nicht der volle Block erneut angehängt — stattdessen die

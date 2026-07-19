@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.6.15 — 2026-07-19 — feat: Interne Gruppen + Benutzerdefinierte Richtlinien (P6)
+
+- **Interne Gruppen** (`INTERNAL_GROUPS` in settings.json): benannte Mengen von Postfach-Config-Keys (ExchangeGuid); verwaltbar über neue UI-Sektion in Postfächer → Richtlinien-Tab mit Mitglieder-Modal.
+- **Benutzerdefinierte Richtlinien** (`CUSTOM_POLICIES`): geordnete Regelliste, Bedingung = Interne Gruppe → Vorlage für Slot (Standardsignatur/Minimalsignatur/Banner); first-match-wins pro Slot, höhere Priorität als Standard-Richtlinien; MVP-Scope: nur Gruppen-Bedingung.
+- **Backend**: `mailbox_match.match_sender_key()` neu (gibt MAILBOX_CONFIG-Schlüssel zurück); handler.py wendet Custom Policies vor Standard-Richtlinien an; 4 neue API-Endpunkte (`GET/POST /api/settings/internal-groups`, `GET/POST /api/settings/custom-policies`); mailboxes-API liefert jetzt `config_key`-Feld pro Postfach.
+- Stubs in `mailboxes.html` scharfgeschaltet: Gruppen-Tabelle + Mitglieder-Modal + Richtlinien-Tabelle vollständig interaktiv. Alte „Demnächst"-Sperre entfernt.
+
 ## v1.6.14 — 2026-07-19 — Debug/Erweitert-Split: link-lose Debug-Seite
 
 - Die bisherige „Erweitert"-Seite liegt jetzt unter `/advanced` (Route + alle Nav-Links + Dashboard-Deeplinks umgestellt).
