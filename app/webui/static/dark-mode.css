@@ -80,6 +80,12 @@
 
 /* Generic tables (mailboxes, S/MIME, etc.) */
 [data-theme="dark"] table { color: #e2e8f0; }
+/* Tabellenzeilen-Trennlinien: JS setzt border via .style.borderBottom=…
+   was zu rgb(…) normalisiert wird — Attribut-Selektoren greifen nicht.
+   !important schlägt auch inline styles. */
+[data-theme="dark"] table tr { border-bottom-color: #2a2d3e !important; }
+[data-theme="dark"] table th { border-bottom-color: #2a2d3e !important; color: #94a3b8; }
+[data-theme="dark"] table td { border-color: #2a2d3e !important; }
 
 /* User header (S/MIME card top bar) */
 [data-theme="dark"] .user-hdr {

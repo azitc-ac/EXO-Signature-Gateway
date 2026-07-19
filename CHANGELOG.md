@@ -5,6 +5,10 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.6.20 — 2026-07-20 — Dark Theme: Tabellen-Trennlinien (Postfächer)
+
+- `table tr/th/td` border-color mit `!important` auf `#2a2d3e` gesetzt — JS-generierte Zeilen (`tr.style.borderBottom = …`) normalisieren Hex zu `rgb(…)`, Attribut-Selektoren griffen nicht; allgemeiner Selektor löst das.
+
 ## v1.6.19 — 2026-07-20 — Dark Theme: Navigationsleiste + Trennlinien
 
 - **Nav-Bar**: `#0078d4` → `#0e1c2e` (dunkles Navy) im Dark Mode; Mobile-Dropdown folgt.
