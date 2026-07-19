@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.6.21 — 2026-07-20 — Dark Theme: Übersicht + Einrichtung Kontrast
+
+- **Setup-Wizard step-status Badges** (class-basiert, ohne Inline-Style): `.done` (dunkelgrün), `.pending` (dunkel-amber), `.waiting` (dunkelgrau) — waren im Dark Mode grell hell.
+- **Dashboard sys-tiles**: `.sys-tile` Hintergrund + `.sys-val/.sys-label/.sys-sub` Textfarben (class-basiert) jetzt korrekt dunkel.
+- **Inline-Textfarben** ergänzt: `#1c1917`, `#44403c` (near-black → hellgrau), `#a8a29e`, `#aaa` (→ gedimmteres Grau), `#333`, `#27ae60`/`#16a34a` (dunkelgrün → hellgrün), `#d97706` (amber).
+
 ## v1.6.20 — 2026-07-20 — Dark Theme: Tabellen-Trennlinien (Postfächer)
 
 - `table tr/th/td` border-color mit `!important` auf `#2a2d3e` gesetzt — JS-generierte Zeilen (`tr.style.borderBottom = …`) normalisieren Hex zu `rgb(…)`, Attribut-Selektoren griffen nicht; allgemeiner Selektor löst das.

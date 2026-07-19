@@ -232,6 +232,9 @@
 [data-theme="dark"] [style*="color:#374151"],
 [data-theme="dark"] [style*="color:#334155"],
 [data-theme="dark"] [style*="color:#1e293b"],
+[data-theme="dark"] [style*="color:#1c1917"],
+[data-theme="dark"] [style*="color:#44403c"],
+[data-theme="dark"] [style*="color:#333"],
 [data-theme="dark"] [style*="color:#111"] {
   color: #cbd5e1 !important;
 }
@@ -241,9 +244,16 @@
 [data-theme="dark"] [style*="color:#64748b"],
 [data-theme="dark"] [style*="color:#78716c"],
 [data-theme="dark"] [style*="color:#94a3b8"],
-[data-theme="dark"] [style*="color:#9ca3af"] {
+[data-theme="dark"] [style*="color:#9ca3af"],
+[data-theme="dark"] [style*="color:#a8a29e"],
+[data-theme="dark"] [style*="color:#aaa"] {
   color: #94a3b8 !important;
 }
+/* Grüne Erfolgs-Textfarben (Zertifikatstatus) */
+[data-theme="dark"] [style*="color:#27ae60"],
+[data-theme="dark"] [style*="color:#16a34a"] { color: #4ade80 !important; }
+/* Amber (Fallback-Zähler) */
+[data-theme="dark"] [style*="color:#d97706"] { color: #fbbf24 !important; }
 
 /* Helle Inline-Rahmen → dunkle Rahmen */
 [data-theme="dark"] [style*="border:1px solid #e2e8f0"],
@@ -283,6 +293,17 @@
 
 /* Setup-Badge-Kreis (Step-Nummer, #0078d4 → gedimmtes Navy) */
 [data-theme="dark"] .step-badge { background: #1e4060; }
+
+/* Setup-Wizard: step-status Badges (class-basiert, keine Inline-Styles) */
+[data-theme="dark"] .step-status.done    { background: #0a1f10 !important; color: #4ade80 !important; }
+[data-theme="dark"] .step-status.pending { background: #1f1500 !important; color: #fbbf24 !important; }
+[data-theme="dark"] .step-status.waiting { background: #1e2230 !important; color: #94a3b8 !important; }
+
+/* Dashboard: System-Tiles (class-basiert) */
+[data-theme="dark"] .sys-tile           { background: #1e2230 !important; }
+[data-theme="dark"] .sys-tile .sys-val  { color: #e2e8f0 !important; }
+[data-theme="dark"] .sys-tile .sys-label { color: #94a3b8 !important; }
+[data-theme="dark"] .sys-tile .sys-sub  { color: #64748b !important; }
 
 /* ── Status-Badges (class-basiert, nicht via Attribut-Selektor erreichbar) ─── */
 /* .conn-ok / .conn-wait in settings_connect.html */
