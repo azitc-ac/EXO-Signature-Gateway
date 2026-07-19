@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.6.18 — 2026-07-20 — Dark Theme: vollständige Abdeckung semantischer Farben
+
+- **92 neue CSS-Regeln** in `dark-mode.css` — alle hellen Inline-Hintergründe, die bisher im Dark Mode weiß/hell blieben, werden nun korrekt überschrieben.
+- **Klassen-Overrides**: `.conn-ok` (grüner Badge → dunkles Grün) und `.conn-wait` (gelber Badge → dunkles Gelb) erstmals im Dark Mode korrekt.
+- **17 fehlende Inline-Background-Farben** ergänzt (grün: `#f0fdf4`, `#dcfce7`; blau: `#f0f9ff`, `#e0f2fe`, `#dbeafe`, `#f0f4ff`; lila: `#ede9fe`, `#f3e8ff`; rot: `#fef2f2`; gelb/creme: `#fffbeb`, `#fefce8`, `#fef9c3`, `#fef3e2`, `#fff7ed`, `#fef9f0`; grau: `#f0f0f0`, `#fcfcfc`).
+- **Semantische Rahmenfarben**: Grün (`#bbf7d0`, `#d1fae5`), Blau (`#bae6fd`, `#c7d7ff`), Rot (`#fca5a5`, `#fecaca`), Orange (`#fed7aa`, `#fde68a`, `#fde047`), Lila (`#c4b5fd`, `#ddd6fe`).
+- **Inline-Textfarben**: Dunkelgrün (`#166534`, `#15803d` → `#4ade80`), Dunkelrot (`#991b1b` → `#fca5a5`), Dunkelblau (`#1e40af`, `#0369a1`, `#0284c7`), Orange (`#e67e22`), Lila (`#7c3aed`, `#6366f1`).
+- Betroffen: `settings_connect.html` (Zertifikatsbezug-Karte, Rechnungsstellung, Lizenz kaufen), `backup.html` (Im Backup enthalten / Nicht enthalten, dynamische Boxen), `setup.html`, `advanced.html`, `debug.html`, `smime.html`, `dashboard.html`.
+
 ## v1.6.17 — 2026-07-19 — UI: Restore-Button im ersten Setup-Schritt (P7)
 
 - **Einrichtung-Seite**: Aufklappbare Box „Du migrierst dieses Gateway? → Backup wiederherstellen" direkt vor Step 1 eingefügt (collapsed by default, per Button-Klick aufklappbar).
