@@ -243,12 +243,18 @@
 [data-theme="dark"] [style*="color:#6b7280"],
 [data-theme="dark"] [style*="color:#64748b"],
 [data-theme="dark"] [style*="color:#78716c"],
+[data-theme="dark"] [style*="color:#57534e"],
+[data-theme="dark"] [style*="color:#475569"],
 [data-theme="dark"] [style*="color:#94a3b8"],
 [data-theme="dark"] [style*="color:#9ca3af"],
 [data-theme="dark"] [style*="color:#a8a29e"],
-[data-theme="dark"] [style*="color:#aaa"] {
+[data-theme="dark"] [style*="color:#aaa"],
+[data-theme="dark"] [style*="color:#bbb"] {
   color: #94a3b8 !important;
 }
+/* Dunkelorange/Rostbraun → helles Orange */
+[data-theme="dark"] [style*="color:#9a3412"],
+[data-theme="dark"] [style*="color:#c2410c"] { color: #fb923c !important; }
 /* Grüne Erfolgs-Textfarben (Zertifikatstatus) */
 [data-theme="dark"] [style*="color:#27ae60"],
 [data-theme="dark"] [style*="color:#16a34a"] { color: #4ade80 !important; }
@@ -259,12 +265,14 @@
 [data-theme="dark"] [style*="border:1px solid #e2e8f0"],
 [data-theme="dark"] [style*="border:1px solid #e5e7eb"],
 [data-theme="dark"] [style*="border:1px solid #d1d5db"],
-[data-theme="dark"] [style*="border:1px solid #f0f0f0"] {
+[data-theme="dark"] [style*="border:1px solid #f0f0f0"],
+[data-theme="dark"] [style*="border:1px solid #e7e5e4"] {
   border-color: #2a2d3e !important;
 }
 [data-theme="dark"] [style*="border-bottom:2px solid #e2e8f0"],
 [data-theme="dark"] [style*="border-bottom:1px solid #f0f0f0"],
 [data-theme="dark"] [style*="border-bottom:1px solid #e2e8f0"],
+[data-theme="dark"] [style*="border-bottom:1px solid #e7e5e4"],
 [data-theme="dark"] [style*="border-top:1px solid #f0f0f0"],
 [data-theme="dark"] [style*="border-top:1px solid #e2e8f0"],
 [data-theme="dark"] [style*="border-top:1px solid #eee"] {
@@ -350,6 +358,10 @@
 [data-theme="dark"] [style*="background:#f0f0f0"],
 [data-theme="dark"] [style*="background:#fcfcfc"] {
   background: #14171f !important;
+}
+/* Weiße Card-/Modal-/Select-Hintergründe */
+[data-theme="dark"] [style*="background:#fff"] {
+  background: #1a1e2a !important;
 }
 
 /* ── Semantische Rahmenfarben ────────────────────────────────────────────── */

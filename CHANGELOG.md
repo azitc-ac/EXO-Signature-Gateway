@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.6.26 — 2026-07-20 — Dark Mode: fehlende Farben auf Erweitert + Settings-Seiten
+
+- Neu abgedeckt: `color:#57534e` + `#475569` (Stone/Slate-Grautöne, häufig in advanced.html als Erklärungstexte)
+- `color:#bbb` (helles Grau als sekundärer Text)
+- `color:#9a3412` + `#c2410c` (Dunkelorange/Rostbraun → `#fb923c`)
+- `border:1px solid #e7e5e4` (Stone-Rahmen, auch JS-injiziert in Warteschlangen-Tabelle)
+- `background:#fff` (weiße Modals, Selects, Info-Boxen → `#1a1e2a`)
+
 ## v1.6.25 — 2026-07-20 — App-Pool wiederhergestellt; App-Proxy-Texte entfernt; Dark-Mode Erklärungstexte
 
 - **Korrektur v1.6.24**: App-Pool-Feature (mehrere App-Registrierungen für Skalierung) versehentlich entfernt — vollständig wiederhergestellt in `setup.html` (Step + JS-Funktionen) und `dashboard.html` (Graph-App-Pool-Karte + Pool-Detailfunktionen + `loadSys`-Block).
