@@ -32,31 +32,34 @@
 <div id="wizard-alert" class="alert" style="display:none"></div>
 
 <!-- ── Restore (Migration) ─────────────────────────────────────────────────── -->
-<div style="margin-bottom:20px;padding:12px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px">
-  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
-    <span style="font-size:13px;color:#555">
+<div class="wizard-step" id="migration-hint" style="border-color:#0369a133;margin-bottom:20px">
+  <div class="step-header">
+    <span class="step-title" style="flex:1;font-size:13px;font-weight:400">
       Du migrierst dieses Gateway auf einen neuen Server und hast ein Backup?
     </span>
-    <button type="button" class="btn secondary btn-sm" onclick="toggleSetupRestorePanel()">
-      Backup wiederherstellen
-    </button>
-  </div>
-  <div id="setup-restore-panel" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0">
-    <p class="hint" style="margin-bottom:10px">
-      Backup-ZIP vom alten Server hochladen. Konfiguration, Zertifikate und Schlüssel werden
-      überschrieben — Logs und Let's&nbsp;Encrypt-Zertifikate bleiben erhalten.
-      Nach der Wiederherstellung ist ein Neustart erforderlich.
-    </p>
-    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
-      <input type="file" id="setup-restore-file" accept=".zip"
-             style="font-size:13px;border:1px solid #e2e8f0;border-radius:6px;padding:5px 8px;background:#fff">
-      <button class="btn secondary" id="setup-restore-btn" onclick="setupRestoreConfirm()"
-              style="background:#dc2626;border-color:#dc2626;color:#fff">
-        Wiederherstellen
-      </button>
-      <span id="setup-restore-spinner" style="display:none;font-size:13px;color:#555">Wird wiederhergestellt…</span>
+    <div style="display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap">
+      <button type="button" class="btn secondary btn-sm" onclick="hideMigrationHint()">Ohne Backup starten</button>
+      <button type="button" class="btn secondary btn-sm" onclick="toggleSetupRestorePanel()">Backup wiederherstellen</button>
     </div>
-    <div id="setup-restore-result" style="display:none;margin-top:8px"></div>
+  </div>
+  <div id="setup-restore-panel" style="display:none">
+    <div class="step-body">
+      <p class="hint" style="margin-bottom:10px">
+        Backup-ZIP vom alten Server hochladen. Konfiguration, Zertifikate und Schlüssel werden
+        überschrieben — Logs und Let's&nbsp;Encrypt-Zertifikate bleiben erhalten.
+        Nach der Wiederherstellung ist ein Neustart erforderlich.
+      </p>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+        <input type="file" id="setup-restore-file" accept=".zip"
+               style="font-size:13px;border:1px solid #e2e8f0;border-radius:6px;padding:5px 8px;background:#fff">
+        <button class="btn secondary" id="setup-restore-btn" onclick="setupRestoreConfirm()"
+                style="background:#dc2626;border-color:#dc2626;color:#fff">
+          Wiederherstellen
+        </button>
+        <span id="setup-restore-spinner" style="display:none;font-size:13px;color:#555">Wird wiederhergestellt…</span>
+      </div>
+      <div id="setup-restore-result" style="display:none;margin-top:8px"></div>
+    </div>
   </div>
 </div>
 
@@ -2461,6 +2464,9 @@ function copyManifestUrl() {
 }
 
 // ── Restore (Migration) ───────────────────────────────────────────────────────
+function hideMigrationHint() {
+  document.getElementById('migration-hint').style.display = 'none';
+}
 function toggleSetupRestorePanel() {
   var p = document.getElementById('setup-restore-panel');
   p.style.display = p.style.display === 'none' ? '' : 'none';

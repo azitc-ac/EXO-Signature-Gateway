@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.6.22 — 2026-07-20 — Einrichtung: Migrations-Panel als wizard-step + „Ohne Backup starten"
+
+- Migrations-Hinweis-Box (`migration-hint`) auf `.wizard-step`-Stil umgestellt — gleiche Optik wie alle anderen Cards auf der Einrichtungsseite (Step-Header, weiße Card, grauer Header-Bereich).
+- Neuer Button **„Ohne Backup starten"** blendet die Box aus (für Neuinstallationen ohne Migration).
+- Button **„Backup wiederherstellen"** bleibt rechts daneben und öffnet weiterhin den Restore-Bereich.
+
 ## v1.6.21 — 2026-07-20 — Dark Theme: Übersicht + Einrichtung Kontrast
 
 - **Setup-Wizard step-status Badges** (class-basiert, ohne Inline-Style): `.done` (dunkelgrün), `.pending` (dunkel-amber), `.waiting` (dunkelgrau) — waren im Dark Mode grell hell.
