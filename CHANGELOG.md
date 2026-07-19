@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.6.19 — 2026-07-20 — Dark Theme: Navigationsleiste + Trennlinien
+
+- **Nav-Bar**: `#0078d4` → `#0e1c2e` (dunkles Navy) im Dark Mode; Mobile-Dropdown folgt.
+- **Trennlinien** (`.settings-row`, `.step-header`): `#e2e8f0`/`#f0f0f0` → `#2a2d3e` — kein Weiß mehr zwischen den Einstellungszeilen.
+- **Setup-Step-Badge-Kreis**: `#0078d4` → `#1e4060` (gedimmt).
+- **Log-Status-Badges**: `.log-status.live`/`.connecting` dark overrides ergänzt.
+- **Blau-Akzentfarbe** (`#4e9de8` → `#5b9bd5`): Card-Überschriften, Stat-Werte, Sub-Nav-Aktiv-Farbe, Input-Focus-Ring — weniger grell.
+
 ## v1.6.18 — 2026-07-20 — Dark Theme: vollständige Abdeckung semantischer Farben
 
 - **92 neue CSS-Regeln** in `dark-mode.css` — alle hellen Inline-Hintergründe, die bisher im Dark Mode weiß/hell blieben, werden nun korrekt überschrieben.
