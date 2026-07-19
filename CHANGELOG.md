@@ -5,6 +5,11 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.6.23 — 2026-07-20 — Einrichtung: Migrations-Card Done-State + Entra-Hintergrund
+
+- **Migrations-Card**: `↩`-Badge links, Buttons rechts; Klick auf „Ohne Backup starten" → Card wechselt in Done-State (grüner linker Rand, „Erledigt"-Badge, Titel zeigt gewählte Option). Backup-Erfolg setzt ebenfalls Done-State und hält Panel offen um Erfolgsmeldung anzuzeigen.
+- **Dark Theme Entra-Karten-Hintergrund**: `#f5f3ff` und `#fafafe` ergänzt → nicht mehr weiß im Dark Mode.
+
 ## v1.6.22 — 2026-07-20 — Einrichtung: Migrations-Panel als wizard-step + „Ohne Backup starten"
 
 - Migrations-Hinweis-Box (`migration-hint`) auf `.wizard-step`-Stil umgestellt — gleiche Optik wie alle anderen Cards auf der Einrichtungsseite (Step-Header, weiße Card, grauer Header-Bereich).

@@ -34,11 +34,12 @@
 <!-- ── Restore (Migration) ─────────────────────────────────────────────────── -->
 <div class="wizard-step" id="migration-hint" style="border-color:#0369a133;margin-bottom:20px">
   <div class="step-header">
-    <span class="step-title" style="flex:1;font-size:13px;font-weight:400">
+    <span class="step-badge" style="font-size:15px;line-height:1;flex-shrink:0">↩</span>
+    <span class="step-title" style="flex:1;font-weight:400;font-size:13px">
       Du migrierst dieses Gateway auf einen neuen Server und hast ein Backup?
     </span>
-    <div style="display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap">
-      <button type="button" class="btn secondary btn-sm" onclick="hideMigrationHint()">Ohne Backup starten</button>
+    <div id="migration-actions" style="display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap;align-items:center">
+      <button type="button" class="btn secondary btn-sm" onclick="migrationChooseNo()">Ohne Backup starten</button>
       <button type="button" class="btn secondary btn-sm" onclick="toggleSetupRestorePanel()">Backup wiederherstellen</button>
     </div>
   </div>
@@ -2464,8 +2465,17 @@ function copyManifestUrl() {
 }
 
 // ── Restore (Migration) ───────────────────────────────────────────────────────
-function hideMigrationHint() {
-  document.getElementById('migration-hint').style.display = 'none';
+function _migrationSetDone(label, keepPanel) {
+  var card = document.getElementById('migration-hint');
+  card.classList.add('done');
+  card.style.borderColor = '';
+  document.getElementById('migration-actions').innerHTML =
+    '<span class="step-status done">Erledigt</span>';
+  card.querySelector('.step-title').textContent = label;
+  if (!keepPanel) document.getElementById('setup-restore-panel').style.display = 'none';
+}
+function migrationChooseNo() {
+  _migrationSetDone('Neuinstallation — kein Backup wiederhergestellt');
 }
 function toggleSetupRestorePanel() {
   var p = document.getElementById('setup-restore-panel');
@@ -2495,8 +2505,10 @@ async function setupRestore() {
     var d = await r.json();
     result.style.display = 'block';
     if (d.ok) {
+      _migrationSetDone('Backup wiederhergestellt — ' + d.restored_files + ' Dateien', true);
       var warns = (d.warnings || []).filter(function(w) { return !w.startsWith('AUTH_PFX_RESTORED'); })
                                     .map(function(w) { return '<li style="color:#92400e">' + w + '</li>'; }).join('');
+      result.style.display = 'block';
       result.innerHTML = '<div class="alert success"><strong>Wiederhergestellt!</strong> ' + d.restored_files + ' Dateien.'
         + (warns ? '<ul style="margin:8px 0 0;padding-left:18px">' + warns + '</ul>' : '')
         + '<div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">'

@@ -330,9 +330,11 @@
 [data-theme="dark"] [style*="background:#f0f4ff"] {
   background: #0f1530 !important;
 }
-/* Lila (Setup-Step-Status-Badges) */
+/* Lila (Setup-Step-Status-Badges + Entra-Step-Hintergrund) */
 [data-theme="dark"] [style*="background:#ede9fe"],
-[data-theme="dark"] [style*="background:#f3e8ff"] {
+[data-theme="dark"] [style*="background:#f3e8ff"],
+[data-theme="dark"] [style*="background:#f5f3ff"],
+[data-theme="dark"] [style*="background:#fafafe"] {
   background: #1a0d2e !important;
 }
 /* Gelb/Orange/Creme (Warn-Boxen, KV-Hint, Add-In-Login, Observatory-Raw) */
