@@ -5,6 +5,11 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.6.28 — 2026-07-20 — Dark Mode: weiße Cards in Anbindung
+
+- `.settings-card` und `.wizard-step` (beide class-basiert mit `background:#fff`) jetzt explizit dunkel (`#1a1e2a`, Rahmen `#2a2d3e`).
+- `background:#f8fafc` (Slate-50, Sub-Sections in Anbindung) ebenfalls abgedeckt.
+
 ## v1.6.26 — 2026-07-20 — Dark Mode: fehlende Farben auf Erweitert + Settings-Seiten
 
 - Neu abgedeckt: `color:#57534e` + `#475569` (Stone/Slate-Grautöne, häufig in advanced.html als Erklärungstexte)

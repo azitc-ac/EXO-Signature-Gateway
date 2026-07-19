@@ -359,8 +359,19 @@
 [data-theme="dark"] [style*="background:#fcfcfc"] {
   background: #14171f !important;
 }
-/* Weiße Card-/Modal-/Select-Hintergründe */
-[data-theme="dark"] [style*="background:#fff"] {
+/* Weiße Card-/Modal-/Select-Hintergründe (class-basiert) */
+[data-theme="dark"] .settings-card {
+  background: #1a1e2a !important;
+  border-color: #2a2d3e !important;
+}
+[data-theme="dark"] .wizard-step {
+  background: #1a1e2a !important;
+  border-color: #2a2d3e !important;
+}
+/* Weiße/Fast-weiße Hintergründe (inline) */
+[data-theme="dark"] [style*="background:#fff"],
+[data-theme="dark"] [style*="background:#f8fafc"],
+[data-theme="dark"] [style*="background:#f8f9fa"] {
   background: #1a1e2a !important;
 }
 
