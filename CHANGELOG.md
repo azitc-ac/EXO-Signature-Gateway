@@ -5,6 +5,11 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.6.35 — 2026-07-20 — Dark-Mode: S/MIME-Seite Vorschau-Box + Logo-Preview
+
+- Vorschau-Box (Betreff-Vorschau) von Inline-`background:#f8fafc` auf `.info-box`-Klasse umgestellt — zuverlässig dunkel im Dark-Mode.
+- Portal-Logo-Vorschau: `background:#fff` aus Inline-Style in `.portal-logo-preview`-Klasse ausgelagert; im Dark-Mode transparent (Logo bleibt sichtbar, kein weißer Kasten).
+
 ## v1.6.34 — 2026-07-20 — Hub-Katalog: Admin-Seite erzwingt immer frischen Fetch
 
 - `/api/cert/catalog` (Admin, Anbindung-Tab) ruft `hub_catalog.refresh(force=True)` auf — Hub-Änderungen (z.B. Anbieter abwählen) sind sofort sichtbar ohne auf den 10-Minuten-Cache warten zu müssen.

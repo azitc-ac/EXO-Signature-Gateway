@@ -62,7 +62,7 @@
 
   <div class="settings-row" style="align-items:center">
     <label style="color:#888;font-size:12px;font-weight:400">Vorschau</label>
-    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:7px 12px;font-size:13px;color:#333;flex:1;min-width:0;font-style:italic">
+    <div class="info-box" style="padding:7px 12px;font-size:13px;color:#333;flex:1;min-width:0;font-style:italic">
       <span id="subject-preview"></span>
     </div>
   </div>
@@ -193,8 +193,9 @@
     <div class="settings-control">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
         <img id="portal-logo-preview" src="/portal/logo" alt=""
+          class="portal-logo-preview"
           style="max-height:44px;max-width:200px;border:1px solid #e2e8f0;border-radius:6px;
-                 padding:4px 8px;background:#fff;display:none">
+                 padding:4px 8px;display:none">
         <input type="file" id="portal-logo-file" accept="image/png,image/jpeg,image/gif" style="display:none"
           onchange="uploadPortalLogo(this)">
         <button class="btn secondary btn-sm" type="button"

@@ -342,6 +342,7 @@ input:focus { outline: none; border-color: #0078d4; }
     margin-bottom: 20px;
 }
 .settings-card h2 { margin: 0 0 16px; font-size: 15px; color: #0078d4; }
+.portal-logo-preview { background: #fff; }
 .settings-row {
     display: flex;
     align-items: flex-start;
