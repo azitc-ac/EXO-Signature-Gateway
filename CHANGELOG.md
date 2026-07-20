@@ -5,6 +5,10 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.6.34 — 2026-07-20 — Hub-Katalog: Admin-Seite erzwingt immer frischen Fetch
+
+- `/api/cert/catalog` (Admin, Anbindung-Tab) ruft `hub_catalog.refresh(force=True)` auf — Hub-Änderungen (z.B. Anbieter abwählen) sind sofort sichtbar ohne auf den 10-Minuten-Cache warten zu müssen.
+
 ## v1.6.33 — 2026-07-20 — Anbindung: Inline-Stile → CSS-Klassen (Dark-Mode-Fix)
 
 Fragile Attribut-Selektoren (`[style*="background:#f8fafc"]`) durch echte Klassen ersetzt:

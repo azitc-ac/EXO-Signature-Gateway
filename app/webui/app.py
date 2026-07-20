@@ -1904,11 +1904,12 @@ async def api_preview_data(
 
 @app.get("/api/cert/catalog")
 async def api_cert_catalog(_=Depends(_check_auth)):
-    """Anbieter-Katalog des Hubs für die Anzeige (Anbindung-Seite)."""
+    """Anbieter-Katalog des Hubs für die Anzeige (Anbindung-Seite).
+    Erzwingt immer einen frischen Hub-Fetch (Admin-Endpunkt, selten aufgerufen)."""
     import hub_catalog as _hub_cat
     import hub_client
     try:
-        await _hub_cat.refresh()
+        await _hub_cat.refresh(force=True)
     except Exception:
         pass
     return JSONResponse({
