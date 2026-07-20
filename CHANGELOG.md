@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.6.30 — 2026-07-20 — Dark Mode: color:#dc2626 (Rot) ergänzt
+
+`color:#dc2626` in dark-mode.css fehlte — betroffen: Fehlertext im Lizenz-Status
+(„Hinterlegter Schlüssel ungültig") auf der Anbindung-Seite.
+
+---
+
 ## v1.6.29 — 2026-07-20 — Dark Mode: vollständiger Audit + konsolidierte CSS
 
 Vollständiger Einmal-Durchlauf aller Templates (advanced, backup, dashboard,

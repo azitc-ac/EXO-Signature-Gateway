@@ -237,6 +237,7 @@
 [data-theme="dark"] [style*="color:#27ae60"] { color: #4ade80 !important; }
 
 /* Rot */
+[data-theme="dark"] [style*="color:#dc2626"],
 [data-theme="dark"] [style*="color:#991b1b"] { color: #fca5a5 !important; }
 
 /* Blau */
