@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.6.33 — 2026-07-20 — Anbindung: Inline-Stile → CSS-Klassen (Dark-Mode-Fix)
+
+Fragile Attribut-Selektoren (`[style*="background:#f8fafc"]`) durch echte Klassen ersetzt:
+- Neue Klassen `.info-box`, `.conn-badge`/`.conn-ok`/`.conn-wait`, `.dlg-card` in style.css
+- Dunkle Entsprechungen in dark-mode.css (`[data-theme="dark"] .info-box` etc.)
+- settings_connect.html: alle 7 Subbox-Divs auf `.info-box` umgestellt,
+  `<style>`-Block entfernt (Klassen jetzt global in style.css)
+- Kein Attribut-Selektor mehr für Hintergründe auf der Anbindung-Seite
+
+---
+
 ## v1.6.32 — 2026-07-20 — CSS-Konsolidierung: Bugfixes + Duplikat-Bereinigung
 
 Ergebnis der UI-Konsistenz-Analyse:

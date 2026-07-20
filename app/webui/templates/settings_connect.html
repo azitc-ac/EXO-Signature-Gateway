@@ -12,12 +12,6 @@
   <li><a href="/setup" class="nav-sub-tab">Einrichtung</a></li>
 </ul>
 
-<style>
-  .conn-badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 9px;border-radius:10px;margin-left:8px;vertical-align:middle}
-  .conn-ok{background:#dcfce7;color:#166534}
-  .conn-wait{background:#fef3c7;color:#92400e}
-</style>
-
 <p class="hint" style="margin-bottom:16px">
   EXO Signature HUB ist ein Dienst von Alexander Zarenko - IT Consulting und autorisierten
   Partnerunternehmen.
@@ -90,7 +84,7 @@
   </p>
 
   <div id="sec-managed-fields">
-    <div id="cert-catalog-box" style="display:none;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:14px;margin-bottom:12px">
+    <div id="cert-catalog-box" class="info-box" style="display:none;margin-bottom:12px">
       <strong>Verfügbare Zertifizierungsstellen</strong>
       <p class="hint" style="margin:2px 0 8px">
         Kommen dynamisch vom HUB (Anbieter, Laufzeit, Preis) — die Auswahl triffst du pro
@@ -111,7 +105,7 @@
       </div>
       <span id="cert-catalog-result" style="font-size:12px"></span>
     </div>
-    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:14px;margin-bottom:12px">
+    <div class="info-box" style="margin-bottom:12px">
       <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:14px">
         <div id="cert-step1-dot" style="flex:0 0 22px;height:22px;border-radius:50%;background:#e2e8f0;color:#334155;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700">1</div>
         <div style="flex:1">
@@ -130,7 +124,7 @@
       </div>
     </div>
 
-    <div id="cert-invoice-request-box" style="display:none;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:14px;margin-bottom:12px">
+    <div id="cert-invoice-request-box" class="info-box" style="display:none;margin-bottom:12px">
       <strong>Rechnungsstellung (statt Prepaid)</strong>
       <p class="hint" style="margin:2px 0 8px">
         Auf Wunsch stellen wir statt Prepaid-Guthaben auf Rechnung um — dafür braucht es eine
@@ -140,7 +134,7 @@
       <div id="cert-invoice-request-body"></div>
     </div>
 
-    <div id="cert-billing-box" style="display:none;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:14px;margin-bottom:12px">
+    <div id="cert-billing-box" class="info-box" style="display:none;margin-bottom:12px">
       <strong>Abrechnungsdaten</strong>
       <p class="hint" style="margin:2px 0 8px">Für die Rechnungsstellung erforderlich (Firma + Adresse) — einmalig hinterlegen.</p>
       <div style="display:flex;flex-direction:column;gap:6px;max-width:420px">
@@ -153,7 +147,7 @@
       <div style="margin-top:8px"><button class="btn secondary" onclick="certSaveBilling()">Speichern</button></div>
     </div>
 
-    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:14px;margin-bottom:12px">
+    <div class="info-box" style="margin-bottom:12px">
       <strong>Verifizierte Domains</strong>
       <p class="hint" style="margin:2px 0 8px">
         Zertifikate werden nur für Domains ausgestellt, deren Kontrolle du per DNS-TXT-Eintrag
@@ -212,7 +206,7 @@
     <button class="btn secondary" onclick="dcTest()">Verbindung testen</button>
     <span id="dc-msg" class="hint"></span>
   </div>
-  <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:14px;margin-top:10px">
+  <div class="info-box" style="margin-top:10px">
     <strong>Domain in CertCentral prevalidieren</strong>
     <p class="hint" style="margin:2px 0 8px">
       DigiCert stellt erst aus, wenn die Mail-Domain in <em>deinem</em> CertCentral-Konto
@@ -325,7 +319,7 @@ _initAdv('digicert');
     <button class="btn secondary" onclick="licRemove()">Lizenz entfernen</button>
   </div>
 
-  <div id="lic-buy-box" style="display:none;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:14px;margin-top:12px">
+  <div id="lic-buy-box" class="info-box" style="display:none;margin-top:12px">
     <strong id="lic-buy-title">Lizenz kaufen</strong>
     <p class="hint" style="margin:2px 0 10px">
       Abrechnung über dein Hub-Konto (Prepaid-Guthaben bzw. Rechnungsmodus — wie beim
@@ -347,7 +341,7 @@ _initAdv('digicert');
 
 <!-- ── Nutzungsbedingungen-Dialog ─────────────────────────────────────────── -->
 <div id="terms-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:1000;align-items:center;justify-content:center">
-  <div style="background:#fff;border-radius:8px;max-width:560px;width:92%;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+  <div class="dlg-card" style="max-width:560px;width:92%;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)">
     <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0">
       <strong>Nutzungsbedingungen — Zertifikatsbezug</strong>
     </div>

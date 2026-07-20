@@ -240,6 +240,25 @@ input:focus { outline: none; border-color: #0078d4; }
 .btn.danger { background: #dc2626; color: #fff; }
 .btn.danger:hover { background: #b91c1c; }
 
+/* Dialog-Card (Modal-Inhalt) */
+.dlg-card {
+    background: #fff;
+    border-radius: 8px;
+}
+
+/* Info-Box — leicht abgesetzte Untersektion innerhalb einer Card */
+.info-box {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 14px;
+}
+
+/* Verbindungs-/Status-Badges */
+.conn-badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 10px; margin-left: 8px; vertical-align: middle; }
+.conn-ok    { background: #dcfce7; color: #166534; }
+.conn-wait  { background: #fef3c7; color: #92400e; }
+
 /* Passwortfeld mit Augen-Button */
 .pw-wrap { position: relative; display: inline-block; }
 .pw-wrap input { padding-right: 30px !important; box-sizing: border-box; }

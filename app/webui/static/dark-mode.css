@@ -132,6 +132,16 @@
 [data-theme="dark"] .settings-row    { border-bottom-color: #2a2d3e; }
 [data-theme="dark"] .step-header     { border-bottom-color: #2a2d3e; }
 
+/* ── Info-Box + Dialog-Card ──────────────────────────────────────────────── */
+[data-theme="dark"] .info-box {
+  background: #1e2235 !important;
+  border-color: #2a2d3e !important;
+}
+[data-theme="dark"] .dlg-card {
+  background: #1a1d27 !important;
+  color: #e2e8f0;
+}
+
 /* ── Status-Badges ───────────────────────────────────────────────────────── */
 [data-theme="dark"] .conn-ok   { background: #0a1f10 !important; color: #4ade80 !important; }
 [data-theme="dark"] .conn-wait { background: #1f1500 !important; color: #fbbf24 !important; }
