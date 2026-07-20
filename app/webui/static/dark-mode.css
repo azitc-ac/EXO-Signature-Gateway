@@ -95,6 +95,8 @@
 [data-theme="dark"] .btn.primary:hover    { background: #3b82f6; }
 [data-theme="dark"] .btn.secondary        { background: #1e2230; color: #e2e8f0; }
 [data-theme="dark"] .btn.secondary:hover  { background: #2a2d3e; }
+[data-theme="dark"] .btn.danger           { background: #7f1d1d; color: #fca5a5; }
+[data-theme="dark"] .btn.danger:hover     { background: #991b1b; }
 [data-theme="dark"] .btn-sm.secondary     { background: #1e2230; color: #e2e8f0; }
 [data-theme="dark"] .btn-toggle           { background: #1e2230; border-color: #2a2d3e; color: #94a3b8; }
 [data-theme="dark"] .btn-toggle.active    { background: #2563eb; border-color: #2563eb; color: #fff; }
@@ -127,7 +129,6 @@
 [data-theme="dark"] .step-body .hint { color: #94a3b8 !important; }
 [data-theme="dark"] .step-body p     { color: #cbd5e1 !important; }
 [data-theme="dark"] .step-body ul    { color: #cbd5e1 !important; }
-[data-theme="dark"] .adv-section     { color: #cbd5e1; }
 [data-theme="dark"] .settings-row    { border-bottom-color: #2a2d3e; }
 [data-theme="dark"] .step-header     { border-bottom-color: #2a2d3e; }
 

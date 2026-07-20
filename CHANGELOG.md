@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.6.32 — 2026-07-20 — CSS-Konsolidierung: Bugfixes + Duplikat-Bereinigung
+
+Ergebnis der UI-Konsistenz-Analyse:
+- **Bug**: `.btn.danger` in style.css ergänzt (war nicht definiert → graue Buttons)
+- **Bug**: `.btn.danger` Dark-Mode-Regel ergänzt
+- `.pw-wrap` / `.pw-eye` aus 3 Templates (login, settings, settings_smime) entfernt,
+  einmalig in style.css definiert — waren dreifach identisch kopiert
+- `input[type="url"]` in globale Formular-Regel aufgenommen (hatte Browser-Defaultstyling)
+- Tote Regel `.adv-section` aus dark-mode.css entfernt
+
+---
+
 ## v1.6.31 — 2026-07-20 — Dark Mode: finaler Vollständigkeits-Audit (alle Templates)
 
 Exhaustiver Abgleich aller 16 Template-Dateien (standalone außen vor) gegen dark-mode.css.

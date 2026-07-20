@@ -208,7 +208,7 @@ textarea {
 }
 textarea:focus { outline: none; border-color: #0078d4; box-shadow: 0 0 0 2px rgba(0,120,212,0.15); }
 
-input[type="email"], input[type="text"] {
+input[type="email"], input[type="text"], input[type="url"] {
     padding: 8px 12px;
     border: 1px solid #ccc;
     border-radius: 6px;
@@ -237,6 +237,18 @@ input:focus { outline: none; border-color: #0078d4; }
 .btn.primary:hover { background: #106ebe; }
 .btn.secondary { background: #e5e7eb; color: #333; }
 .btn.secondary:hover { background: #d1d5db; }
+.btn.danger { background: #dc2626; color: #fff; }
+.btn.danger:hover { background: #b91c1c; }
+
+/* Passwortfeld mit Augen-Button */
+.pw-wrap { position: relative; display: inline-block; }
+.pw-wrap input { padding-right: 30px !important; box-sizing: border-box; }
+.pw-eye {
+    position: absolute; right: 7px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; cursor: pointer; padding: 2px;
+    color: #bbb; line-height: 1; user-select: none; -webkit-user-select: none; font-size: 14px;
+}
+.pw-eye:focus { outline: none; }
 
 /* Preview */
 .preview-frame {
