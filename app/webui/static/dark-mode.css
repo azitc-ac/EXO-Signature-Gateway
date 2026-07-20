@@ -206,6 +206,7 @@
 }
 
 /* Textfarben: dunkel → hell */
+[data-theme="dark"] [style*="color:#0f172a"],
 [data-theme="dark"] [style*="color:#111"],
 [data-theme="dark"] [style*="color:#222"],
 [data-theme="dark"] [style*="color:#333"],
@@ -238,7 +239,9 @@
 
 /* Rot */
 [data-theme="dark"] [style*="color:#dc2626"],
-[data-theme="dark"] [style*="color:#991b1b"] { color: #fca5a5 !important; }
+[data-theme="dark"] [style*="color:#991b1b"],
+[data-theme="dark"] [style*="color:#e74c3c"],
+[data-theme="dark"] [style*="color:#ef4444"] { color: #fca5a5 !important; }
 
 /* Blau */
 [data-theme="dark"] [style*="color:#0078d4"] { color: #5b9bd5 !important; }
@@ -259,6 +262,8 @@
 [data-theme="dark"] [style*="color:#7c3aed"] { color: #a78bfa !important; }
 
 /* Rahmen: neutral → dunkel */
+[data-theme="dark"] [style*="border:1px solid #ccc"],
+[data-theme="dark"] [style*="border:1px solid #cbd5e1"],
 [data-theme="dark"] [style*="border:1px solid #d4d0cc"],
 [data-theme="dark"] [style*="border:1px solid #d1d5db"],
 [data-theme="dark"] [style*="border:1px solid #e0e0e0"],
@@ -272,12 +277,16 @@
 [data-theme="dark"] [style*="border-bottom:1px solid #e7e5e4"],
 [data-theme="dark"] [style*="border-bottom:1px solid #edf0f4"],
 [data-theme="dark"] [style*="border-bottom:1px solid #f0f0f0"],
+[data-theme="dark"] [style*="border-bottom:1px solid #f0f4f8"],
+[data-theme="dark"] [style*="border-bottom:1px solid #f1f5f9"],
 [data-theme="dark"] [style*="border-bottom:1px solid #f5f4f3"],
 [data-theme="dark"] [style*="border-bottom:1px solid #f5f5f5"],
 [data-theme="dark"] [style*="border-bottom:2px solid #e2e8f0"],
 [data-theme="dark"] [style*="border-top:1px solid #e2e8f0"],
 [data-theme="dark"] [style*="border-top:1px solid #eee"],
-[data-theme="dark"] [style*="border-top:1px solid #f0f0f0"] { border-color: #2a2d3e !important; }
+[data-theme="dark"] [style*="border-top:1px solid #f0f0f0"],
+[data-theme="dark"] [style*="border-left:3px solid #e2e8f0"],
+[data-theme="dark"] [style*="border-right:1px solid #e2e8f0"] { border-color: #2a2d3e !important; }
 
 /* Rahmen: semantische Farben */
 [data-theme="dark"] [style*="border:1px solid #bae6fd"],
@@ -298,6 +307,9 @@
 [data-theme="dark"] [style*="border:1px solid #fde047"],
 [data-theme="dark"] [style*="border:1px solid #fde68a"],
 [data-theme="dark"] [style*="border:1px solid #fed7aa"] { border-color: #78350f !important; }
+
+/* ── Erweitert: JS-gesetzte Farben (CSSOM normalisiert zu rgb → Attribut-Selektor greift nicht) */
+[data-theme="dark"] #maintenance-status-text { color: #94a3b8 !important; }
 
 /* ── Theme-Toggle-Button ─────────────────────────────────────────────────── */
 #theme-toggle {

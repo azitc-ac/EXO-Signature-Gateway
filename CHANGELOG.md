@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.6.31 — 2026-07-20 — Dark Mode: finaler Vollständigkeits-Audit (alle Templates)
+
+Exhaustiver Abgleich aller 16 Template-Dateien (standalone außen vor) gegen dark-mode.css.
+Fehlende Regeln nachgetragen — dieser Commit schließt alle bekannten Lücken:
+- `color:#e74c3c`, `color:#ef4444` → Rot (abgelaufene Zertifikate, dashboard+smime)
+- `color:#0f172a` → fast-Schwarz (modal-title in debug.html)
+- `border:1px solid #cbd5e1`, `border:1px solid #ccc` → helle Rahmen (Inputs/Buttons)
+- `border-left:3px solid #e2e8f0` → Changelog-Einträge (backup.html)
+- `border-right:1px solid #e2e8f0` → Panel-Trenner (debug.html)
+- `border-bottom:1px solid #f0f4f8`, `#f1f5f9` → Tabellen-Trennlinien (smime+debug)
+- `#maintenance-status-text` → ID-Regel für JS-gesetzten Farbwert (CSSOM normalisiert
+  `#57534e` zu `rgb()` → Attribut-Selektor greift nicht, ID+!important schlägt inline)
+
+---
+
 ## v1.6.30 — 2026-07-20 — Dark Mode: color:#dc2626 (Rot) ergänzt
 
 `color:#dc2626` in dark-mode.css fehlte — betroffen: Fehlertext im Lizenz-Status
