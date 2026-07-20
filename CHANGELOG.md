@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.6.37 — 2026-07-21 — Dark-Mode: Vollständiger Audit, alle Lücken geschlossen
+
+Systematischer Audit aller 15 Templates und style.css gegen dark-mode.css:
+
+- **S/MIME-User-Cards zu hell (Hauptursache):** `.user-hdr` hatte `background:#f8fafc` in
+  style.css — kein Attribut-Selektor greift auf Klassen-Regeln. Neues Dark-Mode-Pendant.
+- **Pool-Modal Tab-Buttons (Dashboard):** `el.style.cssText` normalisiert Hex zu `rgb()` —
+  Attribut-Selektoren greifen nicht. Fix: `data-pool-active`-Attribut + CSS-Regel;
+  aktiver Tab jetzt blauer Akzent (`#2563eb`), inaktiver Tab `#1e2230`.
+- **Notif/Admin-Dropdown (Einstellungen):** `createElement + style.cssText` ebenfalls
+  CSSOM-normalisiert → innere Divs blieben hell. Fix: ID-basierte CSS-Selektoren
+  für Dropdown-Kinder inkl. Hover-Zustand.
+
+Technische Erkenntnis dokumentiert: CSSOM-normalisierte Inline-Styles (js: `el.style.cssText`)
+versus statische HTML-Attribute — Attribut-Selektoren funktionieren NUR bei letzteren.
+
 ## v1.6.35 — 2026-07-20 — Dark-Mode: S/MIME-Seite Vorschau-Box + Logo-Preview
 
 - Vorschau-Box (Betreff-Vorschau) von Inline-`background:#f8fafc` auf `.info-box`-Klasse umgestellt — zuverlässig dunkel im Dark-Mode.

@@ -271,9 +271,9 @@ function openPoolModal(idx) {
     '<div style="margin-bottom:6px;font-size:12px;color:#44403c">Peak heute: <strong>' + peakTxt + '</strong></div>' +
     '<div style="margin-bottom:14px;font-size:12px;color:#44403c">Status: ' + statusHtml + '</div>' +
     '<div style="margin-bottom:10px">' +
-      '<button id="poolTab_today" style="' + activeStyle + '" onclick="showPoolTab(\'today\',' + idx + ')">Heute</button>' +
-      '<button id="poolTab_7d"    style="' + inactiveStyle + '" onclick="showPoolTab(\'7d\',' + idx + ')">7 Tage</button>' +
-      '<button id="poolTab_30d"   style="' + inactiveStyle + '" onclick="showPoolTab(\'30d\',' + idx + ')">30 Tage</button>' +
+      '<button id="poolTab_today" data-pool-active="1" style="' + activeStyle + '" onclick="showPoolTab(\'today\',' + idx + ')">Heute</button>' +
+      '<button id="poolTab_7d"    data-pool-active="0" style="' + inactiveStyle + '" onclick="showPoolTab(\'7d\',' + idx + ')">7 Tage</button>' +
+      '<button id="poolTab_30d"   data-pool-active="0" style="' + inactiveStyle + '" onclick="showPoolTab(\'30d\',' + idx + ')">30 Tage</button>' +
     '</div>' +
     '<div id="poolChartArea"><span style="color:#94a3b8;font-size:12px">Laden…</span></div>';
   document.getElementById('poolModal').style.display = 'flex';
@@ -312,7 +312,7 @@ function _poolSetTabStyles(activeTab) {
   var inactiveStyle = tabStyle + 'background:#f0f0f0;color:#555;';
   ['today','7d','30d'].forEach(function(t) {
     var el = document.getElementById('poolTab_' + t);
-    if (el) el.style.cssText = (t === activeTab ? activeStyle : inactiveStyle);
+    if (el) { el.style.cssText = (t === activeTab ? activeStyle : inactiveStyle); el.dataset.poolActive = (t === activeTab) ? '1' : '0'; }
   });
 }
 

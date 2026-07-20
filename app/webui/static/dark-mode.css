@@ -327,6 +327,40 @@
    im Dark-Mode transparent — Logo bleibt sichtbar, kein weißer Kasten. */
 [data-theme="dark"] .portal-logo-preview { background: transparent !important; }
 
+/* S/MIME User-Card-Header (.user-hdr hat background:#f8fafc in style.css —
+   kein Inline-Attribut, daher greift der Attribut-Selektor nicht) */
+[data-theme="dark"] .user-hdr {
+  background: #1e2230 !important;
+  border-bottom-color: #2a2d3e !important;
+}
+
+/* ── Dashboard: Pool-Modal Tab-Buttons ───────────────────────────────────── */
+/* CSSOM-normalisiert: el.style.cssText → background:#f0f0f0 → rgb(…) → kein [style*] Match.
+   data-pool-active="1/0" wird per JS gesetzt um aktive/inaktive Tabs zu unterscheiden. */
+[data-theme="dark"] [data-pool-active="0"] {
+  background: #1e2230 !important;
+  color: #94a3b8 !important;
+}
+[data-theme="dark"] [data-pool-active="1"] {
+  background: #2563eb !important;
+  color: #fff !important;
+}
+
+/* ── Settings: Notifikations- und Admin-Dropdown ─────────────────────────── */
+/* Dropdown-Items werden per createElement + style.cssText gesetzt (CSSOM-normalisiert).
+   Die äußere Dropdown-Box hat static-HTML background:#fff → Attribut-Selektor greift.
+   Die inneren Items brauchen explizite ID-Selektor-Regeln. */
+[data-theme="dark"] #notif-dropdown > div,
+[data-theme="dark"] #admin-dropdown > div {
+  background: #1a1d27 !important;
+  color: #94a3b8 !important;
+  border-color: #2a2d3e !important;
+}
+[data-theme="dark"] #notif-dropdown > div:hover,
+[data-theme="dark"] #admin-dropdown > div:hover {
+  background: #1e2230 !important;
+}
+
 /* ── Theme-Toggle-Button ─────────────────────────────────────────────────── */
 #theme-toggle {
   background: none; border: none;
