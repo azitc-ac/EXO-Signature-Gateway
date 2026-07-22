@@ -123,48 +123,55 @@ def _send_user_renewal_notification(
     user_cfg: dict,
     threshold: int,
 ) -> None:
-    """Generate a self-service token and send renewal instructions to the user."""
+    """Trigger auto-renewal and/or send renewal notification email, depending on user config.
+
+    auto_renew=True  → attempt backend.initiate_renewal(); return on success.
+    notify_user=True → send manual renewal notification email.
+    Backwards compat: if auto_renew absent, falls back to notify_user value.
+    """
     import selfservice
     import notification
     from ca_backends import get_backend
 
     backend_name = user_cfg.get("backend", "assisted_manual")
     backend = get_backend(backend_name)
+    # auto_renew absent → inherit notify_user for backwards compatibility
+    auto_renew = user_cfg.get("auto_renew", user_cfg.get("notify_user", False))
+    notify_user = user_cfg.get("notify_user", False)
 
-    token = selfservice.generate_token(email)
-    upload_url = f"{_get_gateway_url()}/smime/renew/{token}"
-
-    import mailbox_match
-    smime_active = mailbox_match.match_sender(
-        settings_store.get("MAILBOX_CONFIG") or {}, email).get("smime")
-    if not smime_active:
-        log.warning("scheduler: skipping auto-renewal for %s — S/MIME deactivated "
-                    "since original issuance; falling back to manual notification", email)
-    elif backend.can_auto_renew():
-        # Try automated renewal first; fall back to manual notification on failure
-        try:
-            asyncio.run(backend.initiate_renewal(email, user_cfg))
-            log.info("scheduler: auto-renewal initiated for %s via %s", email, backend_name)
-            return
-        except NotImplementedError:
-            log.info("scheduler: %s auto-renewal not implemented — sending manual notification", backend_name)
-        except Exception as exc:
-            log.error("scheduler: auto-renewal failed for %s (%s): %s", email, backend_name, exc)
-
-    try:
-        ok = notification.send_renewal_notification_to_user(
-            user_email=email,
-            cert_info=cert_info,
-            upload_url=upload_url,
-            backend_name=backend_name,
-            user_config=user_cfg,
-        )
-        if ok:
-            log.info("scheduler: renewal notification sent to %s (≤%d days)", email, threshold)
+    if auto_renew and backend.can_auto_renew():
+        import mailbox_match
+        smime_active = mailbox_match.match_sender(
+            settings_store.get("MAILBOX_CONFIG") or {}, email).get("smime")
+        if not smime_active:
+            log.warning("scheduler: skipping auto-renewal for %s — S/MIME deactivated", email)
         else:
-            log.warning("scheduler: renewal notification delivery failed for %s", email)
-    except Exception as exc:
-        log.error("scheduler: renewal notification error for %s: %s", email, exc)
+            try:
+                asyncio.run(backend.initiate_renewal(email, user_cfg))
+                log.info("scheduler: auto-renewal initiated for %s via %s", email, backend_name)
+                return
+            except NotImplementedError:
+                log.info("scheduler: %s auto-renewal not implemented", backend_name)
+            except Exception as exc:
+                log.error("scheduler: auto-renewal failed for %s (%s): %s", email, backend_name, exc)
+
+    if notify_user:
+        token = selfservice.generate_token(email)
+        upload_url = f"{_get_gateway_url()}/smime/renew/{token}"
+        try:
+            ok = notification.send_renewal_notification_to_user(
+                user_email=email,
+                cert_info=cert_info,
+                upload_url=upload_url,
+                backend_name=backend_name,
+                user_config=user_cfg,
+            )
+            if ok:
+                log.info("scheduler: renewal notification sent to %s (≤%d days)", email, threshold)
+            else:
+                log.warning("scheduler: renewal notification delivery failed for %s", email)
+        except Exception as exc:
+            log.error("scheduler: renewal notification error for %s: %s", email, exc)
 
 
 def _check_smime_lifecycle() -> None:
@@ -201,7 +208,8 @@ def _check_smime_lifecycle() -> None:
         email = c.get("email", "")
         days = c.get("days_left", 999)
         user_cfg = ca_user_config.get(email, {})
-        if not user_cfg.get("notify_user", False):
+        auto_renew = user_cfg.get("auto_renew", user_cfg.get("notify_user", False))
+        if not auto_renew and not user_cfg.get("notify_user", False):
             continue
         expiry = c.get("expiry", "")
         for threshold in sorted(thresholds):

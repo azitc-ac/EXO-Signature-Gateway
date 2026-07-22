@@ -2915,6 +2915,18 @@ async def smime_page_v2(request: Request, user: str = Depends(_require_admin)):
     all_emails = sorted(smime_from_config | smime_from_certs)
     smime_users = [{"email": email, "certs": smime_store.list_user_certs(email)} for email in all_emails]
     acme_orders = {em: _acme_state.get_order(em) for em in all_emails if _acme_state.get_order(em)}
+    # Enrich certs with next_renewal date (expiry − first renewal threshold)
+    from datetime import datetime as _dt, timedelta as _td
+    _first_threshold = min(settings_store.get("CERT_RENEWAL_THRESHOLDS") or [30, 14, 7, 1])
+    for u in smime_users:
+        for c in u["certs"]:
+            if c.get("expiry") and not c.get("error"):
+                try:
+                    c["next_renewal"] = (_dt.strptime(c["expiry"], "%d.%m.%Y") - _td(days=_first_threshold)).strftime("%d.%m.%Y")
+                except Exception:
+                    c["next_renewal"] = None
+            else:
+                c["next_renewal"] = None
     # Key Vault status per email (only if configured) — use cached status, not live queries
     kv_configured = _kv.is_configured()
     kv_status: dict = settings_store.get("KV_KEY_STATUS") or {}
@@ -3133,6 +3145,7 @@ async def api_ca_config_save(email: str, request: Request, user: str = Depends(_
         "backend": data.get("backend", "assisted_manual"),
         "portal_url": (data.get("portal_url") or "").strip(),
         "notify_user": bool(data.get("notify_user", False)),
+        "auto_renew": bool(data.get("auto_renew", False)),
         "staging": bool(data.get("staging", False)),
     }
     settings_store.update({"CA_USER_CONFIG": cfg})

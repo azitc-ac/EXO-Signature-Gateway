@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.6.40 — 2026-07-22 — S/MIME Auto-Renew: eigene Checkbox, Nächste-Erneuerung-Datum, Preisangabe
+
+- Neues `auto_renew`-Feld in `CA_USER_CONFIG` (separat von `notify_user`)
+- Scheduler: `auto_renew=True` löst automatische Erneuerung aus; `notify_user=True` sendet E-Mail-Benachrichtigung — beide unabhängig steuerbar. Bestehende Configs mit `notify_user=True` erhalten Backwards-Compatibility (auto_renew fällt auf notify_user-Wert zurück)
+- UI (S/MIME-Seite → Lifecycle-Einstellungen): neue "Automatisch erneuern"-Checkbox, sichtbar nur bei auto-fähigen Backends
+- Für Hub-Provider-Backends: Preishinweis ca. X,XX EUR/Zert. direkt an der Checkbox
+- Nächste-Erneuerung-Datum (Zertifikatsablauf − 30 Tage) wird unter der Checkbox angezeigt, wenn aktiviert
+
 ## v1.6.39 — 2026-07-22 — Neue Signatur-Templates: Blog-Banner (blau, orange, Text)
 
 - `Blog-Banner.html`: blauer Infokasten mit Link zu blog.zarenko.net

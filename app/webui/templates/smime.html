@@ -236,6 +236,31 @@
                    placeholder="https://extrassl.actalis.it/portal/…"
                    style="width:300px;font-size:13px">
           </div>
+          <!-- Auto-renew toggle (only visible for auto-capable backends) -->
+          <div class="lc-auto-opts" data-email="{{ u.email }}"
+               style="{% if not _backend_info.get('auto', false) %}display:none;{% endif %}margin-bottom:12px">
+            <label class="checkbox-label" style="font-size:13px">
+              <input type="checkbox" class="lc-auto-renew" data-email="{{ u.email }}"
+                     {% if ca_cfg.get('auto_renew') %}checked{% endif %}
+                     onchange="_onAutoRenewChange('{{ u.email }}',this.checked)">
+              Automatisch erneuern
+              <span class="lc-auto-price-dyn"
+                    style="font-size:11px;color:#6b7280;background:#f3f4f6;border-radius:8px;padding:1px 7px;margin-left:6px{% if not _backend_info.get('price_cents') %};display:none{% endif %}">
+                {% if _backend_info.get('price_cents') %}ca. {{ "%.2f"|format(_backend_info.price_cents / 100) | replace('.', ',') }} {{ _backend_info.get('currency','EUR') }}/Zert.{% endif %}
+              </span>
+            </label>
+            {% set _auto_cert = (u.certs | selectattr('is_default') | list | first) if u.certs else none %}
+            {% if not _auto_cert and u.certs %}{% set _auto_cert = u.certs[0] %}{% endif %}
+            <div class="lc-next-renewal" data-email="{{ u.email }}"
+                 style="font-size:12px;color:#6b7280;margin-top:5px;margin-left:22px;{% if not ca_cfg.get('auto_renew') %}display:none;{% endif %}">
+              {% if _auto_cert and _auto_cert.get('next_renewal') %}
+              Nächste Erneuerung: <strong>{{ _auto_cert.next_renewal }}</strong>
+              <span style="color:#9ca3af">· Ablauf {{ _auto_cert.expiry }}</span>
+              {% else %}
+              Nächste Erneuerung: <span style="color:#9ca3af">–</span>
+              {% endif %}
+            </div>
+          </div>
           <div class="settings-row" style="margin-bottom:12px">
             <label class="checkbox-label" style="font-size:13px">
               <input type="checkbox" class="lc-notify" data-email="{{ u.email }}"
@@ -496,27 +521,44 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function _onBackendChange(email, backend) {
-  const castleOpts = document.querySelector(`.lc-castle-opts[data-email="${CSS.escape(email)}"]`);
+  const castleOpts = document.querySelector(`.lc-castle-opts[data-email=”${CSS.escape(email)}”]`);
   if (castleOpts) castleOpts.style.display = backend === 'castle_acme' ? '' : 'none';
+  const info = _BACKEND_CAPS.find(b => b.name === backend) || {};
+  // Auto-enroll button
   const key = email.replace(/@/g,'_').replace(/\./g,'_');
   const aeBtn = document.getElementById('ae-btn-' + key);
-  if (!aeBtn) return;
-  const info = _BACKEND_CAPS.find(b => b.name === backend) || {};
-  const canAuto = !!(info.auto && info.ready);
-  if (canAuto) {
-    aeBtn.removeAttribute('disabled');
-    aeBtn.style.opacity = '';
-    aeBtn.style.cursor = '';
-    aeBtn.title = '';
-    aeBtn.onclick = () => startAutoEnroll(email, aeBtn);
-  } else {
-    aeBtn.setAttribute('disabled', '');
-    aeBtn.style.opacity = '.45';
-    aeBtn.style.cursor = 'not-allowed';
-    aeBtn.title = (info.auto && !info.ready)
-      ? (info.not_ready_reason || 'Backend noch nicht vollständig konfiguriert')
-      : `Backend „${info.label || backend}“ unterstützt kein Auto-Enroll`;
-    aeBtn.onclick = null;
+  if (aeBtn) {
+    const canAuto = !!(info.auto && info.ready);
+    if (canAuto) {
+      aeBtn.removeAttribute('disabled');
+      aeBtn.style.opacity = '';
+      aeBtn.style.cursor = '';
+      aeBtn.title = '';
+      aeBtn.onclick = () => startAutoEnroll(email, aeBtn);
+    } else {
+      aeBtn.setAttribute('disabled', '');
+      aeBtn.style.opacity = '.45';
+      aeBtn.style.cursor = 'not-allowed';
+      aeBtn.title = (info.auto && !info.ready)
+        ? (info.not_ready_reason || 'Backend noch nicht vollständig konfiguriert')
+        : `Backend „${info.label || backend}” unterstützt kein Auto-Enroll`;
+      aeBtn.onclick = null;
+    }
+  }
+  // Auto-renew section
+  const autoOpts = document.querySelector(`.lc-auto-opts[data-email=”${CSS.escape(email)}”]`);
+  if (autoOpts) {
+    autoOpts.style.display = info.auto ? '' : 'none';
+    const priceBadge = autoOpts.querySelector('.lc-auto-price-dyn');
+    if (priceBadge) {
+      if (info.price_cents) {
+        const val = (info.price_cents / 100).toFixed(2).replace('.', ',');
+        priceBadge.textContent = `ca. ${val} ${info.currency || 'EUR'}/Zert.`;
+        priceBadge.style.display = '';
+      } else {
+        priceBadge.style.display = 'none';
+      }
+    }
   }
 }
 
@@ -524,16 +566,23 @@ async function saveCaConfig(email) {
   const backend = document.querySelector(`.lc-backend[data-email="${CSS.escape(email)}"]`).value;
   const portal  = document.querySelector(`.lc-portal[data-email="${CSS.escape(email)}"]`).value;
   const notify  = document.querySelector(`.lc-notify[data-email="${CSS.escape(email)}"]`).checked;
+  const autoRenewEl = document.querySelector(`.lc-auto-renew[data-email="${CSS.escape(email)}"]`);
+  const auto_renew = autoRenewEl ? autoRenewEl.checked : false;
   const stagingEl = document.querySelector(`.lc-staging[data-email="${CSS.escape(email)}"]`);
   const staging = stagingEl ? stagingEl.checked : false;
   const result  = _lcResultEl(email);
   const resp = await fetch('/api/smime/ca-config/' + encodeURIComponent(email), {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({backend, portal_url: portal, notify_user: notify, staging}),
+    body: JSON.stringify({backend, portal_url: portal, notify_user: notify, auto_renew, staging}),
   });
   showAlert(result, resp.ok ? 'success' : 'error',
     resp.ok ? 'Lifecycle-Einstellungen gespeichert.' : 'Fehler beim Speichern.');
+}
+
+function _onAutoRenewChange(email, checked) {
+  const nr = document.querySelector(`.lc-next-renewal[data-email="${CSS.escape(email)}"]`);
+  if (nr) nr.style.display = checked ? '' : 'none';
 }
 
 function _showAeError(email, msg) {
