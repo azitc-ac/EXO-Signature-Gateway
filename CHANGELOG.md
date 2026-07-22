@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.6.39 — 2026-07-22 — Neue Signatur-Templates: Blog-Banner (blau, orange, Text)
+
+- `Blog-Banner.html`: blauer Infokasten mit Link zu blog.zarenko.net
+- `Blog-Banner-Orange.html`: orange Variante desselben Banners
+- `Blog-Banner-Text.html`: Text-Variante mit RSS-Badge
+
 ## v1.6.37 — 2026-07-21 — Dark-Mode: Vollständiger Audit, alle Lücken geschlossen
 
 Systematischer Audit aller 15 Templates und style.css gegen dark-mode.css:
