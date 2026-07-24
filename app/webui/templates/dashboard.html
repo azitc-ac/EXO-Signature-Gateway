@@ -2,6 +2,31 @@
 {% block content %}
 <h1>Übersicht</h1>
 
+{% if show_welcome_banner %}
+<div id="welcome-banner" style="margin-bottom:20px">
+  <div style="display:flex;align-items:flex-start;gap:14px;padding:14px 16px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;color:#1e40af">
+    <div style="flex:1">
+      <strong>Willkommen beim EXO Signature Gateway</strong><br>
+      <span style="font-size:13px">
+        Bis zu <strong>100 aktivierte Postfächer</strong> sind kostenlos (Community Edition).
+        Ab dem 101. Postfach ist eine Lizenz erforderlich (ab 1 €/Postfach/Monat, Mindestabnahme 10).
+        Lizenz- und Zertifikatsverwaltung findest du unter
+        <a href="/settings/connect" style="font-weight:600">Einstellungen → Anbindung &amp; Lizenzen</a>.
+      </span>
+    </div>
+    <button onclick="dismissWelcome()" title="Schließen"
+      style="background:none;border:none;font-size:20px;line-height:1;cursor:pointer;
+             color:inherit;opacity:.6;flex-shrink:0;padding:0 2px">×</button>
+  </div>
+</div>
+<script>
+function dismissWelcome() {
+  document.getElementById('welcome-banner').style.display = 'none';
+  fetch('/api/welcome/dismiss', {method:'POST'}).catch(function(){});
+}
+</script>
+{% endif %}
+
 <div id="fairuse-banner" style="display:none;margin-bottom:20px">
   <div class="alert warn">
     <strong>Fair-Use-Hinweis:</strong> <span id="fairuse-text"></span>

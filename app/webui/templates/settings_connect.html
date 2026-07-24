@@ -6,7 +6,7 @@
   <li><a href="/settings" class="nav-sub-tab">Allgemein</a></li>
   <li><a href="/settings/signature" class="nav-sub-tab">Signatur</a></li>
   <li><a href="/settings/smime" class="nav-sub-tab">S/MIME</a></li>
-  <li><a href="/settings/connect" class="nav-sub-tab active">Anbindung</a></li>
+  <li><a href="/settings/connect" class="nav-sub-tab active">Anbindung &amp; Lizenzen</a></li>
   <li><a href="/backup" class="nav-sub-tab">Update &amp; Backup</a></li>
   <li><a href="/advanced" class="nav-sub-tab">Erweitert</a></li>
   <li><a href="/setup" class="nav-sub-tab">Einrichtung</a></li>
@@ -337,6 +337,71 @@ _initAdv('digicert');
   </div>
 
   <div id="lic-result" style="display:none;margin-top:8px"></div>
+</div>
+
+<!-- ── Rechtliche Dokumente ───────────────────────────────────────────────── -->
+<div class="settings-card" style="margin-bottom:18px">
+  <h2 style="margin-top:0">Rechtliche Dokumente</h2>
+  <p class="hint" style="margin-bottom:14px">
+    Nutzungsbedingungen, Lizenzbedingungen und Preisliste für EXO Signature Gateway und Hub.
+    Die deutschen Fassungen sind maßgeblich.
+  </p>
+  <div id="legal-doc-list">Lade…</div>
+  <div id="legal-history-box" style="margin-top:16px;display:none">
+    <strong style="font-size:13px">Zustimmungs-Verlauf</strong>
+    <div id="legal-history-list" style="margin-top:8px;font-size:12px"></div>
+  </div>
+</div>
+
+<!-- ── Hub-Consent-Modal (Gate A) ────────────────────────────────────────── -->
+<div id="hub-consent-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:1001;align-items:center;justify-content:center">
+  <div class="dlg-card" style="max-width:620px;width:94%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+    <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center">
+      <strong>Nutzungsbedingungen — Hub-Anbindung</strong>
+      <span class="muted" style="font-size:12px" id="hc-step-label">Schritt 1 von 2</span>
+    </div>
+    <div style="padding:4px 14px 0;border-bottom:1px solid #f0f0f0;display:flex;gap:0">
+      <button id="hc-tab-0" class="btn secondary" style="border-radius:0;border-bottom:2px solid #2563eb;font-size:12px;padding:6px 14px" onclick="_hcTab(0)">Hub-Nutzungsbedingungen</button>
+      <button id="hc-tab-1" class="btn secondary" style="border-radius:0;border-bottom:2px solid transparent;font-size:12px;padding:6px 14px" onclick="_hcTab(1)">Lizenzbedingungen-Ergänzung</button>
+    </div>
+    <div id="hc-text" style="padding:14px 20px;overflow-y:auto;white-space:pre-wrap;font-size:12px;line-height:1.6;color:#334155;flex:1;min-height:0">Lade…</div>
+    <div style="padding:10px 20px;border-top:1px solid #f0f0f0;background:#fafaf9">
+      <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:13px;margin-bottom:6px">
+        <input type="checkbox" id="hc-cb-0" onchange="_hcCheck()" style="margin-top:2px;flex-shrink:0">
+        <span>Ich habe die <strong>Hub-Nutzungsbedingungen</strong> gelesen und akzeptiere sie.</span>
+      </label>
+      <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:13px;margin-bottom:12px">
+        <input type="checkbox" id="hc-cb-1" onchange="_hcCheck()" style="margin-top:2px;flex-shrink:0">
+        <span>Ich habe die <strong>Lizenzbedingungen-Ergänzung</strong> gelesen und akzeptiere sie.</span>
+      </label>
+      <div style="display:flex;justify-content:flex-end;gap:8px">
+        <button class="btn secondary" onclick="_hcClose()">Abbrechen</button>
+        <button class="btn primary" id="hc-confirm-btn" disabled onclick="_hcConfirm()">Akzeptieren &amp; Verbinden</button>
+      </div>
+    </div>
+    <div id="hc-msg" style="display:none;padding:6px 20px 10px;font-size:12px"></div>
+  </div>
+</div>
+
+<!-- ── Invoice-Consent-Modal (Gate B) ────────────────────────────────────── -->
+<div id="inv-consent-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:1001;align-items:center;justify-content:center">
+  <div class="dlg-card" style="max-width:580px;width:94%;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+    <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0">
+      <strong>Zahlungsbedingungen — Rechnungskauf</strong>
+    </div>
+    <div id="inv-text" style="padding:14px 20px;overflow-y:auto;white-space:pre-wrap;font-size:12px;line-height:1.6;color:#334155;flex:1;min-height:0">Lade…</div>
+    <div style="padding:10px 20px;border-top:1px solid #f0f0f0;background:#fafaf9">
+      <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:13px;margin-bottom:12px">
+        <input type="checkbox" id="inv-cb" onchange="_invCheck()" style="margin-top:2px;flex-shrink:0">
+        <span>Ich habe die <strong>Zahlungsbedingungen für Rechnungskauf</strong> gelesen und akzeptiere sie.</span>
+      </label>
+      <div style="display:flex;justify-content:flex-end;gap:8px">
+        <button class="btn secondary" onclick="_invClose()">Abbrechen</button>
+        <button class="btn primary" id="inv-confirm-btn" disabled onclick="_invConfirm()">Akzeptieren &amp; Beantragen</button>
+      </div>
+    </div>
+    <div id="inv-msg" style="display:none;padding:6px 20px 10px;font-size:12px"></div>
+  </div>
 </div>
 
 <!-- ── Nutzungsbedingungen-Dialog ─────────────────────────────────────────── -->
@@ -794,6 +859,213 @@ function licBuyPrice() {
                  (_licState && _licState.licensed ? ', ab aktuellem Ablaufdatum' : '') +
                  '). Abbuchung vom Guthaben erfolgt brutto.';
 }
+// ── Hub-Consent-Modal (Gate A) ────────────────────────────────────────────────
+var _hcDocs = [
+  {id: 'hub-terms',          label: 'Hub-Nutzungsbedingungen'},
+  {id: 'license-supplement', label: 'Lizenzbedingungen-Ergänzung'},
+];
+var _hcData = [null, null];   // fetched {version, content_hash, text}
+var _hcPending = null;        // callback to run after consent
+
+async function _hcOpen(callback) {
+  _hcPending = callback;
+  document.getElementById('hub-consent-modal').style.display = 'flex';
+  _hcTab(0);
+}
+function _hcClose() {
+  document.getElementById('hub-consent-modal').style.display = 'none';
+  _hcPending = null;
+}
+async function _hcTab(idx) {
+  document.getElementById('hc-tab-0').style.borderBottom = idx === 0 ? '2px solid #2563eb' : '2px solid transparent';
+  document.getElementById('hc-tab-1').style.borderBottom = idx === 1 ? '2px solid #2563eb' : '2px solid transparent';
+  document.getElementById('hc-step-label').textContent = 'Schritt ' + (idx + 1) + ' von 2';
+  const txt = document.getElementById('hc-text');
+  if (_hcData[idx]) { txt.textContent = _hcData[idx].text; return; }
+  txt.textContent = 'Lade…';
+  try {
+    const d = await (await fetch('/api/legal/doc/' + _hcDocs[idx].id + '?lang=de')).json();
+    if (d.ok) { _hcData[idx] = d; txt.textContent = d.text; }
+    else txt.textContent = 'Fehler beim Laden: ' + (d.detail || 'unbekannt');
+  } catch(e) { txt.textContent = 'Netzwerkfehler.'; }
+}
+function _hcCheck() {
+  const ok = document.getElementById('hc-cb-0').checked && document.getElementById('hc-cb-1').checked;
+  document.getElementById('hc-confirm-btn').disabled = !ok;
+}
+async function _hcConfirm() {
+  const btn = document.getElementById('hc-confirm-btn');
+  btn.disabled = true;
+  const msg = document.getElementById('hc-msg');
+  msg.style.display = 'none';
+  for (let i = 0; i < 2; i++) {
+    if (!_hcData[i]) {
+      const d = await (await fetch('/api/legal/doc/' + _hcDocs[i].id + '?lang=de')).json();
+      if (d.ok) _hcData[i] = d; else { _hcMsg('Dokument ' + _hcDocs[i].label + ' nicht ladbar.', false); btn.disabled = false; return; }
+    }
+    const r = await fetch('/api/legal/consent', {method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({document_id: _hcDocs[i].id, version: _hcData[i].version,
+                            content_hash: _hcData[i].content_hash, context: 'hub_connect'})});
+    if (!r.ok) { const e = await r.json().catch(()=>({})); _hcMsg('Fehler beim Speichern: ' + (e.detail||''), false); btn.disabled = false; return; }
+  }
+  _hcClose();
+  legalLoadStatus();
+  if (_hcPending) { const fn = _hcPending; _hcPending = null; fn(); }
+}
+function _hcMsg(t, ok) { const el = document.getElementById('hc-msg'); el.textContent = t; el.style.color = ok ? '#166534' : '#dc2626'; el.style.display = 'block'; }
+
+// ── Invoice-Consent-Modal (Gate B) ────────────────────────────────────────────
+var _invData = null;
+var _invPending = null;
+
+async function _invOpen(callback) {
+  _invPending = callback;
+  document.getElementById('inv-consent-modal').style.display = 'flex';
+  const txt = document.getElementById('inv-text');
+  if (_invData) { txt.textContent = _invData.text; return; }
+  txt.textContent = 'Lade…';
+  try {
+    const d = await (await fetch('/api/legal/doc/payment-invoice?lang=de')).json();
+    if (d.ok) { _invData = d; txt.textContent = d.text; }
+    else txt.textContent = 'Fehler: ' + (d.detail||'');
+  } catch(e) { txt.textContent = 'Netzwerkfehler.'; }
+}
+function _invClose() {
+  document.getElementById('inv-consent-modal').style.display = 'none';
+  _invPending = null;
+}
+function _invCheck() {
+  document.getElementById('inv-confirm-btn').disabled = !document.getElementById('inv-cb').checked;
+}
+async function _invConfirm() {
+  const btn = document.getElementById('inv-confirm-btn');
+  btn.disabled = true;
+  if (!_invData) {
+    const d = await (await fetch('/api/legal/doc/payment-invoice?lang=de')).json();
+    if (d.ok) _invData = d;
+    else { _invMsg('Dokument nicht ladbar.', false); btn.disabled = false; return; }
+  }
+  const r = await fetch('/api/legal/consent', {method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({document_id:'payment-invoice', version: _invData.version,
+                          content_hash: _invData.content_hash, context: 'invoice_request'})});
+  if (!r.ok) { const e = await r.json().catch(()=>({})); _invMsg('Fehler: ' + (e.detail||''), false); btn.disabled = false; return; }
+  _invClose();
+  legalLoadStatus();
+  if (_invPending) { const fn = _invPending; _invPending = null; fn(); }
+}
+function _invMsg(t, ok) { const el = document.getElementById('inv-msg'); el.textContent = t; el.style.color = ok ? '#166534' : '#dc2626'; el.style.display = 'block'; }
+
+// ── Rechtliche Dokumente: Status + Download ───────────────────────────────────
+var _legalStatus = null;
+
+async function legalLoadStatus() {
+  try {
+    const d = await (await fetch('/api/legal/status')).json();
+    if (!d.ok) return;
+    _legalStatus = d.documents;
+    const docs = [
+      {id:'hub-terms', label:'Hub-Nutzungsbedingungen', consent: true},
+      {id:'license-supplement', label:'Lizenzbedingungen-Ergänzung', consent: true},
+      {id:'payment-invoice', label:'Zahlungsbedingungen (Rechnungskauf)', consent: true},
+      {id:'price-list', label:'Preisliste', consent: false},
+    ];
+    const list = document.getElementById('legal-doc-list');
+    list.innerHTML = docs.map(function(doc) {
+      const st = d.documents[doc.id] || {};
+      const badge = !doc.consent
+        ? '<span class="muted" style="font-size:11px">informativ</span>'
+        : st.accepted
+          ? '<span class="conn-badge conn-ok">✓ akzeptiert ' + (st.accepted_at ? st.accepted_at.slice(0,10) : '') + '</span>'
+          : '<span class="conn-badge conn-wait">ausstehend</span>';
+      return '<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f0f0f0">'
+        + '<div style="flex:1;font-size:13px;font-weight:500">' + doc.label + ' <span class="muted" style="font-weight:400">v' + (st.version||'1.0') + '</span></div>'
+        + badge
+        + '<button class="btn secondary" style="padding:2px 9px;font-size:11px" onclick="legalViewDoc(\'' + doc.id + '\')">'
+        + 'Lesen</button>'
+        + '</div>';
+    }).join('');
+  } catch(e) {}
+}
+
+async function legalViewDoc(docId) {
+  const d = await (await fetch('/api/legal/doc/' + docId + '?lang=de')).json();
+  if (!d.ok) { alert('Dokument nicht verfügbar: ' + (d.detail||'')); return; }
+  const modal = document.getElementById('terms-modal');
+  const txt = document.getElementById('terms-text');
+  const confirmBtn = document.getElementById('terms-confirm-btn');
+  const cancelBtn = document.getElementById('terms-cancel-btn');
+  txt.textContent = d.text;
+  confirmBtn.style.display = 'none';
+  cancelBtn.textContent = 'Schließen';
+  modal.style.display = 'flex';
+}
+
+document.addEventListener('DOMContentLoaded', legalLoadStatus);
+
+// ── Hub-Connect: Gate A prüfen vor Verbinden ──────────────────────────────────
+var _origHubConnect = typeof hubConnect !== 'undefined' ? hubConnect : null;
+
+async function _gatedHubConnect() {
+  // Check if hub-terms + license-supplement are already accepted
+  try {
+    const d = await (await fetch('/api/legal/status')).json();
+    const docs = d.documents || {};
+    const needConsent = !docs['hub-terms']?.accepted || !docs['license-supplement']?.accepted;
+    if (needConsent) {
+      _hcOpen(async function() { await _doHubConnect(); });
+      return;
+    }
+  } catch(e) { /* on error, try anyway — backend will reject if needed */ }
+  await _doHubConnect();
+}
+
+async function _doHubConnect() {
+  await hubSaveConfig();
+  _hubMsg('Verbinde… Registrierung wird übermittelt.', true);
+  const d = await (await fetch('/api/hub/register', {method:'POST'})).json();
+  if (!d.ok) { _hubMsg('Fehler: ' + (d.error || d.detail || 'Unbekannt'), false); return; }
+  if (d.email_sent) {
+    _startHubPoll(document.getElementById('hub-email') ? document.getElementById('hub-email').value.trim() : '');
+  } else {
+    _hubMsg('Registrierung übermittelt (Status: <strong>' + (d.status||'pending') + '</strong>). '
+      + (d.message||'Nach Freigabe den API-Key manuell eintragen.'), true);
+  }
+}
+
+// ── Invoice-Request: Gate B prüfen ───────────────────────────────────────────
+var _origCertRequestInvoice = typeof certRequestInvoice !== 'undefined' ? certRequestInvoice : null;
+
+async function _gatedCertRequestInvoice() {
+  try {
+    const d = await (await fetch('/api/legal/status')).json();
+    const docs = d.documents || {};
+    if (!docs['payment-invoice']?.accepted) {
+      _invOpen(async function() { await _doCertRequestInvoice(); });
+      return;
+    }
+  } catch(e) {}
+  await _doCertRequestInvoice();
+}
+
+async function _doCertRequestInvoice() {
+  const body = {
+    billing_company: (document.getElementById('inv-req-company')?.value||'').trim(),
+    billing_address: (document.getElementById('inv-req-address')?.value||'').trim(),
+    billing_vat:     (document.getElementById('inv-req-vat')?.value||'').trim(),
+    billing_contact: (document.getElementById('inv-req-contact')?.value||'').trim(),
+    billing_website: (document.getElementById('inv-req-website')?.value||'').trim(),
+  };
+  if (!body.billing_company || !body.billing_address || !body.billing_contact) {
+    _certMsg('Firma, Rechnungsadresse und Ansprechpartner sind erforderlich.', false); return;
+  }
+  const d = await (await fetch('/api/hub/cert/request-invoice', {method:'POST',
+    headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)})).json();
+  if (d.ok) { _certMsg('Antrag gestellt — EXO Signature HUB wurde benachrichtigt.', true); certLoadEligibility(); }
+  else { _certMsg('Fehler: ' + (d.detail||d.error||'Unbekannt'), false); }
+}
+
 async function licBuy() {
   const lic = parseInt(document.getElementById('lic-buy-licenses').value, 10) || 0;
   const total = lic + 100;
@@ -821,5 +1093,11 @@ async function licBuy() {
   } catch(e) { _licMsg('Netzwerkfehler.', false); }
   btn.disabled = false;
 }
+
+// ── Gated-Overrides (müssen nach allen Funktionsdefinitionen stehen) ──────────
+// hubConnect() → Gate A (Consent prüfen) → _doHubConnect()
+hubConnect = _gatedHubConnect;
+// certRequestInvoice() → Gate B (Consent prüfen) → _doCertRequestInvoice()
+certRequestInvoice = _gatedCertRequestInvoice;
 </script>
 {% endblock %}
