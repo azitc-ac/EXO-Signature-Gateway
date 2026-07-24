@@ -1806,6 +1806,7 @@ async def dashboard(request: Request, user: str = Depends(_check_auth)):
             "active": "dashboard",
             "password_change_needed": pw_change,
             "gateway_name": _gateway_name(),
+            "show_welcome_banner": not settings_store.get("WELCOME_DISMISSED"),
         },
     )
 
@@ -4593,6 +4594,65 @@ async def api_support_upload(request: Request, user: str = Depends(_require_admi
     return JSONResponse(result)
 
 
+# ── Welcome-Banner (Erstinstallations-Hinweis) ────────────────────────────────
+
+@app.post("/api/welcome/dismiss")
+async def api_welcome_dismiss(user: str = Depends(_require_admin)):
+    settings_store.update({"WELCOME_DISMISSED": True})
+    return JSONResponse({"ok": True})
+
+
+# ── Rechtliche Dokumente / Consent ────────────────────────────────────────────
+
+@app.get("/api/legal/status")
+async def api_legal_status(user: str = Depends(_require_admin)):
+    import legal_consent
+    return JSONResponse({"ok": True, "documents": legal_consent.consent_status_all()})
+
+
+@app.get("/api/legal/doc/{doc_id}")
+async def api_legal_doc(doc_id: str, lang: str = "de", user: str = Depends(_require_admin)):
+    import legal_consent
+    if doc_id not in legal_consent.CURRENT_DOCUMENTS:
+        raise HTTPException(404, "Dokument nicht gefunden.")
+    text = legal_consent.get_document_text(doc_id, lang)
+    if not text:
+        raise HTTPException(404, "Dokumenttext nicht verfügbar.")
+    doc = legal_consent.CURRENT_DOCUMENTS[doc_id]
+    return JSONResponse({
+        "ok": True,
+        "doc_id": doc_id,
+        "version": doc["version"],
+        "label": doc.get(f"label_{lang}", doc.get("label_de", doc_id)),
+        "text": text,
+        "content_hash": legal_consent.compute_document_hash(doc_id),
+    })
+
+
+@app.post("/api/legal/consent")
+async def api_legal_consent(request: Request, user: str = Depends(_require_admin)):
+    import legal_consent
+    data = await request.json()
+    doc_id = (data.get("document_id") or "").strip()
+    version = (data.get("version") or "").strip()
+    content_hash = (data.get("content_hash") or "").strip()
+    context = (data.get("context") or "").strip()
+    if not doc_id or not version or not content_hash:
+        raise HTTPException(400, "document_id, version und content_hash sind erforderlich.")
+    if doc_id not in legal_consent.CURRENT_DOCUMENTS:
+        raise HTTPException(404, "Unbekanntes Dokument.")
+    doc = legal_consent.CURRENT_DOCUMENTS[doc_id]
+    if doc.get("no_consent_required"):
+        raise HTTPException(400, "Dieses Dokument erfordert keine Zustimmung.")
+    if doc["version"] != version:
+        raise HTTPException(409, f"Version stimmt nicht überein (aktuell: {doc['version']}).")
+    expected_hash = legal_consent.compute_document_hash(doc_id)
+    if expected_hash and content_hash != expected_hash:
+        raise HTTPException(409, "Inhaltsprüfsumme stimmt nicht überein.")
+    ok = legal_consent.record_consent(doc_id, version, content_hash, context)
+    return JSONResponse({"ok": ok})
+
+
 # ── Provider Hub (sig-provider) client ────────────────────────────────────────
 
 @app.get("/api/hub/config")
@@ -4627,6 +4687,9 @@ async def api_hub_config_set(request: Request, user: str = Depends(_require_admi
 @app.post("/api/hub/register")
 async def api_hub_register(user: str = Depends(_require_admin)):
     import hub_client
+    import legal_consent
+    if not legal_consent.context_consented("hub_connect"):
+        raise HTTPException(403, "Nutzungsbedingungen und Lizenzbedingungen müssen zuerst akzeptiert werden.")
     return JSONResponse(await hub_client.register())
 
 
@@ -4640,6 +4703,9 @@ async def api_hub_claim(user: str = Depends(_require_admin)):
 @app.post("/api/hub/cert/request-invoice")
 async def api_hub_cert_request_invoice(request: Request, user: str = Depends(_require_admin)):
     import hub_client
+    import legal_consent
+    if not legal_consent.context_consented("invoice_request"):
+        raise HTTPException(403, "Zahlungsbedingungen (Rechnungskauf) müssen zuerst akzeptiert werden.")
     try:
         data = await request.json()
     except Exception:

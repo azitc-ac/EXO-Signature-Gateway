@@ -46,6 +46,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # ── App code ──────────────────────────────────────────────────────────────────
 COPY app/ .
+COPY legal/ /app/legal/
 COPY VERSION /app/VERSION
 COPY CHANGELOG.md /app/CHANGELOG.md
 

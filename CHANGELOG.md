@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.0 — 2026-07-24 — Legal/Consent: Nutzungsbedingungen, Erstinstallations-Banner, Anbindung & Lizenzen
+
+- **Rechtliche Dokumente** (`legal/de/` + `legal/en/`): Hub-Nutzungsbedingungen, Lizenzbedingungen-Ergänzung, Zahlungsbedingungen Rechnungskauf, Preisliste (v1.0, 24.07.2026)
+- **`legal_consent.py`**: SQLite-Consent-Modul (append-only), SHA-256-Prüfsummen-Bindung, semantische Versionsprüfung
+- **Gate A** (`POST /api/hub/register`): blockiert Hub-Verbindung bis Hub-NB + Lizenzbedingungen akzeptiert
+- **Gate B** (`POST /api/hub/cert/request-invoice`): blockiert Rechnungsantrag bis Zahlungsbedingungen akzeptiert
+- **Consent-Modals**: zweistufiger Consent-Dialog für Gate A (Tab-Ansicht), einstufig für Gate B; Akzeptieren-Schaltfläche erst nach Ankreuzen aktiv
+- **API-Routen**: `GET /api/legal/doc/{id}`, `GET /api/legal/status`, `POST /api/legal/consent`, `POST /api/welcome/dismiss`
+- **Erstinstallations-Banner**: dismissbarer Info-Banner auf dem Dashboard (blau, mit Lizenzmodell-Hinweis und Link zu Anbindung & Lizenzen); setzt `WELCOME_DISMISSED`-Flag
+- **Nav**: „Anbindung" → „Anbindung & Lizenzen" (Sub-Tab in Einstellungen)
+- **Legal-Sektion** in Anbindung & Lizenzen: zeigt alle Dokumente mit Zustimmungsstatus, Datum und Lese-Button
+- **Dockerfile**: `COPY legal/ /app/legal/` — Dokumente ins Image gebacken
+
 ## v1.6.40 — 2026-07-22 — S/MIME Auto-Renew: eigene Checkbox, Nächste-Erneuerung-Datum, Preisangabe
 
 - Neues `auto_renew`-Feld in `CA_USER_CONFIG` (separat von `notify_user`)
