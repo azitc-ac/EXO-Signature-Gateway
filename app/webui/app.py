@@ -1507,8 +1507,10 @@ async def api_get_mailboxes(_=Depends(_check_auth)):
     import exo_mailboxes
     import mailbox_match
     raw = await asyncio.to_thread(exo_mailboxes.list_mailboxes)
+    _type_map = {"UserMailbox": "user", "SharedMailbox": "shared",
+                 "RoomMailbox": "room", "EquipmentMailbox": "equipment"}
     users = [{"email": m["primary"], "name": m.get("display_name") or m["primary"],
-             "type": "user" if m.get("type") == "UserMailbox" else "shared"}
+             "type": _type_map.get(m.get("type", ""), "shared")}
             for m in raw if m.get("primary")]
     config_map: dict = settings_store.get("MAILBOX_CONFIG") or {}
     health_map: dict = settings_store.get("MAILBOX_HEALTH") or {}
@@ -3275,10 +3277,14 @@ async def api_acme_clear_order(email: str, user: str = Depends(_check_auth)):
 
 
 @app.post("/api/smime/renewal/initiate/{email}")
-async def api_acme_initiate(email: str, user: str = Depends(_check_auth)):
+async def api_acme_initiate(request: Request, email: str, user: str = Depends(_check_auth)):
     import ca_backends as _ca
     import acme_state as _acme_state
     email = email.lower().strip()
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
     ca_cfg: dict = (settings_store.get("CA_USER_CONFIG") or {}).get(email, {})
     backend_name = ca_cfg.get("backend", "assisted_manual")
     backend = _ca.get_backend(backend_name)
@@ -3302,7 +3308,7 @@ async def api_acme_initiate(email: str, user: str = Depends(_check_auth)):
         return JSONResponse({"ok": True, "resumed": True})
 
     try:
-        await backend.initiate_renewal(email, ca_cfg)
+        await backend.initiate_renewal(email, ca_cfg, extra=body)
         log.info("ACME renewal initiated for %s by %s", email, user)
         return JSONResponse({"ok": True})
     except _acme_state.EnrollmentNotAllowed as exc:

@@ -43,8 +43,10 @@ class CABackend(ABC):
     ) -> str:
         """Return HTML renewal instructions for the notification email sent to the user."""
 
-    async def initiate_renewal(self, email: str, user_config: dict) -> bool:
+    async def initiate_renewal(self, email: str, user_config: dict,
+                               extra: dict | None = None) -> bool:
         """Initiate automated renewal (Backend B only).
+        extra: optional per-call metadata (e.g. ca_terms_accepted_at).
         Raises NotImplementedError when not supported by this backend.
         """
         raise NotImplementedError(f"Backend '{self.get_name()}' unterstützt kein Auto-Renewal")

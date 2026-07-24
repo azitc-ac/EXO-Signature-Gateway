@@ -65,7 +65,7 @@ class CastleAcmeBackend(CABackend):
 </p>
 """
 
-    async def initiate_renewal(self, email: str, user_config: dict) -> bool:
+    async def initiate_renewal(self, email: str, user_config: dict, extra: dict | None = None) -> bool:
         """
         Initiates the ACME RFC 8823 order with CASTLE Platform.
         The challenge email interception + response happens in handler.py.

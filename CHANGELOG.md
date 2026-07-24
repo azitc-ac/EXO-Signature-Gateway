@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.4 — 2026-07-25 — CA-Bedingungen-Consent vor Zertifikatsbestellung
+
+- **`smime.html`**: `startAutoEnroll()` prüft, ob das gewählte Hub-Backend eine `terms_url` hat; wenn ja, erscheint ein Modal mit Link zu den CA-Bedingungen und Pflicht-Checkbox vor der Bestellung
+- **`_showCaTermsModal()`**: neue JS-Funktion — Overlay mit CA-Name, `terms_url`-Link, Checkbox, Abbrechen/Bestellen; löst Promise mit `true`/`false`
+- **`hub_client.cert_order()`**: neuer Parameter `ca_terms_accepted_at` (ISO-UTC-Timestamp), wird im Request-Body mitgeschickt
+- **`ca_backends/base.py` + Unterklassen**: `initiate_renewal()` nimmt jetzt `extra: dict | None = None` entgegen
+- **`ca_backends/hub_provider.py`**: liest `ca_terms_accepted_at` aus `extra`, reicht es an `cert_order()` weiter
+- **`app.py /api/smime/renewal/initiate`**: liest optionalen JSON-Body, übergibt ihn als `extra` an `backend.initiate_renewal()`
+- **`ca_backends/registry.py`**: `terms_url` aus Hub-Katalog in `list_backends()` mitgeliefert → landet in `_BACKEND_CAPS` im Browser
+
 ## v1.7.3 — 2026-07-25 — Consent-Receipt-Übermittlung an den Hub bei Registrierung
 
 - **`legal_consent.get_consent_receipts_for_hub()`**: liefert strukturierte Zustimmungsnachweise für hub_connect-Dokumente (doc_id, version, SHA-256-Hash, accepted_at)
