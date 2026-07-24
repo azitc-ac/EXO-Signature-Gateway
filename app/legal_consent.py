@@ -174,6 +174,41 @@ def consent_status_all() -> dict:
     return result
 
 
+def get_consent_receipts_for_hub() -> list[dict]:
+    """Return structured consent records for all hub_connect documents.
+    Called by hub_client.register() to bundle receipts with the registration payload.
+    Returns [{doc_id, version, content_hash, accepted_at}] for each accepted document,
+    empty list if any document is not yet accepted."""
+    doc_ids = CONTEXT_DOCUMENTS.get("hub_connect", [])
+    receipts: list[dict] = []
+    try:
+        with _conn() as c:
+            for doc_id in doc_ids:
+                doc = CURRENT_DOCUMENTS.get(doc_id)
+                if not doc:
+                    continue
+                version = doc["version"]
+                h = compute_document_hash(doc_id)
+                if not h:
+                    continue
+                row = c.execute(
+                    "SELECT accepted_at FROM consents "
+                    "WHERE document_id=? AND version=? AND content_hash=? "
+                    "ORDER BY id ASC LIMIT 1",
+                    (doc_id, version, h),
+                ).fetchone()
+                if row:
+                    receipts.append({
+                        "doc_id": doc_id,
+                        "doc_version": version,
+                        "doc_hash": h,
+                        "accepted_at": row["accepted_at"],
+                    })
+    except Exception as e:
+        log.error("legal_consent.get_consent_receipts_for_hub: %s", e)
+    return receipts
+
+
 def get_consent_history(limit: int = 200) -> list[dict]:
     """Recent consent records, newest first."""
     try:

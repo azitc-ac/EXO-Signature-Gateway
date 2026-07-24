@@ -83,22 +83,38 @@ zurechenbar, soweit er die Kompromittierung zu vertreten hat.
 
 ## 4. Datenübermittlung an den Hub
 
-4.1 Bei bestehender Hub-Anbindung übermittelt das Gateway an den Hub:
+4.1 **Einmalig bei der erstmaligen Anbindung** übermittelt das Gateway folgende
+Daten an den Hub, damit der Anbieter den Vertragsabschluss und die Annahme der
+Vertragsdokumente nachweisbar festhalten kann:
 
-- Kennung des Gateways und der Instanz,
-- Version des Gateways,
-- Anzahl aktivierter Postfachidentitäten (siehe Ziffer 6),
-- Status und Version akzeptierter Vertragsdokumente,
+- Kunden-E-Mail-Adresse (wie bei der Registrierung angegeben),
+- Mandanten-Domain des Exchange Online-Tenants des Kunden,
+- Gateway-Versionsnummer zum Zeitpunkt der Anbindung,
+- für jedes akzeptierte Vertragsdokument: technische Dokument-ID,
+  Versionsnummer, kryptografische Prüfsumme des Dokumententexts (SHA-256) und
+  Zeitpunkt der Zustimmung (UTC).
+
+Diese Daten werden beim Anbieter dauerhaft gespeichert.
+
+4.2 **Im laufenden Betrieb** bei bestehender Hub-Anbindung können je nach
+Nutzung folgende Daten übermittelt werden:
+
 - im Rahmen von Zertifikatsbestellungen die dafür erforderlichen Daten,
 - bei Supportanfragen die vom Kunden übermittelten Inhalte.
 
-4.2 **E-Mail-Inhalte, Verkehrsdaten und private Schlüssel werden nicht an den
+4.3 **Telemetriedaten werden nicht übermittelt.** Das Gateway sendet keine
+Nutzungsstatistiken, keine Mailflussdaten, keine Postfachzählungen und keine
+sonstigen Betriebsdaten automatisch an den Hub — weder einmalig noch laufend.
+Lizenzkonformität nach Ziffer 6 obliegt dem Kunden; eine automatisierte
+Überwachung findet nicht statt.
+
+4.4 **E-Mail-Inhalte, Verkehrsdaten und private Schlüssel werden nicht an den
 Hub übermittelt.**
 
-4.3 Der Anbieter verarbeitet die übermittelten Daten zur Vertragserfüllung und
-zur Prüfung der Lizenzkonformität.
+4.5 Der Anbieter verarbeitet die übermittelten Daten zur Vertragserfüllung und
+zur Dokumentation des Vertragsabschlusses.
 
-4.4 Einzelheiten regelt die Datenschutzerklärung unter
+4.6 Einzelheiten regelt die Datenschutzerklärung unter
 https://blog.zarenko.net/datenschutzerklaerung-2/.
 
 ---
