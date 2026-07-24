@@ -85,21 +85,36 @@ the extent the Customer is responsible for the compromise.
 
 ## 4. Data Transmitted to the Hub
 
-4.1 With an active Hub connection, the Gateway transmits to the Hub:
+4.1 **Once, at the time of initial connection**, the Gateway transmits the
+following data to the Hub so that the Provider can maintain a verifiable record
+of contract conclusion and acceptance of contractual documents:
 
-- gateway and instance identifier,
-- gateway version,
-- number of activated mailbox identities (see Section 6),
-- status and version of accepted contractual documents,
+- Customer email address (as provided during registration),
+- tenant domain of the Customer's Exchange Online tenant,
+- gateway version number at the time of connection,
+- for each accepted contractual document: technical document ID, version number,
+  cryptographic hash of the document text (SHA-256), and the timestamp of
+  acceptance (UTC).
+
+This data is stored permanently by the Provider.
+
+4.2 **During ongoing operation** with an active Hub connection, the following
+data may be transmitted depending on usage:
+
 - data required for certificate orders as part of such orders,
 - content submitted by the Customer in the context of support requests.
 
-4.2 **Email content, traffic data, and private keys are not transmitted to the Hub.**
+4.3 **No telemetry is transmitted.** The Gateway does not automatically send
+usage statistics, mail flow data, mailbox counts, or any other operational data
+to the Hub — neither once nor on an ongoing basis. License compliance under
+Section 6 is the Customer's responsibility; no automated monitoring takes place.
 
-4.3 The Provider processes the transmitted data for the purpose of contract
-performance and license compliance verification.
+4.4 **Email content, traffic data, and private keys are not transmitted to the Hub.**
 
-4.4 Details are governed by the Privacy Policy at
+4.5 The Provider processes the transmitted data for the purpose of contract
+performance and documentation of contract conclusion.
+
+4.6 Details are governed by the Privacy Policy at
 https://blog.zarenko.net/datenschutzerklaerung-2/.
 
 ---

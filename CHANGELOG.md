@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.3 — 2026-07-25 — Consent-Receipt-Übermittlung an den Hub bei Registrierung
+
+- **`legal_consent.get_consent_receipts_for_hub()`**: liefert strukturierte Zustimmungsnachweise für hub_connect-Dokumente (doc_id, version, SHA-256-Hash, accepted_at)
+- **`hub_client.register()`**: sendet `consent_receipts`-Array zusammen mit `tenant_domain` und `gateway_version` im Registrierungs-Payload an den Hub
+- **Nutzungsbedingungen Abschnitt 4** (DE + EN): präzisiert — einmalige Übermittlung bei Anbindung mit exakter Feldliste; Telemetrie-Ausschluss explizit dokumentiert (Ziffer 4.3/4.3)
+
 ## v1.7.2 — 2026-07-25 — Fair-Use-Zähler + Raum-/Geräte-Postfächer in Postfach-Übersicht
 
 - **Postfach-Typen**: `Get-EXOMailbox` liefert jetzt auch `RoomMailbox` + `EquipmentMailbox`; Typ-Badges (Shared/Raum/Gerät) in der E-Mail-Spalte

@@ -86,7 +86,10 @@ def cert_is_registered() -> bool:
 
 async def register() -> dict:
     """Start the self-service connection: send a claim token so the gateway can
-    later pull the issued API key (after the operator confirms via email)."""
+    later pull the issued API key (after the operator confirms via email).
+    Consent receipts for hub_connect documents are bundled in the payload so the
+    hub can persist them as the authoritative acceptance record."""
+    import legal_consent
     base = _base()
     email = (settings_store.get("HUB_CUSTOMER_EMAIL") or "").strip().lower()
     name = (settings_store.get("HUB_CUSTOMER_NAME") or "").strip()
@@ -96,10 +99,16 @@ async def register() -> dict:
         return {"ok": False, "error": "Gültige Kunden-E-Mail erforderlich."}
     claim = secrets.token_urlsafe(32)
     settings_store.update({"HUB_CLAIM_TOKEN": claim})
+    tenant_domain = (settings_store.get("TENANT_DOMAIN") or "").strip()
+    receipts = legal_consent.get_consent_receipts_for_hub()
+    for r in receipts:
+        r["tenant_domain"] = tenant_domain
+        r["gateway_version"] = _gateway_version()
     try:
         async with httpx.AsyncClient(timeout=20) as c:
             r = await c.post(f"{base}/api/register",
-                             json={"email": email, "name": name, "want": "support", "claim_token": claim})
+                             json={"email": email, "name": name, "want": "support",
+                                   "claim_token": claim, "consent_receipts": receipts})
         data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
         if r.status_code == 200 and data.get("ok"):
             return {"ok": True, "status": data.get("status"),
@@ -107,6 +116,14 @@ async def register() -> dict:
         return {"ok": False, "error": data.get("detail") or f"HTTP {r.status_code}: {r.text[:200]}"}
     except Exception as exc:
         return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
+
+
+def _gateway_version() -> str:
+    try:
+        from pathlib import Path
+        return Path("/app/VERSION").read_text().strip()
+    except Exception:
+        return ""
 
 
 async def poll_claim() -> dict:
