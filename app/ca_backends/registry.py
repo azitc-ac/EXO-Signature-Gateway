@@ -65,5 +65,6 @@ def list_backends() -> list[dict]:
             "price_cents": p.get("price_cents"),
             "currency": hub_catalog.currency(),
             "validity_months": p.get("validity_months"),
+            "terms_url": p.get("terms_url", ""),
         })
     return out

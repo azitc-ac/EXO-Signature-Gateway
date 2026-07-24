@@ -67,15 +67,18 @@ fehlschlägt, informiert das Gateway den Administrator. Manueller Upload als
 Fallback: <a href="{upload_url}" style="word-break:break-all">{upload_url}</a></p>
 """
 
-    async def initiate_renewal(self, email: str, user_config: dict) -> bool:
+    async def initiate_renewal(self, email: str, user_config: dict,
+                               extra: dict | None = None) -> bool:
         import hub_client
         import hub_orders
         if not hub_client.cert_is_registered():
             raise RuntimeError(
                 "Cert-Provider-Hub nicht registriert/freigegeben (Erweitert-Tab).")
         provider_id = self._p.get("id", "")
+        ca_terms_accepted_at = (extra or {}).get("ca_terms_accepted_at", "")
         key_pem, csr_pem = _generate_key_and_csr_pem(email)
-        result = await hub_client.cert_order(email, csr_pem.decode(), {}, provider=provider_id)
+        result = await hub_client.cert_order(email, csr_pem.decode(), {}, provider=provider_id,
+                                             ca_terms_accepted_at=ca_terms_accepted_at)
         if not result.get("ok"):
             raise RuntimeError(f"Hub-Bestellung fehlgeschlagen: {result.get('error')}")
 

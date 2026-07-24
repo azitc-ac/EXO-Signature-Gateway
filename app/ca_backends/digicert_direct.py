@@ -49,7 +49,7 @@ Administrator. Manueller Upload als Fallback:
 <a href="{upload_url}" style="word-break:break-all">{upload_url}</a></p>
 """
 
-    async def initiate_renewal(self, email: str, user_config: dict) -> bool:
+    async def initiate_renewal(self, email: str, user_config: dict, extra: dict | None = None) -> bool:
         import digicert_client
         import hub_orders
         if not digicert_client.is_configured():

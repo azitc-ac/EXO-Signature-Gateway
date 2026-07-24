@@ -364,14 +364,18 @@ async def cert_eligibility() -> dict:
 
 
 async def cert_order(target_email: str, csr_pem: str, extra: dict | None = None,
-                     provider: str = "sectigo") -> dict:
-    """Submit an S/MIME cert order via the ONE hub account (operator holds CA creds)."""
+                     provider: str = "sectigo",
+                     ca_terms_accepted_at: str = "") -> dict:
+    """Submit an S/MIME cert order via the ONE hub account (operator holds CA creds).
+    ca_terms_accepted_at: ISO UTC timestamp when the customer accepted the CA's subscriber
+    agreement (required by Hub when the provider has a terms_url)."""
     base = _base()
     if not base:
         return {"ok": False, "error": "Hub-Adresse (HUB_BASE_URL) nicht gesetzt."}
     if not _key():
         return {"ok": False, "error": "Nicht registriert/freigegeben — kein API-Key."}
-    body = {"provider": provider or "sectigo", "email": target_email, "csr": csr_pem, "extra": extra or {}}
+    body = {"provider": provider or "sectigo", "email": target_email, "csr": csr_pem, "extra": extra or {},
+            "ca_terms_accepted_at": ca_terms_accepted_at}
     try:
         async with httpx.AsyncClient(timeout=60) as c:
             r = await c.post(f"{base}/api/cert/order",
