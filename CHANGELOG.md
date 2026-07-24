@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.2 — 2026-07-25 — Fair-Use-Zähler + Raum-/Geräte-Postfächer in Postfach-Übersicht
+
+- **Postfach-Typen**: `Get-EXOMailbox` liefert jetzt auch `RoomMailbox` + `EquipmentMailbox`; Typ-Badges (Shared/Raum/Gerät) in der E-Mail-Spalte
+- **Raum-/Geräte-Postfächer**: controls (Sig, S/MIME, Policy, Vorlagen, Banner, Add-in) deaktiviert; Zeile auf 70 % Deckkraft gedimmt; „zählt nicht zur Lizenz"-Hinweis
+- **Fair-Use-Zähler-Widget**: Fortschrittsbalken + N/Limit-Anzeige + Badge (Community Edition / Lizenziert / Limit überschritten) oberhalb der Tabelle; zeigt immer den aktuellen EXO-Stand
+- `setAllVisible()`: überspringt deaktivierte (Raum/Gerät-)Checkboxen
+- Backend (line 1661): überspringt Einträge mit sig=False & smime=False — d.h. Raum-/Geräte-Postfächer werden nie in MAILBOX_CONFIG gespeichert
+
 ## v1.7.0 — 2026-07-24 — Legal/Consent: Nutzungsbedingungen, Erstinstallations-Banner, Anbindung & Lizenzen
 
 - **Rechtliche Dokumente** (`legal/de/` + `legal/en/`): Hub-Nutzungsbedingungen, Lizenzbedingungen-Ergänzung, Zahlungsbedingungen Rechnungskauf, Preisliste (v1.0, 24.07.2026)

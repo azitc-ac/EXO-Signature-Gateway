@@ -2,23 +2,79 @@
 {% block content %}
 <h1>Postfächer</h1>
 
-<div id="fairuse-banner" style="display:none;margin-bottom:16px">
+<div id="fairuse-banner" style="display:none;margin-bottom:12px">
   <div class="alert warn">
     <strong>Fair-Use-Hinweis:</strong> <span id="fairuse-text"></span>
-    Lizenz über die <a href="/settings/connect" style="color:inherit;font-weight:700">Hub-Anbindung</a>
+    Lizenz über die <a href="/settings/connect" style="color:inherit;font-weight:700">Anbindung &amp; Lizenzen</a>
     beziehen oder per Mail an <a href="mailto:support@zarenko.net" style="color:inherit;font-weight:700">support@zarenko.net</a>.
   </div>
 </div>
+
+<!-- Fair-Use-Zähler -->
+<div id="fairuse-counter" style="display:none;margin-bottom:16px">
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <div style="flex:1;min-width:180px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;color:#374151;margin-bottom:4px">
+        <span>Aktivierte Postfächer
+          <span id="fu-info-btn" title="Was zählt zur Lizenz?" style="cursor:pointer;color:#94a3b8;font-size:11px;margin-left:4px" onclick="_fuInfoToggle()">ⓘ</span>
+        </span>
+        <span><span id="fu-count">0</span> / <span id="fu-limit">100</span></span>
+      </div>
+      <div style="height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden">
+        <div id="fu-bar" style="height:100%;border-radius:3px;background:#22c55e;transition:width .3s,background .3s;width:0%"></div>
+      </div>
+    </div>
+    <div id="fu-badge" style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:10px;white-space:nowrap"></div>
+  </div>
+  <div id="fu-info-box" style="display:none;margin-top:8px;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;color:#374151;line-height:1.6">
+    <strong>Zählregel:</strong> Jedes Postfach mit aktiver Signatur <em>oder</em> aktivem S/MIME zählt —
+    unabhängig davon ob tatsächlich Mails verarbeitet wurden.<br>
+    <strong>Nicht gezählt:</strong> Raum- und Geräte-Postfächer (Room/Equipment).<br>
+    <strong>Freigrenze:</strong> Bis 100 Postfächer kostenlos (Community Edition).
+    Ab dem 101. sind Lizenzen erforderlich (Mindestabnahme 10).
+    Details unter <a href="/settings/connect">Anbindung &amp; Lizenzen</a>.
+  </div>
+</div>
+
 <script>
+function _fuInfoToggle() {
+  var b = document.getElementById('fu-info-box');
+  b.style.display = b.style.display === 'none' ? 'block' : 'none';
+}
 function refreshFairUse(){
   fetch('/api/license/status').then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
+    if (!d) return;
+    // Exceeded banner
     var b = document.getElementById('fairuse-banner');
-    if (!d || !d.exceeded) { b.style.display = 'none'; return; }
-    document.getElementById('fairuse-text').textContent =
-      d.count + ' Postfächer sind für Signatur/S/MIME aktiviert — ' +
-      (d.licensed ? 'das lizenzierte Limit (' + d.limit + ') ist überschritten. '
-                  : 'die Fair-Use-Grenze (' + d.limit + ') ist überschritten. ');
-    b.style.display = '';
+    if (d.exceeded) {
+      document.getElementById('fairuse-text').textContent =
+        d.count + ' Postfächer sind für Signatur/S/MIME aktiviert — ' +
+        (d.licensed ? 'das lizenzierte Limit (' + d.limit + ') ist überschritten. '
+                    : 'die Fair-Use-Grenze (' + d.limit + ') ist überschritten. ');
+      b.style.display = '';
+    } else {
+      b.style.display = 'none';
+    }
+    // Counter widget
+    var count = d.count || 0, limit = d.limit || 100;
+    var pct = limit > 0 ? Math.min(100, Math.round(count / limit * 100)) : 0;
+    var barColor = d.exceeded ? '#dc2626' : pct >= 80 ? '#d97706' : '#22c55e';
+    document.getElementById('fu-count').textContent = count;
+    document.getElementById('fu-limit').textContent = limit > 0 ? limit : '∞';
+    document.getElementById('fu-bar').style.width = pct + '%';
+    document.getElementById('fu-bar').style.background = barColor;
+    var badge = document.getElementById('fu-badge');
+    if (d.exceeded) {
+      badge.textContent = '⚠ Limit überschritten';
+      badge.style.cssText = 'font-size:11px;font-weight:600;padding:3px 10px;border-radius:10px;white-space:nowrap;background:#fee2e2;color:#991b1b';
+    } else if (d.licensed) {
+      badge.textContent = '✓ Lizenziert';
+      badge.style.cssText = 'font-size:11px;font-weight:600;padding:3px 10px;border-radius:10px;white-space:nowrap;background:#dcfce7;color:#166534';
+    } else {
+      badge.textContent = 'Community Edition';
+      badge.style.cssText = 'font-size:11px;font-weight:600;padding:3px 10px;border-radius:10px;white-space:nowrap;background:#f1f5f9;color:#64748b';
+    }
+    document.getElementById('fairuse-counter').style.display = '';
   }).catch(function(){});
 }
 refreshFairUse();
@@ -684,18 +740,26 @@ function renderMailboxTable(mailboxes) {
     _hasHealthData = true;
     document.getElementById('th-status').style.display = '';
   }
+  var _typeBadge = {
+    'shared':    '<span style="display:inline-block;font-size:10px;font-weight:600;padding:1px 6px;border-radius:8px;margin-left:5px;background:#dbeafe;color:#1e40af;vertical-align:middle">Shared</span>',
+    'room':      '<span style="display:inline-block;font-size:10px;font-weight:600;padding:1px 6px;border-radius:8px;margin-left:5px;background:#f1f5f9;color:#64748b;vertical-align:middle">Raum</span>',
+    'equipment': '<span style="display:inline-block;font-size:10px;font-weight:600;padding:1px 6px;border-radius:8px;margin-left:5px;background:#f1f5f9;color:#64748b;vertical-align:middle">Gerät</span>',
+  };
   mailboxes.forEach(function(mb, i) {
-    if (mb.type && mb.type !== 'user') return;
     mb._idx = i;
+    var isResource = (mb.type === 'room' || mb.type === 'equipment');
     var tr = document.createElement('tr');
     tr.style.borderBottom = '1px solid #f0f0f0';
+    if (isResource) tr.style.opacity = '0.7';
     tr.dataset.search = (mb.email + ' ' + (mb.name || '')).toLowerCase();
 
     // Email cell
     var tdEmail = document.createElement('td');
     tdEmail.style.padding = '6px 8px';
-    tdEmail.innerHTML = '<strong>' + mb.email + '</strong>' +
-      (mb.name && mb.name !== mb.email ? '<br><span style="color:#888;font-size:11px">' + mb.name + '</span>' : '');
+    var badge = _typeBadge[mb.type] || '';
+    tdEmail.innerHTML = '<strong>' + mb.email + '</strong>' + badge +
+      (mb.name && mb.name !== mb.email ? '<br><span style="color:#888;font-size:11px">' + mb.name + '</span>' : '') +
+      (isResource ? '<br><span style="color:#94a3b8;font-size:10px">zählt nicht zur Lizenz</span>' : '');
 
     // Standardsignatur checkbox
     var tdSig = document.createElement('td');
@@ -705,6 +769,7 @@ function renderMailboxTable(mailboxes) {
     sigCb.className = 'mb-sig';
     sigCb.dataset.idx = String(i);
     if (mb.sig) sigCb.checked = true;
+    if (isResource) { sigCb.disabled = true; sigCb.title = 'Raum-/Geräte-Postfächer können nicht aktiviert werden'; }
     tdSig.appendChild(sigCb);
 
     // Vorlagenrichtlinien übernehmen checkbox
@@ -717,6 +782,7 @@ function renderMailboxTable(mailboxes) {
     policyCb.dataset.idx = String(i);
     policyCb.checked = policyActive;
     policyCb.title = 'Vorlage aus Vorlagenrichtlinien übernehmen';
+    if (isResource) policyCb.disabled = true;
     tdPolicy.appendChild(policyCb);
 
     // Vorlage select — greyed when policyActive
@@ -792,6 +858,7 @@ function renderMailboxTable(mailboxes) {
     smimeCb.className = 'mb-smime';
     smimeCb.dataset.idx = String(i);
     if (mb.smime) smimeCb.checked = true;
+    if (isResource) { smimeCb.disabled = true; smimeCb.title = 'Raum-/Geräte-Postfächer können nicht aktiviert werden'; }
     tdSmime.appendChild(smimeCb);
 
     // Health status
@@ -825,6 +892,13 @@ function renderMailboxTable(mailboxes) {
     policyCb.addEventListener('change', _applyPolicy);
     sigCb.addEventListener('change', _applyPolicy);
 
+    if (isResource) {
+      tplSel.disabled = true; tplSel.style.opacity = '0.4';
+      minSigSel.disabled = true; minSigSel.style.opacity = '0.4';
+      bannerSel.disabled = true; bannerSel.style.opacity = '0.4';
+      addinCtrl.style.pointerEvents = 'none'; addinCtrl.style.opacity = '0.4';
+    }
+
     // Column order: Status, Postfach, Signatur, S/MIME, Vorlagen-Richtlinien, Standardsignatur, Minimalsignatur, Banner, Outlook Add-In
     tr.appendChild(tdStatus);
     tr.appendChild(tdEmail);
@@ -851,7 +925,7 @@ function setAllVisible(type, state) {
   var cls = type === 'sig' ? '.mb-sig' : '.mb-smime';
   var boxes = Array.from(document.querySelectorAll(cls)).filter(function(cb) {
     var tr = cb.closest('tr');
-    return tr && tr.style.display !== 'none';
+    return tr && tr.style.display !== 'none' && !cb.disabled;
   });
   if (!boxes.length) return;
   boxes.forEach(function(cb) {
