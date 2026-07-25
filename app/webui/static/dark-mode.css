@@ -396,3 +396,7 @@
   transition: color 0.15s, background 0.15s;
 }
 #theme-toggle:hover { color: #fff; background: rgba(255,255,255,0.12); }
+
+/* Admin-Autovervollständigung (Klasse statt Inline — Attribut-Selektor greift nicht) */
+[data-theme="dark"] .admin-suggest-item { border-bottom-color: #2a2d3e !important; }
+[data-theme="dark"] .admin-suggest-item:hover { background: #1e2230 !important; }

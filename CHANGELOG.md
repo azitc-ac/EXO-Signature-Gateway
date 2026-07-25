@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.10 — 2026-07-25 — Dark Mode: verbindliche Regeln + Prüfwerkzeug
+
+- **`CLAUDE.md`**: neuer Abschnitt „UI-Farben & Dark Mode — VERBINDLICH" mit der aus `dark-mode.css` extrahierten Farbpalette (Hintergrund/Text/Rahmen je Zweck) und drei bindenden Regeln. Damit entfällt das wiederholte Herleiten bei jeder UI-Änderung.
+- **`tools/darkcheck.py`**: prüft Templates gegen die Dark-Mode-Abdeckung, Exit 1 bei echter Lücke. Berücksichtigt zwei Fallstricke: CSS `*=` matcht Teilstrings (`#fff` deckt `#ffffff`), und Farben in `<style>`-Blöcken sind keine Inline-Styles. Erkennt zusätzlich per JS gesetzte Farben, die von Attribut-Selektoren grundsätzlich nicht erreicht werden.
+- **`settings.html`**: Admin-Autovervollständigung von JS-Styling auf CSS-Klasse `.admin-suggest-item` umgestellt — `:hover` in CSS ersetzt die beiden JS-Listener und ist dark-mode-fähig
+- Beide Anwendungen laufen jetzt ohne unerwartete Befunde durch die Prüfung
+
 ## v1.7.9 — 2026-07-25 — Dark Mode: neue Karten/Banner nachgezogen
 
 - Die in v1.7.0–v1.7.7 ergänzten Elemente hatten fest verdrahtete helle Farben und leuchteten im Dark Mode auf:
