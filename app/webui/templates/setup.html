@@ -31,6 +31,23 @@
 
 <div id="wizard-alert" class="alert" style="display:none"></div>
 
+{% if e.core_config_done and not e.setup_complete %}
+<div style="display:flex;align-items:flex-start;gap:14px;padding:14px 16px;margin-bottom:20px;
+            background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;color:#065f46">
+  <span style="font-size:18px;line-height:1.3;flex-shrink:0">✓</span>
+  <div style="flex:1;min-width:0">
+    <strong>Die Einrichtung ist vollständig.</strong><br>
+    <span style="font-size:13px;line-height:1.6">
+      Tenant, App-Registrierung und Zugangsdaten sind hinterlegt — das Gateway ist arbeitsfähig.
+      Solange die Einrichtung nicht abgeschlossen ist, führt „Übersicht“ weiterhin hierher zurück.
+    </span>
+  </div>
+  <button class="btn primary" onclick="markComplete()" style="flex-shrink:0;white-space:nowrap">
+    Setup abschließen
+  </button>
+</div>
+{% endif %}
+
 <!-- ── Restore (Migration) ─────────────────────────────────────────────────── -->
 <div class="wizard-step" id="migration-hint" style="border-color:#0369a133;margin-bottom:20px">
   <div class="step-header">

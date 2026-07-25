@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.6 — 2026-07-25 — Setup-Wizard: Hinweis auf fehlenden Abschluss-Klick
+
+- **Problem**: Ein vollständig konfiguriertes Gateway, bei dem „Setup als abgeschlossen markieren" nie geklickt wurde, landet über `/` dauerhaft wieder im Wizard (`app.py` Dashboard-Route) — ohne erkennbaren Grund. Der Abschluss-Knopf steht ganz unten beim Test-Mail-Schritt und wird leicht übersehen.
+- **`app.py`**: neues Kontextfeld `core_config_done` für den Wizard (TENANT_ID + CLIENT_ID + TENANT_DOMAIN + CLIENT_SECRET gesetzt, Env-Overrides berücksichtigt)
+- **`setup.html`**: grüner Hinweis-Banner ganz oben, wenn Kernkonfiguration steht aber `SETUP_COMPLETE` fehlt — erklärt die Rückleitung und bietet „Setup abschließen" direkt an
+- Banner verschwindet nach dem Abschluss; erscheint nicht bei unvollständiger Konfiguration
+
 ## v1.7.5 — 2026-07-25 — Fix: Button-Leisten brechen auf schmalen Bildschirmen um
 
 - **`style.css`**: `.actions` bekommt `flex-wrap: wrap` — vierte Schaltfläche („Status prüfen" in Anbindung & Lizenzen) lief auf dem Smartphone aus der Karte heraus statt umzubrechen
