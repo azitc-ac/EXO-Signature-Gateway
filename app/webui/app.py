@@ -4600,6 +4600,16 @@ async def api_support_download(user: str = Depends(_require_admin)):
 async def api_support_upload(request: Request, user: str = Depends(_require_admin)):
     """Support-Bundle (Logs, Settings, Audit) an den Provider-Hub hochladen."""
     import hub_client
+    import legal_consent
+    # Gate C — Art. 28 Abs. 3 DSGVO: Die Verarbeitung muss durch einen Vertrag
+    # geregelt SEIN, bevor sie beginnt. Das Bundle enthält Mail-Metadaten
+    # (Absender/Empfänger/Betreff) Dritter — ohne AVV darf es nicht übertragen
+    # werden.
+    if not legal_consent.context_consented("support_upload"):
+        raise HTTPException(
+            403, "Für die Übermittlung von Diagnosepaketen muss zuerst der "
+                 "Auftragsverarbeitungsvertrag abgeschlossen werden "
+                 "(Einstellungen → Anbindung & Lizenzen → Rechtliche Dokumente).")
     try:
         body = await request.json()
     except Exception:
