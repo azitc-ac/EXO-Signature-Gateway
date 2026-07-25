@@ -104,16 +104,20 @@ def status() -> dict:
 
 def enabled_mailbox_count() -> int:
     """Für Signatur und/oder S/MIME aktivierte Postfächer.
-    Leere MAILBOX_CONFIG bedeutet 'alle Postfächer verarbeiten' → EXO-Zahl."""
+
+    Leere MAILBOX_CONFIG bedeutet NICHTS wird verarbeitet → 0. Das entspricht
+    dem tatsächlichen Laufzeitverhalten in handler.py ("Empty MAILBOX_CONFIG →
+    nothing is processed (pass-through for all)"): dort bricht der Filter bei
+    `not _mailbox_cfg` ab und reicht die Mail unverändert durch.
+
+    Früher fiel diese Funktion bei leerem Config auf die EXO-Gesamtzahl zurück
+    ("leer = alle") — das widersprach dem Handler und meldete auf frisch
+    eingerichteten Gateways ohne aktiviertes Postfach fälschlich eine
+    Fair-Use-Auslastung (in großen Tenants sogar eine Überschreitung).
+    """
     mc = settings_store.get("MAILBOX_CONFIG") or {}
-    if mc:
-        return sum(1 for cfg in mc.values()
-                   if isinstance(cfg, dict) and (cfg.get("sig") or cfg.get("smime")))
-    try:
-        import exo_mailboxes
-        return len(exo_mailboxes.list_mailboxes())
-    except Exception:
-        return 0
+    return sum(1 for cfg in mc.values()
+               if isinstance(cfg, dict) and (cfg.get("sig") or cfg.get("smime")))
 
 
 def fair_use_state() -> dict:

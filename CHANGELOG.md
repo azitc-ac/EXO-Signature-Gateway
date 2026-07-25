@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.7 — 2026-07-25 — Fix: Fair-Use-Zähler meldete Postfächer ohne jede Aktivierung
+
+- **Bug**: Bei leerer `MAILBOX_CONFIG` fiel `license.enabled_mailbox_count()` auf die EXO-Gesamtzahl zurück („leer = alle") und zeigte z.B. 20/100 an, obwohl **kein einziges** Postfach aktiviert war. In großen Tenants hätte das eine Fair-Use-**Überschreitung** gemeldet und Kunden grundlos zum Lizenzkauf gedrängt.
+- **Ursache**: Widerspruch zum tatsächlichen Laufzeitverhalten. `handler.py:636` bricht bei leerer `MAILBOX_CONFIG` ab und reicht **alle** Mails unverändert durch („Empty MAILBOX_CONFIG → nothing is processed"). Leer heißt also *nichts* wird verarbeitet, nicht *alles*.
+- **Fix**: `enabled_mailbox_count()` zählt ausschließlich Einträge mit `sig` oder `smime` — leere Config ergibt 0. Der EXO-Fallback entfällt.
+- `settings_store.py`: irreführenden Kommentar „empty = all mailboxes processed" korrigiert
+- Geprüft gegen Eckfälle: leer, nur sig, nur smime, explizit deaktiviert, gemischt, kaputter Eintrag
+
 ## v1.7.6 — 2026-07-25 — Setup-Wizard: Hinweis auf fehlenden Abschluss-Klick
 
 - **Problem**: Ein vollständig konfiguriertes Gateway, bei dem „Setup als abgeschlossen markieren" nie geklickt wurde, landet über `/` dauerhaft wieder im Wizard (`app.py` Dashboard-Route) — ohne erkennbaren Grund. Der Abschluss-Knopf steht ganz unten beim Test-Mail-Schritt und wird leicht übersehen.

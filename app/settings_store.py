@@ -21,7 +21,7 @@ DEFAULTS: dict = {
     "USER_OVERRIDES": {},  # {email: {"user.jobTitle": "...", "custom.var": "..."}} — per-user overrides
     "WEBSITE_URL": "",  # Globale Website-URL für alle Nutzer (user.website)
     "CUSTOM_TEMPLATE_VARS": [],   # [{"name": "mobile", "entra_field": "mobilePhone"}, ...]
-    "MAILBOX_CONFIG": {},  # {email: {"sig": true, "smime": true, "use_policy": true}} — empty = all mailboxes processed
+    "MAILBOX_CONFIG": {},  # {email: {"sig": true, "smime": true, "use_policy": true}} — empty = NOTHING processed (handler.py pass-through)
     "TEMPLATE_POLICIES": {"sig": "default", "min": "Minimal", "addin": "*"},  # {sig, min (Antwort-Signatur), addin}
     "INTERNAL_GROUPS": {},      # {"Vertrieb": ["<guid>", ...], ...} — interne Postfach-Gruppen
     "CUSTOM_POLICIES": [],      # [{"condition_type": "group", "group_name": "...", "applies_to": "sig|min|banner", "template": "..."}] — first-match-wins
