@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.25 — 2026-07-26 — CA-Nutzungsbedingungen: Umbruch korrigiert
+
+- Die Bedingungen für den Zertifikatsbezug hatten dasselbe Problem wie zuvor die Rechtsdokumente: Der Quelltext in `terms.py` ist hart auf ~76 Zeichen umbrochen, `white-space:pre-wrap` übernahm diese Umbrüche wörtlich, und auf schmalen Schirmen kam der Viewport-Umbruch obendrauf.
+- Meine frühere Begründung („Klartext, dort ist pre-wrap richtig", v1.7.15) war falsch — die Textart ist unerheblich, entscheidend ist die harte Umbruchbreite in der Quelle.
+- **`_reflowPlain()`**: fügt Absätze zusammen und erkennt dabei die Besonderheit dieses Textes — nummerierte Überschriften („1. Leistungsbeschreibung") stehen **ohne** Leerzeile über ihrem Absatz und dürfen nicht hineingezogen werden. Der Kopfblock wird in Titel und gedämpfte Versionszeile getrennt.
+- Gegen den echten Text geprüft: 8 Überschriften, 9 Absätze, Fließtext durchgehend.
+
 ## v1.7.24 — 2026-07-26 — Zertifikatsbezug: Schritt 1 erst nach bestehender Anbindung
 
 - **Problem**: Die Schaltfläche „Nutzungsbedingungen akzeptieren" war auch ohne Hub-Anbindung bedienbar. Der Nutzer konnte den Dialog vollständig durchlaufen, das Häkchen setzen und den Text bestätigen — erst der Klick lief dann in „Nicht registriert (Anbindung fehlt)" aus `hub_client.cert_accept_terms()`.
