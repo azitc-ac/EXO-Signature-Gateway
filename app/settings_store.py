@@ -285,7 +285,14 @@ def _save() -> None:
     # Keep a .bak of the last known-good state for recovery.
     tmp = SETTINGS_FILE.with_suffix(".tmp")
     tmp.write_text(json.dumps(to_write, indent=2, ensure_ascii=False))
+    # settings.json enthält CLIENT_SECRET → 600. ZWINGEND VOR dem replace():
+    # rename() übernimmt die Rechte der QUELLDATEI, die frisch mit umask-Default
+    # (meist 644) entsteht. Ohne diesen chmod wird jeder manuelle `chmod 600`
+    # bei der nächsten Einstellungsänderung stillschweigend zurückgesetzt.
+    tmp.chmod(0o600)
     if SETTINGS_FILE.exists():
-        SETTINGS_FILE.replace(SETTINGS_FILE.with_suffix(".bak"))
+        bak = SETTINGS_FILE.with_suffix(".bak")
+        SETTINGS_FILE.replace(bak)
+        bak.chmod(0o600)          # .bak enthält dieselben Secrets
     tmp.replace(SETTINGS_FILE)
     log.info("Settings saved to %s", SETTINGS_FILE)
