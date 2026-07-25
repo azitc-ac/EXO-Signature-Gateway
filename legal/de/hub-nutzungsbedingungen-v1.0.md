@@ -211,11 +211,14 @@ Lizenzgebühr rückwirkend ab dem Monat der erstmaligen Überschreitung.
 6.10 **Laufzeit und Kündigung der Lizenzen richten sich nach der gewählten
 Zahlungsweise:**
 
-- *Monatliche Zahlung:* Die Lizenzen verlängern sich monatlich. Sie können
-  jederzeit mit einer Frist von sieben Tagen zum Monatsende gekündigt werden.
+- *Monatliche Zahlung:* Die Lizenzen verlängern sich monatlich. Die Kündigung
+  ist **ohne Einhaltung einer Frist bis zum letzten Tag des laufenden Monats**
+  möglich und wirkt zum Monatsende.
 - *Jährliche Vorauszahlung:* Die Lizenzen haben eine Laufzeit von zwölf
-  Monaten und verlängern sich um jeweils zwölf Monate, wenn sie nicht mit
-  einer Frist von 30 Tagen zum Ende der Laufzeit gekündigt werden.
+  Monaten und verlängern sich um jeweils zwölf Monate, wenn sie nicht
+  **bis zum letzten Tag der laufenden Laufzeit** gekündigt werden. Auch hier
+  ist keine Frist einzuhalten; maßgeblich ist allein der Zugang der Kündigung
+  vor Ablauf.
 
 6.11 Bei jährlicher Vorauszahlung kann der Kunde auch vorzeitig zum Monatsende
 kündigen. In diesem Fall erstattet der Anbieter den nicht genutzten Anteil der

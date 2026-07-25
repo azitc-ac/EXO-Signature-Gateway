@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.18 — 2026-07-25 — Kündigungsfristen entfallen: Kündigung bis zum Ablauf genügt
+
+- Bisher: monatliche Lizenzen mit **7 Tagen** Frist zum Monatsende, Jahreslizenzen mit **30 Tagen** zum Laufzeitende. Beides kundenunfreundlich — wer den Termin um einen Tag verpasst, zahlt eine weitere Periode.
+- Neu (Ziffer 6.10): **keine Frist**. Maßgeblich ist allein, dass die Kündigung vor Ablauf zugeht — monatlich bis zum letzten Tag des Monats, jährlich bis zum letzten Tag der Laufzeit.
+- Preisliste-Spalte „Kündigung" entsprechend angepasst (DE + EN), Formulierung in beiden Sprachfassungen der Nutzungsbedingungen angeglichen.
+- Ziffer 6.11 (vorzeitige Kündigung bei Jahresvorauszahlung mit anteiliger Erstattung) und Ziffer 12.2 (Kündigung des Hub-Vertrags selbst, 30 Tage) bleiben unverändert — betreffen andere Sachverhalte.
+- Querverweise und Dokumenten-Synchronität nachgeprüft: 0 Abweichungen.
+
 ## v1.7.17 — 2026-07-25 — Eigene Produkt-Datenschutzerklärung statt Blog-Anhang
 
 - **Neu**: `legal/de/produkt-datenschutz-v1.0.md` + englische Fassung — eigenständige Erklärung nach Art. 13/14 DSGVO für Gateway und Hub, mit Verantwortlichem, Rollenabgrenzung, allen fünf Verarbeitungen (Anbindung, Zertifikatsbestellung, Lizenzerwerb, Rechnungskauf, Diagnosepakete), Empfängerübersicht, Speicherfristen und Betroffenenrechten.
