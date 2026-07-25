@@ -60,12 +60,26 @@ CURRENT_DOCUMENTS: dict[str, dict] = {
         "path_en": "en/product-privacy-policy-v1.0.md",
         "no_consent_required": True,
     },
+    # Art. 28 Abs. 3 DSGVO verlangt, dass die Verarbeitung durch einen Vertrag
+    # GEREGELT IST — der Vertrag muss also VOR der ersten Übermittlung stehen.
+    # Deshalb echte Zustimmung (kein no_consent_required) und ein eigenes Gate
+    # auf dem Support-Upload (CONTEXT_DOCUMENTS["support_upload"]).
+    "dpa": {
+        "version": "1.0",
+        "label_de": "Auftragsverarbeitungsvertrag (Diagnosepakete)",
+        "label_en": "Data Processing Agreement (diagnostic bundles)",
+        "path_de": "de/auftragsverarbeitung-v1.0.md",
+        "path_en": "en/data-processing-agreement-v1.0.md",
+    },
 }
 
 CONTEXT_DOCUMENTS: dict[str, list[str]] = {
     "hub_connect":      ["hub-terms", "license-supplement"],
     "invoice_request":  ["payment-invoice"],
     "license_purchase": ["license-supplement"],
+    # Gate C — Diagnosepaket-Upload. Der AVV muss VOR der ersten Übermittlung
+    # geschlossen sein (Art. 28 Abs. 3 DSGVO), nicht erst danach.
+    "support_upload":   ["dpa"],
 }
 
 

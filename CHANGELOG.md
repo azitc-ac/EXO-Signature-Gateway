@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.19 — 2026-07-25 — Auftragsverarbeitungsvertrag + Gate auf Diagnosepaket-Upload
+
+- **Neu**: `legal/de/auftragsverarbeitung-v1.0.md` + englische Fassung — AVV nach Art. 28 DSGVO, bewusst **eng auf Diagnosepakete begrenzt**. Der laufende Gateway-Betrieb ist ausdrücklich ausgenommen (dort besteht keine Auftragsverarbeitung), ebenso die Daten, die der Anbieter als eigener Verantwortlicher verarbeitet.
+- Enthält alle Pflichtangaben aus Art. 28 Abs. 3: Gegenstand, Art, Zweck und Dauer (90 Tage), Datenarten und Betroffenenkategorien, Weisungsbindung, Vertraulichkeit, TOMs nach Art. 32, Unterauftragsverarbeiter mit 30-Tage-Widerspruchsrecht, Drittlandtransfer, Löschung, Unterstützungspflichten inkl. 24-Stunden-Meldefrist, Nachweise und Audits.
+- **Gate C** (`POST /api/support/upload`): Upload wird mit HTTP 403 abgewiesen, solange der AVV nicht geschlossen ist. Begründung im Code: Art. 28 Abs. 3 verlangt, dass die Verarbeitung durch einen Vertrag **geregelt ist** — er muss also vor der ersten Übermittlung stehen, nicht danach.
+- Registriert mit echter Zustimmungspflicht (anders als Preisliste und Datenschutzerklärung, die reine Informationen sind).
+
 ## v1.7.18 — 2026-07-25 — Kündigungsfristen entfallen: Kündigung bis zum Ablauf genügt
 
 - Bisher: monatliche Lizenzen mit **7 Tagen** Frist zum Monatsende, Jahreslizenzen mit **30 Tagen** zum Laufzeitende. Beides kundenunfreundlich — wer den Termin um einen Tag verpasst, zahlt eine weitere Periode.
