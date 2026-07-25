@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.17 — 2026-07-25 — Eigene Produkt-Datenschutzerklärung statt Blog-Anhang
+
+- **Neu**: `legal/de/produkt-datenschutz-v1.0.md` + englische Fassung — eigenständige Erklärung nach Art. 13/14 DSGVO für Gateway und Hub, mit Verantwortlichem, Rollenabgrenzung, allen fünf Verarbeitungen (Anbindung, Zertifikatsbestellung, Lizenzerwerb, Rechnungskauf, Diagnosepakete), Empfängerübersicht, Speicherfristen und Betroffenenrechten.
+- **Warum getrennt vom Blog**: verschiedene Adressaten (Websitebesucher vs. gewerbliche Kunden) und vor allem verschiedene Änderungszyklen — der Produktteil änderte sich allein heute viermal, der Blogteil ist stabil. Änderungen erfordern jetzt kein manuelles Nachziehen in WordPress mehr.
+- **Kein Consent-Dokument**: registriert mit `no_consent_required` — eine Datenschutzerklärung ist eine Information, keine Willenserklärung. Sie erscheint in der Dokumentenliste, taucht aber in keinem Gate auf.
+- **Verweise umgebogen**: Hub-NB 4.6 und Zahlungsbedingungen 2.5 zeigen statt auf die Blog-URL jetzt auf `https://sighub.zarenko.net/datenschutz` (DE + EN).
+- **`tools/legal-sync-check.py`**: vergleicht die Prüfsummen der Gateway- und Hub-Kopien, `--fix` gleicht an. Verhindert, dass die doppelt vorgehaltenen Dateien auseinanderlaufen.
+
 ## v1.7.16 — 2026-07-25 — Fix: Kontrast im Dark Mode + Rohtext beim zweiten Öffnen
 
 Zwei Folgefehler aus v1.7.15:

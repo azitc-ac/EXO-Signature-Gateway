@@ -40,8 +40,8 @@ invoice recipient.
 2.5 **Credit check.** The Provider is entitled to obtain credit reports from
 commercial credit agencies before and during the provision of invoice purchase.
 The legal basis is Art. 6(1)(f) GDPR; the legitimate interest is the mitigation
-of default risk. Details are governed by the Privacy Policy at
-https://blog.zarenko.net/datenschutzerklaerung-2/.
+of default risk. Details are governed by the Privacy Policy for EXO Signature
+Gateway and EXO Signature Hub at https://sighub.zarenko.net/datenschutz.
 
 ---
 
