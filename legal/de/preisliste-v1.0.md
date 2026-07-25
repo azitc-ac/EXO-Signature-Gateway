@@ -84,8 +84,8 @@ erfolgt nicht.
 
 | Zahlungsweise | Preis | Laufzeit | Kündigung |
 |---|---|---|---|
-| Monatlich | 1,00 € je Lizenz/Monat | monatlich | 7 Tage zum Monatsende |
-| Jährlich im Voraus | 0,90 € je Lizenz/Monat (10 % Nachlass) | 12 Monate | 30 Tage zum Laufzeitende |
+| Monatlich | 1,00 € je Lizenz/Monat | monatlich | fristlos bis Monatsende |
+| Jährlich im Voraus | 0,90 € je Lizenz/Monat (10 % Nachlass) | 12 Monate | fristlos bis Laufzeitende |
 
 Die Wahl der Zahlungsweise erfolgt bei Lizenzerwerb und kann zum Ende des
 jeweiligen Abrechnungszeitraums geändert werden.

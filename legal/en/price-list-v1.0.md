@@ -86,8 +86,8 @@ is in advance for the full term; no refund is made.
 
 | Payment method | Price | Term | Cancellation |
 |---|---|---|---|
-| Monthly | EUR 1.00 per license/month | monthly | 7 days to end of month |
-| Annual prepayment | EUR 0.90 per license/month (10% discount) | 12 months | 30 days to end of term |
+| Monthly | EUR 1.00 per license/month | monthly | no notice period, until end of month |
+| Annual prepayment | EUR 0.90 per license/month (10% discount) | 12 months | no notice period, until end of term |
 
 The payment method is chosen when purchasing licenses and may be changed at the
 end of the respective billing period.

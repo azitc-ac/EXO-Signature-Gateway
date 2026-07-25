@@ -208,11 +208,13 @@ retroactively from the month of first excess.
 
 6.10 **The term and cancellation of licenses depend on the chosen payment method:**
 
-- *Monthly payment:* Licenses renew monthly. They may be cancelled at any time
-  with seven days' notice to the end of the month.
+- *Monthly payment:* Licenses renew monthly. Cancellation is possible
+  **without any notice period up to the last day of the current month** and
+  takes effect at the end of that month.
 - *Annual prepayment:* Licenses have a term of twelve months and renew for
-  further twelve-month periods unless cancelled with 30 days' notice before
-  the end of the term.
+  further twelve-month periods unless cancelled **by the last day of the
+  current term**. No notice period applies here either; what matters is solely
+  that the cancellation is received before expiry.
 
 6.11 With annual prepayment, the Customer may also cancel early at month end. In
 this case, the Provider refunds the unused portion of the license fee, calculated
