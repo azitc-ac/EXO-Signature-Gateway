@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.15 — 2026-07-25 — Rechtsdokumente werden als Markdown gerendert statt roh angezeigt
+
+- **Bug**: Die Consent-Dialoge zeigten den Markdown-Quelltext mit `white-space:pre-wrap`. Die Dateien sind auf ~76 Zeichen hart umbrochen — auf schmalen Bildschirmen kam der Viewport-Umbruch dazu, wodurch Zeilen scheinbar willkürlich mitten im Satz brachen. Zusätzlich waren `**`-Auszeichnungen als Text sichtbar.
+- **Neu**: `_mdToHtml()` in `settings_connect.html` — fügt hart umbrochene Absätze wieder zusammen und rendert Überschriften, Fettung, Listen, Trennlinien, Tabellen (Preisliste) und Links. HTML wird vor der Auszeichnung escaped.
+- Getrennte Behandlung: `_setMarkdown()` für die vier Rechtsdokumente, `_setPlain()` für die CA-Bedingungen vom Hub — die kommen als Fließtext, dort bleibt `pre-wrap` richtig.
+- Links bekommen `color:#0369a1` aus der freigegebenen Palette; ohne Angabe griffe das Browser-Standardblau, das im Dark Mode schlecht lesbar ist (eine globale `a`-Regel existiert nicht).
+- Gegen die echten Dokumente geprüft: 89 Absätze, 15 Überschriften, 5 Listen (Hub-NB) und 5 korrekt erkannte Tabellen (Preisliste), keine übrig gebliebenen Markdown-Zeichen, `darkcheck` weiterhin auf 0.
+
 ## v1.7.14 — 2026-07-25 — Zahlungsbedingungen: Verzug mit Ablauf der 14-Tage-Frist
 
 - Ziffer 5.3 nannte bisher 30 Tage (§ 286 Abs. 3 BGB), obwohl Ziffer 5.1 eine Zahlungsfrist von 14 Tagen setzt — Verzug trat dadurch 16 Tage später ein als nötig.

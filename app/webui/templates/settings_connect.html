@@ -522,7 +522,7 @@ async function _openTermsModal(viewOnly) {
   txt.textContent='Lade…'; modal.style.display='flex';
   try {
     const d=await (await fetch('/api/hub/cert/terms')).json();
-    if(d.ok){ txt.textContent=d.text; _termsVersion=d.version||'1'; }
+    if(d.ok){ _setPlain(txt, d.text); _termsVersion=d.version||'1'; }
     else { txt.textContent='Nutzungsbedingungen konnten nicht geladen werden: '+(d.error||'Unbekannt'); }
   } catch(e){ txt.textContent='Nutzungsbedingungen konnten nicht geladen werden.'; }
 }
@@ -867,6 +867,83 @@ var _hcDocs = [
 var _hcData = [null, null];   // fetched {version, content_hash, text}
 var _hcPending = null;        // callback to run after consent
 
+// ── Markdown-Anzeige für Rechtsdokumente ────────────────────────────────────
+// Die Quelldateien sind auf ~76 Zeichen hart umbrochen. Mit white-space:pre-wrap
+// werden diese Umbrüche wörtlich übernommen und wirken auf schmalen Bildschirmen
+// willkürlich (Zeile bricht mitten im Satz, dann nochmal durch den Viewport).
+// Deshalb: Absätze zusammenfügen und normal umbrechen lassen.
+function _mdEscape(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function _mdInline(s) {
+  return _mdEscape(s)
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    // color:#0369a1 stammt aus der freigegebenen Palette (CLAUDE.md) und wird im
+    // Dark Mode zu #7dd3fc umgeschaltet. Ohne Angabe griffe das Browser-Standardblau,
+    // das auf dunklem Grund schlecht lesbar ist — eine globale a-Regel gibt es nicht.
+    .replace(/(https?:\/\/[^\s<)]+)/g,
+             '<a href="$1" target="_blank" rel="noopener" style="color:#0369a1">$1</a>');
+}
+function _mdToHtml(md) {
+  var out = [], tbl = null;
+  // In Absätze zerlegen (Leerzeile trennt), Tabellen/Listen bleiben zeilenweise
+  var blocks = String(md || '').replace(/\r\n/g, '\n').split(/\n{2,}/);
+  blocks.forEach(function(block) {
+    var lines = block.split('\n').filter(function(l) { return l.trim() !== ''; });
+    if (!lines.length) return;
+    // Tabelle: mindestens zwei Zeilen, alle beginnen mit |
+    if (lines.length >= 2 && lines.every(function(l) { return l.trim().charAt(0) === '|'; })) {
+      var rows = lines.filter(function(l) { return !/^\|[\s:|-]+\|$/.test(l.trim()); });
+      var html = '<table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:12px">';
+      rows.forEach(function(l, i) {
+        var cells = l.trim().replace(/^\||\|$/g, '').split('|');
+        var tag = i === 0 ? 'th' : 'td';
+        html += '<tr>' + cells.map(function(c) {
+          return '<' + tag + ' style="border:1px solid #e2e8f0;padding:4px 8px;text-align:left">'
+                 + _mdInline(c.trim()) + '</' + tag + '>';
+        }).join('') + '</tr>';
+      });
+      out.push(html + '</table>');
+      return;
+    }
+    // Überschrift
+    var h = lines[0].match(/^(#{1,4})\s+(.*)$/);
+    if (h) {
+      var lvl = Math.min(h[1].length + 1, 4);
+      out.push('<h' + lvl + ' style="margin:14px 0 6px;font-size:' + (16 - h[1].length) + 'px">'
+               + _mdInline(h[2]) + '</h' + lvl + '>');
+      lines = lines.slice(1);
+      if (!lines.length) return;
+    }
+    // Trennlinie
+    if (lines.every(function(l) { return /^-{3,}$/.test(l.trim()); })) {
+      out.push('<hr style="border:none;border-top:1px solid #e2e8f0;margin:12px 0">');
+      return;
+    }
+    // Liste
+    if (lines[0].trim().charAt(0) === '-') {
+      var items = [], cur = '';
+      lines.forEach(function(l) {
+        if (/^\s*-\s+/.test(l)) { if (cur) items.push(cur); cur = l.replace(/^\s*-\s+/, ''); }
+        else { cur += ' ' + l.trim(); }     // Fortsetzungszeile anhängen
+      });
+      if (cur) items.push(cur);
+      out.push('<ul style="margin:6px 0 6px 18px;padding:0">'
+        + items.map(function(i) { return '<li style="margin:2px 0">' + _mdInline(i) + '</li>'; }).join('')
+        + '</ul>');
+      return;
+    }
+    // Normaler Absatz: harte Umbrüche zu Leerzeichen zusammenziehen
+    out.push('<p style="margin:0 0 10px">' + _mdInline(lines.join(' ')) + '</p>');
+  });
+  return out.join('');
+}
+// Markdown gerendert anzeigen (pre-wrap abschalten) …
+function _setMarkdown(el, md) { el.style.whiteSpace = 'normal'; el.innerHTML = _mdToHtml(md); }
+// … bzw. Klartext unverändert (CA-Bedingungen kommen als Fließtext, kein Markdown)
+function _setPlain(el, txt) { el.style.whiteSpace = 'pre-wrap'; el.textContent = txt; }
+
 async function _hcOpen(callback) {
   _hcPending = callback;
   document.getElementById('hub-consent-modal').style.display = 'flex';
@@ -885,7 +962,7 @@ async function _hcTab(idx) {
   txt.textContent = 'Lade…';
   try {
     const d = await (await fetch('/api/legal/doc/' + _hcDocs[idx].id + '?lang=de')).json();
-    if (d.ok) { _hcData[idx] = d; txt.textContent = d.text; }
+    if (d.ok) { _hcData[idx] = d; _setMarkdown(txt, d.text); }
     else txt.textContent = 'Fehler beim Laden: ' + (d.detail || 'unbekannt');
   } catch(e) { txt.textContent = 'Netzwerkfehler.'; }
 }
@@ -927,7 +1004,7 @@ async function _invOpen(callback) {
   txt.textContent = 'Lade…';
   try {
     const d = await (await fetch('/api/legal/doc/payment-invoice?lang=de')).json();
-    if (d.ok) { _invData = d; txt.textContent = d.text; }
+    if (d.ok) { _invData = d; _setMarkdown(txt, d.text); }
     else txt.textContent = 'Fehler: ' + (d.detail||'');
   } catch(e) { txt.textContent = 'Netzwerkfehler.'; }
 }
@@ -996,7 +1073,7 @@ async function legalViewDoc(docId) {
   const txt = document.getElementById('terms-text');
   const confirmBtn = document.getElementById('terms-confirm-btn');
   const cancelBtn = document.getElementById('terms-cancel-btn');
-  txt.textContent = d.text;
+  _setMarkdown(txt, d.text);
   confirmBtn.style.display = 'none';
   cancelBtn.textContent = 'Schließen';
   modal.style.display = 'flex';
