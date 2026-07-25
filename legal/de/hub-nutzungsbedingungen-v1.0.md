@@ -182,10 +182,13 @@ werden.
 6.7 Das Gateway sperrt bei Überschreitung keine Funktionen. Die Einhaltung
 obliegt dem Kunden.
 
-6.8 Bei bestehender Hub-Anbindung ist der Anbieter berechtigt, den
-übermittelten Zählwert zur Prüfung heranzuziehen. Bei nicht angebundenen
-Instanzen kann der Anbieter einmal jährlich eine schriftliche Selbstauskunft
-verlangen, die der Kunde innerhalb von 30 Tagen zu erteilen hat.
+6.8 Der Anbieter erhebt die Zahl aktivierter Postfächer nicht automatisiert
+(Ziffer 4.3). Zur Prüfung der Lizenzkonformität kann er einmal jährlich eine
+schriftliche Selbstauskunft verlangen, die der Kunde innerhalb von 30 Tagen zu
+erteilen hat. Dies gilt unabhängig davon, ob eine Hub-Anbindung besteht.
+Übermittelt der Kunde von sich aus Unterlagen, aus denen sich die Zahl ergibt
+(etwa ein Diagnosepaket im Rahmen einer Supportanfrage nach Ziffer 4.2), darf
+der Anbieter diese Angabe verwenden.
 
 6.9 Bei nachträglich festgestellter Überschreitung schuldet der Kunde die
 Lizenzgebühr rückwirkend ab dem Monat der erstmaligen Überschreitung.

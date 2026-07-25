@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.12 — 2026-07-25 — Fix (rechtlich): Ziffer 6.8 widersprach dem Telemetrie-Ausschluss
+
+- **Widerspruch**: Ziffer 4.3 sagt zu, dass **keine Postfachzählungen** übermittelt werden — Ziffer 6.8 berief sich aber auf „den **übermittelten Zählwert**" bei bestehender Hub-Anbindung.
+- **Ursache**: 6.8 war ein Querverweis auf die alte Ziffer 4.1, die beim Telemetrie-Umbau (v1.7.3) ersetzt wurde. Beim Umschreiben von Abschnitt 4 wurden die Verweise darauf nicht mitgeprüft.
+- **Code-Realität geprüft**: Weder `hub_client.py` noch ein anderes Modul sendet eine Postfachzahl an den Hub. Die einzige Stelle, an der dem Betreiber eine Zahl zugänglich wird, ist `analysis.py` im Hub — und die liest aus einem Diagnosepaket, das der Kunde **selbst** hochlädt (bereits von Ziffer 4.2 gedeckt). Ziffer 4.3 war also korrekt, 6.8 war falsch.
+- **Neu**: keine automatisierte Erhebung; jährliche Selbstauskunft gilt für alle Kunden gleich (unabhängig von der Anbindung); freiwillig eingereichte Unterlagen dürfen ausgewertet werden. DE und EN angeglichen.
+- ⚠️ Der Dokumenten-Hash ändert sich dadurch — bereits erteilte Zustimmungen zu diesem Dokument werden ungültig (so gewollt, `has_valid_consent` prüft Version **und** Prüfsumme). Aktuell ohne Folgen: keine erteilte Zustimmung, keine Kunden am Hub.
+
 ## v1.7.11 — 2026-07-25 — Fix: Schritt-Badges schnitten längere Beschriftungen ab
 
 - **Bug**: `.step-badge` war ein fester 28×28-Kreis (`width`/`height` + `border-radius:50%`), wurde aber quer durch Setup, Erweitert, Debug und Backup mit Wörtern befüllt — „KEY VAULT", „Security", „Logging", „S/MIME", „WATCHER", „Support". Der Text quoll aus dem Kreis; als Notbehelf stand an vielen Stellen inline `font-size:10px`, was ihn nur kleiner, nicht passend machte.
