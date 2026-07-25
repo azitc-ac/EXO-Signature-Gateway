@@ -20,7 +20,7 @@
         </span>
         <span><span id="fu-count">0</span> / <span id="fu-limit">100</span></span>
       </div>
-      <div style="height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden">
+      <div id="fu-track" style="height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden">
         <div id="fu-bar" style="height:100%;border-radius:3px;background:#22c55e;transition:width .3s,background .3s;width:0%"></div>
       </div>
     </div>
@@ -64,14 +64,19 @@ function refreshFairUse(){
     document.getElementById('fu-bar').style.width = pct + '%';
     document.getElementById('fu-bar').style.background = barColor;
     var badge = document.getElementById('fu-badge');
+    // data-fu-state trägt den Zustand für die Dark-Mode-Regeln (dark-mode.css) —
+    // style.cssText wird vom Browser zu rgb() normalisiert, [style*] greift dort nicht.
     if (d.exceeded) {
       badge.textContent = '⚠ Limit überschritten';
+      badge.dataset.fuState = 'exceeded';
       badge.style.cssText = 'font-size:11px;font-weight:600;padding:3px 10px;border-radius:10px;white-space:nowrap;background:#fee2e2;color:#991b1b';
     } else if (d.licensed) {
       badge.textContent = '✓ Lizenziert';
+      badge.dataset.fuState = 'licensed';
       badge.style.cssText = 'font-size:11px;font-weight:600;padding:3px 10px;border-radius:10px;white-space:nowrap;background:#dcfce7;color:#166534';
     } else {
       badge.textContent = 'Community Edition';
+      badge.dataset.fuState = 'community';
       badge.style.cssText = 'font-size:11px;font-weight:600;padding:3px 10px;border-radius:10px;white-space:nowrap;background:#f1f5f9;color:#64748b';
     }
     document.getElementById('fairuse-counter').style.display = '';

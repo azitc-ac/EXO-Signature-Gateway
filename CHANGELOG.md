@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.9 — 2026-07-25 — Dark Mode: neue Karten/Banner nachgezogen
+
+- Die in v1.7.0–v1.7.7 ergänzten Elemente hatten fest verdrahtete helle Farben und leuchteten im Dark Mode auf:
+  - Willkommens-Banner (Dashboard): `#eff6ff` — war in **7 Templates** verwendet und generell ungedeckt
+  - Setup-Abschluss-Banner: `#ecfdf5` / Rahmen `#a7f3d0` / Text `#065f46`
+  - Fußleisten der Consent-Modals: `#fafaf9`
+- **Fair-Use-Badge**: wird per `style.cssText` gesetzt → der Browser normalisiert zu `rgb()`, `[style*]`-Selektoren greifen dort **nicht**. Gelöst über neues `data-fu-state` (exceeded/licensed/community) + ID-Regeln; Fortschrittsbalken-Spur bekam `id="fu-track"`
+- **Hub**: Certum-Infobox auf im Hub-Dark-Mode abgedeckte Farben umgestellt (`#eff6ff` / `#e2e8f0` / `#334155`) statt eigener ungedeckter Töne
+- **Prüfskript** entwickelt, das alle Templates gegen die Dark-Mode-Abdeckung abgleicht (berücksichtigt CSS-Teilstring-Matching von `*=`). Ergebnis Gateway: nur noch der per ID gelöste Badge und `smime_selfservice.html` (eigenständige Seite ohne Dark Mode) offen
+
 ## v1.7.8 — 2026-07-25 — Fix: settings.json verlor dauerhaft die 600-Rechte
 
 - **Bug**: `settings.json` (enthält `CLIENT_SECRET`) und `settings.bak` lagen mit `644` für alle Systembenutzer lesbar vor — entgegen der dokumentierten Vorgabe `600`.

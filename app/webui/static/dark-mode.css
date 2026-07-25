@@ -177,6 +177,7 @@
 [data-theme="dark"] [style*="background:#f1f5f9"],
 [data-theme="dark"] [style*="background:#f3f4f6"],
 [data-theme="dark"] [style*="background:#fafafa"],
+[data-theme="dark"] [style*="background:#fafaf9"],
 [data-theme="dark"] [style*="background:#fcfcfc"],
 [data-theme="dark"] [style*="background:#f0f0f0"] {
   background: #14171f !important;
@@ -194,7 +195,10 @@
 
 [data-theme="dark"] [style*="background:#f0f9ff"],
 [data-theme="dark"] [style*="background:#e0f2fe"],
+[data-theme="dark"] [style*="background:#eff6ff"],
 [data-theme="dark"] [style*="background:#dbeafe"] { background: #0a1827 !important; }
+
+[data-theme="dark"] [style*="background:#ecfdf5"] { background: #0a1f10 !important; }
 
 [data-theme="dark"] [style*="background:#f0f4ff"] { background: #0f1530 !important; }
 
@@ -245,6 +249,7 @@
 /* Grün */
 [data-theme="dark"] [style*="color:#15803d"],
 [data-theme="dark"] [style*="color:#166534"],
+[data-theme="dark"] [style*="color:#065f46"],
 [data-theme="dark"] [style*="color:#16a34a"],
 [data-theme="dark"] [style*="color:#27ae60"] { color: #4ade80 !important; }
 
@@ -306,6 +311,7 @@
 [data-theme="dark"] [style*="border-color:#bae6fd"] { border-color: #1e4060 !important; }
 
 [data-theme="dark"] [style*="border:1px solid #bbf7d0"],
+[data-theme="dark"] [style*="border:1px solid #a7f3d0"],
 [data-theme="dark"] [style*="border:1px solid #d1fae5"] { border-color: #166534 !important; }
 
 [data-theme="dark"] [style*="border-color:#fca5a5"],
@@ -321,6 +327,26 @@
 
 /* ── Erweitert: JS-gesetzte Farben (CSSOM normalisiert zu rgb → Attribut-Selektor greift nicht) */
 [data-theme="dark"] #maintenance-status-text { color: #94a3b8 !important; }
+
+/* ── Postfächer: Fair-Use-Zähler ─────────────────────────────────────────── */
+/* #fu-badge wird in refreshFairUse() per style.cssText gesetzt (CSSOM → rgb),
+   daher ID-Regeln statt [style*]. Die drei Zustände werden über den Textinhalt
+   nicht unterscheidbar — deshalb data-fu-state, das refreshFairUse() mitsetzt. */
+[data-theme="dark"] #fu-badge[data-fu-state="exceeded"] {
+  background: #1f0a0a !important;
+  color: #fca5a5 !important;
+}
+[data-theme="dark"] #fu-badge[data-fu-state="licensed"] {
+  background: #0a1f10 !important;
+  color: #4ade80 !important;
+}
+[data-theme="dark"] #fu-badge[data-fu-state="community"] {
+  background: #1e2230 !important;
+  color: #94a3b8 !important;
+}
+/* Fortschrittsbalken-Spur (background:#e2e8f0 wird schon oben getroffen, aber
+   dort zusammen mit color — hier gezielt nur der Track). */
+[data-theme="dark"] #fu-track { background: #2a2d3e !important; }
 
 /* ── S/MIME-Seite ─────────────────────────────────────────────────────────── */
 /* Logo-Preview braucht im Light-Mode weißen Hintergrund (Logos für hellen Grund),
