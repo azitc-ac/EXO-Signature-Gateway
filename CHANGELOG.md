@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.16 — 2026-07-25 — Fix: Kontrast im Dark Mode + Rohtext beim zweiten Öffnen
+
+Zwei Folgefehler aus v1.7.15:
+
+- **Kontrast**: `_setMarkdown()` setzte `el.style.whiteSpace` — dadurch normalisiert der Browser das gesamte `style`-Attribut zu `rgb(…)`, und der Dark-Mode-Selektor für `color:#334155` griff nicht mehr. Der Fließtext blieb dunkelgrau auf dunklem Grund. Das ist exakt der Fall, den CLAUDE.md als **Regel 2** beschreibt — selbst hineingelaufen.
+  → `white-space` und Textfarbe stehen jetzt in der Klasse `.legal-view` (Umschaltung über `.md`), kein JS-Style mehr. Dark-Mode-Regeln für Fließtext, Überschriften und Fettung ergänzt.
+- **Rohtext beim zweiten Öffnen**: Die Cache-Pfade in `_hcTab()` und `_invOpen()` setzten `txt.textContent = …text` und umgingen damit den Renderer. Betroffen war nicht nur „Abbrechen und erneut verbinden", sondern **jeder** Zugriff auf ein bereits geladenes Dokument — auch das Zurückwechseln auf den ersten Tab. Beide Pfade nutzen jetzt `_setMarkdown()`.
+
 ## v1.7.15 — 2026-07-25 — Rechtsdokumente werden als Markdown gerendert statt roh angezeigt
 
 - **Bug**: Die Consent-Dialoge zeigten den Markdown-Quelltext mit `white-space:pre-wrap`. Die Dateien sind auf ~76 Zeichen hart umbrochen — auf schmalen Bildschirmen kam der Viewport-Umbruch dazu, wodurch Zeilen scheinbar willkürlich mitten im Satz brachen. Zusätzlich waren `**`-Auszeichnungen als Text sichtbar.

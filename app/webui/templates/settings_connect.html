@@ -364,7 +364,7 @@ _initAdv('digicert');
       <button id="hc-tab-0" class="btn secondary" style="border-radius:0;border-bottom:2px solid #2563eb;font-size:12px;padding:6px 14px" onclick="_hcTab(0)">Hub-Nutzungsbedingungen</button>
       <button id="hc-tab-1" class="btn secondary" style="border-radius:0;border-bottom:2px solid transparent;font-size:12px;padding:6px 14px" onclick="_hcTab(1)">Lizenzbedingungen-Ergänzung</button>
     </div>
-    <div id="hc-text" style="padding:14px 20px;overflow-y:auto;white-space:pre-wrap;font-size:12px;line-height:1.6;color:#334155;flex:1;min-height:0">Lade…</div>
+    <div id="hc-text" class="legal-view" style="padding:14px 20px;overflow-y:auto;font-size:12px;line-height:1.6;flex:1;min-height:0">Lade…</div>
     <div style="padding:10px 20px;border-top:1px solid #f0f0f0;background:#fafaf9">
       <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:13px;margin-bottom:6px">
         <input type="checkbox" id="hc-cb-0" onchange="_hcCheck()" style="margin-top:2px;flex-shrink:0">
@@ -389,7 +389,7 @@ _initAdv('digicert');
     <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0">
       <strong>Zahlungsbedingungen — Rechnungskauf</strong>
     </div>
-    <div id="inv-text" style="padding:14px 20px;overflow-y:auto;white-space:pre-wrap;font-size:12px;line-height:1.6;color:#334155;flex:1;min-height:0">Lade…</div>
+    <div id="inv-text" class="legal-view" style="padding:14px 20px;overflow-y:auto;font-size:12px;line-height:1.6;flex:1;min-height:0">Lade…</div>
     <div style="padding:10px 20px;border-top:1px solid #f0f0f0;background:#fafaf9">
       <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:13px;margin-bottom:12px">
         <input type="checkbox" id="inv-cb" onchange="_invCheck()" style="margin-top:2px;flex-shrink:0">
@@ -410,7 +410,7 @@ _initAdv('digicert');
     <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0">
       <strong>Nutzungsbedingungen — Zertifikatsbezug</strong>
     </div>
-    <div id="terms-text" style="padding:16px 20px;overflow-y:auto;white-space:pre-wrap;font-size:13px;line-height:1.5;color:#334155;flex:1">Lade…</div>
+    <div id="terms-text" class="legal-view" style="padding:16px 20px;overflow-y:auto;font-size:13px;line-height:1.5;flex:1">Lade…</div>
     <div style="padding:12px 20px;border-top:1px solid #e2e8f0;display:flex;justify-content:flex-end;gap:8px">
       <button class="btn secondary" id="terms-cancel-btn" onclick="_termsClose()">Abbrechen</button>
       <button class="btn primary" id="terms-confirm-btn" onclick="_termsConfirm()">Akzeptieren</button>
@@ -940,9 +940,9 @@ function _mdToHtml(md) {
   return out.join('');
 }
 // Markdown gerendert anzeigen (pre-wrap abschalten) …
-function _setMarkdown(el, md) { el.style.whiteSpace = 'normal'; el.innerHTML = _mdToHtml(md); }
+function _setMarkdown(el, md) { el.classList.add('md'); el.innerHTML = _mdToHtml(md); }
 // … bzw. Klartext unverändert (CA-Bedingungen kommen als Fließtext, kein Markdown)
-function _setPlain(el, txt) { el.style.whiteSpace = 'pre-wrap'; el.textContent = txt; }
+function _setPlain(el, txt) { el.classList.remove('md'); el.textContent = txt; }
 
 async function _hcOpen(callback) {
   _hcPending = callback;
@@ -958,7 +958,7 @@ async function _hcTab(idx) {
   document.getElementById('hc-tab-1').style.borderBottom = idx === 1 ? '2px solid #2563eb' : '2px solid transparent';
   document.getElementById('hc-step-label').textContent = 'Schritt ' + (idx + 1) + ' von 2';
   const txt = document.getElementById('hc-text');
-  if (_hcData[idx]) { txt.textContent = _hcData[idx].text; return; }
+  if (_hcData[idx]) { _setMarkdown(txt, _hcData[idx].text); return; }   // Cache-Pfad MUSS ebenfalls rendern
   txt.textContent = 'Lade…';
   try {
     const d = await (await fetch('/api/legal/doc/' + _hcDocs[idx].id + '?lang=de')).json();
@@ -1000,7 +1000,7 @@ async function _invOpen(callback) {
   _invPending = callback;
   document.getElementById('inv-consent-modal').style.display = 'flex';
   const txt = document.getElementById('inv-text');
-  if (_invData) { txt.textContent = _invData.text; return; }
+  if (_invData) { _setMarkdown(txt, _invData.text); return; }   // Cache-Pfad MUSS ebenfalls rendern
   txt.textContent = 'Lade…';
   try {
     const d = await (await fetch('/api/legal/doc/payment-invoice?lang=de')).json();

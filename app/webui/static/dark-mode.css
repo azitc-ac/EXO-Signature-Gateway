@@ -400,3 +400,10 @@
 /* Admin-Autovervollständigung (Klasse statt Inline — Attribut-Selektor greift nicht) */
 [data-theme="dark"] .admin-suggest-item { border-bottom-color: #2a2d3e !important; }
 [data-theme="dark"] .admin-suggest-item:hover { background: #1e2230 !important; }
+
+/* Rechtsdokumente in Dialogen (Klasse statt Inline — siehe style.css) */
+[data-theme="dark"] .legal-view       { color: #cbd5e1 !important; }
+[data-theme="dark"] .legal-view h2,
+[data-theme="dark"] .legal-view h3,
+[data-theme="dark"] .legal-view h4    { color: #e2e8f0 !important; }
+[data-theme="dark"] .legal-view strong { color: #f1f5f9 !important; }
