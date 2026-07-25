@@ -878,6 +878,8 @@ function _mdEscape(s) {
 function _mdInline(s) {
   return _mdEscape(s)
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    // Kursiv NACH fett — danach sind keine ** mehr übrig
+    .replace(/\*([^*\n]+)\*/g,'<em>$1</em>')
     .replace(/`([^`]+)`/g, '<code>$1</code>')
     // color:#0369a1 stammt aus der freigegebenen Palette (CLAUDE.md) und wird im
     // Dark Mode zu #7dd3fc umgeschaltet. Ohne Angabe griffe das Browser-Standardblau,

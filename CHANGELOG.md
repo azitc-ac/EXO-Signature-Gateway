@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.22 — 2026-07-25 — Fix: *kursiv* wurde als Sternchen angezeigt
+
+- Die Markdown-Renderer beherrschten nur `**fett**`. Einfache Sternchen blieben als Text stehen — sichtbar u.a. bei „*Azure Communication Services*", „*Monatliche Zahlung:*" und **jeder** Versionsfußzeile. Insgesamt 22 Stellen über alle Dokumente.
+- Kursiv-Ersetzung in **allen drei** Renderern ergänzt (`legal_docs.py` im Hub, `_mdInline` in `settings_connect.html`, `_dpaInline` in `advanced.html`) — jeweils **nach** der Fett-Ersetzung, sodass keine `**` mehr übrig sind und einzelne `*` eindeutig zuzuordnen sind.
+- Gegen alle Dokumente geprüft: 0 verbleibende Sternchen, Fettungen unverändert. Eckfälle getestet, u.a. gemischt fett/kursiv und Auszeichnung über einen harten Zeilenumbruch hinweg (die Renderer fügen Absatzzeilen vor der Auszeichnung zusammen, daher unkritisch).
+
 ## v1.7.21 — 2026-07-25 — Hosting-Angaben verifiziert statt vermutet
 
 - Die Datenschutzerklärung und der AVV beschrieben die Erreichbarkeit des Hub bisher als „Veröffentlichungsdienst der Microsoft Ireland" — das war meine **Ableitung**, nicht überprüft.

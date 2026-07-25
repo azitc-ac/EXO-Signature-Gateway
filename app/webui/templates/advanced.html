@@ -921,6 +921,8 @@ function _dpaEscape(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').repl
 function _dpaInline(s){
   return _dpaEscape(s)
     .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+    // Kursiv NACH fett — danach sind keine ** mehr übrig
+    .replace(/\*([^*\n]+)\*/g,'<em>$1</em>')
     .replace(/`([^`]+)`/g,'<code>$1</code>')
     .replace(/(https?:\/\/[^\s<)]+)/g,'<a href="$1" target="_blank" rel="noopener" style="color:#0369a1">$1</a>');
 }
