@@ -83,9 +83,10 @@ be specifically informed of this effect on the invoice.
 
 5.2 Timely payment is determined by receipt in the Provider's account.
 
-5.3 The Customer enters default without a reminder if payment is not made within
-30 days of the due date and receipt of the invoice (§ 286(3) BGB); an earlier
-reminder remains possible.
+5.3 The Customer enters **default upon expiry of the payment period under
+Section 5.1, without a reminder** (§ 286(2) no. 2 BGB); the period is calculated
+by the calendar from receipt of the invoice. No separate reminder is required;
+§ 286(3) BGB remains unaffected.
 
 5.4 During default, the claim bears interest at **nine percentage points above
 the base interest rate** (§ 288(2) BGB).

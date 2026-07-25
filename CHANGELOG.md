@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.14 — 2026-07-25 — Zahlungsbedingungen: Verzug mit Ablauf der 14-Tage-Frist
+
+- Ziffer 5.3 nannte bisher 30 Tage (§ 286 Abs. 3 BGB), obwohl Ziffer 5.1 eine Zahlungsfrist von 14 Tagen setzt — Verzug trat dadurch 16 Tage später ein als nötig.
+- Neu: Verzug **mit Ablauf der Zahlungsfrist nach Ziffer 5.1, ohne Mahnung** (§ 286 Abs. 2 Nr. 2 BGB — Frist ab Rechnungszugang kalendermäßig berechenbar). § 286 Abs. 3 BGB bleibt als gesetzlicher Auffangtatbestand unberührt.
+- Folgefristen geprüft und weiterhin stimmig: Sperrung ankündbar ab Tag 29 (Ziffer 6.2), Zertifikatswiderruf ab Tag 75 (Ziffer 6.4) — Reihenfolge Sperrung vor Widerruf bleibt gewahrt. DE + EN angeglichen.
+
 ## v1.7.13 — 2026-07-25 — Rechtliche Dokumente: vollständiger Konsistenz-Audit
 
 Systematische Prüfung aller vier Dokumente (DE + EN) gegen den Code, gegeneinander und in sich. Drei echte Defekte gefunden und behoben:
