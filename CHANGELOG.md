@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.8 — 2026-07-25 — Fix: settings.json verlor dauerhaft die 600-Rechte
+
+- **Bug**: `settings.json` (enthält `CLIENT_SECRET`) und `settings.bak` lagen mit `644` für alle Systembenutzer lesbar vor — entgegen der dokumentierten Vorgabe `600`.
+- **Ursache**: `settings_store._save()` schreibt atomar über `tmp → rename`. `rename()` übernimmt die Rechte der **Quelldatei**, die frisch mit umask-Default (meist 644) entsteht. Jeder manuelle `chmod 600` wurde damit bei der nächsten Einstellungsänderung stillschweigend zurückgesetzt.
+- **Fix**: `tmp.chmod(0o600)` **vor** dem `replace()`, zusätzlich `chmod 600` auf `settings.bak`
+- Verifiziert: `_save()` gegen eine Kopie mit real geladenem `_data` ausgeführt → `settings.json` und `settings.bak` behalten `600`
+
 ## v1.7.7 — 2026-07-25 — Fix: Fair-Use-Zähler meldete Postfächer ohne jede Aktivierung
 
 - **Bug**: Bei leerer `MAILBOX_CONFIG` fiel `license.enabled_mailbox_count()` auf die EXO-Gesamtzahl zurück („leer = alle") und zeigte z.B. 20/100 an, obwohl **kein einziges** Postfach aktiviert war. In großen Tenants hätte das eine Fair-Use-**Überschreitung** gemeldet und Kunden grundlos zum Lizenzkauf gedrängt.
