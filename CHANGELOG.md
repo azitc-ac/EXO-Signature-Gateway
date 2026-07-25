@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.24 — 2026-07-26 — Zertifikatsbezug: Schritt 1 erst nach bestehender Anbindung
+
+- **Problem**: Die Schaltfläche „Nutzungsbedingungen akzeptieren" war auch ohne Hub-Anbindung bedienbar. Der Nutzer konnte den Dialog vollständig durchlaufen, das Häkchen setzen und den Text bestätigen — erst der Klick lief dann in „Nicht registriert (Anbindung fehlt)" aus `hub_client.cert_accept_terms()`.
+- **Fix**: Schritt 1 wird bei fehlender Anbindung gesperrt und zeigt stattdessen den Hinweis „Erst nach dem Herstellen der Anbindung verfügbar" — dasselbe Muster, mit dem Schritt 2 bereits auf Schritt 1 wartet.
+- Neue Template-Variable `_HUB_REGISTERED` (aus dem bereits vorhandenen `hub_registered`), bewusst am Anfang des Skriptblocks deklariert statt in der Mitte, damit die Reihenfolge bei künftigen Umstellungen nicht kippt.
+- Die Absicherung im Backend bleibt unverändert bestehen; die Oberfläche bremst jetzt nur früher.
+
 ## v1.7.23 — 2026-07-26 — Dark Mode: Kontrast messbar angehoben
 
 - **Befund**: Die Flächen lagen fast übereinander. Gemessen (WCAG-Kontrastverhältnis benachbarter Flächen): Karte gegen Eingabefeld **1,00:1** — identische Farbe, das Feld war nur am Rahmen erkennbar. Karte gegen sekundären Button **1,06:1**, Karte gegen Rahmen **1,24:1**. Einzig der blaue Primärbutton lag mit 3,25:1 im grünen Bereich.
