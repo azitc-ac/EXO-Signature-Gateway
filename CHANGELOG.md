@@ -5,6 +5,11 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.5 — 2026-07-25 — Fix: Button-Leisten brechen auf schmalen Bildschirmen um
+
+- **`style.css`**: `.actions` bekommt `flex-wrap: wrap` — vierte Schaltfläche („Status prüfen" in Anbindung & Lizenzen) lief auf dem Smartphone aus der Karte heraus statt umzubrechen
+- Wirkt global für alle 48 `.actions`-Leisten in 13 Templates; Umbruch greift nur, wenn der Platz nicht reicht
+
 ## v1.7.4 — 2026-07-25 — CA-Bedingungen-Consent vor Zertifikatsbestellung
 
 - **`smime.html`**: `startAutoEnroll()` prüft, ob das gewählte Hub-Backend eine `terms_url` hat; wenn ja, erscheint ein Modal mit Link zu den CA-Bedingungen und Pflicht-Checkbox vor der Bestellung
