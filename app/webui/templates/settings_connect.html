@@ -419,6 +419,9 @@ _initAdv('digicert');
 </div>
 
 <script>
+// Anbindungsstatus aus dem Template — steuert, ob der Zertifikats-Ablauf
+// überhaupt bedienbar ist (siehe _renderCertSteps).
+var _HUB_REGISTERED = {{ 'true' if hub_registered else 'false' }};
 // ── Anbindung (eine Registrierung) ───────────────────────────────────────────
 function _hubMsg(html, ok) { const el=document.getElementById('hub-result'); el.className='alert '+(ok?'success':'error'); el.innerHTML=html; el.style.display='block'; }
 const HUB_DEFAULT_BASE='https://sighub.zarenko.net';
@@ -689,6 +692,13 @@ function _renderCertSteps(d) {
     s1dot.style.background='#166534'; s1dot.style.color='#fff'; s1dot.textContent='✓';
     s1body.innerHTML='<span style="color:#166534;font-weight:600">Akzeptiert'+(d.terms_accepted_at?(' am '+d.terms_accepted_at.slice(0,10)):'')+'</span>'
       +' <button class="btn secondary" style="padding:1px 8px;font-size:11px;margin-left:6px" onclick="certViewTerms()">Text ansehen</button>';
+  } else if (!_HUB_REGISTERED) {
+    // Ohne Hub-Anbindung kann der Hub die Zustimmung gar nicht entgegennehmen
+    // (cert_accept_terms bricht mit "Nicht registriert" ab). Vorher sperren,
+    // statt den Nutzer den Dialog durchlaufen und am Ende scheitern zu lassen.
+    s1dot.style.background='#e2e8f0'; s1dot.style.color='#334155'; s1dot.textContent='1';
+    s1body.innerHTML='<span class="muted">Erst nach dem Herstellen der Anbindung verf\u00fcgbar '
+      + '(Abschnitt „Anbindung“ oben).</span>';
   } else {
     s1dot.style.background='#e2e8f0'; s1dot.style.color='#334155'; s1dot.textContent='1';
     s1body.innerHTML='<button class="btn secondary" onclick="certAcceptTerms()">Nutzungsbedingungen akzeptieren</button>';
