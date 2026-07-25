@@ -133,7 +133,7 @@ Hinzuziehung von Unterauftragsverarbeitern nach Art. 28 Abs. 2 Satz 2 DSGVO.
 
 | Unternehmen | Leistung | Sitz |
 |---|---|---|
-| Microsoft Ireland Operations Limited | Bereitstellung der Erreichbarkeit des Hub | Irland |
+| Microsoft Ireland Operations Limited | Öffentliche Erreichbarkeit des Hub (Entra Application Proxy) | Irland; Verarbeitung über EU-Rechenzentren |
 
 7.3 Der Auftragsverarbeiter zeigt beabsichtigte Änderungen **mindestens 30 Tage
 vorher** in Textform an. Der Verantwortliche kann innerhalb dieser Frist aus

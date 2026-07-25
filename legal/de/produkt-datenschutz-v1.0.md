@@ -155,10 +155,11 @@ Limited, One Microsoft Place, South County Business Park, Leopardstown,
 Dublin 18, Irland. Übermittelt werden Empfängeradresse, Betreff und Inhalt der
 jeweiligen Nachricht.
 
-**Erreichbarkeit des Hub.** Der Hub wird über einen Veröffentlichungsdienst der
-Microsoft Ireland Operations Limited erreichbar gemacht. Dabei verarbeitet
-Microsoft die Verbindungsdaten (unter anderem IP-Adresse und Zeitpunkt des
-Zugriffs) in unserem Auftrag.
+**Erreichbarkeit des Hub.** Der Hub wird über *Microsoft Entra Application
+Proxy* der Microsoft Ireland Operations Limited öffentlich erreichbar gemacht.
+Dabei verarbeitet Microsoft die Verbindungsdaten (unter anderem IP-Adresse und
+Zeitpunkt des Zugriffs) in unserem Auftrag. Die Verarbeitung erfolgt über
+Rechenzentren innerhalb der Europäischen Union.
 
 Mit beiden Diensten bestehen Verträge zur Auftragsverarbeitung nach Art. 28
 DSGVO. **Rechtsgrundlage** für den Einsatz ist Art. 6 Abs. 1 lit. b DSGVO sowie
