@@ -578,3 +578,13 @@ input[type="password"]:focus { outline: none; border-color: #0078d4; }
     .config-table th, .config-table td { padding: 8px 10px; }
     .nav-online-text { display: none; }
 }
+
+/* Admin-Autovervollständigung (JS-erzeugte Einträge) — Farben gehören hierher,
+   nicht in JS: style.background aus JS bricht die Dark-Mode-Selektoren. */
+.admin-suggest-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid #f8fafc;
+    font-size: 13px;
+}
+.admin-suggest-item:hover { background: #eff6ff; }

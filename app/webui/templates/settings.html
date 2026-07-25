@@ -403,12 +403,13 @@ function _renderAdminDropdownItems(users) {
   }
   users.forEach(function(u) {
     var item = document.createElement('div');
-    item.style.cssText = 'padding:8px 12px;cursor:pointer;border-bottom:1px solid #f8fafc;font-size:13px';
+    // Styling per Klasse statt per JS: style.background aus JS wird vom Browser zu
+    // rgb() normalisiert, die Dark-Mode-Attribut-Selektoren greifen dann nicht
+    // (CLAUDE.md, Regel 2). :hover in CSS ersetzt die beiden Listener gleich mit.
+    item.className = 'admin-suggest-item';
     item.innerHTML = '<span style="font-family:monospace;font-size:12px">' + u.upn + '</span>' +
       (u.name && u.name !== u.upn ? '<br><span style="font-size:11px;color:#64748b">' + u.name + '</span>' : '');
     item.addEventListener('mousedown', function(e) { e.preventDefault(); _selectAdminUser(u); });
-    item.addEventListener('mouseover', function() { item.style.background = '#eff6ff'; });
-    item.addEventListener('mouseout', function() { item.style.background = ''; });
     dd.appendChild(item);
   });
 }
