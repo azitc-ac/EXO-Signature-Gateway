@@ -88,25 +88,39 @@ Daten an den Hub, damit der Anbieter den Vertragsabschluss und die Annahme der
 Vertragsdokumente nachweisbar festhalten kann:
 
 - Kunden-E-Mail-Adresse (wie bei der Registrierung angegeben),
+- Name bzw. Firmenbezeichnung, soweit im Gateway angegeben (optionales Feld),
 - Mandanten-Domain des Exchange Online-Tenants des Kunden,
 - Gateway-Versionsnummer zum Zeitpunkt der Anbindung,
+- ein einmalig gültiges technisches Token zur Abholung des API-Schlüssels,
 - für jedes akzeptierte Vertragsdokument: technische Dokument-ID,
   Versionsnummer, kryptografische Prüfsumme des Dokumententexts (SHA-256) und
   Zeitpunkt der Zustimmung (UTC).
 
 Diese Daten werden beim Anbieter dauerhaft gespeichert.
 
-4.2 **Im laufenden Betrieb** bei bestehender Hub-Anbindung können je nach
-Nutzung folgende Daten übermittelt werden:
+4.2 **Im laufenden Betrieb** werden Daten ausschließlich dann übermittelt, wenn
+der Kunde die jeweilige Funktion selbst auslöst:
 
-- im Rahmen von Zertifikatsbestellungen die dafür erforderlichen Daten,
-- bei Supportanfragen die vom Kunden übermittelten Inhalte.
+- **Zertifikatsbestellung:** E-Mail-Adresse des Postfachs, für das das
+  Zertifikat ausgestellt werden soll, der zugehörige Zertifikatsantrag (CSR),
+  die gewählte Zertifizierungsstelle sowie der Zeitpunkt der Zustimmung zu
+  deren Bedingungen.
+- **Lizenzerwerb:** Kennung und Domain des Mandanten sowie die **Zahl der zu
+  lizenzierenden Postfächer**. Diese Zahl gibt den bestellten Umfang an, nicht
+  eine vom Gateway gemessene Nutzung.
+- **Rechnungskauf:** Firma, Rechnungsanschrift, Umsatzsteuer-Identifikations-
+  nummer, Ansprechpartner und Website, soweit vom Kunden angegeben.
+- **Supportanfrage:** das vom Kunden hochgeladene Diagnosepaket nebst
+  Anmerkung. Der Kunde bestimmt, ob und wann er ein solches Paket übermittelt.
 
-4.3 **Telemetriedaten werden nicht übermittelt.** Das Gateway sendet keine
-Nutzungsstatistiken, keine Mailflussdaten, keine Postfachzählungen und keine
-sonstigen Betriebsdaten automatisch an den Hub — weder einmalig noch laufend.
-Lizenzkonformität nach Ziffer 6 obliegt dem Kunden; eine automatisierte
-Überwachung findet nicht statt.
+4.3 **Telemetriedaten werden nicht übermittelt.** Das Gateway sendet weder
+einmalig noch laufend selbsttätig Daten an den Hub — insbesondere keine
+Nutzungsstatistiken, keine Mailflussdaten, keine Angaben über verarbeitete
+Nachrichten und keine Messung der Zahl aktivierter Postfächer. Sämtliche
+Übermittlungen nach Ziffer 4.2 setzen eine Handlung des Kunden voraus. Die
+Zahl aktivierter Postfächer wird vom Anbieter nicht automatisiert erhoben; die
+Einhaltung der Lizenzgrenzen nach Ziffer 6 obliegt dem Kunden, eine
+automatisierte Überwachung findet nicht statt.
 
 4.4 **E-Mail-Inhalte, Verkehrsdaten und private Schlüssel werden nicht an den
 Hub übermittelt.**

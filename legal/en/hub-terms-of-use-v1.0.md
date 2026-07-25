@@ -90,24 +90,40 @@ following data to the Hub so that the Provider can maintain a verifiable record
 of contract conclusion and acceptance of contractual documents:
 
 - Customer email address (as provided during registration),
+- name or company designation, if entered in the Gateway (optional field),
 - tenant domain of the Customer's Exchange Online tenant,
 - gateway version number at the time of connection,
+- a single-use technical token for retrieving the API key,
 - for each accepted contractual document: technical document ID, version number,
   cryptographic hash of the document text (SHA-256), and the timestamp of
   acceptance (UTC).
 
 This data is stored permanently by the Provider.
 
-4.2 **During ongoing operation** with an active Hub connection, the following
-data may be transmitted depending on usage:
+4.2 **During ongoing operation**, data is transmitted only where the Customer
+actively initiates the respective function:
 
-- data required for certificate orders as part of such orders,
-- content submitted by the Customer in the context of support requests.
+- **Certificate order:** the email address of the mailbox for which the
+  certificate is to be issued, the corresponding certificate signing request
+  (CSR), the selected certificate authority, and the timestamp of acceptance of
+  that authority's terms.
+- **License purchase:** tenant identifier and domain, together with the
+  **number of mailboxes to be licensed**. This number states the quantity
+  ordered, not a usage figure measured by the Gateway.
+- **Invoice purchase:** company, billing address, VAT identification number,
+  contact person, and website, insofar as provided by the Customer.
+- **Support request:** the diagnostic bundle uploaded by the Customer together
+  with any note. The Customer determines whether and when such a bundle is
+  transmitted.
 
-4.3 **No telemetry is transmitted.** The Gateway does not automatically send
-usage statistics, mail flow data, mailbox counts, or any other operational data
-to the Hub — neither once nor on an ongoing basis. License compliance under
-Section 6 is the Customer's responsibility; no automated monitoring takes place.
+4.3 **No telemetry is transmitted.** The Gateway does not send data to the Hub
+of its own accord, neither once nor on an ongoing basis — in particular no usage
+statistics, no mail flow data, no information about processed messages, and no
+measurement of the number of activated mailboxes. Every transmission under
+Section 4.2 requires an action by the Customer. The Provider does not collect
+the number of activated mailboxes automatically; compliance with the license
+limits under Section 6 is the Customer's responsibility, and no automated
+monitoring takes place.
 
 4.4 **Email content, traffic data, and private keys are not transmitted to the Hub.**
 

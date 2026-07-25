@@ -123,13 +123,19 @@ not unreasonably disadvantage the Licensee.
 6.1 The Licensee ensures that the number of activated mailboxes does not exceed
 the licensed scope.
 
-6.2 Proof is provided via the Hub connection or via the license key stored in
-the Gateway. A separate report or self-disclosure is not required in either case.
+6.2 The **licensed scope** follows from the Hub connection or from the license
+key stored in the Gateway. The number of **actually activated** mailboxes, by
+contrast, is not collected automatically; the Gateway does not transmit it
+(Section 4.3 of the Terms of Use for the EXO Signature Hub). An existing Hub
+connection therefore does not replace a disclosure under Section 6.3.
 
-6.3 If the Gateway is operated without a Hub connection and without a valid
-license key above the free tier, the Licensee must provide the Licensor, upon
-request, with the number of activated mailboxes at a specified reference date in
-text form. The disclosure must be provided within 30 days of the request.
+6.3 To verify license compliance, the Licensor may request, once per year and in
+text form, the number of mailboxes activated as at a specified reference date.
+The disclosure must be provided within 30 days of the request. This applies
+regardless of whether a Hub connection exists or a license key is stored, and
+corresponds to Section 6.8 of the Terms of Use for the EXO Signature Hub. If the
+Licensee voluntarily submits documents from which the number is apparent, the
+Licensor may use that information.
 
 6.4 If an excess is subsequently identified, the Licensee owes the license fee
 retroactively from the month of first excess.

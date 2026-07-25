@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.13 — 2026-07-25 — Rechtliche Dokumente: vollständiger Konsistenz-Audit
+
+Systematische Prüfung aller vier Dokumente (DE + EN) gegen den Code, gegeneinander und in sich. Drei echte Defekte gefunden und behoben:
+
+- **Ziffer 4.1 war unvollständig**, gibt sich aber als abschließende Aufzählung: `register()` sendet zusätzlich den **Kundennamen** (`HUB_CUSTOMER_NAME`) und ein einmaliges Claim-Token. Beide ergänzt.
+- **Ziffer 4.2 verschwieg zwei Übermittlungen**: `license/purchase` sendet Mandanten-Kennung, -Domain und die **Zahl zu lizenzierender Postfächer**; `cert/billing` sendet Firma, Rechnungsanschrift, USt-IdNr., Ansprechpartner und Website. Beides ergänzt; Zertifikatsbestellung und Support-Upload konkret benannt statt „erforderliche Daten".
+- **Ziffer 4.3 stand im Widerspruch zum Lizenzkauf**: „keine Postfachzählungen" las sich absolut, obwohl beim Lizenzerwerb eine Zahl übermittelt wird. Neu formuliert: keine *selbsttätige* Übermittlung, keine *Messung* der Nutzung; jede Übermittlung nach 4.2 setzt eine Kundenhandlung voraus. Die Zahl beim Lizenzkauf ist ausdrücklich der bestellte Umfang, keine gemessene Nutzung.
+- **Lizenzergänzung 6.2/6.3** wiederholte den Fehler aus Hub-Ziffer 6.8 (v1.7.12): „Nachweis erfolgt über die Hub-Anbindung, Selbstauskunft nicht erforderlich" — die Anbindung überträgt aber keine Nutzungszahl. Getrennt in lizenzierten Umfang (Hub/Lizenzschlüssel) und tatsächliche Nutzung (jährliche Selbstauskunft), abgestimmt auf Hub-Ziffer 6.8.
+
+Geprüft und in Ordnung: Preisliste-Arithmetik (alle sechs Beispielzeilen und das Erstattungsbeispiel nachgerechnet), Freigrenze 100 = `FAIR_USE_LIMIT`, Kündigungsfristen und Mindestabnahme dokumentübergreifend, Haftungsgrenzen, alle Querverweise (0 ungültig), DE/EN-Strukturparität aller vier Paare.
+
 ## v1.7.12 — 2026-07-25 — Fix (rechtlich): Ziffer 6.8 widersprach dem Telemetrie-Ausschluss
 
 - **Widerspruch**: Ziffer 4.3 sagt zu, dass **keine Postfachzählungen** übermittelt werden — Ziffer 6.8 berief sich aber auf „den **übermittelten Zählwert**" bei bestehender Hub-Anbindung.
