@@ -83,9 +83,10 @@ fällig.
 5.2 Maßgeblich für die Rechtzeitigkeit ist der Eingang auf dem Konto des
 Anbieters.
 
-5.3 Der Kunde kommt ohne Mahnung in Verzug, wenn er nicht innerhalb von 30
-Tagen nach Fälligkeit und Zugang der Rechnung leistet (§ 286 Abs. 3 BGB); eine
-frühere Mahnung bleibt möglich.
+5.3 Der Kunde kommt **mit Ablauf der Zahlungsfrist nach Ziffer 5.1 ohne
+Mahnung in Verzug** (§ 286 Abs. 2 Nr. 2 BGB); die Frist berechnet sich vom
+Zugang der Rechnung an nach dem Kalender. Einer gesonderten Mahnung bedarf es
+nicht; § 286 Abs. 3 BGB bleibt unberührt.
 
 5.4 Während des Verzugs ist die Forderung mit **neun Prozentpunkten über dem
 Basiszinssatz** zu verzinsen (§ 288 Abs. 2 BGB).
