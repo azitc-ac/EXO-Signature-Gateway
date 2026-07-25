@@ -587,6 +587,14 @@ function _renderBillingSection(d) {
   } else {
     billBox.style.display='none'; reqBox.style.display='block';
     const body=document.getElementById('cert-invoice-request-body');
+    if(!_HUB_REGISTERED){
+      // Ohne Anbindung nimmt der Hub den Antrag nicht entgegen. Ohne diese
+      // Sperre würde Gate B sogar die Zustimmung zu den Zahlungsbedingungen
+      // aufzeichnen, bevor der Antrag scheitert.
+      body.innerHTML='<span class="muted">Erst nach dem Herstellen der Anbindung verf\u00fcgbar '
+        + '(Abschnitt „Anbindung“ oben).</span>';
+      return;
+    }
     if(d.invoice_requested_at){
       body.innerHTML='<span class="muted">Antrag gestellt am '+d.invoice_requested_at.slice(0,10)+' — wartet auf Freigabe durch EXO Signature HUB.</span>';
     } else {

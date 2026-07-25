@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.26 — 2026-07-26 — Rechnungsantrag erst nach bestehender Anbindung
+
+- Gleiches Problem wie bei den Zertifikats-Nutzungsbedingungen (v1.7.24): Das Antragsformular für den Rechnungskauf war auch ohne Hub-Anbindung ausfüllbar. `hub_client.cert_request_invoice()` bricht mit „Nicht registriert" ab — der Nutzer hätte Firma, Anschrift, USt-IdNr. und Ansprechpartner eingegeben und wäre erst beim Absenden gescheitert.
+- **Verschärfend**: Gate B hätte dabei die **Zustimmung zu den Zahlungsbedingungen aufgezeichnet**, bevor der Antrag fehlschlägt — Zustimmung gespeichert, Antrag weg.
+- **Systematisch nachgezogen**: alle 14 `hub_client`-Funktionen mit Anbindungs-Voraussetzung den Schaltflächen zugeordnet und die Absicherung geprüft. Ergebnis: Domänenverifizierung und Guthaben-Aufladung hängen bereits hinter dem Terms-Gate, Abrechnungsdaten und Abbestellung sind nur in Zuständen sichtbar, die eine Anbindung voraussetzen. Der **Lizenzkauf war bereits gesperrt** — das war der etablierte Umgang, der bei den beiden anderen Stellen fehlte.
+
 ## v1.7.25 — 2026-07-26 — CA-Nutzungsbedingungen: Umbruch korrigiert
 
 - Die Bedingungen für den Zertifikatsbezug hatten dasselbe Problem wie zuvor die Rechtsdokumente: Der Quelltext in `terms.py` ist hart auf ~76 Zeichen umbrochen, `white-space:pre-wrap` übernahm diese Umbrüche wörtlich, und auf schmalen Schirmen kam der Viewport-Umbruch obendrauf.
