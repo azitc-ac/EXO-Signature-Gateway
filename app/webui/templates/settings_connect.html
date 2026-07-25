@@ -147,11 +147,11 @@
       <div style="margin-top:8px"><button class="btn secondary" onclick="certSaveBilling()">Speichern</button></div>
     </div>
 
-    <div class="info-box" style="margin-bottom:12px">
+    <div class="info-box" id="cert-domains-box" style="margin-bottom:12px">
       <strong>Verifizierte Domains</strong>
-      <p class="hint" style="margin:2px 0 8px">
-        Zertifikate werden nur für Domains ausgestellt, deren Kontrolle du per DNS-TXT-Eintrag
-        nachgewiesen hast — eine bestätigte E-Mail allein reicht dafür nicht aus.
+      <p class="hint" id="cert-domains-hint" style="margin:2px 0 8px">
+        Für manche Zertifizierungsstellen musst du die Kontrolle über die Domain per
+        DNS-TXT-Eintrag nachweisen.
       </p>
       <div id="cert-domains-list" style="margin-bottom:10px"></div>
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
@@ -421,6 +421,16 @@ _initAdv('digicert');
 <script>
 // Anbindungsstatus aus dem Template — steuert, ob der Zertifikats-Ablauf
 // überhaupt bedienbar ist (siehe _renderCertSteps).
+// Brauchen die freigeschalteten Anbieter überhaupt eine Domänenverifizierung?
+// mailbox-validierte CAs (z.B. Certum) prüfen das Postfach selbst per
+// Bestätigungsmail — dort wäre der DNS-Eintrag reine Reibung. Konservativer
+// Startwert true, bis der Katalog geladen ist.
+var _DOMAIN_VALIDATION_NEEDED = true;
+function _applyDomainBoxVisibility() {
+  var box = document.getElementById('cert-domains-box');
+  if (!box) return;
+  box.style.display = _DOMAIN_VALIDATION_NEEDED ? '' : 'none';
+}
 var _HUB_REGISTERED = {{ 'true' if hub_registered else 'false' }};
 // ── Anbindung (eine Registrierung) ───────────────────────────────────────────
 function _hubMsg(html, ok) { const el=document.getElementById('hub-result'); el.className='alert '+(ok?'success':'error'); el.innerHTML=html; el.style.display='block'; }
@@ -567,6 +577,7 @@ async function certLoadEligibility(manual) {
   if(manual){ _certMsg('✓ Aktualisiert ('+new Date().toLocaleTimeString('de-DE')+')', true); }
 }
 function _renderCertDomains(d) {
+  _applyDomainBoxVisibility();
   const list=document.getElementById('cert-domains-list');
   if(!list) return;
   const verified=d.verified_domains||[];
@@ -754,6 +765,22 @@ async function certLoadCatalog() {
     const provs = (d.providers || []).filter(function(p){ return p.available !== false; });
     if (!d.registered || !provs.length) return;   // Box nur zeigen, wenn es etwas zu zeigen gibt
     const disabled = d.disabled || [];
+    // Nur tatsächlich nutzbare Anbieter zählen: verfügbar UND nicht lokal abgewählt.
+    _DOMAIN_VALIDATION_NEEDED = provs.some(function(p){
+      return disabled.indexOf(p.id) < 0 && (p.validation || 'domain') !== 'mailbox';
+    });
+    // Hinweistext benennt die Anbieter, die den Nachweis verlangen — pauschal
+    // stimmt er nicht mehr, seit mailbox-validierte CAs ohne ihn auskommen.
+    var needing = provs.filter(function(p){
+      return disabled.indexOf(p.id) < 0 && (p.validation || 'domain') !== 'mailbox';
+    }).map(function(p){ return p.label || p.id; });
+    var hint = document.getElementById('cert-domains-hint');
+    if (hint && needing.length) {
+      hint.innerHTML = 'Erforderlich f\u00fcr: <strong>' + needing.map(escC).join('</strong>, <strong>')
+        + '</strong>. Mailbox-validierte Anbieter pr\u00fcfen das Postfach selbst per '
+        + 'Best\u00e4tigungsmail und ben\u00f6tigen keinen DNS-Eintrag.';
+    }
+    _applyDomainBoxVisibility();
     function escC(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
     function price(c){ return c > 0 ? (c/100).toFixed(2).replace('.', ',') + ' € zzgl. MwSt.' : '—'; }
     document.getElementById('cert-catalog-tbody').innerHTML = provs.map(function(p){
