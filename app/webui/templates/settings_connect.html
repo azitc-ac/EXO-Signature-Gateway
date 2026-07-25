@@ -1046,7 +1046,9 @@ async function legalLoadStatus() {
       {id:'hub-terms', label:'Hub-Nutzungsbedingungen', consent: true},
       {id:'license-supplement', label:'Lizenzbedingungen-Ergänzung', consent: true},
       {id:'payment-invoice', label:'Zahlungsbedingungen (Rechnungskauf)', consent: true},
+      {id:'dpa', label:'Auftragsverarbeitungsvertrag (Diagnosepakete)', consent: true},
       {id:'price-list', label:'Preisliste', consent: false},
+      {id:'product-privacy', label:'Datenschutzerklärung (Gateway &amp; Hub)', consent: false},
     ];
     const list = document.getElementById('legal-doc-list');
     list.innerHTML = docs.map(function(doc) {

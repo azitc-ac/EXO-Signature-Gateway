@@ -691,7 +691,7 @@ async function supportDownload() {
   }
 }
 
-async function supportUpload() {
+async function _doSupportUpload() {
   const btn     = document.getElementById('sup-upload-btn');
   const spinner = document.getElementById('sup-upload-spinner');
   const result  = document.getElementById('sup-upload-result');
@@ -910,5 +910,121 @@ async function restartContainer() {
     btn.disabled = false;
   }
 }
+
+// ── Gate C: AVV vor dem Diagnosepaket-Upload ────────────────────────────────
+// Markdown-Renderer bewusst dupliziert statt geteilt: settings_connect.html und
+// advanced.html haben keine gemeinsame JS-Datei. Bei einer dritten Verwendung
+// gehört das in eine eigene static/legal.js.
+var _dpaData = null;
+
+function _dpaEscape(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function _dpaInline(s){
+  return _dpaEscape(s)
+    .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+    .replace(/`([^`]+)`/g,'<code>$1</code>')
+    .replace(/(https?:\/\/[^\s<)]+)/g,'<a href="$1" target="_blank" rel="noopener" style="color:#0369a1">$1</a>');
+}
+function _dpaMd(md){
+  var out=[];
+  String(md||'').replace(/\r\n/g,'\n').split(/\n{2,}/).forEach(function(block){
+    var lines=block.split('\n').filter(function(l){return l.trim()!=='';});
+    if(!lines.length) return;
+    if(lines.length>=2 && lines.every(function(l){return l.trim().charAt(0)==='|';})){
+      var rows=lines.filter(function(l){return !/^\|[\s:|-]+\|$/.test(l.trim());});
+      var h='<table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:12px">';
+      rows.forEach(function(l,i){
+        var cells=l.trim().replace(/^\||\|$/g,'').split('|'); var tag=i===0?'th':'td';
+        h+='<tr>'+cells.map(function(c){return '<'+tag+' style="border:1px solid #e2e8f0;padding:4px 8px;text-align:left">'+_dpaInline(c.trim())+'</'+tag+'>';}).join('')+'</tr>';
+      });
+      out.push(h+'</table>'); return;
+    }
+    var m=lines[0].match(/^(#{1,4})\s+(.*)$/);
+    if(m){ var lvl=Math.min(m[1].length+1,4);
+      out.push('<h'+lvl+' style="margin:14px 0 6px;font-size:'+(16-m[1].length)+'px">'+_dpaInline(m[2])+'</h'+lvl+'>');
+      lines=lines.slice(1); if(!lines.length) return; }
+    if(lines.every(function(l){return /^-{3,}$/.test(l.trim());})){
+      out.push('<hr style="border:none;border-top:1px solid #e2e8f0;margin:12px 0">'); return; }
+    if(lines[0].trim().charAt(0)==='-'){
+      var items=[],cur='';
+      lines.forEach(function(l){ if(/^\s*-\s+/.test(l)){ if(cur)items.push(cur); cur=l.replace(/^\s*-\s+/,''); } else cur+=' '+l.trim(); });
+      if(cur)items.push(cur);
+      out.push('<ul style="margin:6px 0 6px 18px;padding:0">'+items.map(function(i){return '<li style="margin:2px 0">'+_dpaInline(i)+'</li>';}).join('')+'</ul>');
+      return; }
+    out.push('<p style="margin:0 0 10px">'+_dpaInline(lines.join(' '))+'</p>');
+  });
+  return out.join('');
+}
+
+function _dpaCheck(){ document.getElementById('dpa-confirm-btn').disabled = !document.getElementById('dpa-cb').checked; }
+function _dpaClose(){ document.getElementById('dpa-consent-modal').style.display='none'; }
+function _dpaMsg(t,ok){ var e=document.getElementById('dpa-msg'); e.textContent=t; e.style.color=ok?'#166534':'#dc2626'; e.style.display='block'; }
+
+async function _dpaOpen(){
+  var modal=document.getElementById('dpa-consent-modal'), txt=document.getElementById('dpa-text');
+  document.getElementById('dpa-cb').checked=false; _dpaCheck();
+  document.getElementById('dpa-msg').style.display='none';
+  modal.style.display='flex';
+  if(_dpaData){ txt.classList.add('md'); txt.innerHTML=_dpaMd(_dpaData.text); return; }
+  txt.classList.remove('md'); txt.textContent='Lade…';
+  try{
+    var d=await (await fetch('/api/legal/doc/dpa?lang=de')).json();
+    if(d.ok){ _dpaData=d; txt.classList.add('md'); txt.innerHTML=_dpaMd(d.text); }
+    else txt.textContent='Fehler beim Laden: '+(d.detail||'unbekannt');
+  }catch(e){ txt.textContent='Netzwerkfehler.'; }
+}
+
+async function _dpaConfirm(){
+  var btn=document.getElementById('dpa-confirm-btn'); btn.disabled=true;
+  if(!_dpaData){ _dpaMsg('Dokument nicht geladen.',false); btn.disabled=false; return; }
+  try{
+    var r=await fetch('/api/legal/consent',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({document_id:'dpa',version:_dpaData.version,
+                           content_hash:_dpaData.content_hash,context:'support_upload'})});
+    var d=await r.json().catch(function(){return {};});
+    if(!r.ok||!d.ok){ _dpaMsg('Konnte nicht gespeichert werden: '+(d.detail||'Fehler'),false); btn.disabled=false; return; }
+  }catch(e){ _dpaMsg('Netzwerkfehler.',false); btn.disabled=false; return; }
+  _dpaClose();
+  _doSupportUpload();          // Zustimmung liegt vor → Upload jetzt ausführen
+}
+
+// supportUpload() wird unten durch die gegatete Variante ersetzt.
+async function _gatedSupportUpload(){
+  try{
+    var s=await (await fetch('/api/legal/status')).json();
+    var acc = s && s.documents && s.documents.dpa && s.documents.dpa.accepted;
+    if(!acc){ await _dpaOpen(); return; }
+  }catch(e){ /* Statusabfrage fehlgeschlagen → Backend-Gate greift ohnehin */ }
+  await _doSupportUpload();
+}
+
+supportUpload = _gatedSupportUpload;
 </script>
+
+<!-- ── AVV-Dialog (Gate C: Diagnosepaket-Upload) ──────────────────────────── -->
+<div id="dpa-consent-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:1001;align-items:center;justify-content:center">
+  <div class="dlg-card" style="max-width:620px;width:94%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+    <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0">
+      <strong>Auftragsverarbeitungsvertrag</strong>
+      <div class="hint" style="margin-top:4px;font-size:12px">
+        Ein Diagnosepaket enthält ein Protokoll der Mailverarbeitung der letzten sieben Tage
+        (Absender, Empfänger, Betreff) — also personenbezogene Daten Ihrer Beschäftigten und
+        deren Kommunikationspartner. Nach Art. 28 DSGVO muss dafür vor der Übermittlung ein
+        Vertrag bestehen.
+      </div>
+    </div>
+    <div id="dpa-text" class="legal-view" style="padding:14px 20px;overflow-y:auto;font-size:12px;line-height:1.6;flex:1;min-height:0">Lade…</div>
+    <div style="padding:10px 20px;border-top:1px solid #f0f0f0;background:#fafaf9">
+      <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:13px;margin-bottom:12px">
+        <input type="checkbox" id="dpa-cb" onchange="_dpaCheck()" style="margin-top:2px;flex-shrink:0">
+        <span>Ich habe den <strong>Auftragsverarbeitungsvertrag</strong> gelesen und schließe ihn ab.</span>
+      </label>
+      <div style="display:flex;justify-content:flex-end;gap:8px">
+        <button class="btn secondary" onclick="_dpaClose()">Abbrechen</button>
+        <button class="btn primary" id="dpa-confirm-btn" disabled onclick="_dpaConfirm()">Abschließen &amp; Senden</button>
+      </div>
+    </div>
+    <div id="dpa-msg" style="display:none;padding:6px 20px 10px;font-size:12px"></div>
+  </div>
+</div>
+
 {% endblock %}
