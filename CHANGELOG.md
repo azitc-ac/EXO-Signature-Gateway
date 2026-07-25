@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.27 — 2026-07-26 — Domänenverifizierung nur noch, wo der Anbieter sie braucht
+
+- Die Box „Verifizierte Domains" erschien unabhängig davon, welche Zertifizierungsstelle genutzt wird. Bei mailbox-validierten CAs (Certum) ist der DNS-Eintrag jedoch reine Reibung — dort verifiziert die CA das Postfach selbst per Bestätigungsmail.
+- Die Box blendet sich jetzt aus, wenn **kein freigeschalteter** Anbieter eine Domänenprüfung verlangt (Katalogfeld `validation`, Hub v0.24.25). Lokal abgewählte Anbieter zählen nicht mit.
+- Der Hinweistext behauptete pauschal „eine bestätigte E-Mail allein reicht dafür nicht aus" — das stimmt für Certum nicht mehr. Er benennt jetzt konkret die Anbieter, die den Nachweis verlangen.
+- Verbindlich ist ohnehin das Hub-Gate pro Bestellung; die Oberfläche spiegelt das nur.
+- Gegen sechs Szenarien geprüft: nur Certum → keine Prüfung; gemischt → Prüfung; SwissSign lokal abgewählt → keine Prüfung; Anbieter ohne Feld → Prüfung (konservativ).
+
 ## v1.7.26 — 2026-07-26 — Rechnungsantrag erst nach bestehender Anbindung
 
 - Gleiches Problem wie bei den Zertifikats-Nutzungsbedingungen (v1.7.24): Das Antragsformular für den Rechnungskauf war auch ohne Hub-Anbindung ausfüllbar. `hub_client.cert_request_invoice()` bricht mit „Nicht registriert" ab — der Nutzer hätte Firma, Anschrift, USt-IdNr. und Ansprechpartner eingegeben und wäre erst beim Absenden gescheitert.
