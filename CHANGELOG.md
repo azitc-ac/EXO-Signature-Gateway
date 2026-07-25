@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.11 — 2026-07-25 — Fix: Schritt-Badges schnitten längere Beschriftungen ab
+
+- **Bug**: `.step-badge` war ein fester 28×28-Kreis (`width`/`height` + `border-radius:50%`), wurde aber quer durch Setup, Erweitert, Debug und Backup mit Wörtern befüllt — „KEY VAULT", „Security", „Logging", „S/MIME", „WATCHER", „Support". Der Text quoll aus dem Kreis; als Notbehelf stand an vielen Stellen inline `font-size:10px`, was ihn nur kleiner, nicht passend machte.
+- **Fix** (eine Regel, wirkt auf alle ~30 Vorkommen): `min-width:28px` statt `width`, dazu `padding:0 9px`, `box-sizing:border-box`, `border-radius:14px` (= halbe Höhe) und `white-space:nowrap`. Kurzer Inhalt („1", „↩") ergibt weiterhin einen exakten Kreis, längerer eine mitwachsende Pille — dasselbe Muster, das der Hub mit `.badge` bereits nutzt.
+- Systematisch geprüft: keine weiteren Elemente mit fester Breite und mehrzeichigem Inhalt in Templates oder Stylesheets beider Anwendungen (`.hub-nav-toggle span` ist der Hamburger-Balken, kein Badge)
+
 ## v1.7.10 — 2026-07-25 — Dark Mode: verbindliche Regeln + Prüfwerkzeug
 
 - **`CLAUDE.md`**: neuer Abschnitt „UI-Farben & Dark Mode — VERBINDLICH" mit der aus `dark-mode.css` extrahierten Farbpalette (Hintergrund/Text/Rahmen je Zweck) und drei bindenden Regeln. Damit entfällt das wiederholte Herleiten bei jeder UI-Änderung.

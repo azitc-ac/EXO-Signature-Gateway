@@ -469,14 +469,21 @@ input[type="number"] {
     background: #f0fdf4;
 }
 
+/* Wächst mit dem Inhalt: min-width + border-radius = halbe Höhe ergibt bei
+   kurzem Text ("1", "↩") einen exakten Kreis, bei längerem ("KEY VAULT",
+   "Security") eine Pille — statt den Text aus einem festen 28px-Kreis zu
+   drängen. Deshalb min-width statt width und box-sizing: border-box. */
 .step-badge {
-    width: 28px;
+    min-width: 28px;
     height: 28px;
-    border-radius: 50%;
+    padding: 0 9px;
+    box-sizing: border-box;
+    border-radius: 14px;
     background: #0078d4;
     color: #fff;
     font-size: 13px;
     font-weight: 700;
+    white-space: nowrap;
     display: flex;
     align-items: center;
     justify-content: center;
