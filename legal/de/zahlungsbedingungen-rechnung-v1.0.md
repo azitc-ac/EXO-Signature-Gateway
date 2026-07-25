@@ -38,8 +38,8 @@ Rechnungsempfänger bereit.
 Gewährung des Rechnungskaufs Auskünfte bei Wirtschaftsauskunfteien einzuholen.
 Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO; das berechtigte Interesse liegt
 in der Absicherung des Ausfallrisikos. Einzelheiten regelt die
-Datenschutzerklärung unter
-https://blog.zarenko.net/datenschutzerklaerung-2/.
+Datenschutzerklärung für EXO Signature Gateway und EXO Signature Hub unter
+https://sighub.zarenko.net/datenschutz.
 
 ---
 

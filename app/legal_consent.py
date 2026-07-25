@@ -48,6 +48,18 @@ CURRENT_DOCUMENTS: dict[str, dict] = {
         "path_en": "en/price-list-v1.0.md",
         "no_consent_required": True,
     },
+    # Eine Datenschutzerklärung ist eine INFORMATION nach Art. 13/14 DSGVO, keine
+    # Willenserklärung — sie wird zur Kenntnis genommen, nicht akzeptiert. Daher
+    # no_consent_required: sie erscheint in der Dokumentenliste und ist lesbar,
+    # taucht aber in keinem Consent-Gate auf.
+    "product-privacy": {
+        "version": "1.0",
+        "label_de": "Datenschutzerklärung (Gateway & Hub)",
+        "label_en": "Privacy Policy (Gateway & Hub)",
+        "path_de": "de/produkt-datenschutz-v1.0.md",
+        "path_en": "en/product-privacy-policy-v1.0.md",
+        "no_consent_required": True,
+    },
 }
 
 CONTEXT_DOCUMENTS: dict[str, list[str]] = {

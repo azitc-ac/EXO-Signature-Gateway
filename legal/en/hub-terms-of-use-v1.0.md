@@ -130,8 +130,9 @@ monitoring takes place.
 4.5 The Provider processes the transmitted data for the purpose of contract
 performance and documentation of contract conclusion.
 
-4.6 Details are governed by the Privacy Policy at
-https://blog.zarenko.net/datenschutzerklaerung-2/.
+4.6 Details are governed by the Privacy Policy for EXO Signature Gateway and
+EXO Signature Hub, available at https://sighub.zarenko.net/datenschutz and in the Gateway
+interface under "Legal documents".
 
 ---
 

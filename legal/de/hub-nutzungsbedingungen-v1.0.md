@@ -128,8 +128,9 @@ Hub übermittelt.**
 4.5 Der Anbieter verarbeitet die übermittelten Daten zur Vertragserfüllung und
 zur Dokumentation des Vertragsabschlusses.
 
-4.6 Einzelheiten regelt die Datenschutzerklärung unter
-https://blog.zarenko.net/datenschutzerklaerung-2/.
+4.6 Einzelheiten regelt die Datenschutzerklärung für EXO Signature Gateway
+und EXO Signature Hub, abrufbar unter https://sighub.zarenko.net/datenschutz sowie in der
+Gateway-Oberfläche unter „Rechtliche Dokumente".
 
 ---
 
