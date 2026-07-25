@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.23 — 2026-07-26 — Dark Mode: Kontrast messbar angehoben
+
+- **Befund**: Die Flächen lagen fast übereinander. Gemessen (WCAG-Kontrastverhältnis benachbarter Flächen): Karte gegen Eingabefeld **1,00:1** — identische Farbe, das Feld war nur am Rahmen erkennbar. Karte gegen sekundären Button **1,06:1**, Karte gegen Rahmen **1,24:1**. Einzig der blaue Primärbutton lag mit 3,25:1 im grünen Bereich.
+- **Ursache**: Im sehr dunklen Bereich ist der Kontrastabstand stark gestaucht — zwei Flächen bei 5 % Helligkeit unterscheiden sich rechnerisch kaum, egal wie verschieden die Hex-Werte aussehen.
+- **Vorgehen**: Kandidatenfarben durchgerechnet statt geschätzt; Rahmen als Haupthebel erkannt, da Flächen-gegen-Fläche im Dunklen kaum über 2:1 zu bringen ist, ohne auszuwaschen.
+- **Neue Staffelung**: Eingabefeld `#0e1119` (bewusst dunkler als die Karte, eingesenkt) · Karte `#1c2030` · Kopfleiste `#262b3a` · Button sekundär `#394159` · Rahmen `#495166` · Rahmen stark `#5a6480`
+- **Ergebnis**: Karte gegen Rahmen **1,24 → 2,04:1**, Eingabefeld gegen Rahmen **3,21:1**, Karte gegen sekundären Button **1,06 → 1,60:1**. Textkontraste bleiben zwischen 6:1 und 15:1.
+- Kopfleisten (`.step-header`, `.user-hdr`) bewusst eine Stufe unter den Buttons, damit die Rangfolge Karte → Kopfleiste → Bedienelement erhalten bleibt.
+
 ## v1.7.22 — 2026-07-25 — Fix: *kursiv* wurde als Sternchen angezeigt
 
 - Die Markdown-Renderer beherrschten nur `**fett**`. Einfache Sternchen blieben als Text stehen — sichtbar u.a. bei „*Azure Communication Services*", „*Monatliche Zahlung:*" und **jeder** Versionsfußzeile. Insgesamt 22 Stellen über alle Dokumente.
