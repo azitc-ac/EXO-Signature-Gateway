@@ -133,7 +133,7 @@ sub-processors pursuant to Art. 28(2) sentence 2 GDPR.
 
 | Company | Service | Location |
 |---|---|---|
-| Microsoft Ireland Operations Limited | Provision of public reachability of the Hub | Ireland |
+| Microsoft Ireland Operations Limited | Public reachability of the Hub (Entra Application Proxy) | Ireland; processing via EU data centres |
 
 7.3 The Processor shall give notice of intended changes in text form **at least
 30 days in advance**. The Controller may object within that period on data

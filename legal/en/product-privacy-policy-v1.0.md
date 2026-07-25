@@ -150,9 +150,11 @@ Limited, One Microsoft Place, South County Business Park, Leopardstown,
 Dublin 18, Ireland. The recipient address, subject, and content of the respective
 message are transmitted.
 
-**Availability of the Hub.** The Hub is made reachable via a publishing service
-of Microsoft Ireland Operations Limited. In doing so, Microsoft processes
-connection data (including IP address and time of access) on our behalf.
+**Availability of the Hub.** The Hub is made publicly reachable via *Microsoft
+Entra Application Proxy* operated by Microsoft Ireland Operations Limited. In
+doing so, Microsoft processes connection data (including IP address and time of
+access) on our behalf. Processing takes place via data centres within the
+European Union.
 
 Data processing agreements pursuant to Art. 28 GDPR are in place with both
 services. The **legal basis** for their use is Art. 6(1)(b) GDPR and Art. 6(1)(f)

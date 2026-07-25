@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.21 — 2026-07-25 — Hosting-Angaben verifiziert statt vermutet
+
+- Die Datenschutzerklärung und der AVV beschrieben die Erreichbarkeit des Hub bisher als „Veröffentlichungsdienst der Microsoft Ireland" — das war meine **Ableitung**, nicht überprüft.
+- Per Antwort-Header belegt: `x-ms-proxy-service-name: proxy-appproxy-DWC-FRA03P-3` → **Microsoft Entra Application Proxy**, Rechenzentrum Frankfurt.
+- Beide Dokumente nennen den Dienst jetzt beim Namen und halten die EU-Lokation fest. Das stützt zugleich Ziffer 8.1 des AVV („keine Drittlandverarbeitung"), die vorher auf einer Annahme beruhte.
+- ACS bleibt als E-Mail-Dienst gesetzt (bestätigt) — der Absatz ist damit final.
+
 ## v1.7.20 — 2026-07-25 — AVV-Zustimmungsdialog (Gate C) in der Oberfläche
 
 - Der Diagnosepaket-Upload lief bisher in den 403 aus v1.7.19, ohne Weg zum Abschluss des Vertrags. Jetzt öffnet sich analog zu Gate A/B ein Dialog: AVV-Text, Pflicht-Häkchen, „Abschließen & Senden" — danach läuft der Upload automatisch weiter.
