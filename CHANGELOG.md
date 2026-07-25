@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.20 — 2026-07-25 — AVV-Zustimmungsdialog (Gate C) in der Oberfläche
+
+- Der Diagnosepaket-Upload lief bisher in den 403 aus v1.7.19, ohne Weg zum Abschluss des Vertrags. Jetzt öffnet sich analog zu Gate A/B ein Dialog: AVV-Text, Pflicht-Häkchen, „Abschließen & Senden" — danach läuft der Upload automatisch weiter.
+- `supportUpload()` in `advanced.html` heißt jetzt `_doSupportUpload()` und wird durch `_gatedSupportUpload()` ersetzt (dasselbe Überschreibungsmuster wie bei `hubConnect`/`certRequestInvoice`).
+- Der Dialog nennt im Kopf ausdrücklich, was im Paket steckt (Mail-Protokoll der letzten sieben Tage mit Absender, Empfänger, Betreff) — der Kunde soll wissen, wofür er unterschreibt.
+- **Dokumentenliste** unter „Rechtliche Dokumente" um AVV (zustimmungspflichtig) und Datenschutzerklärung (informativ) ergänzt.
+- Der Markdown-Renderer ist in `advanced.html` dupliziert, weil beide Templates keine gemeinsame JS-Datei haben; im Code vermerkt, dass er bei einer dritten Verwendung nach `static/legal.js` gehört. Gegen den echten AVV geprüft: 47 Absätze, 14 Überschriften, 1 Tabelle, keine Markdown-Reste.
+
 ## v1.7.19 — 2026-07-25 — Auftragsverarbeitungsvertrag + Gate auf Diagnosepaket-Upload
 
 - **Neu**: `legal/de/auftragsverarbeitung-v1.0.md` + englische Fassung — AVV nach Art. 28 DSGVO, bewusst **eng auf Diagnosepakete begrenzt**. Der laufende Gateway-Betrieb ist ausdrücklich ausgenommen (dort besteht keine Auftragsverarbeitung), ebenso die Daten, die der Anbieter als eigener Verantwortlicher verarbeitet.
