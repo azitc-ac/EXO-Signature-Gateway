@@ -178,10 +178,13 @@ Above 110 mailboxes, additional licenses can be purchased individually.
 6.7 The Gateway does not block any functions upon exceeding the threshold.
 Compliance is the Customer's responsibility.
 
-6.8 With an active Hub connection, the Provider is entitled to use the
-transmitted count for verification purposes. For unconnected instances, the
-Provider may request a written self-disclosure once per year, which the Customer
-must provide within 30 days.
+6.8 The Provider does not collect the number of activated mailboxes
+automatically (Section 4.3). To verify license compliance, the Provider may
+request a written self-disclosure once per year, which the Customer must provide
+within 30 days. This applies regardless of whether a Hub connection exists. If
+the Customer voluntarily submits documents from which the number is apparent
+(e.g. a diagnostic bundle as part of a support request under Section 4.2), the
+Provider may use that information.
 
 6.9 If an excess is subsequently identified, the Customer owes the license fee
 retroactively from the month of first excess.
