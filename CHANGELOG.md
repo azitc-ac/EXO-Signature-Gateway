@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.35 — 2026-07-26 — Gemeinsame Frontend-Helfer + driftcheck.py
+
+Der User wies darauf hin, dass Befunde der Form *„X ist der einzige, der Y nicht macht"* nach angeflanschtem Stückwerk klingen — und dass er das nicht jedes Mal sagen will. Zu Recht. Der Bestand zeigte **elf handgeschriebene HTML-Escaper** mit elf Namen: `_esc`, `escHtml`, `_escH`, `_escT`, `_escAttr`, `escC`, `escR`, `escP`, `esc`. Zwei davon waren binnen **einer** Sitzung `ReferenceError`, weil der Name an der Aufrufstelle nicht zur Definition passte.
+
+Beim Vergleich der elf Fassungen: die meisten maskierten `'` **nicht**, `_escAttr` vergaß sogar `>`, und drei nutzten `String(s)` (womit `undefined` als Text „undefined" erschien). Die gemeinsame Fassung ist also strikt sicherer, nicht nur kürzer.
+
+- **Neu `app/webui/static/common.js`** — `esc()`, `escAttr()`, `setState()`, `showMsg()`, `postJSON()`, `eur()`. Wird über `base.html` in **beiden** Anwendungen geladen und ist inhaltsgleich zu halten (bewusst gegen git-subtree entschieden, damit der Deploy-Weg über `update-watcher.sh` unangetastet bleibt).
+- Neun Escaper-Definitionen entfernt, 67 Aufrufe umgestellt. `portal.html` behält seinen eigenen: eigenständige Seite für fremde Browser, lädt bewusst kein Gateway-JS.
+
+**Neu `tools/driftcheck.py`** — dieselbe Bauart wie `darkcheck.py` und `legal-sync-check.py`. Prüft: handgeschriebene Escaper, atomares Schreiben ohne `chmod` auf der **Temp**-Datei, Umgehungen der Hub-Einstellungs-Registry (`hs.get("KEY")`), in Vorlagen gerenderte Geheimnisse, Abweichungen gespiegelter Dateien.
+
+**Beim ersten Lauf fand es sofort einen weiteren Fall des 644-Rechte-Fehlers** — an einer Stelle, die beim Lesen niemandem aufgefallen war. Genau der Beleg dafür, dass eine Regel ohne Prüfskript nicht hält.
+
+**CLAUDE.md: neuer verbindlicher Abschnitt „Gemeinsame Bausteine"** mit einer Tabelle „Zweck → einzige Quelle" und Regel 4: Bei einem Befund *„X ist der einzige…"* die **Struktur** ändern, nicht den Changelog ergänzen. Empirisch belegt — Dark Mode und Rechtstexte driften seit ihren Prüfskripten nicht mehr, alles andere schon.
+
 ## v1.7.33 — 2026-07-26 — Stripe-Testmodus wird angezeigt
 
 - Ein Warnbanner an der Karte „Automatische Aufladung", solange der Hub mit Stripe-Testschlüsseln arbeitet: kein echtes Geld, echte Karten werden abgewiesen, samt den zu verwendenden Testkartennummern. Vorher fiel der Modus erst im Stripe-Checkout auf — und beim Umschalten auf Live hätte man geraten, welcher Modus gerade gilt.
@@ -738,7 +753,7 @@ getestet zurück. Entfernt:
 - UI Anbindung-Tab: Bezugsweg-Umschalter, CA-Auswahl (global) und beide
   Direktkonto-Formulare — die CA wird jetzt ausschließlich pro Postfach im
   S/MIME-Tab aus dem dynamischen Hub-Katalog gewählt
-Gegenstück im Hub bereits live (sig-provider v0.13.0): Katalog-Verwaltung,
+Gegenstück im Hub bereits live (v0.13.0): Katalog-Verwaltung,
 Preise pro Anbieter, Order-Erfüllung im Admin-UI.
 
 ---
@@ -763,7 +778,7 @@ Anbieter-Wegfall/Preisänderungen ohne Gateway-Release:
   gelöscht (nur bei Import/Ablehnung)
 - hub_client: cert_get_catalog(), cert_get_order(); cert_order reicht
   order_id/price_cents durch
-- Gegenstück im Hub (sig-provider): Anbieter-Katalog mit Preisen,
+- Gegenstück im Hub: Anbieter-Katalog mit Preisen,
   Order-Lifecycle mit manueller Erfüllung im Admin-UI
 
 ---
@@ -2333,7 +2348,7 @@ Integration insgesamt Gerüst, bis ein Live-SCM-Konto vorliegt.
 ## v1.4.396 — 2026-07-04 — feat: Provider-Hub-Client — Support-Upload läuft über den Hub statt Azure Blob
 
 Neuer `hub_client.py`: Registrierung, Status-Abfrage und Diagnose-Bundle-Upload gegen den
-sig-provider-Hub des Betreibers. Der bisherige direkte Azure-Blob-Upload
+Hub des Betreibers. Der bisherige direkte Azure-Blob-Upload
 (`support_upload.upload_bundle` / `SUPPORT_BLOB_URL_TEMPLATE`) ist entfernt — `build_bundle`
 bleibt (für den lokalen Download und den Hub-Upload).
 

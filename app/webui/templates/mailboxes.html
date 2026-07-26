@@ -676,11 +676,9 @@ function _healthBadge(mb) {
     'style="background:none;border:none;cursor:pointer;color:#64748b;font-size:13px;padding:0 2px;vertical-align:middle" title="Details">ℹ</button>';
 }
 
-function _escH(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-
 function showHealthModal(mb) {
   document.getElementById('health-modal-title').innerHTML =
-    '<span style="font-size:13px;font-weight:700;color:#1e40af">' + _escH(mb.email) + '</span>' +
+    '<span style="font-size:13px;font-weight:700;color:#1e40af">' + esc(mb.email) + '</span>' +
     (mb.health_checked ? '<span style="font-size:11px;color:#64748b;margin-left:10px">geprüft ' +
       new Date(mb.health_checked).toLocaleString('de-DE') + '</span>' : '');
   var checks = mb.health_checks || {};
@@ -691,7 +689,7 @@ function showHealthModal(mb) {
     return '<tr style="border-bottom:1px solid #f0f0f0">' +
       '<td style="padding:6px 10px;font-size:12px;font-weight:600;white-space:nowrap">' + (_CHECK_LABELS[key] || key) + '</td>' +
       '<td style="padding:6px 8px;font-size:12px;color:' + sColor + ';white-space:nowrap;font-weight:700">' + sSym + '</td>' +
-      '<td style="padding:6px 8px;font-size:12px;color:#374151;word-break:break-word">' + _escH(c.detail || '') + '</td>' +
+      '<td style="padding:6px 8px;font-size:12px;color:#374151;word-break:break-word">' + esc(c.detail || '') + '</td>' +
       '</tr>';
   }).join('');
 
@@ -699,11 +697,11 @@ function showHealthModal(mb) {
     '<div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:6px">Bookings URL</div>';
   if (mb.bookings_url) {
     bookingsHtml += '<div style="font-size:11px;color:#0369a1;word-break:break-all">' +
-      '<a href="' + _escH(mb.bookings_url) + '" target="_blank" style="color:#0369a1">' + _escH(mb.bookings_url) + '</a></div>';
+      '<a href="' + esc(mb.bookings_url) + '" target="_blank" style="color:#0369a1">' + esc(mb.bookings_url) + '</a></div>';
   } else {
     bookingsHtml += '<div style="font-size:11px;color:#888;display:flex;align-items:center;gap:8px">' +
       '<span>Nicht ermittelt</span>' +
-      '<button onclick="fetchOneBookingsUrl(\'' + _escH(mb.email) + '\')" id="bk-fetch-btn-modal" ' +
+      '<button onclick="fetchOneBookingsUrl(\'' + esc(mb.email) + '\')" id="bk-fetch-btn-modal" ' +
       'style="font-size:11px;padding:2px 8px;border:1px solid #d1d5db;border-radius:4px;background:#f8fafc;cursor:pointer">Jetzt ermitteln</button>' +
       '<span id="bk-fetch-modal-result"></span></div>';
   }
@@ -1023,15 +1021,15 @@ function _renderGroupsTable() {
     var tr = document.createElement('tr');
     tr.style.borderBottom = '1px solid #f0f0f0';
     tr.innerHTML =
-      '<td style="padding:6px 8px"><input type="text" class="group-name-input" value="' + _escH(name) + '" ' +
-        'data-orig="' + _escH(name) + '" style="font-size:12px;width:150px;padding:3px 6px;border:1px solid #d1d5db;border-radius:4px" ' +
+      '<td style="padding:6px 8px"><input type="text" class="group-name-input" value="' + esc(name) + '" ' +
+        'data-orig="' + esc(name) + '" style="font-size:12px;width:150px;padding:3px 6px;border:1px solid #d1d5db;border-radius:4px" ' +
         'onchange="renameGroup(this)"></td>' +
       '<td style="padding:6px 8px;font-size:12px;color:#374151">' +
         '<span class="group-member-count">' + members.length + ' Postfach' + (members.length !== 1 ? 'fächer' : '') + '</span> ' +
-        '<button class="btn secondary" onclick="openMembersModal(this)" data-group="' + _escH(name) + '" ' +
+        '<button class="btn secondary" onclick="openMembersModal(this)" data-group="' + esc(name) + '" ' +
           'style="font-size:11px;padding:1px 7px;margin-left:4px">Bearbeiten</button></td>' +
       '<td style="text-align:center;padding:6px 8px">' +
-        '<button class="btn secondary" onclick="removeGroup(\'' + _escH(name) + '\')" ' +
+        '<button class="btn secondary" onclick="removeGroup(\'' + esc(name) + '\')" ' +
           'style="font-size:11px;padding:2px 8px">✕</button></td>';
     tbody.appendChild(tr);
   });

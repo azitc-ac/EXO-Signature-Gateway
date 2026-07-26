@@ -221,8 +221,6 @@
 </div>
 
 <script>
-function _esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-
 function _initAdv(id) {
   var show = localStorage.getItem('advsec_' + id) === '1';
   var cb = document.getElementById('adv-cb-' + id);
@@ -281,14 +279,14 @@ const _ENTRA_FIELDS = {{ custom_var_entra_fields | tojson }};
 
 function _customVarRow(name, entraField) {
   const opts = _ENTRA_FIELDS.map(f =>
-    `<option value="${_esc(f.value)}"${entraField === f.value ? ' selected' : ''}>${_esc(f.label)}</option>`
+    `<option value="${esc(f.value)}"${entraField === f.value ? ' selected' : ''}>${esc(f.label)}</option>`
   ).join('');
   const row = document.createElement('div');
   row.className = 'custom-var-row';
   row.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap';
   row.innerHTML = `
     <span style="font-size:12px;color:#64748b;white-space:nowrap;min-width:70px">custom.</span>
-    <input type="text" placeholder="varname" value="${_esc(name)}"
+    <input type="text" placeholder="varname" value="${esc(name)}"
            style="width:140px;font-family:monospace;font-size:13px" class="cv-name"
            oninput="this.value=this.value.replace(/[^a-zA-Z0-9_]/g,'')">
     <select class="cv-field" style="flex:1;min-width:220px;max-width:340px;font-size:13px;padding:4px 6px;border:1px solid #d1d5db;border-radius:6px">
@@ -346,11 +344,11 @@ function _orBuildVarSelect(sel) {
   const predef = _orVarOptions.filter(v => v.key.startsWith('user.'));
   const custom = _orVarOptions.filter(v => v.key.startsWith('custom.'));
   let h = '<optgroup label="Vordefinierte Variablen">';
-  for (const v of predef) h += `<option value="${_esc(v.key)}"${sel===v.key?' selected':''}>${_esc(v.label)}</option>`;
+  for (const v of predef) h += `<option value="${esc(v.key)}"${sel===v.key?' selected':''}>${esc(v.label)}</option>`;
   h += '</optgroup>';
   if (custom.length) {
     h += '<optgroup label="Eigene Variablen">';
-    for (const v of custom) h += `<option value="${_esc(v.key)}"${sel===v.key?' selected':''}>${_esc(v.label)}</option>`;
+    for (const v of custom) h += `<option value="${esc(v.key)}"${sel===v.key?' selected':''}>${esc(v.label)}</option>`;
     h += '</optgroup>';
   }
   return `<select class="or-var" style="width:100%">${h}</select>`;
@@ -361,13 +359,13 @@ function _orBuildEmailCell(email) {
   let opts = '<option value="">— Auswählen —</option>';
   for (const m of _orMailboxes) {
     const s2 = (known && m.email.toLowerCase()===(email||'').toLowerCase()) ? ' selected' : '';
-    const lbl = (m.name && m.name!==m.email) ? `${_esc(m.email)} – ${_esc(m.name)}` : _esc(m.email);
-    opts += `<option value="${_esc(m.email)}"${s2}>${lbl}</option>`;
+    const lbl = (m.name && m.name!==m.email) ? `${esc(m.email)} – ${esc(m.name)}` : esc(m.email);
+    opts += `<option value="${esc(m.email)}"${s2}>${lbl}</option>`;
   }
   const manSel = (!known && email) ? ' selected' : '';
   opts += `<option value="__manual__"${manSel}>✏ Eigene Adresse…</option>`;
   const txtHide = (!known && email) ? '' : 'display:none;';
-  const txtVal = (!known && email) ? ` value="${_esc(email)}"` : '';
+  const txtVal = (!known && email) ? ` value="${esc(email)}"` : '';
   return `<div><select class="or-email-sel" style="width:100%" onchange="_orEmailChange(this)">${opts}</select>`
        + `<input type="email" class="or-email-txt" placeholder="user@domain.com" style="${txtHide}margin-top:4px;width:100%"${txtVal}></div>`;
 }
@@ -384,7 +382,7 @@ function addOverrideRow(email, varKey, value) {
   tr.className = 'override-row';
   const td1=document.createElement('td'); td1.innerHTML=_orBuildEmailCell(email||'');
   const td2=document.createElement('td'); td2.innerHTML=_orBuildVarSelect(varKey||(_orVarOptions[0]&&_orVarOptions[0].key)||'');
-  const td3=document.createElement('td'); td3.innerHTML=`<input type="text" class="or-val" value="${_esc(value||'')}" style="width:100%">`;
+  const td3=document.createElement('td'); td3.innerHTML=`<input type="text" class="or-val" value="${esc(value||'')}" style="width:100%">`;
   const td4=document.createElement('td'); td4.innerHTML=`<button type="button" class="btn secondary btn-sm" onclick="this.closest('tr').remove()">✕</button>`;
   tr.append(td1,td2,td3,td4);
   tbody.appendChild(tr);

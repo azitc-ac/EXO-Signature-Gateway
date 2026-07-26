@@ -1034,7 +1034,6 @@ async function loadPortalAdmin() {
     if (!msgs.length) { wrap.style.display = 'none'; empty.style.display = ''; return; }
     wrap.style.display = ''; empty.style.display = 'none';
 
-    function escP(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
     function fmtDate(iso){
       if (!iso) return '–';
       var dt = new Date(iso);
@@ -1049,13 +1048,13 @@ async function loadPortalAdmin() {
           ? '<span class="portal-msg-status pms-read">gelesen</span>'
           : '<span class="portal-msg-status pms-unread">ungelesen</span>';
       return '<tr>'
-        + '<td>' + escP(m.recipient_email) + '</td>'
-        + '<td>' + escP(m.sender_email) + '</td>'
-        + '<td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escP(m.subject) + '">' + escP(m.subject) + '</td>'
+        + '<td>' + esc(m.recipient_email) + '</td>'
+        + '<td>' + esc(m.sender_email) + '</td>'
+        + '<td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(m.subject) + '">' + esc(m.subject) + '</td>'
         + '<td style="white-space:nowrap">' + fmtDate(m.created_at) + '</td>'
         + '<td style="white-space:nowrap">' + fmtDate(m.expires_at) + '</td>'
         + '<td>' + status + '</td>'
-        + '<td><button class="btn secondary btn-sm" onclick="revokePortalMsg(\'' + escP(m.token) + '\', this)">Widerrufen</button></td>'
+        + '<td><button class="btn secondary btn-sm" onclick="revokePortalMsg(\'' + esc(m.token) + '\', this)">Widerrufen</button></td>'
         + '</tr>';
     }).join('');
   } catch(e) { /* Seite bleibt ohne Portal-Daten nutzbar */ }
