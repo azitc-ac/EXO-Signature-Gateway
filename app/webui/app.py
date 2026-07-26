@@ -2006,6 +2006,51 @@ async def api_license_fetch_hub(user: str = Depends(_require_admin)):
     return JSONResponse(_lic.fair_use_state())
 
 
+@app.get("/api/license/renewal")
+async def api_license_renewal(user: str = Depends(_require_admin)):
+    """Verlängerungszustand der Lizenz beim Hub abfragen.
+
+    Getrennt von /api/license/status, weil dieser Weg das Netz braucht: der
+    Fair-Use-Zustand kommt offline aus dem hinterlegten Schlüssel und darf
+    nicht davon abhängen, ob der Hub gerade erreichbar ist.
+    """
+    import hub_client
+    if not hub_client.is_registered():
+        return JSONResponse({"ok": False, "reason": "not_connected"})
+    res = await hub_client.get_license()
+    if not res.get("ok"):
+        return JSONResponse({"ok": False, "reason": "unavailable",
+                             "error": res.get("error") or ""})
+    return JSONResponse({
+        "ok": True, "auto_renew": res.get("auto_renew"),
+        "expires": res.get("expires") or "", "cancelled_at": res.get("cancelled_at") or "",
+        "renew_error": res.get("renew_error") or "",
+        "refund_preview_cents": res.get("refund_preview_cents"),
+    })
+
+
+@app.post("/api/license/renewal/{aktion}")
+async def api_license_renewal_action(aktion: str, user: str = Depends(_require_admin)):
+    """Verlängerung beenden bzw. wieder aufnehmen (Ziffer 6.11).
+
+    Die Kündigung wirkt sofort auf die Verlängerung, nicht auf die laufende
+    Lizenz: der bezahlte Zeitraum bleibt nutzbar. Der hinterlegte Schlüssel
+    wird deshalb NICHT angefasst — täte man es, verlöre das Gateway sein
+    Nutzungsrecht sofort statt zum Ablaufdatum.
+    """
+    import hub_client
+    if aktion not in ("cancel", "resume"):
+        raise HTTPException(404, "Unbekannte Aktion.")
+    res = await (hub_client.license_cancel() if aktion == "cancel" else hub_client.license_resume())
+    if not res.get("ok"):
+        raise HTTPException(400, res.get("error") or "Vorgang fehlgeschlagen.")
+    log.info("Lizenz-Verlängerung %s durch %s (gültig bis %s)",
+             "beendet" if aktion == "cancel" else "wieder aufgenommen",
+             user, res.get("expires"))
+    return JSONResponse({"ok": True, "expires": res.get("expires") or "",
+                         "refund_cents": res.get("refund_cents")})
+
+
 @app.post("/api/license/purchase")
 async def api_license_purchase(body: dict, user: str = Depends(_require_admin)):
     """Lizenz über das Hub-Konto kaufen (Guthaben/Rechnung) und direkt einspielen."""

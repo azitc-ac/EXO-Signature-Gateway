@@ -408,9 +408,49 @@ async def get_license() -> dict:
             r = await c.get(f"{base}/api/license", headers=_gateway_headers())
         data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
         if r.status_code == 200 and data.get("ok"):
-            return {"ok": True, "license": data.get("license") or ""}
+            # Verlängerungszustand mitnehmen — die Oberfläche zeigt damit an,
+            # wann automatisch verlängert wird und was eine Kündigung erstattet.
+            # Ältere Hub-Fassungen liefern die Felder nicht; dann bleiben sie
+            # leer und die Oberfläche blendet den Abschnitt aus.
+            return {"ok": True, "license": data.get("license") or "",
+                    "mailboxes": data.get("mailboxes") or 0,
+                    "auto_renew": data.get("auto_renew"),
+                    "expires": data.get("expires") or "",
+                    "cancelled_at": data.get("cancelled_at") or "",
+                    "renew_error": data.get("renew_error") or "",
+                    "refund_preview_cents": data.get("refund_preview_cents")}
         if r.status_code == 404:
             return {"ok": False, "error": "Für dieses Konto ist beim Hub keine Lizenz hinterlegt."}
+        return {"ok": False, "error": data.get("detail") or data.get("message")
+                or f"HTTP {r.status_code}: {r.text[:200]}"}
+    except Exception as exc:
+        return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
+
+
+async def license_cancel() -> dict:
+    """Automatische Verlängerung beenden — jederzeit, ohne Frist (Ziffer 6.11).
+
+    Der bereits bezahlte Zeitraum bleibt nutzbar; der nicht genutzte Anteil
+    wird dem Guthaben gutgeschrieben.
+    """
+    return await _license_action("cancel")
+
+
+async def license_resume() -> dict:
+    """Kündigung zurücknehmen, solange die Laufzeit noch läuft."""
+    return await _license_action("resume")
+
+
+async def _license_action(aktion: str) -> dict:
+    base = _base()
+    if not (base and _key()):
+        return {"ok": False, "error": "Nicht registriert (Anbindung fehlt)."}
+    try:
+        async with httpx.AsyncClient(timeout=20) as c:
+            r = await c.post(f"{base}/api/license/{aktion}", headers=_gateway_headers())
+        data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+        if r.status_code == 200 and data.get("ok"):
+            return {"ok": True, **data}
         return {"ok": False, "error": data.get("detail") or data.get("message")
                 or f"HTTP {r.status_code}: {r.text[:200]}"}
     except Exception as exc:
