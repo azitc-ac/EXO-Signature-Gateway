@@ -157,10 +157,16 @@ if the certificate authority refuses.
 if the associated private key has been compromised or the underlying mailbox
 identity no longer exists.
 
-5.5 The Provider is entitled to initiate revocation of a certificate if the
-certificate authority requires it, if there is suspicion of misuse, or if the
-Customer is in arrears with due payments. The Provider will announce this in
-advance to the extent possible and reasonable under the circumstances.
+5.5 For certificates obtained through the Provider, the Provider is entitled to
+initiate revocation if the certificate authority requires it, if there is
+suspicion of misuse, or if the Customer is in arrears with due payments. The
+Provider will announce this in advance to the extent possible and reasonable
+under the circumstances.
+
+Where the Customer uses their own contractual relationship with a certificate
+authority (direct connection), only the Customer is entitled and obliged towards
+that authority; the Provider cannot initiate revocation there. Section 5.4
+remains unaffected.
 
 5.6 Certificates already issued shall remain valid upon termination of this
 agreement until their expiry date, unless the certificate authority determines

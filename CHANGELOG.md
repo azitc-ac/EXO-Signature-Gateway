@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.58 — 2026-07-27 — Sperrbefugnis auf den tatsächlichen Wirkungsbereich begrenzt
+
+Ziffer 5.5 räumte dem Anbieter die Befugnis ein, Zertifikate sperren zu lassen — ohne Einschränkung. Bei der DigiCert-Direktanbindung hat der Kunde jedoch einen eigenen Vertrag mit der Zertifizierungsstelle; dort ist er selbst der Zertifikatsinhaber, und der Anbieter kann nichts veranlassen. Die Klausel versprach in diesem Fall etwas, das nicht einlösbar war.
+
+Neu gilt sie ausdrücklich nur für Zertifikate, die über den Anbieter bezogen wurden. Für Direktanbindungen ist der Kunde allein berechtigt und verpflichtet — seine Sperrpflicht nach Ziffer 5.4 bleibt davon unberührt, sodass keine Lücke entsteht.
+
 ## v1.7.57 — 2026-07-27 — Lizenzzählung: dauerhafte statt punktueller Nutzung
 
 Maßgeblich war bisher „der höchste innerhalb eines Kalendermonats erreichte Wert". Damit zählte ein einzelner Tag voll — eine Migration, ein Test oder eine vorübergehende Doppelbelegung konnte einen ganzen Monat lizenzpflichtig machen, obwohl die Postfächer nur kurz aktiv waren.

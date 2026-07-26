@@ -155,10 +155,16 @@ Ausstellung, wenn die Zertifizierungsstelle diese verweigert.
 veranlassen, wenn der zugehörige private Schlüssel kompromittiert wurde oder
 die zugrundeliegende Postfachidentität nicht mehr besteht.
 
-5.5 Der Anbieter ist berechtigt, die Sperrung eines Zertifikats zu veranlassen,
-wenn die Zertifizierungsstelle dies verlangt, ein Missbrauchsverdacht besteht
-oder der Kunde mit fälligen Zahlungen in Verzug ist. Der Anbieter kündigt dies
-vorher an, soweit dies nach den Umständen möglich und zumutbar ist.
+5.5 Bei Zertifikaten, die über den Anbieter bezogen wurden, ist dieser
+berechtigt, die Sperrung zu veranlassen, wenn die Zertifizierungsstelle dies
+verlangt, ein Missbrauchsverdacht besteht oder der Kunde mit fälligen Zahlungen
+in Verzug ist. Der Anbieter kündigt dies vorher an, soweit dies nach den
+Umständen möglich und zumutbar ist.
+
+Nutzt der Kunde eine eigene Vertragsbeziehung zu einer Zertifizierungsstelle
+(Direktanbindung), ist allein er dieser gegenüber berechtigt und verpflichtet;
+der Anbieter kann dort keine Sperrung veranlassen. Ziffer 5.4 bleibt
+unberührt.
 
 5.6 Bereits ausgestellte Zertifikate bleiben bei Beendigung dieses Vertrags bis
 zum Ablauf ihrer Gültigkeit bestehen, soweit die Zertifizierungsstelle nichts
