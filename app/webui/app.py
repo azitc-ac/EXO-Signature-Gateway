@@ -2016,10 +2016,9 @@ async def api_license_purchase(body: dict, user: str = Depends(_require_admin)):
     except (TypeError, ValueError):
         raise HTTPException(400, "Postfachzahl ungültig")
     tenant_id = (settings_store.get("TENANT_ID") or "").strip()
-    tenant_domain = (settings_store.get("TENANT_DOMAIN") or "").strip()
     if not tenant_id:
         raise HTTPException(400, "Eigene Tenant-ID nicht konfiguriert (Einrichtung unvollständig)")
-    res = await hub_client.purchase_license(tenant_id, tenant_domain, mailboxes)
+    res = await hub_client.purchase_license(tenant_id, mailboxes)
     if not res.get("ok"):
         detail = res.get("error") or "Kauf fehlgeschlagen"
         raise HTTPException(res.get("status_code") if res.get("status_code") in (400, 402, 403) else 400, detail)
