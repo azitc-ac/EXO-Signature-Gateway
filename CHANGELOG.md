@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.43 — 2026-07-26 — Abhängigkeiten exakt gepinnt
+
+Bis hierher stand in `app/requirements.txt` durchgehend `>=`. Jeder Build zog also, was PyPI gerade anbot — und der Abstand war erheblich:
+
+| gefordert | tatsächlich installiert |
+|---|---|
+| `fastapi>=0.104.0` | **0.139.0** |
+| `cryptography>=41.0.0` | **49.0.0** |
+| `msal>=1.24.0` | **1.37.0** |
+| `python-multipart>=0.0.6` | **0.0.32** |
+
+Damit war weder reproduzierbar, was ein Kunde bekommt, noch nachvollziehbar, welche Kombination je getestet wurde. Zwei Installationen desselben Stands konnten unterschiedliche Pakete haben, je nach Bautag. Ein Breaking Change eines Fremdpakets hätte ungefiltert eine Kundeninstallation erreicht.
+
+**Der Hub war bereits vollständig gepinnt** — wieder eine Anwendung, die es richtig machte, und eine, die es nicht tat. Das Gateway zieht jetzt nach, auf genau die Fassungen, die produktiv laufen: die Umstellung ändert nichts am Verhalten, sie friert den erprobten Stand ein.
+
+- `tools/driftcheck.py` prüft, dass jede Zeile `==` verwendet (22 Abhängigkeiten über beide Anwendungen). Gegengeprüft: ein zurückgebautes `>=` wird gemeldet.
+- Aktualisieren ist als bewusster Vorgang in der Datei beschrieben — Fassung ändern, neu bauen, `pytest`, bei `cryptography`/`msal` zusätzlich die Herstellerhinweise lesen.
+
+**Verifiziert:** vollständiger Neubau mit `--no-cache`, alle 11 Pakete in exakt der geforderten Fassung installiert, Container gesund, 93 Tests grün, keine Fehler im Log.
+
 ## v1.7.41 — 2026-07-26 — Testsuite und CI
 
 Bis hierher gab es **keine Testsuite und keine CI**. Alles, was in dieser Session „verifiziert" hieß, waren Einweg-Skripte im Scratchpad — inhaltlich richtig, aber weg. Niemand konnte sie wiederholen.
