@@ -18,6 +18,10 @@
 # Lesen unbrauchbarer, nicht besser.
 
 # Dateien, deren Änderung allein KEINEN Changelog-Eintrag rechtfertigt.
+#
+# Lokale, gitignorierte Notizdateien stehen hier bewusst NICHT: was git ignoriert,
+# kann gar nicht gestaged werden und taucht in dieser Liste nie auf. Sie zu nennen
+# war Zierrat — und trug ihren Namen ins öffentliche Repository.
 NICHT_PRODUKT='^(\.gitignore|VERSION|CHANGELOG\.md)$'
 
 relevant=$(git diff --cached --name-only | grep -Ev "$NICHT_PRODUKT")
