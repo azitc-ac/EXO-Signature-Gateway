@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.51 — 2026-07-26 — Changelog-Anzeige rendert Markdown statt Rohtext
+
+In der Update-Sektion (Backup-Seite → „Changelog anzeigen") wurde der Text **escaped in ein `<pre>`** gelegt. Jedes `**fett**`, jeder Backtick und jeder Tabellenstrich stand also sichtbar da — bei den ausführlich formatierten Einträgen entsprechend viele Sternchen. Vom Nutzer gemeldet.
+
+Es gab bereits einen vollständigen Markdown-Wandler, aber **lokal in `settings_connect.html`** (für Rechtstexte und CA-Bedingungen). Einen zweiten für die Changelog-Anzeige zu bauen wäre die falsche Antwort gewesen: `_mdInline`/`_mdToHtml` liegen jetzt in `common.js`, also in beiden Anwendungen verfügbar und SHA-verglichen. `_mdEscape` entfiel dabei — `esc()` macht dasselbe und mehr.
+
+**Dabei fiel eine Lücke im Prüfskript auf:** `darkcheck.py` sah nur Vorlagen. Seit `common.js` selbst `style="…"`-Attribute erzeugt, blieben genau die Farben ungeprüft, die eine gemeinsame Datei auf **allen** Seiten **beider** Anwendungen ausgibt. Es prüft jetzt auch `static/*.js`; gegengeprüft mit einer nicht abgedeckten Farbe, die prompt gemeldet wird. Die drei tatsächlich verwendeten Töne (`#0369a1`, `#7dd3fc`, `#e2e8f0`) waren bereits abgedeckt.
+
 ## v1.7.48 — 2026-07-26 — Commit-Hook versioniert und präzisiert
 
 Der Hook lag in `.git/hooks/` und war damit **nicht versioniert**: Er existierte nur auf einem einzigen Rechner. Auf der Produktiv-VM und in jedem Neuklon galt die Regel schlicht nicht — und im **Hub gab es ihn überhaupt nicht**, dort hing die Changelog-Disziplin allein am Gedächtnis.
