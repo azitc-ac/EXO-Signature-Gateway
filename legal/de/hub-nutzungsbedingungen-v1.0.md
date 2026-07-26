@@ -185,7 +185,10 @@ Benutzerpostfächer.
 - Raum- und Ressourcenpostfächer (Room, Equipment),
 - zusätzliche Aliasadressen eines bereits gezählten Postfachs.
 
-6.4 Maßgeblich ist der höchste innerhalb eines Kalendermonats erreichte Wert.
+6.4 Maßgeblich ist die dauerhafte Nutzung: Gezählt werden die Postfächer, die an
+mehr als der Hälfte der Tage eines Kalendermonats aktiviert waren. Kurzzeitige
+Überschreitungen — etwa während einer Migration, eines Tests oder einer
+vorübergehenden Doppelbelegung — bleiben außer Betracht.
 
 6.5 Bei Überschreitung ist der Kunde verpflichtet, kostenpflichtige Lizenzen zu
 erwerben. Er zeigt die Überschreitung unverzüglich an. Lizenzpflichtig sind

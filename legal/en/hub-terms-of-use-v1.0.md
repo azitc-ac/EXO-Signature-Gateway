@@ -184,7 +184,9 @@ mailboxes when sending.
 - Room and equipment mailboxes (Room, Equipment),
 - additional alias addresses of an already-counted mailbox.
 
-6.4 The highest value reached within a calendar month is decisive.
+6.4 Sustained use is decisive: mailboxes are counted if they were activated on more
+than half the days of a calendar month. Short-term excesses — for instance
+during a migration, a test, or a temporary overlap — are disregarded.
 
 6.5 If the free tier is exceeded, the Customer is obligated to purchase paid
 licenses and to report the excess promptly. Only the mailboxes above the free

@@ -128,7 +128,10 @@ Nicht mitgezählt werden:
 - Raum- und Ressourcenpostfächer (Room, Equipment),
 - zusätzliche Aliasadressen eines bereits gezählten Postfachs.
 
-Maßgeblich ist der höchste innerhalb eines Kalendermonats erreichte Wert.
+Maßgeblich ist die dauerhafte Nutzung: Gezählt werden die Postfächer, die an
+mehr als der Hälfte der Tage eines Kalendermonats aktiviert waren. Kurzzeitige
+Überschreitungen — etwa während einer Migration, eines Tests oder einer
+vorübergehenden Doppelbelegung — bleiben außer Betracht.
 
 ---
 
