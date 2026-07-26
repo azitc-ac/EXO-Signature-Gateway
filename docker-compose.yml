@@ -15,20 +15,28 @@ services:
       - ./certs:/app/certs
       - ./data:/app/data
     environment:
+      # Startwerte: nur beim allerersten Start relevant, solange settings.json
+      # noch nicht existiert. Danach ist settings.json massgeblich, und diese
+      # Variablen bleiben leer — das ist der Normalfall, kein Fehlerzustand.
+      #
+      # Die Form ${VAR:-} ist deshalb Absicht: ohne den Doppelpunkt-Strich warnt
+      # docker compose bei jedem Build "variable is not set, defaulting to a
+      # blank string" — vier Zeilen Warnung mitten im Update-Protokoll, die einen
+      # Betreiber genau im falschen Moment an einen Fehler denken lassen.
       # Azure AD / MS Graph
-      TENANT_ID: ${TENANT_ID}
-      CLIENT_ID: ${CLIENT_ID}
-      CLIENT_SECRET: ${CLIENT_SECRET}
+      TENANT_ID: ${TENANT_ID:-}
+      CLIENT_ID: ${CLIENT_ID:-}
+      CLIENT_SECRET: ${CLIENT_SECRET:-}
       # EXO Re-Inject
-      EXO_SMARTHOST: ${EXO_SMARTHOST}
+      EXO_SMARTHOST: ${EXO_SMARTHOST:-}
       # SMTP Listener
       SMTP_PORT: 25
       SMTP_TLS_CERT: /app/certs/cert.pem
       SMTP_TLS_KEY: /app/certs/key.pem
       # Web UI
       WEBUI_PORT: 8080
-      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY}
-      WEBUI_PASSWORD: ${WEBUI_PASSWORD}
+      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY:-}
+      WEBUI_PASSWORD: ${WEBUI_PASSWORD:-}
       # Env seeds (used only on first start before settings.json exists)
       EXO_PORT: ${EXO_PORT:-25}
       FALLBACK_ON_ERROR: ${FALLBACK_ON_ERROR:-true}

@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.55 — 2026-07-26 — Warnungen im Update-Protokoll entfernt
+
+Das Update-Protokoll enthielt vier Zeilen der Art `warning msg="The \"CLIENT_ID\" variable is not set. Defaulting to a blank string."` — sichtbar genau in dem Moment, in dem ein Betreiber auf den Erfolg des Updates schaut.
+
+Die Meldungen stammen von `docker compose`, nicht vom Gateway, und waren folgenlos: `CLIENT_ID`, `CLIENT_SECRET`, `TENANT_ID` und `EXO_SMARTHOST` sind Startwerte, die nur beim allerersten Start greifen, solange `settings.json` noch nicht existiert. Danach ist `settings.json` maßgeblich und die Variablen bleiben leer — der Normalfall.
+
+Die Substitutionen in `docker-compose.yml` verwenden jetzt die Form `${VAR:-}`, die einen leeren Wert ausdrücklich als gewollt kennzeichnet. `EXO_PORT` machte das bereits so.
+
 ## v1.7.54 — 2026-07-26 — Produktname in den Rechtstexten korrigiert
 
 Hub-Nutzungsbedingungen und Lizenzbedingungen-Ergänzung nannten die Software „EXO Signature Service"; sie heißt **EXO Signature Gateway**. Deutsch und englisch.
