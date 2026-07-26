@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.39 — 2026-07-26 — Einstellungen: Geheimnis-Klassifizierung und Bereinigung
+
+Letzter großer Punkt des Audits. Anders als im Hub war `DEFAULTS` schon *ein* Ort — es fehlten Klassifizierung, Typsicherheit und ein Umgang mit entfernten Einstellungen.
+
+**23 verwaiste Schlüssel in `settings.json` gefunden**, davon **CA-Zugangsdaten aus der ausgebauten Direktanbindung** (`SECTIGO_PASSWORD`, `SWISSSIGN_API_KEY`, `SECTIGO_LOGIN` …). `_save()` schreibt unbekannte Schlüssel mit, also blieben sie nach dem Ausbau (v1.5.125) auf **jedem ausgelieferten Gateway** stehen — kein Code las sie, keine Oberfläche konnte sie löschen. Wer vorher Sectigo oder SwissSign konfiguriert hatte, dessen Zugangsdaten lagen weiter in der Datei. Neu `OBSOLETE_KEYS` (mit Begründung je Eintrag) und eine Bereinigung beim Start: 20 Schlüssel entfernt, 135 → 115.
+
+Bewusst **nur die ausdrücklich gelistete Menge**, nie pauschal alles Unbekannte — ein unbekannter Schlüssel kann Laufzeitzustand aus einem gerade nicht betrachteten Codepfad sein. Die legitimen Fälle (`MAILBOX_HEALTH`, `_DAILY_LAST_RUN`, `_SCHEMA_VERSION`) sind als `INTERNAL_KEYS` deklariert; alles darüber hinaus wird beim Start als „nicht deklariert" protokolliert, statt sich still anzusammeln.
+
+**`SECRET_KEYS` als einzige Klassifizierung.** Daraus abgeleitet:
+- `public_view()` maskiert Geheimnisse für Vorlagen-Kontexte. Bisher reichte `get_all()` alles im Klartext an alle 20 Vorlagen; keine gab etwas aus (geprüft), aber ein einziges `{{ s.CLIENT_SECRET }}` hätte gereicht. Die Maske erhält die Wahrheitswert-Semantik, `{% if s.X %}` verhält sich unverändert.
+- `_EXPORT_EXCLUDE` im Konfigurations-Export war handgepflegt und nannte **vier** Geheimnisse — darunter das längst obsolete `SECTIGO_PASSWORD`, aber **weder `SMIME_KEY_PASSWORD` noch `SSO_SESSION_SECRET`, `SMTP_SUBMIT_PASSWORD`, `SMTP_SUBMIT_CLIENT_SECRET`, `APP_POOL`, `LICENSE_KEY`, `HUB_CLAIM_TOKEN` oder `DIGICERT_API_KEY`**. Der Export ist eine herunterladbare XML-Datei, die ein Betreiber im Supportfall weitergibt.
+
+**Typerzwingung beim Schreiben.** 24 der 112 Einstellungen sind Booleans, und `str(False)` ist `"False"` — also truthy. Käme eine je als Zeichenkette herein, wäre sie dauerhaft und still eingeschaltet (genau der Fehler, den der Hub bei `SECTIGO_RES_TEST` hatte). Gemessen: aktuell **kein** typabweichender Wert unter 135 — das ist Vorbeugung, keine Fehlerbehebung, und deshalb schmal gehalten (bool und int; str/list/dict unangetastet).
+
+**`get()`/`get_all()` initialisieren sich jetzt selbst.** Ohne vorheriges `init()` lieferten Lesezugriffe **still die Vorgabewerte** statt der gespeicherten. In der Anwendung fiel das nie auf, in jedem Subprozess dagegen immer — `docker exec … settings_store.get_all()` gab 0 Schlüssel zurück. Jetzt 115. `_lock` ist ein `RLock`, `update()` nutzt dasselbe Muster seit v1.0.82.
+
+`driftcheck.py` liest die Klassifizierung jetzt aus der Deklaration statt nach Namen zu raten (die Heuristik hätte `KV_KEY_MODE` mitgezählt) und schlägt an, wenn ein Vorlagen-Kontext wieder `get_all()` bekommt.
+
 ## v1.7.38 — 2026-07-26 — Selbst-Update zusammengelegt, Zip-Slip-Schutz korrigiert
 
 Fortsetzung des Audits. `updater.py` existierte zweimal (Gateway 203, Hub 213 Zeilen), zu **77 % identisch** mit gleicher Funktionsliste — und war auseinandergelaufen.

@@ -385,6 +385,24 @@ def main() -> None:
     except Exception as exc:
         log.error("Dateirechte-Härtung fehlgeschlagen: %s", exc)
 
+    # Verwaiste Einstellungen aus entfernten Funktionen löschen. Betrifft vor
+    # allem die CA-Zugangsdaten der ausgebauten Direktanbindung (v1.5.125): sie
+    # blieben in settings.json stehen, weil _save() unbekannte Schlüssel
+    # mitschreibt, und es gab keine Oberfläche, um sie zu entfernen. Nur die
+    # ausdrücklich in OBSOLETE_KEYS gelistete Menge, nie pauschal alles
+    # Unbekannte — Letzteres könnte Laufzeitzustand sein.
+    try:
+        removed = settings_store.purge_obsolete()
+        if removed:
+            log.info("Verwaiste Einstellungen entfernt: %s", ", ".join(removed))
+        rest = settings_store.unknown_keys()
+        if rest:
+            log.warning("Nicht deklarierte Einstellungen in settings.json: %s "
+                        "— entweder in DEFAULTS/INTERNAL_KEYS aufnehmen oder in "
+                        "OBSOLETE_KEYS eintragen", ", ".join(rest))
+    except Exception as exc:
+        log.error("Bereinigung der Einstellungen fehlgeschlagen: %s", exc)
+
     # Migrate S/MIME keys to encrypted storage if SMIME_KEY_PASSWORD is configured
     try:
         import smime_store
