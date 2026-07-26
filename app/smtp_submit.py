@@ -275,8 +275,10 @@ def deliver_outbound_as_sender(sender: str, rcpt_tos: list[str],
     do this: its toRecipients/ccRecipients are simultaneously the delivery
     AND display list, with no envelope override (verified against the Graph
     Message resource schema — no envelope-only field exists). Standard SMTP
-    has always separated the two (same mechanism Bcc relies on), and this is
-    how CodeTwo/Exclaimer solve the identical problem per their own docs.
+    has always separated the two (same mechanism Bcc relies on) — see RFC 5321
+    §3.3, where RCPT TO and the message header fields are independent. Any
+    signature/relay product facing this constraint necessarily uses SMTP for
+    the same reason.
 
     Unlike deliver_inbound(), no From-rewrite happens here — envelope MAIL
     FROM and header From: are both the real sender, so SPF/DKIM/DMARC see a
