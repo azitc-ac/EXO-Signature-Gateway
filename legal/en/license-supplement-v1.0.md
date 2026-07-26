@@ -13,7 +13,7 @@ the German and English versions, the German version shall prevail.**
 
 ## 1. Subject Matter and Relationship to the Base License
 
-1.1 These terms govern the paid use of the software "EXO Signature Service"
+1.1 These terms govern the paid use of the software "EXO Signature Gateway"
 (hereinafter "Gateway") above the free tier of the Community Edition.
 
 1.2 The software is made available under the PolyForm Internal Use License 1.0.0
