@@ -125,17 +125,13 @@ the licensed scope.
 
 6.2 The **licensed scope** follows from the Hub connection or from the license
 key stored in the Gateway. The number of **actually activated** mailboxes, by
-contrast, is not collected automatically; the Gateway does not transmit it
-(Section 4.3 of the Terms of Use for the EXO Signature Hub). An existing Hub
-connection therefore does not replace a disclosure under Section 6.3.
+contrast, is not collected; the Gateway does not transmit it (Section 4.3 of the
+Terms of Use for the EXO Signature Hub).
 
-6.3 To verify license compliance, the Licensor may request, once per year and in
-text form, the number of mailboxes activated as at a specified reference date.
-The disclosure must be provided within 30 days of the request. This applies
-regardless of whether a Hub connection exists or a license key is stored, and
-corresponds to Section 6.8 of the Terms of Use for the EXO Signature Hub. If the
-Licensee voluntarily submits documents from which the number is apparent, the
-Licensor may use that information.
+6.3 The Licensor does not collect the number of activated mailboxes and does not
+request it. If the number is apparent from documents the Licensee submits of
+their own accord, the Licensor may use that information (Section 6.8 of the Terms
+of Use for the EXO Signature Hub).
 
 6.4 If an excess is subsequently identified, the Licensee owes the license fee
 retroactively from the month of first excess.

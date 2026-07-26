@@ -99,10 +99,13 @@ async def register() -> dict:
         return {"ok": False, "error": "Gültige Kunden-E-Mail erforderlich."}
     claim = secrets.token_urlsafe(32)
     settings_store.update({"HUB_CLAIM_TOKEN": claim})
-    tenant_domain = (settings_store.get("TENANT_DOMAIN") or "").strip()
     receipts = legal_consent.get_consent_receipts_for_hub()
     for r in receipts:
-        r["tenant_domain"] = tenant_domain
+        # Die Mandanten-Domain wird bewusst NICHT mitgesendet: Die Lizenz ist an
+        # die Tenant-ID gebunden, nicht an die Domain (license.tenant_error()),
+        # und der Zustimmungsbeleg ist ueber die Pruefsumme des Dokumententexts
+        # eindeutig. Die Domain diente allein der lesbaren Anzeige — das ist
+        # kein Erforderlichkeitsgrund (Art. 5 Abs. 1 lit. c DSGVO).
         r["gateway_version"] = _gateway_version()
     try:
         async with httpx.AsyncClient(timeout=20) as c:
@@ -414,7 +417,7 @@ async def get_license() -> dict:
         return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
 
 
-async def purchase_license(tenant_id: str, tenant_domain: str, mailboxes: int) -> dict:
+async def purchase_license(tenant_id: str, mailboxes: int) -> dict:
     """Fair-Use-Lizenz kaufen — Abrechnung über das Hub-Konto (Guthaben/Rechnung)."""
     base = _base()
     if not (base and _key()):
@@ -422,7 +425,7 @@ async def purchase_license(tenant_id: str, tenant_domain: str, mailboxes: int) -
     try:
         async with httpx.AsyncClient(timeout=30) as c:
             r = await c.post(f"{base}/api/license/purchase", headers=_gateway_headers(),
-                             json={"tenant_id": tenant_id, "tenant_domain": tenant_domain,
+                             json={"tenant_id": tenant_id,
                                    "mailboxes": int(mailboxes)})
         data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
         if r.status_code == 200 and data.get("ok"):

@@ -416,10 +416,18 @@ function _updShowSuccess(d) {
   if (_updReloadTimer) { clearInterval(_updReloadTimer); _updReloadTimer = null; }
   _updBtnReset();
   const el = document.getElementById('upd-status'); el.style.display = 'block';
-  const versionStr = d.version_before
-    ? `${esc(d.version_before)} → <strong>${esc(d.version_after || '?')}</strong>` : '';
+  // "Vorher" ist die Fassung, die DIESE Seite ausliefert — also die des laufenden
+  // Containers. Der Watcher meldet stattdessen den Stand der VERSION-Datei im
+  // Repository; wurde dort bereits gepullt, aber noch nicht gebaut, sind beide
+  // gleich und die Anzeige lautete "1.7.54 → 1.7.54".
+  const vorher  = current || d.version_before || '?';
+  const nachher = d.version_after || '?';
+  const geaendert = vorher !== nachher && nachher !== '?';
+  const versionStr = geaendert
+    ? `${esc(vorher)} → <strong>${esc(nachher)}</strong>`
+    : `<strong>${esc(nachher)}</strong> (unverändert)`;
   el.innerHTML = `<div class="alert success" style="font-size:13px">
-    <strong>Update erfolgreich!</strong> ${versionStr}
+    <strong>${geaendert ? 'Update erfolgreich!' : 'Neu gebaut — Version unverändert.'}</strong> ${versionStr}
     <pre style="margin:8px 0 0;white-space:pre-wrap;font-size:11px;max-height:200px;overflow-y:auto">${esc(d.log || '')}</pre>
     <div style="margin-top:10px;display:flex;align-items:center;gap:8px">
       <button class="btn primary btn-sm" onclick="clearInterval(_updReloadTimer);_updClear().then(()=>location.reload())">Jetzt neu laden</button>

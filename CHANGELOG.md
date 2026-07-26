@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.56 — 2026-07-27 — Weniger Daten, klarere Zusagen
+
+**Mandanten-Domain wird nicht mehr übermittelt.** Bei der Anbindung hing sie an jedem Zustimmungsbeleg, beim Lizenzkauf ging sie mit. Erforderlich war sie nie: Die Lizenz ist an die Tenant-ID gebunden, und der Zustimmungsbeleg ist über die Prüfsumme des Dokumententexts eindeutig. Sie diente allein der lesbaren Anzeige — kein Erforderlichkeitsgrund (Art. 5 Abs. 1 lit. c DSGVO). Ziffer 4.1 und 4.2 der Nutzungsbedingungen entsprechend gekürzt.
+
+**Zahl aktivierter Postfächer: „wird nicht erhoben" statt „nicht automatisiert erhoben".** Der Zusatz hielt verdeckt einen Fall offen, statt ihn zu benennen. Jetzt steht die Regel klar da, und die Ausnahme daneben: Lädt ein Kunde ein Diagnosepaket hoch, kann die Zahl darin enthalten sein — angefordert wird sie nicht.
+
+**Jährliche Selbstauskunft gestrichen** (Ziffer 6.8, Lizenz-Ergänzung 6.3). Ein Auskunftsrecht, das nicht ausgeübt wird, bringt keine Durchsetzung, liest sich aber wie ein Audit-Vorbehalt und widersprach der Zusage, nichts zu messen. Die Nachforderung bei festgestellter Überschreitung bleibt bestehen.
+
+Beide Sprachfassungen. Wer den Dokumenten bereits zugestimmt hat, wird einmalig erneut gefragt — die Zustimmung ist an den Dokumententext gebunden.
+
 ## v1.7.55 — 2026-07-26 — Warnungen im Update-Protokoll entfernt
 
 Das Update-Protokoll enthielt vier Zeilen der Art `warning msg="The \"CLIENT_ID\" variable is not set. Defaulting to a blank string."` — sichtbar genau in dem Moment, in dem ein Betreiber auf den Erfolg des Updates schaut.

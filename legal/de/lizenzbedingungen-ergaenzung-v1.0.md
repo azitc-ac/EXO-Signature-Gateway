@@ -129,17 +129,13 @@ lizenzierten Umfang nicht überschreitet.
 
 6.2 Der **lizenzierte Umfang** ergibt sich aus der Hub-Anbindung oder aus dem im
 Gateway hinterlegten Lizenzschlüssel. Die Zahl der **tatsächlich aktivierten**
-Postfächer wird dagegen nicht automatisiert erhoben; das Gateway übermittelt sie
-nicht (Ziffer 4.3 der Nutzungsbedingungen für den EXO Signature Hub). Eine
-bestehende Hub-Anbindung ersetzt daher keine Auskunft nach Ziffer 6.3.
+Postfächer wird dagegen nicht erhoben; das Gateway übermittelt sie nicht
+(Ziffer 4.3 der Nutzungsbedingungen für den EXO Signature Hub).
 
-6.3 Zur Prüfung der Lizenzkonformität kann der Lizenzgeber einmal jährlich in
-Textform die Zahl der zum Stichtag aktivierten Postfächer erfragen. Die Auskunft
-ist innerhalb von 30 Tagen nach Aufforderung zu erteilen. Dies gilt unabhängig
-davon, ob eine Hub-Anbindung besteht oder ein Lizenzschlüssel hinterlegt ist,
-und entspricht Ziffer 6.8 der Nutzungsbedingungen für den EXO Signature Hub.
-Übermittelt der Lizenznehmer von sich aus Unterlagen, aus denen sich die Zahl
-ergibt, darf der Lizenzgeber diese Angabe verwenden.
+6.3 Der Lizenzgeber erhebt die Zahl aktivierter Postfächer nicht und fordert sie
+auch nicht an. Ergibt sie sich aus Unterlagen, die der Lizenznehmer von sich aus
+übermittelt, darf der Lizenzgeber diese Angabe verwenden (Ziffer 6.8 der
+Nutzungsbedingungen für den EXO Signature Hub).
 
 6.4 Bei nachträglich festgestellter Überschreitung schuldet der Lizenznehmer
 die Lizenzgebühr rückwirkend ab dem Monat der erstmaligen Überschreitung.

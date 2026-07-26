@@ -91,7 +91,6 @@ of contract conclusion and acceptance of contractual documents:
 
 - Customer email address (as provided during registration),
 - name or company designation, if entered in the Gateway (optional field),
-- tenant domain of the Customer's Exchange Online tenant,
 - gateway version number at the time of connection,
 - a single-use technical token for retrieving the API key,
 - for each accepted contractual document: technical document ID, version number,
@@ -107,7 +106,7 @@ actively initiates the respective function:
   certificate is to be issued, the corresponding certificate signing request
   (CSR), the selected certificate authority, and the timestamp of acceptance of
   that authority's terms.
-- **License purchase:** tenant identifier and domain, together with the
+- **License purchase:** tenant identifier, together with the
   **number of mailboxes to be licensed**. This number states the quantity
   ordered, not a usage figure measured by the Gateway.
 - **Invoice purchase:** company, billing address, VAT identification number,
@@ -120,10 +119,14 @@ actively initiates the respective function:
 of its own accord, neither once nor on an ongoing basis — in particular no usage
 statistics, no mail flow data, no information about processed messages, and no
 measurement of the number of activated mailboxes. Every transmission under
-Section 4.2 requires an action by the Customer. The Provider does not collect
-the number of activated mailboxes automatically; compliance with the license
-limits under Section 6 is the Customer's responsibility, and no automated
-monitoring takes place.
+Section 4.2 requires an action by the Customer.
+
+The Provider does not collect the number of activated mailboxes. Compliance with
+the license limits under Section 6 is the Customer's responsibility.
+
+The only exception arises where the Customer transmits data themselves: if they
+upload a diagnostic bundle as part of a support request (Section 4.2), the number
+may be contained within it. The Provider does not request it.
 
 4.4 **Email content, traffic data, and private keys are not transmitted to the Hub.**
 
@@ -195,13 +198,10 @@ Above 110 mailboxes, additional licenses can be purchased individually.
 6.7 The Gateway does not block any functions upon exceeding the threshold.
 Compliance is the Customer's responsibility.
 
-6.8 The Provider does not collect the number of activated mailboxes
-automatically (Section 4.3). To verify license compliance, the Provider may
-request a written self-disclosure once per year, which the Customer must provide
-within 30 days. This applies regardless of whether a Hub connection exists. If
-the Customer voluntarily submits documents from which the number is apparent
-(e.g. a diagnostic bundle as part of a support request under Section 4.2), the
-Provider may use that information.
+6.8 The Provider does not collect the number of activated mailboxes and does
+not request it (Section 4.3). If the number is apparent from documents the
+Customer submits of their own accord — such as a diagnostic bundle under
+Section 4.2 — the Provider may use that information.
 
 6.9 If an excess is subsequently identified, the Customer owes the license fee
 retroactively from the month of first excess.

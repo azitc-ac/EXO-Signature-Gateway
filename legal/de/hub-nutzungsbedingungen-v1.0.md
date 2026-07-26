@@ -89,7 +89,6 @@ Vertragsdokumente nachweisbar festhalten kann:
 
 - Kunden-E-Mail-Adresse (wie bei der Registrierung angegeben),
 - Name bzw. Firmenbezeichnung, soweit im Gateway angegeben (optionales Feld),
-- Mandanten-Domain des Exchange Online-Tenants des Kunden,
 - Gateway-Versionsnummer zum Zeitpunkt der Anbindung,
 - ein einmalig gültiges technisches Token zur Abholung des API-Schlüssels,
 - für jedes akzeptierte Vertragsdokument: technische Dokument-ID,
@@ -105,7 +104,7 @@ der Kunde die jeweilige Funktion selbst auslöst:
   Zertifikat ausgestellt werden soll, der zugehörige Zertifikatsantrag (CSR),
   die gewählte Zertifizierungsstelle sowie der Zeitpunkt der Zustimmung zu
   deren Bedingungen.
-- **Lizenzerwerb:** Kennung und Domain des Mandanten sowie die **Zahl der zu
+- **Lizenzerwerb:** Kennung des Mandanten sowie die **Zahl der zu
   lizenzierenden Postfächer**. Diese Zahl gibt den bestellten Umfang an, nicht
   eine vom Gateway gemessene Nutzung.
 - **Rechnungskauf:** Firma, Rechnungsanschrift, Umsatzsteuer-Identifikations-
@@ -117,10 +116,14 @@ der Kunde die jeweilige Funktion selbst auslöst:
 einmalig noch laufend selbsttätig Daten an den Hub — insbesondere keine
 Nutzungsstatistiken, keine Mailflussdaten, keine Angaben über verarbeitete
 Nachrichten und keine Messung der Zahl aktivierter Postfächer. Sämtliche
-Übermittlungen nach Ziffer 4.2 setzen eine Handlung des Kunden voraus. Die
-Zahl aktivierter Postfächer wird vom Anbieter nicht automatisiert erhoben; die
-Einhaltung der Lizenzgrenzen nach Ziffer 6 obliegt dem Kunden, eine
-automatisierte Überwachung findet nicht statt.
+Übermittlungen nach Ziffer 4.2 setzen eine Handlung des Kunden voraus.
+
+Die Zahl aktivierter Postfächer wird vom Anbieter nicht erhoben. Die Einhaltung
+der Lizenzgrenzen nach Ziffer 6 obliegt dem Kunden.
+
+Eine Ausnahme besteht nur dort, wo der Kunde selbst Daten übermittelt: Lädt er
+im Rahmen einer Supportanfrage ein Diagnosepaket hoch (Ziffer 4.2), kann die
+Zahl darin enthalten sein. Der Anbieter fordert sie nicht an.
 
 4.4 **E-Mail-Inhalte, Verkehrsdaten und private Schlüssel werden nicht an den
 Hub übermittelt.**
@@ -197,13 +200,10 @@ werden.
 6.7 Das Gateway sperrt bei Überschreitung keine Funktionen. Die Einhaltung
 obliegt dem Kunden.
 
-6.8 Der Anbieter erhebt die Zahl aktivierter Postfächer nicht automatisiert
-(Ziffer 4.3). Zur Prüfung der Lizenzkonformität kann er einmal jährlich eine
-schriftliche Selbstauskunft verlangen, die der Kunde innerhalb von 30 Tagen zu
-erteilen hat. Dies gilt unabhängig davon, ob eine Hub-Anbindung besteht.
-Übermittelt der Kunde von sich aus Unterlagen, aus denen sich die Zahl ergibt
-(etwa ein Diagnosepaket im Rahmen einer Supportanfrage nach Ziffer 4.2), darf
-der Anbieter diese Angabe verwenden.
+6.8 Der Anbieter erhebt die Zahl aktivierter Postfächer nicht und fordert sie
+auch nicht an (Ziffer 4.3). Ergibt sie sich aus Unterlagen, die der Kunde von
+sich aus übermittelt — etwa einem Diagnosepaket nach Ziffer 4.2 —, darf der
+Anbieter diese Angabe verwenden.
 
 6.9 Bei nachträglich festgestellter Überschreitung schuldet der Kunde die
 Lizenzgebühr rückwirkend ab dem Monat der erstmaligen Überschreitung.
