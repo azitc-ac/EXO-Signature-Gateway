@@ -1,6 +1,6 @@
 # Nutzungsbedingungen für den EXO Signature Hub
 
-**Version 1.0 — Stand 24. Juli 2026**
+**Version 2.0 — Stand 27. Juli 2026**
 
 Anbieter: Alexander Zarenko - IT Consulting, Triebelsstraße 4, 52066 Aachen
 (nachfolgend „Anbieter")
@@ -221,26 +221,35 @@ erlangt. Eine Nachforderung für zurückliegende Zeiträume erfolgt nicht.
 Dem Anbieter ist daran gelegen, dass Kunden eine Überschreitung von sich aus
 anzeigen. Eine rückwirkende Forderung soll dem nicht entgegenstehen.
 
-6.10 **Laufzeit und Kündigung der Lizenzen richten sich nach der gewählten
-Zahlungsweise:**
+6.10 **Die Lizenzen verlängern sich automatisch um den zuletzt gewählten
+Zeitraum** — bei monatlicher Zahlung um einen Monat, bei jährlicher
+Vorauszahlung um zwölf Monate. Die Verlängerung wird einige Tage vor Ablauf
+ausgeführt; die neue Laufzeit rechnet ab dem bisherigen Ablaufdatum, sodass
+keine bereits bezahlten Tage verfallen. Die Gebühr wird dem Guthaben
+entnommen; reicht das Guthaben nicht aus, wird ein vom Kunden eingerichteter
+automatischer Einzug ausgelöst. Der Kunde wird über jede Verlängerung in
+Textform unterrichtet.
 
-- *Monatliche Zahlung:* Die Lizenzen verlängern sich monatlich. Die Kündigung
-  ist **ohne Einhaltung einer Frist bis zum letzten Tag des laufenden Monats**
-  möglich und wirkt zum Monatsende.
-- *Jährliche Vorauszahlung:* Die Lizenzen haben eine Laufzeit von zwölf
-  Monaten und verlängern sich um jeweils zwölf Monate, wenn sie nicht
-  **bis zum letzten Tag der laufenden Laufzeit** gekündigt werden. Auch hier
-  ist keine Frist einzuhalten; maßgeblich ist allein der Zugang der Kündigung
-  vor Ablauf.
+Scheitert die Verlängerung — etwa mangels Guthaben —, bleibt die Lizenz bis zu
+ihrem Ablaufdatum gültig. Der Anbieter unterrichtet den Kunden unter Angabe des
+Grundes und wiederholt den Versuch.
 
-6.11 Bei jährlicher Vorauszahlung kann der Kunde auch vorzeitig zum Monatsende
-kündigen. In diesem Fall erstattet der Anbieter den nicht genutzten Anteil der
-Lizenzgebühr, berechnet zum regulären Monatspreis ohne den für die
-Jahreslaufzeit gewährten Nachlass. Ergibt die Berechnung keinen positiven
-Betrag, erfolgt keine Erstattung.
+6.11 **Der Kunde kann die Verlängerung jederzeit und ohne Einhaltung einer
+Frist beenden.** Die Erklärung erfolgt über die Lizenzverwaltung im Gateway und
+wirkt sofort: eine weitere Verlängerung findet nicht statt.
 
-6.12 Kündigungen können jederzeit über die Lizenzverwaltung im Gateway erklärt
-werden. Der Anbieter bestätigt den Eingang und das Wirksamwerden in Textform.
+Der Anbieter erstattet den nicht genutzten Anteil der bereits gezahlten
+Lizenzgebühr. Berechnet wird er nach den vollen Kalendermonaten, die bei
+Zugang der Erklärung noch nicht begonnen haben, zum regulären Monatspreis ohne
+den für die Jahreslaufzeit gewährten Nachlass. Ergibt die Berechnung keinen
+positiven Betrag, erfolgt keine Erstattung.
+
+Solange die Lizenz noch läuft, kann der Kunde die Verlängerung über dieselbe
+Ansicht wieder aktivieren.
+
+6.12 Der Anbieter bestätigt den Eingang der Erklärung und den Erstattungsbetrag
+in Textform. Diese Bestätigung wahrt zugleich das Formerfordernis nach
+Ziffer 14.4.
 
 ---
 
@@ -414,17 +423,24 @@ gilt unabhängig von der Beendigung und bereits davor.
 Zertifizierungsstellen oder durch Weiterentwicklung des Dienstes veranlasst ist
 und den Kunden nicht unangemessen benachteiligt.
 
-13.2 Änderungen werden mit einer Frist von sechs Wochen in Textform angekündigt.
+13.2 Der Anbieter zeigt die geänderte Fassung im Gateway an und weist den Kunden
+zusätzlich per E-Mail an die hinterlegte Adresse darauf hin.
 
-13.3 Widerspricht der Kunde nicht innerhalb von sechs Wochen ab Zugang, gelten
-die Änderungen als angenommen. Auf diese Wirkung wird in der Mitteilung
-gesondert hingewiesen. Dies gilt nicht für Änderungen nach Ziffer 13.5.
+13.3 **Änderungen werden erst wirksam, wenn der Kunde ihnen im Gateway
+ausdrücklich zustimmt. Schweigen gilt nicht als Zustimmung.** Es gibt weder eine
+Widerspruchsfrist noch eine Zustimmungsfiktion.
 
-13.4 Bei Widerspruch kann jede Partei zum Zeitpunkt des Inkrafttretens kündigen.
+13.4 Bis zur Zustimmung gilt die bisherige Fassung fort. Der Kunde kann in
+dieser Zeit keine neuen kostenpflichtigen Leistungen beziehen — also keine
+Zertifikate bestellen, kein Guthaben aufladen und keine Lizenzen erwerben oder
+verlängern. **Bereits bezahlte Leistungen und der laufende Betrieb des Gateways
+bleiben unberührt; insbesondere wird die Verarbeitung des Mailflusses
+einschließlich Signatur, S/MIME-Signatur und -Verschlüsselung nicht
+eingeschränkt.**
 
-13.5 Änderungen, die Pflichten oder Haftung inhaltlich betreffen, werden nicht
-durch Schweigen wirksam. Sie erfordern eine erneute ausdrückliche Zustimmung im
-Hub. Bis zur Zustimmung gilt die bisherige Fassung fort.
+13.5 Stimmt der Kunde nicht zu, endet der Vertrag mit Ablauf des bereits
+bezahlten Zeitraums, ohne dass es einer Kündigung bedarf. Ziffer 6.11
+(Erstattung des nicht genutzten Anteils) gilt entsprechend.
 
 ---
 
@@ -452,4 +468,4 @@ der Information.
 
 ---
 
-*Version 1.0 — 24. Juli 2026*
+*Version 2.0 — 27. Juli 2026*

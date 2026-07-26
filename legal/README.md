@@ -24,28 +24,42 @@ MAJOR.MINOR
 ```
 
 - **Major-Bump** (z. B. 1.0 → 2.0): Inhaltliche Änderung von Pflichten,
-  Haftung oder wesentlichen Nutzungsrechten. Erfordert erneute ausdrückliche
-  Zustimmung des Kunden. Gate A / Gate B werden bis zur Zustimmung blockiert.
+  Haftung oder wesentlichen Nutzungsrechten.
 
 - **Minor-Bump** (z. B. 1.0 → 1.1): Klarstellungen, redaktionelle Korrekturen,
-  Ergänzungen ohne Pflichtenänderung. Keine erneute Zustimmung erforderlich;
-  Hinweisbanner in der Web-UI genügt.
+  Ergänzungen ohne Pflichtenänderung.
+
+⚠️ **Die Höhe des Sprungs entscheidet NICHT darüber, ob erneut zugestimmt werden
+muss — jede Textänderung tut das.** `has_valid_consent()` prüft Dokument-ID,
+Version *und* die SHA-256-Prüfsumme des Dokumententexts; schon eine korrigierte
+Tippfehlerstelle erzeugt eine neue Prüfsumme und macht die bisherige Zustimmung
+ungültig. Hier stand bis zum 27.07.2026 das Gegenteil („Minor-Bump: keine
+erneute Zustimmung erforderlich") — einen solchen Pfad gibt es im Code nicht.
+
+Das ist gewollt: Ziffer 13.3 der Nutzungsbedingungen kennt weder Frist noch
+Zustimmungsfiktion. Änderungen werden wirksam, wenn der Kunde ihnen zustimmt.
+Bis dahin gilt die bisherige Fassung fort und es können keine neuen
+kostenpflichtigen Leistungen bezogen werden; der Mailfluss läuft unverändert
+weiter.
 
 Beim Veröffentlichen einer neuen Version die Tabelle unten aktualisieren.
-Dokumente werden versioniert abgelegt (z. B. `hub-nutzungsbedingungen-v1.0.md`,
-`hub-nutzungsbedingungen-v2.0.md`). Die aktuell geltende Version ist in der
-Tabelle vermerkt; der Code liest sie aus `CURRENT_DOCUMENTS` in `legal_consent.py`.
+Dokumente werden versioniert abgelegt (z. B. `hub-nutzungsbedingungen-v2.0.md`).
+Die aktuell geltende Version ist in der Tabelle vermerkt; der Code liest sie aus
+`CURRENT_DOCUMENTS` in `legal_consent.py`. Abgelöste Fassungen bleiben über die
+Git-Historie zugänglich.
 
 ---
 
 ## Aktuelle Versionen
 
-| Dokument | Version | Stand | Erneute Zustimmung ab Major-Bump? |
+| Dokument | Version | Stand | Zustimmungspflichtig |
 |---|---|---|---|
-| `hub-nutzungsbedingungen` | 1.0 | 24.07.2026 | Ja |
-| `lizenzbedingungen-ergaenzung` | 1.0 | 24.07.2026 | Ja |
+| `hub-nutzungsbedingungen` | 2.0 | 27.07.2026 | Ja |
+| `lizenzbedingungen-ergaenzung` | 2.0 | 27.07.2026 | Ja |
 | `zahlungsbedingungen-rechnung` | 1.0 | 24.07.2026 | Ja |
-| `preisliste` | 1.0 | 24.07.2026 | Nein (informativ) |
+| `auftragsverarbeitung` | 1.0 | 24.07.2026 | Ja (vor Diagnosepaket-Upload) |
+| `preisliste` | 1.0 | 27.07.2026 | Nein (informativ) |
+| `produkt-datenschutz` | 1.0 | 24.07.2026 | Nein (Information nach Art. 13/14 DSGVO) |
 
 ---
 

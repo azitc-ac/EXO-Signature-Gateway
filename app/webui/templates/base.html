@@ -203,6 +203,125 @@
         return '<button type="button" class="copy-btn" data-copy="' + v + '" title="Kopieren">' + COPY_ICON + '</button>';
       }
     </script>
+    <!-- Offene Wiederzustimmung (Ziffer 13.3 der Nutzungsbedingungen). Farben
+         stehen statisch im Attribut, damit die Dark-Mode-Regeln greifen — per
+         JS gesetzte Werte normalisiert der Browser zu rgb() und die
+         Attributselektoren fassen nicht mehr. -->
+    <div id="reconsent-bar" style="display:none;background:#fffbeb;border-bottom:1px solid #fcd34d;color:#92400e;padding:11px 20px;font-size:14px;line-height:1.5">
+      <strong>Geänderte Vertragsbedingungen liegen zur Zustimmung bereit.</strong>
+      <span id="reconsent-docs"></span>
+      Bis zur Zustimmung gilt die bisherige Fassung fort; neue kostenpflichtige
+      Vorgänge sind so lange nicht möglich. <strong>Der Mailfluss läuft unverändert weiter.</strong>
+      <button class="btn primary" style="margin-left:10px;padding:4px 12px;font-size:13px" onclick="_rcOpen()">Ansehen und zustimmen</button>
+    </div>
+
+    <div id="reconsent-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:1001;align-items:center;justify-content:center">
+      <div class="dlg-card" style="max-width:620px;width:94%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+        <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center">
+          <strong>Geänderte Vertragsbedingungen</strong>
+          <span class="muted" style="font-size:12px" id="rc-step-label"></span>
+        </div>
+        <div id="rc-tabs" style="padding:4px 14px 0;border-bottom:1px solid #f0f0f0;display:flex;gap:0;flex-wrap:wrap"></div>
+        <div id="rc-text" class="legal-view" style="padding:14px 20px;overflow-y:auto;font-size:12px;line-height:1.6;flex:1;min-height:0">Lade…</div>
+        <div style="padding:10px 20px;border-top:1px solid #f0f0f0;background:#fafaf9">
+          <div id="rc-checks"></div>
+          <div id="rc-msg" class="msg" style="display:none;margin-bottom:8px"></div>
+          <div style="display:flex;justify-content:flex-end;gap:8px">
+            <button class="btn secondary" onclick="_rcClose()">Später</button>
+            <button class="btn primary" id="rc-confirm-btn" disabled onclick="_rcConfirm()">Zustimmen</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Wiederzustimmung: das Band erscheint nur, wenn einer FRÜHEREN Fassung
+      // zugestimmt wurde und der Text sich seither geändert hat. Auf einem
+      // frischen Gateway liefert der Endpunkt eine leere Liste.
+      var _rcPending = [];
+      var _rcText = {};
+
+      async function _rcLoad() {
+        try {
+          const r = await fetch('/api/legal/pending');
+          if (!r.ok) return;                    // nicht angemeldet o.ä. — still bleiben
+          const d = await r.json();
+          _rcPending = (d && d.pending) || [];
+          if (!_rcPending.length) return;
+          document.getElementById('reconsent-docs').textContent =
+            ' Betroffen: ' + _rcPending.map(function(p){ return p.label_de + ' (Fassung ' + p.version + ')'; }).join(', ') + '.';
+          document.getElementById('reconsent-bar').style.display = 'block';
+        } catch (e) { /* Anzeige ist nachrangig — nie die Seite blockieren */ }
+      }
+
+      function _rcOpen() {
+        document.getElementById('reconsent-modal').style.display = 'flex';
+        var tabs = _rcPending.map(function(p, i) {
+          return '<button id="rc-tab-' + i + '" class="btn secondary" style="border-radius:0;border-bottom:2px solid transparent;font-size:12px;padding:6px 14px" onclick="_rcTab(' + i + ')">' + esc(p.label_de) + '</button>';
+        }).join('');
+        document.getElementById('rc-tabs').innerHTML = tabs;
+        document.getElementById('rc-checks').innerHTML = _rcPending.map(function(p, i) {
+          return '<label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:13px;margin-bottom:8px">'
+               + '<input type="checkbox" id="rc-cb-' + i + '" onchange="_rcCheck()" style="margin-top:2px;flex-shrink:0">'
+               + '<span>Ich habe die geänderte Fassung der <strong>' + esc(p.label_de) + '</strong> gelesen und stimme ihr zu.</span></label>';
+        }).join('');
+        _rcTab(0);
+      }
+
+      function _rcClose() { document.getElementById('reconsent-modal').style.display = 'none'; }
+
+      async function _rcTab(idx) {
+        _rcPending.forEach(function(_, i) {
+          var t = document.getElementById('rc-tab-' + i);
+          if (t) t.style.borderBottom = i === idx ? '2px solid #2563eb' : '2px solid transparent';
+        });
+        document.getElementById('rc-step-label').textContent = 'Dokument ' + (idx + 1) + ' von ' + _rcPending.length;
+        var el = document.getElementById('rc-text');
+        var id = _rcPending[idx].doc_id;
+        if (_rcText[id]) { el.innerHTML = _mdToHtml(_rcText[id].text); return; }
+        el.textContent = 'Lade…';
+        try {
+          const d = await (await fetch('/api/legal/doc/' + encodeURIComponent(id) + '?lang=de')).json();
+          if (d && d.ok) { _rcText[id] = d; el.innerHTML = _mdToHtml(d.text); }
+          else el.textContent = 'Fehler beim Laden.';
+        } catch (e) { el.textContent = 'Netzwerkfehler.'; }
+      }
+
+      function _rcCheck() {
+        var alle = _rcPending.every(function(_, i) {
+          var cb = document.getElementById('rc-cb-' + i);
+          return cb && cb.checked;
+        });
+        document.getElementById('rc-confirm-btn').disabled = !alle;
+      }
+
+      async function _rcConfirm() {
+        var btn = document.getElementById('rc-confirm-btn');
+        var msg = document.getElementById('rc-msg');
+        btn.disabled = true;
+        for (var i = 0; i < _rcPending.length; i++) {
+          var p = _rcPending[i];
+          // Prüfsumme aus der Dokumentenabfrage, nicht aus der Liste: zwischen
+          // Anzeige und Klick könnte eine neue Fassung ausgerollt worden sein.
+          if (!_rcText[p.doc_id]) {
+            const d = await (await fetch('/api/legal/doc/' + encodeURIComponent(p.doc_id) + '?lang=de')).json();
+            if (!(d && d.ok)) { showMsg(msg, 'Dokument ' + p.label_de + ' nicht ladbar.', false); btn.disabled = false; return; }
+            _rcText[p.doc_id] = d;
+          }
+          var doc = _rcText[p.doc_id];
+          var res = await postJSON('/api/legal/consent', {
+            document_id: p.doc_id, version: doc.version,
+            content_hash: doc.content_hash, context: 'reconsent'});
+          if (!res.ok) { showMsg(msg, 'Fehler beim Speichern: ' + errText(res), false); btn.disabled = false; return; }
+        }
+        _rcClose();
+        document.getElementById('reconsent-bar').style.display = 'none';
+        location.reload();
+      }
+
+      document.addEventListener('DOMContentLoaded', _rcLoad);
+    </script>
+
     <main>
         {% block content %}{% endblock %}
     </main>

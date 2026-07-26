@@ -88,16 +88,22 @@ erfolgt nicht.
 
 | Zahlungsweise | Preis | Laufzeit | Kündigung |
 |---|---|---|---|
-| Monatlich | 1,00 € je Lizenz/Monat | monatlich | fristlos bis Monatsende |
-| Jährlich im Voraus | 0,90 € je Lizenz/Monat (10 % Nachlass) | 12 Monate | fristlos bis Laufzeitende |
+| Monatlich | 1,00 € je Lizenz/Monat | monatlich, verlängert sich automatisch | jederzeit fristlos |
+| Jährlich im Voraus | 0,90 € je Lizenz/Monat (10 % Nachlass) | 12 Monate, verlängert sich automatisch | jederzeit fristlos |
 
 Die Wahl der Zahlungsweise erfolgt bei Lizenzerwerb und kann zum Ende des
 jeweiligen Abrechnungszeitraums geändert werden.
 
-**Vorzeitige Kündigung bei Jahresvorauszahlung:** Auch bei jährlicher
-Vorauszahlung ist eine Kündigung zum Monatsende möglich. Der nicht genutzte
-Anteil wird erstattet, berechnet zum regulären Monatspreis von 1,00 € ohne den
-für die Jahreslaufzeit gewährten Nachlass.
+**Die Lizenzen verlängern sich automatisch** um den zuletzt gewählten Zeitraum.
+Die Gebühr wird kurz vor Ablauf dem Guthaben entnommen; reicht es nicht aus,
+greift der eingerichtete automatische Einzug. Über jede Verlängerung wird per
+E-Mail informiert.
+
+**Kündigung jederzeit, ohne Frist.** Die Verlängerung lässt sich in der
+Lizenzverwaltung im Gateway beenden — auch mitten in einer Jahreslaufzeit. Der
+nicht genutzte Anteil wird erstattet, berechnet nach den noch nicht begonnenen
+vollen Kalendermonaten zum regulären Monatspreis von 1,00 € ohne den für die
+Jahreslaufzeit gewährten Nachlass.
 
 Rechenbeispiel bei 100 Lizenzen: Jahresvorauszahlung 1.080,00 €. Kündigung
 nach drei Monaten. Genutzt: 3 × 100 × 1,00 € = 300,00 €. Erstattung:
