@@ -126,9 +126,11 @@ def restore_backup(zip_bytes: bytes) -> dict:
 
                 if name.startswith("data/"):
                     rel    = name[len("data/"):]
-                    target = (DATA_DIR / rel).resolve()
-                    # Pfad-Traversal-Schutz
-                    if not str(target).startswith(str(DATA_DIR.resolve())):
+                    # Zip-Slip-Schutz über secure_io.safe_join: der frühere
+                    # startswith()-Vergleich liess Geschwisterpfade mit gleichem
+                    # Präfix durch (/app/data-evil). Siehe dort.
+                    target = secure_io.safe_join(DATA_DIR, rel)
+                    if target is None:
                         warnings.append(f"Übersprungen (ungültiger Pfad): {name}")
                         continue
                     # Ausgeschlossene Unterverzeichnisse nicht wiederherstellen
@@ -154,8 +156,8 @@ def restore_backup(zip_bytes: bytes) -> dict:
 
                 elif name.startswith("templates/"):
                     rel    = name[len("templates/"):]
-                    target = (TEMPLATE_DIR / rel).resolve()
-                    if not str(target).startswith(str(TEMPLATE_DIR.resolve())):
+                    target = secure_io.safe_join(TEMPLATE_DIR, rel)
+                    if target is None:
                         warnings.append(f"Übersprungen (ungültiger Pfad): {name}")
                         continue
                     target.parent.mkdir(parents=True, exist_ok=True)
@@ -170,8 +172,8 @@ def restore_backup(zip_bytes: bytes) -> dict:
             # USER_BOOKINGS (auto-ermittelte Bookings-URLs) aus dem laufenden System
             # mergen, damit nach dem Restore ermittelte URLs nicht verloren gehen.
             if "data/settings.json" in zf.namelist():
-                target = (DATA_DIR / "settings.json").resolve()
-                if str(target).startswith(str(DATA_DIR.resolve())):
+                target = secure_io.safe_join(DATA_DIR, "settings.json")
+                if target is not None:
                     target.parent.mkdir(parents=True, exist_ok=True)
                     backup_settings_bytes = zf.read("data/settings.json")
                     try:

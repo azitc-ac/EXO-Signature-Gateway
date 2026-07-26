@@ -191,3 +191,23 @@ def audit_tree(root: Path | str, globs: tuple[str, ...] = SECRET_GLOBS) -> list[
             if m & 0o077:                        # irgendein Recht für group/other
                 out.append((str(f), oct(m)[-3:]))
     return sorted(set(out))
+
+
+def safe_join(base: Path | str, relative: str) -> Path | None:
+    """Zielpfad innerhalb von `base` auflösen — oder None, wenn er ausbricht.
+
+    Für das Auspacken von Archiven (Backup-Wiederherstellung, Zip-Slip). Beide
+    Anwendungen prüften bisher mit
+        str(target).startswith(str(base.resolve()))
+    Das ist ein PRÄFIXVERGLEICH AUF ZEICHENKETTEN und lässt Geschwisterpfade
+    durch, die zufällig denselben Anfang haben:
+        (/app/data / "../data-evil/x").resolve() == /app/data-evil/x
+        startswith("/app/data") -> True, obwohl ausserhalb.
+    In der jetzigen Verzeichnisaufteilung war das nicht ausnutzbar (unter
+    /app/ beginnt kein sicherheitsrelevanter Pfad mit "data"), aber es ist die
+    falsche Prüfung — und sie stand wortgleich in beiden Anwendungen.
+    `is_relative_to()` vergleicht Pfadbestandteile statt Zeichen.
+    """
+    base_r = Path(base).resolve()
+    target = (base_r / relative).resolve()
+    return target if target.is_relative_to(base_r) else None
