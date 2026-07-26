@@ -384,8 +384,11 @@ verbunden.
 
 12.1 Der Vertrag läuft auf unbestimmte Zeit.
 
-12.2 Beide Parteien können mit einer Frist von 30 Tagen zum Monatsende
-kündigen.
+12.2 Der Kunde kann jederzeit ohne Einhaltung einer Frist zum Monatsende
+kündigen; dies entspricht der Regelung für Lizenzen nach Ziffer 6.10.
+
+Der Anbieter kann mit einer Frist von 30 Tagen zum Monatsende kündigen. Die
+Frist gibt dem Kunden Zeit, den Bezug von Zertifikaten anderweitig zu regeln.
 
 12.3 Das Recht zur außerordentlichen Kündigung aus wichtigem Grund bleibt
 unberührt. Ein wichtiger Grund liegt für den Anbieter insbesondere vor bei
