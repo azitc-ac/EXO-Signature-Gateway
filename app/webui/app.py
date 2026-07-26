@@ -28,6 +28,9 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 
 import secure_io as _secure_io
+# Auf Modulebene, damit die Endpunkte nicht jeweils eigene lokale Importe
+# mit wechselnden Aliasen mitbringen (_smime / _smime_store / smime_store).
+import smime_store as _smime_store
 from fastapi.templating import Jinja2Templates
 
 import config
@@ -3533,7 +3536,9 @@ async def api_smime_backup_key_download(
         raise HTTPException(403, "Backup-Download im Strict-Modus deaktiviert")
 
     email = email.lower().strip()
-    smime_dir = _Path("/app/data/smime")
+    # Pfad aus dem Modul, nicht erneut verdrahtet: smime_store.SMIME_DIR ist
+    # die eine Quelle. Drei Endpunkte hatten hier ein eigenes Literal.
+    smime_dir = _smime_store.SMIME_DIR
     slot_dir = smime_dir / email / "certs" / slot_id
 
     bak = slot_dir / "key.pem.bak"
@@ -3582,7 +3587,9 @@ async def api_smime_backup_all_keys(_: str = Depends(_require_admin)):
     if settings_store.get("KV_KEY_MODE") == "strict":
         raise HTTPException(403, "Backup-Download im Strict-Modus deaktiviert")
 
-    smime_dir = _Path("/app/data/smime")
+    # Pfad aus dem Modul, nicht erneut verdrahtet: smime_store.SMIME_DIR ist
+    # die eine Quelle. Drei Endpunkte hatten hier ein eigenes Literal.
+    smime_dir = _smime_store.SMIME_DIR
     pw = settings_store.get("SMIME_KEY_PASSWORD") or _cfg.SMIME_KEY_PASSWORD or ""
 
     buf = io.BytesIO()
@@ -3640,7 +3647,9 @@ async def api_smime_migrate_all(request: Request, _: str = Depends(_require_admi
     if not _kv.is_configured():
         raise HTTPException(400, "Azure Key Vault ist nicht konfiguriert")
 
-    smime_dir = _Path("/app/data/smime")
+    # Pfad aus dem Modul, nicht erneut verdrahtet: smime_store.SMIME_DIR ist
+    # die eine Quelle. Drei Endpunkte hatten hier ein eigenes Literal.
+    smime_dir = _smime_store.SMIME_DIR
     results = []
     for user_dir in sorted(smime_dir.iterdir()):
         if not user_dir.is_dir() or user_dir.name == "recipients":
