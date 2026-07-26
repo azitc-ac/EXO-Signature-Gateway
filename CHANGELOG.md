@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.66 — 2026-07-27 — Lizenz: Verlängerung anzeigen und beenden
+
+Die automatische Verlängerung nach Ziffer 6.10 war bisher nicht erreichbar — sie lief, aber die Oberfläche zeigte sie nicht an und bot keinen Weg, sie zu beenden. Wer kündigen wollte, musste schreiben.
+
+**Neu unter Anbindung → Lizenz:** Ein Abschnitt nennt das Datum der nächsten Verlängerung und woher die Gebühr kommt (Guthaben, ersatzweise der eingerichtete automatische Einzug). Daneben **Verlängerung beenden** — jederzeit, ohne Frist. Die Lizenz bleibt bis zum Ablaufdatum gültig, der nicht genutzte Anteil wird dem Hub-Guthaben gutgeschrieben. Solange die Laufzeit läuft, lässt sich die Verlängerung wieder aufnehmen.
+
+Scheiterte der letzte Verlängerungsversuch, steht der Grund dort — die Lizenz bleibt in diesem Fall bis zum Ablaufdatum gültig und der Versuch wird wiederholt.
+
+Der hinterlegte Lizenzschlüssel wird beim Beenden **nicht** angefasst. Täte man es, verlöre das Gateway sein Nutzungsrecht sofort statt zum Ablaufdatum — gekündigt wird die Verlängerung, nicht die laufende Lizenz.
+
+Der Abschnitt erscheint nur bei bestehender Hub-Anbindung. Ist der Hub nicht erreichbar, bleibt er verborgen: der Fair-Use-Zustand darüber wird offline aus dem hinterlegten Schlüssel geprüft und darf nicht davon abhängen, ob gerade eine Verbindung besteht.
+
 ## v1.7.65 — 2026-07-27 — Bedingungsänderungen gelten erst nach Zustimmung
 
 **Die Zustimmungsfiktion entfällt.** Bisher galten geänderte Bedingungen als angenommen, wenn nicht binnen sechs Wochen widersprochen wurde. Das setzte voraus, dass die Ankündigung den Kunden auch erreicht — eine übersehene E-Mail hätte sonst einen Vertrag geändert, von dem er nie erfahren hat. Ziffer 13.3 verlangt jetzt eine ausdrückliche Zustimmung im Gateway; Schweigen genügt nicht, eine Widerspruchsfrist gibt es nicht mehr. Dieselbe Umstellung in Ziffer 9 und bei Preisänderungen (Ziffer 4.3 der Lizenzbedingungen-Ergänzung).

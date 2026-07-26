@@ -497,6 +497,20 @@
     "name": "api_license_purchase"
   },
   {
+    "pfad": "/api/license/renewal",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_license_renewal"
+  },
+  {
+    "pfad": "/api/license/renewal/{aktion}",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_license_renewal_action"
+  },
+  {
     "pfad": "/api/license/status",
     "methoden": [
       "GET"

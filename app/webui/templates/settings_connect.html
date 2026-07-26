@@ -348,6 +348,14 @@ _initAdv('digicert');
     <div id="lic-buy-price" class="hint" style="margin-top:8px"></div>
   </div>
 
+  <!-- Verlängerung: nur sichtbar, wenn der Hub angebunden ist und eine Lizenz
+       führt. Farben statisch im Attribut (Dark-Mode-Regel 2). -->
+  <div id="lic-renew-box" style="display:none;margin-top:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px 12px">
+    <div id="lic-renew-text" style="font-size:13px;line-height:1.55"></div>
+    <div id="lic-renew-actions" class="actions" style="margin-top:8px"></div>
+    <div id="lic-renew-msg" class="msg" style="display:none;margin-top:8px"></div>
+  </div>
+
   <div id="lic-result" style="display:none;margin-top:8px"></div>
 </div>
 
@@ -959,7 +967,9 @@ async function licLoad() {
       document.getElementById('lic-input-row').style.display = 'none';
       document.getElementById('lic-remove-row').style.display = '';
       licShowBuyBox(d);
+      licRenewLoad();
     } else {
+      document.getElementById('lic-renew-box').style.display = 'none';
       badge.textContent = 'Fair Use'; badge.className = 'conn-badge conn-wait';
       status.innerHTML = 'Keine Lizenz eingespielt — aktuell <strong>' + d.count +
         '</strong> von ' + d.limit + ' Fair-Use-Postfächern aktiviert.' +
@@ -971,6 +981,65 @@ async function licLoad() {
     }
   } catch(e) { document.getElementById('lic-status').textContent = 'Status nicht abrufbar.'; }
 }
+// ── Automatische Verlängerung ────────────────────────────────────────────────
+// Eigener Abruf, weil er das Netz braucht: der Fair-Use-Zustand oben kommt
+// offline aus dem hinterlegten Schlüssel und darf nicht davon abhängen, ob der
+// Hub gerade erreichbar ist.
+async function licRenewLoad() {
+  const box = document.getElementById('lic-renew-box');
+  let d;
+  try { d = await (await fetch('/api/license/renewal')).json(); }
+  catch (e) { box.style.display = 'none'; return; }
+  if (!d || !d.ok) { box.style.display = 'none'; return; }
+
+  const text = document.getElementById('lic-renew-text');
+  const actions = document.getElementById('lic-renew-actions');
+  const bis = d.expires ? new Date(d.expires).toLocaleDateString('de-DE') : '—';
+
+  if (d.auto_renew) {
+    text.innerHTML = 'Die Lizenz <strong>verlängert sich automatisch</strong>. '
+      + 'Nächste Verlängerung kurz vor dem ' + esc(bis) + '. Die Gebühr wird dem '
+      + 'Hub-Guthaben entnommen; reicht es nicht, greift der eingerichtete '
+      + 'automatische Einzug.';
+    actions.innerHTML = '<button class="btn secondary" onclick="licRenewCancel()">Verlängerung beenden</button>';
+  } else {
+    var erstattet = (typeof d.refund_preview_cents === 'number' && d.refund_preview_cents > 0)
+      ? ' Erstattet werden ' + eur(d.refund_preview_cents) + ' für die vollen Restmonate.'
+      : '';
+    text.innerHTML = '<strong>Die Verlängerung ist beendet.</strong> Die Lizenz bleibt bis zum '
+      + esc(bis) + ' gültig und läuft danach aus.' + erstattet
+      + ' Solange sie läuft, kann die Verlängerung wieder aufgenommen werden.';
+    actions.innerHTML = '<button class="btn primary" onclick="licRenewResume()">Verlängerung wieder aufnehmen</button>';
+  }
+  if (d.renew_error) {
+    text.innerHTML += '<br><span style="color:#dc2626">Letzter Verlängerungsversuch fehlgeschlagen: '
+      + esc(d.renew_error) + ' — die Lizenz bleibt bis zum Ablaufdatum gültig, der Versuch wird wiederholt.</span>';
+  }
+  box.style.display = '';
+}
+
+async function licRenewCancel() {
+  // Der Erstattungsbetrag steht erst nach dem Vorgang fest (er rechnet nach
+  // vollen Restmonaten). Die Rückfrage nennt deshalb keinen Betrag.
+  if (!confirm('Verlängerung beenden?\n\nDie Lizenz bleibt bis zum Ablaufdatum gültig. '
+             + 'Der nicht genutzte Anteil wird dem Hub-Guthaben gutgeschrieben. '
+             + 'Solange die Laufzeit läuft, lässt sich das zurücknehmen.')) return;
+  const msg = document.getElementById('lic-renew-msg');
+  const r = await postJSON('/api/license/renewal/cancel', {});
+  if (!r.ok) { showMsg(msg, 'Fehler: ' + errText(r), false); return; }
+  showMsg(msg, 'Verlängerung beendet.'
+    + (r.refund_cents > 0 ? ' Gutschrift: ' + eur(r.refund_cents) + '.' : ' Keine Gutschrift (kein voller Restmonat).'), true);
+  licRenewLoad();
+}
+
+async function licRenewResume() {
+  const msg = document.getElementById('lic-renew-msg');
+  const r = await postJSON('/api/license/renewal/resume', {});
+  if (!r.ok) { showMsg(msg, 'Fehler: ' + errText(r), false); return; }
+  showMsg(msg, 'Verlängerung wieder aufgenommen.', true);
+  licRenewLoad();
+}
+
 async function licApply() {
   const key = document.getElementById('lic-key').value.trim();
   if (!key) { _licMsg('Bitte Lizenzschlüssel eingeben.', false); return; }
