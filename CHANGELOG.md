@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.63 — 2026-07-27 — Kündigung des Hub-Vertrags ohne Frist für den Kunden
+
+Ziffer 12.2 verlangte von **beiden** Seiten 30 Tage Frist zum Monatsende. Für den Kunden schützte das nichts: Guthaben wird ohnehin jederzeit erstattet (Ziffer 10.7), Lizenzen enden fristlos (Ziffer 6.10), eine Mindestlaufzeit gibt es nicht. Die Frist hielt ihn nur formal gebunden — und stand im Widerspruch zu den Lizenzbedingungen, bei denen die Fristen bereits entfallen waren.
+
+Umgekehrt ist die Frist sinnvoll: Kündigt der Anbieter, verliert der Kunde den Zugang zur Zertifikatsbestellung und braucht Zeit für eine andere Lösung.
+
+Neu daher asymmetrisch: **Der Kunde kann jederzeit ohne Frist zum Monatsende kündigen**, der Anbieter mit 30 Tagen. Der Grund für die verbleibende Frist steht in der Klausel.
+
+Die übrigen Fristen in den Dokumenten — sechs Wochen vor Änderungen der Bedingungen oder Preise, sieben Tage in den Zahlungsbedingungen — sind Pflichten des Anbieters zugunsten des Kunden und bleiben unverändert.
+
 ## v1.7.62 — 2026-07-27 — Haftung: zwingende Ansprüche ausdrücklich ausgenommen
 
 Ziffer 11.6 verwies für die Software auf den Haftungsausschluss der Lizenz („wie besehen"), ohne die zwingend unbeschränkte Haftung auszunehmen. Nach § 309 Nr. 7 BGB sind Ausschlüsse bei Vorsatz, grober Fahrlässigkeit sowie bei Verletzung von Leben, Körper oder Gesundheit unwirksam — eine Klausel, die sie zu verdrängen scheint, kann insgesamt unwirksam sein.

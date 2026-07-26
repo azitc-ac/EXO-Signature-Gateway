@@ -369,7 +369,12 @@ detriment.
 
 12.1 The contract runs for an indefinite period.
 
-12.2 Either party may terminate with 30 days' notice to the end of the month.
+12.2 The Customer may terminate at any time without notice period, effective at
+the end of the month; this mirrors the arrangement for licenses under
+Section 6.10.
+
+The Provider may terminate with 30 days' notice to the end of the month. That
+period gives the Customer time to arrange certificate procurement elsewhere.
 
 12.3 The right to extraordinary termination for good cause remains unaffected.
 Good cause for the Provider includes in particular: arrears exceeding 30 days
