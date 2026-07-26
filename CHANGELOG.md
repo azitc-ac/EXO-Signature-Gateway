@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.53 — 2026-07-26 — Changelog-Modal rendert ebenfalls Markdown
+
+Nachtrag zu v1.7.51, vom Nutzer gemeldet — mit der passenden Ironie, dass ausgerechnet die Meldung über den behobenen Rendering-Fehler roh dargestellt wurde.
+
+Die Changelog-Einträge werden an **zwei** Stellen angezeigt: in der ausklappbaren Box auf der Backup-Seite und im „Neuerungen"-Modal, das nach einem Update erscheint. Ich hatte nur die Box umgestellt. Genau das Muster, gegen das Regel 4 in `CLAUDE.md` steht — eine Stelle repariert, die Geschwisterstelle übersehen.
+
+Beide laufen jetzt über `_mdToHtml()` aus `common.js`. Geprüft an einem echten Eintrag mit Tabelle: 0 Sternchen, 0 Backticks, Tabelle mit 5 Zeilen, 6 Hervorhebungen.
+
+Die übrigen `<pre>`-Blöcke in den Vorlagen (MIME-Dumps, Debug- und Protokollausgaben) bleiben bewusst roh — dort ist unformatierter Text die richtige Darstellung.
+
 ## v1.7.51 — 2026-07-26 — Changelog-Anzeige rendert Markdown statt Rohtext
 
 In der Update-Sektion (Backup-Seite → „Changelog anzeigen") wurde der Text **escaped in ein `<pre>`** gelegt. Jedes `**fett**`, jeder Backtick und jeder Tabellenstrich stand also sichtbar da — bei den ausführlich formatierten Einträgen entsprechend viele Sternchen. Vom Nutzer gemeldet.
