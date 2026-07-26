@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.48 — 2026-07-26 — Commit-Hook versioniert und präzisiert
+
+Der Hook lag in `.git/hooks/` und war damit **nicht versioniert**: Er existierte nur auf einem einzigen Rechner. Auf der Produktiv-VM und in jedem Neuklon galt die Regel schlicht nicht — und im **Hub gab es ihn überhaupt nicht**, dort hing die Changelog-Disziplin allein am Gedächtnis.
+
+- Neu `tools/hooks/pre-commit`, inhaltsgleich in beiden Anwendungen und von `driftcheck.py` SHA-verglichen. Aktivieren je Arbeitskopie: `git config core.hooksPath tools/hooks`.
+- Ausführbar-Bit im Git-Index gesetzt (`100755`) — ohne das scheitert er auf der VM mit `203/EXEC`.
+- **Inhaltlich präzisiert:** Die Changelog-Pflicht galt bedingungslos. Das erzeugte einen Eintrag für eine reine `.gitignore`-Änderung — Rauschen, das den Changelog beim Lesen unbrauchbarer macht. Der Hook prüft jetzt zuerst, ob der Commit produktrelevante Dateien berührt; `.gitignore`, `VERSION`, `CHANGELOG.md` und lokale, gitignorierte Notizdateien zählen nicht. Bei solchen Commits entfällt Eintragspflicht und Versionserhöhung.
+
 ## v1.7.47 — 2026-07-26 — Aufruf-Tests der Weboberfläche
 
 Zweites Netz für den `app.py`-Umbau. Die Routentabelle (v1.7.45) beweist, dass alle Endpunkte noch registriert sind — nicht, dass sie noch **funktionieren**. Wird beim Verschieben ein Import falsch, bleibt die Route bestehen und scheitert erst beim Aufruf.
