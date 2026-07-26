@@ -46,6 +46,7 @@ ACCEPTED: dict[str, str] = {
 MIRRORED: list[tuple[str, str]] = [
     ("app/webui/static/common.js", "gemeinsame Frontend-Helfer (esc() usw.)"),
     ("app/secure_io.py", "Schreiben von Geheimnissen (600/700, atomar)"),
+    ("app/update_core.py", "Selbst-Update, Container-Seite"),
 ]
 
 # Dateinamen, die ein Geheimnis enthalten. Wer eine davon schreibt, muss

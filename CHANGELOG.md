@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.38 — 2026-07-26 — Selbst-Update zusammengelegt, Zip-Slip-Schutz korrigiert
+
+Fortsetzung des Audits. `updater.py` existierte zweimal (Gateway 203, Hub 213 Zeilen), zu **77 % identisch** mit gleicher Funktionsliste — und war auseinandergelaufen.
+
+- **Neu `app/update_core.py`** (inhaltsgleich im Hub, SHA-verglichen von `driftcheck.py`). `updater.py` ist nur noch ein 37-zeiliger Adapter: Repo-Name, Kennung, Modul-API. Aufrufstellen unverändert, `updater.GITHUB_REPO` bleibt lesbar.
+- Die Behandlung **privater Repositorys** steckte nur im Hub: `.remote-version` als Primärquelle und HTTP 404 als erklärender Hinweis statt rohem Fehler. Gemessen: Hub-Repo privat (`VERSION` → 404), Gateway-Repo öffentlich (→ 200). Das Gateway brauchte es also heute nicht — sobald das Repo privat wird, bräche dort dieselbe Meldung „Not Found", über die du dich beim Hub beschwert hattest.
+
+**Beinahe-Regression, vom Vergleichstest gefangen.** Beim Zusammenlegen hatte ich `available` im Fall „Version nicht ermittelbar" von `None` auf `False` vereinheitlicht. Die Oberfläche unterscheidet aber **drei** Zustände (`backup.html`: `=== true` / `=== null` / sonst): bei `null` bleibt die Installations-Schaltfläche **sichtbar**, bei `false` wird sie **verborgen**. Auf einem privaten Repo ohne `.remote-version` hätte der Betreiber damit auf genau der Maschine kein Update mehr starten können. `_result()` hält die drei Zustände jetzt auseinander und dokumentiert warum; „noch kein Release veröffentlicht" bleibt bewusst `False`.
+
+- **Zip-Slip-Prüfung korrigiert.** Beide Anwendungen prüften mit `str(target).startswith(str(DATA_DIR.resolve()))`. Das ist ein Präfixvergleich auf Zeichenketten: `data/../data-evil/x` löst zu `/app/data-evil/x` auf und **kommt durch**. In der jetzigen Verzeichnisaufteilung nicht ausnutzbar (unter `/app/` beginnt kein sicherheitsrelevanter Pfad mit „data", `../main.py` wird korrekt blockiert) — aber die falsche Prüfung, und wortgleich in beiden Anwendungen an fünf Stellen. Jetzt `secure_io.safe_join()` mit `is_relative_to()`, das Pfadbestandteile statt Zeichen vergleicht.
+
+**Verifiziert** gegen die aus Git geholten alten Fassungen, Ausgabe für Ausgabe: beide Kanäle, `.remote-version` vorhanden/leer/älter/fehlend, „Update läuft bereits"-Sperre, Trigger-Inhalt und -Rechte (644, absichtlich — der Host-Watcher liest sie als anderer Benutzer), `watcher_ok` mit und ohne Heartbeat, `list_release_tags`. Backup-Erstellung unverändert (56 Einträge, 7 Privatschlüssel); ein bösartiges Archiv mit drei Ausbruchsversuchen wurde vollständig abgewehrt, die echte `settings.json` blieb unberührt.
+
 ## v1.7.36 — 2026-07-26 — Audit: S/MIME-Privatschlüssel lagen mit 644
 
 Projektweites Audit auf die Punkte „gemeinsame Bausteine / kein Stückwerk". Der schwerwiegendste Befund:
