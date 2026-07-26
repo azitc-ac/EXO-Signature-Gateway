@@ -1,0 +1,58 @@
+# Fortlaufende Prüfung bei jedem Push und Pull Request.
+#
+# Warum das hier steht: Bis zum 26.07.2026 gab es keine Testsuite und keine CI.
+# Alles, was "geprüft" hiess, waren Einweg-Skripte, die danach verschwanden.
+# Diese Datei sorgt dafür, dass die Prüfungen unabhängig davon laufen, ob
+# jemand daran denkt — und auf einem sauberen Rechner ohne .env, ohne Container
+# und ohne die gewachsene settings.json der Entwicklungsmaschine.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  tests:
+    name: Tests und Prüfskripte
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"      # dieselbe Fassung wie im Container
+
+      - name: Abhängigkeiten
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+          pip install -r app/requirements.txt
+
+      - name: Tests
+        run: pytest tests/ -v
+
+      # driftcheck vergleicht normalerweise Gateway UND Hub. Das Hub-Repo ist
+      # privat und hier nicht ausgecheckt — deshalb der eingeschränkte Modus,
+      # der nur die Gateway-Prüfungen fährt. Die Spiegelung der gemeinsamen
+      # Dateien wird beim Hub-Lauf geprüft, wo beide Bäume vorliegen.
+      - name: Drift-Prüfung (nur Gateway)
+        run: python tools/driftcheck.py --gateway-only
+
+      - name: Dark Mode
+        run: python tools/darkcheck.py app/webui/templates app/webui/static/dark-mode.css
+
+      - name: JavaScript der Vorlagen
+        run: python tools/jscheck.py
+
+  build:
+    name: Container baut
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Faengt ab, was lokal nur deshalb laeuft, weil es schon im Image liegt —
+      # etwa ein Paket, das in requirements.txt fehlt.
+      - name: Docker build
+        run: docker build -t exo-signature-gateway:ci .
