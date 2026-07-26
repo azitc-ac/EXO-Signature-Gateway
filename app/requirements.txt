@@ -1,11 +1,43 @@
-aiosmtpd>=1.4.4
-msal>=1.24.0
-itsdangerous>=2.1.0
-jinja2>=3.1.2
-fastapi>=0.104.0
-uvicorn>=0.24.0
-httpx>=0.25.0
-python-multipart>=0.0.6
-cryptography>=41.0.0
-tnefparse>=1.0
-asn1crypto>=1.5.0
+# Abhängigkeiten des EXO Signature Gateway — EXAKT gepinnt.
+#
+# WARUM EXAKT (== statt >=)
+# -------------------------
+# Bis zum 26.07.2026 stand hier durchgehend `>=`. Die Folge: jeder
+# `docker compose build` zog, was PyPI gerade anbot. Der Abstand zwischen
+# Anspruch und Wirklichkeit war erheblich — gefordert war `fastapi>=0.104.0`,
+# installiert lief `0.139.0`; gefordert `cryptography>=41.0.0`, installiert
+# `49.0.0`. Damit war weder reproduzierbar, was ein Kunde bekommt, noch
+# nachvollziehbar, welche Kombination je getestet wurde. Ein Breaking Change
+# eines Fremdpakets hätte ungefiltert eine Kundeninstallation erreicht.
+#
+# Die Fassungen unten sind die, die am 26.07.2026 produktiv liefen — die
+# Umstellung ändert also nichts am Verhalten, sie friert den erprobten Stand
+# ein. Der Hub war bereits so gepinnt; hier wird nur nachgezogen.
+#
+# AKTUALISIEREN
+# -------------
+# Bewusst und einzeln, nicht nebenbei:
+#   1. Fassung hier ändern
+#   2. `docker compose up -d --build` und `pytest`
+#   3. Sicherheitsrelevante Pakete (cryptography, msal) zusätzlich gegen die
+#      Änderungshinweise des Herstellers lesen
+# `tools/driftcheck.py` schlägt an, wenn hier wieder ein `>=` auftaucht.
+
+# ── Mailverarbeitung ─────────────────────────────────────────────────────────
+aiosmtpd==1.4.6
+tnefparse==1.4.0
+asn1crypto==1.5.1
+
+# ── Kryptografie (S/MIME, Zertifikate) ───────────────────────────────────────
+cryptography==49.0.0
+
+# ── Microsoft-Anbindung ──────────────────────────────────────────────────────
+msal==1.37.0
+
+# ── Web-UI ───────────────────────────────────────────────────────────────────
+fastapi==0.139.0
+uvicorn==0.51.0
+jinja2==3.1.6
+itsdangerous==2.2.0
+python-multipart==0.0.32
+httpx==0.28.1

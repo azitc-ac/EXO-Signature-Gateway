@@ -248,6 +248,36 @@ def check_gateway_template_secrets(rep: Report) -> None:
                  f"Geheimnisse wird ausgegeben, Kontexte sind maskiert")
 
 
+# ── 7. Abhängigkeiten müssen exakt gepinnt sein ──────────────────────────────
+# Offene Angaben (>=, ~=, ohne Fassung) machen Builds unreproduzierbar: was ein
+# Kunde bekommt, hängt vom Tag des Builds ab. Der Abstand war real — gefordert
+# `fastapi>=0.104.0`, installiert lief `0.139.0`.
+REQUIREMENTS = [("Gateway", "app/requirements.txt"), ("Hub", "requirements.txt")]
+
+
+def check_pinned_requirements(rep: Report, roots: list[tuple[str, Path]]) -> None:
+    bekannt = {app for app, _ in roots}
+    gesamt = 0
+    for app, root in roots:
+        for anwendung, rel in REQUIREMENTS:
+            if anwendung != app:
+                continue
+            f = root / rel
+            if not f.is_file():
+                continue
+            for nr, zeile in enumerate(f.read_text().splitlines(), 1):
+                z = zeile.split("#")[0].strip()
+                if not z or z.startswith("-"):
+                    continue
+                gesamt += 1
+                if "==" in z:
+                    continue
+                rep.fail(f"{app}/{rel}:{nr}: nicht exakt gepinnt → \"{z}\" — "
+                         f"ein Build von morgen zieht möglicherweise etwas anderes")
+    if gesamt and not any("gepinnt" in p for p in rep.problems):
+        rep.note(f"{gesamt} Abhängigkeiten, alle exakt gepinnt")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--gateway-only", action="store_true")
@@ -267,6 +297,7 @@ def main() -> int:
     check_mirrored(rep, hub_verfuegbar=hub_da)
     check_secret_writes(rep, roots)
     check_gateway_template_secrets(rep)
+    check_pinned_requirements(rep, roots)
     if hub_da:
         check_settings_registry(rep)
 
