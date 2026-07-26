@@ -330,6 +330,14 @@
 /* ── Erweitert: JS-gesetzte Farben (CSSOM normalisiert zu rgb → Attribut-Selektor greift nicht) */
 [data-theme="dark"] #maintenance-status-text { color: #94a3b8 !important; }
 
+/* Automatische Aufladung: Statusmeldung. _autoMsg() setzt nur data-state,
+   nie die Farbe (Regel 2). Die Datei wird immer geladen, die Dark-Regeln sind
+   per [data-theme] gescopt — deshalb stehen hier BEIDE Modi beieinander. */
+#auto-topup-msg[data-state="ok"]  { color: #166534; }
+#auto-topup-msg[data-state="err"] { color: #dc2626; }
+[data-theme="dark"] #auto-topup-msg[data-state="ok"]  { color: #4ade80; }
+[data-theme="dark"] #auto-topup-msg[data-state="err"] { color: #fca5a5; }
+
 /* ── Postfächer: Fair-Use-Zähler ─────────────────────────────────────────── */
 /* #fu-badge wird in refreshFairUse() per style.cssText gesetzt (CSSOM → rgb),
    daher ID-Regeln statt [style*]. Die drei Zustände werden über den Textinhalt

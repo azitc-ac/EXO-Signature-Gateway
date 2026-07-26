@@ -4882,6 +4882,43 @@ async def api_hub_cert_eligibility(user: str = Depends(_require_admin)):
     return JSONResponse(await hub_client.cert_eligibility())
 
 
+# ── Automatische Guthabenaufladung (Zahlungsmittel beim Hub hinterlegt) ───────
+# Das Zahlungsmittel liegt ausschliesslich bei Stripe bzw. dem Hub — das
+# Gateway sieht weder Kartendaten noch einen Stripe-Schluessel, es reicht die
+# Anfragen nur durch.
+
+@app.get("/api/hub/billing/auto")
+async def api_hub_billing_auto(user: str = Depends(_require_admin)):
+    import hub_client
+    return JSONResponse(await hub_client.billing_auto_status())
+
+
+@app.post("/api/hub/billing/auto/setup")
+async def api_hub_billing_auto_setup(request: Request, user: str = Depends(_require_admin)):
+    import hub_client
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    return JSONResponse(await hub_client.billing_auto_setup(int(data.get("amount_cents") or 0)))
+
+
+@app.post("/api/hub/billing/auto/amount")
+async def api_hub_billing_auto_amount(request: Request, user: str = Depends(_require_admin)):
+    import hub_client
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    return JSONResponse(await hub_client.billing_auto_amount(int(data.get("amount_cents") or 0)))
+
+
+@app.post("/api/hub/billing/auto/disable")
+async def api_hub_billing_auto_disable(user: str = Depends(_require_admin)):
+    import hub_client
+    return JSONResponse(await hub_client.billing_auto_disable())
+
+
 @app.post("/api/hub/cert/topup")
 async def api_hub_cert_topup(request: Request, user: str = Depends(_require_admin)):
     """Create a prepaid top-up Checkout session at the hub; return its URL."""

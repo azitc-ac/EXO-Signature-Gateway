@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.32 — 2026-07-26 — Automatische Guthaben-Aufladung: Bedienoberfläche
+
+Gegenstück zu Hub v0.24.28. Betrag wählen, Karte bei Stripe hinterlegen, fertig — reicht das Guthaben später nicht, wird vor der Bestellung automatisch nachgeladen.
+
+- Der Einrichtungsvorgang **bucht sofort ab** (siehe Hub-Changelog zur Begründung). Die Oberfläche sagt das jetzt auch: Schaltfläche „Aufladen & Automatik einrichten" statt „Zahlungsmittel hinterlegen", Hinweistext darunter und eine Rückfrage mit dem konkreten Betrag vor der Weiterleitung zu Stripe. Die alte Beschriftung hätte eine Belastung verschwiegen.
+- Der gewählte Betrag wird an den Hub übergeben (`amount_cents` durch `autoTopupSetup()` → `/api/hub/billing/auto/setup` → `hub_client` → Hub).
+- Die Zusage „nicht verbrauchtes Guthaben erstatten wir jederzeit auf Verlangen" steht direkt am Zahlungsmittel, nicht nur im Vertragstext.
+
+**Dark Mode, Regel 2 eingehalten** (CLAUDE.md): `_autoMsg()` setzte die Textfarbe per `style.color`. Das ist genau der Fehler, den die Regel verhindern soll — der Browser normalisiert zu `rgb()`, die Attribut-Selektoren greifen nicht mehr, und `#dc2626` auf dunklem Grund ist schlecht lesbar. Jetzt `data-state="ok|err"` am Element, Farben für beide Modi in `dark-mode.css`. `tools/darkcheck.py` läuft für Gateway und Hub ohne Lücke durch.
+
 ## v1.7.30 — 2026-07-26 — Wettbewerber-Nennungen aus Code und Doku entfernt
 
 - Zwei Stellen nannten Mitbewerber als Beleg dafür, dass die SMTP-Envelope/Header-Trennung der übliche Weg ist (`app/smtp_submit.py`, ein CHANGELOG-Eintrag von v1.5.57). Inhaltlich waren es Belegzitate für ein Standardverfahren, keine Übernahmen — die Trennung von `RCPT TO` und Kopfzeilen ist RFC 5321 §3.3 und der Mechanismus, auf dem BCC beruht.
