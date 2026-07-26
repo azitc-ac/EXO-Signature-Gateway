@@ -6,6 +6,9 @@
     <title>{{ gateway_name or 'EXO Signature Gateway' }}</title>
     <link rel="stylesheet" href="/static/style.css?v={{ version }}">
     <link rel="stylesheet" href="/static/dark-mode.css?v={{ version }}">
+    <!-- Gemeinsame Helfer (esc, showMsg, postJSON). Inhaltsgleich mit dem Hub,
+         geprueft von tools/driftcheck.py. -->
+    <script src="/static/common.js?v={{ version }}"></script>
     <script>
       // Apply theme before first paint — prevents flash
       (function(){

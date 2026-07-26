@@ -735,21 +735,17 @@ function renderAuditTable(events) {
     const rcpts = (e.recipients || []).join(', ');
     const color = _ACTION_COLORS[e.action] || '#555';
     const label = _ACTION_LABELS[e.action] || e.action || '';
-    const subj  = e.subject ? escHtml(e.subject) : '<span style="color:#aaa">—</span>';
-    const err   = e.error   ? '<br><span style="color:#dc2626;font-size:11px">' + escHtml(e.error) + '</span>' : '';
+    const subj  = e.subject ? esc(e.subject) : '<span style="color:#aaa">—</span>';
+    const err   = e.error   ? '<br><span style="color:#dc2626;font-size:11px">' + esc(e.error) + '</span>' : '';
     return `<tr style="border-bottom:1px solid #f5f5f5">
-      <td style="padding:5px 8px;white-space:nowrap;color:#78716c">${escHtml(ts)}</td>
-      <td style="padding:5px 8px;word-break:break-all">${escHtml(e.sender || '')}</td>
-      <td style="padding:5px 8px;word-break:break-all;color:#555">${escHtml(rcpts)}</td>
-      <td style="padding:5px 8px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(e.subject||'')}">${subj}${err}</td>
-      <td style="padding:5px 8px;white-space:nowrap"><span style="color:${color};font-weight:600">${escHtml(label)}</span></td>
+      <td style="padding:5px 8px;white-space:nowrap;color:#78716c">${esc(ts)}</td>
+      <td style="padding:5px 8px;word-break:break-all">${esc(e.sender || '')}</td>
+      <td style="padding:5px 8px;word-break:break-all;color:#555">${esc(rcpts)}</td>
+      <td style="padding:5px 8px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(e.subject||'')}">${subj}${err}</td>
+      <td style="padding:5px 8px;white-space:nowrap"><span style="color:${color};font-weight:600">${esc(label)}</span></td>
       <td style="padding:5px 8px;text-align:right;color:#aaa">${e.processing_ms || ''}</td>
     </tr>`;
   }).join('');
-}
-
-function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 document.getElementById('auditModal').addEventListener('click', function(e) {

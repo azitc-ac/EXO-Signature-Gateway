@@ -598,10 +598,8 @@ async function certLoadEligibility(manual) {
 }
 
 // ── Automatische Guthabenaufladung ──────────────────────────────────────────
-// Eigener Escaper: escC() ist lokal in certLoadCatalog() deklariert und hier
+// Eigener Escaper: esc() ist lokal in certLoadCatalog() deklariert und hier
 // nicht sichtbar.
-function _escT(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
-                     .replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function _eur(c){ return (Number(c||0)/100).toFixed(2).replace('.', ',') + ' €'; }
 
 async function autoTopupLoad() {
@@ -633,13 +631,13 @@ async function autoTopupLoad() {
     const card = (d.brand ? d.brand.toUpperCase()+' ' : '') + '•••• ' + (d.last4||'') +
                  (d.exp ? ' (gültig bis '+d.exp+')' : '');
     html += '<div style="margin-bottom:8px"><span class="conn-badge conn-ok">✓ aktiv</span> '
-          + '<span style="margin-left:6px">'+_escT(card)+'</span></div>';
+          + '<span style="margin-left:6px">'+esc(card)+'</span></div>';
     if(d.last_error){
       html += '<div class="alert error" style="margin:0 0 8px;padding:8px 10px;font-size:12px">'
-            + '<strong>Letzte Abbuchung fehlgeschlagen:</strong> '+_escT(d.last_error)+'</div>';
+            + '<strong>Letzte Abbuchung fehlgeschlagen:</strong> '+esc(d.last_error)+'</div>';
     } else if(d.last_success_at){
       html += '<p class="hint" style="margin:0 0 8px">Zuletzt aufgeladen am '
-            + _escT(d.last_success_at.slice(0,10))+'.</p>';
+            + esc(d.last_success_at.slice(0,10))+'.</p>';
     }
   } else {
     html += '<p class="hint" style="margin:0 0 8px">Noch kein Zahlungsmittel hinterlegt.</p>';
@@ -735,17 +733,16 @@ function _renderBillingSection(d) {
     } else {
       body.innerHTML=
         '<div style="display:flex;flex-direction:column;gap:6px;max-width:420px">'
-        +'<input type="text" id="inv-req-company" placeholder="Firma / Rechtsform *" style="font-size:13px" value="'+_escAttr(d.billing_company)+'">'
-        +'<input type="text" id="inv-req-address" placeholder="Rechnungsadresse *" style="font-size:13px" value="'+_escAttr(d.billing_address)+'">'
-        +'<input type="text" id="inv-req-vat" placeholder="USt-IdNr (optional)" autocapitalize="off" autocorrect="off" spellcheck="false" style="font-size:13px" value="'+_escAttr(d.billing_vat)+'">'
-        +'<input type="text" id="inv-req-contact" placeholder="Ansprechpartner *" style="font-size:13px" value="'+_escAttr(d.billing_contact)+'">'
-        +'<input type="text" id="inv-req-website" placeholder="Webseite (optional)" autocapitalize="off" autocorrect="off" spellcheck="false" style="font-size:13px" value="'+_escAttr(d.billing_website)+'">'
+        +'<input type="text" id="inv-req-company" placeholder="Firma / Rechtsform *" style="font-size:13px" value="'+escAttr(d.billing_company)+'">'
+        +'<input type="text" id="inv-req-address" placeholder="Rechnungsadresse *" style="font-size:13px" value="'+escAttr(d.billing_address)+'">'
+        +'<input type="text" id="inv-req-vat" placeholder="USt-IdNr (optional)" autocapitalize="off" autocorrect="off" spellcheck="false" style="font-size:13px" value="'+escAttr(d.billing_vat)+'">'
+        +'<input type="text" id="inv-req-contact" placeholder="Ansprechpartner *" style="font-size:13px" value="'+escAttr(d.billing_contact)+'">'
+        +'<input type="text" id="inv-req-website" placeholder="Webseite (optional)" autocapitalize="off" autocorrect="off" spellcheck="false" style="font-size:13px" value="'+escAttr(d.billing_website)+'">'
         +'</div>'
         +'<div style="margin-top:8px"><button class="btn secondary" onclick="certRequestInvoice()">Rechnungsstellung beantragen</button></div>';
     }
   }
 }
-function _escAttr(s){ return (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
 async function certRequestInvoice() {
   const body={
     billing_company:(document.getElementById('inv-req-company').value||'').trim(),
@@ -910,16 +907,15 @@ async function certLoadCatalog() {
         + 'Best\u00e4tigungsmail und ben\u00f6tigen keinen DNS-Eintrag.';
     }
     _applyDomainBoxVisibility();
-    function escC(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
     function price(c){ return c > 0 ? (c/100).toFixed(2).replace('.', ',') + ' € zzgl. MwSt.' : '—'; }
     document.getElementById('cert-catalog-tbody').innerHTML = provs.map(function(p){
       const on = disabled.indexOf(p.id) === -1;
       const dim = on ? '' : 'opacity:.5;';
       return '<tr style="border-bottom:1px solid #f0f0f0;' + dim + '">'
         + '<td style="padding:5px 8px;text-align:center"><input type="checkbox" '
-          + (on ? 'checked' : '') + ' onchange="certToggleProvider(\'' + escC(p.id) + '\', this.checked)"></td>'
-        + '<td style="padding:5px 8px;font-weight:600">' + escC(p.label || p.id) + '</td>'
-        + '<td style="padding:5px 8px;color:#666">' + escC(p.description || '') + '</td>'
+          + (on ? 'checked' : '') + ' onchange="certToggleProvider(\'' + esc(p.id) + '\', this.checked)"></td>'
+        + '<td style="padding:5px 8px;font-weight:600">' + esc(p.label || p.id) + '</td>'
+        + '<td style="padding:5px 8px;color:#666">' + esc(p.description || '') + '</td>'
         + '<td style="padding:5px 8px">' + (p.validity_months ? p.validity_months + ' Mon.' : '—') + '</td>'
         + '<td style="padding:5px 8px;text-align:right">' + price(p.price_cents) + '</td>'
         + '</tr>';

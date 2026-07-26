@@ -417,8 +417,6 @@ function saveSmimeSettings() {
 // ── Automatische S/MIME-Regeln ─────────────────────────────────────────────
 var smimeRules = {{ (s.SMIME_AUTO_RULES or []) | tojson }};
 
-function escR(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-
 function renderSmimeRules() {
   var tbody = document.getElementById('smime-rules-tbody');
   var empty = document.getElementById('smime-rules-empty');
@@ -430,8 +428,8 @@ function renderSmimeRules() {
       +   '<option value="sign"' + sel(r.action, 'sign') + '>Signieren</option>'
       +   '<option value="nosign"' + sel(r.action, 'nosign') + '>Nicht signieren</option>'
       + '</select></td>'
-      + '<td><input type="text" class="rule-sender" value="' + escR(r.sender) + '" placeholder="alle Absender" style="width:100%"></td>'
-      + '<td><input type="text" class="rule-recipient" value="' + escR(r.recipient) + '" placeholder="alle Empfänger" style="width:100%"></td>'
+      + '<td><input type="text" class="rule-sender" value="' + esc(r.sender) + '" placeholder="alle Absender" style="width:100%"></td>'
+      + '<td><input type="text" class="rule-recipient" value="' + esc(r.recipient) + '" placeholder="alle Empfänger" style="width:100%"></td>'
       + '<td><select class="rule-mode" style="width:100%">'
       +   '<option value="and"' + sel(r.mode || 'and', 'and') + '>Absender UND Empfänger</option>'
       +   '<option value="or"' + sel(r.mode, 'or') + '>Absender ODER Empfänger</option>'

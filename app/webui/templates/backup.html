@@ -200,8 +200,6 @@ function showAlert(el, type, msg) {
   setTimeout(() => { el.style.display = 'none'; }, 6000);
 }
 
-function _esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-
 let _updPollTimer = null;
 let _updPollStart = null;
 let _watcherOk = false;
@@ -240,7 +238,7 @@ async function _updLoadReleaseList() {
     const d = await r.json();
     _updReleaseList = d.releases || [];
     sel.innerHTML = '<option value="">Neueste (Standard)</option>' +
-      _updReleaseList.map(rel => `<option value="${_esc(rel.version)}">v${_esc(rel.version)}${rel.published_at ? ' — ' + _esc(rel.published_at.slice(0,10)) : ''}</option>`).join('');
+      _updReleaseList.map(rel => `<option value="${esc(rel.version)}">v${esc(rel.version)}${rel.published_at ? ' — ' + esc(rel.published_at.slice(0,10)) : ''}</option>`).join('');
   } catch(e) {
     sel.innerHTML = '<option value="">Neueste (Standard)</option>';
   }
@@ -278,10 +276,10 @@ function _updOnTargetChange() {
     btn.disabled = true;
     btn.innerHTML = 'Jetzt aktualisieren';
   } else {
-    res.innerHTML = '<span style="color:#334155">Ziel gewählt: <strong>v' + _esc(target)
+    res.innerHTML = '<span style="color:#334155">Ziel gewählt: <strong>v' + esc(target)
       + '</strong>' + (isOlder ? ' (Downgrade)' : '') + '</span>';
     btn.disabled = !_watcherOk;
-    btn.innerHTML = (isOlder ? 'Downgrade auf v' : 'Wechsel auf v') + _esc(target);
+    btn.innerHTML = (isOlder ? 'Downgrade auf v' : 'Wechsel auf v') + esc(target);
   }
 }
 function _updBtnReset() {
@@ -301,22 +299,22 @@ async function checkUpdate() {
     const r = await fetch(`/api/system/update/check?channel=${encodeURIComponent(_updGetChannel())}`);
     const d = await r.json();
     if (!d.ok) {
-      result.innerHTML = `<span style="color:#b45309">⚠ ${_esc(d.error)}</span>`;
+      result.innerHTML = `<span style="color:#b45309">⚠ ${esc(d.error)}</span>`;
     } else if (d.available) {
       _whatsNewEntries = (d.changelog_entries && d.changelog_entries.length) ? d.changelog_entries : null;
       _whatsNewLatest = d.latest;
       const wn = _whatsNewEntries
         ? ` <a href="#" onclick="showWhatsNew();return false" style="font-size:12px;color:#0369a1;margin-left:6px">Was ist neu? (${_whatsNewEntries.length} Änderung${_whatsNewEntries.length !== 1 ? 'en' : ''})</a>`
         : '';
-      result.innerHTML = `<span style="color:#16a34a;font-weight:600">▲ Update verfügbar: ${_esc(d.latest)}</span>${wn}`;
+      result.innerHTML = `<span style="color:#16a34a;font-weight:600">▲ Update verfügbar: ${esc(d.latest)}</span>${wn}`;
       if (_watcherOk) document.getElementById('upd-btn').disabled = false;
     } else if (d.note) {
-      result.innerHTML = `<span style="color:#64748b">${_esc(d.note)}</span>`;
+      result.innerHTML = `<span style="color:#64748b">${esc(d.note)}</span>`;
     } else {
-      result.innerHTML = `<span style="color:#64748b">✓ Bereits aktuell (${_esc(d.latest || '?')})</span>`;
+      result.innerHTML = `<span style="color:#64748b">✓ Bereits aktuell (${esc(d.latest || '?')})</span>`;
     }
   } catch(e) {
-    result.innerHTML = `<span style="color:#dc2626">Fehler: ${_esc(e.message)}</span>`;
+    result.innerHTML = `<span style="color:#dc2626">Fehler: ${esc(e.message)}</span>`;
     if (_watcherOk) document.getElementById('upd-btn').disabled = false;
   }
   checkBtn.disabled = false; checkBtn.textContent = 'Auf Updates prüfen';
@@ -335,8 +333,8 @@ function showWhatsNew() {
   } else {
     body.innerHTML = _whatsNewEntries.map(e => `
       <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid #f0f0f0">
-        <div style="font-size:13px;font-weight:600;color:#1e293b;margin-bottom:4px">${_esc(e.header.replace(/^## /, ''))}</div>
-        ${e.body ? `<pre style="margin:0;font-size:12px;color:#475569;white-space:pre-wrap;font-family:inherit;line-height:1.6">${_esc(e.body)}</pre>` : ''}
+        <div style="font-size:13px;font-weight:600;color:#1e293b;margin-bottom:4px">${esc(e.header.replace(/^## /, ''))}</div>
+        ${e.body ? `<pre style="margin:0;font-size:12px;color:#475569;white-space:pre-wrap;font-family:inherit;line-height:1.6">${esc(e.body)}</pre>` : ''}
       </div>`).join('');
   }
   overlay.style.display = 'flex';
@@ -407,7 +405,7 @@ function _updShowRunning(log) {
   const el = document.getElementById('upd-status'); el.style.display = 'block';
   el.innerHTML = `<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;padding:12px;font-size:12px">
     <strong style="color:#0369a1">Update läuft…</strong>
-    <pre style="margin:8px 0 0;white-space:pre-wrap;font-size:11px;max-height:200px;overflow-y:auto;color:#374151">${_esc(log)}</pre>
+    <pre style="margin:8px 0 0;white-space:pre-wrap;font-size:11px;max-height:200px;overflow-y:auto;color:#374151">${esc(log)}</pre>
     <div style="margin-top:8px">
       <button class="btn secondary btn-sm" onclick="clearInterval(_updPollTimer);_updClear().then(()=>location.reload())">Abbrechen / Status zurücksetzen</button>
     </div>
@@ -419,10 +417,10 @@ function _updShowSuccess(d) {
   _updBtnReset();
   const el = document.getElementById('upd-status'); el.style.display = 'block';
   const versionStr = d.version_before
-    ? `${_esc(d.version_before)} → <strong>${_esc(d.version_after || '?')}</strong>` : '';
+    ? `${esc(d.version_before)} → <strong>${esc(d.version_after || '?')}</strong>` : '';
   el.innerHTML = `<div class="alert success" style="font-size:13px">
     <strong>Update erfolgreich!</strong> ${versionStr}
-    <pre style="margin:8px 0 0;white-space:pre-wrap;font-size:11px;max-height:200px;overflow-y:auto">${_esc(d.log || '')}</pre>
+    <pre style="margin:8px 0 0;white-space:pre-wrap;font-size:11px;max-height:200px;overflow-y:auto">${esc(d.log || '')}</pre>
     <div style="margin-top:10px;display:flex;align-items:center;gap:8px">
       <button class="btn primary btn-sm" onclick="clearInterval(_updReloadTimer);_updClear().then(()=>location.reload())">Jetzt neu laden</button>
       <button class="btn secondary btn-sm" onclick="clearInterval(_updReloadTimer);_updClear()">Später</button>
@@ -477,14 +475,14 @@ async function toggleChangelog() {
   try {
     const r = await fetch('/api/system/changelog?n=8');
     const d = await r.json();
-    box.innerHTML = d.error ? `<p style="color:#dc2626;font-size:13px">${_esc(d.error)}</p>`
+    box.innerHTML = d.error ? `<p style="color:#dc2626;font-size:13px">${esc(d.error)}</p>`
       : d.entries.map(e => {
           const lines = e.split('\n');
           const header = lines[0].replace(/^## /, '');
           const body = lines.slice(1).join('\n').trim();
           return `<div style="border-left:3px solid #e2e8f0;padding:8px 12px;margin-bottom:8px">
-            <div style="font-weight:600;font-size:13px;color:#1e293b">${_esc(header)}</div>
-            ${body ? `<pre style="margin:4px 0 0;font-size:11px;color:#475569;white-space:pre-wrap;font-family:inherit">${_esc(body)}</pre>` : ''}
+            <div style="font-weight:600;font-size:13px;color:#1e293b">${esc(header)}</div>
+            ${body ? `<pre style="margin:4px 0 0;font-size:11px;color:#475569;white-space:pre-wrap;font-family:inherit">${esc(body)}</pre>` : ''}
           </div>`;
         }).join('');
     box.style.display = 'block'; btn.textContent = 'Changelog ausblenden'; _clVisible = true;
