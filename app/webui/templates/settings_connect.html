@@ -429,7 +429,14 @@ var _DOMAIN_VALIDATION_NEEDED = true;
 function _applyDomainBoxVisibility() {
   var box = document.getElementById('cert-domains-box');
   if (!box) return;
-  box.style.display = _DOMAIN_VALIDATION_NEEDED ? '' : 'none';
+  // Zwei Bedingungen, beide notwendig:
+  //  1. Ohne Anbindung nimmt der Hub keinen Domain-Antrag entgegen
+  //     (certDomainRequest -> "Nicht registriert").
+  //  2. Ohne Anbindung steigt certLoadCatalog() früh aus, _DOMAIN_VALIDATION_
+  //     NEEDED behält den konservativen Startwert true — die Box erschiene
+  //     also selbst dann, wenn ausschliesslich mailbox-validierte Anbieter
+  //     freigeschaltet wären.
+  box.style.display = (_HUB_REGISTERED && _DOMAIN_VALIDATION_NEEDED) ? '' : 'none';
 }
 var _HUB_REGISTERED = {{ 'true' if hub_registered else 'false' }};
 // ── Anbindung (eine Registrierung) ───────────────────────────────────────────
