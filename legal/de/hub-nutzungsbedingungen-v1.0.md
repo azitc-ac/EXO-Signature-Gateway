@@ -324,9 +324,11 @@ Laufzeit nach Ziffer 6.10.
 
 10.5 Übersteigt die Zahl aktivierter Postfächer den durch erworbene Lizenzen
 und Freigrenze abgedeckten Umfang, sind entsprechend weitere Lizenzen zu
-erwerben; die Differenz wird für die verbleibenden vollen Kalendermonate des
-laufenden Abrechnungszeitraums nachberechnet. Bei einer Verringerung erfolgt
-keine Erstattung für den laufenden Abrechnungszeitraum.
+erwerben. Diese werden anteilig für die verbleibenden vollen Kalendermonate des
+laufenden Abrechnungszeitraums berechnet, sodass alle Lizenzen zum selben
+Zeitpunkt enden. Bei einer Verringerung erfolgt keine Erstattung für den
+laufenden Abrechnungszeitraum; sie wirkt sich auf den folgenden
+Abrechnungszeitraum aus.
 
 10.6 Der Kunde kann die Umstellung auf Rechnungsstellung beantragen. Für diese
 gelten die gesonderten Zahlungsbedingungen (Rechnungskauf). Ein Anspruch auf

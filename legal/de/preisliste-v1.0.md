@@ -106,9 +106,15 @@ nach drei Monaten. Genutzt: 3 × 100 × 1,00 € = 300,00 €. Erstattung:
 ### Unterjährige Änderungen
 
 Übersteigt die Zahl aktivierter Postfächer die Zahl der erworbenen Lizenzen
-zuzüglich Freigrenze, sind entsprechend weitere Lizenzen zu erwerben. Die
-Differenz wird für die verbleibenden vollen Kalendermonate des laufenden
-Abrechnungszeitraums nachberechnet.
+zuzüglich Freigrenze, sind entsprechend weitere Lizenzen zu erwerben. Diese
+werden anteilig für die verbleibenden vollen Kalendermonate des laufenden
+Abrechnungszeitraums berechnet, sodass alle Lizenzen zum selben Zeitpunkt enden.
+
+Rechenbeispiel: 100 Lizenzen, Jahresvorauszahlung ab 1. Januar. Im April steigt
+der Bedarf auf 120 Postfächer. Die 20 zusätzlichen Lizenzen werden für die acht
+verbleibenden vollen Monate (Mai bis Dezember) berechnet:
+20 × 8 × 0,90 € = 144,00 €. Alle 120 Lizenzen laufen anschließend bis zum
+31. Dezember und werden gemeinsam verlängert.
 
 Bei einer Verringerung erfolgt keine Erstattung für den laufenden
 Abrechnungszeitraum; die Verringerung wirkt sich auf den folgenden

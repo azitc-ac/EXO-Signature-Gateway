@@ -312,10 +312,11 @@ be applied. The choice of payment method determines the term pursuant to
 Section 6.10.
 
 10.5 If the number of activated mailboxes exceeds the scope covered by purchased
-licenses and the free tier, additional licenses must be purchased accordingly;
-the difference will be back-billed for the remaining full calendar months of the
-current billing period. No refund is made for reduction during the current
-billing period.
+licenses and the free tier, additional licenses must be purchased accordingly.
+These are charged pro rata for the remaining full calendar months of the current
+billing period, so that all licenses end on the same date. No refund is made for
+a reduction during the current billing period; it takes effect from the
+following billing period.
 
 10.6 The Customer may request a switch to invoice billing. The separate Payment
 Terms (Invoice Purchase) apply in that case. There is no right to such a switch.
