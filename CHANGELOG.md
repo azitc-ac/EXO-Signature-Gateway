@@ -107,9 +107,9 @@ Gegenstück zu Hub v0.24.28. Betrag wählen, Karte bei Stripe hinterlegen, ferti
 
 ## v1.7.28 — 2026-07-26 — Fix: „Verifizierte Domains" erschien ohne Anbindung
 
-- Beim Anbindungs-Gate (v1.7.24/1.7.26) hatte ich diesen Abschnitt übersehen — Bedingungen und Rechnungsantrag wurden gekoppelt, die Domänen-Box nicht.
+- Beim Anbindungs-Gate (v1.7.24/1.7.26) erfasste diesen Abschnitt nicht: Bedingungen und Rechnungsantrag waren gekoppelt, die Domänen-Box nicht.
 - Zweite Ursache: `certLoadCatalog()` steigt bei fehlender Anbindung früh aus (`if (!d.registered …) return;`). Dadurch behielt `_DOMAIN_VALIDATION_NEEDED` den konservativen Startwert `true` — die Box wäre selbst dann erschienen, wenn ausschließlich mailbox-validierte Anbieter freigeschaltet sind.
-- `_applyDomainBoxVisibility()` prüft jetzt beide Bedingungen. Vier Zustände gegengeprüft.
+- `_applyDomainBoxVisibility()` prüft jetzt beide Bedingungen.
 - Bewusst **nicht** gesperrt: die DigiCert-Direktanbindung. Sie richtet sich an Kunden mit eigenem CertCentral-Konto und läuft absichtlich am Hub vorbei.
 
 ## v1.7.27 — 2026-07-26 — Domänenverifizierung nur noch, wo der Anbieter sie braucht
@@ -129,7 +129,7 @@ Gegenstück zu Hub v0.24.28. Betrag wählen, Karte bei Stripe hinterlegen, ferti
 ## v1.7.25 — 2026-07-26 — CA-Nutzungsbedingungen: Umbruch korrigiert
 
 - Die Bedingungen für den Zertifikatsbezug hatten dasselbe Problem wie zuvor die Rechtsdokumente: Der Quelltext in `terms.py` ist hart auf ~76 Zeichen umbrochen, `white-space:pre-wrap` übernahm diese Umbrüche wörtlich, und auf schmalen Schirmen kam der Viewport-Umbruch obendrauf.
-- Meine frühere Begründung („Klartext, dort ist pre-wrap richtig", v1.7.15) war falsch — die Textart ist unerheblich, entscheidend ist die harte Umbruchbreite in der Quelle.
+- Die Begründung aus v1.7.15 („Klartext, dort ist pre-wrap richtig") trug nicht — die Textart ist unerheblich, entscheidend ist die harte Umbruchbreite in der Quelle.
 - **`_reflowPlain()`**: fügt Absätze zusammen und erkennt dabei die Besonderheit dieses Textes — nummerierte Überschriften („1. Leistungsbeschreibung") stehen **ohne** Leerzeile über ihrem Absatz und dürfen nicht hineingezogen werden. Der Kopfblock wird in Titel und gedämpfte Versionszeile getrennt.
 - Gegen den echten Text geprüft: 8 Überschriften, 9 Absätze, Fließtext durchgehend.
 
@@ -157,7 +157,7 @@ Gegenstück zu Hub v0.24.28. Betrag wählen, Karte bei Stripe hinterlegen, ferti
 
 ## v1.7.21 — 2026-07-25 — Hosting-Angaben verifiziert statt vermutet
 
-- Die Datenschutzerklärung und der AVV beschrieben die Erreichbarkeit des Hub bisher als „Veröffentlichungsdienst der Microsoft Ireland" — das war meine **Ableitung**, nicht überprüft.
+- Die Datenschutzerklärung und der AVV beschrieben die Erreichbarkeit des Hub bisher als „Veröffentlichungsdienst der Microsoft Ireland" — eine **Ableitung**, die nicht zutraf.
 - Per Antwort-Header belegt: `x-ms-proxy-service-name: proxy-appproxy-DWC-FRA03P-3` → **Microsoft Entra Application Proxy**, Rechenzentrum Frankfurt.
 - Beide Dokumente nennen den Dienst jetzt beim Namen und halten die EU-Lokation fest. Das stützt zugleich Ziffer 8.1 des AVV („keine Drittlandverarbeitung"), die vorher auf einer Annahme beruhte.
 - ACS bleibt als E-Mail-Dienst gesetzt (bestätigt) — der Absatz ist damit final.
