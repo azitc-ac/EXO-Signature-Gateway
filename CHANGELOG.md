@@ -11,6 +11,7 @@ Der Hook lag in `.git/hooks/` und war damit **nicht versioniert**: Er existierte
 
 - Neu `tools/hooks/pre-commit`, inhaltsgleich in beiden Anwendungen und von `driftcheck.py` SHA-verglichen. Aktivieren je Arbeitskopie: `git config core.hooksPath tools/hooks`.
 - Ausführbar-Bit im Git-Index gesetzt (`100755`) — ohne das scheitert er auf der VM mit `203/EXEC`.
+- **Reihenfolge korrigiert:** Der Hook erhöhte VERSION, *bevor* er den Changelog prüfte — ein abgelehnter Commit ließ also eine bereits hochgezählte Nummer in der Arbeitskopie zurück. Bei mehreren Anläufen wächst sie, ohne dass je etwas veröffentlicht wird. Gefunden, weil ich den Blockierfall tatsächlich durchgespielt habe statt ihn anzunehmen.
 - **Inhaltlich präzisiert:** Die Changelog-Pflicht galt bedingungslos. Das erzeugte einen Eintrag für eine reine `.gitignore`-Änderung — Rauschen, das den Changelog beim Lesen unbrauchbarer macht. Der Hook prüft jetzt zuerst, ob der Commit produktrelevante Dateien berührt; `.gitignore`, `VERSION`, `CHANGELOG.md` und lokale, gitignorierte Notizdateien zählen nicht. Bei solchen Commits entfällt Eintragspflicht und Versionserhöhung.
 
 ## v1.7.47 — 2026-07-26 — Aufruf-Tests der Weboberfläche

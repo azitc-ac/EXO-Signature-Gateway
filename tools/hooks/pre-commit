@@ -27,6 +27,14 @@ if [ -z "$relevant" ]; then
     exit 0
 fi
 
+# ZUERST pruefen, DANN erhoehen. Andersherum liess ein abgelehnter Commit eine
+# bereits hochgezaehlte VERSION in der Arbeitskopie zurueck — bei mehreren
+# Anlaeufen waechst die Nummer, ohne dass je etwas veroeffentlicht wurde.
+if ! git diff --cached --name-only | grep -q "^CHANGELOG\.md$"; then
+    echo "❌ CHANGELOG.md nicht gestaged — bitte Eintrag ergänzen und erneut adden."
+    exit 1
+fi
+
 VERSION_FILE="VERSION"
 if [ -f "$VERSION_FILE" ]; then
     current=$(cat "$VERSION_FILE")
@@ -35,9 +43,4 @@ if [ -f "$VERSION_FILE" ]; then
     echo "$new_version" > "$VERSION_FILE"
     git add "$VERSION_FILE"
     echo "Version bumped: $current → $new_version"
-fi
-
-if ! git diff --cached --name-only | grep -q "^CHANGELOG\.md$"; then
-    echo "❌ CHANGELOG.md nicht gestaged — bitte Eintrag ergänzen und erneut adden."
-    exit 1
 fi
