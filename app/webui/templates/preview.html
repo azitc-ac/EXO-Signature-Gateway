@@ -47,8 +47,8 @@
 
   // Load mailboxes + templates in parallel on page load
   Promise.all([
-    fetch('/api/mailboxes').then(r => r.json()),
-    fetch('/api/templates').then(r => r.json()),
+    getJSON('/api/mailboxes'),
+    getJSON('/api/templates'),
   ]).then(([mbData, tData]) => {
     // Populate email select
     const mbs = mbData.mailboxes || [];

@@ -359,8 +359,9 @@ function showPoolTab(tabName, appIdx) {
   var p = _poolData[appIdx];
   var app_id = p ? p.client_id : '';
   _poolLastHistoryTab = tabName;
-  fetch('/api/setup/app-pool/history?days=' + days)
-    .then(function(r) { return r.json(); })
+  // getJSON wirft nie — bei Netzwerkfehler kam frueher eine unbehandelte
+  // Promise-Ablehnung und das Diagramm blieb kommentarlos leer.
+  getJSON('/api/setup/app-pool/history?days=' + days)
     .then(function(data) {
       var poolArr = data.pool || data;
       var entry = null;
@@ -405,8 +406,7 @@ function showPoolDayDrill(appIdx, date) {
   var p = _poolData[appIdx];
   var app_id = p ? p.client_id : '';
   area.innerHTML = '<span style="color:#94a3b8;font-size:12px">Laden…</span>';
-  fetch('/api/setup/app-pool/day?app_id=' + encodeURIComponent(app_id) + '&date=' + encodeURIComponent(date))
-    .then(function(r) { return r.json(); })
+  getJSON('/api/setup/app-pool/day?app_id=' + encodeURIComponent(app_id) + '&date=' + encodeURIComponent(date))
     .then(function(data) {
       var hoursArr = new Array(24).fill(0);
       if (Array.isArray(data.hours)) {
@@ -478,8 +478,15 @@ function openInFlightInfo(active, held) {
   }
   async function loadSys() {
     try {
-      const r = await fetch('/api/system/info');
-      const d = await r.json();
+      const d = await getJSON('/api/system/info');
+      if (d.ok === false) {
+        // Ohne diese Pruefung rechnete die Kachel mit undefined weiter und
+        // zeigte "NaN" an — schlimmer als ein ehrlicher Hinweis.
+        const g = document.getElementById('sysGrid');
+        if (g) g.innerHTML = '<div class="sys-card"><div class="sys-val">—</div>'
+          + '<div class="sys-sub">Systemdaten nicht abrufbar: ' + esc(errText(d)) + '</div></div>';
+        return;
+      }
       const diskClass = d.disk_pct >= 90 ? 'sys-disk-crit' : d.disk_pct >= 75 ? 'sys-disk-warn' : '';
       const heldCount = d.held_mail_count || 0;
       const inFlightTotal = d.in_flight + heldCount;
@@ -756,8 +763,8 @@ async function openMailHourlyModal() {
   document.getElementById('mailHourlyModal').style.display = 'flex';
   document.getElementById('mailHourlyContent').innerHTML = '<span style="color:#94a3b8">Laden…</span>';
   try {
-    const r = await fetch('/api/system/mail-hourly');
-    const rows = await r.json();
+    const _d = await getJSON('/api/system/mail-hourly');
+    const rows = Array.isArray(_d) ? _d : (_d.rows || []);
     if (!rows.length) {
       document.getElementById('mailHourlyContent').innerHTML = '<span style="color:#94a3b8">Keine Daten für heute</span>';
       return;
