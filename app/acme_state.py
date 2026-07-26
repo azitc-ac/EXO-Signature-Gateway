@@ -26,6 +26,7 @@ from cryptography.x509.oid import NameOID
 
 import settings_store
 from acme_client import AcmeClient, b64url, compute_key_authorization
+import secure_io
 
 log = logging.getLogger(__name__)
 
@@ -73,7 +74,7 @@ def get_or_create_account_key(email: str) -> ec.EllipticCurvePrivateKey:
     if key_file.exists():
         return serialization.load_pem_private_key(key_file.read_bytes(), password=None)
     key = ec.generate_private_key(ec.SECP256R1())
-    key_file.write_bytes(key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption()))
+    secure_io.write_secret_bytes(key_file, key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption()))
     log.info("ACME: generated new account key → %s", key_file.name)
     return key
 
@@ -150,7 +151,7 @@ def _load_orders() -> None:
 
 def _save_orders() -> None:
     ACME_DIR.mkdir(parents=True, exist_ok=True)
-    _ORDERS_FILE.write_text(json.dumps(_orders, indent=2))
+    secure_io.write_secret_json(_ORDERS_FILE, _orders)
 
 
 def save_order(email: str, state: dict) -> None:

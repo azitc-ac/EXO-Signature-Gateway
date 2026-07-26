@@ -16,6 +16,8 @@ import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
+import secure_io
+
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.serialization import (
@@ -60,7 +62,7 @@ def reencrypt_all_keys(old_password: str = "") -> list:
                     continue
             if key is None:
                 raise ValueError("Kein passendes Passwort gefunden")
-            kp.write_bytes(key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, new_enc))
+            secure_io.write_secret_bytes(kp, key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, new_enc))
             log.info("Re-encrypted %s", kp)
         except Exception as exc:
             log.error("Re-encrypt failed for %s: %s", kp, exc)
@@ -214,9 +216,9 @@ def store_p12_slot(email: str, p12_bytes: bytes, password: str = "") -> dict:
     slot_dir = user_dir / "certs" / slot
     slot_dir.mkdir(parents=True, exist_ok=True)
     (slot_dir / "cert.pem").write_bytes(cert.public_bytes(Encoding.PEM))
-    (slot_dir / "key.pem").write_bytes(
-        private_key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, _key_encryption())
-    )
+    secure_io.write_secret_bytes(
+        slot_dir / "key.pem",
+        private_key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, _key_encryption()))
     default_file = user_dir / "default"
     if not default_file.exists():
         default_file.write_text(slot)
@@ -417,9 +419,9 @@ def store_pem_slot(email: str, cert_chain_pem: bytes, key_pem: bytes) -> dict:
     slot_dir = user_dir / "certs" / slot
     slot_dir.mkdir(parents=True, exist_ok=True)
     (slot_dir / "cert.pem").write_bytes(leaf_pem)
-    (slot_dir / "key.pem").write_bytes(
-        private_key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, _key_encryption())
-    )
+    secure_io.write_secret_bytes(
+        slot_dir / "key.pem",
+        private_key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, _key_encryption()))
     # ACME renewals always become the new default
     (user_dir / "default").write_text(slot)
     log.info("S/MIME cert (ACME) stored for %s — slot %s", email, slot)
@@ -553,7 +555,7 @@ async def migrate_key_to_keyvault(email: str, slot_id: str | None = None) -> dic
     if fallback_mode:
         bak_path = key_path.parent / "key.pem.bak"
         try:
-            bak_path.write_bytes(key_pem)
+            secure_io.write_secret_bytes(bak_path, key_pem)
             bak_path.chmod(0o600)
             log.info("Backup key saved to %s before KV migration", bak_path)
         except Exception as exc:
@@ -595,7 +597,8 @@ def migrate_keys_encryption() -> int:
                     private_key = load_pem_private_key(key_bytes, password=None)
                 except (ValueError, TypeError):
                     continue
-                key_path.write_bytes(
+                secure_io.write_secret_bytes(
+                    key_path,
                     private_key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8,
                                               BestAvailableEncryption(pw.encode()))
                 )
