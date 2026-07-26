@@ -488,3 +488,46 @@ async def cert_topup(amount_cents: int) -> dict:
         return {"ok": False, "error": data.get("message") or f"Hub HTTP {r.status_code}: {r.text[:200]}"}
     except Exception as exc:
         return {"ok": False, "error": f"Netzwerkfehler: {exc}"}
+
+
+# ── Automatische Guthabenaufladung (hinterlegtes Zahlungsmittel) ──────────────
+
+async def _billing_auto(method: str, path: str, payload: dict | None = None) -> dict:
+    """Gemeinsamer Aufruf für die Automatik-Endpunkte des Hub."""
+    base = _base()
+    if not (base and _key()):
+        return {"ok": False, "error": "Nicht registriert (Anbindung fehlt)."}
+    try:
+        async with httpx.AsyncClient(timeout=30) as c:
+            if method == "GET":
+                r = await c.get(f"{base}{path}", headers=_gateway_headers())
+            else:
+                r = await c.post(f"{base}{path}", headers=_gateway_headers(),
+                                 json=payload or {})
+        data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+        if r.status_code == 200 and data.get("ok"):
+            return data
+        return {"ok": False, "error": data.get("message") or data.get("detail")
+                or f"Hub HTTP {r.status_code}: {r.text[:200]}"}
+    except Exception as exc:
+        return {"ok": False, "error": f"Netzwerkfehler: {exc}"}
+
+
+async def billing_auto_status() -> dict:
+    return await _billing_auto("GET", "/api/billing/auto")
+
+
+async def billing_auto_setup(amount_cents: int = 0) -> dict:
+    """Checkout-URL für die Einrichtung: lädt den Startbetrag auf UND hinterlegt
+    das Zahlungsmittel für spätere Nachladungen."""
+    return await _billing_auto("POST", "/api/billing/auto/setup",
+                               {"amount_cents": int(amount_cents)})
+
+
+async def billing_auto_amount(amount_cents: int) -> dict:
+    return await _billing_auto("POST", "/api/billing/auto/amount",
+                               {"amount_cents": int(amount_cents)})
+
+
+async def billing_auto_disable() -> dict:
+    return await _billing_auto("POST", "/api/billing/auto/disable")

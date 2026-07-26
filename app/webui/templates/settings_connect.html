@@ -124,6 +124,18 @@
       </div>
     </div>
 
+    <div id="cert-auto-topup-box" class="info-box" style="display:none;margin-bottom:12px">
+      <strong>Automatisch aufladen</strong>
+      <p class="hint" style="margin:2px 0 8px">
+        Beim Einrichten wird der gewählte Betrag aufgeladen und die Karte für spätere
+        Nachladungen hinterlegt. Reicht das Guthaben später für eine Bestellung nicht,
+        wird automatisch nachgeladen — keine Freigabe nötig, da die Zahlung stets vor
+        der Leistung erfolgt. <strong>Nicht verbrauchtes Guthaben erstatten wir dir
+        jederzeit auf Verlangen</strong>, ohne Kündigung und ohne Begründung.
+      </p>
+      <div id="cert-auto-topup-body"><span class="muted">Wird geladen…</span></div>
+    </div>
+
     <div id="cert-invoice-request-box" class="info-box" style="display:none;margin-bottom:12px">
       <strong>Rechnungsstellung (statt Prepaid)</strong>
       <p class="hint" style="margin:2px 0 8px">
@@ -582,7 +594,101 @@ async function certLoadEligibility(manual) {
     else { badge.className='conn-badge conn-wait'; badge.textContent='⚠ noch nicht aktiv'; }
   }
   if(manual){ _certMsg('✓ Aktualisiert ('+new Date().toLocaleTimeString('de-DE')+')', true); }
+  autoTopupLoad();
 }
+
+// ── Automatische Guthabenaufladung ──────────────────────────────────────────
+// Eigener Escaper: escC() ist lokal in certLoadCatalog() deklariert und hier
+// nicht sichtbar.
+function _escT(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+                     .replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function _eur(c){ return (Number(c||0)/100).toFixed(2).replace('.', ',') + ' €'; }
+
+async function autoTopupLoad() {
+  const box = document.getElementById('cert-auto-topup-box');
+  const body = document.getElementById('cert-auto-topup-body');
+  if(!box || !body) return;
+  // Nur sinnvoll mit Anbindung und wenn der Hub Stripe überhaupt konfiguriert hat.
+  if(!_HUB_REGISTERED){ box.style.display='none'; return; }
+  let d;
+  try { d = await (await fetch('/api/hub/billing/auto')).json(); }
+  catch(e){ box.style.display='none'; return; }
+  if(!d.ok || !d.stripe_enabled){ box.style.display='none'; return; }
+  box.style.display='';
+
+  const amt = d.amount_cents || d.default_amount_cents;
+  let html = '';
+  if(d.enabled){
+    const card = (d.brand ? d.brand.toUpperCase()+' ' : '') + '•••• ' + (d.last4||'') +
+                 (d.exp ? ' (gültig bis '+d.exp+')' : '');
+    html += '<div style="margin-bottom:8px"><span class="conn-badge conn-ok">✓ aktiv</span> '
+          + '<span style="margin-left:6px">'+_escT(card)+'</span></div>';
+    if(d.last_error){
+      html += '<div class="alert error" style="margin:0 0 8px;padding:8px 10px;font-size:12px">'
+            + '<strong>Letzte Abbuchung fehlgeschlagen:</strong> '+_escT(d.last_error)+'</div>';
+    } else if(d.last_success_at){
+      html += '<p class="hint" style="margin:0 0 8px">Zuletzt aufgeladen am '
+            + _escT(d.last_success_at.slice(0,10))+'.</p>';
+    }
+  } else {
+    html += '<p class="hint" style="margin:0 0 8px">Noch kein Zahlungsmittel hinterlegt.</p>';
+  }
+  html += '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">'
+        + '<div><label style="font-size:12px;display:block">Betrag je Aufladung</label>'
+        + '<input type="number" id="auto-topup-amount" min="'+Math.round(d.min_amount_cents/100)
+        + '" max="'+Math.round(d.max_amount_cents/100)+'" step="5" value="'+Math.round(amt/100)
+        + '" style="width:90px;font-size:13px"> €</div>'
+        + '<button class="btn secondary" onclick="autoTopupSaveAmount()">Betrag speichern</button>'
+        + '<button class="btn '+(d.enabled?'secondary':'primary')+'" onclick="autoTopupSetup()">'
+        // Beschriftung muss die Belastung benennen — der Vorgang lädt auf UND
+        // hinterlegt die Karte, ein blosses "hinterlegen" waere irrefuehrend.
+        + (d.enabled ? 'Aufladen &amp; Karte ersetzen' : 'Aufladen &amp; Automatik einrichten') + '</button>'
+        + (d.enabled ? '<button class="btn secondary" onclick="autoTopupDisable()">Automatik beenden</button>' : '')
+        + '</div>'
+        + '<div id="auto-topup-msg" style="display:none;margin-top:8px;font-size:12px"></div>'
+        + '<p class="hint" style="margin:8px 0 0">Beim Hinterlegen wird der oben '
+        + 'gewählte Betrag sofort abgebucht und gutgeschrieben.</p>';
+  body.innerHTML = html;
+}
+
+// Regel 2 (CLAUDE.md): Farbe NICHT per JS setzen — der Browser normalisiert
+// Inline-Styles zu rgb() und die Dark-Mode-Attribut-Selektoren greifen dann nicht.
+// Stattdessen Zustand als data-Attribut, Farbe in CSS (#auto-topup-msg[data-state]).
+function _autoMsg(t, ok){
+  const e=document.getElementById('auto-topup-msg'); if(!e) return;
+  e.textContent=t; e.dataset.state = ok ? 'ok' : 'err'; e.style.display='block';
+}
+
+async function autoTopupSetup(){
+  const el = document.getElementById('auto-topup-amount');
+  const v = el ? parseInt(el.value, 10) : 0;
+  if(!v){ _autoMsg('Bitte einen Betrag angeben.', false); return; }
+  // Einrichtung lädt sofort auf — das gehört vorher gesagt, nicht erst bei Stripe.
+  if(!confirm('Jetzt ' + v + ' € aufladen und die Karte für spätere automatische '
+            + 'Nachladungen hinterlegen?\n\nNicht verbrauchtes Guthaben erstatten '
+            + 'wir dir jederzeit auf Verlangen.')) return;
+  _autoMsg('Weiterleitung zu Stripe…', true);
+  const d = await (await fetch('/api/hub/billing/auto/setup', {method:'POST',
+    headers:{'Content-Type':'application/json'}, body: JSON.stringify({amount_cents: v*100})})).json();
+  if(d.ok && d.checkout_url){ window.location.href = d.checkout_url; }
+  else _autoMsg('Fehler: '+(d.error||d.message||'unbekannt'), false);
+}
+
+async function autoTopupSaveAmount(){
+  const v = parseInt(document.getElementById('auto-topup-amount').value, 10);
+  if(!v){ _autoMsg('Bitte einen Betrag angeben.', false); return; }
+  const d = await (await fetch('/api/hub/billing/auto/amount', {method:'POST',
+    headers:{'Content-Type':'application/json'}, body: JSON.stringify({amount_cents: v*100})})).json();
+  if(d.ok){ _autoMsg('Betrag gespeichert: '+_eur(v*100), true); }
+  else _autoMsg('Fehler: '+(d.error||d.message||'unbekannt'), false);
+}
+
+async function autoTopupDisable(){
+  if(!confirm('Automatische Aufladung beenden und das hinterlegte Zahlungsmittel löschen?')) return;
+  const d = await (await fetch('/api/hub/billing/auto/disable', {method:'POST'})).json();
+  if(d.ok){ autoTopupLoad(); } else _autoMsg('Fehler: '+(d.error||d.message||'unbekannt'), false);
+}
+
 function _renderCertDomains(d) {
   _applyDomainBoxVisibility();
   const list=document.getElementById('cert-domains-list');
@@ -753,8 +859,13 @@ function _renderCertSteps(d) {
     s2dot.style.background='#e2e8f0'; s2dot.style.color='#334155'; s2dot.textContent='2';
   }
   const bal=((d.balance_cents||0)/100).toFixed(2), price=(priceCents/100).toFixed(2);
+  // Grenzen kommen vom Hub — sonst schlägt die Oberfläche Beträge vor, die
+  // dort abgelehnt werden (die Untergrenze wurde mit der Automatik angehoben).
+  const minTop = Math.round((d.min_topup_cents || 2500) / 100);
+  const maxTop = Math.round((d.max_topup_cents || 100000) / 100);
   const topupHtml = d.stripe_enabled
-    ? '<input type="number" id="cert-topup-amount" min="10" step="1" value="20" style="width:78px"> € <button class="btn secondary" onclick="certTopup()">Guthaben aufladen</button>'
+    ? '<input type="number" id="cert-topup-amount" min="'+minTop+'" max="'+maxTop+'" step="5" value="'
+      + minTop + '" style="width:78px"> € <button class="btn secondary" onclick="certTopup()">Guthaben aufladen</button>'
     : '';
   const lowBalanceHint = (certOn && !balanceOk)
     ? '<div style="margin-top:4px;color:#92400e;font-size:12px">⚠ Guthaben reicht nicht für den nächsten Zertifikatsbezug.</div>' : '';
