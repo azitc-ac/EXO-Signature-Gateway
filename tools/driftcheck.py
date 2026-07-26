@@ -211,11 +211,16 @@ def check_gateway_template_secrets(rep: Report) -> None:
     if not ss.is_file():
         return
     src = ss.read_text()
-    block = src[src.index("DEFAULTS: dict = {"):]
-    block = block[:block.index("\n}\n")]
-    keys = re.findall(r'^\s*"([A-Z0-9_]+)":', block, re.M)
-    secretish = [k for k in keys if any(t in k for t in
-                 ("SECRET", "PASSWORD", "_KEY", "TOKEN", "HASH", "CREDENTIAL", "PFX"))]
+    # Aus der Deklaration lesen, nicht nach Namen raten. Die frühere Heuristik
+    # hätte KV_KEY_MODE (kein Geheimnis) mitgezählt und HUB_CLAIM_TOKEN oder
+    # LICENSE_KEY je nach Schreibweise verfehlt.
+    m = re.search(r"SECRET_KEYS\s*=\s*frozenset\(\{(.*?)\}\)", src, re.S)
+    if not m:
+        rep.fail("Gateway: settings_store.SECRET_KEYS fehlt — die Geheimnis-"
+                 "Klassifizierung ist die Grundlage von public_view() und "
+                 "_EXPORT_EXCLUDE")
+        return
+    secretish = re.findall(r'"([A-Z0-9_]+)"', m.group(1))
     leaks = 0
     for f in sorted((GATEWAY / "app/webui/templates").glob("*.html")):
         t = f.read_text(errors="replace")
@@ -224,9 +229,17 @@ def check_gateway_template_secrets(rep: Report) -> None:
             if re.search(r"\{\{\s*s\." + k + r"\b", t):
                 rep.fail(f"Gateway/{f.name}: gibt Geheimnis s.{k} im HTML aus")
                 leaks += 1
+    # Zusatzprüfung: reichen die Vorlagen-Kontexte den Klartext durch?
+    appy = (GATEWAY / "app/webui/app.py")
+    if appy.is_file():
+        for i, line in enumerate(appy.read_text().splitlines(), 1):
+            if '"s": settings_store.get_all()' in line:
+                rep.fail(f"Gateway/app/webui/app.py:{i}: reicht Klartext-Einstellungen "
+                         f"an eine Vorlage → settings_store.public_view() verwenden")
+                leaks += 1
     if not leaks:
-        rep.note(f"Gateway-Vorlagen: keines der {len(secretish)} Geheimnisse "
-                 f"wird ausgegeben (nur als Bedingung genutzt)")
+        rep.note(f"Gateway-Vorlagen: keines der {len(secretish)} deklarierten "
+                 f"Geheimnisse wird ausgegeben, Kontexte sind maskiert")
 
 
 def main() -> int:

@@ -174,6 +174,122 @@ DEFAULTS: dict = {
     "LEXWARE_FIX_FORMAT": False,  # Zentrierte Lexware-Nachrichten (id="templateBody") auf linksbündig umstellen
 }
 
+# ── Klassifizierung der Schlüssel ─────────────────────────────────────────────
+# EINE Deklaration, aus der abgeleitet wird: Maskierung für Vorlagen
+# (public_view), Ausschluss beim Konfigurations-Export, und die Erkennung
+# verwaister Schlüssel. Vorher war das eine handgepflegte Liste in
+# `app.py` (`_EXPORT_EXCLUDE`) — unvollständig und ohne Bezug zu DEFAULTS.
+#
+# Audit 2026-07-26: `settings_store.get_all()` reichte alle Werte im Klartext an
+# sämtliche Vorlagen. Keine gab ein Geheimnis aus (geprüft, und `driftcheck.py`
+# hält das fest), aber ein einziges `{{ s.CLIENT_SECRET }}` hätte gereicht.
+
+SECRET_KEYS = frozenset({
+    "ADMIN_PASSWORD_HASH",        # pbkdf2-Hash des Web-UI-Passworts
+    "APP_POOL",                   # Liste von {client_id, client_secret, label}
+    "CLIENT_SECRET",
+    "DIGICERT_API_KEY",
+    "HUB_API_KEY",
+    "HUB_CLAIM_TOKEN",            # einmaliger Anbindungs-Token zum Hub
+    "LICENSE_KEY",                # signierter Lizenzschlüssel
+    "RELAY_PASSWORD",
+    "SMIME_KEY_PASSWORD",         # entschlüsselt die S/MIME-Privatschlüssel
+    "SMTP_SUBMIT_CLIENT_SECRET",
+    "SMTP_SUBMIT_PASSWORD",
+    "SSO_SESSION_SECRET",         # signiert die Sitzungs-Cookies
+})
+
+# Laufzeitzustand, den der Dienst selbst über force_update() schreibt. Nicht in
+# DEFAULTS, aber legitim — hier deklariert, damit er nicht als verwaist gilt.
+INTERNAL_KEYS = frozenset({
+    "MAILBOX_HEALTH",             # health_check.py
+    "_DAILY_LAST_RUN",            # scheduler.py
+    "_SCHEMA_VERSION",            # Migrationsstand, s.u.
+})
+
+# Schlüssel aus entfernten Funktionen. Sie blieben in settings.json stehen, weil
+# _save() unbekannte Schlüssel mitschreibt — auf jedem ausgelieferten Gateway.
+# Die CA-Zugangsdaten sind dabei das Problem: nach dem Ausbau der
+# Direktanbindung (v1.5.125) las sie kein Code mehr, und es gab keine
+# Oberfläche, um sie zu löschen. Wer vorher Sectigo oder SwissSign konfiguriert
+# hatte, dessen Zugangsdaten lagen weiter in der Datei.
+OBSOLETE_KEYS = {
+    "SECTIGO_API_BASE":            "CA-Direktanbindung entfernt (v1.5.125)",
+    "SECTIGO_CERT_TYPE":           "CA-Direktanbindung entfernt (v1.5.125)",
+    "SECTIGO_CUSTOMER_URI":        "CA-Direktanbindung entfernt (v1.5.125)",
+    "SECTIGO_LOGIN":               "CA-Direktanbindung entfernt (v1.5.125)",
+    "SECTIGO_MODE":                "CA-Direktanbindung entfernt (v1.5.125)",
+    "SECTIGO_ORG_ID":              "CA-Direktanbindung entfernt (v1.5.125)",
+    "SECTIGO_PASSWORD":            "CA-Direktanbindung entfernt (v1.5.125) — ZUGANGSDATUM",
+    "SECTIGO_TERM":                "CA-Direktanbindung entfernt (v1.5.125)",
+    "SWISSSIGN_API_BASE":          "CA-Direktanbindung entfernt (v1.5.125)",
+    "SWISSSIGN_API_KEY":           "CA-Direktanbindung entfernt (v1.5.125) — ZUGANGSDATUM",
+    "SWISSSIGN_CLIENT_REFERENCE":  "CA-Direktanbindung entfernt (v1.5.125)",
+    "SWISSSIGN_MODE":              "CA-Direktanbindung entfernt (v1.5.125)",
+    "SWISSSIGN_PRODUCT_REFERENCE": "CA-Direktanbindung entfernt (v1.5.125)",
+    "SWISSSIGN_USERNAME":          "CA-Direktanbindung entfernt (v1.5.125)",
+    "CERT_PROVIDER":               "Anbieterwahl liegt jetzt beim Hub-Katalog",
+    "HUB_CERT_API_KEY":            "ersetzt durch HUB_API_KEY",
+    "HUB_CERT_BASE_URL":           "ersetzt durch HUB_BASE_URL",
+    "HUB_CERT_EMAIL":              "ersetzt durch HUB_EMAIL",
+    "HUB_CERT_NAME":               "ersetzt durch HUB_NAME",
+    "GRAPH_SEND_TO_ALL_FALLBACK":  "send_to_all ist seit v1.5.68 Standard",
+}
+
+MASK = "••••••••"
+
+
+def public_view() -> dict:
+    """Alle Einstellungen mit maskierten Geheimnissen — für Vorlagen-Kontexte.
+
+    Die Maske erhält die Wahrheitswert-Semantik: ein gesetztes Geheimnis bleibt
+    truthy, ein leeres bleibt leer. Vorlagen, die nur `{% if s.X %}` prüfen
+    (der einzige heutige Gebrauch), verhalten sich damit unverändert.
+    """
+    d = get_all()
+    for k in SECRET_KEYS:
+        if k not in d:
+            continue
+        v = d[k]
+        if isinstance(v, list):
+            d[k] = [MASK] * len(v)        # APP_POOL: Länge bleibt aussagekräftig
+        elif v:
+            d[k] = MASK
+    return d
+
+
+def unknown_keys() -> list:
+    """Gespeicherte Schlüssel ohne Deklaration — Kandidaten für OBSOLETE_KEYS.
+
+    Wird beim Start protokolliert, damit künftige Verwaisungen auffallen,
+    statt sich still anzusammeln (23 Stück waren es beim Audit 2026-07-26).
+    """
+    with _lock:
+        if not _data:
+            init()
+        return sorted(set(_data) - set(DEFAULTS) - INTERNAL_KEYS - set(OBSOLETE_KEYS))
+
+
+def purge_obsolete() -> list:
+    """Schlüssel aus entfernten Funktionen löschen. Gibt die entfernten zurück.
+
+    Bewusst NUR die ausdrücklich gelistete Menge — niemals pauschal alles
+    Unbekannte. Ein unbekannter Schlüssel kann Laufzeitzustand aus einem
+    Codepfad sein, den man gerade nicht im Blick hat; ihn zu löschen wäre
+    schlimmer als ihn stehen zu lassen.
+    """
+    with _lock:
+        if not _data:
+            init()
+        removed = [k for k in OBSOLETE_KEYS if k in _data]
+        if not removed:
+            return []
+        for k in removed:
+            _data.pop(k, None)
+        _save()
+    return removed
+
+
 # ── Schema versioning / migrations ────────────────────────────────────────────
 # Bump SETTINGS_SCHEMA_VERSION and append a migration function whenever a
 # setting's SHAPE changes (renamed key, changed type, restructured nesting) in
@@ -248,13 +364,57 @@ def init(env_seed: dict | None = None) -> None:
 
 
 def get(key: str):
+    # Selbst initialisierend: ohne vorheriges init() lieferten Lesezugriffe
+    # STILL die Vorgabewerte statt der gespeicherten. In der Anwendung fiel das
+    # nicht auf (main.py ruft init() beim Start), wohl aber in jedem
+    # Subprozess — `docker exec … python3 -c "settings_store.get(…)"` gab
+    # verlässlich das Falsche zurück, ohne Fehler.
+    # `_lock` ist ein RLock, der Aufruf von init() darin also unbedenklich;
+    # update() nutzt dasselbe Muster seit v1.0.82.
     with _lock:
+        if not _data:
+            init()
         return _data.get(key, DEFAULTS.get(key))
 
 
 def get_all() -> dict:
     with _lock:
+        if not _data:
+            init()
         return dict(_data)
+
+
+_TRUTHY = ("1", "true", "yes", "on")
+
+
+def _coerce(key: str, value):
+    """Wert auf den Typ der Vorgabe bringen — nur dort, wo es gefährlich ist.
+
+    Hintergrund: `str(False)` ist `"False"` und damit **truthy**. Käme eine
+    Boolean-Einstellung je als Zeichenkette herein (Formular, API-Aufruf von
+    Hand, Konfigurationsimport), wäre sie dauerhaft eingeschaltet — und zwar
+    still. Genau dieser Fehler steckte im Hub bei `SECTIGO_RES_TEST`.
+
+    Gemessen am 2026-07-26: aktuell ist kein einziger der 135 gespeicherten
+    Werte typabweichend. Das ist Vorbeugung, keine Fehlerbehebung — deshalb
+    bewusst schmal gehalten:
+      * bool: Zeichenketten und Zahlen werden umgesetzt
+      * int:  ziffernartige Zeichenketten werden umgesetzt
+      * str/list/dict/None: unverändert. Eine Zeichenkette dort zu erzwingen
+        würde mehr verändern als absichern, und ein Typfehler fällt dort
+        lautstark auf statt still zu wirken.
+    """
+    default = DEFAULTS.get(key)
+    if isinstance(default, bool) and not isinstance(value, bool):
+        if isinstance(value, str):
+            return value.strip().lower() in _TRUTHY
+        if isinstance(value, (int, float)):
+            return bool(value)
+        return value
+    if isinstance(default, int) and not isinstance(default, bool) \
+            and isinstance(value, str) and value.strip().lstrip("-").isdigit():
+        return int(value.strip())
+    return value
 
 
 def update(patch: dict) -> None:
@@ -262,7 +422,7 @@ def update(patch: dict) -> None:
     with _lock:
         if not _data:
             init()
-        _data.update({k: v for k, v in patch.items() if k in DEFAULTS})
+        _data.update({k: _coerce(k, v) for k, v in patch.items() if k in DEFAULTS})
         _save()
 
 

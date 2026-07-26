@@ -694,7 +694,9 @@ async def setup_wizard(
             status_code=302,
         )
 
-    s = settings_store.get_all()
+    # Maskierte Sicht: `s` landet unten im Vorlagen-Kontext. Die hier gelesenen
+    # Schlüssel (TENANT_ID, CLIENT_ID, Setup-Marker) sind keine Geheimnisse.
+    s = settings_store.public_view()
     # Effective values (env overrides settings)
     effective = {
         "tenant_id": config.TENANT_ID or s.get("TENANT_ID", ""),
@@ -871,7 +873,7 @@ async def auth_callback(
             return RedirectResponse(f"/auth/login?error={urllib.parse.quote(error)}", status_code=302)
         return templates.TemplateResponse(
             request=request, name="setup.html",
-            context={"s": settings_store.get_all(), "e": {}, "active": "setup",
+            context={"s": settings_store.public_view(), "e": {}, "active": "setup",
                      "auth_error": f"{error}: {error_description}",
                      "gateway_name": _gateway_name()},
         )
@@ -901,7 +903,7 @@ async def auth_callback(
             return HTMLResponse(_arm_callback_page(ok=False, msg=str(exc)))
         return templates.TemplateResponse(
             request=request, name="setup.html",
-            context={"s": settings_store.get_all(), "e": {}, "active": "setup",
+            context={"s": settings_store.public_view(), "e": {}, "active": "setup",
                      "auth_error": str(exc), "gateway_name": _gateway_name()},
         )
 
@@ -2507,7 +2509,7 @@ async def settings_page(request: Request, user: str = Depends(_require_admin)):
     return templates.TemplateResponse(
         request=request, name="settings.html",
         context={
-            "s": settings_store.get_all(),
+            "s": settings_store.public_view(),
             "active": "settings",
             "saved": request.query_params.get("saved"),
             "gateway_name": _gateway_name(),
@@ -2528,7 +2530,7 @@ async def settings_signature_page(request: Request, user: str = Depends(_require
     return templates.TemplateResponse(
         request=request, name="settings_signature.html",
         context={
-            "s": settings_store.get_all(),
+            "s": settings_store.public_view(),
             "active": "settings-signature",
             "saved": request.query_params.get("saved"),
             "gateway_name": _gateway_name(),
@@ -2543,7 +2545,7 @@ async def settings_smime_page(request: Request, user: str = Depends(_require_adm
     return templates.TemplateResponse(
         request=request, name="settings_smime.html",
         context={
-            "s": settings_store.get_all(),
+            "s": settings_store.public_view(),
             "active": "settings-smime",
             "saved": request.query_params.get("saved"),
             "gateway_name": _gateway_name(),
@@ -2557,7 +2559,7 @@ async def settings_connect_page(request: Request, user: str = Depends(_require_a
     return templates.TemplateResponse(
         request=request, name="settings_connect.html",
         context={
-            "s": settings_store.get_all(),
+            "s": settings_store.public_view(),
             "active": "settings-connect",
             "gateway_name": _gateway_name(),
             "hub_registered": hub_client.is_registered(),
@@ -2840,7 +2842,7 @@ def _advanced_debug_context() -> dict:
     """Gemeinsamer Kontext für die Erweitert- (/advanced) und die link-lose
     Debug-Seite (/debug) — beide teilen sich denselben Template-Baukasten."""
     import hub_client
-    return {"s": settings_store.get_all(),
+    return {"s": settings_store.public_view(),
             "gateway_name": _gateway_name(),
             "hub_configured": hub_client.is_configured(),
             "hub_registered": hub_client.is_registered(),
@@ -3718,8 +3720,11 @@ async def api_logs_files(user: str = Depends(_check_auth)):
 
 # ── Config export / import ─────────────────────────────────────────────────────
 
-_EXPORT_EXCLUDE = {"ADMIN_PASSWORD_HASH", "CLIENT_SECRET", "RELAY_PASSWORD", "SECTIGO_PASSWORD",
-                   "HUB_API_KEY", "_SCHEMA_VERSION"}
+# Aus der Deklaration abgeleitet statt von Hand gepflegt: die frühere Liste
+# nannte SECTIGO_PASSWORD (längst obsolet), aber weder SMIME_KEY_PASSWORD noch
+# SSO_SESSION_SECRET, SMTP_SUBMIT_PASSWORD, APP_POOL oder LICENSE_KEY — der
+# Konfigurations-Export enthielt sie also im Klartext.
+_EXPORT_EXCLUDE = set(settings_store.SECRET_KEYS) | {"_SCHEMA_VERSION"}
 
 
 @app.get("/api/config/export")
