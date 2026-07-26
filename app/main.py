@@ -373,6 +373,18 @@ def main() -> None:
 
     log.info("Starting EXO Signature Gateway v%s", config.VERSION)
 
+    # Dateirechte unter data/ härten (600/700). Ohne diesen Lauf bliebe jede
+    # BEREITS ausgelieferte Installation auf den alten Rechten stehen: neue
+    # Schreibvorgänge gehen über secure_io, die vorhandenen S/MIME-Privatschlüssel
+    # und ACME-Account-Keys lagen aber mit 644 im Datenvolume (Audit 2026-07-26).
+    # Härtet nur, lockert nie — certbots 400er-Dateien bleiben unberührt.
+    # Idempotent und still, wenn nichts zu tun ist.
+    try:
+        import secure_io
+        secure_io.harden_tree("/app/data")
+    except Exception as exc:
+        log.error("Dateirechte-Härtung fehlgeschlagen: %s", exc)
+
     # Migrate S/MIME keys to encrypted storage if SMIME_KEY_PASSWORD is configured
     try:
         import smime_store

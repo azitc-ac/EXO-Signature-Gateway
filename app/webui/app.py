@@ -26,6 +26,8 @@ from fastapi import FastAPI, Request, Form, Depends, HTTPException, status, Uplo
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, Response, StreamingResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
+
+import secure_io as _secure_io
 from fastapi.templating import Jinja2Templates
 
 import config
@@ -3864,7 +3866,10 @@ async def api_config_import(
             user_dir.mkdir(parents=True, exist_ok=True)
             (user_dir / "cert.pem").write_bytes(_b64.b64decode(cert_b64))
             if key_b64:
-                (user_dir / "key.pem").write_bytes(_b64.b64decode(key_b64))
+                # Privatschluessel aus dem Konfigurationsimport — ueber secure_io,
+                # sonst 644 (Audit 2026-07-26).
+                _secure_io.write_secret_bytes(user_dir / "key.pem",
+                                              _b64.b64decode(key_b64))
             certs_restored += 1
         except Exception as exc:
             log.warning("Config import: could not restore signing cert for %s: %s", email_addr, exc)

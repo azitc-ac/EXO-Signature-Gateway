@@ -5,6 +5,25 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.36 — 2026-07-26 — Audit: S/MIME-Privatschlüssel lagen mit 644
+
+Projektweites Audit auf die Punkte „gemeinsame Bausteine / kein Stückwerk". Der schwerwiegendste Befund:
+
+**S/MIME-Privatschlüssel (`data/smime/*/certs/*/key.pem`) waren 644, die Verzeichnisse 755** — und **unverschlüsselt** (`SMIME_KEY_PASSWORD` leer). Ebenso die ACME-Account-Schlüssel, `legal_consent.db` (Zustimmungsbelege) und `mail_audit.db` (Mail-Metadaten). Dabei machten `portal_store.py` und `hub_orders.py` es längst richtig (700/600) — das Muster war vorhanden, es wurde nur nicht angewandt.
+
+Einordnung ohne Dramatisierung: der Dienst läuft als einziger Benutzer im Container, es liegt **kein** aktiver Vorfall vor. Aber `data/` ist ein Bind-Mount, und auf einem Kunden-Docker-Host kann jeder lokale Benutzer, jeder Sicherungs- oder Überwachungsagent und jeder weitere Container mit demselben Mount die Schlüssel lesen. Das hält keiner Kundenprüfung stand.
+
+- **Neu `app/secure_io.py`** (inhaltsgleich im Hub, SHA-verglichen): `write_secret_bytes/_text/_json()` schreiben atomar mit 600 und Ordner 700; `harden_tree()` zieht Bestandsdaten beim Start nach; `audit_tree()` meldet nur.
+- **Härtet nur, lockert nie.** Ein pauschales `chmod(0o600)` hätte certbots `private_key.json` von **400 auf 600 erweitert** — die Sicherheitsmaßnahme hätte punktuell die Sicherheit verschlechtert. `_tightened()` entfernt nur Group/Other-Bits.
+- Verzeichnisse werden für **jede** gefundene Geheimnisdatei gehärtet, nicht nur für geänderte — sonst bliebe ein Ordner mit bereits korrektem Schlüssel auf 755 (Invariante erzwingen statt Änderungen nachziehen).
+- **Der Wiederherstellungspfad verschlechterte die Rechte**: `backup_manager.py` schrieb `auth.pfx`, `settings.json` und Privatschlüssel ohne `chmod` zurück — also genau dann, wenn ein Betreiber ein Problem behebt. Eine gedriftete Kopie derselben Funktion machte es an anderer Stelle richtig.
+- Der **Konfigurations-Import** (`app.py`) schrieb einen importierten Privatschlüssel mit 644.
+- **Irreführende Anzeige behoben:** das Kästchen „Private Keys verschlüsseln" war angehakt, während ohne Passwort nichts verschlüsselt wird. Es weist jetzt aus: „Noch nicht wirksam".
+
+**`driftcheck.py` erweitert** um zwei Prüfungen, die genau diese Klasse abfangen: Geheimnis-Schreibvorgänge ohne `secure_io`, und Gateway-Vorlagen, die ein Geheimnis ausgeben (`settings_store.get_all()` geht unmaskiert an alle Vorlagen — heute rendert keine ein Geheimnis, aber ein einziges `{{ s.CLIENT_SECRET }}` würde reichen). Beide Erweiterungen fanden sofort je eine echte Fundstelle.
+
+**Verifiziert:** 33 Dateien und 20 Verzeichnisse beim ersten Start korrigiert, `audit_tree()` danach leer, alle 13 Privatschlüssel weiterhin kryptografisch ladbar, und ein echter S/MIME-Signiervorgang erzeugt 2644 Byte gültige Signatur. Certbots 400er-Datei blieb 400. Zweiter Lauf ändert nichts (idempotent).
+
 ## v1.7.35 — 2026-07-26 — Gemeinsame Frontend-Helfer + driftcheck.py
 
 Der User wies darauf hin, dass Befunde der Form *„X ist der einzige, der Y nicht macht"* nach angeflanschtem Stückwerk klingen — und dass er das nicht jedes Mal sagen will. Zu Recht. Der Bestand zeigte **elf handgeschriebene HTML-Escaper** mit elf Namen: `_esc`, `escHtml`, `_escH`, `_escT`, `_escAttr`, `escC`, `escR`, `escP`, `esc`. Zwei davon waren binnen **einer** Sitzung `ReferenceError`, weil der Name an der Aufrufstelle nicht zur Definition passte.

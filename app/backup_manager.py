@@ -25,6 +25,8 @@ from pathlib import Path
 
 import config
 
+import secure_io
+
 log = logging.getLogger(__name__)
 
 DATA_DIR = Path("/app/data")
@@ -134,7 +136,13 @@ def restore_backup(zip_bytes: bytes) -> dict:
                     if parts and parts[0] in _EXCLUDE_DATA_SUBDIRS:
                         continue
                     target.parent.mkdir(parents=True, exist_ok=True)
-                    target.write_bytes(zf.read(name))
+                    # ZWINGEND ueber secure_io: der Wiederherstellungspfad
+                    # schrieb auth.pfx, settings.json und S/MIME-Privatschluessel
+                    # mit umask-Rechten (644) zurueck — er verschlechterte die
+                    # Rechte also genau dann, wenn ein Betreiber ein Problem
+                    # behebt. Das Hub-Gegenstueck machte es richtig; eine
+                    # gedriftete Kopie derselben Funktion.
+                    secure_io.write_secret_bytes(target, zf.read(name))
                     restored += 1
                     if rel == "auth.pfx":
                         warnings.append(
@@ -151,6 +159,10 @@ def restore_backup(zip_bytes: bytes) -> dict:
                         warnings.append(f"Übersprungen (ungültiger Pfad): {name}")
                         continue
                     target.parent.mkdir(parents=True, exist_ok=True)
+                    # Signaturvorlagen sind KEINE Geheimnisse — hier absichtlich
+                    # kein secure_io: write_secret_bytes() würde auch das
+                    # Vorlagenverzeichnis auf 700 ziehen, und der Betreiber
+                    # bearbeitet diese Dateien vom Host aus.
                     target.write_bytes(zf.read(name))
                     restored += 1
 

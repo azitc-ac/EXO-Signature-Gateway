@@ -313,6 +313,14 @@
         {% if s.SMIME_KEY_ENCRYPT is not false %}checked{% endif %}
         onchange="toggleKeyEncrypt(this.checked)">
       Private Keys verschlüsseln
+      {% if s.SMIME_KEY_ENCRYPT is not false and not s.SMIME_KEY_PASSWORD %}
+      <span style="display:block;font-weight:400;font-size:11px;color:#92400e;
+                   background:#fffbeb;border:1px solid #fde68a;border-radius:4px;
+                   padding:4px 7px;margin-top:5px">
+        <strong>Noch nicht wirksam:</strong> ohne Passwort werden die Schlüssel
+        unverschlüsselt gespeichert.
+      </span>
+      {% endif %}
     </label>
     <div class="settings-control" id="smime-key-password-wrap"
       {% if s.SMIME_KEY_ENCRYPT is false %}style="display:none"{% endif %}>

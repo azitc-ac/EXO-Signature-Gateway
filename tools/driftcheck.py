@@ -45,7 +45,15 @@ ACCEPTED: dict[str, str] = {
 # (update-watcher.sh) bleibt unangetastet, die Gleichheit wird hier erzwungen.
 MIRRORED: list[tuple[str, str]] = [
     ("app/webui/static/common.js", "gemeinsame Frontend-Helfer (esc() usw.)"),
+    ("app/secure_io.py", "Schreiben von Geheimnissen (600/700, atomar)"),
 ]
+
+# Dateinamen, die ein Geheimnis enthalten. Wer eine davon schreibt, muss
+# secure_io benutzen — sonst entstehen sie mit umask-Rechten (meist 644).
+# Grundlage: Audit 2026-07-26, das S/MIME-Privatschluessel mit 644 fand.
+SECRET_FILE_HINTS = ("key.pem", "auth.pfx", ".p12", ".pfx",
+                     "account_key", "private_key",
+                     "settings.json", "customers.json", "hub_settings.json")
 
 
 class Report:
@@ -170,6 +178,56 @@ def check_mirrored(rep: Report) -> None:
             rep.note(f"{rel}: identisch ({ha[:8]})")
 
 
+# ── 5. Geheimnisse ohne secure_io schreiben ──────────────────────────────────
+def check_secret_writes(rep: Report, roots: list[tuple[str, Path]]) -> None:
+    ok = 0
+    for app, root in roots:
+        for f in sorted((root / "app").rglob("*.py")):
+            if f.name == "secure_io.py":
+                continue
+            for i, line in enumerate(f.read_text(errors="replace").splitlines(), 1):
+                if ".write_bytes(" not in line and ".write_text(" not in line:
+                    continue
+                low = line.lower()
+                if not any(h in low for h in SECRET_FILE_HINTS):
+                    continue
+                if "secure_io" in line:
+                    ok += 1
+                    continue
+                rep.fail(f"{app}/{f.relative_to(root)}:{i}: schreibt ein Geheimnis "
+                         f"ohne secure_io → entsteht mit umask-Rechten (meist 644)"
+                         f"\n       {line.strip()[:96]}")
+    if ok:
+        rep.note(f"{ok} Geheimnis-Schreibvorgänge, alle über secure_io")
+
+
+# ── 6. Gateway: Geheimnisse in Vorlagen ──────────────────────────────────────
+# Der Gateway reicht settings_store.get_all() UNMASKIERT an die Vorlagen. Heute
+# rendert keine ein Geheimnis (geprüft), aber ein einziges {{ s.CLIENT_SECRET }}
+# würde es in den HTML-Quelltext schreiben.
+def check_gateway_template_secrets(rep: Report) -> None:
+    ss = GATEWAY / "app/settings_store.py"
+    if not ss.is_file():
+        return
+    src = ss.read_text()
+    block = src[src.index("DEFAULTS: dict = {"):]
+    block = block[:block.index("\n}\n")]
+    keys = re.findall(r'^\s*"([A-Z0-9_]+)":', block, re.M)
+    secretish = [k for k in keys if any(t in k for t in
+                 ("SECRET", "PASSWORD", "_KEY", "TOKEN", "HASH", "CREDENTIAL", "PFX"))]
+    leaks = 0
+    for f in sorted((GATEWAY / "app/webui/templates").glob("*.html")):
+        t = f.read_text(errors="replace")
+        for k in secretish:
+            # Ausgabe als Wert ist der Fehler; {% if s.X %} als Bedingung ist ok.
+            if re.search(r"\{\{\s*s\." + k + r"\b", t):
+                rep.fail(f"Gateway/{f.name}: gibt Geheimnis s.{k} im HTML aus")
+                leaks += 1
+    if not leaks:
+        rep.note(f"Gateway-Vorlagen: keines der {len(secretish)} Geheimnisse "
+                 f"wird ausgegeben (nur als Bedingung genutzt)")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--gateway-only", action="store_true")
@@ -186,6 +244,8 @@ def main() -> int:
     check_escapers(rep, roots)
     check_atomic_writes(rep, roots)
     check_mirrored(rep)
+    check_secret_writes(rep, roots)
+    check_gateway_template_secrets(rep)
     if any(app == "Hub" for app, _ in roots):
         check_settings_registry(rep)
 
