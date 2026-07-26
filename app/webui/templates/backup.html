@@ -473,8 +473,7 @@ async function toggleChangelog() {
   if (_clVisible) { box.style.display = 'none'; btn.textContent = 'Changelog anzeigen'; _clVisible = false; return; }
   btn.textContent = 'Lade…';
   try {
-    const r = await fetch('/api/system/changelog?n=8');
-    const d = await r.json();
+    const d = await getJSON('/api/system/changelog?n=8');
     box.innerHTML = d.error ? `<p style="color:#dc2626;font-size:13px">${esc(d.error)}</p>`
       : d.entries.map(e => {
           const lines = e.split('\n');

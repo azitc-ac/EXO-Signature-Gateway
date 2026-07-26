@@ -73,6 +73,46 @@ async function postJSON(url, body) {
   }
 }
 
+/* GET mit einheitlicher Fehlerbehandlung. Liefert immer ein Objekt:
+ * bei Netzwerk- oder HTTP-Fehler { ok:false, error:"…" } statt zu werfen.
+ * Für Anzeige-Widgets, die sonst still leer blieben. */
+async function getJSON(url) {
+  try {
+    const r = await fetch(url);
+    const ct = r.headers.get('content-type') || '';
+    const d = ct.indexOf('application/json') === 0 ? await r.json() : {};
+    if (!r.ok) return { ok: false, error: d.error || d.message || d.detail || ('HTTP ' + r.status) };
+    if (d.ok === undefined) d.ok = true;
+    return d;
+  } catch (e) {
+    return { ok: false, error: 'Netzwerkfehler: ' + e };
+  }
+}
+
+/* Wie postJSON, aber mit frei wählbarer Methode — für DELETE und PUT. */
+async function sendJSON(method, url, body) {
+  try {
+    const opts = { method: method };
+    if (body !== undefined && body !== null) {
+      opts.headers = { 'Content-Type': 'application/json' };
+      opts.body = JSON.stringify(body);
+    }
+    const r = await fetch(url, opts);
+    const ct = r.headers.get('content-type') || '';
+    const d = ct.indexOf('application/json') === 0 ? await r.json() : {};
+    if (!r.ok && !d.message && !d.error && !d.detail) return { ok: false, error: 'HTTP ' + r.status };
+    if (d.ok === undefined) d.ok = r.ok;
+    return d;
+  } catch (e) {
+    return { ok: false, error: 'Netzwerkfehler: ' + e };
+  }
+}
+
+/* Fehlertext aus einer Antwort von getJSON/postJSON/sendJSON. */
+function errText(d) {
+  return (d && (d.error || d.message || d.detail)) || 'Unbekannter Fehler';
+}
+
 /* Betrag in Cent als Euro-Text. War in mehreren Vorlagen einzeln nachgebaut. */
 function eur(cents) {
   return (Number(cents || 0) / 100).toLocaleString('de-DE', {

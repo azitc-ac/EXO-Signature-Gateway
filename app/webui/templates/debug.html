@@ -83,11 +83,17 @@ async function acmeProxyTest() {
 
 async function acmeProxySaveSilent() {
   const proxy = document.getElementById('acme-proxy-input').value.trim();
-  await fetch('/api/acme/http-proxy', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({proxy}),
-  });
+  // Schlug der Aufruf fehl, blieb es frueher voellig unbemerkt — der Proxy
+  // war nicht gesetzt, die Oberflaeche zeigte trotzdem nichts an.
+  const d = await postJSON('/api/acme/http-proxy', {proxy});
+  if (!d.ok) {
+    const el = document.getElementById('acme-proxy-result');
+    if (el) {
+      el.className = 'alert error';
+      el.textContent = 'Proxy nicht gespeichert: ' + errText(d);
+      el.style.display = 'block';
+    }
+  }
 }
 
 document.addEventListener('DOMContentLoaded', acmeProxyLoad);
@@ -382,8 +388,7 @@ async function obsSendTest() {
 }
 
 async function obsRefreshCaptures() {
-  const r = await fetch('/api/test/acme-capture');
-  const d = await r.json();
+  const d = await getJSON('/api/test/acme-capture');
   const container = document.getElementById('obs-captures-container');
   const captures = d.captures || [];
   if (!captures.length) {
@@ -435,7 +440,8 @@ function obsToggle(id) {
   if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
 }
 async function obsClearCaptures() {
-  await fetch('/api/test/acme-capture', {method:'DELETE', headers:{'Content-Type':'application/json'}});
+  const d = await sendJSON('DELETE', '/api/test/acme-capture');
+  if (!d.ok) alert('Aufzeichnungen konnten nicht geleert werden: ' + errText(d));
   obsRefreshCaptures();
 }
 
@@ -640,8 +646,7 @@ function _obsRenderAnalysis(analyses) {
 async function obsRunAnalysis() {
   const container = document.getElementById('obs-analysis-container');
   container.innerHTML = '<p style="color:#888;font-size:13px">Lade Captures…</p>';
-  const r = await fetch('/api/test/acme-capture');
-  const d = await r.json();
+  const d = await getJSON('/api/test/acme-capture');
   const captures = d.captures || [];
   if (!captures.length) {
     container.innerHTML = '<p style="color:#888;font-size:13px">Keine Captures vorhanden. Erst Schritt B ausführen.</p>';

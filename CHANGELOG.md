@@ -5,6 +5,27 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.40 — 2026-07-26 — fetch-Aufrufe: gemessen statt pauschal umgestellt
+
+Letzter offener Audit-Punkt. **Meine eigene Darstellung war zu alarmistisch** und wird hiermit richtiggestellt: Ich hatte „269 `fetch`-Aufrufe, jeder mit eigenem Fehlerpfad" als Befund notiert. Die Messung zeigt ein anderes Bild — **253 davon prüfen `resp.ok` oder liegen in `try/catch`**. Nur **16 (5 %)** waren wirklich ungesichert.
+
+Eine pauschale Umstellung wäre auch nicht sicher machbar: nur 51 der 269 passen auf ein eng definiertes Muster, die übrigen brauchen das `Response`-Objekt (`resp.ok`-Verzweigungen, `FormData`-Uploads, Blob-Downloads, defensives `resp.json().catch(…)`). 19 % umzustellen und den Rest zu lassen hätte zwei Idiome nebeneinander erzeugt — genau das Stückwerk, das vermieden werden soll.
+
+Deshalb gezielt die 16 behoben, in zwei Klassen:
+
+**Stille Schreibvorgänge** — schlugen fehl, ohne dass der Nutzer etwas merkte:
+- `DELETE /api/license` (Lizenz entfernen): keinerlei Rückmeldung bei Fehlschlag
+- `POST /api/acme/http-proxy`: Proxy nicht gespeichert, Oberfläche zeigte nichts
+- `DELETE /api/test/acme-capture` an zwei Stellen
+
+**Lese-Widgets**, die bei Fehler kommentarlos leer blieben: Systemkachel, Stundenstatistik, App-Pool-Diagramme (zwei Promise-Ketten **ohne `.catch()`** → unbehandelte Promise-Ablehnung), Zertifikatskatalog, Changelog-Anzeige, ACME-Aufzeichnungen, Postfach-/Vorlagen-Ladung in der Vorschau.
+
+Die Systemkachel rechnete bei Fehler mit `undefined` weiter und hätte **„NaN"** angezeigt — jetzt ein benannter Hinweis.
+
+`common.js` um `getJSON()`, `sendJSON()` und `errText()` ergänzt (beide Anwendungen, SHA-verglichen). Alle drei werfen nie, sondern liefern `{ok:false, error:…}`.
+
+**Verifiziert:** dieselbe Messung nach der Änderung — 16 → 1, und der verbliebene Treffer ist ein Fehltreffer der Heuristik (`debug.html:833` liegt nachweislich in einem `try`). JavaScript aller sechs geänderten Vorlagen gegen `node --check`, fünf davon zusätzlich gerendert.
+
 ## v1.7.39 — 2026-07-26 — Einstellungen: Geheimnis-Klassifizierung und Bereinigung
 
 Letzter großer Punkt des Audits. Anders als im Hub war `DEFAULTS` schon *ein* Ort — es fehlten Klassifizierung, Typsicherheit und ein Umgang mit entfernten Einstellungen.

@@ -887,7 +887,7 @@ document.addEventListener('DOMContentLoaded', function(){ certLoadEligibility();
 // ── Anbieter-Katalog (dynamisch vom Hub) ─────────────────────────────────────
 async function certLoadCatalog() {
   try {
-    const d = await (await fetch('/api/cert/catalog')).json();
+    const d = await getJSON('/api/cert/catalog');
     const provs = (d.providers || []).filter(function(p){ return p.available !== false; });
     if (!d.registered || !provs.length) return;   // Box nur zeigen, wenn es etwas zu zeigen gibt
     const disabled = d.disabled || [];
@@ -989,7 +989,9 @@ async function licFetchHub() {
 }
 async function licRemove() {
   if (!confirm('Lizenz entfernen? Der Fair-Use-Hinweis erscheint dann ggf. wieder.')) return;
-  await fetch('/api/license', {method:'DELETE'});
+  // Ohne Pruefung meldete die Oberflaeche nichts, wenn das Entfernen scheiterte.
+  const d = await sendJSON('DELETE', '/api/license');
+  if (!d.ok) { _licMsg('Entfernen fehlgeschlagen: ' + errText(d), false); return; }
   licLoad();
 }
 

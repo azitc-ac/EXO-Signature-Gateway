@@ -1502,8 +1502,7 @@ async function obsSendTest() {
 }
 
 async function obsRefreshCaptures() {
-  const r = await fetch('/api/test/acme-capture');
-  const d = await r.json();
+  const d = await getJSON('/api/test/acme-capture');
   const container = document.getElementById('obs-captures-container');
   const captures = d.captures || [];
   if (!captures.length) {
@@ -1558,7 +1557,8 @@ function obsToggle(id) {
 }
 
 async function obsClearCaptures() {
-  await fetch('/api/test/acme-capture', {method:'DELETE', headers:{'Content-Type':'application/json'}});
+  const _d = await sendJSON('DELETE', '/api/test/acme-capture');
+  if (!_d.ok) alert('Aufzeichnungen konnten nicht geleert werden: ' + errText(_d));
   obsRefreshCaptures();
 }
 
