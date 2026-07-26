@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.60 — 2026-07-27 — Unterjährige Lizenzaufstockung verständlich formuliert
+
+Ziffer 10.5 lautete: „die Differenz wird für die verbleibenden vollen Kalendermonate des laufenden Abrechnungszeitraums nachberechnet". Zwei Mehrdeutigkeiten: „Differenz" konnte die Zahl der Lizenzen oder einen Betrag meinen, und „nachberechnet" klingt nach einer Forderung für Vergangenes, obwohl es um die Zukunft geht.
+
+Neu heißt es, dass die zusätzlichen Lizenzen **anteilig für die verbleibenden vollen Kalendermonate berechnet** werden, „sodass alle Lizenzen zum selben Zeitpunkt enden" — das ist der eigentliche Zweck der Regel und stand vorher nirgends.
+
+Die Preisliste enthält jetzt ein Rechenbeispiel: 100 Lizenzen ab Januar, im April Aufstockung auf 120 → die 20 zusätzlichen werden für Mai bis Dezember berechnet, 20 × 8 × 0,90 € = 144,00 €. Ein Beispiel für die Kündigung gab es bereits.
+
+Nutzungsbedingungen und Preisliste, beide Sprachfassungen.
+
 ## v1.7.59 — 2026-07-27 — Keine rückwirkende Nachforderung bei Lizenzüberschreitung
 
 Ziffer 6.9 sah vor, dass bei nachträglich festgestellter Überschreitung die Lizenzgebühr **rückwirkend ab dem Monat der erstmaligen Überschreitung** geschuldet ist. Zwei Gründe sprechen dagegen:
