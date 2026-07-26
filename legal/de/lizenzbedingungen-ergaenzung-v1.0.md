@@ -10,7 +10,7 @@ Lizenzgeber: Alexander Zarenko - IT Consulting, Triebelsstraße 4, 52066 Aachen
 ## 1. Gegenstand und Verhältnis zur Basislizenz
 
 1.1 Diese Bedingungen regeln die entgeltliche Nutzung der Software
-„EXO Signature Service" (nachfolgend „Gateway") oberhalb der Freigrenze der
+„EXO Signature Gateway" (nachfolgend „Gateway") oberhalb der Freigrenze der
 Community Edition.
 
 1.2 Die Software wird unter der PolyForm Internal Use License 1.0.0

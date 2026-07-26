@@ -16,7 +16,7 @@ the German and English versions, the German version shall prevail.**
 1.1 These Terms of Use govern the use of the EXO Signature Hub (hereinafter
 "Hub") by business customers (hereinafter "Customer").
 
-1.2 The Hub is an add-on service for the software "EXO Signature Service"
+1.2 The Hub is an add-on service for the software "EXO Signature Gateway"
 (hereinafter "Gateway"). It includes:
 
 - the brokering of paid S/MIME certificates,

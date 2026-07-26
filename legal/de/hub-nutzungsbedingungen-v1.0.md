@@ -12,7 +12,7 @@ Anbieter: Alexander Zarenko - IT Consulting, Triebelsstraße 4, 52066 Aachen
 1.1 Diese Nutzungsbedingungen regeln die Nutzung des EXO Signature Hub (nachfolgend
 „Hub") durch gewerbliche Kunden (nachfolgend „Kunde").
 
-1.2 Der Hub ist ein Zusatzdienst zur Software „EXO Signature Service"
+1.2 Der Hub ist ein Zusatzdienst zur Software „EXO Signature Gateway"
 (nachfolgend „Gateway"). Er umfasst:
 
 - die Vermittlung kostenpflichtiger S/MIME-Zertifikate,

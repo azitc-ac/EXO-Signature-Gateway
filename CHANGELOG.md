@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.54 — 2026-07-26 — Produktname in den Rechtstexten korrigiert
+
+Vier Rechtstexte nannten die Software „EXO Signature **Service**". Sie heißt **EXO Signature Gateway**. Vom Nutzer gemeldet.
+
+Betroffen: Hub-Nutzungsbedingungen und Lizenzbedingungen-Ergänzung, jeweils deutsch und englisch. Die Datenschutzerklärung und die CA-Bedingungen verwendeten bereits den richtigen Namen.
+
+**Bewusst nicht geändert:** `setup_wizard.py` führt „EXO Signature Service Setup" in `_BOOTSTRAP_OLD_NAMES` — diese Liste erkennt historisch angelegte App-Registrierungen und muss den alten Namen behalten.
+
+**Zur Zustimmung:** `legal_consent` bindet die Zustimmung an den SHA-256 des Dateiinhalts. Jede Textänderung macht eine erteilte Zustimmung ungültig und verlangt sie erneut — hier folgenlos, weil noch keine erteilt wurde. Die Fassungsnummer bleibt v1.0: eine Namenskorrektur ändert keine Rechte oder Pflichten, und welcher Wortlaut zugestimmt wurde, bleibt über den gespeicherten Hash nachvollziehbar.
+
 ## v1.7.53 — 2026-07-26 — Changelog-Modal rendert ebenfalls Markdown
 
 Nachtrag zu v1.7.51, vom Nutzer gemeldet — mit der passenden Ironie, dass ausgerechnet die Meldung über den behobenen Rendering-Fehler roh dargestellt wurde.
