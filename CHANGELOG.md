@@ -5,6 +5,25 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.41 — 2026-07-26 — Testsuite und CI
+
+Bis hierher gab es **keine Testsuite und keine CI**. Alles, was in dieser Session „verifiziert" hieß, waren Einweg-Skripte im Scratchpad — inhaltlich richtig, aber weg. Niemand konnte sie wiederholen.
+
+**93 Tests im Gateway** (`pytest`), die genau die Invarianten festhalten, an denen zuvor Fehler entstanden sind:
+- `secure_io`: härtet nur / lockert nie (certbots 400er-Datei bleibt 400), Ordner werden für **jede** gefundene Geheimnisdatei gehärtet, `safe_join` blockiert den Geschwisterpfad-Trick, Rechte überleben erneutes Speichern.
+- `update_core`: der **Drei-Zustands-Vertrag** von `available` (`True` / `None` / `False`) mit der Begründung, warum `None` und `False` nicht austauschbar sind; Rangfolge `.remote-version` vor API; Trigger-Datei mit 644.
+- `settings_store`: `"false"` wird zu `False` (nicht truthy), Maskierung erhält den Wahrheitswert, kein Geheimnis in der Vorlagensicht, `purge_obsolete` entfernt nur Gelistetes.
+
+**81 Tests im Hub**: Registry (Typsicherheit, Rangfolge, „leeres Geheimnis = unverändert", Maske kommt nicht zurück), Abrechnung (Aufrundung, Deckel, deutsche Kartenfehler, kein Doppelbuchen bei `auto_setup_pi`), Kundenspeicher (Schemafelder bei Neukunden, Idempotenz, Automatik als Guthaben-Ersatz).
+
+**Die Tests wurden gegen sich selbst geprüft.** Drei Fehler absichtlich zurückgebaut — Härtung mit absolutem `chmod`, `available` auf `False` vereinheitlicht, `chmod` auf der Temp-Datei entfernt — und jedes Mal schlugen genau die zuständigen Tests fehl. Ein Test, der den Fehler nicht fängt, ist wertlos.
+
+**Beim Schreiben fanden die Tests drei eigene Mängel:** zwei Fixtures teilten sich stillschweigend eine Datei (eine `init()`-Funktion berechnete ihren Pfad neu und überschrieb das Monkeypatching), und zwei Guthaben-Tests waren **umgebungsabhängig** — mit `CERT_PRICE_CENTS = 0` griff die Prüfung `if price > 0` gar nicht, der Test hätte in der CI bestanden, ohne etwas zu prüfen.
+
+**Neu `tools/jscheck.py`**: schickt das Inline-JavaScript aller 26 Vorlagen durch `node --check`. Genau die Prüfung, die in dieser Session ein Dutzend Mal von Hand gebaut wurde und zwei `ReferenceError` gefunden hat. Kein stilles Überspringen, wenn Node fehlt — eine Prüfung, die sich selbst abschaltet, wiegt in Sicherheit.
+
+**CI** (`.github/workflows/ci.yml`): Tests, `driftcheck --gateway-only`, `darkcheck`, `jscheck` und ein `docker build` bei jedem Push. `driftcheck` überspringt die Spiegelprüfung jetzt korrekt, wenn der Hub-Baum fehlt — im Probelauf ohne Hub schlug sie vorher mit drei Fundstellen fehl.
+
 ## v1.7.40 — 2026-07-26 — fetch-Aufrufe: gemessen statt pauschal umgestellt
 
 Letzter offener Audit-Punkt. **Meine eigene Darstellung war zu alarmistisch** und wird hiermit richtiggestellt: Ich hatte „269 `fetch`-Aufrufe, jeder mit eigenem Fehlerpfad" als Befund notiert. Die Messung zeigt ein anderes Bild — **253 davon prüfen `resp.ok` oder liegen in `try/catch`**. Nur **16 (5 %)** waren wirklich ungesichert.

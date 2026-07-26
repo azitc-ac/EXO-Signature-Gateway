@@ -160,7 +160,13 @@ def check_settings_registry(rep: Report) -> None:
 
 
 # ── 4. Gespiegelte Dateien ───────────────────────────────────────────────────
-def check_mirrored(rep: Report) -> None:
+def check_mirrored(rep: Report, hub_verfuegbar: bool = True) -> None:
+    if not hub_verfuegbar:
+        # In der CI des Gateways liegt das (private) Hub-Repository nicht vor.
+        # Die Spiegelung wird beim Hub-Lauf geprueft, wo beide Baeume da sind.
+        rep.note(f"Spiegelung uebersprungen ({len(MIRRORED)} Dateien) — "
+                 f"Hub-Baum nicht vorhanden")
+        return
     for rel, why in MIRRORED:
         a, b = GATEWAY / rel, HUB / rel
         if not a.is_file() and not b.is_file():
@@ -254,13 +260,14 @@ def main() -> int:
         else:
             roots.append(("Hub", HUB))
 
+    hub_da = any(app == "Hub" for app, _ in roots)
     rep = Report()
     check_escapers(rep, roots)
     check_atomic_writes(rep, roots)
-    check_mirrored(rep)
+    check_mirrored(rep, hub_verfuegbar=hub_da)
     check_secret_writes(rep, roots)
     check_gateway_template_secrets(rep)
-    if any(app == "Hub" for app, _ in roots):
+    if hub_da:
         check_settings_registry(rep)
 
     for n in rep.notes:
