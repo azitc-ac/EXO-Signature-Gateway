@@ -1,0 +1,1554 @@
+[
+  {
+    "pfad": "/",
+    "methoden": [
+      "GET"
+    ],
+    "name": "dashboard"
+  },
+  {
+    "pfad": "/addin/auth-complete",
+    "methoden": [
+      "GET"
+    ],
+    "name": "addin_auth_complete"
+  },
+  {
+    "pfad": "/addin/compose",
+    "methoden": [
+      "GET"
+    ],
+    "name": "addin_compose"
+  },
+  {
+    "pfad": "/addin/function",
+    "methoden": [
+      "GET"
+    ],
+    "name": "addin_function"
+  },
+  {
+    "pfad": "/addin/icon/{size_str}",
+    "methoden": [
+      "GET"
+    ],
+    "name": "addin_icon"
+  },
+  {
+    "pfad": "/addin/manifest.xml",
+    "methoden": [
+      "GET"
+    ],
+    "name": "addin_manifest"
+  },
+  {
+    "pfad": "/advanced",
+    "methoden": [
+      "GET"
+    ],
+    "name": "advanced_page"
+  },
+  {
+    "pfad": "/api/acme/account-reset",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_acme_account_reset"
+  },
+  {
+    "pfad": "/api/acme/account-users",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_acme_account_users"
+  },
+  {
+    "pfad": "/api/acme/http-proxy",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_acme_http_proxy_get"
+  },
+  {
+    "pfad": "/api/acme/http-proxy",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_acme_http_proxy_set"
+  },
+  {
+    "pfad": "/api/acme/http-proxy/test",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_acme_http_proxy_test"
+  },
+  {
+    "pfad": "/api/acme/reply-method",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_acme_reply_method_get"
+  },
+  {
+    "pfad": "/api/acme/reply-method",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_acme_reply_method_set"
+  },
+  {
+    "pfad": "/api/addin/signature",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_addin_signature"
+  },
+  {
+    "pfad": "/api/addin/templates",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_addin_templates"
+  },
+  {
+    "pfad": "/api/addin/update-redirect-uri",
+    "methoden": [
+      "GET"
+    ],
+    "name": "addin_update_redirect_uri"
+  },
+  {
+    "pfad": "/api/admin-users",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_get_admin_users"
+  },
+  {
+    "pfad": "/api/admin-users",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_add_admin_user"
+  },
+  {
+    "pfad": "/api/admin-users",
+    "methoden": [
+      "PUT"
+    ],
+    "name": "api_replace_admin_users"
+  },
+  {
+    "pfad": "/api/admin-users/{upn}",
+    "methoden": [
+      "DELETE"
+    ],
+    "name": "api_remove_admin_user"
+  },
+  {
+    "pfad": "/api/admin-users/{upn}",
+    "methoden": [
+      "PATCH"
+    ],
+    "name": "api_update_admin_user"
+  },
+  {
+    "pfad": "/api/audit/events",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_audit_events"
+  },
+  {
+    "pfad": "/api/auth/sso-paste",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_sso_paste"
+  },
+  {
+    "pfad": "/api/auth/sso-url",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_sso_url"
+  },
+  {
+    "pfad": "/api/backup/download",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_backup_download"
+  },
+  {
+    "pfad": "/api/backup/restore",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_backup_restore"
+  },
+  {
+    "pfad": "/api/cert/catalog",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_cert_catalog"
+  },
+  {
+    "pfad": "/api/cert/catalog/toggle",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_cert_catalog_toggle"
+  },
+  {
+    "pfad": "/api/cert/exo-ps-export.cer",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_cert_exo_ps_export"
+  },
+  {
+    "pfad": "/api/cert/exo-ps-info",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_cert_exo_ps_info"
+  },
+  {
+    "pfad": "/api/config/export",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_config_export"
+  },
+  {
+    "pfad": "/api/config/import",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_config_import"
+  },
+  {
+    "pfad": "/api/digicert/config",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_digicert_config_get"
+  },
+  {
+    "pfad": "/api/digicert/config",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_digicert_config_save"
+  },
+  {
+    "pfad": "/api/digicert/domain/check",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_digicert_domain_check"
+  },
+  {
+    "pfad": "/api/digicert/domain/setup",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_digicert_domain_setup"
+  },
+  {
+    "pfad": "/api/digicert/test",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_digicert_test"
+  },
+  {
+    "pfad": "/api/entra/users",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_entra_users_search"
+  },
+  {
+    "pfad": "/api/health/audit-log",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_health_audit_log"
+  },
+  {
+    "pfad": "/api/health/mailboxes",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_health_mailboxes"
+  },
+  {
+    "pfad": "/api/health/mailboxes",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_health_run"
+  },
+  {
+    "pfad": "/api/hub/api-key",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_hub_set_key"
+  },
+  {
+    "pfad": "/api/hub/billing/auto",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_hub_billing_auto"
+  },
+  {
+    "pfad": "/api/hub/billing/auto/amount",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_hub_billing_auto_amount"
+  },
+  {
+    "pfad": "/api/hub/billing/auto/disable",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_hub_billing_auto_disable"
+  },
+  {
+    "pfad": "/api/hub/billing/auto/setup",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_hub_billing_auto_setup"
+  },
+  {
+    "pfad": "/api/hub/cert/accept-terms",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_hub_cert_accept_terms"
+  },
+  {
+    "pfad": "/api/hub/cert/billing",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_hub_cert_billing"
+  },
+  {
+    "pfad": "/api/hub/cert/domain/request",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_hub_cert_domain_request"
+  },
+  {
+    "pfad": "/api/hub/cert/domain/verify",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_hub_cert_domain_verify"
+  },
+  {
+    "pfad": "/api/hub/cert/eligibility",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_hub_cert_eligibility"
+  },
+  {
+    "pfad": "/api/hub/cert/opt-out",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_hub_cert_opt_out"
+  },
+  {
+    "pfad": "/api/hub/cert/request-invoice",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_hub_cert_request_invoice"
+  },
+  {
+    "pfad": "/api/hub/cert/terms",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_hub_cert_terms"
+  },
+  {
+    "pfad": "/api/hub/cert/topup",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_hub_cert_topup"
+  },
+  {
+    "pfad": "/api/hub/claim",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_hub_claim"
+  },
+  {
+    "pfad": "/api/hub/config",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_hub_config_get"
+  },
+  {
+    "pfad": "/api/hub/config",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_hub_config_set"
+  },
+  {
+    "pfad": "/api/hub/disconnect",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_hub_disconnect"
+  },
+  {
+    "pfad": "/api/hub/register",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_hub_register"
+  },
+  {
+    "pfad": "/api/hub/status",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_hub_status"
+  },
+  {
+    "pfad": "/api/legal/consent",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_legal_consent"
+  },
+  {
+    "pfad": "/api/legal/doc/{doc_id}",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_legal_doc"
+  },
+  {
+    "pfad": "/api/legal/status",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_legal_status"
+  },
+  {
+    "pfad": "/api/letsencrypt",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_letsencrypt"
+  },
+  {
+    "pfad": "/api/license",
+    "methoden": [
+      "DELETE"
+    ],
+    "name": "api_license_delete"
+  },
+  {
+    "pfad": "/api/license",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_license_set"
+  },
+  {
+    "pfad": "/api/license/fetch-hub",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_license_fetch_hub"
+  },
+  {
+    "pfad": "/api/license/purchase",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_license_purchase"
+  },
+  {
+    "pfad": "/api/license/status",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_license_status"
+  },
+  {
+    "pfad": "/api/logs/files",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_logs_files"
+  },
+  {
+    "pfad": "/api/logs/search",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_logs_search"
+  },
+  {
+    "pfad": "/api/mailboxes",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_get_mailboxes"
+  },
+  {
+    "pfad": "/api/mailboxes/fetch-bookings-urls",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_fetch_bookings_urls"
+  },
+  {
+    "pfad": "/api/mailboxes/migrate/apply",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_mailbox_migrate_apply"
+  },
+  {
+    "pfad": "/api/mailboxes/migrate/preview",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_mailbox_migrate_preview"
+  },
+  {
+    "pfad": "/api/mailboxes/save",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_save_mailboxes"
+  },
+  {
+    "pfad": "/api/maintenance/mails",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_held_mails_list"
+  },
+  {
+    "pfad": "/api/maintenance/mails/{mail_id}",
+    "methoden": [
+      "DELETE"
+    ],
+    "name": "api_held_mail_delete"
+  },
+  {
+    "pfad": "/api/maintenance/mails/{mail_id}/preview",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_held_mail_preview"
+  },
+  {
+    "pfad": "/api/maintenance/mails/{mail_id}/release",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_held_mail_release"
+  },
+  {
+    "pfad": "/api/maintenance/mode",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_set_maintenance_mode"
+  },
+  {
+    "pfad": "/api/notification/test",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_notification_test"
+  },
+  {
+    "pfad": "/api/portal/admin/list",
+    "methoden": [
+      "GET"
+    ],
+    "name": "portal_admin_list"
+  },
+  {
+    "pfad": "/api/portal/admin/{token}",
+    "methoden": [
+      "DELETE"
+    ],
+    "name": "portal_admin_delete"
+  },
+  {
+    "pfad": "/api/portal/branding/logo",
+    "methoden": [
+      "DELETE"
+    ],
+    "name": "portal_delete_logo"
+  },
+  {
+    "pfad": "/api/portal/branding/logo",
+    "methoden": [
+      "POST"
+    ],
+    "name": "portal_upload_logo"
+  },
+  {
+    "pfad": "/api/portal/message/{token}",
+    "methoden": [
+      "GET"
+    ],
+    "name": "portal_get_message"
+  },
+  {
+    "pfad": "/api/portal/otp/{token}",
+    "methoden": [
+      "POST"
+    ],
+    "name": "portal_request_otp"
+  },
+  {
+    "pfad": "/api/portal/read/{token}",
+    "methoden": [
+      "POST"
+    ],
+    "name": "portal_mark_read"
+  },
+  {
+    "pfad": "/api/portal/reply/{token}",
+    "methoden": [
+      "POST"
+    ],
+    "name": "portal_reply"
+  },
+  {
+    "pfad": "/api/portal/verify/{token}",
+    "methoden": [
+      "POST"
+    ],
+    "name": "portal_verify_otp"
+  },
+  {
+    "pfad": "/api/preview-data",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_preview_data"
+  },
+  {
+    "pfad": "/api/restart",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_restart"
+  },
+  {
+    "pfad": "/api/settings/custom-policies",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_get_custom_policies"
+  },
+  {
+    "pfad": "/api/settings/custom-policies/save",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_save_custom_policies"
+  },
+  {
+    "pfad": "/api/settings/internal-groups",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_get_internal_groups"
+  },
+  {
+    "pfad": "/api/settings/internal-groups/save",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_save_internal_groups"
+  },
+  {
+    "pfad": "/api/settings/notification-mailbox/create-shared",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_create_notification_shared_mailbox"
+  },
+  {
+    "pfad": "/api/settings/partial",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_settings_partial"
+  },
+  {
+    "pfad": "/api/settings/sender-mailboxes/refresh",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_refresh_sender_mailboxes"
+  },
+  {
+    "pfad": "/api/settings/template-policies",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_get_template_policies"
+  },
+  {
+    "pfad": "/api/setup/app-pool/add",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_app_pool_add"
+  },
+  {
+    "pfad": "/api/setup/app-pool/add-from-url",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_app_pool_add_from_url"
+  },
+  {
+    "pfad": "/api/setup/app-pool/day",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_pool_day"
+  },
+  {
+    "pfad": "/api/setup/app-pool/history",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_pool_history"
+  },
+  {
+    "pfad": "/api/setup/app-pool/status",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_app_pool_status"
+  },
+  {
+    "pfad": "/api/setup/auth-paste",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_auth_paste"
+  },
+  {
+    "pfad": "/api/setup/bootstrap-client",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_setup_bootstrap_client"
+  },
+  {
+    "pfad": "/api/setup/change-password",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_change_password"
+  },
+  {
+    "pfad": "/api/setup/exo-connector",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_setup_exo_connector"
+  },
+  {
+    "pfad": "/api/setup/gen-auth-cert",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_gen_auth_cert"
+  },
+  {
+    "pfad": "/api/setup/hostname",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_setup_hostname"
+  },
+  {
+    "pfad": "/api/setup/imap-access",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_setup_imap_access"
+  },
+  {
+    "pfad": "/api/setup/keyvault/arm-auth-url",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_keyvault_arm_auth_url"
+  },
+  {
+    "pfad": "/api/setup/keyvault/arm-paste",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_keyvault_arm_paste"
+  },
+  {
+    "pfad": "/api/setup/keyvault/assign-role",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_keyvault_assign_role"
+  },
+  {
+    "pfad": "/api/setup/keyvault/create",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_keyvault_create"
+  },
+  {
+    "pfad": "/api/setup/keyvault/resource-groups",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_keyvault_resource_groups"
+  },
+  {
+    "pfad": "/api/setup/keyvault/save",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_keyvault_save"
+  },
+  {
+    "pfad": "/api/setup/keyvault/subscriptions",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_keyvault_subscriptions"
+  },
+  {
+    "pfad": "/api/setup/keyvault/test",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_keyvault_test"
+  },
+  {
+    "pfad": "/api/setup/keyvault/vaults",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_keyvault_vaults"
+  },
+  {
+    "pfad": "/api/setup/mark-complete",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_setup_complete"
+  },
+  {
+    "pfad": "/api/setup/notification-dg",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_setup_notification_dg"
+  },
+  {
+    "pfad": "/api/setup/remote-domain-castle",
+    "methoden": [
+      "DELETE"
+    ],
+    "name": "api_remote_domain_remove"
+  },
+  {
+    "pfad": "/api/setup/remote-domain-castle",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_remote_domain_get"
+  },
+  {
+    "pfad": "/api/setup/remote-domain-castle",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_remote_domain_configure"
+  },
+  {
+    "pfad": "/api/setup/smime-rules",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_setup_smime_rules"
+  },
+  {
+    "pfad": "/api/setup/test-graph",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_test_graph"
+  },
+  {
+    "pfad": "/api/setup/verify/azure",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_verify_azure"
+  },
+  {
+    "pfad": "/api/setup/verify/connector",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_verify_connector"
+  },
+  {
+    "pfad": "/api/setup/verify/imap",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_verify_imap"
+  },
+  {
+    "pfad": "/api/setup/verify/smime",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_verify_smime"
+  },
+  {
+    "pfad": "/api/smime/backup-all-keys",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_smime_backup_all_keys"
+  },
+  {
+    "pfad": "/api/smime/backup-key/{email}/{slot_id}",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_smime_backup_key_download"
+  },
+  {
+    "pfad": "/api/smime/ca-config",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_ca_config_get"
+  },
+  {
+    "pfad": "/api/smime/ca-config/{email}",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_ca_config_save"
+  },
+  {
+    "pfad": "/api/smime/cert/details",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_smime_cert_details"
+  },
+  {
+    "pfad": "/api/smime/cert/download/{email}/{slot_id}",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_smime_cert_download"
+  },
+  {
+    "pfad": "/api/smime/delete-slot/{cert_email}/{slot_id}",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_smime_delete_slot"
+  },
+  {
+    "pfad": "/api/smime/delete/{cert_email}",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_smime_delete"
+  },
+  {
+    "pfad": "/api/smime/key-password",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_smime_key_password"
+  },
+  {
+    "pfad": "/api/smime/keyvault/migrate/{email}",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_keyvault_migrate"
+  },
+  {
+    "pfad": "/api/smime/keyvault/migrate/{email}/{slot_id}",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_keyvault_migrate_slot"
+  },
+  {
+    "pfad": "/api/smime/keyvault/status",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_keyvault_status"
+  },
+  {
+    "pfad": "/api/smime/kv-status/refresh",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_smime_kv_status_refresh"
+  },
+  {
+    "pfad": "/api/smime/migrate-all-to-keyvault",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_smime_migrate_all"
+  },
+  {
+    "pfad": "/api/smime/recipient/delete/{cert_email}",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_smime_recipient_delete"
+  },
+  {
+    "pfad": "/api/smime/recipient/download/{cert_email}",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_smime_recipient_download"
+  },
+  {
+    "pfad": "/api/smime/recipient/upload",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_smime_recipient_upload"
+  },
+  {
+    "pfad": "/api/smime/renew/{token}",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_smime_selfservice_upload"
+  },
+  {
+    "pfad": "/api/smime/renewal/clear/{email}",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_acme_clear_order"
+  },
+  {
+    "pfad": "/api/smime/renewal/initiate/{email}",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_acme_initiate"
+  },
+  {
+    "pfad": "/api/smime/renewal/notify/{email}",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_renewal_notify"
+  },
+  {
+    "pfad": "/api/smime/renewal/status/{email}",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_acme_status"
+  },
+  {
+    "pfad": "/api/smime/renewal/token-info/{email}",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_renewal_token_info"
+  },
+  {
+    "pfad": "/api/smime/renewal/token/{email}",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_renewal_token_generate"
+  },
+  {
+    "pfad": "/api/smime/set-default/{cert_email}/{slot_id}",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_smime_set_default"
+  },
+  {
+    "pfad": "/api/smime/upload",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_smime_upload"
+  },
+  {
+    "pfad": "/api/smtp-acl/refresh",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_smtp_acl_refresh"
+  },
+  {
+    "pfad": "/api/smtp-acl/status",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_smtp_acl_status"
+  },
+  {
+    "pfad": "/api/support/download",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_support_download"
+  },
+  {
+    "pfad": "/api/support/upload",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_support_upload"
+  },
+  {
+    "pfad": "/api/system/changelog",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_changelog"
+  },
+  {
+    "pfad": "/api/system/info",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_system_info"
+  },
+  {
+    "pfad": "/api/system/log-tail",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_log_tail"
+  },
+  {
+    "pfad": "/api/system/mail-hourly",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_mail_hourly"
+  },
+  {
+    "pfad": "/api/system/restart-container",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_restart_container"
+  },
+  {
+    "pfad": "/api/system/update",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_system_update"
+  },
+  {
+    "pfad": "/api/system/update/check",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_update_check"
+  },
+  {
+    "pfad": "/api/system/update/clear",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_system_update_clear"
+  },
+  {
+    "pfad": "/api/system/update/releases",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_update_releases"
+  },
+  {
+    "pfad": "/api/system/update/status",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_system_update_status"
+  },
+  {
+    "pfad": "/api/system/update/watcher-status",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_watcher_status"
+  },
+  {
+    "pfad": "/api/system/update/whats-new",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_update_whats_new"
+  },
+  {
+    "pfad": "/api/templates",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_get_templates"
+  },
+  {
+    "pfad": "/api/templates/{name}",
+    "methoden": [
+      "DELETE"
+    ],
+    "name": "api_delete_template"
+  },
+  {
+    "pfad": "/api/test-mail",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_test_mail"
+  },
+  {
+    "pfad": "/api/test/acme-capture",
+    "methoden": [
+      "DELETE"
+    ],
+    "name": "api_acme_capture_clear"
+  },
+  {
+    "pfad": "/api/test/acme-capture",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_acme_capture_get"
+  },
+  {
+    "pfad": "/api/test/mail-processor",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_test_mail_processor"
+  },
+  {
+    "pfad": "/api/test/mail-processor/options",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_test_mail_processor_options"
+  },
+  {
+    "pfad": "/api/test/send-graph-acme",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_send_graph_acme"
+  },
+  {
+    "pfad": "/api/welcome/dismiss",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_welcome_dismiss"
+  },
+  {
+    "pfad": "/api/whoami",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_whoami"
+  },
+  {
+    "pfad": "/auth/callback",
+    "methoden": [
+      "GET"
+    ],
+    "name": "auth_callback"
+  },
+  {
+    "pfad": "/auth/local",
+    "methoden": [
+      "POST"
+    ],
+    "name": "auth_local"
+  },
+  {
+    "pfad": "/auth/login",
+    "methoden": [
+      "GET"
+    ],
+    "name": "auth_login"
+  },
+  {
+    "pfad": "/auth/login/microsoft",
+    "methoden": [
+      "GET"
+    ],
+    "name": "auth_login_microsoft"
+  },
+  {
+    "pfad": "/auth/logout",
+    "methoden": [
+      "GET"
+    ],
+    "name": "auth_logout_get"
+  },
+  {
+    "pfad": "/auth/logout",
+    "methoden": [
+      "POST"
+    ],
+    "name": "auth_logout"
+  },
+  {
+    "pfad": "/auth/start",
+    "methoden": [
+      "GET"
+    ],
+    "name": "auth_start"
+  },
+  {
+    "pfad": "/auth/start-redirect",
+    "methoden": [
+      "GET"
+    ],
+    "name": "auth_start_redirect"
+  },
+  {
+    "pfad": "/backup",
+    "methoden": [
+      "GET"
+    ],
+    "name": "backup_page"
+  },
+  {
+    "pfad": "/config-view",
+    "methoden": [
+      "GET"
+    ],
+    "name": "config_view"
+  },
+  {
+    "pfad": "/debug",
+    "methoden": [
+      "GET"
+    ],
+    "name": "debug_page"
+  },
+  {
+    "pfad": "/docs",
+    "methoden": [
+      "GET"
+    ],
+    "name": "swagger_ui_html"
+  },
+  {
+    "pfad": "/docs/oauth2-redirect",
+    "methoden": [
+      "GET"
+    ],
+    "name": "swagger_ui_redirect"
+  },
+  {
+    "pfad": "/health",
+    "methoden": [
+      "GET"
+    ],
+    "name": "health"
+  },
+  {
+    "pfad": "/log",
+    "methoden": [
+      "GET"
+    ],
+    "name": "log_page"
+  },
+  {
+    "pfad": "/log/stream",
+    "methoden": [
+      "GET"
+    ],
+    "name": "log_stream"
+  },
+  {
+    "pfad": "/mailboxes",
+    "methoden": [
+      "GET"
+    ],
+    "name": "mailboxes_page"
+  },
+  {
+    "pfad": "/openapi.json",
+    "methoden": [
+      "GET"
+    ],
+    "name": "openapi"
+  },
+  {
+    "pfad": "/outlook-addin",
+    "methoden": [
+      "GET"
+    ],
+    "name": "outlook_addin_page_redirect"
+  },
+  {
+    "pfad": "/portal/logo",
+    "methoden": [
+      "GET"
+    ],
+    "name": "portal_logo"
+  },
+  {
+    "pfad": "/portal/{token}",
+    "methoden": [
+      "GET"
+    ],
+    "name": "portal_page"
+  },
+  {
+    "pfad": "/preview",
+    "methoden": [
+      "GET"
+    ],
+    "name": "preview"
+  },
+  {
+    "pfad": "/redoc",
+    "methoden": [
+      "GET"
+    ],
+    "name": "redoc_html"
+  },
+  {
+    "pfad": "/settings",
+    "methoden": [
+      "GET"
+    ],
+    "name": "settings_page"
+  },
+  {
+    "pfad": "/settings",
+    "methoden": [
+      "POST"
+    ],
+    "name": "settings_save"
+  },
+  {
+    "pfad": "/settings/connect",
+    "methoden": [
+      "GET"
+    ],
+    "name": "settings_connect_page"
+  },
+  {
+    "pfad": "/settings/signature",
+    "methoden": [
+      "GET"
+    ],
+    "name": "settings_signature_page"
+  },
+  {
+    "pfad": "/settings/smime",
+    "methoden": [
+      "GET"
+    ],
+    "name": "settings_smime_page"
+  },
+  {
+    "pfad": "/settings/update",
+    "methoden": [
+      "GET"
+    ],
+    "name": "settings_update_redirect"
+  },
+  {
+    "pfad": "/setup",
+    "methoden": [
+      "GET"
+    ],
+    "name": "setup_wizard"
+  },
+  {
+    "pfad": "/smime",
+    "methoden": [
+      "GET"
+    ],
+    "name": "smime_page_v2"
+  },
+  {
+    "pfad": "/smime/renew/{token}",
+    "methoden": [
+      "GET"
+    ],
+    "name": "smime_selfservice_page"
+  },
+  {
+    "pfad": "/static",
+    "methoden": [],
+    "name": "static"
+  },
+  {
+    "pfad": "/template",
+    "methoden": [
+      "GET"
+    ],
+    "name": "template_editor"
+  },
+  {
+    "pfad": "/template",
+    "methoden": [
+      "POST"
+    ],
+    "name": "template_save"
+  }
+]

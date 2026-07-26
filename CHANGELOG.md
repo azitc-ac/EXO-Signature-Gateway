@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.45 — 2026-07-26 — Routen-Bestandsaufnahme als Netz für den app.py-Umbau
+
+`app/webui/app.py` hat **4945 Zeilen** und bisher **keinerlei Testabdeckung**. Bevor die Datei aufgeteilt wird, braucht es ein Netz, das genau die Frage beantwortet, auf die es bei reinem Umsortieren ankommt: *Ist es danach dieselbe Oberfläche wie davor?*
+
+`tests/test_routes.py` hält die vollständige Routentabelle fest — **222 Routen** mit Pfad, Methoden und Name, als `routes_snapshot.json`. Geprüft wird:
+- keine Route verloren, keine unbemerkt hinzugekommen (Fehlermeldung benennt beide Richtungen einzeln)
+- keine doppelt registriert — beim Verschieben von Endpunkten zwischen Dateien leicht passiert, und die zweite Registrierung ist dann tot
+- kein `/api/`-Endpunkt ohne Namen, was auf einen beim Verschieben verlorenen Dekorator hindeutet
+
+**Gegengeprüft:** eine Route absichtlich auskommentiert — der Test schlägt fehl und nennt sie namentlich (`POST /api/hub/billing/auto/disable`).
+
+Die Momentaufnahme wird bewusst neu erzeugt (`python3 tests/test_routes.py --snapshot`), nie automatisch: der Sinn ist, dass jede Änderung an der Routentabelle durch die Hand geht.
+
 ## v1.7.43 — 2026-07-26 — Abhängigkeiten exakt gepinnt
 
 Bis hierher stand in `app/requirements.txt` durchgehend `>=`. Jeder Build zog also, was PyPI gerade anbot — und der Abstand war erheblich:
