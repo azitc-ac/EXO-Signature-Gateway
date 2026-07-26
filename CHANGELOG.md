@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.61 — 2026-07-27 — Erstattung: Zahlungsmittel als Regelfall
+
+Ziffer 10.7 stellte die Erstattung des Prepaid-Guthabens gleichrangig auf das ursprüngliche Zahlungsmittel „oder auf ein vom Kunden benanntes Konto". Der Zahlungsdienstleister erstattet ausschließlich auf das ursprünglich verwendete Zahlungsmittel; andere Ziele sind nicht möglich. Eine Überweisung wäre also stets ein manueller Vorgang außerhalb des Systems.
+
+Neu ist die Reihenfolge klar: Erstattung auf das Zahlungsmittel, mit dem aufgeladen wurde. Nur wenn das aus Gründen scheitert, die der Anbieter nicht zu vertreten hat — etwa eine abgelaufene oder gekündigte Karte ohne Nachfolgekarte —, erfolgt sie per Überweisung auf ein benanntes Konto.
+
+Die Zusage selbst bleibt unverändert: vollständige Erstattung jederzeit, ohne Kündigung, ohne Begründung, ohne Frist.
+
 ## v1.7.60 — 2026-07-27 — Unterjährige Lizenzaufstockung verständlich formuliert
 
 Ziffer 10.5 lautete: „die Differenz wird für die verbleibenden vollen Kalendermonate des laufenden Abrechnungszeitraums nachberechnet". Zwei Mehrdeutigkeiten: „Differenz" konnte die Zahl der Lizenzen oder einen Betrag meinen, und „nachberechnet" klingt nach einer Forderung für Vergangenes, obwohl es um die Zukunft geht.
