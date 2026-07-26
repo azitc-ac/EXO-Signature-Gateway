@@ -1,0 +1,43 @@
+#!/bin/bash
+# Pre-Commit-Hook — VERSIONIERT, gilt in Gateway UND Hub.
+#
+# AKTIVIEREN (einmalig je Arbeitskopie, auch nach einem frischen Klon):
+#     git config core.hooksPath tools/hooks
+#
+# Warum hier und nicht in .git/hooks: dort ist er NICHT versioniert. Er existierte
+# bis zum 26.07.2026 nur auf einem einzigen Rechner — auf der Produktiv-VM und in
+# jedem Neuklon galt die Regel schlicht nicht. Und im Hub gab es ihn gar nicht.
+#
+# DIESE DATEI MUSS IN BEIDEN ANWENDUNGEN INHALTSGLEICH SEIN
+# (tools/driftcheck.py vergleicht die SHA-256).
+#
+# Aufgabe: VERSION hochzählen und einen CHANGELOG-Eintrag erzwingen — aber NUR,
+# wenn der Commit das Produkt betrifft. Vorher galt die Pflicht bedingungslos, mit
+# der Folge, dass ein Changelog-Eintrag für eine reine .gitignore-Änderung
+# entstand. Der Changelog beschreibt das Produkt; solche Einträge machen ihn beim
+# Lesen unbrauchbarer, nicht besser.
+
+# Dateien, deren Änderung allein KEINEN Changelog-Eintrag rechtfertigt.
+NICHT_PRODUKT='^(\.gitignore|VERSION|CHANGELOG\.md)$'
+
+relevant=$(git diff --cached --name-only | grep -Ev "$NICHT_PRODUKT")
+
+if [ -z "$relevant" ]; then
+    echo "ℹ Kein produktrelevanter Inhalt — kein CHANGELOG-Eintrag nötig, keine Versionserhöhung."
+    exit 0
+fi
+
+VERSION_FILE="VERSION"
+if [ -f "$VERSION_FILE" ]; then
+    current=$(cat "$VERSION_FILE")
+    IFS='.' read -r major minor patch <<< "$current"
+    new_version="$major.$minor.$((patch + 1))"
+    echo "$new_version" > "$VERSION_FILE"
+    git add "$VERSION_FILE"
+    echo "Version bumped: $current → $new_version"
+fi
+
+if ! git diff --cached --name-only | grep -q "^CHANGELOG\.md$"; then
+    echo "❌ CHANGELOG.md nicht gestaged — bitte Eintrag ergänzen und erneut adden."
+    exit 1
+fi
