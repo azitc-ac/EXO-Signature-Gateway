@@ -128,7 +128,9 @@ The following are not counted:
 - Room and equipment mailboxes,
 - additional alias addresses of an already-counted mailbox.
 
-The highest value reached within a calendar month is decisive.
+Sustained use is decisive: mailboxes are counted if they were activated on more
+than half the days of a calendar month. Short-term excesses — for instance
+during a migration, a test, or a temporary overlap — are disregarded.
 
 ---
 

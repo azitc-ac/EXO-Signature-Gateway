@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.57 — 2026-07-27 — Lizenzzählung: dauerhafte statt punktueller Nutzung
+
+Maßgeblich war bisher „der höchste innerhalb eines Kalendermonats erreichte Wert". Damit zählte ein einzelner Tag voll — eine Migration, ein Test oder eine vorübergehende Doppelbelegung konnte einen ganzen Monat lizenzpflichtig machen, obwohl die Postfächer nur kurz aktiv waren.
+
+Neu: Gezählt werden die Postfächer, die an **mehr als der Hälfte der Tage** eines Kalendermonats aktiviert waren. Kurzzeitige Überschreitungen bleiben außer Betracht.
+
+Die Regel bleibt ohne Messung anwendbar — sie fragt nach dauerhafter Nutzung, nicht nach einem Tageswert. Nutzungsbedingungen (Ziffer 6.4) und Preisliste, beide Sprachfassungen.
+
 ## v1.7.56 — 2026-07-27 — Weniger Daten, klarere Zusagen
 
 **Mandanten-Domain wird nicht mehr übermittelt.** Bei der Anbindung hing sie an jedem Zustimmungsbeleg, beim Lizenzkauf ging sie mit. Erforderlich war sie nie: Die Lizenz ist an die Tenant-ID gebunden, und der Zustimmungsbeleg ist über die Prüfsumme des Dokumententexts eindeutig. Sie diente allein der lesbaren Anzeige — kein Erforderlichkeitsgrund (Art. 5 Abs. 1 lit. c DSGVO). Ziffer 4.1 und 4.2 der Nutzungsbedingungen entsprechend gekürzt.
