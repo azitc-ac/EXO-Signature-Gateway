@@ -481,7 +481,7 @@ async function toggleChangelog() {
           const body = lines.slice(1).join('\n').trim();
           return `<div style="border-left:3px solid #e2e8f0;padding:8px 12px;margin-bottom:8px">
             <div style="font-weight:600;font-size:13px;color:#1e293b">${esc(header)}</div>
-            ${body ? `<pre style="margin:4px 0 0;font-size:11px;color:#475569;white-space:pre-wrap;font-family:inherit">${esc(body)}</pre>` : ''}
+            ${body ? `<div style="margin:4px 0 0;font-size:12px;color:#475569">${_mdToHtml(body)}</div>` : ''}
           </div>`;
         }).join('');
     box.style.display = 'block'; btn.textContent = 'Changelog ausblenden'; _clVisible = true;

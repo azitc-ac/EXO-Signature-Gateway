@@ -119,3 +119,84 @@ function eur(cents) {
     style: 'currency', currency: 'EUR',
   });
 }
+
+/* ── Markdown ────────────────────────────────────────────────────────────────
+ * Kleiner Wandler für die Texte, die als Markdown vorliegen: Rechtstexte,
+ * CA-Bedingungen, Changelog-Einträge. Lag als `_mdToHtml` lokal in
+ * settings_connect.html — mit der Folge, dass die Changelog-Anzeige in der
+ * Update-Sektion den Text ROH ausgab: sichtbare `**`, Backticks und
+ * Tabellenstriche. Ein zweiter Wandler wäre die falsche Antwort gewesen.
+ *
+ * Bewusst klein gehalten: Überschriften, Listen, Tabellen, Trennlinien, fett,
+ * kursiv, Code, Verweise. Kein vollständiges Markdown — was hier ankommt,
+ * schreiben wir selbst.
+ *
+ * Farben stammen aus der freigegebenen Palette (CLAUDE.md); ohne Angabe griffe
+ * beim Verweis das Browser-Standardblau, das im Dark Mode schlecht lesbar ist.
+ */
+function _mdInline(s) {
+  return esc(s)
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    // Kursiv NACH fett — danach sind keine ** mehr übrig
+    .replace(/\*([^*\n]+)\*/g,'<em>$1</em>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    // color:#0369a1 stammt aus der freigegebenen Palette (CLAUDE.md) und wird im
+    // Dark Mode zu #7dd3fc umgeschaltet. Ohne Angabe griffe das Browser-Standardblau,
+    // das auf dunklem Grund schlecht lesbar ist — eine globale a-Regel gibt es nicht.
+    .replace(/(https?:\/\/[^\s<)]+)/g,
+             '<a href="$1" target="_blank" rel="noopener" style="color:#0369a1">$1</a>');
+}
+function _mdToHtml(md) {
+  var out = [], tbl = null;
+  // In Absätze zerlegen (Leerzeile trennt), Tabellen/Listen bleiben zeilenweise
+  var blocks = String(md || '').replace(/\r\n/g, '\n').split(/\n{2,}/);
+  blocks.forEach(function(block) {
+    var lines = block.split('\n').filter(function(l) { return l.trim() !== ''; });
+    if (!lines.length) return;
+    // Tabelle: mindestens zwei Zeilen, alle beginnen mit |
+    if (lines.length >= 2 && lines.every(function(l) { return l.trim().charAt(0) === '|'; })) {
+      var rows = lines.filter(function(l) { return !/^\|[\s:|-]+\|$/.test(l.trim()); });
+      var html = '<table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:12px">';
+      rows.forEach(function(l, i) {
+        var cells = l.trim().replace(/^\||\|$/g, '').split('|');
+        var tag = i === 0 ? 'th' : 'td';
+        html += '<tr>' + cells.map(function(c) {
+          return '<' + tag + ' style="border:1px solid #e2e8f0;padding:4px 8px;text-align:left">'
+                 + _mdInline(c.trim()) + '</' + tag + '>';
+        }).join('') + '</tr>';
+      });
+      out.push(html + '</table>');
+      return;
+    }
+    // Überschrift
+    var h = lines[0].match(/^(#{1,4})\s+(.*)$/);
+    if (h) {
+      var lvl = Math.min(h[1].length + 1, 4);
+      out.push('<h' + lvl + ' style="margin:14px 0 6px;font-size:' + (16 - h[1].length) + 'px">'
+               + _mdInline(h[2]) + '</h' + lvl + '>');
+      lines = lines.slice(1);
+      if (!lines.length) return;
+    }
+    // Trennlinie
+    if (lines.every(function(l) { return /^-{3,}$/.test(l.trim()); })) {
+      out.push('<hr style="border:none;border-top:1px solid #e2e8f0;margin:12px 0">');
+      return;
+    }
+    // Liste
+    if (lines[0].trim().charAt(0) === '-') {
+      var items = [], cur = '';
+      lines.forEach(function(l) {
+        if (/^\s*-\s+/.test(l)) { if (cur) items.push(cur); cur = l.replace(/^\s*-\s+/, ''); }
+        else { cur += ' ' + l.trim(); }     // Fortsetzungszeile anhängen
+      });
+      if (cur) items.push(cur);
+      out.push('<ul style="margin:6px 0 6px 18px;padding:0">'
+        + items.map(function(i) { return '<li style="margin:2px 0">' + _mdInline(i) + '</li>'; }).join('')
+        + '</ul>');
+      return;
+    }
+    // Normaler Absatz: harte Umbrüche zu Leerzeichen zusammenziehen
+    out.push('<p style="margin:0 0 10px">' + _mdInline(lines.join(' ')) + '</p>');
+  });
+  return out.join('');
+}

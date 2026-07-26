@@ -74,8 +74,17 @@ def main(argv: list[str]) -> int:
     css = "\n".join(Path(p).read_text(encoding="utf-8") for p in css_files)
     covered = {_norm(h) for h in _COVERED.findall(css)}
 
+    # Auch JS-Dateien unter static/ prüfen: seit common.js einen Markdown-Wandler
+    # enthält, gibt dort JavaScript selbst style="…"-Attribute aus. Ohne diese
+    # Erweiterung blieben genau die Farben ungeprüft, die eine gemeinsame Datei
+    # auf ALLEN Seiten beider Anwendungen erzeugt.
+    _statisch = Path(template_dir).parent / "static"
+    dateien = sorted(Path(template_dir).rglob("*.html"))
+    if _statisch.is_dir():
+        dateien += sorted(_statisch.rglob("*.js"))
+
     misses: dict[str, set[str]] = {}
-    for f in sorted(Path(template_dir).rglob("*.html")):
+    for f in dateien:
         html = _STYLE_BLOCK.sub("", f.read_text(encoding="utf-8"))
         for attr in _STYLE_ATTR.findall(html):
             for prop, hexv in _DECL.findall(attr):
