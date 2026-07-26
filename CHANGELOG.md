@@ -7,199 +7,71 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ## v1.7.54 — 2026-07-26 — Produktname in den Rechtstexten korrigiert
 
-Vier Rechtstexte nannten die Software „EXO Signature **Service**". Sie heißt **EXO Signature Gateway**. Vom Nutzer gemeldet.
+Hub-Nutzungsbedingungen und Lizenzbedingungen-Ergänzung nannten die Software „EXO Signature Service"; sie heißt **EXO Signature Gateway**. Deutsch und englisch.
 
-Betroffen: Hub-Nutzungsbedingungen und Lizenzbedingungen-Ergänzung, jeweils deutsch und englisch. Die Datenschutzerklärung und die CA-Bedingungen verwendeten bereits den richtigen Namen.
+Die Zustimmung ist an den Inhalt der Dokumente gebunden. Wer bereits zugestimmt hat, wird deshalb einmalig erneut gefragt.
 
-**Bewusst nicht geändert:** `setup_wizard.py` führt „EXO Signature Service Setup" in `_BOOTSTRAP_OLD_NAMES` — diese Liste erkennt historisch angelegte App-Registrierungen und muss den alten Namen behalten.
+## v1.7.53 — 2026-07-26 — Changelog im Update-Dialog wird formatiert
 
-**Zur Zustimmung:** `legal_consent` bindet die Zustimmung an den SHA-256 des Dateiinhalts. Jede Textänderung macht eine erteilte Zustimmung ungültig und verlangt sie erneut — hier folgenlos, weil noch keine erteilt wurde. Die Fassungsnummer bleibt v1.0: eine Namenskorrektur ändert keine Rechte oder Pflichten, und welcher Wortlaut zugestimmt wurde, bleibt über den gespeicherten Hash nachvollziehbar.
+Nachtrag zu v1.7.51: Der „Neuerungen"-Dialog nach einem Update stellte den Text unformatiert dar, mit sichtbaren Sternchen und Backticks. Betrifft nur die Anzeige.
 
-## v1.7.53 — 2026-07-26 — Changelog-Modal rendert ebenfalls Markdown
+## v1.7.51 — 2026-07-26 — Changelog-Anzeige wird formatiert
 
-Nachtrag zu v1.7.51, vom Nutzer gemeldet — mit der passenden Ironie, dass ausgerechnet die Meldung über den behobenen Rendering-Fehler roh dargestellt wurde.
+Unter Backup → „Changelog anzeigen" stand der Text unformatiert da — Sternchen, Backticks und Tabellenstriche waren sichtbar. Betrifft nur die Anzeige.
 
-Die Changelog-Einträge werden an **zwei** Stellen angezeigt: in der ausklappbaren Box auf der Backup-Seite und im „Neuerungen"-Modal, das nach einem Update erscheint. Ich hatte nur die Box umgestellt. Genau das Muster, gegen das Regel 4 in `CLAUDE.md` steht — eine Stelle repariert, die Geschwisterstelle übersehen.
+## v1.7.48 — 2026-07-26 — Entwicklungswerkzeug (ohne Auswirkung auf den Betrieb)
 
-Beide laufen jetzt über `_mdToHtml()` aus `common.js`. Geprüft an einem echten Eintrag mit Tabelle: 0 Sternchen, 0 Backticks, Tabelle mit 5 Zeilen, 6 Hervorhebungen.
+Der Commit-Hook liegt jetzt versioniert im Repository und verlangt einen Changelog-Eintrag nur noch bei produktrelevanten Änderungen.
 
-Die übrigen `<pre>`-Blöcke in den Vorlagen (MIME-Dumps, Debug- und Protokollausgaben) bleiben bewusst roh — dort ist unformatierter Text die richtige Darstellung.
+## v1.7.47 — 2026-07-26 — Automatische Prüfung der Weboberfläche
 
-## v1.7.51 — 2026-07-26 — Changelog-Anzeige rendert Markdown statt Rohtext
+Alle Seiten und Schnittstellen des Gateways werden bei jeder Änderung automatisch aufgerufen und auf Fehler geprüft. Keine Auswirkung auf den Betrieb; verringert das Risiko, dass eine Änderung eine Seite unbemerkt beschädigt.
 
-In der Update-Sektion (Backup-Seite → „Changelog anzeigen") wurde der Text **escaped in ein `<pre>`** gelegt. Jedes `**fett**`, jeder Backtick und jeder Tabellenstrich stand also sichtbar da — bei den ausführlich formatierten Einträgen entsprechend viele Sternchen. Vom Nutzer gemeldet.
+## v1.7.45 — 2026-07-26 — Automatische Prüfung aller Schnittstellen
 
-Es gab bereits einen vollständigen Markdown-Wandler, aber **lokal in `settings_connect.html`** (für Rechtstexte und CA-Bedingungen). Einen zweiten für die Changelog-Anzeige zu bauen wäre die falsche Antwort gewesen: `_mdInline`/`_mdToHtml` liegen jetzt in `common.js`, also in beiden Anwendungen verfügbar und SHA-verglichen. `_mdEscape` entfiel dabei — `esc()` macht dasselbe und mehr.
+Die vollständige Liste der 222 Schnittstellen wird bei jeder Änderung abgeglichen. Keine Auswirkung auf den Betrieb.
 
-**Dabei fiel eine Lücke im Prüfskript auf:** `darkcheck.py` sah nur Vorlagen. Seit `common.js` selbst `style="…"`-Attribute erzeugt, blieben genau die Farben ungeprüft, die eine gemeinsame Datei auf **allen** Seiten **beider** Anwendungen ausgibt. Es prüft jetzt auch `static/*.js`; gegengeprüft mit einer nicht abgedeckten Farbe, die prompt gemeldet wird. Die drei tatsächlich verwendeten Töne (`#0369a1`, `#7dd3fc`, `#e2e8f0`) waren bereits abgedeckt.
+## v1.7.43 — 2026-07-26 — Abhängigkeiten exakt festgelegt
 
-## v1.7.48 — 2026-07-26 — Commit-Hook versioniert und präzisiert
+Die verwendeten Fremdpakete waren nur mit Mindestfassungen angegeben. Ein Neubau zog damit jeweils die aktuellste Fassung — zwei Installationen desselben Stands konnten unterschiedliche Pakete enthalten.
 
-Der Hook lag in `.git/hooks/` und war damit **nicht versioniert**: Er existierte nur auf einem einzigen Rechner. Auf der Produktiv-VM und in jedem Neuklon galt die Regel schlicht nicht — und im **Hub gab es ihn überhaupt nicht**, dort hing die Changelog-Disziplin allein am Gedächtnis.
+Jetzt sind alle Fassungen exakt festgelegt: **ein Neubau liefert reproduzierbar dasselbe Ergebnis.** Aktualisierungen erfolgen künftig als bewusster, geprüfter Schritt.
 
-- Neu `tools/hooks/pre-commit`, inhaltsgleich in beiden Anwendungen und von `driftcheck.py` SHA-verglichen. Aktivieren je Arbeitskopie: `git config core.hooksPath tools/hooks`.
-- Ausführbar-Bit im Git-Index gesetzt (`100755`) — ohne das scheitert er auf der VM mit `203/EXEC`.
-- **Reihenfolge korrigiert:** Der Hook erhöhte VERSION, *bevor* er den Changelog prüfte — ein abgelehnter Commit ließ also eine bereits hochgezählte Nummer in der Arbeitskopie zurück. Bei mehreren Anläufen wächst sie, ohne dass je etwas veröffentlicht wird. Gefunden, weil ich den Blockierfall tatsächlich durchgespielt habe statt ihn anzunehmen.
-- **Inhaltlich präzisiert:** Die Changelog-Pflicht galt bedingungslos. Das erzeugte einen Eintrag für eine reine `.gitignore`-Änderung — Rauschen, das den Changelog beim Lesen unbrauchbarer macht. Der Hook prüft jetzt zuerst, ob der Commit produktrelevante Dateien berührt; `.gitignore`, `VERSION`, `CHANGELOG.md` und lokale, gitignorierte Notizdateien zählen nicht. Bei solchen Commits entfällt Eintragspflicht und Versionserhöhung.
+## v1.7.41 — 2026-07-26 — Automatische Prüfungen eingeführt
 
-## v1.7.47 — 2026-07-26 — Aufruf-Tests der Weboberfläche
+Kernfunktionen — Dateirechte, Einstellungen, Update-Mechanismus — werden bei jeder Änderung automatisch geprüft. Keine Auswirkung auf den Betrieb.
 
-Zweites Netz für den `app.py`-Umbau. Die Routentabelle (v1.7.45) beweist, dass alle Endpunkte noch registriert sind — nicht, dass sie noch **funktionieren**. Wird beim Verschieben ein Import falsch, bleibt die Route bestehen und scheitert erst beim Aufruf.
+## v1.7.40 — 2026-07-26 — Fehlermeldungen in der Oberfläche
 
-`tests/test_seiten.py` ruft deshalb auf, in zwei Ebenen:
-- **10 benannte Seiten** mit einem seiteneigenen Merkmal, plus: lädt `common.js`, erbt von `base.html`, gibt kein Geheimnis aus.
-- **Rundumlauf über alle 101 parameterlosen GET-Routen** — keine darf mit 500 antworten. 422 (Pflichtparameter fehlt), 503 (nicht konfiguriert) und 404 sind ausdrücklich in Ordnung; nur der Serverfehler ist immer ein Befund.
-- Und die Umkehrprobe: **ohne Anmeldung ist nichts erreichbar** (eigener TestClient ohne die Umgehung).
+16 Bedienvorgänge meldeten einen Fehlschlag nicht: „Lizenz entfernen" und das Speichern des ACME-Proxys blieben ohne Rückmeldung, mehrere Anzeigen blieben bei einem Fehler kommentarlos leer statt einen Hinweis zu zeigen. Die Systemkachel im Dashboard zeigte im Fehlerfall „NaN".
 
-**Drei Mängel fanden sich erst durch die Gegenprobe** — jedes Mal in meinem eigenen Test, nicht im Code:
+## v1.7.39 — 2026-07-26 — Konfigurations-Export enthielt Geheimnisse im Klartext
 
-1. Erst standen sprechende Wörter als Merkmal (`"S/MIME"`, `"Backup"`). Ließ man `/settings/smime` versehentlich `backup.html` rendern, **bestand der Test weiterhin** — das Wort steht auch dort. Jetzt eine Element-ID, die nur auf dieser einen Seite vorkommt.
-2. Die erste Mutation traf eine **parameterisierte** Route, die der Rundumlauf gar nicht abdeckt — sie bewies also nichts. Erneut gezielt, dann gefangen.
-3. Die Testvorbereitung setzte erfundene `TENANT_ID`/`CLIENT_ID`. Vier Endpunkte hielten die für echt und versuchten **Azure-Aufrufe**. Jetzt nur `SETUP_COMPLETE` — eine Vorbereitung, die Netzwerkverkehr auslöst, ist keine.
+**Handlungsbedarf, falls Sie die Konfiguration jemals exportiert haben:** Die Ausschlussliste des Exports deckte nur vier Geheimnisse ab. Nicht ausgeschlossen waren unter anderem das Passwort der S/MIME-Schlüssel, das Sitzungsgeheimnis, SMTP-Zugangsdaten und der Lizenzschlüssel. Bereits erzeugte Export-Dateien enthalten diese Werte im Klartext — bitte löschen oder wie ein Passwort behandeln.
 
-Gegengeprüft mit drei Mutationen: kaputter Modulname in einer abgedeckten Route (→ 500 gemeldet), vertauschte Vorlage (→ Merkmal fehlt), `common.js` aus `base.html` entfernt (→ 9 Tests rot).
+Weiter behoben:
+- Zugangsdaten der 2025 ausgebauten CA-Direktanbindung (Sectigo, SwissSign) blieben in `settings.json` stehen, ohne dass Code sie las oder eine Oberfläche sie löschen konnte. Sie werden beim Start entfernt.
+- Geheimnisse werden nicht mehr an die Seitenvorlagen durchgereicht.
 
-**Dabei gefunden:** drei Endpunkte verdrahteten `_Path("/app/data/smime")` **inline**, obwohl `smime_store.SMIME_DIR` genau dafür existiert — und `smime_store` wurde funktionslokal mit drei verschiedenen Aliasen importiert (`_smime`, `_smime_store`, `smime_store`). Jetzt ein Import auf Modulebene und die Konstante statt des Literals.
+## v1.7.38 — 2026-07-26 — Wiederherstellung: Pfadprüfung verschärft
 
-**Offener Befund für den Umbau:** im Gateway stehen **35 Literale `"/app/data…"`** verteilt im Code, im Hub nur 3 — dort gibt es `config.DATA_DIR`. Zwei Endpunkte (`/api/system/info`, `/api/support/download`) sind deshalb außerhalb des Containers nicht aufrufbar und im Rundumlauf mit Begründung ausgenommen. Ein zentraler Datenpfad gehört in den `app.py`-Umbau; eine halb eingeführte Konstante wäre genau das Stückwerk, das vermieden werden soll.
+Beim Einspielen einer Sicherung prüfte das Gateway die Zieldateien mit einem Zeichenkettenvergleich. Ein manipuliertes Archiv konnte dadurch theoretisch außerhalb des Datenverzeichnisses schreiben. In der ausgelieferten Verzeichnisaufteilung nicht ausnutzbar; die Prüfung ist trotzdem korrigiert.
 
-## v1.7.45 — 2026-07-26 — Routen-Bestandsaufnahme als Netz für den app.py-Umbau
+Außerdem: Die Update-Prüfung funktioniert jetzt auch, wenn das Repository nicht öffentlich erreichbar ist.
 
-`app/webui/app.py` hat **4945 Zeilen** und bisher **keinerlei Testabdeckung**. Bevor die Datei aufgeteilt wird, braucht es ein Netz, das genau die Frage beantwortet, auf die es bei reinem Umsortieren ankommt: *Ist es danach dieselbe Oberfläche wie davor?*
+## v1.7.36 — 2026-07-26 — S/MIME-Privatschlüssel waren zu weit lesbar
 
-`tests/test_routes.py` hält die vollständige Routentabelle fest — **222 Routen** mit Pfad, Methoden und Name, als `routes_snapshot.json`. Geprüft wird:
-- keine Route verloren, keine unbemerkt hinzugekommen (Fehlermeldung benennt beide Richtungen einzeln)
-- keine doppelt registriert — beim Verschieben von Endpunkten zwischen Dateien leicht passiert, und die zweite Registrierung ist dann tot
-- kein `/api/`-Endpunkt ohne Namen, was auf einen beim Verschieben verlorenen Dekorator hindeutet
+**Betrifft alle Installationen vor dieser Fassung.** Die privaten Schlüssel der S/MIME-Zertifikate (`data/smime/…/key.pem`) sowie die ACME-Kontoschlüssel lagen mit Leseberechtigung für alle Konten des Systems statt nur für den Dienstbenutzer. Gleiches galt für das Prüfprotokoll und die Zustimmungsdatenbank.
 
-**Gegengeprüft:** eine Route absichtlich auskommentiert — der Test schlägt fehl und nennt sie namentlich (`POST /api/hub/billing/auto/disable`).
+**Es ist nichts zu tun:** Beim Start korrigiert das Gateway die Rechte bestehender Dateien automatisch. Neue Dateien werden von vornherein eng gesetzt.
 
-Die Momentaufnahme wird bewusst neu erzeugt (`python3 tests/test_routes.py --snapshot`), nie automatisch: der Sinn ist, dass jede Änderung an der Routentabelle durch die Hand geht.
+Einordnung: Lesbar waren die Schlüssel für andere lokale Konten auf demselben System, nicht über das Netz. Wer das Datenverzeichnis auf einem Mehrbenutzersystem betreibt oder Sicherungen an Dritte weitergegeben hat, sollte eine Neuausstellung erwägen.
 
-## v1.7.43 — 2026-07-26 — Abhängigkeiten exakt gepinnt
+Beim Einspielen einer Sicherung wurden die Rechte zuvor wieder gelockert — auch das ist behoben. Zusätzlich weist die Oberfläche jetzt aus, wenn „Private Keys verschlüsseln" angehakt, aber kein Passwort gesetzt ist: In dem Fall werden die Schlüssel unverschlüsselt abgelegt.
 
-Bis hierher stand in `app/requirements.txt` durchgehend `>=`. Jeder Build zog also, was PyPI gerade anbot — und der Abstand war erheblich:
+## v1.7.35 — 2026-07-26 — Gemeinsame Bausteine in der Oberfläche
 
-| gefordert | tatsächlich installiert |
-|---|---|
-| `fastapi>=0.104.0` | **0.139.0** |
-| `cryptography>=41.0.0` | **49.0.0** |
-| `msal>=1.24.0` | **1.37.0** |
-| `python-multipart>=0.0.6` | **0.0.32** |
-
-Damit war weder reproduzierbar, was ein Kunde bekommt, noch nachvollziehbar, welche Kombination je getestet wurde. Zwei Installationen desselben Stands konnten unterschiedliche Pakete haben, je nach Bautag. Ein Breaking Change eines Fremdpakets hätte ungefiltert eine Kundeninstallation erreicht.
-
-**Der Hub war bereits vollständig gepinnt** — wieder eine Anwendung, die es richtig machte, und eine, die es nicht tat. Das Gateway zieht jetzt nach, auf genau die Fassungen, die produktiv laufen: die Umstellung ändert nichts am Verhalten, sie friert den erprobten Stand ein.
-
-- `tools/driftcheck.py` prüft, dass jede Zeile `==` verwendet (22 Abhängigkeiten über beide Anwendungen). Gegengeprüft: ein zurückgebautes `>=` wird gemeldet.
-- Aktualisieren ist als bewusster Vorgang in der Datei beschrieben — Fassung ändern, neu bauen, `pytest`, bei `cryptography`/`msal` zusätzlich die Herstellerhinweise lesen.
-
-**Verifiziert:** vollständiger Neubau mit `--no-cache`, alle 11 Pakete in exakt der geforderten Fassung installiert, Container gesund, 93 Tests grün, keine Fehler im Log.
-
-## v1.7.41 — 2026-07-26 — Testsuite und CI
-
-Bis hierher gab es **keine Testsuite und keine CI**. Alles, was in dieser Session „verifiziert" hieß, waren Einweg-Skripte im Scratchpad — inhaltlich richtig, aber weg. Niemand konnte sie wiederholen.
-
-**93 Tests im Gateway** (`pytest`), die genau die Invarianten festhalten, an denen zuvor Fehler entstanden sind:
-- `secure_io`: härtet nur / lockert nie (certbots 400er-Datei bleibt 400), Ordner werden für **jede** gefundene Geheimnisdatei gehärtet, `safe_join` blockiert den Geschwisterpfad-Trick, Rechte überleben erneutes Speichern.
-- `update_core`: der **Drei-Zustands-Vertrag** von `available` (`True` / `None` / `False`) mit der Begründung, warum `None` und `False` nicht austauschbar sind; Rangfolge `.remote-version` vor API; Trigger-Datei mit 644.
-- `settings_store`: `"false"` wird zu `False` (nicht truthy), Maskierung erhält den Wahrheitswert, kein Geheimnis in der Vorlagensicht, `purge_obsolete` entfernt nur Gelistetes.
-
-**81 Tests im Hub**: Registry (Typsicherheit, Rangfolge, „leeres Geheimnis = unverändert", Maske kommt nicht zurück), Abrechnung (Aufrundung, Deckel, deutsche Kartenfehler, kein Doppelbuchen bei `auto_setup_pi`), Kundenspeicher (Schemafelder bei Neukunden, Idempotenz, Automatik als Guthaben-Ersatz).
-
-**Die Tests wurden gegen sich selbst geprüft.** Drei Fehler absichtlich zurückgebaut — Härtung mit absolutem `chmod`, `available` auf `False` vereinheitlicht, `chmod` auf der Temp-Datei entfernt — und jedes Mal schlugen genau die zuständigen Tests fehl. Ein Test, der den Fehler nicht fängt, ist wertlos.
-
-**Beim Schreiben fanden die Tests drei eigene Mängel:** zwei Fixtures teilten sich stillschweigend eine Datei (eine `init()`-Funktion berechnete ihren Pfad neu und überschrieb das Monkeypatching), und zwei Guthaben-Tests waren **umgebungsabhängig** — mit `CERT_PRICE_CENTS = 0` griff die Prüfung `if price > 0` gar nicht, der Test hätte in der CI bestanden, ohne etwas zu prüfen.
-
-**Neu `tools/jscheck.py`**: schickt das Inline-JavaScript aller 26 Vorlagen durch `node --check`. Genau die Prüfung, die in dieser Session ein Dutzend Mal von Hand gebaut wurde und zwei `ReferenceError` gefunden hat. Kein stilles Überspringen, wenn Node fehlt — eine Prüfung, die sich selbst abschaltet, wiegt in Sicherheit.
-
-**CI** (`.github/workflows/ci.yml`): Tests, `driftcheck --gateway-only`, `darkcheck`, `jscheck` und ein `docker build` bei jedem Push. `driftcheck` überspringt die Spiegelprüfung jetzt korrekt, wenn der Hub-Baum fehlt — im Probelauf ohne Hub schlug sie vorher mit drei Fundstellen fehl.
-
-## v1.7.40 — 2026-07-26 — fetch-Aufrufe: gemessen statt pauschal umgestellt
-
-Letzter offener Audit-Punkt. **Meine eigene Darstellung war zu alarmistisch** und wird hiermit richtiggestellt: Ich hatte „269 `fetch`-Aufrufe, jeder mit eigenem Fehlerpfad" als Befund notiert. Die Messung zeigt ein anderes Bild — **253 davon prüfen `resp.ok` oder liegen in `try/catch`**. Nur **16 (5 %)** waren wirklich ungesichert.
-
-Eine pauschale Umstellung wäre auch nicht sicher machbar: nur 51 der 269 passen auf ein eng definiertes Muster, die übrigen brauchen das `Response`-Objekt (`resp.ok`-Verzweigungen, `FormData`-Uploads, Blob-Downloads, defensives `resp.json().catch(…)`). 19 % umzustellen und den Rest zu lassen hätte zwei Idiome nebeneinander erzeugt — genau das Stückwerk, das vermieden werden soll.
-
-Deshalb gezielt die 16 behoben, in zwei Klassen:
-
-**Stille Schreibvorgänge** — schlugen fehl, ohne dass der Nutzer etwas merkte:
-- `DELETE /api/license` (Lizenz entfernen): keinerlei Rückmeldung bei Fehlschlag
-- `POST /api/acme/http-proxy`: Proxy nicht gespeichert, Oberfläche zeigte nichts
-- `DELETE /api/test/acme-capture` an zwei Stellen
-
-**Lese-Widgets**, die bei Fehler kommentarlos leer blieben: Systemkachel, Stundenstatistik, App-Pool-Diagramme (zwei Promise-Ketten **ohne `.catch()`** → unbehandelte Promise-Ablehnung), Zertifikatskatalog, Changelog-Anzeige, ACME-Aufzeichnungen, Postfach-/Vorlagen-Ladung in der Vorschau.
-
-Die Systemkachel rechnete bei Fehler mit `undefined` weiter und hätte **„NaN"** angezeigt — jetzt ein benannter Hinweis.
-
-`common.js` um `getJSON()`, `sendJSON()` und `errText()` ergänzt (beide Anwendungen, SHA-verglichen). Alle drei werfen nie, sondern liefern `{ok:false, error:…}`.
-
-**Verifiziert:** dieselbe Messung nach der Änderung — 16 → 1, und der verbliebene Treffer ist ein Fehltreffer der Heuristik (`debug.html:833` liegt nachweislich in einem `try`). JavaScript aller sechs geänderten Vorlagen gegen `node --check`, fünf davon zusätzlich gerendert.
-
-## v1.7.39 — 2026-07-26 — Einstellungen: Geheimnis-Klassifizierung und Bereinigung
-
-Letzter großer Punkt des Audits. Anders als im Hub war `DEFAULTS` schon *ein* Ort — es fehlten Klassifizierung, Typsicherheit und ein Umgang mit entfernten Einstellungen.
-
-**23 verwaiste Schlüssel in `settings.json` gefunden**, davon **CA-Zugangsdaten aus der ausgebauten Direktanbindung** (`SECTIGO_PASSWORD`, `SWISSSIGN_API_KEY`, `SECTIGO_LOGIN` …). `_save()` schreibt unbekannte Schlüssel mit, also blieben sie nach dem Ausbau (v1.5.125) auf **jedem ausgelieferten Gateway** stehen — kein Code las sie, keine Oberfläche konnte sie löschen. Wer vorher Sectigo oder SwissSign konfiguriert hatte, dessen Zugangsdaten lagen weiter in der Datei. Neu `OBSOLETE_KEYS` (mit Begründung je Eintrag) und eine Bereinigung beim Start: 20 Schlüssel entfernt, 135 → 115.
-
-Bewusst **nur die ausdrücklich gelistete Menge**, nie pauschal alles Unbekannte — ein unbekannter Schlüssel kann Laufzeitzustand aus einem gerade nicht betrachteten Codepfad sein. Die legitimen Fälle (`MAILBOX_HEALTH`, `_DAILY_LAST_RUN`, `_SCHEMA_VERSION`) sind als `INTERNAL_KEYS` deklariert; alles darüber hinaus wird beim Start als „nicht deklariert" protokolliert, statt sich still anzusammeln.
-
-**`SECRET_KEYS` als einzige Klassifizierung.** Daraus abgeleitet:
-- `public_view()` maskiert Geheimnisse für Vorlagen-Kontexte. Bisher reichte `get_all()` alles im Klartext an alle 20 Vorlagen; keine gab etwas aus (geprüft), aber ein einziges `{{ s.CLIENT_SECRET }}` hätte gereicht. Die Maske erhält die Wahrheitswert-Semantik, `{% if s.X %}` verhält sich unverändert.
-- `_EXPORT_EXCLUDE` im Konfigurations-Export war handgepflegt und nannte **vier** Geheimnisse — darunter das längst obsolete `SECTIGO_PASSWORD`, aber **weder `SMIME_KEY_PASSWORD` noch `SSO_SESSION_SECRET`, `SMTP_SUBMIT_PASSWORD`, `SMTP_SUBMIT_CLIENT_SECRET`, `APP_POOL`, `LICENSE_KEY`, `HUB_CLAIM_TOKEN` oder `DIGICERT_API_KEY`**. Der Export ist eine herunterladbare XML-Datei, die ein Betreiber im Supportfall weitergibt.
-
-**Typerzwingung beim Schreiben.** 24 der 112 Einstellungen sind Booleans, und `str(False)` ist `"False"` — also truthy. Käme eine je als Zeichenkette herein, wäre sie dauerhaft und still eingeschaltet (genau der Fehler, den der Hub bei `SECTIGO_RES_TEST` hatte). Gemessen: aktuell **kein** typabweichender Wert unter 135 — das ist Vorbeugung, keine Fehlerbehebung, und deshalb schmal gehalten (bool und int; str/list/dict unangetastet).
-
-**`get()`/`get_all()` initialisieren sich jetzt selbst.** Ohne vorheriges `init()` lieferten Lesezugriffe **still die Vorgabewerte** statt der gespeicherten. In der Anwendung fiel das nie auf, in jedem Subprozess dagegen immer — `docker exec … settings_store.get_all()` gab 0 Schlüssel zurück. Jetzt 115. `_lock` ist ein `RLock`, `update()` nutzt dasselbe Muster seit v1.0.82.
-
-`driftcheck.py` liest die Klassifizierung jetzt aus der Deklaration statt nach Namen zu raten (die Heuristik hätte `KV_KEY_MODE` mitgezählt) und schlägt an, wenn ein Vorlagen-Kontext wieder `get_all()` bekommt.
-
-## v1.7.38 — 2026-07-26 — Selbst-Update zusammengelegt, Zip-Slip-Schutz korrigiert
-
-Fortsetzung des Audits. `updater.py` existierte zweimal (Gateway 203, Hub 213 Zeilen), zu **77 % identisch** mit gleicher Funktionsliste — und war auseinandergelaufen.
-
-- **Neu `app/update_core.py`** (inhaltsgleich im Hub, SHA-verglichen von `driftcheck.py`). `updater.py` ist nur noch ein 37-zeiliger Adapter: Repo-Name, Kennung, Modul-API. Aufrufstellen unverändert, `updater.GITHUB_REPO` bleibt lesbar.
-- Die Behandlung **privater Repositorys** steckte nur im Hub: `.remote-version` als Primärquelle und HTTP 404 als erklärender Hinweis statt rohem Fehler. Gemessen: Hub-Repo privat (`VERSION` → 404), Gateway-Repo öffentlich (→ 200). Das Gateway brauchte es also heute nicht — sobald das Repo privat wird, bräche dort dieselbe Meldung „Not Found", über die du dich beim Hub beschwert hattest.
-
-**Beinahe-Regression, vom Vergleichstest gefangen.** Beim Zusammenlegen hatte ich `available` im Fall „Version nicht ermittelbar" von `None` auf `False` vereinheitlicht. Die Oberfläche unterscheidet aber **drei** Zustände (`backup.html`: `=== true` / `=== null` / sonst): bei `null` bleibt die Installations-Schaltfläche **sichtbar**, bei `false` wird sie **verborgen**. Auf einem privaten Repo ohne `.remote-version` hätte der Betreiber damit auf genau der Maschine kein Update mehr starten können. `_result()` hält die drei Zustände jetzt auseinander und dokumentiert warum; „noch kein Release veröffentlicht" bleibt bewusst `False`.
-
-- **Zip-Slip-Prüfung korrigiert.** Beide Anwendungen prüften mit `str(target).startswith(str(DATA_DIR.resolve()))`. Das ist ein Präfixvergleich auf Zeichenketten: `data/../data-evil/x` löst zu `/app/data-evil/x` auf und **kommt durch**. In der jetzigen Verzeichnisaufteilung nicht ausnutzbar (unter `/app/` beginnt kein sicherheitsrelevanter Pfad mit „data", `../main.py` wird korrekt blockiert) — aber die falsche Prüfung, und wortgleich in beiden Anwendungen an fünf Stellen. Jetzt `secure_io.safe_join()` mit `is_relative_to()`, das Pfadbestandteile statt Zeichen vergleicht.
-
-**Verifiziert** gegen die aus Git geholten alten Fassungen, Ausgabe für Ausgabe: beide Kanäle, `.remote-version` vorhanden/leer/älter/fehlend, „Update läuft bereits"-Sperre, Trigger-Inhalt und -Rechte (644, absichtlich — der Host-Watcher liest sie als anderer Benutzer), `watcher_ok` mit und ohne Heartbeat, `list_release_tags`. Backup-Erstellung unverändert (56 Einträge, 7 Privatschlüssel); ein bösartiges Archiv mit drei Ausbruchsversuchen wurde vollständig abgewehrt, die echte `settings.json` blieb unberührt.
-
-## v1.7.36 — 2026-07-26 — Audit: S/MIME-Privatschlüssel lagen mit 644
-
-Projektweites Audit auf die Punkte „gemeinsame Bausteine / kein Stückwerk". Der schwerwiegendste Befund:
-
-**S/MIME-Privatschlüssel (`data/smime/*/certs/*/key.pem`) waren 644, die Verzeichnisse 755** — und **unverschlüsselt** (`SMIME_KEY_PASSWORD` leer). Ebenso die ACME-Account-Schlüssel, `legal_consent.db` (Zustimmungsbelege) und `mail_audit.db` (Mail-Metadaten). Dabei machten `portal_store.py` und `hub_orders.py` es längst richtig (700/600) — das Muster war vorhanden, es wurde nur nicht angewandt.
-
-Einordnung ohne Dramatisierung: der Dienst läuft als einziger Benutzer im Container, es liegt **kein** aktiver Vorfall vor. Aber `data/` ist ein Bind-Mount, und auf einem Kunden-Docker-Host kann jeder lokale Benutzer, jeder Sicherungs- oder Überwachungsagent und jeder weitere Container mit demselben Mount die Schlüssel lesen. Das hält keiner Kundenprüfung stand.
-
-- **Neu `app/secure_io.py`** (inhaltsgleich im Hub, SHA-verglichen): `write_secret_bytes/_text/_json()` schreiben atomar mit 600 und Ordner 700; `harden_tree()` zieht Bestandsdaten beim Start nach; `audit_tree()` meldet nur.
-- **Härtet nur, lockert nie.** Ein pauschales `chmod(0o600)` hätte certbots `private_key.json` von **400 auf 600 erweitert** — die Sicherheitsmaßnahme hätte punktuell die Sicherheit verschlechtert. `_tightened()` entfernt nur Group/Other-Bits.
-- Verzeichnisse werden für **jede** gefundene Geheimnisdatei gehärtet, nicht nur für geänderte — sonst bliebe ein Ordner mit bereits korrektem Schlüssel auf 755 (Invariante erzwingen statt Änderungen nachziehen).
-- **Der Wiederherstellungspfad verschlechterte die Rechte**: `backup_manager.py` schrieb `auth.pfx`, `settings.json` und Privatschlüssel ohne `chmod` zurück — also genau dann, wenn ein Betreiber ein Problem behebt. Eine gedriftete Kopie derselben Funktion machte es an anderer Stelle richtig.
-- Der **Konfigurations-Import** (`app.py`) schrieb einen importierten Privatschlüssel mit 644.
-- **Irreführende Anzeige behoben:** das Kästchen „Private Keys verschlüsseln" war angehakt, während ohne Passwort nichts verschlüsselt wird. Es weist jetzt aus: „Noch nicht wirksam".
-
-**`driftcheck.py` erweitert** um zwei Prüfungen, die genau diese Klasse abfangen: Geheimnis-Schreibvorgänge ohne `secure_io`, und Gateway-Vorlagen, die ein Geheimnis ausgeben (`settings_store.get_all()` geht unmaskiert an alle Vorlagen — heute rendert keine ein Geheimnis, aber ein einziges `{{ s.CLIENT_SECRET }}` würde reichen). Beide Erweiterungen fanden sofort je eine echte Fundstelle.
-
-**Verifiziert:** 33 Dateien und 20 Verzeichnisse beim ersten Start korrigiert, `audit_tree()` danach leer, alle 13 Privatschlüssel weiterhin kryptografisch ladbar, und ein echter S/MIME-Signiervorgang erzeugt 2644 Byte gültige Signatur. Certbots 400er-Datei blieb 400. Zweiter Lauf ändert nichts (idempotent).
-
-## v1.7.35 — 2026-07-26 — Gemeinsame Frontend-Helfer + driftcheck.py
-
-Der User wies darauf hin, dass Befunde der Form *„X ist der einzige, der Y nicht macht"* nach angeflanschtem Stückwerk klingen — und dass er das nicht jedes Mal sagen will. Zu Recht. Der Bestand zeigte **elf handgeschriebene HTML-Escaper** mit elf Namen: `_esc`, `escHtml`, `_escH`, `_escT`, `_escAttr`, `escC`, `escR`, `escP`, `esc`. Zwei davon waren binnen **einer** Sitzung `ReferenceError`, weil der Name an der Aufrufstelle nicht zur Definition passte.
-
-Beim Vergleich der elf Fassungen: die meisten maskierten `'` **nicht**, `_escAttr` vergaß sogar `>`, und drei nutzten `String(s)` (womit `undefined` als Text „undefined" erschien). Die gemeinsame Fassung ist also strikt sicherer, nicht nur kürzer.
-
-- **Neu `app/webui/static/common.js`** — `esc()`, `escAttr()`, `setState()`, `showMsg()`, `postJSON()`, `eur()`. Wird über `base.html` in **beiden** Anwendungen geladen und ist inhaltsgleich zu halten (bewusst gegen git-subtree entschieden, damit der Deploy-Weg über `update-watcher.sh` unangetastet bleibt).
-- Neun Escaper-Definitionen entfernt, 67 Aufrufe umgestellt. `portal.html` behält seinen eigenen: eigenständige Seite für fremde Browser, lädt bewusst kein Gateway-JS.
-
-**Neu `tools/driftcheck.py`** — dieselbe Bauart wie `darkcheck.py` und `legal-sync-check.py`. Prüft: handgeschriebene Escaper, atomares Schreiben ohne `chmod` auf der **Temp**-Datei, Umgehungen der Hub-Einstellungs-Registry (`hs.get("KEY")`), in Vorlagen gerenderte Geheimnisse, Abweichungen gespiegelter Dateien.
-
-**Beim ersten Lauf fand es sofort einen weiteren Fall des 644-Rechte-Fehlers** — an einer Stelle, die beim Lesen niemandem aufgefallen war. Genau der Beleg dafür, dass eine Regel ohne Prüfskript nicht hält.
-
-**CLAUDE.md: neuer verbindlicher Abschnitt „Gemeinsame Bausteine"** mit einer Tabelle „Zweck → einzige Quelle" und Regel 4: Bei einem Befund *„X ist der einzige…"* die **Struktur** ändern, nicht den Changelog ergänzen. Empirisch belegt — Dark Mode und Rechtstexte driften seit ihren Prüfskripten nicht mehr, alles andere schon.
+Zusammenführung mehrfach vorhandener Hilfsfunktionen. Keine Auswirkung auf den Betrieb.
 
 ## v1.7.33 — 2026-07-26 — Stripe-Testmodus wird angezeigt
 
@@ -2013,7 +1885,7 @@ voller Text direkt sichtbar, kein Hover mehr nötig.
 
 v1.5.41 hatte die Fehlermeldung sichtbar gemacht, indem der einklappbare
 Lifecycle-Bereich beim Anzeigen automatisch aufklappt — funktional korrekt,
-aber der Nutzer bevorzugt die ursprüngliche Position direkt neben dem
+aber die ursprüngliche Position direkt neben dem
 Auto-Enroll-Button im Karten-Header (dort, wo auch der laufende ACME-Order-
 Status erscheint), trotz weniger Platz dort. `startAutoEnroll()` zeigt
 Fehler jetzt kompakt (mit Tooltip für den vollen Text) im vorhandenen
