@@ -337,8 +337,10 @@ Umstellung besteht nicht.
 10.7 **Nicht verbrauchtes Prepaid-Guthaben wird dem Kunden auf Verlangen
 jederzeit vollständig erstattet.** Die Erstattung setzt weder eine Kündigung
 noch eine Begründung voraus und ist an keine Frist gebunden. Sie erfolgt auf
-das Zahlungsmittel, mit dem aufgeladen wurde, oder auf ein vom Kunden
-benanntes Konto. Bereits erbrachte Leistungen bleiben unberührt.
+das Zahlungsmittel, mit dem aufgeladen wurde. Ist dies aus Gründen, die der
+Anbieter nicht zu vertreten hat, nicht möglich, erfolgt sie durch Überweisung
+auf ein vom Kunden benanntes Konto. Bereits erbrachte Leistungen bleiben
+unberührt.
 
 ---
 

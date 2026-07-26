@@ -323,8 +323,10 @@ Terms (Invoice Purchase) apply in that case. There is no right to such a switch.
 
 10.7 **Unused prepaid balance is refunded to the Customer in full at any time
 upon request.** The refund requires neither termination nor a reason and is not
-subject to any deadline. It is made to the payment method used for the top-up or
-to an account designated by the Customer. Services already rendered remain
+subject to any deadline. It is made to the payment method used for the top-up.
+Where this is not possible for reasons outside the Provider's control, it is made
+by bank transfer to an account designated by the Customer. Services already
+rendered remain
 unaffected.
 
 ---
