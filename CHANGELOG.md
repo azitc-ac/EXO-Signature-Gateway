@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.29 — 2026-07-26 — Erstattung von Restguthaben: ausdrückliche Zusage
+
+- Die Erstattung stand bisher nur in Ziffer **12.6** — also im Abschnitt „Laufzeit und Beendigung". Sie las sich damit als Erstattung *bei Vertragsende*, obwohl sie jederzeit gelten soll.
+- **Neue Ziffer 10.7** im Abschnitt Vergütung, wo das Prepaid-Verfahren geregelt ist: nicht verbrauchtes Guthaben wird auf Verlangen **jederzeit vollständig** erstattet — ohne Kündigung, ohne Begründung, ohne Frist. Erstattung auf das genutzte Zahlungsmittel oder ein benanntes Konto.
+- Ziffer 12.6 verweist jetzt darauf, statt eine eigene, engere Regel aufzustellen.
+- Dieselbe Zusage in der **Preisliste** (Abschnitt Zahlungsweise) und in den **CA-Bedingungen** (`terms.py` Ziffer 4) ergänzt — dort, wo über Geld entschieden wird, nicht nur im Vertragstext.
+- Hintergrund: nimmt der geplanten Mindestaufladung die Hürde. Wer 25 € vorlegt, um ein Zertifikat zu testen, weiß, dass der Rest nicht gebunden ist.
+- DE und EN angeglichen, Querverweise geprüft (0 ungültig), Dokumenten-Synchronität bestätigt.
+
 ## v1.7.28 — 2026-07-26 — Fix: „Verifizierte Domains" erschien ohne Anbindung
 
 - Beim Anbindungs-Gate (v1.7.24/1.7.26) hatte ich diesen Abschnitt übersehen — Bedingungen und Rechnungsantrag wurden gekoppelt, die Domänen-Box nicht.

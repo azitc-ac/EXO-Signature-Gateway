@@ -319,6 +319,12 @@ keine Erstattung für den laufenden Abrechnungszeitraum.
 gelten die gesonderten Zahlungsbedingungen (Rechnungskauf). Ein Anspruch auf
 Umstellung besteht nicht.
 
+10.7 **Nicht verbrauchtes Prepaid-Guthaben wird dem Kunden auf Verlangen
+jederzeit vollständig erstattet.** Die Erstattung setzt weder eine Kündigung
+noch eine Begründung voraus und ist an keine Frist gebunden. Sie erfolgt auf
+das Zahlungsmittel, mit dem aufgeladen wurde, oder auf ein vom Kunden
+benanntes Konto. Bereits erbrachte Leistungen bleiben unberührt.
+
 ---
 
 ## 11. Haftung
@@ -373,8 +379,8 @@ Lizenzzählung oder bei schwerwiegendem Missbrauch.
 12.5 Mit Wirksamwerden der Kündigung endet der Zugang zum Hub. Das
 Nutzungsrecht am Gateway nach der jeweils anwendbaren Lizenz bleibt unberührt.
 
-12.6 Guthaben aus Prepaid-Zahlungen werden auf Verlangen erstattet, soweit sie
-nicht durch erbrachte Leistungen verbraucht sind.
+12.6 Nicht verbrauchtes Prepaid-Guthaben wird nach Ziffer 10.7 erstattet; dies
+gilt unabhängig von der Beendigung und bereits davor.
 
 ---
 
