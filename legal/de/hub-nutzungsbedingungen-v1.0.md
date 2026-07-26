@@ -369,7 +369,8 @@ unterbliebene Signaturen, Kompromittierung privater Schlüssel oder Verlust von
 E-Mail-Daten.
 
 11.6 Für die Software selbst gilt vorrangig der Haftungsausschluss der
-anwendbaren Lizenz.
+anwendbaren Lizenz. Ziffer 11.1 bleibt unberührt; die dort genannte
+unbeschränkte Haftung wird durch den Lizenzausschluss nicht eingeschränkt.
 
 11.7 Die vorstehenden Beschränkungen gelten auch zugunsten der
 Erfüllungsgehilfen des Anbieters.

@@ -355,7 +355,8 @@ operation of the Gateway**, in particular not for disruptions to mail flow,
 incorrect or missed signatures, compromise of private keys, or loss of email data.
 
 11.6 For the software itself, the liability exclusion of the applicable license
-takes precedence.
+takes precedence. Section 11.1 remains unaffected; the unlimited liability set
+out there is not restricted by the license exclusion.
 
 11.7 The foregoing limitations also apply in favor of the Provider's agents.
 
