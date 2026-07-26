@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.33 — 2026-07-26 — Stripe-Testmodus wird angezeigt
+
+- Ein Warnbanner an der Karte „Automatische Aufladung", solange der Hub mit Stripe-Testschlüsseln arbeitet: kein echtes Geld, echte Karten werden abgewiesen, samt den zu verwendenden Testkartennummern. Vorher fiel der Modus erst im Stripe-Checkout auf — und beim Umschalten auf Live hätte man geraten, welcher Modus gerade gilt.
+- Quelle ist `stripe_test_mode` aus `/api/billing/auto` (Hub v0.24.29); das Feld war dort bis dahin toter Code.
+- Farben aus der freigegebenen Palette (`#fffbeb`/`#fde68a`/`#92400e`), alle drei bereits in `dark-mode.css` abgedeckt — kein neuer Ton nötig, `darkcheck.py` ohne Lücke.
+
 ## v1.7.32 — 2026-07-26 — Automatische Guthaben-Aufladung: Bedienoberfläche
 
 Gegenstück zu Hub v0.24.28. Betrag wählen, Karte bei Stripe hinterlegen, fertig — reicht das Guthaben später nicht, wird vor der Bestellung automatisch nachgeladen.
