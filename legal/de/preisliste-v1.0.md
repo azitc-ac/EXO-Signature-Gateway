@@ -72,6 +72,10 @@ Die Abrechnung erfolgt grundsätzlich im Prepaid-Verfahren. Eine Umstellung auf
 Rechnungsstellung kann über den Hub beantragt werden; ein Anspruch darauf
 besteht nicht.
 
+**Nicht verbrauchtes Guthaben wird auf Verlangen jederzeit vollständig
+erstattet** — ohne Kündigung, ohne Begründung, ohne Frist (Ziffer 10.7 der
+Nutzungsbedingungen).
+
 ### Nutzung ohne Hub-Anbindung
 
 Für Umgebungen ohne Anbindung an den EXO Signature Hub stellt der Lizenzgeber

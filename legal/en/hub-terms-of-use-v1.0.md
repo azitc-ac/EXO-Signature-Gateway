@@ -308,6 +308,12 @@ billing period.
 10.6 The Customer may request a switch to invoice billing. The separate Payment
 Terms (Invoice Purchase) apply in that case. There is no right to such a switch.
 
+10.7 **Unused prepaid balance is refunded to the Customer in full at any time
+upon request.** The refund requires neither termination nor a reason and is not
+subject to any deadline. It is made to the payment method used for the top-up or
+to an account designated by the Customer. Services already rendered remain
+unaffected.
+
 ---
 
 ## 11. Liability
@@ -358,8 +364,8 @@ after a formal reminder, manipulation of the license count, or serious abuse.
 12.5 Upon termination, access to the Hub ends. The right to use the Gateway
 under the applicable license remains unaffected.
 
-12.6 Prepaid balances will be refunded upon request to the extent not consumed
-by services rendered.
+12.6 Unused prepaid balance is refunded in accordance with Section 10.7; this
+applies irrespective of termination and also beforehand.
 
 ---
 

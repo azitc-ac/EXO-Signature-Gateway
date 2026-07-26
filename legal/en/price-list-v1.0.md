@@ -75,6 +75,10 @@ Current certificate prices are displayed in the Hub.
 Billing is generally on a prepaid basis. A switch to invoice billing may be
 requested via the Hub; there is no entitlement to such a switch.
 
+**Unused balance is refunded in full at any time upon request** — without
+termination, without a reason, without any deadline (Section 10.7 of the Terms
+of Use).
+
 ### Use Without Hub Connection
 
 For environments without a connection to the EXO Signature Hub, the licensor
