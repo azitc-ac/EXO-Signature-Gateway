@@ -211,8 +211,12 @@ not request it (Section 4.3). If the number is apparent from documents the
 Customer submits of their own accord — such as a diagnostic bundle under
 Section 4.2 — the Provider may use that information.
 
-6.9 If an excess is subsequently identified, the Customer owes the license fee
-retroactively from the month of first excess.
+6.9 If an excess is identified, the Customer purchases the required licenses
+from the month in which they report it or in which the Provider becomes aware of
+it. No claim is made for past periods.
+
+The Provider wants customers to report an excess of their own accord. A
+retroactive claim should not stand in the way of that.
 
 6.10 **The term and cancellation of licenses depend on the chosen payment method:**
 

@@ -133,8 +133,9 @@ request it. If the number is apparent from documents the Licensee submits of
 their own accord, the Licensor may use that information (Section 6.8 of the Terms
 of Use for the EXO Signature Hub).
 
-6.4 If an excess is subsequently identified, the Licensee owes the license fee
-retroactively from the month of first excess.
+6.4 If an excess is identified, the Licensee purchases the required licenses
+from the month of identification. No claim is made for past periods (Section 6.9
+of the Terms of Use for the EXO Signature Hub).
 
 6.5 The Licensor does not conduct any access to the Licensee's systems.
 

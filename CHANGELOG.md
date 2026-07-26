@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.59 — 2026-07-27 — Keine rückwirkende Nachforderung bei Lizenzüberschreitung
+
+Ziffer 6.9 sah vor, dass bei nachträglich festgestellter Überschreitung die Lizenzgebühr **rückwirkend ab dem Monat der erstmaligen Überschreitung** geschuldet ist. Zwei Gründe sprechen dagegen:
+
+Der Zeitpunkt der ersten Überschreitung ist nicht feststellbar — die Zahl aktivierter Postfächer wird nicht erhoben (Ziffer 4.3). Eine Regel, die eine unbekannte Größe voraussetzt, lässt sich nicht anwenden.
+
+Und sie wirkte gegen ihren Zweck: Wer eine Überschreitung bemerkt, hätte sich zwischen einer Meldung mit unbestimmter Nachzahlung und Schweigen entscheiden müssen.
+
+Neu: Die erforderlichen Lizenzen werden ab dem Monat erworben, in dem die Überschreitung angezeigt oder bekannt wird. Für zurückliegende Zeiträume wird nichts nachgefordert. Gleiches in der Lizenz-Ergänzung (Ziffer 6.4), beide Sprachfassungen.
+
+Die Aufstockung innerhalb einer laufenden Abrechnungsperiode (Ziffer 10.5) bleibt unverändert — dort geht es um die anteilige Differenz für die verbleibenden Monate, nicht um Vergangenes.
+
 ## v1.7.58 — 2026-07-27 — Sperrbefugnis auf den tatsächlichen Wirkungsbereich begrenzt
 
 Ziffer 5.5 räumte dem Anbieter die Befugnis ein, Zertifikate sperren zu lassen — ohne Einschränkung. Bei der DigiCert-Direktanbindung hat der Kunde jedoch einen eigenen Vertrag mit der Zertifizierungsstelle; dort ist er selbst der Zertifikatsinhaber, und der Anbieter kann nichts veranlassen. Die Klausel versprach in diesem Fall etwas, das nicht einlösbar war.
