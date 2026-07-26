@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.28 — 2026-07-26 — Fix: „Verifizierte Domains" erschien ohne Anbindung
+
+- Beim Anbindungs-Gate (v1.7.24/1.7.26) hatte ich diesen Abschnitt übersehen — Bedingungen und Rechnungsantrag wurden gekoppelt, die Domänen-Box nicht.
+- Zweite Ursache: `certLoadCatalog()` steigt bei fehlender Anbindung früh aus (`if (!d.registered …) return;`). Dadurch behielt `_DOMAIN_VALIDATION_NEEDED` den konservativen Startwert `true` — die Box wäre selbst dann erschienen, wenn ausschließlich mailbox-validierte Anbieter freigeschaltet sind.
+- `_applyDomainBoxVisibility()` prüft jetzt beide Bedingungen. Vier Zustände gegengeprüft.
+- Bewusst **nicht** gesperrt: die DigiCert-Direktanbindung. Sie richtet sich an Kunden mit eigenem CertCentral-Konto und läuft absichtlich am Hub vorbei.
+
 ## v1.7.27 — 2026-07-26 — Domänenverifizierung nur noch, wo der Anbieter sie braucht
 
 - Die Box „Verifizierte Domains" erschien unabhängig davon, welche Zertifizierungsstelle genutzt wird. Bei mailbox-validierten CAs (Certum) ist der DNS-Eintrag jedoch reine Reibung — dort verifiziert die CA das Postfach selbst per Bestätigungsmail.
