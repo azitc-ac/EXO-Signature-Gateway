@@ -1,6 +1,6 @@
 # Terms of Use for the EXO Signature Hub
 
-**Version 1.0 — Date: 24 July 2026**
+**Version 2.0 — Date: 27 July 2026**
 
 Provider: Alexander Zarenko - IT Consulting, Triebelsstraße 4, 52066 Aachen, Germany
 (hereinafter "Provider")
@@ -218,23 +218,33 @@ it. No claim is made for past periods.
 The Provider wants customers to report an excess of their own accord. A
 retroactive claim should not stand in the way of that.
 
-6.10 **The term and cancellation of licenses depend on the chosen payment method:**
+6.10 **Licenses renew automatically for the period last chosen** — by one month
+for monthly payment, by twelve months for annual prepayment. The renewal is
+carried out a few days before expiry; the new term is counted from the previous
+expiry date, so that no days already paid for are lost. The fee is taken from
+the balance; if the balance is insufficient, an automatic top-up set up by the
+Customer is triggered. The Customer is notified of every renewal in text form.
 
-- *Monthly payment:* Licenses renew monthly. Cancellation is possible
-  **without any notice period up to the last day of the current month** and
-  takes effect at the end of that month.
-- *Annual prepayment:* Licenses have a term of twelve months and renew for
-  further twelve-month periods unless cancelled **by the last day of the
-  current term**. No notice period applies here either; what matters is solely
-  that the cancellation is received before expiry.
+If the renewal fails — for instance for lack of balance — the license remains
+valid until its expiry date. The Provider notifies the Customer stating the
+reason and retries.
 
-6.11 With annual prepayment, the Customer may also cancel early at month end. In
-this case, the Provider refunds the unused portion of the license fee, calculated
-at the regular monthly price without the annual prepayment discount. If the
-calculation yields no positive amount, no refund is made.
+6.11 **The Customer may stop the renewal at any time and without observing any
+notice period.** The declaration is made via the license management in the
+Gateway and takes effect immediately: no further renewal takes place.
 
-6.12 Cancellations may be declared at any time via the license management in the
-Gateway. The Provider confirms receipt and effective date in text form.
+The Provider refunds the unused portion of the license fee already paid. It is
+calculated on the basis of the full calendar months that have not yet begun when
+the declaration is received, at the regular monthly price without the discount
+granted for the annual term. If the calculation yields no positive amount, no
+refund is made.
+
+As long as the license is still running, the Customer can reactivate the renewal
+from the same view.
+
+6.12 The Provider confirms receipt of the declaration and the refund amount in
+text form. This confirmation also satisfies the form requirement under
+Section 14.4.
 
 ---
 
@@ -399,18 +409,23 @@ changes in law, court decisions, the terms of certificate authorities, or by
 further development of the service, and does not unreasonably disadvantage the
 Customer.
 
-13.2 Changes will be announced in text form with six weeks' notice.
+13.2 The Provider displays the amended version in the Gateway and additionally
+notifies the Customer by email to the address on file.
 
-13.3 If the Customer does not object within six weeks of receipt, the changes are
-deemed accepted. The Customer will be specifically informed of this effect in the
-notification. This does not apply to changes under Section 13.5.
+13.3 **Amendments take effect only once the Customer has expressly consented to
+them in the Gateway. Silence does not constitute consent.** There is neither an
+objection period nor any deemed acceptance.
 
-13.4 In the event of objection, either party may terminate at the time the
-changes take effect.
+13.4 Until consent is given, the previous version continues to apply. During
+this time the Customer cannot obtain new chargeable services — that is, no
+certificate orders, no balance top-ups, and no purchase or renewal of licenses.
+**Services already paid for and the ongoing operation of the Gateway remain
+unaffected; in particular, processing of the mail flow, including signatures and
+S/MIME signing and encryption, is not restricted.**
 
-13.5 Changes that materially affect obligations or liability do not take effect
-through silence. They require renewed explicit consent in the Hub. Until consent
-is given, the previous version continues to apply.
+13.5 If the Customer does not consent, the contract ends upon expiry of the
+period already paid for, without any need for termination. Section 6.11 (refund
+of the unused portion) applies accordingly.
 
 ---
 
@@ -438,4 +453,4 @@ information purposes only.
 
 ---
 
-*Version 1.0 — 24 July 2026*
+*Version 2.0 — 27 July 2026*

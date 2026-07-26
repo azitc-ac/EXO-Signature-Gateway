@@ -1,6 +1,6 @@
 # Lizenzbedingungen für die kommerzielle Nutzung des EXO Signature Gateway
 
-**Version 1.0 — Stand 24. Juli 2026**
+**Version 2.0 — Stand 27. Juli 2026**
 
 Lizenzgeber: Alexander Zarenko - IT Consulting, Triebelsstraße 4, 52066 Aachen
 (nachfolgend „Lizenzgeber")
@@ -60,9 +60,11 @@ Postfächern und die Gültigkeitsdauer aus.
 3.1 **Bei Nutzung mit Hub-Anbindung** richten sich Laufzeit und Kündigung nach
 Ziffer 6.10 bis 6.12 der Nutzungsbedingungen für den EXO Signature Hub. Die
 Laufzeit folgt der gewählten Zahlungsweise: monatliche Zahlung bedeutet
-monatliche Verlängerung und Kündigung zum Monatsende, jährliche Vorauszahlung
-bedeutet eine Laufzeit von zwölf Monaten mit Verlängerung um jeweils zwölf
-Monate.
+Verlängerung um einen Monat, jährliche Vorauszahlung eine Laufzeit von zwölf
+Monaten mit Verlängerung um jeweils zwölf Monate. **Die Verlängerung erfolgt
+automatisch; der Lizenznehmer kann sie jederzeit und ohne Frist über die
+Lizenzverwaltung im Gateway beenden und erhält den nicht genutzten Anteil
+erstattet.**
 
 3.2 **Bei Nutzung mit Lizenzschlüssel** gilt die auf dem Lizenzschlüssel
 ausgewiesene Gültigkeitsdauer, in der Regel zwölf Monate. Der Lizenzvertrag
@@ -97,11 +99,14 @@ ausgewiesenen, jeweils gültigen Preisen.
 Ziffer 10 der Nutzungsbedingungen für den EXO Signature Hub sowie der jeweils
 gültigen Preisliste.
 
-4.3 Der Lizenzgeber kann die Preise mit einer Frist von sechs Wochen zum Ende
-eines Abrechnungszeitraums in Textform ändern. Widerspricht der Lizenznehmer
-nicht innerhalb dieser Frist, gelten die geänderten Preise als angenommen. Auf
-diese Wirkung wird in der Mitteilung gesondert hingewiesen. Bei Widerspruch
-kann jede Partei zum Zeitpunkt des Inkrafttretens kündigen.
+4.3 Der Lizenzgeber kann die Preise mit Wirkung für künftige
+Abrechnungszeiträume ändern. **Geänderte Preise gelten für den Lizenznehmer
+erst, wenn er ihnen im Gateway ausdrücklich zustimmt; Schweigen gilt nicht als
+Zustimmung.** Für den bereits bezahlten Abrechnungszeitraum bleibt es beim
+vereinbarten Preis. Stimmt der Lizenznehmer nicht zu, wird die Lizenz nicht
+weiter verlängert und der Lizenzvertrag endet mit Ablauf des bezahlten
+Zeitraums; Ziffer 6.11 der Nutzungsbedingungen für den EXO Signature Hub gilt
+entsprechend.
 
 ---
 
@@ -201,14 +206,18 @@ des Lizenznehmers ist damit nicht verbunden.
 Änderungen der Rechtslage, der Rechtsprechung oder durch Weiterentwicklung der
 Software veranlasst ist und den Lizenznehmer nicht unangemessen benachteiligt.
 
-9.2 Änderungen werden mit einer Frist von sechs Wochen in Textform angekündigt.
-Widerspricht der Lizenznehmer nicht innerhalb dieser Frist, gelten sie als
-angenommen. Auf diese Wirkung wird in der Mitteilung gesondert hingewiesen.
+9.2 Der Lizenzgeber zeigt die geänderte Fassung im Gateway an und weist den
+Lizenznehmer zusätzlich per E-Mail an die hinterlegte Adresse darauf hin.
 
-9.3 Bei Widerspruch kann jede Partei zum Zeitpunkt des Inkrafttretens kündigen.
+9.3 **Änderungen werden erst wirksam, wenn der Lizenznehmer ihnen im Gateway
+ausdrücklich zustimmt. Schweigen gilt nicht als Zustimmung.** Es gibt weder eine
+Widerspruchsfrist noch eine Zustimmungsfiktion. Bis zur Zustimmung gilt die
+bisherige Fassung fort.
 
-9.4 Änderungen, die Pflichten oder Haftung inhaltlich betreffen, erfordern eine
-erneute ausdrückliche Zustimmung.
+9.4 Stimmt der Lizenznehmer nicht zu, wird die Lizenz nicht weiter verlängert
+und der Lizenzvertrag endet mit Ablauf des bezahlten Zeitraums, ohne dass es
+einer Kündigung bedarf. Das Nutzungsrecht nach der Basislizenz im Umfang der
+Freigrenze bleibt unberührt (Ziffer 3.5).
 
 ---
 
@@ -233,4 +242,4 @@ der Information.
 
 ---
 
-*Version 1.0 — 24. Juli 2026*
+*Version 2.0 — 27. Juli 2026*

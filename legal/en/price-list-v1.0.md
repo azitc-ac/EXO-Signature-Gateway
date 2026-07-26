@@ -90,16 +90,22 @@ is in advance for the full term; no refund is made.
 
 | Payment method | Price | Term | Cancellation |
 |---|---|---|---|
-| Monthly | EUR 1.00 per license/month | monthly | no notice period, until end of month |
-| Annual prepayment | EUR 0.90 per license/month (10% discount) | 12 months | no notice period, until end of term |
+| Monthly | EUR 1.00 per license/month | monthly, renews automatically | any time, no notice period |
+| Annual prepayment | EUR 0.90 per license/month (10% discount) | 12 months, renews automatically | any time, no notice period |
 
 The payment method is chosen when purchasing licenses and may be changed at the
 end of the respective billing period.
 
-**Early cancellation with annual prepayment:** Even with annual prepayment,
-cancellation to the end of the month is possible. The unused portion is refunded,
-calculated at the regular monthly price of EUR 1.00 without the annual prepayment
-discount.
+**Licenses renew automatically** for the period last chosen. The fee is taken
+from the balance shortly before expiry; if the balance is insufficient, the
+automatic top-up that has been set up is triggered. Every renewal is notified by
+email.
+
+**Cancellation any time, no notice period.** The renewal can be stopped from the
+license management in the Gateway — including part-way through an annual term.
+The unused portion is refunded, calculated on the full calendar months that have
+not yet begun, at the regular monthly price of EUR 1.00 without the annual
+prepayment discount.
 
 Example for 100 licenses: Annual prepayment EUR 1,080.00. Cancellation after
 three months. Used: 3 × 100 × EUR 1.00 = EUR 300.00. Refund: EUR 1,080.00 −

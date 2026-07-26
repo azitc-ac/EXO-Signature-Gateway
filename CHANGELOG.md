@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.65 — 2026-07-27 — Bedingungsänderungen gelten erst nach Zustimmung
+
+**Die Zustimmungsfiktion entfällt.** Bisher galten geänderte Bedingungen als angenommen, wenn nicht binnen sechs Wochen widersprochen wurde. Das setzte voraus, dass die Ankündigung den Kunden auch erreicht — eine übersehene E-Mail hätte sonst einen Vertrag geändert, von dem er nie erfahren hat. Ziffer 13.3 verlangt jetzt eine ausdrückliche Zustimmung im Gateway; Schweigen genügt nicht, eine Widerspruchsfrist gibt es nicht mehr. Dieselbe Umstellung in Ziffer 9 und bei Preisänderungen (Ziffer 4.3 der Lizenzbedingungen-Ergänzung).
+
+**Was bis zur Zustimmung gesperrt ist — und was nicht.** Ohne Zustimmung sind keine neuen kostenpflichtigen Vorgänge möglich: keine Zertifikatsbestellung, keine Aufladung, kein Lizenzerwerb. **Der Mailfluss läuft unverändert weiter**, einschließlich Signatur und S/MIME. Das steht ausdrücklich in Ziffer 13.4, damit eine Bedingungsänderung nie zum Betriebsrisiko wird.
+
+**Hinweisband in der Oberfläche.** Ändert sich ein zustimmungspflichtiges Dokument, erscheint auf jeder Seite ein Band mit den betroffenen Dokumenten und einem Dialog zum Lesen und Zustimmen. Es erscheint nur, wenn einer *früheren* Fassung bereits zugestimmt wurde — auf einem frisch aufgesetzten Gateway führen weiterhin die bestehenden Abfragen durch die Erstzustimmung.
+
+**Automatische Lizenzverlängerung.** Ziffer 6.10 bis 6.12 beschreiben jetzt das tatsächliche Verhalten: Lizenzen verlängern sich automatisch um den zuletzt gewählten Zeitraum, gerechnet ab dem bisherigen Ablaufdatum, sodass keine bezahlten Tage verfallen. Die Gebühr wird dem Guthaben entnommen; reicht es nicht, greift der eingerichtete automatische Einzug. Die Verlängerung lässt sich jederzeit ohne Frist beenden, der nicht genutzte Anteil wird erstattet.
+
+**Zu tun:** Nach diesem Update erscheint das Band, sobald Hub-Nutzungsbedingungen oder Lizenzbedingungen-Ergänzung zuvor akzeptiert waren. Beide Dokumente stehen auf Fassung 2.0.
+
+Am Rande korrigiert: `legal/README.md` beschrieb einen „Minor-Bump ohne erneute Zustimmung". Diesen Pfad gibt es im Code nicht — die Zustimmung ist an die Prüfsumme des Dokumententexts gebunden, schon eine redaktionelle Korrektur macht sie ungültig. Das ist beabsichtigt; die Beschreibung war falsch.
+
 ## v1.7.64 — 2026-07-27 — Kündigungsform und Änderungsverfahren klargestellt
 
 **Kündigung über die Oberfläche.** Ziffer 12.4 verlangte Textform, Ziffer 6.12 stellte die Kündigung über die Lizenzverwaltung im Gateway in Aussicht. Ein Klick ist keine Textform nach § 126b BGB — wer in der Oberfläche kündigte, hätte formal nicht wirksam gekündigt. Beide Wege sind jetzt ausdrücklich gleichgestellt.

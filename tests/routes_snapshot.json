@@ -448,6 +448,13 @@
     "name": "api_legal_doc"
   },
   {
+    "pfad": "/api/legal/pending",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_legal_pending"
+  },
+  {
     "pfad": "/api/legal/status",
     "methoden": [
       "GET"

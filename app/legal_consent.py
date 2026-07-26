@@ -20,18 +20,18 @@ _DB_PATH = Path("/app/data/legal_consent.db")
 # ── Document registry ────────────────────────────────────────────────────────
 CURRENT_DOCUMENTS: dict[str, dict] = {
     "hub-terms": {
-        "version": "1.0",
+        "version": "2.0",
         "label_de": "Hub-Nutzungsbedingungen",
         "label_en": "Hub Terms of Use",
-        "path_de": "de/hub-nutzungsbedingungen-v1.0.md",
-        "path_en": "en/hub-terms-of-use-v1.0.md",
+        "path_de": "de/hub-nutzungsbedingungen-v2.0.md",
+        "path_en": "en/hub-terms-of-use-v2.0.md",
     },
     "license-supplement": {
-        "version": "1.0",
+        "version": "2.0",
         "label_de": "Lizenzbedingungen-Ergänzung",
         "label_en": "License Terms Supplement",
-        "path_de": "de/lizenzbedingungen-ergaenzung-v1.0.md",
-        "path_en": "en/license-supplement-v1.0.md",
+        "path_de": "de/lizenzbedingungen-ergaenzung-v2.0.md",
+        "path_en": "en/license-supplement-v2.0.md",
     },
     "payment-invoice": {
         "version": "1.0",
@@ -152,6 +152,53 @@ def has_valid_consent(document_id: str) -> bool:
 def context_consented(context: str) -> bool:
     """True if all documents required for this context have valid consent."""
     return all(has_valid_consent(d) for d in CONTEXT_DOCUMENTS.get(context, []))
+
+
+def pending_reconsent() -> list[dict]:
+    """Dokumente, denen früher zugestimmt wurde und deren aktuelle Fassung offen ist.
+
+    Bewusst verschieden von „noch nie zugestimmt": Auf einem frisch aufgesetzten
+    Gateway ist noch zu gar nichts zugestimmt worden — dort führen die Gates
+    (CONTEXT_DOCUMENTS) durch die Erstzustimmung, ein Banner wäre dort nur Lärm.
+    Ein Banner gehört genau dorthin, wo eine bestehende Zustimmung durch eine
+    Textänderung ungültig geworden ist und der Betreiber sonst erst beim
+    nächsten kostenpflichtigen Vorgang darüber stolpert.
+
+    Rückgabe je Dokument: doc_id, Bezeichnungen, aktuelle Version und Prüfsumme
+    sowie Version und Zeitpunkt der zuletzt erteilten Zustimmung.
+    """
+    offen: list[dict] = []
+    try:
+        with _conn() as c:
+            for doc_id, doc in CURRENT_DOCUMENTS.items():
+                if doc.get("no_consent_required"):
+                    continue
+                h = compute_document_hash(doc_id)
+                if not h:
+                    # Datei fehlt oder ist unlesbar. Kein Banner: der Betreiber
+                    # könnte ohnehin nichts zustimmen, und has_valid_consent()
+                    # sperrt die Gates bereits.
+                    continue
+                if has_valid_consent(doc_id):
+                    continue
+                frueher = c.execute(
+                    "SELECT version, accepted_at FROM consents WHERE document_id=? "
+                    "ORDER BY id DESC LIMIT 1", (doc_id,),
+                ).fetchone()
+                if not frueher:
+                    continue                      # nie zugestimmt → Sache der Gates
+                offen.append({
+                    "doc_id": doc_id,
+                    "label_de": doc.get("label_de", doc_id),
+                    "label_en": doc.get("label_en", doc_id),
+                    "version": doc["version"],
+                    "content_hash": h,
+                    "previous_version": frueher["version"],
+                    "previous_accepted_at": frueher["accepted_at"],
+                })
+    except Exception as e:
+        log.error("legal_consent.pending_reconsent: %s", e)
+    return offen
 
 
 def record_consent(document_id: str, version: str, content_hash: str,

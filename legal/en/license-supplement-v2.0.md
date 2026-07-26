@@ -1,6 +1,6 @@
 # License Terms for Commercial Use of the EXO Signature Gateway
 
-**Version 1.0 — Date: 24 July 2026**
+**Version 2.0 — Date: 27 July 2026**
 
 Licensor: Alexander Zarenko - IT Consulting, Triebelsstraße 4, 52066 Aachen, Germany
 (hereinafter "Licensor")
@@ -59,9 +59,11 @@ states the licensed number of mailboxes and the validity period.
 
 3.1 **With Hub connection**, term and cancellation are governed by Sections
 6.10 through 6.12 of the Terms of Use for the EXO Signature Hub. The term
-follows the chosen payment method: monthly payment means monthly renewal and
-cancellation to the end of the month; annual prepayment means a term of twelve
-months with renewal for further twelve-month periods.
+follows the chosen payment method: monthly payment means renewal by one month;
+annual prepayment means a term of twelve months with renewal for further
+twelve-month periods. **Renewal is automatic; the Licensee may stop it at any
+time and without any notice period via the license management in the Gateway and
+receives a refund of the unused portion.**
 
 3.2 **With license key**, the validity period stated on the license key applies,
 typically twelve months. The license agreement ends upon expiry of this period
@@ -94,11 +96,13 @@ in the EXO Signature Hub.
 4.2 Billing intervals, minimum purchase, and discounts are governed by Section
 10 of the Terms of Use for the EXO Signature Hub and the applicable price list.
 
-4.3 The Licensor may change prices with six weeks' notice in text form to the
-end of a billing period. If the Licensee does not object within this period, the
-changed prices are deemed accepted. The Licensee will be specifically informed of
-this effect in the notification. In the event of objection, either party may
-terminate at the time the changes take effect.
+4.3 The Licensor may change prices with effect for future billing periods.
+**Changed prices apply to the Licensee only once the Licensee has expressly
+consented to them in the Gateway; silence does not constitute consent.** For the
+billing period already paid for, the agreed price continues to apply. If the
+Licensee does not consent, the license is not renewed further and the license
+agreement ends upon expiry of the period paid for; Section 6.11 of the Terms of
+Use for the EXO Signature Hub applies accordingly.
 
 ---
 
@@ -193,15 +197,18 @@ These limitations do not alter the burden of proof to the Licensee's detriment.
 changes in law, court decisions, or by further development of the software, and
 does not unreasonably disadvantage the Licensee.
 
-9.2 Changes will be announced in text form with six weeks' notice. If the
-Licensee does not object within this period, the changes are deemed accepted.
-The Licensee will be specifically informed of this effect in the notification.
+9.2 The Licensor displays the amended version in the Gateway and additionally
+notifies the Licensee by email to the address on file.
 
-9.3 In the event of objection, either party may terminate at the time the
-changes take effect.
+9.3 **Amendments take effect only once the Licensee has expressly consented to
+them in the Gateway. Silence does not constitute consent.** There is neither an
+objection period nor any deemed acceptance. Until consent is given, the previous
+version continues to apply.
 
-9.4 Changes that materially affect obligations or liability require renewed
-explicit consent.
+9.4 If the Licensee does not consent, the license is not renewed further and the
+license agreement ends upon expiry of the period paid for, without any need for
+termination. The right of use under the Base License within the free tier
+remains unaffected (Section 3.5).
 
 ---
 
@@ -226,4 +233,4 @@ information purposes only.
 
 ---
 
-*Version 1.0 — 24 July 2026*
+*Version 2.0 — 27 July 2026*

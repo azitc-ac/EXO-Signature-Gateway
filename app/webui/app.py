@@ -4653,6 +4653,17 @@ async def api_legal_status(user: str = Depends(_require_admin)):
     return JSONResponse({"ok": True, "documents": legal_consent.consent_status_all()})
 
 
+@app.get("/api/legal/pending")
+async def api_legal_pending(user: str = Depends(_require_admin)):
+    """Dokumente, deren geänderte Fassung noch zuzustimmen ist (Ziffer 13.3).
+
+    Speist das Hinweisband in base.html. Bewusst leer auf einem frisch
+    aufgesetzten Gateway — dort führen die Gates durch die Erstzustimmung.
+    """
+    import legal_consent
+    return JSONResponse({"ok": True, "pending": legal_consent.pending_reconsent()})
+
+
 @app.get("/api/legal/doc/{doc_id}")
 async def api_legal_doc(doc_id: str, lang: str = "de", user: str = Depends(_require_admin)):
     import legal_consent
