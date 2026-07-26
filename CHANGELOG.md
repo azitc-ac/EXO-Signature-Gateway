@@ -5,6 +5,27 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.47 — 2026-07-26 — Aufruf-Tests der Weboberfläche
+
+Zweites Netz für den `app.py`-Umbau. Die Routentabelle (v1.7.45) beweist, dass alle Endpunkte noch registriert sind — nicht, dass sie noch **funktionieren**. Wird beim Verschieben ein Import falsch, bleibt die Route bestehen und scheitert erst beim Aufruf.
+
+`tests/test_seiten.py` ruft deshalb auf, in zwei Ebenen:
+- **10 benannte Seiten** mit einem seiteneigenen Merkmal, plus: lädt `common.js`, erbt von `base.html`, gibt kein Geheimnis aus.
+- **Rundumlauf über alle 101 parameterlosen GET-Routen** — keine darf mit 500 antworten. 422 (Pflichtparameter fehlt), 503 (nicht konfiguriert) und 404 sind ausdrücklich in Ordnung; nur der Serverfehler ist immer ein Befund.
+- Und die Umkehrprobe: **ohne Anmeldung ist nichts erreichbar** (eigener TestClient ohne die Umgehung).
+
+**Drei Mängel fanden sich erst durch die Gegenprobe** — jedes Mal in meinem eigenen Test, nicht im Code:
+
+1. Erst standen sprechende Wörter als Merkmal (`"S/MIME"`, `"Backup"`). Ließ man `/settings/smime` versehentlich `backup.html` rendern, **bestand der Test weiterhin** — das Wort steht auch dort. Jetzt eine Element-ID, die nur auf dieser einen Seite vorkommt.
+2. Die erste Mutation traf eine **parameterisierte** Route, die der Rundumlauf gar nicht abdeckt — sie bewies also nichts. Erneut gezielt, dann gefangen.
+3. Die Testvorbereitung setzte erfundene `TENANT_ID`/`CLIENT_ID`. Vier Endpunkte hielten die für echt und versuchten **Azure-Aufrufe**. Jetzt nur `SETUP_COMPLETE` — eine Vorbereitung, die Netzwerkverkehr auslöst, ist keine.
+
+Gegengeprüft mit drei Mutationen: kaputter Modulname in einer abgedeckten Route (→ 500 gemeldet), vertauschte Vorlage (→ Merkmal fehlt), `common.js` aus `base.html` entfernt (→ 9 Tests rot).
+
+**Dabei gefunden:** drei Endpunkte verdrahteten `_Path("/app/data/smime")` **inline**, obwohl `smime_store.SMIME_DIR` genau dafür existiert — und `smime_store` wurde funktionslokal mit drei verschiedenen Aliasen importiert (`_smime`, `_smime_store`, `smime_store`). Jetzt ein Import auf Modulebene und die Konstante statt des Literals.
+
+**Offener Befund für den Umbau:** im Gateway stehen **35 Literale `"/app/data…"`** verteilt im Code, im Hub nur 3 — dort gibt es `config.DATA_DIR`. Zwei Endpunkte (`/api/system/info`, `/api/support/download`) sind deshalb außerhalb des Containers nicht aufrufbar und im Rundumlauf mit Begründung ausgenommen. Ein zentraler Datenpfad gehört in den `app.py`-Umbau; eine halb eingeführte Konstante wäre genau das Stückwerk, das vermieden werden soll.
+
 ## v1.7.45 — 2026-07-26 — Routen-Bestandsaufnahme als Netz für den app.py-Umbau
 
 `app/webui/app.py` hat **4945 Zeilen** und bisher **keinerlei Testabdeckung**. Bevor die Datei aufgeteilt wird, braucht es ein Netz, das genau die Frage beantwortet, auf die es bei reinem Umsortieren ankommt: *Ist es danach dieselbe Oberfläche wie davor?*
