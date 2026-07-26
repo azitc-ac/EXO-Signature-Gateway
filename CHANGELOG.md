@@ -25,21 +25,29 @@ Der Commit-Hook liegt jetzt versioniert im Repository und verlangt einen Changel
 
 ## v1.7.47 — 2026-07-26 — Automatische Prüfung der Weboberfläche
 
-Alle Seiten und Schnittstellen des Gateways werden bei jeder Änderung automatisch aufgerufen und auf Fehler geprüft. Keine Auswirkung auf den Betrieb; verringert das Risiko, dass eine Änderung eine Seite unbemerkt beschädigt.
+Alle Seiten und parameterlosen Schnittstellen werden bei jeder Änderung aufgerufen und geprüft: Antwortet die Seite, ist es die richtige Vorlage, hängt `common.js` daran, taucht kein Geheimnis im HTML auf, und ist ohne Anmeldung nichts erreichbar.
 
-## v1.7.45 — 2026-07-26 — Automatische Prüfung aller Schnittstellen
+Vorbereitung für die anstehende Aufteilung von `app.py` (4945 Zeilen): Beim Verschieben von Endpunkten bleibt eine Route bestehen, auch wenn ein Import bricht — der Fehler zeigt sich erst beim Aufruf.
 
-Die vollständige Liste der 222 Schnittstellen wird bei jeder Änderung abgeglichen. Keine Auswirkung auf den Betrieb.
+Dabei behoben: Drei Endpunkte verdrahteten den S/MIME-Pfad `/app/data/smime` als Literal, statt die vorhandene Konstante zu nutzen.
+
+## v1.7.45 — 2026-07-26 — Schnittstellen-Bestand wird abgeglichen
+
+Die vollständige Liste der 222 Routen — Pfad, Methoden, Name — wird bei jeder Änderung gegen einen festgehaltenen Stand geprüft. Meldet verlorene, neu hinzugekommene, doppelt registrierte und namenlose Routen.
+
+Zweck: Beim Aufteilen von `app.py` soll auffallen, wenn ein Endpunkt verschwindet oder versehentlich zweimal registriert wird — die zweite Registrierung ist dann wirkungslos.
 
 ## v1.7.43 — 2026-07-26 — Abhängigkeiten exakt festgelegt
 
-Die verwendeten Fremdpakete waren nur mit Mindestfassungen angegeben. Ein Neubau zog damit jeweils die aktuellste Fassung — zwei Installationen desselben Stands konnten unterschiedliche Pakete enthalten.
+Die Fremdpakete waren nur mit Mindestfassungen angegeben. Ein Neubau zog damit jeweils die aktuellste Fassung — der Abstand war erheblich: gefordert `fastapi>=0.104.0`, installiert lief `0.139.0`; gefordert `cryptography>=41.0.0`, installiert `49.0.0`. Zwei Installationen desselben Stands konnten unterschiedliche Pakete enthalten, je nach Bautag.
 
-Jetzt sind alle Fassungen exakt festgelegt: **ein Neubau liefert reproduzierbar dasselbe Ergebnis.** Aktualisierungen erfolgen künftig als bewusster, geprüfter Schritt.
+Jetzt sind alle Fassungen exakt festgelegt, und zwar auf die, die produktiv laufen: **ein Neubau liefert reproduzierbar dasselbe Ergebnis.** Aktualisierungen erfolgen künftig als bewusster, geprüfter Schritt.
 
-## v1.7.41 — 2026-07-26 — Automatische Prüfungen eingeführt
+## v1.7.41 — 2026-07-26 — Automatische Prüfungen der Kernfunktionen
 
-Kernfunktionen — Dateirechte, Einstellungen, Update-Mechanismus — werden bei jeder Änderung automatisch geprüft. Keine Auswirkung auf den Betrieb.
+Dateirechte, Einstellungen und Update-Mechanismus werden bei jeder Änderung geprüft, dazu die JavaScript-Syntax aller Vorlagen. Die Prüfungen laufen zusätzlich bei jedem Push auf einem leeren System — das fängt Abhängigkeiten, die lokal nur deshalb funktionieren, weil sie schon im Image liegen.
+
+Abgesichert sind unter anderem: dass die Rechte-Härtung nur einschränkt und nie lockert, dass Boolean-Einstellungen nicht als Zeichenkette abgelegt werden (`"false"` wäre wahr), und dass die Update-Prüfung „Version nicht ermittelbar" von „aktuell" unterscheidet — sonst verschwindet die Update-Schaltfläche.
 
 ## v1.7.40 — 2026-07-26 — Fehlermeldungen in der Oberfläche
 
@@ -55,9 +63,9 @@ Weiter behoben:
 
 ## v1.7.38 — 2026-07-26 — Wiederherstellung: Pfadprüfung verschärft
 
-Beim Einspielen einer Sicherung prüfte das Gateway die Zieldateien mit einem Zeichenkettenvergleich. Ein manipuliertes Archiv konnte dadurch theoretisch außerhalb des Datenverzeichnisses schreiben. In der ausgelieferten Verzeichnisaufteilung nicht ausnutzbar; die Prüfung ist trotzdem korrigiert.
+Beim Einspielen einer Sicherung prüfte das Gateway die Zielpfade mit einem Zeichenkettenvergleich. Ein Eintrag wie `data/../data-fremd/x` löst zu einem Pfad auf, der denselben Anfang hat, aber außerhalb des Datenverzeichnisses liegt — er wäre durchgekommen. In der ausgelieferten Verzeichnisaufteilung nicht ausnutzbar, da unterhalb von `/app/` kein sicherheitsrelevanter Pfad mit „data" beginnt; die Prüfung vergleicht jetzt trotzdem Pfadbestandteile statt Zeichen.
 
-Außerdem: Die Update-Prüfung funktioniert jetzt auch, wenn das Repository nicht öffentlich erreichbar ist.
+Die Update-Prüfung wurde zusammengeführt und funktioniert jetzt auch bei nicht öffentlich erreichbaren Repositorys: Die Fernversion kommt dann aus einer lokalen Datei statt aus der GitHub-API.
 
 ## v1.7.36 — 2026-07-26 — S/MIME-Privatschlüssel waren zu weit lesbar
 
@@ -69,9 +77,11 @@ Einordnung: Lesbar waren die Schlüssel für andere lokale Konten auf demselben 
 
 Beim Einspielen einer Sicherung wurden die Rechte zuvor wieder gelockert — auch das ist behoben. Zusätzlich weist die Oberfläche jetzt aus, wenn „Private Keys verschlüsseln" angehakt, aber kein Passwort gesetzt ist: In dem Fall werden die Schlüssel unverschlüsselt abgelegt.
 
-## v1.7.35 — 2026-07-26 — Gemeinsame Bausteine in der Oberfläche
+## v1.7.35 — 2026-07-26 — Gemeinsame Frontend-Bausteine
 
-Zusammenführung mehrfach vorhandener Hilfsfunktionen. Keine Auswirkung auf den Betrieb.
+Elf handgeschriebene HTML-Maskierungsfunktionen mit elf verschiedenen Namen sind durch eine gemeinsame ersetzt (`app/webui/static/common.js`, auf jeder Seite geladen). Die alten Fassungen unterschieden sich: Die meisten maskierten Apostrophe nicht, eine vergaß spitze Klammern — die gemeinsame ist strikt sicherer.
+
+Neu ist außerdem eine automatische Prüfung auf auseinandergelaufene Umsetzungen derselben Sache: handgeschriebene Maskierungen, atomares Schreiben ohne Rechtevergabe, Abweichungen zwischen Dateien, die inhaltsgleich sein müssen. Sie fand beim ersten Lauf einen weiteren Fall zu weit gesetzter Dateirechte.
 
 ## v1.7.33 — 2026-07-26 — Stripe-Testmodus wird angezeigt
 
