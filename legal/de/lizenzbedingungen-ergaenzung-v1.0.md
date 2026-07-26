@@ -137,8 +137,10 @@ auch nicht an. Ergibt sie sich aus Unterlagen, die der Lizenznehmer von sich aus
 übermittelt, darf der Lizenzgeber diese Angabe verwenden (Ziffer 6.8 der
 Nutzungsbedingungen für den EXO Signature Hub).
 
-6.4 Bei nachträglich festgestellter Überschreitung schuldet der Lizenznehmer
-die Lizenzgebühr rückwirkend ab dem Monat der erstmaligen Überschreitung.
+6.4 Wird eine Überschreitung festgestellt, erwirbt der Lizenznehmer die
+erforderlichen Lizenzen ab dem Monat der Feststellung. Eine Nachforderung für
+zurückliegende Zeiträume erfolgt nicht (Ziffer 6.9 der Nutzungsbedingungen für
+den EXO Signature Hub).
 
 6.5 Der Lizenzgeber führt keine Zugriffe auf Systeme des Lizenznehmers durch.
 

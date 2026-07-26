@@ -214,8 +214,12 @@ auch nicht an (Ziffer 4.3). Ergibt sie sich aus Unterlagen, die der Kunde von
 sich aus übermittelt — etwa einem Diagnosepaket nach Ziffer 4.2 —, darf der
 Anbieter diese Angabe verwenden.
 
-6.9 Bei nachträglich festgestellter Überschreitung schuldet der Kunde die
-Lizenzgebühr rückwirkend ab dem Monat der erstmaligen Überschreitung.
+6.9 Wird eine Überschreitung festgestellt, erwirbt der Kunde die erforderlichen
+Lizenzen ab dem Monat, in dem er sie anzeigt oder der Anbieter von ihr Kenntnis
+erlangt. Eine Nachforderung für zurückliegende Zeiträume erfolgt nicht.
+
+Dem Anbieter ist daran gelegen, dass Kunden eine Überschreitung von sich aus
+anzeigen. Eine rückwirkende Forderung soll dem nicht entgegenstehen.
 
 6.10 **Laufzeit und Kündigung der Lizenzen richten sich nach der gewählten
 Zahlungsweise:**
