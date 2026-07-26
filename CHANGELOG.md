@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.62 — 2026-07-27 — Haftung: zwingende Ansprüche ausdrücklich ausgenommen
+
+Ziffer 11.6 verwies für die Software auf den Haftungsausschluss der Lizenz („wie besehen"), ohne die zwingend unbeschränkte Haftung auszunehmen. Nach § 309 Nr. 7 BGB sind Ausschlüsse bei Vorsatz, grober Fahrlässigkeit sowie bei Verletzung von Leben, Körper oder Gesundheit unwirksam — eine Klausel, die sie zu verdrängen scheint, kann insgesamt unwirksam sein.
+
+Ergänzt: „Ziffer 11.1 bleibt unberührt; die dort genannte unbeschränkte Haftung wird durch den Lizenzausschluss nicht eingeschränkt."
+
+Die Lizenzbedingungen-Ergänzung regelte dasselbe Verhältnis bereits richtig (Ziffer 8.1/8.2: Lizenzausschluss gilt fort, „ergänzend" die unbeschränkte Haftung) und brauchte keine Anpassung.
+
+Beide Sprachfassungen.
+
 ## v1.7.61 — 2026-07-27 — Erstattung: Zahlungsmittel als Regelfall
 
 Ziffer 10.7 stellte die Erstattung des Prepaid-Guthabens gleichrangig auf das ursprüngliche Zahlungsmittel „oder auf ein vom Kunden benanntes Konto". Der Zahlungsdienstleister erstattet ausschließlich auf das ursprünglich verwendete Zahlungsmittel; andere Ziele sind nicht möglich. Eine Überweisung wäre also stets ein manueller Vorgang außerhalb des Systems.
