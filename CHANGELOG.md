@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.30 — 2026-07-26 — Wettbewerber-Nennungen aus Code und Doku entfernt
+
+- Zwei Stellen nannten Mitbewerber als Beleg dafür, dass die SMTP-Envelope/Header-Trennung der übliche Weg ist (`app/smtp_submit.py`, ein CHANGELOG-Eintrag von v1.5.57). Inhaltlich waren es Belegzitate für ein Standardverfahren, keine Übernahmen — die Trennung von `RCPT TO` und Kopfzeilen ist RFC 5321 §3.3 und der Mechanismus, auf dem BCC beruht.
+- Trotzdem entfernt: Die technische Begründung steht jetzt auf der Norm statt auf fremden Produktnamen. Sie ist damit sogar tragfähiger, weil sie nicht von der Doku Dritter abhängt.
+- Arbeitsverzeichnis von Gateway und Hub sowie die lokale CLAUDE.md sind frei von solchen Nennungen.
+- **Nicht angetastet**: zwei Commit-Nachrichten von 2026-06-15 und 2026-07-07. Siehe Begründung im Chat — eine Historie-Umschreibung wäre unverhältnismäßig.
+
 ## v1.7.29 — 2026-07-26 — Erstattung von Restguthaben: ausdrückliche Zusage
 
 - Die Erstattung stand bisher nur in Ziffer **12.6** — also im Abschnitt „Laufzeit und Beendigung". Sie las sich damit als Erstattung *bei Vertragsende*, obwohl sie jederzeit gelten soll.
@@ -1518,10 +1525,10 @@ Regel-Bedingung verfälscht. CLAUDE.md entsprechend korrigiert.
 Löst die in v1.5.56 als "strukturell unlösbar" dokumentierte Allen-antworten-
 Einschränkung bei gemischten intern/extern-Empfängern — die Einschätzung war
 falsch (User hat zu Recht widersprochen). Recherche-Ergebnis (Graph-Message-
-Schema, EWS-SendItem-Schema, CodeTwo/Exclaimer-Doku): Graph sendMail und EWS
-können Envelope-Empfänger tatsächlich nicht von den angezeigten To/Cc-Headern
-entkoppeln — rohes SMTP kann es aber schon immer (derselbe Mechanismus wie
-BCC), und genau so lösen es CodeTwo/Exclaimer laut deren eigener Doku.
+Schema, EWS-SendItem-Schema): Graph sendMail und EWS können Envelope-Empfänger
+tatsächlich nicht von den angezeigten To/Cc-Headern entkoppeln — rohes SMTP
+kann es aber schon immer (derselbe Mechanismus wie BCC, RFC 5321 §3.3). Für
+jedes Produkt mit dieser Anforderung führt daher kein Weg an SMTP vorbei.
 
 Neu:
 - `smtp_submit.deliver_outbound_as_sender()`: authentifizierte SMTP-Submission
