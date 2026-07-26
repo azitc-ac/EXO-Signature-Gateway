@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.64 — 2026-07-27 — Kündigungsform und Änderungsverfahren klargestellt
+
+**Kündigung über die Oberfläche.** Ziffer 12.4 verlangte Textform, Ziffer 6.12 stellte die Kündigung über die Lizenzverwaltung im Gateway in Aussicht. Ein Klick ist keine Textform nach § 126b BGB — wer in der Oberfläche kündigte, hätte formal nicht wirksam gekündigt. Beide Wege sind jetzt ausdrücklich gleichgestellt.
+
+**Änderung der Bedingungen.** Ziffer 13.3 erklärte Schweigen nach sechs Wochen zur Annahme, Ziffer 13.5 verlangte für Änderungen an Pflichten oder Haftung eine ausdrückliche Zustimmung. Welche Regel wann gilt, stand nirgends. Klargestellt: Die Zustimmungsfiktion gilt **nicht** für Änderungen nach 13.5; bis zur ausdrücklichen Zustimmung bleibt die bisherige Fassung in Kraft.
+
+Beide Sprachfassungen.
+
 ## v1.7.63 — 2026-07-27 — Kündigung des Hub-Vertrags ohne Frist für den Kunden
 
 Ziffer 12.2 verlangte von **beiden** Seiten 30 Tage Frist zum Monatsende. Für den Kunden schützte das nichts: Guthaben wird ohnehin jederzeit erstattet (Ziffer 10.7), Lizenzen enden fristlos (Ziffer 6.10), eine Mindestlaufzeit gibt es nicht. Die Frist hielt ihn nur formal gebunden — und stand im Widerspruch zu den Lizenzbedingungen, bei denen die Fristen bereits entfallen waren.

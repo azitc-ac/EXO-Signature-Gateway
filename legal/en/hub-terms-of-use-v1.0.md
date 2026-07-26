@@ -380,7 +380,9 @@ period gives the Customer time to arrange certificate procurement elsewhere.
 Good cause for the Provider includes in particular: arrears exceeding 30 days
 after a formal reminder, manipulation of the license count, or serious abuse.
 
-12.4 Terminations must be in text form.
+12.4 Terminations must be in text form. Termination via the license management
+in the Gateway (Section 6.12) is equivalent to a declaration in text form; the
+Provider confirms it in text form.
 
 12.5 Upon termination, access to the Hub ends. The right to use the Gateway
 under the applicable license remains unaffected.
@@ -401,13 +403,14 @@ Customer.
 
 13.3 If the Customer does not object within six weeks of receipt, the changes are
 deemed accepted. The Customer will be specifically informed of this effect in the
-notification.
+notification. This does not apply to changes under Section 13.5.
 
 13.4 In the event of objection, either party may terminate at the time the
 changes take effect.
 
-13.5 Changes that materially affect obligations or liability require renewed
-explicit consent in the Hub.
+13.5 Changes that materially affect obligations or liability do not take effect
+through silence. They require renewed explicit consent in the Hub. Until consent
+is given, the previous version continues to apply.
 
 ---
 

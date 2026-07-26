@@ -395,7 +395,9 @@ unberührt. Ein wichtiger Grund liegt für den Anbieter insbesondere vor bei
 Zahlungsverzug von mehr als 30 Tagen trotz Mahnung, bei Manipulation der
 Lizenzzählung oder bei schwerwiegendem Missbrauch.
 
-12.4 Kündigungen bedürfen der Textform.
+12.4 Kündigungen bedürfen der Textform. Der Erklärung in Textform gleich steht
+die Kündigung über die Lizenzverwaltung im Gateway (Ziffer 6.12); der Anbieter
+bestätigt sie in Textform.
 
 12.5 Mit Wirksamwerden der Kündigung endet der Zugang zum Hub. Das
 Nutzungsrecht am Gateway nach der jeweils anwendbaren Lizenz bleibt unberührt.
@@ -416,12 +418,13 @@ und den Kunden nicht unangemessen benachteiligt.
 
 13.3 Widerspricht der Kunde nicht innerhalb von sechs Wochen ab Zugang, gelten
 die Änderungen als angenommen. Auf diese Wirkung wird in der Mitteilung
-gesondert hingewiesen.
+gesondert hingewiesen. Dies gilt nicht für Änderungen nach Ziffer 13.5.
 
 13.4 Bei Widerspruch kann jede Partei zum Zeitpunkt des Inkrafttretens kündigen.
 
-13.5 Änderungen, die Pflichten oder Haftung inhaltlich betreffen, erfordern eine
-erneute ausdrückliche Zustimmung im Hub.
+13.5 Änderungen, die Pflichten oder Haftung inhaltlich betreffen, werden nicht
+durch Schweigen wirksam. Sie erfordern eine erneute ausdrückliche Zustimmung im
+Hub. Bis zur Zustimmung gilt die bisherige Fassung fort.
 
 ---
 
