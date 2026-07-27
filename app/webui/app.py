@@ -2021,12 +2021,22 @@ async def api_license_renewal(user: str = Depends(_require_admin)):
     if not res.get("ok"):
         return JSONResponse({"ok": False, "reason": "unavailable",
                              "error": res.get("error") or ""})
-    return JSONResponse({
-        "ok": True, "auto_renew": res.get("auto_renew"),
-        "expires": res.get("expires") or "", "cancelled_at": res.get("cancelled_at") or "",
-        "renew_error": res.get("renew_error") or "",
-        "refund_preview_cents": res.get("refund_preview_cents"),
-    })
+    # Durchreichen statt aufzaehlen — siehe hub_client.get_license(). Der
+    # `license`-Schluessel wird entfernt: die Oberflaeche braucht ihn nicht,
+    # und er gehoert nicht ohne Anlass ins Browserfenster.
+    return JSONResponse({k: v for k, v in res.items() if k != "license"})
+
+
+@app.post("/api/license/zahlungsweise")
+async def api_license_zahlungsweise(body: dict, user: str = Depends(_require_admin)):
+    """Zahlungsweise ab der naechsten Verlaengerung (Ziffer 10.4)."""
+    import hub_client
+    res = await hub_client.license_zahlungsweise((body.get("zahlungsweise") or "").strip())
+    if not res.get("ok"):
+        raise HTTPException(400, res.get("error") or "Umstellung fehlgeschlagen.")
+    log.info("Zahlungsweise ab naechster Verlaengerung: %s (durch %s)",
+             res.get("renew_zahlungsweise") or res.get("zahlungsweise"), user)
+    return JSONResponse(res)
 
 
 @app.get("/api/license/pricing")
@@ -2081,7 +2091,11 @@ async def api_license_purchase(body: dict, user: str = Depends(_require_admin)):
     tenant_id = (settings_store.get("TENANT_ID") or "").strip()
     if not tenant_id:
         raise HTTPException(400, "Eigene Tenant-ID nicht konfiguriert (Einrichtung unvollständig)")
-    res = await hub_client.purchase_license(tenant_id, mailboxes)
+    # Zahlungsweise MUSS mitgehen. Sie fehlte bis v1.7.75: die Oberflaeche
+    # schickte sie hierher, dieser Endpunkt warf sie weg, und der Hub fiel auf
+    # seine Vorgabe zurueck. Der Kunde sah den Jahrespreis und bekam einen Monat.
+    zahlungsweise = (body.get("zahlungsweise") or "").strip()
+    res = await hub_client.purchase_license(tenant_id, mailboxes, zahlungsweise)
     if not res.get("ok"):
         detail = res.get("error") or "Kauf fehlgeschlagen"
         raise HTTPException(res.get("status_code") if res.get("status_code") in (400, 402, 403) else 400, detail)

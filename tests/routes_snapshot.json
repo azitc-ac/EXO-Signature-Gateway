@@ -532,6 +532,13 @@
     "name": "api_license_status"
   },
   {
+    "pfad": "/api/license/zahlungsweise",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_license_zahlungsweise"
+  },
+  {
     "pfad": "/api/logs/files",
     "methoden": [
       "GET"

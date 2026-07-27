@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.75 — 2026-07-27 — Zahlungsweise kam beim Kauf nicht an
+
+**Die gewählte Zahlungsweise wurde ignoriert.** Die Oberfläche schickte sie mit, der Endpunkt des Gateways verwarf sie, und der Hub nahm seine Vorgabe. Wer „jährlich im Voraus" wählte, sah den Jahrespreis in der Bestätigungsabfrage und bekam **einen Monat** berechnet. Kein Geld ging verloren, aber Anzeige und Abbuchung wichen voneinander ab.
+
+**Ein weiterer Kauf legte einen zweiten Datensatz an.** Bei laufender Lizenz entstand dadurch eine zweite mit eigener automatischer Verlängerung — später wäre doppelt abgebucht worden. Ein weiterer Kauf verlängert jetzt den bestehenden Datensatz; das Ablaufdatum wächst, es bleibt bei einer Lizenz.
+
+**Die Zahlungsweise lässt sich jetzt umstellen** — im Verlängerungsblock, mit Wirkung ab der nächsten Verlängerung. So sieht es Ziffer 10.4 vor: Wahl beim Erwerb, Änderung zum Ende des Abrechnungszeitraums. Während eines bezahlten Zeitraums bleibt die Auswahl beim Kauf deshalb gesperrt, mit Hinweis auf den Umschalter.
+
+### Warum das dreimal an einem Tag passieren konnte
+
+Ein Wert durchläuft vier Schichten: Oberfläche → Endpunkt des Gateways → Hub-Anbindung → Endpunkt des Hubs. Jede Schicht zählte die Felder einzeln auf, also musste man bei jedem neuen Feld an vier Stellen denken. Genau daran ist es dreimal hintereinander gescheitert — erst beim Kauf, dann in der Verlängerungsansicht, dann beim Umschaltwunsch.
+
+Die Weiterleitungen **reichen jetzt durch**, statt aufzuzählen. Neue Felder kommen dadurch von selbst an. Vier Tests sichern das ab: sie schlagen fehl, sobald eine Schicht wieder mit einer Aufzählung anfängt.
+
 ## v1.7.74 — 2026-07-27 — Dunkelmodus: helle Kästen, die JavaScript anfasst
 
 Der Kasten zur automatischen Verlängerung blieb im Dunkelmodus hell — heller Hintergrund mit hellem Text.
