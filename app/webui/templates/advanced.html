@@ -558,7 +558,7 @@ document.addEventListener('DOMContentLoaded', acmeMethodLoad);
     <div class="settings-row">
       <label for="log-retention">Log-Aufbewahrung (Tage)</label>
       <div class="settings-control">
-        <input type="number" id="log-retention" value="{{ s.LOG_RETENTION_DAYS }}" min="1" max="365" style="width:80px">
+        <input type="number" class="eng" id="log-retention" value="{{ s.LOG_RETENTION_DAYS }}" min="1" max="365" style="width:80px">
         <span class="hint">Tägliche Rotation, ältere Dateien werden automatisch gelöscht</span>
       </div>
     </div>
@@ -831,7 +831,7 @@ async function renewCert() {
     <strong>Neustart</strong>
   </div>
   <div class="step-body">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:4px" class="restart-grid">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:4px" class="restart-grid">
       <div style="border:1px solid #e2e8f0;border-radius:8px;padding:14px">
         <div style="font-weight:600;font-size:13px;margin-bottom:4px">Prozess neu starten</div>
         <p style="font-size:12px;color:#64748b;margin:0 0 12px">

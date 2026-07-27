@@ -16,7 +16,7 @@
 
 <!-- S/MIME -->
 <div class="settings-card" id="smime">
-  <h2>S/MIME <span style="float:right;font-size:11px;font-weight:400"><label style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;color:#64748b"><input type="checkbox" id="adv-cb-smime" style="margin:0" onchange="_toggleAdv('smime',this.checked)"> Erweiterte Einstellungen</label></span></h2>
+  <h2 style="display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px">S/MIME <span style="margin-left:auto;font-size:11px;font-weight:400;flex-shrink:0"><label style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;color:#64748b"><input type="checkbox" id="adv-cb-smime" style="margin:0" onchange="_toggleAdv('smime',this.checked)"> Erweiterte Einstellungen</label></span></h2>
 
   <h3 style="margin-top:0;margin-bottom:12px">Betreff eingehender S/MIME-Mails anpassen</h3>
 
@@ -267,7 +267,12 @@
       <span class="hint">Leer lassen um lokale Schlüsseldateien zu verwenden</span>
     </div>
   </div>
-  <div style="display:flex;gap:8px;margin-top:6px;margin-left:200px">
+  <!-- Der Einzug richtet die Knoepfe an der Beschriftungsspalte aus. Als
+       festes margin-left:200px schob er sie auf schmalen Schirmen ueber den
+       Rand — „Speichern" war dort nur noch halb zu sehen. Als schrumpfender
+       Platzhalter bleibt die Ausrichtung breit erhalten und faellt schmal weg. -->
+  <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
+    <div style="flex:0 1 200px;min-width:0"></div>
     <button type="button" class="btn secondary btn-sm" onclick="testKvUrl()">Verbindung testen</button>
     <button type="button" class="btn secondary btn-sm" onclick="saveKvUrl()">Speichern</button>
   </div>
