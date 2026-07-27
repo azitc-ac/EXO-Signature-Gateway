@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.76 — 2026-07-27 — Lizenzkauf: Absicht wird gewählt, nicht erraten
+
+Was ein Klick auf „Kaufen" bewirkte, hing an der Zahl im Eingabefeld — und stand nirgends: eine **höhere** Zahl stockte anteilig auf und ließ das Ablaufdatum stehen, die **gleiche** Zahl bezahlte stillschweigend einen weiteren Zeitraum im Voraus. Das Feld war mit der aktuellen Zahl **vorbelegt**. Wer einfach klickte, kaufte einen weiteren Zeitraum, ohne es zu wollen.
+
+**Der mehrdeutige Fall entfällt ersatzlos.** Manuelles Vorauszahlen wurde von nichts gebraucht: die Verlängerung läuft automatisch, ein Jahr im Voraus stellt man über die Zahlungsweise ein, und nach einer Kündigung gibt es „Verlängerung wieder aufnehmen". Übrig bleiben zwei benannte Handlungen — **Kaufen** ohne Lizenz, **Aufstocken** mit Lizenz. Beschriftung, Knopftext und Rückfrage sagen jeweils, was geschieht.
+
+Steht dort die aktuelle Zahl oder weniger, ist der Knopf gesperrt: *„Du hast bereits 110 Postfächer lizenziert."*
+
+**Das Eingabefeld zählt jetzt Postfächer statt Lizenzen.** Bisher stand dort „10", während Statuszeile und Preisliste von „110 Postfächern" sprachen — zwei Einheiten in einer Karte. Die Preiszeile rechnet die Lizenzen über der Freigrenze weiterhin vor.
+
 ## v1.7.75 — 2026-07-27 — Zahlungsweise kam beim Kauf nicht an
 
 **Die gewählte Zahlungsweise wurde ignoriert.** Die Oberfläche schickte sie mit, der Endpunkt des Gateways verwarf sie, und der Hub nahm seine Vorgabe. Wer „jährlich im Voraus" wählte, sah den Jahrespreis in der Bestätigungsabfrage und bekam **einen Monat** berechnet. Kein Geld ging verloren, aber Anzeige und Abbuchung wichen voneinander ab.
