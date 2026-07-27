@@ -116,11 +116,15 @@ zuzüglich Freigrenze, sind entsprechend weitere Lizenzen zu erwerben. Diese
 werden anteilig für die verbleibenden vollen Kalendermonate des laufenden
 Abrechnungszeitraums berechnet, sodass alle Lizenzen zum selben Zeitpunkt enden.
 
-Rechenbeispiel: 100 Lizenzen, Jahresvorauszahlung ab 1. Januar. Im April steigt
-der Bedarf auf 120 Postfächer. Die 20 zusätzlichen Lizenzen werden für die acht
-verbleibenden vollen Monate (Mai bis Dezember) berechnet:
-20 × 8 × 0,90 € = 144,00 €. Alle 120 Lizenzen laufen anschließend bis zum
-31. Dezember und werden gemeinsam verlängert.
+Rechenbeispiel: 200 aktivierte Postfächer, also 100 Lizenzen, Jahresvorauszahlung
+ab 1. Januar. Im April steigt der Bedarf auf 220 Postfächer. Die 20 zusätzlichen
+Lizenzen werden für die acht verbleibenden vollen Monate (Mai bis Dezember)
+berechnet: 20 × 8 × 0,90 € = 144,00 €. Alle 120 Lizenzen laufen anschließend bis
+zum Ende des ursprünglichen Zeitraums und werden gemeinsam verlängert.
+
+Bleibt kein voller Monat mehr übrig — bei monatlicher Zahlung ist das immer der
+Fall —, wird ein Monat berechnet. Andernfalls wäre eine Aufstockung im letzten
+Monat des Zeitraums unentgeltlich.
 
 Bei einer Verringerung erfolgt keine Erstattung für den laufenden
 Abrechnungszeitraum; die Verringerung wirkt sich auf den folgenden

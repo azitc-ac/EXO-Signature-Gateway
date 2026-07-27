@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.68 — 2026-07-27 — Aufstocken zeigt den anteiligen Betrag
+
+Läuft bereits eine Lizenz, ist eine Erhöhung der Postfachzahl eine **anteilige Erweiterung** des laufenden Zeitraums und kein neuer Zeitraum: berechnet werden nur die zusätzlichen Lizenzen für die verbleibenden Monate, das Ablaufdatum bleibt. Die Kauf-Box weist das jetzt so aus — vorher nannte sie den Preis eines vollen Zeitraums und damit einen anderen Betrag als den, der abgebucht wird.
+
+Eine **Verringerung** wird nicht mehr als Kauf behandelt. Sie wirkt erst im folgenden Abrechnungszeitraum; für den laufenden gibt es keine Erstattung. Bisher hätte sie einen vollen Zeitraum gekostet und die Berechtigung sofort gesenkt.
+
+Ein **Wechsel der Zahlungsweise** während eines laufenden Zeitraums wird abgelehnt — er ist erst zu dessen Ende möglich.
+
+Das Rechenbeispiel der Preisliste war in sich widersprüchlich: es sprach von „100 Lizenzen" und im selben Absatz von „120 Postfächern", obwohl 100 Lizenzen 200 aktivierte Postfächer bedeuten (100 davon in der Freigrenze). Korrigiert, mit dem Zusatz, dass mindestens ein Monat berechnet wird, wenn kein voller mehr übrig ist.
+
 ## v1.7.67 — 2026-07-27 — Zahlungsweise wählbar, Preise kommen vom Hub
 
 **Beim Lizenzkauf ist die Zahlungsweise wählbar** — monatlich oder jährlich im Voraus. Die Verlängerung richtet sich danach: monatlich um einen Monat, jährlich um zwölf. Bisher gab es nur eine feste Jahreslaufzeit, obwohl die Preisliste beide Wege ausweist.

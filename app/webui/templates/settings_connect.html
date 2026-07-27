@@ -1121,13 +1121,21 @@ function licBuyPrice() {
   const zw = document.getElementById('lic-buy-interval').value;
   const modell = _licPricing.zahlungsweisen[zw];
   if (!modell) { el.textContent = 'Unbekannte Zahlungsweise.'; btn.disabled = true; return; }
-  const proZeitraum = lic * modell.monate * modell.monatspreis_cents;
-  const zeitraum = modell.monate === 1 ? 'Monat' : modell.monate + ' Monate';
-  var text = 'Preis: ' + lic + ' Lizenzen × ' + eur(modell.monatspreis_cents) + '/Monat';
-  if (modell.monate > 1) text += ' × ' + modell.monate + ' Monate';
-  text += ' = ' + eur(proZeitraum) + ' netto je ' + zeitraum
-        + ' (deckt bis ' + (lic + frei) + ' Postfächer ab';
-  if (_licState && _licState.licensed) text += ', Laufzeit ab aktuellem Ablaufdatum';
+  const ziel = lic + frei;
+  const a = _licAngebot(ziel, zw);
+  if (a.fehler) { el.textContent = a.fehler; btn.disabled = true; return; }
+
+  var text = 'Preis: ' + a.lizenzen + (a.erweiterung ? ' zusätzliche' : '') + ' Lizenzen × '
+           + eur(modell.monatspreis_cents) + '/Monat';
+  if (a.monate > 1) text += ' × ' + a.monate + ' Monate';
+  text += ' = ' + eur(a.netto) + ' netto (deckt bis ' + ziel + ' Postfächer ab';
+  if (a.erweiterung) {
+    text += ', anteilig für die verbleibende Laufzeit bis '
+          + new Date(_licPricing.laufend.expires).toLocaleDateString('de-DE')
+          + ' — das Ablaufdatum bleibt, alle Lizenzen enden gemeinsam';
+  } else if (_licState && _licState.licensed) {
+    text += ', Laufzeit ab aktuellem Ablaufdatum';
+  }
   text += '). Abbuchung vom Guthaben erfolgt brutto.';
   if (zw === 'jaehrlich' && _licPricing.jahresnachlass_prozent) {
     text += ' Enthält ' + _licPricing.jahresnachlass_prozent
@@ -1139,6 +1147,36 @@ function licBuyPrice() {
           + 'für den laufenden Monat gibt es keine Erstattung.';
   }
   el.textContent = text;
+  btn.disabled = false;
+}
+
+// Bildet die Fallunterscheidung des Hubs nach, damit die Anzeige denselben
+// Betrag nennt, der abgebucht wird: Aufstockung während einer laufenden Lizenz
+// ist eine ANTEILIGE Erweiterung, kein neuer Zeitraum.
+function _licAngebot(zielPostfaecher, zw) {
+  const frei = _licPricing.frei_postfaecher;
+  const modell = _licPricing.zahlungsweisen[zw];
+  const l = _licPricing.laufend;
+  if (!l || zielPostfaecher <= l.mailboxes) {
+    if (l && zielPostfaecher < l.mailboxes) {
+      return {fehler: 'Eine Verringerung wirkt erst im folgenden Abrechnungszeitraum — '
+                    + 'für den laufenden gibt es keine Erstattung. Es ist nichts zu tun.'};
+    }
+    return {erweiterung: false, lizenzen: Math.max(0, zielPostfaecher - frei),
+            monate: modell.monate,
+            netto: Math.max(0, zielPostfaecher - frei) * modell.monate * modell.monatspreis_cents};
+  }
+  if (l.zahlungsweise !== zw) {
+    return {fehler: 'Die Zahlungsweise kann erst zum Ende des laufenden Abrechnungs'
+                  + 'zeitraums gewechselt werden (derzeit: '
+                  + (l.zahlungsweise === 'monatlich' ? 'monatlich' : 'jährlich im Voraus') + ').'};
+  }
+  // Mindestens ein Monat: sonst wäre eine Aufstockung im letzten Vertragsmonat
+  // kostenlos — bei monatlicher Zahlung immer.
+  const monate = Math.max(1, l.verbleibende_monate);
+  const zusatz = (zielPostfaecher - frei) - Math.max(0, l.mailboxes - frei);
+  return {erweiterung: true, lizenzen: zusatz, monate: monate,
+          netto: zusatz * monate * modell.monatspreis_cents};
 }
 // ── Hub-Consent-Modal (Gate A) ────────────────────────────────────────────────
 var _hcDocs = [
@@ -1398,13 +1436,17 @@ async function licBuy() {
   const zw = document.getElementById('lic-buy-interval').value;
   // Betrag aus dem Preismodell des Hubs, nicht aus einer eigenen Rechnung.
   // Ist es nicht abrufbar, wird kein Betrag genannt statt eines falschen.
-  const modell = _licPricing ? _licPricing.zahlungsweisen[zw] : null;
-  const betrag = modell
-    ? eur(lic * modell.monate * modell.monatspreis_cents) + ' netto zzgl. MwSt. je '
-      + (modell.monate === 1 ? 'Monat' : modell.monate + ' Monate')
+  const a = _licPricing ? _licAngebot(total, zw) : null;
+  if (a && a.fehler) { _licMsg(a.fehler, false); return; }
+  const betrag = a
+    ? eur(a.netto) + ' netto zzgl. MwSt.'
+      + (a.erweiterung ? ' anteilig für ' + a.monate + ' Monate Restlaufzeit' : '')
     : 'den vom Hub berechneten Betrag';
-  if (!confirm(lic + ' Lizenzen kaufen (deckt bis ' + total + ' Postfächer ab) — '
-             + betrag + '? Der Bruttobetrag wird deinem Hub-Konto belastet.')) return;
+  const was = a && a.erweiterung
+    ? 'Auf ' + total + ' Postfächer aufstocken (' + a.lizenzen + ' zusätzliche Lizenzen)'
+    : lic + ' Lizenzen kaufen (deckt bis ' + total + ' Postfächer ab)';
+  if (!confirm(was + ' — ' + betrag
+             + '? Der Bruttobetrag wird deinem Hub-Konto belastet.')) return;
   const btn = document.getElementById('lic-buy-btn');
   btn.disabled = true;
   _licMsg('Kauf läuft…', true);
