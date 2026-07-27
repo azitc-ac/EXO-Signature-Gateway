@@ -1195,6 +1195,19 @@ function licRenderUebersicht(d) {
                 '<strong>nein</strong> — beendet',
                 'die Lizenz läuft am ' + _datum(d.expires) + ' aus');
   }
+  if (typeof d.guthaben_cents === 'number' && d.billing_mode !== 'invoice') {
+    const z2 = d.naechster_zeitraum || {};
+    const gedeckt = d.verlaengerung_gedeckt;
+    h += _zeile('Guthaben', eur(d.guthaben_cents),
+                gedeckt
+                  ? (d.verlaengerung_aufladung_cents > 0
+                       ? 'Für die nächste Verlängerung (' + eur(z2.brutto_cents)
+                         + ') werden ' + eur(d.verlaengerung_aufladung_cents)
+                         + ' automatisch nachgeladen'
+                       : 'deckt die nächste Verlängerung (' + eur(z2.brutto_cents) + ')')
+                  : 'Für die nächste Verlängerung (' + eur(z2.brutto_cents) + ') fehlen '
+                    + eur(d.verlaengerung_fehlt_cents) + ' — bitte aufladen');
+  }
   h += _zeile('Erstattung heute',
               (d.refund_preview_cents > 0
                  ? eur(d.refund_preview_cents) + ' Gutschrift'
@@ -1398,77 +1411,102 @@ async function licPricingLoad() {
   licBuyPrice();
 }
 
+var _vorschauTimer = null;
+
 function licBuyPrice() {
-  // EINE Zahl, VIER benannte Faelle. Der Knopf traegt jeweils den Namen des
-  // Vorgangs, und die Zeile darunter nennt Wirkung und Zeitpunkt. Bis v1.7.76
-  // hiess der Knopf immer "Kaufen" bzw. "Aufstocken" und der Vorgang ergab sich
-  // still aus der Zahl — der Rueckgang auf die Freigrenze war ueberhaupt nicht
-  // erreichbar, obwohl er der Normalfall beim Schrumpfen ist.
+  // EINE Zahl, VIER benannte Faelle. Der Fall wird hier bestimmt (das kostet
+  // nichts), die BETRAEGE holt der Hub — eine zweite Rechnung hier liefe von
+  // der Abrechnung weg, und genau das ist am 27.07.2026 passiert.
   const el = document.getElementById('lic-buy-price');
   const btn = document.getElementById('lic-buy-btn');
   const ziel = parseInt(document.getElementById('lic-buy-mailboxes').value, 10) || 0;
   const frei = _licPricing ? _licPricing.frei_postfaecher : 100;
   const l = _licPricing && _licPricing.laufend;
   _licFall = null;
+  if (_vorschauTimer) { clearTimeout(_vorschauTimer); _vorschauTimer = null; }
 
   if (!_licPricing) {
-    el.textContent = 'Preismodell derzeit nicht abrufbar — der Preis wird beim Kauf vom Hub berechnet.';
+    el.textContent = 'Preismodell derzeit nicht abrufbar.';
     btn.disabled = true; return;
   }
-  const zw = l ? l.zahlungsweise : document.getElementById('lic-buy-interval').value;
-  const modell = _licPricing.zahlungsweisen[zw];
   const bis = l && l.expires ? new Date(l.expires).toLocaleDateString('de-DE') : '';
 
-  // ── ohne Lizenz: Erstkauf ────────────────────────────────────────────────
-  if (!l) {
-    if (ziel <= frei) {
-      el.textContent = 'Bis ' + frei + ' Postfächer ist der Betrieb frei — keine Lizenz nötig.';
-      btn.textContent = 'Kaufen'; btn.disabled = true; return;
-    }
-    const n = ziel - frei;
-    _licFall = {art: 'kauf', ziel: ziel, zahlungsweise: zw};
-    btn.textContent = 'Kaufen'; btn.disabled = false;
-    el.textContent = n + ' Lizenzen über der Freigrenze × ' + eur(modell.monatspreis_cents)
-      + '/Monat' + (modell.monate > 1 ? ' × ' + modell.monate + ' Monate' : '')
-      + ' = ' + eur(n * modell.monate * modell.monatspreis_cents) + ' netto. '
-      + 'Abbuchung vom Guthaben erfolgt brutto.';
-    return;
-  }
-
-  // ── mit Lizenz: vier Faelle ──────────────────────────────────────────────
-  if (ziel > l.mailboxes) {
-    const zusatz = ziel - l.mailboxes;
-    const monate = Math.max(1, l.verbleibende_monate);
-    _licFall = {art: 'aufstocken', ziel: ziel, zusatz: zusatz, monate: monate,
-                netto: zusatz * monate * modell.monatspreis_cents};
-    btn.textContent = 'Jetzt aufstocken'; btn.disabled = false;
-    el.textContent = zusatz + ' zusätzliche Lizenzen × ' + eur(modell.monatspreis_cents)
-      + '/Monat × ' + monate + ' Monate Restlaufzeit = ' + eur(_licFall.netto)
-      + ' netto. Gilt sofort, das Ablaufdatum bleibt der ' + bis + '.';
-    return;
-  }
-  if (ziel === l.mailboxes) {
-    _licFall = null;
+  if (l && ziel === l.mailboxes) {
     btn.textContent = 'Übernehmen'; btn.disabled = true;
     el.textContent = 'Unverändert — derzeit sind ' + l.mailboxes + ' Postfächer lizenziert.';
     return;
   }
-  if (ziel > frei) {
+  if (l && ziel <= frei) {
+    _licFall = {art: 'auslaufen', ziel: ziel};
+    btn.textContent = 'Lizenz auslaufen lassen'; btn.disabled = false;
+    el.textContent = 'Bis ' + frei + ' Postfächer ist der Betrieb frei — dann wird keine '
+      + 'Lizenz mehr gebraucht. Die Verlängerung endet, die Lizenz bleibt bis zum ' + bis
+      + ' gültig, der nicht genutzte Anteil wird gutgeschrieben.';
+    return;
+  }
+  if (l && ziel < l.mailboxes) {
     _licFall = {art: 'verringern', ziel: ziel};
     btn.textContent = 'Zum nächsten Zeitraum verringern'; btn.disabled = false;
     el.textContent = 'Kostenlos. Wirkt ab dem ' + bis + ' — der laufende Zeitraum ist '
-      + 'bezahlt und wird nicht erstattet. Ab dann ' + (ziel - frei) + ' Lizenzen zu '
-      + eur((ziel - frei) * modell.monate * modell.monatspreis_cents) + ' netto je Zeitraum.';
+      + 'bezahlt und wird nicht erstattet.';
     return;
   }
-  // ziel <= frei: keine Lizenz mehr noetig — das IST die Kuendigung.
-  _licFall = {art: 'auslaufen', ziel: ziel};
-  btn.textContent = 'Lizenz auslaufen lassen'; btn.disabled = false;
-  const erstattung = (_licState && typeof _licState.refund_preview_cents === 'number')
-    ? _licState.refund_preview_cents : null;
-  el.textContent = 'Bis ' + frei + ' Postfächer ist der Betrieb frei — dann wird keine Lizenz '
-    + 'mehr gebraucht. Die Verlängerung endet, die Lizenz bleibt bis zum ' + bis + ' gültig'
-    + (erstattung ? ', erstattet werden ' + eur(erstattung) + '.' : '.');
+  if (!l && ziel <= frei) {
+    btn.textContent = 'Kaufen'; btn.disabled = true;
+    el.textContent = 'Bis ' + frei + ' Postfächer ist der Betrieb frei — keine Lizenz nötig.';
+    return;
+  }
+
+  // Kauf oder Aufstockung: Betraege beim Hub holen. Entprellt, sonst eine
+  // Anfrage je Tastendruck.
+  btn.textContent = l ? 'Jetzt aufstocken' : 'Kaufen';
+  btn.disabled = true;
+  el.textContent = 'Berechne…';
+  const zw = l ? l.zahlungsweise : document.getElementById('lic-buy-interval').value;
+  _vorschauTimer = setTimeout(function () { _licVorschau(ziel, zw); }, 400);
+}
+
+async function _licVorschau(ziel, zw) {
+  const el = document.getElementById('lic-buy-price');
+  const btn = document.getElementById('lic-buy-btn');
+  const r = await postJSON('/api/license/vorschau', {mailboxes: ziel, zahlungsweise: zw});
+  // Zwischenzeitlich weitergetippt? Dann gilt die neuere Anfrage.
+  if ((parseInt(document.getElementById('lic-buy-mailboxes').value, 10) || 0) !== ziel) return;
+  if (!r.ok) { el.textContent = errText(r); btn.disabled = true; return; }
+
+  _licFall = {art: r.art === 'erweiterung' ? 'aufstocken' : 'kauf', ziel: ziel,
+              zahlungsweise: r.zahlungsweise, brutto: r.brutto_cents,
+              lizenzen: r.lizenzen, monate: r.monate, guthaben: r.guthaben};
+  btn.disabled = false;
+
+  const g = r.guthaben || {};
+  var zeilen = [];
+  zeilen.push((r.art === 'erweiterung' ? r.lizenzen + ' zusätzliche Lizenzen'
+                                       : r.lizenzen + ' Lizenzen über der Freigrenze')
+              + ' × ' + r.monate + (r.monate === 1 ? ' Monat' : ' Monate')
+              + ' = ' + eur(r.netto_cents) + ' netto');
+  zeilen.push('zzgl. ' + r.vat_percent + ' % MwSt. = <strong>' + eur(r.brutto_cents)
+              + ' brutto</strong>');
+  if (g.modus === 'rechnung') {
+    zeilen.push('Abrechnung auf Rechnung — kein Guthaben nötig.');
+  } else {
+    zeilen.push('Guthaben: ' + eur(g.guthaben_cents));
+    if (g.fehlt_cents > 0 && g.aufladung_cents > 0) {
+      zeilen.push('<strong>Es fehlen ' + eur(g.fehlt_cents) + ' — es werden automatisch '
+                  + eur(g.aufladung_cents) + ' von der hinterlegten Karte eingezogen.</strong>');
+    } else if (g.fehlt_cents > 0) {
+      zeilen.push('<strong style="color:#dc2626">Es fehlen ' + eur(g.fehlt_cents)
+                  + ' und es ist keine automatische Aufladung eingerichtet.</strong> '
+                  + 'Bitte zuerst unter „Konto &amp; Guthaben" aufladen.');
+      btn.disabled = true;
+    }
+    if (g.gedeckt) zeilen.push('Guthaben danach: ' + eur(g.danach_cents));
+  }
+  if (r.art === 'erweiterung') {
+    zeilen.push('Das Ablaufdatum bleibt der '
+                + new Date(r.expires).toLocaleDateString('de-DE') + '.');
+  }
+  el.innerHTML = zeilen.join('<br>');
 }
 
 // ── Hub-Consent-Modal (Gate A) ────────────────────────────────────────────────
@@ -1754,14 +1792,26 @@ async function licBuy() {
 
   // kauf | aufstocken — beides geht ueber denselben Endpunkt; welcher Vorgang
   // es wird, entscheidet der Hub anhand der laufenden Lizenz.
-  const betrag = f.art === 'aufstocken'
-    ? eur(f.netto) + ' netto zzgl. MwSt. anteilig für ' + f.monate + ' Monate Restlaufzeit'
-    : 'den angezeigten Betrag';
-  const was = f.art === 'aufstocken'
-    ? 'Auf ' + f.ziel + ' Postfächer aufstocken (' + f.zusatz + ' zusätzliche Lizenzen, '
-      + 'Ablaufdatum bleibt)'
-    : 'Lizenz für ' + f.ziel + ' Postfächer kaufen';
-  if (!confirm(was + ' — ' + betrag + '? Der Bruttobetrag wird deinem Hub-Konto belastet.')) return;
+  // Die Rückfrage nennt, was TATSÄCHLICH passiert — inklusive einer
+  // automatischen Abbuchung. Der Nutzer wurde am 27.07.2026 davon überrascht,
+  // weil sie nirgends stand, bevor sie ausgelöst wurde.
+  const g = f.guthaben || {};
+  var frage = (f.art === 'aufstocken'
+      ? 'Auf ' + f.ziel + ' Postfächer aufstocken (' + f.lizenzen + ' zusätzliche Lizenzen, '
+        + 'Ablaufdatum bleibt)'
+      : 'Lizenz für ' + f.ziel + ' Postfächer kaufen')
+    + '\n\nBetrag:   ' + eur(f.brutto) + ' brutto';
+  if (g.modus !== 'rechnung') {
+    frage += '\nGuthaben: ' + eur(g.guthaben_cents);
+    if (g.aufladung_cents > 0) {
+      frage += '\n\nDas Guthaben reicht nicht — es werden ' + eur(g.aufladung_cents)
+             + ' von der hinterlegten Karte eingezogen.';
+    }
+    frage += '\nDanach:   ' + eur(g.danach_cents);
+  } else {
+    frage += '\n\nAbrechnung auf Rechnung.';
+  }
+  if (!confirm(frage)) return;
   btn.disabled = true;
   _licMsg(f.art === 'aufstocken' ? 'Aufstockung läuft…' : 'Kauf läuft…', true);
   try {

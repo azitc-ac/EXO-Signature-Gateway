@@ -2027,6 +2027,17 @@ async def api_license_renewal(user: str = Depends(_require_admin)):
     return JSONResponse({k: v for k, v in res.items() if k != "license"})
 
 
+@app.post("/api/license/vorschau")
+async def api_license_vorschau(body: dict, user: str = Depends(_require_admin)):
+    """Kaufvorschau samt Wirkung aufs Guthaben — rechnet der Hub."""
+    import hub_client
+    tenant_id = (settings_store.get("TENANT_ID") or "").strip()
+    res = await hub_client.license_vorschau(int(body.get("mailboxes") or 0),
+                                            (body.get("zahlungsweise") or "monatlich").strip(),
+                                            tenant_id)
+    return JSONResponse(res)
+
+
 @app.post("/api/license/umfang")
 async def api_license_umfang(body: dict, user: str = Depends(_require_admin)):
     """Umfang ab der naechsten Verlaengerung verringern (Ziffer 6.9/Preisliste)."""

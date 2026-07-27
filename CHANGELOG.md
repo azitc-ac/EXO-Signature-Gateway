@@ -5,6 +5,28 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.82 — 2026-07-27 — Vor dem Kauf steht, was er mit dem Guthaben macht
+
+Vor einer Buchung war nur der Preis zu sehen — nicht, ob das Guthaben reicht, ob automatisch nachgeladen wird und was danach übrig bleibt. Beides erfuhr man erst hinterher aus dem Buchungsverlauf.
+
+**Die Preiszeile zeigt jetzt die ganze Rechnung:**
+
+```
+40 zusätzliche Lizenzen × 1 Monat = 40,00 € netto
+zzgl. 19 % MwSt. = 47,60 € brutto
+Guthaben: 42,90 €
+Es fehlen 4,70 € — es werden automatisch 50,00 € von der
+hinterlegten Karte eingezogen.
+Guthaben danach: 45,30 €
+Das Ablaufdatum bleibt der 27.09.2026.
+```
+
+Dieselben Angaben stehen in der Rückfrage vor dem Klick. Ist keine automatische Aufladung eingerichtet und das Guthaben reicht nicht, wird der Knopf gesperrt statt den Kauf scheitern zu lassen.
+
+**Die Übersicht zeigt das Guthaben** und ordnet es ein: ob es die nächste Verlängerung deckt, wie viel dafür nachgeladen wird oder wie viel fehlt. Eine Jahresverlängerung kann ein Vielfaches der monatlichen Gebühr kosten — das sollte man sehen, bevor sie fällig wird, und nicht erst danach.
+
+**Alle Beträge rechnet der Hub.** Die Oberfläche fragt sie ab und zeigt sie an. Vorschau und Kauf benutzen dieselbe Funktion; getrennte Rechnungen laufen auseinander, und genau daran lag es, dass heute 108,00 € angezeigt und 11,90 € abgebucht wurden.
+
 ## v1.7.81 — 2026-07-27 — Prüfung: Guthabenabfragen am gemeinsamen Weg vorbei
 
 `tools/driftcheck.py` meldet ab sofort Stellen, die den Kontostand direkt mit einem Preis vergleichen, statt die gemeinsame Deckungsprüfung zu benutzen. Wer das tut, umgeht die automatische Aufladung — und merkt es nicht, weil ohne eingerichtete Automatik dasselbe herauskommt.
