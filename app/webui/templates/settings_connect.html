@@ -1216,13 +1216,28 @@ function licRenderUebersicht(d) {
                   : 'Für die nächste Verlängerung (' + eur(z2.brutto_cents) + ') fehlen '
                     + eur(d.verlaengerung_fehlt_cents) + ' — bitte aufladen');
   }
-  h += _zeile('Erstattung heute',
+  // Der Betrag braucht seinen Grund daneben. „Für die noch nicht begonnenen
+  // vollen Monate" ist Fachsprache und erklärt gerade den erstaunlichsten Fall
+  // nicht: die Erstattung kann dem vollen Einsatz entsprechen, wenn der
+  // bezahlte Zeitraum noch gar nicht angefangen hat. Das sieht wie ein Fehler
+  // aus, solange nirgends steht, wann der Zeitraum läuft.
+  const zr = (d.term_start && d.expires)
+    ? _datum(d.term_start) + ' bis ' + _datum(d.expires) : '';
+  var warum;
+  if (!(d.refund_preview_cents > 0)) {
+    warum = 'Der laufende Zeitraum (' + zr + ') ist angebrochen und wird nicht erstattet.';
+  } else if (d.genutzte_monate === 0) {
+    warum = 'Der bezahlte Zeitraum (' + zr + ') hat noch nicht begonnen — '
+          + 'er würde vollständig erstattet.';
+  } else {
+    warum = 'Vom bezahlten Zeitraum (' + zr + ') sind ' + d.genutzte_monate
+          + ' von ' + d.term_monate + ' Monaten angebrochen; der Rest wird erstattet.';
+  }
+  h += _zeile('Bei Beendigung heute',
               (d.refund_preview_cents > 0
                  ? eur(d.refund_preview_cents) + ' Gutschrift'
                  : 'keine Gutschrift'),
-              d.refund_preview_cents > 0
-                ? 'für die noch nicht begonnenen vollen Monate'
-                : 'kein voller Monat mehr offen');
+              warum);
   if (d.renew_error) {
     h += _zeile('Letzter Versuch', '<span style="color:#dc2626">fehlgeschlagen</span>',
                 d.renew_error);
