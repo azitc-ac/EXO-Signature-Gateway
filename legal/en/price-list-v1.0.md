@@ -118,11 +118,15 @@ plus the free tier, additional licenses must be purchased accordingly. These are
 charged pro rata for the remaining full calendar months of the current billing
 period, so that all licenses end on the same date.
 
-Worked example: 100 licenses, paid annually in advance from 1 January. In April
-the requirement grows to 120 mailboxes. The 20 additional licenses are charged
-for the eight remaining full months (May to December):
-20 × 8 × €0.90 = €144.00. All 120 licenses then run until 31 December and are
-renewed together.
+Worked example: 200 activated mailboxes, i.e. 100 licenses, paid annually in
+advance from 1 January. In April the requirement grows to 220 mailboxes. The 20
+additional licenses are charged for the eight remaining full months (May to
+December): 20 × 8 × €0.90 = €144.00. All 120 licenses then run until the end of
+the original period and are renewed together.
+
+If no full month remains — which is always the case with monthly payment — one
+month is charged. Otherwise an increase in the final month of the period would
+be free of charge.
 
 No refund is made for a reduction during the current billing period; the
 reduction takes effect from the following billing period.
