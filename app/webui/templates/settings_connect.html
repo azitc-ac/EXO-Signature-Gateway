@@ -353,7 +353,9 @@ _initAdv('digicert');
         <select id="lic-buy-interval" onchange="licBuyPrice()" style="min-width:190px">
           <option value="monatlich">monatlich</option>
           <option value="jaehrlich">jährlich im Voraus (10 % Nachlass)</option>
-        </select></div>
+        </select>
+        <span class="hint" id="lic-interval-note" style="display:none;margin-top:2px">
+          Wechsel erst zum Ende des Zeitraums — siehe unten.</span></div>
       <button class="btn primary" onclick="licBuy()" id="lic-buy-btn">Kaufen</button>
     </div>
     <div id="lic-buy-price" class="hint" style="margin-top:8px"></div>
@@ -1121,11 +1123,23 @@ async function licRenewLoad() {
   const bis = d.expires ? new Date(d.expires).toLocaleDateString('de-DE') : '—';
 
   if (d.auto_renew) {
-    text.innerHTML = 'Die Lizenz <strong>verlängert sich automatisch</strong>. '
-      + 'Nächste Verlängerung kurz vor dem ' + esc(bis) + '. Die Gebühr wird dem '
+    const jetzt = d.zahlungsweise === 'monatlich' ? 'monatlich' : 'jährlich im Voraus';
+    const gewuenscht = d.renew_zahlungsweise
+      ? (d.renew_zahlungsweise === 'monatlich' ? 'monatlich' : 'jährlich im Voraus') : '';
+    text.innerHTML = 'Die Lizenz <strong>verlängert sich automatisch</strong> — derzeit '
+      + esc(jetzt) + '. Nächste Verlängerung kurz vor dem ' + esc(bis) + '. Die Gebühr wird dem '
       + 'Hub-Guthaben entnommen; reicht es nicht, greift der eingerichtete '
-      + 'automatische Einzug.';
-    actions.innerHTML = '<button class="btn secondary" onclick="licRenewCancel()">Verlängerung beenden</button>';
+      + 'automatische Einzug.'
+      + (gewuenscht ? '<br><strong>Ab der nächsten Verlängerung: ' + esc(gewuenscht)
+                      + '.</strong>' : '');
+    const andere = d.zahlungsweise === 'monatlich' ? 'jaehrlich' : 'monatlich';
+    const andereText = andere === 'monatlich' ? 'monatlich' : 'jährlich im Voraus (10 % Nachlass)';
+    actions.innerHTML =
+      '<button class="btn secondary" onclick="licRenewInterval(\'' + andere + '\')">'
+      + 'Ab nächster Verlängerung ' + esc(andereText) + '</button>'
+      + (gewuenscht ? '<button class="btn secondary" onclick="licRenewInterval(\''
+                      + esc(d.zahlungsweise) + '\')">Umstellung zurücknehmen</button>' : '')
+      + '<button class="btn secondary" onclick="licRenewCancel()">Verlängerung beenden</button>';
   } else {
     var erstattet = (typeof d.refund_preview_cents === 'number' && d.refund_preview_cents > 0)
       ? ' Erstattet werden ' + eur(d.refund_preview_cents) + ' für die vollen Restmonate.'
@@ -1153,6 +1167,16 @@ async function licRenewCancel() {
   if (!r.ok) { showMsg(msg, 'Fehler: ' + errText(r), false); return; }
   showMsg(msg, 'Verlängerung beendet.'
     + (r.refund_cents > 0 ? ' Gutschrift: ' + eur(r.refund_cents) + '.' : ' Keine Gutschrift (kein voller Restmonat).'), true);
+  licRenewLoad();
+}
+
+async function licRenewInterval(zw) {
+  const msg = document.getElementById('lic-renew-msg');
+  const r = await postJSON('/api/license/zahlungsweise', {zahlungsweise: zw});
+  if (!r.ok) { showMsg(msg, 'Fehler: ' + errText(r), false); return; }
+  showMsg(msg, r.renew_zahlungsweise
+    ? 'Ab der nächsten Verlängerung wird auf die gewählte Zahlungsweise umgestellt.'
+    : 'Umstellung zurückgenommen — es bleibt bei der bisherigen Zahlungsweise.', true);
   licRenewLoad();
 }
 
@@ -1216,6 +1240,13 @@ function licRenderPaths(d) {
   document.getElementById('lic-buy-title').textContent = d.licensed
     ? 'Online — Lizenz verlängern oder aufstocken'
     : 'Online beziehen — über die Hub-Anbindung';
+  // Bei laufender Lizenz ist die Zahlungsweise nicht frei waehlbar: Ziffer 10.4
+  // erlaubt die Aenderung zum ENDE des Abrechnungszeitraums. Umgestellt wird
+  // deshalb im Verlaengerungsblock, nicht durch einen Kauf.
+  const wahl = document.getElementById('lic-buy-interval');
+  const wahlHinweis = document.getElementById('lic-interval-note');
+  wahl.disabled = !!d.licensed;
+  wahlHinweis.style.display = d.licensed ? '' : 'none';
   const input = document.getElementById('lic-buy-licenses');
   if (!input.value) {
     // Vorschlag: Bedarf ÜBER die 100 Fair-Use hinaus (auf 10er gerundet), mind. 1;

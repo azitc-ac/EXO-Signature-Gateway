@@ -408,17 +408,17 @@ async def get_license() -> dict:
             r = await c.get(f"{base}/api/license", headers=_gateway_headers())
         data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
         if r.status_code == 200 and data.get("ok"):
-            # Verlängerungszustand mitnehmen — die Oberfläche zeigt damit an,
-            # wann automatisch verlängert wird und was eine Kündigung erstattet.
-            # Ältere Hub-Fassungen liefern die Felder nicht; dann bleiben sie
-            # leer und die Oberfläche blendet den Abschnitt aus.
-            return {"ok": True, "license": data.get("license") or "",
-                    "mailboxes": data.get("mailboxes") or 0,
-                    "auto_renew": data.get("auto_renew"),
-                    "expires": data.get("expires") or "",
-                    "cancelled_at": data.get("cancelled_at") or "",
-                    "renew_error": data.get("renew_error") or "",
-                    "refund_preview_cents": data.get("refund_preview_cents")}
+            # DURCHREICHEN, nicht Feld für Feld abschreiben.
+            #
+            # Hier stand bis v1.7.75 eine Aufzählung. Jedes neue Feld musste
+            # dann an vier Stellen erinnert werden — Hub-Endpunkt, hier,
+            # Gateway-Endpunkt, Oberfläche — und genau das ist am 27.07.2026
+            # dreimal an einem Tag schiefgegangen: die Zahlungsweise kam beim
+            # Kauf nicht an, danach fehlte sie in der Verlängerungsansicht,
+            # danach ihr Umschaltwunsch. Der Hub liefert bereits eine kuratierte
+            # Sicht; sie zu wiederholen bringt nichts als Gelegenheit zum
+            # Vergessen.
+            return {**data, "ok": True}
         if r.status_code == 404:
             return {"ok": False, "error": "Für dieses Konto ist beim Hub keine Lizenz hinterlegt."}
         return {"ok": False, "error": data.get("detail") or data.get("message")
@@ -473,6 +473,24 @@ async def license_pricing() -> dict:
         return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
 
 
+async def license_zahlungsweise(zahlungsweise: str) -> dict:
+    """Zahlungsweise ab der naechsten Verlaengerung festlegen (Ziffer 10.4)."""
+    base = _base()
+    if not (base and _key()):
+        return {"ok": False, "error": "Nicht registriert (Anbindung fehlt)."}
+    try:
+        async with httpx.AsyncClient(timeout=20) as c:
+            r = await c.post(f"{base}/api/license/zahlungsweise",
+                             headers=_gateway_headers(),
+                             json={"zahlungsweise": zahlungsweise})
+        data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+        if r.status_code == 200 and data.get("ok"):
+            return {"ok": True, **data}
+        return {"ok": False, "error": data.get("detail") or f"HTTP {r.status_code}"}
+    except Exception as exc:
+        return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
+
+
 async def license_cancel() -> dict:
     """Automatische Verlängerung beenden — jederzeit, ohne Frist (Ziffer 6.11).
 
@@ -503,7 +521,8 @@ async def _license_action(aktion: str) -> dict:
         return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
 
 
-async def purchase_license(tenant_id: str, mailboxes: int) -> dict:
+async def purchase_license(tenant_id: str, mailboxes: int,
+                           zahlungsweise: str = "") -> dict:
     """Fair-Use-Lizenz kaufen — Abrechnung über das Hub-Konto (Guthaben/Rechnung)."""
     base = _base()
     if not (base and _key()):
@@ -512,7 +531,8 @@ async def purchase_license(tenant_id: str, mailboxes: int) -> dict:
         async with httpx.AsyncClient(timeout=30) as c:
             r = await c.post(f"{base}/api/license/purchase", headers=_gateway_headers(),
                              json={"tenant_id": tenant_id,
-                                   "mailboxes": int(mailboxes)})
+                                   "mailboxes": int(mailboxes),
+                                   **({"zahlungsweise": zahlungsweise} if zahlungsweise else {})})
         data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
         if r.status_code == 200 and data.get("ok"):
             return data
