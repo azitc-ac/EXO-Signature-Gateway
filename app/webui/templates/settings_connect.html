@@ -1170,9 +1170,17 @@ function licRenderUebersicht(d) {
                 'für Signatur oder S/MIME eingeschaltet');
   }
   h += _zeile('Gültig bis', '<strong>' + _datum(d.expires) + '</strong>');
+  // Kein „Abrechnungszeitraum: Monat" mehr — monatlich bedeutet einen Monat,
+  // jährlich zwölf, andere Kombinationen gibt es nicht. Der Zusatz wiederholte
+  // die Angabe daneben. Bei jährlicher Zahlung steht dort stattdessen, was sie
+  // von der monatlichen unterscheidet.
   h += _zeile('Zahlungsweise', _zwText(d.zahlungsweise),
-              'Abrechnungszeitraum: ' + zeitraum);
-  h += _zeile('Kosten',
+              d.zahlungsweise === 'jaehrlich'
+                ? 'zwölf Monate im Voraus, mit 10 % Nachlass'
+                : '');
+  // Der Zeitraum gehoert an die KOSTEN — „11,90 €" allein sagt nicht, wofuer.
+  // Bei der Zahlungsweise war er nur eine Wiederholung.
+  h += _zeile('Kosten je ' + zeitraum,
               eur(d.term_brutto_cents) + ' brutto',
               eur(d.term_netto_cents) + ' netto'
               + (d.vat_percent ? ' zzgl. ' + d.vat_percent + ' % MwSt.' : ''));

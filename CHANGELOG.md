@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.86 — 2026-07-27 — Übersicht: Zeitraum steht bei den Kosten
+
+„Zahlungsweise: monatlich" mit dem Zusatz „Abrechnungszeitraum: Monat" sagte zweimal dasselbe — andere Kombinationen gibt es nicht, monatlich bedeutet einen Monat und jährlich zwölf.
+
+Bei jährlicher Zahlung steht dort jetzt, was sie von der monatlichen unterscheidet: *zwölf Monate im Voraus, mit 10 % Nachlass*. Bei monatlicher steht nichts.
+
+Der Zeitraum ist dorthin gewandert, wo er etwas beiträgt: **„Kosten je Monat"** statt „Kosten" — 11,90 € allein sagt nicht, wofür.
+
 ## v1.7.85 — 2026-07-27 — Rückfragen benennen, worum es geht
 
 „Solange die Laufzeit läuft, lässt sich das zurücknehmen" — welches *das*? Und daneben steht seit v1.7.83 ein zweites „zurücknehmen", das die Umstellung der Zahlungsweise meint. Zwei gleich klingende Rücknahmen, keine mit Bezug.
