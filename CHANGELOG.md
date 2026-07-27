@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.73 — 2026-07-27 — Bezahlseite öffnet zuverlässig, Buchungsbeträge stimmen
+
+**Die Bezahlseite öffnete nicht in einem neuen Tab.** Das Fenster wurde erst *nach* dem Abruf der Bezahl-Adresse geöffnet — nach einer solchen Pause gilt der Klick des Nutzers als verbraucht, und der Browser wertet das Öffnen als ungebetenes Popup: es landet im selben Tab oder wird ganz unterdrückt. Das Fenster wird jetzt unmittelbar beim Klick geöffnet und danach befüllt.
+
+Ein neuer Tab ist hier richtig, weil der Zahlungsdienst nach Abschluss auf den Hub weiterleitet und nicht zurück aufs Gateway — im selben Tab wäre die Gateway-Seite verloren. Blockiert der Browser das Fenster trotzdem, erscheint jetzt ein Link zum Öffnen statt eines stillen Fehlschlags.
+
+**Beträge im Buchungsverlauf waren immer 0,00 €.** Die Anzeige las ein Feld, das es im Datensatz nicht gibt. Gegen einen leeren Verlauf war das unsichtbar und fiel erst beim ersten echten Zahlungseingang auf. Der Verlauf zeigt jetzt zusätzlich den Kontostand nach jeder Buchung.
+
 ## v1.7.72 — 2026-07-27 — Lizenz: Online- und Offline-Bezug getrennt
 
 Die Lizenzkarte vermischte beide Bezugswege. „Über Hub-Anbindung abrufen" stand direkt neben „Lizenz einspielen" und sah aus wie dessen Variante — es holt aber eine bereits ausgestellte Lizenz, ist also weder ein Kauf noch ein Einspielen. Der Kauf selbst lag darunter in einem eigenen Kasten, ohne erkennbaren Zusammenhang.

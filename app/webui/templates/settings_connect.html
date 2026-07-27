@@ -669,21 +669,55 @@ async function acctLoad() {
 function _acctLedger(ledger) {
   const zeilen = (ledger || []).slice().reverse().slice(0, 8);
   if (!zeilen.length) return '';
+  // Das Feld heisst delta_cents und ist vorzeichenbehaftet (store._add_ledger).
+  // Stand hier zunaechst amount_cents — dann zeigte JEDE Buchung 0,00 €. Beim
+  // ersten echten Zahlungseingang am 27.07. aufgefallen; gegen einen leeren
+  // Verlauf war es unsichtbar.
   const ZWECK = {topup: 'Aufladung', cert: 'Zertifikat', license: 'Lizenz',
                  license_refund: 'Erstattung Lizenz', refund: 'Erstattung',
-                 auto_topup: 'automatische Aufladung', adjust: 'Korrektur'};
+                 manual: 'Korrektur durch den Anbieter'};
   const html = zeilen.map(function (e) {
-    const c = Number(e.amount_cents || 0);
+    const c = Number(e.delta_cents || 0);
     const zweck = ZWECK[e.kind] || e.kind || '—';
     const farbe = c >= 0 ? '#166534' : '#334155';
     return '<tr><td style="padding:2px 10px 2px 0;white-space:nowrap">'
          + esc((e.ts || '').slice(0, 10)) + '</td>'
          + '<td style="padding:2px 10px 2px 0">' + esc(zweck) + '</td>'
-         + '<td style="padding:2px 0;text-align:right;color:' + farbe + '">'
-         + (c >= 0 ? '+' : '−') + eur(Math.abs(c)) + '</td></tr>';
+         + '<td style="padding:2px 0 2px 10px;text-align:right;color:' + farbe + '">'
+         + (c >= 0 ? '+' : '−') + eur(Math.abs(c)) + '</td>'
+         + '<td class="muted" style="padding:2px 0 2px 12px;text-align:right">'
+         + eur(Number(e.balance_after || 0)) + '</td></tr>';
   }).join('');
   return '<details style="margin-top:10px"><summary class="hint" style="cursor:pointer">Letzte Buchungen</summary>'
-       + '<table style="font-size:12px;margin-top:6px">' + html + '</table></details>';
+       + '<table style="font-size:12px;margin-top:6px"><tr class="muted">'
+       + '<th style="text-align:left;font-weight:400">Datum</th>'
+       + '<th style="text-align:left;font-weight:400">Zweck</th>'
+       + '<th style="text-align:right;font-weight:400;padding-left:10px">Betrag</th>'
+       + '<th style="text-align:right;font-weight:400;padding-left:12px">Stand</th></tr>' + html + '</table></details>';
+}
+
+// Bezahlseite in einem NEUEN Tab.
+//
+// Das Fenster muss SYNCHRON im Klick geoeffnet werden. Nach einem `await` gilt
+// die Nutzergeste als verbraucht — der Browser wertet window.open dann als
+// ungebetenes Popup und oeffnet es im selben Tab oder blockiert es. Genau das
+// passierte beim ersten Zahlungsversuch am 27.07.
+//
+// Neuer Tab und nicht dieselbe Seite, weil Stripe nach der Zahlung auf den HUB
+// weiterleitet (BILLING_SUCCESS_URL), nicht zurueck aufs Gateway: im selben Tab
+// waere die Gateway-Seite weg.
+function _bezahlfenster() {
+  try { return window.open('', '_blank'); } catch (e) { return null; }
+}
+
+function _bezahlseiteZeigen(fenster, url, msgEl) {
+  if (fenster && !fenster.closed) { fenster.location.href = url; return; }
+  // Popup blockiert: kein stiller Fehlschlag, sondern ein Link. Ein Klick
+  // darauf ist wieder eine echte Nutzergeste und geht durch.
+  msgEl.dataset.state = 'err';
+  msgEl.innerHTML = 'Der Browser hat das Fenster blockiert — '
+    + '<a href="' + escAttr(url) + '" target="_blank" rel="noopener">Bezahlseite hier öffnen</a>.';
+  msgEl.style.display = 'block';
 }
 
 async function acctTopup() {
@@ -691,12 +725,14 @@ async function acctTopup() {
   const betrag = parseFloat(feld && feld.value);
   const min = Math.round(_acctMin / 100);
   if (!betrag || betrag < min) { _acctMsg('Mindestbetrag ' + min + ' €.', false); return; }
+  const fenster = _bezahlfenster();          // vor dem await, siehe oben
   const r = await postJSON('/api/hub/billing/topup', {amount_eur: betrag});
   if (r.ok && r.checkout_url) {
-    window.open(r.checkout_url, '_blank');
     _acctMsg('Bezahlseite geöffnet. Nach der Zahlung wird das Guthaben gutgeschrieben — '
            + 'danach diese Seite neu laden.', true);
+    _bezahlseiteZeigen(fenster, r.checkout_url, document.getElementById('acct-msg'));
   } else {
+    if (fenster && !fenster.closed) fenster.close();
     _acctMsg('Aufladen fehlgeschlagen: ' + errText(r), false);
   }
 }
@@ -802,11 +838,15 @@ async function autoTopupSetup(){
   if(!confirm('Jetzt ' + v + ' € aufladen und die Karte für spätere automatische '
             + 'Nachladungen hinterlegen?\n\nNicht verbrauchtes Guthaben erstatten '
             + 'wir dir jederzeit auf Verlangen.')) return;
-  _autoMsg('Weiterleitung zu Stripe…', true);
-  const d = await (await fetch('/api/hub/billing/auto/setup', {method:'POST',
-    headers:{'Content-Type':'application/json'}, body: JSON.stringify({amount_cents: v*100})})).json();
-  if(d.ok && d.checkout_url){ window.location.href = d.checkout_url; }
-  else _autoMsg('Fehler: '+(d.error||d.message||'unbekannt'), false);
+  const fenster = _bezahlfenster();          // vor dem await, siehe _bezahlfenster()
+  _autoMsg('Bezahlseite wird geöffnet…', true);
+  const d = await postJSON('/api/hub/billing/auto/setup', {amount_cents: v*100});
+  if(d.ok && d.checkout_url){
+    _bezahlseiteZeigen(fenster, d.checkout_url, document.getElementById('auto-topup-msg'));
+  } else {
+    if (fenster && !fenster.closed) fenster.close();
+    _autoMsg('Fehler: '+errText(d), false);
+  }
 }
 
 async function autoTopupSaveAmount(){
