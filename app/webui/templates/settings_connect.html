@@ -1207,10 +1207,10 @@ function _reflowPlain(txt) {
     // Kopfblock: erste Zeile ist der Titel, der Rest (z.B. „Stand: Version 1")
     // eine gedämpfte Unterzeile — sonst liefen beide zu einem Satz zusammen.
     if (bi === 0) {
-      out.push('<h3 style="margin:0 0 4px;font-size:15px">' + _mdEscape(lines[0].trim()) + '</h3>');
+      out.push('<h3 style="margin:0 0 4px;font-size:15px">' + esc(lines[0].trim()) + '</h3>');
       if (lines.length > 1) {
         out.push('<p class="muted" style="margin:0 0 12px;font-size:12px">'
-                 + _mdEscape(lines.slice(1).join(' ')) + '</p>');
+                 + esc(lines.slice(1).join(' ')) + '</p>');
       }
       return;
     }
@@ -1218,10 +1218,10 @@ function _reflowPlain(txt) {
     // "1. Titel" / "Stand: …" — kurze Zeile ohne Satzende, gefolgt von Fließtext
     var isHeading = lines.length > 1 && head.length <= 70 && /^\d+\.\s+\S/.test(head);
     if (isHeading) {
-      out.push('<h3 style="margin:14px 0 5px;font-size:14px">' + _mdEscape(head) + '</h3>');
+      out.push('<h3 style="margin:14px 0 5px;font-size:14px">' + esc(head) + '</h3>');
       lines = lines.slice(1);
     }
-    out.push('<p style="margin:0 0 10px">' + _mdEscape(lines.join(' ')) + '</p>');
+    out.push('<p style="margin:0 0 10px">' + esc(lines.join(' ')) + '</p>');
   });
   return out.join('');
 }

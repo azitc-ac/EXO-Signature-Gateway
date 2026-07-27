@@ -427,6 +427,32 @@ async def get_license() -> dict:
         return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
 
 
+async def submit_consent_receipts() -> dict:
+    """Aktuelle Zustimmungsbelege an den Hub nachreichen.
+
+    Nötig nach einer erneuten Zustimmung: die Belege gingen bisher nur bei der
+    Registrierung mit, sodass der Hub dauerhaft die alte Fassung auswies.
+    Scheitert der Aufruf, bleibt die lokale Zustimmung trotzdem gültig — der
+    Beleg wird beim nächsten Anlauf nachgereicht.
+    """
+    base = _base()
+    if not (base and _key()):
+        return {"ok": False, "error": "Nicht registriert (Anbindung fehlt)."}
+    import legal_consent
+    belege = legal_consent.get_consent_receipts_for_hub()
+    if not belege:
+        return {"ok": False, "error": "Keine vollständigen Belege vorhanden."}
+    try:
+        async with httpx.AsyncClient(timeout=20) as c:
+            r = await c.post(f"{base}/api/consent-receipts", headers=_gateway_headers(),
+                             json={"consent_receipts": belege})
+        if r.status_code == 200:
+            return {"ok": True, **r.json()}
+        return {"ok": False, "error": f"HTTP {r.status_code}"}
+    except Exception as exc:
+        return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
+
+
 async def license_pricing() -> dict:
     """Preismodell für Lizenzen vom Hub holen.
 

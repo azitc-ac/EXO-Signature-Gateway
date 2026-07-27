@@ -25,6 +25,10 @@ jobs:
         with:
           python-version: "3.11"      # dieselbe Fassung wie im Container
 
+      - uses: actions/setup-node@v4   # für tools/jsrefcheck.js
+        with:
+          node-version: "20"
+
       - name: Abhängigkeiten
         run: |
           python -m pip install --upgrade pip
@@ -46,6 +50,13 @@ jobs:
 
       - name: JavaScript der Vorlagen
         run: python tools/jscheck.py
+
+      # jscheck prüft die Syntax; diese Prüfung findet Aufrufe von Funktionen,
+      # die es nicht gibt — syntaktisch einwandfrei, zur Laufzeit ein
+      # ReferenceError. So blieb `_mdEscape()` nach der Zusammenführung der
+      # Escaper stehen und ließ das Laden der Nutzungsbedingungen scheitern.
+      - name: Undefinierte Funktionsaufrufe
+        run: node tools/jsrefcheck.js app/webui/templates app/webui/static/common.js
 
   build:
     name: Container baut
