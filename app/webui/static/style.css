@@ -154,6 +154,19 @@ main { max-width: 960px; margin: 32px auto; padding: 0 24px; }
         max-width: 100% !important;
         box-sizing: border-box;
     }
+    /* …aber nicht für ABSICHTLICH kurze Felder.
+     *
+     * Die Regel oben ist grob: sie trifft auch ein dreistelliges Betragsfeld
+     * und macht es bildschirmbreit. Danach passen Einheit und Knopf nicht mehr
+     * daneben und rutschen in eigene Zeilen — aus „[25] € [Aufladen]" wird ein
+     * dreizeiliger Block. Am 27.07.2026 im Guthaben-Abschnitt aufgefallen.
+     *
+     * `.eng` markiert Felder, deren Kürze gewollt ist (Beträge, Anzahlen,
+     * Portnummern). Sie behalten ihre Breite und bleiben in einer Zeile. */
+    input.eng, select.eng {
+        width: auto !important;
+        min-width: 4.5em;
+    }
 }
 @media (max-width: 380px) {
     .stats-grid { grid-template-columns: 1fr; }

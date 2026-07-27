@@ -5,6 +5,35 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.83 — 2026-07-27 — Verlängerung: jede Handlung nennt ihr Objekt und ihre Folge
+
+Drei Knöpfe standen nebeneinander, deren Beschriftung offenließ, worauf sie sich bezieht — „Verlängerung beenden": welche? „Umstellung zurücknehmen": welche Umstellung?
+
+Schlimmer: **einer bot an, was bereits vorgemerkt war.** Wer auf jährliche Zahlung umgestellt hatte, bekam „Auf jährliche Zahlung umstellen" erneut angeboten, weil sich die Auswahl nach der *laufenden* Zahlungsweise richtete statt nach der gewünschten. Daneben stand gleichzeitig „Umstellung zurücknehmen" — zwei Knöpfe, die sich widersprachen.
+
+Jetzt steht unter jedem Knopf, was er bewirkt:
+
+```
+[ Umstellung auf jährliche Zahlung zurücknehmen ]
+  Es bliebe bei monatlich — die Umstellung zum 20.9.2026 entfällt.
+
+[ Automatische Verlängerung beenden ]
+  Die Lizenz bleibt bis zum 27.9.2026 gültig und läuft dann aus.
+  95,20 € werden dem Guthaben gutgeschrieben.
+```
+
+Ist eine Umstellung vorgemerkt, wird sie **nicht erneut angeboten** — dann ist Zurücknehmen die einzige sinnvolle Handlung.
+
+### Darstellung auf schmalen Bildschirmen
+
+Der Umschalter „Erweiterte Einstellungen" lief in vier Kartenüberschriften über den rechten Rand. Er hing mit `float:right` in der Überschrift; die Überschriften brechen jetzt um und schieben ihn in eine zweite Zeile.
+
+Ein Knopf „Speichern" stand halb außerhalb, weil die Zeile einen festen Einzug von 200 px hatte. Der Einzug schrumpft jetzt, wenn kein Platz ist.
+
+**Eine Regel machte jedes Eingabefeld bildschirmbreit** — auch ein dreistelliges Betragsfeld. Aus „[25] € [Aufladen]" wurde dadurch ein dreizeiliger Block. Absichtlich kurze Felder behalten ihre Breite jetzt.
+
+Zweispaltige Gegenüberstellungen stapeln unter 240 px je Spalte, statt sich auf 150 px zu quetschen.
+
 ## v1.7.82 — 2026-07-27 — Vor dem Kauf steht, was er mit dem Guthaben macht
 
 Vor einer Buchung war nur der Preis zu sehen — nicht, ob das Guthaben reicht, ob automatisch nachgeladen wird und was danach übrig bleibt. Beides erfuhr man erst hinterher aus dem Buchungsverlauf.

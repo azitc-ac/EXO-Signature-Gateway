@@ -16,7 +16,7 @@
 
 <!-- Signatur -->
 <div class="settings-card">
-  <h2>Signatur <span style="float:right;font-size:11px;font-weight:400"><label style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;color:#64748b"><input type="checkbox" id="adv-cb-sig" style="margin:0" onchange="_toggleAdv('sig',this.checked)"> Erweiterte Einstellungen</label></span></h2>
+  <h2 style="display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px">Signatur <span style="margin-left:auto;font-size:11px;font-weight:400;flex-shrink:0"><label style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;color:#64748b"><input type="checkbox" id="adv-cb-sig" style="margin:0" onchange="_toggleAdv('sig',this.checked)"> Erweiterte Einstellungen</label></span></h2>
   <div class="settings-row">
     <label class="checkbox-label">
       <input type="checkbox" id="fallback" {% if s.FALLBACK_ON_ERROR %}checked{% endif %}>

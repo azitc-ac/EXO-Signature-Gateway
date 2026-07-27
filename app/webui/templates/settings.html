@@ -97,7 +97,7 @@
 
 <!-- Benachrichtigungen -->
 <div class="settings-card" id="benachrichtigungen">
-  <h2>Benachrichtigungen &amp; Tagesbericht <span style="float:right;font-size:11px;font-weight:400"><label style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;color:#64748b"><input type="checkbox" id="adv-cb-benachrichtigungen" style="margin:0" onchange="_toggleAdv('benachrichtigungen',this.checked)"> Erweiterte Einstellungen</label></span></h2>
+  <h2 style="display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px">Benachrichtigungen &amp; Tagesbericht <span style="margin-left:auto;font-size:11px;font-weight:400;flex-shrink:0"><label style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;color:#64748b"><input type="checkbox" id="adv-cb-benachrichtigungen" style="margin:0" onchange="_toggleAdv('benachrichtigungen',this.checked)"> Erweiterte Einstellungen</label></span></h2>
 
   <div class="settings-row" style="margin-bottom:10px">
     <label class="checkbox-label" style="font-weight:600">
@@ -224,11 +224,11 @@
     <h3>Warnschwellen</h3>
     <div class="settings-row">
       <label for="cert-warn-days">S/MIME Zertifikat – Warnung ab</label>
-      <input type="number" id="cert-warn-days" value="{{ s.CERT_WARN_DAYS or 14 }}" min="1" max="90" style="width:80px"> Tage vor Ablauf
+      <input type="number" class="eng" id="cert-warn-days" value="{{ s.CERT_WARN_DAYS or 14 }}" min="1" max="90" style="width:80px"> Tage vor Ablauf
     </div>
     <div class="settings-row">
       <label for="le-renew-days">Let's Encrypt – Erneuerung ab</label>
-      <input type="number" id="le-renew-days" value="{{ s.LE_RENEW_DAYS or 7 }}" min="1" max="30" style="width:80px"> Tage vor Ablauf
+      <input type="number" class="eng" id="le-renew-days" value="{{ s.LE_RENEW_DAYS or 7 }}" min="1" max="30" style="width:80px"> Tage vor Ablauf
     </div>
     </div>
 

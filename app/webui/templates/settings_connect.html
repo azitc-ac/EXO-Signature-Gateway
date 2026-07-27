@@ -113,7 +113,7 @@
 
   <div id="acct-billing-box" class="info-box" style="display:none;margin-bottom:12px">
     <strong>Abrechnungsdaten</strong>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px;margin-top:8px">
       <input type="text" id="cert-bill-company" placeholder="Firma / Rechtsform" style="font-size:13px">
       <input type="text" id="cert-bill-address" placeholder="Rechnungsadresse" style="font-size:13px">
       <input type="text" id="cert-bill-vat" placeholder="USt-IdNr (optional)" style="font-size:13px" autocapitalize="off" autocorrect="off" spellcheck="false">
@@ -200,10 +200,10 @@
 
 <!-- ── DigiCert-Direktanbindung (eigenes CertCentral-Konto) ───────────────── -->
 <div class="settings-card" style="margin-bottom:18px">
-  <h2 style="margin-top:0">DigiCert-Direktanbindung
+  <h2 style="margin-top:0;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px">DigiCert-Direktanbindung
     <span class="muted" style="font-size:13px;font-weight:400">— eigenes CertCentral-Konto (optional)</span>
     <span class="conn-badge conn-wait" id="dc-badge" style="display:none"></span>
-    <span style="float:right;font-size:11px;font-weight:400"><label style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;color:#64748b"><input type="checkbox" id="adv-cb-digicert" style="margin:0" onchange="_toggleAdv('digicert',this.checked)"> Einstellungen anzeigen</label></span>
+    <span style="margin-left:auto;font-size:11px;font-weight:400;flex-shrink:0"><label style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;color:#64748b"><input type="checkbox" id="adv-cb-digicert" style="margin:0" onchange="_toggleAdv('digicert',this.checked)"> Einstellungen anzeigen</label></span>
   </h2>
   <div data-adv="digicert" style="display:none">
   <p class="hint" style="margin-bottom:12px">
@@ -365,7 +365,7 @@ _initAdv('digicert');
     </p>
     <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
       <div><label style="font-size:12px;display:block" id="lic-buy-label">Lizenz für … Postfächer</label>
-        <input type="number" id="lic-buy-mailboxes" min="1" step="1" style="width:120px"
+        <input type="number" id="lic-buy-mailboxes" class="eng" min="1" step="1" style="width:120px"
                oninput="licBuyPrice()">
         <span class="hint" style="display:block;margin-top:2px" id="lic-buy-unit">Zahl der aktivierten Postfächer insgesamt</span></div>
       <div><label style="font-size:12px;display:block">Zahlungsweise</label>
@@ -665,7 +665,7 @@ async function acctLoad() {
     badge.textContent = eur(d.balance_cents || 0);
     const min = Math.round(_acctMin / 100), max = Math.round(_acctMax / 100);
     const aufladen = d.stripe_enabled
-      ? '<div style="margin-top:8px"><input type="number" id="acct-topup-amount" min="' + min
+      ? '<div style="margin-top:8px"><input type="number" class="eng" id="acct-topup-amount" min="' + min
         + '" max="' + max + '" step="5" value="' + min + '" style="width:82px"> € '
         + '<button class="btn secondary" onclick="acctTopup()">Guthaben aufladen</button></div>'
       : '';
@@ -820,7 +820,7 @@ async function autoTopupLoad() {
   }
   html += '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">'
         + '<div><label style="font-size:12px;display:block">Betrag je Aufladung</label>'
-        + '<input type="number" id="auto-topup-amount" min="'+Math.round(d.min_amount_cents/100)
+        + '<input type="number" class="eng" id="auto-topup-amount" min="'+Math.round(d.min_amount_cents/100)
         + '" max="'+Math.round(d.max_amount_cents/100)+'" step="5" value="'+Math.round(amt/100)
         + '" style="width:90px;font-size:13px"> €</div>'
         + '<button class="btn secondary" onclick="autoTopupSaveAmount()">Betrag speichern</button>'
@@ -1232,39 +1232,61 @@ async function licRenewLoad() {
 
   licRenderUebersicht(d);
   _licState = Object.assign({}, _licState || {}, d);   // fuer die Erstattungsvorschau
-  const bis_renew = d.renew_at ? new Date(d.renew_at).toLocaleDateString('de-DE')
-                               : (d.expires ? new Date(d.expires).toLocaleDateString('de-DE') : '—');
   const text = document.getElementById('lic-renew-text');
   const actions = document.getElementById('lic-renew-actions');
 
-  if (d.auto_renew) {
-    // Knopfbeschriftungen als HANDLUNG, nicht als Zustandssatz. „Ab nächster
-    // Verlängerung jährlich im Voraus" las sich wie eine Feststellung — was
-    // gerade gilt, steht ohnehin in der Auflistung darüber.
-    const anders = d.zahlungsweise === 'monatlich' ? 'jaehrlich' : 'monatlich';
-    const label = anders === 'jaehrlich'
-      ? 'Auf jährliche Zahlung umstellen (10 % Nachlass)'
-      : 'Auf monatliche Zahlung umstellen';
-    actions.innerHTML =
-      '<button class="btn secondary" onclick="licRenewInterval(\'' + anders + '\')">'
-      + esc(label) + '</button>'
-      + (d.renew_zahlungsweise
-           ? '<button class="btn secondary" onclick="licRenewInterval(\''
-             + esc(d.zahlungsweise) + '\')">Umstellung zurücknehmen</button>' : '')
-      + '<button class="btn secondary" onclick="licRenewCancel()">Verlängerung beenden</button>';
-    text.textContent = 'Eine Umstellung wirkt zum ' + bis_renew + ', nicht sofort — '
-      + 'der laufende Zeitraum ist bezahlt.';
-  } else {
-    actions.innerHTML = '<button class="btn primary" onclick="licRenewResume()">Verlängerung wieder aufnehmen</button>';
-    text.textContent = 'Möglich, solange die Lizenz läuft.';
+  // Jede Handlung mit ihrer Folge darunter. Vorher standen drei Knöpfe
+  // nebeneinander, deren Beschriftung ihr Objekt nicht nannte („Verlängerung
+  // beenden" — welche?) und von denen einer anbot, was bereits vorgemerkt war:
+  // die Auswahl richtete sich nach der LAUFENDEN Zahlungsweise statt nach der
+  // gewünschten. Wer schon auf jährlich umgestellt hatte, bekam „Auf jährliche
+  // Zahlung umstellen" erneut angeboten.
+  function _handlung(beschriftung, ruf, folge, haupt) {
+    return '<div style="margin-bottom:10px">'
+         + '<button class="btn ' + (haupt ? 'primary' : 'secondary') + '" onclick="' + ruf + '">'
+         + esc(beschriftung) + '</button>'
+         + '<div class="hint" style="margin-top:3px">' + folge + '</div></div>';
   }
-  // Der Fehlschlag steht bereits in der Auflistung („Letzter Versuch") — hier
-  // nur noch die Beruhigung, was er bedeutet.
+
+  const bisAblauf = _datum(d.expires);
+  const bisRenew = d.renew_at ? _datum(d.renew_at) : bisAblauf;
+  var knoepfe = '';
+
+  if (!d.auto_renew) {
+    text.textContent = '';
+    knoepfe = _handlung('Automatische Verlängerung wieder aufnehmen', 'licRenewResume()',
+      'Die Lizenz verlängert sich dann wieder — das nächste Mal am ' + bisRenew + '.', true);
+  } else {
+    if (d.renew_zahlungsweise) {
+      // Vorgemerkt: dann ist die EINZIGE sinnvolle Handlung das Zurücknehmen.
+      const gewuenscht = _zwText(d.renew_zahlungsweise);
+      const bisher = _zwText(d.zahlungsweise);
+      knoepfe += _handlung('Umstellung auf ' + gewuenscht + ' zurücknehmen',
+        "licRenewInterval('" + esc(d.zahlungsweise) + "')",
+        'Es bliebe bei ' + esc(bisher) + ' — die Umstellung zum ' + bisRenew + ' entfällt.');
+    } else {
+      const anders = d.zahlungsweise === 'monatlich' ? 'jaehrlich' : 'monatlich';
+      const label = anders === 'jaehrlich'
+        ? 'Auf jährliche Zahlung umstellen' : 'Auf monatliche Zahlung umstellen';
+      knoepfe += _handlung(label, "licRenewInterval('" + anders + "')",
+        anders === 'jaehrlich'
+          ? 'Ab dem ' + bisRenew + ' wird für zwölf Monate im Voraus abgerechnet, '
+            + 'mit 10 % Nachlass. Der laufende Zeitraum bleibt unberührt.'
+          : 'Ab dem ' + bisRenew + ' wird monatlich abgerechnet, ohne Nachlass. '
+            + 'Der laufende Zeitraum bleibt unberührt.');
+    }
+    const erstattung = (d.refund_preview_cents > 0)
+      ? ' ' + eur(d.refund_preview_cents) + ' werden dem Guthaben gutgeschrieben.'
+      : ' Eine Gutschrift entsteht nicht — kein voller Monat mehr offen.';
+    knoepfe += _handlung('Automatische Verlängerung beenden', 'licRenewCancel()',
+      'Die Lizenz bleibt bis zum ' + bisAblauf + ' gültig und läuft dann aus.' + erstattung);
+    text.textContent = '';
+  }
+  actions.innerHTML = knoepfe;
+
   if (d.renew_error) {
-    // Der Fehlschlag selbst steht in der Auflistung („Letzter Versuch") — hier
-    // nur, was er bedeutet.
-    text.textContent += ' Der letzte Versuch schlug fehl; die Lizenz bleibt bis zum '
-      + 'Ablaufdatum gültig und der Versuch wird wiederholt.';
+    text.textContent = 'Der letzte Verlängerungsversuch schlug fehl; die Lizenz bleibt bis '
+      + 'zum Ablaufdatum gültig und der Versuch wird wiederholt.';
   }
   box.style.display = '';
 }
