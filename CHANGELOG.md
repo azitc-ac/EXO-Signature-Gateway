@@ -5,6 +5,25 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.77 — 2026-07-27 — Lizenzumfang: alle Fälle, benannt statt erraten
+
+Der Umfang ließ sich nur **erhöhen**. Wollte jemand von 110 auf 100 Postfächer zurück — also gar keine Lizenz mehr —, hieß der Knopf weiterhin „Aufstocken", und die Anzeige sagte lediglich „bis 100 Postfächer ist der Betrieb frei", ohne zu erwähnen, was mit der laufenden Lizenz geschieht. Eine Verringerung auf einen kleineren, aber noch lizenzpflichtigen Umfang gab es überhaupt nicht.
+
+**Ein Zahlenfeld, vier benannte Fälle.** Der Knopf trägt jeweils den Namen des Vorgangs, die Zeile darunter nennt Wirkung und Zeitpunkt:
+
+| Eingabe | Knopf | Wirkung |
+|---|---|---|
+| höher als bisher | **Jetzt aufstocken** | anteilig für die Restlaufzeit, Ablaufdatum bleibt |
+| unverändert | gesperrt | — |
+| niedriger, über der Freigrenze | **Zum nächsten Zeitraum verringern** | kostenlos, wirkt zum Ablaufdatum |
+| Freigrenze oder darunter | **Lizenz auslaufen lassen** | Verlängerung endet, nicht genutzte volle Monate werden erstattet |
+
+Der letzte Fall ist die Einsicht dahinter: **auf die Freigrenze zurückgehen ist dasselbe wie kündigen.** Beides führt jetzt zum selben Vorgang, statt in einer Sackgasse zu enden.
+
+Die Verringerung zum nächsten Zeitraum ist neu — sie senkt auch den Preis der Verlängerung. Bisher hätte man weiter für Lizenzen bezahlt, die man abbestellt hat.
+
+Das Eingabefeld ist mit dem aktuellen Stand vorbelegt und der Knopf dabei gesperrt; ein versehentlicher Vorgang ist damit ausgeschlossen. Die frühere Untergrenze des Feldes ist entfallen — sie hätte genau die Verringerung verhindert.
+
 ## v1.7.76 — 2026-07-27 — Lizenzkauf: Absicht wird gewählt, nicht erraten
 
 Was ein Klick auf „Kaufen" bewirkte, hing an der Zahl im Eingabefeld — und stand nirgends: eine **höhere** Zahl stockte anteilig auf und ließ das Ablaufdatum stehen, die **gleiche** Zahl bezahlte stillschweigend einen weiteren Zeitraum im Voraus. Das Feld war mit der aktuellen Zahl **vorbelegt**. Wer einfach klickte, kaufte einen weiteren Zeitraum, ohne es zu wollen.

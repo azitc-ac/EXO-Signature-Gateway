@@ -473,19 +473,31 @@ async def license_pricing() -> dict:
         return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
 
 
+async def license_umfang(mailboxes: int) -> dict:
+    """Umfang ab der naechsten Verlaengerung verringern."""
+    return await _license_json("umfang", {"mailboxes": int(mailboxes)})
+
+
 async def license_zahlungsweise(zahlungsweise: str) -> dict:
     """Zahlungsweise ab der naechsten Verlaengerung festlegen (Ziffer 10.4)."""
     base = _base()
     if not (base and _key()):
         return {"ok": False, "error": "Nicht registriert (Anbindung fehlt)."}
+    return await _license_json("zahlungsweise", {"zahlungsweise": zahlungsweise})
+
+
+async def _license_json(pfad: str, nutzlast: dict) -> dict:
+    """Gemeinsamer POST an /api/license/<pfad>. Reicht die Antwort durch."""
+    base = _base()
+    if not (base and _key()):
+        return {"ok": False, "error": "Nicht registriert (Anbindung fehlt)."}
     try:
         async with httpx.AsyncClient(timeout=20) as c:
-            r = await c.post(f"{base}/api/license/zahlungsweise",
-                             headers=_gateway_headers(),
-                             json={"zahlungsweise": zahlungsweise})
+            r = await c.post(f"{base}/api/license/{pfad}",
+                             headers=_gateway_headers(), json=nutzlast)
         data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
         if r.status_code == 200 and data.get("ok"):
-            return {"ok": True, **data}
+            return {**data, "ok": True}
         return {"ok": False, "error": data.get("detail") or f"HTTP {r.status_code}"}
     except Exception as exc:
         return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
