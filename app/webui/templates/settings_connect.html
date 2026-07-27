@@ -345,10 +345,10 @@ _initAdv('digicert');
       Ablaufdatum weiter — keine Restlaufzeit geht verloren.
     </p>
     <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
-      <div><label style="font-size:12px;display:block">Zu kaufende Lizenzen</label>
-        <input type="number" id="lic-buy-licenses" min="1" step="1" style="width:120px"
+      <div><label style="font-size:12px;display:block" id="lic-buy-label">Lizenz für … Postfächer</label>
+        <input type="number" id="lic-buy-mailboxes" min="1" step="1" style="width:120px"
                oninput="licBuyPrice()">
-        <span class="hint" style="display:block;margin-top:2px">über die 100 Fair-Use-Postfächer hinaus (z.&nbsp;B. 110 Postfächer → 10 Lizenzen)</span></div>
+        <span class="hint" style="display:block;margin-top:2px" id="lic-buy-unit">Zahl der aktivierten Postfächer insgesamt</span></div>
       <div><label style="font-size:12px;display:block">Zahlungsweise</label>
         <select id="lic-buy-interval" onchange="licBuyPrice()" style="min-width:190px">
           <option value="monatlich">monatlich</option>
@@ -1237,9 +1237,23 @@ function licRenderPaths(d) {
   // Schlüssel per Mail. Ist der hinterlegte ungültig, gleich aufklappen.
   offline.open = !!(d && d.reason);
 
+  // Genau ZWEI Handlungen, keine aus einer Zahl erratene dritte. Bis v1.7.75
+  // hiess "gleiche Zahl wie bisher" stillschweigend "weiteren Zeitraum im
+  // Voraus bezahlen" — und das Feld war damit vorbelegt. Wer einfach auf
+  // Kaufen klickte, bezahlte einen weiteren Zeitraum, ohne es zu wollen.
+  // Manuelles Vorauszahlen entfaellt ersatzlos: die Verlaengerung laeuft
+  // automatisch, ein Jahr im Voraus stellt man ueber die Zahlungsweise ein,
+  // und nach einer Kuendigung gibt es "Verlaengerung wieder aufnehmen".
+  const frei = _licPricing ? _licPricing.frei_postfaecher : 100;
   document.getElementById('lic-buy-title').textContent = d.licensed
-    ? 'Online — Lizenz verlängern oder aufstocken'
+    ? 'Online — Postfächer aufstocken'
     : 'Online beziehen — über die Hub-Anbindung';
+  document.getElementById('lic-buy-label').textContent = d.licensed
+    ? 'Aufstocken auf … Postfächer' : 'Lizenz für … Postfächer';
+  document.getElementById('lic-buy-btn').textContent = d.licensed ? 'Aufstocken' : 'Kaufen';
+  document.getElementById('lic-buy-unit').textContent = d.licensed
+    ? 'Gesamtzahl nach dem Aufstocken — derzeit lizenziert: ' + (d.mailboxes || 0)
+    : 'Zahl der aktivierten Postfächer insgesamt (bis ' + frei + ' ist der Betrieb frei)';
   // Bei laufender Lizenz ist die Zahlungsweise nicht frei waehlbar: Ziffer 10.4
   // erlaubt die Aenderung zum ENDE des Abrechnungszeitraums. Umgestellt wird
   // deshalb im Verlaengerungsblock, nicht durch einen Kauf.
@@ -1247,13 +1261,15 @@ function licRenderPaths(d) {
   const wahlHinweis = document.getElementById('lic-interval-note');
   wahl.disabled = !!d.licensed;
   wahlHinweis.style.display = d.licensed ? '' : 'none';
-  const input = document.getElementById('lic-buy-licenses');
+  const input = document.getElementById('lic-buy-mailboxes');
   if (!input.value) {
-    // Vorschlag: Bedarf ÜBER die 100 Fair-Use hinaus (auf 10er gerundet), mind. 1;
-    // bei bestehender Lizenz mindestens das bisherige Limit
-    var total = Math.max(110, Math.ceil((d.count || 0) / 10) * 10,
-                         d.licensed ? (d.mailboxes || 0) : 0);
-    input.value = Math.max(1, total - 100);
+    // Vorschlag in POSTFAECHERN (nicht in Lizenzen — das Feld zaehlt jetzt
+    // dasselbe wie die Statuszeile darueber). Bei bestehender Lizenz eine
+    // Stufe HOEHER als bisher, damit die Vorbelegung nicht versehentlich
+    // "gleich viel" bedeutet.
+    const bedarf = Math.max(frei + 10, Math.ceil((d.count || 0) / 10) * 10);
+    input.value = d.licensed ? Math.max(bedarf, (d.mailboxes || 0) + 10) : bedarf;
+    input.min = d.licensed ? ((d.mailboxes || 0) + 1) : (frei + 1);
   }
   // Holt das Preismodell und ruft danach licBuyPrice() — ohne Modell nennt die
   // Anzeige keinen Betrag statt eines geratenen.
@@ -1272,12 +1288,21 @@ async function licPricingLoad() {
 }
 
 function licBuyPrice() {
-  const lic = parseInt(document.getElementById('lic-buy-licenses').value, 10) || 0;
+  const ziel = parseInt(document.getElementById('lic-buy-mailboxes').value, 10) || 0;
   const el = document.getElementById('lic-buy-price');
   const btn = document.getElementById('lic-buy-btn');
   const frei = _licPricing ? _licPricing.frei_postfaecher : 100;
-  if (lic <= 0) {
+  const laufend = _licPricing && _licPricing.laufend;
+  if (ziel <= frei) {
     el.textContent = 'Bis ' + frei + ' Postfächer gilt Fair Use — keine Lizenz nötig.';
+    btn.disabled = true; return;
+  }
+  // Aufstocken heisst aufstocken. Eine Zahl, die nicht darüber liegt, ist kein
+  // Kauf — und darf keinen stillschweigend anderen Vorgang auslösen.
+  if (laufend && ziel <= laufend.mailboxes) {
+    el.textContent = 'Du hast bereits ' + laufend.mailboxes + ' Postfächer lizenziert. '
+      + 'Zum Aufstocken eine höhere Zahl eintragen. Eine Verringerung wirkt erst im '
+      + 'folgenden Abrechnungszeitraum — dafür ist nichts zu tun.';
     btn.disabled = true; return;
   }
   btn.disabled = false;
@@ -1288,20 +1313,17 @@ function licBuyPrice() {
   const zw = document.getElementById('lic-buy-interval').value;
   const modell = _licPricing.zahlungsweisen[zw];
   if (!modell) { el.textContent = 'Unbekannte Zahlungsweise.'; btn.disabled = true; return; }
-  const ziel = lic + frei;
   const a = _licAngebot(ziel, zw);
   if (a.fehler) { el.textContent = a.fehler; btn.disabled = true; return; }
 
-  var text = 'Preis: ' + a.lizenzen + (a.erweiterung ? ' zusätzliche' : '') + ' Lizenzen × '
-           + eur(modell.monatspreis_cents) + '/Monat';
+  var text = 'Preis: ' + a.lizenzen + (a.erweiterung ? ' zusätzliche' : '') + ' Lizenzen '
+           + '(über der Freigrenze von ' + frei + ') × ' + eur(modell.monatspreis_cents) + '/Monat';
   if (a.monate > 1) text += ' × ' + a.monate + ' Monate';
-  text += ' = ' + eur(a.netto) + ' netto (deckt bis ' + ziel + ' Postfächer ab';
+  text += ' = ' + eur(a.netto) + ' netto (deckt dann ' + ziel + ' Postfächer ab';
   if (a.erweiterung) {
-    text += ', anteilig für die verbleibende Laufzeit bis '
-          + new Date(_licPricing.laufend.expires).toLocaleDateString('de-DE')
+    text += ', anteilig für die Restlaufzeit bis '
+          + new Date(laufend.expires).toLocaleDateString('de-DE')
           + ' — das Ablaufdatum bleibt, alle Lizenzen enden gemeinsam';
-  } else if (_licState && _licState.licensed) {
-    text += ', Laufzeit ab aktuellem Ablaufdatum';
   }
   text += '). Abbuchung vom Guthaben erfolgt brutto.';
   if (zw === 'jaehrlich' && _licPricing.jahresnachlass_prozent) {
@@ -1324,14 +1346,21 @@ function _licAngebot(zielPostfaecher, zw) {
   const frei = _licPricing.frei_postfaecher;
   const modell = _licPricing.zahlungsweisen[zw];
   const l = _licPricing.laufend;
-  if (!l || zielPostfaecher <= l.mailboxes) {
-    if (l && zielPostfaecher < l.mailboxes) {
-      return {fehler: 'Eine Verringerung wirkt erst im folgenden Abrechnungszeitraum — '
-                    + 'für den laufenden gibt es keine Erstattung. Es ist nichts zu tun.'};
-    }
+  if (!l) {
+    // Erstkauf: voller Zeitraum.
     return {erweiterung: false, lizenzen: Math.max(0, zielPostfaecher - frei),
             monate: modell.monate,
             netto: Math.max(0, zielPostfaecher - frei) * modell.monate * modell.monatspreis_cents};
+  }
+  if (zielPostfaecher <= l.mailboxes) {
+    // Kein stillschweigend anderer Vorgang. Hier lag bis v1.7.75 „gleiche Zahl
+    // = weiteren Zeitraum im Voraus bezahlen" — unsichtbar, und das Feld war
+    // damit vorbelegt.
+    return {fehler: zielPostfaecher < l.mailboxes
+      ? 'Eine Verringerung wirkt erst im folgenden Abrechnungszeitraum — für den '
+        + 'laufenden gibt es keine Erstattung. Es ist nichts zu tun.'
+      : 'Du hast bereits ' + l.mailboxes + ' Postfächer lizenziert. Zum Aufstocken '
+        + 'eine höhere Zahl eintragen.'};
   }
   if (l.zahlungsweise !== zw) {
     return {fehler: 'Die Zahlungsweise kann erst zum Ende des laufenden Abrechnungs'
@@ -1597,9 +1626,7 @@ async function _doCertRequestInvoice() {
 }
 
 async function licBuy() {
-  const lic = parseInt(document.getElementById('lic-buy-licenses').value, 10) || 0;
-  const frei = _licPricing ? _licPricing.frei_postfaecher : 100;
-  const total = lic + frei;
+  const total = parseInt(document.getElementById('lic-buy-mailboxes').value, 10) || 0;
   const zw = document.getElementById('lic-buy-interval').value;
   // Betrag aus dem Preismodell des Hubs, nicht aus einer eigenen Rechnung.
   // Ist es nicht abrufbar, wird kein Betrag genannt statt eines falschen.
@@ -1610,8 +1637,10 @@ async function licBuy() {
       + (a.erweiterung ? ' anteilig für ' + a.monate + ' Monate Restlaufzeit' : '')
     : 'den vom Hub berechneten Betrag';
   const was = a && a.erweiterung
-    ? 'Auf ' + total + ' Postfächer aufstocken (' + a.lizenzen + ' zusätzliche Lizenzen)'
-    : lic + ' Lizenzen kaufen (deckt bis ' + total + ' Postfächer ab)';
+    ? 'Auf ' + total + ' Postfächer aufstocken (' + a.lizenzen + ' zusätzliche Lizenzen, '
+      + 'Ablaufdatum bleibt)'
+    : 'Lizenz für ' + total + ' Postfächer kaufen'
+      + (a ? ' (' + a.lizenzen + ' Lizenzen über der Freigrenze)' : '');
   if (!confirm(was + ' — ' + betrag
              + '? Der Bruttobetrag wird deinem Hub-Konto belastet.')) return;
   const btn = document.getElementById('lic-buy-btn');
@@ -1625,10 +1654,13 @@ async function licBuy() {
     if (r.ok) {
       var gross = d.price_gross_cents ? (d.price_gross_cents / 100).toFixed(2) + ' € brutto'
                                       : ((d.price_cents || 0) / 100) + ' €';
-      _licMsg('✓ Lizenz gekauft und eingespielt — gültig bis ' + (d.expires || '?') +
+      _licMsg((d.erweiterung
+                 ? '✓ Aufgestockt auf ' + (d.mailboxes || '?') + ' Postfächer — Ablaufdatum '
+                   + 'unverändert ' + (d.expires || '?')
+                 : '✓ Lizenz gekauft und eingespielt — gültig bis ' + (d.expires || '?')) +
               ' (' + gross + ' belastet' +
               (d.vat_percent ? ', inkl. ' + d.vat_percent + ' % MwSt.' : '') + ').', true);
-      document.getElementById('lic-buy-licenses').value = '';
+      document.getElementById('lic-buy-mailboxes').value = '';
       licLoad();
     } else {
       _licMsg(d.detail || 'Kauf fehlgeschlagen.', false);
