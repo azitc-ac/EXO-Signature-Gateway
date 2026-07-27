@@ -66,6 +66,50 @@ def _covered(hexv: str, covered: set[str]) -> bool:
     return any(hexv.startswith(c) for c in covered)
 
 
+
+def _cssom_gefaehrdet(template_dir: Path, css: str) -> list[str]:
+    """Elemente mit heller Inline-Hintergrundfarbe, deren `style` von JS
+    angefasst wird — ohne eigene Regel auf die ID.
+
+    Warum das eine eigene Prüfung braucht: Die Sammelregeln greifen über
+    [style*="background:#hex"], also über den TEXT des Attributs. Setzt
+    JavaScript irgendeine Eigenschaft desselben Elements — `el.style.display`
+    genügt —, schreibt der Browser das ganze Attribut neu und serialisiert
+    Farben als rgb(…). Der Selektor findet die Hex-Schreibweise dann nicht mehr.
+
+    Für die bestehende Prüfung ist so ein Element unauffällig: die Farbe steht
+    in der Palette UND im Attribut. Genau deshalb blieb der
+    Verlängerungskasten der Lizenz am 27.07.2026 hell.
+
+    Abhilfe ist eine Regel auf die ID (`[data-theme="dark"] #id { … }`), die
+    unabhängig von der Serialisierung trägt. Diese Prüfung verlangt sie.
+    """
+    id_regeln = set(re.findall(r'\[data-theme="dark"\]\s*#([\w-]+)', css))
+    mit_id_und_bg = re.compile(
+        r'<[a-z]+\b(?=[^>]*\bid=["\']([\w-]+)["\'])(?=[^>]*\bstyle=["\']([^"\']*)["\'])',
+        re.I)
+    fehlend = []
+    for f in sorted(template_dir.rglob("*.html")):
+        html = f.read_text(encoding="utf-8")
+        for m in mit_id_und_bg.finditer(html):
+            eid, stil = m.group(1), m.group(2)
+            bg = re.search(r"background:\s*(#[0-9a-fA-F]{3,6})", stil)
+            if not bg or not _is_light(_norm(bg.group(1))):
+                continue
+            if eid in id_regeln:
+                continue
+            beruehrt = re.search(
+                r"getElementById\(\s*['\"`]" + re.escape(eid) + r"['\"`]\s*\)\s*\.style", html)
+            if not beruehrt:
+                zuw = re.search(r"(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*"
+                                r"document\.getElementById\(\s*['\"`]" + re.escape(eid) + r"['\"`]", html)
+                if zuw:
+                    beruehrt = re.search(r"\b" + re.escape(zuw.group(1)) + r"\.style\b", html)
+            if beruehrt:
+                fehlend.append(f"{f.name}: #{eid} (background:{bg.group(1)})")
+    return fehlend
+
+
 def main(argv: list[str]) -> int:
     if len(argv) < 3:
         print(__doc__)
@@ -117,9 +161,18 @@ def main(argv: list[str]) -> int:
         if not known:
             unexpected += 1
 
+    gefaehrdet = _cssom_gefaehrdet(Path(template_dir), css)
+    if gefaehrdet:
+        print("\nInline-Hintergrund + JS fasst style an, aber keine ID-Regel:")
+        for g in gefaehrdet:
+            print(f"  !! {g}")
+        print("  → Regel [data-theme=\"dark\"] #id { background: … } ergänzen; der "
+              "Attributselektor greift nach der Neuserialisierung nicht mehr.")
+
     print(f"\n{len(covered)} Farben im Dark-Mode-CSS abgedeckt, "
-          f"{unexpected} unerwartete Lücke(n).")
-    return 1 if unexpected else 0
+          f"{unexpected} unerwartete Lücke(n), "
+          f"{len(gefaehrdet)} Element(e) ohne ID-Regel.")
+    return 1 if (unexpected or gefaehrdet) else 0
 
 
 if __name__ == "__main__":

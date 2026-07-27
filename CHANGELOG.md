@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.74 — 2026-07-27 — Dunkelmodus: helle Kästen, die JavaScript anfasst
+
+Der Kasten zur automatischen Verlängerung blieb im Dunkelmodus hell — heller Hintergrund mit hellem Text.
+
+**Ursache und ihre Reichweite.** Die Dunkelmodus-Regeln greifen über den *Text* des `style`-Attributs. Sobald JavaScript irgendeine Eigenschaft desselben Elements setzt — schon das Ein- und Ausblenden genügt —, schreibt der Browser das gesamte Attribut neu und notiert Farben in einer anderen Schreibweise. Die Regel findet die ursprüngliche Angabe dann nicht mehr.
+
+Für die bisherige Prüfung war so ein Element unauffällig: die Farbe stand in der freigegebenen Palette **und** im Attribut. Betroffen waren dadurch **21 Elemente** in beiden Anwendungen — unter anderem die Schlüsseltresor-Kästen im Einrichtungsassistenten, die DNS-Eintragsanzeige, die Ausklappmenüs in den Einstellungen und das Hinweisband zu geänderten Bedingungen.
+
+Alle bekommen jetzt eine Regel, die am Element selbst ansetzt und unabhängig von der Schreibweise trägt.
+
+**`tools/darkcheck.py` prüft das ab sofort mit** und verlangt für jedes helle Element, dessen Anzeige von JavaScript gesteuert wird, eine solche Regel.
+
 ## v1.7.73 — 2026-07-27 — Bezahlseite öffnet zuverlässig, Buchungsbeträge stimmen
 
 **Die Bezahlseite öffnete nicht in einem neuen Tab.** Das Fenster wurde erst *nach* dem Abruf der Bezahl-Adresse geöffnet — nach einer solchen Pause gilt der Klick des Nutzers als verbraucht, und der Browser wertet das Öffnen als ungebetenes Popup: es landet im selben Tab oder wird ganz unterdrückt. Das Fenster wird jetzt unmittelbar beim Klick geöffnet und danach befüllt.
