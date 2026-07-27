@@ -70,6 +70,62 @@
 </div>
 
 <!-- ── Zertifikatsbezug ───────────────────────────────────────────────────── -->
+<!-- ── Konto & Guthaben ───────────────────────────────────────────────────────
+     Eigene Karte, NICHT im Zertifikatsbezug. Das Guthaben bezahlt Lizenzen und
+     Zertifikate (Ziffer 10.1 der Nutzungsbedingungen); es hinter der Zustimmung
+     zu den Zertifikatsbedingungen zu verstecken, verlangte diese Zustimmung von
+     jedem, der nur Lizenzen kaufen will. -->
+<div class="settings-card" style="margin-bottom:18px">
+  <h2 style="margin-top:0">Konto &amp; Guthaben
+    <span class="conn-badge conn-wait" id="acct-badge">…</span>
+  </h2>
+  <p class="hint" style="margin-bottom:12px">
+    Ein Guthaben für beide kostenpflichtigen Leistungen — <strong>Lizenzen und
+    Zertifikate</strong>. Abgerechnet wird im Voraus; die Zahlung erfolgt also stets
+    vor der Leistung. <strong>Nicht verbrauchtes Guthaben erstatten wir jederzeit auf
+    Verlangen</strong>, ohne Kündigung und ohne Begründung.
+  </p>
+
+  <div class="info-box" style="margin-bottom:12px">
+    <div id="acct-balance-body"><span class="muted">Wird geladen…</span></div>
+  </div>
+
+  <div id="acct-auto-topup-box" class="info-box" style="display:none;margin-bottom:12px">
+    <strong>Automatisch aufladen</strong>
+    <p class="hint" style="margin:2px 0 8px">
+      Beim Einrichten wird der gewählte Betrag aufgeladen und die Karte für spätere
+      Nachladungen hinterlegt. Reicht das Guthaben später nicht — für eine
+      Zertifikatsbestellung oder eine Lizenzverlängerung —, wird automatisch
+      nachgeladen. Keine Freigabe nötig, da die Zahlung stets vor der Leistung erfolgt.
+    </p>
+    <div id="acct-auto-topup-body"><span class="muted">Wird geladen…</span></div>
+  </div>
+
+  <div id="acct-invoice-request-box" class="info-box" style="display:none;margin-bottom:12px">
+    <strong>Rechnungsstellung (statt Prepaid)</strong>
+    <p class="hint" style="margin:2px 0 8px">
+      Auf Wunsch stellen wir statt Prepaid-Guthaben auf Rechnung um — dafür braucht es eine
+      kurze Prüfung/Freigabe durch EXO Signature HUB. Die Abrechnungsdaten werden mit dem
+      Antrag übermittelt.
+    </p>
+    <div id="acct-invoice-request-body"></div>
+  </div>
+
+  <div id="acct-billing-box" class="info-box" style="display:none;margin-bottom:12px">
+    <strong>Abrechnungsdaten</strong>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+      <input type="text" id="cert-bill-company" placeholder="Firma / Rechtsform" style="font-size:13px">
+      <input type="text" id="cert-bill-address" placeholder="Rechnungsadresse" style="font-size:13px">
+      <input type="text" id="cert-bill-vat" placeholder="USt-IdNr (optional)" style="font-size:13px" autocapitalize="off" autocorrect="off" spellcheck="false">
+      <input type="text" id="cert-bill-contact" placeholder="Ansprechpartner" style="font-size:13px">
+      <input type="text" id="cert-bill-website" placeholder="Webseite (optional)" style="font-size:13px" autocapitalize="off" autocorrect="off" spellcheck="false">
+    </div>
+    <div style="margin-top:8px"><button class="btn secondary" onclick="certSaveBilling()">Speichern</button></div>
+  </div>
+
+  <div id="acct-msg" class="msg" style="display:none;margin-top:8px"></div>
+</div>
+
 <div class="settings-card" style="margin-bottom:18px">
   <h2 style="margin-top:0">Zertifikatsbezug
     <span class="muted" style="font-size:13px;font-weight:400">— kostenpflichtig</span>
@@ -106,60 +162,16 @@
       <span id="cert-catalog-result" style="font-size:12px"></span>
     </div>
     <div class="info-box" style="margin-bottom:12px">
-      <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:14px">
-        <div id="cert-step1-dot" style="flex:0 0 22px;height:22px;border-radius:50%;background:#e2e8f0;color:#334155;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700">1</div>
-        <div style="flex:1">
-          <strong>Nutzungsbedingungen akzeptieren</strong>
-          <p class="hint" style="margin:2px 0 8px">Die Akzeptanz ist zugleich der Antrag auf Zertifikatsbezug — ein separater Antrag ist nicht nötig.</p>
-          <div id="cert-step1-body"><button class="btn secondary" onclick="certAcceptTerms()">Nutzungsbedingungen akzeptieren</button></div>
-        </div>
-      </div>
-      <div id="cert-step2-row" style="display:flex;gap:10px;align-items:flex-start;opacity:.45;pointer-events:none">
-        <div id="cert-step2-dot" style="flex:0 0 22px;height:22px;border-radius:50%;background:#e2e8f0;color:#334155;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700">2</div>
-        <div style="flex:1">
-          <strong>Guthaben aufladen</strong>
-          <p class="hint" style="margin:2px 0 8px">Sobald Guthaben vorhanden ist, wird der Zertifikatsbezug automatisch freigeschaltet — keine gesonderte Freigabe nötig.</p>
-          <div id="cert-step2-body"><span class="muted">Erst nach Schritt 1 verfügbar.</span></div>
-        </div>
-      </div>
-    </div>
-
-    <div id="cert-auto-topup-box" class="info-box" style="display:none;margin-bottom:12px">
-      <strong>Automatisch aufladen</strong>
+      <strong>Nutzungsbedingungen für den Zertifikatsbezug</strong>
       <p class="hint" style="margin:2px 0 8px">
-        Beim Einrichten wird der gewählte Betrag aufgeladen und die Karte für spätere
-        Nachladungen hinterlegt. Reicht das Guthaben später für eine Bestellung nicht,
-        wird automatisch nachgeladen — keine Freigabe nötig, da die Zahlung stets vor
-        der Leistung erfolgt. <strong>Nicht verbrauchtes Guthaben erstatten wir dir
-        jederzeit auf Verlangen</strong>, ohne Kündigung und ohne Begründung.
+        Sie gelten nur für den Zertifikatsbezug; die Zustimmung ist zugleich der Antrag.
+        <strong>Für Guthaben und Lizenzen sind sie nicht erforderlich</strong> — dafür
+        genügen die Bedingungen, denen du bei der Anbindung zugestimmt hast.
       </p>
-      <div id="cert-auto-topup-body"><span class="muted">Wird geladen…</span></div>
+      <div id="cert-step1-body"><button class="btn secondary" onclick="certAcceptTerms()">Nutzungsbedingungen akzeptieren</button></div>
     </div>
 
-    <div id="cert-invoice-request-box" class="info-box" style="display:none;margin-bottom:12px">
-      <strong>Rechnungsstellung (statt Prepaid)</strong>
-      <p class="hint" style="margin:2px 0 8px">
-        Auf Wunsch stellen wir statt Prepaid-Guthaben auf Rechnung um — dafür braucht es eine
-        kurze Prüfung/Freigabe durch EXO Signature HUB. Die Abrechnungsdaten werden mit dem
-        Antrag übermittelt.
-      </p>
-      <div id="cert-invoice-request-body"></div>
-    </div>
-
-    <div id="cert-billing-box" class="info-box" style="display:none;margin-bottom:12px">
-      <strong>Abrechnungsdaten</strong>
-      <p class="hint" style="margin:2px 0 8px">Für die Rechnungsstellung erforderlich (Firma + Adresse) — einmalig hinterlegen.</p>
-      <div style="display:flex;flex-direction:column;gap:6px;max-width:420px">
-        <input type="text" id="cert-bill-company" placeholder="Firma / Rechtsform" style="font-size:13px">
-        <input type="text" id="cert-bill-address" placeholder="Rechnungsadresse" style="font-size:13px">
-        <input type="text" id="cert-bill-vat" placeholder="USt-IdNr (optional)" style="font-size:13px" autocapitalize="off" autocorrect="off" spellcheck="false">
-        <input type="text" id="cert-bill-contact" placeholder="Ansprechpartner" style="font-size:13px">
-        <input type="text" id="cert-bill-website" placeholder="Webseite (optional)" style="font-size:13px" autocapitalize="off" autocorrect="off" spellcheck="false">
-      </div>
-      <div style="margin-top:8px"><button class="btn secondary" onclick="certSaveBilling()">Speichern</button></div>
-    </div>
-
-    <div class="info-box" id="cert-domains-box" style="margin-bottom:12px">
+<div class="info-box" id="cert-domains-box" style="margin-bottom:12px">
       <strong>Verifizierte Domains</strong>
       <p class="hint" id="cert-domains-hint" style="margin:2px 0 8px">
         Für manche Zertifizierungsstellen musst du die Kontrolle über die Domain per
@@ -334,8 +346,8 @@ _initAdv('digicert');
   <div id="lic-buy-box" class="info-box" style="display:none;margin-top:12px">
     <strong id="lic-buy-title">Lizenz kaufen</strong>
     <p class="hint" style="margin:2px 0 10px">
-      Abrechnung über dein Hub-Konto (Prepaid-Guthaben bzw. Rechnungsmodus — wie beim
-      Zertifikatsbezug). Bei einer Verlängerung zählt die neue Laufzeit ab dem aktuellen
+      Bezahlt aus dem <strong>Konto-Guthaben</strong> (Abschnitt „Konto &amp; Guthaben" oben)
+      bzw. auf Rechnung. Bei einer Verlängerung zählt die neue Laufzeit ab dem aktuellen
       Ablaufdatum weiter — keine Restlaufzeit geht verloren.
     </p>
     <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
@@ -345,8 +357,8 @@ _initAdv('digicert');
         <span class="hint" style="display:block;margin-top:2px">über die 100 Fair-Use-Postfächer hinaus (z.&nbsp;B. 110 Postfächer → 10 Lizenzen)</span></div>
       <div><label style="font-size:12px;display:block">Zahlungsweise</label>
         <select id="lic-buy-interval" onchange="licBuyPrice()" style="min-width:190px">
-          <option value="jaehrlich">jährlich im Voraus</option>
           <option value="monatlich">monatlich</option>
+          <option value="jaehrlich">jährlich im Voraus (10 % Nachlass)</option>
         </select></div>
       <button class="btn primary" onclick="licBuy()" id="lic-buy-btn">Kaufen</button>
     </div>
@@ -578,12 +590,90 @@ async function _termsConfirm() {
   _termsClose();
   const d=await (await fetch('/api/hub/cert/accept-terms',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({version:_termsVersion})})).json();
   if(d.ok){_certMsg('Nutzungsbedingungen akzeptiert — Antrag gestellt.',true); certLoadEligibility();} else _certMsg('Fehler: '+(d.error||'Unbekannt'),false); }
-async function certTopup() {
-  const eur=parseFloat(document.getElementById('cert-topup-amount').value);
-  if(!eur||eur<10){ _certMsg('Mindestbetrag 10 €.',false); return; }
-  const d=await (await fetch('/api/hub/cert/topup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amount_eur:eur})})).json();
-  if(d.ok&&d.checkout_url){ window.open(d.checkout_url,'_blank'); _certMsg('Bezahlseite geöffnet. Nach der Zahlung wird das Guthaben gutgeschrieben und der Zertifikatsbezug automatisch freigeschaltet — dann „Aktualisieren".',true); }
-  else _certMsg('Aufladen fehlgeschlagen: '+(d.error||d.message||'Unbekannt'),false);
+// ── Konto & Guthaben ────────────────────────────────────────────────────────
+// Eigener Abruf über /api/hub/billing/me statt über die Zertifikatsberechtigung:
+// das Guthaben trägt Lizenzen UND Zertifikate (Ziffer 10.1). Wer nie ein
+// Zertifikat bezieht, soll seinen Kontostand trotzdem sehen und aufladen können.
+var _acctMin = 2500, _acctMax = 100000;
+
+function _acctMsg(t, ok) { showMsg(document.getElementById('acct-msg'), t, ok); }
+
+async function acctLoad() {
+  const badge = document.getElementById('acct-badge');
+  const body = document.getElementById('acct-balance-body');
+  let d;
+  try { d = await (await fetch('/api/hub/billing/me')).json(); }
+  catch (e) {
+    body.textContent = 'Kontostand nicht abrufbar.' + ursache(e, 'settings_connect:acctLoad');
+    badge.className = 'conn-badge conn-wait'; badge.textContent = 'nicht abrufbar'; return;
+  }
+  if (!d || !d.ok) {
+    body.innerHTML = '<span class="muted">Erst nach dem Herstellen der Anbindung verfügbar '
+                   + '(Abschnitt „Anbindung“ oben).</span>';
+    badge.className = 'conn-badge conn-wait'; badge.textContent = 'keine Anbindung';
+    document.getElementById('acct-auto-topup-box').style.display = 'none';
+    return;
+  }
+  _acctMin = d.min_topup_cents || 2500;
+  _acctMax = d.max_topup_cents || 100000;
+
+  if (d.billing_mode === 'invoice') {
+    badge.className = 'conn-badge conn-ok'; badge.textContent = 'Rechnung';
+    body.innerHTML = '<span class="muted">Abrechnung auf Rechnung nach gesonderter '
+                   + 'Vereinbarung — ein Guthaben ist nicht erforderlich.</span>';
+  } else {
+    badge.className = 'conn-badge conn-ok';
+    badge.textContent = eur(d.balance_cents || 0);
+    const min = Math.round(_acctMin / 100), max = Math.round(_acctMax / 100);
+    const aufladen = d.stripe_enabled
+      ? '<div style="margin-top:8px"><input type="number" id="acct-topup-amount" min="' + min
+        + '" max="' + max + '" step="5" value="' + min + '" style="width:82px"> € '
+        + '<button class="btn secondary" onclick="acctTopup()">Guthaben aufladen</button></div>'
+      : '';
+    body.innerHTML = '<span style="font-weight:600;font-size:15px">Guthaben: '
+                   + eur(d.balance_cents || 0) + '</span>'
+                   + '<div class="hint" style="margin-top:4px">Bezahlt Lizenzen und Zertifikate.</div>'
+                   + aufladen + _acctLedger(d.ledger);
+  }
+  _renderBillingSection(d);
+  autoTopupLoad();
+}
+
+// Verwendungszweck je Buchung: intern längst unterschieden (kind=), nur nie
+// angezeigt. Ohne das bleibt offen, wofür das Geld ging.
+function _acctLedger(ledger) {
+  const zeilen = (ledger || []).slice().reverse().slice(0, 8);
+  if (!zeilen.length) return '';
+  const ZWECK = {topup: 'Aufladung', cert: 'Zertifikat', license: 'Lizenz',
+                 license_refund: 'Erstattung Lizenz', refund: 'Erstattung',
+                 auto_topup: 'automatische Aufladung', adjust: 'Korrektur'};
+  const html = zeilen.map(function (e) {
+    const c = Number(e.amount_cents || 0);
+    const zweck = ZWECK[e.kind] || e.kind || '—';
+    const farbe = c >= 0 ? '#166534' : '#334155';
+    return '<tr><td style="padding:2px 10px 2px 0;white-space:nowrap">'
+         + esc((e.ts || '').slice(0, 10)) + '</td>'
+         + '<td style="padding:2px 10px 2px 0">' + esc(zweck) + '</td>'
+         + '<td style="padding:2px 0;text-align:right;color:' + farbe + '">'
+         + (c >= 0 ? '+' : '−') + eur(Math.abs(c)) + '</td></tr>';
+  }).join('');
+  return '<details style="margin-top:10px"><summary class="hint" style="cursor:pointer">Letzte Buchungen</summary>'
+       + '<table style="font-size:12px;margin-top:6px">' + html + '</table></details>';
+}
+
+async function acctTopup() {
+  const feld = document.getElementById('acct-topup-amount');
+  const betrag = parseFloat(feld && feld.value);
+  const min = Math.round(_acctMin / 100);
+  if (!betrag || betrag < min) { _acctMsg('Mindestbetrag ' + min + ' €.', false); return; }
+  const r = await postJSON('/api/hub/billing/topup', {amount_eur: betrag});
+  if (r.ok && r.checkout_url) {
+    window.open(r.checkout_url, '_blank');
+    _acctMsg('Bezahlseite geöffnet. Nach der Zahlung wird das Guthaben gutgeschrieben — '
+           + 'danach diese Seite neu laden.', true);
+  } else {
+    _acctMsg('Aufladen fehlgeschlagen: ' + errText(r), false);
+  }
 }
 async function certLoadEligibility(manual) {
   const el=document.getElementById('cert-eligibility');
@@ -592,7 +682,6 @@ async function certLoadEligibility(manual) {
   catch(e){ el.textContent='Berechtigung konnte nicht geprüft werden.' + ursache(e, 'settings_connect:592'); return; }
   _renderCertSteps(d);
   _renderCertDomains(d);
-  _renderBillingSection(d);
   if(d.ok){ el.innerHTML='<strong style="color:#166534">✓ Zertifikatsbezug aktiviert.</strong> '
     +'Kontingent '+(d.used_this_month||0)+'/'+((d.monthly_limit>0)?d.monthly_limit:'∞')+' diesen Monat · Domains: '+((d.verified_domains||[]).join(', ')||'–'); }
   else if(d.cert_issuing_enabled){ el.innerHTML='<strong style="color:#92400e">⚠ Freigeschaltet, aber noch nicht bezugsbereit:</strong> '+(d.reason||d.error||'unbekannt'); }
@@ -607,7 +696,6 @@ async function certLoadEligibility(manual) {
     else { badge.className='conn-badge conn-wait'; badge.textContent='⚠ noch nicht aktiv'; }
   }
   if(manual){ _certMsg('✓ Aktualisiert ('+new Date().toLocaleTimeString('de-DE')+')', true); }
-  autoTopupLoad();
 }
 
 // ── Automatische Guthabenaufladung ──────────────────────────────────────────
@@ -616,8 +704,8 @@ async function certLoadEligibility(manual) {
 function _eur(c){ return (Number(c||0)/100).toFixed(2).replace('.', ',') + ' €'; }
 
 async function autoTopupLoad() {
-  const box = document.getElementById('cert-auto-topup-box');
-  const body = document.getElementById('cert-auto-topup-body');
+  const box = document.getElementById('acct-auto-topup-box');
+  const body = document.getElementById('acct-auto-topup-body');
   if(!box || !body) return;
   // Nur sinnvoll mit Anbindung und wenn der Hub Stripe überhaupt konfiguriert hat.
   if(!_HUB_REGISTERED){ box.style.display='none'; return; }
@@ -725,14 +813,14 @@ function _renderCertDomains(d) {
   list.innerHTML = html || '<span class="muted">Noch keine Domain verifiziert.</span>';
 }
 function _renderBillingSection(d) {
-  const billBox=document.getElementById('cert-billing-box'), reqBox=document.getElementById('cert-invoice-request-box');
+  const billBox=document.getElementById('acct-billing-box'), reqBox=document.getElementById('acct-invoice-request-box');
   if(!billBox || !reqBox) return;
   if(d.billing_mode === 'invoice') {
     billBox.style.display='block'; reqBox.style.display='none';
     _fillBillingFields(d);
   } else {
     billBox.style.display='none'; reqBox.style.display='block';
-    const body=document.getElementById('cert-invoice-request-body');
+    const body=document.getElementById('acct-invoice-request-body');
     if(!_HUB_REGISTERED){
       // Ohne Anbindung nimmt der Hub den Antrag nicht entgegen. Ohne diese
       // Sperre würde Gate B sogar die Zustimmung zu den Zahlungsbedingungen
@@ -769,7 +857,7 @@ async function certRequestInvoice() {
   }
   const d=await (await fetch('/api/hub/cert/request-invoice',{method:'POST',
     headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
-  if(d.ok){ _certMsg('Antrag gestellt — EXO Signature HUB wurde benachrichtigt.',true); certLoadEligibility(); }
+  if(d.ok){ _acctMsg('Antrag gestellt — EXO Signature HUB wurde benachrichtigt.',true); acctLoad(); }
   else { _certMsg('Fehler: '+(d.detail||d.error||'Unbekannt'),false); }
 }
 let _billingFilled=false;
@@ -795,7 +883,7 @@ async function certSaveBilling() {
   };
   if(!body.billing_company||!body.billing_address){ _certMsg('Firma und Rechnungsadresse sind erforderlich.',false); return; }
   const d=await (await fetch('/api/hub/cert/billing',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
-  if(d.ok){ _billingFilled=true; _certMsg('Abrechnungsdaten gespeichert.',true); certLoadEligibility(); } else _certMsg('Fehler: '+(d.error||'Unbekannt'),false); }
+  if(d.ok){ _billingFilled=true; _acctMsg('Abrechnungsdaten gespeichert.',true); acctLoad(); } else _acctMsg('Fehler: '+(d.error||'Unbekannt'),false); }
 async function certDomainRequest() {
   const domain=document.getElementById('cert-domain-input').value.trim().toLowerCase();
   if(!domain||!domain.includes('.')){ _certMsg('Gültige Domain erforderlich.',false); return; }
@@ -838,64 +926,32 @@ async function certDomainVerify(domainArg) {
   else { _certMsg('Noch nicht verifiziert ('+domain+'): '+(d.message||d.error||'unbekannt'),false); }
 }
 function _renderCertSteps(d) {
-  const s1dot=document.getElementById('cert-step1-dot'), s1body=document.getElementById('cert-step1-body');
-  const s2row=document.getElementById('cert-step2-row'), s2dot=document.getElementById('cert-step2-dot'), s2body=document.getElementById('cert-step2-body');
-  const termsOk = !!(d && d.terms_accepted), certOn = !!(d && d.cert_issuing_enabled);
-  if(termsOk){
-    s1dot.style.background='#166534'; s1dot.style.color='#fff'; s1dot.textContent='✓';
-    s1body.innerHTML='<span style="color:#166534;font-weight:600">Akzeptiert'+(d.terms_accepted_at?(' am '+d.terms_accepted_at.slice(0,10)):'')+'</span>'
-      +' <button class="btn secondary" style="padding:1px 8px;font-size:11px;margin-left:6px" onclick="certViewTerms()">Text ansehen</button>';
-  } else if (!_HUB_REGISTERED) {
-    // Ohne Hub-Anbindung kann der Hub die Zustimmung gar nicht entgegennehmen
+  // Nur noch die Zustimmung zu den ZERTIFIKATSbedingungen. Guthaben, Automatik
+  // und Abrechnungsdaten sind in die Karte „Konto & Guthaben" gewandert — sie
+  // gehoeren zum Konto, nicht zum Zertifikatsbezug, und lagen hier hinter
+  // dieser Zustimmung. Wer nur Lizenzen kaufen wollte, musste dafuer die
+  // Bedingungen eines Dienstes annehmen, den er nicht nutzt.
+  const s1body = document.getElementById('cert-step1-body');
+  const termsOk = !!(d && d.terms_accepted);
+  if (termsOk) {
+    s1body.innerHTML = '<span style="color:#166534;font-weight:600">Akzeptiert'
+      + (d.terms_accepted_at ? (' am ' + esc(d.terms_accepted_at.slice(0, 10))) : '') + '</span>'
+      + ' <button class="btn secondary" style="padding:1px 8px;font-size:11px;margin-left:6px" onclick="certViewTerms()">Text ansehen</button>';
+    return;
+  }
+  if (!_HUB_REGISTERED) {
+    // Ohne Anbindung kann der Hub die Zustimmung gar nicht entgegennehmen
     // (cert_accept_terms bricht mit "Nicht registriert" ab). Vorher sperren,
     // statt den Nutzer den Dialog durchlaufen und am Ende scheitern zu lassen.
-    s1dot.style.background='#e2e8f0'; s1dot.style.color='#334155'; s1dot.textContent='1';
-    s1body.innerHTML='<span class="muted">Erst nach dem Herstellen der Anbindung verf\u00fcgbar '
-      + '(Abschnitt „Anbindung“ oben).</span>';
-  } else {
-    s1dot.style.background='#e2e8f0'; s1dot.style.color='#334155'; s1dot.textContent='1';
-    s1body.innerHTML='<button class="btn secondary" onclick="certAcceptTerms()">Nutzungsbedingungen akzeptieren</button>';
-  }
-  if(!termsOk){
-    s2row.style.opacity='.45'; s2row.style.pointerEvents='none';
-    s2dot.style.background='#e2e8f0'; s2dot.style.color='#334155'; s2dot.textContent='2';
-    s2body.innerHTML='<span class="muted">Erst nach Schritt 1 verfügbar.</span>';
+    s1body.innerHTML = '<span class="muted">Erst nach dem Herstellen der Anbindung verf\u00fcgbar '
+      + '(Abschnitt \u201eAnbindung\u201c oben).</span>';
     return;
   }
-  s2row.style.opacity='1'; s2row.style.pointerEvents='auto';
-  if(d.billing_mode==='invoice'){
-    s2dot.style.background='#166534'; s2dot.style.color='#fff'; s2dot.textContent='✓';
-    s2body.innerHTML='<span class="muted">Abrechnung: Rechnung (nach Vertrag) — kein Guthaben nötig.</span>';
-    return;
-  }
-  // A price of 0 means "unset" (no balance gate, see CERT_PRICE_CENTS) — only
-  // treat balance as insufficient when a real price is configured.
-  const priceCents = d.cert_price_cents||0;
-  const balanceOk = priceCents===0 ? true : (d.balance_cents||0) >= priceCents;
-  if(certOn && balanceOk){
-    s2dot.style.background='#166534'; s2dot.style.color='#fff'; s2dot.textContent='✓';
-  } else if(certOn && !balanceOk){
-    s2dot.style.background='#fef3c7'; s2dot.style.color='#92400e'; s2dot.textContent='⚠';
-  } else {
-    s2dot.style.background='#e2e8f0'; s2dot.style.color='#334155'; s2dot.textContent='2';
-  }
-  const bal=((d.balance_cents||0)/100).toFixed(2), price=(priceCents/100).toFixed(2);
-  // Grenzen kommen vom Hub — sonst schlägt die Oberfläche Beträge vor, die
-  // dort abgelehnt werden (die Untergrenze wurde mit der Automatik angehoben).
-  const minTop = Math.round((d.min_topup_cents || 2500) / 100);
-  const maxTop = Math.round((d.max_topup_cents || 100000) / 100);
-  const topupHtml = d.stripe_enabled
-    ? '<input type="number" id="cert-topup-amount" min="'+minTop+'" max="'+maxTop+'" step="5" value="'
-      + minTop + '" style="width:78px"> € <button class="btn secondary" onclick="certTopup()">Guthaben aufladen</button>'
-    : '';
-  const lowBalanceHint = (certOn && !balanceOk)
-    ? '<div style="margin-top:4px;color:#92400e;font-size:12px">⚠ Guthaben reicht nicht für den nächsten Zertifikatsbezug.</div>' : '';
-  s2body.innerHTML='<span style="font-weight:600">Guthaben: '+bal+' €</span> <span class="muted">(Preis pro Zertifikat: '+price+' €)</span>'
-    +lowBalanceHint+'<div style="margin-top:6px">'+topupHtml+'</div>';
+  s1body.innerHTML = '<button class="btn secondary" onclick="certAcceptTerms()">Nutzungsbedingungen akzeptieren</button>';
 }
 
 // ── Zertifikatsbezug: Berechtigung/Guthaben beim Laden prüfen ────────────────
-document.addEventListener('DOMContentLoaded', function(){ certLoadEligibility(); licLoad(); certLoadCatalog(); });
+document.addEventListener('DOMContentLoaded', function(){ acctLoad(); certLoadEligibility(); licLoad(); certLoadCatalog(); });
 
 // ── Anbieter-Katalog (dynamisch vom Hub) ─────────────────────────────────────
 async function certLoadCatalog() {
