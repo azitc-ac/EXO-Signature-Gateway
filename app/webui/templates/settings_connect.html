@@ -1292,11 +1292,20 @@ async function licRenewLoad() {
 }
 
 async function licRenewCancel() {
-  // Der Erstattungsbetrag steht erst nach dem Vorgang fest (er rechnet nach
-  // vollen Restmonaten). Die Rückfrage nennt deshalb keinen Betrag.
-  if (!confirm('Verlängerung beenden?\n\nDie Lizenz bleibt bis zum Ablaufdatum gültig. '
-             + 'Der nicht genutzte Anteil wird dem Hub-Guthaben gutgeschrieben. '
-             + 'Solange die Laufzeit läuft, lässt sich das zurücknehmen.')) return;
+  // Objekt, Datum und Betrag ausschreiben. Vorher stand hier „Solange die
+  // Laufzeit läuft, lässt sich das zurücknehmen" — welches „das"? Daneben gibt
+  // es ein zweites „zurücknehmen" (das der Zahlungsweise), das etwas ganz
+  // anderes meint. Der Erstattungsbetrag ist als Vorschau bekannt; ihn zu
+  // verschweigen hatte keinen Grund.
+  const st = _licState || {};
+  const bis = st.expires ? new Date(st.expires).toLocaleDateString('de-DE') : 'zum Ablaufdatum';
+  if (!confirm('Automatische Verlängerung beenden?\n\n'
+             + 'Die Lizenz bleibt bis zum ' + bis + ' gültig und läuft dann aus.\n'
+             + ((st.refund_preview_cents > 0)
+                  ? eur(st.refund_preview_cents) + ' werden dem Konto-Guthaben gutgeschrieben.\n'
+                  : 'Eine Gutschrift entsteht nicht — es ist kein voller Monat mehr offen.\n')
+             + '\nBis zum ' + bis + ' kannst du die automatische Verlängerung '
+             + 'jederzeit wieder einschalten.')) return;
   const msg = document.getElementById('lic-renew-msg');
   const r = await postJSON('/api/license/renewal/cancel', {});
   if (!r.ok) { showMsg(msg, 'Fehler: ' + errText(r), false); return; }
@@ -1340,7 +1349,14 @@ async function licFetchHub() {
   else _licMsg(d.detail || 'Abruf fehlgeschlagen.', false);
 }
 async function licRemove() {
-  if (!confirm('Lizenz entfernen? Der Fair-Use-Hinweis erscheint dann ggf. wieder.')) return;
+  // Das Wichtigste stand nicht drin: entfernt wird nur der SCHLÜSSEL in diesem
+  // Gateway. Der Kauf beim Hub bleibt bestehen, es wird nichts gekündigt und
+  // nichts erstattet. Wer das verwechselt, glaubt gekündigt zu haben.
+  if (!confirm('Lizenzschlüssel aus diesem Gateway entfernen?\n\n'
+             + 'Danach gilt hier wieder Fair Use (bis 100 Postfächer).\n\n'
+             + 'Der Kauf beim Hub bleibt davon unberührt: nichts wird gekündigt, '
+             + 'nichts erstattet, und der Schlüssel lässt sich jederzeit über '
+             + '„Vom Hub abrufen" zurückholen.')) return;
   // Ohne Pruefung meldete die Oberflaeche nichts, wenn das Entfernen scheiterte.
   const d = await sendJSON('DELETE', '/api/license');
   if (!d.ok) { _licMsg('Entfernen fehlgeschlagen: ' + errText(d), false); return; }
@@ -1791,9 +1807,16 @@ async function licBuy() {
   const btn = document.getElementById('lic-buy-btn');
 
   if (f.art === 'auslaufen') {
-    if (!confirm('Lizenz auslaufen lassen?\n\nDie Verlängerung endet. Die Lizenz bleibt '
-               + 'bis zum Ablaufdatum gültig, der nicht genutzte Anteil wird dem '
-               + 'Guthaben gutgeschrieben. Solange sie läuft, lässt sich das zurücknehmen.')) return;
+    const stA = _licState || {};
+    const bisA = stA.expires ? new Date(stA.expires).toLocaleDateString('de-DE') : 'zum Ablaufdatum';
+    if (!confirm('Lizenz auslaufen lassen?\n\n'
+               + 'Die automatische Verlängerung endet. Die Lizenz bleibt bis zum ' + bisA
+               + ' gültig und läuft dann aus — danach gilt wieder Fair Use.\n'
+               + ((stA.refund_preview_cents > 0)
+                    ? eur(stA.refund_preview_cents) + ' werden dem Konto-Guthaben gutgeschrieben.\n'
+                    : 'Eine Gutschrift entsteht nicht — es ist kein voller Monat mehr offen.\n')
+               + '\nBis zum ' + bisA + ' kannst du die automatische Verlängerung '
+               + 'jederzeit wieder einschalten.')) return;
     btn.disabled = true;
     const r = await postJSON('/api/license/renewal/cancel', {});
     if (!r.ok) { _licMsg('Fehler: ' + errText(r), false); btn.disabled = false; return; }
