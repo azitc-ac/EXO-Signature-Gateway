@@ -5,6 +5,30 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.78 — 2026-07-27 — Lizenz: Übersicht statt Fließtext
+
+Die Lizenzkarte begann mit einem Satz, dann kam sofort ein Eingabefeld. Was man eigentlich **hat**, musste man sich aus drei Fließtexten und einer Preiszeile zusammensuchen — und die Zahl im Feld (110 Postfächer) passte nicht zu der in den Kosten (10 Lizenzen), ohne dass irgendwo stand, wie beides zusammenhängt.
+
+**Neu zuerst eine Auflistung, dann erst die Änderung — und die zugeklappt:**
+
+```
+Lizenziert für             110 Postfächer   = 100 frei + 10 Lizenzen
+Aktuell aktiviert          2 Postfächer     im Gateway eingeschaltet
+Gültig bis                 27.09.2026
+Zahlungsweise              monatlich        Zeitraum: 1 Monat
+Kosten je Zeitraum         11,90 € brutto   10,00 € netto + 19 % MwSt.
+Automatische Verlängerung  ja — am 20.09.2026   (7 Tage vor Ablauf)
+Bei Beendigung heute       11,90 € Gutschrift   (volle Restmonate)
+```
+
+Steht eine Änderung zum nächsten Zeitraum an, erscheint zusätzlich **„Dann gültig"** mit Umfang, Zahlungsweise und Preis — sonst nicht, damit sich keine Zeile mit dem laufenden Zeitraum doppelt.
+
+**Das Verlängerungsdatum wird genannt, nicht umschrieben.** Bisher stand dort „kurz vor dem 27.09." — der Vorlauf beträgt sieben Tage und war nirgends ausgewiesen.
+
+Alle Beträge kommen fertig vom Hub. Das Gateway rechnet keinen davon nach — sonst weichen Anzeige und Abrechnung wieder voneinander ab.
+
+Der Kaufbereich und die Verlängerungshinweise verlieren dafür ihre Fließtexte: was dort stand, steht jetzt in der Auflistung, und zwar einmal.
+
 ## v1.7.77 — 2026-07-27 — Lizenzumfang: alle Fälle, benannt statt erraten
 
 Der Umfang ließ sich nur **erhöhen**. Wollte jemand von 110 auf 100 Postfächer zurück — also gar keine Lizenz mehr —, hieß der Knopf weiterhin „Aufstocken", und die Anzeige sagte lediglich „bis 100 Postfächer ist der Betrieb frei", ohne zu erwähnen, was mit der laufenden Lizenz geschieht. Eine Verringerung auf einen kleineren, aber noch lizenzpflichtigen Umfang gab es überhaupt nicht.
