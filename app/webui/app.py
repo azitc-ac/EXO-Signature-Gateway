@@ -2027,6 +2027,22 @@ async def api_license_renewal(user: str = Depends(_require_admin)):
     return JSONResponse({k: v for k, v in res.items() if k != "license"})
 
 
+@app.post("/api/license/umfang")
+async def api_license_umfang(body: dict, user: str = Depends(_require_admin)):
+    """Umfang ab der naechsten Verlaengerung verringern (Ziffer 6.9/Preisliste)."""
+    import hub_client
+    try:
+        postfaecher = int(body.get("mailboxes") or 0)
+    except (TypeError, ValueError):
+        raise HTTPException(400, "Postfachzahl ungültig")
+    res = await hub_client.license_umfang(postfaecher)
+    if not res.get("ok"):
+        raise HTTPException(400, res.get("error") or "Umstellung fehlgeschlagen.")
+    log.info("Umfang ab naechster Verlaengerung: %s (durch %s)",
+             res.get("renew_mailboxes") or res.get("mailboxes"), user)
+    return JSONResponse(res)
+
+
 @app.post("/api/license/zahlungsweise")
 async def api_license_zahlungsweise(body: dict, user: str = Depends(_require_admin)):
     """Zahlungsweise ab der naechsten Verlaengerung (Ziffer 10.4)."""
