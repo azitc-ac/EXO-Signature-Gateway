@@ -2064,7 +2064,16 @@ async def api_license_renewal_action(aktion: str, user: str = Depends(_require_a
 async def api_license_purchase(body: dict, user: str = Depends(_require_admin)):
     """Lizenz über das Hub-Konto kaufen (Guthaben/Rechnung) und direkt einspielen."""
     import hub_client
+    import legal_consent
     import license as _lic
+    # Der Kontext war deklariert, wurde aber nie geprüft — durchgesetzt wurde
+    # stattdessen die Zustimmung zum ZERTIFIKATSBEZUG im Hub. Für einen reinen
+    # Lizenzkauf ist die falsche Zustimmung; maßgeblich ist allein die
+    # Lizenzbedingungen-Ergänzung.
+    if not legal_consent.context_consented("license_purchase"):
+        raise HTTPException(403, "Die Lizenzbedingungen-Ergänzung ist in der aktuellen "
+                                 "Fassung noch nicht bestätigt. Sie steht unter "
+                                 "„Rechtliche Dokumente“ auf dieser Seite.")
     try:
         mailboxes = int(body.get("mailboxes") or 0)
     except (TypeError, ValueError):
@@ -4758,6 +4767,18 @@ async def api_legal_consent(request: Request, user: str = Depends(_require_admin
     if expected_hash and content_hash != expected_hash:
         raise HTTPException(409, "Inhaltsprüfsumme stimmt nicht überein.")
     ok = legal_consent.record_consent(doc_id, version, content_hash, context)
+    # Beleg nachreichen, damit der Hub nicht dauerhaft die alte Fassung
+    # ausweist. Best effort: die Zustimmung ist bereits erteilt und bleibt
+    # gültig, auch wenn der Hub gerade nicht erreichbar ist.
+    if ok:
+        try:
+            import hub_client
+            if hub_client.is_registered():
+                res = await hub_client.submit_consent_receipts()
+                if not res.get("ok"):
+                    log.info("Zustimmungsbelege nicht übermittelt: %s", res.get("error"))
+        except Exception as exc:
+            log.info("Zustimmungsbelege nicht übermittelt: %s", exc)
     return JSONResponse({"ok": ok})
 
 

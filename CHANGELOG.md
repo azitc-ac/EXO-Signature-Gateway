@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.69 — 2026-07-27 — Nutzungsbedingungen ließen sich nicht laden; Lizenz und Zertifikate getrennt
+
+**Behoben: „Nutzungsbedingungen konnten nicht geladen werden".** Die Anzeige der Bedingungen für den Zertifikatsbezug scheiterte immer. Ursache war ein Aufruf von `_mdEscape()` — einer Funktion, die es nicht gibt: bei der Zusammenführung der handgeschriebenen HTML-Maskierer auf `esc()` war diese Stelle stehen geblieben. Der Fehler entstand innerhalb eines `try`-Blocks, dessen `catch`-Zweig ihn in die irreführende Meldung übersetzte — der Abruf beim Hub war die ganze Zeit in Ordnung.
+
+**Der Lizenzkauf verlangt nicht mehr die Zustimmung zum Zertifikatsbezug.** Beides war aneinander gekoppelt: wer nur Lizenzen kaufen wollte, musste die Bedingungen für den Zertifikatsbezug annehmen. Maßgeblich ist jetzt allein die Lizenzbedingungen-Ergänzung. Das Gateway prüft sie zusätzlich selbst — der dafür vorgesehene Prüfpunkt war zwar deklariert, wurde aber nie ausgewertet.
+
+**Zustimmungsbelege werden nachgereicht.** Bisher gingen sie nur bei der erstmaligen Anbindung an den Hub. Wer einer geänderten Fassung zustimmte, blieb dort dauerhaft mit der alten vermerkt.
+
+**Neue Prüfung `tools/jsrefcheck.js`** findet Aufrufe von Funktionen, die es nicht gibt. `jscheck.py` prüft die Syntax und war hier zufrieden — der Fehler zeigt sich erst zur Laufzeit. Läuft ab sofort in der CI mit.
+
 ## v1.7.68 — 2026-07-27 — Aufstocken zeigt den anteiligen Betrag
 
 Läuft bereits eine Lizenz, ist eine Erhöhung der Postfachzahl eine **anteilige Erweiterung** des laufenden Zeitraums und kein neuer Zeitraum: berechnet werden nur die zusätzlichen Lizenzen für die verbleibenden Monate, das Ablaufdatum bleibt. Die Kauf-Box weist das jetzt so aus — vorher nannte sie den Preis eines vollen Zeitraums und damit einen anderen Betrag als den, der abgebucht wird.
