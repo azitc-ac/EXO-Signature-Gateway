@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.87 — 2026-07-27 — Die Erstattungszeile erklärt ihren Betrag
+
+„Erstattung heute — 95,20 € Gutschrift, für die noch nicht begonnenen vollen Monate" ließ zweierlei offen: dass es sich um eine **Wenn-dann-Angabe** handelt, und warum der Betrag dem vollen Einsatz entsprechen kann.
+
+Die Bezeichnung heißt wieder **„Bei Beendigung heute"** — das Wort „Erstattung" allein liest sich, als werde gerade etwas erstattet. Sie war beim Kürzen für schmale Bildschirme verlorengegangen.
+
+Und der Grund steht jetzt konkret daneben, mit dem **bezahlten Zeitraum**:
+
+```
+Bei Beendigung heute   95,20 € Gutschrift
+                       Der bezahlte Zeitraum (27.08.2026 bis 27.09.2026) hat
+                       noch nicht begonnen — er würde vollständig erstattet.
+```
+
+Ist der Zeitraum angebrochen, steht dort, wie viele seiner Monate bereits laufen. Der Fall „voller Betrag" entsteht, wenn der laufende Monat noch aus einem früheren Zeitraum bezahlt ist — ohne die Datumsangabe sieht das wie ein Rechenfehler aus.
+
 ## v1.7.86 — 2026-07-27 — Übersicht: Zeitraum steht bei den Kosten
 
 „Zahlungsweise: monatlich" mit dem Zusatz „Abrechnungszeitraum: Monat" sagte zweimal dasselbe — andere Kombinationen gibt es nicht, monatlich bedeutet einen Monat und jährlich zwölf.
