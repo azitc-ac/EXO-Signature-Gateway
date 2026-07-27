@@ -54,7 +54,7 @@ Git-Historie zugänglich.
 
 | Dokument | Version | Stand | Zustimmungspflichtig |
 |---|---|---|---|
-| `hub-nutzungsbedingungen` | 2.0 | 27.07.2026 | Ja |
+| `hub-nutzungsbedingungen` | 2.1 | 27.07.2026 | Ja |
 | `lizenzbedingungen-ergaenzung` | 2.0 | 27.07.2026 | Ja |
 | `zahlungsbedingungen-rechnung` | 1.0 | 24.07.2026 | Ja |
 | `auftragsverarbeitung` | 1.0 | 24.07.2026 | Ja (vor Diagnosepaket-Upload) |

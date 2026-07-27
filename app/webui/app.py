@@ -2029,6 +2029,15 @@ async def api_license_renewal(user: str = Depends(_require_admin)):
     })
 
 
+@app.get("/api/license/pricing")
+async def api_license_pricing(user: str = Depends(_require_admin)):
+    """Preismodell vom Hub durchreichen — die Kauf-Box rechnet damit."""
+    import hub_client
+    if not hub_client.is_registered():
+        return JSONResponse({"ok": False, "reason": "not_connected"})
+    return JSONResponse(await hub_client.license_pricing())
+
+
 @app.post("/api/license/renewal/{aktion}")
 async def api_license_renewal_action(aktion: str, user: str = Depends(_require_admin)):
     """Verlängerung beenden bzw. wieder aufnehmen (Ziffer 6.11).

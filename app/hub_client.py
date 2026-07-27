@@ -427,6 +427,26 @@ async def get_license() -> dict:
         return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
 
 
+async def license_pricing() -> dict:
+    """Preismodell für Lizenzen vom Hub holen.
+
+    Bewusst nicht im Gateway hinterlegt: eine hier verdrahtete Preisangabe wird
+    beim nächsten Preisschritt falsch, ohne dass es auffällt.
+    """
+    base = _base()
+    if not (base and _key()):
+        return {"ok": False, "error": "Nicht registriert (Anbindung fehlt)."}
+    try:
+        async with httpx.AsyncClient(timeout=20) as c:
+            r = await c.get(f"{base}/api/license/pricing", headers=_gateway_headers())
+        data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+        if r.status_code == 200 and data.get("ok"):
+            return {"ok": True, **data}
+        return {"ok": False, "error": data.get("detail") or f"HTTP {r.status_code}"}
+    except Exception as exc:
+        return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
+
+
 async def license_cancel() -> dict:
     """Automatische Verlängerung beenden — jederzeit, ohne Frist (Ziffer 6.11).
 

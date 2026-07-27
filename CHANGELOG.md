@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.67 — 2026-07-27 — Zahlungsweise wählbar, Preise kommen vom Hub
+
+**Beim Lizenzkauf ist die Zahlungsweise wählbar** — monatlich oder jährlich im Voraus. Die Verlängerung richtet sich danach: monatlich um einen Monat, jährlich um zwölf. Bisher gab es nur eine feste Jahreslaufzeit, obwohl die Preisliste beide Wege ausweist.
+
+**Der Preis wird nicht mehr im Gateway gerechnet.** Die Kauf-Box zeigte „12 €/Jahr" aus einer fest verdrahteten Zahl — die beim nächsten Preisschritt still falsch geworden wäre und die 10 % Nachlass für die Jahreslaufzeit gar nicht kannte. Sie holt das Preismodell jetzt vom Hub und weist Monatspreis, Laufzeit, Nachlass und den Gesamtbetrag daraus aus. Ist der Hub nicht erreichbar, nennt sie **keinen** Betrag statt eines geratenen.
+
+**Ziffer 6.11 der Nutzungsbedingungen präzisiert** (Fassung 2.1): Die Erstattung wird berechnet, indem die bereits begonnenen Vertragsmonate zum regulären Monatspreis — ohne den Jahresnachlass — vom gezahlten Betrag abgezogen werden. Der laufende Vertragsmonat gilt als genutzt. Die vorherige Formulierung stellte auf die verbleibenden Kalendermonate ab; das ist nicht dasselbe und wich vom Rechenbeispiel der Preisliste ab.
+
+**Zu tun:** Die Hub-Nutzungsbedingungen stehen auf Fassung 2.1 und sind erneut zu bestätigen. Das Hinweisband führt durch den Vorgang; bis dahin läuft der Mailfluss unverändert weiter.
+
 ## v1.7.66 — 2026-07-27 — Lizenz: Verlängerung anzeigen und beenden
 
 Die automatische Verlängerung nach Ziffer 6.10 war bisher nicht erreichbar — sie lief, aber die Oberfläche zeigte sie nicht an und bot keinen Weg, sie zu beenden. Wer kündigen wollte, musste schreiben.

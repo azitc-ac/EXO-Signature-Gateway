@@ -1,6 +1,6 @@
 # Terms of Use for the EXO Signature Hub
 
-**Version 2.0 — Date: 27 July 2026**
+**Version 2.1 — Date: 27 July 2026**
 
 Provider: Alexander Zarenko - IT Consulting, Triebelsstraße 4, 52066 Aachen, Germany
 (hereinafter "Provider")
@@ -233,11 +233,15 @@ reason and retries.
 notice period.** The declaration is made via the license management in the
 Gateway and takes effect immediately: no further renewal takes place.
 
-The Provider refunds the unused portion of the license fee already paid. It is
-calculated on the basis of the full calendar months that have not yet begun when
-the declaration is received, at the regular monthly price without the discount
-granted for the annual term. If the calculation yields no positive amount, no
-refund is made.
+The Provider refunds the unused portion of the license fee already paid. **It is
+calculated by deducting the contract months already begun — charged at the
+regular monthly price, without the discount granted for the annual term — from
+the amount paid.** The contract month running when the declaration is received
+counts as used. If the calculation yields no positive amount, no refund is made.
+
+The discount for the annual term thus remains tied to actually using that term:
+anyone leaving early is billed at the regular price for the time used. The price
+list contains a worked example.
 
 As long as the license is still running, the Customer can reactivate the renewal
 from the same view.
@@ -453,4 +457,4 @@ information purposes only.
 
 ---
 
-*Version 2.0 — 27 July 2026*
+*Version 2.1 — 27 July 2026*
