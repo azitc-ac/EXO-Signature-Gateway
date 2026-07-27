@@ -284,7 +284,7 @@
           const d = await (await fetch('/api/legal/doc/' + encodeURIComponent(id) + '?lang=de')).json();
           if (d && d.ok) { _rcText[id] = d; el.innerHTML = _mdToHtml(d.text); }
           else el.textContent = 'Fehler beim Laden.';
-        } catch (e) { el.textContent = 'Netzwerkfehler.'; }
+        } catch (e) { el.textContent = 'Netzwerkfehler.' + ursache(e, 'base:287'); }
       }
 
       function _rcCheck() {

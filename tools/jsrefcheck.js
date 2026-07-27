@@ -127,31 +127,50 @@ if (!dir) {
   process.exit(2);
 }
 
-const global = new Set();
+// Was `common.js` und `base.html` mitbringen, steht NICHT jeder Seite zur
+// Verfügung: portal.html, smime_selfservice.html und addin_compose.html sind
+// eigenständige Seiten ohne gemeinsames JavaScript (bewusst — minimale
+// Angriffsfläche im Empfänger-Portal, siehe ACCEPTED in driftcheck.py).
+//
+// Diese Unterscheidung ist der Grund für die Prüfung überhaupt: hielte man die
+// Helfer für überall verfügbar, bliebe ein `ursache()` in portal.html
+// unbemerkt — genau der ReferenceError, den zu finden dieses Werkzeug da ist.
+// (Am 2026-07-27 beim Umbau der catch-Zweige prompt passiert.)
+const gemeinsameNamen = new Set();
 for (const f of gemeinsam) {
-  if (fs.existsSync(f)) definiert(nurCode(fs.readFileSync(f, 'utf8'))).forEach(n => global.add(n));
+  if (fs.existsSync(f)) definiert(nurCode(fs.readFileSync(f, 'utf8'))).forEach(n => gemeinsameNamen.add(n));
 }
-// base.html wird von allen Seiten erweitert — seine Helfer stehen dort bereit.
 const basis = path.join(dir, 'base.html');
 if (fs.existsSync(basis)) {
-  definiert(nurCode(skripte(fs.readFileSync(basis, 'utf8')))).forEach(n => global.add(n));
+  definiert(nurCode(skripte(fs.readFileSync(basis, 'utf8')))).forEach(n => gemeinsameNamen.add(n));
 }
 
-let treffer = 0, geprueft = 0;
+/** Bindet die Seite das gemeinsame JavaScript ein? */
+function nutztGemeinsames(html, datei) {
+  return datei === 'base.html'
+    || /\{%\s*extends\s+["']base\.html["']\s*%\}/.test(html)
+    || /<script[^>]*\bsrc\s*=\s*["'][^"']*common\.js/.test(html);
+}
+
+let treffer = 0, geprueft = 0, eigenstaendig = 0;
 for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.html')).sort()) {
-  const code = nurCode(skripte(fs.readFileSync(path.join(dir, f), 'utf8')));
+  const html = fs.readFileSync(path.join(dir, f), 'utf8');
+  const code = nurCode(skripte(html));
   if (!code.trim()) continue;
   geprueft++;
+  const global = new Set(EINGEBAUT);
+  if (nutztGemeinsames(html, f)) gemeinsameNamen.forEach(n => global.add(n));
+  else eigenstaendig++;
   const lokal = definiert(code);
   const gesehen = new Set();
   for (const m of code.matchAll(/(^|[^\w$.])([A-Za-z_$][\w$]*)\s*\(/g)) {
     const n = m[2];
-    if (gesehen.has(n) || lokal.has(n) || global.has(n)
-        || EINGEBAUT.has(n) || SCHLUESSELWORT.has(n)) continue;
+    if (gesehen.has(n) || lokal.has(n) || global.has(n) || SCHLUESSELWORT.has(n)) continue;
     gesehen.add(n);
     console.log(`  ${f}: ${n}(…) ist nirgends definiert`);
     treffer++;
   }
 }
-console.log(`\n  ${geprueft} Vorlagen geprüft, ${treffer} nirgends definierte(r) Aufruf(e).`);
+console.log(`\n  ${geprueft} Vorlagen geprüft (${eigenstaendig} ohne gemeinsames JavaScript), `
+          + `${treffer} nirgends definierte(r) Aufruf(e).`);
 process.exit(treffer ? 1 : 0);

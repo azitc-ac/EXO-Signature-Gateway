@@ -240,6 +240,7 @@ async function _updLoadReleaseList() {
     sel.innerHTML = '<option value="">Neueste (Standard)</option>' +
       _updReleaseList.map(rel => `<option value="${esc(rel.version)}">v${esc(rel.version)}${rel.published_at ? ' — ' + esc(rel.published_at.slice(0,10)) : ''}</option>`).join('');
   } catch(e) {
+    ursache(e, 'backup:242');
     sel.innerHTML = '<option value="">Neueste (Standard)</option>';
   }
   _updOnTargetChange();
@@ -390,6 +391,7 @@ async function _updPoll() {
     else if (state === 'error') { _updShowError(d.log || 'Unbekannter Fehler'); _updBtnReset(); }
     else { _updBtnReset(); }
   } catch(e) {
+    ursache(e, 'backup:392');
     document.getElementById('upd-btn').innerHTML = _spin('Neustart…');
     _updShowRunning('Container wird neu gestartet…');
     if (Date.now() - _updPollStart > TIMEOUT_MS) {
@@ -454,7 +456,7 @@ function _updShowError(msg) {
 }
 
 async function _updClear() {
-  try { await fetch('/api/system/update/clear', {method: 'POST'}); } catch(e) {}
+  try { await fetch('/api/system/update/clear', {method: 'POST'}); } catch(e) { ursache(e, 'backup:457'); }
   document.getElementById('upd-status').style.display = 'none';
   _updBtnReset();
 }
@@ -470,7 +472,7 @@ async function _updCheckWatcher() {
       ? '<span style="color:#16a34a">● Watcher aktiv</span>'
       : '<span style="color:#b45309">● Watcher nicht erkannt — <a href="/setup#step-watcher" style="color:#b45309">Einrichtung → Update-Watcher</a></span>';
     if (!d.ok) document.getElementById('upd-btn').disabled = true;
-  } catch(e) {}
+  } catch(e) { ursache(e, 'backup:473'); }
 }
 
 // --- Changelog ---
@@ -493,7 +495,7 @@ async function toggleChangelog() {
           </div>`;
         }).join('');
     box.style.display = 'block'; btn.textContent = 'Changelog ausblenden'; _clVisible = true;
-  } catch(e) { btn.textContent = 'Changelog anzeigen'; }
+  } catch(e) { btn.textContent = 'Changelog anzeigen' + ursache(e, 'backup:496'); }
 }
 
 (async function() {

@@ -1125,7 +1125,7 @@ async function loadGroups() {
     if (!r.ok) return;
     _groups = await r.json();
     _renderGroupsTable();
-  } catch(_) {}
+  } catch(_) { ursache(_, 'mailboxes:1128'); }
 }
 
 async function saveGroups() {
@@ -1253,7 +1253,7 @@ async function loadCustomPolicies() {
     if (!r.ok) return;
     _customPolicies = await r.json();
     _renderCustomPoliciesTable();
-  } catch(_) {}
+  } catch(_) { ursache(_, 'mailboxes:1256'); }
 }
 
 async function saveCustomPolicies() {

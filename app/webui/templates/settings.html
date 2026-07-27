@@ -278,7 +278,7 @@ async function savePartial(payload, resultElId) {
       setTimeout(function() { el.textContent = ''; }, 3000);
     }
   } catch(e) {
-    if (el) { el.textContent = '✗ Netzwerkfehler'; el.style.color = '#dc2626'; }
+    if (el) { el.textContent = '✗ Netzwerkfehler' + ursache(e, 'settings:280'); el.style.color = '#dc2626'; }
   }
 }
 
@@ -343,7 +343,7 @@ async function loadAdminUsers() {
   try {
     var me = await fetch('/api/whoami');
     if (me.ok) { var md = await me.json(); _currentUserUpn = (md.upn || '').toLowerCase(); }
-  } catch(e) {}
+  } catch(e) { ursache(e, 'settings:346'); }
   _adminUsersLocal = (d.users || []).map(function(u) { return Object.assign({}, u); });
   renderAdminUsers(_adminUsersLocal);
 }
@@ -386,7 +386,7 @@ async function _preloadAdminUsers() {
     if (!resp.ok) return;
     var data = await resp.json();
     _adminAllUsers = data.users || [];
-  } catch(e) { /* ignore */ }
+  } catch(e) { ursache(e, 'settings:389'); }
 }
 
 function _adminAvailable() {
@@ -551,7 +551,7 @@ async function saveAdminUsers() {
     }
     setTimeout(function() { resultEl.textContent = ''; }, 3000);
   } catch(e) {
-    resultEl.textContent = '✗ Netzwerkfehler';
+    resultEl.textContent = '✗ Netzwerkfehler' + ursache(e, 'settings:553');
     resultEl.style.color = '#dc2626';
   }
 }
@@ -610,7 +610,7 @@ async function createNotificationSharedMailbox(btn) {
     document.getElementById('notif-create-shared-row').style.display = 'none';
     status.textContent = '';
   } catch(e) {
-    status.textContent = '✗ Netzwerkfehler';
+    status.textContent = '✗ Netzwerkfehler' + ursache(e, 'settings:612');
     status.style.color = '#dc2626';
     btn.disabled = false;
   }
@@ -629,7 +629,7 @@ async function refreshSenderMailboxes(btn) {
     result.textContent = '✓ ' + (d.mailboxes || []).length + ' Postfächer';
     result.style.color = '#16a34a';
   } catch(e) {
-    result.textContent = '✗ Netzwerkfehler';
+    result.textContent = '✗ Netzwerkfehler' + ursache(e, 'settings:631');
     result.style.color = '#dc2626';
   } finally {
     btn.disabled = false;
@@ -652,7 +652,7 @@ async function _loadMailboxesForNotif() {
     if (_currentNotifMailbox) saved.add(_currentNotifMailbox);
     _notifRecipients = Array.from(saved).filter(e => e);
     _renderNotifPicker();
-  } catch(e) { /* ignore */ }
+  } catch(e) { ursache(e, 'settings:655'); }
 }
 
 function _availableNotifMailboxes() {
@@ -793,7 +793,7 @@ async function saveNotifDg() {
       result.style.color = '#dc2626';
     }
   } catch(e) {
-    result.textContent = 'Netzwerkfehler';
+    result.textContent = 'Netzwerkfehler' + ursache(e, 'settings:795');
     result.style.color = '#dc2626';
   } finally {
     btn.disabled = false;

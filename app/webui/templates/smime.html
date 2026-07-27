@@ -1073,7 +1073,7 @@ async function revokePortalMsg(token, btn) {
       res.textContent = '✗ Fehler'; res.style.color = '#dc2626'; btn.disabled = false;
     }
   } catch(e) {
-    res.textContent = '✗ Netzwerkfehler'; res.style.color = '#dc2626'; btn.disabled = false;
+    res.textContent = '✗ Netzwerkfehler' + ursache(e, 'smime:1075'); res.style.color = '#dc2626'; btn.disabled = false;
   }
   setTimeout(function(){ res.textContent = ''; }, 3000);
 }

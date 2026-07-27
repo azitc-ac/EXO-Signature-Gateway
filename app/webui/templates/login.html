@@ -116,7 +116,7 @@ async function submitSsoPaste() {
       errEl.style.display = 'block';
     }
   } catch(e) {
-    errEl.textContent = 'Verbindungsfehler';
+    errEl.textContent = 'Verbindungsfehler' + ursache(e, 'login:118');
     errEl.style.display = 'block';
   } finally {
     btn.disabled = false;

@@ -309,7 +309,7 @@ window.requestOtp = async function(){
     document.getElementById('otp-step-enter').style.display='';
     status.innerHTML='';
     document.getElementById('otp-code').focus();
-  } catch(e){ status.innerHTML='<span style="color:#dc2626">Netzwerkfehler.</span>'; }
+  } catch(e){ console.error('[portal]', e); status.innerHTML='<span style="color:#dc2626">Netzwerkfehler.</span>'; }
 };
 
 window.verifyOtp = async function(){
@@ -331,7 +331,7 @@ window.verifyOtp = async function(){
     document.getElementById('otp-screen').style.display='none';
     document.getElementById('loading').style.display='';
     loadMessage();
-  } catch(e){ status.innerHTML='<span style="color:#dc2626">Netzwerkfehler.</span>'; }
+  } catch(e){ console.error('[portal]', e); status.innerHTML='<span style="color:#dc2626">Netzwerkfehler.</span>'; }
 };
 
 async function loadMessage(){
@@ -340,7 +340,7 @@ async function loadMessage(){
     if(resp.status===404){ showErr('Nachricht nicht gefunden oder abgelaufen.'); return; }
     if(resp.status===401){
       var hint = '';
-      try { var ed = await resp.json(); hint = (ed.detail && ed.detail.recipient_hint) || ''; } catch(e){}
+      try { var ed = await resp.json(); hint = (ed.detail && ed.detail.recipient_hint) || ''; } catch(e){ console.error('[portal:343]', e); }
       // Abgelaufene Freischaltung entfernen, sonst klebt sie an weiteren Requests
       sessionStorage.removeItem(accessKey);
       showOtpScreen(hint);
@@ -354,7 +354,7 @@ async function loadMessage(){
       // encrypt zusätzlich zu decrypt: die Antwort-Historie wird clientseitig
       // mit demselben Schlüssel verschlüsselt gespeichert (Server sieht nur Ciphertext)
       cryptoKey = await crypto.subtle.importKey('raw', keyBuf, {name:'AES-GCM'}, false, ['encrypt','decrypt']);
-    } catch(e){ showErr('Ungültiger Entschlüsselungsschlüssel.'); return; }
+    } catch(e){ console.error('[portal:357]', e); showErr('Ungültiger Entschlüsselungsschlüssel.'); return; }
 
     var combined = new Uint8Array(b64Decode(meta.blob));
     if(combined.length < 13){ showErr('Ungültige verschlüsselte Nachricht.'); return; }
@@ -363,7 +363,7 @@ async function loadMessage(){
     var plain;
     try {
       plain = await crypto.subtle.decrypt({name:'AES-GCM', iv:nonce}, cryptoKey, ct);
-    } catch(e){ showErr('Entschlüsselung fehlgeschlagen — möglicherweise falscher Schlüssel.'); return; }
+    } catch(e){ console.error('[portal:366]', e); showErr('Entschlüsselung fehlgeschlagen — möglicherweise falscher Schlüssel.'); return; }
 
     var payload = JSON.parse(new TextDecoder().decode(plain));
 
@@ -480,7 +480,7 @@ window.sendReply = async function(){
     // heruntergeladen werden können.
     var histEntry = {text: text, name: name, att: attachments};
     var cipher = '';
-    try { cipher = await encryptForHistory(histEntry); } catch(e){}
+    try { cipher = await encryptForHistory(histEntry); } catch(e){ console.error('[portal:483]', e); }
 
     var hdrs = accessHeaders();
     hdrs['Content-Type'] = 'application/json';
@@ -504,6 +504,7 @@ window.sendReply = async function(){
       status.innerHTML='<span style="color:#dc2626">'+esc(d.detail || 'Fehler beim Senden.')+'</span>';
     }
   } catch(e){
+    console.error('[portal:506]', e);
     status.innerHTML='<span style="color:#dc2626">Netzwerkfehler.</span>';
   }
 };

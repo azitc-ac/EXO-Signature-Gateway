@@ -397,7 +397,7 @@ async function savePartial(payload, resultElId) {
       setTimeout(function() { el.textContent = ''; }, 3000);
     }
   } catch(e) {
-    if (el) { el.textContent = '✗ Netzwerkfehler'; el.style.color = '#dc2626'; }
+    if (el) { el.textContent = '✗ Netzwerkfehler' + ursache(e, 'settings_smime:399'); el.style.color = '#dc2626'; }
   }
 }
 
@@ -517,7 +517,7 @@ async function uploadPortalLogo(input) {
       var d = await resp.json().catch(function(){ return {}; });
       res.textContent = '✗ ' + (d.detail || 'Fehler'); res.style.color = '#dc2626';
     }
-  } catch(e) { res.textContent = '✗ Netzwerkfehler'; res.style.color = '#dc2626'; }
+  } catch(e) { res.textContent = '✗ Netzwerkfehler' + ursache(e, 'settings_smime:520'); res.style.color = '#dc2626'; }
   setTimeout(function(){ res.textContent = ''; }, 4000);
 }
 
@@ -529,7 +529,7 @@ async function removePortalLogo() {
     res.textContent = resp.ok ? '✓ Entfernt' : '✗ Fehler';
     res.style.color = resp.ok ? '#16a34a' : '#dc2626';
     refreshPortalLogo();
-  } catch(e) { res.textContent = '✗ Netzwerkfehler'; res.style.color = '#dc2626'; }
+  } catch(e) { res.textContent = '✗ Netzwerkfehler' + ursache(e, 'settings_smime:532'); res.style.color = '#dc2626'; }
   setTimeout(function(){ res.textContent = ''; }, 3000);
 }
 
