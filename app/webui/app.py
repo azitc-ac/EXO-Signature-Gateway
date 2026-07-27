@@ -5023,9 +5023,26 @@ async def api_hub_billing_auto_disable(user: str = Depends(_require_admin)):
     return JSONResponse(await hub_client.billing_auto_disable())
 
 
-@app.post("/api/hub/cert/topup")
-async def api_hub_cert_topup(request: Request, user: str = Depends(_require_admin)):
-    """Create a prepaid top-up Checkout session at the hub; return its URL."""
+@app.get("/api/hub/billing/me")
+async def api_hub_billing_me(user: str = Depends(_require_admin)):
+    """Kontostand und Verlauf.
+
+    Eigener Weg neben `cert/eligibility`, weil das Guthaben beide Leistungen
+    trägt (Ziffer 10.1). Wer nur Lizenzen kauft, hat mit dem Zertifikatsbezug
+    nichts zu tun und soll seinen Kontostand trotzdem sehen.
+    """
+    import hub_client
+    return JSONResponse(await hub_client.billing_me())
+
+
+@app.post("/api/hub/billing/topup")
+async def api_hub_billing_topup(request: Request, user: str = Depends(_require_admin)):
+    """Bezahlseite zum Aufladen des Kontoguthabens.
+
+    Hiess bis v1.7.71 `/api/hub/cert/topup` und lag damit unter dem
+    Zertifikatsbezug. Das Guthaben bezahlt aber auch Lizenzen — der Name hat
+    den Vorgang falsch einsortiert.
+    """
     import hub_client
     data = await request.json()
     amount_cents = data.get("amount_cents")
@@ -5036,4 +5053,4 @@ async def api_hub_cert_topup(request: Request, user: str = Depends(_require_admi
             amount_cents = None
     if not amount_cents:
         raise HTTPException(400, "Betrag erforderlich.")
-    return JSONResponse(await hub_client.cert_topup(int(amount_cents)))
+    return JSONResponse(await hub_client.billing_topup(int(amount_cents)))

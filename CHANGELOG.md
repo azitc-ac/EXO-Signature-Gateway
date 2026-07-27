@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.71 — 2026-07-27 — Guthaben ist eine eigene Sache, nicht Teil des Zertifikatsbezugs
+
+Das Guthaben bezahlt **Lizenzen und Zertifikate** (Ziffer 10.1). Angezeigt wurde es aber als Schritt 2 eines Assistenten **innerhalb** des Zertifikatsbezugs — und Schritt 2 war gesperrt, solange Schritt 1 nicht erledigt war. Schritt 1 ist die Zustimmung zu den Nutzungsbedingungen für den Zertifikatsbezug.
+
+**Wer nur Lizenzen kaufen wollte, musste dafür die Bedingungen eines Dienstes annehmen, den er nicht nutzt.** Weder die Schnittstelle des Hubs noch die Verträge verlangten das je — die Sperre entstand allein durch die Einsortierung in der Oberfläche.
+
+**Neu: eigene Karte „Konto & Guthaben"** über Lizenz und Zertifikatsbezug. Darin Guthabenstand, Aufladen, automatisches Aufladen, Abrechnungsdaten und die Rechnungsstellung. Ohne Gate — die Grundlage ist Ziffer 10, der bei der Anbindung zugestimmt wurde.
+
+Der Zertifikatsbezug behält nur, was Zertifikate betrifft: Zustimmung zu seinen Bedingungen, Katalog, Domainnachweis, Bestellung. Aus dem zweistufigen Assistenten wird ein einzelner Punkt.
+
+**Die letzten Buchungen sind jetzt einsehbar**, mit Verwendungszweck je Zeile (Aufladung, Lizenz, Zertifikat, Erstattung). Damit ist am gemeinsamen Guthaben nachvollziehbar, wofür das Geld ging.
+
+**Eine Automatik für beides, bewusst.** Es gibt ein Guthaben; zwei Automatiken auf einen Topf wären nicht widerspruchsfrei, und getrennte Guthaben brächten getrennte Erstattungswege und Geld im falschen Topf. Das Gate bleibt an der Leistung: Zertifikate bestellen kann weiterhin nur, wer deren Bedingungen akzeptiert hat.
+
+**Die Zahlungsweise ist auf monatlich vorbelegt** — so steht es in Ziffer 10.4. Die jährliche Vorauszahlung mit 10 % Nachlass bleibt wählbar.
+
+Die Route `/api/hub/cert/topup` heißt jetzt `/api/hub/billing/topup`; die übrigen Guthaben-Routen hießen bereits so.
+
 ## v1.7.70 — 2026-07-27 — Fehlermeldungen nennen die Ursache
 
 Von 118 `catch`-Zweigen in der Oberfläche verwarfen **73** die Fehlerursache; 20 davon waren völlig leer. Sichtbar blieb dann nur ein fester Satz wie „Netzwerkfehler" — auch dann, wenn die Ursache eine ganz andere war. Genau daran scheiterte die Suche nach dem Fehler in v1.7.69: die Anzeige zeigte auf den Hub, während das Problem in der Seite selbst lag.

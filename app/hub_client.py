@@ -602,6 +602,23 @@ async def _billing_auto(method: str, path: str, payload: dict | None = None) -> 
         return {"ok": False, "error": f"Netzwerkfehler: {exc}"}
 
 
+async def billing_me() -> dict:
+    """Kontostand samt Verlauf.
+
+    Bewusst getrennt von `cert_eligibility()`: das Guthaben trägt Lizenzen UND
+    Zertifikate (Ziffer 10.1), die Zertifikatsberechtigung nur letztere. Wer
+    keine Zertifikate bezieht, soll seinen Kontostand trotzdem sehen.
+    """
+    return await _billing_auto("GET", "/api/billing/me")
+
+
+async def billing_topup(amount_cents: int) -> dict:
+    """Bezahlseite zum Aufladen. Kein Zertifikats-Gate — das Guthaben ist die
+    Grundlage beider Leistungen."""
+    return await _billing_auto("POST", "/api/billing/topup",
+                               {"amount_cents": int(amount_cents)})
+
+
 async def billing_auto_status() -> dict:
     return await _billing_auto("GET", "/api/billing/auto")
 

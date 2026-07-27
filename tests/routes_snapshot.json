@@ -329,6 +329,20 @@
     "name": "api_hub_billing_auto_setup"
   },
   {
+    "pfad": "/api/hub/billing/me",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_hub_billing_me"
+  },
+  {
+    "pfad": "/api/hub/billing/topup",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_hub_billing_topup"
+  },
+  {
     "pfad": "/api/hub/cert/accept-terms",
     "methoden": [
       "POST"
@@ -383,13 +397,6 @@
       "GET"
     ],
     "name": "api_hub_cert_terms"
-  },
-  {
-    "pfad": "/api/hub/cert/topup",
-    "methoden": [
-      "POST"
-    ],
-    "name": "api_hub_cert_topup"
   },
   {
     "pfad": "/api/hub/claim",
