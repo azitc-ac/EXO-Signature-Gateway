@@ -128,7 +128,7 @@
     var _prevSigTextProbe = ''; // probe from previous sig (template switch support)
     var _lastSetBody = null;
     var _addinSession = '';
-    try { _addinSession = localStorage.getItem('exo_addin_session') || ''; } catch(_) {}
+    try { _addinSession = localStorage.getItem('exo_addin_session') || ''; } catch(_) { console.error('[addin_compose:131]', _); }
     function _authHeaders() { return _addinSession ? { 'X-Addin-Session': _addinSession } : {}; }
 
     Office.onReady(function(info) {
@@ -156,7 +156,7 @@
           sel.appendChild(opt);
         });
         document.getElementById('tpl-row').style.display = list.length > 1 ? 'flex' : 'none';
-      } catch(_) {}
+      } catch(_) { console.error('[addin_compose:159]', _); }
     }
 
     function loadSig(emailOverride, onLoaded) {
@@ -488,11 +488,11 @@
             var d = JSON.parse(arg.message || '{}');
             if (d.status === 'ok' && d.token) {
               _addinSession = d.token;
-              try { localStorage.setItem('exo_addin_session', d.token); } catch(_) {}
+              try { localStorage.setItem('exo_addin_session', d.token); } catch(_) { console.error('[addin_compose:491]', _); }
               ok = true;
             }
-          } catch(_) {}
-          try { dlg.close(); } catch(_) {}
+          } catch(_) { console.error('[addin_compose:494]', _); }
+          try { dlg.close(); } catch(_) { console.error('[addin_compose:495]', _); }
           if (ok) {
             document.getElementById('login-required').style.display = 'none';
             showStatus('Angemeldet ✓', 'ok');

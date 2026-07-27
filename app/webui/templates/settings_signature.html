@@ -250,7 +250,7 @@ async function savePartial(payload, resultElId) {
       setTimeout(function() { el.textContent = ''; }, 3000);
     }
   } catch(e) {
-    if (el) { el.textContent = '✗ Netzwerkfehler'; el.style.color = '#dc2626'; }
+    if (el) { el.textContent = '✗ Netzwerkfehler' + ursache(e, 'settings_signature:252'); el.style.color = '#dc2626'; }
   }
 }
 

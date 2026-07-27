@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.70 — 2026-07-27 — Fehlermeldungen nennen die Ursache
+
+Von 118 `catch`-Zweigen in der Oberfläche verwarfen **73** die Fehlerursache; 20 davon waren völlig leer. Sichtbar blieb dann nur ein fester Satz wie „Netzwerkfehler" — auch dann, wenn die Ursache eine ganz andere war. Genau daran scheiterte die Suche nach dem Fehler in v1.7.69: die Anzeige zeigte auf den Hub, während das Problem in der Seite selbst lag.
+
+Neu nennen die Meldungen die Ursache, etwa „Nutzungsbedingungen konnten nicht geladen werden (Failed to fetch)". Der vollständige Fehler samt Aufrufkette steht zusätzlich in der Browser-Konsole, mit Angabe der Fundstelle.
+
+Übrig bleiben **7** Stellen, die bewusst schweigen — dort ist der Fehlerfall der Normalfall und im Code begründet, etwa der Verbindungsabbruch beim Neustart des Containers. Kein einziger leerer `catch`-Zweig mehr.
+
+**Im Empfänger-Portal** wird die Ursache **nicht** angezeigt, sondern nur protokolliert: die Seite sehen externe Empfänger, denen interne Fehlertexte nichts angehen.
+
+`tools/jsrefcheck.js` unterscheidet jetzt Seiten mit und ohne gemeinsames JavaScript. Das Empfänger-Portal, die S/MIME-Selbstbedienung und das Outlook-Add-in laden `common.js` bewusst nicht; ein dort verwendeter gemeinsamer Helfer wäre ein Laufzeitfehler und blieb vorher unbemerkt.
+
 ## v1.7.69 — 2026-07-27 — Nutzungsbedingungen ließen sich nicht laden; Lizenz und Zertifikate getrennt
 
 **Behoben: „Nutzungsbedingungen konnten nicht geladen werden".** Die Anzeige der Bedingungen für den Zertifikatsbezug scheiterte immer. Ursache war ein Aufruf von `_mdEscape()` — einer Funktion, die es nicht gibt: bei der Zusammenführung der handgeschriebenen HTML-Maskierer auf `esc()` war diese Stelle stehen geblieben. Der Fehler entstand innerhalb eines `try`-Blocks, dessen `catch`-Zweig ihn in die irreführende Meldung übersetzte — der Abruf beim Hub war die ganze Zeit in Ordnung.

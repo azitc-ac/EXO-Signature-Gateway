@@ -205,7 +205,7 @@ function saveLexwareFix(enabled) {
     if (btn) { btn.disabled = true; btn.textContent = '...'; }
     var r = await fetch('/api/maintenance/mails/' + id + '/release', {method:'POST'});
     if (!r.ok) {
-      try { var d = await r.json(); alert('Fehler: ' + (d.detail || r.status)); } catch(e) { alert('Fehler ' + r.status); }
+      try { var d = await r.json(); alert('Fehler: ' + (d.detail || r.status)); } catch(e) { alert('Fehler ' + ursache(e, 'advanced:208') + r.status); }
       if (btn) { btn.disabled = false; btn.textContent = 'Zustellen'; }
       return;
     }
@@ -272,7 +272,7 @@ async function saveGatewayName() {
     const r = await fetch('/settings', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({GATEWAY_NAME: val})});
     el.textContent = r.ok ? '✓ Gespeichert' : '✗ Fehler';
     el.style.color = r.ok ? '#16a34a' : '#dc2626';
-  } catch(e) { el.textContent = '✗ Netzwerkfehler'; el.style.color = '#dc2626'; }
+  } catch(e) { el.textContent = '✗ Netzwerkfehler' + ursache(e, 'advanced:275'); el.style.color = '#dc2626'; }
   setTimeout(function() { el.textContent = ''; }, 3000);
 }
 </script>
@@ -321,7 +321,7 @@ async function saveMixedFork() {
     const r = await fetch('/api/settings/partial', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({GRAPH_MIXED_FORK_MODE: val})});
     el.textContent = r.ok ? '✓ Gespeichert' : '✗ Fehler';
     el.style.color = r.ok ? '#16a34a' : '#dc2626';
-  } catch(e) { el.textContent = '✗ Netzwerkfehler'; el.style.color = '#dc2626'; }
+  } catch(e) { el.textContent = '✗ Netzwerkfehler' + ursache(e, 'advanced:324'); el.style.color = '#dc2626'; }
   setTimeout(function(){ el.textContent = ''; }, 3000);
 }
 </script>
@@ -972,7 +972,7 @@ async function _dpaOpen(){
     var d=await (await fetch('/api/legal/doc/dpa?lang=de')).json();
     if(d.ok){ _dpaData=d; txt.classList.add('md'); txt.innerHTML=_dpaMd(d.text); }
     else txt.textContent='Fehler beim Laden: '+(d.detail||'unbekannt');
-  }catch(e){ txt.textContent='Netzwerkfehler.'; }
+  }catch(e){ txt.textContent='Netzwerkfehler.' + ursache(e, 'advanced:975'); }
 }
 
 async function _dpaConfirm(){
@@ -984,7 +984,7 @@ async function _dpaConfirm(){
                            content_hash:_dpaData.content_hash,context:'support_upload'})});
     var d=await r.json().catch(function(){return {};});
     if(!r.ok||!d.ok){ _dpaMsg('Konnte nicht gespeichert werden: '+(d.detail||'Fehler'),false); btn.disabled=false; return; }
-  }catch(e){ _dpaMsg('Netzwerkfehler.',false); btn.disabled=false; return; }
+  }catch(e){ _dpaMsg('Netzwerkfehler.' + ursache(e, 'advanced:987'), false); btn.disabled=false; return; }
   _dpaClose();
   _doSupportUpload();          // Zustimmung liegt vor → Upload jetzt ausführen
 }

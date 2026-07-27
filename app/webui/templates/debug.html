@@ -158,6 +158,7 @@ async function acmeAccountUsersLoad() {
     });
     acmeAccountUpdateStatus();
   } catch(e) {
+    ursache(e, 'debug:160');
     sel.innerHTML = '<option value="">Fehler beim Laden</option>';
   }
 }
@@ -818,7 +819,7 @@ var _selftestData = [];
       o.value = e; o.textContent = e;
       emailSel.appendChild(o);
     });
-  } catch(_) {}
+  } catch(_) { ursache(_, 'debug:821'); }
 })();
 
 async function runSelfTest() {

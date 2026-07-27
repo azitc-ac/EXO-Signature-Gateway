@@ -256,7 +256,7 @@ async function dcLoadConfig(){
     document.getElementById('dc-payment').value=d.payment_method||'profile';
     const badge=document.getElementById('dc-badge');
     if(d.configured){ badge.style.display=''; badge.className='conn-badge conn-ok'; badge.textContent='✓ konfiguriert'; }
-  }catch(e){}
+  }catch(e){ ursache(e, 'settings_connect:259'); }
 }
 function _dcMsg(t,ok){ const el=document.getElementById('dc-msg'); el.textContent=t; el.style.color=ok?'#166534':'#991b1b'; }
 async function dcSaveConfig(){
@@ -482,7 +482,7 @@ async function hubLoadConfig() { try { const d=await (await fetch('/api/hub/conf
   }
   const gw=document.getElementById('hub-gwid'); if(gw && d.gateway_id) gw.innerHTML='Diese Gateway-ID: <code>'+d.gateway_id+'</code>'+copyBtnHtml(d.gateway_id);
   if(d.claim_pending){ _startHubPoll(); }
-  } catch(e){} }
+  } catch(e){ ursache(e, 'settings_connect:485'); } }
 async function hubSaveConfig() { const body={base_url:document.getElementById('hub-base').value.trim(),email:document.getElementById('hub-email').value.trim(),name:document.getElementById('hub-name').value.trim()};
   const d=await (await fetch('/api/hub/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
   _hubMsg(d.ok?'Anbindung gespeichert.':('Fehler: '+(d.error||'')), d.ok); }
@@ -517,7 +517,7 @@ async function _hubClaimTick(){
     if(cfg.registered){ _hubMsg('✓ Bereits verbunden. Seite lädt neu…',true); setTimeout(()=>location.reload(),1200); }
     else { _hubMsg('Anbindung nicht abgeschlossen — bitte erneut „Verbinden“ auslösen (Bestätigungslink evtl. abgelaufen).',false); }
     return 'terminal';
-  }catch(e){ return 'error'; }
+  }catch(e){ ursache(e, 'settings_connect:520'); return 'error'; }
 }
 function _startHubPoll(sentTo){
   clearInterval(_hubTimer);
@@ -569,7 +569,7 @@ async function _openTermsModal(viewOnly) {
     const d=await (await fetch('/api/hub/cert/terms')).json();
     if(d.ok){ _setPlainReflow(txt, d.text); _termsVersion=d.version||'1'; }
     else { txt.textContent='Nutzungsbedingungen konnten nicht geladen werden: '+(d.error||'Unbekannt'); }
-  } catch(e){ txt.textContent='Nutzungsbedingungen konnten nicht geladen werden.'; }
+  } catch(e){ txt.textContent='Nutzungsbedingungen konnten nicht geladen werden.' + ursache(e, 'settings_connect:572'); }
 }
 async function certAcceptTerms() { await _openTermsModal(false); }
 async function certViewTerms() { await _openTermsModal(true); }
@@ -589,7 +589,7 @@ async function certLoadEligibility(manual) {
   const el=document.getElementById('cert-eligibility');
   let d;
   try { d = await (await fetch('/api/hub/cert/eligibility')).json(); }
-  catch(e){ el.textContent='Berechtigung konnte nicht geprüft werden.'; return; }
+  catch(e){ el.textContent='Berechtigung konnte nicht geprüft werden.' + ursache(e, 'settings_connect:592'); return; }
   _renderCertSteps(d);
   _renderCertDomains(d);
   _renderBillingSection(d);
@@ -623,7 +623,7 @@ async function autoTopupLoad() {
   if(!_HUB_REGISTERED){ box.style.display='none'; return; }
   let d;
   try { d = await (await fetch('/api/hub/billing/auto')).json(); }
-  catch(e){ box.style.display='none'; return; }
+  catch(e){ ursache(e, 'settings_connect:626'); box.style.display='none'; return; }
   if(!d.ok || !d.stripe_enabled){ box.style.display='none'; return; }
   box.style.display='';
 
@@ -934,7 +934,7 @@ async function certLoadCatalog() {
         + '</tr>';
     }).join('');
     document.getElementById('cert-catalog-box').style.display = '';
-  } catch(e) { /* Katalog nicht erreichbar — Box bleibt aus */ }
+  } catch(e) { ursache(e, 'settings_connect:937'); /* Katalog nicht erreichbar — Box bleibt aus */ }
 }
 async function certToggleProvider(pid, enabled) {
   const res = document.getElementById('cert-catalog-result');
@@ -947,7 +947,7 @@ async function certToggleProvider(pid, enabled) {
       res.style.color = '#16a34a';
       certLoadCatalog();
     } else { res.textContent = '✗ Fehler'; res.style.color = '#dc2626'; }
-  } catch(e) { res.textContent = '✗ Netzwerkfehler'; res.style.color = '#dc2626'; }
+  } catch(e) { res.textContent = '✗ Netzwerkfehler' + ursache(e, 'settings_connect:950'); res.style.color = '#dc2626'; }
   setTimeout(function(){ res.textContent = ''; }, 3000);
 }
 
@@ -984,7 +984,7 @@ async function licLoad() {
       document.getElementById('lic-remove-row').style.display = d.reason ? '' : 'none';
       licShowBuyBox(d);
     }
-  } catch(e) { document.getElementById('lic-status').textContent = 'Status nicht abrufbar.'; }
+  } catch(e) { document.getElementById('lic-status').textContent = 'Status nicht abrufbar.' + ursache(e, 'settings_connect:987'); }
 }
 // ── Automatische Verlängerung ────────────────────────────────────────────────
 // Eigener Abruf, weil er das Netz braucht: der Fair-Use-Zustand oben kommt
@@ -994,7 +994,7 @@ async function licRenewLoad() {
   const box = document.getElementById('lic-renew-box');
   let d;
   try { d = await (await fetch('/api/license/renewal')).json(); }
-  catch (e) { box.style.display = 'none'; return; }
+  catch (e) { ursache(e, 'settings_connect:997'); box.style.display = 'none'; return; }
   if (!d || !d.ok) { box.style.display = 'none'; return; }
 
   const text = document.getElementById('lic-renew-text');
@@ -1100,7 +1100,7 @@ async function licPricingLoad() {
   try {
     const d = await (await fetch('/api/license/pricing')).json();
     if (d && d.ok) _licPricing = d;
-  } catch (e) { /* Anzeige faellt auf den Hinweis unten zurueck */ }
+  } catch (e) { ursache(e, 'settings_connect:1103'); /* Anzeige faellt auf den Hinweis unten zurueck */ }
   licBuyPrice();
 }
 
@@ -1248,7 +1248,7 @@ async function _hcTab(idx) {
     const d = await (await fetch('/api/legal/doc/' + _hcDocs[idx].id + '?lang=de')).json();
     if (d.ok) { _hcData[idx] = d; _setMarkdown(txt, d.text); }
     else txt.textContent = 'Fehler beim Laden: ' + (d.detail || 'unbekannt');
-  } catch(e) { txt.textContent = 'Netzwerkfehler.'; }
+  } catch(e) { txt.textContent = 'Netzwerkfehler.' + ursache(e, 'settings_connect:1251'); }
 }
 function _hcCheck() {
   const ok = document.getElementById('hc-cb-0').checked && document.getElementById('hc-cb-1').checked;
@@ -1290,7 +1290,7 @@ async function _invOpen(callback) {
     const d = await (await fetch('/api/legal/doc/payment-invoice?lang=de')).json();
     if (d.ok) { _invData = d; _setMarkdown(txt, d.text); }
     else txt.textContent = 'Fehler: ' + (d.detail||'');
-  } catch(e) { txt.textContent = 'Netzwerkfehler.'; }
+  } catch(e) { txt.textContent = 'Netzwerkfehler.' + ursache(e, 'settings_connect:1293'); }
 }
 function _invClose() {
   document.getElementById('inv-consent-modal').style.display = 'none';
@@ -1349,7 +1349,7 @@ async function legalLoadStatus() {
         + 'Lesen</button>'
         + '</div>';
     }).join('');
-  } catch(e) {}
+  } catch(e) { ursache(e, 'settings_connect:1352'); }
 }
 
 async function legalViewDoc(docId) {
@@ -1408,7 +1408,7 @@ async function _gatedCertRequestInvoice() {
       _invOpen(async function() { await _doCertRequestInvoice(); });
       return;
     }
-  } catch(e) {}
+  } catch(e) { ursache(e, 'settings_connect:1411'); }
   await _doCertRequestInvoice();
 }
 
@@ -1466,7 +1466,7 @@ async function licBuy() {
     } else {
       _licMsg(d.detail || 'Kauf fehlgeschlagen.', false);
     }
-  } catch(e) { _licMsg('Netzwerkfehler.', false); }
+  } catch(e) { _licMsg('Netzwerkfehler.' + ursache(e, 'settings_connect:1469'), false); }
   btn.disabled = false;
 }
 

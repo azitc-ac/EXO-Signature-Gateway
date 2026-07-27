@@ -1599,7 +1599,8 @@ async function verifyStep(type, btn) {
       if (resultEl) resultEl.innerHTML = '<span style="color:#dc2626;font-size:12px;font-weight:500">✗ ' + msg + '</span>';
     }
   } catch(e) {
-    if (resultEl) resultEl.innerHTML = '<span style="color:#dc2626;font-size:12px">✗ Verbindungsfehler</span>';
+    if (resultEl) resultEl.innerHTML = '<span style="color:#dc2626;font-size:12px">✗ Verbindungsfehler'
+                                 + esc(ursache(e, 'setup:1601')) + '</span>';
   } finally {
     btn.disabled = false;
     btn.textContent = orig;
@@ -1763,6 +1764,7 @@ async function loadKvSubscriptions() {
     }
     onKvSubscriptionChange();
   } catch(e) {
+    ursache(e, 'setup:1765');
     sel.innerHTML = '<option value="__other__">— manuell eingeben —</option>';
     sel.disabled = false;
     onKvSubscriptionChange();
@@ -1813,6 +1815,7 @@ async function loadKvVaults(subscriptionId) {
     sel.disabled = false;
     onKvVaultChange();
   } catch(e) {
+    ursache(e, 'setup:1815');
     sel.innerHTML = '<option value="__new__">Neu erstellen</option><option value="__other__">…andere URL</option>';
     sel.disabled = false;
     onKvVaultChange();
@@ -1867,6 +1870,7 @@ async function loadKvResourceGroups(subscriptionId) {
     sel.disabled = false;
     onKvRgChange();
   } catch(e) {
+    ursache(e, 'setup:1872');
     sel.innerHTML = '<option value="__new__">Neu: rg-exo-signature</option><option value="__other__">…andere</option>';
     sel.disabled = false;
     onKvRgChange();
@@ -2357,7 +2361,7 @@ async function savePartial(payload, resultElId) {
       setTimeout(function() { el.textContent = ''; }, 3000);
     }
   } catch(e) {
-    if (el) { el.textContent = '✗ Netzwerkfehler'; el.style.color = '#dc2626'; }
+    if (el) { el.textContent = '✗ Netzwerkfehler' + ursache(e, 'setup:2359'); el.style.color = '#dc2626'; }
   }
 }
 
@@ -2444,7 +2448,7 @@ async function setupRestartNow() {
   var note = document.getElementById('setup-restart-note');
   if (btn) btn.disabled = true;
   if (note) note.textContent = 'Startet neu…';
-  try { await fetch('/api/restart', {method: 'POST'}); } catch(e) {}
+  try { await fetch('/api/restart', {method: 'POST'}); } catch(e) { ursache(e, 'setup:2447'); }
   setTimeout(function() { window.location.reload(); }, 4000);
 }
 
@@ -2498,7 +2502,7 @@ async function loadPoolStatus() {
       statusEl.style.background = '#dcfce7';
       statusEl.style.color = '#16a34a';
     }
-  } catch(e) {}
+  } catch(e) { ursache(e, 'setup:2501'); }
 }
 
 async function startPoolAppLogin() {

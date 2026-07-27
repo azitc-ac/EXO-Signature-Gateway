@@ -167,7 +167,7 @@ function connect() {
     setStatus('Verbinde…', 'connecting');
     es = new EventSource('/log/stream?token={{ stream_token }}');
     es.onopen    = function() { setStatus('Live', 'live'); };
-    es.onmessage = function(e) { try { appendLine(JSON.parse(e.data)); } catch(_) {} };
+    es.onmessage = function(e) { try { appendLine(JSON.parse(e.data)); } catch(_) { ursache(_, 'log:170'); } };
     es.onerror   = function() {
         es.close(); es = null;
         if (loggingOn) { setStatus('Verbinde…', 'connecting'); setTimeout(connect, 3000); }

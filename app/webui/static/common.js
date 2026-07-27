@@ -200,3 +200,33 @@ function _mdToHtml(md) {
   });
   return out.join('');
 }
+
+/* Ursache eines gefangenen Fehlers sichtbar machen.
+ *
+ * Anlass (2026-07-27): `_reflowPlain()` rief `_mdEscape()` auf — eine Funktion,
+ * die es nicht gab. Der ReferenceError landete in einem catch-Zweig, der ihn
+ * verwarf und stattdessen „Nutzungsbedingungen konnten nicht geladen werden"
+ * anzeigte. Die Meldung zeigte damit auf den Hub, der einwandfrei antwortete.
+ * Hätte dort „… : _mdEscape is not defined" gestanden, wäre die Ursache sofort
+ * sichtbar gewesen statt nach Wochen.
+ *
+ * Deshalb tut die Funktion beides: sie protokolliert den vollständigen Fehler
+ * samt Aufrufkette in der Konsole UND liefert einen kurzen Anhang für die
+ * Anzeige. Rückgabe ist ein FERTIGES Textstück inklusive Klammern, damit die
+ * Aufrufstelle nur anhängen muss:
+ *
+ *     catch (e) { el.textContent = 'Netzwerkfehler' + ursache(e, 'certTerms'); }
+ *
+ * Ist keine Ursache zu ermitteln, bleibt es beim bisherigen Satz — ein
+ * angehängtes „(undefined)" hilft niemandem.
+ */
+function ursache(e, ort) {
+  try { console.error('[' + (ort || 'unbekannt') + ']', e); } catch (_) { /* Konsole fehlt */ }
+  var t = '';
+  if (e == null) t = '';
+  else if (typeof e === 'string') t = e;
+  else t = e.message || e.name || String(e);
+  t = String(t).trim();
+  if (!t || t === '[object Object]') return '';
+  return ' (' + (t.length > 160 ? t.slice(0, 157) + '…' : t) + ')';
+}

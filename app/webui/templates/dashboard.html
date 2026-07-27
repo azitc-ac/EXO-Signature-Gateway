@@ -564,7 +564,7 @@ function openInFlightInfo(active, held) {
       });
       if (!_poolData.length) poolHtml = '<span style="color:#94a3b8;font-size:12px;display:block;padding:8px 16px">Kein Pool konfiguriert</span>';
       document.getElementById('poolStatusBlock').innerHTML = poolHtml;
-    } catch(e) { /* ignore */ }
+    } catch(e) { ursache(e, 'dashboard:567'); }
   }
   loadSys();
   setInterval(loadSys, 10000);
