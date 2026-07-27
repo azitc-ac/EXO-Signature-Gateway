@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.80 — 2026-07-27 — Verlängerung ist ein eigener Abschnitt
+
+„Verlängerung beenden" und die Umstellung der Zahlungsweise lagen **innerhalb** des Bereichs „Online — Postfächer aufstocken". Wer kündigen wollte, musste also einen Abschnitt zum Aufstocken aufklappen. Das stammt daher, dass der Bereich früher „verlängern oder aufstocken" hieß — beim Umbenennen sind die Handlungen dort liegen geblieben.
+
+Die Verlängerung steht jetzt als eigener Abschnitt direkt unter der Übersicht, wo sie hingehört: sie betrifft die laufende Lizenz, nicht den Kauf einer weiteren.
+
+**Die Knöpfe benennen die Handlung.** „Ab nächster Verlängerung jährlich im Voraus (10 % Nachlass)" las sich wie eine Feststellung — was gerade gilt, steht ohnehin in der Übersicht. Jetzt: **„Auf jährliche Zahlung umstellen (10 % Nachlass)"**, darunter der Hinweis, dass die Umstellung zum Verlängerungsdatum wirkt und nicht sofort.
+
+Der Satz „Die Gebühr wird dem Hub-Guthaben entnommen…" ist entfallen; er wiederholte die Übersichtszeile. Was dort fehlte — was bei zu geringem Guthaben passiert — steht jetzt in derselben Zeile.
+
 ## v1.7.79 — 2026-07-27 — Lizenzübersicht: zweispaltig statt umgebrochen
 
 Die Übersicht war als Flexbox gebaut und **brach auf schmalen Bildschirmen um**: Bezeichnung und Wert landeten untereinander, mit gleichem Gewicht und ohne Trennung. Aus der Übersicht wurde eine Liste, die man Zeile für Zeile entziffern musste — auf dem Telefon unbrauchbar.

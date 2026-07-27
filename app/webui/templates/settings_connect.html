@@ -340,6 +340,18 @@ _initAdv('digicert');
   <div id="lic-uebersicht" style="margin-bottom:12px"></div>
   <div id="lic-status" class="hint" style="margin-bottom:12px">Lade…</div>
 
+  <!-- Verlängerung: eigener Abschnitt, NICHT im Kaufbereich. Bis v1.7.79 lag er
+       in „Online — Postfächer aufstocken" — man musste also einen Abschnitt zum
+       Aufstocken öffnen, um zu kündigen. Das kam davon, dass der Bereich früher
+       „verlängern oder aufstocken" hieß und beim Umbenennen niemand die
+       Handlungen mitgenommen hat. -->
+  <div id="lic-renew-box" style="display:none;margin-bottom:12px">
+    <div style="font-weight:600;margin-bottom:6px">Verlängerung</div>
+    <div id="lic-renew-actions" class="actions"></div>
+    <div id="lic-renew-text" class="hint" style="margin-top:6px"></div>
+    <div id="lic-renew-msg" class="msg" style="display:none;margin-top:8px"></div>
+  </div>
+
   <!-- ── Online beziehen ───────────────────────────────────────────────────
        Nur bei bestehender Anbindung. Ohne sie erscheint stattdessen
        #lic-online-hint — ein Knopf, der nicht funktionieren kann, ist
@@ -366,13 +378,6 @@ _initAdv('digicert');
       <button class="btn primary" onclick="licBuy()" id="lic-buy-btn">Kaufen</button>
     </div>
     <div id="lic-buy-price" class="hint" style="margin-top:8px"></div>
-
-    <!-- Verlängerung. Farben statisch im Attribut (Dark-Mode-Regel 2). -->
-    <div id="lic-renew-box" style="display:none;margin-top:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px 12px">
-      <div id="lic-renew-text" style="font-size:13px;line-height:1.55"></div>
-      <div id="lic-renew-actions" class="actions" style="margin-top:8px"></div>
-      <div id="lic-renew-msg" class="msg" style="display:none;margin-top:8px"></div>
-    </div>
 
     <div style="margin-top:12px;padding-top:10px;border-top:1px solid #e5e7eb">
       <span class="hint">Lizenz bereits erworben, hier aber nicht hinterlegt?
@@ -1175,7 +1180,8 @@ function licRenderUebersicht(d) {
   if (d.auto_renew) {
     h += _zeile('Verlängerung',
                 '<strong>ja</strong> — am ' + _datum(d.renew_at),
-                d.renew_vorlauf_tage + ' Tage vor Ablauf, aus dem Konto-Guthaben');
+                d.renew_vorlauf_tage + ' Tage vor Ablauf, aus dem Konto-Guthaben — '
+                + 'reicht es nicht, greift der automatische Einzug');
     // Nur zeigen, wenn sich wirklich etwas ändert — sonst doppelt sich die
     // Zeile mit dem laufenden Zeitraum und stiftet Verwirrung.
     if (d.renew_mailboxes || d.renew_zahlungsweise) {
@@ -1213,33 +1219,39 @@ async function licRenewLoad() {
 
   licRenderUebersicht(d);
   _licState = Object.assign({}, _licState || {}, d);   // fuer die Erstattungsvorschau
+  const bis_renew = d.renew_at ? new Date(d.renew_at).toLocaleDateString('de-DE')
+                               : (d.expires ? new Date(d.expires).toLocaleDateString('de-DE') : '—');
   const text = document.getElementById('lic-renew-text');
   const actions = document.getElementById('lic-renew-actions');
 
   if (d.auto_renew) {
-    const gewuenscht = !!d.renew_zahlungsweise;
-    // Kein Fliesstext mehr — die Auflistung oben nennt Datum, Zahlungsweise und
-    // die Aenderung zum naechsten Zeitraum bereits. Hier bleiben die Knoepfe.
-    text.innerHTML = 'Die Gebühr wird dem Hub-Guthaben entnommen; reicht es nicht, '
-      + 'greift der eingerichtete automatische Einzug.';
-    const andere = d.zahlungsweise === 'monatlich' ? 'jaehrlich' : 'monatlich';
-    const andereText = andere === 'monatlich' ? 'monatlich' : 'jährlich im Voraus (10 % Nachlass)';
+    // Knopfbeschriftungen als HANDLUNG, nicht als Zustandssatz. „Ab nächster
+    // Verlängerung jährlich im Voraus" las sich wie eine Feststellung — was
+    // gerade gilt, steht ohnehin in der Auflistung darüber.
+    const anders = d.zahlungsweise === 'monatlich' ? 'jaehrlich' : 'monatlich';
+    const label = anders === 'jaehrlich'
+      ? 'Auf jährliche Zahlung umstellen (10 % Nachlass)'
+      : 'Auf monatliche Zahlung umstellen';
     actions.innerHTML =
-      '<button class="btn secondary" onclick="licRenewInterval(\'' + andere + '\')">'
-      + 'Ab nächster Verlängerung ' + esc(andereText) + '</button>'
-      + (gewuenscht ? '<button class="btn secondary" onclick="licRenewInterval(\''
-                      + esc(d.zahlungsweise) + '\')">Umstellung zurücknehmen</button>' : '')
+      '<button class="btn secondary" onclick="licRenewInterval(\'' + anders + '\')">'
+      + esc(label) + '</button>'
+      + (d.renew_zahlungsweise
+           ? '<button class="btn secondary" onclick="licRenewInterval(\''
+             + esc(d.zahlungsweise) + '\')">Umstellung zurücknehmen</button>' : '')
       + '<button class="btn secondary" onclick="licRenewCancel()">Verlängerung beenden</button>';
+    text.textContent = 'Eine Umstellung wirkt zum ' + bis_renew + ', nicht sofort — '
+      + 'der laufende Zeitraum ist bezahlt.';
   } else {
-    text.innerHTML = 'Solange die Lizenz läuft, kann die Verlängerung wieder '
-      + 'aufgenommen werden.';
     actions.innerHTML = '<button class="btn primary" onclick="licRenewResume()">Verlängerung wieder aufnehmen</button>';
+    text.textContent = 'Möglich, solange die Lizenz läuft.';
   }
   // Der Fehlschlag steht bereits in der Auflistung („Letzter Versuch") — hier
   // nur noch die Beruhigung, was er bedeutet.
   if (d.renew_error) {
-    text.innerHTML += '<br>Die Lizenz bleibt bis zum Ablaufdatum gültig, der Versuch '
-      + 'wird wiederholt.';
+    // Der Fehlschlag selbst steht in der Auflistung („Letzter Versuch") — hier
+    // nur, was er bedeutet.
+    text.textContent += ' Der letzte Versuch schlug fehl; die Lizenz bleibt bis zum '
+      + 'Ablaufdatum gültig und der Versuch wird wiederholt.';
   }
   box.style.display = '';
 }
