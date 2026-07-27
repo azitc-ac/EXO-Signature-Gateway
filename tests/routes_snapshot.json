@@ -490,6 +490,13 @@
     "name": "api_license_fetch_hub"
   },
   {
+    "pfad": "/api/license/pricing",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_license_pricing"
+  },
+  {
     "pfad": "/api/license/purchase",
     "methoden": [
       "POST"

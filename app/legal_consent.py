@@ -20,11 +20,11 @@ _DB_PATH = Path("/app/data/legal_consent.db")
 # ── Document registry ────────────────────────────────────────────────────────
 CURRENT_DOCUMENTS: dict[str, dict] = {
     "hub-terms": {
-        "version": "2.0",
+        "version": "2.1",
         "label_de": "Hub-Nutzungsbedingungen",
         "label_en": "Hub Terms of Use",
-        "path_de": "de/hub-nutzungsbedingungen-v2.0.md",
-        "path_en": "en/hub-terms-of-use-v2.0.md",
+        "path_de": "de/hub-nutzungsbedingungen-v2.1.md",
+        "path_en": "en/hub-terms-of-use-v2.1.md",
     },
     "license-supplement": {
         "version": "2.0",

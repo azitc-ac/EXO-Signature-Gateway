@@ -343,6 +343,11 @@ _initAdv('digicert');
         <input type="number" id="lic-buy-licenses" min="1" step="1" style="width:120px"
                oninput="licBuyPrice()">
         <span class="hint" style="display:block;margin-top:2px">über die 100 Fair-Use-Postfächer hinaus (z.&nbsp;B. 110 Postfächer → 10 Lizenzen)</span></div>
+      <div><label style="font-size:12px;display:block">Zahlungsweise</label>
+        <select id="lic-buy-interval" onchange="licBuyPrice()" style="min-width:190px">
+          <option value="jaehrlich">jährlich im Voraus</option>
+          <option value="monatlich">monatlich</option>
+        </select></div>
       <button class="btn primary" onclick="licBuy()" id="lic-buy-btn">Kaufen</button>
     </div>
     <div id="lic-buy-price" class="hint" style="margin-top:8px"></div>
@@ -1083,22 +1088,57 @@ function licShowBuyBox(d) {
                          d.licensed ? (d.mailboxes || 0) : 0);
     input.value = Math.max(1, total - 100);
   }
+  // Holt das Preismodell und ruft danach licBuyPrice() — ohne Modell nennt die
+  // Anzeige keinen Betrag statt eines geratenen.
+  licPricingLoad();
+}
+// Preismodell kommt vom Hub, nicht aus dem Gateway: eine hier verdrahtete
+// Zahl (früher „12 €/Jahr") wäre beim nächsten Preisschritt still falsch.
+var _licPricing = null;
+
+async function licPricingLoad() {
+  try {
+    const d = await (await fetch('/api/license/pricing')).json();
+    if (d && d.ok) _licPricing = d;
+  } catch (e) { /* Anzeige faellt auf den Hinweis unten zurueck */ }
   licBuyPrice();
 }
+
 function licBuyPrice() {
   const lic = parseInt(document.getElementById('lic-buy-licenses').value, 10) || 0;
   const el = document.getElementById('lic-buy-price');
   const btn = document.getElementById('lic-buy-btn');
+  const frei = _licPricing ? _licPricing.frei_postfaecher : 100;
   if (lic <= 0) {
-    el.textContent = 'Bis 100 Postfächer gilt Fair Use — keine Lizenz nötig.';
+    el.textContent = 'Bis ' + frei + ' Postfächer gilt Fair Use — keine Lizenz nötig.';
     btn.disabled = true; return;
   }
   btn.disabled = false;
-  const price = lic * 12;
-  el.textContent = 'Preis: ' + lic + ' Lizenzen × 12 €/Jahr = '
-                 + price + ' €/Jahr netto zzgl. MwSt. (deckt bis ' + (lic + 100) + ' Postfächer ab; Laufzeit 1 Jahr' +
-                 (_licState && _licState.licensed ? ', ab aktuellem Ablaufdatum' : '') +
-                 '). Abbuchung vom Guthaben erfolgt brutto.';
+  if (!_licPricing) {
+    el.textContent = 'Preis wird beim Kauf vom Hub berechnet (Preismodell derzeit nicht abrufbar).';
+    return;
+  }
+  const zw = document.getElementById('lic-buy-interval').value;
+  const modell = _licPricing.zahlungsweisen[zw];
+  if (!modell) { el.textContent = 'Unbekannte Zahlungsweise.'; btn.disabled = true; return; }
+  const proZeitraum = lic * modell.monate * modell.monatspreis_cents;
+  const zeitraum = modell.monate === 1 ? 'Monat' : modell.monate + ' Monate';
+  var text = 'Preis: ' + lic + ' Lizenzen × ' + eur(modell.monatspreis_cents) + '/Monat';
+  if (modell.monate > 1) text += ' × ' + modell.monate + ' Monate';
+  text += ' = ' + eur(proZeitraum) + ' netto je ' + zeitraum
+        + ' (deckt bis ' + (lic + frei) + ' Postfächer ab';
+  if (_licState && _licState.licensed) text += ', Laufzeit ab aktuellem Ablaufdatum';
+  text += '). Abbuchung vom Guthaben erfolgt brutto.';
+  if (zw === 'jaehrlich' && _licPricing.jahresnachlass_prozent) {
+    text += ' Enthält ' + _licPricing.jahresnachlass_prozent
+          + ' % Nachlass für die Jahreslaufzeit — bei vorzeitiger Beendigung wird die '
+          + 'genutzte Zeit zum regulären Preis von ' + eur(_licPricing.preis_monat_cents)
+          + '/Monat nachberechnet (Ziffer 6.11).';
+  } else {
+    text += ' Verlängert sich monatlich, jederzeit ohne Frist beendbar; '
+          + 'für den laufenden Monat gibt es keine Erstattung.';
+  }
+  el.textContent = text;
 }
 // ── Hub-Consent-Modal (Gate A) ────────────────────────────────────────────────
 var _hcDocs = [
@@ -1353,16 +1393,25 @@ async function _doCertRequestInvoice() {
 
 async function licBuy() {
   const lic = parseInt(document.getElementById('lic-buy-licenses').value, 10) || 0;
-  const total = lic + 100;
-  const price = lic * 12;
-  if (!confirm(lic + ' Lizenzen kaufen (deckt bis ' + total + ' Postfächer ab) — ' + price +
-               ' €/Jahr netto zzgl. MwSt.? Der Bruttobetrag wird deinem Hub-Konto belastet.')) return;
+  const frei = _licPricing ? _licPricing.frei_postfaecher : 100;
+  const total = lic + frei;
+  const zw = document.getElementById('lic-buy-interval').value;
+  // Betrag aus dem Preismodell des Hubs, nicht aus einer eigenen Rechnung.
+  // Ist es nicht abrufbar, wird kein Betrag genannt statt eines falschen.
+  const modell = _licPricing ? _licPricing.zahlungsweisen[zw] : null;
+  const betrag = modell
+    ? eur(lic * modell.monate * modell.monatspreis_cents) + ' netto zzgl. MwSt. je '
+      + (modell.monate === 1 ? 'Monat' : modell.monate + ' Monate')
+    : 'den vom Hub berechneten Betrag';
+  if (!confirm(lic + ' Lizenzen kaufen (deckt bis ' + total + ' Postfächer ab) — '
+             + betrag + '? Der Bruttobetrag wird deinem Hub-Konto belastet.')) return;
   const btn = document.getElementById('lic-buy-btn');
   btn.disabled = true;
   _licMsg('Kauf läuft…', true);
   try {
     const r = await fetch('/api/license/purchase', {method: 'POST',
-      headers: {'Content-Type': 'application/json'}, body: JSON.stringify({mailboxes: total})});
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({mailboxes: total, zahlungsweise: zw})});
     const d = await r.json().catch(() => ({}));
     if (r.ok) {
       var gross = d.price_gross_cents ? (d.price_gross_cents / 100).toFixed(2) + ' € brutto'

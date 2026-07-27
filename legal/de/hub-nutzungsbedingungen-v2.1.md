@@ -1,6 +1,6 @@
 # Nutzungsbedingungen für den EXO Signature Hub
 
-**Version 2.0 — Stand 27. Juli 2026**
+**Version 2.1 — Stand 27. Juli 2026**
 
 Anbieter: Alexander Zarenko - IT Consulting, Triebelsstraße 4, 52066 Aachen
 (nachfolgend „Anbieter")
@@ -239,10 +239,15 @@ Frist beenden.** Die Erklärung erfolgt über die Lizenzverwaltung im Gateway un
 wirkt sofort: eine weitere Verlängerung findet nicht statt.
 
 Der Anbieter erstattet den nicht genutzten Anteil der bereits gezahlten
-Lizenzgebühr. Berechnet wird er nach den vollen Kalendermonaten, die bei
-Zugang der Erklärung noch nicht begonnen haben, zum regulären Monatspreis ohne
-den für die Jahreslaufzeit gewährten Nachlass. Ergibt die Berechnung keinen
+Lizenzgebühr. **Berechnet wird er, indem die bereits begonnenen Vertragsmonate
+zum regulären Monatspreis — ohne den für die Jahreslaufzeit gewährten Nachlass
+— vom gezahlten Betrag abgezogen werden.** Der bei Zugang der Erklärung
+laufende Vertragsmonat gilt dabei als genutzt. Ergibt die Berechnung keinen
 positiven Betrag, erfolgt keine Erstattung.
+
+Der Nachlass für die Jahreslaufzeit bleibt damit an deren tatsächliche Nutzung
+geknüpft: Wer vorzeitig geht, wird für die genutzte Zeit zum regulären Preis
+abgerechnet. Ein Rechenbeispiel enthält die Preisliste.
 
 Solange die Lizenz noch läuft, kann der Kunde die Verlängerung über dieselbe
 Ansicht wieder aktivieren.
@@ -468,4 +473,4 @@ der Information.
 
 ---
 
-*Version 2.0 — 27. Juli 2026*
+*Version 2.1 — 27. Juli 2026*
