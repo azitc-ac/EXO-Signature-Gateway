@@ -417,3 +417,52 @@
 [data-theme="dark"] .legal-view h3,
 [data-theme="dark"] .legal-view h4    { color: #e2e8f0 !important; }
 [data-theme="dark"] .legal-view strong { color: #f1f5f9 !important; }
+
+/* ── JS-berührte Inline-Hintergründe ─────────────────────────────────────────
+ *
+ * Die Sammelregeln oben greifen über [style*="background:#hex"] — also über den
+ * TEXT des style-Attributs. Sobald JavaScript irgendeine Eigenschaft desselben
+ * Elements setzt (schon `el.style.display = ''` genügt), schreibt der Browser
+ * das gesamte Attribut neu und serialisiert Farben als `rgb(…)`. Der
+ * Attributselektor findet die Hex-Schreibweise dann nicht mehr, und das Element
+ * bleibt im Dunkelmodus hell.
+ *
+ * Aufgefallen am 27.07.2026 am Verlängerungskasten der Lizenz: heller Kasten
+ * mit hellem Text. Ausgerechnet dort stand im Template der Kommentar „Farben
+ * statisch im Attribut (Dark-Mode-Regel 2)" — die Farbe war statisch, aber
+ * `licRenewLoad()` schaltet die Sichtbarkeit desselben Elements.
+ *
+ * Diese Regeln sprechen die IDs an und tragen deshalb unabhängig davon, wie das
+ * Attribut gerade serialisiert ist. tools/darkcheck.py prüft die Liste.
+ * Zielfarben wie in den Sammelregeln oben.                                   */
+
+[data-theme="dark"] #upd-target-version,
+[data-theme="dark"] #obs-rd-detail,
+[data-theme="dark"] #health-inline-output,
+[data-theme="dark"] #audit-inline-pre,
+[data-theme="dark"] #fu-info-box,
+[data-theme="dark"] #admin-dropdown,
+[data-theme="dark"] #notif-dropdown,
+[data-theme="dark"] #cert-domain-record,
+[data-theme="dark"] #dc-domain-record,
+[data-theme="dark"] #lic-renew-box,
+[data-theme="dark"] #poolRecommendation,
+[data-theme="dark"] #kv-create-section {
+  background: #14171f !important;
+  border-color: #2a2d3e !important;
+}
+
+[data-theme="dark"] #cert-info-box,
+[data-theme="dark"] #admin-selected,
+[data-theme="dark"] #step-app-pool-status {
+  background: #0a1827 !important;
+  border-color: #1e3a5f !important;
+}
+
+[data-theme="dark"] #reconsent-bar,
+[data-theme="dark"] #kv-arm-box,
+[data-theme="dark"] #kv-existing-vault-hint,
+[data-theme="dark"] #login-required {
+  background: #1a1200 !important;
+  border-color: #3d2f00 !important;
+}
