@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.72 — 2026-07-27 — Lizenz: Online- und Offline-Bezug getrennt
+
+Die Lizenzkarte vermischte beide Bezugswege. „Über Hub-Anbindung abrufen" stand direkt neben „Lizenz einspielen" und sah aus wie dessen Variante — es holt aber eine bereits ausgestellte Lizenz, ist also weder ein Kauf noch ein Einspielen. Der Kauf selbst lag darunter in einem eigenen Kasten, ohne erkennbaren Zusammenhang.
+
+**Ohne Anbindung war es am schlechtesten:** Der Abruf-Knopf war sichtbar und konnte nicht funktionieren, während der Kauf-Kasten stillschweigend ausgeblendet wurde — ohne Hinweis, warum.
+
+**Neu zwei benannte Wege:**
+
+- **Online beziehen — über die Hub-Anbindung.** Kaufen bzw. aufstocken, automatische Verlängerung, und darin nachgeordnet „Vom Hub abrufen" mit einer Zeile, wann man das braucht (Neuinstallation, Wiederherstellung, vom Anbieter ausgestellt).
+- **Offline beziehen — Lizenzschlüssel von Hand einspielen.** Bei bestehender Anbindung zugeklappt, aber erreichbar; ohne Anbindung aufgeklappt und der einzige Weg. Ist der hinterlegte Schlüssel ungültig, klappt er von selbst auf.
+
+Ohne Anbindung erscheint kein Knopf mehr, der nicht funktionieren kann — an seiner Stelle steht ein Satz, der auf den Abschnitt „Anbindung" verweist.
+
+**„Offline" heißt hier zweierlei**, das trennt der Einleitungstext jetzt ausdrücklich: der *Bezugsweg* kann ohne Anbindung sein — und davon unabhängig läuft die *Prüfung* der Lizenz immer offline im Gateway, auch nach einem Online-Kauf. Kein Zwang zur Anbindung.
+
 ## v1.7.71 — 2026-07-27 — Guthaben ist eine eigene Sache, nicht Teil des Zertifikatsbezugs
 
 Das Guthaben bezahlt **Lizenzen und Zertifikate** (Ziffer 10.1). Angezeigt wurde es aber als Schritt 2 eines Assistenten **innerhalb** des Zertifikatsbezugs — und Schritt 2 war gesperrt, solange Schritt 1 nicht erledigt war. Schritt 1 ist die Zustimmung zu den Nutzungsbedingungen für den Zertifikatsbezug.
