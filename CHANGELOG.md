@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.84 — 2026-07-27 — Zugriffsprotokoll eingeschaltet
+
+Bisher protokollierte das Gateway keine eingehenden Anfragen. Meldete jemand einen Fehler beim Klick, ließ sich nicht einmal feststellen, **ob die Anfrage überhaupt ankam** — sichtbar waren nur die ausgehenden Aufrufe zum Hub.
+
+Das Protokoll ist jetzt an. Erreichbarkeitsabfragen, statische Dateien und der Benutzerabruf werden ausgefiltert; sie wiederholen sich im Sekundentakt und würden die echten Aufrufe zudecken. Genau deshalb war es ursprünglich abgeschaltet.
+
 ## v1.7.83 — 2026-07-27 — Verlängerung: jede Handlung nennt ihr Objekt und ihre Folge
 
 Drei Knöpfe standen nebeneinander, deren Beschriftung offenließ, worauf sie sich bezieht — „Verlängerung beenden": welche? „Umstellung zurücknehmen": welche Umstellung?
