@@ -160,6 +160,50 @@ def check_settings_registry(rep: Report) -> None:
                          f"Geheimnisfelder bleiben leer (placeholder statt value)")
 
 
+# ── 3b. Guthabenpruefung am gemeinsamen Weg vorbei ───────────────────────────
+# Jede Zahlstelle im Hub muss billing.deckung_sicherstellen() benutzen. Wer das
+# Guthaben selbst mit einem Preis vergleicht, umgeht die automatische
+# Aufladung — und merkt es nicht, weil ohne Automatik dasselbe herauskommt.
+#
+# Anlass (2026-07-27): Der Lizenzkauf lehnte mit "Guthaben reicht nicht" ab,
+# obwohl ein Zahlungsmittel hinterlegt war. Zertifikatsbestellung und
+# Verlaengerung riefen ensure_balance(), der Kauf verglich `balance_cents`
+# direkt. Ein Test der Hilfsfunktion faengt das NICHT — der Fehler sitzt an der
+# Aufrufstelle, nicht in der Funktion.
+def check_guthaben_gate(rep: Report) -> None:
+    ziel = HUB / "app"
+    if not ziel.is_dir():
+        rep.note("Guthabenpruefung uebersprungen — Hub-Baum nicht vorhanden")
+        return
+    # Vergleichsoperator im selben Ausdruck wie balance_cents
+    muster = re.compile(r"balance_cents[^\n]{0,80}?(?:<=|>=|<|>)|"
+                        r"(?:<=|>=|<|>)[^\n]{0,80}?balance_cents")
+    treffer = 0
+    for f in sorted(ziel.rglob("*.py")):
+        if f.name == "billing.py":          # dort GEHOEREN sie hin
+            continue
+        zeilen = f.read_text(encoding="utf-8", errors="replace").splitlines()
+        for nr, zeile in enumerate(zeilen, 1):
+            if zeile.lstrip().startswith("#"):
+                continue
+            if not muster.search(zeile):
+                continue
+            # Eine Stelle, die auto_topup_armed() in der Naehe prueft, hat die
+            # Automatik BEDACHT — etwa die Freischaltung des Zertifikatsbezugs
+            # oder deren Vorpruefung. Nur wer den Saldo blind vergleicht, faellt
+            # auf. Ohne diese Unterscheidung meldet die Regel zwei richtige
+            # Stellen und wird deshalb ignoriert.
+            umfeld = "\n".join(zeilen[max(0, nr - 12):nr + 8])
+            if "auto_topup_armed" in umfeld or "deckung_sicherstellen" in umfeld:
+                continue
+            rep.fail(f"Hub/{f.relative_to(HUB)}:{nr}: vergleicht balance_cents direkt — "
+                     f"billing.deckung_sicherstellen() verwenden, sonst greift die "
+                     f"automatische Aufladung nicht")
+            treffer += 1
+    if not treffer:
+        rep.note("Guthaben: keine Zahlstelle vergleicht den Saldo an billing.py vorbei")
+
+
 # ── 4. Gespiegelte Dateien ───────────────────────────────────────────────────
 def check_mirrored(rep: Report, hub_verfuegbar: bool = True) -> None:
     if not hub_verfuegbar:
@@ -301,6 +345,7 @@ def main() -> int:
     check_pinned_requirements(rep, roots)
     if hub_da:
         check_settings_registry(rep)
+    check_guthaben_gate(rep)
 
     for n in rep.notes:
         print(f"  {n}")
