@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.79 — 2026-07-27 — Lizenzübersicht: zweispaltig statt umgebrochen
+
+Die Übersicht war als Flexbox gebaut und **brach auf schmalen Bildschirmen um**: Bezeichnung und Wert landeten untereinander, mit gleichem Gewicht und ohne Trennung. Aus der Übersicht wurde eine Liste, die man Zeile für Zeile entziffern musste — auf dem Telefon unbrauchbar.
+
+Jetzt eine echte Tabelle mit zwei Spalten. Spalten brechen nicht um, und jede Zeile ist durch eine Linie abgesetzt. Der erläuternde Zusatz steht **unter** dem Wert statt daneben — nebeneinander lief er mit ihm zusammen („monatlich Zeitraum: Monat").
+
+Bezeichnungen gekürzt, damit die Wertspalte auf schmalen Bildschirmen Platz behält: „Automatische Verlängerung" → „Verlängerung", „Bei Beendigung heute" → „Erstattung heute".
+
+Der Einleitungstext füllte auf dem Telefon sieben Zeilen, bevor die erste Zahl kam. Er nennt jetzt in drei Zeilen das Wesentliche — Freigrenze und dass die Prüfung immer offline läuft; die beiden Bezugswege stehen hinter „mehr…".
+
 ## v1.7.78 — 2026-07-27 — Lizenz: Übersicht statt Fließtext
 
 Die Lizenzkarte begann mit einem Satz, dann kam sofort ein Eingabefeld. Was man eigentlich **hat**, musste man sich aus drei Fließtexten und einer Preiszeile zusammensuchen — und die Zahl im Feld (110 Postfächer) passte nicht zu der in den Kosten (10 Lizenzen), ohne dass irgendwo stand, wie beides zusammenhängt.

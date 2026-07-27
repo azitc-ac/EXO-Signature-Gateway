@@ -322,14 +322,17 @@ _initAdv('digicert');
     <span class="conn-badge conn-wait" id="lic-badge">…</span>
   </h2>
   <p class="hint" style="margin-bottom:12px">
-    Bis {{ 100 }} aktivierte Postfächer (Signatur und/oder S/MIME) ist der Betrieb frei (Fair Use).
-    Darüber hinaus braucht es eine Lizenz. Zwei Wege, beide gleichwertig:
+    Bis {{ 100 }} aktivierte Postfächer ist der Betrieb frei (Fair Use), darüber braucht es
+    eine Lizenz. <strong>Geprüft wird sie immer offline</strong> im Gateway selbst —
+    keine Online-Verifizierung, kein Zwang zur Anbindung.
+    <a href="#" onclick="document.getElementById('lic-details').open=true;this.style.display='none';return false"
+       style="white-space:nowrap">mehr…</a>
+    <span id="lic-details-wrap"><details id="lic-details" style="display:inline"><summary style="display:none"></summary>
+    <span style="display:block;margin-top:6px">Zwei gleichwertige Wege zur Lizenz:
     <strong>online</strong> über die Hub-Anbindung oder <strong>offline</strong> per Schlüssel,
-    den du dir zuschicken lässt.<br>
-    <span style="display:inline-block;margin-top:4px">Davon unabhängig: <strong>geprüft wird die
-    Lizenz immer offline</strong> im Gateway selbst (Ed25519-signiert, an deinen Microsoft-Tenant
-    gebunden) — keine Online-Verifizierung, kein Zwang zur Anbindung, auch nicht nach einem
-    Online-Kauf.</span>
+    den du dir zuschicken lässt. Der Schlüssel ist Ed25519-signiert und an deinen
+    Microsoft-Tenant gebunden; das gilt auch nach einem Online-Kauf.</span>
+    </details></span>
   </p>
   <!-- Zustand zuerst, Änderung danach und zugeklappt. Bis v1.7.77 stand hier
        ein Fließtext und darunter sofort ein Eingabefeld — man musste sich aus
@@ -1123,12 +1126,21 @@ async function licLoad() {
 // gilt — nicht aus drei Fließtexten und einem Eingabefeld rekonstruieren, was
 // gemeint ist. Alle Zahlen kommen fertig vom Hub; das Gateway rechnet nichts
 // nach, sonst weichen Anzeige und Abrechnung wieder voneinander ab.
+// Echte Tabellenzeile statt Flexbox. Die erste Fassung brach auf schmalen
+// Schirmen um (flex-wrap): Bezeichnung und Wert landeten untereinander, mit
+// gleichem Gewicht und ohne Trennung — aus der Übersicht wurde eine Liste, die
+// man Zeile für Zeile entziffern musste. Tabellenspalten brechen nicht um.
+//
+// Der Zusatz steht in einer EIGENEN Zeile unter dem Wert. Nebeneinander lief er
+// mit ihm zusammen („monatlich Zeitraum: Monat").
 function _zeile(name, wert, hinweis) {
-  return '<div style="display:flex;gap:10px;padding:3px 0;flex-wrap:wrap">'
-       + '<span class="muted" style="flex:0 0 190px">' + esc(name) + '</span>'
-       + '<span style="flex:1;min-width:180px">' + wert
-       + (hinweis ? ' <span class="muted">' + esc(hinweis) + '</span>' : '')
-       + '</span></div>';
+  return '<tr style="border-bottom:1px solid #e5e7eb">'
+       + '<td class="muted" style="padding:7px 12px 7px 0;vertical-align:top;width:42%">'
+       + esc(name) + '</td>'
+       + '<td style="padding:7px 0;vertical-align:top">' + wert
+       + (hinweis ? '<div class="muted" style="font-size:12px;margin-top:2px">'
+                    + esc(hinweis) + '</div>' : '')
+       + '</td></tr>';
 }
 function _datum(iso) {
   return iso ? new Date(iso).toLocaleDateString('de-DE') : '—';
@@ -1141,52 +1153,54 @@ function licRenderUebersicht(d) {
   const z = d.naechster_zeitraum || {};
   const zeitraum = d.term_monate === 1 ? 'Monat' : d.term_monate + ' Monate';
 
-  var h = '<div style="font-size:13px;line-height:1.5">';
-  h += _zeile('Lizenziert für',
+  var h = '<table style="width:100%;border-collapse:collapse;font-size:13px;line-height:1.45">';
+  h += _zeile('Lizenziert',
               '<strong>' + d.mailboxes + ' Postfächer</strong>',
-              '= ' + d.frei_postfaecher + ' frei + ' + d.lizenzen + ' Lizenzen');
+              d.frei_postfaecher + ' frei + ' + d.lizenzen + ' kostenpflichtige Lizenzen');
   if (_licFairUse) {
-    h += _zeile('Aktuell aktiviert',
+    h += _zeile('Aktiviert',
                 _licFairUse.count + ' Postfächer'
                 + (_licFairUse.exceeded
                      ? ' <span style="color:#d97706;font-weight:600">— Limit überschritten</span>' : ''),
-                'im Gateway für Signatur oder S/MIME eingeschaltet');
+                'für Signatur oder S/MIME eingeschaltet');
   }
   h += _zeile('Gültig bis', '<strong>' + _datum(d.expires) + '</strong>');
   h += _zeile('Zahlungsweise', _zwText(d.zahlungsweise),
-              'Zeitraum: ' + zeitraum);
-  h += _zeile('Kosten je Zeitraum',
+              'Abrechnungszeitraum: ' + zeitraum);
+  h += _zeile('Kosten',
               eur(d.term_brutto_cents) + ' brutto',
               eur(d.term_netto_cents) + ' netto'
-              + (d.vat_percent ? ' + ' + d.vat_percent + ' % MwSt.' : ''));
+              + (d.vat_percent ? ' zzgl. ' + d.vat_percent + ' % MwSt.' : ''));
 
   if (d.auto_renew) {
-    h += _zeile('Automatische Verlängerung',
+    h += _zeile('Verlängerung',
                 '<strong>ja</strong> — am ' + _datum(d.renew_at),
-                '(' + d.renew_vorlauf_tage + ' Tage vor Ablauf)');
+                d.renew_vorlauf_tage + ' Tage vor Ablauf, aus dem Konto-Guthaben');
     // Nur zeigen, wenn sich wirklich etwas ändert — sonst doppelt sich die
     // Zeile mit dem laufenden Zeitraum und stiftet Verwirrung.
     if (d.renew_mailboxes || d.renew_zahlungsweise) {
-      h += _zeile('Dann gültig',
+      h += _zeile('Ab dann',
                   '<strong>' + z.mailboxes + ' Postfächer</strong>, ' + _zwText(z.zahlungsweise),
                   eur(z.brutto_cents) + ' brutto je '
                   + (z.monate === 1 ? 'Monat' : z.monate + ' Monate'));
     }
   } else {
-    h += _zeile('Automatische Verlängerung',
+    h += _zeile('Verlängerung',
                 '<strong>nein</strong> — beendet',
                 'die Lizenz läuft am ' + _datum(d.expires) + ' aus');
   }
-  h += _zeile('Bei Beendigung heute',
+  h += _zeile('Erstattung heute',
               (d.refund_preview_cents > 0
                  ? eur(d.refund_preview_cents) + ' Gutschrift'
                  : 'keine Gutschrift'),
-              d.refund_preview_cents > 0 ? '(volle Restmonate)' : '(kein voller Restmonat)');
+              d.refund_preview_cents > 0
+                ? 'für die noch nicht begonnenen vollen Monate'
+                : 'kein voller Monat mehr offen');
   if (d.renew_error) {
     h += _zeile('Letzter Versuch', '<span style="color:#dc2626">fehlgeschlagen</span>',
                 d.renew_error);
   }
-  h += '</div>';
+  h += '</table>';
   el.innerHTML = h;
 }
 
