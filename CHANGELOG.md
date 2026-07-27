@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.81 — 2026-07-27 — Prüfung: Guthabenabfragen am gemeinsamen Weg vorbei
+
+`tools/driftcheck.py` meldet ab sofort Stellen, die den Kontostand direkt mit einem Preis vergleichen, statt die gemeinsame Deckungsprüfung zu benutzen. Wer das tut, umgeht die automatische Aufladung — und merkt es nicht, weil ohne eingerichtete Automatik dasselbe herauskommt.
+
+Anlass war ein Lizenzkauf, der mit „Guthaben reicht nicht" abgelehnt wurde, obwohl ein Zahlungsmittel hinterlegt war (Betreiber-Seite, v0.24.54). Ein Test der Prüffunktion fängt so etwas nicht: der Fehler saß nicht in ihr, sondern an der Stelle, die sie nicht aufrief.
+
+Stellen, die die Automatik bereits berücksichtigen, gelten als in Ordnung — ohne diese Unterscheidung meldet die Regel zwei korrekte Stellen, und eine Prüfung mit Fehlalarmen wird ignoriert.
+
 ## v1.7.80 — 2026-07-27 — Verlängerung ist ein eigener Abschnitt
 
 „Verlängerung beenden" und die Umstellung der Zahlungsweise lagen **innerhalb** des Bereichs „Online — Postfächer aufstocken". Wer kündigen wollte, musste also einen Abschnitt zum Aufstocken aufklappen. Das stammt daher, dass der Bereich früher „verlängern oder aufstocken" hieß — beim Umbenennen sind die Handlungen dort liegen geblieben.
