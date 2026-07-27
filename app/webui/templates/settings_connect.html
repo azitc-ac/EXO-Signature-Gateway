@@ -331,14 +331,18 @@ _initAdv('digicert');
     gebunden) — keine Online-Verifizierung, kein Zwang zur Anbindung, auch nicht nach einem
     Online-Kauf.</span>
   </p>
+  <!-- Zustand zuerst, Änderung danach und zugeklappt. Bis v1.7.77 stand hier
+       ein Fließtext und darunter sofort ein Eingabefeld — man musste sich aus
+       drei Sätzen zusammensuchen, was man überhaupt hat. -->
+  <div id="lic-uebersicht" style="margin-bottom:12px"></div>
   <div id="lic-status" class="hint" style="margin-bottom:12px">Lade…</div>
 
   <!-- ── Online beziehen ───────────────────────────────────────────────────
        Nur bei bestehender Anbindung. Ohne sie erscheint stattdessen
        #lic-online-hint — ein Knopf, der nicht funktionieren kann, ist
        schlimmer als keiner. -->
-  <div id="lic-online-box" class="info-box" style="display:none;margin-bottom:12px">
-    <strong id="lic-buy-title">Online beziehen — über die Hub-Anbindung</strong>
+  <details id="lic-online-box" class="info-box" style="display:none;margin-bottom:12px">
+    <summary style="cursor:pointer;font-weight:600" id="lic-buy-title">Online beziehen — über die Hub-Anbindung</summary>
     <p class="hint" style="margin:2px 0 10px">
       Bezahlt aus dem <strong>Konto-Guthaben</strong> (Abschnitt „Konto &amp; Guthaben" oben)
       bzw. auf Rechnung. Bei einer Verlängerung zählt die neue Laufzeit ab dem aktuellen
@@ -372,7 +376,7 @@ _initAdv('digicert');
         (Neuinstallation, Wiederherstellung, oder vom Anbieter ausgestellt)</span>
       <div style="margin-top:6px"><button class="btn secondary" onclick="licFetchHub()">Vom Hub abrufen</button></div>
     </div>
-  </div>
+  </details>
 
   <div id="lic-online-hint" class="hint" style="display:none;margin-bottom:12px">
     Direkt kaufen und automatisch verlängern lassen geht mit einer Anbindung an
@@ -1085,18 +1089,21 @@ async function licLoad() {
     const d = await (await fetch('/api/license/status')).json();
     const badge = document.getElementById('lic-badge');
     const status = document.getElementById('lic-status');
+    // Der Fair-Use-Zustand kommt OFFLINE aus dem hinterlegten Schluessel, die
+    // uebrigen Angaben online vom Hub. Beide fliessen in dieselbe Auflistung,
+    // damit der Betreiber nicht zwei Darstellungen zusammensetzen muss.
+    _licFairUse = {count: d.count, limit: d.limit, exceeded: d.exceeded,
+                   customer: d.customer, licensed: d.licensed,
+                   mailboxes: d.mailboxes, expires: d.expires, reason: d.reason};
     if (d.licensed) {
       badge.textContent = '✓ lizenziert'; badge.className = 'conn-badge conn-ok';
-      status.innerHTML = 'Lizenziert für <strong>' + (d.customer || '—') + '</strong> — ' +
-        (d.mailboxes > 0 ? d.mailboxes + ' Postfächer' : 'unbegrenzte Postfächer') +
-        (d.expires ? ' (gültig bis ' + d.expires + ')' : '') +
-        ' · aktuell aktiviert: ' + d.count +
-        (d.exceeded ? ' <span style="color:#d97706;font-weight:600">— Limit überschritten!</span>' : '');
+      status.innerHTML = '';          // die Auflistung sagt es vollstaendig
       document.getElementById('lic-remove-row').style.display = '';
       licRenderPaths(d);
       licRenewLoad();
     } else {
       document.getElementById('lic-renew-box').style.display = 'none';
+      document.getElementById('lic-uebersicht').innerHTML = '';
       badge.textContent = 'Fair Use'; badge.className = 'conn-badge conn-wait';
       status.innerHTML = 'Keine Lizenz eingespielt — aktuell <strong>' + d.count +
         '</strong> von ' + d.limit + ' Fair-Use-Postfächern aktiviert.' +
@@ -1111,6 +1118,78 @@ async function licLoad() {
 // Eigener Abruf, weil er das Netz braucht: der Fair-Use-Zustand oben kommt
 // offline aus dem hinterlegten Schlüssel und darf nicht davon abhängen, ob der
 // Hub gerade erreichbar ist.
+// ── Übersicht: was habe ich? ───────────────────────────────────────────────
+// Eine Auflistung, keine Sätze. Der Betreiber soll auf einen Blick sehen, was
+// gilt — nicht aus drei Fließtexten und einem Eingabefeld rekonstruieren, was
+// gemeint ist. Alle Zahlen kommen fertig vom Hub; das Gateway rechnet nichts
+// nach, sonst weichen Anzeige und Abrechnung wieder voneinander ab.
+function _zeile(name, wert, hinweis) {
+  return '<div style="display:flex;gap:10px;padding:3px 0;flex-wrap:wrap">'
+       + '<span class="muted" style="flex:0 0 190px">' + esc(name) + '</span>'
+       + '<span style="flex:1;min-width:180px">' + wert
+       + (hinweis ? ' <span class="muted">' + esc(hinweis) + '</span>' : '')
+       + '</span></div>';
+}
+function _datum(iso) {
+  return iso ? new Date(iso).toLocaleDateString('de-DE') : '—';
+}
+function _zwText(zw) { return zw === 'monatlich' ? 'monatlich' : 'jährlich im Voraus'; }
+
+function licRenderUebersicht(d) {
+  const el = document.getElementById('lic-uebersicht');
+  if (!d || !d.ok) { el.innerHTML = ''; return; }
+  const z = d.naechster_zeitraum || {};
+  const zeitraum = d.term_monate === 1 ? 'Monat' : d.term_monate + ' Monate';
+
+  var h = '<div style="font-size:13px;line-height:1.5">';
+  h += _zeile('Lizenziert für',
+              '<strong>' + d.mailboxes + ' Postfächer</strong>',
+              '= ' + d.frei_postfaecher + ' frei + ' + d.lizenzen + ' Lizenzen');
+  if (_licFairUse) {
+    h += _zeile('Aktuell aktiviert',
+                _licFairUse.count + ' Postfächer'
+                + (_licFairUse.exceeded
+                     ? ' <span style="color:#d97706;font-weight:600">— Limit überschritten</span>' : ''),
+                'im Gateway für Signatur oder S/MIME eingeschaltet');
+  }
+  h += _zeile('Gültig bis', '<strong>' + _datum(d.expires) + '</strong>');
+  h += _zeile('Zahlungsweise', _zwText(d.zahlungsweise),
+              'Zeitraum: ' + zeitraum);
+  h += _zeile('Kosten je Zeitraum',
+              eur(d.term_brutto_cents) + ' brutto',
+              eur(d.term_netto_cents) + ' netto'
+              + (d.vat_percent ? ' + ' + d.vat_percent + ' % MwSt.' : ''));
+
+  if (d.auto_renew) {
+    h += _zeile('Automatische Verlängerung',
+                '<strong>ja</strong> — am ' + _datum(d.renew_at),
+                '(' + d.renew_vorlauf_tage + ' Tage vor Ablauf)');
+    // Nur zeigen, wenn sich wirklich etwas ändert — sonst doppelt sich die
+    // Zeile mit dem laufenden Zeitraum und stiftet Verwirrung.
+    if (d.renew_mailboxes || d.renew_zahlungsweise) {
+      h += _zeile('Dann gültig',
+                  '<strong>' + z.mailboxes + ' Postfächer</strong>, ' + _zwText(z.zahlungsweise),
+                  eur(z.brutto_cents) + ' brutto je '
+                  + (z.monate === 1 ? 'Monat' : z.monate + ' Monate'));
+    }
+  } else {
+    h += _zeile('Automatische Verlängerung',
+                '<strong>nein</strong> — beendet',
+                'die Lizenz läuft am ' + _datum(d.expires) + ' aus');
+  }
+  h += _zeile('Bei Beendigung heute',
+              (d.refund_preview_cents > 0
+                 ? eur(d.refund_preview_cents) + ' Gutschrift'
+                 : 'keine Gutschrift'),
+              d.refund_preview_cents > 0 ? '(volle Restmonate)' : '(kein voller Restmonat)');
+  if (d.renew_error) {
+    h += _zeile('Letzter Versuch', '<span style="color:#dc2626">fehlgeschlagen</span>',
+                d.renew_error);
+  }
+  h += '</div>';
+  el.innerHTML = h;
+}
+
 async function licRenewLoad() {
   const box = document.getElementById('lic-renew-box');
   let d;
@@ -1118,20 +1197,17 @@ async function licRenewLoad() {
   catch (e) { ursache(e, 'settings_connect:997'); box.style.display = 'none'; return; }
   if (!d || !d.ok) { box.style.display = 'none'; return; }
 
+  licRenderUebersicht(d);
+  _licState = Object.assign({}, _licState || {}, d);   // fuer die Erstattungsvorschau
   const text = document.getElementById('lic-renew-text');
   const actions = document.getElementById('lic-renew-actions');
-  const bis = d.expires ? new Date(d.expires).toLocaleDateString('de-DE') : '—';
 
   if (d.auto_renew) {
-    const jetzt = d.zahlungsweise === 'monatlich' ? 'monatlich' : 'jährlich im Voraus';
-    const gewuenscht = d.renew_zahlungsweise
-      ? (d.renew_zahlungsweise === 'monatlich' ? 'monatlich' : 'jährlich im Voraus') : '';
-    text.innerHTML = 'Die Lizenz <strong>verlängert sich automatisch</strong> — derzeit '
-      + esc(jetzt) + '. Nächste Verlängerung kurz vor dem ' + esc(bis) + '. Die Gebühr wird dem '
-      + 'Hub-Guthaben entnommen; reicht es nicht, greift der eingerichtete '
-      + 'automatische Einzug.'
-      + (gewuenscht ? '<br><strong>Ab der nächsten Verlängerung: ' + esc(gewuenscht)
-                      + '.</strong>' : '');
+    const gewuenscht = !!d.renew_zahlungsweise;
+    // Kein Fliesstext mehr — die Auflistung oben nennt Datum, Zahlungsweise und
+    // die Aenderung zum naechsten Zeitraum bereits. Hier bleiben die Knoepfe.
+    text.innerHTML = 'Die Gebühr wird dem Hub-Guthaben entnommen; reicht es nicht, '
+      + 'greift der eingerichtete automatische Einzug.';
     const andere = d.zahlungsweise === 'monatlich' ? 'jaehrlich' : 'monatlich';
     const andereText = andere === 'monatlich' ? 'monatlich' : 'jährlich im Voraus (10 % Nachlass)';
     actions.innerHTML =
@@ -1141,17 +1217,15 @@ async function licRenewLoad() {
                       + esc(d.zahlungsweise) + '\')">Umstellung zurücknehmen</button>' : '')
       + '<button class="btn secondary" onclick="licRenewCancel()">Verlängerung beenden</button>';
   } else {
-    var erstattet = (typeof d.refund_preview_cents === 'number' && d.refund_preview_cents > 0)
-      ? ' Erstattet werden ' + eur(d.refund_preview_cents) + ' für die vollen Restmonate.'
-      : '';
-    text.innerHTML = '<strong>Die Verlängerung ist beendet.</strong> Die Lizenz bleibt bis zum '
-      + esc(bis) + ' gültig und läuft danach aus.' + erstattet
-      + ' Solange sie läuft, kann die Verlängerung wieder aufgenommen werden.';
+    text.innerHTML = 'Solange die Lizenz läuft, kann die Verlängerung wieder '
+      + 'aufgenommen werden.';
     actions.innerHTML = '<button class="btn primary" onclick="licRenewResume()">Verlängerung wieder aufnehmen</button>';
   }
+  // Der Fehlschlag steht bereits in der Auflistung („Letzter Versuch") — hier
+  // nur noch die Beruhigung, was er bedeutet.
   if (d.renew_error) {
-    text.innerHTML += '<br><span style="color:#dc2626">Letzter Verlängerungsversuch fehlgeschlagen: '
-      + esc(d.renew_error) + ' — die Lizenz bleibt bis zum Ablaufdatum gültig, der Versuch wird wiederholt.</span>';
+    text.innerHTML += '<br>Die Lizenz bleibt bis zum Ablaufdatum gültig, der Versuch '
+      + 'wird wiederholt.';
   }
   box.style.display = '';
 }
@@ -1288,6 +1362,7 @@ function licRenderPaths(d) {
 // Zahl (früher „12 €/Jahr") wäre beim nächsten Preisschritt still falsch.
 var _licPricing = null;
 var _licFall = null;   // erkannter Vorgang, siehe licBuyPrice()
+var _licFairUse = null;   // offline ermittelter Zustand, siehe licLoad()
 
 async function licPricingLoad() {
   try {
