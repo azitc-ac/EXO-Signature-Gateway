@@ -539,6 +539,13 @@
     "name": "api_license_umfang"
   },
   {
+    "pfad": "/api/license/vorschau",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_license_vorschau"
+  },
+  {
     "pfad": "/api/license/zahlungsweise",
     "methoden": [
       "POST"

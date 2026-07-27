@@ -473,6 +473,18 @@ async def license_pricing() -> dict:
         return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
 
 
+async def license_vorschau(mailboxes: int, zahlungsweise: str, tenant_id: str) -> dict:
+    """Was ein Kauf kosten und mit dem Guthaben machen wuerde — ohne zu buchen.
+
+    Die Zahlen kommen vom Hub, nicht aus einer Rechnung hier: eine zweite
+    Rechnung laeuft auseinander, und dann nennt die Bestaetigungsabfrage einen
+    anderen Betrag als den abgebuchten.
+    """
+    return await _license_json("vorschau", {"mailboxes": int(mailboxes),
+                                            "zahlungsweise": zahlungsweise,
+                                            "tenant_id": tenant_id})
+
+
 async def license_umfang(mailboxes: int) -> dict:
     """Umfang ab der naechsten Verlaengerung verringern."""
     return await _license_json("umfang", {"mailboxes": int(mailboxes)})
