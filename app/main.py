@@ -318,12 +318,31 @@ def _run_webui() -> None:
     if cert.exists() and key.exists():
         ssl_kwargs = {"ssl_certfile": str(cert), "ssl_keyfile": str(key)}
         log.info("Web UI TLS enabled (https://0.0.0.0:%d)", config.WEBUI_PORT)
+    # Zugriffsprotokoll AN, aber ohne das Dauerrauschen.
+    #
+    # Es war abgeschaltet, vermutlich wegen der Erreichbarkeitsabfrage alle 30
+    # Sekunden. Der Preis dafuer fiel am 27.07.2026 an: ein Nutzer meldete
+    # "Netzwerkfehler: Load failed" bei einem Klick, und es liess sich nicht
+    # einmal feststellen, OB die Anfrage das Gateway erreicht hatte. Vier
+    # Ursachen mussten einzeln ausgeschlossen werden, ohne dass eine davon
+    # zutraf. Ein Protokoll haette die Frage in Sekunden beantwortet.
+    class _OhneRauschen(logging.Filter):
+        """Erreichbarkeitsabfragen und statische Dateien nicht protokollieren —
+        sie wiederholen sich staendig und wuerden echte Aufrufe zudecken."""
+        _still = ("/health", "/api/whoami", "/static/", "/favicon")
+
+        def filter(self, satz: logging.LogRecord) -> bool:
+            text = satz.getMessage()
+            return not any(p in text for p in self._still)
+
+    logging.getLogger("uvicorn.access").addFilter(_OhneRauschen())
+
     uvicorn.run(
         fastapi_app,
         host="0.0.0.0",
         port=config.WEBUI_PORT,
         log_level=settings_store.get("LOG_LEVEL").lower(),
-        access_log=False,
+        access_log=True,
         **ssl_kwargs,
     )
 
