@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.85 — 2026-07-27 — Rückfragen benennen, worum es geht
+
+„Solange die Laufzeit läuft, lässt sich das zurücknehmen" — welches *das*? Und daneben steht seit v1.7.83 ein zweites „zurücknehmen", das die Umstellung der Zahlungsweise meint. Zwei gleich klingende Rücknahmen, keine mit Bezug.
+
+Die drei Rückfragen im Lizenzbereich nennen jetzt Objekt, **Datum und Betrag** statt „Ablaufdatum" und „der nicht genutzte Anteil":
+
+```
+Automatische Verlängerung beenden?
+
+Die Lizenz bleibt bis zum 27.9.2026 gültig und läuft dann aus.
+95,20 € werden dem Konto-Guthaben gutgeschrieben.
+
+Bis zum 27.9.2026 kannst du die automatische Verlängerung
+jederzeit wieder einschalten.
+```
+
+**„Lizenz entfernen" verschwieg das Wichtigste.** Entfernt wird nur der Schlüssel *in diesem Gateway* — der Kauf beim Hub bleibt bestehen, es wird nichts gekündigt und nichts erstattet. Wer das verwechselt, hält sich für gekündigt. Steht jetzt in der Rückfrage, samt Hinweis, dass sich der Schlüssel über „Vom Hub abrufen" zurückholen lässt.
+
 ## v1.7.84 — 2026-07-27 — Zugriffsprotokoll eingeschaltet
 
 Bisher protokollierte das Gateway keine eingehenden Anfragen. Meldete jemand einen Fehler beim Klick, ließ sich nicht einmal feststellen, **ob die Anfrage überhaupt ankam** — sichtbar waren nur die ausgehenden Aufrufe zum Hub.
