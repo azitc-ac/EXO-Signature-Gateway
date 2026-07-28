@@ -1530,26 +1530,23 @@ async function obsRefreshCaptures() {
           || lower.startsWith('content-id') || (lower.startsWith('content-transfer') && lower.includes('quoted'));
         const isGood = lower.startsWith('content-transfer') && lower.includes('7bit');
         const color = isBad ? '#dc2626' : isGood ? '#16a34a' : '#0284c7';
-        return `<span style="color:${color};font-weight:600">${obsEsc(l)}</span>`;
+        return `<span style="color:${color};font-weight:600">${esc(l)}</span>`;
       }
-      return `<span style="color:#64748b">${obsEsc(l)}</span>`;
+      return `<span style="color:#64748b">${esc(l)}</span>`;
     }).join('\n');
     return `<div style="margin-bottom:14px;border:1px solid #e2e8f0;border-radius:6px;overflow:hidden">
       <div style="background:#f1f5f9;padding:6px 10px;display:flex;justify-content:space-between;align-items:center">
-        <span style="font-weight:600;font-size:13px">#${i+1} — ${ts} — <em style="color:#555;font-weight:400">${obsEsc(c.label||'')}</em></span>
+        <span style="font-weight:600;font-size:13px">#${i+1} — ${ts} — <em style="color:#555;font-weight:400">${esc(c.label||'')}</em></span>
         <button onclick="obsToggle('obs-raw-${i}')" style="font-size:11px;background:none;border:1px solid #cbd5e1;border-radius:4px;padding:2px 6px;cursor:pointer">Body ▾</button>
       </div>
       <pre style="margin:0;padding:8px 10px;font-size:11px;overflow-x:auto;white-space:pre-wrap;max-height:400px;overflow-y:auto">${highlighted}</pre>
       <div id="obs-raw-${i}" style="display:none;border-top:1px solid #e2e8f0;padding:8px 10px;background:#fefce8">
-        <pre style="margin:0;font-size:11px;white-space:pre-wrap">${obsEsc(body)}</pre>
+        <pre style="margin:0;font-size:11px;white-space:pre-wrap">${esc(body)}</pre>
       </div>
     </div>`;
   }).join('');
 }
 
-function obsEsc(s) {
-  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
 
 function obsToggle(id) {
   const el = document.getElementById(id);

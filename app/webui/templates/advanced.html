@@ -917,9 +917,8 @@ async function restartContainer() {
 // gehört das in eine eigene static/legal.js.
 var _dpaData = null;
 
-function _dpaEscape(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function _dpaInline(s){
-  return _dpaEscape(s)
+  return esc(s)
     .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
     // Kursiv NACH fett — danach sind keine ** mehr übrig
     .replace(/\*([^*\n]+)\*/g,'<em>$1</em>')

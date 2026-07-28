@@ -416,26 +416,23 @@ async function obsRefreshCaptures() {
           || lower.startsWith('content-id') || (lower.startsWith('content-transfer') && lower.includes('quoted'));
         const isGood = lower.startsWith('content-transfer') && lower.includes('7bit');
         const color = isBad ? '#dc2626' : isGood ? '#16a34a' : '#0284c7';
-        return `<span style="color:${color};font-weight:600">${obsEsc(l)}</span>`;
+        return `<span style="color:${color};font-weight:600">${esc(l)}</span>`;
       }
-      return `<span style="color:#64748b">${obsEsc(l)}</span>`;
+      return `<span style="color:#64748b">${esc(l)}</span>`;
     }).join('\n');
     return `<div style="margin-bottom:14px;border:1px solid #e2e8f0;border-radius:6px;overflow:hidden">
       <div style="background:#f1f5f9;padding:6px 10px;display:flex;justify-content:space-between;align-items:center">
-        <span style="font-weight:600;font-size:13px">#${i+1} — ${ts} — <em style="color:#555;font-weight:400">${obsEsc(c.label||'')}</em></span>
+        <span style="font-weight:600;font-size:13px">#${i+1} — ${ts} — <em style="color:#555;font-weight:400">${esc(c.label||'')}</em></span>
         <button onclick="obsToggle('obs-raw-${i}')" style="font-size:11px;background:none;border:1px solid #cbd5e1;border-radius:4px;padding:2px 6px;cursor:pointer">Body ▾</button>
       </div>
       <pre style="margin:0;padding:8px 10px;font-size:11px;overflow-x:auto;white-space:pre-wrap;max-height:400px;overflow-y:auto">${highlighted}</pre>
       <div id="obs-raw-${i}" style="display:none;border-top:1px solid #e2e8f0;padding:8px 10px;background:#fefce8">
-        <pre style="margin:0;font-size:11px;white-space:pre-wrap">${obsEsc(body)}</pre>
+        <pre style="margin:0;font-size:11px;white-space:pre-wrap">${esc(body)}</pre>
       </div>
     </div>`;
   }).join('');
 }
 
-function obsEsc(s) {
-  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
 function obsToggle(id) {
   const el = document.getElementById(id);
   if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
@@ -596,19 +593,19 @@ function _obsRenderAnalysis(analyses) {
     const changed = [];
     for (let i = 0; i < Math.min(a.checks.length, b.checks.length); i++) {
       if (a.checks[i].status !== b.checks[i].status || a.checks[i].value !== b.checks[i].value) {
-        changed.push(`<strong>${obsEsc(a.checks[i].name)}</strong>:
-          <span style="color:${statusColor(a.checks[i].status)}">${obsEsc(a.checks[i].value)}</span>
-          → <span style="color:${statusColor(b.checks[i].status)}">${obsEsc(b.checks[i].value)}</span>`);
+        changed.push(`<strong>${esc(a.checks[i].name)}</strong>:
+          <span style="color:${statusColor(a.checks[i].status)}">${esc(a.checks[i].value)}</span>
+          → <span style="color:${statusColor(b.checks[i].status)}">${esc(b.checks[i].value)}</span>`);
       }
     }
     if (changed.length) {
       deltaHtml = `<div style="border:1px solid #bae6fd;background:#f0f9ff;border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:12px">
-        <strong style="display:block;margin-bottom:6px;color:#0369a1">Unterschiede: "${obsEsc(a.label)}" → "${obsEsc(b.label)}"</strong>
+        <strong style="display:block;margin-bottom:6px;color:#0369a1">Unterschiede: "${esc(a.label)}" → "${esc(b.label)}"</strong>
         ${changed.map(c => `<div style="margin-bottom:3px">• ${c}</div>`).join('')}
       </div>`;
     } else {
       deltaHtml = `<div style="border:1px solid #d1fae5;background:#f0fdf4;border-radius:6px;padding:8px 14px;margin-bottom:14px;font-size:12px;color:#15803d">
-        Kein Unterschied zwischen "${obsEsc(a.label)}" und "${obsEsc(b.label)}" — beide Captures sind identisch.
+        Kein Unterschied zwischen "${esc(a.label)}" und "${esc(b.label)}" — beide Captures sind identisch.
       </div>`;
     }
   }
@@ -616,9 +613,9 @@ function _obsRenderAnalysis(analyses) {
   const cards = analyses.map((a, idx) => {
     const rows = a.checks.map(c => `
       <tr>
-        <td style="padding:5px 10px;font-size:12px;color:#374151;border-bottom:1px solid #f1f5f9;white-space:nowrap">${obsEsc(c.name)}</td>
+        <td style="padding:5px 10px;font-size:12px;color:#374151;border-bottom:1px solid #f1f5f9;white-space:nowrap">${esc(c.name)}</td>
         <td style="padding:5px 10px;font-size:12px;font-family:monospace;border-bottom:1px solid #f1f5f9;white-space:nowrap">
-          <span style="color:${statusColor(c.status)};font-weight:600">${statusIcon(c.status)} ${obsEsc(c.value)}</span>
+          <span style="color:${statusColor(c.status)};font-weight:600">${statusIcon(c.status)} ${esc(c.value)}</span>
         </td>
         <td style="padding:5px 10px;font-size:11px;color:#555;border-bottom:1px solid #f1f5f9;line-height:1.5">${c.note}</td>
       </tr>`).join('');
@@ -626,7 +623,7 @@ function _obsRenderAnalysis(analyses) {
     return `<div style="margin-bottom:14px;border:1px solid ${verdictBorder(a.verdict)};border-radius:6px;overflow:hidden">
       <div style="background:${verdictBg(a.verdict)};padding:8px 12px;display:flex;justify-content:space-between;align-items:center">
         <span style="font-weight:600;font-size:13px;color:${verdictTextColor(a.verdict)}">${verdictLabel(a.verdict)}</span>
-        <span style="font-size:12px;color:#555">${obsEsc(a.label)}</span>
+        <span style="font-size:12px;color:#555">${esc(a.label)}</span>
       </div>
       <table style="width:100%;border-collapse:collapse;background:#fff">
         <thead>

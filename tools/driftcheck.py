@@ -73,8 +73,21 @@ class Report:
 # ── 1. Handgeschriebene HTML-Escaper ─────────────────────────────────────────
 # Jeder davon ist eine Gelegenheit, den Namen falsch zu schreiben (escC war in
 # einer Session ein ReferenceError, esc() in derselben Session der nächste).
-ESCAPER_DEF = re.compile(
-    r"function\s+(_?esc[A-Za-z]*)\s*\(", re.I)
+#
+# ⚠️ Erkennung am RUMPF, nicht am Namen. Bis 2026-07-29 verlangte der Ausdruck
+# einen Namen, der mit „esc" BEGINNT — `_licEsc` in settings.html trug es in
+# der Mitte und blieb jahrelang unentdeckt. Ausgerechnet dieser maskierte keine
+# einfachen Anführungszeichen und stand in einem Inline-Handler.
+#
+# Was `&` durch `&amp;` und `<` durch `&lt;` ersetzt, ist ein HTML-Escaper —
+# gleich, ob er escC, _licEsc, htmlSafe oder clean heisst. Der Name lässt sich
+# beliebig wählen, die Aufgabe nicht.
+FUNKTIONSKOPF = re.compile(
+    r"(?:function\s+([A-Za-z_$][\w$]*)\s*\(|"
+    r"(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:function\s*\(|\([^)]*\)\s*=>|[\w$]+\s*=>))")
+# Beide Ersetzungen müssen vorkommen: `&amp;` allein steht auch in Fliesstext.
+ESCAPER_RUMPF = ("&amp;", "&lt;")
+RUMPF_FENSTER = 400          # Zeichen nach dem Funktionskopf
 
 
 def check_escapers(rep: Report, roots: list[tuple[str, Path]]) -> None:
@@ -84,8 +97,21 @@ def check_escapers(rep: Report, roots: list[tuple[str, Path]]) -> None:
         if not tpl.is_dir():
             continue
         for f in sorted(tpl.glob("*.html")):
-            for name in ESCAPER_DEF.findall(f.read_text(encoding="utf-8", errors="replace")):
-                found.append((app, f.name, name))
+            text = f.read_text(encoding="utf-8", errors="replace")
+            treffer = list(FUNKTIONSKOPF.finditer(text))
+            for i, m in enumerate(treffer):
+                name = m.group(1) or m.group(2)
+                # Fenster ZUSÄTZLICH am nächsten Funktionskopf abschneiden.
+                # Ohne das greift es in die folgende Funktion hinein: `_catMsg`
+                # wurde gemeldet, weil kurz darauf `_catEsc` steht — ein
+                # Fehlalarm, und Fehlalarme sind der sichere Weg, ein Prüfskript
+                # abzuschalten.
+                grenze = m.end() + RUMPF_FENSTER
+                if i + 1 < len(treffer):
+                    grenze = min(grenze, treffer[i + 1].start())
+                rumpf = text[m.end():grenze]
+                if all(z in rumpf for z in ESCAPER_RUMPF):
+                    found.append((app, f.name, name))
     if not found:
         rep.note("Keine handgeschriebenen Escaper — alle nutzen common.js")
         return
