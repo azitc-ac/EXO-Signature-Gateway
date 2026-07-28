@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.93 — 2026-07-28 — Kurzmeldungen sind als Hinweis erkennbar
+
+Abgelehnte Vorgänge meldeten sich als unformatierter Fließtext. Eine Ablehnung wie „Den aktuellen Fassungen der Rechtsdokumente wurde noch nicht zugestimmt" stand damit ohne jede Hervorhebung zwischen den übrigen Angaben — im Dunkelmodus besonders unauffällig, weil auch die sonst übliche Rotfärbung fehlte.
+
+Ursache war keine Einzelheit: die Kennzeichnung für Kurzmeldungen war **überhaupt nicht hinterlegt**. Lediglich das Feld der automatischen Aufladung hatte eine eigene, nur für dieses eine Element geltende Regel; jedes weitere Meldungsfeld in Gateway und Hub war ungedeckt.
+
+Kurzmeldungen erscheinen jetzt in beiden Anwendungen als abgesetzter Kasten — grün bei Erfolg, rot bei Ablehnung, mit Rahmen und Hintergrund, im hellen wie im dunklen Modus. Die Kennzeichnung hängt am Zustand der Meldung und nicht mehr am einzelnen Feld; neue Meldungsfelder sind damit von sich aus richtig dargestellt.
+
 ## v1.7.92 — 2026-07-28 — Auszahlung nennt das Zielkonto; Preisliste 1.2; Zertifikatsbestellung prüft den Rahmenvertrag
 
 ### Auszahlung: Bankverbindung für den nicht zuordenbaren Anteil
