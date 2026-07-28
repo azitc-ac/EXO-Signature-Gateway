@@ -342,6 +342,18 @@
 [data-theme="dark"] .msg[data-state="ok"]  { background: #0a1f10; border-color: #166534; color: #4ade80; }
 [data-theme="dark"] .msg[data-state="err"] { background: #1f0a0a; border-color: #991b1b; color: #fca5a5; }
 
+/* Feldnahe Meldung (fieldMsg) und Schalter der Erklärtexte (initHintClamps).
+   Beide setzen nur data-Attribute bzw. Klassen, nie Farben aus JS. */
+[data-theme="dark"] .field-msg[data-state="err"] { color: #fca5a5; }
+[data-theme="dark"] .field-msg[data-state="ok"]  { color: #4ade80; }
+[data-theme="dark"] input[data-invalid="1"],
+[data-theme="dark"] select[data-invalid="1"],
+[data-theme="dark"] textarea[data-invalid="1"] { border-color: #991b1b; }
+[data-theme="dark"] .hint-toggle { color: #7dd3fc; }
+[data-theme="dark"] .hint-toggle:hover { color: #bae6fd; }
+[data-theme="dark"] .feld-gruppe > summary { color: #7dd3fc; }
+[data-theme="dark"] .feld-gruppe > summary:hover { color: #bae6fd; }
+
 /* #auto-topup-msg wird per JS in einen String gerendert (siehe
    settings_connect.html) und trägt deshalb keine Klasse. Bis die Stelle auf
    class="msg" umgestellt ist, bleibt die ID-Regel als Ergänzung stehen —

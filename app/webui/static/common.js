@@ -230,3 +230,88 @@ function ursache(e, ort) {
   if (!t || t === '[object Object]') return '';
   return ' (' + (t.length > 160 ? t.slice(0, 157) + '…' : t) + ')';
 }
+
+
+/* Fehler DIREKT am betroffenen Feld anzeigen — nicht am Ende des Abschnitts.
+ *
+ * Anlass (2026-07-29): „Mindestbetrag 25 €." erschien in der Sammelmeldung ganz
+ * unten, während das Eingabefeld weiter oben stand. Bei einem langen Abschnitt
+ * sieht man beides nie gleichzeitig; man liest eine Rüge und muss suchen,
+ * worauf sie sich bezieht.
+ *
+ * Die Meldung wird als Geschwister direkt hinter das Feld gehängt und beim
+ * nächsten Aufruf wiederverwendet, damit sich bei mehrfacher Eingabe nichts
+ * stapelt. `fieldClear()` räumt sie weg, sobald der Wert wieder stimmt.
+ *
+ * Farbe kommt aus dem CSS (.field-msg[data-state]) — hier wird nur der Zustand
+ * gesetzt, nie eine Farbe (siehe CLAUDE.md, Dark-Mode-Regel 2).
+ */
+function fieldMsg(el, text, ok) {
+  if (typeof el === 'string') el = document.getElementById(el);
+  if (!el) return;
+  var box = el.nextElementSibling;
+  if (!box || !box.classList || !box.classList.contains('field-msg')) {
+    box = document.createElement('div');
+    box.className = 'field-msg';
+    el.parentNode.insertBefore(box, el.nextSibling);
+  }
+  box.textContent = text;
+  box.dataset.state = ok ? 'ok' : 'err';
+  box.style.display = 'block';
+  // Auch das Feld selbst kennzeichnen: bei mehreren Eingaben nebeneinander ist
+  // sonst nicht zu sehen, welches gemeint ist.
+  el.dataset.invalid = ok ? '' : '1';
+  // Liegt das Feld in einem eingeklappten Bereich, wäre die Rüge unsichtbar —
+  // der Vorgang bräche scheinbar grundlos ab. Deshalb alle umschliessenden
+  // <details> aufklappen. Das gehört hierher und nicht an die Aufrufstellen,
+  // sonst muss jede künftige daran denken.
+  if (!ok && el.closest) {
+    var d = el.closest('details');
+    while (d) {
+      d.open = true;
+      d = d.parentElement && d.parentElement.closest ? d.parentElement.closest('details') : null;
+    }
+  }
+}
+
+function fieldClear(el) {
+  if (typeof el === 'string') el = document.getElementById(el);
+  if (!el) return;
+  var box = el.nextElementSibling;
+  if (box && box.classList && box.classList.contains('field-msg')) box.style.display = 'none';
+  el.dataset.invalid = '';
+}
+
+
+/* Lange Erklärtexte auf zwei Zeilen kürzen, mit „mehr"/„weniger".
+ *
+ * Anlass (2026-07-29): 38 Hinweistexte, mehrere davon 300–480 Zeichen. Sie
+ * drängen das Bedienbare nach unten und werden gerade deshalb nicht gelesen.
+ *
+ * Warum die Zeilenbegrenzung per CSS und kein Aufteilen am ersten Satz: Text zu
+ * zerlegen geht an Abkürzungen („z.B.", „i.S.d.", „Ziffer 6.11") schief. Die
+ * Begrenzung braucht den Inhalt gar nicht zu kennen, wirkt bei jedem künftigen
+ * Text und lässt sich ohne Änderung an den Vorlagen einführen.
+ *
+ * Ohne JavaScript bleibt der volle Text stehen — die Kürzung ist eine Zutat,
+ * keine Voraussetzung fürs Lesen.
+ */
+function initHintClamps(root, minLen) {
+  var scope = root || document;
+  var grenze = minLen || 150;
+  var texte = scope.querySelectorAll('p.hint:not([data-clamp])');
+  Array.prototype.forEach.call(texte, function (p) {
+    if ((p.textContent || '').trim().length < grenze) return;
+    p.dataset.clamp = 'zu';
+    var schalter = document.createElement('button');
+    schalter.type = 'button';
+    schalter.className = 'hint-toggle';
+    schalter.textContent = 'mehr';
+    schalter.addEventListener('click', function () {
+      var zu = p.dataset.clamp === 'zu';
+      p.dataset.clamp = zu ? 'auf' : 'zu';
+      schalter.textContent = zu ? 'weniger' : 'mehr';
+    });
+    p.parentNode.insertBefore(schalter, p.nextSibling);
+  });
+}

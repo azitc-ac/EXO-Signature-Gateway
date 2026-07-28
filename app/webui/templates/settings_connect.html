@@ -119,14 +119,17 @@
 
   <div id="acct-billing-box" class="info-box" style="display:none;margin-bottom:12px">
     <strong>Abrechnungsdaten</strong>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px;margin-top:8px">
-      <input type="text" id="cert-bill-company" placeholder="Firma / Rechtsform" style="font-size:13px">
-      <input type="text" id="cert-bill-address" placeholder="Rechnungsadresse" style="font-size:13px">
-      <input type="text" id="cert-bill-vat" placeholder="USt-IdNr (optional)" style="font-size:13px" autocapitalize="off" autocorrect="off" spellcheck="false">
-      <input type="text" id="cert-bill-contact" placeholder="Ansprechpartner" style="font-size:13px">
-      <input type="text" id="cert-bill-website" placeholder="Webseite (optional)" style="font-size:13px" autocapitalize="off" autocorrect="off" spellcheck="false">
-    </div>
-    <div style="margin-top:8px"><button class="btn secondary" onclick="certSaveBilling()">Speichern</button></div>
+    <details class="feld-gruppe">
+      <summary>Anschrift und USt-IdNr. bearbeiten</summary>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px;margin-top:8px">
+        <input type="text" id="cert-bill-company" placeholder="Firma / Rechtsform" style="font-size:13px">
+        <input type="text" id="cert-bill-address" placeholder="Rechnungsadresse" style="font-size:13px">
+        <input type="text" id="cert-bill-vat" placeholder="USt-IdNr (optional)" style="font-size:13px" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <input type="text" id="cert-bill-contact" placeholder="Ansprechpartner" style="font-size:13px">
+        <input type="text" id="cert-bill-website" placeholder="Webseite (optional)" style="font-size:13px" autocapitalize="off" autocorrect="off" spellcheck="false">
+      </div>
+      <div style="margin-top:8px"><button class="btn secondary" onclick="certSaveBilling()">Speichern</button></div>
+    </details>
   </div>
 
   <div id="acct-msg" class="msg" style="display:none;margin-top:8px"></div>
@@ -296,7 +299,8 @@ async function dcTest(){
 let _dcDomainId=null;
 async function dcDomainSetup(){
   const domain=document.getElementById('dc-domain-input').value.trim().toLowerCase();
-  if(!domain||!domain.includes('.')){ _dcMsg('Gültige Domain erforderlich.',false); return; }
+  fieldClear('dc-domain-input');
+  if(!domain||!domain.includes('.')){ fieldMsg('dc-domain-input','Gültige Domain erforderlich (z.B. firma.de).',false); return; }
   const d=await (await fetch('/api/digicert/domain/setup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})).json();
   if(!d.ok){ _dcMsg(d.message||'Fehler',false); return; }
   _dcDomainId=d.domain_id;
@@ -604,7 +608,9 @@ async function hubDisconnect(){
     +'OK = vollständig kündigen · Abbrechen = nur dieses Gateway trennen (Konto bleibt bestehen, später wieder verbindbar)');
   const d=await (await fetch('/api/hub/disconnect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({close_remote:full})})).json();
   if(d.ok){ _hubMsg((full?'Anbindung entfernt und Konto bei EXO Signature HUB gekündigt.':'Anbindung entfernt.')+' Seite lädt neu…',true); setTimeout(()=>location.reload(),1200);} else _hubMsg('Fehler.',false); }
-async function hubSaveKey() { const key=document.getElementById('hub-key').value; if(!key){_hubMsg('Bitte API-Key eingeben.',false);return;}
+async function hubSaveKey() { const key=document.getElementById('hub-key').value;
+  fieldClear('hub-key');
+  if(!key){fieldMsg('hub-key','Bitte API-Key eingeben.',false);return;}
   const d=await (await fetch('/api/hub/api-key',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({api_key:key})})).json();
   if(d.ok){document.getElementById('hub-key').value='';_hubMsg('API-Key gespeichert. Bitte Seite neu laden.',true);} else _hubMsg('Fehler beim Speichern.',false); }
 async function hubStatus() { _hubMsg('Prüfe Status…',true); const d=await (await fetch('/api/hub/status')).json();
@@ -769,8 +775,12 @@ function _bezahlseiteZeigen(fenster, url, msgEl) {
 async function acctTopup() {
   const feld = document.getElementById('acct-topup-amount');
   const betrag = parseFloat(feld && feld.value);
-  const min = Math.round(_acctMin / 100);
-  if (!betrag || betrag < min) { _acctMsg('Mindestbetrag ' + min + ' €.', false); return; }
+  const min = Math.round(_acctMin / 100), max = Math.round(_acctMax / 100);
+  // Eingabefehler gehören ANS FELD, nicht in die Sammelmeldung am Abschnittsende:
+  // dort steht die Rüge weit weg von der Eingabe, auf die sie sich bezieht.
+  fieldClear(feld);
+  if (!betrag || betrag < min) { fieldMsg(feld, 'Mindestbetrag ' + min + ' €.', false); return; }
+  if (betrag > max) { fieldMsg(feld, 'Höchstbetrag ' + max + ' €.', false); return; }
   const fenster = _bezahlfenster();          // vor dem await, siehe oben
   const r = await postJSON('/api/hub/billing/topup', {amount_eur: betrag});
   if (r.ok && r.checkout_url) {
@@ -938,7 +948,8 @@ function _autoMsg(t, ok){
 async function autoTopupSetup(){
   const el = document.getElementById('auto-topup-amount');
   const v = el ? parseInt(el.value, 10) : 0;
-  if(!v){ _autoMsg('Bitte einen Betrag angeben.', false); return; }
+  fieldClear(el);
+  if(!v){ fieldMsg(el, 'Bitte einen Betrag angeben.', false); return; }
   // Einrichtung lädt sofort auf — das gehört vorher gesagt, nicht erst bei Stripe.
   if(!confirm('Jetzt ' + v + ' € aufladen und die Karte für spätere automatische '
             + 'Nachladungen hinterlegen?\n\nNicht verbrauchtes Guthaben erstatten '
@@ -956,7 +967,8 @@ async function autoTopupSetup(){
 
 async function autoTopupSaveAmount(){
   const v = parseInt(document.getElementById('auto-topup-amount').value, 10);
-  if(!v){ _autoMsg('Bitte einen Betrag angeben.', false); return; }
+  fieldClear('auto-topup-amount');
+  if(!v){ fieldMsg('auto-topup-amount', 'Bitte einen Betrag angeben.', false); return; }
   const d = await (await fetch('/api/hub/billing/auto/amount', {method:'POST',
     headers:{'Content-Type':'application/json'}, body: JSON.stringify({amount_cents: v*100})})).json();
   if(d.ok){ _autoMsg('Betrag gespeichert: '+_eur(v*100), true); }
@@ -1002,15 +1014,23 @@ function _renderBillingSection(d) {
     if(d.invoice_requested_at){
       body.innerHTML='<span class="muted">Antrag gestellt am '+d.invoice_requested_at.slice(0,10)+' — wartet auf Freigabe durch EXO Signature HUB.</span>';
     } else {
+      // Formular eingeklappt: Der Rechnungskauf ist die Ausnahme, nicht der
+      // Regelfall — fünf Eingabefelder dauerhaft offen zu zeigen schiebt alles
+      // Übrige nach unten. <details> statt eigener Schalter: das Auf- und
+      // Zuklappen macht der Browser, ohne JavaScript und ohne Zustand, den
+      // jemand pflegen müsste.
       body.innerHTML=
-        '<div style="display:flex;flex-direction:column;gap:6px;max-width:420px">'
+        '<details class="feld-gruppe">'
+        +'<summary>Abrechnungsdaten eingeben und beantragen</summary>'
+        +'<div style="display:flex;flex-direction:column;gap:6px;max-width:420px;margin-top:8px">'
         +'<input type="text" id="inv-req-company" placeholder="Firma / Rechtsform *" style="font-size:13px" value="'+escAttr(d.billing_company)+'">'
         +'<input type="text" id="inv-req-address" placeholder="Rechnungsadresse *" style="font-size:13px" value="'+escAttr(d.billing_address)+'">'
         +'<input type="text" id="inv-req-vat" placeholder="USt-IdNr (optional)" autocapitalize="off" autocorrect="off" spellcheck="false" style="font-size:13px" value="'+escAttr(d.billing_vat)+'">'
         +'<input type="text" id="inv-req-contact" placeholder="Ansprechpartner *" style="font-size:13px" value="'+escAttr(d.billing_contact)+'">'
         +'<input type="text" id="inv-req-website" placeholder="Webseite (optional)" autocapitalize="off" autocorrect="off" spellcheck="false" style="font-size:13px" value="'+escAttr(d.billing_website)+'">'
         +'</div>'
-        +'<div style="margin-top:8px"><button class="btn secondary" onclick="certRequestInvoice()">Rechnungsstellung beantragen</button></div>';
+        +'<div style="margin-top:8px"><button class="btn secondary" onclick="certRequestInvoice()">Rechnungsstellung beantragen</button></div>'
+        +'</details>';
     }
   }
 }
@@ -1022,9 +1042,9 @@ async function certRequestInvoice() {
     billing_contact:(document.getElementById('inv-req-contact').value||'').trim(),
     billing_website:(document.getElementById('inv-req-website').value||'').trim(),
   };
-  if(!body.billing_company||!body.billing_address||!body.billing_contact){
-    _certMsg('Firma, Rechnungsadresse und Ansprechpartner sind erforderlich.',false); return;
-  }
+  if(!_pflichtfelder([['inv-req-company', body.billing_company],
+                     ['inv-req-address', body.billing_address],
+                     ['inv-req-contact', body.billing_contact]])) return;
   const d=await (await fetch('/api/hub/cert/request-invoice',{method:'POST',
     headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
   if(d.ok){ _acctMsg('Antrag gestellt — EXO Signature HUB wurde benachrichtigt.',true); acctLoad(); }
@@ -1043,6 +1063,26 @@ function _fillBillingFields(d) {
   }
   if(any) _billingFilled=true;
 }
+// Mehrere Pflichtfelder auf einmal prüfen und JEDES fehlende einzeln markieren.
+// Eine Sammelmeldung „Firma, Rechnungsadresse und Ansprechpartner sind
+// erforderlich" lässt offen, welches der drei Felder leer ist — bei ausgefüllter
+// Firma sucht man dann in der falschen Zeile.
+// Liefert true, wenn alles gefüllt ist.
+function _pflichtfelder(paare) {
+  var ok = true, erstes = null;
+  paare.forEach(function (pf) {
+    var id = pf[0], wert = (pf[1] || '').trim();
+    fieldClear(id);
+    if (!wert) {
+      fieldMsg(id, 'Pflichtfeld.', false);
+      if (!erstes) erstes = document.getElementById(id);
+      ok = false;
+    }
+  });
+  if (erstes && erstes.focus) erstes.focus();
+  return ok;
+}
+
 async function certSaveBilling() {
   const body={
     billing_company:document.getElementById('cert-bill-company').value.trim(),
@@ -1051,12 +1091,14 @@ async function certSaveBilling() {
     billing_contact:document.getElementById('cert-bill-contact').value.trim(),
     billing_website:document.getElementById('cert-bill-website').value.trim(),
   };
-  if(!body.billing_company||!body.billing_address){ _certMsg('Firma und Rechnungsadresse sind erforderlich.',false); return; }
+  if(!_pflichtfelder([['cert-bill-company', body.billing_company],
+                     ['cert-bill-address', body.billing_address]])) return;
   const d=await (await fetch('/api/hub/cert/billing',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
   if(d.ok){ _billingFilled=true; _acctMsg('Abrechnungsdaten gespeichert.',true); acctLoad(); } else _acctMsg('Fehler: '+(d.error||'Unbekannt'),false); }
 async function certDomainRequest() {
   const domain=document.getElementById('cert-domain-input').value.trim().toLowerCase();
-  if(!domain||!domain.includes('.')){ _certMsg('Gültige Domain erforderlich.',false); return; }
+  fieldClear('cert-domain-input');
+  if(!domain||!domain.includes('.')){ fieldMsg('cert-domain-input','Gültige Domain erforderlich (z.B. firma.de).',false); return; }
   const d=await (await fetch('/api/hub/cert/domain/request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})).json();
   if(!d.ok){ _certMsg('Fehler: '+(d.error||'Unbekannt'),false); return; }
   _pendingDomain=domain;
@@ -1122,6 +1164,10 @@ function _renderCertSteps(d) {
 
 // ── Zertifikatsbezug: Berechtigung/Guthaben beim Laden prüfen ────────────────
 document.addEventListener('DOMContentLoaded', function(){ acctLoad(); certLoadEligibility(); licLoad(); certLoadCatalog(); });
+// Erklärtexte auf zwei Zeilen kürzen. Nach den Ladefunktionen, damit auch
+// nachgerenderte Abschnitte erfasst werden; initHintClamps() überspringt
+// bereits behandelte Absätze (data-clamp), ein zweiter Lauf schadet also nicht.
+document.addEventListener('DOMContentLoaded', function(){ initHintClamps(); });
 
 // ── Anbieter-Katalog (dynamisch vom Hub) ─────────────────────────────────────
 async function certLoadCatalog() {
@@ -1438,7 +1484,8 @@ async function licAboKuendigen() {
 
 async function licApply() {
   const key = document.getElementById('lic-key').value.trim();
-  if (!key) { _licMsg('Bitte Lizenzschlüssel eingeben.', false); return; }
+  fieldClear('lic-key');
+  if (!key) { fieldMsg('lic-key', 'Bitte Lizenzschlüssel eingeben.', false); return; }
   const r = await fetch('/api/license', {method:'POST',
     headers:{'Content-Type':'application/json'}, body: JSON.stringify({key})});
   const d = await r.json().catch(() => ({}));
@@ -1709,9 +1756,9 @@ async function _doCertRequestInvoice() {
     billing_contact: (document.getElementById('inv-req-contact')?.value||'').trim(),
     billing_website: (document.getElementById('inv-req-website')?.value||'').trim(),
   };
-  if (!body.billing_company || !body.billing_address || !body.billing_contact) {
-    _certMsg('Firma, Rechnungsadresse und Ansprechpartner sind erforderlich.', false); return;
-  }
+  if(!_pflichtfelder([['inv-req-company', body.billing_company],
+                     ['inv-req-address', body.billing_address],
+                     ['inv-req-contact', body.billing_contact]])) return;
   const d = await (await fetch('/api/hub/cert/request-invoice', {method:'POST',
     headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)})).json();
   if (d.ok) { _certMsg('Antrag gestellt — EXO Signature HUB wurde benachrichtigt.', true); certLoadEligibility(); }
