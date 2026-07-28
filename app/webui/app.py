@@ -2027,121 +2027,60 @@ async def api_license_renewal(user: str = Depends(_require_admin)):
     return JSONResponse({k: v for k, v in res.items() if k != "license"})
 
 
-@app.post("/api/license/vorschau")
-async def api_license_vorschau(body: dict, user: str = Depends(_require_admin)):
-    """Kaufvorschau samt Wirkung aufs Guthaben — rechnet der Hub."""
+# Ein Durchreicher für ALLE Abo-Aktionen statt einer je Aktion.
+#
+# Vorher stand hier je Handlung ein eigener Endpunkt, der die Felder von Hand
+# abschrieb. Genau daran ging am 27.07.2026 dreimal an einem Tag dieselbe
+# Zahlungsweise verloren: beim Kauf, in der Ansicht, beim Umschalten. Eine
+# Schicht, die aufzählt, vergisst irgendwann etwas — eine, die durchreicht,
+# kann es nicht.
+# Aktion → benötigter Zustimmungskontext, oder None.
+#
+# ⚠️ NICHT als Menge, sondern als Zuordnung. Als der alte Kaufendpunkt hier
+# aufging, blieb sein `context_consented("license_purchase")` zurück — und der
+# Kauf lief ohne Zustimmung durch. Eine Menge lädt dazu ein, die Wache zu
+# vergessen; eine Zuordnung zwingt dazu, für JEDE Aktion zu entscheiden.
+#
+# `cancel` und `portal` sind bewusst frei: wer geänderten Bedingungen NICHT
+# zustimmt, muss beenden können. Eine Kündigung an die Zustimmung zu den
+# Bedingungen zu binden, die man gerade ablehnt, wäre eine Falle.
+_HUB_AKTIONEN = {
+    "checkout": "license_purchase",
+    "quantity": "license_purchase",
+    "zahlungsweise": "license_purchase",
+    "cancel": None,
+    "portal": None,
+}
+
+
+@app.post("/api/license/hub/{aktion}")
+async def api_license_hub(aktion: str, body: dict | None = None,
+                          user: str = Depends(_require_admin)):
+    """Abo-Aktion an den Hub weiterreichen. Antwort unverändert zurück."""
+    if aktion not in _HUB_AKTIONEN:
+        raise HTTPException(404, f"Unbekannte Aktion: {aktion}")
+    import legal_consent          # lokal, wie überall sonst in dieser Datei
+    kontext = _HUB_AKTIONEN[aktion]
+    if kontext and not legal_consent.context_consented(kontext):
+        raise HTTPException(403, "Den aktuellen Fassungen der Rechtsdokumente wurde "
+                                 "noch nicht zugestimmt. Sie stehen im Abschnitt "
+                                 "'Rechtliche Dokumente' auf dieser Seite.")
     import hub_client
-    tenant_id = (settings_store.get("TENANT_ID") or "").strip()
-    res = await hub_client.license_vorschau(int(body.get("mailboxes") or 0),
-                                            (body.get("zahlungsweise") or "monatlich").strip(),
-                                            tenant_id)
+    # Die Tenant-ID kennt NUR das Gateway — sie ist der Kopierschutz-Anker der
+    # Lizenz. Deshalb wird sie hier ergänzt und nicht von der Oberfläche
+    # geschickt, wo sie manipulierbar wäre.
+    nutzlast = dict(body or {})
+    nutzlast["tenant_id"] = (settings_store.get("TENANT_ID") or "").strip()
+    # Welche Fassungen hier gerade gelten. Der Hub hat die Dokumente nicht und
+    # könnte die Aktualität eines Belegs sonst gar nicht beurteilen — er liess
+    # einen Beleg über eine ÜBERHOLTE Fassung durchgehen.
+    nutzlast["doc_versions"] = legal_consent.current_versions()
+    res = await hub_client._license_json(aktion, nutzlast)
+    if not res.get("ok"):
+        raise HTTPException(400, res.get("error") or "Der Hub hat abgelehnt.")
+    log.info("Lizenz-Abo: %s durch %s", aktion, user)
     return JSONResponse(res)
 
-
-@app.post("/api/license/umfang")
-async def api_license_umfang(body: dict, user: str = Depends(_require_admin)):
-    """Umfang ab der naechsten Verlaengerung verringern (Ziffer 6.9/Preisliste)."""
-    import hub_client
-    try:
-        postfaecher = int(body.get("mailboxes") or 0)
-    except (TypeError, ValueError):
-        raise HTTPException(400, "Postfachzahl ungültig")
-    res = await hub_client.license_umfang(postfaecher)
-    if not res.get("ok"):
-        raise HTTPException(400, res.get("error") or "Umstellung fehlgeschlagen.")
-    log.info("Umfang ab naechster Verlaengerung: %s (durch %s)",
-             res.get("renew_mailboxes") or res.get("mailboxes"), user)
-    return JSONResponse(res)
-
-
-@app.post("/api/license/zahlungsweise")
-async def api_license_zahlungsweise(body: dict, user: str = Depends(_require_admin)):
-    """Zahlungsweise ab der naechsten Verlaengerung (Ziffer 10.4)."""
-    import hub_client
-    res = await hub_client.license_zahlungsweise((body.get("zahlungsweise") or "").strip())
-    if not res.get("ok"):
-        raise HTTPException(400, res.get("error") or "Umstellung fehlgeschlagen.")
-    log.info("Zahlungsweise ab naechster Verlaengerung: %s (durch %s)",
-             res.get("renew_zahlungsweise") or res.get("zahlungsweise"), user)
-    return JSONResponse(res)
-
-
-@app.get("/api/license/pricing")
-async def api_license_pricing(user: str = Depends(_require_admin)):
-    """Preismodell vom Hub durchreichen — die Kauf-Box rechnet damit."""
-    import hub_client
-    if not hub_client.is_registered():
-        return JSONResponse({"ok": False, "reason": "not_connected"})
-    return JSONResponse(await hub_client.license_pricing())
-
-
-@app.post("/api/license/renewal/{aktion}")
-async def api_license_renewal_action(aktion: str, user: str = Depends(_require_admin)):
-    """Verlängerung beenden bzw. wieder aufnehmen (Ziffer 6.11).
-
-    Die Kündigung wirkt sofort auf die Verlängerung, nicht auf die laufende
-    Lizenz: der bezahlte Zeitraum bleibt nutzbar. Der hinterlegte Schlüssel
-    wird deshalb NICHT angefasst — täte man es, verlöre das Gateway sein
-    Nutzungsrecht sofort statt zum Ablaufdatum.
-    """
-    import hub_client
-    if aktion not in ("cancel", "resume"):
-        raise HTTPException(404, "Unbekannte Aktion.")
-    res = await (hub_client.license_cancel() if aktion == "cancel" else hub_client.license_resume())
-    if not res.get("ok"):
-        raise HTTPException(400, res.get("error") or "Vorgang fehlgeschlagen.")
-    log.info("Lizenz-Verlängerung %s durch %s (gültig bis %s)",
-             "beendet" if aktion == "cancel" else "wieder aufgenommen",
-             user, res.get("expires"))
-    return JSONResponse({"ok": True, "expires": res.get("expires") or "",
-                         "refund_cents": res.get("refund_cents")})
-
-
-@app.post("/api/license/purchase")
-async def api_license_purchase(body: dict, user: str = Depends(_require_admin)):
-    """Lizenz über das Hub-Konto kaufen (Guthaben/Rechnung) und direkt einspielen."""
-    import hub_client
-    import legal_consent
-    import license as _lic
-    # Der Kontext war deklariert, wurde aber nie geprüft — durchgesetzt wurde
-    # stattdessen die Zustimmung zum ZERTIFIKATSBEZUG im Hub. Für einen reinen
-    # Lizenzkauf ist die falsche Zustimmung; maßgeblich ist allein die
-    # Lizenzbedingungen-Ergänzung.
-    if not legal_consent.context_consented("license_purchase"):
-        raise HTTPException(403, "Die Lizenzbedingungen-Ergänzung ist in der aktuellen "
-                                 "Fassung noch nicht bestätigt. Sie steht unter "
-                                 "„Rechtliche Dokumente“ auf dieser Seite.")
-    try:
-        mailboxes = int(body.get("mailboxes") or 0)
-    except (TypeError, ValueError):
-        raise HTTPException(400, "Postfachzahl ungültig")
-    tenant_id = (settings_store.get("TENANT_ID") or "").strip()
-    if not tenant_id:
-        raise HTTPException(400, "Eigene Tenant-ID nicht konfiguriert (Einrichtung unvollständig)")
-    # Zahlungsweise MUSS mitgehen. Sie fehlte bis v1.7.75: die Oberflaeche
-    # schickte sie hierher, dieser Endpunkt warf sie weg, und der Hub fiel auf
-    # seine Vorgabe zurueck. Der Kunde sah den Jahrespreis und bekam einen Monat.
-    zahlungsweise = (body.get("zahlungsweise") or "").strip()
-    res = await hub_client.purchase_license(tenant_id, mailboxes, zahlungsweise)
-    if not res.get("ok"):
-        detail = res.get("error") or "Kauf fehlgeschlagen"
-        raise HTTPException(res.get("status_code") if res.get("status_code") in (400, 402, 403) else 400, detail)
-    key = res.get("license") or ""
-    payload, err = _lic.verify(key)
-    if err:
-        raise HTTPException(502, f"Hub lieferte ungültige Lizenz: {err}")
-    terr = _lic.tenant_error(payload)
-    if terr:
-        raise HTTPException(502, terr)
-    settings_store.update({"LICENSE_KEY": key})
-    log.info("Lizenz gekauft von %s: lic_id=%s mailboxes=%s preis=%s¢ bis %s",
-             user, res.get("lic_id"), res.get("mailboxes"),
-             res.get("price_cents"), res.get("expires"))
-    return JSONResponse({**_lic.fair_use_state(),
-                         "price_cents": res.get("price_cents"),
-                         "price_gross_cents": res.get("price_gross_cents"),
-                         "vat_percent": res.get("vat_percent"),
-                         "expires": res.get("expires")})
 
 
 @app.delete("/api/license")

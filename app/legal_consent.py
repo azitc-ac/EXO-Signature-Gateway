@@ -20,18 +20,18 @@ _DB_PATH = Path("/app/data/legal_consent.db")
 # ── Document registry ────────────────────────────────────────────────────────
 CURRENT_DOCUMENTS: dict[str, dict] = {
     "hub-terms": {
-        "version": "2.1",
+        "version": "2.2",
         "label_de": "Hub-Nutzungsbedingungen",
         "label_en": "Hub Terms of Use",
-        "path_de": "de/hub-nutzungsbedingungen-v2.1.md",
-        "path_en": "en/hub-terms-of-use-v2.1.md",
+        "path_de": "de/hub-nutzungsbedingungen-v2.2.md",
+        "path_en": "en/hub-terms-of-use-v2.2.md",
     },
     "license-supplement": {
-        "version": "2.0",
+        "version": "2.1",
         "label_de": "Lizenzbedingungen-Ergänzung",
         "label_en": "License Terms Supplement",
-        "path_de": "de/lizenzbedingungen-ergaenzung-v2.0.md",
-        "path_en": "en/license-supplement-v2.0.md",
+        "path_de": "de/lizenzbedingungen-ergaenzung-v2.1.md",
+        "path_en": "en/license-supplement-v2.1.md",
     },
     "payment-invoice": {
         "version": "1.0",
@@ -41,11 +41,11 @@ CURRENT_DOCUMENTS: dict[str, dict] = {
         "path_en": "en/payment-terms-invoice-v1.0.md",
     },
     "price-list": {
-        "version": "1.0",
+        "version": "1.1",
         "label_de": "Preisliste",
         "label_en": "Price List",
-        "path_de": "de/preisliste-v1.0.md",
-        "path_en": "en/price-list-v1.0.md",
+        "path_de": "de/preisliste-v1.1.md",
+        "path_en": "en/price-list-v1.1.md",
         "no_consent_required": True,
     },
     # Eine Datenschutzerklärung ist eine INFORMATION nach Art. 13/14 DSGVO, keine
@@ -126,6 +126,16 @@ def get_document_text(doc_id: str, lang: str = "de") -> str:
         if p2 and p2.exists():
             return p2.read_text(encoding="utf-8")
     return ""
+
+
+def current_versions() -> dict:
+    """Welche Fassung je Dokument gerade gilt.
+
+    Für Gegenstellen, die die Dokumente selbst nicht haben und die Aktualität
+    eines Zustimmungsbelegs sonst nicht beurteilen können — sie liessen einen
+    Beleg über eine überholte Fassung durchgehen.
+    """
+    return {k: d["version"] for k, d in CURRENT_DOCUMENTS.items()}
 
 
 def has_valid_consent(document_id: str) -> bool:

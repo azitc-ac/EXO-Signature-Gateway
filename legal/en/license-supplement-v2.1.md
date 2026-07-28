@@ -1,6 +1,6 @@
 # License Terms for Commercial Use of the EXO Signature Gateway
 
-**Version 2.0 — Date: 27 July 2026**
+**Version 2.1 — Date: 28 July 2026**
 
 Licensor: Alexander Zarenko - IT Consulting, Triebelsstraße 4, 52066 Aachen, Germany
 (hereinafter "Licensor")
@@ -61,9 +61,10 @@ states the licensed number of mailboxes and the validity period.
 6.10 through 6.12 of the Terms of Use for the EXO Signature Hub. The term
 follows the chosen payment method: monthly payment means renewal by one month;
 annual prepayment means a term of twelve months with renewal for further
-twelve-month periods. **Renewal is automatic; the Licensee may stop it at any
-time and without any notice period via the license management in the Gateway and
-receives a refund of the unused portion.**
+twelve-month periods. **Renewal is automatic; the Licensee may end the license
+agreement at any time and without any notice period via the license management
+in the Gateway. Termination takes effect immediately, and the paid but unused
+portion is refunded calculated to the day.**
 
 3.2 **With license key**, the validity period stated on the license key applies,
 typically twelve months. The license agreement ends upon expiry of this period
@@ -82,9 +83,13 @@ new licenses.
 3.5 The right to use the Gateway under the Base License within the scope of the
 free tier is unaffected by termination.
 
-3.6 With monthly payment, no refund is made for the current month. With annual
-prepayment and early cancellation, the refund rules of Section 6.11 of the Terms
-of Use for the EXO Signature Hub apply. No refund is made for license keys.
+3.6 On early termination, the refund rules of Section 6.11 of the Terms of Use
+for the EXO Signature Hub apply: the unused portion is refunded calculated to
+the day. This applies to **both** payment methods — with monthly payment too,
+the month begun is not charged in full.
+
+No refund is made for license keys without Hub connection (Section 3.2); there,
+billing is in advance for the full term.
 
 ---
 
@@ -233,4 +238,4 @@ information purposes only.
 
 ---
 
-*Version 2.0 — 27 July 2026*
+*Version 2.1 — 28 July 2026*

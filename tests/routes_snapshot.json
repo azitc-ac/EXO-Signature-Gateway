@@ -497,18 +497,11 @@
     "name": "api_license_fetch_hub"
   },
   {
-    "pfad": "/api/license/pricing",
-    "methoden": [
-      "GET"
-    ],
-    "name": "api_license_pricing"
-  },
-  {
-    "pfad": "/api/license/purchase",
+    "pfad": "/api/license/hub/{aktion}",
     "methoden": [
       "POST"
     ],
-    "name": "api_license_purchase"
+    "name": "api_license_hub"
   },
   {
     "pfad": "/api/license/renewal",
@@ -518,39 +511,11 @@
     "name": "api_license_renewal"
   },
   {
-    "pfad": "/api/license/renewal/{aktion}",
-    "methoden": [
-      "POST"
-    ],
-    "name": "api_license_renewal_action"
-  },
-  {
     "pfad": "/api/license/status",
     "methoden": [
       "GET"
     ],
     "name": "api_license_status"
-  },
-  {
-    "pfad": "/api/license/umfang",
-    "methoden": [
-      "POST"
-    ],
-    "name": "api_license_umfang"
-  },
-  {
-    "pfad": "/api/license/vorschau",
-    "methoden": [
-      "POST"
-    ],
-    "name": "api_license_vorschau"
-  },
-  {
-    "pfad": "/api/license/zahlungsweise",
-    "methoden": [
-      "POST"
-    ],
-    "name": "api_license_zahlungsweise"
   },
   {
     "pfad": "/api/logs/files",

@@ -453,49 +453,12 @@ async def submit_consent_receipts() -> dict:
         return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
 
 
-async def license_pricing() -> dict:
-    """Preismodell für Lizenzen vom Hub holen.
-
-    Bewusst nicht im Gateway hinterlegt: eine hier verdrahtete Preisangabe wird
-    beim nächsten Preisschritt falsch, ohne dass es auffällt.
-    """
-    base = _base()
-    if not (base and _key()):
-        return {"ok": False, "error": "Nicht registriert (Anbindung fehlt)."}
-    try:
-        async with httpx.AsyncClient(timeout=20) as c:
-            r = await c.get(f"{base}/api/license/pricing", headers=_gateway_headers())
-        data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
-        if r.status_code == 200 and data.get("ok"):
-            return {"ok": True, **data}
-        return {"ok": False, "error": data.get("detail") or f"HTTP {r.status_code}"}
-    except Exception as exc:
-        return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
 
 
-async def license_vorschau(mailboxes: int, zahlungsweise: str, tenant_id: str) -> dict:
-    """Was ein Kauf kosten und mit dem Guthaben machen wuerde — ohne zu buchen.
-
-    Die Zahlen kommen vom Hub, nicht aus einer Rechnung hier: eine zweite
-    Rechnung laeuft auseinander, und dann nennt die Bestaetigungsabfrage einen
-    anderen Betrag als den abgebuchten.
-    """
-    return await _license_json("vorschau", {"mailboxes": int(mailboxes),
-                                            "zahlungsweise": zahlungsweise,
-                                            "tenant_id": tenant_id})
 
 
-async def license_umfang(mailboxes: int) -> dict:
-    """Umfang ab der naechsten Verlaengerung verringern."""
-    return await _license_json("umfang", {"mailboxes": int(mailboxes)})
 
 
-async def license_zahlungsweise(zahlungsweise: str) -> dict:
-    """Zahlungsweise ab der naechsten Verlaengerung festlegen (Ziffer 10.4)."""
-    base = _base()
-    if not (base and _key()):
-        return {"ok": False, "error": "Nicht registriert (Anbindung fehlt)."}
-    return await _license_json("zahlungsweise", {"zahlungsweise": zahlungsweise})
 
 
 async def _license_json(pfad: str, nutzlast: dict) -> dict:
@@ -515,18 +478,8 @@ async def _license_json(pfad: str, nutzlast: dict) -> dict:
         return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
 
 
-async def license_cancel() -> dict:
-    """Automatische Verlängerung beenden — jederzeit, ohne Frist (Ziffer 6.11).
-
-    Der bereits bezahlte Zeitraum bleibt nutzbar; der nicht genutzte Anteil
-    wird dem Guthaben gutgeschrieben.
-    """
-    return await _license_action("cancel")
 
 
-async def license_resume() -> dict:
-    """Kündigung zurücknehmen, solange die Laufzeit noch läuft."""
-    return await _license_action("resume")
 
 
 async def _license_action(aktion: str) -> dict:

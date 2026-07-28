@@ -1,6 +1,6 @@
 # Nutzungsbedingungen für den EXO Signature Hub
 
-**Version 2.1 — Stand 27. Juli 2026**
+**Version 2.2 — Stand 28. Juli 2026**
 
 Anbieter: Alexander Zarenko - IT Consulting, Triebelsstraße 4, 52066 Aachen
 (nachfolgend „Anbieter")
@@ -201,10 +201,8 @@ erwerben. Er zeigt die Überschreitung unverzüglich an. Lizenzpflichtig sind
 ausschließlich die Postfächer oberhalb der Freigrenze nach Ziffer 6.1. Es
 gelten die im Hub ausgewiesenen, jeweils gültigen Preise.
 
-6.6 Bei erstmaliger Überschreitung sind mindestens zehn Lizenzen zu erwerben.
-Diese berechtigen zur Nutzung von bis zu 110 aktivierten Postfächern. Oberhalb
-von 110 aktivierten Postfächern können weitere Lizenzen einzeln erworben
-werden.
+6.6 Eine Mindestabnahme besteht nicht. Ab dem ersten Postfach oberhalb der
+Freigrenze wird jede Lizenz einzeln erworben.
 
 6.7 Das Gateway sperrt bei Überschreitung keine Funktionen. Die Einhaltung
 obliegt dem Kunden.
@@ -223,37 +221,38 @@ anzeigen. Eine rückwirkende Forderung soll dem nicht entgegenstehen.
 
 6.10 **Die Lizenzen verlängern sich automatisch um den zuletzt gewählten
 Zeitraum** — bei monatlicher Zahlung um einen Monat, bei jährlicher
-Vorauszahlung um zwölf Monate. Die Verlängerung wird einige Tage vor Ablauf
-ausgeführt; die neue Laufzeit rechnet ab dem bisherigen Ablaufdatum, sodass
-keine bereits bezahlten Tage verfallen. Die Gebühr wird dem Guthaben
-entnommen; reicht das Guthaben nicht aus, wird ein vom Kunden eingerichteter
-automatischer Einzug ausgelöst. Der Kunde wird über jede Verlängerung in
-Textform unterrichtet.
+Vorauszahlung um zwölf Monate. Die neue Laufzeit rechnet ab dem bisherigen
+Ablaufdatum, sodass keine bereits bezahlten Tage verfallen. Die Gebühr wird am
+Tag der Verlängerung über das hinterlegte Zahlungsmittel eingezogen; über jede
+Verlängerung erhält der Kunde eine Rechnung in Textform.
 
-Scheitert die Verlängerung — etwa mangels Guthaben —, bleibt die Lizenz bis zu
-ihrem Ablaufdatum gültig. Der Anbieter unterrichtet den Kunden unter Angabe des
-Grundes und wiederholt den Versuch.
+**Das Guthaben nach Ziffer 10.6 wird für Lizenzen nicht verwendet.** Es dient
+allein dem Zertifikatsbezug. Wer ausschließlich Lizenzen bezieht, benötigt kein
+Guthaben.
 
-6.11 **Der Kunde kann die Verlängerung jederzeit und ohne Einhaltung einer
-Frist beenden.** Die Erklärung erfolgt über die Lizenzverwaltung im Gateway und
-wirkt sofort: eine weitere Verlängerung findet nicht statt.
+Scheitert der Einzug, bleibt die Lizenz bis zu ihrem Ablaufdatum gültig. Der
+Zahlungsdienstleister wiederholt den Versuch nach eigenem Zeitplan und
+unterrichtet den Kunden; der Anbieter weist den offenen Betrag zusätzlich in der
+Lizenzverwaltung aus.
 
-Der Anbieter erstattet den nicht genutzten Anteil der bereits gezahlten
-Lizenzgebühr. **Berechnet wird er, indem die bereits begonnenen Vertragsmonate
-zum regulären Monatspreis — ohne den für die Jahreslaufzeit gewährten Nachlass
-— vom gezahlten Betrag abgezogen werden.** Der bei Zugang der Erklärung
-laufende Vertragsmonat gilt dabei als genutzt. Ergibt die Berechnung keinen
-positiven Betrag, erfolgt keine Erstattung.
+6.11 **Der Kunde kann die Lizenz jederzeit und ohne Einhaltung einer Frist
+beenden.** Die Erklärung erfolgt über die Lizenzverwaltung im Gateway und wirkt
+**sofort**: die Lizenz endet, eine weitere Verlängerung findet nicht statt. Ab
+diesem Zeitpunkt gilt wieder die kostenfreie Freigrenze nach Ziffer 6.2.
 
-Der Nachlass für die Jahreslaufzeit bleibt damit an deren tatsächliche Nutzung
-geknüpft: Wer vorzeitig geht, wird für die genutzte Zeit zum regulären Preis
-abgerechnet. Ein Rechenbeispiel enthält die Preisliste.
+Der Anbieter zahlt den bezahlten, aber nicht genutzten Anteil der Lizenzgebühr
+zurück. **Berechnet wird er taggenau**: maßgeblich ist das Verhältnis der
+verbleibenden Tage zur Gesamtzahl der Tage des bezahlten Zeitraums. Die
+Rückzahlung erfolgt auf das für die Zahlung verwendete Zahlungsmittel. Ein
+Rechenbeispiel enthält die Preisliste.
 
-Solange die Lizenz noch läuft, kann der Kunde die Verlängerung über dieselbe
-Ansicht wieder aktivieren.
+Wer den bereits bezahlten Zeitraum ausschöpfen möchte, erklärt die Beendigung
+entsprechend später; eine Beendigung mit Wirkung zum Ablaufdatum bietet der
+Anbieter nicht an, weil sonst zwei Beendigungswege mit verschiedenem Ergebnis
+nebeneinander bestünden.
 
-6.12 Der Anbieter bestätigt den Eingang der Erklärung und den Erstattungsbetrag
-in Textform. Diese Bestätigung wahrt zugleich das Formerfordernis nach
+6.12 Der Anbieter bestätigt die Beendigung und den zurückgezahlten Betrag in
+Textform. Diese Bestätigung wahrt zugleich das Formerfordernis nach
 Ziffer 14.4.
 
 ---
@@ -338,11 +337,12 @@ Laufzeit nach Ziffer 6.10.
 
 10.5 Übersteigt die Zahl aktivierter Postfächer den durch erworbene Lizenzen
 und Freigrenze abgedeckten Umfang, sind entsprechend weitere Lizenzen zu
-erwerben. Diese werden anteilig für die verbleibenden vollen Kalendermonate des
-laufenden Abrechnungszeitraums berechnet, sodass alle Lizenzen zum selben
-Zeitpunkt enden. Bei einer Verringerung erfolgt keine Erstattung für den
-laufenden Abrechnungszeitraum; sie wirkt sich auf den folgenden
-Abrechnungszeitraum aus.
+erwerben. Diese werden **taggenau** für die verbleibende Zeit des laufenden
+Abrechnungszeitraums berechnet, sodass alle Lizenzen zum selben Zeitpunkt enden.
+
+Bei einer Verringerung wird der zu viel gezahlte Anteil ebenfalls taggenau
+berechnet und **sofort auf das verwendete Zahlungsmittel zurückgezahlt**; eine
+Verrechnung mit einer künftigen Rechnung findet nicht statt.
 
 10.6 Der Kunde kann die Umstellung auf Rechnungsstellung beantragen. Für diese
 gelten die gesonderten Zahlungsbedingungen (Rechnungskauf). Ein Anspruch auf
@@ -398,8 +398,9 @@ verbunden.
 
 12.1 Der Vertrag läuft auf unbestimmte Zeit.
 
-12.2 Der Kunde kann jederzeit ohne Einhaltung einer Frist zum Monatsende
-kündigen; dies entspricht der Regelung für Lizenzen nach Ziffer 6.10.
+12.2 Der Kunde kann jederzeit ohne Einhaltung einer Frist kündigen; die
+Kündigung wirkt sofort. Für Lizenzen gilt zusätzlich Ziffer 6.11 (taggenaue
+Rückzahlung des nicht genutzten Anteils).
 
 Der Anbieter kann mit einer Frist von 30 Tagen zum Monatsende kündigen. Die
 Frist gibt dem Kunden Zeit, den Bezug von Zertifikaten anderweitig zu regeln.
@@ -411,7 +412,9 @@ Lizenzzählung oder bei schwerwiegendem Missbrauch.
 
 12.4 Kündigungen bedürfen der Textform. Der Erklärung in Textform gleich steht
 die Kündigung über die Lizenzverwaltung im Gateway (Ziffer 6.12); der Anbieter
-bestätigt sie in Textform.
+bestätigt sie in Textform. Das Kundenportal des Zahlungsdienstleisters dient der
+Verwaltung von Zahlungsmitteln, Rechnungen und Stammdaten; eine Kündigung ist
+dort nicht vorgesehen.
 
 12.5 Mit Wirksamwerden der Kündigung endet der Zugang zum Hub. Das
 Nutzungsrecht am Gateway nach der jeweils anwendbaren Lizenz bleibt unberührt.
@@ -473,4 +476,4 @@ der Information.
 
 ---
 
-*Version 2.1 — 27. Juli 2026*
+*Version 2.2 — 28. Juli 2026*

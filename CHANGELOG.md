@@ -5,6 +5,52 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.88 — 2026-07-28 — Lizenz als Abonnement: taggenaue Abrechnung, Rückzahlung aufs Zahlungsmittel
+
+Die Lizenzabrechnung lag bisher zweifach vor: einmal beim Zahlungsdienst und einmal als eigene Rechnung im Hub, mit Tranchen, genutzten Monaten, Erstattungsanteilen und einem nächtlichen Verlängerungslauf. Zwei Bücher über dieselbe Sache liefen auseinander — auf der Anbindungsseite standen zeitweise **zwei verschiedene Guthabenstände nebeneinander**, weil die Seite den Betrag an zwei Stellen getrennt abrief und nach einer Buchung nur eine davon aktualisierte.
+
+Die Lizenz ist jetzt ein Abonnement beim Zahlungsdienst. Der Hub führt keine eigene Abrechnung mehr, sondern spiegelt nur noch, was dort steht.
+
+### Was sich für den Betrieb ändert
+
+**Bezahlt wird direkt, nicht mehr aus dem Guthaben.** Kreditkarte, SEPA-Lastschrift und die weiteren beim Zahlungsdienst angebotenen Zahlungsarten. Das **Guthaben trägt nur noch den Zertifikatsbezug** — wer ausschließlich Lizenzen bezieht, braucht keines mehr und muss dafür auch keine Zertifikatsbedingungen annehmen.
+
+**Abgerechnet wird taggenau statt in Kalendermonaten.** Das betrifft alle drei Richtungen:
+
+| Vorgang | vorher | jetzt |
+|---|---|---|
+| Beendigung, jährliche Zahlung | volle Kalendermonate, angebrochener Monat gilt als genutzt | taggenau |
+| Beendigung, monatliche Zahlung | keine Erstattung für den laufenden Monat | taggenau |
+| Verringerung der Postfachzahl | keine Erstattung, wirkte erst zum nächsten Zeitraum | taggenau, sofort |
+
+**Rückzahlungen gehen auf das Zahlungsmittel**, nicht mehr auf ein internes Guthaben — bei Beendigung wie bei Verringerung, jeweils sofort.
+
+**Die Beendigung wirkt sofort.** Bisher lief die Lizenz bis zum Ablaufdatum weiter und nur die Verlängerung entfiel. Beides zugleich geht nicht: Wer den Zeitraum erstattet bekommt, kann ihn nicht auch nutzen. Wer den bezahlten Zeitraum ausschöpfen will, beendet entsprechend später.
+
+**Die Mindestabnahme von zehn Lizenzen entfällt.** Sie stammte aus dem Aufwand, für einzelne Lizenzen Rechnungen zu schreiben; den übernimmt jetzt der Zahlungsdienst. Ab dem 101. Postfach wird einzeln erworben.
+
+**Rechnungen kommen fortlaufend nummeriert per E-Mail** und sind im Kundenportal des Zahlungsdienstes abrufbar. Dort lassen sich auch Zahlungsmittel, Anschrift und USt-IdNr. pflegen; eine Kündigung ist dort bewusst **nicht** vorgesehen, weil sie zum Zeitraumende und ohne Rückzahlung wirken würde — also anders als die Beendigung im Gateway.
+
+**Umsatzsteuer** wird nach dem Sitz des Kunden berechnet, für Geschäftskunden im EU-Ausland mit gültiger USt-IdNr. im Reverse-Charge-Verfahren.
+
+### Oberfläche
+
+Die Lizenzkarte zeigt zuerst den Zustand als Tabelle — Postfächer, bezahlt bis, Betrag je Zeitraum, Zahlungsmittel — und darunter genau die Handlungen, die dazu passen. Bisher lagen Kaufen, Aufstocken, Umstellen und Kündigen in drei aufklappbaren Kästen mit je eigenem Erklärtext; man musste einen Abschnitt zum Aufstocken öffnen, um zu kündigen.
+
+Nach Kauf oder Mengenänderung **holt das Gateway den neu signierten Lizenzschlüssel selbst**. Bisher war dafür ein Knopf zu drücken, der ausgerechnet im Kaufbereich lag und nach dem Kauf nicht mehr sichtbar war.
+
+Schlägt eine Abbuchung fehl, weist die Karte den offenen Betrag aus. Die Lizenz bleibt bis zum Ablaufdatum gültig; der Zahlungsdienst wiederholt den Einzug und benachrichtigt selbst.
+
+### Rechtstexte — erneute Zustimmung nötig
+
+Nutzungsbedingungen **2.2**, Lizenzbedingungen-Ergänzung **2.1**, Preisliste **1.1**. Die Änderungen sind durchweg zugunsten des Kunden: taggenaue statt monatsweiser Abrechnung, Rückzahlung auch bei monatlicher Zahlung und bei Verringerung, keine Mindestabnahme.
+
+**Zu tun:** Beim nächsten Aufruf der Anbindungsseite ist den neuen Fassungen zuzustimmen. Bis dahin bleibt der Lizenzbezug gesperrt; der laufende Betrieb und bereits erteilte Lizenzen sind nicht betroffen.
+
+### Offline-Bezug unverändert
+
+Für Umgebungen ohne Hub-Anbindung bleibt es beim Lizenzschlüssel per E-Mail, Abrechnung im Voraus für die volle Laufzeit, keine Erstattung.
+
 ## v1.7.87 — 2026-07-27 — Die Erstattungszeile erklärt ihren Betrag
 
 „Erstattung heute — 95,20 € Gutschrift, für die noch nicht begonnenen vollen Monate" ließ zweierlei offen: dass es sich um eine **Wenn-dann-Angabe** handelt, und warum der Betrag dem vollen Einsatz entsprechen kann.

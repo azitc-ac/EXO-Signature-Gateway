@@ -1,6 +1,6 @@
 # Preisliste EXO Signature Gateway und EXO Signature Hub
 
-**Version 1.0 — Stand 24. Juli 2026**
+**Version 1.1 — Stand 28. Juli 2026**
 
 Alle Preise verstehen sich in Euro zuzüglich der gesetzlichen Umsatzsteuer und
 gelten gegenüber Unternehmern i.S.d. § 14 BGB.
@@ -29,9 +29,8 @@ Ab dem 101. aktivierten Postfach ist eine kostenpflichtige Lizenz erforderlich.
 
 **Lizenzpflichtig sind ausschließlich die Postfächer oberhalb der Freigrenze.**
 
-**Mindestabnahme:** Wird die Freigrenze überschritten, sind mindestens zehn
-Lizenzen zu erwerben. Diese decken die Postfächer 101 bis 110 ab. Oberhalb von
-110 Postfächern können weitere Lizenzen einzeln erworben werden.
+**Keine Mindestabnahme.** Ab dem 101. Postfach wird jede Lizenz einzeln
+erworben.
 
 Beispiele:
 
@@ -68,9 +67,13 @@ Die jeweils gültigen Zertifikatspreise werden im Hub ausgewiesen.
 
 ### Zahlungsweise
 
-Die Abrechnung erfolgt grundsätzlich im Prepaid-Verfahren. Eine Umstellung auf
-Rechnungsstellung kann über den Hub beantragt werden; ein Anspruch darauf
-besteht nicht.
+**Lizenzen** werden als Abonnement unmittelbar über den Zahlungsdienstleister
+abgerechnet (Kreditkarte, SEPA-Lastschrift und weitere dort angebotene
+Zahlungsarten). Ein Guthaben ist dafür nicht erforderlich.
+
+**Zertifikate** werden aus dem Guthaben bezahlt, das im Voraus aufgeladen wird.
+Eine Umstellung auf Rechnungsstellung kann über den Hub beantragt werden; ein
+Anspruch darauf besteht nicht.
 
 **Nicht verbrauchtes Guthaben wird auf Verlangen jederzeit vollständig
 erstattet** — ohne Kündigung, ohne Begründung, ohne Frist (Ziffer 10.7 der
@@ -95,40 +98,40 @@ Die Wahl der Zahlungsweise erfolgt bei Lizenzerwerb und kann zum Ende des
 jeweiligen Abrechnungszeitraums geändert werden.
 
 **Die Lizenzen verlängern sich automatisch** um den zuletzt gewählten Zeitraum.
-Die Gebühr wird kurz vor Ablauf dem Guthaben entnommen; reicht es nicht aus,
-greift der eingerichtete automatische Einzug. Über jede Verlängerung wird per
-E-Mail informiert.
+Die Gebühr wird am Tag der Verlängerung über das hinterlegte Zahlungsmittel
+eingezogen. Über jede Verlängerung wird eine Rechnung per E-Mail zugestellt.
 
-**Kündigung jederzeit, ohne Frist.** Die Verlängerung lässt sich in der
-Lizenzverwaltung im Gateway beenden — auch mitten in einer Jahreslaufzeit. Der
-nicht genutzte Anteil wird erstattet, berechnet nach den noch nicht begonnenen
-vollen Kalendermonaten zum regulären Monatspreis von 1,00 € ohne den für die
-Jahreslaufzeit gewährten Nachlass.
+**Kündigung jederzeit, ohne Frist.** Sie erfolgt in der Lizenzverwaltung im
+Gateway und wirkt **sofort** — auch mitten in einer Jahreslaufzeit. Der bezahlte,
+aber nicht genutzte Anteil wird **taggenau** berechnet und auf das verwendete
+Zahlungsmittel zurückgezahlt.
 
-Rechenbeispiel bei 100 Lizenzen: Jahresvorauszahlung 1.080,00 €. Kündigung
-nach drei Monaten. Genutzt: 3 × 100 × 1,00 € = 300,00 €. Erstattung:
-1.080,00 € − 300,00 € = 780,00 €.
+Rechenbeispiel bei 100 Lizenzen: Jahresvorauszahlung 1.080,00 € am 1. Januar,
+Kündigung am 3. April, also nach 92 von 365 Tagen. Genutzt: 92/365 × 1.080,00 €
+= 272,22 €. Rückzahlung: 807,78 €.
+
+Die Lizenz endet mit der Kündigung; ab diesem Zeitpunkt gilt wieder die
+kostenfreie Freigrenze. Wer den bezahlten Zeitraum ausschöpfen möchte, kündigt
+entsprechend später.
 
 ### Unterjährige Änderungen
 
-Übersteigt die Zahl aktivierter Postfächer die Zahl der erworbenen Lizenzen
-zuzüglich Freigrenze, sind entsprechend weitere Lizenzen zu erwerben. Diese
-werden anteilig für die verbleibenden vollen Kalendermonate des laufenden
-Abrechnungszeitraums berechnet, sodass alle Lizenzen zum selben Zeitpunkt enden.
+Die Zahl der Lizenzen lässt sich jederzeit ändern. Beide Richtungen werden
+**taggenau** für die verbleibende Zeit des laufenden Abrechnungszeitraums
+abgerechnet, sodass alle Lizenzen zum selben Zeitpunkt enden.
+
+**Aufstockung:** Die zusätzlichen Lizenzen werden sofort für die Restzeit
+berechnet und über das hinterlegte Zahlungsmittel eingezogen.
 
 Rechenbeispiel: 200 aktivierte Postfächer, also 100 Lizenzen, Jahresvorauszahlung
-ab 1. Januar. Im April steigt der Bedarf auf 220 Postfächer. Die 20 zusätzlichen
-Lizenzen werden für die acht verbleibenden vollen Monate (Mai bis Dezember)
-berechnet: 20 × 8 × 0,90 € = 144,00 €. Alle 120 Lizenzen laufen anschließend bis
-zum Ende des ursprünglichen Zeitraums und werden gemeinsam verlängert.
+ab 1. Januar. Am 1. Mai steigt der Bedarf auf 220 Postfächer. Für die 20
+zusätzlichen Lizenzen werden die verbleibenden 245 von 365 Tagen berechnet:
+20 × 245/365 × 10,80 € = 144,99 €. Alle 120 Lizenzen laufen anschließend bis zum
+Ende des ursprünglichen Zeitraums und werden gemeinsam verlängert.
 
-Bleibt kein voller Monat mehr übrig — bei monatlicher Zahlung ist das immer der
-Fall —, wird ein Monat berechnet. Andernfalls wäre eine Aufstockung im letzten
-Monat des Zeitraums unentgeltlich.
-
-Bei einer Verringerung erfolgt keine Erstattung für den laufenden
-Abrechnungszeitraum; die Verringerung wirkt sich auf den folgenden
-Abrechnungszeitraum aus.
+**Verringerung:** Der zu viel gezahlte Anteil wird taggenau berechnet und
+**sofort auf das verwendete Zahlungsmittel zurückgezahlt** — nicht erst mit der
+nächsten Rechnung verrechnet.
 
 ---
 
@@ -175,4 +178,4 @@ Lizenzbedingungen der jeweils genutzten Edition.
 Alexander Zarenko - IT Consulting
 Triebelsstraße 4, 52066 Aachen
 
-*Version 1.0 — 24. Juli 2026*
+*Version 1.1 — 28. Juli 2026*
