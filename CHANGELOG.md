@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.95 — 2026-07-29 — Änderungshistorie auch in der Lizenzbedingungen-Ergänzung
+
+Die Ergänzung führt jetzt ebenfalls am Anfang auf, was sich gegenüber den früheren Fassungen geändert hat. Sie stand ohnehin zur erneuten Bestätigung an; die Angabe kostet damit keine zusätzliche Zustimmung.
+
+Der Inhalt der Fassung 2.1 ist unverändert — es kommt nur die Übersicht hinzu. Wesentlich waren dort: die Beendigung wirkt sofort statt zum Laufzeitende, der nicht genutzte Anteil wird taggenau zurückgezahlt, und diese Rückzahlung gilt nun für beide Zahlungsweisen. Zuvor entfiel bei monatlicher Zahlung die Erstattung für den laufenden Monat. Die Mindestabnahme ist entfallen.
+
+Ohne Historie bleiben vorerst die Dokumente, die seit ihrer Erstfassung unverändert sind — dort gäbe es nichts aufzuzählen, und eine Textänderung ohne Anlass würde nur eine überflüssige Zustimmung auslösen.
+
 ## v1.7.94 — 2026-07-29 — Nutzungsbedingungen 2.3: Abrechnung nach Leistungsart; Änderungshistorie in den Dokumenten
 
 ### Ziffer 10.3 traf nicht mehr zu
