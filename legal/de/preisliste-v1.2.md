@@ -7,6 +7,19 @@ gelten gegenüber Unternehmern i.S.d. § 14 BGB.
 
 ---
 
+## Änderungen gegenüber früheren Fassungen
+
+- **1.2 (28. Juli 2026)** — Abschnitt „Abrechnungsintervall für Lizenzen": Die
+  Zahlungsweise lässt sich jederzeit ändern, nicht erst zum Ende des laufenden
+  Abrechnungszeitraums. Der Wechsel wirkt sofort und wird taggenau angerechnet.
+  Die frühere Angabe entsprach nicht dem tatsächlichen Ablauf.
+- **1.1 (28. Juli 2026)** — Lizenz als Abonnement: Preise je Zahlungsweise,
+  taggenaue Abrechnung bei Beendigung und Mengenänderung, Wegfall der
+  Mindestabnahme. Rechenbeispiele ergänzt.
+- **1.0 (26. Juli 2026)** — Erstfassung.
+
+---
+
 ## 1. Software-Lizenz
 
 ### Community Edition

@@ -11,6 +11,19 @@ the German and English versions, the German version shall prevail.**
 
 ---
 
+## Changes from previous versions
+
+- **1.2 (28 July 2026)** — Section "Billing interval for licenses": the payment
+  interval may be changed at any time, not only at the end of the current billing
+  period. The change takes effect immediately and is credited to the day. The
+  earlier wording did not match actual behaviour.
+- **1.1 (28 July 2026)** — Licenses as a subscription: prices per payment
+  interval, billing to the day on termination and quantity changes, removal of the
+  minimum purchase requirement. Worked examples added.
+- **1.0 (26 July 2026)** — Initial version.
+
+---
+
 ## 1. Software License
 
 ### Community Edition

@@ -81,6 +81,42 @@ def test_dokumentversion_stimmt_mit_dateiname_und_text_ueberein():
     assert not abweichend, "; ".join(abweichend)
 
 
+def test_aenderungshistorie_nennt_die_geltende_fassung():
+    """Wo eine Änderungshistorie im Dokument steht, muss ihr oberster Eintrag
+    die geltende Fassung sein.
+
+    Sonst liest jemand eine Liste, die die aktuelle Änderung nicht enthält —
+    also genau das, wofür sie da ist: nicht das ganze Dokument lesen zu müssen,
+    um zu erfahren, was neu ist. Wer die Fassung hochzählt und den Eintrag
+    vergisst, fällt hier auf.
+
+    Dokumente ohne Historie werden übersprungen; sie bekommen eine, wenn sie
+    das nächste Mal geändert werden.
+    """
+    fehlend = []
+    for doc_id, doc in legal_consent.CURRENT_DOCUMENTS.items():
+        for schluessel in ("path_de", "path_en"):
+            rel = doc.get(schluessel)
+            if not rel:
+                continue
+            pfad = REPO / "legal" / rel
+            if not pfad.exists():
+                continue
+            text = pfad.read_text(encoding="utf-8")
+            if not re.search(r"^##\s+(Änderungen gegenüber|Changes from)", text, re.M):
+                continue                      # keine Historie — in Ordnung
+            # Erster Listeneintrag nach der Überschrift
+            m = re.search(r"^##\s+(?:Änderungen gegenüber|Changes from)[^\n]*\n+-\s+\*\*([^\s*]+)",
+                          text, re.M)
+            if not m:
+                fehlend.append(f"{doc_id}/{schluessel}: Historie ohne Eintrag")
+            elif m.group(1) != doc["version"]:
+                fehlend.append(
+                    f"{doc_id}/{schluessel}: oberster Eintrag {m.group(1)} "
+                    f"≠ Fassung {doc['version']}")
+    assert not fehlend, "; ".join(fehlend)
+
+
 # ── 2. Prüfsummenbindung ─────────────────────────────────────────────────────
 
 def test_zustimmung_gilt_fuer_den_zugestimmten_text(lc):
