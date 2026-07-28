@@ -11,6 +11,22 @@ the German and English versions, the German version shall prevail.**
 
 ---
 
+## Changes from previous versions
+
+- **2.1 (28 July 2026)** — Licenses as a subscription. Termination takes effect
+  immediately rather than at the end of the term, and the paid but unused portion
+  is refunded to the day (clause 3). This refund now applies to **both** payment
+  intervals — under monthly payment there was previously no refund for the current
+  month (clause 3.6). The minimum purchase requirement is removed (clause 4.2).
+  Clarified: for license keys used without a hub connection, payment remains in
+  advance for the full term with no refund.
+- **2.0 (27 July 2026)** — Clause 9 recast: changes to these terms take effect
+  only once the licensee expressly consents. If the licensee does not consent, the
+  license is not renewed. Added the provision on future price changes (clause 4.3).
+- **1.0 (26 July 2026)** — Initial version.
+
+---
+
 ## 1. Subject Matter and Relationship to the Base License
 
 1.1 These terms govern the paid use of the software "EXO Signature Gateway"

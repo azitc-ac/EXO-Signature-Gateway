@@ -7,6 +7,23 @@ Lizenzgeber: Alexander Zarenko - IT Consulting, Triebelsstraße 4, 52066 Aachen
 
 ---
 
+## Änderungen gegenüber früheren Fassungen
+
+- **2.1 (28. Juli 2026)** — Lizenz als Abonnement. Die Beendigung wirkt sofort
+  statt zum Laufzeitende, und der bezahlte, nicht genutzte Anteil wird taggenau
+  zurückgezahlt (Ziffer 3). Diese Rückzahlung gilt jetzt für **beide**
+  Zahlungsweisen — bei monatlicher Zahlung gab es zuvor keine Erstattung für den
+  laufenden Monat (Ziffer 3.6). Die Mindestabnahme entfällt (Ziffer 4.2).
+  Klargestellt: für Lizenzschlüssel ohne Hub-Anbindung bleibt es bei der
+  Vorauszahlung für die gesamte Laufzeit ohne Erstattung.
+- **2.0 (27. Juli 2026)** — Ziffer 9 neu gefasst: Änderungen dieser Bedingungen
+  werden erst wirksam, wenn der Lizenznehmer ihnen ausdrücklich zustimmt.
+  Stimmt er nicht zu, wird die Lizenz nicht weiter verlängert. Ergänzt um die
+  Regelung zu künftigen Preisänderungen (Ziffer 4.3).
+- **1.0 (26. Juli 2026)** — Erstfassung.
+
+---
+
 ## 1. Gegenstand und Verhältnis zur Basislizenz
 
 1.1 Diese Bedingungen regeln die entgeltliche Nutzung der Software
