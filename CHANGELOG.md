@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.96 — 2026-07-29 — Fehler stehen am Feld, Erklärtexte sind gekürzt, Formulare eingeklappt
+
+### Eingabefehler stehen jetzt am betroffenen Feld
+
+Eine Rüge wie „Mindestbetrag 25 €" erschien in der Sammelmeldung am Ende des Abschnitts — das Eingabefeld stand weiter oben, oft ausserhalb des sichtbaren Bereichs. Man las eine Beanstandung und musste suchen, worauf sie sich bezog.
+
+Solche Meldungen stehen jetzt unmittelbar unter dem Feld, dessen Eingabe beanstandet wurde; das Feld selbst wird zusätzlich hervorgehoben. Wo mehrere Pflichtfelder zugleich leer sind, wird **jedes einzeln** gekennzeichnet, statt sie in einem Satz aufzuzählen — bei ausgefüllter Firma und fehlendem Ansprechpartner suchte man zuvor in der falschen Zeile.
+
+Betrifft alle Eingabeprüfungen der Anbindungsseite: Aufladebetrag, Betrag der Zahlungsautomatik, Domänen, API-Schlüssel, Lizenzschlüssel und die Abrechnungsdaten.
+
+### Erklärtexte auf zwei Zeilen
+
+Die Seite trug Hinweistexte von bis zu 480 Zeichen, die das Bedienbare nach unten drängten. Sie erscheinen jetzt auf zwei Zeilen gekürzt, mit einem Schalter „mehr" für den vollständigen Text. Kurze Texte bleiben unverändert.
+
+### Formulare eingeklappt
+
+Die Felder für „Rechnungsstellung (statt Prepaid)" und für die Abrechnungsdaten sind zugeklappt. Beides ist die Ausnahme und nicht der Regelfall; zehn dauerhaft sichtbare Eingabefelder schoben alles Übrige nach unten. Ein Klick auf die Zeile öffnet sie. Beanstandet eine Prüfung ein Feld in einem zugeklappten Bereich, öffnet er sich von selbst — sonst bräche der Vorgang scheinbar grundlos ab.
+
 ## v1.7.95 — 2026-07-29 — Änderungshistorie auch in der Lizenzbedingungen-Ergänzung
 
 Die Ergänzung führt jetzt ebenfalls am Anfang auf, was sich gegenüber den früheren Fassungen geändert hat. Sie stand ohnehin zur erneuten Bestätigung an; die Angabe kostet damit keine zusätzliche Zustimmung.

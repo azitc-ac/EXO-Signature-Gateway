@@ -227,6 +227,50 @@ h3 { font-size: 13px; font-weight: 600; margin: 16px 0 8px; color: #555; }
 .msg[data-state="ok"]  { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
 .msg[data-state="err"] { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
 
+/* Feldnahe Meldung aus fieldMsg() — steht direkt hinter dem Eingabefeld.
+ * Bewusst schlichter als .msg: sie sitzt im Formularfluss und soll die
+ * Feldanordnung nicht auseinanderreissen. */
+.field-msg { display: none; font-size: 12px; margin: 4px 0 0; }
+.field-msg[data-state="err"] { color: #991b1b; }
+.field-msg[data-state="ok"]  { color: #166534; }
+input[data-invalid="1"], select[data-invalid="1"], textarea[data-invalid="1"] {
+    border-color: #dc2626;
+}
+
+/* Lange Erklärtexte: zwei Zeilen, Rest per Schalter (initHintClamps()).
+ * -webkit-line-clamp ist trotz des Präfixes in allen aktuellen Browsern
+ * umgesetzt; fällt es aus, steht schlicht der ganze Text da — kein Verlust. */
+p.hint[data-clamp="zu"] {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.hint-toggle {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 2px 0 8px;
+    font-size: 12px;
+    color: #0369a1;
+    cursor: pointer;
+    text-decoration: underline;
+}
+.hint-toggle:hover { color: #0284c7; }
+
+/* Einklappbare Formulargruppe. Für Abschnitte, die die Ausnahme sind und nicht
+ * der Regelfall — etwa der Rechnungskauf. <details> statt eigener Schalter:
+ * Auf- und Zuklappen macht der Browser, ohne JS und ohne Zustand zu pflegen. */
+.feld-gruppe > summary {
+    cursor: pointer;
+    font-size: 13px;
+    color: #0369a1;
+    padding: 2px 0;
+    list-style: revert;
+}
+.feld-gruppe > summary:hover { color: #0284c7; }
+
 /* Forms / Editor */
 .editor-section { margin-bottom: 20px; }
 label { display: block; margin-bottom: 6px; font-weight: 500; }
