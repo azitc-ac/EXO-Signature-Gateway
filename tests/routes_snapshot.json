@@ -343,6 +343,13 @@
     "name": "api_hub_billing_refund"
   },
   {
+    "pfad": "/api/hub/billing/refund/preview",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_hub_billing_refund_preview"
+  },
+  {
     "pfad": "/api/hub/billing/topup",
     "methoden": [
       "POST"

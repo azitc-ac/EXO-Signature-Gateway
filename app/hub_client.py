@@ -379,6 +379,14 @@ async def cert_order(target_email: str, csr_pem: str, extra: dict | None = None,
         return {"ok": False, "error": "Nicht registriert/freigegeben — kein API-Key."}
     body = {"provider": provider or "sectigo", "email": target_email, "csr": csr_pem, "extra": extra or {},
             "ca_terms_accepted_at": ca_terms_accepted_at}
+    # Ziffer 13.4: bei ausstehender Zustimmung dürfen keine Zertifikate bestellt
+    # werden. Der Hub hat die Dokumente nicht und kann die Aktualität eines
+    # Belegs nur anhand der hier geltenden Fassungen beurteilen.
+    try:
+        import legal_consent
+        body["doc_versions"] = legal_consent.current_versions()
+    except Exception:                       # Dokumente fehlen → Hub prüft nur Existenz
+        pass
     try:
         async with httpx.AsyncClient(timeout=60) as c:
             r = await c.post(f"{base}/api/cert/order",
@@ -647,10 +655,23 @@ async def billing_auto_disable() -> dict:
     return await _billing_auto("POST", "/api/billing/auto/disable")
 
 
-async def billing_refund() -> dict:
+async def billing_refund_preview() -> dict:
+    """Wie sich die Auszahlung aufteilen würde. Fragt nur, verändert nichts.
+
+    Grundlage der Entscheidung, ob nach einer Bankverbindung gefragt wird —
+    ohne nicht zuordenbaren Anteil wird sie gar nicht erst erhoben.
+    """
+    return await _billing_auto("GET", "/api/billing/refund/preview")
+
+
+async def billing_refund(bank_account: dict | None = None) -> dict:
     """Nicht verbrauchtes Guthaben auszahlen lassen — ohne Kündigung.
 
     Kein `doc_versions`: an sein eigenes Geld zu kommen hängt nicht an einer
     Zustimmung (siehe Gegenstück auf der Betreiber-Seite).
+
+    `bank_account` ({"iban", "holder"}) ist nur nötig, wenn ein nicht
+    zuordenbarer Anteil bleibt — die Gegenseite lehnt sonst mit 400 ab.
     """
-    return await _billing_auto("POST", "/api/billing/refund")
+    return await _billing_auto("POST", "/api/billing/refund",
+                               {"bank_account": bank_account or {}})

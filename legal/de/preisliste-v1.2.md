@@ -1,6 +1,6 @@
 # Preisliste EXO Signature Gateway und EXO Signature Hub
 
-**Version 1.1 — Stand 28. Juli 2026**
+**Version 1.2 — Stand 28. Juli 2026**
 
 Alle Preise verstehen sich in Euro zuzüglich der gesetzlichen Umsatzsteuer und
 gelten gegenüber Unternehmern i.S.d. § 14 BGB.
@@ -94,8 +94,11 @@ erfolgt nicht.
 | Monatlich | 1,00 € je Lizenz/Monat | monatlich, verlängert sich automatisch | jederzeit fristlos |
 | Jährlich im Voraus | 0,90 € je Lizenz/Monat (10 % Nachlass) | 12 Monate, verlängert sich automatisch | jederzeit fristlos |
 
-Die Wahl der Zahlungsweise erfolgt bei Lizenzerwerb und kann zum Ende des
-jeweiligen Abrechnungszeitraums geändert werden.
+Die Wahl der Zahlungsweise erfolgt bei Lizenzerwerb und lässt sich **jederzeit
+ändern**. Der Wechsel wirkt sofort: der nicht genutzte Anteil des laufenden
+Zeitraums wird **taggenau** auf den neuen angerechnet. Entsteht dabei ein
+Überschuss zugunsten des Kunden, wird er auf das verwendete Zahlungsmittel
+zurückgezahlt.
 
 **Die Lizenzen verlängern sich automatisch** um den zuletzt gewählten Zeitraum.
 Die Gebühr wird am Tag der Verlängerung über das hinterlegte Zahlungsmittel

@@ -4994,7 +4994,8 @@ _ZAHLWEG_KONTEXT = {
     # eigenes Geld zu kommen darf nicht davon abhaengen, dass man geaenderten
     # Bedingungen zustimmt — sonst waere die Zustimmung erzwungen und damit
     # keine.
-    "refund":       None,
+    "refund":         None,
+    "refund_preview": None,
 }
 
 
@@ -5054,18 +5055,34 @@ async def api_hub_billing_auto_amount(request: Request, user: str = Depends(_req
         int(data.get("amount_cents") or 0), doc_versions=_doc_versions()))
 
 
+@app.get("/api/hub/billing/refund/preview")
+async def api_hub_billing_refund_preview(user: str = Depends(_require_admin)):
+    """Aufteilung der Auszahlung vorab — entscheidet, ob nach einer
+    Bankverbindung gefragt wird. Fragt nur, veraendert nichts."""
+    import hub_client
+    _zahlweg_gate("refund_preview")
+    return JSONResponse(await hub_client.billing_refund_preview())
+
+
 @app.post("/api/hub/billing/refund")
-async def api_hub_billing_refund(user: str = Depends(_require_admin)):
+async def api_hub_billing_refund(request: Request, user: str = Depends(_require_admin)):
     """Nicht verbrauchtes Guthaben auszahlen lassen — ohne Kuendigung.
 
     Gegenstueck zur Zusage auf dieser Seite: „Nicht verbrauchtes Guthaben
     erstatten wir jederzeit auf Verlangen, ohne Kuendigung und ohne
     Begruendung." Bis v1.7.90 gab es dafuer keinen Weg — erstattet wurde nur
     beim Trennen des Kontos oder beim Abbestellen des Zertifikatsbezugs.
+
+    Die Bankverbindung wird nur durchgereicht, nicht gespeichert: sie gehoert zu
+    genau dieser Ueberweisung und liegt beim Betreiber an der offenen Buchung.
     """
     import hub_client
     _zahlweg_gate("refund")
-    return JSONResponse(await hub_client.billing_refund())
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    return JSONResponse(await hub_client.billing_refund(data.get("bank_account")))
 
 
 @app.post("/api/hub/billing/auto/disable")
