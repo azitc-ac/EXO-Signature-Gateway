@@ -681,10 +681,17 @@ async function acctLoad() {
         + '" max="' + max + '" step="5" value="' + min + '" style="width:82px"> € '
         + '<button class="btn secondary" onclick="acctTopup()">Guthaben aufladen</button></div>'
       : '';
+    // Gegenstück zur Zusage oben („jederzeit auf Verlangen, ohne Kündigung").
+    // Nur bei vorhandenem Guthaben — ein Knopf, der nichts auszahlen kann,
+    // wirft nur die Frage auf, warum er nichts tut.
+    const auszahlen = (d.balance_cents || 0) > 0
+      ? '<div style="margin-top:6px"><button class="btn secondary" onclick="acctRefund()">'
+        + 'Guthaben auszahlen</button></div>'
+      : '';
     body.innerHTML = '<span style="font-weight:600;font-size:15px">Guthaben: '
                    + eur(d.balance_cents || 0) + '</span>'
                    + '<div class="hint" style="margin-top:4px">Für den Zertifikatsbezug. Die Lizenz läuft getrennt davon.</div>'
-                   + aufladen + _acctLedger(d.ledger);
+                   + aufladen + auszahlen + _acctLedger(d.ledger);
   }
   _renderBillingSection(d);
   autoTopupLoad();
@@ -774,6 +781,36 @@ async function acctTopup() {
     _acctMsg('Aufladen fehlgeschlagen: ' + errText(r), false);
   }
 }
+
+// Auszahlung des nicht verbrauchten Guthabens — ohne Kündigung, ohne
+// Abbestellung. Erstattet wird auf das ursprüngliche Zahlungsmittel, soweit
+// die Buchung dorthin zurückverfolgbar ist; ein Rest (etwa aus einer Korrektur
+// durch den Anbieter) wird zur Überweisung vorgemerkt.
+async function acctRefund() {
+  if (!confirm('Nicht verbrauchtes Guthaben auszahlen?\n\n'
+      + 'Das gesamte Guthaben wird zurückgezahlt — auf das ursprüngliche '
+      + 'Zahlungsmittel, soweit möglich; ein nicht zuordenbarer Rest wird zur '
+      + 'Überweisung vorgemerkt.\n\n'
+      + 'Der Zertifikatsbezug bleibt aktiv. Für weitere Bestellungen muss '
+      + 'danach neu aufgeladen werden.')) return;
+  _acctMsg('Auszahlung wird veranlasst…', true);
+  const r = await postJSON('/api/hub/billing/refund', {});
+  if (!r.ok) { _acctMsg('Auszahlung fehlgeschlagen: ' + errText(r), false); return; }
+  const e = r.refund || {};
+  if (!e.total_cents) { _acctMsg('Kein Guthaben vorhanden — nichts auszuzahlen.', true); }
+  else {
+    // Beide Teilbeträge nennen: „erstattet" allein wäre falsch, wenn ein Teil
+    // nur vorgemerkt ist und erst per Überweisung kommt.
+    let text = eur(e.total_cents) + ' werden ausgezahlt.';
+    if (e.manual_cents > 0) {
+      text += ' Davon ' + eur(e.stripe_refunded_cents || 0) + ' auf das Zahlungsmittel, '
+            + eur(e.manual_cents) + ' per Überweisung (wird gesondert veranlasst).';
+    }
+    _acctMsg(text, true);
+  }
+  acctLoad();
+}
+
 async function certLoadEligibility(manual) {
   const el=document.getElementById('cert-eligibility');
   let d;

@@ -645,3 +645,12 @@ async def billing_auto_amount(amount_cents: int,
 
 async def billing_auto_disable() -> dict:
     return await _billing_auto("POST", "/api/billing/auto/disable")
+
+
+async def billing_refund() -> dict:
+    """Nicht verbrauchtes Guthaben auszahlen lassen — ohne Kündigung.
+
+    Kein `doc_versions`: an sein eigenes Geld zu kommen hängt nicht an einer
+    Zustimmung (siehe Gegenstück auf der Betreiber-Seite).
+    """
+    return await _billing_auto("POST", "/api/billing/refund")
