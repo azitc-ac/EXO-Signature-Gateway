@@ -4990,6 +4990,11 @@ _ZAHLWEG_KONTEXT = {
     "auto_disable": None,
     "auto_status":  None,
     "billing_me":   None,
+    # Auszahlung bewusst frei, aus demselben Grund wie `auto_disable`: an sein
+    # eigenes Geld zu kommen darf nicht davon abhaengen, dass man geaenderten
+    # Bedingungen zustimmt — sonst waere die Zustimmung erzwungen und damit
+    # keine.
+    "refund":       None,
 }
 
 
@@ -5047,6 +5052,20 @@ async def api_hub_billing_auto_amount(request: Request, user: str = Depends(_req
         data = {}
     return JSONResponse(await hub_client.billing_auto_amount(
         int(data.get("amount_cents") or 0), doc_versions=_doc_versions()))
+
+
+@app.post("/api/hub/billing/refund")
+async def api_hub_billing_refund(user: str = Depends(_require_admin)):
+    """Nicht verbrauchtes Guthaben auszahlen lassen — ohne Kuendigung.
+
+    Gegenstueck zur Zusage auf dieser Seite: „Nicht verbrauchtes Guthaben
+    erstatten wir jederzeit auf Verlangen, ohne Kuendigung und ohne
+    Begruendung." Bis v1.7.90 gab es dafuer keinen Weg — erstattet wurde nur
+    beim Trennen des Kontos oder beim Abbestellen des Zertifikatsbezugs.
+    """
+    import hub_client
+    _zahlweg_gate("refund")
+    return JSONResponse(await hub_client.billing_refund())
 
 
 @app.post("/api/hub/billing/auto/disable")

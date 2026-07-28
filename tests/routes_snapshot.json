@@ -336,6 +336,13 @@
     "name": "api_hub_billing_me"
   },
   {
+    "pfad": "/api/hub/billing/refund",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_hub_billing_refund"
+  },
+  {
     "pfad": "/api/hub/billing/topup",
     "methoden": [
       "POST"

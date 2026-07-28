@@ -5,6 +5,28 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.91 — 2026-07-28 — Guthaben auszahlen ohne Kündigung; Zertifikatsbezug verlangt die geltende Fassung
+
+### „Guthaben auszahlen" gibt es jetzt wirklich
+
+Ziffer 10.7 der Nutzungsbedingungen sagt zu: nicht verbrauchtes Guthaben wird **auf Verlangen jederzeit vollständig erstattet**, ohne Kündigung, ohne Begründung, ohne Frist. Einen Weg dorthin gab es nicht. Erstattet wurde nur, wer das Konto trennte oder den Zertifikatsbezug abbestellte — beides setzt voraus, etwas aufzugeben, und widerspricht damit dem „ohne Kündigung".
+
+Im Abschnitt „Konto & Guthaben" steht bei vorhandenem Guthaben nun **Guthaben auszahlen**. Der Zertifikatsbezug bleibt dabei bestehen; für weitere Bestellungen wird einfach neu aufgeladen.
+
+Die Auszahlung geht auf das Zahlungsmittel zurück, mit dem aufgeladen wurde. Ein Anteil, der sich keiner Zahlung zuordnen lässt — etwa eine Gutschrift des Anbieters —, wird zur Überweisung vorgemerkt und gesondert veranlasst; beide Teilbeträge werden getrennt ausgewiesen.
+
+Die Auszahlung ist bewusst **an keine Zustimmung gebunden**. An das eigene Geld zu kommen darf nicht davon abhängen, dass man geänderten Bedingungen zustimmt — sonst wäre die Zustimmung erzwungen und damit keine. Dieselbe Überlegung gilt seit v1.7.90 für das Abschalten der Zahlungsautomatik und seit v1.7.88 für die Kündigung.
+
+### Zertifikatsbezug prüft die Fassung, nicht nur das Datum
+
+Die Zustimmung zu den Nutzungsbedingungen für den Zertifikatsbezug wurde bisher nur auf ihr Vorhandensein geprüft. Wer einmal zugestimmt hatte, bestellte nach einer Textänderung unverändert weiter und bekam die neue Fassung nie zu sehen — also die Zustimmungsfiktion, die Ziffer 13.3 ausschließt.
+
+Geprüft wird jetzt die **geltende** Fassung. Liegt eine neuere vor, wird die Bestellung mit dem Hinweis abgelehnt, erneut zuzustimmen; danach ist der Bezug sofort wieder frei.
+
+**Zu tun ist nichts.** Wer der aktuellen Fassung zugestimmt hat, merkt keinen Unterschied.
+
+---
+
 ## v1.7.90 — 2026-07-28 — Zustimmungspflicht auf allen Zahlwegen; Bezahlseite aktualisiert selbsttätig
 
 ### Guthaben ließ sich ohne gültige Zustimmung aufladen
