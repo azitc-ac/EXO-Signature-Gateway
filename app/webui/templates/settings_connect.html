@@ -71,19 +71,25 @@
 
 <!-- ── Zertifikatsbezug ───────────────────────────────────────────────────── -->
 <!-- ── Konto & Guthaben ───────────────────────────────────────────────────────
-     Eigene Karte, NICHT im Zertifikatsbezug. Das Guthaben bezahlt Lizenzen und
-     Zertifikate (Ziffer 10.1 der Nutzungsbedingungen); es hinter der Zustimmung
-     zu den Zertifikatsbedingungen zu verstecken, verlangte diese Zustimmung von
-     jedem, der nur Lizenzen kaufen will. -->
+     Eigene Karte, NICHT im Zertifikatsbezug — sonst müsste jeder, der nur
+     aufladen will, die Zertifikatsbedingungen annehmen.
+     Seit dem Umbau der Lizenz auf ein Abo trägt das Guthaben NUR NOCH den
+     Zertifikatsbezug. Vorher bezahlte es beides, und die Lizenzkarte musste
+     an vier Stellen erklären, wie Guthaben, automatisches Nachladen und
+     Verlängerung zusammenspielen. -->
 <div class="settings-card" style="margin-bottom:18px">
   <h2 style="margin-top:0">Konto &amp; Guthaben
     <span class="conn-badge conn-wait" id="acct-badge">…</span>
   </h2>
   <p class="hint" style="margin-bottom:12px">
-    Ein Guthaben für beide kostenpflichtigen Leistungen — <strong>Lizenzen und
-    Zertifikate</strong>. Abgerechnet wird im Voraus; die Zahlung erfolgt also stets
-    vor der Leistung. <strong>Nicht verbrauchtes Guthaben erstatten wir jederzeit auf
-    Verlangen</strong>, ohne Kündigung und ohne Begründung.
+    Guthaben für den <strong>Zertifikatsbezug</strong>. Zertifikate sind Einzelkäufe
+    bei wechselnden Zertifizierungsstellen; dafür wird im Voraus abgerechnet, die
+    Zahlung erfolgt also stets vor der Leistung. <strong>Nicht verbrauchtes Guthaben
+    erstatten wir jederzeit auf Verlangen</strong>, ohne Kündigung und ohne Begründung.
+    <br><span style="display:block;margin-top:6px">Die <strong>Lizenz</strong> wird
+    <strong>nicht</strong> hierüber bezahlt, sondern als Abo direkt per Karte,
+    SEPA-Lastschrift oder PayPal — siehe Abschnitt „Lizenz" weiter unten. Wer nur
+    Lizenzen braucht, braucht kein Guthaben.</span>
   </p>
 
   <div class="info-box" style="margin-bottom:12px">
@@ -337,57 +343,62 @@ _initAdv('digicert');
   <!-- Zustand zuerst, Änderung danach und zugeklappt. Bis v1.7.77 stand hier
        ein Fließtext und darunter sofort ein Eingabefeld — man musste sich aus
        drei Sätzen zusammensuchen, was man überhaupt hat. -->
+  <!-- Zustand zuerst, Handlungen danach. Bis v1.7.79 lagen Kaufen, Aufstocken,
+       Kündigen und Umstellen in drei aufklappbaren Kästen mit je eigenem Text —
+       man musste raten, welcher gerade zutrifft. Jetzt zeigt die Tabelle, was
+       gilt, und darunter stehen genau die Knöpfe, die dazu passen. -->
   <div id="lic-uebersicht" style="margin-bottom:12px"></div>
   <div id="lic-status" class="hint" style="margin-bottom:12px">Lade…</div>
+  <div id="lic-abo-actions" class="actions" style="margin-bottom:8px"></div>
+  <div id="lic-abo-msg" class="msg" style="display:none;margin-bottom:12px"></div>
 
-  <!-- Verlängerung: eigener Abschnitt, NICHT im Kaufbereich. Bis v1.7.79 lag er
-       in „Online — Postfächer aufstocken" — man musste also einen Abschnitt zum
-       Aufstocken öffnen, um zu kündigen. Das kam davon, dass der Bereich früher
-       „verlängern oder aufstocken" hieß und beim Umbenennen niemand die
-       Handlungen mitgenommen hat. -->
-  <div id="lic-renew-box" style="display:none;margin-bottom:12px">
-    <div style="font-weight:600;margin-bottom:6px">Verlängerung</div>
-    <div id="lic-renew-actions" class="actions"></div>
-    <div id="lic-renew-text" class="hint" style="margin-top:6px"></div>
-    <div id="lic-renew-msg" class="msg" style="display:none;margin-top:8px"></div>
-  </div>
-
-  <!-- ── Online beziehen ───────────────────────────────────────────────────
-       Nur bei bestehender Anbindung. Ohne sie erscheint stattdessen
-       #lic-online-hint — ein Knopf, der nicht funktionieren kann, ist
-       schlimmer als keiner. -->
-  <details id="lic-online-box" class="info-box" style="display:none;margin-bottom:12px">
-    <summary style="cursor:pointer;font-weight:600" id="lic-buy-title">Online beziehen — über die Hub-Anbindung</summary>
+  <!-- ── Abo abschließen (nur wenn keines besteht) ─────────────────────────
+       Ohne Anbindung erscheint stattdessen #lic-online-hint — ein Knopf, der
+       nicht funktionieren kann, ist schlimmer als keiner. -->
+  <div id="lic-online-box" class="info-box" style="display:none;margin-bottom:12px">
+    <div style="font-weight:600;margin-bottom:2px">Online — Lizenz-Abo abschließen</div>
     <p class="hint" style="margin:2px 0 10px">
-      Bezahlt aus dem <strong>Konto-Guthaben</strong> (Abschnitt „Konto &amp; Guthaben" oben)
-      bzw. auf Rechnung. Bei einer Verlängerung zählt die neue Laufzeit ab dem aktuellen
-      Ablaufdatum weiter — keine Restlaufzeit geht verloren.
+      Bezahlt direkt per Karte, SEPA-Lastschrift oder PayPal — <strong>nicht</strong>
+      aus dem Konto-Guthaben. Das Guthaben ist nur für Zertifikate da.
+      Jederzeit kündbar, der nicht genutzte Anteil wird zurückgezahlt.
     </p>
     <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
-      <div><label style="font-size:12px;display:block" id="lic-buy-label">Lizenz für … Postfächer</label>
+      <div><label style="font-size:12px;display:block">Postfächer insgesamt</label>
         <input type="number" id="lic-buy-mailboxes" class="eng" min="1" step="1" style="width:120px"
                oninput="licBuyPrice()">
-        <span class="hint" style="display:block;margin-top:2px" id="lic-buy-unit">Zahl der aktivierten Postfächer insgesamt</span></div>
+        <span class="hint" style="display:block;margin-top:2px" id="lic-buy-unit">einschließlich der freien</span></div>
       <div><label style="font-size:12px;display:block">Zahlungsweise</label>
         <select id="lic-buy-interval" onchange="licBuyPrice()" style="min-width:190px">
           <option value="monatlich">monatlich</option>
           <option value="jaehrlich">jährlich im Voraus (10 % Nachlass)</option>
-        </select>
-        <span class="hint" id="lic-interval-note" style="display:none;margin-top:2px">
-          Wechsel erst zum Ende des Zeitraums — siehe unten.</span></div>
-      <button class="btn primary" onclick="licBuy()" id="lic-buy-btn">Kaufen</button>
+        </select></div>
+      <button class="btn primary" onclick="licAboKaufen()" id="lic-buy-btn">Abo abschließen</button>
     </div>
     <div id="lic-buy-price" class="hint" style="margin-top:8px"></div>
+  </div>
 
-    <div style="margin-top:12px;padding-top:10px;border-top:1px solid #e5e7eb">
-      <span class="hint">Lizenz bereits erworben, hier aber nicht hinterlegt?
-        (Neuinstallation, Wiederherstellung, oder vom Anbieter ausgestellt)</span>
-      <div style="margin-top:6px"><button class="btn secondary" onclick="licFetchHub()">Vom Hub abrufen</button></div>
+  <!-- Außerhalb des Kaufkastens: er verschwindet, sobald ein Abo besteht — und
+       gerade dann braucht man diesen Knopf am ehesten (Neuinstallation,
+       Wiederherstellung). Im Regelfall greift der Abgleich von selbst. -->
+  <div id="lic-hubfetch-row" style="display:none;margin-bottom:12px">
+    <span class="hint">Lizenz beim Hub hinterlegt, hier aber nicht eingespielt?
+      (Neuinstallation, Wiederherstellung, oder vom Anbieter ausgestellt)</span>
+    <div style="margin-top:6px"><button class="btn secondary" onclick="licFetchHub()">Vom Hub abrufen</button></div>
+  </div>
+
+  <!-- ── Postfachzahl ändern (nur bei bestehendem Abo) ────────────────────── -->
+  <div id="lic-aendern-box" style="display:none;margin-bottom:12px">
+    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+      <div><label style="font-size:12px;display:block">Postfächer insgesamt</label>
+        <input type="number" id="lic-menge" class="eng" min="1" step="1" style="width:120px"
+               oninput="licMengeVorschau()">
+        <span class="hint" style="display:block;margin-top:2px" id="lic-menge-hint"></span></div>
+      <button class="btn primary" onclick="licAboMenge()">Übernehmen</button>
     </div>
-  </details>
+  </div>
 
   <div id="lic-online-hint" class="hint" style="display:none;margin-bottom:12px">
-    Direkt kaufen und automatisch verlängern lassen geht mit einer Anbindung an
+    Ein Abo abschließen und automatisch verlängern lassen geht mit einer Anbindung an
     EXO Signature HUB → Abschnitt <strong>„Anbindung"</strong> ganz oben.
   </div>
 
@@ -631,8 +642,9 @@ async function _termsConfirm() {
   if(d.ok){_certMsg('Nutzungsbedingungen akzeptiert — Antrag gestellt.',true); certLoadEligibility();} else _certMsg('Fehler: '+(d.error||'Unbekannt'),false); }
 // ── Konto & Guthaben ────────────────────────────────────────────────────────
 // Eigener Abruf über /api/hub/billing/me statt über die Zertifikatsberechtigung:
-// das Guthaben trägt Lizenzen UND Zertifikate (Ziffer 10.1). Wer nie ein
-// Zertifikat bezieht, soll seinen Kontostand trotzdem sehen und aufladen können.
+// wer nie ein Zertifikat bezieht, soll seinen Kontostand trotzdem sehen und
+// aufladen können. Das Guthaben trägt seit dem Abo-Umbau NUR den Zertifikats-
+// bezug; die Lizenz wird beim Zahlungsdienst direkt abgebucht.
 var _acctMin = 2500, _acctMax = 100000;
 
 function _acctMsg(t, ok) { showMsg(document.getElementById('acct-msg'), t, ok); }
@@ -671,7 +683,7 @@ async function acctLoad() {
       : '';
     body.innerHTML = '<span style="font-weight:600;font-size:15px">Guthaben: '
                    + eur(d.balance_cents || 0) + '</span>'
-                   + '<div class="hint" style="margin-top:4px">Bezahlt Lizenzen und Zertifikate.</div>'
+                   + '<div class="hint" style="margin-top:4px">Für den Zertifikatsbezug. Die Lizenz läuft getrennt davon.</div>'
                    + aufladen + _acctLedger(d.ledger);
   }
   _renderBillingSection(d);
@@ -1107,252 +1119,242 @@ async function licLoad() {
       badge.textContent = '✓ lizenziert'; badge.className = 'conn-badge conn-ok';
       status.innerHTML = '';          // die Auflistung sagt es vollstaendig
       document.getElementById('lic-remove-row').style.display = '';
-      licRenderPaths(d);
-      licRenewLoad();
     } else {
-      document.getElementById('lic-renew-box').style.display = 'none';
-      document.getElementById('lic-uebersicht').innerHTML = '';
       badge.textContent = 'Fair Use'; badge.className = 'conn-badge conn-wait';
       status.innerHTML = 'Keine Lizenz eingespielt — aktuell <strong>' + d.count +
         '</strong> von ' + d.limit + ' Fair-Use-Postfächern aktiviert.' +
         (d.exceeded ? ' <span style="color:#d97706;font-weight:600">Limit überschritten — bitte Lizenz besorgen.</span>' : '') +
         (d.reason ? '<br><span style="color:#dc2626">Hinterlegter Schlüssel ungültig: ' + d.reason + '</span>' : '');
       document.getElementById('lic-remove-row').style.display = d.reason ? '' : 'none';
-      licRenderPaths(d);
     }
+    // Der Abo-Zustand kommt aus EINER eigenen Abfrage, nachdem der Fair-Use-Teil
+    // steht. Fair Use wird offline aus dem hinterlegten Schlüssel gelesen und
+    // darf nicht davon abhängen, ob der Hub gerade erreichbar ist.
+    await licAboLaden();
   } catch(e) { document.getElementById('lic-status').textContent = 'Status nicht abrufbar.' + ursache(e, 'settings_connect:987'); }
 }
-// ── Automatische Verlängerung ────────────────────────────────────────────────
-// Eigener Abruf, weil er das Netz braucht: der Fair-Use-Zustand oben kommt
-// offline aus dem hinterlegten Schlüssel und darf nicht davon abhängen, ob der
-// Hub gerade erreichbar ist.
-// ── Übersicht: was habe ich? ───────────────────────────────────────────────
-// Eine Auflistung, keine Sätze. Der Betreiber soll auf einen Blick sehen, was
-// gilt — nicht aus drei Fließtexten und einem Eingabefeld rekonstruieren, was
-// gemeint ist. Alle Zahlen kommen fertig vom Hub; das Gateway rechnet nichts
-// nach, sonst weichen Anzeige und Abrechnung wieder voneinander ab.
-// Echte Tabellenzeile statt Flexbox. Die erste Fassung brach auf schmalen
-// Schirmen um (flex-wrap): Bezeichnung und Wert landeten untereinander, mit
-// gleichem Gewicht und ohne Trennung — aus der Übersicht wurde eine Liste, die
-// man Zeile für Zeile entziffern musste. Tabellenspalten brechen nicht um.
-//
-// Der Zusatz steht in einer EIGENEN Zeile unter dem Wert. Nebeneinander lief er
-// mit ihm zusammen („monatlich Zeitraum: Monat").
-function _zeile(name, wert, hinweis) {
-  return '<tr style="border-bottom:1px solid #e5e7eb">'
-       + '<td class="muted" style="padding:7px 12px 7px 0;vertical-align:top;width:42%">'
-       + esc(name) + '</td>'
-       + '<td style="padding:7px 0;vertical-align:top">' + wert
-       + (hinweis ? '<div class="muted" style="font-size:12px;margin-top:2px">'
-                    + esc(hinweis) + '</div>' : '')
+// ── Abo-Zustand: was gilt gerade? ────────────────────────────────────────────
+// EINE Abfrage für alles. Bis v1.7.79 holte diese Seite den Guthabenstand an
+// zwei Stellen getrennt — oben aus /api/account, unten aus der Lizenzansicht.
+// Nach einer Buchung wurde nur eine davon neu geladen, und es standen zwei
+// verschiedene Beträge für dieselbe Sache auf einem Bildschirm.
+let _licAbo = null;         // zuletzt gelesener Abo-Zustand, für die Knöpfe
+let _licPreise = null;
+
+function _eurNetto(cents) { return eur(cents); }
+
+function _brutto(netto, vat) { return Math.round(netto * (100 + (vat || 0)) / 100); }
+
+function _zeile(bez, wert, hinweis) {
+  return '<tr><th>' + esc(bez) + '</th><td>' + wert
+       + (hinweis ? '<span class="hint" style="display:block;margin-top:2px">'
+                    + esc(hinweis) + '</span>' : '')
        + '</td></tr>';
 }
-function _datum(iso) {
-  return iso ? new Date(iso).toLocaleDateString('de-DE') : '—';
-}
-function _zwText(zw) { return zw === 'monatlich' ? 'monatlich' : 'jährlich im Voraus'; }
 
-function licRenderUebersicht(d) {
-  const el = document.getElementById('lic-uebersicht');
-  if (!d || !d.ok) { el.innerHTML = ''; return; }
-  const z = d.naechster_zeitraum || {};
-  const zeitraum = d.term_monate === 1 ? 'Monat' : d.term_monate + ' Monate';
-
-  var h = '<table style="width:100%;border-collapse:collapse;font-size:13px;line-height:1.45">';
-  h += _zeile('Lizenziert',
-              '<strong>' + d.mailboxes + ' Postfächer</strong>',
-              d.frei_postfaecher + ' frei + ' + d.lizenzen + ' kostenpflichtige Lizenzen');
-  if (_licFairUse) {
-    h += _zeile('Aktiviert',
-                _licFairUse.count + ' Postfächer'
-                + (_licFairUse.exceeded
-                     ? ' <span style="color:#d97706;font-weight:600">— Limit überschritten</span>' : ''),
-                'für Signatur oder S/MIME eingeschaltet');
-  }
-  h += _zeile('Gültig bis', '<strong>' + _datum(d.expires) + '</strong>');
-  // Kein „Abrechnungszeitraum: Monat" mehr — monatlich bedeutet einen Monat,
-  // jährlich zwölf, andere Kombinationen gibt es nicht. Der Zusatz wiederholte
-  // die Angabe daneben. Bei jährlicher Zahlung steht dort stattdessen, was sie
-  // von der monatlichen unterscheidet.
-  h += _zeile('Zahlungsweise', _zwText(d.zahlungsweise),
-              d.zahlungsweise === 'jaehrlich'
-                ? 'zwölf Monate im Voraus, mit 10 % Nachlass'
-                : '');
-  // Der Zeitraum gehoert an die KOSTEN — „11,90 €" allein sagt nicht, wofuer.
-  // Bei der Zahlungsweise war er nur eine Wiederholung.
-  h += _zeile('Kosten je ' + zeitraum,
-              eur(d.term_brutto_cents) + ' brutto',
-              eur(d.term_netto_cents) + ' netto'
-              + (d.vat_percent ? ' zzgl. ' + d.vat_percent + ' % MwSt.' : ''));
-
-  if (d.auto_renew) {
-    h += _zeile('Verlängerung',
-                '<strong>ja</strong> — am ' + _datum(d.renew_at),
-                d.renew_vorlauf_tage + ' Tage vor Ablauf, aus dem Konto-Guthaben — '
-                + 'reicht es nicht, greift der automatische Einzug');
-    // Nur zeigen, wenn sich wirklich etwas ändert — sonst doppelt sich die
-    // Zeile mit dem laufenden Zeitraum und stiftet Verwirrung.
-    if (d.renew_mailboxes || d.renew_zahlungsweise) {
-      h += _zeile('Ab dann',
-                  '<strong>' + z.mailboxes + ' Postfächer</strong>, ' + _zwText(z.zahlungsweise),
-                  eur(z.brutto_cents) + ' brutto je '
-                  + (z.monate === 1 ? 'Monat' : z.monate + ' Monate'));
-    }
-  } else {
-    h += _zeile('Verlängerung',
-                '<strong>nein</strong> — beendet',
-                'die Lizenz läuft am ' + _datum(d.expires) + ' aus');
-  }
-  if (typeof d.guthaben_cents === 'number' && d.billing_mode !== 'invoice') {
-    const z2 = d.naechster_zeitraum || {};
-    const gedeckt = d.verlaengerung_gedeckt;
-    h += _zeile('Guthaben', eur(d.guthaben_cents),
-                gedeckt
-                  ? (d.verlaengerung_aufladung_cents > 0
-                       ? 'Für die nächste Verlängerung (' + eur(z2.brutto_cents)
-                         + ') werden ' + eur(d.verlaengerung_aufladung_cents)
-                         + ' automatisch nachgeladen'
-                       : 'deckt die nächste Verlängerung (' + eur(z2.brutto_cents) + ')')
-                  : 'Für die nächste Verlängerung (' + eur(z2.brutto_cents) + ') fehlen '
-                    + eur(d.verlaengerung_fehlt_cents) + ' — bitte aufladen');
-  }
-  // Der Betrag braucht seinen Grund daneben. „Für die noch nicht begonnenen
-  // vollen Monate" ist Fachsprache und erklärt gerade den erstaunlichsten Fall
-  // nicht: die Erstattung kann dem vollen Einsatz entsprechen, wenn der
-  // bezahlte Zeitraum noch gar nicht angefangen hat. Das sieht wie ein Fehler
-  // aus, solange nirgends steht, wann der Zeitraum läuft.
-  const zr = (d.term_start && d.expires)
-    ? _datum(d.term_start) + ' bis ' + _datum(d.expires) : '';
-  var warum;
-  if (!(d.refund_preview_cents > 0)) {
-    warum = 'Der laufende Zeitraum (' + zr + ') ist angebrochen und wird nicht erstattet.';
-  } else if (d.genutzte_monate === 0) {
-    warum = 'Der bezahlte Zeitraum (' + zr + ') hat noch nicht begonnen — '
-          + 'er würde vollständig erstattet.';
-  } else {
-    warum = 'Vom bezahlten Zeitraum (' + zr + ') sind ' + d.genutzte_monate
-          + ' von ' + d.term_monate + ' Monaten angebrochen; der Rest wird erstattet.';
-  }
-  h += _zeile('Bei Beendigung heute',
-              (d.refund_preview_cents > 0
-                 ? eur(d.refund_preview_cents) + ' Gutschrift'
-                 : 'keine Gutschrift'),
-              warum);
-  if (d.renew_error) {
-    h += _zeile('Letzter Versuch', '<span style="color:#dc2626">fehlgeschlagen</span>',
-                d.renew_error);
-  }
-  h += '</table>';
-  el.innerHTML = h;
+function _datumTs(ts) {
+  if (!ts) return '—';
+  const d = new Date(ts * 1000);
+  return d.toLocaleDateString('de-DE', {day:'2-digit', month:'2-digit', year:'numeric'});
 }
 
-async function licRenewLoad() {
-  const box = document.getElementById('lic-renew-box');
+async function licAboLaden() {
+  const uebersicht = document.getElementById('lic-uebersicht');
+  const actions = document.getElementById('lic-abo-actions');
   let d;
   try { d = await (await fetch('/api/license/renewal')).json(); }
-  catch (e) { ursache(e, 'settings_connect:997'); box.style.display = 'none'; return; }
-  if (!d || !d.ok) { box.style.display = 'none'; return; }
+  catch (e) { ursache(e, 'settings_connect:licAboLaden'); return; }
 
-  licRenderUebersicht(d);
-  _licState = Object.assign({}, _licState || {}, d);   // fuer die Erstattungsvorschau
-  const text = document.getElementById('lic-renew-text');
-  const actions = document.getElementById('lic-renew-actions');
-
-  // Jede Handlung mit ihrer Folge darunter. Vorher standen drei Knöpfe
-  // nebeneinander, deren Beschriftung ihr Objekt nicht nannte („Verlängerung
-  // beenden" — welche?) und von denen einer anbot, was bereits vorgemerkt war:
-  // die Auswahl richtete sich nach der LAUFENDEN Zahlungsweise statt nach der
-  // gewünschten. Wer schon auf jährlich umgestellt hatte, bekam „Auf jährliche
-  // Zahlung umstellen" erneut angeboten.
-  function _handlung(beschriftung, ruf, folge, haupt) {
-    return '<div style="margin-bottom:10px">'
-         + '<button class="btn ' + (haupt ? 'primary' : 'secondary') + '" onclick="' + ruf + '">'
-         + esc(beschriftung) + '</button>'
-         + '<div class="hint" style="margin-top:3px">' + folge + '</div></div>';
-  }
-
-  const bisAblauf = _datum(d.expires);
-  const bisRenew = d.renew_at ? _datum(d.renew_at) : bisAblauf;
-  var knoepfe = '';
-
-  if (!d.auto_renew) {
-    text.textContent = '';
-    knoepfe = _handlung('Automatische Verlängerung wieder aufnehmen', 'licRenewResume()',
-      'Die Lizenz verlängert sich dann wieder — das nächste Mal am ' + bisRenew + '.', true);
-  } else {
-    if (d.renew_zahlungsweise) {
-      // Vorgemerkt: dann ist die EINZIGE sinnvolle Handlung das Zurücknehmen.
-      const gewuenscht = _zwText(d.renew_zahlungsweise);
-      const bisher = _zwText(d.zahlungsweise);
-      knoepfe += _handlung('Umstellung auf ' + gewuenscht + ' zurücknehmen',
-        "licRenewInterval('" + esc(d.zahlungsweise) + "')",
-        'Es bliebe bei ' + esc(bisher) + ' — die Umstellung zum ' + bisRenew + ' entfällt.');
-    } else {
-      const anders = d.zahlungsweise === 'monatlich' ? 'jaehrlich' : 'monatlich';
-      const label = anders === 'jaehrlich'
-        ? 'Auf jährliche Zahlung umstellen' : 'Auf monatliche Zahlung umstellen';
-      knoepfe += _handlung(label, "licRenewInterval('" + anders + "')",
-        anders === 'jaehrlich'
-          ? 'Ab dem ' + bisRenew + ' wird für zwölf Monate im Voraus abgerechnet, '
-            + 'mit 10 % Nachlass. Der laufende Zeitraum bleibt unberührt.'
-          : 'Ab dem ' + bisRenew + ' wird monatlich abgerechnet, ohne Nachlass. '
-            + 'Der laufende Zeitraum bleibt unberührt.');
+  if (!d || !d.ok) {
+    // Keine Anbindung oder Hub nicht erreichbar: der Offline-Weg bleibt.
+    document.getElementById('lic-online-hint').style.display =
+      (d && d.reason === 'not_connected') ? '' : 'none';
+    if (d && d.reason === 'unavailable') {
+      uebersicht.innerHTML = '<p class="hint">Abo-Zustand gerade nicht abrufbar'
+        + (d.error ? ' (' + esc(d.error) + ')' : '') + '. Die Lizenz gilt unabhängig davon weiter.</p>';
     }
-    const erstattung = (d.refund_preview_cents > 0)
-      ? ' ' + eur(d.refund_preview_cents) + ' werden dem Guthaben gutgeschrieben.'
-      : ' Eine Gutschrift entsteht nicht — kein voller Monat mehr offen.';
-    knoepfe += _handlung('Automatische Verlängerung beenden', 'licRenewCancel()',
-      'Die Lizenz bleibt bis zum ' + bisAblauf + ' gültig und läuft dann aus.' + erstattung);
-    text.textContent = '';
+    return;
   }
-  actions.innerHTML = knoepfe;
 
-  if (d.renew_error) {
-    text.textContent = 'Der letzte Verlängerungsversuch schlug fehl; die Lizenz bleibt bis '
-      + 'zum Ablaufdatum gültig und der Versuch wird wiederholt.';
+  _licAbo = d.abo || null;
+  _licPreise = d.preise || null;
+  document.getElementById('lic-hubfetch-row').style.display = '';
+  const frei = (_licPreise && _licPreise.frei_postfaecher) || 100;
+
+  if (!_licAbo) {
+    // Kein Abo — Kaufkasten zeigen, Änderungskasten weg.
+    document.getElementById('lic-online-box').style.display = '';
+    document.getElementById('lic-aendern-box').style.display = 'none';
+    actions.innerHTML = '';
+    const feld = document.getElementById('lic-buy-mailboxes');
+    if (feld && !feld.value) feld.value = Math.max(frei + 1, (_licFairUse && _licFairUse.count) || frei + 1);
+    licBuyPrice();
+    return;
   }
-  box.style.display = '';
+
+  document.getElementById('lic-online-box').style.display = 'none';
+  document.getElementById('lic-aendern-box').style.display = '';
+  document.getElementById('lic-online-hint').style.display = 'none';
+
+  const a = _licAbo;
+  const vat = (_licPreise && _licPreise.vat_percent) || 0;
+  const zwText = a.zahlungsweise === 'jaehrlich' ? 'jährlich im Voraus' : 'monatlich';
+  const zeitraum = a.zahlungsweise === 'jaehrlich' ? 'Jahr' : 'Monat';
+
+  let h = '<table class="kv">';
+  h += _zeile('Postfächer', '<strong>' + a.postfaecher + '</strong>',
+              frei + ' frei + ' + a.lizenzen + ' ' + (a.lizenzen === 1 ? 'Lizenz' : 'Lizenzen'));
+  h += _zeile('Bezahlt bis', '<strong>' + _datumTs(a.laufzeit_ende) + '</strong>',
+              a.laeuft_aus ? 'Danach endet das Abo — es wird nicht verlängert.'
+                           : 'Verlängert sich an diesem Tag automatisch.');
+  h += _zeile('Zahlung', _eurNetto(_brutto(a.betrag_netto_cents, vat)) + ' je ' + zeitraum,
+              zwText + ' — ' + eur(a.betrag_netto_cents) + ' netto zzgl. ' + vat + ' % MwSt.');
+  if (a.zahlungsmittel) {
+    h += _zeile('Zahlungsmittel',
+                esc(a.zahlungsmittel.marke)
+                  + (a.zahlungsmittel.last4 ? ' ••' + esc(a.zahlungsmittel.last4) : ''),
+                'Ändern über „Abo verwalten".');
+  }
+  if (a.zahlung_offen) {
+    h += _zeile('Achtung', '<span style="color:#dc2626;font-weight:600">Zahlung offen</span>',
+                'Die letzte Abbuchung ist fehlgeschlagen. Der Zahlungsdienst versucht es '
+                + 'erneut und meldet sich per E-Mail. Die Lizenz gilt bis dahin weiter.');
+  }
+  h += '</table>';
+  uebersicht.innerHTML = h;
+
+  // Genau die Knöpfe, die zum gezeigten Zustand passen — keiner mehr.
+  const anders = a.zahlungsweise === 'jaehrlich' ? 'monatlich' : 'jaehrlich';
+  const andersText = anders === 'jaehrlich' ? 'jährliche Zahlung (10 % Nachlass)'
+                                            : 'monatliche Zahlung';
+  actions.innerHTML =
+      '<button class="btn secondary" onclick="licAboPortal()">Abo verwalten ↗</button>'
+    + '<button class="btn secondary" onclick="licAboZahlungsweise(\'' + anders + '\')">'
+    + 'Auf ' + andersText + ' umstellen</button>'
+    + '<button class="btn secondary" onclick="licAboKuendigen()">Kündigen</button>';
+
+  const feld = document.getElementById('lic-menge');
+  if (feld) { feld.value = a.postfaecher; licMengeVorschau(); }
+
+  await _licSchluesselAbgleichen(a);
 }
 
-async function licRenewCancel() {
-  // Objekt, Datum und Betrag ausschreiben. Vorher stand hier „Solange die
-  // Laufzeit läuft, lässt sich das zurücknehmen" — welches „das"? Daneben gibt
-  // es ein zweites „zurücknehmen" (das der Zahlungsweise), das etwas ganz
-  // anderes meint. Der Erstattungsbetrag ist als Vorschau bekannt; ihn zu
-  // verschweigen hatte keinen Grund.
-  const st = _licState || {};
-  const bis = st.expires ? new Date(st.expires).toLocaleDateString('de-DE') : 'zum Ablaufdatum';
-  if (!confirm('Automatische Verlängerung beenden?\n\n'
-             + 'Die Lizenz bleibt bis zum ' + bis + ' gültig und läuft dann aus.\n'
-             + ((st.refund_preview_cents > 0)
-                  ? eur(st.refund_preview_cents) + ' werden dem Konto-Guthaben gutgeschrieben.\n'
-                  : 'Eine Gutschrift entsteht nicht — es ist kein voller Monat mehr offen.\n')
-             + '\nBis zum ' + bis + ' kannst du die automatische Verlängerung '
-             + 'jederzeit wieder einschalten.')) return;
-  const msg = document.getElementById('lic-renew-msg');
-  const r = await postJSON('/api/license/renewal/cancel', {});
-  if (!r.ok) { showMsg(msg, 'Fehler: ' + errText(r), false); return; }
-  showMsg(msg, 'Verlängerung beendet.'
-    + (r.refund_cents > 0 ? ' Gutschrift: ' + eur(r.refund_cents) + '.' : ' Keine Gutschrift (kein voller Restmonat).'), true);
-  licRenewLoad();
+// Nach Kauf oder Mengenänderung signiert der Hub den Lizenzschlüssel neu. Ohne
+// diesen Abgleich müsste man dafür „Vom Hub abrufen" drücken — einen Knopf, der
+// ausgerechnet im Kaufkasten steckt und nach dem Kauf verschwindet. Wer gerade
+// bezahlt hat, soll nicht raten müssen, warum die Zahl noch die alte ist.
+let _licAbgleichLaeuft = false;
+
+async function _licSchluesselAbgleichen(abo) {
+  if (_licAbgleichLaeuft) return;                 // nur EIN Versuch je Seitenaufruf
+  const lokal = _licFairUse && _licFairUse.licensed ? _licFairUse.mailboxes : null;
+  if (lokal === abo.postfaecher) return;          // schon deckungsgleich
+  _licAbgleichLaeuft = true;
+  try {
+    const r = await fetch('/api/license/fetch-hub', {method: 'POST'});
+    if (!r.ok) return;                            // still bleiben: der Offline-Weg gilt weiter
+    await licLoad();
+  } catch (e) { ursache(e, 'settings_connect:_licSchluesselAbgleichen'); }
 }
 
-async function licRenewInterval(zw) {
-  const msg = document.getElementById('lic-renew-msg');
-  const r = await postJSON('/api/license/zahlungsweise', {zahlungsweise: zw});
-  if (!r.ok) { showMsg(msg, 'Fehler: ' + errText(r), false); return; }
-  showMsg(msg, r.renew_zahlungsweise
-    ? 'Ab der nächsten Verlängerung wird auf die gewählte Zahlungsweise umgestellt.'
-    : 'Umstellung zurückgenommen — es bleibt bei der bisherigen Zahlungsweise.', true);
-  licRenewLoad();
+function _licAboMsg(text, ok) {
+  showMsg(document.getElementById('lic-abo-msg'), text, ok);
 }
 
-async function licRenewResume() {
-  const msg = document.getElementById('lic-renew-msg');
-  const r = await postJSON('/api/license/renewal/resume', {});
-  if (!r.ok) { showMsg(msg, 'Fehler: ' + errText(r), false); return; }
-  showMsg(msg, 'Verlängerung wieder aufgenommen.', true);
-  licRenewLoad();
+// ── Preisangaben ─────────────────────────────────────────────────────────────
+// Vier benannte Fälle statt einer Rechnung in der Oberfläche. Was etwas kostet,
+// rechnet der Zahlungsdienst; hier steht nur, was es kosten WIRD.
+
+function _preisText(postfaecher, zw) {
+  if (!_licPreise) return '';
+  const frei = _licPreise.frei_postfaecher;
+  const lizenzen = Math.max(0, postfaecher - frei);
+  if (lizenzen < 1) return 'Bis ' + frei + ' Postfächer ist der Betrieb frei — kein Abo nötig.';
+  const einzel = zw === 'jaehrlich' ? _licPreise.jahr_cents : _licPreise.monat_cents;
+  const netto = einzel * lizenzen;
+  const brutto = _brutto(netto, _licPreise.vat_percent);
+  const zeitraum = zw === 'jaehrlich' ? 'Jahr' : 'Monat';
+  return lizenzen + ' ' + (lizenzen === 1 ? 'Lizenz' : 'Lizenzen') + ' × '
+       + eur(einzel) + ' = ' + eur(netto) + ' netto je ' + zeitraum
+       + ' (' + eur(brutto) + ' brutto inkl. ' + _licPreise.vat_percent + ' % MwSt.)';
+}
+
+function licBuyPrice() {
+  const el = document.getElementById('lic-buy-price');
+  if (!el) return;
+  const n = parseInt(document.getElementById('lic-buy-mailboxes').value || '0', 10);
+  const zw = document.getElementById('lic-buy-interval').value;
+  el.textContent = _preisText(n, zw);
+}
+
+function licMengeVorschau() {
+  const el = document.getElementById('lic-menge-hint');
+  if (!el || !_licAbo) return;
+  const n = parseInt(document.getElementById('lic-menge').value || '0', 10);
+  if (n === _licAbo.postfaecher) { el.textContent = 'unverändert'; return; }
+  const richtung = n > _licAbo.postfaecher
+    ? 'Die Differenz wird sofort anteilig berechnet.'
+    : 'Der zu viel gezahlte Anteil wird sofort zurückgezahlt.';
+  el.textContent = _preisText(n, _licAbo.zahlungsweise) + ' — ' + richtung;
+}
+
+// ── Handlungen ───────────────────────────────────────────────────────────────
+
+async function _licAboPost(aktion, body, laufText) {
+  _licAboMsg(laufText, true);
+  const r = await postJSON('/api/license/hub/' + aktion, body || {});
+  if (!r.ok) { _licAboMsg(r.error || 'Fehlgeschlagen.', false); return null; }
+  return r;
+}
+
+async function licAboKaufen() {
+  const n = parseInt(document.getElementById('lic-buy-mailboxes').value || '0', 10);
+  const zw = document.getElementById('lic-buy-interval').value;
+  // Fenster SYNCHRON öffnen, vor dem await: nach einem await wertet der Browser
+  // den Klick nicht mehr als Nutzergeste und blockiert das Fenster als Popup.
+  const fenster = _bezahlfenster();
+  const r = await _licAboPost('checkout', {mailboxes: n, zahlungsweise: zw},
+                              'Bezahlseite wird vorbereitet…');
+  if (!r) { if (fenster) fenster.close(); return; }
+  _bezahlseiteZeigen(fenster, r.url);
+  _licAboMsg('Bezahlseite geöffnet. Nach dem Abschluss diese Seite neu laden.', true);
+}
+
+async function licAboMenge() {
+  const n = parseInt(document.getElementById('lic-menge').value || '0', 10);
+  const r = await _licAboPost('quantity', {mailboxes: n}, 'Wird geändert…');
+  if (!r) return;
+  _licAboMsg(r.message || 'Geändert.', true);
+  await licAboLaden(); await licLoad();
+}
+
+async function licAboZahlungsweise(zw) {
+  const r = await _licAboPost('zahlungsweise', {zahlungsweise: zw}, 'Wird umgestellt…');
+  if (!r) return;
+  _licAboMsg(r.message || 'Umgestellt.', true);
+  await licAboLaden();
+}
+
+async function licAboPortal() {
+  const fenster = _bezahlfenster();
+  const r = await _licAboPost('portal', {}, 'Kundenportal wird geöffnet…');
+  if (!r) { if (fenster) fenster.close(); return; }
+  _bezahlseiteZeigen(fenster, r.url);
+  _licAboMsg('Kundenportal geöffnet — dort gibt es Rechnungen, Zahlungsmittel und Anschrift.', true);
+}
+
+async function licAboKuendigen() {
+  if (!_licAbo) return;
+  const bis = _datumTs(_licAbo.laufzeit_ende);
+  const frei = (_licPreise && _licPreise.frei_postfaecher) || 100;
+  if (!confirm('Abo jetzt beenden?\n\n'
+      + 'Die Lizenz endet SOFORT, nicht erst am ' + bis + '. Der bezahlte, aber nicht '
+      + 'genutzte Anteil wird auf das Zahlungsmittel zurückgezahlt.\n\n'
+      + 'Danach gilt wieder die kostenfreie Grenze von ' + frei + ' Postfächern.')) return;
+  const r = await _licAboPost('cancel', {}, 'Wird beendet…');
+  if (!r) return;
+  _licAboMsg(r.message || 'Beendet.', true);
+  await licAboLaden(); await licLoad();
 }
 
 async function licApply() {
@@ -1384,190 +1386,6 @@ async function licRemove() {
   const d = await sendJSON('DELETE', '/api/license');
   if (!d.ok) { _licMsg('Entfernen fehlgeschlagen: ' + errText(d), false); return; }
   licLoad();
-}
-
-// ── Lizenzkauf über das Hub-Konto ────────────────────────────────────────────
-var _licState = null;
-function licRenderPaths(d) {
-  // Welcher Bezugsweg oben steht, entscheidet die Anbindung. Ohne sie wird der
-  // Online-Block NICHT nur ausgeblendet (so war es bis v1.7.71 — der Kunde sah
-  // nichts und erfuhr nicht warum), sondern durch einen Hinweis ersetzt, der
-  // auf den Abschnitt „Anbindung" zeigt.
-  _licState = d;
-  const online = document.getElementById('lic-online-box');
-  const hinweis = document.getElementById('lic-online-hint');
-  const offline = document.getElementById('lic-offline-box');
-
-  {% if not hub_registered %}
-  online.style.display = 'none';
-  hinweis.style.display = '';
-  offline.open = true;              // ohne Anbindung ist das der einzige Weg
-  return;
-  {% endif %}
-
-  online.style.display = '';
-  hinweis.style.display = 'none';
-  // Zugeklappt, aber erreichbar: auch mit Anbindung kommt gelegentlich ein
-  // Schlüssel per Mail. Ist der hinterlegte ungültig, gleich aufklappen.
-  offline.open = !!(d && d.reason);
-
-  // Genau ZWEI Handlungen, keine aus einer Zahl erratene dritte. Bis v1.7.75
-  // hiess "gleiche Zahl wie bisher" stillschweigend "weiteren Zeitraum im
-  // Voraus bezahlen" — und das Feld war damit vorbelegt. Wer einfach auf
-  // Kaufen klickte, bezahlte einen weiteren Zeitraum, ohne es zu wollen.
-  // Manuelles Vorauszahlen entfaellt ersatzlos: die Verlaengerung laeuft
-  // automatisch, ein Jahr im Voraus stellt man ueber die Zahlungsweise ein,
-  // und nach einer Kuendigung gibt es "Verlaengerung wieder aufnehmen".
-  const frei = _licPricing ? _licPricing.frei_postfaecher : 100;
-  document.getElementById('lic-buy-title').textContent = d.licensed
-    ? 'Online — Postfächer aufstocken'
-    : 'Online beziehen — über die Hub-Anbindung';
-  document.getElementById('lic-buy-label').textContent = d.licensed
-    ? 'Lizenzierter Umfang (Postfächer)' : 'Lizenz für … Postfächer';
-  // Den Knopftext setzt AUSSCHLIESSLICH licBuyPrice() — er benennt den Vorgang,
-  // und der haengt an der eingetragenen Zahl. Zwei Stellen dafuer wuerden
-  // auseinanderlaufen.
-  document.getElementById('lic-buy-unit').textContent = d.licensed
-    ? 'Höher = aufstocken · niedriger = ab dem nächsten Zeitraum · '
-      + frei + ' oder weniger = auslaufen lassen'
-    : 'Zahl der aktivierten Postfächer insgesamt (bis ' + frei + ' ist der Betrieb frei)';
-  // Bei laufender Lizenz ist die Zahlungsweise nicht frei waehlbar: Ziffer 10.4
-  // erlaubt die Aenderung zum ENDE des Abrechnungszeitraums. Umgestellt wird
-  // deshalb im Verlaengerungsblock, nicht durch einen Kauf.
-  const wahl = document.getElementById('lic-buy-interval');
-  const wahlHinweis = document.getElementById('lic-interval-note');
-  wahl.disabled = !!d.licensed;
-  wahlHinweis.style.display = d.licensed ? '' : 'none';
-  const input = document.getElementById('lic-buy-mailboxes');
-  if (!input.value) {
-    // Vorschlag in POSTFAECHERN (nicht in Lizenzen — das Feld zaehlt jetzt
-    // dasselbe wie die Statuszeile darueber). Bei bestehender Lizenz eine
-    // Stufe HOEHER als bisher, damit die Vorbelegung nicht versehentlich
-    // "gleich viel" bedeutet.
-    // Bei bestehender Lizenz den AKTUELLEN Stand vorbelegen — der Knopf ist
-    // dann gesperrt („unverändert"), es kann also nichts versehentlich
-    // ausgeloest werden, und der Kunde sieht seinen Stand als Ausgangspunkt.
-    input.value = d.licensed ? (d.mailboxes || 0)
-                             : Math.max(frei + 10, Math.ceil((d.count || 0) / 10) * 10);
-  }
-  // Keine Untergrenze: eine Verringerung bis unter die Freigrenze ist ein
-  // gueltiger Vorgang (Lizenz auslaufen lassen). input.min haette genau ihn
-  // verhindert.
-  input.min = 0;
-  // Holt das Preismodell und ruft danach licBuyPrice() — ohne Modell nennt die
-  // Anzeige keinen Betrag statt eines geratenen.
-  licPricingLoad();
-}
-// Preismodell kommt vom Hub, nicht aus dem Gateway: eine hier verdrahtete
-// Zahl (früher „12 €/Jahr") wäre beim nächsten Preisschritt still falsch.
-var _licPricing = null;
-var _licFall = null;   // erkannter Vorgang, siehe licBuyPrice()
-var _licFairUse = null;   // offline ermittelter Zustand, siehe licLoad()
-
-async function licPricingLoad() {
-  try {
-    const d = await (await fetch('/api/license/pricing')).json();
-    if (d && d.ok) _licPricing = d;
-  } catch (e) { ursache(e, 'settings_connect:1103'); /* Anzeige faellt auf den Hinweis unten zurueck */ }
-  licBuyPrice();
-}
-
-var _vorschauTimer = null;
-
-function licBuyPrice() {
-  // EINE Zahl, VIER benannte Faelle. Der Fall wird hier bestimmt (das kostet
-  // nichts), die BETRAEGE holt der Hub — eine zweite Rechnung hier liefe von
-  // der Abrechnung weg, und genau das ist am 27.07.2026 passiert.
-  const el = document.getElementById('lic-buy-price');
-  const btn = document.getElementById('lic-buy-btn');
-  const ziel = parseInt(document.getElementById('lic-buy-mailboxes').value, 10) || 0;
-  const frei = _licPricing ? _licPricing.frei_postfaecher : 100;
-  const l = _licPricing && _licPricing.laufend;
-  _licFall = null;
-  if (_vorschauTimer) { clearTimeout(_vorschauTimer); _vorschauTimer = null; }
-
-  if (!_licPricing) {
-    el.textContent = 'Preismodell derzeit nicht abrufbar.';
-    btn.disabled = true; return;
-  }
-  const bis = l && l.expires ? new Date(l.expires).toLocaleDateString('de-DE') : '';
-
-  if (l && ziel === l.mailboxes) {
-    btn.textContent = 'Übernehmen'; btn.disabled = true;
-    el.textContent = 'Unverändert — derzeit sind ' + l.mailboxes + ' Postfächer lizenziert.';
-    return;
-  }
-  if (l && ziel <= frei) {
-    _licFall = {art: 'auslaufen', ziel: ziel};
-    btn.textContent = 'Lizenz auslaufen lassen'; btn.disabled = false;
-    el.textContent = 'Bis ' + frei + ' Postfächer ist der Betrieb frei — dann wird keine '
-      + 'Lizenz mehr gebraucht. Die Verlängerung endet, die Lizenz bleibt bis zum ' + bis
-      + ' gültig, der nicht genutzte Anteil wird gutgeschrieben.';
-    return;
-  }
-  if (l && ziel < l.mailboxes) {
-    _licFall = {art: 'verringern', ziel: ziel};
-    btn.textContent = 'Zum nächsten Zeitraum verringern'; btn.disabled = false;
-    el.textContent = 'Kostenlos. Wirkt ab dem ' + bis + ' — der laufende Zeitraum ist '
-      + 'bezahlt und wird nicht erstattet.';
-    return;
-  }
-  if (!l && ziel <= frei) {
-    btn.textContent = 'Kaufen'; btn.disabled = true;
-    el.textContent = 'Bis ' + frei + ' Postfächer ist der Betrieb frei — keine Lizenz nötig.';
-    return;
-  }
-
-  // Kauf oder Aufstockung: Betraege beim Hub holen. Entprellt, sonst eine
-  // Anfrage je Tastendruck.
-  btn.textContent = l ? 'Jetzt aufstocken' : 'Kaufen';
-  btn.disabled = true;
-  el.textContent = 'Berechne…';
-  const zw = l ? l.zahlungsweise : document.getElementById('lic-buy-interval').value;
-  _vorschauTimer = setTimeout(function () { _licVorschau(ziel, zw); }, 400);
-}
-
-async function _licVorschau(ziel, zw) {
-  const el = document.getElementById('lic-buy-price');
-  const btn = document.getElementById('lic-buy-btn');
-  const r = await postJSON('/api/license/vorschau', {mailboxes: ziel, zahlungsweise: zw});
-  // Zwischenzeitlich weitergetippt? Dann gilt die neuere Anfrage.
-  if ((parseInt(document.getElementById('lic-buy-mailboxes').value, 10) || 0) !== ziel) return;
-  if (!r.ok) { el.textContent = errText(r); btn.disabled = true; return; }
-
-  _licFall = {art: r.art === 'erweiterung' ? 'aufstocken' : 'kauf', ziel: ziel,
-              zahlungsweise: r.zahlungsweise, brutto: r.brutto_cents,
-              lizenzen: r.lizenzen, monate: r.monate, guthaben: r.guthaben};
-  btn.disabled = false;
-
-  const g = r.guthaben || {};
-  var zeilen = [];
-  zeilen.push((r.art === 'erweiterung' ? r.lizenzen + ' zusätzliche Lizenzen'
-                                       : r.lizenzen + ' Lizenzen über der Freigrenze')
-              + ' × ' + r.monate + (r.monate === 1 ? ' Monat' : ' Monate')
-              + ' = ' + eur(r.netto_cents) + ' netto');
-  zeilen.push('zzgl. ' + r.vat_percent + ' % MwSt. = <strong>' + eur(r.brutto_cents)
-              + ' brutto</strong>');
-  if (g.modus === 'rechnung') {
-    zeilen.push('Abrechnung auf Rechnung — kein Guthaben nötig.');
-  } else {
-    zeilen.push('Guthaben: ' + eur(g.guthaben_cents));
-    if (g.fehlt_cents > 0 && g.aufladung_cents > 0) {
-      zeilen.push('<strong>Es fehlen ' + eur(g.fehlt_cents) + ' — es werden automatisch '
-                  + eur(g.aufladung_cents) + ' von der hinterlegten Karte eingezogen.</strong>');
-    } else if (g.fehlt_cents > 0) {
-      zeilen.push('<strong style="color:#dc2626">Es fehlen ' + eur(g.fehlt_cents)
-                  + ' und es ist keine automatische Aufladung eingerichtet.</strong> '
-                  + 'Bitte zuerst unter „Konto &amp; Guthaben" aufladen.');
-      btn.disabled = true;
-    }
-    if (g.gedeckt) zeilen.push('Guthaben danach: ' + eur(g.danach_cents));
-  }
-  if (r.art === 'erweiterung') {
-    zeilen.push('Das Ablaufdatum bleibt der '
-                + new Date(r.expires).toLocaleDateString('de-DE') + '.');
-  }
-  el.innerHTML = zeilen.join('<br>');
 }
 
 // ── Hub-Consent-Modal (Gate A) ────────────────────────────────────────────────

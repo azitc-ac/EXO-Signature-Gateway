@@ -1,6 +1,6 @@
 # Price List — EXO Signature Gateway and EXO Signature Hub
 
-**Version 1.0 — Date: 24 July 2026**
+**Version 1.1 — Date: 28 July 2026**
 
 All prices are in euros, exclusive of statutory value-added tax, and apply to
 businesses within the meaning of § 14 of the German Civil Code (BGB).
@@ -33,9 +33,8 @@ A paid license is required from the 101st activated mailbox.
 
 **Only mailboxes above the free tier are subject to license fees.**
 
-**Minimum purchase:** When the free tier is exceeded, a minimum of ten licenses
-must be purchased. These cover mailboxes 101 through 110. Above 110 mailboxes,
-additional licenses can be purchased individually.
+**No minimum purchase.** From the 101st mailbox, each license is purchased
+individually.
 
 Examples:
 
@@ -97,39 +96,43 @@ The payment method is chosen when purchasing licenses and may be changed at the
 end of the respective billing period.
 
 **Licenses renew automatically** for the period last chosen. The fee is taken
-from the balance shortly before expiry; if the balance is insufficient, the
-automatic top-up that has been set up is triggered. Every renewal is notified by
-email.
+to the stored payment method on the renewal date. An invoice for every renewal
+is sent by email.
 
-**Cancellation any time, no notice period.** The renewal can be stopped from the
-license management in the Gateway — including part-way through an annual term.
-The unused portion is refunded, calculated on the full calendar months that have
-not yet begun, at the regular monthly price of EUR 1.00 without the annual
-prepayment discount.
+**Cancellation any time, no notice period.** It is declared from the license
+management in the Gateway and takes effect **immediately** — including part-way
+through an annual term. The paid but unused portion is calculated **to the day**
+and refunded to the payment method used.
 
-Example for 100 licenses: Annual prepayment EUR 1,080.00. Cancellation after
-three months. Used: 3 × 100 × EUR 1.00 = EUR 300.00. Refund: EUR 1,080.00 −
-EUR 300.00 = EUR 780.00.
+Example for 100 licenses: Annual prepayment EUR 1,080.00 on 1 January,
+cancellation on 3 April, i.e. after 92 of 365 days. Used: 92/365 × EUR 1,080.00
+= EUR 272.22. Refund: EUR 807.78.
+
+The license ends with the cancellation; from that point the free tier applies
+again. A Customer wishing to use up the paid period cancels correspondingly
+later.
 
 ### Mid-Period Changes
 
-If the number of activated mailboxes exceeds the number of licenses purchased
-plus the free tier, additional licenses must be purchased accordingly. These are
-charged pro rata for the remaining full calendar months of the current billing
-period, so that all licenses end on the same date.
+The number of licenses can be changed at any time. Both directions are charged
+**to the day** for the remaining time of the current billing period, so that all
+licenses end on the same date.
+
+**Increase:** The additional licenses are charged immediately for the remaining
+time and collected from the stored payment method.
 
 Worked example: 200 activated mailboxes, i.e. 100 licenses, paid annually in
-advance from 1 January. In April the requirement grows to 220 mailboxes. The 20
-additional licenses are charged for the eight remaining full months (May to
-December): 20 × 8 × €0.90 = €144.00. All 120 licenses then run until the end of
+advance from 1 January. On 1 May the requirement grows to 220 mailboxes. For the
+20 additional licenses the remaining 245 of 365 days are charged:
+20 × 245/365 × €10.80 = €144.99. All 120 licenses then run until the end of
 the original period and are renewed together.
 
 If no full month remains — which is always the case with monthly payment — one
 month is charged. Otherwise an increase in the final month of the period would
 be free of charge.
 
-No refund is made for a reduction during the current billing period; the
-reduction takes effect from the following billing period.
+**Decrease:** The overpaid portion is calculated to the day and **refunded
+immediately to the payment method used** — not offset against the next invoice.
 
 ---
 
@@ -174,4 +177,4 @@ in use apply additionally.
 Alexander Zarenko - IT Consulting
 Triebelsstraße 4, 52066 Aachen, Germany
 
-*Version 1.0 — 24 July 2026*
+*Version 1.1 — 28 July 2026*

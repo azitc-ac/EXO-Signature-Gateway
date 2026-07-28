@@ -1,6 +1,6 @@
 # Lizenzbedingungen für die kommerzielle Nutzung des EXO Signature Gateway
 
-**Version 2.0 — Stand 27. Juli 2026**
+**Version 2.1 — Stand 28. Juli 2026**
 
 Lizenzgeber: Alexander Zarenko - IT Consulting, Triebelsstraße 4, 52066 Aachen
 (nachfolgend „Lizenzgeber")
@@ -62,9 +62,9 @@ Ziffer 6.10 bis 6.12 der Nutzungsbedingungen für den EXO Signature Hub. Die
 Laufzeit folgt der gewählten Zahlungsweise: monatliche Zahlung bedeutet
 Verlängerung um einen Monat, jährliche Vorauszahlung eine Laufzeit von zwölf
 Monaten mit Verlängerung um jeweils zwölf Monate. **Die Verlängerung erfolgt
-automatisch; der Lizenznehmer kann sie jederzeit und ohne Frist über die
-Lizenzverwaltung im Gateway beenden und erhält den nicht genutzten Anteil
-erstattet.**
+automatisch; der Lizenznehmer kann den Lizenzvertrag jederzeit und ohne Frist
+über die Lizenzverwaltung im Gateway beenden. Die Beendigung wirkt sofort, und
+der bezahlte, aber nicht genutzte Anteil wird taggenau zurückgezahlt.**
 
 3.2 **Bei Nutzung mit Lizenzschlüssel** gilt die auf dem Lizenzschlüssel
 ausgewiesene Gültigkeitsdauer, in der Regel zwölf Monate. Der Lizenzvertrag
@@ -83,10 +83,13 @@ Edition zurückzuführen oder erneut Lizenzen zu erwerben.
 3.5 Das Nutzungsrecht nach der Basislizenz im Umfang der Freigrenze bleibt von
 der Beendigung unberührt.
 
-3.6 Bei monatlicher Zahlung erfolgt keine Erstattung für den laufenden Monat.
-Bei jährlicher Vorauszahlung und vorzeitiger Kündigung gilt die
-Erstattungsregelung nach Ziffer 6.11 der Nutzungsbedingungen für den EXO
-Signature Hub. Für Lizenzschlüssel erfolgt keine Erstattung.
+3.6 Bei vorzeitiger Beendigung gilt die Rückzahlungsregelung nach Ziffer 6.11
+der Nutzungsbedingungen für den EXO Signature Hub: der nicht genutzte Anteil
+wird taggenau zurückgezahlt. Das gilt für **beide** Zahlungsweisen — auch bei
+monatlicher Zahlung wird der angebrochene Monat nicht voll berechnet.
+
+Für Lizenzschlüssel ohne Hub-Anbindung (Ziffer 3.2) erfolgt keine Erstattung;
+dort wird im Voraus für die gesamte Laufzeit abgerechnet.
 
 ---
 
@@ -95,7 +98,7 @@ Signature Hub. Für Lizenzschlüssel erfolgt keine Erstattung.
 4.1 Die Höhe der Lizenzgebühr richtet sich nach den im EXO Signature Hub
 ausgewiesenen, jeweils gültigen Preisen.
 
-4.2 Abrechnungsintervall, Mindestabnahme und Nachlässe richten sich nach
+4.2 Abrechnungsintervall und Nachlässe richten sich nach
 Ziffer 10 der Nutzungsbedingungen für den EXO Signature Hub sowie der jeweils
 gültigen Preisliste.
 
@@ -242,4 +245,4 @@ der Information.
 
 ---
 
-*Version 2.0 — 27. Juli 2026*
+*Version 2.1 — 28. Juli 2026*

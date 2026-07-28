@@ -69,29 +69,141 @@ def test_lizenzschluessel_geht_NICHT_an_die_oberflaeche(client, hub_antwort):
     assert "license" not in d
 
 
-def test_kauf_uebergibt_die_zahlungsweise(monkeypatch, client):
-    """Der erste der drei Fehler: die Oberfläche schickte sie, der
-    Gateway-Endpunkt warf sie weg, der Hub nahm seine Vorgabe."""
+def test_abo_aktion_reicht_jedes_feld_durch(monkeypatch, client):
+    """Der erste der drei Fehler: die Oberfläche schickte die Zahlungsweise, der
+    Gateway-Endpunkt warf sie weg, der Hub nahm seine Vorgabe.
+
+    Seit dem Umbau auf Abos gibt es nur noch EINEN Durchreicher für alle
+    Aktionen. Der Test prüft deshalb nicht mehr ein bestimmtes Feld, sondern
+    die Eigenschaft: was die Oberfläche schickt, kommt an — auch etwas, das
+    es beim Schreiben dieses Tests noch nicht gab.
+    """
     import hub_client
     gesehen = {}
 
-    async def _purchase(tenant_id, mailboxes, zahlungsweise=""):
-        gesehen["tenant_id"] = tenant_id
-        gesehen["mailboxes"] = mailboxes
-        gesehen["zahlungsweise"] = zahlungsweise
+    async def _weiter(pfad, nutzlast):
+        gesehen["pfad"] = pfad
+        gesehen.update(nutzlast)
         return {"ok": False, "error": "Attrappe — hier endet der Test"}
 
-    monkeypatch.setattr(hub_client, "purchase_license", _purchase)
-    # Das Zustimmungs-Gate (Lizenzbedingungen-Ergänzung) ist hier nicht der
-    # Prüfgegenstand und in der Testumgebung leer — sonst antwortet der
-    # Endpunkt mit 403, bevor er hub_client überhaupt erreicht.
+    monkeypatch.setattr(hub_client, "_license_json", _weiter)
+    # Das Zustimmungs-Gate ist hier nicht der Prüfgegenstand — es hat einen
+    # eigenen Test weiter unten. Ohne diese Zeile antwortet der Endpunkt mit
+    # 403, bevor er hub_client überhaupt erreicht.
     import legal_consent
     monkeypatch.setattr(legal_consent, "context_consented", lambda ctx: True)
     import settings_store
     settings_store.update({"TENANT_ID": "11111111-2222-3333-4444-555555555555"})
 
-    client.post("/api/license/purchase",
-                json={"mailboxes": 110, "zahlungsweise": "jaehrlich"})
+    client.post("/api/license/hub/checkout",
+                json={"mailboxes": 110, "zahlungsweise": "jaehrlich",
+                      "ein_spaeter_ergaenztes_feld": "muss ankommen"})
+    assert gesehen.get("pfad") == "checkout"
     assert gesehen.get("zahlungsweise") == "jaehrlich", (
         "Die Zahlungsweise erreicht hub_client nicht — der Kunde bekäme eine "
         "andere Laufzeit als die angezeigte.")
+    assert gesehen.get("mailboxes") == 110
+    assert gesehen.get("ein_spaeter_ergaenztes_feld") == "muss ankommen", (
+        "Der Durchreicher zählt Felder auf, statt sie weiterzugeben.")
+
+
+def test_tenant_id_kommt_vom_gateway_nicht_vom_browser(monkeypatch, client):
+    """Der Kopierschutz-Anker darf nicht aus dem Browser stammen.
+
+    Käme er von dort, könnte man eine Lizenz für einen fremden Mandanten
+    bestellen. Der Endpunkt setzt ihn deshalb selbst — und überschreibt einen
+    mitgeschickten Wert.
+    """
+    import hub_client
+    gesehen = {}
+
+    async def _weiter(pfad, nutzlast):
+        gesehen.update(nutzlast)
+        return {"ok": False, "error": "Attrappe"}
+
+    monkeypatch.setattr(hub_client, "_license_json", _weiter)
+    # Das Zustimmungs-Gate ist hier nicht der Prüfgegenstand — es hat einen
+    # eigenen Test weiter unten. Ohne diese Zeile antwortet der Endpunkt mit
+    # 403, bevor er hub_client überhaupt erreicht.
+    import legal_consent
+    monkeypatch.setattr(legal_consent, "context_consented", lambda ctx: True)
+    import settings_store
+    settings_store.update({"TENANT_ID": "11111111-2222-3333-4444-555555555555"})
+
+    client.post("/api/license/hub/checkout",
+                json={"mailboxes": 110, "tenant_id": "99999999-9999-9999-9999-999999999999"})
+    assert gesehen.get("tenant_id") == "11111111-2222-3333-4444-555555555555"
+
+
+def test_unbekannte_abo_aktion_wird_abgelehnt(client):
+    """Ohne Weissliste wäre der Durchreicher ein offener Weiterleiter."""
+    assert client.post("/api/license/hub/beliebig", json={}).status_code == 404
+
+
+# ── Zustimmungs-Gate ─────────────────────────────────────────────────────────
+# Am 28.07.2026 lief ein Kauf durch, obwohl den geänderten Bedingungen nicht
+# zugestimmt war. Beim Zusammenlegen der fünf Weiterleitungs-Endpunkte auf einen
+# blieb die Prüfung des alten Kaufendpunkts zurück.
+#
+# ⚠️ Diese Tests rufen den ENDPUNKT auf, nicht `context_consented()`. Genau
+# dieser Unterschied war der Grund, warum der Fehler unbemerkt blieb: die
+# Hilfsfunktion lieferte isoliert das richtige Ergebnis — sie wurde nur
+# nirgends mehr gefragt.
+
+@pytest.fixture
+def ohne_zustimmung(monkeypatch):
+    import legal_consent
+    monkeypatch.setattr(legal_consent, "context_consented", lambda ctx: False)
+
+
+@pytest.fixture
+def hub_attrappe(monkeypatch):
+    """Zählt, ob der Hub überhaupt erreicht wurde."""
+    import hub_client
+    erreicht = []
+
+    async def _weiter(pfad, nutzlast):
+        erreicht.append(pfad)
+        return {"ok": True}
+
+    monkeypatch.setattr(hub_client, "_license_json", _weiter)
+    return erreicht
+
+
+@pytest.mark.parametrize("aktion", ["checkout", "quantity", "zahlungsweise"])
+def test_ohne_zustimmung_kein_kauf(client, ohne_zustimmung, hub_attrappe, aktion):
+    r = client.post(f"/api/license/hub/{aktion}", json={"mailboxes": 110})
+    assert r.status_code == 403, f"{aktion} lief ohne Zustimmung durch"
+    assert not hub_attrappe, "der Hub wurde trotz fehlender Zustimmung angefragt"
+
+
+@pytest.mark.parametrize("aktion", ["cancel", "portal"])
+def test_beenden_bleibt_ohne_zustimmung_moeglich(client, ohne_zustimmung,
+                                                 hub_attrappe, aktion):
+    """Wer den neuen Bedingungen NICHT zustimmt, muss beenden können.
+
+    Eine Kündigung an die Zustimmung zu den Bedingungen zu binden, die man
+    gerade ablehnt, wäre eine Falle — der Kunde käme nicht mehr heraus.
+    """
+    r = client.post(f"/api/license/hub/{aktion}", json={})
+    assert r.status_code == 200, f"{aktion} wurde blockiert"
+    assert hub_attrappe == [aktion]
+
+
+def test_geltende_fassungen_gehen_an_den_hub(client, hub_attrappe, monkeypatch):
+    """Der Hub hat die Dokumente nicht und kann die Aktualität eines Belegs
+    sonst nicht beurteilen — er liess einen Beleg über eine ÜBERHOLTE Fassung
+    durchgehen."""
+    import legal_consent, hub_client
+    monkeypatch.setattr(legal_consent, "context_consented", lambda ctx: True)
+    gesehen = {}
+
+    async def _weiter(pfad, nutzlast):
+        gesehen.update(nutzlast)
+        return {"ok": True}
+
+    monkeypatch.setattr(hub_client, "_license_json", _weiter)
+    client.post("/api/license/hub/checkout", json={"mailboxes": 110})
+    versionen = gesehen.get("doc_versions") or {}
+    assert versionen.get("license-supplement") == \
+        legal_consent.CURRENT_DOCUMENTS["license-supplement"]["version"]

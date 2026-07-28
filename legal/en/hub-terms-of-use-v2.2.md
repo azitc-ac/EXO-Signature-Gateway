@@ -1,6 +1,6 @@
 # Terms of Use for the EXO Signature Hub
 
-**Version 2.1 — Date: 27 July 2026**
+**Version 2.2 — Date: 28 July 2026**
 
 Provider: Alexander Zarenko - IT Consulting, Triebelsstraße 4, 52066 Aachen, Germany
 (hereinafter "Provider")
@@ -199,9 +199,8 @@ licenses and to report the excess promptly. Only the mailboxes above the free
 tier threshold are subject to licensing fees. The prices displayed in the Hub at
 the time apply.
 
-6.6 Upon first exceeding the free tier, a minimum of ten licenses must be
-purchased. These entitle the Customer to use up to 110 activated mailboxes.
-Above 110 mailboxes, additional licenses can be purchased individually.
+6.6 There is no minimum purchase. From the first mailbox above the free tier,
+each license is purchased individually.
 
 6.7 The Gateway does not block any functions upon exceeding the threshold.
 Compliance is the Customer's responsibility.
@@ -219,32 +218,35 @@ The Provider wants customers to report an excess of their own accord. A
 retroactive claim should not stand in the way of that.
 
 6.10 **Licenses renew automatically for the period last chosen** — by one month
-for monthly payment, by twelve months for annual prepayment. The renewal is
-carried out a few days before expiry; the new term is counted from the previous
-expiry date, so that no days already paid for are lost. The fee is taken from
-the balance; if the balance is insufficient, an automatic top-up set up by the
-Customer is triggered. The Customer is notified of every renewal in text form.
+for monthly payment, by twelve months for annual prepayment. The new term is
+counted from the previous expiry date, so that no days already paid for are
+lost. The fee is charged to the stored payment method on the renewal date; the
+Customer receives an invoice in text form for every renewal.
 
-If the renewal fails — for instance for lack of balance — the license remains
-valid until its expiry date. The Provider notifies the Customer stating the
-reason and retries.
+**The balance under Section 10.6 is not used for licenses.** It serves
+certificate procurement alone. A Customer who only obtains licenses does not
+need a balance.
 
-6.11 **The Customer may stop the renewal at any time and without observing any
+If the charge fails, the license remains valid until its expiry date. The
+payment service provider retries on its own schedule and notifies the Customer;
+the Provider additionally shows the outstanding amount in the license
+management.
+
+6.11 **The Customer may end the license at any time and without observing any
 notice period.** The declaration is made via the license management in the
-Gateway and takes effect immediately: no further renewal takes place.
+Gateway and takes effect **immediately**: the license ends and no further
+renewal takes place. From that point the free tier under Section 6.2 applies
+again.
 
-The Provider refunds the unused portion of the license fee already paid. **It is
-calculated by deducting the contract months already begun — charged at the
-regular monthly price, without the discount granted for the annual term — from
-the amount paid.** The contract month running when the declaration is received
-counts as used. If the calculation yields no positive amount, no refund is made.
+The Provider refunds the paid but unused portion of the license fee. **It is
+calculated to the day**: the decisive ratio is the remaining days to the total
+number of days in the paid period. The refund is made to the payment method used
+for the payment. The price list contains a worked example.
 
-The discount for the annual term thus remains tied to actually using that term:
-anyone leaving early is billed at the regular price for the time used. The price
-list contains a worked example.
-
-As long as the license is still running, the Customer can reactivate the renewal
-from the same view.
+A Customer who wishes to use up the period already paid for declares the
+termination correspondingly later; the Provider does not offer termination
+effective at the expiry date, as that would create two termination routes with
+different outcomes.
 
 6.12 The Provider confirms receipt of the declaration and the refund amount in
 text form. This confirmation also satisfies the form requirement under
@@ -327,10 +329,12 @@ Section 6.10.
 
 10.5 If the number of activated mailboxes exceeds the scope covered by purchased
 licenses and the free tier, additional licenses must be purchased accordingly.
-These are charged pro rata for the remaining full calendar months of the current
-billing period, so that all licenses end on the same date. No refund is made for
-a reduction during the current billing period; it takes effect from the
-following billing period.
+These are charged **to the day** for the remaining time of the current billing
+period, so that all licenses end on the same date.
+
+For a reduction, the overpaid portion is likewise calculated to the day and
+**refunded immediately to the payment method used**; it is not offset against a
+future invoice.
 
 10.6 The Customer may request a switch to invoice billing. The separate Payment
 Terms (Invoice Purchase) apply in that case. There is no right to such a switch.
@@ -383,9 +387,9 @@ detriment.
 
 12.1 The contract runs for an indefinite period.
 
-12.2 The Customer may terminate at any time without notice period, effective at
-the end of the month; this mirrors the arrangement for licenses under
-Section 6.10.
+12.2 The Customer may terminate at any time without notice period; the
+termination takes effect immediately. For licenses, Section 6.11 additionally
+applies (refund of the unused portion calculated to the day).
 
 The Provider may terminate with 30 days' notice to the end of the month. That
 period gives the Customer time to arrange certificate procurement elsewhere.
@@ -397,6 +401,9 @@ after a formal reminder, manipulation of the license count, or serious abuse.
 12.4 Terminations must be in text form. Termination via the license management
 in the Gateway (Section 6.12) is equivalent to a declaration in text form; the
 Provider confirms it in text form.
+
+The payment service provider's customer portal serves to manage payment
+methods, invoices and master data; termination is not available there.
 
 12.5 Upon termination, access to the Hub ends. The right to use the Gateway
 under the applicable license remains unaffected.
@@ -457,4 +464,4 @@ information purposes only.
 
 ---
 
-*Version 2.1 — 27 July 2026*
+*Version 2.2 — 28 July 2026*
