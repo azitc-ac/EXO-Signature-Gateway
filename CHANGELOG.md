@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.92 — 2026-07-28 — Auszahlung nennt das Zielkonto; Preisliste 1.2; Zertifikatsbestellung prüft den Rahmenvertrag
+
+### Auszahlung: Bankverbindung für den nicht zuordenbaren Anteil
+
+Ein Teil des Guthabens lässt sich mitunter keiner Zahlung mehr zuordnen — etwa eine Gutschrift des Anbieters oder eine Aufladung, deren Beleg beim Zahlungsdienst nicht mehr erstattungsfähig ist. Dieser Teil kann nicht zurückgebucht, sondern muss überwiesen werden. Ziffer 10.7 sieht dafür ein „vom Kunden benanntes Konto" vor; einen Weg, es anzugeben, gab es nicht. Der Betrag blieb dann ohne Empfänger liegen.
+
+Die Auszahlung zeigt jetzt **vorab die Aufteilung** und fragt eine Bankverbindung **nur dann** ab, wenn tatsächlich ein solcher Anteil bleibt. Fällt keiner an, wird auch nicht danach gefragt — eine Bankverbindung zu erheben, die nie gebraucht wird, wäre unnötig.
+
+Die IBAN wird auf Prüfziffer und Länge geprüft. Ein Zahlendreher fällt damit sofort auf und nicht erst, wenn die Überweisung nicht ankommt. Die Bestätigungsmail weist das angegebene Konto aus, solange sich noch etwas korrigieren lässt.
+
+### Zertifikatsbestellung prüft den Rahmenvertrag
+
+Ziffer 13.4 nennt drei Vorgänge, die bei ausstehender Zustimmung gesperrt sind: Zertifikate bestellen, Guthaben aufladen, Lizenzen erwerben oder verlängern. Die letzten beiden prüften das seit v1.7.90, die Zertifikatsbestellung nicht — sie sah nur auf die Bedingungen für den Zertifikatsbezug, nicht auf die Hub-Nutzungsbedingungen. Eine geänderte Fassung des Rahmenvertrags ließ Bestellungen also unverändert durch. Jetzt werden beide geprüft.
+
+### Preisliste 1.2
+
+Zur Zahlungsweise stand dort, sie lasse sich „zum Ende des jeweiligen Abrechnungszeitraums" ändern. Tatsächlich wirkt der Wechsel **sofort**, und der nicht genutzte Anteil wird taggenau angerechnet — so, wie es auch bei Kündigung und Mengenänderung geschieht. Der Text folgt jetzt dem tatsächlichen Verhalten.
+
+Die Preisliste ist ein reines Informationsdokument; eine Zustimmung ist dafür nicht erforderlich und wird auch nicht verlangt.
+
 ## v1.7.91 — 2026-07-28 — Guthaben auszahlen ohne Kündigung; Zertifikatsbezug verlangt die geltende Fassung
 
 ### „Guthaben auszahlen" gibt es jetzt wirklich

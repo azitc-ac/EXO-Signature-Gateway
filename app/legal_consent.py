@@ -41,11 +41,11 @@ CURRENT_DOCUMENTS: dict[str, dict] = {
         "path_en": "en/payment-terms-invoice-v1.0.md",
     },
     "price-list": {
-        "version": "1.1",
+        "version": "1.2",
         "label_de": "Preisliste",
         "label_en": "Price List",
-        "path_de": "de/preisliste-v1.1.md",
-        "path_en": "en/price-list-v1.1.md",
+        "path_de": "de/preisliste-v1.2.md",
+        "path_en": "en/price-list-v1.2.md",
         "no_consent_required": True,
     },
     # Eine Datenschutzerklärung ist eine INFORMATION nach Art. 13/14 DSGVO, keine

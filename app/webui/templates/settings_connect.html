@@ -783,30 +783,60 @@ async function acctTopup() {
 }
 
 // Auszahlung des nicht verbrauchten Guthabens — ohne Kündigung, ohne
-// Abbestellung. Erstattet wird auf das ursprüngliche Zahlungsmittel, soweit
-// die Buchung dorthin zurückverfolgbar ist; ein Rest (etwa aus einer Korrektur
-// durch den Anbieter) wird zur Überweisung vorgemerkt.
+// Abbestellung. Erstattet wird auf das Zahlungsmittel, mit dem aufgeladen
+// wurde; ein Rest, der sich keiner Zahlung zuordnen lässt (etwa eine Gutschrift
+// des Anbieters), wird überwiesen — dafür braucht es eine Bankverbindung.
 async function acctRefund() {
-  if (!confirm('Nicht verbrauchtes Guthaben auszahlen?\n\n'
-      + 'Das gesamte Guthaben wird zurückgezahlt — auf das ursprüngliche '
-      + 'Zahlungsmittel, soweit möglich; ein nicht zuordenbarer Rest wird zur '
-      + 'Überweisung vorgemerkt.\n\n'
-      + 'Der Zertifikatsbezug bleibt aktiv. Für weitere Bestellungen muss '
-      + 'danach neu aufgeladen werden.')) return;
+  // Zuerst die Vorschau, dann erst fragen: nach der Bankverbindung wird nur
+  // gefragt, wenn wirklich ein nicht zuordenbarer Anteil bleibt. Sie immer zu
+  // erheben wäre unnötig (Art. 5 Abs. 1 lit. c DSGVO) und eine zusätzliche
+  // Hürde vor der eigenen Auszahlung.
+  let v;
+  try { v = await (await fetch('/api/hub/billing/refund/preview')).json(); }
+  catch (e) {
+    _acctMsg('Auszahlung nicht vorbereitbar.' + ursache(e, 'settings_connect:acctRefund'), false);
+    return;
+  }
+  if (!v || !v.ok) { _acctMsg('Auszahlung nicht vorbereitbar: ' + errText(v), false); return; }
+  if (!v.total_cents) { _acctMsg('Kein Guthaben vorhanden — nichts auszuzahlen.', true); return; }
+
+  let text = 'Nicht verbrauchtes Guthaben auszahlen?\n\n'
+           + eur(v.total_cents) + ' insgesamt.\n';
+  if (v.attributable_cents > 0) {
+    text += '• ' + eur(v.attributable_cents)
+          + ' zurück auf das Zahlungsmittel, mit dem aufgeladen wurde\n';
+  }
+  if (v.manual_cents > 0) {
+    text += '• ' + eur(v.manual_cents)
+          + ' per Überweisung — dafür wird gleich eine Bankverbindung abgefragt\n';
+  }
+  text += '\nDer Zertifikatsbezug bleibt aktiv. Für weitere Bestellungen muss '
+        + 'danach neu aufgeladen werden.';
+  if (!confirm(text)) return;
+
+  let konto = null;
+  if (v.manual_cents > 0) {
+    const iban = prompt('IBAN für die Überweisung von ' + eur(v.manual_cents) + ':', '');
+    if (iban === null) return;                       // abgebrochen
+    const inhaber = prompt('Kontoinhaber (wie bei der Bank hinterlegt):', '');
+    if (inhaber === null) return;
+    konto = {iban: iban, holder: inhaber};
+  }
+
   _acctMsg('Auszahlung wird veranlasst…', true);
-  const r = await postJSON('/api/hub/billing/refund', {});
+  const r = await postJSON('/api/hub/billing/refund', {bank_account: konto});
   if (!r.ok) { _acctMsg('Auszahlung fehlgeschlagen: ' + errText(r), false); return; }
   const e = r.refund || {};
   if (!e.total_cents) { _acctMsg('Kein Guthaben vorhanden — nichts auszuzahlen.', true); }
   else {
     // Beide Teilbeträge nennen: „erstattet" allein wäre falsch, wenn ein Teil
-    // nur vorgemerkt ist und erst per Überweisung kommt.
-    let text = eur(e.total_cents) + ' werden ausgezahlt.';
+    // erst per Überweisung kommt.
+    let m = eur(e.total_cents) + ' werden ausgezahlt.';
     if (e.manual_cents > 0) {
-      text += ' Davon ' + eur(e.stripe_refunded_cents || 0) + ' auf das Zahlungsmittel, '
-            + eur(e.manual_cents) + ' per Überweisung (wird gesondert veranlasst).';
+      m += ' Davon ' + eur(e.stripe_refunded_cents || 0) + ' auf das Zahlungsmittel, '
+         + eur(e.manual_cents) + ' per Überweisung auf das angegebene Konto.';
     }
-    _acctMsg(text, true);
+    _acctMsg(m, true);
   }
   acctLoad();
 }

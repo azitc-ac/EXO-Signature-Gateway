@@ -1,6 +1,6 @@
 # Price List — EXO Signature Gateway and EXO Signature Hub
 
-**Version 1.1 — Date: 28 July 2026**
+**Version 1.2 — Date: 28 July 2026**
 
 All prices are in euros, exclusive of statutory value-added tax, and apply to
 businesses within the meaning of § 14 of the German Civil Code (BGB).
@@ -92,8 +92,11 @@ is in advance for the full term; no refund is made.
 | Monthly | EUR 1.00 per license/month | monthly, renews automatically | any time, no notice period |
 | Annual prepayment | EUR 0.90 per license/month (10% discount) | 12 months, renews automatically | any time, no notice period |
 
-The payment method is chosen when purchasing licenses and may be changed at the
-end of the respective billing period.
+The payment interval is chosen when purchasing licenses and **may be changed at
+any time**. The change takes effect immediately: the unused portion of the
+current period is credited **to the day** against the new one. Where this
+results in a surplus in the customer's favour, it is refunded to the payment
+method used.
 
 **Licenses renew automatically** for the period last chosen. The fee is taken
 to the stored payment method on the renewal date. An invoice for every renewal
