@@ -1,9 +1,33 @@
 # Nutzungsbedingungen für den EXO Signature Hub
 
-**Version 2.2 — Stand 28. Juli 2026**
+**Version 2.3 — Stand 29. Juli 2026**
 
 Anbieter: Alexander Zarenko - IT Consulting, Triebelsstraße 4, 52066 Aachen
 (nachfolgend „Anbieter")
+
+---
+
+## Änderungen gegenüber früheren Fassungen
+
+- **2.3 (29. Juli 2026)** — Ziffer 10.3: Die Abrechnung wird nach Leistungsart
+  unterschieden. Zertifikate laufen weiter über das im Voraus aufgeladene
+  Guthaben; Lizenzen werden als Abonnement über das hinterlegte Zahlungsmittel
+  eingezogen. Zuvor war pauschal von einem Prepaid-Verfahren die Rede, was seit
+  der Umstellung der Lizenz auf ein Abonnement (Fassung 2.2) nicht mehr zutraf.
+  Der Grundsatz „Zahlung vor der Leistung" gilt unverändert für beides.
+- **2.2 (28. Juli 2026)** — Lizenz als Abonnement: Die Mindestabnahme entfällt
+  (6.6). Die Lizenz kann jederzeit fristlos beendet werden; der bezahlte, nicht
+  genutzte Anteil wird taggenau zurückgezahlt (6.11, 6.12). Die Kündigung wirkt
+  sofort statt zum Laufzeitende (12.2). Mengenänderungen werden taggenau
+  abgerechnet (10.5).
+- **2.1 (27. Juli 2026)** — Ziffer 6: Berechnung des Erstattungsbetrags bei
+  vorzeitiger Beendigung einer Jahreslaufzeit präzisiert. Der Nachlass bleibt an
+  die tatsächliche Nutzung geknüpft.
+- **2.0 (27. Juli 2026)** — Ziffer 13 neu gefasst: Änderungen dieser Bedingungen
+  werden erst wirksam, wenn der Kunde ihnen ausdrücklich zustimmt. Schweigen gilt
+  nicht mehr als Zustimmung; es gibt weder Widerspruchsfrist noch
+  Zustimmungsfiktion.
+- **1.0 (26. Juli 2026)** — Erstfassung.
 
 ---
 
@@ -327,8 +351,11 @@ Leistungen.
 10.2 Es gelten die zum Zeitpunkt der Bestellung im Hub ausgewiesenen Preise.
 Alle Preise verstehen sich zuzüglich der gesetzlichen Umsatzsteuer.
 
-10.3 **Die Abrechnung erfolgt grundsätzlich im Prepaid-Verfahren.** Leistungen
-werden erst nach Zahlungseingang erbracht.
+10.3 **Die Abrechnung richtet sich nach der Leistungsart.** Zertifikate werden
+aus einem im Voraus aufgeladenen Guthaben bezahlt (Prepaid-Verfahren). Lizenzen
+werden nicht über das Guthaben abgerechnet, sondern als Abonnement zu Beginn des
+jeweiligen Abrechnungszeitraums über das hinterlegte Zahlungsmittel eingezogen.
+In beiden Fällen erfolgt die Zahlung vor der Leistung.
 
 10.4 Lizenzen werden standardmäßig monatlich abgerechnet. Der Kunde kann
 stattdessen die jährliche Abrechnung im Voraus wählen; in diesem Fall wird der
@@ -476,4 +503,4 @@ der Information.
 
 ---
 
-*Version 2.2 — 28. Juli 2026*
+*Version 2.3 — 29. Juli 2026*

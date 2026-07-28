@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.94 — 2026-07-29 — Nutzungsbedingungen 2.3: Abrechnung nach Leistungsart; Änderungshistorie in den Dokumenten
+
+### Ziffer 10.3 traf nicht mehr zu
+
+Dort stand, die Abrechnung erfolge „grundsätzlich im Prepaid-Verfahren". Das galt, solange auch Lizenzen aus dem Guthaben bezahlt wurden. Seit der Umstellung der Lizenz auf ein Abonnement (Fassung 2.2) trifft es nur noch auf Zertifikate zu — Lizenzen werden über das hinterlegte Zahlungsmittel eingezogen, ein Guthaben ist dafür nicht erforderlich.
+
+Die Ziffer unterscheidet jetzt nach Leistungsart. Der Grundsatz, dass die Zahlung stets vor der Leistung erfolgt, gilt unverändert für beides — darauf beruht unter anderem, dass die automatische Aufladung keine gesonderte Freigabe braucht.
+
+Preisliste und Oberfläche beschrieben die Trennung bereits zutreffend; die Nutzungsbedingungen waren die letzte Stelle, an der die alte Darstellung stand.
+
+**Zu tun:** Die Änderung betrifft eine zustimmungspflichtige Fassung. Sie ist im Abschnitt „Rechtliche Dokumente" zu bestätigen; bis dahin sind Aufladen, Lizenzerwerb und Zertifikatsbestellung gesperrt (Ziffer 13.4). Der laufende Betrieb — Signatur, S/MIME, Verschlüsselung — ist davon nicht berührt.
+
+### Änderungshistorie in den Dokumenten selbst
+
+Jedes geänderte Rechtsdokument führt am Anfang auf, was sich gegenüber den früheren Fassungen geändert hat, neueste zuerst. Wer eine neue Fassung bestätigen soll, muss dafür nicht mehr das vollständige Dokument erneut lesen.
+
+Vorhanden in den Nutzungsbedingungen und der Preisliste; die übrigen Dokumente erhalten ihre Historie, sobald sie das nächste Mal geändert werden.
+
 ## v1.7.93 — 2026-07-28 — Kurzmeldungen sind als Hinweis erkennbar
 
 Abgelehnte Vorgänge meldeten sich als unformatierter Fließtext. Eine Ablehnung wie „Den aktuellen Fassungen der Rechtsdokumente wurde noch nicht zugestimmt" stand damit ohne jede Hervorhebung zwischen den übrigen Angaben — im Dunkelmodus besonders unauffällig, weil auch die sonst übliche Rotfärbung fehlte.

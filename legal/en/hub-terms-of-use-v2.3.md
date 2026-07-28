@@ -1,6 +1,6 @@
 # Terms of Use for the EXO Signature Hub
 
-**Version 2.2 — Date: 28 July 2026**
+**Version 2.3 — Date: 29 July 2026**
 
 Provider: Alexander Zarenko - IT Consulting, Triebelsstraße 4, 52066 Aachen, Germany
 (hereinafter "Provider")
@@ -8,6 +8,29 @@ Provider: Alexander Zarenko - IT Consulting, Triebelsstraße 4, 52066 Aachen, Ge
 **The German version of this document is legally binding. This English translation
 is provided for information purposes only. In the event of any discrepancy between
 the German and English versions, the German version shall prevail.**
+
+---
+
+## Changes from previous versions
+
+- **2.3 (29 July 2026)** — Clause 10.3: billing is now distinguished by type of
+  service. Certificates continue to be paid from a pre-loaded balance; licenses
+  are collected as a subscription via the stored payment method. The previous
+  blanket reference to a prepaid basis ceased to be accurate when licenses moved
+  to a subscription (version 2.2). The principle of payment before performance is
+  unchanged for both.
+- **2.2 (28 July 2026)** — Licenses as a subscription: the minimum purchase
+  requirement is removed (6.6). A license may be terminated at any time without
+  notice; the paid but unused portion is refunded to the day (6.11, 6.12).
+  Termination takes effect immediately rather than at the end of the term (12.2).
+  Quantity changes are billed to the day (10.5).
+- **2.1 (27 July 2026)** — Clause 6: calculation of the refund on early
+  termination of an annual term clarified. The discount remains tied to actual
+  use.
+- **2.0 (27 July 2026)** — Clause 13 recast: changes to these terms take effect
+  only once the customer expressly consents. Silence no longer constitutes
+  consent; there is neither an objection period nor deemed consent.
+- **1.0 (26 July 2026)** — Initial version.
 
 ---
 
@@ -319,8 +342,10 @@ licenses, and separately agreed services are subject to fees.
 10.2 The prices displayed in the Hub at the time of order apply. All prices are
 exclusive of statutory value-added tax.
 
-10.3 **Billing is generally on a prepaid basis.** Services are only provided
-after receipt of payment.
+10.3 **Billing depends on the type of service.** Certificates are paid from a
+pre-loaded balance (prepaid). Licenses are not billed against that balance but
+are collected as a subscription via the stored payment method at the start of
+each billing period. In both cases payment is made before performance.
 
 10.4 Licenses are billed monthly by default. The Customer may instead choose
 annual billing in advance; in this case, the discount displayed in the Hub will
@@ -464,4 +489,4 @@ information purposes only.
 
 ---
 
-*Version 2.2 — 28 July 2026*
+*Version 2.3 — 29 July 2026*
