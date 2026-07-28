@@ -4971,35 +4971,88 @@ async def api_hub_cert_eligibility(user: str = Depends(_require_admin)):
 # Gateway sieht weder Kartendaten noch einen Stripe-Schluessel, es reicht die
 # Anfragen nur durch.
 
+# Zuordnung Zahlweg → geforderter Zustimmungskontext. Zweck ist derselbe wie bei
+# `_HUB_AKTIONEN`: eine Menge geldbewegender Endpunkte laedt dazu ein, bei einem
+# davon die Wache zu vergessen. Eine Zuordnung zwingt dazu, fuer JEDEN eine
+# Entscheidung zu treffen — auch die Entscheidung "bewusst frei" (None).
+#
+# Anlass (28.07.2026): Aufladen war moeglich, obwohl `hub-terms` in Fassung 2.2
+# vorlag und nur Fassung 2.1 bestaetigt war. Der Lizenzkauf hatte sein Gate,
+# die drei Zahlwege daneben nicht — dieselbe Luecke, nur eine Datei weiter.
+#
+# `disable` ist bewusst frei: wer die Automatik abstellen will, darf daran nicht
+# durch eine ausstehende Zustimmung gehindert werden. Dieselbe Ueberlegung wie
+# bei `cancel`/`portal` in `_HUB_AKTIONEN` — eine Bremse braucht kein Gate.
+_ZAHLWEG_KONTEXT = {
+    "topup":        "billing_charge",
+    "auto_setup":   "billing_charge",
+    "auto_amount":  "billing_charge",
+    "auto_disable": None,
+    "auto_status":  None,
+    "billing_me":   None,
+}
+
+
+def _zahlweg_gate(zahlweg: str) -> None:
+    """Zustimmung fuer einen geldbewegenden Weg pruefen. Wirft HTTPException.
+
+    Unbekannter Schluessel ist ein Programmierfehler und keine stille Freigabe:
+    wer einen Zahlweg ergaenzt, ohne ihn einzutragen, bekommt sofort einen
+    Fehler statt eines offenen Endpunkts.
+    """
+    if zahlweg not in _ZAHLWEG_KONTEXT:
+        raise HTTPException(500, f"Zahlweg '{zahlweg}' ist nicht zugeordnet.")
+    kontext = _ZAHLWEG_KONTEXT[zahlweg]
+    if not kontext:
+        return
+    import legal_consent
+    if not legal_consent.context_consented(kontext):
+        raise HTTPException(403, "Den aktuellen Fassungen der Rechtsdokumente wurde "
+                                 "noch nicht zugestimmt. Sie stehen im Abschnitt "
+                                 "'Rechtliche Dokumente' auf dieser Seite.")
+
+
+def _doc_versions() -> dict:
+    """Geltende Fassungen fuer den zweiten Riegel im Hub."""
+    import legal_consent
+    return legal_consent.current_versions()
+
+
 @app.get("/api/hub/billing/auto")
 async def api_hub_billing_auto(user: str = Depends(_require_admin)):
     import hub_client
+    _zahlweg_gate("auto_status")
     return JSONResponse(await hub_client.billing_auto_status())
 
 
 @app.post("/api/hub/billing/auto/setup")
 async def api_hub_billing_auto_setup(request: Request, user: str = Depends(_require_admin)):
     import hub_client
+    _zahlweg_gate("auto_setup")
     try:
         data = await request.json()
     except Exception:
         data = {}
-    return JSONResponse(await hub_client.billing_auto_setup(int(data.get("amount_cents") or 0)))
+    return JSONResponse(await hub_client.billing_auto_setup(
+        int(data.get("amount_cents") or 0), doc_versions=_doc_versions()))
 
 
 @app.post("/api/hub/billing/auto/amount")
 async def api_hub_billing_auto_amount(request: Request, user: str = Depends(_require_admin)):
     import hub_client
+    _zahlweg_gate("auto_amount")
     try:
         data = await request.json()
     except Exception:
         data = {}
-    return JSONResponse(await hub_client.billing_auto_amount(int(data.get("amount_cents") or 0)))
+    return JSONResponse(await hub_client.billing_auto_amount(
+        int(data.get("amount_cents") or 0), doc_versions=_doc_versions()))
 
 
 @app.post("/api/hub/billing/auto/disable")
 async def api_hub_billing_auto_disable(user: str = Depends(_require_admin)):
     import hub_client
+    _zahlweg_gate("auto_disable")
     return JSONResponse(await hub_client.billing_auto_disable())
 
 
@@ -5012,6 +5065,7 @@ async def api_hub_billing_me(user: str = Depends(_require_admin)):
     nichts zu tun und soll seinen Kontostand trotzdem sehen.
     """
     import hub_client
+    _zahlweg_gate("billing_me")
     return JSONResponse(await hub_client.billing_me())
 
 
@@ -5024,6 +5078,7 @@ async def api_hub_billing_topup(request: Request, user: str = Depends(_require_a
     den Vorgang falsch einsortiert.
     """
     import hub_client
+    _zahlweg_gate("topup")
     data = await request.json()
     amount_cents = data.get("amount_cents")
     if amount_cents is None and data.get("amount_eur") is not None:
@@ -5033,4 +5088,5 @@ async def api_hub_billing_topup(request: Request, user: str = Depends(_require_a
             amount_cents = None
     if not amount_cents:
         raise HTTPException(400, "Betrag erforderlich.")
-    return JSONResponse(await hub_client.billing_topup(int(amount_cents)))
+    return JSONResponse(await hub_client.billing_topup(
+        int(amount_cents), doc_versions=_doc_versions()))

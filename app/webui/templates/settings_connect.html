@@ -737,13 +737,26 @@ function _bezahlfenster() {
 }
 
 function _bezahlseiteZeigen(fenster, url, msgEl) {
-  if (fenster && !fenster.closed) { fenster.location.href = url; return; }
+  if (fenster && !fenster.closed) {
+    fenster.location.href = url;
+    // Hub-Bezahlseite sendet stripe-payment-done via postMessage sobald die
+    // Zahlung verarbeitet ist → Seite automatisch neu laden.
+    window.addEventListener('message', function _stripeHandler(e) {
+      if (e.source === fenster && (e.data || {}).type === 'stripe-payment-done') {
+        window.removeEventListener('message', _stripeHandler);
+        window.location.reload();
+      }
+    });
+    return;
+  }
   // Popup blockiert: kein stiller Fehlschlag, sondern ein Link. Ein Klick
   // darauf ist wieder eine echte Nutzergeste und geht durch.
-  msgEl.dataset.state = 'err';
-  msgEl.innerHTML = 'Der Browser hat das Fenster blockiert — '
-    + '<a href="' + escAttr(url) + '" target="_blank" rel="noopener">Bezahlseite hier öffnen</a>.';
-  msgEl.style.display = 'block';
+  if (msgEl) {
+    msgEl.dataset.state = 'err';
+    msgEl.innerHTML = 'Der Browser hat das Fenster blockiert — '
+      + '<a href="' + escAttr(url) + '" target="_blank" rel="noopener">Bezahlseite hier öffnen</a>.';
+    msgEl.style.display = 'block';
+  }
 }
 
 async function acctTopup() {
@@ -754,8 +767,7 @@ async function acctTopup() {
   const fenster = _bezahlfenster();          // vor dem await, siehe oben
   const r = await postJSON('/api/hub/billing/topup', {amount_eur: betrag});
   if (r.ok && r.checkout_url) {
-    _acctMsg('Bezahlseite geöffnet. Nach der Zahlung wird das Guthaben gutgeschrieben — '
-           + 'danach diese Seite neu laden.', true);
+    _acctMsg('Bezahlseite geöffnet. Die Seite wird nach Zahlungseingang automatisch aktualisiert.', true);
     _bezahlseiteZeigen(fenster, r.checkout_url, document.getElementById('acct-msg'));
   } else {
     if (fenster && !fenster.closed) fenster.close();
@@ -1317,7 +1329,7 @@ async function licAboKaufen() {
                               'Bezahlseite wird vorbereitet…');
   if (!r) { if (fenster) fenster.close(); return; }
   _bezahlseiteZeigen(fenster, r.url);
-  _licAboMsg('Bezahlseite geöffnet. Nach dem Abschluss diese Seite neu laden.', true);
+  _licAboMsg('Bezahlseite geöffnet. Die Seite wird nach Zahlungseingang automatisch aktualisiert.', true);
 }
 
 async function licAboMenge() {

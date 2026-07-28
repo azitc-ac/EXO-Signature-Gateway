@@ -157,3 +157,92 @@ def test_fehlende_datei_erzeugt_kein_banner(lc):
     lc.unlink()
     assert legal_consent.pending_reconsent() == []
     assert not legal_consent.has_valid_consent("muster")
+
+
+# ── 3. Zahlwege ──────────────────────────────────────────────────────────────
+# Anlass (28.07.2026): Aufladen war moeglich, obwohl `hub-terms` in Fassung 2.2
+# vorlag und nur 2.1 bestaetigt war. Der Lizenzkauf hatte sein Gate ueber
+# `_HUB_AKTIONEN`, die drei Zahlwege daneben gar keines. Die Registry
+# `_ZAHLWEG_KONTEXT` erzwingt jetzt fuer JEDEN eine Entscheidung; diese Tests
+# halten fest, dass sie vollstaendig bleibt und die Endpunkte sie auch abrufen.
+
+def test_zahlungskontext_ist_deklariert():
+    """`billing_charge` muss in CONTEXT_DOCUMENTS stehen, sonst wirft
+    context_consented() bei jedem Aufladeversuch."""
+    assert "billing_charge" in legal_consent.CONTEXT_DOCUMENTS
+    assert legal_consent.CONTEXT_DOCUMENTS["billing_charge"] == ["hub-terms"]
+
+
+def test_jeder_kontext_verweist_auf_bekannte_dokumente():
+    """Ein Tippfehler im Dokumentnamen liesse das Gate dauerhaft sperren —
+    has_valid_consent() findet das Dokument nie."""
+    unbekannt = []
+    for kontext, docs in legal_consent.CONTEXT_DOCUMENTS.items():
+        for d in docs:
+            if d not in legal_consent.CURRENT_DOCUMENTS:
+                unbekannt.append(f"{kontext} → {d}")
+    assert not unbekannt, "Kontext zeigt auf unbekanntes Dokument: " + ", ".join(unbekannt)
+
+
+def _app_quelltext() -> str:
+    return (REPO / "app" / "webui" / "app.py").read_text(encoding="utf-8")
+
+
+def test_jeder_zahlweg_ist_der_registry_bekannt():
+    """Jeder `_zahlweg_gate("x")`-Aufruf muss einen Eintrag in
+    `_ZAHLWEG_KONTEXT` haben. Fehlt er, wirft die Funktion zur Laufzeit 500 —
+    dieser Test findet es vorher."""
+    quelltext = _app_quelltext()
+    m = re.search(r'_ZAHLWEG_KONTEXT\s*=\s*\{(.*?)\n\}', quelltext, re.S)
+    assert m, "_ZAHLWEG_KONTEXT nicht gefunden"
+    bekannt = set(re.findall(r'"([a-z_]+)"\s*:', m.group(1)))
+    gerufen = set(re.findall(r'_zahlweg_gate\("([a-z_]+)"\)', quelltext))
+    fehlend = gerufen - bekannt
+    assert not fehlend, f"nicht in _ZAHLWEG_KONTEXT eingetragen: {sorted(fehlend)}"
+
+
+def test_registry_hat_keine_toten_eintraege():
+    """Ein Eintrag ohne Aufruf ist Dekoration und taeuscht Schutz vor."""
+    quelltext = _app_quelltext()
+    m = re.search(r'_ZAHLWEG_KONTEXT\s*=\s*\{(.*?)\n\}', quelltext, re.S)
+    bekannt = set(re.findall(r'"([a-z_]+)"\s*:', m.group(1)))
+    gerufen = set(re.findall(r'_zahlweg_gate\("([a-z_]+)"\)', quelltext))
+    tot = bekannt - gerufen
+    assert not tot, f"in der Registry, aber nirgends gerufen: {sorted(tot)}"
+
+
+def test_geldbewegende_endpunkte_haben_ein_gate():
+    """Die drei Wege, die am 28.07.2026 offen waren. Wer eines der Gates
+    wieder herausnimmt, faellt hier auf."""
+    quelltext = _app_quelltext()
+    for pfad, zahlweg in (("/api/hub/billing/topup", "topup"),
+                          ("/api/hub/billing/auto/setup", "auto_setup"),
+                          ("/api/hub/billing/auto/amount", "auto_amount")):
+        block = re.search(re.escape(f'@app.post("{pfad}")') + r'(.*?)(?=\n@app\.|\Z)',
+                          quelltext, re.S)
+        assert block, f"Endpunkt {pfad} nicht gefunden"
+        assert f'_zahlweg_gate("{zahlweg}")' in block.group(1), (
+            f"{pfad} bewegt Geld, ruft aber _zahlweg_gate('{zahlweg}') nicht auf")
+
+
+def test_zahlwege_reichen_die_fassungen_an_den_hub():
+    """Ohne `doc_versions` faellt die Hub-Pruefung auf die blosse Existenz
+    zurueck — dann waere der zweite Riegel so loechrig wie vorher."""
+    quelltext = _app_quelltext()
+    for pfad in ("/api/hub/billing/topup", "/api/hub/billing/auto/setup",
+                 "/api/hub/billing/auto/amount"):
+        block = re.search(re.escape(f'@app.post("{pfad}")') + r'(.*?)(?=\n@app\.|\Z)',
+                          quelltext, re.S)
+        assert "doc_versions=_doc_versions()" in block.group(1), (
+            f"{pfad} reicht die geltenden Fassungen nicht an den Hub durch")
+
+
+def test_abschalten_der_automatik_ist_frei():
+    """Eine Bremse braucht kein Gate — sonst haelt eine ausstehende Zustimmung
+    den Kunden in der Abbuchung fest."""
+    assert legal_consent  # Modul geladen
+    quelltext = _app_quelltext()
+    m = re.search(r'_ZAHLWEG_KONTEXT\s*=\s*\{(.*?)\n\}', quelltext, re.S)
+    eintrag = re.search(r'"auto_disable"\s*:\s*(None|"[a-z_]+")', m.group(1))
+    assert eintrag and eintrag.group(1) == "None", (
+        "auto_disable muss bewusst ohne Kontext bleiben")

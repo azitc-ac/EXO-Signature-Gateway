@@ -207,3 +207,96 @@ def test_geltende_fassungen_gehen_an_den_hub(client, hub_attrappe, monkeypatch):
     versionen = gesehen.get("doc_versions") or {}
     assert versionen.get("license-supplement") == \
         legal_consent.CURRENT_DOCUMENTS["license-supplement"]["version"]
+
+
+# ── Zustimmungs-Gate auf den Zahlwegen ───────────────────────────────────────
+# Am 28.07.2026 liess sich Guthaben aufladen, obwohl `hub-terms` in Fassung 2.2
+# vorlag und nur 2.1 bestaetigt war. Der Lizenzkauf oben hatte sein Gate seit
+# demselben Tag — die drei Zahlwege daneben hatten nie eines. Dieselbe Luecke,
+# eine Bildschirmseite weiter.
+#
+# ⚠️ Auch diese Tests rufen den ENDPUNKT auf, aus dem Grund, der oben steht.
+
+@pytest.fixture
+def billing_attrappe(monkeypatch):
+    """Zaehlt, ob der Hub auf einem Zahlweg erreicht wurde."""
+    import hub_client
+    erreicht = []
+
+    async def _topup(amount_cents, doc_versions=None):
+        erreicht.append(("topup", amount_cents, doc_versions))
+        return {"ok": True, "checkout_url": "https://example.invalid/pay"}
+
+    async def _setup(amount_cents=0, doc_versions=None):
+        erreicht.append(("auto_setup", amount_cents, doc_versions))
+        return {"ok": True, "checkout_url": "https://example.invalid/pay"}
+
+    async def _amount(amount_cents, doc_versions=None):
+        erreicht.append(("auto_amount", amount_cents, doc_versions))
+        return {"ok": True}
+
+    async def _disable():
+        erreicht.append(("auto_disable", None, None))
+        return {"ok": True}
+
+    monkeypatch.setattr(hub_client, "billing_topup", _topup)
+    monkeypatch.setattr(hub_client, "billing_auto_setup", _setup)
+    monkeypatch.setattr(hub_client, "billing_auto_amount", _amount)
+    monkeypatch.setattr(hub_client, "billing_auto_disable", _disable)
+    return erreicht
+
+
+_ZAHLWEGE = [
+    ("/api/hub/billing/topup", {"amount_cents": 2500}),
+    ("/api/hub/billing/auto/setup", {"amount_cents": 2500}),
+    ("/api/hub/billing/auto/amount", {"amount_cents": 2500}),
+]
+
+
+@pytest.mark.parametrize("pfad,koerper", _ZAHLWEGE)
+def test_ohne_zustimmung_kein_geld(client, ohne_zustimmung, billing_attrappe,
+                                   pfad, koerper):
+    """DER Fehlerfall: Aufladen ohne gueltige Zustimmung."""
+    r = client.post(pfad, json=koerper)
+    assert r.status_code == 403, f"{pfad} lief ohne Zustimmung durch"
+    assert not billing_attrappe, "der Hub wurde trotz fehlender Zustimmung angefragt"
+
+
+@pytest.mark.parametrize("pfad,koerper", _ZAHLWEGE)
+def test_mit_zustimmung_geht_der_zahlweg_durch(client, billing_attrappe,
+                                               monkeypatch, pfad, koerper):
+    """Die Gegenprobe — sonst koennte das Gate einfach alles blockieren und
+    die Tests oben waeren trotzdem gruen."""
+    import legal_consent
+    monkeypatch.setattr(legal_consent, "context_consented", lambda ctx: True)
+    r = client.post(pfad, json=koerper)
+    assert r.status_code == 200, f"{pfad} wurde trotz Zustimmung blockiert"
+    assert billing_attrappe, "der Hub wurde nicht erreicht"
+
+
+def test_abschalten_bleibt_ohne_zustimmung_moeglich(client, ohne_zustimmung,
+                                                    billing_attrappe):
+    """Eine Bremse braucht kein Gate: wer den neuen Bedingungen nicht zustimmt,
+    muss die Abbuchung trotzdem stoppen koennen — sonst ist er gefangen.
+    Dieselbe Ueberlegung wie bei `cancel`/`portal` oben.
+    """
+    r = client.post("/api/hub/billing/auto/disable", json={})
+    assert r.status_code == 200, "Abschalten wurde blockiert"
+    assert billing_attrappe == [("auto_disable", None, None)]
+
+
+@pytest.mark.parametrize("pfad,koerper", _ZAHLWEGE)
+def test_zahlwege_melden_die_geltenden_fassungen(client, billing_attrappe,
+                                                 monkeypatch, pfad, koerper):
+    """Der Hub hat die Dokumente nicht. Ohne `doc_versions` faellt er auf die
+    blosse Existenzpruefung zurueck und liesse einen Beleg ueber eine ueberholte
+    Fassung durchgehen — genau der Fehler, der behoben werden sollte.
+    """
+    import legal_consent
+    monkeypatch.setattr(legal_consent, "context_consented", lambda ctx: True)
+    client.post(pfad, json=koerper)
+    assert billing_attrappe, "der Hub wurde nicht erreicht"
+    _, _, versionen = billing_attrappe[0]
+    assert versionen, f"{pfad} meldet keine Fassungen"
+    assert versionen.get("hub-terms") == \
+        legal_consent.CURRENT_DOCUMENTS["hub-terms"]["version"]
