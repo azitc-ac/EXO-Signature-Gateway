@@ -205,6 +205,28 @@ h3 { font-size: 13px; font-weight: 600; margin: 16px 0 8px; color: #555; }
 .alert.error   { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
 .alert.warn    { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
 
+/* Kurzmeldungen aus showMsg() — EINE Regel für alle, nicht je Element.
+ *
+ * Anlass (28.07.2026): eine Ablehnung („Den aktuellen Fassungen wurde noch
+ * nicht zugestimmt") stand als unformatierter Fließtext da und ging unter.
+ * Grund: `.msg` war NIRGENDS gestylt; nur #auto-topup-msg hatte eine eigene
+ * ID-Regel. Jedes weitere Meldungsfeld war damit unsichtbar mitbetroffen.
+ *
+ * showMsg() setzt ausschliesslich data-state (Regel 2: keine Farben aus JS).
+ * Deshalb hängt das Aussehen hier am Attribut — jedes Element, das showMsg()
+ * nutzt, ist damit automatisch versorgt. Selbe Optik wie .alert, damit
+ * Meldung und Banner nicht verschieden aussehen.
+ */
+.msg[data-state] {
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    overflow-wrap: anywhere;
+    max-width: 100%;
+}
+.msg[data-state="ok"]  { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
+.msg[data-state="err"] { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+
 /* Forms / Editor */
 .editor-section { margin-bottom: 20px; }
 label { display: block; margin-bottom: 6px; font-weight: 500; }
