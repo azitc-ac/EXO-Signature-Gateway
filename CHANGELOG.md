@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.97 — 2026-07-29 — Maskierung vereinheitlicht, Prüfung greift jetzt zuverlässig
+
+Vier Vorlagen brachten eine eigene Textmaskierung für HTML mit, statt die gemeinsame zu verwenden. Alle vier waren **schwächer**: keine von ihnen maskierte einfache Anführungszeichen. Sie sind entfernt; die Stellen nutzen jetzt die gemeinsame Funktion.
+
+Die zugehörige Prüfung (`tools/driftcheck.py`) suchte solche Eigenbauten am **Namen** — sie musste mit „esc" beginnen. Eine Maskierung, die anders heißt, blieb unentdeckt; genau so sind die vier entstanden. Gesucht wird jetzt am Inhalt: was `&` durch `&amp;` und `<` durch `&lt;` ersetzt, ist eine HTML-Maskierung, gleich wie sie heißt.
+
+Betrifft die Oberfläche nur insoweit, als Sonderzeichen in Namen und Adressen zuverlässiger dargestellt werden.
+
 ## v1.7.96 — 2026-07-29 — Fehler stehen am Feld, Erklärtexte sind gekürzt, Formulare eingeklappt
 
 ### Eingabefehler stehen jetzt am betroffenen Feld
