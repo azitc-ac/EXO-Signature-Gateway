@@ -80,6 +80,11 @@ CONTEXT_DOCUMENTS: dict[str, list[str]] = {
     # Gate C — Diagnosepaket-Upload. Der AVV muss VOR der ersten Übermittlung
     # geschlossen sein (Art. 28 Abs. 3 DSGVO), nicht erst danach.
     "support_upload":   ["dpa"],
+    # Gate D — Guthaben aufladen und Zahlungsautomatik. Der Rahmenvertrag reicht:
+    # Guthaben ist zweckneutral und bezahlt Lizenzen wie Zertifikate. Die
+    # Lizenzbedingungen-Ergänzung greift erst beim Lizenzkauf selbst
+    # (`license_purchase`), die Zahlungsbedingungen erst beim Rechnungskauf.
+    "billing_charge":   ["hub-terms"],
 }
 
 

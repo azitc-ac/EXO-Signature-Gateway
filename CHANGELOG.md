@@ -5,6 +5,28 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.90 — 2026-07-28 — Zustimmungspflicht auf allen Zahlwegen; Bezahlseite aktualisiert selbsttätig
+
+### Guthaben ließ sich ohne gültige Zustimmung aufladen
+
+Drei Vorgänge kamen ohne Prüfung der Rechtsdokumente aus: **Guthaben aufladen**, **Zahlungsautomatik einrichten** und **Aufladebetrag der Automatik ändern**. Geprüft wurde dort ausschließlich, ob das Konto freigegeben ist.
+
+Das Zustimmungs-Gate aus v1.7.88 lag nur auf den Lizenzwegen — Kauf, Mengenänderung, Wechsel der Zahlungsweise. Die Zahlwege daneben waren nie erfasst. Praktisch wirkte sich das aus, sobald eine Fassung wechselte: ein Beleg über die Vorgängerfassung ließ eine Zahlung weiterhin zu, obwohl Ziffer 13.3 dafür eine erneute Zustimmung verlangt.
+
+**Jetzt gilt:** Wer Guthaben auflädt oder die Zahlungsautomatik einrichtet, muss den **Hub-Nutzungsbedingungen in der geltenden Fassung** zugestimmt haben. Der Rahmenvertrag genügt — Guthaben ist zweckneutral und trägt Lizenzen wie Zertifikate. Die Lizenzbedingungen-Ergänzung greift unverändert erst beim Lizenzkauf, die Zahlungsbedingungen erst beim Rechnungskauf; wer nur eine der beiden Leistungen bezieht, nimmt die Bedingungen der anderen nicht an.
+
+**Das Abschalten der Automatik bleibt bewusst ohne Prüfung.** Wer geänderten Bedingungen nicht zustimmt, muss die Abbuchung dennoch stoppen können — eine Bremse an die Zustimmung zu binden, die man gerade ablehnt, wäre eine Falle. Dieselbe Überlegung gilt seit v1.7.88 für Kündigung und Kundenportal. Auch das Lesen des Kontostands bleibt frei: Wer seinen Saldo nicht mehr sieht, kann nicht beurteilen, ob er zustimmen will.
+
+Die Prüfung greift auf **beiden Seiten**. Das Gateway lehnt früh und mit einer Meldung ab, die auf den Abschnitt „Rechtliche Dokumente" verweist; die Betreiber-Seite prüft unabhängig davon erneut und lässt sich dabei die im Gateway geltenden Fassungen mitteilen — ohne diese Angabe könnte sie einen Beleg über eine überholte Fassung nicht als solchen erkennen.
+
+**Zu tun ist nichts.** Steht eine Zustimmung aus, erscheint sie beim nächsten Aufladeversuch als Hinweis. Bereits erteilte Zustimmungen zur geltenden Fassung bleiben wirksam, bereits aufgeladenes Guthaben unberührt.
+
+### Bezahlseite aktualisiert die Anbindungsseite selbst
+
+Nach einer Zahlung stand dort der Hinweis, die Seite sei neu zu laden. Das übernimmt jetzt die Bezahlseite: Sie meldet den Abschluss an das Fenster, aus dem sie geöffnet wurde, und schließt sich. Bleibt das Fenster stehen — etwa weil der Browser es blockiert hat — bleibt der bisherige Weg über den angebotenen Link bestehen.
+
+---
+
 ## v1.7.88 — 2026-07-28 — Lizenz als Abonnement: taggenaue Abrechnung, Rückzahlung aufs Zahlungsmittel
 
 Die Lizenzabrechnung lag bisher zweifach vor: einmal beim Zahlungsdienst und einmal als eigene Rechnung im Hub, mit Tranchen, genutzten Monaten, Erstattungsanteilen und einem nächtlichen Verlängerungslauf. Zwei Bücher über dieselbe Sache liefen auseinander — auf der Anbindungsseite standen zeitweise **zwei verschiedene Guthabenstände nebeneinander**, weil die Seite den Betrag an zwei Stellen getrennt abrief und nach einer Buchung nur eine davon aktualisierte.

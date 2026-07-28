@@ -609,27 +609,38 @@ async def billing_me() -> dict:
     return await _billing_auto("GET", "/api/billing/me")
 
 
-async def billing_topup(amount_cents: int) -> dict:
+async def billing_topup(amount_cents: int, doc_versions: dict | None = None) -> dict:
     """Bezahlseite zum Aufladen. Kein Zertifikats-Gate — das Guthaben ist die
-    Grundlage beider Leistungen."""
+    Grundlage beider Leistungen.
+
+    `doc_versions` trägt die im Gateway GELTENDEN Fassungen zum Hub. Der Hub hat
+    die Dokumente nicht und könnte sonst nicht erkennen, dass ein vorhandener
+    Beleg eine überholte Fassung betrifft — genau daran lief das Gate am
+    28.07.2026 vorbei.
+    """
     return await _billing_auto("POST", "/api/billing/topup",
-                               {"amount_cents": int(amount_cents)})
+                               {"amount_cents": int(amount_cents),
+                                "doc_versions": doc_versions or {}})
 
 
 async def billing_auto_status() -> dict:
     return await _billing_auto("GET", "/api/billing/auto")
 
 
-async def billing_auto_setup(amount_cents: int = 0) -> dict:
+async def billing_auto_setup(amount_cents: int = 0,
+                             doc_versions: dict | None = None) -> dict:
     """Checkout-URL für die Einrichtung: lädt den Startbetrag auf UND hinterlegt
     das Zahlungsmittel für spätere Nachladungen."""
     return await _billing_auto("POST", "/api/billing/auto/setup",
-                               {"amount_cents": int(amount_cents)})
+                               {"amount_cents": int(amount_cents),
+                                "doc_versions": doc_versions or {}})
 
 
-async def billing_auto_amount(amount_cents: int) -> dict:
+async def billing_auto_amount(amount_cents: int,
+                              doc_versions: dict | None = None) -> dict:
     return await _billing_auto("POST", "/api/billing/auto/amount",
-                               {"amount_cents": int(amount_cents)})
+                               {"amount_cents": int(amount_cents),
+                                "doc_versions": doc_versions or {}})
 
 
 async def billing_auto_disable() -> dict:
