@@ -12,6 +12,12 @@ In einer einzigen Sitzung (2026-07-26) sind zwei solche Fehler entstanden:
 gab. Beide wurden nur gefunden, weil die Blöcke von Hand durch `node --check`
 geschickt wurden. Dieses Skript macht daraus eine wiederholbare Prüfung.
 
+Seit 2026-07-29 prüft dasselbe Skript auch die **Jinja-Syntax** der Vorlage.
+Anlass: ein Kommentar im JavaScript enthielt ein geschweiftes Klammerpaar zur
+Erläuterung — Jinja wertet solche Paare AUCH innerhalb eines JS-Kommentars aus
+und brach die Seite mit HTTP 500 ab. Das JavaScript war dabei tadellos; diese
+Prüfung sah es sich nur nie als Vorlage an.
+
 GRENZEN
 -------
 `node --check` prüft nur die Syntax, nicht ob eine aufgerufene Funktion
@@ -77,6 +83,28 @@ def pruefe(pfad: Path, node: str) -> str | None:
         Path(tmp).unlink(missing_ok=True)
 
 
+def pruefe_jinja(pfad: Path) -> str:
+    """Vorlage als Jinja-Quelltext einlesen. Leerer String = in Ordnung.
+
+    Faengt Faelle, die `node --check` nicht sehen kann, weil sie gar kein
+    JavaScript betreffen: ein geschweiftes Klammerpaar in einem Kommentar, ein
+    unbalanciertes {% if %}, ein unbekannter Filter im Ausdruck.
+
+    Fehlt jinja2, wird uebersprungen statt zu scheitern — die Pruefung soll
+    nicht der Grund sein, dass ein Lauf rot wird.
+    """
+    try:
+        from jinja2 import Environment
+    except ImportError:
+        return ""
+    try:
+        Environment().parse(pfad.read_text(encoding="utf-8", errors="replace"),
+                            filename=pfad.name)
+    except Exception as exc:
+        return f"{type(exc).__name__}: {exc}"
+    return ""
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--gateway-only", action="store_true")
@@ -106,6 +134,12 @@ def main() -> int:
             if meldung:
                 fehler.append(f"{anwendung}/{f.name}:\n     "
                               + meldung.replace("\n", "\n     "))
+            # Die Vorlage muss sich auch als Jinja lesen lassen. Ein Fehler hier
+            # bricht die Seite zur Laufzeit mit HTTP 500 — unabhaengig davon, ob
+            # das JavaScript darin fehlerfrei ist.
+            jinja_meldung = pruefe_jinja(f)
+            if jinja_meldung:
+                fehler.append(f"{anwendung}/{f.name} (Jinja):\n     " + jinja_meldung)
 
     print(f"  {geprueft} Vorlage(n) geprüft")
     if fehler:
