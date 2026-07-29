@@ -328,7 +328,7 @@ function blockSummary(b) {
     case 'mobile':      return `${b.label || 'Mobil:'} user.mobilePhone`;
     case 'email_link':  return b.label ? `"${b.label}" → user.mail` : 'user.mail';
     case 'web_link':    return 'user.website';
-    case 'logo':        return b.url ? b.url.slice(0,40) + (b.url.length>40?'…':'') : '(keine URL)';
+    case 'logo':        return b.url ? ((b.url.startsWith('data:') ? '📎 eingebettet' : b.url.slice(0,40) + (b.url.length>40?'…':''))) : '(keine URL)';
     case 'booking_link':return b.label || 'Termin buchen';
     case 'social':      return `${b.platform || ''} ${b.url ? b.url.slice(0,30)+'…' : '(keine URL)'}`;
     case 'freetext':    return b.html ? b.html.replace(/<[^>]+>/g,'').slice(0,40)+'…' : '(leer)';
@@ -454,9 +454,30 @@ function buildBlockForm(b) {
   } else if (t === 'web_link') {
     rows += '<p style="font-size:12px;color:#6b7280;margin:0">Zeigt user.website als klickbaren Link.</p>';
   } else if (t === 'logo') {
-    rows += row('Bild-URL', txt('url', b.url, 'https://…/logo.png'));
+    const isEmbed = (b.url||'').startsWith('data:');
+    const previewImg = isEmbed
+      ? `<img src="${escAttr(b.url)}" style="max-width:80px;max-height:40px;display:block;margin-top:4px;border:1px solid #e2e8f0;border-radius:3px">`
+      : '';
+    rows += `<div class="prop-row">
+      <label>Bild-Quelle</label>
+      <div>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:#1e40af">
+          <input type="file" accept="image/*" data-bid="${b.id}" onchange="logoFileUpload(this)" style="display:none">
+          📁 Datei einbetten (Base64)
+        </label>
+        <span style="font-size:11px;color:#6b7280;display:block;margin:2px 0 6px">
+          ${isEmbed ? '✓ Eingebettet (Base64 Data-URI)' : 'oder URL eingeben:'}
+        </span>
+        ${isEmbed ? '' : `<input type="text" name="url" value="${escAttr(b.url||'')}" placeholder="https://…/logo.png"
+          data-bid="${b.id}" onchange="blockPropChange(this)"
+          style="padding:4px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:12px;width:100%;box-sizing:border-box">`}
+        ${previewImg}
+        ${isEmbed ? `<button type="button" onclick="logoClear('${b.id}')"
+          style="margin-top:6px;font-size:11px;color:#dc2626;background:none;border:none;cursor:pointer;padding:0">✕ Einbettung entfernen</button>` : ''}
+      </div>
+    </div>`;
     rows += row('Breite (px)', txt('width', b.width, '100'));
-    rows += `<p style="font-size:11px;color:#6b7280;margin:4px 0 0">Tipp: Data-URI oder öffentliche URL. Alt-Text = user.companyName.</p>`;
+    rows += `<p style="font-size:11px;color:#6b7280;margin:4px 0 0">Eingebettete Logos werden als Base64-Data-URI gespeichert — identisch zur Standard-Signatur, kein CID.</p>`;
   } else if (t === 'booking_link') {
     rows += row('Beschriftung', txt('label', b.label, 'Termin buchen'));
   } else if (t === 'social') {
@@ -472,18 +493,30 @@ function buildBlockForm(b) {
     rows += row('Links ausrichten', `<select name="left_valign" data-bid="${b.id}" onchange="blockPropChange(this)"><option value="top"${(b.left_valign||'top')==='top'?' selected':''}>Oben</option><option value="middle"${b.left_valign==='middle'?' selected':''}>Mitte</option></select>`);
     rows += row('Rechts ausrichten', `<select name="right_valign" data-bid="${b.id}" onchange="blockPropChange(this)"><option value="middle"${(b.right_valign||'middle')==='middle'?' selected':''}>Mitte</option><option value="top"${b.right_valign==='top'?' selected':''}>Oben</option></select>`);
     rows += row('Trennlinie', chk('divider', b.divider));
+    const colPickerHTML = (side) => `
+      <div class="col-picker-wrap" style="position:relative;margin-top:6px">
+        <button type="button" onclick="toggleColPicker('${b.id}','${side}')"
+          style="font-size:11px;padding:3px 8px;border:1px dashed #d1d5db;border-radius:4px;background:none;cursor:pointer;width:100%">
+          + Block hinzufügen
+        </button>
+        <div id="col-picker-${side}-${b.id}"
+          style="display:none;position:absolute;left:0;right:0;top:100%;z-index:199;background:#fff;border:1px solid #d1d5db;border-radius:6px;padding:8px;box-shadow:0 4px 12px rgba(0,0,0,.12);margin-top:2px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px">
+            ${['greeting','name_field','field','phone','mobile','email_link','web_link','logo','booking_link','social','freetext','divider','spacer']
+              .map(tp => `<button class="picker-btn" type="button" onclick="addColBlock('${b.id}','${side}','${tp}')">${esc(TYPE_LABELS[tp]||tp)}</button>`).join('')}
+          </div>
+        </div>
+      </div>`;
     rows += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
       <div>
         <div style="font-size:11px;font-weight:600;color:#555;margin-bottom:4px">Linke Spalte</div>
-        <div id="col-left-${b.id}" style="display:flex;flex-direction:column;gap:4px"></div>
-        <button type="button" onclick="addColBlock('${b.id}','left')"
-          style="margin-top:6px;font-size:11px;padding:3px 8px;border:1px dashed #d1d5db;border-radius:4px;background:none;cursor:pointer;width:100%">+ Block</button>
+        <div id="col-left-${b.id}" style="display:flex;flex-direction:column;gap:3px"></div>
+        ${colPickerHTML('left')}
       </div>
       <div>
         <div style="font-size:11px;font-weight:600;color:#555;margin-bottom:4px">Rechte Spalte</div>
-        <div id="col-right-${b.id}" style="display:flex;flex-direction:column;gap:4px"></div>
-        <button type="button" onclick="addColBlock('${b.id}','right')"
-          style="margin-top:6px;font-size:11px;padding:3px 8px;border:1px dashed #d1d5db;border-radius:4px;background:none;cursor:pointer;width:100%">+ Block</button>
+        <div id="col-right-${b.id}" style="display:flex;flex-direction:column;gap:3px"></div>
+        ${colPickerHTML('right')}
       </div>
     </div>`;
   }
@@ -513,37 +546,89 @@ function renderColBlocks(parent, side) {
   if (!container) return;
   container.innerHTML = '';
   const list = parent[side] || [];
-  list.forEach(b => {
-    const mini = document.createElement('div');
-    mini.className = 'col-block-item';
-    mini.innerHTML = `
-      <span style="flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">
-        <strong>${esc(TYPE_LABELS[b.type]||b.type)}</strong>
-        <span style="color:#6b7280"> ${esc(blockSummary(b))}</span>
-      </span>
-      <button onclick="deleteColBlock('${parent.id}','${side}','${b.id}')" title="Löschen"
-        style="background:none;border:none;cursor:pointer;color:#dc2626;font-size:12px;padding:0 2px">✕</button>`;
-    container.appendChild(mini);
+  list.forEach((b, idx) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'col-block-item';
+    wrap.dataset.bid = b.id;
+    wrap.style.flexDirection = 'column';
+    wrap.style.alignItems = 'stretch';
+    wrap.style.padding = '0';
+
+    const hdr = document.createElement('div');
+    hdr.style.cssText = 'display:flex;align-items:center;gap:4px;padding:4px 8px;cursor:pointer';
+    hdr.innerHTML = `
+      <span class="block-type-badge" style="font-size:9px">${esc(TYPE_LABELS[b.type]||b.type)}</span>
+      <span style="flex:1;font-size:11px;color:#6b7280;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(blockSummary(b))}</span>
+      <button onclick="moveColBlock(event,'${parent.id}','${side}','${b.id}',-1)" title="Hoch"
+        style="${iconBtnStyle()}">↑</button>
+      <button onclick="moveColBlock(event,'${parent.id}','${side}','${b.id}',1)" title="Runter"
+        style="${iconBtnStyle()}">↓</button>
+      <button onclick="deleteColBlock(event,'${parent.id}','${side}','${b.id}')" title="Löschen"
+        style="${iconBtnStyle('#dc2626')}">✕</button>`;
+
+    const body = document.createElement('div');
+    body.style.cssText = 'display:none;padding:8px;border-top:1px solid #e2e8f0;font-size:12px';
+    body.innerHTML = buildBlockForm(b);
+    body.querySelectorAll('[data-bid]').forEach(el => el.dataset.bid = b.id);
+
+    hdr.addEventListener('click', e => {
+      if (e.target.tagName === 'BUTTON') return;
+      body.style.display = body.style.display === 'none' ? 'block' : 'none';
+      // Re-render sub-col pickers if this is a two_col (rare but possible)
+      if (b.type === 'two_col') { renderColBlocks(b,'left'); renderColBlocks(b,'right'); }
+    });
+
+    wrap.appendChild(hdr);
+    wrap.appendChild(body);
+    container.appendChild(wrap);
   });
 }
 
-// ── Add column block (simplified picker for two_col sub-blocks) ──────────────
-window.addColBlock = function(parentId, side) {
+// ── Column block picker ───────────────────────────────────────────────────────
+window.toggleColPicker = function(parentId, side) {
+  const pk = document.getElementById(`col-picker-${side}-${parentId}`);
+  if (!pk) return;
+  // close all other col pickers
+  document.querySelectorAll('[id^="col-picker-"]').forEach(el => {
+    if (el !== pk) el.style.display = 'none';
+  });
+  pk.style.display = pk.style.display === 'none' ? 'block' : 'none';
+};
+document.addEventListener('click', e => {
+  if (!e.target.closest('.col-picker-wrap'))
+    document.querySelectorAll('[id^="col-picker-"]').forEach(el => el.style.display = 'none');
+});
+
+window.addColBlock = function(parentId, side, type) {
+  // Close picker
+  const pk = document.getElementById(`col-picker-${side}-${parentId}`);
+  if (pk) pk.style.display = 'none';
   const parent = findBlock(parentId);
-  if (!parent) return;
-  const type = prompt('Block-Typ:\ngreeting | spacer | name_field | field | divider\nphone | mobile | email_link | web_link\nlogo | booking_link | social | freetext');
-  if (!type || !TYPE_LABELS[type]) return;
+  if (!parent || !type || !TYPE_LABELS[type]) return;
   const b = defaultBlock(type);
   parent[side] = parent[side] || [];
   parent[side].push(b);
   renderBlockList();
 };
 
-window.deleteColBlock = function(parentId, side, blockId) {
+window.deleteColBlock = function(e, parentId, side, blockId) {
+  e.stopPropagation();
   const parent = findBlock(parentId);
   if (!parent) return;
   parent[side] = (parent[side] || []).filter(b => b.id !== blockId);
   renderBlockList();
+};
+
+window.moveColBlock = function(e, parentId, side, blockId, dir) {
+  e.stopPropagation();
+  const parent = findBlock(parentId);
+  if (!parent) return;
+  const list = parent[side] || [];
+  const idx = list.findIndex(b => b.id === blockId);
+  const ni = idx + dir;
+  if (idx < 0 || ni < 0 || ni >= list.length) return;
+  [list[idx], list[ni]] = [list[ni], list[idx]];
+  renderColBlocks(parent, side);
 };
 
 // ── Block prop change ─────────────────────────────────────────────────────────
@@ -593,6 +678,31 @@ function findBlock(id, list) {
   }
   return null;
 }
+
+// ── Logo: file upload → base64 ────────────────────────────────────────────────
+window.logoFileUpload = function(input) {
+  const bid = input.dataset.bid;
+  const b = findBlock(bid);
+  if (!b || !input.files || !input.files[0]) return;
+  const file = input.files[0];
+  if (file.size > 512 * 1024) {
+    alert('Datei zu groß (max. 512 KB). Bitte vorher verkleinern.');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    b.url = reader.result;  // data:image/...;base64,...
+    renderBlockList();      // re-render card to show preview + clear button
+  };
+  reader.readAsDataURL(file);
+};
+
+window.logoClear = function(bid) {
+  const b = findBlock(bid);
+  if (!b) return;
+  b.url = '';
+  renderBlockList();
+};
 
 // ── Global style sync ─────────────────────────────────────────────────────────
 window.syncColorPick = function(prefix) {

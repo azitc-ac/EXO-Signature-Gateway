@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.103 — 2026-07-29 — Baukasten: Spalten-Picker, Sub-Block-Editor, Logo-Upload
+
+Drei Verbesserungen am Baukasten-Editor aus v1.7.102:
+
+**Spalten-Picker im Zwei-Spalten-Layout:** Blöcke in linker und rechter Spalte können jetzt über ein Dropdown-Menü hinzugefügt werden — identische Auswahl wie der Haupt-Picker, aber eingebettet in die Spalte. Der frühere `prompt()`-Dialog ist entfernt.
+
+**Sub-Blöcke konfigurierbar:** Jeder Block in einer Spalte hat jetzt eine aufklappbare Detailansicht mit dem vollständigen Eigenschaftsformular — identisch zur Ansicht bei Top-Level-Blöcken. Zusätzlich stehen ↑/↓-Schaltflächen zum Umsortieren der Reihenfolge innerhalb der Spalte bereit.
+
+**Logo-Einbettung (Base64 Data-URI):** Im Logo-Block gibt es jetzt eine „Datei einbetten"-Schaltfläche. Die gewählte Bilddatei (max. 512 KB) wird im Browser per FileReader als Base64-Data-URI gelesen und direkt in der Vorlage gespeichert — kein externer Server, keine öffentliche URL nötig, überlebt Weiterleitungen. Das Verfahren ist identisch zur bestehenden Standard-Signatur (`signature.html`); es ist kein CID. Wer stattdessen eine öffentliche URL bevorzugt, kann das URL-Feld wie bisher nutzen. Ein Vorschau-Thumbnail erscheint nach dem Einlesen; „Einbettung entfernen" macht den URL-Modus wieder zugänglich.
+
 ## v1.7.102 — 2026-07-29 — Baukasten-Editor für Signaturvorlagen
 
 Vorlagen lassen sich jetzt visuell zusammensetzen, ohne HTML schreiben zu müssen. Der Bereich „Vorlagen" (Signaturen → Vorlagen) zeigt zwei Tabs:
