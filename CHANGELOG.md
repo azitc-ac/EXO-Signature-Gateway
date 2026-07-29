@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.101 — 2026-07-29 — Disclaimer-Vorlage pro Postfach und gateway-weit
+
+Postfächer können jetzt eine eigene Disclaimer-Vorlage erhalten — analog zu Standardsignatur, Antwort-Signatur und Banner. Der Disclaimer wird unmittelbar nach dem Banner angehängt, bevor der Mailinhalt injiziert wird.
+
+**Wo konfigurieren:** Postfachverwaltung → Spalte „Disclaimer" (dropdown), gateway-weit über Vorlagenrichtlinien. Vorlagen-Richtlinien-Postfächer übernehmen den globalen Wert; pro Postfach ist eine individuelle Auswahl möglich, wenn die Richtlinie deaktiviert wird. Interne Gruppen und Custom-Policies unterstützen jetzt ebenfalls den Slot `disclaimer`.
+
+**Was benötigt wird:** Eine Template-Datei in `app/webui/templates/signatures/` mit dem gewünschten Inhalt (z.B. kleiner Fließtext, durch eine Linie abgetrennt). Die Vorlage wird wie alle anderen gerendert — Felddaten des Absenders stehen zur Verfügung.
+
 ## v1.7.100 — 2026-07-29 — HTML-Signatur bei Antworten auf System-Benachrichtigungen fehlte
 
 Wenn ein Absender auf eine automatisch generierte Benachrichtigung antwortete, die das Buchungs- oder ein anderes System **von seiner eigenen Adresse aus** verschickt hatte, erkannte die Gateway-Logik seine Adresse in der zitierten „Von:"-Zeile — und unterdrückte die HTML-Signatur als vermeintliche Wiederholung im Thread.

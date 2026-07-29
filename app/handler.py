@@ -822,6 +822,12 @@ class SignatureHandler:
                     _banner_html, _ = signature_engine.render(user_data, template_name=_banner_tpl)
                     if _banner_html:
                         sig_html = sig_html + _banner_html
+                _disclaimer_tpl = ((_policies.get("disclaimer") or "") if _use_pol
+                                   else _sender_cfg.get("disclaimer_template", "")).strip()
+                if _disclaimer_tpl:
+                    _disclaimer_html, _ = signature_engine.render(user_data, template_name=_disclaimer_tpl)
+                    if _disclaimer_html:
+                        sig_html = sig_html + _disclaimer_html
 
             _img_mode = settings_store.get("SIG_IMAGE_MODE") or "auto"
             _use_cid = (

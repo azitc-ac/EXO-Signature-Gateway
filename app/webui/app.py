@@ -1546,6 +1546,7 @@ async def api_get_mailboxes(_=Depends(_check_auth)):
             "template": cfg.get("template", "default"),
             "min_template": cfg.get("min_template", ""),
             "banner_template": cfg.get("banner_template", ""),
+            "disclaimer_template": cfg.get("disclaimer_template", ""),
             "addin_templates": cfg.get("addin_templates", []),
             "use_policy": cfg.get("use_policy", True),
             "health_overall": h.get("overall"),
@@ -1568,6 +1569,7 @@ async def api_get_mailboxes(_=Depends(_check_auth)):
                 "template": cfg.get("template", "default"),
                 "min_template": cfg.get("min_template", ""),
                 "banner_template": cfg.get("banner_template", ""),
+                "disclaimer_template": cfg.get("disclaimer_template", ""),
                 "addin_templates": cfg.get("addin_templates", []),
                 "use_policy": cfg.get("use_policy", True),
                 "health_overall": h.get("overall"),
@@ -1679,6 +1681,7 @@ async def api_save_mailboxes(body: dict, _=Depends(_check_auth)):
         template = (m.get("template") or "default").strip()
         min_template = (m.get("min_template") or "").strip()
         banner_template = (m.get("banner_template") or "").strip()
+        disclaimer_template = (m.get("disclaimer_template") or "").strip()
         addin_tpl = m.get("addin_templates", [])
         use_policy = bool(m.get("use_policy", True))
         entry: dict = {"sig": sig, "smime": smime, "use_policy": use_policy}
@@ -1688,6 +1691,8 @@ async def api_save_mailboxes(body: dict, _=Depends(_check_auth)):
             entry["min_template"] = min_template
         if banner_template:
             entry["banner_template"] = banner_template
+        if disclaimer_template:
+            entry["disclaimer_template"] = disclaimer_template
         if addin_tpl == "*" or (isinstance(addin_tpl, list) and addin_tpl):
             entry["addin_templates"] = addin_tpl
         mb = addr_to_mb.get(email)
@@ -1894,11 +1899,12 @@ async def api_preview_data(
     email: str = "",
     template: str = "default",
     banner: str = "",
+    disclaimer: str = "",
     user: str = Depends(_check_auth),
 ):
     """Render a signature template for a given email address (Graph lookup).
-    Also renders the configured banner (or an explicit `banner` param) and
-    returns it as `banner_html`."""
+    Also renders the configured banner and disclaimer (or explicit params) and
+    returns them as `banner_html` / `disclaimer_html`."""
     import graph_client as _gc
     import mailbox_match
     user_data = _gc.UserData()
@@ -1909,16 +1915,23 @@ async def api_preview_data(
         except Exception as exc:
             error = str(exc)
     sig_html, sig_txt = signature_engine.render(user_data, template_name=template)
-    # Resolve banner: explicit param > mailbox config
-    if not banner and email:
+    # Resolve banner and disclaimer: explicit param > mailbox config
+    if email and (not banner or not disclaimer):
         _mc = settings_store.get("MAILBOX_CONFIG") or {}
         _cfg = mailbox_match.match_sender(_mc, email)
-        banner = _cfg.get("banner_template", "")
+        if not banner:
+            banner = _cfg.get("banner_template", "")
+        if not disclaimer:
+            disclaimer = _cfg.get("disclaimer_template", "")
     banner_html = ""
     if banner:
         banner_html, _ = signature_engine.render(user_data, template_name=banner)
+    disclaimer_html = ""
+    if disclaimer:
+        disclaimer_html, _ = signature_engine.render(user_data, template_name=disclaimer)
     return JSONResponse({"html": sig_html, "txt": sig_txt, "error": error,
-                         "banner_html": banner_html, "banner_template": banner})
+                         "banner_html": banner_html, "banner_template": banner,
+                         "disclaimer_html": disclaimer_html, "disclaimer_template": disclaimer})
 
 
 @app.get("/api/cert/catalog")
