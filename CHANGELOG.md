@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.106 — 2026-07-29 — Baukasten: Block-Hinzufügen in Zweispalter repariert
+
+Wurde in einem Zweispalter-Block auf „+ Block hinzufügen" geklickt, renderte
+`addColBlock` die gesamte Block-Liste neu (`renderBlockList()`). Das klappte die
+offene Karte wieder ein, wodurch der neu hinzugefügte Unter-Block nicht sichtbar
+war und der Picker verschwand — die Aktion schien wirkungslos.
+
+Ursache: `moveColBlock` verwendete schon das richtige Muster (`renderColBlocks`),
+`addColBlock` und `deleteColBlock` dagegen noch nicht. Alle drei aktualisieren
+jetzt nur die beiden Spalten-Container der betroffenen Karte, ohne die äußere
+Liste anzufassen.
+
+---
+
 ## v1.7.105 — 2026-07-29 — Baukasten: Layout auf kleinen Bildschirmen
 
 Der Baukasten-Editor lief auf schmalen Bildschirmen (unter ~720 px) horizontal über, weil der linke Panel mit `flex:0 0 420px` auf einer festen Breite bestand und sich nicht zusammenschieben konnte.

@@ -608,7 +608,9 @@ window.addColBlock = function(parentId, side, type) {
   const b = defaultBlock(type);
   parent[side] = parent[side] || [];
   parent[side].push(b);
-  renderBlockList();
+  // Re-render only the column lists — renderBlockList() would collapse the open card
+  renderColBlocks(parent, 'left');
+  renderColBlocks(parent, 'right');
 };
 
 window.deleteColBlock = function(e, parentId, side, blockId) {
@@ -616,7 +618,8 @@ window.deleteColBlock = function(e, parentId, side, blockId) {
   const parent = findBlock(parentId);
   if (!parent) return;
   parent[side] = (parent[side] || []).filter(b => b.id !== blockId);
-  renderBlockList();
+  renderColBlocks(parent, 'left');
+  renderColBlocks(parent, 'right');
 };
 
 window.moveColBlock = function(e, parentId, side, blockId, dir) {
