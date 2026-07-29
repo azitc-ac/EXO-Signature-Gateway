@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.99 — 2026-07-29 — Rückmeldung zur Postfachzahl steht an der Eingabe
+
+Nach dem Ändern der Postfachzahl erschien die Bestätigung („Auf 3 Lizenzen geändert…") in der Sammelmeldung oberhalb der Knopfleiste — also weit über dem Eingabefeld, aus dem die Änderung stammte, und beim Drücken von „Übernehmen" außerhalb des Blickfelds.
+
+Sie steht jetzt unmittelbar unter dem Feld. Die übrigen Meldungen des Abschnitts (Kündigung, Zahlungsweise, Kundenportal) bleiben unverändert bei ihren Knöpfen — dort sitzen sie richtig.
+
 ## v1.7.98 — 2026-07-29 — Vorlagenprüfung erfasst auch die Jinja-Syntax
 
 `tools/jscheck.py` prüfte bisher ausschließlich das JavaScript in den Vorlagen. Ein Fehler in der Vorlage selbst — etwa ein geschweiftes Klammerpaar in einem Kommentar, ein unbalanciertes Bedingungspaar oder ein unbekannter Filter — blieb dabei unsichtbar und brach die Seite erst beim Aufruf mit einem Serverfehler ab.
