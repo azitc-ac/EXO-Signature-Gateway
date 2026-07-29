@@ -130,6 +130,7 @@ refreshFairUse();
             <span style="font-size:10px;font-weight:400;color:#94a3b8;display:block;margin-top:2px">ab 2. eigener Mail im Thread</span>
           </th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">Banner</th>
+          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">Disclaimer</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">Outlook Add-In</th>
         </tr>
       </thead>
@@ -207,6 +208,18 @@ refreshFairUse();
         <td style="padding:6px 8px;font-size:12px;color:#555">Alle Postfächer mit aktivierter Richtlinien-Übernahme</td>
         <td style="padding:6px 8px">
           <select id="policy-banner-tpl" style="font-size:12px;width:160px"></select>
+        </td>
+        <td style="text-align:center;padding:6px 8px;color:#94a3b8;font-size:14px" title="Nicht löschbar">🔒</td>
+      </tr>
+      <!-- Disclaimer -->
+      <tr style="border-bottom:1px solid #f0f0f0">
+        <td style="padding:6px 8px;font-size:12px;font-weight:500">
+          Disclaimer
+          <span style="font-size:10px;font-weight:400;color:#94a3b8;display:block">wird hinter Banner angehängt</span>
+        </td>
+        <td style="padding:6px 8px;font-size:12px;color:#555">Alle Postfächer mit aktivierter Richtlinien-Übernahme</td>
+        <td style="padding:6px 8px">
+          <select id="policy-disclaimer-tpl" style="font-size:12px;width:160px"></select>
         </td>
         <td style="text-align:center;padding:6px 8px;color:#94a3b8;font-size:14px" title="Nicht löschbar">🔒</td>
       </tr>
@@ -435,6 +448,22 @@ async function loadPolicies() {
       });
     }
 
+    // Disclaimer (— keine — + Vorlagen)
+    var disclaimerPolSel = document.getElementById('policy-disclaimer-tpl');
+    if (disclaimerPolSel) {
+      disclaimerPolSel.innerHTML = '';
+      var dNone = document.createElement('option');
+      dNone.value = ''; dNone.textContent = '— keine —';
+      if (!d.disclaimer) dNone.selected = true;
+      disclaimerPolSel.appendChild(dNone);
+      _templateList.forEach(function(name) {
+        var opt = document.createElement('option');
+        opt.value = name; opt.textContent = name;
+        if (name === d.disclaimer) opt.selected = true;
+        disclaimerPolSel.appendChild(opt);
+      });
+    }
+
     // Add-in Vorlagen
     var addinCtrl = document.getElementById('policy-addin-ctrl');
     if (addinCtrl) {
@@ -460,10 +489,12 @@ async function savePolicies() {
 
   var minSel = document.getElementById('policy-min-tpl');
   var bannerPolSel = document.getElementById('policy-banner-tpl');
+  var disclaimerPolSel = document.getElementById('policy-disclaimer-tpl');
   var policies = {
     sig: sigSel ? sigSel.value : 'default',
     min: minSel ? minSel.value : '',
     banner: bannerPolSel ? bannerPolSel.value : '',
+    disclaimer: disclaimerPolSel ? disclaimerPolSel.value : '',
     addin: addinValue,
   };
   try {
@@ -847,6 +878,32 @@ function renderMailboxTable(mailboxes) {
     if (policyActive) bannerSel.title = 'Wird durch Vorlagenrichtlinie gesteuert';
     tdBanner.appendChild(bannerSel);
 
+    // Disclaimer select — policy-controlled like banner
+    var tdDisclaimer = document.createElement('td');
+    tdDisclaimer.style.cssText = 'text-align:center;padding:6px 8px';
+    var disclaimerSel = document.createElement('select');
+    disclaimerSel.className = 'mb-disclaimer';
+    disclaimerSel.dataset.idx = String(i);
+    disclaimerSel.style.cssText = 'font-size:12px;max-width:130px';
+    var disclaimerOptNone = document.createElement('option');
+    disclaimerOptNone.value = '';
+    disclaimerOptNone.textContent = '— kein —';
+    disclaimerSel.appendChild(disclaimerOptNone);
+    var _effectiveDisclaimer = policyActive
+      ? (document.getElementById('policy-disclaimer-tpl').value || '')
+      : (mb.disclaimer_template || '');
+    _templateList.forEach(function(name) {
+      var opt = document.createElement('option');
+      opt.value = name; opt.textContent = name;
+      if (name === _effectiveDisclaimer) opt.selected = true;
+      disclaimerSel.appendChild(opt);
+    });
+    var _disclaimerDisabled = !mb.sig || policyActive;
+    disclaimerSel.disabled = _disclaimerDisabled;
+    disclaimerSel.style.opacity = _disclaimerDisabled ? '0.4' : '1';
+    if (policyActive) disclaimerSel.title = 'Wird durch Vorlagenrichtlinie gesteuert';
+    tdDisclaimer.appendChild(disclaimerSel);
+
     // Add-in Vorlagen — greyed when policyActive
     var tdAddin = document.createElement('td');
     tdAddin.style.cssText = 'padding:6px 8px';
@@ -888,6 +945,11 @@ function renderMailboxTable(mailboxes) {
       bannerSel.title = pol ? 'Wird durch Vorlagenrichtlinie gesteuert' : '';
       bannerSel.value = pol ? (document.getElementById('policy-banner-tpl').value || '')
                             : (mb.banner_template || '');
+      disclaimerSel.disabled = !sig || pol;
+      disclaimerSel.style.opacity = (!sig || pol) ? '0.4' : '1';
+      disclaimerSel.title = pol ? 'Wird durch Vorlagenrichtlinie gesteuert' : '';
+      disclaimerSel.value = pol ? (document.getElementById('policy-disclaimer-tpl').value || '')
+                                : (mb.disclaimer_template || '');
       addinCtrl.style.opacity = (!sig || pol) ? '0.4' : '1';
       addinCtrl.style.pointerEvents = (!sig || pol) ? 'none' : '';
       addinCtrl.title = pol ? 'Wird durch Vorlagenrichtlinie gesteuert' : '';
@@ -899,10 +961,11 @@ function renderMailboxTable(mailboxes) {
       tplSel.disabled = true; tplSel.style.opacity = '0.4';
       minSigSel.disabled = true; minSigSel.style.opacity = '0.4';
       bannerSel.disabled = true; bannerSel.style.opacity = '0.4';
+      disclaimerSel.disabled = true; disclaimerSel.style.opacity = '0.4';
       addinCtrl.style.pointerEvents = 'none'; addinCtrl.style.opacity = '0.4';
     }
 
-    // Column order: Status, Postfach, Signatur, S/MIME, Vorlagen-Richtlinien, Standardsignatur, Minimalsignatur, Banner, Outlook Add-In
+    // Column order: Status, Postfach, Signatur, S/MIME, Vorlagen-Richtlinien, Standardsignatur, Minimalsignatur, Banner, Disclaimer, Outlook Add-In
     tr.appendChild(tdStatus);
     tr.appendChild(tdEmail);
     tr.appendChild(tdSig);
@@ -911,6 +974,7 @@ function renderMailboxTable(mailboxes) {
     tr.appendChild(tdTpl);
     tr.appendChild(tdMinSig);
     tr.appendChild(tdBanner);
+    tr.appendChild(tdDisclaimer);
     tr.appendChild(tdAddin);
     tbody.appendChild(tr);
   });
@@ -944,6 +1008,7 @@ async function saveMailboxes(updateDg) {
   var templateSelects = document.querySelectorAll('.mb-template');
   var minSigSelects = document.querySelectorAll('.mb-min-sig');
   var bannerSelects = document.querySelectorAll('.mb-banner');
+  var disclaimerSelects = document.querySelectorAll('.mb-disclaimer');
   var policyBoxes = document.querySelectorAll('.mb-policy');
   var payload = [];
   sigBoxes.forEach(function(cb, i) {
@@ -967,6 +1032,7 @@ async function saveMailboxes(updateDg) {
       template: templateSelects[i] ? templateSelects[i].value : 'default',
       min_template: minSigSelects[i] ? minSigSelects[i].value : '',
       banner_template: bannerSelects[i] ? bannerSelects[i].value : '',
+      disclaimer_template: disclaimerSelects[i] ? disclaimerSelects[i].value : '',
       addin_templates: addinTemplates,
       use_policy: policyBoxes[i] ? policyBoxes[i].checked : true,
     });
@@ -1149,7 +1215,7 @@ async function saveGroups() {
 
 var _customPolicies = []; // [{condition_type, group_name, applies_to, template}]
 
-var _APPLIES_TO_LABELS = {sig: 'Standardsignatur', min: 'Minimalsignatur', banner: 'Banner'};
+var _APPLIES_TO_LABELS = {sig: 'Standardsignatur', min: 'Minimalsignatur', banner: 'Banner', disclaimer: 'Disclaimer'};
 
 function _renderCustomPoliciesTable() {
   var tbody = document.getElementById('cpol-tbody');
@@ -1197,7 +1263,7 @@ function _renderCustomPoliciesTable() {
     tdApp.style.padding = '6px 8px';
     var appSel = document.createElement('select');
     appSel.style.cssText = 'font-size:12px;width:130px';
-    ['sig','min','banner'].forEach(function(slot) {
+    ['sig','min','banner','disclaimer'].forEach(function(slot) {
       var opt = document.createElement('option');
       opt.value = slot; opt.textContent = _APPLIES_TO_LABELS[slot];
       if (slot === pol.applies_to) opt.selected = true;

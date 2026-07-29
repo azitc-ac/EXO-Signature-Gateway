@@ -31,6 +31,7 @@
     <button class="subtab-btn" onclick="switchSubtab(this,'pv-txt')"  style="font-size:12px;padding:4px 12px;border:1px solid #e2e8f0;border-radius:20px;background:transparent;color:#555;cursor:pointer">Plaintext</button>
     <button class="subtab-btn" onclick="switchSubtab(this,'pv-src')"  style="font-size:12px;padding:4px 12px;border:1px solid #e2e8f0;border-radius:20px;background:transparent;color:#555;cursor:pointer">HTML-Quelltext</button>
     <span id="banner-badge" style="display:none;align-self:center;font-size:11px;color:#64748b;margin-left:4px"></span>
+    <span id="disclaimer-badge" style="display:none;align-self:center;font-size:11px;color:#64748b;margin-left:4px"></span>
   </div>
   <div id="pv-html" class="preview-frame" style="min-height:80px"></div>
   <pre id="pv-txt" class="code-block" style="display:none"></pre>
@@ -95,7 +96,8 @@
       if (d.error) showError('Graph-Fehler: ' + d.error);
 
       const bannerHtml = d.banner_html || '';
-      document.getElementById('pv-html').innerHTML = (d.html || '') + bannerHtml;
+      const disclaimerHtml = d.disclaimer_html || '';
+      document.getElementById('pv-html').innerHTML = (d.html || '') + bannerHtml + disclaimerHtml;
       document.getElementById('pv-txt').textContent  = d.txt || '';
       document.getElementById('pv-src').textContent  = d.html || '';
 
@@ -105,6 +107,13 @@
         badge.style.display = '';
       } else {
         badge.style.display = 'none';
+      }
+      const dbadge = document.getElementById('disclaimer-badge');
+      if (d.disclaimer_template) {
+        dbadge.textContent = '+ ' + d.disclaimer_template + ' (Disclaimer)';
+        dbadge.style.display = '';
+      } else {
+        dbadge.style.display = 'none';
       }
 
       document.getElementById('preview-area').style.display = '';
