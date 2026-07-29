@@ -49,10 +49,10 @@
 <!-- ══════════════════════════════════════════════════════════════════════════ -->
 <!-- BAUKASTEN TAB                                                             -->
 <!-- ══════════════════════════════════════════════════════════════════════════ -->
-<div id="tab-builder" style="display:flex;gap:16px;align-items:flex-start">
+<div id="tab-builder" style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
 
   <!-- Left: block list -->
-  <div style="flex:0 0 420px;min-width:0">
+  <div style="flex:1 1 360px;max-width:420px;min-width:0">
 
     <!-- Global Settings -->
     <details id="global-settings" style="margin-bottom:12px">
@@ -60,7 +60,7 @@
         <span>&#9881;</span> Globale Einstellungen (Schrift &amp; Farben)
       </summary>
       <div style="padding:12px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 6px 6px;background:#fff">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px">
           <label style="font-size:12px;color:#555">
             Schriftart<br>
             <input id="g-font" type="text" value="Calibri, Arial, sans-serif"
@@ -146,7 +146,7 @@
   </div><!-- /left -->
 
   <!-- Right: preview -->
-  <div style="flex:1;min-width:0">
+  <div style="flex:1 1 280px;min-width:0">
     <div style="font-size:12px;color:#888;margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Live-Vorschau</div>
     <div id="preview-email-wrap" style="margin-bottom:8px;display:flex;gap:8px;align-items:center">
       <select id="preview-email-sel" style="font-size:12px;padding:4px 8px;border:1px solid #d1d5db;border-radius:4px"

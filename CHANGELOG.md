@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.105 — 2026-07-29 — Baukasten: Layout auf kleinen Bildschirmen
+
+Der Baukasten-Editor lief auf schmalen Bildschirmen (unter ~720 px) horizontal über, weil der linke Panel mit `flex:0 0 420px` auf einer festen Breite bestand und sich nicht zusammenschieben konnte.
+
+Drei Korrekturen: (1) Der äußere Flex-Container erhält `flex-wrap:wrap`, damit die beiden Panels bei Platzmangel untereinander erscheinen. (2) Der linke Panel wechselt von `flex:0 0 420px` zu `flex:1 1 360px;max-width:420px` — er bleibt bis 420 px breit, schrumpft aber bei Bedarf bis auf 360 px, bevor er umgebrochen wird. (3) Das Farb-/Schrift-Grid in den Globalen Einstellungen wechselt von `1fr 1fr` zu `repeat(auto-fit,minmax(160px,1fr))`, damit es auf schmaler Basis ebenfalls einspaltig wird. Auf dem Telefon erscheint die Live-Vorschau jetzt unterhalb der Block-Liste, ohne dass etwas abgeschnitten wird.
+
 ## v1.7.104 — 2026-07-29 — Baukasten: drei Bugfixes aus Code-Review
 
 **Plaintext-Signatur bei E-Mail-Link mit Anzeigetext:** War die Eigenschaft „Anzeigetext" im E-Mail-Link-Block gesetzt, enthielt die Plaintext-Signatur nur den Anzeigetext ohne die eigentliche E-Mail-Adresse. Ursache war falsche Operator-Präzedenz in `render_txt()` — Klammerfehler, der Python die Verkettung anders auswerten ließ als beabsichtigt. Betraf nur Plaintext; HTML war korrekt.
