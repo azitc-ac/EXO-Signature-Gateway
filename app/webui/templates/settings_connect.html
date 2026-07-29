@@ -399,6 +399,10 @@ _initAdv('digicert');
         <span class="hint" style="display:block;margin-top:2px" id="lic-menge-hint"></span></div>
       <button class="btn primary" onclick="licAboMenge()">Übernehmen</button>
     </div>
+    <!-- Rückmeldung AN der Eingabe, nicht in der Sammelmeldung weiter oben:
+         die steht oberhalb der Knopfleiste und damit ausserhalb des Blickfelds,
+         wenn man gerade auf „Übernehmen" gedrückt hat. -->
+    <div id="lic-menge-msg" class="msg" style="display:none;margin-top:8px"></div>
   </div>
 
   <div id="lic-online-hint" class="hint" style="display:none;margin-bottom:12px">
@@ -1446,10 +1450,13 @@ async function licAboKaufen() {
 }
 
 async function licAboMenge() {
-  const n = parseInt(document.getElementById('lic-menge').value || '0', 10);
-  const r = await _licAboPost('quantity', {mailboxes: n}, 'Wird geändert…');
-  if (!r) return;
-  _licAboMsg(r.message || 'Geändert.', true);
+  const feld = document.getElementById('lic-menge');
+  const n = parseInt(feld.value || '0', 10);
+  const ziel = document.getElementById('lic-menge-msg');
+  showMsg(ziel, 'Wird geändert…', true);
+  const r = await postJSON('/api/license/hub/quantity', {mailboxes: n});
+  if (!r.ok) { showMsg(ziel, r.error || 'Fehlgeschlagen.', false); return; }
+  showMsg(ziel, r.message || 'Geändert.', true);
   await licAboLaden(); await licLoad();
 }
 
