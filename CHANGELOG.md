@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.98 — 2026-07-29 — Vorlagenprüfung erfasst auch die Jinja-Syntax
+
+`tools/jscheck.py` prüfte bisher ausschließlich das JavaScript in den Vorlagen. Ein Fehler in der Vorlage selbst — etwa ein geschweiftes Klammerpaar in einem Kommentar, ein unbalanciertes Bedingungspaar oder ein unbekannter Filter — blieb dabei unsichtbar und brach die Seite erst beim Aufruf mit einem Serverfehler ab.
+
+Jede Vorlage wird jetzt zusätzlich als Jinja-Quelltext eingelesen. Beide Anwendungen werden geprüft.
+
 ## v1.7.97 — 2026-07-29 — Maskierung vereinheitlicht, Prüfung greift jetzt zuverlässig
 
 Vier Vorlagen brachten eine eigene Textmaskierung für HTML mit, statt die gemeinsame zu verwenden. Alle vier waren **schwächer**: keine von ihnen maskierte einfache Anführungszeichen. Sie sind entfernt; die Stellen nutzen jetzt die gemeinsame Funktion.
