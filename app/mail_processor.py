@@ -188,17 +188,17 @@ def sender_already_in_thread(msg: email.message.Message, sender_addrs) -> bool:
     the thread — e.g. a fresh reply, or being added to an existing ping-pong via
     To/Cc) gets the FULL block; later replies get the minimal one.
 
-    Two signals on the QUOTED region (below the first quote wrapper):
-      1. A quoted message whose `Von:`/`From:` line is one of the sender's own
-         addresses (matched per-line so the sender merely sitting in `An:`/`Cc:`
-         does NOT count — that is exactly the "added later" case).
-      2. A gateway signature marker in the quote (belt-and-suspenders; survives
-         when the `Von:` line is formatted unusually but often stripped itself).
-    Returns False when there is no quoted thread at all (→ first contribution).
+    Relies exclusively on gateway markers in the quoted region.  A "Von:/From:"
+    text heuristic was intentionally removed: it false-positives when a system
+    sends a notification FROM the sender's address (e.g. Microsoft Bookings), so
+    the sender's address appears in the "Von:" header of the quoted notification
+    even though the sender never wrote anything in that thread.  Gateway markers
+    (HTML comment, class attribute, sentinel id) are unambiguous and survive iOS
+    Mail quoting via the class attribute — no text fallback is needed.
+
+    Returns False when there is no quoted thread at all (→ sender's first
+    contribution → full signature).
     """
-    addrs = {a.strip().lower() for a in ([sender_addrs] if isinstance(sender_addrs, str) else sender_addrs) if a}
-    if not addrs:
-        return False
     html = extract_html(msg) or ""
     if not html:
         return False
@@ -206,19 +206,13 @@ def sender_already_in_thread(msg: email.message.Message, sender_addrs) -> bool:
     if qpos is None:
         return False  # no quoted thread → sender's first contribution
     region = html[qpos:]
-    if (_SIG_MARKER_START in region
-            or f'class="{_SIG_CLASS}"' in region
-            or f"class='{_SIG_CLASS}'" in region
-            or 'id="x_exo-sig-s"' in region
-            or "id='x_exo-sig-s'" in region):
-        return True
-    text = _strip_to_lines(region)
-    for line in text.splitlines():
-        if re.match(r'\s*(?:Von|From|De|Van)\s*:', line, re.IGNORECASE):
-            low = line.lower()
-            if any(a in low for a in addrs):
-                return True
-    return False
+    return bool(
+        _SIG_MARKER_START in region
+        or f'class="{_SIG_CLASS}"' in region
+        or f"class='{_SIG_CLASS}'" in region
+        or 'id="x_exo-sig-s"' in region
+        or "id='x_exo-sig-s'" in region
+    )
 
 
 def inject(

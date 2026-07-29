@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.100 — 2026-07-29 — HTML-Signatur bei Antworten auf System-Benachrichtigungen fehlte
+
+Wenn ein Absender auf eine automatisch generierte Benachrichtigung antwortete, die das Buchungs- oder ein anderes System **von seiner eigenen Adresse aus** verschickt hatte, erkannte die Gateway-Logik seine Adresse in der zitierten „Von:"-Zeile — und unterdrückte die HTML-Signatur als vermeintliche Wiederholung im Thread.
+
+Der Fehler lag darin, die Absenderadresse per Textsuche in den „Von:"-Zeilen des Zitatbereichs nachzuschlagen. Dieser Ansatz kann nicht unterscheiden, ob der Absender die zitierte Mail selbst geschrieben hat oder ob sie ein Fremdsystem unter seiner Adresse versandt hat.
+
+Die Erkennung verlässt sich nun ausschließlich auf die Gateway-eigenen Marker (`<!-- exo-sig-start -->`, `class="exo-gateway-sig"`, Sentinel-ID `exo-sig-s`). Diese stecken nur in Mails, die das Gateway selbst signiert hat. iOS Mail bewahrt die class-Attribute beim Zitieren; der Text-Fallback ist daher nicht nötig.
+
 ## v1.7.99 — 2026-07-29 — Rückmeldung zur Postfachzahl steht an der Eingabe
 
 Nach dem Ändern der Postfachzahl erschien die Bestätigung („Auf 3 Lizenzen geändert…") in der Sammelmeldung oberhalb der Knopfleiste — also weit über dem Eingabefeld, aus dem die Änderung stammte, und beim Drücken von „Übernehmen" außerhalb des Blickfelds.
