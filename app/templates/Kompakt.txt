@@ -1,0 +1,11 @@
+Freundliche Grüße
+
+{{ user.displayName }}
+{% if user.jobTitle %}{{ user.jobTitle }}{% endif %}
+{% if user.companyName %}{{ user.companyName }}{% endif %}
+--
+{% if user.phone %}Tel: {{ user.phone }}{% endif %}
+{% if user.mobilePhone %}Mobil: {{ user.mobilePhone }}{% endif %}
+{{ user.mail }}
+{% if user.website %}{{ user.website }}{% endif %}
+{% if user.bookingsUrl %}Termin buchen: {{ user.bookingsUrl }}{% endif %}

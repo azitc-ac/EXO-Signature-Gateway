@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.102 — 2026-07-29 — Baukasten-Editor für Signaturvorlagen
+
+Vorlagen lassen sich jetzt visuell zusammensetzen, ohne HTML schreiben zu müssen. Der Bereich „Vorlagen" (Signaturen → Vorlagen) zeigt zwei Tabs:
+
+**Baukasten** — Blöcke nach Bedarf hinzufügen, anordnen und konfigurieren. Verfügbare Block-Typen: Grußformel, Name, beliebiges Entra-Feld, Telefon- und Mobil-Link, E-Mail-Link, Website-Link, Logo (Bild-URL), Buchungslink, Social-Media-Link, Trennlinie, Abstand, Zwei-Spalten-Layout und Freitext (rohes HTML für Hinweise und rechtliche Texte). Die globalen Einstellungen oben steuern Schriftart, -größe und die drei Grundfarben (Text, gedämpft, Links). Eine Live-Vorschau mit echten Benutzerdaten steht direkt daneben.
+
+Die erstellten Vorlagen werden als Jinja2-kompatibles HTML gespeichert und werden in E-Mails genauso gerendert wie handgeschriebene Vorlagen. Eine Sidecar-Datei (`*.meta.json`) hält den Block-Stand vor, damit die Vorlage auch nach dem Speichern im Baukasten weiter bearbeitbar ist.
+
+**Quelltext (Erweitert)** — der bisherige freie HTML-Editor bleibt vollständig erhalten. Wer eine Vorlage dort direkt bearbeitet und speichert, sieht beim nächsten Öffnen einen Hinweis, dass die Baukastenversion überschrieben wurde.
+
+Vier fertige Beispiel-Vorlagen sind enthalten: **Kompakt** (Name, Titel, Kontakt ohne Logo), **Mit\_Logo** (zweispaltig, Logo rechts), **Banner** (farbiger Info-Kasten für die Banner-Slot-Funktion) und **Disclaimer** (kleiner Grautext, für den Disclaimer-Slot).
+
+Neue API-Endpunkte: `GET /api/templates/{name}/meta` und `POST /api/templates/{name}/meta`; DELETE löscht jetzt auch die Sidecar-Datei mit.
+
 ## v1.7.101 — 2026-07-29 — Disclaimer-Vorlage pro Postfach und gateway-weit
 
 Postfächer können jetzt eine eigene Disclaimer-Vorlage erhalten — analog zu Standardsignatur, Antwort-Signatur und Banner. Der Disclaimer wird unmittelbar nach dem Banner angehängt, bevor der Mailinhalt injiziert wird.

@@ -1503,8 +1503,9 @@ async def api_delete_template(name: str, _=Depends(_check_auth)):
         raise HTTPException(400, "Das 'default'-Template kann nicht gelöscht werden")
     html_path = Path(config.TEMPLATE_DIR) / f"{name}.html"
     txt_path = Path(config.TEMPLATE_DIR) / f"{name}.txt"
+    meta_path = Path(config.TEMPLATE_DIR) / f"{name}.meta.json"
     deleted = []
-    for p in (html_path, txt_path):
+    for p in (html_path, txt_path, meta_path):
         if p.exists():
             p.unlink()
             deleted.append(p.name)
@@ -1514,6 +1515,46 @@ async def api_delete_template(name: str, _=Depends(_check_auth)):
     signature_engine._reload_env()
     log.info("Template '%s' deleted", name)
     return {"ok": True, "deleted": deleted}
+
+
+@app.get("/api/templates/{name}/meta")
+async def api_get_template_meta(name: str, _=Depends(_check_auth)):
+    """Return the builder meta JSON for a template, or 404 if none exists."""
+    safe = _re.sub(r"[^a-zA-Z0-9_\-]", "", name).strip("-_") or "default"
+    fname = "signature" if safe == "default" else safe
+    meta_path = Path(config.TEMPLATE_DIR) / f"{fname}.meta.json"
+    if not meta_path.exists():
+        raise HTTPException(404, "Kein Builder-Meta für diese Vorlage")
+    import json as _json
+    return JSONResponse(_json.loads(meta_path.read_text()))
+
+
+@app.post("/api/templates/{name}/meta")
+async def api_save_template_meta(name: str, request: Request, _=Depends(_check_auth)):
+    """Save builder meta JSON, regenerate .html and .txt from it."""
+    import json as _json
+    import template_builder as _tb
+    import signature_engine
+    safe = _re.sub(r"[^a-zA-Z0-9_\-]", "", name).strip("-_") or "default"
+    fname = "signature" if safe == "default" else safe
+    try:
+        meta = await request.json()
+    except Exception:
+        raise HTTPException(400, "Ungültiges JSON")
+    if not isinstance(meta, dict) or "blocks" not in meta:
+        raise HTTPException(400, "Meta-JSON muss 'blocks' enthalten")
+    meta.setdefault("version", 1)
+    html_content = _tb.render_html(meta)
+    txt_content = _tb.render_txt(meta)
+    meta_path = Path(config.TEMPLATE_DIR) / f"{fname}.meta.json"
+    html_path = Path(config.TEMPLATE_DIR) / f"{fname}.html"
+    txt_path = Path(config.TEMPLATE_DIR) / f"{fname}.txt"
+    meta_path.write_text(_json.dumps(meta, ensure_ascii=False, indent=2))
+    html_path.write_text(html_content)
+    txt_path.write_text(txt_content)
+    signature_engine._reload_env()
+    log.info("Template '%s' saved via builder by %s", safe, _)
+    return {"ok": True, "html": html_content, "txt": txt_content}
 
 
 @app.get("/api/mailboxes")
@@ -1838,13 +1879,10 @@ async def dashboard(request: Request, user: str = Depends(_check_auth)):
 async def template_editor(request: Request, user: str = Depends(_check_auth)):
     import signature_engine as _sig_engine
     name = request.query_params.get("name") or "default"
-    # Resolve filenames
-    if name == "default":
-        html_path = Path(config.TEMPLATE_DIR) / "signature.html"
-        txt_path = Path(config.TEMPLATE_DIR) / "signature.txt"
-    else:
-        html_path = Path(config.TEMPLATE_DIR) / f"{name}.html"
-        txt_path = Path(config.TEMPLATE_DIR) / f"{name}.txt"
+    fname = "signature" if name == "default" else name
+    html_path = Path(config.TEMPLATE_DIR) / f"{fname}.html"
+    txt_path = Path(config.TEMPLATE_DIR) / f"{fname}.txt"
+    meta_path = Path(config.TEMPLATE_DIR) / f"{fname}.meta.json"
     template_list = _sig_engine.list_templates()
     custom_vars = [cv["name"] for cv in (settings_store.get("CUSTOM_TEMPLATE_VARS") or []) if cv.get("name")]
     return templates.TemplateResponse(
@@ -1852,6 +1890,7 @@ async def template_editor(request: Request, user: str = Depends(_check_auth)):
         context={
             "html_content": html_path.read_text() if html_path.exists() else "",
             "txt_content": txt_path.read_text() if txt_path.exists() else "",
+            "has_meta": meta_path.exists(),
             "active": "template",
             "saved": request.query_params.get("saved"),
             "current_template": name,

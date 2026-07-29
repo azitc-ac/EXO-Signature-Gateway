@@ -7,10 +7,6 @@
   <li><a href="/preview" class="nav-sub-tab">Vorschau</a></li>
 </ul>
 
-{% if saved %}
-<div class="alert success">Vorlage "{{ current_template }}" gespeichert.</div>
-{% endif %}
-
 <!-- Template-Auswahl -->
 <div class="settings-card" style="margin-bottom:16px">
   <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
@@ -33,48 +29,719 @@
   </p>
 </div>
 
-<form method="post" action="/template">
+<div id="save-ok" class="alert success" style="display:{% if saved %}block{% else %}none{% endif %}">
+  Vorlage "{{ current_template }}" gespeichert.
+</div>
+<div id="save-err" class="alert error" style="display:none"></div>
+
+<!-- ── Tabs ─────────────────────────────────────────────────────────────────── -->
+<div style="display:flex;gap:0;margin-bottom:16px;border-bottom:2px solid #e2e8f0">
+  <button id="tab-builder-btn" onclick="switchTab('builder')"
+    style="padding:8px 20px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:3px solid #4f46e5;color:#4f46e5;margin-bottom:-2px">
+    Baukasten
+  </button>
+  <button id="tab-raw-btn" onclick="switchTab('raw')"
+    style="padding:8px 20px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:3px solid transparent;color:#6b7280;margin-bottom:-2px">
+    Quelltext (Erweitert)
+  </button>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- BAUKASTEN TAB                                                             -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div id="tab-builder" style="display:flex;gap:16px;align-items:flex-start">
+
+  <!-- Left: block list -->
+  <div style="flex:0 0 420px;min-width:0">
+
+    <!-- Global Settings -->
+    <details id="global-settings" style="margin-bottom:12px">
+      <summary style="cursor:pointer;font-weight:600;font-size:13px;padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;list-style:none;display:flex;align-items:center;gap:6px">
+        <span>&#9881;</span> Globale Einstellungen (Schrift &amp; Farben)
+      </summary>
+      <div style="padding:12px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 6px 6px;background:#fff">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <label style="font-size:12px;color:#555">
+            Schriftart<br>
+            <input id="g-font" type="text" value="Calibri, Arial, sans-serif"
+              style="width:100%;padding:4px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:12px;margin-top:2px">
+          </label>
+          <label style="font-size:12px;color:#555">
+            Schriftgröße<br>
+            <input id="g-size" type="text" value="11pt"
+              style="width:100%;padding:4px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:12px;margin-top:2px">
+          </label>
+          <label style="font-size:12px;color:#555">
+            Textfarbe<br>
+            <div style="display:flex;gap:4px;align-items:center;margin-top:2px">
+              <input id="g-base-color-pick" type="color" value="#1f2937" oninput="syncColorPick('g-base')"
+                style="width:28px;height:28px;padding:0;border:1px solid #d1d5db;border-radius:3px;cursor:pointer">
+              <input id="g-base-color" type="text" value="#1f2937" oninput="syncColorText('g-base')"
+                style="flex:1;padding:4px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:12px">
+            </div>
+          </label>
+          <label style="font-size:12px;color:#555">
+            Gedämpfte Farbe<br>
+            <div style="display:flex;gap:4px;align-items:center;margin-top:2px">
+              <input id="g-muted-color-pick" type="color" value="#6b7280" oninput="syncColorPick('g-muted')"
+                style="width:28px;height:28px;padding:0;border:1px solid #d1d5db;border-radius:3px;cursor:pointer">
+              <input id="g-muted-color" type="text" value="#6b7280" oninput="syncColorText('g-muted')"
+                style="flex:1;padding:4px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:12px">
+            </div>
+          </label>
+          <label style="font-size:12px;color:#555">
+            Link-Farbe<br>
+            <div style="display:flex;gap:4px;align-items:center;margin-top:2px">
+              <input id="g-link-color-pick" type="color" value="#1e40af" oninput="syncColorPick('g-link')"
+                style="width:28px;height:28px;padding:0;border:1px solid #d1d5db;border-radius:3px;cursor:pointer">
+              <input id="g-link-color" type="text" value="#1e40af" oninput="syncColorText('g-link')"
+                style="flex:1;padding:4px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:12px">
+            </div>
+          </label>
+        </div>
+        <button class="btn secondary" onclick="refreshPreview()" style="margin-top:10px;font-size:12px">Vorschau aktualisieren</button>
+      </div>
+    </details>
+
+    <!-- Block list -->
+    <div id="block-list" style="display:flex;flex-direction:column;gap:6px"></div>
+
+    <!-- Add block -->
+    <div style="margin-top:12px;position:relative" id="add-block-wrap">
+      <button class="btn secondary" onclick="toggleBlockPicker()" type="button"
+        style="width:100%;font-size:13px">+ Block hinzufügen</button>
+      <div id="block-picker" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:99;background:#fff;border:1px solid #d1d5db;border-radius:6px;padding:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);margin-top:4px">
+        <div style="font-size:11px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;padding-left:2px">Text &amp; Felder</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:8px">
+          <button class="picker-btn" onclick="addBlock('greeting')">Grußformel</button>
+          <button class="picker-btn" onclick="addBlock('name_field')">Name</button>
+          <button class="picker-btn" onclick="addBlock('field')">Feld (beliebig)</button>
+          <button class="picker-btn" onclick="addBlock('freetext')">Freitext / HTML</button>
+        </div>
+        <div style="font-size:11px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;padding-left:2px">Kontakt</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:8px">
+          <button class="picker-btn" onclick="addBlock('phone')">Telefon</button>
+          <button class="picker-btn" onclick="addBlock('mobile')">Mobil</button>
+          <button class="picker-btn" onclick="addBlock('email_link')">E-Mail-Link</button>
+          <button class="picker-btn" onclick="addBlock('web_link')">Website-Link</button>
+          <button class="picker-btn" onclick="addBlock('booking_link')">Buchungslink</button>
+          <button class="picker-btn" onclick="addBlock('social')">Social Media</button>
+        </div>
+        <div style="font-size:11px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;padding-left:2px">Layout</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px">
+          <button class="picker-btn" onclick="addBlock('logo')">Logo (Bild-URL)</button>
+          <button class="picker-btn" onclick="addBlock('two_col')">Zwei Spalten</button>
+          <button class="picker-btn" onclick="addBlock('divider')">Trennlinie</button>
+          <button class="picker-btn" onclick="addBlock('spacer')">Abstand</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Save button -->
+    <div style="margin-top:16px;display:flex;gap:8px">
+      <button class="btn primary" onclick="saveBuilder()" id="save-builder-btn" type="button">Speichern</button>
+      <button class="btn secondary" onclick="refreshPreview()" type="button">Vorschau</button>
+    </div>
+
+  </div><!-- /left -->
+
+  <!-- Right: preview -->
+  <div style="flex:1;min-width:0">
+    <div style="font-size:12px;color:#888;margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Live-Vorschau</div>
+    <div id="preview-email-wrap" style="margin-bottom:8px;display:flex;gap:8px;align-items:center">
+      <select id="preview-email-sel" style="font-size:12px;padding:4px 8px;border:1px solid #d1d5db;border-radius:4px"
+        onchange="refreshPreview()">
+        <option value="">— Postfach für Vorschau —</option>
+      </select>
+      <span id="preview-loading" style="font-size:12px;color:#888;display:none">Lädt…</span>
+    </div>
+    <div id="preview-box" style="min-height:120px;border:1px solid #e2e8f0;border-radius:6px;padding:16px;background:#fff;overflow:auto">
+      <span style="color:#9ca3af;font-size:12px">Postfach wählen und Speichern für Live-Vorschau</span>
+    </div>
+  </div>
+
+</div><!-- /tab-builder -->
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- RAW HTML TAB                                                              -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div id="tab-raw" style="display:none">
+  {% if has_meta %}
+  <div class="alert" style="background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#92400e">
+    Diese Vorlage wurde im Baukasten erstellt. Manuelle Änderungen am Quelltext überschreiben die Baukastenversion beim Speichern.
+  </div>
+  {% endif %}
+  <form method="post" action="/template" id="raw-form">
     <input type="hidden" name="template_name" value="{{ current_template }}">
     <div class="editor-section">
-        <label for="html_content"><strong>HTML-Signatur</strong> (Jinja2)</label>
-        <textarea id="html_content" name="html_content" rows="20" spellcheck="false">{{ html_content }}</textarea>
+      <label for="html_content"><strong>HTML-Signatur</strong> (Jinja2)</label>
+      <textarea id="html_content" name="html_content" rows="22" spellcheck="false">{{ html_content }}</textarea>
     </div>
     <div class="editor-section">
-        <label for="txt_content"><strong>Plaintext-Signatur</strong> (Jinja2)</label>
-        <textarea id="txt_content" name="txt_content" rows="8" spellcheck="false">{{ txt_content }}</textarea>
+      <label for="txt_content"><strong>Plaintext-Signatur</strong> (Jinja2)</label>
+      <textarea id="txt_content" name="txt_content" rows="8" spellcheck="false">{{ txt_content }}</textarea>
     </div>
     <div class="actions">
-        <button type="submit" class="btn primary">Speichern</button>
-        <a href="/preview" class="btn secondary">Vorschau</a>
+      <button type="submit" class="btn primary">Speichern</button>
+      <a href="/preview" class="btn secondary">Vorschau</a>
     </div>
-</form>
+  </form>
 
-<div class="hint">
+  <div class="hint" style="margin-top:16px">
     <strong>Verfügbare Variablen:</strong>
     <code>user.displayName</code>, <code>user.jobTitle</code>, <code>user.department</code>,
     <code>user.companyName</code>, <code>user.mail</code>, <code>user.phone</code>,
     <code>user.mobilePhone</code>, <code>user.officeLocation</code>,
     <code>user.website</code>, <code>user.bookingsUrl</code>{% if custom_vars %},
     {% for cv in custom_vars %}<code>custom.{{ cv }}</code>{% if not loop.last %}, {% endif %}{% endfor %}
-    <span style="color:#888">(eigene Variablen, siehe Signatur → Variablen)</span>{% endif %}
+    <span style="color:#888">(eigene Variablen)</span>{% endif %}
+  </div>
 </div>
 
+<style>
+.picker-btn {
+  text-align:left;padding:5px 8px;border:1px solid #e2e8f0;border-radius:4px;
+  background:#f8fafc;font-size:12px;cursor:pointer;color:#1f2937;
+}
+.picker-btn:hover { background:#eff6ff;border-color:#bfdbfe }
+.block-card {
+  border:1px solid #e2e8f0;border-radius:6px;background:#fff;overflow:hidden;
+}
+.block-card-header {
+  display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer;
+  background:#f8fafc;user-select:none;
+}
+.block-card-header:hover { background:#f1f5f9 }
+.block-card-body { padding:10px 12px;display:none;border-top:1px solid #e2e8f0}
+.block-card.open .block-card-body { display:block }
+.block-type-badge {
+  font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;
+  padding:2px 6px;border-radius:3px;background:#ede9fe;color:#6d28d9;white-space:nowrap;
+}
+.prop-row { display:grid;grid-template-columns:110px 1fr;gap:8px;align-items:center;margin-bottom:8px;font-size:12px }
+.prop-row label { color:#555;font-size:12px }
+.prop-row input[type=text], .prop-row select, .prop-row textarea {
+  padding:4px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:12px;width:100%;box-sizing:border-box
+}
+.prop-row textarea { min-height:60px;resize:vertical }
+.prop-row input[type=checkbox] { width:auto }
+[data-theme="dark"] .block-card { background:#1e293b;border-color:#334155 }
+[data-theme="dark"] .block-card-header { background:#0f172a }
+[data-theme="dark"] .block-card-header:hover { background:#1e293b }
+[data-theme="dark"] .block-card-body { border-color:#334155 }
+[data-theme="dark"] .picker-btn { background:#1e293b;border-color:#334155;color:#e2e8f0 }
+[data-theme="dark"] .picker-btn:hover { background:#1e3a5f;border-color:#3b82f6 }
+[data-theme="dark"] .prop-row input[type=text],
+[data-theme="dark"] .prop-row select,
+[data-theme="dark"] .prop-row textarea { background:#0f172a;border-color:#334155;color:#e2e8f0 }
+.col-block-item {
+  border:1px solid #e2e8f0;border-radius:4px;padding:4px 8px;font-size:11px;
+  display:flex;align-items:center;gap:4px;background:#f8fafc;
+}
+[data-theme="dark"] .col-block-item { background:#0f172a;border-color:#334155 }
+</style>
+
 <script>
-function switchTemplate(name) {
-  window.location.href = '/template?name=' + encodeURIComponent(name);
+(function () {
+'use strict';
+
+// ── State ─────────────────────────────────────────────────────────────────────
+const TEMPLATE_NAME = {{ current_template | tojson }};
+const HAS_META      = {{ has_meta | tojson }};
+const CUSTOM_VARS   = {{ (custom_vars or []) | tojson }};
+
+let blocks = [];   // array of block objects
+let nextId = 1;
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+window.switchTab = function(tab) {
+  document.getElementById('tab-builder').style.display = tab === 'builder' ? 'flex' : 'none';
+  document.getElementById('tab-raw').style.display     = tab === 'raw'     ? 'block' : 'none';
+  const bb = document.getElementById('tab-builder-btn');
+  const rb = document.getElementById('tab-raw-btn');
+  if (tab === 'builder') {
+    bb.style.borderBottomColor = '#4f46e5'; bb.style.color = '#4f46e5';
+    rb.style.borderBottomColor = 'transparent'; rb.style.color = '#6b7280';
+  } else {
+    rb.style.borderBottomColor = '#4f46e5'; rb.style.color = '#4f46e5';
+    bb.style.borderBottomColor = 'transparent'; bb.style.color = '#6b7280';
+  }
+};
+
+// ── Block picker ──────────────────────────────────────────────────────────────
+window.toggleBlockPicker = function() {
+  const p = document.getElementById('block-picker');
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+};
+document.addEventListener('click', e => {
+  const wrap = document.getElementById('add-block-wrap');
+  if (wrap && !wrap.contains(e.target))
+    document.getElementById('block-picker').style.display = 'none';
+});
+
+// ── Block defaults ────────────────────────────────────────────────────────────
+function defaultBlock(type) {
+  const id = (nextId++).toString();
+  const base = { id, type };
+  switch (type) {
+    case 'greeting':    return { ...base, text: 'Freundliche Grüße', color: 'base' };
+    case 'spacer':      return { ...base, height: 8 };
+    case 'name_field':  return { ...base, field: 'displayName', bold: true, color: 'base' };
+    case 'field':       return { ...base, field: 'jobTitle', bold: false, italic: false, color: 'muted', prefix: '' };
+    case 'divider':     return { ...base, color: '#e2e8f0', margin: 8 };
+    case 'phone':       return { ...base, field: 'phone', label: 'Tel:' };
+    case 'mobile':      return { ...base, field: 'mobilePhone', label: 'Mobil:' };
+    case 'email_link':  return { ...base, label: '' };
+    case 'web_link':    return { ...base };
+    case 'logo':        return { ...base, url: '', width: 100 };
+    case 'booking_link':return { ...base, label: 'Termin buchen' };
+    case 'social':      return { ...base, platform: 'LinkedIn', url: '', label: '' };
+    case 'freetext':    return { ...base, html: '' };
+    case 'two_col':     return {
+      ...base,
+      left: [], right: [],
+      divider: true, left_width: 'auto', gap: 12,
+      left_valign: 'top', right_valign: 'middle',
+    };
+    default: return base;
+  }
 }
 
-function createNewTemplate() {
+// ── Block labels ──────────────────────────────────────────────────────────────
+const TYPE_LABELS = {
+  greeting:'Grußformel', spacer:'Abstand', name_field:'Name',
+  field:'Feld', divider:'Trennlinie', phone:'Telefon', mobile:'Mobil',
+  email_link:'E-Mail-Link', web_link:'Website-Link',
+  logo:'Logo', booking_link:'Buchungslink', social:'Social Media',
+  freetext:'Freitext', two_col:'Zwei Spalten',
+};
+
+function blockSummary(b) {
+  switch (b.type) {
+    case 'greeting':    return b.text || '';
+    case 'spacer':      return `${b.height || 8} px`;
+    case 'name_field':  return 'user.displayName';
+    case 'field':       return `user.${b.field || '?'}${b.prefix ? ' ('+b.prefix+')' : ''}`;
+    case 'divider':     return `─── (${b.color || '#e2e8f0'})`;
+    case 'phone':       return `${b.label || 'Tel:'} user.${b.field || 'phone'}`;
+    case 'mobile':      return `${b.label || 'Mobil:'} user.mobilePhone`;
+    case 'email_link':  return b.label ? `"${b.label}" → user.mail` : 'user.mail';
+    case 'web_link':    return 'user.website';
+    case 'logo':        return b.url ? b.url.slice(0,40) + (b.url.length>40?'…':'') : '(keine URL)';
+    case 'booking_link':return b.label || 'Termin buchen';
+    case 'social':      return `${b.platform || ''} ${b.url ? b.url.slice(0,30)+'…' : '(keine URL)'}`;
+    case 'freetext':    return b.html ? b.html.replace(/<[^>]+>/g,'').slice(0,40)+'…' : '(leer)';
+    case 'two_col':     return `${(b.left||[]).length} links / ${(b.right||[]).length} rechts`;
+    default: return '';
+  }
+}
+
+// ── Add block ─────────────────────────────────────────────────────────────────
+window.addBlock = function(type, targetList, afterId) {
+  document.getElementById('block-picker').style.display = 'none';
+  const b = defaultBlock(type);
+  if (targetList) {
+    targetList.push(b);
+  } else {
+    if (afterId) {
+      const idx = blocks.findIndex(x => x.id === afterId);
+      blocks.splice(idx + 1, 0, b);
+    } else {
+      blocks.push(b);
+    }
+  }
+  renderBlockList();
+};
+
+// ── Field options ─────────────────────────────────────────────────────────────
+const USER_FIELDS = [
+  'displayName','jobTitle','department','companyName',
+  'mail','phone','mobilePhone','officeLocation','website','bookingsUrl',
+];
+const COLOR_OPTIONS = [
+  {v:'base',  l:'Standard (Textfarbe)'},
+  {v:'muted', l:'Gedämpft'},
+  {v:'link',  l:'Link-Farbe'},
+];
+
+function fieldSelect(val, name) {
+  const opts = USER_FIELDS.map(f =>
+    `<option value="${f}"${f===val?' selected':''}>${f}</option>`).join('');
+  return `<select name="${esc(name)}" onchange="blockPropChange(this)">${opts}</select>`;
+}
+
+function colorSelect(val, name, extra) {
+  const extra_opts = (extra||[]).map(e => `<option value="${e.v}"${e.v===val?' selected':''}>${e.l}</option>`).join('');
+  const base_opts = COLOR_OPTIONS.map(o => `<option value="${o.v}"${o.v===val?' selected':''}>${o.l}</option>`).join('');
+  return `<select name="${esc(name)}" onchange="blockPropChange(this)">${base_opts}${extra_opts}</select>`;
+}
+
+// ── Render block card ─────────────────────────────────────────────────────────
+function renderCard(b, container, listRef) {
+  const card = document.createElement('div');
+  card.className = 'block-card';
+  card.dataset.bid = b.id;
+
+  const header = document.createElement('div');
+  header.className = 'block-card-header';
+  header.innerHTML = `
+    <span class="block-type-badge">${esc(TYPE_LABELS[b.type] || b.type)}</span>
+    <span style="flex:1;font-size:12px;color:#6b7280;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(blockSummary(b))}</span>
+    <span style="display:flex;gap:3px">
+      <button onclick="moveBlock(event,'${b.id}',-1)" title="Nach oben" style="${iconBtnStyle()}">↑</button>
+      <button onclick="moveBlock(event,'${b.id}',1)"  title="Nach unten" style="${iconBtnStyle()}">↓</button>
+      <button onclick="deleteBlock(event,'${b.id}')" title="Löschen" style="${iconBtnStyle('#dc2626')}">✕</button>
+    </span>`;
+  header.addEventListener('click', e => {
+    if (e.target.tagName === 'BUTTON') return;
+    card.classList.toggle('open');
+  });
+  card.appendChild(header);
+
+  const body = document.createElement('div');
+  body.className = 'block-card-body';
+  body.innerHTML = buildBlockForm(b);
+  body.querySelectorAll('[data-bid]').forEach(el => el.dataset.bid = b.id);
+  card.appendChild(body);
+
+  container.appendChild(card);
+}
+
+function iconBtnStyle(color) {
+  return `background:none;border:1px solid #e2e8f0;border-radius:3px;cursor:pointer;padding:1px 5px;font-size:11px;color:${color||'#555'};line-height:1.4`;
+}
+
+// ── Block form HTML ───────────────────────────────────────────────────────────
+function buildBlockForm(b) {
+  const t = b.type;
+  let rows = '';
+  const row = (label, input) =>
+    `<div class="prop-row"><label>${esc(label)}</label><div>${input}</div></div>`;
+  const txt = (name, val, placeholder) =>
+    `<input type="text" name="${esc(name)}" value="${escAttr(val||'')}" placeholder="${escAttr(placeholder||'')}" data-bid="${b.id}" onchange="blockPropChange(this)">`;
+  const chk = (name, val) =>
+    `<input type="checkbox" name="${esc(name)}" ${val?' checked':''} data-bid="${b.id}" onchange="blockPropChange(this)">`;
+  const ta = (name, val) =>
+    `<textarea name="${esc(name)}" data-bid="${b.id}" onchange="blockPropChange(this)">${esc(val||'')}</textarea>`;
+
+  if (t === 'greeting') {
+    rows += row('Text', txt('text', b.text, 'Freundliche Grüße'));
+    rows += row('Farbe', colorSelect(b.color||'base','color'));
+    rows += row('Größe', txt('size', b.size, 'z.B. 10pt'));
+    rows += row('Kursiv', chk('italic', b.italic));
+  } else if (t === 'spacer') {
+    rows += row('Höhe (px)', txt('height', b.height, '8'));
+  } else if (t === 'name_field') {
+    rows += row('Fett', chk('bold', b.bold !== false));
+    rows += row('Farbe', colorSelect(b.color||'base','color'));
+    rows += row('Größe', txt('size', b.size, ''));
+  } else if (t === 'field') {
+    rows += row('Entra-Feld', fieldSelect(b.field||'jobTitle','field'));
+    rows += row('Präfix', txt('prefix', b.prefix, 'z.B. Abt.:'));
+    rows += row('Fett', chk('bold', b.bold));
+    rows += row('Kursiv', chk('italic', b.italic));
+    rows += row('Farbe', colorSelect(b.color||'muted','color'));
+    rows += row('Größe', txt('size', b.size, ''));
+  } else if (t === 'divider') {
+    rows += row('Farbe', txt('color', b.color, '#e2e8f0'));
+    rows += row('Abstand (px)', txt('margin', b.margin, '8'));
+  } else if (t === 'phone' || t === 'mobile') {
+    rows += row('Feld', fieldSelect(b.field||(t==='mobile'?'mobilePhone':'phone'),'field'));
+    rows += row('Beschriftung', txt('label', b.label, t==='mobile'?'Mobil:':'Tel:'));
+  } else if (t === 'email_link') {
+    rows += row('Anzeigetext', txt('label', b.label, 'leer = E-Mail-Adresse'));
+  } else if (t === 'web_link') {
+    rows += '<p style="font-size:12px;color:#6b7280;margin:0">Zeigt user.website als klickbaren Link.</p>';
+  } else if (t === 'logo') {
+    rows += row('Bild-URL', txt('url', b.url, 'https://…/logo.png'));
+    rows += row('Breite (px)', txt('width', b.width, '100'));
+    rows += `<p style="font-size:11px;color:#6b7280;margin:4px 0 0">Tipp: Data-URI oder öffentliche URL. Alt-Text = user.companyName.</p>`;
+  } else if (t === 'booking_link') {
+    rows += row('Beschriftung', txt('label', b.label, 'Termin buchen'));
+  } else if (t === 'social') {
+    rows += row('Plattform', txt('platform', b.platform, 'LinkedIn'));
+    rows += row('URL (fest)', txt('url', b.url, 'https://linkedin.com/…'));
+    rows += row('Anzeigetext', txt('label', b.label, 'leer = Plattformname'));
+  } else if (t === 'freetext') {
+    rows += row('HTML', ta('html', b.html));
+    rows += `<p style="font-size:11px;color:#6b7280;margin:4px 0 0">Rohes HTML — für Disclaimer, Rechtliches, etc. Keine Jinja2-Variablen möglich.</p>`;
+  } else if (t === 'two_col') {
+    rows += row('Abstand (px)', txt('gap', b.gap, '12'));
+    rows += row('Linke Breite', txt('left_width', b.left_width, 'auto oder z.B. 60%'));
+    rows += row('Links ausrichten', `<select name="left_valign" data-bid="${b.id}" onchange="blockPropChange(this)"><option value="top"${(b.left_valign||'top')==='top'?' selected':''}>Oben</option><option value="middle"${b.left_valign==='middle'?' selected':''}>Mitte</option></select>`);
+    rows += row('Rechts ausrichten', `<select name="right_valign" data-bid="${b.id}" onchange="blockPropChange(this)"><option value="middle"${(b.right_valign||'middle')==='middle'?' selected':''}>Mitte</option><option value="top"${b.right_valign==='top'?' selected':''}>Oben</option></select>`);
+    rows += row('Trennlinie', chk('divider', b.divider));
+    rows += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+      <div>
+        <div style="font-size:11px;font-weight:600;color:#555;margin-bottom:4px">Linke Spalte</div>
+        <div id="col-left-${b.id}" style="display:flex;flex-direction:column;gap:4px"></div>
+        <button type="button" onclick="addColBlock('${b.id}','left')"
+          style="margin-top:6px;font-size:11px;padding:3px 8px;border:1px dashed #d1d5db;border-radius:4px;background:none;cursor:pointer;width:100%">+ Block</button>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:600;color:#555;margin-bottom:4px">Rechte Spalte</div>
+        <div id="col-right-${b.id}" style="display:flex;flex-direction:column;gap:4px"></div>
+        <button type="button" onclick="addColBlock('${b.id}','right')"
+          style="margin-top:6px;font-size:11px;padding:3px 8px;border:1px dashed #d1d5db;border-radius:4px;background:none;cursor:pointer;width:100%">+ Block</button>
+      </div>
+    </div>`;
+  }
+  return rows;
+}
+
+// ── Render whole block list ───────────────────────────────────────────────────
+function renderBlockList() {
+  const container = document.getElementById('block-list');
+  container.innerHTML = '';
+  if (blocks.length === 0) {
+    container.innerHTML = '<p style="font-size:13px;color:#9ca3af;text-align:center;padding:20px 0">Noch keine Blöcke. "+ Block hinzufügen" klicken.</p>';
+    return;
+  }
+  blocks.forEach(b => {
+    renderCard(b, container, blocks);
+  });
+  // Render sub-columns
+  blocks.filter(b => b.type === 'two_col').forEach(b => {
+    renderColBlocks(b, 'left');
+    renderColBlocks(b, 'right');
+  });
+}
+
+function renderColBlocks(parent, side) {
+  const container = document.getElementById(`col-${side}-${parent.id}`);
+  if (!container) return;
+  container.innerHTML = '';
+  const list = parent[side] || [];
+  list.forEach(b => {
+    const mini = document.createElement('div');
+    mini.className = 'col-block-item';
+    mini.innerHTML = `
+      <span style="flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">
+        <strong>${esc(TYPE_LABELS[b.type]||b.type)}</strong>
+        <span style="color:#6b7280"> ${esc(blockSummary(b))}</span>
+      </span>
+      <button onclick="deleteColBlock('${parent.id}','${side}','${b.id}')" title="Löschen"
+        style="background:none;border:none;cursor:pointer;color:#dc2626;font-size:12px;padding:0 2px">✕</button>`;
+    container.appendChild(mini);
+  });
+}
+
+// ── Add column block (simplified picker for two_col sub-blocks) ──────────────
+window.addColBlock = function(parentId, side) {
+  const parent = findBlock(parentId);
+  if (!parent) return;
+  const type = prompt('Block-Typ:\ngreeting | spacer | name_field | field | divider\nphone | mobile | email_link | web_link\nlogo | booking_link | social | freetext');
+  if (!type || !TYPE_LABELS[type]) return;
+  const b = defaultBlock(type);
+  parent[side] = parent[side] || [];
+  parent[side].push(b);
+  renderBlockList();
+};
+
+window.deleteColBlock = function(parentId, side, blockId) {
+  const parent = findBlock(parentId);
+  if (!parent) return;
+  parent[side] = (parent[side] || []).filter(b => b.id !== blockId);
+  renderBlockList();
+};
+
+// ── Block prop change ─────────────────────────────────────────────────────────
+window.blockPropChange = function(el) {
+  const bid = el.dataset.bid;
+  const b = findBlock(bid);
+  if (!b) return;
+  const name = el.name;
+  let val = el.type === 'checkbox' ? el.checked : el.value;
+  if (name === 'height' || name === 'width' || name === 'margin' || name === 'gap') {
+    val = parseInt(val) || 0;
+  }
+  b[name] = val;
+  // Update summary in card header
+  const card = document.querySelector(`.block-card[data-bid="${bid}"]`);
+  if (card) {
+    const sumEl = card.querySelector('.block-card-header span:nth-child(2)');
+    if (sumEl) sumEl.textContent = blockSummary(b);
+  }
+};
+
+// ── Move/delete block ─────────────────────────────────────────────────────────
+window.moveBlock = function(e, id, dir) {
+  e.stopPropagation();
+  const idx = blocks.findIndex(b => b.id === id);
+  if (idx < 0) return;
+  const newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= blocks.length) return;
+  [blocks[idx], blocks[newIdx]] = [blocks[newIdx], blocks[idx]];
+  renderBlockList();
+};
+
+window.deleteBlock = function(e, id) {
+  e.stopPropagation();
+  blocks = blocks.filter(b => b.id !== id);
+  renderBlockList();
+};
+
+function findBlock(id, list) {
+  const src = list || blocks;
+  for (const b of src) {
+    if (b.id === id) return b;
+    if (b.type === 'two_col') {
+      const found = findBlock(id, b.left || []) || findBlock(id, b.right || []);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+// ── Global style sync ─────────────────────────────────────────────────────────
+window.syncColorPick = function(prefix) {
+  document.getElementById(prefix+'-color').value =
+    document.getElementById(prefix+'-color-pick').value;
+};
+window.syncColorText = function(prefix) {
+  const v = document.getElementById(prefix+'-color').value;
+  if (/^#[0-9a-fA-F]{6}$/.test(v))
+    document.getElementById(prefix+'-color-pick').value = v;
+};
+
+function getGlobal() {
+  return {
+    font_family: document.getElementById('g-font').value.trim() || 'Calibri, Arial, sans-serif',
+    font_size:   document.getElementById('g-size').value.trim() || '11pt',
+    base_color:  document.getElementById('g-base-color').value.trim() || '#1f2937',
+    muted_color: document.getElementById('g-muted-color').value.trim() || '#6b7280',
+    link_color:  document.getElementById('g-link-color').value.trim() || '#1e40af',
+  };
+}
+
+function applyGlobal(g) {
+  document.getElementById('g-font').value = g.font_family || 'Calibri, Arial, sans-serif';
+  document.getElementById('g-size').value = g.font_size || '11pt';
+  const setColor = (prefix, val) => {
+    document.getElementById(prefix+'-color').value = val || '';
+    if (/^#[0-9a-fA-F]{6}$/.test(val))
+      document.getElementById(prefix+'-color-pick').value = val;
+  };
+  setColor('g-base', g.base_color);
+  setColor('g-muted', g.muted_color);
+  setColor('g-link', g.link_color);
+}
+
+// ── Build meta JSON ───────────────────────────────────────────────────────────
+function buildMeta() {
+  return { version: 1, global: getGlobal(), blocks };
+}
+
+// ── Save builder ──────────────────────────────────────────────────────────────
+window.saveBuilder = async function() {
+  const btn = document.getElementById('save-builder-btn');
+  btn.disabled = true;
+  btn.textContent = 'Speichern…';
+  document.getElementById('save-ok').style.display  = 'none';
+  document.getElementById('save-err').style.display = 'none';
+  try {
+    const r = await fetch(`/api/templates/${encodeURIComponent(TEMPLATE_NAME)}/meta`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(buildMeta()),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || 'Fehler');
+    document.getElementById('save-ok').style.display = 'block';
+    // Update raw-HTML textarea
+    const ta = document.getElementById('html_content');
+    if (ta) ta.value = d.html || '';
+    const tb = document.getElementById('txt_content');
+    if (tb) tb.value = d.txt || '';
+    await refreshPreview();
+  } catch(e) {
+    const box = document.getElementById('save-err');
+    box.textContent = 'Speichern fehlgeschlagen: ' + e.message;
+    box.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Speichern';
+  }
+};
+
+// ── Preview ───────────────────────────────────────────────────────────────────
+window.refreshPreview = async function() {
+  const email = document.getElementById('preview-email-sel').value;
+  const box = document.getElementById('preview-box');
+  const loading = document.getElementById('preview-loading');
+  if (!email) {
+    box.innerHTML = '<span style="color:#9ca3af;font-size:12px">Postfach wählen für Live-Vorschau</span>';
+    return;
+  }
+  loading.style.display = '';
+  try {
+    const r = await fetch(`/api/preview-data?email=${encodeURIComponent(email)}&template=${encodeURIComponent(TEMPLATE_NAME)}`);
+    const d = await r.json();
+    box.innerHTML = (d.html || '') + (d.banner_html || '') + (d.disclaimer_html || '');
+  } catch(e) {
+    box.innerHTML = `<span style="color:#dc2626;font-size:12px">Vorschau-Fehler: ${esc(e.message)}</span>`;
+  } finally {
+    loading.style.display = 'none';
+  }
+};
+
+// ── Load mailboxes for preview select ────────────────────────────────────────
+async function loadMailboxes() {
+  try {
+    const r = await fetch('/api/mailboxes');
+    const d = await r.json();
+    const sel = document.getElementById('preview-email-sel');
+    (d.mailboxes || []).forEach(m => {
+      const o = document.createElement('option');
+      o.value = m.email;
+      o.textContent = m.name !== m.email ? `${m.name} <${m.email}>` : m.email;
+      sel.appendChild(o);
+    });
+  } catch(e) { /* non-fatal */ }
+}
+
+// ── Load existing meta (if any) ───────────────────────────────────────────────
+async function loadMeta() {
+  if (!HAS_META) {
+    renderBlockList();
+    return;
+  }
+  try {
+    const r = await fetch(`/api/templates/${encodeURIComponent(TEMPLATE_NAME)}/meta`);
+    if (!r.ok) { renderBlockList(); return; }
+    const meta = await r.json();
+    if (meta.global) applyGlobal(meta.global);
+    if (Array.isArray(meta.blocks)) {
+      // Assign fresh IDs to avoid collisions
+      let counter = 1;
+      const reassign = list => (list||[]).map(b => {
+        const nb = { ...b, id: (counter++).toString() };
+        if (nb.left)  nb.left  = reassign(nb.left);
+        if (nb.right) nb.right = reassign(nb.right);
+        return nb;
+      });
+      blocks = reassign(meta.blocks);
+      nextId = counter;
+    }
+  } catch(e) { /* ignore, start empty */ }
+  renderBlockList();
+}
+
+// ── Template management ───────────────────────────────────────────────────────
+window.switchTemplate = function(name) {
+  window.location.href = '/template?name=' + encodeURIComponent(name);
+};
+window.createNewTemplate = function() {
   const name = prompt('Name der neuen Vorlage (nur Buchstaben, Zahlen, - und _):');
   if (!name) return;
   const safe = name.replace(/[^a-zA-Z0-9_\-]/g, '').replace(/^[-_]+|[-_]+$/g, '');
   if (!safe) { alert('Ungültiger Name.'); return; }
   if (safe === 'default') { alert('"default" ist reserviert.'); return; }
   window.location.href = '/template?name=' + encodeURIComponent(safe);
-}
-
-async function deleteTemplate(name) {
-  if (!confirm('Vorlage "' + name + '" wirklich löschen?\n\nDie .html- und .txt-Dateien werden unwiderruflich gelöscht.')) return;
+};
+window.deleteTemplate = async function(name) {
+  if (!confirm('Vorlage "' + name + '" wirklich löschen?\n\nAlle Dateien werden unwiderruflich gelöscht.')) return;
   const resp = await fetch('/api/templates/' + encodeURIComponent(name), {method: 'DELETE'});
   if (resp.ok) {
     window.location.href = '/template?name=default';
@@ -82,6 +749,20 @@ async function deleteTemplate(name) {
     const d = await resp.json().catch(() => ({}));
     alert('Fehler: ' + (d.detail || 'Unbekannt'));
   }
+};
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+loadMailboxes();
+loadMeta();
+
+// Start on Builder tab if HAS_META or template is empty; Raw tab if has raw HTML but no builder meta
+const HAS_RAW_HTML = {{ 'true' if html_content.strip() else 'false' }};
+if (!HAS_META && HAS_RAW_HTML) {
+  switchTab('raw');
+} else {
+  switchTab('builder');
 }
+
+}());
 </script>
 {% endblock %}

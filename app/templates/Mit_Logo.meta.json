@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "global": {
+    "font_family": "Calibri, Arial, sans-serif",
+    "font_size": "11pt",
+    "base_color": "#1f2937",
+    "muted_color": "#6b7280",
+    "link_color": "#0369a1"
+  },
+  "blocks": [
+    {
+      "id": "1",
+      "type": "greeting",
+      "text": "Mit freundlichen Grüßen"
+    },
+    {
+      "id": "2",
+      "type": "spacer",
+      "height": 8
+    },
+    {
+      "id": "3",
+      "type": "two_col",
+      "left": [
+        {
+          "id": "l1",
+          "type": "name_field",
+          "bold": true,
+          "color": "base"
+        },
+        {
+          "id": "l2",
+          "type": "field",
+          "field": "jobTitle",
+          "bold": false,
+          "color": "muted"
+        },
+        {
+          "id": "l3",
+          "type": "divider",
+          "color": "#e2e8f0",
+          "margin": 6
+        },
+        {
+          "id": "l4",
+          "type": "phone",
+          "field": "phone",
+          "label": "Tel:"
+        },
+        {
+          "id": "l5",
+          "type": "mobile",
+          "field": "mobilePhone",
+          "label": "Mobil:"
+        },
+        {
+          "id": "l6",
+          "type": "email_link",
+          "label": ""
+        },
+        {
+          "id": "l7",
+          "type": "web_link"
+        }
+      ],
+      "right": [
+        {
+          "id": "r1",
+          "type": "logo",
+          "url": "",
+          "width": 100
+        }
+      ],
+      "divider": true,
+      "gap": 16,
+      "left_width": "auto",
+      "left_valign": "top",
+      "right_valign": "middle"
+    },
+    {
+      "id": "4",
+      "type": "booking_link",
+      "label": "Termin buchen"
+    }
+  ]
+}

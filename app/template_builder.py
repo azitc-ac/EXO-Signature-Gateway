@@ -1,0 +1,363 @@
+"""
+template_builder.py — converts a block-list JSON to a Jinja2 HTML/TXT signature.
+
+Meta JSON schema:
+  {
+    "version": 1,
+    "global": {
+      "font_family": "Calibri, Arial, sans-serif",
+      "font_size": "11pt",
+      "base_color": "#1f2937",
+      "muted_color": "#6b7280",
+      "link_color": "#1e40af"
+    },
+    "blocks": [ <block>, ... ]
+  }
+
+Block types (top-level and nested inside two_col left/right lists):
+  greeting     — static closing salutation or intro text
+  spacer       — vertical gap (height px)
+  name_field   — user.displayName (short for field+displayName+bold)
+  field        — any user.* field with optional prefix, color, bold, italic
+  divider      — horizontal rule
+  phone        — phone link (conditional), configurable label + field
+  email_link   — mailto link on user.mail
+  web_link     — website link (conditional)
+  logo         — img by URL
+  booking_link — user.bookingsUrl link (conditional)
+  social       — social platform link (static URL)
+  freetext     — raw HTML passthrough (for banners / disclaimers / custom)
+  two_col      — two-column table; left/right each a list of non-nested blocks
+"""
+from __future__ import annotations
+
+import re
+import uuid
+import html as _htmllib
+from typing import Any
+
+_ALWAYS_PRESENT = {"displayName", "mail"}
+_USER_FIELDS = {
+    "displayName", "jobTitle", "department", "companyName",
+    "mail", "phone", "mobilePhone", "officeLocation",
+    "website", "bookingsUrl",
+}
+
+DEFAULT_GLOBAL: dict[str, Any] = {
+    "font_family": "Calibri, Arial, sans-serif",
+    "font_size": "11pt",
+    "base_color": "#1f2937",
+    "muted_color": "#6b7280",
+    "link_color": "#1e40af",
+}
+
+
+# ── Public API ─────────────────────────────────────────────────────────────────
+
+def render_html(meta: dict) -> str:
+    """Render meta JSON → Jinja2 HTML template string."""
+    g = {**DEFAULT_GLOBAL, **(meta.get("global") or {})}
+    blocks = meta.get("blocks") or []
+    inner = _render_blocks(blocks, g, indent=2)
+    return (
+        f'<table cellpadding="0" cellspacing="0" border="0" '
+        f'style="font-family:{g["font_family"]};font-size:{g["font_size"]};'
+        f'color:{g["base_color"]};border-collapse:collapse">\n'
+        + inner
+        + "\n</table>\n"
+    )
+
+
+def render_txt(meta: dict) -> str:
+    """Render meta JSON → Jinja2 plain-text template string."""
+    g = {**DEFAULT_GLOBAL, **(meta.get("global") or {})}
+    blocks = meta.get("blocks") or []
+    lines: list[str] = []
+    _render_blocks_txt(blocks, g, lines)
+    return "\n".join(lines) + "\n"
+
+
+def new_id() -> str:
+    return uuid.uuid4().hex[:8]
+
+
+# ── Helpers ────────────────────────────────────────────────────────────────────
+
+def _color_val(c: str, g: dict) -> str:
+    """Resolve named color aliases or return literal hex."""
+    if c == "muted":
+        return g["muted_color"]
+    if c == "link":
+        return g["link_color"]
+    if c in ("base", "", None):
+        return g["base_color"]
+    return c
+
+
+def _wrap_cond(field: str, inner: str) -> str:
+    """Wrap Jinja2 block in {% if user.FIELD %} unless field is always present."""
+    if field in _ALWAYS_PRESENT:
+        return inner
+    return f"{{% if user.{field} %}}{inner}{{% endif %}}"
+
+
+def _render_blocks(blocks: list[dict], g: dict, indent: int = 2) -> str:
+    parts = [_render_block(b, g, indent) for b in blocks]
+    return "\n".join(p for p in parts if p)
+
+
+def _render_block(b: dict, g: dict, indent: int) -> str:
+    pad = " " * indent
+    t = b.get("type", "")
+    fn = _HTML_RENDERERS.get(t)
+    if fn is None:
+        return ""
+    return fn(b, g, pad, indent)
+
+
+# ── HTML block renderers ───────────────────────────────────────────────────────
+
+def _greeting(b, g, pad, _ind):
+    text = _htmllib.escape(b.get("text") or "Freundliche Grüße")
+    parts = ["padding:0"]
+    color = _color_val(b.get("color", "base"), g)
+    if color != g["base_color"]:
+        parts.append(f"color:{color}")
+    if b.get("size"):
+        parts.append(f"font-size:{b['size']}")
+    if b.get("italic"):
+        parts.append("font-style:italic")
+    return f'{pad}<tr><td style="{";".join(parts)}">{text}</td></tr>'
+
+
+def _spacer(b, _g, pad, _ind):
+    h = max(1, int(b.get("height") or 8))
+    return (
+        f'{pad}<tr><td style="padding:0;height:{h}px;'
+        f'font-size:{h}px;line-height:{h}px">&nbsp;</td></tr>'
+    )
+
+
+def _field(b, g, pad, _ind):
+    fname = b.get("field") or ("displayName" if b.get("type") == "name_field" else "")
+    if not fname or fname not in _USER_FIELDS:
+        return ""
+    prefix = _htmllib.escape(b.get("prefix") or "")
+    parts = ["padding:0"]
+    bold = b.get("bold", b.get("type") == "name_field")
+    if bold:
+        parts.append("font-weight:bold")
+    if b.get("italic"):
+        parts.append("font-style:italic")
+    color = _color_val(b.get("color", "base"), g)
+    if color != g["base_color"]:
+        parts.append(f"color:{color}")
+    if b.get("size"):
+        parts.append(f"font-size:{b['size']}")
+    td = f'<td style="{";".join(parts)}">'
+    if prefix:
+        td += f"{prefix} "
+    td += "{{ user." + fname + " }}</td>"
+    return pad + _wrap_cond(fname, f"<tr>{td}</tr>")
+
+
+def _divider(b, g, pad, _ind):
+    color = _color_val(b.get("color") or "#e2e8f0", g)
+    m = max(2, int(b.get("margin") or 8))
+    return (
+        f'{pad}<tr><td style="padding:{m}px 0">'
+        f'<table cellpadding="0" cellspacing="0" border="0" width="100%">'
+        f'<tr><td style="border-top:1px solid {color};height:0;font-size:0"></td></tr>'
+        f'</table></td></tr>'
+    )
+
+
+def _phone(b, g, pad, _ind):
+    fname = b.get("field") or ("mobilePhone" if b.get("type") == "mobile" else "phone")
+    label = _htmllib.escape(b.get("label") or ("Mobil:" if b.get("type") == "mobile" else "Tel:"))
+    lc = g["link_color"]
+    var = "{{ user." + fname + " }}"
+    inner = (
+        f'<tr><td style="padding:0">'
+        f'{label} <a href="tel:{var}" style="color:{lc};text-decoration:none">{var}</a>'
+        f'</td></tr>'
+    )
+    return pad + _wrap_cond(fname, inner)
+
+
+def _email_link(b, g, pad, _ind):
+    label = b.get("label") or ""
+    lc = g["link_color"]
+    var = "{{ user.mail }}"
+    display = _htmllib.escape(label) if label else var
+    return (
+        f'{pad}<tr><td style="padding:0">'
+        f'<a href="mailto:{var}" style="color:{lc};text-decoration:none">{display}</a>'
+        f'</td></tr>'
+    )
+
+
+def _web_link(b, g, pad, _ind):
+    lc = g["link_color"]
+    var = "{{ user.website }}"
+    inner = (
+        f'<tr><td style="padding:0">'
+        f'<a href="{var}" style="color:{lc};text-decoration:none">{var}</a>'
+        f'</td></tr>'
+    )
+    return pad + _wrap_cond("website", inner)
+
+
+def _logo(b, _g, pad, _ind):
+    url = _htmllib.escape(b.get("url") or "")
+    width = max(20, int(b.get("width") or 100))
+    if not url:
+        return ""
+    return (
+        f'{pad}<tr><td style="padding:0">'
+        f'<img src="{url}" width="{width}" alt="{{{{ user.companyName }}}}"'
+        f' style="display:block;max-width:{width}px">'
+        f'</td></tr>'
+    )
+
+
+def _booking_link(b, g, pad, _ind):
+    label = _htmllib.escape(b.get("label") or "Termin buchen")
+    lc = g["link_color"]
+    var = "{{ user.bookingsUrl }}"
+    inner = (
+        f'<tr><td style="padding-top:4px">'
+        f'<a href="{var}" style="color:{lc};text-decoration:none">{label}</a>'
+        f'</td></tr>'
+    )
+    return pad + _wrap_cond("bookingsUrl", inner)
+
+
+def _social(b, g, pad, _ind):
+    url = _htmllib.escape(b.get("url") or "")
+    platform = (b.get("platform") or "").strip()
+    label = _htmllib.escape(b.get("label") or platform or "Link")
+    lc = g["link_color"]
+    if not url:
+        return ""
+    return (
+        f'{pad}<tr><td style="padding-top:2px">'
+        f'<a href="{url}" style="color:{lc};text-decoration:none">{label}</a>'
+        f'</td></tr>'
+    )
+
+
+def _freetext(b, _g, pad, _ind):
+    content = (b.get("html") or "").strip()
+    if not content:
+        return ""
+    return f'{pad}<tr><td style="padding:0">{content}</td></tr>'
+
+
+def _two_col(b, g, pad, indent):
+    left_blocks = b.get("left") or []
+    right_blocks = b.get("right") or []
+    divider = b.get("divider", False)
+    left_w = b.get("left_width") or "auto"
+    gap = max(4, int(b.get("gap") or 12))
+    left_valign = b.get("left_valign") or "top"
+    right_valign = b.get("right_valign") or "middle"
+
+    ni = indent + 4
+    left_inner = _render_blocks(left_blocks, g, ni + 2)
+    right_inner = _render_blocks(right_blocks, g, ni + 2)
+
+    ls = f"vertical-align:{left_valign};padding-right:{gap}px"
+    rs = f"vertical-align:{right_valign};padding-left:{gap}px"
+    if divider:
+        div_color = _color_val(b.get("divider_color") or "#e2e8f0", g)
+        rs += f";border-left:1px solid {div_color}"
+    if left_w != "auto":
+        ls += f";width:{left_w}"
+
+    p2 = " " * ni
+    return (
+        f'{pad}<tr>\n'
+        f'{pad}  <td style="{ls}">\n'
+        f'{p2}<table cellpadding="0" cellspacing="0" border="0">\n'
+        f'{left_inner}\n'
+        f'{p2}</table>\n'
+        f'{pad}  </td>\n'
+        f'{pad}  <td style="{rs}">\n'
+        f'{p2}<table cellpadding="0" cellspacing="0" border="0">\n'
+        f'{right_inner}\n'
+        f'{p2}</table>\n'
+        f'{pad}  </td>\n'
+        f'{pad}</tr>'
+    )
+
+
+_HTML_RENDERERS = {
+    "greeting": _greeting,
+    "spacer": _spacer,
+    "name_field": _field,
+    "field": _field,
+    "divider": _divider,
+    "phone": _phone,
+    "mobile": _phone,
+    "email_link": _email_link,
+    "web_link": _web_link,
+    "logo": _logo,
+    "booking_link": _booking_link,
+    "social": _social,
+    "freetext": _freetext,
+    "two_col": _two_col,
+}
+
+
+# ── Plaintext renderers ────────────────────────────────────────────────────────
+
+def _render_blocks_txt(blocks: list[dict], g: dict, lines: list[str]) -> None:
+    for b in blocks:
+        _render_block_txt(b, g, lines)
+
+
+def _render_block_txt(b: dict, g: dict, lines: list[str]) -> None:
+    t = b.get("type", "")
+    if t == "greeting":
+        lines.append(b.get("text") or "Freundliche Grüße")
+    elif t == "spacer":
+        lines.append("")
+    elif t in ("name_field", "field"):
+        fname = b.get("field") or ("displayName" if t == "name_field" else "")
+        if not fname or fname not in _USER_FIELDS:
+            return
+        prefix = ((b.get("prefix") or "") + " ") if b.get("prefix") else ""
+        val = "{{ user." + fname + " }}"
+        if fname in _ALWAYS_PRESENT:
+            lines.append(f"{prefix}{val}")
+        else:
+            lines.append(f"{{% if user.{fname} %}}{prefix}{val}{{% endif %}}")
+    elif t == "divider":
+        lines.append("--")
+    elif t in ("phone", "mobile"):
+        fname = b.get("field") or ("mobilePhone" if t == "mobile" else "phone")
+        label = b.get("label") or ("Mobil:" if t == "mobile" else "Tel:")
+        lines.append(f"{{% if user.{fname} %}}{label} {{{{ user.{fname} }}}}{{% endif %}}")
+    elif t == "email_link":
+        label = b.get("label") or ""
+        lines.append((label + " ") if label else "" + "{{ user.mail }}")
+    elif t == "web_link":
+        lines.append("{% if user.website %}{{ user.website }}{% endif %}")
+    elif t == "booking_link":
+        label = b.get("label") or "Termin buchen"
+        lines.append(
+            "{% if user.bookingsUrl %}" + label + ": {{ user.bookingsUrl }}{% endif %}"
+        )
+    elif t == "social":
+        url = b.get("url") or ""
+        label = b.get("label") or (b.get("platform") or "").capitalize() or "Link"
+        if url:
+            lines.append(f"{label}: {url}")
+    elif t == "freetext":
+        txt = re.sub(r"<[^>]+>", "", b.get("html") or "").strip()
+        if txt:
+            lines.append(txt)
+    elif t == "two_col":
+        _render_blocks_txt(b.get("left") or [], g, lines)
+        _render_blocks_txt(b.get("right") or [], g, lines)

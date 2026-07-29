@@ -491,3 +491,13 @@
   background: #1a1200 !important;
   border-color: #3d2f00 !important;
 }
+
+[data-theme="dark"] #block-picker {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+}
+
+[data-theme="dark"] #preview-box {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+}
