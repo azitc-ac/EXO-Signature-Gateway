@@ -330,7 +330,7 @@ function blockSummary(b) {
     case 'web_link':    return 'user.website';
     case 'logo':        return b.url ? ((b.url.startsWith('data:') ? '📎 eingebettet' : b.url.slice(0,40) + (b.url.length>40?'…':''))) : '(keine URL)';
     case 'booking_link':return b.label || 'Termin buchen';
-    case 'social':      return `${b.platform || ''} ${b.url ? b.url.slice(0,30)+'…' : '(keine URL)'}`;
+    case 'social':      return `${b.platform || ''} ${b.url ? (b.url.length > 30 ? b.url.slice(0,30)+'…' : b.url) : '(keine URL)'}`;
     case 'freetext':    return b.html ? b.html.replace(/<[^>]+>/g,'').slice(0,40)+'…' : '(leer)';
     case 'two_col':     return `${(b.left||[]).length} links / ${(b.right||[]).length} rechts`;
     default: return '';
@@ -642,10 +642,15 @@ window.blockPropChange = function(el) {
     val = parseInt(val) || 0;
   }
   b[name] = val;
-  // Update summary in card header
-  const card = document.querySelector(`.block-card[data-bid="${bid}"]`);
-  if (card) {
-    const sumEl = card.querySelector('.block-card-header span:nth-child(2)');
+  // Update summary in card header (top-level and sub-block)
+  const topCard = document.querySelector(`.block-card[data-bid="${bid}"]`);
+  if (topCard) {
+    const sumEl = topCard.querySelector('.block-card-header span:nth-child(2)');
+    if (sumEl) sumEl.textContent = blockSummary(b);
+  }
+  const subCard = document.querySelector(`.col-block-item[data-bid="${bid}"]`);
+  if (subCard) {
+    const sumEl = subCard.querySelector('div:first-child span:nth-child(2)');
     if (sumEl) sumEl.textContent = blockSummary(b);
   }
 };
@@ -691,8 +696,8 @@ window.logoFileUpload = function(input) {
   }
   const reader = new FileReader();
   reader.onload = () => {
-    b.url = reader.result;  // data:image/...;base64,...
-    renderBlockList();      // re-render card to show preview + clear button
+    b.url = reader.result;
+    _refreshCardBody(bid, b);
   };
   reader.readAsDataURL(file);
 };
@@ -701,7 +706,28 @@ window.logoClear = function(bid) {
   const b = findBlock(bid);
   if (!b) return;
   b.url = '';
-  renderBlockList();
+  _refreshCardBody(bid, b);
+};
+
+function _refreshCardBody(bid, b) {
+  // Re-render the form body of a single card without collapsing the whole list.
+  const topCard = document.querySelector(`.block-card[data-bid="${bid}"]`);
+  if (topCard) {
+    const body = topCard.querySelector('.block-card-body');
+    if (body) { body.innerHTML = buildBlockForm(b); body.querySelectorAll('[data-bid]').forEach(el => el.dataset.bid = bid); }
+    const sumEl = topCard.querySelector('.block-card-header span:nth-child(2)');
+    if (sumEl) sumEl.textContent = blockSummary(b);
+    return;
+  }
+  const subCard = document.querySelector(`.col-block-item[data-bid="${bid}"]`);
+  if (subCard) {
+    const body = subCard.querySelector('div:last-child');
+    if (body) { body.innerHTML = buildBlockForm(b); body.querySelectorAll('[data-bid]').forEach(el => el.dataset.bid = bid); }
+    const sumEl = subCard.querySelector('div:first-child span:nth-child(2)');
+    if (sumEl) sumEl.textContent = blockSummary(b);
+    return;
+  }
+  renderBlockList();  // fallback
 };
 
 // ── Global style sync ─────────────────────────────────────────────────────────

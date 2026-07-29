@@ -341,7 +341,7 @@ def _render_block_txt(b: dict, g: dict, lines: list[str]) -> None:
         lines.append(f"{{% if user.{fname} %}}{label} {{{{ user.{fname} }}}}{{% endif %}}")
     elif t == "email_link":
         label = b.get("label") or ""
-        lines.append((label + " ") if label else "" + "{{ user.mail }}")
+        lines.append(((label + " ") if label else "") + "{{ user.mail }}")
     elif t == "web_link":
         lines.append("{% if user.website %}{{ user.website }}{% endif %}")
     elif t == "booking_link":

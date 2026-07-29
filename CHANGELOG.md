@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.104 — 2026-07-29 — Baukasten: drei Bugfixes aus Code-Review
+
+**Plaintext-Signatur bei E-Mail-Link mit Anzeigetext:** War die Eigenschaft „Anzeigetext" im E-Mail-Link-Block gesetzt, enthielt die Plaintext-Signatur nur den Anzeigetext ohne die eigentliche E-Mail-Adresse. Ursache war falsche Operator-Präzedenz in `render_txt()` — Klammerfehler, der Python die Verkettung anders auswerten ließ als beabsichtigt. Betraf nur Plaintext; HTML war korrekt.
+
+**Zusammenfassung in Spalten-Sub-Blöcken blieb nach Änderung veraltet:** Wenn ein Block innerhalb einer Zwei-Spalten-Spalte konfiguriert wurde (z.B. Beschriftung geändert), aktualisierte sich die Summary-Zeile im Block-Header nicht. Die Änderung selbst wurde korrekt gespeichert — nur die Anzeige hinterher. Behoben durch erweiterten Selektor in `blockPropChange()`.
+
+**Logo-Upload klappte alle Karten zu:** Nach dem Einlesen einer Bilddatei wurde die gesamte Block-Liste neu gerendert, womit alle geöffneten Karten kollabiert. Jetzt wird nur die betroffene Karte neu gerendert (`_refreshCardBody()`), alle anderen bleiben im aktuellen Zustand.
+
 ## v1.7.103 — 2026-07-29 — Baukasten: Spalten-Picker, Sub-Block-Editor, Logo-Upload
 
 Drei Verbesserungen am Baukasten-Editor aus v1.7.102:
