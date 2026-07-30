@@ -314,6 +314,11 @@ class UserData:
     mobilePhone: str = ""
     phone: str = ""
     officeLocation: str = ""
+    streetAddress: str = ""
+    postalCode: str = ""
+    city: str = ""
+    state: str = ""
+    country: str = ""
     website: str = ""
     bookingsUrl: str = ""
     custom: dict = None  # populated from CUSTOM_TEMPLATE_VARS
@@ -582,6 +587,11 @@ async def get_user(email: str) -> UserData:
         mobilePhone=user_overrides.get("user.mobilePhone") or data.get("mobilePhone") or "",
         phone=user_overrides.get("user.phone") or (phones[0] if phones else ""),
         officeLocation=user_overrides.get("user.officeLocation") or data.get("officeLocation") or "",
+        streetAddress=user_overrides.get("user.streetAddress") or data.get("streetAddress") or "",
+        postalCode=user_overrides.get("user.postalCode") or data.get("postalCode") or "",
+        city=user_overrides.get("user.city") or data.get("city") or "",
+        state=user_overrides.get("user.state") or data.get("state") or "",
+        country=user_overrides.get("user.country") or data.get("country") or "",
         website=user_overrides.get("user.website") or user_websites.get(resolved_mail.lower()) or settings_store.get("WEBSITE_URL") or "",
         bookingsUrl=user_overrides.get("user.bookingsUrl") or user_bookings.get(resolved_mail.lower()) or "",
         custom=custom,

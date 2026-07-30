@@ -5,6 +5,46 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.111 — 2026-07-31 — Anschrift als Baustein, Adressfelder, Link-Bausteine formatierbar
+
+### Anschrift
+
+Straße, PLZ, Ort, Bundesland und Land sind jetzt **gewöhnliche Felder** und in
+jeder Feldauswahl verfügbar. Bisher waren sie nur über den Umweg einer eigenen
+Variablen erreichbar, obwohl das Verzeichnis sie längst mitliefert.
+
+Dazu kommt der Baustein **Anschrift**, der sie zusammensetzt — wahlweise
+zweizeilig (Straße, darunter „PLZ Ort") oder einzeilig mit Komma, auf Wunsch
+mit Land. Er setzt zur Laufzeit zusammen, nicht beim Erzeugen der Vorlage:
+fehlt eine Angabe, bleibt kein Komma und keine Lücke stehen, und ist gar
+nichts hinterlegt, entfällt der Block ganz. Text- und HTML-Fassung stammen aus
+derselben Quelle und können nicht auseinanderlaufen.
+
+### Link-Bausteine
+
+Drei Ungleichheiten gegenüber dem Feld-Baustein sind beseitigt:
+
+* **Formatierung.** Fett, kursiv, Farbe und Größe gab es nur beim Feld. Telefon,
+  E-Mail-, Website- und Buchungslink konnten deshalb nicht an das übrige
+  Schriftbild angepasst werden. Eine gesetzte Farbe schlägt dabei die globale
+  Link-Farbe.
+* **Anzeigetext beim Website-Link.** Er zeigte als einziger zwingend die nackte
+  Adresse. Jetzt wie beim E-Mail- und Buchungslink: leer bedeutet weiterhin
+  Adresse anzeigen.
+* **Feldwahl bei E-Mail- und Website-Link.** Beide waren fest verdrahtet; das
+  Feld ist nun wählbar, wie beim Telefon längst üblich.
+
+Bei Telefon und Mobil bedeutet eine **geleerte** Beschriftung jetzt auch keine
+Beschriftung — vorher erschien wieder „Tel:", das Weglassen war also nicht
+möglich. Vorlagen ohne diese Angabe behalten unverändert die Vorgabe.
+
+Zur Einordnung, weil die Bausteine sich zu überschneiden scheinen: der
+Feld-Baustein gibt einen Wert als **Text** aus, die Link-Bausteine machen ihn
+**anklickbar** (`tel:`, `mailto:`, Adresse). Auf dem Telefon wählt ein Tippen
+auf die Nummer.
+
+---
+
 ## v1.7.110 — 2026-07-30 — Neuer Baustein „Kasten": eingerahmte Signaturen
 
 Der Baukasten kennt einen neuen Block **Kasten**. Er nimmt beliebig viele
