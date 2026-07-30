@@ -34,6 +34,7 @@ from __future__ import annotations
 import json
 import logging
 import urllib.error
+import time
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -92,6 +93,23 @@ class Updater:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return r.read().decode()
 
+    def _raw(self, pfad: str) -> str:
+        """Adresse einer Rohdatei im Repository — mit Umgehung des Zwischenspeichers.
+
+        `raw.githubusercontent.com` liefert über ein CDN aus und setzt
+        `cache-control: max-age=300`. Direkt nach einer Veröffentlichung meldet
+        die Update-Prüfung deshalb bis zu fünf Minuten lang die VORIGE Fassung —
+        gemessen: `source-age: 292` bei ausgelieferter 1.7.112, während im
+        Repository bereits 1.7.113 stand. Wer gerade veröffentlicht hat und
+        nachsieht, findet nichts und hat keinen Anhaltspunkt, warum.
+
+        Ein wechselnder Parameter erzeugt einen eigenen Eintrag im
+        Zwischenspeicher und damit eine frische Antwort. Die Prüfung wird von
+        Hand ausgelöst, die zusätzliche Last fällt nicht ins Gewicht.
+        """
+        return (f"https://raw.githubusercontent.com/{self.repo}/main/{pfad}"
+                f"?_={time.time_ns()}")
+
     # ── Versionsermittlung ──────────────────────────────────────────────────
     def read_remote_version(self) -> str | None:
         """Fernversion aus der Watcher-Datei. None, wenn nicht vorhanden/leer."""
@@ -109,8 +127,7 @@ class Updater:
         ab, ein Abgleich auf exakte Überschriften würde also Einträge verlieren.
         """
         try:
-            text = self._get(
-                f"https://raw.githubusercontent.com/{self.repo}/main/CHANGELOG.md")
+            text = self._get(self._raw("CHANGELOG.md"))
         except Exception:
             return []
         entries: list[dict] = []
@@ -184,8 +201,7 @@ class Updater:
                 return self._result(channel, current_version,
                                     data["tag_name"].lstrip("v"),
                                     url=data.get("html_url", ""))
-            latest = self._get(
-                f"https://raw.githubusercontent.com/{self.repo}/main/VERSION").strip()
+            latest = self._get(self._raw("VERSION")).strip()
             return self._result(channel, current_version, latest)
 
         except urllib.error.HTTPError as e:

@@ -196,3 +196,20 @@ def test_changelog_deckelt_bei_25(upd):
 def test_changelog_bei_netzwerkfehler_leer_statt_absturz(upd):
     stub(upd, fehler=urllib.error.URLError("weg"))
     assert upd.fetch_changelog_entries("1.0.0", "2.0.0") == []
+
+
+def test_rohadresse_umgeht_den_zwischenspeicher():
+    """raw.githubusercontent liefert mit max-age=300 aus.
+
+    Ohne wechselnden Parameter meldet die Update-Prüfung direkt nach einer
+    Veröffentlichung bis zu fünf Minuten lang die vorige Fassung (gemessen:
+    `source-age: 292` bei ausgelieferter 1.7.112, im Repository 1.7.113).
+    Zwei Aufrufe müssen deshalb verschiedene Adressen ergeben.
+    """
+    import update_core
+
+    u = update_core.Updater.__new__(update_core.Updater)
+    u.repo = "beispiel/repo"
+    a, b = u._raw("VERSION"), u._raw("VERSION")
+    assert a != b
+    assert a.startswith("https://raw.githubusercontent.com/beispiel/repo/main/VERSION?")

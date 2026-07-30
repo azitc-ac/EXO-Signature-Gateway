@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.114 — 2026-07-31 — Update-Prüfung meldete Veröffentlichungen verzögert
+
+Die Prüfung auf Updates las die Versionsangabe im Entwicklungskanal über den
+Rohdatei-Dienst von GitHub. Der liefert über ein Auslieferungsnetz aus und hält
+Antworten fünf Minuten vor. Unmittelbar nach einer Veröffentlichung meldete die
+Prüfung deshalb weiterhin die **vorige** Fassung — ohne Hinweis, warum. Wer
+gerade aktualisiert hatte und nachsah, fand nichts.
+
+Die Abfrage trägt jetzt einen wechselnden Parameter und erhält damit eine
+frische Antwort. Dasselbe gilt für den Changelog, der für die Anzeige der
+Neuerungen geladen wird.
+
+Der Kanal „Releases (stabil)" war nicht betroffen; er fragt die
+Veröffentlichungen direkt ab.
+
+---
+
 ## v1.7.113 — 2026-07-31 — Vorschau zeigt die Signatur wieder unverfälscht
 
 Im Dunkelmodus gab die Vorschau die Farben einer Vorlage falsch wieder. Die
