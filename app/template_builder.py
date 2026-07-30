@@ -27,6 +27,7 @@ Block types (top-level and nested inside two_col left/right lists):
   booking_link — user.bookingsUrl link (conditional)
   social       — social platform link (static URL)
   freetext     — raw HTML passthrough (for banners / disclaimers / custom)
+  address      — postal address from Entra fields, one or two lines
   two_col      — two-column table; left/right each a list of non-nested blocks
   box          — framed container; `children` is a list of blocks (also two_col).
                  Rounded corners additionally via VML for Outlook (needs `width`).
@@ -42,8 +43,15 @@ _ALWAYS_PRESENT = {"user.displayName", "user.mail"}
 _USER_FIELDS = {
     "displayName", "jobTitle", "department", "companyName",
     "mail", "phone", "mobilePhone", "officeLocation",
+    "streetAddress", "postalCode", "city", "state", "country",
     "website", "bookingsUrl",
 }
+
+# Bestandteile des Anschrift-Bausteins, in der Reihenfolge der Darstellung.
+_ANSCHRIFT_ZEILEN = [
+    ["user.streetAddress"],                     # Straße und Hausnummer
+    ["user.postalCode", "user.city"],           # "12345 Musterstadt"
+]
 
 # Eigene Variablen kommen als "custom.NAME" — dieselbe Schreibweise wie in
 # USER_OVERRIDES (siehe graph_client._build_user_data). Der Name wird hier
@@ -135,6 +143,28 @@ def _color_val(c: str, g: dict) -> str:
     return c
 
 
+def _zell_stil(b, g, extra: list[str] | None = None) -> str:
+    """Schriftschnitt einer Textzelle — gemeinsam für Feld- und Link-Blöcke.
+
+    Die Farbe steckt bewusst NICHT hier: bei einem Link gehört sie an das
+    <a>-Element, sonst gewinnt dessen eigene Farbe und die Einstellung bliebe
+    wirkungslos.
+    """
+    parts = ["padding:0", *(extra or [])]
+    if b.get("bold"):
+        parts.append("font-weight:bold")
+    if b.get("italic"):
+        parts.append("font-style:italic")
+    if b.get("size"):
+        parts.append(f"font-size:{b['size']}")
+    return ";".join(parts)
+
+
+def _link_farbe(b, g) -> str:
+    """Farbe eines Links — eigene Angabe schlägt die globale Link-Farbe."""
+    return _farbe(b.get("color"), g["link_color"], g)
+
+
 def _wrap_cond(path: str, inner: str) -> str:
     """Wrap Jinja2 block in {% if PATH %} unless the value is always present.
 
@@ -223,38 +253,54 @@ def _phone(b, g, pad, _ind):
     path = _resolve_var(fname)
     if not path:
         return ""
-    label = _htmllib.escape(b.get("label") or ("Mobil:" if b.get("type") == "mobile" else "Tel:"))
-    lc = g["link_color"]
+    # Fehlt der Schlüssel ganz, gilt die Vorgabe (alte Vorlagen). Steht er
+    # ausdrücklich leer, ist auch keine Beschriftung gemeint — sonst liesse
+    # sich "Tel:" nie entfernen, etwa in einem schmalen Kasten.
+    _roh = b.get("label")
+    if _roh is None:
+        _roh = "Mobil:" if b.get("type") == "mobile" else "Tel:"
+    label = _htmllib.escape(_roh)
+    lc = _link_farbe(b, g)
     var = "{{ " + path + " }}"
     inner = (
-        f'<tr><td style="padding:0">'
-        f'{label} <a href="tel:{var}" style="color:{lc};text-decoration:none">{var}</a>'
+        f'<tr><td style="{_zell_stil(b, g)}">'
+        + (f"{label} " if label else "")
+        + f'<a href="tel:{var}" style="color:{lc};text-decoration:none">{var}</a>'
         f'</td></tr>'
     )
     return pad + _wrap_cond(path, inner)
 
 
 def _email_link(b, g, pad, _ind):
+    path = _resolve_var(b.get("field") or "mail")
+    if not path:
+        return ""
     label = b.get("label") or ""
-    lc = g["link_color"]
-    var = "{{ user.mail }}"
+    lc = _link_farbe(b, g)
+    var = "{{ " + path + " }}"
     display = _htmllib.escape(label) if label else var
-    return (
-        f'{pad}<tr><td style="padding:0">'
+    inner = (
+        f'<tr><td style="{_zell_stil(b, g)}">'
         f'<a href="mailto:{var}" style="color:{lc};text-decoration:none">{display}</a>'
         f'</td></tr>'
     )
+    return pad + _wrap_cond(path, inner)
 
 
 def _web_link(b, g, pad, _ind):
-    lc = g["link_color"]
-    var = "{{ user.website }}"
+    path = _resolve_var(b.get("field") or "website")
+    if not path:
+        return ""
+    label = b.get("label") or ""
+    lc = _link_farbe(b, g)
+    var = "{{ " + path + " }}"
+    display = _htmllib.escape(label) if label else var
     inner = (
-        f'<tr><td style="padding:0">'
-        f'<a href="{var}" style="color:{lc};text-decoration:none">{var}</a>'
+        f'<tr><td style="{_zell_stil(b, g)}">'
+        f'<a href="{var}" style="color:{lc};text-decoration:none">{display}</a>'
         f'</td></tr>'
     )
-    return pad + _wrap_cond("user.website", inner)
+    return pad + _wrap_cond(path, inner)
 
 
 def _logo(b, _g, pad, _ind):
@@ -272,10 +318,10 @@ def _logo(b, _g, pad, _ind):
 
 def _booking_link(b, g, pad, _ind):
     label = _htmllib.escape(b.get("label") or "Termin buchen")
-    lc = g["link_color"]
+    lc = _link_farbe(b, g)
     var = "{{ user.bookingsUrl }}"
     inner = (
-        f'<tr><td style="padding-top:4px">'
+        f'<tr><td style="{_zell_stil(b, g, ["padding-top:4px"])}">'
         f'<a href="{var}" style="color:{lc};text-decoration:none">{label}</a>'
         f'</td></tr>'
     )
@@ -301,6 +347,44 @@ def _freetext(b, _g, pad, _ind):
     if not content:
         return ""
     return f'{pad}<tr><td style="padding:0">{content}</td></tr>'
+
+
+def _anschrift_zeilen(b) -> list[tuple[str, str]]:
+    """(Bedingung, Ausdruck) je Anschriftzeile — EINE Quelle für HTML und Text.
+
+    Läge das in beiden Rendern getrennt, würde eine Änderung an der
+    Zusammensetzung erfahrungsgemäß nur in einem davon ankommen.
+    """
+    plz_ort = "(user.postalCode ~ ' ' ~ user.city)|trim"
+    mit_land = bool(b.get("show_country"))
+    if b.get("one_line"):
+        teile = ["user.streetAddress", plz_ort] + (["user.country"] if mit_land else [])
+        return [(" or ".join(teile),
+                 "[" + ", ".join(teile) + "] | select | join(', ')")]
+    zeilen = [("user.streetAddress", "user.streetAddress"),
+              ("user.postalCode or user.city", plz_ort)]
+    if mit_land:
+        zeilen.append(("user.country", "user.country"))
+    return zeilen
+
+
+def _anschrift(b, g, pad, _ind):
+    """Anschrift aus den Entra-Feldern — ohne lose Trennzeichen.
+
+    Welche Bestandteile gefüllt sind, steht erst beim Rendern fest. Würde man
+    hier fest "{{ plz }} {{ ort }}" aneinanderhängen, bliebe bei fehlender PLZ
+    ein führendes Leerzeichen und bei fehlendem Ort ein Komma im Nichts
+    stehen. Deshalb setzt Jinja zusammen: `select` wirft die leeren Teile
+    heraus, `join` setzt das Trennzeichen nur DAZWISCHEN.
+    """
+    farbe = _farbe(b.get("color") or "base", g["base_color"], g)
+    extra = [f"color:{farbe}"] if farbe != g["base_color"] else []
+    stil = _zell_stil(b, g, extra)
+
+    return "\n".join(
+        f"{pad}{{% if {bed} %}}<tr><td style=\"{stil}\">{{{{ {ausdruck} }}}}</td></tr>{{% endif %}}"
+        for bed, ausdruck in _anschrift_zeilen(b)
+    )
 
 
 def _two_col(b, g, pad, indent):
@@ -462,6 +546,7 @@ _HTML_RENDERERS = {
     "freetext": _freetext,
     "two_col": _two_col,
     "box": _box,
+    "address": _anschrift,
 }
 
 
@@ -489,6 +574,9 @@ def _render_block_txt(b: dict, g: dict, lines: list[str]) -> None:
             lines.append(f"{prefix}{val}")
         else:
             lines.append(f"{{% if {path} %}}{prefix}{val}{{% endif %}}")
+    elif t == "address":
+        for bed, ausdruck in _anschrift_zeilen(b):
+            lines.append(f"{{% if {bed} %}}{{{{ {ausdruck} }}}}{{% endif %}}")
     elif t == "box":
         # Im Textteil gibt es keinen Rahmen — die Kinder erscheinen schlicht
         # untereinander. Eine Nachbildung aus +---+ bricht bei Proportional-

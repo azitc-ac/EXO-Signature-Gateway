@@ -244,3 +244,95 @@ def test_farben_werden_ueberall_geprueft(block, unsinn):
     """Kein Farbweg darf einen ungeprüften Wert in die Vorlage schreiben."""
     b = {"id": "1", **block, unsinn: "javascript:evil"}
     assert "evil" not in tb.render_html(_meta(b))
+
+
+# ── Anschrift ─────────────────────────────────────────────────────────────────
+
+class _Anschrift:
+    displayName = "X"; mail = "x@y.z"
+    def __init__(self, strasse="Musterstr. 1", plz="12345", ort="Musterstadt", land="Deutschland"):
+        self.streetAddress, self.postalCode, self.city, self.country = strasse, plz, ort, land
+
+
+def _adr(user, **kw):
+    src = tb.render_html(_meta({"id": "1", "type": "address", **kw}))
+    out = jinja2.Environment().from_string(src).render(user=user, custom={})
+    return " / ".join(t.strip() for t in re.findall(r"<td[^>]*>(.*?)</td>", out) if t.strip())
+
+
+@pytest.mark.parametrize("user,erwartet", [
+    (_Anschrift(),                              "Musterstr. 1 / 12345 Musterstadt"),
+    (_Anschrift(strasse=""),                    "12345 Musterstadt"),
+    (_Anschrift(plz=""),                        "Musterstr. 1 / Musterstadt"),
+    (_Anschrift(ort=""),                        "Musterstr. 1 / 12345"),
+    (_Anschrift(strasse="", plz=""),            "Musterstadt"),
+    (_Anschrift(strasse="", plz="", ort=""),    ""),
+])
+def test_anschrift_zweizeilig_ohne_lose_trennzeichen(user, erwartet):
+    """Fehlende Teile dürfen kein Komma und keine Lücke hinterlassen."""
+    assert _adr(user) == erwartet
+
+
+@pytest.mark.parametrize("user,erwartet", [
+    (_Anschrift(),                           "Musterstr. 1, 12345 Musterstadt"),
+    (_Anschrift(strasse=""),                 "12345 Musterstadt"),
+    (_Anschrift(plz=""),                     "Musterstr. 1, Musterstadt"),
+    (_Anschrift(strasse="", plz="", ort=""), ""),
+])
+def test_anschrift_einzeilig_ohne_lose_trennzeichen(user, erwartet):
+    assert _adr(user, one_line=True) == erwartet
+
+
+def test_anschrift_land_nur_auf_wunsch():
+    assert "Deutschland" not in _adr(_Anschrift())
+    assert "Deutschland" in _adr(_Anschrift(), show_country=True)
+
+
+def test_anschrift_html_und_text_bleiben_gleich():
+    """Beide Wege nutzen dieselbe Zusammensetzung — sonst driften sie."""
+    meta = _meta({"id": "1", "type": "address", "one_line": True})
+    u = _Anschrift(plz="")
+    html = jinja2.Environment().from_string(tb.render_html(meta)).render(user=u, custom={})
+    txt = jinja2.Environment().from_string(tb.render_txt(meta)).render(user=u, custom={})
+    assert re.sub(r"<[^>]+>", "", html).strip() == txt.strip()
+
+
+def test_adressfelder_sind_echte_felder():
+    for f in ("streetAddress", "postalCode", "city", "state", "country"):
+        assert tb._resolve_var(f) == f"user.{f}"
+
+
+# ── Link-Bausteine: Formatierung, Feldwahl, Anzeigetext ──────────────────────
+
+def test_links_lassen_sich_formatieren():
+    """Vorher konnten nur Feld-Blöcke fett/kursiv/gefärbt werden."""
+    for blk in ({"type": "phone", "field": "phone"},
+                {"type": "email_link"},
+                {"type": "web_link"},
+                {"type": "booking_link"}):
+        src = tb.render_html(_meta({"id": "1", **blk, "bold": True, "italic": True,
+                                    "size": "9pt", "color": "#ff0000"}))
+        assert "font-weight:bold" in src, blk
+        assert "font-style:italic" in src, blk
+        assert "font-size:9pt" in src, blk
+        assert "color:#ff0000" in src, blk      # am <a>, nicht die Link-Farbe
+
+
+def test_email_und_web_link_mit_feldwahl():
+    """Beide waren fest auf user.mail bzw. user.website verdrahtet."""
+    assert "mailto:{{ user.custom_ok }}" not in tb.render_html(
+        _meta({"id": "1", "type": "email_link", "field": "erfunden"}))   # unbekannt → entfällt
+    src = tb.render_html(_meta({"id": "1", "type": "web_link", "field": "bookingsUrl"}))
+    assert "{{ user.bookingsUrl }}" in src
+
+
+def test_web_link_mit_anzeigetext():
+    """Als einziger Link-Baustein konnte er den Text nicht ersetzen."""
+    src = tb.render_html(_meta({"id": "1", "type": "web_link", "label": "Unsere Seite"}))
+    assert ">Unsere Seite<" in src
+    assert 'href="{{ user.website }}"' in src
+
+
+def test_telefon_ohne_beschriftung_kein_leerzeichen():
+    src = tb.render_html(_meta({"id": "1", "type": "phone", "field": "phone", "label": ""}))
+    assert '">Tel:' not in src
