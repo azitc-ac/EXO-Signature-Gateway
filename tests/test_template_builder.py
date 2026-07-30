@@ -336,3 +336,74 @@ def test_web_link_mit_anzeigetext():
 def test_telefon_ohne_beschriftung_kein_leerzeichen():
     src = tb.render_html(_meta({"id": "1", "type": "phone", "field": "phone", "label": ""}))
     assert '">Tel:' not in src
+
+
+# ── Längenangaben ─────────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("eingabe,erwartet", [
+    ("20",    "20pt"),     # nackte Zahl: DAS war der Fehler — CSS verwarf sie
+    ("20pt",  "20pt"),
+    ("20px",  "20px"),
+    ("1.5em", "1.5em"),
+    ("120%",  "120%"),
+    ("20 pt", "20pt"),
+    ("gross", None),       # keine Länge → gar nichts, statt unwirksames CSS
+    ("",      None),
+    (None,    None),
+])
+def test_laenge(eingabe, erwartet):
+    assert tb._laenge(eingabe) == erwartet
+
+
+def test_groesse_ohne_einheit_wirkt():
+    """`font-size:20` ist ungültiges CSS und wurde stillschweigend verworfen —
+    der Text blieb auf der Grundgröße, obwohl im Quelltext etwas stand."""
+    src = tb.render_html(_meta({"id": "1", "type": "field",
+                                "field": "companyName", "size": "20"}))
+    assert "font-size:20pt" in src
+    assert "font-size:20;" not in src and 'font-size:20"' not in src
+
+
+def test_groesse_unsinn_erzeugt_kein_totes_css():
+    src = tb.render_html(_meta({"id": "1", "type": "field",
+                                "field": "companyName", "size": "riesig"}))
+    # Die aeussere Tabelle traegt immer die globale Groesse — geprueft wird
+    # die Zelle des Blocks selbst.
+    zelle = [z for z in src.splitlines() if "companyName" in z][0]
+    assert "font-size" not in zelle
+
+
+@pytest.mark.parametrize("typ", ["greeting", "field", "phone", "email_link",
+                                 "web_link", "booking_link", "address"])
+def test_groesse_ueberall_mit_einheit(typ):
+    """Alle Bausteine mit Größenangabe gehen durch dieselbe Prüfung."""
+    blk = {"id": "1", "type": typ, "size": "14"}
+    if typ in ("field", "phone"):
+        blk["field"] = "companyName" if typ == "field" else "phone"
+    src = tb.render_html(_meta(blk))
+    assert "font-size:14pt" in src, typ
+
+
+def test_spaltenbreite_ohne_einheit():
+    """Dieselbe Falle in der Zweispalter-Breite, dort in px."""
+    src = tb.render_html(_meta({"id": "1", "type": "two_col", "left_width": "120",
+        "left": [{"id": "2", "type": "field", "field": "companyName"}], "right": []}))
+    assert "width:120px" in src
+
+
+def test_globale_schriftgroesse_ohne_einheit():
+    meta = _meta({"id": "1", "type": "name_field", "field": "displayName"})
+    meta["global"]["font_size"] = "13"
+    assert "font-size:13pt" in tb.render_html(meta)
+
+
+def test_schriftart_kann_das_attribut_nicht_verlassen():
+    """Ein Anfuehrungszeichen beendete das style-Attribut, ein Semikolon haenge
+    weitere Eigenschaften an. Der Text darf als Schriftname stehenbleiben —
+    nur eben nicht als eigene CSS-Eigenschaft."""
+    meta = _meta({"id": "1", "type": "name_field", "field": "displayName"})
+    meta["global"]["font_family"] = 'Arial";color:red;x="'
+    src = tb.render_html(meta)
+    wert = src.split("font-family:")[1].split(";")[0]
+    assert '"' not in wert
+    assert ";color:red" not in src
