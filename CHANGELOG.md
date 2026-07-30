@@ -5,6 +5,32 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.113 — 2026-07-31 — Vorschau zeigt die Signatur wieder unverfälscht
+
+Im Dunkelmodus gab die Vorschau die Farben einer Vorlage falsch wieder. Die
+Umschaltregeln der Oberfläche griffen in den Vorschau-Inhalt hinein und
+schrieben dessen Textfarben um: aus der dunklen Grundfarbe `#1f2937` wurde
+`#cbd5e1`, aus dem gedämpften `#6b7280` wurde `#94a3b8`. Der Grundtext erschien
+dadurch **heller als der gedämpfte** — also genau umgekehrt zur Einstellung.
+Der Fehler schien in der Vorlage zu liegen, obwohl diese in Ordnung war.
+
+Die Vorschau zeigt E-Mail-HTML, das beim Empfänger auf weißem Grund und ohne
+das Stylesheet der Oberfläche erscheint. Sie läuft deshalb jetzt in einem
+eigenen Dokument und erbt nichts mehr von der Seite: gezeigt wird, was
+ankommt — in heller wie dunkler Darstellung gleich, auf weißem Grund. Das
+betrifft die Live-Vorschau im Baukasten ebenso wie die Vorschau-Seite, deren
+Hintergründe sich zuvor unterschieden.
+
+Nebeneffekt für die Sicherheit: Ein Freitext-Block enthält rohes HTML. Beim
+bisherigen Einsetzen in die Seite konnte darin enthaltener Code — etwa über
+ein fehlerhaftes Bild — in der Oberfläche ausgeführt werden. Im eigenen
+Dokument ist die Skriptausführung abgeschaltet.
+
+**Zu tun:** nichts. Vorlagen bleiben unverändert; nur ihre Darstellung in der
+Vorschau war betroffen, nicht die versendete Signatur.
+
+---
+
 ## v1.7.112 — 2026-07-31 — Größenangaben ohne Einheit blieben wirkungslos
 
 Wurde bei einem Baustein als Größe eine nackte Zahl eingetragen — etwa `20` —,
