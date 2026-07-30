@@ -25,7 +25,7 @@ jobs:
         with:
           python-version: "3.11"      # dieselbe Fassung wie im Container
 
-      - uses: actions/setup-node@v4   # für tools/jsrefcheck.js
+      - uses: actions/setup-node@v4   # für tools/jsscopecheck.js
         with:
           node-version: "20"
 
@@ -34,6 +34,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest
           pip install -r app/requirements.txt
+          npm ci                      # nur acorn, exakt gepinnt (package-lock.json)
 
       - name: Tests
         run: pytest tests/ -v
@@ -51,12 +52,14 @@ jobs:
       - name: JavaScript der Vorlagen
         run: python tools/jscheck.py
 
-      # jscheck prüft die Syntax; diese Prüfung findet Aufrufe von Funktionen,
-      # die es nicht gibt — syntaktisch einwandfrei, zur Laufzeit ein
-      # ReferenceError. So blieb `_mdEscape()` nach der Zusammenführung der
-      # Escaper stehen und ließ das Laden der Nutzungsbedingungen scheitern.
-      - name: Undefinierte Funktionsaufrufe
-        run: node tools/jsrefcheck.js app/webui/templates app/webui/static/common.js
+      # jscheck prüft die Syntax; diese Prüfung findet Bezeichner, die zur
+      # Laufzeit nirgends aufgelöst werden — syntaktisch einwandfrei, im
+      # Browser ein ReferenceError. Solche Fehler landen typischerweise in
+      # einem catch-Zweig und erscheinen dort als Meldung, die auf das
+      # Falsche zeigt ("Container wird neu gestartet…", "Nutzungsbedingungen
+      # konnten nicht geladen werden").
+      - name: Ungebundene Bezeichner im Vorlagen-JavaScript
+        run: node tools/jsscopecheck.js app/webui/templates app/webui/static/common.js
 
   build:
     name: Container baut

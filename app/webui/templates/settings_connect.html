@@ -1191,7 +1191,7 @@ async function certLoadCatalog() {
     }).map(function(p){ return p.label || p.id; });
     var hint = document.getElementById('cert-domains-hint');
     if (hint && needing.length) {
-      hint.innerHTML = 'Erforderlich f\u00fcr: <strong>' + needing.map(escC).join('</strong>, <strong>')
+      hint.innerHTML = 'Erforderlich f\u00fcr: <strong>' + needing.map(function(x){ return esc(x); }).join('</strong>, <strong>')
         + '</strong>. Mailbox-validierte Anbieter pr\u00fcfen das Postfach selbst per '
         + 'Best\u00e4tigungsmail und ben\u00f6tigen keinen DNS-Eintrag.';
     }
@@ -1772,89 +1772,6 @@ async function _doCertRequestInvoice() {
   else { _certMsg('Fehler: ' + (d.detail||d.error||'Unbekannt'), false); }
 }
 
-async function licBuy() {
-  // Fuehrt genau den Vorgang aus, den licBuyPrice() benannt und angezeigt hat.
-  // Kein zweites Erraten: waeren es zwei Ableitungen, koennten sie auseinander
-  // laufen und der Knopf taete etwas anderes als danebensteht.
-  if (!_licFall) return;
-  const f = _licFall;
-  const btn = document.getElementById('lic-buy-btn');
-
-  if (f.art === 'auslaufen') {
-    const stA = _licState || {};
-    const bisA = stA.expires ? new Date(stA.expires).toLocaleDateString('de-DE') : 'zum Ablaufdatum';
-    if (!confirm('Lizenz auslaufen lassen?\n\n'
-               + 'Die automatische Verlängerung endet. Die Lizenz bleibt bis zum ' + bisA
-               + ' gültig und läuft dann aus — danach gilt wieder Fair Use.\n'
-               + ((stA.refund_preview_cents > 0)
-                    ? eur(stA.refund_preview_cents) + ' werden dem Konto-Guthaben gutgeschrieben.\n'
-                    : 'Eine Gutschrift entsteht nicht — es ist kein voller Monat mehr offen.\n')
-               + '\nBis zum ' + bisA + ' kannst du die automatische Verlängerung '
-               + 'jederzeit wieder einschalten.')) return;
-    btn.disabled = true;
-    const r = await postJSON('/api/license/renewal/cancel', {});
-    if (!r.ok) { _licMsg('Fehler: ' + errText(r), false); btn.disabled = false; return; }
-    _licMsg('Verlängerung beendet.' + (r.refund_cents > 0
-      ? ' Gutschrift: ' + eur(r.refund_cents) + '.' : ' Keine Gutschrift (kein voller Restmonat).'), true);
-    licLoad(); return;
-  }
-
-  if (f.art === 'verringern') {
-    if (!confirm('Ab dem nächsten Zeitraum auf ' + f.ziel + ' Postfächer verringern?\n\n'
-               + 'Kostenlos. Der laufende Zeitraum ist bezahlt und wird nicht erstattet.')) return;
-    btn.disabled = true;
-    const r = await postJSON('/api/license/umfang', {mailboxes: f.ziel});
-    if (!r.ok) { _licMsg('Fehler: ' + errText(r), false); btn.disabled = false; return; }
-    _licMsg('Ab der nächsten Verlängerung gelten ' + f.ziel + ' Postfächer.', true);
-    licLoad(); return;
-  }
-
-  // kauf | aufstocken — beides geht ueber denselben Endpunkt; welcher Vorgang
-  // es wird, entscheidet der Hub anhand der laufenden Lizenz.
-  // Die Rückfrage nennt, was TATSÄCHLICH passiert — inklusive einer
-  // automatischen Abbuchung. Der Nutzer wurde am 27.07.2026 davon überrascht,
-  // weil sie nirgends stand, bevor sie ausgelöst wurde.
-  const g = f.guthaben || {};
-  var frage = (f.art === 'aufstocken'
-      ? 'Auf ' + f.ziel + ' Postfächer aufstocken (' + f.lizenzen + ' zusätzliche Lizenzen, '
-        + 'Ablaufdatum bleibt)'
-      : 'Lizenz für ' + f.ziel + ' Postfächer kaufen')
-    + '\n\nBetrag:   ' + eur(f.brutto) + ' brutto';
-  if (g.modus !== 'rechnung') {
-    frage += '\nGuthaben: ' + eur(g.guthaben_cents);
-    if (g.aufladung_cents > 0) {
-      frage += '\n\nDas Guthaben reicht nicht — es werden ' + eur(g.aufladung_cents)
-             + ' von der hinterlegten Karte eingezogen.';
-    }
-    frage += '\nDanach:   ' + eur(g.danach_cents);
-  } else {
-    frage += '\n\nAbrechnung auf Rechnung.';
-  }
-  if (!confirm(frage)) return;
-  btn.disabled = true;
-  _licMsg(f.art === 'aufstocken' ? 'Aufstockung läuft…' : 'Kauf läuft…', true);
-  try {
-    const r = await fetch('/api/license/purchase', {method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({mailboxes: f.ziel, zahlungsweise: f.zahlungsweise || undefined})});
-    const d = await r.json().catch(() => ({}));
-    if (r.ok) {
-      var gross = d.price_gross_cents ? eur(d.price_gross_cents) + ' brutto'
-                                      : eur(d.price_cents || 0);
-      _licMsg((d.erweiterung
-                 ? '✓ Aufgestockt auf ' + (d.mailboxes || '?') + ' Postfächer — Ablaufdatum '
-                   + 'unverändert ' + (d.expires || '?')
-                 : '✓ Lizenz gekauft und eingespielt — gültig bis ' + (d.expires || '?')) +
-              ' (' + gross + ' belastet' +
-              (d.vat_percent ? ', inkl. ' + d.vat_percent + ' % MwSt.' : '') + ').', true);
-      document.getElementById('lic-buy-mailboxes').value = '';
-      licLoad();
-    } else {
-      _licMsg(d.detail || 'Vorgang fehlgeschlagen.', false);
-    }
-  } catch(e) { _licMsg('Netzwerkfehler.' + ursache(e, 'settings_connect:licBuy'), false); }
-  btn.disabled = false;
-}
 
 // ── Gated-Overrides (müssen nach allen Funktionsdefinitionen stehen) ──────────
 // hubConnect() → Gate A (Consent prüfen) → _doHubConnect()
