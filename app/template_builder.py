@@ -95,7 +95,7 @@ def render_html(meta: dict) -> str:
     inner = _render_blocks(blocks, g, indent=2)
     return (
         f'<table cellpadding="0" cellspacing="0" border="0" '
-        f'style="font-family:{g["font_family"]};font-size:{g["font_size"]};'
+        f'style="font-family:{_schriftart(g)};font-size:{_laenge(g["font_size"]) or "11pt"};'
         f'color:{g["base_color"]};border-collapse:collapse">\n'
         + inner
         + "\n</table>\n"
@@ -132,6 +132,17 @@ def _farbe(wert, vorgabe: str, g: dict) -> str:
     return v if isinstance(v, str) and _HEX_RE.match(v) else vorgabe
 
 
+def _schriftart(g: dict) -> str:
+    """Schriftfamilie für das style-Attribut.
+
+    Ein Anführungszeichen würde das Attribut vorzeitig beenden, ein Semikolon
+    weitere CSS-Eigenschaften anhängen. Beides entfällt; bleibt nichts übrig,
+    gilt die Vorgabe.
+    """
+    wert = str(g.get("font_family") or "").replace('"', "").replace(";", "").strip()
+    return wert or DEFAULT_GLOBAL["font_family"]
+
+
 def _color_val(c: str, g: dict) -> str:
     """Resolve named color aliases or return literal hex."""
     if c == "muted":
@@ -155,14 +166,40 @@ def _zell_stil(b, g, extra: list[str] | None = None) -> str:
         parts.append("font-weight:bold")
     if b.get("italic"):
         parts.append("font-style:italic")
-    if b.get("size"):
-        parts.append(f"font-size:{b['size']}")
+    groesse = _laenge(b.get("size"))
+    if groesse:
+        parts.append(f"font-size:{groesse}")
     return ";".join(parts)
 
 
 def _link_farbe(b, g) -> str:
     """Farbe eines Links — eigene Angabe schlägt die globale Link-Farbe."""
     return _farbe(b.get("color"), g["link_color"], g)
+
+
+_LAENGE_RE = re.compile(r"^\s*(\d+(?:[.,]\d+)?)\s*(px|pt|em|rem|%)?\s*$", re.I)
+
+
+def _laenge(wert, vorgabe_einheit: str = "pt") -> str | None:
+    """Geprüfte CSS-Längenangabe, oder None.
+
+    Eine nackte Zahl ist als CSS-Länge UNGÜLTIG: `font-size:20` wird vom
+    Browser stillschweigend verworfen, der Text bleibt bei der Grundgröße.
+    Genau das ergab im Baukasten den Eindruck, die Größe sei wirkungslos —
+    das Eingabefeld nahm "20" an, die Vorschau blieb unverändert.
+
+    Eine nackte Zahl bekommt deshalb die Vorgabe-Einheit. Was gar keine Länge
+    ist, entfällt ganz, statt als unwirksames CSS stehenzubleiben.
+    """
+    if wert in (None, ""):
+        return None
+    m = _LAENGE_RE.match(str(wert))
+    if not m:
+        return None
+    zahl, einheit = m.group(1).replace(",", "."), m.group(2)
+    if "." in zahl:
+        zahl = zahl.rstrip("0").rstrip(".")
+    return f"{zahl}{(einheit or vorgabe_einheit).lower()}"
 
 
 def _wrap_cond(path: str, inner: str) -> str:
@@ -198,8 +235,9 @@ def _greeting(b, g, pad, _ind):
     color = _farbe(b.get("color") or "base", g["base_color"], g)
     if color != g["base_color"]:
         parts.append(f"color:{color}")
-    if b.get("size"):
-        parts.append(f"font-size:{b['size']}")
+    groesse = _laenge(b.get("size"))
+    if groesse:
+        parts.append(f"font-size:{groesse}")
     if b.get("italic"):
         parts.append("font-style:italic")
     return f'{pad}<tr><td style="{";".join(parts)}">{text}</td></tr>'
@@ -228,8 +266,9 @@ def _field(b, g, pad, _ind):
     color = _farbe(b.get("color") or "base", g["base_color"], g)
     if color != g["base_color"]:
         parts.append(f"color:{color}")
-    if b.get("size"):
-        parts.append(f"font-size:{b['size']}")
+    groesse = _laenge(b.get("size"))
+    if groesse:
+        parts.append(f"font-size:{groesse}")
     td = f'<td style="{";".join(parts)}">'
     if prefix:
         td += f"{prefix} "
@@ -405,8 +444,12 @@ def _two_col(b, g, pad, indent):
     if divider:
         div_color = _farbe(b.get("divider_color"), "#e2e8f0", g)
         rs += f";border-left:1px solid {div_color}"
+    # "auto" ist gueltig, eine nackte Zahl nicht — dieselbe Falle wie bei der
+    # Schriftgroesse, nur hier in px statt pt.
     if left_w != "auto":
-        ls += f";width:{left_w}"
+        lw = _laenge(left_w, "px")
+        if lw:
+            ls += f";width:{lw}"
 
     p2 = " " * ni
     return (

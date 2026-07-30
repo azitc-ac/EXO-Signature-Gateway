@@ -5,6 +5,32 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.112 — 2026-07-31 — Größenangaben ohne Einheit blieben wirkungslos
+
+Wurde bei einem Baustein als Größe eine nackte Zahl eingetragen — etwa `20` —,
+stand sie zwar im erzeugten Quelltext, änderte aber nichts. `font-size:20` ist
+als CSS ungültig und wird stillschweigend verworfen; der Text blieb auf der
+Grundgröße. Das Eingabefeld nahm den Wert an, die Vorschau blieb unbeeindruckt,
+und im Quelltext sah alles richtig aus — die Ursache war von außen praktisch
+nicht zu erkennen.
+
+Größenangaben laufen jetzt durch eine Prüfung: eine nackte Zahl erhält die
+Einheit `pt` (bei Breiten `px`), Angaben mit Einheit bleiben unverändert
+(`pt`, `px`, `em`, `rem`, `%`), und was gar keine Länge ist, entfällt ganz,
+statt als unwirksames CSS stehenzubleiben.
+
+Dieselbe Falle steckte in der **Spaltenbreite** des Zweispalters und in der
+**globalen Schriftgröße**; beide sind mit erfasst. Die Schriftart wird
+zusätzlich so eingesetzt, dass sie das `style`-Attribut nicht verlassen kann —
+ein Anführungszeichen hätte es vorzeitig beendet.
+
+**Zu tun:** nichts. Bestehende Vorlagen mit korrekt angegebener Einheit bleiben
+unverändert. Wer bisher eine Zahl ohne Einheit eingetragen hatte, sieht die
+Größe ab jetzt wirken — das kann eine Vorlage sichtbar verändern, in der die
+Angabe bislang folgenlos war.
+
+---
+
 ## v1.7.111 — 2026-07-31 — Anschrift als Baustein, Adressfelder, Link-Bausteine formatierbar
 
 ### Anschrift
