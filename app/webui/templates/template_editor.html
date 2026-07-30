@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
+<script src="/static/sig_preview.js?v={{ version }}"></script>
 <h1>Signaturen</h1>
 
 <ul class="nav-sub-tabs">
@@ -951,7 +952,7 @@ window.refreshPreview = async function() {
   try {
     const r = await fetch(`/api/preview-data?email=${encodeURIComponent(email)}&template=${encodeURIComponent(TEMPLATE_NAME)}`);
     const d = await r.json();
-    box.innerHTML = (d.html || '') + (d.banner_html || '') + (d.disclaimer_html || '');
+    sigVorschau(box, (d.html || '') + (d.banner_html || '') + (d.disclaimer_html || ''));
   } catch(e) {
     box.innerHTML = `<span style="color:#dc2626;font-size:12px">Vorschau-Fehler: ${esc(e.message)}</span>`;
   } finally {

@@ -59,7 +59,7 @@ jobs:
       # Falsche zeigt ("Container wird neu gestartet…", "Nutzungsbedingungen
       # konnten nicht geladen werden").
       - name: Ungebundene Bezeichner im Vorlagen-JavaScript
-        run: node tools/jsscopecheck.js app/webui/templates app/webui/static/common.js
+        run: node tools/jsscopecheck.js app/webui/templates app/webui/static/common.js app/webui/static/sig_preview.js
 
   build:
     name: Container baut

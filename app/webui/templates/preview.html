@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
+<script src="/static/sig_preview.js?v={{ version }}"></script>
 <h1>Signaturen</h1>
 
 <ul class="nav-sub-tabs">
@@ -97,7 +98,7 @@
 
       const bannerHtml = d.banner_html || '';
       const disclaimerHtml = d.disclaimer_html || '';
-      document.getElementById('pv-html').innerHTML = (d.html || '') + bannerHtml + disclaimerHtml;
+      sigVorschau(document.getElementById('pv-html'), (d.html || '') + bannerHtml + disclaimerHtml);
       document.getElementById('pv-txt').textContent  = d.txt || '';
       document.getElementById('pv-src').textContent  = d.html || '';
 
