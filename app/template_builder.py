@@ -36,12 +36,36 @@ import uuid
 import html as _htmllib
 from typing import Any
 
-_ALWAYS_PRESENT = {"displayName", "mail"}
+_ALWAYS_PRESENT = {"user.displayName", "user.mail"}
 _USER_FIELDS = {
     "displayName", "jobTitle", "department", "companyName",
     "mail", "phone", "mobilePhone", "officeLocation",
     "website", "bookingsUrl",
 }
+
+# Eigene Variablen kommen als "custom.NAME" — dieselbe Schreibweise wie in
+# USER_OVERRIDES (siehe graph_client._build_user_data). Der Name wird hier
+# erneut geprüft, obwohl die Oberfläche das bereits tut: der Wert landet
+# unverändert in einer Jinja2-Vorlage, und Vorlagen-Metadaten darf auch die
+# Editor-Rolle speichern. Diese Zeichenklasse ist die einzige Schranke gegen
+# eingeschleuste Vorlagen-Ausdrücke.
+_CUSTOM_PREFIX = "custom."
+_CUSTOM_NAME_RE = re.compile(r"^[A-Za-z0-9_]+$")
+
+
+def _resolve_var(fname: str) -> str | None:
+    """Feldname eines Blocks → geprüfter Jinja2-Pfad, oder None.
+
+    None bedeutet: nicht darstellbar, der Block entfällt. JEDE Stelle, die
+    einen Feldnamen in eine Vorlage schreibt, muss hier durch — sonst
+    entsteht wieder eine Einsetzung ohne Prüfung.
+    """
+    if not fname:
+        return None
+    if fname.startswith(_CUSTOM_PREFIX):
+        name = fname[len(_CUSTOM_PREFIX):]
+        return f"custom.{name}" if _CUSTOM_NAME_RE.match(name) else None
+    return f"user.{fname}" if fname in _USER_FIELDS else None
 
 DEFAULT_GLOBAL: dict[str, Any] = {
     "font_family": "Calibri, Arial, sans-serif",
@@ -94,11 +118,15 @@ def _color_val(c: str, g: dict) -> str:
     return c
 
 
-def _wrap_cond(field: str, inner: str) -> str:
-    """Wrap Jinja2 block in {% if user.FIELD %} unless field is always present."""
-    if field in _ALWAYS_PRESENT:
+def _wrap_cond(path: str, inner: str) -> str:
+    """Wrap Jinja2 block in {% if PATH %} unless the value is always present.
+
+    `path` ist ein von _resolve_var() geprüfter Pfad ("user.jobTitle",
+    "custom.abteilung") — nie ein ungeprüfter Feldname.
+    """
+    if path in _ALWAYS_PRESENT:
         return inner
-    return f"{{% if user.{field} %}}{inner}{{% endif %}}"
+    return f"{{% if {path} %}}{inner}{{% endif %}}"
 
 
 def _render_blocks(blocks: list[dict], g: dict, indent: int = 2) -> str:
@@ -140,7 +168,8 @@ def _spacer(b, _g, pad, _ind):
 
 def _field(b, g, pad, _ind):
     fname = b.get("field") or ("displayName" if b.get("type") == "name_field" else "")
-    if not fname or fname not in _USER_FIELDS:
+    path = _resolve_var(fname)
+    if not path:
         return ""
     prefix = _htmllib.escape(b.get("prefix") or "")
     parts = ["padding:0"]
@@ -157,8 +186,8 @@ def _field(b, g, pad, _ind):
     td = f'<td style="{";".join(parts)}">'
     if prefix:
         td += f"{prefix} "
-    td += "{{ user." + fname + " }}</td>"
-    return pad + _wrap_cond(fname, f"<tr>{td}</tr>")
+    td += "{{ " + path + " }}</td>"
+    return pad + _wrap_cond(path, f"<tr>{td}</tr>")
 
 
 def _divider(b, g, pad, _ind):
@@ -174,15 +203,18 @@ def _divider(b, g, pad, _ind):
 
 def _phone(b, g, pad, _ind):
     fname = b.get("field") or ("mobilePhone" if b.get("type") == "mobile" else "phone")
+    path = _resolve_var(fname)
+    if not path:
+        return ""
     label = _htmllib.escape(b.get("label") or ("Mobil:" if b.get("type") == "mobile" else "Tel:"))
     lc = g["link_color"]
-    var = "{{ user." + fname + " }}"
+    var = "{{ " + path + " }}"
     inner = (
         f'<tr><td style="padding:0">'
         f'{label} <a href="tel:{var}" style="color:{lc};text-decoration:none">{var}</a>'
         f'</td></tr>'
     )
-    return pad + _wrap_cond(fname, inner)
+    return pad + _wrap_cond(path, inner)
 
 
 def _email_link(b, g, pad, _ind):
@@ -205,7 +237,7 @@ def _web_link(b, g, pad, _ind):
         f'<a href="{var}" style="color:{lc};text-decoration:none">{var}</a>'
         f'</td></tr>'
     )
-    return pad + _wrap_cond("website", inner)
+    return pad + _wrap_cond("user.website", inner)
 
 
 def _logo(b, _g, pad, _ind):
@@ -230,7 +262,7 @@ def _booking_link(b, g, pad, _ind):
         f'<a href="{var}" style="color:{lc};text-decoration:none">{label}</a>'
         f'</td></tr>'
     )
-    return pad + _wrap_cond("bookingsUrl", inner)
+    return pad + _wrap_cond("user.bookingsUrl", inner)
 
 
 def _social(b, g, pad, _ind):
@@ -325,20 +357,24 @@ def _render_block_txt(b: dict, g: dict, lines: list[str]) -> None:
         lines.append("")
     elif t in ("name_field", "field"):
         fname = b.get("field") or ("displayName" if t == "name_field" else "")
-        if not fname or fname not in _USER_FIELDS:
+        path = _resolve_var(fname)
+        if not path:
             return
         prefix = ((b.get("prefix") or "") + " ") if b.get("prefix") else ""
-        val = "{{ user." + fname + " }}"
-        if fname in _ALWAYS_PRESENT:
+        val = "{{ " + path + " }}"
+        if path in _ALWAYS_PRESENT:
             lines.append(f"{prefix}{val}")
         else:
-            lines.append(f"{{% if user.{fname} %}}{prefix}{val}{{% endif %}}")
+            lines.append(f"{{% if {path} %}}{prefix}{val}{{% endif %}}")
     elif t == "divider":
         lines.append("--")
     elif t in ("phone", "mobile"):
         fname = b.get("field") or ("mobilePhone" if t == "mobile" else "phone")
+        path = _resolve_var(fname)
+        if not path:
+            return
         label = b.get("label") or ("Mobil:" if t == "mobile" else "Tel:")
-        lines.append(f"{{% if user.{fname} %}}{label} {{{{ user.{fname} }}}}{{% endif %}}")
+        lines.append(f"{{% if {path} %}}{label} {{{{ {path} }}}}{{% endif %}}")
     elif t == "email_link":
         label = b.get("label") or ""
         lines.append(((label + " ") if label else "") + "{{ user.mail }}")

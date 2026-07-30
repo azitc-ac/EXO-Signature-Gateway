@@ -236,8 +236,8 @@
 [data-theme="dark"] .prop-row select,
 [data-theme="dark"] .prop-row textarea { background:#0f172a;border-color:#334155;color:#e2e8f0 }
 .col-block-item {
-  border:1px solid #e2e8f0;border-radius:4px;padding:4px 8px;font-size:11px;
-  display:flex;align-items:center;gap:4px;background:#f8fafc;
+  border:1px solid #d1d5db;border-radius:4px;padding:4px 8px;font-size:11px;
+  display:flex;align-items:center;gap:4px;background:#f1f5f9;
 }
 [data-theme="dark"] .col-block-item { background:#0f172a;border-color:#334155 }
 </style>
@@ -317,15 +317,22 @@ const TYPE_LABELS = {
   freetext:'Freitext', two_col:'Zwei Spalten',
 };
 
+// "jobTitle" → "user.jobTitle", "custom.abteilung" bleibt unverändert.
+// Ohne das stünde bei einer eigenen Variablen "user.custom.abteilung" im Kopf.
+function varLabel(f, fallback) {
+  const v = f || fallback;
+  return v.startsWith('custom.') ? v : `user.${v}`;
+}
+
 function blockSummary(b) {
   switch (b.type) {
     case 'greeting':    return b.text || '';
     case 'spacer':      return `${b.height || 8} px`;
     case 'name_field':  return 'user.displayName';
-    case 'field':       return `user.${b.field || '?'}${b.prefix ? ' ('+b.prefix+')' : ''}`;
+    case 'field':       return `${varLabel(b.field, '?')}${b.prefix ? ' ('+b.prefix+')' : ''}`;
     case 'divider':     return `─── (${b.color || '#e2e8f0'})`;
-    case 'phone':       return `${b.label || 'Tel:'} user.${b.field || 'phone'}`;
-    case 'mobile':      return `${b.label || 'Mobil:'} user.mobilePhone`;
+    case 'phone':       return `${b.label || 'Tel:'} ${varLabel(b.field, 'phone')}`;
+    case 'mobile':      return `${b.label || 'Mobil:'} ${varLabel(b.field, 'mobilePhone')}`;
     case 'email_link':  return b.label ? `"${b.label}" → user.mail` : 'user.mail';
     case 'web_link':    return 'user.website';
     case 'logo':        return b.url ? ((b.url.startsWith('data:') ? '📎 eingebettet' : b.url.slice(0,40) + (b.url.length>40?'…':''))) : '(keine URL)';
@@ -365,16 +372,31 @@ const COLOR_OPTIONS = [
   {v:'link',  l:'Link-Farbe'},
 ];
 
-function fieldSelect(val, name) {
+// bid MUSS mitgegeben werden: blockPropChange() liest el.dataset.bid, und das
+// nachträgliche Patchen in renderCard()/renderColBlocks() greift nur auf
+// Elemente, die schon ein data-bid tragen. Ohne das Attribut fand
+// blockPropChange() den Block nicht und verwarf die Auswahl stillschweigend —
+// ein geändertes Entra-Feld oder eine geänderte Farbe wurde nie gespeichert.
+function fieldSelect(val, name, bid) {
   const opts = USER_FIELDS.map(f =>
     `<option value="${f}"${f===val?' selected':''}>${f}</option>`).join('');
-  return `<select name="${esc(name)}" onchange="blockPropChange(this)">${opts}</select>`;
+  // Eigene Variablen als "custom.NAME" — dieselbe Schreibweise erwartet
+  // template_builder._resolve_var(). Ist die gewählte Variable nachträglich
+  // gelöscht worden, bleibt sie als Auswahl erhalten (sonst würde das Feld
+  // stillschweigend auf displayName springen und den Block verändern).
+  let custom = CUSTOM_VARS.map(cv => `custom.${cv}`);
+  if (val && val.startsWith('custom.') && !custom.includes(val)) custom.push(val);
+  const cOpts = custom.length
+    ? `<optgroup label="Eigene Variablen">` + custom.map(f =>
+        `<option value="${escAttr(f)}"${f===val?' selected':''}>${esc(f)}</option>`).join('') + `</optgroup>`
+    : '';
+  return `<select name="${esc(name)}" data-bid="${bid}" onchange="blockPropChange(this)">${opts}${cOpts}</select>`;
 }
 
-function colorSelect(val, name, extra) {
+function colorSelect(val, name, bid, extra) {
   const extra_opts = (extra||[]).map(e => `<option value="${e.v}"${e.v===val?' selected':''}>${e.l}</option>`).join('');
   const base_opts = COLOR_OPTIONS.map(o => `<option value="${o.v}"${o.v===val?' selected':''}>${o.l}</option>`).join('');
-  return `<select name="${esc(name)}" onchange="blockPropChange(this)">${base_opts}${extra_opts}</select>`;
+  return `<select name="${esc(name)}" data-bid="${bid}" onchange="blockPropChange(this)">${base_opts}${extra_opts}</select>`;
 }
 
 // ── Render block card ─────────────────────────────────────────────────────────
@@ -427,27 +449,27 @@ function buildBlockForm(b) {
 
   if (t === 'greeting') {
     rows += row('Text', txt('text', b.text, 'Freundliche Grüße'));
-    rows += row('Farbe', colorSelect(b.color||'base','color'));
+    rows += row('Farbe', colorSelect(b.color||'base','color',b.id));
     rows += row('Größe', txt('size', b.size, 'z.B. 10pt'));
     rows += row('Kursiv', chk('italic', b.italic));
   } else if (t === 'spacer') {
     rows += row('Höhe (px)', txt('height', b.height, '8'));
   } else if (t === 'name_field') {
     rows += row('Fett', chk('bold', b.bold !== false));
-    rows += row('Farbe', colorSelect(b.color||'base','color'));
+    rows += row('Farbe', colorSelect(b.color||'base','color',b.id));
     rows += row('Größe', txt('size', b.size, ''));
   } else if (t === 'field') {
-    rows += row('Entra-Feld', fieldSelect(b.field||'jobTitle','field'));
+    rows += row('Entra-Feld', fieldSelect(b.field||'jobTitle','field',b.id));
     rows += row('Präfix', txt('prefix', b.prefix, 'z.B. Abt.:'));
     rows += row('Fett', chk('bold', b.bold));
     rows += row('Kursiv', chk('italic', b.italic));
-    rows += row('Farbe', colorSelect(b.color||'muted','color'));
+    rows += row('Farbe', colorSelect(b.color||'muted','color',b.id));
     rows += row('Größe', txt('size', b.size, ''));
   } else if (t === 'divider') {
     rows += row('Farbe', txt('color', b.color, '#e2e8f0'));
     rows += row('Abstand (px)', txt('margin', b.margin, '8'));
   } else if (t === 'phone' || t === 'mobile') {
-    rows += row('Feld', fieldSelect(b.field||(t==='mobile'?'mobilePhone':'phone'),'field'));
+    rows += row('Feld', fieldSelect(b.field||(t==='mobile'?'mobilePhone':'phone'),'field',b.id));
     rows += row('Beschriftung', txt('label', b.label, t==='mobile'?'Mobil:':'Tel:'));
   } else if (t === 'email_link') {
     rows += row('Anzeigetext', txt('label', b.label, 'leer = E-Mail-Adresse'));
@@ -493,31 +515,37 @@ function buildBlockForm(b) {
     rows += row('Links ausrichten', `<select name="left_valign" data-bid="${b.id}" onchange="blockPropChange(this)"><option value="top"${(b.left_valign||'top')==='top'?' selected':''}>Oben</option><option value="middle"${b.left_valign==='middle'?' selected':''}>Mitte</option></select>`);
     rows += row('Rechts ausrichten', `<select name="right_valign" data-bid="${b.id}" onchange="blockPropChange(this)"><option value="middle"${(b.right_valign||'middle')==='middle'?' selected':''}>Mitte</option><option value="top"${b.right_valign==='top'?' selected':''}>Oben</option></select>`);
     rows += row('Trennlinie', chk('divider', b.divider));
+    // Der Picker liegt IM Textfluss, nicht absolut positioniert: .block-card hat
+    // overflow:hidden (für den abgerundeten Kopf), was ein absolut positioniertes
+    // Dropdown am unteren Kartenrand abschnitt — der Picker der zweiten Spalte
+    // öffnete sich unsichtbar, das Hinzufügen schien wirkungslos. Im Fluss kann
+    // nichts geklippt werden; die Karte wächst stattdessen.
     const colPickerHTML = (side) => `
-      <div class="col-picker-wrap" style="position:relative;margin-top:6px">
+      <div class="col-picker-wrap" style="margin-top:6px">
         <button type="button" onclick="toggleColPicker('${b.id}','${side}')"
           style="font-size:11px;padding:3px 8px;border:1px dashed #d1d5db;border-radius:4px;background:none;cursor:pointer;width:100%">
           + Block hinzufügen
         </button>
         <div id="col-picker-${side}-${b.id}"
-          style="display:none;position:absolute;left:0;right:0;top:100%;z-index:199;background:#fff;border:1px solid #d1d5db;border-radius:6px;padding:8px;box-shadow:0 4px 12px rgba(0,0,0,.12);margin-top:2px">
+          style="display:none;background:#fff;border:1px solid #d1d5db;border-radius:6px;padding:8px;box-shadow:0 4px 12px rgba(0,0,0,.12);margin-top:4px">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px">
             ${['greeting','name_field','field','phone','mobile','email_link','web_link','logo','booking_link','social','freetext','divider','spacer']
               .map(tp => `<button class="picker-btn" type="button" onclick="addColBlock('${b.id}','${side}','${tp}')">${esc(TYPE_LABELS[tp]||tp)}</button>`).join('')}
           </div>
         </div>
       </div>`;
-    rows += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
-      <div>
-        <div style="font-size:11px;font-weight:600;color:#555;margin-bottom:4px">Linke Spalte</div>
-        <div id="col-left-${b.id}" style="display:flex;flex-direction:column;gap:3px"></div>
-        ${colPickerHTML('left')}
-      </div>
-      <div>
-        <div style="font-size:11px;font-weight:600;color:#555;margin-bottom:4px">Rechte Spalte</div>
-        <div id="col-right-${b.id}" style="display:flex;flex-direction:column;gap:3px"></div>
-        ${colPickerHTML('right')}
-      </div>
+    // Spalten UNTEREINANDER stapeln, nicht nebeneinander: der Editor-Bereich ist
+    // nur ~400px breit (LIVE-Vorschau daneben). Bei grid 1fr/1fr blähte die
+    // min-content-Breite eines Sub-Blocks (z.B. lange Logo-URL) die eine Spalte
+    // auf und quetschte die andere auf einen unsichtbaren Streifen. Gestapelt
+    // bekommt jede Spalte die volle Breite — funktioniert auch auf Mobile ≤393px.
+    rows += `<div style="margin-top:8px">
+      <div style="font-size:11px;font-weight:600;color:#555;margin-bottom:4px">Linke Spalte</div>
+      <div id="col-left-${b.id}" style="display:flex;flex-direction:column;gap:3px"></div>
+      ${colPickerHTML('left')}
+      <div style="font-size:11px;font-weight:600;color:#555;margin:12px 0 4px">Rechte Spalte</div>
+      <div id="col-right-${b.id}" style="display:flex;flex-direction:column;gap:3px"></div>
+      ${colPickerHTML('right')}
     </div>`;
   }
   return rows;
@@ -555,10 +583,10 @@ function renderColBlocks(parent, side) {
     wrap.style.padding = '0';
 
     const hdr = document.createElement('div');
-    hdr.style.cssText = 'display:flex;align-items:center;gap:4px;padding:4px 8px;cursor:pointer';
+    hdr.style.cssText = 'display:flex;align-items:center;gap:6px;padding:6px 8px;cursor:pointer';
     hdr.innerHTML = `
-      <span class="block-type-badge" style="font-size:9px">${esc(TYPE_LABELS[b.type]||b.type)}</span>
-      <span style="flex:1;font-size:11px;color:#6b7280;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(blockSummary(b))}</span>
+      <span class="block-type-badge">${esc(TYPE_LABELS[b.type]||b.type)}</span>
+      <span style="flex:1;min-width:0;font-size:11px;color:#6b7280;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(blockSummary(b))}</span>
       <button onclick="moveColBlock(event,'${parent.id}','${side}','${b.id}',-1)" title="Hoch"
         style="${iconBtnStyle()}">↑</button>
       <button onclick="moveColBlock(event,'${parent.id}','${side}','${b.id}',1)" title="Runter"
