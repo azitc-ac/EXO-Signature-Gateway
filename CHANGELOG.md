@@ -5,6 +5,32 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.108 — 2026-07-30 — Update blieb bei „Container wird neu gestartet…" stehen
+
+Nach einem erfolgreichen Update blieb die Anzeige dauerhaft bei „Update läuft…
+Container wird neu gestartet…" stehen. **Das Update selbst war jeweils
+vollständig durchgelaufen** — Repository geholt, Container gebaut und
+gestartet; nur die Statusanzeige kam nicht mehr davon los. Ein Neuladen der
+Seite zeigte die neue Fassung.
+
+Ursache: Die Erfolgsanzeige griff auf die Fassung der laufenden Seite zu, um
+„vorher → nachher" zu bilden. Dieser Wert war jedoch nur innerhalb einer
+anderen Funktion deklariert, also an dieser Stelle nicht vorhanden — die
+Anzeige brach mit einem `ReferenceError` ab. Er stammte aus der Korrektur der
+Versionsmeldung in v1.7.56, die zuvor „1.7.54 → 1.7.54" anzeigte. Der Wert
+steht jetzt einmal auf Blockebene und wird an beiden Stellen verwendet.
+
+Dass daraus ein dauerhaftes Hängen wurde statt einer Fehlermeldung, lag an der
+Abfrageschleife: Abruf und Anzeige teilten sich eine Fehlerbehandlung, und die
+deutet jeden Fehler als „Container nicht erreichbar". Der Takt war zu diesem
+Zeitpunkt bereits gestoppt, sodass auch die Zeitüberschreitung nach zehn
+Minuten nicht mehr griff. Beides ist getrennt: ein fehlgeschlagener Abruf
+bedeutet weiterhin „Container wird neu gestartet…" und wird erneut versucht,
+ein Fehler beim Anzeigen nennt sich jetzt als solcher und lässt den Abschluss
+des Updates erkennbar.
+
+---
+
 ## v1.7.107 — 2026-07-30 — Zweispalter bedienbar, eigene Variablen im Baukasten, Vorlagen in der Sandbox
 
 ### Sicherheit: Signaturvorlagen laufen jetzt in einer Sandbox

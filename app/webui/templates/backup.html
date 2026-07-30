@@ -205,6 +205,12 @@ let _updPollStart = null;
 let _watcherOk = false;
 let _updReloadTimer = null;
 
+// Fassung, die DIESE Seite ausliefert — also die des laufenden Containers.
+// Auf Blockebene, weil _updOnTargetChange() UND _updShowSuccess() sie brauchen:
+// stand sie nur funktionslokal in _updOnTargetChange(), warf der Zugriff aus
+// _updShowSuccess() einen ReferenceError und das Update blieb hängen.
+const UPD_CURRENT_VERSION = "{{ version or '0' }}";
+
 function _updGetChannel() { return document.getElementById('upd-channel').value; }
 function _updGetTargetVersion() {
   const el = document.getElementById('upd-target-version');
@@ -250,7 +256,6 @@ function _updOnTargetChange() {
   const target = _updGetTargetVersion();
   const warn = document.getElementById('upd-rollback-warn');
   const btn = document.getElementById('upd-btn');
-  const current = "{{ version or '0' }}";
   if (!target) {
     // Zurück auf "Neueste" → normaler Check-gesteuerter Ablauf
     warn.style.display = 'none';
@@ -259,7 +264,7 @@ function _updOnTargetChange() {
     btn.innerHTML = 'Jetzt aktualisieren';
     return;
   }
-  const cur = current.split('.').map(Number);
+  const cur = UPD_CURRENT_VERSION.split('.').map(Number);
   const tgt = target.split('.').map(Number);
   let isOlder = false, isSame = true;
   for (let i = 0; i < Math.max(cur.length, tgt.length); i++) {
@@ -372,25 +377,13 @@ function _updStartPolling(delayMs) {
 
 async function _updPoll() {
   const TIMEOUT_MS = 10 * 60 * 1000;
+  let d;
   try {
     const r = await fetch('/api/system/update/status');
-    const d = await r.json();
-    const state = d.state || 'idle';
-    if (state === 'running') {
-      document.getElementById('upd-btn').innerHTML = _spin('Aktualisiert…');
-      _updShowRunning(d.log || '');
-      if (Date.now() - _updPollStart > TIMEOUT_MS) {
-        clearInterval(_updPollTimer);
-        _updShowError('Timeout nach 10 Minuten. Status zurücksetzen und Watcher prüfen.');
-        _updBtnReset();
-      }
-      return;
-    }
-    clearInterval(_updPollTimer);
-    if (state === 'success') { _updShowSuccess(d); }
-    else if (state === 'error') { _updShowError(d.log || 'Unbekannter Fehler'); _updBtnReset(); }
-    else { _updBtnReset(); }
+    d = await r.json();
   } catch(e) {
+    // NUR hier ist der Container tatsächlich nicht erreichbar. Der Abruf wird
+    // beim nächsten Takt wiederholt, das Polling läuft weiter.
     ursache(e, 'backup:392');
     document.getElementById('upd-btn').innerHTML = _spin('Neustart…');
     _updShowRunning('Container wird neu gestartet…');
@@ -399,6 +392,35 @@ async function _updPoll() {
       _updShowError('Container nach 10 Minuten nicht erreichbar.');
       _updBtnReset();
     }
+    return;
+  }
+
+  const state = d.state || 'idle';
+  if (state === 'running') {
+    document.getElementById('upd-btn').innerHTML = _spin('Aktualisiert…');
+    _updShowRunning(d.log || '');
+    if (Date.now() - _updPollStart > TIMEOUT_MS) {
+      clearInterval(_updPollTimer);
+      _updShowError('Timeout nach 10 Minuten. Status zurücksetzen und Watcher prüfen.');
+      _updBtnReset();
+    }
+    return;
+  }
+
+  clearInterval(_updPollTimer);
+  try {
+    if (state === 'success') { _updShowSuccess(d); }
+    else if (state === 'error') { _updShowError(d.log || 'Unbekannter Fehler'); _updBtnReset(); }
+    else { _updBtnReset(); }
+  } catch(e) {
+    // Ein Fehler BEIM ANZEIGEN ist kein Netzwerkproblem. Lief er in denselben
+    // catch wie der Abruf, erschien "Container wird neu gestartet…" — obwohl
+    // das Update längst fertig war — und weil das Polling oben schon gestoppt
+    // ist, blieb die Anzeige endgültig dort stehen. Deshalb getrennt.
+    ursache(e, 'backup:_updPoll/anzeige');
+    _updShowError('Update abgeschlossen, aber die Statusanzeige ist fehlgeschlagen: '
+                  + ((e && e.message) ? e.message : e));
+    _updBtnReset();
   }
 }
 
@@ -422,7 +444,7 @@ function _updShowSuccess(d) {
   // Containers. Der Watcher meldet stattdessen den Stand der VERSION-Datei im
   // Repository; wurde dort bereits gepullt, aber noch nicht gebaut, sind beide
   // gleich und die Anzeige lautete "1.7.54 → 1.7.54".
-  const vorher  = current || d.version_before || '?';
+  const vorher  = UPD_CURRENT_VERSION || d.version_before || '?';
   const nachher = d.version_after || '?';
   const geaendert = vorher !== nachher && nachher !== '?';
   const versionStr = geaendert
