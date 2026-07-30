@@ -5,6 +5,33 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.109 — 2026-07-30 — Prüfung auf ungebundene Bezeichner; drei damit gefundene Fehler
+
+Fehler wie der in v1.7.108 behobene sind syntaktisch einwandfrei und fallen
+erst im Browser auf — meist als Meldung, die auf das Falsche zeigt, weil der
+`ReferenceError` in einem `catch`-Zweig landet. Die neue Prüfung
+`tools/jsscopecheck.js` löst Bezeichner mit echter Geltungsbereichs-Analyse
+auf und meldet, was zur Laufzeit ins Leere greift. Sie läuft in der CI und
+ersetzt die bisherige Prüfung auf undefinierte Funktionsaufrufe, die nur
+Aufrufe kannte und Definitionen dateiweit statt je Geltungsbereich sammelte —
+beides Gründe, warum sie den Fall aus v1.7.108 nicht sehen konnte.
+
+Der erste Lauf fand drei Fehler:
+
+* **Der Lizenz-Hinweis zu DNS-validierten Anbietern brach ab.** Die Liste der
+  betroffenen Anbieter wurde über einen Escaper aufbereitet, den es seit der
+  Zusammenführung der Escaper nicht mehr gibt. Er stand als Funktionsreferenz
+  da, nicht als Aufruf, und blieb deshalb unentdeckt.
+* **Der Kauf-Vorgang der Lizenzkarte war seit dem Umbau auf das Abonnement
+  nicht mehr aufrufbar** und griff auf zwei Zustandsgrößen zu, deren
+  Deklarationen dabei entfallen waren. Der Knopf löst längst den
+  Abonnement-Weg aus; die verwaiste Funktion ist entfernt.
+
+Für die Prüfung kommt `acorn` als einzige, exakt gepinnte Abhängigkeit hinzu
+(nur in der CI und bei der lokalen Prüfung, nicht im Container).
+
+---
+
 ## v1.7.108 — 2026-07-30 — Update blieb bei „Container wird neu gestartet…" stehen
 
 Nach einem erfolgreichen Update blieb die Anzeige dauerhaft bei „Update läuft…
