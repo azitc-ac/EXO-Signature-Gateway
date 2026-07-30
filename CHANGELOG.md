@@ -5,20 +5,28 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
-## v1.7.114 — 2026-07-31 — Update-Prüfung meldete Veröffentlichungen verzögert
+## v1.7.115 — 2026-07-31 — Update-Prüfung meldete Veröffentlichungen verzögert
 
 Die Prüfung auf Updates las die Versionsangabe im Entwicklungskanal über den
 Rohdatei-Dienst von GitHub. Der liefert über ein Auslieferungsnetz aus und hält
 Antworten fünf Minuten vor. Unmittelbar nach einer Veröffentlichung meldete die
-Prüfung deshalb weiterhin die **vorige** Fassung — ohne Hinweis, warum. Wer
-gerade aktualisiert hatte und nachsah, fand nichts.
+Prüfung deshalb weiterhin die **vorige** Fassung — „Bereits aktuell" war dann
+schlicht falsch, ohne Hinweis, woran es liegt.
 
-Die Abfrage trägt jetzt einen wechselnden Parameter und erhält damit eine
-frische Antwort. Dasselbe gilt für den Changelog, der für die Anzeige der
-Neuerungen geladen wird.
+Die Angaben werden jetzt über die Programmierschnittstelle von GitHub geholt.
+Sie antwortet nachweislich mit dem aktuellen Stand, hält nur eine Minute vor
+und wird für den Kanal „Releases" ohnehin schon genutzt. Dasselbe gilt für den
+Changelog, der für die Anzeige der Neuerungen geladen wird.
 
-Der Kanal „Releases (stabil)" war nicht betroffen; er fragt die
-Veröffentlichungen direkt ab.
+Der Kanal „Releases (stabil)" war nicht betroffen.
+
+### Berichtigung zu v1.7.114
+
+Der dort beschriebene Weg — ein wechselnder Parameter an der Abfrage — **wirkt
+nicht**: das Auslieferungsnetz nimmt ihn nicht in seinen Schlüssel auf. Am
+selben Fall geprüft und ebenfalls wirkungslos sind die Kopfzeilen
+`Cache-Control: no-cache` und `Pragma: no-cache`. Wer 1.7.114 einsetzt, hat die
+Verzögerung weiterhin; mit dieser Fassung ist sie behoben.
 
 ---
 

@@ -20,7 +20,10 @@ def upd(data_dir):
 
 def stub(upd, antwort=None, fehler=None):
     """`_get` durch eine feste Antwort oder einen Fehler ersetzen."""
-    def _fake(url, timeout=10):
+    def _fake(url, timeout=10, accept=None):
+        # Signatur MUSS der echten `_get` folgen — sonst schlaegt der Stub mit
+        # TypeError fehl, sobald dort ein Parameter dazukommt, und der Test
+        # meldet einen Folgefehler statt der Ursache.
         if fehler:
             raise fehler
         return antwort
@@ -198,18 +201,32 @@ def test_changelog_bei_netzwerkfehler_leer_statt_absturz(upd):
     assert upd.fetch_changelog_entries("1.0.0", "2.0.0") == []
 
 
-def test_rohadresse_umgeht_den_zwischenspeicher():
-    """raw.githubusercontent liefert mit max-age=300 aus.
+def test_repo_datei_nutzt_die_api_statt_raw():
+    """Die Fernversion darf NICHT ueber raw.githubusercontent geholt werden.
 
-    Ohne wechselnden Parameter meldet die Update-Prüfung direkt nach einer
-    Veröffentlichung bis zu fünf Minuten lang die vorige Fassung (gemessen:
-    `source-age: 292` bei ausgelieferter 1.7.112, im Repository 1.7.113).
-    Zwei Aufrufe müssen deshalb verschiedene Adressen ergeben.
+    Der Dienst liefert ueber ein Auslieferungsnetz mit max-age=300 aus und
+    meldet direkt nach einer Veroeffentlichung bis zu fuenf Minuten lang die
+    vorige Fassung. Am 2026-07-31 gemessen: raw lieferte 1.7.113
+    (source-age 271), waehrend im Repository 1.7.114 stand.
+
+    Drei naheliegende Auswege wurden am selben Fall geprueft und blieben
+    wirkungslos: ein wechselnder Abfrageparameter, `Cache-Control: no-cache`
+    und `Pragma: no-cache`. Nur die API antwortete frisch. Wer hier auf raw
+    zurueckbaut, bekommt das Verhalten zurueck — deshalb dieser Test.
     """
     import update_core
 
     u = update_core.Updater.__new__(update_core.Updater)
-    u.repo = "beispiel/repo"
-    a, b = u._raw("VERSION"), u._raw("VERSION")
-    assert a != b
-    assert a.startswith("https://raw.githubusercontent.com/beispiel/repo/main/VERSION?")
+    u.repo, u.user_agent = "beispiel/repo", "test"
+    gesehen = {}
+
+    def _fake_get(url, timeout=10, accept=None):
+        gesehen.update(url=url, accept=accept)
+        return "1.2.3\n"
+
+    u._get = _fake_get
+    assert u._repo_datei("VERSION") == "1.2.3\n"
+    assert "raw.githubusercontent.com" not in gesehen["url"]
+    assert gesehen["url"].startswith(
+        "https://api.github.com/repos/beispiel/repo/contents/VERSION")
+    assert gesehen["accept"] == "application/vnd.github.raw"
