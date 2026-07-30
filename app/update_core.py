@@ -88,27 +88,38 @@ class Updater:
         self.remote_version_file = self.data / ".remote-version"
 
     # ── HTTP ────────────────────────────────────────────────────────────────
-    def _get(self, url: str, timeout: int = 10) -> str:
-        req = urllib.request.Request(url, headers={"User-Agent": self.user_agent})
+    def _get(self, url: str, timeout: int = 10, accept: str | None = None) -> str:
+        kopf = {"User-Agent": self.user_agent}
+        if accept:
+            kopf["Accept"] = accept
+        req = urllib.request.Request(url, headers=kopf)
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return r.read().decode()
 
-    def _raw(self, pfad: str) -> str:
-        """Adresse einer Rohdatei im Repository — mit Umgehung des Zwischenspeichers.
+    def _repo_datei(self, pfad: str) -> str:
+        """Inhalt einer Datei des main-Branch — über die API, NICHT über raw.
 
-        `raw.githubusercontent.com` liefert über ein CDN aus und setzt
-        `cache-control: max-age=300`. Direkt nach einer Veröffentlichung meldet
-        die Update-Prüfung deshalb bis zu fünf Minuten lang die VORIGE Fassung —
-        gemessen: `source-age: 292` bei ausgelieferter 1.7.112, während im
-        Repository bereits 1.7.113 stand. Wer gerade veröffentlicht hat und
-        nachsieht, findet nichts und hat keinen Anhaltspunkt, warum.
+        `raw.githubusercontent.com` liefert über ein Auslieferungsnetz mit
+        `max-age=300` aus. Direkt nach einer Veröffentlichung meldet die
+        Prüfung dort bis zu fünf Minuten lang die VORIGE Fassung; "Bereits
+        aktuell" ist dann schlicht falsch.
 
-        Ein wechselnder Parameter erzeugt einen eigenen Eintrag im
-        Zwischenspeicher und damit eine frische Antwort. Die Prüfung wird von
-        Hand ausgelöst, die zusätzliche Last fällt nicht ins Gewicht.
+        Am selben Fall gemessen (raw lieferte 1.7.113 bei `source-age: 129`,
+        im Repository stand 1.7.114) — drei naheliegende Auswege halfen NICHT:
+
+            wechselnder Abfrageparameter  -> 1.7.113   (nicht im Schlüssel)
+            Cache-Control: no-cache       -> 1.7.113   (ignoriert)
+            Pragma: no-cache              -> 1.7.113   (ignoriert)
+            API /contents                 -> 1.7.114   ✓
+
+        Die API hält nur 60s vor, wird für den Release-Kanal ohnehin benutzt,
+        und ihr Kontingent (60/Stunde ohne Anmeldung) reicht für eine von Hand
+        ausgelöste Prüfung. Grenze des Endpunkts sind 1 MB je Datei — der
+        Changelog liegt bei rund 0,4 MB.
         """
-        return (f"https://raw.githubusercontent.com/{self.repo}/main/{pfad}"
-                f"?_={time.time_ns()}")
+        return self._get(
+            f"https://api.github.com/repos/{self.repo}/contents/{pfad}?ref=main",
+            accept="application/vnd.github.raw")
 
     # ── Versionsermittlung ──────────────────────────────────────────────────
     def read_remote_version(self) -> str | None:
@@ -127,7 +138,7 @@ class Updater:
         ab, ein Abgleich auf exakte Überschriften würde also Einträge verlieren.
         """
         try:
-            text = self._get(self._raw("CHANGELOG.md"))
+            text = self._repo_datei("CHANGELOG.md")
         except Exception:
             return []
         entries: list[dict] = []
@@ -201,7 +212,7 @@ class Updater:
                 return self._result(channel, current_version,
                                     data["tag_name"].lstrip("v"),
                                     url=data.get("html_url", ""))
-            latest = self._get(self._raw("VERSION")).strip()
+            latest = self._repo_datei("VERSION").strip()
             return self._result(channel, current_version, latest)
 
         except urllib.error.HTTPError as e:
