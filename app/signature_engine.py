@@ -1,6 +1,7 @@
 import os
 import logging
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound, select_autoescape
+from jinja2.sandbox import SandboxedEnvironment
 
 import config
 from graph_client import UserData
@@ -11,9 +12,23 @@ _env: Environment | None = None
 
 
 def _get_env() -> Environment:
+    """Vorlagen laufen in der Sandbox.
+
+    Eine Signaturvorlage ist Jinja2-Quelltext, der aus der Oberfläche stammt:
+    der Freitext-Block reicht HTML absichtlich roh durch, und Größen-, Farb-
+    und URL-Angaben landen unverändert im erzeugten Quelltext. Alles davon
+    wird beim Rendern ausgewertet — in einer gewöhnlichen Umgebung genügt
+    damit ein Ausdruck wie `{{ x.__class__.__mro__[1].__subclasses__() }}`,
+    um an Python-Interna und darüber an die Zugangsdaten des Containers zu
+    gelangen. Vorlagen darf auch die Editor-Rolle speichern.
+
+    Die Sandbox unterbindet genau diesen Zugriff (SecurityError), lässt
+    `{{ user.x }}`, Filter und `{% if %}` aber unverändert. Gegengeprüft:
+    alle mitgelieferten Vorlagen rendern zeichengleich wie zuvor.
+    """
     global _env
     if _env is None:
-        _env = Environment(
+        _env = SandboxedEnvironment(
             loader=FileSystemLoader(config.TEMPLATE_DIR),
             autoescape=select_autoescape(["html"]),
         )

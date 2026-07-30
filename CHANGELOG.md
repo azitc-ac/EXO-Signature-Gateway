@@ -5,6 +5,67 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.107 — 2026-07-30 — Zweispalter bedienbar, eigene Variablen im Baukasten, Vorlagen in der Sandbox
+
+### Sicherheit: Signaturvorlagen laufen jetzt in einer Sandbox
+
+Eine Signaturvorlage ist Jinja2-Quelltext. Der Baukasten setzt darin Werte aus
+den Vorlagen-Metadaten als Text ein, und beim Versand wird das Ergebnis
+gerendert — ein eingesetzter Wert wird also **ausgewertet**. Beim Telefon-Block
+lief der Feldname dabei ohne Prüfung durch; andere Angaben (Freitext, Schrift-
+größe, Farbe, Bild-URL) gelangen bauartbedingt roh in den Quelltext. Damit
+konnte ein Vorlagen-Ausdruck bis an Python-Interna reichen. Vorlagen darf auch
+die Editor-Rolle speichern, nicht nur die Administration.
+
+Zwei Ebenen schließen das:
+
+* Feldnamen werden zentral geprüft (`_resolve_var`) — nur bekannte Entra-Felder
+  und `custom.NAME`. Alle vier Einsetzungsstellen (HTML und Text, Feld- und
+  Telefon-Block) gehen hindurch, statt jede für sich zu prüfen.
+* Gerendert wird in einer Jinja2-Sandbox. Sie unterbindet den Zugriff auf
+  Objekt-Interna, lässt Variablen, Filter und Bedingungen unverändert. Alle
+  mitgelieferten Vorlagen erzeugen zeichengleich dieselbe Ausgabe wie zuvor.
+
+**Zu tun:** aktualisieren. Vorhandene Vorlagen bleiben gültig und müssen nicht
+angepasst werden, Schlüssel sind nicht neu auszustellen.
+
+### Baukasten: Zweispalter war praktisch nicht bedienbar
+
+Die beiden Spalten standen im Bearbeitungsbereich nebeneinander. Der ist neben
+der Live-Vorschau rund 400 px breit, und eine Grid-Spalte wird nie schmaler als
+ihr Inhalt: ein einziger Unterblock mit langem Text — etwa eine Logo-URL —
+drückte die andere Spalte auf einen Streifen von wenigen Pixeln zusammen. Die
+Blöcke darin waren vorhanden, aber nicht zu erkennen. Die Spalten stehen jetzt
+untereinander, jede über die volle Breite; das trägt zugleich schmale
+Bildschirme.
+
+**„+ Block hinzufügen" der zweiten Spalte blieb wirkungslos.** Die Auswahlliste
+war absolut positioniert und öffnete am unteren Kartenrand — die Karte
+beschneidet ihren Inhalt (`overflow:hidden`), die Liste wurde also unsichtbar
+aufgeklappt. Sie liegt jetzt im Textfluss, wodurch die Karte stattdessen wächst.
+
+**Feld- und Farbauswahl wurden verworfen.** Beide Auswahlfelder trugen keine
+Blockkennung; die Änderungsroutine sucht den Block über genau diese Kennung und
+brach ohne sie ab. Ein umgestelltes Entra-Feld — etwa auf `companyName` — sah
+im Formular richtig aus, wurde aber nie gespeichert. Textfelder waren nicht
+betroffen, was den Eindruck erzeugte, es fehlten Variablen.
+
+### Eigene Variablen im Baukasten
+
+Unter „Einstellungen → Signatur" angelegte Variablen waren bisher nur über den
+Freitext-Block oder den Quelltext-Tab verwendbar, obwohl der Baukasten sie als
+verfügbar auflistete. Feld-Blöcke bieten sie jetzt in einer eigenen Gruppe
+„Eigene Variablen" an (Schreibweise `custom.NAME`, wie bei den
+Postfach-Überschreibungen). Wird eine Variable später entfernt, bleibt sie in
+der Vorlage sichtbar stehen, statt still auf ein anderes Feld zu springen.
+
+### Willkommenshinweis
+
+Der Hinweis auf dem Dashboard nannte weiterhin eine Mindestabnahme von zehn
+Lizenzen. Die ist entfallen; ab dem 101. Postfach wird einzeln erworben.
+
+---
+
 ## v1.7.106 — 2026-07-29 — Baukasten: Block-Hinzufügen in Zweispalter repariert
 
 Wurde in einem Zweispalter-Block auf „+ Block hinzufügen" geklickt, renderte
