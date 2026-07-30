@@ -28,6 +28,8 @@ Block types (top-level and nested inside two_col left/right lists):
   social       — social platform link (static URL)
   freetext     — raw HTML passthrough (for banners / disclaimers / custom)
   two_col      — two-column table; left/right each a list of non-nested blocks
+  box          — framed container; `children` is a list of blocks (also two_col).
+                 Rounded corners additionally via VML for Outlook (needs `width`).
 """
 from __future__ import annotations
 
@@ -107,6 +109,21 @@ def new_id() -> str:
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
+_HEX_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
+
+
+def _farbe(wert, vorgabe: str, g: dict) -> str:
+    """Geprüfter Farbwert — alles andere fällt auf die Vorgabe zurück.
+
+    Farbangaben landen unverändert im erzeugten Vorlagen-Quelltext und werden
+    dort ausgewertet (siehe Sandbox in signature_engine). Die Sandbox fängt
+    den gefährlichen Teil ab; hier wird zusätzlich sichergestellt, dass
+    überhaupt nur eine Farbe herauskommt.
+    """
+    v = _color_val(wert if wert not in (None, "") else vorgabe, g)
+    return v if isinstance(v, str) and _HEX_RE.match(v) else vorgabe
+
+
 def _color_val(c: str, g: dict) -> str:
     """Resolve named color aliases or return literal hex."""
     if c == "muted":
@@ -148,7 +165,7 @@ def _render_block(b: dict, g: dict, indent: int) -> str:
 def _greeting(b, g, pad, _ind):
     text = _htmllib.escape(b.get("text") or "Freundliche Grüße")
     parts = ["padding:0"]
-    color = _color_val(b.get("color", "base"), g)
+    color = _farbe(b.get("color") or "base", g["base_color"], g)
     if color != g["base_color"]:
         parts.append(f"color:{color}")
     if b.get("size"):
@@ -178,7 +195,7 @@ def _field(b, g, pad, _ind):
         parts.append("font-weight:bold")
     if b.get("italic"):
         parts.append("font-style:italic")
-    color = _color_val(b.get("color", "base"), g)
+    color = _farbe(b.get("color") or "base", g["base_color"], g)
     if color != g["base_color"]:
         parts.append(f"color:{color}")
     if b.get("size"):
@@ -191,7 +208,7 @@ def _field(b, g, pad, _ind):
 
 
 def _divider(b, g, pad, _ind):
-    color = _color_val(b.get("color") or "#e2e8f0", g)
+    color = _farbe(b.get("color"), "#e2e8f0", g)
     m = max(2, int(b.get("margin") or 8))
     return (
         f'{pad}<tr><td style="padding:{m}px 0">'
@@ -302,7 +319,7 @@ def _two_col(b, g, pad, indent):
     ls = f"vertical-align:{left_valign};padding-right:{gap}px"
     rs = f"vertical-align:{right_valign};padding-left:{gap}px"
     if divider:
-        div_color = _color_val(b.get("divider_color") or "#e2e8f0", g)
+        div_color = _farbe(b.get("divider_color"), "#e2e8f0", g)
         rs += f";border-left:1px solid {div_color}"
     if left_w != "auto":
         ls += f";width:{left_w}"
@@ -324,6 +341,111 @@ def _two_col(b, g, pad, indent):
     )
 
 
+def _box(b, g, pad, indent):
+    """Umrahmter Kasten mit beliebigen Blöcken darin.
+
+    Runde Ecken über `border-radius` beherrscht Outlook Desktop nicht — es
+    rendert mit der Word-Maschine. Deshalb zusätzlich ein VML-`roundrect`,
+    das dort dieselbe Form zeichnet.
+
+    Der Inhalt steht dabei nur EINMAL im Quelltext: die bedingten Kommentare
+    umschließen ausschließlich die Hüll-Tags. Beide Varianten vollständig
+    auszugeben wäre der verbreitete Weg, würde aber eingebettete Logos
+    (Base64) verdoppeln.
+
+    VML kann nicht mitwachsen — `roundrect` braucht eine feste Breite. Ohne
+    Breitenangabe entfällt der VML-Teil, und Outlook zeigt den Kasten eckig;
+    das ist der ehrlichere Ausgang gegenüber einer geratenen Breite.
+    """
+    kinder = b.get("children") or []
+    ni = indent + 4
+    inner = _render_blocks(kinder, g, ni + 2)
+    if not inner.strip():
+        return ""
+
+    bw = max(0, min(12, int(b.get("border_width") or 1)))
+    bc = _farbe(b.get("border_color"), "#e2e8f0", g)
+    radius = max(0, min(40, int(b.get("radius") or 0)))
+    innen = max(0, min(60, int(b.get("padding") or 12)))
+    gefuellt = bool(b.get("filled"))
+    fill = _farbe(b.get("fill_color"), "#ffffff", g) if gefuellt else ""
+    breite = max(0, int(b.get("width") or 0))          # 0 = automatisch
+
+    td_style = [f"padding:{innen}px"]
+    if bw:
+        td_style.append(f"border:{bw}px solid {bc}")
+    if radius:
+        td_style.append(f"border-radius:{radius}px")
+    if gefuellt:
+        td_style.append(f"background-color:{fill}")
+    tab_style = f"width:{breite}px" if breite else ""
+
+    p2 = " " * ni
+    mso = radius and breite            # VML nur mit fester Breite sinnvoll
+    teile = [f"{pad}<tr>", f"{pad}  <td style=\"padding:0\">"]
+
+    if mso:
+        # arcsize ist ein Anteil der HALBEN kürzeren Seite — bei einem
+        # Signaturkasten also der Höhe, nicht der Breite. Die Höhe entsteht
+        # erst beim Rendern und ist hier nicht bekannt; über die Breite
+        # gerechnet käme bei 8px Radius auf 520px Breite ~3% heraus, was in
+        # Outlook praktisch eckig aussieht — also das Gegenteil der Absicht.
+        #
+        # Daher eine benannte Schätzung: Innenabstand oben und unten plus rund
+        # 80px Inhalt (Name, Funktion, Kontaktzeile — der übliche Fall). Der
+        # Radius in Outlook ist damit angenähert, nicht exakt; die Alternative
+        # wäre, die Höhe im Editor abzufragen, was für den Gewinn zu viel
+        # verlangt wäre.
+        hoehe_geschaetzt = 2 * innen + 80
+        kurze_seite = min(breite, hoehe_geschaetzt)
+        arc = max(1, min(50, round(radius / kurze_seite * 200)))
+        teile += [
+            f"{p2}<!--[if mso]>",
+            f'{p2}<v:roundrect xmlns:v="urn:schemas-microsoft-com:vml"'
+            f' xmlns:w="urn:schemas-microsoft-com:office:word" arcsize="{arc}%"'
+            f' style="width:{breite}px" strokeweight="{bw}px" strokecolor="{bc}"'
+            f' stroked="{"t" if bw else "f"}" fillcolor="{fill or "#ffffff"}"'
+            f' filled="{"t" if gefuellt else "f"}">',
+            f'{p2}<v:textbox inset="{innen}px,{innen}px,{innen}px,{innen}px"'
+            f' style="mso-fit-shape-to-text:true">',
+            f"{p2}<![endif]-->",
+            f"{p2}<!--[if !mso]><!-->",
+        ]
+    # Rahmen-Tabelle nur für die übrigen Programme: in Outlook zeichnet das
+    # roundrect den Rahmen, eine zweite Tabelle mit `border` ergäbe dort einen
+    # eckigen Rahmen INNERHALB des runden.
+    teile += [
+        f'{p2}<table cellpadding="0" cellspacing="0" border="0"'
+        + (f' style="{tab_style}"' if tab_style else "")
+        + ">",
+        f'{p2}  <tr><td style="{";".join(td_style)}">',
+    ]
+    if mso:
+        teile.append(f"{p2}<!--<![endif]-->")
+    # Diese Tabelle sehen BEIDE — sie trägt die Zeilen der Kinder. Läge sie im
+    # !mso-Zweig, stünden die <tr> in Outlook ohne Tabelle in der v:textbox.
+    teile += [
+        f'{p2}  <table cellpadding="0" cellspacing="0" border="0">',
+        inner,
+        f"{p2}  </table>",
+    ]
+    if mso:
+        teile.append(f"{p2}<!--[if !mso]><!-->")
+    teile += [
+        f"{p2}  </td></tr>",
+        f"{p2}</table>",
+    ]
+    if mso:
+        teile += [
+            f"{p2}<!--<![endif]-->",
+            f"{p2}<!--[if mso]>",
+            f"{p2}</v:textbox></v:roundrect>",
+            f"{p2}<![endif]-->",
+        ]
+    teile += [f"{pad}  </td>", f"{pad}</tr>"]
+    return "\n".join(teile)
+
+
 _HTML_RENDERERS = {
     "greeting": _greeting,
     "spacer": _spacer,
@@ -339,6 +461,7 @@ _HTML_RENDERERS = {
     "social": _social,
     "freetext": _freetext,
     "two_col": _two_col,
+    "box": _box,
 }
 
 
@@ -366,6 +489,11 @@ def _render_block_txt(b: dict, g: dict, lines: list[str]) -> None:
             lines.append(f"{prefix}{val}")
         else:
             lines.append(f"{{% if {path} %}}{prefix}{val}{{% endif %}}")
+    elif t == "box":
+        # Im Textteil gibt es keinen Rahmen — die Kinder erscheinen schlicht
+        # untereinander. Eine Nachbildung aus +---+ bricht bei Proportional-
+        # schrift und variablen Feldlängen ohnehin auseinander.
+        _render_blocks_txt(b.get("children") or [], g, lines)
     elif t == "divider":
         lines.append("--")
     elif t in ("phone", "mobile"):
