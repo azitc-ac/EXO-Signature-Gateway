@@ -411,7 +411,21 @@ async function _updPoll() {
   try {
     if (state === 'success') { _updShowSuccess(d); }
     else if (state === 'error') { _updShowError(d.log || 'Unbekannter Fehler'); _updBtnReset(); }
-    else { _updBtnReset(); }
+    else {
+      // Kein Vorgang mehr vermerkt. Das Polling läuft nur während eines
+      // Updates, also ist das hier kein Normalfall: entweder wurde der Status
+      // zurückgesetzt, oder die Antwort trug gar kein `state` — etwa 401 nach
+      // abgelaufener Anmeldung während eines langen Neubaus. Ohne eigene
+      // Meldung bliebe der Kasten auf seinem letzten Text stehen, und ein
+      // abgelaufener Zugang sähe aus wie ein hängendes Update.
+      _updBtnReset();
+      const kasten = document.getElementById('upd-status');
+      if (kasten && kasten.style.display !== 'none') {
+        _updShowError('Kein laufender Update-Vorgang mehr vermerkt. '
+                    + 'Seite neu laden, um den aktuellen Stand zu sehen — '
+                    + 'ist die Anmeldung abgelaufen, führt das zur Anmeldeseite.');
+      }
+    }
   } catch(e) {
     // Ein Fehler BEIM ANZEIGEN ist kein Netzwerkproblem. Lief er in denselben
     // catch wie der Abruf, erschien "Container wird neu gestartet…" — obwohl

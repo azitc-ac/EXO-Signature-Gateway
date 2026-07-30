@@ -5,6 +5,36 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.110 — 2026-07-30 — Neuer Baustein „Kasten": eingerahmte Signaturen
+
+Der Baukasten kennt einen neuen Block **Kasten**. Er nimmt beliebig viele
+Blöcke auf — auch einen Zweispalter — und rahmt sie ein. Damit lässt sich die
+gesamte Signatur oder ein Teil davon in einen Rahmen setzen.
+
+Einstellbar sind Strichbreite und Rahmenfarbe, ein Innenabstand, wahlweise eine
+Füllfarbe, sowie eckige oder runde Ecken.
+
+**Runde Ecken in Outlook am Rechner.** Outlook zeichnet dort mit der
+Word-Maschine und kennt `border-radius` nicht. Für runde Ecken wird deshalb
+zusätzlich eine VML-Form ausgegeben, die dieselbe Form zeichnet. Zwei Dinge
+ergeben sich daraus:
+
+* Die VML-Form kann nicht mitwachsen und **braucht eine feste Breite**. Ohne
+  Breitenangabe entfällt sie, und Outlook stellt den Kasten eckig dar — das ist
+  der ehrlichere Ausgang gegenüber einer geratenen Breite.
+* Die Rundung ist dort angenähert. VML rechnet den Radius gegen die kürzere
+  Seite, also die Höhe, die erst beim Anzeigen entsteht.
+
+Der Inhalt steht dabei nur einmal im Quelltext. Beide Darstellungsvarianten
+vollständig auszugeben ist der verbreitete Weg, würde aber eingebettete Logos
+(Base64) verdoppeln.
+
+**Farbangaben werden jetzt durchgängig geprüft.** Rahmen-, Füll-, Text- und
+Trennlinienfarben landen unverändert im erzeugten Vorlagen-Quelltext. Was keine
+Farbe ist, fällt auf den Vorgabewert zurück, statt dort zu stehen.
+
+---
+
 ## v1.7.109 — 2026-07-30 — Prüfung auf ungebundene Bezeichner; drei damit gefundene Fehler
 
 Fehler wie der in v1.7.108 behobene sind syntaktisch einwandfrei und fallen

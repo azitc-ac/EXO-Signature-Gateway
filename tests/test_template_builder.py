@@ -160,3 +160,87 @@ def test_sandbox_laesst_normale_vorlagen_unveraendert():
         user=_User(), custom={"abteilung": "Buchhaltung"}
     )
     assert out == "Erika Mustermann / Buchhaltung"
+
+
+# ── Kasten (box) ──────────────────────────────────────────────────────────────
+
+def _box(**kw):
+    b = {"id": "1", "type": "box", "children": [
+        {"id": "2", "type": "field", "field": "companyName"}]}
+    b.update(kw)
+    return _meta(b)
+
+
+def test_kasten_rahmt_den_inhalt():
+    src = tb.render_html(_box(border_width=2, border_color="#ff0000", padding=20))
+    assert "border:2px solid #ff0000" in src
+    assert "padding:20px" in src
+    assert "{{ user.companyName }}" in src
+
+
+def test_kasten_ohne_inhalt_entfaellt():
+    """Ein leerer Kasten wäre ein Rahmen um nichts."""
+    assert tb.render_html(_meta({"id": "1", "type": "box", "children": []})).count("<tr>") == 0
+
+
+def test_kasten_fuellung_nur_wenn_gewuenscht():
+    assert "background-color:#eeeeee" in tb.render_html(_box(filled=True, fill_color="#eeeeee"))
+    assert "background-color" not in tb.render_html(_box(filled=False, fill_color="#eeeeee"))
+
+
+def test_runde_ecken_mit_breite_erzeugen_vml():
+    """Outlook braucht die VML-Form — sie setzt eine feste Breite voraus."""
+    src = tb.render_html(_box(radius=8, width=520))
+    assert "v:roundrect" in src and 'arcsize="' in src
+    assert "border-radius:8px" in src          # für alle übrigen Programme
+    assert "[if mso]" in src and "[if !mso]" in src
+
+
+def test_runde_ecken_ohne_breite_ohne_vml():
+    """Ohne feste Breite kann VML nicht zeichnen — dann lieber eckig als falsch."""
+    src = tb.render_html(_box(radius=8, width=0))
+    assert "v:roundrect" not in src
+    assert "border-radius:8px" in src
+
+
+def test_eckiger_kasten_ohne_vml():
+    assert "v:roundrect" not in tb.render_html(_box(radius=0, width=520))
+
+
+def test_inhalt_steht_nur_einmal_im_quelltext():
+    """Beide Varianten vollständig auszugeben würde Base64-Logos verdoppeln."""
+    src = tb.render_html(_box(radius=8, width=520))
+    assert src.count("{{ user.companyName }}") == 1
+
+
+def test_kasten_traegt_zweispalter():
+    out = _render(_box(radius=8, width=520, children=[{
+        "id": "2", "type": "two_col", "left": [], "right": [
+            {"id": "3", "type": "field", "field": "companyName"}]}]))
+    assert "Beispiel GmbH" in out
+
+
+def test_kasten_farbe_wird_geprueft():
+    """Farbwerte landen roh im Quelltext — Unsinn fällt auf die Vorgabe zurück."""
+    src = tb.render_html(_box(border_width=1, border_color="rot; evil"))
+    assert "evil" not in src
+    assert "border:1px solid #e2e8f0" in src
+
+
+def test_kasten_im_textteil_zeigt_die_kinder():
+    txt = tb.render_txt(_box(radius=8, width=520))
+    assert "{{ user.companyName }}" in txt
+    assert "mso" not in txt
+
+
+@pytest.mark.parametrize("block,unsinn", [
+    ({"type": "divider"}, "color"),
+    ({"type": "greeting", "text": "Hi"}, "color"),
+    ({"type": "field", "field": "companyName"}, "color"),
+    ({"type": "two_col", "divider": True, "left": [], "right": [
+        {"id": "9", "type": "field", "field": "companyName"}]}, "divider_color"),
+])
+def test_farben_werden_ueberall_geprueft(block, unsinn):
+    """Kein Farbweg darf einen ungeprüften Wert in die Vorlage schreiben."""
+    b = {"id": "1", **block, unsinn: "javascript:evil"}
+    assert "evil" not in tb.render_html(_meta(b))
