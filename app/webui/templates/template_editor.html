@@ -293,8 +293,8 @@ function defaultBlock(type) {
     case 'name_field':  return { ...base, field: 'displayName', bold: true, color: 'base' };
     case 'field':       return { ...base, field: 'jobTitle', bold: false, italic: false, color: 'muted', prefix: '' };
     case 'divider':     return { ...base, color: '#e2e8f0', margin: 8 };
-    case 'phone':       return { ...base, field: 'phone', label: 'Tel:' };
-    case 'mobile':      return { ...base, field: 'mobilePhone', label: 'Mobil:' };
+    case 'phone':       return { ...base, field: 'phone', prefix: 'Tel:' };
+    case 'mobile':      return { ...base, field: 'mobilePhone', prefix: 'Mobil:' };
     case 'email_link':  return { ...base, label: '' };
     case 'web_link':    return { ...base };
     case 'logo':        return { ...base, url: '', width: 100 };
@@ -342,8 +342,8 @@ function blockSummary(b) {
     case 'name_field':  return 'user.displayName';
     case 'field':       return `${varLabel(b.field, '?')}${b.prefix ? ' ('+b.prefix+')' : ''}`;
     case 'divider':     return `─── (${b.color || '#e2e8f0'})`;
-    case 'phone':       return `${b.label || 'Tel:'} ${varLabel(b.field, 'phone')}`;
-    case 'mobile':      return `${b.label || 'Mobil:'} ${varLabel(b.field, 'mobilePhone')}`;
+    case 'phone':       return `${b.prefix || ''} ${varLabel(b.field, 'phone')}`.trim();
+    case 'mobile':      return `${b.prefix || ''} ${varLabel(b.field, 'mobilePhone')}`.trim();
     case 'email_link':  return b.label ? `"${b.label}" → user.mail` : 'user.mail';
     case 'web_link':    return 'user.website';
     case 'logo':        return b.url ? ((b.url.startsWith('data:') ? '📎 eingebettet' : b.url.slice(0,40) + (b.url.length>40?'…':''))) : '(keine URL)';
@@ -509,6 +509,14 @@ function buildBlockForm(b) {
   const ta = (name, val) =>
     `<textarea name="${esc(name)}" data-bid="${b.id}" onchange="blockPropChange(this)">${esc(val||'')}</textarea>`;
 
+  // Die zwei Begriffe, die es gibt — und nur diese zwei. Vorher hiess
+  // dasselbe je nach Baustein "Praefix", "Beschriftung" oder "Anzeigetext",
+  // und "Beschriftung" bezeichnete sogar BEIDE Verhalten.
+  const praefixZeile = (vorgabe) =>
+    row('Präfix', txt('prefix', b.prefix, vorgabe || 'steht davor, z.B. Tel:'));
+  const anzeigeZeile = (leerHinweis) =>
+    row('Anzeigetext', txt('label', b.label, leerHinweis));
+
   // Schriftschnitt-Zeilen, gemeinsam fuer Feld-, Anschrift- und Link-Bloecke.
   // Vorher gab es sie nur beim Feld — die Link-Bausteine liessen sich deshalb
   // nicht formatieren.
@@ -553,15 +561,18 @@ function buildBlockForm(b) {
     rows += row('Abstand (px)', txt('margin', b.margin, '8'));
   } else if (t === 'phone' || t === 'mobile') {
     rows += row('Feld', fieldSelect(b.field||(t==='mobile'?'mobilePhone':'phone'),'field',b.id));
-    rows += row('Beschriftung', txt('label', b.label, t==='mobile'?'Mobil:':'Tel:'));
+    rows += praefixZeile(t==='mobile'?'Mobil:':'Tel:');
+    rows += anzeigeZeile('leer = Nummer anzeigen');
     rows += stilZeilen(true, 'link');
   } else if (t === 'email_link') {
     rows += row('Feld', fieldSelect(b.field||'mail','field',b.id));
-    rows += row('Anzeigetext', txt('label', b.label, 'leer = Feldinhalt anzeigen'));
+    rows += praefixZeile('z.B. Mail:');
+    rows += anzeigeZeile('leer = Adresse anzeigen');
     rows += stilZeilen(true, 'link');
   } else if (t === 'web_link') {
     rows += row('Feld', fieldSelect(b.field||'website','field',b.id));
-    rows += row('Anzeigetext', txt('label', b.label, 'leer = Adresse anzeigen'));
+    rows += praefixZeile('z.B. Web:');
+    rows += anzeigeZeile('leer = Adresse anzeigen');
     rows += stilZeilen(true, 'link');
   } else if (t === 'logo') {
     const isEmbed = (b.url||'').startsWith('data:');
@@ -589,12 +600,15 @@ function buildBlockForm(b) {
     rows += row('Breite (px)', txt('width', b.width, '100'));
     rows += `<p style="font-size:11px;color:#6b7280;margin:4px 0 0">Eingebettete Logos werden als Base64-Data-URI gespeichert — identisch zur Standard-Signatur, kein CID.</p>`;
   } else if (t === 'booking_link') {
-    rows += row('Beschriftung', txt('label', b.label, 'Termin buchen'));
+    rows += praefixZeile('z.B. Termine:');
+    rows += anzeigeZeile('leer = "Termin buchen"');
     rows += stilZeilen(true, 'link');
   } else if (t === 'social') {
     rows += row('Plattform', txt('platform', b.platform, 'LinkedIn'));
     rows += row('URL (fest)', txt('url', b.url, 'https://linkedin.com/…'));
-    rows += row('Anzeigetext', txt('label', b.label, 'leer = Plattformname'));
+    rows += praefixZeile('');
+    rows += anzeigeZeile('leer = Plattformname');
+    rows += stilZeilen(true, 'link');
   } else if (t === 'freetext') {
     rows += row('HTML', ta('html', b.html));
     rows += `<p style="font-size:11px;color:#6b7280;margin:4px 0 0">Rohes HTML — für Disclaimer, Rechtliches, etc. Keine Jinja2-Variablen möglich.</p>`;
@@ -976,6 +990,20 @@ async function loadMailboxes() {
 }
 
 // ── Load existing meta (if any) ───────────────────────────────────────────────
+// Bis v1.7.115 trug `label` beim Telefon den PRÄFIX, bei allen anderen
+// Bausteinen den ANZEIGETEXT — dasselbe Feld mit zwei Bedeutungen. Beim Laden
+// auf die eindeutige Form umschreiben. template_builder liest den Altbestand
+// weiterhin richtig, solange eine Vorlage nicht neu gespeichert wurde.
+function migriereBeschriftung(b) {
+  if ((b.type === 'phone' || b.type === 'mobile') && b.prefix === undefined) {
+    b.prefix = b.label !== undefined
+      ? b.label
+      : (b.type === 'mobile' ? 'Mobil:' : 'Tel:');
+    delete b.label;
+  }
+  return b;
+}
+
 async function loadMeta() {
   if (!HAS_META) {
     renderBlockList();
@@ -991,9 +1019,11 @@ async function loadMeta() {
       let counter = 1;
       const reassign = list => (list||[]).map(b => {
         const nb = { ...b, id: (counter++).toString() };
-        if (nb.left)  nb.left  = reassign(nb.left);
-        if (nb.right) nb.right = reassign(nb.right);
-        return nb;
+        // Unterlisten über kindListen() statt fest left/right: sonst behalten
+        // die Kinder eines Behälter-Typs, der später dazukommt, ihre alten
+        // Kennungen und kollidieren mit den neu vergebenen.
+        kindListen(nb).forEach(k => { if (nb[k]) nb[k] = reassign(nb[k]); });
+        return migriereBeschriftung(nb);
       });
       blocks = reassign(meta.blocks);
       nextId = counter;

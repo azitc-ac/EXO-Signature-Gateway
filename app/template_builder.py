@@ -154,6 +154,26 @@ def _color_val(c: str, g: dict) -> str:
     return c
 
 
+def _praefix_anzeige(b, vorgabe_praefix: str = "") -> tuple[str, str]:
+    """(Präfix, Anzeigetext) eines Bausteins.
+
+    Zwei verschiedene Dinge, die vorher vier Namen hatten:
+      * **Präfix** steht VOR dem Wert, der Wert bleibt sichtbar ("Tel: +49 …").
+      * **Anzeigetext** ERSETZT den Wert ("Schreib mir" statt der Adresse).
+
+    Beim Telefon trug `label` bis v1.7.115 den Präfix, bei allen anderen den
+    Anzeigetext. Fehlt `prefix` vollständig, wird `label` deshalb dort weiter
+    als Präfix gelesen — sonst würde eine bestehende Vorlage beim nächsten
+    Rendern still ihre Beschriftung verlieren. Der Editor schreibt beim Laden
+    auf die neue Form um.
+    """
+    if b.get("type") in ("phone", "mobile") and "prefix" not in b:
+        roh = b.get("label")
+        return (vorgabe_praefix if roh is None else roh), ""
+    praefix = b.get("prefix")
+    return ((vorgabe_praefix if praefix is None else praefix) or ""), (b.get("label") or "")
+
+
 def _zell_stil(b, g, extra: list[str] | None = None) -> str:
     """Schriftschnitt einer Textzelle — gemeinsam für Feld- und Link-Blöcke.
 
@@ -292,19 +312,15 @@ def _phone(b, g, pad, _ind):
     path = _resolve_var(fname)
     if not path:
         return ""
-    # Fehlt der Schlüssel ganz, gilt die Vorgabe (alte Vorlagen). Steht er
-    # ausdrücklich leer, ist auch keine Beschriftung gemeint — sonst liesse
-    # sich "Tel:" nie entfernen, etwa in einem schmalen Kasten.
-    _roh = b.get("label")
-    if _roh is None:
-        _roh = "Mobil:" if b.get("type") == "mobile" else "Tel:"
-    label = _htmllib.escape(_roh)
+    praefix, anzeige = _praefix_anzeige(
+        b, "Mobil:" if b.get("type") == "mobile" else "Tel:")
     lc = _link_farbe(b, g)
     var = "{{ " + path + " }}"
+    text = _htmllib.escape(anzeige) if anzeige else var
     inner = (
         f'<tr><td style="{_zell_stil(b, g)}">'
-        + (f"{label} " if label else "")
-        + f'<a href="tel:{var}" style="color:{lc};text-decoration:none">{var}</a>'
+        + (f"{_htmllib.escape(praefix)} " if praefix else "")
+        + f'<a href="tel:{var}" style="color:{lc};text-decoration:none">{text}</a>'
         f'</td></tr>'
     )
     return pad + _wrap_cond(path, inner)
@@ -314,13 +330,14 @@ def _email_link(b, g, pad, _ind):
     path = _resolve_var(b.get("field") or "mail")
     if not path:
         return ""
-    label = b.get("label") or ""
+    praefix, anzeige = _praefix_anzeige(b)
     lc = _link_farbe(b, g)
     var = "{{ " + path + " }}"
-    display = _htmllib.escape(label) if label else var
+    text = _htmllib.escape(anzeige) if anzeige else var
     inner = (
         f'<tr><td style="{_zell_stil(b, g)}">'
-        f'<a href="mailto:{var}" style="color:{lc};text-decoration:none">{display}</a>'
+        + (f"{_htmllib.escape(praefix)} " if praefix else "")
+        + f'<a href="mailto:{var}" style="color:{lc};text-decoration:none">{text}</a>'
         f'</td></tr>'
     )
     return pad + _wrap_cond(path, inner)
@@ -330,13 +347,14 @@ def _web_link(b, g, pad, _ind):
     path = _resolve_var(b.get("field") or "website")
     if not path:
         return ""
-    label = b.get("label") or ""
+    praefix, anzeige = _praefix_anzeige(b)
     lc = _link_farbe(b, g)
     var = "{{ " + path + " }}"
-    display = _htmllib.escape(label) if label else var
+    text = _htmllib.escape(anzeige) if anzeige else var
     inner = (
         f'<tr><td style="{_zell_stil(b, g)}">'
-        f'<a href="{var}" style="color:{lc};text-decoration:none">{display}</a>'
+        + (f"{_htmllib.escape(praefix)} " if praefix else "")
+        + f'<a href="{var}" style="color:{lc};text-decoration:none">{text}</a>'
         f'</td></tr>'
     )
     return pad + _wrap_cond(path, inner)
@@ -356,12 +374,14 @@ def _logo(b, _g, pad, _ind):
 
 
 def _booking_link(b, g, pad, _ind):
-    label = _htmllib.escape(b.get("label") or "Termin buchen")
+    praefix, anzeige = _praefix_anzeige(b)
     lc = _link_farbe(b, g)
     var = "{{ user.bookingsUrl }}"
+    text = _htmllib.escape(anzeige or "Termin buchen")
     inner = (
         f'<tr><td style="{_zell_stil(b, g, ["padding-top:4px"])}">'
-        f'<a href="{var}" style="color:{lc};text-decoration:none">{label}</a>'
+        + (f"{_htmllib.escape(praefix)} " if praefix else "")
+        + f'<a href="{var}" style="color:{lc};text-decoration:none">{text}</a>'
         f'</td></tr>'
     )
     return pad + _wrap_cond("user.bookingsUrl", inner)
@@ -369,14 +389,16 @@ def _booking_link(b, g, pad, _ind):
 
 def _social(b, g, pad, _ind):
     url = _htmllib.escape(b.get("url") or "")
-    platform = (b.get("platform") or "").strip()
-    label = _htmllib.escape(b.get("label") or platform or "Link")
-    lc = g["link_color"]
     if not url:
         return ""
+    platform = (b.get("platform") or "").strip()
+    praefix, anzeige = _praefix_anzeige(b)
+    text = _htmllib.escape(anzeige or platform or "Link")
+    lc = _link_farbe(b, g)
     return (
-        f'{pad}<tr><td style="padding-top:2px">'
-        f'<a href="{url}" style="color:{lc};text-decoration:none">{label}</a>'
+        f'{pad}<tr><td style="{_zell_stil(b, g, ["padding-top:2px"])}">'
+        + (f"{_htmllib.escape(praefix)} " if praefix else "")
+        + f'<a href="{url}" style="color:{lc};text-decoration:none">{text}</a>'
         f'</td></tr>'
     )
 
@@ -595,6 +617,23 @@ _HTML_RENDERERS = {
 
 # ── Plaintext renderers ────────────────────────────────────────────────────────
 
+def _link_zeile_txt(b, path: str, praefix_vorgabe: str = "",
+                    anzeige_vorgabe: str = "") -> str:
+    """Eine Link-Zeile im Textteil.
+
+    Der Anzeigetext ERSETZT den Wert nur im HTML — dort steckt die Adresse im
+    Verweis. Im Text gibt es keinen Verweis: würde er ersetzt, bliebe von
+    "Schreib mir" keine Adresse übrig. Deshalb steht hier beides, der
+    Anzeigetext übernimmt die Rolle des Vorsatzes, wenn kein Präfix gesetzt
+    ist ("Termin buchen: https://…").
+    """
+    praefix, anzeige = _praefix_anzeige(b, praefix_vorgabe)
+    anzeige = anzeige or anzeige_vorgabe
+    vorsatz = praefix or (f"{anzeige}:" if anzeige else "")
+    kopf = f"{vorsatz} " if vorsatz else ""
+    return f"{{% if {path} %}}{kopf}{{{{ {path} }}}}{{% endif %}}"
+
+
 def _render_blocks_txt(blocks: list[dict], g: dict, lines: list[str]) -> None:
     for b in blocks:
         _render_block_txt(b, g, lines)
@@ -632,23 +671,24 @@ def _render_block_txt(b: dict, g: dict, lines: list[str]) -> None:
         path = _resolve_var(fname)
         if not path:
             return
-        label = b.get("label") or ("Mobil:" if t == "mobile" else "Tel:")
-        lines.append(f"{{% if {path} %}}{label} {{{{ {path} }}}}{{% endif %}}")
+        lines.append(_link_zeile_txt(b, path, "Mobil:" if t == "mobile" else "Tel:"))
     elif t == "email_link":
-        label = b.get("label") or ""
-        lines.append(((label + " ") if label else "") + "{{ user.mail }}")
+        path = _resolve_var(b.get("field") or "mail")
+        if path:
+            lines.append(_link_zeile_txt(b, path))
     elif t == "web_link":
-        lines.append("{% if user.website %}{{ user.website }}{% endif %}")
+        path = _resolve_var(b.get("field") or "website")
+        if path:
+            lines.append(_link_zeile_txt(b, path))
     elif t == "booking_link":
-        label = b.get("label") or "Termin buchen"
-        lines.append(
-            "{% if user.bookingsUrl %}" + label + ": {{ user.bookingsUrl }}{% endif %}"
-        )
+        lines.append(_link_zeile_txt(b, "user.bookingsUrl", anzeige_vorgabe="Termin buchen"))
     elif t == "social":
         url = b.get("url") or ""
-        label = b.get("label") or (b.get("platform") or "").capitalize() or "Link"
         if url:
-            lines.append(f"{label}: {url}")
+            praefix, anzeige = _praefix_anzeige(b)
+            anzeige = anzeige or (b.get("platform") or "").capitalize() or "Link"
+            vorsatz = praefix or f"{anzeige}:"
+            lines.append(f"{vorsatz} {url}")
     elif t == "freetext":
         txt = re.sub(r"<[^>]+>", "", b.get("html") or "").strip()
         if txt:

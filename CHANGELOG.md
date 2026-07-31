@@ -5,6 +5,44 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.116 — 2026-07-31 — Einheitliche Benennung: Präfix und Anzeigetext
+
+Für dieselbe Sache standen je nach Baustein drei verschiedene Wörter, und eines
+davon bezeichnete sogar **zwei verschiedene Verhalten**:
+
+| bisher | Baustein | Wirkung |
+|---|---|---|
+| Präfix | Feld | steht davor |
+| Beschriftung | Telefon | steht davor |
+| Anzeigetext | E-Mail, Website, Social | ersetzt den Wert |
+| Beschriftung | Buchungslink | ersetzt den Wert |
+
+Es gibt jetzt genau zwei Begriffe, jeder mit einer Bedeutung:
+
+* **Präfix** — steht vor dem Wert, der Wert bleibt sichtbar („Tel: +49 30 …")
+* **Anzeigetext** — ersetzt den Wert („Schreib mir" statt der Adresse)
+
+**Beide sind bei allen Link-Bausteinen verfügbar.** Der Website-Link konnte
+bisher keinen Vorsatz tragen; „Web: beispiel.de" war damit nicht baubar. Das
+Wort „Beschriftung" entfällt.
+
+Im Textteil bleibt die Adresse immer erhalten: dort gibt es keinen Verweis, in
+dem sie stecken könnte. Ein Anzeigetext erscheint deshalb als Vorsatz —
+„Schreib mir: name@beispiel.de".
+
+### Textteil folgte den Einstellungen nicht
+
+Beim E-Mail- und Website-Link wertete der Textteil die in v1.7.111 ergänzte
+Feldwahl nicht aus und setzte weiterhin fest die Standardfelder ein; der
+Website-Link überging dort zusätzlich jede Beschriftung. Beides ist behoben.
+Ebenso beim Social-Baustein, der Farbe, Schriftschnitt und Vorsatz überging.
+
+**Zu tun:** nichts. Bestehende Vorlagen behalten ihre Beschriftungen — beim
+Telefon wird der bisherige Wert als Präfix weitergeführt und beim nächsten
+Öffnen im Baukasten auf die neue Form umgeschrieben.
+
+---
+
 ## v1.7.115 — 2026-07-31 — Update-Prüfung meldete Veröffentlichungen verzögert
 
 Die Prüfung auf Updates las die Versionsangabe im Entwicklungskanal über den
