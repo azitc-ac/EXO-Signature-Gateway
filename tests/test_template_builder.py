@@ -407,3 +407,98 @@ def test_schriftart_kann_das_attribut_nicht_verlassen():
     wert = src.split("font-family:")[1].split(";")[0]
     assert '"' not in wert
     assert ";color:red" not in src
+
+
+# ── Präfix und Anzeigetext ────────────────────────────────────────────────────
+
+def _beide(block, **user_kw):
+    class U:
+        displayName = "X"; mail = "e@x.de"; website = "https://beispiel.de"
+        phone = "+49 30 1"; mobilePhone = "+49 170 2"; bookingsUrl = "https://buchen.de"
+        companyName = "C"
+    for k, v in user_kw.items():
+        setattr(U, k, v)
+    meta = _meta(dict(block, id="1"))
+    html = jinja2.Environment().from_string(tb.render_html(meta)).render(user=U(), custom={})
+    txt = jinja2.Environment().from_string(tb.render_txt(meta)).render(user=U(), custom={})
+    return re.sub(r"<[^>]+>", "", html).strip(), txt.strip()
+
+
+def test_praefix_steht_davor_anzeigetext_ersetzt():
+    """Die zwei Begriffe müssen sich unterscheidbar verhalten."""
+    h, _ = _beide({"type": "web_link", "prefix": "Web:"})
+    assert h == "Web: https://beispiel.de"
+    h, _ = _beide({"type": "web_link", "label": "beispiel.de"})
+    assert h == "beispiel.de"
+    h, _ = _beide({"type": "web_link", "prefix": "Web:", "label": "beispiel.de"})
+    assert h == "Web: beispiel.de"
+
+
+@pytest.mark.parametrize("typ,feld", [
+    ("phone", "phone"), ("email_link", "mail"), ("web_link", "website"),
+])
+def test_praefix_bei_allen_linkbausteinen(typ, feld):
+    """Der Website-Link konnte als einziger keinen Vorsatz tragen."""
+    h, _ = _beide({"type": typ, "prefix": "Vorsatz:"})
+    assert h.startswith("Vorsatz: ")
+
+
+def test_textteil_zeigt_die_adresse_trotz_anzeigetext():
+    """Im Text gibt es keinen Verweis — ein ersetzter Wert wäre verloren."""
+    _, t = _beide({"type": "email_link", "label": "Schreib mir"})
+    assert "e@x.de" in t and "Schreib mir" in t
+
+
+def test_textteil_folgt_der_feldwahl():
+    """Der Textteil setzte user.mail bzw. user.website fest ein und
+    überging die Feldwahl aus dem HTML-Pfad."""
+    _, t = _beide({"type": "email_link", "field": "website"})
+    assert "https://beispiel.de" in t and "e@x.de" not in t
+    _, t = _beide({"type": "web_link", "field": "mail"})
+    assert "e@x.de" in t
+
+
+def test_textteil_beachtet_den_praefix_beim_website_link():
+    """Der Website-Link überging im Text Präfix UND Anzeigetext."""
+    _, t = _beide({"type": "web_link", "prefix": "Web:"})
+    assert t == "Web: https://beispiel.de"
+
+
+# ── Altbestand: `label` war beim Telefon der Präfix ───────────────────────────
+
+def test_altes_telefon_label_bleibt_praefix():
+    """Vorlagen vor v1.7.116 dürfen ihre Beschriftung nicht verlieren."""
+    h, t = _beide({"type": "phone", "field": "phone", "label": "Tel:"})
+    assert h == "Tel: +49 30 1"
+    assert t == "Tel: +49 30 1"
+
+
+def test_altes_telefon_ohne_label_behaelt_vorgabe():
+    h, _ = _beide({"type": "phone", "field": "phone"})
+    assert h == "Tel: +49 30 1"
+    h, _ = _beide({"type": "mobile", "field": "mobilePhone"})
+    assert h == "Mobil: +49 170 2"
+
+
+def test_neues_telefon_kennt_beide_felder():
+    h, t = _beide({"type": "phone", "field": "phone", "prefix": "Tel:", "label": "anrufen"})
+    assert h == "Tel: anrufen"
+    assert t == "Tel: +49 30 1"          # im Text bleibt die Nummer
+
+
+def test_telefon_praefix_ausdruecklich_leer():
+    """Mit der neuen Form muss sich der Vorsatz auch entfernen lassen."""
+    h, _ = _beide({"type": "phone", "field": "phone", "prefix": ""})
+    assert h == "+49 30 1"
+
+
+def test_social_kennt_praefix_und_formatierung():
+    """Der Social-Baustein las `label` direkt und übersprang damit Präfix,
+    Farbe und Schriftschnitt, die alle anderen Link-Bausteine haben."""
+    src = tb.render_html(_meta({"id": "1", "type": "social", "platform": "LinkedIn",
+                                "url": "https://li.example", "prefix": "Folgen:",
+                                "bold": True, "color": "#ff0000"}))
+    assert "Folgen:" in src and "font-weight:bold" in src and "color:#ff0000" in src
+    txt = tb.render_txt(_meta({"id": "1", "type": "social", "platform": "LinkedIn",
+                               "url": "https://li.example", "prefix": "Folgen:"}))
+    assert txt.strip() == "Folgen: https://li.example"
