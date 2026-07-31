@@ -142,9 +142,24 @@ def poll_all_sync() -> int:
 def _notify_issued(email: str, provider: str) -> None:
     try:
         import notification
-        notification.send_hub_cert_issued(email, provider)
+        notification.send_hub_cert_issued(email, provider)          # an die Administration
+        notification.send_user_cert_ready(email, _anbieter_label(provider))
     except Exception as exc:
         log.warning("hub_orders: Benachrichtigung (issued) fehlgeschlagen: %s", exc)
+
+
+def _anbieter_label(provider_id: str) -> str:
+    """Klarname des Anbieters fuer die Nutzer-Mail.
+
+    Dem Postfachinhaber sagt eine Kennung wie "certum_test" nichts; er soll den
+    Namen wiedererkennen, der auch im Absender der CA-Mail steht. Ist der
+    Katalog nicht abrufbar, bleibt die Kennung — besser als gar kein Name.
+    """
+    try:
+        import hub_catalog
+        return (hub_catalog.get(provider_id) or {}).get("label") or provider_id
+    except Exception:
+        return provider_id
 
 
 def _notify_rejected(email: str, provider: str, note: str) -> None:
