@@ -118,6 +118,23 @@ nav a.nav-planned:hover { background: none; }
 
 @media (max-width: 600px) {
     .nav-toggle { display: flex; }
+    /* Der Markenname trug `flex-shrink:0` und `nowrap`. Bei einem langen
+       Gateway-Namen ("EXO Signature Gateway RASPI") schob er alles dahinter
+       ueber den rechten Rand: Theme-Umschalter und Kontomenue lagen bei 393px
+       Breite ausserhalb des Bildschirms, und die Leiste scrollt nicht — beide
+       waren auf dem Telefon nicht erreichbar, auch nicht ueber das
+       Hamburger-Menue, das nur die Seitenlinks aufnimmt.
+       Der Name darf jetzt schrumpfen und wird abgeschnitten; die
+       Bedienelemente haben Vorrang. Die Fassungsnummer entfaellt mobil, sie
+       steht ohnehin unter Einstellungen. */
+    .nav-brand {
+        flex-shrink: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        padding-right: 8px;
+    }
+    .nav-version { display: none; }
     .nav-links {
         display: none;
         position: absolute;
