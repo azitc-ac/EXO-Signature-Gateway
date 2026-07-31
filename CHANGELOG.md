@@ -5,6 +5,37 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.118 — 2026-07-31 — Erklärende Nachrichten rund um die Zertifikatsbestätigung
+
+Beim Bezug eines Zertifikats über einen Anbieter, der die Adresse per
+Bestätigungslink prüft, erhält der Postfachinhaber eine Nachricht der
+Zertifizierungsstelle: meist englisch, von einem ihm unbekannten Absender,
+mit der Aufforderung, binnen 24 Stunden einen Link anzuklicken. Diese
+Nachricht warnt sogar ausdrücklich davor, zu bestätigen, wenn man nichts
+bestellt habe — bestellt hat aber der Arbeitgeber. Merkmal für Merkmal
+entspricht sie dem Muster einer Täuschungsmail; wer geschult ist, klickt zu
+Recht nicht, und der Bezug scheitert.
+
+Das Gateway schickt deshalb jetzt zwei eigene Nachrichten aus der bekannten
+Absenderdomäne:
+
+* **Vor der Bestätigungsmail:** Einordnung des Vorgangs — die kommende
+  Nachricht ist echt, es geht ausschließlich um den Nachweis, dass das
+  Postfach der Person gehört, es wird kein Passwort abgefragt und nichts
+  installiert. Mit dem Hinweis, im Zweifel die eigene IT zu fragen.
+* **Nach der Ausstellung:** Entwarnung — es ist nichts weiter zu tun. Die
+  Zertifizierungsstelle lädt in ihrer Ausstellungsmail zum Installieren des
+  Zertifikats ein; das ist hier gegenstandslos, weil der Server den Schlüssel
+  hält und die Signatur setzt.
+
+Beide Nachrichten lassen sich über `NOTIFY_USER_CERT` abschalten, wenn die
+Belegschaft nicht vom Gateway angeschrieben werden soll.
+
+Nicht betroffen ist der Bezug über ACME: dort beantwortet das Gateway die
+Prüfnachricht selbst, der Postfachinhaber muss nichts tun.
+
+---
+
 ## v1.7.117 — 2026-07-31 — Nach dem Bezahlen wird der Stand zuverlässig nachgezogen
 
 Die Bezahlseite meldet den Abschluss zurück, damit sich die Lizenz- und

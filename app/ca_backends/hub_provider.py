@@ -100,6 +100,16 @@ Fallback: <a href="{upload_url}" style="word-break:break-all">{upload_url}</a></
                 "damit kein verwaister Schlüssel entsteht.")
         hub_orders.save_pending(str(order_id), email, provider_id, key_pem,
                                 int(result.get("price_cents") or 0))
+        # Vorlauf zur Bestaetigungsmail der CA. Muss VOR deren Eintreffen beim
+        # Nutzer sein, sonst kommt die Einordnung zu spaet — die CA schickt
+        # sofort. Ein Fehlschlag darf die Bestellung nicht kippen: der Schluessel
+        # ist gespeichert, das Zertifikat kommt trotzdem.
+        try:
+            import notification
+            notification.send_user_cert_verification_pending(
+                email, self._p.get("label") or provider_id)
+        except Exception as exc:
+            log.warning("Hub-Backend: Vorab-Hinweis an %s fehlgeschlagen: %s", email, exc)
         log.info("Hub-Backend %s: Order %s für %s eingereicht — Zertifikat wird "
                  "nach Ausstellung automatisch abgeholt", provider_id, order_id, email)
         return True

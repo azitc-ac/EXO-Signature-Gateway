@@ -158,6 +158,8 @@ DEFAULTS: dict = {
     "NOTIFICATION_RECIPIENTS": [],           # List of mailbox emails for notifications
     "NOTIFICATION_DG_EMAIL": "",             # PrimarySmtpAddress of notification DG (auto-set)
     "NOTIFY_LOCAL_ADMIN_LOGIN": None,        # None/True = send; False = suppress local admin login notification
+    "NOTIFY_USER_CERT": None,                # None/True = send; False = keine Mails an Postfachinhaber
+                                             # (Vorab-Hinweis zur CA-Bestaetigung + Fertigmeldung)
     # ── Outlook Add-in ───────────────────────────────────────────────────────
     "ADDIN_ENABLED": False,             # Show add-in setup section and serve manifest
     "ADDIN_BASE_URL": "",               # External public URL override (e.g. https://sig.zarenko.net)
