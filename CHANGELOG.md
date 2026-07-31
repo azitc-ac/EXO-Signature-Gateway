@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.119 — 2026-07-31 — Umschalter für Dunkelmodus und Kontomenü auf dem Telefon erreichbar
+
+In der Kopfleiste konnte der Name des Gateways nicht schrumpfen. War er lang,
+schob er alles Nachfolgende über den rechten Rand: Auf einem Telefon lagen der
+Umschalter für die helle und dunkle Darstellung sowie das Kontomenü — und damit
+auch das Abmelden — außerhalb des sichtbaren Bereichs. Die Leiste lässt sich
+nicht seitlich schieben, und das Klappmenü nimmt nur die Seitenlinks auf; beide
+waren dort schlicht nicht erreichbar.
+
+Der Name wird auf schmalen Bildschirmen jetzt gekürzt, die Bedienelemente haben
+Vorrang. Die Fassungsnummer entfällt dort; sie steht weiterhin unter
+Einstellungen → Update & Backup.
+
+---
+
 ## v1.7.118 — 2026-07-31 — Erklärende Nachrichten rund um die Zertifikatsbestätigung
 
 Beim Bezug eines Zertifikats über einen Anbieter, der die Adresse per
