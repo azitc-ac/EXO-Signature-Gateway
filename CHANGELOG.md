@@ -5,6 +5,25 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.117 — 2026-07-31 — Nach dem Bezahlen wird der Stand zuverlässig nachgezogen
+
+Die Bezahlseite meldet den Abschluss zurück, damit sich die Lizenz- und
+Kontokarte von selbst aktualisiert. Diese Meldung kam jedoch nach einer festen
+Wartezeit — nicht dann, wenn die Zahlung tatsächlich verbucht war. Dauerte die
+Verarbeitung länger, zeigte die Seite nach dem Neuladen weiterhin den alten
+Stand, und es sah aus, als sei nichts geschehen. Wurde das Bezahlfenster vom
+Browser blockiert und der angebotene Ersatz-Link benutzt, blieb die Rückmeldung
+ganz aus.
+
+Die Seite fragt jetzt zusätzlich selbst nach: nach dem Öffnen der Bezahlseite
+prüft sie alle drei Sekunden, ob sich Abo- beziehungsweise Kontostand geändert
+haben, und zieht die Anzeige nach, sobald das der Fall ist — bis zu drei
+Minuten lang, auch wenn das Bezahlfenster längst geschlossen ist. Trifft in
+dieser Zeit nichts ein, sagt die Seite das ausdrücklich, statt den alten Stand
+unkommentiert stehen zu lassen.
+
+---
+
 ## v1.7.116 — 2026-07-31 — Einheitliche Benennung: Präfix und Anzeigetext
 
 Für dieselbe Sache standen je nach Baustein drei verschiedene Wörter, und eines

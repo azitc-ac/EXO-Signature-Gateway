@@ -753,6 +753,60 @@ function _bezahlfenster() {
   try { return window.open('', '_blank'); } catch (e) { return null; }
 }
 
+// Nach dem Bezahlen warten, bis der neue Zustand WIRKLICH da ist.
+//
+// Die Bezahlseite des Hubs meldet sich per postMessage — aber erst nach einer
+// FESTEN Wartezeit, nicht wenn der Webhook verarbeitet ist. Ist Stripe
+// langsamer, lädt das Gateway den ALTEN Stand: für den Nutzer sieht es aus,
+// als sei nichts passiert. Und im Ausweichpfad (Popup blockiert → Link mit
+// rel="noopener") gibt es gar kein `window.opener`, die Nachricht kommt nie an.
+//
+// Deshalb fragt das Gateway zusätzlich selbst nach, bis sich der Zustand
+// ändert. Das läuft im Hintergrund weiter, auch wenn der Bezahl-Tab längst
+// geschlossen ist — und es erlaubt, `rel="noopener"` beizubehalten, statt es
+// für die Rückmeldung zu opfern.
+const _ZAHLUNG_TAKT_MS = 3000;
+const _ZAHLUNG_GEDULD_MS = 3 * 60 * 1000;
+
+/** Zustand als Zeichenkette, oder null wenn nicht abrufbar. */
+async function _standAbo() {
+  try {
+    const d = await (await fetch('/api/license/renewal')).json();
+    return (d && d.ok) ? JSON.stringify(d.abo || null) : null;
+  } catch (e) { return null; }
+}
+
+async function _standGuthaben() {
+  try {
+    const d = await (await fetch('/api/hub/billing/me')).json();
+    // Saldo UND Zahl der Buchungen: eine Aufladung, die den Saldo rechnerisch
+    // nicht verändert (Gutschrift und Abbuchung im selben Takt), bliebe sonst
+    // unbemerkt.
+    return (d && d.ok)
+      ? JSON.stringify([d.balance_cents, (d.ledger || []).length])
+      : null;
+  } catch (e) { return null; }
+}
+
+/**
+ * Bis zur Änderung pollen, dann die Ansicht nachziehen.
+ * `vorher === null` heißt: Ausgangsstand unbekannt — dann wird nicht geraten.
+ */
+async function _zahlungAbwarten(vorher, standHolen, aktualisieren, melden) {
+  if (vorher === null) return;
+  const ende = Date.now() + _ZAHLUNG_GEDULD_MS;
+  while (Date.now() < ende) {
+    await new Promise(r => setTimeout(r, _ZAHLUNG_TAKT_MS));
+    let jetzt = await standHolen();
+    if (jetzt === null || jetzt === vorher) continue;
+    await aktualisieren();
+    melden('Zahlung verbucht — der Stand ist aktualisiert.', true);
+    return;
+  }
+  melden('Nach drei Minuten ist noch nichts verbucht. Die Zahlung kann noch '
+       + 'eintreffen; ein Neuladen der Seite zeigt sie dann.', false);
+}
+
 function _bezahlseiteZeigen(fenster, url, msgEl) {
   if (fenster && !fenster.closed) {
     fenster.location.href = url;
@@ -786,10 +840,12 @@ async function acctTopup() {
   if (!betrag || betrag < min) { fieldMsg(feld, 'Mindestbetrag ' + min + ' €.', false); return; }
   if (betrag > max) { fieldMsg(feld, 'Höchstbetrag ' + max + ' €.', false); return; }
   const fenster = _bezahlfenster();          // vor dem await, siehe oben
+  const vorher = await _standGuthaben();
   const r = await postJSON('/api/hub/billing/topup', {amount_eur: betrag});
   if (r.ok && r.checkout_url) {
     _acctMsg('Bezahlseite geöffnet. Die Seite wird nach Zahlungseingang automatisch aktualisiert.', true);
     _bezahlseiteZeigen(fenster, r.checkout_url, document.getElementById('acct-msg'));
+    _zahlungAbwarten(vorher, _standGuthaben, acctLoad, _acctMsg);
   } else {
     if (fenster && !fenster.closed) fenster.close();
     _acctMsg('Aufladen fehlgeschlagen: ' + errText(r), false);
@@ -1442,11 +1498,15 @@ async function licAboKaufen() {
   // Fenster SYNCHRON öffnen, vor dem await: nach einem await wertet der Browser
   // den Klick nicht mehr als Nutzergeste und blockiert das Fenster als Popup.
   const fenster = _bezahlfenster();
+  const vorher = await _standAbo();     // nach dem Fenster, sonst ist die Geste verbraucht
   const r = await _licAboPost('checkout', {mailboxes: n, zahlungsweise: zw},
                               'Bezahlseite wird vorbereitet…');
   if (!r) { if (fenster) fenster.close(); return; }
   _bezahlseiteZeigen(fenster, r.url);
   _licAboMsg('Bezahlseite geöffnet. Die Seite wird nach Zahlungseingang automatisch aktualisiert.', true);
+  _zahlungAbwarten(vorher, _standAbo,
+                   async () => { await licAboLaden(); await licLoad(); },
+                   _licAboMsg);
 }
 
 async function licAboMenge() {
