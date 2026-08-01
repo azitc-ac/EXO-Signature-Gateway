@@ -5,6 +5,30 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.121 — 2026-08-01 — Rechnungsadresse getrennt einstellbar
+
+Unter „Anbindung" steht neben der Kontoadresse jetzt „Rechnungen an". Ohne
+eigenen Eintrag zeigt das Feld die Kontoadresse mit dem Zusatz „(wie Konto)" —
+ein leeres Feld ließe offen, ob Rechnungen überhaupt irgendwo ankommen.
+
+Warum getrennt: An der Kontoadresse hingen bisher beides — Zahlungsbelege und
+Mitteilungen, die Handeln verlangen (Zertifikate, Nutzungsbedingungen, Sperren).
+Wer sie auf ein Rechnungspostfach legte, verlor die zweite Art; wer sie beim
+Betrieb ließ, schickte Belege dorthin, wo sie niemand braucht. Die
+Rechnungsadresse nimmt jetzt genau drei Nachrichten auf: Rechnung, Gutschrift,
+Erstattung.
+
+Wirksam wird sie erst nach dem Klick in der Bestätigungsmail an die neue
+Adresse; bis dahin gehen Rechnungen weiter an die Kontoadresse. Ein Tippfehler
+kostet damit nur die Wirkung, nicht die Zustellung — was hier zählt, weil ein
+Fehlversand keine Fehlermeldung erzeugt und erst auffiele, wenn jemand eine
+Rechnung vermisst. Das Feld zu leeren und zu speichern setzt sofort auf die
+Kontoadresse zurück, ohne Bestätigung: der Rückfall ist die ohnehin bestätigte
+Adresse.
+
+Setzt Hub v0.24.81 voraus.
+
+
 ## v1.7.120 — 2026-08-01 — Kontoadresse selbst ändern
 
 Unter „Anbindung" steht jetzt die Adresse, unter der das Konto beim Hub geführt

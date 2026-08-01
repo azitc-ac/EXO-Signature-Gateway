@@ -4986,6 +4986,18 @@ async def api_hub_account_email(request: Request, user: str = Depends(_require_a
     return JSONResponse(res, status_code=200 if res.get("ok") else 400)
 
 
+@app.post("/api/hub/account/billing-email")
+async def api_hub_account_billing_email(request: Request, user: str = Depends(_require_admin)):
+    """Abweichende Rechnungsadresse anfordern; leerer Wert entfernt sie."""
+    import hub_client
+    data = await request.json()
+    neue = (data.get("email") or "").strip()
+    if neue and "@" not in neue:
+        raise HTTPException(400, "Gültige E-Mail-Adresse erforderlich.")
+    res = await hub_client.account_billing_email(neue)
+    return JSONResponse(res, status_code=200 if res.get("ok") else 400)
+
+
 @app.post("/api/hub/account/email/cancel")
 async def api_hub_account_email_cancel(user: str = Depends(_require_admin)):
     import hub_client
