@@ -266,7 +266,17 @@ let blocks = [];   // array of block objects
 let nextId = 1;
 
 // ── Tab switching ─────────────────────────────────────────────────────────────
+// Wurde für diese Vorlage schon eine Rückübersetzung angeboten? Nur EINMAL je
+// Sitzung fragen — sonst käme die Frage bei jedem Hin- und Herschalten wieder
+// und überschriebe die inzwischen von Hand gemachten Änderungen.
+let _umwandlungAngeboten = false;
+
 window.switchTab = function(tab) {
+  // Kein Baukasten-Stand, aber HTML vorhanden → Rückübersetzung anbieten.
+  if (tab === 'builder' && !HAS_META && !_umwandlungAngeboten && blocks.length === 0) {
+    _umwandlungAngeboten = true;
+    umwandlungAnbieten();
+  }
   document.getElementById('tab-builder').style.display = tab === 'builder' ? 'flex' : 'none';
   document.getElementById('tab-raw').style.display     = tab === 'raw'     ? 'block' : 'none';
   const bb = document.getElementById('tab-builder-btn');
@@ -1072,6 +1082,74 @@ function migriereBeschriftung(b) {
   }
   return b;
 }
+
+// ── Rückübersetzung: HTML → Blöcke ──────────────────────────────────────────
+//
+// Nicht-zerstörend, und das ist der Kern: Die Umwandlung ist ein VORSCHLAG.
+// Erst „Speichern" macht sie verbindlich. Wer sie ablehnt oder die Seite
+// verlässt, behält seine Vorlage unverändert als HTML.
+async function umwandlungAnbieten() {
+  // Aus dem Quelltextfeld, nicht von der Platte: der Nutzer kann dort schon
+  // etwas geändert haben, ohne gespeichert zu haben.
+  const roh = (document.getElementById('html_content') || {}).value || '';
+  if (!roh.trim()) return;
+
+  const d = await postJSON(`/api/templates/${encodeURIComponent(TEMPLATE_NAME)}/parse`,
+                           {html: roh});
+  if (!d.ok || !d.meta || !(d.meta.blocks || []).length) {
+    zeigeUmwandlungsHinweis(
+      'Diese Vorlage liess sich nicht in Bausteine zerlegen. Sie kann weiterhin ' +
+      'als HTML bearbeitet werden.', [], false);
+    return;
+  }
+
+  // Blöcke laden — wie loadMeta, aber aus dem Vorschlag.
+  if (d.meta.global) applyGlobal(d.meta.global);
+  let zaehler = 1;
+  const neuIds = liste => (liste || []).map(b => {
+    const nb = { ...b, id: (zaehler++).toString() };
+    for (const k of kindListen(nb)) nb[k] = neuIds(nb[k] || []);
+    return nb;
+  });
+  blocks = neuIds(d.meta.blocks);
+  renderBlockList();
+  refreshPreview();
+  zeigeUmwandlungsHinweis(
+    `Aus dem HTML wurden ${d.blocks} Baustein(e) gebildet. Prüfe die Vorschau — ` +
+    `erst mit „Speichern“ wird daraus die neue Vorlage. Ohne Speichern bleibt ` +
+    `alles beim bisherigen HTML.`, d.hinweise || [], true);
+}
+
+function zeigeUmwandlungsHinweis(text, hinweise, ok) {
+  let box = document.getElementById('umwandlung-hinweis');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'umwandlung-hinweis';
+    const ziel = document.getElementById('tab-builder');
+    ziel.insertBefore(box, ziel.firstChild);
+  }
+  const liste = (hinweise || []).length
+    ? '<ul style="margin:6px 0 0 18px;padding:0">' +
+      hinweise.map(h => `<li>${esc(h)}</li>`).join('') + '</ul>'
+    : '';
+  box.setAttribute('data-umwandlung', ok ? 'ok' : 'leer');
+  box.style.cssText = 'padding:10px 12px;border-radius:6px;font-size:13px;' +
+    'margin-bottom:10px;line-height:1.5;background:#eff6ff;' +
+    'border:1px solid #bfdbfe;color:#1e40af';
+  box.innerHTML = `<strong>Aus HTML übernommen.</strong> ${esc(text)}${liste}
+    <div style="margin-top:8px">
+      <button class="btn secondary" style="font-size:12px"
+        onclick="umwandlungVerwerfen()">Verwerfen, beim HTML bleiben</button>
+    </div>`;
+}
+
+window.umwandlungVerwerfen = function() {
+  blocks = [];
+  renderBlockList();
+  const box = document.getElementById('umwandlung-hinweis');
+  if (box) box.remove();
+  switchTab('raw');
+};
 
 async function loadMeta() {
   if (!HAS_META) {

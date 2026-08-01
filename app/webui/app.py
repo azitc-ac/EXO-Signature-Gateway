@@ -1572,6 +1572,39 @@ async def api_duplicate_template(name: str, request: Request, _=Depends(_check_a
     })
 
 
+@app.post("/api/templates/{name}/parse")
+async def api_parse_template(name: str, request: Request, _=Depends(_check_auth)):
+    """HTML in eine Blockliste zurücklesen — als VORSCHLAG, nichts wird gespeichert.
+
+    Der Editor ruft das beim Wechsel auf den Baukasten, wenn eine Vorlage nur
+    als Quelltext vorliegt. Erst ein anschliessendes Speichern macht die
+    Umwandlung verbindlich; bis dahin bleibt die Vorlage unangetastet. So kann
+    der Nutzer das Ergebnis in der Vorschau vergleichen und ablehnen.
+    """
+    import template_parser as _tp
+    try:
+        daten = await request.json()
+    except Exception:
+        daten = {}
+    html_roh = daten.get("html")
+    if html_roh is None:
+        safe = _re.sub(r"[^a-zA-Z0-9_\-]", "", name).strip("-_") or "default"
+        fname = "signature" if safe == "default" else safe
+        pfad = Path(config.TEMPLATE_DIR) / f"{fname}.html"
+        if not pfad.exists():
+            raise HTTPException(404, f"Vorlage '{name}' nicht gefunden.")
+        html_roh = pfad.read_text(encoding="utf-8")
+
+    meta = _tp.parse_html(html_roh)
+    hinweise = meta.pop("_hinweise", [])
+    import template_builder as _tb
+    # Die Vorschau kommt aus dem Vorschlag selbst, nicht aus der Quelle: nur so
+    # sieht der Nutzer, was NACH dem Speichern herauskaeme.
+    return JSONResponse({"ok": True, "meta": meta, "hinweise": hinweise,
+                         "html": _tb.render_html(meta),
+                         "blocks": len(meta.get("blocks") or [])})
+
+
 @app.get("/api/templates/{name}/meta")
 async def api_get_template_meta(name: str, _=Depends(_check_auth)):
     """Return the builder meta JSON for a template, or 404 if none exists."""
