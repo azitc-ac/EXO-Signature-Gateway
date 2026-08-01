@@ -1517,6 +1517,61 @@ async def api_delete_template(name: str, _=Depends(_check_auth)):
     return {"ok": True, "deleted": deleted}
 
 
+@app.post("/api/templates/{name}/duplicate")
+async def api_duplicate_template(name: str, request: Request, _=Depends(_check_auth)):
+    """Vorlage kopieren — samt Blockliste, damit die Kopie im Baukasten bleibt.
+
+    WARUM ES DAS BRAUCHT
+    Den HTML-Quelltext einer Baukasten-Vorlage in eine neue zu kopieren ergibt
+    eine Vorlage OHNE `.meta.json`. Sie funktioniert, lässt sich aber nur noch
+    als Quelltext bearbeiten: das HTML ist das Erzeugnis, die Blockliste ist die
+    Quelle. Eine Rückübersetzung gibt es nicht und wäre auch nicht verlässlich —
+    aus fertigem HTML ließe sich nicht ablesen, welche Blöcke es einmal waren.
+
+    Deshalb kopiert dieser Weg alle drei Dateien. Fehlt der Quelle die
+    `.meta.json` (von Hand geschriebene Vorlage), wird das ausdrücklich
+    gemeldet, statt stillschweigend eine nicht mehr baukastenfähige Kopie zu
+    hinterlassen.
+    """
+    import shutil
+    daten = await request.json()
+    ziel_roh = (daten.get("ziel") or "").strip()
+    ziel = _re.sub(r"[^a-zA-Z0-9_\-]", "", ziel_roh).strip("-_")
+    if not ziel:
+        raise HTTPException(400, "Bitte einen Namen für die Kopie angeben "
+                                 "(Buchstaben, Ziffern, - und _).")
+    if ziel == "default":
+        raise HTTPException(400, "Der Name 'default' ist vergeben.")
+
+    quelle_safe = _re.sub(r"[^a-zA-Z0-9_\-]", "", name).strip("-_") or "default"
+    quelle = "signature" if quelle_safe == "default" else quelle_safe
+    verz = Path(config.TEMPLATE_DIR)
+    if not (verz / f"{quelle}.html").exists():
+        raise HTTPException(404, f"Vorlage '{name}' nicht gefunden.")
+    if (verz / f"{ziel}.html").exists():
+        raise HTTPException(409, f"Es gibt bereits eine Vorlage '{ziel}'.")
+
+    kopiert = []
+    for endung in ("html", "txt", "meta.json"):
+        q = verz / f"{quelle}.{endung}"
+        if q.exists():
+            shutil.copyfile(q, verz / f"{ziel}.{endung}")
+            kopiert.append(endung)
+
+    import signature_engine
+    signature_engine._reload_env()
+    baukasten = "meta.json" in kopiert
+    log.info("Template '%s' dupliziert nach '%s' (Baukasten: %s)",
+             quelle, ziel, baukasten)
+    return JSONResponse({
+        "ok": True, "name": ziel, "builder": baukasten, "copied": kopiert,
+        "message": (f"Kopie '{ziel}' angelegt — im Baukasten bearbeitbar."
+                    if baukasten else
+                    f"Kopie '{ziel}' angelegt. Die Vorlage hat keine Baukasten-Daten "
+                    f"und lässt sich nur als Quelltext bearbeiten."),
+    })
+
+
 @app.get("/api/templates/{name}/meta")
 async def api_get_template_meta(name: str, _=Depends(_check_auth)):
     """Return the builder meta JSON for a template, or 404 if none exists."""

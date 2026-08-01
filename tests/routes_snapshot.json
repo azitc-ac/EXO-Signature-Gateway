@@ -1309,6 +1309,13 @@
     "name": "api_delete_template"
   },
   {
+    "pfad": "/api/templates/{name}/duplicate",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_duplicate_template"
+  },
+  {
     "pfad": "/api/templates/{name}/meta",
     "methoden": [
       "GET"
