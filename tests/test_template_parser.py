@@ -635,3 +635,75 @@ def test_leerzeile_kommt_auch_ueber_den_ganzen_weg_als_abstand_an():
                          '<tr><td>Musterfirma GmbH</td></tr></table>')
     typen = [b["type"] for b in meta["blocks"]]
     assert "spacer" in typen, f"Leerzeile kam nicht als Abstand an: {typen}"
+
+
+# ── Der Aufbau der mitgelieferten Standardvorlage ────────────────────────────
+
+def test_trennzelle_zaehlt_nicht_als_spalte():
+    """Der übliche Aufbau ist Logo | schmale Trennzelle | Kontaktdaten.
+
+    Drei Zellen für zwei Spalten. Zählte die Trennzelle mit, wurde daraus kein
+    Zweispalter, und der ganze Kontaktblock fiel als ein Freitext an — genau
+    das passierte mit der mitgelieferten Standardvorlage.
+    """
+    roh = ('<table><tr><td>'
+           '<table><tr>'
+           '<td><img src="logo.png" width="100" alt="Logo"></td>'
+           '<td style="border-left:1pt solid #7F7F7F;padding:0">&nbsp;</td>'
+           '<td>{{ user.companyName }}</td>'
+           '</tr></table>'
+           '</td></tr></table>')
+    meta = tp.parse_html(roh)
+    typen = [b["type"] for b in meta["blocks"]]
+    assert "two_col" in typen, f"Zweispalter nicht erkannt: {typen}"
+    zwei = [b for b in meta["blocks"] if b["type"] == "two_col"][0]
+    assert len(zwei["left"]) == 1 and len(zwei["right"]) == 1, zwei
+    assert zwei["divider"] is True, "Trennlinie nicht vermerkt"
+
+
+def test_leere_zelle_ohne_rahmen_bleibt_eine_spalte():
+    """Gegenprobe: Nicht jede leere Zelle ist ein Trenner — ohne Rahmen ist es
+    eine echte, nur leere Spalte, und drei davon sind kein Zweispalter."""
+    roh = ('<table><tr>'
+           '<td>A</td><td style="padding:0">&nbsp;</td><td>B</td>'
+           '</tr></table>')
+    meta = tp.parse_html(roh)
+    meta.pop("_hinweise", None)
+    erneut = tb.render_html(meta)
+    assert "A" in erneut and "B" in erneut
+
+
+def test_praefix_wird_nicht_doppelt_maskiert():
+    """`Phone:&nbsp;` darf beim Zurücklesen nicht zu `Phone:&amp;nbsp;` werden.
+
+    Der Renderer maskiert den Präfix beim Ausgeben. Übernimmt man ihn roh,
+    erscheint beim Empfänger sichtbar „Phone:&nbsp;" statt eines Abstands.
+    Die mitgelieferte Standardvorlage hat genau solche Präfixe.
+    """
+    roh = ('<table><tr><td>Phone:&nbsp;&nbsp;'
+           '<a href="tel:{{ user.phone }}">{{ user.phone }}</a></td></tr></table>')
+    meta = tp.parse_html(roh)
+    meta.pop("_hinweise", None)
+    b = meta["blocks"][0]
+    assert b["type"] == "phone", b
+    assert "&nbsp;" not in b.get("prefix", ""), f"Entity im Präfix: {b['prefix']!r}"
+    assert "&amp;nbsp;" not in tb.render_html(meta), "doppelt maskiert"
+
+
+def test_standardvorlage_wird_vollstaendig_zerlegt():
+    """Die mitgelieferten Vorlagen müssen ihren Kontaktblock als Zweispalter
+    zeigen — sonst steht dort ein unverständlicher Block HTML."""
+    from pathlib import Path
+    verz = Path(__file__).resolve().parents[1] / "templates"
+    for name in ("signature.html", "default-without-greeting.html"):
+        f = verz / name
+        if not f.exists():
+            continue
+        meta = tp.parse_html(f.read_text(encoding="utf-8"))
+        meta.pop("_hinweise", None)
+        typen = [b["type"] for b in meta["blocks"]]
+        assert "two_col" in typen, f"{name}: kein Zweispalter, nur {typen}"
+        zwei = [b for b in meta["blocks"] if b["type"] == "two_col"][0]
+        rechts = [b["type"] for b in zwei["right"]]
+        assert "phone" in rechts and "email_link" in rechts, (
+            f"{name}: Kontaktdaten nicht zerlegt, rechts steht {rechts}")
