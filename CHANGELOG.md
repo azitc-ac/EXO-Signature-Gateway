@@ -5,6 +5,33 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.129 — 2026-08-02 — Rückübersetzung erkennt den Kontaktblock der Standardvorlage
+
+Der Kontaktblock der mitgelieferten Vorlagen — Logo links, Kontaktdaten rechts,
+dazwischen eine senkrechte Linie — wurde beim Umwandeln als ein einziger
+Textbaustein übernommen. In der Bausteinliste stand damit ein unverständlicher
+Block HTML statt Logo, Telefon, Mobil, E-Mail, Webseite und Anschrift.
+
+Drei Ursachen, alle behoben:
+
+* **Die Trennlinie ist eine eigene Zelle.** Der übliche Aufbau hat drei Zellen
+  für zwei Spalten. Die schmale mittlere zählte als Inhaltsspalte, damit waren
+  es drei — und drei Spalten sind kein Zweispalter. Eine Zelle ohne eigenen
+  Inhalt, aber mit seitlichem Rahmen, gilt jetzt als Trenner. Eine leere Zelle
+  **ohne** Rahmen bleibt eine echte Spalte.
+* **Zwei Spalten in einer Zelle.** Bei gewachsenen Signaturen steckt der
+  Kontaktblock als eigene Tabelle innerhalb einer Zeile der äußeren. Dieser
+  Aufbau wurde nicht erkannt.
+* **Doppelt maskierte Beschriftungen.** Beschriftungen wie `Phone:` mit
+  geschützten Leerzeichen wurden unverändert übernommen und beim Ausgeben
+  erneut maskiert — beim Empfänger wäre statt eines Abstands der Quelltext
+  sichtbar geworden.
+
+Die Standardvorlage zerfällt jetzt in Grußformel, Name, Textzeile, den
+Kontaktblock als Zweispalter (Logo · Firma, Telefon, Mobil, E-Mail, Webseite,
+Anschrift) und den Terminlink.
+
+
 ## v1.7.128 — 2026-08-02 — Rückübersetzung: Leerzeilen und Grußformeln
 
 Zwei Verfeinerungen aus dem Übernehmen einer echten Signatur:

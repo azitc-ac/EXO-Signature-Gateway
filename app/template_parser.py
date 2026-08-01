@@ -287,7 +287,11 @@ def _als_link_block(td: Knoten) -> dict | None:
         if k is anker[0] or (k.tag and anker[0] in _alle(k)):
             break
         vorher += k.nur_text()
-    praefix = vorher.strip()
+    # Entities aufloesen: Der Renderer maskiert den Praefix beim Ausgeben
+    # erneut. Uebernaehme man ihn roh, wuerde aus `Phone:&nbsp;` beim naechsten
+    # Rendern `Phone:&amp;nbsp;` — sichtbar als „Phone:&nbsp;" statt als
+    # Abstand. Die Standardvorlage hat genau solche Praefixe.
+    praefix = _htmllib.unescape(vorher).strip()
 
     # NUR mit Platzhalter im Ziel. Eine FESTE Adresse darf nicht zu einem
     # Kontaktbaustein werden: Der rendert `{{ user.mail }}` bzw.
@@ -429,6 +433,19 @@ def _als_kasten(td: Knoten) -> dict | None:
     return b
 
 
+def _ist_trennzelle(td: Knoten) -> bool:
+    """Eine schmale Zelle, die nur die senkrechte Linie zwischen zwei Spalten traegt.
+
+    Kennzeichen: kein eigener Inhalt ausser geschuetzten Leerzeichen, dafuer
+    ein seitlicher Rahmen. Eine leere Zelle OHNE Rahmen ist dagegen eine echte
+    (wenn auch leere) Spalte und wird nicht wegdefiniert.
+    """
+    stil = td.stil()
+    if not re.search(r"border-(?:left|right):", stil):
+        return False
+    return _als_leerzeile(td) is not None
+
+
 def _zweispalter_aus_zeile(tr: Knoten) -> dict | None:
     """Zwei Spalten sind eine ZEILE mit zwei Zellen — kein Zelleninhalt.
 
@@ -439,15 +456,25 @@ def _zweispalter_aus_zeile(tr: Knoten) -> dict | None:
     am Ende landete die ganze Vorlage als EIN Freitext.
     """
     zellen = [z for z in tr.kinder if z.tag == "td"]
-    inhalt = [z for z in zellen if z.nur_text().strip() or z.kind_elemente()]
+    # Trennzellen zaehlen NICHT als Spalte. Der uebliche Aufbau ist
+    # Logo | schmale Zelle mit border-left und &nbsp; | Kontaktdaten — also
+    # DREI Zellen fuer zwei Spalten. Ohne diese Unterscheidung fiel jede so
+    # gebaute Signatur als ein einziger Freitext an; genau das war bei der
+    # mitgelieferten Standardvorlage der Fall.
+    inhalt = [z for z in zellen
+              if (z.nur_text().strip() or z.kind_elemente()) and not _ist_trennzelle(z)]
     if len(inhalt) != 2:
         return None
     b = {
         "type": "two_col",
         "left": _bloecke_aus(inhalt[0]),
         "right": _bloecke_aus(inhalt[1]),
-        # Der Trenner steckt als linker Rahmen an der rechten Spalte.
-        "divider": "border-left" in inhalt[1].stil(),
+        # Der Trenner steckt entweder als linker Rahmen an der rechten Spalte
+        # ODER als eigene schmale Zelle dazwischen. Nach dem Herausfiltern der
+        # Trennzelle traegt `inhalt[1]` den Rahmen nicht mehr — beide Formen
+        # muessen deshalb geprueft werden.
+        "divider": ("border-left" in inhalt[1].stil()
+                    or any(_ist_trennzelle(z) for z in zellen)),
     }
     for seite, zelle in (("left", inhalt[0]), ("right", inhalt[1])):
         senkrecht = _stil_wert(zelle.stil(), "vertical-align")
@@ -533,7 +560,23 @@ def _alle(k: Knoten):
 # Nicht kritisch ist dagegen `_als_link_block` vor `_als_feld`, obwohl es so
 # aussieht: `_als_feld` lehnt jede Zelle mit Unterelementen selbst ab, ein
 # `<a>` faellt also ohnehin durch. Die Absicherung liegt dort, nicht hier.
+def _als_zweispalter_in_zelle(td: Knoten) -> dict | None:
+    """Zwei Spalten, die in einer Zelle als eigene Tabelle stecken.
+
+    Der uebliche Aufbau einer gewachsenen Signatur: eine aeussere Tabelle je
+    Zeile, und der Kontaktblock ist eine Tabelle IN einer dieser Zellen.
+    """
+    kinder = td.kind_elemente()
+    if len(kinder) != 1 or kinder[0].tag != "table":
+        return None
+    reihen = [k for k in _alle(kinder[0]) if k.tag == "tr"]
+    if len(reihen) != 1:
+        return None
+    return _zweispalter_aus_zeile(reihen[0])
+
+
 _ERKENNER = (_als_spacer, _als_leerzeile, _als_divider, _als_kasten,
+             _als_zweispalter_in_zelle,
              _als_badge, _als_logo, _als_link_block, _als_feld,
              _als_kasten_direkt)
 
