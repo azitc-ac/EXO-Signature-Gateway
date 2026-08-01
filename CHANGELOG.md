@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.123 — 2026-08-01 — Signatur nachträglich einrahmen
+
+Ein Kasten lässt sich jetzt um eine **fertige** Signatur legen: „Signatur
+einrahmen" verschiebt die vorhandenen Blöcke als Ganzes hinein. Bisher entstand
+ein neuer Kasten leer, und der Inhalt hätte darin Block für Block neu aufgebaut
+werden müssen — bei einer gewachsenen Signatur viel Arbeit und jede Gelegenheit,
+etwas zu vergessen.
+
+Das Gegenstück heißt „Kasten auflösen (Inhalt behalten)" und steht in den
+Einstellungen des Kastens. Ohne diesen Weg wäre die einzige Rücknahme das
+Löschen des Kastens — das nimmt den Inhalt mit, also die ganze Signatur.
+
+Zweimal einrahmen ergibt einen Kasten im Kasten; die Darstellung hält das aus,
+der Editor fragt vorher nach.
+
+**Behoben:** Der in v1.7.122 eingeführte Baustein „Etikett + Text" ließ sich
+nicht in einen Kasten legen — ausgerechnet die Kombination, aus der ein
+eingerahmtes Hinweisband besteht.
+
+
 ## v1.7.122 — 2026-08-01 — Baukasten: Hinweisbänder, Etiketten, Duplizieren
 
 **Kasten:** Der Rahmen lässt sich jetzt auf eine Seite beschränken (links, oben,

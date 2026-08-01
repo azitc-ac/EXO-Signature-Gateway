@@ -154,3 +154,54 @@ def test_maskiertes_tag_ueberlebt_die_umwandlung():
     txt = tb.render_txt({"version": 1, "blocks": [{
         "type": "freetext", "html": "Nutze &lt;b&gt; für fett"}]})
     assert "<b>" in txt, f"maskiertes Tag verschluckt:\n{txt}"
+
+
+# ── Nachträglich einrahmen ───────────────────────────────────────────────────
+
+def test_bestehende_bloecke_im_kasten_rendern_unveraendert():
+    """„Signatur einrahmen" schiebt die vorhandenen Blöcke in einen Kasten.
+    Der Renderer muss sie dort genauso darstellen wie vorher — sonst wäre der
+    Rahmen nicht das Einzige, was sich ändert.
+    """
+    inhalt = [
+        {"type": "greeting", "text": "Freundliche Grüße"},
+        {"type": "name_field", "field": "displayName", "bold": True},
+        {"type": "field", "field": "jobTitle"},
+        {"type": "divider"},
+        {"type": "badge", "label": "RSS", "html": "Neues im Blog"},
+    ]
+    ohne = _html(inhalt)
+    mit = _html([{"type": "box", "border_width": 1, "border_color": "#e2e8f0",
+                  "padding": 12, "radius": 0, "width": 0, "children": inhalt}])
+
+    # Jede inhaltliche Zeile aus der ungerahmten Fassung muss auch gerahmt
+    # vorkommen. Verglichen wird zeilenweise ohne Einrückung, weil der Kasten
+    # zwei Ebenen tiefer schachtelt.
+    for zeile in (z.strip() for z in ohne.splitlines()):
+        if not zeile or zeile.startswith("<table") or zeile.startswith("</table"):
+            continue
+        assert zeile in (z.strip() for z in mit.splitlines()), \
+            f"Zeile ging beim Einrahmen verloren:\n{zeile}"
+    assert "border:1px solid #e2e8f0" in mit
+
+
+def test_zweispalter_ueberlebt_das_einrahmen():
+    """Der häufigste Fall einer gewachsenen Signatur: Logo links, Daten rechts."""
+    zwei = {"type": "two_col", "divider": True, "gap": 12,
+            "left": [{"type": "logo", "url": "https://x/y.png", "width": 100}],
+            "right": [{"type": "name_field", "field": "displayName"}]}
+    mit = _html([{"type": "box", "border_width": 2, "border_color": "#2563EB",
+                  "padding": 10, "radius": 0, "width": 0, "children": [zwei]}])
+    assert "y.png" in mit and "displayName" in mit
+    assert "border:2px solid #2563EB" in mit
+
+
+def test_verschachtelter_kasten_bricht_nicht():
+    """Wer zweimal einrahmt, bekommt Kasten in Kasten. Muss der Renderer
+    aushalten — die Nachfrage im Editor ist eine Bequemlichkeit, keine Sperre."""
+    innen = {"type": "box", "border_width": 1, "padding": 8, "radius": 0,
+             "width": 0, "children": [{"type": "freetext", "html": "Inhalt"}]}
+    html = _html([{"type": "box", "border_width": 3, "padding": 12, "radius": 0,
+                   "width": 0, "children": [innen]}])
+    assert html.count("border:") >= 2
+    assert "Inhalt" in html

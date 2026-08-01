@@ -113,6 +113,11 @@
     <div style="margin-top:12px;position:relative" id="add-block-wrap">
       <button class="btn secondary" onclick="toggleBlockPicker()" type="button"
         style="width:100%;font-size:13px">+ Block hinzufügen</button>
+      <button class="btn secondary" onclick="alleEinrahmen()" type="button"
+        id="einrahmen-btn"
+        style="width:100%;font-size:13px;margin-top:6px"
+        title="Legt einen Kasten um die gesamte Signatur — die vorhandenen Blöcke wandern hinein">
+        Signatur einrahmen</button>
       <div id="block-picker" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:99;background:#fff;border:1px solid #d1d5db;border-radius:6px;padding:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);margin-top:4px">
         <div style="font-size:11px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;padding-left:2px">Text &amp; Felder</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:8px">
@@ -371,6 +376,39 @@ function blockSummary(b) {
 }
 
 // ── Add block ─────────────────────────────────────────────────────────────────
+// Einen Kasten NACHTRAEGLICH um eine fertige Signatur legen.
+//
+// Ohne das musste man den Kasten anlegen und danach jeden vorhandenen Block
+// darin von Hand neu aufbauen — bei einer gewachsenen Signatur ein halber
+// Nachmittag und jede Gelegenheit, etwas zu vergessen. Die Blöcke wandern
+// stattdessen unveraendert in den neuen Kasten.
+window.alleEinrahmen = function() {
+  if (!blocks.length) { alert('Es gibt noch keine Blöcke zum Einrahmen.'); return; }
+  // Ist die Signatur bereits genau ein Kasten, waere ein zweiter drumherum
+  // fast immer ein Versehen — nachfragen statt stillschweigend schachteln.
+  if (blocks.length === 1 && blocks[0].type === 'box' &&
+      !confirm('Die Signatur besteht bereits aus einem Kasten. Noch einen darum legen?')) return;
+
+  const kasten = defaultBlock('box');
+  kasten.children = blocks;      // die vorhandenen Bloecke, unveraendert
+  blocks = [kasten];
+  renderBlockList();
+  refreshPreview();
+};
+
+// Gegenstueck: Kasten entfernen, Inhalt behalten. „Loeschen" wuerde den Inhalt
+// mitnehmen — wer nur den Rahmen loswerden will, verloere die ganze Signatur.
+window.kastenAufloesen = function(id) {
+  const idx = blocks.findIndex(b => b.id === id);
+  if (idx < 0) { alert('Nur Kästen auf der obersten Ebene lassen sich auflösen.'); return; }
+  const kasten = blocks[idx];
+  const kinder = kasten.children || [];
+  if (!kinder.length) { alert('Der Kasten ist leer — dann einfach löschen.'); return; }
+  blocks.splice(idx, 1, ...kinder);
+  renderBlockList();
+  refreshPreview();
+};
+
 window.addBlock = function(type, targetList, afterId) {
   document.getElementById('block-picker').style.display = 'none';
   const b = defaultBlock(type);
@@ -467,7 +505,7 @@ function iconBtnStyle(color) {
 // liegen deshalb an EINER Stelle — zwei Kopien würden auseinanderlaufen,
 // sobald ein Blocktyp dazukommt.
 const UNTER_TYPEN = ['greeting','name_field','field','address','phone','mobile','email_link',
-  'web_link','logo','booking_link','social','freetext','divider','spacer'];
+  'web_link','logo','booking_link','social','freetext','divider','spacer','badge'];
 // Im Kasten ist zusätzlich der Zweispalter erlaubt — das ist der Zweck der
 // Übung (eingerahmte Signatur). Umgekehrt nicht: ein Kasten in einer Spalte
 // verschachtelt weiter, ohne dass es die Darstellung hergibt.
@@ -677,6 +715,9 @@ function buildBlockForm(b) {
       Die Rundung ist dort angenähert: VML rechnet den Radius gegen die Höhe, die erst
       beim Anzeigen entsteht.</p>`;
     rows += `<div style="margin-top:8px">
+      <button class="btn secondary" type="button" onclick="kastenAufloesen('${b.id}')"
+        style="font-size:12px;margin-bottom:8px"
+        title="Rahmen entfernen, Inhalt behalten">Kasten auflösen (Inhalt behalten)</button>
       <div style="font-size:11px;font-weight:600;color:#555;margin-bottom:4px">Inhalt des Kastens</div>
       <div id="col-children-${b.id}" style="display:flex;flex-direction:column;gap:3px"></div>
       ${unterPicker(b.id, 'children', KASTEN_TYPEN)}
