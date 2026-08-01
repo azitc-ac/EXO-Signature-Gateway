@@ -5,6 +5,29 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.127 — 2026-08-02 — Rückübersetzung: Inhalt neben Tabellen ging verloren
+
+Geprüft an Nachrichten echter Geschäftskontakte. Dabei kam ein Fehler zutage,
+der auch eigene Vorlagen trifft:
+
+**Stand in einem Bereich sowohl Fließtext als auch eine Tabelle, wurde nur die
+Tabelle gelesen** — alles daneben fiel weg. An einer echten Nachricht gemessen:
+164 von 174 Wörtern. Für Vorlagen heißt das: Sobald jemand eine Zeile über oder
+unter seine Tabelle schreibt, wäre sie beim Umwandeln verschwunden. Der
+Verlustschutz hat das abgefangen und die Vorlage als Ganzes übernommen, aber
+zerlegt wurde eben auch nichts.
+
+**Nachrichten mit Kopfbereich wurden nicht aufgeschlüsselt.** Ein
+HTML-Dokument hat zwei Teile, Kopf und Rumpf. Der Abstieg in den Inhalt hielt
+deshalb sofort an, und die gesamte Signatur landete in einem einzigen Baustein.
+Der Kopfbereich wird jetzt übersprungen, und die Formatvorlagen darin zählen
+nicht mehr als sichtbarer Text — sonst hätte allein deren Wegfall wie ein
+Inhaltsverlust ausgesehen.
+
+Ergebnis an denselben 21 Nachrichten: keine greift mehr auf den Verlustschutz
+zurück (vorher 19), weiterhin kein Verlust und keine Verfälschung.
+
+
 ## v1.7.126 — 2026-08-01 — Rückübersetzung an echten Fremdsignaturen geschärft
 
 Der Algorithmus wurde gegen 276 tatsächlich empfangene HTML-Nachrichten

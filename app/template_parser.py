@@ -550,7 +550,12 @@ def _inhaltswurzel(k: Knoten) -> Knoten:
     Huellen uebereinander.
     """
     for _ in range(8):                       # Schranke gegen tiefe Verschachtelung
-        kinder = [x for x in k.kinder if x.tag and x.tag not in ("!comment",)]
+        # <head> traegt keinen sichtbaren Inhalt und darf den Abstieg nicht
+        # aufhalten. Ohne diese Ausnahme blieb der Abstieg bei JEDER echten
+        # Nachricht sofort stehen: <html> hat zwei Kinder, <head> und <body> —
+        # und damit landete die gesamte Signatur in einem einzigen Baustein.
+        kinder = [x for x in k.kinder
+                  if x.tag and x.tag not in ("!comment", "head", "meta", "title")]
         # Reiner Text neben einer einzigen Huelle darf nicht verlorengehen.
         hat_text = any(not x.tag and x.text.strip() for x in k.kinder)
         if len(kinder) != 1 or hat_text:
@@ -610,6 +615,21 @@ def _bloecke_aus(behaelter: Knoten, oberste_ebene: bool = False) -> list[dict]:
     wird sein gesamter Inhalt EIN Freitext. Das ist der ehrliche Ausgang:
     lieber ein Block, der genau das Richtige ausgibt, als fünf geratene.
     """
+    # Nur ein echtes Tabellen-Element darf rein zeilenweise gelesen werden.
+    #
+    # Sonst gilt: Steht in einem <body> oder <div> sowohl Fliesstext ALS AUCH
+    # eine Tabelle, sammelte die Zeilensuche nur die Tabellenzeilen ein und
+    # verwarf den Rest stillschweigend. An einer echten Geschaeftsmail
+    # gemessen: 164 von 174 Woertern fielen weg — die Anrede, der ganze
+    # Fliesstext, alles ausserhalb der Signaturtabelle.
+    #
+    # Der Weg ueber die Zeilen-Tags nimmt Tabellen als Kinder mit und verliert
+    # deshalb nichts.
+    if behaelter.tag not in ("table", "tbody", "td", "th"):
+        ueber_tags = _bloecke_aus_zeilen_tags(behaelter, oberste_ebene)
+        if ueber_tags:
+            return _anschrift_verschmelzen(ueber_tags)
+
     zeilen = [k for k in _alle(behaelter) if k.tag == "tr"]
     # Nur Zeilen der obersten Ebene: verschachtelte gehören zu ihrem Block.
     oberste = [tr for tr in zeilen
@@ -700,7 +720,14 @@ def _sichtbarer_text(html: str) -> str:
     ist der Platzhalter für sichtbaren Inhalt: Fiele er weg, verschwände die
     Zeile aus jeder erzeugten Signatur.
     """
-    ohne = re.sub(r"<[^>]+>", " ", html or "")
+    # Formatvorlagen und Skripte MIT Inhalt entfernen: Der Text zwischen
+    # <style> und </style> ist CSS, kein sichtbarer Inhalt. Ohne diesen Schritt
+    # zaehlte jede CSS-Regel als Text, und das Verwerfen eines <head> sah wie
+    # ein Inhaltsverlust aus — der Verlustschutz haette bei jeder echten Mail
+    # angeschlagen.
+    ohne = re.sub(r"<(style|script)\b[^>]*>.*?</\1>", " ", html or "",
+                  flags=re.S | re.I)
+    ohne = re.sub(r"<[^>]+>", " ", ohne)
     ohne = re.sub(r"\{%[^%]*%\}", " ", ohne)
     ohne = _htmllib.unescape(ohne)
     # Auf Buchstaben und Ziffern eindampfen: Leerraum, Zeichensetzung und
@@ -746,7 +773,14 @@ def parse_html(html: str) -> dict:
 
     wurzel = _inhaltswurzel(_baum(sauber))
     tabellen = [k for k in wurzel.kinder if k.tag == "table"]
-    quelle = tabellen[0] if len(tabellen) == 1 else wurzel
+    # In die Tabelle hineingehen NUR, wenn daneben nichts steht. Sonst fiele
+    # alles ausserhalb weg — Anrede, Fliesstext, Nachsatz. Bei einer reinen
+    # Signaturvorlage ist die Tabelle das einzige Kind, dort aendert sich nichts.
+    daneben = [k for k in wurzel.kinder
+               if (k.tag and k not in tabellen and k.tag not in ("!comment", "head",
+                                                                 "meta", "title"))
+               or (not k.tag and k.text.strip())]
+    quelle = tabellen[0] if len(tabellen) == 1 and not daneben else wurzel
     bloecke = _bloecke_aus(quelle, oberste_ebene=True)
 
     hinweise = []

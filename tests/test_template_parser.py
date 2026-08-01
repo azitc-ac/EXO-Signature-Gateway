@@ -502,3 +502,68 @@ def test_eigene_vorlagen_behalten_den_platzhalter():
     zweimal = tb.render_html(tp.parse_html(einmal))
     assert "{{ user.companyName }}" in zweimal, (
         "Der Platzhalter ging beim Rundlauf verloren:\n" + zweimal)
+
+
+def test_fliesstext_neben_tabelle_geht_nicht_verloren():
+    """Der schwerste Fund aus dem Lauf gegen echte Geschäftsmails.
+
+    Steht in einem Behälter sowohl Text als AUCH eine Tabelle, sammelte die
+    Zeilensuche nur die Tabellenzeilen ein — alles daneben fiel weg. An einer
+    echten Nachricht gemessen: 164 von 174 Wörtern. Das trifft auch Vorlagen,
+    sobald jemand eine Zeile über oder unter seine Tabelle schreibt.
+    """
+    roh = ('<div>'
+           '<p>Text VOR der Tabelle</p>'
+           '<table><tr><td>In der Tabelle</td></tr></table>'
+           '<p>Text NACH der Tabelle</p>'
+           '</div>')
+    meta = tp.parse_html(roh)
+    hinweise = meta.pop("_hinweise", [])
+    erneut = tb.render_html(meta)
+    for stueck in ("Text VOR der Tabelle", "In der Tabelle", "Text NACH der Tabelle"):
+        assert stueck in erneut, f"'{stueck}' ging verloren:\n{erneut}"
+    # Und zwar ZERLEGT, nicht durch das Netz gerettet: Sonst bestünde diese
+    # Prüfung auch dann, wenn die Zerlegung alles daneben verwirft.
+    assert len(meta["blocks"]) >= 3, (
+        f"nur {len(meta['blocks'])} Block/Blöcke — der Inhalt wurde vom "
+        f"Sicherheitsnetz gerettet statt zerlegt: {hinweise}")
+
+
+def test_reine_tabelle_bleibt_zeilenweise():
+    """Gegenprobe: eine Vorlage, die NUR aus einer Tabelle besteht, muss
+    weiterhin Zeile für Zeile zerlegt werden — sonst wäre der ganze
+    Baukasten-Rundlauf hinfällig."""
+    einmal = tb.render_html({"version": 1, "blocks": [
+        {"type": "greeting", "text": "Freundliche Grüße"},
+        {"type": "name_field", "field": "displayName", "bold": True},
+        {"type": "divider"}]})
+    meta = tp.parse_html(einmal)
+    assert [b["type"] for b in meta["blocks"]] == ["greeting", "name_field", "divider"], \
+        [b["type"] for b in meta["blocks"]]
+
+
+def test_huellen_mit_head_werden_durchstiegen():
+    """Echte Nachrichten haben <html><head>…</head><body>…</body></html>.
+
+    <html> hat damit ZWEI Kinder, und ein Abstieg, der nur bei genau einem
+    weitergeht, bleibt sofort stehen — die ganze Signatur landete in einem
+    einzigen Baustein. Der frühere Test hatte keinen <head> und konnte das
+    nicht zeigen.
+    """
+    roh = ('<html><head><style>p{margin:0}</style></head><body>'
+           '<p>Zeile eins</p><p>Zeile zwei</p><p>Zeile drei</p>'
+           '</body></html>')
+    meta = tp.parse_html(roh)
+    assert len(meta["blocks"]) >= 3, (
+        f"<head> hielt den Abstieg auf: {len(meta['blocks'])} Block/Blöcke")
+
+
+def test_formatvorlagen_zaehlen_nicht_als_inhalt():
+    """CSS im <style> ist kein sichtbarer Text.
+
+    Zählte es mit, sähe das Verwerfen eines <head> wie Inhaltsverlust aus —
+    und der Verlustschutz schlüge bei jeder echten Nachricht an.
+    """
+    mit = tp._sichtbarer_text('<style>.a{color:red}</style><p>Hallo</p>')
+    ohne = tp._sichtbarer_text('<p>Hallo</p>')
+    assert mit == ohne, "CSS wurde als sichtbarer Text gezählt"
