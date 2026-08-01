@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.130 — 2026-08-02 — Rückübersetzung erkennt eingebettete Bilder
+
+Ein Bild, das allein in einer Spalte steht, kam beim Umwandeln als roher
+Quelltext an statt als Bild-Baustein. Betroffen war unter anderem das
+Firmenlogo der mitgelieferten Vorlagen — samt der eingebetteten Bilddaten, was
+in der Bausteinliste eine unlesbare Zeile ergab.
+
+Ursache: Für einen Bereich ohne Zeilenstruktur liefen die Erkennungsregeln gar
+nicht erst an. Sie greifen jetzt auch dort. Nebenbei wird damit auch der
+Terminlink als eigener Baustein erkannt.
+
+
 ## v1.7.129 — 2026-08-02 — Rückübersetzung erkennt den Kontaktblock der Standardvorlage
 
 Der Kontaktblock der mitgelieferten Vorlagen — Logo links, Kontaktdaten rechts,
