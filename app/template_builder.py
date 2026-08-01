@@ -516,13 +516,27 @@ def _box(b, g, pad, indent):
     bc = _farbe(b.get("border_color"), "#e2e8f0", g)
     radius = max(0, min(40, int(b.get("radius") or 0)))
     innen = max(0, min(60, int(b.get("padding") or 12)))
+    # Waagerechter Innenabstand getrennt einstellbar. Hinweisbänder brauchen
+    # ihn breiter als hoch (6px/14px) — mit einem einzigen Wert wird das Band
+    # entweder zu hoch oder der Text klebt am Rand.
+    innen_x = b.get("padding_x")
+    innen_x = innen if innen_x in (None, "") else max(0, min(60, int(innen_x)))
     gefuellt = bool(b.get("filled"))
     fill = _farbe(b.get("fill_color"), "#ffffff", g) if gefuellt else ""
     breite = max(0, int(b.get("width") or 0))          # 0 = automatisch
+    # Auf welchen Seiten der Rahmen sitzt. "all" ist der Vorgabefall; ein
+    # einzelner farbiger Balken links ist die uebliche Form fuer Hinweisbaender
+    # und laesst sich mit einem umlaufenden Rahmen nicht nachbilden.
+    seite = str(b.get("border_side") or "all").lower()
+    if seite not in ("all", "left", "right", "top", "bottom"):
+        seite = "all"
 
-    td_style = [f"padding:{innen}px"]
+    td_style = [f"padding:{innen}px {innen_x}px" if innen_x != innen
+                else f"padding:{innen}px"]
     if bw:
-        td_style.append(f"border:{bw}px solid {bc}")
+        kante = {"all": "border", "left": "border-left", "right": "border-right",
+                 "top": "border-top", "bottom": "border-bottom"}[seite]
+        td_style.append(f"{kante}:{bw}px solid {bc}")
     if radius:
         td_style.append(f"border-radius:{radius}px")
     if gefuellt:
@@ -530,7 +544,10 @@ def _box(b, g, pad, indent):
     tab_style = f"width:{breite}px" if breite else ""
 
     p2 = " " * ni
-    mso = radius and breite            # VML nur mit fester Breite sinnvoll
+    # VML braucht eine feste Breite UND zeichnet immer umlaufend: ein
+    # einseitiger Balken wuerde in Outlook zum Rahmen ringsum, also das
+    # Gegenteil der Absicht. Dann lieber ohne VML (Outlook zeigt eckig).
+    mso = radius and breite and seite == "all"
     teile = [f"{pad}<tr>", f"{pad}  <td style=\"padding:0\">"]
 
     if mso:
@@ -555,7 +572,7 @@ def _box(b, g, pad, indent):
             f' style="width:{breite}px" strokeweight="{bw}px" strokecolor="{bc}"'
             f' stroked="{"t" if bw else "f"}" fillcolor="{fill or "#ffffff"}"'
             f' filled="{"t" if gefuellt else "f"}">',
-            f'{p2}<v:textbox inset="{innen}px,{innen}px,{innen}px,{innen}px"'
+            f'{p2}<v:textbox inset="{innen_x}px,{innen}px,{innen_x}px,{innen}px"'
             f' style="mso-fit-shape-to-text:true">',
             f"{p2}<![endif]-->",
             f"{p2}<!--[if !mso]><!-->",
@@ -595,6 +612,34 @@ def _box(b, g, pad, indent):
     return "\n".join(teile)
 
 
+def _badge(b, g, pad, _ind):
+    """Farbiges Etikett mit anschliessendem Text — die Form „RSS  Neue Beiträge …".
+
+    Warum ein eigener Baustein und nicht Freitext: Das Etikett besteht aus sechs
+    zusammengehoerigen Angaben (Hintergrund, Schriftfarbe, Groesse, Innenabstand,
+    Eckenrundung, Laufweite), die nur in dieser Kombination wie ein Etikett
+    aussehen. Als Freitext muesste sie jedes Mal von Hand getroffen werden, und
+    eine spaetere Farbaenderung waere in jeder Vorlage einzeln nachzuziehen.
+
+    `display:inline-block` haelt Outlook nicht durch; `vertical-align:middle`
+    sorgt dafuer, dass das Etikett auch dort auf der Textlinie sitzt statt
+    darunter zu haengen.
+    """
+    text = _htmllib.escape(b.get("label") or "NEU")
+    dahinter = (b.get("html") or "").strip()
+    hg = _farbe(b.get("badge_color"), "#2563eb", g)
+    vg = _farbe(b.get("label_color"), "#ffffff", g)
+    groesse = _laenge(b.get("size")) or "8pt"
+    radius = max(0, min(20, int(b.get("radius") or 2)))
+    etikett = (
+        f'<span style="display:inline-block;background:{hg};color:{vg};'
+        f'font-size:{groesse};font-weight:700;padding:1px 5px;'
+        f'border-radius:{radius}px;letter-spacing:.04em;'
+        f'vertical-align:middle;margin-right:6px">{text}</span>'
+    )
+    return f'{pad}<tr><td style="padding:0">{etikett}{dahinter}</td></tr>'
+
+
 _HTML_RENDERERS = {
     "greeting": _greeting,
     "spacer": _spacer,
@@ -611,6 +656,7 @@ _HTML_RENDERERS = {
     "freetext": _freetext,
     "two_col": _two_col,
     "box": _box,
+    "badge": _badge,
     "address": _anschrift,
 }
 
@@ -632,6 +678,23 @@ def _link_zeile_txt(b, path: str, praefix_vorgabe: str = "",
     vorsatz = praefix or (f"{anzeige}:" if anzeige else "")
     kopf = f"{vorsatz} " if vorsatz else ""
     return f"{{% if {path} %}}{kopf}{{{{ {path} }}}}{{% endif %}}"
+
+
+def _nur_text(roh: str) -> str:
+    """HTML zu Klartext: Tags entfernen UND Entities aufloesen.
+
+    Das Aufloesen fehlte und fiel nicht auf, weil die uebliche Freitext-Zeile
+    keine Entities enthaelt. Sobald eine drin ist — `&nbsp;` fuer einen festen
+    Abstand, `&amp;` in „Tipps & Tools" —, stand sie woertlich in der
+    Nur-Text-Signatur: „Tipps &amp; Tools". Beim Empfaenger sieht das nach
+    kaputter Software aus.
+
+    Reihenfolge: erst Tags weg, dann Entities. Umgekehrt wuerde aus einem
+    `&lt;b&gt;` im Text ein `<b>`, das die naechste Regel als Tag entfernt —
+    aus einer harmlosen Zeichenfolge verschwaende so Inhalt.
+    """
+    ohne_tags = re.sub(r"<[^>]+>", "", roh or "")
+    return _htmllib.unescape(ohne_tags).strip()
 
 
 def _render_blocks_txt(blocks: list[dict], g: dict, lines: list[str]) -> None:
@@ -690,9 +753,18 @@ def _render_block_txt(b: dict, g: dict, lines: list[str]) -> None:
             vorsatz = praefix or f"{anzeige}:"
             lines.append(f"{vorsatz} {url}")
     elif t == "freetext":
-        txt = re.sub(r"<[^>]+>", "", b.get("html") or "").strip()
+        txt = _nur_text(b.get("html"))
         if txt:
             lines.append(txt)
+    elif t == "badge":
+        # Im Textteil bleibt vom Etikett nur sein Wort. In eckigen Klammern,
+        # damit erkennbar bleibt, dass es eine Auszeichnung war und nicht der
+        # Anfang des Satzes: "[RSS] Regelmäßig neue Beiträge …"
+        wort = (b.get("label") or "").strip()
+        rest = _nur_text(b.get("html"))
+        zeile = " ".join(x for x in (f"[{wort}]" if wort else "", rest) if x)
+        if zeile:
+            lines.append(zeile)
     elif t == "two_col":
         _render_blocks_txt(b.get("left") or [], g, lines)
         _render_blocks_txt(b.get("right") or [], g, lines)

@@ -5,6 +5,38 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.122 — 2026-08-01 — Baukasten: Hinweisbänder, Etiketten, Duplizieren
+
+**Kasten:** Der Rahmen lässt sich jetzt auf eine Seite beschränken (links, oben,
+rechts, unten statt umlaufend), und der Innenabstand ist waagerecht getrennt
+einstellbar. Damit sind Hinweisbänder mit farbigem Balken an der linken Kante
+im Baukasten nachbaubar — bisher gingen sie nur von Hand: ein umlaufender
+Rahmen ist etwas anderes, und ein Band braucht mehr Abstand zur Seite als nach
+oben, sonst klebt der Text am Rand oder das Band wird zu hoch.
+
+Runde Ecken werden in Outlook über eine VML-Form nachgebildet, die immer
+umlaufend zeichnet. Bei einem einseitigen Rahmen entfällt sie deshalb — sonst
+entstünde dort ein Rahmen ringsum, also das Gegenteil der Absicht.
+
+**Neuer Baustein „Etikett + Text":** ein farbiges Kästchen mit kurzem Wort
+(„RSS", „NEU"), dahinter Fließtext, der HTML enthalten darf. Als Freitext
+mussten dafür bisher sechs zusammengehörige Angaben von Hand getroffen werden,
+und eine spätere Farbänderung war in jeder Vorlage einzeln nachzuziehen.
+
+**Duplizieren:** Vorlagen lassen sich kopieren — samt Baukasten-Daten. Wer
+bisher den HTML-Quelltext einer Baukasten-Vorlage in eine neue kopierte, erhielt
+eine Kopie, die sich nur noch als Quelltext bearbeiten ließ: das HTML ist das
+Erzeugnis, die Blockliste die Quelle, und eine Rückübersetzung gibt es nicht.
+Hat die Ausgangsvorlage keine Baukasten-Daten, sagt die Meldung das ausdrücklich.
+
+**Behoben:** In der Nur-Text-Fassung blieben HTML-Entities unaufgelöst — aus
+„Tipps &amp; Tools" wurde wörtlich `Tipps &amp;amp; Tools`, aus einem festen
+Abstand `&amp;nbsp;`. Betroffen war jeder Freitext mit Entities. Die Umwandlung
+liegt jetzt an einer Stelle: erst Tags entfernen, dann Entities auflösen — in
+der anderen Reihenfolge würde aus einem maskierten `&amp;lt;b&amp;gt;` erst ein
+Tag und dann gelöschter Inhalt.
+
+
 ## v1.7.121 — 2026-08-01 — Rechnungsadresse getrennt einstellbar
 
 Unter „Anbindung" steht neben der Kontoadresse jetzt „Rechnungen an". Ohne

@@ -19,6 +19,8 @@
       {% endfor %}
     </select>
     <button class="btn secondary" onclick="createNewTemplate()" type="button">+ Neue Vorlage</button>
+    <button class="btn secondary" onclick="duplicateTemplate('{{ current_template }}')"
+            type="button" title="Kopie anlegen — samt Baukasten-Daten">Duplizieren</button>
     {% if current_template != 'default' %}
     <button class="btn" style="background:#dc2626;color:#fff;border:none;padding:6px 14px;border-radius:4px;cursor:pointer;font-size:13px"
             onclick="deleteTemplate('{{ current_template }}')" type="button">Vorlage löschen</button>
@@ -134,6 +136,7 @@
           <button class="picker-btn" onclick="addBlock('logo')">Logo (Bild-URL)</button>
           <button class="picker-btn" onclick="addBlock('two_col')">Zwei Spalten</button>
           <button class="picker-btn" onclick="addBlock('box')">Kasten (Rahmen)</button>
+          <button class="picker-btn" onclick="addBlock('badge')">Etikett + Text</button>
           <button class="picker-btn" onclick="addBlock('divider')">Trennlinie</button>
           <button class="picker-btn" onclick="addBlock('spacer')">Abstand</button>
         </div>
@@ -305,9 +308,14 @@ function defaultBlock(type) {
     case 'box':         return {
       ...base,
       children: [],
-      radius: 8, width: 520, padding: 12,
-      border_width: 1, border_color: '#e2e8f0',
+      radius: 8, width: 520, padding: 12, padding_x: '',
+      border_width: 1, border_color: '#e2e8f0', border_side: 'all',
       filled: false, fill_color: '#f8fafc',
+    };
+    case 'badge':       return {
+      ...base,
+      label: 'NEU', html: '', size: '8pt', radius: 2,
+      badge_color: '#2563eb', label_color: '#fff',
     };
     case 'two_col':     return {
       ...base,
@@ -326,6 +334,7 @@ const TYPE_LABELS = {
   email_link:'E-Mail-Link', web_link:'Website-Link',
   logo:'Logo', booking_link:'Buchungslink', social:'Social Media',
   freetext:'Freitext', two_col:'Zwei Spalten', box:'Kasten', address:'Anschrift',
+  badge:'Etikett + Text',
 };
 
 // "jobTitle" → "user.jobTitle", "custom.abteilung" bleibt unverändert.
@@ -353,6 +362,7 @@ function blockSummary(b) {
     case 'address':     return (b.one_line ? 'einzeilig' : 'zweizeilig')
                              + (b.show_country ? ', mit Land' : '');
     case 'two_col':     return `${(b.left||[]).length} links / ${(b.right||[]).length} rechts`;
+    case 'badge':       return `[${b.label||''}] ${(b.html||'').replace(/<[^>]+>/g,'').slice(0,30)}`;
     case 'box':         return `${(b.children||[]).length} Block/Bl\u00f6cke`
                              + `, ${b.radius ? b.radius + 'px rund' : 'eckig'}`
                              + (b.filled ? ', gef\u00fcllt' : '');
@@ -631,16 +641,34 @@ function buildBlockForm(b) {
       <div id="col-right-${b.id}" style="display:flex;flex-direction:column;gap:3px"></div>
       ${unterPicker(b.id, 'right', UNTER_TYPEN)}
     </div>`;
+  } else if (t === 'badge') {
+    rows += row('Etikett', txt('label', b.label, 'RSS'));
+    rows += row('Etikettfarbe', farbFeld('badge_color', b.badge_color || '#2563eb', b.id));
+    rows += row('Schriftfarbe', farbFeld('label_color', b.label_color || '#fff', b.id));
+    rows += row('Schriftgröße', txt('size', b.size, '8pt'));
+    rows += row('Ecken (px)', txt('radius', b.radius, '2'));
+    rows += row('Text dahinter', `<textarea name="html" data-bid="${b.id}" rows="3"
+      onchange="blockPropChange(this)" style="width:100%;font-family:monospace;font-size:12px"
+      >${esc(b.html || '')}</textarea>`);
+    rows += `<p style="font-size:11px;color:#6b7280;margin:4px 0 8px">
+      Der Text dahinter darf HTML enthalten — etwa <code>&lt;strong&gt;</code> für fett
+      oder <code>&lt;a href="…"&gt;</code> für einen Link.</p>`;
   } else if (t === 'box') {
     rows += row('Ecken', `<select name="radius" data-bid="${b.id}" onchange="blockPropChange(this)">`
       + [['0','Eckig'],['4','Leicht rund (4px)'],['8','Rund (8px)'],['16','Stark rund (16px)']]
         .map(([v,l]) => `<option value="${v}"${String(b.radius||0)===v?' selected':''}>${esc(l)}</option>`).join('')
       + `</select>`);
+    rows += row('Rahmen an', `<select name="border_side" data-bid="${b.id}" onchange="blockPropChange(this)">`
+      + [['all','allen Seiten'],['left','nur links'],['top','nur oben'],
+         ['right','nur rechts'],['bottom','nur unten']]
+        .map(([v,l]) => `<option value="${v}"${(b.border_side||'all')===v?' selected':''}>${esc(l)}</option>`).join('')
+      + `</select>`);
     rows += row('Strichbreite (px)', txt('border_width', b.border_width, '1'));
     rows += row('Rahmenfarbe', farbFeld('border_color', b.border_color || '#e2e8f0', b.id));
     rows += row('Gefüllt', chk('filled', b.filled));
     rows += row('Füllfarbe', farbFeld('fill_color', b.fill_color || '#f8fafc', b.id));
-    rows += row('Innenabstand (px)', txt('padding', b.padding, '12'));
+    rows += row('Innenabstand oben/unten (px)', txt('padding', b.padding, '12'));
+    rows += row('Innenabstand links/rechts (px)', txt('padding_x', b.padding_x, 'wie oben/unten'));
     rows += row('Breite (px)', txt('width', b.width, '520'));
     rows += `<p style="font-size:11px;color:#6b7280;margin:4px 0 8px">
       Outlook am Rechner zeichnet mit der Word-Maschine und kennt keine runden Ecken.
@@ -1043,6 +1071,20 @@ window.createNewTemplate = function() {
   if (!safe) { alert('Ungültiger Name.'); return; }
   if (safe === 'default') { alert('"default" ist reserviert.'); return; }
   window.location.href = '/template?name=' + encodeURIComponent(safe);
+};
+// Kopieren ueber die Schnittstelle, nicht ueber den Quelltext: der HTML-Code
+// ist das ERZEUGNIS des Baukastens, die Blockliste (.meta.json) ist die Quelle.
+// Wer nur das HTML in eine neue Vorlage einfuegt, bekommt eine Kopie, die sich
+// nur noch als Quelltext bearbeiten laesst.
+window.duplicateTemplate = async function(name) {
+  const vorschlag = (name === 'default' ? 'signatur' : name) + '-Kopie';
+  const ziel = prompt('Name der Kopie (nur Buchstaben, Zahlen, - und _):', vorschlag);
+  if (!ziel) return;
+  const d = await postJSON('/api/templates/' + encodeURIComponent(name) + '/duplicate',
+                           {ziel: ziel});
+  if (!d.ok) { alert('Fehler: ' + (d.detail || d.error || 'Unbekannt')); return; }
+  if (!d.builder) alert(d.message);
+  window.location.href = '/template?name=' + encodeURIComponent(d.name);
 };
 window.deleteTemplate = async function(name) {
   if (!confirm('Vorlage "' + name + '" wirklich löschen?\n\nAlle Dateien werden unwiderruflich gelöscht.')) return;
