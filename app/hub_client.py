@@ -239,6 +239,49 @@ async def cert_opt_out() -> dict:
         return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
 
 
+async def account_email_change(neue: str) -> dict:
+    """Wechsel der Kontoadresse beim Hub anfordern.
+
+    Ändert hier nichts: Der Hub schickt einen Bestätigungslink an die NEUE
+    Adresse, und erst der Klick darin zieht das Konto um. Der API-Schlüssel
+    bleibt dabei derselbe — an dieser Anbindung ist danach nichts zu tun.
+
+    Warum die Bestätigung nicht hier abgekürzt wird: Der Schlüssel liegt in
+    diesem Gateway. Genügte er, könnte jeder mit Zugang hierher das Konto samt
+    Guthaben und Zahlungsbeziehung auf eine fremde Adresse ziehen.
+    """
+    base = _base()
+    if not (base and _key()):
+        return {"ok": False, "error": "Nicht registriert (Anbindung fehlt)."}
+    try:
+        async with httpx.AsyncClient(timeout=20) as c:
+            r = await c.post(f"{base}/api/account/email/change",
+                             headers=_gateway_headers(), json={"email": neue})
+        data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+        if r.status_code == 200 and data.get("ok"):
+            return {"ok": True, "message": data.get("message", ""),
+                    "ziel": data.get("ziel", ""), "email_sent": data.get("email_sent")}
+        return {"ok": False, "error": data.get("detail") or f"HTTP {r.status_code}: {r.text[:200]}"}
+    except Exception as exc:
+        return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
+
+
+async def account_email_change_cancel() -> dict:
+    """Angeforderten Wechsel zurücknehmen."""
+    base = _base()
+    if not (base and _key()):
+        return {"ok": False, "error": "Nicht registriert (Anbindung fehlt)."}
+    try:
+        async with httpx.AsyncClient(timeout=20) as c:
+            r = await c.post(f"{base}/api/account/email/change/cancel",
+                             headers=_gateway_headers())
+        data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+        return {"ok": r.status_code == 200 and bool(data.get("ok")),
+                "abgebrochen": data.get("abgebrochen")}
+    except Exception as exc:
+        return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
+
+
 async def disconnect(close_remote: bool = False) -> dict:
     """Remove the local hub binding AND tell the hub to deactivate THIS gateway
     (the customer account stays). Optionally also close the whole account."""
@@ -270,7 +313,17 @@ async def status() -> dict:
         async with httpx.AsyncClient(timeout=20) as c:
             r = await c.get(f"{base}/api/support/me", headers=_gateway_headers())
         if r.status_code == 200:
-            return {"ok": True, **r.json()}
+            d = r.json()
+            # Massgeblich ist die Adresse beim Hub, nicht die lokal gespeicherte:
+            # nach einem Kontowechsel laeuft das Konto unter einer anderen, und
+            # diese Seite zeigte sonst dauerhaft die alte an. Der API-Schluessel
+            # bleibt beim Wechsel gleich, die Anbindung merkt sonst nichts davon.
+            gemeldet = (d.get("email") or "").strip().lower()
+            lokal = (settings_store.get("HUB_CUSTOMER_EMAIL") or "").strip().lower()
+            if gemeldet and lokal and gemeldet != lokal:
+                settings_store.update({"HUB_CUSTOMER_EMAIL": gemeldet})
+                log.info("Kontoadresse lokal nachgezogen: %s -> %s", lokal, gemeldet)
+            return {"ok": True, **d}
         if r.status_code in (401, 403):
             return {"ok": False, "error": f"Nicht freigegeben/ungültiger Key (HTTP {r.status_code})."}
         return {"ok": False, "error": f"HTTP {r.status_code}: {r.text[:200]}"}

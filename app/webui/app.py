@@ -4971,6 +4971,27 @@ async def api_hub_cert_opt_out(user: str = Depends(_require_admin)):
     return JSONResponse(await hub_client.cert_opt_out())
 
 
+@app.post("/api/hub/account/email")
+async def api_hub_account_email(request: Request, user: str = Depends(_require_admin)):
+    """Wechsel der Kontoadresse beim Hub anfordern (Bestätigung per Mail)."""
+    import hub_client
+    data = await request.json()
+    neue = (data.get("email") or "").strip()
+    if "@" not in neue:
+        raise HTTPException(400, "Gültige E-Mail-Adresse erforderlich.")
+    res = await hub_client.account_email_change(neue)
+    # Die lokal hinterlegte Adresse wird BEWUSST noch nicht nachgezogen: der
+    # Wechsel steht erst nach der Bestätigung im Zielpostfach. Sonst zeigte
+    # diese Seite eine Adresse an, unter der das Konto gar nicht läuft.
+    return JSONResponse(res, status_code=200 if res.get("ok") else 400)
+
+
+@app.post("/api/hub/account/email/cancel")
+async def api_hub_account_email_cancel(user: str = Depends(_require_admin)):
+    import hub_client
+    return JSONResponse(await hub_client.account_email_change_cancel())
+
+
 @app.post("/api/hub/disconnect")
 async def api_hub_disconnect(request: Request, user: str = Depends(_require_admin)):
     import hub_client
