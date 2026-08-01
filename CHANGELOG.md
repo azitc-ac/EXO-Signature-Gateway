@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.125 — 2026-08-01 — Rückübersetzung: mitgelieferte Vorlagen werden jetzt zerlegt
+
+Zwei der mitgelieferten Vorlagen fielen bei der Umwandlung in HTML auf den
+Verlustschutz zurück und wurden vollständig als ein Freitext übernommen. Ursache
+war der Ausdruck, der Jinja-Bedingungen um einzelne Zeilen erkennt: Er konnte
+über das Ende einer Bedingung hinausgreifen und spannte dann vom ersten `{% if %}`
+mitten in einer Tabellenzelle bis zum letzten `{% endif %}` am Dateiende. Alles
+dazwischen fiel weg — bei einer Vorlage der komplette Kontaktblock mit Telefon,
+Mobilnummer und Anschrift.
+
+Sichtbar wurde das nur, weil nach der Umwandlung gegengerechnet wird, ob
+derselbe sichtbare Text herauskommt. Der Ausdruck ist jetzt beidseitig begrenzt.
+
+
 ## v1.7.124 — 2026-08-01 — HTML-Vorlagen in den Baukasten übernehmen
 
 Vorlagen, die von Hand geschrieben wurden, ließen sich bisher nur als Quelltext

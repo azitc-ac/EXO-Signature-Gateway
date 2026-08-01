@@ -346,3 +346,46 @@ def test_zeile_ohne_passendes_muster_wird_nicht_uebersprungen():
     erneut = tb.render_html(meta)
     for stueck in ("A", "B", "C"):
         assert stueck in erneut, f"Spalte '{stueck}' verschwand:\n{erneut}"
+
+
+def test_bedingung_frisst_keinen_inhalt_zwischen_zwei_bedingungen():
+    """Der Ausdruck für „Bedingung um eine Zeile" darf nicht überspannen.
+
+    Mit `.+?` und re.S griff er vom ersten `{% if %}` mitten in einer Zelle bis
+    zum letzten `{% endif %}` am Dateiende — die Ersetzung behielt nur die
+    gefundene Zeile, alles dazwischen fiel weg. Bei signature.html verschwand so
+    der komplette Kontaktblock.
+
+    Auffällig wurde das erst am echten Bestand: Alle selbstgebauten Testfälle
+    hatten je nur EINE Bedingung, und mit einer allein kann der Ausdruck nicht
+    überspannen.
+    """
+    roh = ('<table>'
+           '<tr><td>{% if a %}A{% else %}B{% endif %} Mitteldrin</td></tr>'
+           '<tr><td>WICHTIGER INHALT</td></tr>'
+           '{% if c %}<tr><td>Optional</td></tr>{% endif %}'
+           '</table>')
+    meta = tp.parse_html(roh)
+    meta.pop("_hinweise", None)
+    erneut = tb.render_html(meta)
+    assert "WICHTIGER INHALT" in erneut, (
+        f"Inhalt zwischen zwei Bedingungen verschwunden:\n{erneut}")
+    assert "Mitteldrin" in erneut and "Optional" in erneut
+
+
+def test_bestandsvorlagen_werden_zerlegt_nicht_nur_gerettet():
+    """Das Netz ist die Rückfallebene, nicht das Ergebnis.
+
+    Griffe es bei jeder Vorlage, wäre die Umwandlung formal verlustfrei und
+    praktisch wertlos: alles bliebe ein Block HTML.
+    """
+    from pathlib import Path
+    verz = Path(__file__).resolve().parents[1] / "templates"
+    im_netz = []
+    for f in sorted(verz.glob("*.html")):
+        meta = tp.parse_html(f.read_text(encoding="utf-8"))
+        if meta["_hinweise"] and len(meta["blocks"]) == 1:
+            im_netz.append(f.name)
+    assert not im_netz, (
+        f"Diese Vorlagen liessen sich nur als Ganzes retten: {im_netz} — "
+        f"die Zerlegung greift dort nicht.")

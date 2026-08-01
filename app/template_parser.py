@@ -62,8 +62,18 @@ _CUSTOM_VAR = re.compile(r"\{\{\s*custom\.([A-Za-z0-9_]+)\s*\}\}")
 _JINJA_IF = re.compile(r"\{%-?\s*(?:if|endif)[^%]*-?%\}")
 # Eine Bedingung, die GENAU EINE Zeile umschliesst — die Form, die der Renderer
 # fuer optionale Felder erzeugt.
+# `bed` darf KEIN `%}` enthalten und `zeile` kein weiteres `<tr`.
+#
+# Ohne diese Schranken spannte der Ausdruck bei signature.html vom ersten
+# `{% if %}` mitten in einer Zelle bis zum letzten `{% endif %}` am Dateiende:
+# `.+?` frisst mit `re.S` auch Zeilenumbrüche, und die Ersetzung behielt nur
+# die gefundene Zeile — der gesamte Kontaktblock (Telefon, Mobil, Anschrift)
+# fiel weg. Sichtbar wurde das erst beim Lauf gegen die echten Vorlagen; alle
+# selbstgebauten Testfälle hatten je nur EINE Bedingung.
 _IF_UM_ZEILE = re.compile(
-    r"\{%-?\s*if\s+(?P<bed>.+?)\s*-?%\}\s*(?P<zeile><tr\b.*?</tr>)\s*\{%-?\s*endif\s*-?%\}",
+    r"\{%-?\s*if\s+(?P<bed>[^%]+?)\s*-?%\}\s*"
+    r"(?P<zeile><tr\b(?:(?!<tr\b).)*?</tr>)\s*"
+    r"\{%-?\s*endif\s*-?%\}",
     re.S)
 
 
