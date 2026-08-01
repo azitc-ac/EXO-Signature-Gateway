@@ -5,6 +5,35 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.124 — 2026-08-01 — HTML-Vorlagen in den Baukasten übernehmen
+
+Vorlagen, die von Hand geschrieben wurden, ließen sich bisher nur als Quelltext
+bearbeiten. Beim Wechsel auf den Baukasten wird das HTML jetzt in Bausteine
+zurückgelesen — als **Vorschlag**: Die Vorschau zeigt, was dabei herauskommt,
+und erst „Speichern" macht die Umwandlung verbindlich. Wer sie verwirft oder die
+Seite verlässt, behält seine Vorlage unverändert.
+
+Erkannt werden Grußformel, Felder, Anschrift, Trenner, Abstand, Logo, die
+Link-Bausteine, Zweispalter, Kasten, Etikett — und aus dem Aufbau des jeweiligen
+HTML auch deren Einstellungen: Rahmenseite, Innenabstände, Farben, Breiten. Bei
+Vorlagen, die aus dem Baukasten stammen, bleibt dabei nichts auf der Strecke;
+das ist über einen Rundlauf abgesichert (erzeugen → zurücklesen → erneut
+erzeugen ergibt dasselbe).
+
+**Was nicht sicher erkennbar ist, wird Freitext** statt geraten. Ein
+Freitext-Baustein gibt sein HTML unverändert wieder aus — das Ergebnis sieht
+also aus wie zuvor. Falsch geratene Struktur wäre schlimmer als gar keine: Sie
+sähe richtig aus, bis jemand etwas ändert.
+
+**Verlustschutz:** Nach der Umwandlung wird gegengerechnet, ob derselbe
+sichtbare Text herauskommt. Stimmt das nicht, wird der Vorschlag verworfen und
+die Vorlage vollständig als ein Freitext-Baustein übernommen, mit Hinweis. Zwei
+der mitgelieferten Vorlagen greifen auf diesen Weg zurück — sie sind damit
+unverändert, aber weiterhin nur als HTML zu bearbeiten. Ein stiller Verlust ist
+das schlimmere Ergebnis: Eine Blockliste sieht plausibel aus, und in der
+Vorschau fällt gerade das nicht auf, wonach niemand sucht.
+
+
 ## v1.7.123 — 2026-08-01 — Signatur nachträglich einrahmen
 
 Ein Kasten lässt sich jetzt um eine **fertige** Signatur legen: „Signatur

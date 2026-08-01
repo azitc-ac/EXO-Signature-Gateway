@@ -1330,6 +1330,13 @@
     "name": "api_save_template_meta"
   },
   {
+    "pfad": "/api/templates/{name}/parse",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_parse_template"
+  },
+  {
     "pfad": "/api/test-mail",
     "methoden": [
       "POST"

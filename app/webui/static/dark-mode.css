@@ -221,6 +221,15 @@
    und der Browser serialisiert das gesamte style-Attribut dabei neu — der
    Attributselektor oben trifft die Farbe danach nicht mehr. Deshalb über die
    ID, nicht über den Wert. */
+/* Hinweis der HTML-Rückübersetzung: der Kasten entsteht per JavaScript, sein
+   style-Attribut wird also neu serialisiert — ein Attributselektor auf den
+   Farbwert griffe nicht. Deshalb über die ID. */
+[data-theme="dark"] #umwandlung-hinweis {
+  background: #0d2137 !important;
+  border: 1px solid #1e40af !important;
+  color: #bfdbfe !important;
+}
+
 [data-theme="dark"] #hub-konto-offen {
   background: #1a1200 !important;
   border-color: #78350f !important;
