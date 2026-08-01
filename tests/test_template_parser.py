@@ -567,3 +567,71 @@ def test_formatvorlagen_zaehlen_nicht_als_inhalt():
     mit = tp._sichtbarer_text('<style>.a{color:red}</style><p>Hallo</p>')
     ohne = tp._sichtbarer_text('<p>Hallo</p>')
     assert mit == ohne, "CSS wurde als sichtbarer Text gezählt"
+
+
+# ── Aus dem Praxislauf an echten Signaturen ──────────────────────────────────
+
+def test_leerzeilen_werden_abstandshalter():
+    """Wer in Outlook eine Leerzeile setzt, erzeugt `&nbsp;` — oft in <o:p>
+    verpackt. Als Freitext übernommen stünde in der Blockliste ein Baustein
+    mit dem Inhalt „&nbsp;", dessen Zweck niemand ansieht."""
+    for roh, marke in (('<td>&nbsp;</td>', "blank"),
+                       ('<td><o:p>&nbsp;</o:p></td>', "o:p"),
+                       ('<td><span>&nbsp;</span></td>', "span"),
+                       ('<td><br></td>', "br")):
+        wurzel = tp._baum(roh)
+        td = [k for k in tp._alle(wurzel) if k.tag == "td"][0]
+        b = tp._als_leerzeile(td)
+        assert b and b["type"] == "spacer", f"{marke}: {b}"
+
+
+def test_leerzeile_mit_hoehe_uebernimmt_sie():
+    wurzel = tp._baum('<td style="height:14px">&nbsp;</td>')
+    td = [k for k in tp._alle(wurzel) if k.tag == "td"][0]
+    assert tp._als_leerzeile(td)["height"] == 14
+
+
+def test_zeile_mit_inhalt_wird_kein_abstand():
+    """Gegenprobe — sonst verschwände Text."""
+    for roh in ('<td>Text</td>', '<td><o:p>Text</o:p></td>',
+                '<td><img src="x.png"></td>', '<td><a href="x">y</a></td>'):
+        wurzel = tp._baum(roh)
+        td = [k for k in tp._alle(wurzel) if k.tag == "td"][0]
+        assert tp._als_leerzeile(td) is None, roh
+
+
+def test_name_ist_keine_grussformel():
+    """In echten Signaturen steht in der ersten Zeile oft der NAME.
+
+    Aufgefallen beim Übernehmen einer echten Signatur: Aus „Mats Barnick"
+    wurde eine „Grußformel". Auf die Ausgabe wirkt sich das nicht aus — beide
+    geben denselben Text —, auf die Verständlichkeit des Baukastens sehr wohl.
+    """
+    meta = tp.parse_html('<table><tr><td>Max Mustermann</td></tr>'
+                         '<tr><td>Musterfirma GmbH</td></tr></table>')
+    assert meta["blocks"][0]["type"] == "freetext", (
+        f"Name als {meta['blocks'][0]['type']} eingeordnet")
+
+
+def test_echte_grussformeln_werden_weiter_erkannt():
+    """Gegenprobe — sonst wäre die Verschärfung zu scharf."""
+    for text in ("Mit freundlichen Grüßen", "Freundliche Grüße",
+                 "Viele Grüße", "Kind regards", "Best regards"):
+        meta = tp.parse_html(f'<table><tr><td>{text}</td></tr>'
+                             f'<tr><td>Max Mustermann</td></tr></table>')
+        assert meta["blocks"][0]["type"] == "greeting", (
+            f"'{text}' nicht als Grußformel erkannt")
+
+
+def test_leerzeile_kommt_auch_ueber_den_ganzen_weg_als_abstand_an():
+    """Nicht nur die Einzelfunktion — auch die Verdrahtung.
+
+    Die erste Fassung dieser Prüfungen rief `_als_leerzeile` direkt auf. Nimmt
+    man den Erkenner aus der Liste, bestanden sie trotzdem: Der Test sah die
+    Funktion, nicht ihren Einsatz.
+    """
+    meta = tp.parse_html('<table><tr><td>Max Mustermann</td></tr>'
+                         '<tr><td><o:p>&nbsp;</o:p></td></tr>'
+                         '<tr><td>Musterfirma GmbH</td></tr></table>')
+    typen = [b["type"] for b in meta["blocks"]]
+    assert "spacer" in typen, f"Leerzeile kam nicht als Abstand an: {typen}"
