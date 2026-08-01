@@ -389,3 +389,116 @@ def test_bestandsvorlagen_werden_zerlegt_nicht_nur_gerettet():
     assert not im_netz, (
         f"Diese Vorlagen liessen sich nur als Ganzes retten: {im_netz} — "
         f"die Zerlegung greift dort nicht.")
+
+
+# ── Feste Angaben dürfen nicht zu Platzhaltern werden ────────────────────────
+#
+# Der gefährlichste Fehler dieses Moduls: Ein Kontaktbaustein rendert
+# `{{ user.mail }}` — die Daten des jeweiligen Postfachs. Wird eine FESTE
+# Adresse dazu gemacht, sieht die Signatur unverändert aus, zeigt aber etwas
+# anderes. Aufgefallen beim Durchlauf durch echte empfangene Fremdmails: dort
+# steht naturgemäß nie ein Platzhalter.
+
+def _zelle(html: str):
+    wurzel = tp._baum(html)
+    return [k for k in tp._alle(wurzel) if k.tag == "td"][0]
+
+
+def test_feste_mailadresse_wird_kein_kontaktbaustein():
+    b = tp._als_link_block(_zelle(
+        '<td>E-Mail: <a href="mailto:info@fremdefirma.de">info@fremdefirma.de</a></td>'))
+    assert b is None, (
+        f"feste Adresse wurde zu {b} — beim Rendern stünde dort die Adresse "
+        f"des Postfachinhabers statt info@fremdefirma.de")
+
+
+def test_feste_rufnummer_wird_kein_kontaktbaustein():
+    b = tp._als_link_block(_zelle(
+        '<td>Tel: <a href="tel:+4924112345">+49 241 12345</a></td>'))
+    assert b is None, f"feste Rufnummer wurde zu {b}"
+
+
+def test_platzhalter_werden_weiterhin_erkannt():
+    """Die Gegenprobe — sonst wäre die Absicherung zu scharf."""
+    assert tp._als_link_block(_zelle(
+        '<td><a href="mailto:{{ user.mail }}">{{ user.mail }}</a></td>'
+    ))["type"] == "email_link"
+    b = tp._als_link_block(_zelle(
+        '<td>Tel: <a href="tel:{{ user.phone }}">{{ user.phone }}</a></td>'))
+    assert b["type"] == "phone" and b["prefix"] == "Tel:"
+    b = tp._als_link_block(_zelle(
+        '<td><a href="tel:{{ user.mobilePhone }}">x</a></td>'))
+    assert b["type"] == "mobile"
+
+
+def test_feste_angaben_bleiben_im_ergebnis_wortgetreu():
+    """Der Beweis über den ganzen Weg: was drinstand, steht danach noch drin."""
+    roh = ('<div><p>Musterfirma GmbH</p>'
+           '<p>Tel: <a href="tel:+4924112345">+49 241 12345</a></p>'
+           '<p><a href="mailto:info@fremdefirma.de">info@fremdefirma.de</a></p></div>')
+    meta = tp.parse_html(roh)
+    meta.pop("_hinweise", None)
+    erneut = tb.render_html(meta)
+    for fest in ("info@fremdefirma.de", "+49 241 12345", "Musterfirma GmbH"):
+        assert fest in erneut, f"'{fest}' ging verloren oder wurde ersetzt:\n{erneut}"
+    assert "{{ user." not in erneut, (
+        f"feste Angaben wurden durch Platzhalter ersetzt:\n{erneut}")
+
+
+# ── Layout ohne Tabellen ─────────────────────────────────────────────────────
+
+def test_div_layout_wird_zerlegt():
+    """Von 276 empfangenen Fremdmails hatten 156 gar keine Tabelle."""
+    roh = ('<div><p>Freundliche Grüße</p><p><b>Max Mustermann</b></p>'
+           '<p>Musterfirma GmbH</p><p>Musterweg 1, 12345 Musterstadt</p></div>')
+    meta = tp.parse_html(roh)
+    assert len(meta["blocks"]) >= 4, (
+        f"div/p-Layout nicht zerlegt: {[b['type'] for b in meta['blocks']]}")
+    erneut = tb.render_html(meta)
+    for stueck in ("Max Mustermann", "Musterfirma GmbH", "Musterweg 1"):
+        assert stueck in erneut, f"'{stueck}' fehlt:\n{erneut}"
+
+
+def test_verschachtelte_huellen_werden_durchstiegen():
+    """Echte Mails bringen `<html><body><div><div>…` mit — je ein Kind.
+    Ohne Absteigen läge alles in einem einzigen Block."""
+    roh = ('<html><body><div><div>'
+           '<p>Zeile eins</p><p>Zeile zwei</p><p>Zeile drei</p>'
+           '</div></div></body></html>')
+    meta = tp.parse_html(roh)
+    assert len(meta["blocks"]) >= 3, (
+        f"Hüllen nicht durchstiegen: {len(meta['blocks'])} Block/Blöcke")
+
+
+def test_alternativtext_wird_nicht_erfunden():
+    """Ein Logo ohne oder mit eigenem Alternativtext darf nicht den
+    Firmennamen des Postfachs bekommen — das erfände Inhalt.
+
+    An 276 empfangenen Fremdmails aufgefallen: dort trugen die Bilder eigene
+    Alternativtexte oder gar keine.
+    """
+    # eigener Text bleibt
+    meta = tp.parse_html('<table><tr><td><img src="x.png" width="90" '
+                         'alt="Logo Musterfirma"></td></tr></table>')
+    meta.pop("_hinweise", None)
+    erneut = tb.render_html(meta)
+    assert 'alt="Logo Musterfirma"' in erneut, erneut
+    assert "user.companyName" not in erneut
+
+    # kein Text → leer, nicht erfunden
+    meta = tp.parse_html('<table><tr><td><img src="x.png" width="90"></td></tr></table>')
+    meta.pop("_hinweise", None)
+    erneut = tb.render_html(meta)
+    assert 'alt=""' in erneut, erneut
+    assert "user.companyName" not in erneut
+
+
+def test_eigene_vorlagen_behalten_den_platzhalter():
+    """Gegenprobe: Im Baukasten angelegte Logos sollen weiter den Firmennamen
+    tragen — sonst wäre der Rundlauf kaputt."""
+    einmal = tb.render_html({"version": 1, "blocks": [
+        {"type": "logo", "url": "x.png", "width": 90}]})
+    assert "{{ user.companyName }}" in einmal
+    zweimal = tb.render_html(tp.parse_html(einmal))
+    assert "{{ user.companyName }}" in zweimal, (
+        "Der Platzhalter ging beim Rundlauf verloren:\n" + zweimal)

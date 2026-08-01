@@ -5,6 +5,31 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.126 — 2026-08-01 — Rückübersetzung an echten Fremdsignaturen geschärft
+
+Der Algorithmus wurde gegen 276 tatsächlich empfangene HTML-Nachrichten
+verschiedener Absender geprüft. Ergebnis: keine Abstürze, kein Verlust — aber
+drei Schwächen, die sich an selbst erdachten Beispielen nicht zeigen konnten.
+
+**Feste Angaben wurden zu Platzhaltern.** Eine verlinkte Adresse wie
+`mailto:info@fremdefirma.de` wurde als Kontaktbaustein erkannt. Der setzt beim
+Anzeigen die Adresse des jeweiligen Postfachs ein — die Signatur hätte
+unverändert ausgesehen, aber etwas anderes gezeigt. Kontaktbausteine entstehen
+jetzt nur noch, wenn im Ziel tatsächlich ein Platzhalter steht; feste Angaben
+bleiben wortgetreu. Dasselbe galt für den Alternativtext von Bildern: Dort
+stand bisher immer der Firmenname des Postfachs. Eigene Texte werden jetzt
+übernommen, fehlende bleiben leer statt erfunden zu werden.
+
+**Signaturen ohne Tabellenlayout.** 156 der 276 Nachrichten verwendeten
+`<div>`- und `<p>`-Auszeichnung statt Tabellen; sie fielen deshalb komplett als
+ein Textbaustein an. Solche Signaturen werden jetzt ebenfalls in einzelne
+Bausteine zerlegt.
+
+**Verschachtelte Hüllen.** Echte Nachrichten bringen mehrere ineinander
+liegende Rahmen-Elemente mit, die je nur ein Kind enthalten. Diese werden nun
+durchstiegen, statt alles darunter als einen Baustein zu behandeln.
+
+
 ## v1.7.125 — 2026-08-01 — Rückübersetzung: mitgelieferte Vorlagen werden jetzt zerlegt
 
 Zwei der mitgelieferten Vorlagen fielen bei der Umwandlung in HTML auf den

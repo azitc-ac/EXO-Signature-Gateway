@@ -365,9 +365,18 @@ def _logo(b, _g, pad, _ind):
     width = max(20, int(b.get("width") or 100))
     if not url:
         return ""
+    # Alternativtext: eigener Wert, sonst der Firmenname des Postfachs.
+    #
+    # Bisher stand dort IMMER `{{ user.companyName }}`. Beim Übernehmen einer
+    # fremden Signatur wurde damit deren Alternativtext durch den Firmennamen
+    # des jeweiligen Postfachinhabers ersetzt — eine stille Änderung am Inhalt.
+    # Aufgefallen an vier von 276 empfangenen Fremdmails.
+    alt = b.get("alt")
+    alt_html = (_htmllib.escape(alt) if alt is not None
+                else "{{ user.companyName }}")
     return (
         f'{pad}<tr><td style="padding:0">'
-        f'<img src="{url}" width="{width}" alt="{{{{ user.companyName }}}}"'
+        f'<img src="{url}" width="{width}" alt="{alt_html}"'
         f' style="display:block;max-width:{width}px">'
         f'</td></tr>'
     )

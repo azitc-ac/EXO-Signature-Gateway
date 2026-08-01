@@ -221,6 +221,24 @@ def _als_logo(td: Knoten) -> dict | None:
         breite = img.attrs.get("width") or _stil_wert(img.stil(), "max-width")
         if _px(breite):
             b["width"] = _px(breite)
+        # Alternativtext uebernehmen, ausser er ist bereits der Platzhalter.
+        # Ohne das ersetzte der Renderer ihn durch den Firmennamen des
+        # Postfachs — bei einer fremden Signatur eine stille Inhaltsaenderung.
+        # Drei Faelle, die auseinandergehalten werden muessen:
+        #   * Attribut fehlt      -> leer. Ein Bild ohne Alternativtext ist
+        #     dekorativ gemeint; ihm den Firmennamen des Postfachs
+        #     unterzuschieben erfindet Inhalt.
+        #   * eigener Text        -> uebernehmen, wortgetreu.
+        #   * enthaelt den Platzhalter -> GAR NICHTS setzen, damit der Renderer
+        #     seinen Vorgabewert behaelt. Ihn hier als Text zu uebernehmen
+        #     wuerde ihn beim naechsten Rendern maskieren, aus einer eigenen
+        #     Vorlage wuerde also `alt="{{ user.companyName }}"` als sichtbarer
+        #     Text statt als Ausdruck.
+        alt = img.attrs.get("alt")
+        if alt is None:
+            b["alt"] = ""
+        elif "{{" not in alt:
+            b["alt"] = alt
         return b
     # Verlinktes Logo
     if len(kinder) == 1 and kinder[0].tag == "a":
@@ -247,17 +265,27 @@ def _als_link_block(td: Knoten) -> dict | None:
         vorher += k.nur_text()
     praefix = vorher.strip()
 
-    if href.startswith("mailto:"):
+    # NUR mit Platzhalter im Ziel. Eine FESTE Adresse darf nicht zu einem
+    # Kontaktbaustein werden: Der rendert `{{ user.mail }}` bzw.
+    # `{{ user.phone }}`, also die Daten des jeweiligen Postfachs. Aus
+    # `mailto:info@fremdefirma.de` wuerde damit stillschweigend die Adresse des
+    # Absenders — die Signatur saehe unveraendert aus, zeigte aber etwas
+    # anderes. Feste Adressen bleiben Freitext und damit wortgetreu.
+    #
+    # Aufgefallen beim Durchlauf durch 276 empfangene Fremdmails: dort steht
+    # naturgemaess NIE ein Platzhalter, und genau dort waere der Schaden
+    # entstanden.
+    feld = _VAR.search(href)
+    if not feld:
+        return None
+    if href.startswith("mailto:") and feld.group(1) == "mail":
         b = {"type": "email_link"}
-    elif href.startswith("tel:"):
-        feld = _VAR.search(href)
-        b = {"type": "mobile" if feld and feld.group(1) == "mobilePhone" else "phone"}
-        if feld:
-            b["field"] = feld.group(1)
-    elif "bookingsUrl" in href:
-        b = {"type": "booking_link", "label": anker[0].nur_text().strip()}
-        return b
-    elif _VAR.search(href) and _VAR.search(href).group(1) == "website":
+    elif href.startswith("tel:") and feld.group(1) in ("phone", "mobilePhone"):
+        b = {"type": "mobile" if feld.group(1) == "mobilePhone" else "phone",
+             "field": feld.group(1)}
+    elif feld.group(1) == "bookingsUrl":
+        return {"type": "booking_link", "label": anker[0].nur_text().strip()}
+    elif feld.group(1) == "website":
         b = {"type": "web_link"}
     else:
         return None
@@ -507,6 +535,74 @@ def _block_aus_zelle(td: Knoten, erster: bool, oberste_ebene: bool = True) -> di
     return {"type": "freetext", "html": roh}
 
 
+# Blockbildende Elemente ausserhalb von Tabellen. Reihenfolge egal, aber `td`
+# und `tr` gehoeren NICHT dazu — die haben ihren eigenen Weg.
+ZEILEN_TAGS = ("p", "div")
+
+
+def _inhaltswurzel(k: Knoten) -> Knoten:
+    """Durch Huellen absteigen, bis etwas mit mehreren Kindern kommt.
+
+    Echte Mails bringen `<html><body><div><div>…` mit — jeweils ein einziges
+    Kind. Ohne dieses Absteigen landete die ganze Nachricht als EIN Block, weil
+    die aeusserste Huelle genau ein Element enthaelt und deshalb nichts zu
+    trennen ist. Ermittelt an 276 empfangenen Mails: dort waren es bis zu vier
+    Huellen uebereinander.
+    """
+    for _ in range(8):                       # Schranke gegen tiefe Verschachtelung
+        kinder = [x for x in k.kinder if x.tag and x.tag not in ("!comment",)]
+        # Reiner Text neben einer einzigen Huelle darf nicht verlorengehen.
+        hat_text = any(not x.tag and x.text.strip() for x in k.kinder)
+        if len(kinder) != 1 or hat_text:
+            return k
+        if kinder[0].tag in ("html", "body", "div", "center", "span"):
+            k = kinder[0]
+            continue
+        return k
+    return k
+
+
+def _bloecke_aus_zeilen_tags(behaelter: Knoten, oberste_ebene: bool) -> list[dict]:
+    """Blöcke aus `<p>`/`<div>`-Kindern — Signaturen ohne Tabellenlayout.
+
+    Von 276 empfangenen Fremdmails hatten 156 gar keine Tabelle auf oberster
+    Ebene. Ohne diesen Weg fiel jede davon als EIN Freitext an: verlustfrei,
+    aber im Baukasten nutzlos.
+
+    Ein `<div>`, das selbst wieder Absaetze enthaelt, wird aufgeklappt statt
+    als ein Block genommen; sonst haengt die ganze Signatur an einem einzigen
+    Wrapper.
+    """
+    bloecke: list[dict] = []
+    for kind in behaelter.kinder:
+        if not kind.tag:
+            if kind.text.strip():
+                bloecke.append({"type": "freetext", "html": kind.text.strip()})
+            continue
+        if kind.tag == "!comment":
+            continue
+        if kind.tag == "table":
+            bloecke.extend(_bloecke_aus(kind, oberste_ebene=False))
+            continue
+        if kind.tag in ZEILEN_TAGS:
+            innere = [x for x in kind.kinder
+                      if x.tag in ZEILEN_TAGS or x.tag == "table"]
+            if innere and len(innere) == len([x for x in kind.kinder if x.tag]):
+                bloecke.extend(_bloecke_aus_zeilen_tags(kind, oberste_ebene and not bloecke))
+                continue
+            bloecke.append(_block_aus_zelle(kind, erster=not bloecke,
+                                            oberste_ebene=oberste_ebene))
+            continue
+        # br, hr und Ähnliches: als eigener Block nur, wenn es Inhalt traegt.
+        if kind.tag == "hr":
+            bloecke.append({"type": "divider"})
+            continue
+        roh = kind.zu_html().strip()
+        if roh:
+            bloecke.append({"type": "freetext", "html": roh})
+    return bloecke
+
+
 def _bloecke_aus(behaelter: Knoten, oberste_ebene: bool = False) -> list[dict]:
     """Alle Blöcke unterhalb eines Knotens — je <tr><td> einer.
 
@@ -542,6 +638,11 @@ def _bloecke_aus(behaelter: Knoten, oberste_ebene: bool = False) -> list[dict]:
             b["html"] = "{% if " + wenn + " %}" + b["html"] + "{% endif %}"
         bloecke.append(b)
     if not bloecke:
+        # Kein Tabellenlayout — ueber <p>/<div> versuchen, bevor die ganze
+        # Vorlage zu EINEM Freitext wird.
+        ueber_tags = _bloecke_aus_zeilen_tags(behaelter, oberste_ebene)
+        if len(ueber_tags) > 1:
+            return _anschrift_verschmelzen(ueber_tags)
         roh = behaelter.innen_html().strip()
         return [{"type": "freetext", "html": roh}] if roh else []
     return _anschrift_verschmelzen(bloecke)
@@ -643,7 +744,7 @@ def parse_html(html: str) -> dict:
     # steht mitten im Inhalt; beides wird nicht zugeordnet und faellt weg.
     sauber = _JINJA_IF.sub("", sauber)
 
-    wurzel = _baum(sauber)
+    wurzel = _inhaltswurzel(_baum(sauber))
     tabellen = [k for k in wurzel.kinder if k.tag == "table"]
     quelle = tabellen[0] if len(tabellen) == 1 else wurzel
     bloecke = _bloecke_aus(quelle, oberste_ebene=True)
