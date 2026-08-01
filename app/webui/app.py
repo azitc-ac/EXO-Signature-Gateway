@@ -1632,8 +1632,38 @@ async def api_save_template_meta(name: str, request: Request, _=Depends(_check_a
     if not isinstance(meta, dict) or "blocks" not in meta:
         raise HTTPException(400, "Meta-JSON muss 'blocks' enthalten")
     meta.setdefault("version", 1)
+    if not (meta.get("blocks") or []):
+        # Eine leere Bausteinliste ergibt eine leere Vorlage — und jede damit
+        # versandte Mail traegt gar keine Signatur mehr. Am 02.08.2026 ist
+        # genau das passiert: Die Ruecklesung lieferte nichts, gespeichert
+        # wurde trotzdem, und die Vorlage war weg.
+        raise HTTPException(400, "Die Vorlage enthält keine Bausteine. "
+                                 "Speichern würde die Signatur löschen.")
+
     html_content = _tb.render_html(meta)
     txt_content = _tb.render_txt(meta)
+
+    # Erzeugt der Baukasten ein UNGUELTIGES Template, waere die Signatur beim
+    # Versand leer — sichtbar wird das erst beim Empfaenger. Deshalb hier
+    # pruefen und die Datei gar nicht erst schreiben.
+    try:
+        import jinja2
+        jinja2.Environment().parse(html_content)
+        jinja2.Environment().parse(txt_content)
+    except Exception as exc:
+        log.error("Template '%s' waere unbrauchbar geworden: %s", safe, exc)
+        raise HTTPException(400, f"Die erzeugte Vorlage ist kein gültiges "
+                                 f"Template ({exc}). Nicht gespeichert — die "
+                                 f"bisherige Fassung bleibt erhalten.")
+
+    # Sicherung der bisherigen Fassung, bevor sie ueberschrieben wird.
+    alt = Path(config.TEMPLATE_DIR) / f"{fname}.html"
+    if alt.exists():
+        try:
+            (Path(config.TEMPLATE_DIR) / f"{fname}.html.bak").write_text(
+                alt.read_text(encoding="utf-8"), encoding="utf-8")
+        except Exception as exc:
+            log.warning("Sicherung von %s fehlgeschlagen: %s", fname, exc)
     meta_path = Path(config.TEMPLATE_DIR) / f"{fname}.meta.json"
     html_path = Path(config.TEMPLATE_DIR) / f"{fname}.html"
     txt_path = Path(config.TEMPLATE_DIR) / f"{fname}.txt"

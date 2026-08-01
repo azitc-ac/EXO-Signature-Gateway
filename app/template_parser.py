@@ -866,9 +866,17 @@ def parse_html(html: str) -> dict:
         return m.group("zeile").replace("<tr", f'<tr data-wenn="{bed}"', 1)
 
     sauber = _IF_UM_ZEILE.sub(_anheften, html)
-    # Was jetzt noch an Huellen uebrig ist, umschliesst mehrere Zeilen oder
-    # steht mitten im Inhalt; beides wird nicht zugeordnet und faellt weg.
-    sauber = _JINJA_IF.sub("", sauber)
+    # ALLES ANDERE BLEIBT STEHEN.
+    #
+    # Frueher wurden hier alle uebrigen `{% if %}`/`{% endif %}` global
+    # entfernt. Das zerstoerte Bedingungen INNERHALB einer Zelle: Aus
+    # `{% if x %}A{% else %}B{% endif %}` wurde `A{% else %}B` — ein `{% else %}`
+    # ohne `{% if %}`. Jinja bricht darauf ab, und die Signatur erschien beim
+    # Empfaenger LEER. Die Vorlagenpruefung sah nichts davon: Sie misst
+    # sichtbaren Text, und Steueranweisungen zaehlen dort zu Recht nicht mit.
+    #
+    # Stehen bleibende Huellen landen jetzt vollstaendig im Freitext — dort
+    # richten sie keinen Schaden an und werden unveraendert wieder ausgegeben.
 
     wurzel = _inhaltswurzel(_baum(sauber))
     tabellen = [k for k in wurzel.kinder if k.tag == "table"]
