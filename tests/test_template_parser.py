@@ -707,3 +707,42 @@ def test_standardvorlage_wird_vollstaendig_zerlegt():
         rechts = [b["type"] for b in zwei["right"]]
         assert "phone" in rechts and "email_link" in rechts, (
             f"{name}: Kontaktdaten nicht zerlegt, rechts steht {rechts}")
+
+
+def test_bild_in_einer_spalte_wird_ein_logo_baustein():
+    """Eine Spaltenzelle mit nur einem Bild ist ein Logo, keine Sammlung.
+
+    Der Weg über die Zeilen-Tags kennt `<img>` nicht und machte daraus sofort
+    Freitext — das Firmenlogo der Standardvorlage kam als roher Quelltext an,
+    obwohl `_als_logo` es erkannt hätte. Die Erkenner liefen für einen
+    Behälter ohne Zeilenstruktur schlicht nicht.
+    """
+    roh = ('<td width="116"><img src="data:image/png;base64,AAAA" '
+           'width="100" alt="Logo"></td>')
+    wurzel = tp._baum(roh)
+    td = [k for k in tp._alle(wurzel) if k.tag == "td"][0]
+    bloecke = tp._bloecke_aus(td)
+    assert [b["type"] for b in bloecke] == ["logo"], (
+        f"Bild kam als {[b['type'] for b in bloecke]} an statt als Logo")
+    assert bloecke[0]["width"] == 100
+
+
+def test_standardvorlage_zeigt_ihre_logos_als_bausteine():
+    """Über den ganzen Weg an der echten Vorlage."""
+    from pathlib import Path
+    f = Path(__file__).resolve().parents[1] / "templates/signature.html"
+    if not f.exists():
+        return
+    meta = tp.parse_html(f.read_text(encoding="utf-8"))
+    meta.pop("_hinweise", None)
+
+    def sammle(bs):
+        for b in bs:
+            yield b["type"]
+            for k in ("left", "right", "children"):
+                yield from sammle(b.get(k) or [])
+
+    typen = list(sammle(meta["blocks"]))
+    assert typen.count("logo") >= 1, f"kein Logo-Baustein: {typen}"
+    for erwartet in ("two_col", "phone", "email_link"):
+        assert erwartet in typen, f"{erwartet} fehlt: {typen}"

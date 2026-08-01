@@ -751,6 +751,17 @@ def _bloecke_aus(behaelter: Knoten, oberste_ebene: bool = False) -> list[dict]:
         ueber_tags = _bloecke_aus_zeilen_tags(behaelter, oberste_ebene)
         if len(ueber_tags) > 1:
             return _anschrift_verschmelzen(ueber_tags)
+        # Ein Behaelter OHNE Zeilenstruktur ist selbst der Block: eine
+        # Spaltenzelle mit nur einem Bild darin ist ein Logo, keine Sammlung.
+        #
+        # Ohne diesen Schritt lief der Inhalt am Erkenner vorbei: Der Weg ueber
+        # die Zeilen-Tags kennt <img> nicht und macht daraus sofort Freitext.
+        # Sichtbar wurde es an der linken Spalte der Standardvorlage — dort
+        # steht das Firmenlogo, und es kam als roher Quelltext an.
+        eigen = _block_aus_zelle(behaelter, erster=oberste_ebene,
+                                 oberste_ebene=oberste_ebene)
+        if eigen.get("type") != "freetext":
+            return [eigen]
         roh = behaelter.innen_html().strip()
         return [{"type": "freetext", "html": roh}] if roh else []
     return _anschrift_verschmelzen(bloecke)
