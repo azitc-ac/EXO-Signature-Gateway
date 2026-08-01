@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.128 — 2026-08-02 — Rückübersetzung: Leerzeilen und Grußformeln
+
+Zwei Verfeinerungen aus dem Übernehmen einer echten Signatur:
+
+**Leerzeilen werden zu Abstandshaltern.** Wer in Outlook eine Leerzeile setzt,
+erzeugt ein geschütztes Leerzeichen, oft in ein leeres Element verpackt. Bisher
+wurde daraus ein Textbaustein mit dem Inhalt `&nbsp;` — man sieht ihm in der
+Bausteinliste nicht an, wozu er da ist. Jetzt entsteht ein Abstand, benannt und
+in der Höhe einstellbar.
+
+**Nicht jede erste Zeile ist eine Grußformel.** Bisher galt die erste Textzeile
+als solche. In einer Signatur steht dort aber häufig der Name — aus „Max
+Mustermann" wurde eine „Grußformel". Auf die Darstellung wirkte sich das nicht
+aus, auf die Verständlichkeit der Bausteinliste sehr wohl. Erkannt werden jetzt
+nur noch Zeilen, die auch nach einer Grußformel klingen.
+
+
 ## v1.7.127 — 2026-08-02 — Rückübersetzung: Inhalt neben Tabellen ging verloren
 
 Geprüft an Nachrichten echter Geschäftskontakte. Dabei kam ein Fehler zutage,

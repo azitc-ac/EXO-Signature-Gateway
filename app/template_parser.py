@@ -197,6 +197,30 @@ def _als_spacer(td: Knoten) -> dict | None:
     return None
 
 
+def _als_leerzeile(td: Knoten) -> dict | None:
+    """Eine Zeile, die nur ein geschütztes Leerzeichen enthält, ist ein Abstand.
+
+    Das Muster steckt in fast jeder gewachsenen Signatur: Wer in Outlook eine
+    Leerzeile setzt, erzeugt genau das. Als Freitext übernommen wäre es ein
+    Baustein, dessen Zweck niemand ansieht — „&nbsp;" in der Blockliste sagt
+    nichts. Als Abstand ist er benannt und in der Höhe einstellbar.
+    """
+    # Outlook verpackt Leerzeilen in <o:p>-Elemente und leere <span>. Sie
+    # zaehlen hier nicht als Inhalt — sonst bliebe jede Leerzeile aus einer
+    # Outlook-Signatur ein Freitext-Baustein mit dem Inhalt „&nbsp;", dessen
+    # Zweck in der Blockliste niemand ansieht.
+    if any(k.tag not in ("o:p", "span", "br", "font") for k in td.kind_elemente()):
+        return None
+    roh = re.sub(r"</?(?:o:p|span|font)\b[^>]*>", "", td.innen_html()).strip()
+    if not roh:
+        return None
+    # &nbsp;, &#160;, echtes NBSP, <br> — beliebig oft, sonst nichts.
+    if re.fullmatch(r"(?:&nbsp;|&#160;|&#xa0;|\u00a0|<br\s*/?>|\s)+", roh, flags=re.I):
+        hoehe = _px(_stil_wert(td.stil(), "height"))
+        return {"type": "spacer", "height": hoehe or 8}
+    return None
+
+
 def _als_divider(td: Knoten) -> dict | None:
     """Trenner: eine innere Tabelle, deren einzige Zelle nur border-top hat."""
     kinder = td.kind_elemente()
@@ -509,9 +533,29 @@ def _alle(k: Knoten):
 # Nicht kritisch ist dagegen `_als_link_block` vor `_als_feld`, obwohl es so
 # aussieht: `_als_feld` lehnt jede Zelle mit Unterelementen selbst ab, ein
 # `<a>` faellt also ohnehin durch. Die Absicherung liegt dort, nicht hier.
-_ERKENNER = (_als_spacer, _als_divider, _als_kasten,
+_ERKENNER = (_als_spacer, _als_leerzeile, _als_divider, _als_kasten,
              _als_badge, _als_logo, _als_link_block, _als_feld,
              _als_kasten_direkt)
+
+
+# Wendungen, die eine Grussformel ausmachen. Die Liste ist kurz und bewusst
+# nicht erschoepfend: Wer eine ungewoehnliche Formel nutzt, bekommt einen
+# Freitext — der sieht genauso aus und ist nur weniger treffend benannt.
+_GRUSS_WORTE = ("grüße", "gruss", "grüsse", "regards", "greetings", "verbleibe",
+                "hochachtungsvoll", "cheers", "liebe grüße", "beste")
+
+
+def _klingt_nach_gruss(txt: str) -> bool:
+    """Ist das eine Grussformel — oder bloss die erste Zeile?
+
+    Vorher galt jede erste Textzeile als Grussformel. In einer echten Signatur
+    steht dort aber oft der NAME: Aus „Mats Barnick" wurde eine „Grussformel",
+    was in der Blockliste schlicht falsch dasteht. Auf die Ausgabe wirkt es
+    sich nicht aus (beide geben denselben Text), auf die Verstaendlichkeit
+    des Baukastens sehr wohl.
+    """
+    k = txt.lower()
+    return len(k) <= 60 and any(w in k for w in _GRUSS_WORTE)
 
 
 def _block_aus_zelle(td: Knoten, erster: bool, oberste_ebene: bool = True) -> dict:
@@ -530,7 +574,8 @@ def _block_aus_zelle(td: Knoten, erster: bool, oberste_ebene: bool = True) -> di
     # aussehen: `greeting` maskiert seinen Text, `freetext` gibt HTML durch.
     # Ein Freitext mit Auszeichnung, der faelschlich als Grussformel gelesen
     # wird, erschiene beim naechsten Rendern als sichtbares `&lt;em&gt;`.
-    if erster and oberste_ebene and txt and not td.kind_elemente() and "{{" not in roh:
+    if (erster and oberste_ebene and txt and not td.kind_elemente()
+            and "{{" not in roh and _klingt_nach_gruss(txt)):
         return {"type": "greeting", "text": txt}
     return {"type": "freetext", "html": roh}
 
