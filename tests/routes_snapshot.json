@@ -294,6 +294,20 @@
     "name": "api_health_run"
   },
   {
+    "pfad": "/api/hub/account/email",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_hub_account_email"
+  },
+  {
+    "pfad": "/api/hub/account/email/cancel",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_hub_account_email_cancel"
+  },
+  {
     "pfad": "/api/hub/api-key",
     "methoden": [
       "POST"

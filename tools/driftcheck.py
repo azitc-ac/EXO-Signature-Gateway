@@ -196,6 +196,25 @@ def check_settings_registry(rep: Report) -> None:
 # Verlaengerung riefen ensure_balance(), der Kauf verglich `balance_cents`
 # direkt. Ein Test der Hilfsfunktion faengt das NICHT — der Fehler sitzt an der
 # Aufrufstelle, nicht in der Funktion.
+# Stellen, die den Saldo vergleichen DÜRFEN, weil sie keine Zahlstelle sind.
+# Schlüssel: "datei.py::funktion", Wert: die Begründung.
+GUTHABEN_AUSNAHMEN: dict[str, str] = {
+    "store.py::debit": "die Buchung selbst — letzte Verteidigungslinie. Ein Aufruf "
+                       "von deckung_sicherstellen() wäre hier ein Zirkel, denn "
+                       "billing ruft debit() auf. Wer ohne Deckung buchen muss, "
+                       "setzt erzwingen=True und macht das an der Aufrufstelle sichtbar.",
+}
+
+
+def _umgebende_funktion(zeilen: list[str], nr: int) -> str:
+    """Name der def, in der Zeile `nr` (1-basiert) steht — oder ""."""
+    for i in range(nr - 1, -1, -1):
+        m = re.match(r"def\s+([A-Za-z_]\w*)\s*\(", zeilen[i])
+        if m:
+            return m.group(1)
+    return ""
+
+
 def check_guthaben_gate(rep: Report) -> None:
     ziel = HUB / "app"
     if not ziel.is_dir():
@@ -221,6 +240,11 @@ def check_guthaben_gate(rep: Report) -> None:
             # Stellen und wird deshalb ignoriert.
             umfeld = "\n".join(zeilen[max(0, nr - 12):nr + 8])
             if "auto_topup_armed" in umfeld or "deckung_sicherstellen" in umfeld:
+                continue
+            schluessel = f"{f.name}::{_umgebende_funktion(zeilen, nr)}"
+            if schluessel in GUTHABEN_AUSNAHMEN:
+                rep.note(f"ok Hub/{f.relative_to(HUB)}:{nr} ({schluessel}): "
+                         f"{GUTHABEN_AUSNAHMEN[schluessel]}")
                 continue
             rep.fail(f"Hub/{f.relative_to(HUB)}:{nr}: vergleicht balance_cents direkt — "
                      f"billing.deckung_sicherstellen() verwenden, sonst greift die "

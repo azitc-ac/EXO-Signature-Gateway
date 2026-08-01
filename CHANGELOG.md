@@ -5,6 +5,30 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.120 — 2026-08-01 — Kontoadresse selbst ändern
+
+Unter „Anbindung" steht jetzt die Adresse, unter der das Konto beim Hub geführt
+wird, mit einem Knopf zum Ändern. An dieser Adresse hängen Guthaben, Rechnungen,
+Gutschriften und die Mitteilungen zu Lizenz und Zertifikaten — darunter auch
+solche, die eine Antwort verlangen. Ein gemeinsam betreutes Postfach ist dafür
+besser geeignet als ein persönliches; ein reines Rechnungspostfach dagegen nicht,
+weil dort Mitteilungen auflaufen, die niemand liest.
+
+Der Wechsel wird hier nur angefordert. Vollzogen wird er über einen Klick in der
+**neuen** Adresse. Der Grund: der Zugangsschlüssel liegt in diesem Gateway.
+Genügte er, wäre er zugleich der Schlüssel zu Guthaben und Zahlungsbeziehung —
+ein Wechsel auf eine fremde Adresse zöge alles mit. Die bisherige Adresse wird
+über die Anforderung wie über den Vollzug unterrichtet. Solange die Bestätigung
+aussteht, zeigt die Karte den offenen Wechsel und lässt ihn zurücknehmen.
+
+Guthaben, Lizenzen und der API-Schlüssel bleiben beim Wechsel erhalten; an der
+Anbindung ist nichts einzustellen. Die lokal angezeigte Adresse zieht das
+Gateway nach dem Vollzug selbst nach — maßgeblich ist die beim Hub, nicht die
+gespeicherte Kopie.
+
+Setzt Hub v0.24.80 voraus.
+
+
 ## v1.7.119 — 2026-07-31 — Umschalter für Dunkelmodus und Kontomenü auf dem Telefon erreichbar
 
 In der Kopfleiste konnte der Name des Gateways nicht schrumpfen. War er lang,

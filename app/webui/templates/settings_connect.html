@@ -31,7 +31,46 @@
   {% if hub_registered %}
   <p class="hint" style="margin-bottom:10px">Dieses Gateway ist mit EXO Signature HUB verbunden.</p>
   <div id="hub-gwid" class="hint" style="font-size:12px;margin-bottom:10px"></div>
-  <div class="actions" style="margin:6px 0 10px">
+  <!-- Kontoadresse: der Schlüssel, unter dem der Hub dieses Konto führt.
+       Guthaben, Rechnungen und Lizenzen hängen daran — deshalb steht sie hier
+       sichtbar und lässt sich hier ändern, statt nur beim Anbieter. -->
+  <div style="border-top:1px solid #e5e7eb;margin-top:12px;padding-top:12px">
+    <div class="settings-row" style="margin-bottom:6px;align-items:baseline">
+      <label style="margin:0">Kontoadresse</label>
+      <span id="hub-konto-mail" style="font-weight:600"></span>
+      <button class="btn secondary" style="margin-left:10px" onclick="kontoWechselOeffnen()">Ändern…</button>
+    </div>
+    <p class="hint" style="margin:0;font-size:12px">
+      An diese Adresse gehen Rechnungen, Gutschriften und Mitteilungen zu Lizenz und
+      Zertifikaten — auch solche, die eine Antwort verlangen. Eine gemeinsam betreute
+      Adresse ist deshalb besser als ein persönliches Postfach.
+    </p>
+    <div id="hub-konto-offen" style="display:none;margin-top:10px;padding:10px 12px;
+         background:#fffbeb;border:1px solid #fde68a;border-radius:6px;font-size:13px">
+      <span id="hub-konto-offen-text"></span>
+      <button class="btn secondary" style="margin-left:8px" onclick="kontoWechselAbbrechen()">Zurücknehmen</button>
+    </div>
+    <div id="hub-konto-form" style="display:none;margin-top:10px">
+      <div class="settings-row" style="margin-bottom:6px">
+        <label>Neue Adresse</label>
+        <input type="email" id="hub-konto-neu" placeholder="rechnung@firma.de"
+               style="width:100%;max-width:360px;font-size:13px"
+               autocapitalize="off" autocorrect="off" spellcheck="false">
+      </div>
+      <p class="hint" style="margin:0 0 8px;font-size:12px">
+        Der Wechsel erfolgt erst, wenn der Link aus der Bestätigungsmail an die
+        <strong>neue</strong> Adresse geklickt wurde. Guthaben, Lizenzen und der
+        API-Schlüssel bleiben erhalten — an dieser Anbindung ist nichts einzustellen.
+      </p>
+      <div class="actions">
+        <button class="btn primary" onclick="kontoWechselAnfordern()">Bestätigungsmail senden</button>
+        <button class="btn secondary" onclick="kontoWechselSchliessen()">Abbrechen</button>
+      </div>
+      <div id="hub-konto-msg" style="display:none;margin-top:8px"></div>
+    </div>
+  </div>
+
+  <div class="actions" style="margin:12px 0 10px">
     <button class="btn secondary" onclick="hubStatus()">Status prüfen</button>
     <button class="btn danger" onclick="hubDisconnect()" style="float:right">Anbindung entfernen</button>
   </div>
@@ -619,7 +658,68 @@ async function hubSaveKey() { const key=document.getElementById('hub-key').value
   if(d.ok){document.getElementById('hub-key').value='';_hubMsg('API-Key gespeichert. Bitte Seite neu laden.',true);} else _hubMsg('Fehler beim Speichern.',false); }
 async function hubStatus() { _hubMsg('Prüfe Status…',true); const d=await (await fetch('/api/hub/status')).json();
   if(d.ok)_hubMsg('Freigegeben: Log-Upload <strong>'+(d.log_upload_enabled?'an':'aus')+'</strong>, Kontingent '+d.quota_mb_per_day+' MB/Tag (heute '+d.used_today_mb+' MB genutzt).',true); else _hubMsg('Status: '+(d.error||'nicht verfügbar'),false); }
+// ── Kontoadresse wechseln ───────────────────────────────────────────────────
+// Zweistufig, und das ist der Punkt: Anfordern darf, wer hier Zugang hat —
+// vollziehen nur, wer das ZIELPOSTFACH liest. Sonst wäre der Zugang zu diesem
+// Gateway zugleich der Zugang zu Guthaben und Zahlungsbeziehung.
+function kontoWechselOeffnen(){
+  const f=document.getElementById('hub-konto-form');
+  f.style.display='block';
+  const i=document.getElementById('hub-konto-neu'); if(i) i.focus();
+}
+function kontoWechselSchliessen(){
+  document.getElementById('hub-konto-form').style.display='none';
+  const m=document.getElementById('hub-konto-msg'); if(m) m.style.display='none';
+}
+async function kontoWechselAnfordern(){
+  const el=document.getElementById('hub-konto-neu');
+  const neu=(el.value||'').trim();
+  const msg=document.getElementById('hub-konto-msg');
+  if(!neu.includes('@')){ showMsg(msg,'Bitte eine gültige E-Mail-Adresse eingeben.',false); return; }
+  showMsg(msg,'Sende Bestätigungsmail…',true);
+  const d=await postJSON('/api/hub/account/email',{email:neu});
+  if(d.ok){
+    showMsg(msg,'Bestätigungsmail an '+neu+' gesendet. Der Wechsel erfolgt erst nach dem Klick darin.',true);
+    el.value='';
+    kontoWechselOffenAnzeigen(neu);
+  } else {
+    showMsg(msg,'Fehler: '+(d.error||d.detail||'unbekannt'),false);
+  }
+}
+function kontoWechselOffenAnzeigen(ziel){
+  const box=document.getElementById('hub-konto-offen');
+  if(!box) return;
+  if(!ziel){ box.style.display='none'; return; }
+  document.getElementById('hub-konto-offen-text').innerHTML =
+    'Wechsel auf <strong>'+esc(ziel)+'</strong> angefordert — wartet auf die Bestätigung in diesem Postfach.';
+  box.style.display='block';
+}
+async function kontoWechselAbbrechen(){
+  const d=await postJSON('/api/hub/account/email/cancel',{});
+  kontoWechselOffenAnzeigen('');
+  _hubMsg(d.ok?'Der angeforderte Wechsel wurde zurückgenommen.':'Konnte nicht zurückgenommen werden.',!!d.ok);
+}
+// Adresse und offene Anforderung kommen vom Hub, nicht aus der lokalen Kopie:
+// nach einem vollzogenen Wechsel wäre die lokale veraltet.
+async function kontoAdresseLaden(){
+  const feld=document.getElementById('hub-konto-mail');
+  if(!feld) return;
+  try{
+    const d=await (await fetch('/api/hub/status')).json();
+    if(d.ok && d.email){
+      feld.textContent=d.email;
+      kontoWechselOffenAnzeigen(d.email_change_pending||'');
+      return;
+    }
+  }catch(e){ ursache(e,'settings_connect:kontoAdresseLaden'); }
+  // Rückfall auf die lokal gespeicherte Adresse — besser als ein leeres Feld.
+  try{
+    const c=await (await fetch('/api/hub/config')).json();
+    feld.textContent=c.email||'—';
+  }catch(e){ feld.textContent='—'; }
+}
 document.addEventListener('DOMContentLoaded', hubLoadConfig);
+document.addEventListener('DOMContentLoaded', kontoAdresseLaden);
 
 // ── Zertifikatsbezug: kostenpflichtige Fähigkeit auf demselben Konto ─────────
 // Schritt 1 (Nutzungsbedingungen akzeptieren = der Antrag) schaltet Schritt 2

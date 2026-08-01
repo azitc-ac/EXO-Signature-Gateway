@@ -217,6 +217,15 @@
 [data-theme="dark"] [style*="background:#fef9f0"],
 [data-theme="dark"] [style*="background:#fef3c7"] { background: #1a1200 !important; }
 
+/* Die offene Kontowechsel-Anforderung: JavaScript setzt hier `style.display`,
+   und der Browser serialisiert das gesamte style-Attribut dabei neu — der
+   Attributselektor oben trifft die Farbe danach nicht mehr. Deshalb über die
+   ID, nicht über den Wert. */
+[data-theme="dark"] #hub-konto-offen {
+  background: #1a1200 !important;
+  border-color: #78350f !important;
+}
+
 [data-theme="dark"] [style*="background:#e2e8f0"] {
   background: #495166 !important;
   color: #94a3b8 !important;
