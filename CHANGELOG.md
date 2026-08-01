@@ -5,6 +5,31 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.131 — 2026-08-02 — Signatur blieb nach dem Speichern leer
+
+⚠️ **Wer eine HTML-Vorlage über den Baukasten umgewandelt und gespeichert hat,
+sollte sie prüfen.** Die Vorlage konnte dabei unbrauchbar werden — Mails gingen
+dann ohne Signatur hinaus.
+
+**Ursache.** Beim Zurücklesen wurden Bedingungen entfernt, die innerhalb einer
+Tabellenzelle stehen. Aus einer vollständigen Wenn-Dann-Anweisung blieb dabei
+nur der Dann-Teil übrig — eine Vorlage, die kein gültiges Template mehr ist.
+Die Vorlagensprache bricht darauf ab und liefert nichts. Sichtbar wurde das
+erst beim Empfänger: Die Datei war gefüllt, im Editor sah alles richtig aus.
+
+Die eingebaute Verlustprüfung konnte das nicht sehen — sie vergleicht
+sichtbaren Text, und Steueranweisungen zählen dort zu Recht nicht mit. Eine
+Vorlage kann also inhaltlich vollständig und trotzdem unbrauchbar sein.
+
+**Behoben und abgesichert.** Bedingungen innerhalb einer Zelle bleiben jetzt
+unangetastet. Zusätzlich drei Sperren beim Speichern:
+
+* Eine leere Bausteinliste wird abgelehnt — sie ergäbe eine Vorlage ohne Inhalt.
+* Die erzeugte Vorlage wird vor dem Schreiben auf Gültigkeit geprüft. Schlägt
+  das fehl, bleibt die bisherige Fassung stehen.
+* Vor jedem Überschreiben wird die bisherige Fassung als `.bak` gesichert.
+
+
 ## v1.7.130 — 2026-08-02 — Rückübersetzung erkennt eingebettete Bilder
 
 Ein Bild, das allein in einer Spalte steht, kam beim Umwandeln als roher

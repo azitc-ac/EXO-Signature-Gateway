@@ -746,3 +746,70 @@ def test_standardvorlage_zeigt_ihre_logos_als_bausteine():
     assert typen.count("logo") >= 1, f"kein Logo-Baustein: {typen}"
     for erwartet in ("two_col", "phone", "email_link"):
         assert erwartet in typen, f"{erwartet} fehlt: {typen}"
+
+
+# ── Das Ergebnis muss ein GÜLTIGES Template sein ─────────────────────────────
+#
+# Der schwerste Fehler dieser Reihe: Eine erzeugte Vorlage enthielt
+# `{% else %}` ohne `{% if %}`. Jinja bricht darauf ab, und die Signatur kam
+# beim Empfänger LEER an. Die Verlustprüfung sah nichts davon — sie misst
+# sichtbaren Text, und Steueranweisungen zählen dort zu Recht nicht mit.
+# Eine Vorlage kann also inhaltlich vollständig und trotzdem unbrauchbar sein.
+
+def _jinja_pruefen(html: str) -> None:
+    from jinja2 import Environment
+    Environment().parse(html)
+
+
+def test_ergebnis_ist_gueltiges_jinja_bei_allen_bestandsvorlagen():
+    from pathlib import Path
+    verz = Path(__file__).resolve().parents[1] / "templates"
+    for f in sorted(verz.glob("*.html")):
+        roh = f.read_text(encoding="utf-8")
+        meta = tp.parse_html(roh)
+        meta.pop("_hinweise", None)
+        erzeugt = tb.render_html(meta)
+        try:
+            _jinja_pruefen(erzeugt)
+        except Exception as exc:
+            raise AssertionError(
+                f"{f.name}: die umgewandelte Vorlage ist kein gültiges "
+                f"Template ({exc}) — sie würde beim Versand LEER erscheinen."
+            ) from exc
+
+
+def test_bedingung_in_einer_zelle_bleibt_vollstaendig():
+    """`{% if %}…{% else %}…{% endif %}` INNERHALB einer Zelle darf nicht
+    zerpflückt werden. Genau daran zerbrach die Standardvorlage."""
+    roh = ('<table><tr><td>'
+           '{% if user.companyName %}{{ user.companyName }}'
+           '{% else %}{{ user.displayName }}{% endif %}'
+           '</td></tr></table>')
+    meta = tp.parse_html(roh)
+    meta.pop("_hinweise", None)
+    erzeugt = tb.render_html(meta)
+    _jinja_pruefen(erzeugt)          # wirft, wenn zerpflückt
+    assert erzeugt.count("{% if") == 1, erzeugt
+    assert erzeugt.count("{% else") == 1, erzeugt
+    assert erzeugt.count("{% endif") == 1, erzeugt
+
+
+def test_umgewandelte_vorlage_rendert_auch_wirklich():
+    """Über den ganzen Weg: parsen, erzeugen, mit Werten füllen.
+
+    Die stärkste Prüfung — sie hätte den Leer-Fehler sofort gezeigt.
+    """
+    from jinja2.sandbox import SandboxedEnvironment
+    roh = ('<table>'
+           '<tr><td>{% if user.companyName %}{{ user.companyName }}'
+           '{% else %}{{ user.displayName }}{% endif %}</td></tr>'
+           '<tr><td>{% if user.phone %}Tel: {{ user.phone }}{% endif %}</td></tr>'
+           '</table>')
+    meta = tp.parse_html(roh)
+    meta.pop("_hinweise", None)
+    erzeugt = tb.render_html(meta)
+    ausgabe = SandboxedEnvironment().from_string(erzeugt).render(
+        user={"companyName": "Musterfirma", "phone": "+49 241 1"}, custom={})
+    assert "Musterfirma" in ausgabe, f"Vorlage rendert leer:\n{ausgabe!r}"
+    assert "+49 241 1" in ausgabe
+    assert ausgabe.strip(), "Ergebnis ist vollständig leer"
