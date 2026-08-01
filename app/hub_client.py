@@ -266,6 +266,30 @@ async def account_email_change(neue: str) -> dict:
         return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
 
 
+async def account_billing_email(neue: str) -> dict:
+    """Abweichende Rechnungsadresse anfordern — oder mit "" wieder entfernen.
+
+    Setzen braucht eine Bestaetigung im Zielpostfach (Rechnungen tragen
+    Firmenanschrift, USt-IdNr. und Betraege); bis dahin gehen sie weiter an die
+    Kontoadresse. Entfernen wirkt sofort, weil der Rueckfall die ohnehin schon
+    bestaetigte Kontoadresse ist.
+    """
+    base = _base()
+    if not (base and _key()):
+        return {"ok": False, "error": "Nicht registriert (Anbindung fehlt)."}
+    try:
+        async with httpx.AsyncClient(timeout=20) as c:
+            r = await c.post(f"{base}/api/account/billing-email",
+                             headers=_gateway_headers(), json={"email": neue})
+        data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+        if r.status_code == 200 and data.get("ok"):
+            return {"ok": True, "message": data.get("message", ""),
+                    "ziel": data.get("ziel", ""), "email_sent": data.get("email_sent")}
+        return {"ok": False, "error": data.get("detail") or f"HTTP {r.status_code}: {r.text[:200]}"}
+    except Exception as exc:
+        return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
+
+
 async def account_email_change_cancel() -> dict:
     """Angeforderten Wechsel zurücknehmen."""
     base = _base()

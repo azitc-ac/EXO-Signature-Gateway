@@ -294,6 +294,13 @@
     "name": "api_health_run"
   },
   {
+    "pfad": "/api/hub/account/billing-email",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_hub_account_billing_email"
+  },
+  {
     "pfad": "/api/hub/account/email",
     "methoden": [
       "POST"

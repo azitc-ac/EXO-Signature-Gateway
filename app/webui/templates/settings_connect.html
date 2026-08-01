@@ -41,10 +41,40 @@
       <button class="btn secondary" style="margin-left:10px" onclick="kontoWechselOeffnen()">Ändern…</button>
     </div>
     <p class="hint" style="margin:0;font-size:12px">
-      An diese Adresse gehen Rechnungen, Gutschriften und Mitteilungen zu Lizenz und
-      Zertifikaten — auch solche, die eine Antwort verlangen. Eine gemeinsam betreute
-      Adresse ist deshalb besser als ein persönliches Postfach.
+      Hierhin gehen Mitteilungen zu Zertifikaten, Nutzungsbedingungen und Sperren —
+      auch solche, die eine Antwort verlangen. Eine gemeinsam betreute Adresse ist
+      deshalb besser als ein persönliches Postfach.
     </p>
+
+    <!-- Rechnungsadresse: getrennt, weil Buchhaltung und Betrieb selten dasselbe
+         Postfach lesen. Leer = alles geht an die Kontoadresse. -->
+    <div class="settings-row" style="margin:12px 0 6px;align-items:baseline">
+      <label style="margin:0">Rechnungen an</label>
+      <span id="hub-rech-mail" style="font-weight:600"></span>
+      <button class="btn secondary" style="margin-left:10px" onclick="rechAdresseOeffnen()">Ändern…</button>
+    </div>
+    <p class="hint" style="margin:0;font-size:12px">
+      Nur Rechnungen, Gutschriften und Erstattungen. Ohne eigenen Eintrag gehen
+      auch sie an die Kontoadresse.
+    </p>
+    <div id="hub-rech-form" style="display:none;margin-top:10px">
+      <div class="settings-row" style="margin-bottom:6px">
+        <label>Rechnungsadresse</label>
+        <input type="email" id="hub-rech-neu" placeholder="buchhaltung@firma.de"
+               style="width:100%;max-width:360px;font-size:13px"
+               autocapitalize="off" autocorrect="off" spellcheck="false">
+      </div>
+      <p class="hint" style="margin:0 0 8px;font-size:12px">
+        Wirksam erst nach dem Klick in der Bestätigungsmail an die neue Adresse —
+        bis dahin gehen Rechnungen weiter an die Kontoadresse. Feld leeren und
+        speichern setzt sie wieder auf die Kontoadresse zurück.
+      </p>
+      <div class="actions">
+        <button class="btn primary" onclick="rechAdresseSpeichern()">Speichern</button>
+        <button class="btn secondary" onclick="rechAdresseSchliessen()">Abbrechen</button>
+      </div>
+      <div id="hub-rech-msg" style="display:none;margin-top:8px"></div>
+    </div>
     <div id="hub-konto-offen" style="display:none;margin-top:10px;padding:10px 12px;
          background:#fffbeb;border:1px solid #fde68a;border-radius:6px;font-size:13px">
       <span id="hub-konto-offen-text"></span>
@@ -681,23 +711,54 @@ async function kontoWechselAnfordern(){
   if(d.ok){
     showMsg(msg,'Bestätigungsmail an '+neu+' gesendet. Der Wechsel erfolgt erst nach dem Klick darin.',true);
     el.value='';
-    kontoWechselOffenAnzeigen(neu);
+    offeneAenderungAnzeigen({zweck:'kontowechsel', ziel:neu});
   } else {
     showMsg(msg,'Fehler: '+(d.error||d.detail||'unbekannt'),false);
   }
 }
-function kontoWechselOffenAnzeigen(ziel){
+// EINE offene Vormerkung je Konto — der Hub laesst nur eine zu, deshalb hier
+// auch nur ein Kasten. Der Zweck entscheidet ueber den Text.
+function offeneAenderungAnzeigen(p){
   const box=document.getElementById('hub-konto-offen');
   if(!box) return;
-  if(!ziel){ box.style.display='none'; return; }
-  document.getElementById('hub-konto-offen-text').innerHTML =
-    'Wechsel auf <strong>'+esc(ziel)+'</strong> angefordert — wartet auf die Bestätigung in diesem Postfach.';
+  if(!p || !p.ziel){ box.style.display='none'; return; }
+  const text = p.zweck==='rechnungsadresse'
+    ? 'Rechnungen sollen künftig an <strong>'+esc(p.ziel)+'</strong> gehen — wartet auf die Bestätigung in diesem Postfach.'
+    : 'Wechsel auf <strong>'+esc(p.ziel)+'</strong> angefordert — wartet auf die Bestätigung in diesem Postfach.';
+  document.getElementById('hub-konto-offen-text').innerHTML = text;
   box.style.display='block';
+}
+
+// ── Rechnungsadresse ────────────────────────────────────────────────────────
+function rechAdresseOeffnen(){
+  document.getElementById('hub-rech-form').style.display='block';
+  const i=document.getElementById('hub-rech-neu'); if(i) i.focus();
+}
+function rechAdresseSchliessen(){
+  document.getElementById('hub-rech-form').style.display='none';
+  const m=document.getElementById('hub-rech-msg'); if(m) m.style.display='none';
+}
+async function rechAdresseSpeichern(){
+  const el=document.getElementById('hub-rech-neu');
+  const wert=(el.value||'').trim();
+  const msg=document.getElementById('hub-rech-msg');
+  if(wert && !wert.includes('@')){ showMsg(msg,'Bitte eine gültige E-Mail-Adresse eingeben.',false); return; }
+  showMsg(msg, wert?'Sende Bestätigungsmail…':'Setze zurück…', true);
+  const d=await postJSON('/api/hub/account/billing-email',{email:wert});
+  if(!d.ok){ showMsg(msg,'Fehler: '+(d.error||d.detail||'unbekannt'),false); return; }
+  if(wert){
+    showMsg(msg,'Bestätigungsmail an '+wert+' gesendet. Bis zum Klick darin gehen Rechnungen weiter an die Kontoadresse.',true);
+    offeneAenderungAnzeigen({zweck:'rechnungsadresse', ziel:wert});
+  } else {
+    showMsg(msg,'Rechnungen gehen wieder an die Kontoadresse.',true);
+    kontoAdresseLaden();
+  }
+  el.value='';
 }
 async function kontoWechselAbbrechen(){
   const d=await postJSON('/api/hub/account/email/cancel',{});
-  kontoWechselOffenAnzeigen('');
-  _hubMsg(d.ok?'Der angeforderte Wechsel wurde zurückgenommen.':'Konnte nicht zurückgenommen werden.',!!d.ok);
+  offeneAenderungAnzeigen(null);
+  _hubMsg(d.ok?'Die angeforderte Änderung wurde zurückgenommen.':'Konnte nicht zurückgenommen werden.',!!d.ok);
 }
 // Adresse und offene Anforderung kommen vom Hub, nicht aus der lokalen Kopie:
 // nach einem vollzogenen Wechsel wäre die lokale veraltet.
@@ -708,7 +769,11 @@ async function kontoAdresseLaden(){
     const d=await (await fetch('/api/hub/status')).json();
     if(d.ok && d.email){
       feld.textContent=d.email;
-      kontoWechselOffenAnzeigen(d.email_change_pending||'');
+      const r=document.getElementById('hub-rech-mail');
+      // Ohne eigenen Eintrag ausdruecklich benennen, wohin Rechnungen gehen —
+      // ein leeres Feld liesse offen, ob sie irgendwo landen.
+      if(r) r.textContent = d.billing_email || (d.email+'  (wie Konto)');
+      offeneAenderungAnzeigen(d.pending);
       return;
     }
   }catch(e){ ursache(e,'settings_connect:kontoAdresseLaden'); }
@@ -716,6 +781,7 @@ async function kontoAdresseLaden(){
   try{
     const c=await (await fetch('/api/hub/config')).json();
     feld.textContent=c.email||'—';
+    const r=document.getElementById('hub-rech-mail'); if(r) r.textContent='—';
   }catch(e){ feld.textContent='—'; }
 }
 document.addEventListener('DOMContentLoaded', hubLoadConfig);
