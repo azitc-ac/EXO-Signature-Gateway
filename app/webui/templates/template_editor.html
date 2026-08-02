@@ -869,8 +869,14 @@ window.deleteColBlock = function(e, parentId, side, blockId) {
   const parent = findBlock(parentId);
   if (!parent) return;
   parent[side] = (parent[side] || []).filter(b => b.id !== blockId);
-  renderColBlocks(parent, 'left');
-  renderColBlocks(parent, 'right');
+  // Über kindListen() neu zeichnen, NICHT über 'left'/'right'.
+  //
+  // Der Kasten führt seine Bausteine unter `children`. Fest verdrahtet auf
+  // left/right wurde dessen Liste nie neu gezeichnet: Der Baustein war aus den
+  // Daten entfernt, stand aber weiter auf dem Bildschirm — für den Nutzer
+  // schlicht ein Knopf, der nicht wirkt. Genau so gemeldet (2026-08-03).
+  kindListen(parent).forEach(k => renderColBlocks(parent, k));
+  refreshPreview();
 };
 
 window.moveColBlock = function(e, parentId, side, blockId, dir) {
@@ -883,6 +889,7 @@ window.moveColBlock = function(e, parentId, side, blockId, dir) {
   if (idx < 0 || ni < 0 || ni >= list.length) return;
   [list[idx], list[ni]] = [list[ni], list[idx]];
   renderColBlocks(parent, side);
+  refreshPreview();
 };
 
 // ── Block prop change ─────────────────────────────────────────────────────────
