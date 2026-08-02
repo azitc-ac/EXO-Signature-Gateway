@@ -167,6 +167,14 @@
         var btn = e.target.closest('.copy-btn');
         if (!btn) return;
         var text = btn.getAttribute('data-copy');
+        // Eingabefelder tragen ihren aktuellen Stand in `value`; `textContent`
+        // liefert dort den Stand beim Laden der Seite. Wer etwas tippt und
+        // dann kopiert, bekaeme sonst die alte Fassung.
+        if (text == null) {
+          var feldId = btn.getAttribute('data-copy-field');
+          var feld = feldId && document.getElementById(feldId);
+          if (feld) text = feld.value;
+        }
         if (text == null) {
           // data-copy-target: copy the live textContent of another element
           // (used for whole code blocks — avoids escaping multi-line/special
@@ -198,6 +206,39 @@
       });
       // For JS-rendered snippets (innerHTML strings), build the button with the
       // icon already inlined: '...' + copyBtnHtml(value) + '...'
+      // Feldinhalt leeren — mit Rueckweg. Ohne den waere ein Fehlgriff
+      // endgueltig: Der Browser kann ein per JavaScript geleertes Feld nicht
+      // mit Strg+Z wiederherstellen, und darunter liegt eine Vorlage, die
+      // beim naechsten Speichern verschwaende.
+      var LEER_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>';
+      var ZURUECK_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>';
+      document.addEventListener('click', function(e) {
+        var btn = e.target.closest('.clear-btn');
+        if (!btn) return;
+        var feld = document.getElementById(btn.getAttribute('data-clear-field'));
+        if (!feld) return;
+        if (btn.dataset.gesichert != null) {           // zurueck
+          feld.value = btn.dataset.gesichert;
+          delete btn.dataset.gesichert;
+          btn.innerHTML = LEER_ICON;
+          btn.title = 'Inhalt löschen';
+          btn.classList.remove('copied');
+        } else {
+          if (!feld.value) return;
+          btn.dataset.gesichert = feld.value;
+          feld.value = '';
+          btn.innerHTML = ZURUECK_ICON;
+          btn.title = 'Löschen rückgängig machen';
+          btn.classList.add('copied');
+        }
+        feld.dispatchEvent(new Event('input', {bubbles: true}));
+      });
+      document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.clear-btn').forEach(function(b) {
+          if (!b.innerHTML.trim()) b.innerHTML = LEER_ICON;
+        });
+      });
+
       function copyBtnHtml(value) {
         var v = String(value == null ? '' : value).replace(/"/g, '&quot;');
         return '<button type="button" class="copy-btn" data-copy="' + v + '" title="Kopieren">' + COPY_ICON + '</button>';

@@ -21,9 +21,19 @@
       "id": "2"
     },
     {
+      "id": "23",
+      "type": "spacer",
+      "height": 8
+    },
+    {
       "type": "freetext",
       "html": "<strong><em><span style=\"font-family: Tahoma, sans-serif; color: #C55A11;\">#gernperDu</span></em></strong>",
       "id": "3"
+    },
+    {
+      "id": "24",
+      "type": "spacer",
+      "height": 8
     },
     {
       "type": "two_col",
@@ -37,14 +47,14 @@
       ],
       "right": [
         {
-          "type": "freetext",
-          "html": "<strong style=\"color: #595959; font-size: 12pt;font-family: Roboto, Arial, sans-serif;\">{% if user.companyName %}{{ user.companyName }}{% else %}{{ user.displayName }}{% endif %}</strong>",
-          "id": "6"
-        },
-        {
-          "type": "freetext",
-          "html": "{% if user.phone %}",
-          "id": "7"
+          "id": "27",
+          "type": "field",
+          "field": "companyName",
+          "bold": true,
+          "italic": false,
+          "color": "muted",
+          "prefix": "",
+          "size": "12"
         },
         {
           "type": "phone",
@@ -53,43 +63,25 @@
           "id": "8"
         },
         {
-          "type": "freetext",
-          "html": "{% endif %}\n            {% if user.mobilePhone %}",
-          "id": "9"
-        },
-        {
           "type": "mobile",
           "field": "mobilePhone",
           "prefix": "Mobile:",
           "id": "10"
         },
         {
-          "type": "freetext",
-          "html": "{% endif %}\n            {% if user.mail %}",
-          "id": "11"
-        },
-        {
           "type": "email_link",
           "id": "12"
-        },
-        {
-          "type": "freetext",
-          "html": "{% endif %}\n            {% if user.website %}",
-          "id": "13"
         },
         {
           "type": "web_link",
           "id": "14"
         },
         {
-          "type": "freetext",
-          "html": "{% endif %}",
-          "id": "15"
-        },
-        {
-          "type": "freetext",
-          "html": "Triebelsstr. 4, 52066 Aachen",
-          "id": "16"
+          "id": "21",
+          "type": "address",
+          "one_line": true,
+          "show_country": false,
+          "color": "muted"
         }
       ],
       "divider": true,
@@ -124,9 +116,9 @@
       "id": "17"
     },
     {
-      "type": "freetext",
-      "html": "<br>",
-      "id": "20"
+      "id": "25",
+      "type": "spacer",
+      "height": 8
     }
   ]
 }

@@ -105,6 +105,13 @@
 [data-theme="dark"] .btn-toggle:hover:not(.active) { background: #495166; }
 [data-theme="dark"] .copy-btn             { color: #5b9bd5; }
 [data-theme="dark"] .copy-btn:hover       { background: #394159; }
+[data-theme="dark"] .clear-btn            { color: #94a3b8; }
+[data-theme="dark"] .clear-btn:hover      { background: #4a2020; color: #fca5a5; }
+[data-theme="dark"] .clear-btn.copied     { color: #fcd34d; }
+/* Die Knöpfe liegen auf dem Feld — ihr Hintergrund muss dessen Farbe treffen,
+   sonst leuchtet ein weisser Fleck im dunklen Feld. */
+[data-theme="dark"] .feld-knoepfe .copy-btn,
+[data-theme="dark"] .feld-knoepfe .clear-btn { background: #2a3142; }
 
 /* ── Alerts ──────────────────────────────────────────────────────────────── */
 [data-theme="dark"] .alert.success { background: #0a1f10; border-color: #166534; color: #4ade80; }
