@@ -187,11 +187,27 @@
     <input type="hidden" name="template_name" value="{{ current_template }}">
     <div class="editor-section">
       <label for="html_content"><strong>HTML-Signatur</strong> (Jinja2)</label>
-      <textarea id="html_content" name="html_content" rows="22" spellcheck="false">{{ html_content }}</textarea>
+      <div class="feld-werkzeuge">
+        <div class="feld-knoepfe">
+          <button type="button" class="copy-btn" data-copy-field="html_content"
+                  title="Inhalt kopieren"></button>
+          <button type="button" class="clear-btn" data-clear-field="html_content"
+                  title="Inhalt löschen"></button>
+        </div>
+        <textarea id="html_content" name="html_content" rows="22" spellcheck="false">{{ html_content }}</textarea>
+      </div>
     </div>
     <div class="editor-section">
       <label for="txt_content"><strong>Plaintext-Signatur</strong> (Jinja2)</label>
-      <textarea id="txt_content" name="txt_content" rows="8" spellcheck="false">{{ txt_content }}</textarea>
+      <div class="feld-werkzeuge">
+        <div class="feld-knoepfe">
+          <button type="button" class="copy-btn" data-copy-field="txt_content"
+                  title="Inhalt kopieren"></button>
+          <button type="button" class="clear-btn" data-clear-field="txt_content"
+                  title="Inhalt löschen"></button>
+        </div>
+        <textarea id="txt_content" name="txt_content" rows="8" spellcheck="false">{{ txt_content }}</textarea>
+      </div>
     </div>
     <div class="actions">
       <button type="submit" class="btn primary">Speichern</button>

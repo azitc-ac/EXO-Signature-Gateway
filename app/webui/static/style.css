@@ -674,6 +674,37 @@ input[type="password"]:focus { outline: none; border-color: #0078d4; }
 .copy-btn:hover { background: #eff6ff; }
 .copy-btn.copied { color: #16a34a; }
 
+/* Knöpfe am Rand eines Eingabefelds (Kopieren/Leeren). Sie liegen IM Feldrahmen
+   oben rechts, damit sie zum Feld gehören und keine Zeile Höhe kosten. Dezent,
+   bis die Maus in die Nähe kommt — sonst konkurrieren sie mit dem Inhalt. */
+.feld-werkzeuge { position: relative; }
+.feld-werkzeuge > textarea { display: block; width: 100%; }
+.feld-knoepfe {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    display: flex;
+    gap: 2px;
+    opacity: .45;
+    transition: opacity .12s;
+    z-index: 2;
+}
+.feld-werkzeuge:hover .feld-knoepfe,
+.feld-knoepfe:focus-within { opacity: 1; }
+.feld-knoepfe .copy-btn,
+.feld-knoepfe .clear-btn { background: #fff; }
+.clear-btn {
+    border: 0;
+    background: none;
+    padding: 3px 5px;
+    cursor: pointer;
+    color: #6b7280;
+    border-radius: 4px;
+    line-height: 0;
+}
+.clear-btn:hover { background: #fef2f2; color: #dc2626; }
+.clear-btn.copied { color: #b45309; }
+
 /* Mobile overrides that must come after component definitions to win the cascade */
 @media (max-width: 600px) {
     .settings-card { padding: 14px 12px; }

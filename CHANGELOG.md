@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.133 — 2026-08-02 — Kopieren und Leeren im Quelltext-Editor
+
+Die Felder für HTML- und Nur-Text-Signatur haben nun zwei kleine Knöpfe am
+oberen rechten Rand: Inhalt kopieren und Inhalt leeren. Sie liegen im
+Feldrahmen, kosten also keine Zeile Höhe, und treten erst hervor, wenn die Maus
+in die Nähe kommt.
+
+Das Leeren lässt sich rückgängig machen — der Knopf wechselt dafür sein
+Symbol. Ohne diesen Rückweg wäre ein Fehlgriff endgültig: Ein per Skript
+geleertes Feld stellt der Browser mit Rückgängig nicht wieder her, und darunter
+liegt eine Vorlage, die beim nächsten Speichern verschwände.
+
+
 ## v1.7.132 — 2026-08-02 — Zweispalter verbog das Layout ringsum
 
 Ein Zweispalter-Baustein setzte seine beiden Spalten direkt in die Haupttabelle
