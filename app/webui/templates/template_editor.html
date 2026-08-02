@@ -22,6 +22,10 @@
     <button class="btn secondary" onclick="duplicateTemplate('{{ current_template }}')"
             type="button" title="Kopie anlegen — samt Baukasten-Daten">Duplizieren</button>
     {% if current_template != 'default' %}
+    <button class="btn secondary" onclick="renameTemplate('{{ current_template }}')"
+            type="button" title="Vorlage umbenennen — Verweise ziehen mit">Umbenennen</button>
+    {% endif %}
+    {% if current_template != 'default' %}
     <button class="btn" style="background:#dc2626;color:#fff;border:none;padding:6px 14px;border-radius:4px;cursor:pointer;font-size:13px"
             onclick="deleteTemplate('{{ current_template }}')" type="button">Vorlage löschen</button>
     {% endif %}
@@ -1199,13 +1203,17 @@ async function loadMeta() {
 window.switchTemplate = function(name) {
   window.location.href = '/template?name=' + encodeURIComponent(name);
 };
-window.createNewTemplate = function() {
+window.createNewTemplate = async function() {
   const name = prompt('Name der neuen Vorlage (nur Buchstaben, Zahlen, - und _):');
   if (!name) return;
   const safe = name.replace(/[^a-zA-Z0-9_\-]/g, '').replace(/^[-_]+|[-_]+$/g, '');
   if (!safe) { alert('Ungültiger Name.'); return; }
   if (safe === 'default') { alert('"default" ist reserviert.'); return; }
-  window.location.href = '/template?name=' + encodeURIComponent(safe);
+  // Erst anlegen, dann hin: Sonst steht die Vorlage nicht in der Auswahl, und
+  // wer zwischendurch wegnavigiert, findet seine Arbeit nicht wieder.
+  const d = await postJSON('/api/templates/' + encodeURIComponent(safe) + '/create', {});
+  if (!d.ok) { alert('Fehler: ' + (d.detail || d.error || 'Unbekannt')); return; }
+  window.location.href = '/template?name=' + encodeURIComponent(d.name);
 };
 // Kopieren ueber die Schnittstelle, nicht ueber den Quelltext: der HTML-Code
 // ist das ERZEUGNIS des Baukastens, die Blockliste (.meta.json) ist die Quelle.
@@ -1219,6 +1227,18 @@ window.duplicateTemplate = async function(name) {
                            {ziel: ziel});
   if (!d.ok) { alert('Fehler: ' + (d.detail || d.error || 'Unbekannt')); return; }
   if (!d.builder) alert(d.message);
+  window.location.href = '/template?name=' + encodeURIComponent(d.name);
+};
+// Umbenennen zieht die Verweise mit (Postfaecher, Richtlinien). Ohne das
+// waere es gefaehrlicher als Loeschen: Beim Loeschen faellt der Fehler sofort
+// auf, beim Umbenennen zeigt ein Postfach stillschweigend ins Leere.
+window.renameTemplate = async function(name) {
+  const ziel = prompt('Neuer Name für "' + name + '" (Buchstaben, Zahlen, - und _):', name);
+  if (!ziel || ziel === name) return;
+  const d = await postJSON('/api/templates/' + encodeURIComponent(name) + '/rename',
+                           {ziel: ziel});
+  if (!d.ok) { alert('Fehler: ' + (d.detail || d.error || 'Unbekannt')); return; }
+  if (d.verweise && Object.keys(d.verweise).length) alert(d.message);
   window.location.href = '/template?name=' + encodeURIComponent(d.name);
 };
 window.deleteTemplate = async function(name) {

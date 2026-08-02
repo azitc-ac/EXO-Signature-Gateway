@@ -5,6 +5,29 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.134 — 2026-08-03 — Vorlagen anlegen, umbenennen, sortiert auswählen
+
+**Neue Vorlagen entstehen sofort.** Bisher führte „+ Neue Vorlage" nur auf die
+Bearbeitungsseite; auf der Platte entstand nichts. Die Vorlage tauchte deshalb
+erst nach dem ersten Speichern in der Auswahl auf — wer zwischendurch
+wegnavigierte, fand seine Arbeit nicht wieder und legte sie ein zweites Mal an.
+Jetzt wird sie leer angelegt und ist unmittelbar ausgewählt.
+
+**Umbenennen** gibt es neu, neben Duplizieren. Die Verweise ziehen mit: die
+Zuordnung je Postfach (Signatur-, Minimal- und Add-in-Vorlage), die Richtlinien
+und eigene Richtlinien. Was nachgezogen wurde, meldet die Bestätigung.
+
+Ohne dieses Nachziehen wäre Umbenennen gefährlicher als Löschen: Beim Löschen
+fällt der Fehler sofort auf, beim Umbenennen zeigt ein Postfach stillschweigend
+auf eine Vorlage, die es nicht mehr gibt — und der Dienst fällt wortlos auf die
+Standardvorlage zurück.
+
+**Die Auswahlliste ist alphabetisch** ohne Rücksicht auf Groß- und
+Kleinschreibung. Bisher standen alle groß geschriebenen Namen vor allen kleinen,
+sodass man seine Vorlage an zwei Stellen der Liste suchen musste. Die
+Standardvorlage bleibt vorn.
+
+
 ## v1.7.133 — 2026-08-02 — Kopieren und Leeren im Quelltext-Editor
 
 Die Felder für HTML- und Nur-Text-Signatur haben nun zwei kleine Knöpfe am

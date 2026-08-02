@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "global": {
+    "font_family": "Calibri, Arial, sans-serif",
+    "font_size": "11pt",
+    "base_color": "#1f2937",
+    "muted_color": "#6b7280",
+    "link_color": "#1e40af"
+  },
+  "blocks": [
+    {
+      "type": "box",
+      "children": [
+        {
+          "type": "freetext",
+          "html": "💡",
+          "id": "2"
+        },
+        {
+          "type": "freetext",
+          "html": "<strong>Schon gewusst?</strong>",
+          "id": "3"
+        },
+        {
+          "type": "freetext",
+          "html": "&amp;",
+          "id": "6"
+        },
+        {
+          "type": "freetext",
+          "html": "Tools zu Exchange",
+          "id": "7"
+        },
+        {
+          "type": "freetext",
+          "html": "Online, Intune, Entra und mehr —",
+          "id": "9"
+        },
+        {
+          "type": "freetext",
+          "html": "<a href=\"https://blog.zarenko.net\" style=\"color:#2563EB;text-decoration:none;font-weight:600;\">blog.zarenko.net</a>",
+          "id": "10"
+        }
+      ],
+      "padding": 6,
+      "padding_x": 14,
+      "border_side": "left",
+      "border_width": 3,
+      "border_color": "#2563eb",
+      "filled": true,
+      "fill_color": "#a7c6ff",
+      "radius": 0,
+      "width": 0,
+      "id": "1"
+    }
+  ]
+}
