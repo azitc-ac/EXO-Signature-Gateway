@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.136 — 2026-08-03 — Bausteine im Kasten ließen sich nicht entfernen
+
+Wer im Baukasten einen Baustein **innerhalb eines Kastens** löschte, sah keine
+Wirkung: Der Baustein verschwand aus den Daten, blieb aber auf dem Bildschirm
+stehen. Beim nächsten Öffnen war er dann weg — dazwischen wirkte der Knopf
+schlicht kaputt.
+
+Ursache: Nach dem Entfernen wurden die Listen „links" und „rechts" neu
+gezeichnet, wie sie ein Zweispalter führt. Ein Kasten führt seine Bausteine
+aber unter „Inhalt", und diese Liste wurde nie aktualisiert. Betroffen war
+ausschließlich der Kasten.
+
+Zusätzlich aktualisiert sich die Vorschau jetzt sofort, wenn ein Baustein
+innerhalb eines Kastens oder einer Spalte entfernt oder verschoben wird.
+
+
 ## v1.7.135 — 2026-08-03 — Pfeile im Baukasten zeigen, wenn sie nichts bewirken
 
 Die Pfeile zum Verschieben eines Bausteins sahen immer klickbar aus — auch beim

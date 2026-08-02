@@ -81,3 +81,37 @@ def test_etikett_ist_im_kasten_erlaubt():
     assert "badge" in _liste("UNTER_TYPEN"), (
         "Etikett lässt sich nicht in einen Kasten legen — genau die "
         "Kombination, für die der Baustein gebaut wurde.")
+
+
+def test_deleteColBlock_zeichnet_ueber_kindListen_neu():
+    """Nach dem Entfernen eines Bausteins muss DESSEN Liste neu gezeichnet werden.
+
+    `deleteColBlock` zeichnete fest `left` und `right` neu. Der Kasten führt
+    seine Bausteine aber unter `children` — dessen Liste wurde also nie
+    aktualisiert: Der Baustein war aus den Daten entfernt, stand aber weiter
+    auf dem Bildschirm. Für den Nutzer ein Knopf, der nicht wirkt.
+
+    Geprüft wird die Vorlage als Text: Entscheidend ist, dass die Neuzeichnung
+    über `kindListen()` läuft — die einzige Stelle, die weiß, welche Listen ein
+    Block führt — und nicht über fest verdrahtete Namen.
+    """
+    quelle = EDITOR.read_text(encoding="utf-8")
+    i = quelle.index("window.deleteColBlock")
+    rumpf = quelle[i:quelle.index("};", i)]
+    assert "kindListen(parent)" in rumpf, (
+        "deleteColBlock zeichnet nicht über kindListen() neu — Listen ausser "
+        "left/right bleiben stehen.")
+    assert "renderColBlocks(parent, 'left')" not in rumpf, (
+        "fest verdrahtetes 'left' in deleteColBlock")
+
+
+def test_kindlisten_neuzeichnen_ueberall_gleich():
+    """Wächter: Wer eine Unterliste ändert, muss sie über kindListen() neu
+    zeichnen. Zwei Stellen taten das bereits, eine nicht — und genau die fiel
+    aus."""
+    quelle = EDITOR.read_text(encoding="utf-8")
+    import re
+    fest = re.findall(r"renderColBlocks\(\s*\w+\s*,\s*'(left|right|children)'", quelle)
+    assert not fest, (
+        f"renderColBlocks mit fest verdrahteter Liste: {fest} — "
+        f"stattdessen kindListen(parent).forEach(...) verwenden.")
