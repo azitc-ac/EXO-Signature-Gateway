@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.135 — 2026-08-03 — Pfeile im Baukasten zeigen, wenn sie nichts bewirken
+
+Die Pfeile zum Verschieben eines Bausteins sahen immer klickbar aus — auch beim
+obersten, beim untersten und bei einer Vorlage, die nur aus einem einzigen
+Baustein besteht. Ein Klick tat dort nichts, was von einem Fehler nicht zu
+unterscheiden ist.
+
+Sie sind jetzt in diesen Fällen ausgegraut und gesperrt, mit einem Hinweis beim
+Darüberfahren. Gilt für die Bausteinliste ebenso wie für die Listen innerhalb
+von Kästen und Zweispaltern.
+
+
 ## v1.7.134 — 2026-08-03 — Vorlagen anlegen, umbenennen, sortiert auswählen
 
 **Neue Vorlagen entstehen sofort.** Bisher führte „+ Neue Vorlage" nur auf die

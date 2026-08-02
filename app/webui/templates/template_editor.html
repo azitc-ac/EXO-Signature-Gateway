@@ -500,6 +500,11 @@ function renderCard(b, container, listRef) {
   const card = document.createElement('div');
   card.className = 'block-card';
   card.dataset.bid = b.id;
+  // Position in der eigenen Liste — daraus ergibt sich, ob die Pfeile
+  // überhaupt etwas bewirken können.
+  const liste0 = listRef || blocks;
+  const idx = liste0.indexOf(b);
+  const anzahl = liste0.length;
 
   const header = document.createElement('div');
   header.className = 'block-card-header';
@@ -507,8 +512,8 @@ function renderCard(b, container, listRef) {
     <span class="block-type-badge">${esc(TYPE_LABELS[b.type] || b.type)}</span>
     <span style="flex:1;font-size:12px;color:#6b7280;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(blockSummary(b))}</span>
     <span style="display:flex;gap:3px">
-      <button onclick="moveBlock(event,'${b.id}',-1)" title="Nach oben" style="${iconBtnStyle()}">↑</button>
-      <button onclick="moveBlock(event,'${b.id}',1)"  title="Nach unten" style="${iconBtnStyle()}">↓</button>
+      <button onclick="moveBlock(event,'${b.id}',-1)" ${pfeilAttr(idx > 0, 'Nach oben')} style="${pfeilStyle(idx > 0)}">↑</button>
+      <button onclick="moveBlock(event,'${b.id}',1)"  ${pfeilAttr(idx < anzahl - 1, 'Nach unten')} style="${pfeilStyle(idx < anzahl - 1)}">↓</button>
       <button onclick="deleteBlock(event,'${b.id}')" title="Löschen" style="${iconBtnStyle('#dc2626')}">✕</button>
     </span>`;
   header.addEventListener('click', e => {
@@ -528,6 +533,23 @@ function renderCard(b, container, listRef) {
 
 function iconBtnStyle(color) {
   return `background:none;border:1px solid #e2e8f0;border-radius:3px;cursor:pointer;padding:1px 5px;font-size:11px;color:${color||'#555'};line-height:1.4`;
+}
+
+// Ein Pfeil, der nichts bewirken KANN, muss auch so aussehen.
+//
+// Beim ersten Block gibt es nichts darüber, beim letzten nichts darunter, und
+// bei einem einzelnen Block gar nichts zu tauschen. Bisher sahen die Pfeile
+// dort genauso klickbar aus wie sonst und taten beim Klick schlicht nichts —
+// das ist von „kaputt" nicht zu unterscheiden. Genau so wurde es gemeldet
+// (2026-08-03, Blog-Banner: eine Vorlage aus einem einzigen Kasten).
+function pfeilStyle(kannWirken) {
+  return kannWirken
+    ? iconBtnStyle()
+    : iconBtnStyle('#cbd5e1') + ';cursor:default;opacity:.45';
+}
+function pfeilAttr(kannWirken, titel) {
+  return kannWirken ? `title="${titel}"`
+                    : `title="Nicht möglich — der Block ist bereits ganz ${titel.includes('oben') || titel === 'Hoch' ? 'oben' : 'unten'}" disabled`;
 }
 
 // ── Unterlisten von Behälter-Blöcken ─────────────────────────────────────────
@@ -789,10 +811,10 @@ function renderColBlocks(parent, side) {
     hdr.innerHTML = `
       <span class="block-type-badge">${esc(TYPE_LABELS[b.type]||b.type)}</span>
       <span style="flex:1;min-width:0;font-size:11px;color:#6b7280;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(blockSummary(b))}</span>
-      <button onclick="moveColBlock(event,'${parent.id}','${side}','${b.id}',-1)" title="Hoch"
-        style="${iconBtnStyle()}">↑</button>
-      <button onclick="moveColBlock(event,'${parent.id}','${side}','${b.id}',1)" title="Runter"
-        style="${iconBtnStyle()}">↓</button>
+      <button onclick="moveColBlock(event,'${parent.id}','${side}','${b.id}',-1)" ${pfeilAttr(idx > 0, 'Hoch')}
+        style="${pfeilStyle(idx > 0)}">↑</button>
+      <button onclick="moveColBlock(event,'${parent.id}','${side}','${b.id}',1)" ${pfeilAttr(idx < list.length - 1, 'Runter')}
+        style="${pfeilStyle(idx < list.length - 1)}">↓</button>
       <button onclick="deleteColBlock(event,'${parent.id}','${side}','${b.id}')" title="Löschen"
         style="${iconBtnStyle('#dc2626')}">✕</button>`;
 

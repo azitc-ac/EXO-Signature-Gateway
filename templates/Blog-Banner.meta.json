@@ -24,22 +24,22 @@
         {
           "type": "freetext",
           "html": "&amp;",
-          "id": "6"
+          "id": "4"
         },
         {
           "type": "freetext",
-          "html": "Tools zu Exchange",
-          "id": "7"
+          "html": "Tipps & Tools zu Exchange Online, Intune, Entra und mehr —",
+          "id": "5"
         },
         {
           "type": "freetext",
           "html": "Online, Intune, Entra und mehr —",
-          "id": "9"
+          "id": "6"
         },
         {
           "type": "freetext",
           "html": "<a href=\"https://blog.zarenko.net\" style=\"color:#2563EB;text-decoration:none;font-weight:600;\">blog.zarenko.net</a>",
-          "id": "10"
+          "id": "7"
         }
       ],
       "padding": 6,
@@ -48,7 +48,7 @@
       "border_width": 3,
       "border_color": "#2563eb",
       "filled": true,
-      "fill_color": "#a7c6ff",
+      "fill_color": "#d3e2ff",
       "radius": 0,
       "width": 0,
       "id": "1"
