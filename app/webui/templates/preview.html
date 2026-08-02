@@ -11,7 +11,7 @@
 <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:20px">
   <div>
     <label for="email-sel" style="display:block;font-size:13px;color:#555;margin-bottom:4px">Postfach</label>
-    <select id="email-sel" style="width:280px" onchange="loadPreview()">
+    <select id="email-sel" style="width:280px" onchange="vorschauPostfachMerken(this.value); loadPreview()">
       <option value="">— Postfach wählen —</option>
     </select>
   </div>
@@ -58,9 +58,13 @@
       const o = document.createElement('option');
       o.value = m.email;
       o.textContent = m.name !== m.email ? `${m.name} <${m.email}>` : m.email;
-      if (m.email === presetEmail) o.selected = true;
       emailSel.appendChild(o);
     });
+    // Eine Adresse aus der Aufrufadresse hat Vorrang — sie ist die Absicht des
+    // Augenblicks. Sonst: zuletzt gewähltes Postfach, sonst das erste.
+    const adressen = mbs.map(m => m.email);
+    if (presetEmail && adressen.includes(presetEmail)) emailSel.value = presetEmail;
+    else vorschauPostfachWaehlen(emailSel, adressen);
 
     // Populate template select
     const tpls = tData.templates || ['default'];
@@ -71,8 +75,9 @@
       templateSel.appendChild(o);
     });
 
-    // Auto-load if a mailbox is pre-selected or only one exists
-    if (presetEmail || mbs.length === 1) {
+    // Sobald ein Postfach gewaehlt ist, sofort laden — sonst steht die Seite
+    // mit gefuellter Auswahl und leerer Vorschau da.
+    if (emailSel.value) {
       if (mbs.length === 1) emailSel.value = mbs[0].email;
       if (emailSel.value) loadPreview();
     }

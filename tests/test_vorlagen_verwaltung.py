@@ -127,6 +127,22 @@ def test_auswahl_ist_alphabetisch_ohne_gross_klein(monkeypatch, tmp_path):
     for n in ("Zebra", "apfel", "Banane", "default-without-greeting", "Minimal"):
         (tmp_path / f"{n}.html").write_text("x", encoding="utf-8")
     liste = se.list_templates()
-    assert liste[0] == "default", "Standardvorlage steht nicht vorn"
-    assert liste[1:] == ["apfel", "Banane", "default-without-greeting",
-                         "Minimal", "Zebra"], liste
+    assert liste == ["apfel", "Banane", "default", "default-without-greeting",
+                     "Minimal", "Zebra"], liste
+
+
+def test_default_steht_bei_seinesgleichen(monkeypatch, tmp_path):
+    """`default` wird MITSORTIERT, nicht vorangestellt.
+
+    Vorangestellt standen „default" und „default-without-greeting" durch
+    mehrere fremde Namen getrennt — zwei offensichtlich zusammengehörige
+    Einträge an unzusammenhängenden Stellen der Liste.
+    """
+    import config
+    import signature_engine as se
+    monkeypatch.setattr(config, "TEMPLATE_DIR", str(tmp_path))
+    for n in ("Alpha", "default-without-greeting", "Zeta"):
+        (tmp_path / f"{n}.html").write_text("x", encoding="utf-8")
+    liste = se.list_templates()
+    i, j = liste.index("default"), liste.index("default-without-greeting")
+    assert j == i + 1, f"nicht benachbart: {liste}"

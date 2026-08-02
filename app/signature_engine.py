@@ -110,11 +110,16 @@ def list_templates() -> list[str]:
                 names.add(fname[:-5])
     except OSError:
         pass
-    names.discard("default")
-    # Ohne Ruecksicht auf Gross-/Kleinschreibung sortieren. `sorted()` allein
-    # ordnet nach Zeichenwerten, dort stehen alle Grossbuchstaben vor allen
-    # kleinen: "Minimal" kam vor "default-without-greeting", und in einer Liste
-    # gemischt benannter Vorlagen sucht man seine dann an zwei Stellen.
-    # "default" bleibt bewusst vorn — es ist die Standardvorlage, kein Name
-    # unter vielen.
-    return ["default"] + sorted(names, key=lambda n: (n.lower(), n))
+    names.add("default")
+    # Durchgehend alphabetisch, ohne Ruecksicht auf Gross-/Kleinschreibung.
+    #
+    # `sorted()` allein ordnet nach Zeichenwerten, dort stehen alle
+    # Grossbuchstaben vor allen kleinen: "Minimal" kam vor
+    # "default-without-greeting", und man sucht seine Vorlage an zwei Stellen.
+    #
+    # "default" wird MITSORTIERT, nicht vorangestellt. Vorangestellt standen
+    # "default" und "default-without-greeting" durch mehrere fremde Namen
+    # getrennt — zwei offensichtlich zusammengehoerige Eintraege an
+    # unzusammenhaengenden Stellen. Eine Sonderstellung, die man beim Suchen
+    # mitdenken muss, ist keine Hilfe.
+    return sorted(names, key=lambda n: (n.lower(), n))
