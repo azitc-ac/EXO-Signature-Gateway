@@ -205,3 +205,46 @@ def test_verschachtelter_kasten_bricht_nicht():
                    "width": 0, "children": [innen]}])
     assert html.count("border:") >= 2
     assert "Inhalt" in html
+
+
+# ── Zweispalter dürfen das Layout ringsum nicht verbiegen ────────────────────
+
+def _haupttabelle_zellen(html: str) -> list[int]:
+    """Zellen je Zeile der äußersten Tabelle."""
+    import template_parser as tp
+    wurzel = tp._baum(html)
+    tab = [k for k in wurzel.kinder if k.tag == "table"][0]
+    return [len([z for z in r.kinder if z.tag == "td"])
+            for r in tab.kinder if r.tag == "tr"]
+
+
+def test_zweispalter_liegt_in_eigener_tabelle():
+    """In HTML teilen sich alle Zeilen einer Tabelle die Spaltenbreiten.
+
+    Stünden die beiden Spalten direkt in der Haupttabelle, würde eine
+    einspaltige Zeile darüber nur die ERSTE Spalte belegen — bei einem breiten
+    Logo bräche die Grußformel mitten im Satz um. Und ein zweiter Zweispalter
+    erbte die Spaltenbreiten des ersten: ein kleines Symbol mit Text daneben
+    bekäme den Einzug des grossen Logos.
+    """
+    html = _html([
+        {"type": "greeting", "text": "Freundliche Grüße / Kind regards"},
+        {"type": "two_col", "left": [{"type": "logo", "url": "l.png", "width": 116}],
+         "right": [{"type": "field", "field": "jobTitle"}]},
+        {"type": "two_col", "left": [{"type": "logo", "url": "k.png", "width": 20}],
+         "right": [{"type": "booking_link", "label": "Termin buchen"}]},
+    ])
+    zellen = _haupttabelle_zellen(html)
+    assert zellen == [1, 1, 1], (
+        f"Die Haupttabelle hat Zeilen mit mehreren Zellen ({zellen}) — "
+        f"dadurch teilen sich alle Zeilen die Spaltenbreiten.")
+
+
+def test_zweispalter_behaelt_seine_spaltenangaben():
+    """Gegenprobe: Die Angaben müssen erhalten bleiben, nur eine Ebene tiefer."""
+    html = _html([{"type": "two_col", "gap": 6, "divider": True,
+                   "left": [{"type": "logo", "url": "x.png", "width": 20}],
+                   "right": [{"type": "freetext", "html": "Text"}]}])
+    assert "padding-right:6px" in html and "padding-left:6px" in html
+    assert "border-left:1px solid" in html
+    assert "Text" in html and "x.png" in html
