@@ -315,3 +315,34 @@ function initHintClamps(root, minLen) {
     p.parentNode.insertBefore(schalter, p.nextSibling);
   });
 }
+
+
+// ── Zuletzt gewähltes Vorschau-Postfach ──────────────────────────────────────
+//
+// Gemeinsam für Editor-Live-Vorschau und Vorschau-Seite: Zwei Kopien liefen
+// sonst auseinander, und wer zwischen beiden wechselt, bekäme unterschiedliche
+// Vorauswahlen.
+//
+// Regel: das zuletzt gewählte Postfach, sonst das erste der Liste. Wer immer
+// dieselbe Signatur prüft, muss sie nicht bei jedem Öffnen neu wählen; wer das
+// Gerät wechselt oder das Postfach verliert, bekommt trotzdem sofort eine
+// Vorschau statt einer leeren Fläche.
+const VORSCHAU_POSTFACH_SCHLUESSEL = 'exo.vorschau.postfach';
+
+function vorschauPostfachMerken(email) {
+  try {
+    if (email) localStorage.setItem(VORSCHAU_POSTFACH_SCHLUESSEL, email);
+    else localStorage.removeItem(VORSCHAU_POSTFACH_SCHLUESSEL);
+  } catch (e) { /* privates Fenster o.ä. — dann eben ohne Gedächtnis */ }
+}
+
+function vorschauPostfachWaehlen(sel, adressen) {
+  // `adressen` sind die tatsächlich vorhandenen Werte. Ein gemerktes Postfach,
+  // das es nicht mehr gibt, darf nicht zu einer leeren Auswahl führen.
+  let gemerkt = null;
+  try { gemerkt = localStorage.getItem(VORSCHAU_POSTFACH_SCHLUESSEL); }
+  catch (e) { /* s.o. */ }
+  const wahl = (gemerkt && adressen.includes(gemerkt)) ? gemerkt : (adressen[0] || '');
+  if (wahl) sel.value = wahl;
+  return wahl;
+}

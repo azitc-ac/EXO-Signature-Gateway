@@ -13,28 +13,13 @@
       "children": [
         {
           "type": "freetext",
-          "html": "💡",
+          "html": "💡 <strong>Schon gewusst?</strong>",
           "id": "2"
-        },
-        {
-          "type": "freetext",
-          "html": "<strong>Schon gewusst?</strong>",
-          "id": "3"
-        },
-        {
-          "type": "freetext",
-          "html": "&amp;",
-          "id": "4"
         },
         {
           "type": "freetext",
           "html": "Tipps & Tools zu Exchange Online, Intune, Entra und mehr —",
           "id": "5"
-        },
-        {
-          "type": "freetext",
-          "html": "Online, Intune, Entra und mehr —",
-          "id": "6"
         },
         {
           "type": "freetext",

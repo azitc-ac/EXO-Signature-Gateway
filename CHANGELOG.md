@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.137 — 2026-08-03 — Vorschau wählt ein Postfach vor, Auswahl durchgehend alphabetisch
+
+**Die Vorschau steht nicht mehr leer da.** Vorausgewählt wird das zuletzt
+benutzte Postfach, sonst das erste der Liste. Die Wahl gilt für die
+Live-Vorschau im Editor und für die Vorschau-Seite gleichermaßen — wer zwischen
+beiden wechselt, sieht dasselbe Postfach. Ist das gemerkte Postfach nicht mehr
+vorhanden, wird still auf das erste zurückgefallen.
+
+Eine Adresse in der Aufrufadresse hat weiterhin Vorrang; sie ist die Absicht
+des Augenblicks.
+
+**Die Vorlagenauswahl ist durchgehend alphabetisch.** Bisher stand „default"
+vorangestellt, wodurch es von „default-without-greeting" durch mehrere fremde
+Namen getrennt war — zwei offensichtlich zusammengehörige Einträge an
+unzusammenhängenden Stellen. Die Standardvorlage wird jetzt mitsortiert.
+
+
 ## v1.7.136 — 2026-08-03 — Bausteine im Kasten ließen sich nicht entfernen
 
 Wer im Baukasten einen Baustein **innerhalb eines Kastens** löschte, sah keine
