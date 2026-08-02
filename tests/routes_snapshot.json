@@ -1309,6 +1309,13 @@
     "name": "api_delete_template"
   },
   {
+    "pfad": "/api/templates/{name}/create",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_create_template"
+  },
+  {
     "pfad": "/api/templates/{name}/duplicate",
     "methoden": [
       "POST"
@@ -1335,6 +1342,13 @@
       "POST"
     ],
     "name": "api_parse_template"
+  },
+  {
+    "pfad": "/api/templates/{name}/rename",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_rename_template"
   },
   {
     "pfad": "/api/test-mail",

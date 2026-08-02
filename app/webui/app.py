@@ -1517,6 +1517,140 @@ async def api_delete_template(name: str, _=Depends(_check_auth)):
     return {"ok": True, "deleted": deleted}
 
 
+def _vorlagenverweise_umbenennen(alt: str, neu: str) -> dict:
+    """Jeden gespeicherten Verweis auf eine Vorlage umschreiben.
+
+    EINE Stelle, die alle Orte kennt — sonst vergisst die nächste Änderung
+    einen davon, und ein Postfach zeigt still auf eine Vorlage, die es nicht
+    mehr gibt. Der Signaturdienst fällt dann wortlos auf „default" zurück; der
+    Betreiber merkt es erst an einer falschen Signatur.
+
+    Orte (Stand 2026-08-03):
+      MAILBOX_CONFIG[*]  -> "template", "min_template", "addin_templates" (Liste)
+      TEMPLATE_POLICIES  -> "sig", "min", "addin"
+      CUSTOM_POLICIES[*] -> "template"
+    """
+    geaendert: dict[str, int] = {}
+    aenderungen: dict[str, object] = {}
+
+    mc = settings_store.get("MAILBOX_CONFIG") or {}
+    n_mc = 0
+    for cfg in mc.values():
+        if not isinstance(cfg, dict):
+            continue
+        for feld in ("template", "min_template"):
+            if cfg.get(feld) == alt:
+                cfg[feld] = neu
+                n_mc += 1
+        liste = cfg.get("addin_templates")
+        if isinstance(liste, list) and alt in liste:
+            cfg["addin_templates"] = [neu if x == alt else x for x in liste]
+            n_mc += 1
+    if n_mc:
+        aenderungen["MAILBOX_CONFIG"] = mc
+        geaendert["Postfächer"] = n_mc
+
+    tp = settings_store.get("TEMPLATE_POLICIES") or {}
+    n_tp = 0
+    if isinstance(tp, dict):
+        for feld in ("sig", "min", "addin"):
+            if tp.get(feld) == alt:
+                tp[feld] = neu
+                n_tp += 1
+    if n_tp:
+        aenderungen["TEMPLATE_POLICIES"] = tp
+        geaendert["Richtlinien"] = n_tp
+
+    cp = settings_store.get("CUSTOM_POLICIES") or []
+    n_cp = 0
+    if isinstance(cp, list):
+        for pol in cp:
+            if isinstance(pol, dict) and pol.get("template") == alt:
+                pol["template"] = neu
+                n_cp += 1
+    if n_cp:
+        aenderungen["CUSTOM_POLICIES"] = cp
+        geaendert["Eigene Richtlinien"] = n_cp
+
+    if aenderungen:
+        settings_store.update(aenderungen)
+    return geaendert
+
+
+@app.post("/api/templates/{name}/rename")
+async def api_rename_template(name: str, request: Request, _=Depends(_check_auth)):
+    """Vorlage umbenennen — samt aller Verweise darauf.
+
+    Ohne das Nachziehen der Verweise wäre Umbenennen gefährlicher als Löschen:
+    Beim Löschen fällt der Fehler sofort auf, beim Umbenennen zeigt ein
+    Postfach stillschweigend ins Leere.
+    """
+    import shutil
+    daten = await request.json()
+    ziel = _re.sub(r"[^a-zA-Z0-9_\-]", "", (daten.get("ziel") or "").strip()).strip("-_")
+    if not ziel:
+        raise HTTPException(400, "Ungültiger Name (Buchstaben, Ziffern, - und _).")
+    if ziel == "default":
+        raise HTTPException(400, "Der Name 'default' ist vergeben.")
+
+    quelle_safe = _re.sub(r"[^a-zA-Z0-9_\-]", "", name).strip("-_") or "default"
+    if quelle_safe == "default":
+        raise HTTPException(400, "Die Standardvorlage lässt sich nicht umbenennen.")
+    if quelle_safe == ziel:
+        raise HTTPException(400, "Alter und neuer Name sind gleich.")
+
+    verz = Path(config.TEMPLATE_DIR)
+    if not (verz / f"{quelle_safe}.html").exists():
+        raise HTTPException(404, f"Vorlage '{name}' nicht gefunden.")
+    if (verz / f"{ziel}.html").exists():
+        raise HTTPException(409, f"Es gibt bereits eine Vorlage '{ziel}'.")
+
+    verschoben = []
+    for endung in ("html", "txt", "meta.json"):
+        q = verz / f"{quelle_safe}.{endung}"
+        if q.exists():
+            shutil.move(str(q), str(verz / f"{ziel}.{endung}"))
+            verschoben.append(endung)
+
+    verweise = _vorlagenverweise_umbenennen(quelle_safe, ziel)
+    import signature_engine
+    signature_engine._reload_env()
+    log.info("Template '%s' -> '%s' umbenannt (Verweise: %s)", quelle_safe, ziel, verweise or "keine")
+
+    teile = [f"{n} {was}" for was, n in verweise.items()]
+    return JSONResponse({
+        "ok": True, "name": ziel, "moved": verschoben, "verweise": verweise,
+        "message": (f"Umbenannt in '{ziel}'."
+                    + (f" Nachgezogen: {', '.join(teile)}." if teile else "")),
+    })
+
+
+@app.post("/api/templates/{name}/create")
+async def api_create_template(name: str, _=Depends(_check_auth)):
+    """Leere Vorlage anlegen, damit sie sofort in der Auswahl steht.
+
+    Bisher fuehrte „+ Neue Vorlage" nur auf die Bearbeitungsseite; auf der
+    Platte entstand nichts. Die Vorlage tauchte deshalb erst nach dem ersten
+    Speichern in der Liste auf — wer zwischendurch wegnavigierte, fand seine
+    Arbeit nicht wieder und legte sie ein zweites Mal an.
+    """
+    safe = _re.sub(r"[^a-zA-Z0-9_\-]", "", name).strip("-_")
+    if not safe:
+        raise HTTPException(400, "Ungültiger Name (Buchstaben, Ziffern, - und _).")
+    if safe == "default":
+        raise HTTPException(400, "Der Name 'default' ist vergeben.")
+    verz = Path(config.TEMPLATE_DIR)
+    if (verz / f"{safe}.html").exists():
+        raise HTTPException(409, f"Es gibt bereits eine Vorlage '{safe}'.")
+
+    (verz / f"{safe}.html").write_text("", encoding="utf-8")
+    (verz / f"{safe}.txt").write_text("", encoding="utf-8")
+    import signature_engine
+    signature_engine._reload_env()
+    log.info("Template '%s' angelegt (leer) von %s", safe, _)
+    return JSONResponse({"ok": True, "name": safe})
+
+
 @app.post("/api/templates/{name}/duplicate")
 async def api_duplicate_template(name: str, request: Request, _=Depends(_check_auth)):
     """Vorlage kopieren — samt Blockliste, damit die Kopie im Baukasten bleibt.
