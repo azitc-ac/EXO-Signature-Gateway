@@ -5,6 +5,27 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.132 — 2026-08-02 — Zweispalter verbog das Layout ringsum
+
+Ein Zweispalter-Baustein setzte seine beiden Spalten direkt in die Haupttabelle
+der Signatur. In HTML teilen sich aber alle Zeilen einer Tabelle dieselben
+Spaltenbreiten — mit zwei sichtbaren Folgen:
+
+* **Einspaltige Zeilen wurden gequetscht.** Eine Grußformel über einem
+  Zweispalter mit breitem Logo belegte nur die erste Spalte und brach mitten im
+  Satz um.
+* **Ein zweiter Zweispalter erbte die Breiten des ersten.** Ein kleines
+  Kalendersymbol mit Text daneben bekam den Einzug des grossen Firmenlogos, der
+  Text begann weit rechts statt direkt neben dem Symbol.
+
+Der Zweispalter liegt jetzt in einer eigenen Tabelle innerhalb einer Zelle. Er
+ist damit ein Zeilenblock wie jeder andere, und seine Spaltenbreiten gelten nur
+für ihn. Abstände, Trennlinie und Ausrichtung bleiben unverändert.
+
+Betrifft alle Vorlagen mit Zweispalter — auch von Hand gebaute. Wer eine solche
+Vorlage im Baukasten öffnet und speichert, bekommt das berichtigte Layout.
+
+
 ## v1.7.131 — 2026-08-02 — Signatur blieb nach dem Speichern leer
 
 ⚠️ **Wer eine HTML-Vorlage über den Baukasten umgewandelt und gespeichert hat,

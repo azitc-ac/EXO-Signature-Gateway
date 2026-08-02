@@ -483,16 +483,36 @@ def _two_col(b, g, pad, indent):
             ls += f";width:{lw}"
 
     p2 = " " * ni
+    p3 = " " * (ni + 2)
+    # EIGENE Tabelle in EINER Zelle — nicht zwei Zellen in der Haupttabelle.
+    #
+    # In HTML teilen sich alle Zeilen einer Tabelle die Spaltenbreiten. Standen
+    # die beiden Spalten direkt in der Haupttabelle, wirkte sich das auf ALLES
+    # aus, was darüber und darunter steht:
+    #   * Einspaltige Zeilen (Grußformel, Name) belegen nur die ERSTE Spalte und
+    #     wurden auf deren Breite gequetscht — bei einem 116px breiten Logo
+    #     brach „Freundliche Grüße / Kind regards" mitten im Satz um.
+    #   * Ein zweiter Zweispalter erbte die Spaltenbreiten des ersten. Ein
+    #     kleines Kalendersymbol mit Text daneben bekam so den Einzug des
+    #     grossen Firmenlogos.
+    # Als eigene Tabelle in einer Zelle ist der Zweispalter ein Zeilenblock wie
+    # jeder andere, und seine Breiten gelten nur für ihn.
     return (
         f'{pad}<tr>\n'
-        f'{pad}  <td style="{ls}">\n'
+        f'{pad}  <td style="padding:0">\n'
         f'{p2}<table cellpadding="0" cellspacing="0" border="0">\n'
+        f'{p2}  <tr>\n'
+        f'{p2}    <td style="{ls}">\n'
+        f'{p3}<table cellpadding="0" cellspacing="0" border="0">\n'
         f'{left_inner}\n'
-        f'{p2}</table>\n'
-        f'{pad}  </td>\n'
-        f'{pad}  <td style="{rs}">\n'
-        f'{p2}<table cellpadding="0" cellspacing="0" border="0">\n'
+        f'{p3}</table>\n'
+        f'{p2}    </td>\n'
+        f'{p2}    <td style="{rs}">\n'
+        f'{p3}<table cellpadding="0" cellspacing="0" border="0">\n'
         f'{right_inner}\n'
+        f'{p3}</table>\n'
+        f'{p2}    </td>\n'
+        f'{p2}  </tr>\n'
         f'{p2}</table>\n'
         f'{pad}  </td>\n'
         f'{pad}</tr>'

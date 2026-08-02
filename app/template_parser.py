@@ -569,7 +569,12 @@ def _als_zweispalter_in_zelle(td: Knoten) -> dict | None:
     kinder = td.kind_elemente()
     if len(kinder) != 1 or kinder[0].tag != "table":
         return None
-    reihen = [k for k in _alle(kinder[0]) if k.tag == "tr"]
+    # NUR die unmittelbaren Zeilen — `_alle()` liefert auch die der
+    # Spalteninhalte, und dann sind es nie „genau eine".
+    reihen = [k for k in kinder[0].kinder if k.tag == "tr"]
+    if not reihen:
+        koerper = [k for k in kinder[0].kinder if k.tag == "tbody"]
+        reihen = [k for kk in koerper for k in kk.kinder if k.tag == "tr"]
     if len(reihen) != 1:
         return None
     return _zweispalter_aus_zeile(reihen[0])
