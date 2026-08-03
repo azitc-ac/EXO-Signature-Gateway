@@ -452,8 +452,31 @@ def _matches_sig_fp(candidate_html: str, fp: frozenset[str]) -> bool:
 
 
 _LEXWARE_MARKER_RE = re.compile(r'id=["\']?templateBody["\']?', re.IGNORECASE)
-_DIV_ALIGN_CENTER_RE = re.compile(r'(<div\b[^>]*\balign\s*=\s*)(["\']?)center\2', re.IGNORECASE)
+# align="center" an JEDEM Element, nicht nur an <div>.
+#
+# Die Lexware-Vorlage vom August 2026 zentriert ueber `<table align="center">`
+# und verwendet weder <div align=center> noch <center> noch text-align. Die
+# bisherige Fassung erfasste nur <div> und ging deshalb wirkungslos darueber
+# hinweg — die Rechnungen gingen weiter zentriert hinaus, obwohl der Fix als
+# erledigt galt.
+#
+# Die Ersetzung ist auf den Lexware-Block beschraenkt (Marker id="templateBody"
+# wird vorher geprueft), trifft also keine fremden Layouttabellen.
+#
+# Der Wert ist auf `center` festgenagelt und der Ausdruck endet am Attribut:
+# Er ersetzt NUR das Wort, nie einen Bereich. Das ist hier ausdruecklich
+# wichtig — eine fruehere Fassung eines Nachbarausdrucks fror ueber das
+# Attributende hinaus und verschluckte Mailinhalt (v1.6.6).
+_ALIGN_CENTER_RE = re.compile(
+    r'(<(?:div|table|td|tr|p|th|tbody)\b[^>]*\balign\s*=\s*)(["\']?)center\2',
+    re.IGNORECASE)
 _CENTER_TAG_RE = re.compile(r'</?center\b[^>]*>', re.IGNORECASE)
+# Alles, was den Text noch zentriert darstellen wuerde — fuer die Kontrolle
+# NACH der Korrektur. Bewusst breiter als die Korrektur selbst: Was hier
+# anschlaegt, ist ein Hinweis auf eine unbekannte Vorlagenfassung.
+_RESTZENTRIERUNG_RE = re.compile(
+    r'<\w+\b[^>]*\balign\s*=\s*["\']?center|<center\b|text-align\s*:\s*center',
+    re.IGNORECASE)
 _LEXWARE_TD_OPEN_RE = re.compile(r'<td\b[^>]*\bid=["\']?templatebody["\']?[^>]*>', re.IGNORECASE)
 # Wertezeichen bewusst ohne " < > — sonst läuft das Match bei leerem/abgeschnittenem
 # Wert über das Attribut-Ende hinaus bis zum nächsten ';' (z.B. dem einer HTML-Entity
@@ -463,7 +486,7 @@ _EMPTY_FONT_FAMILY_RE = re.compile(r'(?<![\w-])font-family\s*:\s*(?=[;"\'>])', r
 _FONT_SIZE_RE = re.compile(r'font-size\s*:\s*[0-9.]+(?:pt|px|em|rem)', re.IGNORECASE)
 _EMPTY_P_BEFORE_CENTER_DIV_RE = re.compile(
     r'<p\b[^>]*>(?:\s|&nbsp;|<o:p>|</o:p>)*</p>\s*'
-    r'(?=(?:<div\b[^>]*\balign\s*=\s*["\']?center|<center\b))',
+    r'(?=(?:<(?:div|table)\b[^>]*\balign\s*=\s*["\']?center|<center\b))',
     re.IGNORECASE | re.DOTALL,
 )
 
@@ -487,10 +510,14 @@ def _fix_lexware_empty_p(html: str) -> str:
 
 def _fix_lexware_centering(html: str) -> str:
     """
-    Lexware wickelt den Nachrichtentext in verschachtelte <div align=center>-Blöcke
-    oder (neuere Vorlage) in <center>-Tags — erkennbar am id="templateBody"-Marker.
-    Dreht alle div-Ausrichtungen auf left und ersetzt <center>-Tags durch <div>,
-    damit die Mail linksbündig dargestellt wird statt als schmale zentrierte Spalte.
+    Lexware zentriert den Nachrichtentext je nach Vorlagenalter unterschiedlich:
+    ueber `<div align=center>`, ueber `<center>…</center>` oder — Stand August
+    2026 — ueber `<table align="center">`. Erkennungsmerkmal ist in allen
+    Faellen der Marker id="templateBody".
+
+    Dreht jedes `align="center"` auf `left` und ersetzt `<center>`-Tags durch
+    `<div>`, damit die Mail linksbuendig erscheint statt als schmale zentrierte
+    Spalte.
     """
     if not _LEXWARE_MARKER_RE.search(html):
         return html
@@ -499,9 +526,9 @@ def _fix_lexware_centering(html: str) -> str:
         prefix, quote = m.group(1), m.group(2)
         return f"{prefix}{quote}left{quote}"
 
-    fixed = _DIV_ALIGN_CENTER_RE.sub(_to_left, html)
+    fixed = _ALIGN_CENTER_RE.sub(_to_left, html)
     if fixed != html:
-        log.info("_fix_lexware_centering: zentrierte divs auf left umgestellt")
+        log.info("_fix_lexware_centering: align=center auf left umgestellt")
 
     def _center_to_div(m: re.Match) -> str:
         return '</div>' if m.group(0).startswith('</') else '<div>'
@@ -509,6 +536,23 @@ def _fix_lexware_centering(html: str) -> str:
     fixed2 = _CENTER_TAG_RE.sub(_center_to_div, fixed)
     if fixed2 != fixed:
         log.info("_fix_lexware_centering: <center>-Tags auf <div> umgestellt")
+
+    # Nachrechnen: ist ueberhaupt noch etwas zentriert?
+    #
+    # Der Fix galt seit Juli 2026 als erledigt und lief trotzdem wirkungslos
+    # mit, als Lexware die Zentrierung von <div align=center> auf
+    # <table align="center"> verlegte. Niemand merkte es — die Funktion lief ja,
+    # sie fand nur nichts mehr. Aufgefallen ist es erst dem Nutzer an den
+    # versendeten Rechnungen.
+    #
+    # Diese Meldung macht den naechsten Vorlagenwechsel sichtbar, statt ihn
+    # still zu verschlucken. Sie aendert nichts, sie sagt nur Bescheid.
+    if _RESTZENTRIERUNG_RE.search(fixed2):
+        log.warning(
+            "_fix_lexware_centering: nach der Korrektur ist noch Zentrierung "
+            "im Lexware-Block — vermutlich eine neue Vorlagenfassung. "
+            "Erste Fundstelle: %s",
+            (_RESTZENTRIERUNG_RE.search(fixed2).group(0) or "")[:80])
 
     return fixed2
 
