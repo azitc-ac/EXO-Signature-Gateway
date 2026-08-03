@@ -179,6 +179,10 @@ def send_daily_report(daily: dict, total: dict) -> bool:
         _row("Key Vault Signaturen",   dval("kv_sign_calls")),
         _row("Fallbacks",  dval("fallback"), "#e67e22" if dval("fallback") else ""),
         _row("Fehler",     dval("errors"),   "#e74c3c" if dval("errors")   else ""),
+        # Nur zeigen, wenn es etwas zu zeigen gibt — eine Dauerzeile mit 0
+        # wuerde ueberlesen, und genau darauf kommt es hier an.
+        (_row("Belege mit unbekanntem Aufbau", dval("lexware_unbekannt"), "#e67e22")
+         if dval("lexware_unbekannt") else ""),
     ])
 
     # ── Diesen Monat ──

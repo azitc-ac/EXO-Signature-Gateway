@@ -144,3 +144,42 @@ def test_bekannte_form_meldet_nicht(caplog):
     with caplog.at_level(logging.WARNING):
         mp._fix_lexware_centering(roh)
     assert not [r for r in caplog.records if "neue Vorlagenfassung" in r.message]
+
+
+# ── Sichtbarkeit: eine Protokollzeile liest niemand ──────────────────────────
+
+def test_unbekannte_form_wird_gezaehlt():
+    """Die Warnung muss den Tagesbericht erreichen, nicht nur das Protokoll.
+
+    Der Fix lief von Juli bis August 2026 wirkungslos mit. Eine Zeile im
+    Protokoll hätte daran nichts geändert — sie liest niemand. Gezählt
+    erscheint der Fall im Tagesbericht beim Betreiber.
+    """
+    import stats
+    vorher = stats.get_daily().get("lexware_unbekannt", 0)
+    roh = (f'<html><body><div style="text-align:center">'
+           f'{MARKER}Inhalt</td></div></body></html>')
+    mp._fix_lexware_centering(roh)
+    assert stats.get_daily().get("lexware_unbekannt", 0) == vorher + 1, (
+        "unbekannte Zentrierung wurde nicht gezählt — sie bliebe im "
+        "Tagesbericht unsichtbar")
+
+
+def test_bekannte_form_zaehlt_nicht():
+    """Sonst stünde die Zahl bei jeder Rechnung im Bericht und würde
+    bedeutungslos."""
+    import stats
+    vorher = stats.get_daily().get("lexware_unbekannt", 0)
+    roh = f'<html><body><table align="center"><tr>{MARKER}x</td></tr></table></body></html>'
+    mp._fix_lexware_centering(roh)
+    assert stats.get_daily().get("lexware_unbekannt", 0) == vorher
+
+
+def test_tagesbericht_zeigt_die_zeile_nur_bei_bedarf():
+    """Eine Dauerzeile mit 0 würde überlesen — und darauf kommt es hier an."""
+    import inspect
+    import notification
+    quelle = inspect.getsource(notification.send_daily_report)
+    assert 'if dval("lexware_unbekannt")' in quelle, (
+        "die Zeile erscheint unbedingt — dann fällt sie nicht mehr auf")
+    assert "Belege mit unbekanntem Aufbau" in quelle

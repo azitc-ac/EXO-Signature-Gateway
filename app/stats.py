@@ -25,6 +25,11 @@ KEYS = (
     "processed", "fallback", "errors", "held",
     "smime_signed", "smime_encrypted", "smime_decrypted", "certs_harvested",
     "graph_api_calls", "kv_sign_calls",
+    # Belege eines Fremdsystems, deren Aufbau die Korrektur nicht mehr trifft.
+    # Zaehlt, damit es im Tagesbericht auffaellt statt nur im Protokoll zu
+    # stehen: Der Lexware-Fix lief von Juli bis August 2026 wirkungslos mit,
+    # weil ein Vorlagenwechsel unbemerkt blieb.
+    "lexware_unbekannt",
 )
 _stats: dict = {k: 0 for k in KEYS}
 _snapshot: dict = {k: 0 for k in KEYS}
