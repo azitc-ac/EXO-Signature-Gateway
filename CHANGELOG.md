@@ -5,6 +5,31 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.138 — 2026-08-04 — Lexware-Belege gingen weiterhin zentriert hinaus
+
+⚠️ **Der Fix aus v1.6.4 lief seit einem Vorlagenwechsel bei Lexware wirkungslos
+mit.** Rechnungen und Auftragsbestätigungen wurden weiter als schmale zentrierte
+Spalte zugestellt.
+
+**Ursache.** Die Korrektur suchte die Zentrierung an `<div>`-Elementen und an
+`<center>`-Tags. Die Vorlagenfassung von August 2026 zentriert stattdessen über
+`<table align="center">` und verwendet keine der beiden bisherigen Formen. Die
+Funktion lief also weiter — sie fand nur nichts mehr. Geprüft an tatsächlich
+versendeten Belegen: Alle trugen genau ein `align="center"`, und zwar an einer
+Tabelle.
+
+**Behoben.** Die Korrektur greift jetzt an jedem Element, das die Ausrichtung
+tragen kann. Sie bleibt auf den Lexware-Block beschränkt — fremde Nachrichten
+mit zentrierten Layouttabellen werden nicht angefasst — und ersetzt
+ausschließlich das Wort `center`, ohne Inhalt zu berühren.
+
+**Damit das nicht wieder unbemerkt bleibt:** Nach der Korrektur wird
+nachgerechnet, ob noch eine Zentrierung übrig ist. Findet sich eine, steht das
+als Warnung im Protokoll — ein künftiger Vorlagenwechsel fällt dann sofort auf,
+statt monatelang still zu wirken. Dazu Prüfungen für alle bekannten Formen; es
+gab bisher keine einzige.
+
+
 ## v1.7.137 — 2026-08-03 — Vorschau wählt ein Postfach vor, Auswahl durchgehend alphabetisch
 
 **Die Vorschau steht nicht mehr leer da.** Vorausgewählt wird das zuletzt
