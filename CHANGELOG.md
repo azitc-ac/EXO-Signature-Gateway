@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.141 — 2026-08-04 — Baukasten: Freitext und HTML-Code getrennt
+
+Der bisherige Baustein „Freitext / HTML" erwartete rohes HTML — wer einfach
+einen Satz schreiben und ihn fett oder farbig haben wollte, musste die Auszeich­
+nung selbst tippen. Aus einem Baustein sind jetzt zwei geworden:
+
+* **Freitext** — ein Eingabefeld für den Text, daneben Schriftfarbe, -größe und
+  -art sowie fett, kursiv, unterstrichen und die Ausrichtung. Wie bei den
+  übrigen Bausteinen. Der Text erscheint genau so, wie er eingegeben wurde:
+  Zeichen wie `<` bleiben Zeichen, Zeilenumbrüche bleiben Umbrüche.
+* **HTML-Code** — der bisherige Baustein, unverändert. Für Rechtstexte,
+  Hinweisbänder und alles, was als fertiges HTML vorliegt.
+
+Bestehende Vorlagen ändern sich nicht; ihr Baustein heißt jetzt „HTML-Code".
+Beide stehen auch innerhalb von Kästen und Spalten zur Verfügung.
+
+
 ## v1.7.140 — 2026-08-04 — Zeilenabstand in Lexware-Belegen auf Briefmaß
 
 Die Belege kommen aus einer Newsletter-Vorlage — erkennbar an deren
