@@ -5,6 +5,30 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.140 — 2026-08-04 — Zeilenabstand in Lexware-Belegen auf Briefmaß
+
+Die Belege kommen aus einer Newsletter-Vorlage — erkennbar an deren
+Klassennamen. Für einen Rundbrief ist die dort vorgegebene Zeilenhöhe von 150 %
+richtig; in einer Rechnung ergibt sie zusammen mit den doppelten Zeilenumbrüchen
+zwischen den Absätzen drei volle Zeilenhöhen Abstand. In Lexware selbst lässt
+sich das nicht ändern.
+
+Zeilenhöhen über 140 % werden im Lexware-Block jetzt auf 130 % gesetzt.
+Unberührt bleiben:
+
+* Werte darunter — die sind bereits briefartig,
+* absolute Angaben wie `12px` — die gehören zu Trennlinien und Abstandszellen,
+  dort wäre eine Änderung ein Layoutfehler,
+* alle Nachrichten ohne den Lexware-Marker.
+
+Bleibt nach der Korrektur eine zu große Zeilenhöhe übrig, erscheint das wie bei
+der Ausrichtung im Tagesbericht — ein künftiger Vorlagenwechsel fällt damit
+auf, statt still zu wirken.
+
+An 13 tatsächlich versendeten Belegen geprüft: alle linksbündig, Zeilenhöhe
+höchstens 130 %, sichtbarer Text unverändert.
+
+
 ## v1.7.139 — 2026-08-04 — Unbekannter Belegaufbau erscheint im Tagesbericht
 
 Die in v1.7.138 eingeführte Kontrolle meldete einen unbekannten Belegaufbau

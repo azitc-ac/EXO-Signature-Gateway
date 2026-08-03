@@ -477,6 +477,9 @@ _CENTER_TAG_RE = re.compile(r'</?center\b[^>]*>', re.IGNORECASE)
 _RESTZENTRIERUNG_RE = re.compile(
     r'<\w+\b[^>]*\balign\s*=\s*["\']?center|<center\b|text-align\s*:\s*center',
     re.IGNORECASE)
+# Zeilenhoehe, die nach der Korrektur noch ueber der Grenze liegt — dieselbe
+# Absicht wie bei der Restzentrierung: eine neue Vorlagenfassung soll auffallen.
+_RESTZEILENHOEHE_RE = re.compile(r"line-height\s*:\s*(1[4-9]\d|[2-9]\d\d)\s*%", re.IGNORECASE)
 _LEXWARE_TD_OPEN_RE = re.compile(r'<td\b[^>]*\bid=["\']?templatebody["\']?[^>]*>', re.IGNORECASE)
 # Wertezeichen bewusst ohne " < > — sonst läuft das Match bei leerem/abgeschnittenem
 # Wert über das Attribut-Ende hinaus bis zum nächsten ';' (z.B. dem einer HTML-Entity
@@ -708,8 +711,68 @@ def _fix_lexware_top_gap(html: str) -> str:
     return html[:abs_start] + new_segment + html[abs_end:]
 
 
+# Zeilenhoehen ueber diesem Wert werden gesenkt. 150 % ist der Vorgabewert der
+# Newsletter-Vorlage, die Lexware fuer Belege verwendet (erkennbar an den
+# `mcn…`-Klassen — Mailchimps Namensschema). Fuer einen Rundbrief ist das
+# richtig, fuer eine Rechnung zu luftig: zusammen mit den Doppelumbruechen
+# zwischen den Absaetzen ergibt es drei volle Zeilenhoehen Abstand.
+_ZEILENHOEHE_GRENZE = 140
+_ZEILENHOEHE_ZIEL = 130
+_LINE_HEIGHT_PROZENT_RE = re.compile(r"(line-height\s*:\s*)(\d+)(\s*%)", re.IGNORECASE)
+
+
+def _fix_lexware_zeilenhoehe(html: str) -> str:
+    """Zu grosse Zeilenhoehen im Lexware-Block auf ein Briefmass bringen.
+
+    Nur Prozentwerte und nur solche oberhalb der Grenze: Absolute Angaben
+    (`line-height:12px`) gehoeren zu Trennlinien und Abstandszellen, dort waere
+    eine Aenderung ein Layoutfehler. Werte unterhalb der Grenze sind bereits
+    briefartig und bleiben unangetastet.
+
+    Der Ausdruck ersetzt ausschliesslich die Zahl zwischen `line-height:` und
+    `%` — er kann keinen Inhalt verschlucken. Das ist an dieser Datei nicht
+    selbstverstaendlich: Ein frueherer Ausdruck lief ueber das Attributende
+    hinaus bis zum Semikolon einer HTML-Entity im Fliesstext (v1.6.6).
+    """
+    if not _LEXWARE_MARKER_RE.search(html):
+        return html
+
+    geaendert = 0
+
+    def _senken(m: re.Match) -> str:
+        nonlocal geaendert
+        wert = int(m.group(2))
+        if wert < _ZEILENHOEHE_GRENZE:
+            return m.group(0)
+        geaendert += 1
+        return f"{m.group(1)}{_ZEILENHOEHE_ZIEL}{m.group(3)}"
+
+    neu = _LINE_HEIGHT_PROZENT_RE.sub(_senken, html)
+    if geaendert:
+        log.info("_fix_lexware_zeilenhoehe: %d Zeilenhoehe(n) auf %d%% gesenkt",
+                 geaendert, _ZEILENHOEHE_ZIEL)
+    # Dieselbe Kontrolle wie bei der Ausrichtung: Bleibt etwas ueber der Grenze,
+    # hat die Vorlage eine Form, die dieser Ausdruck nicht kennt.
+    if _RESTZEILENHOEHE_RE.search(neu):
+        try:
+            import stats
+            stats.increment("lexware_unbekannt")
+        except Exception:
+            pass
+        log.warning("_fix_lexware_zeilenhoehe: noch eine Zeilenhoehe ueber %d%% "
+                    "im Lexware-Block — vermutlich eine neue Vorlagenfassung: %s",
+                    _ZEILENHOEHE_GRENZE,
+                    (_RESTZEILENHOEHE_RE.search(neu).group(0) or "")[:60])
+    return neu
+
+
 def _fix_lexware_format(html: str) -> str:
-    """Wendet alle Lexware-Formatkorrekturen an (Ausrichtung + Schrift + Padding + Leerzeile), falls aktiviert."""
+    """Alle Lexware-Formatkorrekturen anwenden, falls aktiviert.
+
+    Ausrichtung, Schrift, Zeilenhoehe, Padding, Leerzeilen — die Belege kommen
+    aus einer Newsletter-Vorlage, deren Gestaltung fuer einen Geschaeftsbrief
+    nicht passt und die sich in Lexware nicht aendern laesst.
+    """
     if not settings_store.get("LEXWARE_FIX_FORMAT"):
         return html
     # Defensive: falls doch schon eine Gateway-Signatur im Text steckt (z.B. bei
@@ -720,6 +783,7 @@ def _fix_lexware_format(html: str) -> str:
     html = _fix_lexware_empty_p(html)
     html = _fix_lexware_centering(html)
     html = _fix_lexware_font(html)
+    html = _fix_lexware_zeilenhoehe(html)
     html = _fix_lexware_padding(html)
     html = _fix_lexware_top_gap(html)
     html = _fix_lexware_empty_row(html)

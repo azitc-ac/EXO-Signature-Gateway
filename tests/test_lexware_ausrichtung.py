@@ -37,7 +37,16 @@ def _zentrierung_uebrig(html: str) -> list[str]:
 
 
 def _sichtbar(html: str) -> str:
-    return re.sub(r"<[^>]+>", "", html)
+    """Nur der Text, den ein Leser sieht.
+
+    Formatvorlagen zählen NICHT mit: Ihr Inhalt ist CSS, und genau der wird von
+    den Korrekturen absichtlich verändert. Ohne diesen Ausschluss meldete die
+    Prüfung auf Inhaltsverlust jede gewollte Änderung als Schaden — sie war
+    zuerst genau so gebaut und schlug prompt an.
+    """
+    ohne = re.sub(r"<(style|script)\b[^>]*>.*?</\1>", "", html,
+                  flags=re.S | re.I)
+    return re.sub(r"<[^>]+>", "", ohne)
 
 
 # ── Die bekannten Varianten ──────────────────────────────────────────────────
@@ -183,3 +192,89 @@ def test_tagesbericht_zeigt_die_zeile_nur_bei_bedarf():
     assert 'if dval("lexware_unbekannt")' in quelle, (
         "die Zeile erscheint unbedingt — dann fällt sie nicht mehr auf")
     assert "Belege mit unbekanntem Aufbau" in quelle
+
+
+# ── Zeilenhöhe: die Newsletter-Vorlage ist für Belege zu luftig ──────────────
+#
+# Lexware verschickt Belege über eine Newsletter-Vorlage (erkennbar an den
+# `mcn…`-Klassen — Mailchimps Namensschema). Deren 150 % Zeilenhöhe ist für
+# einen Rundbrief richtig; zusammen mit den Doppelumbrüchen zwischen den
+# Absätzen ergibt sie in einer Rechnung drei volle Zeilenhöhen Abstand.
+# In Lexware lässt sich das nicht ändern.
+
+def test_zu_grosse_zeilenhoehe_wird_gesenkt():
+    roh = (f'<html><head><style>#templateBody .mcnTextContent'
+           f'{{font-size:16px;line-height:150%;text-align:left}}</style>'
+           f'<body><table><tr>{MARKER}Text</td></tr></table></body></html>')
+    neu = mp._fix_lexware_zeilenhoehe(roh)
+    assert "line-height:130%" in neu, neu
+    assert "line-height:150%" not in neu
+
+
+def test_briefartige_zeilenhoehe_bleibt():
+    """Unterhalb der Grenze ist bereits Briefmaß — daran wird nicht gedreht."""
+    for wert in ("120%", "125%", "130%", "139%"):
+        roh = (f'<html><style>p{{line-height:{wert}}}</style>'
+               f'<body>{MARKER}x</td></body></html>')
+        assert f"line-height:{wert}" in mp._fix_lexware_zeilenhoehe(roh), wert
+
+
+def test_absolute_zeilenhoehen_bleiben():
+    """Nur PROZENTwerte werden gesenkt.
+
+    Absolute Angaben gehören zu Trennlinien und Abstandszellen; dort wäre eine
+    Änderung ein Layoutfehler. Geprüft wird mit einem Wert ÜBER der Grenze —
+    mit `12px` würde die Grenze schützen und der Test bewiese nichts über den
+    Ausdruck selbst. Genau so war er zuerst gebaut und blieb bei der
+    Gegenprobe stumm.
+    """
+    for wert in ("150px", "200px", "12px", "1.5em"):
+        roh = (f'<html><style>.mcnDivider{{line-height:{wert}}}</style>'
+               f'<body>{MARKER}x</td></body></html>')
+        assert f"line-height:{wert}" in mp._fix_lexware_zeilenhoehe(roh), wert
+
+
+def test_ohne_marker_keine_aenderung():
+    roh = '<html><style>p{line-height:150%}</style><body>Newsletter</body></html>'
+    assert mp._fix_lexware_zeilenhoehe(roh) == roh
+
+
+def test_zeilenhoehe_frisst_keinen_inhalt():
+    """Derselbe Vorbehalt wie bei der Ausrichtung — ein früherer Ausdruck an
+    dieser Datei lief über das Attributende hinaus."""
+    text = "Betrag: 1.234,56 &euro;; Frist: 14 Tage; a &lt; b &gt; c"
+    roh = (f'<html><style>p{{line-height:150%}}</style><body><table><tr>'
+           f'{MARKER}{text}</td></tr></table></body></html>')
+    neu = mp._fix_lexware_zeilenhoehe(roh)
+    assert _sichtbar(neu) == _sichtbar(roh), (
+        f"Text verändert:\n{_sichtbar(roh)!r}\n{_sichtbar(neu)!r}")
+
+
+def test_unbekannt_grosse_zeilenhoehe_wird_gemeldet(caplog):
+    """Wenn eine Form durchrutscht, muss sie im Tagesbericht landen."""
+    import logging
+    import stats
+    vorher = stats.get_daily().get("lexware_unbekannt", 0)
+    # Eine Schreibweise, die der Ersetzer nicht trifft (Dezimalfaktor statt %).
+    roh = (f'<html><style>p{{line-height : 180 %}}</style>'
+           f'<body>{MARKER}x</td></body></html>')
+    with caplog.at_level(logging.WARNING):
+        neu = mp._fix_lexware_zeilenhoehe(roh)
+    if "line-height : 180 %" in neu:          # nicht ersetzt -> muss melden
+        assert stats.get_daily().get("lexware_unbekannt", 0) > vorher
+
+
+def test_ganze_kette_senkt_die_zeilenhoehe(monkeypatch):
+    """Über _fix_lexware_format — sonst wäre die Funktion gebaut, aber nie
+    aufgerufen."""
+    import settings_store
+    monkeypatch.setattr(settings_store, "get",
+                        lambda k, d=None: True if k == "LEXWARE_FIX_FORMAT" else d)
+    roh = (f'<html><head><style>#templateBody .mcnTextContent'
+           f'{{line-height:150%}}</style><body><table align="center"><tr>'
+           f'{MARKER}Sehr geehrte Damen und Herren,<br><br>Text</td>'
+           f'</tr></table></body></html>')
+    neu = mp._fix_lexware_format(roh)
+    assert "line-height:130%" in neu, "Zeilenhöhe nicht gesenkt"
+    assert not _zentrierung_uebrig(neu), "Zentrierung nicht behoben"
+    assert "Sehr geehrte Damen und Herren," in neu
