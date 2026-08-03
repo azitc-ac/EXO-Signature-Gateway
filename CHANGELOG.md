@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.139 — 2026-08-04 — Unbekannter Belegaufbau erscheint im Tagesbericht
+
+Die in v1.7.138 eingeführte Kontrolle meldete einen unbekannten Belegaufbau
+bisher nur ins Protokoll. Das ist fast so unsichtbar wie gar keine Meldung —
+Protokolle liest im Alltag niemand, und genau daran ist der Fehler ein halbes
+Jahr lang unbemerkt geblieben.
+
+Solche Fälle werden jetzt gezählt und erscheinen im Tagesbericht, allerdings
+nur, wenn es welche gab: Eine Dauerzeile mit dem Wert 0 würde überlesen.
+
+Für Betreiber heißt das: Ändert der Rechnungsdienst seine Vorlage, steht das am
+nächsten Tag in der Zusammenfassung — statt monatelang wirkungslos
+mitzulaufen.
+
+
 ## v1.7.138 — 2026-08-04 — Lexware-Belege gingen weiterhin zentriert hinaus
 
 ⚠️ **Der Fix aus v1.6.4 lief seit einem Vorlagenwechsel bei Lexware wirkungslos

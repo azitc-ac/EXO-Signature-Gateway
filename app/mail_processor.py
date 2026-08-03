@@ -548,6 +548,13 @@ def _fix_lexware_centering(html: str) -> str:
     # Diese Meldung macht den naechsten Vorlagenwechsel sichtbar, statt ihn
     # still zu verschlucken. Sie aendert nichts, sie sagt nur Bescheid.
     if _RESTZENTRIERUNG_RE.search(fixed2):
+        # Mitzaehlen, nicht nur protokollieren: Eine Zeile im Protokoll liest
+        # niemand. Ueber die Zaehlung erscheint der Fall im Tagesbericht.
+        try:
+            import stats
+            stats.increment("lexware_unbekannt")
+        except Exception:
+            pass
         log.warning(
             "_fix_lexware_centering: nach der Korrektur ist noch Zentrierung "
             "im Lexware-Block — vermutlich eine neue Vorlagenfassung. "
