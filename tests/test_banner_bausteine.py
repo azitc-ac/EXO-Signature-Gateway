@@ -248,3 +248,88 @@ def test_zweispalter_behaelt_seine_spaltenangaben():
     assert "padding-right:6px" in html and "padding-left:6px" in html
     assert "border-left:1px solid" in html
     assert "Text" in html and "x.png" in html
+
+
+# ── Freitext (formatiert) vs. HTML-Code ──────────────────────────────────────
+#
+# Zwei Bausteine für zwei Absichten: `text` für Text, den man tippt und über
+# Felder auszeichnet; `freetext` für fertiges HTML. Der Unterschied ist die
+# Maskierung — und der ist wesentlich: Wer im Textbaustein `<b>` schreibt,
+# meint das Zeichen, nicht den Befehl.
+
+def test_text_wird_maskiert():
+    html = _html([{"type": "text", "text": "Preis <b>wichtig</b> & mehr"}])
+    assert "&lt;b&gt;" in html, html
+    assert "<b>wichtig</b>" not in html
+    assert "&amp;" in html
+
+
+def test_html_code_bleibt_roh():
+    """Die Gegenprobe — sonst wären beide Bausteine dasselbe."""
+    html = _html([{"type": "freetext", "html": "Preis <b>wichtig</b>"}])
+    assert "<b>wichtig</b>" in html
+
+
+def test_zeilenumbrueche_bleiben_erhalten():
+    """Wer in ein mehrzeiliges Feld schreibt, erwartet mehrere Zeilen."""
+    html = _html([{"type": "text", "text": "Zeile eins\nZeile zwei\nZeile drei"}])
+    assert html.count("<br>") == 2, html
+    assert "Zeile eins<br>Zeile zwei<br>Zeile drei" in html
+
+
+def test_auszeichnungen_greifen():
+    html = _html([{"type": "text", "text": "x", "bold": True, "italic": True,
+                   "underline": True, "size": "9pt", "align": "center",
+                   "color": "muted"}])
+    for erwartet in ("font-weight:bold", "font-style:italic",
+                     "text-decoration:underline", "font-size:9pt",
+                     "text-align:center", "color:#6b7280"):
+        assert erwartet in html, f"{erwartet} fehlt:\n{html}"
+
+
+def test_ausrichtung_links_erzeugt_keine_regel():
+    """Links ist die Vorgabe — eine überflüssige Regel bläht jede Signatur auf."""
+    html = _html([{"type": "text", "text": "x", "align": ""}])
+    assert "text-align" not in html
+    html2 = _html([{"type": "text", "text": "x", "align": "left"}])
+    assert "text-align" not in html2
+
+
+def test_leerer_text_erzeugt_keine_zeile():
+    """Sonst steht eine leere Zeile in jeder Signatur, die niemand sieht und
+    niemand erklären kann."""
+    assert _html([{"type": "text", "text": "   "}]).count("<tr>") == 0
+
+
+def test_textfassung_uebernimmt_die_zeilen():
+    txt = tb.render_txt({"version": 1, "blocks": [
+        {"type": "text", "text": "Zeile eins\nZeile zwei", "bold": True}]})
+    assert "Zeile eins" in txt and "Zeile zwei" in txt
+    assert "<" not in txt
+
+
+def test_schriftart_kann_kein_attribut_sprengen():
+    """Ein Anführungszeichen beendet das style-Attribut, ein Semikolon hängt
+    weitere CSS-Regeln an. Beides muss die Schriftart verlieren.
+
+    Die erste Fassung dieser Prüfung enthielt `or True` und bewies nichts —
+    bei der Gegenprobe (Schriftart ungeprüft übernehmen) blieb sie stumm.
+    """
+    html = _html([{"type": "text", "text": "x",
+                   "font": 'Arial";color:red;background:url(x)'}])
+    # Das GANZE Tag ansehen, nicht am Anführungszeichen splitten: Ein Test, der
+    # selbst am `"` trennt, sieht die Sprengung nicht — er liest brav den Teil
+    # davor und ist zufrieden. Genau daran blieben die ersten beiden Fassungen
+    # dieser Prüfung stumm.
+    tag = re.search(r"<td[^>]*>", html).group(0)
+    assert tag.count('"') == 2, (
+        f"Attribut gesprengt — das Tag trägt mehr als ein Attributpaar: {tag!r}")
+    stil = tag.split('style="')[1].rstrip('">')
+    # Aus der Fracht darf höchstens eine unsinnige Schriftbezeichnung werden,
+    # kein `color` und kein `background`.
+    regeln = [t.split(":", 1)[0] for t in stil.split(";") if t]
+    assert regeln == ["padding", "font-family"], (
+        f"zusätzliche CSS-Regel eingeschleust: {regeln}")
+    # Und die harmlose Schriftart bleibt.
+    sauber = _html([{"type": "text", "text": "x", "font": "Georgia, serif"}])
+    assert "font-family:Georgia, serif" in sauber, sauber

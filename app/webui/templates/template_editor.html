@@ -129,7 +129,8 @@
           <button class="picker-btn" onclick="addBlock('name_field')">Name</button>
           <button class="picker-btn" onclick="addBlock('field')">Feld (beliebig)</button>
           <button class="picker-btn" onclick="addBlock('address')">Anschrift</button>
-          <button class="picker-btn" onclick="addBlock('freetext')">Freitext / HTML</button>
+          <button class="picker-btn" onclick="addBlock('text')">Freitext</button>
+          <button class="picker-btn" onclick="addBlock('freetext')">HTML-Code</button>
         </div>
         <div style="font-size:11px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;padding-left:2px">Kontakt</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:8px">
@@ -339,6 +340,11 @@ function defaultBlock(type) {
     case 'booking_link':return { ...base, label: 'Termin buchen' };
     case 'social':      return { ...base, platform: 'LinkedIn', url: '', label: '' };
     case 'freetext':    return { ...base, html: '' };
+    case 'text':        return {
+      ...base,
+      text: '', color: 'base', size: '', font: '',
+      bold: false, italic: false, underline: false, align: '',
+    };
     case 'address':     return { ...base, one_line: false, show_country: false, color: 'muted' };
     case 'box':         return {
       ...base,
@@ -368,7 +374,7 @@ const TYPE_LABELS = {
   field:'Feld', divider:'Trennlinie', phone:'Telefon', mobile:'Mobil',
   email_link:'E-Mail-Link', web_link:'Website-Link',
   logo:'Logo', booking_link:'Buchungslink', social:'Social Media',
-  freetext:'Freitext', two_col:'Zwei Spalten', box:'Kasten', address:'Anschrift',
+  freetext:'HTML-Code', text:'Freitext', two_col:'Zwei Spalten', box:'Kasten', address:'Anschrift',
   badge:'Etikett + Text',
 };
 
@@ -394,6 +400,7 @@ function blockSummary(b) {
     case 'booking_link':return b.label || 'Termin buchen';
     case 'social':      return `${b.platform || ''} ${b.url ? (b.url.length > 30 ? b.url.slice(0,30)+'…' : b.url) : '(keine URL)'}`;
     case 'freetext':    return b.html ? b.html.replace(/<[^>]+>/g,'').slice(0,40)+'…' : '(leer)';
+    case 'text':        return b.text ? b.text.replace(/\s+/g,' ').slice(0,40)+'…' : '(leer)';
     case 'address':     return (b.one_line ? 'einzeilig' : 'zweizeilig')
                              + (b.show_country ? ', mit Land' : '');
     case 'two_col':     return `${(b.left||[]).length} links / ${(b.right||[]).length} rechts`;
@@ -557,7 +564,7 @@ function pfeilAttr(kannWirken, titel) {
 // liegen deshalb an EINER Stelle — zwei Kopien würden auseinanderlaufen,
 // sobald ein Blocktyp dazukommt.
 const UNTER_TYPEN = ['greeting','name_field','field','address','phone','mobile','email_link',
-  'web_link','logo','booking_link','social','freetext','divider','spacer','badge'];
+  'web_link','logo','booking_link','social','freetext','divider','spacer','badge','text'];
 // Im Kasten ist zusätzlich der Zweispalter erlaubt — das ist der Zweck der
 // Übung (eingerahmte Signatur). Umgekehrt nicht: ein Kasten in einer Spalte
 // verschachtelt weiter, ohne dass es die Darstellung hergibt.
@@ -709,9 +716,27 @@ function buildBlockForm(b) {
     rows += praefixZeile('');
     rows += anzeigeZeile('leer = Plattformname');
     rows += stilZeilen(true, 'link');
+  } else if (t === 'text') {
+    rows += row('Text', ta('text', b.text));
+    rows += row('Schriftfarbe', farbFeld('color', b.color || 'base', b.id));
+    rows += row('Schriftgröße', txt('size', b.size, 'z.B. 9pt — leer = wie global'));
+    rows += row('Schriftart', txt('font', b.font, 'leer = wie global'));
+    rows += row('Fett', chk('bold', b.bold));
+    rows += row('Kursiv', chk('italic', b.italic));
+    rows += row('Unterstrichen', chk('underline', b.underline));
+    rows += row('Ausrichtung', `<select name="align" data-bid="${b.id}" onchange="blockPropChange(this)">`
+      + [['','links (Vorgabe)'],['center','zentriert'],['right','rechts']]
+        .map(([v,l]) => `<option value="${v}"${(b.align||'')===v?' selected':''}>${esc(l)}</option>`).join('')
+      + `</select>`);
+    rows += `<p style="font-size:11px;color:#6b7280;margin:4px 0 0">
+      Der Text wird so dargestellt, wie er hier steht — HTML-Zeichen wie
+      <code>&lt;</code> erscheinen als Zeichen, nicht als Auszeichnung.
+      Zeilenumbrüche bleiben erhalten. Für fertiges HTML den Baustein
+      <strong>HTML-Code</strong> nehmen.</p>`;
   } else if (t === 'freetext') {
     rows += row('HTML', ta('html', b.html));
-    rows += `<p style="font-size:11px;color:#6b7280;margin:4px 0 0">Rohes HTML — für Disclaimer, Rechtliches, etc. Keine Jinja2-Variablen möglich.</p>`;
+    rows += `<p style="font-size:11px;color:#6b7280;margin:4px 0 0">Rohes HTML — für Disclaimer, Rechtliches, etc. Keine Jinja2-Variablen möglich.<br>
+      Für einfachen Text mit Fett/Farbe/Größe gibt es den Baustein <strong>Freitext</strong>.</p>`;
   } else if (t === 'two_col') {
     rows += row('Abstand (px)', txt('gap', b.gap, '12'));
     rows += row('Linke Breite', txt('left_width', b.left_width, 'auto oder z.B. 60%'));

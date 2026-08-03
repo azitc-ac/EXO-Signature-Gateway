@@ -419,6 +419,45 @@ def _freetext(b, _g, pad, _ind):
     return f'{pad}<tr><td style="padding:0">{content}</td></tr>'
 
 
+def _text(b, g, pad, _ind):
+    """Freier Text MIT Auszeichnung — die Geschwisterform zu `freetext`.
+
+    Unterschied zu `freetext`: Der Inhalt wird MASKIERT. Wer hier `<b>` tippt,
+    bekommt sichtbar `<b>` und keinen Fettdruck — Auszeichnung wählt man über
+    die Felder daneben. Das ist der Sinn der Aufteilung: `freetext` ist der
+    Weg für fertiges HTML, dieser hier der für Text, den man tippt.
+
+    Zeilenumbrüche werden zu `<br>`. Eine Eingabe über mehrere Zeilen ergibt
+    sonst eine einzige lange Zeile, was niemand erwartet, der in ein
+    mehrzeiliges Feld schreibt.
+    """
+    roh = b.get("text") or ""
+    if not roh.strip():
+        return ""
+    text = "<br>".join(_htmllib.escape(z) for z in roh.splitlines())
+
+    parts = ["padding:0"]
+    color = _farbe(b.get("color") or "base", g["base_color"], g)
+    if color != g["base_color"]:
+        parts.append(f"color:{color}")
+    groesse = _laenge(b.get("size"))
+    if groesse:
+        parts.append(f"font-size:{groesse}")
+    if b.get("bold"):
+        parts.append("font-weight:bold")
+    if b.get("italic"):
+        parts.append("font-style:italic")
+    if b.get("underline"):
+        parts.append("text-decoration:underline")
+    schrift = (b.get("font") or "").strip()
+    if schrift:
+        parts.append(f"font-family:{_schriftart({'font_family': schrift})}")
+    aus = (b.get("align") or "").lower()
+    if aus in ("center", "right"):
+        parts.append(f"text-align:{aus}")
+    return f'{pad}<tr><td style="{";".join(parts)}">{text}</td></tr>'
+
+
 def _anschrift_zeilen(b) -> list[tuple[str, str]]:
     """(Bedingung, Ausdruck) je Anschriftzeile — EINE Quelle für HTML und Text.
 
@@ -683,6 +722,7 @@ _HTML_RENDERERS = {
     "booking_link": _booking_link,
     "social": _social,
     "freetext": _freetext,
+    "text": _text,
     "two_col": _two_col,
     "box": _box,
     "badge": _badge,
@@ -781,6 +821,11 @@ def _render_block_txt(b: dict, g: dict, lines: list[str]) -> None:
             anzeige = anzeige or (b.get("platform") or "").capitalize() or "Link"
             vorsatz = praefix or f"{anzeige}:"
             lines.append(f"{vorsatz} {url}")
+    elif t == "text":
+        # Hier steht bereits Klartext — nur die Umbrueche uebernehmen.
+        for zeile in (b.get("text") or "").splitlines() or [""]:
+            if zeile.strip():
+                lines.append(zeile.rstrip())
     elif t == "freetext":
         txt = _nur_text(b.get("html"))
         if txt:
