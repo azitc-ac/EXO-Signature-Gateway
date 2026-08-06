@@ -333,3 +333,33 @@ def test_schriftart_kann_kein_attribut_sprengen():
     # Und die harmlose Schriftart bleibt.
     sauber = _html([{"type": "text", "text": "x", "font": "Georgia, serif"}])
     assert "font-family:Georgia, serif" in sauber, sauber
+
+
+def test_verschachtelte_tabellen_tragen_die_schrift():
+    """Verschachtelte Tabellen erben die Schriftgröße im Quirks-Modus NICHT —
+    und so rendern Mailprogramme HTML.
+
+    Ohne die Angabe fällt der Inhalt einer Spalte oder eines Kastens auf die
+    Vorgabegröße des Programms zurück (meist 16px), während der Text daneben
+    die eingestellte Größe behält. Im Browser gemessen: 19px gegen 17px
+    Zeilenhöhe bei angeblich derselben Schrift.
+    """
+    for block in ({"type": "two_col",
+                   "left": [{"type": "logo", "url": "x.png"}],
+                   "right": [{"type": "phone"}]},
+                  {"type": "box", "border_width": 1, "padding": 8,
+                   "children": [{"type": "phone"}]}):
+        html = _html([block])
+        innere = [z for z in html.splitlines()
+                  if "<table" in z and "font-family" not in z]
+        assert not innere, (
+            f"{block['type']}: verschachtelte Tabelle ohne Schriftangabe — "
+            f"ihr Inhalt fällt auf die Vorgabegröße zurück:\n"
+            + "\n".join(innere))
+
+
+def test_aeussere_tabelle_traegt_die_schrift_weiterhin():
+    """Gegenprobe: Der Fix darf die äußere Angabe nicht ersetzt haben."""
+    html = _html([{"type": "greeting", "text": "x"}])
+    erste = html.splitlines()[0]
+    assert "font-family" in erste and "font-size" in erste, erste
