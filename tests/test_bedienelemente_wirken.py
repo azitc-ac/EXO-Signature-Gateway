@@ -64,3 +64,26 @@ def test_der_verteilerlisten_haken_geht_nach_exchange():
     assert "saveNotifDg" in speichern, (
         "Beim Speichern der Benachrichtigungen wird der Verteilerlisten-Haken "
         "nicht nach Exchange übertragen:\n" + speichern)
+
+
+def test_ausstehende_bestaetigung_wird_selbsttaetig_nachgesehen():
+    """Bestätigt wird in einem anderen Fenster — oft auf dem Telefon.
+
+    Ohne selbsttätiges Nachsehen zeigt die Seite weiter „wartet auf die
+    Bestätigung", obwohl der Wechsel längst vollzogen ist. Der Nutzer hält das
+    für einen Fehler des Vorgangs und lädt im besten Fall neu; im schlechteren
+    fordert er den Wechsel ein zweites Mal an.
+    """
+    text = (VORLAGEN / "settings_connect.html").read_text(encoding="utf-8")
+    anzeigen = text[text.index("function offeneAenderungAnzeigen"):]
+    anzeigen = anzeigen[:anzeigen.index("\n}")]
+    assert "_kontoPollStart" in anzeigen, (
+        "Bei ausstehender Bestätigung wird nicht nachgesehen:\n" + anzeigen)
+    assert "_kontoPollStop" in anzeigen, (
+        "Der Takt wird nicht beendet, wenn die Bestätigung da ist — "
+        "die Seite fragte dann dauerhaft weiter")
+    # Der Rückkehr-Fall ist der häufigste: bestätigen, Tab wechseln, zurück.
+    # Ausdrücklich das Anmelden prüfen — „visibilitychange" allein steht auch
+    # im removeEventListener, der Test hinge sonst an der Aufräumzeile.
+    assert "addEventListener('visibilitychange'" in text, (
+        "Beim Zurückwechseln in den Tab wird nicht sofort geprüft")

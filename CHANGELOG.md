@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.157 — 2026-08-06 — Bestätigte Adressänderung erscheint ohne Neuladen
+
+Steht die Bestätigung einer Konto- oder Rechnungsadresse aus, sieht die Seite
+*Anbindung & Lizenzen* jetzt selbsttätig nach, ob sie eingetroffen ist. Bisher
+blieb dort „wartet auf die Bestätigung" stehen, obwohl der Wechsel längst
+vollzogen war — erst ein Neuladen zeigte den neuen Stand.
+
+Bestätigt wird in einem anderen Fenster, oft auf dem Telefon; die Seite kann
+davon nichts wissen. Wer im Nachbartab bestätigt und zurückwechselt, sieht den
+neuen Stand deshalb sofort, ohne auf den nächsten Takt zu warten. Im
+Hintergrund wird nicht abgefragt — der Bestätigungslink gilt 24 Stunden, so
+lange ununterbrochen nachzusehen wäre Last ohne Nutzen.
+
+Andere Vorgänge derselben Seite — Anbindung an den Hub, Zahlungen — warteten
+bereits selbsttätig ab.
+
+
 ## v1.7.156 — 2026-08-06 — Verteilerlisten-Haken wirkt auch beim normalen Speichern
 
 Der Haken „Verteilerliste nimmt auch Mail von außerhalb des Tenants an" wurde
