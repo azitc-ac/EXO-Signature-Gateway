@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.156 — 2026-08-06 — Verteilerlisten-Haken wirkt auch beim normalen Speichern
+
+Der Haken „Verteilerliste nimmt auch Mail von außerhalb des Tenants an" wurde
+nur von der Schaltfläche *In EXO speichern (DG aktualisieren)* übertragen. Wer
+ihn setzte und auf *Speichern* drückte, bekam eine Erfolgsmeldung — in Exchange
+änderte sich nichts, und die erwartete Mail blieb weiter aus.
+
+Der Grund ist eine Eigenheit dieser Einstellung: Sie steht nicht nur in der
+Konfiguration, sondern muss als `Set-DistributionGroup` nach Exchange getragen
+werden. Das Speichern der Benachrichtigungen tut das jetzt selbst, sobald sich
+der Haken geändert hat. Die Rückmeldung nennt danach ausdrücklich, was für die
+Liste gilt.
+
+
 ## v1.7.155 — 2026-08-06 — „mehr" erscheint nur noch, wo wirklich mehr steht
 
 Der Schalter zum Aufklappen gekürzter Erklärtexte richtete sich nach der
