@@ -5,6 +5,27 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.153 — 2026-08-06 — Prüfung auf unbenutzte Funktionen
+
+`tools/deadcheck.py` meldet Funktionen im gemeinsamen JavaScript, die nirgends
+aufgerufen werden. Die Prüfung läuft in der CI mit.
+
+Die bisherigen Prüfungen suchten ausschließlich die Gegenrichtung: `jscheck`
+findet Syntaxfehler, `jsscopecheck` Bezeichner ohne Deklaration. Eine
+Deklaration ohne Verwendung ist für beide unauffällig — es ist ja gültiges,
+lauffähiges JavaScript. Gefunden wurde solcher Code deshalb bisher nur von
+Hand.
+
+Erster Fund und zugleich entfernt: `setState()` stand in beiden Anwendungen,
+war gespiegelt und wurde von keiner Stelle gerufen, auch nicht innerhalb der
+eigenen Datei. Die Zustandsfarben setzt `showMsg()` selbst.
+
+Verwendungen werden über beide Anwendungen hinweg gezählt: `common.js` ist
+inhaltsgleich zu halten, eine nur vom Gateway benötigte Funktion steht deshalb
+zwangsläufig auch im Hub — dort ist sie kein toter Code, sondern der Preis der
+Spiegelung.
+
+
 ## v1.7.152 — 2026-08-06 — Lange Erklärtexte werden auf allen Seiten gekürzt
 
 Die Kürzung langer Hinweistexte auf zwei Zeilen mit einem Schalter „mehr" gibt

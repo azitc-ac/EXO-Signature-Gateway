@@ -30,19 +30,13 @@ function escAttr(s) {
   return esc(s).replace(/[\r\n]+/g, ' ');
 }
 
-/* Zustandsfarben NIE per style.color/style.background setzen (CLAUDE.md Regel 2):
- * der Browser normalisiert JS-gesetzte Inline-Styles zu rgb(), und die
- * Dark-Mode-Attribut-Selektoren [style*="…#hex"] greifen dann nicht mehr.
- * Stattdessen data-state setzen und im CSS beide Modi abdecken. */
-function setState(el, state) {
-  if (!el) return;
-  if (typeof el === 'string') el = document.getElementById(el);
-  if (!el) return;
-  el.dataset.state = state;
-}
-
 /* Kurzmeldung an einem Element: Text + Zustand + einblenden.
- * Ersetzt die diversen _autoMsg/_showMsg-Varianten. */
+ * Ersetzt die diversen _autoMsg/_showMsg-Varianten.
+ *
+ * Der Zustand geht als data-state hinaus und NIE als style.color/background
+ * (CLAUDE.md Regel 2): Der Browser normalisiert JS-gesetzte Inline-Styles zu
+ * rgb(), und die Dark-Mode-Attribut-Selektoren [style*="…#hex"] greifen dann
+ * nicht mehr. Die Farbe gehört ins CSS, das beide Modi abdeckt. */
 function showMsg(el, text, ok) {
   if (typeof el === 'string') el = document.getElementById(el);
   if (!el) return;
