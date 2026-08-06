@@ -295,11 +295,15 @@ function fieldClear(el) {
  *
  * Ohne JavaScript bleibt der volle Text stehen — die Kürzung ist eine Zutat,
  * keine Voraussetzung fürs Lesen.
+ *
+ * Nur Block-Elemente: `span.hint` steht meist inline hinter einem Feld. Die
+ * Kürzung setzt `display:-webkit-box`, macht ein solches span also zum Block
+ * und verschöbe das Layout — bei kurzen Texten ohne jeden Gewinn.
  */
 function initHintClamps(root, minLen) {
   var scope = root || document;
   var grenze = minLen || 150;
-  var texte = scope.querySelectorAll('p.hint:not([data-clamp])');
+  var texte = scope.querySelectorAll('p.hint:not([data-clamp]), div.hint:not([data-clamp])');
   Array.prototype.forEach.call(texte, function (p) {
     if ((p.textContent || '').trim().length < grenze) return;
     p.dataset.clamp = 'zu';

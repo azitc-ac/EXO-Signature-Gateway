@@ -204,6 +204,14 @@
           if (!btn.innerHTML.trim()) btn.innerHTML = COPY_ICON;
         });
       });
+      // Lange Erklaertexte auf zwei Zeilen kuerzen — auf JEDER Seite, nicht nur
+      // dort, wo jemand daran gedacht hat. Von v1.7.96 bis v1.7.151 stand der
+      // Aufruf allein in settings_connect.html; die uebrigen Vorlagen mit
+      // zusammen ueber hundert Erklaertexten blieben ungekuerzt. Hier greift er
+      // fuer alles, was base.html erbt, auch fuer kuenftige Seiten. Seiten, die
+      // Abschnitte nachrendern, rufen zusaetzlich selbst auf — bereits
+      // behandelte Absaetze werden uebersprungen.
+      document.addEventListener('DOMContentLoaded', function() { initHintClamps(); });
       // For JS-rendered snippets (innerHTML strings), build the button with the
       // icon already inlined: '...' + copyBtnHtml(value) + '...'
       // Feldinhalt leeren — mit Rueckweg. Ohne den waere ein Fehlgriff

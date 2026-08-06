@@ -257,7 +257,8 @@ input[data-invalid="1"], select[data-invalid="1"], textarea[data-invalid="1"] {
 /* Lange Erklärtexte: zwei Zeilen, Rest per Schalter (initHintClamps()).
  * -webkit-line-clamp ist trotz des Präfixes in allen aktuellen Browsern
  * umgesetzt; fällt es aus, steht schlicht der ganze Text da — kein Verlust. */
-p.hint[data-clamp="zu"] {
+p.hint[data-clamp="zu"],
+div.hint[data-clamp="zu"] {
     display: -webkit-box;
     -webkit-line-clamp: 2;
     line-clamp: 2;
