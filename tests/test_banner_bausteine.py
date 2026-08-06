@@ -363,3 +363,37 @@ def test_aeussere_tabelle_traegt_die_schrift_weiterhin():
     html = _html([{"type": "greeting", "text": "x"}])
     erste = html.splitlines()[0]
     assert "font-family" in erste and "font-size" in erste, erste
+
+
+def test_zahlenfelder_vertragen_einheiten():
+    """Alle Felder, die eine Zahl erwarten, müssen eine mitgetippte Einheit
+    verkraften. Sie heissen „(px)", und wer aus dem Schriftgrössenfeld das
+    Mitschreiben gewohnt ist, tippt sie auch hier.
+
+    Vor der Korrektur warf jedes einzelne einen Fehler, der als Serverfehler
+    beim Nutzer ankam.
+    """
+    faelle = [
+        {"type": "box", "padding": "12pt", "children": [{"type": "freetext", "html": "x"}]},
+        {"type": "box", "border_width": "1px", "children": [{"type": "freetext", "html": "x"}]},
+        {"type": "box", "radius": "8px", "children": [{"type": "freetext", "html": "x"}]},
+        {"type": "box", "width": "520px", "children": [{"type": "freetext", "html": "x"}]},
+        {"type": "box", "padding": "6px", "padding_x": "14px",
+         "children": [{"type": "freetext", "html": "x"}]},
+        {"type": "spacer", "height": "10pt"},
+        {"type": "divider", "margin": "8px"},
+        {"type": "logo", "url": "x.png", "width": "100px"},
+        {"type": "badge", "label": "X", "radius": "2px"},
+        {"type": "two_col", "gap": "12px", "left": [], "right": []},
+    ]
+    for b in faelle:
+        _html([b])          # wirft, wenn eine Stelle noch int() benutzt
+
+
+def test_unlesbare_zahl_faellt_auf_die_vorgabe():
+    """Lieber die Vorgabe als eine Fehlermeldung: Der Nutzer sieht das Ergebnis
+    sofort in der Vorschau und kann nachbessern."""
+    html = _html([{"type": "spacer", "height": "abc"}])
+    assert "height:8px" in html, html
+    # Und eine gültige Zahl gilt weiterhin.
+    assert "height:20px" in _html([{"type": "spacer", "height": "20"}])

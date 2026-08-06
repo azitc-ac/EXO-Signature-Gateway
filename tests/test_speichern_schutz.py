@@ -65,3 +65,35 @@ def test_gueltige_vorlage_wird_gespeichert_und_gesichert(klient):
     # Die bisherige Fassung muss als Sicherung dastehen.
     assert (verz / "probe.html.bak").exists(), "keine Sicherung angelegt"
     assert "<p>alt</p>" in (verz / "probe.html.bak").read_text()
+
+
+def test_zahleneingabe_mit_einheit_bricht_nicht(klient):
+    """Wer in ein px-Feld „12pt" tippt, darf keinen Serverfehler bekommen.
+
+    Gemeldet am 06.08.2026: „Speichern fehlgeschlagen: Unexpected token 'I',
+    "Internal S"… is not valid JSON". Der Endpunkt lieferte einen 500er mit
+    Text, und der Editor konnte ihn nicht deuten — die Meldung nannte weder
+    Feld noch Ursache.
+    """
+    c, verz = klient
+    r = c.post("/api/templates/Probe/meta", json={
+        "version": 1,
+        "blocks": [{"type": "box", "padding": "12pt", "width": "520px",
+                    "border_width": "1px", "radius": "8px",
+                    "children": [{"type": "text", "text": "Inhalt"}]}]})
+    assert r.status_code == 200, r.text
+    assert "Inhalt" in (verz / "Probe.html").read_text()
+
+
+def test_fehler_beim_erzeugen_kommt_als_meldung(klient, monkeypatch):
+    """Und wenn doch einmal etwas bricht: als lesbare Meldung, nicht als 500."""
+    import template_builder
+    c, verz = klient
+    (verz / "Probe.html").write_text("<p>bisher</p>", encoding="utf-8")
+    monkeypatch.setattr(template_builder, "render_html",
+                        lambda m: (_ for _ in ()).throw(ValueError("kaputt")))
+    r = c.post("/api/templates/Probe/meta", json={
+        "version": 1, "blocks": [{"type": "text", "text": "x"}]})
+    assert r.status_code == 400, r.status_code
+    assert "kaputt" in r.json().get("detail", "")
+    assert "<p>bisher</p>" in (verz / "Probe.html").read_text(), "trotzdem geschrieben"

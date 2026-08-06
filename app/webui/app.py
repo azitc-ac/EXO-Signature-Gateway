@@ -1777,8 +1777,18 @@ async def api_save_template_meta(name: str, request: Request, _=Depends(_check_a
         raise HTTPException(400, "Die Vorlage enthält keine Bausteine. "
                                  "Speichern würde die Signatur löschen.")
 
-    html_content = _tb.render_html(meta)
-    txt_content = _tb.render_txt(meta)
+    # Ein Fehler beim Erzeugen darf NIE als nackter Serverfehler herauskommen:
+    # Der Editor bekommt dann HTML statt JSON und meldet „Speichern
+    # fehlgeschlagen: … is not valid JSON" — eine Meldung, aus der niemand auf
+    # sein Eingabefeld schliessen kann. Genau so gemeldet am 06.08.2026, nachdem
+    # in ein px-Feld „12pt" getippt worden war.
+    try:
+        html_content = _tb.render_html(meta)
+        txt_content = _tb.render_txt(meta)
+    except Exception as exc:
+        log.error("Template '%s' liess sich nicht erzeugen: %s", safe, exc, exc_info=True)
+        raise HTTPException(400, f"Die Vorlage liess sich nicht erzeugen: {exc}. "
+                                 f"Bitte die Eingaben prüfen — nicht gespeichert.")
 
     # Erzeugt der Baukasten ein UNGUELTIGES Template, waere die Signatur beim
     # Versand leer — sichtbar wird das erst beim Empfaenger. Deshalb hier
