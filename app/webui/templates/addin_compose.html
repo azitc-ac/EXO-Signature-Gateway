@@ -126,6 +126,17 @@
     //      "Einfügen" clicks may be overwritten.  Rare but documented trade-off.
     var _sigTextProbe  = '';   // probe from current sig
     var _prevSigTextProbe = ''; // probe from previous sig (template switch support)
+    // Laufende Nummer JEDES Abrufs. Wer schnell zwischen Vorlagen wechselt,
+    // startet mehrere gleichzeitig; ihre Antworten treffen in beliebiger
+    // Reihenfolge ein. Ohne diese Nummer setzt eine VERALTETE Antwort noch
+    // `_markedSig` und `_prevSigTextProbe` — und das Ersetzen sucht dann nach
+    // einer Signatur, die nie im Text stand, und fügt statt zu ersetzen hinzu.
+    // Ergebnis: übereinanderliegende Signaturen, die nicht mehr weggehen.
+    var _ladeNr = 0;
+    // Ein Ersetzen darf nicht vom nächsten überholt werden: getAsync und
+    // setAsync sind zwei Schritte, dazwischen kann ein zweiter Lauf den Text
+    // lesen, den der erste gerade schreibt.
+    var _ersetztGerade = false;
     var _lastSetBody = null;
     var _addinSession = '';
     try { _addinSession = localStorage.getItem('exo_addin_session') || ''; } catch(_) { console.error('[addin_compose:131]', _); }
@@ -160,6 +171,7 @@
     }
 
     function loadSig(emailOverride, onLoaded) {
+      var meineNr = ++_ladeNr;
       var email = emailOverride || _email || (Office.context.mailbox.userProfile || {}).emailAddress || '';
       if (!email) { showStatus('E-Mail-Adresse konnte nicht ermittelt werden.', 'err'); return; }
       var tplSel = document.getElementById('tpl-select');
@@ -177,6 +189,8 @@
         })
         .then(function(d) {
           if (!d) return;
+          // Überholt? Dann still verwerfen — die neuere Antwort ist maßgeblich.
+          if (meineNr !== _ladeNr) return;
           document.getElementById('login-required').style.display = 'none';
           _prevSigTextProbe = _sigTextProbe;  // keep old probe for template-switch detection
           _markedSig = d.marked_html || '';
@@ -192,12 +206,17 @@
         })
         .catch(function(e) {
           if (!e) return; // handled above (401)
+          if (meineNr !== _ladeNr) return;
           document.getElementById('preview').innerHTML =
             '<span class="err">Fehler beim Laden: ' + e.message + '</span>';
         });
     }
 
     function loadAndApply() {
+      // Wechselt jemand weiter, während ein Ersetzen läuft, würde der zweite
+      // Lauf den Text lesen, den der erste gerade schreibt. Dann stehen beide
+      // Signaturen darin.
+      if (_ersetztGerade) return;
       loadSig(null, function() { if (_markedSig) replaceSig(); });
     }
 
@@ -398,9 +417,15 @@
 
     function replaceSig() {
       if (!_markedSig) return;
+      // Lesen und Schreiben sind zwei Schritte. Startet dazwischen ein zweiter
+      // Lauf, liest er den Stand VOR dem Schreiben des ersten — und schreibt
+      // ihn samt seiner eigenen Signatur zurück. Dann stehen beide im Text.
+      if (_ersetztGerade) return;
+      _ersetztGerade = true;
       // Always read the current body so user text typed between inserts is preserved.
       Office.context.mailbox.item.body.getAsync(Office.CoercionType.Html, function(r) {
         if (r.status !== Office.AsyncResultStatus.Succeeded) {
+          _ersetztGerade = false;
           showStatus('Lesevorgang fehlgeschlagen: ' + r.error.message, 'err'); return;
         }
         var body = r.value || '';
@@ -433,6 +458,7 @@
         }
         _lastSetBody = newBody;
         Office.context.mailbox.item.body.setAsync(newBody, { coercionType: Office.CoercionType.Html }, function(wr) {
+          _ersetztGerade = false;
           showStatus(
             wr.status === Office.AsyncResultStatus.Succeeded
               ? (replaced ? 'Signatur ersetzt ✓' : 'Signatur eingefügt ✓')

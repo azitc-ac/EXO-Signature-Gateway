@@ -5,6 +5,29 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.144 — 2026-08-06 — Add-in: übereinanderliegende Signaturen beim schnellen Wechseln
+
+Wer im Add-in mehrfach hintereinander die Vorlage wechselte, bekam gelegentlich
+zwei Signaturen übereinander — der Hintergrund stand doppelt und ließ sich
+nicht mehr entfernen.
+
+Zwei Wettläufe waren beteiligt:
+
+* **Mehrere Abrufe gleichzeitig.** Ihre Antworten treffen in beliebiger
+  Reihenfolge ein. Eine veraltete Antwort setzte dann noch das
+  Erkennungsmerkmal der Signatur; das anschließende Ersetzen suchte nach einer
+  Fassung, die nie im Text stand — und fügte hinzu, statt zu ersetzen. Jeder
+  Abruf trägt jetzt eine laufende Nummer; überholte Antworten werden verworfen.
+* **Lesen und Schreiben des Nachrichtentexts sind zwei Schritte.** Startete
+  dazwischen ein zweiter Durchgang, las er den Stand vor dem Schreiben des
+  ersten und schrieb ihn samt eigener Signatur zurück. Ein Ersetzen sperrt
+  jetzt bis zu seinem Abschluss — auch bei einem Lesefehler, sonst bliebe die
+  Sperre stehen.
+
+**Menüband:** Der Knopf heißt jetzt „EXO Signatur"; die Gruppe darunter bleibt
+„Signatur". Bisher stand beides gleich untereinander.
+
+
 ## v1.7.143 — 2026-08-06 — Quelltext-Änderungen finden in den Baukasten zurück
 
 Wer eine Baukasten-Vorlage von Hand im Quelltext nachbesserte, sah beim
