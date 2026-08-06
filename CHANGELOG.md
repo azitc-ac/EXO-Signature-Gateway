@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.154 — 2026-08-06 — Eingabefehler stehen auch außerhalb der Anbindungsseite am Feld
+
+Beanstandete Eingaben werden seit v1.7.96 unmittelbar am betroffenen Feld
+gerügt statt in einer Sammelmeldung am Abschnittsende. Umgesetzt war das
+allerdings nur auf der Seite *Anbindung & Lizenzen*. Die übrigen Formulare
+zogen jetzt nach: Hostname und Client-ID der Einrichtung, Auswahl und URL des
+Schlüsseltresors, der Zertifikatsimport und beide Stellen zur Wiederherstellung
+eines Backups.
+
+Zwei dieser Meldungen waren bisher ein Browser-Hinweisfenster (`alert`), das
+den Bildschirm blockiert und weggeklickt werden muss, ohne zu zeigen, welches
+Feld gemeint ist.
+
+Eine Rüge verschwindet, sobald derselbe Vorgang erneut ausgelöst wird — sonst
+bliebe sie am Feld stehen und behauptete einen Fehler, den es nicht mehr gibt.
+
+Die Empfänger-Seite des sicheren Nachrichtenportals bleibt bei ihrer eigenen
+Darstellung: Sie bindet das gemeinsame JavaScript bewusst nicht ein.
+
+
 ## v1.7.153 — 2026-08-06 — Prüfung auf unbenutzte Funktionen
 
 `tools/deadcheck.py` meldet Funktionen im gemeinsamen JavaScript, die nirgends

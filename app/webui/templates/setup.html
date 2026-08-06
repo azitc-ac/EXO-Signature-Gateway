@@ -1040,9 +1040,10 @@ async function changePassword() {
 }
 
 async function saveHostname() {
+  fieldClear('hostname');
   const hostname = (document.getElementById('hostname').value || '').trim();
   const result = document.getElementById('hostname-result');
-  if (!hostname) { showAlert(result, 'error', 'Hostname darf nicht leer sein.'); return; }
+  if (!hostname) { fieldMsg('hostname', 'Hostname darf nicht leer sein.', false); return; }
 
   const resp = await fetch('/api/setup/hostname', {
     method: 'POST',
@@ -1163,9 +1164,10 @@ async function sendTestMail() {
 }
 
 async function saveBootstrapClientId() {
+  fieldClear('bootstrap-client-id');
   const clientId = (document.getElementById('bootstrap-client-id').value || '').trim();
   const result   = document.getElementById('bootstrap-result');
-  if (!clientId) { showAlert(result, 'error', 'Client-ID darf nicht leer sein.'); return; }
+  if (!clientId) { fieldMsg('bootstrap-client-id', 'Client-ID darf nicht leer sein.', false); return; }
 
   const resp = await fetch('/api/setup/bootstrap-client', {
     method: 'POST',
@@ -1906,6 +1908,9 @@ function _kvGetResourceGroup() {
 }
 
 async function confirmKvSelection() {
+  // Beide Felder, weil die Funktion je nach Auswahl das eine ODER das andere ruegt
+  fieldClear('kv-vault-sel');
+  fieldClear('kv-other-url-input');
   const vaultVal = document.getElementById('kv-vault-sel').value;
   const resultEl = document.getElementById('kv-create-result');
   const btn = document.getElementById('kv-create-btn');
@@ -1932,9 +1937,7 @@ async function confirmKvSelection() {
   if (vaultVal === '__other__') {
     const manualUrl = (document.getElementById('kv-other-url-input').value || '').trim();
     if (!manualUrl) {
-      resultEl.className = 'alert error';
-      resultEl.textContent = 'Bitte eine Vault URL eingeben.';
-      resultEl.style.display = 'block';
+      fieldMsg('kv-other-url-input', 'Bitte eine Vault URL eingeben.', false);
       return;
     }
     _setUrl(manualUrl, '');  // no resource_id for manual URLs
@@ -1994,9 +1997,7 @@ async function confirmKvSelection() {
     return;
   }
 
-  resultEl.className = 'alert error';
-  resultEl.textContent = 'Bitte einen Key Vault auswählen.';
-  resultEl.style.display = 'block';
+  fieldMsg('kv-vault-sel', 'Bitte einen Key Vault auswählen.', false);
 }
 
 function onKvUrlInput() {
@@ -2398,7 +2399,8 @@ function toggleSetupRestorePanel() {
 
 function setupRestoreConfirm() {
   var input = document.getElementById('setup-restore-file');
-  if (!input.files.length) { alert('Bitte zuerst eine Backup-ZIP-Datei auswählen.'); return; }
+  fieldClear(input);
+  if (!input.files.length) { fieldMsg(input, 'Bitte zuerst eine Backup-ZIP-Datei auswählen.', false); return; }
   var fname = input.files[0].name;
   if (!confirm('Backup "' + fname + '" wiederherstellen?\n\nAlle Konfigurationsdaten werden überschrieben.\nDanach ist ein Neustart erforderlich.\n\nFortfahren?')) return;
   setupRestore();
