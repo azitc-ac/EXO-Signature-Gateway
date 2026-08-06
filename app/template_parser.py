@@ -510,7 +510,10 @@ def _als_kasten_direkt(td: Knoten) -> dict | None:
     if not td.innen_html().strip():
         return None
 
-    b: dict = {"type": "box", "children": _bloecke_aus(td)}
+    # Den Inhalt ueber die Zeilen-Tags lesen, NICHT ueber `_bloecke_aus(td)`:
+    # Das liefe fuer eine Zelle ohne <tr> wieder hierher zurueck — dieselbe
+    # Zelle, derselbe Erkenner, endlos. Genau so ist es beim Umbau passiert.
+    b: dict = {"type": "box", "children": _bloecke_aus_zeilen_tags(td, False)}
     pad = _stil_wert(stil, "padding").split()
     if pad:
         b["padding"] = _px(pad[0])
@@ -625,6 +628,24 @@ def _block_aus_zelle(td: Knoten, erster: bool, oberste_ebene: bool = True) -> di
     if (erster and oberste_ebene and txt and not td.kind_elemente()
             and "{{" not in roh and _klingt_nach_gruss(txt)):
         return {"type": "greeting", "text": txt}
+    # Reiner Text ohne jede Auszeichnung wird der Baustein MIT Feldern (Farbe,
+    # Groesse, fett) — nicht der HTML-Baustein. Denselben Gedanken wendet
+    # `_block_aus_inline` auf gesammelten Fliesstext an; hier gilt er fuer den
+    # Inhalt einer Zelle oder eines Absatzes.
+    if txt and not td.kind_elemente() and "{{" not in roh and "{%" not in roh:
+        b = {"type": "text", "text": txt}
+        stil = td.stil()
+        farbe = _farbe_oder_leer(_stil_wert(stil, "color"))
+        if farbe:
+            b["color"] = farbe
+        groesse = _stil_wert(stil, "font-size")
+        if groesse:
+            b["size"] = groesse
+        if "font-weight:bold" in stil or "font-weight:700" in stil:
+            b["bold"] = True
+        if "font-style:italic" in stil:
+            b["italic"] = True
+        return b
     return {"type": "freetext", "html": roh}
 
 
@@ -672,17 +693,36 @@ def _bloecke_aus_zeilen_tags(behaelter: Knoten, oberste_ebene: bool) -> list[dic
     Wrapper.
     """
     bloecke: list[dict] = []
+    # Fliessender Inhalt wird GESAMMELT, nicht je Element getrennt.
+    #
+    # Ein Satz wie „💡 <strong>Schon gewusst?</strong> Tipps & Tools —
+    # <a …>blog.example</a>" besteht aus Text, einem <strong> und einem <a>.
+    # Je Element ein Baustein ergab daraus DREI Zeilen, wo eine stand: Jeder
+    # Baustein wird eine eigene Tabellenzeile, und der Text bricht nicht mehr
+    # natuerlich um, sondern starr an den frueheren Elementgrenzen.
+    #
+    # Getrennt wird nur an ECHTEN Absatzgrenzen — <p>, <div>, <table>, <hr>.
+    laufend: list[str] = []
+
+    def _laufendes_abgeben():
+        roh = "".join(laufend).strip()
+        laufend.clear()
+        if roh:
+            bloecke.append(_block_aus_inline(roh, erster=not bloecke,
+                                             oberste_ebene=oberste_ebene))
+
     for kind in behaelter.kinder:
         if not kind.tag:
-            if kind.text.strip():
-                bloecke.append({"type": "freetext", "html": kind.text.strip()})
+            laufend.append(kind.text)
             continue
         if kind.tag == "!comment":
             continue
         if kind.tag == "table":
+            _laufendes_abgeben()
             bloecke.extend(_bloecke_aus(kind, oberste_ebene=False))
             continue
         if kind.tag in ZEILEN_TAGS:
+            _laufendes_abgeben()
             innere = [x for x in kind.kinder
                       if x.tag in ZEILEN_TAGS or x.tag == "table"]
             if innere and len(innere) == len([x for x in kind.kinder if x.tag]):
@@ -691,14 +731,46 @@ def _bloecke_aus_zeilen_tags(behaelter: Knoten, oberste_ebene: bool) -> list[dic
             bloecke.append(_block_aus_zelle(kind, erster=not bloecke,
                                             oberste_ebene=oberste_ebene))
             continue
-        # br, hr und Ähnliches: als eigener Block nur, wenn es Inhalt traegt.
         if kind.tag == "hr":
+            _laufendes_abgeben()
             bloecke.append({"type": "divider"})
             continue
-        roh = kind.zu_html().strip()
-        if roh:
-            bloecke.append({"type": "freetext", "html": roh})
+        # Alles Uebrige (span, strong, a, img, br …) ist fliessender Inhalt und
+        # gehoert zum laufenden Absatz.
+        laufend.append(kind.zu_html())
+    _laufendes_abgeben()
     return bloecke
+
+
+def _block_aus_inline(roh: str, erster: bool, oberste_ebene: bool) -> dict:
+    """Einen gesammelten Fliesstext einordnen.
+
+    Steht dort NUR Text — keine Auszeichnung, kein Link, kein Bild —, wird
+    daraus ein Freitext-Baustein mit Feldern fuer Farbe, Groesse und Fettung.
+    Sobald Auszeichnung im Spiel ist, bleibt es HTML: Der Textbaustein traegt
+    EINE Auszeichnung fuer den ganzen Text und koennte „teils fett, teils Link"
+    nicht abbilden.
+    """
+    # Steht dort nur EIN Element — ein Bild, ein Link, ein Etikett —, sollen die
+    # Erkenner es noch sehen. Sonst faengt das Sammeln des Fliesstextes ihnen
+    # alles weg: Ein Logo allein in einer Spalte kam als Freitext an.
+    einzel = _baum(f"<td>{roh}</td>")
+    zellen = [k for k in _alle(einzel) if k.tag == "td"]
+    if zellen:
+        for erkenner in (_als_leerzeile, _als_badge, _als_logo, _als_link_block,
+                         _als_feld):
+            b = erkenner(zellen[0])
+            if b:
+                return b
+
+    ohne_tags = re.sub(r"<[^>]+>", "", roh)
+    if "<" not in roh and "{{" not in roh and "{%" not in roh:
+        txt = _htmllib.unescape(ohne_tags).strip()
+        if txt and erster and oberste_ebene and _klingt_nach_gruss(txt):
+            return {"type": "greeting", "text": txt}
+        if txt:
+            return {"type": "text", "text": txt}
+    return {"type": "freetext", "html": roh}
 
 
 def _bloecke_aus(behaelter: Knoten, oberste_ebene: bool = False) -> list[dict]:
@@ -754,7 +826,14 @@ def _bloecke_aus(behaelter: Knoten, oberste_ebene: bool = False) -> list[dict]:
         # Kein Tabellenlayout — ueber <p>/<div> versuchen, bevor die ganze
         # Vorlage zu EINEM Freitext wird.
         ueber_tags = _bloecke_aus_zeilen_tags(behaelter, oberste_ebene)
-        if len(ueber_tags) > 1:
+        # EIN Block genuegt. Frueher wurde erst ab zwei uebernommen, weil der
+        # Fliesstext je Element zerschnitten wurde und ein einzelner Block
+        # bedeutete: nichts erkannt. Seit der Fliesstext gesammelt wird, ist
+        # EIN Block der Normalfall — und der Rueckfall darunter fuehrte in eine
+        # Endlosschleife ueber `_als_kasten_direkt`.
+        if ueber_tags and not (len(ueber_tags) == 1
+                               and ueber_tags[0].get("type") == "freetext"
+                               and not (ueber_tags[0].get("html") or "").strip()):
             return _anschrift_verschmelzen(ueber_tags)
         # Ein Behaelter OHNE Zeilenstruktur ist selbst der Block: eine
         # Spaltenzelle mit nur einem Bild darin ist ein Logo, keine Sammlung.
