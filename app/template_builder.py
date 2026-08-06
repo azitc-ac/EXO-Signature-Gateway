@@ -496,6 +496,25 @@ def _anschrift(b, g, pad, _ind):
     )
 
 
+def _erbstil(g: dict) -> str:
+    """Schrifteigenschaften für eine VERSCHACHTELTE Tabelle.
+
+    Verschachtelte Tabellen erben die Schriftgröße nicht, wenn das Dokument im
+    Quirks-Modus dargestellt wird — und genau so rendern Mailprogramme HTML.
+    Ohne diese Angabe fällt der Inhalt einer Spalte oder eines Kastens auf die
+    Vorgabegröße des Programms zurück (meist 16px), während der Text daneben
+    die eingestellte Größe behält.
+
+    Sichtbar wurde das an einer Signatur mit Zweispalter: Die Kontaktzeilen
+    rechts standen 19px hoch, die Anschrift daneben 17px — bei angeblich
+    derselben Schrift. Gemessen: 16px gegen 14,67px. Der Nutzer nahm es als zu
+    grossen Zeilenabstand wahr; tatsächlich war die Schrift grösser.
+    """
+    return (f'font-family:{_schriftart(g)};'
+            f'font-size:{_laenge(g["font_size"]) or "11pt"};'
+            f'color:{g["base_color"]}')
+
+
 def _two_col(b, g, pad, indent):
     left_blocks = b.get("left") or []
     right_blocks = b.get("right") or []
@@ -539,15 +558,15 @@ def _two_col(b, g, pad, indent):
     return (
         f'{pad}<tr>\n'
         f'{pad}  <td style="padding:0">\n'
-        f'{p2}<table cellpadding="0" cellspacing="0" border="0">\n'
+        f'{p2}<table cellpadding="0" cellspacing="0" border="0" style="{_erbstil(g)}">\n'
         f'{p2}  <tr>\n'
         f'{p2}    <td style="{ls}">\n'
-        f'{p3}<table cellpadding="0" cellspacing="0" border="0">\n'
+        f'{p3}<table cellpadding="0" cellspacing="0" border="0" style="{_erbstil(g)}">\n'
         f'{left_inner}\n'
         f'{p3}</table>\n'
         f'{p2}    </td>\n'
         f'{p2}    <td style="{rs}">\n'
-        f'{p3}<table cellpadding="0" cellspacing="0" border="0">\n'
+        f'{p3}<table cellpadding="0" cellspacing="0" border="0" style="{_erbstil(g)}">\n'
         f'{right_inner}\n'
         f'{p3}</table>\n'
         f'{p2}    </td>\n'
@@ -650,8 +669,9 @@ def _box(b, g, pad, indent):
     # eckigen Rahmen INNERHALB des runden.
     teile += [
         f'{p2}<table cellpadding="0" cellspacing="0" border="0"'
-        + (f' style="{tab_style}"' if tab_style else "")
-        + ">",
+        # Schrift IMMER mitgeben (verschachtelte Tabelle, siehe _erbstil),
+        # Breite nur wenn gesetzt.
+        + f' style="{_erbstil(g)}' + (f';{tab_style}' if tab_style else "") + '">',
         f'{p2}  <tr><td style="{";".join(td_style)}">',
     ]
     if mso:
@@ -659,7 +679,7 @@ def _box(b, g, pad, indent):
     # Diese Tabelle sehen BEIDE — sie trägt die Zeilen der Kinder. Läge sie im
     # !mso-Zweig, stünden die <tr> in Outlook ohne Tabelle in der v:textbox.
     teile += [
-        f'{p2}  <table cellpadding="0" cellspacing="0" border="0">',
+        f'{p2}  <table cellpadding="0" cellspacing="0" border="0" style="{_erbstil(g)}">',
         inner,
         f"{p2}  </table>",
     ]

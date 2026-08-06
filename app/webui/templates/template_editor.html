@@ -185,7 +185,10 @@
 <div id="tab-raw" style="display:none">
   {% if has_meta %}
   <div class="alert" style="background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#92400e">
-    Diese Vorlage wurde im Baukasten erstellt. Manuelle Änderungen am Quelltext überschreiben die Baukastenversion beim Speichern.
+    <strong>Diese Vorlage hat Baukasten-Daten.</strong> Änderungen hier gelten sofort —
+    sie gehen aber verloren, sobald im Baukasten gespeichert wird: Dort wird der
+    Quelltext aus den Bausteinen neu erzeugt. Wer beides behalten will, trägt die
+    Änderung im Baukasten nach.
   </div>
   {% endif %}
   <form method="post" action="/template" id="raw-form">

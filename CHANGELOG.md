@@ -5,6 +5,30 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.142 — 2026-08-06 — Text in Spalten und Kästen war größer als daneben
+
+In einem Zweispalter oder Kasten erschien der Text größer als außerhalb — bei
+gleicher Einstellung. Sichtbar wurde das als zu großer Zeilenabstand: In einer
+Signatur mit Kontaktspalte standen die Zeilen dort 19 Pixel hoch, die Anschrift
+daneben 17.
+
+**Ursache.** Verschachtelte Tabellen erben die Schriftgröße nur, wenn das
+Dokument im strengen Modus dargestellt wird. Mailprogramme rendern HTML
+üblicherweise im Kompatibilitätsmodus, und dort fällt der Inhalt einer
+verschachtelten Tabelle auf die Vorgabegröße des Programms zurück — meist 16
+Pixel statt der eingestellten 11 pt (14,7 Pixel). Nachgemessen: derselbe Aufbau
+ergibt mit Dokumenttyp-Angabe 17 Pixel, ohne 19.
+
+Alle verschachtelten Tabellen tragen die Schriftangaben jetzt selbst. Betrifft
+Zweispalter und Kästen; wer eine solche Vorlage im Baukasten speichert, bekommt
+die Korrektur.
+
+**Außerdem:** Der Hinweis im Quelltext-Reiter war irreführend. Er las sich, als
+gewönne die Änderung am Quelltext. Tatsächlich gilt sie nur, bis im Baukasten
+gespeichert wird — dann wird der Quelltext aus den Bausteinen neu erzeugt. Der
+Hinweis sagt das jetzt.
+
+
 ## v1.7.141 — 2026-08-04 — Baukasten: Freitext und HTML-Code getrennt
 
 Der bisherige Baustein „Freitext / HTML" erwartete rohes HTML — wer einfach
