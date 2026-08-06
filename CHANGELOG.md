@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.151 — 2026-08-06 — Erklärung zum Verteilerlisten-Haken eingeklappt
+
+Der Text neben dem neuen Haken stand in voller Länge in der Zeile. Er sitzt
+jetzt hinter einem aufklappbaren „Wozu?", wie die übrigen Erklärungen.
+
+
 ## v1.7.150 — 2026-08-06 — Verteilerliste für Benachrichtigungen kann Mail von außen annehmen
 
 Unter *Einstellungen → Benachrichtigungen* gibt es einen neuen Haken:
