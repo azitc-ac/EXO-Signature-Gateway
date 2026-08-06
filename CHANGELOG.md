@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.143 — 2026-08-06 — Quelltext-Änderungen finden in den Baukasten zurück
+
+Wer eine Baukasten-Vorlage von Hand im Quelltext nachbesserte, sah beim
+nächsten Öffnen die alten Bausteine — und verlor die Änderung, sobald er dort
+speicherte. Die Rückübersetzung wurde nur angeboten, wenn eine Vorlage gar
+keine Baukasten-Daten hatte.
+
+Ist der Quelltext neuer als die Bausteine, werden diese jetzt aus dem
+**aktuellen** Quelltext gelesen, und der Hinweis sagt es ausdrücklich: einmal
+speichern, dann ist die Änderung übernommen. Maßgeblich ist der Zeitpunkt der
+letzten Änderung beider Dateien.
+
+Der Hinweis im Quelltext-Reiter stand bisher andersherum. Er sagt jetzt, was zu
+tun ist: nach dem Ändern einmal auf „Baukasten" wechseln und dort speichern.
+
+
 ## v1.7.142 — 2026-08-06 — Text in Spalten und Kästen war größer als daneben
 
 In einem Zweispalter oder Kasten erschien der Text größer als außerhalb — bei

@@ -185,10 +185,10 @@
 <div id="tab-raw" style="display:none">
   {% if has_meta %}
   <div class="alert" style="background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#92400e">
-    <strong>Diese Vorlage hat Baukasten-Daten.</strong> Änderungen hier gelten sofort —
-    sie gehen aber verloren, sobald im Baukasten gespeichert wird: Dort wird der
-    Quelltext aus den Bausteinen neu erzeugt. Wer beides behalten will, trägt die
-    Änderung im Baukasten nach.
+    <strong>Diese Vorlage hat Baukasten-Daten.</strong> Änderungen hier gelten sofort.
+    Damit sie auch im Baukasten ankommen, wechsle danach einmal auf
+    <strong>Baukasten</strong> — die Bausteine werden dann aus deinem geänderten
+    Quelltext neu gelesen — und speichere dort.
   </div>
   {% endif %}
   <form method="post" action="/template" id="raw-form">
@@ -284,6 +284,8 @@
 // ── State ─────────────────────────────────────────────────────────────────────
 const TEMPLATE_NAME = {{ current_template | tojson }};
 const HAS_META      = {{ has_meta | tojson }};
+// Quelltext nach dem letzten Baukasten-Speichern von Hand geaendert.
+const QUELLTEXT_NEUER = {{ quelltext_neuer | tojson }};
 const CUSTOM_VARS   = {{ (custom_vars or []) | tojson }};
 
 let blocks = [];   // array of block objects
@@ -297,7 +299,11 @@ let _umwandlungAngeboten = false;
 
 window.switchTab = function(tab) {
   // Kein Baukasten-Stand, aber HTML vorhanden → Rückübersetzung anbieten.
-  if (tab === 'builder' && !HAS_META && !_umwandlungAngeboten && blocks.length === 0) {
+  // Anbieten, wenn es keine Bausteine gibt ODER der Quelltext neuer ist als
+  // sie. Der zweite Fall ist der eigentliche Zweck: Wer eine Baukasten-Vorlage
+  // von Hand nachbessert, soll die Änderung in die Bausteine übernehmen können.
+  if (tab === 'builder' && (!HAS_META || QUELLTEXT_NEUER) && !_umwandlungAngeboten
+      && (blocks.length === 0 || QUELLTEXT_NEUER)) {
     _umwandlungAngeboten = true;
     umwandlungAnbieten();
   }
@@ -1196,9 +1202,14 @@ async function umwandlungAnbieten() {
   renderBlockList();
   refreshPreview();
   zeigeUmwandlungsHinweis(
-    `Aus dem HTML wurden ${d.blocks} Baustein(e) gebildet. Prüfe die Vorschau — ` +
-    `erst mit „Speichern“ wird daraus die neue Vorlage. Ohne Speichern bleibt ` +
-    `alles beim bisherigen HTML.`, d.hinweise || [], true);
+    (QUELLTEXT_NEUER
+      ? `Der Quelltext wurde nach dem letzten Speichern im Baukasten geändert. `
+        + `Die ${d.blocks} Baustein(e) unten stammen aus dem AKTUELLEN Quelltext. `
+        + `Einmal „Speichern“, dann sind sie übernommen.`
+      : `Aus dem HTML wurden ${d.blocks} Baustein(e) gebildet. Prüfe die Vorschau — `
+        + `erst mit „Speichern“ wird daraus die neue Vorlage. Ohne Speichern bleibt `
+        + `alles beim bisherigen HTML.`),
+    d.hinweise || [], true);
 }
 
 function zeigeUmwandlungsHinweis(text, hinweise, ok) {
@@ -1322,6 +1333,9 @@ const HAS_RAW_HTML = {{ 'true' if html_content.strip() else 'false' }};
 if (!HAS_META && HAS_RAW_HTML) {
   switchTab('raw');
 } else {
+  // Bei neuerem Quelltext bewusst in den Baukasten: Dort steht der Hinweis,
+  // dass die Bausteine aus dem geänderten Quelltext stammen. Im Quelltext-Reiter
+  // sähe man die Änderung zwar, erführe aber nichts über den Handlungsbedarf.
   switchTab('builder');
 }
 
