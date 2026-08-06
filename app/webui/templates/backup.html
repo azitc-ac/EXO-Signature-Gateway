@@ -629,8 +629,9 @@ async function restartNow() {
 
 function backupRestoreConfirm() {
   const input = document.getElementById('backup-file-input');
+  fieldClear(input);
   if (!input.files.length) {
-    alert('Bitte zuerst eine Backup-ZIP-Datei auswählen.');
+    fieldMsg(input, 'Bitte zuerst eine Backup-ZIP-Datei auswählen.', false);
     return;
   }
   const fname = input.files[0].name;

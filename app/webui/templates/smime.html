@@ -731,12 +731,13 @@ function closeImportModal() {
 }
 
 async function doImport() {
+  fieldClear('import-file');
   const email    = document.getElementById('import-email').value;
   const file     = document.getElementById('import-file').files[0];
   const password = document.getElementById('import-password').value || '';
   const result   = document.getElementById('import-modal-result');
   const btn      = document.getElementById('import-submit-btn');
-  if (!file) { showAlert(result, 'error', 'Bitte eine .p12/.pfx Datei auswählen.'); return; }
+  if (!file) { fieldMsg('import-file', 'Bitte eine .p12/.pfx Datei auswählen.', false); return; }
   const fd = new FormData();
   fd.append('email', email);
   fd.append('p12_file', file);
