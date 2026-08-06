@@ -61,6 +61,14 @@ jobs:
       - name: Ungebundene Bezeichner im Vorlagen-JavaScript
         run: node tools/jsscopecheck.js app/webui/templates app/webui/static/common.js app/webui/static/sig_preview.js
 
+      # Die Gegenrichtung zu jsscopecheck: dort Verweis ohne Ziel, hier Ziel
+      # ohne Verweis. Beides ist lauffähiges JavaScript, das keine der übrigen
+      # Prüfungen beanstandet. Eingeschränkt, weil eine gespiegelte Funktion
+      # durchaus nur in der anderen Anwendung benutzt sein kann; die
+      # vollständige Prüfung über beide Bäume läuft beim Hub.
+      - name: Unbenutzte Funktionen (nur Gateway)
+        run: python tools/deadcheck.py --gateway-only
+
   build:
     name: Container baut
     runs-on: ubuntu-latest
