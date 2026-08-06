@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.152 — 2026-08-06 — Lange Erklärtexte werden auf allen Seiten gekürzt
+
+Die Kürzung langer Hinweistexte auf zwei Zeilen mit einem Schalter „mehr" gibt
+es seit v1.7.96. Aufgerufen wurde sie allerdings nur auf der Seite *Anbindung &
+Lizenzen*; auf allen übrigen Seiten standen die Texte weiterhin in voller Länge.
+Der Aufruf sitzt jetzt in der gemeinsamen Grundvorlage und wirkt damit überall,
+auch auf künftigen Seiten.
+
+Betroffen sind **44 von 99** Erklärtexten — der längste umfasst 702 Zeichen. Die
+kürzeren bleiben unverändert, die Schwelle liegt bei 150 Zeichen.
+
+Zusätzlich erfasst die Kürzung nun auch Erklärungen, die als `div` statt als
+Absatz ausgezeichnet sind. Kurze Hinweise hinter einem Eingabefeld (`span`)
+bleiben bewusst außen vor: Die Zeilenbegrenzung macht aus ihnen einen Block und
+verschöbe das Layout, ohne Platz zu sparen.
+
+Die Erklärung zum Verteilerlisten-Haken aus v1.7.151 nutzt jetzt dieselbe
+Mechanik statt eines eigenen Aufklappers.
+
+
 ## v1.7.151 — 2026-08-06 — Erklärung zum Verteilerlisten-Haken eingeklappt
 
 Der Text neben dem neuen Haken stand in voller Länge in der Zeile. Er sitzt
