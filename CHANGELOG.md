@@ -5,6 +5,30 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.155 — 2026-08-06 — „mehr" erscheint nur noch, wo wirklich mehr steht
+
+Der Schalter zum Aufklappen gekürzter Erklärtexte richtete sich nach der
+Zeichenzahl: ab 150 Zeichen erschien er. Wie viel Text in zwei Zeilen passt,
+hängt aber an der Breite des Kastens — in einer breiten Karte stehen 250
+Zeichen bequem in zwei Zeilen. Der Schalter versprach dann „mehr" und zeigte
+beim Klick genau dasselbe.
+
+Jetzt wird nachgemessen, ob der Text tatsächlich überläuft, und zwar um
+mindestens eine weitere Zeile. Ein Überlauf von wenigen Pixeln entsteht durch
+Rundung und Unterlängen und verbirgt nichts.
+
+Texte in noch verborgenen Abschnitten — etwa in einer Karte, die erst nach dem
+Laden erscheint — werden erst beurteilt, wenn sie sichtbar sind, statt vorab
+geschätzt zu werden.
+
+Ändert sich die Fensterbreite, wird neu beurteilt: Derselbe Text passt schmal
+nicht und breit schon. Aufgeklappte Texte bleiben dabei offen.
+
+Gemessen über neun Seiten: vorher 23 Schalter, davon 8 ohne verborgenen Inhalt
+und 3 weitere ohne Wirkung beim Klick. Jetzt 12 Schalter, alle mit Inhalt, und
+kein abgeschnittener Text ohne Schalter.
+
+
 ## v1.7.154 — 2026-08-06 — Eingabefehler stehen auch außerhalb der Anbindungsseite am Feld
 
 Beanstandete Eingaben werden seit v1.7.96 unmittelbar am betroffenen Feld
