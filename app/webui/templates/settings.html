@@ -802,7 +802,10 @@ async function saveNotifDg() {
     });
     const d = await resp.json().catch(() => ({}));
     if (resp.ok && d.ok) {
-      result.textContent = 'Gespeichert.' + (d.email ? ' DG: ' + d.email : '');
+      _dgExternInExo = document.getElementById('notif-dg-external').checked;
+      result.textContent = 'Gespeichert.' + (d.email ? ' DG: ' + d.email : '')
+        + (_dgExternInExo ? ' Liste nimmt Mail von außen an.'
+                          : ' Liste nimmt nur angemeldete Absender an.');
       result.style.color = '#16a34a';
     } else {
       result.textContent = 'Fehler: ' + (d.detail || 'Unbekannt');
@@ -816,7 +819,19 @@ async function saveNotifDg() {
   }
 }
 
-function saveBenachrichtigungen() {
+// Zustand des Hakens, wie er in EXO gilt. Der Haken ist KEINE gewöhnliche
+// Einstellung: Er muss als Set-DistributionGroup nach Exchange, und das kann
+// nur der DG-Weg. Wer ihn setzte und auf „Speichern" drückte, bekam vorher
+// eine Erfolgsmeldung — und in Exchange änderte sich nichts.
+var _dgExternInExo = {{ 'true' if s.NOTIFICATION_DG_ACCEPT_EXTERNAL else 'false' }};
+
+async function saveBenachrichtigungen() {
+  var haken = document.getElementById('notif-dg-external');
+  if (haken && haken.checked !== _dgExternInExo) {
+    // Erst nach Exchange, dann der Rest: Schlägt es fehl, soll die Meldung
+    // von dort stehen bleiben und nicht von einem „Gespeichert" überdeckt sein.
+    await saveNotifDg();
+  }
   savePartial({
     NOTIFICATIONS_ENABLED: document.getElementById('notif-enabled').checked,
     NOTIFICATION_RECIPIENTS: _notifRecipients.slice(),
