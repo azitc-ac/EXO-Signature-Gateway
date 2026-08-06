@@ -2143,6 +2143,20 @@ async def template_editor(request: Request, user: str = Depends(_check_auth)):
             "html_content": html_path.read_text() if html_path.exists() else "",
             "txt_content": txt_path.read_text() if txt_path.exists() else "",
             "has_meta": meta_path.exists(),
+            # Wurde der Quelltext NACH dem letzten Baukasten-Speichern
+            # geaendert? Dann sind die Bausteine veraltet, und der Editor bietet
+            # an, sie aus dem Quelltext neu zu lesen.
+            #
+            # Genau dafuer wurde die Ruecklesung gebaut: Handaenderungen am
+            # HTML sollen in den Baukasten UEBERNOMMEN werden. Ohne diese
+            # Pruefung griff sie nur bei Vorlagen ohne Bausteine — wer eine
+            # Baukasten-Vorlage von Hand nachbesserte, sah beim naechsten
+            # Oeffnen die alten Bausteine und verlor seine Arbeit beim
+            # Speichern.
+            "quelltext_neuer": (
+                meta_path.exists() and html_path.exists()
+                and html_path.stat().st_mtime > meta_path.stat().st_mtime + 1
+            ),
             "active": "template",
             "saved": request.query_params.get("saved"),
             "current_template": name,
