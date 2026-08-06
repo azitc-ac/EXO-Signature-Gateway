@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.149 — 2026-08-06 — Postfach-Filter nach Typ; Text zur Mindestabnahme berichtigt
+
+**Postfächer** lassen sich jetzt zusätzlich zum Suchfeld nach Typ einschränken:
+Benutzer, Shared, Raum & Gerät. Rechts daneben steht, wie viele der Postfächer
+gerade sichtbar sind.
+
+Die Knöpfe „Alle" und „Kein" wirken weiterhin nur auf sichtbare Zeilen — mit dem
+Typfilter wird daraus „alle Shared-Postfächer aktivieren". Raum- und
+Geräte-Postfächer bleiben dabei ausgenommen, weil ihre Felder gesperrt sind.
+
+**Berichtigt:** Der Hinweistext zur Freigrenze nannte eine Mindestabnahme von
+zehn Lizenzen. Die gibt es nicht mehr; Lizenzen sind einzeln buchbar. Der Text
+war nach der Umstellung stehengeblieben, die Preisberechnung war davon nicht
+betroffen.
+
+
 ## v1.7.148 — 2026-08-06 — Freitext-Baustein mit Auszeichnung
 
 Der Baustein „Freitext" versteht jetzt eine schlanke Auszeichnung im Text:

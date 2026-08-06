@@ -31,7 +31,7 @@
     unabhängig davon ob tatsächlich Mails verarbeitet wurden.<br>
     <strong>Nicht gezählt:</strong> Raum- und Geräte-Postfächer (Room/Equipment).<br>
     <strong>Freigrenze:</strong> Bis 100 Postfächer kostenlos (Community Edition).
-    Ab dem 101. sind Lizenzen erforderlich (Mindestabnahme 10).
+    Ab dem 101. sind Lizenzen erforderlich — einzeln buchbar, keine Mindestabnahme.
     Details unter <a href="/settings/connect">Anbindung &amp; Lizenzen</a>.
   </div>
 </div>
@@ -99,8 +99,18 @@ refreshFairUse();
     <span id="mb-load-status" style="font-size:12px;color:#888;margin-left:8px"></span>
   </div>
   <div id="mb-table-wrap" style="display:none">
-    <input type="text" id="mb-filter" placeholder="Filtern…" oninput="filterMailboxes(this.value)"
-           style="width:100%;max-width:320px;margin-bottom:8px;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px">
+    <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center">
+      <input type="text" id="mb-filter" placeholder="Filtern…" oninput="filterMailboxes()"
+             style="flex:1 1 200px;max-width:320px;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px">
+      <select id="mb-type-filter" onchange="filterMailboxes()"
+              style="padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px">
+        <option value="">Alle Typen</option>
+        <option value="user">Benutzer</option>
+        <option value="shared">Shared</option>
+        <option value="resource">Raum &amp; Gerät</option>
+      </select>
+      <span id="mb-filter-count" style="font-size:12px;color:#64748b"></span>
+    </div>
     <div style="display:flex;gap:18px;margin-bottom:10px;flex-wrap:wrap">
       <span style="font-size:12px;color:#555;display:inline-flex;align-items:center;gap:5px">
         Signatur aktivieren:
@@ -786,6 +796,8 @@ function renderMailboxTable(mailboxes) {
     tr.style.borderBottom = '1px solid #f0f0f0';
     if (isResource) tr.style.opacity = '0.7';
     tr.dataset.search = (mb.email + ' ' + (mb.name || '')).toLowerCase();
+    // Raum und Gerät teilen sich einen Filtereintrag — beide zählen nicht zur Lizenz
+    tr.dataset.mbtype = isResource ? 'resource' : (mb.type || 'shared');
 
     // Email cell
     var tdEmail = document.createElement('td');
@@ -978,13 +990,29 @@ function renderMailboxTable(mailboxes) {
     tr.appendChild(tdAddin);
     tbody.appendChild(tr);
   });
+  filterMailboxes();   // gesetzten Filter auf die neu aufgebaute Tabelle anwenden
 }
 
-function filterMailboxes(q) {
-  q = q.toLowerCase();
-  document.querySelectorAll('#mb-tbody tr').forEach(function(tr) {
-    tr.style.display = tr.dataset.search.includes(q) ? '' : 'none';
+function filterMailboxes() {
+  // Ohne Argument aufgerufen: beide Kriterien werden aus den Feldern gelesen.
+  // Wichtig, weil "Alle/Kein" nur auf sichtbare Zeilen wirkt (setAllVisible).
+  var feld = document.getElementById('mb-filter');
+  var typF = document.getElementById('mb-type-filter');
+  var q = (feld ? feld.value : '').toLowerCase();
+  var typ = typF ? typF.value : '';
+  var zeilen = document.querySelectorAll('#mb-tbody tr');
+  var sichtbar = 0;
+  zeilen.forEach(function(tr) {
+    var passt = tr.dataset.search.includes(q) && (!typ || tr.dataset.mbtype === typ);
+    tr.style.display = passt ? '' : 'none';
+    if (passt) sichtbar++;
   });
+  var zaehler = document.getElementById('mb-filter-count');
+  if (zaehler) {
+    zaehler.textContent = (q || typ)
+      ? sichtbar + ' von ' + zeilen.length + ' Postfächern'
+      : '';
+  }
 }
 
 function setAllVisible(type, state) {
