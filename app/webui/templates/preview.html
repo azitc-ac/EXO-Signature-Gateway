@@ -35,8 +35,23 @@
     <span id="disclaimer-badge" style="display:none;align-self:center;font-size:11px;color:#64748b;margin-left:4px"></span>
   </div>
   <div id="pv-html" class="preview-frame" style="min-height:80px"></div>
-  <pre id="pv-txt" class="code-block" style="display:none"></pre>
-  <pre id="pv-src" class="code-block" style="display:none"></pre>
+  <!-- Die Kopierknöpfe liegen im Rahmen oben rechts, wie im Quelltext-Editor.
+       `data-copy-target` liest den textContent des Blocks — bei einem <pre>
+       genau richtig, dort steht der Inhalt als Text und nicht als Feldwert. -->
+  <div id="pv-txt-wrap" class="feld-werkzeuge" style="display:none">
+    <div class="feld-knoepfe">
+      <button type="button" class="copy-btn" data-copy-target="pv-txt"
+              title="Nur-Text-Signatur kopieren"></button>
+    </div>
+    <pre id="pv-txt" class="code-block"></pre>
+  </div>
+  <div id="pv-src-wrap" class="feld-werkzeuge" style="display:none">
+    <div class="feld-knoepfe">
+      <button type="button" class="copy-btn" data-copy-target="pv-src"
+              title="HTML-Quelltext kopieren"></button>
+    </div>
+    <pre id="pv-src" class="code-block"></pre>
+  </div>
 </div>
 
 <div id="loading-indicator" style="display:none;color:#888;font-size:13px;margin-top:12px">Lädt…</div>
@@ -138,8 +153,11 @@
     });
     clickedBtn.style.background = '#4f46e5';
     clickedBtn.style.color      = '#fff';
+    // Die Textblöcke stecken in einer Hülle, die die Kopierknöpfe trägt —
+    // ein-/ausgeblendet wird deshalb die Hülle, nicht der Block selbst.
+    // Andernfalls bliebe der Knopf sichtbar, während sein Inhalt verborgen ist.
     ['pv-html','pv-txt','pv-src'].forEach(id => {
-      const el = document.getElementById(id);
+      const el = document.getElementById(id + '-wrap') || document.getElementById(id);
       if (el) el.style.display = id === targetId ? '' : 'none';
     });
   };
