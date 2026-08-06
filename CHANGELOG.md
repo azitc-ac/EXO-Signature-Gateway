@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.146 — 2026-08-06 — Kopierknöpfe in der Signaturvorschau
+
+Die Ansichten „Plaintext" und „HTML-Quelltext" der Vorschau haben nun denselben
+dezenten Kopierknopf oben rechts wie die Felder im Quelltext-Editor. Über einem
+Codeblock nimmt er dessen dunkle Farbe an, statt als heller Fleck darin zu
+stehen.
+
+
 ## v1.7.145 — 2026-08-06 — Speichern scheiterte an mitgetippten Einheiten
 
 Wer in ein Zahlenfeld des Baukastens die Einheit mitschrieb — „12pt" statt

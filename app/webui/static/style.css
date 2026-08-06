@@ -705,6 +705,20 @@ input[type="password"]:focus { outline: none; border-color: #0078d4; }
 .clear-btn:hover { background: #fef2f2; color: #dc2626; }
 .clear-btn.copied { color: #b45309; }
 
+/* Über einem dunklen Codeblock muss der Knopf die Farbe des Blocks tragen —
+   sonst leuchtet ein weisser Fleck in der dunklen Fläche, und "dezent" ist er
+   nur noch dem Namen nach. Der Codeblock ist in beiden Modi dunkel, deshalb
+   steht das hier und nicht in dark-mode.css. */
+.feld-werkzeuge:has(> .code-block) .copy-btn,
+.feld-werkzeuge:has(> .code-block) .clear-btn {
+    background: #1e1e1e;
+    border-color: #3a3a3a;
+    color: #9ca3af;
+}
+.feld-werkzeuge:has(> .code-block) .copy-btn:hover,
+.feld-werkzeuge:has(> .code-block) .clear-btn:hover { background: #2d2d2d; color: #e5e7eb; }
+.feld-werkzeuge:has(> .code-block) .copy-btn.copied { color: #4ade80; }
+
 /* Mobile overrides that must come after component definitions to win the cascade */
 @media (max-width: 600px) {
     .settings-card { padding: 14px 12px; }
