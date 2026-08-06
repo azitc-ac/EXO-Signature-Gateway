@@ -293,26 +293,108 @@ function fieldClear(el) {
  * Nur Block-Elemente: `span.hint` steht meist inline hinter einem Feld. Die
  * Kürzung setzt `display:-webkit-box`, macht ein solches span also zum Block
  * und verschöbe das Layout — bei kurzen Texten ohne jeden Gewinn.
+ *
+ * ENTSCHEIDEND: gemessen, nicht geschätzt. Die erste Fassung hängte den
+ * Schalter an jeden Text ab 150 Zeichen. Wie viel davon sichtbar ist, hängt
+ * aber an der Breite des Kastens: In einer breiten Karte stehen 250 Zeichen
+ * bequem in zwei Zeilen — der Schalter versprach dann „mehr", und beim Klick
+ * kam nichts dazu. Ein Bedienelement, das nichts tut, ist schlimmer als keins.
+ *
+ * Also wird nach dem Setzen der Begrenzung nachgesehen, ob der Text
+ * tatsächlich überläuft (scrollHeight > clientHeight). Nur dann bekommt er
+ * einen Schalter.
  */
-function initHintClamps(root, minLen) {
-  var scope = root || document;
-  var grenze = minLen || 150;
-  var texte = scope.querySelectorAll('p.hint:not([data-clamp]), div.hint:not([data-clamp])');
-  Array.prototype.forEach.call(texte, function (p) {
-    if ((p.textContent || '').trim().length < grenze) return;
-    p.dataset.clamp = 'zu';
-    var schalter = document.createElement('button');
-    schalter.type = 'button';
-    schalter.className = 'hint-toggle';
-    schalter.textContent = 'mehr';
-    schalter.addEventListener('click', function () {
-      var zu = p.dataset.clamp === 'zu';
-      p.dataset.clamp = zu ? 'auf' : 'zu';
-      schalter.textContent = zu ? 'weniger' : 'mehr';
+function _hintMessbar(p) {
+  // Unsichtbar (eingeklappter Bereich, geschlossenes <details>, Karte mit
+  // display:none): Höhen sind 0, jede Messung wertlos.
+  return !!p.offsetParent || p.offsetHeight > 0;
+}
+
+function _hintBewerten(p, schalter) {
+  var vorher = p.dataset.clamp;
+  p.dataset.clamp = 'zu';
+  // Nicht "ein Pixel mehr", sondern "mindestens eine weitere Zeile".
+  // Im Browser gemessen: drei Absätze liefen um genau 2px über — Rundung und
+  // Unterlängen, kein verborgener Inhalt. Ihr Schalter erschien, klappte auf
+  // und zeigte exakt dasselbe. Bei -webkit-line-clamp:2 ist clientHeight/2
+  // eine Zeile; ein Viertel davon liegt sicher über jedem Rundungsrest und
+  // sicher unter einer echten Zeile.
+  var laeuftUeber = p.scrollHeight - p.clientHeight > p.clientHeight / 4;
+  if (!laeuftUeber) {
+    p.dataset.clamp = 'aus';                                // CSS greift nur bei "zu"
+  } else if (vorher === 'auf') {
+    p.dataset.clamp = 'auf';                                // vom Nutzer geöffnet: so lassen
+  }
+  if (schalter) schalter.style.display = laeuftUeber ? '' : 'none';
+  return laeuftUeber;
+}
+
+function _hintAusstatten(p) {
+  if (!_hintBewerten(p, null)) return;
+  var schalter = document.createElement('button');
+  schalter.type = 'button';
+  schalter.className = 'hint-toggle';
+  schalter.textContent = 'mehr';
+  schalter.addEventListener('click', function () {
+    var zu = p.dataset.clamp === 'zu';
+    p.dataset.clamp = zu ? 'auf' : 'zu';
+    schalter.textContent = zu ? 'weniger' : 'mehr';
+  });
+  p.parentNode.insertBefore(schalter, p.nextSibling);
+}
+
+/* Noch unsichtbare Texte: Bewertung aufschieben, bis sie eine Box haben.
+ *
+ * Vorher entschied hier die Textlänge. Auf der Anbindungsseite, die ihre
+ * Abschnitte nachlädt, erzeugte das acht Schalter, hinter denen nichts steckte
+ * — gemessen im Browser. Genau der Fall, den die Messung eigentlich
+ * abschaffen sollte, nur an anderer Stelle. */
+var _hintBeobachter = null;
+function _hintAufschieben(p) {
+  if (typeof IntersectionObserver === 'undefined') {
+    // Ohne Beobachter bleibt nur die Schätzung — betrifft nur sehr alte Browser
+    if ((p.textContent || '').trim().length >= 150) _hintAusstatten(p);
+    return;
+  }
+  p.dataset.clampWait = '1';   // damit ein zweiter Lauf ihn nicht erneut aufnimmt
+  if (!_hintBeobachter) {
+    _hintBeobachter = new IntersectionObserver(function (eintraege) {
+      eintraege.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        _hintBeobachter.unobserve(e.target);
+        delete e.target.dataset.clampWait;
+        _hintAusstatten(e.target);
+      });
     });
-    p.parentNode.insertBefore(schalter, p.nextSibling);
+  }
+  _hintBeobachter.observe(p);
+}
+
+function initHintClamps(root) {
+  var scope = root || document;
+  var texte = scope.querySelectorAll(
+    'p.hint:not([data-clamp]):not([data-clamp-wait]), ' +
+    'div.hint:not([data-clamp]):not([data-clamp-wait])');
+  Array.prototype.forEach.call(texte, function (p) {
+    if (_hintMessbar(p)) _hintAusstatten(p);
+    else _hintAufschieben(p);
   });
 }
+
+/* Bei geänderter Fensterbreite passt derselbe Text plötzlich in zwei Zeilen
+ * — oder eben nicht mehr. Ohne Neubewertung bliebe ein Schalter stehen, der
+ * nichts mehr aufzuklappen hat. Vom Nutzer geöffnete Texte bleiben offen. */
+var _hintZeitgeber;
+window.addEventListener('resize', function () {
+  clearTimeout(_hintZeitgeber);
+  _hintZeitgeber = setTimeout(function () {
+    document.querySelectorAll('.hint[data-clamp]').forEach(function (p) {
+      if (p.dataset.clamp === 'auf') return;
+      var s = p.nextElementSibling;
+      _hintBewerten(p, s && s.classList.contains('hint-toggle') ? s : null);
+    });
+  }, 150);
+});
 
 
 // ── Zuletzt gewähltes Vorschau-Postfach ──────────────────────────────────────

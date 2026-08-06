@@ -29,16 +29,39 @@ def test_die_funktion_gibt_es_ueberhaupt():
     assert "function initHintClamps" in COMMON.read_text(encoding="utf-8")
 
 
+def _koerper(js: str, name: str) -> str:
+    """Rumpf einer Funktion — bis zur ersten Zeile, die nur `}` enthält.
+
+    Nicht das erste querySelectorAll nach dem Funktionsnamen nehmen: Der
+    Selektor ist über mehrere Zeilen zusammengesetzt, ein zeilenweiser Regex
+    lief deshalb weiter und erwischte den des resize-Handlers.
+    """
+    ab = js.index("function " + name)
+    ende = js.index("\n}", ab)
+    return js[ab:ende]
+
+
 def test_kuerzung_erfasst_absaetze_und_bloecke():
     """span.hint bleibt bewusst aussen vor (inline, würde umbrechen)."""
-    js = COMMON.read_text(encoding="utf-8")
-    sel = re.search(r"querySelectorAll\((['\"])(.+?)\1\)", js[js.index("function initHintClamps"):])
-    assert sel, "Selektor nicht gefunden"
-    s = sel.group(2)
+    s = _koerper(COMMON.read_text(encoding="utf-8"), "initHintClamps")
     assert "p.hint" in s and "div.hint" in s, s
     assert "span.hint" not in s, (
         "span.hint steht meist inline hinter einem Feld; display:-webkit-box "
         "macht daraus einen Block und verschiebt das Layout: " + s)
+
+
+def test_kuerzung_wird_gemessen_nicht_geschaetzt():
+    """Die Textlänge darf nicht darüber entscheiden, ob ein Schalter erscheint.
+
+    Ob zwei Zeilen genügen, hängt an der Breite des Kastens. Nach Zeichenzahl
+    zu urteilen erzeugte Schalter, hinter denen nichts steckte — im Browser
+    gemessen (tools/hintcheck.py), 8 von 23 waren leer.
+    """
+    js = COMMON.read_text(encoding="utf-8")
+    s = _koerper(js, "_hintBewerten")
+    assert "scrollHeight" in s and "clientHeight" in s, s
+    assert "length" not in s, ("in _hintBewerten entscheidet die Messung, nicht "
+                               "die Textlänge:\n" + s)
 
 
 def test_css_deckt_beide_elementtypen_ab():
