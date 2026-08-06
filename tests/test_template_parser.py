@@ -215,9 +215,10 @@ def test_grussformel_nur_auf_oberster_ebene():
         "type": "box", "border_width": 1, "padding": 8, "radius": 0, "width": 0,
         "children": [{"type": "freetext", "html": "Hinweis"}]}]}))
     kind = meta["blocks"][0]["children"][0]
-    assert kind["type"] == "freetext", (
-        f"Erste Zeile im Kasten wurde zur Grußformel ({kind['type']}) — "
-        f"damit verlöre ausgezeichneter Text seine Auszeichnung.")
+    assert kind["type"] != "greeting", (
+        "Erste Zeile im Kasten wurde zur Grußformel — damit verlöre "
+        "ausgezeichneter Text seine Auszeichnung.")
+    assert (kind.get("text") or kind.get("html", "")).strip() == "Hinweis"
 
 
 def test_feld_lehnt_zellen_mit_unterelementen_selbst_ab():
@@ -609,8 +610,10 @@ def test_name_ist_keine_grussformel():
     """
     meta = tp.parse_html('<table><tr><td>Max Mustermann</td></tr>'
                          '<tr><td>Musterfirma GmbH</td></tr></table>')
-    assert meta["blocks"][0]["type"] == "freetext", (
-        f"Name als {meta['blocks'][0]['type']} eingeordnet")
+    assert meta["blocks"][0]["type"] != "greeting", (
+        f"Name als Grußformel eingeordnet ({meta['blocks'][0]['type']})")
+    assert (meta["blocks"][0].get("text")
+            or meta["blocks"][0].get("html", "")).strip() == "Max Mustermann"
 
 
 def test_echte_grussformeln_werden_weiter_erkannt():
@@ -813,3 +816,72 @@ def test_umgewandelte_vorlage_rendert_auch_wirklich():
     assert "Musterfirma" in ausgabe, f"Vorlage rendert leer:\n{ausgabe!r}"
     assert "+49 241 1" in ausgabe
     assert ausgabe.strip(), "Ergebnis ist vollständig leer"
+
+
+# ── Fließtext wird gesammelt, nicht zerschnitten ─────────────────────────────
+
+def test_fliesstext_bleibt_ein_baustein():
+    """Ein Satz mit Auszeichnung ist EIN Baustein, nicht drei.
+
+    „💡 <strong>Schon gewusst?</strong> Tipps & Tools — <a …>blog</a>" wurde an
+    den Element-Grenzen zerschnitten. Jeder Teil wird eine eigene Tabellenzeile:
+    Aus einem umbrechenden Fließtext werden drei starre Zeilen, die an den
+    früheren Elementgrenzen brechen statt am Rand.
+    """
+    roh = ('<table><tr><td style="background:#eff6ff;border-left:3px solid #2563eb">'
+           '💡 <strong>Schon gewusst?</strong>&nbsp; Tipps &amp; Tools — '
+           '<a href="https://blog.example">blog.example</a>'
+           '</td></tr></table>')
+    meta = tp.parse_html(roh)
+    meta.pop("_hinweise", None)
+    kasten = meta["blocks"][0]
+    assert kasten["type"] == "box"
+    assert len(kasten["children"]) == 1, (
+        f"Fließtext in {len(kasten['children'])} Teile zerschnitten: "
+        + str([b.get("html", "")[:30] for b in kasten["children"]]))
+    assert "Schon gewusst?" in kasten["children"][0]["html"]
+    assert "blog.example" in kasten["children"][0]["html"]
+
+
+def test_echte_absatzgrenzen_trennen_weiterhin():
+    """Gegenprobe: An <p> und <div> wird sehr wohl getrennt — sonst klebte die
+    ganze Signatur in einem Baustein."""
+    roh = "<div><p>Erster Absatz</p><p>Zweiter Absatz</p><p>Dritter</p></div>"
+    meta = tp.parse_html(roh)
+    assert len(meta["blocks"]) == 3, [b.get("text") or b.get("html") for b in meta["blocks"]]
+
+
+def test_reiner_text_wird_ein_freitext_baustein():
+    """Ohne Auszeichnung entsteht der Baustein MIT Feldern (Farbe, Größe, fett),
+    nicht der HTML-Baustein."""
+    roh = "<div><p>Nur schlichter Text</p></div>"
+    b = tp.parse_html(roh)["blocks"][0]
+    assert b["type"] == "text", b
+    assert b["text"] == "Nur schlichter Text"
+
+
+def test_einzelnes_bild_bleibt_ein_logo():
+    """Das Sammeln darf den Erkennern nichts wegfangen."""
+    roh = '<td width="116"><img src="x.png" width="100" alt="Logo"></td>'
+    wurzel = tp._baum(roh)
+    td = [k for k in tp._alle(wurzel) if k.tag == "td"][0]
+    assert [b["type"] for b in tp._bloecke_aus(td)] == ["logo"]
+
+
+def test_keine_endlosschleife_bei_zellen_ohne_zeilen():
+    """`_als_kasten_direkt` rief `_bloecke_aus` auf DERSELBEN Zelle auf, und die
+    fiel ohne Zeilen wieder auf den Kasten-Erkenner zurück — endlos.
+
+    Ein solcher Fehler zeigt sich nicht als fehlgeschlagene Zusicherung, sondern
+    als hängender Lauf; deshalb hier mit knapper Rekursionsgrenze geprüft.
+    """
+    import sys
+    roh = ('<table><tr><td style="background:#eff6ff;border-left:3px solid #000">'
+           'Inhalt</td></tr></table>')
+    alt = sys.getrecursionlimit()
+    try:
+        sys.setrecursionlimit(120)
+        meta = tp.parse_html(roh)      # wirft RecursionError, wenn die Schleife zurück ist
+    finally:
+        sys.setrecursionlimit(alt)
+    assert meta["blocks"], meta

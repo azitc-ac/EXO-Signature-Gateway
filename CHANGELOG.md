@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.147 — 2026-08-06 — Rückübersetzung erkennt mehr, zerschneidet weniger
+
+**Fließtext bleibt zusammen.** Ein Satz mit Auszeichnung — Symbol, fetter Teil,
+Text, Link — wurde bisher an den Element-Grenzen zerschnitten. Aus einem
+umbrechenden Absatz wurden mehrere starre Zeilen, die an den früheren
+Elementgrenzen brachen statt am Rand. Getrennt wird jetzt nur noch an echten
+Absatzgrenzen.
+
+**Reiner Text wird zum Freitext-Baustein.** Text ohne Auszeichnung ergibt jetzt
+den Baustein mit Feldern für Schriftfarbe, -größe und Fettung — statt eines
+HTML-Bausteins. Farbe, Größe und Auszeichnung werden aus dem Quelltext
+übernommen. Sobald gemischte Auszeichnung im Spiel ist, bleibt es HTML: Ein
+Textbaustein trägt eine Auszeichnung für den ganzen Text und kann „teils fett,
+teils Link" nicht abbilden.
+
+Die mitgelieferten Vorlagen zerfallen dadurch merklich feiner — die
+Standardvorlage etwa in Grußformel, Felder, Abstände, Zweispalter mit Logo,
+Anschrift und allen Kontaktbausteinen.
+
+
 ## v1.7.146 — 2026-08-06 — Kopierknöpfe in der Signaturvorschau
 
 Die Ansichten „Plaintext" und „HTML-Quelltext" der Vorschau haben nun denselben
