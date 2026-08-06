@@ -838,9 +838,12 @@ def test_fliesstext_bleibt_ein_baustein():
     assert kasten["type"] == "box"
     assert len(kasten["children"]) == 1, (
         f"Fließtext in {len(kasten['children'])} Teile zerschnitten: "
-        + str([b.get("html", "")[:30] for b in kasten["children"]]))
-    assert "Schon gewusst?" in kasten["children"][0]["html"]
-    assert "blog.example" in kasten["children"][0]["html"]
+        + str([(b.get("html") or b.get("text") or "")[:30] for b in kasten["children"]]))
+    # Seit der Auszeichnung kann daraus ein Textbaustein werden — beide Formen
+    # sind richtig, entscheidend ist die Vollständigkeit in EINEM Baustein.
+    inhalt = kasten["children"][0].get("html") or kasten["children"][0].get("text") or ""
+    assert "Schon gewusst?" in inhalt
+    assert "blog.example" in inhalt
 
 
 def test_echte_absatzgrenzen_trennen_weiterhin():

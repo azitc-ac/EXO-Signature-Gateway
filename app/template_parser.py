@@ -646,6 +646,20 @@ def _block_aus_zelle(td: Knoten, erster: bool, oberste_ebene: bool = True) -> di
         if "font-style:italic" in stil:
             b["italic"] = True
         return b
+    # Fettung, Kursivstellung und Links lassen sich als Auszeichnung
+    # ausdruecken — derselbe Weg wie bei gesammeltem Fliesstext.
+    if "{{" not in roh and "{%" not in roh:
+        aus = _als_auszeichnung(roh)
+        if aus and aus.strip():
+            b = {"type": "text", "text": aus.strip()}
+            stil = td.stil()
+            farbe = _farbe_oder_leer(_stil_wert(stil, "color"))
+            if farbe:
+                b["color"] = farbe
+            groesse = _stil_wert(stil, "font-size")
+            if groesse:
+                b["size"] = groesse
+            return b
     return {"type": "freetext", "html": roh}
 
 
@@ -742,6 +756,37 @@ def _bloecke_aus_zeilen_tags(behaelter: Knoten, oberste_ebene: bool) -> list[dic
     return bloecke
 
 
+# Elemente, die sich in die schlanke Auszeichnung des Textbausteins zurueck-
+# uebersetzen lassen. Alles andere bleibt HTML: Was wir nicht ausdruecken
+# koennen, duerfen wir nicht wegwerfen.
+_RUECK_FETT = re.compile(r"<(?:strong|b)\b[^>]*>(.*?)</(?:strong|b)>", re.I | re.S)
+_RUECK_KURSIV = re.compile(r"<(?:em|i)\b[^>]*>(.*?)</(?:em|i)>", re.I | re.S)
+_RUECK_LINK = re.compile(r'<a\b[^>]*\bhref=["\']([^"\']+)["\'][^>]*>(.*?)</a>', re.I | re.S)
+# Wenn nach der Rueckuebersetzung noch ein Tag uebrig ist, war mehr drin als
+# diese drei — dann bleibt der Baustein HTML.
+_NOCH_TAGS = re.compile(r"<[^>]+>")
+
+
+def _als_auszeichnung(roh: str) -> str | None:
+    """HTML in die schlanke Auszeichnung zurueckfuehren — oder None.
+
+    None heisst: Der Inhalt enthaelt mehr als Fettung, Kursivstellung und
+    Links. Dann bleibt es beim HTML-Baustein; eine unvollstaendige Umwandlung
+    waere schlimmer als gar keine, weil sie Gestaltung stillschweigend
+    wegwirft.
+    """
+    if not roh.strip():
+        return None
+    t = _RUECK_LINK.sub(lambda m: f"[{m.group(2)}]({m.group(1)})", roh)
+    t = _RUECK_FETT.sub(lambda m: f"**{m.group(1)}**", t)
+    t = _RUECK_KURSIV.sub(lambda m: f"*{m.group(1)}*", t)
+    t = re.sub(r"<br\s*/?>", "\n", t, flags=re.I)
+    if _NOCH_TAGS.search(t):
+        return None
+    # Der Rueckweg muss dasselbe ergeben — sonst lieber HTML behalten.
+    return _htmllib.unescape(t)
+
+
 def _block_aus_inline(roh: str, erster: bool, oberste_ebene: bool) -> dict:
     """Einen gesammelten Fliesstext einordnen.
 
@@ -770,6 +815,12 @@ def _block_aus_inline(roh: str, erster: bool, oberste_ebene: bool) -> dict:
             return {"type": "greeting", "text": txt}
         if txt:
             return {"type": "text", "text": txt}
+    # Fettung, Kursivstellung und Links lassen sich als Auszeichnung
+    # ausdruecken — dann wird auch daraus ein Textbaustein mit Feldern.
+    if "{{" not in roh and "{%" not in roh:
+        aus = _als_auszeichnung(roh)
+        if aus and aus.strip():
+            return {"type": "text", "text": aus.strip()}
     return {"type": "freetext", "html": roh}
 
 

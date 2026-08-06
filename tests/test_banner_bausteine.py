@@ -397,3 +397,103 @@ def test_unlesbare_zahl_faellt_auf_die_vorgabe():
     assert "height:8px" in html, html
     # Und eine gültige Zahl gilt weiterhin.
     assert "height:20px" in _html([{"type": "spacer", "height": "20"}])
+
+
+# ── Schlanke Auszeichnung im Textbaustein ────────────────────────────────────
+#
+# Bewusst kein Editor mit Formatierungsleiste: Ein `contenteditable` erzeugt
+# browserabhängiges HTML, und damit wäre nicht mehr bestimmbar, was beim
+# Empfänger ankommt. Hier entsteht das HTML aus einer festen Übersetzung —
+# dieselbe Eingabe ergibt in jedem Browser dasselbe Ergebnis.
+
+def _zelle_inhalt(html: str) -> str:
+    z = [l for l in html.splitlines() if "<td" in l and "padding:0" in l][0]
+    return z.split(">", 1)[1].rsplit("</td", 1)[0]
+
+
+def test_fett_kursiv_link():
+    h = _zelle_inhalt(_html([{"type": "text",
+        "text": "**fett** und *kursiv* und [Blog](https://example.org)"}]))
+    assert "<strong>fett</strong>" in h
+    assert "<em>kursiv</em>" in h
+    assert '<a href="https://example.org"' in h and ">Blog</a>" in h
+
+
+def test_mal_zeichen_bleibt_ein_mal_zeichen():
+    """`2 * 3` darf nicht kursiv werden — sonst ist die Syntax im Alltag
+    unbrauchbar."""
+    h = _zelle_inhalt(_html([{"type": "text", "text": "2 * 3 = 6, a*b*c, 5*"}]))
+    assert "<em>" not in h, h
+    assert "2 * 3 = 6" in h
+
+
+def test_fremdes_html_bleibt_zeichen():
+    """Die Auszeichnung läuft auf BEREITS maskiertem Text — sonst könnte eine
+    Eingabe eigene Elemente einschmuggeln."""
+    h = _zelle_inhalt(_html([{"type": "text",
+        "text": "<script>böse</script> und <b>nicht fett</b>"}]))
+    assert "&lt;script&gt;" in h and "<script>" not in h
+    assert "&lt;b&gt;" in h
+
+
+def test_nur_brauchbare_linkziele():
+    """`javascript:` und `data:` haben in einer Signatur nichts zu suchen.
+    Geprüft wird gegen eine Erlaubnisliste, nicht gegen eine Sperrliste —
+    die wäre zwangsläufig unvollständig."""
+    for ziel in ("javascript:alert(1)", "data:text/html,x", "vbscript:x"):
+        h = _zelle_inhalt(_html([{"type": "text", "text": f"[klick]({ziel})"}]))
+        assert "<a " not in h, f"{ziel} wurde verlinkt: {h}"
+        assert "klick" in h, "der Text ging mit verloren"
+    for ziel in ("https://x.de", "http://x.de", "mailto:a@b.de", "tel:+49241"):
+        h = _zelle_inhalt(_html([{"type": "text", "text": f"[klick]({ziel})"}]))
+        assert "<a " in h, f"{ziel} wurde nicht verlinkt"
+
+
+def test_link_traegt_die_linkfarbe():
+    h = _zelle_inhalt(_html([{"type": "text", "text": "[x](https://x.de)"}]))
+    assert "color:#1e40af" in h
+
+
+def test_textfassung_ohne_auszeichnung():
+    """Im Textteil ist die Adresse für den Leser nutzlos, der Wortlaut nicht."""
+    txt = tb.render_txt({"version": 1, "blocks": [{"type": "text",
+        "text": "**fett** und [Blog](https://example.org)"}]})
+    assert "fett und Blog" in txt, txt
+    assert "**" not in txt and "https://" not in txt
+
+
+def test_rundlauf_auszeichnung():
+    """HTML → Auszeichnung → HTML muss dasselbe ergeben."""
+    import template_parser as tp
+    einmal = _html([{"type": "text",
+                     "text": "**Wichtig** — [Blog](https://example.org)"}])
+    meta = tp.parse_html(einmal)
+    meta.pop("_hinweise", None)
+    b = meta["blocks"][0]
+    assert b["type"] == "text", b
+    assert b["text"] == "**Wichtig** — [Blog](https://example.org)", b["text"]
+    import re as _re
+    norm = lambda h: _re.sub(r"\s+", " ", h).strip()
+    assert norm(tb.render_html(meta)) == norm(einmal)
+
+
+def test_unbekannte_gestaltung_bleibt_html():
+    """Was sich nicht als Auszeichnung ausdrücken lässt, darf nicht
+    stillschweigend verlorengehen."""
+    import template_parser as tp
+    roh = ('<table><tr><td style="padding:0">'
+           '<span style="color:#ff0000">rot</span> und <strong>fett</strong>'
+           '</td></tr></table>')
+    meta = tp.parse_html(roh)
+    b = meta["blocks"][0]
+    assert b["type"] == "freetext", b
+    assert "color:#ff0000" in b["html"], "die Farbe ging verloren"
+    # Und zwar SAUBER: nur der Zellinhalt, nicht die ganze Tabelle.
+    #
+    # Ohne die Tag-Prüfung in `_als_auszeichnung` entstünde ein Textbaustein,
+    # dessen Inhalt das `<span>` als sichtbaren Text trüge. Der Verlustschutz
+    # fängt das zwar — aber indem er die GESAMTE Vorlage zu einem Freitext
+    # macht. Der Typ bleibt derselbe, die Zerlegung ist dahin.
+    assert "<table" not in b["html"], (
+        "das Sicherheitsnetz musste einspringen — die Zerlegung ging verloren:\n"
+        + b["html"][:120])
