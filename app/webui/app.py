@@ -512,8 +512,11 @@ async def addin_manifest(request: Request):
         <bt:Url id="taskpaneUrl"  DefaultValue="{base}/addin/compose"/>
       </bt:Urls>
       <bt:ShortStrings>
+        <!-- Im Menuband steht der Gruppenname UNTEN, die Knopfbeschriftung
+             direkt unter dem Symbol. Beide hiessen "Signatur" — damit stand
+             das Wort zweimal untereinander und nannte den Urheber nirgends. -->
         <bt:String id="groupLabel" DefaultValue="Signatur"/>
-        <bt:String id="btnLabel"   DefaultValue="Signatur"/>
+        <bt:String id="btnLabel"   DefaultValue="EXO Signatur"/>
         <bt:String id="btnTitle"   DefaultValue="EXO Signatur"/>
       </bt:ShortStrings>
       <bt:LongStrings>
