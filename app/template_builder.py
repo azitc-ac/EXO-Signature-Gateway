@@ -200,6 +200,27 @@ def _link_farbe(b, g) -> str:
 _LAENGE_RE = re.compile(r"^\s*(\d+(?:[.,]\d+)?)\s*(px|pt|em|rem|%)?\s*$", re.I)
 
 
+def _ganzzahl(wert, vorgabe: int) -> int:
+    """Zahl aus einer Eingabe lesen — auch wenn eine Einheit mitgetippt wurde.
+
+    Die Felder heissen „(px)", und wer aus dem Schriftgroessenfeld das
+    Mitschreiben der Einheit gewohnt ist, tippt auch hier „12px" oder „12pt".
+    `int()` warf darauf einen Fehler, der Endpunkt lieferte einen Serverfehler,
+    und im Editor stand nur „Speichern fehlgeschlagen: … is not valid JSON" —
+    eine Meldung, aus der niemand auf ein Eingabefeld schliessen kann.
+
+    Genommen wird die fuehrende Zahl; steht keine da, gilt die Vorgabe. Eine
+    Eingabe zu verwerfen ist hier besser als das Speichern zu verweigern: Der
+    Nutzer sieht das Ergebnis sofort in der Vorschau und kann nachbessern.
+    """
+    if isinstance(wert, bool):
+        return vorgabe
+    if isinstance(wert, (int, float)):
+        return int(wert)
+    m = re.match(r"\s*(-?\d+)", str(wert or ""))
+    return int(m.group(1)) if m else vorgabe
+
+
 def _laenge(wert, vorgabe_einheit: str = "pt") -> str | None:
     """Geprüfte CSS-Längenangabe, oder None.
 
@@ -264,7 +285,7 @@ def _greeting(b, g, pad, _ind):
 
 
 def _spacer(b, _g, pad, _ind):
-    h = max(1, int(b.get("height") or 8))
+    h = max(1, _ganzzahl(b.get("height"), 8))
     return (
         f'{pad}<tr><td style="padding:0;height:{h}px;'
         f'font-size:{h}px;line-height:{h}px">&nbsp;</td></tr>'
@@ -298,7 +319,7 @@ def _field(b, g, pad, _ind):
 
 def _divider(b, g, pad, _ind):
     color = _farbe(b.get("color"), "#e2e8f0", g)
-    m = max(2, int(b.get("margin") or 8))
+    m = max(2, _ganzzahl(b.get("margin"), 8))
     return (
         f'{pad}<tr><td style="padding:{m}px 0">'
         f'<table cellpadding="0" cellspacing="0" border="0" width="100%">'
@@ -362,7 +383,7 @@ def _web_link(b, g, pad, _ind):
 
 def _logo(b, _g, pad, _ind):
     url = _htmllib.escape(b.get("url") or "")
-    width = max(20, int(b.get("width") or 100))
+    width = max(20, _ganzzahl(b.get("width"), 100))
     if not url:
         return ""
     # Alternativtext: eigener Wert, sonst der Firmenname des Postfachs.
@@ -520,7 +541,7 @@ def _two_col(b, g, pad, indent):
     right_blocks = b.get("right") or []
     divider = b.get("divider", False)
     left_w = b.get("left_width") or "auto"
-    gap = max(4, int(b.get("gap") or 12))
+    gap = max(4, _ganzzahl(b.get("gap"), 12))
     left_valign = b.get("left_valign") or "top"
     right_valign = b.get("right_valign") or "middle"
 
@@ -599,18 +620,18 @@ def _box(b, g, pad, indent):
     if not inner.strip():
         return ""
 
-    bw = max(0, min(12, int(b.get("border_width") or 1)))
+    bw = max(0, min(12, _ganzzahl(b.get("border_width"), 1)))
     bc = _farbe(b.get("border_color"), "#e2e8f0", g)
-    radius = max(0, min(40, int(b.get("radius") or 0)))
-    innen = max(0, min(60, int(b.get("padding") or 12)))
+    radius = max(0, min(40, _ganzzahl(b.get("radius"), 0)))
+    innen = max(0, min(60, _ganzzahl(b.get("padding"), 12)))
     # Waagerechter Innenabstand getrennt einstellbar. Hinweisbänder brauchen
     # ihn breiter als hoch (6px/14px) — mit einem einzigen Wert wird das Band
     # entweder zu hoch oder der Text klebt am Rand.
     innen_x = b.get("padding_x")
-    innen_x = innen if innen_x in (None, "") else max(0, min(60, int(innen_x)))
+    innen_x = innen if innen_x in (None, "") else max(0, min(60, _ganzzahl(innen_x, innen)))
     gefuellt = bool(b.get("filled"))
     fill = _farbe(b.get("fill_color"), "#ffffff", g) if gefuellt else ""
-    breite = max(0, int(b.get("width") or 0))          # 0 = automatisch
+    breite = max(0, _ganzzahl(b.get("width"), 0))          # 0 = automatisch
     # Auf welchen Seiten der Rahmen sitzt. "all" ist der Vorgabefall; ein
     # einzelner farbiger Balken links ist die uebliche Form fuer Hinweisbaender
     # und laesst sich mit einem umlaufenden Rahmen nicht nachbilden.
@@ -718,7 +739,7 @@ def _badge(b, g, pad, _ind):
     hg = _farbe(b.get("badge_color"), "#2563eb", g)
     vg = _farbe(b.get("label_color"), "#ffffff", g)
     groesse = _laenge(b.get("size")) or "8pt"
-    radius = max(0, min(20, int(b.get("radius") or 2)))
+    radius = max(0, min(20, _ganzzahl(b.get("radius"), 2)))
     etikett = (
         f'<span style="display:inline-block;background:{hg};color:{vg};'
         f'font-size:{groesse};font-weight:700;padding:1px 5px;'

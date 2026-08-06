@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.145 — 2026-08-06 — Speichern scheiterte an mitgetippten Einheiten
+
+Wer in ein Zahlenfeld des Baukastens die Einheit mitschrieb — „12pt" statt
+„12" — bekam beim Speichern die Meldung „Speichern fehlgeschlagen: Unexpected
+token 'I' … is not valid JSON". Aus ihr war weder das Feld noch die Ursache zu
+erkennen.
+
+Betroffen waren zehn Felder: Innenabstände, Strichbreite, Ecken und Breite des
+Kastens, Abstandshöhe, Trennlinien-Abstand, Logobreite, Etikett-Ecken und der
+Spaltenabstand. Sie lesen die Zahl jetzt auch dann, wenn eine Einheit
+dahintersteht; ist gar keine Zahl zu finden, gilt der Vorgabewert. Das Ergebnis
+steht sofort in der Vorschau und lässt sich nachbessern.
+
+Zusätzlich meldet der Speichervorgang Fehler beim Erzeugen jetzt als lesbaren
+Text statt als Serverfehler — und schreibt in diesem Fall nichts, die bisherige
+Fassung bleibt.
+
+
 ## v1.7.144 — 2026-08-06 — Add-in: übereinanderliegende Signaturen beim schnellen Wechseln
 
 Wer im Add-in mehrfach hintereinander die Vorlage wechselte, bekam gelegentlich
