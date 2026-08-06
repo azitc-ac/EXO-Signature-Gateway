@@ -3074,15 +3074,18 @@ async def api_setup_notification_dg(request: Request, user: str = Depends(_check
     import setup_wizard
     data = await request.json()
     recipients = [r.strip().lower() for r in (data.get("recipients") or []) if r.strip()]
+    extern = bool(data.get("accept_external"))
     result = await asyncio.get_event_loop().run_in_executor(
-        None, setup_wizard.run_notification_dg_update, recipients
+        None, setup_wizard.run_notification_dg_update, recipients, extern
     )
     if result.get("ok"):
-        patch: dict = {"NOTIFICATION_RECIPIENTS": recipients}
+        patch: dict = {"NOTIFICATION_RECIPIENTS": recipients,
+                       "NOTIFICATION_DG_ACCEPT_EXTERNAL": extern}
         if result.get("email"):
             patch["NOTIFICATION_DG_EMAIL"] = result["email"]
         settings_store.update(patch)
-        log.info("Notification DG updated by %s: %d members, DG=%s", user, len(recipients), result.get("email"))
+        log.info("Notification DG updated by %s: %d members, DG=%s, extern=%s",
+                 user, len(recipients), result.get("email"), extern)
     return JSONResponse({
         "ok": result.get("ok", False),
         "email": result.get("email", ""),

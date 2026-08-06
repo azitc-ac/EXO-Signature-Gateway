@@ -5,6 +5,31 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.150 — 2026-08-06 — Verteilerliste für Benachrichtigungen kann Mail von außen annehmen
+
+Unter *Einstellungen → Benachrichtigungen* gibt es einen neuen Haken:
+**Verteilerliste nimmt auch Mail von außerhalb des Tenants an.**
+
+Exchange setzt an einer neuen Verteilerliste `RequireSenderAuthentication­Enabled`
+auf `$true`. Mail von außerhalb des Tenants wird damit abgewiesen —
+`550 5.7.133 SenderNotAuthenticatedForGroup` —, und zwar ohne Rückmeldung an
+den Absender: Der Dienst bekommt eine Annahmebestätigung, die Liste erhält
+nichts. Wer eine Verteilerliste als Ziel für Bestätigungs- oder
+Rechnungsmails des Lizenz-Hubs einträgt, wartet vergeblich und sieht nirgends
+einen Fehler.
+
+Der Haken wird bei jedem Speichern in EXO geschrieben, nicht nur beim Anlegen —
+er lässt sich also auch wieder zurücknehmen. Ohne Haken gilt Exchanges
+Voreinstellung.
+
+Die Verteilerliste der aktivierten Postfächer bleibt davon unberührt. Sie
+empfängt keine Mail, sondern dient nur als Bedingung in den Transportregeln.
+
+**Zusätzlich:** Steht eine Bestätigung für eine geänderte Konto- oder
+Rechnungsadresse aus, weist der Kasten unter *Anbindung & Lizenzen* jetzt auf
+genau diese Ursache hin.
+
+
 ## v1.7.149 — 2026-08-06 — Postfach-Filter nach Typ; Text zur Mindestabnahme berichtigt
 
 **Postfächer** lassen sich jetzt zusätzlich zum Suchfeld nach Typ einschränken:

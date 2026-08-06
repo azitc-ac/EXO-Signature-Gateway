@@ -808,10 +808,20 @@ Disconnect-ExchangeOnline -Confirm:$false
         return {"ok": False, "urls": {}, "output": str(exc)}
 
 
-def run_notification_dg_update(members: list[str]) -> dict:
+def run_notification_dg_update(members: list[str],
+                               accept_external: bool = False) -> dict:
     """
     Create/update 'EXO Signature Gateway - Notification recipients' DG and
     synchronise the given member list.
+
+    accept_external controls RequireSenderAuthenticationEnabled. Exchange
+    defaults it to $true, which silently rejects mail from outside the tenant
+    with 550 5.7.133 SenderNotAuthenticatedForGroup — the sender sees no error,
+    the group simply never receives anything. Any DG used as a target for an
+    external service (licence hub, ACS, monitoring) needs this off.
+
+    The value is written on every run, not only at creation, so unticking the
+    box restores the restriction.
     Returns {"ok": bool, "email": str, "output": str}.
     """
     if not _AUTH_CERT_PATH.exists():
@@ -826,6 +836,8 @@ def run_notification_dg_update(members: list[str]) -> dict:
     members_csv = ",".join(members) if members else ""
     gateway_name = settings_store.get("GATEWAY_NAME") or "EXO Signature Gateway"
     dg_alias = "".join(ch for ch in gateway_name if ch.isalnum()) + "Notifications"
+    # Literal, kein Wert aus dem Formular — nichts Einschleusbares im Skript
+    require_auth = "$false" if accept_external else "$true"
 
     ps_script = f"""
 $ErrorActionPreference = 'Stop'
@@ -839,6 +851,7 @@ $dg = Get-DistributionGroup -Identity $dgName -ErrorAction SilentlyContinue
 if (-not $dg) {{
     $dg = New-DistributionGroup -Name $dgName -Alias $dgAlias -Type Distribution -MemberJoinRestriction Closed -MemberDepartRestriction Closed -ErrorAction Stop
 }}
+Set-DistributionGroup -Identity $dg.Identity -RequireSenderAuthenticationEnabled {require_auth} -ErrorAction Stop
 $membersStr = '{members_csv}'
 $desired = @()
 if ($membersStr) {{

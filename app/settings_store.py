@@ -157,6 +157,10 @@ DEFAULTS: dict = {
     "NOTIFICATIONS_ENABLED": True,           # Global on/off switch for all notifications
     "NOTIFICATION_RECIPIENTS": [],           # List of mailbox emails for notifications
     "NOTIFICATION_DG_EMAIL": "",             # PrimarySmtpAddress of notification DG (auto-set)
+    "NOTIFICATION_DG_ACCEPT_EXTERNAL": False,  # DG accepts mail from outside the tenant
+                                             # (RequireSenderAuthenticationEnabled = $false).
+                                             # Exchange rejects external senders by default with
+                                             # 550 5.7.133 and no visible error on the sending side.
     "NOTIFY_LOCAL_ADMIN_LOGIN": None,        # None/True = send; False = suppress local admin login notification
     "NOTIFY_USER_CERT": None,                # None/True = send; False = keine Mails an Postfachinhaber
                                              # (Vorab-Hinweis zur CA-Bestaetigung + Fertigmeldung)
