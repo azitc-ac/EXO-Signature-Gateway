@@ -718,10 +718,44 @@ async function kontoWechselAnfordern(){
 }
 // EINE offene Vormerkung je Konto — der Hub laesst nur eine zu, deshalb hier
 // auch nur ein Kasten. Der Zweck entscheidet ueber den Text.
+// Auf die Bestätigung warten, ohne dass jemand neu laden muss.
+//
+// Bestätigt wird in einem anderen Fenster — im Postfach, oft auf dem Telefon.
+// Diese Seite erfährt davon nichts und zeigte weiter „wartet auf die
+// Bestätigung", obwohl der Wechsel längst vollzogen war. Andere Vorgänge auf
+// dieser Seite (Anbindung, Zahlung) warten längst selbsttätig ab.
+//
+// Der Rückkehr-Fall ist der häufigste und wird deshalb eigens behandelt: Wer
+// im Nachbartab bestätigt und zurückwechselt, soll den neuen Stand sofort
+// sehen und nicht bis zum nächsten Takt warten. Im Hintergrund wird nicht
+// abgefragt — der Link gilt 24 Stunden, so lange ununterbrochen zu pollen
+// wäre Last ohne Nutzen.
+var _kontoPollTakt = null;
+function _kontoSofortPruefen(){ if(!document.hidden) kontoAdresseLaden(); }
+function _kontoPollStart(){
+  if(_kontoPollTakt) return;
+  _kontoPollTakt = setInterval(function(){ if(!document.hidden) kontoAdresseLaden(); }, 15000);
+  document.addEventListener('visibilitychange', _kontoSofortPruefen);
+}
+function _kontoPollStop(){
+  if(!_kontoPollTakt) return;
+  clearInterval(_kontoPollTakt); _kontoPollTakt = null;
+  document.removeEventListener('visibilitychange', _kontoSofortPruefen);
+}
+
 function offeneAenderungAnzeigen(p){
   const box=document.getElementById('hub-konto-offen');
   if(!box) return;
-  if(!p || !p.ziel){ box.style.display='none'; return; }
+  if(!p || !p.ziel){
+    box.style.display='none';
+    if(_kontoPollTakt){        // lief eine Wartezeit, ist sie jetzt zu Ende
+      _kontoPollStop();
+      const m=document.getElementById('hub-konto-msg');
+      if(m) showMsg(m, 'Bestätigt — die Angaben oben sind aktuell.', true);
+    }
+    return;
+  }
+  _kontoPollStart();
   const text = p.zweck==='rechnungsadresse'
     ? 'Rechnungen sollen künftig an <strong>'+esc(p.ziel)+'</strong> gehen — wartet auf die Bestätigung in diesem Postfach.'
     : 'Wechsel auf <strong>'+esc(p.ziel)+'</strong> angefordert — wartet auf die Bestätigung in diesem Postfach.';
