@@ -725,7 +725,17 @@ function offeneAenderungAnzeigen(p){
   const text = p.zweck==='rechnungsadresse'
     ? 'Rechnungen sollen künftig an <strong>'+esc(p.ziel)+'</strong> gehen — wartet auf die Bestätigung in diesem Postfach.'
     : 'Wechsel auf <strong>'+esc(p.ziel)+'</strong> angefordert — wartet auf die Bestätigung in diesem Postfach.';
-  document.getElementById('hub-konto-offen-text').innerHTML = text;
+  // Haeufigster Grund, warum die Mail nie ankommt: Exchange weist an
+  // Verteilerlisten alle nicht angemeldeten Absender ab (550 5.7.133), ohne dass
+  // die Gegenseite davon erfaehrt. Der Hinweis steht deshalb hier und nicht in
+  // einer Meldung, die nach Sekunden wieder verschwindet — der Kasten bleibt,
+  // solange die Bestaetigung aussteht, also genau so lange wie das Problem.
+  const hinweis = '<div style="margin-top:6px;font-size:11px;color:#92400e">'
+    + 'Kommt nichts an und ist das Ziel eine Verteilerliste? Exchange lässt daran '
+    + 'standardmäßig nur angemeldete Absender zu und weist alles andere ab. '
+    + 'Der Haken dafür steht unter <a href="/settings">Einstellungen</a> bei den '
+    + 'Benachrichtigungen.</div>';
+  document.getElementById('hub-konto-offen-text').innerHTML = text + hinweis;
   box.style.display='block';
 }
 
