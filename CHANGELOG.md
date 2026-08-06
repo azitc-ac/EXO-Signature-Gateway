@@ -5,6 +5,35 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.148 — 2026-08-06 — Freitext-Baustein mit Auszeichnung
+
+Der Baustein „Freitext" versteht jetzt eine schlanke Auszeichnung im Text:
+
+```
+**fett** · *kursiv* · [Beschriftung](https://ziel)
+```
+
+Auch `mailto:` und `tel:` sind als Ziel möglich; Links bekommen die eingestellte
+Linkfarbe. Alles Übrige erscheint weiterhin als Zeichen — `<b>` bleibt `<b>`.
+
+**Warum keine Formatierungsleiste.** Ein Editor mit Auszeichnungsknöpfen
+erzeugt browserabhängiges HTML: derselbe Klick auf „fett" ergibt je nach
+Browser ein anderes Element. Damit wäre nicht mehr bestimmbar, was beim
+Empfänger ankommt — und genau diese Bestimmbarkeit trägt die
+Outlook-Tauglichkeit. Hier entsteht das HTML aus einer festen Übersetzung:
+dieselbe Eingabe ergibt überall dasselbe Ergebnis.
+
+Die Übersetzung läuft auf bereits maskiertem Text, eingeschleuste Elemente sind
+damit ausgeschlossen. Als Linkziel gilt eine Erlaubnisliste; alles andere bleibt
+Text, ohne dass der Wortlaut verlorengeht.
+
+**Beim Zurücklesen** werden Fettung, Kursivstellung und Links wieder zu
+Auszeichnung — solche Absätze landen also im bearbeitbaren Baustein statt im
+HTML-Baustein. Steckt mehr darin, bleibt es HTML: Eine unvollständige
+Umwandlung wäre schlechter als gar keine, weil sie Gestaltung stillschweigend
+wegwürfe.
+
+
 ## v1.7.147 — 2026-08-06 — Rückübersetzung erkennt mehr, zerschneidet weniger
 
 **Fließtext bleibt zusammen.** Ein Satz mit Auszeichnung — Symbol, fetter Teil,

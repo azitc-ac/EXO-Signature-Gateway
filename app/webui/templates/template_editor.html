@@ -737,10 +737,13 @@ function buildBlockForm(b) {
       + [['','links (Vorgabe)'],['center','zentriert'],['right','rechts']]
         .map(([v,l]) => `<option value="${v}"${(b.align||'')===v?' selected':''}>${esc(l)}</option>`).join('')
       + `</select>`);
-    rows += `<p style="font-size:11px;color:#6b7280;margin:4px 0 0">
-      Der Text wird so dargestellt, wie er hier steht — HTML-Zeichen wie
-      <code>&lt;</code> erscheinen als Zeichen, nicht als Auszeichnung.
-      Zeilenumbrüche bleiben erhalten. Für fertiges HTML den Baustein
+    rows += `<p style="font-size:11px;color:#6b7280;margin:4px 0 0;line-height:1.6">
+      Zeilenumbrüche bleiben erhalten. Innerhalb des Textes:
+      <code>**fett**</code> · <code>*kursiv*</code> ·
+      <code>[Beschriftung](https://ziel)</code> — auch
+      <code>mailto:</code> und <code>tel:</code>.<br>
+      Alles Übrige erscheint als Zeichen: <code>&lt;b&gt;</code> bleibt
+      <code>&lt;b&gt;</code>. Für fertiges HTML den Baustein
       <strong>HTML-Code</strong> nehmen.</p>`;
   } else if (t === 'freetext') {
     rows += row('HTML', ta('html', b.html));

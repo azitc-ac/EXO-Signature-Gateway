@@ -440,6 +440,47 @@ def _freetext(b, _g, pad, _ind):
     return f'{pad}<tr><td style="padding:0">{content}</td></tr>'
 
 
+# Schlanke Auszeichnung im Textbaustein.
+#
+# Bewusst KEIN Editor mit Formatierungsleiste: Ein `contenteditable` erzeugt
+# browserabhaengiges HTML — Chrome `<b>`, Firefox `<span style="font-weight:700">`
+# — und damit waere nicht mehr bestimmbar, was beim Empfaenger ankommt. Genau
+# diese Bestimmbarkeit ist bei Outlook das ganze Spiel.
+#
+# Hier entsteht das HTML aus einer festen Uebersetzung: dieselbe Eingabe ergibt
+# in jedem Browser dasselbe Ergebnis, und was nicht in der Syntax steht,
+# entsteht auch nicht. Ein Sanitizing-Schritt entfaellt deshalb.
+_AUS_LINK = re.compile(r"\[([^\]\n]+)\]\(([^)\s]+)\)")
+_AUS_FETT = re.compile(r"\*\*(?=\S)(.+?)(?<=\S)\*\*", re.DOTALL)
+_AUS_KURSIV = re.compile(r"(?<![\*\w])\*(?=\S)([^*\n]+?)(?<=\S)\*(?![\*\w])")
+# Nur Ziele, die in einer Signatur etwas zu suchen haben. `javascript:` und
+# `data:` bleiben damit aussen vor — ohne dass eine Sperrliste gepflegt werden
+# muss, die zwangslaeufig unvollstaendig waere.
+_ERLAUBTE_ZIELE = ("http://", "https://", "mailto:", "tel:", "/")
+
+
+def _auszeichnen(zeile_maskiert: str, g: dict) -> str:
+    """Auszeichnung in HTML uebersetzen — auf BEREITS MASKIERTEM Text.
+
+    Die Reihenfolge ist wesentlich: Erst maskieren, dann auszeichnen. Umgekehrt
+    koennte eine Eingabe eigene Tags einschmuggeln, denn die Ersetzung fuegt
+    ja Tags ein. Auf maskiertem Text sind `<` und `>` bereits `&lt;`/`&gt;`
+    und koennen kein Element mehr oeffnen.
+    """
+    def _link(m: re.Match) -> str:
+        text, ziel = m.group(1), _htmllib.unescape(m.group(2))
+        if not ziel.lower().startswith(_ERLAUBTE_ZIELE):
+            return text          # unbrauchbares Ziel: Text behalten, Link fallen lassen
+        lc = _farbe(g.get("link_color"), "#1e40af", g)
+        return (f'<a href="{_htmllib.escape(ziel, quote=True)}"'
+                f' style="color:{lc};text-decoration:none">{text}</a>')
+
+    zeile = _AUS_LINK.sub(_link, zeile_maskiert)
+    zeile = _AUS_FETT.sub(lambda m: f"<strong>{m.group(1)}</strong>", zeile)
+    zeile = _AUS_KURSIV.sub(lambda m: f"<em>{m.group(1)}</em>", zeile)
+    return zeile
+
+
 def _text(b, g, pad, _ind):
     """Freier Text MIT Auszeichnung — die Geschwisterform zu `freetext`.
 
@@ -455,7 +496,7 @@ def _text(b, g, pad, _ind):
     roh = b.get("text") or ""
     if not roh.strip():
         return ""
-    text = "<br>".join(_htmllib.escape(z) for z in roh.splitlines())
+    text = "<br>".join(_auszeichnen(_htmllib.escape(z), g) for z in roh.splitlines())
 
     parts = ["padding:0"]
     color = _farbe(b.get("color") or "base", g["base_color"], g)
@@ -863,10 +904,14 @@ def _render_block_txt(b: dict, g: dict, lines: list[str]) -> None:
             vorsatz = praefix or f"{anzeige}:"
             lines.append(f"{vorsatz} {url}")
     elif t == "text":
-        # Hier steht bereits Klartext — nur die Umbrueche uebernehmen.
+        # Auszeichnung faellt weg, der Linktext bleibt — im Textteil ist die
+        # Adresse fuer den Leser nutzlos, der Wortlaut nicht.
         for zeile in (b.get("text") or "").splitlines() or [""]:
-            if zeile.strip():
-                lines.append(zeile.rstrip())
+            klar = _AUS_LINK.sub(lambda m: m.group(1), zeile)
+            klar = _AUS_FETT.sub(lambda m: m.group(1), klar)
+            klar = _AUS_KURSIV.sub(lambda m: m.group(1), klar)
+            if klar.strip():
+                lines.append(klar.rstrip())
     elif t == "freetext":
         txt = _nur_text(b.get("html"))
         if txt:
