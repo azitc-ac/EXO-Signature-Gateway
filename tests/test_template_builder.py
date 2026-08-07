@@ -502,3 +502,30 @@ def test_social_kennt_praefix_und_formatierung():
     txt = tb.render_txt(_meta({"id": "1", "type": "social", "platform": "LinkedIn",
                                "url": "https://li.example", "prefix": "Folgen:"}))
     assert txt.strip() == "Folgen: https://li.example"
+
+
+# ── Leerzeilen am Rand eines Freitext-Bausteins ──────────────────────────────
+#
+# ANLASS (07.08.2026): Vor der ersten Zeile eines Kastens stand ein <br>, das
+# niemand getippt hatte — im Eingabefeld ist eine leere erste Zeile praktisch
+# unsichtbar. Die Textfassung desselben Bausteins verwarf leere Zeilen laengst;
+# die beiden Ausgaben widersprachen sich also.
+
+def test_leerzeile_am_anfang_erzeugt_kein_br():
+    src = tb.render_html(_meta({"id": "1", "type": "text",
+                                "text": "\nErste Zeile\nZweite Zeile"}))
+    assert "<br>Erste Zeile" not in src, "fuehrendes <br> steht wieder da"
+    assert "Erste Zeile<br>Zweite Zeile" in src, "der echte Umbruch fehlt"
+
+
+def test_leerzeile_am_ende_erzeugt_kein_br():
+    src = tb.render_html(_meta({"id": "1", "type": "text", "text": "Zeile\n\n"}))
+    assert "Zeile<br>" not in src
+
+
+def test_leerzeile_MITTENDRIN_bleibt_erhalten():
+    """Die Gegenprobe: dort ist die Leerzeile gewollt und darf nicht
+    wegoptimiert werden."""
+    src = tb.render_html(_meta({"id": "1", "type": "text",
+                                "text": "Oben\n\nUnten"}))
+    assert "Oben<br><br>Unten" in src
