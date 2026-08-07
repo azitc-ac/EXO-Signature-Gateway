@@ -2834,6 +2834,75 @@ async def api_held_mail_delete(mail_id: str, _: str = Depends(_require_admin)):
     return JSONResponse({"ok": True})
 
 
+def _sent_items_nach_freigabe_aufraeumen(sender: str, empfaenger: list[str],
+                                         roh: bytes) -> None:
+    """Nach dem Freigeben dieselbe Aufräumung wie im normalen Weg anstossen.
+
+    Der normale Weg (handler.py, nach „Mail processed OK") plant
+    `_cleanup_sent_item` ein: Exchange legt ein gesendetes Element an, wenn der
+    Nutzer sendet, und ein weiteres, wenn das Gateway die Mail neu einspeist —
+    der Aufräumer behält davon genau eines.
+
+    Die Freigabe aus dem Wartungsmodus rief nur `reinject.send()` und ging
+    ohne diesen Schritt zu Ende. Das fiel doppelt ins Gewicht, weil Exchange
+    eine Mail an mehrere Empfänger in getrennte Vorgänge aufteilt: Jeder
+    Vorgang wird einzeln zurückgehalten, einzeln freigegeben und legt sein
+    eigenes gesendetes Element an. Am 07.08.2026 nachgewiesen — eine Rechnung
+    an zwei Empfänger stand dreifach in „Gesendete Elemente": das Original des
+    Absenders (`X-Mailer: lxo`) und zwei Fassungen des Gateways.
+
+    `_is_first_for_mid()` sorgt dafür, dass die Aufräumung je Nachricht nur
+    einmal läuft, auch wenn mehrere Vorgänge derselben Mail freigegeben werden.
+    """
+    import email as _em
+    import handler as _handler
+    import mail_processor as _mp
+
+    if not settings_store.get("SENT_ITEMS_UPDATE"):
+        return
+    try:
+        msg = _em.message_from_bytes(roh)
+    except Exception as exc:                      # pragma: no cover
+        log.warning("Freigabe: Mail nicht lesbar, keine Aufräumung: %s", exc)
+        return
+
+    mid = (msg.get("Message-ID") or "").strip()
+    if not mid or not _handler._is_first_for_mid(sender, mid):
+        return
+
+    # Verschlüsselte Mail: NICHT anfassen.
+    #
+    # Der Aufräumer behält bei `replace_all=False` die JÜNGSTE Fassung — das
+    # wäre hier die Chiffre, und der Absender könnte seine eigene gesendete
+    # Mail nicht mehr lesen. Der normale Weg löst das mit dem Klartext, den er
+    # vor dem Verschlüsseln noch hat; hier liegt nur die verschlüsselte
+    # Fassung vor. Lieber ein Duplikat zu viel als ein unlesbares Postfach.
+    #
+    # Über ALLE Teile, nicht nur die oberste Ebene: Eine verschlüsselte Mail
+    # kann in einer Hülle stecken, deren erster Teil ein lesbarer Hinweis ist
+    # („Diese Nachricht ist verschlüsselt…"). Auf oberster Ebene stünde dann
+    # `multipart/mixed`, eine Prüfung nur dort liefe ins Leere — und
+    # `extract_html()` fände ausgerechnet diesen Hinweistext, mit dem dann die
+    # einzige verbleibende Fassung überschrieben würde. Die reine Form fällt
+    # ohnehin schon durch die `html`-Prüfung darunter; geprüft wird hier also
+    # genau der Fall, den sie NICHT abfängt.
+    if any((t.get_content_type() or "").lower() == "application/pkcs7-mime"
+           and "enveloped" in (t.get_param("smime-type") or "").lower()
+           for t in msg.walk()):
+        log.info("Freigabe: verschlüsselte Mail — gesendete Elemente bleiben unberührt")
+        return
+
+    html = _mp.extract_html(msg)
+    if not html:
+        return
+    asyncio.create_task(_handler._cleanup_sent_item(
+        sender, mid, html,
+        subject=msg.get("Subject", "") or "",
+        to_recipients=list(empfaenger or []),
+        replace_all=False,
+    ))
+
+
 @app.post("/api/maintenance/mails/{mail_id}/release")
 async def api_held_mail_release(mail_id: str, _: str = Depends(_require_admin)):
     import reinject as _reinject
@@ -2848,6 +2917,7 @@ async def api_held_mail_release(mail_id: str, _: str = Depends(_require_admin)):
     except Exception as exc:
         raise HTTPException(500, f"Zustellung fehlgeschlagen: {exc}")
     _held_mails_mod.delete(mail_id)
+    _sent_items_nach_freigabe_aufraeumen(from_addr, to_addrs, raw_bytes)
     return JSONResponse({"ok": True})
 
 

@@ -5,6 +5,31 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.167 — 2026-08-07 — Freigegebene Mails hinterlassen keine Duplikate in „Gesendete Elemente"
+
+Wird eine im Wartungsmodus zurückgehaltene Mail freigegeben, stand sie danach
+mehrfach in den gesendeten Elementen des Absenders: einmal als Original des
+sendenden Programms und je einmal für jeden Zustellvorgang des Gateways.
+
+Der Grund: Exchange teilt eine Mail an mehrere Empfänger in getrennte Vorgänge
+auf. Jeder wird einzeln zurückgehalten, einzeln freigegeben und legt sein
+eigenes gesendetes Element an. Bei einer Mail an zwei Empfänger standen daher
+drei Fassungen im Ordner.
+
+Der reguläre Weg räumt das seit jeher auf und lässt genau eine Fassung stehen;
+die Freigabe liess diesen Schritt aus. Sie stösst die Aufräumung jetzt ebenfalls
+an — einmal je Nachricht, auch wenn mehrere Vorgänge derselben Mail freigegeben
+werden.
+
+Verschlüsselte Mails bleiben dabei ausdrücklich unberührt. Aufgeräumt wird,
+indem die jüngste Fassung behalten wird — das wäre dort der Geheimtext, und der
+Absender könnte seine eigene gesendete Nachricht nicht mehr lesen. Ein Duplikat
+zu viel ist das kleinere Übel.
+
+Voraussetzung ist wie bisher die Einstellung *Gesendete Elemente aktualisieren*.
+Ist sie aus, wird am Postfach nichts verändert.
+
+
 ## v1.7.166 — 2026-08-07 — Der Rollbalken der Postfachtabelle ist jetzt wirklich erreichbar
 
 Die Tabelle bekam in v1.7.163 einen eigenen Ausschnitt in Fensterhöhe, damit
