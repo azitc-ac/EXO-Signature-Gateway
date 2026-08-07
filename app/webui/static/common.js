@@ -397,32 +397,58 @@ window.addEventListener('resize', function () {
 });
 
 
-// ── Zuletzt gewähltes Vorschau-Postfach ──────────────────────────────────────
+// ── Zuletzt getroffene Auswahl merken ────────────────────────────────────────
 //
-// Gemeinsam für Editor-Live-Vorschau und Vorschau-Seite: Zwei Kopien liefen
-// sonst auseinander, und wer zwischen beiden wechselt, bekäme unterschiedliche
-// Vorauswahlen.
+// Wer immer dieselbe Signatur prüft, soll sie nicht bei jedem Öffnen neu
+// wählen müssen. Gleichzeitig darf eine gemerkte Wahl, die es nicht mehr gibt
+// (Postfach entfernt, Vorlage gelöscht), nie zu einer leeren Auswahl führen —
+// dann stünde die Seite mit gefülltem Feld und leerer Fläche da.
 //
-// Regel: das zuletzt gewählte Postfach, sonst das erste der Liste. Wer immer
-// dieselbe Signatur prüft, muss sie nicht bei jedem Öffnen neu wählen; wer das
-// Gerät wechselt oder das Postfach verliert, bekommt trotzdem sofort eine
-// Vorschau statt einer leeren Fläche.
+// Bewusst allgemein: dieselbe Regel gilt für Postfach, Signatur, Banner und
+// Disclaimer. Vier Kopien derselben drei Zeilen wären genau die Streuung, die
+// hier schon einmal auseinanderlief.
+// Der LEERE Wert wird mitgemerkt, nicht gelöscht: „— keine —" ist eine
+// Entscheidung und keine fehlende Angabe. Wer den Banner bewusst weglässt,
+// soll ihn beim nächsten Öffnen nicht wieder vorgesetzt bekommen.
+//
+// Für Auswahlen, in denen der leere Wert gar nicht vorkommt (das Postfach),
+// bleibt es folgenlos: `auswahlWaehlen()` verwirft ihn, weil er nicht in der
+// Liste der erlaubten Werte steht, und greift zur Vorgabe.
+function auswahlMerken(schluessel, wert) {
+  try { localStorage.setItem(schluessel, wert || ''); }
+  catch (e) { /* privates Fenster o.ä. — dann eben ohne Gedächtnis */ }
+}
+
+function auswahlLesen(schluessel) {
+  try { return localStorage.getItem(schluessel); }
+  catch (e) { return null; }
+}
+
+// `erlaubte` sind die tatsächlich vorhandenen Werte. `vorgabe` greift, wenn
+// nichts gemerkt ist oder das Gemerkte verschwunden ist; ohne Vorgabe fällt es
+// auf den ersten Eintrag zurück.
+function auswahlWaehlen(sel, schluessel, erlaubte, vorgabe) {
+  const gemerkt = auswahlLesen(schluessel);
+  let wahl;
+  if (gemerkt !== null && erlaubte.includes(gemerkt)) wahl = gemerkt;
+  else if (vorgabe !== undefined && erlaubte.includes(vorgabe)) wahl = vorgabe;
+  else wahl = erlaubte[0] || '';
+  sel.value = wahl;
+  return wahl;
+}
+
+// Das Vorschau-Postfach — gemeinsam für Editor-Live-Vorschau und
+// Vorschau-Seite. Zwei Kopien liefen sonst auseinander, und wer zwischen
+// beiden wechselt, bekäme unterschiedliche Vorauswahlen.
 const VORSCHAU_POSTFACH_SCHLUESSEL = 'exo.vorschau.postfach';
 
 function vorschauPostfachMerken(email) {
-  try {
-    if (email) localStorage.setItem(VORSCHAU_POSTFACH_SCHLUESSEL, email);
-    else localStorage.removeItem(VORSCHAU_POSTFACH_SCHLUESSEL);
-  } catch (e) { /* privates Fenster o.ä. — dann eben ohne Gedächtnis */ }
+  auswahlMerken(VORSCHAU_POSTFACH_SCHLUESSEL, email);
 }
 
 function vorschauPostfachWaehlen(sel, adressen) {
-  // `adressen` sind die tatsächlich vorhandenen Werte. Ein gemerktes Postfach,
-  // das es nicht mehr gibt, darf nicht zu einer leeren Auswahl führen.
-  let gemerkt = null;
-  try { gemerkt = localStorage.getItem(VORSCHAU_POSTFACH_SCHLUESSEL); }
-  catch (e) { /* s.o. */ }
-  const wahl = (gemerkt && adressen.includes(gemerkt)) ? gemerkt : (adressen[0] || '');
-  if (wahl) sel.value = wahl;
+  // Ohne Vorgabe: das erste Postfach der Liste. Eine leere Auswahl wäre hier
+  // nutzlos — es gibt nichts anzuzeigen, solange kein Postfach gewählt ist.
+  const wahl = auswahlWaehlen(sel, VORSCHAU_POSTFACH_SCHLUESSEL, adressen);
   return wahl;
 }

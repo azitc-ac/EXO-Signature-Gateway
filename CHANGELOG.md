@@ -5,6 +5,59 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.163 — 2026-08-07 — Gesamtvorschau aus Signatur, Banner und Disclaimer; breite Bildschirme werden genutzt
+
+### Vorschau: frei zusammenstellen
+
+Die Vorschau-Seite hatte ein Auswahlfeld *Vorlage*. Banner und Disclaimer kamen
+stillschweigend aus der Konfiguration des gewählten Postfachs — was ein Postfach
+bekommt, liess sich damit ansehen, eine andere Zusammenstellung nicht.
+
+Aus *Vorlage* wird **Signatur**, daneben stehen **Banner** und **Disclaimer**.
+Alle drei kennen *— keine —*; damit lässt sich auch die Signatur weglassen, um
+einen Banner für sich zu betrachten. Die Auswahl wird gemerkt, die Signatur ist
+beim ersten Aufruf auf `default` vorbelegt.
+
+Die Live-Vorschau im Baukasten bleibt unverändert: dort steht weiterhin, was das
+Postfach **tatsächlich** bekäme — mit den ihm zugeordneten Banner- und
+Disclaimer-Vorlagen.
+
+### Breite Bildschirme
+
+Alle Seiten waren auf 960 px begrenzt. Die Postfachtabelle braucht mit ihren
+zehn Spalten rund 1020 px — sie lief damit auf **jedem** Desktop waagerecht
+über, unabhängig von der Bildschirmbreite. Seiten, die Daten nebeneinander
+zeigen (Postfächer, Baukasten), dürfen ab 1100 px Fensterbreite jetzt bis
+1600 px breit werden. Fliesstext bleibt bei 960 px: über die volle Breite eines
+grossen Bildschirms gesetzt, findet das Auge den Zeilenanfang nicht wieder.
+
+### Postfachtabelle: der Rollbalken ist erreichbar
+
+Der waagerechte Rollbalken sass unter der letzten Zeile. Bei einer langen
+Postfachliste musste man erst ganz nach unten, um ihn überhaupt zu bedienen —
+ohne Wischgeste gab es keinen anderen Weg. Auf breiten Bildschirmen bekommt die
+Tabelle einen eigenen Ausschnitt in Fensterhöhe: der Balken sitzt damit immer
+am unteren Rand des Sichtbaren, und die Kopfzeile bleibt stehen. Bei zehn
+Spalten ist eine Ankreuzung ohne Überschrift nicht zu deuten.
+
+Auf schmalen Geräten bleibt alles wie bisher.
+
+### Baukasten: die Vorschau bleibt im Blick
+
+Die Live-Vorschau stand oben rechts und rollte beim Arbeiten aus dem Bild —
+gerade sie macht aber den Sinn der Sache aus. Auf breiten Bildschirmen bleibt
+sie jetzt stehen und bekommt bei Bedarf einen eigenen Rollbereich.
+
+Ausserdem: Kasten und Zwei Spalten führen ihre eigenen Einstellungen und ihren
+Inhalt im selben Kartenkörper. Beim Kasten sind das neun Eingabezeilen und ein
+Erklärabsatz zu Outlook, bevor der Inhalt überhaupt beginnt. Wer am Inhalt
+arbeitet, rollte an Angaben vorbei, die er einmal gesetzt und nie wieder
+angefasst hat. Diese Einstellungen stehen jetzt in einem zugeklappten
+Aufklapper — *Rahmen, Farben & Abstände* beim Kasten, *Aufteilung &
+Ausrichtung* beim Zweispalter —, der Inhalt beginnt direkt darunter. Ein Knopf
+*Alles zuklappen* erscheint, sobald etwas geöffnet ist.
+
+
 ## v1.7.162 — 2026-08-07 — Freitext: leere Zeilen am Rand erzeugen keinen Umbruch mehr
 
 Ein Freitext-Baustein, dessen Inhalt mit einer leeren Zeile beginnt oder endet,

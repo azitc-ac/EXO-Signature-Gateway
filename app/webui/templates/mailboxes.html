@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% block main_klasse %}weit{% endblock %}
 {% block content %}
 <h1>Postfächer</h1>
 
@@ -123,7 +124,7 @@ refreshFairUse();
         <button class="btn secondary" onclick="setAllVisible('smime', false)" style="font-size:12px;padding:2px 9px">Kein</button>
       </span>
     </div>
-    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+    <div class="tabellen-rollbereich">
     <table style="min-width:640px;width:100%;border-collapse:collapse;font-size:13px">
       <thead>
         <tr style="border-bottom:2px solid #e2e8f0">

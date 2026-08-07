@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% block main_klasse %}weit{% endblock %}
 {% block content %}
 <script src="/static/sig_preview.js?v={{ version }}"></script>
 <h1>Signaturen</h1>
@@ -58,8 +59,11 @@
 <!-- ══════════════════════════════════════════════════════════════════════════ -->
 <div id="tab-builder" style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
 
-  <!-- Left: block list -->
-  <div style="flex:1 1 360px;max-width:420px;min-width:0">
+  <!-- Left: block list.
+       `max-width` entfällt auf breiten Schirmen (siehe .baukasten-* in
+       style.css): Die Karten sind dort nicht mehr die Engstelle, und ein
+       Kasten mit Kindern liest sich mit etwas Luft deutlich besser. -->
+  <div class="baukasten-liste" style="flex:1 1 360px;max-width:420px;min-width:0">
 
     <!-- Global Settings -->
     <details id="global-settings" style="margin-bottom:12px">
@@ -110,6 +114,11 @@
     </details>
 
     <!-- Block list -->
+    <div id="alles-zuklappen-wrap" style="display:none;text-align:right;margin-bottom:4px">
+      <button type="button" onclick="alleBausteineZuklappen()"
+        style="background:none;border:none;padding:0;font-size:11px;color:#6b7280;cursor:pointer;text-decoration:underline"
+        title="Alle geöffneten Bausteine schließen">Alles zuklappen</button>
+    </div>
     <div id="block-list" style="display:flex;flex-direction:column;gap:6px"></div>
 
     <!-- Add block -->
@@ -159,8 +168,11 @@
 
   </div><!-- /left -->
 
-  <!-- Right: preview -->
-  <div style="flex:1 1 280px;min-width:0">
+  <!-- Right: preview.
+       `position:sticky` erst auf breiten Schirmen (style.css): Untereinander
+       umgebrochen — also auf dem Handy — würde eine klebende Vorschau den
+       halben Bildschirm belegen und die Bausteinliste verdecken. -->
+  <div class="baukasten-vorschau" style="flex:1 1 280px;min-width:0">
     <div style="font-size:12px;color:#888;margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Live-Vorschau</div>
     <div id="preview-email-wrap" style="margin-bottom:8px;display:flex;gap:8px;align-items:center">
       <select id="preview-email-sel" style="font-size:12px;padding:4px 8px;border:1px solid #d1d5db;border-radius:4px"
@@ -531,6 +543,7 @@ function renderCard(b, container, listRef) {
   header.addEventListener('click', e => {
     if (e.target.tagName === 'BUTTON') return;
     card.classList.toggle('open');
+    zuklappKnopfPruefen();
   });
   card.appendChild(header);
 
@@ -574,6 +587,44 @@ const UNTER_TYPEN = ['greeting','name_field','field','address','phone','mobile',
 // Übung (eingerahmte Signatur). Umgekehrt nicht: ein Kasten in einer Spalte
 // verschachtelt weiter, ohne dass es die Darstellung hergibt.
 const KASTEN_TYPEN = UNTER_TYPEN.concat(['two_col']);
+
+// ── Einstellungen eines Behälter-Bausteins wegklappen ────────────────────────
+//
+// Kasten und Zweispalter führen ihre EIGENEN Einstellungen und ihren INHALT im
+// selben Kartenkörper. Beim Kasten sind das neun Eingabezeilen und ein
+// Erklärabsatz zu Outlook — der Inhalt begann erst weit darunter. Wer am
+// Inhalt arbeitet, scrollte an Angaben vorbei, die er einmal gesetzt und
+// seitdem nie wieder angefasst hat; die Vorschau daneben war derweil aus dem
+// Bild.
+//
+// Die Einstellungen stehen deshalb in einem zugeklappten Aufklapper, der
+// Inhalt direkt darunter.
+//
+// Der offene Zustand liegt NEBEN dem DOM: renderBlockList() baut die Karten
+// bei jeder Änderung neu auf, ein `open` am Element wäre danach weg — der
+// Aufklapper klappte beim Tippen in ein Feld zu. Nur im Speicher, nicht in
+// localStorage: Beim nächsten Öffnen der Seite ist zugeklappt der bessere
+// Anfangszustand.
+const _offeneAufklapper = new Set();
+
+function behaelterEinstellungen(bid, titel, inhalt) {
+  const schluessel = `${bid}:einstellungen`;
+  const offen = _offeneAufklapper.has(schluessel) ? ' open' : '';
+  return `<details class="behaelter-einstellungen" data-aufklapper="${escAttr(schluessel)}"${offen}>`
+    + `<summary>${esc(titel)}</summary>`
+    + `<div style="padding-top:6px">${inhalt}</div>`
+    + `</details>`;
+}
+
+// `toggle` steigt NICHT auf — deshalb in der Erfassungsphase lauschen. Ein
+// Listener pro Aufklapper würde bei jedem Neuaufbau neu gebunden.
+document.addEventListener('toggle', e => {
+  const el = e.target;
+  if (!el.dataset || !el.dataset.aufklapper) return;
+  if (el.open) _offeneAufklapper.add(el.dataset.aufklapper);
+  else _offeneAufklapper.delete(el.dataset.aufklapper);
+  zuklappKnopfPruefen();
+}, true);
 
 // Der Picker liegt IM Textfluss, nicht absolut positioniert: .block-card hat
 // overflow:hidden (für den abgerundeten Kopf), was ein absolut positioniertes
@@ -746,11 +797,13 @@ function buildBlockForm(b) {
     rows += `<p style="font-size:11px;color:#6b7280;margin:4px 0 0">Rohes HTML — für Disclaimer, Rechtliches, etc. Keine Jinja2-Variablen möglich.<br>
       Für einfachen Text mit Fett/Farbe/Größe gibt es den Baustein <strong>Freitext</strong>.</p>`;
   } else if (t === 'two_col') {
-    rows += row('Abstand (px)', txt('gap', b.gap, '12'));
-    rows += row('Linke Breite', txt('left_width', b.left_width, 'auto oder z.B. 60%'));
-    rows += row('Links ausrichten', `<select name="left_valign" data-bid="${b.id}" onchange="blockPropChange(this)"><option value="top"${(b.left_valign||'top')==='top'?' selected':''}>Oben</option><option value="middle"${b.left_valign==='middle'?' selected':''}>Mitte</option></select>`);
-    rows += row('Rechts ausrichten', `<select name="right_valign" data-bid="${b.id}" onchange="blockPropChange(this)"><option value="middle"${(b.right_valign||'middle')==='middle'?' selected':''}>Mitte</option><option value="top"${b.right_valign==='top'?' selected':''}>Oben</option></select>`);
-    rows += row('Trennlinie', chk('divider', b.divider));
+    let ein = '';
+    ein += row('Abstand (px)', txt('gap', b.gap, '12'));
+    ein += row('Linke Breite', txt('left_width', b.left_width, 'auto oder z.B. 60%'));
+    ein += row('Links ausrichten', `<select name="left_valign" data-bid="${b.id}" onchange="blockPropChange(this)"><option value="top"${(b.left_valign||'top')==='top'?' selected':''}>Oben</option><option value="middle"${b.left_valign==='middle'?' selected':''}>Mitte</option></select>`);
+    ein += row('Rechts ausrichten', `<select name="right_valign" data-bid="${b.id}" onchange="blockPropChange(this)"><option value="middle"${(b.right_valign||'middle')==='middle'?' selected':''}>Mitte</option><option value="top"${b.right_valign==='top'?' selected':''}>Oben</option></select>`);
+    ein += row('Trennlinie', chk('divider', b.divider));
+    rows += behaelterEinstellungen(b.id, 'Aufteilung & Ausrichtung', ein);
     // Spalten UNTEREINANDER stapeln, nicht nebeneinander: der Editor-Bereich ist
     // nur ~400px breit (LIVE-Vorschau daneben). Bei grid 1fr/1fr blähte die
     // min-content-Breite eines Sub-Blocks (z.B. lange Logo-URL) die eine Spalte
@@ -777,32 +830,34 @@ function buildBlockForm(b) {
       Der Text dahinter darf HTML enthalten — etwa <code>&lt;strong&gt;</code> für fett
       oder <code>&lt;a href="…"&gt;</code> für einen Link.</p>`;
   } else if (t === 'box') {
-    rows += row('Ecken', `<select name="radius" data-bid="${b.id}" onchange="blockPropChange(this)">`
+    let ein = '';
+    ein += row('Ecken', `<select name="radius" data-bid="${b.id}" onchange="blockPropChange(this)">`
       + [['0','Eckig'],['4','Leicht rund (4px)'],['8','Rund (8px)'],['16','Stark rund (16px)']]
         .map(([v,l]) => `<option value="${v}"${String(b.radius||0)===v?' selected':''}>${esc(l)}</option>`).join('')
       + `</select>`);
-    rows += row('Rahmen an', `<select name="border_side" data-bid="${b.id}" onchange="blockPropChange(this)">`
+    ein += row('Rahmen an', `<select name="border_side" data-bid="${b.id}" onchange="blockPropChange(this)">`
       + [['all','allen Seiten'],['left','nur links'],['top','nur oben'],
          ['right','nur rechts'],['bottom','nur unten']]
         .map(([v,l]) => `<option value="${v}"${(b.border_side||'all')===v?' selected':''}>${esc(l)}</option>`).join('')
       + `</select>`);
-    rows += row('Strichbreite (px)', txt('border_width', b.border_width, '1'));
-    rows += row('Rahmenfarbe', farbFeld('border_color', b.border_color || '#e2e8f0', b.id));
-    rows += row('Gefüllt', chk('filled', b.filled));
-    rows += row('Füllfarbe', farbFeld('fill_color', b.fill_color || '#f8fafc', b.id));
-    rows += row('Innenabstand oben/unten (px)', txt('padding', b.padding, '12'));
-    rows += row('Innenabstand links/rechts (px)', txt('padding_x', b.padding_x, 'wie oben/unten'));
-    rows += row('Breite (px)', txt('width', b.width, '520'));
-    rows += `<p style="font-size:11px;color:#6b7280;margin:4px 0 8px">
+    ein += row('Strichbreite (px)', txt('border_width', b.border_width, '1'));
+    ein += row('Rahmenfarbe', farbFeld('border_color', b.border_color || '#e2e8f0', b.id));
+    ein += row('Gefüllt', chk('filled', b.filled));
+    ein += row('Füllfarbe', farbFeld('fill_color', b.fill_color || '#f8fafc', b.id));
+    ein += row('Innenabstand oben/unten (px)', txt('padding', b.padding, '12'));
+    ein += row('Innenabstand links/rechts (px)', txt('padding_x', b.padding_x, 'wie oben/unten'));
+    ein += row('Breite (px)', txt('width', b.width, '520'));
+    ein += `<p style="font-size:11px;color:#6b7280;margin:4px 0 8px">
       Outlook am Rechner zeichnet mit der Word-Maschine und kennt keine runden Ecken.
       Für runde Ecken wird dort zusätzlich eine VML-Form ausgegeben — die braucht eine
       <strong>feste Breite</strong>. Ohne Breitenangabe bleibt der Kasten in Outlook eckig.
       Die Rundung ist dort angenähert: VML rechnet den Radius gegen die Höhe, die erst
       beim Anzeigen entsteht.</p>`;
+    ein += `<button class="btn secondary" type="button" onclick="kastenAufloesen('${b.id}')"
+        style="font-size:12px"
+        title="Rahmen entfernen, Inhalt behalten">Kasten auflösen (Inhalt behalten)</button>`;
+    rows += behaelterEinstellungen(b.id, 'Rahmen, Farben & Abstände', ein);
     rows += `<div style="margin-top:8px">
-      <button class="btn secondary" type="button" onclick="kastenAufloesen('${b.id}')"
-        style="font-size:12px;margin-bottom:8px"
-        title="Rahmen entfernen, Inhalt behalten">Kasten auflösen (Inhalt behalten)</button>
       <div style="font-size:11px;font-weight:600;color:#555;margin-bottom:4px">Inhalt des Kastens</div>
       <div id="col-children-${b.id}" style="display:flex;flex-direction:column;gap:3px"></div>
       ${unterPicker(b.id, 'children', KASTEN_TYPEN)}
@@ -824,7 +879,30 @@ function renderBlockList() {
   });
   // Unterlisten aller Behälter-Blöcke nachziehen
   blocks.forEach(b => kindListen(b).forEach(k => renderColBlocks(b, k)));
+  zuklappKnopfPruefen();
 }
+
+// „Alles zuklappen" erscheint nur, wenn es etwas zuzuklappen GIBT — ein Knopf,
+// der nichts bewirken kann, ist von einem kaputten nicht zu unterscheiden.
+// Dieselbe Überlegung wie bei den Verschiebe-Pfeilen.
+function zuklappKnopfPruefen() {
+  const wrap = document.getElementById('alles-zuklappen-wrap');
+  if (!wrap) return;
+  const offen = document.querySelectorAll('#block-list .block-card.open').length
+              + _offeneAufklapper.size;
+  wrap.style.display = offen > 0 ? '' : 'none';
+}
+
+window.alleBausteineZuklappen = function() {
+  document.querySelectorAll('#block-list .block-card.open')
+          .forEach(k => k.classList.remove('open'));
+  // Die Aufklapper der Behälter mit: sonst stünden sie beim nächsten Öffnen
+  // einer Karte wieder offen, obwohl gerade „alles zuklappen" gedrückt wurde.
+  _offeneAufklapper.clear();
+  document.querySelectorAll('#block-list details[data-aufklapper]')
+          .forEach(d => d.open = false);
+  zuklappKnopfPruefen();
+};
 
 function renderColBlocks(parent, side) {
   const container = document.getElementById(`col-${side}-${parent.id}`);
