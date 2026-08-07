@@ -5,6 +5,30 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.159 — 2026-08-07 — Baukasten: Vorschau-Knöpfe entfallen, Umwandlungs-Hinweis verschwindet
+
+Im Signatur-Baukasten standen zwei Knöpfe „Vorschau aktualisieren" und
+„Vorschau". Beide konnten nicht leisten, was ihr Name verspricht: Die
+Live-Vorschau wird auf dem Server aus der **gespeicherten** Vorlage gerendert,
+nicht aus den Bausteinen im Browser. Ein Druck darauf holte also genau das
+zurück, was schon dastand — und legte nahe, man könne ungespeicherte
+Änderungen begutachten. Beide Knöpfe sind entfernt; die Vorschau erneuert sich
+beim Speichern und bei der Wahl des Postfachs. Der Platzhalter benennt das
+unverändert: „Postfach wählen und Speichern für Live-Vorschau".
+
+Aus demselben Grund fielen vier interne Auffrischungen weg, die nach dem
+Einrahmen, Auflösen, Löschen und Verschieben in Spalten liefen: Sie holten die
+gespeicherte Fassung und ließen dabei kurz „Lädt…" aufblitzen — der Anschein
+einer Aktualisierung ohne Aktualisierung.
+
+Der Hinweis **„Aus HTML übernommen"** verschwindet jetzt beim Speichern.
+Bisher blieb er bis zum Neuladen der Seite stehen, obwohl sein Text danach
+falsch war („erst mit Speichern wird daraus die neue Vorlage"). Der Knopf
+„Verwerfen, beim HTML bleiben" darin leerte die Bausteinliste — nach dem
+Speichern war die Vorlage aber bereits eine Baukasten-Vorlage, ein weiteres
+Speichern hätte sie damit ausradiert.
+
+
 ## v1.7.158 — 2026-08-07 — Zeilenbausteine mit einheitlichem Abstand
 
 Die Bausteine *Buchungslink* und *Social Media* im Signatur-Baukasten setzten
