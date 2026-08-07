@@ -124,6 +124,25 @@
 [data-theme="dark"] table tr { border-bottom-color: #495166 !important; }
 [data-theme="dark"] table th { border-bottom-color: #495166 !important; color: #94a3b8; }
 [data-theme="dark"] table td { border-color: #495166 !important; }
+/* Aufklapper der Behaelter-Einstellungen im Baukasten (style.css).
+   Die Farben stehen dort in einer Klasse, nicht als style-Attribut — die
+   Attribut-Selektoren weiter unten greifen hier also nicht. */
+[data-theme="dark"] .behaelter-einstellungen > summary {
+    background: #1c2030;
+    border-color: #334155;
+    color: #94a3b8;
+}
+
+/* Feste Kopfzeile der Postfachtabelle (style.css, ab 1100px).
+ *
+ * Der Hintergrund ist hier ZWINGEND: Eine klebende Kopfzeile ohne eigene
+ * Fuellung laesst die durchrollenden Zeilen hindurchscheinen. Im hellen Modus
+ * steht dafuer #fff, das im Dunkelmodus als weisser Streifen stehen bliebe.
+ * Der Wert entspricht dem Seitenhintergrund (`body` oben, #0f1117). */
+[data-theme="dark"] .tabellen-rollbereich thead th {
+    background: #0f1117;
+    box-shadow: inset 0 -2px 0 #495166;
+}
 [data-theme="dark"] .kv-table th { color: #94a3b8; border-color: #495166; }
 [data-theme="dark"] .kv-table td { border-color: #495166; }
 [data-theme="dark"] .config-table    { background: #1c2030; border-color: #495166; }

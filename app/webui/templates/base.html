@@ -371,7 +371,10 @@
       document.addEventListener('DOMContentLoaded', _rcLoad);
     </script>
 
-    <main>
+    {# `weit` fuer Seiten, die Daten NEBENEINANDER zeigen (Postfachtabelle,
+       Baukasten). Fliesstext bleibt bei 960px: ueber die volle Breite eines
+       grossen Bildschirms gesetzt, ist er kaum noch zu lesen. #}
+    <main class="{% block main_klasse %}{% endblock %}">
         {% block content %}{% endblock %}
     </main>
 </body>

@@ -2257,11 +2257,22 @@ async def api_preview_data(
     template: str = "default",
     banner: str = "",
     disclaimer: str = "",
+    explizit: bool = False,
     user: str = Depends(_check_auth),
 ):
     """Render a signature template for a given email address (Graph lookup).
     Also renders the configured banner and disclaimer (or explicit params) and
-    returns them as `banner_html` / `disclaimer_html`."""
+    returns them as `banner_html` / `disclaimer_html`.
+
+    `explizit=1` bedeutet: Die drei Vorlagennamen sind VERBINDLICH, ein leerer
+    Wert heisst „keine" und nicht „nimm die aus der Postfach-Konfiguration".
+
+    Ohne dieses Kennzeichen liesse sich „ausdruecklich keiner" gar nicht
+    ausdruecken — ein leerer Banner faellt sonst auf die Konfiguration zurueck.
+    Genau das braucht aber die Vorschau-Seite, auf der Signatur, Banner und
+    Disclaimer frei zusammengestellt werden. Die Live-Vorschau im Baukasten
+    schickt das Kennzeichen NICHT: dort soll stehen, was das Postfach
+    tatsaechlich bekaeme."""
     import graph_client as _gc
     import mailbox_match
     user_data = _gc.UserData()
@@ -2271,9 +2282,12 @@ async def api_preview_data(
             user_data = await _gc.get_user(email)
         except Exception as exc:
             error = str(exc)
-    sig_html, sig_txt = signature_engine.render(user_data, template_name=template)
+    if explizit and not template:
+        sig_html, sig_txt = "", ""
+    else:
+        sig_html, sig_txt = signature_engine.render(user_data, template_name=template)
     # Resolve banner and disclaimer: explicit param > mailbox config
-    if email and (not banner or not disclaimer):
+    if not explizit and email and (not banner or not disclaimer):
         _mc = settings_store.get("MAILBOX_CONFIG") or {}
         _cfg = mailbox_match.match_sender(_mc, email)
         if not banner:
