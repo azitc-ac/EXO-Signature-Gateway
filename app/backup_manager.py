@@ -4,7 +4,7 @@ Backup und Wiederherstellung aller persistenten Gateway-Daten.
 Backup-Inhalt (ZIP):
   data/   — settings.json, auth.pfx, smime/, acme/, mail_audit.db,
              stats*.json, selfservice_tokens.json
-  templates/ — Signatur-Templates (*.html, *.txt)
+  templates/ — Signatur-Templates (*.html, *.txt) samt Baukasten-Daten (*.meta.json)
 
 Nicht enthalten (werden auf dem Zielsystem neu erstellt):
   data/logs/          — Laufzeit-Logs
@@ -55,7 +55,7 @@ def create_backup() -> tuple[bytes, str]:
             f"\n"
             f"Inhalt:\n"
             f"  data/       — Konfiguration, S/MIME-Keys, ACME-State, Audit-DB, Statistiken\n"
-            f"  templates/  — Signatur-Templates (HTML + TXT)\n"
+            f"  templates/  — Signatur-Templates (HTML + TXT + Baukasten-Daten)\n"
             f"\n"
             f"Nicht enthalten (werden neu erstellt):\n"
             f"  Logs, Let's Encrypt-Zertifikate\n"
@@ -77,10 +77,22 @@ def create_backup() -> tuple[bytes, str]:
                 elif item.is_file() and item.name not in _EXCLUDE_DATA_FILES:
                     zf.write(item, f"data/{item.name}")
 
-        # /app/templates/ — nur *.html und *.txt
+        # /app/templates/ — *.html, *.txt und die Baukasten-Daten *.meta.json
+        #
+        # Die .meta.json fehlte hier. Wiederhergestellt kamen damit nur HTML und
+        # Text zurueck; der Baukasten sah eine Vorlage ohne Bausteindaten und
+        # bot an, sie aus dem HTML zurueckzuuebersetzen. Das ist verlustbehaftet
+        # — der Parser erkennt nur, was er kennt, und eine feste Adresse bleibt
+        # bewusst Freitext statt Kontaktbaustein (siehe template_parser).
+        # Wer sichert, um im Ernstfall weiterarbeiten zu koennen, braucht die
+        # Bausteine, nicht bloss ihr Ergebnis.
+        #
+        # `.bak` und `.kaputt-*` bleiben draussen: Zwischenstaende, die das
+        # Backup nur aufblaehen.
         if TEMPLATE_DIR.exists():
             for f in sorted(TEMPLATE_DIR.iterdir()):
-                if f.is_file() and f.suffix in (".html", ".txt"):
+                if f.is_file() and (f.suffix in (".html", ".txt")
+                                    or f.name.endswith(".meta.json")):
                     zf.write(f, f"templates/{f.name}")
 
     log.info("Backup created: %s (%d KB)", filename, len(buf.getvalue()) // 1024)
@@ -193,7 +205,19 @@ def restore_backup(zip_bytes: bytes) -> dict:
                                 )
                     except Exception as merge_exc:
                         log.warning("Backup restore: USER_BOOKINGS merge failed: %s", merge_exc)
-                    target.write_bytes(backup_settings_bytes)
+                    # ZWINGEND ueber secure_io — dieselbe Begruendung wie oben in
+                    # der Schleife, und settings.json ist die heikelste Datei
+                    # ueberhaupt (CLIENT_SECRET). Sie wird hier nachgelagert
+                    # geschrieben und war deshalb bei der damaligen Haertung
+                    # uebersehen worden.
+                    #
+                    # `write_bytes()` uebernimmt die Rechte einer BESTEHENDEN
+                    # Datei — auf einem eingerichteten Gateway blieb es deshalb
+                    # bei 600 und fiel nie auf. Existiert settings.json aber noch
+                    # nicht, entsteht sie mit umask-Rechten (644 gemessen). Genau
+                    # das ist der Wiederherstellungsfall auf einem frischen
+                    # System, also der einzige, auf den es ankommt.
+                    secure_io.write_secret_bytes(target, backup_settings_bytes)
                     restored += 1
 
         # Settings live neu laden

@@ -5,6 +5,43 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.161 — 2026-08-07 — Backup enthält die Baukasten-Daten, settings.json kommt mit 600 zurück
+
+Zwei Lücken im Sicherungs- und Wiederherstellungsweg.
+
+**Die Baukasten-Daten fehlten im Backup.** Gesichert wurden aus dem
+Vorlagenverzeichnis nur `*.html` und `*.txt`, nicht aber die `*.meta.json` mit
+den Bausteinen. Nach einer Wiederherstellung war die Signatur zwar da, im
+Baukasten aber nicht mehr bearbeitbar: Er sah eine Vorlage ohne Bausteindaten
+und bot an, sie aus dem HTML zurückzuübersetzen. Das ist ausdrücklich
+verlustbehaftet — der Zurückleser erkennt nur, was er kennt, und eine fest
+eingetragene Adresse bleibt bewusst Freitext statt Kontaktbaustein. Wer
+sichert, um im Ernstfall weiterarbeiten zu können, braucht die Bausteine und
+nicht bloß ihr Ergebnis. `*.meta.json` liegt jetzt im Backup; `.bak`- und
+`.kaputt-*`-Zwischenstände bleiben draußen.
+
+**`settings.json` wurde beim Wiederherstellen ohne Rechte-Vorgabe
+geschrieben.** Sie entsteht als letzte Datei — sie ist der Konsistenz-Anker
+und soll erst geschrieben werden, wenn alles andere gelungen ist. Dieser eine
+Schreibvorgang lief an der gehärteten Routine vorbei. Auf einem eingerichteten
+Gateway blieb es folgenlos: Die Datei existierte bereits mit `600`, und ein
+Überschreiben behält die Rechte einer vorhandenen Datei. Fehlte sie dagegen —
+der Wiederherstellungsfall auf einem frischen System, also der einzige, auf den
+es ankommt —, entstand sie mit `644` und damit für jeden Benutzer des Hosts
+lesbar. Sie enthält das Anwendungsgeheimnis (`CLIENT_SECRET`).
+
+**Was zu tun ist:** nichts. Beim Start härtet das Gateway die Rechte im
+Datenverzeichnis ohnehin nach. Wer nach einer Wiederherstellung nicht neu
+gestartet hat, kann es prüfen:
+
+```
+ls -l data/settings.json     # erwartet: -rw-------
+```
+
+Signaturvorlagen werden weiterhin bewusst nicht als Geheimnisse behandelt —
+sie sollen vom Host aus bearbeitbar bleiben.
+
+
 ## v1.7.160 — 2026-08-07 — Vorlagen sind Betriebsdaten und werden vom Update nicht mehr angefasst
 
 Die Signaturvorlagen unter `templates/` lagen im Repository. Das Update läuft
