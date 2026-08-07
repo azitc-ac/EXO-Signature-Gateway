@@ -106,7 +106,6 @@
             </div>
           </label>
         </div>
-        <button class="btn secondary" onclick="refreshPreview()" style="margin-top:10px;font-size:12px">Vorschau aktualisieren</button>
       </div>
     </details>
 
@@ -156,7 +155,6 @@
     <!-- Save button -->
     <div style="margin-top:16px;display:flex;gap:8px">
       <button class="btn primary" onclick="saveBuilder()" id="save-builder-btn" type="button">Speichern</button>
-      <button class="btn secondary" onclick="refreshPreview()" type="button">Vorschau</button>
     </div>
 
   </div><!-- /left -->
@@ -439,7 +437,6 @@ window.alleEinrahmen = function() {
   kasten.children = blocks;      // die vorhandenen Bloecke, unveraendert
   blocks = [kasten];
   renderBlockList();
-  refreshPreview();
 };
 
 // Gegenstueck: Kasten entfernen, Inhalt behalten. „Loeschen" wuerde den Inhalt
@@ -452,7 +449,6 @@ window.kastenAufloesen = function(id) {
   if (!kinder.length) { alert('Der Kasten ist leer — dann einfach löschen.'); return; }
   blocks.splice(idx, 1, ...kinder);
   renderBlockList();
-  refreshPreview();
 };
 
 window.addBlock = function(type, targetList, afterId) {
@@ -913,7 +909,6 @@ window.deleteColBlock = function(e, parentId, side, blockId) {
   // Daten entfernt, stand aber weiter auf dem Bildschirm — für den Nutzer
   // schlicht ein Knopf, der nicht wirkt. Genau so gemeldet (2026-08-03).
   kindListen(parent).forEach(k => renderColBlocks(parent, k));
-  refreshPreview();
 };
 
 window.moveColBlock = function(e, parentId, side, blockId, dir) {
@@ -926,7 +921,6 @@ window.moveColBlock = function(e, parentId, side, blockId, dir) {
   if (idx < 0 || ni < 0 || ni >= list.length) return;
   [list[idx], list[ni]] = [list[ni], list[idx]];
   renderColBlocks(parent, side);
-  refreshPreview();
 };
 
 // ── Block prop change ─────────────────────────────────────────────────────────
@@ -1107,6 +1101,13 @@ window.saveBuilder = async function() {
     if (ta) ta.value = d.html || '';
     const tb = document.getElementById('txt_content');
     if (tb) tb.value = d.txt || '';
+    // Der Umwandlungs-Hinweis hat sich mit dem Speichern erledigt — er sagt
+    // „erst mit Speichern wird daraus die neue Vorlage" und bietet „Verwerfen,
+    // beim HTML bleiben" an. Blieb er stehen, log er nicht nur: sein Knopf
+    // leerte die Bausteinliste, obwohl die Vorlage bereits als Baukasten
+    // gespeichert war — ein Speichern danach haette sie ausradiert.
+    const hinweis = document.getElementById('umwandlung-hinweis');
+    if (hinweis) hinweis.remove();
     await refreshPreview();
   } catch(e) {
     const box = document.getElementById('save-err');
@@ -1124,7 +1125,7 @@ window.refreshPreview = async function() {
   const box = document.getElementById('preview-box');
   const loading = document.getElementById('preview-loading');
   if (!email) {
-    box.innerHTML = '<span style="color:#9ca3af;font-size:12px">Postfach wählen für Live-Vorschau</span>';
+    box.innerHTML = '<span style="color:#9ca3af;font-size:12px">Postfach wählen und Speichern für Live-Vorschau</span>';
     return;
   }
   loading.style.display = '';
