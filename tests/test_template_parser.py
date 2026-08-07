@@ -291,18 +291,36 @@ def test_bedingung_wird_nicht_an_erkannte_felder_geheftet():
 # plausible Blockliste und eine Vorschau, in der genau das fehlt, wonach er
 # gerade nicht sucht. Dann speichert er.
 
-def test_bestandsvorlagen_gehen_nie_verloren():
-    """Über ALLE Vorlagen im Verzeichnis: der sichtbare Text bleibt gleich.
+def _pruefvorlagen():
+    """Mitgelieferte Prüfvorlagen — plus der örtliche Bestand, wo vorhanden.
 
-    Das ist die Prüfung, die zählt — nicht wie gut zerlegt wurde, sondern dass
-    nichts verschwindet. Sie läuft gegen den echten Bestand, weil genau dort
-    die Muster stehen, die sich niemand ausgedacht hat.
+    Diese Prüfung lief allein gegen `templates/`. Das ging gut, solange die
+    Vorlagen im Repository lagen; seit sie als Betriebsdaten daraus entfernt
+    sind, ist das Verzeichnis in einem frischen Auschecken leer, und die
+    Prüfung schlug in der CI fehl — auf dem Entwicklungsrechner blieb sie grün,
+    weil dort der Bestand liegt. Genau die Sorte Lücke, die man nur in der CI
+    sieht.
+
+    `tests/vorlagen/` deckt deshalb die Formen ab, auf die es ankommt: im
+    Baukasten erzeugte Vorlagen, eine handgeschriebene fremde Signatur ohne
+    einen einzigen Platzhalter und eine mit Entities und Sonderzeichen. Der
+    örtliche Bestand kommt dazu, wenn er da ist — dort stehen die Muster, die
+    sich niemand ausgedacht hat.
     """
     from pathlib import Path
-    verz = Path(__file__).resolve().parents[1] / "templates"
-    dateien = sorted(verz.glob("*.html"))
-    assert dateien, "keine Vorlagen zum Prüfen gefunden"
-    for f in dateien:
+    basis = Path(__file__).resolve().parents[1]
+    dateien = sorted((basis / "tests" / "vorlagen").glob("*.html"))
+    assert dateien, "die mitgelieferten Prüfvorlagen fehlen"
+    return dateien + sorted((basis / "templates").glob("*.html"))
+
+
+def test_bestandsvorlagen_gehen_nie_verloren():
+    """Über ALLE Prüfvorlagen: der sichtbare Text bleibt gleich.
+
+    Das ist die Prüfung, die zählt — nicht wie gut zerlegt wurde, sondern dass
+    nichts verschwindet.
+    """
+    for f in _pruefvorlagen():
         roh = f.read_text(encoding="utf-8")
         meta = tp.parse_html(roh)
         meta.pop("_hinweise", None)
