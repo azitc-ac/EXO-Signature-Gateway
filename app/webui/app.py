@@ -1811,12 +1811,51 @@ async def api_save_template_meta(name: str, request: Request, _=Depends(_check_a
                 alt.read_text(encoding="utf-8"), encoding="utf-8")
         except Exception as exc:
             log.warning("Sicherung von %s fehlgeschlagen: %s", fname, exc)
-    meta_path = Path(config.TEMPLATE_DIR) / f"{fname}.meta.json"
-    html_path = Path(config.TEMPLATE_DIR) / f"{fname}.html"
-    txt_path = Path(config.TEMPLATE_DIR) / f"{fname}.txt"
-    meta_path.write_text(_json.dumps(meta, ensure_ascii=False, indent=2))
-    html_path.write_text(html_content)
-    txt_path.write_text(txt_content)
+    # Entweder alle drei Dateien oder keine — und ueber tmp+replace().
+    #
+    # Vorher liefen hier drei nackte write_text() hintereinander. Zwei Fehler
+    # steckten darin, beide am 07.08.2026 auf der Azure-VM aufgeschlagen:
+    #
+    # 1. Ein Fehlschlag beim zweiten Aufruf hinterliess die neue meta.json neben
+    #    dem alten HTML. Baukasten und ausgelieferte Signatur waren dann
+    #    verschieden, ohne dass es irgendwo auffiel.
+    # 2. `write_text()` oeffnet die ZIELDATEI. Gehoert die einem anderen Nutzer
+    #    (auf der VM schrieb der als root laufende Deploy die Vorlagen), scheitert
+    #    das mit EACCES — obwohl das Verzeichnis dem Dienst gehoert. `replace()`
+    #    braucht nur Schreibrecht am VERZEICHNIS und kommt damit durch.
+    #
+    # Der Fehler kam als nackter 500 heraus; der Editor bekam HTML statt JSON und
+    # meldete „Unexpected token 'I', "Internal S"... is not valid JSON". Aus so
+    # einer Meldung ist die Ursache nicht zu erraten.
+    ziele = [
+        (Path(config.TEMPLATE_DIR) / f"{fname}.meta.json",
+         _json.dumps(meta, ensure_ascii=False, indent=2)),
+        (Path(config.TEMPLATE_DIR) / f"{fname}.html", html_content),
+        (Path(config.TEMPLATE_DIR) / f"{fname}.txt", txt_content),
+    ]
+    fertig: list[tuple[Path, Path]] = []
+    try:
+        for ziel, inhalt in ziele:
+            tmp = ziel.parent / f"{ziel.name}.tmp"
+            tmp.write_text(inhalt, encoding="utf-8")
+            # Rechte auf der TEMP-Datei setzen, nicht auf dem Ziel: replace()
+            # uebernimmt die der Quelldatei (dieselbe Falle wie in
+            # settings_store._save(), dort mit 600 statt 644).
+            tmp.chmod(0o644)
+            fertig.append((tmp, ziel))
+        for tmp, ziel in fertig:
+            tmp.replace(ziel)
+    except OSError as exc:
+        for tmp, _ziel in fertig:
+            try:
+                tmp.unlink(missing_ok=True)
+            except OSError:
+                pass
+        log.error("Vorlage '%s' liess sich nicht schreiben: %s", safe, exc, exc_info=True)
+        raise HTTPException(500, f"Die Vorlage liess sich nicht schreiben: {exc}. "
+                                 f"Nicht gespeichert — die bisherige Fassung bleibt "
+                                 f"erhalten. Meist sind es die Zugriffsrechte auf "
+                                 f"dem Vorlagenverzeichnis.")
     signature_engine._reload_env()
     log.info("Template '%s' saved via builder by %s", safe, _)
     return {"ok": True, "html": html_content, "txt": txt_content}

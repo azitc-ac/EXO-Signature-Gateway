@@ -97,3 +97,54 @@ def test_fehler_beim_erzeugen_kommt_als_meldung(klient, monkeypatch):
     assert r.status_code == 400, r.status_code
     assert "kaputt" in r.json().get("detail", "")
     assert "<p>bisher</p>" in (verz / "Probe.html").read_text(), "trotzdem geschrieben"
+
+
+# ── Schreibfehler (07.08.2026, Azure-VM) ─────────────────────────────────────
+#
+# Die Vorlagen lagen im Repository, der Deploy schreibt sie als root zurueck,
+# der Dienst laeuft als appuser: `write_text()` auf die fremde ZIELDATEI
+# scheiterte mit EACCES. Herausgekommen ist ein nackter 500, im Editor als
+# „Unexpected token 'I', "Internal S"... is not valid JSON".
+
+def test_fremde_zieldatei_blockiert_das_speichern_nicht(klient):
+    """Gehoert die alte Datei jemand anderem, zaehlt das Verzeichnisrecht.
+
+    tmp+replace() braucht Schreibrecht am Verzeichnis, nicht an der Zieldatei.
+    Nachgestellt ueber ein schreibgeschuetztes 0444 — fuer einen Prozess ohne
+    root ist das derselbe EACCES wie bei fremdem Eigentuemer.
+    """
+    import os
+    c, verz = klient
+    ziel = verz / "Probe.html"
+    ziel.write_text("<p>bisher</p>", encoding="utf-8")
+    ziel.chmod(0o444)
+    try:
+        with open(ziel, "w"):        # Vorbedingung: direkt beschreiben geht NICHT
+            pytest.skip("laeuft als root — der Rechtefall ist so nicht nachstellbar")
+    except PermissionError:
+        pass
+    r = c.post("/api/templates/Probe/meta", json={
+        "version": 1, "blocks": [{"type": "text", "text": "Neuer Inhalt"}]})
+    assert r.status_code == 200, r.text
+    assert "Neuer Inhalt" in ziel.read_text()
+    assert os.stat(ziel).st_mode & 0o777 == 0o644, "Rechte nicht auf der Temp-Datei gesetzt"
+
+
+def test_unbeschreibbares_verzeichnis_meldet_im_klartext(klient):
+    """Geht wirklich nichts, kommt eine lesbare Meldung — und nichts ist halb
+    geschrieben. Frueher: 500 mit HTML-Rumpf."""
+    c, verz = klient
+    (verz / "Probe.html").write_text("<p>bisher</p>", encoding="utf-8")
+    (verz / "Probe.meta.json").write_text('{"alt": true}', encoding="utf-8")
+    verz.chmod(0o555)
+    try:
+        r = c.post("/api/templates/Probe/meta", json={
+            "version": 1, "blocks": [{"type": "text", "text": "Neuer Inhalt"}]})
+    finally:
+        verz.chmod(0o755)
+    assert r.status_code == 500, r.status_code
+    assert "detail" in r.json(), "kein JSON — der Editor kann das nicht deuten"
+    assert "bisherige Fassung" in r.json()["detail"]
+    assert "<p>bisher</p>" in (verz / "Probe.html").read_text()
+    assert '{"alt": true}' in (verz / "Probe.meta.json").read_text(), \
+        "meta.json wurde geschrieben, obwohl das HTML scheiterte"
