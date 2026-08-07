@@ -496,7 +496,22 @@ def _text(b, g, pad, _ind):
     roh = b.get("text") or ""
     if not roh.strip():
         return ""
-    text = "<br>".join(_auszeichnen(_htmllib.escape(z), g) for z in roh.splitlines())
+    # Leere Zeilen am ANFANG und am ENDE sind Tippreste, kein Layout.
+    #
+    # Im Eingabefeld ist eine leere erste Zeile praktisch unsichtbar — im
+    # Ergebnis stand dafuer ein <br> vor der ersten Textzeile, und der Kasten
+    # klaffte oben auf. Die Textfassung desselben Bausteins verwarf leere
+    # Zeilen ohnehin schon (`if klar.strip()` in _render_block_txt); die beiden
+    # Ausgaben desselben Bausteins widersprachen sich also.
+    #
+    # Zeilen INNERHALB bleiben erhalten: dort ist die Leerzeile gewollt. Wer
+    # Abstand VOR dem Text will, nimmt den Baustein „Abstand".
+    zeilen = roh.splitlines()
+    while zeilen and not zeilen[0].strip():
+        zeilen.pop(0)
+    while zeilen and not zeilen[-1].strip():
+        zeilen.pop()
+    text = "<br>".join(_auszeichnen(_htmllib.escape(z), g) for z in zeilen)
 
     parts = ["padding:0"]
     color = _farbe(b.get("color") or "base", g["base_color"], g)

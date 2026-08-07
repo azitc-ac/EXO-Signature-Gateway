@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.162 — 2026-08-07 — Freitext: leere Zeilen am Rand erzeugen keinen Umbruch mehr
+
+Ein Freitext-Baustein, dessen Inhalt mit einer leeren Zeile beginnt oder endet,
+setzte dafür einen Zeilenumbruch ins Ergebnis. Vor der ersten Textzeile stand
+dann ein `<br>`; in einem Kasten klaffte oben eine Lücke, die niemand
+eingegeben hatte — eine leere erste Zeile ist im Eingabefeld praktisch
+unsichtbar.
+
+Dass es ein Fehler und keine Auslegungssache war, zeigte der Vergleich der
+beiden Ausgaben desselben Bausteins: Die Textfassung verwarf leere Zeilen
+längst, die HTML-Fassung machte `<br>` daraus. Für Abstand gibt es den
+Baustein *Abstand*, dessen Höhe einstellbar ist.
+
+Leere Zeilen **innerhalb** des Textes bleiben erhalten — dort sind sie
+gewollt.
+
+Bestehende Vorlagen ändern sich beim nächsten Speichern; der eingegebene Text
+bleibt unverändert, nur seine Darstellung.
+
+
 ## v1.7.161 — 2026-08-07 — Backup enthält die Baukasten-Daten, settings.json kommt mit 600 zurück
 
 Zwei Lücken im Sicherungs- und Wiederherstellungsweg.
