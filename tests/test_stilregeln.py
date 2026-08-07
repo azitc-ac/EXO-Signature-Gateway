@@ -28,7 +28,15 @@ STIL = Path(__file__).resolve().parent.parent / "app" / "webui" / "static" / "st
 
 @pytest.fixture(scope="module")
 def css() -> str:
-    return STIL.read_text(encoding="utf-8")
+    """OHNE Kommentare.
+
+    Die erste Fassung dieser Prüfungen suchte im Rohtext nach `max-height`.
+    Als die Eigenschaft aus der Regel verschwand und nur noch im erklärenden
+    Kommentar stand, blieb die Prüfung grün — sie sprach auf den Kommentar an.
+    Ein Test, der die Beschreibung einer Sache für die Sache selbst hält, ist
+    schlimmer als keiner: Er meldet Sicherheit, wo keine ist.
+    """
+    return re.sub(r"/\*.*?\*/", "", STIL.read_text(encoding="utf-8"), flags=re.S)
 
 
 def _block(css: str, bedingung: str) -> str:
@@ -48,10 +56,35 @@ def _block(css: str, bedingung: str) -> str:
 def test_kopfzeile_und_ausschnitt_stehen_im_selben_block(css):
     """Getrennt wirkt die klebende Kopfzeile nicht — siehe Modulkopf."""
     block = _block(css, "(pointer: fine), (min-width: 1100px)")
-    assert "max-height" in block, "der eigene Ausschnitt fehlt"
     assert "overflow: auto" in block, "ohne senkrechtes Rollen klebt nichts"
     assert "position: sticky" in block, "die Kopfzeile klebt nicht"
     assert ".tabellen-rollbereich thead th" in block
+
+
+def test_keine_untergrenze_fuer_den_ausschnitt(css):
+    """Eine `min-height` schiebt die Unterkante in niedrigen Fenstern wieder
+    aus dem Bild — und damit den waagerechten Rollbalken ausser Reichweite,
+    also genau das zurück, was behoben werden sollte.
+
+    Bei 900x540 im Browser gemessen: mit `min-height: 300px` endete der
+    Ausschnitt bei 661 in einem 540 hohen Fenster, ohne bei 524.
+    """
+    block = _block(css, "(pointer: fine), (min-width: 1100px)")
+    assert "min-height" not in block, \
+        "Untergrenze wieder da — der Rollbalken rutscht in niedrigen Fenstern raus"
+
+
+def test_die_hoehe_wird_gemessen_und_nicht_geraten(css):
+    """Der Abstand von der Seitenoberkante bis zur Tabelle hängt davon ab, was
+    darüber steht. In CSS ist er nicht auszudrücken; `calc(100vh - 240px)` war
+    geraten und um 90 bis 120px daneben. Die Höhe kommt deshalb aus dem Skript
+    — und die Stelle, die sie setzt, muss es auch geben."""
+    seite = (STIL.parent.parent / "templates" / "mailboxes.html").read_text(encoding="utf-8")
+    assert "function tabellenHoeheAnpassen()" in seite, "die Messung fehlt"
+    assert seite.count("tabellenHoeheAnpassen()") >= 3, \
+        "die Messung muss beim Zeichnen UND beim Fensterwechsel laufen"
+    assert "max-height" not in _block(css, "(pointer: fine), (min-width: 1100px)"), \
+        "feste Hoehe im Stil — sie ueberschreibt die gemessene nicht, aber sie raet wieder"
 
 
 def test_tabelle_haengt_nicht_allein_an_der_fensterbreite(css):

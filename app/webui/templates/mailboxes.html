@@ -557,6 +557,9 @@ async function loadMailboxes(silent) {
     if (slowHint) clearTimeout(slowHint);
     if (!silent) status.textContent = _mbData.length + ' Postfächer geladen';
     document.getElementById('mb-table-wrap').style.display = '';
+    // Erst NACH dem Einblenden messen: an einem `display:none`-Element sind
+    // alle Masse null, die Hoehe fiele auf die Untergrenze.
+    tabellenHoeheAnpassen();
     document.getElementById('mb-save-btn').style.display = '';
     document.getElementById('mb-local-btn').style.display = '';
     document.getElementById('mb-refresh-btn').style.display = '';
@@ -1367,6 +1370,60 @@ async function saveCustomPolicies() {
   }
   setTimeout(function() { res.textContent = ''; }, 3000);
 }
+
+// ── Hoehe des Tabellen-Ausschnitts ───────────────────────────────────────────
+//
+// Der Ausschnitt soll am unteren Fensterrand ENDEN. Genau dort sitzt sein
+// waagerechter Rollbalken, und der war das ganze Anliegen: Bei einer langen
+// Postfachliste musste man erst nach unten rollen, um ihn zu erreichen.
+//
+// Im CSS stand zuerst `max-height: calc(100vh - 240px)`. Die 240px waren
+// geraten. Tatsaechlich beginnt die Tabelle je nach Fenster und eingeblendeten
+// Hinweisen 330 bis 380px unterhalb des Seitenanfangs — der Ausschnitt ragte
+// unten heraus, der Rollbalken blieb unerreichbar, und beim Rollen der SEITE
+// wanderte die feste Kopfzeile mit hinaus. Im Browser gemessen bei 900x700:
+// Unterkante 821 statt 700.
+//
+// In CSS ist dieser Abstand nicht auszudruecken; er haengt davon ab, was
+// darueber steht (Reiter, Fair-Use-Hinweis, Filterzeile, Schnellaktionen).
+// Also wird er gemessen.
+//
+// `scrollY` kommt dazu, weil `getBoundingClientRect()` vom Fenster aus misst:
+// So ergibt sich der Abstand zum SEITENANFANG und das Ergebnis haengt nicht
+// davon ab, wie weit gerade gerollt ist.
+function tabellenHoeheAnpassen() {
+  var box = document.querySelector('.tabellen-rollbereich');
+  if (!box) return;
+  // Dieselbe Bedingung wie im Stil. Ohne die Pruefung bekaeme auch ein
+  // Telefon einen festen Ausschnitt — dort faengt er die Wischgeste ab.
+  if (!window.matchMedia('(pointer: fine), (min-width: 1100px)').matches) {
+    box.style.maxHeight = '';
+    return;
+  }
+  var obenImDokument = box.getBoundingClientRect().top + window.scrollY;
+  var platz = window.innerHeight - obenImDokument - 16;
+  // Unter etwa 160px bliebe ein Guckloch mit drei Zeilen. Dann ist das alte
+  // Verhalten das bessere: Tabelle waechst, Seite rollt.
+  //
+  // Eine feste UNTERGRENZE waere hier falsch — sie schiebt die Unterkante
+  // wieder aus dem Bild und damit den Rollbalken ausser Reichweite, also genau
+  // das, was behoben werden sollte. Bei 900x540 gemessen: mit Untergrenze 300
+  // endete der Ausschnitt bei 661 in einem 540 hohen Fenster.
+  if (platz < 160) { box.style.maxHeight = ''; return; }
+  box.style.maxHeight = platz + 'px';
+}
+
+// Beim Verkleinern des Fensters neu rechnen. Gedrosselt ueber den Bildaufbau:
+// `resize` feuert waehrend des Ziehens im Dutzend, und jede Messung erzwingt
+// ein Neuberechnen des Layouts.
+var _hoehenLauf = null;
+window.addEventListener('resize', function() {
+  if (_hoehenLauf) return;
+  _hoehenLauf = requestAnimationFrame(function() {
+    _hoehenLauf = null;
+    tabellenHoeheAnpassen();
+  });
+});
 
 document.addEventListener('DOMContentLoaded', function() {
   loadMailboxes(true);
