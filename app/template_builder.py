@@ -409,7 +409,7 @@ def _booking_link(b, g, pad, _ind):
     var = "{{ user.bookingsUrl }}"
     text = _htmllib.escape(anzeige or "Termin buchen")
     inner = (
-        f'<tr><td style="{_zell_stil(b, g, ["padding-top:4px"])}">'
+        f'<tr><td style="{_zell_stil(b, g)}">'
         + (f"{_htmllib.escape(praefix)} " if praefix else "")
         + f'<a href="{var}" style="color:{lc};text-decoration:none">{text}</a>'
         f'</td></tr>'
@@ -426,7 +426,7 @@ def _social(b, g, pad, _ind):
     text = _htmllib.escape(anzeige or platform or "Link")
     lc = _link_farbe(b, g)
     return (
-        f'{pad}<tr><td style="{_zell_stil(b, g, ["padding-top:2px"])}">'
+        f'{pad}<tr><td style="{_zell_stil(b, g)}">'
         + (f"{_htmllib.escape(praefix)} " if praefix else "")
         + f'<a href="{url}" style="color:{lc};text-decoration:none">{text}</a>'
         f'</td></tr>'
