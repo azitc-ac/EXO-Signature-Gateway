@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.165 — 2026-08-07 — Verlustprüfung der Vorlagen-Rückübersetzung liegt wieder bei
+
+Die Prüfung, dass beim Zurücklesen einer Vorlage aus HTML kein sichtbarer Text
+verlorengeht, lief allein gegen das Vorlagenverzeichnis der jeweiligen
+Installation. Seit die Vorlagen als Betriebsdaten aus der Versionsverwaltung
+genommen wurden (v1.7.160), ist dieses Verzeichnis in einer frischen
+Installation leer — die Prüfung fand nichts zu prüfen und schlug fehl.
+
+Sie bringt ihre Prüfvorlagen jetzt selbst mit: im Baukasten erzeugte Fassungen,
+eine handgeschriebene fremde Signatur ohne einen einzigen Platzhalter und eine
+mit Entities und Sonderzeichen. Das eigene Vorlagenverzeichnis wird zusätzlich
+geprüft, wo es vorhanden ist.
+
+
 ## v1.7.164 — 2026-08-07 — Feste Kopfzeile und mitlaufende Vorschau auch im verkleinerten Fenster
 
 Beides hing an der Bildschirmbreite (ab 1100 px). Ein verkleinertes
