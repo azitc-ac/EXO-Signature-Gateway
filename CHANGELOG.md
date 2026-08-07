@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.158 — 2026-08-07 — Zeilenbausteine mit einheitlichem Abstand
+
+Die Bausteine *Buchungslink* und *Social Media* im Signatur-Baukasten setzten
+über sich einen zusätzlichen Abstand — 4 px bzw. 2 px. Kein anderer
+Zeilenbaustein tut das; in einer Reihe gleichartiger Zeilen — Telefon,
+E-Mail, Web, Termin buchen, LinkedIn — sprangen diese beiden sichtbar aus dem
+Raster, und zwar unterschiedlich weit. Der Abstand entfällt; wer Luft zwischen
+Zeilen möchte, setzt den Baustein *Abstand*.
+
+Bestehende Vorlagen ändern sich beim nächsten Rendern von selbst; es ist nichts
+zu tun.
+
+
 ## v1.7.157 — 2026-08-06 — Bestätigte Adressänderung erscheint ohne Neuladen
 
 Steht die Bestätigung einer Konto- oder Rechnungsadresse aus, sieht die Seite
