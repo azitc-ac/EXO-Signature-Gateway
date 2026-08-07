@@ -5,6 +5,31 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.166 — 2026-08-07 — Der Rollbalken der Postfachtabelle ist jetzt wirklich erreichbar
+
+Die Tabelle bekam in v1.7.163 einen eigenen Ausschnitt in Fensterhöhe, damit
+ihr waagerechter Rollbalken nicht mehr unter der letzten Zeile liegt. Die dafür
+angesetzte Höhe (`100vh - 240px`) war jedoch geschätzt: Tatsächlich beginnt die
+Tabelle je nach Fenster und eingeblendeten Hinweisen 330 bis 380 px unterhalb
+des Seitenanfangs. Der Ausschnitt ragte damit unten aus dem Bild — und genau
+dort sitzt der Rollbalken. Man musste weiterhin die Seite rollen, um ihn zu
+erreichen, und nahm dabei die feste Kopfzeile mit nach oben heraus.
+
+Der Abstand lässt sich in einem Stylesheet nicht ausdrücken, weil er davon
+abhängt, was über der Tabelle steht. Er wird jetzt gemessen — beim Aufbau der
+Tabelle und bei jeder Änderung der Fenstergröße.
+
+Eine feste Mindesthöhe entfällt dabei bewusst: Sie hätte in niedrigen Fenstern
+die Unterkante wieder aus dem Bild geschoben, also genau den Fehler
+wiederholt. Bleibt weniger als etwa 160 px Platz, gilt wieder das frühere
+Verhalten — die Tabelle wächst, die Seite rollt; ein Guckloch mit drei Zeilen
+wäre nicht besser.
+
+Nachgemessen bei fünf Fenstergrößen von 1600×900 bis 900×540: Die Unterkante
+liegt in allen Fällen im sichtbaren Bereich, die Kopfzeile bleibt beim Rollen
+stehen. Auf Touchgeräten unverändert.
+
+
 ## v1.7.165 — 2026-08-07 — Verlustprüfung der Vorlagen-Rückübersetzung liegt wieder bei
 
 Die Prüfung, dass beim Zurücklesen einer Vorlage aus HTML kein sichtbarer Text

@@ -210,11 +210,26 @@ main { max-width: 960px; margin: 32px auto; padding: 0 24px; }
 
 @media (pointer: fine), (min-width: 1100px) {
     .tabellen-rollbereich {
-        /* Der Abzug deckt Kopfzeile, Reiter und Filterzeile darueber ab. Die
-         * Untergrenze greift in niedrigen Fenstern: lieber ein Ausschnitt, der
-         * unten aus dem Bild ragt, als einer, in den drei Zeilen passen. */
-        max-height: calc(100vh - 240px);
-        min-height: 300px;
+        /* Die HOEHE setzt JavaScript (tabellenHoeheAnpassen in mailboxes.html).
+         *
+         * Hier stand `max-height: calc(100vh - 240px)`. Die 240px waren
+         * geraten — tatsaechlich beginnt die Tabelle je nach Fenster 330 bis
+         * 380px unterhalb des Seitenanfangs. Der Ausschnitt ragte damit unten
+         * aus dem Bild, und genau dort sitzt der waagerechte Rollbalken: man
+         * musste die SEITE rollen, um ihn zu erreichen, und nahm dabei die
+         * feste Kopfzeile mit nach oben heraus. Im Browser gemessen bei
+         * 900x700: Unterkante bei 821 statt 700.
+         *
+         * In CSS ist der Abstand nicht auszudruecken — er haengt davon ab, was
+         * ueber der Tabelle steht (Reiter, Fair-Use-Hinweis, Filterzeile).
+         * Deshalb wird er gemessen. Faellt das Skript aus, bleibt es beim
+         * Verhalten von frueher: die Tabelle waechst und die Seite rollt.
+         *
+         * Bewusst OHNE `min-height`: eine Untergrenze schiebt die Unterkante in
+         * niedrigen Fenstern wieder aus dem Bild — und damit den waagerechten
+         * Rollbalken ausser Reichweite, also genau das zurueck, was behoben
+         * werden sollte. Zu wenig Platz behandelt das Skript stattdessen als
+         * Fall fuer das alte Verhalten. */
         overflow: auto;
     }
     .tabellen-rollbereich thead th {
