@@ -5,6 +5,51 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.160 — 2026-08-07 — Vorlagen sind Betriebsdaten und werden vom Update nicht mehr angefasst
+
+Die Signaturvorlagen unter `templates/` lagen im Repository. Das Update läuft
+als root über `git reset --hard` und schrieb sie damit bei jedem Durchgang neu.
+Zwei Folgen:
+
+* Die Dateien gehörten danach **root**. Der Dienst läuft als `appuser`
+  (UID 1000) und konnte sie nicht mehr überschreiben — Speichern im Baukasten
+  scheiterte, im Editor sichtbar als *„Unexpected token 'I', "Internal S"… is
+  not valid JSON"*.
+* Der Inhalt wurde auf den Repo-Stand **zurückgesetzt**. Im Baukasten
+  vorgenommene Änderungen waren nach einem Update still verschwunden.
+
+`templates/` ist jetzt aus der Versionsverwaltung genommen; nur ein leeres
+`.gitkeep` bleibt, damit das Verzeichnis im Clone existiert. Fehlte es, legte
+der Docker-Daemon den Bind-Mount-Quellpfad beim ersten Start als root an — der
+Rechtefehler wäre dauerhaft.
+
+**Was zu tun ist:** Beim Update auf diese Fassung entfernt Git die bislang
+mitgelieferten Vorlagen aus `templates/` — es sind die Dateien, die auch im
+Repository standen. Wer sie im Betrieb nutzt, sichert das Verzeichnis
+**vorher**:
+
+```
+tar czf ~/templates-backup.tar.gz -C /opt/exo-gateway templates
+```
+
+und spielt die fehlenden Dateien danach zurück. Eigene, nie im Repository
+vorhandene Vorlagen sind nicht betroffen. Sind die Rechte bereits verstellt,
+richtet sie
+
+```
+sudo chown -R 1000:1000 /opt/exo-gateway/templates
+```
+
+Zweitens werden die drei Dateien einer Vorlage (`.meta.json`, `.html`, `.txt`)
+jetzt über Temp-Datei und `replace()` geschrieben, und zwar alle drei oder
+keine. Das hat zwei Wirkungen: Ein Fehlschlag hinterlässt keine neue
+`meta.json` neben altem HTML mehr — Baukasten und ausgelieferte Signatur
+liefen sonst unbemerkt auseinander. Und `replace()` benötigt Schreibrecht am
+**Verzeichnis**, nicht an der Zieldatei; eine Vorlage mit fremdem Eigentümer
+blockiert das Speichern damit nicht mehr. Geht wirklich nichts, erscheint eine
+Meldung im Klartext statt eines Serverfehlers.
+
+
 ## v1.7.159 — 2026-08-07 — Baukasten: Vorschau-Knöpfe entfallen, Umwandlungs-Hinweis verschwindet
 
 Im Signatur-Baukasten standen zwei Knöpfe „Vorschau aktualisieren" und

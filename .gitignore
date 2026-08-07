@@ -1,8 +1,6 @@
 .env
 certs/
 data/
-templates/signature.html
-templates/signature.txt
 __pycache__/
 *.pyc
 *.pyo
@@ -17,9 +15,17 @@ inject_test.py
 test_smime.py
 ui_test.py
 
-# Kunden-/tenant-spezifische Signaturvorlagen
-templates/*.bak
-templates/Privat-*.html
-templates/Privat-*.txt
-templates/default-without-greeting.*
+# Signaturvorlagen sind Betriebsdaten, keine Quelltexte.
+#
+# Sie lagen frueher im Repository. Der Deploy laeuft als root ueber
+# `git reset --hard origin/main` und schrieb sie damit bei jedem Update neu:
+# root-besitzt (der als appuser laufende Container konnte danach nicht mehr
+# speichern) und inhaltlich auf den Repo-Stand zurueckgesetzt, also ohne die
+# Aenderungen des Betreibers.
+#
+# `.gitkeep` bleibt getrackt, damit das Verzeichnis im Clone existiert: Fehlt
+# es, legt der Docker-Daemon den Bind-Mount-Quellpfad beim ersten Start als
+# root an — und der Rechtefehler waere dauerhaft zurueck.
+templates/*
+!templates/.gitkeep
 node_modules/
