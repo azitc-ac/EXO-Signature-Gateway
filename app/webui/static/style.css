@@ -178,26 +178,43 @@ main { max-width: 960px; margin: 32px auto; padding: 0 24px; }
 
 /* Breite Tabelle mit eigenem Rollbereich.
  *
- * Schmal (Handy): waagerecht schiebbar, sonst nichts — die Seite selbst rollt
- * senkrecht, so wie man es dort erwartet.
- *
- * Breit: die Tabelle bekommt einen eigenen Ausschnitt in Fensterhoehe. Das
- * loest ein konkretes Aergernis — der waagerechte Rollbalken sass unter der
- * LETZTEN Zeile. Bei einer langen Postfachliste musste man erst ganz nach
- * unten rollen, um ihn ueberhaupt zu erreichen; ohne Wischgeste gab es keinen
- * anderen Weg. Im eigenen Ausschnitt sitzt er immer am unteren Rand des
- * Sichtbaren.
+ * Die Tabelle bekommt einen eigenen Ausschnitt in Fensterhoehe. Das loest ein
+ * konkretes Aergernis — der waagerechte Rollbalken sass unter der LETZTEN
+ * Zeile. Bei einer langen Postfachliste musste man erst ganz nach unten rollen,
+ * um ihn ueberhaupt zu erreichen; ohne Wischgeste gab es keinen anderen Weg.
+ * Im eigenen Ausschnitt sitzt er immer am unteren Rand des Sichtbaren.
  *
  * Die Kopfzeile bleibt dabei stehen — bei zehn Spalten ist eine Ankreuzung
  * ohne Ueberschrift nicht zu deuten. Der Trennstrich liegt als `inset`-Schatten
  * IM Feld: ein `border-bottom` auf der Zeile wandert beim Rollen weg, weil
- * nicht die Zeile klebt, sondern nur ihre Felder. */
+ * nicht die Zeile klebt, sondern nur ihre Felder.
+ *
+ * ── Warum `pointer: fine` und nicht die Fensterbreite
+ *
+ * Zuerst stand hier `min-width: 1100px`. Damit fiel ein VERKLEINERTES Fenster
+ * am Rechner in die Handy-Behandlung — schmal, aber mit Maus, und dort ist der
+ * Rollbalken genauso schwer zu erreichen. Die Trennlinie verlaeuft nicht
+ * zwischen schmal und breit, sondern zwischen Maus und Finger: Auf einem
+ * Touchgeraet faengt ein verschachtelter Rollbereich die Wischgeste ab, mit
+ * einer Maus ist er ein Gewinn.
+ *
+ * Der zweite Zweig faengt Touch-Geraete mit sehr breitem Schirm ab; die
+ * Reihenfolge ist ein ODER, es genuegt eine der beiden Bedingungen.
+ *
+ * ⚠️ Ohne den eigenen Ausschnitt KANN die Kopfzeile gar nicht kleben:
+ * `overflow-x: auto` macht den Wrapper zum Rollbereich, und `position: sticky`
+ * bezieht sich dann auf IHN statt auf die Seite. Ein Wrapper ohne eigene Hoehe
+ * rollt senkrecht nicht — also klebt dort nichts. Beides gehoert deshalb in
+ * denselben Block und darf nicht getrennt werden. */
 .tabellen-rollbereich { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
-@media (min-width: 1100px) {
+@media (pointer: fine), (min-width: 1100px) {
     .tabellen-rollbereich {
+        /* Der Abzug deckt Kopfzeile, Reiter und Filterzeile darueber ab. Die
+         * Untergrenze greift in niedrigen Fenstern: lieber ein Ausschnitt, der
+         * unten aus dem Bild ragt, als einer, in den drei Zeilen passen. */
         max-height: calc(100vh - 240px);
-        min-height: 320px;
+        min-height: 300px;
         overflow: auto;
     }
     .tabellen-rollbereich thead th {
@@ -227,27 +244,39 @@ main { max-width: 960px; margin: 32px auto; padding: 0 24px; }
 .behaelter-einstellungen > summary::before { content: "\25B8\00a0"; }
 .behaelter-einstellungen[open] > summary::before { content: "\25BE\00a0"; }
 
-/* Baukasten auf breiten Schirmen.
+/* Baukasten: die Vorschau bleibt beim Rollen stehen.
  *
- * Die Vorschau bleibt beim Rollen stehen. Eine Bausteinliste wird schnell
- * laenger als ein Bildschirm — vor allem, wenn ein Kasten seine Kinder zeigt.
- * Die Vorschau stand dann oben und war beim Arbeiten nicht mehr zu sehen,
- * obwohl gerade sie den Sinn der Sache ausmacht.
+ * Eine Bausteinliste wird schnell laenger als ein Bildschirm — vor allem, wenn
+ * ein Kasten seine Kinder zeigt. Die Vorschau stand dann oben und war beim
+ * Arbeiten nicht mehr zu sehen, obwohl gerade sie den Sinn der Sache ausmacht.
  *
- * `top` haelt Abstand zur Kopfzeile, `max-height` sorgt dafuer, dass eine
- * lange Signatur die Vorschau nicht ueber den Bildschirmrand hinausschiebt —
- * sie bekommt dann ihren eigenen Rollbereich.
+ * `top` haelt Abstand zur Kopfzeile, `max-height` sorgt dafuer, dass eine lange
+ * Signatur die Vorschau nicht ueber den Bildschirmrand hinausschiebt — sie
+ * bekommt dann ihren eigenen Rollbereich.
  *
- * Nur ab 1100px: darunter brechen die beiden Spalten untereinander um, und
- * eine klebende Vorschau wuerde die Liste verdecken statt sie zu ergaenzen. */
-@media (min-width: 1100px) {
-    .baukasten-liste { max-width: 560px !important; }
+ * Die Grenze ist die, an der die beiden Spalten TATSAECHLICH nebeneinander
+ * stehen: flex-basis 360 + 280 + 16 Abstand + 48 Innenabstand ~= 704px.
+ * Im Browser nachgemessen — bei 760px nebeneinander, bei 700px umgebrochen.
+ * 760 ist deshalb die sichere Untergrenze.
+ *
+ * Untereinander umgebrochen waere eine klebende Vorschau schaedlich: sie wuerde
+ * die Liste verdecken statt sie zu ergaenzen. `pointer: fine` haelt zusaetzlich
+ * Touchgeraete heraus, wo ein verschachtelter Rollbereich die Wischgeste
+ * abfaengt — dieselbe Ueberlegung wie bei der Postfachtabelle.
+ *
+ * Die breitere Liste bleibt an den GROSSEN Schirm gebunden: sie verteilt nur
+ * vorhandenen Platz und hat mit dem Kleben nichts zu tun. */
+@media (pointer: fine) and (min-width: 760px), (min-width: 1100px) {
     .baukasten-vorschau {
         position: sticky;
         top: 16px;
         max-height: calc(100vh - 48px);
         overflow: auto;
     }
+}
+
+@media (min-width: 1100px) {
+    .baukasten-liste { max-width: 560px !important; }
 }
 
 @media (max-width: 600px) {
