@@ -5,6 +5,27 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.164 — 2026-08-07 — Feste Kopfzeile und mitlaufende Vorschau auch im verkleinerten Fenster
+
+Beides hing an der Bildschirmbreite (ab 1100 px). Ein verkleinertes
+Browserfenster am Rechner fiel damit in dieselbe Behandlung wie ein Telefon —
+es ist zwar schmal, wird aber mit der Maus bedient, und dort ist der
+waagerechte Rollbalken genauso schwer zu erreichen. Die Kopfzeile der
+Postfachtabelle rollte weiterhin aus dem Bild.
+
+Die Trennlinie verläuft nicht zwischen schmal und breit, sondern zwischen Maus
+und Finger: Auf einem Touchgerät fängt ein Rollbereich innerhalb der Seite die
+Wischgeste ab, mit einer Maus ist er ein Gewinn. Maßgeblich ist deshalb jetzt
+das Zeigegerät.
+
+Die mitlaufende Vorschau im Baukasten hatte dieselbe zu enge Grenze. Die beiden
+Spalten stehen bereits ab 760 px Fensterbreite nebeneinander; die Vorschau
+rollte davon, obwohl daneben Platz war. Sie bleibt jetzt ab dieser Schwelle
+stehen. Untereinander umgebrochen — auf dem Telefon — bleibt es beim
+Seitenrollen: eine festgesetzte Vorschau würde die Bausteinliste verdecken,
+statt sie zu ergänzen.
+
+
 ## v1.7.163 — 2026-08-07 — Gesamtvorschau aus Signatur, Banner und Disclaimer; breite Bildschirme werden genutzt
 
 ### Vorschau: frei zusammenstellen
