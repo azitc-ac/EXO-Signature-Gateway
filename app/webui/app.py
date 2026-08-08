@@ -75,7 +75,19 @@ app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 from webui.routen import addin as _routen_addin              # noqa: E402
 from webui.routen.addin import _addin_base_url               # noqa: E402
 
-app.include_router(_routen_addin.router)
+# EINE Quelle: hieraus werden die Router eingebunden, und `tests/test_routes.py`
+# zaehlt daraus die Routen ab.
+#
+# ⚠️ Notwendig, weil `include_router()` ab FastAPI 0.139 die Routen NICHT mehr
+# nach `app.routes` kopiert, sondern einen Stellvertreter (`_IncludedRouter`)
+# einhaengt. Zur Laufzeit stimmt alles — von aussen sind die Adressen aber
+# nicht mehr aufzaehlbar. Ohne diese Liste verloere die Routen-Momentaufnahme
+# mit jedem weiteren Modul stillschweigend an Abdeckung, also genau das Netz,
+# das diesen Umbau ueberhaupt verantwortbar macht.
+ROUTENMODULE = [_routen_addin]
+
+for _modul in ROUTENMODULE:
+    app.include_router(_modul.router)
 
 
 @app.exception_handler(_NotAuthenticated)
