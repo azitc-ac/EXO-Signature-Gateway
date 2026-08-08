@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.170 — 2026-08-09 — Weboberfläche: gemeinsames Fundament und erstes eigenes Routenmodul
+
+Innerer Umbau ohne sichtbare Änderung. Die Weboberfläche lag als eine Datei mit
+5.655 Zeilen und 232 Adressen vor. Anmeldung, Vorlagenverzeichnis und
+Protokollkanal stehen jetzt in einem gemeinsamen Fundament, und die Adressen des
+Outlook-Add-ins bilden das erste eigene Modul.
+
+Für den Betrieb ändert sich nichts — alle Adressen bleiben unverändert
+erreichbar, geprüft über eine Momentaufnahme der vollständigen Adresstabelle.
+
 ## v1.7.169 — 2026-08-09 — Datenverzeichnis an einer Stelle, per Umgebungsvariable verlegbar
 
 Der Pfad des Datenverzeichnisses stand als Text an dreissig Stellen in achtzehn
