@@ -3326,16 +3326,53 @@ async def api_backup_download(user: str = Depends(_require_admin)):
     )
 
 
-@app.post("/api/backup/restore")
-async def api_backup_restore(
+@app.post("/api/backup/inspect")
+async def api_backup_inspect(
     file: UploadFile = File(...),
     _user: str = Depends(_require_admin),
 ):
-    """Backup-ZIP hochladen und wiederherstellen."""
+    """Inhalt eines Backups anzeigen, OHNE etwas zu schreiben.
+
+    Grundlage für die Auswahl beim Wiederherstellen. Bewusst ein eigener
+    Endpunkt statt eines Vorschau-Schalters am Wiederherstellen: Ein Aufruf,
+    der nichts verändert, soll auch nicht so heissen wie einer, der es tut.
+    """
     import backup_manager as _bm
     data = await file.read()
-    result = await __import__("asyncio").get_event_loop().run_in_executor(
-        None, _bm.restore_backup, data
+    ergebnis = await asyncio.get_event_loop().run_in_executor(
+        None, _bm.inspect_backup, data
+    )
+    return JSONResponse(ergebnis)
+
+
+@app.post("/api/backup/restore")
+async def api_backup_restore(
+    file: UploadFile = File(...),
+    auswahl: str = Form(""),
+    _user: str = Depends(_require_admin),
+):
+    """Backup-ZIP hochladen und wiederherstellen.
+
+    `auswahl` ist eine JSON-Liste von Dateinamen aus dem ZIP. Fehlt sie, wird
+    ALLES wiederhergestellt — so verhält sich der Endpunkt wie vor der
+    Auswahlmöglichkeit, und ein alter Aufrufer (oder die Ersteinrichtung)
+    stellt nicht versehentlich nichts wieder her.
+    """
+    import backup_manager as _bm
+    import json as _json
+    data = await file.read()
+
+    gewaehlt = None
+    if auswahl.strip():
+        try:
+            gewaehlt = _json.loads(auswahl)
+        except Exception:
+            raise HTTPException(400, "Auswahl ist kein gültiges JSON")
+        if not isinstance(gewaehlt, list):
+            raise HTTPException(400, "Auswahl muss eine Liste von Dateinamen sein")
+
+    result = await asyncio.get_event_loop().run_in_executor(
+        None, _bm.restore_backup, data, gewaehlt
     )
     return JSONResponse(result)
 

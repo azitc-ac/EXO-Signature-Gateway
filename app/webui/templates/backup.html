@@ -128,19 +128,42 @@
   <h2>Backup wiederherstellen</h2>
 
   <div class="alert warn" style="margin-bottom:16px">
-    <strong>Achtung:</strong> Die Wiederherstellung überschreibt alle vorhandenen Konfigurationsdaten.
-    Nach der Wiederherstellung muss der Container neu gestartet werden.
+    <strong>Achtung:</strong> Ausgewählte Elemente überschreiben die vorhandenen —
+    gleichnamige Vorlagen und Daten werden ersetzt. Nach der Wiederherstellung
+    muss der Container neu gestartet werden.
   </div>
 
   <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
-    Backup-ZIP auswählen und hochladen. Logs und Let's Encrypt-Zertifikate werden
-    dabei nicht überschrieben — diese werden auf dem neuen System neu erstellt.
+    Backup-ZIP auswählen. Der Inhalt wird zunächst nur <em>angezeigt</em>; erst
+    danach entscheidest du, was zurückgeholt wird. Logs und Let's Encrypt-Zertifikate
+    sind nicht enthalten — sie entstehen auf dem neuen System neu.
   </p>
 
   <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
     <input type="file" id="backup-file-input" accept=".zip"
+           onchange="backupInhaltLaden()"
            style="font-size:13px;border:1px solid #e2e8f0;border-radius:6px;padding:6px 10px;background:#fff">
+    <span id="backup-inspect-spinner" style="display:none;font-size:13px;color:#555">
+      Inhalt wird gelesen…
+    </span>
+  </div>
+
+  <!-- Auswahlbaum — erscheint erst, wenn ein Backup gelesen wurde -->
+  <div id="backup-auswahl" style="display:none;margin-bottom:14px">
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+      <button type="button" class="btn secondary" onclick="backupAlleWaehlen(true)"
+              style="font-size:12px;padding:3px 10px">Alles</button>
+      <button type="button" class="btn secondary" onclick="backupAlleWaehlen(false)"
+              style="font-size:12px;padding:3px 10px">Nichts</button>
+      <span id="backup-auswahl-zahl" style="font-size:12px;color:#6b7280"></span>
+    </div>
+    <div id="backup-baum" style="border:1px solid #e2e8f0;border-radius:6px;padding:10px 12px;
+         max-height:340px;overflow:auto;background:#fff;font-size:13px"></div>
+  </div>
+
+  <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
     <button class="btn primary" id="backup-restore-btn" onclick="backupRestoreConfirm()"
+            disabled
             style="background:#dc2626;border-color:#dc2626">
       Wiederherstellen
     </button>
@@ -627,6 +650,138 @@ async function restartNow() {
   tick();
 }
 
+// ── Inhalt des Backups anzeigen und auswählen ────────────────────────────────
+//
+// Die Wiederherstellung ersetzte bisher IMMER alles. Wer eine einzelne
+// versehentlich überschriebene Vorlage zurückholen wollte, nahm dabei die
+// gesamte Konfiguration des Sicherungszeitpunkts mit — Postfach-Zuordnungen,
+// Betriebsmodus, Schlüssel. Deshalb erst ansehen, dann wählen.
+//
+// Eine Vorlage ist EIN Eintrag, keine drei Dateien: `.html`, `.txt` und
+// `.meta.json` gehören zusammen. Einzeln wählbar wäre jede Antwort ausser
+// „alle drei" eine beschädigte Vorlage.
+let _backupGruppen = [];
+
+async function backupInhaltLaden() {
+  const input   = document.getElementById('backup-file-input');
+  const spinner = document.getElementById('backup-inspect-spinner');
+  const bereich = document.getElementById('backup-auswahl');
+  const knopf   = document.getElementById('backup-restore-btn');
+  const result  = document.getElementById('backup-restore-result');
+  fieldClear(input);
+  result.style.display = 'none';
+  bereich.style.display = 'none';
+  knopf.disabled = true;
+  _backupGruppen = [];
+  if (!input.files.length) return;
+
+  spinner.style.display = 'inline';
+  try {
+    const fd = new FormData();
+    fd.append('file', input.files[0]);
+    const r = await fetch('/api/backup/inspect', {method: 'POST', body: fd});
+    const d = await r.json();
+    if (!d.ok) {
+      fieldMsg(input, d.error || 'Backup liess sich nicht lesen.', false);
+      return;
+    }
+    _backupGruppen = d.gruppen || [];
+    backupBaumZeichnen();
+    bereich.style.display = '';
+    knopf.disabled = false;
+  } catch(e) {
+    fieldMsg(input, 'Fehler beim Lesen: ' + e.message, false);
+  } finally {
+    spinner.style.display = 'none';
+  }
+}
+
+function backupGroesse(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return Math.round(n / 1024) + ' KB';
+  return (n / 1024 / 1024).toFixed(1) + ' MB';
+}
+
+function backupBaumZeichnen() {
+  const baum = document.getElementById('backup-baum');
+  baum.innerHTML = '';
+  _backupGruppen.forEach(g => {
+    const box = document.createElement('div');
+    box.style.cssText = 'margin-bottom:10px';
+    box.innerHTML =
+      `<label style="display:flex;align-items:center;gap:7px;font-weight:600;cursor:pointer">
+         <input type="checkbox" class="bk-gruppe" data-gruppe="${escAttr(g.schluessel)}" checked>
+         <span>${esc(g.titel)}</span>
+       </label>`;
+    const liste = document.createElement('div');
+    liste.style.cssText = 'margin:4px 0 0 22px;display:flex;flex-direction:column;gap:3px';
+    g.eintraege.forEach(e => {
+      const zeile = document.createElement('label');
+      zeile.style.cssText = 'display:flex;align-items:baseline;gap:7px;cursor:pointer;line-height:1.5';
+      zeile.innerHTML =
+        `<input type="checkbox" class="bk-eintrag" data-gruppe="${escAttr(g.schluessel)}"
+                data-dateien="${escAttr(JSON.stringify(e.dateien))}" checked>
+         <span style="flex:1;min-width:0">${esc(e.titel)}
+           <span style="color:#6b7280;font-size:12px">${e.hinweis ? '— ' + esc(e.hinweis) : ''}</span>
+         </span>
+         <span style="color:#9ca3af;font-size:12px;white-space:nowrap">${backupGroesse(e.bytes)}</span>`;
+      liste.appendChild(zeile);
+    });
+    box.appendChild(liste);
+    baum.appendChild(box);
+  });
+
+  baum.querySelectorAll('.bk-gruppe').forEach(k => k.addEventListener('change', () => {
+    baum.querySelectorAll(`.bk-eintrag[data-gruppe="${k.dataset.gruppe}"]`)
+        .forEach(e => e.checked = k.checked);
+    backupAuswahlGezaehlt();
+  }));
+  baum.querySelectorAll('.bk-eintrag').forEach(e => e.addEventListener('change', () => {
+    backupGruppenHaken();
+    backupAuswahlGezaehlt();
+  }));
+  backupAuswahlGezaehlt();
+}
+
+// Der Gruppenhaken zeigt „teilweise" an, wenn nur ein Teil gewählt ist —
+// sonst stünde er auf „an", obwohl nicht alles darunter gewählt ist.
+function backupGruppenHaken() {
+  const baum = document.getElementById('backup-baum');
+  baum.querySelectorAll('.bk-gruppe').forEach(k => {
+    const kinder = [...baum.querySelectorAll(`.bk-eintrag[data-gruppe="${k.dataset.gruppe}"]`)];
+    const an = kinder.filter(e => e.checked).length;
+    k.checked = an === kinder.length;
+    k.indeterminate = an > 0 && an < kinder.length;
+  });
+}
+
+function backupAlleWaehlen(an) {
+  const baum = document.getElementById('backup-baum');
+  baum.querySelectorAll('.bk-eintrag').forEach(e => e.checked = an);
+  backupGruppenHaken();
+  backupAuswahlGezaehlt();
+}
+
+function backupGewaehlteDateien() {
+  const baum = document.getElementById('backup-baum');
+  const dateien = [];
+  baum.querySelectorAll('.bk-eintrag').forEach(e => {
+    if (!e.checked) return;
+    try { dateien.push(...JSON.parse(e.dataset.dateien)); } catch (err) { /* s.u. */ }
+  });
+  return dateien;
+}
+
+function backupAuswahlGezaehlt() {
+  const baum = document.getElementById('backup-baum');
+  const gewaehlt = [...baum.querySelectorAll('.bk-eintrag')].filter(e => e.checked).length;
+  const gesamt   = baum.querySelectorAll('.bk-eintrag').length;
+  const dateien  = backupGewaehlteDateien().length;
+  document.getElementById('backup-auswahl-zahl').textContent =
+    `${gewaehlt} von ${gesamt} Elementen (${dateien} Datei(en))`;
+  document.getElementById('backup-restore-btn').disabled = gewaehlt === 0;
+}
+
 function backupRestoreConfirm() {
   const input = document.getElementById('backup-file-input');
   fieldClear(input);
@@ -634,10 +789,24 @@ function backupRestoreConfirm() {
     fieldMsg(input, 'Bitte zuerst eine Backup-ZIP-Datei auswählen.', false);
     return;
   }
-  const fname = input.files[0].name;
+  const baum = document.getElementById('backup-baum');
+  const eintraege = [...baum.querySelectorAll('.bk-eintrag')];
+  const gewaehlt  = eintraege.filter(e => e.checked);
+  if (!gewaehlt.length) {
+    fieldMsg(input, 'Nichts ausgewählt.', false);
+    return;
+  }
+  // Namen der Elemente in die Rückfrage, nicht nur ihre Anzahl: „12 Elemente
+  // wiederherstellen?" sagt nicht, ob die Einstellungen dabei sind.
+  const namen = gewaehlt.map(e => e.parentElement.querySelector('span').textContent.trim());
+  const alles = gewaehlt.length === eintraege.length;
+  const liste = alles
+    ? 'ALLE Elemente des Backups'
+    : namen.slice(0, 12).join('\n• ') + (namen.length > 12 ? `\n… und ${namen.length - 12} weitere` : '');
   if (!confirm(
-    `Backup "${fname}" wiederherstellen?\n\n` +
-    `Alle vorhandenen Konfigurationsdaten werden überschrieben.\n` +
+    `Aus "${input.files[0].name}" wiederherstellen:\n\n` +
+    (alles ? liste : '• ' + liste) + `\n\n` +
+    `Gleichnamige Elemente werden überschrieben.\n` +
     `Danach ist ein Container-Neustart erforderlich.\n\n` +
     `Fortfahren?`
   )) return;
@@ -655,6 +824,7 @@ async function backupRestore() {
   try {
     const fd = new FormData();
     fd.append('file', input.files[0]);
+    fd.append('auswahl', JSON.stringify(backupGewaehlteDateien()));
     const r = await fetch('/api/backup/restore', {method: 'POST', body: fd});
     const d = await r.json();
     if (d.ok) {

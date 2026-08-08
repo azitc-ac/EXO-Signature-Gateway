@@ -182,6 +182,13 @@
     "name": "api_backup_download"
   },
   {
+    "pfad": "/api/backup/inspect",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_backup_inspect"
+  },
+  {
     "pfad": "/api/backup/restore",
     "methoden": [
       "POST"

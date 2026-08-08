@@ -113,14 +113,149 @@ def validate_backup(zip_bytes: bytes) -> list[str]:
         return [f"Lesefehler: {exc}"]
 
 
-def restore_backup(zip_bytes: bytes) -> dict:
+# Anzeigenamen der data/-Bereiche. Wer wiederherstellt, denkt in Dingen
+# („die S/MIME-Schlüssel", „die Einstellungen") und nicht in Dateinamen.
+_BEREICHE: list[tuple[str, str, str]] = [
+    # (Schlüssel, Titel, Erläuterung)
+    ("einstellungen", "Einstellungen",
+     "settings.json — Postfach-Zuordnungen, Betriebsmodus, Zugangsdaten"),
+    ("smime", "S/MIME-Schlüssel und -Zertifikate",
+     "Private Schlüssel der Postfächer und gesammelte Empfänger-Zertifikate"),
+    ("acme", "ACME-Kontodaten",
+     "Kontoschlüssel der Zertifikatsstelle — ohne sie beginnt die Ausstellung von vorn"),
+    ("auth", "Exchange-Anmeldezertifikat",
+     "auth.pfx für die PowerShell-Verbindung"),
+    ("datenbanken", "Datenbanken",
+     "Protokolle, Portal, Zustimmungen"),
+    ("sonstiges", "Weitere Betriebsdaten",
+     "Statistiken, Merker, Zwischenstände"),
+]
+
+
+def _bereich_von(rel: str) -> str:
+    """data/-Pfad → Bereichsschlüssel."""
+    teile = Path(rel).parts
+    kopf = teile[0] if teile else rel
+    if rel == "settings.json":
+        return "einstellungen"
+    if kopf == "smime":
+        return "smime"
+    if kopf == "acme":
+        return "acme"
+    if rel == "auth.pfx":
+        return "auth"
+    if rel.endswith(".db"):
+        return "datenbanken"
+    return "sonstiges"
+
+
+def inspect_backup(zip_bytes: bytes) -> dict:
+    """Inhalt eines Backups als Baum — OHNE etwas zu schreiben.
+
+    Grundlage für die Auswahl beim Wiederherstellen. Eine Vorlage erscheint als
+    EIN Eintrag, nicht als drei Dateien: `.html`, `.txt` und `.meta.json`
+    gehören zusammen, und wer „Blog-Banner" zurückholen will, meint alle drei.
+    Sie einzeln anzubieten hiesse, dem Nutzer eine Entscheidung abzuverlangen,
+    bei der jede Antwort ausser „alle drei" die Vorlage beschädigt — die
+    `.meta.json` ohne ihr `.html` ergibt eine Vorlage, die im Baukasten
+    aussieht wie gewünscht und beim Versand etwas anderes liefert.
+
+    Returns {"ok": bool, "error": str, "gruppen": [...]}, wobei jede Gruppe
+    `eintraege` mit `dateien` (den echten ZIP-Namen) führt.
+    """
+    errors = validate_backup(zip_bytes)
+    if errors:
+        return {"ok": False, "error": errors[0], "gruppen": []}
+
+    vorlagen: dict[str, dict] = {}
+    bereiche: dict[str, list[dict]] = {}
+
+    with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
+        for entry in zf.infolist():
+            name = entry.filename
+            if entry.is_dir() or name == "README.txt":
+                continue
+
+            if name.startswith("templates/"):
+                datei = name[len("templates/"):]
+                # „Blog-Banner.meta.json" → „Blog-Banner"; `.suffix` allein
+                # liefert dort nur „.json" und liesse den Namen gespalten.
+                basis = datei
+                for endung in (".meta.json", ".html", ".txt"):
+                    if basis.endswith(endung):
+                        basis = basis[: -len(endung)]
+                        break
+                e = vorlagen.setdefault(basis, {
+                    "schluessel": f"vorlage:{basis}",
+                    "titel": "Standardsignatur" if basis == "signature" else basis,
+                    "hinweis": "", "dateien": [], "bytes": 0,
+                })
+                e["dateien"].append(name)
+                e["bytes"] += entry.file_size
+
+            elif name.startswith("data/"):
+                rel = name[len("data/"):]
+                teile = Path(rel).parts
+                if teile and teile[0] in _EXCLUDE_DATA_SUBDIRS:
+                    continue
+                bereiche.setdefault(_bereich_von(rel), []).append(
+                    {"name": name, "bytes": entry.file_size})
+
+    gruppen: list[dict] = []
+
+    daten_eintraege = []
+    for schluessel, titel, erlaeuterung in _BEREICHE:
+        dateien = bereiche.get(schluessel) or []
+        if not dateien:
+            continue
+        daten_eintraege.append({
+            "schluessel": f"daten:{schluessel}",
+            "titel": titel,
+            "hinweis": erlaeuterung,
+            "dateien": [d["name"] for d in dateien],
+            "bytes": sum(d["bytes"] for d in dateien),
+        })
+    if daten_eintraege:
+        gruppen.append({"schluessel": "daten", "titel": "Konfiguration und Daten",
+                        "eintraege": daten_eintraege})
+
+    if vorlagen:
+        for e in vorlagen.values():
+            fehlend = [t for t, endung in (("HTML", ".html"), ("Text", ".txt"))
+                       if not any(d.endswith(endung) for d in e["dateien"])]
+            e["hinweis"] = ("unvollständig — " + ", ".join(fehlend) + " fehlt"
+                            if fehlend else
+                            ", ".join(sorted(d.rsplit("/", 1)[-1] for d in e["dateien"])))
+        gruppen.append({
+            "schluessel": "vorlagen", "titel": "Signaturvorlagen",
+            "eintraege": sorted(vorlagen.values(), key=lambda e: e["titel"].lower()),
+        })
+
+    return {"ok": True, "error": "", "gruppen": gruppen}
+
+
+def restore_backup(zip_bytes: bytes, auswahl: list[str] | None = None) -> dict:
     """
     Stellt Backup wieder her.
+
+    `auswahl` = Liste von ZIP-Namen. `None` bedeutet ALLES — so verhält sich
+    der Aufruf wie vor der Auswahlmöglichkeit, und ein Aufrufer, der die neue
+    Angabe nicht kennt, stellt nicht versehentlich nichts wieder her. Eine
+    LEERE Liste ist dagegen eine Aussage („nichts ausgewählt") und wird
+    abgelehnt, statt kommentarlos ein Nichts-Ergebnis zu melden.
+
     Returns {"ok": bool, "restored_files": int, "warnings": list[str], "error": str}
     """
     errors = validate_backup(zip_bytes)
     if errors:
         return {"ok": False, "error": errors[0], "restored_files": 0, "warnings": []}
+
+    gewaehlt: set[str] | None = None
+    if auswahl is not None:
+        gewaehlt = {str(n) for n in auswahl}
+        if not gewaehlt:
+            return {"ok": False, "error": "Nichts ausgewählt — nichts wiederhergestellt.",
+                    "restored_files": 0, "warnings": []}
 
     warnings: list[str] = []
     restored = 0
@@ -134,6 +269,12 @@ def restore_backup(zip_bytes: bytes) -> dict:
             for entry in zf.infolist():
                 name = entry.filename
                 if entry.is_dir() or name in ("README.txt", "data/settings.json"):
+                    continue
+                # Die Auswahl wirkt NUR einschränkend. Alle bisherigen Schranken
+                # darunter (Zip-Slip, ausgeschlossene Unterverzeichnisse) bleiben
+                # bestehen — ein Name aus dem Browser darf nichts freischalten,
+                # was der Weg ohne Auswahl nicht auch schreiben würde.
+                if gewaehlt is not None and name not in gewaehlt:
                     continue
 
                 if name.startswith("data/"):
@@ -183,7 +324,13 @@ def restore_backup(zip_bytes: bytes) -> dict:
             # Jetzt – nach allen anderen Dateien – die settings.json schreiben.
             # USER_BOOKINGS (auto-ermittelte Bookings-URLs) aus dem laufenden System
             # mergen, damit nach dem Restore ermittelte URLs nicht verloren gehen.
-            if "data/settings.json" in zf.namelist():
+            # Auch hier gilt die Auswahl: Wer nur eine Vorlage zurückholt, will
+            # seine laufende Konfiguration NICHT überschrieben bekommen. Ohne
+            # diese Bedingung wäre die Einstellungsdatei die eine Datei, die
+            # sich nicht abwählen lässt — und ausgerechnet sie trägt die
+            # Postfach-Zuordnungen und den Betriebsmodus.
+            if ("data/settings.json" in zf.namelist()
+                    and (gewaehlt is None or "data/settings.json" in gewaehlt)):
                 target = secure_io.safe_join(DATA_DIR, "settings.json")
                 if target is not None:
                     target.parent.mkdir(parents=True, exist_ok=True)

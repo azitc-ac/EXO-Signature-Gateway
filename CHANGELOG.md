@@ -5,6 +5,34 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.168 — 2026-08-08 — Wiederherstellung einzelner Elemente statt alles oder nichts
+
+Die Wiederherstellung ersetzte bisher immer den gesamten Inhalt eines Backups.
+Wer eine einzelne versehentlich überschriebene Vorlage zurückholen wollte, nahm
+damit die vollständige Konfiguration des Sicherungszeitpunkts mit —
+Postfach-Zuordnungen, Betriebsmodus, Schlüssel.
+
+Nach der Auswahl einer Backup-Datei wird ihr Inhalt jetzt zunächst nur
+**angezeigt**: Konfiguration und Daten nach Bereichen gegliedert
+(Einstellungen, S/MIME-Schlüssel, ACME-Kontodaten, Exchange-Anmeldezertifikat,
+Datenbanken) und darunter die Signaturvorlagen einzeln. Angehakt wird, was
+zurückkommen soll; gleichnamige Elemente im Ziel werden dabei überschrieben,
+alles Übrige bleibt unangetastet.
+
+Eine Vorlage erscheint dabei als **ein** Eintrag, nicht als drei Dateien.
+`.html`, `.txt` und die Baukasten-Daten gehören zusammen — einzeln wählbar wäre
+jede Antwort ausser „alle drei" eine beschädigte Vorlage: Baukasten-Daten ohne
+das zugehörige HTML ergeben eine Vorlage, die im Editor richtig aussieht und
+beim Versand etwas anderes liefert. Ist eine Vorlage im Backup unvollständig,
+steht das vor dem Zurückholen dabei.
+
+Logs und Let's Encrypt-Daten stehen gar nicht erst zur Auswahl — sie werden
+ohnehin nie wiederhergestellt.
+
+Wird nichts ausgewählt, bleibt der Knopf gesperrt. Die Rückfrage vor dem
+Ausführen nennt die betroffenen Elemente namentlich statt nur ihre Anzahl.
+
+
 ## v1.7.167 — 2026-08-07 — Freigegebene Mails hinterlassen keine Duplikate in „Gesendete Elemente"
 
 Wird eine im Wartungsmodus zurückgehaltene Mail freigegeben, stand sie danach
