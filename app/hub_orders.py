@@ -17,10 +17,11 @@ import logging
 import os
 from datetime import datetime, timezone
 from pathlib import Path
+import config
 
 log = logging.getLogger(__name__)
 
-_DIR = Path("/app/data/hub_orders")
+_DIR = Path(config.DATA_DIR) / "hub_orders"
 
 STALE_DAYS = 30  # danach warnen wir im Log (Keys werden NIE automatisch gelöscht)
 

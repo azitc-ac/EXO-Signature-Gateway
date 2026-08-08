@@ -14,10 +14,11 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import RLock
+import config
 
 log = logging.getLogger(__name__)
-_STATS_FILE = Path("/app/data/stats.json")
-_DAILY_FILE = Path("/app/data/stats_daily.json")
+_STATS_FILE = Path(config.DATA_DIR) / "stats.json"
+_DAILY_FILE = Path(config.DATA_DIR) / "stats_daily.json"
 _lock = RLock()
 _daily_lock = RLock()
 

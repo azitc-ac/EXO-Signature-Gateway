@@ -14,10 +14,11 @@ import sqlite3
 import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import config
 
 log = logging.getLogger(__name__)
 
-DB_PATH = Path("/app/data/mail_audit.db")
+DB_PATH = Path(config.DATA_DIR) / "mail_audit.db"
 _lock = threading.Lock()
 _initialised = False
 

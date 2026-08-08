@@ -14,11 +14,12 @@ from pathlib import Path
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 import settings_store
+import config
 
 log = logging.getLogger(__name__)
 
-_DB_PATH  = Path("/app/data/portal.db")
-_BLOB_DIR = Path("/app/data/portal")
+_DB_PATH  = Path(config.DATA_DIR) / "portal.db"
+_BLOB_DIR = Path(config.DATA_DIR) / "portal"
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS portal_messages (
@@ -99,8 +100,8 @@ def base_url() -> str:
 
 # ── Branding (Logo für Portal-Seite + Benachrichtigungsmails) ────────────────
 
-_LOGO_PATH = Path("/app/data/portal_logo.img")
-_LOGO_TYPE_PATH = Path("/app/data/portal_logo.type")
+_LOGO_PATH = Path(config.DATA_DIR) / "portal_logo.img"
+_LOGO_TYPE_PATH = Path(config.DATA_DIR) / "portal_logo.type"
 
 LOGO_ALLOWED_TYPES = {"image/png", "image/jpeg", "image/gif"}
 LOGO_MAX_BYTES = 512 * 1024

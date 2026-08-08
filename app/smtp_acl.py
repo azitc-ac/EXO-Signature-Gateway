@@ -24,10 +24,11 @@ from pathlib import Path
 import httpx
 
 import settings_store
+import config
 
 log = logging.getLogger(__name__)
 
-_CACHE_FILE = Path("/app/data/exchange_ip_ranges.json")
+_CACHE_FILE = Path(config.DATA_DIR) / "exchange_ip_ranges.json"
 _ENDPOINT = "https://endpoints.office.com/endpoints/worldwide"
 
 _lock = threading.RLock()

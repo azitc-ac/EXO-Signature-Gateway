@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.169 — 2026-08-09 — Datenverzeichnis an einer Stelle, per Umgebungsvariable verlegbar
+
+Der Pfad des Datenverzeichnisses stand als Text an dreissig Stellen in achtzehn
+Programmteilen. Dort liegen Zugangsdaten, private Schlüssel und die
+Protokolldatenbanken — ein Ort, der sich nicht an einer Stelle ablesen lässt,
+lässt sich auch nicht an einer Stelle absichern oder verlegen.
+
+Er kommt jetzt aus der Einstellung `DATA_DIR` und lässt sich damit über die
+Umgebung setzen, genau wie `TEMPLATE_DIR`. Ohne Angabe bleibt es bei
+`/app/data`; für bestehende Installationen ändert sich nichts.
+
+Nebenwirkung für die Zuverlässigkeit: Die Testsuite biegt das Verzeichnis jetzt
+einmal zentral auf einen Wegwerf-Pfad um, statt achtzehn Programmteile einzeln.
+Zuvor genügte ein vergessener Teil, damit ein Testlauf in das echte
+Datenverzeichnis schrieb. Eine eigene Prüfung schlägt fehl, sobald wieder ein
+fester Pfad eingebaut wird.
+
 ## v1.7.168 — 2026-08-08 — Wiederherstellung einzelner Elemente statt alles oder nichts
 
 Die Wiederherstellung ersetzte bisher immer den gesamten Inhalt eines Backups.

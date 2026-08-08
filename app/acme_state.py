@@ -27,10 +27,11 @@ from cryptography.x509.oid import NameOID
 import settings_store
 from acme_client import AcmeClient, b64url, compute_key_authorization
 import secure_io
+import config
 
 log = logging.getLogger(__name__)
 
-ACME_DIR = Path("/app/data/acme")
+ACME_DIR = Path(config.DATA_DIR) / "acme"
 _ORDERS_FILE = ACME_DIR / "orders.json"
 
 # Legacy global files — kept for one-time migration only

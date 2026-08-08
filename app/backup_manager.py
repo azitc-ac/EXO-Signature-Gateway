@@ -29,7 +29,7 @@ import secure_io
 
 log = logging.getLogger(__name__)
 
-DATA_DIR = Path("/app/data")
+DATA_DIR = Path(config.DATA_DIR)
 TEMPLATE_DIR = Path(config.TEMPLATE_DIR)
 
 _EXCLUDE_DATA_SUBDIRS = {"logs", "le-config", "le-logs", "le-work", "acme-webroot"}

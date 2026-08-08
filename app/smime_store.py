@@ -25,9 +25,11 @@ from cryptography.hazmat.primitives.serialization import (
     load_pem_private_key,
 )
 
+import config
+
 log = logging.getLogger(__name__)
-SMIME_DIR = Path("/app/data/smime")
-RECIPIENT_DIR = Path("/app/data/smime/recipients")
+SMIME_DIR = Path(config.DATA_DIR) / "smime"
+RECIPIENT_DIR = Path(config.DATA_DIR) / "smime" / "recipients"
 
 
 def _key_encryption():
