@@ -13,10 +13,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import mail_processor
+import config
 
 log = logging.getLogger(__name__)
 
-_HELD_DIR = Path("/app/data/held_mails")
+_HELD_DIR = Path(config.DATA_DIR) / "held_mails"
 _MAX_HELD = 100
 
 

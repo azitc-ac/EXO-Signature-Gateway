@@ -50,7 +50,7 @@ def _sanitize_settings(data: dict) -> dict:
 def _system_info() -> dict:
     import socket
     import shutil
-    disk = shutil.disk_usage("/app/data")
+    disk = shutil.disk_usage(config.DATA_DIR)
     return {
         "version": config.VERSION,
         "hostname": config.SUPPORT_BLOB_URL_TEMPLATE and socket.gethostname() or socket.gethostname(),
@@ -80,7 +80,7 @@ def _read_log_file(path: Path) -> str:
 
 def _acme_files() -> dict[str, str]:
     """Nicht-sensitive ACME-Dateien (JSON, account_url). Kein account_key!"""
-    acme_dir = Path("/app/data/acme")
+    acme_dir = Path(config.DATA_DIR) / "acme"
     result = {}
     if not acme_dir.exists():
         return result

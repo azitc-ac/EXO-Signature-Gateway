@@ -196,7 +196,7 @@ def _setup_page(hostname: str = "", email: str = "", message: str = "") -> bytes
 
 
 def _run_acme_http() -> None:
-    webroot = Path("/app/data/acme-webroot")
+    webroot = Path(config.DATA_DIR) / "acme-webroot"
     webroot.mkdir(parents=True, exist_ok=True)
     tls_active = Path(config.SMTP_TLS_CERT).exists() and Path(config.SMTP_TLS_KEY).exists()
 
@@ -248,7 +248,7 @@ def _run_acme_http() -> None:
             if email:
                 settings_store.update({"LE_EMAIL": email})
 
-            data_dir = Path("/app/data")
+            data_dir = Path(config.DATA_DIR)
             le_cfg = data_dir / "le-config"
             le_work = data_dir / "le-work"
             le_logs = data_dir / "le-logs"
@@ -400,7 +400,7 @@ def main() -> None:
     # Idempotent und still, wenn nichts zu tun ist.
     try:
         import secure_io
-        secure_io.harden_tree("/app/data")
+        secure_io.harden_tree(config.DATA_DIR)
     except Exception as exc:
         log.error("Dateirechte-Härtung fehlgeschlagen: %s", exc)
 

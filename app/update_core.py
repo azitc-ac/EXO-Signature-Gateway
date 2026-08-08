@@ -38,6 +38,7 @@ import time
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
+import config
 
 log = logging.getLogger(__name__)
 
@@ -75,10 +76,14 @@ class Updater:
     weitere Kopie dieser Datei.
     """
 
-    def __init__(self, repo: str, user_agent: str, data_dir: str = "/app/data"):
+    def __init__(self, repo: str, user_agent: str, data_dir: str = ""):
         self.repo = repo
         self.user_agent = user_agent
-        self.data = Path(data_dir)
+        # Leer = Vorgabe aus der Konfiguration. NICHT `config.DATA_DIR` direkt
+        # als Vorgabewert: der wuerde beim Import der Klasse eingefroren, und
+        # ein Test, der `config.DATA_DIR` umbiegt, schriebe weiter ins echte
+        # Verzeichnis.
+        self.data = Path(data_dir or config.DATA_DIR)
         self.trigger = self.data / ".update-trigger"
         self.status_file = self.data / ".update-status"
         self.heartbeat = self.data / ".update-heartbeat"

@@ -47,7 +47,7 @@ _EXO_PERMISSIONS = [
 _EXCHANGE_ADMIN_ROLE_ID = "29232cdf-9323-42fd-ade2-1d097af3e4de"
 
 # Path where the auth certificate PFX (with private key) is stored
-_AUTH_CERT_PATH = Path("/app/data/auth.pfx")
+_AUTH_CERT_PATH = Path(config.DATA_DIR) / "auth.pfx"
 
 
 async def _gh(method: str, url: str, token: str, **kwargs) -> dict:
@@ -764,7 +764,7 @@ def run_fetch_bookings_urls(app_id: str, tenant_domain: str, emails: list[str]) 
     ps_cmd = f"""
 Import-Module ExchangeOnlineManagement
 $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
-    "/app/data/auth.pfx", [string]$null,
+    "{_AUTH_CERT_PATH}", [string]$null,
     ([System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet))
 Connect-ExchangeOnline -AppId "{app_id}" -Certificate $cert -Organization "{tenant_domain}" -ShowBanner:$false
 $emails = @({emails_ps})

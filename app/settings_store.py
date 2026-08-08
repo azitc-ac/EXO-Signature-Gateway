@@ -3,10 +3,11 @@ import logging
 from pathlib import Path
 from threading import RLock
 from typing import Callable
+import config
 
 log = logging.getLogger(__name__)
 
-SETTINGS_FILE = Path("/app/data/settings.json")
+SETTINGS_FILE = Path(config.DATA_DIR) / "settings.json"
 
 DEFAULTS: dict = {
     # ── Operational ──────────────────────────────────────────────────────────

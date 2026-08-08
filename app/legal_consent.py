@@ -11,11 +11,12 @@ import hashlib
 import logging
 import sqlite3
 from pathlib import Path
+import config
 
 log = logging.getLogger(__name__)
 
 _LEGAL_DIR = Path("/app/legal")
-_DB_PATH = Path("/app/data/legal_consent.db")
+_DB_PATH = Path(config.DATA_DIR) / "legal_consent.db"
 
 # ── Document registry ────────────────────────────────────────────────────────
 CURRENT_DOCUMENTS: dict[str, dict] = {

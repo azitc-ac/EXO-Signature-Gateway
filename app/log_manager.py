@@ -5,8 +5,9 @@ import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import zoneinfo
+import config
 
-LOG_DIR = Path("/app/data/logs")
+LOG_DIR = Path(config.DATA_DIR) / "logs"
 _LOG_FILENAME = "app.log"
 _ROTATED_RE = re.compile(r"app\.log\.\d{4}-\d{2}-\d{2}$")
 

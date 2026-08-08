@@ -19,10 +19,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import settings_store
+import config
 
 log = logging.getLogger(__name__)
 
-_AUTH_CERT_PATH = Path("/app/data/auth.pfx")
+_AUTH_CERT_PATH = Path(config.DATA_DIR) / "auth.pfx"
 _AUDIT_MAX = 200
 
 

@@ -15,11 +15,12 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from threading import RLock
+import config
 
 log = logging.getLogger(__name__)
 
 TOKEN_TTL_DAYS = 30
-_TOKEN_FILE = Path("/app/data/selfservice_tokens.json")
+_TOKEN_FILE = Path(config.DATA_DIR) / "selfservice_tokens.json"
 _lock = RLock()
 
 # In-memory index: {token_hex → {email, expires_iso}}

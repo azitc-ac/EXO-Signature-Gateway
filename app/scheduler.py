@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import settings_store
+import config
 
 log = logging.getLogger(__name__)
 
@@ -54,7 +55,7 @@ def _try_le_renewal(domain: str, days_left: int, expiry_str: str) -> None:
     import config
     cert_path = Path(config.SMTP_TLS_CERT)
     mtime_before = cert_path.stat().st_mtime if cert_path.exists() else 0
-    webroot = "/app/data/acme-webroot"
+    webroot = str(Path(config.DATA_DIR) / "acme-webroot")
     le_email = settings_store.get("LE_EMAIL") or ""
 
     cmd = ["certbot", "renew", "--webroot", "-w", webroot, "--non-interactive", "--quiet"]

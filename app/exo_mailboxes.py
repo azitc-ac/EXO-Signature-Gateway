@@ -21,10 +21,11 @@ import time
 from pathlib import Path
 
 import settings_store
+import config
 
 log = logging.getLogger("exo_mailboxes")
 
-_AUTH_CERT_PATH = Path("/app/data/auth.pfx")
+_AUTH_CERT_PATH = Path(config.DATA_DIR) / "auth.pfx"
 _TTL = 3600                       # cache lifetime (s)
 _lock = threading.RLock()
 _cache: list[dict] = []

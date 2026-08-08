@@ -35,6 +35,19 @@ SMTP_TLS_KEY = _optional("SMTP_TLS_KEY", "/app/certs/key.pem")
 WEBUI_PORT = int(_optional("WEBUI_PORT", "8080"))
 TEMPLATE_DIR = _optional("TEMPLATE_DIR", "/app/templates")
 
+# Datenverzeichnis — Einstellungen, Schluessel, Datenbanken, ACME-Zustand.
+#
+# Der Pfad stand als Literal `"/app/data"` an 30 Stellen in 18 Modulen. Das war
+# nicht bloss unschoen: Er ist der Ort, an dem Geheimnisse liegen, und wer ihn
+# nicht an einer Stelle sehen kann, kann ihn auch nicht an einer Stelle
+# absichern oder verlegen. In den Tests musste jedes Modul einzeln umgebogen
+# werden (`tests/test_seiten.py` fuehrt dafuer eine Liste), und wer ein Modul
+# vergass, schrieb waehrend eines Testlaufs in das ECHTE Verzeichnis — am
+# 26.07.2026 beinahe passiert.
+#
+# Ueber `_optional` und damit aus der Umgebung setzbar, genau wie TEMPLATE_DIR.
+DATA_DIR = _optional("DATA_DIR", "/app/data")
+
 # ── Env seeds for settings that live in settings.json ─────────────────────────
 # Used as initial values when settings.json does not yet exist (migration helper)
 _ENV_SEEDS: dict = {
