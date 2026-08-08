@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.171 — 2026-08-09 — Interne Prüfung der Adresstabelle erfasst ausgelagerte Gruppen
+
+Keine Änderung am Produkt. Die Prüfung, die beim inneren Umbau sicherstellt,
+dass keine Adresse verlorengeht, sah seit der neueren FastAPI-Fassung nur noch
+die direkt eingetragenen Adressen — nicht die aus ausgelagerten Gruppen. Die
+Adressen selbst waren stets erreichbar; unvollständig war die Prüfung.
+
+Für Betreiber ändert sich nichts.
+
 ## v1.7.170 — 2026-08-09 — Weboberfläche: gemeinsames Fundament und erstes eigenes Routenmodul
 
 Innerer Umbau ohne sichtbare Änderung. Die Weboberfläche lag als eine Datei mit

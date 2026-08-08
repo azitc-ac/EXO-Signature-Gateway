@@ -31,11 +31,50 @@ import pytest
 SNAPSHOT = Path(__file__).parent / "routes_snapshot.json"
 
 
+def _alle_route_objekte():
+    """Routen der Anwendung UND der eingebundenen Routenmodule.
+
+    ⚠️ `app.routes` allein genügt nicht mehr.
+
+    Bis FastAPI 0.11x kopierte `include_router()` die Routen in `app.routes`.
+    Ab 0.139 hängt es stattdessen einen Stellvertreter (`_IncludedRouter`) ein,
+    dessen `path` `None` ist — die Routen dahinter werden zur Laufzeit korrekt
+    bedient, tauchen in `app.routes` aber nicht mehr auf.
+
+    Genau das ist am 09.08.2026 passiert: Nach dem Herauslösen des ersten
+    Routenmoduls meldete die CI acht verlorene Adressen, während lokal alles
+    grün war. Der Unterschied war die FastAPI-Fassung — `requirements.txt`
+    pinnt 0.139.0, auf dem Entwicklungsrechner lag 0.115.6. Die Anwendung war
+    in Ordnung; blind war die Prüfung.
+
+    Deshalb wird NICHT in die Innereien von `_IncludedRouter` gegriffen (privat,
+    ändert sich wieder), sondern über `app.ROUTENMODULE` — dieselbe Liste, aus
+    der `app.py` die Router einbindet. Eine Quelle für beides: Wer ein Modul
+    hinzufügt, ohne es einzutragen, bindet es auch nicht ein, und dann fallen
+    die übrigen Prüfungen darüber.
+
+    Doppelte werden nur an der Naht entfernt (Modulroute, die die Anwendung
+    ohnehin führt) — die Duplikatprüfung weiter unten bleibt dadurch scharf.
+    """
+    from webui.app import app, ROUTENMODULE
+    objekte = list(app.routes)
+    bekannt = {(getattr(r, "path", None),
+                tuple(sorted(getattr(r, "methods", None) or [])))
+               for r in objekte}
+    for modul in ROUTENMODULE:
+        for r in modul.router.routes:
+            schluessel = (getattr(r, "path", None),
+                          tuple(sorted(getattr(r, "methods", None) or [])))
+            if schluessel not in bekannt:
+                objekte.append(r)
+                bekannt.add(schluessel)
+    return objekte
+
+
 def aktuelle_routen() -> list[dict]:
     """Alle Routen als vergleichbare, sortierte Liste."""
-    from webui.app import app
     routen = []
-    for r in app.routes:
+    for r in _alle_route_objekte():
         pfad = getattr(r, "path", None)
         if pfad is None:
             continue
@@ -100,6 +139,52 @@ def test_alle_api_routen_haben_einen_namen():
     ohne = [r["pfad"] for r in aktuelle_routen()
             if r["pfad"].startswith("/api/") and not r["name"]]
     assert not ohne, f"Routen ohne Namen: {ohne}"
+
+
+def test_aufzaehlung_sieht_routen_aus_modulen():
+    """Die Aufzählung muss Router-Routen erfassen, nicht nur `app.routes`.
+
+    ANLASS (09.08.2026): Ab FastAPI 0.139 kopiert `include_router()` die Routen
+    nicht mehr nach `app.routes`, sondern hängt einen Stellvertreter ein. Die
+    Anwendung bedient sie weiterhin korrekt — die Momentaufnahme sah sie aber
+    nicht und meldete acht verlorene Adressen. Lokal blieb es grün, weil dort
+    eine ältere FastAPI-Fassung lag als die in `requirements.txt` gepinnte.
+
+    Ohne diese Prüfung wäre der umgekehrte Fall unsichtbar: eine Aufzählung,
+    die Modulrouten übersieht, meldet bei jedem weiteren herausgelösten Modul
+    „verloren" — oder schlimmer, nach einem blind neu erzeugten Abbild gar
+    nichts mehr.
+    """
+    from webui.app import ROUTENMODULE
+    assert ROUTENMODULE, "keine Routenmodule eingebunden — Liste leer?"
+    aufgezaehlt = {r["pfad"] for r in aktuelle_routen()}
+    for modul in ROUTENMODULE:
+        for r in modul.router.routes:
+            assert r.path in aufgezaehlt, (
+                f"{r.path} aus {modul.__name__} fehlt in der Aufzählung — "
+                f"die Momentaufnahme ist blind für ausgelagerte Routen")
+
+
+def test_module_werden_auch_wirklich_bedient():
+    """Gegenprobe zur Aufzählung: die Adressen müssen ANTWORTEN.
+
+    Eine Liste, die stimmt, während die Route nicht eingebunden ist, wäre die
+    schlimmere Fassung des Fehlers — die Prüfung wäre grün und die Oberfläche
+    kaputt.
+    """
+    pytest.importorskip("starlette.testclient")
+    from starlette.testclient import TestClient
+    from webui.app import app, ROUTENMODULE
+
+    with TestClient(app, raise_server_exceptions=False) as c:
+        for modul in ROUTENMODULE:
+            for r in modul.router.routes:
+                if "{" in r.path or "GET" not in (r.methods or set()):
+                    continue
+                antwort = c.get(r.path)
+                assert antwort.status_code != 404, (
+                    f"{r.path} aus {modul.__name__} ist nicht eingebunden — "
+                    f"404 statt einer Antwort")
 
 
 if __name__ == "__main__":
