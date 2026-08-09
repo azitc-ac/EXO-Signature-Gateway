@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.173 — 2026-08-09 — Weboberfläche: Portal-Adressen als eigenes Modul
+
+Innerer Umbau ohne sichtbare Änderung. Nach dem Outlook-Add-in bilden nun auch
+die Adressen des sicheren Nachrichtenportals ein eigenes Modul. Alle Adressen
+bleiben unverändert erreichbar; geprüft über die Momentaufnahme der
+vollständigen Adresstabelle und eine zusätzliche Prüfung, dass jede
+ausgelagerte Adresse auch tatsächlich eingebunden ist.
+
+Für Betreiber ändert sich nichts.
+
 ## v1.7.172 — 2026-08-09 — Abhängigkeiten vollständig festgeschrieben
 
 Bisher waren die elf direkt benutzten Fremdpakete auf feste Fassungen gesetzt.

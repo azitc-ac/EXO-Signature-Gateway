@@ -165,26 +165,44 @@ def test_aufzaehlung_sieht_routen_aus_modulen():
                 f"die Momentaufnahme ist blind für ausgelagerte Routen")
 
 
-def test_module_werden_auch_wirklich_bedient():
-    """Gegenprobe zur Aufzählung: die Adressen müssen ANTWORTEN.
+def test_module_sind_auch_wirklich_eingebunden():
+    """Gegenprobe zur Aufzählung: die Adressen müssen ERREICHBAR sein.
 
     Eine Liste, die stimmt, während die Route nicht eingebunden ist, wäre die
     schlimmere Fassung des Fehlers — die Prüfung wäre grün und die Oberfläche
     kaputt.
+
+    ⚠️ NICHT über den Antwortcode geprüft. Die erste Fassung tat das und fiel
+    sofort über `/portal/logo`: Die Route wirft selbst 404, wenn kein Logo
+    hinterlegt ist, und zwar ohne Meldungstext — von „Adresse gibt es nicht"
+    ist das im Antwortkörper nicht zu unterscheiden. Eine Ausnahmeliste hätte
+    das kaschiert und beim nächsten solchen Fall wieder gefehlt.
+
+    `url_path_for()` fragt stattdessen die Namenstabelle des Routers. Sie ist
+    öffentliche Starlette-API und sieht auch die Routen hinter dem
+    Stellvertreter, den FastAPI ab 0.139 für eingebundene Router einhängt —
+    im Gegensatz zu `app.routes`.
     """
-    pytest.importorskip("starlette.testclient")
-    from starlette.testclient import TestClient
+    import re as _re
+    from starlette.routing import NoMatchFound
     from webui.app import app, ROUTENMODULE
 
-    with TestClient(app, raise_server_exceptions=False) as c:
-        for modul in ROUTENMODULE:
-            for r in modul.router.routes:
-                if "{" in r.path or "GET" not in (r.methods or set()):
-                    continue
-                antwort = c.get(r.path)
-                assert antwort.status_code != 404, (
-                    f"{r.path} aus {modul.__name__} ist nicht eingebunden — "
-                    f"404 statt einer Antwort")
+    for modul in ROUTENMODULE:
+        for r in modul.router.routes:
+            name = getattr(r, "name", "") or ""
+            assert name, f"{r.path} aus {modul.__name__} hat keinen Namen"
+            # Pfadparameter mitgeben, sonst meldet url_path_for auch bei einer
+            # vorhandenen Route „kein Treffer" — `/addin/icon/{size_str}` liess
+            # die Pruefung zunaechst genau daran fehlschlagen. „1" passt auch
+            # fuer die int-Umwandlung.
+            params = {p.split(":")[0]: "1"
+                      for p in _re.findall(r"\{([^}]+)\}", r.path)}
+            try:
+                app.url_path_for(name, **params)
+            except NoMatchFound:
+                pytest.fail(f"{r.path} ({name}) aus {modul.__name__} ist nicht "
+                            f"eingebunden — der Router fehlt in ROUTENMODULE "
+                            f"oder wird nicht included")
 
 
 if __name__ == "__main__":
