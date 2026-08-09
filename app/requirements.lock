@@ -1,0 +1,73 @@
+# VOLLSTÄNDIG aufgelöster Abhängigkeitsbaum — HIERAUS wird installiert.
+#
+# WARUM ES DIESE DATEI GIBT
+# -------------------------
+# requirements.txt pinnt die 11 DIREKT benutzten Pakete exakt. Alles, was nur
+# als deren Abhängigkeit mitkommt, blieb dabei frei — und wanderte. Am
+# 09.08.2026 gemessen, bei identischer requirements.txt:
+#
+#   Entwicklungsrechner   starlette 0.41.3
+#   Raspi-Container       starlette 1.3.1
+#   Azure-VM (produktiv)  starlette 1.4.0
+#   CI / frische venv     starlette 1.6.0
+#
+# Das ist nicht kosmetisch. Ab Starlette 1.4 kopiert include_router() die
+# Routen nicht mehr nach app.routes, sondern haengt einen Stellvertreter ein.
+# Die Anwendung bedient sie weiterhin korrekt, aber die Routen-Momentaufnahme
+# sah sie nicht — CI rot, lokal gruen, und die Ursache lag in einem Paket, das
+# niemand je ausgewaehlt hatte.
+#
+# Ohne diese Datei prueft die CI gegen einen anderen Baum als den, der beim
+# Betreiber laeuft. Ein gruener Lauf beweist dann nichts ueber den Betrieb.
+#
+# HERKUNFT
+# --------
+# pip freeze aus dem PRODUKTIV laufenden Container der Azure-VM
+# (Gateway v1.7.168, 09.08.2026) — also der Stand, der nachweislich Mails
+# verarbeitet, und nicht eine frische Aufloesung, die noch niemand im Betrieb
+# gesehen hat. Die volle Testsuite lief gegen genau diesen Baum: 483 gruen.
+#
+# AKTUALISIEREN
+# -------------
+#   1. gewuenschte Fassung in requirements.txt aendern      (die Absicht)
+#   2. Container bauen, testen, in Betrieb nehmen
+#   3. docker exec <container> pip freeze > app/requirements.lock  (das Ergebnis)
+#   4. pytest — tests/test_abhaengigkeiten.py prueft, dass beide Dateien
+#      dieselben Fassungen nennen
+#
+# Diese Datei NICHT von Hand bearbeiten. Sie ist ein Abbild, keine Absicht.
+
+aiosmtpd==1.4.6
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.14.2
+asn1crypto==1.5.1
+atpublic==7.0.0
+attrs==26.1.0
+certifi==2026.7.22
+cffi==2.1.1
+charset-normalizer==3.4.9
+click==8.4.2
+cryptography==49.0.0
+fastapi==0.139.0
+h11==0.16.0
+httpcore==1.0.9
+httpx==0.28.1
+idna==3.18
+itsdangerous==2.2.0
+Jinja2==3.1.6
+MarkupSafe==3.0.3
+msal==1.37.0
+packaging==26.3
+pycparser==3.0
+pydantic==2.13.4
+pydantic_core==2.46.4
+PyJWT==2.13.0
+python-multipart==0.0.32
+requests==2.34.2
+starlette==1.4.0
+tnefparse==1.4.0
+typing_extensions==4.16.0
+typing-inspection==0.4.2
+urllib3==2.7.0
+uvicorn==0.51.0

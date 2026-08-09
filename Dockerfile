@@ -41,8 +41,21 @@ RUN pwsh -NoProfile -NonInteractive -Command \
      Install-Module ExchangeOnlineManagement -Force -AllowClobber -Scope AllUsers"
 
 # ── Python dependencies ───────────────────────────────────────────────────────
-COPY app/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+#
+# Installiert wird aus der LOCK-Datei, nicht aus requirements.txt.
+#
+# requirements.txt pinnt nur die 11 direkt benutzten Pakete; alles, was als
+# deren Abhaengigkeit mitkommt, blieb frei und wanderte zwischen den Umgebungen
+# (am 09.08.2026 gemessen: vier verschiedene Starlette-Fassungen bei
+# identischer requirements.txt — Begruendung und Messwerte stehen im Kopf der
+# Lock-Datei). Damit war der Baum, gegen den die CI prueft, nicht der Baum, der
+# beim Betreiber laeuft.
+#
+# BEIDE Dateien werden kopiert, obwohl nur die Lock-Datei installiert wird:
+# requirements.txt gehoert ins Abbild, damit im Container nachlesbar ist, was
+# absichtlich ausgewaehlt wurde und was nur mitkam.
+COPY app/requirements.txt app/requirements.lock ./
+RUN pip install --no-cache-dir -r requirements.lock
 
 # ── App code ──────────────────────────────────────────────────────────────────
 COPY app/ .

@@ -5,6 +5,31 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.172 — 2026-08-09 — Abhängigkeiten vollständig festgeschrieben
+
+Bisher waren die elf direkt benutzten Fremdpakete auf feste Fassungen gesetzt.
+Alles, was nur als deren Abhängigkeit mitkam, blieb frei — und wanderte. Bei
+identischer Paketliste liefen vier verschiedene Fassungen desselben
+Web-Bausteins nebeneinander: auf dem Entwicklungsrechner, im Testcontainer, im
+Produktivsystem und in der fortlaufenden Prüfung.
+
+Folgenlos ist das nicht. Eine dieser Fassungen änderte, wie Adressen intern
+registriert werden; die Anwendung arbeitete korrekt, aber die Prüfung, die den
+Verlust von Adressen verhindern soll, wurde blind dafür. Der Fehler zeigte
+sich nur, weil die fortlaufende Prüfung zufällig eine andere Fassung benutzte
+als der Entwicklungsrechner.
+
+Neben der Paketliste steht jetzt eine vollständig aufgelöste Fassung aller 34
+Pakete, und daraus wird gebaut. Sie stammt aus dem produktiv laufenden
+Container — also aus dem Stand, der nachweislich Mails verarbeitet, nicht aus
+einer frischen Auflösung. Ein neu gebauter Container ist damit paketgleich mit
+dem Produktivsystem; nachgemessen, kein Unterschied.
+
+**Was zu tun ist:** nichts. Wer selbst baut, bekommt ab sofort den
+festgeschriebenen Stand. Wer ein Paket aktualisieren will, ändert weiterhin die
+Paketliste und erzeugt danach die aufgelöste Fassung neu — eine Prüfung schlägt
+fehl, wenn beide auseinanderlaufen.
+
 ## v1.7.171 — 2026-08-09 — Interne Prüfung der Adresstabelle erfasst ausgelagerte Gruppen
 
 Keine Änderung am Produkt. Die Prüfung, die beim inneren Umbau sicherstellt,
