@@ -29,3 +29,4 @@ ui_test.py
 templates/*
 !templates/.gitkeep
 node_modules/
+.venv/
