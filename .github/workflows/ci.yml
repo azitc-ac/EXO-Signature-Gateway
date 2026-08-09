@@ -33,7 +33,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install pytest
-          pip install -r app/requirements.txt
+          # Aus der LOCK-Datei, nicht aus requirements.txt: sonst prueft die CI
+          # gegen einen anderen Abhaengigkeitsbaum als den, der im Container
+          # laeuft. Am 09.08.2026 unterschied sich allein Starlette zwischen
+          # CI (1.6.0) und Produktivsystem (1.4.0) — und genau dort lag ein
+          # Verhaltensunterschied bei der Routen-Registrierung.
+          pip install -r app/requirements.lock
           npm ci                      # nur acorn, exakt gepinnt (package-lock.json)
 
       - name: Tests
