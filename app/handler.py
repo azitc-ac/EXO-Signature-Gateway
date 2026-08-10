@@ -834,14 +834,21 @@ class SignatureHandler:
                 stats.increment("stapel_verhindert")
                 _min_tpl = ((_policies.get("min") or "") if _use_pol
                             else (_sender_cfg.get("min_template") or "")).strip()
+                # ⚠️ BEIDE Zeilen tragen dasselbe Merkmal `SIG-KETTE:`. Sonst
+                # haengt die Nachprüfbarkeit an der Konfiguration: Wer eine
+                # Antwort-Signatur hinterlegt hat, sieht die eine Zeile nie,
+                # wer keine hat, die andere nicht — und wer nach der falschen
+                # sucht, haelt eine funktionierende Erkennung fuer tot.
+                # Ein `grep "SIG-KETTE"` findet jetzt jeden Fall.
                 if _min_tpl:
                     template_name = _min_tpl
                     _force_sig = True
-                    log.info("Antwort-Signatur %r für Antwort von %s (bereits im Thread)", _min_tpl, sender)
+                    log.info("SIG-KETTE: bereits in dieser Kette signiert — Antwort-Signatur %r "
+                             "statt vollem Block für %s", _min_tpl, sender)
                 else:
                     suppress_html_sig = True
-                    log.info("SKIP_SIG_IN_THREAD (References) — in dieser Kette bereits "
-                             "signiert, keine Signatur für %s", sender)
+                    log.info("SIG-KETTE: bereits in dieser Kette signiert — keine weitere "
+                             "Signatur für %s", sender)
 
             if not suppress_html_sig and not _force_sig:
                 template_name = (_policies.get("sig") or "default") if _use_pol \
