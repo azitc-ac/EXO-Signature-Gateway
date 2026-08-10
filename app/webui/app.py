@@ -73,6 +73,7 @@ from webui.hilfen import _addin_base_url, _cert_expiry       # noqa: E402
 
 # ── Routenmodule ─────────────────────────────────────────────────────────────
 from webui.routen import addin as _routen_addin              # noqa: E402
+from webui.routen import backup as _routen_backup            # noqa: E402
 from webui.routen import portal as _routen_portal            # noqa: E402
 from webui.routen import smime as _routen_smime              # noqa: E402
 
@@ -85,7 +86,7 @@ from webui.routen import smime as _routen_smime              # noqa: E402
 # nicht mehr aufzaehlbar. Ohne diese Liste verloere die Routen-Momentaufnahme
 # mit jedem weiteren Modul stillschweigend an Abdeckung, also genau das Netz,
 # das diesen Umbau ueberhaupt verantwortbar macht.
-ROUTENMODULE = [_routen_addin, _routen_portal, _routen_smime]
+ROUTENMODULE = [_routen_addin, _routen_backup, _routen_portal, _routen_smime]
 
 for _modul in ROUTENMODULE:
     app.include_router(_modul.router)
@@ -2577,82 +2578,6 @@ async def config_view(request: Request, user: str = Depends(_check_auth)):
         request=request, name="config.html",
         context={"cfg": cfg, "active": "config", "gateway_name": _gateway_name()},
     )
-
-
-@app.get("/backup", response_class=HTMLResponse)
-async def backup_page(request: Request, user: str = Depends(_require_admin)):
-    return templates.TemplateResponse(
-        request=request, name="backup.html",
-        context={"active": "backup", "gateway_name": _gateway_name(),
-                 "version": config.VERSION},
-    )
-
-
-@app.get("/api/backup/download")
-async def api_backup_download(user: str = Depends(_require_admin)):
-    """Vollständiges Backup als ZIP herunterladen."""
-    import backup_manager as _bm
-    import asyncio as _aio
-    from fastapi.responses import Response as _Resp
-    zip_bytes, filename = await _aio.get_event_loop().run_in_executor(
-        None, _bm.create_backup
-    )
-    return _Resp(
-        content=zip_bytes,
-        media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
-
-
-@app.post("/api/backup/inspect")
-async def api_backup_inspect(
-    file: UploadFile = File(...),
-    _user: str = Depends(_require_admin),
-):
-    """Inhalt eines Backups anzeigen, OHNE etwas zu schreiben.
-
-    Grundlage für die Auswahl beim Wiederherstellen. Bewusst ein eigener
-    Endpunkt statt eines Vorschau-Schalters am Wiederherstellen: Ein Aufruf,
-    der nichts verändert, soll auch nicht so heissen wie einer, der es tut.
-    """
-    import backup_manager as _bm
-    data = await file.read()
-    ergebnis = await asyncio.get_event_loop().run_in_executor(
-        None, _bm.inspect_backup, data
-    )
-    return JSONResponse(ergebnis)
-
-
-@app.post("/api/backup/restore")
-async def api_backup_restore(
-    file: UploadFile = File(...),
-    auswahl: str = Form(""),
-    _user: str = Depends(_require_admin),
-):
-    """Backup-ZIP hochladen und wiederherstellen.
-
-    `auswahl` ist eine JSON-Liste von Dateinamen aus dem ZIP. Fehlt sie, wird
-    ALLES wiederhergestellt — so verhält sich der Endpunkt wie vor der
-    Auswahlmöglichkeit, und ein alter Aufrufer (oder die Ersteinrichtung)
-    stellt nicht versehentlich nichts wieder her.
-    """
-    import backup_manager as _bm
-    import json as _json
-    data = await file.read()
-
-    gewaehlt = None
-    if auswahl.strip():
-        try:
-            gewaehlt = _json.loads(auswahl)
-        except Exception:
-            raise HTTPException(400, "Auswahl ist kein gültiges JSON")
-        if not isinstance(gewaehlt, list):
-            raise HTTPException(400, "Auswahl muss eine Liste von Dateinamen sein")
-
-    result = await asyncio.get_event_loop().run_in_executor(
-        None, _bm.restore_backup, data, gewaehlt
-    )
-    return JSONResponse(result)
 
 
 def _advanced_debug_context() -> dict:
