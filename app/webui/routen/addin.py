@@ -36,23 +36,12 @@ import sso as sso_mod
 from webui.deps import (
     templates, log, _gateway_name, _check_auth, _require_admin,
 )
+# Liegt in `hilfen.py`, weil die Einstellungsseite in `app.py` die Adresse
+# ebenfalls anzeigt. Vorher holte `app.py` sie von HIER — das lief, war aber
+# die falsche Richtung.
+from webui.hilfen import _addin_base_url
 
 router = APIRouter()
-
-
-def _addin_base_url(request: Request) -> str:
-    """Return the public base URL for the add-in manifest.
-
-    Priority: 1) ADDIN_BASE_URL setting  2) X-Forwarded-Host header  3) request.url
-    """
-    explicit = (settings_store.get("ADDIN_BASE_URL") or "").rstrip("/")
-    if explicit:
-        return explicit
-    fwd_host  = request.headers.get("x-forwarded-host") or request.headers.get("x-original-host")
-    fwd_proto = request.headers.get("x-forwarded-proto") or request.url.scheme
-    if fwd_host:
-        return f"{fwd_proto}://{fwd_host.split(':')[0]}"
-    return f"{request.url.scheme}://{request.url.netloc}"
 
 
 def _addin_allowed_templates(email: str, mailbox_cfg: dict) -> list[str]:
