@@ -5,6 +5,43 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.176 — 2026-08-10 — Jede Adresse wird auf ihre Anmeldeprüfung geprüft
+
+Beim Herauslösen der Sicherungs-Adressen in ein eigenes Modul — der vierte
+Schritt der Aufteilung, für Betreiber ohne sichtbare Änderung — wurde getestet,
+ob die vorhandenen Prüfungen den Verlust einer Anmeldeprüfung bemerken.
+
+Sie taten es nicht. Die Anmeldeprüfung liess sich von der Adresse entfernen,
+über die das vollständige Sicherungsarchiv heruntergeladen wird, ohne dass eine
+der 500 Prüfungen anschlug. Die bestehende Prüfung sah nur zwei Stichproben an
+— und eine Stichprobe trifft gerade die Adresse nicht, die man eben angefasst
+hat.
+
+**Das Archiv enthält den gesamten Datenbestand**: Einstellungen samt
+Zugangsgeheimnissen, private Schlüssel, Postfachkonfiguration. Eine Adresse,
+die beim Umsortieren ihre Prüfung verliert, gäbe all das heraus.
+
+**Nichts davon ist je ausgeliefert worden** — der Fall trat nur in einem
+absichtlich herbeigeführten Test auf, um die Prüfungen selbst zu prüfen. Es
+besteht kein Handlungsbedarf; ein Update ist nicht dringend.
+
+Neu ist eine Prüfung über **alle 232 Adressen**: Jede muss eine
+Anmeldeprüfung tragen oder mit Begründung in einer Ausnahmeliste stehen.
+Absichtlich offen sind derzeit 28 — die Anmeldung selbst, das
+Nachrichtenportal und die S/MIME-Selbstbedienung (beide über ein Merkmal in
+der Adresse geschützt), die Add-in-Dateien und die Gesundheitsprüfung. Drei
+weitere prüfen die Anmeldung im eigenen Code statt über den gemeinsamen Weg
+und sind ebenfalls vermerkt.
+
+Zusätzlich abgesichert: Die Sicherungs-Adressen verlangen die
+Verwaltungsrolle, nicht bloss eine Anmeldung. Der Unterschied ist im Quelltext
+ein einziges Wort und beim Verschieben leicht zu verwechseln.
+
+Die Ausnahmeliste wird in beide Richtungen geprüft — ein Eintrag für eine
+Adresse, die es nicht mehr gibt oder die inzwischen geschützt ist, lässt die
+Prüfung ebenfalls fehlschlagen. Sonst wächst so eine Liste nur, und mit ihr
+die Zahl der Adressen, über die die Prüfung schweigt.
+
 ## v1.7.175 — 2026-08-10 — Weboberfläche: S/MIME-Adressen als eigenes Modul
 
 Innerer Umbau ohne sichtbare Änderung. Nach dem Outlook-Add-in und dem
