@@ -101,3 +101,58 @@ def test_die_wanderer_sind_festgeschrieben(paket):
     unvollständig erzeugt worden.
     """
     assert paket in _pins(LOCK), f"{paket} fehlt in der Lock-Datei"
+
+
+# ── Das Abbild selbst ────────────────────────────────────────────────────────
+#
+# ANLASS (10.08.2026): Die Frage des Betreibers — bekommt ein Kunde, der
+# demnächst frisch installiert, exakt den geprüften Stand? Für die
+# Python-Pakete ja, für den Rest nein. Drei Bestandteile wanderten weiter:
+# das Basisabbild, die Debian-Pakete und ExchangeOnlineManagement.
+#
+# Das letzte war der Brocken: `Install-Module` ohne Fassungsangabe holt, was
+# der Katalog gerade anbietet — und dieses Modul steuert Verteilerlisten und
+# Transportregeln.
+
+DOCKERFILE = APP.parent / "Dockerfile"
+
+
+def test_basisabbild_haengt_am_digest():
+    """Ein Tag bewegt sich. `python:3.11-slim` lieferte über die Monate
+    verschiedene Python- und Debian-Stände."""
+    froms = [z.strip() for z in _dockerfile_ohne_kommentare().splitlines()
+             if z.strip().startswith("FROM ")]
+    assert froms, "kein FROM im Dockerfile gefunden"
+    for zeile in froms:
+        assert "@sha256:" in zeile, (
+            f"Basisabbild ohne Digest: {zeile}\n"
+            "Neuen Digest holen: docker buildx imagetools inspect python:3.11-slim")
+
+
+def _dockerfile_ohne_kommentare() -> str:
+    """Nur die wirksamen Zeilen.
+
+    Beim ersten Anlauf suchte die Prüfung im Gesamttext und fand
+    `Install-Module` in der ERKLÄRUNG darüber statt im Befehl — eine Prüfung,
+    die auf einen Kommentar anspricht, ist wertlos. Denselben Fehler hatte
+    `test_stilregeln.py` schon einmal (dort mit `max-height` im CSS-Kommentar).
+    """
+    return "\n".join(z for z in DOCKERFILE.read_text(encoding="utf-8").splitlines()
+                     if not z.strip().startswith("#"))
+
+
+def test_exchange_modul_hat_eine_fassung():
+    """Ohne `-RequiredVersion` bekommt jeder Bau eine andere Fassung des
+    Moduls, das die gesamte Exchange-Verwaltung steuert."""
+    text = _dockerfile_ohne_kommentare()
+    assert "Install-Module" in text, "kein Install-Module im Dockerfile — umbenannt?"
+    # Der Aufruf laeuft ueber mehrere Zeilen; ab der Fundstelle weitersuchen.
+    block = text[text.index("Install-Module"):]
+    assert "-RequiredVersion" in block[:300], (
+        "Install-Module ohne -RequiredVersion — die Fassung des "
+        "Exchange-Moduls waere dem Zufall des Bauzeitpunkts überlassen")
+
+
+def test_powershell_hat_eine_fassung():
+    assert re.search(r'PS_VERSION="\d+\.\d+\.\d+"', _dockerfile_ohne_kommentare()), \
+        "PowerShell-Fassung nicht festgelegt"

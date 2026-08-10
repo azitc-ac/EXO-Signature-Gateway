@@ -5,6 +5,38 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.174 — 2026-08-10 — Eine frische Installation liefert reproduzierbar denselben Stand
+
+Seit v1.7.172 stehen die Python-Pakete vollständig fest. Drei Bestandteile des
+Containers wanderten jedoch weiter, und wer in einigen Monaten neu installiert,
+hätte etwas anderes bekommen als das, was hier geprüft wurde:
+
+* **Basisabbild** — `python:3.11-slim` ist ein beweglicher Verweis; derselbe
+  Name lieferte über die Monate verschiedene Python- und Debian-Stände. Er
+  hängt jetzt an einer festen Prüfsumme (Python 3.11.15, Debian 13.6). Bewusst
+  die architekturübergreifende Prüfsumme, damit der Bau auf ARM und x86
+  gleichermaßen funktioniert.
+* **ExchangeOnlineManagement** — wurde ohne Fassungsangabe installiert, holte
+  also stets die neueste aus dem Katalog. Von allen beweglichen Teilen war das
+  der folgenreichste: Dieses Modul steuert Verteilerlisten, Transportregeln und
+  Postfachabfragen. Festgelegt auf 3.10.1.
+* **PowerShell** war bereits festgelegt (7.6.2).
+
+**Bewusst weiterhin beweglich bleiben die Debian-Systempakete.** Zwei Gründe:
+Debian entfernt alte Paketfassungen aus dem Spiegel, sobald eine neue
+erscheint — eine feste Angabe liesse den Bau wenige Wochen später mit
+„Version nicht gefunden" scheitern, also genau dann, wenn jemand neu
+installiert. Und dieser Weg ist es, über den Sicherheitsaktualisierungen von
+OpenSSL und certbot überhaupt ins Abbild gelangen.
+
+Nachgemessen an einem vollständigen Neubau ohne Zwischenspeicher: Python
+3.11.15, Debian 13.6, PowerShell 7.6.2, Exchange-Modul 3.10.1 und alle 34
+Python-Pakete stimmen mit dem produktiv laufenden System überein.
+
+**Was zu tun ist:** nichts. Wer selbst baut, bekommt ab sofort den geprüften
+Stand. Aktualisiert wird künftig bewusst — eine Prüfung schlägt fehl, sobald
+eine dieser Festlegungen wieder aufgehoben wird.
+
 ## v1.7.173 — 2026-08-09 — Weboberfläche: Portal-Adressen als eigenes Modul
 
 Innerer Umbau ohne sichtbare Änderung. Nach dem Outlook-Add-in bilden nun auch
