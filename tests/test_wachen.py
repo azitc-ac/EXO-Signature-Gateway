@@ -166,6 +166,106 @@ def test_ausnahmeliste_enthaelt_nichts_verwaistes():
         + "\n  ".join(verwaist) + "\n\nBitte austragen.")
 
 
+# Was die Rolle `editor` (in der Oberfläche: „Signatur-Editor") darf.
+# Alles andere verlangt die Verwaltungsrolle.
+#
+# Abgeleitet aus der erklärten Absicht — Vorlagen und Inhalte pflegen — und
+# abgeglichen mit den Endpunkten, die `template_editor.html` und `preview.html`
+# tatsächlich aufrufen. Wer hier etwas einträgt, gibt einem Editor Zugriff;
+# das ist der Grund, warum die Liste vollständig aufgezählt ist statt über ein
+# Präfix zu raten.
+EDITOR_DARF: dict[str, str] = {
+    "/template":                        "Editor-Seite (ansehen und speichern)",
+    "/preview":                         "Vorschauseite",
+    "/api/templates":                   "Liste der Vorlagen",
+    "/api/templates/{name}":            "Vorlage löschen",
+    "/api/templates/{name}/meta":       "Baukasten-Daten lesen und speichern",
+    "/api/templates/{name}/parse":      "Quelltext in Bausteine zerlegen",
+    "/api/templates/{name}/create":     "Vorlage anlegen",
+    "/api/templates/{name}/duplicate":  "Vorlage kopieren",
+    "/api/templates/{name}/rename":     "Vorlage umbenennen",
+    "/api/preview-data":                "Daten für die Vorschau",
+    "/api/mailboxes":                   "NUR lesend — Auswahl des Vorschau-Postfachs",
+    "/api/settings/template-policies":  "NUR lesend — Vorlagen-Richtlinien",
+    "/api/test-mail":                   "Testmail zur Prüfung einer Vorlage",
+    "/api/addin/signature":             "Signatur für das Add-in",
+    "/api/addin/templates":             "Vorlagenliste für das Add-in",
+    "/":                                "Startseite — leitet Editoren selbst auf /template um",
+}
+
+
+def test_nur_die_editor_liste_kommt_ohne_verwaltungsrolle_aus():
+    """Alles ausserhalb von EDITOR_DARF verlangt `_require_admin`.
+
+    ANLASS (10.08.2026): Die Rolle `editor` war für die Pflege von Vorlagen und
+    Inhalten gedacht, konnte tatsächlich aber 52 schreibende Endpunkte
+    auslösen — darunter `POST /api/restart`, `/api/config/import`,
+    `/api/setup/change-password`, `/api/smime/key-password` und eine
+    kostenpflichtige Zertifikatsbestellung. Gewachsen ist das, weil
+    `Depends(_check_auth)` beim Schreiben eines Endpunkts der kürzere und
+    naheliegendere Weg ist; ohne Prüfung fällt niemandem auf, dass damit eine
+    Rolle mitgemeint ist.
+    """
+    from webui.deps import _check_auth, _require_admin
+    wachen = _wachen()
+    nur_auth = sorted({r.path for r in _alle_routen()
+                       if _hat_wache(r.dependant, {_check_auth})
+                       and not _hat_wache(r.dependant, {_require_admin})})
+    unerwartet = [p for p in nur_auth if p not in EDITOR_DARF]
+    assert not unerwartet, (
+        "Diese Routen kommen ohne Verwaltungsrolle aus, stehen aber nicht in "
+        "EDITOR_DARF:\n  " + "\n  ".join(unerwartet)
+        + "\n\nEntweder `Depends(_check_auth)` durch `Depends(_require_admin)` "
+          "ersetzen, oder — falls ein Signatur-Editor das können SOLL — oben "
+          "eintragen. Eintragen heisst: Editoren dürfen das danach.")
+
+
+def test_editor_liste_enthaelt_nichts_verwaistes():
+    """Gegenrichtung — sonst verrottet die Liste wie jede Ausnahmeliste."""
+    from webui.deps import _check_auth, _require_admin
+    nur_auth = {r.path for r in _alle_routen()
+                if _hat_wache(r.dependant, {_check_auth})
+                and not _hat_wache(r.dependant, {_require_admin})}
+    # Ohne Wache = steht in ERLAUBT_OHNE_ANMELDUNG, gehört nicht hierher.
+    ohne = {r.path for r in _alle_routen() if not _hat_wache(r.dependant, _wachen())}
+    verwaist = sorted(p for p in EDITOR_DARF if p not in nur_auth and p not in ohne)
+    assert not verwaist, (
+        "Diese Einträge in EDITOR_DARF sind überflüssig — die Route gibt es "
+        "nicht mehr oder sie verlangt inzwischen die Verwaltungsrolle:\n  "
+        + "\n  ".join(verwaist))
+
+
+@pytest.mark.parametrize("pfad", [
+    "/api/restart",
+    "/api/config/import",
+    "/api/config/export",
+    "/api/setup/change-password",
+    "/api/smime/key-password",
+    "/api/smime/renewal/initiate/{email}",
+    "/api/mailboxes/save",
+    "/api/admin-users",
+    "/api/audit/events",
+    "/api/system/log-tail",
+    "/settings",
+])
+def test_besonders_folgenreiche_routen_sind_der_verwaltung_vorbehalten(pfad):
+    """Namentlich festgehalten, was ein Signatur-Editor keinesfalls können darf.
+
+    Die Liste oben prüft das bereits der Struktur nach. Diese Fälle stehen
+    zusätzlich mit Namen da, weil sie die teuersten sind: Dienst neu starten,
+    Konfiguration einspielen oder ausleiten, Kennwörter ändern, eine
+    kostenpflichtige Bestellung auslösen, die Verteilerliste umschreiben,
+    Postverkehr einsehen. Wer eine davon lockert, soll das an einem Test
+    scheitern sehen, der ihren Namen trägt — nicht an einer Sammelprüfung.
+    """
+    from webui.deps import _require_admin
+    treffer = [r for r in _alle_routen() if r.path == pfad]
+    assert treffer, f"{pfad} gibt es nicht (mehr) — Test anpassen"
+    for r in treffer:
+        assert _hat_wache(r.dependant, {_require_admin}), (
+            f"{pfad} verlangt NICHT die Verwaltungsrolle")
+
+
 @pytest.mark.parametrize("pfad", [
     "/api/backup/download",
     "/api/backup/restore",

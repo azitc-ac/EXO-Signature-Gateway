@@ -5,6 +5,51 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.178 — 2026-08-10 — Die Rolle „Signatur-Editor" kann nur noch das, wofür sie gedacht ist
+
+**Sicherheitsrelevant. Handlungsbedarf nur, wenn die Rolle vergeben ist.**
+
+Das Gateway kennt zwei Rollen: Administrator und Signatur-Editor. Der
+Signatur-Editor ist dafür gedacht, Signaturvorlagen und deren Inhalte zu
+pflegen — die Navigation zeigt ihm entsprechend nur diesen Bereich.
+
+Die Adressen dahinter waren jedoch überwiegend nur gegen „irgendwie angemeldet"
+geschützt, nicht gegen die Rolle. Von 232 Adressen kamen 101 ohne
+Verwaltungsrolle aus, davon **52 schreibende**. Ein Signatur-Editor konnte
+damit unter anderem:
+
+* den Dienst neu starten,
+* eine Konfiguration einspielen oder ausleiten,
+* Kennwörter ändern — auch das Kennwort der S/MIME-Schlüssel, was eine
+  Neuverschlüsselung aller hinterlegten Schlüssel auslöst,
+* Postfächer speichern und damit die Exchange-Verteilerliste umschreiben,
+* eine **kostenpflichtige** Zertifikatsbestellung auslösen,
+* den Postverkehr und den Protokollauszug einsehen.
+
+Die Ursache ist unspektakulär: Beim Schreiben eines Endpunkts ist die einfache
+Anmeldeprüfung der kürzere Weg, und ohne eine Prüfung fällt nicht auf, dass
+damit eine Rolle mitgemeint ist. So ist das über viele Fassungen gewachsen.
+
+**Jetzt gilt eine Positivliste.** Der Signatur-Editor erreicht 18 Adressen —
+Vorlagen anlegen, ändern, umbenennen, löschen, Vorschau, Testmail, dazu lesend
+die Postfachliste für die Auswahl des Vorschau-Postfachs und die
+Vorlagen-Richtlinien. **Alles Übrige verlangt die Verwaltungsrolle.**
+
+Die Übersichtsseite gehört nicht mehr dazu: Sie zeigt Postverkehr,
+Protokollauszug, Lizenz und Kontingent. Ruft ein Signatur-Editor sie auf, wird
+er auf die Signaturen weitergeleitet — bewusst eine Weiterleitung statt einer
+Fehlermeldung, denn es ist die Startseite.
+
+**Was zu tun ist:** Wer die Rolle bisher vergeben hat, sollte prüfen, ob die
+betreffenden Personen für ihre Aufgabe künftig die Verwaltungsrolle brauchen.
+Für reine Administratoren ändert sich nichts. Wer die Rolle nie vergeben hat —
+sie muss in den Einstellungen ausdrücklich zugewiesen werden — war zu keiner
+Zeit betroffen.
+
+Damit die Abgrenzung nicht wieder verwischt, prüfen zwei neue Prüfungen jede
+einzelne Adresse gegen die Positivliste, in beide Richtungen. Die
+folgenreichsten Adressen sind zusätzlich namentlich festgehalten.
+
 ## v1.7.177 — 2026-08-10 — Weboberfläche: Postfachverwaltung als eigenes Modul
 
 Innerer Umbau ohne sichtbare Änderung, fünfter Schritt der Aufteilung. Die

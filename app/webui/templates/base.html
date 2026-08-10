@@ -26,7 +26,13 @@
         <div class="nav-links" id="nav-links">
             {% set _role = request.state.user_role if request.state.user_role is defined else 'admin' %}
             <ul>
+                {# Die Übersicht zeigt Betriebsdaten (Postverkehr, Protokollauszug,
+                   Lizenz) und ist deshalb der Verwaltung vorbehalten. Für den
+                   Signatur-Editor sind "Signaturen" der Einstieg; ruft er "/" auf,
+                   leitet die Route selbst dorthin um. #}
+                {% if _role == 'admin' %}
                 <li><a href="/" class="{% if active == 'dashboard' %}active{% endif %}">Übersicht</a></li>
+                {% endif %}
                 <li><a href="/template" class="{% if active in ('template', 'preview') %}active{% endif %}">Signaturen</a></li>
                 {% if _role == 'admin' %}
                 <li><a href="/mailboxes" class="{% if active == 'mailboxes' %}active{% endif %}">Postfächer</a></li>

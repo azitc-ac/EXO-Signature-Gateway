@@ -152,7 +152,7 @@ async def api_mailbox_migrate_apply(user: str = Depends(_require_admin)):
 
 
 @router.post("/api/mailboxes/save")
-async def api_save_mailboxes(body: dict, _=Depends(_check_auth)):
+async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
     """Save MAILBOX_CONFIG (ExchangeGuid-anchored) and update the EXO Distribution
     Group membership. (The transport rule 'Route via EXO Signature Gateway' is NOT
     touched — it targets the DG via FromMemberOf; only DG members change here.)
@@ -246,7 +246,7 @@ async def api_save_mailboxes(body: dict, _=Depends(_check_auth)):
 
 
 @router.post("/api/mailboxes/fetch-bookings-urls")
-async def api_fetch_bookings_urls(_=Depends(_check_auth)):
+async def api_fetch_bookings_urls(_=Depends(_require_admin)):
     """Fetch ExchangeGuid for all configured mailboxes via PS and compute Bookings URLs."""
     import setup_wizard as _sw
     app_id = settings_store.get("CLIENT_ID") or config.CLIENT_ID or ""

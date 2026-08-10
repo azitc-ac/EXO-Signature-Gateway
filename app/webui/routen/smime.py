@@ -52,7 +52,7 @@ router = APIRouter()
 
 
 @router.post("/api/smime/key-password")
-async def api_smime_key_password(request: Request, user: str = Depends(_check_auth)):
+async def api_smime_key_password(request: Request, user: str = Depends(_require_admin)):
     import smime_store as _smime
     data = await request.json()
     old_pw = data.get("old_password") or ""
@@ -71,7 +71,7 @@ async def api_smime_key_password(request: Request, user: str = Depends(_check_au
 @router.post("/api/smime/upload")
 async def api_smime_upload(
     request: Request,
-    user: str = Depends(_check_auth),
+    user: str = Depends(_require_admin),
     email: str = Form(...),
     p12_file: UploadFile = File(...),
     password: str = Form(""),
@@ -90,7 +90,7 @@ async def api_smime_upload(
 
 
 @router.post("/api/smime/delete/{cert_email}")
-async def api_smime_delete(cert_email: str, user: str = Depends(_check_auth)):
+async def api_smime_delete(cert_email: str, user: str = Depends(_require_admin)):
     import smime_store
     smime_store.delete_cert(cert_email)
     log.info("S/MIME certs deleted for %s by %s", cert_email, user)
@@ -98,7 +98,7 @@ async def api_smime_delete(cert_email: str, user: str = Depends(_check_auth)):
 
 
 @router.post("/api/smime/delete-slot/{cert_email}/{slot_id}")
-async def api_smime_delete_slot(cert_email: str, slot_id: str, user: str = Depends(_check_auth)):
+async def api_smime_delete_slot(cert_email: str, slot_id: str, user: str = Depends(_require_admin)):
     import smime_store
     try:
         smime_store.delete_cert_slot(cert_email, slot_id)
@@ -109,7 +109,7 @@ async def api_smime_delete_slot(cert_email: str, slot_id: str, user: str = Depen
 
 
 @router.post("/api/smime/set-default/{cert_email}/{slot_id}")
-async def api_smime_set_default(cert_email: str, slot_id: str, user: str = Depends(_check_auth)):
+async def api_smime_set_default(cert_email: str, slot_id: str, user: str = Depends(_require_admin)):
     import smime_store
     try:
         smime_store.set_default_slot(cert_email, slot_id)
@@ -189,7 +189,7 @@ async def smime_page_v2(request: Request, user: str = Depends(_require_admin)):
 
 
 @router.post("/api/smime/kv-status/refresh")
-async def api_smime_kv_status_refresh(_=Depends(_check_auth)):
+async def api_smime_kv_status_refresh(_=Depends(_require_admin)):
     """Refresh Azure Key Vault key-existence status for all S/MIME users (parallel queries)."""
     import smime_store
     import keyvault as _kv
@@ -214,7 +214,7 @@ async def api_smime_kv_status_refresh(_=Depends(_check_auth)):
 
 
 @router.get("/api/smime/cert/download/{email}/{slot_id}")
-async def api_smime_cert_download(email: str, slot_id: str, _=Depends(_check_auth)):
+async def api_smime_cert_download(email: str, slot_id: str, _=Depends(_require_admin)):
     """Download a signing certificate as DER-encoded .cer file."""
     from cryptography import x509
     from cryptography.hazmat.primitives import serialization
@@ -242,7 +242,7 @@ async def api_smime_cert_download(email: str, slot_id: str, _=Depends(_check_aut
 @router.post("/api/smime/recipient/upload")
 async def api_smime_recipient_upload(
     request: Request,
-    user: str = Depends(_check_auth),
+    user: str = Depends(_require_admin),
     email: str = Form(...),
     cert_file: UploadFile = File(...),
 ):
@@ -267,7 +267,7 @@ async def api_smime_recipient_upload(
 
 
 @router.post("/api/smime/recipient/delete/{cert_email}")
-async def api_smime_recipient_delete(cert_email: str, user: str = Depends(_check_auth)):
+async def api_smime_recipient_delete(cert_email: str, user: str = Depends(_require_admin)):
     import smime_store
     smime_store.delete_recipient_cert(cert_email)
     log.info("Recipient S/MIME cert deleted for %s by %s", cert_email, user)
@@ -277,7 +277,7 @@ async def api_smime_recipient_delete(cert_email: str, user: str = Depends(_check
 @router.get("/api/smime/cert/details")
 async def api_smime_cert_details(
     email: str, kind: str = "recipient", slot: str = "",
-    user: str = Depends(_check_auth),
+    user: str = Depends(_require_admin),
 ):
     """Return human-readable cert details for the detail modal (no download)."""
     import smime_store
@@ -347,7 +347,7 @@ async def api_smime_cert_details(
 
 
 @router.get("/api/smime/ca-config")
-async def api_ca_config_get(user: str = Depends(_check_auth)):
+async def api_ca_config_get(user: str = Depends(_require_admin)):
     import ca_backends as _ca
     import hub_catalog as _hub_cat
     try:
@@ -361,7 +361,7 @@ async def api_ca_config_get(user: str = Depends(_check_auth)):
 
 
 @router.post("/api/smime/ca-config/{email}")
-async def api_ca_config_save(email: str, request: Request, user: str = Depends(_check_auth)):
+async def api_ca_config_save(email: str, request: Request, user: str = Depends(_require_admin)):
     data = await request.json()
     cfg: dict = settings_store.get("CA_USER_CONFIG") or {}
     cfg[email.lower().strip()] = {
@@ -376,7 +376,7 @@ async def api_ca_config_save(email: str, request: Request, user: str = Depends(_
 
 
 @router.post("/api/smime/renewal/token/{email}")
-async def api_renewal_token_generate(email: str, user: str = Depends(_check_auth)):
+async def api_renewal_token_generate(email: str, user: str = Depends(_require_admin)):
     import selfservice, scheduler
     token = selfservice.generate_token(email)
     gw_url = scheduler._get_gateway_url()
@@ -389,7 +389,7 @@ async def api_renewal_token_generate(email: str, user: str = Depends(_check_auth
 
 
 @router.get("/api/smime/renewal/token-info/{email}")
-async def api_renewal_token_info(email: str, user: str = Depends(_check_auth)):
+async def api_renewal_token_info(email: str, user: str = Depends(_require_admin)):
     import selfservice, scheduler
     info = selfservice.get_token_info(email)
     if not info:
@@ -403,7 +403,7 @@ async def api_renewal_token_info(email: str, user: str = Depends(_check_auth)):
 
 
 @router.post("/api/smime/renewal/notify/{email}")
-async def api_renewal_notify(email: str, user: str = Depends(_check_auth)):
+async def api_renewal_notify(email: str, user: str = Depends(_require_admin)):
     import smime_store, selfservice, notification, scheduler
     certs = smime_store.list_user_certs(email)
     if not certs:
@@ -475,7 +475,7 @@ async def api_smime_selfservice_upload(
 
 
 @router.get("/api/smime/renewal/status/{email}")
-async def api_acme_status(email: str, user: str = Depends(_check_auth)):
+async def api_acme_status(email: str, user: str = Depends(_require_admin)):
     import acme_state
     order = acme_state.get_order(email.lower().strip())
     if not order:
@@ -489,7 +489,7 @@ async def api_acme_status(email: str, user: str = Depends(_check_auth)):
 
 
 @router.post("/api/smime/renewal/clear/{email}")
-async def api_acme_clear_order(email: str, user: str = Depends(_check_auth)):
+async def api_acme_clear_order(email: str, user: str = Depends(_require_admin)):
     import acme_state
     acme_state.clear_order(email)
     log.info("ACME order cleared for %s by %s", email, user)
@@ -497,7 +497,7 @@ async def api_acme_clear_order(email: str, user: str = Depends(_check_auth)):
 
 
 @router.post("/api/smime/renewal/initiate/{email}")
-async def api_acme_initiate(request: Request, email: str, user: str = Depends(_check_auth)):
+async def api_acme_initiate(request: Request, email: str, user: str = Depends(_require_admin)):
     import ca_backends as _ca
     import acme_state as _acme_state
     email = email.lower().strip()
@@ -727,7 +727,7 @@ async def api_keyvault_status(_: str = Depends(_require_admin)):
 
 
 @router.get("/api/smime/recipient/download/{cert_email}")
-async def api_smime_recipient_download(cert_email: str, user: str = Depends(_check_auth)):
+async def api_smime_recipient_download(cert_email: str, user: str = Depends(_require_admin)):
     import smime_store
     from fastapi.responses import Response
     from cryptography import x509
