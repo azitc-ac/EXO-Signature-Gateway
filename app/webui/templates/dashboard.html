@@ -145,8 +145,8 @@ function dismissWelcome() {
           (normal). Erst im Verhaeltnis wird daraus eine Aussage.
           Anlass: Genau diese Erkennung lief vom 29.07. bis 10.08.2026 zwoelf
           Tage wirkungslos mit, ohne dass es irgendwo sichtbar wurde. -#}
-      {{ stat_row("Antworten auf Ketten", stats_daily.antworten, stats_3d.antworten, stats_monthly_m2.antworten, stats_monthly_m1.antworten, stats_monthly.antworten, stats_prev_yearly.antworten, stats_yearly.antworten, "") }}
-      {{ stat_row("davon bereits signiert", stats_daily.sig_kette_erkannt, stats_3d.sig_kette_erkannt, stats_monthly_m2.sig_kette_erkannt, stats_monthly_m1.sig_kette_erkannt, stats_monthly.sig_kette_erkannt, stats_prev_yearly.sig_kette_erkannt, stats_yearly.sig_kette_erkannt, "") }}
+      {{ stat_row("Antworten in Ketten", stats_daily.antworten, stats_3d.antworten, stats_monthly_m2.antworten, stats_monthly_m1.antworten, stats_monthly.antworten, stats_prev_yearly.antworten, stats_yearly.antworten, "") }}
+      {{ stat_row("davon Stapel verhindert", stats_daily.stapel_verhindert, stats_3d.stapel_verhindert, stats_monthly_m2.stapel_verhindert, stats_monthly_m1.stapel_verhindert, stats_monthly.stapel_verhindert, stats_prev_yearly.stapel_verhindert, stats_yearly.stapel_verhindert, "") }}
       <tr style="border-bottom:1px solid #f0f0f0">
         <td style="padding:7px 0;font-size:13px;color:#d97706;font-weight:500">Fallback</td>
         <td style="padding:7px 10px;text-align:right;font-size:15px;font-weight:700;color:#d97706">{{ stat_cell(stats_daily.fallback, "fallback", today) }}</td>

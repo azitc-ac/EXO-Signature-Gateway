@@ -12,8 +12,15 @@ war bisher nur im Protokoll zu sehen — und dorthin sieht im laufenden Betrieb
 niemand. Die Folge ist bekannt: Dieselbe Erkennung lief zwölf Tage wirkungslos
 mit, ohne dass es auffiel.
 
-Tagesbericht und Übersicht führen deshalb zwei neue Zahlen: **Antworten auf
-Ketten** und **davon bereits signiert**.
+Tagesbericht und Übersicht führen deshalb zwei neue Zahlen: **Antworten in
+Ketten** und **davon Signatur-Stapel verhindert**.
+
+Gezählt wird dabei die Wirkung, nicht der Befund: Die zweite Zahl steigt nur,
+wenn der vollständige Signaturblock ein zweites Mal tatsächlich ausgeblieben
+ist — nicht schon, wenn die Kette bloss erkannt wurde. Der Unterschied ist
+nicht theoretisch: Unterdrückt bereits ein Schlüsselwort im Betreff oder eine
+vom Add-in gesetzte Signatur den Block, käme die Wirkung von dort, und die
+Kennzahl dürfte sie sich nicht zuschreiben.
 
 Zwei Zahlen und nicht eine, weil die zweite allein nicht zu deuten wäre. Eine
 Null kann bedeuten, dass nichts erkannt wurde, obwohl es zu erkennen gab — oder
