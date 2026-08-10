@@ -5,6 +5,32 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.175 — 2026-08-10 — Weboberfläche: S/MIME-Adressen als eigenes Modul
+
+Innerer Umbau ohne sichtbare Änderung. Nach dem Outlook-Add-in und dem
+Nachrichtenportal bilden nun auch die 28 Adressen rund um S/MIME ein eigenes
+Modul — Zertifikatsverwaltung, Erneuerung, Selbstbedienung und Key-Vault-Anbindung.
+Die zentrale Datei der Oberfläche schrumpft damit von 5.017 auf 4.306 Zeilen.
+
+Anders als bei den beiden vorigen Modulen lagen diese Adressen nicht als Block
+beieinander, sondern über gut 2.800 Zeilen verstreut, mit fremden Adressen
+dazwischen. Sie wurden deshalb nicht über Zeilenbereiche herausgetrennt, sondern
+über den Syntaxbaum eingesammelt.
+
+Zwei Hilfsfunktionen werden von mehreren Modulen gebraucht — die Anzeige der
+Restlaufzeit des Transportzertifikats und die Ermittlung der öffentlichen
+Adresse für das Add-in-Manifest. Sie lagen bisher in einem der Module und
+wurden von der Hauptdatei zurückgeholt. Das lief, drehte aber die Abhängigkeit
+um: Die Hauptdatei bindet Module ein, sie sollte nichts aus ihnen entnehmen.
+Beide liegen jetzt an einem gemeinsamen Ort, und eine Prüfung hält die Richtung
+künftig fest — sonst wiederholt sich der Fall bei jedem weiteren Modul.
+
+Alle Adressen bleiben unverändert erreichbar; nachgewiesen über die
+Momentaufnahme der vollständigen Adresstabelle, eine Prüfung auf tatsächliche
+Einbindung und den Abruf aller 28 Adressen am laufenden System.
+
+Für Betreiber ändert sich nichts.
+
 ## v1.7.174 — 2026-08-10 — Eine frische Installation liefert reproduzierbar denselben Stand
 
 Seit v1.7.172 stehen die Python-Pakete vollständig fest. Drei Bestandteile des
