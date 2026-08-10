@@ -390,6 +390,12 @@ def main() -> None:
         retention_days=int(settings_store.get("LOG_RETENTION_DAYS") or 90)
     )
 
+    # Monatstabellen jenseits des Aufbewahrungsfensters verwerfen. Beim Start
+    # statt nächtlich: Es fällt höchstens eine Tabelle im Monat an, und die
+    # aktuelle wird bei jedem Schreibzugriff ohnehin selbst angelegt.
+    import sig_thread
+    sig_thread.aufraeumen()
+
     log.info("Starting EXO Signature Gateway v%s", config.VERSION)
 
     # Dateirechte unter data/ härten (600/700). Ohne diesen Lauf bliebe jede
