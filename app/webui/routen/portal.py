@@ -196,7 +196,7 @@ async def portal_mark_read(token: str, request: Request):
 
 
 @router.get("/api/portal/admin/list")
-async def portal_admin_list(_=Depends(_check_auth)):
+async def portal_admin_list(_=Depends(_require_admin)):
     """Admin: aktive Portal-Nachrichten + Status für die S/MIME-Seite."""
     import portal_store
     msgs = portal_store.list_messages()
@@ -210,7 +210,7 @@ async def portal_admin_list(_=Depends(_check_auth)):
 
 
 @router.delete("/api/portal/admin/{token}")
-async def portal_admin_delete(token: str, user: str = Depends(_check_auth)):
+async def portal_admin_delete(token: str, user: str = Depends(_require_admin)):
     """Admin: Portal-Nachricht widerrufen (Link sofort ungültig)."""
     import portal_store
     ok = portal_store.delete_message(token)

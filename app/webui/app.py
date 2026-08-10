@@ -389,7 +389,7 @@ async def auth_start_redirect(request: Request):
 
 
 @app.post("/api/setup/auth-paste")
-async def api_auth_paste(request: Request, user: str = Depends(_check_auth)):
+async def api_auth_paste(request: Request, user: str = Depends(_require_admin)):
     """
     Accept the URL the browser was redirected to after Azure login
     (user copies it from the address bar after the expected connection-refused page).
@@ -736,7 +736,7 @@ async def auth_logout_get(request: Request):
 # ── Routes: setup API endpoints ────────────────────────────────────────────────
 
 @app.post("/api/setup/bootstrap-client")
-async def api_setup_bootstrap_client(request: Request, user: str = Depends(_check_auth)):
+async def api_setup_bootstrap_client(request: Request, user: str = Depends(_require_admin)):
     data = await request.json()
     client_id = (data.get("client_id") or "").strip()
     if not client_id:
@@ -757,7 +757,7 @@ async def api_setup_bootstrap_client(request: Request, user: str = Depends(_chec
 
 
 @app.post("/api/setup/hostname")
-async def api_setup_hostname(request: Request, user: str = Depends(_check_auth)):
+async def api_setup_hostname(request: Request, user: str = Depends(_require_admin)):
     data = await request.json()
     hostname = (data.get("hostname") or "").strip()
     if not hostname:
@@ -768,7 +768,7 @@ async def api_setup_hostname(request: Request, user: str = Depends(_check_auth))
 
 
 @app.post("/api/setup/change-password")
-async def api_change_password(request: Request, user: str = Depends(_check_auth)):
+async def api_change_password(request: Request, user: str = Depends(_require_admin)):
     data = await request.json()
     old_pw = (data.get("old_password") or "").strip()
     new_pw = (data.get("password") or "").strip()
@@ -793,7 +793,7 @@ async def api_whoami(request: Request):
 
 
 @app.get("/api/admin-users")
-async def api_get_admin_users(_=Depends(_check_auth)):
+async def api_get_admin_users(_=Depends(_require_admin)):
     return JSONResponse({"users": sso_mod.normalize_users()})
 
 
@@ -919,7 +919,7 @@ async def api_entra_users_search(q: str = "", _=Depends(_require_admin)):
 
 
 @app.post("/api/setup/exo-connector")
-async def api_setup_exo_connector(request: Request, user: str = Depends(_check_auth)):
+async def api_setup_exo_connector(request: Request, user: str = Depends(_require_admin)):
     """Trigger PowerShell EXO connector setup."""
     import setup_wizard
 
@@ -951,7 +951,7 @@ async def api_setup_exo_connector(request: Request, user: str = Depends(_check_a
 
 
 @app.post("/api/setup/gen-auth-cert")
-async def api_gen_auth_cert(request: Request, user: str = Depends(_check_auth)):
+async def api_gen_auth_cert(request: Request, user: str = Depends(_require_admin)):
     """Generate a self-signed auth cert, save PFX locally, return public cert PEM."""
     import base64 as _b64
     from setup_wizard import _generate_auth_cert, _AUTH_CERT_PATH
@@ -975,7 +975,7 @@ async def api_gen_auth_cert(request: Request, user: str = Depends(_check_auth)):
 
 
 @app.post("/api/setup/smime-rules")
-async def api_setup_smime_rules(request: Request, user: str = Depends(_check_auth)):
+async def api_setup_smime_rules(request: Request, user: str = Depends(_require_admin)):
     """Create S/MIME inbound transport rules in Exchange Online."""
     import setup_wizard
 
@@ -1000,7 +1000,7 @@ async def api_setup_smime_rules(request: Request, user: str = Depends(_check_aut
 
 
 @app.post("/api/setup/imap-access")
-async def api_setup_imap_access(request: Request, user: str = Depends(_check_auth)):
+async def api_setup_imap_access(request: Request, user: str = Depends(_require_admin)):
     """Register EXO Service Principal and grant IMAP FullAccess to all mailboxes."""
     import setup_wizard
 
@@ -1025,7 +1025,7 @@ async def api_setup_imap_access(request: Request, user: str = Depends(_check_aut
 
 
 @app.get("/api/setup/verify/connector")
-async def api_verify_connector(_=Depends(_check_auth)):
+async def api_verify_connector(_=Depends(_require_admin)):
     import setup_wizard
     reinject_mode = settings_store.get("REINJECT_MODE") or "smtp"
     smtp_mode = reinject_mode == "smtp"
@@ -1033,19 +1033,19 @@ async def api_verify_connector(_=Depends(_check_auth)):
 
 
 @app.get("/api/setup/verify/imap")
-async def api_verify_imap(_=Depends(_check_auth)):
+async def api_verify_imap(_=Depends(_require_admin)):
     import setup_wizard
     return setup_wizard.verify_imap()
 
 
 @app.get("/api/setup/verify/smime")
-async def api_verify_smime(_=Depends(_check_auth)):
+async def api_verify_smime(_=Depends(_require_admin)):
     import setup_wizard
     return setup_wizard.verify_smime_rules()
 
 
 @app.get("/api/setup/verify/azure")
-async def api_verify_azure(_=Depends(_check_auth)):
+async def api_verify_azure(_=Depends(_require_admin)):
     token = graph_client._acquire_token()
     if not token:
         return JSONResponse({"ok": False, "error": "Keine Graph-Zugangsdaten konfiguriert"})
@@ -1064,14 +1064,14 @@ async def api_verify_azure(_=Depends(_check_auth)):
 
 
 @app.post("/api/setup/mark-complete")
-async def api_setup_complete(request: Request, user: str = Depends(_check_auth)):
+async def api_setup_complete(request: Request, user: str = Depends(_require_admin)):
     settings_store.update({"SETUP_COMPLETE": True})
     log.info("Setup marked complete by %s", user)
     return JSONResponse({"ok": True})
 
 
 @app.post("/api/setup/test-graph")
-async def api_test_graph(request: Request, user: str = Depends(_check_auth)):
+async def api_test_graph(request: Request, user: str = Depends(_require_admin)):
     """Quick connectivity test — fetch own organization info."""
     token = graph_client._acquire_token()
     if not token:
@@ -1462,13 +1462,13 @@ async def api_save_template_meta(name: str, request: Request, _=Depends(_check_a
 
 
 @app.get("/api/health/mailboxes")
-async def api_health_mailboxes(_=Depends(_check_auth)):
+async def api_health_mailboxes(_=Depends(_require_admin)):
     """Return current cached MAILBOX_HEALTH data."""
     return settings_store.get("MAILBOX_HEALTH") or {}
 
 
 @app.post("/api/health/mailboxes")
-async def api_health_run(_=Depends(_check_auth)):
+async def api_health_run(_=Depends(_require_admin)):
     """Run health checks for all configured mailboxes and return results."""
     import health_check
     results = await health_check.run_all_checks()
@@ -1476,7 +1476,7 @@ async def api_health_run(_=Depends(_check_auth)):
 
 
 @app.get("/api/health/audit-log")
-async def api_health_audit_log(_=Depends(_check_auth)):
+async def api_health_audit_log(_=Depends(_require_admin)):
     """Return GATEWAY_AUDIT_LOG entries."""
     return settings_store.get("GATEWAY_AUDIT_LOG") or []
 
@@ -1502,6 +1502,17 @@ async def dashboard(request: Request, user: str = Depends(_check_auth)):
     # gilt für alle Login-Wege (lokal/SSO) und nach Session-Ablauf.
     if not settings_store.get("SETUP_COMPLETE"):
         return RedirectResponse("/setup", status_code=302)
+    # Die Übersicht zeigt Betriebsdaten — Postverkehr, Protokollauszug, Lizenz,
+    # Graph-Kontingent. Der Signatur-Editor pflegt Vorlagen und Inhalte und hat
+    # damit nichts zu tun; er startet direkt im Editor.
+    #
+    # Bewusst eine Weiterleitung statt `Depends(_require_admin)`: Diese Adresse
+    # ist die Startseite. Ein 403 wäre für einen Editor, der das Lesezeichen
+    # öffnet, eine Sackgasse — die Weiterleitung bringt ihn dorthin, wo er
+    # arbeiten kann. Die Daten selbst schützen die Endpunkte darunter, die
+    # allesamt die Verwaltungsrolle verlangen.
+    if _get_session_role(request) != sso_mod.ROLE_ADMIN:
+        return RedirectResponse("/template", status_code=302)
     from datetime import datetime as _dt
     import smime_store as _smime_store
     import stats as _stats_mod2
@@ -1680,7 +1691,7 @@ async def api_preview_data(
 
 
 @app.get("/api/cert/catalog")
-async def api_cert_catalog(_=Depends(_check_auth)):
+async def api_cert_catalog(_=Depends(_require_admin)):
     """Anbieter-Katalog des Hubs für die Anzeige (Anbindung-Seite).
     Erzwingt immer einen frischen Hub-Fetch (Admin-Endpunkt, selten aufgerufen)."""
     import hub_catalog as _hub_cat
@@ -1720,7 +1731,7 @@ async def api_cert_catalog_toggle(body: dict, user: str = Depends(_require_admin
 # ── Fair-Use-Lizenz ──────────────────────────────────────────────────────────
 
 @app.get("/api/license/status")
-async def api_license_status(_=Depends(_check_auth)):
+async def api_license_status(_=Depends(_require_admin)):
     import license as _lic
     return JSONResponse(_lic.fair_use_state())
 
@@ -1874,12 +1885,12 @@ async def api_get_template_policies(_=Depends(_check_auth)):
 
 
 @app.get("/api/settings/internal-groups")
-async def api_get_internal_groups(_=Depends(_check_auth)):
+async def api_get_internal_groups(_=Depends(_require_admin)):
     return JSONResponse(settings_store.get("INTERNAL_GROUPS") or {})
 
 
 @app.post("/api/settings/internal-groups/save")
-async def api_save_internal_groups(request: Request, _=Depends(_check_auth)):
+async def api_save_internal_groups(request: Request, _=Depends(_require_admin)):
     data = await request.json()
     groups = data.get("groups")
     if not isinstance(groups, dict):
@@ -1889,12 +1900,12 @@ async def api_save_internal_groups(request: Request, _=Depends(_check_auth)):
 
 
 @app.get("/api/settings/custom-policies")
-async def api_get_custom_policies(_=Depends(_check_auth)):
+async def api_get_custom_policies(_=Depends(_require_admin)):
     return JSONResponse(settings_store.get("CUSTOM_POLICIES") or [])
 
 
 @app.post("/api/settings/custom-policies/save")
-async def api_save_custom_policies(request: Request, _=Depends(_check_auth)):
+async def api_save_custom_policies(request: Request, _=Depends(_require_admin)):
     data = await request.json()
     policies = data.get("policies")
     if not isinstance(policies, list):
@@ -2174,7 +2185,7 @@ async def outlook_addin_page_redirect(user: str = Depends(_require_admin)):
 
 
 @app.post("/settings")
-async def settings_save(request: Request, user: str = Depends(_check_auth)):
+async def settings_save(request: Request, user: str = Depends(_require_admin)):
     try:
         data = await request.json()
     except Exception:
@@ -2230,7 +2241,7 @@ async def api_test_mail(request: Request, user: str = Depends(_check_auth)):
 
 
 @app.post("/api/letsencrypt")
-async def api_letsencrypt(request: Request, user: str = Depends(_check_auth)):
+async def api_letsencrypt(request: Request, user: str = Depends(_require_admin)):
     data = await request.json()
     domain = (data.get("domain") or "").strip()
     email = (data.get("email") or "").strip()
@@ -2271,7 +2282,7 @@ async def api_letsencrypt(request: Request, user: str = Depends(_check_auth)):
 
 
 @app.post("/api/notification/test")
-async def api_notification_test(user: str = Depends(_check_auth)):
+async def api_notification_test(user: str = Depends(_require_admin)):
     import notification as _notif
     import config as _config
     to = _notif._get_notify_to()
@@ -2286,7 +2297,7 @@ async def api_notification_test(user: str = Depends(_check_auth)):
 
 
 @app.post("/api/setup/notification-dg")
-async def api_setup_notification_dg(request: Request, user: str = Depends(_check_auth)):
+async def api_setup_notification_dg(request: Request, user: str = Depends(_require_admin)):
     """Create/update notification Distribution Group in EXO and save recipients."""
     import setup_wizard
     data = await request.json()
@@ -2311,7 +2322,7 @@ async def api_setup_notification_dg(request: Request, user: str = Depends(_check
 
 
 @app.post("/api/restart")
-async def api_restart(user: str = Depends(_check_auth)):
+async def api_restart(user: str = Depends(_require_admin)):
     log.info("Service restart requested by %s", user)
 
     def _do_restart():
@@ -2324,7 +2335,7 @@ async def api_restart(user: str = Depends(_check_auth)):
 
 
 @app.get("/config-view", response_class=HTMLResponse)
-async def config_view(request: Request, user: str = Depends(_check_auth)):
+async def config_view(request: Request, user: str = Depends(_require_admin)):
     tenant = config.TENANT_ID or settings_store.get("TENANT_ID") or ""
     client = config.CLIENT_ID or settings_store.get("CLIENT_ID") or ""
     smarthost = config.EXO_SMARTHOST or settings_store.get("EXO_SMARTHOST") or ""
@@ -2588,7 +2599,7 @@ async def api_keyvault_save(request: Request, _: str = Depends(_require_admin)):
 
 @app.get("/api/logs/search")
 async def api_logs_search(q: str = "", time_from: str = "", time_to: str = "",
-                          user: str = Depends(_check_auth)):
+                          user: str = Depends(_require_admin)):
     if not q and not (time_from or time_to):
         raise HTTPException(400, "Suchbegriff oder Zeitraum fehlt")
     import log_manager
@@ -2598,7 +2609,7 @@ async def api_logs_search(q: str = "", time_from: str = "", time_to: str = "",
 
 
 @app.get("/api/logs/files")
-async def api_logs_files(user: str = Depends(_check_auth)):
+async def api_logs_files(user: str = Depends(_require_admin)):
     import log_manager
     return JSONResponse({"files": log_manager.list_files()})
 
@@ -2613,7 +2624,7 @@ _EXPORT_EXCLUDE = set(settings_store.SECRET_KEYS) | {"_SCHEMA_VERSION"}
 
 
 @app.get("/api/config/export")
-async def api_config_export(user: str = Depends(_check_auth)):
+async def api_config_export(user: str = Depends(_require_admin)):
     import base64 as _b64
     import smime_store as _ss
     root = _ET.Element("exo-signature-config")
@@ -2697,7 +2708,7 @@ async def api_config_export(user: str = Depends(_check_auth)):
 @app.post("/api/config/import")
 async def api_config_import(
     request: Request,
-    user: str = Depends(_check_auth),
+    user: str = Depends(_require_admin),
     xml_file: UploadFile = File(...),
 ):
     content = await xml_file.read()
@@ -2821,21 +2832,21 @@ async def api_config_import(
 # ── MIME Observatory ──────────────────────────────────────────────────────────
 
 @app.get("/api/test/acme-capture")
-async def api_acme_capture_get(user: str = Depends(_check_auth)):
+async def api_acme_capture_get(user: str = Depends(_require_admin)):
     """Return captured MIME payloads from the observatory."""
     import mime_observatory as _obs
     return JSONResponse({"captures": _obs.get_captures()})
 
 
 @app.delete("/api/test/acme-capture")
-async def api_acme_capture_clear(user: str = Depends(_check_auth)):
+async def api_acme_capture_clear(user: str = Depends(_require_admin)):
     import mime_observatory as _obs
     _obs.clear()
     return JSONResponse({"ok": True})
 
 
 @app.post("/api/test/send-graph-acme")
-async def api_send_graph_acme(request: Request, user: str = Depends(_check_auth)):
+async def api_send_graph_acme(request: Request, user: str = Depends(_require_admin)):
     """Send a fake ACME-style reply via Graph API so we can observe what Exchange adds.
 
     The subject uses the 'Re: ACME: TEST-' prefix which triggers the MIME
@@ -2893,7 +2904,7 @@ async def api_send_graph_acme(request: Request, user: str = Depends(_check_auth)
 # ── Mail-Processor Self-Tests ─────────────────────────────────────────────────
 
 @app.get("/api/test/mail-processor/options")
-async def api_test_mail_processor_options(user: str = Depends(_check_auth)):
+async def api_test_mail_processor_options(user: str = Depends(_require_admin)):
     """Return available templates and configured mailbox emails for the self-test UI."""
     import os
     templates = []
@@ -2910,7 +2921,7 @@ async def api_test_mail_processor_options(user: str = Depends(_check_auth)):
 
 
 @app.post("/api/test/mail-processor")
-async def api_test_mail_processor(request: Request, user: str = Depends(_check_auth)):
+async def api_test_mail_processor(request: Request, user: str = Depends(_require_admin)):
     """Run in-process self-tests for mail_processor.inject().
 
     Accepts optional JSON body {"template": "...", "email": "..."}.
@@ -2941,7 +2952,7 @@ async def api_test_mail_processor(request: Request, user: str = Depends(_check_a
 # ── Remote Domain: castle.cloud ───────────────────────────────────────────────
 
 @app.get("/api/setup/remote-domain-castle")
-async def api_remote_domain_get(user: str = Depends(_check_auth)):
+async def api_remote_domain_get(user: str = Depends(_require_admin)):
     import setup_wizard as _sw
     result = await asyncio.get_event_loop().run_in_executor(
         None, _sw.get_remote_domain_castle
@@ -2950,7 +2961,7 @@ async def api_remote_domain_get(user: str = Depends(_check_auth)):
 
 
 @app.post("/api/setup/remote-domain-castle")
-async def api_remote_domain_configure(user: str = Depends(_check_auth)):
+async def api_remote_domain_configure(user: str = Depends(_require_admin)):
     import setup_wizard as _sw
     result = await asyncio.get_event_loop().run_in_executor(
         None, _sw.configure_remote_domain_castle
@@ -2960,7 +2971,7 @@ async def api_remote_domain_configure(user: str = Depends(_check_auth)):
 
 
 @app.delete("/api/setup/remote-domain-castle")
-async def api_remote_domain_remove(user: str = Depends(_check_auth)):
+async def api_remote_domain_remove(user: str = Depends(_require_admin)):
     import setup_wizard as _sw
     result = await asyncio.get_event_loop().run_in_executor(
         None, _sw.remove_remote_domain_castle
@@ -2972,13 +2983,13 @@ async def api_remote_domain_remove(user: str = Depends(_check_auth)):
 # ── ACME Reply Method ─────────────────────────────────────────────────────────
 
 @app.get("/api/acme/reply-method")
-async def api_acme_reply_method_get(user: str = Depends(_check_auth)):
+async def api_acme_reply_method_get(user: str = Depends(_require_admin)):
     method = (settings_store.get("ACME_REPLY_METHOD") or "auto").strip().lower()
     return JSONResponse({"ok": True, "method": method})
 
 
 @app.post("/api/acme/reply-method")
-async def api_acme_reply_method_set(request: Request, user: str = Depends(_check_auth)):
+async def api_acme_reply_method_set(request: Request, user: str = Depends(_require_admin)):
     data = await request.json()
     method = (data.get("method") or "auto").strip().lower()
     if method not in ("auto", "graph", "direct_smtp"):
@@ -2989,13 +3000,13 @@ async def api_acme_reply_method_set(request: Request, user: str = Depends(_check
 
 
 @app.get("/api/acme/http-proxy")
-async def api_acme_http_proxy_get(user: str = Depends(_check_auth)):
+async def api_acme_http_proxy_get(user: str = Depends(_require_admin)):
     proxy = settings_store.get("ACME_HTTP_PROXY") or ""
     return JSONResponse({"ok": True, "proxy": proxy})
 
 
 @app.post("/api/acme/http-proxy")
-async def api_acme_http_proxy_set(request: Request, user: str = Depends(_check_auth)):
+async def api_acme_http_proxy_set(request: Request, user: str = Depends(_require_admin)):
     data = await request.json()
     proxy = (data.get("proxy") or "").strip()
     if proxy and not (proxy.startswith("http://") or proxy.startswith("https://") or proxy.startswith("socks5://")):
@@ -3006,7 +3017,7 @@ async def api_acme_http_proxy_set(request: Request, user: str = Depends(_check_a
 
 
 @app.post("/api/acme/http-proxy/test")
-async def api_acme_http_proxy_test(request: Request, user: str = Depends(_check_auth)):
+async def api_acme_http_proxy_test(request: Request, user: str = Depends(_require_admin)):
     """Test connectivity to the configured CA directory through the ACME HTTP proxy."""
     import httpx as _httpx
     import acme_state as _acme_state
@@ -3027,7 +3038,7 @@ async def api_acme_http_proxy_test(request: Request, user: str = Depends(_check_
 # ── ACME Account Reset ────────────────────────────────────────────────────────
 
 @app.get("/api/acme/account-users")
-async def api_acme_account_users(user: str = Depends(_check_auth)):
+async def api_acme_account_users(user: str = Depends(_require_admin)):
     """Return users with castle_acme backend + per-user account key status."""
     import acme_state
     ca_cfg = settings_store.get("CA_USER_CONFIG") or {}
@@ -3047,7 +3058,7 @@ async def api_acme_account_users(user: str = Depends(_check_auth)):
 
 
 @app.post("/api/acme/account-reset")
-async def api_acme_account_reset(request: Request, user: str = Depends(_check_auth)):
+async def api_acme_account_reset(request: Request, user: str = Depends(_require_admin)):
     """Delete per-user ACME account key + account URL files."""
     import acme_state
     data = await request.json()
@@ -3065,7 +3076,7 @@ async def api_acme_account_reset(request: Request, user: str = Depends(_check_au
 # ── EXO PowerShell Certificate Export ─────────────────────────────────────────
 
 @app.get("/api/cert/exo-ps-info")
-async def api_cert_exo_ps_info(user: str = Depends(_check_auth)):
+async def api_cert_exo_ps_info(user: str = Depends(_require_admin)):
     """Return subject, thumbprint (SHA-1, as shown in Azure Portal) and expiry of the EXO PS auth.pfx."""
     from cryptography.hazmat.primitives.serialization import pkcs12
     from cryptography.hazmat.primitives import hashes
@@ -3089,7 +3100,7 @@ async def api_cert_exo_ps_info(user: str = Depends(_check_auth)):
 
 
 @app.get("/api/cert/exo-ps-export.cer")
-async def api_cert_exo_ps_export(user: str = Depends(_check_auth)):
+async def api_cert_exo_ps_export(user: str = Depends(_require_admin)):
     """Export the public-key certificate from auth.pfx as DER-encoded .cer (no private key)."""
     from cryptography.hazmat.primitives.serialization import pkcs12, Encoding
     from starlette.responses import Response
@@ -3113,7 +3124,7 @@ async def api_cert_exo_ps_export(user: str = Depends(_check_auth)):
 # ── App-Pool API ──────────────────────────────────────────────────────────────
 
 @app.get("/api/setup/app-pool/status")
-async def api_app_pool_status(user: str = Depends(_check_auth)):
+async def api_app_pool_status(user: str = Depends(_require_admin)):
     import graph_client as _gc
     pool = _gc.get_pool_status()
     raw = settings_store.get("APP_POOL") or []
@@ -3191,7 +3202,7 @@ async def api_app_pool_add_from_url(request: Request, user: str = Depends(_requi
 @app.get("/api/audit/events")
 async def api_audit_events(
     request: Request,
-    _user: str = Depends(_check_auth),
+    _user: str = Depends(_require_admin),
     date: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
@@ -3218,7 +3229,7 @@ async def api_audit_events(
 
 
 @app.get("/api/system/info")
-async def api_system_info(user: str = Depends(_check_auth)):
+async def api_system_info(user: str = Depends(_require_admin)):
     import time as _time_mod
     import mail_audit as _audit_mod
     import handler as _handler_mod
@@ -3303,7 +3314,7 @@ async def api_system_info(user: str = Depends(_check_auth)):
 
 
 @app.get("/api/system/mail-hourly")
-async def api_mail_hourly(user: str = Depends(_check_auth)):
+async def api_mail_hourly(user: str = Depends(_require_admin)):
     """Stündliche Mail-Statistik für heute aus mail_audit.db."""
     import mail_audit as _audit_mod
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -3311,7 +3322,7 @@ async def api_mail_hourly(user: str = Depends(_check_auth)):
 
 
 @app.get("/api/system/log-tail")
-async def api_log_tail(n: int = 150, user: str = Depends(_check_auth)):
+async def api_log_tail(n: int = 150, user: str = Depends(_require_admin)):
     """Letzte N Zeilen aus dem In-Memory-Log-Buffer."""
     lines = list(_LOG_BUFFER)[-n:]
     return {"lines": lines}
@@ -3384,7 +3395,7 @@ async def api_watcher_status(user: str = Depends(_require_admin)):
 
 
 @app.get("/api/system/update/whats-new")
-async def api_update_whats_new(from_version: str, to_version: str, user: str = Depends(_check_auth)):
+async def api_update_whats_new(from_version: str, to_version: str, user: str = Depends(_require_admin)):
     """Fetch changelog entries from GitHub between from_version (excl.) and to_version (incl.)."""
     import re, httpx, updater
     url = f"https://raw.githubusercontent.com/{updater.GITHUB_REPO}/main/CHANGELOG.md"
@@ -3427,7 +3438,7 @@ async def api_update_whats_new(from_version: str, to_version: str, user: str = D
 
 
 @app.get("/api/system/changelog")
-async def api_changelog(n: int = 10, user: str = Depends(_check_auth)):
+async def api_changelog(n: int = 10, user: str = Depends(_require_admin)):
     """Letzte N Einträge aus CHANGELOG.md."""
     try:
         text = (Path("/app/CHANGELOG.md")).read_text(encoding="utf-8")
@@ -3451,7 +3462,7 @@ async def api_changelog(n: int = 10, user: str = Depends(_check_auth)):
 
 
 @app.get("/api/setup/app-pool/history")
-async def api_pool_history(days: int = 7, user: str = Depends(_check_auth)):
+async def api_pool_history(days: int = 7, user: str = Depends(_require_admin)):
     """Tägliche Graph-API-Aufrufhistorie pro App aus mail_audit.db."""
     import mail_audit as _audit_mod
     pool = graph_client.get_pool_status()
@@ -3468,7 +3479,7 @@ async def api_pool_history(days: int = 7, user: str = Depends(_check_auth)):
 
 
 @app.get("/api/setup/app-pool/day")
-async def api_pool_day(app_id: str, date: str, user: str = Depends(_check_auth)):
+async def api_pool_day(app_id: str, date: str, user: str = Depends(_require_admin)):
     """24h-Stundendaten für eine App an einem bestimmten Tag."""
     import mail_audit as _audit_mod
     hours = _audit_mod.get_graph_calls_hours(app_id, date)
