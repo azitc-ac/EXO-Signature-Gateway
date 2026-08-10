@@ -31,6 +31,21 @@ KEYS = (
     # stehen: Der Lexware-Fix lief von Juli bis August 2026 wirkungslos mit,
     # weil ein Vorlagenwechsel unbemerkt blieb.
     "lexware_unbekannt",
+    # Antworten auf bestehende Ketten, und wie oft dabei erkannt wurde, dass in
+    # dieser Kette bereits signiert ist.
+    #
+    # ⚠️ ZWEI Zaehler, nicht einer. Hier ist die NULL die Meldung — und eine
+    # einzelne Null waere nicht zu deuten: Sie kann "nichts erkannt, obwohl es
+    # zu erkennen gab" heissen (Fehler) oder "niemand hat auf eine eigene Kette
+    # geantwortet" (normal). Erst das Verhaeltnis trennt beides.
+    #
+    # Anlass: Genau diese Erkennung lief vom 29.07. bis 10.08.2026 wirkungslos
+    # mit — zwoelf Tage, in denen Empfaenger die Signatur doppelt bekamen.
+    # Keiner der damals 500 Tests schlug an, weil alle gegen selbstgebautes
+    # MIME liefen; im Protokoll stand es, aber dorthin sieht im Normalbetrieb
+    # niemand.
+    "antworten",
+    "sig_kette_erkannt",
 )
 _stats: dict = {k: 0 for k in KEYS}
 _snapshot: dict = {k: 0 for k in KEYS}
