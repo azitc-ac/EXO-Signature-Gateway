@@ -5,7 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
-## v1.7.180 — 2026-08-10 — Antworten auf Ketten erscheinen im Tagesbericht und auf der Übersicht
+## v1.7.182 — 2026-08-10 — Ketten-Erkennung ist unabhängig von der Konfiguration nachprüfbar
+
+Greift die Erkennung „in dieser Kette wurde bereits signiert", gibt es zwei
+Ausgänge: Ist eine Antwort-Signatur hinterlegt, wird sie anstelle des vollen
+Blocks gesetzt; ist keine hinterlegt, entfällt die Signatur ganz. Beide Fälle
+schrieben bisher unterschiedliche Protokollzeilen.
+
+Das machte die Nachprüfung von der eigenen Einrichtung abhängig: Wer eine
+Antwort-Signatur hinterlegt hat, bekommt die eine Zeile nie zu sehen, wer keine
+hat, die andere nicht — und wer nach der falschen sucht, hält eine
+funktionierende Erkennung für ausgefallen.
+
+Beide Zeilen tragen jetzt dasselbe Merkmal `SIG-KETTE:`. Eine Suche danach
+erfasst jeden Fall, gleich wie eingerichtet ist.
+
+Die Kennzahl „davon Signatur-Stapel verhindert" zählt weiterhin **beide**
+Ausgänge: In beiden bleibt der vollständige Block ein zweites Mal aus, und
+genau das ist die Zusage.
+
+## v1.7.180 / v1.7.181 — 2026-08-10 — Antworten in Ketten erscheinen im Tagesbericht und auf der Übersicht
 
 Ob die Erkennung „in dieser Kette wurde bereits signiert" tatsächlich greift,
 war bisher nur im Protokoll zu sehen — und dorthin sieht im laufenden Betrieb

@@ -132,6 +132,38 @@ def test_handler_zaehlt_beide_und_nur_bei_antworten():
         "»antworten« wird ohne Prüfung auf References hochgezählt"
 
 
+def test_beide_ausgaenge_tragen_dasselbe_log_merkmal():
+    """⚠️ Sonst haengt die Nachprüfbarkeit an der Konfiguration.
+
+    Der Zweig teilt sich: Ist eine Antwort-Signatur hinterlegt, wird sie
+    gesetzt; sonst bleibt die Signatur ganz aus. Wer eine hinterlegt hat, sieht
+    die eine Logzeile nie — wer keine hat, die andere nicht.
+
+    Aufgefallen ist das erst, als der Betreiber nachfragte, ob die Kennzahl
+    auch bei gesetzter Minimalsignatur steigt: Bei ihm IST eine hinterlegt, und
+    die Zeile, nach der er hätte suchen sollen, wäre nie erschienen. Er hätte
+    einen funktionierenden Fix für tot gehalten.
+
+    Ein gemeinsames Merkmal macht `grep "SIG-KETTE"` zur vollständigen Probe.
+    """
+    quelle = (Path(__file__).resolve().parent.parent / "app" / "handler.py").read_text()
+    zweig = quelle.index("elif not suppress_html_sig and _in_kette:")
+    # Bis zum Ende des Zweigs, nicht auf gut Glück ein paar Zeichen weit: Die
+    # zweite Logzeile liegt 1.861 Zeichen hinter dem `elif`, ein Fenster von
+    # 1.800 schnitt sie ab — der Test war dadurch rot, ohne dass etwas kaputt
+    # war. Die nächste Anweisung auf gleicher Ebene begrenzt sauber.
+    ende = quelle.index("if not suppress_html_sig and not _force_sig:", zweig)
+    block = quelle[zweig:ende]
+    # ⚠️ Auf `log.info("SIG-KETTE:` prüfen, nicht auf `SIG-KETTE:` allein — das
+    # Merkmal kommt im erklärenden Kommentar daneben ebenfalls vor. Die erste
+    # Fassung zählte ihn mit und blieb deshalb grün, als das Merkmal aus einem
+    # der beiden Zweige entfernt wurde: zwei Treffer, aber nur eine Logzeile.
+    assert block.count('log.info("SIG-KETTE:') == 2, (
+        "Beide Ausgänge des Ketten-Zweigs müssen dasselbe Log-Merkmal tragen — "
+        "sonst ist die Wirkung nur bei einer der beiden Konfigurationen "
+        "nachprüfbar.")
+
+
 def test_zaehler_haengt_an_der_wirkung_nicht_am_befund():
     """⚠️ Gezählt wird, wo GEHANDELT wird — nicht, wo erkannt wird.
 
