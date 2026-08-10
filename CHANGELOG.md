@@ -5,6 +5,31 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.180 — 2026-08-10 — Antworten auf Ketten erscheinen im Tagesbericht und auf der Übersicht
+
+Ob die Erkennung „in dieser Kette wurde bereits signiert" tatsächlich greift,
+war bisher nur im Protokoll zu sehen — und dorthin sieht im laufenden Betrieb
+niemand. Die Folge ist bekannt: Dieselbe Erkennung lief zwölf Tage wirkungslos
+mit, ohne dass es auffiel.
+
+Tagesbericht und Übersicht führen deshalb zwei neue Zahlen: **Antworten auf
+Ketten** und **davon bereits signiert**.
+
+Zwei Zahlen und nicht eine, weil die zweite allein nicht zu deuten wäre. Eine
+Null kann bedeuten, dass nichts erkannt wurde, obwohl es zu erkennen gab — oder
+schlicht, dass niemand auf eine eigene Kette geantwortet hat. Erst im
+Verhältnis wird daraus eine Aussage, die sich ohne Kenntnis der Innereien
+beurteilen lässt.
+
+Anders als die übrigen Kennzahlen erscheint die Zeile **auch mit einer Null**.
+Bei den anderen ist eine Dauerzeile mit 0 nur etwas, das man überliest; hier
+ist die Null die eigentliche Meldung. Laufen viele Antworten und wird keine
+einzige erkannt, wird die Zeile zusätzlich hervorgehoben.
+
+Dieselbe Überlegung steckt bereits hinter der Zählung ungewöhnlich aufgebauter
+Belege: Eine Schutzfunktion, deren Wirken nirgends sichtbar ist, kann beliebig
+lange ausfallen.
+
 ## v1.7.179 — 2026-08-10 — Signatur stapelt sich nicht mehr in Antwortketten
 
 **Behebt einen Fehler, der seit v1.7.101 (29.07.2026) bestand.**

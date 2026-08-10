@@ -804,8 +804,18 @@ class SignatureHandler:
             # noch da ist (typisch für Mails, die die Organisation nie verlassen
             # haben). Er kann keinen Fehlalarm erzeugen — er prüft auf eine
             # Kennung, die ausschliesslich dieses Gateway setzt.
-            _in_kette = (sig_thread.kennt(sender, sig_thread.kennungen(msg))
+            _bezuege = sig_thread.kennungen(msg)
+            _in_kette = (sig_thread.kennt(sender, _bezuege)
                          or mail_processor.sender_already_in_thread(msg, {sender.lower()}))
+
+            # Beide Zahlen in den Tagesbericht und auf die Übersicht. Ohne die
+            # Bezugsgröße wäre die zweite nicht zu deuten: Eine Null kann
+            # heissen, dass nichts erkannt WURDE, obwohl es zu erkennen gab —
+            # oder dass schlicht niemand auf eine eigene Kette geantwortet hat.
+            if _bezuege:
+                stats.increment("antworten")
+                if _in_kette:
+                    stats.increment("sig_kette_erkannt")
 
             if not suppress_html_sig and mail_processor._has_own_sig_in_compose_area(msg):
                 suppress_html_sig = True

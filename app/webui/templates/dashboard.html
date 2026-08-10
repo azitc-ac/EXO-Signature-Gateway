@@ -138,6 +138,15 @@ function dismissWelcome() {
       {{ stat_row("S/MIME verschlüsselt", stats_daily.smime_encrypted, stats_3d.smime_encrypted, stats_monthly_m2.smime_encrypted, stats_monthly_m1.smime_encrypted, stats_monthly.smime_encrypted, stats_prev_yearly.smime_encrypted, stats_yearly.smime_encrypted, "smime_encrypted") }}
       {{ stat_row("S/MIME entschlüsselt", stats_daily.smime_decrypted, stats_3d.smime_decrypted, stats_monthly_m2.smime_decrypted, stats_monthly_m1.smime_decrypted, stats_monthly.smime_decrypted, stats_prev_yearly.smime_decrypted, stats_yearly.smime_decrypted, "smime_decrypted") }}
       {{ stat_row("Zertifikate gesammelt", stats_daily.certs_harvested, stats_3d.certs_harvested, stats_monthly_m2.certs_harvested, stats_monthly_m1.certs_harvested, stats_monthly.certs_harvested, stats_prev_yearly.certs_harvested, stats_yearly.certs_harvested, "") }}
+      {#- Antworten auf bestehende Ketten, und wie oft dabei erkannt wurde, dass
+          bereits signiert ist. BEIDE Zeilen: Die zweite allein waere nicht zu
+          deuten — eine Null kann "nichts erkannt, obwohl es zu erkennen gab"
+          heissen (Fehler) oder "niemand hat auf eine eigene Kette geantwortet"
+          (normal). Erst im Verhaeltnis wird daraus eine Aussage.
+          Anlass: Genau diese Erkennung lief vom 29.07. bis 10.08.2026 zwoelf
+          Tage wirkungslos mit, ohne dass es irgendwo sichtbar wurde. -#}
+      {{ stat_row("Antworten auf Ketten", stats_daily.antworten, stats_3d.antworten, stats_monthly_m2.antworten, stats_monthly_m1.antworten, stats_monthly.antworten, stats_prev_yearly.antworten, stats_yearly.antworten, "") }}
+      {{ stat_row("davon bereits signiert", stats_daily.sig_kette_erkannt, stats_3d.sig_kette_erkannt, stats_monthly_m2.sig_kette_erkannt, stats_monthly_m1.sig_kette_erkannt, stats_monthly.sig_kette_erkannt, stats_prev_yearly.sig_kette_erkannt, stats_yearly.sig_kette_erkannt, "") }}
       <tr style="border-bottom:1px solid #f0f0f0">
         <td style="padding:7px 0;font-size:13px;color:#d97706;font-weight:500">Fallback</td>
         <td style="padding:7px 10px;text-align:right;font-size:15px;font-weight:700;color:#d97706">{{ stat_cell(stats_daily.fallback, "fallback", today) }}</td>
