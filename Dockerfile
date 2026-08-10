@@ -1,8 +1,39 @@
-FROM python:3.11-slim AS base
+# Basisabbild AUF DEN DIGEST festgenagelt, nicht auf den Tag.
+#
+# `python:3.11-slim` bewegt sich: Derselbe Tag lieferte ueber die Monate
+# verschiedene Python- und Debian-Staende. Damit bekaeme ein Kunde, der in
+# einem halben Jahr baut, etwas anderes als das, was hier geprueft wurde — und
+# niemand haette das entschieden. Dieselbe Ueberlegung wie bei
+# `requirements.lock`; siehe deren Kopf fuer den Vorfall, der dazu fuehrte.
+#
+# Dies ist der INDEX-Digest (arch-uebergreifend). Ein architekturspezifischer
+# Digest wuerde den Bau auf der jeweils anderen Plattform unmoeglich machen —
+# das Gateway laeuft auf arm64 (Raspi) UND amd64 (Azure-VM).
+#
+# Stand: python 3.11.15-slim-trixie (Debian 13.6) — dieselbe Fassung, die am
+# 10.08.2026 produktiv lief.
+#
+# AKTUALISIEREN: `docker buildx imagetools inspect python:3.11-slim` liefert
+# den neuen Index-Digest. Danach bauen, testen, erst dann ausrollen.
+FROM python:3.11-slim@sha256:90744cff8f32887f075c47d747a173ff333e9e98801667af93c357fa9f5e28ff AS base
 
 WORKDIR /app
 
 # ── System packages + certbot ─────────────────────────────────────────────────
+#
+# ⚠️ BEWUSST NICHT auf Fassungen festgenagelt — der einzige verbleibende
+# bewegliche Teil des Abbilds.
+#
+# Zwei Gruende. Erstens laesst es sich nicht durchhalten: Debian entfernt alte
+# Paketfassungen aus dem Spiegel, sobald eine neue da ist; ein `=1.2.3`-Pin
+# laesst den Bau ein paar Wochen spaeter mit „Version not found" scheitern —
+# also genau dann, wenn ein Kunde installiert. Zweitens ist es hier auch nicht
+# gewollt: Diese Zeile ist der Weg, auf dem Sicherheitsaktualisierungen von
+# OpenSSL und certbot ueberhaupt ins Abbild kommen.
+#
+# Der Preis ist Ehrlichkeit wert: Zwei Baeue zu verschiedenen Zeitpunkten
+# koennen sich in diesen Paketen unterscheiden. Alles andere im Abbild
+# (Basis, Python-Pakete, PowerShell, Exchange-Modul) ist festgeschrieben.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         curl certbot libcap2-bin openssl wget ca-certificates \
         libssl-dev libicu-dev \
@@ -36,9 +67,22 @@ RUN set -eux; \
 #   CI-Matrix mit nativen amd64- + arm64-Runnern. Verifiziert 2026-07-12:
 #   amd64-Layer bis hier (Base, Pakete, pwsh-x64-Binary) bauen emuliert sauber;
 #   erst das AUSFÜHREN von pwsh kippt — reines Emulations-Artefakt, kein x64-Bug.
+#
+# FASSUNG FESTGENAGELT. Ohne `-RequiredVersion` holte `Install-Module` beim
+# Bauen, was der Katalog gerade anbietet — dieses Modul steuert aber die
+# gesamte Exchange-Verwaltung: Verteilerlisten, Transportregeln,
+# Postfachabfragen. Aendert Microsoft dort das Verhalten eines Cmdlets, traefe
+# es einen Kunden, der spaeter baut, und nicht uns beim Testen. Von allen
+# wandernden Bestandteilen war das der mit der groessten Hebelwirkung.
+#
+# 3.10.1 ist die Fassung, die am 10.08.2026 auf Raspi UND Azure-VM lief.
+#
+# AKTUALISIEREN: bewusst, danach `docker exec … pwsh -c 'Get-Module -ListAvailable
+# ExchangeOnlineManagement'` gegenpruefen und die EXO-Verbindung testen.
 RUN pwsh -NoProfile -NonInteractive -Command \
     "Set-PSRepository PSGallery -InstallationPolicy Trusted; \
-     Install-Module ExchangeOnlineManagement -Force -AllowClobber -Scope AllUsers"
+     Install-Module ExchangeOnlineManagement -RequiredVersion 3.10.1 \
+       -Force -AllowClobber -Scope AllUsers"
 
 # ── Python dependencies ───────────────────────────────────────────────────────
 #
