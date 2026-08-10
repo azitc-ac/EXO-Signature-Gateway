@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.177 — 2026-08-10 — Weboberfläche: Postfachverwaltung als eigenes Modul
+
+Innerer Umbau ohne sichtbare Änderung, fünfter Schritt der Aufteilung. Die
+sechs Adressen der Postfachverwaltung bilden nun ein eigenes Modul; die
+zentrale Datei der Oberfläche fällt damit von 5.655 auf 3.995 Zeilen.
+
+Alle Adressen bleiben unverändert erreichbar — nachgewiesen über die
+Momentaufnahme der Adresstabelle, die Prüfung auf tatsächliche Einbindung und
+den Abruf am laufenden System. Die seit dieser Fassungsreihe bestehende Prüfung
+aller Anmeldewachen greift dabei ebenfalls.
+
+Für Betreiber ändert sich nichts.
+
 ## v1.7.176 — 2026-08-10 — Jede Adresse wird auf ihre Anmeldeprüfung geprüft
 
 Beim Herauslösen der Sicherungs-Adressen in ein eigenes Modul — der vierte
