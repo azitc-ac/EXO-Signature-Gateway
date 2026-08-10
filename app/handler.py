@@ -17,6 +17,7 @@ import mail_audit
 import mail_processor
 import reinject
 import settings_store
+import sig_thread
 import signature_engine
 import stats
 
@@ -793,10 +794,23 @@ class SignatureHandler:
             # konfigurierte Minimalsignatur, oder (wenn keine gewählt) gar nichts.
             # Die ERSTE eigene Mail im Thread (auch spät per To/Cc hinzugefügt)
             # bekommt die volle Signatur. #nosig-Trigger hat Vorrang.
+            # ⚠️ Die Erkennung läuft über References/In-Reply-To, NICHT über den
+            # Nachrichtentext. Die früheren HTML-Merkmale (Kommentar, id, class)
+            # überleben das Zitieren durch fremde Programme nicht — Outlooks
+            # Word-Editor schreibt zitiertes HTML um und verwirft sie. Nachgemessen
+            # an 400 echten Mails: intern erhalten, extern in KEINEM Fall.
+            # Der Marker-Abgleich bleibt als zweites Netz daneben: Er greift,
+            # wenn ein Programm References/In-Reply-To weglässt, der Marker aber
+            # noch da ist (typisch für Mails, die die Organisation nie verlassen
+            # haben). Er kann keinen Fehlalarm erzeugen — er prüft auf eine
+            # Kennung, die ausschliesslich dieses Gateway setzt.
+            _in_kette = (sig_thread.kennt(sender, sig_thread.kennungen(msg))
+                         or mail_processor.sender_already_in_thread(msg, {sender.lower()}))
+
             if not suppress_html_sig and mail_processor._has_own_sig_in_compose_area(msg):
                 suppress_html_sig = True
                 log.info("Signatur bereits im Compose-Bereich (z.B. Add-in) — überspringe für %s", sender)
-            elif not suppress_html_sig and mail_processor.sender_already_in_thread(msg, {sender.lower()}):
+            elif not suppress_html_sig and _in_kette:
                 # Ab der 2. eigenen Mail im Thread: Antwort-Signatur statt vollem Block.
                 _min_tpl = ((_policies.get("min") or "") if _use_pol
                             else (_sender_cfg.get("min_template") or "")).strip()
@@ -806,7 +820,8 @@ class SignatureHandler:
                     log.info("Antwort-Signatur %r für Antwort von %s (bereits im Thread)", _min_tpl, sender)
                 else:
                     suppress_html_sig = True
-                    log.info("Antwort im Thread, keine Antwort-Signatur gewählt — keine Signatur für %s", sender)
+                    log.info("SKIP_SIG_IN_THREAD (References) — in dieser Kette bereits "
+                             "signiert, keine Signatur für %s", sender)
 
             if not suppress_html_sig and not _force_sig:
                 template_name = (_policies.get("sig") or "default") if _use_pol \
@@ -976,6 +991,17 @@ class SignatureHandler:
 
             _action = "smime_encrypted" if wants_encryption else ("smime_signed" if _smime_signed else "signed")
             _audit(_action)
+
+            # Diese Kennung merken, damit eine spätere Antwort in derselben
+            # Kette erkannt wird. NUR wenn wirklich eine HTML-Signatur gesetzt
+            # wurde — sonst würde eine unsignierte Mail (etwa mit #nosig) die
+            # Signatur aller folgenden Antworten unterdrücken.
+            #
+            # Bifurkierte Mehr-Empfänger-Mails laufen mehrfach durch diese
+            # Stelle, jede Fork mit derselben Message-ID; `merken` schreibt
+            # deshalb mit INSERT OR IGNORE.
+            if not suppress_html_sig:
+                sig_thread.merken(sender, (msg.get("Message-ID") or "").strip())
 
             # Schedule Sent Item cleanup once per logical email.
             # send_via_graph_mime deduplicates sendMail calls internally so only the

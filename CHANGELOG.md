@@ -5,6 +5,48 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.179 — 2026-08-10 — Signatur stapelt sich nicht mehr in Antwortketten
+
+**Behebt einen Fehler, der seit v1.7.101 (29.07.2026) bestand.**
+
+Antwortet jemand auf eine Kette, in der bereits eine Gateway-Signatur steckt,
+soll der volle Signaturblock nicht erneut angehängt werden. Diese Erkennung
+griff bei Korrespondenz nach außen nicht mehr — Empfänger sahen die Signatur
+zwei- oder dreimal untereinander.
+
+**Warum.** Die Erkennung hing an drei Merkmalen, die alle im Nachrichtentext
+saßen: einem HTML-Kommentar, einer Element-Kennung und einer CSS-Klasse.
+Outlook schreibt zitierten Text beim Antworten jedoch um und verwirft dabei
+Kommentare, Kennungen und Klassen gleichermaßen. Innerhalb einer Organisation
+bleiben die Merkmale erhalten, über die Grenze hinweg nicht — nachgemessen an
+400 echten Nachrichten: bei internen Absendern durchgängig vorhanden, bei
+keinem einzigen externen.
+
+Bis Juli trug ein zusätzlicher Abgleich der Absenderzeile im zitierten Bereich
+diese Fälle. Er wurde entfernt, weil er Fehlalarme erzeugte: Terminwerkzeuge
+verschicken Benachrichtigungen unter der Adresse des Veranstalters, sodass
+dessen Name im Zitat auftaucht, ohne dass er je geschrieben hätte. Mit dem
+Wegfall blieben nur noch die Merkmale übrig, die außerhalb nie ankommen.
+
+**Jetzt** entscheidet der Abgleich der Kopfzeilen `References` und
+`In-Reply-To` gegen die Kennungen der Nachrichten, die dieses Gateway selbst
+signiert hat. Diese Kopfzeilen halten eine Kette programmübergreifend zusammen
+und werden beim Zitieren nicht umgeschrieben. Der frühere Fehlalarm kann dabei
+nicht wieder auftreten: Verglichen wird auf Gleichheit von Kennungen, nicht auf
+Ähnlichkeit von Text — eine Terminbenachrichtigung verweist auf keine
+Nachricht, die dieses Gateway signiert hat.
+
+**Zur Speicherung.** Abgelegt wird ausschließlich eine 16 Byte lange Prüfsumme
+aus Postfach und Nachrichtenkennung. Gefragt wird nur, *ob* eine Kennung
+vorkommt — sie selbst wird nie gebraucht. Damit liegen weder Kennungen noch
+Betreffbezüge von Korrespondenz auf der Platte. Die Ablage ist nach Monaten
+geteilt; nach drei Monaten wird die älteste vollständig verworfen. Gemessen bei
+10.000 Nachrichten am Tag: rund 25 MB, Nachschlagen 0,08 ms je Nachricht.
+
+**Was zu tun ist:** nichts. Die Ablage entsteht beim ersten Versand von selbst.
+Bereits laufende Ketten werden ab der nächsten eigenen Nachricht darin erfasst —
+für sie kann die Signatur also noch einmal doppelt erscheinen.
+
 ## v1.7.178 — 2026-08-10 — Die Rolle „Signatur-Editor" kann nur noch das, wofür sie gedacht ist
 
 **Sicherheitsrelevant. Handlungsbedarf nur, wenn die Rolle vergeben ist.**
