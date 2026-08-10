@@ -31,13 +31,23 @@ KEYS = (
     # stehen: Der Lexware-Fix lief von Juli bis August 2026 wirkungslos mit,
     # weil ein Vorlagenwechsel unbemerkt blieb.
     "lexware_unbekannt",
-    # Antworten auf bestehende Ketten, und wie oft dabei erkannt wurde, dass in
-    # dieser Kette bereits signiert ist.
+    # "antworten"         — ausgehende Mails, die in einer Kette stehen
+    #                       (References/In-Reply-To vorhanden)
+    # "stapel_verhindert" — davon jene, bei denen der volle Signaturblock ein
+    #                       zweites Mal AUSGEBLIEBEN ist, weil in dieser Kette
+    #                       schon signiert war. Beide Ausgaenge zaehlen:
+    #                       Minimalsignatur oder gar keine.
+    #
+    # ⚠️ Gezaehlt wird die WIRKUNG, nicht der Befund — und zwar an der Stelle,
+    # an der gehandelt wird. Stuende der Zaehler bei der Erkennung, wuerde er
+    # auch Faelle mitnehmen, in denen vorher schon ein anderer Grund griff
+    # (#nosig, Add-in-Signatur im Verfassenbereich); den verhinderten Stapel
+    # duerfte er sich dann nicht zuschreiben.
     #
     # ⚠️ ZWEI Zaehler, nicht einer. Hier ist die NULL die Meldung — und eine
-    # einzelne Null waere nicht zu deuten: Sie kann "nichts erkannt, obwohl es
-    # zu erkennen gab" heissen (Fehler) oder "niemand hat auf eine eigene Kette
-    # geantwortet" (normal). Erst das Verhaeltnis trennt beides.
+    # einzelne Null waere nicht zu deuten: Sie kann "hat nicht gegriffen"
+    # heissen (Fehler) oder "es gab nichts zu greifen" (normal). Erst das
+    # Verhaeltnis trennt beides.
     #
     # Anlass: Genau diese Erkennung lief vom 29.07. bis 10.08.2026 wirkungslos
     # mit — zwoelf Tage, in denen Empfaenger die Signatur doppelt bekamen.
@@ -45,7 +55,7 @@ KEYS = (
     # MIME liefen; im Protokoll stand es, aber dorthin sieht im Normalbetrieb
     # niemand.
     "antworten",
-    "sig_kette_erkannt",
+    "stapel_verhindert",
 )
 _stats: dict = {k: 0 for k in KEYS}
 _snapshot: dict = {k: 0 for k in KEYS}

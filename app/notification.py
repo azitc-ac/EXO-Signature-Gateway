@@ -147,27 +147,29 @@ def _portal_footer() -> str:
     return f"Sicher zugestellt für {name}" if name else "Sichere Zustellung"
 
 
-def _ketten_text(antworten: int, erkannt: int) -> str:
-    """„127, davon 18 bereits signiert" — beide Zahlen in einer Zeile.
+def _ketten_text(antworten: int, verhindert: int) -> str:
+    """„127, davon 18 Signatur-Stapel verhindert" — beide Zahlen in einer Zeile.
 
-    Die zweite allein ist nicht zu deuten: Eine Null kann bedeuten, dass nichts
-    erkannt WURDE, obwohl es zu erkennen gab, oder dass niemand auf eine eigene
-    Kette geantwortet hat. Erst zusammen ergeben sie eine Aussage, die ein
-    Betreiber ohne Kenntnis der Innereien beurteilen kann.
+    Die zweite allein ist nicht zu deuten: Eine Null kann „hat nicht gegriffen"
+    heissen oder „es gab nichts zu greifen". Erst zusammen ergeben sie eine
+    Aussage, die ein Betreiber ohne Kenntnis der Innereien beurteilen kann.
+
+    Benannt nach der WIRKUNG, nicht nach dem Befund: „erkannt" sagt nichts
+    darueber, ob daraufhin auch etwas unterblieben ist.
     """
     if not antworten:
         return "0"
-    return f"{antworten}, davon {erkannt} bereits signiert"
+    return f"{antworten}, davon {verhindert} Signatur-Stapel verhindert"
 
 
-def _ketten_farbe(antworten: int, erkannt: int) -> str:
+def _ketten_farbe(antworten: int, verhindert: int) -> str:
     """Orange, sobald viele Antworten laufen und KEINE einzige erkannt wurde.
 
     Die Schwelle ist bewusst grob: Bei wenigen Antworten am Tag ist eine Null
     voellig normal, bei zwanzig nicht mehr. Sie soll den Blick lenken, keine
     Diagnose stellen.
     """
-    return "#e67e22" if antworten >= 20 and erkannt == 0 else ""
+    return "#e67e22" if antworten >= 20 and verhindert == 0 else ""
 
 
 def send_daily_report(daily: dict, total: dict) -> bool:
@@ -210,9 +212,9 @@ def send_daily_report(daily: dict, total: dict) -> bool:
         # Bei der Ketten-Erkennung ist die Null die Meldung — sie bedeutet,
         # dass Signaturen womoeglich doppelt hinausgehen. Genau dieser Zustand
         # blieb vom 29.07. bis 10.08.2026 zwoelf Tage lang unbemerkt.
-        _row("Antworten auf Ketten", _ketten_text(dval("antworten"),
-                                                  dval("sig_kette_erkannt")),
-             _ketten_farbe(dval("antworten"), dval("sig_kette_erkannt"))),
+        _row("Antworten in Ketten", _ketten_text(dval("antworten"),
+                                                  dval("stapel_verhindert")),
+             _ketten_farbe(dval("antworten"), dval("stapel_verhindert"))),
     ])
 
     # ── Diesen Monat ──
@@ -225,9 +227,9 @@ def send_daily_report(daily: dict, total: dict) -> bool:
         _row("Zertifikate gesammelt",mval("certs_harvested")),
         _row("Fallbacks",  mval("fallback"), "#e67e22" if mval("fallback") else ""),
         _row("Fehler",     mval("errors"),   "#e74c3c" if mval("errors")   else ""),
-        _row("Antworten auf Ketten", _ketten_text(mval("antworten"),
-                                                  mval("sig_kette_erkannt")),
-             _ketten_farbe(mval("antworten"), mval("sig_kette_erkannt"))),
+        _row("Antworten in Ketten", _ketten_text(mval("antworten"),
+                                                  mval("stapel_verhindert")),
+             _ketten_farbe(mval("antworten"), mval("stapel_verhindert"))),
     ])
 
     # ── Gateway-Info ──

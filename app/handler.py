@@ -808,20 +808,30 @@ class SignatureHandler:
             _in_kette = (sig_thread.kennt(sender, _bezuege)
                          or mail_processor.sender_already_in_thread(msg, {sender.lower()}))
 
-            # Beide Zahlen in den Tagesbericht und auf die Übersicht. Ohne die
-            # Bezugsgröße wäre die zweite nicht zu deuten: Eine Null kann
-            # heissen, dass nichts erkannt WURDE, obwohl es zu erkennen gab —
-            # oder dass schlicht niemand auf eine eigene Kette geantwortet hat.
+            # Bezugsgröße für die Kennzahl: ausgehende Mails, die überhaupt in
+            # einer Kette stehen. Ohne sie wäre die Wirkungszahl unten nicht zu
+            # deuten — eine Null hiesse dann entweder "hat nicht gegriffen"
+            # oder "es gab nichts zu greifen".
             if _bezuege:
                 stats.increment("antworten")
-                if _in_kette:
-                    stats.increment("sig_kette_erkannt")
 
             if not suppress_html_sig and mail_processor._has_own_sig_in_compose_area(msg):
                 suppress_html_sig = True
                 log.info("Signatur bereits im Compose-Bereich (z.B. Add-in) — überspringe für %s", sender)
             elif not suppress_html_sig and _in_kette:
                 # Ab der 2. eigenen Mail im Thread: Antwort-Signatur statt vollem Block.
+                #
+                # ⚠️ HIER wird gezählt, nicht oben bei der Erkennung: Gemessen
+                # werden soll die WIRKUNG, nicht der Befund. Steht die Mail zwar
+                # in einer bekannten Kette, greift aber vorher schon ein anderer
+                # Grund (#nosig, Signatur des Add-ins im Verfassenbereich), dann
+                # ist der doppelte Block nicht hier verhindert worden — die Zahl
+                # dürfte ihn sich dann auch nicht zuschreiben.
+                #
+                # Beide Ausgänge unten zählen: Minimalsignatur ODER gar keine —
+                # in beiden Fällen bleibt der volle Block ein zweites Mal aus,
+                # und genau das ist gemeint.
+                stats.increment("stapel_verhindert")
                 _min_tpl = ((_policies.get("min") or "") if _use_pol
                             else (_sender_cfg.get("min_template") or "")).strip()
                 if _min_tpl:
