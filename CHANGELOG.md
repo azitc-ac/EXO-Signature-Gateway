@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.183 — 2026-08-11 — Weboberfläche: Einstellungen als eigenes Modul
+
+Innerer Umbau ohne sichtbare Änderung, sechster Schritt der Aufteilung. Die
+vierzehn Adressen der Einstellungen bilden nun ein eigenes Modul; die zentrale
+Datei der Oberfläche fällt damit von 5.655 auf 3.843 Zeilen.
+
+Alle Adressen bleiben unverändert erreichbar — nachgewiesen über die
+Momentaufnahme der Adresstabelle, die Prüfung auf tatsächliche Einbindung, die
+Prüfung aller Anmeldewachen und den Abruf am laufenden System, jede Seite
+zusätzlich anhand eines ihr eigenen Merkmals im Seiteninhalt.
+
+Für Betreiber ändert sich nichts.
+
 ## v1.7.182 — 2026-08-10 — Ketten-Erkennung ist unabhängig von der Konfiguration nachprüfbar
 
 Greift die Erkennung „in dieser Kette wurde bereits signiert", gibt es zwei
