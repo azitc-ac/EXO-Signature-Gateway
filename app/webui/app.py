@@ -76,6 +76,7 @@ from webui.routen import addin as _routen_addin              # noqa: E402
 from webui.routen import backup as _routen_backup            # noqa: E402
 from webui.routen import mailboxes as _routen_mailboxes      # noqa: E402
 from webui.routen import portal as _routen_portal            # noqa: E402
+from webui.routen import settings as _routen_settings        # noqa: E402
 from webui.routen import smime as _routen_smime              # noqa: E402
 
 # EINE Quelle: hieraus werden die Router eingebunden, und `tests/test_routes.py`
@@ -88,7 +89,7 @@ from webui.routen import smime as _routen_smime              # noqa: E402
 # mit jedem weiteren Modul stillschweigend an Abdeckung, also genau das Netz,
 # das diesen Umbau ueberhaupt verantwortbar macht.
 ROUTENMODULE = [_routen_addin, _routen_backup, _routen_mailboxes,
-                _routen_portal, _routen_smime]
+                _routen_portal, _routen_settings, _routen_smime]
 
 for _modul in ROUTENMODULE:
     app.include_router(_modul.router)
@@ -1879,41 +1880,6 @@ def _addin_url_warning(base_url: str) -> str:
     return ""
 
 
-@app.get("/api/settings/template-policies")
-async def api_get_template_policies(_=Depends(_check_auth)):
-    return JSONResponse(settings_store.get("TEMPLATE_POLICIES") or {"sig": "default"})
-
-
-@app.get("/api/settings/internal-groups")
-async def api_get_internal_groups(_=Depends(_require_admin)):
-    return JSONResponse(settings_store.get("INTERNAL_GROUPS") or {})
-
-
-@app.post("/api/settings/internal-groups/save")
-async def api_save_internal_groups(request: Request, _=Depends(_require_admin)):
-    data = await request.json()
-    groups = data.get("groups")
-    if not isinstance(groups, dict):
-        raise HTTPException(400, "groups must be a dict")
-    settings_store.update({"INTERNAL_GROUPS": groups})
-    return JSONResponse({"ok": True})
-
-
-@app.get("/api/settings/custom-policies")
-async def api_get_custom_policies(_=Depends(_require_admin)):
-    return JSONResponse(settings_store.get("CUSTOM_POLICIES") or [])
-
-
-@app.post("/api/settings/custom-policies/save")
-async def api_save_custom_policies(request: Request, _=Depends(_require_admin)):
-    data = await request.json()
-    policies = data.get("policies")
-    if not isinstance(policies, list):
-        raise HTTPException(400, "policies must be a list")
-    settings_store.update({"CUSTOM_POLICIES": policies})
-    return JSONResponse({"ok": True})
-
-
 # ── Wartungsmodus / Held Mails ────────────────────────────────────────────────
 
 @app.get("/api/maintenance/mails")
@@ -2034,19 +2000,6 @@ async def api_set_maintenance_mode(request: Request, _: str = Depends(_require_a
     return JSONResponse({"ok": True, "maintenance_mode": enabled})
 
 
-@app.post("/api/settings/partial")
-async def api_settings_partial(request: Request, _: str = Depends(_require_admin)):
-    """Generic single/multi-key settings update for simple admin toggles
-    (Lexware-Formatkorrektur, Logging, Let's Encrypt domain/email, …) that
-    don't warrant their own dedicated endpoint. Caller is trusted to send
-    only known setting keys — this is admin-authenticated already."""
-    body = await request.json()
-    if not isinstance(body, dict) or not body:
-        raise HTTPException(400, "Leerer oder ungültiger Request-Body")
-    settings_store.update(body)
-    return JSONResponse({"ok": True})
-
-
 @app.get("/api/smtp-acl/status")
 async def api_smtp_acl_status(_: str = Depends(_require_admin)):
     """State of the SMTP source-IP allowlist for the Erweitert-Tab panel."""
@@ -2075,125 +2028,10 @@ async def api_smtp_acl_refresh(_: str = Depends(_require_admin)):
     return JSONResponse({"ok": True, "range_count": n})
 
 
-@app.post("/api/settings/sender-mailboxes/refresh")
-async def api_refresh_sender_mailboxes(user: str = Depends(_require_admin)):
-    import asyncio
-    import exo_mailboxes
-    try:
-        await asyncio.to_thread(exo_mailboxes.list_mailboxes, True)  # force refresh
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
-    return JSONResponse({"ok": True, "mailboxes": exo_mailboxes.as_sender_list()})
-
-
-@app.post("/api/settings/notification-mailbox/create-shared")
-async def api_create_notification_shared_mailbox(user: str = Depends(_require_admin)):
-    import asyncio
-    import setup_wizard
-    import exo_mailboxes
-    result = await asyncio.to_thread(setup_wizard.run_create_notification_mailbox)
-    if not result.get("ok"):
-        raise HTTPException(500, result.get("output") or "Anlage fehlgeschlagen")
-    try:
-        await asyncio.to_thread(exo_mailboxes.list_mailboxes, True)
-    except Exception:
-        pass
-    return JSONResponse({"ok": True, "email": result.get("email", ""), "mailboxes": exo_mailboxes.as_sender_list()})
-
-
-@app.get("/settings", response_class=HTMLResponse)
-async def settings_page(request: Request, user: str = Depends(_require_admin)):
-    import asyncio
-    import exo_mailboxes
-    try:
-        await asyncio.to_thread(exo_mailboxes.list_mailboxes)
-        sender_mailboxes = exo_mailboxes.as_sender_list()
-    except Exception:
-        sender_mailboxes = []
-    return templates.TemplateResponse(
-        request=request, name="settings.html",
-        context={
-            "s": settings_store.public_view(),
-            "active": "settings",
-            "saved": request.query_params.get("saved"),
-            "gateway_name": _gateway_name(),
-            "sender_mailboxes": sender_mailboxes,
-        },
-    )
-
-
-@app.get("/settings/signature", response_class=HTMLResponse)
-async def settings_signature_page(request: Request, user: str = Depends(_require_admin)):
-    import asyncio
-    import exo_mailboxes
-    try:
-        await asyncio.to_thread(exo_mailboxes.list_mailboxes)
-        sender_mailboxes = exo_mailboxes.as_sender_list()
-    except Exception:
-        sender_mailboxes = []
-    return templates.TemplateResponse(
-        request=request, name="settings_signature.html",
-        context={
-            "s": settings_store.public_view(),
-            "active": "settings-signature",
-            "saved": request.query_params.get("saved"),
-            "gateway_name": _gateway_name(),
-            "sender_mailboxes": sender_mailboxes,
-            "custom_var_entra_fields": graph_client.CUSTOM_VAR_ENTRA_FIELDS,
-        },
-    )
-
-
-@app.get("/settings/smime", response_class=HTMLResponse)
-async def settings_smime_page(request: Request, user: str = Depends(_require_admin)):
-    return templates.TemplateResponse(
-        request=request, name="settings_smime.html",
-        context={
-            "s": settings_store.public_view(),
-            "active": "settings-smime",
-            "saved": request.query_params.get("saved"),
-            "gateway_name": _gateway_name(),
-        },
-    )
-
-
-@app.get("/settings/connect", response_class=HTMLResponse)
-async def settings_connect_page(request: Request, user: str = Depends(_require_admin)):
-    import hub_client
-    return templates.TemplateResponse(
-        request=request, name="settings_connect.html",
-        context={
-            "s": settings_store.public_view(),
-            "active": "settings-connect",
-            "gateway_name": _gateway_name(),
-            "hub_registered": hub_client.is_registered(),
-            "hub_cert_registered": hub_client.cert_is_registered(),
-        },
-    )
-
-
-@app.get("/settings/update")
-async def settings_update_redirect(user: str = Depends(_require_admin)):
-    # Update-Tab wurde mit Backup zusammengelegt
-    return RedirectResponse("/backup", status_code=308)
-
-
 @app.get("/outlook-addin")
 async def outlook_addin_page_redirect(user: str = Depends(_require_admin)):
     # Outlook Add-in ist jetzt Teil von Einrichtung (eigener wizard-step)
     return RedirectResponse("/setup#step-addin", status_code=308)
-
-
-@app.post("/settings")
-async def settings_save(request: Request, user: str = Depends(_require_admin)):
-    try:
-        data = await request.json()
-    except Exception:
-        raise HTTPException(400, "Ungültige JSON-Daten")
-    clean = {k: v for k, v in data.items() if k in settings_store.DEFAULTS}
-    settings_store.update(clean)
-    log.info("Settings updated by %s: %s", user, list(clean.keys()))
-    return JSONResponse({"ok": True})
 
 
 @app.post("/api/test-mail")
