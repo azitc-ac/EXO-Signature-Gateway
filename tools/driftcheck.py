@@ -303,6 +303,29 @@ def check_secret_writes(rep: Report, roots: list[tuple[str, Path]]) -> None:
         rep.note(f"{ok} Geheimnis-Schreibvorgänge, alle über secure_io")
 
 
+def webui_quellen() -> list[Path]:
+    """Alle Quelldateien der Gateway-Oberfläche — `app.py` UND die Routenmodule.
+
+    ⚠️ JEDE textbasierte Prüfung der Oberfläche muss hierüber laufen, niemals
+    über einen fest verdrahteten Pfad auf `app/webui/app.py`.
+
+    Grund: `app.py` wird seit dem 09.08.2026 in Routenmodule aufgeteilt
+    (5.655 → 3.843 Zeilen, sechs von acht Gruppen ausgelagert). Jede Gruppe,
+    die herauswandert, entzieht sich einer Prüfung, die nur die eine Datei
+    ansieht — und zwar lautlos: Die Prüfung bleibt grün, sie sieht nur nichts
+    mehr. Genau so verlor die Geheimnis-Prüfung unten ihre Wirkung, als die
+    Einstellungen nach `routen/settings.py` zogen.
+
+    Tests haben dieses Problem nicht, solange sie `webui.app` IMPORTIEREN — die
+    App-Instanz kennt die eingebundenen Router. Es trifft nur die Prüfungen,
+    die Quelltext lesen.
+    """
+    basis = GATEWAY / "app/webui"
+    dateien = [basis / "app.py", basis / "deps.py", basis / "hilfen.py"]
+    dateien += sorted((basis / "routen").glob("*.py"))
+    return [f for f in dateien if f.is_file()]
+
+
 # ── 6. Gateway: Geheimnisse in Vorlagen ──────────────────────────────────────
 # Der Gateway reicht settings_store.get_all() UNMASKIERT an die Vorlagen. Heute
 # rendert keine ein Geheimnis (geprüft), aber ein einziges {{ s.CLIENT_SECRET }}
@@ -331,11 +354,21 @@ def check_gateway_template_secrets(rep: Report) -> None:
                 rep.fail(f"Gateway/{f.name}: gibt Geheimnis s.{k} im HTML aus")
                 leaks += 1
     # Zusatzprüfung: reichen die Vorlagen-Kontexte den Klartext durch?
-    appy = (GATEWAY / "app/webui/app.py")
-    if appy.is_file():
-        for i, line in enumerate(appy.read_text().splitlines(), 1):
-            if '"s": settings_store.get_all()' in line:
-                rep.fail(f"Gateway/app/webui/app.py:{i}: reicht Klartext-Einstellungen "
+    #
+    # ⚠️ ÜBER ALLE Oberflächen-Quellen, nicht nur app.py. Diese Prüfung sah
+    # früher ausschliesslich `app/webui/app.py` an. Mit dem Herauslösen der
+    # Routenmodule wanderten die Vorlagen-Kontexte nach `webui/routen/*.py` —
+    # und die Prüfung wurde still blind: Am 11.08.2026 liess sich in
+    # `routen/settings.py` `public_view()` durch `get_all()` ersetzen, ohne
+    # dass driftcheck ODER einer der 546 Tests etwas meldete.
+    #
+    # Deshalb ein Glob statt eines festen Pfads: Jede künftige Gruppe, die aus
+    # app.py herauswandert, ist damit automatisch erfasst.
+    for f in webui_quellen():
+        for i, line in enumerate(f.read_text(errors="replace").splitlines(), 1):
+            if "settings_store.get_all()" in line and '"s"' in line:
+                rel = f.relative_to(GATEWAY)
+                rep.fail(f"Gateway/{rel}:{i}: reicht Klartext-Einstellungen "
                          f"an eine Vorlage → settings_store.public_view() verwenden")
                 leaks += 1
     if not leaks:

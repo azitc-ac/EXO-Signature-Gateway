@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.184 — 2026-08-11 — Prüfung auf ausgeplauderte Geheimnisse war blind geworden
+
+Eine Prüfung stellt sicher, dass die Einstellungen nur **maskiert** an die
+Oberfläche gegeben werden — sonst stünden Zugangsdaten im HTML-Quelltext der
+Einstellungsseite. Sie sah dafür in genau eine Datei.
+
+Mit der laufenden Aufteilung dieser Datei in kleinere Module wanderten die
+betroffenen Stellen heraus, und die Prüfung verlor lautlos ihre Wirkung: Sie
+blieb grün, sah aber nichts mehr. Nachgestellt am 11.08.2026 — die Maskierung
+liess sich entfernen, ohne dass die Prüfung oder eine der 546 automatischen
+Prüfungen etwas meldete.
+
+**Betroffen war nur die Prüfung, nicht das Produkt.** Die Maskierung selbst war
+und ist an allen Stellen aktiv; es wurden zu keiner Zeit Zugangsdaten
+ausgegeben. Handlungsbedarf besteht nicht.
+
+Die Prüfung sieht jetzt in **alle** Quellen der Oberfläche statt in eine feste
+Datei. Jede weitere Gruppe, die im Zuge der Aufteilung herauswandert, ist damit
+automatisch mit erfasst.
+
 ## v1.7.183 — 2026-08-11 — Weboberfläche: Einstellungen als eigenes Modul
 
 Innerer Umbau ohne sichtbare Änderung, sechster Schritt der Aufteilung. Die
