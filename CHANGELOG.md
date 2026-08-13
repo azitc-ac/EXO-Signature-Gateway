@@ -5,6 +5,32 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.188 — 2026-08-13 — Weboberfläche: Einrichtungsassistent als eigenes Modul
+
+Innerer Umbau ohne sichtbare Änderung, siebter Schritt der Aufteilung. Die
+33 Adressen des Einrichtungsassistenten — Assistentenseite, Azure-Anbindung,
+Exchange-Connector, Schlüsseltresor und App-Pool — bilden nun ein eigenes
+Modul; die zentrale Datei der Oberfläche fällt damit von 3.843 auf 3.198
+Zeilen.
+
+Zwei Hilfsfunktionen liegen dabei neu bei den geteilten Helfern statt in der
+zentralen Datei: die Bildung der Rückadresse für die Anmeldung und die
+Erkennung eines noch gesetzten Platzhalterkennworts. Beide werden vom
+Assistenten und von den Anmelde- bzw. Übersichtsseiten gebraucht. Wären sie
+mitgewandert, hätte die zentrale Datei sie aus einem Routenmodul zurückholen
+müssen — das läuft zwar, kehrt aber die Abhängigkeitsrichtung um, die den
+Umbau überhaupt beherrschbar macht.
+
+Alle Adressen bleiben unverändert erreichbar — nachgewiesen über die
+Momentaufnahme der Adresstabelle, die Prüfung auf tatsächliche Einbindung, die
+Prüfung aller Anmeldewachen und den Abruf jeder einzelnen Adresse am laufenden
+System. Für die Adressen, die dabei eine PowerShell-Sitzung zu Exchange
+aufbauen und deshalb nicht in Sekunden antworten, wurde die Existenz
+stattdessen ohne Ausführung des Endpunkts nachgewiesen, mit Gegenprobe gegen
+erfundene Adressen.
+
+Für Betreiber ändert sich nichts.
+
 ## v1.7.187 — 2026-08-13 — Abgelaufene Empfängerzertifikate werden nicht mehr zum Verschlüsseln benutzt
 
 **Sicherheitsrelevant.**
