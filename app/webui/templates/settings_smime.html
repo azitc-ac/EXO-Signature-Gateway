@@ -184,8 +184,8 @@
     <div class="settings-control">
       <input type="text" id="portal-brand-name" value="{{ s.PORTAL_BRAND_NAME or '' }}"
         placeholder="z.B. Max Mustermann IT-Beratung" style="width:320px">
-      <span class="hint">Firmierung oder Name (auch Freiberufler) — erscheint in den Mails an
-        Portal-Empfänger und im Portal-Kopf, damit der Empfänger erkennt, von wem die Nachricht stammt.</span>
+      <span class="hint">Erscheint in den Mails an Portal-Empfänger und im Portal-Kopf,
+        damit der Empfänger erkennt, von wem die Nachricht stammt.</span>
     </div>
   </div>
   <div class="settings-row" style="margin-top:10px">
@@ -204,9 +204,15 @@
           style="display:none" onclick="removePortalLogo()">Entfernen</button>
         <span id="portal-logo-result" style="font-size:12px"></span>
       </div>
+      {# „Sofort wirksam — Speichern-Button nicht nötig" stand hier bis v1.7.186
+         und las sich wie eine Aussage über die ganze Karte: Der Knopf darunter
+         gilt sehr wohl für Firmenname und Aufbewahrungsdauer. Nur das Logo
+         speichert beim Hochladen selbst (eigener Endpunkt). Deshalb jetzt am
+         Logo festgemacht statt als allgemeine Ansage. #}
       <span class="hint">PNG, JPEG oder GIF, max. 512&nbsp;KB. Wird in den Benachrichtigungs- und
         Zugangscode-Mails sowie im Portal-Kopf angezeigt. Das Logo ist öffentlich unter
-        <code>/portal/logo</code> abrufbar. Sofort wirksam — Speichern-Button nicht nötig.</span>
+        <code>/portal/logo</code> abrufbar. Hochladen und Entfernen wirken sofort — der
+        Speichern-Knopf unten gilt für die übrigen Felder.</span>
     </div>
   </div>
   </div>
