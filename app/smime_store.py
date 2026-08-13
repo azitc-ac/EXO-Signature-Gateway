@@ -79,6 +79,56 @@ def _get_expiry(cert) -> datetime:
         return cert.not_valid_after.replace(tzinfo=timezone.utc)
 
 
+def zeitlich_gueltig(cert_path, jetzt: datetime | None = None) -> tuple[bool, str]:
+    """Ist das Zertifikat unter *cert_path* JETZT zeitlich gültig?
+
+    Liefert `(True, "")` oder `(False, Grund)`. Der Grund nennt das Datum — er
+    landet im Protokoll, und dort sucht man sonst erst danach.
+
+    WARUM DAS BEIM VERSCHLÜSSELN GEPRÜFT WERDEN MUSS
+    ------------------------------------------------
+    Empfängerzertifikate kommen zum Teil automatisch in den Bestand:
+    `smime_harvest` zieht sie aus eingehenden signierten Mails. Was einmal
+    eingesammelt war, blieb bis v1.7.187 ungeprüft in Gebrauch — die
+    Ablaufdaten wurden zwar berechnet (`_cert_info`), aber nur für die Anzeige
+    und die Warnung im Tagesbericht. Der Verschlüsselungspfad sah nie hin und
+    verschlüsselte an abgelaufene Zertifikate.
+
+    ⚠️ FAIL CLOSED: Ein Zertifikat, das sich nicht lesen lässt, gilt als
+    ungültig. Verschlüsseln heisst, dem Inhaber des zugehörigen Schlüssels zu
+    vertrauen; wer die Datei nicht einmal lesen kann, weiss nicht, wem.
+
+    NICHT geprüft wird der WIDERRUF (CRL/OCSP) — das ist der nächste Schritt.
+
+    Für ihn ist die schwierige Frage bereits entschieden: Ist das Trustcenter
+    nicht erreichbar, wird das Zertifikat wie ein ungültiges behandelt und die
+    Nachricht geht über das Portal hinaus. Das ist die dritte Möglichkeit
+    neben den beiden schlechten — hart abweisen würde den Versand bei einer
+    fremden Störung anhalten, durchwinken machte die Prüfung wertlos. Weil
+    dieses Gateway einen sicheren Ersatzweg hat, kostet Vorsicht hier nichts
+    ausser dem Verschlüsselungsverfahren; die Nachricht kommt trotzdem an.
+
+    Die zeitliche Prüfung braucht dagegen kein Netz und kann nicht ausfallen.
+    """
+    jetzt = jetzt or datetime.now(timezone.utc)
+    try:
+        cert = x509.load_pem_x509_certificate(Path(cert_path).read_bytes())
+    except Exception as exc:
+        return False, f"nicht lesbar ({exc.__class__.__name__})"
+
+    try:
+        ab = cert.not_valid_before_utc
+    except AttributeError:
+        ab = cert.not_valid_before.replace(tzinfo=timezone.utc)
+    bis = _get_expiry(cert)
+
+    if jetzt < ab:
+        return False, f"noch nicht gültig (ab {ab:%d.%m.%Y})"
+    if jetzt > bis:
+        return False, f"abgelaufen am {bis:%d.%m.%Y}"
+    return True, ""
+
+
 def _friendly_subject(cert: x509.Certificate) -> str:
     from cryptography.x509.oid import NameOID
     for oid in (NameOID.COMMON_NAME, NameOID.EMAIL_ADDRESS):

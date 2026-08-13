@@ -56,6 +56,12 @@ KEYS = (
     # niemand.
     "antworten",
     "stapel_verhindert",
+    # Empfaengerzertifikate, die beim Verschluesseln abgelehnt wurden (abgelaufen,
+    # noch nicht gueltig oder unlesbar). Die Nachricht geht dann ueber das Portal
+    # bzw. per Unzustellbarkeitsmeldung hinaus — sie faellt also nicht aus, aber
+    # der Betreiber muss es merken: Ein abgelaufenes Partnerzertifikat gehoert
+    # erneuert, sonst laeuft dauerhaft der Ersatzweg.
+    "cert_ungueltig",
 )
 _stats: dict = {k: 0 for k in KEYS}
 _snapshot: dict = {k: 0 for k in KEYS}
