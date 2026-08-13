@@ -1519,7 +1519,7 @@ async def dashboard(request: Request, user: str = Depends(_check_auth)):
     import stats as _stats_mod2
     pw_change = _password_change_required()
     total = get_stats()
-    daily = _stats_mod2.get_daily()
+    daily = _stats_mod2.get_today()
     now = _dt.now()
     monthly = _stats_mod2.get_period(now.year, now.month)
     yearly  = _stats_mod2.get_period(now.year)

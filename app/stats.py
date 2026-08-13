@@ -117,10 +117,25 @@ def get() -> dict:
     return d
 
 
-def get_daily() -> dict:
-    """Stats since last daily snapshot."""
-    with _lock:
-        return {k: max(0, _stats[k] - _snapshot.get(k, 0)) for k in KEYS}
+def get_today() -> dict:
+    """Die Zahlen des heutigen Kalendertages.
+
+    ⚠️ HIESS BIS v1.7.185 `get_daily()` UND RECHNETE `_stats - _snapshot`.
+    Das war etwas anderes, als der Name auf der Übersicht verspricht: Der
+    Schnappschuss wird ausschliesslich von `take_daily_snapshot()` gesetzt, und
+    das ruft nur der Tagesbericht — `scheduler.py` fuehrt ihn hinter
+    `DAILY_REPORT_ENABLED and NOTIFICATION_MAILBOX`.
+
+    Wer den Tagesbericht also nicht eingeschaltet oder keine Empfaengeradresse
+    hinterlegt hat, bekam unter „Heute" ALLES SEIT DER INSTALLATION. Auf dem
+    Entwicklungsgeraet standen am 13.08.2026 unter „Heute" 369 Fehler, die
+    saemtlich aus dem Juli stammten — waehrend „3 Tage" und der laufende Monat
+    korrekt 0 zeigten. Aufgefallen ist es erst, als jemand die Seite ansah.
+
+    Die Tagesdatei ist die verlaessliche Quelle: `increment()` schreibt sie bei
+    JEDEM Ereignis mit, unabhaengig von Berichten und Einstellungen.
+    """
+    return get_last_n_days(1)
 
 
 def get_last_n_days(n: int) -> dict:
