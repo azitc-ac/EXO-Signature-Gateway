@@ -60,6 +60,53 @@ def _cert_expiry() -> str:
         return f"Fehler: {exc}"
 
 
+# Platzhalter-Kennwörter, die als unsicher gelten und einen Wechsel erzwingen:
+#   "admin"    = Vorgabe im Quelltext (config.py)
+#   "changeme" = Platzhalter aus azure-vm-setup.ps1 cloud-init (.env)
+# Beide MÜSSEN hier stehen, sonst meldet der Einrichtungsassistent Schritt 1
+# (Kennwort ändern) fälschlich als erledigt, solange noch der Platzhalter aus
+# der Auslieferung aktiv ist.
+_DEFAULT_PASSWORDS = {"admin", "changeme", ""}
+
+
+def _password_change_required() -> bool:
+    """True, solange noch ein Vorgabe-/Platzhalterkennwort gilt.
+
+    Gebraucht vom Einrichtungsassistenten (Schritt 1) und von der
+    Übersichtsseite in `app.py`, die denselben Hinweis als Banner zeigt.
+    """
+    stored_hash = settings_store.get("ADMIN_PASSWORD_HASH") or ""
+    if stored_hash:
+        return False  # wurde geändert
+    # Rückfall auf die Umgebungsvariable — Wechsel verlangen, wenn Platzhalter
+    return config.WEBUI_PASSWORD in _DEFAULT_PASSWORDS
+
+
+def _build_redirect_uri(sso: bool = False) -> str:
+    """Rückadresse für den Anmeldeablauf.
+
+    SSO: ADDIN_BASE_URL (kanonische Außenadresse, ohne Port) hat Vorrang vor
+    PUBLIC_HOSTNAME. Einrichtung: immer localhost — native/Desktop-Apps dürfen
+    in jedem Tenant HTTP auf localhost verwenden. Der Browser landet danach auf
+    localhost (Verbindung scheitert), der Betreiber kopiert die Adresse aus der
+    Adressleiste in den Assistenten.
+
+    Gebraucht vom Einrichtungsmodul und von den Anmelderouten in `app.py`.
+    """
+    if sso:
+        external = (settings_store.get("ADDIN_BASE_URL") or "").rstrip("/")
+        if external:
+            return f"{external}/auth/callback"
+        hostname = settings_store.get("PUBLIC_HOSTNAME") or ""
+        if hostname:
+            # Öffentlich wird HTTPS auf 443 ausgeliefert (Docker mappt 443:WEBUI_PORT).
+            # WEBUI_PORT ist NUR der interne Bind-Port und darf NICHT in die öffentliche
+            # Redirect-URI gelangen — sonst sendet der Wizard https://host:8080/... und es
+            # gibt AADSTS50011. Für nicht-Standard-Außenports ADDIN_BASE_URL setzen.
+            return f"https://{hostname}/auth/callback"
+    return f"http://localhost:{config.WEBUI_PORT}/auth/callback"
+
+
 def _addin_base_url(request: Request) -> str:
     """Öffentliche Basis-Adresse für das Add-in-Manifest.
 
