@@ -165,11 +165,11 @@ def test_unbekannte_form_wird_gezaehlt():
     erscheint der Fall im Tagesbericht beim Betreiber.
     """
     import stats
-    vorher = stats.get_daily().get("lexware_unbekannt", 0)
+    vorher = stats.get_today().get("lexware_unbekannt", 0)
     roh = (f'<html><body><div style="text-align:center">'
            f'{MARKER}Inhalt</td></div></body></html>')
     mp._fix_lexware_centering(roh)
-    assert stats.get_daily().get("lexware_unbekannt", 0) == vorher + 1, (
+    assert stats.get_today().get("lexware_unbekannt", 0) == vorher + 1, (
         "unbekannte Zentrierung wurde nicht gezählt — sie bliebe im "
         "Tagesbericht unsichtbar")
 
@@ -178,10 +178,10 @@ def test_bekannte_form_zaehlt_nicht():
     """Sonst stünde die Zahl bei jeder Rechnung im Bericht und würde
     bedeutungslos."""
     import stats
-    vorher = stats.get_daily().get("lexware_unbekannt", 0)
+    vorher = stats.get_today().get("lexware_unbekannt", 0)
     roh = f'<html><body><table align="center"><tr>{MARKER}x</td></tr></table></body></html>'
     mp._fix_lexware_centering(roh)
-    assert stats.get_daily().get("lexware_unbekannt", 0) == vorher
+    assert stats.get_today().get("lexware_unbekannt", 0) == vorher
 
 
 def test_tagesbericht_zeigt_die_zeile_nur_bei_bedarf():
@@ -254,14 +254,14 @@ def test_unbekannt_grosse_zeilenhoehe_wird_gemeldet(caplog):
     """Wenn eine Form durchrutscht, muss sie im Tagesbericht landen."""
     import logging
     import stats
-    vorher = stats.get_daily().get("lexware_unbekannt", 0)
+    vorher = stats.get_today().get("lexware_unbekannt", 0)
     # Eine Schreibweise, die der Ersetzer nicht trifft (Dezimalfaktor statt %).
     roh = (f'<html><style>p{{line-height : 180 %}}</style>'
            f'<body>{MARKER}x</td></body></html>')
     with caplog.at_level(logging.WARNING):
         neu = mp._fix_lexware_zeilenhoehe(roh)
     if "line-height : 180 %" in neu:          # nicht ersetzt -> muss melden
-        assert stats.get_daily().get("lexware_unbekannt", 0) > vorher
+        assert stats.get_today().get("lexware_unbekannt", 0) > vorher
 
 
 def test_ganze_kette_senkt_die_zeilenhoehe(monkeypatch):

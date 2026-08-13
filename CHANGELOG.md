@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.185 — 2026-08-13 — Die Spalte "Heute" auf der Übersicht zeigt wirklich heute
+
+Die Übersicht führt ihre Zahlen für Heute, drei Tage, Monate und Jahre. Die
+Spalte "Heute" wurde jedoch nicht aus dem Tagesbestand berechnet, sondern als
+Differenz zum letzten Tagesbericht — und dieser Bezugspunkt entsteht nur, wenn
+der Tagesbericht eingeschaltet und eine Empfängeradresse hinterlegt ist.
+
+Wo das nicht der Fall ist, wurde der Bezugspunkt nie gesetzt: Unter "Heute"
+stand dann alles seit der Installation. Beobachtet mit 369 Fehlern unter
+"Heute", die sämtlich aus dem Vormonat stammten, während "3 Tage" und der
+laufende Monat korrekt 0 zeigten.
+
+Die Spalte kommt jetzt aus der Tagesstatistik, die bei jedem Ereignis
+mitgeschrieben wird — unabhängig von Berichten und Einstellungen. Der
+Tagesbericht selbst rechnet unverändert weiter.
+
+**Was zu tun ist:** nichts. Die gespeicherten Zahlen waren immer richtig, nur
+ihre Darstellung in einer Spalte war es nicht. Wer den Tagesbericht nutzt, sah
+ohnehin korrekte Werte.
+
 ## v1.7.184 — 2026-08-11 — Prüfung auf ausgeplauderte Geheimnisse war blind geworden
 
 Eine Prüfung stellt sicher, dass die Einstellungen nur **maskiert** an die
