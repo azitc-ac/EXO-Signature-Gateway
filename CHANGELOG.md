@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.186 — 2026-08-13 — Widersprüchlicher Hinweis beim Firmenlogo
+
+Unter dem Firmenlogo stand „Sofort wirksam — Speichern-Button nicht nötig",
+direkt darüber lag der Speichern-Knopf der Karte. Der Hinweis war richtig,
+las sich aber wie eine Aussage über den gesamten Abschnitt: Firmenname und
+Aufbewahrungsdauer brauchen den Knopf sehr wohl, allein das Logo speichert
+beim Hochladen selbst.
+
+Der Hinweis ist jetzt am Logo festgemacht: „Hochladen und Entfernen wirken
+sofort — der Speichern-Knopf unten gilt für die übrigen Felder."
+
+Der Erklärtext beim Firmennamen wurde zudem gekürzt; das Feld ist mit
+„Firmenname" ausreichend beschrieben.
+
 ## v1.7.185 — 2026-08-13 — Die Spalte "Heute" auf der Übersicht zeigt wirklich heute
 
 Die Übersicht führt ihre Zahlen für Heute, drei Tage, Monate und Jahre. Die
