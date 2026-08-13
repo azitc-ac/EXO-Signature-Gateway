@@ -208,6 +208,8 @@ def send_daily_report(daily: dict, total: dict) -> bool:
         # wuerde ueberlesen, und genau darauf kommt es hier an.
         (_row("Belege mit unbekanntem Aufbau", dval("lexware_unbekannt"), "#e67e22")
          if dval("lexware_unbekannt") else ""),
+        (_row("Zertifikate abgelehnt (ungültig)", dval("cert_ungueltig"), "#e67e22")
+         if dval("cert_ungueltig") else ""),
         # ⚠️ Hier gilt das UMGEKEHRTE: Diese Zeile erscheint IMMER, auch mit 0.
         # Bei der Ketten-Erkennung ist die Null die Meldung — sie bedeutet,
         # dass Signaturen womoeglich doppelt hinausgehen. Genau dieser Zustand

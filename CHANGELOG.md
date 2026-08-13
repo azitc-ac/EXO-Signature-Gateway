@@ -5,6 +5,40 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.187 — 2026-08-13 — Abgelaufene Empfängerzertifikate werden nicht mehr zum Verschlüsseln benutzt
+
+**Sicherheitsrelevant.**
+
+Beim verschlüsselten Versand prüfte das Gateway bisher nur, **ob** für einen
+Empfänger ein Zertifikat vorliegt — nicht, ob es noch gültig ist. Ein
+abgelaufenes Zertifikat wurde stillschweigend weiterverwendet.
+
+Das wiegt schwerer, als es zunächst klingt: Empfängerzertifikate sammelt das
+Gateway zum Teil selbsttätig aus eingehenden signierten Nachrichten ein. Was
+einmal im Bestand war, blieb dort und wurde ungeprüft benutzt. Die Ablaufdaten
+wurden zwar berechnet und auf der S/MIME-Seite sowie im Tagesbericht angezeigt
+— der Versandweg griff nur nie darauf zu.
+
+**Jetzt** wird vor jedem verschlüsselten Versand geprüft: abgelaufen, noch
+nicht gültig, oder nicht lesbar. In allen drei Fällen wird das Zertifikat
+abgelehnt und der Empfänger wie einer ohne Zertifikat behandelt — die Nachricht
+geht also über das Nachrichtenportal hinaus, ersatzweise per
+Unzustellbarkeitsmeldung. Sie fällt nicht aus, sie nimmt nur einen anderen Weg.
+
+Ein Zertifikat, das sich nicht lesen lässt, gilt bewusst als ungültig:
+Verschlüsseln heisst, dem Inhaber des zugehörigen Schlüssels zu vertrauen — wer
+die Datei nicht lesen kann, weiss nicht, wem.
+
+Abgelehnte Zertifikate erscheinen im Tagesbericht, sobald welche auftreten. Das
+ist kein Selbstzweck: Läuft ein Partnerzertifikat ab, bleibt der Versand
+dauerhaft auf dem Ersatzweg, bis jemand ein neues hinterlegt.
+
+**Was zu tun ist:** nichts. Wer im Tagesbericht abgelehnte Zertifikate sieht,
+sollte beim betreffenden Partner ein aktuelles anfordern.
+
+Die Prüfung auf **Widerruf** (Sperrlisten/OCSP) ist damit noch nicht abgedeckt
+und folgt als eigener Schritt.
+
 ## v1.7.186 — 2026-08-13 — Widersprüchlicher Hinweis beim Firmenlogo
 
 Unter dem Firmenlogo stand „Sofort wirksam — Speichern-Button nicht nötig",

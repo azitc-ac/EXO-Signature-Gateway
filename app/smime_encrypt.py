@@ -45,10 +45,27 @@ def encrypt(message_bytes: bytes, recipients: list[str]) -> tuple[bytes | None, 
 
     for rcpt in recipients:
         path = smime_store.get_recipient_cert_path(rcpt)
-        if path:
-            cert_paths.append(path)
-        else:
+        if not path:
             missing.append(rcpt)
+            continue
+        # ⚠️ Ein vorhandenes Zertifikat ist noch kein gültiges. Bis v1.7.187
+        # genügte die blosse Anwesenheit — Empfängerzertifikate kommen zum Teil
+        # automatisch herein (smime_harvest aus signierten Eingangsmails), und
+        # was einmal im Bestand war, wurde ungeprüft weiterbenutzt. Abgelaufene
+        # wurden dadurch stillschweigend zum Verschlüsseln genommen.
+        #
+        # Ungültige zählen wie fehlende: Dafür gibt es beim Aufrufer bereits
+        # einen Weg — das Nachrichtenportal, ersatzweise eine Unzustellbarkeits-
+        # meldung. Die Nachricht geht also weiterhin hinaus, nur nicht an einen
+        # Schlüssel, dem nicht mehr zu trauen ist.
+        gueltig, grund = smime_store.zeitlich_gueltig(path)
+        if not gueltig:
+            log.warning("S/MIME: Zertifikat für %s wird NICHT benutzt — %s", rcpt, grund)
+            import stats
+            stats.increment("cert_ungueltig")
+            missing.append(rcpt)
+            continue
+        cert_paths.append(path)
 
     if missing:
         return None, missing
