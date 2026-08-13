@@ -205,6 +205,52 @@ def test_module_sind_auch_wirklich_eingebunden():
                             f"oder wird nicht included")
 
 
+def test_keine_pruefung_verdrahtet_app_py_fest():
+    """Wer den Quelltext der Oberfläche liest, muss ihn VOLLSTÄNDIG lesen.
+
+    Eine Prüfung, die `app/webui/app.py` fest anspricht, verliert lautlos ihre
+    Wirkung, sobald die geprüfte Gruppe in ein Routenmodul zieht: Sie liest
+    weiter eine Datei, in der das Gesuchte nicht mehr steht. Am 11.08.2026 ist
+    das `driftcheck` passiert (Einstellungen → `routen/settings.py`), und bei
+    den Zahlweg-Gates in `test_legal_consent.py` stand es beim Hub-Modul
+    erneut an.
+
+    Der einzige zulässige Weg ist `hilfen.webui_quelltext()` bzw.
+    `driftcheck.webui_quellen()`. Die beiden Dateien, die diesen Weg
+    BEREITSTELLEN, dürfen den Pfad naturgemäss nennen.
+    """
+    import ast as _ast
+    wurzel = Path(__file__).resolve().parent.parent
+    erlaubt = {wurzel / "tests" / "hilfen.py", wurzel / "tools" / "driftcheck.py"}
+
+    # Gesucht ist genau EINE Form: den Quelltext dieser einen Datei LESEN.
+    #
+    # Nicht gemeint ist, `app.py` überhaupt zu benennen. `test_importrichtung.py`
+    # etwa bildet `WEBUI / "app.py"`, um die Importe dieser Datei zu prüfen —
+    # die Regel „app.py entnimmt nichts aus Routenmodulen" ist auf sie gemünzt
+    # und wandert nicht mit. Ein Muster über Zeilen oder blosse Pfadliterale
+    # traf beides gleichermassen und dazu jeden Erklärtext, der die Datei nennt.
+    treffer = []
+    for datei in sorted((wurzel / "tests").glob("*.py")) + sorted((wurzel / "tools").glob("*.py")):
+        if datei in erlaubt:
+            continue
+        for knoten in _ast.walk(_ast.parse(datei.read_text(encoding="utf-8"))):
+            if not (isinstance(knoten, _ast.Call)
+                    and isinstance(knoten.func, _ast.Attribute)
+                    and knoten.func.attr in ("read_text", "read_bytes")):
+                continue
+            quelle = _ast.unparse(knoten.func.value)
+            if "app.py" in quelle and "webui" in quelle:
+                treffer.append(f"{datei.relative_to(wurzel)}:{knoten.lineno}: "
+                               f"{quelle}.{knoten.func.attr}(…)")
+
+    assert not treffer, (
+        "Diese Stellen lesen nur `app/webui/app.py` und werden blind, sobald "
+        "die geprüfte Gruppe in ein Routenmodul zieht:\n  " + "\n  ".join(treffer)
+        + "\n\nStattdessen `hilfen.webui_quelltext()` (Tests) bzw. "
+          "`driftcheck.webui_quellen()` (Prüfskripte) benutzen.")
+
+
 if __name__ == "__main__":
     if "--snapshot" in sys.argv:
         sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))

@@ -101,9 +101,10 @@ def test_heute_haengt_NICHT_am_schnappschuss(tagesdatei, monkeypatch):
 
 def test_uebersicht_benutzt_get_today():
     """Die Datenquelle der Seite, nicht nur die Funktion für sich."""
-    from pathlib import Path
-    quelle = (Path(__file__).resolve().parent.parent
-              / "app" / "webui" / "app.py").read_text()
+    # Die GESAMTE Oberflaeche, nicht nur `app.py` — sonst wird diese Pruefung
+    # still wirkungslos, sobald die Uebersichtsseite in ein Routenmodul zieht.
+    from hilfen import webui_quelltext
+    quelle = webui_quelltext()
     assert "_stats_mod2.get_today()" in quelle, \
         "Die Übersicht speist die Spalte nicht aus get_today()"
     assert "get_daily()" not in quelle, \
