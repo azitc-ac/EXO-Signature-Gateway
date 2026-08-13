@@ -20,6 +20,8 @@ import pytest
 
 import legal_consent
 
+from hilfen import endpunkt_block, webui_quelltext
+
 REPO = Path(__file__).resolve().parent.parent
 
 
@@ -221,7 +223,14 @@ def test_jeder_kontext_verweist_auf_bekannte_dokumente():
 
 
 def _app_quelltext() -> str:
-    return (REPO / "app" / "webui" / "app.py").read_text(encoding="utf-8")
+    """Die GESAMTE Oberfläche, nicht nur `app.py`.
+
+    Die Hub-Endpunkte lagen bis v1.7.189 in `app.py` und liegen jetzt in
+    `routen/hub.py`. Eine Prüfung, die weiter nur `app.py` läse, fände sie
+    nicht mehr — und meldete „Endpunkt nicht gefunden" statt „Endpunkt ohne
+    Gate". Siehe `tests/hilfen.py`.
+    """
+    return webui_quelltext()
 
 
 def test_jeder_zahlweg_ist_der_registry_bekannt():
@@ -254,10 +263,9 @@ def test_geldbewegende_endpunkte_haben_ein_gate():
     for pfad, zahlweg in (("/api/hub/billing/topup", "topup"),
                           ("/api/hub/billing/auto/setup", "auto_setup"),
                           ("/api/hub/billing/auto/amount", "auto_amount")):
-        block = re.search(re.escape(f'@app.post("{pfad}")') + r'(.*?)(?=\n@app\.|\Z)',
-                          quelltext, re.S)
+        block = endpunkt_block(quelltext, "post", pfad)
         assert block, f"Endpunkt {pfad} nicht gefunden"
-        assert f'_zahlweg_gate("{zahlweg}")' in block.group(1), (
+        assert f'_zahlweg_gate("{zahlweg}")' in block, (
             f"{pfad} bewegt Geld, ruft aber _zahlweg_gate('{zahlweg}') nicht auf")
 
 
@@ -267,9 +275,9 @@ def test_zahlwege_reichen_die_fassungen_an_den_hub():
     quelltext = _app_quelltext()
     for pfad in ("/api/hub/billing/topup", "/api/hub/billing/auto/setup",
                  "/api/hub/billing/auto/amount"):
-        block = re.search(re.escape(f'@app.post("{pfad}")') + r'(.*?)(?=\n@app\.|\Z)',
-                          quelltext, re.S)
-        assert "doc_versions=_doc_versions()" in block.group(1), (
+        block = endpunkt_block(quelltext, "post", pfad)
+        assert block, f"Endpunkt {pfad} nicht gefunden"
+        assert "doc_versions=_doc_versions()" in block, (
             f"{pfad} reicht die geltenden Fassungen nicht an den Hub durch")
 
 

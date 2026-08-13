@@ -5,6 +5,34 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.189 — 2026-08-13 — Weboberfläche: Hub-Anbindung als eigenes Modul, Prüfungen lesen wieder mit
+
+Achter und letzter Schritt der Aufteilung. Die 26 Adressen der Hub-Anbindung —
+Konto, Zertifikatsbezug, Guthaben und Zahlwege — bilden nun ein eigenes Modul;
+die zentrale Datei der Oberfläche fällt damit von 3.198 auf 2.922 Zeilen. Sie
+lag vor dieser Umbaureihe bei 5.655 Zeilen mit sämtlichen 232 Adressen.
+
+**Eine Prüfung wäre dabei beinahe blind geworden.** Die Zusage, dass
+geldbewegende Adressen ohne gültige Zustimmung nicht ausgeführt werden, wird
+nicht nur zur Laufzeit geprüft, sondern zusätzlich am Quelltext: dass jeder
+Zahlweg in der Zuordnung steht, dass keine toten Einträge darin stehen, und
+dass Aufladen und Abbuchungsauftrag ihre Prüfung wirklich aufrufen. Diese
+Prüfung las genau eine Datei — die Adressen wären ihr mit diesem Umzug
+entwischt.
+
+Solche Prüfungen lesen jetzt die Oberfläche vollständig statt einer einzelnen
+Datei, und eine weitere Prüfung schlägt fehl, sobald wieder jemand nur diese
+eine Datei liest. Der Anlass ist nicht theoretisch: Im August war bereits eine
+Prüfung auf ausgeplauderte Geheimnisse auf diesem Weg wirkungslos geworden und
+blieb dabei grün.
+
+Alle Adressen bleiben unverändert erreichbar — nachgewiesen über die
+Momentaufnahme der Adresstabelle, die Prüfung auf tatsächliche Einbindung, die
+Prüfung aller Anmeldewachen und den Abruf jeder einzelnen Adresse am laufenden
+System, mit Gegenprobe gegen erfundene Adressen.
+
+Für Betreiber ändert sich nichts.
+
 ## v1.7.188 — 2026-08-13 — Weboberfläche: Einrichtungsassistent als eigenes Modul
 
 Innerer Umbau ohne sichtbare Änderung, siebter Schritt der Aufteilung. Die
