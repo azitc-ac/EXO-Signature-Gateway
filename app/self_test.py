@@ -232,7 +232,12 @@ def test_owa_reply() -> TestResult:
 
 
 def test_ios_mail_reply() -> TestResult:
-    name = "iOS Mail Reply (blockquote)"
+    # ⚠️ Gemeint ist Apple Mail, NICHT „iOS" als Ganzes. Outlook für iOS baut
+    # etwas voellig anderes (eigenstaendiges <hr> vor `divRplyFwdMsg`, siehe
+    # `test_owa_reply`). Der frühere Name „iOS Mail Reply" verleitete zu dem
+    # Schluss, mobile Clients setzten generell keinen Trenner — Outlook für iOS
+    # setzt sehr wohl einen.
+    name = "Apple Mail Reply (blockquote type=cite)"
     html_in = (
         "<html><body>"
         "<div>Hallo,</div>"

@@ -890,6 +890,15 @@ _SIG_DIV_ATTR_E = 'id="exo-sig-e"'
 # has stripped the <!-- exo-sig-start --> comment.
 _SIG_CLASS = "exo-gateway-sig"
 
+# Trennlinie zwischen Signatur und zitiertem Text.
+#
+# Form bewusst von Outlook für iOS/OWA übernommen — die setzen exakt dieses
+# Element. Damit sieht die selbst gesetzte Linie genauso aus wie die, die andere
+# Clients mitbringen, statt als zweite Gestaltung daneben zu stehen. Outlooks
+# `tabindex="-1"` bleibt weg: Es steuert die Sprungreihenfolge im Editorfenster
+# und hat in einer versendeten Nachricht keine Bedeutung.
+_SIG_TRENNER = '<hr style="display:inline-block; width:98%">'
+
 
 def _find_first_quote_wrapper_pos(html: str) -> int | None:
     """Return the start position of the first quote-wrapper div in *html*, or None."""
@@ -1062,6 +1071,60 @@ def _insert_txt_sig(body: str, sig_txt: str) -> str:
     return before + "\n\n" + sig_txt + "\n\n" + after
 
 
+def _trennstelle(html: str, idx: int) -> tuple[int, str, str]:
+    """Wo die Signatur hinkommt und ob sie eine eigene Trennlinie braucht.
+
+    Liefert `(Einfügeposition, Trenner-HTML, Begründung)`.
+
+    Hintergrund (an echtem Verkehr gemessen, 14.08.2026): Die Einfügestelle
+    „direkt vor dem Zitat" ist richtig — aber ob dabei eine sichtbare Trennung
+    zum zitierten Text entsteht, hängt davon ab, WIE der Client seinen Strich
+    setzt:
+
+    * **Outlook Desktop** hängt ihn als `border-top` an das Zitat-Div SELBST.
+      Wer davor einfügt, schiebt den Strich mit nach unten — er trennt weiterhin
+      Signatur und Zitat. Nichts zu tun.
+    * **Outlook für iOS / OWA** setzen ein eigenständiges `<hr>` DAVOR. Wer vor
+      dem Zitat einfügt, landet dahinter: Der Strich trennt dann den eigenen
+      Text von der Signatur, und zwischen Signatur und Zitat klafft nichts.
+      Deshalb hier vor den vorhandenen Strich einfügen — das braucht kein neues
+      Element und kann keine zwei Linien erzeugen.
+    * **Apple Mail, Gmail, Thunderbird** setzen gar keinen Strich
+      (`<blockquote type="cite">`, `gmail_quote`, `moz-cite-prefix`). Nur hier
+      wird selbst einer eingefügt.
+
+    ⚠️ Die Unterscheidung ist NICHT „mobil gegen Desktop", sondern: gehört der
+    Strich zum Zitatelement oder ist er ein eigenes Element davor. Genau daran
+    ist die frühere Annahme „mobile Clients setzen keine Linie" gescheitert —
+    Outlook für iOS setzt eine, sie wurde nur überschrieben.
+    """
+    # a) Eigenständiger Strich unmittelbar davor → davor einfügen.
+    #    Dazwischen dürfen nur Leerraum, <br> und leere Divs stehen (Outlook für
+    #    iOS legt ein leeres `ms-outlook-mobile-signature`-Div an, wenn im Client
+    #    keine Signatur gesetzt ist).
+    vorher = re.search(
+        r'<hr\b[^>]*>(?:\s|<br\s*/?>|<div\b[^>]*>\s*</div>)*$',
+        html[:idx], re.IGNORECASE)
+    if vorher:
+        return vorher.start(), "", "vor vorhandenem <hr> des Clients"
+
+    # b) Strich am Zitatelement selbst (Outlook Desktop) → nichts einfügen.
+    tag_ende = html.find(">", idx)
+    tag = html[idx:tag_ende + 1] if tag_ende != -1 else html[idx:idx + 400]
+    if re.search(r'border-top\s*:\s*solid', tag, re.IGNORECASE):
+        return idx, "", "Zitatelement traegt den Strich selbst"
+
+    # b2) Der Strich steht INNEN, gleich zu Beginn des Zitatblocks (Outlook für
+    #     iOS mit `mail-editor-reference-message-container`: der Container öffnet,
+    #     darin steht sofort der <hr>). Von aussen ist er dann nicht zu sehen —
+    #     dazwischen liegen nur Öffnungs-Tags, noch kein Inhalt.
+    if re.match(r'(?:\s|<div\b[^>]*>)*<hr\b', html[idx:], re.IGNORECASE):
+        return idx, "", "Strich steht am Anfang des Zitatblocks"
+
+    # c) Kein Strich vorhanden → eigenen setzen.
+    return idx, _SIG_TRENNER, "eigene Trennlinie eingefuegt"
+
+
 def _append_html_sig(html: str, sig_html: str) -> str:
     log.info("_append_html_sig: called, html_len=%d", len(html))
     lower = html.lower()
@@ -1083,6 +1146,17 @@ def _append_html_sig(html: str, sig_html: str) -> str:
          "OWA forward wrapper"),
         (re.compile(r'<div\b[^>]*\bid=["\']divfwdmsg["\']', re.IGNORECASE),
          "OWA forward message"),
+        # Outlook für iOS/Android klammert Strich UND Zitat in einen Container:
+        #   <div id="mail-editor-reference-message-container"><hr …><div id="divRplyFwdMsg">
+        # Vor dem Container einzufügen hält die Signatur ausserhalb des zitierten
+        # Blocks und lässt den Strich dort, wo er hingehört. Ohne diesen Eintrag
+        # gewänne `divRplyFwdMsg` — mitten im Container, hinter dem Strich.
+        # ⚠️ Nicht jede Fassung der App setzt den Container (in einer Antwort vom
+        # 14.08.2026 stand nur der blosse <hr>) — deshalb fängt `_trennstelle()`
+        # den Fall zusätzlich ab.
+        (re.compile(r'<div\b[^>]*\bid=["\'](?:x_)?mail-editor-reference-message-container["\']',
+                    re.IGNORECASE),
+         "Outlook mobile reference container"),
         # Outlook Desktop reply separator:
         #   <div style="border:none;border-top:solid #E1E1E1 1.0pt;padding:3.0pt 0cm 0cm 0cm">
         # Properties can appear in any order in the style attribute — use lookaheads.
@@ -1106,13 +1180,22 @@ def _append_html_sig(html: str, sig_html: str) -> str:
         (re.compile(r'<blockquote\b', re.IGNORECASE),
          "blockquote (Apple Mail/Thunderbird/GMX)"),
     ]
-    marked_sig = (
-        _SIG_MARKER_START
-        + f'<div class="{_SIG_CLASS}">'
-        + sig_html
-        + "</div>"
-        + _SIG_MARKER_END
-    )
+    def _mit_markern(trenner: str = "") -> str:
+        """Signatur samt Markern — der Trenner steht INNERHALB.
+
+        Das ist kein Schönheitsfehler, sondern Bedingung: `_strip_client_sig_divs()`
+        entfernt bei einem weiteren Durchlauf alles zwischen den Markern. Läge die
+        Linie ausserhalb, bliebe sie stehen und bei jedem Durchlauf käme eine
+        weitere dazu.
+        """
+        return (
+            _SIG_MARKER_START
+            + f'<div class="{_SIG_CLASS}">'
+            + sig_html
+            + "</div>"
+            + trenner
+            + _SIG_MARKER_END
+        )
 
     # Find the EARLIEST match across all patterns so an inner nested separator
     # (e.g. a forward inside a reply) does not win over the real outer boundary.
@@ -1133,15 +1216,18 @@ def _append_html_sig(html: str, sig_html: str) -> str:
             )
         else:
             log.info("Signature inserted before %s at pos %d", best_label, best_idx)
-        return html[:best_idx] + marked_sig + html[best_idx:]
+        einfuege, trenner, warum = _trennstelle(html, best_idx)
+        log.info("Trennung zum Zitat: %s (Position %d)", warum, einfuege)
+        return html[:einfuege] + _mit_markern(trenner) + html[einfuege:]
 
     # No quote block found — fall back to inserting before </body>
+    # Kein Zitat = nichts, wovon zu trennen wäre; hier NIE eine Linie setzen.
     idx = lower.rfind("</body>")
     if idx != -1:
         log.info("No quote block found — signature inserted before </body> (new email or unrecognised format)")
-        return html[:idx] + marked_sig + html[idx:]
+        return html[:idx] + _mit_markern() + html[idx:]
     log.info("No </body> found — signature appended at end")
-    return html + marked_sig
+    return html + _mit_markern()
 
 
 def extract_html(msg: email.message.Message) -> str | None:
