@@ -5,6 +5,44 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.190 — 2026-08-14 — Trennlinie zwischen Signatur und zitiertem Text
+
+Bei Antworten stiess die Signatur je nach Mailprogramm unmittelbar an den
+zitierten Text — ohne sichtbare Trennung. Das betraf Apple Mail und, entgegen
+der bisherigen Annahme, auch Outlook für iOS.
+
+**Warum es überhaupt einen Unterschied gibt.** Die Signatur wird vor den
+zitierten Text gesetzt. Ob dabei eine Trennung entsteht, hängt davon ab, wie
+das schreibende Programm seinen eigenen Strich anlegt:
+
+* **Outlook Desktop** hängt ihn als Rahmenlinie an den Zitatblock selbst. Wer
+  davor einfügt, schiebt den Strich mit nach unten — er trennt weiterhin
+  richtig.
+* **Outlook für iOS und OWA** setzen ein eigenständiges Linien-Element davor.
+  Einfügen vor dem Zitat landet dahinter: Der Strich trennte dann den eigenen
+  Text von der Signatur, und darunter klaffte nichts.
+* **Apple Mail, Gmail und Thunderbird** setzen gar keinen Strich.
+
+Die Unterscheidung ist also nicht „mobil oder nicht", sondern: gehört der
+Strich zum Zitatblock oder ist er ein eigenes Element davor. Die frühere
+Annahme, mobile Programme setzten generell keine Linie, stammte aus einer
+Messung an Apple Mail und traf auf Outlook für iOS nicht zu — dort gab es eine,
+sie wurde nur überschrieben.
+
+**Jetzt** wird unterschieden: Ist bereits ein Strich vorhanden, wird er benutzt
+— die Signatur rückt davor, es entsteht kein zweites Element. Fehlt einer, wird
+selbst einer gesetzt, und zwar in derselben Form, die Outlook für iOS und OWA
+verwenden, damit die Darstellung überall gleich aussieht. Bei Erstnachrichten
+ohne Zitat bleibt es wie bisher ohne Linie.
+
+Die Signatur rückt dabei ausschliesslich nach vorn und nur über Leerraum und
+leere Elemente hinweg — steht zwischen Strich und Zitat geschriebener Text,
+gehört der Strich dem Absender, und es bleibt bei einer eigenen Linie.
+
+Nebenbei erkennt das Gateway den Zitatblock von Outlook für iOS jetzt auch an
+dessen äusserem Container. Zuvor wurde die Signatur in Antworten dieses
+Programms innerhalb des zitierten Blocks eingefügt statt davor.
+
 ## v1.7.189 — 2026-08-13 — Weboberfläche: Hub-Anbindung als eigenes Modul, Prüfungen lesen wieder mit
 
 Achter und letzter Schritt der Aufteilung. Die 26 Adressen der Hub-Anbindung —
