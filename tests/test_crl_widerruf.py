@@ -379,3 +379,55 @@ def test_speicher_waechst_nicht_unbegrenzt(tmp_path, ca, netz):
     for i in range(crl_check._MAX_IM_SPEICHER + 3):
         crl_check.sperrliste(f"http://ca{i}.invalid/x.crl", JETZT)
     assert len(crl_check._im_speicher) <= crl_check._MAX_IM_SPEICHER
+
+
+# ── Gehört die Sperrliste zu diesem Zertifikat? ──────────────────────────────
+
+def test_fremde_sperrliste_wird_verworfen(tmp_path, netz, ca):
+    """Ohne diesen Abgleich genügte IRGENDEINE gültige Liste.
+
+    Eine leere Liste einer fremden CA erklärte sonst jedes Zertifikat für
+    unwiderrufen — der billigste Weg, die ganze Prüfung auszuhebeln.
+    """
+    fremde_ca_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    fremde = {"key": fremde_ca_key,
+              "name": x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "Fremde-CA")])}
+    pfad, cert = _empfaenger(tmp_path, ca, "unterschoben")
+    # Echte, gültige Liste — nur eben von der falschen Stelle.
+    netz["antwort"] = _als_der(_sperrliste(fremde, widerrufen=[]))
+    ok, grund = crl_check.widerruf_geprueft(pfad, JETZT)
+    assert not ok, "eine fremde Sperrliste wurde als Auskunft akzeptiert"
+    assert "nicht erreichbar" in grund
+
+
+def test_eigene_sperrliste_wird_akzeptiert(tmp_path, netz, ca):
+    """Gegenprobe — sonst wäre der Abgleich nur eine Bremse."""
+    pfad, _ = _empfaenger(tmp_path, ca, "eigene")
+    netz["antwort"] = _als_der(_sperrliste(ca, widerrufen=[]))
+    assert crl_check.widerruf_geprueft(pfad, JETZT)[0]
+
+
+def test_indirekte_sperrliste_darf_von_anderer_stelle_kommen(tmp_path, netz, ca):
+    """RFC 5280 §5.2.6: Nennt der Verteilungspunkt einen eigenen `crl_issuer`,
+    führt eine ANDERE Stelle die Widerrufe. Dann ist Gleichheit falsch."""
+    andere_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    andere_name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "Indirekte-CRL-Stelle")])
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    cert = (x509.CertificateBuilder()
+            .subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "indirekt")]))
+            .issuer_name(ca["name"]).public_key(key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(JETZT - timedelta(days=1))
+            .not_valid_after(JETZT + timedelta(days=10))
+            .add_extension(x509.CRLDistributionPoints([
+                x509.DistributionPoint(
+                    full_name=[x509.UniformResourceIdentifier("http://indirekt.invalid/x.crl")],
+                    relative_name=None, reasons=None,
+                    crl_issuer=[x509.DirectoryName(andere_name)])]), critical=False)
+            .sign(ca["key"], hashes.SHA256()))
+    p = tmp_path / "indirekt.pem"
+    p.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
+
+    netz["antwort"] = _als_der(_sperrliste({"key": andere_key, "name": andere_name}))
+    ok, grund = crl_check.widerruf_geprueft(p, JETZT)
+    assert ok, f"indirekte Sperrliste wurde abgelehnt: {grund}"

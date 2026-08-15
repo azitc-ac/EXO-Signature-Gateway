@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.193 — 2026-08-16 — Sperrlisten werden dem Zertifikat zugeordnet
+
+Ergänzung zur Widerrufsprüfung aus v1.7.192: Eine abgerufene Sperrliste wird
+jetzt daraufhin geprüft, ob sie überhaupt zu dem Zertifikat gehört, um das es
+geht — sie muss von dessen Aussteller stammen.
+
+Ohne diesen Abgleich genügte irgendeine gültige Liste einer beliebigen anderen
+Stelle: Eine leere fremde Sperrliste erklärte jedes Zertifikat für unwiderrufen
+und hebelte damit die ganze Prüfung aus. Nennt der Verteilungspunkt im
+Zertifikat ausdrücklich eine andere Stelle (indirekte Sperrliste), gilt diese —
+sonst der Aussteller des Zertifikats.
+
+Das ersetzt die Prüfung der Listen-Signatur nicht, die weiterhin aussteht; es
+schliesst den einfachsten Weg und kostet nichts.
+
 ## v1.7.192 — 2026-08-16 — Empfängerzertifikate werden gegen Sperrlisten geprüft (CRL)
 
 Vor dem Verschlüsseln wird jetzt geprüft, ob das Zertifikat des Empfängers
