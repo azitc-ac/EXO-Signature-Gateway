@@ -5,6 +5,34 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.191 — 2026-08-15 — Signaturen entfernen: Schalter wirkt so, wie er beschriftet ist
+
+Der Schalter **„Selbsterstellte Client-Signaturen entfernen"** (als
+experimentell gekennzeichnet) hat mehr abgeschaltet als seinen Namen. Er lag vor
+drei Schritten, von denen nur zwei fremde Signaturen betreffen; der dritte
+räumt eine **vom Gateway selbst zuvor gesetzte** Signatur weg und erkennt sie an
+einem Merkmal, das das Gateway selbst gesetzt hat. Dabei ist nichts zu raten und
+nichts falsch zuzuschneiden — dieser Schritt läuft jetzt unabhängig vom
+Schalter.
+
+Folgenlos war die alte Kopplung, weil eine Nachricht mit vorhandenem
+Gateway-Merkmal ohnehin nicht erneut verarbeitet wird. Wer allerdings beides
+abschaltet, bekäme zwei Gateway-Signaturen: den Riegel davor und das Aufräumen
+dahinter.
+
+**Ausserdem greift die experimentelle Erkennung seltener daneben.** Sie sucht
+die Signatur von Outlook Desktop als „letzten namenlosen Block" und übersprang
+dabei den Antworttrenner nur, wenn er unmittelbar am Block hing. Outlook legt
+ihn aber regelmässig in ein leeres Hüll-Element — dann galt der gesamte
+Zitatblock als Signaturkandidat, und zitierter Text konnte mit entfernt werden.
+Geprüft wird jetzt auch das erste Kind-Element. An 38 Nachrichten mit dieser
+Struktur gemessen: 16 fälschliche Treffer vorher, 5 danach.
+
+Der Schalter bleibt experimentell und im Zweifel ausgeschaltet: Die verbleibende
+Lücke betrifft Blöcke, in denen Signatur und Trenner zusammen liegen. Wer
+Doppelsignaturen sicher vermeiden will, schaltet die Signatur im Mailprogramm
+ab und überlässt sie dem Gateway.
+
 ## v1.7.190 — 2026-08-14 — Trennlinie zwischen Signatur und zitiertem Text
 
 Bei Antworten stiess die Signatur je nach Mailprogramm unmittelbar an den

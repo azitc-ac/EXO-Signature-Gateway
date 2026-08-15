@@ -791,36 +791,58 @@ def _fix_lexware_format(html: str) -> str:
 
 
 def _strip_client_sig_divs(html: str, sig_html: str = "") -> str:
-    """Remove known mail-client signature divs to prevent double signatures."""
-    if settings_store.get("STRIP_CLIENT_SIGS") is False:
-        return html
+    """Signaturen entfernen, damit keine zwei untereinander stehen.
+
+    Drei Aufgaben, und sie sind NICHT gleich riskant:
+
+    1. Outlook **Mobile** — an bekannten Div-IDs, eindeutig.
+    2. Eine **früher vom Gateway selbst** gesetzte Signatur — an unseren eigenen
+       Markern, exakt.
+    3. Outlook **Desktop** — Heuristik „der letzte namenlose Block ist wohl die
+       Signatur". Die kann danebengreifen, deshalb hängt das Ganze an einem
+       Schalter, der als „experimentell" gekennzeichnet ist.
+
+    ⚠️ Schritt 2 hängt bewusst NICHT am Schalter. Er beschriftet das Entfernen
+    fremder, geratener Signaturen — die eigene erkennen wir dagegen an einem
+    Merkmal, das wir selbst gesetzt haben; dabei ist nichts zu raten und nichts
+    falsch zuzuschneiden. Bis v1.7.190 lag die Prüfung ganz oben und schaltete
+    Schritt 2 stillschweigend mit ab, obwohl die Beschriftung nur von
+    Client-Signaturen spricht.
+
+    Folgenlos war das, weil `inject()` vorher `SKIP_SIG_IN_THREAD` prüft und
+    eine Nachricht mit vorhandenem Gateway-Merkmal gar nicht erst verarbeitet.
+    Wer aber beides abschaltet, bekäme zwei Gateway-Signaturen — Riegel davor
+    weg, Aufräumen dahinter weg.
+    """
+    schalter_an = settings_store.get("STRIP_CLIENT_SIGS") is not False
     lower = html.lower()
     # Outlook Mobile: divs with known IDs
-    for div_id in _CLIENT_SIG_DIV_IDS:
-        pattern = re.compile(
-            r'<div\b[^>]*\bid=["\']' + re.escape(div_id) + r'["\'][^>]*>',
-            re.IGNORECASE,
-        )
-        m = pattern.search(lower)
-        if not m:
-            continue
-        idx = m.start()
-        tag_end = m.end()
-        pos = tag_end
-        depth = 1
-        while pos < len(html) and depth > 0:
-            next_open = lower.find('<div', pos)
-            next_close = lower.find('</div>', pos)
-            if next_close == -1:
-                break
-            if next_open != -1 and next_open < next_close:
-                depth += 1
-                pos = next_open + 4
-            else:
-                depth -= 1
-                pos = next_close + 6
-        html = html[:idx] + html[pos:]
-        lower = html.lower()
+    if schalter_an:
+        for div_id in _CLIENT_SIG_DIV_IDS:
+            pattern = re.compile(
+                r'<div\b[^>]*\bid=["\']' + re.escape(div_id) + r'["\'][^>]*>',
+                re.IGNORECASE,
+            )
+            m = pattern.search(lower)
+            if not m:
+                continue
+            idx = m.start()
+            tag_end = m.end()
+            pos = tag_end
+            depth = 1
+            while pos < len(html) and depth > 0:
+                next_open = lower.find('<div', pos)
+                next_close = lower.find('</div>', pos)
+                if next_close == -1:
+                    break
+                if next_open != -1 and next_open < next_close:
+                    depth += 1
+                    pos = next_open + 4
+                else:
+                    depth -= 1
+                    pos = next_close + 6
+            html = html[:idx] + html[pos:]
+            lower = html.lower()
 
     # Prefer deterministic removal of our own previously-injected signature.
     # Only act if the marker appears BEFORE any quote-wrapper div (i.e. it is in
@@ -860,6 +882,11 @@ def _strip_client_sig_divs(html: str, sig_html: str = "") -> str:
                                 div_start, end_pos,
                             )
                             return html[:div_start] + html[end_pos:]
+
+    # Ab hier nur noch die ratende Erkennung fremder Signaturen — die hängt am
+    # Schalter. Schritt 2 oben ist zu diesem Zeitpunkt bereits gelaufen.
+    if not schalter_an:
+        return html
 
     # Outlook desktop (Word editor): signature is the last top-level <div> inside
     # <div class="WordSection1"> that is NOT a known quote/forward wrapper.
@@ -921,6 +948,60 @@ def _find_first_quote_wrapper_pos(html: str) -> int | None:
     return best
 
 
+_TRENNER_STIL = re.compile(
+    r'style=["\']'
+    r'(?=[^"\']*\bborder\s*:\s*none\b)'
+    r'(?=[^"\']*\bborder-top\s*:\s*solid\s+#[0-9a-fA-F]{3,6}\s+1[.\d]*pt\b)',
+    re.IGNORECASE)
+
+
+def _zitatblock_erkannt(html: str, pos: int) -> str | None:
+    """Begründung, wenn das Div an *pos* ein Zitatblock oder Antworttrenner ist.
+
+    Geprüft wird das Tag SELBST **und sein erstes Kind-Div**. Letzteres ist der
+    Punkt: Outlook liefert den Trenner regelmässig eingepackt —
+
+        <div><div style="border:none; border-top:solid #E1E1E1 1.0pt; …">
+
+    — und das äussere Div ist dabei attributlos. Wer nur das äussere Tag ansieht,
+    hält den ganzen Block für einen Signaturkandidaten. Da `_strip_wordsection_sig()`
+    den LETZTEN unbenannten Block entfernt, verschwindet dann der zitierte Text
+    des Gegenübers mit.
+
+    ⚠️ Der Fingerprint-Abgleich rettet das NICHT verlässlich. Er prüft, ob ≥50 %
+    der Signatur-Merkmale im Kandidaten vorkommen — nicht, ob der Kandidat
+    überwiegend Signatur IST. Ein zitierter Block, in dem die eigene Signatur
+    steht (Antwort auf die eigene Mail, also der Normalfall in einer Kette),
+    erfüllt das mühelos. An 38 echten Nachrichten mit `WordSection1` gemessen:
+    16 Blöcke hätte die Struktur-Erkennung fälschlich gewählt, 12 rettete der
+    Fingerprint, bei 4 wären zitierte Zeilen mit gelöscht worden.
+
+    Eine Ebene genügt: An denselben Nachrichten öffnen vor dem Trenner entweder
+    kein Div (46 Fundstellen) oder genau eines (13). Tiefer verschachtelt kam er
+    nicht vor.
+    """
+    for _ebene in (0, 1):
+        ende = html.find(">", pos)
+        if ende == -1:
+            return None
+        tag = html[pos:ende + 1]
+        id_m = re.search(r'\bid=["\']([^"\']*)["\']', tag, re.IGNORECASE)
+        if id_m:
+            # `x_`-Präfix: das setzt Exchange beim Zitieren vor fremde IDs.
+            div_id = id_m.group(1).lower()
+            if div_id.removeprefix("x_") in _QUOTE_WRAPPER_IDS:
+                return f"quote/forward div id={div_id!r}"
+        if _TRENNER_STIL.search(tag):
+            return "Outlook Desktop separator div"
+        # Nächste Ebene nur, wenn unmittelbar ein Kind-Div folgt (nur Leerraum
+        # dazwischen). Steht dort Text, ist es kein blosser Umschlag.
+        kind = re.match(r'\s*<div\b', html[ende + 1:], re.IGNORECASE)
+        if not kind:
+            return None
+        pos = ende + 1 + kind.start()
+    return None
+
+
 def _strip_wordsection_sig(html: str, sig_fingerprint: frozenset[str] = frozenset()) -> str:
     """Strip Outlook desktop signature from inside <div class="WordSection1">.
 
@@ -957,26 +1038,10 @@ def _strip_wordsection_sig(html: str, sig_fingerprint: frozenset[str] = frozense
             break
         if next_open != -1 and next_open < next_close:
             if depth == 0:
-                tag_end_pos = lower.find('>', next_open) + 1
-                tag_text = lower[next_open:tag_end_pos]
-                id_m = re.search(r'\bid=["\']([^"\']*)["\']', tag_text)
-                div_id = id_m.group(1).lower() if id_m else None
-                is_outlook_sep = bool(re.search(
-                    r'style=["\']'
-                    r'(?=[^"\']*\bborder\s*:\s*none\b)'
-                    r'(?=[^"\']*\bborder-top\s*:\s*solid\s+#[0-9a-fA-F]{3,6}\s+1[.\d]*pt\b)',
-                    tag_text, re.IGNORECASE))
-                if div_id and div_id in _QUOTE_WRAPPER_IDS:
-                    log.info(
-                        "_strip_wordsection_sig: skipping quote/forward div id=%r at pos %d",
-                        div_id, next_open,
-                    )
-                    current_top_open = None  # not a sig candidate
-                elif is_outlook_sep:
-                    log.info(
-                        "_strip_wordsection_sig: skipping Outlook Desktop separator div at pos %d",
-                        next_open,
-                    )
+                grund = _zitatblock_erkannt(html, next_open)
+                if grund:
+                    log.info("_strip_wordsection_sig: skipping %s at pos %d",
+                             grund, next_open)
                     current_top_open = None  # not a sig candidate
                 else:
                     current_top_open = next_open  # potential sig candidate
