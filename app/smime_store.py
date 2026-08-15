@@ -536,6 +536,18 @@ def get_recipient_cert_path(email: str) -> Path | None:
     return p if p.exists() else None
 
 
+def alle_empfaenger_cert_pfade() -> list[Path]:
+    """Pfade aller hinterlegten Empfängerzertifikate.
+
+    Für den CRL-Vorlauf im Tageslauf: Daraus werden die Sperrlisten-Adressen
+    gelesen und die Listen im Voraus geholt. Bewusst nur die Pfade — die
+    Auswertung gehört nach `crl_check`, nicht hierher.
+    """
+    if not RECIPIENT_DIR.exists():
+        return []
+    return [p for p in sorted(RECIPIENT_DIR.glob("*/cert.pem")) if p.is_file()]
+
+
 def list_recipient_certs() -> list[dict]:
     result = []
     if not RECIPIENT_DIR.exists():

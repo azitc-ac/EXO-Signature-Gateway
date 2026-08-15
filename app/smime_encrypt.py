@@ -65,6 +65,30 @@ def encrypt(message_bytes: bytes, recipients: list[str]) -> tuple[bytes | None, 
             stats.increment("cert_ungueltig")
             missing.append(rcpt)
             continue
+
+        # Stufe 2: Widerruf. Erst NACH der zeitlichen Prüfung — die braucht kein
+        # Netz und sortiert die einfachen Fälle vorweg aus, bevor jemand eine
+        # Sperrliste lädt.
+        import settings_store as _ss
+        if _ss.get("CRL_CHECK") is not False:
+            import crl_check
+            import stats
+            ok, vermerk = crl_check.widerruf_geprueft(path)
+            if not ok:
+                # Widerruf und Störung getrennt zählen: Das eine gehört aus dem
+                # Bestand entfernt, das andere ist womöglich die eigene Firewall.
+                stats.increment("cert_widerrufen" if "widerrufen" in vermerk
+                                else "cert_crl_unerreichbar")
+                log.warning("S/MIME: Zertifikat für %s wird NICHT benutzt — %s", rcpt, vermerk)
+                missing.append(rcpt)
+                continue
+            if vermerk:
+                # Kein Verteilungspunkt im Zertifikat — kein Fehler, aber die
+                # Prüfung greift hier nicht. Ohne Zahl bliebe unbemerkt, für
+                # welchen Teil des Bestands das gilt.
+                stats.increment("cert_ohne_crl")
+                log.info("S/MIME: Zertifikat für %s %s — Widerruf nicht prüfbar", rcpt, vermerk)
+
         cert_paths.append(path)
 
     if missing:

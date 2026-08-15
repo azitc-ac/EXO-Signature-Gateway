@@ -1,0 +1,304 @@
+"""Widerrufsprüfung für Empfängerzertifikate über Sperrlisten (CRL).
+
+Stufe 2 der Zertifikatsprüfung. Stufe 1 (zeitliche Gültigkeit, Lesbarkeit) steht
+in `smime_store.zeitlich_gueltig()` und braucht kein Netz; hier kommt der Teil,
+der beim Trustcenter nachfragen muss.
+
+WARUM CRL UND NICHT OCSP
+------------------------
+Die übliche Reihenfolge ist umgekehrt — hier entscheidet der Datenschutz:
+
+Eine OCSP-Abfrage verrät dem Trustcenter, dass **dieser Absender gerade mit
+diesem Partner** kommuniziert, mitsamt Zeitpunkt. Bei einem Produkt mit
+Auftragsverarbeitungsvertrag ist das erklärungsbedürftig. Eine Sperrliste hat
+das Problem nicht: Man lädt die Liste **aller** Widerrufe der CA, und niemand
+erfährt, welcher Eintrag interessiert hat.
+
+Dazu kommt der Betrieb: Eine CRL wird einmal je CA und Gültigkeitszeitraum
+geladen, OCSP einmal je Nachricht. Der Zwischenspeicher hier ist deshalb kein
+Beiwerk, sondern der Grund, warum die Prüfung den Mailfluss nicht aufhält.
+
+OCSP bleibt als Ergänzung für Zertifikate offen, die keinen CRL-Punkt tragen.
+
+⚠️ FAIL CLOSED, ABER NICHT FAIL HARD
+------------------------------------
+Ist die Sperrliste nicht erreichbar oder nicht auswertbar, gilt das Zertifikat
+als **nicht verwendbar** — die Nachricht geht dann über das Nachrichtenportal
+hinaus statt verschlüsselt. Das ist die dritte Möglichkeit neben den beiden
+schlechten: Hart abweisen hielte den Versand bei einer fremden Störung an,
+Durchwinken machte die Prüfung wertlos. Weil dieses Gateway einen sicheren
+Ersatzweg hat, kostet Vorsicht hier nur das Verfahren, nicht die Zustellung.
+
+⚠️ Ein Zertifikat OHNE CRL-Verteilungspunkt ist etwas anderes als eine nicht
+erreichbare CRL: Das eine ist eine Eigenschaft des Zertifikats, das andere eine
+Störung. Ohne Verteilungspunkt gibt es nichts abzufragen — solche Zertifikate
+werden durchgelassen und **gezählt** (`cert_ohne_crl`), damit nicht unbemerkt
+bleibt, für welchen Teil des Bestands die Prüfung gar nicht greift. Eine
+Zusicherung, deren Wirken nirgends sichtbar ist, fällt sonst unbemerkt aus.
+
+WAS DIESE STUFE NOCH NICHT PRÜFT
+--------------------------------
+Die **Signatur der Sperrliste**. Dafür braucht es das Ausstellerzertifikat, das
+dem Gateway in aller Regel nicht vorliegt (es speichert Empfängerzertifikate,
+keine Ketten). Ungeprüft bleibt damit ein Angreifer denkbar, der den Netzweg
+zum Trustcenter beherrscht und eine Sperrliste ohne den fraglichen Eintrag
+unterschiebt. Das ist eine kleinere Lücke als gar nicht zu prüfen: Wer den
+Netzweg beherrscht, kann heute schon jede Sperrliste zurückhalten — und
+zurückgehaltene Sperrlisten führen hier zu „nicht erreichbar" und damit zum
+Portal. Der Ausbau (Kette über `AuthorityInformationAccess` nachladen,
+CRL-Signatur prüfen) ist als eigener Schritt vorgesehen.
+"""
+from __future__ import annotations
+
+import hashlib
+import logging
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+
+from cryptography import x509
+
+import config
+
+log = logging.getLogger("crl")
+
+# Der Mailfluss wartet auf diese Abfrage. Lieber das Portal als eine Nachricht,
+# die sekundenlang im Versand hängt — die Zustellung leidet nicht, nur das
+# Verfahren.
+ABRUF_TIMEOUT = 5.0
+
+# Sperrlisten grosser CAs sind einige hundert Kilobyte. Die Grenze schützt vor
+# einer Gegenstelle, die endlos liefert; sie ist bewusst grosszügig.
+MAX_GROESSE = 20 * 1024 * 1024
+
+# Auch eine gültige Sperrliste wird nicht ewig weiterbenutzt: Sagt sie kein
+# `nextUpdate`, gilt sie diese Zeitspanne lang.
+OHNE_NEXTUPDATE_GUELTIG = 24 * 3600
+
+
+# Geparste Sperrlisten im Arbeitsspeicher.
+#
+# WARUM ZWEI EBENEN
+# -----------------
+# Der Dateispeicher erspart den Netzabruf, nicht das Auswerten. Gemessen am
+# 16.08.2026 im laufenden Container, gegen drei echte Trustcenter:
+#
+#     Sectigo   5,6 MB   Abruf 956 ms   aus der Datei  62 ms
+#     DigiCert  0,6 MB   Abruf 118 ms   aus der Datei   6 ms
+#     HARICA    9,3 MB   Abruf 1045 ms  aus der Datei 127 ms
+#
+# Die 127 ms fielen sonst bei JEDER verschlüsselten Nachricht an, nur um
+# dieselbe Datei erneut zu zerlegen. Mit dieser Ebene kostet der zweite Zugriff
+# nichts mehr.
+#
+# ⚠️ Die Anzahl ist begrenzt, nicht die Grösse: Eine Sperrliste kann zweistellig
+# viele Megabyte belegen, und dieses Gateway läuft auch auf kleinen Geräten.
+# Mehr als eine Handvoll Trustcenter kommen in einem Postfachbestand kaum vor;
+# bei mehr fällt der älteste Eintrag heraus und wird beim nächsten Mal aus der
+# Datei gelesen — dann kostet es wieder die Millisekunden oben, mehr nicht.
+_MAX_IM_SPEICHER = 6
+_im_speicher: dict[str, x509.CertificateRevocationList] = {}
+
+
+def _cache_verzeichnis() -> Path:
+    p = Path(config.DATA_DIR) / "crl_cache"
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def _cache_datei(url: str) -> Path:
+    # Der Dateiname ist ein Hash, nicht die Adresse: CRL-Adressen enthalten
+    # Pfade und Parameter, die als Dateiname nicht taugen.
+    return _cache_verzeichnis() / (hashlib.sha256(url.encode()).hexdigest()[:32] + ".crl")
+
+
+def crl_adressen(cert: x509.Certificate) -> list[str]:
+    """HTTP(S)-Verteilungspunkte aus der Erweiterung `CRLDistributionPoints`.
+
+    LDAP-Adressen kommen in älteren Zertifikaten vor und werden übergangen —
+    das Gateway spricht kein LDAP, und ein Verteilungspunkt, den man nicht
+    abrufen kann, ist wie keiner.
+    """
+    try:
+        ext = cert.extensions.get_extension_for_class(x509.CRLDistributionPoints)
+    except x509.ExtensionNotFound:
+        return []
+    adressen: list[str] = []
+    for punkt in ext.value:
+        for name in (punkt.full_name or []):
+            wert = getattr(name, "value", "")
+            if isinstance(wert, str) and wert.lower().startswith(("http://", "https://")):
+                adressen.append(wert)
+    return adressen
+
+
+def _crl_laden(rohdaten: bytes) -> x509.CertificateRevocationList | None:
+    """Sperrliste aus DER oder PEM. Trustcenter liefern beides."""
+    for lader in (x509.load_der_x509_crl, x509.load_pem_x509_crl):
+        try:
+            return lader(rohdaten)
+        except Exception:
+            continue
+    return None
+
+
+def _naechste_aktualisierung(crl: x509.CertificateRevocationList) -> datetime:
+    try:
+        wert = crl.next_update_utc
+    except AttributeError:
+        wert = crl.next_update
+        if wert is not None:
+            wert = wert.replace(tzinfo=timezone.utc)
+    if wert is None:
+        return datetime.now(timezone.utc).fromtimestamp(
+            time.time() + OHNE_NEXTUPDATE_GUELTIG, timezone.utc)
+    return wert
+
+
+def _aus_cache(url: str, jetzt: datetime) -> x509.CertificateRevocationList | None:
+    datei = _cache_datei(url)
+    if not datei.is_file():
+        return None
+    crl = _crl_laden(datei.read_bytes())
+    if crl is None:
+        return None
+    if _naechste_aktualisierung(crl) <= jetzt:
+        log.info("CRL im Zwischenspeicher ist überfällig (%s) — wird neu geladen", url)
+        return None
+    return crl
+
+
+def _abrufen(url: str) -> bytes | None:
+    """Nur der Transport: HTTP holen, Grösse begrenzen, Rohdaten liefern.
+
+    ⚠️ Bewusst frei von Zwischenspeicher-Logik. Lägen beide hier zusammen,
+    liesse sich der Zwischenspeicher nicht mehr prüfen, ohne ihn zugleich zu
+    umgehen: Ein Test, der den Abruf ersetzt, ersetzte dann auch das Schreiben —
+    und misst hinterher sein eigenes Ersatzstück statt der Sache. Genau so ist
+    die erste Fassung dieses Tests danebengegangen.
+    """
+    import httpx
+    try:
+        with httpx.Client(timeout=ABRUF_TIMEOUT, follow_redirects=True) as client:
+            with client.stream("GET", url) as antwort:
+                antwort.raise_for_status()
+                teile, gesamt = [], 0
+                for stueck in antwort.iter_bytes():
+                    gesamt += len(stueck)
+                    if gesamt > MAX_GROESSE:
+                        log.warning("CRL %s überschreitet %d Bytes — abgebrochen", url, MAX_GROESSE)
+                        return None
+                    teile.append(stueck)
+        return b"".join(teile)
+    except Exception as exc:
+        log.warning("CRL nicht abrufbar (%s): %s: %s", url, exc.__class__.__name__, exc)
+        return None
+
+
+def _merken(url: str, crl: x509.CertificateRevocationList) -> None:
+    if len(_im_speicher) >= _MAX_IM_SPEICHER:
+        _im_speicher.pop(next(iter(_im_speicher)))
+    _im_speicher[url] = crl
+
+
+def sperrliste(url: str, jetzt: datetime | None = None) -> x509.CertificateRevocationList | None:
+    """Sperrliste zu *url* — aus dem Speicher, sonst der Datei, sonst frisch."""
+    jetzt = jetzt or datetime.now(timezone.utc)
+
+    gemerkt = _im_speicher.get(url)
+    if gemerkt is not None:
+        if _naechste_aktualisierung(gemerkt) > jetzt:
+            return gemerkt
+        _im_speicher.pop(url, None)   # überfällig — nicht weiterbenutzen
+
+    aus_cache = _aus_cache(url, jetzt)
+    if aus_cache is not None:
+        _merken(url, aus_cache)
+        return aus_cache
+
+    rohdaten = _abrufen(url)
+    if rohdaten is None:
+        return None
+    crl = _crl_laden(rohdaten)
+    if crl is None:
+        log.warning("CRL von %s ist weder DER noch PEM — verworfen", url)
+        return None
+    if _naechste_aktualisierung(crl) <= jetzt:
+        # Eine bereits überfällige Liste zu speichern hiesse, sie beim nächsten
+        # Mal sofort wieder zu verwerfen — und sie zu benutzen hiesse, gegen
+        # einen Stand zu prüfen, den die CA selbst für veraltet erklärt.
+        log.warning("CRL von %s ist bereits überfällig — nicht verwendet", url)
+        return None
+    try:
+        _cache_datei(url).write_bytes(rohdaten)
+    except Exception as exc:      # Zwischenspeicher ist Beschleunigung, kein Muss
+        log.warning("CRL konnte nicht zwischengespeichert werden: %s", exc)
+    _merken(url, crl)
+    return crl
+
+
+def widerruf_geprueft(cert_path, jetzt: datetime | None = None) -> tuple[bool, str]:
+    """Darf mit diesem Zertifikat verschlüsselt werden?
+
+    Liefert `(True, Vermerk)` wenn nichts dagegen spricht, sonst
+    `(False, Grund)`. Der Vermerk bei Erfolg ist leer oder nennt den Grund,
+    warum nicht geprüft werden konnte, ohne dass das gegen das Zertifikat
+    spricht (kein Verteilungspunkt).
+
+    ⚠️ Die Reihenfolge der Fälle ist Absicht:
+    * widerrufen           → nein, mit Datum
+    * keine CRL im Zert    → ja, mit Vermerk (Eigenschaft, keine Störung)
+    * CRL nicht erreichbar → nein (Störung; Portal statt Verschlüsselung)
+    """
+    jetzt = jetzt or datetime.now(timezone.utc)
+    try:
+        cert = x509.load_pem_x509_certificate(Path(cert_path).read_bytes())
+    except Exception as exc:
+        return False, f"nicht lesbar ({exc.__class__.__name__})"
+
+    adressen = crl_adressen(cert)
+    if not adressen:
+        return True, "ohne Sperrlisten-Adresse"
+
+    for url in adressen:
+        crl = sperrliste(url, jetzt)
+        if crl is None:
+            continue          # nächster Verteilungspunkt, viele CAs nennen mehrere
+        eintrag = crl.get_revoked_certificate_by_serial_number(cert.serial_number)
+        if eintrag is not None:
+            try:
+                seit = eintrag.revocation_date_utc
+            except AttributeError:
+                seit = eintrag.revocation_date.replace(tzinfo=timezone.utc)
+            return False, f"widerrufen am {seit:%d.%m.%Y}"
+        return True, ""
+
+    return False, "Sperrliste nicht erreichbar"
+
+
+def vorwaermen(cert_pfade) -> dict:
+    """Sperrlisten aller übergebenen Zertifikate in den Zwischenspeicher holen.
+
+    Gedacht für den Tageslauf. Ohne das wartet die erste Nachricht an eine
+    bislang unbekannte CA auf den Abruf — und schlimmstenfalls läuft sie in die
+    Zeitüberschreitung und geht über das Portal, obwohl mit dem Zertifikat
+    alles in Ordnung ist.
+    """
+    geholt = fehlgeschlagen = 0
+    gesehen: set[str] = set()
+    for pfad in cert_pfade:
+        try:
+            cert = x509.load_pem_x509_certificate(Path(pfad).read_bytes())
+        except Exception:
+            continue
+        for url in crl_adressen(cert):
+            if url in gesehen:
+                continue
+            gesehen.add(url)
+            if sperrliste(url) is not None:
+                geholt += 1
+            else:
+                fehlgeschlagen += 1
+    if gesehen:
+        log.info("CRL-Vorlauf: %d von %d Sperrlisten bereit", geholt, len(gesehen))
+    return {"adressen": len(gesehen), "geholt": geholt, "fehlgeschlagen": fehlgeschlagen}

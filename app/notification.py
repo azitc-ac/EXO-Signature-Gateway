@@ -210,6 +210,17 @@ def send_daily_report(daily: dict, total: dict) -> bool:
          if dval("lexware_unbekannt") else ""),
         (_row("Zertifikate abgelehnt (ungültig)", dval("cert_ungueltig"), "#e67e22")
          if dval("cert_ungueltig") else ""),
+        (_row("Zertifikate abgelehnt (widerrufen)", dval("cert_widerrufen"), "#e74c3c")
+         if dval("cert_widerrufen") else ""),
+        # Eine Stoerung, kein Zertifikatsmangel. Steht das dauerhaft hier, ist es
+        # meist die eigene Firewall — und der Versand laeuft still ueber das
+        # Portal statt verschluesselt.
+        (_row("Sperrliste nicht erreichbar", dval("cert_crl_unerreichbar"), "#e67e22")
+         if dval("cert_crl_unerreichbar") else ""),
+        # Fuer diese Empfaenger greift die Widerrufspruefung gar nicht — ihre
+        # Zertifikate nennen keine Sperrlisten-Adresse.
+        (_row("Zertifikate ohne Sperrlisten-Adresse", dval("cert_ohne_crl"), "#888")
+         if dval("cert_ohne_crl") else ""),
         # ⚠️ Hier gilt das UMGEKEHRTE: Diese Zeile erscheint IMMER, auch mit 0.
         # Bei der Ketten-Erkennung ist die Null die Meldung — sie bedeutet,
         # dass Signaturen womoeglich doppelt hinausgehen. Genau dieser Zustand

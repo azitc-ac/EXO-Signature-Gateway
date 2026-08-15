@@ -170,6 +170,13 @@ DEFAULTS: dict = {
     "ADDIN_BASE_URL": "",               # External public URL override (e.g. https://sig.zarenko.net)
     "STRIP_CLIENT_SIGS": True,          # Strip client-generated Outlook signatures before injection
     "SIG_STRIP_MIN_MATCH_PCT": 50,      # Fingerprint match threshold % for signature stripping
+    # Widerrufspruefung (CRL) fuer Empfaengerzertifikate. Vorgabe AN: Die Zusage
+    # "Zertifikate werden gegen Sperrlisten geprueft" gilt sonst nicht. Ist eine
+    # Sperrliste nicht erreichbar, geht die Nachricht ueber das Portal statt
+    # verschluesselt — sie faellt nicht aus. Wer ausgehendes HTTP zum Trustcenter
+    # nicht zulassen kann, schaltet die Pruefung ab und weiss dann, dass der
+    # Widerruf nicht geprueft wird.
+    "CRL_CHECK": True,
     "SKIP_DUPLICATE_SIG": True,         # Skip re-injection if gateway signature already in compose area
     # Antwort-Signatur: ab der 2. eigenen Mail im Thread wird statt des vollen Blocks die
     # zugewiesene Antwort-Signatur genutzt (pro Postfach 'min_template' bzw. Richtlinie

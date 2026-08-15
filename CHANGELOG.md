@@ -5,6 +5,54 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.192 — 2026-08-16 — Empfängerzertifikate werden gegen Sperrlisten geprüft (CRL)
+
+Vor dem Verschlüsseln wird jetzt geprüft, ob das Zertifikat des Empfängers
+**widerrufen** wurde. Bisher wurde nur die zeitliche Gültigkeit geprüft (seit
+v1.7.187) — ein zurückgezogenes Zertifikat blieb bis zu seinem Ablaufdatum in
+Gebrauch, also unter Umständen jahrelang.
+
+Das wiegt hier schwerer als anderswo, weil Empfängerzertifikate zum Teil
+selbsttätig aus eingehenden signierten Nachrichten eingesammelt werden. Ein
+Widerruf ist die Art, wie ein Partner mitteilt, dass dem Schlüssel nicht mehr zu
+trauen ist — genau die Auskunft, die vorher niemand einholte.
+
+**Was passiert, wenn das Trustcenter nicht antwortet:** Das Zertifikat gilt als
+nicht verwendbar, und die Nachricht geht über das Nachrichtenportal hinaus statt
+verschlüsselt. Sie fällt also nicht aus, sie nimmt einen anderen Weg. Hart
+abzuweisen würde den Versand bei einer fremden Störung anhalten; durchzuwinken
+machte die Prüfung wertlos.
+
+Ein Zertifikat, das gar keine Sperrlisten-Adresse nennt, ist davon zu
+unterscheiden — das ist eine Eigenschaft des Zertifikats und keine Störung.
+Solche Zertifikate werden weiter benutzt und im Tagesbericht ausgewiesen, damit
+erkennbar bleibt, für welchen Teil des Bestands die Prüfung nicht greift.
+
+**Warum Sperrlisten und nicht OCSP.** Eine OCSP-Anfrage verrät dem Trustcenter,
+dass ein bestimmter Absender gerade mit einem bestimmten Partner korrespondiert,
+mitsamt Zeitpunkt. Eine Sperrliste enthält alle Widerrufe einer CA — niemand
+erfährt, welcher Eintrag interessiert hat. Der Betrieb spricht für dieselbe
+Wahl: Eine Sperrliste wird einmal je Trustcenter geholt statt einmal je
+Nachricht.
+
+Damit die Prüfung den Mailfluss nicht aufhält, werden die Listen zweifach
+vorgehalten und im Tageslauf im Voraus geholt. Gemessen an der grössten dabei
+angetroffenen Liste (9,3 MB): 2.099 ms über das Netz, 172 ms aus der Datei,
+0 ms danach.
+
+Im Tagesbericht erscheinen drei getrennte Zahlen — widerrufene Zertifikate,
+nicht erreichbare Sperrlisten und Zertifikate ohne Sperrlisten-Adresse. Sie
+verlangen verschiedene Handlungen: ein neues Zertifikat vom Partner, ein Blick
+auf die eigene Firewall, oder nichts.
+
+**Was zu tun ist:** nichts. Die Prüfung ist eingeschaltet. Wer dem Gateway keine
+ausgehenden Verbindungen zu Trustcentern erlauben kann, schaltet sie unter
+Einstellungen → S/MIME ab; dann bleibt der Widerruf ungeprüft.
+
+Die Signatur der Sperrliste wird noch nicht geprüft — dafür wird die
+Ausstellerkette benötigt, die dem Gateway in der Regel nicht vorliegt. Das folgt
+als eigener Schritt, ebenso OCSP für Zertifikate ohne Sperrlisten-Adresse.
+
 ## v1.7.191 — 2026-08-15 — Signaturen entfernen: Schalter wirkt so, wie er beschriftet ist
 
 Der Schalter **„Selbsterstellte Client-Signaturen entfernen"** (als

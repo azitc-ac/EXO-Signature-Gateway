@@ -62,6 +62,14 @@ KEYS = (
     # der Betreiber muss es merken: Ein abgelaufenes Partnerzertifikat gehoert
     # erneuert, sonst laeuft dauerhaft der Ersatzweg.
     "cert_ungueltig",
+    # Stufe 2 (Widerruf). Getrennt gezaehlt, weil die drei Faelle verschiedene
+    # Handlungen verlangen: ein widerrufenes Zertifikat gehoert aus dem Bestand,
+    # eine unerreichbare Sperrliste ist eine Stoerung (moeglicherweise die eigene
+    # Firewall), und ein Zertifikat ohne Sperrlisten-Adresse zeigt, fuer welchen
+    # Teil des Bestands die Pruefung gar nicht greift.
+    "cert_widerrufen",
+    "cert_crl_unerreichbar",
+    "cert_ohne_crl",
 )
 _stats: dict = {k: 0 for k in KEYS}
 _snapshot: dict = {k: 0 for k in KEYS}
