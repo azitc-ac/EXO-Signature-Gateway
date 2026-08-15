@@ -163,3 +163,34 @@ def test_standard_traegt_das_typfeld():
 
 def test_unbekannter_schluessel_liefert_nichts():
     assert usermail.rendern("gibtsnicht", "e@x.de", "CA") is None
+
+
+# ── Trennung von den Signaturen ──────────────────────────────────────────────
+
+def test_nutzermails_stehen_nicht_in_der_signaturliste(vorlagenverzeichnis, monkeypatch):
+    """Der eigentliche Grund für das Typfeld.
+
+    Die Zuweisungslisten der Postfächer lesen `list_templates()`. Stünde dort
+    eine Nachricht an die Belegschaft, wäre ein Klick genug — und jede
+    ausgehende Mail trüge fortan „Bitte bestätigen Sie Ihr Zertifikat".
+    """
+    import signature_engine
+    monkeypatch.setattr(signature_engine.config, "TEMPLATE_DIR", str(vorlagenverzeichnis))
+    (vorlagenverzeichnis / "Minimal.html").write_text("<p>sig</p>", encoding="utf-8")
+    name = usermail.dateiname("cert_pending")
+    (vorlagenverzeichnis / f"{name}.html").write_text("<p>mail</p>", encoding="utf-8")
+    _speichern(vorlagenverzeichnis, "cert_pending", usermail.standard_meta("cert_pending"))
+
+    signaturen = signature_engine.list_templates()
+    assert "Minimal" in signaturen
+    assert name not in signaturen, "eine Nachricht an Postfachinhaber ist als Signatur wählbar"
+    assert signature_engine.list_templates("usermail") == [name]
+
+
+def test_vorlage_ohne_meta_gilt_als_signatur(vorlagenverzeichnis, monkeypatch):
+    """Von Hand abgelegte HTML-Dateien gab es vor der Unterscheidung — sie waren
+    immer Signaturen und müssen es bleiben."""
+    import signature_engine
+    monkeypatch.setattr(signature_engine.config, "TEMPLATE_DIR", str(vorlagenverzeichnis))
+    (vorlagenverzeichnis / "VonHand.html").write_text("<p>x</p>", encoding="utf-8")
+    assert "VonHand" in signature_engine.list_templates()

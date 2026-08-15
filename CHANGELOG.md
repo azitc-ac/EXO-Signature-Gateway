@@ -5,6 +5,29 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.195 — 2026-08-16 — Nachrichten an Postfachinhaber im Editor bearbeiten
+
+Die in v1.7.194 anpassbar gemachten Nachrichten lassen sich jetzt auch über die
+Oberfläche bearbeiten. Sie stehen in der Vorlagenauswahl in einer **eigenen
+Gruppe** unter „Nachrichten an Postfachinhaber", getrennt von den Signaturen —
+in derselben Liste wäre eine versehentliche Zuweisung an ein Postfach ein Klick,
+und jede ausgehende Mail trüge fortan den Text einer Zertifikatsankündigung.
+
+Beim Bearbeiten kommen zwei Dinge dazu, die eine Signatur nicht kennt: ein
+Betrefffeld und der Knopf **Standard wiederherstellen**. Wer den Text geändert
+hat, sieht das an einem Hinweis; wer zurück möchte, holt die mitgelieferte
+Fassung zurück und kann sie anschliessend normal weiterbearbeiten.
+
+Kopieren, Umbenennen und Löschen gibt es für diese Nachrichten nicht. Das ist
+keine Vorsicht: Der Name ist der Anker, unter dem der Versand die Fassung sucht
+— nach einem Umbenennen griffe stillschweigend wieder die mitgelieferte, ohne
+dass es auffiele. Eine Kopie wiederum erschiene in keiner Liste. Statt „Löschen"
+gibt es den Knopf, der beschreibt, was tatsächlich passiert.
+
+Eine noch nie bearbeitete Nachricht zeigt im Editor die mitgelieferte Fassung
+statt einer leeren Vorlage — sonst hätte ein Speichern den Text gelöscht, an dem
+der Empfänger erkennt, dass die Mail der Zertifizierungsstelle echt ist.
+
 ## v1.7.194 — 2026-08-16 — Nachrichten an Postfachinhaber sind anpassbar
 
 Die beiden Nachrichten, die an den Postfachinhaber selbst gehen — die

@@ -1400,6 +1400,20 @@
     "name": "api_send_graph_acme"
   },
   {
+    "pfad": "/api/usermails",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_usermails"
+  },
+  {
+    "pfad": "/api/usermails/{schluessel}/standard",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_usermail_standard"
+  },
+  {
     "pfad": "/api/welcome/dismiss",
     "methoden": [
       "POST"

@@ -1005,6 +1005,15 @@ async def api_get_template_meta(name: str, _=Depends(_check_auth)):
     fname = "signature" if safe == "default" else safe
     meta_path = Path(config.TEMPLATE_DIR) / f"{fname}.meta.json"
     if not meta_path.exists():
+        # ⚠️ Für Nachrichten an Postfachinhaber ist „keine Datei" kein Fehler,
+        # sondern der Normalfall: Solange niemand sie bearbeitet hat, gilt die
+        # mitgelieferte Fassung. Ohne diesen Zweig zeigte der Editor eine LEERE
+        # Vorlage — und Speichern hätte den Text gelöscht, den der Empfänger
+        # braucht, um die CA-Mail von Phishing zu unterscheiden.
+        schluessel = _usermail_key(fname)
+        if schluessel:
+            import usermail
+            return JSONResponse(usermail.standard_meta(schluessel))
         raise HTTPException(404, "Kein Builder-Meta für diese Vorlage")
     import json as _json
     return JSONResponse(_json.loads(meta_path.read_text()))
@@ -1220,6 +1229,54 @@ async def dashboard(request: Request, user: str = Depends(_check_auth)):
     )
 
 
+def _usermail_liste() -> list[dict]:
+    """Die bekannten Nachrichten an Postfachinhaber für die Auswahl im Editor."""
+    import usermail
+    return [{"key": k,
+             "name": usermail.dateiname(k),
+             "anzeige": v["anzeige"],
+             "zweck": v["zweck"],
+             "ist_standard": usermail.ist_standard(k)}
+            for k, v in usermail.VORLAGEN.items()]
+
+
+def _usermail_key(fname: str) -> str:
+    """Schlüssel, falls die gerade geöffnete Vorlage eine Nutzer-Mail ist."""
+    import usermail
+    for k in usermail.VORLAGEN:
+        if usermail.dateiname(k) == fname:
+            return k
+    return ""
+
+
+@app.post("/api/usermails/{schluessel}/standard")
+async def api_usermail_standard(schluessel: str, _=Depends(_check_auth)):
+    """Die mitgelieferte Fassung wiederherstellen.
+
+    Sie wird geschrieben wie eine bearbeitete Vorlage — dieselbe Datenstruktur,
+    derselbe Weg. Deshalb ist die wiederhergestellte Fassung anschliessend ganz
+    normal weiter bearbeitbar und nicht etwa schreibgeschützt.
+    """
+    import usermail
+    import template_builder as _tb
+    if not usermail.ist_bekannt(schluessel):
+        raise HTTPException(404, "Unbekannte Nachricht")
+    meta = usermail.standard_meta(schluessel)
+    fname = usermail.dateiname(schluessel)
+    verz = Path(config.TEMPLATE_DIR)
+    (verz / f"{fname}.meta.json").write_text(
+        _json_mod.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+    (verz / f"{fname}.html").write_text(_tb.render_html(meta), encoding="utf-8")
+    (verz / f"{fname}.txt").write_text(_tb.render_txt(meta), encoding="utf-8")
+    log.info("Nutzer-Mail %s auf die mitgelieferte Fassung zurückgesetzt", schluessel)
+    return JSONResponse({"ok": True})
+
+
+@app.get("/api/usermails")
+async def api_usermails(_=Depends(_check_auth)):
+    return JSONResponse({"usermails": _usermail_liste()})
+
+
 @app.get("/template", response_class=HTMLResponse)
 async def template_editor(request: Request, user: str = Depends(_check_auth)):
     import signature_engine as _sig_engine
@@ -1235,7 +1292,10 @@ async def template_editor(request: Request, user: str = Depends(_check_auth)):
         context={
             "html_content": html_path.read_text() if html_path.exists() else "",
             "txt_content": txt_path.read_text() if txt_path.exists() else "",
-            "has_meta": meta_path.exists(),
+            # Für Nachrichten an Postfachinhaber IMMER wahr: Ohne eigene
+            # Datei liefert der Meta-Endpunkt die mitgelieferte Fassung, und
+            # der Editor soll sie laden statt leer zu bleiben.
+            "has_meta": meta_path.exists() or bool(_usermail_key(fname)),
             # Wurde der Quelltext NACH dem letzten Baukasten-Speichern
             # geaendert? Dann sind die Bausteine veraltet, und der Editor bietet
             # an, sie aus dem Quelltext neu zu lesen.
@@ -1256,6 +1316,12 @@ async def template_editor(request: Request, user: str = Depends(_check_auth)):
             "template_list": template_list,
             "custom_vars": custom_vars,
             "gateway_name": _gateway_name(),
+            # Nachrichten an Postfachinhaber. Sie liegen im selben Verzeichnis
+            # und werden im selben Baukasten bearbeitet, stehen aber in einer
+            # EIGENEN Auswahl — in der Signaturliste hätten sie nichts zu
+            # suchen, dort wäre eine Zuweisung ein Klick.
+            "usermails": _usermail_liste(),
+            "usermail_key": _usermail_key(fname),
         },
     )
 

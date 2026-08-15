@@ -15,20 +15,41 @@
     <label style="font-weight:600;white-space:nowrap">Aktive Vorlage:</label>
     <select id="tpl-selector" style="min-width:180px;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px"
             onchange="switchTemplate(this.value)">
+      <optgroup label="Signaturen">
       {% for t in template_list %}
       <option value="{{ t }}" {% if t == current_template %}selected{% endif %}>{{ t }}</option>
       {% endfor %}
+      </optgroup>
+      {# Nachrichten an Postfachinhaber stehen in einer EIGENEN Gruppe. Sie
+         liegen im selben Verzeichnis und werden im selben Baukasten bearbeitet
+         — in der Signaturliste hätten sie aber nichts zu suchen: Von dort aus
+         wäre eine Zuweisung an ein Postfach ein Klick. #}
+      <optgroup label="Nachrichten an Postfachinhaber">
+      {% for u in usermails %}
+      <option value="{{ u.name }}" {% if u.key == usermail_key %}selected{% endif %}>{{ u.anzeige }}</option>
+      {% endfor %}
+      </optgroup>
     </select>
     <button class="btn secondary" onclick="createNewTemplate()" type="button">+ Neue Vorlage</button>
+    {# Kopieren, Umbenennen und Löschen gibt es für Nachrichten an
+       Postfachinhaber NICHT — nicht aus Vorsicht, sondern weil jedes davon
+       etwas kaputtmacht:
+       • Umbenennen zerrisse die Zuordnung. Der Dateiname ist der Anker, unter
+         dem der Versand die Fassung sucht; danach griffe stillschweigend wieder
+         die mitgelieferte, ohne dass es jemandem auffällt.
+       • Duplizieren ergäbe eine Kopie, die in keiner Liste auftaucht: als
+         Nachricht nicht (der Schlüssel ist vergeben), als Signatur auch nicht
+         (`kind` ist `usermail`).
+       • Löschen hat hier einen ehrlicheren Namen: „Standard wiederherstellen". #}
+    {% if not usermail_key %}
     <button class="btn secondary" onclick="duplicateTemplate('{{ current_template }}')"
             type="button" title="Kopie anlegen — samt Baukasten-Daten">Duplizieren</button>
     {% if current_template != 'default' %}
     <button class="btn secondary" onclick="renameTemplate('{{ current_template }}')"
             type="button" title="Vorlage umbenennen — Verweise ziehen mit">Umbenennen</button>
-    {% endif %}
-    {% if current_template != 'default' %}
     <button class="btn" style="background:#dc2626;color:#fff;border:none;padding:6px 14px;border-radius:4px;cursor:pointer;font-size:13px"
             onclick="deleteTemplate('{{ current_template }}')" type="button">Vorlage löschen</button>
+    {% endif %}
     {% endif %}
   </div>
   <p class="hint" style="margin-top:8px;margin-bottom:0">
@@ -36,6 +57,31 @@
     {% if current_template == 'default' %}Die Standard-Vorlage wird verwendet, wenn in der Postfach-Konfiguration keine andere Vorlage gewählt ist.{% endif %}
   </p>
 </div>
+
+{% if usermail_key %}
+{% for u in usermails %}{% if u.key == usermail_key %}
+<div class="settings-card" style="margin-bottom:16px;background:#eff6ff;border:1px solid #bfdbfe">
+  <p style="margin:0 0 10px;font-size:13px;color:#1e40af"><strong>{{ u.anzeige }}</strong> — {{ u.zweck }}</p>
+
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+    <label for="um-betreff" style="font-weight:600;white-space:nowrap">Betreff:</label>
+    <input type="text" id="um-betreff" style="flex:1;min-width:260px;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px">
+    <button class="btn secondary" type="button" onclick="usermailStandard('{{ u.key }}')"
+            title="Die mitgelieferte Fassung von Betreff und Text zurückholen">Standard wiederherstellen</button>
+  </div>
+
+  <p class="hint" style="margin:0">
+    Platzhalter im Text: <code>{% raw %}{{ empfaenger }}{% endraw %}</code> für die Adresse,
+    um die es geht, und <code>{% raw %}{{ ca }}{% endraw %}</code> für den Namen der
+    Zertifizierungsstelle. Der Betreff darf dieselben Platzhalter enthalten.<br>
+    Diese Nachricht geht an den <strong>Postfachinhaber</strong>, nicht an die Verwaltung —
+    und sie erklärt ihm, dass die gleich folgende Mail der Zertifizierungsstelle echt ist.
+    {% if not u.ist_standard %}<br><span style="color:#b45309">Der Text weicht von der
+    mitgelieferten Fassung ab.</span>{% endif %}
+  </p>
+</div>
+{% endif %}{% endfor %}
+{% endif %}
 
 <div id="save-ok" class="alert success" style="display:{% if saved %}block{% else %}none{% endif %}">
   Vorlage "{{ current_template }}" gespeichert.
@@ -293,6 +339,7 @@
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const TEMPLATE_NAME = {{ current_template | tojson }};
+const USERMAIL_KEY  = {{ usermail_key | tojson }};
 const HAS_META      = {{ has_meta | tojson }};
 // Quelltext nach dem letzten Baukasten-Speichern von Hand geaendert.
 const QUELLTEXT_NEUER = {{ quelltext_neuer | tojson }};
@@ -1155,8 +1202,33 @@ function applyGlobal(g) {
 
 // ── Build meta JSON ───────────────────────────────────────────────────────────
 function buildMeta() {
-  return { version: 1, global: getGlobal(), blocks };
+  const meta = { version: 1, global: getGlobal(), blocks };
+  // Nachrichten an Postfachinhaber tragen zwei Felder mehr. `kind` ist das,
+  // woran die Signaturlisten sie ausschliessen — geht es verloren, taucht die
+  // Nachricht als zuweisbare Signatur auf.
+  if (USERMAIL_KEY) {
+    meta.kind = 'usermail';
+    meta.usermail_key = USERMAIL_KEY;
+    const f = document.getElementById('um-betreff');
+    meta.betreff = f ? f.value.trim() : '';
+  }
+  return meta;
 }
+
+window.usermailStandard = async function(key) {
+  if (!confirm('Betreff und Text auf die mitgelieferte Fassung zurücksetzen?\n\n' +
+               'Ihre Änderungen an dieser Nachricht gehen dabei verloren.')) return;
+  try {
+    const r = await fetch(`/api/usermails/${encodeURIComponent(key)}/standard`, {method: 'POST'});
+    const d = await r.json();
+    if (!r.ok || !d.ok) throw new Error(d.detail || 'Fehler');
+    location.reload();
+  } catch (e) {
+    const box = document.getElementById('save-err');
+    box.textContent = 'Wiederherstellen fehlgeschlagen: ' + e.message;
+    box.style.display = 'block';
+  }
+};
 
 // ── Save builder ──────────────────────────────────────────────────────────────
 window.saveBuilder = async function() {
@@ -1334,6 +1406,8 @@ async function loadMeta() {
     const r = await fetch(`/api/templates/${encodeURIComponent(TEMPLATE_NAME)}/meta`);
     if (!r.ok) { renderBlockList(); return; }
     const meta = await r.json();
+    const bf = document.getElementById('um-betreff');
+    if (bf) bf.value = meta.betreff || '';
     if (meta.global) applyGlobal(meta.global);
     if (Array.isArray(meta.blocks)) {
       // Assign fresh IDs to avoid collisions
