@@ -5,6 +5,35 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.194 — 2026-08-16 — Nachrichten an Postfachinhaber sind anpassbar
+
+Die beiden Nachrichten, die an den Postfachinhaber selbst gehen — die
+Ankündigung der Bestätigungsmail der Zertifizierungsstelle und die
+Fertigmeldung — standen bisher fest im Programm. In einem Produkt, das andere
+Unternehmen betreiben und deren Belegschaft diese Nachrichten liest, ist das zu
+eng: Tonfall, Ansprache und der Hinweis, an wen man sich bei Fragen wendet,
+gehören dem Haus, das sie verschickt.
+
+Sie sind jetzt Vorlagen wie jede andere und lassen sich im selben Baukasten
+bearbeiten. Betreff und Text sind frei; für den Text stehen zwei Platzhalter
+bereit — die Adresse, um die es geht, und der Name der Zertifizierungsstelle.
+
+**Wer nichts ändert, behält den bisherigen Wortlaut.** Das ist Absicht: Diese
+Nachrichten tragen drei Aussagen, wegen derer es sie gibt — dass die gleich
+folgende Mail der Zertifizierungsstelle echt ist, dass dabei kein Kennwort
+einzugeben ist und nichts installiert wird. Ohne sie ist die Bestätigungsmail
+von einer Phishing-Nachricht nicht zu unterscheiden, und wer geschult ist,
+klickt zu Recht nicht. Die Fertigmeldung wiederum widerspricht ausdrücklich der
+Installationsaufforderung der Zertifizierungsstelle, die für dieses Verfahren
+gegenstandslos ist.
+
+Wer den Text angepasst hat und zurück möchte, stellt die mitgelieferte Fassung
+wieder her.
+
+Verlässt eine bearbeitete Vorlage sich auf etwas, das nicht aufgeht, wird die
+mitgelieferte Fassung verschickt statt gar nichts — diese Nachrichten stehen in
+einem Ablauf, an dessen Ende ein einsatzbereites Zertifikat steht.
+
 ## v1.7.193 — 2026-08-16 — Sperrlisten werden dem Zertifikat zugeordnet
 
 Ergänzung zur Widerrufsprüfung aus v1.7.192: Eine abgerufene Sperrliste wird

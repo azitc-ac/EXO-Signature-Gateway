@@ -524,6 +524,31 @@ def send_license_expiry_warning(st: dict, days_left: int) -> bool:
     return _graph_send(to, subject, _html_wrap(title, color, body))
 
 
+def _sende_nutzer_mail(schluessel: str, user_email: str, ca_label: str) -> bool:
+    """Eine der anpassbaren Nachrichten an den Postfachinhaber verschicken.
+
+    Text und Betreff kommen aus `usermail` — entweder aus der vom Betreiber
+    bearbeiteten Vorlage oder aus der mitgelieferten Fassung. Hier bleibt nur,
+    was für alle gilt: die Abschaltbarkeit (`NOTIFY_USER_CERT`), der Rahmen und
+    der Versand.
+
+    ⚠️ Adresse und Anbietername werden hier NICHT maskiert — das erledigt die
+    Vorlagenumgebung beim Einsetzen (`autoescape` greift auch bei
+    `from_string`). Beides zu tun ergäbe `&amp;lt;script&amp;gt;` in der
+    Nachricht: sichtbarer Unsinn statt Schutz. Genau so ist es beim Umbau
+    zunächst herausgekommen, und `test_ca_name_wird_maskiert` hat es gemeldet.
+    """
+    if not _should_notify("NOTIFY_USER_CERT"):
+        return False
+    import usermail
+    ergebnis = usermail.rendern(schluessel, user_email, ca_label or "")
+    if ergebnis is None:
+        return False
+    betreff, rumpf = ergebnis
+    farbe = usermail.VORLAGEN[schluessel].get("farbe", "#1e40af")
+    return _graph_send(user_email, betreff, _html_wrap(betreff, farbe, rumpf))
+
+
 def send_user_cert_verification_pending(user_email: str, ca_label: str) -> bool:
     """An den POSTFACHINHABER: gleich kommt eine Bestätigungsmail der CA.
 
@@ -536,28 +561,7 @@ def send_user_cert_verification_pending(user_email: str, ca_label: str) -> bool:
 
     Diese Mail kommt aus der eigenen Domäne und ordnet den Vorgang ein.
     """
-    if not _should_notify("NOTIFY_USER_CERT"):
-        return False
-    ca = _esc(ca_label or "unserer Zertifizierungsstelle")
-    body = (
-        f'<p>Für Ihre Adresse <strong>{_esc(user_email)}</strong> wird ein '
-        f'Zertifikat zum digitalen Signieren Ihrer E-Mails eingerichtet.</p>'
-        f'<p>Dazu erhalten Sie <strong>gleich eine weitere E-Mail von {ca}</strong> '
-        f'— oft in englischer Sprache. <strong>Diese Mail ist echt.</strong> '
-        f'Bitte klicken Sie darin einmal auf den Bestätigungslink.</p>'
-        f'<p>Damit bestätigen Sie ausschließlich, dass dieses Postfach Ihnen '
-        f'gehört. Sie geben dabei <strong>kein Passwort</strong> ein und '
-        f'<strong>installieren nichts</strong>.</p>'
-        f'<p>Der Link ist in der Regel 24 Stunden gültig. Danach ist nichts '
-        f'weiter zu tun — das Signieren übernimmt der Server.</p>'
-        f'<p style="color:#6b7280;font-size:13px">Sollten Sie diese Nachricht '
-        f'unerwartet erhalten oder unsicher sein, wenden Sie sich bitte an Ihre '
-        f'IT — klicken Sie im Zweifel nicht.</p>'
-    )
-    html = _html_wrap("Kurz bestätigen: Zertifikat für Ihre E-Mail-Adresse",
-                      "#1e40af", body)
-    return _graph_send(user_email,
-                       "Bitte bestätigen: Zertifikat für Ihre E-Mail-Adresse", html)
+    return _sende_nutzer_mail("cert_pending", user_email, ca_label)
 
 
 def send_user_cert_ready(user_email: str, ca_label: str) -> bool:
@@ -568,22 +572,7 @@ def send_user_cert_ready(user_email: str, ca_label: str) -> bool:
     Hier hält der Server den privaten Schlüssel; wer dem Link folgt, landet in
     einer Sackgasse und ruft anschließend beim Support an.
     """
-    if not _should_notify("NOTIFY_USER_CERT"):
-        return False
-    ca = _esc(ca_label or "der Zertifizierungsstelle")
-    body = (
-        f'<p>Das Zertifikat für <strong>{_esc(user_email)}</strong> ist '
-        f'eingerichtet. Ihre ausgehenden E-Mails werden ab sofort digital '
-        f'signiert.</p>'
-        f'<p><strong>Sie müssen nichts weiter tun.</strong> Falls {ca} Ihnen '
-        f'eine Mail schickt, die zum Installieren des Zertifikats auffordert: '
-        f'Diese können Sie ignorieren — die Signatur setzt der Server, das '
-        f'Zertifikat gehört nicht in Ihr Mailprogramm.</p>'
-    )
-    html = _html_wrap("✓ Ihre E-Mails werden jetzt digital signiert",
-                      "#16a34a", body)
-    return _graph_send(user_email,
-                       "✓ Digitale Signatur für Ihre E-Mails ist aktiv", html)
+    return _sende_nutzer_mail("cert_ready", user_email, ca_label)
 
 
 def send_hub_cert_issued(email: str, provider: str) -> bool:
