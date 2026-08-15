@@ -100,16 +100,44 @@ def render(user: UserData, template_name: str | None = None) -> tuple[str, str]:
     return html, txt
 
 
-def list_templates() -> list[str]:
-    """Return sorted list of available template names (always includes 'default')."""
+def vorlagen_art(name: str) -> str:
+    """Art einer Vorlage: `"signatur"` (Vorgabe) oder `"usermail"`.
+
+    Massgeblich ist `kind` in der Meta-Datei, nicht der Dateiname. Vorlagen ohne
+    Meta — von Hand abgelegte HTML-Dateien — gelten als Signatur; so waren sie
+    immer gemeint, bevor es die Unterscheidung gab.
+    """
+    import json
+    import os
+    pfad = os.path.join(config.TEMPLATE_DIR, f"{name}.meta.json")
+    try:
+        with open(pfad, encoding="utf-8") as f:
+            return json.load(f).get("kind") or "signatur"
+    except Exception:
+        return "signatur"
+
+
+def list_templates(art: str = "signatur") -> list[str]:
+    """Vorlagennamen einer Art, alphabetisch (Signaturen immer mit 'default').
+
+    ⚠️ Die Vorgabe ist `"signatur"`, und das ist wichtig: Alle bestehenden
+    Aufrufer sind Zuweisungslisten für Postfächer und Richtlinien. Wären dort
+    Nachrichten an die Belegschaft mit aufgeführt, liesse sich eine als Signatur
+    zuweisen — ein Klick, und jede ausgehende Mail trüge den Text „Bitte
+    bestätigen Sie Ihr Zertifikat".
+    """
     import os
     names: set[str] = set()
     try:
         for fname in os.listdir(config.TEMPLATE_DIR):
             if fname.endswith(".html") and fname != "signature.html":
-                names.add(fname[:-5])
+                name = fname[:-5]
+                if vorlagen_art(name) == art:
+                    names.add(name)
     except OSError:
         pass
+    if art != "signatur":
+        return sorted(names, key=lambda n: (n.lower(), n))
     names.add("default")
     # Durchgehend alphabetisch, ohne Ruecksicht auf Gross-/Kleinschreibung.
     #

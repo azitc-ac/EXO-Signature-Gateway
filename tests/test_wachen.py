@@ -184,6 +184,10 @@ EDITOR_DARF: dict[str, str] = {
     "/api/templates/{name}/create":     "Vorlage anlegen",
     "/api/templates/{name}/duplicate":  "Vorlage kopieren",
     "/api/templates/{name}/rename":     "Vorlage umbenennen",
+    "/api/usermails":                   "Liste der Nachrichten an Postfachinhaber",
+    "/api/usermails/{schluessel}/standard": ("mitgelieferte Fassung wiederherstellen — "
+                                             "wer den Text ändern darf, muss ihn auch "
+                                             "zurückholen können"),
     "/api/preview-data":                "Daten für die Vorschau",
     "/api/mailboxes":                   "NUR lesend — Auswahl des Vorschau-Postfachs",
     "/api/settings/template-policies":  "NUR lesend — Vorlagen-Richtlinien",
