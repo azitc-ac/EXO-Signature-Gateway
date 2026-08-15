@@ -292,6 +292,8 @@ def _run_daily() -> None:
     except Exception as exc:
         log.warning("scheduler: portal cleanup failed: %s", exc)
 
+    _crl_vorwaermen()
+
     # Daily stats report (if configured)
     if settings_store.get("DAILY_REPORT_ENABLED") and settings_store.get("NOTIFICATION_MAILBOX"):
         import stats
@@ -299,6 +301,33 @@ def _run_daily() -> None:
         daily = stats.take_daily_snapshot()
         total = stats.get()
         notification.send_daily_report(daily, total)
+
+
+def _crl_vorwaermen() -> None:
+    """Sperrlisten der bekannten Empfängerzertifikate im Voraus holen.
+
+    Ohne diesen Lauf zahlt die ERSTE Nachricht an eine bislang unbekannte CA den
+    Abruf — und läuft sie in die Zeitüberschreitung, geht sie über das Portal,
+    obwohl mit dem Zertifikat alles in Ordnung ist. Der Vorlauf verlegt das
+    Warten in die Nacht.
+
+    Fehlschläge sind hier folgenlos: Sie führen nur dazu, dass die Prüfung im
+    Versandweg selbst abruft.
+    """
+    if settings_store.get("CRL_CHECK") is False:
+        return
+    try:
+        import crl_check
+        import smime_store
+        pfade = smime_store.alle_empfaenger_cert_pfade()
+        if not pfade:
+            return
+        ergebnis = crl_check.vorwaermen(pfade)
+        if ergebnis["fehlgeschlagen"]:
+            log.warning("scheduler: CRL-Vorlauf — %d von %d Sperrlisten nicht erreichbar",
+                        ergebnis["fehlgeschlagen"], ergebnis["adressen"])
+    except Exception as exc:
+        log.warning("scheduler: CRL-Vorlauf fehlgeschlagen: %s", exc)
 
 
 def _refresh_mailbox_cache() -> None:

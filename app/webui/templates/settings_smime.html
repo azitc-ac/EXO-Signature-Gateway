@@ -122,6 +122,19 @@
       <span class="hint">Schlüsselwort im Betreff, das ausgehende S/MIME-Verschlüsselung auslöst</span>
     </div>
   </div>
+
+  <div class="settings-row" style="margin-top:10px">
+    <label class="checkbox-label">
+      <input type="checkbox" id="crl-check" {% if s.CRL_CHECK is not false %}checked{% endif %}>
+      Empfängerzertifikate gegen Sperrlisten prüfen (CRL)
+    </label>
+    <span class="hint">Vor dem Verschlüsseln wird geprüft, ob das Zertifikat des Empfängers
+      widerrufen wurde. Ist die Sperrliste des Trustcenters nicht erreichbar, gilt das
+      Zertifikat als nicht verwendbar — die Nachricht geht dann über das Portal hinaus
+      statt verschlüsselt. Sie fällt also nicht aus, nimmt aber einen anderen Weg.<br>
+      Abschalten nur, wenn dieses Gateway keine ausgehenden Verbindungen zu Trustcentern
+      aufbauen darf; dann bleibt der Widerruf ungeprüft.</span>
+  </div>
   </div>
 
   <div style="border-top:1px solid #f0f0f0;margin:16px 0 14px"></div>
@@ -425,6 +438,7 @@ function saveSmimeSettings() {
     SMIME_SIGNING_ENABLED: document.getElementById('smime-signing-enabled').checked,
     NODIGSIG_TRIGGER: (document.getElementById('nodigsig-trigger').value || '').trim() || '#nodigsig',
     ENC_TRIGGER: (document.getElementById('enc-trigger').value || '').trim() || '#enc',
+    CRL_CHECK: document.getElementById('crl-check').checked,
     SECURE_PORTAL_ENABLED: document.getElementById('portal-enabled').checked,
     SECURE_PORTAL_BASE_URL: (document.getElementById('portal-base-url').value || '').trim(),
     SECURE_PORTAL_RETENTION_DAYS: parseInt(document.getElementById('portal-retention').value, 10) || 14,
