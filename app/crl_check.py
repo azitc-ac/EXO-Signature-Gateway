@@ -112,8 +112,14 @@ def _cache_datei(url: str) -> Path:
     return _cache_verzeichnis() / (hashlib.sha256(url.encode()).hexdigest()[:32] + ".crl")
 
 
-def crl_adressen(cert: x509.Certificate) -> list[str]:
-    """HTTP(S)-Verteilungspunkte aus der Erweiterung `CRLDistributionPoints`.
+def crl_punkte(cert: x509.Certificate) -> list[tuple[str, x509.Name | None]]:
+    """Verteilungspunkte als `(Adresse, erwarteter Aussteller der Liste)`.
+
+    Der zweite Wert ist fast immer `None` — dann muss die Sperrliste vom
+    Aussteller des Zertifikats selbst stammen. Nennt der Verteilungspunkt einen
+    eigenen `crl_issuer`, ist es eine **indirekte** Sperrliste (RFC 5280 §5.2.6):
+    Dann führt eine andere Stelle die Widerrufe, und der Abgleich geht gegen
+    diese.
 
     LDAP-Adressen kommen in älteren Zertifikaten vor und werden übergangen —
     das Gateway spricht kein LDAP, und ein Verteilungspunkt, den man nicht
@@ -123,13 +129,23 @@ def crl_adressen(cert: x509.Certificate) -> list[str]:
         ext = cert.extensions.get_extension_for_class(x509.CRLDistributionPoints)
     except x509.ExtensionNotFound:
         return []
-    adressen: list[str] = []
+    punkte: list[tuple[str, x509.Name | None]] = []
     for punkt in ext.value:
+        eigener_aussteller = None
+        if punkt.crl_issuer:
+            for name in punkt.crl_issuer:
+                if isinstance(getattr(name, "value", None), x509.Name):
+                    eigener_aussteller = name.value
         for name in (punkt.full_name or []):
             wert = getattr(name, "value", "")
             if isinstance(wert, str) and wert.lower().startswith(("http://", "https://")):
-                adressen.append(wert)
-    return adressen
+                punkte.append((wert, eigener_aussteller))
+    return punkte
+
+
+def crl_adressen(cert: x509.Certificate) -> list[str]:
+    """Nur die Adressen — für den Vorlauf, dem der Aussteller gleich ist."""
+    return [url for url, _ in crl_punkte(cert)]
 
 
 def _crl_laden(rohdaten: bytes) -> x509.CertificateRevocationList | None:
@@ -256,14 +272,29 @@ def widerruf_geprueft(cert_path, jetzt: datetime | None = None) -> tuple[bool, s
     except Exception as exc:
         return False, f"nicht lesbar ({exc.__class__.__name__})"
 
-    adressen = crl_adressen(cert)
-    if not adressen:
+    punkte = crl_punkte(cert)
+    if not punkte:
         return True, "ohne Sperrlisten-Adresse"
 
-    for url in adressen:
+    for url, eigener_aussteller in punkte:
         crl = sperrliste(url, jetzt)
         if crl is None:
             continue          # nächster Verteilungspunkt, viele CAs nennen mehrere
+
+        # Gehört die Liste überhaupt zu diesem Zertifikat?
+        #
+        # Ohne diese Prüfung genügte es, IRGENDEINE gültige Sperrliste
+        # unterzuschieben — eine leere fremde erklärte jedes Zertifikat für
+        # unwiderrufen. Der Abgleich ersetzt die Prüfung der CRL-Signatur nicht
+        # (dafür fehlt die Ausstellerkette), er kostet aber nichts und schliesst
+        # den einfachsten Weg. An echten Trustcentern bestätigt: Sectigo und
+        # DigiCert nennen in der Liste denselben Aussteller wie im Zertifikat.
+        erwartet = eigener_aussteller or cert.issuer
+        if crl.issuer != erwartet:
+            log.warning("Sperrliste von %s stammt von %r, erwartet war %r — verworfen",
+                        url, crl.issuer.rfc4514_string(), erwartet.rfc4514_string())
+            continue
+
         eintrag = crl.get_revoked_certificate_by_serial_number(cert.serial_number)
         if eintrag is not None:
             try:
