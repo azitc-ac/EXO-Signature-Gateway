@@ -51,9 +51,17 @@ drei Arten an das Zertifikat gebunden, die aufeinander aufbauen:
    **tatsächlich ausgestellt hat** (`verify_directly_issued_by`). Das kann ein
    Angreifer nicht fälschen, ohne den privaten Schlüssel der echten CA zu haben.
 
-Deshalb braucht es hier **keinen Vertrauensanker**: Geprüft wird nicht, ob die
-CA vertrauenswürdig ist — das hat entschieden, wer das Zertifikat in den Bestand
-liess —, sondern nur, ob die Auskunft von genau ihr stammt.
+Diese Prüfung beantwortet damit genau eine Frage: **Stammt die Auskunft von
+derselben Stelle, die das Zertifikat ausgestellt hat?** Sie sagt NICHTS darüber,
+ob dieser Stelle zu trauen ist.
+
+⚠️ Das ist keine Spitzfindigkeit, sondern eine offene Flanke: Empfängerzertifikate
+kommen zum Teil selbsttätig herein (`smime_harvest` aus eingehenden signierten
+Mails), und dabei wird weder die Kette geprüft (`openssl smime -verify
+-noverify`) noch ein Vertrauensspeicher befragt. Wer ein Zertifikat samt
+Sperrliste aus einer selbst betriebenen CA mitbringt, besteht die Prüfung hier
+tadellos. Die Frage, WELCHE Aussteller überhaupt in den Bestand dürfen, wird an
+anderer Stelle beantwortet werden.
 
 ⚠️ Nennt das Zertifikat keine Adresse seines Ausstellers, entfallen 2 und 3;
 die Liste wird dann nach Stufe 1 benutzt. Nennt es eine, die **nicht erreichbar**
