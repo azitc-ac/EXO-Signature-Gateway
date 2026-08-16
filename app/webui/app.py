@@ -1382,6 +1382,24 @@ async def api_preview_data(
     tatsaechlich bekaeme."""
     import graph_client as _gc
     import mailbox_match
+
+    # ⚠️ Nachrichten an Postfachinhaber gehen einen ANDEREN Weg als Signaturen:
+    # Sie kennen weder `user` noch `custom`, sondern `empfaenger` und `ca`.
+    # Ohne diesen Zweig rendert die Vorschau sie mit dem Signatur-Kontext —
+    # die Platzhalter sind dort unbekannt und werden LEER eingesetzt. Im Editor
+    # stand dann „Für Ihre Adresse  wird ein Zertifikat…", und es sah aus, als
+    # sei die Vorlage kaputt.
+    schluessel = _usermail_key(template or "")
+    if schluessel:
+        import usermail
+        ergebnis = usermail.rendern(
+            schluessel,
+            email or "vorname.nachname@example.org",
+            (settings_store.get("CA_ANZEIGENAME") or "").strip() or "Ihrer Zertifizierungsstelle")
+        betreff, rumpf = ergebnis if ergebnis else ("", "")
+        return JSONResponse({"html": rumpf, "txt": "", "betreff": betreff,
+                             "banner_html": "", "disclaimer_html": "", "error": None})
+
     user_data = _gc.UserData()
     error = None
     if email:

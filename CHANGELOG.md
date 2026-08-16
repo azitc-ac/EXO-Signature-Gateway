@@ -5,6 +5,27 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.201 — 2026-08-16 — Nachrichten an Postfachinhaber: Vorschau und Bausteine berichtigt
+
+Zwei Fehler aus v1.7.194/195.
+
+**Die Vorschau blieb leer, wo Platzhalter stehen.** Sie rendert Vorlagen mit dem
+Zusammenhang einer Signatur — dort sind Empfängeradresse und Name der
+Zertifizierungsstelle unbekannt und wurden durch nichts ersetzt. Im Editor stand
+dann „Für Ihre Adresse&nbsp;&nbsp;wird ein Zertifikat…", was aussah, als sei die
+Vorlage beschädigt. Die Vorschau geht jetzt denselben Weg wie der Versand und
+zeigt zusätzlich den Betreff — beides mit eingesetzten Werten.
+
+**Die Absätze lagen im falschen Bausteintyp.** Sie waren als „HTML-Code"
+angelegt; wer den Text anpassen wollte, sah rohes Markup und hätte `<strong>`
+tippen müssen. Sie sind jetzt „Freitext" — mit der einfachen Auszeichnung des
+Baukastens (`**fett**`), wie sie auch sonst in Vorlagen benutzt wird. Am Wortlaut
+ändert sich nichts.
+
+Wer die mitgelieferte Fassung nie bearbeitet hat, merkt von der Umstellung
+nichts. Eine bereits angepasste Fassung bleibt unverändert — sie kann über
+„Standard wiederherstellen" auf die neue Form gebracht werden.
+
 ## v1.7.200 — 2026-08-16 — Fremde Zertifikate kommen nicht mehr ungefragt in den Bestand
 
 Damit wirkt, was in den letzten Versionen vorbereitet wurde. Sammelt das Gateway

@@ -47,8 +47,20 @@ PRAEFIX = "usermail_"
 KIND = "usermail"
 
 
-def _abs(text: str) -> dict:
-    return {"type": "freetext", "html": text}
+def _abs(text: str, **felder) -> dict:
+    """Ein Absatz als **Freitext**-Baustein (`text`), nicht als HTML-Baustein.
+
+    ⚠️ Der Unterschied ist der, den ein Betreiber sieht: `freetext` heisst im
+    Editor „HTML-Code" und zeigt rohes Markup — wer den Text anpassen will,
+    müsste dort `<strong>` schreiben. Der Baustein `text` heisst „Freitext",
+    maskiert die Eingabe und kennt eine schlanke Auszeichnung: `**fett**`,
+    `*kursiv*`, `[Text](Ziel)`. Das ist für eine Nachricht, die jemand
+    umformulieren soll, das richtige Werkzeug.
+
+    Die erste Fassung nahm `freetext`, weil der Parser diesen Typ für rohe
+    Absätze benutzt — ohne zu prüfen, wie er im Editor heisst.
+    """
+    return {"type": "text", "text": text, **felder}
 
 
 # Die mitgelieferten Fassungen. Bausteine, keine HTML-Brocken: Sie erscheinen im
@@ -66,20 +78,19 @@ VORLAGEN: dict[str, dict] = {
         "betreff": "Bitte bestätigen: Zertifikat für Ihre E-Mail-Adresse",
         "farbe": "#1e40af",
         "bloecke": [
-            _abs('Für Ihre Adresse <strong>{{ empfaenger }}</strong> wird ein '
-                 'Zertifikat zum digitalen Signieren Ihrer E-Mails eingerichtet.'),
-            _abs('Dazu erhalten Sie <strong>gleich eine weitere E-Mail von '
-                 '{{ ca }}</strong> — oft in englischer Sprache. '
-                 '<strong>Diese Mail ist echt.</strong> Bitte klicken Sie darin '
-                 'einmal auf den Bestätigungslink.'),
+            _abs('Für Ihre Adresse **{{ empfaenger }}** wird ein Zertifikat zum '
+                 'digitalen Signieren Ihrer E-Mails eingerichtet.'),
+            _abs('Dazu erhalten Sie **gleich eine weitere E-Mail von {{ ca }}** — '
+                 'oft in englischer Sprache. **Diese Mail ist echt.** Bitte klicken '
+                 'Sie darin einmal auf den Bestätigungslink.'),
             _abs('Damit bestätigen Sie ausschließlich, dass dieses Postfach Ihnen '
-                 'gehört. Sie geben dabei <strong>kein Passwort</strong> ein und '
-                 '<strong>installieren nichts</strong>.'),
+                 'gehört. Sie geben dabei **kein Passwort** ein und '
+                 '**installieren nichts**.'),
             _abs('Der Link ist in der Regel 24 Stunden gültig. Danach ist nichts '
                  'weiter zu tun — das Signieren übernimmt der Server.'),
-            _abs('<span style="color:#6b7280;font-size:13px">Sollten Sie diese '
-                 'Nachricht unerwartet erhalten oder unsicher sein, wenden Sie '
-                 'sich bitte an Ihre IT — klicken Sie im Zweifel nicht.</span>'),
+            _abs('Sollten Sie diese Nachricht unerwartet erhalten oder unsicher '
+                 'sein, wenden Sie sich bitte an Ihre IT — klicken Sie im Zweifel '
+                 'nicht.', color="#6b7280", size="13pt"),
         ],
     },
     "cert_ready": {
@@ -95,14 +106,12 @@ VORLAGEN: dict[str, dict] = {
         "betreff": "✓ Digitale Signatur für Ihre E-Mails ist aktiv",
         "farbe": "#16a34a",
         "bloecke": [
-            _abs('Das Zertifikat für <strong>{{ empfaenger }}</strong> ist '
-                 'eingerichtet. Ihre ausgehenden E-Mails werden ab sofort '
-                 'digital signiert.'),
-            _abs('<strong>Sie müssen nichts weiter tun.</strong> Falls '
-                 '{{ ca }} Ihnen eine Mail schickt, die zum Installieren des '
-                 'Zertifikats auffordert: Diese können Sie ignorieren — die '
-                 'Signatur setzt der Server, das Zertifikat gehört nicht in Ihr '
-                 'Mailprogramm.'),
+            _abs('Das Zertifikat für **{{ empfaenger }}** ist eingerichtet. Ihre '
+                 'ausgehenden E-Mails werden ab sofort digital signiert.'),
+            _abs('**Sie müssen nichts weiter tun.** Falls {{ ca }} Ihnen eine Mail '
+                 'schickt, die zum Installieren des Zertifikats auffordert: Diese '
+                 'können Sie ignorieren — die Signatur setzt der Server, das '
+                 'Zertifikat gehört nicht in Ihr Mailprogramm.'),
         ],
     },
 }
