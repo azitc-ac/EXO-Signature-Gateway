@@ -5,6 +5,33 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.196 — 2026-08-16 — Sperrlisten werden auf ihre Echtheit geprüft
+
+Die Widerrufsprüfung verliess sich bisher darauf, dass eine abgerufene
+Sperrliste den Namen der richtigen Zertifizierungsstelle trägt. Einen Namen kann
+aber jeder abschreiben. Geprüft wird jetzt zusätzlich die **Signatur** der
+Liste — und zwar mit dem Zertifikat der ausstellenden Stelle, das über die im
+Zertifikat genannte Adresse geladen wird.
+
+Auch dieses Zertifikat kommt über das Netz und wäre für sich genommen wertlos.
+Es wird deshalb nur benutzt, wenn es das Empfängerzertifikat **tatsächlich
+ausgestellt hat**. Das lässt sich nicht fälschen, ohne den privaten Schlüssel der
+echten Stelle zu besitzen. Ein Vertrauensanker ist dafür nicht nötig: Geprüft
+wird nicht, ob die Zertifizierungsstelle vertrauenswürdig ist — das hat
+entschieden, wer das Zertifikat in den Bestand liess —, sondern nur, ob die
+Auskunft von genau ihr stammt.
+
+Nennt ein Zertifikat keine Adresse seiner ausstellenden Stelle, bleibt es bei
+der bisherigen Prüfung. Nennt es eine, die nicht erreichbar ist, wird die Liste
+verworfen und die Nachricht geht über das Portal — sonst genügte es, diesen
+einen Abruf zu blockieren, um eine untergeschobene Liste durchzubringen.
+
+**Zum Betrieb:** Eine Signatur deckt die gesamte Liste ab; sie zu prüfen heisst,
+mehrere Megabyte zu lesen. Ergebnis und Ausstellerzertifikat werden deshalb
+vorgehalten, solange dieselbe Liste gilt. Gemessen an der grössten dabei
+angetroffenen Liste (9,3 MB): erste Nachricht rund drei Sekunden, jede weitere
+gut eine Zehntelsekunde.
+
 ## v1.7.195 — 2026-08-16 — Nachrichten an Postfachinhaber im Editor bearbeiten
 
 Die in v1.7.194 anpassbar gemachten Nachrichten lassen sich jetzt auch über die

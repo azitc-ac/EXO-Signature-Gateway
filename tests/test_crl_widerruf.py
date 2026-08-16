@@ -341,10 +341,19 @@ def test_tagesbericht_zeigt_alle_drei_faelle():
 
 @pytest.fixture(autouse=True)
 def speicher_leeren():
-    """Der Speicher-Cache lebt im Modul und überdauert sonst jeden Test."""
+    """Die Speicher-Zwischenlager leben im Modul und überdauern sonst jeden Test.
+
+    ⚠️ Auch das der Ausstellerzertifikate: Es ist nach ADRESSE geschlüsselt, und
+    die Testfälle benutzen dieselbe. Ohne Leeren erbte ein Test das
+    Ausstellerzertifikat des vorigen — und schlug mit „hat das
+    Empfängerzertifikat nicht ausgestellt" fehl, was wie ein Fehler in der
+    Prüfung aussieht und keiner ist.
+    """
     crl_check._im_speicher.clear()
+    crl_check._ca_im_speicher.clear()
     yield
     crl_check._im_speicher.clear()
+    crl_check._ca_im_speicher.clear()
 
 
 def test_zweiter_zugriff_kommt_ohne_dateizugriff_aus(tmp_path, ca, netz, monkeypatch):
@@ -431,3 +440,196 @@ def test_indirekte_sperrliste_darf_von_anderer_stelle_kommen(tmp_path, netz, ca)
     netz["antwort"] = _als_der(_sperrliste({"key": andere_key, "name": andere_name}))
     ok, grund = crl_check.widerruf_geprueft(p, JETZT)
     assert ok, f"indirekte Sperrliste wurde abgelehnt: {grund}"
+
+
+# ── Signatur der Sperrliste ──────────────────────────────────────────────────
+#
+# Der Aussteller-Abgleich oben prüft nur den NAMEN. Ein Angreifer, der eine
+# Sperrliste unterschiebt, schreibt aber selbstverständlich den richtigen Namen
+# hinein — den kann er abschreiben. Was er nicht kann: sie mit dem Schlüssel der
+# echten CA signieren.
+
+def _mit_aia(tmp_path, ca, dateiname, crl_url=CRL_URL, aia_url="http://ca.invalid/ca.crt"):
+    """Empfängerzertifikat, das die Adresse seines Ausstellers nennt."""
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    from cryptography.x509.oid import AuthorityInformationAccessOID
+    cert = (x509.CertificateBuilder()
+            .subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, dateiname)]))
+            .issuer_name(ca["name"]).public_key(key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(JETZT - timedelta(days=1))
+            .not_valid_after(JETZT + timedelta(days=365))
+            .add_extension(x509.CRLDistributionPoints([
+                x509.DistributionPoint(full_name=[x509.UniformResourceIdentifier(crl_url)],
+                                       relative_name=None, reasons=None, crl_issuer=None)]),
+                critical=False)
+            .add_extension(x509.AuthorityInformationAccess([
+                x509.AccessDescription(AuthorityInformationAccessOID.CA_ISSUERS,
+                                       x509.UniformResourceIdentifier(aia_url))]),
+                critical=False)
+            .sign(ca["key"], hashes.SHA256()))
+    p = tmp_path / f"{dateiname}.pem"
+    p.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
+    return p, cert
+
+
+@pytest.fixture
+def netz_mehrteilig(monkeypatch):
+    """Antworten je Adresse — Sperrliste UND Ausstellerzertifikat."""
+    antworten: dict[str, bytes | None] = {}
+
+    def abrufen(url: str):
+        return antworten.get(url)
+
+    monkeypatch.setattr(crl_check, "_abrufen", abrufen)
+    return antworten
+
+
+def _als_der_zert(cert):
+    return cert.public_bytes(serialization.Encoding.DER)
+
+
+def test_echte_sperrliste_besteht_die_signaturpruefung(tmp_path, ca, netz_mehrteilig):
+    pfad, _ = _mit_aia(tmp_path, ca, "echt")
+    netz_mehrteilig[CRL_URL] = _als_der(_sperrliste(ca))
+    netz_mehrteilig["http://ca.invalid/ca.crt"] = _als_der_zert(ca["cert"])
+    ok, grund = crl_check.widerruf_geprueft(pfad, JETZT)
+    assert ok, grund
+
+
+def test_untergeschobene_liste_mit_richtigem_namen_wird_erkannt(tmp_path, ca, netz_mehrteilig):
+    """⚠️ DER Fall, für den die Signaturprüfung da ist.
+
+    Die falsche Liste trägt denselben Aussteller-Namen wie die echte — der
+    Namensabgleich greift also NICHT. Nur die Signatur verrät sie.
+    """
+    boese_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    boese = {"key": boese_key, "name": ca["name"]}      # gleicher Name, fremder Schlüssel
+    pfad, cert = _mit_aia(tmp_path, ca, "untergeschoben")
+    # Der Angreifer verschweigt den Widerruf, den die echte Liste führt.
+    netz_mehrteilig[CRL_URL] = _als_der(_sperrliste(boese, widerrufen=[]))
+    netz_mehrteilig["http://ca.invalid/ca.crt"] = _als_der_zert(ca["cert"])
+    ok, grund = crl_check.widerruf_geprueft(pfad, JETZT)
+    assert not ok, "eine fremd signierte Sperrliste wurde als Auskunft akzeptiert"
+    assert "nicht erreichbar" in grund
+
+
+def test_untergeschobenes_ausstellerzertifikat_wird_erkannt(tmp_path, ca, netz_mehrteilig):
+    """Auch das Ausstellerzertifikat kommt über HTTP. Es wird nur benutzt, wenn
+    es das Empfängerzertifikat tatsächlich ausgestellt hat."""
+    fremd_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    fremd_name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "Test-CA")])
+    fremd = (x509.CertificateBuilder()
+             .subject_name(fremd_name).issuer_name(fremd_name)
+             .public_key(fremd_key.public_key())
+             .serial_number(x509.random_serial_number())
+             .not_valid_before(JETZT - timedelta(days=10))
+             .not_valid_after(JETZT + timedelta(days=10))
+             .sign(fremd_key, hashes.SHA256()))
+    pfad, _ = _mit_aia(tmp_path, ca, "fremde-ca")
+    netz_mehrteilig[CRL_URL] = _als_der(_sperrliste({"key": fremd_key, "name": fremd_name}))
+    netz_mehrteilig["http://ca.invalid/ca.crt"] = _als_der_zert(fremd)
+    ok, _ = crl_check.widerruf_geprueft(pfad, JETZT)
+    assert not ok
+
+
+def test_unerreichbarer_aussteller_verwirft_die_liste(tmp_path, ca, netz_mehrteilig):
+    """Sonst genügte es, den Abruf des Ausstellers zu blockieren, um eine
+    untergeschobene Liste durchzubringen."""
+    pfad, _ = _mit_aia(tmp_path, ca, "aussteller-weg")
+    netz_mehrteilig[CRL_URL] = _als_der(_sperrliste(ca))
+    netz_mehrteilig["http://ca.invalid/ca.crt"] = None
+    ok, grund = crl_check.widerruf_geprueft(pfad, JETZT)
+    assert not ok
+
+
+def test_ohne_ausstelleradresse_bleibt_es_bei_der_bisherigen_pruefung(tmp_path, ca, netz):
+    """Kein AIA ist eine Eigenschaft des Zertifikats, keine Störung — sonst
+    fielen alle Zertifikate ohne diese Erweiterung aus der Verschlüsselung."""
+    pfad, _ = _empfaenger(tmp_path, ca, "ohne-aia")
+    netz["antwort"] = _als_der(_sperrliste(ca))
+    assert crl_check.widerruf_geprueft(pfad, JETZT)[0]
+
+
+def test_widerruf_wird_auch_mit_signaturpruefung_gefunden(tmp_path, ca, netz_mehrteilig):
+    """Gegenprobe: Die Verschärfung darf den eigentlichen Zweck nicht verdecken."""
+    pfad, cert = _mit_aia(tmp_path, ca, "gesperrt-mit-aia")
+    netz_mehrteilig[CRL_URL] = _als_der(_sperrliste(ca, widerrufen=[cert.serial_number]))
+    netz_mehrteilig["http://ca.invalid/ca.crt"] = _als_der_zert(ca["cert"])
+    ok, grund = crl_check.widerruf_geprueft(pfad, JETZT)
+    assert not ok and "widerrufen" in grund
+
+
+def test_ausstellerzertifikat_wird_nur_einmal_geholt(tmp_path, ca, netz_mehrteilig, monkeypatch):
+    """Ohne diesen Zwischenspeicher zahlt JEDE Nachricht den Abruf — am
+    laufenden Container 1.688 ms, obwohl die Sperrliste längst im Speicher lag."""
+    crl_check._ca_im_speicher.clear()
+    abrufe = {"n": 0}
+    echt = crl_check._abrufen
+    monkeypatch.setattr(crl_check, "_abrufen",
+                        lambda url: (abrufe.__setitem__("n", abrufe["n"] + 1), echt(url))[1])
+    pfad, _ = _mit_aia(tmp_path, ca, "ca-cache")
+    netz_mehrteilig[CRL_URL] = _als_der(_sperrliste(ca))
+    netz_mehrteilig["http://ca.invalid/ca.crt"] = _als_der_zert(ca["cert"])
+    for _ in range(3):
+        assert crl_check.widerruf_geprueft(pfad, JETZT)[0]
+    assert abrufe["n"] == 2, f"{abrufe['n']} Abrufe statt zwei (Sperrliste + Aussteller, je einmal)"
+
+
+def test_abgelaufenes_ausstellerzertifikat_wird_nicht_weiterbenutzt(ca):
+    """Die CA hat dann längst ein neues — und die Sperrliste stammt von diesem."""
+    crl_check._ca_im_speicher.clear()
+    alt_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "Alte-CA")])
+    abgelaufen = (x509.CertificateBuilder()
+                  .subject_name(name).issuer_name(name)
+                  .public_key(alt_key.public_key())
+                  .serial_number(x509.random_serial_number())
+                  .not_valid_before(JETZT - timedelta(days=800))
+                  .not_valid_after(JETZT - timedelta(days=10))
+                  .sign(alt_key, hashes.SHA256()))
+    crl_check._ca_merken("http://alt.invalid/ca.crt", abgelaufen)
+    assert crl_check._ca_aus_speicher("http://alt.invalid/ca.crt") is None
+
+
+def test_signatur_wird_nicht_bei_jeder_nachricht_neu_geprueft(tmp_path, ca, netz_mehrteilig, monkeypatch):
+    """Die Signatur deckt die GANZE Liste — sie zu prüfen heisst, mehrere
+    Megabyte zu hashen. Am laufenden Container 1.275 ms je Nachricht, obwohl
+    Liste und Ausstellerzertifikat längst im Speicher lagen."""
+    crl_check._signatur_ok.clear()
+    pruefungen = {"n": 0}
+    echte_crl = _sperrliste(ca)
+
+    class Zaehlend:
+        """Umhüllt die echte Sperrliste und zählt die Signaturprüfungen."""
+        def __init__(self, crl): self._crl = crl
+        def __getattr__(self, name): return getattr(self._crl, name)
+        def is_signature_valid(self, key):
+            pruefungen["n"] += 1
+            return self._crl.is_signature_valid(key)
+
+    monkeypatch.setattr(crl_check, "_crl_laden", lambda roh: Zaehlend(echte_crl))
+    pfad, _ = _mit_aia(tmp_path, ca, "sig-cache")
+    netz_mehrteilig[CRL_URL] = _als_der(echte_crl)
+    netz_mehrteilig["http://ca.invalid/ca.crt"] = _als_der_zert(ca["cert"])
+    for _ in range(3):
+        assert crl_check.widerruf_geprueft(pfad, JETZT)[0]
+    assert pruefungen["n"] == 1, f"{pruefungen['n']} Signaturprüfungen statt einer"
+
+
+def test_neu_geladene_liste_wird_wieder_geprueft(tmp_path, ca, netz_mehrteilig):
+    """Sonst gälte die Prüfung der alten Liste für eine neue weiter — und genau
+    darin könnte der untergeschobene Inhalt stecken."""
+    crl_check._signatur_ok.clear()
+    pfad, _ = _mit_aia(tmp_path, ca, "sig-neu")
+    netz_mehrteilig[CRL_URL] = _als_der(_sperrliste(ca, naechste=JETZT + timedelta(hours=1)))
+    netz_mehrteilig["http://ca.invalid/ca.crt"] = _als_der_zert(ca["cert"])
+    assert crl_check.widerruf_geprueft(pfad, JETZT)[0]
+    assert CRL_URL in crl_check._signatur_ok
+
+    # Die Liste läuft ab, und die Gegenstelle liefert eine fremd signierte.
+    boese_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    netz_mehrteilig[CRL_URL] = _als_der(_sperrliste({"key": boese_key, "name": ca["name"]},
+                                                    jetzt=JETZT + timedelta(hours=2)))
+    ok, _ = crl_check.widerruf_geprueft(pfad, JETZT + timedelta(hours=2))
+    assert not ok, "die fremd signierte Nachfolge-Liste wurde ungeprüft übernommen"
