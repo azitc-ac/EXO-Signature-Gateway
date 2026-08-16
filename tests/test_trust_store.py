@@ -337,3 +337,81 @@ def test_abgeschalteter_bezug_laesst_nur_oertliche_freigaben_gelten(monkeypatch,
                         lambda: gerufen.__setitem__("n", gerufen["n"] + 1) or [])
     assert trust_store.wurzeln(JETZT) == {}
     assert gerufen["n"] == 0, "trotz abgeschaltetem Bezug wurde abgerufen"
+
+
+# ── Vorlauf und Fristen ──────────────────────────────────────────────────────
+
+def test_der_tageslauf_frischt_den_wurzelspeicher_auf():
+    """⚠️ Ohne Vorlauf wird die Liste erst geholt, wenn sie GEBRAUCHT wird —
+    während eine eingehende Nachricht darauf wartet, dass über ihr Zertifikat
+    entschieden wird.
+
+    Für die Sperrlisten gab es diesen Vorlauf von Anfang an, für die Wurzeln
+    fehlte er; aufgefallen beim Durchgehen der Grenzwerte.
+    """
+    from pathlib import Path
+    quelle = (Path(__file__).resolve().parent.parent / "app" / "scheduler.py").read_text()
+    assert "_wurzelspeicher_auffrischen()" in quelle
+    import re
+    tageslauf = re.search(r"def _run_daily\(\).*?(?=\ndef )", quelle, re.S).group(0)
+    assert "_wurzelspeicher_auffrischen()" in tageslauf, \
+        "der Aufruf steht nicht im Tageslauf"
+
+
+class _LangsameAntwort:
+    """Antwort, die ihre Daten tröpfchenweise liefert — wie eine schmale Leitung."""
+
+    def __init__(self, daten: bytes, pause: float, stuecke: int = 20):
+        self._daten, self._pause, self._n = daten, pause, stuecke
+
+    def raise_for_status(self): pass
+    def __enter__(self): return self
+    def __exit__(self, *a): return False
+
+    def iter_bytes(self):
+        import time as _t
+        gr = max(1, len(self._daten) // self._n)
+        for i in range(0, len(self._daten), gr):
+            _t.sleep(self._pause)
+            yield self._daten[i:i + gr]
+
+
+class _LangsamerClient:
+    def __init__(self, daten, pause): self._daten, self._pause = daten, pause
+    def __enter__(self): return self
+    def __exit__(self, *a): return False
+    def stream(self, methode, url): return _LangsameAntwort(self._daten, self._pause)
+
+
+def test_langsamer_abruf_wird_abgebrochen(monkeypatch):
+    """⚠️ Der an httpx übergebene Wert begrenzt nur die Zeit ZWISCHEN zwei
+    Paketen. Eine stetig langsame Gegenstelle liefe nie in eine Grenze — und
+    dieser Abruf geschieht im Bedarfsfall, während eine eingehende Nachricht
+    darauf wartet.
+
+    Der Test stellt deshalb eine schmale Leitung nach, statt die Konstante zu
+    behaupten: Ein Test gegen den Zahlenwert hätte die httpx-Semantik nie
+    aufgedeckt — genau daran ist die erste Fassung vorbeigelaufen.
+    """
+    import httpx, time as _t
+    monkeypatch.setattr(trust_store, "GESAMT_ABRUF", 0.3)
+    monkeypatch.setattr(httpx, "Client",
+                        lambda **kw: _LangsamerClient(_bericht(WURZEL).encode(), 0.05))
+    t0 = _t.time()
+    assert trust_store._abrufen() is None
+    assert _t.time() - t0 < 2.0, "der Abbruch kam zu spät"
+
+
+def test_schneller_abruf_geht_durch(monkeypatch):
+    """Gegenprobe — sonst wäre die Frist nur eine Bremse."""
+    import httpx
+    daten = _bericht(WURZEL)
+    monkeypatch.setattr(trust_store, "GESAMT_ABRUF", 30.0)
+    monkeypatch.setattr(httpx, "Client", lambda **kw: _LangsamerClient(daten.encode(), 0.0))
+    assert trust_store.abdruck(WURZEL) in trust_store._auswerten(trust_store._abrufen())
+
+
+def test_kettenlaenge_deckt_die_echten_faelle():
+    """Im produktiven Bestand gemessen: höchstens drei Glieder (16.08.2026).
+    Die Grenze ist die Notbremse gegen Verweisschleifen, keine Sparmassnahme."""
+    assert trust_store.MAX_KETTENLAENGE >= 5

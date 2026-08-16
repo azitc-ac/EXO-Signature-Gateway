@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.204 — 2026-08-16 — Wurzelliste wird im Voraus geholt
+
+Beim Durchgehen der übrigen Grenzwerte fiel auf, dass für die Liste
+vertrauenswürdiger Wurzelzertifikate der Vorlauf fehlte, den die Sperrlisten
+längst haben. Sie wurde erst geholt, wenn sie **gebraucht** wurde — also
+während eine eingehende Nachricht darauf wartete, dass über ihr Zertifikat
+entschieden wird.
+
+Sie wird jetzt im Tageslauf aufgefrischt. Schlägt das fehl, gilt die
+gespeicherte Fassung weiter; im Bedarfsfall wird nach wie vor selbst geholt.
+
+Für diesen Abruf gilt ausserdem dieselbe Zeitgrenze wie bei den Sperrlisten:
+eine Frist für den gesamten Vorgang statt nur für die Pausen zwischen zwei
+Datenpaketen.
+
+Die übrigen Grenzwerte wurden am echten Bestand nachgemessen und blieben
+unverändert: Die Kettenlänge ist auf sechs Glieder begrenzt, gemessen wurden
+höchstens drei; die zwischengespeicherten Ausstellerzertifikate belegen bei
+32 Einträgen zusammen etwa 46 Kilobyte.
+
 ## v1.7.203 — 2026-08-16 — Der Abruf einer Sperrliste hält den Versand nicht mehr auf
 
 Nachtrag zur vorigen Version. Dort wurde die Grössengrenze angehoben, damit

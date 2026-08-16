@@ -84,7 +84,15 @@ QUELLE = ("https://ccadb.my.salesforce-sites.com/microsoft/"
 # Einmal am Tag genügt: Ein Wurzelprogramm ändert sich in Wochen, nicht Stunden.
 HOECHSTALTER_STUNDEN = 36
 
+# ⚠️ Dieselbe Unterscheidung wie in `crl_check`: Der an httpx übergebene Wert
+# begrenzt die Zeit ZWISCHEN zwei Paketen, nicht die Gesamtdauer. `GESAMT_ABRUF`
+# ist die Uhr, die zählt — auch dieser Bericht wird im Bedarfsfall geholt,
+# während eine eingehende Nachricht darauf wartet.
+#
+# Gemessen am 16.08.2026: 324 KB in 1,5 s. Die Frist ist entsprechend
+# grosszügig, aber endlich.
 ABRUF_TIMEOUT = 30.0
+GESAMT_ABRUF = 45.0
 
 # Ab Werk freigegeben: der Aussteller, über den dieses Gateway seine eigenen
 # Zertifikate bezieht. Ohne ihn wäre der eigene Bezugsweg blockiert.
@@ -103,11 +111,21 @@ def _cache_datei() -> Path:
 def _abrufen() -> str | None:
     """Nur der Transport — getrennt vom Zwischenspeicher, damit sich beides
     einzeln prüfen lässt (dieselbe Trennung wie in `crl_check`)."""
+    import time
     import httpx
+    beginn = time.monotonic()
     try:
-        r = httpx.get(QUELLE, timeout=ABRUF_TIMEOUT, follow_redirects=True)
-        r.raise_for_status()
-        return r.text
+        with httpx.Client(timeout=ABRUF_TIMEOUT, follow_redirects=True) as client:
+            with client.stream("GET", QUELLE) as antwort:
+                antwort.raise_for_status()
+                teile = []
+                for stueck in antwort.iter_bytes():
+                    if time.monotonic() - beginn > GESAMT_ABRUF:
+                        log.warning("Wurzelspeicher dauert länger als %.0f s — abgebrochen",
+                                    GESAMT_ABRUF)
+                        return None
+                    teile.append(stueck)
+        return b"".join(teile).decode("utf-8", errors="replace")
     except Exception as exc:
         log.warning("Wurzelspeicher nicht abrufbar: %s: %s", exc.__class__.__name__, exc)
         return None
