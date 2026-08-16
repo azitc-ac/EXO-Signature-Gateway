@@ -36,17 +36,31 @@ werden durchgelassen und **gezählt** (`cert_ohne_crl`), damit nicht unbemerkt
 bleibt, für welchen Teil des Bestands die Prüfung gar nicht greift. Eine
 Zusicherung, deren Wirken nirgends sichtbar ist, fällt sonst unbemerkt aus.
 
-WAS DIESE STUFE NOCH NICHT PRÜFT
---------------------------------
-Die **Signatur der Sperrliste**. Dafür braucht es das Ausstellerzertifikat, das
-dem Gateway in aller Regel nicht vorliegt (es speichert Empfängerzertifikate,
-keine Ketten). Ungeprüft bleibt damit ein Angreifer denkbar, der den Netzweg
-zum Trustcenter beherrscht und eine Sperrliste ohne den fraglichen Eintrag
-unterschiebt. Das ist eine kleinere Lücke als gar nicht zu prüfen: Wer den
-Netzweg beherrscht, kann heute schon jede Sperrliste zurückhalten — und
-zurückgehaltene Sperrlisten führen hier zu „nicht erreichbar" und damit zum
-Portal. Der Ausbau (Kette über `AuthorityInformationAccess` nachladen,
-CRL-Signatur prüfen) ist als eigener Schritt vorgesehen.
+WOHER DIE SPERRLISTE STAMMT — DREI STUFEN
+-----------------------------------------
+Eine abgerufene Liste ist zunächst nur eine Datei aus dem Netz. Sie wird auf
+drei Arten an das Zertifikat gebunden, die aufeinander aufbauen:
+
+1. **Aussteller-Name** — die Liste muss von der CA des Zertifikats stammen
+   (oder von der Stelle, die der Verteilungspunkt ausdrücklich nennt). Fängt
+   den Fall, dass irgendeine fremde Liste geliefert wird.
+2. **Signatur der Liste** — geprüft mit dem öffentlichen Schlüssel der CA.
+   Nötig, weil einen Namen jeder abschreiben kann; die Signatur nicht.
+3. **Bindung des Ausstellerzertifikats** — auch das kommt über HTTP und wäre
+   für sich wertlos. Es wird nur benutzt, wenn es das Empfängerzertifikat
+   **tatsächlich ausgestellt hat** (`verify_directly_issued_by`). Das kann ein
+   Angreifer nicht fälschen, ohne den privaten Schlüssel der echten CA zu haben.
+
+Deshalb braucht es hier **keinen Vertrauensanker**: Geprüft wird nicht, ob die
+CA vertrauenswürdig ist — das hat entschieden, wer das Zertifikat in den Bestand
+liess —, sondern nur, ob die Auskunft von genau ihr stammt.
+
+⚠️ Nennt das Zertifikat keine Adresse seines Ausstellers, entfallen 2 und 3;
+die Liste wird dann nach Stufe 1 benutzt. Nennt es eine, die **nicht erreichbar**
+ist, wird die Liste verworfen — sonst genügte es, den Abruf des Ausstellers zu
+blockieren, um eine untergeschobene Liste durchzubringen.
+
+Offen bleibt OCSP für Zertifikate ganz ohne Verteilungspunkt.
 """
 from __future__ import annotations
 
@@ -57,6 +71,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from cryptography import x509
+from cryptography.hazmat.primitives import hashes
 
 import config
 
@@ -211,6 +226,162 @@ def _abrufen(url: str) -> bytes | None:
         return None
 
 
+# Ausstellerzertifikate im Arbeitsspeicher.
+#
+# Sie sind winzig (ein bis zwei Kilobyte) und ändern sich über Jahre nicht —
+# aber ohne diese Ebene lädt sie JEDE Prüfung neu, auch wenn die Sperrliste
+# längst im Speicher liegt. Am laufenden Container gemessen: 1.688 ms für eine
+# Nachricht bei warmem Sperrlisten-Cache, allein für diesen einen Abruf. Im
+# Versandweg ist das nicht tragbar.
+#
+# Begrenzt wie dort über die Anzahl; hier grosszügiger, weil die Einträge
+# tausendfach kleiner sind als eine Sperrliste.
+_MAX_CA_IM_SPEICHER = 32
+_ca_im_speicher: dict[str, x509.Certificate] = {}
+
+
+def _ca_aus_speicher(url: str) -> x509.Certificate | None:
+    ca = _ca_im_speicher.get(url)
+    if ca is None:
+        return None
+    # Ein abgelaufenes Ausstellerzertifikat wird nicht weiterbenutzt: Die CA hat
+    # dann längst ein neues, und die Sperrliste stammt von diesem.
+    try:
+        gueltig_bis = ca.not_valid_after_utc
+    except AttributeError:
+        gueltig_bis = ca.not_valid_after.replace(tzinfo=timezone.utc)
+    if gueltig_bis <= datetime.now(timezone.utc):
+        _ca_im_speicher.pop(url, None)
+        return None
+    return ca
+
+
+def _ca_merken(url: str, ca: x509.Certificate) -> None:
+    if len(_ca_im_speicher) >= _MAX_CA_IM_SPEICHER:
+        _ca_im_speicher.pop(next(iter(_ca_im_speicher)))
+    _ca_im_speicher[url] = ca
+
+
+def ausstelleradressen(cert: x509.Certificate) -> list[str]:
+    """HTTP(S)-Adressen des Ausstellerzertifikats (`AIA`, `caIssuers`)."""
+    from cryptography.x509.oid import AuthorityInformationAccessOID
+    try:
+        aia = cert.extensions.get_extension_for_class(x509.AuthorityInformationAccess).value
+    except x509.ExtensionNotFound:
+        return []
+    adressen = []
+    for beschreibung in aia:
+        if beschreibung.access_method != AuthorityInformationAccessOID.CA_ISSUERS:
+            continue
+        wert = getattr(beschreibung.access_location, "value", "")
+        if isinstance(wert, str) and wert.lower().startswith(("http://", "https://")):
+            adressen.append(wert)
+    return adressen
+
+
+def _zert_laden(rohdaten: bytes) -> x509.Certificate | None:
+    """Ausstellerzertifikate kommen als DER (`.crt`, `.cer`) oder PEM."""
+    for lader in (x509.load_der_x509_certificate, x509.load_pem_x509_certificate):
+        try:
+            return lader(rohdaten)
+        except Exception:
+            continue
+    return None
+
+
+def ausstellerzertifikat(cert: x509.Certificate) -> x509.Certificate | None:
+    """Das Zertifikat der ausstellenden CA — geladen und AN *cert* GEBUNDEN.
+
+    ⚠️ Der zweite Teil ist der entscheidende. Ein über HTTP geladenes Zertifikat
+    ist zunächst nichts wert: Wer den Netzweg beherrscht, liefert ein beliebiges.
+    Deshalb wird geprüft, ob es *cert* **tatsächlich signiert hat**
+    (`verify_directly_issued_by`). Das kann ein Angreifer nicht fälschen, ohne
+    den privaten Schlüssel der echten CA zu besitzen — er kann nur die echte CA
+    liefern oder gar keine.
+
+    Damit braucht es hier **keinen Vertrauensanker**: Geprüft wird nicht, ob die
+    CA vertrauenswürdig ist (das hat entschieden, wer das Zertifikat in den
+    Bestand liess), sondern nur, ob die Sperrliste von genau ihr stammt.
+    """
+    for url in ausstelleradressen(cert):
+        # ⚠️ Zwei Anläufe je Adresse: erst der Zwischenspeicher, dann frisch.
+        # Der Speicher ist nach ADRESSE geschlüsselt, die Bindung hängt aber am
+        # konkreten Zertifikat. Liefert eine Adresse für verschiedene
+        # Empfängerzertifikate verschiedene Aussteller — oder liegt dort ein
+        # veralteter Eintrag —, wäre ein einzelner Anlauf ein Fehlschlag, und
+        # die Nachricht ginge über das Portal, obwohl alles in Ordnung ist.
+        for versuch, ca in enumerate((_ca_aus_speicher(url), None)):
+            if ca is None:
+                if versuch == 0:
+                    continue          # nichts im Speicher → zweiter Durchgang lädt
+                rohdaten = _abrufen(url)
+                if rohdaten is None:
+                    break
+                ca = _zert_laden(rohdaten)
+                if ca is None:
+                    log.warning("Ausstellerzertifikat von %s ist weder DER noch PEM", url)
+                    break
+            try:
+                cert.verify_directly_issued_by(ca)
+            except Exception as exc:
+                if versuch == 0:
+                    # Gespeichertes passt nicht — verwerfen und frisch laden.
+                    _ca_im_speicher.pop(url, None)
+                    continue
+                log.warning("Zertifikat von %s hat das Empfängerzertifikat NICHT "
+                            "ausgestellt (%s) — verworfen", url, exc.__class__.__name__)
+                break
+            _ca_merken(url, ca)
+            return ca
+    return None
+
+
+# Bereits geprüfte Signaturen: Adresse der Sperrliste → Fingerabdruck der CA,
+# gegen die sie erfolgreich geprüft wurde.
+#
+# ⚠️ Ohne das wird bei JEDER Nachricht die gesamte Liste neu gehasht — die
+# Signatur deckt schliesslich die ganze Datei. Am laufenden Container gemessen:
+# 1.275 ms je Nachricht bei einer 9,3-MB-Liste, obwohl Liste UND
+# Ausstellerzertifikat längst im Speicher lagen. Der Abruf war nie das Teure.
+#
+# Der Fingerabdruck gehört in den Schlüssel: Käme unter derselben Adresse eine
+# andere CA, müsste neu geprüft werden. Beim Neuladen einer Liste fällt der
+# Eintrag weg.
+_signatur_ok: dict[str, bytes] = {}
+
+
+def _signatur_geprueft(crl: x509.CertificateRevocationList,
+                       cert: x509.Certificate, url: str = "") -> tuple[bool, str]:
+    """Stammt die Sperrliste wirklich von der ausstellenden CA?
+
+    Liefert `(True, Vermerk)`, wenn nichts dagegen spricht. Zwei Fälle sind
+    auseinanderzuhalten:
+
+    * Das Zertifikat nennt **keine** Adresse seines Ausstellers → die Signatur
+      lässt sich nicht prüfen. Das ist eine Eigenschaft des Zertifikats, keine
+      Störung; die Liste wird benutzt und der Fall vermerkt.
+    * Es nennt eine, aber sie ist **nicht erreichbar** oder die Signatur passt
+      **nicht** → verworfen. Sonst genügte es, den Abruf des Ausstellers zu
+      blockieren, um eine untergeschobene Sperrliste durchzubringen.
+    """
+    if not ausstelleradressen(cert):
+        return True, "ohne Ausstelleradresse"
+    ca = ausstellerzertifikat(cert)
+    if ca is None:
+        return False, "Ausstellerzertifikat nicht prüfbar"
+    abdruck = ca.fingerprint(hashes.SHA256())
+    if url and _signatur_ok.get(url) == abdruck:
+        return True, ""      # dieselbe Liste, dieselbe CA — bereits geprüft
+    try:
+        if not crl.is_signature_valid(ca.public_key()):
+            return False, "Signatur der Sperrliste ungültig"
+    except Exception as exc:
+        return False, f"Signatur nicht prüfbar ({exc.__class__.__name__})"
+    if url:
+        _signatur_ok[url] = abdruck
+    return True, ""
+
+
 def _merken(url: str, crl: x509.CertificateRevocationList) -> None:
     if len(_im_speicher) >= _MAX_IM_SPEICHER:
         _im_speicher.pop(next(iter(_im_speicher)))
@@ -249,6 +420,7 @@ def sperrliste(url: str, jetzt: datetime | None = None) -> x509.CertificateRevoc
         _cache_datei(url).write_bytes(rohdaten)
     except Exception as exc:      # Zwischenspeicher ist Beschleunigung, kein Muss
         log.warning("CRL konnte nicht zwischengespeichert werden: %s", exc)
+    _signatur_ok.pop(url, None)   # neue Liste → alte Prüfung gilt nicht mehr
     _merken(url, crl)
     return crl
 
@@ -294,6 +466,16 @@ def widerruf_geprueft(cert_path, jetzt: datetime | None = None) -> tuple[bool, s
             log.warning("Sperrliste von %s stammt von %r, erwartet war %r — verworfen",
                         url, crl.issuer.rfc4514_string(), erwartet.rfc4514_string())
             continue
+
+        # Der Name allein ist eine Behauptung — die Signatur ist der Beleg.
+        # Nur bei direkten Sperrlisten prüfbar: Bei einer indirekten führt eine
+        # andere Stelle die Liste, deren Zertifikat wir nicht über das
+        # Empfängerzertifikat binden können.
+        if eigener_aussteller is None:
+            echt, vermerk = _signatur_geprueft(crl, cert, url)
+            if not echt:
+                log.warning("Sperrliste von %s verworfen — %s", url, vermerk)
+                continue
 
         eintrag = crl.get_revoked_certificate_by_serial_number(cert.serial_number)
         if eintrag is not None:
