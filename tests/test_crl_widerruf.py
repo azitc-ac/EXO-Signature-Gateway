@@ -350,9 +350,11 @@ def speicher_leeren():
     Prüfung aussieht und keiner ist.
     """
     crl_check._im_speicher.clear()
+    crl_check._groessen.clear()
     crl_check._ca_im_speicher.clear()
     yield
     crl_check._im_speicher.clear()
+    crl_check._groessen.clear()
     crl_check._ca_im_speicher.clear()
 
 
@@ -381,13 +383,40 @@ def test_speicher_gibt_ueberfaellige_liste_nicht_weiter(tmp_path, ca, netz):
     assert netz["abrufe"] == 2, "überfällige Liste kam aus dem Arbeitsspeicher"
 
 
-def test_speicher_waechst_nicht_unbegrenzt(tmp_path, ca, netz):
-    """Eine Sperrliste kann zweistellig viele Megabyte belegen; das Gateway
-    läuft auch auf kleinen Geräten."""
+def test_speicher_waechst_nicht_unbegrenzt(tmp_path, ca, netz, monkeypatch):
+    """⚠️ Begrenzt wird der PLATZ, nicht die Anzahl.
+
+    Die erste Fassung zählte sechs Einträge — in der Annahme, sie seien klein.
+    Gemessen am echten Verkehr: SwissSign liefert 24,3 MB, geparst rund 32 MB
+    Arbeitsspeicher. Sechs davon wären fast 200 MB auf einem Kleinrechner.
+    """
     netz["antwort"] = _als_der(_sperrliste(ca))
-    for i in range(crl_check._MAX_IM_SPEICHER + 3):
+    # Jede Liste zählt als 20 MB — nach vier ist das Budget erschöpft.
+    monkeypatch.setattr(crl_check, "_SPEICHER_BUDGET", 64 * 1024 * 1024)
+    for i in range(8):
         crl_check.sperrliste(f"http://ca{i}.invalid/x.crl", JETZT)
-    assert len(crl_check._im_speicher) <= crl_check._MAX_IM_SPEICHER
+        crl_check._groessen[f"http://ca{i}.invalid/x.crl"] = 20 * 1024 * 1024
+    crl_check._merken("http://letzte.invalid/x.crl",
+                      _sperrliste(ca), 20 * 1024 * 1024)
+    belegt = sum(crl_check._groessen.values())
+    assert belegt <= crl_check._SPEICHER_BUDGET, f"{belegt/1024/1024:.0f} MB im Speicher"
+    assert "http://letzte.invalid/x.crl" in crl_check._im_speicher, \
+        "die zuletzt gebrauchte Liste muss bleiben"
+
+
+def test_eine_einzige_riesige_liste_bleibt_trotzdem(ca, monkeypatch):
+    """Auch wenn sie allein das Budget sprengt: Sie gerade wieder zu verwerfen
+    hiesse, sie bei jeder Nachricht neu zu laden."""
+    monkeypatch.setattr(crl_check, "_SPEICHER_BUDGET", 1024)
+    crl_check._merken("http://riesig.invalid/x.crl", _sperrliste(ca), 99 * 1024 * 1024)
+    assert "http://riesig.invalid/x.crl" in crl_check._im_speicher
+
+
+def test_groessengrenze_deckt_echte_sperrlisten_ab():
+    """SwissSign liefert 24,3 MB (gemessen im Produktivbetrieb, 16.08.2026).
+    Mit der ursprünglichen Grenze von 20 MB galten zwei Empfängerzertifikate
+    als nicht prüfbar — und an sie ging Portal statt Verschlüsselung."""
+    assert crl_check.MAX_GROESSE >= 32 * 1024 * 1024
 
 
 # ── Gehört die Sperrliste zu diesem Zertifikat? ──────────────────────────────

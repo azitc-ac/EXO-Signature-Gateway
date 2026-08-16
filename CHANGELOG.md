@@ -5,6 +5,28 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.202 — 2026-08-16 — Grosse Sperrlisten werden nicht mehr abgewiesen
+
+**Betrifft den laufenden Betrieb.** Die Widerrufsprüfung verwarf Sperrlisten über
+20 MB. Diese Grenze war zu eng angesetzt: SwissSign liefert für seine
+S/MIME-Zwischenstelle 24,3 MB mit rund einer halben Million Einträgen. Betroffene
+Zertifikate galten dadurch als nicht prüfbar — und Nachrichten an diese Empfänger
+gingen über das Nachrichtenportal statt verschlüsselt.
+
+Die Prüfung hat dabei genau das getan, was sie soll; der Anlass war hausgemacht.
+Auf einem produktiven Gateway waren zwei von elf Empfängerzertifikaten
+betroffen. Die Grenze liegt jetzt bei 64 MB — Sperrlisten werden nur länger, nie
+kürzer.
+
+Wer die Version einspielt, muss nichts tun: Beim nächsten Versand wird die Liste
+neu geholt und ausgewertet.
+
+Zugleich wird der Arbeitsspeicher anders begrenzt. Bisher galt eine Anzahl
+(sechs Listen), in der Annahme, sie seien klein — bei sechs grossen wären das
+knapp 150 MB gewesen. Jetzt gilt ein Platzbudget; die zuletzt gebrauchte Liste
+bleibt in jedem Fall erhalten, damit sie nicht bei jeder Nachricht neu gelesen
+werden muss.
+
 ## v1.7.201 — 2026-08-16 — Nachrichten an Postfachinhaber: Vorschau und Bausteine berichtigt
 
 Zwei Fehler aus v1.7.194/195.

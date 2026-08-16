@@ -90,9 +90,15 @@ log = logging.getLogger("crl")
 # Verfahren.
 ABRUF_TIMEOUT = 5.0
 
-# Sperrlisten grosser CAs sind einige hundert Kilobyte. Die Grenze schützt vor
-# einer Gegenstelle, die endlos liefert; sie ist bewusst grosszügig.
-MAX_GROESSE = 20 * 1024 * 1024
+# ⚠️ Die Grenze war zuerst mit 20 MB angesetzt, in der Annahme, Sperrlisten
+# seien „einige hundert Kilobyte". Das ist falsch: SwissSign liefert für seine
+# S/MIME-Zwischenstelle **24,3 MB** (gemessen am 16.08.2026 im Produktivbetrieb).
+# Zwei Empfängerzertifikate galten dadurch als nicht prüfbar, und an sie ging
+# das Portal statt Verschlüsselung — die Prüfung tat genau das, was sie soll,
+# nur war der Anlass hausgemacht.
+#
+# 64 MB lassen Luft für Wachstum: Eine Sperrliste wird nur länger, nie kürzer.
+MAX_GROESSE = 64 * 1024 * 1024
 
 # Auch eine gültige Sperrliste wird nicht ewig weiterbenutzt: Sagt sie kein
 # `nextUpdate`, gilt sie diese Zeitspanne lang.
@@ -114,13 +120,25 @@ OHNE_NEXTUPDATE_GUELTIG = 24 * 3600
 # dieselbe Datei erneut zu zerlegen. Mit dieser Ebene kostet der zweite Zugriff
 # nichts mehr.
 #
-# ⚠️ Die Anzahl ist begrenzt, nicht die Grösse: Eine Sperrliste kann zweistellig
-# viele Megabyte belegen, und dieses Gateway läuft auch auf kleinen Geräten.
-# Mehr als eine Handvoll Trustcenter kommen in einem Postfachbestand kaum vor;
-# bei mehr fällt der älteste Eintrag heraus und wird beim nächsten Mal aus der
-# Datei gelesen — dann kostet es wieder die Millisekunden oben, mehr nicht.
-_MAX_IM_SPEICHER = 6
+# ⚠️ Begrenzt wird der PLATZ, nicht die Anzahl.
+#
+# Die erste Fassung zählte Einträge (sechs) — mit der Begründung, mehr als eine
+# Handvoll Trustcenter komme kaum vor. Was dabei fehlte, ist die Spanne der
+# Grössen: Gemessen am 16.08.2026 belegt SwissSigns Liste 24,3 MB als Datei und
+# rund ebenso viel im Arbeitsspeicher (498.280 Einträge), eine kleine dagegen
+# unter einem Megabyte. Sechs grosse wären knapp 150 MB — auf einem
+# Kleinrechner viel, und der Fehler fiele erst im Betrieb auf.
+#
+# Das Budget zählt deshalb die Rohgrösse, die dem Speicherbedarf entspricht.
+# Reicht es nicht, fällt der älteste Eintrag heraus und wird beim nächsten Mal
+# aus der Datei gelesen — das kostet die gemessenen Millisekunden, mehr nicht.
+#
+# ⚠️ Die zuletzt gebrauchte Liste bleibt IMMER, auch wenn sie allein das Budget
+# sprengt. Sie gerade wieder zu verwerfen hiesse, sie bei jeder Nachricht neu
+# einzulesen.
+_SPEICHER_BUDGET = 64 * 1024 * 1024
 _im_speicher: dict[str, x509.CertificateRevocationList] = {}
+_groessen: dict[str, int] = {}
 
 
 def _cache_verzeichnis() -> Path:
@@ -408,10 +426,16 @@ def _signatur_geprueft(crl: x509.CertificateRevocationList,
     return True, ""
 
 
-def _merken(url: str, crl: x509.CertificateRevocationList) -> None:
-    if len(_im_speicher) >= _MAX_IM_SPEICHER:
-        _im_speicher.pop(next(iter(_im_speicher)))
+def _merken(url: str, crl: x509.CertificateRevocationList, groesse: int = 0) -> None:
+    """Sperrliste im Speicher halten, solange das Budget reicht."""
+    _im_speicher.pop(url, None)
+    _groessen.pop(url, None)
     _im_speicher[url] = crl
+    _groessen[url] = groesse or 1
+    while len(_im_speicher) > 1 and sum(_groessen.values()) > _SPEICHER_BUDGET:
+        aeltester = next(iter(_im_speicher))
+        _im_speicher.pop(aeltester, None)
+        _groessen.pop(aeltester, None)
 
 
 def sperrliste(url: str, jetzt: datetime | None = None) -> x509.CertificateRevocationList | None:
@@ -426,7 +450,10 @@ def sperrliste(url: str, jetzt: datetime | None = None) -> x509.CertificateRevoc
 
     aus_cache = _aus_cache(url, jetzt)
     if aus_cache is not None:
-        _merken(url, aus_cache)
+        try:
+            _merken(url, aus_cache, _cache_datei(url).stat().st_size)
+        except OSError:
+            _merken(url, aus_cache)
         return aus_cache
 
     rohdaten = _abrufen(url)
@@ -447,7 +474,7 @@ def sperrliste(url: str, jetzt: datetime | None = None) -> x509.CertificateRevoc
     except Exception as exc:      # Zwischenspeicher ist Beschleunigung, kein Muss
         log.warning("CRL konnte nicht zwischengespeichert werden: %s", exc)
     _signatur_ok.pop(url, None)   # neue Liste → alte Prüfung gilt nicht mehr
-    _merken(url, crl)
+    _merken(url, crl, len(rohdaten))
     return crl
 
 
