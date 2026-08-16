@@ -5,6 +5,37 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.200 — 2026-08-16 — Fremde Zertifikate kommen nicht mehr ungefragt in den Bestand
+
+Damit wirkt, was in den letzten Versionen vorbereitet wurde. Sammelt das Gateway
+aus einer eingehenden signierten Nachricht ein Zertifikat ein, wird jetzt
+geprüft, wer es ausgestellt hat. Nur was sich auf eine bekannte Wurzel oder
+einen freigegebenen Aussteller zurückführen lässt, kommt in den Bestand.
+
+**Warum das nötig war:** Bisher genügte eine signierte Nachricht, um zu
+bestimmen, mit welchem Schlüssel künftig an eine Adresse verschlüsselt wird —
+und die Absenderadresse einer Mail ist keine geprüfte Angabe.
+
+Alles Übrige **wartet auf eine Entscheidung**, statt verworfen oder benutzt zu
+werden. Solche Zertifikate erscheinen unter S/MIME in einem eigenen Abschnitt,
+mit Empfänger, Aussteller und Laufzeit. Von dort lassen sie sich freigeben —
+wahlweise samt Zertifizierungsstelle, dann warten künftige Zertifikate derselben
+Stelle nicht mehr — oder verwerfen.
+
+Bis zu einer Entscheidung geht an diese Empfänger dasselbe wie bei einem
+fehlenden Zertifikat: die Nachricht über das Nachrichtenportal. Sie fällt nicht
+aus, sie nimmt einen anderen Weg.
+
+**Der vorhandene Bestand bleibt unberührt.** Die Prüfung greift für Neuzugänge.
+
+Bemerkbar macht sich ein wartendes Zertifikat dreifach: als Zeile im
+Tagesbericht, als Hinweis in der Oberfläche und beim ersten Auftreten per
+E-Mail an die Verwaltung. Die Mail lässt sich abschalten, die übrigen Hinweise
+bleiben.
+
+Der häufigste Anlass ist harmlos — ein Partner mit firmeneigener
+Zertifizierungsstelle. Genau deshalb wird nicht verworfen, sondern gefragt.
+
 ## v1.7.199 — 2026-08-16 — Wurzelspeicher aus einer Quelle, mit Einstellungen
 
 Microsoft veröffentlicht sein Wurzelprogramm in zwei Fassungen: eine mit blossen

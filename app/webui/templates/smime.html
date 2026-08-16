@@ -343,6 +343,50 @@
   <div id="rcpt-upload-result" style="margin-top:10px;display:none"></div>
 </div>
 
+{% if wartende_certs %}
+<div class="settings-card" style="background:#fffbeb;border:1px solid #fcd34d">
+  <h3 style="margin-top:0;color:#92400e">Zertifikate, die auf Freigabe warten
+    <span style="font-weight:400;font-size:13px">({{ wartende_certs|length }})</span></h3>
+  <p class="hint" style="margin-bottom:14px">
+    Diese Zertifikate kamen aus eingehenden signierten Nachrichten, ihr Aussteller liess sich
+    aber nicht auf eine bekannte Wurzel zurückführen. Sie werden <strong>nicht</strong> zum
+    Verschlüsseln benutzt — Nachrichten an diese Empfänger gehen über das Portal hinaus, so
+    als läge kein Zertifikat vor.<br>
+    Der häufigste Grund ist eine firmeneigene Zertifizierungsstelle beim Partner.
+    <strong>Trotzdem prüfen:</strong> Die Absenderadresse einer Mail ist keine geprüfte
+    Angabe — im Zweifel beim Partner nachfragen, ob das Zertifikat von ihm stammt.
+  </p>
+  <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+  <table class="config-table" style="min-width:640px">
+    <thead>
+      <tr><th>E-Mail</th><th>Aussteller</th><th>Gültig bis</th><th>Seit</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for w in wartende_certs %}
+      <tr>
+        <td>{{ w.adresse }}</td>
+        <td style="font-size:12px">{{ w.aussteller }}</td>
+        <td>{{ (w.gueltig_bis or '')[:10] }}</td>
+        <td style="font-size:12px">{{ (w.seit or '')[:10] }}{% if (w.anzahl or 1) > 1 %}, {{ w.anzahl }}× gesehen{% endif %}</td>
+        <td style="white-space:nowrap">
+          <button class="btn secondary" style="font-size:12px;padding:4px 10px"
+                  onclick="wartendFreigeben('{{ w.fingerabdruck }}', true)"
+                  title="Diese Zertifizierungsstelle künftig anerkennen">Aussteller freigeben</button>
+          <button class="btn secondary" style="font-size:12px;padding:4px 10px"
+                  onclick="wartendFreigeben('{{ w.fingerabdruck }}', false)"
+                  title="Nur dieses eine Zertifikat übernehmen">nur dieses</button>
+          <button class="btn secondary" style="font-size:12px;padding:4px 10px;color:#991b1b"
+                  onclick="wartendVerwerfen('{{ w.fingerabdruck }}')">verwerfen</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <div id="wartend-result" style="margin-top:10px;display:none"></div>
+</div>
+{% endif %}
+
 {% if recipient_certs %}
 <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
 <table class="config-table" style="min-width:600px">
@@ -814,6 +858,29 @@ async function showCertDetails(email, kind, slot) {
 }
 
 // ── Recipient certs ───────────────────────────────────────────────────────────
+async function wartendFreigeben(fp, auchAussteller) {
+  const frage = auchAussteller
+    ? 'Diese Zertifizierungsstelle künftig anerkennen?\n\nAlle weiteren Zertifikate derselben '
+      + 'Stelle werden dann ohne Rückfrage übernommen.'
+    : 'Nur dieses eine Zertifikat übernehmen?\n\nWeitere Zertifikate derselben Stelle warten '
+      + 'weiterhin auf eine Entscheidung.';
+  if (!confirm(frage)) return;
+  const box = document.getElementById('wartend-result');
+  const d = await postJSON('/api/smime/wartend/' + encodeURIComponent(fp) + '/freigeben',
+                           { auch_aussteller: !!auchAussteller });
+  showMsg(box, d.ok ? 'Freigegeben: ' + (d.adresse || '') : (d.detail || 'Fehler'), !!d.ok);
+  if (d.ok) setTimeout(() => location.reload(), 900);
+}
+
+async function wartendVerwerfen(fp) {
+  if (!confirm('Zertifikat verwerfen?\n\nEs verschwindet aus der Liste. Trifft es erneut ein, '
+             + 'steht es wieder hier.')) return;
+  const box = document.getElementById('wartend-result');
+  const r = await fetch('/api/smime/wartend/' + encodeURIComponent(fp), { method: 'DELETE' });
+  showMsg(box, r.ok ? 'Verworfen.' : 'Fehler beim Verwerfen', r.ok);
+  if (r.ok) setTimeout(() => location.reload(), 900);
+}
+
 async function uploadRcptCert() {
   const email  = (document.getElementById('rcpt-email').value || '').trim();
   const file   = document.getElementById('rcpt-cert-file').files[0];

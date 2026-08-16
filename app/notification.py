@@ -221,6 +221,10 @@ def send_daily_report(daily: dict, total: dict) -> bool:
         # Zertifikate nennen keine Sperrlisten-Adresse.
         (_row("Zertifikate ohne Sperrlisten-Adresse", dval("cert_ohne_crl"), "#888")
          if dval("cert_ohne_crl") else ""),
+        # Wartet etwas, verhindert eine ausstehende Entscheidung die
+        # Verschluesselung — kein Zertifikatsmangel, sondern eine Aufgabe.
+        (_row("Zertifikate warten auf Freigabe", dval("cert_wartet"), "#b45309")
+         if dval("cert_wartet") else ""),
         # ⚠️ Hier gilt das UMGEKEHRTE: Diese Zeile erscheint IMMER, auch mit 0.
         # Bei der Ketten-Erkennung ist die Null die Meldung — sie bedeutet,
         # dass Signaturen womoeglich doppelt hinausgehen. Genau dieser Zustand
@@ -770,3 +774,35 @@ def send_local_admin_login(ip: str, user_agent: str, username: str) -> bool:
     )
     html = _html_wrap("⚠ Lokale Admin-Anmeldung erkannt", "#e67e22", body)
     return _graph_send(to, f"⚠ Lokale Admin-Anmeldung: EXO Signature Gateway ({ip})", html)
+
+
+def send_cert_waiting(adresse: str, aussteller: str, grund: str) -> bool:
+    """An die Verwaltung: Ein Zertifikat wartet auf eine Freigabe.
+
+    Nur beim ERSTEN Auftreten eines Zertifikats — ein Partner, der täglich
+    schreibt, löst sonst täglich eine Mail aus. Abschaltbar über
+    `NOTIFY_CERT_WAITING`; der Tagesbericht zeigt es unabhängig davon.
+
+    ⚠️ Diese Nachricht ist keine Warnung vor einem Angriff. Der häufige Fall ist
+    ein Partner mit einer firmeneigenen Zertifizierungsstelle — und ohne
+    Entscheidung geht an ihn weiterhin über das Portal statt verschlüsselt.
+    """
+    to = _get_notify_to()
+    if not to or not _should_notify("NOTIFY_CERT_WAITING"):
+        return False
+    body = (
+        f'<p>Für <strong>{_esc(adresse)}</strong> ist ein S/MIME-Zertifikat '
+        f'eingegangen, dessen Aussteller nicht als vertrauenswürdig bekannt ist.</p>'
+        f'<p><strong>Aussteller:</strong> {_esc(aussteller)}<br>'
+        f'<strong>Befund:</strong> {_esc(grund)}</p>'
+        f'<p>Bis zu einer Entscheidung wird das Zertifikat <strong>nicht</strong> zum '
+        f'Verschlüsseln benutzt — Nachrichten an diese Adresse gehen über das '
+        f'Nachrichtenportal hinaus, so als läge kein Zertifikat vor.</p>'
+        f'<p>Freigeben oder verwerfen lässt sich das unter '
+        f'<em>S/MIME → Zertifikate, die auf Freigabe warten</em>.</p>'
+        f'<p style="color:#6b7280;font-size:13px">Der häufigste Grund ist eine '
+        f'firmeneigene Zertifizierungsstelle beim Partner — kein Anlass zur Sorge, '
+        f'aber eine Entscheidung.</p>'
+    )
+    return _graph_send(to, f"S/MIME-Zertifikat wartet auf Freigabe: {adresse}",
+                       _html_wrap("Zertifikat wartet auf Freigabe", "#b45309", body))

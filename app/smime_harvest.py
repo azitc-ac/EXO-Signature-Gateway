@@ -168,11 +168,81 @@ def _store_cert(sig_bytes: bytes, sender: str) -> None:
                 pass
 
         if certs:
-            smime_store.store_recipient_cert(sender, _leaf_cert(certs).public_bytes(Encoding.PEM))
+            _uebernehmen(sender, _leaf_cert(certs).public_bytes(Encoding.PEM), certs)
             return
     except Exception:
         pass
     _extract_via_openssl(sig_bytes, sender)
+
+
+def _uebernehmen(sender: str, cert_pem: bytes, mitgelieferte=None) -> None:
+    """In den Bestand — oder in den Wartestand, je nach Aussteller.
+
+    ⚠️ Hier entscheidet sich, WESSEN Zertifikate benutzt werden. Bis v1.7.200
+    landete jedes eingesammelte Zertifikat unbesehen im Bestand: Wer eine
+    signierte Nachricht schicken konnte, bestimmte damit, mit welchem Schlüssel
+    künftig an diese Adresse verschlüsselt wird. Der Absender einer Mail ist
+    keine geprüfte Angabe.
+
+    ⚠️ Die **mitgelieferte Kette** wird bevorzugt. Eine signierte Nachricht
+    enthält die Zwischenzertifikate in aller Regel gleich mit; sie zu benutzen
+    erspart Netzabrufe und funktioniert auch dort, wo die Ausstelleradresse
+    fehlt. Vertrauen entsteht dadurch nicht — die Kette wird Glied für Glied
+    geprüft, und am Ende muss eine bekannte Wurzel stehen.
+    """
+    import trust_store
+    import cert_wartestand
+    from cryptography import x509
+
+    try:
+        cert = x509.load_pem_x509_certificate(cert_pem)
+    except Exception as exc:
+        log.warning("Eingesammeltes Zertifikat für %s nicht lesbar: %s", sender, exc)
+        return
+
+    kette = _kette_aus_mitgeliefertem(cert, mitgelieferte) or trust_store.kette_bauen(cert)
+    art, grund = trust_store.entscheiden(kette)
+    if art == trust_store.ANNEHMEN:
+        smime_store.store_recipient_cert(sender, cert_pem)
+        return
+
+    import stats
+    stats.increment("cert_wartet")
+    cert_wartestand.merken(sender, cert_pem, grund)
+
+
+def _kette_aus_mitgeliefertem(cert, mitgelieferte) -> list | None:
+    """Kette aus den Zertifikaten der Nachricht selbst, soweit sie trägt.
+
+    Jedes Glied muss das vorige ausgestellt haben — sonst ist es nur ein
+    Zertifikat, das jemand beigelegt hat.
+    """
+    if not mitgelieferte:
+        return None
+    import trust_store
+    kette = [cert]
+    aktuell = cert
+    for _ in range(trust_store.MAX_KETTENLAENGE):
+        naechster = None
+        for kandidat in mitgelieferte:
+            if trust_store.abdruck(kandidat) in {trust_store.abdruck(k) for k in kette}:
+                continue
+            try:
+                aktuell.verify_directly_issued_by(kandidat)
+            except Exception:
+                continue
+            naechster = kandidat
+            break
+        if naechster is None:
+            break
+        kette.append(naechster)
+        aktuell = naechster
+    # Die Nachricht liefert die Wurzel meist nicht mit — dort weitersuchen,
+    # wo sie steht.
+    if aktuell.subject != aktuell.issuer:
+        rest = trust_store.kette_bauen(aktuell)
+        kette.extend(rest[1:])
+    return kette if len(kette) > 1 else None
 
 
 def _signer_display_name(sig_bytes: bytes, fallback: str) -> str:

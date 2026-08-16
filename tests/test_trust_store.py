@@ -107,9 +107,21 @@ def test_liste_wird_nicht_bei_jedem_aufruf_geholt(monkeypatch):
     assert abrufe["n"] == 1
 
 
-def test_veraltete_liste_wird_erneuert(monkeypatch):
-    monkeypatch.setattr(trust_store, "_abrufen", lambda: _bericht(WURZEL))
-    trust_store.wurzeln(JETZT)
+def test_veraltete_liste_wird_erneuert(monkeypatch, wegwerfverzeichnis):
+    """Der Stand kommt aus der Datei, nicht von der echten Uhr.
+
+    ⚠️ Ein erster Anlauf schrieb die Liste über `aktualisieren()` und fragte
+    dann mit einem weit in der Zukunft liegenden Zeitpunkt nach. Das hing an
+    der Tageszeit des Testlaufs: `aktualisieren()` stempelt mit der ECHTEN Uhr,
+    und ob die Differenz zum erfundenen Zeitpunkt über der Frist lag, war
+    Zufall. Hier wird der Stand deshalb direkt gesetzt.
+    """
+    alt_stand = (JETZT - timedelta(hours=trust_store.HOECHSTALTER_STUNDEN + 2)).isoformat()
+    pem = WURZEL.public_bytes(serialization.Encoding.PEM).decode()
+    (wegwerfverzeichnis / "trusted_roots.pem").write_text(
+        f"# Stand: {alt_stand}\n{pem}", encoding="utf-8")
+    trust_store._speicher_leeren()
+
     abrufe = {"n": 0}
 
     def holen():
@@ -117,8 +129,8 @@ def test_veraltete_liste_wird_erneuert(monkeypatch):
         return _bericht(WURZEL)
 
     monkeypatch.setattr(trust_store, "_abrufen", holen)
-    trust_store.wurzeln(JETZT + timedelta(hours=trust_store.HOECHSTALTER_STUNDEN + 1))
-    assert abrufe["n"] == 1
+    trust_store.wurzeln(JETZT)
+    assert abrufe["n"] == 1, "eine überfällige Liste wurde weiterbenutzt"
 
 
 def test_leere_antwort_ueberschreibt_die_alte_liste_nicht(monkeypatch, wegwerfverzeichnis):
