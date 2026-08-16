@@ -5,6 +5,29 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.199 — 2026-08-16 — Wurzelspeicher aus einer Quelle, mit Einstellungen
+
+Microsoft veröffentlicht sein Wurzelprogramm in zwei Fassungen: eine mit blossen
+Fingerabdrücken und eine **mit den Zertifikaten selbst**, einschränkbar auf einen
+Verwendungszweck. Benutzt wird jetzt die zweite (`Secure Email`, 204 Wurzeln).
+
+Damit entfällt der Umweg aus v1.7.198: Dort kamen die Fingerabdrücke von
+Microsoft und die zugehörigen Zertifikate aus dem Zertifikatsspeicher des
+Systems, weil zum Schliessen einer Kette der öffentliche Schlüssel der Wurzel
+gebraucht wird. Zwei Bestände mit zwei Vertrauensregeln, wo einer genügt — von
+den Wurzeln des Systems waren ohnehin nur 104 in Microsofts Liste.
+
+**Neu einstellbar** unter Einstellungen → S/MIME:
+
+* **Wurzelzertifikate von Microsoft beziehen** (an) — mit Verweis auf die Liste
+  zum Nachlesen. Abgeschaltet zählen nur die örtlich freigegebenen Aussteller.
+* **Zertifikate bekannter Aussteller ohne Rückfrage übernehmen** (an) —
+  abgeschaltet wandert auch das in die Freigabe, für Häuser, die jeden Partner
+  einzeln bestätigen wollen.
+* **Alle übrigen Zertifikate**: zur Freigabe vorlegen (Vorgabe) oder ohne
+  Prüfung übernehmen. Letzteres stellt das frühere Verhalten wieder her — auch
+  ein selbst betriebener Aussteller kommt dann in den Bestand.
+
 ## v1.7.198 — 2026-08-16 — Ketten werden vollständig aufgebaut
 
 Fortsetzung von v1.7.197, weiterhin ohne Wirkung auf den Betrieb. Um ein

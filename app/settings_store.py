@@ -181,6 +181,12 @@ DEFAULTS: dict = {
     # {SHA-256-Fingerabdruck: Bezeichnung}. Ergaenzt Microsofts Wurzelspeicher
     # um alles, was dort fehlt — etwa eine firmeneigene CA. Siehe trust_store.
     "TRUSTED_ISSUERS": {},
+    # Woher kommt die Liste vertrauenswuerdiger Aussteller, und was passiert mit
+    # dem, was nicht darin steht? Vorgaben so gesetzt, dass der Normalfall ohne
+    # Zutun laeuft: bekannte Trustcenter werden angenommen, alles andere wartet.
+    "TRUST_MS_ROOTS": True,          # Microsofts Wurzelprogramm beziehen
+    "TRUST_AUTO_KNOWN": True,        # von bekannten Wurzeln ausgestellte automatisch annehmen
+    "TRUST_UNKNOWN_MODE": "manuell", # "manuell" = warten auf Freigabe | "auto" = annehmen
     "SKIP_DUPLICATE_SIG": True,         # Skip re-injection if gateway signature already in compose area
     # Antwort-Signatur: ab der 2. eigenen Mail im Thread wird statt des vollen Blocks die
     # zugewiesene Antwort-Signatur genutzt (pro Postfach 'min_template' bzw. Richtlinie

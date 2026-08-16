@@ -18,10 +18,20 @@ Diese Datei beantwortet die Frage in drei Stufen:
 WARUM DIESE QUELLE
 ------------------
 Microsoft speist sein Wurzelprogramm in die **CCADB** (Common CA Database) und
-veröffentlicht es dort als CSV. Gemessen am 16.08.2026: 550 Einträge, davon 331
-mit Status „Included" — und **217 mit dem Verwendungszweck „Secure Email"**.
-Genau dieser Zweck zählt hier: Ein Wurzelzertifikat, das nur für Webserver
-zugelassen ist, soll keine E-Mail-Zertifikate beglaubigen.
+veröffentlicht es dort. Benutzt wird der Bericht, der die Wurzeln **mitsamt
+Zertifikat** liefert und sich beim Abruf auf einen Verwendungszweck einschränken
+lässt: `?MicrosoftEKUs=Secure Email`. Gemessen am 16.08.2026: 204 Wurzeln,
+324 KB — gegenüber 549 Einträgen in der ungefilterten Liste.
+
+Der Zweck ist entscheidend: Ein Wurzelzertifikat, das nur für Webserver oder
+Codesignatur zugelassen ist, soll keine E-Mail-Zertifikate beglaubigen.
+
+⚠️ Es gibt auch einen Bericht, der nur Fingerabdrücke enthält. Der erste Anlauf
+nahm ihn und lieh sich die fehlenden Zertifikate aus dem Zertifikatsspeicher des
+Systems — von 217 Wurzeln waren dort 104 zu finden. Das war ein Umweg mit zwei
+Beständen und zwei Vertrauensregeln. Zum Schliessen einer Kette braucht es den
+öffentlichen Schlüssel der Wurzel; wer den Bericht mit Zertifikaten nimmt, hat
+alles aus einer Hand.
 
 Die Wahl liegt nahe, weil das Gateway ohnehin in einer Microsoft-Welt steht:
 Was Outlook als vertrauenswürdig anzeigt, ist dieselbe Liste. Ein Zertifikat,
@@ -44,7 +54,6 @@ Bestand bleibt, wie er ist, und nur Neuzugänge warten.
 """
 from __future__ import annotations
 
-import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
@@ -57,15 +66,20 @@ import settings_store
 
 log = logging.getLogger("trust")
 
-QUELLE = ("https://ccadb.my.salesforce-sites.com/microsoft/"
-          "IncludedCACertificateReportForMSFTCSV")
-
-# Nur diese Zustände zählen. „Disabled" heisst: Microsoft hat das Vertrauen
-# entzogen — dann soll es hier erst recht nicht gelten.
-BRAUCHBARE_ZUSTAENDE = {"Included", "NotBefore"}
-
-# Der Verwendungszweck, auf den es ankommt.
+# Der Verwendungszweck, auf den es ankommt — er steckt in der Adresse.
 ZWECK = "Secure Email"
+
+# ⚠️ Dieser Bericht liefert die Wurzeln MITSAMT ZERTIFIKAT, nicht nur deren
+# Fingerabdrücke. Das ist der Unterschied, auf den es ankommt: Zum Schliessen
+# einer Kette braucht es den öffentlichen Schlüssel der Wurzel, sonst lässt sich
+# nicht prüfen, ob sie die Zwischenstelle wirklich ausgestellt hat.
+#
+# Der erste Anlauf nahm den Bericht ohne Zertifikate und lieh sich die
+# fehlenden aus dem Zertifikatsspeicher des Systems — 104 von 217 waren dort zu
+# finden. Das war ein Umweg: Microsoft veröffentlicht beides, man muss nur den
+# richtigen Bericht nehmen. Gemessen am 16.08.2026: 204 Wurzeln, 324 KB.
+QUELLE = ("https://ccadb.my.salesforce-sites.com/microsoft/"
+          "IncludedRootsPEMCSVForMSFT?MicrosoftEKUs=Secure%20Email")
 
 # Einmal am Tag genügt: Ein Wurzelprogramm ändert sich in Wochen, nicht Stunden.
 HOECHSTALTER_STUNDEN = 36
@@ -83,85 +97,129 @@ AB_WERK: dict[str, str] = {
 
 
 def _cache_datei() -> Path:
-    return Path(config.DATA_DIR) / "trusted_roots.json"
+    return Path(config.DATA_DIR) / "trusted_roots.pem"
 
 
-def _abrufen() -> list[dict] | None:
+def _abrufen() -> str | None:
     """Nur der Transport — getrennt vom Zwischenspeicher, damit sich beides
     einzeln prüfen lässt (dieselbe Trennung wie in `crl_check`)."""
-    import csv
-    import io
     import httpx
     try:
         r = httpx.get(QUELLE, timeout=ABRUF_TIMEOUT, follow_redirects=True)
         r.raise_for_status()
-        return list(csv.DictReader(io.StringIO(r.text)))
+        return r.text
     except Exception as exc:
         log.warning("Wurzelspeicher nicht abrufbar: %s: %s", exc.__class__.__name__, exc)
         return None
 
 
-def _auswerten(zeilen: list[dict]) -> dict[str, str]:
-    """Fingerabdruck → Name, für alle Wurzeln mit dem Zweck „Secure Email"."""
-    treffer: dict[str, str] = {}
-    for z in zeilen:
-        if (z.get("Microsoft Status") or "").strip() not in BRAUCHBARE_ZUSTAENDE:
+def _bezeichnung(cert: x509.Certificate) -> str:
+    """Ein Name, den ein Betreiber wiedererkennt — Organisation, sonst CN."""
+    from cryptography.x509.oid import NameOID
+    for oid in (NameOID.ORGANIZATION_NAME, NameOID.COMMON_NAME):
+        werte = cert.subject.get_attributes_for_oid(oid)
+        if werte:
+            return str(werte[0].value)
+    return cert.subject.rfc4514_string()[:60]
+
+
+def _auswerten(inhalt: str) -> dict[str, x509.Certificate]:
+    """Fingerabdruck → Wurzelzertifikat.
+
+    Der Bericht ist eine CSV mit genau einer Spalte, in der das PEM steht. Statt
+    sie zu zerlegen, werden die Zertifikatsblöcke direkt herausgeschnitten — das
+    ist unempfindlich gegen Anführungszeichen und Zeilenumbrüche in der Spalte.
+    """
+    treffer: dict[str, x509.Certificate] = {}
+    for block in inhalt.split("-----END CERTIFICATE-----"):
+        anfang = block.find("-----BEGIN CERTIFICATE-----")
+        if anfang == -1:
             continue
-        if ZWECK not in (z.get("Microsoft EKUs") or ""):
+        roh = block[anfang:].replace('"', "").strip() + "\n-----END CERTIFICATE-----\n"
+        try:
+            cert = x509.load_pem_x509_certificate(roh.encode())
+        except Exception:
             continue
-        abdruck = (z.get("SHA-256 Fingerprint") or "").strip().upper().replace(":", "")
-        if len(abdruck) == 64:
-            treffer[abdruck] = (z.get("CA Owner") or "").strip() or "unbekannt"
+        treffer[abdruck(cert)] = cert
     return treffer
 
 
 def aktualisieren() -> dict:
-    """Liste frisch holen und ablegen. Für den Tageslauf."""
-    zeilen = _abrufen()
-    if not zeilen:
+    """Wurzeln frisch holen und als PEM-Bündel ablegen. Für den Tageslauf."""
+    inhalt = _abrufen()
+    if not inhalt:
         return {"ok": False, "anzahl": 0}
-    wurzeln = _auswerten(zeilen)
-    if not wurzeln:
+    gefunden = _auswerten(inhalt)
+    if not gefunden:
         # Lieber die alte Fassung behalten als eine leere schreiben: Eine
         # Formatänderung an der Quelle würde sonst schlagartig alles sperren.
         log.warning("Wurzelspeicher lieferte 0 verwertbare Einträge — alte Fassung bleibt")
         return {"ok": False, "anzahl": 0}
     try:
-        _cache_datei().write_text(json.dumps(
-            {"stand": datetime.now(timezone.utc).isoformat(), "wurzeln": wurzeln},
-            ensure_ascii=False), encoding="utf-8")
+        from cryptography.hazmat.primitives.serialization import Encoding
+        teile = [f"# Stand: {datetime.now(timezone.utc).isoformat()}\n".encode()]
+        for cert in gefunden.values():
+            teile.append(cert.public_bytes(Encoding.PEM))
+        _cache_datei().write_bytes(b"".join(teile))
     except Exception as exc:
         log.warning("Wurzelspeicher nicht speicherbar: %s", exc)
-    log.info("Wurzelspeicher aktualisiert: %d Wurzeln mit Zweck %r", len(wurzeln), ZWECK)
-    return {"ok": True, "anzahl": len(wurzeln)}
+    log.info("Wurzelspeicher aktualisiert: %d Wurzeln mit Zweck %r", len(gefunden), ZWECK)
+    _speicher_leeren()
+    return {"ok": True, "anzahl": len(gefunden)}
 
 
-def _gespeichert() -> tuple[dict[str, str], datetime | None]:
+_geladen: dict[str, x509.Certificate] | None = None
+_geladen_stand: datetime | None = None
+
+
+def _speicher_leeren() -> None:
+    global _geladen, _geladen_stand, _system_wurzeln
+    _geladen = None
+    _geladen_stand = None
+    _system_wurzeln = None
+
+
+def _gespeichert() -> tuple[dict[str, x509.Certificate], datetime | None]:
+    """Die abgelegten Wurzeln, einmal je Prozesslauf geparst."""
+    global _geladen, _geladen_stand
+    if _geladen is not None:
+        return _geladen, _geladen_stand
     p = _cache_datei()
     if not p.is_file():
         return {}, None
-    try:
-        daten = json.loads(p.read_text(encoding="utf-8"))
-        stand = datetime.fromisoformat(daten["stand"])
-        return daten.get("wurzeln") or {}, stand
-    except Exception as exc:
-        log.warning("Wurzelspeicher nicht lesbar (%s) — gilt als leer", exc)
-        return {}, None
+    inhalt = p.read_text(encoding="utf-8", errors="replace")
+    stand = None
+    erste = inhalt.split("\n", 1)[0]
+    if erste.startswith("# Stand:"):
+        try:
+            stand = datetime.fromisoformat(erste.split(":", 1)[1].strip())
+        except Exception:
+            stand = None
+    _geladen = _auswerten(inhalt)
+    _geladen_stand = stand
+    return _geladen, stand
 
 
 def wurzeln(jetzt: datetime | None = None) -> dict[str, str]:
-    """Die geltende Liste. Holt sie nach, wenn sie fehlt oder zu alt ist."""
+    """Die geltende Liste. Holt sie nach, wenn sie fehlt oder zu alt ist.
+
+    Ist der Bezug abgeschaltet, bleibt sie leer — dann zählen ausschliesslich
+    die örtlichen Freigaben. Das ist für Umgebungen gedacht, die keine
+    ausgehenden Verbindungen zulassen oder ihre Aussteller selbst führen wollen.
+    """
+    if settings_store.get("TRUST_MS_ROOTS") is False:
+        return {}
     jetzt = jetzt or datetime.now(timezone.utc)
     gespeichert, stand = _gespeichert()
     if gespeichert and stand is not None:
         alter = (jetzt - stand).total_seconds() / 3600
         if alter <= HOECHSTALTER_STUNDEN:
-            return gespeichert
+            return {fp: _bezeichnung(c) for fp, c in gespeichert.items()}
     if aktualisieren()["ok"]:
-        return _gespeichert()[0]
+        return {fp: _bezeichnung(c) for fp, c in _gespeichert()[0].items()}
     # Nachladen misslungen: lieber die alte Fassung als gar keine. Ein
     # Wurzelprogramm veraltet in Tagen nicht.
-    return gespeichert
+    return {fp: _bezeichnung(c) for fp, c in gespeichert.items()}
 
 
 def freigaben() -> dict[str, str]:
@@ -203,36 +261,21 @@ MAX_KETTENLAENGE = 6
 # entscheidet über das Vertrauen. Beides zusammen: 104 verwendbare Wurzeln.
 _system_wurzeln: dict[str, list[x509.Certificate]] | None = None
 
-SYSTEM_SPEICHER = ("/etc/ssl/certs/ca-certificates.crt",
-                   "/etc/pki/tls/certs/ca-bundle.crt")
-
-
 def system_wurzeln() -> dict[str, list[x509.Certificate]]:
+    """Die bezogenen Wurzeln, nach Inhaber-Name gebündelt — zum Kettenschluss.
+
+    Der Name ist historisch: Zuerst kamen diese Zertifikate aus dem
+    Zertifikatsspeicher des Systems, weil der damals benutzte Bericht nur
+    Fingerabdrücke lieferte. Sie kommen jetzt aus derselben Quelle wie die
+    Vertrauensentscheidung — eine Liste, kein Abgleich zweier Bestände.
+    """
     global _system_wurzeln
     if _system_wurzeln is not None:
         return _system_wurzeln
     gefunden: dict[str, list[x509.Certificate]] = {}
-    pfade = list(SYSTEM_SPEICHER)
-    try:
-        import certifi
-        pfade.append(certifi.where())
-    except Exception:
-        pass
-    for pfad in pfade:
-        p = Path(pfad)
-        if not p.is_file():
-            continue
-        for block in p.read_bytes().split(b"-----END CERTIFICATE-----"):
-            b = block.strip()
-            if not b:
-                continue
-            try:
-                c = x509.load_pem_x509_certificate(b + b"\n-----END CERTIFICATE-----\n")
-            except Exception:
-                continue
-            gefunden.setdefault(c.subject.rfc4514_string(), []).append(c)
+    for cert in _gespeichert()[0].values():
+        gefunden.setdefault(cert.subject.rfc4514_string(), []).append(cert)
     _system_wurzeln = gefunden
-    log.info("Systemspeicher: %d Wurzelzertifikate gelesen", sum(len(v) for v in gefunden.values()))
     return gefunden
 
 
@@ -313,3 +356,38 @@ def bewerten(kette: list[x509.Certificate]) -> tuple[bool, str]:
     if not bekannte:
         return False, "Wurzelspeicher nicht verfügbar — Entscheidung nötig"
     return False, "Aussteller unbekannt"
+
+
+# ── Was passiert mit dem Ergebnis? ───────────────────────────────────────────
+
+ANNEHMEN = "annehmen"
+WARTEN = "warten"
+
+
+def entscheiden(kette: list[x509.Certificate]) -> tuple[str, str]:
+    """`(ANNEHMEN | WARTEN, Begründung)` — die Bewertung plus die Einstellungen.
+
+    `bewerten()` beantwortet die Sachfrage („kenne ich den Aussteller?"),
+    hier kommt die Betreiber-Entscheidung dazu. Drei Schalter, deren Vorgaben
+    den Normalfall ohne Zutun tragen:
+
+    * `TRUST_MS_ROOTS` — Microsofts Liste beziehen (Vorgabe an). Aus heisst:
+      nur örtliche Freigaben zählen.
+    * `TRUST_AUTO_KNOWN` — von bekannten Wurzeln ausgestellte Zertifikate ohne
+      Rückfrage annehmen (Vorgabe an). Aus ist für Häuser gedacht, die JEDEN
+      Kommunikationspartner einzeln bestätigen wollen.
+    * `TRUST_UNKNOWN_MODE` — alles Übrige: `"manuell"` wartet auf eine
+      Freigabe (Vorgabe), `"auto"` nimmt es an.
+
+    ⚠️ `"auto"` stellt das Verhalten von vor v1.7.199 wieder her: Dann kommt
+    jeder Aussteller ungefragt in den Bestand, auch ein selbst betriebener. Das
+    ist eine bewusste Wahl und keine Vorgabe.
+    """
+    bekannt, grund = bewerten(kette)
+    if bekannt:
+        if settings_store.get("TRUST_AUTO_KNOWN") is False:
+            return WARTEN, f"{grund} — Freigabe ist trotzdem verlangt"
+        return ANNEHMEN, grund
+    if (settings_store.get("TRUST_UNKNOWN_MODE") or "manuell") == "auto":
+        return ANNEHMEN, f"{grund} — ohne Prüfung angenommen (so eingestellt)"
+    return WARTEN, grund

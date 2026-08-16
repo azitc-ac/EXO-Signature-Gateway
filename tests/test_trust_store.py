@@ -10,7 +10,6 @@ den Verwendungszweck „Secure Email". Dieselbe Liste, gegen die Outlook prüft.
 """
 from __future__ import annotations
 
-import json
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -28,7 +27,10 @@ JETZT = datetime(2026, 8, 16, 12, 0, tzinfo=timezone.utc)
 def wegwerfverzeichnis(tmp_path, monkeypatch):
     monkeypatch.setattr(trust_store.config, "DATA_DIR", str(tmp_path))
     monkeypatch.setattr(trust_store.settings_store, "get", lambda k, *a, **kw: None)
-    return tmp_path
+    # Die geparsten Wurzeln liegen im Modul und überdauern sonst jeden Test.
+    trust_store._speicher_leeren()
+    yield tmp_path
+    trust_store._speicher_leeren()
 
 
 def _zert(name: str, aussteller: str | None = None):
@@ -44,36 +46,49 @@ def _zert(name: str, aussteller: str | None = None):
             .sign(key, hashes.SHA256()))
 
 
-def _zeile(status="Included", eku="Secure Email;Server Authentication", fp=None, owner="Test-CA"):
-    return {"Microsoft Status": status, "Microsoft EKUs": eku,
-            "SHA-256 Fingerprint": fp or ("A" * 64), "CA Owner": owner}
+# Eine echte Wurzel für die Zwischenspeicher-Tests. Einmal erzeugt statt je
+# Test: Ein RSA-Schlüssel kostet spürbar Zeit, und für diese Tests zählt nur,
+# dass es dasselbe Zertifikat bleibt.
+WURZEL = _zert("Test-Wurzel")
+
+
+def _bericht(*certs) -> str:
+    """Der Bericht, wie ihn die Quelle liefert: eine CSV-Spalte voller PEM."""
+    zeilen = ['"PEM"']
+    for c in certs:
+        pem = c.public_bytes(serialization.Encoding.PEM).decode()
+        zeilen.append('"' + pem + '"')
+    return "\n".join(zeilen)
 
 
 # ── Auswertung der Quelle ────────────────────────────────────────────────────
 
-def test_nur_wurzeln_fuer_e_mail_zaehlen():
-    """Eine Wurzel, die nur für Webserver zugelassen ist, soll keine
-    E-Mail-Zertifikate beglaubigen."""
-    zeilen = [_zeile(eku="Server Authentication", fp="B"*64),
-              _zeile(eku="Secure Email", fp="C"*64, owner="Mail-CA")]
-    ergebnis = trust_store._auswerten(zeilen)
-    assert list(ergebnis) == ["C"*64]
-    assert ergebnis["C"*64] == "Mail-CA"
+def test_der_zweck_steckt_in_der_adresse():
+    """⚠️ Gefiltert wird nicht mehr hier, sondern von der Quelle: Der Bericht
+    wird mit `MicrosoftEKUs=Secure Email` abgerufen. Fiele der Parameter weg,
+    kämen auch Wurzeln herein, die nur für Webserver oder Codesignatur
+    zugelassen sind — und das fiele sonst niemandem auf.
+
+    Gemessen am 16.08.2026: mit Parameter 204 Wurzeln, die ungefilterte Liste
+    hat 549 Einträge.
+    """
+    assert "MicrosoftEKUs=Secure%20Email" in trust_store.QUELLE
+    assert "IncludedRootsPEMCSVForMSFT" in trust_store.QUELLE
 
 
-def test_entzogenes_vertrauen_zaehlt_nicht():
-    """„Disabled" heisst: Microsoft hat das Vertrauen entzogen."""
-    assert trust_store._auswerten([_zeile(status="Disabled", fp="D"*64)]) == {}
+def test_zertifikate_werden_aus_dem_bericht_gelesen():
+    a, b = _zert("Wurzel A"), _zert("Wurzel B")
+    ergebnis = trust_store._auswerten(_bericht(a, b))
+    assert set(ergebnis) == {trust_store.abdruck(a), trust_store.abdruck(b)}
+    assert all(hasattr(c, "public_key") for c in ergebnis.values())
 
 
-def test_kuenftig_gueltige_wurzeln_zaehlen_mit():
-    """`NotBefore` sind Wurzeln, die aufgenommen, aber noch nicht wirksam sind —
-    Zertifikate darunter tauchen auf, bevor der Status wechselt."""
-    assert trust_store._auswerten([_zeile(status="NotBefore", fp="E"*64)])
-
-
-def test_unbrauchbarer_fingerabdruck_wird_uebergangen():
-    assert trust_store._auswerten([_zeile(fp="zu-kurz")]) == {}
+def test_unbrauchbare_bloecke_werden_uebergangen():
+    """Eine Fehlerseite statt des Berichts darf nicht als leere Liste
+    durchgehen — sie ergibt gar keine Zertifikate, und dann greift der Schutz
+    gegen das Überschreiben."""
+    assert trust_store._auswerten("<html>Fehler</html>") == {}
+    assert trust_store._auswerten("-----BEGIN CERTIFICATE-----\nMUELL\n-----END CERTIFICATE-----") == {}
 
 
 # ── Zwischenspeicher ─────────────────────────────────────────────────────────
@@ -83,7 +98,7 @@ def test_liste_wird_nicht_bei_jedem_aufruf_geholt(monkeypatch):
 
     def holen():
         abrufe["n"] += 1
-        return [_zeile(fp="F"*64)]
+        return _bericht(WURZEL)
 
     monkeypatch.setattr(trust_store, "_abrufen", holen)
     trust_store.wurzeln(JETZT)
@@ -93,13 +108,13 @@ def test_liste_wird_nicht_bei_jedem_aufruf_geholt(monkeypatch):
 
 
 def test_veraltete_liste_wird_erneuert(monkeypatch):
-    monkeypatch.setattr(trust_store, "_abrufen", lambda: [_zeile(fp="F"*64)])
+    monkeypatch.setattr(trust_store, "_abrufen", lambda: _bericht(WURZEL))
     trust_store.wurzeln(JETZT)
     abrufe = {"n": 0}
 
     def holen():
         abrufe["n"] += 1
-        return [_zeile(fp="F"*64)]
+        return _bericht(WURZEL)
 
     monkeypatch.setattr(trust_store, "_abrufen", holen)
     trust_store.wurzeln(JETZT + timedelta(hours=trust_store.HOECHSTALTER_STUNDEN + 1))
@@ -108,20 +123,21 @@ def test_veraltete_liste_wird_erneuert(monkeypatch):
 
 def test_leere_antwort_ueberschreibt_die_alte_liste_nicht(monkeypatch, wegwerfverzeichnis):
     """Eine Formatänderung an der Quelle würde sonst schlagartig alles sperren."""
-    monkeypatch.setattr(trust_store, "_abrufen", lambda: [_zeile(fp="F"*64)])
+    monkeypatch.setattr(trust_store, "_abrufen", lambda: _bericht(WURZEL))
     trust_store.aktualisieren()
-    monkeypatch.setattr(trust_store, "_abrufen", lambda: [_zeile(eku="Code Signing", fp="G"*64)])
+    monkeypatch.setattr(trust_store, "_abrufen", lambda: "<html>Fehler</html>")
     assert trust_store.aktualisieren()["ok"] is False
-    assert "F"*64 in json.loads((wegwerfverzeichnis / "trusted_roots.json").read_text())["wurzeln"]
+    assert trust_store.abdruck(WURZEL) in trust_store._auswerten(
+        (wegwerfverzeichnis / "trusted_roots.pem").read_text())
 
 
 def test_unerreichbare_quelle_behaelt_die_alte_liste(monkeypatch):
     """Ein Wurzelprogramm veraltet in Tagen nicht — die gespeicherte Fassung ist
     besser als gar keine."""
-    monkeypatch.setattr(trust_store, "_abrufen", lambda: [_zeile(fp="F"*64)])
+    monkeypatch.setattr(trust_store, "_abrufen", lambda: _bericht(WURZEL))
     trust_store.wurzeln(JETZT)
     monkeypatch.setattr(trust_store, "_abrufen", lambda: None)
-    assert "F"*64 in trust_store.wurzeln(JETZT + timedelta(days=9))
+    assert trust_store.abdruck(WURZEL) in trust_store.wurzeln(JETZT + timedelta(days=9))
 
 
 # ── Bewertung ────────────────────────────────────────────────────────────────
@@ -254,3 +270,58 @@ def test_verweisschleife_bricht_ab(monkeypatch):
     monkeypatch.setattr(trust_store, "_system_wurzeln", {})
     monkeypatch.setattr(crl_check, "ausstellerzertifikat", lambda c: zw)
     assert len(trust_store.kette_bauen(zw)) <= trust_store.MAX_KETTENLAENGE + 1
+
+
+# ── Die Schalter des Betreibers ──────────────────────────────────────────────
+
+@pytest.fixture
+def schalter(monkeypatch):
+    """Setzt die drei Einstellungen; alles andere bleibt unbestimmt."""
+    werte: dict = {}
+    monkeypatch.setattr(trust_store.settings_store, "get",
+                        lambda k, *a, **kw: werte.get(k))
+    return werte
+
+
+def test_vorgaben_nehmen_bekannte_an_und_lassen_andere_warten(monkeypatch, schalter):
+    """Der Normalfall soll ohne Zutun laufen."""
+    wurzel = _zert("Trustcenter")
+    blatt = _zert("wer@partner.de", "Trustcenter")
+    monkeypatch.setattr(trust_store, "wurzeln",
+                        lambda *a, **kw: {trust_store.abdruck(wurzel): "Trustcenter"})
+    assert trust_store.entscheiden([blatt, wurzel])[0] == trust_store.ANNEHMEN
+
+    fremd = _zert("Unbekannte CA")
+    blatt2 = _zert("x@y.de", "Unbekannte CA")
+    assert trust_store.entscheiden([blatt2, fremd])[0] == trust_store.WARTEN
+
+
+def test_bekannte_koennen_trotzdem_freigabe_verlangen(monkeypatch, schalter):
+    """Für Häuser, die jeden Partner einzeln bestätigen wollen."""
+    wurzel = _zert("Trustcenter")
+    blatt = _zert("wer@partner.de", "Trustcenter")
+    monkeypatch.setattr(trust_store, "wurzeln",
+                        lambda *a, **kw: {trust_store.abdruck(wurzel): "Trustcenter"})
+    schalter["TRUST_AUTO_KNOWN"] = False
+    art, grund = trust_store.entscheiden([blatt, wurzel])
+    assert art == trust_store.WARTEN and "trotzdem" in grund
+
+
+def test_unbekannte_koennen_ausdruecklich_angenommen_werden(monkeypatch, schalter):
+    """`auto` stellt das Verhalten von vor v1.7.199 wieder her — bewusst, nicht
+    als Vorgabe."""
+    fremd = _zert("Eigene CA")
+    blatt = _zert("x@y.de", "Eigene CA")
+    monkeypatch.setattr(trust_store, "wurzeln", lambda *a, **kw: {"Z"*64: "x"})
+    schalter["TRUST_UNKNOWN_MODE"] = "auto"
+    art, grund = trust_store.entscheiden([blatt, fremd])
+    assert art == trust_store.ANNEHMEN and "ohne Prüfung" in grund
+
+
+def test_abgeschalteter_bezug_laesst_nur_oertliche_freigaben_gelten(monkeypatch, schalter):
+    schalter["TRUST_MS_ROOTS"] = False
+    gerufen = {"n": 0}
+    monkeypatch.setattr(trust_store, "_abrufen",
+                        lambda: gerufen.__setitem__("n", gerufen["n"] + 1) or [])
+    assert trust_store.wurzeln(JETZT) == {}
+    assert gerufen["n"] == 0, "trotz abgeschaltetem Bezug wurde abgerufen"
