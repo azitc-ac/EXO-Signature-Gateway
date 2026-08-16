@@ -182,3 +182,75 @@ def test_castle_ist_ab_werk_freigegeben():
     CASTLE steht nicht in Microsofts Liste (nachgemessen 16.08.2026)."""
     assert any("CASTLE" in v for v in trust_store.AB_WERK.values())
     assert all(len(k) == 64 for k in trust_store.AB_WERK)
+
+
+# ── Kettenaufbau ─────────────────────────────────────────────────────────────
+#
+# ⚠️ Der erste Anlauf baute die Kette ausschliesslich über die im Zertifikat
+# genannte Ausstelleradresse. An den Ausstellern des produktiven Bestands
+# gemessen bestanden damit nur 3 von 9 — Wurzelzertifikate werden praktisch nie
+# verlinkt, weil sie im Vertrauensspeicher liegen sollen. Mit dem Systemspeicher
+# als zweiter Quelle sind es 9 von 9.
+
+def _ca_paar(name="Test-Root"):
+    """Wurzel und ein davon ausgestelltes Zwischenzertifikat."""
+    root_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    root_name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, name)])
+    root = (x509.CertificateBuilder()
+            .subject_name(root_name).issuer_name(root_name)
+            .public_key(root_key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(JETZT - timedelta(days=100))
+            .not_valid_after(JETZT + timedelta(days=1000))
+            .add_extension(x509.BasicConstraints(ca=True, path_length=None), critical=True)
+            .sign(root_key, hashes.SHA256()))
+    zw_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    zw_name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, name + " Zwischenstelle")])
+    zw = (x509.CertificateBuilder()
+          .subject_name(zw_name).issuer_name(root_name)
+          .public_key(zw_key.public_key())
+          .serial_number(x509.random_serial_number())
+          .not_valid_before(JETZT - timedelta(days=50))
+          .not_valid_after(JETZT + timedelta(days=500))
+          .add_extension(x509.BasicConstraints(ca=True, path_length=None), critical=True)
+          .sign(root_key, hashes.SHA256()))
+    return root, zw
+
+
+def test_kette_wird_ueber_den_systemspeicher_geschlossen(monkeypatch):
+    """Der Fall, an dem 6 von 9 Ausstellern gescheitert sind: Das
+    Zwischenzertifikat nennt keine Ausstelleradresse mehr."""
+    root, zw = _ca_paar()
+    monkeypatch.setattr(trust_store, "_system_wurzeln",
+                        {root.subject.rfc4514_string(): [root]})
+    import crl_check
+    monkeypatch.setattr(crl_check, "ausstellerzertifikat", lambda c: None)  # kein AIA
+    kette = trust_store.kette_bauen(zw)
+    assert len(kette) == 2 and trust_store.abdruck(kette[1]) == trust_store.abdruck(root)
+
+
+def test_systemwurzel_muss_wirklich_ausgestellt_haben(monkeypatch):
+    """Der Name allein genügt nicht — sonst genügte ein gleichnamiges
+    Zertifikat im Speicher, um eine fremde Kette zu schliessen."""
+    root, zw = _ca_paar()
+    fremde_root, _ = _ca_paar()          # anderer Schlüssel, gleicher Name
+    monkeypatch.setattr(trust_store, "_system_wurzeln",
+                        {root.subject.rfc4514_string(): [fremde_root]})
+    import crl_check
+    monkeypatch.setattr(crl_check, "ausstellerzertifikat", lambda c: None)
+    assert len(trust_store.kette_bauen(zw)) == 1, "fremde Wurzel wurde angehängt"
+
+
+def test_kette_endet_bei_der_wurzel(monkeypatch):
+    root, _ = _ca_paar()
+    monkeypatch.setattr(trust_store, "_system_wurzeln", {})
+    assert trust_store.kette_bauen(root) == [root]
+
+
+def test_verweisschleife_bricht_ab(monkeypatch):
+    """Eine Gegenstelle, die im Kreis verweist, darf nicht endlos beschäftigen."""
+    root, zw = _ca_paar()
+    import crl_check
+    monkeypatch.setattr(trust_store, "_system_wurzeln", {})
+    monkeypatch.setattr(crl_check, "ausstellerzertifikat", lambda c: zw)
+    assert len(trust_store.kette_bauen(zw)) <= trust_store.MAX_KETTENLAENGE + 1

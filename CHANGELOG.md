@@ -5,6 +5,29 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.198 — 2026-08-16 — Ketten werden vollständig aufgebaut
+
+Fortsetzung von v1.7.197, weiterhin ohne Wirkung auf den Betrieb. Um ein
+Empfängerzertifikat einer Wurzel zuordnen zu können, muss die Kette dorthin
+aufgebaut werden. Der erste Anlauf holte jede Stufe über die im Zertifikat
+genannte Ausstelleradresse — und blieb regelmässig stecken.
+
+An den Ausstellern eines echten Bestands gemessen: **drei von neun** Ketten
+liessen sich schliessen. Der Grund ist grundsätzlicher Natur: Wurzelzertifikate
+werden praktisch nie verlinkt, denn sie sollen im Vertrauensspeicher liegen und
+nicht nachgeladen werden. Bei zwei grossen Anbietern endete die Kette deshalb
+eine Stufe vor dem Ziel, bei einem weiteren lag das Ausstellerzertifikat in
+einem Bündelformat vor, das nicht gelesen wurde.
+
+Beides ist behoben: Die fehlenden Wurzeln kommen aus dem Zertifikatsspeicher des
+Systems, und Bündel werden gelesen. Über das Vertrauen entscheidet unverändert
+Microsofts Liste — der Systemspeicher liefert nur die Zertifikate, die dort
+fehlen. Damit bestehen **neun von neun**.
+
+Auch beim Schliessen über den Systemspeicher wird nicht dem Namen geglaubt: Eine
+Wurzel wird nur angehängt, wenn sie das Zwischenzertifikat tatsächlich
+ausgestellt hat.
+
 ## v1.7.197 — 2026-08-16 — Grundlage: Wurzelspeicher für Empfängerzertifikate
 
 Vorbereitung, noch ohne Wirkung auf den Betrieb. Empfängerzertifikate kommen

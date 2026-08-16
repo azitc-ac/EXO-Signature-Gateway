@@ -288,10 +288,28 @@ def ausstelleradressen(cert: x509.Certificate) -> list[str]:
 
 
 def _zert_laden(rohdaten: bytes) -> x509.Certificate | None:
-    """Ausstellerzertifikate kommen als DER (`.crt`, `.cer`) oder PEM."""
+    """Ausstellerzertifikat aus DER, PEM — oder einem PKCS#7-Bündel.
+
+    ⚠️ Die dritte Form ist kein Sonderfall: Sectigo liefert unter der im
+    Zertifikat genannten Adresse eine `.p7c`-Datei aus (gemessen 16.08.2026,
+    `SectigoPublicEmailProtectionRootR46.p7c`). Ohne diesen Zweig brach die
+    Kette dort ab, und ein Zertifikat einer der grössten Stellen für
+    E-Mail-Zertifikate wäre als unbekannt eingestuft worden.
+
+    Aus einem Bündel wird das erste Zertifikat genommen; die Bindung an das
+    ausgestellte Zertifikat prüft ohnehin der Aufrufer.
+    """
     for lader in (x509.load_der_x509_certificate, x509.load_pem_x509_certificate):
         try:
             return lader(rohdaten)
+        except Exception:
+            continue
+    from cryptography.hazmat.primitives.serialization import pkcs7
+    for lader in (pkcs7.load_der_pkcs7_certificates, pkcs7.load_pem_pkcs7_certificates):
+        try:
+            certs = lader(rohdaten)
+            if certs:
+                return certs[0]
         except Exception:
             continue
     return None
