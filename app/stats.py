@@ -70,6 +70,11 @@ KEYS = (
     "cert_widerrufen",
     "cert_crl_unerreichbar",
     "cert_ohne_crl",
+    # Eingesammelte Zertifikate, die auf eine Freigabe warten, weil ihr
+    # Aussteller nicht auf eine bekannte Wurzel zurueckzufuehren ist. Sie sind
+    # NICHT im Bestand — an diese Empfaenger geht die Nachricht deshalb ueber
+    # das Portal, so als laege gar kein Zertifikat vor.
+    "cert_wartet",
 )
 _stats: dict = {k: 0 for k in KEYS}
 _snapshot: dict = {k: 0 for k in KEYS}

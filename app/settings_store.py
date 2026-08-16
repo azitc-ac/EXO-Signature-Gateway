@@ -187,6 +187,9 @@ DEFAULTS: dict = {
     "TRUST_MS_ROOTS": True,          # Microsofts Wurzelprogramm beziehen
     "TRUST_AUTO_KNOWN": True,        # von bekannten Wurzeln ausgestellte automatisch annehmen
     "TRUST_UNKNOWN_MODE": "manuell", # "manuell" = warten auf Freigabe | "auto" = annehmen
+    # Mail an die Verwaltung, sobald ein Zertifikat erstmals auf Freigabe wartet.
+    # None/True = senden. Der Tagesbericht zeigt es unabhaengig davon.
+    "NOTIFY_CERT_WAITING": True,
     "SKIP_DUPLICATE_SIG": True,         # Skip re-injection if gateway signature already in compose area
     # Antwort-Signatur: ab der 2. eigenen Mail im Thread wird statt des vollen Blocks die
     # zugewiesene Antwort-Signatur genutzt (pro Postfach 'min_template' bzw. Richtlinie

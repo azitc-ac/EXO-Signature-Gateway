@@ -1190,6 +1190,27 @@
     "name": "api_smime_upload"
   },
   {
+    "pfad": "/api/smime/wartend",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_smime_wartend"
+  },
+  {
+    "pfad": "/api/smime/wartend/{fingerabdruck}",
+    "methoden": [
+      "DELETE"
+    ],
+    "name": "api_smime_wartend_verwerfen"
+  },
+  {
+    "pfad": "/api/smime/wartend/{fingerabdruck}/freigeben",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_smime_wartend_freigeben"
+  },
+  {
     "pfad": "/api/smtp-acl/refresh",
     "methoden": [
       "POST"

@@ -174,6 +174,11 @@ async def smime_page_v2(request: Request, user: str = Depends(_require_admin)):
             "ca_user_config": settings_store.get("CA_USER_CONFIG") or {},
             "backends": _ca.list_backends(),
             "recipient_certs": smime_store.list_recipient_certs(),
+            # Zertifikate, deren Aussteller nicht auf eine bekannte Wurzel
+            # zurueckzufuehren ist. Sie sind NICHT im Bestand — an diese
+            # Empfaenger geht die Nachricht ueber das Portal, so als laege gar
+            # kein Zertifikat vor.
+            "wartende_certs": __import__("cert_wartestand").liste(),
             "active": "smime",
             "cert_expiry": _cert_expiry(),
             "acme_orders": acme_orders,
@@ -743,3 +748,39 @@ async def api_smime_recipient_download(cert_email: str, user: str = Depends(_req
         media_type="application/pkix-cert",
         headers={"Content-Disposition": f'attachment; filename="{safe_name}.cer"'},
     )
+
+
+@router.get("/api/smime/wartend")
+async def api_smime_wartend(_=Depends(_require_admin)):
+    import cert_wartestand
+    return JSONResponse({"wartend": cert_wartestand.liste()})
+
+
+@router.post("/api/smime/wartend/{fingerabdruck}/freigeben")
+async def api_smime_wartend_freigeben(fingerabdruck: str, request: Request,
+                                      _=Depends(_require_admin)):
+    """Ein wartendes Zertifikat uebernehmen.
+
+    `auch_aussteller` merkt sich zusaetzlich dessen Zertifizierungsstelle — dann
+    warten kuenftige Zertifikate derselben Stelle nicht mehr. Das ist der
+    uebliche Fall; die Einzelfreigabe bleibt fuer Stellen, deren Zertifikat sich
+    gar nicht ermitteln laesst.
+    """
+    import cert_wartestand
+    try:
+        daten = await request.json()
+    except Exception:
+        daten = {}
+    ergebnis = cert_wartestand.freigeben(fingerabdruck,
+                                         bool(daten.get("auch_aussteller")))
+    if not ergebnis.get("ok"):
+        raise HTTPException(404, ergebnis.get("fehler") or "nicht gefunden")
+    return JSONResponse(ergebnis)
+
+
+@router.delete("/api/smime/wartend/{fingerabdruck}")
+async def api_smime_wartend_verwerfen(fingerabdruck: str, _=Depends(_require_admin)):
+    import cert_wartestand
+    if not cert_wartestand.verwerfen(fingerabdruck):
+        raise HTTPException(404, "nicht gefunden")
+    return JSONResponse({"ok": True})
