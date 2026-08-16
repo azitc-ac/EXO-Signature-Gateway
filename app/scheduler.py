@@ -292,6 +292,7 @@ def _run_daily() -> None:
     except Exception as exc:
         log.warning("scheduler: portal cleanup failed: %s", exc)
 
+    _wurzelspeicher_auffrischen()
     _crl_vorwaermen()
 
     # Daily stats report (if configured)
@@ -301,6 +302,28 @@ def _run_daily() -> None:
         daily = stats.take_daily_snapshot()
         total = stats.get()
         notification.send_daily_report(daily, total)
+
+
+def _wurzelspeicher_auffrischen() -> None:
+    """Microsofts Wurzelliste im Voraus holen.
+
+    ⚠️ Ohne diesen Lauf wird sie erst geholt, wenn sie GEBRAUCHT wird — also
+    während eine eingehende Nachricht darauf wartet, dass über ihr Zertifikat
+    entschieden wird. Für die Sperrlisten war dieser Vorlauf von Anfang an da,
+    für die Wurzeln fehlte er; aufgefallen beim Durchgehen der Grenzwerte.
+
+    Fehlschläge sind folgenlos: Die gespeicherte Fassung gilt weiter, und im
+    Bedarfsfall wird selbst geholt.
+    """
+    if settings_store.get("TRUST_MS_ROOTS") is False:
+        return
+    try:
+        import trust_store
+        ergebnis = trust_store.aktualisieren()
+        if not ergebnis["ok"]:
+            log.warning("scheduler: Wurzelspeicher nicht aufgefrischt — alte Fassung gilt weiter")
+    except Exception as exc:
+        log.warning("scheduler: Wurzelspeicher-Auffrischung fehlgeschlagen: %s", exc)
 
 
 def _crl_vorwaermen() -> None:
