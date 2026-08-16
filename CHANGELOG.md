@@ -5,6 +5,33 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.197 — 2026-08-16 — Grundlage: Wurzelspeicher für Empfängerzertifikate
+
+Vorbereitung, noch ohne Wirkung auf den Betrieb. Empfängerzertifikate kommen
+zum Teil selbsttätig herein — das Gateway sammelt sie aus eingehenden signierten
+Nachrichten ein. Bisher fragte dabei niemand, **wer** sie ausgestellt hat: Ein
+selbst betriebener Aussteller kam genauso in den Bestand wie ein Trustcenter,
+und verschlüsselt wurde anschliessend an beides.
+
+Als Grundlage dient jetzt **Microsofts Wurzelprogramm** — dieselbe Liste, gegen
+die Windows und Outlook prüfen. Sie wird täglich abgeholt und auf den
+Verwendungszweck „Secure Email" gefiltert; eine Wurzel, die nur für Webserver
+zugelassen ist, beglaubigt keine E-Mail-Zertifikate. Beim ersten Abruf waren es
+217 Wurzeln.
+
+Was dort fehlt, kann der Betreiber örtlich freigeben — etwa eine firmeneigene
+Zertifizierungsstelle. Vorbelegt ist der Aussteller, über den dieses Gateway
+seine eigenen Zertifikate bezieht; er steht nicht in Microsofts Liste, und ohne
+Vorbelegung wäre der eigene Bezugsweg blockiert.
+
+Ist die Liste weder abrufbar noch zwischengespeichert, gilt kein Aussteller als
+geprüft. Der umgekehrte Weg — im Zweifel annehmen — machte die Prüfung wertlos;
+und anders als beim Verschlüsseln kostet Vorsicht hier nichts, weil der
+vorhandene Bestand unberührt bleibt.
+
+Die Anbindung an das Einsammeln und der Genehmigungsweg in der Oberfläche folgen
+als nächster Schritt.
+
 ## v1.7.196 — 2026-08-16 — Sperrlisten werden auf ihre Echtheit geprüft
 
 Die Widerrufsprüfung verliess sich bisher darauf, dass eine abgerufene
@@ -16,10 +43,12 @@ Zertifikat genannte Adresse geladen wird.
 Auch dieses Zertifikat kommt über das Netz und wäre für sich genommen wertlos.
 Es wird deshalb nur benutzt, wenn es das Empfängerzertifikat **tatsächlich
 ausgestellt hat**. Das lässt sich nicht fälschen, ohne den privaten Schlüssel der
-echten Stelle zu besitzen. Ein Vertrauensanker ist dafür nicht nötig: Geprüft
-wird nicht, ob die Zertifizierungsstelle vertrauenswürdig ist — das hat
-entschieden, wer das Zertifikat in den Bestand liess —, sondern nur, ob die
-Auskunft von genau ihr stammt.
+echten Stelle zu besitzen.
+
+Die Prüfung beantwortet damit genau eine Frage: Stammt die Auskunft von
+derselben Stelle, die das Zertifikat ausgestellt hat? Sie sagt nichts darüber,
+ob dieser Stelle zu trauen ist — dafür ist ein Vertrauensspeicher nötig, und der
+folgt als eigener Schritt.
 
 Nennt ein Zertifikat keine Adresse seiner ausstellenden Stelle, bleibt es bei
 der bisherigen Prüfung. Nennt es eine, die nicht erreichbar ist, wird die Liste
