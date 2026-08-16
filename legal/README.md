@@ -42,24 +42,33 @@ Bis dahin gilt die bisherige Fassung fort und es können keine neuen
 kostenpflichtigen Leistungen bezogen werden; der Mailfluss läuft unverändert
 weiter.
 
-Beim Veröffentlichen einer neuen Version die Tabelle unten aktualisieren.
-Dokumente werden versioniert abgelegt (z. B. `hub-nutzungsbedingungen-v2.0.md`).
-Die aktuell geltende Version ist in der Tabelle vermerkt; der Code liest sie aus
-`CURRENT_DOCUMENTS` in `legal_consent.py`. Abgelöste Fassungen bleiben über die
-Git-Historie zugänglich.
+Dokumente werden versioniert abgelegt (z. B. `hub-nutzungsbedingungen-v2.3.md`).
+Abgelöste Fassungen bleiben über die Git-Historie zugänglich.
 
 ---
 
 ## Aktuelle Versionen
 
-| Dokument | Version | Stand | Zustimmungspflichtig |
-|---|---|---|---|
-| `hub-nutzungsbedingungen` | 2.1 | 27.07.2026 | Ja |
-| `lizenzbedingungen-ergaenzung` | 2.0 | 27.07.2026 | Ja |
-| `zahlungsbedingungen-rechnung` | 1.0 | 24.07.2026 | Ja |
-| `auftragsverarbeitung` | 1.0 | 24.07.2026 | Ja (vor Diagnosepaket-Upload) |
-| `preisliste` | 1.0 | 27.07.2026 | Nein (informativ) |
-| `produkt-datenschutz` | 1.0 | 24.07.2026 | Nein (Information nach Art. 13/14 DSGVO) |
+**Einzige Quelle ist `CURRENT_DOCUMENTS` in `app/legal_consent.py`.** Dort stehen
+Version, Anzeigename, Dateiname je Sprache und — über `no_consent_required` —
+ob das Dokument zustimmungspflichtig ist.
+
+An dieser Stelle stand bis zum 17.08.2026 eine Tabelle zum Mitpflegen. Sie war
+zuletzt an drei Werten veraltet (Nutzungsbedingungen 2.1 statt 2.3, Lizenz-
+Ergänzung 2.0 statt 2.1, Preisliste 1.0 statt 1.2) und behauptete damit
+Fassungen, die der Code nicht verlangte. Eine Liste, die nur durch Disziplin
+richtig bleibt, wird falsch — deshalb steht hier keine mehr.
+
+Abgeleitete Formen, beide erzeugt und nicht gepflegt:
+
+* `legal/index.json` — maschinenlesbar; der Hub liest sie und leitet daraus ab,
+  was er unter `/legal/…` öffentlich ausliefert.
+* die Kopie im Hub-Repo unter `legal/`.
+
+Beides erzeugt `python3 tools/legal-sync-check.py --fix`. Ohne `--fix` meldet das
+Skript Abweichungen und beendet sich mit Exit-Code 1; es läuft in der Hub-CI.
+`tests/test_legal_index.py` prüft zusätzlich im Gateway, dass `index.json` und
+Registry sich decken und jede genannte Datei existiert.
 
 ---
 

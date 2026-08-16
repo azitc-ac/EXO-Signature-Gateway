@@ -5,6 +5,28 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.205 — 2026-08-17 — Rechtstexte sind öffentlich abrufbar
+
+Nutzungsbedingungen, Lizenzbedingungen-Ergänzung, Zahlungsbedingungen,
+Preisliste, Datenschutzerklärung und Auftragsverarbeitungsvertrag ließen sich
+bisher nur aus einem eingerichteten Gateway heraus lesen — nach Anmeldung. Wer
+vor einer Anschaffung wissen wollte, worauf er sich einlässt, fand nichts;
+zugleich fehlte eine Adresse, die sich als Verweis auf die Bedingungen
+hinterlegen lässt. Alle sechs Dokumente sind jetzt beim Hub unter `/legal` in
+beiden Sprachen frei abrufbar, mit Übersichtsseite und Angabe der geltenden
+Fassung. Die bisherige Kurzadresse der Datenschutzerklärung bleibt bestehen —
+laufende Verträge verweisen darauf.
+
+Im Gateway ändert sich nur, woher die Zuordnung von Kennung zu Datei stammt:
+`legal/index.json` wird aus `CURRENT_DOCUMENTS` **erzeugt** und mit ausgeliefert,
+statt an einer zweiten Stelle gepflegt zu werden. Ebenso entfällt die
+Versionstabelle in `legal/README.md` — sie war an drei Werten veraltet und
+behauptete damit Fassungen, die gar nicht verlangt wurden. `tools/legal-sync-check.py`
+leitet die Dateiliste nun ebenfalls aus der Registry ab und erfasst dadurch
+jedes künftig aufgenommene Dokument von selbst.
+
+Für den Betrieb eines Gateways ändert sich nichts.
+
 ## v1.7.204 — 2026-08-16 — Wurzelliste wird im Voraus geholt
 
 Beim Durchgehen der übrigen Grenzwerte fiel auf, dass für die Liste

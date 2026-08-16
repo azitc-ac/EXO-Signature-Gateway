@@ -1,0 +1,73 @@
+{
+  "aliases": {
+    "datenschutz": "product-privacy"
+  },
+  "documents": {
+    "dpa": {
+      "de": {
+        "path": "de/auftragsverarbeitung-v1.0.md",
+        "title": "Auftragsverarbeitungsvertrag (Diagnosepakete)"
+      },
+      "en": {
+        "path": "en/data-processing-agreement-v1.0.md",
+        "title": "Data Processing Agreement (diagnostic bundles)"
+      },
+      "version": "1.0"
+    },
+    "hub-terms": {
+      "de": {
+        "path": "de/hub-nutzungsbedingungen-v2.3.md",
+        "title": "Hub-Nutzungsbedingungen"
+      },
+      "en": {
+        "path": "en/hub-terms-of-use-v2.3.md",
+        "title": "Hub Terms of Use"
+      },
+      "version": "2.3"
+    },
+    "license-supplement": {
+      "de": {
+        "path": "de/lizenzbedingungen-ergaenzung-v2.1.md",
+        "title": "Lizenzbedingungen-Ergänzung"
+      },
+      "en": {
+        "path": "en/license-supplement-v2.1.md",
+        "title": "License Terms Supplement"
+      },
+      "version": "2.1"
+    },
+    "payment-invoice": {
+      "de": {
+        "path": "de/zahlungsbedingungen-rechnung-v1.0.md",
+        "title": "Zahlungsbedingungen Rechnungskauf"
+      },
+      "en": {
+        "path": "en/payment-terms-invoice-v1.0.md",
+        "title": "Payment Terms for Invoice Purchase"
+      },
+      "version": "1.0"
+    },
+    "price-list": {
+      "de": {
+        "path": "de/preisliste-v1.2.md",
+        "title": "Preisliste"
+      },
+      "en": {
+        "path": "en/price-list-v1.2.md",
+        "title": "Price List"
+      },
+      "version": "1.2"
+    },
+    "product-privacy": {
+      "de": {
+        "path": "de/produkt-datenschutz-v1.0.md",
+        "title": "Datenschutzerklärung (Gateway & Hub)"
+      },
+      "en": {
+        "path": "en/product-privacy-policy-v1.0.md",
+        "title": "Privacy Policy (Gateway & Hub)"
+      },
+      "version": "1.0"
+    }
+  }
+}
