@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.203 — 2026-08-16 — Der Abruf einer Sperrliste hält den Versand nicht mehr auf
+
+Nachtrag zur vorigen Version. Dort wurde die Grössengrenze angehoben, damit
+grosse Sperrlisten überhaupt ankommen — und dabei fiel auf, dass die zugesagte
+Zeitgrenze so gar nicht wirkte.
+
+Der bisherige Wert begrenzte die Zeit **zwischen zwei Datenpaketen**, nicht die
+Gesamtdauer. Eine Gegenstelle, die stetig, aber langsam liefert, lief damit nie
+in eine Grenze: Bei zwei Dutzend Megabyte und schmaler Leitung hätte eine
+Nachricht minutenlang im Versand gewartet, statt über das Portal hinauszugehen.
+Auf schnellen Verbindungen fiel das nicht auf — dort dauert derselbe Abruf zwei
+bis drei Sekunden.
+
+Jetzt gilt eine Frist für den gesamten Abruf: **15 Sekunden im Versandweg**,
+danach gilt die Liste als nicht erreichbar. Der Vorlauf im Tageslauf hat mit
+drei Minuten deutlich mehr Geduld — dort wartet keine Nachricht, und was dort
+geholt wird, muss der Versandweg nicht mehr holen.
+
 ## v1.7.202 — 2026-08-16 — Grosse Sperrlisten werden nicht mehr abgewiesen
 
 **Betrifft den laufenden Betrieb.** Die Widerrufsprüfung verwarf Sperrlisten über

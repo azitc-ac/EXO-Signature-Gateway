@@ -107,7 +107,7 @@ def netz(monkeypatch):
     """
     zustand = {"antwort": None, "abrufe": 0}
 
-    def abrufen(url: str):
+    def abrufen(url: str, gesamt=None):
         # Ersetzt wird NUR der Transport. Ausgeliefert wird eine echte,
         # signierte CRL — Format und Auswertung bleiben ungetäuscht. Und der
         # Zwischenspeicher bleibt scharf: Er sitzt eine Ebene höher.
@@ -162,7 +162,7 @@ def test_nicht_erreichbare_sperrliste_verhindert_verschluesselung(tmp_path, ca, 
 def test_unbrauchbare_antwort_gilt_wie_keine(tmp_path, ca, netz, monkeypatch):
     """Eine Fehlerseite statt einer Sperrliste darf nicht als „geprüft" gelten."""
     pfad, _ = _empfaenger(tmp_path, ca, "muell")
-    monkeypatch.setattr(crl_check, "_abrufen", lambda url: b"<html>404</html>")
+    monkeypatch.setattr(crl_check, "_abrufen", lambda url, gesamt=None: b"<html>404</html>")
     ok, grund = crl_check.widerruf_geprueft(pfad, JETZT)
     assert not ok and "nicht erreichbar" in grund
 
@@ -507,7 +507,7 @@ def netz_mehrteilig(monkeypatch):
     """Antworten je Adresse — Sperrliste UND Ausstellerzertifikat."""
     antworten: dict[str, bytes | None] = {}
 
-    def abrufen(url: str):
+    def abrufen(url: str, gesamt=None):
         return antworten.get(url)
 
     monkeypatch.setattr(crl_check, "_abrufen", abrufen)
@@ -596,7 +596,8 @@ def test_ausstellerzertifikat_wird_nur_einmal_geholt(tmp_path, ca, netz_mehrteil
     abrufe = {"n": 0}
     echt = crl_check._abrufen
     monkeypatch.setattr(crl_check, "_abrufen",
-                        lambda url: (abrufe.__setitem__("n", abrufe["n"] + 1), echt(url))[1])
+                        lambda url, gesamt=None: (abrufe.__setitem__("n", abrufe["n"] + 1),
+                                                  echt(url, gesamt))[1])
     pfad, _ = _mit_aia(tmp_path, ca, "ca-cache")
     netz_mehrteilig[CRL_URL] = _als_der(_sperrliste(ca))
     netz_mehrteilig["http://ca.invalid/ca.crt"] = _als_der_zert(ca["cert"])
@@ -662,3 +663,69 @@ def test_neu_geladene_liste_wird_wieder_geprueft(tmp_path, ca, netz_mehrteilig):
                                                     jetzt=JETZT + timedelta(hours=2)))
     ok, _ = crl_check.widerruf_geprueft(pfad, JETZT + timedelta(hours=2))
     assert not ok, "die fremd signierte Nachfolge-Liste wurde ungeprüft übernommen"
+
+
+# ── Gesamtdauer des Abrufs ───────────────────────────────────────────────────
+#
+# ⚠️ Der an httpx übergebene Timeout begrenzt die Zeit ZWISCHEN zwei Paketen,
+# nicht die Gesamtdauer. Eine Gegenstelle, die stetig aber langsam liefert,
+# läuft damit nie in eine Grenze — und der Mailfluss wartet, solange es dauert.
+# Bei 24 MB (SwissSign, gemessen) sind das auf schmaler Leitung Minuten.
+
+class _LangsameAntwort:
+    """Antwort, die ihre Daten tröpfchenweise liefert — wie eine schmale Leitung."""
+
+    def __init__(self, daten: bytes, pause: float, stuecke: int = 20):
+        self._daten, self._pause, self._n = daten, pause, stuecke
+        self.status_code = 200
+
+    def raise_for_status(self): pass
+    def __enter__(self): return self
+    def __exit__(self, *a): return False
+
+    def iter_bytes(self):
+        import time as _t
+        gr = max(1, len(self._daten) // self._n)
+        for i in range(0, len(self._daten), gr):
+            _t.sleep(self._pause)
+            yield self._daten[i:i + gr]
+
+
+class _LangsamerClient:
+    def __init__(self, daten, pause, **kw):
+        self._daten, self._pause = daten, pause
+
+    def __enter__(self): return self
+    def __exit__(self, *a): return False
+
+    def stream(self, methode, url):
+        return _LangsameAntwort(self._daten, self._pause)
+
+
+def test_langsamer_abruf_wird_abgebrochen(tmp_path, ca, monkeypatch):
+    """Sonst hängt die Nachricht im Versand, statt über das Portal zu gehen."""
+    import httpx
+    daten = _als_der(_sperrliste(ca))
+    monkeypatch.setattr(crl_check, "GESAMT_ABRUF", 0.3)
+    monkeypatch.setattr(httpx, "Client",
+                        lambda **kw: _LangsamerClient(daten, pause=0.05))
+    import time as _t
+    t0 = _t.time()
+    assert crl_check._abrufen("http://langsam.invalid/x.crl") is None
+    assert _t.time() - t0 < 2.0, "der Abbruch kam zu spät"
+
+
+def test_schneller_abruf_geht_durch(tmp_path, ca, monkeypatch):
+    """Gegenprobe — sonst wäre die Frist nur eine Bremse."""
+    import httpx
+    daten = _als_der(_sperrliste(ca))
+    monkeypatch.setattr(crl_check, "GESAMT_ABRUF", 30.0)
+    monkeypatch.setattr(httpx, "Client",
+                        lambda **kw: _LangsamerClient(daten, pause=0.0))
+    assert crl_check._abrufen("http://schnell.invalid/x.crl") == daten
+
+
+def test_der_vorlauf_hat_mehr_geduld_als_der_versandweg():
+    """Im Tageslauf hängt keine Nachricht am Abruf — dort ist Warten billig und
+    erspart dem Versandweg die Wartezeit."""
+    assert crl_check.GESAMT_VORLAUF > crl_check.GESAMT_ABRUF * 5
