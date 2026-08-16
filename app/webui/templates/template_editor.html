@@ -1282,7 +1282,15 @@ window.refreshPreview = async function() {
   try {
     const r = await fetch(`/api/preview-data?email=${encodeURIComponent(email)}&template=${encodeURIComponent(TEMPLATE_NAME)}`);
     const d = await r.json();
-    sigVorschau(box, (d.html || '') + (d.banner_html || '') + (d.disclaimer_html || ''));
+    // Bei einer Nachricht an Postfachinhaber gehört der Betreff dazu — er ist
+    // Teil dessen, was der Empfänger sieht, und wird mit denselben Platzhaltern
+    // gefüllt.
+    const kopf = d.betreff
+      ? `<div style="border-bottom:1px solid #e2e8f0;margin-bottom:12px;padding-bottom:8px">`
+        + `<span style="color:#64748b;font-size:12px">Betreff:</span> `
+        + `<strong>${esc(d.betreff)}</strong></div>`
+      : '';
+    sigVorschau(box, kopf + (d.html || '') + (d.banner_html || '') + (d.disclaimer_html || ''));
   } catch(e) {
     box.innerHTML = `<span style="color:#dc2626;font-size:12px">Vorschau-Fehler: ${esc(e.message)}</span>`;
   } finally {

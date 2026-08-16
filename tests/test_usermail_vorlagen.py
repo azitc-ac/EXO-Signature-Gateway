@@ -194,3 +194,31 @@ def test_vorlage_ohne_meta_gilt_als_signatur(vorlagenverzeichnis, monkeypatch):
     monkeypatch.setattr(signature_engine.config, "TEMPLATE_DIR", str(vorlagenverzeichnis))
     (vorlagenverzeichnis / "VonHand.html").write_text("<p>x</p>", encoding="utf-8")
     assert "VonHand" in signature_engine.list_templates()
+
+
+# ── Bausteintyp und Vorschau ─────────────────────────────────────────────────
+
+def test_bausteine_sind_freitext_nicht_html():
+    """⚠️ `freetext` heisst im Editor „HTML-Code" und zeigt rohes Markup — wer
+    den Text anpassen will, müsste dort `<strong>` tippen. Der Baustein `text`
+    heisst „Freitext" und kennt `**fett**`.
+
+    Die erste Fassung nahm `freetext`, weil der Parser diesen Typ für rohe
+    Absätze benutzt. Für eine Nachricht, die jemand umformulieren soll, ist das
+    das falsche Werkzeug.
+    """
+    import re
+    for schluessel, v in usermail.VORLAGEN.items():
+        for b in v["bloecke"]:
+            assert b["type"] == "text", f"{schluessel}: Baustein vom Typ {b['type']}"
+            assert not re.search(r"<[a-zA-Z/]", b.get("text") or ""), \
+                f"{schluessel}: rohes HTML im Freitext — es würde maskiert angezeigt"
+
+
+def test_auszeichnung_wird_zu_fettdruck():
+    """Gegenprobe zum vorigen Test: `**…**` muss auch ankommen, sonst stünde
+    der Text zwar sauber da, aber ohne die Betonung, auf die es ankommt."""
+    _, html = usermail.rendern("cert_pending", "e@x.de", "CA")
+    assert "<strong>" in html
+    assert "&lt;strong&gt;" not in html, "rohes HTML wurde maskiert angezeigt"
+    assert "**" not in html, "die Auszeichnung blieb als Zeichen stehen"
