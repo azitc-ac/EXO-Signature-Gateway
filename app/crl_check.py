@@ -85,10 +85,24 @@ import config
 
 log = logging.getLogger("crl")
 
-# Der Mailfluss wartet auf diese Abfrage. Lieber das Portal als eine Nachricht,
-# die sekundenlang im Versand hängt — die Zustellung leidet nicht, nur das
-# Verfahren.
+# ⚠️ Zwei verschiedene Uhren, und die Unterscheidung ist wesentlich.
+#
+# `ABRUF_TIMEOUT` geht an httpx und begrenzt dort die Zeit ZWISCHEN zwei
+# Paketen, nicht die Gesamtdauer. Eine Gegenstelle, die stetig, aber langsam
+# liefert, läuft damit NIE in eine Grenze — und der Mailfluss wartet, solange
+# es dauert. Bei 24 MB (SwissSign) sind das auf einem schmalen Anschluss
+# Minuten.
+#
+# `GESAMT_ABRUF` ist deshalb die Uhr, auf die es ankommt: Sie läuft über den
+# ganzen Abruf. Wird sie überschritten, gilt die Liste als nicht erreichbar —
+# und die Nachricht geht über das Portal, statt im Versand zu hängen. Genau das
+# war die Zusage im Entwurf; eingelöst wird sie erst hier.
 ABRUF_TIMEOUT = 5.0
+GESAMT_ABRUF = 15.0
+
+# Im Tageslauf ist Warten billig: Dort hängt keine Nachricht daran, und wer die
+# Liste vorab holt, erspart sie dem Versandweg. Deshalb viel mehr Geduld.
+GESAMT_VORLAUF = 180.0
 
 # ⚠️ Die Grenze war zuerst mit 20 MB angesetzt, in der Annahme, Sperrlisten
 # seien „einige hundert Kilobyte". Das ist falsch: SwissSign liefert für seine
@@ -225,7 +239,7 @@ def _aus_cache(url: str, jetzt: datetime) -> x509.CertificateRevocationList | No
     return crl
 
 
-def _abrufen(url: str) -> bytes | None:
+def _abrufen(url: str, gesamt: float | None = None) -> bytes | None:
     """Nur der Transport: HTTP holen, Grösse begrenzen, Rohdaten liefern.
 
     ⚠️ Bewusst frei von Zwischenspeicher-Logik. Lägen beide hier zusammen,
@@ -235,15 +249,21 @@ def _abrufen(url: str) -> bytes | None:
     die erste Fassung dieses Tests danebengegangen.
     """
     import httpx
+    frist = gesamt if gesamt is not None else GESAMT_ABRUF
+    beginn = time.monotonic()
     try:
         with httpx.Client(timeout=ABRUF_TIMEOUT, follow_redirects=True) as client:
             with client.stream("GET", url) as antwort:
                 antwort.raise_for_status()
-                teile, gesamt = [], 0
+                teile, bytes_gesamt = [], 0
                 for stueck in antwort.iter_bytes():
-                    gesamt += len(stueck)
-                    if gesamt > MAX_GROESSE:
+                    bytes_gesamt += len(stueck)
+                    if bytes_gesamt > MAX_GROESSE:
                         log.warning("CRL %s überschreitet %d Bytes — abgebrochen", url, MAX_GROESSE)
+                        return None
+                    if time.monotonic() - beginn > frist:
+                        log.warning("CRL %s dauert länger als %.0f s — abgebrochen "
+                                    "(%.1f MB bis dahin)", url, frist, bytes_gesamt / 1048576)
                         return None
                     teile.append(stueck)
         return b"".join(teile)
@@ -438,8 +458,13 @@ def _merken(url: str, crl: x509.CertificateRevocationList, groesse: int = 0) -> 
         _groessen.pop(aeltester, None)
 
 
-def sperrliste(url: str, jetzt: datetime | None = None) -> x509.CertificateRevocationList | None:
-    """Sperrliste zu *url* — aus dem Speicher, sonst der Datei, sonst frisch."""
+def sperrliste(url: str, jetzt: datetime | None = None,
+               geduld: float | None = None) -> x509.CertificateRevocationList | None:
+    """Sperrliste zu *url* — aus dem Speicher, sonst der Datei, sonst frisch.
+
+    `geduld` ist die Gesamtfrist für einen etwaigen Abruf. Ohne Angabe gilt die
+    kurze des Versandwegs; der Tageslauf gibt die lange mit.
+    """
     jetzt = jetzt or datetime.now(timezone.utc)
 
     gemerkt = _im_speicher.get(url)
@@ -456,7 +481,7 @@ def sperrliste(url: str, jetzt: datetime | None = None) -> x509.CertificateRevoc
             _merken(url, aus_cache)
         return aus_cache
 
-    rohdaten = _abrufen(url)
+    rohdaten = _abrufen(url, geduld)
     if rohdaten is None:
         return None
     crl = _crl_laden(rohdaten)
@@ -561,7 +586,7 @@ def vorwaermen(cert_pfade) -> dict:
             if url in gesehen:
                 continue
             gesehen.add(url)
-            if sperrliste(url) is not None:
+            if sperrliste(url, geduld=GESAMT_VORLAUF) is not None:
                 geholt += 1
             else:
                 fehlgeschlagen += 1
