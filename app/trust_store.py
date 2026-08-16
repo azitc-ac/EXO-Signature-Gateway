@@ -188,6 +188,99 @@ def abdruck(cert: x509.Certificate) -> str:
     return cert.fingerprint(hashes.SHA256()).hex().upper()
 
 
+MAX_KETTENLAENGE = 6
+
+# Wurzelzertifikate des Systems, nach Inhaber-Name gebündelt.
+#
+# ⚠️ Ohne sie bleibt fast jede Kette unvollständig, und das ist kein Zufall:
+# Wurzelzertifikate werden praktisch **nie** über die Ausstelleradresse
+# verlinkt — sie sollen ja im Vertrauensspeicher liegen, nicht nachgeladen
+# werden. Gemessen an den Ausstellern des produktiven Bestands (16.08.2026):
+# Bei DigiCert und SwissSign endete die Kette am vorletzten Glied, weil das
+# Zwischenzertifikat keine Ausstelleradresse mehr nennt.
+#
+# Der Systemspeicher liefert die fehlenden Zertifikate, Microsofts Liste
+# entscheidet über das Vertrauen. Beides zusammen: 104 verwendbare Wurzeln.
+_system_wurzeln: dict[str, list[x509.Certificate]] | None = None
+
+SYSTEM_SPEICHER = ("/etc/ssl/certs/ca-certificates.crt",
+                   "/etc/pki/tls/certs/ca-bundle.crt")
+
+
+def system_wurzeln() -> dict[str, list[x509.Certificate]]:
+    global _system_wurzeln
+    if _system_wurzeln is not None:
+        return _system_wurzeln
+    gefunden: dict[str, list[x509.Certificate]] = {}
+    pfade = list(SYSTEM_SPEICHER)
+    try:
+        import certifi
+        pfade.append(certifi.where())
+    except Exception:
+        pass
+    for pfad in pfade:
+        p = Path(pfad)
+        if not p.is_file():
+            continue
+        for block in p.read_bytes().split(b"-----END CERTIFICATE-----"):
+            b = block.strip()
+            if not b:
+                continue
+            try:
+                c = x509.load_pem_x509_certificate(b + b"\n-----END CERTIFICATE-----\n")
+            except Exception:
+                continue
+            gefunden.setdefault(c.subject.rfc4514_string(), []).append(c)
+    _system_wurzeln = gefunden
+    log.info("Systemspeicher: %d Wurzelzertifikate gelesen", sum(len(v) for v in gefunden.values()))
+    return gefunden
+
+
+def _aussteller_aus_system(cert: x509.Certificate) -> x509.Certificate | None:
+    """Wurzel, die *cert* ausgestellt hat — aus dem Systemspeicher.
+
+    Auch hier wird gebunden, nicht geglaubt: Der Name allein genügt nicht, die
+    Signatur muss passen.
+    """
+    for kandidat in system_wurzeln().get(cert.issuer.rfc4514_string(), []):
+        try:
+            cert.verify_directly_issued_by(kandidat)
+            return kandidat
+        except Exception:
+            continue
+    return None
+
+
+def kette_bauen(cert: x509.Certificate) -> list[x509.Certificate]:
+    """Vom Zertifikat aufwärts, so weit die Aussteller sich ermitteln lassen.
+
+    Jede Stufe wird über die im Zertifikat genannte Ausstelleradresse geladen und
+    dabei **an die vorige gebunden** — `crl_check.ausstellerzertifikat()` nimmt
+    nur ein Zertifikat an, das das jeweilige tatsächlich ausgestellt hat. Eine
+    über HTTP geladene Kette wäre sonst wertlos.
+
+    Die Kette endet, wenn kein Aussteller mehr zu ermitteln ist oder das
+    Zertifikat sich selbst ausgestellt hat (Wurzel). `MAX_KETTENLAENGE` ist die
+    Notbremse gegen eine Gegenstelle, die im Kreis verweist.
+    """
+    import crl_check
+    kette = [cert]
+    aktuell = cert
+    for _ in range(MAX_KETTENLAENGE):
+        if aktuell.subject == aktuell.issuer:
+            break            # selbstsigniert — weiter geht es nicht
+        # Erst der Systemspeicher — dort liegen die Wurzeln, und er kostet
+        # keinen Netzabruf. Dann die im Zertifikat genannte Adresse.
+        naechster = _aussteller_aus_system(aktuell) or crl_check.ausstellerzertifikat(aktuell)
+        if naechster is None:
+            break
+        if any(abdruck(naechster) == abdruck(k) for k in kette):
+            break            # Verweisschleife
+        kette.append(naechster)
+        aktuell = naechster
+    return kette
+
+
 def bewerten(kette: list[x509.Certificate]) -> tuple[bool, str]:
     """Darf ein Zertifikat mit dieser Kette in den Bestand?
 
