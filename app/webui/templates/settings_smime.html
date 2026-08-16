@@ -135,6 +135,56 @@
       Abschalten nur, wenn dieses Gateway keine ausgehenden Verbindungen zu Trustcentern
       aufbauen darf; dann bleibt der Widerruf ungeprüft.</span>
   </div>
+
+  <div style="border-top:1px solid #f0f0f0;margin:16px 0 12px"></div>
+  <h4 style="margin:0 0 4px">Welche Aussteller sind zugelassen?</h4>
+  <p class="hint" style="margin-bottom:12px">
+    Zertifikate von Kommunikationspartnern sammelt das Gateway zum Teil selbst ein — aus
+    eingehenden signierten Nachrichten. Hier wird festgelegt, wessen Zertifikate dabei
+    ohne Rückfrage übernommen werden.
+  </p>
+
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="trust-ms-roots" {% if s.TRUST_MS_ROOTS is not false %}checked{% endif %}>
+      Vertrauenswürdige Wurzelzertifikate von Microsoft beziehen
+    </label>
+    <span class="hint">Microsofts Wurzelprogramm, gefiltert auf den Verwendungszweck
+      „Secure Email" — dieselbe Grundlage, gegen die Outlook beim Empfänger prüft. Die Liste
+      wird täglich abgeholt; ein eigener Pflegeaufwand entsteht nicht.<br>
+      <a href="https://ccadb.my.salesforce-sites.com/microsoft/IncludedCACertificateReportForMSFTCSV"
+         target="_blank" rel="noopener">Liste ansehen (CSV)</a> — abgeschaltet zählen nur die
+      unten freigegebenen Aussteller.</span>
+  </div>
+
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="trust-auto-known" {% if s.TRUST_AUTO_KNOWN is not false %}checked{% endif %}>
+      Zertifikate bekannter Aussteller ohne Rückfrage übernehmen
+    </label>
+    <span class="hint">Betrifft alles, was sich auf eine Wurzel aus der obigen Liste oder auf
+      einen freigegebenen Aussteller zurückführen lässt. Abgeschaltet wandert auch das in die
+      Freigabe — gedacht für Häuser, die jeden Partner einzeln bestätigen wollen.</span>
+  </div>
+
+  <div class="settings-row">
+    <label>Alle übrigen Zertifikate</label>
+    <div class="settings-control">
+      <label class="checkbox-label" style="display:block;margin-bottom:4px">
+        <input type="radio" name="trust-unknown" value="manuell"
+               {% if (s.TRUST_UNKNOWN_MODE or 'manuell') != 'auto' %}checked{% endif %}>
+        zur Freigabe vorlegen <span class="hint" style="margin:0">(empfohlen)</span>
+      </label>
+      <label class="checkbox-label" style="display:block">
+        <input type="radio" name="trust-unknown" value="auto"
+               {% if s.TRUST_UNKNOWN_MODE == 'auto' %}checked{% endif %}>
+        ohne Prüfung übernehmen
+      </label>
+      <span class="hint">„Ohne Prüfung" heisst: Auch ein selbst betriebener Aussteller kommt in
+        den Bestand, und es wird anschliessend an ihn verschlüsselt. Das war das Verhalten vor
+        v1.7.199.</span>
+    </div>
+  </div>
   </div>
 
   <div style="border-top:1px solid #f0f0f0;margin:16px 0 14px"></div>
@@ -439,6 +489,9 @@ function saveSmimeSettings() {
     NODIGSIG_TRIGGER: (document.getElementById('nodigsig-trigger').value || '').trim() || '#nodigsig',
     ENC_TRIGGER: (document.getElementById('enc-trigger').value || '').trim() || '#enc',
     CRL_CHECK: document.getElementById('crl-check').checked,
+    TRUST_MS_ROOTS: document.getElementById('trust-ms-roots').checked,
+    TRUST_AUTO_KNOWN: document.getElementById('trust-auto-known').checked,
+    TRUST_UNKNOWN_MODE: (document.querySelector('input[name="trust-unknown"]:checked') || {}).value || 'manuell',
     SECURE_PORTAL_ENABLED: document.getElementById('portal-enabled').checked,
     SECURE_PORTAL_BASE_URL: (document.getElementById('portal-base-url').value || '').trim(),
     SECURE_PORTAL_RETENTION_DAYS: parseInt(document.getElementById('portal-retention').value, 10) || 14,
