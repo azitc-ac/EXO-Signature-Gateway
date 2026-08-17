@@ -12,14 +12,17 @@ aber nur bei „assistiert manuell". Die übrigen Wege liefern ihre Adresse selb
 oder haben gar keine — dort war es ein Eingabefeld ohne Wirkung. Es erscheint
 jetzt nur noch dort, wo es etwas bewirkt.
 
-**Hinweis in der Erinnerungsmail (CASTLE):** Er nannte den Selbstbedienungs-Upload
+**Selbstbedienungs-Upload:** Alle Bezugswege nannten ihn in der Erinnerungsmail
 als „Fallback, falls die automatische Erneuerung fehlschlägt". Das beschreibt
-keinen gangbaren Weg: Bei diesem Bezugsweg entsteht ein Zertifikat
-ausschliesslich über den automatischen Ablauf, den das Gateway führt. Scheitert
-er, hat der Postfachinhaber nichts, was er hochladen könnte — der Verweis führte
-auf ein leeres Formular. Der Text nennt jetzt den tatsächlichen Weg (der
-Administrator greift ein) und verlinkt den Upload für den Fall, für den er
-taugt: ein anderweitig beschafftes Zertifikat.
+keinen gangbaren Weg: Wo das Gateway das Zertifikat selbst beschafft, hat der
+Postfachinhaber nichts, was er hochladen könnte — der Verweis führte ihn auf ein
+leeres Formular, und zwar genau dann, wenn etwas schiefgegangen ist. Die
+automatischen Wege nennen jetzt den tatsächlichen Weg: Der Administrator greift
+ein. Beim manuellen Bezug bleibt der Upload — dort ist er der einzige Weg, ein
+selbst beschafftes Zertifikat einzuspielen.
+
+Aus demselben Grund erscheint der Abschnitt zum Selbstbedienungs-Link in den
+Einstellungen nur noch beim manuellen Bezug.
 
 ## v1.7.205 — 2026-08-17 — Rechtstexte sind öffentlich abrufbar
 

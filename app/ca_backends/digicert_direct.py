@@ -45,9 +45,12 @@ beauftragt — Sie müssen nichts weiter tun. Das neue Zertifikat wird nach
 Ausstellung automatisch eingespielt.</p>
 <p style="color:#888;font-size:12px">Falls die automatische Ausstellung
 fehlschlägt (z.B. Domain-Validierung abgelaufen), informiert das Gateway den
-Administrator. Manueller Upload als Fallback:
-<a href="{upload_url}" style="word-break:break-all">{upload_url}</a></p>
+Administrator — Sie selbst müssen nichts veranlassen.</p>
 """
+        # ⚠️ Kein Verweis auf den Selbstbedienungs-Upload: Die Bestellung läuft
+        # über das Gateway gegen das CertCentral-Konto, der Postfachinhaber hat
+        # kein Zertifikat in der Hand. Der Verweis stand hier bis 18.08.2026 und
+        # führte auf ein leeres Formular. Begründung siehe castle_acme.py.
 
     async def initiate_renewal(self, email: str, user_config: dict, extra: dict | None = None) -> bool:
         import digicert_client

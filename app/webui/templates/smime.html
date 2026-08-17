@@ -292,8 +292,12 @@
             </button>
           </div>
 
-          <!-- Self-service link -->
-          <div style="background:#f0f4ff;border:1px solid #c7d7ff;border-radius:6px;padding:10px 14px;font-size:12px">
+          <!-- Self-Service-Upload: NUR beim manuellen Bezug. Bei allen anderen
+               Wegen beschafft das Gateway das Zertifikat selbst — der
+               Postfachinhaber hat keines, das er hochladen könnte, und der Link
+               führte ihn auf ein leeres Formular. -->
+          <div class="lc-selfservice-box" data-email="{{ u.email }}"
+               style="{% if ca_cfg.get('backend','assisted_manual') != 'assisted_manual' %}display:none;{% endif %}background:#f0f4ff;border:1px solid #c7d7ff;border-radius:6px;padding:10px 14px;font-size:12px">
             <strong style="color:#374151">Self-Service-Upload-Link</strong>
             <span style="color:#888;margin-left:4px">(für Benutzer, ohne Admin-Login)</span>
             <div id="token-area-{{ u.email | replace('@','_') | replace('.','_') }}"
@@ -572,9 +576,14 @@ document.addEventListener('DOMContentLoaded', () => {
 function _onBackendChange(email, backend) {
   const castleOpts = document.querySelector(`.lc-castle-opts[data-email=”${CSS.escape(email)}”]`);
   if (castleOpts) castleOpts.style.display = backend === 'castle_acme' ? '' : 'none';
-  // CA-Portal-URL nur dort, wo sie gelesen wird — siehe Kommentar am Feld.
+  // CA-Portal-URL und Self-Service-Upload nur beim manuellen Bezug: nur dort
+  // wird das Feld gelesen bzw. hat der Postfachinhaber überhaupt ein
+  // Zertifikat in der Hand. Siehe Kommentare an den Elementen.
+  const nurManuell = backend === 'assisted_manual';
   const portalRow = document.querySelector(`.lc-portal-row[data-email=”${CSS.escape(email)}”]`);
-  if (portalRow) portalRow.style.display = backend === 'assisted_manual' ? '' : 'none';
+  if (portalRow) portalRow.style.display = nurManuell ? '' : 'none';
+  const ssBox = document.querySelector(`.lc-selfservice-box[data-email=”${CSS.escape(email)}”]`);
+  if (ssBox) ssBox.style.display = nurManuell ? '' : 'none';
   const info = _BACKEND_CAPS.find(b => b.name === backend) || {};
   // Auto-enroll button
   const key = email.replace(/@/g,'_').replace(/\./g,'_');
