@@ -19,6 +19,7 @@ import json
 import logging
 import threading
 import uuid
+from collections import deque
 from pathlib import Path
 
 import httpx
@@ -35,7 +36,7 @@ _lock = threading.RLock()
 _networks: list = []          # list[ipaddress.ip_network] from Microsoft
 _loaded = False
 _last_refresh_ts: float = 0.0   # epoch of last SUCCESSFUL network refresh (0 = never)
-_recent_rejects: "deque" = __import__("collections").deque(maxlen=50)  # (epoch, ip) blocked conns
+_recent_rejects: deque = deque(maxlen=50)  # (epoch, ip) blocked conns
 
 
 def record_reject(ip: str) -> None:
