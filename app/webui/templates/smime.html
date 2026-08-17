@@ -658,7 +658,8 @@ async function startAutoEnroll(email, btn) {
   const termsUrl = info.terms_url || '';
   if (termsUrl) {
     // CA-Bedingungen müssen vor der Bestellung akzeptiert werden
-    const accepted = await _showCaTermsModal(email, info.label || backendName, termsUrl);
+    const accepted = await _showCaTermsModal(email, info.label || backendName,
+                                             termsUrl, info.docs || []);
     if (!accepted) return;
     const orig = btn.textContent.trim();
     btn.disabled = true; btn.textContent = 'Starte…';
@@ -681,7 +682,7 @@ async function startAutoEnroll(email, btn) {
   }
 }
 
-function _showCaTermsModal(email, caLabel, termsUrl) {
+function _showCaTermsModal(email, caLabel, termsUrl, docs) {
   return new Promise(function(resolve) {
     var overlay = document.createElement('div');
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:center;justify-content:center';
@@ -693,12 +694,19 @@ function _showCaTermsModal(email, caLabel, termsUrl) {
           <strong>${caLabel}</strong> beantragt. Als Zertifikatnehmer müssen Sie
           den Bedingungen der Zertifizierungsstelle zustimmen.
         </p>
-        <p style="margin:0 0 16px">
-          <a href="${termsUrl}" target="_blank" rel="noopener"
+        <p style="margin:0 0 10px">
+          <a href="${escAttr(termsUrl)}" target="_blank" rel="noopener"
              style="font-size:13px;color:#2563eb;text-decoration:underline">
             ↗ Bedingungen der Zertifizierungsstelle lesen (neues Tab)
           </a>
         </p>
+        ${(docs || []).length ? `<p style="margin:0 0 16px;font-size:12px;color:#6b7280">
+          Zum Nachschlagen — nicht Gegenstand der Zustimmung:<br>
+          ${(docs || []).map(function(d) {
+            return `<a href="${escAttr(d.url)}" target="_blank" rel="noopener"
+                       style="color:#6b7280;text-decoration:underline">${esc(d.titel || d.url)}</a>`;
+          }).join(' · ')}
+        </p>` : ''}
         <label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;cursor:pointer;margin-bottom:18px">
           <input type="checkbox" id="_ca-terms-cb" style="margin-top:2px;flex-shrink:0">
           <span>Ich habe die Bedingungen der Zertifizierungsstelle gelesen und akzeptiere sie.</span>
