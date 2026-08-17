@@ -67,6 +67,10 @@ def list_backends() -> list[dict]:
             "currency": hub_catalog.currency(),
             "validity_months": p.get("validity_months"),
             "terms_url": p.get("terms_url", ""),
+            # Weiterführende Unterlagen der Zertifizierungsstelle. Getrennt von
+            # `terms_url`, weil der Bezieher genau EINEM Dokument zustimmt —
+            # alles andere ist Beleg und Hintergrund.
+            "docs": p.get("docs") or [],
         })
     return out
 

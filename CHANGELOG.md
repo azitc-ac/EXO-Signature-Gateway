@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.209 — 2026-08-18 — Bestelldialog zeigt die Unterlagen der Zertifizierungsstelle
+
+Vor einer Bestellung erschien genau ein Link auf die Bedingungen der
+Zertifizierungsstelle. Diese Bedingungen verweisen für die technische Substanz
+jedoch auf weitere Dokumente, ohne deren Fundort zu nennen.
+
+Der Dialog zeigt jetzt zusätzlich die Unterlagen, die der Betreiber zum
+jeweiligen Anbieter hinterlegt hat — abgesetzt und ausdrücklich als
+Nachschlagemöglichkeit gekennzeichnet. Gegenstand der Zustimmung bleibt allein
+das Bedingungsdokument.
+
 ## v1.7.208 — 2026-08-18 — CASTLE-Testumgebung ist ein eigener Bezugsweg
 
 Der Testserver war ein Ankreuzfeld neben der Auswahl des Bezugswegs. Er steht
