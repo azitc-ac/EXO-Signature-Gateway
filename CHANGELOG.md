@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.206 — 2026-08-18 — Zwei irreführende Stellen bei der Zertifikatserneuerung
+
+**CA-Portal-Adresse:** Das Feld erschien bei jedem Bezugsweg, gelesen wird es
+aber nur bei „assistiert manuell". Die übrigen Wege liefern ihre Adresse selbst
+oder haben gar keine — dort war es ein Eingabefeld ohne Wirkung. Es erscheint
+jetzt nur noch dort, wo es etwas bewirkt.
+
+**Hinweis in der Erinnerungsmail (CASTLE):** Er nannte den Selbstbedienungs-Upload
+als „Fallback, falls die automatische Erneuerung fehlschlägt". Das beschreibt
+keinen gangbaren Weg: Bei diesem Bezugsweg entsteht ein Zertifikat
+ausschliesslich über den automatischen Ablauf, den das Gateway führt. Scheitert
+er, hat der Postfachinhaber nichts, was er hochladen könnte — der Verweis führte
+auf ein leeres Formular. Der Text nennt jetzt den tatsächlichen Weg (der
+Administrator greift ein) und verlinkt den Upload für den Fall, für den er
+taugt: ein anderweitig beschafftes Zertifikat.
+
 ## v1.7.205 — 2026-08-17 — Rechtstexte sind öffentlich abrufbar
 
 Nutzungsbedingungen, Lizenzbedingungen-Ergänzung, Zahlungsbedingungen,
