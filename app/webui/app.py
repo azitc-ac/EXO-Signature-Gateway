@@ -43,6 +43,21 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def _lifespan(application):
+    # Die Testumgebung war bis v1.7.207 ein Ankreuzfeld neben der Auswahl des
+    # Bezugswegs; sie ist jetzt ein eigener Eintrag in derselben Liste.
+    # Bestehende Konfigurationen mit gesetztem Flag werden hier überführt —
+    # idempotent, ändert nur, was noch nicht überführt ist.
+    try:
+        from ca_backends import registry as _ca_registry
+        _umgestellt = _ca_registry.migriere_staging_flag()
+        if _umgestellt:
+            logging.getLogger(__name__).info(
+                "CASTLE-Testumgebung: %d Postfach/Postfächer auf den eigenen "
+                "Bezugsweg umgestellt", _umgestellt)
+    except Exception as exc:
+        logging.getLogger(__name__).error(
+            "Umstellung der CASTLE-Testumgebung fehlgeschlagen: %s", exc)
+
     import acme_state
     acme_state.resume_pending_polls()
     yield

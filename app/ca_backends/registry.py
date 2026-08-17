@@ -10,7 +10,7 @@ Kommerzielle CA-Anbieter über den Betreiber (Sectigo, SwissSign, DigiCert-
 managed) kommen dynamisch aus dem Hub-Katalog als "hub:<id>"-Backends.
 """
 from .assisted_manual import AssistedManualBackend
-from .castle_acme import CastleAcmeBackend
+from .castle_acme import CastleAcmeBackend, CastleAcmeStagingBackend
 from .digicert_direct import DigiCertDirectBackend
 from .hub_provider import HubProviderBackend
 from .base import CABackend
@@ -18,6 +18,7 @@ from .base import CABackend
 _STATIC: dict[str, CABackend] = {
     "assisted_manual": AssistedManualBackend(),
     "castle_acme": CastleAcmeBackend(),
+    "castle_acme_staging": CastleAcmeStagingBackend(),
     "digicert_direct": DigiCertDirectBackend(),
 }
 
@@ -68,3 +69,35 @@ def list_backends() -> list[dict]:
             "terms_url": p.get("terms_url", ""),
         })
     return out
+
+
+def migriere_staging_flag() -> int:
+    """`staging: true` → Bezugsweg `castle_acme_staging`. Gibt die Anzahl zurück.
+
+    Bis 18.08.2026 war die Testumgebung ein Ankreuzfeld NEBEN der Auswahl des
+    Bezugswegs. Das hatte zwei Nachteile, die beide erst auffallen, wenn es zu
+    spät ist:
+
+    * Die Wahl „echte oder unechte Zertifikate" stand nicht in derselben Liste
+      wie alle anderen Wege, obwohl sie genau das ist — die Wahl des Wegs.
+    * Das Feld blieb gesetzt, wenn jemand auf einen anderen Bezugsweg wechselte.
+      Dort war es unsichtbar, aber vorhanden. Wer später zu CASTLE zurückkehrte,
+      bekam ohne weiteres Zutun wieder Testzertifikate.
+
+    Idempotent: läuft bei jedem Start, ändert nur Einträge, die noch auf
+    `castle_acme` mit gesetztem Flag stehen. Das Flag selbst bleibt stehen —
+    `CastleAcmeBackend.ist_testumgebung()` liest es weiterhin, damit eine
+    Konfiguration, die diese Umstellung aus irgendeinem Grund nicht durchläuft,
+    nicht plötzlich echte Zertifikate bestellt.
+    """
+    import settings_store
+    cfg = settings_store.get("CA_USER_CONFIG") or {}
+    geaendert = {}
+    for email, eintrag in cfg.items():
+        if not isinstance(eintrag, dict):
+            continue
+        if eintrag.get("backend") == "castle_acme" and eintrag.get("staging"):
+            geaendert[email] = {**eintrag, "backend": "castle_acme_staging"}
+    if geaendert:
+        settings_store.update({"CA_USER_CONFIG": {**cfg, **geaendert}})
+    return len(geaendert)
