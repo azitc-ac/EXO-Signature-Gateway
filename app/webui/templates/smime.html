@@ -229,7 +229,12 @@
               {% endfor %}
             </select>
           </div>
-          <div class="settings-row" style="margin-bottom:10px">
+          <!-- CA-Portal-URL: NUR „assistiert manuell" liest dieses Feld
+               (assisted_manual.get_portal_url). castle_acme und digicert_direct
+               liefern ihre Adresse fest aus dem Code, hub_provider hat gar keine
+               — dort war es ein Eingabefeld ohne jede Wirkung. -->
+          <div class="settings-row lc-portal-row" data-email="{{ u.email }}"
+               style="{% if ca_cfg.get('backend','assisted_manual') != 'assisted_manual' %}display:none;{% endif %}margin-bottom:10px">
             <label style="width:160px;min-width:160px;font-size:13px">CA-Portal-URL</label>
             <input type="url" class="lc-portal" data-email="{{ u.email }}"
                    value="{{ ca_cfg.get('portal_url','') }}"
@@ -567,6 +572,9 @@ document.addEventListener('DOMContentLoaded', () => {
 function _onBackendChange(email, backend) {
   const castleOpts = document.querySelector(`.lc-castle-opts[data-email=”${CSS.escape(email)}”]`);
   if (castleOpts) castleOpts.style.display = backend === 'castle_acme' ? '' : 'none';
+  // CA-Portal-URL nur dort, wo sie gelesen wird — siehe Kommentar am Feld.
+  const portalRow = document.querySelector(`.lc-portal-row[data-email=”${CSS.escape(email)}”]`);
+  if (portalRow) portalRow.style.display = backend === 'assisted_manual' ? '' : 'none';
   const info = _BACKEND_CAPS.find(b => b.name === backend) || {};
   // Auto-enroll button
   const key = email.replace(/@/g,'_').replace(/\./g,'_');
