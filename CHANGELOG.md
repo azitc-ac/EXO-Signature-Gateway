@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.210 — 2026-08-18 — Prüfung auf Namen, die es zur Laufzeit nicht gibt
+
+Python bemerkt einen Tippfehler in einem Variablennamen erst, wenn die
+betreffende Zeile ausgeführt wird. In einem selten begangenen Zweig kann er
+beliebig lange unentdeckt bleiben — und schlägt dann beim ersten echten Vorgang
+zu. Genau das ist am 18.08.2026 auf der Betreiber-Seite passiert.
+
+`tools/pycheck.py` meldet solche Namen, bevor sie jemanden treffen. Es ist das
+Gegenstück zur bestehenden Prüfung des Vorlagen-JavaScripts und läuft über beide
+Anwendungen.
+
+Im Bestand fand es eine Stelle in der Zugriffssteuerung des SMTP-Empfangs: Der
+Ringpuffer der abgewiesenen Verbindungen wurde über einen Umweg erzeugt, dessen
+Typangabe auf einen nie eingebundenen Namen verwies. Zur Laufzeit folgenlos,
+jetzt geradegezogen.
+
 ## v1.7.209 — 2026-08-18 — Bestelldialog zeigt die Unterlagen der Zertifizierungsstelle
 
 Vor einer Bestellung erschien genau ein Link auf die Bedingungen der
