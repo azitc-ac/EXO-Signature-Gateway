@@ -80,7 +80,40 @@ class CastleAcmeBackend(CABackend):
         The challenge email interception + response happens in handler.py.
         """
         import acme_state
-        staging = bool(user_config.get("staging", False))
+        staging = self.ist_testumgebung(user_config)
         await acme_state.initiate_acme_order(email, user_config, staging=staging)
         log.info("CASTLE ACME: order initiated for %s (staging=%s)", email, staging)
+        return True
+
+    def ist_testumgebung(self, user_config: dict) -> bool:
+        """Produktion — die Testumgebung ist ein eigener Bezugsweg.
+
+        Das `staging`-Feld wird weiterhin gelesen, aber nur für Konfigurationen,
+        die vor der Umstellung angelegt wurden. Neu gesetzt wird es nicht mehr;
+        `registry.migriere_staging_flag()` überführt Bestände in den Bezugsweg
+        `castle_acme_staging`.
+        """
+        return bool(user_config.get("staging", False))
+
+
+class CastleAcmeStagingBackend(CastleAcmeBackend):
+    """Dieselbe Anbindung gegen den Testserver von CASTLE.
+
+    ⚠️ Bewusst ein eigener Bezugsweg statt eines Ankreuzfelds daneben. Die Wahl
+    „echte oder unechte Zertifikate" ist keine Feineinstellung eines Wegs,
+    sondern die Wahl des Wegs selbst — sie gehört in dieselbe Liste wie alle
+    anderen. Als Ankreuzfeld blieb sie ausserdem gesetzt, wenn jemand den
+    Bezugsweg wechselte: dort unsichtbar, aber wirksam, sobald er zurückwechselte.
+
+    Der Hub führt Test- und Produktionszugänge seiner Anbieter aus demselben
+    Grund als getrennte Einträge (`swisssign` / `swisssign_test`).
+    """
+
+    def get_name(self) -> str:
+        return "castle_acme_staging"
+
+    def get_label(self) -> str:
+        return "CASTLE Platform — TESTSERVER (keine gültigen Zertifikate)"
+
+    def ist_testumgebung(self, user_config: dict) -> bool:
         return True

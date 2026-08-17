@@ -5,7 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
-## v1.7.206 — 2026-08-18 — Zwei irreführende Stellen bei der Zertifikatserneuerung
+## v1.7.208 — 2026-08-18 — CASTLE-Testumgebung ist ein eigener Bezugsweg
+
+Der Testserver war ein Ankreuzfeld neben der Auswahl des Bezugswegs. Er steht
+jetzt als eigener Eintrag in derselben Auswahl, deutlich als Testweg
+gekennzeichnet.
+
+Der Grund ist mehr als Ordnungsliebe: Als Ankreuzfeld blieb die Einstellung
+gesetzt, wenn ein Postfach auf einen anderen Bezugsweg wechselte. Dort war sie
+unsichtbar, aber vorhanden — wer später zu CASTLE zurückkehrte, erhielt ohne
+weiteres Zutun wieder Testzertifikate. Die sind technisch gültig aufgebaut,
+werden aber von keinem Empfänger als vertrauenswürdig anerkannt, und auffallen
+würde es erst beim Gegenüber.
+
+Bestehende Postfächer mit gesetztem Testschalter werden beim Start auf den neuen
+Bezugsweg überführt; zu tun ist nichts. Der bisherige Schalter bleibt dabei
+erhalten und wird weiterhin ausgewertet — eine Einrichtung, die die Überführung
+aus irgendeinem Grund nicht durchläuft, bestellt dadurch nicht plötzlich echte
+Zertifikate.
+
+## v1.7.206–207 — 2026-08-18 — Zwei irreführende Stellen bei der Zertifikatserneuerung
 
 **CA-Portal-Adresse:** Das Feld erschien bei jedem Bezugsweg, gelesen wird es
 aber nur bei „assistiert manuell". Die übrigen Wege liefern ihre Adresse selbst

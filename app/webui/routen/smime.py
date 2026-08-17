@@ -369,12 +369,21 @@ async def api_ca_config_get(user: str = Depends(_require_admin)):
 async def api_ca_config_save(email: str, request: Request, user: str = Depends(_require_admin)):
     data = await request.json()
     cfg: dict = settings_store.get("CA_USER_CONFIG") or {}
-    cfg[email.lower().strip()] = {
+    schluessel = email.lower().strip()
+    bisher = cfg.get(schluessel) or {}
+    cfg[schluessel] = {
         "backend": data.get("backend", "assisted_manual"),
         "portal_url": (data.get("portal_url") or "").strip(),
         "notify_user": bool(data.get("notify_user", False)),
         "auto_renew": bool(data.get("auto_renew", False)),
-        "staging": bool(data.get("staging", False)),
+        # ⚠️ Nur überschreiben, wenn das Feld auch geschickt wurde. Dieser Aufbau
+        # erzeugt den Eintrag NEU; ein pauschales `data.get("staging", False)`
+        # setzte das Flag bei jedem Speichern auf falsch, seit die Oberfläche es
+        # nicht mehr sendet (die Testumgebung ist ein eigener Bezugsweg). Ein
+        # Altbestand hätte damit still auf echte Zertifikate umgestellt, bevor
+        # `migriere_staging_flag()` ihn überführen konnte.
+        "staging": (bool(data["staging"]) if "staging" in data
+                    else bool(bisher.get("staging", False))),
     }
     settings_store.update({"CA_USER_CONFIG": cfg})
     return JSONResponse({"ok": True})
