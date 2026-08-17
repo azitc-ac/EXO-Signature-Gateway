@@ -62,20 +62,17 @@ class CastleAcmeBackend(CABackend):
   Falls die automatische Erneuerung fehlschlägt, wenden Sie sich an Ihren Administrator —
   die Bestellung läuft über das Gateway, Sie selbst können sie nicht anstossen.
 </p>
-<p style="color:#888;font-size:12px">
-  Haben Sie bereits ein eigenes S/MIME-Zertifikat aus anderer Quelle, können Sie es
-  hier hinterlegen:
-  <a href="{upload_url}" style="word-break:break-all">{upload_url}</a>
-</p>
 """
-        # ⚠️ Hier stand bis 18.08.2026 „Manueller Upload als Fallback" mit
-        # demselben Link. Das beschrieb keinen gangbaren Weg: Bei CASTLE
-        # entsteht ein Zertifikat ausschliesslich über den ACME-Ablauf, den das
-        # Gateway führt. Scheitert der, hat der Postfachinhaber nichts, was er
-        # hochladen könnte — der „Fallback" verwies auf ein leeres Formular.
-        # Handeln kann dann nur der Administrator (Account-Key zurücksetzen,
-        # Flow-ID im Protokoll verfolgen). Der Upload bleibt verlinkt, aber für
-        # den Fall, für den er taugt: ein anderweitig beschafftes Zertifikat.
+        # ⚠️ Hier stand bis 18.08.2026 „Manueller Upload als Fallback" mit einem
+        # Link auf das Selbstbedienungs-Formular. Das beschrieb keinen gangbaren
+        # Weg: Bei diesem Bezugsweg entsteht ein Zertifikat ausschliesslich über
+        # den ACME-Ablauf, den das Gateway führt. Scheitert der, hat der
+        # Postfachinhaber nichts, was er hochladen könnte — der Verweis führte
+        # auf ein leeres Formular. Handeln kann dann nur der Administrator
+        # (Account-Key zurücksetzen, Flow-ID im Protokoll verfolgen).
+        # `upload_url` bleibt im Aufruf, weil `base.get_instructions_html()` es
+        # für alle Bezugswege übergibt; genutzt wird es nur dort, wo der
+        # Postfachinhaber tatsächlich selbst an ein Zertifikat kommt.
 
     async def initiate_renewal(self, email: str, user_config: dict, extra: dict | None = None) -> bool:
         """
