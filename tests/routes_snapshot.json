@@ -1078,6 +1078,13 @@
     "name": "api_hub_order_abholen"
   },
   {
+    "pfad": "/api/smime/hub-order/{email}/bestaetigen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_hub_order_bestaetigen"
+  },
+  {
     "pfad": "/api/smime/key-password",
     "methoden": [
       "POST"

@@ -5,6 +5,29 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.215 — 2026-08-18 — Bestätigung der Zertifizierungsstelle wahlweise automatisch
+
+Nach einer Bestellung schickt die Zertifizierungsstelle eine Bestätigungsmail an
+das Postfach; erst der Klick darin löst die Ausstellung aus. Bei einzelnen
+Postfächern ist das zumutbar — bei zwanzig oder hundert wartet man auf zwanzig
+oder hundert Menschen, und jede Bestellung bleibt so lange offen.
+
+Je Postfach lässt sich die Bestätigung nun dem Gateway überlassen. Es liest die
+Mail im Postfach und löst die Bestätigung selbst aus. Nachgewiesen wird dabei
+dieselbe Kontrolle über das Postfach, die auch der Klick eines Menschen belegt.
+
+⚠️ Ausdrücklich einzuschalten, je Postfach, niemals Vorgabe. Was entfällt, ist
+die Absicht der Zertifizierungsstelle, dass ein Mensch zustimmt — diese
+Entscheidung soll bewusst getroffen werden. Ohne den Schalter ändert sich
+nichts.
+
+Der Aufruf ist dem Kundenportal der Stelle nachgebildet, nicht dokumentiert: Für
+die E-Mail-Verifizierung bietet deren Programmierschnittstelle nichts an. Die
+Adresse wird deshalb zur Laufzeit aus derselben Konfiguration gelesen, die auch
+das Portal verwendet — ein Serverwechsel bricht die Automatik dadurch nicht.
+Ändert sich der Aufruf selbst, schlägt sie sichtbar fehl, und der Knopf zum
+Öffnen der Bestätigungsseite bleibt als Rückfallebene bestehen.
+
 ## v1.7.214 — 2026-08-18 — Ausgestelltes Zertifikat wird sofort eingespielt
 
 Meldete die Zertifizierungsstelle ein Zertifikat als ausgestellt, zeigte die
