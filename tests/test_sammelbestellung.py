@@ -154,3 +154,139 @@ def test_katalog_wird_vor_der_preisfrage_aufgefrischt(welt, monkeypatch):
     monkeypatch.setattr(hub_catalog, "refresh", _refresh)
     _vorschau(["a@x.de"])
     assert gerufen, "Katalog wurde nicht aufgefrischt"
+
+
+# ── Der Lauf ─────────────────────────────────────────────────────────────────
+"""
+Ein Sammellauf über hundert Postfächer dauert Minuten. Drei Dinge entscheiden,
+ob er brauchbar ist:
+
+* ⚠️ Ein Fehler bei Postfach 37 darf die übrigen 63 nicht mitnehmen.
+* ⚠️ Guthabenmangel betrifft ALLE folgenden gleichermassen — er gehört nicht als
+  63 Einzelfehler protokolliert, sondern hält den Lauf an.
+* Fortsetzen darf nichts wiederholen, sonst bestellt und bezahlt man doppelt.
+"""
+
+
+@pytest.fixture
+def lauf(monkeypatch):
+    """Bestellungen ersetzen — je Adresse ein vorgegebenes Ergebnis."""
+    import ca_backends, settings_store
+    plan = {}
+
+    class _Backend:
+        async def initiate_renewal(self, email, cfg, extra=None):
+            was = plan.get(email, "ok")
+            if was == "ok":
+                return True
+            raise RuntimeError(was)
+
+    monkeypatch.setattr(ca_backends, "get_backend", lambda pid: _Backend())
+    monkeypatch.setattr(settings_store, "get", lambda k: {} if k == "CA_USER_CONFIG" else None)
+    sb._lauf = None
+    yield plan
+    sb._lauf = None
+
+
+async def _durchlaufen(adressen, plan_start=True):
+    import asyncio
+    if plan_start:
+        await sb.lauf_starten("certum", adressen)
+    for _ in range(40):
+        await asyncio.sleep(0)
+        z = sb.lauf_zustand()
+        if z and z["status"] != sb.LAEUFT:
+            return z
+    return sb.lauf_zustand()
+
+
+def test_ein_fehler_reisst_den_lauf_nicht_ab(lauf):
+    import asyncio
+    lauf["b@x.de"] = "CA lehnt ab"
+    z = asyncio.run(_durchlaufen(["a@x.de", "b@x.de", "c@x.de"]))
+    assert z["status"] == sb.FERTIG
+    assert [e["email"] for e in z["erledigt"]] == ["a@x.de", "b@x.de", "c@x.de"]
+    assert [e["ok"] for e in z["erledigt"]] == [True, False, True]
+
+
+def test_guthabenmangel_haelt_an_statt_63_mal_zu_scheitern(lauf):
+    import asyncio
+    lauf["b@x.de"] = "Guthaben zu niedrig — es fehlen 9,90 €"
+    z = asyncio.run(_durchlaufen(["a@x.de", "b@x.de", "c@x.de"]))
+    assert z["status"] == sb.PAUSIERT
+    assert len(z["erledigt"]) == 1, "hat trotz Guthabenmangel weitergemacht"
+    assert z["offen"][0] == "b@x.de", "gescheiterte Adresse ist aus der Liste gefallen"
+
+
+def test_fortsetzen_wiederholt_nichts(lauf):
+    import asyncio
+
+    async def ablauf():
+        lauf["b@x.de"] = "Guthaben zu niedrig"
+        await _durchlaufen(["a@x.de", "b@x.de", "c@x.de"])
+        lauf.pop("b@x.de")                       # „aufgeladen"
+        await sb.lauf_fortsetzen()
+        return await _durchlaufen([], plan_start=False)
+
+    z = asyncio.run(ablauf())
+    assert z["status"] == sb.FERTIG
+    emails = [e["email"] for e in z["erledigt"]]
+    assert emails == ["a@x.de", "b@x.de", "c@x.de"]
+    assert len(emails) == len(set(emails)), "eine Adresse wurde doppelt bestellt"
+
+
+def test_zweiter_lauf_wird_abgelehnt(lauf):
+    """⚠️ Zwei Läufe verplanen dasselbe Guthaben und bestellen dieselben
+    Postfächer doppelt — beides fällt erst auf, wenn das Geld weg ist."""
+    import asyncio
+
+    async def ablauf():
+        await sb.lauf_starten("certum", ["a@x.de"])
+        sb._lauf["status"] = sb.LAEUFT            # so tun, als liefe er noch
+        return await sb.lauf_starten("certum", ["b@x.de"])
+
+    assert asyncio.run(ablauf())["ok"] is False
+
+
+def test_abbruch_wirkt_nach_der_laufenden_bestellung(lauf):
+    """Hart abbrechen ginge nicht: Eine Bestellung, die bei der
+    Zertifizierungsstelle liegt, muss verbucht werden — sonst entsteht ein
+    unbezahlter Vorgang."""
+    import asyncio
+
+    async def ablauf():
+        await sb.lauf_starten("certum", ["a@x.de", "b@x.de", "c@x.de"])
+        sb.lauf_abbrechen()
+        return await _durchlaufen([], plan_start=False)
+
+    z = asyncio.run(ablauf())
+    assert z["status"] == sb.ABGEBROCHEN
+    assert len(z["erledigt"]) < 3
+
+
+def test_unerwarteter_fehler_reisst_den_lauf_nicht_ab(lauf, monkeypatch):
+    """⚠️ Diese Lücke fiel erst durch eine Mutation auf: Der Test oben provoziert
+    Fehler INNERHALB der Bestellung, und die fängt `_eine_bestellung` selbst ab.
+    Die äussere Absicherung — für alles, was davor schiefgeht (Konfiguration
+    nicht lesbar, Bezugsweg wirft beim Erzeugen) — war damit ungeprüft, und ein
+    entfernter `except` blieb unbemerkt.
+
+    Bei hundert Postfächern ist genau das der teure Fall: Ein Ausrutscher bei
+    Nummer 37 nimmt die restlichen 63 mit, und niemand weiss, wie weit der Lauf
+    gekommen ist.
+    """
+    import asyncio
+
+    echte = sb._eine_bestellung
+    async def _stolpert(adresse, provider_id):
+        if adresse == "b@x.de":
+            raise RuntimeError("Konfiguration nicht lesbar")
+        return await echte(adresse, provider_id)
+    monkeypatch.setattr(sb, "_eine_bestellung", _stolpert)
+
+    z = asyncio.run(_durchlaufen(["a@x.de", "b@x.de", "c@x.de"]))
+
+    assert z["status"] == sb.FERTIG, "Lauf wurde durch einen einzelnen Fehler beendet"
+    assert [e["email"] for e in z["erledigt"]] == ["a@x.de", "b@x.de", "c@x.de"]
+    assert [e["ok"] for e in z["erledigt"]] == [True, False, True]
+    assert "Konfiguration" in z["erledigt"][1]["grund"]

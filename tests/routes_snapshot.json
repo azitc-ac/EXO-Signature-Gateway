@@ -1197,11 +1197,39 @@
     "name": "api_renewal_token_generate"
   },
   {
+    "pfad": "/api/smime/sammel/abbrechen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_sammel_abbrechen"
+  },
+  {
+    "pfad": "/api/smime/sammel/fortsetzen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_sammel_fortsetzen"
+  },
+  {
+    "pfad": "/api/smime/sammel/lauf",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_sammel_lauf"
+  },
+  {
     "pfad": "/api/smime/sammel/postfaecher",
     "methoden": [
       "GET"
     ],
     "name": "api_sammel_postfaecher"
+  },
+  {
+    "pfad": "/api/smime/sammel/start",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_sammel_start"
   },
   {
     "pfad": "/api/smime/sammel/vorschau",

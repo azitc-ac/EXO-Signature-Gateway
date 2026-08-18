@@ -934,3 +934,45 @@ async def api_sammel_vorschau(request: Request, user: str = Depends(_require_adm
     if not anbieter:
         raise HTTPException(400, "Anbieter erforderlich.")
     return JSONResponse(await sammelbestellung.vorschau(anbieter, data.get("postfaecher") or []))
+
+
+@router.post("/api/smime/sammel/start")
+async def api_sammel_start(request: Request, user: str = Depends(_require_admin)):
+    """Sammellauf starten. Läuft im Hintergrund weiter, auch wenn die Seite zugeht."""
+    import sammelbestellung
+    data = await request.json()
+    anbieter = (data.get("anbieter") or "").strip()
+    if not anbieter:
+        raise HTTPException(400, "Anbieter erforderlich.")
+    ergebnis = await sammelbestellung.lauf_starten(
+        anbieter, data.get("postfaecher") or [], actor=user)
+    log.info("Sammellauf gestartet von %s: %s Postfächer über %s",
+             user, len(data.get("postfaecher") or []), anbieter)
+    return JSONResponse(ergebnis, status_code=200 if ergebnis.get("ok") else 409)
+
+
+@router.get("/api/smime/sammel/lauf")
+async def api_sammel_lauf(user: str = Depends(_check_auth)):
+    """Zustand des laufenden oder zuletzt beendeten Sammelvorgangs."""
+    import sammelbestellung
+    zustand = sammelbestellung.lauf_zustand()
+    return JSONResponse({"ok": True, "lauf": zustand})
+
+
+@router.post("/api/smime/sammel/fortsetzen")
+async def api_sammel_fortsetzen(user: str = Depends(_require_admin)):
+    """Nach dem Aufladen weitermachen — ohne Erledigtes zu wiederholen."""
+    import sammelbestellung
+    ergebnis = await sammelbestellung.lauf_fortsetzen()
+    return JSONResponse(ergebnis, status_code=200 if ergebnis.get("ok") else 409)
+
+
+@router.post("/api/smime/sammel/abbrechen")
+async def api_sammel_abbrechen(user: str = Depends(_require_admin)):
+    """Nach der laufenden Bestellung aufhören.
+
+    Kein hartes Abbrechen: Was bei der Zertifizierungsstelle liegt, muss zu Ende
+    geführt und verbucht werden — sonst entsteht ein unbezahlter Vorgang.
+    """
+    import sammelbestellung
+    return JSONResponse({"ok": sammelbestellung.lauf_abbrechen()})

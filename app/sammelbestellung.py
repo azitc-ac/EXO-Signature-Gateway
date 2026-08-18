@@ -162,3 +162,126 @@ async def vorschau(provider_id: str, adressen: list[str]) -> dict:
         "kontingent_frei": frei,
         "hindernisse": hindernisse,
     }
+
+
+# ── Der Lauf ─────────────────────────────────────────────────────────────────
+# Ein Sammellauf ist langlebig: Hundert Bestellungen dauern Minuten und
+# überleben keine Browser-Anfrage. Der Zustand liegt deshalb im Modul, wird
+# fortlaufend geschrieben und ist über eine eigene Adresse abfragbar.
+#
+# ⚠️ NUR EIN LAUF GLEICHZEITIG. Zwei parallele Läufe würden dasselbe Guthaben
+# verplanen und dieselben Postfächer doppelt bestellen — beides fällt erst auf,
+# wenn das Geld weg ist.
+
+LAEUFT = "laeuft"
+PAUSIERT = "pausiert"          # Guthaben erschöpft, wartet auf Entscheidung
+FERTIG = "fertig"
+ABGEBROCHEN = "abgebrochen"
+
+_lauf: dict | None = None
+
+
+def lauf_zustand() -> dict | None:
+    """Aktueller Lauf oder None. Kopie — der Aufrufer soll nichts verändern."""
+    return dict(_lauf) if _lauf else None
+
+
+def lauf_abbrechen() -> bool:
+    """Bittet den Lauf, nach der laufenden Bestellung aufzuhören.
+
+    Kein hartes Abbrechen: Eine Bestellung, die bereits bei der
+    Zertifizierungsstelle liegt, lässt sich nicht zurücknehmen — sie muss
+    zu Ende geführt und verbucht werden, sonst entsteht genau der unbezahlte
+    Vorgang, den `store.unbezahlte_bestellungen()` im Hub aufspürt.
+    """
+    if _lauf and _lauf["status"] in (LAEUFT, PAUSIERT):
+        _lauf["abbruch_gewuenscht"] = True
+        return True
+    return False
+
+
+async def lauf_starten(provider_id: str, adressen: list[str], actor: str = "") -> dict:
+    """Startet einen Sammellauf im Hintergrund. Liefert den Anfangszustand."""
+    global _lauf
+    import asyncio
+
+    if _lauf and _lauf["status"] in (LAEUFT, PAUSIERT):
+        return {"ok": False, "error": "Es läuft bereits ein Sammelvorgang."}
+
+    offen = [a.strip().lower() for a in (adressen or []) if a and a.strip()]
+    _lauf = {
+        "status": LAEUFT, "anbieter": provider_id, "gestartet_von": actor,
+        "offen": offen, "erledigt": [], "gesamt": len(offen),
+        "fehlbetrag_cents": 0, "abbruch_gewuenscht": False, "meldung": "",
+    }
+    asyncio.create_task(_arbeiten())
+    return {"ok": True, **lauf_zustand()}
+
+
+async def lauf_fortsetzen() -> dict:
+    """Nach dem Aufladen weitermachen — ohne die bereits erledigten zu wiederholen."""
+    global _lauf
+    import asyncio
+    if not _lauf or _lauf["status"] != PAUSIERT:
+        return {"ok": False, "error": "Kein angehaltener Sammelvorgang."}
+    _lauf["status"] = LAEUFT
+    _lauf["meldung"] = ""
+    _lauf["fehlbetrag_cents"] = 0
+    asyncio.create_task(_arbeiten())
+    return {"ok": True, **lauf_zustand()}
+
+
+async def _arbeiten() -> None:
+    """Arbeitet die offene Liste ab. Läuft im Hintergrund, wirft nie."""
+    import hub_client
+
+    while _lauf and _lauf["status"] == LAEUFT and _lauf["offen"]:
+        if _lauf.get("abbruch_gewuenscht"):
+            _lauf["status"] = ABGEBROCHEN
+            _lauf["meldung"] = "Auf Wunsch beendet."
+            return
+
+        adresse = _lauf["offen"][0]
+        try:
+            ergebnis = await _eine_bestellung(adresse, _lauf["anbieter"])
+        except Exception as exc:                      # nie den ganzen Lauf reissen lassen
+            log.error("Sammellauf: %s unerwartet gescheitert: %s", adresse, exc)
+            ergebnis = {"email": adresse, "ok": False, "grund": str(exc)[:200]}
+
+        # ⚠️ Bei Guthabenmangel NICHT als erledigt vermerken: Die Adresse bleibt
+        # vorn in der Liste und wird nach dem Aufladen als Erstes bestellt.
+        if ergebnis.get("grund_kurz") == "guthaben":
+            _lauf["status"] = PAUSIERT
+            _lauf["fehlbetrag_cents"] = int(ergebnis.get("fehlbetrag_cents") or 0)
+            _lauf["meldung"] = ergebnis.get("grund") or "Guthaben erschöpft."
+            return
+
+        _lauf["offen"].pop(0)
+        _lauf["erledigt"].append(ergebnis)
+
+    if _lauf and _lauf["status"] == LAEUFT:
+        _lauf["status"] = FERTIG
+        gut = sum(1 for e in _lauf["erledigt"] if e.get("ok"))
+        _lauf["meldung"] = f"{gut} von {_lauf['gesamt']} bestellt."
+
+
+async def _eine_bestellung(adresse: str, provider_id: str) -> dict:
+    """Eine einzelne Bestellung über denselben Weg wie die Einzelbestellung."""
+    import ca_backends, settings_store
+
+    cfg = dict((settings_store.get("CA_USER_CONFIG") or {}).get(adresse) or {})
+    backend = ca_backends.get_backend(provider_id)
+    if not backend:
+        return {"email": adresse, "ok": False, "grund": f"Bezugsweg {provider_id} unbekannt."}
+    try:
+        await backend.initiate_renewal(adresse, cfg)
+        return {"email": adresse, "ok": True, "grund": ""}
+    except Exception as exc:
+        text = str(exc)
+        # Guthabenmangel ist der einzige Fehler, der den ganzen Lauf betrifft —
+        # alle weiteren Bestellungen scheitern genauso. Deshalb gesondert.
+        fehlbetrag = getattr(exc, "fehlbetrag_cents", 0)
+        if "uthaben" in text or fehlbetrag:
+            return {"email": adresse, "ok": False, "grund": text[:200],
+                    "grund_kurz": "guthaben", "fehlbetrag_cents": fehlbetrag}
+        return {"email": adresse, "ok": False, "grund": text[:200]}
