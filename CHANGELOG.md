@@ -5,6 +5,36 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.221 — 2026-08-19 — Sammelbestellung: CASTLE und DigiCert direkt
+
+Die Sammelbestellung stand nur für Zertifizierungsstellen aus dem Anbieterkatalog
+offen. Das Kriterium war falsch gewählt: Entscheidend ist nicht, woher ein
+Bezugsweg kommt, sondern ob er **ohne Zutun des Postfachinhabers** bestellen
+kann. Das trifft auf die CASTLE Platform (kostenlos, vollautomatisch) und die
+DigiCert-Direktanbindung ebenso zu. Beide stehen jetzt zur Wahl.
+
+Draußen bleibt allein „assistiert manuell" — dort gehört zu jedem Postfach ein
+Schritt von Hand, ein Sammellauf darüber erzeugte nur viele offene Vorgänge.
+
+**Die Kostenanzeige unterscheidet jetzt drei Fälle**, weil „0,00 €" je nach
+Bezugsweg Verschiedenes bedeutet:
+
+* *Katalog* — Preis, Guthaben und gegebenenfalls Fehlbetrag wie bisher; die
+  Deckung entscheidet über den Start.
+* *CASTLE* — kostenlos, es wird nichts abgerechnet. Ein leeres Guthaben hält
+  einen solchen Lauf folgerichtig nicht mehr auf.
+* *DigiCert direkt* — die Abrechnung läuft über den eigenen Vertrag mit der
+  Zertifizierungsstelle; der Betrag ist dem Gateway nicht bekannt und wird
+  deshalb auch nicht behauptet. Eine ausgewiesene Null wäre hier keine fehlende
+  Angabe, sondern eine falsche.
+
+Die Rückfrage vor dem Start nennt entsprechend den Betrag, die Kostenfreiheit
+oder den Hinweis auf den eigenen Vertrag.
+
+**Vor dem Start wird geprüft, ob der Bezugsweg überhaupt eingerichtet ist.**
+Ohne hinterlegten DigiCert-Schlüssel wäre ein Lauf bisher losgelaufen und an
+jedem einzelnen Postfach gescheitert.
+
 ## v1.7.220 — 2026-08-18 — Sammelbestellung: Start, Fortschritt, Rückfrage
 
 Der Sammelvorgang lässt sich jetzt aus der Oberfläche heraus starten und

@@ -21,10 +21,38 @@ import logging
 
 log = logging.getLogger(__name__)
 
-# Zustände je Postfach. „bereit" ist der einzige, der bestellt würde.
 # Bezugswege des Katalogs tragen dieses Präfix (ca_backends.get_backend).
 HUB_PRAEFIX = "hub:"
 
+# Woher das Geld kommt. ⚠️ Nicht dasselbe wie „Hub oder nicht": CASTLE ist
+# kostenlos, DigiCert direkt läuft über den eigenen Vertrag des Betreibers, und
+# nur der Katalog zieht vom Guthaben. Diese Unterscheidung muss die Vorschau
+# treffen — „0,00 €" für DigiCert wäre keine fehlende Angabe, sondern eine
+# falsche, und eine falsche Zahl wird geglaubt.
+GUTHABEN = "guthaben"      # Katalog-Anbieter: Preis bekannt, Guthaben wird belastet
+KOSTENLOS = "kostenlos"    # CASTLE ACME
+FREMDVERTRAG = "fremd"     # DigiCert-Direktanbindung: Betrag hier nicht bekannt
+
+_ABRECHNUNG = {
+    "castle_acme": KOSTENLOS,
+    "castle_acme_staging": KOSTENLOS,
+    "digicert_direct": FREMDVERTRAG,
+}
+
+
+def abrechnungsart(provider_id: str) -> str | None:
+    """Wie ein Bezugsweg abgerechnet wird — None, wenn er nicht sammelfähig ist.
+
+    Sammelfähig ist ein Bezugsweg, der ohne Zutun des Postfachinhabers bestellen
+    kann. `assisted_manual` kann das nicht (Anleitung + Upload von Hand) und
+    taucht deshalb gar nicht erst auf.
+    """
+    if provider_id.startswith(HUB_PRAEFIX):
+        return GUTHABEN
+    return _ABRECHNUNG.get(provider_id)
+
+
+# Zustände je Postfach. „bereit" ist der einzige, der bestellt würde.
 BEREIT = "bereit"
 HAT_ZERTIFIKAT = "hat_zertifikat"
 KEIN_SMIME = "kein_smime"
@@ -110,48 +138,69 @@ async def vorschau(provider_id: str, adressen: list[str]) -> dict:
     nicht dort. Eine Oberfläche, die selbst entscheidet, wer „dran" ist, würde
     beim nächsten Umbau eine andere Antwort geben als der Server.
     """
-    import hub_catalog, hub_client, config
+    import ca_backends, hub_catalog, hub_client
 
     auswahl = [a.strip().lower() for a in (adressen or []) if a and a.strip()]
     bekannt = {p["email"]: p for p in postfaecher()}
-    rechte = await hub_client.cert_eligibility()
 
-    # ⚠️ Katalog auffrischen, BEVOR der Preis gelesen wird. Ein frisch
-    # gestarteter Prozess hat ihn noch nicht — und ein nicht gefundener Anbieter
-    # fiele sonst still auf den Vorgabepreis zurück. Eine Kostenvorschau, die im
-    # Zweifel eine falsche Zahl nennt, ist schlimmer als gar keine: Sie wird
-    # geglaubt.
-    try:
-        await hub_catalog.refresh()
-    except Exception as exc:
-        log.warning("Anbieterkatalog nicht auffrischbar: %s", exc)
-
-    # ⚠️ Die Oberfläche schickt den BEZUGSWEG ("hub:certum_test"), der Katalog
-    # führt die ANBIETER ("certum_test"). Beides sah lange gleich aus und ist es
-    # nicht. Ohne Präfix landet ca_backends.get_backend() zudem auf seinem
-    # stillen Rückfall `assisted_manual` — ein Sammellauf hätte dann lautlos den
-    # falschen Bezugsweg genommen. Deshalb wird hier ausdrücklich verlangt, was
-    # gemeint ist, statt es zu erraten.
-    if not provider_id.startswith(HUB_PRAEFIX):
+    art = abrechnungsart(provider_id)
+    if art is None:
         return {"ok": False,
-                "hindernisse": ["Für eine Sammelbestellung wird eine über den "
-                                "Anbieterkatalog bezogene Zertifizierungsstelle "
-                                "benötigt."],
-                "postfaecher": [], "bestellbar": 0, "kosten_cents": 0}
+                "hindernisse": ["Über diesen Bezugsweg lässt sich nicht sammelbestellen: "
+                                "er verlangt für jedes Postfach einen Schritt von Hand."],
+                "postfaecher": [], "bestellbar": 0, "kosten_cents": 0,
+                "abrechnung": None}
 
-    prov = hub_catalog.get(provider_id[len(HUB_PRAEFIX):])
-    if prov is None:
-        return {"ok": False,
-                "hindernisse": [f"Anbieter {provider_id!r} ist im Katalog nicht "
-                                f"vorhanden — ohne ihn lassen sich die Kosten "
-                                f"nicht bestimmen."],
-                "postfaecher": [], "bestellbar": 0, "kosten_cents": 0}
+    # Ist der Weg überhaupt einsatzbereit? Ohne diese Frage liefe ein Lauf über
+    # die DigiCert-Direktanbindung ohne hinterlegten API-Schlüssel los und
+    # scheiterte bei jedem einzelnen Postfach.
+    backend = ca_backends.get_backend(provider_id)
+    if backend.get_name() != provider_id or not backend.is_ready():
+        grund = (backend.not_ready_reason() if backend.get_name() == provider_id
+                 else f"Bezugsweg {provider_id!r} ist hier nicht eingerichtet.")
+        return {"ok": False, "hindernisse": [grund or "Bezugsweg nicht einsatzbereit."],
+                "postfaecher": [], "bestellbar": 0, "kosten_cents": 0, "abrechnung": art}
 
-    roh = prov.get("price_cents")
-    # Wie im Hub: 0 heisst kostenlos, fehlend heisst „Vorgabepreis".
-    netto = int(roh) if roh is not None else int(rechte.get("cert_price_cents") or 0)
-    ust = int(rechte.get("vat_percent", 19) or 0)
-    brutto = (netto * (100 + ust) + 50) // 100
+    # ⚠️ ALLE Preisgrössen hier vorbelegen, nicht erst im Guthaben-Zweig: Sie
+    # werden unten unbedingt in die Antwort geschrieben. `ust` fehlte zunächst
+    # und riss jede Vorschau über CASTLE mit einem UnboundLocalError ab —
+    # pyflakes findet das nicht, weil der Name existiert, nur eben nicht auf
+    # jedem Weg. Bei kostenlosen und fremd abgerechneten Wegen sagt 0 hier
+    # nichts über Steuer aus; die Angabe ist dort schlicht bedeutungslos.
+    netto = brutto = ust = 0
+    prov = {}
+    # Nur der Katalogweg belastet das Guthaben — nur dort werden Preis,
+    # Deckung und Kontingent überhaupt gebraucht.
+    rechte = await hub_client.cert_eligibility() if art == GUTHABEN else {"ok": True}
+
+    if art == GUTHABEN:
+        # ⚠️ Katalog auffrischen, BEVOR der Preis gelesen wird. Ein frisch
+        # gestarteter Prozess hat ihn noch nicht — und ein nicht gefundener
+        # Anbieter fiele sonst still auf den Vorgabepreis zurück. Eine
+        # Kostenvorschau, die im Zweifel eine falsche Zahl nennt, ist schlimmer
+        # als gar keine: Sie wird geglaubt.
+        try:
+            await hub_catalog.refresh()
+        except Exception as exc:
+            log.warning("Anbieterkatalog nicht auffrischbar: %s", exc)
+
+        # ⚠️ Die Oberfläche schickt den BEZUGSWEG ("hub:certum_test"), der
+        # Katalog führt die ANBIETER ("certum_test"). Beides sah lange gleich
+        # aus und ist es nicht.
+        prov = hub_catalog.get(provider_id[len(HUB_PRAEFIX):]) or {}
+        if not prov:
+            return {"ok": False,
+                    "hindernisse": [f"Anbieter {provider_id!r} ist im Katalog nicht "
+                                    f"vorhanden — ohne ihn lassen sich die Kosten "
+                                    f"nicht bestimmen."],
+                    "postfaecher": [], "bestellbar": 0, "kosten_cents": 0,
+                    "abrechnung": art}
+
+        roh = prov.get("price_cents")
+        # Wie im Hub: 0 heisst kostenlos, fehlend heisst „Vorgabepreis".
+        netto = int(roh) if roh is not None else int(rechte.get("cert_price_cents") or 0)
+        ust = int(rechte.get("vat_percent", 19) or 0)
+        brutto = (netto * (100 + ust) + 50) // 100
 
     zeilen = []
     for adresse in auswahl:
@@ -232,6 +281,11 @@ async def vorschau(provider_id: str, adressen: list[str]) -> dict:
         "fehlbetrag_cents": fehlt,
         "automatik_aktiv": automatik,
         "nachladung_cents": nachladung,
+        # Wie abgerechnet wird — die Oberfläche muss „kostenlos" und „über den
+        # eigenen Vertrag" unterscheiden können. Ein Betrag von 0 heisst je nach
+        # Art „umsonst" oder „hier nicht bekannt", und das ist nicht dasselbe.
+        "abrechnung": art,
+        "kosten_bekannt": art != FREMDVERTRAG,
         # Startbereit heisst: gedeckt, oder die Automatik schliesst die Lücke.
         "startbereit": bool(tatsaechlich) and not hindernisse_blockieren(
             rechte, fehlt, automatik),
