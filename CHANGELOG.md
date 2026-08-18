@@ -5,6 +5,33 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.218 — 2026-08-18 — Sammelbestellung: der Lauf
+
+Der ausgewählte Sammelvorgang lässt sich jetzt starten. Er arbeitet im
+Hintergrund weiter, auch wenn die Seite geschlossen wird, und sein Fortschritt
+ist jederzeit abrufbar.
+
+Drei Eigenschaften, die den Unterschied machen:
+
+**Ein Fehler beendet nicht den ganzen Lauf.** Scheitert eine Bestellung, wird
+das an dieser Stelle vermerkt und mit der nächsten weitergemacht. Am Ende steht,
+welche Postfächer versorgt sind und welche nicht — statt einer Fehlermeldung
+über allem.
+
+**Fehlendes Guthaben hält an, statt reihenweise zu scheitern.** Es betrifft alle
+folgenden Bestellungen gleichermassen; der Lauf pausiert deshalb, nennt den
+Fehlbetrag und wartet. Nach dem Aufladen wird fortgesetzt, ohne bereits
+erledigte Postfächer zu wiederholen — das betroffene Postfach ist das erste,
+das nachgeholt wird.
+
+**Abbrechen wirkt nach der laufenden Bestellung**, nicht sofort. Was bereits bei
+der Zertifizierungsstelle liegt, lässt sich nicht zurücknehmen und muss zu Ende
+geführt und verbucht werden — andernfalls entstünde eine Bestellung, der keine
+Abbuchung gegenübersteht.
+
+Es läuft immer nur ein Sammelvorgang gleichzeitig: Zwei würden dasselbe Guthaben
+verplanen und dieselben Postfächer doppelt bestellen.
+
 ## v1.7.217 — 2026-08-18 — Sammelbestellung: Auswahl in der Oberfläche
 
 Auf der S/MIME-Seite lassen sich jetzt mehrere Postfächer auf einmal auswählen —
