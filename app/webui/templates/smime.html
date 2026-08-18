@@ -318,8 +318,7 @@
                    title="Das Gateway liest die Bestätigungsmail im Postfach und löst die Bestätigung selbst aus. Ohne diesen Schalter muss der Postfachinhaber klicken.">
               <input type="checkbox" class="lc-autoconfirm" data-email="{{ u.email }}"
                      {% if ca_cfg.get('auto_confirm') %}checked{% endif %}>
-              Bestätigung der Zertifizierungsstelle automatisch erteilen
-              <span style="font-size:11px;color:#6b7280;margin-left:6px">(sonst klickt der Postfachinhaber)</span>
+              Automatische Bestätigung des Besitzes der E-Mail-Adresse an die Zertifizierungsstelle
             </label>
           </div>
           <div class="settings-row" style="margin-bottom:12px">
