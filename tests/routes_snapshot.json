@@ -1064,6 +1064,13 @@
     "name": "api_smime_delete"
   },
   {
+    "pfad": "/api/smime/hub-order/{email}",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_hub_order_status"
+  },
+  {
     "pfad": "/api/smime/key-password",
     "methoden": [
       "POST"

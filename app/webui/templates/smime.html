@@ -103,6 +103,13 @@
           <span id="acme-status-{{ u.email | replace('@','_') | replace('.','_') }}"
                 style="font-size:12px"></span>
         </div>
+        <!-- Laufende Bestellung bei einer Zertifizierungsstelle. Bis v1.7.211
+             war dieser Zustand unsichtbar: Wer bestellt hatte, sah kein
+             Zertifikat und wusste nicht, ob auf ihn, auf die CA oder auf gar
+             nichts gewartet wird. -->
+        <div class="hub-order" data-email="{{ u.email }}"
+             id="hub-order-{{ u.email | replace('@','_') | replace('.','_') }}"
+             style="display:none"></div>
       </div>
       <!-- Cert list -->
       {% if has_certs %}
@@ -530,6 +537,68 @@ async function _fetchAcmeStatus(email) {
   return resp.ok ? resp.json() : null;
 }
 
+// ── Laufende Bestellung bei einer Zertifizierungsstelle ─────────────────────
+// Nachgefasst wird ENGMASCHIG und dann immer seltener: 5s, 10s, 20s, 30s, 60s.
+// Der Hintergrundlauf holt Bestellungen alle 15 Minuten ab — als alleinige
+// Rückmeldung ist das unbrauchbar, wenn jemand gerade eben bestätigt hat.
+const _HUB_ABSTAENDE = [5000, 10000, 20000, 30000, 60000];
+const _hubTimer = {};
+
+function _hubOrderEl(email) {
+  return document.getElementById('hub-order-' + email.replace(/[@.]/g, '_'));
+}
+
+// ⚠️ Zustand als data-Attribut, NICHT als Inline-Farbe. Der Browser normalisiert
+// JS-gesetzte Farben zu rgb(…); die Dark-Mode-Regeln greifen über
+// [style*="#hex"] und würden dann nicht mehr passen — die Box leuchtete im
+// Dunkelmodus. Gefärbt wird deshalb per CSS über [data-zustand].
+function _hubOrderText(d) {
+  if (d.status === 'issued')
+    return ['✓ Zertifikat ausgestellt — wird eingespielt.', 'ok'];
+  if (d.status === 'rejected')
+    return ['✗ Von der Zertifizierungsstelle abgelehnt' +
+            (d.hinweis ? ': ' + esc(d.hinweis) : '.'), 'fehler'];
+  if (d.status === 'unbekannt')
+    return [esc(d.hinweis || 'Zustand derzeit nicht abfragbar.'), 'unklar'];
+  if (d.wartet_auf_nutzer)
+    return ['<strong>Wartet auf Bestätigung durch den Postfachinhaber.</strong><br>' +
+            'Die Zertifizierungsstelle hat eine E-Mail an <strong>' + esc(d.email) + '</strong> geschickt. ' +
+            'Erst nach dem Klick darin wird ausgestellt — das dauert dann wenige Minuten.', 'wartet'];
+  return ['Bestellung läuft (Zustand: ' + esc(d.status) + ').', 'laeuft'];
+}
+
+function _renderHubOrder(email, d) {
+  const el = _hubOrderEl(email);
+  if (!el) return;
+  if (!d || !d.aktiv) { el.style.display = 'none'; return; }
+  d.email = email;
+  const [text, zustand] = _hubOrderText(d);
+  const seit = d.seit ? ' · seit ' + esc(String(d.seit).slice(11, 16)) + ' Uhr' : '';
+  el.style.display = '';
+  el.dataset.zustand = zustand;
+  el.innerHTML = text + '<span style="opacity:.7">' + seit + '</span>';
+}
+
+async function _pollHubOrder(email, versuch) {
+  let d = null;
+  try {
+    const r = await fetch('/api/smime/hub-order/' + encodeURIComponent(email));
+    d = await r.json();
+  } catch (e) { return; }
+  _renderHubOrder(email, d);
+  if (!d || !d.aktiv) { delete _hubTimer[email]; return; }
+  if (d.status === 'issued') { setTimeout(() => location.reload(), 3000); return; }
+  if (d.status === 'rejected') { delete _hubTimer[email]; return; }
+  const abstand = _HUB_ABSTAENDE[Math.min(versuch, _HUB_ABSTAENDE.length - 1)];
+  _hubTimer[email] = setTimeout(() => _pollHubOrder(email, versuch + 1), abstand);
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('.hub-order').forEach(function (el) {
+    _pollHubOrder(el.dataset.email, 0);
+  });
+});
+
 function _startAcmePolling(email) {
   const key = _acmeKey(email);
   if (_acmeTimers[key]) return;
@@ -670,7 +739,7 @@ async function startAutoEnroll(email, btn) {
     });
     btn.disabled = false; btn.textContent = orig;
     const d = await resp.json().catch(() => ({}));
-    if (resp.ok) { _startAcmePolling(email); } else { _showAeError(email, d.detail || d.message || 'Unbekannt'); }
+    if (resp.ok) { _startAcmePolling(email); _pollHubOrder(email, 0); } else { _showAeError(email, d.detail || d.message || 'Unbekannt'); }
   } else {
     if (!confirm('Automatischen Zertifikatsbezug für ' + email + ' starten?')) return;
     const orig = btn.textContent.trim();
@@ -1043,6 +1112,14 @@ async function migrateSlotToKv(email, slotId, btn) {
 
 <!-- Secure Message Portal — Verwaltung -->
 <style>
+  /* Laufende Bestellung — Farbe je Zustand über data-Attribut, damit der
+     Dark-Mode-Umschalter greift (siehe dark-mode.css). */
+  .hub-order { margin-top:8px; font-size:12px; border-radius:6px;
+               padding:8px 12px; border:1px solid #bfdbfe;
+               background:#eff6ff; color:#1e40af; }
+  .hub-order[data-zustand="ok"]     { background:#ecfdf5; border-color:#a7f3d0; color:#166534; }
+  .hub-order[data-zustand="fehler"] { background:#fef2f2; border-color:#fca5a5; color:#991b1b; }
+  .hub-order[data-zustand="unklar"] { background:#fffbeb; border-color:#fde68a; color:#92400e; }
 .portal-badge { display:inline-block; font-size:10px; font-weight:700; letter-spacing:.06em;
   text-transform:uppercase; border-radius:4px; padding:2px 7px; margin-left:8px; vertical-align:middle; }
 .portal-badge.on  { background:#dcfce7; color:#166534; }
