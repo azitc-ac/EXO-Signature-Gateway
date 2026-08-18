@@ -550,3 +550,13 @@
   background: #1e293b !important;
   border-color: #334155 !important;
 }
+
+/* Laufende Bestellung bei einer Zertifizierungsstelle.
+   Der Zustand steht als data-Attribut am Element — die Farben werden NICHT in
+   JavaScript gesetzt, weil der Browser sie dort zu rgb() normalisiert und die
+   Attribut-Selektoren dieser Datei dann nicht mehr greifen. Vorbild:
+   #fu-badge[data-fu-state], [data-pool-active]. */
+[data-theme="dark"] .hub-order                        { background:#111c2e; border-color:#1e3a5f; color:#93c5fd; }
+[data-theme="dark"] .hub-order[data-zustand="ok"]     { background:#0f2018; border-color:#14532d; color:#86efac; }
+[data-theme="dark"] .hub-order[data-zustand="fehler"] { background:#241416; border-color:#7f1d1d; color:#fca5a5; }
+[data-theme="dark"] .hub-order[data-zustand="unklar"] { background:#241d10; border-color:#78350f; color:#fcd34d; }

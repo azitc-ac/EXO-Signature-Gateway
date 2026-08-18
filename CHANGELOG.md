@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.211 — 2026-08-18 — Laufende Zertifikatsbestellung ist sichtbar
+
+Nach einer Bestellung war der Zustand in der Oberfläche unsichtbar. Wer bestellt
+hatte, sah kein Zertifikat — und konnte nicht unterscheiden zwischen „wartet auf
+die Bestätigung des Postfachinhabers", „wartet auf die Zertifizierungsstelle"
+und „fehlgeschlagen". Sichtbar wurde ein Ergebnis erst, wenn der
+Hintergrundlauf es abholte, und der arbeitet in Abständen von 15 Minuten.
+
+Beim Postfach steht jetzt, woran die Bestellung gerade hängt — im häufigsten
+Fall: Die Zertifizierungsstelle hat eine Bestätigungsmail geschickt, und erst
+der Klick darin löst die Ausstellung aus. Nachgefasst wird engmaschig und dann
+immer seltener (5, 10, 20, 30, 60 Sekunden), damit eine gerade erfolgte
+Bestätigung sofort sichtbar wird. Der Hintergrundlauf bleibt als Auffangnetz.
+
 ## v1.7.210 — 2026-08-18 — Prüfung auf Namen, die es zur Laufzeit nicht gibt
 
 Python bemerkt einen Tippfehler in einem Variablennamen erst, wenn die

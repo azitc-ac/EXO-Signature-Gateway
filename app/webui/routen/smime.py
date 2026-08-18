@@ -793,3 +793,50 @@ async def api_smime_wartend_verwerfen(fingerabdruck: str, _=Depends(_require_adm
     if not cert_wartestand.verwerfen(fingerabdruck):
         raise HTTPException(404, "nicht gefunden")
     return JSONResponse({"ok": True})
+
+
+# ── Offene Bestellung bei einer Zertifizierungsstelle ────────────────────────
+# ⚠️ Bis v1.7.211 war eine laufende Bestellung in der Oberfläche unsichtbar. Wer
+# bestellt hatte, sah kein Zertifikat — und konnte nicht unterscheiden zwischen
+# „wartet auf meine Bestätigung", „wartet auf die Zertifizierungsstelle" und
+# „fehlgeschlagen". Genau dieser Fall trat am 18.08.2026 auf: Die Bestellung lag
+# bei Certum, die Bestätigungsmail im Postfach, und im Gateway stand nichts.
+
+_WARTET_AUF_BESTAETIGUNG = {"submitted", "pending", "waiting"}
+
+
+@router.get("/api/smime/hub-order/{email}")
+async def api_hub_order_status(email: str, user: str = Depends(_check_auth)):
+    """Zustand der offenen Bestellung eines Postfachs — frisch beim Hub geholt.
+
+    Bewusst live abgefragt statt aus dem lokalen Datensatz beantwortet: Der
+    lokale Datensatz kennt nur, was beim letzten Abholen bekannt war, und der
+    läuft alle 15 Minuten. Wer gerade auf „Bestätigen" geklickt hat, will die
+    Wirkung nicht eine Viertelstunde später sehen.
+    """
+    import hub_orders, hub_client
+
+    adresse = (email or "").strip().lower()
+    offen = [m for m in hub_orders.list_pending()
+             if (m.get("email") or "").lower() == adresse]
+    if not offen:
+        return JSONResponse({"ok": True, "aktiv": False})
+
+    meta = sorted(offen, key=lambda m: m.get("created") or "")[-1]
+    order_id = meta["order_id"]
+    try:
+        res = await hub_client.cert_get_order(order_id)
+    except Exception as exc:
+        log.warning("Hub-Bestellung %s nicht abfragbar: %s", order_id, exc)
+        return JSONResponse({"ok": True, "aktiv": True, "status": "unbekannt",
+                             "seit": meta.get("created", ""),
+                             "hinweis": "Der Betreiber-Hub ist gerade nicht erreichbar."})
+
+    status = (res.get("status") or "unbekannt") if res.get("ok") else "unbekannt"
+    return JSONResponse({
+        "ok": True, "aktiv": True, "status": status,
+        "anbieter": meta.get("provider", ""),
+        "seit": meta.get("created", ""),
+        "wartet_auf_nutzer": status in _WARTET_AUF_BESTAETIGUNG,
+        "hinweis": res.get("note", "") if status == "rejected" else "",
+    })
