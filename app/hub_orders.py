@@ -15,7 +15,7 @@ import asyncio
 import json
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import config
 
@@ -176,6 +176,32 @@ def _notify_rejected(email: str, provider: str, note: str) -> None:
 _CA_ABSENDER = ("certum.pl", "certum.eu", "swisssign", "sectigo", "digicert")
 
 
+# Wie weit VOR dem gespeicherten Bestellzeitpunkt noch gesucht wird.
+#
+# ⚠️ Ohne diesen Vorlauf findet die Suche nichts. Die Zertifizierungsstelle
+# verschickt die Bestätigungsmail, sobald sie die Bestellung annimmt — der
+# lokale Zeitstempel entsteht aber erst danach: nach Antwort, Weiterreichen und
+# Speichern. Die Mail ist also regelmässig ein paar Sekunden ÄLTER als der
+# Vorgang, zu dem sie gehört. Am 18.08.2026 lagen 23:51:1x (Mail) und 23:51:25
+# (Vorgang) auseinander, und die Suche kam leer zurück.
+#
+# Grosszügig bemessen, weil der Filter ohnehin nur die Datenmenge begrenzt:
+# Gefunden wird über die Referenz der Zertifizierungsstelle, und die ist
+# eindeutig.
+_MAIL_VORLAUF_MIN = 15
+
+
+def _zeitfilter(seit: str) -> str:
+    """Graph-Filter auf den Empfangszeitpunkt — mit Vorlauf, oder leer."""
+    if not seit:
+        return ""
+    try:
+        ab = datetime.fromisoformat(seit) - timedelta(minutes=_MAIL_VORLAUF_MIN)
+    except Exception:
+        return ""
+    return "&$filter=receivedDateTime ge " + ab.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 async def bestaetigungslink(email: str, ref: str, seit: str = "") -> str:
     """Adresse aus der Bestätigungsmail der Zertifizierungsstelle — oder "".
 
@@ -202,13 +228,7 @@ async def bestaetigungslink(email: str, ref: str, seit: str = "") -> str:
     if not token:
         return ""
 
-    zeitfilter = ""
-    if seit:
-        try:
-            zeitfilter = ("&$filter=receivedDateTime ge "
-                          + datetime.fromisoformat(seit).strftime("%Y-%m-%dT%H:%M:%SZ"))
-        except Exception:
-            pass
+    zeitfilter = _zeitfilter(seit)
     url = (f"https://graph.microsoft.com/v1.0/users/{email}"
            f"/mailFolders/inbox/messages"
            f"?$select=subject,from,body&$top=25"
