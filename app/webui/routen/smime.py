@@ -519,6 +519,7 @@ async def api_acme_clear_order(email: str, user: str = Depends(_require_admin)):
 async def api_acme_initiate(request: Request, email: str, user: str = Depends(_require_admin)):
     import ca_backends as _ca
     import acme_state as _acme_state
+    import hub_client
     email = email.lower().strip()
     try:
         body = await request.json()
@@ -552,6 +553,9 @@ async def api_acme_initiate(request: Request, email: str, user: str = Depends(_r
         return JSONResponse({"ok": True})
     except _acme_state.EnrollmentNotAllowed as exc:
         raise HTTPException(400, str(exc))
+    except hub_client.GuthabenReichtNicht as exc:
+        # Kein Serverfehler: der Betreiber muss aufladen, nicht suchen.
+        raise HTTPException(402, str(exc))
     except Exception as exc:
         log.error("ACME initiate failed for %s: %s", email, exc)
         raise HTTPException(500, str(exc))

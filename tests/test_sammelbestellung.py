@@ -169,9 +169,16 @@ ob er brauchbar ist:
 
 
 @pytest.fixture
-def lauf(monkeypatch):
-    """Bestellungen ersetzen — je Adresse ein vorgegebenes Ergebnis."""
+def lauf(welt, monkeypatch):
+    """Bestellungen ersetzen — je Adresse ein vorgegebenes Ergebnis.
+
+    ⚠️ Baut auf `welt` auf, seit `lauf_starten()` die Deckung vorab prüft: Ohne
+    die Hub-Antworten scheitert schon der Start, und die Tests prüften dann
+    etwas ganz anderes als das Verhalten des Laufs.
+    """
     import ca_backends, settings_store
+    # c@x.de steht in `welt` ohne S/MIME — für die Lauf-Tests wird es gebraucht.
+    welt["mailboxes"]["g3"]["smime"] = True
     plan = {}
 
     class _Backend:
@@ -182,7 +189,9 @@ def lauf(monkeypatch):
             raise RuntimeError(was)
 
     monkeypatch.setattr(ca_backends, "get_backend", lambda pid: _Backend())
-    monkeypatch.setattr(settings_store, "get", lambda k: {} if k == "CA_USER_CONFIG" else None)
+    # MAILBOX_CONFIG muss aus `welt` kommen — CA_USER_CONFIG ist hier leer.
+    monkeypatch.setattr(settings_store, "get",
+                        lambda k: welt["mailboxes"] if k == "MAILBOX_CONFIG" else {})
     sb._lauf = None
     yield plan
     sb._lauf = None
@@ -290,3 +299,85 @@ def test_unerwarteter_fehler_reisst_den_lauf_nicht_ab(lauf, monkeypatch):
     assert [e["email"] for e in z["erledigt"]] == ["a@x.de", "b@x.de", "c@x.de"]
     assert [e["ok"] for e in z["erledigt"]] == [True, False, True]
     assert "Konfiguration" in z["erledigt"][1]["grund"]
+
+
+# ── Deckung VOR dem Start ────────────────────────────────────────────────────
+"""
+Vom Nutzer angestossen: „Wenn die schief geht, ist eine Menge Geld weg."
+
+Ein Lauf, der erst bei der ersten Bestellung merkt, dass das Guthaben nicht
+reicht, hat dann schon bestellt — bei hundert Postfächern womöglich fünf, die
+niemand geplant hat. Und bei aktiver Automatik wird abgebucht, ohne dass vorher
+jemand eine Zahl gesehen hat.
+"""
+
+
+@pytest.fixture
+def startprobe(welt, monkeypatch):
+    """Bestellungen ersetzen, damit nur das Startverhalten geprüft wird."""
+    import ca_backends, settings_store
+
+    class _Backend:
+        async def initiate_renewal(self, email, cfg, extra=None):
+            return True
+    monkeypatch.setattr(ca_backends, "get_backend", lambda pid: _Backend())
+    sb._lauf = None
+    yield welt
+    sb._lauf = None
+
+
+def _starten(adressen):
+    import asyncio
+    return asyncio.run(sb.lauf_starten("certum", adressen))
+
+
+def test_ohne_deckung_und_ohne_automatik_startet_nichts(startprobe):
+    """⚠️ Sonst bestellt der Lauf, bis das Guthaben leer ist, und hinterlässt
+    einen halben Stand."""
+    startprobe["rechte"].update({"balance_cents": 100, "auto_topup_aktiv": False})
+    r = _starten(["a@x.de", "b@x.de"])
+    assert r["ok"] is False
+    assert "aufladen" in r["error"].lower()
+    assert r.get("fehlbetrag_cents", 0) > 0, "Fehlbetrag nicht beziffert"
+    assert sb.lauf_zustand() is None, "Lauf wurde trotzdem angelegt"
+
+
+def test_mit_automatik_startet_er_und_nennt_den_betrag(startprobe):
+    """Die Automatik schliesst die Lücke — der Betrag ist eine Ankündigung, die
+    bestätigt werden will, kein Hindernis."""
+    import asyncio
+    startprobe["rechte"].update({"balance_cents": 100, "auto_topup_aktiv": True,
+                                 "auto_topup_schritt_cents": 2500,
+                                 "min_topup_cents": 2500, "max_topup_cents": 100000})
+    v = asyncio.run(sb.vorschau("certum", ["a@x.de", "b@x.de"]))
+    assert v["startbereit"] is True
+    assert v["nachladung_cents"] == 2500, "Nachladebetrag falsch oder fehlt"
+    assert any("2500" in h.replace(",", "").replace(".", "") or "25,00" in h
+               for h in v["hindernisse"]), "Betrag wird nicht angekündigt"
+    assert _starten(["a@x.de", "b@x.de"])["ok"] is True
+
+
+def test_nachladebetrag_entspricht_der_rechnung_des_hubs(startprobe):
+    """Ein angekündigter Betrag, der dann abweicht, ist schlimmer als keiner:
+    aufgerundet auf Vielfache des Schritts, mindestens der Mindestbetrag."""
+    r = {"auto_topup_schritt_cents": 500, "min_topup_cents": 2500,
+         "max_topup_cents": 100000}
+    assert sb._nachladebetrag(100, r) == 2500        # Mindestbetrag schlägt Schritt
+    r["min_topup_cents"] = 100
+    assert sb._nachladebetrag(100, r) == 500         # ein Schritt
+    assert sb._nachladebetrag(1200, r) == 1500       # drei Schritte, aufgerundet
+    r["max_topup_cents"] = 1000
+    assert sb._nachladebetrag(1200, r) == 1000       # Deckel
+
+
+def test_fehlende_voraussetzung_verhindert_den_start(startprobe):
+    startprobe["rechte"].update({"ok": False, "reason": "Bedingungen nicht akzeptiert."})
+    r = _starten(["a@x.de"])
+    assert r["ok"] is False
+    assert "Bedingungen" in r["error"]
+
+
+def test_ohne_bestellbare_postfaecher_startet_nichts(startprobe):
+    startprobe["certs"]["a@x.de"] = [{"expiry": "01.01.2030"}]
+    r = _starten(["a@x.de"])
+    assert r["ok"] is False

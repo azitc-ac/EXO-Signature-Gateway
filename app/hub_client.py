@@ -443,6 +443,23 @@ async def cert_eligibility() -> dict:
         return {"ok": False, "error": f"Verbindungsfehler: {exc}"}
 
 
+class GuthabenReichtNicht(RuntimeError):
+    """Bestellung scheiterte am Guthaben — mit Betrag, nicht nur mit Text.
+
+    Eigene Klasse, weil der Weg vom Hub bis zur Oberfläche durch
+    `initiate_renewal()` führt und dort bisher alles zu `RuntimeError(text)`
+    einschmolz. Wer den Fehlbetrag aus einem Fliesstext zurücklesen muss,
+    verliert ihn beim ersten Umformulieren.
+    """
+
+    def __init__(self, text: str, fehlbetrag_cents: int = 0,
+                 benoetigt_cents: int = 0, guthaben_cents: int = 0):
+        super().__init__(text)
+        self.fehlbetrag_cents = int(fehlbetrag_cents or 0)
+        self.benoetigt_cents = int(benoetigt_cents or 0)
+        self.guthaben_cents = int(guthaben_cents or 0)
+
+
 async def cert_order(target_email: str, csr_pem: str, extra: dict | None = None,
                      provider: str = "sectigo",
                      ca_terms_accepted_at: str = "") -> dict:
@@ -475,6 +492,17 @@ async def cert_order(target_email: str, csr_pem: str, extra: dict | None = None,
                     "order_id": data.get("order_id"),
                     "price_cents": data.get("price_cents"),
                     "message": data.get("message", ""), "cert_pem": data.get("cert_pem")}
+        if r.status_code == 403 and data.get("grund") == "guthaben":
+            # ⚠️ NICHT unter "ungültiger Key" mitverarbeiten. Der Hub schickt
+            # Guthabenmangel als 403 mit strukturiertem Körper; die pauschale
+            # Meldung darunter schickte den Betreiber zur Anbindung, während in
+            # Wahrheit nur Geld fehlte — und der Sammellauf, der auf
+            # fehlbetrag_cents wartet, sah nie einen Betrag.
+            return {"ok": False, "grund": "guthaben",
+                    "benoetigt_cents": int(data.get("benoetigt_cents") or 0),
+                    "guthaben_cents": int(data.get("guthaben_cents") or 0),
+                    "fehlbetrag_cents": int(data.get("fehlbetrag_cents") or 0),
+                    "error": data.get("message") or "Guthaben reicht nicht."}
         if r.status_code in (401, 403):
             return {"ok": False, "error": f"Nicht freigegeben/ungültiger Key (HTTP {r.status_code})."}
         return {"ok": False, "error": data.get("message") or f"Hub HTTP {r.status_code}: {r.text[:200]}"}
