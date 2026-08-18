@@ -55,14 +55,26 @@
     <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;
                     list-style:none;display:flex;align-items:center;gap:8px">
       <span style="font-size:15px">▦</span> Mehrere Postfächer auf einmal versorgen
-      <span class="muted" style="font-weight:400;font-size:12px">— Auswahl, Kostenvorschau</span>
+      <span class="muted" style="font-weight:400;font-size:12px">— Auswahl, Kosten, Bestellung</span>
     </summary>
     <div style="padding:0 16px 16px">
+      {# Nur über den Katalog bezogene Zertifizierungsstellen. Für die übrigen
+         Bezugswege (assistiert manuell, ACME) lässt sich weder ein Preis noch
+         eine Deckung bestimmen; sie standen bis 18.08.2026 mit in der Auswahl
+         und quittierten die Vorschau mit einer Meldung über den Katalog. #}
+      {% set sammel_backends = backends | selectattr('ready') | selectattr('hub') | list %}
+      {% if not sammel_backends %}
+      <div class="sammel-ergebnis" data-zustand="warnung" style="margin-bottom:4px">
+        Für eine Sammelbestellung wird eine über den Anbieterkatalog bezogene
+        Zertifizierungsstelle benötigt. Derzeit ist keine freigegeben — im Reiter
+        „Erweitert" die Anbindung herstellen und dort einen Anbieter auswählen.
+      </div>
+      {% else %}
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
         <select id="sammel-anbieter" style="font-size:13px;min-width:220px">
-          {% for b in backends %}{% if b.ready %}
+          {% for b in sammel_backends %}
           <option value="{{ b.name }}">{{ b.label }}</option>
-          {% endif %}{% endfor %}
+          {% endfor %}
         </select>
         <input type="text" id="sammel-filter" placeholder="Postfächer filtern…"
                oninput="sammelFiltern()"
@@ -79,6 +91,9 @@
         <span id="sammel-auswahl" class="muted" style="font-size:12px"></span>
       </div>
       <div id="sammel-ergebnis" class="sammel-ergebnis" style="display:none;margin-top:12px"></div>
+      <div id="sammel-lauf" class="sammel-lauf" style="display:none;margin-top:12px"
+           data-zustand=""></div>
+      {% endif %}
     </div>
   </details>
 
@@ -697,6 +712,8 @@ const _SAMMEL_HINWEIS = {
 
 async function sammelLaden() {
   const box = document.getElementById('sammel-liste');
+  // Ohne freigegebene Zertifizierungsstelle wird der Bereich gar nicht erst
+  // gezeichnet — dann gibt es hier nichts zu füllen.
   if (!box) return;
   try {
     const r = await fetch('/api/smime/sammel/postfaecher');
@@ -782,19 +799,141 @@ async function sammelVorschau() {
     ziel.innerHTML = '<ul style="margin:0;padding-left:18px">' + hind + '</ul>';
     return;
   }
-  const eur = function (c) { return (c / 100).toFixed(2).replace('.', ',') + ' €'; };
-  ziel.dataset.zustand = hind ? 'warnung' : 'bereit';
+  ziel.dataset.zustand = d.startbereit ? (hind ? 'warnung' : 'bereit') : 'warnung';
+  _sammelVorschau = d;
   ziel.innerHTML =
-    '<strong>' + d.bestellbar + ' Zertifikat(e) würden bestellt</strong>' +
+    '<strong>' + d.bestellbar + (d.bestellbar === 1
+        ? ' Zertifikat würde bestellt' : ' Zertifikate würden bestellt') + '</strong>' +
     (d.uebersprungen ? ' · ' + d.uebersprungen + ' übersprungen' : '') + '<br>' +
-    'Kosten: <strong>' + eur(d.kosten_cents) + '</strong> brutto' +
-    ' · Guthaben: ' + eur(d.guthaben_cents) +
-    (d.fehlbetrag_cents ? ' · <strong>es fehlen ' + eur(d.fehlbetrag_cents) + '</strong>' : '') +
-    (hind ? '<ul style="margin:8px 0 0;padding-left:18px">' + hind + '</ul>' : '');
+    'Kosten: <strong>' + _eur(d.kosten_cents) + '</strong> brutto' +
+    ' · Guthaben: ' + _eur(d.guthaben_cents) +
+    (d.fehlbetrag_cents ? ' · <strong>es fehlen ' + _eur(d.fehlbetrag_cents) + '</strong>' : '') +
+    (hind ? '<ul style="margin:8px 0 0;padding-left:18px">' + hind + '</ul>' : '') +
+    (d.startbereit && d.bestellbar
+       ? '<div style="margin-top:10px"><button class="btn primary btn-sm" ' +
+         'onclick="sammelStarten()">' + d.bestellbar + ' Zertifikat' +
+         (d.bestellbar === 1 ? '' : 'e') + ' jetzt bestellen</button></div>'
+       : '');
+}
+
+// Der Betrag, den die Bestätigung nennt, stammt aus DIESER Vorschau — nicht aus
+// einer zweiten Rechnung im Browser. Zwei Rechenwege für dieselbe Zahl laufen
+// auseinander, und ausgerechnet hier wäre das teuer.
+let _sammelVorschau = null;
+
+function _eur(c) { return ((c || 0) / 100).toFixed(2).replace('.', ',') + ' €'; }
+
+async function sammelStarten() {
+  const d = _sammelVorschau;
+  if (!d) return;
+  // ⚠️ Rückfrage ist Pflicht, nicht Höflichkeit: Was bei der Zertifizierungs-
+  // stelle liegt, lässt sich nicht zurückholen. Der Betrag steht deshalb IM
+  // Dialog, nicht nur darüber auf der Seite.
+  let frage = d.bestellbar + ' Zertifikat' + (d.bestellbar === 1 ? '' : 'e') +
+              ' für ' + _eur(d.kosten_cents) + ' brutto bestellen?';
+  if (d.nachladung_cents) {
+    frage += '\n\nDafür werden ' + _eur(d.nachladung_cents) +
+             ' automatisch vom hinterlegten Zahlungsmittel eingezogen.';
+  } else {
+    frage += '\n\nDer Betrag wird vom Guthaben (' + _eur(d.guthaben_cents) + ') abgezogen.';
+  }
+  frage += '\n\nBereits erteilte Bestellungen lassen sich nicht zurücknehmen.';
+  if (!confirm(frage)) return;
+
+  const ziel = document.getElementById('sammel-lauf');
+  ziel.style.display = '';
+  ziel.textContent = 'Wird gestartet…';
+  const r = await postJSON('/api/smime/sammel/start', {
+    anbieter: document.getElementById('sammel-anbieter').value,
+    postfaecher: _sammelAuswahl(),
+  });
+  if (!r.ok) {
+    ziel.dataset.zustand = 'PAUSIERT';
+    ziel.textContent = r.error || 'Start fehlgeschlagen.';
+    return;
+  }
+  document.getElementById('sammel-ergebnis').style.display = 'none';
+  sammelLaufPollen();
+}
+
+let _sammelTimer = null;
+
+async function sammelLaufPollen() {
+  const ziel = document.getElementById('sammel-lauf');
+  if (!ziel) return;
+  let d;
+  try {
+    const r = await fetch('/api/smime/sammel/lauf');
+    d = await r.json();
+  } catch (e) { return; }
+  if (!d.lauf) { ziel.style.display = 'none'; return; }
+
+  const l = d.lauf;
+  ziel.style.display = '';
+  ziel.dataset.zustand = l.status;
+  const fertig = (l.erledigt || []).length;
+  const anteil = l.gesamt ? Math.round(fertig * 100 / l.gesamt) : 0;
+  const gut = (l.erledigt || []).filter(function (e) { return e.ok; }).length;
+  const schlecht = fertig - gut;
+
+  const liste = (l.erledigt || []).filter(function (e) { return !e.ok; })
+    .map(function (e) { return '<li>' + esc(e.email) + ' — ' + esc(e.grund || '') + '</li>'; })
+    .join('');
+
+  const knoepfe =
+    (l.status === 'PAUSIERT'
+      ? '<button class="btn primary btn-sm" onclick="sammelFortsetzen()">Fortsetzen</button> '
+      : '') +
+    (l.status === 'LAEUFT' || l.status === 'PAUSIERT'
+      ? '<button class="btn secondary btn-sm" onclick="sammelAbbrechen()">Abbrechen</button>'
+      : '');
+
+  ziel.innerHTML =
+    '<strong>' + esc(_sammelStatusText(l.status)) + '</strong> · ' +
+    fertig + ' von ' + l.gesamt + ' erledigt' +
+    (schlecht ? ' · ' + gut + ' erfolgreich, ' + schlecht + ' fehlgeschlagen' : '') +
+    '<div class="sammel-balken"><i style="width:' + anteil + '%"></i></div>' +
+    (l.meldung ? esc(l.meldung) : '') +
+    (liste ? '<ul>' + liste + '</ul>' : '') +
+    (knoepfe ? '<div style="margin-top:10px">' + knoepfe + '</div>' : '');
+
+  clearTimeout(_sammelTimer);
+  if (l.status === 'LAEUFT') _sammelTimer = setTimeout(sammelLaufPollen, 3000);
+}
+
+function _sammelStatusText(s) {
+  if (s === 'LAEUFT') return 'Läuft';
+  if (s === 'PAUSIERT') return 'Angehalten';
+  if (s === 'FERTIG') return 'Abgeschlossen';
+  if (s === 'ABGEBROCHEN') return 'Abgebrochen';
+  return s;
+}
+
+async function sammelFortsetzen() {
+  const r = await postJSON('/api/smime/sammel/fortsetzen', {});
+  if (!r.ok) {
+    const ziel = document.getElementById('sammel-lauf');
+    ziel.dataset.zustand = 'PAUSIERT';
+    ziel.textContent = r.error || 'Fortsetzen nicht möglich.';
+    return;
+  }
+  sammelLaufPollen();
+}
+
+async function sammelAbbrechen() {
+  if (!confirm('Sammelvorgang abbrechen?\n\nDie gerade laufende Bestellung wird noch ' +
+               'zu Ende geführt — sie liegt bereits bei der Zertifizierungsstelle.')) return;
+  await postJSON('/api/smime/sammel/abbrechen', {});
+  sammelLaufPollen();
 }
 
 document.addEventListener('DOMContentLoaded', function () {
-  if (document.getElementById('sammel-box')) sammelLaden();
+  if (!document.getElementById('sammel-box')) return;
+  sammelLaden();
+  // Ein Lauf arbeitet im Hintergrund weiter — nach einem Seitenwechsel muss er
+  // wiederzufinden sein, sonst wirkt er verschwunden und wird ein zweites Mal
+  // gestartet.
+  sammelLaufPollen();
 });
 
 function _startAcmePolling(email) {
@@ -1319,6 +1458,17 @@ async function migrateSlotToKv(email, slotId, btn) {
                      border:1px solid #bfdbfe; background:#eff6ff; color:#1e40af; }
   .sammel-ergebnis[data-zustand="warnung"] { background:#fffbeb; border-color:#fde68a; color:#92400e; }
   .sammel-ergebnis[data-zustand="bereit"]  { background:#ecfdf5; border-color:#a7f3d0; color:#166534; }
+  /* Laufender Sammelvorgang. Farbe ausschliesslich ueber data-zustand — der
+     Fortschritt wird laufend aus JS neu gezeichnet, und eine dort gesetzte
+     Farbe wuerde zu rgb() normalisiert und vom Dark-Mode nicht mehr erfasst. */
+  .sammel-lauf { border-radius:6px; padding:10px 14px; font-size:13px;
+                 border:1px solid #bfdbfe; background:#eff6ff; color:#1e40af; }
+  .sammel-lauf[data-zustand="PAUSIERT"]    { background:#fffbeb; border-color:#fde68a; color:#92400e; }
+  .sammel-lauf[data-zustand="FERTIG"]      { background:#ecfdf5; border-color:#a7f3d0; color:#166534; }
+  .sammel-lauf[data-zustand="ABGEBROCHEN"] { background:#f8fafc; border-color:#e2e8f0; color:#334155; }
+  .sammel-balken { height:6px; border-radius:3px; background:#e2e8f0; margin:8px 0; overflow:hidden; }
+  .sammel-balken > i { display:block; height:100%; background:#0284c7; }
+  .sammel-lauf ul { margin:8px 0 0; padding-left:18px; max-height:150px; overflow-y:auto; }
   .sammel-zeile { display:flex; align-items:center; gap:8px; padding:2px 0; }
   .sammel-zeile[data-zustand="hat_zertifikat"],
   .sammel-zeile[data-zustand="kein_smime"] { opacity:.55; }

@@ -93,10 +93,13 @@ def test_sammellauf_erkennt_den_mangel_am_betrag(monkeypatch):
     import asyncio, sammelbestellung as sb, ca_backends
 
     class _Backend:
+        def get_name(self):
+            return "hub:certum"
+
         async def initiate_renewal(self, email, cfg, extra=None):
             raise hub_client.GuthabenReichtNicht("Guthaben zu niedrig.", 1090, 1190, 100)
     monkeypatch.setattr(ca_backends, "get_backend", lambda pid: _Backend())
-    r = asyncio.run(sb._eine_bestellung("a@x.de", "certum"))
+    r = asyncio.run(sb._eine_bestellung("a@x.de", "hub:certum"))
     assert r["ok"] is False
     assert r["grund_kurz"] == "guthaben", "Lauf erkennt den Guthabenmangel nicht"
     assert r["fehlbetrag_cents"] == 1090
