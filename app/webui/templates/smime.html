@@ -560,10 +560,19 @@ function _hubOrderText(d) {
             (d.hinweis ? ': ' + esc(d.hinweis) : '.'), 'fehler'];
   if (d.status === 'unbekannt')
     return [esc(d.hinweis || 'Zustand derzeit nicht abfragbar.'), 'unklar'];
-  if (d.wartet_auf_nutzer)
+  if (d.wartet_auf_nutzer) {
+    // Der Knopf erspart das Suchen im Postfach — geklickt wird weiterhin von
+    // Hand. Fehlt der Link (Mail noch nicht da, Postfach nicht lesbar), bleibt
+    // der Hinweistext stehen: lieber keine Schaltfläche als eine ins Leere.
+    const knopf = d.bestaetigungslink
+      ? '<div style="margin-top:8px"><a class="btn secondary btn-sm" target="_blank" rel="noopener" ' +
+        'href="' + escAttr(d.bestaetigungslink) + '">↗ Bestätigungsseite öffnen</a></div>'
+      : '';
     return ['<strong>Wartet auf Bestätigung durch den Postfachinhaber.</strong><br>' +
             'Die Zertifizierungsstelle hat eine E-Mail an <strong>' + esc(d.email) + '</strong> geschickt. ' +
-            'Erst nach dem Klick darin wird ausgestellt — das dauert dann wenige Minuten.', 'wartet'];
+            'Erst nach dem Klick darin wird ausgestellt — das dauert dann wenige Minuten.' +
+            knopf, 'wartet'];
+  }
   return ['Bestellung läuft (Zustand: ' + esc(d.status) + ').', 'laeuft'];
 }
 
@@ -573,7 +582,17 @@ function _renderHubOrder(email, d) {
   if (!d || !d.aktiv) { el.style.display = 'none'; return; }
   d.email = email;
   const [text, zustand] = _hubOrderText(d);
-  const seit = d.seit ? ' · seit ' + esc(String(d.seit).slice(11, 16)) + ' Uhr' : '';
+  // ⚠️ Der Zeitstempel kommt in UTC. Zeichen herauszuschneiden ergab im Sommer
+  // eine um zwei Stunden zurückliegende Uhrzeit — als Datum geparst und lokal
+  // formatiert stimmt sie in jeder Zeitzone und über die Zeitumstellung hinweg.
+  let seit = '';
+  if (d.seit) {
+    const ts = new Date(d.seit);
+    if (!isNaN(ts)) {
+      seit = ' · seit ' + ts.toLocaleTimeString('de-DE',
+               {hour: '2-digit', minute: '2-digit'}) + ' Uhr';
+    }
+  }
   el.style.display = '';
   el.dataset.zustand = zustand;
   el.innerHTML = text + '<span style="opacity:.7">' + seit + '</span>';
