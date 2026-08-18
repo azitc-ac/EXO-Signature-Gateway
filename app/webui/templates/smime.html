@@ -112,7 +112,7 @@
           <strong style="font-size:14px">{{ u.email }}</strong>
           {% if has_certs %}
             <span style="font-size:11px;color:#888;background:#e2e8f0;border-radius:10px;padding:1px 7px;white-space:nowrap">
-              {{ u.certs|length }} Zertifikat{{ 's' if multi else '' }}
+              {{ u.certs|length }} Zertifikat{{ 'e' if multi else '' }}
             </span>
           {% else %}
             <span style="font-size:11px;color:#e67e22;background:#fef3e2;border-radius:10px;padding:1px 7px;white-space:nowrap">kein Zertifikat</span>
