@@ -185,6 +185,8 @@ EDITOR_DARF: dict[str, str] = {
     "/api/templates/{name}/duplicate":  "Vorlage kopieren",
     "/api/templates/{name}/rename":     "Vorlage umbenennen",
     "/api/usermails":                   "Liste der Nachrichten an Postfachinhaber",
+    "/api/smime/sammel/postfaecher":    ("Zustandsliste der Postfächer — reine "
+                                         "Anzeige, Grundlage jeder Auswahl"),
     "/api/smime/hub-order/{email}":     ("Zustand einer laufenden Bestellung — reine "
                                          "Anzeige, kein Eingriff; wer Zertifikate "
                                          "betreut, muss sehen, worauf gewartet wird"),

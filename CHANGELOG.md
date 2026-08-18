@@ -5,6 +5,27 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.216 — 2026-08-18 — Sammelbestellung: Vorschau
+
+Erster Teil der Zertifikatsbestellung für viele Postfächer auf einmal. Dieser
+Schritt bestellt noch nichts — er beantwortet, was ein Sammellauf bewirken
+würde, bevor Geld fliesst:
+
+* welche Postfächer überhaupt dran sind (wer bereits ein gültiges Zertifikat
+  hat oder für wen S/MIME nicht eingeschaltet ist, fällt heraus)
+* was der Lauf insgesamt kostet, brutto, gehalten gegen das vorhandene Guthaben
+* ob ein Monatskontingent die Menge begrenzt
+* welche Voraussetzungen fehlen — einmal genannt, nicht je Postfach
+
+Der Grund für die Reihenfolge: Die Deckung wird sonst je Bestellung geprüft, und
+jede Lücke löst eine eigene Aufladung mit eigener Grundgebühr aus. Ein
+Monatskontingent, das mitten im Lauf greift, hinterlässt ausserdem einen halb
+erledigten Stand.
+
+Abgelaufene oder unlesbare Zertifikate gelten dabei ausdrücklich **nicht** als
+Versorgung — sonst überginge ein Sammellauf genau die Postfächer, die ihn am
+dringendsten brauchen.
+
 ## v1.7.215 — 2026-08-18 — Bestätigung der Zertifizierungsstelle wahlweise automatisch
 
 Nach einer Bestellung schickt die Zertifizierungsstelle eine Bestätigungsmail an
