@@ -5,7 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
-## v1.7.212 — 2026-08-18 — Bestätigungsseite direkt aus der Oberfläche
+## v1.7.214 — 2026-08-18 — Ausgestelltes Zertifikat wird sofort eingespielt
+
+Meldete die Zertifizierungsstelle ein Zertifikat als ausgestellt, zeigte die
+Oberfläche „wird eingespielt" — und tat dann nichts. Eingespielt wurde es erst
+vom Hintergrundlauf, in Abständen von 15 Minuten. Wer gerade bestätigt hatte,
+wartete bis zu einer Viertelstunde auf etwas, das bereitlag.
+
+Die Anzeige holt es jetzt selbst ab, sobald sie den Zustand „ausgestellt" sieht.
+Der Hintergrundlauf bleibt als Auffangnetz, falls niemand die Seite offen hat.
+
+⚠️ Damit ist die zweite von zwei Wartestufen beseitigt. Die Betreiber-Seite holt
+das Zertifikat ihrerseits bei der Zertifizierungsstelle ab, ebenfalls in
+Abständen von 15 Minuten — bis zur Ausstellung kann es also weiterhin dauern.
+
+## v1.7.212–213 — 2026-08-18 — Bestätigungsseite direkt aus der Oberfläche
 
 Wartet eine Bestellung auf die Bestätigung durch den Postfachinhaber, erscheint
 jetzt ein Knopf, der die Bestätigungsseite der Zertifizierungsstelle öffnet.

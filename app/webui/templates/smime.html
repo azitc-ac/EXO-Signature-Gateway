@@ -606,7 +606,14 @@ async function _pollHubOrder(email, versuch) {
   } catch (e) { return; }
   _renderHubOrder(email, d);
   if (!d || !d.aktiv) { delete _hubTimer[email]; return; }
-  if (d.status === 'issued') { setTimeout(() => location.reload(), 3000); return; }
+  if (d.status === 'issued') {
+    // Nicht auf den Hintergrundlauf warten (bis zu 15 Minuten): Das Zertifikat
+    // liegt bereit, das Einspielen dauert Sekunden.
+    try { await fetch('/api/smime/hub-order/' + encodeURIComponent(email) + '/abholen',
+                      {method: 'POST'}); } catch (e) {}
+    setTimeout(() => location.reload(), 1500);
+    return;
+  }
   if (d.status === 'rejected') { delete _hubTimer[email]; return; }
   const abstand = _HUB_ABSTAENDE[Math.min(versuch, _HUB_ABSTAENDE.length - 1)];
   _hubTimer[email] = setTimeout(() => _pollHubOrder(email, versuch + 1), abstand);

@@ -805,6 +805,23 @@ async def api_smime_wartend_verwerfen(fingerabdruck: str, _=Depends(_require_adm
 _WARTET_AUF_BESTAETIGUNG = {"submitted", "pending", "waiting"}
 
 
+@router.post("/api/smime/hub-order/{email}/abholen")
+async def api_hub_order_abholen(email: str, user: str = Depends(_require_admin)):
+    """Ein bereitliegendes Zertifikat sofort einspielen.
+
+    ⚠️ Ohne diesen Weg zeigte die Oberfläche „ausgestellt — wird eingespielt"
+    und tat dann nichts: Eingespielt wird vom Hintergrundlauf, und der arbeitet
+    in Abständen von 15 Minuten. Wer gerade bestätigt hat, wartet also bis zu
+    einer Viertelstunde auf ein Zertifikat, das längst bereitliegt.
+
+    `poll_all()` ist idempotent — es holt genau die Vorgänge, die offen sind, und
+    entfernt sie danach. Ein zusätzlicher Aufruf schadet deshalb nicht.
+    """
+    import hub_orders
+    fertig = await hub_orders.poll_all()
+    return JSONResponse({"ok": True, "eingespielt": fertig})
+
+
 @router.get("/api/smime/hub-order/{email}")
 async def api_hub_order_status(email: str, user: str = Depends(_check_auth)):
     """Zustand der offenen Bestellung eines Postfachs — frisch beim Hub geholt.
