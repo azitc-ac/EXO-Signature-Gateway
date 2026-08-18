@@ -96,6 +96,12 @@ def test_sammellauf_erkennt_den_mangel_am_betrag(monkeypatch):
         def get_name(self):
             return "hub:certum"
 
+        def is_ready(self):
+            return True
+
+        def not_ready_reason(self):
+            return ""
+
         async def initiate_renewal(self, email, cfg, extra=None):
             raise hub_client.GuthabenReichtNicht("Guthaben zu niedrig.", 1090, 1190, 100)
     monkeypatch.setattr(ca_backends, "get_backend", lambda pid: _Backend())

@@ -38,7 +38,11 @@ def welt(monkeypatch):
         # ⚠️ Katalog-Kennung OHNE hub:-Präfix — so führt der Hub seine Anbieter.
         # Der Bezugsweg heisst "hub:certum", der Anbieter "certum". Solange der
         # Mock beides gleich behandelte, prüfte kein Test die Übersetzung.
-        "provider": {"id": "certum", "label": "Certum", "price_cents": 500},
+        # `available` gehört dazu: die Vorschau prüft seit v1.7.221, ob der
+        # Bezugsweg überhaupt einsatzbereit ist. Ein Katalogeintrag ohne dieses
+        # Feld gilt als nicht verfügbar — real wie im Test.
+        "provider": {"id": "certum", "label": "Certum", "price_cents": 500,
+                     "available": True},
     }
 
     import settings_store, smime_store, hub_catalog, hub_client
@@ -52,6 +56,7 @@ def welt(monkeypatch):
     async def _rechte():
         return stand["rechte"]
     monkeypatch.setattr(hub_client, "cert_eligibility", _rechte)
+    monkeypatch.setattr(hub_client, "cert_is_registered", lambda: True)
     return stand
 
 
@@ -145,7 +150,10 @@ def test_unbekannter_anbieter_nennt_keine_erfundenen_kosten(welt, monkeypatch):
     v = _vorschau(["a@x.de"])
     assert v["ok"] is False
     assert v["kosten_cents"] == 0
-    assert any("Katalog" in h for h in v["hindernisse"])
+    # Der Wortlaut kann sich ändern (seit die Bereitschaft des Bezugswegs zuerst
+    # geprüft wird, meldet der Hub-Stub „nicht verfügbar"). Die Sache bleibt:
+    # kein Start, kein erfundener Preis, und ein Grund steht da.
+    assert v["hindernisse"], "kein Grund genannt"
 
 
 def test_katalog_wird_vor_der_preisfrage_aufgefrischt(welt, monkeypatch):
@@ -188,6 +196,12 @@ def lauf(welt, monkeypatch):
     class _Backend:
         def get_name(self):
             return "hub:certum"
+
+        def is_ready(self):
+            return True
+
+        def not_ready_reason(self):
+            return ""
 
         async def initiate_renewal(self, email, cfg, extra=None):
             was = plan.get(email, "ok")
@@ -328,6 +342,12 @@ def startprobe(welt, monkeypatch):
         def get_name(self):
             return "hub:certum"
 
+        def is_ready(self):
+            return True
+
+        def not_ready_reason(self):
+            return ""
+
         async def initiate_renewal(self, email, cfg, extra=None):
             return True
     monkeypatch.setattr(ca_backends, "get_backend", lambda pid: _Backend())
@@ -436,9 +456,85 @@ def test_falscher_bezugsweg_bestellt_nicht_ueber_einen_anderen(startprobe, monke
     assert "unbekannt" in r["grund"]
 
 
-def test_vorschau_verlangt_einen_katalog_anbieter(startprobe):
-    """Ohne hub:-Praefix ist nicht bestimmbar, was das Zertifikat kostet."""
+def test_handbetrieb_ist_nicht_sammelfaehig(startprobe):
+    """`assisted_manual` verlangt je Postfach einen Schritt von Hand — ein
+    Sammellauf darüber erzeugt nur hundert offene Vorgänge."""
     import asyncio
     v = asyncio.run(sb.vorschau("assisted_manual", ["a@x.de"]))
     assert v["ok"] is False
-    assert "Anbieterkatalog" in v["hindernisse"][0]
+    assert "von Hand" in v["hindernisse"][0]
+    assert v["abrechnung"] is None
+
+
+# ── Bezugswege ohne Guthaben (CASTLE, DigiCert direkt) ───────────────────────
+"""
+CASTLE ist kostenlos und erneuert vollautomatisch — es gab nie einen Grund, es
+vom Sammellauf auszuschliessen. Das erste Kriterium („kommt aus dem Katalog")
+war schlicht falsch gewählt; richtig ist „kann ohne Zutun des Postfachinhabers
+bestellen".
+
+⚠️ Die drei Abrechnungsarten sind NICHT austauschbar. Ein Betrag von 0 heisst
+bei CASTLE „kostenlos" und bei DigiCert direkt „hier nicht bekannt" — wer das
+gleich behandelt, zeigt dem Betreiber eine Null, wo eine Rechnung von der
+Zertifizierungsstelle kommt.
+"""
+
+
+@pytest.fixture
+def bereit(welt, monkeypatch):
+    """Alle statischen Bezugswege als einsatzbereit ausweisen."""
+    import ca_backends
+
+    echt = ca_backends.get_backend
+
+    def _get(name):
+        b = echt(name)
+        monkeypatch.setattr(type(b), "is_ready", lambda self: True, raising=False)
+        return b
+    monkeypatch.setattr(ca_backends, "get_backend", _get)
+    return welt
+
+
+def test_castle_ist_sammelfaehig_und_kostenlos(bereit):
+    import asyncio
+    v = asyncio.run(sb.vorschau("castle_acme", ["a@x.de", "b@x.de"]))
+    assert v["ok"] is True
+    assert v["abrechnung"] == sb.KOSTENLOS
+    assert v["bestellbar"] == 2
+    assert v["kosten_cents"] == 0
+    assert v["kosten_bekannt"] is True
+    assert v["startbereit"] is True, "kostenlos, also nichts im Weg"
+
+
+def test_castle_startet_auch_ohne_guthaben(bereit):
+    """⚠️ Der eigentliche Punkt: Ein leeres Guthaben darf einen kostenlosen
+    Bezugsweg nicht blockieren."""
+    import asyncio
+    bereit["rechte"].update({"balance_cents": 0, "ok": False,
+                             "reason": "Kein Guthaben."})
+    v = asyncio.run(sb.vorschau("castle_acme_staging", ["a@x.de"]))
+    assert v["ok"] is True
+    assert v["startbereit"] is True
+    assert v["hindernisse"] == []
+    assert v["fehlbetrag_cents"] == 0
+
+
+def test_digicert_direkt_behauptet_keinen_preis(bereit):
+    """⚠️ „0,00 €" wäre hier keine fehlende Angabe, sondern eine falsche: Die
+    Rechnung kommt über den eigenen CertCentral-Vertrag."""
+    import asyncio
+    v = asyncio.run(sb.vorschau("digicert_direct", ["a@x.de"]))
+    assert v["ok"] is True
+    assert v["abrechnung"] == sb.FREMDVERTRAG
+    assert v["kosten_bekannt"] is False
+
+
+def test_nicht_eingerichteter_bezugsweg_startet_nicht(welt, monkeypatch):
+    """Ohne API-Schlüssel liefe ein DigiCert-Lauf los und scheiterte bei jedem
+    einzelnen Postfach."""
+    import asyncio, ca_backends
+    from ca_backends.digicert_direct import DigiCertDirectBackend
+    monkeypatch.setattr(DigiCertDirectBackend, "is_ready", lambda self: False)
+    v = asyncio.run(sb.vorschau("digicert_direct", ["a@x.de"]))
+    assert v["ok"] is False
+    assert "API-Key" in v["hindernisse"][0]

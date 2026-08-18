@@ -58,16 +58,18 @@
       <span class="muted" style="font-weight:400;font-size:12px">— Auswahl, Kosten, Bestellung</span>
     </summary>
     <div style="padding:0 16px 16px">
-      {# Nur über den Katalog bezogene Zertifizierungsstellen. Für die übrigen
-         Bezugswege (assistiert manuell, ACME) lässt sich weder ein Preis noch
-         eine Deckung bestimmen; sie standen bis 18.08.2026 mit in der Auswahl
-         und quittierten die Vorschau mit einer Meldung über den Katalog. #}
-      {% set sammel_backends = backends | selectattr('ready') | selectattr('hub') | list %}
+      {# Sammelfähig ist jeder Bezugsweg, der OHNE Zutun des Postfachinhabers
+         bestellen kann — CASTLE (kostenlos), die DigiCert-Direktanbindung und
+         die Anbieter aus dem Katalog. Draussen bleibt nur „assistiert manuell":
+         dort gehört zu jedem Postfach ein Schritt von Hand, ein Sammellauf
+         darüber erzeugte bloss hundert offene Vorgänge. #}
+      {% set sammel_backends = backends | selectattr('ready') | selectattr('auto') | list %}
       {% if not sammel_backends %}
       <div class="sammel-ergebnis" data-zustand="warnung" style="margin-bottom:4px">
-        Für eine Sammelbestellung wird eine über den Anbieterkatalog bezogene
-        Zertifizierungsstelle benötigt. Derzeit ist keine freigegeben — im Reiter
-        „Erweitert" die Anbindung herstellen und dort einen Anbieter auswählen.
+        Für eine Sammelbestellung wird ein Bezugsweg benötigt, der ohne Zutun der
+        Postfachinhaber bestellen kann — etwa die CASTLE Platform oder eine
+        Zertifizierungsstelle aus dem Anbieterkatalog. Derzeit ist keiner
+        einsatzbereit; im Reiter „Erweitert" einrichten.
       </div>
       {% else %}
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
@@ -805,9 +807,7 @@ async function sammelVorschau() {
     '<strong>' + d.bestellbar + (d.bestellbar === 1
         ? ' Zertifikat würde bestellt' : ' Zertifikate würden bestellt') + '</strong>' +
     (d.uebersprungen ? ' · ' + d.uebersprungen + ' übersprungen' : '') + '<br>' +
-    'Kosten: <strong>' + _eur(d.kosten_cents) + '</strong> brutto' +
-    ' · Guthaben: ' + _eur(d.guthaben_cents) +
-    (d.fehlbetrag_cents ? ' · <strong>es fehlen ' + _eur(d.fehlbetrag_cents) + '</strong>' : '') +
+    _sammelKosten(d) +
     (hind ? '<ul style="margin:8px 0 0;padding-left:18px">' + hind + '</ul>' : '') +
     (d.startbereit && d.bestellbar
        ? '<div style="margin-top:10px"><button class="btn primary btn-sm" ' +
@@ -823,19 +823,43 @@ let _sammelVorschau = null;
 
 function _eur(c) { return ((c || 0) / 100).toFixed(2).replace('.', ',') + ' €'; }
 
+// Die drei Abrechnungsarten sind nicht austauschbar: „0,00 €" heisst bei CASTLE
+// kostenlos und bei der DigiCert-Direktanbindung „hier nicht bekannt". Eine
+// Null, wo in Wahrheit eine Rechnung der Zertifizierungsstelle kommt, wäre eine
+// falsche Angabe — und eine falsche Zahl wird geglaubt.
+function _sammelKosten(d) {
+  if (d.abrechnung === 'kostenlos') {
+    return 'Kostenlos — dieser Bezugsweg wird nicht abgerechnet.';
+  }
+  if (d.abrechnung === 'fremd') {
+    return 'Abrechnung über den eigenen Vertrag mit der Zertifizierungsstelle — ' +
+           'der Betrag ist hier nicht bekannt.';
+  }
+  return 'Kosten: <strong>' + _eur(d.kosten_cents) + '</strong> brutto' +
+         ' · Guthaben: ' + _eur(d.guthaben_cents) +
+         (d.fehlbetrag_cents
+            ? ' · <strong>es fehlen ' + _eur(d.fehlbetrag_cents) + '</strong>' : '');
+}
+
 async function sammelStarten() {
   const d = _sammelVorschau;
   if (!d) return;
   // ⚠️ Rückfrage ist Pflicht, nicht Höflichkeit: Was bei der Zertifizierungs-
   // stelle liegt, lässt sich nicht zurückholen. Der Betrag steht deshalb IM
   // Dialog, nicht nur darüber auf der Seite.
-  let frage = d.bestellbar + ' Zertifikat' + (d.bestellbar === 1 ? '' : 'e') +
-              ' für ' + _eur(d.kosten_cents) + ' brutto bestellen?';
-  if (d.nachladung_cents) {
-    frage += '\n\nDafür werden ' + _eur(d.nachladung_cents) +
-             ' automatisch vom hinterlegten Zahlungsmittel eingezogen.';
+  const stueck = d.bestellbar + ' Zertifikat' + (d.bestellbar === 1 ? '' : 'e');
+  let frage;
+  if (d.abrechnung === 'kostenlos') {
+    frage = stueck + ' bestellen?\n\nDieser Bezugsweg ist kostenlos, es wird nichts abgebucht.';
+  } else if (d.abrechnung === 'fremd') {
+    frage = stueck + ' bestellen?\n\nDie Abrechnung läuft über den eigenen Vertrag mit ' +
+            'der Zertifizierungsstelle; der Betrag ist hier nicht bekannt.';
   } else {
-    frage += '\n\nDer Betrag wird vom Guthaben (' + _eur(d.guthaben_cents) + ') abgezogen.';
+    frage = stueck + ' für ' + _eur(d.kosten_cents) + ' brutto bestellen?';
+    frage += d.nachladung_cents
+      ? '\n\nDafür werden ' + _eur(d.nachladung_cents) +
+        ' automatisch vom hinterlegten Zahlungsmittel eingezogen.'
+      : '\n\nDer Betrag wird vom Guthaben (' + _eur(d.guthaben_cents) + ') abgezogen.';
   }
   frage += '\n\nBereits erteilte Bestellungen lassen sich nicht zurücknehmen.';
   if (!confirm(frage)) return;
