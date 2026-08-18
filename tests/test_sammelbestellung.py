@@ -35,6 +35,9 @@ def welt(monkeypatch):
                    "cert_price_cents": 1000, "vat_percent": 19,
                    "monthly_limit": 0, "used_this_month": 0,
                    "billing_mode": "prepaid"},
+        # ⚠️ Katalog-Kennung OHNE hub:-Präfix — so führt der Hub seine Anbieter.
+        # Der Bezugsweg heisst "hub:certum", der Anbieter "certum". Solange der
+        # Mock beides gleich behandelte, prüfte kein Test die Übersetzung.
         "provider": {"id": "certum", "label": "Certum", "price_cents": 500},
     }
 
@@ -43,7 +46,8 @@ def welt(monkeypatch):
                         lambda k: stand["mailboxes"] if k == "MAILBOX_CONFIG" else None)
     monkeypatch.setattr(smime_store, "list_user_certs",
                         lambda e: stand["certs"].get(e, []))
-    monkeypatch.setattr(hub_catalog, "get", lambda pid: stand["provider"])
+    monkeypatch.setattr(hub_catalog, "get",
+                        lambda pid: stand["provider"] if pid == stand["provider"]["id"] else None)
 
     async def _rechte():
         return stand["rechte"]
@@ -51,7 +55,7 @@ def welt(monkeypatch):
     return stand
 
 
-def _vorschau(adressen, provider="certum"):
+def _vorschau(adressen, provider="hub:certum"):
     import asyncio
     return asyncio.run(sb.vorschau(provider, adressen))
 
@@ -182,6 +186,9 @@ def lauf(welt, monkeypatch):
     plan = {}
 
     class _Backend:
+        def get_name(self):
+            return "hub:certum"
+
         async def initiate_renewal(self, email, cfg, extra=None):
             was = plan.get(email, "ok")
             if was == "ok":
@@ -200,7 +207,7 @@ def lauf(welt, monkeypatch):
 async def _durchlaufen(adressen, plan_start=True):
     import asyncio
     if plan_start:
-        await sb.lauf_starten("certum", adressen)
+        await sb.lauf_starten("hub:certum", adressen)
     for _ in range(40):
         await asyncio.sleep(0)
         z = sb.lauf_zustand()
@@ -250,9 +257,9 @@ def test_zweiter_lauf_wird_abgelehnt(lauf):
     import asyncio
 
     async def ablauf():
-        await sb.lauf_starten("certum", ["a@x.de"])
+        await sb.lauf_starten("hub:certum", ["a@x.de"])
         sb._lauf["status"] = sb.LAEUFT            # so tun, als liefe er noch
-        return await sb.lauf_starten("certum", ["b@x.de"])
+        return await sb.lauf_starten("hub:certum", ["b@x.de"])
 
     assert asyncio.run(ablauf())["ok"] is False
 
@@ -264,7 +271,7 @@ def test_abbruch_wirkt_nach_der_laufenden_bestellung(lauf):
     import asyncio
 
     async def ablauf():
-        await sb.lauf_starten("certum", ["a@x.de", "b@x.de", "c@x.de"])
+        await sb.lauf_starten("hub:certum", ["a@x.de", "b@x.de", "c@x.de"])
         sb.lauf_abbrechen()
         return await _durchlaufen([], plan_start=False)
 
@@ -318,6 +325,9 @@ def startprobe(welt, monkeypatch):
     import ca_backends, settings_store
 
     class _Backend:
+        def get_name(self):
+            return "hub:certum"
+
         async def initiate_renewal(self, email, cfg, extra=None):
             return True
     monkeypatch.setattr(ca_backends, "get_backend", lambda pid: _Backend())
@@ -328,7 +338,7 @@ def startprobe(welt, monkeypatch):
 
 def _starten(adressen):
     import asyncio
-    return asyncio.run(sb.lauf_starten("certum", adressen))
+    return asyncio.run(sb.lauf_starten("hub:certum", adressen))
 
 
 def test_ohne_deckung_und_ohne_automatik_startet_nichts(startprobe):
@@ -349,7 +359,7 @@ def test_mit_automatik_startet_er_und_nennt_den_betrag(startprobe):
     startprobe["rechte"].update({"balance_cents": 100, "auto_topup_aktiv": True,
                                  "auto_topup_schritt_cents": 2500,
                                  "min_topup_cents": 2500, "max_topup_cents": 100000})
-    v = asyncio.run(sb.vorschau("certum", ["a@x.de", "b@x.de"]))
+    v = asyncio.run(sb.vorschau("hub:certum", ["a@x.de", "b@x.de"]))
     assert v["startbereit"] is True
     assert v["nachladung_cents"] == 2500, "Nachladebetrag falsch oder fehlt"
     assert any("2500" in h.replace(",", "").replace(".", "") or "25,00" in h
@@ -381,3 +391,54 @@ def test_ohne_bestellbare_postfaecher_startet_nichts(startprobe):
     startprobe["certs"]["a@x.de"] = [{"expiry": "01.01.2030"}]
     r = _starten(["a@x.de"])
     assert r["ok"] is False
+
+
+def test_ohne_bestellbare_nennt_die_vorschau_den_grund(startprobe):
+    """⚠️ „Nicht startbereit" ohne Grund ist eine Sackgasse — der Betreiber sieht
+    eine Ablehnung und weiss nicht, was zu tun wäre."""
+    import asyncio
+    startprobe["certs"]["a@x.de"] = [{"expiry": "01.01.2030"}]
+    v = asyncio.run(sb.vorschau("hub:certum", ["a@x.de"]))
+    assert v["startbereit"] is False
+    assert v["hindernisse"], "kein Grund genannt"
+    assert "gültiges Zertifikat" in v["hindernisse"][0]
+
+    leer = asyncio.run(sb.vorschau("hub:certum", []))
+    assert leer["hindernisse"] == ["Keine Postfächer ausgewählt."]
+
+
+def test_grund_verdraengt_nicht_den_guthabenhinweis(startprobe):
+    """Beide Gründe können zugleich gelten; der Guthabenhinweis darf nicht
+    verschwinden, nur weil zusätzlich nichts bestellbar ist."""
+    import asyncio
+    startprobe["rechte"].update({"balance_cents": 0, "auto_topup_aktiv": False})
+    v = asyncio.run(sb.vorschau("hub:certum", ["a@x.de", "b@x.de"]))
+    assert any("fehlen" in h for h in v["hindernisse"]), v["hindernisse"]
+
+
+def test_falscher_bezugsweg_bestellt_nicht_ueber_einen_anderen(startprobe, monkeypatch):
+    """⚠️ ca_backends.get_backend() faellt bei unbekanntem Namen still auf
+    `assisted_manual` zurueck. Ohne Gegenprobe haette ein Sammellauf lautlos
+    ueber den falschen Bezugsweg bestellt — bei hundert Postfaechern hundertmal.
+    """
+    import asyncio, ca_backends
+
+    class _Falsch:
+        def get_name(self):
+            return "assisted_manual"          # NICHT das, wonach gefragt wurde
+
+        async def initiate_renewal(self, email, cfg, extra=None):
+            raise AssertionError("darf gar nicht erst bestellen")
+
+    monkeypatch.setattr(ca_backends, "get_backend", lambda pid: _Falsch())
+    r = asyncio.run(sb._eine_bestellung("a@x.de", "hub:certum"))
+    assert r["ok"] is False
+    assert "unbekannt" in r["grund"]
+
+
+def test_vorschau_verlangt_einen_katalog_anbieter(startprobe):
+    """Ohne hub:-Praefix ist nicht bestimmbar, was das Zertifikat kostet."""
+    import asyncio
+    v = asyncio.run(sb.vorschau("assisted_manual", ["a@x.de"]))
+    assert v["ok"] is False
+    assert "Anbieterkatalog" in v["hindernisse"][0]

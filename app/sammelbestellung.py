@@ -22,6 +22,9 @@ import logging
 log = logging.getLogger(__name__)
 
 # Zustände je Postfach. „bereit" ist der einzige, der bestellt würde.
+# Bezugswege des Katalogs tragen dieses Präfix (ca_backends.get_backend).
+HUB_PRAEFIX = "hub:"
+
 BEREIT = "bereit"
 HAT_ZERTIFIKAT = "hat_zertifikat"
 KEIN_SMIME = "kein_smime"
@@ -123,7 +126,20 @@ async def vorschau(provider_id: str, adressen: list[str]) -> dict:
     except Exception as exc:
         log.warning("Anbieterkatalog nicht auffrischbar: %s", exc)
 
-    prov = hub_catalog.get(provider_id)
+    # ⚠️ Die Oberfläche schickt den BEZUGSWEG ("hub:certum_test"), der Katalog
+    # führt die ANBIETER ("certum_test"). Beides sah lange gleich aus und ist es
+    # nicht. Ohne Präfix landet ca_backends.get_backend() zudem auf seinem
+    # stillen Rückfall `assisted_manual` — ein Sammellauf hätte dann lautlos den
+    # falschen Bezugsweg genommen. Deshalb wird hier ausdrücklich verlangt, was
+    # gemeint ist, statt es zu erraten.
+    if not provider_id.startswith(HUB_PRAEFIX):
+        return {"ok": False,
+                "hindernisse": ["Für eine Sammelbestellung wird eine über den "
+                                "Anbieterkatalog bezogene Zertifizierungsstelle "
+                                "benötigt."],
+                "postfaecher": [], "bestellbar": 0, "kosten_cents": 0}
+
+    prov = hub_catalog.get(provider_id[len(HUB_PRAEFIX):])
     if prov is None:
         return {"ok": False,
                 "hindernisse": [f"Anbieter {provider_id!r} ist im Katalog nicht "
@@ -170,6 +186,21 @@ async def vorschau(provider_id: str, adressen: list[str]) -> dict:
     nachladung = _nachladebetrag(fehlt, rechte) if (fehlt and automatik) else 0
 
     hindernisse = []
+    # ⚠️ „Nicht startbereit" ohne Grund ist eine Sackgasse: Der Betreiber sieht
+    # einen abgelehnten Start und keinen Hinweis, was zu tun wäre. Der Fall „gar
+    # nichts zu bestellen" erzeugte bisher kein Hindernis, weil er kein Fehler
+    # im engeren Sinn ist — für den, der davorsteht, aber schon.
+    if not tatsaechlich:
+        if not zeilen:
+            hindernisse.append("Keine Postfächer ausgewählt.")
+        elif gekappt:
+            hindernisse.append(
+                f"Monatskontingent erschöpft — {genutzt} von {limit} bereits genutzt.")
+        else:
+            hindernisse.append(
+                "Für keines der ausgewählten Postfächer ist eine Bestellung nötig: "
+                "sie haben bereits ein gültiges Zertifikat oder sind nicht für "
+                "S/MIME eingeschaltet.")
     if not rechte.get("ok"):
         hindernisse.append(rechte.get("reason") or rechte.get("error")
                            or "Zertifikatsbezug derzeit nicht möglich.")
@@ -329,8 +360,14 @@ async def _eine_bestellung(adresse: str, provider_id: str) -> dict:
 
     cfg = dict((settings_store.get("CA_USER_CONFIG") or {}).get(adresse) or {})
     backend = ca_backends.get_backend(provider_id)
-    if not backend:
-        return {"email": adresse, "ok": False, "grund": f"Bezugsweg {provider_id} unbekannt."}
+    # ⚠️ get_backend() liefert bei unbekanntem Namen NICHT None, sondern
+    # `assisted_manual` — ein stiller Rückfall, der hier eine Bestellung über den
+    # falschen Bezugsweg erzeugt hätte. Deshalb wird gegengeprüft, was man
+    # bekommen hat, statt nur auf None zu prüfen.
+    if not backend or backend.get_name() != provider_id:
+        return {"email": adresse, "ok": False,
+                "grund": f"Bezugsweg {provider_id} unbekannt — Lauf abgebrochen, "
+                         f"damit nichts über einen anderen Weg bestellt wird."}
     try:
         await backend.initiate_renewal(adresse, cfg)
         return {"email": adresse, "ok": True, "grund": ""}

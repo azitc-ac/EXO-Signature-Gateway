@@ -5,6 +5,39 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.220 — 2026-08-18 — Sammelbestellung: Start, Fortschritt, Rückfrage
+
+Der Sammelvorgang lässt sich jetzt aus der Oberfläche heraus starten und
+verfolgen. Vor dem Start erscheint eine Rückfrage, die beziffert, was bestellt
+wird und woher das Geld kommt — aus dem Guthaben oder per automatischer
+Aufladung vom hinterlegten Zahlungsmittel. Bei einer Massenbestellung ist das
+kein Schmuck: Erteilte Bestellungen lassen sich nicht zurücknehmen, und darauf
+weist die Rückfrage ausdrücklich hin.
+
+Während des Laufs zeigt eine Fortschrittsleiste, wie viele Postfächer erledigt
+sind, welche gescheitert sind und warum. Ein angehaltener Lauf lässt sich
+fortsetzen, ohne Erledigtes zu wiederholen. Der Fortschritt bleibt nach einem
+Seitenwechsel sichtbar — sonst wirkte ein weiterlaufender Vorgang verschwunden
+und würde ein zweites Mal gestartet.
+
+**Zur Auswahl stehen nur noch Zertifizierungsstellen aus dem Anbieterkatalog.**
+Für die übrigen Bezugswege — assistiert manuell, ACME — lässt sich weder ein
+Preis noch die Deckung bestimmen; sie standen bisher mit in der Liste und
+quittierten die Kostenvorschau mit einer Meldung über den Katalog. Ist kein
+Katalog-Anbieter freigegeben, sagt der Bereich das jetzt und verweist auf die
+Anbindung.
+
+**Ein Sammellauf hätte über den falschen Bezugsweg bestellen können.** Die
+Auswahl übergibt den Bezugsweg (`hub:certum`), der Katalog führt die Anbieter
+dagegen ohne dieses Präfix. Kam die Kennung ohne Präfix an, fiel die
+Bezugsweg-Auflösung still auf „assistiert manuell" zurück — statt eines Fehlers
+wäre der Lauf über einen anderen Weg gelaufen. Beide Stellen verlangen die
+Kennung jetzt ausdrücklich und prüfen gegen, was sie bekommen haben.
+
+Kleinere Korrekturen: Eine Vorschau ohne bestellbare Postfächer nennt jetzt den
+Grund, statt nur „nicht startbereit" zu melden. Das Protokoll vermerkt einen
+Sammellauf nur noch, wenn er tatsächlich gestartet ist.
+
 ## v1.7.219 — 2026-08-18 — Sammelbestellung: Kosten vor dem Start, nicht mittendrin
 
 Ein Sammelvorgang prüft die Deckung jetzt **vor** der ersten Bestellung. Reicht

@@ -950,8 +950,16 @@ async def api_sammel_start(request: Request, user: str = Depends(_require_admin)
         raise HTTPException(400, "Anbieter erforderlich.")
     ergebnis = await sammelbestellung.lauf_starten(
         anbieter, data.get("postfaecher") or [], actor=user)
-    log.info("Sammellauf gestartet von %s: %s Postfächer über %s",
-             user, len(data.get("postfaecher") or []), anbieter)
+    # ⚠️ Nur bei Erfolg als Start protokollieren. Seit der Deckungsprüfung kann
+    # lauf_starten() ablehnen; die Zeile stand vorher unbedingt da und hätte im
+    # Protokoll Sammelläufe ausgewiesen, die nie stattgefunden haben —
+    # ausgerechnet dort, wo man später nachsieht, wer was bestellt hat.
+    if ergebnis.get("ok"):
+        log.info("Sammellauf gestartet von %s: %s Postfächer über %s",
+                 user, len(data.get("postfaecher") or []), anbieter)
+    else:
+        log.info("Sammellauf von %s abgelehnt (%s): %s",
+                 user, anbieter, ergebnis.get("error"))
     return JSONResponse(ergebnis, status_code=200 if ergebnis.get("ok") else 409)
 
 
