@@ -273,6 +273,19 @@
               {% endif %}
             </div>
           </div>
+          <!-- Bestätigung selbst auslösen. Opt-in und nie Vorgabe: Was hier
+               entfällt, ist die Absicht der Zertifizierungsstelle, dass ein
+               Mensch zustimmt. Das Gateway weist dieselbe Postfachkontrolle
+               nach — mehr belegt auch der Klick eines Menschen nicht. -->
+          <div class="settings-row" style="margin-bottom:12px">
+            <label class="checkbox-label" style="font-size:13px"
+                   title="Das Gateway liest die Bestätigungsmail im Postfach und löst die Bestätigung selbst aus. Ohne diesen Schalter muss der Postfachinhaber klicken.">
+              <input type="checkbox" class="lc-autoconfirm" data-email="{{ u.email }}"
+                     {% if ca_cfg.get('auto_confirm') %}checked{% endif %}>
+              Bestätigung der Zertifizierungsstelle automatisch erteilen
+              <span style="font-size:11px;color:#6b7280;margin-left:6px">(sonst klickt der Postfachinhaber)</span>
+            </label>
+          </div>
           <div class="settings-row" style="margin-bottom:12px">
             <label class="checkbox-label" style="font-size:13px">
               <input type="checkbox" class="lc-notify" data-email="{{ u.email }}"
@@ -543,6 +556,7 @@ async function _fetchAcmeStatus(email) {
 // Rückmeldung ist das unbrauchbar, wenn jemand gerade eben bestätigt hat.
 const _HUB_ABSTAENDE = [5000, 10000, 20000, 30000, 60000];
 const _hubTimer = {};
+const _hubConfirmed = {};   // je Postfach nur einmal bestätigen
 
 function _hubOrderEl(email) {
   return document.getElementById('hub-order-' + email.replace(/[@.]/g, '_'));
@@ -606,6 +620,15 @@ async function _pollHubOrder(email, versuch) {
   } catch (e) { return; }
   _renderHubOrder(email, d);
   if (!d || !d.aktiv) { delete _hubTimer[email]; return; }
+  // Automatik: EINMAL je Wartezustand auslösen, nicht bei jedem Nachfassen —
+  // sonst ruft eine offene Seite im Minutentakt bei der Zertifizierungsstelle
+  // an. Bewusst hier und nicht in der Textfunktion: Diese erzeugt Anzeige,
+  // keine Wirkung nach aussen.
+  if (d.wartet_auf_nutzer && d.auto_confirm && d.bestaetigungslink && !_hubConfirmed[email]) {
+    _hubConfirmed[email] = true;
+    fetch('/api/smime/hub-order/' + encodeURIComponent(email) + '/bestaetigen',
+          {method: 'POST'}).catch(function () {});
+  }
   if (d.status === 'issued') {
     // Nicht auf den Hintergrundlauf warten (bis zu 15 Minuten): Das Zertifikat
     // liegt bereit, das Einspielen dauert Sekunden.
@@ -719,6 +742,8 @@ async function saveCaConfig(email) {
   const notify  = document.querySelector(`.lc-notify[data-email="${CSS.escape(email)}"]`).checked;
   const autoRenewEl = document.querySelector(`.lc-auto-renew[data-email="${CSS.escape(email)}"]`);
   const auto_renew = autoRenewEl ? autoRenewEl.checked : false;
+  const acEl = document.querySelector(`.lc-autoconfirm[data-email="${CSS.escape(email)}"]`);
+  const auto_confirm = acEl ? acEl.checked : false;
   // `staging` wird NICHT mehr mitgeschickt: Die Testumgebung ist ein eigener
   // Bezugsweg. Ein hier mitgesendetes `false` würde das Flag bei Altbeständen
   // löschen, bevor die Umstellung beim nächsten Start greifen kann.
@@ -726,7 +751,7 @@ async function saveCaConfig(email) {
   const resp = await fetch('/api/smime/ca-config/' + encodeURIComponent(email), {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({backend, portal_url: portal, notify_user: notify, auto_renew}),
+    body: JSON.stringify({backend, portal_url: portal, notify_user: notify, auto_renew, auto_confirm}),
   });
   showAlert(result, resp.ok ? 'success' : 'error',
     resp.ok ? 'Lifecycle-Einstellungen gespeichert.' : 'Fehler beim Speichern.');

@@ -384,6 +384,11 @@ async def api_ca_config_save(email: str, request: Request, user: str = Depends(_
         # `migriere_staging_flag()` ihn überführen konnte.
         "staging": (bool(data["staging"]) if "staging" in data
                     else bool(bisher.get("staging", False))),
+        # Bestätigung der Zertifizierungsstelle selbst auslösen. Opt-in, nie
+        # Vorgabe: Was hier entfällt, ist die Absicht der Stelle, dass ein
+        # Mensch zustimmt. Wie oben nur überschreiben, wenn mitgeschickt.
+        "auto_confirm": (bool(data["auto_confirm"]) if "auto_confirm" in data
+                         else bool(bisher.get("auto_confirm", False))),
     }
     settings_store.update({"CA_USER_CONFIG": cfg})
     return JSONResponse({"ok": True})
@@ -805,6 +810,38 @@ async def api_smime_wartend_verwerfen(fingerabdruck: str, _=Depends(_require_adm
 _WARTET_AUF_BESTAETIGUNG = {"submitted", "pending", "waiting"}
 
 
+@router.post("/api/smime/hub-order/{email}/bestaetigen")
+async def api_hub_order_bestaetigen(email: str, user: str = Depends(_require_admin)):
+    """Die Bestätigung bei der Zertifizierungsstelle selbst auslösen.
+
+    Getrennt von der Statusabfrage, obwohl beide denselben Link brauchen: Die
+    Abfrage ist eine Anzeige und läuft alle paar Sekunden; dies hier greift nach
+    aussen und darf nicht als Nebenwirkung eines Blicks passieren.
+    """
+    import hub_orders, hub_client, ca_bestaetigung, settings_store as _st
+
+    adresse = (email or "").strip().lower()
+    cfg = (_st.get("CA_USER_CONFIG") or {}).get(adresse) or {}
+    if not cfg.get("auto_confirm"):
+        raise HTTPException(400, "Automatische Bestätigung ist für dieses Postfach nicht eingeschaltet.")
+
+    offen = [m for m in hub_orders.list_pending()
+             if (m.get("email") or "").lower() == adresse]
+    if not offen:
+        return JSONResponse({"ok": True, "aktiv": False})
+    meta = sorted(offen, key=lambda m: m.get("created") or "")[-1]
+
+    res = await hub_client.cert_get_order(meta["order_id"])
+    link = await hub_orders.bestaetigungslink(adresse, res.get("ref", ""),
+                                              meta.get("created", ""))
+    if not link:
+        return JSONResponse({"ok": False, "message": "Keine Bestätigungsmail gefunden."})
+
+    ok, meldung = await ca_bestaetigung.bestaetigen(link)
+    log.info("Automatische Bestätigung für %s durch %s: %s", adresse, user, meldung)
+    return JSONResponse({"ok": ok, "message": meldung})
+
+
 @router.post("/api/smime/hub-order/{email}/abholen")
 async def api_hub_order_abholen(email: str, user: str = Depends(_require_admin)):
     """Ein bereitliegendes Zertifikat sofort einspielen.
@@ -869,5 +906,7 @@ async def api_hub_order_status(email: str, user: str = Depends(_check_auth)):
         "seit": meta.get("created", ""),
         "wartet_auf_nutzer": wartet,
         "bestaetigungslink": link,
+        "auto_confirm": bool(((settings_store.get("CA_USER_CONFIG") or {})
+                              .get(adresse) or {}).get("auto_confirm")),
         "hinweis": res.get("note", "") if status == "rejected" else "",
     })
