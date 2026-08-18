@@ -5,6 +5,31 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.219 — 2026-08-18 — Sammelbestellung: Kosten vor dem Start, nicht mittendrin
+
+Ein Sammelvorgang prüft die Deckung jetzt **vor** der ersten Bestellung. Reicht
+das Guthaben nicht und ist die automatische Aufladung ausgeschaltet, startet er
+gar nicht erst und nennt den Fehlbetrag. Bisher lief er los und hielt bei der
+ersten unbezahlbaren Bestellung an — bei hundert Postfächern konnten so fünf
+Bestellungen entstehen, die niemand geplant hatte, und ein halber Stand, der
+sortiert werden will.
+
+Ist die automatische Aufladung eingeschaltet, steht in der Vorschau, welcher
+Betrag dafür eingezogen wird — nicht nur, dass etwas eingezogen wird. Der Betrag
+wird nach denselben Regeln berechnet wie die Aufladung selbst (Schrittweite,
+Mindestbetrag, Höchstgrenze), damit Ankündigung und Abbuchung übereinstimmen.
+
+**Guthabenmangel wurde als Anbindungsfehler gemeldet.** Lehnt die
+Betreiber-Gegenstelle eine Bestellung mangels Guthaben ab, antwortet sie mit
+HTTP 403. Diese Antwort wurde zusammen mit der Ablehnung wegen ungültigen
+Zugangs verarbeitet und erschien als „Nicht freigegeben/ungültiger Key" — die
+Suche begann damit an der falschen Stelle, während lediglich Geld fehlte. Der
+mitgelieferte Fehlbetrag ging dabei ebenfalls verloren, weshalb die Erkennung im
+Sammelvorgang ins Leere lief. Beides ist behoben; die Einzelbestellung meldet
+diesen Fall jetzt als Zahlungsanforderung statt als Serverfehler.
+
+Zu tun ist nichts.
+
 ## v1.7.218 — 2026-08-18 — Sammelbestellung: der Lauf
 
 Der ausgewählte Sammelvorgang lässt sich jetzt starten. Er arbeitet im

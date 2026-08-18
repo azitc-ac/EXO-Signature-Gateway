@@ -84,6 +84,12 @@ veranlassen.</p>
         result = await hub_client.cert_order(email, csr_pem.decode(), {}, provider=provider_id,
                                              ca_terms_accepted_at=ca_terms_accepted_at)
         if not result.get("ok"):
+            if result.get("grund") == "guthaben":
+                raise hub_client.GuthabenReichtNicht(
+                    result.get("error") or "Guthaben reicht nicht.",
+                    result.get("fehlbetrag_cents", 0),
+                    result.get("benoetigt_cents", 0),
+                    result.get("guthaben_cents", 0))
             raise RuntimeError(f"Hub-Bestellung fehlgeschlagen: {result.get('error')}")
 
         # Synchron ausgestellt (API-Erfüllung ohne Wartezeit) → direkt importieren

@@ -72,6 +72,34 @@ def postfaecher() -> list[dict]:
     return sorted(aus, key=lambda p: p["email"])
 
 
+def _nachladebetrag(fehlt: int, rechte: dict) -> int:
+    """Was die automatische Aufladung ziehen würde — dieselbe Rechnung wie dort.
+
+    Bewusst nachgebildet und nicht geschätzt: Ein Betrag, den wir ankündigen und
+    der dann abweicht, ist schlimmer als gar keine Ankündigung.
+    """
+    schritt = max(int(rechte.get("auto_topup_schritt_cents") or 0),
+                  int(rechte.get("min_topup_cents") or 0))
+    if schritt <= 0 or fehlt <= 0:
+        return 0
+    mal = -(-fehlt // schritt)                   # aufrunden
+    hoechst = int(rechte.get("max_topup_cents") or 0)
+    betrag = schritt * mal
+    return min(betrag, hoechst) if hoechst else betrag
+
+
+def hindernisse_blockieren(rechte: dict, fehlt: int, automatik: bool) -> bool:
+    """Steht dem Start etwas ENTGEGEN? Ein angekündigter Nachladebetrag nicht.
+
+    Die Unterscheidung ist der Kern: „Es werden 25 € eingezogen" ist eine
+    Ankündigung, die bestätigt werden will — kein Hindernis. „Es fehlen 25 €"
+    ohne Automatik ist eines.
+    """
+    if not rechte.get("ok"):
+        return True
+    return bool(fehlt) and not automatik
+
+
 async def vorschau(provider_id: str, adressen: list[str]) -> dict:
     """Was ein Sammellauf kosten und bewirken würde. Bestellt nichts.
 
@@ -134,6 +162,13 @@ async def vorschau(provider_id: str, adressen: list[str]) -> dict:
     guthaben = int(rechte.get("balance_cents") or 0)
     rechnungskunde = rechte.get("billing_mode") == "invoice"
 
+    # Was die automatische Aufladung ziehen würde. ⚠️ Bei einer Massenoperation
+    # ist eine unangekündigte Abbuchung der teuerste Überraschungsmoment — der
+    # Betrag gehört VOR den Start, nicht auf den Kontoauszug.
+    fehlt = max(0, kosten - guthaben) if not rechnungskunde else 0
+    automatik = bool(rechte.get("auto_topup_aktiv"))
+    nachladung = _nachladebetrag(fehlt, rechte) if (fehlt and automatik) else 0
+
     hindernisse = []
     if not rechte.get("ok"):
         hindernisse.append(rechte.get("reason") or rechte.get("error")
@@ -142,11 +177,16 @@ async def vorschau(provider_id: str, adressen: list[str]) -> dict:
         hindernisse.append(
             f"Monatskontingent reicht für {frei} von {len(bestellbar)} Bestellungen "
             f"({genutzt} von {limit} bereits genutzt).")
-    if not rechnungskunde and kosten > guthaben:
-        fehlt = kosten - guthaben
+    if fehlt and automatik:
+        hindernisse.append(
+            f"Guthaben deckt den Lauf nicht ({guthaben/100:.2f} € von "
+            f"{kosten/100:.2f} €). Die automatische Aufladung zieht dafür "
+            f"{nachladung/100:.2f} € von Ihrem Zahlungsmittel ein.")
+    elif fehlt:
         hindernisse.append(
             f"Guthaben deckt den Lauf nicht: {guthaben/100:.2f} € vorhanden, "
-            f"{kosten/100:.2f} € nötig — es fehlen {fehlt/100:.2f} €.")
+            f"{kosten/100:.2f} € nötig — es fehlen {fehlt/100:.2f} €. "
+            f"Bitte vor dem Start aufladen.")
 
     return {
         "ok": True,
@@ -158,7 +198,12 @@ async def vorschau(provider_id: str, adressen: list[str]) -> dict:
         "uebersprungen": len(zeilen) - tatsaechlich,
         "kosten_cents": kosten,
         "guthaben_cents": guthaben,
-        "fehlbetrag_cents": max(0, kosten - guthaben) if not rechnungskunde else 0,
+        "fehlbetrag_cents": fehlt,
+        "automatik_aktiv": automatik,
+        "nachladung_cents": nachladung,
+        # Startbereit heisst: gedeckt, oder die Automatik schliesst die Lücke.
+        "startbereit": bool(tatsaechlich) and not hindernisse_blockieren(
+            rechte, fehlt, automatik),
         "kontingent_frei": frei,
         "hindernisse": hindernisse,
     }
@@ -207,6 +252,19 @@ async def lauf_starten(provider_id: str, adressen: list[str], actor: str = "") -
 
     if _lauf and _lauf["status"] in (LAEUFT, PAUSIERT):
         return {"ok": False, "error": "Es läuft bereits ein Sammelvorgang."}
+
+    # ⚠️ Deckung VOR dem Start prüfen, nicht erst bei der ersten Bestellung.
+    # Ohne das startet ein Lauf über hundert Postfächer, bestellt fünf und bleibt
+    # dann stehen — mit fünf Bestellungen, die niemand geplant hat. Die Vorschau
+    # sagt dasselbe, aber zwischen ihr und dem Start kann Zeit vergehen.
+    pruefung = await vorschau(provider_id, adressen)
+    if not pruefung.get("ok"):
+        return {"ok": False, "error": " ".join(pruefung.get("hindernisse") or
+                                               ["Vorschau nicht möglich."])}
+    if not pruefung.get("startbereit"):
+        return {"ok": False, "error": " ".join(pruefung.get("hindernisse") or
+                                               ["Der Lauf ist nicht startbereit."]),
+                "fehlbetrag_cents": pruefung.get("fehlbetrag_cents", 0)}
 
     offen = [a.strip().lower() for a in (adressen or []) if a and a.strip()]
     _lauf = {
