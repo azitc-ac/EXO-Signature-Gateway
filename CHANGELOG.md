@@ -21,6 +21,11 @@ führen — Bilder und Fusszeilen der Mail zeigen ebenfalls auf deren Domäne.
 Geklickt wird weiterhin von Hand. Fehlt der Link, bleibt der Hinweistext ohne
 Schaltfläche stehen: lieber keine als eine, die ins Leere führt.
 
+Die Suche beginnt bewusst einige Minuten vor dem Zeitpunkt der Bestellung. Die
+Zertifizierungsstelle verschickt die Bestätigungsmail, sobald sie die Bestellung
+annimmt — der eigene Zeitstempel entsteht erst danach. Die Mail ist damit
+regelmässig ein paar Sekunden älter als der Vorgang, zu dem sie gehört.
+
 Ausserdem: Die Zeitangabe der laufenden Bestellung zeigte die Uhrzeit in UTC
 statt in der Zeitzone des Betrachters.
 

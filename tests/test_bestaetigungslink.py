@@ -104,3 +104,24 @@ def test_bilder_und_fusszeilen_sind_keine_bestaetigungsadresse(postfach):
 def test_ohne_passende_mail_bleibt_es_leer(postfach):
     postfach["mails"] = [_mail("Ganz andere Nachricht")]
     assert _hole() == ""
+
+
+# ── Zeitfenster ──────────────────────────────────────────────────────────────
+
+def test_suche_beginnt_vor_dem_bestellzeitpunkt():
+    """⚠️ Live aufgetreten: Die Mail war ÄLTER als der Vorgang, zu dem sie
+    gehört. Die Zertifizierungsstelle verschickt sie beim Annehmen der
+    Bestellung; der lokale Zeitstempel entsteht erst nach Antwort und Speichern
+    (23:51:1x gegen 23:51:25). Ein Filter ab dem Bestellzeitpunkt findet sie nie.
+    """
+    filt = hub_orders._zeitfilter("2026-08-17T23:51:25.892073+00:00")
+    assert "23:36:25" in filt, f"kein Vorlauf im Filter: {filt}"
+
+
+def test_ohne_zeitangabe_kein_filter():
+    assert hub_orders._zeitfilter("") == ""
+
+
+def test_unlesbare_zeitangabe_filtert_nicht_statt_zu_scheitern():
+    """Lieber alle 25 Nachrichten durchsehen als gar nicht suchen."""
+    assert hub_orders._zeitfilter("kein Datum") == ""
