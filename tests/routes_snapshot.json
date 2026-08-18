@@ -1197,6 +1197,20 @@
     "name": "api_renewal_token_generate"
   },
   {
+    "pfad": "/api/smime/sammel/postfaecher",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_sammel_postfaecher"
+  },
+  {
+    "pfad": "/api/smime/sammel/vorschau",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_sammel_vorschau"
+  },
+  {
     "pfad": "/api/smime/set-default/{cert_email}/{slot_id}",
     "methoden": [
       "POST"

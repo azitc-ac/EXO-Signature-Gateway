@@ -910,3 +910,27 @@ async def api_hub_order_status(email: str, user: str = Depends(_check_auth)):
                               .get(adresse) or {}).get("auto_confirm")),
         "hinweis": res.get("note", "") if status == "rejected" else "",
     })
+
+
+# ── Sammelbestellung: Vorschau ───────────────────────────────────────────────
+
+@router.get("/api/smime/sammel/postfaecher")
+async def api_sammel_postfaecher(user: str = Depends(_check_auth)):
+    """Alle Postfächer mit ihrem Zustand — Grundlage für die Auswahl."""
+    import sammelbestellung
+    return JSONResponse({"ok": True, "postfaecher": sammelbestellung.postfaecher()})
+
+
+@router.post("/api/smime/sammel/vorschau")
+async def api_sammel_vorschau(request: Request, user: str = Depends(_require_admin)):
+    """Was ein Sammellauf kosten und bewirken würde — ohne etwas zu bestellen.
+
+    Lesend, aber bewusst POST: Die Auswahl kann hundert Adressen umfassen, und
+    die gehören in den Rumpf, nicht in die Adresszeile.
+    """
+    import sammelbestellung
+    data = await request.json()
+    anbieter = (data.get("anbieter") or "").strip()
+    if not anbieter:
+        raise HTTPException(400, "Anbieter erforderlich.")
+    return JSONResponse(await sammelbestellung.vorschau(anbieter, data.get("postfaecher") or []))
