@@ -169,3 +169,74 @@ def _notify_rejected(email: str, provider: str, note: str) -> None:
         notification.send_hub_cert_rejected(email, provider, note)
     except Exception as exc:
         log.warning("hub_orders: Benachrichtigung (rejected) fehlgeschlagen: %s", exc)
+
+
+# ── Bestätigungslink aus dem Postfach ────────────────────────────────────────
+
+_CA_ABSENDER = ("certum.pl", "certum.eu", "swisssign", "sectigo", "digicert")
+
+
+async def bestaetigungslink(email: str, ref: str, seit: str = "") -> str:
+    """Adresse aus der Bestätigungsmail der Zertifizierungsstelle — oder "".
+
+    Warum überhaupt: Nach einer Bestellung schickt die CA eine Mail an das
+    Postfach; erst der Klick darin löst die Ausstellung aus. Wer die Anlage
+    betreut, sitzt aber nicht zwangsläufig an diesem Postfach — er sah bisher
+    nur, dass nichts passiert.
+
+    Die Mail wird über die **Referenz der Zertifizierungsstelle** gefunden, die
+    im Betreff steht. „Die neueste Mail der CA" zu nehmen wäre bei zwei
+    Bestellungen kurz hintereinander die falsche — genau das lag am 18.08.2026
+    im Postfach.
+
+    Rein lesend. Der Klick bleibt beim Menschen; diese Funktion sucht nur die
+    Adresse heraus.
+    """
+    import httpx as _httpx
+    import graph_client
+
+    ref = (ref or "").strip()
+    if not ref:
+        return ""
+    token = await graph_client._acquire_token_async()
+    if not token:
+        return ""
+
+    zeitfilter = ""
+    if seit:
+        try:
+            zeitfilter = ("&$filter=receivedDateTime ge "
+                          + datetime.fromisoformat(seit).strftime("%Y-%m-%dT%H:%M:%SZ"))
+        except Exception:
+            pass
+    url = (f"https://graph.microsoft.com/v1.0/users/{email}"
+           f"/mailFolders/inbox/messages"
+           f"?$select=subject,from,body&$top=25"
+           f"&$orderby=receivedDateTime desc{zeitfilter}")
+    try:
+        async with _httpx.AsyncClient(timeout=20) as c:
+            r = await c.get(url, headers={"Authorization": f"Bearer {token}"})
+        if r.status_code != 200:
+            log.warning("hub_orders: Postfach %s nicht lesbar (HTTP %s)", email, r.status_code)
+            return ""
+        nachrichten = r.json().get("value", [])
+    except Exception as exc:
+        log.warning("hub_orders: Postfach %s nicht lesbar: %s", email, exc)
+        return ""
+
+    import html as _html
+    import re as _re
+    for m in nachrichten:
+        if ref not in (m.get("subject") or ""):
+            continue
+        absender = ((m.get("from") or {}).get("emailAddress") or {}).get("address", "").lower()
+        if not any(a in absender for a in _CA_ABSENDER):
+            continue
+        koerper = _html.unescape((m.get("body") or {}).get("content", ""))
+        # Nur Adressen mit Kennung: Bilder und Fusszeilen der Mail führen
+        # ebenfalls auf die CA-Domäne, taugen aber nicht zur Bestätigung.
+        treffer = [l for l in _re.findall(r'https://[^"\'<>\s]+', koerper)
+                   if "erification" in l and len(l) > 60]
+        if treffer:
+            return treffer[0]
+    return ""

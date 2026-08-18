@@ -5,6 +5,25 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.212 — 2026-08-18 — Bestätigungsseite direkt aus der Oberfläche
+
+Wartet eine Bestellung auf die Bestätigung durch den Postfachinhaber, erscheint
+jetzt ein Knopf, der die Bestätigungsseite der Zertifizierungsstelle öffnet.
+Bisher musste man die Mail im Postfach suchen — und wer die Anlage betreut,
+sitzt nicht zwangsläufig an diesem Postfach.
+
+Die richtige Mail wird über die Referenz der Zertifizierungsstelle gefunden, die
+im Betreff steht; „die neueste Mail" wäre bei zwei Bestellungen kurz
+hintereinander die falsche. Berücksichtigt werden nur Nachrichten der
+Zertifizierungsstelle selbst, und nur Adressen, die tatsächlich zur Bestätigung
+führen — Bilder und Fusszeilen der Mail zeigen ebenfalls auf deren Domäne.
+
+Geklickt wird weiterhin von Hand. Fehlt der Link, bleibt der Hinweistext ohne
+Schaltfläche stehen: lieber keine als eine, die ins Leere führt.
+
+Ausserdem: Die Zeitangabe der laufenden Bestellung zeigte die Uhrzeit in UTC
+statt in der Zeitzone des Betrachters.
+
 ## v1.7.211 — 2026-08-18 — Laufende Zertifikatsbestellung ist sichtbar
 
 Nach einer Bestellung war der Zustand in der Oberfläche unsichtbar. Wer bestellt

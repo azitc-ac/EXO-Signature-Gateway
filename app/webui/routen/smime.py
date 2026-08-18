@@ -833,10 +833,24 @@ async def api_hub_order_status(email: str, user: str = Depends(_check_auth)):
                              "hinweis": "Der Betreiber-Hub ist gerade nicht erreichbar."})
 
     status = (res.get("status") or "unbekannt") if res.get("ok") else "unbekannt"
+    wartet = status in _WARTET_AUF_BESTAETIGUNG
+
+    # Nur im Wartefall im Postfach nachsehen: Ein Abruf je Nachfassen wäre
+    # sonst reine Last, und in allen anderen Zuständen gibt es keine Mail, auf
+    # die es sich zu klicken lohnte.
+    link = ""
+    if wartet:
+        try:
+            link = await hub_orders.bestaetigungslink(
+                adresse, res.get("ref", ""), meta.get("created", ""))
+        except Exception as exc:
+            log.warning("Bestätigungslink für %s nicht ermittelbar: %s", adresse, exc)
+
     return JSONResponse({
         "ok": True, "aktiv": True, "status": status,
         "anbieter": meta.get("provider", ""),
         "seit": meta.get("created", ""),
-        "wartet_auf_nutzer": status in _WARTET_AUF_BESTAETIGUNG,
+        "wartet_auf_nutzer": wartet,
+        "bestaetigungslink": link,
         "hinweis": res.get("note", "") if status == "rejected" else "",
     })
