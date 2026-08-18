@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.217 — 2026-08-18 — Sammelbestellung: Auswahl in der Oberfläche
+
+Auf der S/MIME-Seite lassen sich jetzt mehrere Postfächer auf einmal auswählen —
+mit Filter, „Alle sichtbaren" und „Keine". Vorbelegt sind ausschliesslich
+Postfächer, die tatsächlich ein Zertifikat brauchen; bereits versorgte und
+solche ohne S/MIME erscheinen abgeblendet und bleiben unmarkiert, damit ein
+unbedachter Klick auf „Alle" keine überflüssigen Bestellungen auslöst.
+
+Die Schaltfläche „Vorschau anzeigen" beantwortet, was der Lauf kosten und
+bewirken würde. Bestellt wird in diesem Stand noch nicht.
+
+Wer „dran" ist, entscheidet dabei der Server, nicht die Oberfläche — sonst gäbe
+die Anzeige beim nächsten Umbau eine andere Antwort als der eigentliche Lauf.
+
 ## v1.7.216 — 2026-08-18 — Sammelbestellung: Vorschau
 
 Erster Teil der Zertifikatsbestellung für viele Postfächer auf einmal. Dieser

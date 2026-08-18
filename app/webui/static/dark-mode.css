@@ -560,3 +560,11 @@
 [data-theme="dark"] .hub-order[data-zustand="ok"]     { background:#0f2018; border-color:#14532d; color:#86efac; }
 [data-theme="dark"] .hub-order[data-zustand="fehler"] { background:#241416; border-color:#7f1d1d; color:#fca5a5; }
 [data-theme="dark"] .hub-order[data-zustand="unklar"] { background:#241d10; border-color:#78350f; color:#fcd34d; }
+
+/* Sammelbestellung: Ergebnis der Kostenvorschau. Zustand als data-Attribut,
+   weil JS-gesetzte Farben zu rgb() normalisiert würden und die Selektoren
+   dieser Datei dann nicht mehr greifen. Vorbild: .hub-order[data-zustand]. */
+[data-theme="dark"] .sammel-ergebnis                        { background:#111c2e; border-color:#1e3a5f; color:#93c5fd; }
+[data-theme="dark"] .sammel-ergebnis[data-zustand="warnung"] { background:#241d10; border-color:#78350f; color:#fcd34d; }
+[data-theme="dark"] .sammel-ergebnis[data-zustand="bereit"]  { background:#0f2018; border-color:#14532d; color:#86efac; }
+[data-theme="dark"] #sammel-liste                            { border-color:#2a2d3e; }
