@@ -132,7 +132,7 @@
   </div>
 
   <div class="actions" style="margin-top:4px">
-    <button class="btn secondary" onclick="saveSignatur()">Speichern</button>
+    <button class="btn secondary" id="signatur-btn" data-wache="fallback,loop-header,sent-items,skip-duplicate-sig,skip-sig-in-thread,strip-client-sigs,sig-strip-pct,sig-image-mode,nosig-trigger,sign-internal-only" onclick="saveSignatur()">Speichern</button>
     <span id="signatur-result" style="font-size:12px;margin-left:8px"></span>
   </div>
 
@@ -185,7 +185,7 @@
             <div style="margin-top:5px;display:flex;align-items:center;gap:6px">
               <input type="url" id="website-url" value="{{ s.WEBSITE_URL or '' }}" placeholder="https://www.beispiel.de"
                 style="font-size:12px;padding:3px 8px;border:1px solid #d1d5db;border-radius:4px;width:280px">
-              <button class="btn secondary btn-sm" onclick="saveWebsiteField()">Speichern</button>
+              <button class="btn secondary btn-sm" id="website-btn" data-wache-hinweis="website-field-result" data-wache="website-url" onclick="saveWebsiteField()">Speichern</button>
               <span id="website-field-result" style="font-size:11px"></span>
             </div>
           </td>
@@ -236,26 +236,10 @@ function _toggleAdv(id, show) {
   });
 }
 
-async function savePartial(payload, resultElId) {
-  var el = resultElId ? document.getElementById(resultElId) : null;
-  try {
-    var resp = await fetch('/settings', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(payload),
-    });
-    if (el) {
-      el.textContent = resp.ok ? '✓ Gespeichert' : '✗ Fehler';
-      el.style.color = resp.ok ? '#16a34a' : '#dc2626';
-      setTimeout(function() { el.textContent = ''; }, 3000);
-    }
-  } catch(e) {
-    if (el) { el.textContent = '✗ Netzwerkfehler' + ursache(e, 'settings_signature:252'); el.style.color = '#dc2626'; }
-  }
-}
+// savePartial() steht in common.js — eine Fassung fuer alle Seiten.
 
-function saveSignatur() {
-  savePartial({
+async function saveSignatur() {
+  const _ok = await savePartial({
     FALLBACK_ON_ERROR: document.getElementById('fallback').checked,
     LOOP_HEADER: (document.getElementById('loop-header').value || '').trim() || 'X-Sig-Applied',
     SENT_ITEMS_UPDATE: document.getElementById('sent-items').checked,
@@ -267,6 +251,7 @@ function saveSignatur() {
     NOSIG_TRIGGER: (document.getElementById('nosig-trigger').value || '').trim() || '#nosig',
     SIGN_INTERNAL_ONLY_MAIL: document.getElementById('sign-internal-only').checked,
   }, 'signatur-result');
+  wacheFertig('signatur-btn', _ok);
 }
 
 function toggleSigStripConfig(enabled) {
@@ -418,12 +403,11 @@ function saveOverrides() {
   savePartial({ USER_OVERRIDES: overrides, USER_WEBSITES: websites }, 'overrides-result');
 }
 
-function saveWebsiteField() {
+async function saveWebsiteField() {
   const url = document.getElementById('website-url').value.trim();
-  const res = document.getElementById('website-field-result');
-  savePartial({ WEBSITE_URL: url }, null);
-  res.textContent = '✓ gespeichert'; res.style.color = '#16a34a';
-  setTimeout(() => res.textContent = '', 2000);
+  // Die Meldung kommt aus der Speicherwache (dasselbe Feld, data-wache-hinweis).
+  // Vorher stand hier „gespeichert" unbedingt — auch wenn der Server ablehnte.
+  wacheFertig('website-btn', await savePartial({ WEBSITE_URL: url }, null));
 }
 
 _initAdv('sig');

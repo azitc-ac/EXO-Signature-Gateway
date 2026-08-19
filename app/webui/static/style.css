@@ -880,3 +880,26 @@ input[type="password"]:focus { outline: none; border-color: #0078d4; }
 .legal-view      { white-space: pre-wrap; color: #334155; }
 .legal-view.md   { white-space: normal; }
 .legal-view.md p { margin: 0 0 10px; }
+
+/* ── Ungespeicherte Änderungen (common.js: speicherWache) ────────────────────
+   Farben ausschliesslich hier und über data-zustand — in JS gesetzte Farben
+   normalisiert der Browser zu rgb(), und dark-mode.css greift dann nicht mehr.
+
+   Bewusst kein Rot fuer „offen": Rot heisst in dieser Oberflaeche Fehler, und
+   eine noch nicht gespeicherte Eingabe ist kein Fehler, sondern eine offene
+   Handlung. Bernstein ist die Farbe fuer „da liegt noch etwas an". */
+.speicher-hinweis {
+  font-size: 12px;
+  margin-left: 8px;
+  white-space: nowrap;
+}
+.speicher-hinweis[data-zustand="offen"]  { color: #b45309; font-weight: 600; }
+.speicher-hinweis[data-zustand="fertig"] { color: #166534; }
+.speicher-hinweis[data-zustand="fehler"] { color: #dc2626; }
+
+/* Ein ausgegrauter Speichern-Knopf ist eine Aussage: es gibt nichts zu sichern.
+   Deshalb deutlich sichtbar abgesetzt, nicht nur eine Nuance blasser. */
+.btn:disabled {
+  opacity: .45;
+  cursor: default;
+}

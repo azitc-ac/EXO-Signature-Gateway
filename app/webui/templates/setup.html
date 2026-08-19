@@ -2345,23 +2345,7 @@ sudo systemctl status exo-gateway-updater --no-pager</code></pre>
   </div>
 </div>
 <script>
-async function savePartial(payload, resultElId) {
-  var el = resultElId ? document.getElementById(resultElId) : null;
-  try {
-    var resp = await fetch('/settings', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(payload),
-    });
-    if (el) {
-      el.textContent = resp.ok ? '✓ Gespeichert' : '✗ Fehler';
-      el.style.color = resp.ok ? '#16a34a' : '#dc2626';
-      setTimeout(function() { el.textContent = ''; }, 3000);
-    }
-  } catch(e) {
-    if (el) { el.textContent = '✗ Netzwerkfehler' + ursache(e, 'setup:2359'); el.style.color = '#dc2626'; }
-  }
-}
+// savePartial() steht in common.js — eine Fassung fuer alle Seiten.
 
 function toggleAddinSetup(enabled) {
   document.getElementById('addin-setup').style.display = enabled ? '' : 'none';

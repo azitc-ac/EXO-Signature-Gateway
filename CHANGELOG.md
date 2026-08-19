@@ -5,6 +5,40 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.225 — 2026-08-19 — Speichern: erkennbar, ob und wo
+
+Auf den Einstellungsseiten war nicht zu erkennen, ob eine Änderung noch
+gesichert werden muss. Manche Felder wirkten sofort, andere verlangten einen
+Knopfdruck — beide sahen gleich aus. Wer den Knopf übersah, verlor seine
+Eingabe beim nächsten Seitenwechsel.
+
+**Speichern-Knöpfe sind jetzt gesperrt, solange nichts geändert wurde.** Sobald
+etwas geändert ist, werden sie bedienbar, und daneben steht „noch nicht
+gespeichert". Nach dem Sichern erscheint kurz „gespeichert". Ein ausgegrauter
+Knopf ist damit eine Aussage: Es gibt nichts zu sichern. Wer die Seite mit
+offenen Änderungen verlässt, wird vom Browser gefragt.
+
+Betrifft die Einstellungen zu Benachrichtigungen, Zugangsdaten, Signatur,
+Website-Feld, S/MIME, automatischer Zertifikatsbestellung, Gateway-Name,
+gemischten Empfängern, SMTP-Freigabeliste, Protokollierung und Let's Encrypt.
+
+**Die Meldung „gespeichert" erschien bisher auch dann, wenn der Server die
+Änderung abgelehnt hatte.** Die dafür zuständige Funktion gab es in vier
+Fassungen; drei davon werteten die Antwort nicht aus. Jetzt gibt es eine
+gemeinsame Fassung, die den Erfolg zurückmeldet.
+
+**Der Konfigurationsimport fragt nach.** Bisher genügte die Auswahl der Datei:
+Der Import lief sofort und ersetzte alle Einstellungen. Die Wiederherstellung
+einer Sicherung direkt daneben fragte seit jeher nach — ausgerechnet der
+folgenreichere Vorgang tat es nicht.
+
+**Beide Wege zum Speichern prüfen jetzt gleich streng.** Einer der beiden
+allgemeinen Endpunkte übernahm bisher jeden übergebenen Schlüssel, auch
+unbekannte; sie blieben dauerhaft in der Konfigurationsdatei stehen. Unbekannte
+Schlüssel werden nun verworfen und protokolliert.
+
+Zu tun ist nichts.
+
 ## v1.7.224 — 2026-08-19 — Unvollständige Anbieterliste, Bedienung nachgebessert
 
 **In Auswahlfeldern fehlten Zertifizierungsstellen.** Der Anbieterkatalog liegt

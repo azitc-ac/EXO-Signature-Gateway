@@ -573,3 +573,8 @@
 [data-theme="dark"] .sammel-lauf[data-zustand="FERTIG"]      { background:#0f2018; border-color:#14532d; color:#86efac; }
 [data-theme="dark"] .sammel-lauf[data-zustand="ABGEBROCHEN"] { background:#1a1d29; border-color:#2a2d3e; color:#94a3b8; }
 [data-theme="dark"] .sammel-balken                           { background:#2a2d3e; }
+
+/* Ungespeicherte Änderungen (common.js: speicherWache) */
+[data-theme="dark"] .speicher-hinweis[data-zustand="offen"]  { color: #fcd34d; }
+[data-theme="dark"] .speicher-hinweis[data-zustand="fertig"] { color: #86efac; }
+[data-theme="dark"] .speicher-hinweis[data-zustand="fehler"] { color: #fca5a5; }
