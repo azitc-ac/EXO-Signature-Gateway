@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.227 — 2026-08-20 — Oberflächen-Tests
+
+Die Prüfungen dieses Projekts lesen bislang Quelltext. Für die Oberfläche
+genügt das nicht: Ob ein Ankreuzfeld neben seiner Beschriftung steht, ob ein
+Knopf sichtbar ist, ob eine Zeilenbegrenzung greift, entscheidet sich erst aus
+HTML, CSS und JavaScript zusammen.
+
+Neu sind daher Tests, die einen Browser fernsteuern. Sie prüfen unter anderem
+die Darstellung auf schmalen Anzeigen mit vergrößerter Schrift, das Kürzen
+langer Erklärtexte samt Wirkung des Schalters, die Speicheranzeige und die
+Menüpunkte je Rolle. Jeder dieser Punkte steht für einen Fehler, der zuvor
+aufgetreten ist.
+
+Am Produkt ändert sich nichts.
+
 ## v1.7.226 — 2026-08-19 — Der Speichern-Knopf kommt zum Benutzer
 
 Zwischen einem geänderten Feld und dem zugehörigen Knopf lagen auf einem
