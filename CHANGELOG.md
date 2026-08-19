@@ -5,6 +5,47 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.222 — 2026-08-19 — Der Signatur-Editor darf nur noch Signaturen
+
+Die Rolle „Signatur-Editor" war für die Pflege von Vorlagen gedacht, reichte
+aber weiter: Sie konnte die vollständige Postfachübersicht abrufen (samt
+S/MIME- und Zustellzustand), die Zuordnung Vorlage→Postfach lesen, den Zustand
+laufender Zertifikatsbestellungen einsehen und Testmails mit frei wählbarem
+Absender und Empfänger verschicken. Nichts davon war entschieden — es war
+gewachsen, weil die schwächere Absicherung beim Schreiben eines Endpunkts der
+kürzere Weg ist.
+
+Ab dieser Fassung gilt: **Signaturen lesen und schreiben, Vorlagen erstellen
+und bearbeiten — sonst nichts.** Dazu gehören weiterhin die Nachrichten an
+Postfachinhaber, denn das sind technisch dieselben Vorlagen.
+
+Entzogen wurden im Einzelnen:
+
+| Bereich | bisher | jetzt |
+|---|---|---|
+| Postfachübersicht mit Betriebsdaten | Editor | Verwaltung |
+| Zuordnung Vorlage → Postfach (lesen) | Editor | Verwaltung |
+| Zustand von Zertifikatsbestellungen | Editor | Verwaltung |
+| Testmail verschicken | Editor | Verwaltung |
+
+Damit die Vorschau weiter funktioniert, gibt es eine eigene, schlanke Auskunft,
+die ausschliesslich Adresse und Anzeigename der Postfächer liefert — das
+Auswahlfeld braucht nicht mehr, und die Betriebssicht bleibt der Verwaltung
+vorbehalten.
+
+**Was zu tun ist:** Wer die Rolle vergeben hat, sollte wissen, dass diese
+Personen die genannten Ansichten nicht mehr erreichen. Für Aufgaben, die
+darüber hinausgehen, ist die Verwaltungsrolle nötig. An den Vorlagen selbst
+ändert sich nichts.
+
+**Die selbsterzeugte Schnittstellenbeschreibung ist abgeschaltet.** Unter
+`/docs`, `/redoc` und `/openapi.json` lieferte die Anwendung ohne Anmeldung
+eine vollständige Liste aller 229 Endpunkte samt Parametern aus — die
+Voreinstellung des verwendeten Rahmenwerks, nie eine Entscheidung. Die
+Oberfläche benutzt sie nirgends. Für ein Gateway, das aus dem Internet
+erreichbar ist, ist eine öffentliche Landkarte der eigenen Angriffsfläche keine
+sinnvolle Beigabe. Zu tun ist nichts.
+
 ## v1.7.221 — 2026-08-19 — Sammelbestellung: CASTLE und DigiCert direkt
 
 Die Sammelbestellung stand nur für Zertifizierungsstellen aus dem Anbieterkatalog

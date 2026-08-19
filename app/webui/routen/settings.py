@@ -40,7 +40,7 @@ router = APIRouter()
 
 
 @router.get("/api/settings/template-policies")
-async def api_get_template_policies(_=Depends(_check_auth)):
+async def api_get_template_policies(_=Depends(_require_admin)):
     return JSONResponse(settings_store.get("TEMPLATE_POLICIES") or {"sig": "default"})
 
 

@@ -864,7 +864,7 @@ async def api_hub_order_abholen(email: str, user: str = Depends(_require_admin))
 
 
 @router.get("/api/smime/hub-order/{email}")
-async def api_hub_order_status(email: str, user: str = Depends(_check_auth)):
+async def api_hub_order_status(email: str, user: str = Depends(_require_admin)):
     """Zustand der offenen Bestellung eines Postfachs — frisch beim Hub geholt.
 
     Bewusst live abgefragt statt aus dem lokalen Datensatz beantwortet: Der
@@ -919,7 +919,7 @@ async def api_hub_order_status(email: str, user: str = Depends(_check_auth)):
 # ── Sammelbestellung: Vorschau ───────────────────────────────────────────────
 
 @router.get("/api/smime/sammel/postfaecher")
-async def api_sammel_postfaecher(user: str = Depends(_check_auth)):
+async def api_sammel_postfaecher(user: str = Depends(_require_admin)):
     """Alle Postfächer mit ihrem Zustand — Grundlage für die Auswahl."""
     import sammelbestellung
     return JSONResponse({"ok": True, "postfaecher": sammelbestellung.postfaecher()})
@@ -964,7 +964,7 @@ async def api_sammel_start(request: Request, user: str = Depends(_require_admin)
 
 
 @router.get("/api/smime/sammel/lauf")
-async def api_sammel_lauf(user: str = Depends(_check_auth)):
+async def api_sammel_lauf(user: str = Depends(_require_admin)):
     """Zustand des laufenden oder zuletzt beendeten Sammelvorgangs."""
     import sammelbestellung
     zustand = sammelbestellung.lauf_zustand()

@@ -1301,7 +1301,10 @@ window.refreshPreview = async function() {
 // ── Load mailboxes for preview select ────────────────────────────────────────
 async function loadMailboxes() {
   try {
-    const r = await fetch('/api/mailboxes');
+    // Schlanke Liste (nur Adresse + Name): Der Signatur-Editor braucht keine
+    // Betriebssicht auf die Postfächer, und /api/mailboxes ist deshalb der
+    // Verwaltung vorbehalten.
+    const r = await fetch('/api/mailboxes/namen');
     const d = await r.json();
     const sel = document.getElementById('preview-email-sel');
     const adressen = [];

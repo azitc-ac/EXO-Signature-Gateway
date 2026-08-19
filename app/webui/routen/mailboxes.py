@@ -41,7 +41,7 @@ router = APIRouter()
 
 
 @router.get("/api/mailboxes")
-async def api_get_mailboxes(_=Depends(_check_auth)):
+async def api_get_mailboxes(_=Depends(_require_admin)):
     """List all EXO mailboxes + their current MAILBOX_CONFIG + cached health status."""
     import asyncio
     import exo_mailboxes
@@ -103,6 +103,24 @@ async def api_get_mailboxes(_=Depends(_check_auth)):
             })
     result.sort(key=lambda r: (r.get("name") or r["email"]).lower())
     return {"mailboxes": result}
+
+
+@router.get("/api/mailboxes/namen")
+async def api_mailbox_namen(_=Depends(_check_auth)):
+    """Nur Adresse und Anzeigename — für das Postfach-Auswahlfeld im Signatur-Editor.
+
+    Bewusst getrennt von `/api/mailboxes`: Jenes liefert die vollständige
+    Konfiguration samt S/MIME-Zustand, Zustellzustand und Buchungsdaten und ist
+    deshalb der Verwaltung vorbehalten. Der Signatur-Editor braucht davon nichts
+    ausser einer Liste von Namen, um eine Vorschau zu zeigen — ihm dafür die
+    ganze Betriebssicht zu geben, wäre eine Rechteausweitung aus Bequemlichkeit.
+    """
+    import asyncio
+    import exo_mailboxes
+    raw = await asyncio.to_thread(exo_mailboxes.list_mailboxes)
+    return JSONResponse({"mailboxes": [
+        {"email": m["primary"], "name": m.get("display_name") or m["primary"]}
+        for m in raw if m.get("primary")]})
 
 
 @router.get("/api/mailboxes/migrate/preview")
