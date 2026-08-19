@@ -5,6 +5,32 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.223 — 2026-08-19 — Zertifikat automatisch bestellen beim Aktivieren
+
+Neu unter Einstellungen → S/MIME: **Zertifikat automatisch bestellen**, sobald
+ein Postfach für S/MIME eingeschaltet wird, mit Auswahl der Zertifizierungs-
+stelle. Zur Wahl stehen dieselben Bezugswege wie beim Sammelvorgang — alle, die
+ohne Zutun des Postfachinhabers bestellen können. Vorgabe ist „aus".
+
+Ein Postfach, das bereits ein gültiges Zertifikat hat, löst nichts aus; Deckung
+und Monatskontingent werden vorher geprüft wie bei jedem Sammelvorgang.
+
+**Die Postfachseite fragt vor dem Speichern nach**, wenn dadurch eine
+Bestellung entsteht — mit Anzahl, Betrag und Angabe, ob vom Guthaben abgebucht
+oder automatisch nachgeladen wird. Ohne diese Rückfrage wäre das Einschalten von
+S/MIME für fünfzig Postfächer eine unangekündigte Abbuchung über fünfzig
+Zertifikate. Erteilte Bestellungen lassen sich nicht zurücknehmen; darauf weist
+die Rückfrage hin.
+
+Ausgelöst wird ausschliesslich der **Übergang** „war aus → ist an". Erneutes
+Speichern derselben Einstellung bestellt nichts. Ebenso lösen das Umschlüsseln
+der Postfachzuordnung und das Zurückspielen einer Sicherung nichts aus — beim
+Rückspielen wäre sonst für den gesamten Bestand erneut bestellt worden.
+
+Schlägt die Bestellung fehl oder unterbleibt sie (etwa mangels Guthabens), wird
+das gemeldet; die Postfacheinstellungen sind davon unberührt und bleiben
+gespeichert.
+
 ## v1.7.222 — 2026-08-19 — Der Signatur-Editor darf nur noch Signaturen
 
 Die Rolle „Signatur-Editor" war für die Pflege von Vorlagen gedacht, reichte

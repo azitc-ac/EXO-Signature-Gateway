@@ -52,6 +52,11 @@ DEFAULTS: dict = {
     "LICENSE_KEY": "",                    # Fair-Use-Lizenz (EXOSIG1.…, Ed25519-signiert, Tenant-gebunden)
     "CATALOG_PROVIDERS_DISABLED": [],     # Hub-Anbieter-IDs, die der GW-Betreiber lokal ausblendet
     "SMIME_SIGNING_ENABLED": True,    # Automatically sign outbound mails when a cert exists
+    # Zertifikat bestellen, sobald ein Postfach für S/MIME eingeschaltet wird.
+    # ⚠️ Kann Geld kosten: Der Bezugsweg entscheidet. Die Postfachseite fragt
+    # deshalb vor dem Speichern nach, wenn dadurch eine Abbuchung entstünde.
+    "SMIME_AUTO_ENROLL": False,
+    "SMIME_AUTO_ENROLL_CA": "",       # Bezugsweg, z.B. "castle_acme" oder "hub:certum"
     "NOSIG_TRIGGER": "#nosig",        # Keyword in subject → suppress HTML auto-signature for this mail
     "NODIGSIG_TRIGGER": "#nodigsig",  # Keyword in subject → suppress S/MIME (digital) signature for this mail
     "SIGN_INTERNAL_ONLY_MAIL": False,  # False (default) = skip signing when EVERY recipient is a known

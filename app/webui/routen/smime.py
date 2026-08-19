@@ -940,6 +940,46 @@ async def api_sammel_vorschau(request: Request, user: str = Depends(_require_adm
     return JSONResponse(await sammelbestellung.vorschau(anbieter, data.get("postfaecher") or []))
 
 
+@router.post("/api/smime/auto-enroll/vorschau")
+async def api_auto_enroll_vorschau(request: Request, user: str = Depends(_require_admin)):
+    """Was löst das Einschalten von S/MIME für diese Postfächer aus?
+
+    Die Postfachseite fragt das VOR dem Speichern. ⚠️ Ohne diese Auskunft wäre
+    das automatische Bestellen genau die stille Abbuchung, die beim
+    Sammelvorgang mit einer Rückfrage abgewendet wurde: Wer S/MIME für fünfzig
+    Postfächer einschaltet, löst sonst unangekündigt eine Bestellung über
+    fünfzig Zertifikate aus.
+
+    Die Entscheidung liegt bewusst hier und nicht im Browser — dort ist weder
+    der eingestellte Bezugsweg bekannt noch der Preis, und beides nachzubilden
+    hiesse, es doppelt zu pflegen.
+    """
+    import sammelbestellung
+    data = await request.json()
+    adressen = [a for a in (data.get("adressen") or []) if a]
+    if not adressen:
+        return JSONResponse({"aktiv": False, "grund": "keine neu eingeschalteten Postfächer"})
+    if not settings_store.get("SMIME_AUTO_ENROLL"):
+        return JSONResponse({"aktiv": False, "grund": "automatische Bestellung ist ausgeschaltet"})
+    weg = (settings_store.get("SMIME_AUTO_ENROLL_CA") or "").strip()
+    if not weg:
+        return JSONResponse({"aktiv": False, "grund": "kein Bezugsweg gewählt"})
+
+    v = await sammelbestellung.vorschau(weg, adressen)
+    return JSONResponse({
+        "aktiv": True, "bezugsweg": weg,
+        "bestellbar": v.get("bestellbar", 0),
+        "kosten_cents": v.get("kosten_cents", 0),
+        "nachladung_cents": v.get("nachladung_cents", 0),
+        "guthaben_cents": v.get("guthaben_cents", 0),
+        "abrechnung": v.get("abrechnung"),
+        "kosten_bekannt": v.get("kosten_bekannt", True),
+        "startbereit": v.get("startbereit", False),
+        "hindernisse": v.get("hindernisse", []),
+        "anbieter": (v.get("anbieter") or {}).get("label", weg),
+    })
+
+
 @router.post("/api/smime/sammel/start")
 async def api_sammel_start(request: Request, user: str = Depends(_require_admin)):
     """Sammellauf starten. Läuft im Hintergrund weiter, auch wenn die Seite zugeht."""

@@ -158,9 +158,15 @@ async def settings_signature_page(request: Request, user: str = Depends(_require
 
 @router.get("/settings/smime", response_class=HTMLResponse)
 async def settings_smime_page(request: Request, user: str = Depends(_require_admin)):
+    # Für die automatische Bestellung: nur Bezugswege, die ohne Zutun des
+    # Postfachinhabers bestellen können — dieselbe Bedingung wie beim
+    # Sammelvorgang, damit die Auswahl nicht auseinanderläuft.
+    import ca_backends
+    wege = [b for b in ca_backends.list_backends() if b.get("ready") and b.get("auto")]
     return templates.TemplateResponse(
         request=request, name="settings_smime.html",
         context={
+            "enroll_wege": wege,
             "s": settings_store.public_view(),
             "active": "settings-smime",
             "saved": request.query_params.get("saved"),

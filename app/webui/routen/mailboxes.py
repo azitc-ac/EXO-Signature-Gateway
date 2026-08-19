@@ -169,6 +169,71 @@ async def api_mailbox_migrate_apply(user: str = Depends(_require_admin)):
                          "orphans": plan["orphans"]})
 
 
+def _adressen_mit_smime(config_map: dict) -> set[str]:
+    """Alle Adressen, für die S/MIME eingeschaltet ist.
+
+    Über die Adressen und nicht über die Schlüssel: Die Konfiguration ist an der
+    ExchangeGuid verankert, und dieselbe Guid kann nach einer Umbenennung eine
+    andere Adresse tragen. Verglichen wird, was ein Zertifikat bekäme.
+    """
+    aus = set()
+    for _key, v in (config_map or {}).items():
+        if isinstance(v, dict) and v.get("smime"):
+            adresse = (v.get("primary") or "").strip().lower()
+            if adresse:
+                aus.add(adresse)
+    return aus
+
+
+async def _auto_enrollment_anstossen(adressen: list[str]) -> dict:
+    """Für frisch eingeschaltete Postfächer ein Zertifikat bestellen.
+
+    Bewusst über `sammelbestellung`: Dort hängen Deckungsprüfung, Kontingent,
+    Zustand je Postfach und das Anhalten bei Guthabenmangel bereits zusammen.
+    Ein zweiter, eigener Bestellweg hätte dieselben Fragen erneut beantworten
+    müssen — und wäre beim nächsten Umbau ausgeschert.
+
+    Ein Fehlschlag darf das Speichern NICHT kippen: Die Postfächer sind
+    eingerichtet, das ist der eigentliche Vorgang. Die Bestellung ist die
+    Zugabe, und ihr Ergebnis geht als Auskunft zurück an die Oberfläche.
+
+    ⚠️ NUR dieser Weg löst aus. MAILBOX_CONFIG wird an zwei weiteren Stellen
+    geschrieben, und beide dürfen ausdrücklich NICHTS bestellen:
+
+      /api/mailboxes/migrate/apply   schlüsselt die Einträge auf ExchangeGuid
+                                     um — dieselben Postfächer, andere Schlüssel
+      /api/config/import             spielt eine Sicherung zurück
+
+    Besonders der Import: Dort ist S/MIME für alle bereits eingerichteten
+    Postfächer „neu an", weil vorher nichts dastand. Löste er aus, bestellte
+    eine Wiederherstellung für den gesamten Bestand erneut — bei einem
+    kostenpflichtigen Bezugsweg wäre das ein teurer Klick. Wer hier etwas
+    ergänzt, prüfe zuerst, ob er ein Einschalten vor sich hat oder nur ein
+    Umschreiben.
+    """
+    if not adressen:
+        return {"ausgeloest": False, "grund": "keine neu eingeschalteten Postfächer"}
+    if not settings_store.get("SMIME_AUTO_ENROLL"):
+        return {"ausgeloest": False, "grund": "automatische Bestellung ist ausgeschaltet"}
+    weg = (settings_store.get("SMIME_AUTO_ENROLL_CA") or "").strip()
+    if not weg:
+        return {"ausgeloest": False, "grund": "kein Bezugsweg gewählt"}
+    try:
+        import sammelbestellung
+        ergebnis = await sammelbestellung.lauf_starten(weg, adressen, actor="auto-enrollment")
+        if not ergebnis.get("ok"):
+            log.warning("Automatische Bestellung für %s nicht gestartet: %s",
+                        ", ".join(adressen), ergebnis.get("error"))
+            return {"ausgeloest": False, "grund": ergebnis.get("error", ""),
+                    "adressen": adressen}
+        log.info("Automatische Bestellung gestartet: %s über %s", ", ".join(adressen), weg)
+        return {"ausgeloest": True, "anzahl": len(adressen), "bezugsweg": weg,
+                "adressen": adressen}
+    except Exception as exc:
+        log.error("Automatische Bestellung fehlgeschlagen: %s", exc)
+        return {"ausgeloest": False, "grund": str(exc)[:200], "adressen": adressen}
+
+
 @router.post("/api/mailboxes/save")
 async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
     """Save MAILBOX_CONFIG (ExchangeGuid-anchored) and update the EXO Distribution
@@ -180,7 +245,14 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
     resolve it (nothing lost)."""
     import asyncio
     import exo_mailboxes
+    import mailbox_match
     mailboxes = body.get("mailboxes", [])
+
+    # ⚠️ Den Zustand VORHER festhalten. Für das automatische Bestellen zählt der
+    # ÜBERGANG „war aus → ist an", nicht „ist an": Sonst löste jedes Speichern
+    # der Postfachseite eine neue Bestellung für alle aus.
+    vorher = settings_store.get("MAILBOX_CONFIG") or {}
+    smime_vorher = {a for a in _adressen_mit_smime(vorher)}
     # address → EXO record (cached; empty on EXO failure → graceful e-mail-key fallback)
     exo_list = await asyncio.to_thread(exo_mailboxes.list_mailboxes, False)
     addr_to_mb: dict = {}
@@ -236,6 +308,9 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
             enabled_members.append(member)
     settings_store.update({"MAILBOX_CONFIG": config_map})
 
+    neu_aktiviert = sorted(_adressen_mit_smime(config_map) - smime_vorher)
+    auto = await _auto_enrollment_anstossen(neu_aktiviert)
+
     s = settings_store.get_all()
     app_id = s.get("CLIENT_ID") or config.CLIENT_ID
     tenant_domain = s.get("TENANT_DOMAIN") or ""
@@ -259,8 +334,9 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
     if body.get("update_dg") and app_id and tenant_domain:
         import setup_wizard
         result = setup_wizard.run_mailbox_dg_update(app_id, tenant_domain, enabled_members)
-        return {"ok": result["ok"], "saved": True, "dg_output": result.get("output", "")}
-    return {"ok": True, "saved": True}
+        return {"ok": result["ok"], "saved": True,
+                "dg_output": result.get("output", ""), "auto_enrollment": auto}
+    return {"ok": True, "saved": True, "auto_enrollment": auto}
 
 
 @router.post("/api/mailboxes/fetch-bookings-urls")
