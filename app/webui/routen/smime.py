@@ -172,7 +172,7 @@ async def smime_page_v2(request: Request, user: str = Depends(_require_admin)):
         context={
             "smime_users": smime_users,
             "ca_user_config": settings_store.get("CA_USER_CONFIG") or {},
-            "backends": _ca.list_backends(),
+            "backends": await _ca.list_backends_aktuell(),
             "recipient_certs": smime_store.list_recipient_certs(),
             # Zertifikate, deren Aussteller nicht auf eine bekannte Wurzel
             # zurueckzufuehren ist. Sie sind NICHT im Bestand — an diese
@@ -354,14 +354,9 @@ async def api_smime_cert_details(
 @router.get("/api/smime/ca-config")
 async def api_ca_config_get(user: str = Depends(_require_admin)):
     import ca_backends as _ca
-    import hub_catalog as _hub_cat
-    try:
-        await _hub_cat.refresh()
-    except Exception:
-        pass
     return JSONResponse({
         "config": settings_store.get("CA_USER_CONFIG") or {},
-        "backends": _ca.list_backends(),
+        "backends": await _ca.list_backends_aktuell(),
     })
 
 

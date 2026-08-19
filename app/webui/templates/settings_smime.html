@@ -106,8 +106,13 @@
   <div class="settings-row" style="margin-top:10px">
     <label>Zertifikat automatisch bestellen</label>
     <div class="settings-control">
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <input type="checkbox" id="auto-enroll"
+      {# ⚠️ KEIN flex-wrap. Mit Umbruch rutscht das Kästchen bei schmaler Anzeige
+         oder grosser Schrift in eine eigene Zeile, und die Beschriftung steht
+         darunter wie eine Überschrift — die Zugehörigkeit ist dann nicht mehr
+         zu sehen. `flex-start` statt `center`, damit das Kästchen bei
+         mehrzeiligem Text oben neben der ersten Zeile bleibt. #}
+      <div style="display:flex;align-items:flex-start;gap:8px">
+        <input type="checkbox" id="auto-enroll" style="flex-shrink:0;margin-top:3px"
           {% if s.SMIME_AUTO_ENROLL %}checked{% endif %}
           onchange="autoEnrollUmschalten()">
         <label for="auto-enroll" style="font-weight:500;cursor:pointer;margin:0">
@@ -144,6 +149,11 @@
         Standard: aus. Bereits versorgte Postfächer werden übersprungen; ein
         Postfach, das schon ein gültiges Zertifikat hat, löst nichts aus.
       </span>
+      <div style="margin-top:8px">
+        <button type="button" class="btn secondary btn-sm"
+          onclick="speichereAutoEnroll()">Speichern</button>
+        <span id="auto-enroll-result" style="font-size:12px;margin-left:8px"></span>
+      </div>
     </div>
   </div>
 
@@ -661,6 +671,16 @@ function toggleTagField(inputId, enabled) {
   var el = document.getElementById(inputId);
   el.disabled = !enabled;
   el.style.opacity = enabled ? '' : '0.4';
+}
+
+function speichereAutoEnroll() {
+  // Eigener Knopf statt des Knopfes am Kartenende: Der steht hinter dem
+  // ausgeblendeten Erweitert-Bereich und ist auf dem Telefon ausser Sicht —
+  // dann ist nicht zu erkennen, ob und wo gespeichert wird.
+  savePartial({
+    SMIME_AUTO_ENROLL: document.getElementById('auto-enroll').checked,
+    SMIME_AUTO_ENROLL_CA: (document.getElementById('auto-enroll-weg') || {}).value || '',
+  }, 'auto-enroll-result');
 }
 
 function autoEnrollUmschalten() {

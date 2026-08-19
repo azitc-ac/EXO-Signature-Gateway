@@ -15,6 +15,10 @@ from .digicert_direct import DigiCertDirectBackend
 from .hub_provider import HubProviderBackend
 from .base import CABackend
 
+import logging
+
+log = logging.getLogger(__name__)
+
 _STATIC: dict[str, CABackend] = {
     "assisted_manual": AssistedManualBackend(),
     "castle_acme": CastleAcmeBackend(),
@@ -46,6 +50,31 @@ def get_backend(name: str) -> CABackend:
     if name.startswith("hub:"):
         return _hub_backend(name[4:])
     return _STATIC.get(name) or _STATIC["assisted_manual"]
+
+
+async def list_backends_aktuell() -> list[dict]:
+    """Bezugswege MIT frisch geholtem Anbieterkatalog.
+
+    ⚠️ Für alles, was einem Menschen eine Auswahl zeigt, ist das der richtige
+    Einstieg — nicht `list_backends()`.
+
+    Der Katalog liegt in einem Zwischenspeicher, den der Zeitplaner regelmässig
+    füllt. Ein frisch gestarteter Prozess hat ihn noch nicht, und war der Hub
+    beim Start kurz nicht erreichbar, bleibt er leer. `list_backends()` meldet
+    dann wahrheitsgemäss, aber irreführend: nur die örtlichen Bezugswege. In
+    einer Auswahlliste sieht das nicht nach „noch nicht geladen" aus, sondern
+    nach „gibt es nicht" — am 19.08.2026 fehlte auf diese Weise die Hälfte der
+    Zertifizierungsstellen, ohne dass etwas kaputt war.
+
+    Ein Fehlschlag beim Auffrischen ist kein Grund abzubrechen: Dann steht eben
+    der letzte bekannte Stand da, und das ist immer noch besser als nichts.
+    """
+    import hub_catalog
+    try:
+        await hub_catalog.refresh()
+    except Exception as exc:
+        log.warning("Anbieterkatalog nicht auffrischbar: %s", exc)
+    return list_backends()
 
 
 def list_backends() -> list[dict]:

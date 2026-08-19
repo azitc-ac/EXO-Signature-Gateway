@@ -162,7 +162,8 @@ async def settings_smime_page(request: Request, user: str = Depends(_require_adm
     # Postfachinhabers bestellen können — dieselbe Bedingung wie beim
     # Sammelvorgang, damit die Auswahl nicht auseinanderläuft.
     import ca_backends
-    wege = [b for b in ca_backends.list_backends() if b.get("ready") and b.get("auto")]
+    wege = [b for b in await ca_backends.list_backends_aktuell()
+            if b.get("ready") and b.get("auto")]
     return templates.TemplateResponse(
         request=request, name="settings_smime.html",
         context={
