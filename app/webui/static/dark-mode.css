@@ -578,3 +578,6 @@
 [data-theme="dark"] .speicher-hinweis[data-zustand="offen"]  { color: #fcd34d; }
 [data-theme="dark"] .speicher-hinweis[data-zustand="fertig"] { color: #86efac; }
 [data-theme="dark"] .speicher-hinweis[data-zustand="fehler"] { color: #fca5a5; }
+
+/* Mitlaufende Leiste für offene Änderungen (common.js) */
+[data-theme="dark"] .speicher-leiste { background:#241d10; border-color:#78350f; color:#fcd34d; }
