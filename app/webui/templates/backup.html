@@ -585,6 +585,17 @@ async function toggleChangelog() {
 async function importConfig(input) {
   const file = input.files[0];
   if (!file) return;
+  // ⚠️ Rückfrage vor dem Überschreiben. Bis 19.08.2026 genügte die Auswahl der
+  // Datei: Der Import lief sofort und ersetzte die gesamte Konfiguration —
+  // ohne Weg zurück, denn die vorherigen Werte sind danach fort. Die
+  // Wiederherstellung einer Sicherung direkt daneben fragt seit jeher nach;
+  // ausgerechnet der folgenreichere Vorgang tat es nicht.
+  if (!confirm('Konfiguration aus „' + file.name + '" einspielen?\n\n' +
+               'Die vorhandenen Einstellungen werden überschrieben. ' +
+               'Das lässt sich nur über eine vorher angelegte Sicherung rückgängig machen.')) {
+    input.value = '';          // sonst löst dieselbe Datei kein onchange mehr aus
+    return;
+  }
   const result = document.getElementById('import-result');
   const fd = new FormData();
   fd.append('xml_file', file);

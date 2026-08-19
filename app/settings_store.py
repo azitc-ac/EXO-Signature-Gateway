@@ -449,6 +449,28 @@ def _coerce(key: str, value):
     return value
 
 
+def nur_bekannte(daten: dict) -> tuple[dict, list[str]]:
+    """Aus einer Eingabe alles herausnehmen, was keine Einstellung ist.
+
+    Gibt (übernommen, verworfen) zurück. ⚠️ Beide Schreibwege der Oberfläche
+    (`POST /settings`, `POST /api/settings/partial`) benutzen DIESE Funktion.
+
+    Bis 19.08.2026 filterte nur der erste; der zweite schrieb ungeprüft, was
+    ihm geschickt wurde. Zwei Wege zur selben Datei mit unterschiedlicher
+    Strenge sind keine Entscheidung, sondern ein Versehen — und der laxere
+    gewinnt immer, weil er der bequemere ist.
+
+    Verworfene Schlüssel werden zurückgegeben statt still geschluckt: Ein
+    Tippfehler oder eine verpasste Umbenennung sieht sonst aus wie „gespeichert,
+    wirkt aber nicht".
+    """
+    if not isinstance(daten, dict):
+        return {}, []
+    uebernommen = {k: v for k, v in daten.items() if k in DEFAULTS}
+    verworfen = sorted(set(daten) - set(uebernommen))
+    return uebernommen, verworfen
+
+
 def update(patch: dict) -> None:
     """Update and persist settings. Only keys present in DEFAULTS are accepted."""
     with _lock:

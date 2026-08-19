@@ -76,15 +76,31 @@ async def api_save_custom_policies(request: Request, _=Depends(_require_admin)):
 
 @router.post("/api/settings/partial")
 async def api_settings_partial(request: Request, _: str = Depends(_require_admin)):
-    """Generic single/multi-key settings update for simple admin toggles
-    (Lexware-Formatkorrektur, Logging, Let's Encrypt domain/email, …) that
-    don't warrant their own dedicated endpoint. Caller is trusted to send
-    only known setting keys — this is admin-authenticated already."""
+    """Einzelne Einstellungen aus dem laufenden Betrieb schreiben.
+
+    ⚠️ Filtert gegen `settings_store.DEFAULTS` — genau wie `POST /settings`.
+
+    Bis 19.08.2026 stand hier `settings_store.update(body)` ohne Prüfung, mit
+    der Begründung, der Aufrufer sei ohnehin angemeldet. Das ist kein Argument
+    für Beliebigkeit: Der Schwesterendpunkt filtert seit jeher, und zwei Wege
+    zur selben Datei mit unterschiedlicher Strenge sind keine Entscheidung,
+    sondern ein Versehen. Praktisch liess sich so jeder erfundene Schlüssel in
+    `settings.json` schreiben — dauerhaft, denn aufgeräumt wird nur, was in
+    `OBSOLETE_KEYS` steht, und dort steht nur, was jemand kannte.
+    """
     body = await request.json()
     if not isinstance(body, dict) or not body:
         raise HTTPException(400, "Leerer oder ungültiger Request-Body")
-    settings_store.update(body)
-    return JSONResponse({"ok": True})
+    clean, unbekannt = settings_store.nur_bekannte(body)
+    if unbekannt:
+        # Nicht still verwerfen: Wer einen Schlüssel schickt, den es nicht gibt,
+        # hat sich vertippt oder eine Umbenennung verpasst — beides bleibt sonst
+        # unbemerkt, und die Einstellung wirkt scheinbar nicht.
+        log.warning("settings/partial: unbekannte Schlüssel verworfen: %s", unbekannt)
+    if not clean:
+        raise HTTPException(400, f"Keine bekannten Einstellungen: {unbekannt}")
+    settings_store.update(clean)
+    return JSONResponse({"ok": True, "gespeichert": sorted(clean)})
 
 
 @router.post("/api/settings/sender-mailboxes/refresh")
@@ -203,7 +219,9 @@ async def settings_save(request: Request, user: str = Depends(_require_admin)):
         data = await request.json()
     except Exception:
         raise HTTPException(400, "Ungültige JSON-Daten")
-    clean = {k: v for k, v in data.items() if k in settings_store.DEFAULTS}
+    clean, unbekannt = settings_store.nur_bekannte(data)
+    if unbekannt:
+        log.warning("/settings: unbekannte Schlüssel verworfen: %s", unbekannt)
     settings_store.update(clean)
     log.info("Settings updated by %s: %s", user, list(clean.keys()))
     return JSONResponse({"ok": True})

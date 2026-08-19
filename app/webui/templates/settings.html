@@ -63,7 +63,7 @@
     <div class="settings-control">
       <input type="text" id="webui-username" value="{{ s.WEBUI_USERNAME }}" style="width:220px">
       <div style="margin-top:4px">
-        <button class="btn secondary btn-sm" onclick="saveZugangsdaten()">Speichern</button>
+        <button class="btn secondary btn-sm" id="zugangsdaten-btn" data-wache-hinweis="zugangsdaten-result" data-wache="webui-username" onclick="saveZugangsdaten()">Speichern</button>
         <span id="zugangsdaten-result" style="font-size:12px;margin-left:8px"></span>
       </div>
     </div>
@@ -246,7 +246,7 @@
     </div>
 
     <div class="actions" style="margin-top:12px;flex-wrap:wrap;gap:8px">
-      <button class="btn secondary" onclick="saveBenachrichtigungen()">Speichern</button>
+      <button class="btn secondary" id="benachr-btn" data-wache="notif-dg-external,notif-enabled,notif-mailbox,daily-report-enabled,daily-report-time,notify-startup,notify-smime-expiry,notify-cert-renewal,notify-le-events,notify-local-admin-login,cert-warn-days,le-renew-days" onclick="saveBenachrichtigungen()">Speichern</button>
       <span id="benachrichtigungen-result" style="font-size:12px;align-self:center"></span>
       <button class="btn secondary" onclick="sendTestNotification()" style="margin-left:16px">Test-Benachrichtigung senden</button>
       <span id="notif-test-result" style="font-size:13px;align-self:center"></span>
@@ -277,29 +277,14 @@ function showAlert(el, type, msg) {
   setTimeout(() => { el.style.display = 'none'; }, 6000);
 }
 
-async function savePartial(payload, resultElId) {
-  var el = resultElId ? document.getElementById(resultElId) : null;
-  try {
-    var resp = await fetch('/settings', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(payload),
-    });
-    if (el) {
-      el.textContent = resp.ok ? '✓ Gespeichert' : '✗ Fehler';
-      el.style.color = resp.ok ? '#16a34a' : '#dc2626';
-      setTimeout(function() { el.textContent = ''; }, 3000);
-    }
-  } catch(e) {
-    if (el) { el.textContent = '✗ Netzwerkfehler' + ursache(e, 'settings:280'); el.style.color = '#dc2626'; }
-  }
-}
+// savePartial() steht in common.js — eine Fassung fuer alle Seiten.
 
 function showPw(id) { var el = document.getElementById(id); if (el) el.type = 'text'; }
 function hidePw(id) { var el = document.getElementById(id); if (el) el.type = 'password'; }
 
-function saveZugangsdaten() {
-  savePartial({ WEBUI_USERNAME: (document.getElementById('webui-username').value || '').trim() }, 'zugangsdaten-result');
+async function saveZugangsdaten() {
+  const _ok = await savePartial({ WEBUI_USERNAME: (document.getElementById('webui-username').value || '').trim() }, 'zugangsdaten-result');
+  wacheFertig('zugangsdaten-btn', _ok);
 }
 
 function showPwChangeForm() {
@@ -832,7 +817,7 @@ async function saveBenachrichtigungen() {
     // von dort stehen bleiben und nicht von einem „Gespeichert" überdeckt sein.
     await saveNotifDg();
   }
-  savePartial({
+  const _ok = await savePartial({
     NOTIFICATIONS_ENABLED: document.getElementById('notif-enabled').checked,
     NOTIFICATION_RECIPIENTS: _notifRecipients.slice(),
     NOTIFICATION_MAILBOX: document.getElementById('notif-mailbox').value,
@@ -846,6 +831,7 @@ async function saveBenachrichtigungen() {
     CERT_WARN_DAYS: parseInt(document.getElementById('cert-warn-days').value, 10) || 14,
     LE_RENEW_DAYS: parseInt(document.getElementById('le-renew-days').value, 10) || 7,
   }, 'benachrichtigungen-result');
+  wacheFertig('benachr-btn', _ok);
 }
 
 async function sendTestNotification() {

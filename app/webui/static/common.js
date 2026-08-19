@@ -452,3 +452,195 @@ function vorschauPostfachWaehlen(sel, adressen) {
   const wahl = auswahlWaehlen(sel, VORSCHAU_POSTFACH_SCHLUESSEL, adressen);
   return wahl;
 }
+
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Ungespeicherte Änderungen sichtbar machen
+ *
+ * ANLASS (19.08.2026): Auf den Einstellungsseiten stehen 44 Speichern-Knöpfe.
+ * Für sich genommen ist jeder erklärbar, zusammen ergeben sie keine Linie: Vor
+ * einem Feld ist nicht zu erkennen, ob es einen Knopf braucht, welchen, und ob
+ * das Drücken etwas bewirkt hat. Einzelne Schalter speichern sofort, andere
+ * nicht — optisch identisch.
+ *
+ * `speicherWache()` beantwortet beides am selben Ort:
+ *
+ *   unverändert  → Knopf ist ausgegraut, daneben steht nichts
+ *   geändert     → Knopf wird bedienbar, daneben „noch nicht gespeichert"
+ *   gespeichert  → „gespeichert" für ein paar Sekunden, dann wieder still
+ *
+ * Der Knopf ist damit kein stummes Angebot mehr, sondern eine Aussage: Solange
+ * er grau ist, gibt es nichts zu sichern.
+ *
+ * ⚠️ Farben ausschliesslich über `data-zustand` im CSS (siehe style.css und
+ * dark-mode.css). In JS gesetzte Farben normalisiert der Browser zu rgb(), und
+ * die Dark-Mode-Selektoren greifen dann nicht mehr — das ist in diesem Projekt
+ * mehrfach passiert und steht als verbindliche Regel in CLAUDE.md.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+function _speicherWert(el) {
+  if (!el) return '';
+  if (el.type === 'checkbox' || el.type === 'radio') return el.checked ? '1' : '0';
+  return el.value != null ? String(el.value) : '';
+}
+
+/* knopf   — der Speichern-Knopf (Element oder id)
+ * felder  — Elemente oder ids, deren Änderung diesen Knopf betrifft
+ * options — {hinweisId} für ein vorhandenes Meldungsfeld; sonst wird eines
+ *           direkt hinter den Knopf gesetzt.
+ *
+ * Rückgabe: {erledigt(), fehlgeschlagen(), zuruecksetzen()} — `erledigt()`
+ * nach erfolgreichem Speichern aufrufen; es merkt sich den neuen Stand als
+ * „unverändert".
+ */
+function speicherWache(knopf, felder, options) {
+  const opt = options || {};
+  const btn = typeof knopf === 'string' ? document.getElementById(knopf) : knopf;
+  const els = (felder || [])
+    .map(f => (typeof f === 'string' ? document.getElementById(f) : f))
+    .filter(Boolean);
+  if (!btn || !els.length) return {erledigt() {}, fehlgeschlagen() {}, zuruecksetzen() {}};
+
+  let hinweis = opt.hinweisId ? document.getElementById(opt.hinweisId) : null;
+  if (!hinweis) {
+    hinweis = document.createElement('span');
+    btn.insertAdjacentElement('afterend', hinweis);
+  }
+  hinweis.classList.add('speicher-hinweis');
+
+  let stand = els.map(_speicherWert).join('');
+  let timer = null;
+
+  function zeichnen() {
+    const jetzt = els.map(_speicherWert).join('');
+    const offen = jetzt !== stand;
+    btn.disabled = !offen;
+    if (offen) {
+      clearTimeout(timer);
+      hinweis.dataset.zustand = 'offen';
+      hinweis.textContent = '← noch nicht gespeichert';
+    } else if (hinweis.dataset.zustand === 'offen') {
+      hinweis.dataset.zustand = '';
+      hinweis.textContent = '';
+    }
+  }
+
+  els.forEach(el => {
+    el.addEventListener('input', zeichnen);
+    el.addEventListener('change', zeichnen);
+  });
+  zeichnen();
+  _speicherKnoepfe.push(btn);
+
+  return {
+    erledigt(text) {
+      stand = els.map(_speicherWert).join('');
+      btn.disabled = true;
+      hinweis.dataset.zustand = 'fertig';
+      hinweis.textContent = text || '✓ gespeichert';
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        // Nur löschen, wenn inzwischen nichts Neues geändert wurde.
+        if (hinweis.dataset.zustand === 'fertig') {
+          hinweis.dataset.zustand = '';
+          hinweis.textContent = '';
+        }
+      }, 4000);
+    },
+    fehlgeschlagen(text) {
+      hinweis.dataset.zustand = 'fehler';
+      hinweis.textContent = text || '✗ nicht gespeichert';
+      btn.disabled = false;
+    },
+    zuruecksetzen() {
+      stand = els.map(_speicherWert).join('');
+      zeichnen();
+    },
+  };
+}
+
+/* Alle überwachten Knöpfe der Seite — Grundlage für die Warnung beim Verlassen. */
+const _speicherKnoepfe = [];
+
+/* Ein bedienbarer Speichern-Knopf heisst: es liegt etwas Ungesichertes an.
+ * Der Browser fragt dann beim Verlassen nach — die letzte Sicherung gegen
+ * „ich dachte, das sei übernommen". */
+window.addEventListener('beforeunload', (e) => {
+  if (_speicherKnoepfe.some(b => b && !b.disabled)) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
+
+/* Deklarative Einrichtung: `<button id="x" data-wache="feld1,feld2">`
+ *
+ * Siebzehn Knöpfe von Hand zu verdrahten (id suchen, Felderliste pflegen,
+ * beim Laden registrieren, Ergebnis zurückmelden) ist vier Gelegenheiten je
+ * Knopf, etwas zu vergessen — und eine vergessene Wache sieht aus wie eine,
+ * die nichts zu melden hat. Deshalb steht die Zuordnung dort, wo sie hingehört:
+ * am Knopf.
+ *
+ * Speichernde Funktionen melden das Ergebnis mit `wacheFertig(id, ok)`.
+ */
+const _wachen = new Map();
+
+function wacheEinrichten(wurzel) {
+  (wurzel || document).querySelectorAll('button[data-wache]').forEach(btn => {
+    if (!btn.id || _wachen.has(btn.id)) return;
+    const felder = (btn.dataset.wache || '').split(',').map(s => s.trim()).filter(Boolean);
+    if (!felder.length) return;
+    _wachen.set(btn.id, speicherWache(btn, felder,
+                                      {hinweisId: btn.dataset.wacheHinweis || null}));
+  });
+}
+
+/* ok=true → „gespeichert“, ok=false → „nicht gespeichert“, Knopf bleibt bedienbar. */
+function wacheFertig(knopfId, ok, text) {
+  const w = _wachen.get(knopfId);
+  if (!w) return;
+  if (ok === false) w.fehlgeschlagen(text); else w.erledigt(text);
+}
+
+document.addEventListener('DOMContentLoaded', () => wacheEinrichten(document));
+
+
+/* Einstellungen schreiben — die EINE Fassung.
+ *
+ * Stand 19.08.2026 gab es diese Funktion viermal, in vier Vorlagen, bis auf
+ * den Fehlerkontext wortgleich. Drei davon lieferten keinen Rückgabewert,
+ * weshalb der Aufrufer nicht wissen konnte, ob es geklappt hat — eine
+ * Erfolgsmeldung erschien auch nach HTTP 400.
+ *
+ * Farben kommen aus `.speicher-hinweis[data-zustand]` (style.css), nicht aus
+ * `el.style.color`: JS-gesetzte Farben normalisiert der Browser zu rgb(), und
+ * der Dark-Mode-Selektor greift dann nicht mehr.
+ *
+ * Rückgabe: true bei Erfolg, false sonst.
+ */
+async function savePartial(payload, resultElId, ort) {
+  const el = resultElId ? document.getElementById(resultElId) : null;
+  const melde = (zustand, text) => {
+    if (!el) return;
+    el.classList.add('speicher-hinweis');
+    el.dataset.zustand = zustand;
+    el.textContent = text;
+    if (zustand === 'fertig') {
+      setTimeout(() => {
+        if (el.dataset.zustand === 'fertig') { el.dataset.zustand = ''; el.textContent = ''; }
+      }, 4000);
+    }
+  };
+  try {
+    const resp = await fetch('/settings', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    melde(resp.ok ? 'fertig' : 'fehler', resp.ok ? '✓ gespeichert' : '✗ nicht gespeichert');
+    return resp.ok;
+  } catch (e) {
+    melde('fehler', '✗ Netzwerkfehler' + ursache(e, ort || 'savePartial'));
+    return false;
+  }
+}

@@ -150,9 +150,10 @@
         Postfach, das schon ein gültiges Zertifikat hat, löst nichts aus.
       </span>
       <div style="margin-top:8px">
-        <button type="button" class="btn secondary btn-sm"
+        <button type="button" id="auto-enroll-btn" class="btn secondary btn-sm"
+          data-wache="auto-enroll,auto-enroll-weg" data-wache-hinweis="auto-enroll-result"
           onclick="speichereAutoEnroll()">Speichern</button>
-        <span id="auto-enroll-result" style="font-size:12px;margin-left:8px"></span>
+        <span id="auto-enroll-result"></span>
       </div>
     </div>
   </div>
@@ -335,7 +336,7 @@
   </div>
 
   <div class="actions" style="margin-top:4px">
-    <button class="btn secondary" onclick="saveSmimeSettings()">Speichern</button>
+    <button class="btn secondary" id="smime-settings-btn" data-wache="smime-tag-encrypted,smime-tag-enc-enabled,smime-tag-signed,smime-tag-sig-enabled,smime-tag-position,strip-subject-tags,smime-strip-inbound,smime-key-encrypt,smime-signing-enabled,nodigsig-trigger,enc-trigger,crl-check,trust-ms-roots,trust-auto-known,portal-enabled,portal-base-url,portal-retention,portal-otp,portal-brand-name" onclick="saveSmimeSettings()">Speichern</button>
     <span id="smime-result" style="font-size:12px;margin-left:8px"></span>
   </div>
 
@@ -511,26 +512,13 @@ function showAlert(el, type, msg) {
   setTimeout(() => { el.style.display = 'none'; }, 6000);
 }
 
-async function savePartial(payload, resultElId) {
-  var el = resultElId ? document.getElementById(resultElId) : null;
-  try {
-    var resp = await fetch('/settings', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(payload),
-    });
-    if (el) {
-      el.textContent = resp.ok ? '✓ Gespeichert' : '✗ Fehler';
-      el.style.color = resp.ok ? '#16a34a' : '#dc2626';
-      setTimeout(function() { el.textContent = ''; }, 3000);
-    }
-  } catch(e) {
-    if (el) { el.textContent = '✗ Netzwerkfehler' + ursache(e, 'settings_smime:399'); el.style.color = '#dc2626'; }
-  }
-}
+// Liefert true/false zurueck — wer eine Speicherwache benutzt, muss wissen, ob
+// es geklappt hat. Ohne Rueckgabewert meldete sie „gespeichert", sobald der
+// Aufruf zurueckkam, auch bei HTTP 400.
+// savePartial() steht in common.js — eine Fassung fuer alle Seiten.
 
-function saveSmimeSettings() {
-  savePartial({
+async function saveSmimeSettings() {
+  const _ok = await savePartial({
     SMIME_TAG_ENCRYPTED: (document.getElementById('smime-tag-encrypted').value || '').trim() || 'verschlüsselt',
     SMIME_TAG_ENCRYPTED_ENABLED: document.getElementById('smime-tag-enc-enabled').checked,
     SMIME_TAG_SIGNED: (document.getElementById('smime-tag-signed').value || '').trim() || 'signiert von {signer}',
@@ -540,8 +528,6 @@ function saveSmimeSettings() {
     SMIME_STRIP_INBOUND: document.getElementById('smime-strip-inbound').checked,
     SMIME_KEY_ENCRYPT: document.getElementById('smime-key-encrypt').checked,
     SMIME_SIGNING_ENABLED: document.getElementById('smime-signing-enabled').checked,
-    SMIME_AUTO_ENROLL: document.getElementById('auto-enroll').checked,
-    SMIME_AUTO_ENROLL_CA: (document.getElementById('auto-enroll-weg') || {}).value || '',
     NODIGSIG_TRIGGER: (document.getElementById('nodigsig-trigger').value || '').trim() || '#nodigsig',
     ENC_TRIGGER: (document.getElementById('enc-trigger').value || '').trim() || '#enc',
     CRL_CHECK: document.getElementById('crl-check').checked,
@@ -554,6 +540,7 @@ function saveSmimeSettings() {
     SECURE_PORTAL_OTP: document.getElementById('portal-otp').checked,
     PORTAL_BRAND_NAME: (document.getElementById('portal-brand-name').value || '').trim(),
   }, 'smime-result');
+  wacheFertig('smime-settings-btn', _ok);
 }
 
 // ── Automatische S/MIME-Regeln ─────────────────────────────────────────────
@@ -673,14 +660,12 @@ function toggleTagField(inputId, enabled) {
   el.style.opacity = enabled ? '' : '0.4';
 }
 
-function speichereAutoEnroll() {
-  // Eigener Knopf statt des Knopfes am Kartenende: Der steht hinter dem
-  // ausgeblendeten Erweitert-Bereich und ist auf dem Telefon ausser Sicht —
-  // dann ist nicht zu erkennen, ob und wo gespeichert wird.
-  savePartial({
+async function speichereAutoEnroll() {
+  const ok = await savePartial({
     SMIME_AUTO_ENROLL: document.getElementById('auto-enroll').checked,
     SMIME_AUTO_ENROLL_CA: (document.getElementById('auto-enroll-weg') || {}).value || '',
-  }, 'auto-enroll-result');
+  });
+  wacheFertig('auto-enroll-btn', ok);
 }
 
 function autoEnrollUmschalten() {
