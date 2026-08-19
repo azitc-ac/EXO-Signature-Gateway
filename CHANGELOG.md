@@ -5,6 +5,29 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.224 — 2026-08-19 — Unvollständige Anbieterliste, Bedienung nachgebessert
+
+**In Auswahlfeldern fehlten Zertifizierungsstellen.** Der Anbieterkatalog liegt
+in einem Zwischenspeicher, den ein Hintergrunddienst regelmässig füllt. Ein
+frisch gestarteter Dienst hat ihn noch nicht, und war die Betreiber-Gegenstelle
+beim Start kurz nicht erreichbar, bleibt er leer. Die Auswahl zeigte dann nur
+die örtlichen Bezugswege — was aussieht wie „gibt es nicht" statt „noch nicht
+geladen". Betroffen waren die S/MIME-Seite (und damit auch die Auswahl der
+Sammelbestellung) sowie die S/MIME-Einstellungen; ein dritter Aufruf holte den
+Katalog bereits selbst. Alle drei nutzen jetzt denselben Weg, der ihn vorher
+auffrischt. Ist die Gegenstelle nicht erreichbar, steht weiterhin der zuletzt
+bekannte Stand da statt einer Fehlerseite.
+
+Zwei Nachbesserungen an „Zertifikat automatisch bestellen":
+
+* Das Ankreuzfeld rutschte bei schmaler Anzeige oder grosser Schrift in eine
+  eigene Zeile, die Beschriftung stand darunter wie eine Überschrift — die
+  Zugehörigkeit war nicht mehr erkennbar.
+* Der Block hat jetzt einen eigenen **Speichern**-Knopf. Der Knopf am Ende der
+  Karte gilt zwar auch für ihn, steht aber hinter dem ausgeblendeten Bereich
+  „Erweiterte Einstellungen" und ist auf dem Telefon ausser Sicht; ob überhaupt
+  gespeichert werden muss, war so nicht zu erkennen.
+
 ## v1.7.223 — 2026-08-19 — Zertifikat automatisch bestellen beim Aktivieren
 
 Neu unter Einstellungen → S/MIME: **Zertifikat automatisch bestellen**, sobald
