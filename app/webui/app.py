@@ -62,7 +62,17 @@ async def _lifespan(application):
     acme_state.resume_pending_polls()
     yield
 
-app = FastAPI(title="EXO Signature Gateway", lifespan=_lifespan)
+# ⚠️ Die selbsterzeugte Schnittstellenbeschreibung ist ABGESCHALTET.
+#
+# FastAPI liefert /docs, /redoc und /openapi.json standardmässig aus — ohne
+# Anmeldung. Am 19.08.2026 lagen dort 229 Endpunkte samt Parametern offen; das
+# war nie entschieden, sondern die Voreinstellung. Für ein Gateway, das im
+# Internet steht, ist die vollständige Landkarte der eigenen Angriffsfläche
+# keine sinnvolle Beigabe — zumal die Oberfläche sie nirgends benutzt.
+#
+# Wer sie zur Entwicklung braucht: hier vorübergehend wieder eintragen.
+app = FastAPI(title="EXO Signature Gateway", lifespan=_lifespan,
+              docs_url=None, redoc_url=None, openapi_url=None)
 
 # Gemeinsames Fundament — dieselben Objekte, die auch die Routenmodule nutzen.
 # Weitergereicht statt neu definiert: Die Tests haengen sich ueber
@@ -1771,7 +1781,7 @@ async def outlook_addin_page_redirect(user: str = Depends(_require_admin)):
 
 
 @app.post("/api/test-mail")
-async def api_test_mail(request: Request, user: str = Depends(_check_auth)):
+async def api_test_mail(request: Request, user: str = Depends(_require_admin)):
     data = await request.json()
     from_email = (data.get("from_email") or "").strip()
     to_email = (data.get("to_email") or "").strip()

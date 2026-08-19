@@ -82,7 +82,9 @@
 
   // Load mailboxes + templates in parallel on page load
   Promise.all([
-    getJSON('/api/mailboxes'),
+    // Schlanke Liste — die Vorschau steht auch dem Signatur-Editor offen, und
+    // /api/mailboxes liefert die Betriebssicht (Verwaltung vorbehalten).
+    getJSON('/api/mailboxes/namen'),
     getJSON('/api/templates'),
   ]).then(([mbData, tData]) => {
     // Populate email select

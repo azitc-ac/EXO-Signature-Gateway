@@ -602,6 +602,13 @@
     "name": "api_mailbox_migrate_preview"
   },
   {
+    "pfad": "/api/mailboxes/namen",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_mailbox_namen"
+  },
+  {
     "pfad": "/api/mailboxes/save",
     "methoden": [
       "POST"
@@ -1589,20 +1596,6 @@
     "name": "debug_page"
   },
   {
-    "pfad": "/docs",
-    "methoden": [
-      "GET"
-    ],
-    "name": "swagger_ui_html"
-  },
-  {
-    "pfad": "/docs/oauth2-redirect",
-    "methoden": [
-      "GET"
-    ],
-    "name": "swagger_ui_redirect"
-  },
-  {
     "pfad": "/health",
     "methoden": [
       "GET"
@@ -1631,13 +1624,6 @@
     "name": "mailboxes_page"
   },
   {
-    "pfad": "/openapi.json",
-    "methoden": [
-      "GET"
-    ],
-    "name": "openapi"
-  },
-  {
     "pfad": "/outlook-addin",
     "methoden": [
       "GET"
@@ -1664,13 +1650,6 @@
       "GET"
     ],
     "name": "preview"
-  },
-  {
-    "pfad": "/redoc",
-    "methoden": [
-      "GET"
-    ],
-    "name": "redoc_html"
   },
   {
     "pfad": "/settings",

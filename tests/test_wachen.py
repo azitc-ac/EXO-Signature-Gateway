@@ -169,6 +169,24 @@ def test_ausnahmeliste_enthaelt_nichts_verwaistes():
 # Was die Rolle `editor` (in der Oberfläche: „Signatur-Editor") darf.
 # Alles andere verlangt die Verwaltungsrolle.
 #
+# ⚠️ ENTSCHIEDEN AM 19.08.2026: Signaturen lesen und schreiben, Vorlagen
+# erstellen und bearbeiten — sonst nichts. Daraufhin entzogen wurden:
+#
+#   /api/mailboxes                  Betriebssicht auf alle Postfächer (S/MIME-
+#                                   Zustand, Zustellzustand, Buchungsdaten).
+#                                   Ersetzt durch /api/mailboxes/namen.
+#   /api/settings/template-policies welche Vorlage für welches Postfach gilt —
+#                                   das ist Zuweisung, nicht Vorlagenbau
+#   /api/test-mail                  verschickt echte Mail mit frei wählbarem
+#                                   Absender; für den Editor genügt die Vorschau
+#   /api/smime/sammel/lauf          Zertifikatsbestellung, nicht Signaturen
+#   /api/smime/sammel/postfaecher   dito
+#   /api/smime/hub-order/{email}    dito
+#
+# Die früheren Begründungen („reine Anzeige") waren nicht falsch, aber sie
+# beantworteten die falsche Frage: nicht ob etwas harmlos ist, sondern ob es
+# zur Rolle gehört.
+#
 # Abgeleitet aus der erklärten Absicht — Vorlagen und Inhalte pflegen — und
 # abgeglichen mit den Endpunkten, die `template_editor.html` und `preview.html`
 # tatsächlich aufrufen. Wer hier etwas einträgt, gibt einem Editor Zugriff;
@@ -185,21 +203,13 @@ EDITOR_DARF: dict[str, str] = {
     "/api/templates/{name}/duplicate":  "Vorlage kopieren",
     "/api/templates/{name}/rename":     "Vorlage umbenennen",
     "/api/usermails":                   "Liste der Nachrichten an Postfachinhaber",
-    "/api/smime/sammel/lauf":           ("Fortschritt des Sammelvorgangs — reine "
-                                         "Anzeige; wer Zertifikate betreut, muss "
-                                         "sehen, wo der Lauf steht"),
-    "/api/smime/sammel/postfaecher":    ("Zustandsliste der Postfächer — reine "
-                                         "Anzeige, Grundlage jeder Auswahl"),
-    "/api/smime/hub-order/{email}":     ("Zustand einer laufenden Bestellung — reine "
-                                         "Anzeige, kein Eingriff; wer Zertifikate "
-                                         "betreut, muss sehen, worauf gewartet wird"),
     "/api/usermails/{schluessel}/standard": ("mitgelieferte Fassung wiederherstellen — "
                                              "wer den Text ändern darf, muss ihn auch "
                                              "zurückholen können"),
     "/api/preview-data":                "Daten für die Vorschau",
-    "/api/mailboxes":                   "NUR lesend — Auswahl des Vorschau-Postfachs",
-    "/api/settings/template-policies":  "NUR lesend — Vorlagen-Richtlinien",
-    "/api/test-mail":                   "Testmail zur Prüfung einer Vorlage",
+    "/api/mailboxes/namen":             ("NUR Adresse und Name — Auswahlfeld der "
+                                         "Vorschau. Bewusst nicht /api/mailboxes: "
+                                         "das liefert die Betriebssicht"),
     "/api/addin/signature":             "Signatur für das Add-in",
     "/api/addin/templates":             "Vorlagenliste für das Add-in",
     "/":                                "Startseite — leitet Editoren selbst auf /template um",
