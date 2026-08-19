@@ -290,9 +290,16 @@ function fieldClear(el) {
  * Ohne JavaScript bleibt der volle Text stehen — die Kürzung ist eine Zutat,
  * keine Voraussetzung fürs Lesen.
  *
- * Nur Block-Elemente: `span.hint` steht meist inline hinter einem Feld. Die
- * Kürzung setzt `display:-webkit-box`, macht ein solches span also zum Block
- * und verschöbe das Layout — bei kurzen Texten ohne jeden Gewinn.
+ * Nur Block-Elemente. Die Kürzung setzt `display:-webkit-box`; bei einem
+ * inline stehenden Hinweis hinter einem Feld macht das aus ihm einen Block und
+ * verschiebt das Layout, ohne Platz zu sparen.
+ *
+ * ⚠️ Bis 2026-08-19 war das als „keine span" umgesetzt — eine Näherung, die
+ * daneben lag: Auf den Einstellungsseiten stehen Hinweise regelmässig als
+ * `span.hint` mit `display:block` unter dem Feld. Zwei davon liefen auf einem
+ * Telefon über vier Zeilen, ohne je einen Schalter zu bekommen. Entscheidend
+ * ist nicht das Tag, sondern wie das Element tatsächlich dargestellt wird —
+ * und das steht nicht im Quelltext, sondern erst im Browser.
  *
  * ENTSCHEIDEND: gemessen, nicht geschätzt. Die erste Fassung hängte den
  * Schalter an jeden Text ab 150 Zeichen. Wie viel davon sichtbar ist, hängt
@@ -373,12 +380,42 @@ function _hintAufschieben(p) {
 function initHintClamps(root) {
   var scope = root || document;
   var texte = scope.querySelectorAll(
-    'p.hint:not([data-clamp]):not([data-clamp-wait]), ' +
-    'div.hint:not([data-clamp]):not([data-clamp-wait])');
+    '.hint:not([data-clamp]):not([data-clamp-wait])');
   Array.prototype.forEach.call(texte, function (p) {
-    if (_hintMessbar(p)) _hintAusstatten(p);
-    else _hintAufschieben(p);
+    if (!_hintMessbar(p)) { _hintAufschieben(p); return; }
+    // Inline dargestellte Hinweise bleiben aussen vor — siehe Kopfkommentar.
+    var anzeige = getComputedStyle(p).display;
+    if (anzeige === 'inline' || anzeige === 'inline-block') return;
+    _hintAusstatten(p);
   });
+}
+
+
+/* Nachgerenderte Abschnitte: neue Erklärtexte selbst aufnehmen.
+ *
+ * `initHintClamps()` erfasst, was beim Aufruf im DOM steht. Ein Hinweis, den
+ * eine Ladefunktion später einfügt, bekommt nie einen Schalter — auch der
+ * IntersectionObserver hilft nicht, denn angemeldet wird nur, was der Lauf
+ * gesehen hat.
+ *
+ * ⚠️ Ehrlichkeitshalber: Am 19.08.2026 vermutet, genau das sei der Grund für
+ * vier ungekürzte Texte auf der Anbindungsseite. Nachgemessen war es das NICHT
+ * — die vier warteten korrekt auf den IntersectionObserver (`data-clamp-wait`)
+ * und bekamen ihren Schalter, sobald man hinscrollte. Ein messbarer Fall für
+ * diesen Beobachter existiert derzeit nicht: Alle nachgerenderten Hinweise
+ * sind kürzer als die Schwelle.
+ *
+ * Er bleibt trotzdem, weil die Lücke echt ist und nur zufällig leer — der
+ * nächste lange nachgerenderte Text fiele sonst durch, und man suchte wieder
+ * von vorn. Entprellt, weil beim Nachladen viele Änderungen kurz hintereinander
+ * kommen.
+ */
+var _hintNachzuegler;
+if (typeof MutationObserver !== 'undefined') {
+  new MutationObserver(function () {
+    clearTimeout(_hintNachzuegler);
+    _hintNachzuegler = setTimeout(function () { initHintClamps(document); }, 120);
+  }).observe(document.documentElement, {childList: true, subtree: true});
 }
 
 /* Bei geänderter Fensterbreite passt derselbe Text plötzlich in zwei Zeilen
@@ -478,6 +515,16 @@ function vorschauPostfachWaehlen(sel, adressen) {
  * mehrfach passiert und steht als verbindliche Regel in CLAUDE.md.
  * ──────────────────────────────────────────────────────────────────────────── */
 
+/* Vergleichswert über alle Felder eines Abschnitts.
+ *
+ * JSON statt Aneinanderhängen: Bei `join('')` wären ["ab", "c"] und ["a", "bc"]
+ * derselbe Wert — zwei Felder, deren Inhalte zusammen gleich bleiben, während
+ * sich beide geändert haben. Selten, aber lautlos.
+ */
+function _speicherStand(els) {
+  return JSON.stringify(els.map(_speicherWert));
+}
+
 function _speicherWert(el) {
   if (!el) return '';
   if (el.type === 'checkbox' || el.type === 'radio') return el.checked ? '1' : '0';
@@ -508,13 +555,14 @@ function speicherWache(knopf, felder, options) {
   }
   hinweis.classList.add('speicher-hinweis');
 
-  let stand = els.map(_speicherWert).join('');
+  let stand = _speicherStand(els);
   let timer = null;
 
   function zeichnen() {
-    const jetzt = els.map(_speicherWert).join('');
+    const jetzt = _speicherStand(els);
     const offen = jetzt !== stand;
     btn.disabled = !offen;
+    _speicherLeisteZeichnen();
     if (offen) {
       clearTimeout(timer);
       hinweis.dataset.zustand = 'offen';
@@ -534,8 +582,9 @@ function speicherWache(knopf, felder, options) {
 
   return {
     erledigt(text) {
-      stand = els.map(_speicherWert).join('');
+      stand = _speicherStand(els);
       btn.disabled = true;
+      _speicherLeisteZeichnen();
       hinweis.dataset.zustand = 'fertig';
       hinweis.textContent = text || '✓ gespeichert';
       clearTimeout(timer);
@@ -551,13 +600,64 @@ function speicherWache(knopf, felder, options) {
       hinweis.dataset.zustand = 'fehler';
       hinweis.textContent = text || '✗ nicht gespeichert';
       btn.disabled = false;
+      _speicherLeisteZeichnen();
     },
     zuruecksetzen() {
-      stand = els.map(_speicherWert).join('');
+      stand = _speicherStand(els);
       zeichnen();
     },
   };
 }
+
+
+/* Mitlaufende Leiste: der Speichern-Knopf kommt zum Benutzer.
+ *
+ * ANLASS (2026-08-19): Gemessen auf einem Telefon (393×850) liegen zwischen
+ * einem geänderten Feld und seinem Knopf bis zu **zwei Bildschirmhöhen** —
+ * Benachrichtigungen 1740 px, S/MIME 1313 px. Wer oben etwas ändert, scrollt
+ * an ein bis zwei fremden Speichern-Knöpfen vorbei (die richtigerweise
+ * gesperrt sind) und muss den eigenen erst finden.
+ *
+ * Die Leiste erscheint nur, wenn tatsächlich etwas offen ist, und verschwindet
+ * nach dem Sichern. Sie ersetzt den Knopf am Abschnitt nicht — dort steht er
+ * weiterhin, damit die Zuordnung sichtbar bleibt; sie erspart nur den Weg.
+ *
+ * Bei mehreren offenen Abschnitten wird nicht stillschweigend alles gesichert:
+ * Die Leiste sagt, wie viele es sind, und speichert sie der Reihe nach erst auf
+ * Klick. Ein „Speichern", das ungefragt fremde Abschnitte mitnimmt, wäre
+ * dieselbe Überraschung wie eine unangekündigte Abbuchung.
+ */
+function _speicherLeiste() {
+  var el = document.getElementById('speicher-leiste');
+  if (el) return el;
+  el = document.createElement('div');
+  el.id = 'speicher-leiste';
+  el.className = 'speicher-leiste';
+  el.hidden = true;
+  el.innerHTML = '<span class="speicher-leiste-text"></span>' +
+                 '<button type="button" class="btn primary btn-sm">Speichern</button>';
+  el.querySelector('button').addEventListener('click', function () {
+    // Der Reihe nach: Jeder Knopf meldet sein Ergebnis selbst über seine Wache.
+    _speicherKnoepfe.filter(function (b) { return b && !b.disabled; })
+                    .forEach(function (b) { b.click(); });
+  });
+  document.body.appendChild(el);
+  return el;
+}
+
+function _speicherLeisteZeichnen() {
+  var offen = _speicherKnoepfe.filter(function (b) { return b && !b.disabled; });
+  var el = _speicherLeiste();
+  if (!offen.length) { el.hidden = true; return; }
+  el.hidden = false;
+  el.querySelector('.speicher-leiste-text').textContent =
+    offen.length === 1 ? 'Eine Änderung ist noch nicht gespeichert'
+                       : offen.length + ' Abschnitte sind noch nicht gespeichert';
+}
+
+/* Kein Zeitgeber: `speicherWache()` ruft das nach jedem Zustandswechsel auf.
+ * Ein Intervall, das viermal je Sekunde nachsieht, ob sich etwas geändert hat,
+ * ist Arbeit für den Fall, dass nichts passiert. */
 
 /* Alle überwachten Knöpfe der Seite — Grundlage für die Warnung beim Verlassen. */
 const _speicherKnoepfe = [];

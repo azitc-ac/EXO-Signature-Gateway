@@ -5,6 +5,28 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.226 — 2026-08-19 — Der Speichern-Knopf kommt zum Benutzer
+
+Zwischen einem geänderten Feld und dem zugehörigen Knopf lagen auf einem
+Telefon bis zu **zwei Bildschirmhöhen** — bei den Benachrichtigungen 1740
+Pixel, bei S/MIME 1313. Wer oben etwas änderte, scrollte an fremden
+Speichern-Knöpfen vorbei, um den eigenen zu finden.
+
+Sobald etwas ungesichert ist, erscheint deshalb am unteren Rand eine Leiste:
+„Eine Änderung ist noch nicht gespeichert" mit Knopf. Sie zählt mit, wenn
+mehrere Abschnitte offen sind, und speichert erst auf Klick — ein „Speichern",
+das ungefragt fremde Abschnitte mitnimmt, wäre dieselbe Überraschung, die an
+anderer Stelle vermieden wurde. Der Knopf am Abschnitt bleibt, damit die
+Zuordnung sichtbar ist; die Leiste erspart nur den Weg.
+
+**Lange Erklärtexte werden jetzt auch dort gekürzt, wo sie als `span`
+ausgezeichnet sind.** Die Kürzung auf zwei Zeilen mit „mehr" galt bisher nur
+für Absätze und Blöcke; auf den Einstellungsseiten stehen Hinweise aber
+regelmässig als `span` unterhalb des Feldes. Zwei davon liefen auf schmalen
+Anzeigen über vier Zeilen, ohne je einen Schalter zu bekommen. Ob ein Hinweis
+gekürzt wird, entscheidet nun seine tatsächliche Darstellung — kurze Hinweise
+neben einem Feld bleiben wie bisher unangetastet.
+
 ## v1.7.225 — 2026-08-19 — Speichern: erkennbar, ob und wo
 
 Auf den Einstellungsseiten war nicht zu erkennen, ob eine Änderung noch

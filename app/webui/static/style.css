@@ -392,8 +392,13 @@ input[data-invalid="1"], select[data-invalid="1"], textarea[data-invalid="1"] {
 /* Lange Erklärtexte: zwei Zeilen, Rest per Schalter (initHintClamps()).
  * -webkit-line-clamp ist trotz des Präfixes in allen aktuellen Browsern
  * umgesetzt; fällt es aus, steht schlicht der ganze Text da — kein Verlust. */
-p.hint[data-clamp="zu"],
-div.hint[data-clamp="zu"] {
+/* ⚠️ Alle .hint, nicht nur p und div: Auf den Einstellungsseiten stehen
+ * Hinweise regelmässig als `span.hint` mit display:block. Solange hier `p` und
+ * `div` aufgezählt waren, bekam ein solcher span zwar eine Bewertung im
+ * JavaScript, aber nie eine Zeilenbegrenzung — die Messung „läuft über?" fiel
+ * dadurch immer negativ aus, und der Schalter erschien nie. Welche Elemente
+ * gemeint sind, entscheidet das JavaScript (inline bleibt aussen vor). */
+.hint[data-clamp="zu"] {
     display: -webkit-box;
     -webkit-line-clamp: 2;
     line-clamp: 2;
@@ -902,4 +907,35 @@ input[type="password"]:focus { outline: none; border-color: #0078d4; }
 .btn:disabled {
   opacity: .45;
   cursor: default;
+}
+
+/* ── Mitlaufende Leiste für offene Änderungen (common.js) ────────────────────
+   Zwischen einem geänderten Feld und seinem Knopf lagen auf einem Telefon bis
+   zu zwei Bildschirmhöhen. Die Leiste holt den Knopf zum Benutzer, ohne den am
+   Abschnitt zu ersetzen — dort bleibt die Zuordnung sichtbar. */
+.speicher-leiste {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .18);
+}
+.speicher-leiste[hidden] { display: none; }
+.speicher-leiste-text { font-weight: 600; }
+
+@media (min-width: 720px) {
+  /* Auf breiten Anzeigen genügt eine schmale Leiste am rechten Rand — quer
+     über die ganze Breite wirkt sie wie eine Fehlermeldung. */
+  .speicher-leiste { left: auto; min-width: 340px; }
 }
