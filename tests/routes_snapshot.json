@@ -1015,6 +1015,13 @@
     "name": "api_verify_smime"
   },
   {
+    "pfad": "/api/smime/auto-enroll/vorschau",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_auto_enroll_vorschau"
+  },
+  {
     "pfad": "/api/smime/backup-all-keys",
     "methoden": [
       "GET"

@@ -1033,6 +1033,51 @@ function setAllVisible(type, state) {
   });
 }
 
+function _eurMb(c) { return ((c || 0) / 100).toFixed(2).replace('.', ',') + ' €'; }
+
+// Postfächer, die durch dieses Speichern NEU auf S/MIME gehen. Der Übergang
+// zählt, nicht der Zustand: Sonst fragte jedes Speichern erneut.
+function _neuAktiviert(payload) {
+  const vorher = {};
+  (_mbData || []).forEach(function (m) { vorher[m.email] = !!m.smime; });
+  return payload.filter(function (p) { return p.smime && !vorher[p.email]; })
+                .map(function (p) { return p.email; });
+}
+
+async function autoEnrollBestaetigt(payload) {
+  const neu = _neuAktiviert(payload);
+  if (!neu.length) return true;
+  let d;
+  try {
+    d = await postJSON('/api/smime/auto-enroll/vorschau', {adressen: neu});
+  } catch (e) {
+    return true;              // Auskunft nicht erreichbar → Speichern nicht blockieren
+  }
+  if (!d || !d.aktiv || !d.bestellbar) return true;
+
+  let frage = d.bestellbar + (d.bestellbar === 1 ? ' Zertifikat wird' : ' Zertifikate werden') +
+              ' automatisch bei ' + (d.anbieter || 'der Zertifizierungsstelle') + ' bestellt.';
+  if (d.abrechnung === 'kostenlos') {
+    frage += '\n\nDieser Bezugsweg ist kostenlos.';
+  } else if (d.abrechnung === 'fremd') {
+    frage += '\n\nDie Abrechnung läuft über den eigenen Vertrag mit der ' +
+             'Zertifizierungsstelle; der Betrag ist hier nicht bekannt.';
+  } else {
+    frage += '\n\nKosten: ' + _eurMb(d.kosten_cents) + ' brutto.';
+    frage += d.nachladung_cents
+      ? '\nDafür werden ' + _eurMb(d.nachladung_cents) +
+        ' automatisch vom hinterlegten Zahlungsmittel eingezogen.'
+      : '\nDer Betrag wird vom Guthaben (' + _eurMb(d.guthaben_cents) + ') abgezogen.';
+  }
+  if (!d.startbereit && (d.hindernisse || []).length) {
+    frage += '\n\nHinweis: ' + d.hindernisse.join(' ') +
+             '\nDie Postfächer werden gespeichert, die Bestellung unterbleibt.';
+  } else {
+    frage += '\n\nBereits erteilte Bestellungen lassen sich nicht zurücknehmen.';
+  }
+  return confirm(frage);
+}
+
 async function saveMailboxes(updateDg) {
   var result = document.getElementById('mb-result');
   var sigBoxes = document.querySelectorAll('.mb-sig');
@@ -1069,6 +1114,12 @@ async function saveMailboxes(updateDg) {
       use_policy: policyBoxes[i] ? policyBoxes[i].checked : true,
     });
   });
+  // ⚠️ Wird durch dieses Speichern eine Bestellung ausgelöst? Dann erst fragen.
+  // Ohne diese Rückfrage wäre das automatische Bestellen eine stille Abbuchung:
+  // Wer S/MIME für fünfzig Postfächer einschaltet, bestellte sonst unangekündigt
+  // fünfzig Zertifikate. Was bei der CA liegt, lässt sich nicht zurückholen.
+  if (!(await autoEnrollBestaetigt(payload))) return;
+
   var btn = updateDg ? document.getElementById('mb-save-btn') : document.getElementById('mb-local-btn');
   btn.disabled = true;
   var origText = btn.textContent;
