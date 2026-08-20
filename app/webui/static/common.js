@@ -744,3 +744,62 @@ async function savePartial(payload, resultElId, ort) {
     return false;
   }
 }
+
+
+/* Zustimmung zu den Bedingungen einer Zertifizierungsstelle einholen.
+ *
+ * Stand 20.08.2026 gab es diesen Dialog nur auf der S/MIME-Seite, für die
+ * Bestellung eines einzelnen Zertifikats. Der Sammellauf und die automatische
+ * Bestellung kannten ihn nicht und gaben deshalb gar keinen Beleg mit — im
+ * Livelauf scheiterten vier von vier Bestellungen daran, jede einzeln.
+ *
+ * `betreff` ist das, wofür zugestimmt wird: eine Adresse oder „4 Postfächer".
+ * Liefert true/false; der Zeitstempel entsteht beim Aufrufer, denn nur dort ist
+ * bekannt, WANN zugestimmt wurde.
+ */
+function caBedingungenZeigen(betreff, caLabel, termsUrl, docs, knopfText) {
+  return new Promise(function(resolve) {
+    var overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:center;justify-content:center';
+    overlay.innerHTML = `
+      <div style="background:#fff;border-radius:10px;padding:24px 28px;max-width:480px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.18)">
+        <h3 style="margin:0 0 12px;font-size:16px">Bedingungen der Zertifizierungsstelle</h3>
+        <p style="font-size:13px;color:#374151;margin:0 0 14px">
+          Für <strong>${esc(betreff)}</strong> wird ein S/MIME-Zertifikat über
+          <strong>${esc(caLabel)}</strong> beantragt. Als Zertifikatnehmer müssen Sie
+          den Bedingungen der Zertifizierungsstelle zustimmen.
+        </p>
+        <p style="margin:0 0 10px">
+          <a href="${escAttr(termsUrl)}" target="_blank" rel="noopener"
+             style="font-size:13px;color:#2563eb;text-decoration:underline">
+            ↗ Bedingungen der Zertifizierungsstelle lesen (neues Tab)
+          </a>
+        </p>
+        ${(docs || []).length ? `<p style="margin:0 0 16px;font-size:12px;color:#6b7280">
+          Zum Nachschlagen — nicht Gegenstand der Zustimmung:<br>
+          ${(docs || []).map(function(d) {
+            return `<a href="${escAttr(d.url)}" target="_blank" rel="noopener"
+                       style="color:#6b7280;text-decoration:underline">${esc(d.titel || d.url)}</a>`;
+          }).join(' · ')}
+        </p>` : ''}
+        <label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;cursor:pointer;margin-bottom:18px">
+          <input type="checkbox" id="_ca-terms-cb" style="margin-top:2px;flex-shrink:0">
+          <span>Ich habe die Bedingungen der Zertifizierungsstelle gelesen und akzeptiere sie.</span>
+        </label>
+        <div style="display:flex;justify-content:flex-end;gap:10px">
+          <button id="_ca-terms-cancel" class="btn secondary" style="font-size:13px">Abbrechen</button>
+          <button id="_ca-terms-ok" class="btn primary" style="font-size:13px" disabled>${esc(knopfText || 'Bestellung aufgeben')}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    var cb = overlay.querySelector('#_ca-terms-cb');
+    var okBtn = overlay.querySelector('#_ca-terms-ok');
+    cb.addEventListener('change', function() { okBtn.disabled = !cb.checked; });
+    overlay.querySelector('#_ca-terms-cancel').addEventListener('click', function() {
+      document.body.removeChild(overlay); resolve(false);
+    });
+    okBtn.addEventListener('click', function() {
+      document.body.removeChild(overlay); resolve(true);
+    });
+  });
+}

@@ -57,6 +57,11 @@ DEFAULTS: dict = {
     # deshalb vor dem Speichern nach, wenn dadurch eine Abbuchung entstünde.
     "SMIME_AUTO_ENROLL": False,
     "SMIME_AUTO_ENROLL_CA": "",       # Bezugsweg, z.B. "castle_acme" oder "hub:certum"
+    # Zeitpunkt der Zustimmung zu den Bedingungen der gewählten
+    # Zertifizierungsstelle. ⚠️ Ohne diesen Beleg lehnt die Betreiber-Gegenstelle
+    # jede Bestellung ab, wenn der Anbieter Bedingungen führt — und zwar erst im
+    # Lauf, nicht beim Einschalten.
+    "SMIME_AUTO_ENROLL_TERMS_AT": "",
     "NOSIG_TRIGGER": "#nosig",        # Keyword in subject → suppress HTML auto-signature for this mail
     "NODIGSIG_TRIGGER": "#nodigsig",  # Keyword in subject → suppress S/MIME (digital) signature for this mail
     "SIGN_INTERNAL_ONLY_MAIL": False,  # False (default) = skip signing when EVERY recipient is a known

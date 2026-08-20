@@ -220,7 +220,12 @@ async def _auto_enrollment_anstossen(adressen: list[str]) -> dict:
         return {"ausgeloest": False, "grund": "kein Bezugsweg gewählt"}
     try:
         import sammelbestellung
-        ergebnis = await sammelbestellung.lauf_starten(weg, adressen, actor="auto-enrollment")
+        # Der Zustimmungsbeleg stammt vom Einschalten der Automatik — dort wird
+        # die Zertifizierungsstelle gewählt, dort gehört die Zustimmung hin.
+        # Ihn hier zu erzeugen hiesse, sie sich selbst auszustellen.
+        beleg = (settings_store.get("SMIME_AUTO_ENROLL_TERMS_AT") or "").strip()
+        ergebnis = await sammelbestellung.lauf_starten(
+            weg, adressen, actor="auto-enrollment", ca_terms_accepted_at=beleg)
         if not ergebnis.get("ok"):
             log.warning("Automatische Bestellung für %s nicht gestartet: %s",
                         ", ".join(adressen), ergebnis.get("error"))

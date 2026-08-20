@@ -960,7 +960,12 @@ async def api_auto_enroll_vorschau(request: Request, user: str = Depends(_requir
     if not weg:
         return JSONResponse({"aktiv": False, "grund": "kein Bezugsweg gewählt"})
 
-    v = await sammelbestellung.vorschau(weg, adressen)
+    # ⚠️ `nur_zertifikate` ist hier zwingend: Die Postfächer werden GERADE erst
+    # eingeschaltet und stehen noch nicht in der gespeicherten Konfiguration.
+    # Ohne das galten sie als „hier nicht eingerichtet", die Vorschau meldete
+    # null bestellbare — und die Rückfrage vor dem Speichern erschien nie. Der
+    # Lauf startete danach trotzdem, denn er läuft nach dem Speichern.
+    v = await sammelbestellung.vorschau(weg, adressen, nur_zertifikate=True)
     return JSONResponse({
         "aktiv": True, "bezugsweg": weg,
         "bestellbar": v.get("bestellbar", 0),
@@ -984,7 +989,8 @@ async def api_sammel_start(request: Request, user: str = Depends(_require_admin)
     if not anbieter:
         raise HTTPException(400, "Anbieter erforderlich.")
     ergebnis = await sammelbestellung.lauf_starten(
-        anbieter, data.get("postfaecher") or [], actor=user)
+        anbieter, data.get("postfaecher") or [], actor=user,
+        ca_terms_accepted_at=(data.get("ca_terms_accepted_at") or "").strip())
     # ⚠️ Nur bei Erfolg als Start protokollieren. Seit der Deckungsprüfung kann
     # lauf_starten() ablehnen; die Zeile stand vorher unbedingt da und hätte im
     # Protokoll Sammelläufe ausgewiesen, die nie stattgefunden haben —

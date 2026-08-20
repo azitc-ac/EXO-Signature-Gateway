@@ -864,12 +864,28 @@ async function sammelStarten() {
   frage += '\n\nBereits erteilte Bestellungen lassen sich nicht zurücknehmen.';
   if (!confirm(frage)) return;
 
+  // Bedingungen der Zertifizierungsstelle — einmal für den ganzen Lauf.
+  // ⚠️ Ohne diesen Beleg lehnt sie jede Bestellung ab; am 20.08.2026
+  // scheiterten so vier von vier, jede einzeln und erst nach dem Start.
+  const wegName = document.getElementById('sammel-anbieter').value;
+  const wegInfo = (_BACKEND_CAPS || []).find(b => b.name === wegName) || {};
+  let zustimmung = '';
+  if (wegInfo.terms_url) {
+    const anzahl = d.bestellbar + (d.bestellbar === 1 ? ' Postfach' : ' Postfächer');
+    const ok = await caBedingungenZeigen(anzahl, wegInfo.label || wegName,
+                                         wegInfo.terms_url, wegInfo.docs || [],
+                                         'Bestellungen aufgeben');
+    if (!ok) return;
+    zustimmung = new Date().toISOString();
+  }
+
   const ziel = document.getElementById('sammel-lauf');
   ziel.style.display = '';
   ziel.textContent = 'Wird gestartet…';
   const r = await postJSON('/api/smime/sammel/start', {
-    anbieter: document.getElementById('sammel-anbieter').value,
+    anbieter: wegName,
     postfaecher: _sammelAuswahl(),
+    ca_terms_accepted_at: zustimmung,
   });
   if (!r.ok) {
     ziel.dataset.zustand = 'PAUSIERT';
@@ -1090,8 +1106,8 @@ async function startAutoEnroll(email, btn) {
   const termsUrl = info.terms_url || '';
   if (termsUrl) {
     // CA-Bedingungen müssen vor der Bestellung akzeptiert werden
-    const accepted = await _showCaTermsModal(email, info.label || backendName,
-                                             termsUrl, info.docs || []);
+    const accepted = await caBedingungenZeigen(email, info.label || backendName,
+                                              termsUrl, info.docs || []);
     if (!accepted) return;
     const orig = btn.textContent.trim();
     btn.disabled = true; btn.textContent = 'Starte…';
@@ -1114,52 +1130,9 @@ async function startAutoEnroll(email, btn) {
   }
 }
 
-function _showCaTermsModal(email, caLabel, termsUrl, docs) {
-  return new Promise(function(resolve) {
-    var overlay = document.createElement('div');
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:flex;align-items:center;justify-content:center';
-    overlay.innerHTML = `
-      <div style="background:#fff;border-radius:10px;padding:24px 28px;max-width:480px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.18)">
-        <h3 style="margin:0 0 12px;font-size:16px">Bedingungen der Zertifizierungsstelle</h3>
-        <p style="font-size:13px;color:#374151;margin:0 0 14px">
-          Für <strong>${email}</strong> wird ein S/MIME-Zertifikat über
-          <strong>${caLabel}</strong> beantragt. Als Zertifikatnehmer müssen Sie
-          den Bedingungen der Zertifizierungsstelle zustimmen.
-        </p>
-        <p style="margin:0 0 10px">
-          <a href="${escAttr(termsUrl)}" target="_blank" rel="noopener"
-             style="font-size:13px;color:#2563eb;text-decoration:underline">
-            ↗ Bedingungen der Zertifizierungsstelle lesen (neues Tab)
-          </a>
-        </p>
-        ${(docs || []).length ? `<p style="margin:0 0 16px;font-size:12px;color:#6b7280">
-          Zum Nachschlagen — nicht Gegenstand der Zustimmung:<br>
-          ${(docs || []).map(function(d) {
-            return `<a href="${escAttr(d.url)}" target="_blank" rel="noopener"
-                       style="color:#6b7280;text-decoration:underline">${esc(d.titel || d.url)}</a>`;
-          }).join(' · ')}
-        </p>` : ''}
-        <label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;cursor:pointer;margin-bottom:18px">
-          <input type="checkbox" id="_ca-terms-cb" style="margin-top:2px;flex-shrink:0">
-          <span>Ich habe die Bedingungen der Zertifizierungsstelle gelesen und akzeptiere sie.</span>
-        </label>
-        <div style="display:flex;justify-content:flex-end;gap:10px">
-          <button id="_ca-terms-cancel" class="btn secondary" style="font-size:13px">Abbrechen</button>
-          <button id="_ca-terms-ok" class="btn primary" style="font-size:13px" disabled>Bestellung aufgeben</button>
-        </div>
-      </div>`;
-    document.body.appendChild(overlay);
-    var cb = overlay.querySelector('#_ca-terms-cb');
-    var okBtn = overlay.querySelector('#_ca-terms-ok');
-    cb.addEventListener('change', function() { okBtn.disabled = !cb.checked; });
-    overlay.querySelector('#_ca-terms-cancel').addEventListener('click', function() {
-      document.body.removeChild(overlay); resolve(false);
-    });
-    okBtn.addEventListener('click', function() {
-      document.body.removeChild(overlay); resolve(true);
-    });
-  });
-}
+// caBedingungenZeigen() steht in common.js — auch Sammellauf und
+// automatische Bestellung brauchen sie.
+
 
 async function sendRenewalNotification(email, btn) {
   const result = _lcResultEl(email);
