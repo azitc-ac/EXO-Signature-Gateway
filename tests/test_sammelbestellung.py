@@ -308,7 +308,7 @@ def test_unerwarteter_fehler_reisst_den_lauf_nicht_ab(lauf, monkeypatch):
     import asyncio
 
     echte = sb._eine_bestellung
-    async def _stolpert(adresse, provider_id):
+    async def _stolpert(adresse, provider_id, ca_terms_accepted_at=""):
         if adresse == "b@x.de":
             raise RuntimeError("Konfiguration nicht lesbar")
         return await echte(adresse, provider_id)
@@ -538,3 +538,138 @@ def test_nicht_eingerichteter_bezugsweg_startet_nicht(welt, monkeypatch):
     v = asyncio.run(sb.vorschau("digicert_direct", ["a@x.de"]))
     assert v["ok"] is False
     assert "API-Key" in v["hindernisse"][0]
+
+
+# ── Zustimmung zu den Bedingungen der Zertifizierungsstelle ──────────────────
+"""
+⚠️ Am 20.08.2026 im Livelauf aufgefallen: Ein Sammellauf über vier Postfächer
+startete, schickte vier Bestellungen los und bekam viermal dieselbe Absage —
+„Zustimmung zu den Bedingungen der Zertifizierungsstelle erforderlich". Der
+Beleg wurde nirgends mitgegeben; die Einzelbestellung holt ihn über einen
+Dialog, der Sammellauf kannte ihn nicht.
+
+Zwei Lehren, beide hier geprüft:
+  * Was für ALLE Bestellungen gleichermassen gilt, gehört vor den Lauf. Vier
+    Einzelfehler für eine gemeinsame Ursache sind vier Gelegenheiten, die
+    Ursache zu übersehen.
+  * Der Beleg darf nicht im Server entstehen. Ein Zeitstempel, den sich die
+    Anwendung selbst ausstellt, belegt keine Zustimmung.
+"""
+
+
+@pytest.fixture
+def mit_bedingungen(welt):
+    welt["provider"]["terms_url"] = "https://example.org/bedingungen.pdf"
+    return welt
+
+
+def test_ohne_zustimmung_startet_kein_lauf(mit_bedingungen, startprobe):
+    import asyncio
+    r = asyncio.run(sb.lauf_starten("hub:certum", ["a@x.de", "b@x.de"]))
+    assert r["ok"] is False
+    assert "zugestimmt" in r["error"], r["error"]
+    assert sb.lauf_zustand() is None, "Lauf wurde trotzdem angelegt"
+
+
+def test_mit_zustimmung_laeuft_er(mit_bedingungen, startprobe):
+    import asyncio
+    r = asyncio.run(sb.lauf_starten("hub:certum", ["a@x.de", "b@x.de"],
+                                    ca_terms_accepted_at="2026-08-20T10:00:00Z"))
+    assert r["ok"] is True
+
+
+def test_der_beleg_erreicht_die_bestellung(startprobe, monkeypatch):
+    """⚠️ Der eigentliche Punkt: Er muss bis zur Zertifizierungsstelle kommen.
+    Ein Beleg, der auf halbem Weg verlorengeht, sieht bis zum Livelauf wie eine
+    funktionierende Zustimmung aus."""
+    import asyncio, ca_backends
+    gesehen = {}
+
+    class _Backend:
+        def get_name(self):
+            return "hub:certum"
+
+        def is_ready(self):
+            return True
+
+        def not_ready_reason(self):
+            return ""
+
+        async def initiate_renewal(self, email, cfg, extra=None):
+            gesehen[email] = (extra or {}).get("ca_terms_accepted_at")
+            return True
+
+    monkeypatch.setattr(ca_backends, "get_backend", lambda pid: _Backend())
+    asyncio.run(sb._eine_bestellung("a@x.de", "hub:certum", "2026-08-20T10:00:00Z"))
+    assert gesehen["a@x.de"] == "2026-08-20T10:00:00Z"
+
+
+def test_anbieter_ohne_bedingungen_brauchen_keinen_beleg(bereit):
+    """CASTLE und die Direktanbindungen führen keine Bedingungen — dort wäre
+    eine Zustimmungsabfrage eine Hürde ohne Gegenstand."""
+    import asyncio
+    v = asyncio.run(sb.vorschau("castle_acme", ["a@x.de"]))
+    assert v["ok"] is True
+    assert sb._zustimmung_fehlt("castle_acme", "") == ""
+
+
+def test_vorschau_kennt_postfaecher_die_gerade_eingeschaltet_werden(welt):
+    """⚠️ Die Rückfrage vor dem Speichern prüfte gegen die GESPEICHERTE
+    Konfiguration — in der die Postfächer noch nicht stehen, weil sie gerade
+    erst eingeschaltet werden. Ergebnis: null bestellbare, keine Rückfrage, und
+    der Lauf startete danach trotzdem. Genau die stille Bestellung, die die
+    Rückfrage verhindern sollte."""
+    import asyncio
+    v = asyncio.run(sb.vorschau("hub:certum", ["ganz.neu@x.de"], nur_zertifikate=True))
+    assert v["bestellbar"] == 1, v
+    ohne = asyncio.run(sb.vorschau("hub:certum", ["ganz.neu@x.de"]))
+    assert ohne["bestellbar"] == 0, "ohne das Kennzeichen bleibt es beim alten Verhalten"
+
+
+# ── Was übergeben wird, ist ein Wunsch — kein Auftrag ────────────────────────
+"""
+⚠️ Am 20.08.2026 im Livelauf aufgefallen und von KEINEM Test bemerkt: Die
+Vorschau wies „3 bestellbar, 1 übersprungen" aus, der Lauf legte vier
+Bestellungen an. Er arbeitete die Liste ab, die ihm gereicht wurde.
+
+Warum die vorhandenen Tests blind waren: Sie geben nur bestellbare Postfächer
+in die Auswahl. Damit war „Auswahl == bestellbare Menge" nie eine Annahme, die
+schiefgehen konnte. Der teure Fall — jemand markiert alle Postfächer, ein paar
+davon sind längst versorgt — kam darin nicht vor.
+"""
+
+
+def test_versorgte_postfaecher_werden_nicht_mitbestellt(lauf, monkeypatch):
+    """Die Auswahl enthält ein Postfach, das bereits versorgt ist."""
+    import asyncio, smime_store
+    versorgt = {"b@x.de": [{"expiry": "01.01.2030"}]}
+    monkeypatch.setattr(smime_store, "list_user_certs", lambda e: versorgt.get(e, []))
+
+    z = asyncio.run(_durchlaufen(["a@x.de", "b@x.de", "c@x.de"]))
+    bestellt = [e["email"] for e in z["erledigt"] if e.get("ok")]
+    assert "b@x.de" not in bestellt, "für ein versorgtes Postfach wurde bestellt"
+    assert z["gesamt"] == 2, f"Lauf umfasst {z['gesamt']} statt 2 Postfächer"
+
+
+def test_zwischenzeitlich_versorgtes_postfach_wird_uebersprungen(lauf, monkeypatch):
+    """⚠️ Ein Lauf über hundert Postfächer dauert Minuten. Trifft in dieser Zeit
+    ein Zertifikat ein — aus einer Einzelbestellung, einer automatischen
+    Erneuerung, einem Hochladen von Hand —, ist die Prüfung vom Start veraltet.
+    Bezahlt würde trotzdem."""
+    import asyncio
+    import smime_store
+
+    stand = {"a@x.de": [], "b@x.de": [], "c@x.de": []}
+    monkeypatch.setattr(smime_store, "list_user_certs", lambda e: stand.get(e, []))
+
+    echte = sb._eine_bestellung
+
+    async def _bestellen(adresse, provider_id, beleg=""):
+        # Nach der ersten Bestellung trifft für b@x.de ein Zertifikat ein
+        stand["b@x.de"] = [{"expiry": "01.01.2030"}]
+        return await echte(adresse, provider_id, beleg)
+
+    monkeypatch.setattr(sb, "_eine_bestellung", _bestellen)
+    z = asyncio.run(_durchlaufen(["a@x.de", "b@x.de", "c@x.de"]))
+    b = next(e for e in z["erledigt"] if e["email"] == "b@x.de")
+    assert b["ok"] is False and "inzwischen" in b["grund"], b

@@ -5,6 +5,36 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.228 — 2026-08-20 — Sammelbestellung: drei Fehler aus dem ersten echten Lauf
+
+Der erste Sammellauf über mehrere Postfächer hat drei Fehler zutage gefördert,
+die keine der bisherigen Prüfungen zeigen konnte.
+
+**Bestellungen scheiterten an der fehlenden Zustimmung zu den Bedingungen der
+Zertifizierungsstelle.** Bei der Einzelbestellung wird sie über einen Dialog
+eingeholt; Sammellauf und automatische Bestellung kannten ihn nicht und gaben
+gar keinen Beleg mit. Die Zertifizierungsstelle lehnte daraufhin jede
+Bestellung einzeln ab. Beide Wege holen die Zustimmung jetzt ein — der
+Sammellauf einmal für den ganzen Lauf, die automatische Bestellung beim
+Einschalten, denn dort wird die Zertifizierungsstelle gewählt. Fehlt der Beleg,
+startet gar kein Lauf: Was für alle Bestellungen gleichermassen gilt, gehört
+vor den Lauf und nicht in jede einzelne Fehlermeldung.
+
+**Ein Lauf bestellte auch für Postfächer, die bereits versorgt waren.** Die
+Vorschau wies sie korrekt als übersprungen aus, der Lauf arbeitete jedoch die
+übergebene Auswahl ab. Bei einem kostenpflichtigen Bezugsweg entstünde so eine
+bezahlte Bestellung für ein Postfach, das schon ein Zertifikat hat — sichtbar
+erst auf der Rechnung. Zusätzlich wird jetzt unmittelbar vor jeder einzelnen
+Bestellung noch einmal nachgesehen: Ein Lauf über hundert Postfächer dauert
+Minuten, in denen ein Zertifikat aus anderer Quelle eintreffen kann.
+
+**Die Rückfrage vor dem Aktivieren erschien nie.** Beim Einschalten von S/MIME
+für mehrere Postfächer sollte vorab genannt werden, wie viele Zertifikate
+bestellt und welcher Betrag abgebucht wird. Die Auskunft prüfte jedoch gegen
+die gespeicherte Konfiguration — in der die Postfächer noch nicht stehen, weil
+sie gerade erst eingeschaltet werden. Sie meldete deshalb null Bestellungen und
+die Rückfrage unterblieb, während der Lauf danach trotzdem startete.
+
 ## v1.7.227 — 2026-08-20 — Oberflächen-Tests
 
 Die Prüfungen dieses Projekts lesen bislang Quelltext. Für die Oberfläche

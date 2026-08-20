@@ -131,7 +131,25 @@ def hindernisse_blockieren(rechte: dict, fehlt: int, automatik: bool) -> bool:
     return bool(fehlt) and not automatik
 
 
-async def vorschau(provider_id: str, adressen: list[str]) -> dict:
+def _zustimmung_fehlt(provider_id: str, beleg: str) -> str:
+    """Leerer Text = alles in Ordnung, sonst die Begründung.
+
+    Nur Anbieter mit hinterlegten Bedingungen verlangen einen Beleg; CASTLE und
+    die Direktanbindungen führen keine.
+    """
+    if not provider_id.startswith(HUB_PRAEFIX) or beleg:
+        return ""
+    import hub_catalog
+    prov = hub_catalog.get(provider_id[len(HUB_PRAEFIX):]) or {}
+    if not prov.get("terms_url"):
+        return ""
+    return ("Den Bedingungen der Zertifizierungsstelle wurde noch nicht "
+            f"zugestimmt ({prov.get('label') or provider_id}). Ohne diese "
+            "Zustimmung lehnt sie jede Bestellung ab.")
+
+
+async def vorschau(provider_id: str, adressen: list[str],
+                   nur_zertifikate: bool = False) -> dict:
     """Was ein Sammellauf kosten und bewirken würde. Bestellt nichts.
 
     `adressen` ist die Auswahl des Betreibers; alles Weitere wird hier geprüft,
@@ -205,6 +223,13 @@ async def vorschau(provider_id: str, adressen: list[str]) -> dict:
     zeilen = []
     for adresse in auswahl:
         p = bekannt.get(adresse)
+        if not p and nur_zertifikate:
+            # Aufrufer, die S/MIME gerade erst einschalten (Postfachseite): Die
+            # Konfiguration ist noch nicht gespeichert, „nicht eingerichtet"
+            # wäre hier eine Antwort auf die falsche Frage. Massgeblich ist
+            # allein, ob schon ein gültiges Zertifikat vorliegt.
+            p = {"email": adresse, "name": "",
+                 "zustand": HAT_ZERTIFIKAT if _gueltige_zertifikate(adresse) else BEREIT}
         if not p:
             zeilen.append({"email": adresse, "zustand": "unbekannt",
                            "hinweis": "Postfach ist hier nicht eingerichtet."})
@@ -330,13 +355,28 @@ def lauf_abbrechen() -> bool:
     return False
 
 
-async def lauf_starten(provider_id: str, adressen: list[str], actor: str = "") -> dict:
-    """Startet einen Sammellauf im Hintergrund. Liefert den Anfangszustand."""
+async def lauf_starten(provider_id: str, adressen: list[str], actor: str = "",
+                       ca_terms_accepted_at: str = "") -> dict:
+    """Startet einen Sammellauf im Hintergrund. Liefert den Anfangszustand.
+
+    `ca_terms_accepted_at` ist der Beleg, dass jemand den Bedingungen der
+    Zertifizierungsstelle zugestimmt hat. Er wird NICHT hier erzeugt: Ein
+    Zeitstempel, den der Server sich selbst ausstellt, belegt nichts.
+    """
     global _lauf
     import asyncio
 
     if _lauf and _lauf["status"] in (LAEUFT, PAUSIERT):
         return {"ok": False, "error": "Es läuft bereits ein Sammelvorgang."}
+
+    # ⚠️ Fehlende Zustimmung VOR dem Start abfangen. Am 20.08.2026 lief ein
+    # Sammellauf über vier Postfächer an und scheiterte viermal einzeln an
+    # derselben Ursache — jede Bestellung ging zur Gegenstelle, wurde dort
+    # abgelehnt und kam als Einzelfehler zurück. Was für alle gleichermassen
+    # gilt, gehört vor den Lauf.
+    fehlt = _zustimmung_fehlt(provider_id, ca_terms_accepted_at)
+    if fehlt:
+        return {"ok": False, "error": fehlt}
 
     # ⚠️ Deckung VOR dem Start prüfen, nicht erst bei der ersten Bestellung.
     # Ohne das startet ein Lauf über hundert Postfächer, bestellt fünf und bleibt
@@ -351,8 +391,23 @@ async def lauf_starten(provider_id: str, adressen: list[str], actor: str = "") -
                                                ["Der Lauf ist nicht startbereit."]),
                 "fehlbetrag_cents": pruefung.get("fehlbetrag_cents", 0)}
 
-    offen = [a.strip().lower() for a in (adressen or []) if a and a.strip()]
+    # ⚠️ NUR die bestellbaren übernehmen, nicht die übergebene Auswahl.
+    #
+    # Am 20.08.2026 im Livelauf aufgefallen: Die Vorschau wies „3 bestellbar,
+    # 1 übersprungen" aus, der Lauf legte vier Bestellungen an — er arbeitete
+    # die Liste ab, die ihm gereicht wurde. Bei einem kostenpflichtigen
+    # Bezugsweg ist das eine bezahlte Bestellung für ein Postfach, das schon
+    # versorgt ist; sichtbar wird es erst auf der Rechnung.
+    #
+    # Die Auswahl des Betreibers ist ein Wunsch, kein Auftrag: Was davon
+    # tatsächlich zu bestellen ist, hat die Vorschau eine Zeile weiter oben
+    # bereits entschieden.
+    bestellbar = {z["email"] for z in pruefung.get("postfaecher", [])
+                  if z.get("zustand") == BEREIT}
+    offen = [a.strip().lower() for a in (adressen or [])
+             if a and a.strip().lower() in bestellbar]
     _lauf = {
+        "ca_terms_accepted_at": ca_terms_accepted_at,
         "status": LAEUFT, "anbieter": provider_id, "gestartet_von": actor,
         "offen": offen, "erledigt": [], "gesamt": len(offen),
         "fehlbetrag_cents": 0, "abbruch_gewuenscht": False, "meldung": "",
@@ -386,7 +441,17 @@ async def _arbeiten() -> None:
 
         adresse = _lauf["offen"][0]
         try:
-            ergebnis = await _eine_bestellung(adresse, _lauf["anbieter"])
+            # ⚠️ Kurz vor der Bestellung noch einmal nachsehen. Ein Lauf über
+            # hundert Postfächer dauert Minuten; in dieser Zeit kann ein
+            # Zertifikat eingetroffen sein — aus einer Einzelbestellung, einer
+            # automatischen Erneuerung oder einem Hochladen von Hand. Die
+            # Prüfung beim Start ist dann veraltet, und bezahlt würde trotzdem.
+            if _gueltige_zertifikate(adresse):
+                ergebnis = {"email": adresse, "ok": False,
+                            "grund": "Übersprungen: hat inzwischen ein gültiges Zertifikat."}
+            else:
+                ergebnis = await _eine_bestellung(adresse, _lauf["anbieter"],
+                                                  _lauf.get("ca_terms_accepted_at", ""))
         except Exception as exc:                      # nie den ganzen Lauf reissen lassen
             log.error("Sammellauf: %s unerwartet gescheitert: %s", adresse, exc)
             ergebnis = {"email": adresse, "ok": False, "grund": str(exc)[:200]}
@@ -408,7 +473,8 @@ async def _arbeiten() -> None:
         _lauf["meldung"] = f"{gut} von {_lauf['gesamt']} bestellt."
 
 
-async def _eine_bestellung(adresse: str, provider_id: str) -> dict:
+async def _eine_bestellung(adresse: str, provider_id: str,
+                           ca_terms_accepted_at: str = "") -> dict:
     """Eine einzelne Bestellung über denselben Weg wie die Einzelbestellung."""
     import ca_backends, settings_store
 
@@ -423,7 +489,12 @@ async def _eine_bestellung(adresse: str, provider_id: str) -> dict:
                 "grund": f"Bezugsweg {provider_id} unbekannt — Lauf abgebrochen, "
                          f"damit nichts über einen anderen Weg bestellt wird."}
     try:
-        await backend.initiate_renewal(adresse, cfg)
+        # ⚠️ Der Zustimmungsbeleg MUSS mit. Ohne ihn lehnt die Gegenstelle bei
+        # jedem Anbieter mit Bedingungen ab — am 20.08.2026 scheiterten so vier
+        # von vier Bestellungen eines Sammellaufs, jede einzeln und erst nach
+        # dem Start.
+        await backend.initiate_renewal(
+            adresse, cfg, extra={"ca_terms_accepted_at": ca_terms_accepted_at})
         return {"email": adresse, "ok": True, "grund": ""}
     except Exception as exc:
         text = str(exc)

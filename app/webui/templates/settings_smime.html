@@ -127,6 +127,7 @@
         <select id="auto-enroll-weg" style="font-size:13px;min-width:260px">
           {% for b in enroll_wege %}
           <option value="{{ b.name }}"
+            data-terms="{{ b.terms_url or '' }}" data-label="{{ b.label }}"
             {% if s.SMIME_AUTO_ENROLL_CA == b.name %}selected{% endif %}>{{ b.label }}</option>
           {% endfor %}
         </select>
@@ -661,11 +662,25 @@ function toggleTagField(inputId, enabled) {
 }
 
 async function speichereAutoEnroll() {
-  const ok = await savePartial({
-    SMIME_AUTO_ENROLL: document.getElementById('auto-enroll').checked,
-    SMIME_AUTO_ENROLL_CA: (document.getElementById('auto-enroll-weg') || {}).value || '',
-  });
-  wacheFertig('auto-enroll-btn', ok);
+  const an = document.getElementById('auto-enroll').checked;
+  const sel = document.getElementById('auto-enroll-weg');
+  const weg = sel ? sel.value : '';
+  const nutzlast = {SMIME_AUTO_ENROLL: an, SMIME_AUTO_ENROLL_CA: weg};
+
+  // ⚠️ Die Zustimmung gehört HIERHIN, nicht in den späteren Lauf: Hier wird die
+  // Zertifizierungsstelle gewählt, und später bestellt niemand mehr bewusst —
+  // es geschieht beim Aktivieren eines Postfachs. Ohne Beleg lehnt die
+  // Zertifizierungsstelle jede Bestellung ab, und zwar erst im Lauf.
+  const gewaehlt = sel ? sel.options[sel.selectedIndex] : null;
+  const terms = gewaehlt ? (gewaehlt.dataset.terms || '') : '';
+  if (an && terms) {
+    const ok = await caBedingungenZeigen(
+      'jedes künftig aktivierte Postfach', gewaehlt.dataset.label || weg, terms, [],
+      'Zustimmen und einschalten');
+    if (!ok) { wacheFertig('auto-enroll-btn', false, 'Nicht eingeschaltet'); return; }
+    nutzlast.SMIME_AUTO_ENROLL_TERMS_AT = new Date().toISOString();
+  }
+  wacheFertig('auto-enroll-btn', await savePartial(nutzlast));
 }
 
 function autoEnrollUmschalten() {
