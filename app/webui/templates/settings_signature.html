@@ -152,7 +152,7 @@
   </div>
   <button type="button" class="btn secondary btn-sm" style="margin-top:6px" onclick="addOverrideRow()">+ Zeile</button>
   <div class="actions" style="margin-top:12px">
-    <button class="btn secondary" onclick="saveOverrides()">Speichern</button>
+    <button class="btn secondary" id="overrides-btn" data-wache-container="#overrides-tbody" data-wache-hinweis="overrides-result" onclick="saveOverrides()">Speichern</button>
     <span id="overrides-result" style="font-size:12px;margin-left:8px"></span>
   </div>
   </div>
@@ -215,7 +215,7 @@
   <button type="button" class="btn secondary btn-sm" onclick="addCustomVar()" style="margin-bottom:12px">+ Variable hinzufügen</button>
 
   <div class="actions" style="margin-top:0">
-    <button class="btn secondary" onclick="saveCustomVars()">Speichern</button>
+    <button class="btn secondary" id="custom-vars-btn" data-wache-container="#custom-vars-list" data-wache-hinweis="custom-vars-result" onclick="saveCustomVars()">Speichern</button>
     <span id="custom-vars-result" style="font-size:12px;margin-left:8px"></span>
   </div>
 </div>
@@ -288,7 +288,7 @@ function addCustomVar(name, field) {
   document.getElementById('custom-vars-list').appendChild(_customVarRow(name||'', field||''));
 }
 
-function saveCustomVars() {
+async function saveCustomVars() {
   const rows = document.querySelectorAll('.custom-var-row');
   const vars = [];
   for (const row of rows) {
@@ -302,7 +302,8 @@ function saveCustomVars() {
     }
     vars.push({name, entra_field: field});
   }
-  savePartial({ CUSTOM_TEMPLATE_VARS: vars }, 'custom-vars-result');
+  wacheFertig('custom-vars-btn', await savePartial(
+    { CUSTOM_TEMPLATE_VARS: vars }, 'custom-vars-result'));
 }
 
 (function initCustomVars() {
@@ -387,7 +388,7 @@ function addOverrideRow(email, varKey, value) {
   }
 })();
 
-function saveOverrides() {
+async function saveOverrides() {
   const overrides = {}, websites = {};
   document.querySelectorAll('.override-row').forEach(tr => {
     const sel = tr.querySelector('.or-email-sel');
@@ -400,7 +401,8 @@ function saveOverrides() {
     overrides[email][varKey] = value;
     if (varKey==='user.website') websites[email] = value;
   });
-  savePartial({ USER_OVERRIDES: overrides, USER_WEBSITES: websites }, 'overrides-result');
+  wacheFertig('overrides-btn', await savePartial(
+    { USER_OVERRIDES: overrides, USER_WEBSITES: websites }, 'overrides-result'));
 }
 
 async function saveWebsiteField() {

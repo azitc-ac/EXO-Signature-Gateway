@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.230 — 2026-08-21 — Speicheranzeige auch für Listen und Regeln
+
+Vier Speichern-Knöpfe zeigten bisher nicht an, ob etwas zu sichern ist:
+Benutzer-Overrides, eigene Variablen, S/MIME-Regeln und die Wahl des
+Key-Vault-Modus. Ihre Felder stehen nicht fest — die Zeilen entstehen beim
+Bearbeiten, und die Modus-Wahl ist eine Auswahlgruppe.
+
+Die Anzeige überwacht jetzt wahlweise einen ganzen Bereich statt einzelner
+Felder. Damit gilt auch dort: Der Knopf bleibt grau, solange nichts geändert
+wurde, meldet sich nach einer Änderung und bestätigt das Sichern. Eine neu
+hinzugefügte Zeile zählt als Änderung, auch wenn sie noch leer ist — sonst
+wäre „drei leere Felder" derselbe Stand wie „keine Felder".
+
+Die Wahl des Key-Vault-Modus schreibt ihre Einstellung nun über denselben Weg
+wie alle übrigen Felder; ihre Rückmeldung wurde bisher eigenständig eingefärbt
+und war im Dunkelmodus schlecht lesbar.
+
 ## v1.7.229 — 2026-08-21 — Bestätigung der E-Mail-Adresse läuft ohne offenen Browser
 
 Eine Zertifizierungsstelle stellt erst aus, wenn jemand den Link in ihrer
