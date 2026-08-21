@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.233 — 2026-08-21 — Anmeldung als eigenes Modul
+
+Die Anmeldung — über den Microsoft-Dienst, das örtliche Kennwort als Notzugang,
+die Abmeldung — sowie die Verwaltung der Zugangsberechtigten stehen jetzt für
+sich statt in der Hauptdatei.
+
+Damit liegt an einem Ort, was über den Zugang zum Gateway entscheidet. Zwei
+Adressen sind dabei bewusst ohne Anmeldeprüfung erreichbar, weil vor der
+Anmeldung noch keine Sitzung besteht; sie sind in der Prüfung namentlich
+aufgeführt, damit das eine Entscheidung bleibt und keine Lücke wird.
+
+Am Verhalten ändert sich nichts; die Routentabelle ist Adresse für Adresse
+unverändert.
+
 ## v1.7.232 — 2026-08-21 — Betrieb und Selbst-Aktualisierung als eigene Module
 
 Zwei weitere Gruppen aus der Hauptdatei gelöst: der laufende Betrieb (Zustand,
