@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.231 — 2026-08-21 — Signaturvorlagen als eigenes Modul
+
+Die Verwaltung der Signaturvorlagen — anlegen, umbenennen, kopieren, löschen,
+in Bausteine zerlegen, Vorschau — lag bislang mitten in einer Datei mit über
+dreitausend Zeilen. Sie ist jetzt für sich, zusammen mit den Nachrichten an
+Postfachinhaber, die technisch dieselben Vorlagen sind und im selben Editor
+bearbeitet werden.
+
+Am Verhalten ändert sich nichts: Es wurde ausschliesslich umsortiert. Die
+Routentabelle vor und nach dem Umbau ist Adresse für Adresse identisch — dafür
+gibt es eine eigene Prüfung.
+
 ## v1.7.230 — 2026-08-21 — Speicheranzeige auch für Listen und Regeln
 
 Vier Speichern-Knöpfe zeigten bisher nicht an, ob etwas zu sichern ist:
