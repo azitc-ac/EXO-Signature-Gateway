@@ -131,6 +131,33 @@ def hindernisse_blockieren(rechte: dict, fehlt: int, automatik: bool) -> bool:
     return bool(fehlt) and not automatik
 
 
+def _auto_confirm_setzen(adressen: list[str], provider_id: str) -> None:
+    """Für diese Postfächer die Bestätigung dem Gateway überlassen.
+
+    ⚠️ Das ist eine Befugnis, keine Bequemlichkeit: Das Gateway liest dafür die
+    Bestätigungsmail im Postfach des jeweiligen Nutzers. Deshalb wird sie nur
+    gesetzt, wenn der Betreiber sie in der Rückfrage ausdrücklich bestätigt hat
+    — und niemals stillschweigend als Vorgabe im Server.
+
+    Ohne sie bleibt am Ende eines Sammellaufs für jedes Postfach eine Mail
+    liegen, die ein Mensch anklicken muss. Bei hundert Postfächern ist das
+    genau der Engpass, den der Sammellauf abschaffen soll.
+
+    Der Bezugsweg wird mitgeschrieben: Ein Eintrag mit `auto_confirm`, aber
+    ohne Bezugsweg, fiele bei der nächsten Erneuerung auf `assisted_manual`
+    zurück — und dort gibt es nichts automatisch zu bestätigen.
+    """
+    import settings_store
+    cfg = dict(settings_store.get("CA_USER_CONFIG") or {})
+    for adresse in adressen:
+        eintrag = dict(cfg.get(adresse) or {})
+        eintrag["auto_confirm"] = True
+        eintrag.setdefault("backend", provider_id)
+        cfg[adresse] = eintrag
+    settings_store.update({"CA_USER_CONFIG": cfg})
+    log.info("Sammellauf: automatische Bestätigung für %d Postfächer gesetzt", len(adressen))
+
+
 def _zustimmung_fehlt(provider_id: str, beleg: str) -> str:
     """Leerer Text = alles in Ordnung, sonst die Begründung.
 
@@ -356,7 +383,8 @@ def lauf_abbrechen() -> bool:
 
 
 async def lauf_starten(provider_id: str, adressen: list[str], actor: str = "",
-                       ca_terms_accepted_at: str = "") -> dict:
+                       ca_terms_accepted_at: str = "",
+                       auto_confirm: bool = False) -> dict:
     """Startet einen Sammellauf im Hintergrund. Liefert den Anfangszustand.
 
     `ca_terms_accepted_at` ist der Beleg, dass jemand den Bedingungen der
@@ -406,6 +434,9 @@ async def lauf_starten(provider_id: str, adressen: list[str], actor: str = "",
                   if z.get("zustand") == BEREIT}
     offen = [a.strip().lower() for a in (adressen or [])
              if a and a.strip().lower() in bestellbar]
+    if auto_confirm:
+        _auto_confirm_setzen(offen, provider_id)
+
     _lauf = {
         "ca_terms_accepted_at": ca_terms_accepted_at,
         "status": LAEUFT, "anbieter": provider_id, "gestartet_von": actor,

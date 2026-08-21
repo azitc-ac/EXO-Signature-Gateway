@@ -990,7 +990,8 @@ async def api_sammel_start(request: Request, user: str = Depends(_require_admin)
         raise HTTPException(400, "Anbieter erforderlich.")
     ergebnis = await sammelbestellung.lauf_starten(
         anbieter, data.get("postfaecher") or [], actor=user,
-        ca_terms_accepted_at=(data.get("ca_terms_accepted_at") or "").strip())
+        ca_terms_accepted_at=(data.get("ca_terms_accepted_at") or "").strip(),
+        auto_confirm=bool(data.get("auto_confirm")))
     # ⚠️ Nur bei Erfolg als Start protokollieren. Seit der Deckungsprüfung kann
     # lauf_starten() ablehnen; die Zeile stand vorher unbedingt da und hätte im
     # Protokoll Sammelläufe ausgewiesen, die nie stattgefunden haben —

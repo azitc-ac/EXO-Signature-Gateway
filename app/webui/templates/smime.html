@@ -88,6 +88,17 @@
                                     border-radius:6px;padding:6px 10px;font-size:13px">
         <span class="muted">Wird geladen…</span>
       </div>
+      <label style="display:flex;align-items:flex-start;gap:8px;margin-top:10px;font-size:13px;cursor:pointer">
+        <input type="checkbox" id="sammel-autoconfirm" checked style="flex-shrink:0;margin-top:3px">
+        <span>E-Mail-Adressen automatisch bestätigen
+          <span class="muted" style="display:block;font-size:12px">
+            Die Zertifizierungsstelle schickt an jedes Postfach eine
+            Bestätigungsmail; erst danach stellt sie aus. Mit diesem Haken liest
+            das Gateway sie und bestätigt selbst. Ohne ihn muss jeder
+            Postfachinhaber den Link in seiner Mail anklicken.
+          </span>
+        </span>
+      </label>
       <div style="display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap">
         <button class="btn primary btn-sm" onclick="sammelVorschau()">Vorschau anzeigen</button>
         <span id="sammel-auswahl" class="muted" style="font-size:12px"></span>
@@ -861,6 +872,12 @@ async function sammelStarten() {
         ' automatisch vom hinterlegten Zahlungsmittel eingezogen.'
       : '\n\nDer Betrag wird vom Guthaben (' + _eur(d.guthaben_cents) + ') abgezogen.';
   }
+  const autoBestaetigen = (document.getElementById('sammel-autoconfirm') || {}).checked;
+  frage += autoBestaetigen
+    ? '\n\nDie E-Mail-Adressen werden automatisch bestätigt: Das Gateway liest ' +
+      'dafür die Bestätigungsmail im jeweiligen Postfach.'
+    : '\n\nJeder Postfachinhaber muss den Bestätigungslink in seiner Mail ' +
+      'anklicken, sonst wird kein Zertifikat ausgestellt.';
   frage += '\n\nBereits erteilte Bestellungen lassen sich nicht zurücknehmen.';
   if (!confirm(frage)) return;
 
@@ -886,6 +903,7 @@ async function sammelStarten() {
     anbieter: wegName,
     postfaecher: _sammelAuswahl(),
     ca_terms_accepted_at: zustimmung,
+    auto_confirm: autoBestaetigen,
   });
   if (!r.ok) {
     ziel.dataset.zustand = 'PAUSIERT';

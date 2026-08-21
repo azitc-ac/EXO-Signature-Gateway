@@ -5,6 +5,34 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.229 — 2026-08-21 — Bestätigung der E-Mail-Adresse läuft ohne offenen Browser
+
+Eine Zertifizierungsstelle stellt erst aus, wenn jemand den Link in ihrer
+Bestätigungsmail angeklickt hat. Das Gateway kann das übernehmen — bisher
+allerdings nur, solange eine S/MIME-Seite im Browser offen war: Deren
+Fortschrittsanzeige hat die Bestätigung angestossen.
+
+Für eine einzelne Bestellung, bei der jemand zusieht, genügt das. Bei einer
+Sammelbestellung über viele Postfächer nicht, und beim automatischen Bestellen
+schon gar nicht — dort sieht niemand zu, die Bestätigung unterblieb also
+immer. Die Zusage „läuft ohne Zutun" hing damit an einer Bedingung, die
+nirgends stand: dass der Browser offen bleibt.
+
+Der Hintergrunddienst übernimmt das jetzt. Er bestätigt offene Bestellungen,
+für die das eingeschaltet ist, und fragt erst danach ihren Zustand ab —
+andersherum fände er nichts Neues. Jede Bestellung wird höchstens einmal
+bestätigt; ein Fehlschlag bei einem Postfach hält die übrigen nicht auf.
+
+**Neu im Sammelvorgang: „E-Mail-Adressen automatisch bestätigen"**, vorbelegt
+mit ja. Die Rückfrage vor dem Start benennt beide Fälle ausdrücklich — entweder
+liest das Gateway die Bestätigungsmail im jeweiligen Postfach, oder jeder
+Postfachinhaber muss den Link in seiner Mail selbst anklicken. Beim
+automatischen Bestellen ist die Bestätigung Teil derselben Entscheidung: Wer
+sie einschaltet, will sie zu Ende laufen sehen.
+
+Damit läuft eine Sammelbestellung vom Auswählen bis zum eingespielten
+Zertifikat ohne weiteren Handgriff.
+
 ## v1.7.228 — 2026-08-20 — Sammelbestellung: drei Fehler aus dem ersten echten Lauf
 
 Der erste Sammellauf über mehrere Postfächer hat drei Fehler zutage gefördert,

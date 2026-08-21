@@ -673,3 +673,33 @@ def test_zwischenzeitlich_versorgtes_postfach_wird_uebersprungen(lauf, monkeypat
     z = asyncio.run(_durchlaufen(["a@x.de", "b@x.de", "c@x.de"]))
     b = next(e for e in z["erledigt"] if e["email"] == "b@x.de")
     assert b["ok"] is False and "inzwischen" in b["grund"], b
+
+
+def test_sammellauf_kann_die_bestaetigung_uebernehmen(lauf, monkeypatch):
+    """⚠️ Ohne sie bleibt am Ende jedes Sammellaufs für jedes Postfach eine
+    Mail liegen, die ein Mensch anklicken muss — bei hundert Postfächern genau
+    der Engpass, den der Lauf abschaffen soll."""
+    import asyncio, settings_store
+    geschrieben = {}
+    # ⚠️ monkeypatch, nicht direkt zuweisen: Eine ohne ihn ersetzte Funktion
+    # bleibt nach dem Test stehen. Genau das hat hier 13 fremde Tests
+    # umgeworfen, die danach in ein Wörterbuch statt in die Einstellungen
+    # schrieben.
+    monkeypatch.setattr(settings_store, "update", lambda d: geschrieben.update(d))
+
+    asyncio.run(sb.lauf_starten("hub:certum", ["a@x.de", "b@x.de"], auto_confirm=True))
+    cfg = geschrieben.get("CA_USER_CONFIG", {})
+    assert cfg.get("a@x.de", {}).get("auto_confirm") is True, cfg
+    assert cfg.get("a@x.de", {}).get("backend") == "hub:certum", (
+        "ohne Bezugsweg fiele der Eintrag bei der nächsten Erneuerung auf "
+        "assisted_manual zurück — dort gibt es nichts zu bestätigen")
+
+
+def test_ohne_haken_wird_nichts_gesetzt(lauf, monkeypatch):
+    """Die Bestätigung ist eine Befugnis: Das Gateway liest dafür Mail im
+    Postfach des Nutzers. Sie darf nicht stillschweigend entstehen."""
+    import asyncio, settings_store
+    geschrieben = {}
+    monkeypatch.setattr(settings_store, "update", lambda d: geschrieben.update(d))
+    asyncio.run(sb.lauf_starten("hub:certum", ["a@x.de"]))
+    assert "CA_USER_CONFIG" not in geschrieben
