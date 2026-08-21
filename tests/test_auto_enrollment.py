@@ -54,7 +54,8 @@ def enrollment(monkeypatch):
     stand = {"SMIME_AUTO_ENROLL": True, "SMIME_AUTO_ENROLL_CA": "castle_acme"}
     gestartet = []
 
-    async def _start(weg, adressen, actor="", ca_terms_accepted_at=""):
+    async def _start(weg, adressen, actor="", ca_terms_accepted_at="",
+                      auto_confirm=False):
         gestartet.append({"weg": weg, "adressen": list(adressen), "actor": actor})
         return {"ok": True}
 
@@ -106,7 +107,8 @@ def test_fehlgeschlagene_bestellung_kippt_das_speichern_nicht(enrollment, monkey
     sondern muss als Auskunft zurückkommen."""
     import sammelbestellung
 
-    async def _kaputt(weg, adressen, actor="", ca_terms_accepted_at=""):
+    async def _kaputt(weg, adressen, actor="", ca_terms_accepted_at="",
+                       auto_confirm=False):
         raise RuntimeError("Hub nicht erreichbar")
     monkeypatch.setattr(sammelbestellung, "lauf_starten", _kaputt)
     r = _anstossen(["a@x.de"])
@@ -120,7 +122,8 @@ def test_abgelehnter_lauf_wird_gemeldet_nicht_verschluckt(enrollment, monkeypatc
     die Bestellung unterblieb — sonst wartet er auf Zertifikate, die nie kommen."""
     import sammelbestellung
 
-    async def _abgelehnt(weg, adressen, actor="", ca_terms_accepted_at=""):
+    async def _abgelehnt(weg, adressen, actor="", ca_terms_accepted_at="",
+                          auto_confirm=False):
         return {"ok": False, "error": "Guthaben reicht nicht — es fehlen 11,90 €."}
     monkeypatch.setattr(sammelbestellung, "lauf_starten", _abgelehnt)
     r = _anstossen(["a@x.de"])
@@ -169,7 +172,8 @@ def speicherweg(monkeypatch):
         {"guid": "g2", "primary": "b@x.de", "addresses": ["b@x.de"], "display_name": "B"},
     ])
 
-    async def _start(weg, adressen, actor="", ca_terms_accepted_at=""):
+    async def _start(weg, adressen, actor="", ca_terms_accepted_at="",
+                      auto_confirm=False):
         gestartet.append(list(adressen))
         return {"ok": True}
     monkeypatch.setattr(sammelbestellung, "lauf_starten", _start)

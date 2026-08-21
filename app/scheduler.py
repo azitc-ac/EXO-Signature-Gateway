@@ -393,6 +393,14 @@ def _poll_hub_orders() -> None:
         if hub_client.cert_is_registered():
             asyncio.run(hub_catalog.refresh())
             if hub_orders.list_pending():
+                # ⚠️ ERST bestätigen, DANN abfragen. Ohne Bestätigung bleibt eine
+                # Bestellung liegen, und das Abfragen fände nichts Neues. Bis
+                # zum 21.08.2026 geschah das nur aus einer geöffneten
+                # Browser-Seite heraus — bei einem Sammellauf oder beim
+                # automatischen Bestellen also gar nicht.
+                m = asyncio.run(hub_orders.bestaetigungen_nachholen())
+                if m:
+                    log.info("scheduler: %d Zertifikatsbestellung(en) bestätigt", m)
                 n = hub_orders.poll_all_sync()
                 if n:
                     log.info("scheduler: %d Hub-Zertifikatsbestellung(en) abgeschlossen", n)

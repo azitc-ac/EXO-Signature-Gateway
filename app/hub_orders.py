@@ -260,3 +260,70 @@ async def bestaetigungslink(email: str, ref: str, seit: str = "") -> str:
         if treffer:
             return treffer[0]
     return ""
+
+
+async def bestaetigungen_nachholen() -> int:
+    """Offene Bestellungen bestätigen, für die das eingeschaltet ist.
+
+    ⚠️ WARUM SERVERSEITIG. Die automatische Bestätigung lief bis zum 21.08.2026
+    ausschliesslich aus einer geöffneten Browser-Seite heraus: Der Fortschritts-
+    Abruf der S/MIME-Seite sah, dass eine Bestellung auf den Nutzer wartet, und
+    stiess sie an. Für eine einzelne Bestellung, bei der jemand zusieht, genügt
+    das. Für alles andere nicht:
+
+      * Ein Sammellauf über hundert Postfächer wird nicht hundertfach angezeigt.
+      * Beim automatischen Bestellen (Postfach wird eingeschaltet) hat niemand
+        eine Seite offen — die Bestätigung unterblieb dort IMMER.
+
+    Damit war die Zusage „läuft ohne Zutun" an eine Bedingung geknüpft, die
+    nirgends stand: dass der Betreiber den Browser offen lässt.
+
+    Der Merkposten `bestaetigt_am` steht in der Metadatei der Bestellung. Ohne
+    ihn liefe bei jedem Durchgang ein weiterer Aufruf zur Zertifizierungsstelle
+    — alle paar Minuten, für jede offene Bestellung.
+
+    Gibt die Anzahl der ausgelösten Bestätigungen zurück.
+    """
+    import ca_bestaetigung
+    import hub_client
+    import settings_store
+
+    cfg = settings_store.get("CA_USER_CONFIG") or {}
+    n = 0
+    for meta in list_pending():
+        adresse = (meta.get("email") or "").lower()
+        if meta.get("bestaetigt_am") or not adresse:
+            continue
+        if not (cfg.get(adresse) or {}).get("auto_confirm"):
+            continue
+        try:
+            res = await hub_client.cert_get_order(meta["order_id"])
+            # Nur wenn die Zertifizierungsstelle tatsächlich wartet. Ein Aufruf
+            # „auf Verdacht" wäre ein Zugriff auf ein fremdes System ohne Anlass.
+            if (res.get("status") or "") not in ("submitted", "pending", "waiting"):
+                continue
+            link = await bestaetigungslink(adresse, res.get("ref", ""),
+                                           meta.get("created", ""))
+            if not link:
+                continue                       # Mail noch nicht da — nächster Durchgang
+            ok, meldung = await ca_bestaetigung.bestaetigen(link)
+            log.info("hub_orders: Bestätigung für %s (%s): %s",
+                     adresse, meta["order_id"], meldung)
+            if ok:
+                _merken_bestaetigt(meta["order_id"])
+                n += 1
+        except Exception as exc:
+            # Ein Postfach darf die übrigen nicht mitnehmen.
+            log.warning("hub_orders: Bestätigung für %s fehlgeschlagen: %s", adresse, exc)
+    return n
+
+
+def _merken_bestaetigt(order_id: str) -> None:
+    """Zeitpunkt der Bestätigung in der Metadatei festhalten."""
+    pfad = _DIR / f"{order_id}.json"
+    try:
+        daten = json.loads(pfad.read_text())
+        daten["bestaetigt_am"] = datetime.now(timezone.utc).isoformat()
+        pfad.write_text(json.dumps(daten))
+    except Exception as exc:
+        log.warning("hub_orders: Merkposten für %s nicht geschrieben: %s", order_id, exc)

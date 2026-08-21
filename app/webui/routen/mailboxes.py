@@ -224,8 +224,13 @@ async def _auto_enrollment_anstossen(adressen: list[str]) -> dict:
         # die Zertifizierungsstelle gewählt, dort gehört die Zustimmung hin.
         # Ihn hier zu erzeugen hiesse, sie sich selbst auszustellen.
         beleg = (settings_store.get("SMIME_AUTO_ENROLL_TERMS_AT") or "").strip()
+        # Beim automatischen Bestellen sieht niemand zu — ohne die Bestätigung
+        # durch das Gateway bliebe für jedes Postfach eine Mail liegen, die
+        # nie jemand anklickt. Sie ist deshalb Teil derselben Entscheidung:
+        # Wer die Automatik einschaltet, will sie zu Ende laufen sehen.
         ergebnis = await sammelbestellung.lauf_starten(
-            weg, adressen, actor="auto-enrollment", ca_terms_accepted_at=beleg)
+            weg, adressen, actor="auto-enrollment", ca_terms_accepted_at=beleg,
+            auto_confirm=True)
         if not ergebnis.get("ok"):
             log.warning("Automatische Bestellung für %s nicht gestartet: %s",
                         ", ".join(adressen), ergebnis.get("error"))
