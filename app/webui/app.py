@@ -82,6 +82,8 @@ from webui.deps import (                                    # noqa: E402
     log, templates, _STATIC_DIR, _TEMPLATE_DIR, _gateway_name,
     _NotAuthenticated, _check_password,
     _get_session_user, _get_session_role, _check_auth, _require_admin,
+    _LOG_BUFFER, _LOG_SUBSCRIBERS, _LOG_SUBSCRIBERS_LOCK,
+    _make_log_token, _check_log_token,
 )
 
 # Der Mount haengt an der ANWENDUNG und bleibt deshalb hier, waehrend das
@@ -109,6 +111,8 @@ from webui.routen import backup as _routen_backup            # noqa: E402
 from webui.routen import hub as _routen_hub                  # noqa: E402
 from webui.routen import mailboxes as _routen_mailboxes      # noqa: E402
 from webui.routen import portal as _routen_portal            # noqa: E402
+from webui.routen import betrieb as _routen_betrieb
+from webui.routen import aktualisierung as _routen_aktualisierung
 from webui.routen import settings as _routen_settings
 from webui.routen import vorlagen as _routen_vorlagen        # noqa: E402
 from webui.routen import setup as _routen_setup              # noqa: E402
@@ -125,7 +129,7 @@ from webui.routen import smime as _routen_smime              # noqa: E402
 # das diesen Umbau ueberhaupt verantwortbar macht.
 ROUTENMODULE = [_routen_addin, _routen_backup, _routen_hub, _routen_mailboxes,
                 _routen_portal, _routen_settings, _routen_setup, _routen_smime,
-                _routen_vorlagen]
+                _routen_vorlagen, _routen_betrieb, _routen_aktualisierung]
 
 for _modul in ROUTENMODULE:
     app.include_router(_modul.router)
@@ -159,59 +163,6 @@ def get_stats() -> dict:
 
 def increment_stat(key: str) -> None:
     _stats_mod.increment(key)
-
-
-# ── Live log streaming ─────────────────────────────────────────────────────────
-_LOG_BUFFER: collections.deque = collections.deque(maxlen=500)
-_LOG_SUBSCRIBERS: list[_queue_mod.Queue] = []
-_LOG_SUBSCRIBERS_LOCK = threading.Lock()
-
-
-class _MemoryLogHandler(logging.Handler):
-    def emit(self, record: logging.LogRecord) -> None:
-        line = self.format(record)
-        _LOG_BUFFER.append(line)
-        with _LOG_SUBSCRIBERS_LOCK:
-            for q in _LOG_SUBSCRIBERS:
-                try:
-                    q.put_nowait(line)
-                except _queue_mod.Full:
-                    pass
-
-
-_mem_handler = _MemoryLogHandler()
-_mem_handler.setFormatter(logging.Formatter(
-    "%(asctime)s %(levelname)-8s %(name)s: %(message)s",
-    datefmt="%H:%M:%S",
-))
-logging.getLogger().addHandler(_mem_handler)
-
-# Short-lived tokens for /log/stream (EventSource cannot send HTTP Basic Auth)
-import time as _time
-_LOG_TOKENS: dict[str, float] = {}
-
-
-def _make_log_token() -> str:
-    token = secrets.token_urlsafe(32)
-    _LOG_TOKENS[token] = _time.time() + 3600
-    # Purge expired tokens
-    expired = [k for k, exp in _LOG_TOKENS.items() if _time.time() > exp]
-    for k in expired:
-        _LOG_TOKENS.pop(k, None)
-    return token
-
-
-def _check_log_token(token: str) -> bool:
-    exp = _LOG_TOKENS.get(token)
-    return exp is not None and _time.time() < exp
-
-
-
-
-
-
-
-
 
 
 # ── Role middleware — sets request.state.user_role for templates ───────────────
@@ -283,9 +234,6 @@ def _setup_redirect_uri() -> str:
 
 # ── Routes: public (no auth) ───────────────────────────────────────────────────
 
-@app.get("/health")
-async def health():
-    return JSONResponse({"status": "ok", "service": "exo-signature-service"})
 
 
 
@@ -793,24 +741,10 @@ async def api_entra_users_search(q: str = "", _=Depends(_require_admin)):
 
 
 
-@app.get("/api/health/mailboxes")
-async def api_health_mailboxes(_=Depends(_require_admin)):
-    """Return current cached MAILBOX_HEALTH data."""
-    return settings_store.get("MAILBOX_HEALTH") or {}
 
 
-@app.post("/api/health/mailboxes")
-async def api_health_run(_=Depends(_require_admin)):
-    """Run health checks for all configured mailboxes and return results."""
-    import health_check
-    results = await health_check.run_all_checks()
-    return {"ok": True, "results": results}
 
 
-@app.get("/api/health/audit-log")
-async def api_health_audit_log(_=Depends(_require_admin)):
-    """Return GATEWAY_AUDIT_LOG entries."""
-    return settings_store.get("GATEWAY_AUDIT_LOG") or []
 
 
 # ── Routes: authenticated pages ────────────────────────────────────────────────
@@ -1085,122 +1019,16 @@ async def api_license_delete(user: str = Depends(_require_admin)):
 
 # ── Wartungsmodus / Held Mails ────────────────────────────────────────────────
 
-@app.get("/api/maintenance/mails")
-async def api_held_mails_list(_: str = Depends(_require_admin)):
-    return JSONResponse({
-        "maintenance_mode": bool(settings_store.get("MAINTENANCE_MODE")),
-        "mails": _held_mails_mod.list_all(),
-    })
 
 
-@app.get("/api/maintenance/mails/{mail_id}/preview", response_class=HTMLResponse)
-async def api_held_mail_preview(mail_id: str, _: str = Depends(_require_admin)):
-    html = _held_mails_mod.get_preview_html(mail_id)
-    if html is None:
-        raise HTTPException(404, "Mail not found")
-    return HTMLResponse(html or "<em>(kein HTML-Inhalt)</em>")
 
 
-@app.delete("/api/maintenance/mails/{mail_id}")
-async def api_held_mail_delete(mail_id: str, _: str = Depends(_require_admin)):
-    if not _held_mails_mod.delete(mail_id):
-        raise HTTPException(404, "Mail not found")
-    return JSONResponse({"ok": True})
 
 
-def _sent_items_nach_freigabe_aufraeumen(sender: str, empfaenger: list[str],
-                                         roh: bytes) -> None:
-    """Nach dem Freigeben dieselbe Aufräumung wie im normalen Weg anstossen.
-
-    Der normale Weg (handler.py, nach „Mail processed OK") plant
-    `_cleanup_sent_item` ein: Exchange legt ein gesendetes Element an, wenn der
-    Nutzer sendet, und ein weiteres, wenn das Gateway die Mail neu einspeist —
-    der Aufräumer behält davon genau eines.
-
-    Die Freigabe aus dem Wartungsmodus rief nur `reinject.send()` und ging
-    ohne diesen Schritt zu Ende. Das fiel doppelt ins Gewicht, weil Exchange
-    eine Mail an mehrere Empfänger in getrennte Vorgänge aufteilt: Jeder
-    Vorgang wird einzeln zurückgehalten, einzeln freigegeben und legt sein
-    eigenes gesendetes Element an. Am 07.08.2026 nachgewiesen — eine Rechnung
-    an zwei Empfänger stand dreifach in „Gesendete Elemente": das Original des
-    Absenders (`X-Mailer: lxo`) und zwei Fassungen des Gateways.
-
-    `_is_first_for_mid()` sorgt dafür, dass die Aufräumung je Nachricht nur
-    einmal läuft, auch wenn mehrere Vorgänge derselben Mail freigegeben werden.
-    """
-    import email as _em
-    import handler as _handler
-    import mail_processor as _mp
-
-    if not settings_store.get("SENT_ITEMS_UPDATE"):
-        return
-    try:
-        msg = _em.message_from_bytes(roh)
-    except Exception as exc:                      # pragma: no cover
-        log.warning("Freigabe: Mail nicht lesbar, keine Aufräumung: %s", exc)
-        return
-
-    mid = (msg.get("Message-ID") or "").strip()
-    if not mid or not _handler._is_first_for_mid(sender, mid):
-        return
-
-    # Verschlüsselte Mail: NICHT anfassen.
-    #
-    # Der Aufräumer behält bei `replace_all=False` die JÜNGSTE Fassung — das
-    # wäre hier die Chiffre, und der Absender könnte seine eigene gesendete
-    # Mail nicht mehr lesen. Der normale Weg löst das mit dem Klartext, den er
-    # vor dem Verschlüsseln noch hat; hier liegt nur die verschlüsselte
-    # Fassung vor. Lieber ein Duplikat zu viel als ein unlesbares Postfach.
-    #
-    # Über ALLE Teile, nicht nur die oberste Ebene: Eine verschlüsselte Mail
-    # kann in einer Hülle stecken, deren erster Teil ein lesbarer Hinweis ist
-    # („Diese Nachricht ist verschlüsselt…"). Auf oberster Ebene stünde dann
-    # `multipart/mixed`, eine Prüfung nur dort liefe ins Leere — und
-    # `extract_html()` fände ausgerechnet diesen Hinweistext, mit dem dann die
-    # einzige verbleibende Fassung überschrieben würde. Die reine Form fällt
-    # ohnehin schon durch die `html`-Prüfung darunter; geprüft wird hier also
-    # genau der Fall, den sie NICHT abfängt.
-    if any((t.get_content_type() or "").lower() == "application/pkcs7-mime"
-           and "enveloped" in (t.get_param("smime-type") or "").lower()
-           for t in msg.walk()):
-        log.info("Freigabe: verschlüsselte Mail — gesendete Elemente bleiben unberührt")
-        return
-
-    html = _mp.extract_html(msg)
-    if not html:
-        return
-    asyncio.create_task(_handler._cleanup_sent_item(
-        sender, mid, html,
-        subject=msg.get("Subject", "") or "",
-        to_recipients=list(empfaenger or []),
-        replace_all=False,
-    ))
 
 
-@app.post("/api/maintenance/mails/{mail_id}/release")
-async def api_held_mail_release(mail_id: str, _: str = Depends(_require_admin)):
-    import reinject as _reinject
-    result = _held_mails_mod.get_raw(mail_id)
-    if result is None:
-        raise HTTPException(404, "Mail not found")
-    from_addr, to_addrs, raw_bytes = result
-    try:
-        await asyncio.get_event_loop().run_in_executor(
-            None, lambda: _reinject.send(from_addr, to_addrs, raw_bytes)
-        )
-    except Exception as exc:
-        raise HTTPException(500, f"Zustellung fehlgeschlagen: {exc}")
-    _held_mails_mod.delete(mail_id)
-    _sent_items_nach_freigabe_aufraeumen(from_addr, to_addrs, raw_bytes)
-    return JSONResponse({"ok": True})
 
 
-@app.post("/api/maintenance/mode")
-async def api_set_maintenance_mode(request: Request, _: str = Depends(_require_admin)):
-    body = await request.json()
-    enabled = bool(body.get("enabled", False))
-    settings_store.update({"MAINTENANCE_MODE": enabled})
-    return JSONResponse({"ok": True, "maintenance_mode": enabled})
 
 
 @app.get("/api/smtp-acl/status")
@@ -1339,17 +1167,6 @@ async def api_notification_test(user: str = Depends(_require_admin)):
 
 
 
-@app.post("/api/restart")
-async def api_restart(user: str = Depends(_require_admin)):
-    log.info("Service restart requested by %s", user)
-
-    def _do_restart():
-        import time
-        time.sleep(1)
-        os.execv(sys.executable, [sys.executable] + sys.argv)
-
-    threading.Thread(target=_do_restart, daemon=True).start()
-    return JSONResponse({"ok": True})
 
 
 @app.get("/config-view", response_class=HTMLResponse)
@@ -1401,48 +1218,8 @@ async def debug_page(request: Request, user: str = Depends(_require_admin)):
     return templates.TemplateResponse(request=request, name="debug.html", context=ctx)
 
 
-@app.get("/log", response_class=HTMLResponse)
-async def log_page(request: Request, user: str = Depends(_require_admin)):
-    return templates.TemplateResponse(
-        request=request, name="log.html",
-        context={"active": "log", "stream_token": _make_log_token(),
-                 "gateway_name": _gateway_name()},
-    )
 
 
-@app.get("/log/stream")
-async def log_stream(request: Request, token: str = ""):
-    import json as _json
-    if not _check_log_token(token):
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
-
-    q: _queue_mod.Queue = _queue_mod.Queue(maxsize=200)
-    with _LOG_SUBSCRIBERS_LOCK:
-        _LOG_SUBSCRIBERS.append(q)
-
-    async def generate():
-        for line in list(_LOG_BUFFER):
-            yield f"data: {_json.dumps(line)}\n\n"
-        try:
-            while True:
-                try:
-                    line = q.get_nowait()
-                    yield f"data: {_json.dumps(line)}\n\n"
-                except _queue_mod.Empty:
-                    await asyncio.sleep(0.4)
-                    yield ": keepalive\n\n"
-        finally:
-            with _LOG_SUBSCRIBERS_LOCK:
-                try:
-                    _LOG_SUBSCRIBERS.remove(q)
-                except ValueError:
-                    pass
-
-    return StreamingResponse(
-        generate(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
 
 
 # ── S/MIME Lifecycle: CA config + self-service ────────────────────────────────
@@ -1470,21 +1247,8 @@ async def log_stream(request: Request, token: str = ""):
 
 # ── Persistent log search ──────────────────────────────────────────────────────
 
-@app.get("/api/logs/search")
-async def api_logs_search(q: str = "", time_from: str = "", time_to: str = "",
-                          user: str = Depends(_require_admin)):
-    if not q and not (time_from or time_to):
-        raise HTTPException(400, "Suchbegriff oder Zeitraum fehlt")
-    import log_manager
-    results = log_manager.search(q, max_lines=500,
-                                 time_from=time_from, time_to=time_to)
-    return JSONResponse({"results": results, "count": len(results)})
 
 
-@app.get("/api/logs/files")
-async def api_logs_files(user: str = Depends(_require_admin)):
-    import log_manager
-    return JSONResponse({"files": log_manager.list_files()})
 
 
 # ── Config export / import ─────────────────────────────────────────────────────
@@ -1979,309 +1743,38 @@ async def api_cert_exo_ps_export(user: str = Depends(_require_admin)):
 
 # ── Audit log API ─────────────────────────────────────────────────────────────
 
-@app.get("/api/audit/events")
-async def api_audit_events(
-    request: Request,
-    _user: str = Depends(_require_admin),
-    date: str | None = None,
-    date_from: str | None = None,
-    date_to: str | None = None,
-    action: str | None = None,
-    sender: str | None = None,
-    limit: int = 200,
-    offset: int = 0,
-):
-    import mail_audit as _audit_mod
-    import json as _json
-    events = _audit_mod.query_events(
-        date=date, date_from=date_from, date_to=date_to,
-        action=action, sender=sender,
-        limit=min(limit, 500), offset=offset,
-    )
-    total = _audit_mod.count_events(date=date, date_from=date_from, date_to=date_to,
-                                    action=action, sender=sender)
-    for e in events:
-        try:
-            e["recipients"] = _json.loads(e["recipients"] or "[]")
-        except Exception:
-            e["recipients"] = []
-    return {"events": events, "total": total, "offset": offset, "limit": limit}
-
-
-@app.get("/api/system/info")
-async def api_system_info(user: str = Depends(_require_admin)):
-    import time as _time_mod
-    import mail_audit as _audit_mod
-    import handler as _handler_mod
-
-    # Disk usage of /app/data
-    data_path = Path("/app/data")
-    try:
-        du = shutil.disk_usage(str(data_path))
-        disk_total_mb  = round(du.total / 1024 / 1024, 1)
-        disk_used_mb   = round(du.used  / 1024 / 1024, 1)
-        disk_free_mb   = round(du.free  / 1024 / 1024, 1)
-        disk_pct       = round(du.used / du.total * 100, 1) if du.total else 0
-    except Exception:
-        disk_total_mb = disk_used_mb = disk_free_mb = disk_pct = None
-
-    # SQLite DB size
-    db_path = _audit_mod.DB_PATH
-    try:
-        db_size_kb = round(db_path.stat().st_size / 1024, 1)
-    except Exception:
-        db_size_kb = None
-
-    # Log files total size
-    logs_path = data_path / "logs"
-    try:
-        logs_size_kb = round(sum(f.stat().st_size for f in logs_path.iterdir() if f.is_file()) / 1024, 1)
-    except Exception:
-        logs_size_kb = None
-
-    # Process RSS memory from /proc/self/status
-    rss_mb = None
-    try:
-        for line in Path("/proc/self/status").read_text().splitlines():
-            if line.startswith("VmRSS:"):
-                rss_mb = round(int(line.split()[1]) / 1024, 1)
-                break
-    except Exception:
-        pass
-
-    # Process uptime
-    uptime_s = None
-    try:
-        pid_stat = Path("/proc/self/stat").read_text().split()
-        # field 22 (0-indexed 21) = starttime in clock ticks
-        clk_tck = os.sysconf("SC_CLK_TCK")
-        uptime_total = float(Path("/proc/uptime").read_text().split()[0])
-        proc_start_ticks = int(pid_stat[21])
-        uptime_s = int(uptime_total - proc_start_ticks / clk_tck)
-    except Exception:
-        pass
-
-    # In-flight mail count
-    in_flight = _handler_mod._in_flight
-
-    # Avg processing time last 24h
-    since_24h = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    # rewind 24h
-    from datetime import timedelta
-    since_24h = (datetime.now(timezone.utc) - timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    avg_ms = _audit_mod.avg_processing_ms(since_24h)
-
-    # Peak hour today
-    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    peak = _audit_mod.peak_hour(today_str)
-
-    return {
-        "disk_total_mb":    disk_total_mb,
-        "disk_used_mb":     disk_used_mb,
-        "disk_free_mb":     disk_free_mb,
-        "disk_pct":         disk_pct,
-        "db_size_kb":       db_size_kb,
-        "logs_size_kb":     logs_size_kb,
-        "rss_mb":           rss_mb,
-        "uptime_s":         uptime_s,
-        "in_flight":        in_flight,
-        "avg_ms_24h":       avg_ms,
-        "peak_hour":        peak[0] if peak else None,
-        "peak_hour_cnt":    peak[1] if peak else None,
-        "maintenance_mode": bool(settings_store.get("MAINTENANCE_MODE")),
-        "held_mail_count":  _held_mails_mod.count(),
-    }
-
-
-@app.get("/api/system/mail-hourly")
-async def api_mail_hourly(user: str = Depends(_require_admin)):
-    """Stündliche Mail-Statistik für heute aus mail_audit.db."""
-    import mail_audit as _audit_mod
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    return _audit_mod.get_mail_hourly(today)
-
-
-@app.get("/api/system/log-tail")
-async def api_log_tail(n: int = 150, user: str = Depends(_require_admin)):
-    """Letzte N Zeilen aus dem In-Memory-Log-Buffer."""
-    lines = list(_LOG_BUFFER)[-n:]
-    return {"lines": lines}
-
-
-@app.post("/api/system/restart-container")
-async def api_restart_container(user: str = Depends(_require_admin)):
-    """Trigger-Datei schreiben → Host-Watcher führt docker compose restart aus."""
-    import updater
-    result = updater.request_container_restart(user)
-    if not result["ok"]:
-        return JSONResponse(result, status_code=409)
-    log.info("Container restart requested by %s", user)
-    return JSONResponse(result)
-
-
-@app.get("/api/system/update/check")
-async def api_update_check(channel: str = "main", user: str = Depends(_require_admin)):
-    """GitHub-Prüfung: gibt es eine neuere Version im gewählten Kanal?"""
-    import updater
-    return JSONResponse(updater.check_update(channel, config.VERSION))
-
-
-@app.get("/api/system/update/releases")
-async def api_update_releases(user: str = Depends(_require_admin)):
-    """Liste aller veröffentlichten Release-Tags (für Versionsauswahl / Rollback)."""
-    import updater
-    return JSONResponse({"releases": updater.list_release_tags()})
-
-
-@app.post("/api/system/update")
-async def api_system_update(request: Request, user: str = Depends(_require_admin)):
-    """Trigger-Datei schreiben → Host-Watcher führt git pull + docker compose up --build aus."""
-    import updater
-    body = {}
-    try:
-        body = await request.json()
-    except Exception:
-        pass
-    channel = body.get("channel", "main")
-    target_version = (body.get("target_version") or "").strip() or None
-    result = updater.request_update(user, config.VERSION, channel=channel, target_version=target_version)
-    if not result["ok"]:
-        return JSONResponse(result, status_code=409)
-    log.info("Update requested by %s (channel: %s, current version: %s, target: %s)",
-              user, channel, config.VERSION, target_version or "latest")
-    return JSONResponse(result)
-
-
-@app.get("/api/system/update/status")
-async def api_system_update_status(user: str = Depends(_require_admin)):
-    """Aktuellen Update-Status aus data/.update-status lesen."""
-    import updater
-    return JSONResponse(updater.get_status())
-
-
-@app.post("/api/system/update/clear")
-async def api_system_update_clear(user: str = Depends(_require_admin)):
-    """Status-Datei löschen (nach erfolgreichem Update oder Fehler)."""
-    import updater
-    updater.clear_status()
-    return JSONResponse({"ok": True})
-
-
-@app.get("/api/system/update/watcher-status")
-async def api_watcher_status(user: str = Depends(_require_admin)):
-    """Prüft ob der Host-Watcher-Service läuft (Heartbeat-Datei)."""
-    import updater
-    return JSONResponse({"ok": updater.watcher_ok()})
-
-
-@app.get("/api/system/update/whats-new")
-async def api_update_whats_new(from_version: str, to_version: str, user: str = Depends(_require_admin)):
-    """Fetch changelog entries from GitHub between from_version (excl.) and to_version (incl.)."""
-    import re, httpx, updater
-    url = f"https://raw.githubusercontent.com/{updater.GITHUB_REPO}/main/CHANGELOG.md"
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            r = await client.get(url)
-            r.raise_for_status()
-            text = r.text
-    except Exception as exc:
-        return JSONResponse({"entries": [], "error": str(exc)})
-
-    def _vnum(v: str) -> int:
-        # 1.5.135 → 1005135 — flache, vergleichbare Zahl (Distanz = Release-Schritte)
-        parts = (list(int(x) for x in v.lstrip("v").split(".")) + [0, 0, 0])[:3]
-        return parts[0] * 1_000_000 + parts[1] * 1_000 + parts[2]
-
-    # Alle Einträge in Datei-Reihenfolge (neueste zuerst) sammeln
-    all_entries: list[dict] = []
-    cur_lines: list[str] = []
-    for line in text.splitlines():
-        if line.startswith("## v"):
-            if cur_lines:
-                all_entries.append({"header": cur_lines[0],
-                                    "body": "\n".join(cur_lines[1:]).strip()})
-            cur_lines = [line]
-        elif cur_lines:
-            cur_lines.append(line)
-    if cur_lines:
-        all_entries.append({"header": cur_lines[0],
-                            "body": "\n".join(cur_lines[1:]).strip()})
-
-    # DRIFT-IMMUN: Changelog-Nummern driften von der VERSION-Datei (Hand-
-    # Nummerierung + Pre-Commit-Bump). Statt Nummern zu matchen, zeigen wir die
-    # obersten K Einträge, K = Versions-Distanz (Anzahl Releases seit dem
-    # installierten Stand). So ist die Anzeige unabhängig von der Nummerierung.
-    steps = max(1, _vnum(to_version) - _vnum(from_version))
-    entries = all_entries[:min(steps, len(all_entries), 25)]
-
-    return JSONResponse({"entries": entries})
-
-
-@app.get("/api/system/changelog")
-async def api_changelog(n: int = 10, user: str = Depends(_require_admin)):
-    """Letzte N Einträge aus CHANGELOG.md."""
-    try:
-        text = (Path("/app/CHANGELOG.md")).read_text(encoding="utf-8")
-    except FileNotFoundError:
-        return JSONResponse({"entries": [], "error": "CHANGELOG.md nicht gefunden"})
-    entries = []
-    current: list[str] = []
-    for line in text.splitlines():
-        if line.startswith("## ") and current:
-            entries.append("\n".join(current).strip())
-            current = [line]
-            if len(entries) >= n:
-                break
-        elif line.startswith("## "):
-            current = [line]
-        elif current:
-            current.append(line)
-    if current and len(entries) < n:
-        entries.append("\n".join(current).strip())
-    return JSONResponse({"entries": entries})
 
 
 
 
 
 
-@app.get("/api/support/download")
-async def api_support_download(user: str = Depends(_require_admin)):
-    """Support-Bundle als ZIP herunterladen (lokal speichern)."""
-    import support_upload as _sup
-    import asyncio as _aio
-    from fastapi.responses import Response as _Resp
-    zip_bytes, blob_name = await _aio.get_event_loop().run_in_executor(
-        None, _sup.build_bundle, list(_LOG_BUFFER)
-    )
-    return _Resp(
-        content=zip_bytes,
-        media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="{blob_name}"'},
-    )
 
 
-@app.post("/api/support/upload")
-async def api_support_upload(request: Request, user: str = Depends(_require_admin)):
-    """Support-Bundle (Logs, Settings, Audit) an den Provider-Hub hochladen."""
-    import hub_client
-    import legal_consent
-    # Gate C — Art. 28 Abs. 3 DSGVO: Die Verarbeitung muss durch einen Vertrag
-    # geregelt SEIN, bevor sie beginnt. Das Bundle enthält Mail-Metadaten
-    # (Absender/Empfänger/Betreff) Dritter — ohne AVV darf es nicht übertragen
-    # werden.
-    if not legal_consent.context_consented("support_upload"):
-        raise HTTPException(
-            403, "Für die Übermittlung von Diagnosepaketen muss zuerst der "
-                 "Auftragsverarbeitungsvertrag abgeschlossen werden "
-                 "(Einstellungen → Anbindung & Lizenzen → Rechtliche Dokumente).")
-    try:
-        body = await request.json()
-    except Exception:
-        body = {}
-    note = str((body or {}).get("note") or "").strip()[:2000]
-    result = await hub_client.upload_bundle(list(_LOG_BUFFER), note=note)
-    return JSONResponse(result)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 # ── Welcome-Banner (Erstinstallations-Hinweis) ────────────────────────────────

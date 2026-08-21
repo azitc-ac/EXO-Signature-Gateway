@@ -42,6 +42,10 @@ from fastapi.templating import Jinja2Templates
 import config
 import settings_store
 import sso as sso_mod
+import collections
+import queue as _queue_mod
+import threading
+import time as _time
 
 log = logging.getLogger("webui")
 
@@ -148,3 +152,67 @@ def _require_admin(request: Request, user: str = Depends(_check_auth)) -> str:
     if _get_session_role(request) != sso_mod.ROLE_ADMIN:
         raise HTTPException(403, "Admin-Berechtigung erforderlich")
     return user
+
+
+# ── Protokollstrom im Arbeitsspeicher ────────────────────────────────────────
+#
+# Aus `app.py` hierher verschoben (21.08.2026). Beide Seiten brauchen sie: Dort
+# wird der Handler eingehängt, der die Zeilen einsammelt, hier lesen die
+# Betriebs-Routen sie aus. Ein Import aus `app.py` heraus wäre ein Zirkel,
+# denn `app.py` bindet die Routenmodule selbst ein.
+#
+# ⚠️ Die kurzlebigen Marken für `/log/stream` sind kein Beiwerk: Ein
+# EventSource kann keine Anmeldedaten mitschicken, deshalb bekommt er eine
+# Marke mit einer Stunde Laufzeit statt eines dauerhaften Zugangs.
+# ── Live log streaming ─────────────────────────────────────────────────────────
+_LOG_BUFFER: collections.deque = collections.deque(maxlen=500)
+_LOG_SUBSCRIBERS: list[_queue_mod.Queue] = []
+_LOG_SUBSCRIBERS_LOCK = threading.Lock()
+
+
+class _MemoryLogHandler(logging.Handler):
+    def emit(self, record: logging.LogRecord) -> None:
+        line = self.format(record)
+        _LOG_BUFFER.append(line)
+        with _LOG_SUBSCRIBERS_LOCK:
+            for q in _LOG_SUBSCRIBERS:
+                try:
+                    q.put_nowait(line)
+                except _queue_mod.Full:
+                    pass
+
+
+_mem_handler = _MemoryLogHandler()
+_mem_handler.setFormatter(logging.Formatter(
+    "%(asctime)s %(levelname)-8s %(name)s: %(message)s",
+    datefmt="%H:%M:%S",
+))
+logging.getLogger().addHandler(_mem_handler)
+
+# Short-lived tokens for /log/stream (EventSource cannot send HTTP Basic Auth)
+_LOG_TOKENS: dict[str, float] = {}
+
+
+def _make_log_token() -> str:
+    token = secrets.token_urlsafe(32)
+    _LOG_TOKENS[token] = _time.time() + 3600
+    # Purge expired tokens
+    expired = [k for k, exp in _LOG_TOKENS.items() if _time.time() > exp]
+    for k in expired:
+        _LOG_TOKENS.pop(k, None)
+    return token
+
+
+def _check_log_token(token: str) -> bool:
+    exp = _LOG_TOKENS.get(token)
+    return exp is not None and _time.time() < exp
+
+
+
+
+
+
+
+
+
+
