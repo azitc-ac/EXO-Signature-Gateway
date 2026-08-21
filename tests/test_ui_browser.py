@@ -276,3 +276,62 @@ def test_bearbeiter_sieht_nur_die_signaturen_in_der_navigation(browser, server, 
     assert ziele, "Navigation ist leer"
     verboten = [z for z in ziele if z in ("/", "/mailboxes", "/smime", "/settings", "/log")]
     assert not verboten, f"Bearbeiter sieht Menüpunkte, die er nicht öffnen darf: {verboten}"
+
+
+# ── Wachen über Bereiche mit wechselndem Inhalt ──────────────────────────────
+
+@pytest.mark.parametrize("pfad,knopf", [
+    ("/settings/signature", "overrides-btn"),
+    ("/settings/signature", "custom-vars-btn"),
+    ("/settings/smime", "smime-rules-btn"),
+    ("/settings/smime", "kv-mode-btn"),
+])
+def test_container_wachen_sind_eingerichtet_und_gesperrt(seite, pfad, knopf):
+    """⚠️ Vier Knöpfe liessen sich nicht mit festen Feldern überwachen: Ihre
+    Zeilen entstehen zur Laufzeit (Overrides, eigene Variablen, S/MIME-Regeln),
+    und die Key-Vault-Wahl ist eine Radiogruppe ohne id.
+
+    Der erste Anlauf richtete gar keine Wache ein — `wacheEinrichten()` suchte
+    nur `button[data-wache]`, die neuen Knöpfe tragen aber
+    `data-wache-container`. Ein Knopf ohne Wache sieht aus wie einer, bei dem
+    gerade nichts zu tun ist.
+    """
+    pg = seite(pfad, breite=1280)
+    pg.evaluate("""() => document.querySelectorAll('input[id^=adv-cb-]').forEach(cb => {
+        if (!cb.checked) { cb.checked = true; cb.dispatchEvent(new Event('change', {bubbles:true})); }
+    })""")
+    pg.wait_for_timeout(400)
+    d = pg.evaluate("""(id) => {
+      const b = document.getElementById(id);
+      if (!b) return {fehlt: true};
+      const c = document.querySelector(b.dataset.wacheContainer || '');
+      return {gesperrt: b.disabled, container: !!c};
+    }""", knopf)
+    assert not d.get("fehlt"), f"Knopf {knopf} nicht gefunden"
+    assert d["container"], f"{knopf}: data-wache-container zeigt ins Leere"
+    assert d["gesperrt"] is True, f"{knopf} ist ohne Änderung bedienbar"
+
+
+@pytest.mark.parametrize("pfad,knopf", [
+    ("/settings/signature", "custom-vars-btn"),
+    ("/settings/smime", "smime-rules-btn"),
+])
+def test_neue_zeile_zaehlt_als_aenderung(seite, pfad, knopf):
+    """⚠️ Die ANZAHL der Zeilen gehört in den Vergleich: Wer eine leere Zeile
+    hinzufügt, hat etwas geändert. Ohne sie wäre „drei leere Felder" derselbe
+    Stand wie „keine Felder" — und der Knopf bliebe grau."""
+    pg = seite(pfad, breite=1280)
+    pg.evaluate("""() => document.querySelectorAll('input[id^=adv-cb-]').forEach(cb => {
+        if (!cb.checked) { cb.checked = true; cb.dispatchEvent(new Event('change', {bubbles:true})); }
+    })""")
+    pg.wait_for_timeout(400)
+    pg.evaluate("""(id) => {
+      const b = document.getElementById(id);
+      const c = document.querySelector(b.dataset.wacheContainer);
+      const el = document.createElement('div');
+      el.innerHTML = '<input type="text" value="neu">';
+      c.appendChild(el);
+    }""", knopf)
+    pg.wait_for_timeout(400)
+    assert pg.evaluate("(id) => !document.getElementById(id).disabled", knopf), (
+        "eine neue Zeile hat den Knopf nicht freigegeben")

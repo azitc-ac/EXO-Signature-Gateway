@@ -531,6 +531,30 @@ function _speicherWert(el) {
   return el.value != null ? String(el.value) : '';
 }
 
+// ── Container-Modus für speicherWache ───────────────────────────────────────
+//
+// Vier Speichern-Knöpfe liessen sich nicht überwachen, weil ihre Felder nicht
+// feststehen: Benutzer-Overrides, eigene Variablen und S/MIME-Regeln bestehen
+// aus Zeilen, die zur Laufzeit entstehen und verschwinden; die Key-Vault-Wahl
+// ist eine Radiogruppe ohne id.
+//
+// `data-wache-container="#id"` überwacht stattdessen alles, was in einem
+// Bereich steht — auch das, was es beim Laden noch nicht gab.
+//
+// ⚠️ Die ANZAHL der Zeilen gehört in den Vergleichswert. Wer eine leere Zeile
+// hinzufügt oder eine gefüllte löscht, hat etwas geändert; ohne die Anzahl
+// wäre „drei leere Felder" derselbe Stand wie „keine Felder".
+
+function _speicherFelder(container) {
+  return Array.prototype.slice.call(
+    container.querySelectorAll('input, select, textarea'));
+}
+
+function _speicherStandContainer(container) {
+  const els = _speicherFelder(container);
+  return JSON.stringify([els.length].concat(els.map(_speicherWert)));
+}
+
 /* knopf   — der Speichern-Knopf (Element oder id)
  * felder  — Elemente oder ids, deren Änderung diesen Knopf betrifft
  * options — {hinweisId} für ein vorhandenes Meldungsfeld; sonst wird eines
@@ -543,10 +567,17 @@ function _speicherWert(el) {
 function speicherWache(knopf, felder, options) {
   const opt = options || {};
   const btn = typeof knopf === 'string' ? document.getElementById(knopf) : knopf;
-  const els = (felder || [])
+  const behaelter = opt.container
+    ? (typeof opt.container === 'string' ? document.querySelector(opt.container) : opt.container)
+    : null;
+  const els = behaelter ? [] : (felder || [])
     .map(f => (typeof f === 'string' ? document.getElementById(f) : f))
     .filter(Boolean);
-  if (!btn || !els.length) return {erledigt() {}, fehlgeschlagen() {}, zuruecksetzen() {}};
+  if (!btn || (!behaelter && !els.length)) {
+    return {erledigt() {}, fehlgeschlagen() {}, zuruecksetzen() {}};
+  }
+  const standJetzt = () => (behaelter ? _speicherStandContainer(behaelter)
+                                      : _speicherStand(els));
 
   let hinweis = opt.hinweisId ? document.getElementById(opt.hinweisId) : null;
   if (!hinweis) {
@@ -555,11 +586,11 @@ function speicherWache(knopf, felder, options) {
   }
   hinweis.classList.add('speicher-hinweis');
 
-  let stand = _speicherStand(els);
+  let stand = standJetzt();
   let timer = null;
 
   function zeichnen() {
-    const jetzt = _speicherStand(els);
+    const jetzt = standJetzt();
     const offen = jetzt !== stand;
     btn.disabled = !offen;
     _speicherLeisteZeichnen();
@@ -573,16 +604,27 @@ function speicherWache(knopf, felder, options) {
     }
   }
 
-  els.forEach(el => {
-    el.addEventListener('input', zeichnen);
-    el.addEventListener('change', zeichnen);
-  });
+  if (behaelter) {
+    // Delegiert statt je Feld gebunden: Zeilen entstehen und verschwinden zur
+    // Laufzeit, und eine Bindung an ein Feld, das es noch nicht gibt, geht ins
+    // Leere. Der Beobachter fängt zusätzlich das Hinzufügen und Löschen selbst.
+    behaelter.addEventListener('input', zeichnen);
+    behaelter.addEventListener('change', zeichnen);
+    if (typeof MutationObserver !== 'undefined') {
+      new MutationObserver(zeichnen).observe(behaelter, {childList: true, subtree: true});
+    }
+  } else {
+    els.forEach(el => {
+      el.addEventListener('input', zeichnen);
+      el.addEventListener('change', zeichnen);
+    });
+  }
   zeichnen();
   _speicherKnoepfe.push(btn);
 
   return {
     erledigt(text) {
-      stand = _speicherStand(els);
+      stand = standJetzt();
       btn.disabled = true;
       _speicherLeisteZeichnen();
       hinweis.dataset.zustand = 'fertig';
@@ -603,7 +645,7 @@ function speicherWache(knopf, felder, options) {
       _speicherLeisteZeichnen();
     },
     zuruecksetzen() {
-      stand = _speicherStand(els);
+      stand = standJetzt();
       zeichnen();
     },
   };
@@ -686,12 +728,20 @@ window.addEventListener('beforeunload', (e) => {
 const _wachen = new Map();
 
 function wacheEinrichten(wurzel) {
-  (wurzel || document).querySelectorAll('button[data-wache]').forEach(btn => {
+  // ⚠️ BEIDE Attribute. `data-wache` nennt feste Felder, `data-wache-container`
+  // einen Bereich mit wechselndem Inhalt. Wer nur das erste sucht, richtet für
+  // Container-Knöpfe gar keine Wache ein — und ein Knopf ohne Wache sieht aus
+  // wie einer, bei dem gerade nichts zu tun ist.
+  (wurzel || document)
+    .querySelectorAll('button[data-wache], button[data-wache-container]')
+    .forEach(btn => {
     if (!btn.id || _wachen.has(btn.id)) return;
     const felder = (btn.dataset.wache || '').split(',').map(s => s.trim()).filter(Boolean);
-    if (!felder.length) return;
+    const behaelter = btn.dataset.wacheContainer || '';
+    if (!felder.length && !behaelter) return;
     _wachen.set(btn.id, speicherWache(btn, felder,
-                                      {hinweisId: btn.dataset.wacheHinweis || null}));
+                                      {hinweisId: btn.dataset.wacheHinweis || null,
+                                       container: behaelter || null}));
   });
 }
 

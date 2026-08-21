@@ -371,7 +371,7 @@
     <div id="smime-rules-empty" class="hint" style="display:none;margin-bottom:8px">Keine Regeln definiert.</div>
     <button class="btn secondary btn-sm" type="button" onclick="addSmimeRule()">+ Regel hinzufügen</button>
     <div class="actions" style="margin-top:10px">
-      <button class="btn secondary" onclick="saveSmimeRules()">Speichern</button>
+      <button class="btn secondary" id="smime-rules-btn" data-wache-container="#smime-rules-tbody" data-wache-hinweis="smime-rules-result" onclick="saveSmimeRules()">Speichern</button>
       <span id="smime-rules-result" style="font-size:12px;margin-left:8px"></span>
     </div>
   </div>
@@ -406,7 +406,7 @@
   <div data-adv="smime" style="display:none">
   <div class="settings-row" style="align-items:flex-start;margin-top:14px">
     <label style="min-width:200px;flex-shrink:0;font-size:13px;font-weight:500;padding-top:4px">Key Vault Modus</label>
-    <div class="settings-control">
+    <div class="settings-control" id="kv-mode-box">
       <label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;cursor:pointer">
         <input type="radio" name="kv-key-mode" value="fallback" style="margin-top:3px;flex-shrink:0"
           {% if s.KV_KEY_MODE != 'strict' %}checked{% endif %}>
@@ -427,7 +427,7 @@
         </span>
       </label>
       <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
-        <button type="button" class="btn secondary btn-sm" onclick="saveKvMode()">Speichern</button>
+        <button type="button" class="btn secondary btn-sm" id="kv-mode-btn" data-wache-container="#kv-mode-box" data-wache-hinweis="kv-mode-result" onclick="saveKvMode()">Speichern</button>
         <span id="kv-mode-result" style="font-size:12px;display:none"></span>
       </div>
     </div>
@@ -602,7 +602,8 @@ async function saveSmimeRules() {
   var catchAll = smimeRules.some(function(r){ return r.action === 'encrypt' && !r.sender && !r.recipient; });
   if (catchAll && !confirm('Achtung: Eine Verschlüsseln-Regel ohne Absender UND ohne Empfänger ' +
       'verschlüsselt JEDE ausgehende Mail. Wirklich speichern?')) return;
-  await savePartial({SMIME_AUTO_RULES: smimeRules}, 'smime-rules-result');
+  wacheFertig('smime-rules-btn',
+              await savePartial({SMIME_AUTO_RULES: smimeRules}, 'smime-rules-result'));
 }
 
 renderSmimeRules();
@@ -782,24 +783,9 @@ async function testKvUrl() {
 
 async function saveKvMode() {
   const mode = document.querySelector('input[name="kv-key-mode"]:checked')?.value || 'fallback';
-  const el = document.getElementById('kv-mode-result');
-  el.style.display = 'inline';
-  el.style.color = '#555';
-  el.textContent = 'Speichere...';
-  try {
-    const r = await fetch('/settings', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({KV_KEY_MODE: mode}),
-    });
-    const d = await r.json();
-    el.style.color = d.ok ? '#16a34a' : '#dc2626';
-    el.textContent = d.ok ? 'Gespeichert.' : (d.detail || 'Fehler');
-    setTimeout(() => { el.style.display = 'none'; }, 3000);
-  } catch (err) {
-    el.style.color = '#dc2626';
-    el.textContent = 'Netzwerkfehler: ' + err;
-  }
+  document.getElementById('kv-mode-result').style.display = 'inline';
+  wacheFertig('kv-mode-btn',
+              await savePartial({KV_KEY_MODE: mode}, 'kv-mode-result', 'smime:kvMode'));
 }
 
 async function saveKvUrl() {
