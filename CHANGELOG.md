@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.232 — 2026-08-21 — Betrieb und Selbst-Aktualisierung als eigene Module
+
+Zwei weitere Gruppen aus der Hauptdatei gelöst: der laufende Betrieb (Zustand,
+Wartungsmodus, zurückgehaltene Post, Protokolle) und die Selbst-Aktualisierung
+(Systemangaben, verfügbare Ausgaben, Aktualisierungslauf, Unterstützungspaket).
+
+Der Protokollstrom, den beide Seiten brauchen — die Anwendung sammelt die
+Zeilen ein, die Betriebsansicht liest sie aus —, liegt jetzt im gemeinsamen
+Fundament. Ein Zugriff aus der einen Datei in die andere hätte einen
+Ringschluss ergeben.
+
+Am Verhalten ändert sich nichts; die Routentabelle ist Adresse für Adresse
+unverändert.
+
 ## v1.7.231 — 2026-08-21 — Signaturvorlagen als eigenes Modul
 
 Die Verwaltung der Signaturvorlagen — anlegen, umbenennen, kopieren, löschen,
