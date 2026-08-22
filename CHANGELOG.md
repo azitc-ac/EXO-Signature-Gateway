@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.235 — 2026-08-23 — Berichtigte Beschreibungen im Quelltext
+
+Nur Kommentare — am Verhalten ändert sich nichts. Wer den Quelltext liest, fand
+bisher an mehreren Stellen eine irreführende oder schlicht falsche Darstellung
+der Zustellwege.
+
+Der Kopf des Moduls für die SMTP-Übermittlung behauptete, der Absender einer
+eingehenden Nachricht bleibe unverändert. Tatsächlich wird er auf das
+Relaispostfach umgeschrieben; die echte Adresse überlebt nur in der
+Antwortadresse. Genau umgekehrt verhält es sich beim ausgehenden Weg, der
+nichts umschreibt — beide Wege liegen in derselben Datei, und die Überschrift
+nannte nur den seltener benutzten.
+
+Ebenso stand über den zugehörigen Einstellungen nur der eingehende
+Verwendungszweck, und an zwei Stellen im Einrichtungsassistenten wurde der
+veraltete Modusname verwendet.
+
 ## v1.7.234 — 2026-08-22 — Port 587 wird benannt, wo er wirkt
 
 Die Oberfläche sprach an einer Stelle von einem „587-Modus". Den gibt es

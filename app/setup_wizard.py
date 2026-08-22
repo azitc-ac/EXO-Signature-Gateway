@@ -39,7 +39,7 @@ _GRAPH_PERMISSIONS = [
 _EXO_PERMISSIONS = [
     # Exchange.ManageAsApp
     {"id": "dc50a0fb-09a3-484d-be87-e023b12c6440", "type": "Role"},
-    # IMAP.AccessAsApp — needed for IMAP APPEND (smtp587 / Azure mode)
+    # IMAP.AccessAsApp — für IMAP APPEND (Modus `imap`, Azure ohne Port 25)
     {"id": "5e5addcd-3e8d-4e90-baf5-964efab2b20a", "type": "Role"},
 ]
 
@@ -594,12 +594,13 @@ def run_exo_connector_setup(
         return {"ok": False, "output": str(exc)}
 
 
-# ── Step: IMAP access setup (smtp587 / Azure mode) ────────────────────────────
+# ── Schritt: IMAP-Zugriff einrichten (Modus `imap`, Azure ohne Port 25) ───────
 
 def run_imap_access_setup(app_id: str, tenant_domain: str) -> dict:
     """
     Register the app as EXO Service Principal and grant IMAP FullAccess to all
-    user mailboxes.  Required for REINJECT_MODE=smtp587 (IMAP APPEND, Azure).
+    user mailboxes.  Erforderlich für REINJECT_MODE=imap (IMAP APPEND, Azure
+    ohne Port 25). Der Altname `smtp587` bezeichnet denselben Modus.
 
     Two things happen:
       1. New-ServicePrincipal — registers the app in EXO so IMAP XOAUTH2 works

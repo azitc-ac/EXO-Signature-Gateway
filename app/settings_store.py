@@ -69,7 +69,11 @@ DEFAULTS: dict = {
                                         # transport rule routes all sender-DG mail through the gateway
                                         # unconditionally now (see CLAUDE.md "Bifurkations-Falle").
     # ── Re-injection ─────────────────────────────────────────────────────────
-    "REINJECT_MODE": "smtp",       # "smtp", "graph", or "imap" (smtp587 = legacy alias for imap)
+    # Rückweg an Exchange. ⚠️ `smtp587` ist ein ALTNAME für `imap` — der Modus
+    # macht IMAP APPEND, kein SMTP auf 587. In den Modi `graph` und `imap`
+    # kommt Port 587 zusätzlich zum Zug, aber nur für aufgeteilte ausgehende
+    # Post (reinject.send); im Modus `smtp` nie.
+    "REINJECT_MODE": "smtp",       # "smtp" (Port 25) | "graph" | "imap"
     "GRAPH_SMTP_FALLBACK": False,  # Allow SMTP fallback when Graph re-inject fails
     # Graph-Modus, Behandlung gemischter intern/extern-Mails (bifurkierte Forks)
     # ohne SMTP.SendAsApp. Werte:
@@ -95,7 +99,15 @@ DEFAULTS: dict = {
     "SMTP_ACL_EXTRA_CIDRS": [],        # zusätzliche erlaubte CIDRs (z.B. eigenes Monitoring)
     "RELAY_USER": "",              # Optional SMTP AUTH user (e.g. SES "apikey")
     "RELAY_PASSWORD": "",          # Optional SMTP AUTH password
-    # ── SMTP submission (port 587) for inbound S/MIME from external senders ───
+    # ── SMTP-Übermittlung (Port 587) ─────────────────────────────────────────
+    # ⚠️ Diese Werte tragen ZWEI verschiedene Wege (siehe smtp_submit.py):
+    #   1. ausgehende Post, die Exchange in Teilnachrichten aufgeteilt hat —
+    #      authentifiziert als der Absender selbst, braucht KEIN Relaispostfach,
+    #      nur SMTP.SendAsApp. Das ist der praktisch benutzte Weg.
+    #   2. eingehende Post über ein Relaispostfach (SMTP_SUBMIT_USER) —
+    #      schreibt den Absender um und ist kaum je erreichbar.
+    # Die Überschrift nannte bis 23.08.2026 nur (2); das hat eine Fehlersuche
+    # in die falsche Richtung geschickt.
     "SMTP_SUBMIT_HOST": "smtp.office365.com",
     "SMTP_SUBMIT_PORT": 587,
     "SMTP_SUBMIT_USER": "",          # EXO mailbox for SMTP AUTH envelope sender
