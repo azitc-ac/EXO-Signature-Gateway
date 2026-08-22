@@ -1,16 +1,35 @@
 """
-SMTP submission (port 587) for inbound external S/MIME mail.
+Zustellwege über SMTP AUTH (Port 587) und IMAP APPEND.
 
-Why this path exists:
-  Graph sendMail requires Send As permission for the From address.
-  External senders (hotmail etc.) can never be granted that permission.
-  /mailFolders/inbox/messages always produces a Draft (MSGFLAG_UNSENT set
-  by EXO, silently reverted on PATCH — confirmed by MapiDraftPatcher MVP).
+⚠️ DER MODULNAME TÄUSCHT: Hier liegen DREI verschiedene Wege, und der
+meistbenutzte ist nicht der, den diese Überschrift früher nannte. Diese
+Verwechslung hat am 23.08.2026 eine ganze Fehlersuche in die Irre geführt.
 
-This module delivers via SMTP AUTH port 587 instead:
-  - SMTP envelope MAIL FROM = internal relay account (authenticated)
-  - MIME From header        = original external sender (unchanged)
-  - EXO delivers via normal pipeline → no MSGFLAG_UNSENT → no Send button
+  deliver_outbound_as_sender()  Port 587, authentifiziert ALS DER ABSENDER.
+      Der praktisch relevante Weg. Für ausgehende Post, die Exchange in
+      Teilnachrichten aufgeteilt hat (siehe reinject.send). Schreibt NICHTS
+      um — Envelope-From und Kopf-From sind der echte Absender, SPF/DKIM
+      sehen eine gewöhnliche Übermittlung. Braucht SMTP.SendAsApp.
+
+  deliver_inbound()             Port 587 über ein RELAISPOSTFACH.
+      ⚠️ Schreibt den Absender UM (_rewrite_from): Kopf-From wird das
+      Relaispostfach, der echte Absender überlebt nur in Reply-To. EXO
+      verlangt bei SMTP AUTH einen Kopf, der zum angemeldeten Konto passt.
+      Erreichbar NUR über den Graph-Pfad, wenn Graph mit ErrorInvalidUser
+      ablehnt — im Modus `imap` stellt IMAP APPEND zu, im Modus `smtp` der
+      Smarthost. Deckt damit eine Kombination ab, die die Oberfläche gar
+      nicht anbietet (Graph-Modus MIT S/MIME).
+
+  deliver_inbound_imap()        IMAP APPEND, kein SMTP.
+      Der Weg für eingehende Post im Modus `imap`. Legt die Nachricht
+      unverändert ins Zielpostfach — echter Absender, unversehrte Signatur.
+      Funktioniert nur für Postfächer im eigenen Tenant.
+
+Warum 587 überhaupt: Graph sendMail verlangt Send-As-Rechte für die
+Absenderadresse. Für externe Absender (hotmail o.ä.) sind die nie zu
+erteilen. Und /mailFolders/inbox/messages erzeugt stets einen Entwurf
+(MSGFLAG_UNSENT, beim PATCH still zurückgesetzt) — Outlook zeigt dann einen
+Senden-Knopf in einer empfangenen Mail.
 
 Auth: OAuth2 XOAUTH2 using the existing app credentials
   (scope: https://outlook.office365.com/.default).
@@ -202,11 +221,23 @@ def deliver_inbound_imap(rcpt_to: str, content_bytes: bytes) -> bool:
 
 def deliver_inbound(mail_from: str, rcpt_tos: list[str], content_bytes: bytes) -> bool:
     """
-    Re-deliver an inbound message via SMTP AUTH (XOAUTH2) on port 587.
+    Eingehende Nachricht über SMTP AUTH (XOAUTH2, Port 587) erneut zustellen.
 
-    mail_from    : original sender address (used only for logging)
-    rcpt_tos     : internal recipient(s)
-    content_bytes: full RFC 2822 MIME message (From header = original sender)
+    ⚠️ SCHREIBT DEN ABSENDER UM. `_rewrite_from()` ersetzt den Kopf-From durch
+    das Relaispostfach (Anzeigename bleibt, echte Adresse wandert nach
+    Reply-To), weil EXO bei SMTP AUTH einen Kopf verlangt, der zum angemeldeten
+    Konto passt. Wer den unveränderten Absender braucht — etwa bei einer
+    S/MIME-Signatur, die zur Adresse passen muss —, nimmt
+    `deliver_inbound_imap()`.
+
+    ⚠️ Kaum je erreichbar: Aufgerufen nur aus `graph_reinject`, wenn Graph mit
+    ErrorInvalidUser ablehnt. Im Modus `imap` stellt IMAP APPEND zu, im Modus
+    `smtp` der Smarthost.
+
+    mail_from    : ursprüngliche Absenderadresse (nur fürs Protokoll)
+    rcpt_tos     : interne Empfänger
+    content_bytes: vollständige MIME-Nachricht; ihr From-Kopf trägt noch den
+                   echten Absender und wird beim Senden ersetzt
     """
     user = settings_store.get("SMTP_SUBMIT_USER") or ""
     if not user:
