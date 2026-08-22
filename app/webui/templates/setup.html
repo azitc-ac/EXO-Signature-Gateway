@@ -244,8 +244,11 @@
           <span style="font-size:12px;color:#555">
             Nur Signaturen, kein S/MIME.<br>
             Voraussetzung: <code>Mail.Send</code> Application Permission. Kein Port 25, kein TLS-Zertifikat nötig.<br>
-            <span style="color:#92400e">Preview: Bei gemischten intern/externen Mails gilt die
-            Einstellung „Gemischte Mails" (Erweitert). SMTP- oder IMAP+Graph-Modus sind ausgereifter.</span>
+            <span style="color:#92400e">Preview: Bei Mails an interne <em>und</em> externe
+            Empfänger zugleich versucht das Gateway zuerst <strong>Port 587</strong>
+            (authentifizierte Übermittlung als der Absender, benötigt <code>SMTP.SendAsApp</code>);
+            ohne diese Berechtigung gilt die Einstellung „Gemischte Mails" (Erweitert).
+            SMTP- oder IMAP+Graph-Modus sind ausgereifter.</span>
           </span>
         </div>
       </label>
@@ -260,7 +263,12 @@
             Vollfunktional: Signaturen + S/MIME. Interne Empfänger per IMAP APPEND,
             externe per Graph sendMail.<br>
             Voraussetzung: <code>IMAP.AccessAsApp</code> + Service Principal (Schritt IMAP-Zustellung).<br>
-            Kein Port 25, kein TLS-Zertifikat nötig.
+            Kein Port 25, kein TLS-Zertifikat nötig.<br>
+            <span style="color:#57534e">Bei Mails an interne <em>und</em> externe Empfänger
+            zugleich nutzt das Gateway zusätzlich <strong>Port 587</strong> (authentifizierte
+            Übermittlung als der Absender), damit Antworten-an-Alle vollständig bleibt — dafür
+            ist <code>SMTP.SendAsApp</code> nötig. Ohne diese Berechtigung greift die Einstellung
+            „Gemischte Mails" unter Erweitert.</span>
           </span>
         </div>
       </label>
