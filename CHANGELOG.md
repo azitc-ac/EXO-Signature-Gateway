@@ -5,6 +5,28 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.234 — 2026-08-22 — Port 587 wird benannt, wo er wirkt
+
+Die Oberfläche sprach an einer Stelle von einem „587-Modus". Den gibt es
+nicht: Zur Wahl stehen SMTP Port 25, Graph API und IMAP + Graph. Port 587 ist
+kein eigener Modus, sondern ein Sonderweg innerhalb der beiden letztgenannten —
+und er stand nirgends erklärt.
+
+Der Text zu gemischten Mails sagt jetzt, was tatsächlich geschieht: Bei einer
+Mail an interne und externe Empfänger zugleich versucht das Gateway die
+Zustellung zuerst über authentifizierte SMTP-Übermittlung auf Port 587, als der
+ursprüngliche Absender. Nur SMTP trennt Zustellempfänger und angezeigte
+Empfänger voneinander; Graph kann das nicht. Gelingt es, bleibt
+Antworten-an-Alle vollständig und die Einstellung für gemischte Mails ohne
+Wirkung. Voraussetzung ist die Anwendungsberechtigung `SMTP.SendAsApp` — fehlt
+sie, greift die Einstellung.
+
+Auch die Modusauswahl im Einrichtungsassistenten benennt das jetzt, bei beiden
+betroffenen Modi. Im Modus SMTP Port 25 stellt sich die Frage nicht: Dort läuft
+die Zustellung ohnehin über SMTP.
+
+Am Verhalten ändert sich nichts — nur an dem, was darüber zu lesen ist.
+
 ## v1.7.233 — 2026-08-21 — Anmeldung als eigenes Modul
 
 Die Anmeldung — über den Microsoft-Dienst, das örtliche Kennwort als Notzugang,
