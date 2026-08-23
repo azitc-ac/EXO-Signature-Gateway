@@ -249,7 +249,14 @@ def deliver_inbound(mail_from: str, rcpt_tos: list[str], content_bytes: bytes) -
     """
     user = settings_store.get("SMTP_SUBMIT_USER") or ""
     if not user:
-        log.debug("SMTP submit: SMTP_SUBMIT_USER not configured — skipping")
+        # INFO, nicht DEBUG: Der Aufrufer hat eine Zeile weiter oben bereits
+        # „is external — SMTP submit" ins Protokoll geschrieben. Blieb das
+        # Ueberspringen unsichtbar (Betrieb laeuft auf INFO), sah es aus, als
+        # sei dieser Weg gegangen worden — und die in CLAUDE.md empfohlene
+        # Pruefung „taucht die Meldung je auf?" belegte das Gegenteil dessen,
+        # wonach sie aussah.
+        log.info("SMTP submit: kein Relaispostfach hinterlegt "
+                 "(Einstellungen → Erweitert → SMTP-Übermittlung) — Weg entfällt")
         return False
 
     host = settings_store.get("SMTP_SUBMIT_HOST") or "smtp.office365.com"
