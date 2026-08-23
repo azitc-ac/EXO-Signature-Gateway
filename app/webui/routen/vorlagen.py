@@ -561,10 +561,16 @@ async def api_preview_data(
     schluessel = _usermail_key(template or "")
     if schluessel:
         import usermail
+        # Beispielwert, kein Einstellungswert: In der echten Nachricht reicht der
+        # Aufrufer den Namen der Zertifizierungsstelle aus der konkreten Bestellung
+        # durch (notification._sende_nutzer_mail). Hier stand bis 23.08.2026
+        # settings_store.get("CA_ANZEIGENAME") — eine Einstellung, die es nie gab,
+        # sodass immer der Ersatztext griff und die Vorschau eine Einstellbarkeit
+        # vortäuschte, die niemand herstellen konnte.
         ergebnis = usermail.rendern(
             schluessel,
             email or "vorname.nachname@example.org",
-            (settings_store.get("CA_ANZEIGENAME") or "").strip() or "Ihrer Zertifizierungsstelle")
+            "Ihrer Zertifizierungsstelle")
         betreff, rumpf = ergebnis if ergebnis else ("", "")
         return JSONResponse({"html": rumpf, "txt": "", "betreff": betreff,
                              "banner_html": "", "disclaimer_html": "", "error": None})
