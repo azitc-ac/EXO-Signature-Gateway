@@ -5,6 +5,27 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.238 — 2026-08-24 — Eingehende Post von außen wurde falsch verpackt zugestellt
+
+Erreicht eine Nachricht von einem externen Absender das Gateway und lässt sie
+sich nicht auf dem üblichen Weg zustellen, schreibt das Gateway sie unmittelbar
+in das Postfach des Empfängers. Dafür gibt es zwei Wege: die Nachricht
+unverändert im Originalformat, oder — als Notbehelf — ein Nachbau aus ihren
+Einzelteilen. Der erste Weg wurde falsch kodiert und von Exchange jedes Mal
+abgelehnt, sodass immer der Notbehelf griff.
+
+Sichtbar wurde das für Empfänger in **Outlook Classic**: Nachgebaute Nachrichten
+erscheinen dort ohne Formatierung, im Extremfall als leere weiße Fläche.
+Anlagen und die ursprüngliche Struktur der Nachricht gehen dabei ebenfalls
+verloren. Betroffen war ausschließlich dieser eine Zustellweg — regulär über
+Exchange zugestellte Post nie.
+
+Ursache war eine Verwechslung bei der Kodierung: Der Schnittstelle wurde die
+Nachricht unkodiert übergeben, obwohl sie sie kodiert erwartet. Die
+Fehlermeldung von Exchange benennt das eindeutig, führte aber nur zum stillen
+Rückfall auf den Notbehelf statt zu einem Abbruch. Der Weg ist damit erstmals
+funktionsfähig; zu tun ist nichts.
+
 ## v1.7.237 — 2026-08-23 — Acht bisher verborgene Einstellungen sind jetzt bedienbar
 
 Fortsetzung der Bestandsaufnahme aus v1.7.236. Zehn Einstellungen wirkten im

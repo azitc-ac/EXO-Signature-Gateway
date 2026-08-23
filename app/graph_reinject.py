@@ -373,11 +373,30 @@ def _deliver_via_recipient_sendmail(
 
 def deliver_to_mailbox_mime(mail_from: str, rcpt_tos: list[str], content_bytes: bytes) -> bool:
     """
-    Write a raw MIME message into each recipient's inbox via Graph API.
+    Write a MIME message into each recipient's inbox via Graph API.
     Unlike deliver_to_mailbox (JSON), this preserves the full MIME structure
     so Outlook Classic renders it correctly as a real email.
-    NOTE: /mailFolders/inbox/messages expects raw MIME bytes with Content-Type:
-    text/plain — NOT base64-encoded (which is what sendMail requires).
+
+    ⚠️ Content-Type text/plain UND base64 — beides zusammen.
+
+    Hier stand bis 24.08.2026 »raw MIME bytes … NOT base64-encoded (which is
+    what sendMail requires)«, und der Code hielt sich daran. Exchange antwortete
+    jedes Mal mit HTTP 400 ErrorMimeContentInvalidBase64String: auf der
+    Produktions-VM 11 von 11 Versuchen am 20./21.08.2026, kein einziger Erfolg
+    im Protokollzeitraum ab 24.07. Jede dieser Nachrichten fiel danach auf
+    deliver_to_mailbox() zurück — den JSON-Nachbau, der in Outlook Classic
+    weiss dargestellt wird und den dieser Weg gerade vermeiden soll.
+
+    Die Primärquelle ist eindeutig (Graph v1.0, »Create message«): "provide the
+    MIME content with the applicable Internet message headers … all encoded in
+    base64 format in the request body" — und sie nennt genau diesen Fehlertext
+    als Folge eines nicht base64-kodierten Rumpfs.
+
+    Eine Asymmetrie zu sendMail gibt es nicht: Der schickt ebenfalls
+    Content-Type text/plain und ebenfalls base64 (siehe send_via_graph_mime).
+    Der einzige Unterschied besteht zwischen MIME und JSON, nicht zwischen den
+    beiden Endpunkten.
+
     Requires Mail.ReadWrite.All.
     """
     token = graph_client._acquire_token()
@@ -391,6 +410,9 @@ def deliver_to_mailbox_mime(mail_from: str, rcpt_tos: list[str], content_bytes: 
 
     # Graph MIME inject requires CRLF line endings — normalize bare LF
     content_bytes = content_bytes.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+    # …und danach base64, siehe Docstring. Reihenfolge zählt: Die Zeilenenden
+    # müssen VOR dem Kodieren stimmen, sonst steckt das bare LF im Rumpf.
+    rumpf = base64.b64encode(content_bytes)
 
     auth_hdr = {
         "Authorization": f"Bearer {token}",
@@ -402,7 +424,7 @@ def deliver_to_mailbox_mime(mail_from: str, rcpt_tos: list[str], content_bytes: 
         for recipient in rcpt_tos:
             resp = client.post(
                 f"{GRAPH}/users/{recipient}/mailFolders/inbox/messages",
-                content=content_bytes,
+                content=rumpf,
                 headers=auth_hdr,
             )
             if resp.status_code in (200, 201):
@@ -635,8 +657,13 @@ def send_via_graph_mime(mail_from: str, rcpt_tos: list[str], content_bytes: byte
     Send a raw MIME message via Graph API sendMail.
     Unlike send_via_graph(), EXO passes the message through unchanged,
     preserving S/MIME signatures and full MIME fidelity.
-    Falls back to deliver_to_mailbox() (JSON) when the sender is external —
-    the /mailFolders/inbox/messages endpoint does not accept MIME format.
+    Falls back to deliver_to_mailbox_mime() when the sender is external, and
+    erst danach auf deliver_to_mailbox() (JSON).
+
+    ⚠️ Hier stand bis 24.08.2026, /mailFolders/inbox/messages nehme kein MIME
+    an. Das ist falsch — der Endpunkt nimmt MIME, nur base64-kodiert (siehe
+    deliver_to_mailbox_mime). Die Behauptung passte zu der fehlerhaften
+    Kodierung eine Ebene tiefer und hat sie plausibel aussehen lassen.
     """
     token = graph_client._acquire_token()
     if not token:
