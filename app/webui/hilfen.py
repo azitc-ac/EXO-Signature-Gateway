@@ -94,16 +94,14 @@ def _build_redirect_uri(sso: bool = False) -> str:
     Gebraucht vom Einrichtungsmodul und von den Anmelderouten in `app.py`.
     """
     if sso:
-        external = (settings_store.get("ADDIN_BASE_URL") or "").rstrip("/")
+        # Öffentlich wird HTTPS auf 443 ausgeliefert (Docker mappt 443:WEBUI_PORT).
+        # WEBUI_PORT ist NUR der interne Bind-Port und darf NICHT in die öffentliche
+        # Redirect-URI gelangen — sonst sendet der Wizard https://host:8080/... und es
+        # gibt AADSTS50011. Für nicht-Standard-Außenports ADDIN_BASE_URL setzen.
+        import aussenadresse
+        external = aussenadresse.konfiguriert()
         if external:
             return f"{external}/auth/callback"
-        hostname = settings_store.get("PUBLIC_HOSTNAME") or ""
-        if hostname:
-            # Öffentlich wird HTTPS auf 443 ausgeliefert (Docker mappt 443:WEBUI_PORT).
-            # WEBUI_PORT ist NUR der interne Bind-Port und darf NICHT in die öffentliche
-            # Redirect-URI gelangen — sonst sendet der Wizard https://host:8080/... und es
-            # gibt AADSTS50011. Für nicht-Standard-Außenports ADDIN_BASE_URL setzen.
-            return f"https://{hostname}/auth/callback"
     return f"http://localhost:{config.WEBUI_PORT}/auth/callback"
 
 

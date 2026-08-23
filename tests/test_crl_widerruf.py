@@ -31,7 +31,25 @@ from cryptography.x509.oid import NameOID
 
 import crl_check
 
-JETZT = datetime(2026, 8, 16, 12, 0, tzinfo=timezone.utc)
+# Bezugszeitpunkt für alle hier gebauten Zertifikate und Sperrlisten.
+#
+# ⚠️ Stand hier bis 23.08.2026 als festes Datum (16.08.2026 12:00). Die Sperrliste
+# aus `_sperrliste()` gilt sieben Tage — also bis zum 23.08. 12:00. Ab diesem
+# Zeitpunkt schlugen genau die zwei Tests fehl, die den Bezugszeitpunkt NICHT
+# selbst übergeben und deshalb gegen die echte Uhr prüfen (`vorwaermen`,
+# `encrypt_zaehlt_...`): „CRL ist bereits überfällig — nicht verwendet".
+#
+# Ein festes Datum wirkt wie Reproduzierbarkeit, ist hier aber das Gegenteil:
+# Der Test bestand nur so lange, wie die selbstgebaute Sperrliste zufällig noch
+# in die Zukunft reichte. Wer einen bestimmten Zeitpunkt braucht, übergibt ihn
+# ausdrücklich (`jetzt=`, `naechste=`) — mehrere Tests tun das und prüfen damit
+# gezielt Ablauf und Vorlauf.
+# Mittag statt „jetzt": Der Widerrufszeitpunkt liegt zwei Tage davor und wird
+# als Datum ausgegeben. Liefe der Bezugspunkt auf die genaue Uhrzeit, könnte
+# ein Lauf kurz vor Mitternacht UTC einen Tag daneben landen — je nachdem, in
+# welcher Zeitzone formatiert wird. Zwölf Stunden Abstand in beide Richtungen
+# schliessen das aus.
+JETZT = datetime.now(timezone.utc).replace(hour=12, minute=0, second=0, microsecond=0)
 CRL_URL = "http://trustcenter.invalid/ca.crl"
 
 
@@ -136,7 +154,10 @@ def test_widerrufenes_zertifikat_wird_abgelehnt(tmp_path, ca, netz):
     netz["antwort"] = _als_der(_sperrliste(ca, widerrufen=[cert.serial_number]))
     ok, grund = crl_check.widerruf_geprueft(pfad, JETZT)
     assert not ok
-    assert "widerrufen" in grund and "14.08.2026" in grund, grund
+    # `_sperrliste` setzt den Widerruf zwei Tage vor den Bezugspunkt; die
+    # Erwartung wird daraus berechnet statt fest hingeschrieben (siehe JETZT).
+    erwartet = (JETZT - timedelta(days=2)).strftime("%d.%m.%Y")
+    assert "widerrufen" in grund and erwartet in grund, grund
 
 
 def test_fremder_widerruf_trifft_nicht_das_eigene_zertifikat(tmp_path, ca, netz):

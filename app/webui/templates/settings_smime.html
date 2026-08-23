@@ -241,6 +241,27 @@
         v1.7.199.</span>
     </div>
   </div>
+
+  <div class="settings-row" data-adv="smime" style="display:none">
+    <label for="smime-harvest-rcpt">Sammeladresse</label>
+    <div class="settings-control">
+      <input type="text" id="smime-harvest-rcpt" style="width:320px;max-width:100%"
+             placeholder="z.B. zertifikate@ihre-domain.de"
+             value="{{ s.SMIME_HARVEST_RCPT or '' }}">
+      <span class="hint">
+        Wer eine <strong>signierte</strong> Nachricht an diese Adresse schickt, hinterlegt damit
+        sein Zertifikat — die Nachricht selbst wird dabei <strong>verworfen</strong> und nicht
+        zugestellt. Gedacht, um einem Partner vorab eine Adresse nennen zu können, ohne dass er
+        etwas Sinnvolles hineinschreiben muss.
+        <br>
+        Für den Alltag nicht nötig: Aus jeder eingehenden signierten Nachricht wird das
+        Zertifikat ohnehin übernommen. Leer lassen schaltet den Sammelweg ab.
+        <br>
+        <strong>Voraussetzung:</strong> Die Adresse muss in Exchange existieren und über das
+        Gateway geführt werden — sonst kommt hier nie etwas an.
+      </span>
+    </div>
+  </div>
   </div>
 
   <div style="border-top:1px solid #f0f0f0;margin:16px 0 14px"></div>
@@ -337,7 +358,7 @@
   </div>
 
   <div class="actions" style="margin-top:4px">
-    <button class="btn secondary" id="smime-settings-btn" data-wache="smime-tag-encrypted,smime-tag-enc-enabled,smime-tag-signed,smime-tag-sig-enabled,smime-tag-position,strip-subject-tags,smime-strip-inbound,smime-key-encrypt,smime-signing-enabled,nodigsig-trigger,enc-trigger,crl-check,trust-ms-roots,trust-auto-known,portal-enabled,portal-base-url,portal-retention,portal-otp,portal-brand-name" onclick="saveSmimeSettings()">Speichern</button>
+    <button class="btn secondary" id="smime-settings-btn" data-wache="smime-tag-encrypted,smime-tag-enc-enabled,smime-tag-signed,smime-tag-sig-enabled,smime-tag-position,strip-subject-tags,smime-strip-inbound,smime-key-encrypt,smime-signing-enabled,nodigsig-trigger,enc-trigger,crl-check,trust-ms-roots,trust-auto-known,smime-harvest-rcpt,portal-enabled,portal-base-url,portal-retention,portal-otp,portal-brand-name" onclick="saveSmimeSettings()">Speichern</button>
     <span id="smime-result" style="font-size:12px;margin-left:8px"></span>
   </div>
 
@@ -535,6 +556,7 @@ async function saveSmimeSettings() {
     TRUST_MS_ROOTS: document.getElementById('trust-ms-roots').checked,
     TRUST_AUTO_KNOWN: document.getElementById('trust-auto-known').checked,
     TRUST_UNKNOWN_MODE: (document.querySelector('input[name="trust-unknown"]:checked') || {}).value || 'manuell',
+    SMIME_HARVEST_RCPT: (document.getElementById('smime-harvest-rcpt').value || '').trim(),
     SECURE_PORTAL_ENABLED: document.getElementById('portal-enabled').checked,
     SECURE_PORTAL_BASE_URL: (document.getElementById('portal-base-url').value || '').trim(),
     SECURE_PORTAL_RETENTION_DAYS: parseInt(document.getElementById('portal-retention').value, 10) || 14,

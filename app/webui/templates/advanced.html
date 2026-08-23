@@ -328,6 +328,166 @@ async function saveMixedFork() {
 }
 </script>
 
+<!-- ── Ausweichweg, wenn die Graph-Zustellung scheitert ───────────────────── -->
+<div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
+  <div class="wizard-step-header"><h3>Ausweichweg bei gescheiterter Graph-Zustellung</h3></div>
+  <div class="wizard-step-body">
+    <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
+      Betrifft nur die Modi <strong>Graph API</strong> und <strong>IMAP + Graph</strong>.
+      Lehnt Graph eine bearbeitete Nachricht ab, kann das Gateway sie stattdessen über den
+      <strong>SMTP-Smarthost (Port 25)</strong> zustellen.
+      <br>
+      <strong>Ohne Ausweichweg</strong> meldet das Gateway Exchange einen vorübergehenden
+      Fehler. Exchange behält die Nachricht und versucht es später erneut; bleibt Graph
+      dauerhaft gestört, geht sie irgendwann als unzustellbar an den Absender zurück.
+      Verloren geht nichts.
+    </p>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+      <label style="display:flex;align-items:center;gap:8px;font-size:14px">
+        <input type="checkbox" id="graph-smtp-fallback"
+               {% if s.GRAPH_SMTP_FALLBACK %}checked{% endif %}>
+        Bei Graph-Fehlern über den SMTP-Smarthost zustellen
+      </label>
+      <button class="btn primary" id="graph-fallback-btn" data-wache="graph-smtp-fallback"
+              onclick="saveGraphFallback()">Speichern</button>
+      <span id="graph-fallback-result" style="font-size:12px;margin-left:4px"></span>
+    </div>
+    <p class="hint" style="margin-bottom:0">
+      Standardmäßig <strong>aus</strong>, und das aus einem Grund: Wer Graph gewählt hat, tut
+      das meist, weil ausgehender Port 25 gesperrt ist — dann scheitert der Ausweichweg
+      ebenfalls und verzögert die Nachricht nur zusätzlich. Einschalten lohnt, wenn der
+      Smarthost erreichbar ist und Graph nur gelegentlich ausfällt (Drosselung, Störung).
+    </p>
+  </div>
+</div>
+<script>
+async function saveGraphFallback() {
+  wacheFertig('graph-fallback-btn', await savePartial(
+    {GRAPH_SMTP_FALLBACK: document.getElementById('graph-smtp-fallback').checked},
+    'graph-fallback-result', 'advanced:graphFallback'));
+}
+</script>
+
+<!-- ── SMTP-Smarthost (Port 25) ───────────────────────────────────────────── -->
+<div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
+  <div class="wizard-step-header"><h3>SMTP-Smarthost</h3></div>
+  <div class="wizard-step-body">
+    <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
+      Der Rückweg im Modus <strong>SMTP Port 25</strong> — der Vorgabe. Das Ziel selbst
+      (<code>{{ s.EXO_SMARTHOST or 'noch nicht eingerichtet' }}</code>) legt der
+      Einrichtungsassistent zusammen mit dem Exchange-Verbinder fest; hier steht nur der Port.
+    </p>
+    <div class="settings-row">
+      <label for="exo-port">Port</label>
+      <div class="settings-control">
+        <input type="number" id="exo-port" style="width:100px" min="1" max="65535"
+               value="{{ s.EXO_PORT or 25 }}">
+        <span class="hint">
+          Vorgabe <code>25</code>. Ein abweichender Port ist nur nötig, wenn nicht Exchange
+          selbst, sondern ein eigener Relay dazwischen steht.
+        </span>
+      </div>
+    </div>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:6px">
+      <button class="btn primary" id="exo-port-btn" data-wache="exo-port"
+              onclick="saveExoPort()">Speichern</button>
+      <span id="exo-port-result" style="font-size:12px;margin-left:4px"></span>
+    </div>
+    <p class="hint" style="margin-bottom:0;margin-top:12px">
+      <strong>Anmeldung am Smarthost.</strong> Der Regelfall braucht keine: Exchange erkennt das
+      Gateway am TLS-Zertifikat des eingehenden Verbinders. Verlangt ein vorgeschalteter Relay
+      Benutzername und Kennwort, lassen sich <code>RELAY_USER</code> und
+      <code>RELAY_PASSWORD</code> in <code>data/settings.json</code> eintragen — bewusst nicht
+      hier, weil der Fall selten ist und ein weiteres Kennwortfeld in der Oberfläche mehr
+      Angriffsfläche schafft als Nutzen.
+    </p>
+  </div>
+</div>
+<script>
+async function saveExoPort() {
+  wacheFertig('exo-port-btn', await savePartial(
+    {EXO_PORT: parseInt(document.getElementById('exo-port').value, 10) || 25},
+    'exo-port-result', 'advanced:exoPort'));
+}
+</script>
+
+<!-- ── SMTP-Übermittlung (Port 587) ───────────────────────────────────────── -->
+<div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
+  <div class="wizard-step-header"><h3>SMTP-Übermittlung (Port 587)</h3></div>
+  <div class="wizard-step-body">
+    <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
+      Der Weg, über den aufgeteilte Nachrichten zugestellt werden (siehe oben). Er wird
+      <strong>nur</strong> in den Modi <strong>Graph API</strong> und <strong>IMAP + Graph</strong>
+      benutzt — im Modus <strong>SMTP Port 25</strong> nie. Die Vorgaben passen für Exchange
+      Online; sie zu ändern ist nur nötig, wenn ein anderer Übermittlungsserver dazwischen steht.
+    </p>
+    <div class="settings-row">
+      <label for="smtp-submit-host">Server</label>
+      <div class="settings-control">
+        <input type="text" id="smtp-submit-host" style="width:260px"
+               placeholder="smtp.office365.com" value="{{ s.SMTP_SUBMIT_HOST or '' }}">
+        <span class="hint">Vorgabe <code>smtp.office365.com</code>.</span>
+      </div>
+    </div>
+    <div class="settings-row">
+      <label for="smtp-submit-port">Port</label>
+      <div class="settings-control">
+        <input type="number" id="smtp-submit-port" style="width:100px" min="1" max="65535"
+               value="{{ s.SMTP_SUBMIT_PORT or 587 }}">
+        <span class="hint">Vorgabe <code>587</code> (Übermittlung mit Anmeldung).</span>
+      </div>
+    </div>
+    <div class="settings-row">
+      <label for="smtp-submit-clientid">Eigene Anwendungskennung</label>
+      <div class="settings-control">
+        <input type="text" id="smtp-submit-clientid" style="width:340px;max-width:100%"
+               placeholder="leer = Hauptanwendung verwenden"
+               value="{{ s.SMTP_SUBMIT_CLIENT_ID or '' }}">
+        <span class="hint">
+          Normalerweise leer lassen — dann meldet sich das Gateway mit seiner Hauptanwendung an.
+          Nur nötig, wenn diese die Berechtigung <code>SMTP.SendAsApp</code> nicht führt und
+          dafür eine zweite Registrierung angelegt wurde. Ist beides vorhanden, wird zuerst die
+          Hauptanwendung versucht und die hier eingetragene als Ausweichweg.
+        </span>
+      </div>
+    </div>
+    <div class="settings-row">
+      <label for="smtp-submit-user">Relaispostfach</label>
+      <div class="settings-control">
+        <input type="text" id="smtp-submit-user" style="width:300px;max-width:100%"
+               placeholder="leer = dieser Weg entfällt" value="{{ s.SMTP_SUBMIT_USER or '' }}">
+        <span class="hint">
+          Betrifft <strong>eingehende</strong> Nachrichten von Absendern ausserhalb des Tenants,
+          die Graph nicht zustellen kann. Weil eine Anmeldung einen passenden Absenderkopf
+          verlangt, wird die Nachricht dann <strong>umgeschrieben</strong>: Als Absender erscheint
+          dieses Postfach, die echte Adresse bleibt nur in der Antwortadresse erhalten.
+          <br>
+          Bleibt das Feld leer, entfällt der Weg ersatzlos — die betroffene Nachricht wird nicht
+          zugestellt. Im Modus <strong>IMAP + Graph</strong> ist das der Regelfall und
+          unbedenklich, weil dort intern per IMAP zugestellt wird.
+        </span>
+      </div>
+    </div>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:6px">
+      <button class="btn primary" id="smtp-submit-btn"
+              data-wache="smtp-submit-host,smtp-submit-port,smtp-submit-clientid,smtp-submit-user"
+              onclick="saveSmtpSubmit()">Speichern</button>
+      <span id="smtp-submit-result" style="font-size:12px;margin-left:4px"></span>
+    </div>
+  </div>
+</div>
+<script>
+async function saveSmtpSubmit() {
+  wacheFertig('smtp-submit-btn', await savePartial({
+    SMTP_SUBMIT_HOST: (document.getElementById('smtp-submit-host').value || '').trim()
+                      || 'smtp.office365.com',
+    SMTP_SUBMIT_PORT: parseInt(document.getElementById('smtp-submit-port').value, 10) || 587,
+    SMTP_SUBMIT_CLIENT_ID: (document.getElementById('smtp-submit-clientid').value || '').trim(),
+    SMTP_SUBMIT_USER: (document.getElementById('smtp-submit-user').value || '').trim(),
+  }, 'smtp-submit-result', 'advanced:smtpSubmit'));
+}
+</script>
+
 <!-- ── SMTP-Quell-IP-Allowlist ────────────────────────────────────────────── -->
 <div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
   <div class="step-header">

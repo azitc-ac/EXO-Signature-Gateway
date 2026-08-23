@@ -20,7 +20,10 @@ from cryptography.x509.oid import NameOID
 import cert_wartestand
 import trust_store
 
-JETZT = datetime(2026, 8, 16, 12, 0, tzinfo=timezone.utc)
+# Beweglicher Bezugspunkt, Mittag UTC — siehe die ausführliche Begründung in
+# test_crl_widerruf.py: Ein festes Datum sieht wie Reproduzierbarkeit aus und
+# ist eine Zeitbombe. Die hier gebauten Zertifikate hätten sie 2027 gezündet.
+JETZT = datetime.now(timezone.utc).replace(hour=12, minute=0, second=0, microsecond=0)
 
 
 @pytest.fixture(autouse=True)

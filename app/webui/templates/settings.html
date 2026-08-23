@@ -222,6 +222,16 @@
                  {% if s.NOTIFY_LE_EVENTS is not false %}checked{% endif %}>
           TLS-Zertifikat (Let's Encrypt) erneuert / läuft ab
         </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="notify-cert-waiting"
+                 {% if s.NOTIFY_CERT_WAITING is not false %}checked{% endif %}>
+          Empfängerzertifikat wartet auf Freigabe
+        </label>
+        <small class="hint" style="margin-left:22px;display:block;margin-top:2px">
+          Nur beim erstmaligen Auftreten je Zertifikat. Ohne Entscheidung geht an
+          diesen Empfänger weiterhin das Portal statt einer verschlüsselten Nachricht.
+          Der Tagesbericht zeigt Wartende unabhängig von diesem Haken.
+        </small>
         <label class="checkbox-label" style="margin-top:6px">
           <input type="checkbox" id="notify-local-admin-login"
                  {% if s.NOTIFY_LOCAL_ADMIN_LOGIN is not false %}checked{% endif %}>
@@ -229,6 +239,26 @@
         </label>
         <small class="hint" style="margin-left:22px;display:block;margin-top:2px">
           Notfall-Zugang: bei jeder Anmeldung wird eine Benachrichtigung mit IP-Adresse und Browser gesendet.
+        </small>
+      </div>
+    </div>
+
+    <div class="settings-row">
+      <label>Nachrichten an Postfachinhaber</label>
+      <div class="settings-control">
+        <label class="checkbox-label">
+          <input type="checkbox" id="notify-user-cert"
+                 {% if s.NOTIFY_USER_CERT is not false %}checked{% endif %}>
+          Über den Stand ihres Zertifikats unterrichten
+        </label>
+        <small class="hint" style="margin-left:22px;display:block;margin-top:2px">
+          Betrifft <strong>nicht</strong> die Verwaltung, sondern die Postfachinhaber selbst:
+          „Bitte bestätigen: Zertifikat für Ihre E-Mail-Adresse" während einer Bestellung und
+          „Digitale Signatur für Ihre E-Mails ist aktiv", sobald sie eingerichtet ist.
+          Wortlaut beider Nachrichten unter <a href="/template">Vorlagen</a> anpassbar.
+          <br>
+          Ausschalten heißt: Wo eine Zertifizierungsstelle eine Bestätigung durch den
+          Postfachinhaber verlangt, erfährt er davon nichts — die Bestellung bleibt liegen.
         </small>
       </div>
     </div>
@@ -246,7 +276,7 @@
     </div>
 
     <div class="actions" style="margin-top:12px;flex-wrap:wrap;gap:8px">
-      <button class="btn secondary" id="benachr-btn" data-wache="notif-dg-external,notif-enabled,notif-mailbox,daily-report-enabled,daily-report-time,notify-startup,notify-smime-expiry,notify-cert-renewal,notify-le-events,notify-local-admin-login,cert-warn-days,le-renew-days" onclick="saveBenachrichtigungen()">Speichern</button>
+      <button class="btn secondary" id="benachr-btn" data-wache="notif-dg-external,notif-enabled,notif-mailbox,daily-report-enabled,daily-report-time,notify-startup,notify-smime-expiry,notify-cert-renewal,notify-le-events,notify-local-admin-login,notify-cert-waiting,notify-user-cert,cert-warn-days,le-renew-days" onclick="saveBenachrichtigungen()">Speichern</button>
       <span id="benachrichtigungen-result" style="font-size:12px;align-self:center"></span>
       <button class="btn secondary" onclick="sendTestNotification()" style="margin-left:16px">Test-Benachrichtigung senden</button>
       <span id="notif-test-result" style="font-size:13px;align-self:center"></span>
@@ -828,6 +858,8 @@ async function saveBenachrichtigungen() {
     NOTIFY_CERT_RENEWAL: document.getElementById('notify-cert-renewal').checked,
     NOTIFY_LE_EVENTS: document.getElementById('notify-le-events').checked,
     NOTIFY_LOCAL_ADMIN_LOGIN: document.getElementById('notify-local-admin-login').checked,
+    NOTIFY_CERT_WAITING: document.getElementById('notify-cert-waiting').checked,
+    NOTIFY_USER_CERT: document.getElementById('notify-user-cert').checked,
     CERT_WARN_DAYS: parseInt(document.getElementById('cert-warn-days').value, 10) || 14,
     LE_RENEW_DAYS: parseInt(document.getElementById('le-renew-days').value, 10) || 7,
   }, 'benachrichtigungen-result');
