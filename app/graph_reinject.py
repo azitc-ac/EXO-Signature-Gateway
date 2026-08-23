@@ -628,7 +628,12 @@ def send_via_graph(mail_from: str, rcpt_tos: list[str], content_bytes: bytes) ->
         except Exception:
             pass
         if error_code == "ErrorInvalidUser":
-            log.info("Sender %s is external — SMTP submit", from_addr)
+            # Nicht „SMTP submit" versprechen: Das ist nur der ERSTE von vier
+            # Wegen, und er entfaellt ohne Relaispostfach. Die alte Fassung
+            # sah im Protokoll aus, als sei ueber 587 zugestellt worden.
+            log.info("Sender %s is external — Zustellwege der Reihe nach: "
+                     "587, sendMail des Empfaengers, MIME-Inject, JSON-Inject",
+                     from_addr)
             import smtp_submit
             if smtp_submit.deliver_inbound(mail_from, rcpt_tos, content_bytes):
                 return True
@@ -719,7 +724,12 @@ def send_via_graph_mime(mail_from: str, rcpt_tos: list[str], content_bytes: byte
         except Exception:
             pass
         if error_code == "ErrorInvalidUser" or resp.status_code == 404:
-            log.info("Sender %s is external — SMTP submit", from_addr)
+            # Nicht „SMTP submit" versprechen: Das ist nur der ERSTE von vier
+            # Wegen, und er entfaellt ohne Relaispostfach. Die alte Fassung
+            # sah im Protokoll aus, als sei ueber 587 zugestellt worden.
+            log.info("Sender %s is external — Zustellwege der Reihe nach: "
+                     "587, sendMail des Empfaengers, MIME-Inject, JSON-Inject",
+                     from_addr)
             import smtp_submit
             if smtp_submit.deliver_inbound(mail_from, rcpt_tos, content_bytes):
                 return True

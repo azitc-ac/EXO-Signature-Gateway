@@ -26,6 +26,14 @@ Fehlermeldung von Exchange benennt das eindeutig, führte aber nur zum stillen
 Rückfall auf den Notbehelf statt zu einem Abbruch. Der Weg ist damit erstmals
 funktionsfähig; zu tun ist nichts.
 
+**Klarere Protokollmeldungen auf diesem Weg.** Die Zeile „Sender … is external —
+SMTP submit" wurde geschrieben, bevor der erste von vier Zustellwegen überhaupt
+versucht wurde, und benannte nur diesen einen. Entfiel er — was ohne
+hinterlegtes Relaispostfach immer der Fall ist —, blieb das unsichtbar, weil die
+entsprechende Meldung nur auf der Stufe „Debug" erschien. Im Protokoll sah es
+dadurch so aus, als sei über Port 587 zugestellt worden. Beide Meldungen nennen
+jetzt, was tatsächlich geschieht.
+
 ## v1.7.237 — 2026-08-23 — Acht bisher verborgene Einstellungen sind jetzt bedienbar
 
 Fortsetzung der Bestandsaufnahme aus v1.7.236. Zehn Einstellungen wirkten im
