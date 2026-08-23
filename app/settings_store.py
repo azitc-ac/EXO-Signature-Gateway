@@ -173,7 +173,6 @@ DEFAULTS: dict = {
     "DIGICERT_PAYMENT_METHOD": "profile",  # profile = hinterlegte Kreditkarte | balance
     # ── Sectigo Certificate Manager (S/MIME REST API backend) ─────────────────
     # ── S/MIME lifecycle management ───────────────────────────────────────────
-    "GATEWAY_EXTERNAL_URL": "",      # e.g. https://mail.company.com (no port — 8080 is only the internal container port) — used in renewal links
     "CERT_RENEWAL_THRESHOLDS": [30, 14, 7, 1],  # Notify user at these days-before-expiry
     "CA_USER_CONFIG": {},            # {email: {backend, portal_url, notify_user}}
     # ── Notifications (extended) ──────────────────────────────────────────────
@@ -295,6 +294,8 @@ OBSOLETE_KEYS = {
     "HUB_CERT_EMAIL":              "ersetzt durch HUB_EMAIL",
     "HUB_CERT_NAME":               "ersetzt durch HUB_NAME",
     "GRAPH_SEND_TO_ALL_FALLBACK":  "send_to_all ist seit v1.5.68 Standard",
+    "GATEWAY_EXTERNAL_URL":        "aufgegangen in ADDIN_BASE_URL (v1.7.237) — "
+                                   "ein vorhandener Wert wird beim Start übernommen",
 }
 
 MASK = "••••••••"
@@ -358,7 +359,7 @@ def purge_obsolete() -> list:
 # new DEFAULTS key does NOT need a migration — that's handled automatically by
 # the dict-merge in init(). Migrations run once, in order, and are recorded via
 # the internal "_SCHEMA_VERSION" key so they never re-run on an already-migrated file.
-SETTINGS_SCHEMA_VERSION = 1
+SETTINGS_SCHEMA_VERSION = 2
 
 
 def _migrate_v0_to_v1(data: dict) -> dict:
@@ -370,12 +371,31 @@ def _migrate_v0_to_v1(data: dict) -> dict:
     return data
 
 
+def _migrate_v1_to_v2(data: dict) -> dict:
+    """GATEWAY_EXTERNAL_URL geht in ADDIN_BASE_URL auf.
+
+    Beide beantworteten dieselbe Frage — unter welcher Adresse ist das Gateway
+    von aussen erreichbar — mit getrennten Rangfolgen, sodass ein Gateway die
+    eine korrekt und die andere falsch beantworten konnte (siehe `aussenadresse`).
+
+    Uebernommen wird nur, wenn ADDIN_BASE_URL leer ist: Wer beide gesetzt hatte,
+    hat sich fuer die kanonische entschieden, und die gewinnt.
+    """
+    alt = (data.get("GATEWAY_EXTERNAL_URL") or "").strip()
+    if alt and not (data.get("ADDIN_BASE_URL") or "").strip():
+        data["ADDIN_BASE_URL"] = alt.rstrip("/")
+        log.info("settings_store: GATEWAY_EXTERNAL_URL → ADDIN_BASE_URL übernommen (%s)", alt)
+    data.pop("GATEWAY_EXTERNAL_URL", None)
+    return data
+
+
 # Ordered list of (target_version, migration_fn). Each fn receives the full
 # settings dict and returns the migrated dict. Append new entries as the
 # schema evolves — never remove, reorder, or renumber existing ones, since a
 # settings.json on an old version must be able to replay the full chain.
 _MIGRATIONS: list[tuple[int, Callable[[dict], dict]]] = [
     (1, _migrate_v0_to_v1),
+    (2, _migrate_v1_to_v2),
 ]
 
 

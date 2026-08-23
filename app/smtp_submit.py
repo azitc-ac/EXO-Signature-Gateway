@@ -188,7 +188,15 @@ def deliver_inbound_imap(rcpt_to: str, content_bytes: bytes) -> bool:
                   "using Graph directly", rcpt_to)
         return False
 
-    host = settings_store.get("SMTP_SUBMIT_HOST") or "outlook.office365.com"
+    # IMAP-Endpunkt von Exchange Online, NICHT der SMTP-Übermittlungsserver.
+    # Bis 23.08.2026 stand hier `SMTP_SUBMIT_HOST or "outlook.office365.com"` —
+    # der Ersatz konnte nie greifen, weil die Vorgabe `smtp.office365.com` lautet.
+    # Wirkungslos blieb das nur, weil Microsoft beide Namen auf dieselben
+    # Frontends legt: `smtp.office365.com:993` antwortet tatsächlich als IMAP
+    # (nachgemessen). Eine Falle war es trotzdem — sobald jemand SMTP_SUBMIT_HOST
+    # auf einen eigenen Übermittlungsserver stellt, hätte der IMAP-Weg dorthin
+    # verbunden. Der Weg gilt ohnehin nur für Exchange Online, also fest.
+    host = "outlook.office365.com"
     tokens = _acquire_imap_tokens()
     if not tokens:
         log.error("IMAP inject: no OAuth tokens available")

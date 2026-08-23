@@ -25,10 +25,11 @@ from einstellungen_register import (  # noqa: E402
 VORLAGEN = WURZEL / "app" / "webui" / "templates"
 _alle_vorlagen = "\n".join(p.read_text("utf-8") for p in VORLAGEN.glob("*.html"))
 
-# Stand 23.08.2026: zehn Einstellungen wirken, ohne dass jemand sie sehen kann.
-# Diese Zahl darf sinken, nie steigen. Jede Senkung heisst: entweder bedienbar
-# gemacht, oder als NOTNAGEL mit Begründung eingetragen, oder entfernt.
-OFFENE_HOECHSTZAHL = 10
+# Am 23.08.2026 waren es zehn; alle sind abgearbeitet. Die Null ist der
+# Sollzustand — wer eine Einstellung einführt, ohne sie bedienbar zu machen,
+# soll das ausdrücklich als NOTNAGEL tun und begründen, nicht als OFFEN
+# liegenlassen.
+OFFENE_HOECHSTZAHL = 0
 
 
 def test_jede_einstellung_ist_eingeordnet():
@@ -62,13 +63,28 @@ def test_bedienbares_hat_einen_ort(schluessel):
 @pytest.mark.parametrize(
     "schluessel", nach_art(OPTION) + nach_art(STRUKTUR) + nach_art(GEHEIMNIS))
 def test_der_ort_existiert(schluessel):
-    """Ein Ort, den es nicht gibt, ist schlimmer als keiner — er beruhigt."""
+    """Ein Ort, den es nicht gibt, ist schlimmer als keiner — er beruhigt.
+
+    Bei einer Vorlage genügt es NICHT, dass sie den Schlüssel erwähnt: Ein
+    Erklärtext, der den eingestellten Wert anzeigt (`{{ s.EXO_PORT }}`), sah
+    für die erste Fassung dieser Prüfung wie eine Bedienung aus. Neun
+    Einstellungen hatten so einen Scheinort, zwei davon waren tatsächlich
+    nirgends einstellbar. Verlangt wird deshalb, dass der Schlüssel dort auch
+    GESPEICHERT wird — als Feld im Speicher-Objekt.
+    """
+    import re
     ort = REGISTER[schluessel].ort
     if not ort:
         return                      # bei GEHEIMNIS erlaubt, siehe eigener Test
     if ort.endswith(".html"):
-        assert (VORLAGEN / ort).exists(), (
+        pfad = VORLAGEN / ort
+        assert pfad.exists(), (
             f"{schluessel} verweist auf die Vorlage {ort}, die es nicht gibt.")
+        assert re.search(rf"(?<![\w.]){re.escape(schluessel)}\s*:", pfad.read_text("utf-8")), (
+            f"{schluessel} verweist auf {ort}, wird dort aber nicht gespeichert.\n"
+            "Angezeigt zu werden genügt nicht — gesucht wird der Schlüssel im "
+            "Speicher-Objekt des Knopfes. Führt der Weg über einen eigenen "
+            "Endpunkt, gehört dessen Pfad als Ort ins Register.")
     else:
         stamm = ort.split("{")[0].rstrip("/")
         assert stamm and stamm in _alle_vorlagen, (

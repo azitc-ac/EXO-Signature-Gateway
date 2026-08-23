@@ -5,6 +5,79 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.237 — 2026-08-23 — Acht bisher verborgene Einstellungen sind jetzt bedienbar
+
+Fortsetzung der Bestandsaufnahme aus v1.7.236. Zehn Einstellungen wirkten im
+Betrieb, ohne dass sie irgendwo einzustellen waren — sie ließen sich nur direkt
+in `data/settings.json` ändern. Acht davon haben jetzt einen Platz in der
+Oberfläche, eine ist entfallen, eine bleibt bewusst der Konfigurationsdatei
+vorbehalten.
+
+**Einstellungen → Allgemein → Benachrichtigungen**
+
+* *Empfängerzertifikat wartet auf Freigabe* — die Meldung an die Verwaltung,
+  wenn erstmals ein Zertifikat mit unbekanntem Aussteller eintrifft. Alle
+  übrigen Meldungen dieser Gruppe waren abschaltbar, diese nicht.
+* *Nachrichten an Postfachinhaber* — eigener Abschnitt, weil diese Nachrichten
+  nicht an die Verwaltung gehen, sondern an die Betroffenen selbst. Wird der
+  Haken entfernt, erfährt ein Postfachinhaber nichts von einer Bestellung, die
+  auf seine Bestätigung wartet.
+
+**Einstellungen → S/MIME**
+
+* *Sammeladresse* (unter „Erweiterte Einstellungen") — wer eine signierte
+  Nachricht dorthin schickt, hinterlegt sein Zertifikat; die Nachricht selbst
+  wird verworfen. Für den Alltag nicht nötig, weil Zertifikate ohnehin aus jeder
+  eingehenden signierten Nachricht übernommen werden.
+
+**Einstellungen → Erweitert**
+
+* *SMTP-Smarthost* — der Port des Rückwegs im Modus „SMTP Port 25". Er wurde
+  bisher nur in einem Erklärtext angezeigt.
+* *SMTP-Übermittlung (Port 587)* — Server, Port, Relaispostfach und die
+  Möglichkeit, eine eigene Anwendungskennung zu hinterlegen. Diese vier Werte
+  tragen den Weg, über den aufgeteilte Nachrichten zugestellt werden; er war
+  vollständig unsichtbar, was eine Fehlersuche in die falsche Richtung geschickt
+  hat.
+* *Ausweichweg bei gescheiterter Graph-Zustellung* — bisher nur in der Datei
+  änderbar. Der Abschnitt erklärt auch, was ohne Ausweichweg geschieht: Das
+  Gateway meldet einen vorübergehenden Fehler, Exchange behält die Nachricht und
+  versucht es erneut. Verloren geht nichts.
+
+**Entfallen: eine zweite Adressangabe.** Die Frage, unter welcher Adresse das
+Gateway von außen erreichbar ist, wurde an drei Stellen mit vier verschiedenen
+Quellen und drei verschiedenen Rangfolgen beantwortet. Auf einem Gateway, bei
+dem nur der öffentliche Name hinterlegt war, baute der Zeitplaner deshalb
+`https://localhost:8080/…` — und genau diese Adresse ging als
+Erneuerungs-Link an die Postfachinhaber. Die Anmeldung fand denselben Rechner
+korrekt, weil sie eine andere Rangfolge benutzte. Es gilt jetzt überall
+dieselbe: eingetragene Außenadresse, sonst öffentlicher Name, sonst die Domain
+des Zertifikats. Ein vorhandener Wert der entfallenen Einstellung wird beim
+Start automatisch übernommen; zu tun ist nichts.
+
+Für Anmelde-Rückadressen bleibt die Domain des Zertifikats ausdrücklich außen
+vor — sie steht nicht in der Anwendungsregistrierung, und eine Abweichung dort
+führt zu einer Fehlermeldung beim Anmelden statt zu einem funktionierenden Weg.
+
+**Nur in der Konfigurationsdatei:** `RELAY_USER` und `RELAY_PASSWORD` für einen
+vorgeschalteten Relay, der eine Anmeldung verlangt. Der Regelfall braucht das
+nicht — Exchange erkennt das Gateway am TLS-Zertifikat des Verbinders. Ein
+weiteres Kennwortfeld in der Oberfläche schafft für diesen seltenen Fall mehr
+Angriffsfläche als Nutzen. Der Abschnitt „SMTP-Smarthost" nennt den Weg
+trotzdem, damit er nicht unbemerkt bleibt.
+
+**Weiterer Befund.** Der IMAP-Zustellweg benutzte die Servereinstellung der
+SMTP-Übermittlung als IMAP-Adresse mit. Wirkungslos blieb das nur, weil beide
+Namen bei Microsoft auf dieselben Server zeigen — sobald jemand einen eigenen
+Übermittlungsserver einträgt, hätte der IMAP-Weg dorthin verbunden. Da die
+Einstellung mit dieser Fassung bedienbar wird, ist die Kopplung aufgelöst.
+
+Ebenfalls berichtigt: Drei Testdateien legten einen Prüfzeitpunkt fest, statt
+ihn zu berechnen. Die damit erzeugten Sperrlisten und Zertifikate liefen ab,
+sodass Prüfungen an einem Stichtag fehlschlugen, ohne dass sich etwas geändert
+hatte — bei einer Datei war dieser Tag bereits erreicht, bei zwei weiteren wäre
+er 2027 gekommen.
+
 ## v1.7.236 — 2026-08-23 — Vier Schalter der Oberfläche wurden beim Speichern verworfen
 
 Vier Einstellungen wurden in der Weboberfläche angeboten und im Betrieb

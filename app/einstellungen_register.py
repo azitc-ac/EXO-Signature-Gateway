@@ -83,16 +83,16 @@ REGISTER: dict[str, E] = {
     "ADDIN_BASE_URL": E(art=OPTION, ort="setup.html"),
     "ADDIN_ENABLED": E(art=OPTION, ort="setup.html"),
     "ADMIN_PASSWORD_HASH": E(art=GEHEIMNIS, ort="/api/setup/change-password"),
-    "ADMIN_USERS": E(art=STRUKTUR, ort="setup.html"),
+    "ADMIN_USERS": E(art=STRUKTUR, ort="/api/admin-users"),
     "APP_POOL": E(art=GEHEIMNIS, ort="/api/setup/app-pool/add"),
     "AZURE_APP_CREATED": E(art=ZUSTAND),
     "BOOTSTRAP_CLIENT_ID": E(art=OPTION, ort="/api/setup/bootstrap-client"),
-    "BOOTSTRAP_REDIRECT_URIS": E(art=STRUKTUR, ort="setup.html"),
+    "BOOTSTRAP_REDIRECT_URIS": E(art=STRUKTUR, ort="/api/setup/bootstrap-client"),
     "CATALOG_PROVIDERS_DISABLED": E(art=STRUKTUR, ort="/api/cert/catalog"),
     "CA_USER_CONFIG": E(art=STRUKTUR, ort="/api/acme/account-reset"),
     "CERT_RENEWAL_THRESHOLDS": E(art=STRUKTUR, ort="/smime"),
     "CERT_WARN_DAYS": E(art=OPTION, ort="settings.html"),
-    "CLIENT_ID": E(art=OPTION, ort="advanced.html"),
+    "CLIENT_ID": E(art=OPTION, ort="/api/setup/bootstrap-client"),
     "CLIENT_SECRET": E(art=GEHEIMNIS, ort="/setup"),
     "CRL_CHECK": E(art=OPTION, ort="settings_smime.html"),
     "CUSTOM_POLICIES": E(art=STRUKTUR, ort="/api/settings/custom-policies"),
@@ -109,20 +109,10 @@ REGISTER: dict[str, E] = {
     "EXO_PORT": E(art=OPTION, ort="advanced.html"),
     "EXO_SMARTHOST": E(art=OPTION, ort="/api/setup/exo-connector"),
     "FALLBACK_ON_ERROR": E(art=OPTION, ort="settings_signature.html"),
-    "GATEWAY_EXTERNAL_URL": E(
-        art=OFFEN,
-        grund="Adresse, unter der das Gateway von aussen erreichbar ist; wird "
-              "vom Zeitplaner für Links in Benachrichtigungen benutzt. Vermutlich "
-              "durch PUBLIC_HOSTNAME/ADDIN_BASE_URL abgedeckt — zu prüfen, ob "
-              "die Einstellung noch gebraucht wird."),
     "GATEWAY_ID": E(art=ZUSTAND),
     "GATEWAY_NAME": E(art=OPTION, ort="advanced.html"),
     "GRAPH_MIXED_FORK_MODE": E(art=OPTION, ort="advanced.html"),
-    "GRAPH_SMTP_FALLBACK": E(
-        art=OFFEN,
-        grund="Bestimmt, ob nach einem gescheiterten Graph-Versand auf SMTP "
-              "ausgewichen wird — eine Verhaltensentscheidung mit Folgen für "
-              "die Zustellung, heute nur in der Datei änderbar."),
+    "GRAPH_SMTP_FALLBACK": E(art=OPTION, ort="advanced.html"),
     "HUB_API_KEY": E(art=GEHEIMNIS, ort="/api/hub/api-key"),
     "HUB_BASE_URL": E(art=OPTION, ort="/api/hub/config"),
     "HUB_CLAIM_TOKEN": E(art=GEHEIMNIS),
@@ -130,8 +120,8 @@ REGISTER: dict[str, E] = {
     "HUB_CUSTOMER_NAME": E(art=OPTION, ort="/api/hub/config"),
     "IMAP_ACCESS_CONFIGURED": E(art=ZUSTAND),
     "INTERNAL_GROUPS": E(art=STRUKTUR, ort="/api/settings/internal-groups"),
-    "KEYVAULT_RESOURCE_ID": E(art=OPTION, ort="setup.html"),
-    "KEYVAULT_URL": E(art=OPTION, ort="settings_smime.html"),
+    "KEYVAULT_RESOURCE_ID": E(art=OPTION, ort="/api/setup/keyvault/assign-role"),
+    "KEYVAULT_URL": E(art=OPTION, ort="/api/setup/keyvault/save"),
     "KV_KEY_MODE": E(art=OPTION, ort="settings_smime.html"),
     "KV_KEY_STATUS": E(art=ZUSTAND),
     "LEXWARE_FIX_FORMAT": E(art=OPTION, ort="advanced.html"),
@@ -144,37 +134,32 @@ REGISTER: dict[str, E] = {
     "LOG_TIMEZONE": E(art=OPTION, ort="advanced.html"),
     "LOOP_HEADER": E(art=OPTION, ort="settings_signature.html"),
     "MAILBOX_CONFIG": E(art=STRUKTUR, ort="/api/addin/signature"),
-    "MAINTENANCE_MODE": E(art=OPTION, ort="advanced.html"),
+    "MAINTENANCE_MODE": E(art=OPTION, ort="/api/maintenance/mode"),
     "NODIGSIG_TRIGGER": E(art=OPTION, ort="settings_smime.html"),
     "NOSIG_TRIGGER": E(art=OPTION, ort="settings_signature.html"),
     "NOTIFICATIONS_ENABLED": E(art=OPTION, ort="settings.html"),
-    "NOTIFICATION_DG_ACCEPT_EXTERNAL": E(art=OPTION, ort="settings.html"),
-    "NOTIFICATION_DG_EMAIL": E(art=OPTION, ort="settings.html"),
+    "NOTIFICATION_DG_ACCEPT_EXTERNAL": E(art=OPTION, ort="/api/setup/notification-dg"),
+    "NOTIFICATION_DG_EMAIL": E(art=ZUSTAND),
     "NOTIFICATION_MAILBOX": E(art=OPTION, ort="settings.html"),
     "NOTIFICATION_RECIPIENTS": E(art=STRUKTUR, ort="settings.html"),
     "NOTIFY_CERT_RENEWAL": E(art=OPTION, ort="settings.html"),
-    "NOTIFY_CERT_WAITING": E(
-        art=OFFEN,
-        grund="Benachrichtigung an die Verwaltung, wenn eine Bestellung auf "
-              "den Postfachinhaber wartet. Alle übrigen NOTIFY_*-Schalter "
-              "stehen unter Einstellungen → Benachrichtigungen; dieser nicht."),
+    "NOTIFY_CERT_WAITING": E(art=OPTION, ort="settings.html"),
     "NOTIFY_LE_EVENTS": E(art=OPTION, ort="settings.html"),
     "NOTIFY_LOCAL_ADMIN_LOGIN": E(art=OPTION, ort="settings.html"),
     "NOTIFY_SMIME_EXPIRY": E(art=OPTION, ort="settings.html"),
     "NOTIFY_STARTUP": E(art=OPTION, ort="settings.html"),
-    "NOTIFY_USER_CERT": E(
-        art=OFFEN,
-        grund="Benachrichtigung an den Postfachinhaber über sein Zertifikat. "
-              "Wie NOTIFY_CERT_WAITING: gehört zu einer Gruppe, die bedienbar "
-              "ist, und fehlt dort."),
+    "NOTIFY_USER_CERT": E(art=OPTION, ort="settings.html"),
     "PORTAL_BRAND_NAME": E(art=OPTION, ort="settings_smime.html"),
     "PUBLIC_HOSTNAME": E(art=OPTION, ort="/api/setup/exo-connector"),
     "RELAY_PASSWORD": E(art=GEHEIMNIS),
     "RELAY_USER": E(
-        art=OFFEN,
-        grund="Anmeldedaten für einen fremden Smarthost (z.B. SES) statt "
-              "Exchange. Möglicherweise ein echter Notnagel — dann als solcher "
-              "einzutragen; die Alternative ist, ihn zu entfernen."),
+        art=NOTNAGEL,
+        grund="Benutzername für einen vorgeschalteten Relay, der eine Anmeldung "
+              "verlangt. Der Regelfall braucht das nicht — Exchange erkennt das "
+              "Gateway am TLS-Zertifikat des Verbinders. Bewusst nicht in der "
+              "Oberfläche: ein weiteres Kennwortfeld schafft für diesen seltenen "
+              "Fall mehr Angriffsfläche als Nutzen. Der Abschnitt SMTP-Smarthost "
+              "in advanced.html nennt den Weg, damit er nicht unbemerkt bleibt."),
     "REINJECT_MODE": E(art=OPTION, ort="setup.html"),
     "SECURE_PORTAL_BASE_URL": E(art=OPTION, ort="settings_smime.html"),
     "SECURE_PORTAL_ENABLED": E(art=OPTION, ort="settings_smime.html"),
@@ -193,13 +178,9 @@ REGISTER: dict[str, E] = {
     "SMIME_AUTO_ENROLL_CA": E(art=OPTION, ort="settings_smime.html"),
     "SMIME_AUTO_ENROLL_TERMS_AT": E(art=ZUSTAND),
     "SMIME_AUTO_RULES": E(art=STRUKTUR, ort="settings_smime.html"),
-    "SMIME_HARVEST_RCPT": E(
-        art=OFFEN,
-        grund="Postfach, an das Empfänger ihr Zertifikat schicken können, damit "
-              "das Gateway es einsammelt. Ein Merkmal ohne jede Spur in der "
-              "Oberfläche — entweder bedienbar machen oder aufgeben."),
+    "SMIME_HARVEST_RCPT": E(art=OPTION, ort="settings_smime.html"),
     "SMIME_KEY_ENCRYPT": E(art=OPTION, ort="settings_smime.html"),
-    "SMIME_KEY_PASSWORD": E(art=GEHEIMNIS, ort="settings_smime.html"),
+    "SMIME_KEY_PASSWORD": E(art=GEHEIMNIS, ort="/api/smime/key-password"),
     "SMIME_RULES_CREATED": E(art=ZUSTAND),
     "SMIME_SIGNING_ENABLED": E(art=OPTION, ort="settings_smime.html"),
     "SMIME_STRIP_INBOUND": E(art=OPTION, ort="settings_smime.html"),
@@ -210,24 +191,12 @@ REGISTER: dict[str, E] = {
     "SMIME_TAG_SIGNED_ENABLED": E(art=OPTION, ort="settings_smime.html"),
     "SMTP_ACL_EXTRA_CIDRS": E(art=STRUKTUR, ort="advanced.html"),
     "SMTP_SOURCE_ACL_ENABLED": E(art=OPTION, ort="advanced.html"),
-    "SMTP_SUBMIT_CLIENT_ID": E(
-        art=OFFEN,
-        grund="Eigene Anwendungskennung für den Weg über Port 587, falls die "
-              "Hauptanwendung SMTP.SendAsApp nicht führt. Teil der "
-              "587-Konfiguration, die vollständig unsichtbar ist."),
+    "SMTP_SUBMIT_CLIENT_ID": E(art=OPTION, ort="advanced.html"),
     "SMTP_SUBMIT_CLIENT_SECRET": E(art=GEHEIMNIS),
-    "SMTP_SUBMIT_HOST": E(
-        art=OFFEN,
-        grund="Ziel für die SMTP-Übermittlung. Teil der 587-Konfiguration."),
+    "SMTP_SUBMIT_HOST": E(art=OPTION, ort="advanced.html"),
     "SMTP_SUBMIT_PASSWORD": E(art=GEHEIMNIS),
-    "SMTP_SUBMIT_PORT": E(
-        art=OFFEN,
-        grund="Port für die SMTP-Übermittlung. Teil der 587-Konfiguration."),
-    "SMTP_SUBMIT_USER": E(
-        art=OFFEN,
-        grund="Relaispostfach für eingehende Post über Port 587. ⚠️ Steht es "
-              "leer, entfällt dieser Zustellweg ersatzlos — eine Entscheidung "
-              "mit Folgen, die heute niemand sehen kann."),
+    "SMTP_SUBMIT_PORT": E(art=OPTION, ort="advanced.html"),
+    "SMTP_SUBMIT_USER": E(art=OPTION, ort="advanced.html"),
     "SSO_SESSION_SECRET": E(art=GEHEIMNIS),
     "STRIP_CLIENT_SIGS": E(art=OPTION, ort="settings_signature.html"),
     "TEMPLATE_POLICIES": E(art=STRUKTUR, ort="mailboxes.html"),
