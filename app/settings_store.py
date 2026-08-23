@@ -213,6 +213,16 @@ DEFAULTS: dict = {
     # None/True = senden. Der Tagesbericht zeigt es unabhaengig davon.
     "NOTIFY_CERT_WAITING": True,
     "SKIP_DUPLICATE_SIG": True,         # Skip re-injection if gateway signature already in compose area
+    # Die folgenden vier standen bis 23.08.2026 NICHT hier, obwohl die Oberflaeche
+    # sie anbietet und der Code sie liest. update() verwirft alles, was DEFAULTS
+    # nicht kennt — die Schalter liessen sich bedienen, aber nicht speichern, und
+    # der Endpunkt meldete trotzdem Erfolg. Wirksam war immer nur der Wert, den
+    # die Lesestelle als Ersatz einsetzt; genau der steht jetzt als Vorgabe hier,
+    # damit sich am Verhalten nichts aendert und nur das Umstellen hinzukommt.
+    "SIG_IMAGE_MODE": "auto",           # "auto" | "cid" | "inline" — handler.py
+    "SKIP_SIG_IN_THREAD": True,         # keine zweite Gateway-Signatur im Thread
+    "STRIP_SUBJECT_TAGS": True,         # [Signiert]-Marken aus dem Betreff nehmen
+    "WELCOME_DISMISSED": False,         # Erstinstallations-Hinweis weggeklickt
     # Antwort-Signatur: ab der 2. eigenen Mail im Thread wird statt des vollen Blocks die
     # zugewiesene Antwort-Signatur genutzt (pro Postfach 'min_template' bzw. Richtlinie
     # TEMPLATE_POLICIES['min']); keine zugewiesen = keine Signatur. Immer aktiv, allein
@@ -252,6 +262,8 @@ SECRET_KEYS = frozenset({
 # DEFAULTS, aber legitim — hier deklariert, damit er nicht als verwaist gilt.
 INTERNAL_KEYS = frozenset({
     "MAILBOX_HEALTH",             # health_check.py
+    "GATEWAY_AUDIT_LOG",          # health_check.py — stand hier bis 23.08.2026
+                                  # nicht, obwohl daneben geschrieben
     "_DAILY_LAST_RUN",            # scheduler.py
     "_SCHEMA_VERSION",            # Migrationsstand, s.u.
 })

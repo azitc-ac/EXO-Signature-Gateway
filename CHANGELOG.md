@@ -5,6 +5,49 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.236 — 2026-08-23 — Vier Schalter der Oberfläche wurden beim Speichern verworfen
+
+Vier Einstellungen wurden in der Weboberfläche angeboten und im Betrieb
+ausgewertet, waren aber nirgends mit einer Vorgabe hinterlegt. Das Speichern
+nimmt nur Schlüssel an, die dort deklariert sind — die vier fielen jedes Mal
+heraus. Die Rückmeldung lautete trotzdem „gespeichert", und beim nächsten
+Aufruf stand wieder der alte Wert.
+
+Betroffen:
+
+* **Signatur → Bilder in der Signatur.** Die Auswahl zwischen Anhang (CID),
+  eingebettet und automatisch blieb wirkungslos; es galt immer „automatisch".
+  Wer wegen iOS Mail bei verschlüsselten Nachrichten auf „eingebettet"
+  umgestellt hatte, bekam die Umstellung nicht.
+* **Signatur → keine zweite Signatur im selben Verlauf.** Ließ sich nicht
+  abschalten; die Unterdrückung war immer aktiv.
+* **S/MIME → Marken aus dem Betreff entfernen.** Ebenfalls nicht abschaltbar.
+* **Erstinstallations-Hinweis wegklicken.** Der Hinweis kehrte nach jedem
+  Neuladen zurück.
+
+Die Vorgaben sind so gesetzt, dass sich am Verhalten nichts ändert: Es gilt
+weiter genau der Wert, den die auswertende Stelle bisher ersatzweise einsetzte.
+Neu ist allein, dass ein Umstellen jetzt erhalten bleibt. Wer einen der Schalter
+bisher vergeblich umgelegt hat, stellt ihn nach dem Update erneut ein.
+
+**Wie das unbemerkt bleiben konnte.** Alle bisherigen Prüfungen fragen, ob eine
+Funktion tut, was sie soll. Keine fragte, ob das Bedienelement daneben denselben
+Schlüssel meint wie der auswertende Code. Das Gateway führt deshalb jetzt ein
+Verzeichnis aller Einstellungen: Jede ist eingeordnet — bedienbare Option,
+Sammlung, Geheimnis, entstehender Zustand oder ausdrücklich nur in der
+Konfigurationsdatei erreichbar. Eine Prüfung verlangt, dass jede bedienbare
+Einstellung einen Ort in der Oberfläche hat, den es wirklich gibt, dass jede
+Ausnahme begründet ist und dass kein Schlüssel benutzt wird, der keine Vorgabe
+hat. Der zuletzt genannte Punkt hätte alle vier Fälle beim Entstehen gemeldet.
+
+Bei derselben Bestandsaufnahme fiel weiter auf: Die Vorschau im Vorlagen-Editor
+las den Namen der Zertifizierungsstelle aus einer Einstellung, die es nicht gab,
+und setzte deshalb immer einen Ersatztext ein — in der versandten Nachricht kam
+der Name schon immer aus der jeweiligen Bestellung. Der Zugriff ist entfernt.
+Zehn Einstellungen sind heute nur in der Konfigurationsdatei erreichbar; sie
+sind im Verzeichnis einzeln benannt und begründet, und ihre Anzahl kann nur noch
+sinken.
+
 ## v1.7.235 — 2026-08-23 — Berichtigte Beschreibungen im Quelltext
 
 Nur Kommentare — am Verhalten ändert sich nichts. Wer den Quelltext liest, fand
