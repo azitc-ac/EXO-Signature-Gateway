@@ -142,7 +142,7 @@ Zusätzlich zu den Standard-Berechtigungen:
 
 Der Modus wird in der Web-UI unter **Einstellungen → Re-inject-Modus** oder via `REINJECT_MODE` konfiguriert.
 
-### `graph` — Standard / Azure
+### `graph` — Azure ohne Port 25
 
 - **Alle** Re-injects über Graph API `sendMail` (HTTPS)
 - Kein Port 25 erforderlich; funktioniert auf Azure
@@ -156,11 +156,26 @@ Der Modus wird in der Web-UI unter **Einstellungen → Re-inject-Modus** oder vi
 - **Kein ausgehender Port 25** erforderlich
 - Erfordert `IMAP.AccessAsApp` + EXO Service Principal (via Setup-Wizard einrichtbar)
 
-### `smtp` — Klassisch / On-Premises
+### `smtp` — Vorgabe / klassisch
 
+- **Die Vorgabe** (`REINJECT_MODE` ist ab Werk `smtp`)
 - Re-inject via SMTP + STARTTLS an den EXO-Smarthost (`<tenant>.mail.protection.outlook.com:25`)
 - Erfordert ausgehenden Port 25 – **nicht Azure-kompatibel**
 - Kein zusätzliches App-Permission erforderlich
+
+### Port 587 — kein Modus, sondern ein Sonderweg
+
+⚠️ Häufiges Missverständnis: Einen „587-Modus" gibt es nicht. Port 587 kommt
+**innerhalb** von `graph` und `imap` zum Zug, und zwar für Post, die Exchange in
+Teilnachrichten aufgeteilt hat: Nur SMTP trennt Zustellempfänger von den
+angezeigten Empfängern, Graph kann das nicht. Voraussetzung ist die
+Anwendungsberechtigung `SMTP.SendAsApp`. Im Modus `smtp` spielt Port 587 keine
+Rolle.
+
+⚠️ Der Wert `smtp587` ist ein **Altname für `imap`** — er wird noch angenommen
+und protokolliert eine Warnung. Der Modus macht IMAP APPEND, kein SMTP auf 587.
+Wer eine alte `settings.json` hat, betreibt also einen IMAP-Weg unter einem
+SMTP-Namen.
 
 ---
 
@@ -276,15 +291,17 @@ Erreichbar unter `https://<host>:8080`.
 | Seite | Funktion |
 |---|---|
 | **Dashboard** | Mail-Statistiken (Heute / Monat / Jahr), S/MIME-Zähler, Fehler, Zertifikatsablauf, System-Monitoring (RAM, Disk, Logs, In-Flight, Ø Verarbeitungszeit) |
-| **Postfächer** | Aktivierte Postfächer verwalten, EXO-Verteilerliste synchronisieren |
+| **Postfächer** | Aktivierte Postfächer verwalten, EXO-Verteilerliste synchronisieren, Zertifikate für mehrere Postfächer auf einmal bestellen |
 | **Templates** | Signatur-HTML und -Plaintext bearbeiten |
 | **Vorschau** | Signatur für eine beliebige E-Mail-Adresse rendern |
 | **Einstellungen** | Alle Konfigurationsoptionen, Test-Mail, Let's Encrypt, Re-inject-Modus, Entra-App |
 | **S/MIME** | Zertifikat-Upload, Azure Key Vault Migration, CASTLE ACME-Enrollment |
 | **Log** | Live-Ansicht der Service-Logs |
 | **Add-in** | Office-Add-in für Outlook (Signatur-Vorschau und -Auswahl im Compose-Fenster) |
-| **Setup** | Erstkonfigurationsassistent (App-Registrierung, Connector, IMAP-Zugriff, SMTP-Hostname) |
+| **Setup** | Erstkonfigurationsassistent (App-Registrierung, Connector, IMAP-Zugriff, Anmeldung prüfen) |
 | **Debug** | ACME-Versandmethode, Account Key Reset, Exchange Header Observatory |
+
+Die Oberfläche folgt der Systemeinstellung für **hellen und dunklen Modus** und ist auf Telefonbreite (ab 320 px) bedienbar.
 
 ---
 
@@ -381,8 +398,6 @@ Port 80 ist im mitgelieferten `docker-compose.yml` bereits offen (HTTP-01 Challe
 2. In der Web-UI unter **Einstellungen → TLS / Let's Encrypt** Domain und E-Mail eintragen.
 3. Button **Zertifikat erneuern** klicken.
 4. Nach Erfolg: **Service neu starten** (Button in Einstellungen oder `docker compose restart`).
-
-**Separater SMTP-Hostname:** Falls der Web-Hostname hinter einem Reverse-Proxy / Azure Application Proxy liegt und kein SMTP empfangen kann, lässt sich ein separater `SMTP_HOSTNAME` mit eigenem Zertifikat konfigurieren (Setup-Wizard Schritt 2).
 
 ---
 
