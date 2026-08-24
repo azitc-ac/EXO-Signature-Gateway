@@ -5,6 +5,38 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.240 — 2026-08-24 — Fehlende Nur-Text-Fassung einer Vorlage ist jetzt sichtbar
+
+Zu jeder Signaturvorlage gehören zwei Fassungen: eine formatierte und eine reine
+Textfassung für Empfänger, deren Programm keine Formatierung anzeigt. Fehlt die
+Textfassung, setzt das Gateway die der **Standardsignatur** ein — im Textteil
+trägt die Nachricht dann nicht die zugewiesene Vorlage, sondern eine andere.
+
+Bemerkt hat das niemand: Im Vorlagen-Editor erschien lediglich ein leeres
+Textfeld, und ein leeres Feld sieht aus wie eine Entscheidung. Der Hinweis
+darauf stand ausschließlich im Protokoll.
+
+Der Editor sagt es jetzt an Ort und Stelle, mitsamt der Folge. Am Verhalten
+ändert sich nichts — der Rückfall ist richtig, eine Nachricht ganz ohne Textteil
+wäre schlechter. Wer die Textfassung bewusst weglässt, behält sie weiterhin weg;
+er weiß nun, was das bedeutet.
+
+**Aufgeräumt:** Eine mit v1.4.91 entfernte Einstellung (`SMTP_HOSTNAME`) war nie
+als entfallen vermerkt worden. Sie blieb dadurch in `settings.json` stehen und
+wurde bei jedem Start als unbekannt gemeldet, ohne dass sie je jemand entfernte.
+Der nächste Start räumt sie auf.
+
+## v1.7.239 — 2026-08-24 — Protokollmeldung nannte einen Weg, der nicht gegangen wurde
+
+Betrifft die Zustellung eingehender Post von externen Absendern (siehe
+v1.7.238). Die Protokollzeile „Sender … is external — SMTP submit" wurde
+geschrieben, bevor der erste von vier Zustellwegen überhaupt versucht wurde, und
+benannte nur diesen einen. Entfiel er — was ohne
+hinterlegtes Relaispostfach immer der Fall ist —, blieb das unsichtbar, weil die
+entsprechende Meldung nur auf der Stufe „Debug" erschien. Im Protokoll sah es
+dadurch so aus, als sei über Port 587 zugestellt worden. Beide Meldungen nennen
+jetzt, was tatsächlich geschieht.
+
 ## v1.7.238 — 2026-08-24 — Eingehende Post von außen wurde falsch verpackt zugestellt
 
 Erreicht eine Nachricht von einem externen Absender das Gateway und lässt sie
@@ -25,14 +57,6 @@ Nachricht unkodiert übergeben, obwohl sie sie kodiert erwartet. Die
 Fehlermeldung von Exchange benennt das eindeutig, führte aber nur zum stillen
 Rückfall auf den Notbehelf statt zu einem Abbruch. Der Weg ist damit erstmals
 funktionsfähig; zu tun ist nichts.
-
-**Klarere Protokollmeldungen auf diesem Weg.** Die Zeile „Sender … is external —
-SMTP submit" wurde geschrieben, bevor der erste von vier Zustellwegen überhaupt
-versucht wurde, und benannte nur diesen einen. Entfiel er — was ohne
-hinterlegtes Relaispostfach immer der Fall ist —, blieb das unsichtbar, weil die
-entsprechende Meldung nur auf der Stufe „Debug" erschien. Im Protokoll sah es
-dadurch so aus, als sei über Port 587 zugestellt worden. Beide Meldungen nennen
-jetzt, was tatsächlich geschieht.
 
 ## v1.7.237 — 2026-08-23 — Acht bisher verborgene Einstellungen sind jetzt bedienbar
 

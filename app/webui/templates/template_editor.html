@@ -263,6 +263,15 @@
     </div>
     <div class="editor-section">
       <label for="txt_content"><strong>Plaintext-Signatur</strong> (Jinja2)</label>
+      {% if txt_fehlt %}
+      <p style="font-size:12px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;
+                border-radius:4px;padding:7px 10px;margin:4px 0 8px">
+        Für diese Vorlage gibt es <strong>keine Nur-Text-Fassung</strong>. Empfänger, die
+        keine formatierten Nachrichten anzeigen, bekommen daher den Text der
+        <strong>Standardsignatur</strong> — nicht den dieser Vorlage. Etwas hier eintragen
+        und speichern legt die Textfassung an; leer lassen behält den Rückfall bei.
+      </p>
+      {% endif %}
       <div class="feld-werkzeuge">
         <div class="feld-knoepfe">
           <button type="button" class="copy-btn" data-copy-field="txt_content"
