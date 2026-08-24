@@ -384,3 +384,54 @@ def test_eingabefeld_steht_neben_seiner_beschriftung(seite, pfad):
         f"Bei 1280px steht das Feld unter der Beschriftung: {umgebrochen}\n"
         "Meist fehlt `.settings-control` die Flex-Basis, sodass ein langer "
         "Erklärtext die Spaltenbreite bestimmt.")
+
+
+# ── Lizenzmenge: kostenpflichtig eingeben, Gesamtzahl senden ─────────────────
+
+def test_lizenzfeld_meint_kostenpflichtige_postfaecher(seite):
+    """Das Feld trägt die kostenpflichtigen Postfächer — der Hub die Gesamtzahl.
+
+    ⚠️ ANLASS (24.08.2026): Das Feld hiess „Postfächer insgesamt (einschliesslich
+    der freien)" und war mit `frei + 1` vorbelegt — also mit einer Kaufabsicht,
+    die niemand geäussert hatte. Wer 20 zusätzliche Postfächer wollte, musste
+    120 eintragen und selbst umrechnen.
+
+    Hier hängt echtes Geld dran: Die Umrechnung liegt deshalb an genau EINER
+    Stelle (`_gesamt()`), und dieser Test hält sie fest. Der Kauf selbst wird
+    nicht ausgelöst — geprüft werden die reinen Rechenfunktionen im geladenen
+    Dokument.
+    """
+    pg = seite("/settings/connect", breite=1280)
+    pg.evaluate("() => { _licPreise = {frei_postfaecher: 100, monat_cents: 100, "
+                "jahr_cents: 1080, vat_percent: 19}; }")
+
+    assert pg.evaluate("() => _gesamt(0)") == 100, (
+        "0 kostenpflichtige = 100 gesamt (nur die freien)")
+    assert pg.evaluate("() => _gesamt(20)") == 120, "20 kostenpflichtige = 120 gesamt"
+    assert pg.evaluate("() => _gesamt(-5)") == 100, (
+        "negative Eingabe darf die Gesamtzahl nicht unter die Freigrenze drücken")
+
+    # Der Preistext bekommt jetzt die Lizenzen direkt, nicht die Gesamtzahl
+    assert "kein Abo nötig" in pg.evaluate("() => _preisText(0, 'monatlich')"), (
+        "bei 0 kostenpflichtigen darf kein Abo verlangt werden")
+    text = pg.evaluate("() => _preisText(3, 'monatlich')")
+    assert text.startswith("3 Lizenzen"), f"erwartet »3 Lizenzen …«, bekommen: {text}"
+
+
+def test_lizenzfeld_ist_mit_null_vorbelegt(seite):
+    """Wer nichts eintippt, kauft nichts.
+
+    ⚠️ Geprüft wird die RECHNUNG, nicht das HTML-Attribut. Die erste Fassung
+    dieses Tests las nur `value` aus dem geladenen Dokument und blieb deshalb
+    auch dann grün, als die Vorbelegung testweise wieder auf `frei + 1` stand:
+    Die eigentliche Vorbelegung läuft in `licAboLaden()` und damit nur bei
+    bestehender Hub-Anbindung. Deshalb steht die Rechnung jetzt in
+    `_kaufVorbelegung()`.
+    """
+    pg = seite("/settings/connect", breite=1280)
+    assert pg.evaluate("() => document.getElementById('lic-buy-mailboxes').value") in ("", "0")
+    # Unter der Freigrenze: nichts zu kaufen
+    assert pg.evaluate("() => _kaufVorbelegung(12, 100)") == 0
+    assert pg.evaluate("() => _kaufVorbelegung(100, 100)") == 0
+    # Darüber: genau der überziehende Teil
+    assert pg.evaluate("() => _kaufVorbelegung(112, 100)") == 12

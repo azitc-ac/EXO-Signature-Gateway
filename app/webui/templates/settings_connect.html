@@ -439,10 +439,10 @@ _initAdv('digicert');
       Jederzeit kündbar, der nicht genutzte Anteil wird zurückgezahlt.
     </p>
     <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
-      <div><label style="font-size:12px;display:block">Postfächer insgesamt</label>
-        <input type="number" id="lic-buy-mailboxes" class="eng" min="1" step="1" style="width:120px"
-               oninput="licBuyPrice()">
-        <span class="hint" style="display:block;margin-top:2px" id="lic-buy-unit">einschließlich der freien</span></div>
+      <div><label style="font-size:12px;display:block">Kostenpflichtige Postfächer</label>
+        <input type="number" id="lic-buy-mailboxes" class="eng" min="0" step="1" value="0"
+               style="width:120px" oninput="licBuyPrice()">
+        <span class="hint" style="display:block;margin-top:2px" id="lic-buy-unit">zusätzlich zu den 100 freien</span></div>
       <div><label style="font-size:12px;display:block">Zahlungsweise</label>
         <select id="lic-buy-interval" onchange="licBuyPrice()" style="min-width:190px">
           <option value="monatlich">monatlich</option>
@@ -465,8 +465,8 @@ _initAdv('digicert');
   <!-- ── Postfachzahl ändern (nur bei bestehendem Abo) ────────────────────── -->
   <div id="lic-aendern-box" style="display:none;margin-bottom:12px">
     <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
-      <div><label style="font-size:12px;display:block">Postfächer insgesamt</label>
-        <input type="number" id="lic-menge" class="eng" min="1" step="1" style="width:120px"
+      <div><label style="font-size:12px;display:block">Kostenpflichtige Postfächer</label>
+        <input type="number" id="lic-menge" class="eng" min="0" step="1" style="width:120px"
                oninput="licMengeVorschau()">
         <span class="hint" style="display:block;margin-top:2px" id="lic-menge-hint"></span></div>
       <button class="btn primary" onclick="licAboMenge()">Übernehmen</button>
@@ -514,6 +514,39 @@ _initAdv('digicert');
     Die deutschen Fassungen sind maßgeblich.
   </p>
   <div id="legal-doc-list">Lade…</div>
+
+  {# Bedingungen der Zertifizierungsstelle: fremde Dokumente, deshalb NICHT in
+     der Liste oben — die führt die eigenen, versioniert und mit Prüfsumme.
+     Bis 24.08.2026 fehlten sie hier ganz, und es war nirgends zu sehen, ob und
+     wofür je zugestimmt wurde. #}
+  <div style="margin-top:14px;padding-top:12px;border-top:1px solid #f0f0f0">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="font-size:13px;font-weight:500;flex:1;min-width:220px">
+        Bedingungen der Zertifizierungsstelle
+      </span>
+      {% if s.SMIME_AUTO_ENROLL_TERMS_AT %}
+      <span class="conn-badge conn-ok">✓ zugestimmt {{ s.SMIME_AUTO_ENROLL_TERMS_AT[:10] }}</span>
+      {% else %}
+      <span class="conn-badge conn-wait">noch nicht zugestimmt</span>
+      {% endif %}
+    </div>
+    <p class="hint" style="margin:6px 0 0">
+      {% if s.SMIME_AUTO_ENROLL_TERMS_AT %}
+      Erteilt für <strong>{{ s.SMIME_AUTO_ENROLL_CA or 'den gewählten Bezugsweg' }}</strong>.
+      Das Dokument selbst liegt beim Anbieter und steht deshalb nicht in der Liste
+      oben — dort stehen die eigenen Dokumente, versioniert und mit Prüfsumme.
+      Bei einem Wechsel der Zertifizierungsstelle wird erneut zugestimmt.
+      {% else %}
+      Es wurde noch keine Zustimmung erteilt. Sie entsteht dort, wo eine Bestellung
+      ausgelöst wird: beim Einschalten der automatischen Bestellung
+      (<a href="/settings/smime">Einstellungen → S/MIME</a>) oder beim Start einer
+      Sammelbestellung. Ohne sie lehnt die Betreiber-Gegenstelle jede Bestellung ab,
+      sofern der Anbieter Bedingungen führt — und zwar erst im Lauf, nicht beim
+      Einschalten.
+      {% endif %}
+    </p>
+  </div>
+
   <div id="legal-history-box" style="margin-top:16px;display:none">
     <strong style="font-size:13px">Zustimmungs-Verlauf</strong>
     <div id="legal-history-list" style="margin-top:8px;font-size:12px"></div>
@@ -1613,7 +1646,9 @@ async function licAboLaden() {
     document.getElementById('lic-aendern-box').style.display = 'none';
     actions.innerHTML = '';
     const feld = document.getElementById('lic-buy-mailboxes');
-    if (feld && !feld.value) feld.value = Math.max(frei + 1, (_licFairUse && _licFairUse.count) || frei + 1);
+    if (feld && !feld.value) {
+      feld.value = String(_kaufVorbelegung((_licFairUse && _licFairUse.count) || 0, frei));
+    }
     licBuyPrice();
     return;
   }
@@ -1660,7 +1695,9 @@ async function licAboLaden() {
     + '<button class="btn secondary" onclick="licAboKuendigen()">Kündigen</button>';
 
   const feld = document.getElementById('lic-menge');
-  if (feld) { feld.value = a.postfaecher; licMengeVorschau(); }
+  // a.postfaecher ist die GESAMTZAHL aus dem Abo (die freien inbegriffen);
+  // das Feld zeigt den kostenpflichtigen Anteil.
+  if (feld) { feld.value = String(Math.max(0, a.postfaecher - frei)); licMengeVorschau(); }
 
   await _licSchluesselAbgleichen(a);
 }
@@ -1691,10 +1728,32 @@ function _licAboMsg(text, ok) {
 // Vier benannte Fälle statt einer Rechnung in der Oberfläche. Was etwas kostet,
 // rechnet der Zahlungsdienst; hier steht nur, was es kosten WIRD.
 
-function _preisText(postfaecher, zw) {
+// ⚠️ Die Felder tragen seit 24.08.2026 die KOSTENPFLICHTIGEN Postfächer, nicht
+// mehr die Gesamtzahl. Nur `_gesamt()` rechnet um — und zwar an genau einer
+// Stelle, weil der Hub weiterhin die Gesamtzahl erwartet (die freien sind dort
+// enthalten). Wer diese Umrechnung dupliziert, kauft irgendwann die falsche
+// Menge, und das kostet echtes Geld.
+// Wieviel steht beim ersten Aufruf im Kauffeld? Der Betrag, den der Betrieb
+// heute TATSAECHLICH ueberzieht — meist 0.
+//
+// ⚠️ Als eigene Funktion, nicht inline in `licAboLaden()`: Dort lief sie nur
+// bei bestehender Hub-Anbindung und war deshalb nicht pruefbar. Die Gegenprobe
+// (Vorbelegung auf `frei + 1` zurueckgebaut) blieb gruen — der Test sah nur
+// das HTML-Attribut. Ein Test, der den zurueckgebauten Fehler nicht faengt,
+// ist wertlos.
+function _kaufVorbelegung(aktiv, frei) {
+  return Math.max(0, (aktiv || 0) - (frei || 0));
+}
+
+function _gesamt(kostenpflichtig) {
+  const frei = (_licPreise && _licPreise.frei_postfaecher) || 100;
+  return frei + Math.max(0, kostenpflichtig);
+}
+
+function _preisText(lizenzen, zw) {
   if (!_licPreise) return '';
   const frei = _licPreise.frei_postfaecher;
-  const lizenzen = Math.max(0, postfaecher - frei);
+  lizenzen = Math.max(0, lizenzen);
   if (lizenzen < 1) return 'Bis ' + frei + ' Postfächer ist der Betrieb frei — kein Abo nötig.';
   const einzel = zw === 'jaehrlich' ? _licPreise.jahr_cents : _licPreise.monat_cents;
   const netto = einzel * lizenzen;
@@ -1717,8 +1776,12 @@ function licMengeVorschau() {
   const el = document.getElementById('lic-menge-hint');
   if (!el || !_licAbo) return;
   const n = parseInt(document.getElementById('lic-menge').value || '0', 10);
-  if (n === _licAbo.postfaecher) { el.textContent = 'unverändert'; return; }
-  const richtung = n > _licAbo.postfaecher
+  // Beide Seiten des Vergleichs in derselben Einheit — hier kostenpflichtig.
+  // Gegen `_licAbo.postfaecher` (Gesamtzahl) zu vergleichen ergaebe bei jeder
+  // Eingabe „geaendert", auch wenn nichts geaendert wurde.
+  const bisher = Math.max(0, _licAbo.postfaecher - ((_licPreise && _licPreise.frei_postfaecher) || 100));
+  if (n === bisher) { el.textContent = 'unverändert'; return; }
+  const richtung = n > bisher
     ? 'Die Differenz wird sofort anteilig berechnet.'
     : 'Der zu viel gezahlte Anteil wird sofort zurückgezahlt.';
   el.textContent = _preisText(n, _licAbo.zahlungsweise) + ' — ' + richtung;
@@ -1740,7 +1803,7 @@ async function licAboKaufen() {
   // den Klick nicht mehr als Nutzergeste und blockiert das Fenster als Popup.
   const fenster = _bezahlfenster();
   const vorher = await _standAbo();     // nach dem Fenster, sonst ist die Geste verbraucht
-  const r = await _licAboPost('checkout', {mailboxes: n, zahlungsweise: zw},
+  const r = await _licAboPost('checkout', {mailboxes: _gesamt(n), zahlungsweise: zw},
                               'Bezahlseite wird vorbereitet…');
   if (!r) { if (fenster) fenster.close(); return; }
   _bezahlseiteZeigen(fenster, r.url);
@@ -1755,7 +1818,8 @@ async function licAboMenge() {
   const n = parseInt(feld.value || '0', 10);
   const ziel = document.getElementById('lic-menge-msg');
   showMsg(ziel, 'Wird geändert…', true);
-  const r = await postJSON('/api/license/hub/quantity', {mailboxes: n});
+  // Das Feld trägt die kostenpflichtigen, der Hub erwartet die Gesamtzahl.
+  const r = await postJSON('/api/license/hub/quantity', {mailboxes: _gesamt(n)});
   if (!r.ok) { showMsg(ziel, r.error || 'Fehlgeschlagen.', false); return; }
   showMsg(ziel, r.message || 'Geändert.', true);
   await licAboLaden(); await licLoad();
