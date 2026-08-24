@@ -859,7 +859,7 @@ async function runSelfTest() {
       </tr>`).join('');
     document.getElementById('selftest-result').style.display = '';
   } catch(e) {
-    document.getElementById('selftest-summary').innerHTML = `<span style="color:#dc2626">Netzwerkfehler: ${e.message}</span>`;
+    document.getElementById('selftest-summary').innerHTML = `<span style="color:#dc2626">Netzwerkfehler: ${esc(e.message)}</span>`;
     document.getElementById('selftest-result').style.display = '';
   }
   btn.disabled = false;

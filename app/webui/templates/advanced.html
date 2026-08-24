@@ -850,7 +850,7 @@ async function supportDownload() {
     result.style.display = 'block';
   } catch(e) {
     result.innerHTML = `<div class="alert" style="background:#fef2f2;border-color:#fca5a5;color:#991b1b;font-size:13px">
-      <strong>Fehler:</strong> ${e.message}
+      <strong>Fehler:</strong> ${esc(e.message)}
     </div>`;
     result.style.display = 'block';
   } finally {
@@ -897,7 +897,7 @@ async function _doSupportUpload() {
     } else {
       btn.disabled = false;
       result.innerHTML = `<div class="alert" style="background:#fef2f2;border-color:#fca5a5;color:#991b1b">
-        <strong>Fehler:</strong> ${d.error || 'Unbekannter Fehler'}
+        <strong>Fehler:</strong> ${esc(d.error || 'Unbekannter Fehler')}
       </div>`;
     }
   } catch(e) {
@@ -905,7 +905,7 @@ async function _doSupportUpload() {
     spinner.style.display = 'none';
     result.style.display  = 'block';
     result.innerHTML = `<div class="alert" style="background:#fef2f2;border-color:#fca5a5;color:#991b1b">
-      <strong>Netzwerkfehler:</strong> ${e.message}
+      <strong>Netzwerkfehler:</strong> ${esc(e.message)}
     </div>`;
   }
 }
@@ -937,10 +937,10 @@ async function renewCert() {
     const r = await fetch('/api/system/renew-cert', {method:'POST'});
     const d = await r.json();
     out.innerHTML = d.ok
-      ? `<div class="alert success">${d.message || 'Zertifikat erneuert.'}</div>`
-      : `<div class="alert" style="background:#fef2f2;border-color:#fca5a5;color:#991b1b"><strong>Fehler:</strong> ${d.error || '?'}</div>`;
+      ? `<div class="alert success">${esc(d.message || 'Zertifikat erneuert.')}</div>`
+      : `<div class="alert" style="background:#fef2f2;border-color:#fca5a5;color:#991b1b"><strong>Fehler:</strong> ${esc(d.error || '?')}</div>`;
   } catch(e) {
-    out.innerHTML = `<div class="alert" style="background:#fef2f2;border-color:#fca5a5;color:#991b1b"><strong>Netzwerkfehler:</strong> ${e.message}</div>`;
+    out.innerHTML = `<div class="alert" style="background:#fef2f2;border-color:#fca5a5;color:#991b1b"><strong>Netzwerkfehler:</strong> ${esc(e.message)}</div>`;
   } finally {
     out.style.display = 'block';
     btn.disabled = false;
@@ -1053,14 +1053,14 @@ async function restartContainer() {
     const r = await fetch('/api/system/restart-container', {method: 'POST'});
     const d = await r.json();
     if (!d.ok) {
-      status.innerHTML = `<span style="color:#dc2626;font-size:13px">Fehler: ${d.error || 'Unbekannt'}</span>`;
+      status.innerHTML = `<span style="color:#dc2626;font-size:13px">Fehler: ${esc(d.error || 'Unbekannt')}</span>`;
       btn.disabled = false;
       return;
     }
     status.innerHTML = '<span style="color:#0369a1;font-size:13px">⏳ Container wird neu gestartet… Seite lädt in 20 Sekunden neu.</span>';
     setTimeout(() => location.reload(), 20000);
   } catch(e) {
-    status.innerHTML = `<span style="color:#dc2626;font-size:13px">Fehler: ${e.message}</span>`;
+    status.innerHTML = `<span style="color:#dc2626;font-size:13px">Fehler: ${esc(e.message)}</span>`;
     btn.disabled = false;
   }
 }

@@ -637,7 +637,7 @@ async function backupDownload() {
       <strong>${fname}</strong> heruntergeladen (${kb} KB).
     </div>`;
   } catch(e) {
-    result.innerHTML = `<div class="alert error"><strong>Fehler:</strong> ${e.message}</div>`;
+    result.innerHTML = `<div class="alert error"><strong>Fehler:</strong> ${esc(e.message)}</div>`;
   } finally {
     btn.disabled = false;
     spinner.style.display = 'none';
@@ -858,11 +858,11 @@ async function backupRestore() {
       </div>`;
     } else {
       result.innerHTML = `<div class="alert error">
-        <strong>Fehler:</strong> ${d.error || 'Unbekannter Fehler'}
+        <strong>Fehler:</strong> ${esc(d.error || 'Unbekannter Fehler')}
       </div>`;
     }
   } catch(e) {
-    result.innerHTML = `<div class="alert error"><strong>Netzwerkfehler:</strong> ${e.message}</div>`;
+    result.innerHTML = `<div class="alert error"><strong>Netzwerkfehler:</strong> ${esc(e.message)}</div>`;
   } finally {
     btn.disabled = false;
     spinner.style.display = 'none';

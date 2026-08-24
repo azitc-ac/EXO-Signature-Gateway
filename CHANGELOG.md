@@ -11,6 +11,23 @@ Sammelfassung der Arbeit seit v1.6.0 (11.07.2026) — 265 Einträge. Die einzeln
 Änderungen stehen unverändert weiter unten; dieser Eintrag markiert nur den
 Stand, der als Release veröffentlicht wurde.
 
+**Fehlermeldungen fremder Systeme konnten die Seite zerlegen.** Auf der
+S/MIME-Seite wurde die Antwort einer Zertifizierungsstelle unverändert in die
+Seite eingesetzt. Lag dort statt einer kurzen Meldung eine vollständige
+Fehlerseite — wie sie eine Zertifizierungsstelle bei einem internen Fehler
+zurückgibt —, übernahm der Browser deren Formatvorgaben für die **gesamte
+Seite**: Die Überschrift verschwand hinter der Navigation, und ganz nach oben
+ließ sich nicht mehr scrollen.
+
+Sichtbar wurde das nur dort, wo ein solcher Fehler gespeichert war. Der Text
+wird jetzt maskiert; dasselbe gilt für elf weitere Stellen, an denen Meldungen
+fremder Systeme oder des Netzwerks angezeigt werden. Eine Prüfung schlägt
+künftig an, bevor so etwas ausgeliefert wird — auch dann, wenn der Text über
+Zwischenschritte weitergereicht wird.
+
+Zu tun ist nichts. Wer die Seite bisher verschoben sah, sieht sie nach dem
+Update wieder richtig.
+
 **Der Reiter heißt überall gleich.** Sieben Seiten führten ihn als
 *Anbindung*, die Seite selbst und alle Verweise darauf als *Anbindung &
 Lizenzen*. Wer den Lizenzbereich suchte, fand einen Reiter, der ihn nicht nannte.
