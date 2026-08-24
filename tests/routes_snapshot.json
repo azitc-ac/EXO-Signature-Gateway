@@ -560,13 +560,6 @@
     "name": "api_license_status"
   },
   {
-    "pfad": "/api/logs/files",
-    "methoden": [
-      "GET"
-    ],
-    "name": "api_logs_files"
-  },
-  {
     "pfad": "/api/logs/search",
     "methoden": [
       "GET"
@@ -1120,13 +1113,6 @@
     "name": "api_keyvault_migrate_slot"
   },
   {
-    "pfad": "/api/smime/keyvault/status",
-    "methoden": [
-      "GET"
-    ],
-    "name": "api_keyvault_status"
-  },
-  {
     "pfad": "/api/smime/kv-status/refresh",
     "methoden": [
       "POST"
@@ -1195,13 +1181,6 @@
       "GET"
     ],
     "name": "api_acme_status"
-  },
-  {
-    "pfad": "/api/smime/renewal/token-info/{email}",
-    "methoden": [
-      "GET"
-    ],
-    "name": "api_renewal_token_info"
   },
   {
     "pfad": "/api/smime/renewal/token/{email}",
@@ -1391,13 +1370,6 @@
       "GET"
     ],
     "name": "api_watcher_status"
-  },
-  {
-    "pfad": "/api/system/update/whats-new",
-    "methoden": [
-      "GET"
-    ],
-    "name": "api_update_whats_new"
   },
   {
     "pfad": "/api/templates",

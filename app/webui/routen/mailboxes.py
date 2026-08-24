@@ -373,10 +373,21 @@ async def api_fetch_bookings_urls(_=Depends(_require_admin)):
 @router.get("/mailboxes", response_class=HTMLResponse)
 async def mailboxes_page(request: Request, user: str = Depends(_require_admin)):
     import signature_engine as _sig_engine
+    import mailbox_migrate
     templates_list = _sig_engine.list_templates()
+    # Billige Prüfung, ob die Umstellung auf dauerhafte Anker noch aussteht:
+    # nur die vorhandenen Schlüssel ansehen, KEIN EXO-Abruf. Der teure Teil
+    # (Live-Abgleich) passiert erst, wenn jemand die Vorschau anfordert.
+    #
+    # Bis 24.08.2026 gab es zu `mailbox_migrate` überhaupt keine Bedienung:
+    # zwei Endpunkte, ein Modul, kein Aufrufer. Die Umstellung lief einmalig von
+    # Hand und war danach für jeden unerreichbar, der sie gebraucht hätte.
+    altbestand = sum(1 for k in (settings_store.get("MAILBOX_CONFIG") or {})
+                     if mailbox_migrate._is_email_key(k))
     return templates.TemplateResponse(
         request=request, name="mailboxes.html",
         context={"active": "mailboxes", "templates_list": templates_list,
                  "gateway_name": _gateway_name(),
+                 "migration_offen": altbestand,
                  "addin_enabled": bool(settings_store.get("ADDIN_ENABLED"))},
     )

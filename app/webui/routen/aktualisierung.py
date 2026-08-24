@@ -189,47 +189,6 @@ async def api_watcher_status(user: str = Depends(_require_admin)):
     import updater
     return JSONResponse({"ok": updater.watcher_ok()})
 
-@router.get("/api/system/update/whats-new")
-async def api_update_whats_new(from_version: str, to_version: str, user: str = Depends(_require_admin)):
-    """Fetch changelog entries from GitHub between from_version (excl.) and to_version (incl.)."""
-    import re, httpx, updater
-    url = f"https://raw.githubusercontent.com/{updater.GITHUB_REPO}/main/CHANGELOG.md"
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            r = await client.get(url)
-            r.raise_for_status()
-            text = r.text
-    except Exception as exc:
-        return JSONResponse({"entries": [], "error": str(exc)})
-
-    def _vnum(v: str) -> int:
-        # 1.5.135 → 1005135 — flache, vergleichbare Zahl (Distanz = Release-Schritte)
-        parts = (list(int(x) for x in v.lstrip("v").split(".")) + [0, 0, 0])[:3]
-        return parts[0] * 1_000_000 + parts[1] * 1_000 + parts[2]
-
-    # Alle Einträge in Datei-Reihenfolge (neueste zuerst) sammeln
-    all_entries: list[dict] = []
-    cur_lines: list[str] = []
-    for line in text.splitlines():
-        if line.startswith("## v"):
-            if cur_lines:
-                all_entries.append({"header": cur_lines[0],
-                                    "body": "\n".join(cur_lines[1:]).strip()})
-            cur_lines = [line]
-        elif cur_lines:
-            cur_lines.append(line)
-    if cur_lines:
-        all_entries.append({"header": cur_lines[0],
-                            "body": "\n".join(cur_lines[1:]).strip()})
-
-    # DRIFT-IMMUN: Changelog-Nummern driften von der VERSION-Datei (Hand-
-    # Nummerierung + Pre-Commit-Bump). Statt Nummern zu matchen, zeigen wir die
-    # obersten K Einträge, K = Versions-Distanz (Anzahl Releases seit dem
-    # installierten Stand). So ist die Anzeige unabhängig von der Nummerierung.
-    steps = max(1, _vnum(to_version) - _vnum(from_version))
-    entries = all_entries[:min(steps, len(all_entries), 25)]
-
-    return JSONResponse({"entries": entries})
 
 @router.get("/api/system/changelog")
 async def api_changelog(n: int = 10, user: str = Depends(_require_admin)):
