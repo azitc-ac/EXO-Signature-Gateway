@@ -161,6 +161,16 @@
 [data-theme="dark"] .step-header     { border-bottom-color: #495166; }
 
 /* ── Info-Box + Dialog-Card ──────────────────────────────────────────────── */
+/* Hinweis auf nicht erprobte Bereiche. Die Farben stehen in style.css als
+   KLASSE, nicht inline — darkcheck.py sieht nur Inline-Styles und haette den
+   Kasten deshalb nicht gemeldet. Ohne diese Regel leuchtet er im Dunkelmodus. */
+[data-theme="dark"] .preview-hinweis {
+  background: #1a1200 !important;
+  border-color: #92400e !important;
+  color: #fcd34d !important;
+}
+[data-theme="dark"] .preview-hinweis a { color: #fbbf24 !important; }
+
 [data-theme="dark"] .info-box {
   background: #1e2235 !important;
   border-color: #495166 !important;
