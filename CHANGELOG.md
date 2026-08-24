@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.0 — 2026-08-24 — Release
+
+Sammelfassung der Arbeit seit v1.6.0 (11.07.2026) — 265 Einträge. Die einzelnen
+Änderungen stehen unverändert weiter unten; dieser Eintrag markiert nur den
+Stand, der als Release veröffentlicht wurde.
+
+⚠️ **Vor dem Update:** Seit v1.7.160 gelten Signaturvorlagen als Betriebsdaten
+und liegen nicht mehr im Repository. Beim Update entfernt Git die bislang
+mitgelieferten Dateien aus `templates/`. Wer sie im Betrieb nutzt, sichert das
+Verzeichnis vorher (`tar czf ~/templates-backup.tar.gz -C /opt/exo-gateway
+templates`) und spielt Fehlendes danach zurück.
+
+**Nach dem Update:** den neuen Fassungen der Rechtsdokumente zustimmen, die
+Rolle „Signatur-Editor" prüfen, die vier bis v1.7.236 verworfenen Schalter
+erneut einstellen und die Postfach-Zuordnung auf die unveränderliche Kennung
+umstellen. Einzelheiten in den jeweiligen Einträgen.
+
 ## v1.7.248 — 2026-08-24 — README: falsche Vorgabe, entfallenes Merkmal, fehlende Themen
 
 Beide Fassungen der Übersicht führten **`graph` als Vorgabe** für den Rückweg an
