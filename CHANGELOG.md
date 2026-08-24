@@ -11,6 +11,16 @@ Sammelfassung der Arbeit seit v1.6.0 (11.07.2026) — 265 Einträge. Die einzeln
 Änderungen stehen unverändert weiter unten; dieser Eintrag markiert nur den
 Stand, der als Release veröffentlicht wurde.
 
+**Der Reiter heißt überall gleich.** Sieben Seiten führten ihn als
+*Anbindung*, die Seite selbst und alle Verweise darauf als *Anbindung &
+Lizenzen*. Wer den Lizenzbereich suchte, fand einen Reiter, der ihn nicht nannte.
+Jetzt trägt er überall den vollen Namen; eine Prüfung hält das fest.
+
+**Die Unterreiter der Einstellungen bleiben einzeilig.** Auf schmalen Anzeigen
+brachen sie um — bei Telefonbreite auf drei Zeilen, bei 320 Pixeln auf vier, und
+nahmen damit mehr Platz ein als der Inhalt darunter. Sie stehen jetzt in einer
+Zeile und lassen sich seitwärts wischen.
+
 **Drei Bereiche als nicht erprobt gekennzeichnet.** Interne Gruppen,
 benutzerdefinierte Richtlinien und automatische S/MIME-Regeln tragen jetzt einen
 Hinweis: Sie sind gebaut, aber nie im Betrieb erprobt. Der Hinweis sperrt

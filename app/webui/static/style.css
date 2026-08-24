@@ -149,11 +149,22 @@ nav a.nav-planned:hover { background: none; }
     .nav-links.open { display: block; }
     nav ul { flex-direction: column; gap: 2px; }
     nav a { padding: 10px 12px; font-size: 14px; border-radius: 6px; }
-    .nav-sub-tabs {
-        overflow-x: visible;
-        flex-wrap: wrap;
-        white-space: normal;
-    }
+    /* Einzeilig und wischbar statt umgebrochen.
+     *
+     * Hier stand `flex-wrap: wrap` — auf einem Telefon ergab das drei Zeilen
+     * (bei 320px vier), und die Unterreiter nahmen mehr Platz ein als der
+     * Inhalt darunter. Gemessen am 24.08.2026: 393px → 3 Zeilen, 320px → 4.
+     *
+     * Die Grundregel weiter oben kann das bereits (overflow-x, nowrap,
+     * -webkit-overflow-scrolling, versteckter Scrollbalken) — sie wurde hier
+     * nur überschrieben. Es genügt also, die Überschreibung wegzulassen.
+     *
+     * Ein `flex-shrink: 0` auf den Einträgen stand hier zwischenzeitlich mit
+     * der Begründung, Flexbox stauche sie sonst. Die Gegenprobe zeigte, dass
+     * es nichts ändert: Die automatische Mindestbreite von Flex-Kindern
+     * (`min-width: auto`) verhindert das Schrumpfen unter die Inhaltsbreite
+     * bereits. Wieder entfernt — eine Regel, die nichts tut, erklärt beim
+     * nächsten Lesen das Falsche. */
     .nav-sub-tab { padding: 8px 12px; font-size: 13px; }
 }
 
