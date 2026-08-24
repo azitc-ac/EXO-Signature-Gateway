@@ -135,6 +135,30 @@ REGISTER = [
                                 "verbotenen Varianten",
         },
     ),
+    Begriff(
+        name="aktiviert statt eingeschaltet",
+        kanonisch="„für S/MIME aktiviert“ (ein Merkmal wird aktiviert)",
+        verboten={
+            # ⚠️ NUR die Fügung „für … eingeschaltet“. Ein SCHALTER ist sehr
+            # wohl eingeschaltet — „Standard: eingeschaltet“ ist richtig und
+            # darf nicht angemahnt werden. Der Unterschied ist das Objekt:
+            # Ein Schalter wird eingeschaltet, ein Merkmal wird aktiviert.
+            # Bis zu drei Wörter dazwischen: „für S/MIME eingeschaltet", aber
+            # auch „für dieses Postfach nicht eingeschaltet". Die erste Fassung
+            # erlaubte nur EINES — die Gegenprobe (Formulierung zurückgebaut)
+            # blieb dadurch still, und das Werkzeug hätte den gemeldeten Satz
+            # nicht wiedergefunden.
+            r"für\s+(?:[A-Za-zÄÖÜäöüß/-]+\s+){1,3}eingeschaltet":
+                "Ein Merkmal wird für ein Postfach AKTIVIERT, nicht "
+                "eingeschaltet — eingeschaltet ist ein Schalter.",
+        },
+        ausnahmen={
+            "CHANGELOG.md": "historische Einträge bleiben, wie sie geschrieben wurden",
+            "begriffecheck.py": "beschreibt die Regel selbst",
+            "test_begriffe.py": "prüft diese Regel und zitiert dafür die "
+                                "verbotenen Varianten",
+        },
+    ),
 ]
 
 

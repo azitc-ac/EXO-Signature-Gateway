@@ -263,7 +263,7 @@ async def vorschau(provider_id: str, adressen: list[str],
             continue
         zeilen.append({**p, "hinweis": {
             HAT_ZERTIFIKAT: "Hat bereits ein gültiges Zertifikat.",
-            KEIN_SMIME: "S/MIME ist für dieses Postfach nicht eingeschaltet.",
+            KEIN_SMIME: "S/MIME ist für dieses Postfach nicht aktiviert.",
         }.get(p["zustand"], "")})
 
     bestellbar = [z for z in zeilen if z.get("zustand") == BEREIT]
@@ -300,8 +300,8 @@ async def vorschau(provider_id: str, adressen: list[str],
         else:
             hindernisse.append(
                 "Für keines der ausgewählten Postfächer ist eine Bestellung nötig: "
-                "sie haben bereits ein gültiges Zertifikat oder sind nicht für "
-                "S/MIME eingeschaltet.")
+                "sie haben bereits ein gültiges Zertifikat, oder S/MIME ist für sie "
+                "nicht aktiviert.")
     if not rechte.get("ok"):
         hindernisse.append(rechte.get("reason") or rechte.get("error")
                            or "Zertifikatsbezug derzeit nicht möglich.")

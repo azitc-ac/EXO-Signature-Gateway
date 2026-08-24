@@ -11,6 +11,12 @@ Sammelfassung der Arbeit seit v1.6.0 (11.07.2026) — 265 Einträge. Die einzeln
 Änderungen stehen unverändert weiter unten; dieser Eintrag markiert nur den
 Stand, der als Release veröffentlicht wurde.
 
+**Sprachlich berichtigt:** Ein Postfach ist für S/MIME *aktiviert*, nicht
+„eingeschaltet" — eingeschaltet ist ein Schalter. Betraf acht Stellen, darunter
+die Meldung nach einer Sammelbestellung. Das Begriffsregister achtet künftig
+darauf und unterscheidet dabei die beiden Fälle: „Standard: eingeschaltet" für
+einen Schalter bleibt richtig.
+
 **Im Live-Protokoll lässt sich wieder markieren und kopieren.** Auf einem
 Telefon war das bislang praktisch unmöglich: Kaum war per langem Tippen etwas
 markiert, traf die nächste Zeile ein, die Ansicht sprang ans Ende, und die

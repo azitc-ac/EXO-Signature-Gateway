@@ -795,7 +795,7 @@ async def api_hub_order_bestaetigen(email: str, user: str = Depends(_require_adm
     adresse = (email or "").strip().lower()
     cfg = (_st.get("CA_USER_CONFIG") or {}).get(adresse) or {}
     if not cfg.get("auto_confirm"):
-        raise HTTPException(400, "Automatische Bestätigung ist für dieses Postfach nicht eingeschaltet.")
+        raise HTTPException(400, "Automatische Bestätigung ist für dieses Postfach nicht aktiviert.")
 
     offen = [m for m in hub_orders.list_pending()
              if (m.get("email") or "").lower() == adresse]

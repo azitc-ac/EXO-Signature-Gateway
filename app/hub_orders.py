@@ -263,7 +263,7 @@ async def bestaetigungslink(email: str, ref: str, seit: str = "") -> str:
 
 
 async def bestaetigungen_nachholen() -> int:
-    """Offene Bestellungen bestätigen, für die das eingeschaltet ist.
+    """Offene Bestellungen bestätigen, sofern die Automatik dafür aktiviert ist.
 
     ⚠️ WARUM SERVERSEITIG. Die automatische Bestätigung lief bis zum 21.08.2026
     ausschliesslich aus einer geöffneten Browser-Seite heraus: Der Fortschritts-

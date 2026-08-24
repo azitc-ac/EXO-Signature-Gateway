@@ -170,7 +170,7 @@ async def api_mailbox_migrate_apply(user: str = Depends(_require_admin)):
 
 
 def _adressen_mit_smime(config_map: dict) -> set[str]:
-    """Alle Adressen, für die S/MIME eingeschaltet ist.
+    """Alle Adressen, für die S/MIME aktiviert ist.
 
     Über die Adressen und nicht über die Schlüssel: Die Konfiguration ist an der
     ExchangeGuid verankert, und dieselbe Guid kann nach einer Umbenennung eine
@@ -186,7 +186,7 @@ def _adressen_mit_smime(config_map: dict) -> set[str]:
 
 
 async def _auto_enrollment_anstossen(adressen: list[str]) -> dict:
-    """Für frisch eingeschaltete Postfächer ein Zertifikat bestellen.
+    """Für frisch aktivierte Postfächer ein Zertifikat bestellen.
 
     Bewusst über `sammelbestellung`: Dort hängen Deckungsprüfung, Kontingent,
     Zustand je Postfach und das Anhalten bei Guthabenmangel bereits zusammen.
