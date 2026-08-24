@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.245 — 2026-08-24 — Genannte Vorgabewerte werden gegen die Vorgaben geprüft
+
+An zwölf Stellen nennt die Oberfläche einen Vorgabewert — „Vorgabe 25", „Standard:
+aus", „Vollständige Empfängerliste (Standard)". Solche Angaben veralten still:
+Wird die Vorgabe geändert, bleibt der Text stehen, und der Betreiber stellt etwas
+ein, weil er den Ausgangszustand zu kennen glaubt. Das ist irreführender als gar
+keine Angabe.
+
+Diese zwölf Zusagen werden jetzt bei jedem Testlauf gegen die tatsächlichen
+Vorgaben geprüft — und zwar in beide Richtungen: Weicht die Vorgabe ab, schlägt
+die Prüfung an; verschwindet oder ändert sich der Erklärtext, ebenfalls. Sonst
+bewachte sie eine Zusage, die niemand mehr macht.
+
+Alle zwölf stimmen; es war nichts zu berichtigen. Die Prüfung sichert den
+Zustand für künftige Änderungen.
+
+Nicht abgedeckt bleibt, was sich nicht auf einen Vorgabewert reduzieren lässt —
+etwa die Frage, ob ein beschriebener Ablauf tatsächlich so abläuft. Dafür braucht
+es weiterhin einen Test je Zusage.
+
 ## v1.7.244 — 2026-08-24 — Ein Begriff, eine Schreibweise
 
 Im Einrichtungsassistenten stand beim S/MIME-Haken „Bei Graph-only-Modus
