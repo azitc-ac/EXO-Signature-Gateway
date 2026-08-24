@@ -330,8 +330,11 @@ async function saveMixedFork() {
 
 <!-- ── Ausweichweg, wenn die Graph-Zustellung scheitert ───────────────────── -->
 <div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
-  <div class="wizard-step-header"><h3>Ausweichweg bei gescheiterter Graph-Zustellung</h3></div>
-  <div class="wizard-step-body">
+  <div class="step-header">
+    <span class="step-badge" style="background:#0369a1;font-size:10px">Graph</span>
+    <span class="step-title">Ausweichweg bei gescheiterter Graph-Zustellung</span>
+  </div>
+  <div class="step-body">
     <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
       Betrifft nur die Modi <strong>Graph API</strong> und <strong>IMAP + Graph</strong>.
       Lehnt Graph eine bearbeitete Nachricht ab, kann das Gateway sie stattdessen über den
@@ -370,8 +373,11 @@ async function saveGraphFallback() {
 
 <!-- ── SMTP-Smarthost (Port 25) ───────────────────────────────────────────── -->
 <div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
-  <div class="wizard-step-header"><h3>SMTP-Smarthost</h3></div>
-  <div class="wizard-step-body">
+  <div class="step-header">
+    <span class="step-badge" style="background:#57534e;font-size:10px">SMTP</span>
+    <span class="step-title">SMTP-Smarthost</span>
+  </div>
+  <div class="step-body">
     <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
       Der Rückweg im Modus <strong>SMTP Port 25</strong> — der Vorgabe. Das Ziel selbst
       (<code>{{ s.EXO_SMARTHOST or 'noch nicht eingerichtet' }}</code>) legt der
@@ -413,8 +419,11 @@ async function saveExoPort() {
 
 <!-- ── SMTP-Übermittlung (Port 587) ───────────────────────────────────────── -->
 <div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
-  <div class="wizard-step-header"><h3>SMTP-Übermittlung (Port 587)</h3></div>
-  <div class="wizard-step-body">
+  <div class="step-header">
+    <span class="step-badge" style="background:#57534e;font-size:10px">587</span>
+    <span class="step-title">SMTP-Übermittlung (Port 587)</span>
+  </div>
+  <div class="step-body">
     <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
       Der Weg, über den aufgeteilte Nachrichten zugestellt werden (siehe oben). Er wird
       <strong>nur</strong> in den Modi <strong>Graph API</strong> und <strong>IMAP + Graph</strong>

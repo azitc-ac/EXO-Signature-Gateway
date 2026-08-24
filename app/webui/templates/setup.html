@@ -2323,9 +2323,20 @@ sudo systemctl status exo-gateway-updater --no-pager</code></pre>
       {% set sso_uri = s.ADDIN_BASE_URL.rstrip('/') + '/auth/callback' %}
       {% set new_uri_registered = sso_uri in (s.BOOTSTRAP_REDIRECT_URIS or []) %}
       {% if new_uri_registered %}
-      <p style="font-size:12px;color:#16a34a">
-        ✓ <code>{{ sso_uri }}</code> ist in Entra registriert — SSO-Login funktioniert.
+      {# „registriert" ist nicht „funktioniert". Hier stand bis 24.08.2026
+         „SSO-Login funktioniert" — geschlossen aus einem Vergleich gegen die
+         EIGENE Kopie der Registrierung, die beim letzten Schreiben entstand.
+         Wer in Azure etwas ändert, bekam davon nichts mit. Die Prüfung daneben
+         fragt live nach und nennt einzeln, was sie weiss. #}
+      <p style="font-size:12px;color:#16a34a;margin-bottom:6px">
+        ✓ <code>{{ sso_uri }}</code> steht in der zuletzt gelesenen Registrierung.
       </p>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button type="button" class="btn secondary btn-sm" id="sso-pruef-btn"
+                onclick="ssoPruefen()">Anmeldung prüfen</button>
+        <span id="sso-pruef-ergebnis" style="font-size:12px"></span>
+      </div>
+      <div id="sso-pruef-liste" style="display:none;margin-top:8px;font-size:12px"></div>
       {% else %}
       <p style="font-size:12px;color:#b45309;margin-bottom:8px">
         ⚠️ Die Redirect URI <code>{{ sso_uri }}</code> ist noch nicht in Entra registriert.<br>
@@ -2355,6 +2366,40 @@ sudo systemctl status exo-gateway-updater --no-pager</code></pre>
 </div>
 <script>
 // savePartial() steht in common.js — eine Fassung fuer alle Seiten.
+
+// Fragt die Registrierung LIVE bei Microsoft ab, statt der eigenen Ablage zu
+// glauben, und nennt jeden Schritt einzeln. Was auch das nicht zeigen kann —
+// Zustimmungsrichtlinien, bedingter Zugriff, gesperrte Konten — steht am Ende
+// ausdrücklich dabei.
+async function ssoPruefen() {
+  const knopf = document.getElementById('sso-pruef-btn');
+  const meldung = document.getElementById('sso-pruef-ergebnis');
+  const liste = document.getElementById('sso-pruef-liste');
+  knopf.disabled = true;
+  showMsg(meldung, 'Frage Microsoft…', true);
+  const d = await getJSON('/api/setup/verify/sso');
+  knopf.disabled = false;
+  if (!d) { showMsg(meldung, 'Prüfung nicht möglich', false); return; }
+
+  showMsg(meldung, d.ok ? 'Alle Voraussetzungen erfüllt' : 'Es fehlt etwas', !!d.ok);
+  let html = '<ul style="margin:0;padding-left:18px">';
+  (d.schritte || []).forEach(function (s) {
+    html += '<li style="color:' + (s.ok ? '#166534' : '#991b1b') + '">'
+         + (s.ok ? '✓ ' : '✗ ') + esc(s.name)
+         + (s.hinweis ? ' <span style="color:#64748b">— ' + esc(s.hinweis) + '</span>' : '')
+         + '</li>';
+  });
+  html += '</ul>';
+  if (d.nachgezogen) {
+    html += '<p style="margin:6px 0 0;color:#b45309">Die hinterlegten Rückadressen '
+         + 'wichen vom Stand in Azure ab und wurden nachgezogen.</p>';
+  }
+  html += '<p style="margin:6px 0 0;color:#64748b">Ob die Anmeldung durchläuft, '
+       + 'zeigt erst ein Versuch: Zustimmungsrichtlinien, bedingten Zugriff und '
+       + 'gesperrte Konten sieht diese Prüfung nicht.</p>';
+  liste.innerHTML = html;
+  liste.style.display = '';
+}
 
 function toggleAddinSetup(enabled) {
   document.getElementById('addin-setup').style.display = enabled ? '' : 'none';
