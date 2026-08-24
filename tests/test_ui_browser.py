@@ -481,3 +481,39 @@ def test_massenoperation_zeigt_erst_nach_der_aktionswahl(seite, monkeypatch):
     pg.select_option("#sammel-aktion", "")
     pg.wait_for_timeout(200)
     assert not sichtbar(), "Ohne gewählte Aktion darf kein Bereich offen stehen."
+
+
+# ── Hinweis auf nicht erprobte Bereiche ──────────────────────────────────────
+
+@pytest.mark.parametrize("pfad,anzahl", [("/mailboxes", 2), ("/settings/smime", 1)])
+@pytest.mark.parametrize("thema", ["light", "dark"])
+def test_preview_hinweis_steht_und_leuchtet_nicht(seite, thema, pfad, anzahl):
+    """Gruppen und Richtlinien tragen einen Hinweis — auch im Dunkelmodus lesbar.
+
+    ⚠️ Die Farben stehen als KLASSE in `style.css`, nicht als style-Attribut.
+    `darkcheck.py` sieht nur Inline-Styles und hätte den Kasten deshalb nicht
+    gemeldet — ohne eigene Regel in `dark-mode.css` leuchtete er im Dunkelmodus
+    hell auf. Dieser Test prüft das dort, wo es sichtbar wird: im Browser.
+    """
+    pg = seite(pfad, breite=1280, thema=thema)
+    # Erweiterte Bereiche aufklappen — sonst sind Hinweise darin unsichtbar
+    pg.evaluate("""() => document.querySelectorAll('input[id^=adv-cb-]').forEach(cb => {
+        if (!cb.checked) { cb.checked = true; cb.dispatchEvent(new Event('change', {bubbles:true})); }
+    })""")
+    pg.wait_for_timeout(300)
+    gefunden = pg.evaluate("() => document.querySelectorAll('.preview-hinweis').length")
+    assert gefunden == anzahl, (
+        f"{pfad}: erwartet {anzahl} Hinweis(e), gefunden: {gefunden}")
+
+    hell = pg.evaluate("""() => {
+      const el = document.querySelector('.preview-hinweis');
+      const bg = getComputedStyle(el).backgroundColor;
+      const m = bg.match(/\\d+/g).slice(0, 3).map(Number);
+      return m.reduce((a, b) => a + b, 0) / 3;      // mittlere Helligkeit
+    }""")
+    if thema == "dark":
+        assert hell < 90, (
+            f"Der Hinweis leuchtet im Dunkelmodus (Helligkeit {hell:.0f}) — "
+            "es fehlt die Regel in dark-mode.css.")
+    else:
+        assert hell > 200, f"Im hellen Modus zu dunkel (Helligkeit {hell:.0f})"

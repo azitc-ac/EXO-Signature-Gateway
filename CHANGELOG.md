@@ -11,6 +11,14 @@ Sammelfassung der Arbeit seit v1.6.0 (11.07.2026) — 265 Einträge. Die einzeln
 Änderungen stehen unverändert weiter unten; dieser Eintrag markiert nur den
 Stand, der als Release veröffentlicht wurde.
 
+**Drei Bereiche als nicht erprobt gekennzeichnet.** Interne Gruppen,
+benutzerdefinierte Richtlinien und automatische S/MIME-Regeln tragen jetzt einen
+Hinweis: Sie sind gebaut, aber nie im Betrieb erprobt. Der Hinweis sperrt
+nichts — er sagt, woran du bist, und was zu beachten ist. Bei den S/MIME-Regeln
+ausdrücklich, dass eine falsch greifende Regel echte Post unverschlüsselt
+hinausgehen lässt; bei den Richtlinien, dass die Zuordnung nur wirkt, wenn beim
+Postfach *Vorlagen-Richtlinien* angehakt ist.
+
 **Massenoperationen.** Der Bereich für mehrere Postfächer auf der S/MIME-Seite
 heißt jetzt *Massenoperation starten* und beginnt mit der Frage, was geschehen
 soll. Zur Wahl steht derzeit eine Aktion — *Zertifikate beantragen* —, und erst
