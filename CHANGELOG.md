@@ -5,6 +5,31 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.247 — 2026-08-24 — Lizenzfeld nennt die kostenpflichtigen Postfächer
+
+Beim Abschluss eines Abos war die **Gesamtzahl** der Postfächer einzutragen,
+einschließlich der hundert freien — wer zwanzig zusätzliche wollte, musste 120
+eintragen und selbst rechnen. Vorbelegt war das Feld zudem mit einem Wert
+oberhalb der Freigrenze, also mit einer Kaufabsicht, die niemand geäußert hatte.
+
+Das Feld nennt jetzt die **kostenpflichtigen** Postfächer und beginnt bei 0.
+Wer die Freigrenze noch nicht überschreitet, sieht dort eine Null und kauft
+nichts. Wer sie überschreitet, sieht genau den überziehenden Teil. Für die
+Mengenänderung eines laufenden Abos gilt dasselbe.
+
+An der Abrechnung ändert sich nichts — die Umrechnung geschieht im Hintergrund
+und an einer einzigen Stelle.
+
+**Zustimmung zu den Bedingungen der Zertifizierungsstelle sichtbar.** Unter
+*Anbindung → Rechtliche Dokumente* war nicht zu erkennen, ob und wofür ihnen je
+zugestimmt wurde. Sie standen dort nicht, weil die Liste die eigenen Dokumente
+führt — versioniert und mit Prüfsumme —, während die Bedingungen der
+Zertifizierungsstelle beim jeweiligen Anbieter liegen.
+
+Jetzt steht dort ein eigener Eintrag: ob zugestimmt wurde, wann und für welchen
+Bezugsweg. Fehlt die Zustimmung, wird erklärt, wo sie entsteht — und dass ohne
+sie jede Bestellung abgelehnt wird, sofern der Anbieter Bedingungen führt.
+
 ## v1.7.246 — 2026-08-24 — Eingabefelder stehen wieder neben ihrer Beschriftung; SSO-Prüfung fragt nach
 
 **Dreizehn Eingabefelder standen unter ihrer Beschriftung**, obwohl daneben
