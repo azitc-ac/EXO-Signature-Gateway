@@ -11,6 +11,16 @@ Sammelfassung der Arbeit seit v1.6.0 (11.07.2026) — 265 Einträge. Die einzeln
 Änderungen stehen unverändert weiter unten; dieser Eintrag markiert nur den
 Stand, der als Release veröffentlicht wurde.
 
+**Im Live-Protokoll lässt sich wieder markieren und kopieren.** Auf einem
+Telefon war das bislang praktisch unmöglich: Kaum war per langem Tippen etwas
+markiert, traf die nächste Zeile ein, die Ansicht sprang ans Ende, und die
+Auswahl war weg. Solange eine Auswahl besteht, wird jetzt weder nachgescrollt
+noch werden alte Zeilen entfernt — sie bleibt erhalten, bis du daneben tippst.
+
+Zusätzlich gibt es einen Knopf **Kopieren**, der den sichtbaren Inhalt
+vollständig in die Zwischenablage legt. Steht die Zwischenablage nicht zur
+Verfügung, markiert er stattdessen alles, sodass ein Tippen genügt.
+
 **Fehlermeldungen fremder Systeme konnten die Seite zerlegen.** Auf der
 S/MIME-Seite wurde die Antwort einer Zertifizierungsstelle unverändert in die
 Seite eingesetzt. Lag dort statt einer kurzen Meldung eine vollständige

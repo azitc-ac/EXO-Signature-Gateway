@@ -45,6 +45,7 @@
         style="flex:1;min-width:140px;padding:5px 10px;font-size:13px;border:1px solid #ccc;border-radius:6px"
         oninput="applyFilter()">
     <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;flex-wrap:wrap">
+        <button class="btn secondary btn-sm" onclick="kopiereProtokoll(this)">Kopieren</button>
         <button class="btn secondary btn-sm" onclick="clearLog()">Leeren</button>
         <button id="btnScroll"   class="btn-toggle active" onclick="toggleScroll()">autoscroll ✓</button>
         <button id="btnVerbose"  class="btn-toggle"        onclick="toggleVerbose()">verbose ✗</button>
@@ -132,6 +133,9 @@ function lineVisible(line) {
 }
 
 function renderBuffer() {
+    // Neu zeichnen verwirft jede Auswahl — deshalb nur, wenn keine besteht.
+    // Betrifft Filterwechsel und das Umschalten von „verbose".
+    if (typeof _auswahlImProtokoll === 'function' && _auswahlImProtokoll()) return;
     pre.innerHTML = '';
     logBuffer.forEach(function(line) {
         if (!lineVisible(line)) return;
@@ -144,6 +148,21 @@ function renderBuffer() {
     if (autoScroll) wrap.scrollTop = wrap.scrollHeight;
 }
 
+// Markiert gerade jemand etwas IM Protokoll?
+//
+// ⚠️ Ohne diese Prüfung ist Markieren auf einem Telefon praktisch unmöglich:
+// Long-Press setzt die Auswahl, im selben Moment trifft die nächste Logzeile
+// ein — `scrollTop` springt ans Ende und die Auswahl ist weg. Kommt sie aus
+// dem Puffer heraus, wird ihr Element sogar entfernt. Beides wird ausgesetzt,
+// solange eine Auswahl besteht; sie überlebt damit, bis man daneben tippt.
+function _auswahlImProtokoll() {
+    var sel = window.getSelection && window.getSelection();
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0) return false;
+    var knoten = sel.getRangeAt(0).commonAncestorContainer;
+    if (knoten.nodeType === 3) knoten = knoten.parentNode;
+    return !!(knoten && wrap.contains(knoten));
+}
+
 function appendLine(text) {
     logBuffer.push(text);
     if (logBuffer.length > LOG_MAX) logBuffer.shift();
@@ -153,8 +172,36 @@ function appendLine(text) {
     if (cls) span.className = cls;
     span.textContent = text + '\n';
     pre.appendChild(span);
-    while (pre.children.length > LOG_MAX) pre.removeChild(pre.firstChild);
-    if (autoScroll) wrap.scrollTop = wrap.scrollHeight;
+    var haelt = _auswahlImProtokoll();
+    // Der Puffer läuft weiter — nur das Wegwerfen wartet, bis die Auswahl
+    // aufgehoben ist. Sonst verschwindet das Markierte unter den Fingern.
+    if (!haelt) {
+        while (pre.children.length > LOG_MAX) pre.removeChild(pre.firstChild);
+    }
+    if (autoScroll && !haelt) wrap.scrollTop = wrap.scrollHeight;
+}
+
+// Alles im Sichtbereich in die Zwischenablage — auf dem Telefon der
+// verlässlichste Weg, weil kein genaues Markieren nötig ist.
+async function kopiereProtokoll(btn) {
+    var text = pre.textContent || '';
+    var alt = btn.textContent;
+    if (!text.trim()) { showMsg(btn, '', false); btn.textContent = 'nichts da'; }
+    else {
+        try {
+            await navigator.clipboard.writeText(text);
+            btn.textContent = 'kopiert ✓';
+        } catch (e) {
+            // Ohne HTTPS oder ohne Berechtigung gibt es keine Zwischenablage.
+            // Dann wenigstens alles markieren, damit ein Tippen genügt.
+            var r = document.createRange();
+            r.selectNodeContents(pre);
+            var s = window.getSelection();
+            s.removeAllRanges(); s.addRange(r);
+            btn.textContent = 'markiert — jetzt kopieren';
+        }
+    }
+    setTimeout(function () { btn.textContent = alt; }, 2500);
 }
 
 function setStatus(label, cls) {
