@@ -5,6 +5,29 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.1 — 2026-08-25 — Abnahme: ist diese Installation betriebsbereit?
+
+Der Einrichtungsassistent prüfte bislang Einzelschritte — ist der Verbinder
+angelegt, sind die Regeln da. Wer alle Häkchen hat, weiß damit aber noch nicht,
+ob Post durchläuft. Und die Zustandsprüfung betrachtet jedes Postfach für sich,
+nicht die Anlage als Ganzes.
+
+Neu ist deshalb eine **Abnahme** am Ende der Einrichtung. Sie geht die Punkte
+durch, die ein laufendes Gateway erfüllen muss: von außen erreichbar,
+TLS-Zertifikat gültig, Anmeldung möglich, Exchange erreichbar, mindestens ein
+Postfach aktiviert, Rückweg eingerichtet, Verwaltung erreichbar.
+
+**Jeder Punkt nennt, was er nicht abdeckt.** Ob die Anmeldung wirklich
+durchläuft, ob der öffentliche Name tatsächlich hierher zeigt, ob ausgehender
+Port 25 offen ist — das zeigt erst der Betrieb, und genau das steht dann auch
+dabei. Scheitert eine Prüfung selbst, gilt der Punkt als *ungeklärt* und die
+Anlage ausdrücklich **nicht** als betriebsbereit. Eine Abnahme, die im Zweifel
+grün meldet, wäre schlimmer als keine.
+
+Das Ergebnis lässt sich auch von außen abfragen — Vorarbeit für einen
+halbautomatischen Aufbau neuer Gateways, bei dem am Ende nicht jemand
+Bildschirme vergleicht, sondern eine Prüfung antwortet.
+
 ## v1.8.0 — 2026-08-24 — Release
 
 Sammelfassung der Arbeit seit v1.6.0 (11.07.2026) — 265 Einträge. Die einzelnen
