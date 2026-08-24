@@ -117,6 +117,24 @@ def vorlagen_art(name: str) -> str:
         return "signatur"
 
 
+def textfassung_fehlt(name: str) -> bool:
+    """Gibt es zu dieser Vorlage KEINE Nur-Text-Fassung?
+
+    ANLASS (24.08.2026): Auf der Produktions-VM lag `Blog-Banner-Orange.html`
+    ohne zugehörige `.txt`. `render()` fällt dann auf `signature.txt` zurück und
+    protokolliert eine Warnung — im Nur-Text-Teil trug die Nachricht also die
+    Standardsignatur statt der zugewiesenen, und gesehen hat das niemand: Der
+    Bearbeiter sieht im Editor nur ein leeres Feld, und ein leeres Feld sieht
+    aus wie eine Entscheidung.
+
+    ⚠️ Das ist KEIN Fehler, sondern eine Auskunft. Wer die Textfassung bewusst
+    weglässt, bekommt bewusst den Rückfall — er soll ihn nur kennen.
+    """
+    import os
+    datei = "signature" if name in ("", "default") else name
+    return not os.path.exists(os.path.join(config.TEMPLATE_DIR, f"{datei}.txt"))
+
+
 def list_templates(art: str = "signatur") -> list[str]:
     """Vorlagennamen einer Art, alphabetisch (Signaturen immer mit 'default').
 

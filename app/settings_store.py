@@ -296,6 +296,12 @@ OBSOLETE_KEYS = {
     "GRAPH_SEND_TO_ALL_FALLBACK":  "send_to_all ist seit v1.5.68 Standard",
     "GATEWAY_EXTERNAL_URL":        "aufgegangen in ADDIN_BASE_URL (v1.7.237) — "
                                    "ein vorhandener Wert wird beim Start übernommen",
+    # Am 27.06.2026 mit v1.4.91 ausgebaut (Port 443 statt 8080), aber nie hier
+    # eingetragen. Folge: `unknown_keys()` meldete den Schlüssel bei JEDEM Start
+    # — auf der Produktions-VM 42-mal, ohne dass ihn je jemand aufräumte. Genau
+    # dafür ist diese Liste da; die Warnung allein bewirkt nichts.
+    "SMTP_HOSTNAME":               "SMTP-Hostname-Sektion entfernt (v1.4.91)",
+    "SMTP_TLS_CERT_SMTP":          "SMTP-Hostname-Sektion entfernt (v1.4.91)",
 }
 
 MASK = "••••••••"

@@ -464,6 +464,10 @@ async def template_editor(request: Request, user: str = Depends(_check_auth)):
         context={
             "html_content": html_path.read_text() if html_path.exists() else "",
             "txt_content": txt_path.read_text() if txt_path.exists() else "",
+            # Ein leeres Textfeld sieht aus wie eine Entscheidung. Fehlt die
+            # Datei, wird im Betrieb aber die Textfassung der Standardsignatur
+            # eingesetzt — das gehört danebengeschrieben, nicht ins Protokoll.
+            "txt_fehlt": not txt_path.exists() and fname != "signature",
             # Für Nachrichten an Postfachinhaber IMMER wahr: Ohne eigene
             # Datei liefert der Meta-Endpunkt die mitgelieferte Fassung, und
             # der Editor soll sie laden statt leer zu bleiben.
