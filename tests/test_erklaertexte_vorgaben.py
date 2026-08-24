@@ -43,6 +43,14 @@ import settings_store  # noqa: E402
 
 VORLAGEN = WURZEL / "app" / "webui" / "templates"
 
+# Auch die Dokumentation macht solche Zusagen — und sie veraltet schneller,
+# weil sie seltener angefasst wird als die Oberfläche.
+#
+# ANLASS (24.08.2026): Beide READMEs führten `graph` als Vorgabe
+# („### `graph` — Standard / Azure"), während `REINJECT_MODE` seit jeher `smtp`
+# ist. Die Prüfung der Oberfläche hätte das nie gefunden.
+DOKUMENTE = WURZEL
+
 # (Vorlage, Einstellung, Textstelle die dort stehen MUSS, erwartete Vorgabe)
 #
 # Die Textstelle ist bewusst wörtlich: Ändert jemand die Formulierung, fällt
@@ -77,6 +85,28 @@ ZUSAGEN = [
     ("setup.html", "REINJECT_MODE",
      "<strong>SMTP Port 25</strong> — Standard", "smtp"),
 ]
+
+
+# (Datei, Einstellung, Textstelle, erwartete Vorgabe) — wie oben, nur für
+# Markdown-Dateien im Wurzelverzeichnis.
+DOKU_ZUSAGEN = [
+    ("README.de.md", "REINJECT_MODE",
+     "`REINJECT_MODE` ist ab Werk `smtp`", "smtp"),
+    ("README.md", "REINJECT_MODE",
+     "`REINJECT_MODE` ships as `smtp`", "smtp"),
+]
+
+
+@pytest.mark.parametrize("datei,schluessel,text,erwartet", DOKU_ZUSAGEN,
+                         ids=[f"{z[0]}:{z[1]}" for z in DOKU_ZUSAGEN])
+def test_doku_nennt_die_richtige_vorgabe(datei, schluessel, text, erwartet):
+    """Auch die Dokumentation muss die Vorgabe richtig nennen."""
+    assert settings_store.DEFAULTS[schluessel] == erwartet, (
+        f"{datei} sagt zu {schluessel}: »{text}« — die Vorgabe ist aber "
+        f"{settings_store.DEFAULTS[schluessel]!r}.")
+    inhalt = re.sub(r"\s+", " ", (DOKUMENTE / datei).read_text("utf-8"))
+    assert re.sub(r"\s+", " ", text) in inhalt, (
+        f"In {datei} steht »{text}« nicht mehr — Eintrag nachziehen.")
 
 
 @pytest.mark.parametrize("datei,schluessel,text,erwartet", ZUSAGEN,

@@ -5,6 +5,29 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.248 — 2026-08-24 — README: falsche Vorgabe, entfallenes Merkmal, fehlende Themen
+
+Beide Fassungen der Übersicht führten **`graph` als Vorgabe** für den Rückweg an
+Exchange — tatsächlich ist es seit jeher `smtp`. Wer sich danach richtete, ging
+von einem anderen Ausgangszustand aus, als das Gateway ihn tatsächlich hat.
+
+Ebenfalls entfernt: die Anleitung zu einem separaten SMTP-Hostnamen. Dieses
+Merkmal ist mit v1.4.91 entfallen; der Absatz beschrieb einen Weg, den es nicht
+mehr gibt, samt Verweis auf einen Assistentenschritt, den es ebenfalls nicht
+mehr gibt.
+
+Neu aufgenommen ist der Abschnitt zu **Port 587** — er fehlte vollständig, und
+genau daraus entstand wiederholt das Missverständnis, es gebe einen „587-Modus".
+Es gibt keinen: Port 587 kommt innerhalb von `graph` und `imap` zum Zug, für
+Post, die Exchange in Teilnachrichten aufgeteilt hat. Der Wert `smtp587` ist ein
+Altname für `imap` und macht IMAP, kein SMTP.
+
+Außerdem nachgetragen: Sammelbestellung von Zertifikaten, heller und dunkler
+Modus, Bedienbarkeit auf Telefonbreite.
+
+Die Prüfung genannter Vorgabewerte umfasst jetzt auch die Übersicht — sie
+veraltet schneller als die Oberfläche, weil sie seltener angefasst wird.
+
 ## v1.7.247 — 2026-08-24 — Lizenzfeld nennt die kostenpflichtigen Postfächer
 
 Beim Abschluss eines Abos war die **Gesamtzahl** der Postfächer einzutragen,

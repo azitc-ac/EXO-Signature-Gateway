@@ -141,7 +141,7 @@ In addition to the standard permissions:
 
 The mode is configured in the Web UI under **Settings → Re-inject mode** or via `REINJECT_MODE`.
 
-### `graph` — default / Azure
+### `graph` — Azure without port 25
 
 - **All** re-injects via Graph API `sendMail` (HTTPS)
 - No port 25 required; works on Azure
@@ -155,11 +155,24 @@ The mode is configured in the Web UI under **Settings → Re-inject mode** or vi
 - **No outbound port 25** required
 - Requires `IMAP.AccessAsApp` + EXO service principal (can be set up via the setup wizard)
 
-### `smtp` — classic / on-premises
+### `smtp` — default / classic
 
+- **The default** (`REINJECT_MODE` ships as `smtp`)
 - Re-inject via SMTP + STARTTLS to the EXO smarthost (`<tenant>.mail.protection.outlook.com:25`)
 - Requires outbound port 25 – **not Azure-compatible**
 - No additional app permission required
+
+
+### Port 587 — not a mode, but a special path
+
+⚠️ Common misunderstanding: there is no "587 mode". Port 587 is used *within*
+`graph` and `imap`, for mail that Exchange split into separate transactions:
+only SMTP separates envelope recipients from displayed recipients — Graph
+cannot. Requires the `SMTP.SendAsApp` application permission. In `smtp` mode,
+port 587 plays no role at all.
+
+⚠️ The value `smtp587` is a **legacy name for `imap`** — still accepted, logs a
+warning. That mode does IMAP APPEND, not SMTP on 587.
 
 ---
 
@@ -273,15 +286,17 @@ Reachable at `https://<host>:8080`.
 | Page | Function |
 |---|---|
 | **Dashboard** | Mail statistics (today / month / year), S/MIME counters, errors, certificate expiry, system monitoring (RAM, disk, logs, in-flight, avg. processing time) |
-| **Mailboxes** | Manage enabled mailboxes, sync the EXO distribution group |
+| **Mailboxes** | Manage enabled mailboxes, sync the EXO distribution group, order certificates for many mailboxes at once |
 | **Templates** | Edit signature HTML and plaintext |
 | **Preview** | Render the signature for any email address |
 | **Settings** | All configuration options, test mail, Let's Encrypt, re-inject mode, Entra app |
 | **S/MIME** | Certificate upload, Azure Key Vault migration, CASTLE ACME enrollment |
 | **Log** | Live view of the service logs |
 | **Add-in** | Office add-in for Outlook (signature preview and selection in the compose window) |
-| **Setup** | Initial configuration wizard (app registration, connector, IMAP access, SMTP hostname) |
+| **Setup** | Initial configuration wizard (app registration, connector, IMAP access, sign-in check) |
 | **Debug** | ACME send method, account key reset, Exchange Header Observatory |
+
+The UI follows the system setting for **light and dark mode** and works down to phone width (320 px).
 
 ---
 
@@ -378,8 +393,6 @@ Port 80 is already open in the included `docker-compose.yml` (HTTP-01 challenge)
 2. In the Web UI under **Settings → TLS / Let's Encrypt** enter domain and email.
 3. Click the **Renew certificate** button.
 4. After success: **Restart the service** (button in Settings or `docker compose restart`).
-
-**Separate SMTP hostname:** If the web hostname is behind a reverse proxy / Azure Application Proxy and cannot receive SMTP, a separate `SMTP_HOSTNAME` with its own certificate can be configured (setup wizard step 2).
 
 ---
 
