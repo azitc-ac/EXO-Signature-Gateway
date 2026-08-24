@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.241 — 2026-08-24 — Gestörter Katalogabruf sah aus wie „keine Anbieter"
+
+Die Liste der Zertifizierungsstellen kommt von der Betreiber-Gegenstelle. Ist
+der Abruf gestört, gilt weiter der zuletzt bekannte Stand — richtig so. Nach
+einem Neustart gibt es diesen Stand jedoch nicht, und die Anbindungsseite zeigte
+ihren Abschnitt dann gar nicht erst an. Zu sehen war keine Störung, sondern
+schlicht keine einzige Zertifizierungsstelle.
+
+An dieser Stelle steht jetzt ein Hinweis: ob überhaupt schon einmal ein Abruf
+gelungen ist, woran der letzte gescheitert ist und wann. Dass das Gateway es
+selbsttätig erneut versucht, steht dabei — und ebenso, was zu prüfen ist, wenn
+es dabei bleibt.
+
+Am Verhalten ändert sich nichts. Sichtbar wird nur der Unterschied zwischen
+„es gibt nichts" und „es ließ sich nicht abrufen".
+
 ## v1.7.240 — 2026-08-24 — Fehlende Nur-Text-Fassung einer Vorlage ist jetzt sichtbar
 
 Zu jeder Signaturvorlage gehören zwei Fassungen: eine formatierte und eine reine

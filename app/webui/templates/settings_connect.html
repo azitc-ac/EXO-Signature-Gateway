@@ -218,6 +218,9 @@
   </p>
 
   <div id="sec-managed-fields">
+    <div id="cert-katalog-stoerung" style="display:none;margin-bottom:12px;font-size:13px;
+         color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;
+         padding:9px 12px;line-height:1.55"></div>
     <div id="cert-catalog-box" class="info-box" style="display:none;margin-bottom:12px">
       <strong>Verfügbare Zertifizierungsstellen</strong>
       <p class="hint" style="margin:2px 0 8px">
@@ -1440,10 +1443,38 @@ document.addEventListener('DOMContentLoaded', function(){ acctLoad(); certLoadEl
 document.addEventListener('DOMContentLoaded', function(){ initHintClamps(); });
 
 // ── Anbieter-Katalog (dynamisch vom Hub) ─────────────────────────────────────
+function certKatalogStoerungZeigen(z) {
+  // Ort: dort, wo die Anbieterbox stünde — nicht als Seitenbanner. Wer nach
+  // Zertifizierungsstellen sucht, sieht die Erklärung an ihrer Stelle.
+  var box = document.getElementById('cert-katalog-stoerung');
+  if (!box) return;
+  var wann = z.fehler_zeit
+    ? new Date(z.fehler_zeit * 1000).toLocaleString('de-DE')
+    : '';
+  var text = z.nie_geladen
+    ? 'Der Anbieterkatalog konnte <strong>noch nie</strong> abgerufen werden. '
+      + 'Solange das so ist, lassen sich keine Zertifikate bestellen — nicht, weil es '
+      + 'keine Zertifizierungsstellen gäbe, sondern weil die Liste fehlt.'
+    : 'Der Anbieterkatalog ist derzeit leer. Der letzte Abruf ist fehlgeschlagen; '
+      + 'angezeigt wird, was zuletzt bekannt war.';
+  if (z.fehler) {
+    text += '<br><span style="color:#b45309">Letzter Fehler'
+         + (wann ? ' (' + esc(wann) + ')' : '') + ': ' + esc(z.fehler) + '</span>';
+  }
+  text += '<br>Das Gateway versucht es selbsttätig erneut. Bleibt es dabei, '
+       + 'ist die Verbindung zur Betreiber-Gegenstelle zu prüfen.';
+  box.innerHTML = text;
+  box.style.display = '';
+}
+
 async function certLoadCatalog() {
   try {
     const d = await getJSON('/api/cert/catalog');
     const provs = (d.providers || []).filter(function(p){ return p.available !== false; });
+    // Leere Liste ist zweideutig: „es gibt nichts" oder „Abruf gescheitert".
+    // Bis 24.08.2026 verschwand die Box in beiden Fällen wortlos, und ein
+    // gestörter Abruf sah aus wie eine Welt ohne Zertifizierungsstellen.
+    if (d.registered && !provs.length) certKatalogStoerungZeigen(d.zustand || {});
     if (!d.registered || !provs.length) return;   // Box nur zeigen, wenn es etwas zu zeigen gibt
     const disabled = d.disabled || [];
     // Nur tatsächlich nutzbare Anbieter zählen: verfügbar UND nicht lokal abgewählt.

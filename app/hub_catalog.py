@@ -16,6 +16,22 @@ log = logging.getLogger(__name__)
 _TTL = 600  # Sekunden — Katalog gilt als frisch
 _cache: dict = {"ts": 0.0, "providers": [], "currency": "EUR", "vat_percent": 19}
 
+# Was beim letzten Abruf geschah — für die Anzeige, nicht für die Logik.
+#
+# ANLASS (24.08.2026): Im Protokoll der Produktions-VM standen drei
+# fehlgeschlagene Abrufe (ein Zertifikatsfehler, zwei Zeitüberschreitungen).
+# Dass ein Fehlschlag den letzten Stand stehen lässt, ist richtig. Nur: Nach
+# einem Neustart GIBT es keinen letzten Stand, und die Anbindungsseite zeigt
+# ihre Anbieterbox dann gar nicht erst („nur zeigen, wenn es etwas zu zeigen
+# gibt"). Der Betreiber sieht dann keine Störung, sondern eine Welt ohne
+# Zertifizierungsstellen.
+#
+# Dieselbe Klasse ist hier schon einmal aufgetreten: Der Kommentar in
+# `ca_backends/registry.py` hält fest, dass am 19.08.2026 „die Hälfte der
+# Zertifizierungsstellen fehlte, ohne dass etwas kaputt war". Behoben wurde
+# damals der Abbruch — nicht die Unsichtbarkeit.
+_stand: dict = {"letzter_erfolg": 0.0, "fehler": "", "fehler_zeit": 0.0}
+
 
 async def refresh(force: bool = False) -> list[dict]:
     """Katalog vom Hub holen (TTL-gecacht). Fehler lassen den alten Cache stehen."""
@@ -27,17 +43,42 @@ async def refresh(force: bool = False) -> list[dict]:
     try:
         res = await hub_client.cert_get_catalog()
     except Exception as exc:
-        log.warning("hub_catalog: refresh failed: %s", exc)
+        _fehler_merken(str(exc))
         return _cache["providers"]
     if res.get("ok"):
         _cache["providers"] = res.get("providers") or []
         _cache["currency"] = res.get("currency") or "EUR"
         _cache["vat_percent"] = int(res.get("vat_percent") or 19)
         _cache["ts"] = time.monotonic()
+        _stand["letzter_erfolg"] = time.time()
+        _stand["fehler"] = ""
         log.debug("hub_catalog: %d Anbieter geladen", len(_cache["providers"]))
     else:
-        log.warning("hub_catalog: refresh failed: %s", res.get("error"))
+        _fehler_merken(str(res.get("error") or "unbekannter Fehler"))
     return _cache["providers"]
+
+
+def _fehler_merken(grund: str) -> None:
+    # time.time(), nicht time.monotonic(): Der Wert wird angezeigt, nicht
+    # gerechnet — eine Laufzeit seit Systemstart hilft niemandem beim Lesen.
+    _stand["fehler"] = grund[:300]
+    _stand["fehler_zeit"] = time.time()
+    log.warning("hub_catalog: refresh failed: %s", grund)
+
+
+def zustand() -> dict:
+    """Womit hat der Betreiber es gerade zu tun? Für die Anzeige gedacht.
+
+    `nie_geladen` ist der Fall, der erklärt werden muss: keine Anbieter UND kein
+    früherer Erfolg — dann liegt es an der Verbindung, nicht am Angebot.
+    """
+    return {
+        "anbieter": len(_cache["providers"]),
+        "letzter_erfolg": _stand["letzter_erfolg"] or None,
+        "fehler": _stand["fehler"] or None,
+        "fehler_zeit": _stand["fehler_zeit"] or None,
+        "nie_geladen": not _cache["providers"] and not _stand["letzter_erfolg"],
+    }
 
 
 def cached() -> list[dict]:
