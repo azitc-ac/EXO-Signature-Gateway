@@ -25,6 +25,7 @@ logging.basicConfig(
 
 import log_manager
 import scheduler
+import smtp_rauschen
 from handler import SignatureHandler
 from webui.app import app as fastapi_app
 log = logging.getLogger(__name__)
@@ -383,6 +384,7 @@ def main() -> None:
     # (AUTH-Brute-Force auf :25) fluten damit das Log. Die relevanten Ereignisse
     # loggt unsere Pipeline selbst; Verbindungs-Low-Level nur noch ab WARNING.
     logging.getLogger("mail.log").setLevel(logging.WARNING)
+    logging.getLogger("mail.log").addFilter(smtp_rauschen.AbbruchLeiser())
 
     import mail_audit
     mail_audit.init_db()

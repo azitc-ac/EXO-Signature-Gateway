@@ -5,6 +5,25 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.242 — 2026-08-24 — Protokoll: Fehlerstufe wieder brauchbar
+
+Fremde Rechner suchen das Internet fortwährend nach offenen Mailservern ab. Ihre
+Verbindungen scheitern hier an der Verschlüsselungsaushandlung, noch bevor
+irgendetwas übergeben wird — geschadet hat das nie, denn eingeliefert werden
+kann darüber nichts.
+
+Protokolliert wurde jeder dieser Abbrüche jedoch als **Fehler samt vollständiger
+Fehlerspur**. Auf einem seit vier Wochen laufenden Gateway waren dadurch 143 von
+144 Einträgen der Stufe „Fehler" Suchverkehr aus dem Netz. Wer einen echten
+Betriebsfehler suchte, musste ihn zwischen den Scannern finden — die Stufe war
+als Suchmerkmal wertlos.
+
+Solche Abbrüche erscheinen jetzt als **eine Zeile auf Stufe „Information"**, mit
+Gegenstelle und Grund. Sichtbar bleiben sie also; wer Suchverkehr beobachten
+will, findet ihn weiterhin. Alles andere bleibt unverändert Fehler mitsamt
+Fehlerspur — ein Filter, der zu viel verschluckt, wäre schlimmer als das
+Rauschen, das er beseitigt.
+
 ## v1.7.241 — 2026-08-24 — Gestörter Katalogabruf sah aus wie „keine Anbieter"
 
 Die Liste der Zertifizierungsstellen kommt von der Betreiber-Gegenstelle. Ist
