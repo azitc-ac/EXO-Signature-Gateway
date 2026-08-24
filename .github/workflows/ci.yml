@@ -83,6 +83,13 @@ jobs:
       - name: Endpunkte ohne Aufrufer
         run: python tools/routencheck.py
 
+      # Prueft die SPRACHE, nicht das Verhalten: dasselbe Ding trug im
+      # 587-Fall vier Namen (smtp587 / „IMAP + Graph" / „587-Modus" — den es
+      # nicht gibt). Ausgenommen sind Vergleiche im Code (Bestandsanlagen
+      # tragen den Altnamen) und Stellen, die den Begriff gerade erklaeren.
+      - name: Begriffe einheitlich
+        run: python tools/begriffecheck.py
+
   build:
     name: Container baut
     runs-on: ubuntu-latest

@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.244 — 2026-08-24 — Ein Begriff, eine Schreibweise
+
+Im Einrichtungsassistenten stand beim S/MIME-Haken „Bei Graph-only-Modus
+automatisch deaktiviert". Einen solchen Modus gibt es nicht — er heißt
+**Graph API**, und Port 587 kommt darin sehr wohl zum Zug. Der Satz nennt jetzt
+den richtigen Namen und beschreibt zudem vollständig, was geschieht: Der Haken
+wird entfernt **und** lässt sich nicht setzen.
+
+Damit sich Benennungen nicht erneut auseinanderentwickeln, führt das Repository
+ein Register verbindlicher Begriffe. Es beschreibt zu jedem Begriff die gültige
+Schreibweise, die überholten Varianten und die Stellen, an denen eine Ausnahme
+gilt — jeweils mit Begründung. Eine Prüfung schlägt an, sobald irgendwo eine
+überholte Bezeichnung auftaucht.
+
+Ausdrücklich unbeanstandet bleiben zwei Fälle, in denen ein alter Name zu Recht
+steht: Vergleiche im Programmtext, die eine bestehende Konfiguration weiterhin
+lesen müssen, und Stellen, die den alten Namen gerade erklären. Ohne diese
+Unterscheidung hätte die Prüfung elf einwandfreie Stellen bemängelt, um eine
+fehlerhafte zu finden — und wäre damit zu Recht ignoriert worden.
+
 ## v1.7.243 — 2026-08-24 — Umstellung auf dauerhafte Postfach-Zuordnung wird angeboten
 
 Postfächer lassen sich auf zwei Arten zuordnen: über ihre E-Mail-Adresse oder
