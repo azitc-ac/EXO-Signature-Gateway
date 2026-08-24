@@ -435,3 +435,49 @@ def test_lizenzfeld_ist_mit_null_vorbelegt(seite):
     assert pg.evaluate("() => _kaufVorbelegung(100, 100)") == 0
     # Darüber: genau der überziehende Teil
     assert pg.evaluate("() => _kaufVorbelegung(112, 100)") == 12
+
+
+# ── Massenoperation: erst die Aktion, dann ihr Bereich ───────────────────────
+
+def test_massenoperation_zeigt_erst_nach_der_aktionswahl(seite, monkeypatch):
+    """Der Sammelbereich beginnt mit der Frage, WAS geschehen soll.
+
+    Bis v1.8.0 klappte das Aufklappen direkt die Zertifikatsbestellung auf —
+    der Sonderfall war das Ganze. Mit der Zwischenebene ist der Aufbau sichtbar:
+    Auswahl von Postfächern plus eine Aktion darauf. Heute gibt es genau eine
+    Aktion; weitere hängen sich über einen Block `sammel-aktion-<wert>` ein,
+    ohne dass hier etwas nachzuziehen wäre.
+    """
+    # Der Bereich steht unter `{% if smime_users %}` — ohne ein Postfach mit
+    # S/MIME gibt es ihn gar nicht. Statt die Elemente im Test selbst zu bauen
+    # (das prüfte nur die eigene Annahme) wird ein echter Eintrag gestellt, aus
+    # dem die Route ihre Liste bildet.
+    import settings_store
+    echt = settings_store.get
+    monkeypatch.setattr(settings_store, "get", lambda k, *a, **kw: (
+        {"probe-guid": {"smime": True, "sig": True, "primary": "probe@example.org",
+                        "known_addresses": ["probe@example.org"]}}
+        if k == "MAILBOX_CONFIG" else echt(k, *a, **kw)))
+
+    pg = seite("/smime", breite=1280)
+    assert pg.evaluate("() => !!document.getElementById('sammel-box')"), (
+        "Der Sammelbereich fehlt — dann prüft dieser Test nichts.")
+    pg.evaluate("() => document.getElementById('sammel-box').open = true")
+    pg.wait_for_timeout(200)
+
+    sichtbar = lambda: pg.evaluate(
+        "() => { const b = document.getElementById('sammel-aktion-zertifikate');"
+        "        return !!b && b.offsetParent !== null; }")
+
+    assert not sichtbar(), (
+        "Der Bestellbereich steht offen, bevor eine Aktion gewählt wurde — "
+        "damit ist die Zwischenebene wirkungslos.")
+
+    pg.select_option("#sammel-aktion", "zertifikate")
+    pg.wait_for_timeout(200)
+    assert sichtbar(), "Nach der Wahl muss der Bereich erscheinen."
+
+    # Zurück auf „bitte wählen" blendet ihn wieder aus
+    pg.select_option("#sammel-aktion", "")
+    pg.wait_for_timeout(200)
+    assert not sichtbar(), "Ohne gewählte Aktion darf kein Bereich offen stehen."

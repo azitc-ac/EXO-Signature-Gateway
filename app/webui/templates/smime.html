@@ -54,10 +54,28 @@
   <details class="card" id="sammel-box" style="margin-bottom:16px;padding:0">
     <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;
                     list-style:none;display:flex;align-items:center;gap:8px">
-      <span style="font-size:15px">▦</span> Mehrere Postfächer auf einmal versorgen
-      <span class="muted" style="font-weight:400;font-size:12px">— Auswahl, Kosten, Bestellung</span>
+      <span style="font-size:15px">▦</span> Massenoperation starten
+      <span class="muted" style="font-weight:400;font-size:12px">— eine Aktion auf mehrere Postfächer</span>
     </summary>
     <div style="padding:0 16px 16px">
+      {# Zwischenebene seit v1.8.0: erst die Aktion wählen, dann erscheint ihr
+         Bereich. Heute gibt es genau eine — der Aufbau „Auswahl von Postfächern
+         + eine Aktion darauf" ist damit aber sichtbar und nicht mehr an die
+         Bestellung gebunden. Weitere Aktionen hängen sich hier ein, ohne dass
+         der Bereich erneut umgebaut werden muss. #}
+      <div class="settings-row" style="margin-bottom:12px">
+        <label for="sammel-aktion">Aktion</label>
+        <div class="settings-control">
+          <select id="sammel-aktion" style="font-size:13px;min-width:260px"
+                  onchange="sammelAktionWechseln()">
+            <option value="">— bitte wählen —</option>
+            <option value="zertifikate">Zertifikate beantragen</option>
+          </select>
+          <span class="hint">Bestimmt, was mit den ausgewählten Postfächern geschieht.</span>
+        </div>
+      </div>
+
+      <div id="sammel-aktion-zertifikate" style="display:none">
       {# Sammelfähig ist jeder Bezugsweg, der OHNE Zutun des Postfachinhabers
          bestellen kann — CASTLE (kostenlos), die DigiCert-Direktanbindung und
          die Anbieter aus dem Katalog. Draussen bleibt nur „assistiert manuell":
@@ -107,6 +125,7 @@
       <div id="sammel-lauf" class="sammel-lauf" style="display:none;margin-top:12px"
            data-zustand=""></div>
       {% endif %}
+      </div><!-- /sammel-aktion-zertifikate -->
     </div>
   </details>
 
@@ -782,6 +801,18 @@ function _sammelAuswahl() {
 function sammelZaehlen() {
   const el = document.getElementById('sammel-auswahl');
   if (el) el.textContent = _sammelAuswahl().length + ' von ' + _sammelPostfaecher.length + ' ausgewählt';
+}
+
+// Blendet den Bereich der gewählten Aktion ein und alle übrigen aus.
+//
+// Über `data-aktion` statt über eine Liste im Code: Eine neue Aktion braucht
+// dann nur ihren Block im Markup und einen Eintrag im Auswahlfeld — sonst wäre
+// hier eine zweite Stelle zu pflegen, die man beim Hinzufügen übersieht.
+function sammelAktionWechseln() {
+  const gewaehlt = document.getElementById('sammel-aktion').value;
+  document.querySelectorAll('[id^="sammel-aktion-"]').forEach(function (block) {
+    block.style.display = (block.id === 'sammel-aktion-' + gewaehlt) ? '' : 'none';
+  });
 }
 
 async function sammelVorschau() {

@@ -11,6 +11,16 @@ Sammelfassung der Arbeit seit v1.6.0 (11.07.2026) — 265 Einträge. Die einzeln
 Änderungen stehen unverändert weiter unten; dieser Eintrag markiert nur den
 Stand, der als Release veröffentlicht wurde.
 
+**Massenoperationen.** Der Bereich für mehrere Postfächer auf der S/MIME-Seite
+heißt jetzt *Massenoperation starten* und beginnt mit der Frage, was geschehen
+soll. Zur Wahl steht derzeit eine Aktion — *Zertifikate beantragen* —, und erst
+nach ihrer Wahl erscheint der zugehörige Bereich mit Anbieterwahl, Postfachliste,
+Vorschau und Lauf.
+
+Am Ablauf ändert sich dadurch nichts. Sichtbar wird nur, dass es sich um ein
+Muster handelt: eine Auswahl von Postfächern und eine Aktion darauf. Weitere
+Aktionen fügen sich an derselben Stelle ein.
+
 ⚠️ **Vor dem Update:** Seit v1.7.160 gelten Signaturvorlagen als Betriebsdaten
 und liegen nicht mehr im Repository. Beim Update entfernt Git deshalb die
 bislang mitgelieferten Dateien aus `templates/`. Lege vorher unter
