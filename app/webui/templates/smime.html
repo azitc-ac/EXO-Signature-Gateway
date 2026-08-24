@@ -615,8 +615,17 @@ function _renderAcmeStatus(email, data) {
   }
   const s = data.status;
   const lbl = _ACME_LABELS[s] || {icon:'ℹ️', text: s, color:'#374151', bg:'#f3f4f6', border:'#d1d5db'};
+  // ⚠️ FREMDTEXT — muss maskiert werden. `data.error` trägt die Antwort der
+  // Zertifizierungsstelle, und die kann alles enthalten. Auf einem Gateway lag
+  // hier die vollständige Fehlerseite von CASTLE (HTTP 500, Django-Traceback)
+  // — mitsamt `<style>html * { padding:0; margin:0; }</style>`. Ungefiltert in
+  // `innerHTML` gesetzt, übernahm der Browser diese Regel und setzte damit die
+  // Abstände der GANZEN Seite auf null: Die Überschrift verschwand hinter der
+  // Navigation, und ganz nach oben liess sich nicht mehr scrollen.
+  //
+  // Heute war es ein `<style>`. Derselbe Weg trägt auch ein `<script>`.
   const errFull = s === 'error' && data.error ? data.error : '';
-  const detail  = errFull ? ': ' + errFull : '';
+  const detail  = errFull ? ': ' + esc(errFull) : '';
   el.innerHTML = `<span style="display:inline-flex;align-items:flex-start;gap:4px;padding:2px 8px;
     border-radius:10px;background:${lbl.bg};border:1px solid ${lbl.border};color:${lbl.color};
     max-width:100%;box-sizing:border-box">
