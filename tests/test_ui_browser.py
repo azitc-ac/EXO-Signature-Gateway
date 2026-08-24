@@ -552,3 +552,42 @@ def test_unterreiter_bleiben_einzeilig_und_wischbar(seite, breite):
         f"Bei {breite}px lässt sich nicht wischen — die Reiter sind auf die "
         "Breite gestaucht statt überzulaufen (`flex-shrink` fehlt).")
     assert not d["gestaucht"], f"Gestauchte Beschriftungen: {d['gestaucht']}"
+
+
+# ── Live-Protokoll: Auswahl überlebt neue Zeilen ─────────────────────────────
+
+def test_auswahl_im_protokoll_ueberlebt_neue_zeilen(seite):
+    """Markierter Text darf nicht verschwinden, sobald eine Zeile eintrifft.
+
+    ⚠️ ANLASS (25.08.2026): Auf dem Telefon liess sich im Live-Protokoll nichts
+    markieren. Long-Press setzt die Auswahl — im selben Moment trifft die
+    nächste Zeile ein, `autoScroll` springt ans Ende, und die Auswahl ist weg.
+    Läuft die markierte Zeile zusätzlich aus dem Puffer, wird ihr Element
+    entfernt.
+
+    Geprüft wird der Kern: Besteht eine Auswahl im Protokoll, setzt
+    `appendLine()` weder das Scrollen noch das Wegwerfen alter Zeilen fort.
+    """
+    pg = seite("/log", breite=393)
+    if not pg.evaluate("() => typeof appendLine === 'function'"):
+        pytest.skip("Protokollseite nicht erreichbar")
+
+    pg.evaluate("""() => {
+      for (let i = 0; i < 40; i++) appendLine('2026-08-25 INFO  Zeile ' + i);
+      const ziel = pre.children[5];
+      const r = document.createRange();
+      r.selectNodeContents(ziel);
+      const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+    }""")
+    vorher = pg.evaluate("() => ({text: getSelection().toString(), pos: wrap.scrollTop})")
+    assert vorher["text"].strip(), "Testaufbau: es wurde nichts markiert"
+
+    pg.evaluate("() => { for (let i = 0; i < 20; i++) appendLine('INFO  neu ' + i); }")
+    pg.wait_for_timeout(150)
+    nachher = pg.evaluate("() => ({text: getSelection().toString(), pos: wrap.scrollTop})")
+
+    assert nachher["text"] == vorher["text"], (
+        "Die Auswahl ist verlorengegangen, als neue Zeilen eintrafen.")
+    assert nachher["pos"] == vorher["pos"], (
+        "Es wurde nachgescrollt, obwohl eine Auswahl bestand — auf dem Telefon "
+        "reisst genau das die Auswahl weg.")
