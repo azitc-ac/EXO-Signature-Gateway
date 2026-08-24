@@ -52,7 +52,7 @@ DEFAULTS: dict = {
     "LICENSE_KEY": "",                    # Fair-Use-Lizenz (EXOSIG1.…, Ed25519-signiert, Tenant-gebunden)
     "CATALOG_PROVIDERS_DISABLED": [],     # Hub-Anbieter-IDs, die der GW-Betreiber lokal ausblendet
     "SMIME_SIGNING_ENABLED": True,    # Automatically sign outbound mails when a cert exists
-    # Zertifikat bestellen, sobald ein Postfach für S/MIME eingeschaltet wird.
+    # Zertifikat bestellen, sobald ein Postfach für S/MIME aktiviert wird.
     # ⚠️ Kann Geld kosten: Der Bezugsweg entscheidet. Die Postfachseite fragt
     # deshalb vor dem Speichern nach, wenn dadurch eine Abbuchung entstünde.
     "SMIME_AUTO_ENROLL": False,

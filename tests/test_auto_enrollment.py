@@ -1,4 +1,4 @@
-"""Zertifikat bestellen, sobald ein Postfach für S/MIME eingeschaltet wird.
+"""Zertifikat bestellen, sobald ein Postfach für S/MIME aktiviert wird.
 
 ⚠️ Der heikle Teil ist der ÜBERGANG. „S/MIME ist an" trifft nach dem ersten
 Speichern auf jedes eingerichtete Postfach zu — löste das eine Bestellung aus,
@@ -134,7 +134,7 @@ def test_abgelehnter_lauf_wird_gemeldet_nicht_verschluckt(enrollment, monkeypatc
 # ── Der ganze Speicherweg: zweimal speichern darf nicht zweimal bestellen ────
 """
 ⚠️ Das ist die teure Regression. Wer `- smime_vorher` entfernt, bestellt bei
-jedem Speichern der Postfachseite für ALLE eingeschalteten Postfächer erneut.
+jedem Speichern der Postfachseite für ALLE aktivierten Postfächer erneut.
 Bei fünfzig Postfächern und einem kostenpflichtigen Bezugsweg sind das fünfzig
 ungewollte Bestellungen pro Klick — und was bei der Zertifizierungsstelle
 liegt, lässt sich nicht zurückholen.
