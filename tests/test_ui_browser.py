@@ -335,3 +335,52 @@ def test_neue_zeile_zaehlt_als_aenderung(seite, pfad, knopf):
     pg.wait_for_timeout(400)
     assert pg.evaluate("(id) => !document.getElementById(id).disabled", knopf), (
         "eine neue Zeile hat den Knopf nicht freigegeben")
+
+
+# ── Beschriftung und Eingabefeld auf einer Zeile ─────────────────────────────
+
+@pytest.mark.parametrize("pfad", [
+    "/settings/smime", "/settings/signature", "/advanced",
+])
+def test_eingabefeld_steht_neben_seiner_beschriftung(seite, pfad):
+    """Auf breitem Bildschirm gehört das Feld NEBEN die Beschriftung, nicht darunter.
+
+    ⚠️ ANLASS (24.08.2026): An sieben Stellen auf drei Seiten stand das
+    Eingabefeld unter seiner Beschriftung, obwohl daneben reichlich Platz war —
+    Portal-Basis-URL, Sammeladresse, Firmenname, beide Trigger-Felder und zwei
+    Ankreuzfelder.
+
+    Ursache war nicht die Breite, sondern der Erklärtext: `.settings-control`
+    hatte keine Flex-Basis, also bestimmte der längste Hinweistext dieser Spalte
+    ihre Breite. Zusammen mit der 200px-Beschriftung sprengte das den Rahmen,
+    und `flex-wrap` am Elternteil schob das Feld nach unten. Mit
+    `flex: 1 1 0; min-width: 0` nimmt die Spalte den Restplatz, und der Text
+    umbricht darin.
+
+    Geprüft wird bei 1280px — schmaler ist der Umbruch richtig und ab 600px
+    ohnehin per Medienabfrage gewollt.
+    """
+    pg = seite(pfad, breite=1280)
+    # Erweiterte Bereiche aufklappen, sonst sind mehrere Zeilen unsichtbar
+    pg.evaluate("""() => document.querySelectorAll('input[id^=adv-cb-]').forEach(cb => {
+        if (!cb.checked) { cb.checked = true; cb.dispatchEvent(new Event('change', {bubbles:true})); }
+    })""")
+    pg.wait_for_timeout(400)
+
+    umgebrochen = pg.evaluate("""() => {
+      const fehler = [];
+      document.querySelectorAll('.settings-row').forEach(row => {
+        const lb = row.querySelector(':scope > label');
+        const ctl = row.querySelector(':scope > .settings-control');
+        if (!lb || !ctl) return;
+        const a = lb.getBoundingClientRect(), b = ctl.getBoundingClientRect();
+        if (!a.height || !b.height) return;                 // eingeklappt
+        // Umgebrochen = die Spalte beginnt unterhalb der Beschriftung
+        if (b.top >= a.bottom - 2) fehler.push((lb.textContent || '').trim().slice(0, 40));
+      });
+      return fehler;
+    }""")
+    assert not umgebrochen, (
+        f"Bei 1280px steht das Feld unter der Beschriftung: {umgebrochen}\n"
+        "Meist fehlt `.settings-control` die Flex-Basis, sodass ein langer "
+        "Erklärtext die Spaltenbreite bestimmt.")

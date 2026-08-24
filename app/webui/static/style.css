@@ -593,7 +593,20 @@ input:focus { outline: none; border-color: #0078d4; }
     padding-top: 6px;
     flex-shrink: 0;
 }
-.settings-control { display: flex; flex-direction: column; gap: 4px; }
+/* `flex: 1 1 0` + `min-width: 0` — sonst bricht die Zeile grundlos um.
+   Ohne beides bestimmt der laengste Erklaertext dieser Spalte ihre Breite
+   (Flex-Basis ist der Inhalt, und der Text umbricht von sich aus nicht).
+   Beschriftung plus diese Breite ueberschritten dann den Rahmen, und
+   `flex-wrap` am Elternteil schob das Eingabefeld unter die Beschriftung —
+   obwohl daneben reichlich Platz war. Betraf sieben Stellen auf drei Seiten.
+   Unter 600px stellt die Medienabfrage weiter unten ohnehin auf Spalten um. */
+.settings-control {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1 1 0;
+    min-width: 0;
+}
 .checkbox-label {
     display: flex !important;
     align-items: center;

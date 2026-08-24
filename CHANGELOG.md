@@ -5,6 +5,34 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.246 — 2026-08-24 — Eingabefelder stehen wieder neben ihrer Beschriftung; SSO-Prüfung fragt nach
+
+**Dreizehn Eingabefelder standen unter ihrer Beschriftung**, obwohl daneben
+reichlich Platz war — unter anderem Portal-Basis-URL, Sammeladresse, Firmenname,
+beide Schlüsselwort-Felder, Zugangscode und Key-Vault-Modus. Ursache war nicht
+die Fensterbreite, sondern der Erklärtext daneben: Er bestimmte die Spaltenbreite
+und sprengte damit die Zeile. Auf schmalen Anzeigen bleibt der Umbruch wie
+gehabt erwünscht und unverändert.
+
+Die drei zuletzt hinzugekommenen Abschnitte unter *Einstellungen → Erweitert*
+hatten außerdem einen anderen Rand als die übrigen Karten und sind jetzt
+angeglichen.
+
+**„SSO-Login funktioniert" war zu viel behauptet.** Die Einrichtungsseite
+schloss das aus einem Abgleich mit ihrer eigenen Aufzeichnung der
+Anwendungsregistrierung — wer in Azure etwas ändert, bekam davon nichts mit.
+
+An dieser Stelle steht jetzt, was tatsächlich bekannt ist, sowie eine Prüfung,
+die bei Microsoft **live nachfragt** und jeden Schritt einzeln ausweist: Ist die
+Rückadresse dort hinterlegt? Existiert die Anwendung noch? Ist überhaupt ein
+Konto zugelassen — ohne das scheitert die Anmeldung, egal wie sauber alles
+andere ist. Weicht die hinterlegte Aufzeichnung vom Stand in Azure ab, wird sie
+dabei nachgezogen.
+
+Ausdrücklich dabei steht auch, was die Prüfung *nicht* zeigen kann:
+Zustimmungsrichtlinien, bedingten Zugriff und gesperrte Konten sieht sie nicht —
+ob die Anmeldung durchläuft, zeigt erst ein Versuch.
+
 ## v1.7.245 — 2026-08-24 — Genannte Vorgabewerte werden gegen die Vorgaben geprüft
 
 An zwölf Stellen nennt die Oberfläche einen Vorgabewert — „Vorgabe 25", „Standard:

@@ -403,6 +403,105 @@ async def api_verify_azure(_=Depends(_require_admin)):
         return JSONResponse({"ok": False, "error": str(exc)})
 
 
+@router.get("/api/setup/verify/sso")
+async def api_verify_sso(_=Depends(_require_admin)):
+    """Kann sich jemand über Entra anmelden? Live bei Microsoft nachgefragt.
+
+    ANLASS (24.08.2026): Die Einrichtungsseite behauptete „✓ … ist in Entra
+    registriert — SSO-Login funktioniert." Geschlossen war das aus einem
+    einzigen Vergleich gegen `BOOTSTRAP_REDIRECT_URIS` — also gegen die EIGENE
+    Kopie, die beim letzten Schreibvorgang entstand. Ändert jemand die
+    Registrierung in Azure, merkt das Gateway nichts und behauptet weiter, es
+    funktioniere.
+
+    ⚠️ Registriert ist nicht dasselbe wie funktioniert. Diese Prüfung nennt
+    deshalb einzeln, was sie tatsächlich weiss:
+
+      * die Rückadresse steht in der Registrierung — LIVE gelesen, nicht aus
+        der eigenen Ablage,
+      * es ist mindestens ein Entra-Konto zugelassen (ohne das kommt niemand
+        durch, auch bei tadelloser Registrierung),
+      * die Bootstrap-Anwendung existiert überhaupt noch.
+
+    Was auch sie NICHT weiss: ob die Anmeldung durchläuft. Das zeigt erst ein
+    Versuch — Zustimmungsrichtlinien, bedingten Zugriff und gesperrte Konten
+    sieht man von hier aus nicht.
+    """
+    ergebnis: dict = {"ok": False, "schritte": []}
+
+    def schritt(name: str, erfuellt: bool, hinweis: str = ""):
+        ergebnis["schritte"].append({"name": name, "ok": erfuellt, "hinweis": hinweis})
+
+    admins = settings_store.get("ADMIN_USERS") or []
+    schritt("Mindestens ein Entra-Konto zugelassen", bool(admins),
+            f"{len(admins)} eingetragen" if admins
+            else "Ohne zugelassenes Konto scheitert die Anmeldung, auch wenn "
+                 "alles andere stimmt.")
+
+    client_id = (settings_store.get("BOOTSTRAP_CLIENT_ID") or "").strip()
+    schritt("Anwendungskennung hinterlegt", bool(client_id),
+            client_id or "Es ist keine Bootstrap-Anwendung eingetragen.")
+
+    import aussenadresse
+    basis = aussenadresse.konfiguriert()
+    erwartet = f"{basis}/auth/callback" if basis else ""
+    schritt("Aussenadresse gesetzt", bool(basis),
+            erwartet or "Weder ADDIN_BASE_URL noch PUBLIC_HOSTNAME gesetzt — "
+                        "die Rückadresse lässt sich nicht bilden.")
+
+    if not (client_id and erwartet):
+        return JSONResponse(ergebnis)
+
+    token = graph_client._acquire_token()
+    if not token:
+        schritt("Registrierung bei Microsoft gelesen", False,
+                "Keine Graph-Zugangsdaten — die Registrierung lässt sich nicht "
+                "abfragen.")
+        return JSONResponse(ergebnis)
+
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(
+                "https://graph.microsoft.com/v1.0/applications"
+                f"?$filter=appId eq '{client_id}'"
+                "&$select=id,displayName,publicClient,web",
+                headers={"Authorization": f"Bearer {token}"})
+        resp.raise_for_status()
+        apps = resp.json().get("value", [])
+    except Exception as exc:
+        schritt("Registrierung bei Microsoft gelesen", False, str(exc)[:200])
+        return JSONResponse(ergebnis)
+
+    if not apps:
+        schritt("Bootstrap-Anwendung vorhanden", False,
+                f"Zu {client_id} gibt es in diesem Tenant keine Registrierung.")
+        return JSONResponse(ergebnis)
+
+    app_obj = apps[0]
+    schritt("Bootstrap-Anwendung vorhanden", True, app_obj.get("displayName") or "")
+
+    # Beide Stellen lesen: Eine Anwendung kann die Rückadresse als öffentlicher
+    # Client ODER unter „web" führen — je nachdem, wie sie angelegt wurde. Nur
+    # eine davon zu prüfen ergäbe einen Fehlalarm.
+    registriert = list((app_obj.get("publicClient") or {}).get("redirectUris") or [])
+    registriert += list((app_obj.get("web") or {}).get("redirectUris") or [])
+    passt = erwartet in registriert
+    schritt("Rückadresse in der Registrierung", passt,
+            erwartet if passt else
+            f"Gebraucht wird {erwartet}. Dort steht: "
+            + (", ".join(registriert) or "nichts"))
+
+    # Den eigenen Stand nachziehen, wenn er abweicht — genau diese Abweichung
+    # war der Anlass für die Prüfung.
+    if sorted(registriert) != sorted(settings_store.get("BOOTSTRAP_REDIRECT_URIS") or []):
+        settings_store.update({"BOOTSTRAP_REDIRECT_URIS": registriert})
+        ergebnis["nachgezogen"] = True
+
+    ergebnis["ok"] = all(s["ok"] for s in ergebnis["schritte"])
+    return JSONResponse(ergebnis)
+
+
 @router.post("/api/setup/mark-complete")
 async def api_setup_complete(request: Request, user: str = Depends(_require_admin)):
     settings_store.update({"SETUP_COMPLETE": True})

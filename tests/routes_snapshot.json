@@ -1008,6 +1008,13 @@
     "name": "api_verify_smime"
   },
   {
+    "pfad": "/api/setup/verify/sso",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_verify_sso"
+  },
+  {
     "pfad": "/api/smime/auto-enroll/vorschau",
     "methoden": [
       "POST"
