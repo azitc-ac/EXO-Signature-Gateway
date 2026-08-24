@@ -517,3 +517,38 @@ def test_preview_hinweis_steht_und_leuchtet_nicht(seite, thema, pfad, anzahl):
             "es fehlt die Regel in dark-mode.css.")
     else:
         assert hell > 200, f"Im hellen Modus zu dunkel (Helligkeit {hell:.0f})"
+
+
+# ── Unterreiter: eine Zeile, wischbar ────────────────────────────────────────
+
+@pytest.mark.parametrize("breite", [1280, 393, 320])
+def test_unterreiter_bleiben_einzeilig_und_wischbar(seite, breite):
+    """Die Unterreiter der Einstellungen stehen in EINER Zeile.
+
+    ⚠️ ANLASS (24.08.2026): Eine Medienabfrage drehte die Grundregel für
+    schmale Anzeigen von `nowrap` auf `wrap`. Gemessen: bei 393px drei Zeilen,
+    bei 320px vier — die Reiter nahmen mehr Platz ein als der Inhalt darunter.
+
+    Die Grundregel kann das Wischen längst (`overflow-x`, `nowrap`,
+    `-webkit-overflow-scrolling`); sie wurde nur überschrieben. Zusätzlich
+    braucht es `flex-shrink: 0` auf den Einträgen: Ohne das staucht Flexbox sie
+    auf die verfügbare Breite, statt überzulaufen — dann steht zwar alles in
+    einer Zeile, aber wischen lässt sich nichts.
+    """
+    pg = seite("/settings", breite=breite)
+    d = pg.evaluate("""() => {
+      const ul = document.querySelector('.nav-sub-tabs');
+      const tabs = [...ul.querySelectorAll('.nav-sub-tab')];
+      return {
+        zeilen: new Set(tabs.map(t => Math.round(t.getBoundingClientRect().top))).size,
+        wischbar: ul.scrollWidth > ul.clientWidth + 1,
+        gestaucht: tabs.filter(t => t.scrollWidth > t.clientWidth + 1)
+                       .map(t => t.textContent.trim()),
+      };
+    }""")
+    assert d["zeilen"] == 1, (
+        f"Bei {breite}px stehen die Unterreiter in {d['zeilen']} Zeilen.")
+    assert d["wischbar"], (
+        f"Bei {breite}px lässt sich nicht wischen — die Reiter sind auf die "
+        "Breite gestaucht statt überzulaufen (`flex-shrink` fehlt).")
+    assert not d["gestaucht"], f"Gestauchte Beschriftungen: {d['gestaucht']}"
