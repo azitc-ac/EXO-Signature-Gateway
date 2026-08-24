@@ -12,10 +12,11 @@ Sammelfassung der Arbeit seit v1.6.0 (11.07.2026) — 265 Einträge. Die einzeln
 Stand, der als Release veröffentlicht wurde.
 
 ⚠️ **Vor dem Update:** Seit v1.7.160 gelten Signaturvorlagen als Betriebsdaten
-und liegen nicht mehr im Repository. Beim Update entfernt Git die bislang
-mitgelieferten Dateien aus `templates/`. Wer sie im Betrieb nutzt, sichert das
-Verzeichnis vorher (`tar czf ~/templates-backup.tar.gz -C /opt/exo-gateway
-templates`) und spielt Fehlendes danach zurück.
+und liegen nicht mehr im Repository. Beim Update entfernt Git deshalb die
+bislang mitgelieferten Dateien aus `templates/`. Lege vorher unter
+*Update & Backup → Backup erstellen* eine Sicherung an; fehlt danach eine
+Vorlage, holst du sie unter *Backup wiederherstellen* einzeln zurück. Eigene
+Vorlagen sind nicht betroffen.
 
 **Nach dem Update:** den neuen Fassungen der Rechtsdokumente zustimmen, die
 Rolle „Signatur-Editor" prüfen, die vier bis v1.7.236 verworfenen Schalter
