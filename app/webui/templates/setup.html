@@ -974,6 +974,25 @@
       <input type="email" id="test-to" placeholder="test@gmail.com" style="width:280px">
     </div>
     <div id="test-result" style="margin-top:8px;display:none"></div>
+
+    {# Abnahme: die Anlage als Ganzes, nicht die Einzelschritte darueber.
+       Wer alle Haekchen im Assistenten hat, weiss damit noch nicht, ob Post
+       durchlaeuft — deshalb eine eigene Sicht entlang der Zusagen. #}
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid #f0f0f0">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <strong style="font-size:13px;flex:1;min-width:200px">Abnahme</strong>
+        <button class="btn secondary btn-sm" id="abnahme-btn" onclick="abnahmePruefen()">
+          Betriebsbereitschaft prüfen</button>
+        <span id="abnahme-kurz" style="font-size:12px"></span>
+      </div>
+      <p class="hint" style="margin:6px 0 0">
+        Geht jeden Punkt durch, den ein laufendes Gateway erfüllen muss —
+        Erreichbarkeit, Anmeldung, Exchange, aktivierte Postfächer, Rückweg,
+        Benachrichtigung. Jeder Punkt sagt dazu, was er <em>nicht</em> abdeckt.
+      </p>
+      <div id="abnahme-liste" style="display:none;margin-top:10px;font-size:12px"></div>
+    </div>
+
     <div class="actions" style="margin-top:12px">
       <button class="btn primary" onclick="sendTestMail()">Test-Mail senden</button>
       {% if not e.setup_complete %}
@@ -2371,6 +2390,36 @@ sudo systemctl status exo-gateway-updater --no-pager</code></pre>
 // glauben, und nennt jeden Schritt einzeln. Was auch das nicht zeigen kann —
 // Zustimmungsrichtlinien, bedingter Zugriff, gesperrte Konten — steht am Ende
 // ausdrücklich dabei.
+async function abnahmePruefen() {
+  const knopf = document.getElementById('abnahme-btn');
+  const kurz  = document.getElementById('abnahme-kurz');
+  const liste = document.getElementById('abnahme-liste');
+  knopf.disabled = true;
+  showMsg(kurz, 'Prüfe…', true);
+  const d = await getJSON('/api/abnahme');
+  knopf.disabled = false;
+  if (!d) { showMsg(kurz, 'Prüfung nicht möglich', false); return; }
+
+  // „bereit" verlangt AUCH null unbekannte Punkte — eine gescheiterte Prüfung
+  // als Erfolg zu zählen wäre genau die Beruhigung, die eine Abnahme entwertet.
+  showMsg(kurz, d.bereit ? 'betriebsbereit'
+                         : (d.offen + ' offen, ' + d.unbekannt + ' ungeklärt'), !!d.bereit);
+
+  const zeichen = {ok: '✓', offen: '✗', unbekannt: '?', entfaellt: '—'};
+  const farbe   = {ok: '#166534', offen: '#991b1b', unbekannt: '#b45309', entfaellt: '#64748b'};
+  liste.innerHTML = (d.punkte || []).map(function (p) {
+    let z = '<div style="padding:5px 0;border-bottom:1px solid #f0f0f0">'
+          + '<span style="color:' + farbe[p.zustand] + ';font-weight:600">'
+          + zeichen[p.zustand] + ' ' + esc(p.name) + '</span>';
+    if (p.befund)      z += ' <span style="color:#64748b">— ' + esc(p.befund) + '</span>';
+    if (p.zu_tun)      z += '<div style="color:#92400e;margin-top:2px">' + esc(p.zu_tun) + '</div>';
+    if (p.deckt_nicht) z += '<div style="color:#94a3b8;margin-top:2px">Nicht geprüft: '
+                          + esc(p.deckt_nicht) + '</div>';
+    return z + '</div>';
+  }).join('');
+  liste.style.display = '';
+}
+
 async function ssoPruefen() {
   const knopf = document.getElementById('sso-pruef-btn');
   const meldung = document.getElementById('sso-pruef-ergebnis');

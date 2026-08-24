@@ -49,6 +49,13 @@
     "name": "advanced_page"
   },
   {
+    "pfad": "/api/abnahme",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_abnahme"
+  },
+  {
     "pfad": "/api/acme/account-reset",
     "methoden": [
       "POST"

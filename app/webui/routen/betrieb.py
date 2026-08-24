@@ -260,3 +260,20 @@ async def api_audit_events(
         except Exception:
             e["recipients"] = []
     return {"events": events, "total": total, "offset": offset, "limit": limit}
+
+
+@router.get("/api/abnahme")
+async def api_abnahme(_=Depends(_require_admin)):
+    """Ist diese Installation betriebsbereit? Punkt für Punkt.
+
+    Bewusst eine EIGENE Sicht neben `setup_wizard.verify_*` (Einzelschritte der
+    Einrichtung) und `health_check` (je Postfach): Wer alle Häkchen im
+    Assistenten hat, weiss damit noch nicht, ob Post durchläuft.
+
+    Gedacht auch zum Abfragen von aussen — der halbautomatische Aufbau einer
+    Gateway-VM soll am Ende diesen Endpunkt fragen, statt dass jemand Bildschirme
+    vergleicht. Siehe `abnahme.py` für die Punkte und für das, was sie
+    ausdrücklich NICHT abdecken.
+    """
+    import abnahme
+    return JSONResponse(abnahme.bericht())
