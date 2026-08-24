@@ -416,6 +416,9 @@ async def api_cert_catalog(_=Depends(_require_admin)):
         "disabled": settings_store.get("CATALOG_PROVIDERS_DISABLED") or [],
         "currency": _hub_cat.currency(),
         "vat_percent": _hub_cat.vat_percent(),
+        # Damit eine leere Liste nicht als „es gibt keine Anbieter" gelesen
+        # wird, wenn in Wahrheit der Abruf scheiterte — hub_catalog.zustand().
+        "zustand": _hub_cat.zustand(),
     })
 
 

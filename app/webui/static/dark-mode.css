@@ -243,6 +243,15 @@
 [data-theme="dark"] [style*="background:#fef9f0"],
 [data-theme="dark"] [style*="background:#fef3c7"] { background: #1a1200 !important; }
 
+/* Störung beim Abruf des Anbieterkatalogs: Der Kasten erscheint über
+   `style.display`, damit wird das style-Attribut neu serialisiert und der
+   Attributselektor oben greift nicht mehr. Über die ID, wie bei den Nachbarn. */
+[data-theme="dark"] #cert-katalog-stoerung {
+  background: #1a1200 !important;
+  border-color: #92400e !important;
+  color: #fcd34d !important;
+}
+
 /* Die offene Kontowechsel-Anforderung: JavaScript setzt hier `style.display`,
    und der Browser serialisiert das gesamte style-Attribut dabei neu — der
    Attributselektor oben trifft die Farbe danach nicht mehr. Deshalb über die
