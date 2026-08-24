@@ -74,6 +74,15 @@ jobs:
       - name: Unbenutzte Funktionen (nur Gateway)
         run: python tools/deadcheck.py --gateway-only
 
+      # Dieselbe Gegenrichtung eine Ebene hoeher: jsscopecheck findet
+      # Bedienelemente ohne Funktion, dies hier Endpunkte ohne Bedienelement.
+      # Ein Endpunkt sieht durch seinen Dekorator immer benutzt aus, und
+      # deadcheck prueft ausdruecklich nur JavaScript. Erster Lauf: vier tote
+      # Endpunkte, darunter eine zweite, abweichende Changelog-Auswertung neben
+      # der tatsaechlich benutzten.
+      - name: Endpunkte ohne Aufrufer
+        run: python tools/routencheck.py
+
   build:
     name: Container baut
     runs-on: ubuntu-latest

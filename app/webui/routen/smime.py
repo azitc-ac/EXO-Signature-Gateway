@@ -402,18 +402,6 @@ async def api_renewal_token_generate(email: str, user: str = Depends(_require_ad
     })
 
 
-@router.get("/api/smime/renewal/token-info/{email}")
-async def api_renewal_token_info(email: str, user: str = Depends(_require_admin)):
-    import selfservice, scheduler
-    info = selfservice.get_token_info(email)
-    if not info:
-        return JSONResponse({"exists": False})
-    gw_url = scheduler._get_gateway_url()
-    return JSONResponse({
-        "exists": True,
-        "expires": info["expires"],
-        "url": f"{gw_url}/smime/renew/{info['token']}",
-    })
 
 
 @router.post("/api/smime/renewal/notify/{email}")
@@ -727,21 +715,6 @@ async def api_smime_migrate_all(request: Request, _: str = Depends(_require_admi
     return JSONResponse({"ok": True, "migrated": ok_count, "total": len(results), "results": results})
 
 
-@router.get("/api/smime/keyvault/status")
-async def api_keyvault_status(_: str = Depends(_require_admin)):
-    """Return per-mailbox Key Vault key presence status."""
-    import keyvault
-    import smime_store
-    if not keyvault.is_configured():
-        return JSONResponse({"configured": False, "keys": {}})
-    import mailbox_match
-    config_map: dict = settings_store.get("MAILBOX_CONFIG") or {}
-    cert_emails = {c["email"] for c in smime_store.list_certs()}
-    all_emails = sorted(set(mailbox_match.configured_addresses(config_map)) | cert_emails)
-    keys: dict[str, bool] = {}
-    for em in all_emails:
-        keys[em] = await keyvault.key_exists(em)
-    return JSONResponse({"configured": True, "vault_url": keyvault.vault_url(), "keys": keys})
 
 
 @router.get("/api/smime/recipient/download/{cert_email}")

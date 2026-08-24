@@ -232,10 +232,6 @@ async def api_logs_search(q: str = "", time_from: str = "", time_to: str = "",
                                  time_from=time_from, time_to=time_to)
     return JSONResponse({"results": results, "count": len(results)})
 
-@router.get("/api/logs/files")
-async def api_logs_files(user: str = Depends(_require_admin)):
-    import log_manager
-    return JSONResponse({"files": log_manager.list_files()})
 
 @router.get("/api/audit/events")
 async def api_audit_events(

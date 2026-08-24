@@ -5,6 +5,34 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.7.243 — 2026-08-24 — Umstellung auf dauerhafte Postfach-Zuordnung wird angeboten
+
+Postfächer lassen sich auf zwei Arten zuordnen: über ihre E-Mail-Adresse oder
+über ihre unveränderliche Kennung. Die zweite Art ist die bessere — wird eine
+Adresse geändert oder ein Postfach umbenannt, bleibt die Zuordnung bestehen. Bei
+der ersten geht sie verloren, und Signatur wie S/MIME greifen anschließend
+stillschweigend nicht mehr.
+
+Der Weg zur Umstellung war seit Längerem vorhanden, aber an keiner Stelle
+bedienbar. Wer ihn gebraucht hätte, konnte ihn nicht finden.
+
+Die Postfachverwaltung zeigt ihn jetzt an — allerdings nur, solange etwas
+aussteht. Vor der Umstellung lässt sich ansehen, was sich ändern würde:
+wie viele Einträge umgestellt und wie viele zusammengeführt werden, und
+insbesondere, für welche Einträge es in Exchange keine Entsprechung mehr gibt.
+Solche Einträge bleiben unangetastet und sind einzeln zu prüfen. Die
+Einstellungen je Postfach bleiben in jedem Fall erhalten.
+
+**Entfernt:** Vier Schnittstellen ohne jede Bedienung. Eine davon wertete den
+Changelog vor einem Update ein zweites Mal aus — mit einem eigenen
+Versionsvergleich, der von dem tatsächlich benutzten abweichen konnte. Die
+übrigen drei lieferten Angaben, die nirgends angezeigt wurden.
+
+Neu ist eine Prüfung, die genau das künftig beim Entstehen meldet: Sie
+vergleicht alle Schnittstellen gegen die Oberfläche und schlägt an, sobald eine
+davon nirgends aufgerufen wird. Ausnahmen — etwa was das Outlook-Add-in selbst
+lädt — sind namentlich und mit Begründung hinterlegt.
+
 ## v1.7.242 — 2026-08-24 — Protokoll: Fehlerstufe wieder brauchbar
 
 Fremde Rechner suchen das Internet fortwährend nach offenen Mailservern ab. Ihre
