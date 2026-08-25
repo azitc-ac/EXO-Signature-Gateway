@@ -5,6 +5,30 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.26 — 2026-08-26 — Signaturen-Seite reagierte nach dem Laden nicht mehr
+
+**Zu tun:** aktualisieren. Wer v1.8.23 bis v1.8.25 einsetzt, sollte das
+zeitnah tun — die Seite *Signaturen* war dort nach dem Laden nicht mehr
+bedienbar.
+
+Die Seite erschien vollständig, nahm danach aber keinen Klick mehr an — auch
+das Hauptmenü nicht, weil es an derselben Verarbeitung hängt. Andere Seiten
+waren nicht betroffen.
+
+Ursache war die Änderungsüberwachung der Speichern-Knöpfe. Sie beobachtet
+ihren Bereich auf Änderungen und zeichnet sich daraufhin neu — dabei ändert
+sie den Knopf und den Hinweistext daneben, also wieder ihren eigenen Bereich.
+Auf der Signatur-Seite liegt der Speichern-Knopf innerhalb des überwachten
+Bereichs, womit sich das endlos im Kreis drehte. Die Überwachung setzt sich
+für die Dauer ihres Neuzeichnens jetzt selbst aus.
+
+Auf den übrigen Seiten ging es nur zufällig gut: Dort steht der Knopf
+ausserhalb des überwachten Bereichs.
+
+Ausserdem: Der Speichern-Knopf des Baukastens meldete beim Öffnen „noch nicht
+gespeichert" an einer Vorlage, die niemand angefasst hatte — die Bausteine
+werden nachgeladen, und der Ausgangsstand wurde davor gemessen.
+
 ## v1.8.25 — 2026-08-26 — Netz gegen unbedienbare Seiten
 
 Ergänzung zum vorigen Eintrag. Dort war die Ursache behoben — hier kommt die

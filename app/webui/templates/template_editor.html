@@ -1514,6 +1514,11 @@ async function loadMeta() {
     }
   } catch(e) { /* ignore, start empty */ }
   renderBlockList();
+  // ⚠️ Erst JETZT steht der Ausgangsstand. Bausteine und globale Felder kommen
+  // per Abruf; die Wache misst beim Laden der Seite und sähe sonst jedes
+  // gerenderte Feld als Änderung — beim Öffnen stünde „noch nicht gespeichert"
+  // an einer Vorlage, die niemand angefasst hat.
+  wacheNeuMessen('save-builder-btn');
 }
 
 // ── Template management ───────────────────────────────────────────────────────
