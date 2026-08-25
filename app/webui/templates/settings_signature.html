@@ -7,9 +7,10 @@
 
 <div id="page-alert" class="alert" style="display:none"></div>
 
+{% with adv_id = "sig" %}{% include "_erweitert_schalter.html" %}{% endwith %}
+
 <!-- Signatur -->
 <div class="settings-card">
-  <div style="display:flex;justify-content:flex-end;margin-bottom:10px"><span style="font-size:11px"><label style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;color:#64748b"><input type="checkbox" id="adv-cb-sig" style="margin:0" onchange="_toggleAdv('sig',this.checked)"> Erweiterte Einstellungen</label></span></div>
   <h3 style="margin-top:0;margin-bottom:12px">Signatur einsetzen</h3>
   <div class="settings-row">
     <label class="checkbox-label">
@@ -221,20 +222,6 @@
 </div>
 
 <script>
-function _initAdv(id) {
-  var show = localStorage.getItem('advsec_' + id) === '1';
-  var cb = document.getElementById('adv-cb-' + id);
-  if (cb) cb.checked = show;
-  document.querySelectorAll('[data-adv="' + id + '"]').forEach(function(el) {
-    el.style.display = show ? '' : 'none';
-  });
-}
-function _toggleAdv(id, show) {
-  localStorage.setItem('advsec_' + id, show ? '1' : '0');
-  document.querySelectorAll('[data-adv="' + id + '"]').forEach(function(el) {
-    el.style.display = show ? '' : 'none';
-  });
-}
 
 // savePartial() steht in common.js — eine Fassung fuer alle Seiten.
 

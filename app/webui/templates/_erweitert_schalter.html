@@ -1,0 +1,30 @@
+{#
+  Schalter „Erweiterte Einstellungen" für eine ganze Seite.
+
+  Aufruf:
+      {% with adv_id = "smime" %}{% include "_erweitert_schalter.html" %}{% endwith %}
+
+  `adv_id` benennt den Bereich; alles mit `data-adv="<adv_id>"` folgt dem
+  Schalter. Die Fassung von `_initAdv`/`_toggleAdv` steht in `common.js`.
+
+  ⚠️ Der Schalter gehört ÜBER die erste Karte, nicht hinein.
+  Anlass (2026-08-26), der Nutzer mit Bildschirmfoto vom Telefon: „hole bitte
+  die checkboxen Erweiterte Einstellungen aus Signatur und smime heraus aus der
+  Card und nach oben über die 1. Card."
+
+  Er hat recht, und der Grund ist nicht nur Geschmack: Der Schalter steuert die
+  GANZE Seite, oft mehrere Karten. Saß er in der ersten, sah er aus wie deren
+  Einstellung — und schob dort zugleich die Überschrift nach unten, was auf
+  schmalen Schirmen als leerer Streifen erschien.
+
+  In `settings.html` bleibt ein zweiter, ANDERER Schalter im Kopf der Karte
+  „Benachrichtigungen & Tagesbericht". Der ist kartenbezogen und gehört genau
+  dorthin — gleiche Beschriftung, andere Aufgabe.
+#}
+<div class="erweitert-schalter">
+  <label>
+    <input type="checkbox" id="adv-cb-{{ adv_id }}"
+           onchange="_toggleAdv('{{ adv_id }}', this.checked)">
+    Erweiterte Einstellungen
+  </label>
+</div>

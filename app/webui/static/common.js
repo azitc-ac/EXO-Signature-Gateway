@@ -880,3 +880,30 @@ function caBedingungenZeigen(betreff, caLabel, termsUrl, docs, knopfText) {
     });
   });
 }
+
+/* ── Erweiterte Einstellungen ein-/ausblenden ─────────────────────────────────
+ *
+ * Bis 2026-08-26 stand dieses Paar WORTGLEICH in vier Vorlagen (settings,
+ * settings_signature, settings_smime, settings_connect). Vier Kopien einer
+ * Funktion sind vier Stellen, an denen eine Änderung vergessen werden kann —
+ * dieselbe Klasse Befund wie bei den elf handgeschriebenen HTML-Maskierern.
+ *
+ * `id` benennt den Bereich (`sig`, `smime`, …). Alles mit `data-adv="<id>"`
+ * folgt dem Schalter; die Wahl überlebt einen Seitenwechsel im
+ * Sitzungsspeicher des Browsers.
+ */
+function _initAdv(id) {
+  var show = localStorage.getItem('advsec_' + id) === '1';
+  var cb = document.getElementById('adv-cb-' + id);
+  if (cb) cb.checked = show;
+  document.querySelectorAll('[data-adv="' + id + '"]').forEach(function(el) {
+    el.style.display = show ? '' : 'none';
+  });
+}
+
+function _toggleAdv(id, show) {
+  localStorage.setItem('advsec_' + id, show ? '1' : '0');
+  document.querySelectorAll('[data-adv="' + id + '"]').forEach(function(el) {
+    el.style.display = show ? '' : 'none';
+  });
+}

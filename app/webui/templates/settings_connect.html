@@ -323,20 +323,6 @@
   </div>
 </div>
 <script>
-function _initAdv(id) {
-  var show = localStorage.getItem('advsec_' + id) === '1';
-  var cb = document.getElementById('adv-cb-' + id);
-  if (cb) cb.checked = show;
-  document.querySelectorAll('[data-adv="' + id + '"]').forEach(function(el) {
-    el.style.display = show ? '' : 'none';
-  });
-}
-function _toggleAdv(id, show) {
-  localStorage.setItem('advsec_' + id, show ? '1' : '0');
-  document.querySelectorAll('[data-adv="' + id + '"]').forEach(function(el) {
-    el.style.display = show ? '' : 'none';
-  });
-}
 async function dcLoadConfig(){
   try{
     const d=await (await fetch('/api/digicert/config')).json();
