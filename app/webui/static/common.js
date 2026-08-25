@@ -599,18 +599,47 @@ function speicherWache(knopf, felder, options) {
   let stand = standJetzt();
   let timer = null;
 
+  // ⚠️ DER BEOBACHTER DARF SICH NICHT SELBST AUSLÖSEN.
+  //
+  // ANLASS (2026-08-26), Nutzer: „Alle Seiten antworten nur Signaturen nicht.
+  // Ich sehe sie wenn sie fertig geladen ist, aber dann ist Essig."
+  //
+  // `zeichnen()` ändert selbst das DOM — `btn.disabled` und den Hinweistext.
+  // Liegt der Knopf INNERHALB des beobachteten Bereichs, meldet der
+  // MutationObserver genau diese Änderung, ruft `zeichnen()` erneut, und das
+  // wieder eine Mutation: eine Endlosschleife, die den Hauptthread festhält.
+  // Die Seite erscheint noch fertig gerendert und nimmt danach keinen Klick
+  // mehr an — auch das Hauptmenü nicht, denn das hängt am selben Thread.
+  //
+  // Beim Signatur-Baukasten war das der Fall (Knopf in `#baukasten-felder`),
+  // bei den älteren Container-Wachen zufällig nicht — dort steht der Knopf
+  // ausserhalb der Tabelle. Auf diesen Zufall darf sich nichts verlassen.
+  //
+  // `beobachter.disconnect()` vor der Änderung und `observe()` danach:
+  // Mutationen, die aus dem Zeichnen selbst stammen, kommen damit gar nicht
+  // erst in die Warteschlange.
+  let beobachter = null;
+  const BEOBACHTET = {childList: true, subtree: true,
+                      attributes: true, characterData: true};
+
   function zeichnen() {
-    const jetzt = standJetzt();
-    const offen = jetzt !== stand;
-    btn.disabled = !offen;
-    _speicherLeisteZeichnen();
-    if (offen) {
-      clearTimeout(timer);
-      hinweis.dataset.zustand = 'offen';
-      hinweis.textContent = '← noch nicht gespeichert';
-    } else if (hinweis.dataset.zustand === 'offen') {
-      hinweis.dataset.zustand = '';
-      hinweis.textContent = '';
+    if (beobachter) beobachter.disconnect();
+    try {
+      const jetzt = standJetzt();
+      const offen = jetzt !== stand;
+      btn.disabled = !offen;
+      _speicherLeisteZeichnen();
+      if (offen) {
+        clearTimeout(timer);
+        hinweis.dataset.zustand = 'offen';
+        hinweis.textContent = '← noch nicht gespeichert';
+      } else if (hinweis.dataset.zustand === 'offen') {
+        hinweis.dataset.zustand = '';
+        hinweis.textContent = '';
+      }
+    } finally {
+      // Auch nach einem Fehler wieder anhängen — sonst hört die Wache still auf.
+      if (beobachter && behaelter) beobachter.observe(behaelter, BEOBACHTET);
     }
   }
 
@@ -621,7 +650,8 @@ function speicherWache(knopf, felder, options) {
     behaelter.addEventListener('input', zeichnen);
     behaelter.addEventListener('change', zeichnen);
     if (typeof MutationObserver !== 'undefined') {
-      new MutationObserver(zeichnen).observe(behaelter, {childList: true, subtree: true});
+      beobachter = new MutationObserver(zeichnen);
+      beobachter.observe(behaelter, BEOBACHTET);
     }
   } else {
     els.forEach(el => {

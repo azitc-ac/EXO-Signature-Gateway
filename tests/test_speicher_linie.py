@@ -348,3 +348,62 @@ def test_submit_wache_steht_wirklich_in_einem_formular():
         "Knopf mit type=\"submit\" und Wache, aber ausserhalb eines Formulars — "
         "er lädt die Seite nicht neu und schuldet damit eine Rückmeldung: "
         + ", ".join(fehler))
+
+
+def test_beobachter_loest_sich_nicht_selbst_aus():
+    """⚠️ Der Fehler, der eine ganze Seite unbedienbar machte.
+
+    ANLASS (2026-08-26), Nutzer: „Alle Seiten antworten nur Signaturen nicht.
+    Ich sehe sie wenn sie fertig geladen ist, aber dann ist Essig." Und davor:
+    „Ich kann nicht mal mehr das hauptmenue anklicken."
+
+    `zeichnen()` ändert selbst das DOM — `btn.disabled` und den Hinweistext.
+    Der MutationObserver der Container-Wache meldete genau diese Änderung und
+    rief `zeichnen()` erneut. Beim Signatur-Baukasten liegt der Knopf INNERHALB
+    des beobachteten Bereichs, also lief das endlos und hielt den Hauptthread
+    fest. Die Seite erschien fertig gerendert und nahm danach keinen Klick mehr
+    an — auch das Hauptmenü nicht, das am selben Thread hängt.
+
+    Bei den älteren Container-Wachen ging es nur zufällig gut: Dort steht der
+    Knopf ausserhalb der Tabelle. Auf diesen Zufall darf sich nichts verlassen.
+
+    ⚠️ Gemessen im Browser, weil ein Blick in den Quelltext das nicht zeigt:
+    Ein Zähler per `setInterval` stand nach zwei Sekunden still; nach der
+    Behebung läuft er (119 von 120 erwarteten Schritten in 12 Sekunden).
+    """
+    js = (WURZEL / "app" / "webui" / "static" / "common.js").read_text("utf-8")
+    code = "\n".join(z for z in js.splitlines() if not z.strip().startswith("//"))
+    zeichnen = re.search(r"function zeichnen\(\) \{(.*?)\n  \}", code, re.S)
+    assert zeichnen, "zeichnen() nicht gefunden"
+    rumpf = zeichnen.group(1)
+    assert "disconnect()" in rumpf, (
+        "zeichnen() klemmt den Beobachter nicht ab — es ändert `btn.disabled` "
+        "und den Hinweistext, was den Beobachter erneut auslöst. Liegt der "
+        "Knopf im beobachteten Bereich, ist das eine Endlosschleife.")
+    assert "observe(" in rumpf, (
+        "Der Beobachter wird nach dem Zeichnen nicht wieder angehängt — die "
+        "Wache hörte danach still auf zu wirken.")
+    assert "finally" in rumpf, (
+        "Das Wiederanhängen steht nicht in einem `finally` — nach einem Fehler "
+        "im Zeichnen bliebe der Beobachter für immer abgeklemmt.")
+
+
+def test_baukasten_misst_nach_dem_laden_neu():
+    """Sonst steht beim Öffnen „noch nicht gespeichert" an einer Vorlage, die
+    niemand angefasst hat — gemessen, bevor diese Zeile da war."""
+    q = (WURZEL / "app" / "webui" / "templates" / "template_editor.html").read_text("utf-8")
+    # ⚠️ ZWEI Stellen, und beide sind nötig. Die erste Fassung dieses Tests
+    # fragte nur, ob der Aufruf vorkommt — eine Mutation, die eine der beiden
+    # entfernte, blieb deshalb grün.
+    #
+    #   * nach dem Laden der Vorlage (`renderBlockList()`): sonst steht beim
+    #     Öffnen „noch nicht gespeichert" an einer unangetasteten Vorlage,
+    #   * nach erfolgreichem Speichern: sonst bleibt der Hinweis stehen.
+    stellen = q.count("wacheNeuMessen('save-builder-btn')")
+    assert stellen >= 2, (
+        f"Nur {stellen} Neumessung(en) im Baukasten — nötig sind zwei: nach "
+        f"dem Laden der Vorlage und nach dem Speichern.")
+    nach_laden = q.find("renderBlockList();\n  //")
+    assert nach_laden > 0 and "wacheNeuMessen('save-builder-btn')" in q[nach_laden:nach_laden + 500], (
+        "Nach dem Rendern der Bausteine wird nicht neu gemessen — die Felder "
+        "kommen per Abruf, die Wache hat vorher einen leeren Stand gesehen.")
