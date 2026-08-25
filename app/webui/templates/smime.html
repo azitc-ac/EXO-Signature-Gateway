@@ -18,9 +18,23 @@
   </p>
 
   {% if kv_configured or has_any_local_key or has_any_unmigrated_key %}
-  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;padding:10px 12px;
+  <!-- ⚠️ Zugeklappt, nicht in den Sammel-Dropdown.
+       ANLASS (2026-08-25), Nutzer: „ist die Schlüsselverwaltung dort oben gut
+       aufgehoben? Sollten die Aktionen nicht vielleicht in den Dropdown für
+       Massenoperationen wandern?"
+       Nicht dorthin: Der Dropdown wählt eine Aktion FÜR AUSGEWÄHLTE POSTFÄCHER.
+       Diese drei betreffen die Ablage als Ganzes — sichern, umziehen, den
+       Stand nachsehen; keine davon kennt eine Auswahl. Sie dort einzuhängen
+       hiesse, dem Dropdown zwei verschiedene Bedeutungen zu geben.
+       Berechtigt ist der andere Teil des Einwands: Sie standen als Erstes auf
+       einer Seite, auf der es um Zertifikate geht, und werden selten
+       gebraucht. Deshalb jetzt zugeklappt. -->
+  <details style="margin-bottom:16px">
+  <summary style="cursor:pointer;font-size:12px;color:#666;font-weight:500;
+                  padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;
+                  border-radius:6px;user-select:none">Schlüsselverwaltung</summary>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;padding:10px 12px;
               background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;align-items:center">
-    <span style="font-size:12px;color:#666;font-weight:500;margin-right:4px">Schlüsselverwaltung:</span>
     {% if has_any_local_key and kv_mode != 'strict' %}
     <a class="btn secondary btn-sm" href="/api/smime/backup-all-keys" download
        title="Alle lokalen Schlüssel (key.pem + key.pem.bak) als verschlüsseltes ZIP herunterladen">
@@ -50,9 +64,25 @@
     {% endif %}
     <div id="bulk-migrate-result" style="font-size:12px;display:none"></div>
   </div>
+  </details>
   {% endif %}
 
   {% if smime_users %}
+  <!-- ⚠️ Zwei Umschalter für die ganze Liste.
+       ANLASS (2026-08-25), Nutzer: „Können wir eine komprimierte ansicht
+       ermöglichen durch einen Alle einklappen/ausklappen button sowie einen
+       Lifecycle ein/aufklappen button."
+       Getrennt, weil es zwei verschiedene Fragen sind: „was hat dieses
+       Postfach" (Zertifikate) und „wie wird nachbestellt" (Lifecycle). Wer
+       Bestände prüft, braucht das erste; wer Bezugswege einrichtet, das
+       zweite. Beides zugleich aufzuklappen macht die Seite wieder unlesbar. -->
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+    <button class="btn secondary btn-sm" id="alle-zert-btn" onclick="_alleZertifikate(this)">
+      Alle Zertifikate ausklappen</button>
+    <button class="btn secondary btn-sm" id="alle-lc-btn" onclick="_alleLifecycle(this)">
+      Alle Einstellungen ausklappen</button>
+    <span class="hint">Ein Klick auf eine Zeile zeigt ihre Zertifikate, „…“ die Einstellungen.</span>
+  </div>
   <!-- ── Sammelbestellung ─────────────────────────────────────────────────
        Einzeln bestellen ist bei zwanzig Postfächern mühsam und bei hundert
        nicht mehr machbar. Die Vorschau steht bewusst VOR dem Bestellen: Die
@@ -160,8 +190,14 @@
     {% set ca_cfg = ca_user_config.get(u.email, {}) %}
     {% set _search = (u.email ~ ' ' ~ (u.certs | map(attribute='subject') | select | join(' ')) ~ ' ' ~ (u.certs | map(attribute='issuer') | select | join(' '))) | lower %}
     <div class="smime-user" data-search="{{ _search }}" style="border:1px solid #e2e8f0;border-radius:6px;margin-bottom:14px;">
-      <!-- User header -->
-      <div class="user-hdr">
+      <!-- ⚠️ Der KOPF ist der Umschalter, nicht ein Pfeil daneben.
+           ANLASS (2026-08-25), Nutzer: „beim klick auf die Zeile sollen die
+           Zertifikate ausklappen, beim klick auf die ... soll (zusätzlich)
+           Lifecycle / Auto-Enroll-Einstellungen aufklappen“.
+           Die Knöpfe im Kopf (Importieren, Auto-Enroll) dürfen dabei nicht
+           mitschalten — `_zeileUmschalten` prüft deshalb, ob der Klick aus
+           einem Bedienelement kam. -->
+      <div class="user-hdr" onclick="_zeileUmschalten(event, this)" style="cursor:pointer">
         <div class="user-hdr-info">
           <strong style="font-size:14px">{{ u.email }}</strong>
           {% if has_certs %}
@@ -192,6 +228,9 @@
           {% endif %}
           <span id="acme-status-{{ u.email | replace('@','_') | replace('.','_') }}"
                 style="font-size:12px"></span>
+          <button class="btn secondary btn-sm zeile-mehr"
+                  title="Lifecycle- und Auto-Enroll-Einstellungen"
+                  onclick="_zeileMehr(event, this)">…</button>
         </div>
         <!-- Laufende Bestellung bei einer Zertifizierungsstelle. Bis v1.7.211
              war dieser Zustand unsichtbar: Wer bestellt hatte, sah kein
@@ -201,6 +240,12 @@
              id="hub-order-{{ u.email | replace('@','_') | replace('.','_') }}"
              style="display:none"></div>
       </div>
+      <!-- ⚠️ Zertifikate sind ZUGEKLAPPT die Vorgabe.
+           Bei zwanzig Postfächern war die Seite vorher mehrere Bildschirme
+           lang, obwohl man meist nur wissen will, wer wie viele hat. Die
+           Kopfzeile trägt die Antwort darauf bereits; alles Weitere holt man
+           sich mit einem Klick. -->
+      <div class="zert-block" style="display:none">
       <!-- Cert list -->
       {% if has_certs %}
       <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
@@ -302,6 +347,7 @@
         Noch kein Zertifikat importiert.
       </p>
       {% endif %}
+      </div><!-- /zert-block -->
       <!-- Lifecycle-Einstellungen (collapsible) -->
       <details class="lifecycle-section" style="border-top:1px solid #e2e8f0;border-radius:0 0 6px 6px;overflow:hidden">
         <summary style="padding:9px 14px;cursor:pointer;font-size:12px;font-weight:600;color:#666;
@@ -584,6 +630,54 @@ function showAlert(el, type, msg) {
   el.className = 'alert ' + type;
   el.innerHTML = msg;
   el.style.display = 'block';
+}
+
+// ── Kompakte Liste: aufklappen auf Klick ───────────────────────────────────
+//
+// Die Liste zeigt in Ruhe nur die Kopfzeile je Postfach — Adresse, Anzahl der
+// Zertifikate, die beiden Aktionen. Bei zwanzig Postfächern war die Seite
+// vorher mehrere Bildschirme lang, obwohl man meist nur wissen will, wer wie
+// viele hat.
+//
+// ⚠️ Der Klick auf die ZEILE darf die Knöpfe darin nicht auslösen und
+// umgekehrt. `closest('button, a, input, select')` fängt das ab — ohne diese
+// Prüfung klappte die Zeile bei jedem „Importieren" mit auf und der Blick
+// sprang weg.
+
+function _zeileUmschalten(ev, kopf) {
+  if (ev.target.closest('button, a, input, select, label')) return;
+  const block = kopf.parentElement.querySelector('.zert-block');
+  if (!block) return;
+  block.style.display = block.style.display === 'none' ? '' : 'none';
+}
+
+// „…" öffnet ZUSÄTZLICH die Einstellungen — zusätzlich, weil man beim
+// Einrichten eines Bezugswegs meist auch sehen will, was schon da ist.
+function _zeileMehr(ev, btn) {
+  ev.stopPropagation();
+  const karte = btn.closest('.smime-user');
+  if (!karte) return;
+  const block = karte.querySelector('.zert-block');
+  const lc = karte.querySelector('details.lifecycle-section');
+  const auf = lc && lc.open;
+  if (lc) lc.open = !auf;
+  // Beim Öffnen die Zertifikate mitnehmen, beim Schliessen sie stehen lassen:
+  // Wer die Einstellungen zuklappt, will selten auch die Liste verlieren.
+  if (!auf && block) block.style.display = '';
+}
+
+function _alleZertifikate(btn) {
+  const bloecke = [...document.querySelectorAll('.smime-user .zert-block')];
+  const zu = bloecke.some(b => b.style.display === 'none');
+  bloecke.forEach(b => { b.style.display = zu ? '' : 'none'; });
+  btn.textContent = zu ? 'Alle Zertifikate einklappen' : 'Alle Zertifikate ausklappen';
+}
+
+function _alleLifecycle(btn) {
+  const teile = [...document.querySelectorAll('.smime-user details.lifecycle-section')];
+  const zu = teile.some(d => !d.open);
+  teile.forEach(d => { d.open = zu; });
+  btn.textContent = zu ? 'Alle Einstellungen einklappen' : 'Alle Einstellungen ausklappen';
 }
 
 function _lcResultEl(email) {
