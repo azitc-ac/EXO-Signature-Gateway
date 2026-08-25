@@ -92,8 +92,38 @@ def test_wachknoepfe_melden_ihr_ergebnis():
         code = "\n".join(z for z in q.splitlines() if not z.strip().startswith("//"))
         ids = re.findall(r'<button[^>]*\sid="([^"]+)"[^>]*data-wache=', q)
         ids += re.findall(r'<button[^>]*data-wache=[^>]*\sid="([^"]+)"', q)
-        for knopf_id in set(ids):
-            if f"wacheFertig('{knopf_id}'" not in code:
+        # ⚠️ Ein `type="submit"` sendet ein echtes Formular ab und die Seite
+        # wird neu geladen. Eine Rückmeldung wäre dort nur im Sekundenbruchteil
+        # vor dem Wechsel sichtbar; die Wache misst nach dem Neuladen ohnehin
+        # von vorn. Was sie bei solchen Knöpfen leistet, ist allein die Sperre:
+        # ein bedienbarer Knopf heisst „es liegt etwas an".
+        submits = set(re.findall(r'<button[^>]*type="submit"[^>]*\sid="([^"]+)"', q))
+        submits |= set(re.findall(r'<button[^>]*\sid="([^"]+)"[^>]*type="submit"', q))
+        for knopf_id in set(ids) - submits:
+            # ⚠️ Der ERFOLGSFALL muss gemeldet werden, nicht irgendeiner.
+            #
+            # Bis 2026-08-25 genügte ein Vorkommen des Knopfnamens. Ein Knopf,
+            # der nur `wacheFertig(id, false, …)` ruft, erfüllte den Test — und
+            # bliebe nach erfolgreichem Speichern auf „noch nicht gespeichert"
+            # stehen, also genau in dem Zustand, den der Test verhindern soll.
+            # Aufgefallen ist das an einer Mutation, die den Erfolgszweig
+            # entfernte und trotzdem grün blieb.
+            #
+            # Zwei zulässige Formen: `wacheFertig(id, true|<ausdruck>, …)` oder
+            # `wacheNeuMessen(id)` — Letzteres dort, wo ein eigener Meldekasten
+            # bereits den Erfolg nennt und zwei Hinweise nebeneinander stünden.
+            #
+            # ⚠️ GRENZE DIESER PRÜFUNG, gemessen an drei Mutationen:
+            # `wacheNeuMessen(id)` wird hier nur GEZÄHLT, nicht verortet. Steht
+            # es allein in der Ladefunktion — wo es ebenfalls hingehört —, gilt
+            # der Knopf als meldend, obwohl der Speicherpfad stumm bliebe. Wer
+            # eine Erfolgsmeldung entfernt und die Neumessung beim Laden
+            # stehenlässt, kommt hier durch. Eine saubere Trennung bräuchte
+            # eine Zuordnung Aufruf→Funktion; solange die fehlt, ist das hier
+            # eine Anwesenheits- und keine Wirkungsprüfung.
+            ruft = re.findall(rf"wacheFertig\('{re.escape(knopf_id)}',\s*([^,)]+)", code)
+            erfolg = any(a.strip() != "false" for a in ruft)
+            if not erfolg and f"wacheNeuMessen('{knopf_id}')" not in code:
                 fehler.append(f"{p.name}: {knopf_id}")
     assert not fehler, "Wache ohne Rückmeldung: " + ", ".join(fehler)
 
@@ -295,3 +325,26 @@ def test_baukasten_ueberwacht_bausteine_und_betreff():
     assert 'id="baukasten-felder"' in q, (
         "Der überwachte Bereich existiert nicht — die Wache misst dann nichts "
         "und der Knopf bliebe dauerhaft gesperrt.")
+
+
+def test_submit_wache_steht_wirklich_in_einem_formular():
+    """⚠️ Gegenstück zur Ausnahme in `test_wachknoepfe_melden_ihr_ergebnis`.
+
+    Dort entfällt die Rückmeldepflicht für `type="submit"`, weil die Seite neu
+    lädt. Das ist nur richtig, solange der Knopf tatsächlich in einem `<form>`
+    steht — sonst wäre `type="submit"` eine Hintertür, mit der sich jeder
+    JS-Knopf der Pflicht entzieht.
+    """
+    fehler = []
+    for p in _vorlagen():
+        q = p.read_text("utf-8")
+        for m in re.finditer(r'<button[^>]*type="submit"[^>]*data-wache[^>]*>'
+                             r'|<button[^>]*data-wache[^>]*type="submit"[^>]*>', q):
+            vor = q[:m.start()]
+            # Das letzte <form> vor dem Knopf muss noch offen sein.
+            if vor.count("<form") <= vor.count("</form>"):
+                fehler.append(f"{p.name}:{vor.count(chr(10)) + 1}")
+    assert not fehler, (
+        "Knopf mit type=\"submit\" und Wache, aber ausserhalb eines Formulars — "
+        "er lädt die Seite nicht neu und schuldet damit eine Rückmeldung: "
+        + ", ".join(fehler))

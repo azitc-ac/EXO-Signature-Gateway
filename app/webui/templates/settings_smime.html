@@ -457,7 +457,7 @@
   <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
     <div style="flex:0 1 200px;min-width:0"></div>
     <button type="button" class="btn secondary btn-sm" onclick="testKvUrl()">Verbindung testen</button>
-    <button type="button" class="btn secondary btn-sm" onclick="saveKvUrl()">Speichern</button>
+    <button id="kv-url-btn" data-wache="kv-url" type="button" class="btn secondary btn-sm" onclick="saveKvUrl()">Speichern</button>
   </div>
   <div id="kv-url-result" style="margin-top:6px;margin-left:200px;display:none"></div>
 
@@ -537,12 +537,12 @@
         <div id="key-pw-result" style="display:none;margin-top:8px"></div>
         {% if s.SMIME_KEY_PASSWORD %}
         <div style="display:flex;gap:6px;margin-top:6px">
-          <button type="button" class="btn secondary btn-sm" onclick="saveSmimeKeyPassword()">Speichern</button>
+          <button id="key-pw-btn" data-wache="smime-key-password-old,smime-key-password,smime-key-password2" type="button" class="btn secondary btn-sm" onclick="saveSmimeKeyPassword()">Speichern</button>
           <button type="button" class="btn secondary btn-sm" onclick="hideSmimeKeyPwForm()">Abbrechen</button>
         </div>
         {% else %}
         <div id="smime-key-pw-save-wrap" style="margin-top:6px;display:none">
-          <button type="button" class="btn secondary btn-sm" onclick="saveSmimeKeyPassword()">Speichern</button>
+          <button id="key-pw-btn" data-wache="smime-key-password-old,smime-key-password,smime-key-password2" type="button" class="btn secondary btn-sm" onclick="saveSmimeKeyPassword()">Speichern</button>
         </div>
         {% endif %}
       </div>
@@ -844,9 +844,13 @@ async function saveSmimeKeyPassword() {
       ? 'Passwort gespeichert — neu verschlüsseln fehlgeschlagen für: ' + d.warnings.join(', ')
       : 'Passwort gespeichert. Alle abgelegten Schlüssel wurden neu verschlüsselt.';
     showAlert(ziel, d.warnings && d.warnings.length ? 'warn' : 'success', msg);
+    // Die Seite lädt gleich neu; bis dahin soll der Knopf nicht so aussehen,
+    // als sei noch etwas offen.
+    wacheNeuMessen('key-pw-btn');
     setTimeout(function() { location.reload(); }, 6000);
   } else {
     showAlert(ziel, 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));
+    wacheFertig('key-pw-btn', false, '');
   }
 }
 
@@ -909,9 +913,12 @@ async function saveKvUrl() {
     const d = await r.json();
     el.className = 'alert ' + (d.ok ? 'success' : 'error');
     el.textContent = d.ok ? 'Key Vault URL gespeichert.' : (d.detail || 'Fehler');
+    if (d.ok) wacheNeuMessen('kv-url-btn');
+    else wacheFertig('kv-url-btn', false, '');
   } catch (err) {
     el.className = 'alert error';
     el.textContent = 'Netzwerkfehler: ' + err;
+    wacheFertig('kv-url-btn', false, '');
   }
 }
 

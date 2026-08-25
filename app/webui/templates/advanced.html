@@ -659,7 +659,7 @@ async function certLoadInfo() {
         <option value="graph">Graph API erzwingen — über Exchange</option>
         <option value="direct_smtp">Debug: Direktversand zum CA-MX — an Exchange vorbei</option>
       </select>
-      <button class="btn secondary" onclick="acmeSetMethod()">Speichern</button>
+      <button id="acme-method-btn" data-wache="acme-method-select" class="btn secondary" onclick="acmeSetMethod()">Speichern</button>
     </div>
     <p class="hint" style="margin-bottom:0">
       <strong>Automatisch</strong>: sendet über denselben Weg wie jede andere ausgehende Mail
@@ -702,6 +702,8 @@ async function acmeSetMethod() {
     ? 'Gespeichert: ' + (labels[d.method] || d.method)
     : 'Fehler: ' + (d.error || JSON.stringify(d));
   result.style.display = 'block';
+  if (d.ok) wacheNeuMessen('acme-method-btn');
+  else wacheFertig('acme-method-btn', false, '');
 }
 
 document.addEventListener('DOMContentLoaded', acmeMethodLoad);

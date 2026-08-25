@@ -102,7 +102,7 @@
       <span id="account-pw-mismatch" style="color:#dc2626;font-size:12px;display:none">Passwörter stimmen nicht überein.</span>
       <div id="pw-result" style="display:none;margin-top:6px"></div>
       <div class="actions" style="margin-top:8px">
-        <button type="button" class="btn secondary" onclick="changePassword()">Speichern</button>
+        <button id="pw-btn" data-wache="old-pw,new-pw,new-pw2" type="button" class="btn secondary" onclick="changePassword()">Speichern</button>
         <button type="button" class="btn secondary" onclick="hidePwChangeForm()">Abbrechen</button>
       </div>
     </div>
@@ -374,10 +374,14 @@ async function changePassword() {
   });
   if (resp.ok) {
     showAlert(result, 'success', 'Passwort geändert.');
+    // Die Felder werden beim Ausblenden geleert — der Ausgangsstand ist
+    // danach ein anderer und muss neu gemessen werden.
     hidePwChangeForm();
+    wacheNeuMessen('pw-btn');
   } else {
     const d = await resp.json().catch(() => ({}));
     showAlert(result, 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));
+    wacheFertig('pw-btn', false, '');
   }
 }
 

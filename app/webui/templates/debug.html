@@ -30,7 +30,7 @@
     </div>
     <div class="actions" style="margin-bottom:10px">
       <button class="btn secondary" onclick="acmeProxyTest()">Verbindung testen</button>
-      <button class="btn secondary" onclick="acmeProxySave()">Speichern</button>
+      <button id="acme-proxy-btn" data-wache="acme-proxy-input" class="btn secondary" onclick="acmeProxySave()">Speichern</button>
     </div>
     <div id="acme-proxy-result" style="display:none;margin-top:10px"></div>
   </div>
@@ -58,6 +58,8 @@ async function acmeProxySave() {
     ? (d.proxy ? 'Gespeichert: ' + d.proxy : 'Gespeichert: Direktverbindung (kein Proxy)')
     : 'Fehler: ' + (d.error || JSON.stringify(d));
   result.style.display = 'block';
+  if (d.ok) wacheNeuMessen('acme-proxy-btn');
+  else wacheFertig('acme-proxy-btn', false, '');
 }
 
 async function acmeProxyTest() {
