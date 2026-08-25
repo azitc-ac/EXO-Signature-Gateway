@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.24 — 2026-08-26 — Seite rollte auf dem Telefon ins Leere
+
+Auf der Seite *Einstellungen → Zugangsdaten* liess sich weit über den rechten
+Rand hinausrollen; dort stand nichts. Ursache war die Reiterleiste: Sie rollt
+in sich, gab ihre Mindestbreite aber zugleich nach aussen weiter. Acht Reiter
+brauchen rund 920 Pixel — genau so breit wurde die Seite, während die Karten
+schmal blieben.
+
+Behoben für die Reiterleiste und für die rollbaren Tabellenbereiche. Beide
+rollen weiterhin in sich; sie verbreitern die Seite nicht mehr.
+
+Der Schalter *Erweiterte Einstellungen* steht auf allen drei
+Einstellungsseiten über der Karte, die er steuert, statt in ihr. Auf
+*Zugangsdaten* ist das die zweite Karte — dort gehört er hin, weil er nur diese
+betrifft.
+
 ## v1.8.23 — 2026-08-26 — „Erweiterte Einstellungen" steht jetzt über den Karten
 
 Auf den Seiten *Signatur* und *S/MIME* sass der Schalter **in** der ersten

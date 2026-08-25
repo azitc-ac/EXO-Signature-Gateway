@@ -48,42 +48,50 @@ def test_die_funktionen_stehen_nur_in_common_js():
                         + ", ".join(kopien))
 
 
-def test_der_seitenschalter_steht_ausserhalb_der_ersten_karte():
-    """Er steuert die ganze Seite, nicht die Karte, in der er steht.
+def test_der_schalter_steht_ueber_der_karte_die_er_steuert():
+    """WARNUNG: Diese Pruefung wurde am 26.08. zweimal umgestellt — die
+    Begruendung ist wichtiger als die Regel.
 
-    Gemessen bei 393px vor der Änderung: Der Schalter sass in der ersten Karte
-    und schob deren Überschrift nach unten — auf dem Telefon ein leerer
-    Streifen über dem ersten Titel.
+    Erste Fassung: Der Schalter in `settings.html` BLEIBT im Kopf seiner Karte,
+    weil er dort kartenbezogen ist. Fachlich richtig, fuer den Betrachter aber
+    unbrauchbar: derselbe Schalter mal oben, mal mitten drin.
+
+    Zweite Fassung: ueber die ERSTE Karte, wie auf den anderen beiden Seiten.
+    Auch schief — auf `settings.html` steuert er die ZWEITE Karte
+    (`#benachrichtigungen`), und ein Schalter ueber einer Karte, mit der er
+    nichts zu tun hat, ist eine falsche Faehrte.
+
+    Jetzt: ueber der Karte, die er steuert. Auf Signatur und S/MIME ist das die
+    erste, auf Zugangsdaten die zweite. Der Nutzer: "Meinetwegen auch ueber der
+    2. Card in diesem Fall."
     """
-    for name, kennung in (("settings_signature.html", "sig"),
-                          ("settings_smime.html", "smime")):
+    # ⚠️ Der Anker ist das VOLLSTAENDIGE Karten-Tag, nicht nur die id.
+    # Die erste Fassung ankerte auf `id="benachrichtigungen"` — das steht
+    # INNERHALB des Tags, also lag `<div class="settings-card"` zwangslaeufig
+    # davor und die Pruefung meldete einen Fehler, den es nicht gab.
+    FAELLE = [
+        ("settings.html", "benachrichtigungen",
+         '<div class="settings-card" id="benachrichtigungen">'),
+        ("settings_signature.html", "sig", '<div class="settings-card">'),
+        ("settings_smime.html", "smime", '<div class="settings-card" id="smime">'),
+    ]
+    for name, kennung, karten_anker in FAELLE:
         q = (VORLAGEN / name).read_text("utf-8")
         einbindung = q.find("_erweitert_schalter.html")
-        assert einbindung > 0, f"{name}: Schalter nicht über den Baustein eingebunden"
-        erste_karte = q.find('<div class="settings-card"')
-        assert erste_karte > 0, f"{name}: keine Karte gefunden"
-        assert einbindung < erste_karte, (
-            f"{name}: Der Schalter steht in oder hinter der ersten Karte — er "
-            f"gilt aber für die ganze Seite.")
-        assert f'adv_id = "{kennung}"' in q, (
-            f"{name}: falscher oder fehlender Bereichsname für den Schalter")
-
-
-def test_der_kartenbezogene_schalter_bleibt_wo_er_ist():
-    """Gegenrichtung — nicht alles gleichmachen, was gleich heisst.
-
-    In `settings.html` sitzt ein zweiter Schalter im Kopf der Karte
-    „Benachrichtigungen & Tagesbericht". Gleiche Beschriftung, andere Aufgabe:
-    Er gilt nur für diese Karte und gehört deshalb genau dorthin.
-    """
-    q = (VORLAGEN / "settings.html").read_text("utf-8")
-    assert 'id="adv-cb-benachrichtigungen"' in q, (
-        "Der kartenbezogene Schalter ist verschwunden — dann prüft dieser Test "
-        "ins Leere.")
-    kopf = q[q.find('id="adv-cb-benachrichtigungen"') - 600:
-             q.find('id="adv-cb-benachrichtigungen"')]
-    assert "<h2" in kopf, (
-        "Der kartenbezogene Schalter steht nicht mehr im Kopf seiner Karte.")
+        assert einbindung > 0, f"{name}: kein Schalter ueber den Baustein"
+        assert f'adv_id = "{kennung}"' in q, f"{name}: falscher Bereichsname"
+        karte = q.find(karten_anker)
+        assert karte > 0, f"{name}: gesteuerte Karte nicht gefunden"
+        assert einbindung < karte, (
+            f"{name}: Der Schalter steht nicht ueber der Karte, die er steuert.")
+        # ... und nicht IN ihr: zwischen Schalter und Kartenanfang darf kein
+        # oeffnendes Karten-Tag liegen, sonst sitzt er wieder drin.
+        assert '<div class="settings-card"' not in q[einbindung:karte], (
+            f"{name}: Zwischen Schalter und gesteuerter Karte beginnt eine "
+            f"andere Karte — er wirkt dann wie deren Einstellung.")
+        assert 'id="adv-cb-' not in q, (
+            f"{name}: eigenes Schalter-Markup neben dem Baustein — dann steht "
+            f"die Beschriftung zweimal da und nur eine wirkt.")
 
 
 @pytest.mark.parametrize("kennung", ["sig", "smime"])
