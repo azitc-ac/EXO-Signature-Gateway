@@ -110,8 +110,10 @@
 </div>
 
 <!-- Benachrichtigungen -->
+{% with adv_id = "benachrichtigungen" %}{% include "_erweitert_schalter.html" %}{% endwith %}
+
 <div class="settings-card" id="benachrichtigungen">
-  <h2 style="display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px">Benachrichtigungen &amp; Tagesbericht <span style="margin-left:auto;font-size:11px;font-weight:400;flex-shrink:0"><label style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;color:#64748b"><input type="checkbox" id="adv-cb-benachrichtigungen" style="margin:0" onchange="_toggleAdv('benachrichtigungen',this.checked)"> Erweiterte Einstellungen</label></span></h2>
+  <h2>Benachrichtigungen &amp; Tagesbericht</h2>
 
   <div class="settings-row" style="margin-bottom:10px">
     <label class="checkbox-label" style="font-weight:600">

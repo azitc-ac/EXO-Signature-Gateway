@@ -101,6 +101,31 @@ nav a.nav-planned:hover { background: none; }
      *   Pull-to-refresh, das an dieser Stelle nur stört. */
     touch-action: pan-x;
     overscroll-behavior: contain;
+
+    /* ⚠️ OHNE DIESE ZWEI ZEILEN ROLLT DIE GANZE SEITE MIT.
+     *
+     * ANLASS (2026-08-26), Nutzer am iPhone mit Bildschirmfoto: „warum kann ich
+     * auf Einstellungen allgemein weit über den rechten Rand hinaus scrollen?
+     * Gähnende Leere dort". Im Bild stand der vierte Reiter links angeschnitten
+     * — die Leiste war also MIT der Seite gewandert. Rollte sie in sich, bliebe
+     * sie an ihrem Platz.
+     *
+     * Ein Flex-Container hat `min-width: auto`, und das bedeutet: mindestens so
+     * breit wie sein Inhalt. Acht Reiter brauchen rund 920px. Diese Mindestbreite
+     * reicht der Container an `main` weiter, obwohl er `overflow-x: auto` hat —
+     * das Rollen wirkt nach innen, die Mindestbreite nach aussen. `main` wird
+     * damit 920px breit, die Karten bleiben schmal, und rechts steht Leere.
+     *
+     * `min-width: 0` nimmt die Weitergabe zurück, `max-width: 100%` deckelt
+     * zusätzlich gegen jeden anderen Weg dorthin.
+     *
+     * ⚠️ Warum es in der Messung nicht auffiel: Gemessen wurde in Chromium
+     * (`documentElement.scrollWidth - innerWidth = 0` auf allen sieben Seiten).
+     * Chromium begrenzt hier von sich aus, WebKit nicht — und auf dem iPhone
+     * läuft WebKit, auch in jedem anderen Browser. Eine Messung in der falschen
+     * Engine ist kein Beleg für die richtige. */
+    min-width: 0;
+    max-width: 100%;
 }
 .nav-sub-tabs::-webkit-scrollbar { display: none; }
 
@@ -272,7 +297,16 @@ main { max-width: 960px; margin: 32px auto; padding: 0 24px; }
  * bezieht sich dann auf IHN statt auf die Seite. Ein Wrapper ohne eigene Hoehe
  * rollt senkrecht nicht — also klebt dort nichts. Beides gehoert deshalb in
  * denselben Block und darf nicht getrennt werden. */
-.tabellen-rollbereich { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.tabellen-rollbereich {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    /* Aus demselben Grund wie bei `.nav-sub-tabs`: Die Mindestbreite der
+     * Tabelle darf nicht nach aussen durchschlagen. Sie ist dort mit
+     * `min-width` bewusst gesetzt — sie soll ROLLEN lassen, nicht die
+     * Seite verbreitern. */
+    min-width: 0;
+    max-width: 100%;
+}
 
 @media (pointer: fine), (min-width: 1100px) {
     .tabellen-rollbereich {
