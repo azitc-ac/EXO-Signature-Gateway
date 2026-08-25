@@ -1099,6 +1099,16 @@ input[type="password"]:focus { outline: none; border-color: #0078d4; }
 .speicher-hinweis[data-zustand="fertig"] { color: #166534; }
 .speicher-hinweis[data-zustand="fehler"] { color: #dc2626; }
 
+/* Der „…"-Knopf am Ende einer Postfachzeile (S/MIME). Schmaler als ein
+   gewoehnlicher Knopf, weil er nur drei Punkte traegt — mit der Standardbreite
+   saehe er aus wie eine leere Schaltflaeche. */
+.zeile-mehr {
+    padding-left: 8px;
+    padding-right: 8px;
+    letter-spacing: 1px;
+    line-height: 1;
+}
+
 /* Ein ausgegrauter Speichern-Knopf ist eine Aussage: es gibt nichts zu sichern.
    Deshalb deutlich sichtbar abgesetzt, nicht nur eine Nuance blasser. */
 .btn:disabled {

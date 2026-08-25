@@ -5,6 +5,28 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.18 — 2026-08-25 — Zertifikatsliste kompakt
+
+Die Liste zeigt in Ruhe nur noch eine Zeile je Postfach: Adresse, Anzahl der
+Zertifikate, *Importieren*, *Auto-Enroll*. Bei zwanzig Postfächern war die Seite
+vorher mehrere Bildschirme lang, obwohl die Frage meist lautet, wer wie viele
+hat — und das steht in der Kopfzeile.
+
+* **Klick auf die Zeile** zeigt ihre Zertifikate.
+* **Klick auf „…"** zeigt zusätzlich Lifecycle- und Auto-Enroll-Einstellungen.
+* Zwei Knöpfe über der Liste klappen alles auf oder zu — getrennt für
+  Zertifikate und Einstellungen, weil es zwei verschiedene Fragen sind: „was hat
+  dieses Postfach" und „wie wird nachbestellt".
+
+Die Knöpfe *in* einer Zeile schalten sie nicht mit auf; ein Klick auf
+*Importieren* tut, was er sagt.
+
+**Die Schlüsselverwaltung ist zugeklappt.** Sichern, Umzug in den Schlüsseltresor
+und Statusprüfung standen als Erstes auf einer Seite, auf der es um Zertifikate
+geht, und werden selten gebraucht. In die Sammelaktionen gehören sie nicht: Der
+Auswahlkasten dort bestimmt, was mit *ausgewählten Postfächern* geschieht — diese
+drei betreffen die Ablage als Ganzes und kennen keine Auswahl.
+
 ## v1.8.17 — 2026-08-25 — Speichern-Knöpfe überall gleich
 
 **Ein Speichern-Knopf zeigt jetzt auf jeder Seite an, ob etwas offen ist.** Die
