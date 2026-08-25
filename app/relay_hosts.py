@@ -72,7 +72,11 @@ def _conn() -> sqlite3.Connection:
         gesperrt        INTEGER NOT NULL DEFAULT 0,
         gelernt         INTEGER NOT NULL DEFAULT 0,
         erstellt        TEXT NOT NULL DEFAULT '',
-        letzte_mail     TEXT NOT NULL DEFAULT ''
+        letzte_mail     TEXT NOT NULL DEFAULT '',
+        -- -1 = noch nie geliefert, 0 = zuletzt im Klartext, 1 = zuletzt mit TLS.
+        -- Drei Zustaende, weil "noch nie" und "unverschluesselt" verschiedene
+        -- Dinge sind: Das eine ist ein neuer Eintrag, das andere ein Befund.
+        letzte_tls      INTEGER NOT NULL DEFAULT -1
     )""")
     c.execute("""CREATE TABLE IF NOT EXISTS tage (
         ip     TEXT NOT NULL,
@@ -100,6 +104,9 @@ def _conn() -> sqlite3.Connection:
     if "gesperrt" not in vorhanden:
         c.execute("ALTER TABLE hosts ADD COLUMN gesperrt INTEGER NOT NULL DEFAULT 0")
         log.info("relay_hosts: Spalte 'gesperrt' nachgetragen")
+    if "letzte_tls" not in vorhanden:
+        c.execute("ALTER TABLE hosts ADD COLUMN letzte_tls INTEGER NOT NULL DEFAULT -1")
+        log.info("relay_hosts: Spalte 'letzte_tls' nachgetragen")
     return c
 
 
@@ -129,15 +136,26 @@ def host(ip: str) -> dict | None:
         return None
 
 
-def merke_zustellung(ip: str) -> None:
-    """Dieses Gerät hat gerade eingeliefert — Zeitpunkt und Tageszähler fortschreiben."""
+def merke_zustellung(ip: str, tls: bool | None = None) -> None:
+    """Dieses Gerät hat gerade eingeliefert — Zeitpunkt und Tageszähler fortschreiben.
+
+    `tls` hält fest, ob die Verbindung verschlüsselt war. ⚠️ Ohne diese Angabe
+    wäre nach der Lockerung der STARTTLS-Pflicht (siehe `main._LenientSMTP`)
+    nicht mehr erkennbar, welches Gerät im Klartext liefert — und genau das ist
+    die Frage, die man beim Austausch eines alten Druckers stellen will.
+    """
     ip = (ip or "").strip()
     if not ip:
         return
     try:
         with _lock, _conn() as c:
-            c.execute("UPDATE hosts SET letzte_mail=? WHERE ip=?",
-                      (_jetzt().strftime("%Y-%m-%dT%H:%M:%SZ"), ip))
+            if tls is None:
+                c.execute("UPDATE hosts SET letzte_mail=? WHERE ip=?",
+                          (_jetzt().strftime("%Y-%m-%dT%H:%M:%SZ"), ip))
+            else:
+                c.execute("UPDATE hosts SET letzte_mail=?, letzte_tls=? WHERE ip=?",
+                          (_jetzt().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                           1 if tls else 0, ip))
             c.execute("INSERT INTO tage (ip, tag, anzahl) VALUES (?,?,1) "
                       "ON CONFLICT(ip, tag) DO UPDATE SET anzahl = anzahl + 1",
                       (ip, _heute()))
@@ -200,6 +218,7 @@ def liste() -> list[dict]:
     for z in zeilen:
         z["extern"] = bool(z["extern"])
         z["gesperrt"] = bool(z["gesperrt"])
+        z["tls"] = {1: "ja", 0: "nein"}.get(z.get("letzte_tls"), "unbekannt")
         z["gelernt"] = bool(z["gelernt"])
         z["zaehler"] = zaehler.get(z["ip"], {t: 0 for t in FENSTER})
     zeilen.sort(key=lambda z: z["letzte_mail"] or "", reverse=True)

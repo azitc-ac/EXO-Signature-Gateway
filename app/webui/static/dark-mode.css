@@ -637,3 +637,12 @@
     color: #fcd34d !important;
 }
 [data-theme="dark"] #lernmodus-banner a { color: #fcd34d !important; }
+
+/* Die TLS-Spalte der Geräteliste entsteht in JavaScript, ihr Zustand steht
+   deshalb in `data-relay-tls` statt in einer Inline-Farbe (Dark-Mode-Regel 2).
+   „Klartext" ist keine Störung — es ist der erwartete Zustand eines alten
+   Druckers — aber es soll auffallen, wenn man die Liste überfliegt. */
+tr td[data-relay-tls="nein"]  { color: #b45309; font-size: 12px; }
+tr td[data-relay-tls="ja"]    { color: #15803d; }
+[data-theme="dark"] tr td[data-relay-tls="nein"] { color: #fcd34d !important; }
+[data-theme="dark"] tr td[data-relay-tls="ja"]   { color: #86efac !important; }

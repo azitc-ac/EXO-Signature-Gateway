@@ -70,6 +70,13 @@
     Die Spalten rechts zeigen, wie viel ein Gerät in den letzten 30/90/180/360 Tagen
     geschickt hat — lauter Nullen bei einem alten Eintrag heisst, dass er weg kann.
   </p>
+  <p style="font-size:13px;color:#555;margin:0 0 14px">
+    <strong>TLS</strong> zeigt, ob die letzte Einlieferung verschlüsselt war. Für Geräte
+    aus dieser Liste ist <code>STARTTLS</code> keine Pflicht — alte Drucker und Scanner
+    beherrschen es oft nicht, und an ihnen scheitert sonst der Umstieg. Angeboten wird es
+    weiterhin: Wer <em>Klartext</em> sieht, weiss, welches Gerät als Nächstes zu ersetzen
+    ist. Für Exchange selbst bleibt TLS Pflicht.
+  </p>
 
   <div class="tabellen-rollbereich">
     <table class="config-table" style="min-width:760px">
@@ -77,13 +84,14 @@
         <tr>
           <th>Adresse</th><th>Name (DNS)</th><th>Kommentar</th>
           <th>Ansprechpartner</th><th style="text-align:center">Extern</th>
+          <th style="text-align:center">TLS</th>
           <th>Letzte Mail</th>
           <th style="text-align:right">30/90/180/360</th>
           <th></th>
         </tr>
       </thead>
       <tbody id="geraete-body">
-        <tr><td colspan="8" style="color:#888">Wird geladen …</td></tr>
+        <tr><td colspan="9" style="color:#888">Wird geladen …</td></tr>
       </tbody>
     </table>
   </div>
@@ -161,7 +169,7 @@ async function postJSONGet(url) {
     return await res.json();
   } catch (e) {
     document.getElementById('geraete-body').innerHTML =
-      '<tr><td colspan="8" style="color:#991b1b">Liste nicht abrufbar: '
+      '<tr><td colspan="9" style="color:#991b1b">Liste nicht abrufbar: '
       + esc(String(e)) + '</td></tr>';
     return null;
   }
@@ -213,7 +221,7 @@ function zeichneGeraete(liste) {
   document.getElementById('geraete-anzahl').textContent =
     liste.length ? liste.length + ' Gerät' + (liste.length === 1 ? '' : 'e') : '';
   if (!liste.length) {
-    tb.innerHTML = '<tr><td colspan="8" style="color:#888">Noch kein Gerät '
+    tb.innerHTML = '<tr><td colspan="9" style="color:#888">Noch kein Gerät '
       + 'eingetragen — starte den Lernmodus oder trage eins von Hand ein.</td></tr>';
     return;
   }
@@ -236,6 +244,8 @@ function zeichneGeraete(liste) {
         + ' onchange="feldAendern(\'' + escAttr(g.ip) + '\', \'ansprechpartner\', this)"></td>'
       + '<td style="text-align:center"><input type="checkbox"' + (g.extern ? ' checked' : '')
         + ' onchange="feldAendern(\'' + escAttr(g.ip) + '\', \'extern\', this)"></td>'
+      + '<td style="text-align:center" data-relay-tls="' + escAttr(g.tls) + '">'
+        + (g.tls === 'ja' ? '✓' : g.tls === 'nein' ? 'Klartext' : '–') + '</td>'
       + '<td style="white-space:nowrap;font-size:12px">' + esc(zeitKurz(g.letzte_mail)) + '</td>'
       + '<td style="text-align:right;white-space:nowrap;font-size:12px">' + esc(zahlen) + '</td>'
       + '<td style="white-space:nowrap">'
