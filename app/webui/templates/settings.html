@@ -370,6 +370,12 @@ async function loadAdminUsers() {
   } catch(e) { ursache(e, 'settings:346'); }
   _adminUsersLocal = (d.users || []).map(function(u) { return Object.assign({}, u); });
   renderAdminUsers(_adminUsersLocal);
+  // ⚠️ Erst JETZT ist der Ausgangsstand da. Die Wache misst ihn bei
+  // `DOMContentLoaded` — zu diesem Zeitpunkt ist die Liste leer, weil sie per
+  // `fetch` kommt. Ohne diese Zeile stünde auf der frisch geöffneten Seite
+  // „noch nicht gespeichert", und bliebe die Liste leer (kein Konto,
+  // Ladefehler), wäre der Knopf dauerhaft gesperrt.
+  wacheNeuMessen('admin-users-btn');
 }
 
 function renderAdminUsers(users) {

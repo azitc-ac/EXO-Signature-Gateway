@@ -679,7 +679,18 @@ input:focus { outline: none; border-color: #0078d4; }
     margin-bottom: 14px;
     flex-wrap: wrap;
 }
-.settings-row label:first-child {
+/* ⚠️ DIREKTES Kind (`>`), nicht irgendein Nachfahre.
+ *
+ * Ohne den Kindkombinator trifft die Regel JEDES Label, das erstes Kind seines
+ * Elternteils ist — auch die Kontrollkaestchen in `.settings-control`. Und die
+ * ist `flex-direction: column`: Dort wurde aus der 200px-Basis eine HOEHE, und
+ * zwischen den Kaestchen klafften 200px Leere. Vom Nutzer mit Bildschirmfoto
+ * gemeldet, nachdem die Regel eine Stunde live war.
+ *
+ * Mit `min-width` (der Fassung davor) fiel das nicht auf: Eine Mindestbreite
+ * wirkt in einer Spalte nicht als Hoehe. Der Wechsel auf `flex` hat die Regel
+ * damit von harmlos-weitreichend zu schaedlich-weitreichend gemacht. */
+.settings-row > label:first-child {
     /* ⚠️ `flex: 0 0 200px` statt `min-width` + `flex-shrink: 0`.
      *
      * ANLASS (2026-08-25), Nutzer: „Welche Ereignisse sollen gemeldet werden?
@@ -780,7 +791,7 @@ input[type="number"] {
        jede Beschriftung bekäme einen 200px hohen Kasten unter sich. Gemessen
        bei 393px, bevor es jemand zu sehen bekam. `flex: 0 0 auto` nimmt die
        Basis zurück und behält „nicht wachsen, nicht schrumpfen". */
-    .settings-row label:first-child { flex: 0 0 auto; padding-top: 0; }
+    .settings-row > label:first-child { flex: 0 0 auto; padding-top: 0; }
 }
 
 /* ── Log viewer ────────────────────────────────────────────────────────────── */

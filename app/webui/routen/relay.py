@@ -137,8 +137,8 @@ async def api_relay_lernmodus(request: Request,
     bereiche = [str(b).strip() for b in (daten.get("bereiche") or []) if str(b).strip()]
     if not bereiche:
         return JSONResponse(
-            {"ok": False, "error": "Ohne Bereich lernt das Gateway nichts — "
-                                   "trage ein Netz oder eine Spanne ein."},
+            {"ok": False, "error": "Bereich erforderlich — bitte ein Netz "
+                                   "oder eine Spanne angeben."},
             status_code=400)
 
     minuten = daten.get("minuten") or smtp_relay.STANDARD_LERNDAUER_MIN

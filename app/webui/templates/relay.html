@@ -65,17 +65,25 @@
     <button class="btn secondary btn-sm" style="margin-left:auto"
             onclick="namenAufloesen(this)">Namen auflösen</button>
   </div>
+  <div class="actions" style="margin:10px 0 0">
+    <button class="btn secondary" id="geraete-btn"
+            data-wache-container="#geraete-body"
+            data-wache-hinweis="geraete-result"
+            onclick="geraeteSpeichern()">Speichern</button>
+    <span id="geraete-result" style="font-size:12px;margin-left:8px"></span>
+  </div>
   <p style="font-size:13px;color:#555;margin:10px 0 14px">
     Diese Liste <strong>ist</strong> die Freigabe: Nur wer hier steht, darf einliefern.
     Die Spalten rechts zeigen, wie viel ein Gerät in den letzten 30/90/180/360 Tagen
     geschickt hat — lauter Nullen bei einem alten Eintrag heisst, dass er weg kann.
   </p>
   <p style="font-size:13px;color:#555;margin:0 0 14px">
-    <strong>TLS</strong> zeigt, ob die letzte Einlieferung verschlüsselt war. Für Geräte
-    aus dieser Liste ist <code>STARTTLS</code> keine Pflicht — alte Drucker und Scanner
-    beherrschen es oft nicht, und an ihnen scheitert sonst der Umstieg. Angeboten wird es
-    weiterhin: Wer <em>Klartext</em> sieht, weiss, welches Gerät als Nächstes zu ersetzen
-    ist. Für Exchange selbst bleibt TLS Pflicht.
+    <strong>TLS</strong> zeigt, ob die letzte Einlieferung verschlüsselt war.
+    Steht dort <em>Klartext</em>, sendet dieses Gerät unverschlüsselt.
+    <br>
+    Das ist erlaubt: Alte Drucker und Scanner können kein <code>STARTTLS</code>, und
+    daran scheitert sonst der Umstieg. Das Gateway bietet Verschlüsselung weiterhin an —
+    ein Gerät, das sie kann, nutzt sie. Für Exchange selbst bleibt TLS Pflicht.
   </p>
 
   <div class="tabellen-rollbereich">
@@ -118,10 +126,10 @@
             onclick="abweisungenLeeren(this)">Liste leeren</button>
   </div>
   <p style="font-size:13px;color:#555;margin:10px 0 14px">
-    Wer hier auftaucht, wollte einliefern und durfte nicht. Meist ist es ein Gerät,
-    das noch niemand angemeldet hat — dann genügt <em>Übernehmen</em>. Steht die
-    Adresse schon in der Geräteliste, scheiterte sie an der Absender- oder
-    Zielgrenze; der Grund steht daneben.
+    Diese Geräte wollten einliefern und durften nicht. Meist ist es ein Gerät, das
+    noch niemand angemeldet hat — dann genügt <em>Übernehmen</em>. Steht die Adresse
+    schon in der Geräteliste, scheiterte sie an der Absender- oder Zielgrenze; den
+    Grund siehst du daneben.
   </p>
   <div class="tabellen-rollbereich">
     <table class="config-table" style="min-width:700px">
@@ -158,6 +166,11 @@ async function laden(mitNamen) {
   zeichneAbgewiesen(r.abgewiesen);
   zeichneLernmodus(r.lernmodus);
   zeichneWarnung(r);
+  // ⚠️ Erst jetzt steht der Ausgangsstand. Die Wache misst ihn beim Laden der
+  // Seite — die Tabelle kommt aber per `fetch`. Ohne diese Zeile stünde beim
+  // Öffnen „noch nicht gespeichert", und eine leere Liste liesse den Knopf
+  // dauerhaft gesperrt. Derselbe Fall wie bei den Entra-Konten.
+  wacheNeuMessen('geraete-btn');
 }
 
 // Kleiner Helfer: postJSON() gibt es nur für POST; hier ein GET mit derselben
@@ -229,6 +242,7 @@ function zeichneGeraete(liste) {
   liste.forEach(function (g) {
     const zahlen = FENSTER.map(function (f) { return g.zaehler[f] || 0; }).join(' / ');
     const tr = document.createElement('tr');
+    tr.dataset.relayIp = g.ip;
     if (g.gesperrt) tr.setAttribute('data-relay-gesperrt', '1');
     tr.innerHTML =
       '<td style="white-space:nowrap"><code>' + esc(g.ip) + '</code>'
@@ -238,12 +252,9 @@ function zeichneGeraete(liste) {
         + (g.gelernt ? ' <span style="font-size:10px;color:#64748b">gelernt</span>' : '')
       + '</td>'
       + '<td style="font-size:12px;color:#64748b">' + esc(g.dns || '—') + '</td>'
-      + '<td><input type="text" value="' + escAttr(g.kommentar) + '" style="width:100%"'
-        + ' onchange="feldAendern(\'' + escAttr(g.ip) + '\', \'kommentar\', this)"></td>'
-      + '<td><input type="text" value="' + escAttr(g.ansprechpartner) + '" style="width:100%"'
-        + ' onchange="feldAendern(\'' + escAttr(g.ip) + '\', \'ansprechpartner\', this)"></td>'
-      + '<td style="text-align:center"><input type="checkbox"' + (g.extern ? ' checked' : '')
-        + ' onchange="feldAendern(\'' + escAttr(g.ip) + '\', \'extern\', this)"></td>'
+      + '<td><input type="text" value="' + escAttr(g.kommentar) + '" style="width:100%"></td>'
+      + '<td><input type="text" value="' + escAttr(g.ansprechpartner) + '" style="width:100%"></td>'
+      + '<td style="text-align:center"><input type="checkbox"' + (g.extern ? ' checked' : '') + '></td>'
       + '<td style="text-align:center" data-relay-tls="' + escAttr(g.tls) + '">'
         + (g.tls === 'ja' ? '✓' : g.tls === 'nein' ? 'Klartext' : '–') + '</td>'
       + '<td style="white-space:nowrap;font-size:12px">' + esc(zeitKurz(g.letzte_mail)) + '</td>'
@@ -290,12 +301,30 @@ function zeichneAbgewiesen(liste) {
 
 // ── Aktionen ────────────────────────────────────────────────────────────────
 
-async function feldAendern(ip, feld, el) {
-  const wert = (el.type === 'checkbox') ? el.checked : el.value;
-  const koerper = { ip: ip }; koerper[feld] = wert;
-  const r = await postJSON('/api/relay/geraet', koerper);
-  showMsg(el, r.ok ? '' : ('Fehler: ' + (r.error || '')), r.ok);
-  if (!r.ok) laden(false);
+// ⚠️ Kein Sofortspeichern mehr.
+//
+// Kommentar und Ansprechpartner sind Textfelder, und dafür gilt im ganzen
+// Produkt: Sobald ein Textfeld dazugehört, braucht es einen Knopf — halb
+// Getipptes darf nicht wegfliegen (Speichern-Regel 4). Die Tabelle war die
+// einzige Stelle, die davon abwich.
+//
+// Sperren, Löschen und Übernehmen wirken weiterhin sofort: Das sind Aktionen
+// mit eigenem Knopf, keine Feldänderungen.
+async function geraeteSpeichern() {
+  const zeilen = [...document.querySelectorAll('#geraete-body tr[data-relay-ip]')];
+  let fehler = null;
+  for (const tr of zeilen) {
+    const felder = tr.querySelectorAll('input');
+    const r = await postJSON('/api/relay/geraet', {
+      ip: tr.dataset.relayIp,
+      kommentar: felder[0] ? felder[0].value : undefined,
+      ansprechpartner: felder[1] ? felder[1].value : undefined,
+      extern: felder[2] ? felder[2].checked : undefined,
+    });
+    if (!r.ok) { fehler = r.error || 'Fehler beim Speichern'; break; }
+  }
+  wacheFertig('geraete-btn', !fehler, fehler || undefined);
+  if (!fehler) laden(false);
 }
 
 async function sperreUmschalten(ip, sperren, btn) {
@@ -356,7 +385,7 @@ async function lernStarten(btn) {
   const bereiche = (document.getElementById('lern-bereiche').value || '')
     .split(',').map(function (x) { return x.trim(); }).filter(Boolean);
   if (!bereiche.length) {
-    showAlert(box, 'error', 'Ohne Bereich lernt das Gateway nichts.');
+    showAlert(box, 'error', 'Bereich erforderlich — bitte angeben.');
     return;
   }
   btn.disabled = true;
