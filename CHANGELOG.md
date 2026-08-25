@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.25 — 2026-08-26 — Netz gegen unbedienbare Seiten
+
+Ergänzung zum vorigen Eintrag. Dort war die Ursache behoben — hier kommt die
+Absicherung dagegen, dass ein solcher Fall noch einmal so schwer wiegt.
+
+Ein zu breites Element machte die Seite auf dem Telefon nicht nur unschön: Wer
+nach rechts gerollt hatte, konnte **gar nichts** mehr bedienen, weil alles
+Anklickbare links ausserhalb des Bildes lag — auch das Hauptmenü. Der
+Seitenbereich schneidet jetzt waagerecht ab, statt mitzuwachsen.
+
+Absichtlich breite Inhalte sind davon nicht betroffen: Reiterleiste und
+Tabellen rollen in ihrem eigenen Bereich weiter. Die feste Kopfzeile der
+Postfachtabelle bleibt ebenfalls erhalten.
+
 ## v1.8.24 — 2026-08-26 — Seite rollte auf dem Telefon ins Leere
 
 Auf der Seite *Einstellungen → Zugangsdaten* liess sich weit über den rechten
