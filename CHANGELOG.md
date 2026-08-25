@@ -5,6 +5,38 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.14 — 2026-08-25 — S/MIME und Signatur: eine Karte je Rubrik
+
+Beide Seiten waren **eine** Karte mit allem darin, getrennt durch Linien — und
+mittendrin mehrere Speichern-Knöpfe. Auf der S/MIME-Seite speicherte einer davon
+**20 Felder über 400 Zeilen hinweg**, und drei Rubriken standen dahinter, jede
+mit eigenem Knopf. Wer unten etwas änderte, sah oben einen Knopf, der etwas
+anderes meinte.
+
+**Jede Rubrik ist jetzt eine eigene Karte mit ihrem eigenen Speichern-Knopf.**
+Die Trennlinien entfallen — die Karten trennen.
+
+S/MIME: Betreff eingehender Mails · Signieren &amp; Verschlüsseln · Zertifikat
+automatisch bestellen · Vertrauenswürdige Aussteller · Secure Message Portal ·
+Automatische S/MIME-Regeln · Schlüsselablage.
+
+Signatur: Signatur einsetzen · Benutzer-Overrides · Signaturvariablen.
+
+Bei der Schlüsselablage bleiben drei Knöpfe: Adresse des Schlüsseltresors,
+Betriebsart und Passwort sind eigene Vorgänge — das Passwort verschlüsselt beim
+Setzen alle abgelegten Schlüssel neu.
+
+**Weitere Änderungen an diesen Seiten**
+
+* Der Schalter *Private Schlüssel verschlüsseln* hing am Sammelknopf und hätte
+  nach dessen Auflösung keinen Speicherweg mehr gehabt. Er speichert jetzt
+  sofort — das Passwort daneben hat ohnehin seinen eigenen Vorgang.
+* *Portal aktivieren* passt in eine Zeile; die Überschrift darüber sagte
+  dasselbe noch einmal.
+* Portal-Basisadresse, Aufbewahrung, Zugangscode und Absendername erscheinen
+  nur noch, wenn das Portal eingeschaltet ist. Wer es aus hat, muss nicht
+  entscheiden, wie lange Nachrichten dort liegen.
+
 ## v1.8.13 — 2026-08-25 — Rückmeldungen am Ort der Handlung
 
 Nach dem Setzen des Schlüsselpassworts erschien die Bestätigung **ganz oben auf

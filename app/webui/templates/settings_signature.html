@@ -10,6 +10,7 @@
 <!-- Signatur -->
 <div class="settings-card">
   <div style="display:flex;justify-content:flex-end;margin-bottom:10px"><span style="font-size:11px"><label style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;color:#64748b"><input type="checkbox" id="adv-cb-sig" style="margin:0" onchange="_toggleAdv('sig',this.checked)"> Erweiterte Einstellungen</label></span></div>
+  <h3 style="margin-top:0;margin-bottom:12px">Signatur einsetzen</h3>
   <div class="settings-row">
     <label class="checkbox-label">
       <input type="checkbox" id="fallback" {% if s.FALLBACK_ON_ERROR %}checked{% endif %}>
@@ -124,14 +125,20 @@
   </div>
   </div>
 
-  <div class="actions" style="margin-top:4px">
-    <button class="btn secondary" id="signatur-btn" data-wache-hinweis="signatur-result" data-wache="fallback,loop-header,sent-items,skip-duplicate-sig,skip-sig-in-thread,strip-client-sigs,sig-strip-pct,sig-image-mode,nosig-trigger,sign-internal-only" onclick="saveSignatur()">Speichern</button>
-    <span id="signatur-result" style="font-size:12px;margin-left:8px"></span>
-  </div>
 
   <div data-adv="sig" style="display:none">
-  <div style="border-top:1px solid #f0f0f0;margin:20px 0 16px"></div>
-  <h3 id="overrides" style="margin-bottom:8px">Benutzer-Overrides</h3>
+  </div>
+  <div class="actions" style="margin-top:14px">
+    <button class="btn secondary" id="signatur-btn" data-wache="fallback,loop-header,sent-items,skip-duplicate-sig,skip-sig-in-thread,strip-client-sigs,sig-strip-pct,sig-image-mode,nosig-trigger,sign-internal-only"
+            data-wache-hinweis="signatur-btn-result"
+            onclick="saveSignatur()">Speichern</button>
+    <span id="signatur-btn-result" style="font-size:12px;margin-left:8px"></span>
+  </div>
+</div>
+
+<div class="settings-card">
+  <div data-adv="sig" style="display:none">
+  <h3 id="overrides" style="margin-top:0;margin-bottom:8px">Benutzer-Overrides</h3>
   <p class="hint" style="margin-bottom:12px">Überschreibt Graph-Werte für einzelne Nutzer. Eigene Variablen (custom.*) müssen vorher im Abschnitt „Eigene Variablen" definiert sein.</p>
 
   <div style="overflow-x:auto">
@@ -150,8 +157,10 @@
   </div>
   </div>
 
-  <div style="border-top:1px solid #f0f0f0;margin:20px 0 16px"></div>
-  <h3 style="margin-bottom:4px">Signaturvariablen</h3>
+</div>
+
+<div class="settings-card">
+  <h3 style="margin-top:0;margin-bottom:12px">Signaturvariablen</h3>
   <p class="hint" style="margin-bottom:10px">Vordefinierte Variablen (immer verfügbar) und eigene Variablen aus beliebigen Entra-Attributen.</p>
 
   <details style="margin-bottom:16px">
