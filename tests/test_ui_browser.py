@@ -370,7 +370,12 @@ def test_eingabefeld_steht_neben_seiner_beschriftung(seite, pfad):
     umgebrochen = pg.evaluate("""() => {
       const fehler = [];
       document.querySelectorAll('.settings-row').forEach(row => {
-        const lb = row.querySelector(':scope > label');
+        // ⚠️ NUR die Feld-Form. Seit 2026-08-25 gibt es zwei Formen (CLAUDE.md,
+        // „Aufbau der Einstellungszeilen"): Beim SCHALTER steht das Kästchen
+        // oben und der Erklärtext ABSICHTLICH darunter — dort ist der Umbruch
+        // kein Fehler, sondern die Form. Ohne diese Einschränkung meldete der
+        // Test fünf richtig gebaute Zeilen.
+        const lb = row.querySelector(':scope > label:not(.checkbox-label)');
         const ctl = row.querySelector(':scope > .settings-control');
         if (!lb || !ctl) return;
         const a = lb.getBoundingClientRect(), b = ctl.getBoundingClientRect();

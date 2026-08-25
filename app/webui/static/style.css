@@ -690,6 +690,39 @@ input:focus { outline: none; border-color: #0078d4; }
  * Mit `min-width` (der Fassung davor) fiel das nicht auf: Eine Mindestbreite
  * wirkt in einer Spalte nicht als Hoehe. Der Wechsel auf `flex` hat die Regel
  * damit von harmlos-weitreichend zu schaedlich-weitreichend gemacht. */
+/* ── ZWEI FORMEN EINER EINSTELLUNGSZEILE ─────────────────────────────────────
+ *
+ * ANLASS (2026-08-25), Nutzer mit Bildschirmfoto: „schau dir mal die
+ * einstellungen->Signatur seite an bei 960 px. kraut und rueben!" — und
+ * treffend dazu: „ich fuerchte, ich ueberfordere dich mit wuenschen zum layout
+ * die eine sache fixen, aber an anderer stelle neue loecher reissen. Koennen
+ * wir das bitte systematisch angehen".
+ *
+ * Er hat recht: Es gab keine Regel, gegen die sich pruefen liess. Es gibt jetzt
+ * genau ZWEI Formen, und `tools/zeilencheck.py` setzt sie durch.
+ *
+ *   SCHALTER   [x] Beschriftung [Zusatzfeld]
+ *              Beginnt mit dem Kaestchen und nimmt die GANZE Zeile. Der Text
+ *              steht daneben, nicht in einer Spalte — 18 von 23 Beschriftungen
+ *              sind laenger als 34 Zeichen und brachen in einer 200px-Spalte
+ *              auf drei bis vier Zeilen um.
+ *
+ *   FELD       Beschriftung | Eingabe
+ *              Beschriftung in fester Spalte, damit die Eingaben untereinander
+ *              fluchten. 81 Zeilen im Bestand haben diese Form.
+ *
+ * Ein Erklaertext gehoert UNTER die Zeile (`p.hint`), nicht in die
+ * Kontrollspalte. Eine Ueberschrift ist ein `h3`, keine Zeile mit leerer
+ * Gegenseite. */
+.settings-row > label.checkbox-label:first-child,
+.settings-row > label.checkbox-label:first-child ~ * {
+    /* Der Schalter braucht kein Spaltenkorsett: `flex: 1 1 auto` laesst ihm die
+     * Zeile, `min-width: 0` erlaubt den Umbruch INNERHALB des Textes statt am
+     * Rand der Spalte. */
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
 .settings-row > label:first-child {
     /* ⚠️ `flex: 0 0 200px` statt `min-width` + `flex-shrink: 0`.
      *

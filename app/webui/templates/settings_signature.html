@@ -98,12 +98,12 @@
   <div style="border-top:1px solid #f0f0f0;margin:14px 0 12px"></div>
 
   <div class="settings-row">
-    <label for="sign-internal-only">Rein interne Mails auch signieren</label>
-    <div class="settings-control">
-      <label class="checkbox-label">
-        <input type="checkbox" id="sign-internal-only"
-               {% if s.SIGN_INTERNAL_ONLY_MAIL %}checked{% endif %}> aktiv
-      </label>
+    <label class="checkbox-label">
+      <input type="checkbox" id="sign-internal-only"
+             {% if s.SIGN_INTERNAL_ONLY_MAIL %}checked{% endif %}>
+      Rein interne Mails auch signieren
+    </label>
+    <div class="settings-control" style="flex-basis:100%">
       <span class="hint">Mails, bei denen <strong>alle</strong> Empfänger interne Postfächer sind (kein
         externer Empfänger), werden standardmäßig unverändert durchgereicht — keine HTML-Signatur, kein
         S/MIME. Aktivieren, um auch rein interne Mails wie externe zu behandeln.</span>
