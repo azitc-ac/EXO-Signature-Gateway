@@ -70,7 +70,18 @@
     <span class="hint">Entfernt vorhandene [verschlüsselt / signiert von&nbsp;…] Tags im Betreff vor dem Hinzufügen eines neuen — verhindert Anhäufung in Antwort-Ketten</span>
   </div>
 
-  <div style="border-top:1px solid #f0f0f0;margin:16px 0 14px"></div>
+  </div>
+  <div class="actions" style="margin-top:14px">
+    <button class="btn secondary" id="smime-betreff-btn" data-wache="smime-tag-encrypted,smime-tag-enc-enabled,smime-tag-signed,smime-tag-sig-enabled,smime-tag-position,strip-subject-tags"
+            data-wache-hinweis="smime-betreff-btn-result"
+            onclick="smime_betreffSpeichern()">Speichern</button>
+    <span id="smime-betreff-btn-result" style="font-size:12px;margin-left:8px"></span>
+  </div>
+</div>
+
+<div class="settings-card">
+  <h3 style="margin-top:0;margin-bottom:12px">Signieren &amp; Verschlüsseln</h3>
+  <div data-adv="smime" style="display:none">
 
   <div class="settings-row">
     <label class="checkbox-label">
@@ -94,8 +105,18 @@
     </div>
   </div>
 
-  <div class="settings-row" style="margin-top:10px">
-    <h3 style="font-size:14px;margin:0 0 8px;flex-basis:100%">Zertifikat automatisch bestellen</h3>
+
+  <div class="actions" style="margin-top:14px">
+    <button class="btn secondary" id="smime-signieren-btn" data-wache="smime-strip-inbound,smime-signing-enabled,nodigsig-trigger,enc-trigger"
+            data-wache-hinweis="smime-signieren-btn-result"
+            onclick="smime_signierenSpeichern()">Speichern</button>
+    <span id="smime-signieren-btn-result" style="font-size:12px;margin-left:8px"></span>
+  </div>
+</div>
+
+<div class="settings-card">
+  <h3 style="margin-top:0;margin-bottom:12px">Zertifikat automatisch bestellen</h3>
+  <div class="settings-row">
     <div class="settings-control" style="flex-basis:100%">
       {# ⚠️ KEIN flex-wrap. Mit Umbruch rutscht das Kästchen bei schmaler Anzeige
          oder grosser Schrift in eine eigene Zeile, und die Beschriftung steht
@@ -183,8 +204,12 @@
       aufbauen darf; dann bleibt der Widerruf ungeprüft.</span>
   </div>
 
-  <div style="border-top:1px solid #f0f0f0;margin:16px 0 12px"></div>
-  <h3 style="margin:0 0 4px">Vertrauenswürdige Aussteller</h3>
+  </div>
+</div>
+
+<div class="settings-card">
+  <h3 style="margin-top:0;margin-bottom:12px">Vertrauenswürdige Aussteller</h3>
+  <div data-adv="smime" style="display:none">
   <p class="hint" style="margin-bottom:12px">
     Zertifikate von Kommunikationspartnern sammelt das Gateway zum Teil selbst ein — aus
     eingehenden signierten Nachrichten. Hier wird festgelegt, wessen Zertifikate dabei
@@ -255,8 +280,15 @@
   </div>
   </div>
 
-  <div style="border-top:1px solid #f0f0f0;margin:16px 0 14px"></div>
+  <div class="actions" style="margin-top:14px">
+    <button class="btn secondary" id="smime-aussteller-btn" data-wache="crl-check,trust-ms-roots,trust-auto-known,smime-harvest-rcpt"
+            data-wache-hinweis="smime-aussteller-btn-result"
+            onclick="smime_ausstellerSpeichern()">Speichern</button>
+    <span id="smime-aussteller-btn-result" style="font-size:12px;margin-left:8px"></span>
+  </div>
+</div>
 
+<div class="settings-card">
   <h3 style="margin-top:0;margin-bottom:4px">Secure Message Portal</h3>
   <p class="hint" style="margin-bottom:12px">
     Hat ein Empfänger einer <code>{{ s.ENC_TRIGGER or '#enc' }}</code>-Mail kein S/MIME-Zertifikat, wird die Mail
@@ -264,16 +296,20 @@
     die Entschlüsselung erfolgt ausschließlich im Browser (Schlüssel im URL-Fragment, nie am Server).
   </p>
   <div class="settings-row">
-    <h3 style="margin:0 0 10px">Portal aktivieren</h3>
-    <label class="checkbox-label" style="flex-basis:100%">
+    <label class="checkbox-label">
       <input type="checkbox" id="portal-enabled"
-          {% if s.SECURE_PORTAL_ENABLED %}checked{% endif %}>
+          {% if s.SECURE_PORTAL_ENABLED %}checked{% endif %}
+          onchange="document.getElementById('portal-optionen').style.display = this.checked ? '' : 'none'">
       Mails für Empfänger ohne Zertifikat im Portal bereitstellen
     </label>
     <div class="settings-control" style="flex-basis:100%">
       <span class="hint">Standard: aus — dann wird wie bisher ein Unzustellbarkeitsbericht an den Absender gesendet.</span>
     </div>
   </div>
+  <!-- Die folgenden Angaben wirken nur bei eingeschaltetem Portal. Sie
+       auszublenden spart nicht Platz, sondern eine Frage: Wer das Portal aus
+       hat, muss nicht entscheiden, wie lange Nachrichten dort liegen. -->
+  <div id="portal-optionen" {% if not s.SECURE_PORTAL_ENABLED %}style="display:none"{% endif %}>
   <div class="settings-row" style="margin-top:10px">
     <label for="portal-base-url">Portal-Basis-URL</label>
     <div class="settings-control">
@@ -343,16 +379,20 @@
     </div>
   </div>
   </div>
+    </div><!-- /portal-optionen -->
 
-  <div class="actions" style="margin-top:4px">
-    <button class="btn secondary" id="smime-settings-btn" data-wache-hinweis="smime-result" data-wache="smime-tag-encrypted,smime-tag-enc-enabled,smime-tag-signed,smime-tag-sig-enabled,smime-tag-position,strip-subject-tags,smime-strip-inbound,smime-key-encrypt,smime-signing-enabled,nodigsig-trigger,enc-trigger,crl-check,trust-ms-roots,trust-auto-known,smime-harvest-rcpt,portal-enabled,portal-base-url,portal-retention,portal-otp,portal-brand-name" onclick="saveSmimeSettings()">Speichern</button>
-    <span id="smime-result" style="font-size:12px;margin-left:8px"></span>
+  <div class="actions" style="margin-top:14px">
+    <button class="btn secondary" id="smime-portal-btn" data-wache="portal-enabled,portal-base-url,portal-retention,portal-otp,portal-brand-name"
+            data-wache-hinweis="smime-portal-btn-result"
+            onclick="smime_portalSpeichern()">Speichern</button>
+    <span id="smime-portal-btn-result" style="font-size:12px;margin-left:8px"></span>
   </div>
+</div>
 
-  <div style="border-top:1px solid #f0f0f0;margin:16px 0 14px"></div>
+<div class="settings-card">
+  <h3 style="margin-top:0;margin-bottom:12px">Automatische S/MIME-Regeln</h3>
 
   <div>
-    <h3 style="margin-top:0;margin-bottom:4px">Automatische S/MIME-Regeln</h3>
     <p class="hint" style="margin-bottom:12px">
       Ausgehende Mails automatisch verschlüsseln oder (nicht) signieren — abhängig von Absender
       und/oder Empfänger, zusätzlich zu den Betreff-Triggern. Adressen: exakte E-Mail oder
@@ -391,7 +431,10 @@
     </div>
   </div>
 
-  <div style="border-top:1px solid #f0f0f0;margin:16px 0 14px"></div>
+</div>
+
+<div class="settings-card">
+  <h3 style="margin-top:0;margin-bottom:12px">Schlüsselablage</h3>
 
   <h3 style="margin-top:0;margin-bottom:8px">Azure Key Vault</h3>
   <p class="hint" style="margin-bottom:10px">
@@ -458,6 +501,7 @@
         {% if s.SMIME_KEY_ENCRYPT is not false %}checked{% endif %}
         onchange="toggleKeyEncrypt(this.checked)">
       Private Keys verschlüsseln
+      <span id="key-encrypt-result" style="display:none;font-size:12px;margin-left:8px"></span>
       {% if s.SMIME_KEY_ENCRYPT is not false and not s.SMIME_KEY_PASSWORD %}
       <span style="display:block;font-weight:400;font-size:11px;color:#92400e;
                    background:#fffbeb;border:1px solid #fde68a;border-radius:4px;
@@ -536,31 +580,58 @@ function showAlert(el, type, msg) {
 // Aufruf zurueckkam, auch bei HTTP 400.
 // savePartial() steht in common.js — eine Fassung fuer alle Seiten.
 
-async function saveSmimeSettings() {
-  const _ok = await savePartial({
+// ── Speichern je Rubrik ────────────────────────────────────────────────────
+//
+// ANLASS (2026-08-25), Nutzer: „mir gefällt nicht, dass es zusätzliche
+// speichern knöpfe auf der einstellungen smime seite gibt vor dem der
+// eigentlich für ALLES zuständig ist."
+//
+// Er hatte recht: Ein Knopf speicherte 20 Felder über 400 Zeilen hinweg — und
+// drei Rubriken standen DAHINTER, jede mit eigenem Knopf. Wer unten etwas
+// änderte, sah oben einen Knopf, der etwas anderes meinte.
+//
+// Jetzt trägt jede Karte ihren eigenen Knopf für genau ihre Felder. Das ist
+// auch die Regel des Projekts: „Der Knopf steht am Abschnitt" (CLAUDE.md,
+// Speichern in der Oberfläche).
+
+async function smime_betreffSpeichern() {
+  wacheFertig('smime-betreff-btn', await savePartial({
     SMIME_TAG_ENCRYPTED: (document.getElementById('smime-tag-encrypted').value || '').trim() || 'verschlüsselt',
     SMIME_TAG_ENCRYPTED_ENABLED: document.getElementById('smime-tag-enc-enabled').checked,
     SMIME_TAG_SIGNED: (document.getElementById('smime-tag-signed').value || '').trim() || 'signiert von {signer}',
     SMIME_TAG_SIGNED_ENABLED: document.getElementById('smime-tag-sig-enabled').checked,
     SMIME_TAG_POSITION: document.getElementById('smime-tag-position').value,
     STRIP_SUBJECT_TAGS: document.getElementById('strip-subject-tags').checked,
+  }, 'smime-betreff-btn-result'));
+}
+
+async function smime_signierenSpeichern() {
+  wacheFertig('smime-signieren-btn', await savePartial({
     SMIME_STRIP_INBOUND: document.getElementById('smime-strip-inbound').checked,
-    SMIME_KEY_ENCRYPT: document.getElementById('smime-key-encrypt').checked,
     SMIME_SIGNING_ENABLED: document.getElementById('smime-signing-enabled').checked,
     NODIGSIG_TRIGGER: (document.getElementById('nodigsig-trigger').value || '').trim() || '#nodigsig',
     ENC_TRIGGER: (document.getElementById('enc-trigger').value || '').trim() || '#enc',
+  }, 'smime-signieren-btn-result'));
+}
+
+async function smime_ausstellerSpeichern() {
+  wacheFertig('smime-aussteller-btn', await savePartial({
     CRL_CHECK: document.getElementById('crl-check').checked,
     TRUST_MS_ROOTS: document.getElementById('trust-ms-roots').checked,
     TRUST_AUTO_KNOWN: document.getElementById('trust-auto-known').checked,
     TRUST_UNKNOWN_MODE: (document.querySelector('input[name="trust-unknown"]:checked') || {}).value || 'manuell',
     SMIME_HARVEST_RCPT: (document.getElementById('smime-harvest-rcpt').value || '').trim(),
+  }, 'smime-aussteller-btn-result'));
+}
+
+async function smime_portalSpeichern() {
+  wacheFertig('smime-portal-btn', await savePartial({
     SECURE_PORTAL_ENABLED: document.getElementById('portal-enabled').checked,
     SECURE_PORTAL_BASE_URL: (document.getElementById('portal-base-url').value || '').trim(),
     SECURE_PORTAL_RETENTION_DAYS: parseInt(document.getElementById('portal-retention').value, 10) || 14,
     SECURE_PORTAL_OTP: document.getElementById('portal-otp').checked,
     PORTAL_BRAND_NAME: (document.getElementById('portal-brand-name').value || '').trim(),
-  }, 'smime-result');
-  wacheFertig('smime-settings-btn', _ok);
+  }, 'smime-portal-btn-result'));
 }
 
 // ── Automatische S/MIME-Regeln ─────────────────────────────────────────────
@@ -708,8 +779,16 @@ function autoEnrollUmschalten() {
   document.getElementById('auto-enroll-ca').style.display = an ? 'block' : 'none';
 }
 
-function toggleKeyEncrypt(checked) {
+async function toggleKeyEncrypt(checked) {
   document.getElementById('smime-key-password-wrap').style.display = checked ? '' : 'none';
+  // ⚠️ Speichert SOFORT. Der Schalter hing bis 2026-08-25 am Sammelknopf der
+  // Seite; nach dessen Auflösung in Rubrikknöpfe hätte er sonst gar keinen
+  // Speicherweg mehr gehabt — man hätte umgeschaltet und nichts wäre passiert.
+  //
+  // Sofort und ohne eigenen Knopf ist hier auch richtig: Das Passwort daneben
+  // hat seinen eigenen Vorgang (es verschlüsselt alle abgelegten Schlüssel
+  // neu). Der Schalter für sich ist ein reiner Schalter — Speichern-Regel 4.
+  await savePartial({SMIME_KEY_ENCRYPT: checked}, 'key-encrypt-result');
 }
 
 function checkKeyPasswords() {
