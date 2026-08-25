@@ -97,6 +97,17 @@ DEFAULTS: dict = {
     # erlaubt (kein Blockieren), Loopback + Extra-CIDRs immer erlaubt.
     "SMTP_SOURCE_ACL_ENABLED": True,   # False = Prüfung aus (nur Netzwerk-Firewall)
     "SMTP_ACL_EXTRA_CIDRS": [],        # zusätzliche erlaubte CIDRs (z.B. eigenes Monitoring)
+    # ── SMTP-Relay für Geräte im eigenen Netz ────────────────────────────────
+    # Drucker und Anwendungen liefern anonym ein, das Gateway reicht an Exchange
+    # weiter — Ersatz für einen Exchange vor Ort. Siehe smtp_relay.py.
+    #
+    # ⚠️ EIGENE Netzliste, nicht SMTP_ACL_EXTRA_CIDRS: Jene beantwortet „darf
+    # verbinden" (etwa eine Überwachung), das ist nicht dasselbe wie „darf Post
+    # einliefern". Die beiden zu vermischen hiesse, ein Relay zu eröffnen, ohne
+    # dass es jemand entschieden hat.
+    "SMTP_RELAY_ENABLED": False,       # bewusste Freischaltung, Vorgabe aus
+    "SMTP_RELAY_NETWORKS": [],         # Quellnetze, z.B. ["10.1.5.0/24"]
+    "SMTP_RELAY_EXTERNAL": False,      # auch an Empfänger ausserhalb des Tenants
     "RELAY_USER": "",              # Optional SMTP AUTH user (e.g. SES "apikey")
     "RELAY_PASSWORD": "",          # Optional SMTP AUTH password
     # ── SMTP-Übermittlung (Port 587) ─────────────────────────────────────────
