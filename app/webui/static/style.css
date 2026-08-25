@@ -1099,6 +1099,27 @@ input[type="password"]:focus { outline: none; border-color: #0078d4; }
 .speicher-hinweis[data-zustand="fertig"] { color: #166534; }
 .speicher-hinweis[data-zustand="fehler"] { color: #dc2626; }
 
+/* ── Kompakte Zertifikatsliste (S/MIME) ──────────────────────────────────────
+ *
+ * Drei Zustaende je Postfachzeile, gesteuert ueber KLASSEN am Container:
+ *
+ *   (ohne)        nur die Kopfzeile
+ *   .zeigt-zert   + Zertifikate
+ *   .zeigt-lc     + Lifecycle-Einstellungen (deren Aufklapper selbst ist dann
+ *                  ebenfalls erst sichtbar — vorher stand seine Zeile
+ *                  „Lifecycle / Auto-Enroll-Einstellungen" auch im kompakten
+ *                  Zustand da und machte ihn wieder unruhig)
+ *
+ * ⚠️ Klassen statt `style.display` aus JavaScript: Das `<details>` traegt seine
+ * Rahmenfarbe im style-Attribut. Sobald JS dort `display` setzt, serialisiert
+ * der Browser das ganze Attribut neu, und die Dark-Mode-Selektoren auf den
+ * Farbwert greifen nicht mehr (Dark-Mode-Regel 2). Mit Klassen bleibt das
+ * Attribut unangetastet. */
+.smime-user .zert-block,
+.smime-user .lifecycle-section { display: none; }
+.smime-user.zeigt-zert .zert-block { display: block; }
+.smime-user.zeigt-lc .lifecycle-section { display: block; }
+
 /* Der „…"-Knopf am Ende einer Postfachzeile (S/MIME). Schmaler als ein
    gewoehnlicher Knopf, weil er nur drei Punkte traegt — mit der Standardbreite
    saehe er aus wie eine leere Schaltflaeche. */
@@ -1146,3 +1167,29 @@ input[type="password"]:focus { outline: none; border-color: #0078d4; }
      über die ganze Breite wirkt sie wie eine Fehlermeldung. */
   .speicher-leiste { left: auto; min-width: 340px; }
 }
+
+/* Vorschlagsliste der Empfänger-Suche, Trenner und Aufklappteile.
+   Alles hier stand bis 2026-08-25 als `style.cssText` im JavaScript. Der
+   Browser normalisiert solche Werte zu `rgb(…)`; die Dark-Mode-Regeln greifen
+   über den TEXT des style-Attributs und liefen deshalb ins Leere — helle
+   Flächen und Trennstriche blieben im Dunkelmodus hell. */
+.vorschlag-kopf {
+    padding: 4px 10px; font-size: 10px; font-weight: 700; color: #94a3b8;
+    text-transform: uppercase; letter-spacing: .05em;
+    background: #f8fafc; border-bottom: 1px solid #f0f0f0;
+}
+.vorschlag-zeile {
+    padding: 7px 12px; font-size: 13px; cursor: pointer;
+    border-bottom: 1px solid #f8fafc;
+}
+.vorschlag-zeile:hover { background: #eff6ff; }
+.empfaenger-zeile {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 4px 2px; border-bottom: 1px solid #f0f0f0; font-size: 13px;
+}
+.js-trenner { border: none; border-top: 1px solid #e2e8f0; margin: 3px 0; }
+.js-aufklappteil { padding: 8px; border-top: 1px solid #e2e8f0; font-size: 12px; }
+
+/* Erfolgsstand einer Einrichtungsstufe. Farbe hier statt im JavaScript —
+   selber Grund. */
+.step-status[data-zustand="ok"] { background: #dcfce7; color: #166534; }

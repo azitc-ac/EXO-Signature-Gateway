@@ -111,3 +111,19 @@ def test_pruefung_laeuft_in_der_ci():
     ci = (WURZEL / ".github" / "workflows" / "ci.yml").read_text("utf-8")
     assert "tools/cssklassencheck.py" in ci, (
         "Ein Prüfskript, das nur von Hand läuft, läuft irgendwann nicht mehr.")
+
+
+def test_backticks_gelten_als_zugriff():
+    """⚠️ Template-Literale sind der Normalfall in diesem Projekt.
+
+        document.querySelector(`.lc-backend[data-email="${CSS.escape(e)}"]`)
+
+    Die erste Fassung des Anker-Musters kannte nur ' und " — und hielt neun
+    Klassen für erfunden, die sehr wohl benutzt werden. Ein Werkzeug, das neun
+    richtige Stellen anmahnt, um keine falsche zu finden, wird weggedrückt.
+    """
+    assert c._ist_anker("lc-backend",
+                        'document.querySelector(`.lc-backend[data-email="${x}"]`)')
+    assert c._ist_anker("zert-block", "karte.querySelector(`.zert-block`)")
+    # Gegenrichtung: eine blosse Erwähnung in einem Literal ist kein Zugriff.
+    assert not c._ist_anker("data-table", "`ein Text über data-table`")

@@ -226,8 +226,6 @@
               <span style="background:#fff7ed;color:#b45309;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;white-space:nowrap" title="Gemischt: teils lokal, teils Key Vault">GEMISCHT</span>
             {% endif %}
           {% endif %}
-          <span id="acme-status-{{ u.email | replace('@','_') | replace('.','_') }}"
-                style="font-size:12px"></span>
           <button class="btn secondary btn-sm zeile-mehr"
                   title="Lifecycle- und Auto-Enroll-Einstellungen"
                   onclick="_zeileMehr(event, this)">…</button>
@@ -239,13 +237,22 @@
         <div class="hub-order" data-email="{{ u.email }}"
              id="hub-order-{{ u.email | replace('@','_') | replace('.','_') }}"
              style="display:none"></div>
+        <!-- ⚠️ Die Statusmeldung der Zertifizierungsstelle steht UNTER der
+             Kopfzeile, nicht darin.
+             ANLASS (2026-08-25), Bildschirmfoto des Nutzers: Ein Fehlertext von
+             mehreren hundert Zeichen (die vollständige Fehlerseite der CA) sass
+             in der Knopfleiste und drückte „Importieren", „Auto-Enroll" und „…"
+             auseinander — die Zeile zerfiel in drei. Hier hat sie die volle
+             Breite und verhält sich wie die Bestellungs-Box darüber. -->
+        <div id="acme-status-{{ u.email | replace('@','_') | replace('.','_') }}"
+             class="acme-status"></div>
       </div>
       <!-- ⚠️ Zertifikate sind ZUGEKLAPPT die Vorgabe.
            Bei zwanzig Postfächern war die Seite vorher mehrere Bildschirme
            lang, obwohl man meist nur wissen will, wer wie viele hat. Die
            Kopfzeile trägt die Antwort darauf bereits; alles Weitere holt man
            sich mit einem Klick. -->
-      <div class="zert-block" style="display:none">
+      <div class="zert-block">
       <!-- Cert list -->
       {% if has_certs %}
       <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
@@ -646,37 +653,60 @@ function showAlert(el, type, msg) {
 
 function _zeileUmschalten(ev, kopf) {
   if (ev.target.closest('button, a, input, select, label')) return;
-  const block = kopf.parentElement.querySelector('.zert-block');
-  if (!block) return;
-  block.style.display = block.style.display === 'none' ? '' : 'none';
+  const karte = kopf.closest('.smime-user');
+  if (!karte) return;
+  const auf = karte.classList.contains('zeigt-zert');
+  karte.classList.toggle('zeigt-zert', !auf);
+  // ⚠️ Beim Zuklappen geht die Lifecycle-Zeile MIT.
+  // Nutzer: „kannst du beim einklappen auch die Zeile pro eintrag
+  // 'Lifecycle / blabla' mit einklappen". Sonst bleibt im kompakten Zustand
+  // eine Zeile stehen, die dort nichts erklärt — sie ist ja zu.
+  if (auf) {
+    karte.classList.remove('zeigt-lc');
+    // Auch den Aufklapper selbst schliessen. Sichtbar ist er ohnehin nicht
+    // mehr — aber ein `open`, das nicht zum Zustand passt, ist eine Lüge im
+    // DOM: Wer die Zeile später wieder öffnet, findet ihn unerwartet offen.
+    const lc = karte.querySelector('details.lifecycle-section');
+    if (lc) lc.open = false;
+  }
 }
 
-// „…" öffnet ZUSÄTZLICH die Einstellungen — zusätzlich, weil man beim
+// „…" zeigt die Einstellungen — und holt die Zertifikate mit, weil man beim
 // Einrichten eines Bezugswegs meist auch sehen will, was schon da ist.
 function _zeileMehr(ev, btn) {
   ev.stopPropagation();
   const karte = btn.closest('.smime-user');
   if (!karte) return;
-  const block = karte.querySelector('.zert-block');
   const lc = karte.querySelector('details.lifecycle-section');
-  const auf = lc && lc.open;
+  const auf = karte.classList.contains('zeigt-lc');
+  karte.classList.toggle('zeigt-lc', !auf);
   if (lc) lc.open = !auf;
-  // Beim Öffnen die Zertifikate mitnehmen, beim Schliessen sie stehen lassen:
-  // Wer die Einstellungen zuklappt, will selten auch die Liste verlieren.
-  if (!auf && block) block.style.display = '';
+  if (!auf) karte.classList.add('zeigt-zert');
 }
 
 function _alleZertifikate(btn) {
-  const bloecke = [...document.querySelectorAll('.smime-user .zert-block')];
-  const zu = bloecke.some(b => b.style.display === 'none');
-  bloecke.forEach(b => { b.style.display = zu ? '' : 'none'; });
+  const karten = [...document.querySelectorAll('.smime-user')];
+  const zu = karten.some(k => !k.classList.contains('zeigt-zert'));
+  karten.forEach(k => {
+    k.classList.toggle('zeigt-zert', zu);
+    if (!zu) {                                 // wie beim Zuklappen einer Zeile
+      k.classList.remove('zeigt-lc');
+      const lc = k.querySelector('details.lifecycle-section');
+      if (lc) lc.open = false;
+    }
+  });
   btn.textContent = zu ? 'Alle Zertifikate einklappen' : 'Alle Zertifikate ausklappen';
 }
 
 function _alleLifecycle(btn) {
-  const teile = [...document.querySelectorAll('.smime-user details.lifecycle-section')];
-  const zu = teile.some(d => !d.open);
-  teile.forEach(d => { d.open = zu; });
+  const karten = [...document.querySelectorAll('.smime-user')];
+  const zu = karten.some(k => !k.classList.contains('zeigt-lc'));
+  karten.forEach(k => {
+    k.classList.toggle('zeigt-lc', zu);
+    const lc = k.querySelector('details.lifecycle-section');
+    if (lc) lc.open = zu;
+    if (zu) k.classList.add('zeigt-zert');
+  });
   btn.textContent = zu ? 'Alle Einstellungen einklappen' : 'Alle Einstellungen ausklappen';
 }
 
@@ -703,6 +733,29 @@ const _acmeTimers = {};
 
 function _acmeKey(email) { return email.replace(/@/g,'_').replace(/\./g,'_'); }
 
+// ⚠️ FREMDTEXT — muss maskiert werden. `data.error` trägt die Antwort der
+// Zertifizierungsstelle, und die kann alles enthalten. Auf einem Gateway lag
+// hier die vollständige Fehlerseite von CASTLE (HTTP 500, Django-Traceback)
+// — mitsamt `<style>html * { padding:0; margin:0; }</style>`. Ungefiltert in
+// `innerHTML` gesetzt, übernahm der Browser diese Regel und setzte damit die
+// Abstände der GANZEN Seite auf null.
+//
+// Maskieren allein genügte aber nicht: Der Text war weiterhin mehrere hundert
+// Zeichen lang und sass in der Knopfleiste — er drückte „Importieren",
+// „Auto-Enroll" und „…" auseinander, die Zeile zerfiel in drei (Bildschirmfoto
+// vom 25.08.). Deshalb wird er jetzt AUFBEREITET: eine Zeile Kernaussage,
+// der Rest auf Wunsch.
+function _acmeFehlerKurz(roh) {
+  const text = String(roh || '');
+  // Eine HTML-Fehlerseite trägt ihre Aussage im <title> — „FileNotFoundError
+  // at /acme/order/…/finalize" sagt mehr als die ersten 200 Zeichen Markup.
+  const titel = text.match(/<title>([^<]{3,160})<\/title>/i);
+  if (titel) return titel[1].trim();
+  // Sonst: Markup entfernen, zusammenfassen, kürzen.
+  const ohne = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  return ohne.length > 160 ? ohne.slice(0, 160) + ' …' : ohne;
+}
+
 function _renderAcmeStatus(email, data) {
   const key = _acmeKey(email);
   const el = document.getElementById('acme-status-' + key);
@@ -710,30 +763,36 @@ function _renderAcmeStatus(email, data) {
   if (!el) return;
   if (!data || !data.active) {
     el.textContent = '';
-    el.style.cssText = '';
+    el.removeAttribute('data-zustand');
     if (resetEl) resetEl.style.display = 'none';
     return;
   }
   const s = data.status;
-  const lbl = _ACME_LABELS[s] || {icon:'ℹ️', text: s, color:'#374151', bg:'#f3f4f6', border:'#d1d5db'};
-  // ⚠️ FREMDTEXT — muss maskiert werden. `data.error` trägt die Antwort der
-  // Zertifizierungsstelle, und die kann alles enthalten. Auf einem Gateway lag
-  // hier die vollständige Fehlerseite von CASTLE (HTTP 500, Django-Traceback)
-  // — mitsamt `<style>html * { padding:0; margin:0; }</style>`. Ungefiltert in
-  // `innerHTML` gesetzt, übernahm der Browser diese Regel und setzte damit die
-  // Abstände der GANZEN Seite auf null: Die Überschrift verschwand hinter der
-  // Navigation, und ganz nach oben liess sich nicht mehr scrollen.
-  //
-  // Heute war es ein `<style>`. Derselbe Weg trägt auch ein `<script>`.
-  const errFull = s === 'error' && data.error ? data.error : '';
-  const detail  = errFull ? ': ' + esc(errFull) : '';
-  el.innerHTML = `<span style="display:inline-flex;align-items:flex-start;gap:4px;padding:2px 8px;
-    border-radius:10px;background:${lbl.bg};border:1px solid ${lbl.border};color:${lbl.color};
-    max-width:100%;box-sizing:border-box">
-    <span style="overflow-wrap:anywhere;white-space:normal;flex:1;min-width:0">${lbl.icon} ${lbl.text}${detail}</span>
-    ${s === 'error' ? `<button class="btn secondary btn-sm" style="padding:1px 6px;font-size:11px;margin-left:4px;flex-shrink:0"
-      onclick="clearAcmeOrder('${email}',this)">Zurücksetzen</button>` : ''}
-  </span>`;
+  const lbl = _ACME_LABELS[s] || {icon:'ℹ️', text: s};
+  // Farbe über `data-zustand`, nicht über style — sonst greift der
+  // Dunkelmodus nicht (Dark-Mode-Regel 2). Dieselbe Gestalt wie `.hub-order`.
+  el.dataset.zustand = s === 'error' ? 'fehler'
+                     : s === 'issued' ? 'ok' : '';
+
+  const errRoh  = s === 'error' && data.error ? String(data.error) : '';
+  const kurz    = errRoh ? _acmeFehlerKurz(errRoh) : '';
+  const lang    = errRoh && errRoh.length > kurz.length + 20
+    ? `<details><summary>Vollständige Antwort der Zertifizierungsstelle</summary>`
+      + `<pre>${esc(errRoh)}</pre></details>`
+    : '';
+
+  el.innerHTML =
+    `<div style="display:flex;gap:10px;align-items:flex-start">`
+    + `<div style="flex:1;min-width:0">`
+    + `<strong>${lbl.icon} ${esc(lbl.text)}</strong>`
+    + (kurz ? `<br><span style="overflow-wrap:anywhere">${esc(kurz)}</span>` : '')
+    + lang
+    + `</div>`
+    + (s === 'error'
+        ? `<button class="btn secondary btn-sm" style="flex-shrink:0"
+             onclick="clearAcmeOrder('${escAttr(email)}',this)">Zurücksetzen</button>`
+        : '')
+    + `</div>`;
   if (resetEl) resetEl.style.display = (s !== 'error') ? '' : 'none';
 }
 
@@ -1656,6 +1715,29 @@ async function migrateSlotToKv(email, slotId, btn) {
   .hub-order[data-zustand="ok"]     { background:#ecfdf5; border-color:#a7f3d0; color:#166534; }
   .hub-order[data-zustand="fehler"] { background:#fef2f2; border-color:#fca5a5; color:#991b1b; }
   .hub-order[data-zustand="unklar"] { background:#fffbeb; border-color:#fde68a; color:#92400e; }
+  /* Die Statusmeldung der Zertifizierungsstelle teilt sich die Gestalt mit der
+     Bestellungs-Box darüber. Vom Nutzer so gewünscht: „ich wünsche mir dass
+     beide so sind wie die erste meldung" — die zweite war durcheinander, weil
+     sie in der Knopfleiste sass und ein Fehlertext sie sprengte. */
+  /* ⚠️ `flex-basis:100%` — beide Meldungskästen stehen UNTER der Kopfzeile,
+     nicht daneben. `.user-hdr` ist ein Flex-Container mit Umbruch; ohne die
+     volle Basis rutscht ein kurzer Kasten neben die Knöpfe und die Zeile wird
+     unlesbar (im Bildschirmfoto vom 25.08. genau so zu sehen). */
+  .hub-order, .acme-status { flex: 0 0 100%; }
+  .acme-status { margin-top:8px; font-size:12px; border-radius:6px;
+                 padding:8px 12px; border:1px solid #bfdbfe;
+                 background:#eff6ff; color:#1e40af; }
+  .acme-status:empty { display:none; }
+  .acme-status[data-zustand="ok"]     { background:#ecfdf5; border-color:#a7f3d0; color:#166534; }
+  .acme-status[data-zustand="fehler"] { background:#fef2f2; border-color:#fca5a5; color:#991b1b; }
+  .acme-status[data-zustand="unklar"] { background:#fffbeb; border-color:#fde68a; color:#92400e; }
+  /* Der volle Fehlertext der Gegenstelle — nur auf Wunsch, und dann in
+     Schreibmaschinenschrift, weil es Quelltext ist. */
+  .acme-status details > summary { cursor:pointer; margin-top:6px; opacity:.85; }
+  .acme-status pre { margin:6px 0 0; padding:8px; border-radius:4px;
+                     background:rgba(0,0,0,.05); font-size:11px;
+                     max-height:180px; overflow:auto; white-space:pre-wrap;
+                     overflow-wrap:anywhere; }
 .portal-badge { display:inline-block; font-size:10px; font-weight:700; letter-spacing:.06em;
   text-transform:uppercase; border-radius:4px; padding:2px 7px; margin-left:8px; vertical-align:middle; }
 .portal-badge.on  { background:#dcfce7; color:#166534; }

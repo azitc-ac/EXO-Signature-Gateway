@@ -570,14 +570,24 @@ function speicherWache(knopf, felder, options) {
   const behaelter = opt.container
     ? (typeof opt.container === 'string' ? document.querySelector(opt.container) : opt.container)
     : null;
-  const els = behaelter ? [] : (felder || [])
+  // ⚠️ Bereich UND Einzelfelder, nicht Bereich ODER Einzelfelder.
+  //
+  // Bis 2026-08-25 verdrängte ein gesetzter Bereich die Feldliste. Das reichte,
+  // solange alles Überwachte beieinanderstand — beim Signatur-Baukasten steht
+  // es das nicht: Die Bausteine liegen in der linken Spalte, der Betreff einer
+  // Nachricht an Postfachinhaber darüber im Kopf. Den Bereich weiter zu fassen
+  // wäre der falsche Ausweg gewesen; dann läge die Postfachauswahl der Vorschau
+  // mit darin und jeder Wechsel dort meldete eine ungespeicherte Änderung.
+  const els = (felder || [])
     .map(f => (typeof f === 'string' ? document.getElementById(f) : f))
     .filter(Boolean);
   if (!btn || (!behaelter && !els.length)) {
     return {erledigt() {}, fehlgeschlagen() {}, zuruecksetzen() {}};
   }
-  const standJetzt = () => (behaelter ? _speicherStandContainer(behaelter)
-                                      : _speicherStand(els));
+  const standJetzt = () => JSON.stringify([
+    behaelter ? _speicherStandContainer(behaelter) : 0,
+    els.length ? _speicherStand(els) : 0,
+  ]);
 
   let hinweis = opt.hinweisId ? document.getElementById(opt.hinweisId) : null;
   if (!hinweis) {

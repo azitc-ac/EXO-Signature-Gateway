@@ -242,6 +242,17 @@ async function ankerAnwenden() {
 <!-- Vorlagenrichtlinien -->
 <div class="settings-card" style="margin-top:20px">
   <h2 style="margin-bottom:4px">Vorlagenrichtlinien</h2>
+  <!-- ⚠️ Die Wache beobachtet diesen Bereich, nicht einzelne Feldnamen.
+       ANLASS (2026-08-25), Nutzer: „die speichern knöpfe bei
+       Vorlagenrichtlinien sollte nicht anwählbar sein solange nichts geändert
+       wurde. ausserdem haben sie keinen hinweis, WENN was geändert wurde …
+       WARUM? das hatte ich doch bei dir eingetütet."
+       Zu Recht: Beim Nachrüsten der Wachen suchte ich nach
+       `getElementById('…').value` in EINER Zeile. Hier steht das Feld ohne
+       `.value` (die Variable wird später benutzt), und die Kästchen kommen
+       über `querySelectorAll`. Mein Muster fand nichts und meldete „keine
+       Felder" — statt nachzusehen. -->
+  <div id="policy-felder">
   <p class="hint" style="margin-bottom:14px;line-height:1.6">
     Legt fest, welche Signaturvorlage gateway-weit als Standard gilt.
     Postfächer mit aktivierter <em>Vorlagenrichtlinien</em>-Option übernehmen automatisch die hier hinterlegte Vorlage —
@@ -323,8 +334,11 @@ async function ankerAnwenden() {
     </tbody>
   </table>
   </div>
+  </div><!-- /policy-felder -->
   <div style="display:flex;align-items:center;gap:10px">
-    <button class="btn secondary" onclick="savePolicies()">Speichern</button>
+    <button class="btn secondary" id="policy-btn"
+            data-wache-container="#policy-felder" data-wache-hinweis="policy-save-result"
+            onclick="savePolicies()">Speichern</button>
     <span id="policy-save-result" style="font-size:12px"></span>
   </div>
 
@@ -464,7 +478,7 @@ function _buildPolicyAddinControl(addinValue) {
   inner.appendChild(masterLabel);
 
   var hr = document.createElement('div');
-  hr.style.cssText = 'border-top:1px solid #e2e8f0;margin:3px 0';
+  hr.className = 'js-trenner';
   inner.appendChild(hr);
 
   var tplWrap = document.createElement('div');
@@ -576,6 +590,11 @@ async function loadPolicies() {
       addinCtrl.innerHTML = '';
       addinCtrl.appendChild(_buildPolicyAddinControl(d.addin !== undefined ? d.addin : '*'));
     }
+    // ⚠️ Erst jetzt steht der Ausgangsstand. Die Wache misst ihn beim Laden der
+    // Seite — die Auswahl kommt aber per Abruf. Ohne diese Zeile stünde beim
+    // Öffnen „noch nicht gespeichert", und bliebe der Abruf erfolglos, wäre
+    // der Knopf dauerhaft gesperrt.
+    wacheNeuMessen('policy-btn');
   } catch(_) {}
 }
 
@@ -609,13 +628,13 @@ async function savePolicies() {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({TEMPLATE_POLICIES: policies}),
     });
-    res.textContent = r.ok ? '✓ Gespeichert' : '✗ Fehler';
-    res.style.color = r.ok ? '#16a34a' : '#dc2626';
+    // Rückmeldung über die Wache: Sie kennt den Unterschied zwischen
+    // „gespeichert" und „noch offen" und färbt über `data-zustand` statt
+    // über `style.color` — sonst greift der Dunkelmodus nicht (Regel 2).
+    wacheFertig('policy-btn', !!r.ok, r.ok ? undefined : '\u2717 Fehler');
   } catch(e) {
-    res.textContent = '✗ ' + e.message;
-    res.style.color = '#dc2626';
+    wacheFertig('policy-btn', false, '\u2717 ' + e.message);
   }
-  setTimeout(function() { res.textContent = ''; }, 3000);
 }
 
 // ── Postfächer ───────────────────────────────────────────────────────────────
@@ -754,7 +773,7 @@ function _buildAddinTemplatesControl(idx, addinTemplates, sigEnabled, policyActi
   inner.appendChild(masterLabel);
 
   var hr = document.createElement('div');
-  hr.style.cssText = 'border-top:1px solid #e2e8f0;margin:3px 0';
+  hr.className = 'js-trenner';
   inner.appendChild(hr);
 
   var tplWrap = document.createElement('div');

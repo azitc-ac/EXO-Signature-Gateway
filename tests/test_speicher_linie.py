@@ -256,3 +256,42 @@ def test_keine_meldung_springt_an_den_seitenanfang():
         f"Seitenanfang: {treffer}\n"
         "Die Meldung gehört an den Ort der Handlung — sonst blitzt sie oben "
         "auf, während der Blick unten steht.")
+
+
+def test_wache_misst_bereich_UND_einzelfelder():
+    """⚠️ Ein `data-wache` neben `data-wache-container` darf nicht verpuffen.
+
+    Bis 2026-08-25 verdrängte ein gesetzter Bereich die Feldliste
+    (`behaelter ? [] : felder`). Ein Knopf mit beiden Attributen sah dann
+    vollständig überwacht aus und übersah jede Änderung am Einzelfeld — beim
+    Signatur-Baukasten wäre das der Betreff einer Nachricht an Postfachinhaber
+    gewesen: Wer nur ihn ändert, bekäme einen gesperrten Speichern-Knopf und
+    damit die Aussage „es gibt nichts zu sichern".
+
+    Geprüft wird die WIRKUNG (kein Kurzschluss auf einen leeren Feldsatz),
+    nicht das Vorkommen eines Namens.
+    """
+    js = (WURZEL / "app" / "webui" / "static" / "common.js").read_text("utf-8")
+    code = "\n".join(z for z in js.splitlines() if not z.strip().startswith("//"))
+    assert not re.search(r"behaelter\s*\?\s*\[\]\s*:", code), (
+        "Der Bereich verdrängt wieder die Feldliste — Einzelfelder daneben "
+        "werden dann nicht mehr überwacht.")
+    stand = re.search(r"const standJetzt = \(\) =>(.*?);\n", code, re.S)
+    assert stand, "standJetzt() nicht gefunden"
+    assert ("_speicherStandContainer" in stand.group(1)
+            and "_speicherStand(els)" in stand.group(1)), (
+        "standJetzt() liest nicht beide Quellen — Bereich und Einzelfelder "
+        "müssen zusammen in den Vergleichswert.")
+
+
+def test_baukasten_ueberwacht_bausteine_und_betreff():
+    """Der Fall, für den die Erweiterung gebaut wurde — Stellvertreter für die
+    Verdrahtung, nicht für die Mechanik."""
+    q = (WURZEL / "app" / "webui" / "templates" / "template_editor.html").read_text("utf-8")
+    knopf = re.search(r'<button[^>]*id="save-builder-btn"[^>]*>', q, re.S)
+    assert knopf, "Speichern-Knopf des Baukastens nicht gefunden"
+    assert 'data-wache-container="#baukasten-felder"' in knopf.group(0)
+    assert 'data-wache="um-betreff"' in knopf.group(0)
+    assert 'id="baukasten-felder"' in q, (
+        "Der überwachte Bereich existiert nicht — die Wache misst dann nichts "
+        "und der Knopf bliebe dauerhaft gesperrt.")
