@@ -63,7 +63,7 @@
         speichern setzt sie wieder auf die Kontoadresse zurück.
       </p>
       <div class="actions">
-        <button class="btn primary" onclick="rechAdresseSpeichern()">Speichern</button>
+        <button class="btn secondary" onclick="rechAdresseSpeichern()">Speichern</button>
         <button class="btn secondary" onclick="rechAdresseSchliessen()">Abbrechen</button>
       </div>
       <div id="hub-rech-msg" style="display:none;margin-top:8px"></div>
@@ -115,7 +115,8 @@
   <div class="settings-row" style="margin-bottom:8px"><label>Name (optional)</label>
     <input type="text" id="hub-name" style="width:100%;max-width:360px;font-size:13px"></div>
   <div class="actions" style="margin:6px 0 10px">
-    <button class="btn secondary" onclick="hubSaveConfig()">Speichern</button>
+    <button data-wache="hub-base,hub-email,hub-name" data-wache-hinweis="hub-config-btn-hinweis" id="hub-config-btn" class="btn secondary" onclick="hubSaveConfig()">Speichern</button>
+    <span id="hub-config-btn-hinweis" style="font-size:12px;margin-left:8px"></span>
     <button class="btn primary" onclick="hubConnect()">Verbinden</button>
     <button class="btn secondary" onclick="hubPollClaim(true)">Bestätigung prüfen</button>
     <button class="btn secondary" onclick="hubStatus()">Status prüfen</button>
@@ -125,7 +126,8 @@
     <input type="password" id="hub-key" autocomplete="new-password"
            placeholder="von EXO Signature HUB erhalten"
            style="width:100%;max-width:360px;font-size:13px" autocapitalize="off" autocorrect="off" spellcheck="false">
-    <button class="btn secondary" onclick="hubSaveKey()">Key speichern</button></div>
+    <button data-wache="hub-key" data-wache-hinweis="hub-key-btn-hinweis" id="hub-key-btn" class="btn secondary" onclick="hubSaveKey()">Key speichern</button>
+    <span id="hub-key-btn-hinweis" style="font-size:12px;margin-left:8px"></span></div>
   <div id="hub-result" style="display:none;margin-top:8px"></div>
   <div id="hub-gwid" class="hint" style="font-size:12px;margin-top:8px"></div>
   {% endif %}
@@ -190,7 +192,8 @@
         <input type="text" id="cert-bill-contact" placeholder="Ansprechpartner" style="font-size:13px">
         <input type="text" id="cert-bill-website" placeholder="Webseite (optional)" style="font-size:13px" autocapitalize="off" autocorrect="off" spellcheck="false">
       </div>
-      <div style="margin-top:8px"><button class="btn secondary" onclick="certSaveBilling()">Speichern</button></div>
+      <div style="margin-top:8px"><button data-wache="cert-bill-address,cert-bill-company,cert-bill-contact,cert-bill-vat,cert-bill-website,cert-domain-input" data-wache-hinweis="cert-billing-btn-hinweis" id="cert-billing-btn" class="btn secondary" onclick="certSaveBilling()">Speichern</button>
+    <span id="cert-billing-btn-hinweis" style="font-size:12px;margin-left:8px"></span></div>
     </details>
   </div>
 
@@ -300,7 +303,8 @@
     </div>
   </div>
   <div class="actions" style="margin-top:10px;margin-bottom:6px">
-    <button class="btn secondary" onclick="dcSaveConfig()">Speichern</button>
+    <button data-wache="dc-api-key,dc-org-id,dc-payment,dc-validity" data-wache-hinweis="dc-config-btn-hinweis" id="dc-config-btn" class="btn secondary" onclick="dcSaveConfig()">Speichern</button>
+    <span id="dc-config-btn-hinweis" style="font-size:12px;margin-left:8px"></span>
     <button class="btn secondary" onclick="dcTest()">Verbindung testen</button>
     <span id="dc-msg" class="hint"></span>
   </div>
@@ -354,7 +358,12 @@ async function dcSaveConfig(){
   };
   const d=await (await fetch('/api/digicert/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
   _dcMsg(d.ok?'Gespeichert.':'Fehler beim Speichern.',d.ok);
-  if(d.ok){ document.getElementById('dc-api-key').value=''; dcLoadConfig(); }
+  wacheFertig('dc-config-btn', !!d.ok);
+  // ⚠️ NACH `wacheFertig`: `dcLoadConfig()` schreibt die Felder neu, und das
+  // Leeren des Schlüsselfeldes ist selbst eine Änderung. Andersherum stünde
+  // sofort wieder „noch nicht gespeichert".
+  if(d.ok){ document.getElementById('dc-api-key').value=''; dcLoadConfig();
+            setTimeout(() => wacheNeuMessen('dc-config-btn'), 400); }
 }
 async function dcTest(){
   _dcMsg('Teste…',true);
@@ -462,7 +471,7 @@ _initAdv('digicert');
         <input type="number" id="lic-menge" class="eng" min="0" step="1" style="width:120px"
                oninput="licMengeVorschau()">
         <span class="hint" style="display:block;margin-top:2px" id="lic-menge-hint"></span></div>
-      <button class="btn primary" onclick="licAboMenge()">Übernehmen</button>
+      <button class="btn secondary" onclick="licAboMenge()">Übernehmen</button>
     </div>
     <!-- Rückmeldung AN der Eingabe, nicht in der Sammelmeldung weiter oben:
          die steht oberhalb der Knopfleiste und damit ausserhalb des Blickfelds,
@@ -653,7 +662,8 @@ async function hubLoadConfig() { try { const d=await (await fetch('/api/hub/conf
   } catch(e){ ursache(e, 'settings_connect:485'); } }
 async function hubSaveConfig() { const body={base_url:document.getElementById('hub-base').value.trim(),email:document.getElementById('hub-email').value.trim(),name:document.getElementById('hub-name').value.trim()};
   const d=await (await fetch('/api/hub/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
-  _hubMsg(d.ok?'Anbindung gespeichert.':('Fehler: '+(d.error||'')), d.ok); }
+  _hubMsg(d.ok?'Anbindung gespeichert.':('Fehler: '+(d.error||'')), d.ok);
+  wacheFertig('hub-config-btn', !!d.ok); }
 let _hubTimer=null;
 const HUB_POLL_SECS=5;   // Auto-Prüfung alle 5s, solange die Seite offen ist
 async function hubConnect() { await hubSaveConfig(); _hubMsg('Verbinde… Registrierung wird übermittelt.',true);
@@ -714,7 +724,11 @@ async function hubSaveKey() { const key=document.getElementById('hub-key').value
   fieldClear('hub-key');
   if(!key){fieldMsg('hub-key','Bitte API-Key eingeben.',false);return;}
   const d=await (await fetch('/api/hub/api-key',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({api_key:key})})).json();
-  if(d.ok){document.getElementById('hub-key').value='';_hubMsg('API-Key gespeichert. Bitte Seite neu laden.',true);} else _hubMsg('Fehler beim Speichern.',false); }
+  if(d.ok){document.getElementById('hub-key').value='';_hubMsg('API-Key gespeichert. Bitte Seite neu laden.',true);} else _hubMsg('Fehler beim Speichern.',false);
+  // Das Feld wird beim Erfolg geleert — das ist selbst eine Änderung. Deshalb
+  // den Ausgangsstand neu setzen statt nur „fertig" zu melden.
+  wacheFertig('hub-key-btn', !!d.ok);
+  if(d.ok) setTimeout(() => wacheNeuMessen('hub-key-btn'), 200); }
 async function hubStatus() { _hubMsg('Prüfe Status…',true); const d=await (await fetch('/api/hub/status')).json();
   if(d.ok)_hubMsg('Freigegeben: Log-Upload <strong>'+(d.log_upload_enabled?'an':'aus')+'</strong>, Kontingent '+d.quota_mb_per_day+' MB/Tag (heute '+d.used_today_mb+' MB genutzt).',true); else _hubMsg('Status: '+(d.error||'nicht verfügbar'),false); }
 // ── Kontoadresse wechseln ───────────────────────────────────────────────────
@@ -1393,7 +1407,10 @@ async function certSaveBilling() {
   if(!_pflichtfelder([['cert-bill-company', body.billing_company],
                      ['cert-bill-address', body.billing_address]])) return;
   const d=await (await fetch('/api/hub/cert/billing',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
-  if(d.ok){ _billingFilled=true; _acctMsg('Abrechnungsdaten gespeichert.',true); acctLoad(); } else _acctMsg('Fehler: '+(d.error||'Unbekannt'),false); }
+  if(d.ok){ _billingFilled=true; _acctMsg('Abrechnungsdaten gespeichert.',true); acctLoad(); } else _acctMsg('Fehler: '+(d.error||'Unbekannt'),false);
+  wacheFertig('cert-billing-btn', !!d.ok);
+  // `acctLoad()` schreibt die Felder neu — danach den Ausgangsstand setzen.
+  if(d.ok) setTimeout(() => wacheNeuMessen('cert-billing-btn'), 400); }
 async function certDomainRequest() {
   const domain=document.getElementById('cert-domain-input').value.trim().toLowerCase();
   fieldClear('cert-domain-input');

@@ -36,10 +36,17 @@
     {% endif %}
     {% if kv_configured %}
     <button class="btn secondary btn-sm" onclick="refreshKvStatus(this)"
-            title="Azure Key Vault auf vorhandene Schlüssel prüfen (gecachter Status wird aktualisiert)">
+            title="Azure Key Vault auf vorhandene Schlüssel prüfen — der angezeigte Stand stammt aus der letzten Prüfung">
       Key Vault Status prüfen
     </button>
-    <span id="kv-status-result" style="font-size:12px;color:#64748b"></span>
+    {# Ohne diese Angabe ist nicht zu erkennen, ob die Spalte „im Tresor" von
+       heute oder von vor drei Wochen stammt — geprüft wird nur auf Knopfdruck. #}
+    {% if kv_zuletzt_geprueft %}
+    <span class="hint">Stand: {{ kv_zuletzt_geprueft }}</span>
+    {% else %}
+    <span class="hint">noch nie geprüft</span>
+    {% endif %}
+    <span id="kv-status-result" class="speicher-hinweis"></span>
     {% endif %}
     <div id="bulk-migrate-result" style="font-size:12px;display:none"></div>
   </div>
@@ -96,9 +103,9 @@
           <option value="{{ b.name }}">{{ b.label }}</option>
           {% endfor %}
         </select>
-        <input type="text" id="sammel-filter" placeholder="Postfächer filtern…"
+        <input readonly type="text" id="sammel-filter" placeholder="Postfächer filtern…"
                oninput="sammelFiltern()"
-               style="padding:6px 10px;border:1px solid #ccc;border-radius:6px;font-size:13px;flex:1;min-width:160px">
+               style="padding:6px 10px;border:1px solid #ccc;border-radius:6px;font-size:13px;flex:1;min-width:160px" onfocus="this.removeAttribute('readonly')">
         <button class="btn secondary btn-sm" onclick="sammelAlle(true)">Alle sichtbaren</button>
         <button class="btn secondary btn-sm" onclick="sammelAlle(false)">Keine</button>
       </div>
@@ -129,9 +136,9 @@
     </div>
   </details>
 
-  <input type="text" id="smime-filter" placeholder="Filtern nach E-Mail oder Zertifikat…"
+  <input readonly type="text" id="smime-filter" placeholder="Filtern nach E-Mail oder Zertifikat…"
          oninput="filterSmimeUsers(this.value)"
-         style="width:100%;max-width:340px;padding:7px 10px;border:1px solid #ccc;border-radius:6px;font-size:14px;margin-bottom:14px">
+         style="width:100%;max-width:340px;padding:7px 10px;border:1px solid #ccc;border-radius:6px;font-size:14px;margin-bottom:14px" onfocus="this.removeAttribute('readonly')">
   <p id="smime-noresults" style="display:none;color:#a8a29e;font-size:13px">Keine Treffer.</p>
   <script>
   function filterSmimeUsers(q) {
@@ -1419,28 +1426,48 @@ async function migrateToKv(email, btn) {
   }
 }
 
+// ⚠️ Drei Mängel, alle aus der Meldung des Nutzers („es fehlt das visuelle
+// feedback, dass ein ergebnis da ist und welches"):
+//
+//   1. Das Ergebnis nannte nur die ZAHL der geprüften Postfächer, nicht den
+//      Befund. Ob neun Schlüssel gefunden wurden oder keiner, stand nirgends.
+//   2. Nach 1,2 s wurde neu geladen — zu kurz, um es zu lesen.
+//   3. Die Fehlerfarbe kam aus JavaScript und war im Dunkelmodus wirkungslos
+//      (Dark-Mode-Regel 2).
+//
+// Zur Frage „braucht es den Knopf überhaupt": ja. `KV_KEY_STATUS` wird
+// ausschliesslich hier geschrieben — es gibt keinen Hintergrundlauf. Ohne den
+// Knopf veraltet die Anzeige stillschweigend. Deshalb steht jetzt auch am
+// Knopf, wie alt der angezeigte Stand ist.
 async function refreshKvStatus(btn) {
   const resultEl = document.getElementById('kv-status-result');
   const origText = btn.textContent;
   btn.disabled = true;
   btn.textContent = 'Prüfe…';
-  if (resultEl) resultEl.textContent = '';
+  if (resultEl) { resultEl.textContent = ''; resultEl.dataset.zustand = ''; }
   try {
     const r = await fetch('/api/smime/kv-status/refresh', {method: 'POST'});
     const data = await r.json();
     if (data.ok) {
+      const werte = Object.values(data.results || {});
+      const mit = werte.filter(v => v && v.exists).length;
       if (resultEl) {
-        const count = Object.keys(data.results || {}).length;
-        resultEl.textContent = count + ' Postfächer geprüft — Seite wird neu geladen…';
+        resultEl.dataset.zustand = 'fertig';
+        resultEl.textContent = werte.length === 0
+          ? 'Kein Postfach mit S/MIME — nichts zu prüfen'
+          : `${werte.length} geprüft · ${mit} mit Schlüssel im Tresor · `
+            + `${werte.length - mit} ohne`;
       }
-      setTimeout(() => location.reload(), 1200);
+      // Vier Sekunden statt 1,2 — lang genug, um den Befund zu lesen, bevor
+      // die Tabelle darunter mit dem neuen Stand erscheint.
+      setTimeout(() => location.reload(), 4000);
     } else {
-      if (resultEl) { resultEl.style.color = '#dc2626'; resultEl.textContent = data.detail || 'Fehler'; }
+      if (resultEl) { resultEl.dataset.zustand = 'fehler'; resultEl.textContent = data.detail || 'Fehler'; }
       btn.disabled = false;
       btn.textContent = origText;
     }
   } catch (err) {
-    if (resultEl) { resultEl.style.color = '#dc2626'; resultEl.textContent = 'Netzwerkfehler: ' + err; }
+    if (resultEl) { resultEl.dataset.zustand = 'fehler'; resultEl.textContent = 'Netzwerkfehler: ' + err; }
     btn.disabled = false;
     btn.textContent = origText;
   }

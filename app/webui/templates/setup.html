@@ -144,7 +144,8 @@
     </div>
     <div id="hostname-result" style="margin-top:8px;display:none"></div>
     <div class="actions" style="margin-top:12px">
-      <button class="btn primary" onclick="saveHostname()">Hostnamen speichern</button>
+      <button data-wache="hostname" data-wache-hinweis="hostname-btn-hinweis" id="hostname-btn" class="btn primary" onclick="saveHostname()">Hostnamen speichern</button>
+    <span id="hostname-btn-hinweis" style="font-size:12px;margin-left:8px"></span>
     </div>
   </div>
 </div>
@@ -483,7 +484,8 @@
         </div>
         <div id="bootstrap-result" style="margin-top:8px;display:none"></div>
         <div class="actions" style="margin-top:10px">
-          <button class="btn primary" onclick="saveBootstrapClientId()">Client-ID speichern</button>
+          <button data-wache="bootstrap-client-id" data-wache-hinweis="bootstrap-client-id-btn-hinweis" id="bootstrap-client-id-btn" class="btn primary" onclick="saveBootstrapClientId()">Client-ID speichern</button>
+    <span id="bootstrap-client-id-btn-hinweis" style="font-size:12px;margin-left:8px"></span>
         </div>
       </div>
     </details>
@@ -777,10 +779,11 @@
       <button class="btn secondary" id="kv-assign-role-btn" onclick="assignKvRole()" style="display:none">
         Rolle sicherstellen (Crypto Officer)
       </button>
-      <button class="btn primary" id="kv-save-btn" onclick="saveKeyvault()"
+      <button data-wache="kv-url-input" data-wache-hinweis="kv-save-btn-hinweis" class="btn secondary" id="kv-save-btn" onclick="saveKeyvault()"
         {% if not e.azure_app_created or not s.KEYVAULT_URL %}disabled{% endif %}>
         Speichern
       </button>
+    <span id="kv-save-btn-hinweis" style="font-size:12px;margin-left:8px"></span>
     </div>
 
     {% if s.KEYVAULT_URL %}
@@ -1126,6 +1129,7 @@ async function saveHostname() {
     const d = await resp.json().catch(() => ({}));
     showAlert(result, 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));
   }
+  wacheFertig('hostname-btn', !!resp.ok);
 }
 
 async function testGraph() {
@@ -1249,6 +1253,7 @@ async function saveBootstrapClientId() {
     const d = await resp.json().catch(() => ({}));
     showAlert(result, 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));
   }
+  wacheFertig('bootstrap-client-id-btn', !!resp.ok);
 }
 
 async function startAzureLogin(btnId, pasteSectionId, forceLocalhost) {
@@ -2195,6 +2200,7 @@ async function saveKeyvault() {
     const data = await r.json();
     resultEl.className = 'alert ' + (data.ok ? 'success' : 'error');
     resultEl.textContent = data.ok ? 'Key Vault URL gespeichert.' : (data.detail || 'Fehler');
+    wacheFertig('kv-save-btn', !!data.ok);
     if (data.ok) {
       _kvTestPassed = true;
       const step = document.getElementById('step-keyvault');

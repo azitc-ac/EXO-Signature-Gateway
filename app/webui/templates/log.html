@@ -5,8 +5,8 @@
 <div class="settings-card" style="margin-bottom:20px">
   <h2 style="margin-top:0">Protokoll-Suche</h2>
   <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
-    <input type="text" id="searchInput" placeholder="Suchbegriff (z.B. E-Mail-Adresse, ERROR, [mail:…], [acme:…])"
-      style="flex:1; min-width:180px" onkeydown="if(event.key==='Enter') doSearch()">
+    <input readonly type="text" id="searchInput" placeholder="Suchbegriff (z.B. E-Mail-Adresse, ERROR, [mail:…], [acme:…])"
+      style="flex:1; min-width:180px" onkeydown="if(event.key==='Enter') doSearch()" onfocus="this.removeAttribute('readonly')">
     <button class="btn primary" onclick="doSearch()">Suchen</button>
     <button class="btn secondary" onclick="clearSearch()">Leeren</button>
   </div>

@@ -5,6 +5,44 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.17 — 2026-08-25 — Speichern-Knöpfe überall gleich
+
+**Ein Speichern-Knopf zeigt jetzt auf jeder Seite an, ob etwas offen ist.** Die
+Änderungsüberwachung gab es bisher praktisch nur unter *Einstellungen*: 22
+Knöpfe auf sechs Seiten hatten keine — darunter der grosse auf der
+Postfächer-Seite. Wer dort unten etwas änderte, sah einen bedienbaren Knopf,
+aber keinen Hinweis, dass noch nichts gespeichert war.
+
+Nachgerüstet: Postfächer, Anbindung &amp; Lizenzen (vier Knöpfe) und der
+Einrichtungsassistent (drei). Sie sind beim Öffnen gesperrt, werden bei einer
+Änderung bedienbar und melden nach dem Speichern am Ort.
+
+**Ein Feld gehörte zwei Knöpfen.** Der Haken *Verteilerliste nimmt auch Mail von
+außerhalb an* stand sowohl beim eigenen Knopf „In EXO speichern" als auch beim
+Sammelknopf der Karte. Er gehört zum ersten — seine Wirkung entsteht in
+Exchange, und nur dieser Knopf löst das aus.
+
+**Alle Speichern-Knöpfe sind grau.** Sie waren teils blau, teils grau, ohne
+erkennbares Muster: 16 zu 28. Seit jede Karte ihren eigenen Knopf hat, wäre die
+Betonung ohnehin keine mehr — blau bleibt Aktionen vorbehalten, die etwas
+auslösen (bestellen, herunterladen, Assistent starten).
+
+**Key Vault: Status prüfen sagt jetzt, was es gefunden hat.** Vorher nannte die
+Meldung nur die Zahl der geprüften Postfächer und verschwand nach 1,2 Sekunden
+im Neuladen. Jetzt: „12 geprüft · 9 mit Schlüssel im Tresor · 3 ohne", vier
+Sekunden Zeit zum Lesen. Am Knopf steht ausserdem, wie alt der angezeigte Stand
+ist — geprüft wird nur auf Knopfdruck, und das war der Anzeige bisher nicht
+anzusehen.
+
+**Suchfelder werden nicht mehr vom Browser ausgefüllt.** Im Feld „Benutzer
+suchen" stand wiederkehrend `admin`, ohne dass etwas gefiltert war: Die
+Passwortverwaltung des Browsers hielt es für ein Anmeldefeld. Ein so gesetzter
+Wert löst kein Ereignis aus — das Feld sah gefüllt aus und tat nichts. Betrifft
+sechs Suchfelder.
+
+**Die Karte „Benutzer-Overrides" verschwindet ganz,** wenn die erweiterten
+Einstellungen abgewählt sind. Bisher blieb ein leerer Kasten stehen.
+
 ## v1.8.16 — 2026-08-25 — Erweitert und Update & Backup angeglichen
 
 **Alle Abschnitte unter *Erweitert* sehen gleich aus.** Drei von fünfzehn hatten
