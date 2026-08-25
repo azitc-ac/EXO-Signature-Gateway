@@ -27,7 +27,6 @@
     <label for="disclaimer-sel" style="display:block;font-size:13px;color:#555;margin-bottom:4px">Disclaimer</label>
     <select id="disclaimer-sel" style="width:190px" onchange="loadPreview()"></select>
   </div>
-  <button class="btn primary" id="load-btn" onclick="loadPreview()">Vorschau laden</button>
 </div>
 
 <p style="font-size:12px;color:#6b7280;margin:-10px 0 18px">
@@ -40,9 +39,9 @@
 
 <div id="preview-area" style="display:none">
   <div style="display:flex;gap:6px;margin-bottom:14px">
-    <button class="subtab-btn active" onclick="switchSubtab(this,'pv-html')" style="font-size:12px;padding:4px 12px;border:1px solid #e2e8f0;border-radius:20px;background:#4f46e5;color:#fff;cursor:pointer">HTML-Vorschau</button>
-    <button class="subtab-btn" onclick="switchSubtab(this,'pv-txt')"  style="font-size:12px;padding:4px 12px;border:1px solid #e2e8f0;border-radius:20px;background:transparent;color:#555;cursor:pointer">Plaintext</button>
-    <button class="subtab-btn" onclick="switchSubtab(this,'pv-src')"  style="font-size:12px;padding:4px 12px;border:1px solid #e2e8f0;border-radius:20px;background:transparent;color:#555;cursor:pointer">HTML-Quelltext</button>
+    <button type="button" class="btn-toggle active" onclick="switchSubtab(this,'pv-html')">HTML-Vorschau</button>
+    <button type="button" class="btn-toggle" onclick="switchSubtab(this,'pv-txt')">Plaintext</button>
+    <button type="button" class="btn-toggle" onclick="switchSubtab(this,'pv-src')">HTML-Quelltext</button>
   </div>
   <div id="pv-html" class="preview-frame" style="min-height:80px"></div>
   <!-- Die Kopierknöpfe liegen im Rahmen oben rechts, wie im Quelltext-Editor.
@@ -132,7 +131,6 @@
     document.getElementById('error-box').style.display  = 'none';
     document.getElementById('preview-area').style.display = 'none';
     document.getElementById('loading-indicator').style.display = 'block';
-    document.getElementById('load-btn').disabled = true;
 
     try {
       // `explizit=1`: die drei Namen gelten wie gewählt. Ohne das Kennzeichen
@@ -156,17 +154,13 @@
       showError('Fehler: ' + e.message);
     } finally {
       document.getElementById('loading-indicator').style.display = 'none';
-      document.getElementById('load-btn').disabled = false;
     }
   };
 
   window.switchSubtab = function(clickedBtn, targetId) {
-    document.querySelectorAll('.subtab-btn').forEach(b => {
-      b.style.background = 'transparent';
-      b.style.color      = '#555';
-    });
-    clickedBtn.style.background = '#4f46e5';
-    clickedBtn.style.color      = '#fff';
+    document.querySelectorAll('#preview-area .btn-toggle')
+            .forEach(b => b.classList.remove('active'));
+    clickedBtn.classList.add('active');
     // Die Textblöcke stecken in einer Hülle, die die Kopierknöpfe trägt —
     // ein-/ausgeblendet wird deshalb die Hülle, nicht der Block selbst.
     // Andernfalls bliebe der Knopf sichtbar, während sein Inhalt verborgen ist.

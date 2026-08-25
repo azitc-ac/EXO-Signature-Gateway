@@ -158,13 +158,20 @@ def _ist_anker(name: str, quelltext: str) -> bool:
     das Gateway seine eigene Signatur in fremdem HTML wiederfinden muss.
     """
     n = re.escape(name)
+    # ⚠️ BACKTICKS mitzählen. Die Zugriffe auf `.lc-backend` und Geschwister
+    # stehen in Template-Literalen:
+    #     document.querySelector(`.lc-backend[data-email="${CSS.escape(e)}"]`)
+    # Ein Muster, das nur ' und " kennt, hält solche Klassen für unbenutzt und
+    # meldet sie als erfunden — neun Stück auf einen Schlag, alle zu Unrecht.
+    # Und ein Werkzeug, das neun richtige Stellen anmahnt, wird weggedrückt.
+    z = r"['\"`]"
     return bool(re.search(
-        rf"""(querySelector\w*\(\s*['"][^'"]*\.{n}\b"""            # '.x' / 'div.x'
-        rf"""|closest\(\s*['"][^'"]*\.{n}\b"""                      # closest('details.x')
-        rf"""|matches\(\s*['"][^'"]*\.{n}\b"""
-        rf"""|getElementsByClassName\(\s*['"]{n}['"]"""
-        rf"""|classList\.contains\(\s*['"]{n}['"]"""
-        rf"""|['"]{n}['"]\s*(?:#|$))""", quelltext))
+        rf"""(querySelector\w*\(\s*{z}[^'"`]*\.{n}\b"""            # '.x' / `div.x`
+        rf"""|closest\(\s*{z}[^'"`]*\.{n}\b"""                      # closest('details.x')
+        rf"""|matches\(\s*{z}[^'"`]*\.{n}\b"""
+        rf"""|getElementsByClassName\(\s*{z}{n}{z}"""
+        rf"""|classList\.contains\(\s*{z}{n}{z}"""
+        rf"""|{z}{n}{z}\s*(?:#|$))""", quelltext))
 
 
 def pruefe(wurzel: Path, titel: str) -> list[str]:

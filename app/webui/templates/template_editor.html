@@ -109,7 +109,7 @@
        `max-width` entfällt auf breiten Schirmen (siehe .baukasten-* in
        style.css): Die Karten sind dort nicht mehr die Engstelle, und ein
        Kasten mit Kindern liest sich mit etwas Luft deutlich besser. -->
-  <div class="baukasten-liste" style="flex:1 1 360px;max-width:420px;min-width:0">
+  <div class="baukasten-liste" id="baukasten-felder" style="flex:1 1 360px;max-width:420px;min-width:0">
 
     <!-- Global Settings -->
     <details id="global-settings" style="margin-bottom:12px">
@@ -209,7 +209,9 @@
 
     <!-- Save button -->
     <div style="margin-top:16px;display:flex;gap:8px">
-      <button class="btn secondary" onclick="saveBuilder()" id="save-builder-btn" type="button">Speichern</button>
+      <button class="btn primary" onclick="saveBuilder()" id="save-builder-btn"
+              type="button" data-wache-container="#baukasten-felder"
+              data-wache="um-betreff">Speichern</button>
     </div>
 
   </div><!-- /left -->
@@ -1007,7 +1009,8 @@ function renderColBlocks(parent, side) {
         style="${iconBtnStyle('#dc2626')}">✕</button>`;
 
     const body = document.createElement('div');
-    body.style.cssText = 'display:none;padding:8px;border-top:1px solid #e2e8f0;font-size:12px';
+    body.className = 'js-aufklappteil';
+    body.style.display = 'none';
     body.innerHTML = buildBlockForm(b);
     body.querySelectorAll('[data-bid]').forEach(el => el.dataset.bid = b.id);
 
@@ -1276,6 +1279,10 @@ window.saveBuilder = async function() {
     const d = await r.json();
     if (!r.ok) throw new Error(d.detail || 'Fehler');
     document.getElementById('save-ok').style.display = 'block';
+    // ⚠️ Stumm zurücksetzen, NICHT `wacheFertig(…, true)`. Der Kasten darüber
+    // meldet den Erfolg bereits; beides zusammen ergäbe zwei gegeneinander
+    // versetzte „gespeichert"-Hinweise.
+    wacheNeuMessen('save-builder-btn');
     // Update raw-HTML textarea
     const ta = document.getElementById('html_content');
     if (ta) ta.value = d.html || '';
@@ -1293,8 +1300,8 @@ window.saveBuilder = async function() {
     const box = document.getElementById('save-err');
     box.textContent = 'Speichern fehlgeschlagen: ' + e.message;
     box.style.display = 'block';
+    wacheFertig('save-builder-btn', false, '');
   } finally {
-    btn.disabled = false;
     btn.textContent = 'Speichern';
   }
 };

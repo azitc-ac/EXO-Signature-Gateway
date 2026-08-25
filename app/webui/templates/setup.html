@@ -2647,8 +2647,9 @@ async function loadPoolStatus() {
     const statusEl = document.getElementById('step-app-pool-status');
     if (statusEl && d.configured > 0) {
       statusEl.textContent = `${total} Apps konfiguriert`;
-      statusEl.style.background = '#dcfce7';
-      statusEl.style.color = '#16a34a';
+      // Zustand als Attribut, Farbe im CSS — JS-gesetzte Farben normalisiert
+      // der Browser zu rgb(), die Dark-Mode-Selektoren greifen dann nicht.
+      statusEl.dataset.zustand = 'ok';
     }
   } catch(e) { ursache(e, 'setup:2501'); }
 }

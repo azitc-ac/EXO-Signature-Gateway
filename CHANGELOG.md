@@ -5,6 +5,56 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.19 — 2026-08-25 — Vorschau, Baukasten und ein blinder Dunkelmodus-Prüfer
+
+**Signatur-Vorschau.** Der Knopf *Vorschau laden* ist entfallen — jede der vier
+Auswahlen lädt die Vorschau selbst, und beim Öffnen der Seite geschieht das
+ebenfalls. Ein Knopf, der nur wiederholt, was ohnehin schon passiert ist, lässt
+offen, ob das Bild aktuell ist.
+
+Die drei Umschalter *HTML-Vorschau / Plaintext / HTML-Quelltext* sahen anders aus
+als vergleichbare Umschalter im Rest der Oberfläche: eigenes Indigo statt des
+üblichen Blaus, jede Farbe als Inline-Stil im Skript. Sie nutzen jetzt dieselbe
+Form wie überall.
+
+**Signatur-Baukasten.** Der Speichern-Knopf ist blau wie in den übrigen
+Hauptbereichen und bleibt gesperrt, solange nichts geändert wurde; nach einer
+Änderung steht „noch nicht gespeichert" daneben. Ein ausgegrauter Knopf ist damit
+auch hier eine Aussage.
+
+Dafür musste die Speicher-Überwachung erweitert werden: Bisher galt entweder eine
+feste Feldliste **oder** ein Bereich mit wechselndem Inhalt. Der Baukasten braucht
+beides — die Bausteine entstehen zur Laufzeit in der linken Spalte, der Betreff
+einer Nachricht an Postfachinhaber steht darüber im Kopf. Den Bereich weiter zu
+fassen wäre der falsche Ausweg gewesen: Dann läge die Postfachauswahl der Vorschau
+mit darin, und jeder Wechsel dort meldete eine ungespeicherte Änderung.
+
+**Dunkelmodus: ein Prüfer, der grün meldete und nichts hielt.**
+
+`tools/darkcheck.py` prüft unter anderem, ob Farben per JavaScript gesetzt werden
+— solche Farben schreibt der Browser zu `rgb(…)` um, wodurch die Dunkelmodus-Regeln
+sie nicht mehr finden und helle Flächen im Dunkeln stehenbleiben. Die Prüfung
+meldete null Lücken und übersah dabei drei Formen:
+
+* `element.style.background = '#dcfce7'` — der Eigenschaftsname steht links vom
+  Gleichheitszeichen, im Wert also nur der nackte Farbwert. Das gesuchte Muster
+  verlangte `eigenschaft:#farbe` und fand nichts. **Jede** Zuweisung dieser Form
+  war unsichtbar.
+* `border-top:1px solid #e2e8f0` — zwischen Doppelpunkt und Farbwert steht noch
+  die Strichstärke.
+* Ausnahmen galten je Datei. Der Eintrag für die Postfachseite war für ein
+  einzelnes Kennzeichen gedacht und nahm zwei Funktionen weiter einen hellen
+  Trennstrich gleich mit heraus.
+
+Sichtbar wurde das an einem Kasten im Einrichtungsassistenten, der nach
+erfolgreicher Anmeldung hellgrün aufleuchtete. Behoben sind sowohl die Prüfung als
+auch die sechs Stellen, die sie danach fand: Vorschlagsliste der
+Empfänger-Suche, zwei Trennstriche, ein Aufklappteil im Vorlagen-Editor und die
+Erfolgsanzeige im Assistenten. Ausnahmen gelten jetzt je Farbe statt je Datei.
+
+Für Betreiber ändert sich nichts an der Bedienung — im Dunkelmodus leuchten diese
+Stellen nicht mehr auf.
+
 ## v1.8.18 — 2026-08-25 — Zertifikatsliste kompakt
 
 Die Liste zeigt in Ruhe nur noch eine Zeile je Postfach: Adresse, Anzahl der

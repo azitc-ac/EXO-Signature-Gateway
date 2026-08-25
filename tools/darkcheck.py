@@ -30,11 +30,27 @@ from pathlib import Path
 ACCEPTED = {
     "smime_selfservice.html": "eigenständige Endnutzer-Seite ohne Dark Mode",
     "portal.html": "eigenständiges Empfänger-Portal ohne Dark Mode (iframe rendert Mail auf Weiß)",
-    "mailboxes.html": "Fair-Use-Badge wird per JS gesetzt → via data-fu-state gelöst",
-    "settings.html": "Status-Textfarben (grün/rot) per JS — lesbar auf dunkel, bewusst belassen",
 }
 
-_DECL = re.compile(r"(background|color|border(?:-\w+)?)\s*:\s*(#[0-9a-fA-F]{3,6})")
+# Ausnahmen für JS-gesetzte FLÄCHEN — je Datei nur die genannten Farben.
+#
+# ⚠️ Bewusst NICHT über ACCEPTED. Eine dateiweite Ausnahme nimmt auch jeden
+# künftigen Befund in derselben Datei mit heraus: Der Eintrag für
+# `mailboxes.html` galt dem Fair-Use-Badge, deckte aber ebenso einen hellen
+# Trennstrich zwei Funktionen weiter ab, der im Dunkelmodus stehenblieb.
+JS_FLAECHEN_OK: dict[str, dict[str, str]] = {
+    "mailboxes.html": {
+        "#fee2e2": "Fair-Use-Badge, per #fu-badge[data-fu-state] + !important gelöst",
+        "#dcfce7": "dito",
+        "#f1f5f9": "dito",
+    },
+    "portal.html": {"#ffffff": "eigenständiges Portal ohne Dark Mode"},
+}
+
+# ⚠️ Zwischen `:` und dem Hex darf noch etwas stehen. `border-top:1px solid
+# #e2e8f0` ist die übliche Schreibweise für einen Trennstrich — ohne den
+# Zwischenteil im Muster fiel jeder so geschriebene Rahmen durch.
+_DECL = re.compile(r"(background|color|border(?:-\w+)?)\s*:\s*(?:[^;#'\"]*?\s)?(#[0-9a-fA-F]{3,6})")
 _COVERED = re.compile(r'\[style\*="[^"]*?(#[0-9a-fA-F]{3,6})"\]')
 # Nur INLINE-Styles zählen. Attribut-Selektoren greifen ausschließlich auf
 # style="…"-Attribute — Farben in <style>-Blöcken (der Hub hat sein komplettes
@@ -42,11 +58,12 @@ _COVERED = re.compile(r'\[style\*="[^"]*?(#[0-9a-fA-F]{3,6})"\]')
 # kein Befund. Ohne diese Trennung meldet die Prüfung die Light-Mode-Regeln
 # der Seite selbst als Lücke.
 _STYLE_ATTR = re.compile(r'style="([^"]*)"')
+_NACKTER_HEX = re.compile(r"#[0-9a-fA-F]{3,6}")
 _STYLE_BLOCK = re.compile(r"<style\b[^>]*>.*?</style>", re.S | re.I)
 # Regel 2: per JS gesetzte Farben. Der Browser normalisiert sie zu rgb(…),
 # Attribut-Selektoren greifen NIE — sie brauchen eine data-*/ID-Lösung.
 _JS_STYLE = re.compile(
-    r"\.style\.(?:cssText|background(?:Color)?|color|borderColor)\s*=\s*"
+    r"\.style\.(cssText|background(?:Color)?|color|borderColor)\s*=\s*"
     r"['\"]([^'\"]*#[0-9a-fA-F]{3,6}[^'\"]*)['\"]")
 
 
@@ -139,20 +156,62 @@ def main(argv: list[str]) -> int:
     # Regel 2: JS-gefärbte Elemente einsammeln (unabhängig von der Palette —
     # sie sind IMMER ein Fall für data-*/ID, egal welche Farbe).
     js_hits: dict[str, set[str]] = {}
+    js_texte: dict[str, set[str]] = {}
     for f in sorted(Path(template_dir).rglob("*.html")):
-        for decl in _JS_STYLE.findall(f.read_text(encoding="utf-8")):
-            for _prop, hexv in _DECL.findall(decl):
-                js_hits.setdefault(f.name, set()).add(_norm(hexv))
+        for m in _JS_STYLE.finditer(f.read_text(encoding="utf-8")):
+            js_prop, decl = m.group(1), m.group(2)
+            # ⚠️ ZWEI Formen, und die zweite fiel bis 2026-08-25 durch.
+            #
+            #   el.style.cssText = "background:#dcfce7"   → `_DECL` findet sie
+            #   el.style.background = "#dcfce7"           → NACKTER Hex, ohne
+            #                                               Eigenschaftsnamen
+            #
+            # `_DECL` verlangt `eigenschaft:#hex`. Bei der zweiten Form steht
+            # der Name links vom Gleichheitszeichen, im Wert also nichts, was
+            # das Muster trifft — die Schleife lief leer durch und meldete
+            # nichts. Sichtbar wurde das an einem Kasten in setup.html, der
+            # nach erfolgreicher Einrichtung hellgrün aufleuchtete: die Prüfung
+            # hatte ihn nie gesehen, obwohl sie genau dafür gebaut ist.
+            treffer = [(prop, hexv) for prop, hexv in _DECL.findall(decl)]
+            if not treffer:
+                # `.style.background = '#hex'` → Eigenschaft aus der Zuweisung.
+                # `cssText` sagt nichts über die Eigenschaft aus; dort ist ein
+                # nackter Hex ohne Namen ohnehin ungültig.
+                treffer = [(js_prop, h) for h in _NACKTER_HEX.findall(decl)]
+            for prop, hexv in treffer:
+                # ⚠️ TEXTFARBE ist etwas anderes als FLÄCHE.
+                #
+                # Ein per JS gesetztes `color:#dc2626` steht auf dem Grund, den
+                # die Seite ohnehin hat — auf hell wie auf dunkel lesbar. Eine
+                # Fläche oder ein Rahmen dagegen bringt ihr eigenes Hell mit und
+                # leuchtet im Dunkelmodus auf.
+                #
+                # Ohne diese Trennung meldete die geschärfte Prüfung sieben
+                # Dateien auf einmal, fast nur wegen rot/grün gefärbter
+                # Meldungstexte. Der nächstliegende Ausweg wäre gewesen, die
+                # Dateien auf die Ausnahmeliste zu setzen — und damit auch jeden
+                # künftigen Hintergrund darin blind zu stellen.
+                (js_hits if prop != "color" else js_texte).setdefault(
+                    f.name, set()).add(_norm(hexv))
 
+    if js_texte:
+        print(f"JS-gesetzte TEXTfarben in {len(js_texte)} Vorlage(n) — kein "
+              f"Befund: sie stehen auf dem Grund der Seite.")
+    unexpected = 0
     if js_hits:
-        print("JS-gesetzte Farben (brauchen data-*/ID-Regel, siehe CLAUDE.md Regel 2):")
+        print("JS-gesetzte Flächen/Rahmen (brauchen data-*/ID-Regel, "
+              "siehe CLAUDE.md Regel 2):")
         for fname, hexes in sorted(js_hits.items()):
-            mark = "ok " if fname in ACCEPTED else "!! "
-            note = f"  ({ACCEPTED[fname]})" if fname in ACCEPTED else ""
-            print(f"  {mark}{fname}: {', '.join(sorted(hexes))}{note}")
+            erlaubt = JS_FLAECHEN_OK.get(fname, {})
+            offen = sorted(h for h in hexes if h not in erlaubt)
+            gedeckt = sorted(h for h in hexes if h in erlaubt)
+            if gedeckt:
+                print(f"  ok {fname}: {', '.join(gedeckt)}"
+                      f"  ({erlaubt[gedeckt[0]]})")
+            if offen:
+                print(f"  !! {fname}: {', '.join(offen)}")
+                unexpected += 1
         print()
-
-    unexpected = sum(1 for f in js_hits if f not in ACCEPTED)
     for h, files in sorted(misses.items(), key=lambda kv: -len(kv[1])):
         known = all(f in ACCEPTED for f in files)
         mark = "ok " if known else "!! "
