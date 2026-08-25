@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.16 — 2026-08-25 — Erweitert und Update & Backup angeglichen
+
+**Alle Abschnitte unter *Erweitert* sehen gleich aus.** Drei von fünfzehn hatten
+eine schlichte Überschrift statt des abgesetzten Kopfes mit Kennzeichen, den die
+übrigen zwölf tragen: Wartungsmodus, Lexware-Korrektur, Gateway-Name.
+
+**Update & Backup ist so farbig wie die anderen Seiten.** Gemessen wurde der
+Anteil farbiger Fläche: 8 % gegen 1 % unter *Erweitert* und 0 % unter
+*Allgemein* — jetzt 2 %.
+
+Verursacht hatten das drei Kästen, die keine Meldung sind, sondern eine
+Aufzählung: was im Backup enthalten ist, was nicht, und der Hinweis zu S/MIME
+und ACME. Letzterer war als Erfolgsmeldung ausgezeichnet, ohne dass etwas
+gelungen wäre. Sie sind jetzt neutral.
+
+Farbig bleibt, was eine Aussage trägt: die Warnung vor dem Überschreiben beim
+Wiederherstellen und der Knopf zum Herunterladen.
+
 ## v1.8.15 — 2026-08-25 — Zusätzliche Quellnetze entfallen, S/MIME sortiert
 
 ⚠️ **Zu tun, wenn du unter *Erweitert → Quell-IP-Allowlist* zusätzliche Netze
