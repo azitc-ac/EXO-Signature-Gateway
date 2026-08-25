@@ -5,6 +5,33 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.8 — 2026-08-25 — Erfundene CSS-Klassen fallen jetzt auf
+
+Eine Klasse, die es nicht gibt, tut **nichts**: kein Fehler, keine Meldung, nur
+fehlende Darstellung. Genau das war der Grund, warum die Tabellen der
+Relay-Seite ohne Rahmen erschienen (`data-table` statt `config-table`) — und es
+war nicht der erste Fall dieser Art. Weder die Syntaxprüfung noch die
+Dunkelmodus-Prüfung sehen so etwas: Das HTML ist gültig, das JavaScript
+fehlerfrei, und Farben kommen gar nicht erst vor.
+
+`tools/cssklassencheck.py` vergleicht deshalb alle verwendeten Klassennamen mit
+den definierten und läuft bei jedem Push mit.
+
+**Vier Funde im Bestand:**
+
+* `sys-card` im Dashboard — die Klasse heisst `sys-tile`. Betroffen war die
+  Meldung „Systemdaten nicht abrufbar": Ohne die richtige Elternklasse griffen
+  auch die Regeln für Wert und Untertitel nicht, der Hinweis erschien roh.
+  Ausgerechnet im Fehlerfall, den man selten zu sehen bekommt.
+* `kv` in der Anbindungsübersicht — die Tabellenklasse heisst `kv-table`.
+* `muted` an **25** Stellen: „Wird geladen…", Zusätze wie „— kostenpflichtig",
+  Schrittangaben. Sie alle erschienen in normaler Textfarbe statt gedämpft. Die
+  Klasse ist jetzt angelegt, hell und dunkel.
+* Zwei Klassen ohne Wirkung und ohne Zugriff wurden entfernt.
+
+Klassen, die nur als Zugriffsanker für JavaScript dienen, erkennt die Prüfung
+als solche und meldet sie nicht — von 39 Erstmeldungen waren 31 genau das.
+
 ## v1.8.7 — 2026-08-25 — SMTP-Relay: keine TLS-Pflicht für eigene Geräte
 
 Ein Etikettendrucker von 2011 kann kein `STARTTLS`, ein Scanner nur TLS 1.0.

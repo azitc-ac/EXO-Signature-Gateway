@@ -54,6 +54,11 @@ jobs:
       - name: Dark Mode
         run: python tools/darkcheck.py app/webui/templates app/webui/static/dark-mode.css
 
+      # Eine erfundene CSS-Klasse tut NICHTS — kein Fehler, keine Meldung, nur
+      # fehlende Darstellung. Weder jscheck noch darkcheck sehen das.
+      - name: CSS-Klassen
+        run: python tools/cssklassencheck.py
+
       - name: JavaScript der Vorlagen
         run: python tools/jscheck.py
 
