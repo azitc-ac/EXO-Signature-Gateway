@@ -170,8 +170,8 @@ async function ankerAnwenden() {
   </div>
   <div id="mb-table-wrap" style="display:none">
     <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center">
-      <input type="text" id="mb-filter" placeholder="Filtern…" oninput="filterMailboxes()"
-             style="flex:1 1 200px;max-width:320px;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px">
+      <input readonly type="text" id="mb-filter" placeholder="Filtern…" oninput="filterMailboxes()"
+             style="flex:1 1 200px;max-width:320px;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px" onfocus="this.removeAttribute('readonly')">
       <select id="mb-type-filter" onchange="filterMailboxes()"
               style="padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px">
         <option value="">Alle Typen</option>
@@ -219,12 +219,22 @@ async function ankerAnwenden() {
     </div>
   </div>
   <div class="actions" style="margin-top:12px">
-    <button class="btn primary" id="mb-save-btn" onclick="saveMailboxes(true)" style="display:none">
+    <!-- ⚠️ Die Wache hängt am HAUPTKNOPF und überwacht die Tabelle.
+         ANLASS (2026-08-25), Nutzer: „wenn man auf der postfächer seite unten
+         änderungen macht, wird der speichern knopf drückbar was gut ist aber es
+         kommt dort kein hinweis, dass noch nicht gespeichert wurde."
+         Zutreffend — die Änderungsüberwachung gab es bis dahin nur auf den
+         Einstellungsseiten. Der zweite Knopf („Nur lokal") ist eine Variante
+         derselben Aktion und teilt sich deshalb den Hinweis. -->
+    <button class="btn secondary" id="mb-save-btn" onclick="saveMailboxes(true)"
+            data-wache-container="#mb-tbody" data-wache-hinweis="mb-wache-hinweis"
+            style="display:none">
       In EXO speichern (DG aktualisieren)
     </button>
     <button class="btn secondary" id="mb-local-btn" onclick="saveMailboxes(false)" style="display:none">
       Nur lokal speichern
     </button>
+    <span id="mb-wache-hinweis" style="font-size:12px;margin-left:8px"></span>
   </div>
   <div id="mb-result" style="margin-top:10px;display:none"></div>
 </div>
@@ -314,7 +324,7 @@ async function ankerAnwenden() {
   </table>
   </div>
   <div style="display:flex;align-items:center;gap:10px">
-    <button class="btn primary" onclick="savePolicies()">Speichern</button>
+    <button class="btn secondary" onclick="savePolicies()">Speichern</button>
     <span id="policy-save-result" style="font-size:12px"></span>
   </div>
 
@@ -346,7 +356,7 @@ async function ankerAnwenden() {
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <button class="btn secondary" onclick="addGroup()" style="font-size:12px">+ Gruppe erstellen</button>
-      <button class="btn primary" onclick="saveGroups()" style="font-size:12px">Speichern</button>
+      <button class="btn secondary" onclick="saveGroups()" style="font-size:12px">Speichern</button>
       <span id="groups-save-result" style="font-size:12px"></span>
     </div>
   </div>
@@ -381,7 +391,7 @@ async function ankerAnwenden() {
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <button class="btn secondary" onclick="addCustomPolicy()" style="font-size:12px">+ Gruppen-Regel</button>
-      <button class="btn primary" onclick="saveCustomPolicies()" style="font-size:12px">Speichern</button>
+      <button class="btn secondary" onclick="saveCustomPolicies()" style="font-size:12px">Speichern</button>
       <span id="cpol-save-result" style="font-size:12px"></span>
     </div>
   </div>
@@ -395,7 +405,7 @@ async function ankerAnwenden() {
     <p style="font-size:11px;color:#64748b;margin-top:0;margin-bottom:12px">Nur konfigurierte Postfächer werden angezeigt.</p>
     <div id="members-modal-list" style="display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto"></div>
     <div style="margin-top:16px;display:flex;gap:8px">
-      <button class="btn primary" onclick="saveMembersModal()" style="font-size:12px">Übernehmen</button>
+      <button class="btn secondary" onclick="saveMembersModal()" style="font-size:12px">Übernehmen</button>
       <button class="btn secondary" onclick="closeMembersModal()" style="font-size:12px">Abbrechen</button>
     </div>
   </div>
@@ -648,6 +658,10 @@ async function loadMailboxes(silent) {
     document.getElementById('mb-save-btn').style.display = '';
     document.getElementById('mb-local-btn').style.display = '';
     document.getElementById('mb-refresh-btn').style.display = '';
+    // ⚠️ Erst jetzt steht der Ausgangsstand. Die Wache misst ihn beim Laden der
+    // Seite — die Tabelle kommt aber per Abruf. Ohne diese Zeile stünde beim
+    // Öffnen „noch nicht gespeichert".
+    wacheNeuMessen('mb-save-btn');
   } catch(e) {
     if (slowHint) clearTimeout(slowHint);
     if (!silent) status.textContent = 'Fehler: ' + e.message;
@@ -1222,9 +1236,15 @@ async function saveMailboxes(updateDg) {
       result.className = 'alert success';
       result.innerHTML = updateDg ? 'In EXO gespeichert.' + out : 'Lokal gespeichert.';
       refreshFairUse();
+      // Der ausführliche Kasten bleibt (er trägt die Ausgabe der
+      // Verteilerlisten-Aktualisierung); die Wache meldet zusätzlich am Knopf,
+      // dass nichts mehr offen ist — sonst bliebe dort „noch nicht gespeichert"
+      // stehen, obwohl gespeichert wurde.
+      wacheFertig('mb-save-btn', true);
     } else {
       result.className = 'alert error';
       result.innerHTML = 'Fehler: ' + (d.dg_output || d.detail || 'Unbekannt');
+      wacheFertig('mb-save-btn', false);
     }
     result.style.display = 'block';
   } finally {

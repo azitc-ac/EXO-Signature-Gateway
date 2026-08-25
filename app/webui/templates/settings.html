@@ -17,11 +17,29 @@
   <!-- Benutzer-Suchfeld -->
   <div style="max-width:420px">
     <div style="position:relative;margin-bottom:8px">
-      <input type="text" id="admin-search-input" autocomplete="off"
+      <!-- ⚠️ `readonly` bis zum ersten Anfassen — gegen das Ausfüllen durch den
+           Browser.
+
+           ANLASS (2026-08-25): Im Feld stand auf dem Raspi „immer (wieder)
+           admin", ohne dass etwas gefiltert war. Der Wert kam nicht aus dem
+           Code (das Feld wird leer gerendert), sondern von Chromes
+           Passwortverwaltung: Direkt darunter steht der Benutzername des
+           lokalen Zugangs, und ein Feld namens „admin-search" in derselben
+           Karte sieht für die Heuristik nach einem Anmeldefeld aus.
+
+           `autocomplete="off"` allein genügt dagegen nicht — Chrome übergeht
+           das bei Textfeldern seit Jahren. Ein Feld, das beim Laden `readonly`
+           ist, wird dagegen nicht befüllt; beim Hineinklicken entfällt die
+           Sperre, sodass niemand etwas davon merkt.
+
+           ⚠️ Das eigentlich Ärgerliche war nicht der Text, sondern dass er
+           NICHTS tat: Ein vom Browser gesetzter Wert löst kein `input`-
+           Ereignis aus. Das Feld sah gefüllt aus und filterte nicht. -->
+      <input type="text" id="admin-search-input" autocomplete="off" readonly
              placeholder="Benutzer suchen (Name oder E-Mail)…"
              style="width:100%;box-sizing:border-box;height:34px;border:1px solid #d1d5db;border-radius:6px;padding:0 10px;font-size:13px"
              oninput="_debounceAdminSearch(this.value)"
-             onfocus="_showAdminDropdown()"
+             onfocus="this.removeAttribute('readonly'); _showAdminDropdown()"
              onblur="_hideAdminDropdownDelayed()"
              onkeydown="_adminInputKeydown(event)">
       <div id="admin-dropdown"
@@ -141,11 +159,13 @@
       <label style="padding-top:4px">Empfänger</label>
       <div class="settings-control" style="flex:1;min-width:0;max-width:420px">
         <div style="position:relative;width:100%;max-width:360px;margin-bottom:8px">
-          <input type="text" id="notif-search-input" autocomplete="off"
+          <!-- Wie beim Suchfeld darüber: `readonly` bis zum Anfassen, sonst
+               füllt die Passwortverwaltung des Browsers hinein. -->
+          <input type="text" id="notif-search-input" autocomplete="off" readonly
                  placeholder="Postfach suchen und hinzufügen…"
                  style="width:100%;box-sizing:border-box;height:34px;border:1px solid #d1d5db;border-radius:6px;padding:0 32px 0 10px;font-size:13px"
                  oninput="_filterNotifDropdown(this.value)"
-                 onfocus="_showNotifDropdown()"
+                 onfocus="this.removeAttribute('readonly'); _showNotifDropdown()"
                  onblur="_hideNotifDropdownDelayed()"
                  onkeydown="_notifInputKeydown(event)">
           <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);color:#94a3b8;pointer-events:none;font-size:12px">▼</span>
@@ -170,7 +190,14 @@
           die Liste schreibt, etwa für die Bestätigungsmails des Lizenz-Hubs.
         </p>
         <div style="display:flex;align-items:center;gap:10px">
-          <button class="btn secondary" id="notif-dg-btn" onclick="saveNotifDg()">In EXO speichern (DG aktualisieren)</button>
+          <!-- ⚠️ Der Haken darüber gehörte bis 2026-08-25 ZWEI Knöpfen: diesem
+               und dem Sammelknopf am Ende der Karte. Speichern-Regel 1 sagt,
+               ein Feld gehört zu genau einem — und zwar zu dem, der seine
+               Wirkung auslöst. Die entsteht in Exchange, und dorthin schreibt
+               nur dieser Knopf. -->
+          <button class="btn secondary" id="notif-dg-btn"
+                  data-wache="notif-dg-external" data-wache-hinweis="notif-dg-result"
+                  onclick="saveNotifDg()">In EXO speichern (DG aktualisieren)</button>
           <span id="notif-dg-result" style="font-size:12px"></span>
         </div>
         {% if s.NOTIFICATION_DG_EMAIL %}
@@ -274,7 +301,7 @@
     </div>
 
     <div class="actions" style="margin-top:12px;flex-wrap:wrap;gap:8px">
-      <button class="btn secondary" id="benachr-btn" data-wache-hinweis="benachrichtigungen-result" data-wache="notif-dg-external,notif-enabled,notif-mailbox,daily-report-enabled,daily-report-time,notify-startup,notify-smime-expiry,notify-cert-renewal,notify-le-events,notify-local-admin-login,notify-cert-waiting,notify-user-cert,cert-warn-days,le-renew-days" onclick="saveBenachrichtigungen()">Speichern</button>
+      <button class="btn secondary" id="benachr-btn" data-wache-hinweis="benachrichtigungen-result" data-wache="notif-enabled,notif-mailbox,daily-report-enabled,daily-report-time,notify-startup,notify-smime-expiry,notify-cert-renewal,notify-le-events,notify-local-admin-login,notify-cert-waiting,notify-user-cert,cert-warn-days,le-renew-days" onclick="saveBenachrichtigungen()">Speichern</button>
       <span id="benachrichtigungen-result" style="font-size:12px;align-self:center"></span>
       <button class="btn secondary" onclick="sendTestNotification()" style="margin-left:16px">Test-Benachrichtigung senden</button>
       <span id="notif-test-result" style="font-size:13px;align-self:center"></span>
@@ -811,8 +838,8 @@ async function saveNotifDg() {
   const btn = document.getElementById('notif-dg-btn');
   const result = document.getElementById('notif-dg-result');
   btn.disabled = true;
+  result.dataset.zustand = '';
   result.textContent = 'Wird in EXO übertragen…';
-  result.style.color = '#64748b';
   try {
     const resp = await fetch('/api/setup/notification-dg', {
       method: 'POST',
@@ -828,10 +855,10 @@ async function saveNotifDg() {
       result.textContent = 'Gespeichert.' + (d.email ? ' DG: ' + d.email : '')
         + (_dgExternInExo ? ' Liste nimmt Mail von außen an.'
                           : ' Liste nimmt nur angemeldete Absender an.');
-      result.style.color = '#16a34a';
+      wacheFertig('notif-dg-btn', true, result.textContent);
     } else {
       result.textContent = 'Fehler: ' + (d.detail || 'Unbekannt');
-      result.style.color = '#dc2626';
+      wacheFertig('notif-dg-btn', false, result.textContent);
     }
   } catch(e) {
     result.textContent = 'Netzwerkfehler' + ursache(e, 'settings:795');

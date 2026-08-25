@@ -158,6 +158,22 @@ async def smime_page_v2(request: Request, user: str = Depends(_require_admin)):
     kv_keys: dict[str, bool | None] = {
         em: kv_status.get(em, {}).get("exists", None) for em in all_emails
     }
+    # ⚠️ Wann wurde zuletzt geprüft? `KV_KEY_STATUS` wird ausschliesslich auf
+    # Knopfdruck geschrieben — ohne diese Angabe ist der Spalte „im Tresor"
+    # nicht anzusehen, ob sie von heute oder von vor drei Wochen stammt.
+    _geprueft = sorted((e.get("checked") or "") for e in kv_status.values())
+    kv_zuletzt_geprueft = ""
+    if _geprueft and _geprueft[-1]:
+        try:
+            from datetime import datetime, timezone
+            wann = datetime.fromisoformat(_geprueft[-1].replace("Z", "+00:00"))
+            tage = (datetime.now(timezone.utc) - wann).days
+            kv_zuletzt_geprueft = ("heute" if tage == 0 else
+                                   "gestern" if tage == 1 else
+                                   f"vor {tage} Tagen")
+        except ValueError:
+            kv_zuletzt_geprueft = ""
+
     kv_mode = settings_store.get("KV_KEY_MODE") or "fallback"
     has_any_local_key = any(
         c.get("has_local_key") or c.get("has_kv_backup")
@@ -186,6 +202,7 @@ async def smime_page_v2(request: Request, user: str = Depends(_require_admin)):
             "kv_keys": kv_keys,
             "kv_url": _kv.vault_url(),
             "kv_mode": kv_mode,
+            "kv_zuletzt_geprueft": kv_zuletzt_geprueft,
             "has_any_local_key": has_any_local_key,
             "has_any_unmigrated_key": has_any_unmigrated_key,
             "gateway_name": _gateway_name(),
