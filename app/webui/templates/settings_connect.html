@@ -63,7 +63,7 @@
         speichern setzt sie wieder auf die Kontoadresse zurück.
       </p>
       <div class="actions">
-        <button class="btn secondary" onclick="rechAdresseSpeichern()">Speichern</button>
+        <button id="rech-btn" data-wache="hub-rech-neu" class="btn secondary" onclick="rechAdresseSpeichern()">Speichern</button>
         <button class="btn secondary" onclick="rechAdresseSchliessen()">Abbrechen</button>
       </div>
       <div id="hub-rech-msg" style="display:none;margin-top:8px"></div>
@@ -471,7 +471,8 @@ _initAdv('digicert');
         <input type="number" id="lic-menge" class="eng" min="0" step="1" style="width:120px"
                oninput="licMengeVorschau()">
         <span class="hint" style="display:block;margin-top:2px" id="lic-menge-hint"></span></div>
-      <button class="btn secondary" onclick="licAboMenge()">Übernehmen</button>
+      <button id="lic-menge-btn" data-wache="lic-menge" data-wache-hinweis="lic-menge-msg"
+              class="btn secondary" onclick="licAboMenge()">Übernehmen</button>
     </div>
     <!-- Rückmeldung AN der Eingabe, nicht in der Sammelmeldung weiter oben:
          die steht oberhalb der Knopfleiste und damit ausserhalb des Blickfelds,
@@ -832,7 +833,8 @@ async function rechAdresseSpeichern(){
   if(wert && !wert.includes('@')){ showMsg(msg,'Bitte eine gültige E-Mail-Adresse eingeben.',false); return; }
   showMsg(msg, wert?'Sende Bestätigungsmail…':'Setze zurück…', true);
   const d=await postJSON('/api/hub/account/billing-email',{email:wert});
-  if(!d.ok){ showMsg(msg,'Fehler: '+(d.error||d.detail||'unbekannt'),false); return; }
+  if(!d.ok){ showMsg(msg,'Fehler: '+(d.error||d.detail||'unbekannt'),false);
+             wacheFertig('rech-btn', false, ''); return; }
   if(wert){
     showMsg(msg,'Bestätigungsmail an '+wert+' gesendet. Bis zum Klick darin gehen Rechnungen weiter an die Kontoadresse.',true);
     offeneAenderungAnzeigen({zweck:'rechnungsadresse', ziel:wert});
@@ -840,7 +842,9 @@ async function rechAdresseSpeichern(){
     showMsg(msg,'Rechnungen gehen wieder an die Kontoadresse.',true);
     kontoAdresseLaden();
   }
+  // Das Feld wird geleert — der Ausgangsstand ist danach ein anderer.
   el.value='';
+  wacheNeuMessen('rech-btn');
 }
 async function kontoWechselAbbrechen(){
   const d=await postJSON('/api/hub/account/email/cancel',{});
@@ -1830,9 +1834,12 @@ async function licAboMenge() {
   showMsg(ziel, 'Wird geändert…', true);
   // Das Feld trägt die kostenpflichtigen, der Hub erwartet die Gesamtzahl.
   const r = await postJSON('/api/license/hub/quantity', {mailboxes: _gesamt(n)});
-  if (!r.ok) { showMsg(ziel, r.error || 'Fehlgeschlagen.', false); return; }
-  showMsg(ziel, r.message || 'Geändert.', true);
+  if (!r.ok) { wacheFertig('lic-menge-btn', false, r.error || 'Fehlgeschlagen.'); return; }
+  wacheFertig('lic-menge-btn', true, r.message || 'Geändert.');
   await licAboLaden(); await licLoad();
+  // ⚠️ `licAboLaden()` schreibt das Feld neu. Ohne Neumessung stünde danach
+  // „noch nicht gespeichert" an einem gerade gespeicherten Wert.
+  wacheNeuMessen('lic-menge-btn');
 }
 
 async function licAboZahlungsweise(zw) {

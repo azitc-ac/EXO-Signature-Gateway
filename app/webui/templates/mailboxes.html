@@ -370,7 +370,7 @@ async function ankerAnwenden() {
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <button class="btn secondary" onclick="addGroup()" style="font-size:12px">+ Gruppe erstellen</button>
-      <button class="btn secondary" onclick="saveGroups()" style="font-size:12px">Speichern</button>
+      <button id="groups-btn" data-wache-hinweis="groups-save-result" data-wache-container="#groups-tbody" class="btn secondary" onclick="saveGroups()" style="font-size:12px">Speichern</button>
       <span id="groups-save-result" style="font-size:12px"></span>
     </div>
   </div>
@@ -405,7 +405,7 @@ async function ankerAnwenden() {
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <button class="btn secondary" onclick="addCustomPolicy()" style="font-size:12px">+ Gruppen-Regel</button>
-      <button class="btn secondary" onclick="saveCustomPolicies()" style="font-size:12px">Speichern</button>
+      <button id="cpol-btn" data-wache-hinweis="cpol-save-result" data-wache-container="#cpol-tbody" class="btn secondary" onclick="saveCustomPolicies()" style="font-size:12px">Speichern</button>
       <span id="cpol-save-result" style="font-size:12px"></span>
     </div>
   </div>
@@ -885,15 +885,15 @@ async function fetchOneBookingsUrl(email) {
     var r = await fetch('/api/mailboxes/fetch-bookings-urls', {method: 'POST'});
     var d = await r.json();
     if (d.ok && d.urls && d.urls[email]) {
-      if (res) { res.textContent = '✓'; res.style.color = '#16a34a'; }
+      if (res) showMsg(res, '✓', true);
       var mb = _mbData.find(function(m) { return m.email === email; });
       if (mb) { mb.bookings_url = d.urls[email]; showHealthModal(mb); }
     } else {
-      if (res) { res.textContent = d.error || 'Fehler'; res.style.color = '#dc2626'; }
+      if (res) showMsg(res, d.error || 'Fehler', false);
       if (btn) { btn.disabled = false; btn.textContent = 'Jetzt ermitteln'; }
     }
   } catch(e) {
-    if (res) { res.textContent = e.message; res.style.color = '#dc2626'; }
+    if (res) showMsg(res, e.message, false);
     if (btn) { btn.disabled = false; btn.textContent = 'Jetzt ermitteln'; }
   }
 }
@@ -1398,6 +1398,10 @@ async function loadGroups() {
     if (!r.ok) return;
     _groups = await r.json();
     _renderGroupsTable();
+    // Der Ausgangsstand steht erst jetzt — die Zeilen kommen per
+    // Abruf. Ohne diese Zeile stünde beim Öffnen „noch nicht
+    // gespeichert".
+    wacheNeuMessen('groups-btn');
   } catch(_) { ursache(_, 'mailboxes:1128'); }
 }
 
@@ -1409,13 +1413,13 @@ async function saveGroups() {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({groups: _groups}),
     });
-    res.textContent = r.ok ? '✓ Gespeichert' : '✗ Fehler';
-    res.style.color = r.ok ? '#16a34a' : '#dc2626';
+    // Farbe über die Wache, nicht über style.color: JS-gesetzte Farben
+    // normalisiert der Browser zu rgb(), die Dark-Mode-Regeln greifen dann
+    // nicht mehr. `wacheFertig` setzt `data-zustand`, das CSS färbt.
+    wacheFertig('groups-btn', r.ok, r.ok ? '✓ Gespeichert' : '✗ Fehler');
   } catch(e) {
-    res.textContent = '✗ ' + e.message;
-    res.style.color = '#dc2626';
+    wacheFertig('groups-btn', false, '✗ ' + e.message);
   }
-  setTimeout(function() { res.textContent = ''; }, 3000);
 }
 
 // ── Benutzerdefinierte Richtlinien ───────────────────────────────────────────
@@ -1526,6 +1530,10 @@ async function loadCustomPolicies() {
     if (!r.ok) return;
     _customPolicies = await r.json();
     _renderCustomPoliciesTable();
+    // Der Ausgangsstand steht erst jetzt — die Zeilen kommen per
+    // Abruf. Ohne diese Zeile stünde beim Öffnen „noch nicht
+    // gespeichert".
+    wacheNeuMessen('cpol-btn');
   } catch(_) { ursache(_, 'mailboxes:1256'); }
 }
 
@@ -1537,13 +1545,11 @@ async function saveCustomPolicies() {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({policies: _customPolicies}),
     });
-    res.textContent = r.ok ? '✓ Gespeichert' : '✗ Fehler';
-    res.style.color = r.ok ? '#16a34a' : '#dc2626';
+    // Farbe über die Wache, nicht über style.color — siehe saveGroups().
+    wacheFertig('cpol-btn', r.ok, r.ok ? '✓ Gespeichert' : '✗ Fehler');
   } catch(e) {
-    res.textContent = '✗ ' + e.message;
-    res.style.color = '#dc2626';
+    wacheFertig('cpol-btn', false, '✗ ' + e.message);
   }
-  setTimeout(function() { res.textContent = ''; }, 3000);
 }
 
 // ── Hoehe des Tabellen-Ausschnitts ───────────────────────────────────────────

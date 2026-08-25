@@ -5,6 +5,27 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.20 — 2026-08-25 — Speichern-Knöpfe: elf weitere überwacht
+
+Ein ausgegrauter Speichern-Knopf ist eine Aussage: Es gibt nichts zu sichern.
+Auf elf Knöpfen galt das bisher nicht — sie waren immer bedienbar und sagten
+nach einer Änderung nicht, dass etwas offen ist.
+
+Betroffen sind: ACME-Antwortweg und ACME-Proxy, Kennwortänderung, Rechnungs-Adresse,
+Key-Vault-URL, Schlüssel-Kennwort, interne Gruppen, benutzerdefinierte
+Richtlinien, Lizenzmenge, der Signatur-Baukasten und der Rohtext-Editor.
+
+Alle verhalten sich jetzt gleich: gesperrt, solange nichts geändert wurde;
+„noch nicht gespeichert" daneben, sobald etwas anliegt; nach dem Sichern eine
+Rückmeldung an Ort und Stelle. Beim Verlassen der Seite fragt der Browser nach,
+solange ein Knopf bedienbar ist.
+
+**Farben bei den Gruppen-Meldungen.** Die Rückmeldungen von *Gruppen* und
+*Benutzerdefinierte Richtlinien* wurden per Skript eingefärbt. Solche Farben
+schreibt der Browser um, wodurch die Dunkelmodus-Regeln sie nicht mehr finden —
+grün und rot blieben dort auch im Dunkelmodus in ihrer hellen Fassung. Sie
+laufen jetzt über dieselbe Anzeige wie überall.
+
 ## v1.8.19 — 2026-08-25 — Vorschau, Baukasten und ein blinder Dunkelmodus-Prüfer
 
 **Signatur-Vorschau.** Der Knopf *Vorschau laden* ist entfallen — jede der vier
