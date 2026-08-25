@@ -157,7 +157,15 @@ function saveLexwareFix(enabled) {
           '</td>' +
         '</tr>';
       });
-      container.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px">' +
+      // ⚠️ Rollbereich UND min-width, beides zusammen.
+      //
+      // Ohne den Bereich läuft die Aktionsspalte auf dem Telefon rechts aus
+      // dem Bild, ohne dass sich etwas schieben liesse — die drei Knöpfe waren
+      // dort nicht erreichbar. Ohne die Mindestbreite quetscht `width:100%`
+      // fünf Spalten in 393px, statt rollen zu lassen: Zeit, Von, An und
+      // Betreff werden dann zu Ellipsen und die Tabelle sagt nichts mehr.
+      container.innerHTML = '<div class="tabellen-rollbereich">' +
+        '<table style="width:100%;min-width:720px;border-collapse:collapse;font-size:13px">' +
         '<thead><tr>' +
           '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid #e7e5e4;font-size:11px;color:#78716c">Zeit</th>' +
           '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid #e7e5e4;font-size:11px;color:#78716c">Von</th>' +
@@ -166,7 +174,7 @@ function saveLexwareFix(enabled) {
           '<th style="text-align:left;padding:6px 8px;border-bottom:1px solid #e7e5e4;font-size:11px;color:#78716c">Aktionen</th>' +
         '</tr></thead>' +
         '<tbody>' + rows.join('') + '</tbody>' +
-        '</table>';
+        '</table></div>';
     } catch(e) {
       console.error('loadHeldMails error:', e);
     }
