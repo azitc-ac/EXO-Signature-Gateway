@@ -9,7 +9,7 @@
 
 <!-- S/MIME -->
 <div class="settings-card" id="smime">
-  <h2 style="display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px">S/MIME <span style="margin-left:auto;font-size:11px;font-weight:400;flex-shrink:0"><label style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;color:#64748b"><input type="checkbox" id="adv-cb-smime" style="margin:0" onchange="_toggleAdv('smime',this.checked)"> Erweiterte Einstellungen</label></span></h2>
+  <div style="display:flex;justify-content:flex-end;margin-bottom:10px"><span style="font-size:11px"><label style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;color:#64748b"><input type="checkbox" id="adv-cb-smime" style="margin:0" onchange="_toggleAdv('smime',this.checked)"> Erweiterte Einstellungen</label></span></div>
 
   <h3 style="margin-top:0;margin-bottom:12px">Betreff eingehender S/MIME-Mails anpassen</h3>
 
@@ -184,7 +184,7 @@
   </div>
 
   <div style="border-top:1px solid #f0f0f0;margin:16px 0 12px"></div>
-  <h4 style="margin:0 0 4px">Welche Aussteller sind zugelassen?</h4>
+  <h3 style="margin:0 0 4px">Vertrauenswürdige Aussteller</h3>
   <p class="hint" style="margin-bottom:12px">
     Zertifikate von Kommunikationspartnern sammelt das Gateway zum Teil selbst ein — aus
     eingehenden signierten Nachrichten. Hier wird festgelegt, wessen Zertifikate dabei
@@ -488,6 +488,9 @@
           <div class="pw-wrap"><input type="password" id="smime-key-password2" placeholder="Passwort bestätigen" style="width:260px" oninput="checkKeyPasswords()"><button type="button" class="pw-eye" tabindex="-1" onmousedown="showPw('smime-key-password2')" onmouseup="hidePw('smime-key-password2')" onmouseleave="hidePw('smime-key-password2')" ontouchstart="event.preventDefault();showPw('smime-key-password2')" ontouchend="hidePw('smime-key-password2')">&#128065;</button></div>
         </div>
         <span id="key-pw-mismatch" style="color:#dc2626;font-size:12px;display:none">Passwörter stimmen nicht überein.</span>
+        <!-- Die Rückmeldung zum Neuverschlüsseln gehört hierher, nicht an den
+             Seitenanfang: Sie nennt, welche Schlüssel betroffen waren. -->
+        <div id="key-pw-result" style="display:none;margin-top:8px"></div>
         {% if s.SMIME_KEY_PASSWORD %}
         <div style="display:flex;gap:6px;margin-top:6px">
           <button type="button" class="btn secondary btn-sm" onclick="saveSmimeKeyPassword()">Speichern</button>
@@ -745,18 +748,26 @@ async function saveSmimeKeyPassword() {
   var resp = await fetch('/api/smime/key-password', {
     method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
   });
-  var alert = document.getElementById('page-alert');
+  // ⚠️ Die Meldung gehört AN DIE STELLE, an der gehandelt wurde.
+  //
+  // Vorher: `page-alert` ganz oben, `scrollTo(0,0)` und nach 1,8 s ein
+  // Neuladen — man sah eine Meldung am oberen Rand aufblitzen und war weg,
+  // bevor man sie gelesen hatte. Sie erklärt aber gerade das Wichtigste
+  // (welche Schlüssel neu verschlüsselt wurden und welche nicht).
+  //
+  // Jetzt: Meldung neben dem Knopf, kein Sprung, und das Neuladen erst nach
+  // sechs Sekunden — lang genug für zwei Sätze. Bei einem FEHLER wird gar
+  // nicht neu geladen; sonst verschwände die Begründung mitsamt der Eingabe.
+  var ziel = document.getElementById('key-pw-result');
   var d = await resp.json().catch(function() { return {}; });
   if (resp.ok) {
     var msg = d.warnings && d.warnings.length
-      ? 'Passwort gespeichert — Re-Encrypt fehlgeschlagen für: ' + d.warnings.join(', ')
-      : 'S/MIME Key-Passwort gespeichert. Alle gespeicherten Keys wurden neu verschlüsselt.';
-    showAlert(alert, d.warnings && d.warnings.length ? 'warn' : 'success', msg);
-    window.scrollTo(0, 0);
-    setTimeout(function() { location.reload(); }, 1800);
+      ? 'Passwort gespeichert — neu verschlüsseln fehlgeschlagen für: ' + d.warnings.join(', ')
+      : 'Passwort gespeichert. Alle abgelegten Schlüssel wurden neu verschlüsselt.';
+    showAlert(ziel, d.warnings && d.warnings.length ? 'warn' : 'success', msg);
+    setTimeout(function() { location.reload(); }, 6000);
   } else {
-    showAlert(alert, 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));
-    window.scrollTo(0, 0);
+    showAlert(ziel, 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));
   }
 }
 

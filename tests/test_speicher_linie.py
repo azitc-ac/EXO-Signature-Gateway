@@ -220,3 +220,39 @@ def test_hinweis_sitzt_auf_knopfhoehe():
         assert re.search(rf"(?<![\w-]){eigenschaft}\s*:", regel.group(1)), (
             f".speicher-hinweis ohne `{eigenschaft}` — der Hinweis sitzt dann in "
             "einer der beiden Umgebungen falsch.")
+
+
+def test_keine_meldung_springt_an_den_seitenanfang():
+    """Eine Rückmeldung erscheint dort, wo gehandelt wurde.
+
+    ANLASS (2026-08-25), Nutzer nach dem Setzen des Schlüsselpassworts:
+    „erschien ganz oben auf der seite eine meldung, die denke ich hifreich war,
+    aber zu weit oben (lieber unten bei der option) und zu kurz, ich kam gar
+    nicht zum lesen. das hatten wir schon mal".
+
+    ⚠️ „Das hatten wir schon mal" trifft zu — Regel 3 der Speichern-Linie sagt
+    seit dem 19.08., dass jeder Vorgang AM ORT meldet. Die Regel stand, geprüft
+    wurde sie nicht. Vier Stellen sprangen an den Seitenanfang, drei davon
+    hatten ein Meldungsfeld direkt daneben, das leer blieb.
+
+    Geprüft wird die Form: `window.scrollTo(0, 0)` nach einer Meldung. Wo eine
+    Seite wirklich an den Anfang muss (etwa nach dem Wechsel einer Ansicht),
+    steht das nicht im selben Atemzug mit `showAlert`.
+    """
+    import re
+    vorlagen = WURZEL / "app" / "webui" / "templates"
+    treffer = []
+    for datei in sorted(vorlagen.glob("*.html")):
+        text = datei.read_text("utf-8")
+        for m in re.finditer(r"window\.scrollTo\(\s*0\s*,\s*0\s*\)", text):
+            # Steht in den fünf Zeilen davor eine Meldung?
+            anfang = text.rfind("\n", 0, max(0, m.start() - 400))
+            umfeld = text[max(0, anfang):m.start()]
+            if "showAlert(" in umfeld or "showMsg(" in umfeld:
+                nr = text[: m.start()].count("\n") + 1
+                treffer.append(f"{datei.name}:{nr}")
+    assert not treffer, (
+        "Diese Stellen zeigen eine Meldung und springen dann an den "
+        f"Seitenanfang: {treffer}\n"
+        "Die Meldung gehört an den Ort der Handlung — sonst blitzt sie oben "
+        "auf, während der Blick unten steht.")
