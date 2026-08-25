@@ -57,13 +57,18 @@ def last_refresh_ts() -> float:
 
 
 def _always_allowed_networks() -> list:
-    nets = [ipaddress.ip_network("127.0.0.0/8"), ipaddress.ip_network("::1/128")]
-    for cidr in (settings_store.get("SMTP_ACL_EXTRA_CIDRS") or []):
-        try:
-            nets.append(ipaddress.ip_network(str(cidr).strip(), strict=False))
-        except Exception as exc:
-            log.warning("smtp_acl: ignoring invalid extra CIDR %r: %s", cidr, exc)
-    return nets
+    """Immer erlaubt: nur die Rückschleife.
+
+    ⚠️ Bis v1.8.14 kam hier `SMTP_ACL_EXTRA_CIDRS` dazu — eine Liste zusätzlich
+    erlaubter Netze. Sie ist entfallen, weil das SMTP-Relay dasselbe leistet und
+    mehr: Es prüft zusätzlich Absenderdomäne und Ziel, führt eine Geräteliste
+    mit Zählern und macht sichtbar, wer einliefert. Eine zweite, stille Liste
+    daneben hätte genau die Unklarheit erzeugt, die das Relay beseitigen soll —
+    zwei Wege, ein Netz freizugeben, und nur einer davon protokolliert.
+
+    Wer die alte Liste genutzt hat, trägt das Gerät unter „SMTP-Relay" ein.
+    """
+    return [ipaddress.ip_network("127.0.0.0/8"), ipaddress.ip_network("::1/128")]
 
 
 def _load_cache() -> None:

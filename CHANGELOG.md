@@ -5,6 +5,30 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.15 — 2026-08-25 — Zusätzliche Quellnetze entfallen, S/MIME sortiert
+
+⚠️ **Zu tun, wenn du unter *Erweitert → Quell-IP-Allowlist* zusätzliche Netze
+eingetragen hattest:** Trage die betreffenden Geräte unter *Einstellungen →
+SMTP-Relay* ein. Die Zusatzliste ist entfallen; ihre Einträge werden beim
+nächsten Start aus der Konfiguration entfernt, und der Listener weist diese
+Quellen danach mit `554` ab. Ohne solche Einträge ist nichts zu tun.
+
+Der Grund: Das SMTP-Relay leistet dasselbe und mehr — es prüft zusätzlich
+Absenderdomäne und Ziel, führt eine Geräteliste mit Zählern und macht sichtbar,
+wer einliefert. Zwei Wege, ein Netz freizugeben, von denen nur einer prüft und
+nur einer protokolliert, sind einer zu viel.
+
+Der Erklärtext der Allowlist nennt das Relay jetzt ausdrücklich, sobald es
+eingeschaltet ist.
+
+**S/MIME-Seite sortiert**
+
+* *Empfängerzertifikate gegen Sperrlisten prüfen*, *Nicht-digital-signieren-
+  Trigger* und *Verschlüsselungs-Trigger* stehen jetzt unter **Signieren &
+  Verschlüsseln** — dort werden sie gebraucht.
+* **Vertrauenswürdige Aussteller** erscheint nur noch in der erweiterten
+  Ansicht. In der Standardansicht ist dort nichts zu entscheiden.
+
 ## v1.8.14 — 2026-08-25 — S/MIME und Signatur: eine Karte je Rubrik
 
 Beide Seiten waren **eine** Karte mit allem darin, getrennt durch Linien — und

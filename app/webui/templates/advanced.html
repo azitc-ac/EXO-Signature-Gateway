@@ -500,9 +500,11 @@ async function saveSmtpSubmit() {
   </div>
   <div class="step-body">
     <p style="font-size:13px;color:#555;margin-bottom:12px;line-height:1.6">
-      Der SMTP-Listener nimmt Verbindungen nur von Microsofts offiziellen
-      Exchange-Online-IP-Bereichen an (2×/Tag automatisch aktualisiert); andere
-      Quellen werden mit <code>554</code> abgewiesen.
+      {% if s.SMTP_RELAY_ENABLED %}Abgesehen von den Geräten, die unter
+      <a href="/relay">SMTP-Relay</a> eingetragen sind, nimmt der SMTP-Listener{% else %}
+      Der SMTP-Listener nimmt{% endif %} Verbindungen nur von Microsofts
+      offiziellen Exchange-Online-IP-Bereichen an (2×/Tag automatisch
+      aktualisiert); andere Quellen werden mit <code>554</code> abgewiesen.
       <span style="color:#57534e">Fail-safe: sind keine Bereiche geladen (0),
       wird nichts blockiert — dann gilt wieder „alle erlaubt".</span>
     </p>
@@ -520,15 +522,6 @@ async function saveSmtpSubmit() {
       <span id="acl-refresh-result" style="font-size:12px"></span>
     </div>
 
-    <div style="margin-bottom:12px">
-      <label for="acl-extra" style="font-size:13px;font-weight:600">Zusätzlich erlaubte CIDRs</label>
-      <span class="hint" style="display:block;margin-bottom:4px">z.B. Monitoring/Jump-Host — eine pro Zeile oder komma-getrennt. Loopback ist immer erlaubt.</span>
-      <textarea id="acl-extra" rows="3" style="width:100%;max-width:480px;font-family:monospace;font-size:12px">{{ (s.SMTP_ACL_EXTRA_CIDRS or [])|join('\n') }}</textarea>
-      <div style="margin-top:6px">
-        <button class="btn secondary btn-sm" id="acl-extra-btn" data-wache-hinweis="acl-extra-result" data-wache="acl-extra" onclick="aclSaveExtra()">CIDRs speichern</button>
-        <span id="acl-extra-result" style="font-size:12px;margin-left:6px"></span>
-      </div>
-    </div>
 
     <details>
       <summary style="cursor:pointer;font-size:13px;color:#57534e">Zuletzt abgewiesene Quellen</summary>
@@ -565,11 +558,6 @@ async function aclRefresh() {
     aclLoadStatus();
   } catch(e) { el.textContent = '✗ Netzwerkfehler'; el.style.color = '#dc2626'; }
   setTimeout(function(){ el.textContent=''; }, 3000);
-}
-async function aclSaveExtra() {
-  const list = document.getElementById('acl-extra').value.split(/[\s,]+/).map(function(s){return s.trim();}).filter(Boolean);
-  wacheFertig('acl-extra-btn',
-              await savePartial({SMTP_ACL_EXTRA_CIDRS: list}, 'acl-extra-result', 'advanced:aclExtra'));
 }
 aclLoadStatus();
 </script>

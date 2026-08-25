@@ -603,7 +603,6 @@ async def api_smtp_acl_status(_: str = Depends(_require_admin)):
         "enabled": settings_store.get("SMTP_SOURCE_ACL_ENABLED") is not False,
         "range_count": smtp_acl.range_count(),
         "last_refresh": (datetime.fromtimestamp(ts, timezone.utc).isoformat() if ts else None),
-        "extra_cidrs": settings_store.get("SMTP_ACL_EXTRA_CIDRS") or [],
         "recent_rejects": rejects,
     })
 
