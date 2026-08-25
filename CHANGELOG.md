@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.22 — 2026-08-26 — Leere Kästen zwischen den S/MIME-Zeilen
+
+Auf einem Telefon klafften unter *Indikator: verschlüsselt* und *Indikator:
+signiert* jeweils rund 200 Pixel Leere. Ursache: Die Beschriftungsspalte war an
+diesen Zeilen von Hand nachgebaut — als Stilangabe direkt am Element statt über
+die gemeinsame Regel.
+
+Das ist mehr als ein Schönheitsfehler. Eine Breitenangabe wirkt in einer
+Zeile als Breite, in einer Spalte als **Höhe** — und unter 600 Pixel stellen
+die Einstellungszeilen auf Spalten um. Die gemeinsame Regel nimmt die Angabe
+dort deshalb zurück; eine Angabe am Element selbst schlägt jede Regel und
+entzieht sich dieser Rücknahme.
+
+Fünf solcher Nachbauten waren im Bestand (S/MIME-Indikatoren, Key-Vault-Modus,
+Schlüssel-Verschlüsselung, Erkennungs-Schwellenwert). Alle entfernt; gemessen
+bei 393 Pixel schrumpfen die betroffenen Zeilen von 274 auf 90 Pixel.
+
+`tools/zeilencheck.py` erkennt jetzt beide Schreibweisen solcher Nachbauten —
+bisher suchte es nur nach einer davon und an der falschen Stelle.
+
 ## v1.8.21 — 2026-08-25 — Tabellen auf dem Telefon bedienbar
 
 Im Wartungsmodus waren die Knöpfe *Preview*, *Zustellen* und *Löschen* auf einem
