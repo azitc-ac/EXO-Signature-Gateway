@@ -218,8 +218,21 @@
        `position:sticky` erst auf breiten Schirmen (style.css): Untereinander
        umgebrochen — also auf dem Handy — würde eine klebende Vorschau den
        halben Bildschirm belegen und die Bausteinliste verdecken. -->
-  <div class="baukasten-vorschau" style="flex:1 1 280px;min-width:0">
-    <div style="font-size:12px;color:#888;margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Live-Vorschau</div>
+  <!-- `flex-basis: 600px`: Eine Signatur ist typisch 500–600px breit. Darunter
+       bricht sie um und die Vorschau zeigt etwas anderes als der Empfänger
+       sieht — sie wäre dann kein Beleg mehr, sondern eine zweite Meinung.
+       Reicht der Platz nicht, greift `flex-wrap` am Elternteil und die Vorschau
+       rutscht unter die Bausteine; dort hat sie die volle Breite. -->
+  <div class="baukasten-vorschau" style="flex:1 1 600px;min-width:0">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px">
+      <div style="font-size:12px;color:#888;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Live-Vorschau</div>
+      <div style="margin-left:auto;display:flex;gap:0">
+        <button type="button" class="btn-toggle active" id="vorschau-breit-btn"
+                onclick="vorschauBreiteSetzen('breit')">Desktop</button>
+        <button type="button" class="btn-toggle" id="vorschau-schmal-btn"
+                onclick="vorschauBreiteSetzen('schmal')">Handy</button>
+      </div>
+    </div>
     <div id="preview-email-wrap" style="margin-bottom:8px;display:flex;gap:8px;align-items:center">
       <select id="preview-email-sel" style="font-size:12px;padding:4px 8px;border:1px solid #d1d5db;border-radius:4px"
         onchange="vorschauPostfachMerken(this.value); refreshPreview()">
@@ -227,9 +240,17 @@
       </select>
       <span id="preview-loading" style="font-size:12px;color:#888;display:none">Lädt…</span>
     </div>
-    <div id="preview-box" style="min-height:120px;border:1px solid #e2e8f0;border-radius:6px;padding:16px;background:#fff;overflow:auto">
+    <!-- Die Breitenbegrenzung sitzt am RAHMEN, nicht am Inhalt: So bekommt die
+         Signatur denselben Platz wie in einem schmalen Mailprogramm, statt
+         skaliert zu werden. Skalieren zeigte eine Darstellung, die es nirgends
+         gibt. -->
+    <div id="preview-box" data-vorschau-breite="breit"
+         style="min-height:120px;border:1px solid #e2e8f0;border-radius:6px;padding:16px;background:#fff;overflow:auto">
       <span style="color:#9ca3af;font-size:12px">Postfach wählen und Speichern für Live-Vorschau</span>
     </div>
+    <p class="hint" id="vorschau-breite-hinweis" style="display:none">
+      375&nbsp;px — die Breite, die ein Telefon im Hochformat für den Nachrichtentext lässt.
+    </p>
   </div>
 
 </div><!-- /tab-builder -->
@@ -1279,6 +1300,45 @@ window.saveBuilder = async function() {
 };
 
 // ── Preview ───────────────────────────────────────────────────────────────────
+// ── Vorschaubreite: Desktop oder Telefon ───────────────────────────────────
+//
+// Eine Signatur mit Logo und zwei Spalten sieht auf einem Telefon anders aus —
+// oft bricht sie um oder das Logo verdrängt den Text. Wer das erst nach dem
+// Ausrollen bemerkt, hat es an hundert Postfächern.
+//
+// ⚠️ Begrenzt wird der RAHMEN, nicht skaliert. Eine verkleinerte Darstellung
+// zeigte eine Ansicht, die es auf keinem Gerät gibt; 375px sind dagegen das,
+// was ein Telefon im Hochformat für den Nachrichtentext übrig lässt.
+//
+// Die Wahl merkt sich der Browser: Wer am Handy-Layout arbeitet, will nicht
+// nach jedem Speichern erneut umschalten.
+// ⚠️ An `window` gehängt, nicht als blosse Funktionsdeklaration: Das Skript
+// dieser Seite läuft in einem eigenen Gültigkeitsbereich (Modul), `onclick`
+// im HTML sucht aber im globalen. Ohne das Anhängen bleibt der Knopf ohne
+// Wirkung — sichtbar, klickbar, und es passiert nichts. `window.refreshPreview`
+// weiter unten hat denselben Grund.
+window.vorschauBreiteSetzen = function (modus) {
+  const box = document.getElementById('preview-box');
+  const hinweis = document.getElementById('vorschau-breite-hinweis');
+  if (!box) return;
+  const schmal = modus === 'schmal';
+  box.dataset.vorschauBreite = schmal ? 'schmal' : 'breit';
+  if (hinweis) hinweis.style.display = schmal ? '' : 'none';
+  const b = document.getElementById('vorschau-breit-btn');
+  const s = document.getElementById('vorschau-schmal-btn');
+  if (b) b.classList.toggle('active', !schmal);
+  if (s) s.classList.toggle('active', schmal);
+  try { localStorage.setItem('vorschau_breite', schmal ? 'schmal' : 'breit'); }
+  catch (e) { /* privater Modus — dann eben ohne Gedächtnis */ }
+};
+
+document.addEventListener('DOMContentLoaded', function () {
+  let gemerkt = 'breit';
+  try { gemerkt = localStorage.getItem('vorschau_breite') || 'breit'; }
+  catch (e) { /* siehe oben */ }
+  window.vorschauBreiteSetzen(gemerkt);
+});
+
 window.refreshPreview = async function() {
   const email = document.getElementById('preview-email-sel').value;
   const box = document.getElementById('preview-box');
