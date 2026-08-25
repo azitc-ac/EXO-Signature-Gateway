@@ -30,8 +30,12 @@ import smtp_relay  # noqa: E402
 
 
 class _Sitzung:
-    def __init__(self, ip):
+    def __init__(self, ip, ssl=None):
         self.peer = (ip, 5000)
+        # aiosmtpd setzt `ssl` auf die Verbindungsdaten, sobald STARTTLS lief.
+        # Der Handler liest genau dieses Attribut — die Attrappe muss es also
+        # kennen, sonst prueft der Test seine eigene Vorstellung.
+        self.ssl = ssl
 
 
 class _Umschlag:
@@ -89,9 +93,11 @@ def anlage(monkeypatch, tmp_path):
     return werte
 
 
-def _lauf(ip, absender="drucker@firma.de", empfaenger=("chefin@firma.de",)):
+def _lauf(ip, absender="drucker@firma.de", empfaenger=("chefin@firma.de",),
+          ssl=None):
     h = handler.SignatureHandler()
-    return asyncio.run(h.handle_DATA(None, _Sitzung(ip), _Umschlag(absender, empfaenger)))
+    return asyncio.run(h.handle_DATA(None, _Sitzung(ip, ssl),
+                                     _Umschlag(absender, empfaenger)))
 
 
 def test_relay_netz_umgeht_die_quell_ip_liste(anlage):
@@ -197,3 +203,25 @@ def test_abgewiesene_post_wird_nicht_mitgezaehlt(anlage):
     import relay_hosts
     _lauf("10.1.5.30", absender="werbung@fremd.example")
     assert relay_hosts.liste()[0]["zaehler"][30] == 0
+
+
+def test_der_gemessene_tls_zustand_landet_in_der_liste(anlage):
+    """⚠️ Die Anzeige muss MESSEN, nicht behaupten.
+
+    Seit STARTTLS für Relay-Geräte keine Pflicht mehr ist, ist die Spalte „TLS"
+    der einzige Ort, an dem sichtbar wird, wer im Klartext liefert. Stünde dort
+    ein fester Wert, wäre sie schlimmer als keine Spalte: Sie sähe nach Messung
+    aus.
+
+    Eine Mutation, die `tls=True` fest verdrahtet, blieb ohne diesen Test
+    unbemerkt.
+    """
+    import relay_hosts
+
+    _lauf("10.1.5.30", ssl=None)                 # Klartext
+    assert relay_hosts.liste()[0]["tls"] == "nein"
+
+    _lauf("10.1.5.30", ssl={"cipher": ("TLS_AES_256_GCM_SHA384",)})
+    assert relay_hosts.liste()[0]["tls"] == "ja", (
+        "Nach einer verschlüsselten Einlieferung muss der Befund verschwinden — "
+        "sonst bleibt ein nachgerüstetes Gerät für immer angemahnt.")

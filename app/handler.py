@@ -420,7 +420,10 @@ class SignatureHandler:
             # jeder Verbindungsversuch — sonst zeigte die Uebersicht einen
             # regen Drucker, der in Wahrheit nur abgewiesen wird.
             import relay_hosts
-            relay_hosts.merke_zustellung(peer_ip)
+            # `session.ssl` ist gesetzt, sobald STARTTLS gelaufen ist. Fuer
+            # Relay-Geraete ist STARTTLS seit v1.8.7 keine Pflicht mehr — ohne
+            # diese Angabe waere nicht mehr erkennbar, wer im Klartext liefert.
+            relay_hosts.merke_zustellung(peer_ip, tls=bool(getattr(session, "ssl", None)))
         wants_encryption = False  # tracked for fallback safety
         _t0 = time.monotonic()
 

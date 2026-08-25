@@ -5,6 +5,33 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.7 — 2026-08-25 — SMTP-Relay: keine TLS-Pflicht für eigene Geräte
+
+Ein Etikettendrucker von 2011 kann kein `STARTTLS`, ein Scanner nur TLS 1.0.
+Genau diese Geräte sind der Grund für das Relay — mit bestehender Pflicht lief
+das Feature für seinen Hauptanwendungsfall nicht.
+
+Für Adressen aus der Geräteliste ist `STARTTLS` deshalb keine Pflicht mehr.
+Angeboten wird es weiterhin: Ein Gerät, das es kann, soll es nutzen.
+
+⚠️ **Die Lockerung ist eng begrenzt.** Sie gilt nur für Adressen, die die
+Geräteliste kennt — und, während eines Lernlaufs, für Adressen im Lernbereich
+(sonst käme ein Gerät ohne `STARTTLS` nie in die Liste). **Für Exchange bleibt
+TLS Pflicht**, und das ist keine Formsache: Über diesen Weg läuft die gesamte
+Unternehmenspost. Ein gesperrtes Gerät verliert die Ausnahme ebenso wie eine
+Adresse, die aus der Liste genommen wird; die Entscheidung fällt bei jeder
+Verbindung neu, ein Neustart ist dafür nicht nötig.
+
+Schlägt die Prüfung fehl — defekte Datenbank, unerwarteter Fehler — bleibt es
+bei der Pflicht.
+
+**Neue Spalte „TLS" in der Geräteliste.** Sie zeigt, ob die letzte Einlieferung
+verschlüsselt war: *Klartext* benennt das Gerät, das als Nächstes zu ersetzen
+ist, ein Häkchen bestätigt die Verschlüsselung. Ohne diese Anzeige wäre nach
+dem Wegfall der Pflicht nicht mehr erkennbar, wer unverschlüsselt liefert — und
+niemandem fiele auf, dass ein Gerät das seit Monaten tut. Ein nachgerüstetes
+Gerät verliert den Vermerk beim nächsten Versand wieder.
+
 ## v1.8.6 — 2026-08-25 — Reiterleiste und Tabellen der Relay-Seite
 
 **Die Reiterleiste war zu breit für den Inhaltsbereich.** Mit acht Reitern

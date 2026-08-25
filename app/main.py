@@ -36,6 +36,45 @@ class _LenientSMTP(_BaseSMTP):
     parameters instead of returning 555.  EXO may send AUTH=, REQUIRETLS
     etc. when forwarding messages; we don't need them but must not reject."""
 
+    def connection_made(self, transport) -> None:
+        """STARTTLS bleibt Pflicht — ausser fuer ein freigegebenes Relay-Geraet.
+
+        ANLASS (2026-08-25): Ein Etikettendrucker von 2011 kann kein STARTTLS,
+        ein Scanner nur TLS 1.0. Genau diese Geraete sind der Grund fuer das
+        Relay — bestuende die Pflicht, liefe das Feature fuer seinen
+        Hauptanwendungsfall nicht.
+
+        ⚠️ Die Lockerung gilt NUR fuer Adressen, die `ist_relay_quelle()`
+        bejaht: eingetragene Geraete und, waehrend eines Lernlaufs, Adressen im
+        Lernbereich. Fuer Exchange bleibt STARTTLS Pflicht, und das ist keine
+        Formsache — ueber diesen Weg laeuft die gesamte Unternehmenspost.
+
+        ⚠️ STARTTLS wird weiterhin ANGEBOTEN. Wegfallen soll die Pflicht, nicht
+        die Moeglichkeit: Ein Geraet, das es kann, soll es auch nutzen. Ob es
+        das tut, wird je Geraet festgehalten und in der Uebersicht angezeigt —
+        sonst waere nach der Lockerung nicht mehr erkennbar, wer im Klartext
+        liefert.
+
+        Die Entscheidung faellt bei JEDER Verbindung neu. Wird ein Geraet
+        gesperrt oder aus der Liste genommen, gilt fuer die naechste Verbindung
+        wieder die Pflicht — ohne Neustart.
+        """
+        super().connection_made(transport)
+        if not self.require_starttls:
+            return                       # ohne Zertifikat gibt es keine Pflicht
+        try:
+            ip = (self.session.peer or ("",))[0]
+        except Exception:                # noqa: BLE001
+            return                       # im Zweifel bei der Pflicht bleiben
+        try:
+            import smtp_relay
+            if smtp_relay.ist_relay_quelle(ip):
+                self.require_starttls = False
+                log.info("SMTP: %s ist ein freigegebenes Relay-Geraet — "
+                         "STARTTLS wird angeboten, aber nicht verlangt", ip)
+        except Exception as exc:         # noqa: BLE001
+            log.warning("SMTP: Relay-Pruefung fuer %s fehlgeschlagen: %s", ip, exc)
+
     @syntax('MAIL FROM: <address>', extended=' [SP <mail-parameters>]')
     async def smtp_MAIL(self, arg):
         if await self.check_helo_needed():

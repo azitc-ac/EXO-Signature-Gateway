@@ -56,6 +56,14 @@ das Gerät gesetzt hat. Die anderen Wege können das nicht:
 Diese Grenze steht deshalb HIER und nicht nur in der Oberfläche: Wer den Modus
 später umstellt, bekäme sonst ein Relay, das Post annimmt und dann verwirft.
 
+⚠️ STARTTLS IST FÜR DIESE GERÄTE KEINE PFLICHT
+----------------------------------------------
+Ein Etikettendrucker von 2011 kann kein STARTTLS. `main._LenientSMTP.
+connection_made()` nimmt die Pflicht deshalb für jede Adresse zurück, die
+`ist_relay_quelle()` bejaht — und nur für die. Angeboten wird STARTTLS
+weiterhin; ob ein Gerät es nutzt, hält `relay_hosts` je Gerät fest, sonst wäre
+nach der Lockerung nicht mehr erkennbar, wer im Klartext liefert.
+
 ⚠️ ZUR AUSFALLRICHTUNG
 ----------------------
 `smtp_acl.is_allowed()` lässt bei leerer Adressliste ALLES durch — bewusst, um
