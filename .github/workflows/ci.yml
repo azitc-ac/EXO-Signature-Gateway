@@ -64,6 +64,12 @@ jobs:
       - name: Aufbau der Einstellungszeilen
         run: python tools/zeilencheck.py
 
+      # Breite Tabellen brauchen einen rollbaren Bereich UND eine Mindestbreite.
+      # Ohne das sind Knoepfe in der rechten Spalte auf dem Telefon nicht
+      # erreichbar — gemessen: Knopf bei x=896 in einem 393px breiten Fenster.
+      - name: Tabellen auf schmalen Schirmen
+        run: python tools/tabellencheck.py
+
       - name: JavaScript der Vorlagen
         run: python tools/jscheck.py
 

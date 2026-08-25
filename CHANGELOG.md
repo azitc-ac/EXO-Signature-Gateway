@@ -5,6 +5,31 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.21 — 2026-08-25 — Tabellen auf dem Telefon bedienbar
+
+Im Wartungsmodus waren die Knöpfe *Preview*, *Zustellen* und *Löschen* auf einem
+Telefon nicht erreichbar: Die Warteschlange stand in keinem rollbaren Bereich,
+die Aktionsspalte lief rechts aus dem Bild, und schieben liess sich nichts.
+Gemessen bei 393 px Fensterbreite lag der Löschen-Knopf bei x=896.
+
+Behoben — und zwar nicht nur dort. Neun weitere Tabellen hatten dasselbe
+Problem: Übersicht, Prüfwerkzeuge, Zugangsdaten, Guthaben-Aufstellung,
+Signatur-Zuordnung und die Gruppentabelle der Postfächer.
+
+Eine breite Tabelle braucht seither zweierlei, und beides zusammen:
+
+* einen waagerecht rollbaren Bereich — sonst läuft sie aus dem Bild,
+* eine Mindestbreite — sonst quetscht sie alle Spalten in die Fensterbreite,
+  statt zu rollen, und aus Adressen und Betreffzeilen werden Ellipsen.
+
+`tools/tabellencheck.py` prüft das bei jedem Commit und in der CI. Zweispaltige
+Aufstellungen bleiben unbeanstandet; sie passen auf ein Telefon, und ein
+Rollbalken, der nie gebraucht wird, ist kein Fortschritt.
+
+Nachgemessen: Nach der Änderung rollt keine Seite mehr als Ganzes breit — das
+wäre schlimmer gewesen als vorher, weil dabei auch die Kopfzeile aus dem Bild
+wandert.
+
 ## v1.8.20 — 2026-08-25 — Speichern-Knöpfe: elf weitere überwacht
 
 Ein ausgegrauter Speichern-Knopf ist eine Aussage: Es gibt nichts zu sichern.

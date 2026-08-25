@@ -989,11 +989,11 @@ function _acctLedger(ledger) {
          + eur(Number(e.balance_after || 0)) + '</td></tr>';
   }).join('');
   return '<details style="margin-top:10px"><summary class="hint" style="cursor:pointer">Letzte Buchungen</summary>'
-       + '<table style="font-size:12px;margin-top:6px"><tr class="muted">'
+       + '<div class="tabellen-rollbereich"><table style="min-width:600px;font-size:12px;margin-top:6px"><tr class="muted">'
        + '<th style="text-align:left;font-weight:400">Datum</th>'
        + '<th style="text-align:left;font-weight:400">Zweck</th>'
        + '<th style="text-align:right;font-weight:400;padding-left:10px">Betrag</th>'
-       + '<th style="text-align:right;font-weight:400;padding-left:12px">Stand</th></tr>' + html + '</table></details>';
+       + '<th style="text-align:right;font-weight:400;padding-left:12px">Stand</th></tr>' + html + '</table></div></details>';
 }
 
 // Bezahlseite in einem NEUEN Tab.

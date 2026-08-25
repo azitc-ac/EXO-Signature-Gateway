@@ -435,12 +435,12 @@ function renderAdminUsers(users) {
       '<td style="padding:6px 8px;white-space:nowrap">' + removeBtn + '</td>' +
       '</tr>';
   }).join('');
-  el.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px">' +
+  el.innerHTML = '<div class="tabellen-rollbereich"><table style="min-width:480px;width:100%;border-collapse:collapse;font-size:13px">' +
     '<thead><tr style="border-bottom:1px solid #e2e8f0">' +
     '<th style="padding:4px 10px;text-align:left;font-weight:600;font-size:12px;color:#64748b">Konto</th>' +
     '<th style="padding:4px 8px;text-align:left;font-weight:600;font-size:12px;color:#64748b">Rolle</th>' +
     '<th style="padding:4px 8px"></th>' +
-    '</thead><tbody>' + rows + '</tbody></table>';
+    '</thead><tbody>' + rows + '</tbody></table></div>';
 }
 
 async function _preloadAdminUsers() {
