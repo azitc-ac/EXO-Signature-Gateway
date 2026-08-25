@@ -111,6 +111,7 @@ from webui.routen import backup as _routen_backup            # noqa: E402
 from webui.routen import hub as _routen_hub                  # noqa: E402
 from webui.routen import mailboxes as _routen_mailboxes      # noqa: E402
 from webui.routen import portal as _routen_portal            # noqa: E402
+from webui.routen import relay as _routen_relay              # noqa: E402
 from webui.routen import betrieb as _routen_betrieb
 from webui.routen import aktualisierung as _routen_aktualisierung
 from webui.routen import anmeldung as _routen_anmeldung
@@ -131,7 +132,7 @@ from webui.routen import smime as _routen_smime              # noqa: E402
 ROUTENMODULE = [_routen_addin, _routen_backup, _routen_hub, _routen_mailboxes,
                 _routen_portal, _routen_settings, _routen_setup, _routen_smime,
                 _routen_vorlagen, _routen_betrieb, _routen_aktualisierung,
-                _routen_anmeldung]
+                _routen_anmeldung, _routen_relay]
 
 for _modul in ROUTENMODULE:
     app.include_router(_modul.router)

@@ -5,6 +5,93 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.4 — 2026-08-25 — SMTP-Relay: Geräteliste, Lernmodus, Abweisungen
+
+Das Relay aus v1.8.3 kannte nur Quellnetze. Für den Betrieb ist das zu grob: Wer
+ein `/24` freigibt, weiss nicht, welche Geräte darin senden, kann keinem
+einzelnen etwas erlauben oder verbieten, und merkt nicht, wenn ein Kopierer seit
+Monaten schweigt, weil ihn jemand ausgetauscht hat.
+
+Neuer Reiter **Einstellungen → SMTP-Relay**, sichtbar sobald das Relay
+eingeschaltet ist.
+
+### Die Geräteliste ist jetzt die Freigabe
+
+Je Gerät: Adresse, Name aus der Rückwärtsauflösung, Kommentar,
+Ansprechpartner, ob es nach aussen senden darf, Zeitpunkt der letzten Mail und
+die Menge der letzten 30/90/180/360 Tage. Lauter Nullen bei einem alten Eintrag
+heissen, dass er weg kann.
+
+Ein Netz für sich lässt **nichts** mehr durch — es sagt nur noch, woraus der
+Lernmodus lernen darf. Wer die Liste ansieht, sieht damit vollständig, wer
+einliefern darf.
+
+⚠️ **Umbenannte Einstellungen.** `SMTP_RELAY_NETWORKS` heisst jetzt
+`SMTP_RELAY_LERN_NETZE` und bedeutet etwas anderes (Lernbereich statt
+Dauerfreigabe); `SMTP_RELAY_EXTERNAL` ist zu `SMTP_RELAY_EXTERN_VORGABE`
+geworden und gilt nur noch als Vorgabe für neu gelernte Geräte — erlaubt oder
+verboten wird je Gerät. Beide alten Schlüssel sind als überholt vermerkt und
+werden beim Start aus der Konfiguration entfernt. Da das Relay in v1.8.3 mit
+Vorgabe „aus" ausgeliefert wurde, ist im Regelfall nichts zu tun; wer es bereits
+eingeschaltet hatte, trägt seine Geräte einmal ein oder lässt sie lernen.
+
+### Lernmodus
+
+Ein Bereich wird **befristet** freigegeben; jedes Gerät, das darin etwas
+Zulässiges einliefert, wird aufgenommen und darf danach dauerhaft weiter. Der
+Bereich darf als Netz (`192.168.1.0/24`) oder als Spanne
+(`172.16.16.10-172.16.17.20`) angegeben werden — eine Spanne über Netzgrenzen
+hinweg lässt sich nicht als `/nn` schreiben, kommt in gewachsenen Netzen aber
+vor.
+
+Vorgabe 15 Minuten, höchstens 120. Die Höchstdauer gilt auch für einen Wert,
+der von Hand oder aus einer Sicherung in die Konfiguration gelangt: Sonst
+entstünde ein dauerhaft lernendes Gateway, also genau das offene Relay, dessen
+Vermeidung der Zweck der Konstruktion ist. Beenden geht jederzeit; solange der
+Modus läuft, erscheint auf **jeder** Seite ein Hinweis mit der Restzeit.
+
+⚠️ Aufgenommen wird beim **Zustellen**, nicht beim Verbinden. Ein Absender, der
+an der Absender- oder Zielgrenze scheitert, kommt nicht in die Liste — sonst
+füllte ein Gerät, das ohnehin nichts darf, die Übersicht.
+
+### Abgewiesene Clients
+
+Wer einliefern wollte und nicht durfte, steht mit Absender, Ziel, Grund,
+Zeitpunkt und Versuchszahl in einer eigenen Liste; ein Klick übernimmt ihn in
+die Geräteliste. Ohne diese Liste sähe ein Betreiber nur, dass „nichts
+ankommt", und die Adresse, um die es geht, stünde nirgends. Gesammelt wird nur
+bei eingeschaltetem Relay — sonst liefe die Liste mit Fremdverkehr voll und
+wäre genau dann unbrauchbar, wenn man sie braucht.
+
+### Sperren
+
+Ein Gerät lässt sich sperren, ohne es zu löschen: Kommentar, Ansprechpartner
+und Zähler bleiben erhalten. Eine Sperre schlägt den Lernmodus — ein gesperrtes
+Gerät im Lernbereich wird nicht wieder freigegeben, sonst wäre die Sperre eine
+Empfehlung.
+
+### Rechte frisch angelegter Datenbanken
+
+Beim Bau der Geräteliste aufgefallen und mitbehoben: SQLite legt seine Datei mit
+der umask des Prozesses an, im Container also mit **644**. Die Härtung beim
+Start korrigiert das — eine Datenbank, die zur *Laufzeit* entsteht, blieb damit
+bis zum nächsten Neustart für jeden Benutzer des Systems lesbar.
+
+Betroffen war ausschliesslich dieses Zeitfenster, und nur bei einer Datenbank,
+die es vorher noch nicht gab: nach einer Neuinstallation die erste
+zurückgehaltene Nachricht (`portal.db`), das erste Protokollereignis
+(`mail_audit.db`). Im Bestand fiel es nicht auf, weil jede vorhandene Datei
+längst einen Neustart erlebt hat und im Betrieb überall 600 zeigt.
+
+Alle fünf Datenbanken setzen die Rechte jetzt beim Anlegen, nicht erst beim
+nächsten Start. Zu tun ist nichts — die Korrektur wirkt ohne Zutun, und
+bestehende Dateien waren bereits richtig gesetzt.
+
+### Nebenbei
+
+Die Reiterleiste der Einstellungen stand wortgleich in acht Vorlagen und kommt
+jetzt aus einer Datei. Ein neuer Reiter erschien sonst je nach Seite oder nicht.
+
 ## v1.8.3 — 2026-08-25 — SMTP-Relay für eigene Geräte (Preview)
 
 Drucker, Scanner und Anwendungen liefern in vielen Häusern seit Jahren anonym

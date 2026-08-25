@@ -191,8 +191,11 @@ REGISTER: dict[str, E] = {
     "SMIME_TAG_SIGNED_ENABLED": E(art=OPTION, ort="settings_smime.html"),
     "SMTP_ACL_EXTRA_CIDRS": E(art=STRUKTUR, ort="advanced.html"),
     "SMTP_RELAY_ENABLED": E(art=OPTION, ort="setup.html"),
-    "SMTP_RELAY_EXTERNAL": E(art=OPTION, ort="setup.html"),
-    "SMTP_RELAY_NETWORKS": E(art=STRUKTUR, ort="setup.html"),
+    # Beide werden nicht einzeln gespeichert, sondern gemeinsam beim Starten
+    # des Lernmodus — deshalb der Endpunkt als Ort, nicht die Vorlage.
+    "SMTP_RELAY_EXTERN_VORGABE": E(art=OPTION, ort="/api/relay/lernmodus"),
+    "SMTP_RELAY_LERN_BIS": E(art=ZUSTAND),
+    "SMTP_RELAY_LERN_NETZE": E(art=STRUKTUR, ort="/api/relay/lernmodus"),
     "SMTP_SOURCE_ACL_ENABLED": E(art=OPTION, ort="advanced.html"),
     "SMTP_SUBMIT_CLIENT_ID": E(art=OPTION, ort="advanced.html"),
     "SMTP_SUBMIT_CLIENT_SECRET": E(art=GEHEIMNIS),

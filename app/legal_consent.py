@@ -10,6 +10,7 @@ Context → required document IDs:
 import hashlib
 import logging
 import sqlite3
+import secure_io
 from pathlib import Path
 import config
 
@@ -91,6 +92,10 @@ CONTEXT_DOCUMENTS: dict[str, list[str]] = {
 
 def _conn() -> sqlite3.Connection:
     c = sqlite3.connect(str(_DB_PATH))
+    # SQLite legt die Datei mit der umask des Prozesses an (im Container 644).
+    # `harden_tree()` beim Start räumt das auf — eine zur Laufzeit ENTSTEHENDE
+    # Datenbank bliebe bis zum nächsten Neustart mitlesbar.
+    secure_io.harden_file(_DB_PATH)
     c.row_factory = sqlite3.Row
     c.execute("""
         CREATE TABLE IF NOT EXISTS consents (

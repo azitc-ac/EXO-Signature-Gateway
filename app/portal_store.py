@@ -6,6 +6,7 @@ import logging
 import os
 import secrets
 import sqlite3
+import secure_io
 import uuid
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
@@ -50,6 +51,10 @@ CREATE TABLE IF NOT EXISTS portal_replies (
 @contextmanager
 def _conn():
     con = sqlite3.connect(str(_DB_PATH), check_same_thread=False)
+    # SQLite legt die Datei mit der umask des Prozesses an (im Container 644).
+    # `harden_tree()` beim Start räumt das auf — eine zur Laufzeit ENTSTEHENDE
+    # Datenbank bliebe bis zum nächsten Neustart mitlesbar.
+    secure_io.harden_file(_DB_PATH)
     con.row_factory = sqlite3.Row
     try:
         yield con

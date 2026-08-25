@@ -600,3 +600,37 @@
 
 /* Mitlaufende Leiste für offene Änderungen (common.js) */
 [data-theme="dark"] .speicher-leiste { background:#241d10; border-color:#78350f; color:#fcd34d; }
+
+/* ── SMTP-Relay (v1.8.4) ──────────────────────────────────────────────────
+   #lern-aktiv trägt seinen Hintergrund als Inline-Attribut, wird aber per JS
+   ein- und ausgeblendet. Sobald JS `style.display` anfasst, serialisiert der
+   Browser das gesamte style-Attribut neu — der Attributselektor
+   [style*="#fffbeb"] greift danach nicht mehr, und der Kasten leuchtete im
+   Dunkelmodus hell auf. Deshalb eine ID-Regel (Dark-Mode-Regel 2).
+
+   Die gesperrt-Kennzeichnung läuft über ein data-Attribut aus demselben Grund:
+   Die Zeile entsteht in JS. */
+/* Werte NICHT selbst gewählt, sondern von #cert-katalog-stoerung übernommen —
+   demselben Fall (gelber Hinweiskasten, per JS eingeblendet). Ein eigener
+   Farbton hätte hier zwei Kästen gleicher Bedeutung verschieden aussehen
+   lassen, und niemand hätte je nachgesehen, warum. */
+[data-theme="dark"] #lern-aktiv {
+    background: #1a1200 !important;
+    border-color: #92400e !important;
+}
+[data-theme="dark"] #lern-aktiv,
+[data-theme="dark"] #lern-restzeit,
+[data-theme="dark"] #lern-bereiche-aktiv { color: #fcd34d !important; }
+
+[data-theme="dark"] tr[data-relay-gesperrt="1"] code { color: #fca5a5 !important; }
+
+/* Das Banner in base.html erscheint auf jeder Seite, solange der Lernmodus
+   läuft. Statisches HTML-Attribut, aber eine eigene Regel ist billiger als die
+   Frage, ob der Attributselektor eine Farbkombination trifft, die auch
+   anderswo vorkommt. */
+[data-theme="dark"] #lernmodus-banner {
+    background: #1a1200 !important;
+    border-bottom-color: #92400e !important;
+    color: #fcd34d !important;
+}
+[data-theme="dark"] #lernmodus-banner a { color: #fcd34d !important; }

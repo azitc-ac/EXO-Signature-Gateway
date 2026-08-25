@@ -106,8 +106,14 @@ DEFAULTS: dict = {
     # einliefern". Die beiden zu vermischen hiesse, ein Relay zu eröffnen, ohne
     # dass es jemand entschieden hat.
     "SMTP_RELAY_ENABLED": False,       # bewusste Freischaltung, Vorgabe aus
-    "SMTP_RELAY_NETWORKS": [],         # Quellnetze, z.B. ["10.1.5.0/24"]
-    "SMTP_RELAY_EXTERNAL": False,      # auch an Empfänger ausserhalb des Tenants
+    # ⚠️ Die FREIGABE steht nicht hier, sondern in der Geräteliste
+    # (`relay_hosts.py`, eigene Datenbank). Diese Netze sagen nur, WORAUS der
+    # Lernmodus lernen darf — ausserhalb seines Zeitfensters lassen sie nichts
+    # durch. Ein Netz als Dauerfreigabe wäre wieder die grobe Kelle, die zu
+    # ersetzen der Zweck dieser Stufe war.
+    "SMTP_RELAY_LERN_NETZE": [],       # z.B. ["10.1.5.0/24"]
+    "SMTP_RELAY_LERN_BIS": "",         # ISO-Zeitpunkt; leer/vergangen = aus
+    "SMTP_RELAY_EXTERN_VORGABE": False,  # Rechte, die ein gelerntes Gerät bekommt
     "RELAY_USER": "",              # Optional SMTP AUTH user (e.g. SES "apikey")
     "RELAY_PASSWORD": "",          # Optional SMTP AUTH password
     # ── SMTP-Übermittlung (Port 587) ─────────────────────────────────────────
@@ -285,6 +291,8 @@ INTERNAL_KEYS = frozenset({
 # Oberfläche, um sie zu löschen. Wer vorher Sectigo oder SwissSign konfiguriert
 # hatte, dessen Zugangsdaten lagen weiter in der Datei.
 OBSOLETE_KEYS = {
+    "SMTP_RELAY_NETWORKS":         "Netz ist keine Freigabe mehr — die Geräteliste ist es (v1.8.4); Lernbereich: SMTP_RELAY_LERN_NETZE",
+    "SMTP_RELAY_EXTERNAL":         "je Gerät statt global (v1.8.4); Vorgabe für neue Geräte: SMTP_RELAY_EXTERN_VORGABE",
     "SECTIGO_API_BASE":            "CA-Direktanbindung entfernt (v1.5.125)",
     "SECTIGO_CERT_TYPE":           "CA-Direktanbindung entfernt (v1.5.125)",
     "SECTIGO_CUSTOMER_URI":        "CA-Direktanbindung entfernt (v1.5.125)",
