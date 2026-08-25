@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.2 — 2026-08-25 — Werkzeug: Ersteinrichtung im Browser durchgehen
+
+Ergänzung zur Abnahme aus v1.8.1. `tools/ersteinrichtung.py` öffnet den
+Einrichtungsassistenten in einem echten Browser und meldet für jeden Schritt,
+was ein Mensch dort vorfände: erledigt, noch zu tun, optional — oder auf eine
+Person angewiesen, weil eine Anmeldung bei Microsoft ansteht. Zum Schluss ruft
+es die Abnahme ab.
+
+Standardmäßig wird **nichts geklickt**. Der Trockenlauf beantwortet zuerst die
+Frage, ob der Ablauf überhaupt beschreibbar ist — vor jedem Eingriff in eine
+laufende Anlage.
+
+Der Weg über den Browser statt über die Schnittstellen ist Absicht: Die
+Oberfläche ist das, was bedient wird. Mehrere Fehler dieser Woche — Eingabefelder
+unter ihrer Beschriftung, umbrechende Reiter, ein durch fremden Text zerlegtes
+Seitenlayout — wären über die Schnittstellen unsichtbar geblieben.
+
+Für Betreiber ändert sich nichts; das Werkzeug richtet sich an die Entwicklung
+und an die Abnahme neuer Installationen.
+
 ## v1.8.1 — 2026-08-25 — Abnahme: ist diese Installation betriebsbereit?
 
 Der Einrichtungsassistent prüfte bislang Einzelschritte — ist der Verbinder
