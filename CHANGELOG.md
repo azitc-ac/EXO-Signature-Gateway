@@ -5,6 +5,29 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.13 — 2026-08-25 — Rückmeldungen am Ort der Handlung
+
+Nach dem Setzen des Schlüsselpassworts erschien die Bestätigung **ganz oben auf
+der Seite**, die Ansicht sprang dorthin, und nach 1,8 Sekunden lud die Seite neu
+— zum Lesen blieb keine Zeit. Dabei nennt gerade diese Meldung das Wichtigste:
+welche abgelegten Schlüssel neu verschlüsselt wurden und welche nicht.
+
+Die Meldung steht jetzt neben dem Knopf, die Ansicht springt nicht mehr, und
+das Neuladen erfolgt erst nach sechs Sekunden. Bei einem Fehler wird gar nicht
+neu geladen — sonst verschwände die Begründung mitsamt der Eingabe.
+
+⚠️ Vier Stellen waren betroffen; bei dreien stand ein Meldungsfeld direkt
+daneben und blieb leer: Schlüsselpasswort, Konfigurationsimport, Neustart.
+
+**Kleinere Korrekturen**
+
+* „Welche Aussteller sind zugelassen?" heisst jetzt **Vertrauenswürdige
+  Aussteller** — eine Rubrik ist keine Frage. Die Überschrift war ausserdem
+  eine Ebene kleiner als alle anderen der Seite.
+* Die Kartenüberschriften „Signatur" und „S/MIME" wiederholten den Reiternamen
+  darüber und sind entfallen.
+* Der Vorschau-Umschalter im Baukasten heisst **Mobil** statt „Handy".
+
 ## v1.8.12 — 2026-08-25 — Einstellungszeilen: eine Regel statt Einzelfällen
 
 Die Einstellungsseiten hatten keinen einheitlichen Aufbau. Beschriftungen

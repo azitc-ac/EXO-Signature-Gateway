@@ -593,11 +593,11 @@ async function importConfig(input) {
   const fd = new FormData();
   fd.append('xml_file', file);
   const resp = await fetch('/api/config/import', {method: 'POST', body: fd});
-  const alert = document.getElementById('page-alert');
+  // Die Meldung gehört neben den Knopf, nicht an den Seitenanfang: `result`
+  // steht hier bereits und blieb leer, während oben etwas aufblitzte.
   if (resp.ok) {
     const d = await resp.json();
-    showAlert(alert, 'success', `Konfiguration importiert (${d.imported} Einstellungen). Bitte speichern und neu starten.`);
-    window.scrollTo(0, 0);
+    showAlert(result, 'success', `Konfiguration importiert (${d.imported} Einstellungen). Bitte speichern und neu starten.`);
     setTimeout(() => location.reload(), 1500);
   } else {
     const d = await resp.json().catch(() => ({}));

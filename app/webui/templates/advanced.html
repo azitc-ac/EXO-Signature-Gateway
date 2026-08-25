@@ -1030,8 +1030,7 @@ async function restartService() {
   if (!confirm('Prozess jetzt neu starten?')) return;
   await fetch('/api/restart', {method: 'POST'});
   const status = document.getElementById('restart-service-status');
-  showAlert(status, 'warn', 'Service wird neu gestartet… Seite lädt in 5 Sekunden neu.');
-  window.scrollTo(0, 0);
+  showAlert(status, 'warn', 'Dienst wird neu gestartet… Seite lädt in 5 Sekunden neu.');
   setTimeout(() => location.reload(), 5000);
 }
 
