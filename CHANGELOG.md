@@ -5,6 +5,25 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.5 — 2026-08-25 — „Connector" bleibt Connector
+
+In Erklärtexten und Kommentaren stand an elf Stellen „Verbinder". Das ist keine
+Übersetzung, sondern eine Sackgasse: Wer den Begriff liest und danach im
+Exchange Admin Center sucht, findet nichts — der Punkt heisst dort auch auf
+Deutsch **Connectors**.
+
+Betroffen waren die Einrichtung, der Bereich Erweitert und die Beschreibung des
+SMTP-Relays. Am Verhalten ändert sich nichts.
+
+Aufgenommen in die Begriffsprüfung, die bei jedem Push läuft; damit kann sich
+die Fügung nicht erneut einbürgern. Zusätzlich prüft die Testreihe jetzt für
+**jede** Regel dieser Prüfung, dass sie ihre Beispiele fängt — und richtig
+formulierte Sätze in Ruhe lässt. Ein Muster, das nichts findet, sah bisher wie
+eine Absicherung aus; genau das war eine frühere Regel eine Zeit lang.
+
+Nicht geändert wurde „Verteilerliste": Das Exchange Admin Center nennt eine
+Distribution List tatsächlich so.
+
 ## v1.8.4 — 2026-08-25 — SMTP-Relay: Geräteliste, Lernmodus, Abweisungen
 
 Das Relay aus v1.8.3 kannte nur Quellnetze. Für den Betrieb ist das zu grob: Wer
@@ -116,7 +135,7 @@ Einzuschalten unter *Einrichtung → Modus & Funktionen*. Drei Grenzen gelten:
 * **Absender** — die Absenderdomäne muss dem eigenen Tenant gehören. Ein
   übernommenes Gerät kann nicht als fremde Firma versenden.
 * **Ziel** — Vorgabe sind Empfänger im eigenen Tenant. Nach aussen erst nach
-  ausdrücklicher Freigabe; dafür muss zusätzlich der Exchange-Verbinder das
+  ausdrücklicher Freigabe; dafür muss zusätzlich der Exchange-Connector das
   Weiterleiten erlauben, sonst antwortet Exchange mit `550 5.7.54`.
 
 Geprüft wird gegen die bekannten **Adressen**, nicht gegen die Domänen: Eine
@@ -164,7 +183,7 @@ und an die Abnahme neuer Installationen.
 
 ## v1.8.1 — 2026-08-25 — Abnahme: ist diese Installation betriebsbereit?
 
-Der Einrichtungsassistent prüfte bislang Einzelschritte — ist der Verbinder
+Der Einrichtungsassistent prüfte bislang Einzelschritte — ist der Connector
 angelegt, sind die Regeln da. Wer alle Häkchen hat, weiß damit aber noch nicht,
 ob Post durchläuft. Und die Zustandsprüfung betrachtet jedes Postfach für sich,
 nicht die Anlage als Ganzes.
@@ -552,7 +571,7 @@ führt zu einer Fehlermeldung beim Anmelden statt zu einem funktionierenden Weg.
 
 **Nur in der Konfigurationsdatei:** `RELAY_USER` und `RELAY_PASSWORD` für einen
 vorgeschalteten Relay, der eine Anmeldung verlangt. Der Regelfall braucht das
-nicht — Exchange erkennt das Gateway am TLS-Zertifikat des Verbinders. Ein
+nicht — Exchange erkennt das Gateway am TLS-Zertifikat des Connectors. Ein
 weiteres Kennwortfeld in der Oberfläche schafft für diesen seltenen Fall mehr
 Angriffsfläche als Nutzen. Der Abschnitt „SMTP-Smarthost" nennt den Weg
 trotzdem, damit er nicht unbemerkt bleibt.

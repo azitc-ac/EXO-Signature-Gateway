@@ -13,7 +13,7 @@ Es gibt bereits zwei Sorten von Prüfungen, und beide beantworten die Frage
 nicht:
 
   `setup_wizard.verify_*`   prüft EINZELSCHRITTE der Einrichtung — ist der
-                            Verbinder da, sind die Regeln angelegt. Wer alle
+                            Connector da, sind die Regeln angelegt. Wer alle
                             Häkchen hat, weiss trotzdem nicht, ob Post
                             durchläuft.
   `health_check`            prüft JE POSTFACH — Zertifikat, Schlüssel,
@@ -140,7 +140,7 @@ def _rueckweg() -> dict:
         if not ziel:
             return _punkt("Rückweg an Exchange", OFFEN,
                           "Modus SMTP, aber kein Smarthost hinterlegt.",
-                          "Einrichtung: Exchange-Verbinder anlegen.")
+                          "Einrichtung: Exchange-Connector anlegen.")
         return _punkt("Rückweg an Exchange", OK, f"SMTP über {ziel}",
                       deckt_nicht="Ob ausgehender Port 25 offen ist, zeigt erst "
                                   "die erste Zustellung.")

@@ -39,7 +39,7 @@ DIE ARTEN
              angezeigt (siehe `settings_store.SECRET_KEYS`).
 
 `ZUSTAND`    Merkt sich, was geschehen ist („Assistent durchlaufen",
-             „Verbinder angelegt"). Niemand stellt das ein; es entsteht.
+             „Connector angelegt"). Niemand stellt das ein; es entsteht.
 
 `NOTNAGEL`   Absichtlich nur in der Konfigurationsdatei erreichbar — für
              Fälle, die kein Betreiber im Alltag braucht. ⚠️ Braucht eine
@@ -156,7 +156,7 @@ REGISTER: dict[str, E] = {
         art=NOTNAGEL,
         grund="Benutzername für einen vorgeschalteten Relay, der eine Anmeldung "
               "verlangt. Der Regelfall braucht das nicht — Exchange erkennt das "
-              "Gateway am TLS-Zertifikat des Verbinders. Bewusst nicht in der "
+              "Gateway am TLS-Zertifikat des Connectors. Bewusst nicht in der "
               "Oberfläche: ein weiteres Kennwortfeld schafft für diesen seltenen "
               "Fall mehr Angriffsfläche als Nutzen. Der Abschnitt SMTP-Smarthost "
               "in advanced.html nennt den Weg, damit er nicht unbemerkt bleibt."),

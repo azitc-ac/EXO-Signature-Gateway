@@ -159,6 +159,36 @@ REGISTER = [
                                 "verbotenen Varianten",
         },
     ),
+    Begriff(
+        name="Connector nicht übersetzen",
+        kanonisch="Connector (Exchange-Connector, eingehender Connector)",
+        verboten={
+            # ANLASS (2026-08-25): Der Nutzer beim Lesen eines Erklärtextes —
+            # „du meinst Connector? Das ist ein stehender Fachbegriff, den
+            # kannst du nicht einfach 1:1 übersetzen. Selbst in der deutschen
+            # EAC heisst der Punkt Connectors."
+            #
+            # Der Schaden ist nicht sprachlicher Art: Wer „Verbinder" liest und
+            # danach im Admin Center danach sucht, findet nichts. Ein Erklärtext,
+            # der den Leser an eine Stelle schickt, die es unter diesem Namen
+            # nicht gibt, ist schlechter als gar keiner. Es waren elf Stellen in
+            # sechs Dateien — die Fügung hatte sich also schon eingebürgert.
+            #
+            # Bewusst NICHT gelistet: „Verteilerliste". Das neue Exchange Admin
+            # Center nennt eine Distribution List tatsächlich so; dort wäre die
+            # Korrektur der Fehler gewesen.
+            r"\bVerbinder(?:s|n)?\b":
+                "„Connector“ ist ein stehender Fachbegriff und heisst auch im "
+                "deutschen Exchange Admin Center so. Wer „Verbinder“ liest, "
+                "sucht die Stelle im Admin Center vergeblich.",
+        },
+        ausnahmen={
+            "CHANGELOG.md": "historische Einträge bleiben, wie sie geschrieben wurden",
+            "begriffecheck.py": "beschreibt die Regel selbst",
+            "test_begriffe.py": "prüft diese Regel und zitiert dafür die "
+                                "verbotenen Varianten",
+        },
+    ),
 ]
 
 
