@@ -32,6 +32,7 @@ from fastapi import (
 from fastapi.responses import HTMLResponse, JSONResponse
 
 import config
+import settings_store
 
 from webui.deps import templates, _gateway_name, _require_admin
 
@@ -42,7 +43,12 @@ router = APIRouter()
 async def backup_page(request: Request, user: str = Depends(_require_admin)):
     return templates.TemplateResponse(
         request=request, name="backup.html",
+        # `s` braucht diese Seite selbst nicht — wohl aber die gemeinsame
+        # Reiterleiste (`_nav_einstellungen.html`), die daran abliest, ob der
+        # Relay-Reiter zu zeigen ist. Fehlte der Wert, verschwände der Reiter
+        # ausgerechnet hier, und die Seite sähe wie eine Sackgasse aus.
         context={"active": "backup", "gateway_name": _gateway_name(),
+                 "s": settings_store.public_view(),
                  "version": config.VERSION},
     )
 

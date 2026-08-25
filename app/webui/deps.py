@@ -58,6 +58,32 @@ templates = Jinja2Templates(directory=str(_TEMPLATE_DIR))
 templates.env.globals["version"] = config.VERSION
 
 
+def _lernmodus_rest_min() -> int:
+    """Restminuten des SMTP-Lernmodus — 0, wenn er nicht läuft.
+
+    ⚠️ Bewusst ein Jinja-Global und kein Kontextwert. Der Hinweis auf einen
+    laufenden Lernmodus soll auf JEDER Seite erscheinen; hinge er am Kontext,
+    müsste ihn jede Route mitgeben, und die eine, die es vergisst, verbirgt
+    ausgerechnet den Zustand, in dem sich die Freigabe von selbst erweitert.
+    Ein Global kann keine Route vergessen.
+
+    Als Funktion, nicht als Wert: Ein bei Prozessstart berechneter Zeitpunkt
+    wäre Minuten später falsch.
+    """
+    try:
+        import smtp_relay
+        from datetime import datetime, timezone
+        bis = smtp_relay.lernmodus_bis()
+        if not bis:
+            return 0
+        return max(1, round((bis - datetime.now(timezone.utc)).total_seconds() / 60))
+    except Exception:                                   # noqa: BLE001
+        return 0                                        # nie die Seite kippen
+
+
+templates.env.globals["lernmodus_rest_min"] = _lernmodus_rest_min
+
+
 def _gateway_name() -> str:
     """Name des Gateways — bei jedem Aufruf frisch gelesen, damit eine Änderung
     ohne Neustart wirkt."""

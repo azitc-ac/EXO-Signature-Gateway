@@ -11,6 +11,7 @@ Retention: configurable via LOG_RETENTION_DAYS (default 90), pruned on startup.
 import json
 import logging
 import sqlite3
+import secure_io
 import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -25,6 +26,10 @@ _initialised = False
 
 def _conn() -> sqlite3.Connection:
     conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
+    # SQLite legt die Datei mit der umask des Prozesses an (im Container 644).
+    # `harden_tree()` beim Start räumt das auf — eine zur Laufzeit ENTSTEHENDE
+    # Datenbank bliebe bis zum nächsten Neustart mitlesbar.
+    secure_io.harden_file(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 

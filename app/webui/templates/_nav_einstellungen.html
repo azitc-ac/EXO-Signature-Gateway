@@ -1,0 +1,27 @@
+{# Die Reiterleiste der Einstellungen — EINE Quelle.
+
+   ANLASS (2026-08-25): Sie stand wortgleich in acht Vorlagen. Beim Hinzufügen
+   des Reiters „SMTP-Relay" hätte das acht gleichlautende Änderungen bedeutet —
+   und genau dabei bleibt erfahrungsgemäss eine liegen. Ein Reiter, der auf
+   sieben von acht Seiten erscheint, ist kein Schönheitsfehler: Er lässt die
+   Seite wie eine Sackgasse aussehen, sobald man von der falschen Seite kommt.
+
+   Aufruf:  {% set nav_aktiv = 'erweitert' %}{% include "_nav_einstellungen.html" %}
+   Ohne `nav_aktiv` ist kein Reiter hervorgehoben — richtig für Seiten unter
+   den Einstellungen, die keinen eigenen Reiter haben (etwa /debug).
+#}
+<ul class="nav-sub-tabs">
+  <li><a href="/settings" class="nav-sub-tab{% if nav_aktiv == 'allgemein' %} active{% endif %}">Allgemein</a></li>
+  <li><a href="/settings/signature" class="nav-sub-tab{% if nav_aktiv == 'signatur' %} active{% endif %}">Signatur</a></li>
+  <li><a href="/settings/smime" class="nav-sub-tab{% if nav_aktiv == 'smime' %} active{% endif %}">S/MIME</a></li>
+  <li><a href="/settings/connect" class="nav-sub-tab{% if nav_aktiv == 'anbindung' %} active{% endif %}">Anbindung &amp; Lizenzen</a></li>
+  {# Nur sichtbar, wenn das Relay eingeschaltet ist: Ein Reiter für eine
+     Funktion, die niemand nutzt, verstellt die Leiste auf dem Telefon — und
+     die Seite selbst bliebe leer. Eingeschaltet wird unter Einrichtung. #}
+  {% if s and s.SMTP_RELAY_ENABLED %}
+  <li><a href="/relay" class="nav-sub-tab{% if nav_aktiv == 'relay' %} active{% endif %}">SMTP-Relay</a></li>
+  {% endif %}
+  <li><a href="/backup" class="nav-sub-tab{% if nav_aktiv == 'backup' %} active{% endif %}">Update &amp; Backup</a></li>
+  <li><a href="/advanced" class="nav-sub-tab{% if nav_aktiv == 'erweitert' %} active{% endif %}">Erweitert</a></li>
+  <li><a href="/setup" class="nav-sub-tab{% if nav_aktiv == 'einrichtung' %} active{% endif %}">Einrichtung</a></li>
+</ul>

@@ -4,15 +4,7 @@
 <div class="alert warn" style="margin-bottom:16px">
   <strong>⚠ Nur für Support / Diagnose.</strong> Diese Seite ist bewusst nicht im Menü verlinkt (nur über <code>/debug</code> erreichbar). Aktionen hier können laufende Vorgänge stören — etwa den ACME-Account-Key zurücksetzen. Im Zweifel nichts ändern.
 </div>
-<ul class="nav-sub-tabs">
-  <li><a href="/settings" class="nav-sub-tab">Allgemein</a></li>
-  <li><a href="/settings/signature" class="nav-sub-tab">Signatur</a></li>
-  <li><a href="/settings/smime" class="nav-sub-tab">S/MIME</a></li>
-  <li><a href="/settings/connect" class="nav-sub-tab">Anbindung &amp; Lizenzen</a></li>
-  <li><a href="/backup" class="nav-sub-tab">Update &amp; Backup</a></li>
-  <li><a href="/advanced" class="nav-sub-tab">Erweitert</a></li>
-  <li><a href="/setup" class="nav-sub-tab">Einrichtung</a></li>
-</ul>
+{% include "_nav_einstellungen.html" %}
 
 <!-- ── ACME HTTP-Proxy (Residential-Proxy für CASTLE) ─────────────────────── -->
 <div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">

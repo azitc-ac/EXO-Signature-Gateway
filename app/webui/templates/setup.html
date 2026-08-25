@@ -2,15 +2,8 @@
 {% block content %}
 <h1>Einstellungen</h1>
 
-<ul class="nav-sub-tabs">
-  <li><a href="/settings" class="nav-sub-tab">Allgemein</a></li>
-  <li><a href="/settings/signature" class="nav-sub-tab">Signatur</a></li>
-  <li><a href="/settings/smime" class="nav-sub-tab">S/MIME</a></li>
-  <li><a href="/settings/connect" class="nav-sub-tab">Anbindung &amp; Lizenzen</a></li>
-  <li><a href="/backup" class="nav-sub-tab">Update &amp; Backup</a></li>
-  <li><a href="/advanced" class="nav-sub-tab">Erweitert</a></li>
-  <li><a href="/setup" class="nav-sub-tab active">Einrichtung</a></li>
-</ul>
+{% set nav_aktiv = "einrichtung" %}
+{% include "_nav_einstellungen.html" %}
 
 {% if auth_error %}
 <div class="alert error" style="margin-bottom:20px">
@@ -309,29 +302,20 @@
         </span>
       </label>
 
+      <!-- Hier steht NUR der Schalter. Welche Geräte einliefern dürfen, steht
+           in der Geräteliste unter „SMTP-Relay" — sie wächst im Betrieb, führt
+           Zähler und hat im Einrichtungsassistenten nichts verloren. -->
       <div id="relay-fields" style="margin:10px 0 0 26px{% if not s.SMTP_RELAY_ENABLED %};display:none{% endif %}">
-        <label for="relay-networks-wizard" style="font-size:12px;color:#555">Quellnetze</label>
-        <input type="text" id="relay-networks-wizard" style="width:100%;margin-top:3px"
-          placeholder="10.1.5.0/24, 192.168.10.7"
-          value="{{ (s.SMTP_RELAY_NETWORKS or [])|join(', ') }}">
-        <p class="hint" style="margin:5px 0 0">
-          Nur aus diesen Netzen wird Post angenommen — eine einzelne Adresse geht auch.
-          Diese Liste ist <em>nicht</em> dieselbe wie die Quell-IP-Liste unter Erweitert:
-          dort geht es darum, wer sich verbinden darf, hier darum, wer einliefern darf.
-        </p>
-        <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer;margin-top:10px">
-          <input type="checkbox" id="relay-external-wizard" style="margin-top:3px;flex-shrink:0"
-            {% if s.SMTP_RELAY_EXTERNAL %}checked{% endif %}>
-          <span style="font-size:13px">
-            Auch an Empfänger <strong>ausserhalb</strong> des Tenants
-            <span style="color:#888;font-weight:normal"> — ohne Haken nimmt das Gateway nur Post
-            an eigene Postfächer an</span>
-          </span>
-        </label>
-        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:9px 11px;margin-top:10px;font-size:12px;color:#92400e">
-          Der Absender muss zu einer eigenen Domäne gehören; fremde Absenderdomänen werden
-          abgewiesen. Für Post nach aussen muss ausserdem der Exchange-Verbinder das
-          Weiterleiten erlauben — sonst antwortet Exchange mit <code>550 5.7.54</code>.
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:9px 11px;font-size:12px;color:#92400e">
+          Einschalten allein gibt noch nichts frei: Es zählt die Geräteliste, und die
+          ist zunächst leer. Nach dem Speichern erscheint der Reiter
+          <strong>SMTP-Relay</strong> — dort trägst du Geräte ein oder lässt sie über
+          den Lernmodus aufnehmen.
+          <br><br>
+          Der Absender muss zu einer eigenen Domäne gehören; fremde Absenderdomänen
+          werden abgewiesen. Ob ein Gerät auch nach aussen senden darf, entscheidest du
+          je Gerät. Dafür muss zusätzlich der Exchange-Verbinder das Weiterleiten
+          erlauben — sonst antwortet Exchange mit <code>550 5.7.54</code>.
         </div>
       </div>
 
@@ -1495,39 +1479,16 @@ async function saveModeSelection() {
   const result = document.getElementById('mode-result');
   hideAlert(result);
 
-  // Die Relay-Angaben hängen am selben Knopf — sie gehören zur Modusfrage und
-  // dürfen nicht getrennt davon speicherbar sein (Speichern-Regel 1).
+  // Der Relay-Schalter hängt am selben Knopf — er gehört zur Modusfrage und
+  // darf nicht getrennt davon speicherbar sein (Speichern-Regel 1). Welche
+  // Geräte einliefern dürfen, steht dagegen in der Geräteliste unter /relay.
   const relayCb = document.getElementById('relay-enabled-wizard');
   const relayAn = !!(relayCb && relayCb.checked && mode === 'smtp');
-  const netze = (document.getElementById('relay-networks-wizard').value || '')
-    .split(/[,\s]+/).map(x => x.trim()).filter(Boolean);
-  if (relayAn && netze.length === 0) {
-    showAlert(result, 'error', 'Für das Relay fehlt mindestens ein Quellnetz — '
-      + 'ohne Netz nimmt das Gateway von niemandem Post an.');
-    return;
-  }
-  // ⚠️ Ohne diese Prüfung verschwindet ein Tippfehler lautlos: Das Gateway
-  // übergeht ungültige Einträge mit einer Logzeile, gespeichert wird trotzdem,
-  // und der Betreiber sucht den Fehler beim Drucker.
-  const krumm = netze.filter(n => !/^\d{1,3}(\.\d{1,3}){3}(\/\d{1,2})?$/.test(n)
-    || n.split('/')[0].split('.').some(o => +o > 255)
-    || (n.includes('/') && +n.split('/')[1] > 32));
-  if (krumm.length) {
-    showAlert(result, 'error', 'Keine gültige Netzangabe: <strong>' + esc(krumm.join(', '))
-      + '</strong>. Erwartet wird eine IPv4-Adresse oder ein Netz, etwa '
-      + '<code>10.1.5.0/24</code>.');
-    return;
-  }
 
   const resp = await fetch('/settings', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({
-      REINJECT_MODE: mode,
-      SMTP_RELAY_ENABLED: relayAn,
-      SMTP_RELAY_NETWORKS: netze,
-      SMTP_RELAY_EXTERNAL: relayAn && document.getElementById('relay-external-wizard').checked,
-    }),
+    body: JSON.stringify({REINJECT_MODE: mode, SMTP_RELAY_ENABLED: relayAn}),
   });
 
   if (resp.ok) {

@@ -361,17 +361,31 @@ class SignatureHandler:
         import smtp_relay
         aus_relay_netz = smtp_relay.ist_relay_quelle(peer_ip) if peer_ip else False
 
+        sender = envelope.mail_from
+        recipients = envelope.rcpt_tos
+        raw = envelope.content
+
         if peer_ip and not aus_relay_netz:
             import smtp_acl
             if not smtp_acl.is_allowed(peer_ip):
                 log.warning("SMTP: rejected connection from %s — not an allowed "
                             "source (Exchange Online allowlist)", peer_ip)
                 smtp_acl.record_reject(peer_ip)
+                # ⚠️ Nur bei eingeschaltetem Relay merken. Sonst sammelte jedes
+                # Gateway die Adressen jedes Spam-Bots, der je eine Sitzung bis
+                # DATA gefuehrt hat — eine Liste, in der das eine neue Geraet
+                # nicht mehr zu finden waere.
+                #
+                # KEIN `import settings_store` hier: Das Modul steht schon oben
+                # (Zeile 19). Ein Import in einem Zweig macht den Namen fuer die
+                # GANZE Funktion lokal — jede Mail, die diesen Zweig nicht
+                # durchlaeuft, stirbt dann weiter unten an UnboundLocalError.
+                if settings_store.get("SMTP_RELAY_ENABLED"):
+                    import relay_hosts
+                    relay_hosts.merke_abweisung(
+                        peer_ip, sender, recipients,
+                        "nicht in der Geräteliste")
                 return "554 5.7.1 Access denied"
-
-        sender = envelope.mail_from
-        recipients = envelope.rcpt_tos
-        raw = envelope.content
 
         # ⚠️ Die Relay-Pruefung steht NACH dem Einlesen von Absender und
         # Empfaengern, weil sie beide braucht — und VOR jeder Verarbeitung,
@@ -391,9 +405,22 @@ class SignatureHandler:
                         message_id="", action="relay_abgelehnt", error=grund)
                 except Exception:                       # noqa: BLE001
                     pass                                # Protokoll darf Post nie aufhalten
+                # Auch hier merken: Ein EINGETRAGENES Geraet, das an der
+                # Absender- oder Zielgrenze scheitert, ist der zweite haeufige
+                # Fall — und ohne diesen Eintrag ebenso unsichtbar wie ein
+                # unbekanntes. Die Uebersicht zeigt zu jeder Zeile, ob die
+                # Adresse bereits in der Geraeteliste steht.
+                import relay_hosts as _rh
+                _rh.merke_abweisung(peer_ip, sender, recipients, grund)
                 return antwort
             log.info("SMTP-Relay: %s → %s (von %s)",
                      sender, ", ".join(recipients[:3]), peer_ip)
+            # Zeitpunkt und Tageszaehler fortschreiben. Erst hier, nicht bei
+            # der Verbindungsannahme: Gezaehlt wird eingelieferte Post, nicht
+            # jeder Verbindungsversuch — sonst zeigte die Uebersicht einen
+            # regen Drucker, der in Wahrheit nur abgewiesen wird.
+            import relay_hosts
+            relay_hosts.merke_zustellung(peer_ip)
         wants_encryption = False  # tracked for fallback safety
         _t0 = time.monotonic()
 

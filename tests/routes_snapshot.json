@@ -728,6 +728,41 @@
     "name": "api_preview_data"
   },
   {
+    "pfad": "/api/relay/abweisungen/leeren",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_relay_abweisungen_leeren"
+  },
+  {
+    "pfad": "/api/relay/geraet",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_relay_geraet"
+  },
+  {
+    "pfad": "/api/relay/geraet/loeschen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_relay_geraet_loeschen"
+  },
+  {
+    "pfad": "/api/relay/lernmodus",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_relay_lernmodus"
+  },
+  {
+    "pfad": "/api/relay/liste",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_relay_liste"
+  },
+  {
     "pfad": "/api/restart",
     "methoden": [
       "POST"
@@ -1643,6 +1678,13 @@
       "GET"
     ],
     "name": "preview"
+  },
+  {
+    "pfad": "/relay",
+    "methoden": [
+      "GET"
+    ],
+    "name": "relay_page"
   },
   {
     "pfad": "/settings",

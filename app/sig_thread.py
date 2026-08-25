@@ -55,6 +55,7 @@ import hashlib
 import logging
 import re
 import sqlite3
+import secure_io
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
@@ -81,6 +82,10 @@ def _tabelle(wann: datetime | None = None) -> str:
 def _conn() -> sqlite3.Connection:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     c = sqlite3.connect(str(DB_PATH), check_same_thread=False)
+    # SQLite legt die Datei mit der umask des Prozesses an (im Container 644).
+    # `harden_tree()` beim Start räumt das auf — eine zur Laufzeit ENTSTEHENDE
+    # Datenbank bliebe bis zum nächsten Neustart mitlesbar.
+    secure_io.harden_file(DB_PATH)
     # WITHOUT ROWID: der Schlüssel IST die Zeile, kein zweiter B-Baum daneben.
     c.execute(f"CREATE TABLE IF NOT EXISTS {_tabelle()} (h BLOB PRIMARY KEY) WITHOUT ROWID")
     return c

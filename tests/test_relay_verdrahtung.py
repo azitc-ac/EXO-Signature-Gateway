@@ -42,12 +42,13 @@ class _Umschlag:
 
 
 @pytest.fixture
-def anlage(monkeypatch):
-    """Relay an für 10.1.5.0/24; die Quell-IP-Liste weist alles ab."""
+def anlage(monkeypatch, tmp_path):
+    """Ein eingetragenes Gerät (10.1.5.30); die Quell-IP-Liste weist alles ab."""
     werte = {
         "SMTP_RELAY_ENABLED": True,
-        "SMTP_RELAY_NETWORKS": ["10.1.5.0/24"],
-        "SMTP_RELAY_EXTERNAL": False,
+        "SMTP_RELAY_LERN_NETZE": [],
+        "SMTP_RELAY_LERN_BIS": "",
+        "SMTP_RELAY_EXTERN_VORGABE": False,
         "REINJECT_MODE": "smtp",
         "TENANT_DOMAIN": "firma.onmicrosoft.com",
     }
@@ -57,6 +58,10 @@ def anlage(monkeypatch):
     import exo_mailboxes
     monkeypatch.setattr(exo_mailboxes, "known_addresses",
                         lambda: {"chefin@firma.de"})
+
+    import relay_hosts
+    monkeypatch.setattr(relay_hosts, "DB_PATH", tmp_path / "relay_hosts.db")
+    relay_hosts.speichern("10.1.5.30", kommentar="Kopierer Empfang")
 
     # Die Quell-IP-Liste sagt zu ALLEM nein. Wer trotzdem durchkommt, kam über
     # den Relay-Zweig — das macht den Test trennscharf.
@@ -112,6 +117,40 @@ def test_abgeschaltetes_relay_schuetzt_wieder_vollstaendig(anlage):
     assert _lauf("10.1.5.30") == "554 5.7.1 Access denied"
 
 
+def test_gesperrtes_geraet_wird_im_handler_abgewiesen(anlage):
+    """Die Sperre wirkt bis in den Zustellweg, nicht nur in der Prüffunktion."""
+    import relay_hosts
+    relay_hosts.speichern("10.1.5.30", gesperrt=True)
+    assert _lauf("10.1.5.30") == "554 5.7.1 Access denied"
+    assert not anlage["_gesehen"]
+
+
+def test_unbekanntes_geraet_landet_in_der_abweisungsliste(anlage):
+    """Der häufigste Alltagsfall: ein neues Gerät, das niemand angemeldet hat.
+
+    Ohne diesen Eintrag sähe der Betreiber nur, dass „nichts ankommt" — die
+    Adresse, um die es geht, stünde nirgends.
+    """
+    import relay_hosts
+    assert _lauf("10.1.5.99", absender="neu@firma.de") == "554 5.7.1 Access denied"
+    offen = relay_hosts.abgewiesene()
+    assert [z["ip"] for z in offen] == ["10.1.5.99"]
+    assert offen[0]["absender"] == "neu@firma.de"
+    assert "Geräteliste" in offen[0]["grund"]
+
+
+def test_ohne_relay_wird_nichts_gesammelt(anlage):
+    """⚠️ Sonst sammelte jedes Gateway die Adresse jedes Spam-Bots.
+
+    Die Liste soll das eine neue Gerät zeigen. Läuft sie mit Fremdverkehr voll,
+    ist sie genau dann unbrauchbar, wenn man sie braucht.
+    """
+    import relay_hosts
+    anlage["SMTP_RELAY_ENABLED"] = False
+    _lauf("203.0.113.9", absender="bot@fremd.example")
+    assert relay_hosts.abgewiesene() == []
+
+
 def test_fremde_absenderdomaene_wird_abgewiesen_und_protokolliert(anlage):
     """Abgelehnt — und im Mail-Protokoll auffindbar, nicht nur im Logbuch."""
     antwort = _lauf("10.1.5.30", absender="werbung@fremd.example")
@@ -128,3 +167,33 @@ def test_externes_ziel_ohne_freigabe_wird_abgewiesen(anlage):
     antwort = _lauf("10.1.5.30", empfaenger=("kunde@extern.example",))
     assert antwort.startswith("550"), antwort
     assert not anlage["_gesehen"]
+
+
+def test_zustellung_wird_gezaehlt(anlage):
+    """⚠️ Ohne diesen Test bliebe die ganze Übersicht auf null stehen.
+
+    Die Spalten „letzte Mail" und „Anzahl in 30/90/180/360 Tagen" sind die
+    Zusage, dass man einem Gerät ansieht, ob es noch lebt. Zählt niemand, zeigt
+    die Tabelle lauter Nullen — und die liest man als „schweigt seit Monaten",
+    nicht als „hier ist der Zähler kaputt". Ein ausgemustertes Gerät bliebe in
+    der Freigabe, ein reges würde für tot gehalten.
+
+    Eine Mutation, die `merke_zustellung()` entfernt, blieb ohne diesen Test
+    unbemerkt.
+    """
+    import relay_hosts
+    assert _lauf("10.1.5.30").startswith("250")
+    assert _lauf("10.1.5.30").startswith("250")
+
+    eintrag = relay_hosts.liste()[0]
+    assert eintrag["ip"] == "10.1.5.30"
+    assert eintrag["letzte_mail"], "der Zeitpunkt der letzten Mail fehlt"
+    assert eintrag["zaehler"][30] == 2, eintrag["zaehler"]
+
+
+def test_abgewiesene_post_wird_nicht_mitgezaehlt(anlage):
+    """Gezählt wird eingelieferte Post, nicht jeder Versuch — sonst zeigte die
+    Übersicht einen regen Drucker, der in Wahrheit nur abgewiesen wird."""
+    import relay_hosts
+    _lauf("10.1.5.30", absender="werbung@fremd.example")
+    assert relay_hosts.liste()[0]["zaehler"][30] == 0

@@ -19,14 +19,28 @@ deshalb KEIN Zugewinn an Fähigkeit, sondern einer an Kontrolle.
 
 DIE DREI GRENZEN
 ----------------
-1. **Netz** — nur ausdrücklich eingetragene Quellnetze. Nicht die Liste aus
-   `SMTP_ACL_EXTRA_CIDRS`: Die beantwortet die Frage „darf verbinden" (etwa
-   für eine Überwachung) und ist nicht dasselbe wie „darf Post einliefern".
+1. **Gerät** — nur Adressen aus der Geräteliste (`relay_hosts`). Nicht die
+   Liste aus `SMTP_ACL_EXTRA_CIDRS`: Die beantwortet die Frage „darf
+   verbinden" (etwa für eine Überwachung) und ist nicht dasselbe wie „darf
+   Post einliefern".
 2. **Absender** — nur Domänen, die dem Tenant gehören. Ein übernommener
    Drucker soll nicht als fremde Firma versenden können.
-3. **Ziel** — Vorgabe: nur Empfänger im eigenen Tenant. Nach aussen erst nach
-   ausdrücklicher Freigabe, denn dafür muss auch der Exchange-Verbinder das
-   Weiterleiten erlauben (sonst `550 5.7.54`).
+3. **Ziel** — Vorgabe: nur Empfänger im eigenen Tenant, je Gerät umstellbar.
+   Nach aussen muss auch der Exchange-Verbinder das Weiterleiten erlauben
+   (sonst `550 5.7.54`).
+
+DER LERNMODUS
+-------------
+Eine Geräteliste von Hand zu füllen setzt voraus, dass man alle Geräte kennt —
+und genau das weiss beim Ablösen eines gewachsenen Exchange niemand. Der
+Lernmodus schaltet deshalb einen Bereich **befristet** frei
+(`SMTP_RELAY_LERN_BIS`, höchstens zwei Stunden) und legt für jedes Gerät, das
+darin etwas Zulässiges einliefert, einen Eintrag an. Der Bereich darf als Netz
+(`192.168.1.0/24`) oder als Spanne (`172.16.16.10-172.16.17.20`) stehen.
+Danach läuft es weiter; ergänzt werden nur noch Kommentar und Ansprechpartner.
+
+⚠️ Ein Lernbereich ist **kein** Freibrief. Ausserhalb des Zeitfensters lässt er
+nichts durch — sonst wäre der Unterschied zur alten Netzliste nur ein Name.
 
 ⚠️ NUR IM MODUS `smtp`
 ----------------------
@@ -54,40 +68,139 @@ from __future__ import annotations
 
 import ipaddress
 import logging
+from datetime import datetime, timedelta, timezone
 
 log = logging.getLogger(__name__)
 
 # Ergebnis einer Prüfung: (erlaubt, Grund fürs Protokoll, SMTP-Antwort)
 ERLAUBT = (True, "", "")
 
+# Wie lange darf ein Lernlauf höchstens dauern, und wie lange schlägt die
+# Oberfläche vor. Der Lernmodus ist die einzige Betriebsart, in der sich die
+# Freigabe von selbst erweitert — er gehört kurz gehalten. Eine Viertelstunde
+# reicht, um an ein paar Geräten einen Testdruck auszulösen.
+MAX_LERNDAUER_MIN = 120
+STANDARD_LERNDAUER_MIN = 15
 
-def _netze() -> list:
+
+def _lernbereiche() -> list[tuple[int, int, int]]:
+    """Die Lernbereiche als (Version, erste, letzte) Adresse — als Zahlen.
+
+    Zwei Schreibweisen sind zugelassen, weil beide im Alltag vorkommen:
+
+        192.168.1.0/24                    ein Netz
+        172.16.16.10-172.16.17.20         ein Bereich über Netzgrenzen hinweg
+
+    Der Bereich lässt sich nicht als Netz ausdrücken (er beginnt und endet
+    mitten drin), und ihn in mehrere `/nn` zu zerlegen wäre eine Rechnung, die
+    niemand nachvollziehen will. Ein Zahlenpaar beantwortet beide Fälle.
+
+    Die Version wird mitgeführt, damit eine IPv6-Adresse nicht rechnerisch in
+    einen IPv4-Bereich fallen kann.
+    """
     import settings_store
-    aus = []
-    for eintrag in settings_store.get("SMTP_RELAY_NETWORKS") or []:
+    aus: list[tuple[int, int, int]] = []
+    for eintrag in settings_store.get("SMTP_RELAY_LERN_NETZE") or []:
         text = str(eintrag).strip()
         if not text:
             continue
         try:
-            aus.append(ipaddress.ip_network(text, strict=False))
+            if "-" in text:
+                von, _, bis = text.partition("-")
+                a = ipaddress.ip_address(von.strip())
+                b = ipaddress.ip_address(bis.strip())
+                if a.version != b.version:
+                    raise ValueError("gemischte Adressfamilien")
+                erste, letzte = sorted((int(a), int(b)))
+                aus.append((a.version, erste, letzte))
+            else:
+                n = ipaddress.ip_network(text, strict=False)
+                aus.append((n.version, int(n.network_address),
+                            int(n.broadcast_address)))
         except ValueError:
-            log.warning("SMTP-Relay: %r ist kein gültiges Netz — übergangen", text)
+            log.warning("SMTP-Relay: %r ist kein gültiges Netz und kein "
+                        "gültiger Bereich — übergangen", text)
     return aus
 
 
+def lernmodus_bis() -> datetime | None:
+    """Bis wann läuft der Lernmodus? None, wenn er aus oder abgelaufen ist.
+
+    ⚠️ Das Ablaufen geschieht durch LESEN, nicht durch Schreiben. Ein Auftrag,
+    der die Einstellung zum Stichzeitpunkt zurücksetzt, wäre eine zweite Stelle,
+    an der die Wahrheit stünde — und liefe bei einem Neustart im falschen
+    Moment gar nicht. Der Zeitpunkt allein entscheidet.
+
+    ⚠️ Die Höchstdauer wird HIER gedeckelt, nicht nur im Formular. Wer einen
+    Zeitpunkt in ferner Zukunft in die Konfigurationsdatei schreibt — von Hand
+    oder aus einer Sicherung — hätte sonst ein dauerhaft lernendes Gateway,
+    also genau das offene Relay, das zu vermeiden der Zweck der ganzen
+    Konstruktion ist.
+    """
+    import settings_store
+    roh = (settings_store.get("SMTP_RELAY_LERN_BIS") or "").strip()
+    if not roh:
+        return None
+    try:
+        bis = datetime.fromisoformat(roh.replace("Z", "+00:00"))
+    except ValueError:
+        log.warning("SMTP-Relay: %r ist kein Zeitpunkt — Lernmodus gilt als aus", roh)
+        return None
+    if bis.tzinfo is None:
+        bis = bis.replace(tzinfo=timezone.utc)
+    jetzt = datetime.now(timezone.utc)
+    if bis <= jetzt:
+        return None
+    grenze = jetzt + timedelta(minutes=MAX_LERNDAUER_MIN)
+    if bis > grenze:
+        log.warning("SMTP-Relay: Lernmodus war bis %s eingetragen — auf die "
+                    "Höchstdauer von %d Minuten gekürzt",
+                    bis.strftime("%Y-%m-%d %H:%M"), MAX_LERNDAUER_MIN)
+        return grenze
+    return bis
+
+
+def _im_lernbereich(ip: str) -> bool:
+    try:
+        addr = ipaddress.ip_address((ip or "").strip())
+    except ValueError:
+        return False
+    wert = int(addr)
+    return any(v == addr.version and erste <= wert <= letzte
+               for v, erste, letzte in _lernbereiche())
+
+
 def ist_relay_quelle(ip: str) -> bool:
-    """Kommt die Verbindung aus einem für das Relay freigegebenen Netz?"""
+    """Darf von dieser Adresse eingeliefert werden?
+
+    Zwei Wege führen hierher: Das Gerät steht in der Geräteliste — oder der
+    Lernmodus läuft und die Adresse liegt in einem Lernnetz. Ein Lernnetz
+    allein lässt NICHTS durch; es ist kein Freibrief, sondern der Bereich, in
+    dem gelernt werden darf.
+    """
     import settings_store
     # `get_bool()` gibt es nur im Hub (settings_schema); im Gateway ist die
     # schlichte Wahrheitsprüfung das übliche Muster für einen Schalter mit
     # Vorgabe AUS — siehe reinject.py bei GRAPH_SMTP_FALLBACK.
     if not settings_store.get("SMTP_RELAY_ENABLED"):
         return False
-    try:
-        addr = ipaddress.ip_address((ip or "").strip())
-    except ValueError:
+    ip = (ip or "").strip()
+    if not ip:
         return False
-    return any(addr in n for n in _netze())
+
+    import relay_hosts
+    eintrag = relay_hosts.host(ip)
+    if eintrag is not None:
+        # ⚠️ Eine Sperre schlägt den Lernmodus — und zwar durch das frühe
+        # `return`. Wer hier nur `if eintrag and not gesperrt: return True`
+        # schriebe und dann weiterliefe, hätte ein gesperrtes Gerät, das beim
+        # nächsten Lernlauf im selben Netz wieder senden darf. Die Sperre wäre
+        # dann eine Empfehlung, kein Verbot.
+        if eintrag.get("gesperrt"):
+            log.info("SMTP-Relay: %s ist gesperrt — abgewiesen", ip)
+            return False
+        return True
+    return bool(lernmodus_bis()) and _im_lernbereich(ip)
 
 
 def _eigene_domaenen() -> set[str]:
@@ -150,7 +263,18 @@ def pruefe(absender: str, empfaenger: list[str], ip: str) -> tuple[bool, str, st
                 "gehört nicht zu diesem Tenant",
                 "550 5.7.1 Absenderdomäne für das Relay nicht zulässig")
 
-    if settings_store.get("SMTP_RELAY_EXTERNAL"):
+    # Erst hier wird gelernt, nicht in `ist_relay_quelle()`: Ein Gerät soll in
+    # die Liste kommen, wenn es etwas Zulässiges einliefert — nicht schon, weil
+    # es eine Verbindung aufgebaut hat. Ein Portscan im Lernnetz füllte sonst
+    # die Tabelle mit Adressen, die nie eine Mail geschickt haben.
+    import relay_hosts
+    eintrag = relay_hosts.host(ip)
+    if eintrag is None:
+        extern_vorgabe = bool(settings_store.get("SMTP_RELAY_EXTERN_VORGABE"))
+        relay_hosts.lerne(ip, extern=extern_vorgabe)
+        eintrag = {"extern": 1 if extern_vorgabe else 0}
+
+    if eintrag.get("extern"):
         return ERLAUBT
 
     # Nur interne Ziele: gegen die bekannten ADRESSEN prüfen, nicht gegen die
