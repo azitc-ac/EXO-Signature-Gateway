@@ -290,6 +290,57 @@
       </p>
     </div>
 
+    <!-- ── SMTP-Relay für eigene Geräte ──────────────────────────────────────
+         Gehört an DIESE Stelle, weil es nur im Modus „SMTP Port 25" möglich
+         ist: Nur der Smarthost-Weg reicht eine Nachricht mit fremdem Absender
+         unverändert weiter. Die Sperre ist zusätzlich im Gateway verankert
+         (smtp_relay.pruefe) — die Oberfläche allein hielte eine spätere
+         Modusumstellung nicht auf. -->
+    <div style="border-top:1px solid #e2e8f0;padding-top:12px;margin-bottom:12px" id="relay-block">
+      <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer">
+        <input type="checkbox" id="relay-enabled-wizard" style="margin-top:3px;flex-shrink:0"
+          {% if s.SMTP_RELAY_ENABLED %}checked{% endif %}
+          onchange="updateModeSelection()">
+        <span style="font-size:13px">
+          <strong>SMTP-Relay für eigene Geräte</strong>
+          <span style="display:inline-block;font-size:10px;font-weight:700;color:#92400e;background:#fef3c7;border:1px solid #fcd34d;border-radius:4px;padding:1px 6px;margin-left:6px;vertical-align:middle">PREVIEW</span>
+          <span style="color:#888;font-weight:normal"> — Drucker, Scanner und Anwendungen im eigenen Netz
+          liefern hier ab, wie zuvor bei einem Exchange vor Ort</span>
+        </span>
+      </label>
+
+      <div id="relay-fields" style="margin:10px 0 0 26px{% if not s.SMTP_RELAY_ENABLED %};display:none{% endif %}">
+        <label for="relay-networks-wizard" style="font-size:12px;color:#555">Quellnetze</label>
+        <input type="text" id="relay-networks-wizard" style="width:100%;margin-top:3px"
+          placeholder="10.1.5.0/24, 192.168.10.7"
+          value="{{ (s.SMTP_RELAY_NETWORKS or [])|join(', ') }}">
+        <p class="hint" style="margin:5px 0 0">
+          Nur aus diesen Netzen wird Post angenommen — eine einzelne Adresse geht auch.
+          Diese Liste ist <em>nicht</em> dieselbe wie die Quell-IP-Liste unter Erweitert:
+          dort geht es darum, wer sich verbinden darf, hier darum, wer einliefern darf.
+        </p>
+        <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer;margin-top:10px">
+          <input type="checkbox" id="relay-external-wizard" style="margin-top:3px;flex-shrink:0"
+            {% if s.SMTP_RELAY_EXTERNAL %}checked{% endif %}>
+          <span style="font-size:13px">
+            Auch an Empfänger <strong>ausserhalb</strong> des Tenants
+            <span style="color:#888;font-weight:normal"> — ohne Haken nimmt das Gateway nur Post
+            an eigene Postfächer an</span>
+          </span>
+        </label>
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:9px 11px;margin-top:10px;font-size:12px;color:#92400e">
+          Der Absender muss zu einer eigenen Domäne gehören; fremde Absenderdomänen werden
+          abgewiesen. Für Post nach aussen muss ausserdem der Exchange-Verbinder das
+          Weiterleiten erlauben — sonst antwortet Exchange mit <code>550 5.7.54</code>.
+        </div>
+      </div>
+
+      <p class="hint" id="relay-nur-smtp" style="margin:6px 0 0 26px;display:none">
+        Das Relay setzt <strong>SMTP Port 25</strong> voraus. Die anderen Rückwege liefern
+        immer „als" ein Postfach — ein Gerät hat keines.
+      </p>
+    </div>
+
     <div id="mode-result" style="display:none;margin-bottom:12px"></div>
     <div class="actions">
       <button class="btn primary" onclick="saveModeSelection()">Modus speichern &amp; Assistent anpassen</button>
@@ -1427,6 +1478,16 @@ function updateModeSelection() {
   // S/MIME (7.3): only if enabled and mode supports it
   const showSmime = (mode !== 'graph') && smimeCb.checked;
   if (stepSmime) stepSmime.style.display = showSmime ? '' : 'none';
+
+  // Relay: nur im Modus smtp. Das Gateway lehnt es sonst ohnehin ab
+  // (smtp_relay.pruefe) — hier wird nur sichtbar, warum.
+  const relayCb = document.getElementById('relay-enabled-wizard');
+  if (relayCb) {
+    if (mode !== 'smtp') { relayCb.checked = false; relayCb.disabled = true; }
+    else relayCb.disabled = false;
+    document.getElementById('relay-nur-smtp').style.display = (mode !== 'smtp') ? '' : 'none';
+    document.getElementById('relay-fields').style.display   = relayCb.checked ? '' : 'none';
+  }
 }
 
 async function saveModeSelection() {
@@ -1434,10 +1495,39 @@ async function saveModeSelection() {
   const result = document.getElementById('mode-result');
   hideAlert(result);
 
+  // Die Relay-Angaben hängen am selben Knopf — sie gehören zur Modusfrage und
+  // dürfen nicht getrennt davon speicherbar sein (Speichern-Regel 1).
+  const relayCb = document.getElementById('relay-enabled-wizard');
+  const relayAn = !!(relayCb && relayCb.checked && mode === 'smtp');
+  const netze = (document.getElementById('relay-networks-wizard').value || '')
+    .split(/[,\s]+/).map(x => x.trim()).filter(Boolean);
+  if (relayAn && netze.length === 0) {
+    showAlert(result, 'error', 'Für das Relay fehlt mindestens ein Quellnetz — '
+      + 'ohne Netz nimmt das Gateway von niemandem Post an.');
+    return;
+  }
+  // ⚠️ Ohne diese Prüfung verschwindet ein Tippfehler lautlos: Das Gateway
+  // übergeht ungültige Einträge mit einer Logzeile, gespeichert wird trotzdem,
+  // und der Betreiber sucht den Fehler beim Drucker.
+  const krumm = netze.filter(n => !/^\d{1,3}(\.\d{1,3}){3}(\/\d{1,2})?$/.test(n)
+    || n.split('/')[0].split('.').some(o => +o > 255)
+    || (n.includes('/') && +n.split('/')[1] > 32));
+  if (krumm.length) {
+    showAlert(result, 'error', 'Keine gültige Netzangabe: <strong>' + esc(krumm.join(', '))
+      + '</strong>. Erwartet wird eine IPv4-Adresse oder ein Netz, etwa '
+      + '<code>10.1.5.0/24</code>.');
+    return;
+  }
+
   const resp = await fetch('/settings', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({REINJECT_MODE: mode}),
+    body: JSON.stringify({
+      REINJECT_MODE: mode,
+      SMTP_RELAY_ENABLED: relayAn,
+      SMTP_RELAY_NETWORKS: netze,
+      SMTP_RELAY_EXTERNAL: relayAn && document.getElementById('relay-external-wizard').checked,
+    }),
   });
 
   if (resp.ok) {

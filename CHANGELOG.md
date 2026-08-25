@@ -5,6 +5,56 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.3 — 2026-08-25 — SMTP-Relay für eigene Geräte (Preview)
+
+Drucker, Scanner und Anwendungen liefern in vielen Häusern seit Jahren anonym
+per SMTP bei einem Exchange vor Ort ab. Wird der abgelöst, müssten alle Geräte
+umgestellt werden. Das Gateway steht ohnehin im Netz und ist mit Exchange Online
+verbunden — es kann diese Aufgabe übernehmen.
+
+**Das Gateway hat bis hierher bereits relayt, nur unbeabsichtigt.** Eine
+Nachricht, deren Absender nicht in der Postfachliste steht, wird unverändert
+weitergereicht; der einzige Schutz war die Quell-IP-Prüfung. Wer dort ein
+eigenes Netz eintrug — etwa für eine Überwachung — hatte ab diesem Moment ein
+offenes Relay: ohne Absenderprüfung, ohne Zielbeschränkung, ohne dass es
+irgendwo stand. Der Zugewinn liegt deshalb nicht in der Fähigkeit, sondern in
+den Grenzen.
+
+Einzuschalten unter *Einrichtung → Modus & Funktionen*. Drei Grenzen gelten:
+
+* **Netz** — Post wird nur aus ausdrücklich eingetragenen Quellnetzen
+  angenommen. Das ist eine eigene Liste, nicht die Quell-IP-Liste unter
+  *Erweitert*: Dort geht es darum, wer sich verbinden darf, hier darum, wer
+  einliefern darf.
+* **Absender** — die Absenderdomäne muss dem eigenen Tenant gehören. Ein
+  übernommenes Gerät kann nicht als fremde Firma versenden.
+* **Ziel** — Vorgabe sind Empfänger im eigenen Tenant. Nach aussen erst nach
+  ausdrücklicher Freigabe; dafür muss zusätzlich der Exchange-Verbinder das
+  Weiterleiten erlauben, sonst antwortet Exchange mit `550 5.7.54`.
+
+Geprüft wird gegen die bekannten **Adressen**, nicht gegen die Domänen: Eine
+Adresse der eigenen Domäne, die es nicht gibt, ist kein internes Ziel — Exchange
+erzeugte daraus einen Unzustellbarkeitsbericht nach aussen, also doch eine
+Zustellung nach draussen.
+
+Das Relay setzt den Rückweg **SMTP Port 25** voraus. Die anderen Rückwege
+liefern immer „als" ein Postfach, und ein Gerät hat keines; Graph antwortet in
+diesem Fall `ErrorInvalidUser`. Die Bindung ist im Gateway verankert, nicht nur
+in der Oberfläche — wer den Modus später umstellt, bekäme sonst ein Relay, das
+Post annimmt und anschliessend verwirft. Stattdessen wird sie mit `451`
+abgewiesen, sodass das Gerät es nach einer Korrektur erneut versucht.
+
+Kennt das Gateway seine eigenen Postfächer noch nicht, wird ebenfalls mit `451`
+abgewiesen. Für die reguläre Postverarbeitung gilt die umgekehrte Richtung
+(im Zweifel durchlassen, um den Mailfluss nicht zu unterbrechen) — für ein
+Relay wäre sie falsch.
+
+Jede Ablehnung erscheint im Mail-Protokoll unter `relay_abgelehnt`, mit Grund.
+Ohne diesen Eintrag wäre ein Gerät, das seit Wochen abgewiesen wird, nur so
+lange auffindbar, wie die Protokollzeile im Puffer steht.
+
+Vorgabe ist **aus**. Bestehende Installationen ändern ihr Verhalten nicht.
+
 ## v1.8.2 — 2026-08-25 — Werkzeug: Ersteinrichtung im Browser durchgehen
 
 Ergänzung zur Abnahme aus v1.8.1. `tools/ersteinrichtung.py` öffnet den

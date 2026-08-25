@@ -354,7 +354,14 @@ class SignatureHandler:
             peer_ip = (session.peer or ("",))[0]
         except Exception:
             pass
-        if peer_ip:
+        # Kommt die Verbindung aus einem Netz, das ausdruecklich fuer das
+        # SMTP-Relay freigegeben ist? Dann gilt die Exchange-Adressliste nicht —
+        # ein Drucker steht nun einmal nicht in Microsofts Adressbereichen.
+        # Dafuer greifen die Grenzen aus `smtp_relay` (Absenderdomaene, Ziel).
+        import smtp_relay
+        aus_relay_netz = smtp_relay.ist_relay_quelle(peer_ip) if peer_ip else False
+
+        if peer_ip and not aus_relay_netz:
             import smtp_acl
             if not smtp_acl.is_allowed(peer_ip):
                 log.warning("SMTP: rejected connection from %s — not an allowed "
@@ -365,6 +372,28 @@ class SignatureHandler:
         sender = envelope.mail_from
         recipients = envelope.rcpt_tos
         raw = envelope.content
+
+        # ⚠️ Die Relay-Pruefung steht NACH dem Einlesen von Absender und
+        # Empfaengern, weil sie beide braucht — und VOR jeder Verarbeitung,
+        # damit eine abgelehnte Nachricht das Gateway nicht erst durchlaeuft.
+        if aus_relay_netz:
+            erlaubt, grund, antwort = smtp_relay.pruefe(sender, recipients, peer_ip)
+            if not erlaubt:
+                log.warning("%s", grund)
+                # ⚠️ Die Ablehnung gehoert ins Mail-Protokoll, nicht nur ins
+                # Logbuch: Eine Grenze, deren Wirken nirgends nachschlagbar ist,
+                # faellt unbemerkt aus (CLAUDE.md, Verifikationspflicht 8). Ein
+                # Drucker, der seit Wochen abgewiesen wird, waere sonst erst
+                # auffindbar, solange die Logzeile noch im Puffer steht.
+                try:
+                    mail_audit.log_event(
+                        sender=sender, recipients=recipients, subject="",
+                        message_id="", action="relay_abgelehnt", error=grund)
+                except Exception:                       # noqa: BLE001
+                    pass                                # Protokoll darf Post nie aufhalten
+                return antwort
+            log.info("SMTP-Relay: %s → %s (von %s)",
+                     sender, ", ".join(recipients[:3]), peer_ip)
         wants_encryption = False  # tracked for fallback safety
         _t0 = time.monotonic()
 
