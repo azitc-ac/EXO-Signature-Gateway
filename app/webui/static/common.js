@@ -745,6 +745,23 @@ function wacheEinrichten(wurzel) {
   });
 }
 
+/* Den Ausgangsstand NEU messen — ohne etwas zu melden.
+ *
+ * ⚠️ Nötig, sobald der überwachte Bereich ASYNCHRON gefüllt wird. Die Wache
+ * misst ihren Ausgangsstand bei `DOMContentLoaded`; kommt der Inhalt erst
+ * danach per `fetch`, vergleicht sie hinterher gegen einen leeren Bereich.
+ * Zwei Folgen, beide falsch: Auf der frisch geöffneten Seite steht „noch nicht
+ * gespeichert", und ein Bereich, der leer bleibt (kein Konto, Ladefehler),
+ * lässt den Knopf dauerhaft gesperrt — er sieht dann aus wie einer, bei dem es
+ * nichts zu tun gibt.
+ *
+ * Am Ende der Ladefunktion aufrufen, nicht nach jeder Änderung: Der Sinn ist
+ * „so sah es aus, als es ankam". */
+function wacheNeuMessen(knopfId) {
+  const w = _wachen.get(knopfId);
+  if (w) w.zuruecksetzen();
+}
+
 /* ok=true → „gespeichert“, ok=false → „nicht gespeichert“, Knopf bleibt bedienbar. */
 function wacheFertig(knopfId, ok, text) {
   const w = _wachen.get(knopfId);

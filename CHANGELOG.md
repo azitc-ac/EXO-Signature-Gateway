@@ -5,6 +5,36 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.10 — 2026-08-25 — Speichern-Knopf für Geräte, Textkorrekturen
+
+**Behoben: Beschriftungen sprengten die Kontrollspalte.** Die Regel aus v1.8.9
+traf nicht nur die Beschriftungsspalte, sondern jedes Label, das erstes Kind
+seines Elternteils ist — auch die Kontrollkästchen. Deren Spalte ist senkrecht
+aufgebaut, dort wurde aus 200 px Breite eine 200 px **Höhe**: zwischen den
+Kästchen klafften Lücken. Der Fehler war eine Stunde lang im Umlauf.
+
+**Behoben: Der Speichern-Knopf der Entra-Konten war beim Öffnen gesperrt.**
+Ebenfalls aus v1.8.9. Die Änderungsüberwachung misst ihren Ausgangsstand beim
+Laden der Seite; die Kontenliste kommt aber erst danach per Abruf. Sie verglich
+also gegen eine leere Liste — beim Öffnen stand „noch nicht gespeichert", und
+blieb die Liste leer, blieb der Knopf gesperrt. Der Ausgangsstand wird jetzt
+gesetzt, sobald die Liste da ist.
+
+**Geräteliste des SMTP-Relays: Speichern-Knopf.** Kommentar und Ansprechpartner
+wirkten bisher sofort — bequem, aber der einzige Ort im Produkt, der das bei
+Textfeldern tut. Überall sonst gilt: Sobald ein Textfeld dazugehört, gibt es
+einen Knopf, damit halb Getipptes nicht wegfliegt. Sperren, Löschen und
+Übernehmen wirken weiterhin sofort; das sind Aktionen mit eigenem Knopf.
+
+**Texte geradeaus formuliert.** „Ohne Bereich lernt das Gateway nichts" sagt,
+was schiefgeht, statt was gebraucht wird — jetzt: „Bereich erforderlich, bitte
+angeben." Der Hinweis zur TLS-Spalte erklärte über Umwege, was zu tun ist;
+jetzt steht dort, was der Fall ist: Steht *Klartext*, sendet dieses Gerät
+unverschlüsselt.
+
+Dieselbe Umformulierung an vier weiteren Stellen, die über einen gedachten
+Dritten sprachen statt den Betreiber anzusprechen.
+
 ## v1.8.9 — 2026-08-25 — Einstellungen und Signatur-Vorschau
 
 **Entra-Konten: der Speichern-Knopf zeigt jetzt offene Änderungen.** Er hatte
