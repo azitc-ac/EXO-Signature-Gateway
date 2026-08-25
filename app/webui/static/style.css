@@ -249,7 +249,24 @@ nav a.nav-planned:hover { background: none; }
 }
 
 /* Main */
-main { max-width: 960px; margin: 32px auto; padding: 0 24px; }
+/* ⚠️ `overflow-x: clip` ist ein NETZ, keine Behebung.
+ *
+ * ANLASS (2026-08-26): Auf dem iPhone liess sich die Seite weit nach rechts
+ * rollen, wo nichts stand — und dort war KEINE Bedienung mehr möglich, weil
+ * alles Anklickbare links ausserhalb des Bildes lag. Der Nutzer: „Ich kann
+ * nicht mal mehr das Hauptmenü anklicken. Sonst auch null Interaktion
+ * möglich."
+ *
+ * Die Ursache lag bei der Reiterleiste und ist dort behoben (min-width: 0).
+ * Diese Zeile fängt den NÄCHSTEN Fall ab: Jedes künftige Element, das zu breit
+ * gerät, wird hier abgeschnitten, statt die Seite unbedienbar zu machen. Der
+ * Preis ist gering — alles absichtlich Breite (Reiterleiste, Tabellen) rollt
+ * in seinem eigenen Bereich und ist davon nicht betroffen.
+ *
+ * `clip` und nicht `hidden`: `hidden` erzeugt einen Rollkontext und bricht
+ * damit `position: sticky` bei Nachkommen — die feste Kopfzeile der
+ * Postfachtabelle hängt daran. `clip` schneidet nur ab. */
+main { max-width: 960px; margin: 32px auto; padding: 0 24px; overflow-x: clip; }
 
 /* Seiten, die Daten NEBENEINANDER zeigen, duerfen breiter werden.
  *
