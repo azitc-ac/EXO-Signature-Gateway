@@ -30,3 +30,7 @@ templates/*
 !templates/.gitkeep
 node_modules/
 .venv/
+
+# Betriebswerkzeug, kein Produktbestandteil — eigenes privates
+# Repository (exo-abnahme). Siehe CLAUDE.md, Trennregel.
+docs/runbook-abnahme.html
