@@ -5,6 +5,39 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.6 — 2026-08-25 — Reiterleiste und Tabellen der Relay-Seite
+
+**Die Reiterleiste war zu breit für den Inhaltsbereich.** Mit acht Reitern
+braucht sie 1095 px, sichtbar sind 912 px — „Einrichtung" stand rechts
+angeschnitten. Das galt bereits mit sieben Reitern (50 px fehlten); der Reiter
+„SMTP-Relay" hat den Befund vergrössert, nicht verursacht. Auf der Relay-Seite
+fiel er nicht auf, weil sie als einzige Einstellungsseite die breite
+Darstellung nutzte.
+
+Die Leiste rollt weiterhin — jetzt sieht man es aber: An der Seite, an der es
+weitergeht, blendet ein Verlauf die Reiter aus, und auf dem Desktop rollt das
+Mausrad die Leiste. Wer eine Seite über die Adresszeile aufruft, deren Reiter
+rechts liegt, bekommt ihn beim Laden ins Bild geholt.
+
+Der Verlauf blendet aus, statt zu übermalen: Ein überlagerter Farbkasten wäre
+im Dunkelmodus als heller Streifen stehen geblieben und eine zweite Stelle, die
+bei jeder Themenänderung mitzupflegen ist.
+
+**Wischen auf der Leiste bewegt die Seite nicht mehr.** Ein leicht schräger
+Wisch wurde als senkrechte Geste gewertet, und am Ende der Leiste reichte der
+Browser das Rollen an die Seite weiter — beides zusammen liess die Ansicht
+hoch- und runterspringen, obwohl es dort nichts zu rollen gibt.
+
+**Die Relay-Seite ist so breit wie ihre Geschwister.** Sie hatte die breite
+Darstellung gesetzt und fiel damit beim Reiterwechsel aus der Reihe. Die
+Tabellen darin rollen in ihrem eigenen Bereich und brauchen die Sonderbreite
+nicht.
+
+**Geräte- und Abweisungsliste haben Rahmen und Zeilentrennung.** Sie trugen
+eine Tabellenklasse, die es nicht gibt — damit fehlten Rahmen, Trennlinien und
+die Dunkelmodus-Abdeckung. Jetzt nutzen sie die gemeinsame Tabellendarstellung
+wie die übrigen Übersichten.
+
 ## v1.8.5 — 2026-08-25 — „Connector" bleibt Connector
 
 In Erklärtexten und Kommentaren stand an elf Stellen „Verbinder". Das ist keine

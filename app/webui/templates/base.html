@@ -377,6 +377,65 @@
       document.addEventListener('DOMContentLoaded', _rcLoad);
     </script>
 
+    <script>
+      // Reiterleisten: sichtbar machen, dass es seitlich weitergeht.
+      //
+      // Die Leiste rollt waagerecht, ihre Rollleiste ist aber absichtlich
+      // versteckt (auf dem Telefon wischt man). Auf dem Desktop fehlt diese
+      // Geste — ein halb abgeschnittener Reiter sieht dort nicht nach „weiter"
+      // aus, sondern nach einem Fehler. Deshalb zwei Ergaenzungen: ein Verlauf
+      // an der Seite, an der es weitergeht (CSS ueber `data-rollen`), und
+      // Rollen mit dem Mausrad.
+      //
+      // ⚠️ Der Zustand wird als data-Attribut gesetzt, nicht als Farbe im
+      // style-Attribut: JS-gesetzte Inline-Styles normalisiert der Browser zu
+      // rgb(), und die Dark-Mode-Selektoren greifen danach nicht mehr
+      // (Dark-Mode-Regel 2). Hier faerbt ohnehin nichts — `mask-image` braucht
+      // keine Hintergrundfarbe und ist im Dunkelmodus von selbst richtig.
+      (function () {
+        function _leistenRollhinweis(ul) {
+          var rest = ul.scrollWidth - ul.clientWidth;
+          // 1px Toleranz: Bei gebrochenen Geraetepixeln (Windows-Skalierung
+          // 125/150 %) weichen scrollWidth und clientWidth um Bruchteile ab,
+          // und die Leiste zeigte sonst dauerhaft einen Verlauf ohne Inhalt.
+          ul.dataset.rollen =
+            rest <= 1                     ? 'nein'
+            : ul.scrollLeft <= 1          ? 'rechts'
+            : ul.scrollLeft >= rest - 1   ? 'links'
+                                          : 'beides';
+        }
+        function _anmelden() {
+          var leisten = document.querySelectorAll('.nav-sub-tabs');
+          for (var i = 0; i < leisten.length; i++) {
+            (function (ul) {
+              _leistenRollhinweis(ul);
+              ul.addEventListener('scroll', function () { _leistenRollhinweis(ul); },
+                                  { passive: true });
+              window.addEventListener('resize', function () { _leistenRollhinweis(ul); });
+              ul.addEventListener('wheel', function (e) {
+                if (!e.deltaY) return;
+                if (ul.scrollWidth - ul.clientWidth <= 1) return;
+                ul.scrollLeft += e.deltaY;
+                // Nur verschlucken, wenn wirklich gerollt wurde — sonst haengt
+                // die Seite am Ende der Leiste fest und rollt nicht weiter.
+                e.preventDefault();
+              }, { passive: false });
+              // Den aktiven Reiter ins Bild holen: Wer ueber die Adresszeile
+              // auf einer Seite landet, deren Reiter rechts liegt, saehe ihn
+              // sonst nicht — und haette keinen Hinweis, wo er steht.
+              var aktiv = ul.querySelector('.nav-sub-tab.active');
+              if (aktiv && aktiv.offsetLeft + aktiv.offsetWidth > ul.clientWidth) {
+                ul.scrollLeft = aktiv.offsetLeft + aktiv.offsetWidth - ul.clientWidth + 16;
+              }
+            })(leisten[i]);
+          }
+        }
+        if (document.readyState === 'loading')
+          document.addEventListener('DOMContentLoaded', _anmelden);
+        else _anmelden();
+      })();
+    </script>
+
     {# Der Lernmodus ist der einzige Zustand, in dem sich die Relay-Freigabe von
        selbst erweitert. Er gehoert deshalb sichtbar — auf JEDER Seite, nicht
        nur auf der, auf der man ihn eingeschaltet hat. Der Wert kommt aus einem
