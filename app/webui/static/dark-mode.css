@@ -665,3 +665,5 @@ tr td[data-relay-tls="ja"]    { color: #15803d; }
 [data-theme="dark"] .js-trenner      { border-top-color: #334155; }
 [data-theme="dark"] .js-aufklappteil { border-top-color: #334155; }
 [data-theme="dark"] .step-status[data-zustand="ok"] { background: #14532d; color: #86efac; }
+
+[data-theme="dark"] .erweitert-schalter label { color: #94a3b8; }

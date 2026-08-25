@@ -1193,3 +1193,24 @@ input[type="password"]:focus { outline: none; border-color: #0078d4; }
 /* Erfolgsstand einer Einrichtungsstufe. Farbe hier statt im JavaScript —
    selber Grund. */
 .step-status[data-zustand="ok"] { background: #dcfce7; color: #166534; }
+
+/* Seitenweiter Schalter „Erweiterte Einstellungen", ÜBER der ersten Karte.
+   Rechtsbündig, damit er die Überschriften nicht stört, und mit Abstand nach
+   unten statt nach oben — er gehört optisch zur Karte darunter. */
+.erweitert-schalter {
+    display: flex;
+    justify-content: flex-end;
+    margin: 0 0 8px;
+    font-size: 11px;
+}
+.erweitert-schalter label {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #64748b;
+    /* Auf einem Telefon ist das Kästchen sonst 11px klein — der Text gibt ihm
+       die Höhe, aber die Trefferfläche bleibt der Rahmen des Labels. */
+    padding: 4px 2px;
+}
+.erweitert-schalter input { margin: 0; }

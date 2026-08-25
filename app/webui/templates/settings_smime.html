@@ -7,9 +7,10 @@
 
 <div id="page-alert" class="alert" style="display:none"></div>
 
+{% with adv_id = "smime" %}{% include "_erweitert_schalter.html" %}{% endwith %}
+
 <!-- S/MIME -->
 <div class="settings-card" id="smime">
-  <div style="display:flex;justify-content:flex-end;margin-bottom:10px"><span style="font-size:11px"><label style="cursor:pointer;display:inline-flex;align-items:center;gap:4px;color:#64748b"><input type="checkbox" id="adv-cb-smime" style="margin:0" onchange="_toggleAdv('smime',this.checked)"> Erweiterte Einstellungen</label></span></div>
 
   <h3 style="margin-top:0;margin-bottom:12px">Betreff eingehender S/MIME-Mails anpassen</h3>
 
@@ -553,20 +554,6 @@
 </div>
 
 <script>
-function _initAdv(id) {
-  var show = localStorage.getItem('advsec_' + id) === '1';
-  var cb = document.getElementById('adv-cb-' + id);
-  if (cb) cb.checked = show;
-  document.querySelectorAll('[data-adv="' + id + '"]').forEach(function(el) {
-    el.style.display = show ? '' : 'none';
-  });
-}
-function _toggleAdv(id, show) {
-  localStorage.setItem('advsec_' + id, show ? '1' : '0');
-  document.querySelectorAll('[data-adv="' + id + '"]').forEach(function(el) {
-    el.style.display = show ? '' : 'none';
-  });
-}
 
 function showAlert(el, type, msg) {
   el.className = 'alert ' + type;

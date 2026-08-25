@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.23 — 2026-08-26 — „Erweiterte Einstellungen" steht jetzt über den Karten
+
+Auf den Seiten *Signatur* und *S/MIME* sass der Schalter **in** der ersten
+Karte, obwohl er die ganze Seite steuert — auf mehreren Karten zugleich. Dort
+sah er aus wie eine Einstellung dieser einen Karte und schob zugleich deren
+Überschrift nach unten, was auf schmalen Schirmen einen leeren Streifen ergab.
+
+Er steht jetzt darüber, rechtsbündig. Die anklickbare Fläche ist von der Größe
+des Kästchens auf die des ganzen Textes gewachsen — gemessen 161 × 24 Pixel
+statt eines 11-Pixel-Kästchens, was auf einem Telefon den Unterschied macht.
+
+In den *Zugangsdaten* bleibt ein zweiter, gleichnamiger Schalter im Kopf der
+Karte „Benachrichtigungen & Tagesbericht". Der gilt nur für diese Karte und
+gehört genau dorthin.
+
+Unter der Oberfläche: Die Logik dahinter lag als wortgleiche Kopie in vier
+Vorlagen und liegt jetzt einmal in der gemeinsamen Skriptdatei.
+
 ## v1.8.22 — 2026-08-26 — Leere Kästen zwischen den S/MIME-Zeilen
 
 Auf einem Telefon klafften unter *Indikator: verschlüsselt* und *Indikator:
