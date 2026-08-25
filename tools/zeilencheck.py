@@ -81,7 +81,24 @@ def pruefe(wurzel: Path) -> list[str]:
                 continue
 
             # [2] Nachgebaute Beschriftungsspalte
-            if re.search(r'<div[^>]*style="[^"]*min-width:\s*200px', block):
+            #
+            # ⚠️ Bis 2026-08-26 wurde nur `<div style="min-width:200px">`
+            # gesucht. Der teurere Nachbau steht aber am `<label>` selbst, und
+            # zwar in zwei Schreibweisen:
+            #
+            #     <label class="checkbox-label" style="flex:0 0 200px">
+            #     <label style="min-width:200px;flex-shrink:0">
+            #
+            # Beides ist ein INLINE-Stil und schlägt damit jede Regel — auch die
+            # Medienabfrage, die die 200px-Basis unter 600px zurücknimmt, weil
+            # aus ihr dort eine HÖHE wird. Auf dem Telefon klafften deshalb
+            # 200px Leere unter „Indikator: verschlüsselt" und „Indikator:
+            # signiert"; gemessen wurde die Zeile 274px hoch bei 56px Inhalt.
+            #
+            # Die Prüfung fand das nicht, weil sie nach `div` suchte und nach
+            # `min-width` — der Fall stand als `label` und als `flex` da.
+            if re.search(r'<(?:div|label)[^>]*style="[^"]*'
+                         r'(?:min-width:\s*200px|flex:\s*[01]\s+[01]\s+200px)', block):
                 meldungen.append(
                     f"   {ort}  baut die Beschriftungsspalte von Hand nach\n"
                     f"          → `<label class=\"checkbox-label\">` bzw. ein "

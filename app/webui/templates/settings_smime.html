@@ -14,7 +14,7 @@
   <h3 style="margin-top:0;margin-bottom:12px">Betreff eingehender S/MIME-Mails anpassen</h3>
 
   <div class="settings-row">
-    <label class="checkbox-label" style="flex:0 0 200px">
+    <label class="checkbox-label">
       <input type="checkbox" id="smime-tag-enc-enabled"
         {% if s.SMIME_TAG_ENCRYPTED_ENABLED is not false %}checked{% endif %}
         onchange="toggleTagField('smime-tag-encrypted', this.checked); updateSubjectPreview()">
@@ -30,7 +30,7 @@
   </div>
 
   <div class="settings-row">
-    <label class="checkbox-label" style="flex:0 0 200px">
+    <label class="checkbox-label">
       <input type="checkbox" id="smime-tag-sig-enabled"
         {% if s.SMIME_TAG_SIGNED_ENABLED is not false %}checked{% endif %}
         onchange="toggleTagField('smime-tag-signed', this.checked); updateSubjectPreview()">
@@ -463,7 +463,7 @@
 
   <div data-adv="smime" style="display:none">
   <div class="settings-row" style="align-items:flex-start;margin-top:14px">
-    <label style="min-width:200px;flex-shrink:0;font-size:13px;font-weight:500;padding-top:4px">Key Vault Modus</label>
+    <label style="font-size:13px;font-weight:500;padding-top:4px">Key Vault Modus</label>
     <div class="settings-control" id="kv-mode-box">
       <label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;cursor:pointer">
         <input type="radio" name="kv-key-mode" value="fallback" style="margin-top:3px;flex-shrink:0"
@@ -496,7 +496,7 @@
   <div style="border-top:1px solid #f0f0f0;margin:16px 0 14px"></div>
 
   <div class="settings-row" style="align-items:flex-start">
-    <label class="checkbox-label" style="padding-top:6px;min-width:200px;flex-shrink:0">
+    <label class="checkbox-label" style="padding-top:6px">
       <input type="checkbox" id="smime-key-encrypt"
         {% if s.SMIME_KEY_ENCRYPT is not false %}checked{% endif %}
         onchange="toggleKeyEncrypt(this.checked)">
