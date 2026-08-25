@@ -143,6 +143,9 @@
     background: #0f1117;
     box-shadow: inset 0 -2px 0 #495166;
 }
+/* Gegenstueck zur Regel in style.css: Die spezifischere Rollbereich-Regel
+ * uebermalt sonst den Kopf einer .config-table mit dem Seitenhintergrund. */
+[data-theme="dark"] .tabellen-rollbereich .config-table thead th { background: #394159; }
 [data-theme="dark"] .kv-table th { color: #94a3b8; border-color: #495166; }
 [data-theme="dark"] .kv-table td { border-color: #495166; }
 [data-theme="dark"] .config-table    { background: #1c2030; border-color: #495166; }

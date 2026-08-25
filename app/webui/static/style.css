@@ -79,8 +79,63 @@ nav a.nav-planned:hover { background: none; }
     scrollbar-width: none;
     white-space: nowrap;
     flex-wrap: nowrap;
+
+    /* ⚠️ Die Wischgeste darf die SEITE nicht mitbewegen.
+     *
+     * ANLASS (2026-08-25), Nutzer am Telefon: „auf dem Handy mit Wischgeste
+     * [passiert eine] vertikale Änderung, derzeit schwankt es hoch und runter,
+     * unnötig, denn darüber/darunter gibt es nichts."
+     *
+     * Zwei verschiedene Ursachen, deshalb zwei Eigenschaften:
+     *
+     * `touch-action: pan-x` — der Browser entscheidet beim Ansetzen des
+     *   Fingers, welche Achse die Geste bedient. Ein leicht schräger Wisch
+     *   wurde als senkrecht gewertet und rollte die Seite. Mit `pan-x` ist auf
+     *   diesem Streifen nur die waagerechte Achse zugelassen; die Geste bleibt
+     *   damit vorhersagbar, statt vom Winkel der ersten Pixel abzuhängen.
+     *
+     * `overscroll-behavior: contain` — am Ende der Leiste reichte der Browser
+     *   das Rollen an die Seite weiter (Scroll-Chaining). Genau das erzeugte
+     *   den Ruck nach unten, wenn man über den letzten Reiter hinauswischt.
+     *   `contain` hält es in der Leiste und unterbindet nebenbei
+     *   Pull-to-refresh, das an dieser Stelle nur stört. */
+    touch-action: pan-x;
+    overscroll-behavior: contain;
 }
 .nav-sub-tabs::-webkit-scrollbar { display: none; }
+
+/* ⚠️ EINE ROLLBARE LEISTE, DER MAN DAS ROLLEN NICHT ANSIEHT, IST EINE SACKGASSE
+ *
+ * ANLASS (2026-08-25): Der Nutzer auf Windows/Edge — „der Menüpunkt Einrichtung
+ * ist rechts abgeschnitten". Gemessen: Die Leiste braucht mit acht Reitern
+ * 1095px, sichtbar sind 912px. Mit SIEBEN Reitern fehlten bereits 50px; der
+ * Relay-Reiter hat den Befund vergrössert, nicht verursacht.
+ *
+ * Die Rollleiste ist absichtlich versteckt (oben), damit die Leiste auf dem
+ * Telefon sauber aussieht — dort wischt man. Auf dem Desktop gibt es diese
+ * Geste nicht, und ein halb abgeschnittener Reiter sieht nicht nach „hier geht
+ * es weiter" aus, sondern nach einem Fehler.
+ *
+ * Der Verlauf über `mask-image` statt eines überlagerten Farbkastens: Er
+ * braucht KEINE Hintergrundfarbe und ist damit im Dunkelmodus von selbst
+ * richtig. Ein Kasten mit `background: #f4f6f9` hätte eine zweite Stelle
+ * gebraucht, die bei jeder Themenänderung mitzupflegen wäre.
+ *
+ * `data-rollen` setzt `_leistenRollhinweis()` in base.html. */
+.nav-sub-tabs[data-rollen="rechts"] {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 44px), transparent);
+            mask-image: linear-gradient(to right, #000 calc(100% - 44px), transparent);
+}
+.nav-sub-tabs[data-rollen="links"] {
+    -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 44px), transparent);
+            mask-image: linear-gradient(to left, #000 calc(100% - 44px), transparent);
+}
+.nav-sub-tabs[data-rollen="beides"] {
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 44px,
+                                        #000 calc(100% - 44px), transparent);
+            mask-image: linear-gradient(to right, transparent, #000 44px,
+                                        #000 calc(100% - 44px), transparent);
+}
 .nav-sub-tab {
     display: block;
     padding: 9px 20px;
@@ -250,6 +305,15 @@ main { max-width: 960px; margin: 32px auto; padding: 0 24px; }
         background: #fff;
         box-shadow: inset 0 -2px 0 #e2e8f0;
     }
+    /* ⚠️ Eine klebende Kopfzeile braucht einen DECKENDEN Hintergrund — sonst
+     * scheinen die Zeilen darunter hindurch. Das `#fff` oben passt zur
+     * Postfachtabelle, die keinen eigenen Kopfhintergrund hat.
+     *
+     * Eine `.config-table` hat einen (`#f1f5f9`), und die Regel oben ist
+     * spezifischer (0,1,2 gegen 0,1,1) — der graue Kopf verschwand dadurch,
+     * sobald die Tabelle in einem Rollbereich steht. Hier wird er
+     * zurueckgeholt, statt eine der beiden Regeln aufzuweichen. */
+    .tabellen-rollbereich .config-table thead th { background: #f1f5f9; }
 }
 
 /* Aufklapper fuer die Einstellungen eines Behaelter-Bausteins (Kasten,
