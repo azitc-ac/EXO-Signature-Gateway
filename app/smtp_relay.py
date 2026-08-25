@@ -26,7 +26,7 @@ DIE DREI GRENZEN
 2. **Absender** — nur Domänen, die dem Tenant gehören. Ein übernommener
    Drucker soll nicht als fremde Firma versenden können.
 3. **Ziel** — Vorgabe: nur Empfänger im eigenen Tenant, je Gerät umstellbar.
-   Nach aussen muss auch der Exchange-Verbinder das Weiterleiten erlauben
+   Nach aussen muss auch der Exchange-Connector das Weiterleiten erlauben
    (sonst `550 5.7.54`).
 
 DER LERNMODUS
