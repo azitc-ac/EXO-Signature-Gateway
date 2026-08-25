@@ -646,3 +646,6 @@ tr td[data-relay-tls="nein"]  { color: #b45309; font-size: 12px; }
 tr td[data-relay-tls="ja"]    { color: #15803d; }
 [data-theme="dark"] tr td[data-relay-tls="nein"] { color: #fcd34d !important; }
 [data-theme="dark"] tr td[data-relay-tls="ja"]   { color: #86efac !important; }
+
+/* Gegenstück zu `.muted` in style.css (2026-08-25 nachgetragen). */
+[data-theme="dark"] .muted { color: #94a3b8; }

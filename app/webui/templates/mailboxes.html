@@ -1255,11 +1255,11 @@ function _renderGroupsTable() {
     var tr = document.createElement('tr');
     tr.style.borderBottom = '1px solid #f0f0f0';
     tr.innerHTML =
-      '<td style="padding:6px 8px"><input type="text" class="group-name-input" value="' + esc(name) + '" ' +
+      '<td style="padding:6px 8px"><input type="text" value="' + esc(name) + '" ' +
         'data-orig="' + esc(name) + '" style="font-size:12px;width:150px;padding:3px 6px;border:1px solid #d1d5db;border-radius:4px" ' +
         'onchange="renameGroup(this)"></td>' +
       '<td style="padding:6px 8px;font-size:12px;color:#374151">' +
-        '<span class="group-member-count">' + members.length + ' Postfach' + (members.length !== 1 ? 'fächer' : '') + '</span> ' +
+        '<span>' + members.length + ' Postfach' + (members.length !== 1 ? 'fächer' : '') + '</span> ' +
         '<button class="btn secondary" onclick="openMembersModal(this)" data-group="' + esc(name) + '" ' +
           'style="font-size:11px;padding:1px 7px;margin-left:4px">Bearbeiten</button></td>' +
       '<td style="text-align:center;padding:6px 8px">' +

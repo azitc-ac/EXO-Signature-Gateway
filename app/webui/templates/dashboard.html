@@ -492,7 +492,7 @@ function openInFlightInfo(active, held) {
         // Ohne diese Pruefung rechnete die Kachel mit undefined weiter und
         // zeigte "NaN" an — schlimmer als ein ehrlicher Hinweis.
         const g = document.getElementById('sysGrid');
-        if (g) g.innerHTML = '<div class="sys-card"><div class="sys-val">—</div>'
+        if (g) g.innerHTML = '<div class="sys-tile"><div class="sys-val">—</div>'
           + '<div class="sys-sub">Systemdaten nicht abrufbar: ' + esc(errText(d)) + '</div></div>';
         return;
       }

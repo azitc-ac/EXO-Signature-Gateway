@@ -611,6 +611,13 @@ input:focus { outline: none; border-color: #0078d4; }
 
 /* Hint */
 .hint { color: #666; font-size: 12px; margin-top: 4px; }
+
+/* Gedämpfter Text OHNE Grössenänderung — der Unterschied zu `.hint`, das
+   zusätzlich auf 12px geht und einen Abstand nach oben setzt.
+   ⚠️ 25 Stellen benutzten `.muted`, ohne dass es die Klasse gab: „Wird
+   geladen…", Zusätze wie „— kostenpflichtig", Schrittangaben. Sie erschienen
+   alle in normaler Textfarbe. Gefunden von tools/cssklassencheck.py. */
+.muted { color: #64748b; }
 .hint code { background: #eef2f7; padding: 2px 6px; border-radius: 4px; }
 
 /* S/MIME user card header */

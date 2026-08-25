@@ -1655,7 +1655,7 @@ async function licAboLaden() {
   const zwText = a.zahlungsweise === 'jaehrlich' ? 'jährlich im Voraus' : 'monatlich';
   const zeitraum = a.zahlungsweise === 'jaehrlich' ? 'Jahr' : 'Monat';
 
-  let h = '<table class="kv">';
+  let h = '<table class="kv-table">';
   h += _zeile('Postfächer', '<strong>' + a.postfaecher + '</strong>',
               frei + ' frei + ' + a.lizenzen + ' ' + (a.lizenzen === 1 ? 'Lizenz' : 'Lizenzen'));
   h += _zeile('Bezahlt bis', '<strong>' + _datumTs(a.laufzeit_ende) + '</strong>',
