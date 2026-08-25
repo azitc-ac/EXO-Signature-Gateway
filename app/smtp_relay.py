@@ -19,10 +19,11 @@ deshalb KEIN Zugewinn an Fähigkeit, sondern einer an Kontrolle.
 
 DIE DREI GRENZEN
 ----------------
-1. **Gerät** — nur Adressen aus der Geräteliste (`relay_hosts`). Nicht die
-   Liste aus `SMTP_ACL_EXTRA_CIDRS`: Die beantwortet die Frage „darf
-   verbinden" (etwa für eine Überwachung) und ist nicht dasselbe wie „darf
-   Post einliefern".
+1. **Gerät** — nur Adressen aus der Geräteliste (`relay_hosts`).
+   ⚠️ Daneben gab es bis v1.8.14 eine zweite Liste (`SMTP_ACL_EXTRA_CIDRS`,
+   „zusätzlich erlaubte Netze" unter Erweitert). Sie ist entfallen: Zwei Wege,
+   ein Netz freizugeben, von denen nur einer Absender und Ziel prüft und nur
+   einer protokolliert, sind einer zu viel.
 2. **Absender** — nur Domänen, die dem Tenant gehören. Ein übernommener
    Drucker soll nicht als fremde Firma versenden können.
 3. **Ziel** — Vorgabe: nur Empfänger im eigenen Tenant, je Gerät umstellbar.

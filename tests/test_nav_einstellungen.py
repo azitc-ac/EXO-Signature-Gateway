@@ -104,4 +104,10 @@ def test_reiter_bleibt_weg_solange_das_relay_aus_ist(client):
     import settings_store
     settings_store.update({"SMTP_RELAY_ENABLED": False})
     for pfad in PFADE.values():
-        assert 'href="/relay"' not in client.get(pfad).text, pfad
+        text = client.get(pfad).text
+        # ⚠️ Nur die REITERLEISTE, nicht jeder Verweis auf die Seite. Ein
+        # Erklärtext darf auf /relay verlinken (advanced.html tut das, wenn das
+        # Relay an ist) — geprüft wird hier, ob der REITER wegbleibt.
+        leiste = re.search(r'<ul class="nav-sub-tabs">.*?</ul>', text, re.S)
+        assert leiste, f"{pfad}: keine Reiterleiste"
+        assert 'href="/relay"' not in leiste.group(0), pfad

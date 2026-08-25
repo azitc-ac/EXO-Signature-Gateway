@@ -189,7 +189,6 @@ REGISTER: dict[str, E] = {
     "SMIME_TAG_POSITION": E(art=OPTION, ort="settings_smime.html"),
     "SMIME_TAG_SIGNED": E(art=OPTION, ort="settings_smime.html"),
     "SMIME_TAG_SIGNED_ENABLED": E(art=OPTION, ort="settings_smime.html"),
-    "SMTP_ACL_EXTRA_CIDRS": E(art=STRUKTUR, ort="advanced.html"),
     "SMTP_RELAY_ENABLED": E(art=OPTION, ort="setup.html"),
     # Beide werden nicht einzeln gespeichert, sondern gemeinsam beim Starten
     # des Lernmodus — deshalb der Endpunkt als Ort, nicht die Vorlage.

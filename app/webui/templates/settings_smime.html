@@ -106,8 +106,37 @@
   </div>
 
 
+  <div class="settings-row" style="margin-top:10px">
+    <label for="nodigsig-trigger">Nicht-digital-signieren-Trigger</label>
+    <div class="settings-control">
+      <input type="text" id="nodigsig-trigger" value="{{ s.NODIGSIG_TRIGGER or '#nodigsig' }}"
+        placeholder="#nodigsig" style="width:160px">
+      <span class="hint">Schlüsselwort im Betreff, das die S/MIME- (digitale) Signatur für diese Mail unterdrückt.
+        Nicht verwechseln mit dem „Nicht-signieren-Trigger" (HTML-Signatur) unter Einstellungen → Signatur.</span>
+    </div>
+  </div>
+  <div class="settings-row" style="margin-top:10px">
+    <label for="enc-trigger">Verschlüsselungs-Trigger</label>
+    <div class="settings-control">
+      <input type="text" id="enc-trigger" value="{{ s.ENC_TRIGGER }}"
+        placeholder="#enc" style="width:160px">
+      <span class="hint">Schlüsselwort im Betreff, das ausgehende S/MIME-Verschlüsselung auslöst</span>
+    </div>
+  </div>
+  <div class="settings-row" style="margin-top:10px">
+    <label class="checkbox-label">
+      <input type="checkbox" id="crl-check" {% if s.CRL_CHECK is not false %}checked{% endif %}>
+      Empfängerzertifikate gegen Sperrlisten prüfen (CRL)
+    </label>
+    <span class="hint">Vor dem Verschlüsseln wird geprüft, ob das Zertifikat des Empfängers
+      widerrufen wurde. Ist die Sperrliste des Trustcenters nicht erreichbar, gilt das
+      Zertifikat als nicht verwendbar — die Nachricht geht dann über das Portal hinaus
+      statt verschlüsselt. Sie fällt also nicht aus, nimmt aber einen anderen Weg.<br>
+      Abschalten nur, wenn dieses Gateway keine ausgehenden Verbindungen zu Trustcentern
+      aufbauen darf; dann bleibt der Widerruf ungeprüft.</span>
+  </div>
   <div class="actions" style="margin-top:14px">
-    <button class="btn secondary" id="smime-signieren-btn" data-wache="smime-strip-inbound,smime-signing-enabled,nodigsig-trigger,enc-trigger"
+    <button class="btn secondary" id="smime-signieren-btn" data-wache="smime-strip-inbound,smime-signing-enabled,nodigsig-trigger,enc-trigger,crl-check"
             data-wache-hinweis="smime-signieren-btn-result"
             onclick="smime_signierenSpeichern()">Speichern</button>
     <span id="smime-signieren-btn-result" style="font-size:12px;margin-left:8px"></span>
@@ -172,42 +201,13 @@
   </div>
 
   <div data-adv="smime" style="display:none">
-  <div class="settings-row" style="margin-top:10px">
-    <label for="nodigsig-trigger">Nicht-digital-signieren-Trigger</label>
-    <div class="settings-control">
-      <input type="text" id="nodigsig-trigger" value="{{ s.NODIGSIG_TRIGGER or '#nodigsig' }}"
-        placeholder="#nodigsig" style="width:160px">
-      <span class="hint">Schlüsselwort im Betreff, das die S/MIME- (digitale) Signatur für diese Mail unterdrückt.
-        Nicht verwechseln mit dem „Nicht-signieren-Trigger" (HTML-Signatur) unter Einstellungen → Signatur.</span>
-    </div>
-  </div>
 
-  <div class="settings-row" style="margin-top:10px">
-    <label for="enc-trigger">Verschlüsselungs-Trigger</label>
-    <div class="settings-control">
-      <input type="text" id="enc-trigger" value="{{ s.ENC_TRIGGER }}"
-        placeholder="#enc" style="width:160px">
-      <span class="hint">Schlüsselwort im Betreff, das ausgehende S/MIME-Verschlüsselung auslöst</span>
-    </div>
-  </div>
 
-  <div class="settings-row" style="margin-top:10px">
-    <label class="checkbox-label">
-      <input type="checkbox" id="crl-check" {% if s.CRL_CHECK is not false %}checked{% endif %}>
-      Empfängerzertifikate gegen Sperrlisten prüfen (CRL)
-    </label>
-    <span class="hint">Vor dem Verschlüsseln wird geprüft, ob das Zertifikat des Empfängers
-      widerrufen wurde. Ist die Sperrliste des Trustcenters nicht erreichbar, gilt das
-      Zertifikat als nicht verwendbar — die Nachricht geht dann über das Portal hinaus
-      statt verschlüsselt. Sie fällt also nicht aus, nimmt aber einen anderen Weg.<br>
-      Abschalten nur, wenn dieses Gateway keine ausgehenden Verbindungen zu Trustcentern
-      aufbauen darf; dann bleibt der Widerruf ungeprüft.</span>
-  </div>
 
   </div>
 </div>
 
-<div class="settings-card">
+<div class="settings-card" data-adv="smime" style="display:none">
   <h3 style="margin-top:0;margin-bottom:12px">Vertrauenswürdige Aussteller</h3>
   <div data-adv="smime" style="display:none">
   <p class="hint" style="margin-bottom:12px">
@@ -281,7 +281,7 @@
   </div>
 
   <div class="actions" style="margin-top:14px">
-    <button class="btn secondary" id="smime-aussteller-btn" data-wache="crl-check,trust-ms-roots,trust-auto-known,smime-harvest-rcpt"
+    <button class="btn secondary" id="smime-aussteller-btn" data-wache="trust-ms-roots,trust-auto-known,smime-harvest-rcpt"
             data-wache-hinweis="smime-aussteller-btn-result"
             onclick="smime_ausstellerSpeichern()">Speichern</button>
     <span id="smime-aussteller-btn-result" style="font-size:12px;margin-left:8px"></span>
@@ -611,12 +611,12 @@ async function smime_signierenSpeichern() {
     SMIME_SIGNING_ENABLED: document.getElementById('smime-signing-enabled').checked,
     NODIGSIG_TRIGGER: (document.getElementById('nodigsig-trigger').value || '').trim() || '#nodigsig',
     ENC_TRIGGER: (document.getElementById('enc-trigger').value || '').trim() || '#enc',
+    CRL_CHECK: document.getElementById('crl-check').checked,
   }, 'smime-signieren-btn-result'));
 }
 
 async function smime_ausstellerSpeichern() {
   wacheFertig('smime-aussteller-btn', await savePartial({
-    CRL_CHECK: document.getElementById('crl-check').checked,
     TRUST_MS_ROOTS: document.getElementById('trust-ms-roots').checked,
     TRUST_AUTO_KNOWN: document.getElementById('trust-auto-known').checked,
     TRUST_UNKNOWN_MODE: (document.querySelector('input[name="trust-unknown"]:checked') || {}).value || 'manuell',

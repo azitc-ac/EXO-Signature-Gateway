@@ -96,15 +96,13 @@ DEFAULTS: dict = {
     # werden gecacht + periodisch aktualisiert. FAIL-SAFE: leere Liste = alles
     # erlaubt (kein Blockieren), Loopback + Extra-CIDRs immer erlaubt.
     "SMTP_SOURCE_ACL_ENABLED": True,   # False = Prüfung aus (nur Netzwerk-Firewall)
-    "SMTP_ACL_EXTRA_CIDRS": [],        # zusätzliche erlaubte CIDRs (z.B. eigenes Monitoring)
     # ── SMTP-Relay für Geräte im eigenen Netz ────────────────────────────────
     # Drucker und Anwendungen liefern anonym ein, das Gateway reicht an Exchange
     # weiter — Ersatz für einen Exchange vor Ort. Siehe smtp_relay.py.
     #
-    # ⚠️ EIGENE Netzliste, nicht SMTP_ACL_EXTRA_CIDRS: Jene beantwortet „darf
-    # verbinden" (etwa eine Überwachung), das ist nicht dasselbe wie „darf Post
-    # einliefern". Die beiden zu vermischen hiesse, ein Relay zu eröffnen, ohne
-    # dass es jemand entschieden hat.
+    # ⚠️ Die FREIGABE steht in der Geräteliste (`relay_hosts`), nicht hier.
+    # Bis v1.8.14 gab es daneben `SMTP_ACL_EXTRA_CIDRS` — eine zweite Liste
+    # erlaubter Quellnetze ohne Absender- und Zielprüfung. Sie ist entfallen.
     "SMTP_RELAY_ENABLED": False,       # bewusste Freischaltung, Vorgabe aus
     # ⚠️ Die FREIGABE steht nicht hier, sondern in der Geräteliste
     # (`relay_hosts.py`, eigene Datenbank). Diese Netze sagen nur, WORAUS der
@@ -291,6 +289,7 @@ INTERNAL_KEYS = frozenset({
 # Oberfläche, um sie zu löschen. Wer vorher Sectigo oder SwissSign konfiguriert
 # hatte, dessen Zugangsdaten lagen weiter in der Datei.
 OBSOLETE_KEYS = {
+    "SMTP_ACL_EXTRA_CIDRS":        "Zusatzliste erlaubter Quellnetze — durch das SMTP-Relay ersetzt (v1.8.15), das Absender und Ziel mitprüft",
     "SMTP_RELAY_NETWORKS":         "Netz ist keine Freigabe mehr — die Geräteliste ist es (v1.8.4); Lernbereich: SMTP_RELAY_LERN_NETZE",
     "SMTP_RELAY_EXTERNAL":         "je Gerät statt global (v1.8.4); Vorgabe für neue Geräte: SMTP_RELAY_EXTERN_VORGABE",
     "SECTIGO_API_BASE":            "CA-Direktanbindung entfernt (v1.5.125)",
