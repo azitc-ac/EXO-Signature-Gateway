@@ -44,7 +44,10 @@
     </div>
   </div>
   <div class="actions" style="margin-top:10px">
-    <button class="btn secondary" onclick="saveAdminUsers()">Speichern</button>
+    <button class="btn secondary" id="admin-users-btn"
+            data-wache-container="#admin-users-list"
+            data-wache-hinweis="admin-users-result"
+            onclick="saveAdminUsers()">Speichern</button>
     <span id="admin-users-result" style="font-size:12px;margin-left:8px"></span>
   </div>
   <div id="admin-users-alert" class="alert" style="display:none;margin-top:8px"></div>
@@ -54,10 +57,10 @@
   <div class="settings-row">
     <label for="webui-username">Benutzername</label>
     <div class="settings-control">
-      <input type="text" id="webui-username" value="{{ s.WEBUI_USERNAME }}" style="width:220px">
-      <div style="margin-top:4px">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input type="text" id="webui-username" value="{{ s.WEBUI_USERNAME }}" style="width:220px">
         <button class="btn secondary btn-sm" id="zugangsdaten-btn" data-wache-hinweis="zugangsdaten-result" data-wache="webui-username" onclick="saveZugangsdaten()">Speichern</button>
-        <span id="zugangsdaten-result" style="font-size:12px;margin-left:8px"></span>
+        <span id="zugangsdaten-result" style="font-size:12px"></span>
       </div>
     </div>
   </div>
@@ -551,7 +554,13 @@ function removeAdminUser(upn) {
 }
 
 async function saveAdminUsers() {
-  var resultEl = document.getElementById('admin-users-result');
+  // ⚠️ Rueckmeldung ueber `wacheFertig()`, nicht ueber `style.color`:
+  //   * Es ist derselbe Span, den die Wache als Hinweis benutzt — zwei
+  //     Schreiber auf einem Element ergaben widerspruechliche Anzeigen.
+  //   * JS-gesetzte Farben normalisiert der Browser zu rgb(), die
+  //     Dark-Mode-Selektoren greifen danach nicht mehr (Dark-Mode-Regel 2).
+  //   * Die Wache kennt den Unterschied zwischen "gespeichert" und "noch
+  //     nicht gespeichert" — genau das fehlte hier.
   var alertEl = document.getElementById('admin-users-alert');
   try {
     var resp = await fetch('/api/admin-users', {
@@ -563,17 +572,14 @@ async function saveAdminUsers() {
     if (resp.ok) {
       _adminUsersLocal = (d.users || []).map(function(u) { return Object.assign({}, u); });
       renderAdminUsers(_adminUsersLocal);
-      resultEl.textContent = '✓ Gespeichert';
-      resultEl.style.color = '#16a34a';
       alertEl.style.display = 'none';
+      wacheFertig('admin-users-btn', true);
     } else {
-      resultEl.textContent = '✗ ' + (d.detail || 'Fehler');
-      resultEl.style.color = '#dc2626';
+      wacheFertig('admin-users-btn', false, '✗ ' + (d.detail || 'Fehler'));
     }
-    setTimeout(function() { resultEl.textContent = ''; }, 3000);
   } catch(e) {
-    resultEl.textContent = '✗ Netzwerkfehler' + ursache(e, 'settings:553');
-    resultEl.style.color = '#dc2626';
+    wacheFertig('admin-users-btn', false,
+                '✗ Netzwerkfehler' + ursache(e, 'settings:553'));
   }
 }
 
@@ -861,11 +867,19 @@ async function saveBenachrichtigungen() {
 
 async function sendTestNotification() {
   const result = document.getElementById('notif-test-result');
+  // ⚠️ Zustand als data-Attribut, nicht als Farbe: JS-gesetzte Farben
+  // normalisiert der Browser zu rgb(), die Dark-Mode-Selektoren greifen danach
+  // nicht mehr (Dark-Mode-Regel 2). Die beiden bisherigen Werte (#27ae60 /
+  // #e74c3c) standen ausserdem in keiner Palette — die Meldung sah dadurch
+  // anders aus als jede andere Rückmeldung der Oberfläche.
+  result.classList.add('speicher-hinweis');
+  result.dataset.zustand = '';
   result.textContent = 'Sende…';
   const resp = await fetch('/api/notification/test', {method: 'POST'});
   const d = await resp.json().catch(() => ({}));
-  result.style.color = resp.ok && d.ok ? '#27ae60' : '#e74c3c';
-  result.textContent = resp.ok && d.ok ? 'Gesendet ✓' : ('Fehler: ' + (d.detail || 'Unbekannt'));
+  const ok = resp.ok && d.ok;
+  result.dataset.zustand = ok ? 'fertig' : 'fehler';
+  result.textContent = ok ? '✓ gesendet' : ('Fehler: ' + (d.detail || 'Unbekannt'));
 }
 
 document.addEventListener('DOMContentLoaded', function() {

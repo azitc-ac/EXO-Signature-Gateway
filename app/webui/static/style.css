@@ -369,6 +369,16 @@ main { max-width: 960px; margin: 32px auto; padding: 0 24px; }
     .baukasten-liste { max-width: 560px !important; }
 }
 
+/* Vorschau in Telefonbreite (Umschalter im Baukasten).
+   375px ist die Breite, die ein Telefon im Hochformat fuer den
+   Nachrichtentext laesst — der Rahmen wird begrenzt, NICHT skaliert:
+   Eine verkleinerte Darstellung zeigte eine Ansicht, die es auf keinem
+   Geraet gibt. Zustand als data-Attribut, weil JavaScript ihn setzt
+   (Dark-Mode-Regel 2). */
+#preview-box[data-vorschau-breite="schmal"] {
+    max-width: 375px;
+}
+
 @media (max-width: 600px) {
     main { margin: 12px auto; padding: 0 10px; }
     h1 { font-size: 18px; margin-bottom: 16px; }
@@ -670,10 +680,23 @@ input:focus { outline: none; border-color: #0078d4; }
     flex-wrap: wrap;
 }
 .settings-row label:first-child {
-    min-width: 200px;
+    /* ⚠️ `flex: 0 0 200px` statt `min-width` + `flex-shrink: 0`.
+     *
+     * ANLASS (2026-08-25), Nutzer: „Welche Ereignisse sollen gemeldet werden?
+     * ist zu lang. alle checkboxen daneben sind nach rechts versetzt gegenüber
+     * den übrigen checkboxen … am besten zu langen text umbrechen."
+     *
+     * Gemessen: Diese Beschriftung war 350px breit, andere 138–185px. Ein
+     * Flex-Element mit `min-width` und `flex-shrink: 0` schrumpft nicht unter
+     * seine INHALTSBREITE — es wächst also mit dem längsten Text, und die
+     * Spalte daneben rutscht mit. Bei 350px reichte der Platz nicht mehr, und
+     * der Inhalt sprang unter die Beschriftung.
+     *
+     * Eine feste Basis bricht den Text stattdessen um. Alle Zeilen fluchten
+     * damit, unabhängig von der Länge der Beschriftung. */
+    flex: 0 0 200px;
     font-weight: 500;
     padding-top: 6px;
-    flex-shrink: 0;
 }
 /* `flex: 1 1 0` + `min-width: 0` — sonst bricht die Zeile grundlos um.
    Ohne beides bestimmt der laengste Erklaertext dieser Spalte ihre Breite
@@ -752,7 +775,12 @@ input[type="number"] {
 
 @media (max-width: 600px) {
     .settings-row { flex-direction: column; }
-    .settings-row label:first-child { min-width: unset; padding-top: 0; }
+    /* ⚠️ `flex-basis` gilt auf der HAUPTACHSE. Sobald die Zeile hier auf
+       Spalten umstellt, wäre die 200px-Basis aus der Grundregel eine HÖHE —
+       jede Beschriftung bekäme einen 200px hohen Kasten unter sich. Gemessen
+       bei 393px, bevor es jemand zu sehen bekam. `flex: 0 0 auto` nimmt die
+       Basis zurück und behält „nicht wachsen, nicht schrumpfen". */
+    .settings-row label:first-child { flex: 0 0 auto; padding-top: 0; }
 }
 
 /* ── Log viewer ────────────────────────────────────────────────────────────── */
@@ -1008,6 +1036,11 @@ input[type="password"]:focus { outline: none; border-color: #0078d4; }
   font-size: 12px;
   margin-left: 8px;
   white-space: nowrap;
+  /* ⚠️ Ohne die Ausrichtung sitzt der Hinweis auf der Schriftlinie des Knopfes
+     und wirkt dadurch nach oben verrutscht — der Knopf ist innen gepolstert,
+     der Text daneben nicht. `middle` legt beide auf dieselbe Mittellinie. */
+  vertical-align: middle;
+  display: inline-block;
 }
 .speicher-hinweis[data-zustand="offen"]  { color: #b45309; font-weight: 600; }
 .speicher-hinweis[data-zustand="fertig"] { color: #166534; }

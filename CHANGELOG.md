@@ -5,6 +5,38 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.9 — 2026-08-25 — Einstellungen und Signatur-Vorschau
+
+**Entra-Konten: der Speichern-Knopf zeigt jetzt offene Änderungen.** Er hatte
+als einziger Knopf der Zugangsdaten keine Änderungsüberwachung — hinzugefügte
+oder entfernte Konten sahen nach nichts aus, bis man sie speicherte. Die
+Rückmeldung läuft jetzt über denselben Weg wie überall; sie setzte vorher ihre
+Farben selbst und war deshalb im Dunkelmodus nicht abgedeckt.
+
+**Beschriftungen brechen um, statt die Spalte zu verschieben.** „Welche
+Ereignisse sollen gemeldet werden?" war 350 px breit, andere Beschriftungen
+138–185 px — die Eingabefelder daneben standen dadurch je nach Zeile an
+unterschiedlicher Stelle, und bei der längsten sprang der Inhalt sogar unter
+die Beschriftung. Die Spalte hat jetzt eine feste Breite; alle Zeilen fluchten,
+lange Beschriftungen brechen um. Betrifft auch die Warnschwellen.
+
+**Der Speichern-Knopf beim lokalen Admin steht neben dem Feld,** solange Platz
+ist, statt es grundsätzlich zweizeilig zu machen.
+
+**„noch nicht gespeichert" sitzt auf der richtigen Höhe** und sieht aus wie die
+übrigen Rückmeldungen. Die Meldung der Test-Benachrichtigung wich davon ab: Sie
+setzte eigene Farben, die in keiner Palette standen.
+
+**Live-Vorschau: mindestens 600 px, umschaltbar auf Telefonbreite.** Eine
+Signatur ist typisch 500–600 px breit; darunter bricht sie um, und die Vorschau
+zeigt etwas anderes als der Empfänger sieht. Bei schmalen Fenstern rutscht sie
+jetzt unter die Bausteine, statt zu schrumpfen.
+
+Neu daneben ein Umschalter **Desktop / Handy**: 375 px sind die Breite, die ein
+Telefon im Hochformat für den Nachrichtentext lässt. Begrenzt wird der Rahmen,
+nicht skaliert — eine verkleinerte Darstellung zeigte eine Ansicht, die es auf
+keinem Gerät gibt. Die Wahl bleibt über das Neuladen hinweg erhalten.
+
 ## v1.8.8 — 2026-08-25 — Erfundene CSS-Klassen fallen jetzt auf
 
 Eine Klasse, die es nicht gibt, tut **nichts**: kein Fehler, keine Meldung, nur
