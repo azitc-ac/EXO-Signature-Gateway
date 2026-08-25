@@ -161,3 +161,62 @@ def test_kein_steuerzeichen_im_gemeinsamen_javascript():
         q = (WURZEL / "app" / "webui" / "static" / datei).read_text("utf-8")
         treffer = _re.findall(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", q)
         assert not treffer, f"{datei}: {len(treffer)} Steuerzeichen"
+
+
+def test_genau_ein_hinweis_je_knopf():
+    """Ein Speichern-Knopf, EINE Rückmeldung.
+
+    ANLASS (2026-08-25), Nutzer: „als ich gerade Speichern gedrückt habe […]
+    erschienen 2 (!) leicht zueinander versetzte gespeichert Hinweise".
+
+    Ursache: `speicherWache()` legt sich einen eigenen Hinweis-Span an, WENN
+    keiner benannt ist (`data-wache-hinweis`). Steht daneben schon ein
+    Ergebnisfeld, das die Speicherfunktion selbst beschreibt, meldeten beide.
+
+    ⚠️ Es waren ELF Knöpfe auf vier Seiten, nicht der eine gemeldete. Genau
+    deshalb prüft dieser Test die Form und nicht die Fundstelle: Ein Knopf mit
+    Wache, neben dem ein Ergebnisfeld steht, muss dieses Feld auch benennen.
+    """
+    import re
+    vorlagen = WURZEL / "app" / "webui" / "templates"
+    fehlend = []
+    for datei in sorted(vorlagen.glob("*.html")):
+        t = datei.read_text("utf-8")
+        for m in re.finditer(r"<button[^>]*data-wache[^>]*>", t):
+            tag = m.group(0)
+            if "data-wache-hinweis" in tag:
+                continue
+            # Steht direkt hinter dem Knopf ein eigenes Meldungsfeld?
+            nachbar = re.search(r'<span[^>]*id="([^"]*result[^"]*)"',
+                                t[m.end():m.end() + 260])
+            if nachbar:
+                kid = re.search(r'id="([^"]+)"', tag)
+                fehlend.append(f"{datei.name}: {kid.group(1) if kid else '?'}"
+                               f" neben #{nachbar.group(1)}")
+    assert not fehlend, (
+        "Diese Knöpfe haben ein eigenes Meldungsfeld, benennen es aber nicht per "
+        "`data-wache-hinweis` — die Wache legt sich daneben ein zweites an, und "
+        f"beide melden „gespeichert\":\n  " + "\n  ".join(fehlend))
+
+
+def test_hinweis_sitzt_auf_knopfhoehe():
+    """⚠️ Zwei Ausrichtungen, weil der Hinweis in zwei Umgebungen steht.
+
+    Im Fliesstext richtet `vertical-align` ihn aus, im Flex-Kasten `align-self`
+    — und dort ist `vertical-align` wirkungslos. Ohne `align-self` streckt die
+    Vorgabe `stretch` den Hinweis auf die volle Knopfhöhe (gemessen: 32px statt
+    14px); sein Text klebt dann oben statt auf der Zeile des Knopftextes.
+    """
+    import re
+    css = (WURZEL / "app" / "webui" / "static" / "style.css").read_text("utf-8")
+    # ⚠️ Kommentare ZUERST entfernen. Der Block erklärt beide Eigenschaften im
+    # Fliesstext; ohne diesen Schritt fand der Test die Wörter im Kommentar und
+    # blieb grün, nachdem die Eigenschaft entfernt worden war. Die Gegenprobe
+    # hat das aufgedeckt — der Test hätte sonst eine Absicherung vorgetäuscht.
+    css = re.sub(r"/\*.*?\*/", " ", css, flags=re.S)
+    regel = re.search(r"\.speicher-hinweis\s*\{(.*?)\}", css, re.S)
+    assert regel, ".speicher-hinweis ist nicht gestaltet"
+    for eigenschaft in ("vertical-align", "align-self"):
+        assert re.search(rf"(?<![\w-]){eigenschaft}\s*:", regel.group(1)), (
+            f".speicher-hinweis ohne `{eigenschaft}` — der Hinweis sitzt dann in "
+            "einer der beiden Umgebungen falsch.")

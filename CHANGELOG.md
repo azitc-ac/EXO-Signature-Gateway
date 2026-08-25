@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.11 — 2026-08-25 — Eine Rückmeldung je Speichern-Knopf
+
+Nach dem Speichern erschienen **zwei** „gespeichert"-Hinweise nebeneinander,
+leicht zueinander versetzt. Die Änderungsüberwachung legt sich einen eigenen
+Hinweis an, wenn ihr keiner benannt wird — stand daneben schon ein
+Meldungsfeld, das die Speicherfunktion selbst beschreibt, meldeten beide.
+
+⚠️ Betroffen waren **elf Knöpfe auf vier Seiten**, nicht nur der gemeldete:
+Gateway-Name, gemischte Mails, Graph-Rückfall, Exchange-Port, SMTP-Übermittlung,
+Quell-IP-Liste, Protokollierung, Let's Encrypt, Benachrichtigungen, Signatur und
+S/MIME-Einstellungen.
+
+**Der Hinweis sitzt jetzt auf der Zeile des Knopftextes.** Im Flex-Kasten wurde
+er zuvor auf die volle Knopfhöhe gestreckt (32 px statt 14 px), sein Text klebte
+dadurch oben. Das galt für jeden dieser Hinweise, nicht nur die doppelten.
+
 ## v1.8.10 — 2026-08-25 — Speichern-Knopf für Geräte, Textkorrekturen
 
 **Behoben: Beschriftungen sprengten die Kontrollspalte.** Die Regel aus v1.8.9

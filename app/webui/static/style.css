@@ -1047,10 +1047,19 @@ input[type="password"]:focus { outline: none; border-color: #0078d4; }
   font-size: 12px;
   margin-left: 8px;
   white-space: nowrap;
-  /* ⚠️ Ohne die Ausrichtung sitzt der Hinweis auf der Schriftlinie des Knopfes
-     und wirkt dadurch nach oben verrutscht — der Knopf ist innen gepolstert,
-     der Text daneben nicht. `middle` legt beide auf dieselbe Mittellinie. */
+  /* ⚠️ ZWEI Ausrichtungen, weil der Hinweis in ZWEI Umgebungen steht.
+   *
+   * `vertical-align` gilt im Fliesstext: Ohne sie sitzt der Hinweis auf der
+   * Schriftlinie des Knopfes und wirkt nach oben verrutscht — der Knopf ist
+   * innen gepolstert, der Text daneben nicht.
+   *
+   * `align-self` gilt im Flex-Kasten (`.actions`), und dort ist
+   * `vertical-align` wirkungslos. Ohne sie STRECKT die Vorgabe `stretch` den
+   * Hinweis auf die volle Knopfhöhe: Der Kasten ist dann 32px hoch, der Text
+   * darin klebt oben — genau der „zu hohe" Sitz, den der Nutzer gemeldet hat.
+   * Gemessen: Kasten 32px gegen 14px beim richtig ausgerichteten Nachbarn. */
   vertical-align: middle;
+  align-self: center;
   display: inline-block;
 }
 .speicher-hinweis[data-zustand="offen"]  { color: #b45309; font-weight: 600; }

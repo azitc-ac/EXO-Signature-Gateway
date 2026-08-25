@@ -251,7 +251,7 @@ function saveLexwareFix(enabled) {
       <input type="text" id="gateway-name" value="{{ s.GATEWAY_NAME or 'EXO Signature Gateway' }}" style="width:320px">
       <span class="hint">Prefix für EXO-Objekte (Connectors, Rules, Distribution Groups). Änderung gilt erst nach erneutem Ausführen des Setup-Assistenten.</span>
       <div style="margin-top:6px">
-        <button class="btn secondary btn-sm" id="gateway-name-btn" data-wache="gateway-name" onclick="saveGatewayName()">Speichern</button>
+        <button class="btn secondary btn-sm" id="gateway-name-btn" data-wache-hinweis="gateway-name-result" data-wache="gateway-name" onclick="saveGatewayName()">Speichern</button>
         <span id="gateway-name-result" style="font-size:12px;margin-left:8px"></span>
       </div>
     </div>
@@ -298,7 +298,7 @@ async function saveGatewayName() {
         <option value="send_to_all" {% if (s.GRAPH_MIXED_FORK_MODE or 'send_to_all') == 'send_to_all' %}selected{% endif %}>Vollständige Empfängerliste (Standard, empfohlen)</option>
         <option value="scoped" {% if s.GRAPH_MIXED_FORK_MODE == 'scoped' %}selected{% endif %}>Getrennte Zustellung</option>
       </select>
-      <button class="btn primary" id="mixed-fork-btn" data-wache="mixed-fork-select" onclick="saveMixedFork()">Speichern</button>
+      <button class="btn primary" id="mixed-fork-btn" data-wache-hinweis="mixed-fork-result" data-wache="mixed-fork-select" onclick="saveMixedFork()">Speichern</button>
       <span id="mixed-fork-result" style="font-size:12px;margin-left:4px"></span>
     </div>
     <p class="hint" style="margin-bottom:0">
@@ -344,7 +344,7 @@ async function saveMixedFork() {
                {% if s.GRAPH_SMTP_FALLBACK %}checked{% endif %}>
         Bei Graph-Fehlern über den SMTP-Smarthost zustellen
       </label>
-      <button class="btn primary" id="graph-fallback-btn" data-wache="graph-smtp-fallback"
+      <button class="btn primary" id="graph-fallback-btn" data-wache-hinweis="graph-fallback-result" data-wache="graph-smtp-fallback"
               onclick="saveGraphFallback()">Speichern</button>
       <span id="graph-fallback-result" style="font-size:12px;margin-left:4px"></span>
     </div>
@@ -388,7 +388,7 @@ async function saveGraphFallback() {
       </div>
     </div>
     <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:6px">
-      <button class="btn primary" id="exo-port-btn" data-wache="exo-port"
+      <button class="btn primary" id="exo-port-btn" data-wache-hinweis="exo-port-result" data-wache="exo-port"
               onclick="saveExoPort()">Speichern</button>
       <span id="exo-port-result" style="font-size:12px;margin-left:4px"></span>
     </div>
@@ -471,7 +471,7 @@ async function saveExoPort() {
       </div>
     </div>
     <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:6px">
-      <button class="btn primary" id="smtp-submit-btn"
+      <button class="btn primary" id="smtp-submit-btn" data-wache-hinweis="smtp-submit-result"
               data-wache="smtp-submit-host,smtp-submit-port,smtp-submit-clientid,smtp-submit-user"
               onclick="saveSmtpSubmit()">Speichern</button>
       <span id="smtp-submit-result" style="font-size:12px;margin-left:4px"></span>
@@ -525,7 +525,7 @@ async function saveSmtpSubmit() {
       <span class="hint" style="display:block;margin-bottom:4px">z.B. Monitoring/Jump-Host — eine pro Zeile oder komma-getrennt. Loopback ist immer erlaubt.</span>
       <textarea id="acl-extra" rows="3" style="width:100%;max-width:480px;font-family:monospace;font-size:12px">{{ (s.SMTP_ACL_EXTRA_CIDRS or [])|join('\n') }}</textarea>
       <div style="margin-top:6px">
-        <button class="btn secondary btn-sm" id="acl-extra-btn" data-wache="acl-extra" onclick="aclSaveExtra()">CIDRs speichern</button>
+        <button class="btn secondary btn-sm" id="acl-extra-btn" data-wache-hinweis="acl-extra-result" data-wache="acl-extra" onclick="aclSaveExtra()">CIDRs speichern</button>
         <span id="acl-extra-result" style="font-size:12px;margin-left:6px"></span>
       </div>
     </div>
@@ -735,7 +735,7 @@ document.addEventListener('DOMContentLoaded', acmeMethodLoad);
       </div>
     </div>
     <div class="actions" style="margin-top:8px">
-      <button class="btn secondary" id="logging-btn" data-wache="log-level,log-retention,log-timezone" onclick="saveLogging()">Speichern</button>
+      <button class="btn secondary" id="logging-btn" data-wache-hinweis="logging-result" data-wache="log-level,log-retention,log-timezone" onclick="saveLogging()">Speichern</button>
       <span id="logging-result" style="font-size:12px;margin-left:8px"></span>
     </div>
   </div>
@@ -762,7 +762,7 @@ document.addEventListener('DOMContentLoaded', acmeMethodLoad);
     </div>
     <p class="hint">Port 80 muss extern erreichbar sein (Firewall/NAT). Das Zertifikat wird unter <code>./certs/</code> gespeichert.</p>
     <div class="actions" style="margin-top:12px;flex-wrap:wrap;gap:8px">
-      <button class="btn secondary" id="le-btn" data-wache="le-domain,le-email" onclick="saveLetsEncrypt()">Domain &amp; E-Mail speichern</button>
+      <button class="btn secondary" id="le-btn" data-wache-hinweis="le-save-result" data-wache="le-domain,le-email" onclick="saveLetsEncrypt()">Domain &amp; E-Mail speichern</button>
       <span id="le-save-result" style="font-size:12px;align-self:center"></span>
       <button class="btn primary" id="le-btn" onclick="renewCert()" style="margin-left:16px">Zertifikat erneuern</button>
     </div>
