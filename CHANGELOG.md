@@ -5,6 +5,37 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.12 — 2026-08-25 — Einstellungszeilen: eine Regel statt Einzelfällen
+
+Die Einstellungsseiten hatten keinen einheitlichen Aufbau. Beschriftungen
+standen mal links in einer Spalte, mal am Kontrollkästchen, mal beides — und
+weil es keine Regel gab, entstand mit jeder Layoutkorrektur eine neue
+Abweichung an anderer Stelle.
+
+**Es gibt jetzt genau zwei Formen:**
+
+| Form | Aufbau |
+|---|---|
+| **Schalter** | `[x] Beschriftung [Zusatzfeld]` — nimmt die ganze Zeile |
+| **Feld** | `Beschriftung │ Eingabe` — feste Spalte links, Eingaben fluchten |
+
+`tools/zeilencheck.py` setzt das durch und läuft bei jedem Push mit.
+
+**Was sich sichtbar ändert:** 18 Kontrollkästchen hatten Beschriftungen, die zu
+lang für die 200-px-Spalte waren, und brachen auf drei bis vier Zeilen um —
+„Fallback bei Fehler", „Selbsterstellte Client-Signaturen entfernen" und andere.
+Sie stehen jetzt einzeilig.
+
+**Zehn Zeilen sagten dasselbe zweimal.** Links stand „Portal aktivieren", rechts
+ein Kästchen mit „Mails für Empfänger ohne Zertifikat im Portal bereitstellen".
+Solche Beschriftungen waren Überschriften, die sich als Zeile ausgaben; sie sind
+jetzt welche. Betroffen: Automatisch signieren, Portal aktivieren, Zugangscode,
+Zertifikat automatisch bestellen, Tagesbericht, Rein interne Mails, die beiden
+Betreff-Indikatoren sowie die beiden Benachrichtigungsgruppen.
+
+Zwei Stellen bauten die Beschriftungsspalte von Hand nach und wären bei der
+nächsten Änderung an der echten Spalte zurückgeblieben.
+
 ## v1.8.11 — 2026-08-25 — Eine Rückmeldung je Speichern-Knopf
 
 Nach dem Speichern erschienen **zwei** „gespeichert"-Hinweise nebeneinander,

@@ -59,6 +59,11 @@ jobs:
       - name: CSS-Klassen
         run: python tools/cssklassencheck.py
 
+      # Eine Einstellungszeile hat genau zwei zulaessige Formen. Ohne diese
+      # Pruefung entstand mit jeder Layoutkorrektur eine neue Abweichung.
+      - name: Aufbau der Einstellungszeilen
+        run: python tools/zeilencheck.py
+
       - name: JavaScript der Vorlagen
         run: python tools/jscheck.py
 

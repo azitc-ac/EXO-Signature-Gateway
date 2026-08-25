@@ -185,8 +185,10 @@
 
     <h3 style="margin-top:0;margin-bottom:10px">Tagesbericht</h3>
     <div class="settings-row">
-      <label>Tagesbericht aktivieren</label>
-      <input type="checkbox" id="daily-report-enabled" {% if s.DAILY_REPORT_ENABLED %}checked{% endif %}>
+      <label class="checkbox-label">
+        <input type="checkbox" id="daily-report-enabled" {% if s.DAILY_REPORT_ENABLED %}checked{% endif %}>
+        Tagesbericht aktivieren
+      </label>
     </div>
     <div class="settings-row">
       <label for="daily-report-time">Berichtszeitpunkt</label>
@@ -195,9 +197,9 @@
     </div>
 
     <h3>Sofort-Benachrichtigungen</h3>
+    <h3 style="font-size:14px;margin:0 0 8px">Welche Ereignisse sollen gemeldet werden?</h3>
     <div class="settings-row">
-      <label>Welche Ereignisse sollen gemeldet werden?</label>
-      <div class="settings-control">
+      <div class="settings-control" style="flex-basis:100%">
         <label class="checkbox-label">
           <input type="checkbox" id="notify-startup"
                  {% if s.NOTIFY_STARTUP is not false %}checked{% endif %}>
@@ -239,9 +241,9 @@
       </div>
     </div>
 
+    <h3 style="font-size:14px;margin:0 0 8px">Nachrichten an Postfachinhaber</h3>
     <div class="settings-row">
-      <label>Nachrichten an Postfachinhaber</label>
-      <div class="settings-control">
+      <div class="settings-control" style="flex-basis:100%">
         <label class="checkbox-label">
           <input type="checkbox" id="notify-user-cert"
                  {% if s.NOTIFY_USER_CERT is not false %}checked{% endif %}>

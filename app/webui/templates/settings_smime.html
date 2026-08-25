@@ -14,12 +14,12 @@
   <h3 style="margin-top:0;margin-bottom:12px">Betreff eingehender S/MIME-Mails anpassen</h3>
 
   <div class="settings-row">
-    <div style="display:flex;align-items:center;gap:8px;min-width:200px;flex-shrink:0;padding-top:4px">
+    <label class="checkbox-label" style="flex:0 0 200px">
       <input type="checkbox" id="smime-tag-enc-enabled"
         {% if s.SMIME_TAG_ENCRYPTED_ENABLED is not false %}checked{% endif %}
         onchange="toggleTagField('smime-tag-encrypted', this.checked); updateSubjectPreview()">
-      <label for="smime-tag-enc-enabled" style="font-weight:500;cursor:pointer;margin:0">Indikator: verschlüsselt</label>
-    </div>
+      Indikator: verschlüsselt
+    </label>
     <div class="settings-control">
       <input type="text" id="smime-tag-encrypted" value="{{ s.SMIME_TAG_ENCRYPTED }}"
         placeholder="verschlüsselt" style="width:200px"
@@ -30,12 +30,12 @@
   </div>
 
   <div class="settings-row">
-    <div style="display:flex;align-items:center;gap:8px;min-width:200px;flex-shrink:0;padding-top:4px">
+    <label class="checkbox-label" style="flex:0 0 200px">
       <input type="checkbox" id="smime-tag-sig-enabled"
         {% if s.SMIME_TAG_SIGNED_ENABLED is not false %}checked{% endif %}
         onchange="toggleTagField('smime-tag-signed', this.checked); updateSubjectPreview()">
-      <label for="smime-tag-sig-enabled" style="font-weight:500;cursor:pointer;margin:0">Indikator: signiert</label>
-    </div>
+      Indikator: signiert
+    </label>
     <div class="settings-control">
       <input type="text" id="smime-tag-signed" value="{{ s.SMIME_TAG_SIGNED }}"
         placeholder="signiert von {signer}" style="width:260px"
@@ -83,22 +83,20 @@
   </div>
 
   <div class="settings-row" style="margin-top:10px">
-    <label>Automatisch signieren</label>
-    <div class="settings-control">
-      <div style="display:flex;align-items:center;gap:8px">
-        <input type="checkbox" id="smime-signing-enabled"
+    <h3 style="margin:0 0 10px">Automatisch signieren</h3>
+    <label class="checkbox-label" style="flex-basis:100%">
+      <input type="checkbox" id="smime-signing-enabled"
           {% if s.SMIME_SIGNING_ENABLED is not false %}checked{% endif %}>
-        <label for="smime-signing-enabled" style="font-weight:500;cursor:pointer;margin:0">
-          Ausgehende Mails signieren, wenn ein Zertifikat vorliegt
-        </label>
-      </div>
+      Ausgehende Mails signieren, wenn ein Zertifikat vorliegt
+    </label>
+    <div class="settings-control" style="flex-basis:100%">
       <span class="hint">Standard: eingeschaltet. Deaktivieren stoppt die automatische Signierung für alle Nutzer.</span>
     </div>
   </div>
 
   <div class="settings-row" style="margin-top:10px">
-    <label>Zertifikat automatisch bestellen</label>
-    <div class="settings-control">
+    <h3 style="font-size:14px;margin:0 0 8px;flex-basis:100%">Zertifikat automatisch bestellen</h3>
+    <div class="settings-control" style="flex-basis:100%">
       {# ⚠️ KEIN flex-wrap. Mit Umbruch rutscht das Kästchen bei schmaler Anzeige
          oder grosser Schrift in eine eigene Zeile, und die Beschriftung steht
          darunter wie eine Überschrift — die Zugehörigkeit ist dann nicht mehr
@@ -266,15 +264,13 @@
     die Entschlüsselung erfolgt ausschließlich im Browser (Schlüssel im URL-Fragment, nie am Server).
   </p>
   <div class="settings-row">
-    <label>Portal aktivieren</label>
-    <div class="settings-control">
-      <div style="display:flex;align-items:center;gap:8px">
-        <input type="checkbox" id="portal-enabled"
+    <h3 style="margin:0 0 10px">Portal aktivieren</h3>
+    <label class="checkbox-label" style="flex-basis:100%">
+      <input type="checkbox" id="portal-enabled"
           {% if s.SECURE_PORTAL_ENABLED %}checked{% endif %}>
-        <label for="portal-enabled" style="font-weight:500;cursor:pointer;margin:0">
-          Mails für Empfänger ohne Zertifikat im Portal bereitstellen
-        </label>
-      </div>
+      Mails für Empfänger ohne Zertifikat im Portal bereitstellen
+    </label>
+    <div class="settings-control" style="flex-basis:100%">
       <span class="hint">Standard: aus — dann wird wie bisher ein Unzustellbarkeitsbericht an den Absender gesendet.</span>
     </div>
   </div>
@@ -290,15 +286,13 @@
   </div>
   <div data-adv="smime" style="display:none">
   <div class="settings-row" style="margin-top:10px">
-    <label>Zugangscode (OTP)</label>
-    <div class="settings-control">
-      <div style="display:flex;align-items:center;gap:8px">
-        <input type="checkbox" id="portal-otp"
+    <h3 style="margin:0 0 10px">Zugangscode (OTP)</h3>
+    <label class="checkbox-label" style="flex-basis:100%">
+      <input type="checkbox" id="portal-otp"
           {% if s.SECURE_PORTAL_OTP is not false %}checked{% endif %}>
-        <label for="portal-otp" style="font-weight:500;cursor:pointer;margin:0">
-          Beim Öffnen Zugangscode an das Empfänger-Postfach senden
-        </label>
-      </div>
+      Beim Öffnen Zugangscode an das Empfänger-Postfach senden
+    </label>
+    <div class="settings-control" style="flex-basis:100%">
       <span class="hint">Empfohlen (Standard: ein). Bindet das Lesen an aktuellen Postfachzugriff —
         weitergeleitete Links oder Browser-Historie genügen dann nicht. Gleiches Modell wie
         Microsoft Purview OME. Nach erfolgreicher Eingabe bleibt der Browser 24&nbsp;h freigeschaltet.</span>
