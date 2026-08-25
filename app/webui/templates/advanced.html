@@ -6,8 +6,14 @@
 {% include "_nav_einstellungen.html" %}
 
 <!-- ── Wartungsmodus ─────────────────────────────────────────────────────── -->
-<div class="settings-card" style="margin-bottom:20px" id="maintenance">
-  <h2>Wartungsmodus</h2>
+<div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px" id="maintenance">
+  <div class="step-header">
+    <span class="step-badge" style="background:#b45309;font-size:10px">Pause</span>
+    <span class="step-title">Wartungsmodus
+      <span style="font-weight:400;font-size:12px;color:#57534e"> — verarbeitet, aber nicht zugestellt</span>
+    </span>
+  </div>
+  <div class="step-body">
   <p style="font-size:13px;color:#57534e;margin:0 0 14px">
     Im Wartungsmodus werden eingehende Mails vollständig verarbeitet (Signatur, S/MIME),
     aber <strong>nicht an Exchange zugestellt</strong>. Die verarbeiteten Mails landen in der
@@ -33,11 +39,18 @@
       <p style="color:#a8a29e;font-size:13px">Keine zurückgehaltenen Mails.</p>
     </div>
   </div>
+  </div>
 </div>
 
 <!-- ── Lexware-Formatkorrektur ───────────────────────────────────────────── -->
-<div class="settings-card" style="margin-bottom:20px" id="lexware-fix">
-  <h2>Format von Lexware Nachrichten korrigieren</h2>
+<div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px" id="lexware-fix">
+  <div class="step-header">
+    <span class="step-badge" style="background:#0369a1;font-size:10px">Fix</span>
+    <span class="step-title">Format von Lexware Nachrichten korrigieren
+      <span style="font-weight:400;font-size:12px;color:#57534e"> — nur für Rechnungsmails aus Lexware</span>
+    </span>
+  </div>
+  <div class="step-body">
   <p style="font-size:13px;color:#57534e;margin:0 0 14px">
     Lexware-Rechnungsmails wickeln den Nachrichtentext in verschachtelte zentrierte
     Blöcke (erkennbar am internen <code>templateBody</code>-Marker), setzen dort
@@ -55,6 +68,7 @@
     Format korrigieren
     <span id="lexware-fix-result" style="font-weight:400;font-size:12px;margin-left:8px"></span>
   </label>
+  </div>
 </div>
 <script>
 function saveLexwareFix(enabled) {
@@ -243,8 +257,14 @@ function saveLexwareFix(enabled) {
 </script>
 
 <!-- ── Gateway-Name ─────────────────────────────────────────────────────── -->
-<div class="settings-card" style="margin-bottom:20px">
-  <h2>Gateway-Name</h2>
+<div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
+  <div class="step-header">
+    <span class="step-badge" style="background:#57534e;font-size:10px">Name</span>
+    <span class="step-title">Gateway-Name
+      <span style="font-weight:400;font-size:12px;color:#57534e"> — Präfix für die in Exchange angelegten Objekte</span>
+    </span>
+  </div>
+  <div class="step-body">
   <div class="settings-row">
     <label for="gateway-name">Gateway-Name</label>
     <div class="settings-control">
@@ -255,6 +275,7 @@ function saveLexwareFix(enabled) {
         <span id="gateway-name-result" style="font-size:12px;margin-left:8px"></span>
       </div>
     </div>
+  </div>
   </div>
 </div>
 <script>
