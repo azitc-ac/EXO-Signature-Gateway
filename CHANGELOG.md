@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.27 — 2026-08-26 — Aufräumen: verwaiste Docker-Images nach Update entfernen
+
+Rein betrieblich, keine Auswirkung auf die Bedienung. Der Update-Watcher baute
+bei jedem Update ein neues Image, ohne das alte zu entfernen. Über die Zeit
+sammelten sich rund 140 verwaiste Images an und füllten die SD-Karte des Servers
+(zuletzt 82 Prozent belegt). Nach einem erfolgreichen Update werden solche
+Dangling-Images jetzt automatisch entfernt — gelöscht werden ausschliesslich
+Images ohne Tag und ohne laufenden Container, ein Fehlschlag bricht das Update
+nicht ab.
+
 ## v1.8.26 — 2026-08-26 — Signaturen-Seite reagierte nach dem Laden nicht mehr
 
 **Zu tun:** aktualisieren. Wer v1.8.23 bis v1.8.25 einsetzt, sollte das
