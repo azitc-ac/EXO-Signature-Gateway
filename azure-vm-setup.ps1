@@ -40,11 +40,11 @@
 
 param(
     [string]$ResourceGroup  = "exo-gateway-rg",
-    [string]$Location       = "germanywestcentral",
+    [string]$Location       = "northeurope",
     [string]$VmName         = "exo-gateway",
     [string]$AdminUser      = "azureuser",
     [string]$VmSize         = "Standard_B2ps_v2",
-    [string]$VmImage        = "Debian:debian-12-arm64:12-arm64:latest",
+    [string]$VmImage        = "Debian:debian-12:12-arm64:latest",
     [string]$SshPublicKeyFile = "~/.ssh/id_rsa.pub",
     [string]$RepoUrl        = "https://github.com/azitc-ac/EXO-signature-service.git"
 )
@@ -71,7 +71,10 @@ function Invoke-Az([scriptblock]$cmd) {
     $result = $output | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] }
     if ($ec -ne 0) {
         if ($errors) { Write-Host ($errors -join "`n") -ForegroundColor Red }
-        throw "az-Aufruf fehlgeschlagen (ExitCode $ec)"
+        # Fehlertext mit in die Ausnahme geben, damit Aufrufer gezielt darauf
+        # reagieren können (z.B. SkuNotAvailable → Hinweis auf Ausweichregion).
+        $detail = if ($errors) { ": " + ($errors -join "; ") } else { "" }
+        throw "az-Aufruf fehlgeschlagen (ExitCode $ec)$detail"
     }
     $result
 }
@@ -128,55 +131,15 @@ $publicIp = Invoke-Az {
 }
 Write-Ok "Öffentliche IP: $publicIp"
 
-# ── VM anlegen ─────────────────────────────────────────────────────────────────
-Write-Step "VM '$VmName' anlegen ($VmSize, Debian 12 Bookworm)"
-Write-Info "Das dauert ca. 2–3 Minuten..."
-
-Invoke-Az {
-    az vm create `
-        --resource-group $ResourceGroup `
-        --name $VmName `
-        --image $VmImage `
-        --size $VmSize `
-        --admin-username $AdminUser `
-        --ssh-key-values $sshKeyContent `
-        --public-ip-address "$VmName-ip" `
-        --public-ip-sku Standard `
-        --os-disk-size-gb 32 `
-        --output none
-}
-Write-Ok "VM erstellt"
-
-# ── Netzwerk-Sicherheitsgruppe: Ports öffnen ──────────────────────────────────
-Write-Step "Firewall-Regeln setzen"
-
-$rules = @(
-    @{ name="SSH";   port=22;  prio=100; desc="SSH-Zugang (Verwaltung)" },
-    @{ name="HTTP";  port=80;  prio=110; desc="Let's Encrypt HTTP-01 + Setup-Wizard" },
-    @{ name="HTTPS"; port=443; prio=120; desc="Web-UI + Office Add-in" },
-    @{ name="SMTP";  port=25;  prio=130; desc="Exchange Online Outbound Connector" }
-)
-
-foreach ($r in $rules) {
-    Invoke-Az {
-        az network nsg rule create `
-            --resource-group $ResourceGroup `
-            --nsg-name "$VmName-NSG" `
-            --name $r.name `
-            --priority $r.prio `
-            --protocol Tcp `
-            --destination-port-ranges $r.port `
-            --access Allow `
-            --direction Inbound `
-            --description $r.desc `
-            --output none
-    }
-    Write-Ok "Port $($r.port) ($($r.name)) geöffnet"
-}
-
-# ── Docker + Gateway per cloud-init installieren ───────────────────────────────
-Write-Step "Docker + EXO Gateway auf VM installieren"
-Write-Info "cloud-init läuft nach dem ersten Boot im Hintergrund (~3–5 Min.)..."
+# ── cloud-init vorbereiten (Docker + Gateway) ─────────────────────────────────
+# Der folgende YAML-Block wird unten als --custom-data an "az vm create" übergeben
+# und läuft dadurch als echtes cloud-init beim ersten Boot der VM.
+#
+# NICHT über "az vm run-command invoke --command-id RunShellScript": das ist ein
+# Bash-Interpreter, kein cloud-init. Jede runcmd-Zeile "- <befehl>" liest Bash als
+# Aufruf des Programms "-" ("command not found: -"), sodass nichts installiert wird
+# — der Prozess meldet trotzdem Exit 0, also grün und real leer.
+Write-Step "cloud-init vorbereiten (Docker + EXO Gateway)"
 
 # Kein here-string: PS 5.x auf Windows hat Probleme mit @'...'@ bei LF-Zeilenenden.
 # Array + -join ist auf allen PS-Versionen und Zeilenendungen zuverlässig.
@@ -243,18 +206,91 @@ $cloudInit = @(
 
 $cloudInitFile = [System.IO.Path]::GetTempFileName()
 $cloudInit | Set-Content $cloudInitFile -Encoding UTF8
+Write-Ok "cloud-init-Datei vorbereitet"
 
+# ── Netzwerk-Sicherheitsgruppe explizit anlegen ───────────────────────────────
+# "az vm create" legt eine implizite NSG unter dem von Azure abgeleiteten Namen
+# "${VmName}NSG" an — OHNE Bindestrich. Die Regel-Erstellung sprach dagegen
+# "$VmName-NSG" an und starb mit ResourceNotFound. Deshalb die NSG hier mit einem
+# selbst gewählten Namen anlegen und exakt diesen Namen an "az vm create" wie an
+# die Regeln übergeben — nichts wird geraten.
+$nsgName = "$VmName-nsg"
+Write-Step "Netzwerk-Sicherheitsgruppe '$nsgName' anlegen"
 Invoke-Az {
-    az vm run-command invoke `
+    az network nsg create `
         --resource-group $ResourceGroup `
-        --name $VmName `
-        --command-id RunShellScript `
-        --scripts (Get-Content $cloudInitFile -Raw) `
+        --name $nsgName `
         --output none
 }
-Remove-Item $cloudInitFile
+Write-Ok "NSG bereit"
 
-Write-Ok "Installations-Skript gestartet"
+# ── VM anlegen ─────────────────────────────────────────────────────────────────
+Write-Step "VM '$VmName' anlegen ($VmSize, Debian 12 Bookworm)"
+Write-Info "Das dauert ca. 2–3 Minuten..."
+
+try {
+    Invoke-Az {
+        az vm create `
+            --resource-group $ResourceGroup `
+            --name $VmName `
+            --image $VmImage `
+            --size $VmSize `
+            --admin-username $AdminUser `
+            --ssh-key-values $sshKeyContent `
+            --public-ip-address "$VmName-ip" `
+            --public-ip-sku Standard `
+            --nsg $nsgName `
+            --os-disk-size-gb 32 `
+            --custom-data $cloudInitFile `
+            --output none
+    }
+}
+catch {
+    # Kapazitätssperre der gewählten Größe in dieser Region ist ein häufiger,
+    # betreiberseitig lösbarer Fall — nicht kommentarlos hart sterben, sondern
+    # den Ausweg nennen. Anlass: Standard_B2ps_v2 war in germanywestcentral
+    # zeitweise SkuNotAvailable, während dieselbe Größe in northeurope lief.
+    if ($_.Exception.Message -match 'SkuNotAvailable') {
+        Write-Host ""
+        Write-Host "    Die VM-Größe '$VmSize' ist in der Region '$Location' derzeit nicht verfügbar (SkuNotAvailable)." -ForegroundColor Yellow
+        Write-Host "    Ausweg: eine andere Region versuchen, z.B.  -Location westeurope  oder  -Location germanywestcentral" -ForegroundColor Yellow
+        Write-Host "    (arm64-Größen sind regional unterschiedlich kapazitätsgesperrt; eine andere Größe braucht ggf. ein Image der passenden Architektur über -VmImage.)" -ForegroundColor Yellow
+        Write-Host ""
+    }
+    Remove-Item $cloudInitFile -ErrorAction SilentlyContinue
+    throw
+}
+Write-Ok "VM erstellt"
+
+Remove-Item $cloudInitFile
+Write-Info "cloud-init läuft nach dem ersten Boot im Hintergrund (~3–5 Min.)..."
+
+# ── Netzwerk-Sicherheitsgruppe: Ports öffnen ──────────────────────────────────
+Write-Step "Firewall-Regeln setzen"
+
+$rules = @(
+    @{ name="SSH";   port=22;  prio=100; desc="SSH-Zugang (Verwaltung)" },
+    @{ name="HTTP";  port=80;  prio=110; desc="Let's Encrypt HTTP-01 + Setup-Wizard" },
+    @{ name="HTTPS"; port=443; prio=120; desc="Web-UI + Office Add-in" },
+    @{ name="SMTP";  port=25;  prio=130; desc="Exchange Online Outbound Connector" }
+)
+
+foreach ($r in $rules) {
+    Invoke-Az {
+        az network nsg rule create `
+            --resource-group $ResourceGroup `
+            --nsg-name $nsgName `
+            --name $r.name `
+            --priority $r.prio `
+            --protocol Tcp `
+            --destination-port-ranges $r.port `
+            --access Allow `
+            --direction Inbound `
+            --description $r.desc `
+            --output none
+    }
+    Write-Ok "Port $($r.port) ($($r.name)) geöffnet"
+}
 
 # ── Zusammenfassung ────────────────────────────────────────────────────────────
 Write-Host ""
