@@ -5,6 +5,40 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.28 — 2026-08-27 — VM-Einrichtungsskript: vier Fehler, die eine Neuinstallation verhinderten
+
+**Zu tun:** Wer mit einer früheren Fassung von `azure-vm-setup.ps1` eine neue
+Gateway-VM einrichten wollte und dabei keine laufende Installation erhielt,
+nutzt die neue Fassung. Bestehende, laufende Installationen sind nicht betroffen.
+
+Das Skript brachte einen frischen Ausrollvorgang nicht zu Ende. Vier voneinander
+unabhängige Ursachen sind behoben:
+
+- **Image-Kennung.** Die Vorgabe verwies auf einen Debian-Offer, den es nicht
+  gibt (`debian-12-arm64`). `arm64` ist die SKU unterhalb des Offers `debian-12`,
+  kein eigener Offer. Korrekt ist `Debian:debian-12:12-arm64:latest`; sonst
+  scheiterte schon das Anlegen der VM.
+
+- **Name der Netzwerk-Sicherheitsgruppe.** Die Firewall-Regeln wurden auf einer
+  NSG namens `<VM>-NSG` gesetzt, während `az vm create` die NSG ohne Bindestrich
+  als `<VM>NSG` anlegt. Die Regel-Erstellung fand die Gruppe nicht
+  (`ResourceNotFound`) und brach hart ab. Die NSG wird jetzt vorab unter einem
+  fest gewählten Namen angelegt; derselbe Name geht an die VM-Erstellung und an
+  die Regeln, statt ihn zu raten.
+
+- **Docker und Gateway wurden nicht installiert.** Der cloud-config-Block wurde
+  als Shell-Skript ausgeführt. Dort liest die Shell jede YAML-Listenzeile
+  `- <befehl>` als Aufruf eines Programms namens `-` — nichts wurde installiert
+  (kein Docker, kein Klonen, kein Container), der Vorgang meldete dennoch Erfolg.
+  Der Block ist gültiges cloud-init und wird jetzt über `--custom-data` beim
+  ersten Start der VM ausgeführt.
+
+- **Region und Größe.** Die Vorgabe-Region ist auf `northeurope` umgestellt, weil
+  die vorgegebene arm64-Größe in der bisherigen Vorgabe-Region zeitweise
+  kapazitätsgesperrt war. Ist die gewählte Größe in einer Region nicht verfügbar
+  (`SkuNotAvailable`), nennt das Skript jetzt den Ausweg — andere Region oder
+  Größe — statt kommentarlos abzubrechen.
+
 ## v1.8.27 — 2026-08-26 — Aufräumen: verwaiste Docker-Images nach Update entfernen
 
 Rein betrieblich, keine Auswirkung auf die Bedienung. Der Update-Watcher baute
