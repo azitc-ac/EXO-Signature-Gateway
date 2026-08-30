@@ -1,0 +1,2 @@
+Freundliche Grüße
+{{ user.displayName }}

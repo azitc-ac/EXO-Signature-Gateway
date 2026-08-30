@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "kind": "banner",
+  "global": {
+    "font_family": "Segoe UI, Calibri, Arial, sans-serif",
+    "font_size": "11pt",
+    "base_color": "#1f2937",
+    "muted_color": "#6b7280",
+    "link_color": "#0369a1"
+  },
+  "blocks": [
+    {
+      "id": "1",
+      "type": "spacer",
+      "height": 8
+    },
+    {
+      "id": "2",
+      "type": "freetext",
+      "html": "<div style=\"background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;font-size:11pt;color:#1e40af\">🚀 <strong>Neu im Contoso-Blog:</strong> Tipps rund um sichere E-Mail — <a href=\"https://www.contoso.com/blog\" style=\"color:#1e40af\">jetzt lesen</a>.</div>"
+    },
+    {
+      "id": "3",
+      "type": "spacer",
+      "height": 4
+    }
+  ]
+}

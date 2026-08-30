@@ -29,6 +29,7 @@ import time
 import httpx
 
 import graph_client
+import loop_detector
 import settings_store
 
 log = logging.getLogger(__name__)
@@ -576,7 +577,11 @@ def send_via_graph(mail_from: str, rcpt_tos: list[str], content_bytes: bytes) ->
     # Graph API only accepts headers starting with "x-" or "X-" in this list.
     # Standard headers like In-Reply-To / References are not supported here
     # and cause HTTP 400 InvalidInternetMessageHeader — simply omit them.
-    internet_headers = [{"name": "X-Sig-Applied", "value": "1"}]
+    #
+    # Der Name kommt aus LOOP_HEADER (nicht hartkodiert): Graph ist im
+    # IMAP+Graph/Azure-Modus der HAUPT-Rückweg, und ein fester Name hier ließe
+    # ihn gegenüber der EXO-Regel und dem SMTP-Weg auseinanderlaufen.
+    internet_headers = [{"name": loop_detector.header_name(), "value": "1"}]
 
     # Scope recipients to this transaction's actual SMTP envelope — see
     # _split_recipients_to_envelope() docstring for why this matters.

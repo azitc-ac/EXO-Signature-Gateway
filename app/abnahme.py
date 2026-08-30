@@ -50,22 +50,55 @@ def _punkt(name: str, zustand: str, befund: str = "", zu_tun: str = "",
             "zu_tun": zu_tun, "deckt_nicht": deckt_nicht}
 
 
+def _oeffentliche_ip() -> str | None:
+    """Öffentliche IP dieses Gateways, best effort über Azure IMDS."""
+    import azure_imds
+    return azure_imds.public_ip()
+
+
+def _dns_adressen(name: str) -> list[str]:
+    """Alle IPs, auf die ein Name auflöst — leere Liste, wenn er nicht auflöst."""
+    import socket
+    try:
+        infos = socket.getaddrinfo(name, None)
+    except OSError:
+        return []
+    return sorted({i[4][0] for i in infos})
+
+
 def _aussenadresse() -> dict:
     import aussenadresse
-    import settings_store
+    from urllib.parse import urlparse
     basis = aussenadresse.konfiguriert()
     if not basis:
         return _punkt(
-            "Von aussen erreichbar", OFFEN,
-            "Weder eine Aussenadresse noch ein öffentlicher Name ist hinterlegt.",
+            "Von außen erreichbar", OFFEN,
+            "Weder eine Außenadresse noch ein öffentlicher Name ist hinterlegt.",
             "Unter Einrichtung den öffentlichen Namen eintragen — sonst zeigen "
             "Anmelde-Rückadressen und Links in Mails ins Leere.")
-    domain = (settings_store.get("LE_DOMAIN") or "").strip()
+    host = urlparse(basis).hostname or basis
+    adressen = _dns_adressen(host)
+    if not adressen:
+        return _punkt(
+            "Von außen erreichbar", OFFEN,
+            f"{basis} — der Name löst nicht auf.",
+            f"Einen DNS-Eintrag für {host} auf die öffentliche IP dieses "
+            "Gateways setzen; sonst ist es von außen nicht erreichbar.")
+    eigene = _oeffentliche_ip()
+    if eigene and eigene in adressen:
+        return _punkt("Von außen erreichbar", OK,
+                      f"{host} → {eigene} (zeigt auf dieses Gateway)")
+    if eigene:
+        return _punkt(
+            "Von außen erreichbar", OFFEN,
+            f"{host} zeigt auf {', '.join(adressen)}, dieses Gateway hat aber "
+            f"{eigene}.",
+            "Den DNS-Eintrag auf die öffentliche IP dieses Gateways umstellen.")
+    # Eigene IP nicht ermittelbar (nicht-Azure): wenigstens die Auflösung zeigen.
     return _punkt(
-        "Von aussen erreichbar", OK, basis,
-        deckt_nicht="Ob der Name von aussen wirklich auf dieses Gateway zeigt, "
-                    "sieht man von hier nicht — das entscheidet das DNS."
-        if not domain else "")
+        "Von außen erreichbar", OK, f"{host} → {', '.join(adressen)}",
+        deckt_nicht="Ob diese Adresse zu genau diesem Gateway gehört, ist von "
+                    "hier nicht feststellbar (öffentliche IP nicht ermittelbar).")
 
 
 def _tls() -> dict:
@@ -107,15 +140,55 @@ def _anmeldung() -> dict:
         "bestehen, ist aber kein Dauerzustand.")
 
 
+def _token_rollen(token: str) -> set[str] | None:
+    """Die `roles`-Ansprüche (Anwendungsberechtigungen) aus einem JWT.
+
+    Ohne Signaturprüfung — es geht nur darum, WELCHE Rollen erteilt sind, nicht
+    um Vertrauen in das Token (das kommt direkt von MSAL). `None`, wenn das
+    Token nicht als JWT lesbar ist."""
+    import base64
+    import json
+    try:
+        payload = token.split(".")[1]
+        payload += "=" * (-len(payload) % 4)
+        data = json.loads(base64.urlsafe_b64decode(payload))
+    except Exception:                                          # noqa: BLE001
+        return None
+    roles = data.get("roles")
+    if not isinstance(roles, list):
+        return set()
+    return {str(r) for r in roles}
+
+
 def _exchange() -> dict:
     import graph_client
-    if not graph_client._acquire_token():
+    token = graph_client._acquire_token()
+    if not token:
         return _punkt("Exchange erreichbar", OFFEN, "Keine Graph-Zugangsdaten.",
                       "Einrichtung durchlaufen — ohne Graph kann das Gateway "
                       "weder lesen noch zustellen.")
-    return _punkt("Exchange erreichbar", OK, "Zugangsdaten vorhanden",
-                  deckt_nicht="Geprüft ist nur, dass ein Token ausgestellt "
-                              "wird — nicht jede einzelne Berechtigung.")
+    rollen = _token_rollen(token)
+    if rollen is None:
+        return _punkt("Exchange erreichbar", OK, "Zugangsdaten vorhanden",
+                      deckt_nicht="Die erteilten Berechtigungen ließen sich aus "
+                                  "dem Token nicht lesen.")
+    erwartet = {"Mail.Send", "User.Read.All"}
+    # Lesen und das Nachbessern der gesendeten Kopie deckt Mail.ReadWrite mit ab.
+    if "Mail.ReadWrite" not in rollen and "Mail.Read" not in rollen:
+        erwartet.add("Mail.ReadWrite")
+    fehlt = sorted(r for r in erwartet if r not in rollen)
+    if fehlt:
+        return _punkt(
+            "Exchange erreichbar", OFFEN,
+            f"Zugangsdaten vorhanden, aber Berechtigung fehlt: {', '.join(fehlt)}.",
+            "Im Entra Admin Center die Administratorzustimmung für die fehlenden "
+            "Anwendungsberechtigungen erteilen.")
+    return _punkt(
+        "Exchange erreichbar", OK,
+        f"Zugangsdaten und {len(rollen)} Berechtigung(en) vorhanden",
+        deckt_nicht="Geprüft sind die Graph-Berechtigungen im Token; "
+                    "Exchange-eigene Rollen (Exchange.ManageAsApp) stehen in "
+                    "einem separaten Token und sind hier nicht sichtbar.")
 
 
 def _postfaecher() -> dict:
@@ -138,15 +211,53 @@ def _rueckweg() -> dict:
     if modus == "smtp":
         ziel = (settings_store.get("EXO_SMARTHOST") or "").strip()
         if not ziel:
-            return _punkt("Rückweg an Exchange", OFFEN,
+            return _punkt("Post geht an Exchange zurück", OFFEN,
                           "Modus SMTP, aber kein Smarthost hinterlegt.",
                           "Einrichtung: Exchange-Connector anlegen.")
-        return _punkt("Rückweg an Exchange", OK, f"SMTP über {ziel}",
+        return _punkt("Post geht an Exchange zurück", OK,
+                      f"per SMTP-Smarthost ({ziel})",
                       deckt_nicht="Ob ausgehender Port 25 offen ist, zeigt erst "
                                   "die erste Zustellung.")
-    return _punkt("Rückweg an Exchange", OK, f"Modus {modus}",
+    if modus == "imap":
+        # IMAP ist nur der S/MIME-Inbound-Sonderfall; der eigentliche Rückweg
+        # an Exchange läuft auch hier über Graph (sendMail).
+        return _punkt(
+            "Post geht an Exchange zurück", OK,
+            "per Graph (sendMail); IMAP nur für eingehende S/MIME-Post",
+            deckt_nicht="Ob die nötigen Anwendungsberechtigungen vollständig "
+                        "erteilt sind, zeigt erst der Betrieb.")
+    return _punkt("Post geht an Exchange zurück", OK, "per Graph (sendMail)",
                   deckt_nicht="Ob die nötigen Anwendungsberechtigungen "
                               "vollständig erteilt sind, zeigt erst der Betrieb.")
+
+
+def _signaturvorlage() -> dict:
+    """Gibt es überhaupt eine Signaturvorlage mit Inhalt?
+
+    Ein *Signature* Gateway ohne Vorlage hängt eine LEERE Signatur an und meldet
+    trotzdem „verarbeitet". Ohne diesen Punkt wäre „bereit" für das Kernfeature
+    trügerisch."""
+    import os
+    import config
+    import signature_engine
+    vorhanden = []
+    for name in signature_engine.list_templates("signatur"):
+        html_datei, _ = signature_engine._resolve_template_names(name)
+        pfad = os.path.join(config.TEMPLATE_DIR, html_datei)
+        try:
+            if os.path.getsize(pfad) > 0:
+                vorhanden.append(name)
+        except OSError:
+            pass
+    if not vorhanden:
+        return _punkt(
+            "Signaturvorlage vorhanden", OFFEN,
+            "Keine Signaturvorlage mit Inhalt — jede Mail liefe mit LEERER "
+            "Signatur durch.",
+            "Unter „Signaturen“ eine Vorlage anlegen (der Baukasten bringt "
+            "Beispiele mit).")
+    return _punkt("Signaturvorlage vorhanden", OK,
+                  f"{len(vorhanden)} Vorlage(n): {', '.join(sorted(vorhanden))}"[:200])
 
 
 def _benachrichtigung() -> dict:
@@ -167,7 +278,7 @@ def _benachrichtigung() -> dict:
 
 
 PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _exchange,
-              _postfaecher, _rueckweg, _benachrichtigung)
+              _postfaecher, _signaturvorlage, _rueckweg, _benachrichtigung)
 
 
 def bericht() -> dict:

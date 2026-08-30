@@ -517,6 +517,7 @@ def run_smime_rules_setup(
     gateway_name = settings_store.get("GATEWAY_NAME") or "EXO Signature Gateway"
     if connector_name is None:
         connector_name = f"{gateway_name} - Outbound"
+    loop_header = (settings_store.get("LOOP_HEADER") or "X-Sig-Applied").strip() or "X-Sig-Applied"
 
     cmd = [
         "pwsh", "-NoProfile", "-NonInteractive", "-File", str(script),
@@ -525,6 +526,7 @@ def run_smime_rules_setup(
         "-CertPath", str(_AUTH_CERT_PATH),
         "-GatewayName", gateway_name,
         "-ConnectorName", connector_name,
+        "-LoopHeader", loop_header,
     ]
 
     try:
@@ -568,6 +570,7 @@ def run_exo_connector_setup(
         }
 
     gateway_name = settings_store.get("GATEWAY_NAME") or "EXO Signature Gateway"
+    loop_header = (settings_store.get("LOOP_HEADER") or "X-Sig-Applied").strip() or "X-Sig-Applied"
     cmd = [
         "pwsh", "-NoProfile", "-NonInteractive", "-File", str(script),
         "-AppId", app_id,
@@ -575,6 +578,7 @@ def run_exo_connector_setup(
         "-CertPath", str(_AUTH_CERT_PATH),
         "-SmtpProxyHostname", smtp_proxy_hostname,
         "-GatewayName", gateway_name,
+        "-LoopHeader", loop_header,
     ]
     if skip_inbound_connector:
         cmd.append("-SkipInboundConnector")

@@ -1,0 +1,100 @@
+{
+  "version": 1,
+  "global": {
+    "font_family": "Segoe UI, Calibri, Arial, sans-serif",
+    "font_size": "11pt",
+    "base_color": "#1f2937",
+    "muted_color": "#6b7280",
+    "link_color": "#0369a1"
+  },
+  "blocks": [
+    {
+      "id": "1",
+      "type": "greeting",
+      "text": "Mit freundlichen Grüßen"
+    },
+    {
+      "id": "2",
+      "type": "spacer",
+      "height": 8
+    },
+    {
+      "id": "3",
+      "type": "box",
+      "radius": 12,
+      "filled": true,
+      "fill_color": "#f8fafc",
+      "border_width": 1,
+      "border_color": "#e2e8f0",
+      "padding": 14,
+      "children": [
+        {
+          "id": "tc",
+          "type": "two_col",
+          "left": [
+            {
+              "id": "logo",
+              "type": "logo",
+              "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHAAAABwCAYAAADG4PRLAAABqElEQVR42u3dQW7DIBBA0blBLtor5mzptptIqeoKPn5Is4d5tmTDADMXtcfX8yU+j9mtQQEIECBAgAAFQIAAAQIEKAACBAgQIEABECBAgAABiosBJTP+IEgCQAFQAPwR7xrACNRvG8Ag2imYA64NOeDakAOuDTnw2ogDrg058NqIA6+NOPDaiAOvjTjw2ogDr40IEOA+eKU+JAF3TFgdMQt4p75tAVhIUBExB6ifCwBrSSn1NwNY/Fo+ArA8y1Ho+/aA9cn2WwOesFaZBjxl0XTncYy3rz0WgAABAozUYAIE2AE8sQp6xzEBBAgQIECAAAEC9BvhPxCgqTRTaQABArw9oAVdJRVKKryFipqUFSrsVdirtF5pvc0tdifZXmaD538mqIhni7Ut1g45WP217JiRMB5AgBBXzxY57C6M57jJOJ4DXw9Yr3Tkcnyt0qHn8XIP1w7Eyx1d/BGvVXX1ThQuA7gKspIX189F4bKA5dVzgH+EPXGsLkEGKAAKgLcFvKpJ5qLEAwQIECBAgAABAhQAAQIECBCgAAgQIECAAAVAgAABAtwT8BsEygNbpaW1QwAAAABJRU5ErkJggg==",
+              "width": 92,
+              "alt": "Contoso"
+            }
+          ],
+          "right": [
+            {
+              "id": "name",
+              "type": "name_field",
+              "bold": true,
+              "color": "base"
+            },
+            {
+              "id": "title",
+              "type": "field",
+              "field": "jobTitle",
+              "color": "muted"
+            },
+            {
+              "id": "firma",
+              "type": "field",
+              "field": "companyName",
+              "bold": true,
+              "color": "base"
+            },
+            {
+              "id": "div",
+              "type": "divider",
+              "color": "#e2e8f0",
+              "margin": 6
+            },
+            {
+              "id": "tel",
+              "type": "phone",
+              "field": "phone",
+              "prefix": "📞"
+            },
+            {
+              "id": "mob",
+              "type": "mobile",
+              "field": "mobilePhone",
+              "prefix": "📱"
+            },
+            {
+              "id": "mail",
+              "type": "email_link",
+              "prefix": "✉️"
+            },
+            {
+              "id": "web",
+              "type": "web_link",
+              "prefix": "🌐"
+            }
+          ],
+          "divider": false,
+          "gap": 16,
+          "left_valign": "middle",
+          "right_valign": "middle"
+        }
+      ]
+    }
+  ]
+}

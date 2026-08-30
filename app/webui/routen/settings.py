@@ -39,6 +39,35 @@ from webui.deps import (
 router = APIRouter()
 
 
+def _loop_header_konsequenzen(clean: dict) -> None:
+    """Ändert sich `LOOP_HEADER`, läuft die EXO-Transportregel hinterher.
+
+    Die Regeln prüfen den Header-Namen, den der letzte Setup-Lauf geschrieben
+    hat; ändert man das Setting, setzt das Gateway auf dem Graph-/SMTP-Weg zwar
+    den neuen Namen, die Regeln nehmen aber weiter den alten aus — Loop-Ausnahme
+    greift nicht mehr. Wir markieren die betroffenen Setup-Schritte deshalb als
+    offen (Connector UND S/MIME-Regeln, beide prüfen den Header), damit Wizard
+    und Abnahme zum Neu-Ausführen auffordern, statt Gateway und Regeln still
+    auseinanderlaufen zu lassen."""
+    if "LOOP_HEADER" not in clean:
+        return
+    neu = (clean.get("LOOP_HEADER") or "").strip() or "X-Sig-Applied"
+    alt = (settings_store.get("LOOP_HEADER") or "").strip() or "X-Sig-Applied"
+    if neu == alt:
+        return
+    offen = {}
+    if settings_store.get("EXO_CONNECTOR_CREATED"):
+        offen["EXO_CONNECTOR_CREATED"] = False
+    if settings_store.get("SMIME_RULES_CREATED"):
+        offen["SMIME_RULES_CREATED"] = False
+    if offen:
+        settings_store.update(offen)
+        log.warning(
+            "LOOP_HEADER %r→%r: %s auf offen gesetzt — die betroffenen "
+            "Transportregeln müssen neu geschrieben werden.",
+            alt, neu, ", ".join(sorted(offen)))
+
+
 @router.get("/api/settings/template-policies")
 async def api_get_template_policies(_=Depends(_require_admin)):
     return JSONResponse(settings_store.get("TEMPLATE_POLICIES") or {"sig": "default"})
@@ -99,6 +128,7 @@ async def api_settings_partial(request: Request, _: str = Depends(_require_admin
         log.warning("settings/partial: unbekannte Schlüssel verworfen: %s", unbekannt)
     if not clean:
         raise HTTPException(400, f"Keine bekannten Einstellungen: {unbekannt}")
+    _loop_header_konsequenzen(clean)
     settings_store.update(clean)
     return JSONResponse({"ok": True, "gespeichert": sorted(clean)})
 
@@ -222,6 +252,7 @@ async def settings_save(request: Request, user: str = Depends(_require_admin)):
     clean, unbekannt = settings_store.nur_bekannte(data)
     if unbekannt:
         log.warning("/settings: unbekannte Schlüssel verworfen: %s", unbekannt)
+    _loop_header_konsequenzen(clean)
     settings_store.update(clean)
     log.info("Settings updated by %s: %s", user, list(clean.keys()))
     return JSONResponse({"ok": True})

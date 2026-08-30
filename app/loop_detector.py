@@ -4,8 +4,17 @@ import settings_store
 _DEFAULT_HEADER = "X-Sig-Applied"
 
 
-def _header() -> str:
+def header_name() -> str:
+    """Der aktuell konfigurierte Loop-Header-Name (`LOOP_HEADER`).
+
+    Öffentlich, damit jeder Rückweg, der eine Mail zurück in den Transport gibt
+    (SMTP, Graph), denselben Namen setzt. Ein hartkodierter Name auf einem der
+    Wege lässt Gateway und EXO-Regel auseinanderlaufen."""
     return settings_store.get("LOOP_HEADER") or _DEFAULT_HEADER
+
+
+def _header() -> str:
+    return header_name()
 
 
 def is_signed(message: email.message.Message) -> bool:

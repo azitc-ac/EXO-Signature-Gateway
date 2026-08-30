@@ -85,3 +85,78 @@ def test_jede_pruefung_laeuft_ohne_einrichtung(fn):
     sie ja am dringendsten gebraucht."""
     p = fn()
     assert p["name"] and p["zustand"]
+
+
+# ── Signaturvorlage-Punkt ──────────────────────────────────────────────
+
+def test_signaturvorlage_offen_ohne_inhalt(monkeypatch, tmp_path):
+    """Nur eine leere Vorgabe-Datei → das Kernfeature liefe LEER → OFFEN."""
+    import config
+    import signature_engine
+    monkeypatch.setattr(config, "TEMPLATE_DIR", str(tmp_path))
+    (tmp_path / "signature.html").write_text("")     # leer, zählt nicht
+    monkeypatch.setattr(signature_engine, "list_templates",
+                        lambda art="signatur": ["default"])
+    p = abnahme._signaturvorlage()
+    assert p["zustand"] == abnahme.OFFEN
+    assert p["zu_tun"]
+
+
+def test_signaturvorlage_ok_mit_inhalt(monkeypatch, tmp_path):
+    import config
+    import signature_engine
+    monkeypatch.setattr(config, "TEMPLATE_DIR", str(tmp_path))
+    (tmp_path / "Kompakt.html").write_text("<p>Hallo</p>")
+    monkeypatch.setattr(signature_engine, "list_templates",
+                        lambda art="signatur": ["Kompakt"])
+    p = abnahme._signaturvorlage()
+    assert p["zustand"] == abnahme.OK
+
+
+# ── Rückweg-Wording ──────────────────────────────────────────────────
+
+def test_rueckweg_imap_nennt_graph_nicht_imap(monkeypatch):
+    """Im IMAP-Modus ist Graph der Hauptrückweg — »Modus imap« war irreführend."""
+    import settings_store
+    monkeypatch.setattr(settings_store, "get",
+                        lambda k, *a: "imap" if k == "REINJECT_MODE" else None)
+    p = abnahme._rueckweg()
+    assert "Graph" in p["befund"]
+    assert p["befund"] != "Modus imap"
+
+
+# ── Rechtschreibung außen ────────────────────────────────────────────
+
+def test_aussen_mit_scharfem_s():
+    import inspect
+    quelle = inspect.getsource(abnahme)
+    assert "Von aussen" not in quelle
+    assert "Aussenadresse" not in quelle
+
+
+# ── Exchange-Berechtigungen aus dem Token ────────────────────────────
+
+def _jwt_mit_rollen(rollen):
+    import base64
+    import json
+    payload = base64.urlsafe_b64encode(
+        json.dumps({"roles": rollen}).encode()).decode().rstrip("=")
+    return f"h.{payload}.s"
+
+
+def test_exchange_meldet_fehlende_berechtigung(monkeypatch):
+    import graph_client
+    monkeypatch.setattr(graph_client, "_acquire_token",
+                        lambda: _jwt_mit_rollen(["User.Read.All"]))
+    p = abnahme._exchange()
+    assert p["zustand"] == abnahme.OFFEN
+    assert "Mail.Send" in p["befund"]
+
+
+def test_exchange_ok_mit_allen_rollen(monkeypatch):
+    import graph_client
+    monkeypatch.setattr(
+        graph_client, "_acquire_token",
+        lambda: _jwt_mit_rollen(["User.Read.All", "Mail.Send", "Mail.ReadWrite"]))
+    p = abnahme._exchange()
+    assert p["zustand"] == abnahme.OK

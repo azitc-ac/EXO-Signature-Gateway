@@ -773,11 +773,11 @@ document.addEventListener('DOMContentLoaded', acmeMethodLoad);
     </div>
     <div class="settings-row">
       <label for="le-domain">Domain</label>
-      <input type="text" id="le-domain" value="{{ s.LE_DOMAIN }}" placeholder="mail.zarenko.net" autocapitalize="off" autocorrect="off" spellcheck="false">
+      <input type="text" id="le-domain" value="{{ s.LE_DOMAIN }}" placeholder="mail.contoso.com" autocapitalize="off" autocorrect="off" spellcheck="false">
     </div>
     <div class="settings-row">
       <label for="le-email">E-Mail (ACME)</label>
-      <input type="email" id="le-email" value="{{ s.LE_EMAIL }}" placeholder="admin@zarenko.net">
+      <input type="email" id="le-email" value="{{ s.LE_EMAIL }}" placeholder="admin@contoso.com">
     </div>
     <p class="hint">Port 80 muss extern erreichbar sein (Firewall/NAT). Das Zertifikat wird unter <code>./certs/</code> gespeichert.</p>
     <div class="actions" style="margin-top:12px;flex-wrap:wrap;gap:8px">
@@ -970,7 +970,7 @@ async function renewCert() {
     <p class="hint" style="margin-bottom:12px">Sendet eine Mail durch den lokalen SMTP-Handler inkl. Signatur-Injektion an EXO.</p>
     <div class="settings-row">
       <label for="test-from">Absender</label>
-      <input type="email" id="test-from" placeholder="user@zarenko.net">
+      <input type="email" id="test-from" placeholder="user@contoso.com">
     </div>
     <div class="settings-row">
       <label for="test-to">Empfänger</label>

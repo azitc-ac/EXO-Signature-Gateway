@@ -1,0 +1,10 @@
+Mit freundlichen Grüßen
+
+{{ user.displayName }}
+{% if user.jobTitle %}{{ user.jobTitle }}{% endif %}
+{% if user.companyName %}{{ user.companyName }}{% endif %}
+--
+{% if user.phone %}📞 {{ user.phone }}{% endif %}
+{% if user.mobilePhone %}📱 {{ user.mobilePhone }}{% endif %}
+{% if user.mail %}✉️ {{ user.mail }}{% endif %}
+{% if user.website %}🌐 {{ user.website }}{% endif %}

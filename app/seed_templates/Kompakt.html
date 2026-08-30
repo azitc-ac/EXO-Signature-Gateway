@@ -1,0 +1,13 @@
+<table cellpadding="0" cellspacing="0" border="0" style="font-family:Calibri, Arial, sans-serif;font-size:11pt;color:#1f2937;border-collapse:collapse">
+  <tr><td style="padding:0">Freundliche Grüße</td></tr>
+  <tr><td style="padding:0;height:8px;font-size:8px;line-height:8px">&nbsp;</td></tr>
+  <tr><td style="padding:0;font-weight:bold">{{ user.displayName }}</td></tr>
+  {% if user.jobTitle %}<tr><td style="padding:0;color:#6b7280">{{ user.jobTitle }}</td></tr>{% endif %}
+  {% if user.companyName %}<tr><td style="padding:0;color:#6b7280">{{ user.companyName }}</td></tr>{% endif %}
+  <tr><td style="padding:8px 0"><table cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td style="border-top:1px solid #e2e8f0;height:0;font-size:0"></td></tr></table></td></tr>
+  {% if user.phone %}<tr><td style="padding:0">Tel: <a href="tel:{{ user.phone }}" style="color:#1e40af;text-decoration:none">{{ user.phone }}</a></td></tr>{% endif %}
+  {% if user.mobilePhone %}<tr><td style="padding:0">Mobil: <a href="tel:{{ user.mobilePhone }}" style="color:#1e40af;text-decoration:none">{{ user.mobilePhone }}</a></td></tr>{% endif %}
+  <tr><td style="padding:0"><a href="mailto:{{ user.mail }}" style="color:#1e40af;text-decoration:none">{{ user.mail }}</a></td></tr>
+  {% if user.website %}<tr><td style="padding:0"><a href="{{ user.website }}" style="color:#1e40af;text-decoration:none">{{ user.website }}</a></td></tr>{% endif %}
+  {% if user.bookingsUrl %}<tr><td style="padding-top:4px"><a href="{{ user.bookingsUrl }}" style="color:#1e40af;text-decoration:none">Termin buchen</a></td></tr>{% endif %}
+</table>
