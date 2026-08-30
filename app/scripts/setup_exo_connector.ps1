@@ -23,6 +23,7 @@ param(
     [Parameter(Mandatory)][string]$CertPath,
     [Parameter(Mandatory)][string]$SmtpProxyHostname,
     [string]$GatewayName = "EXO Signature Gateway",
+    [string]$LoopHeader = "X-Sig-Applied",
     [switch]$SkipInboundConnector
 )
 
@@ -141,15 +142,18 @@ $ruleName = "Route via $GatewayName"
 $existingRule = Get-TransportRule -Identity $ruleName -ErrorAction SilentlyContinue
 
 if ($existingRule) {
-    Write-Warn "Transport Rule '$ruleName' exists — updating comment + Calendaring-Ausnahme"
-    Set-TransportRule -Identity $ruleName -Comments $managedBy -ExceptIfMessageTypeMatches Calendaring | Out-Null
-    Write-OK "Transport Rule comment + Calendaring-Ausnahme aktualisiert"
+    Write-Warn "Transport Rule '$ruleName' exists — updating comment + Loop-Header + Calendaring-Ausnahme"
+    Set-TransportRule -Identity $ruleName -Comments $managedBy `
+        -ExceptIfHeaderMatchesMessageHeader $LoopHeader `
+        -ExceptIfHeaderMatchesPatterns "1" `
+        -ExceptIfMessageTypeMatches Calendaring | Out-Null
+    Write-OK "Transport Rule comment + Loop-Header ($LoopHeader) + Calendaring-Ausnahme aktualisiert"
 } else {
     New-TransportRule `
         -Name $ruleName `
         -FromScope InOrganization `
         -SentToScope NotInOrganization `
-        -ExceptIfHeaderMatchesMessageHeader "X-Sig-Applied" `
+        -ExceptIfHeaderMatchesMessageHeader $LoopHeader `
         -ExceptIfHeaderMatchesPatterns "1" `
         -ExceptIfMessageTypeMatches Calendaring `
         -RouteMessageOutboundConnector $outConnectorId `
@@ -174,5 +178,5 @@ if ($SkipInboundConnector) {
     Write-Host "  $SmtpProxyHostname:25 → EXO Smarthost → [$inName] → Delivery"
 }
 Write-Host ""
-Write-Host "Loop prevention: header X-Sig-Applied: 1 (set by proxy before re-inject)"
+Write-Host "Loop prevention: header ${LoopHeader}: 1 (set by proxy before re-inject)"
 Write-Host "Forwarding: FromScope=InOrganization ensures only internally-composed mails are routed"

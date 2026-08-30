@@ -26,13 +26,13 @@
 
 {% if e.core_config_done and not e.setup_complete %}
 <div style="display:flex;align-items:flex-start;gap:14px;padding:14px 16px;margin-bottom:20px;
-            background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;color:#065f46">
-  <span style="font-size:18px;line-height:1.3;flex-shrink:0">✓</span>
+            background:#fffbeb;border:1px solid #fde68a;border-radius:8px;color:#92400e">
+  <span style="font-size:18px;line-height:1.3;flex-shrink:0">⚠</span>
   <div style="flex:1;min-width:0">
-    <strong>Die Einrichtung ist vollständig.</strong><br>
+    <strong>Einrichtung noch nicht abgeschlossen.</strong><br>
     <span style="font-size:13px;line-height:1.6">
-      Tenant, App-Registrierung und Zugangsdaten sind hinterlegt — das Gateway ist arbeitsfähig.
-      Solange die Einrichtung nicht abgeschlossen ist, führt „Übersicht“ weiterhin hierher zurück.
+      Die Basis steht (Tenant, App-Registrierung und Zugangsdaten) — bitte die übrigen
+      Schritte vervollständigen und dann abschließen.
     </span>
   </div>
   <button class="btn primary" onclick="markComplete()" style="flex-shrink:0;white-space:nowrap">
@@ -135,12 +135,12 @@
   </div>
   <div class="step-body">
     <p class="hint" style="margin-bottom:12px">
-      Der öffentliche DNS-Name dieses Servers (z.B. <code>mail.zarenko.net</code>).
+      Der öffentliche DNS-Name dieses Servers (z.B. <code>mail.contoso.com</code>).
       Er wird für Let's Encrypt, das TLS-Zertifikat und den EXO Outbound Connector verwendet.
     </p>
     <div class="settings-row">
       <label for="hostname">HTTP-Hostname</label>
-      <input type="text" id="hostname" value="{{ e.public_hostname }}" placeholder="mail.zarenko.net" style="width:300px" autocapitalize="off" autocorrect="off" spellcheck="false">
+      <input type="text" id="hostname" value="{{ e.public_hostname }}" placeholder="mail.contoso.com" style="width:300px" autocapitalize="off" autocorrect="off" spellcheck="false">
     </div>
     <div id="hostname-result" style="margin-top:8px;display:none"></div>
     <div class="actions" style="margin-top:12px">
@@ -169,7 +169,7 @@
     </p>
     <div class="settings-row">
       <label for="le-domain">Domain</label>
-      <input type="text" id="le-domain" value="{{ s.LE_DOMAIN or e.public_hostname }}" placeholder="mail.zarenko.net" style="width:280px" autocapitalize="off" autocorrect="off" spellcheck="false">
+      <input type="text" id="le-domain" value="{{ s.LE_DOMAIN or e.public_hostname }}" placeholder="mail.contoso.com" style="width:280px" autocapitalize="off" autocorrect="off" spellcheck="false">
     </div>
     <div class="settings-row">
       <label for="le-email">E-Mail (ACME)</label>
@@ -271,7 +271,7 @@
     <div style="border-top:1px solid #e2e8f0;padding-top:12px;margin-bottom:12px">
       <label style="display:flex;gap:8px;align-items:center;cursor:pointer">
         <input type="checkbox" id="smime-enabled-wizard"
-          {% if e.smime_rules_created or s.REINJECT_MODE in ('smtp','imap','smtp587') %}checked{% endif %}
+          {% if e.smime_rules_created %}checked{% endif %}
           onchange="updateModeSelection()">
         <span style="font-size:13px">
           <strong>S/MIME aktivieren</strong>
@@ -338,6 +338,43 @@
   </div>
 </div>
 
+<!-- ── Step 3.1: Gateway-Name (Präfix für EXO-Objekte) — vor dem Anlegen setzen -->
+<div class="wizard-step {% if e.azure_app_created %}done{% endif %}" id="step-gateway-name">
+  <div class="step-header">
+    <span class="step-badge">3.1</span>
+    <span class="step-title">Gateway-Name</span>
+    {% if e.azure_app_created %}
+    <span class="step-status done">{{ s.GATEWAY_NAME or 'EXO Signature Gateway' }}</span>
+    {% else %}
+    <span class="step-status pending">Vor dem Anlegen setzen</span>
+    {% endif %}
+  </div>
+  <div class="step-body">
+    <p class="hint" style="margin-bottom:12px">
+      Präfix für alle in Exchange angelegten Objekte (Outbound Connector, Transportregeln,
+      Verteilerlisten) und den Namen der App-Registrierung. <strong>Jetzt setzen</strong> —
+      eine spätere Änderung wirkt erst nach erneutem Ausführen des Assistenten.
+    </p>
+    {% if e.azure_app_created %}
+    <div class="alert success" style="margin-bottom:0">
+      Objekte wurden bereits unter <strong>{{ s.GATEWAY_NAME or 'EXO Signature Gateway' }}</strong> angelegt.
+      Eine Änderung greift erst nach erneutem Setup (unter „Erweitert").
+    </div>
+    {% else %}
+    <div class="settings-row">
+      <label for="wizard-gateway-name">Name</label>
+      <div class="settings-control">
+        <input type="text" id="wizard-gateway-name" value="{{ s.GATEWAY_NAME or 'EXO Signature Gateway' }}" style="width:320px" autocapitalize="off" autocorrect="off" spellcheck="false">
+      </div>
+    </div>
+    <div class="actions" style="margin-top:12px">
+      <button class="btn primary" id="wizard-gateway-name-btn" data-wache="wizard-gateway-name" data-wache-hinweis="wizard-gateway-name-result" onclick="saveWizardGatewayName()">Speichern</button>
+      <span id="wizard-gateway-name-result" style="font-size:12px;margin-left:8px"></span>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
 <!-- ── Step 3: Entra-Login ────────────────────────────────────────────────── -->
 <div class="wizard-step {% if e.azure_app_created %}done{% endif %}" id="step-3">
   <div class="step-header">
@@ -397,53 +434,12 @@
     {% endif %}
     {% else %}
 
-    <!-- Login-Flow — Voraussetzung ist eine Bootstrap-App mit der HTTPS-Redirect-URI (siehe Abschnitt unten) -->
-    <p class="hint" style="margin-bottom:10px">
-      Melde dich einmalig als Entra-Administrator an — Main-App und EXO-Konfiguration
-      werden danach <strong>automatisch</strong> eingerichtet.
-      <strong>Voraussetzung:</strong> eine Login-App (Bootstrap-App) mit genau dieser Redirect-URI:
-    </p>
-    <p style="margin:0 0 10px"><code style="font-size:12px;background:#f1f5f9;padding:3px 6px;border-radius:4px">{{ e.sso_redirect_uri }}</code></p>
-    <p class="hint" style="margin-bottom:10px">
-      Lege sie im Abschnitt <strong>„Bootstrap-App"</strong> unten an (oder trage die Client-ID
-      einer bestehenden ein), dann hier anmelden:
-    </p>
-    <ol style="margin:0 0 14px 16px;line-height:2;font-size:13px">
-      <li>Klicke auf <strong>„Jetzt anmelden"</strong> — Microsoft-Login öffnet sich in einem neuen Fenster.</li>
-      <li>Melde dich als Entra-Administrator an (MFA wird unterstützt).<br>
-          <small>Falls ein Consent-Dialog erscheint: <em>„Im Namen der Organisation zustimmen"</em> ankreuzen.</small></li>
-      <li>Das Fenster <strong>schließt sich automatisch</strong> und das Setup läuft weiter.</li>
-    </ol>
-    <div class="actions" style="margin-bottom:6px">
-      <button class="btn primary" id="btn-azure-login" onclick="startAzureLogin()">Jetzt anmelden &rarr;</button>
-    </div>
-    <p class="hint" style="margin:0 0 14px;font-size:12px;color:#888">
-      Login bricht mit <code>AADSTS50011</code> (Redirect-URI) ab?
-      <a href="#" onclick="startAzureLogin('btn-azure-login','paste-section',true);return false;">Per Localhost anmelden (Copy-Paste)</a>
-    </p>
-    <div id="paste-section" style="display:none">
-      <div class="settings-row">
-        <label for="auth-url-paste">URL aus der Adressleiste</label>
-        <input type="text" id="auth-url-paste"
-               placeholder="http://localhost:8080/auth/callback?code=…&state=…"
-               style="width:100%;font-family:monospace;font-size:12px" autocapitalize="off" autocorrect="off" spellcheck="false">
-      </div>
-      <div id="paste-result" style="margin-top:8px;display:none"></div>
-      <div class="actions" style="margin-top:10px">
-        <button class="btn primary" id="paste-btn" onclick="submitPastedUrl()">Setup fortsetzen</button>
-      </div>
-    </div>
-
-    <!-- Optionaler Fallback: eigene Bootstrap-App, falls der Standard-Login im Tenant gesperrt ist -->
-    <details open style="margin-top:18px">
-      <summary style="cursor:pointer;font-weight:600;font-size:13px;padding:4px 0">
-        {% if e.bootstrap_client_id %}
-        ✓ Eigene Bootstrap-App konfiguriert (<code>{{ e.bootstrap_client_id[:8] }}…</code>)
-        {% else %}
-        Bootstrap-App (Login-Registrierung) — Client-ID eintragen oder neu anlegen
-        {% endif %}
-      </summary>
-      <div style="margin-top:10px;font-size:13px">
+    <!-- Teilschritt 1: Bootstrap-App zuerst — der Login setzt sie voraus -->
+    <div style="margin-bottom:16px">
+      <p style="font-weight:600;font-size:13px;margin:0 0 8px">
+        1 · Bootstrap-App (Login-Registrierung){% if e.bootstrap_client_id %} <span style="color:#16a34a">✓ konfiguriert</span>{% endif %}
+      </p>
+      <div style="font-size:13px">
         <p class="hint" style="margin-bottom:10px">
           Für den Setup-Login wird eine eigene App-Registrierung benötigt (Microsoft-
           Public-Clients erlauben unsere Redirect-URI <code>/auth/callback</code> nicht).
@@ -454,25 +450,24 @@
           <li>Klicke <strong>„Neue Registrierung"</strong></li>
           <li>Name: z.B. <code>{{ s.GATEWAY_NAME or 'EXO Signature Gateway' }} Login</code></li>
           <li>Kontotyp: <em>Nur Konten in diesem Organisationsverzeichnis</em></li>
-          <li>Plattform <strong>„Mobile and desktop applications"</strong> hinzufügen → im Feld für
-            benutzerdefinierte Redirect-URIs <strong>exakt</strong>:
+          <li>Plattform <strong>„Mobile and desktop applications"</strong> hinzufügen → Redirect-URI <strong>exakt</strong>:
             <br><code style="font-size:12px;background:#f1f5f9;padding:2px 5px;border-radius:4px">{{ e.sso_redirect_uri }}</code>
-            <br><small style="color:#888">Genau diese URI (kein Port, kein Slash am Ende) — sonst AADSTS50011.</small>
-            <br><small style="color:#888">Gleich noch mit hinzufügen:
+            <br><small style="color:#888">Kein Port, kein Slash am Ende — sonst AADSTS50011. Gleich mit hinzufügen:
             <code>http://localhost:{{ e.webui_port }}/auth/callback</code> (Localhost-Notausgang).</small>
-            <br><small style="color:#b45309">
-            <strong>Nicht „Web"</strong>: verlangt für den Code-Austausch immer ein Client-Secret
-            (auch mit „Öffentliche Clientflows zulassen" aktiviert) → <code>AADSTS7000218</code>.
-            <strong>Nicht „SPA"</strong>: verlangt, dass der Token-Austausch selbst per Browser-CORS-Request
-            passiert — unser Token-Austausch läuft aber serverseitig → <code>AADSTS9002327</code>.
-            <strong>„Mobile and desktop applications"</strong> ist der einzige Plattformtyp, der PKCE ohne
-            Secret UND einen serverseitigen Token-Austausch ohne Origin-Zwang erlaubt — genau unser Fall.</small></li>
+            <details style="margin-top:4px">
+              <summary style="cursor:pointer;color:#0369a1;font-size:12px">Warum diese Plattform (nicht „Web"/„SPA")?</summary>
+              <small style="color:#b45309;display:block;margin-top:4px">
+                <strong>„Web"</strong> verlangt für den Code-Austausch immer ein Client-Secret
+                (auch mit aktivierten öffentlichen Clientflows) → <code>AADSTS7000218</code>.
+                <strong>„SPA"</strong> verlangt den Token-Austausch per Browser-CORS-Request —
+                unserer läuft serverseitig → <code>AADSTS9002327</code>.
+                „Mobile and desktop applications" erlaubt als einziger Typ PKCE ohne Secret UND
+                serverseitigen Austausch ohne Origin-Zwang.
+              </small>
+            </details></li>
           <li>Klicke <strong>Registrieren</strong></li>
-          <li>Unter <strong>„Authentifizierung"</strong> ganz unten: <strong>„Öffentliche Clientflows zulassen"
-            → Ja</strong> stellen und speichern.
-            <br><small style="color:#888">Muss explizit an sein — auch bei „Mobile and desktop applications"
-            wird es nicht automatisch gesetzt, nur beim Anlegen der Plattform impliziert die Portal-UI es nicht
-            zuverlässig.</small></li>
+          <li>Unter <strong>„Authentifizierung"</strong> ganz unten: <strong>„Öffentliche Clientflows zulassen" → Ja</strong> stellen und speichern.
+            <br><small style="color:#888">Muss explizit an sein — wird beim Anlegen der Plattform nicht zuverlässig automatisch gesetzt.</small></li>
           <li>Kopiere die <strong>Anwendungs-ID (Client-ID)</strong> und füge sie unten ein</li>
         </ol>
         <div class="settings-row">
@@ -488,7 +483,50 @@
     <span id="bootstrap-client-id-btn-hinweis" style="font-size:12px;margin-left:8px"></span>
         </div>
       </div>
-    </details>
+    </div>
+
+    <!-- Teilschritt 2: Anmelden — erst freigeschaltet, wenn die Bootstrap-Client-ID
+         gespeichert ist. Ohne sie fiele der Login auf Microsofts Graph-CLI-App
+         zurück → AADSTS50011. -->
+    <div style="border-top:1px solid #e2e8f0;padding-top:14px">
+      <p style="font-weight:600;font-size:13px;margin:0 0 8px">2 · Als Entra-Administrator anmelden</p>
+      {% if not e.bootstrap_client_id %}
+      <div class="alert warn" style="margin-bottom:0">
+        Erst die Bootstrap-App oben konfigurieren (Client-ID speichern) — dann wird die Anmeldung freigeschaltet.
+      </div>
+      {% else %}
+      <p class="hint" style="margin-bottom:10px">
+        Melde dich einmalig als Entra-Administrator an — Main-App und EXO-Konfiguration
+        werden danach <strong>automatisch</strong> eingerichtet. Redirect-URI der Bootstrap-App:
+      </p>
+      <p style="margin:0 0 10px"><code style="font-size:12px;background:#f1f5f9;padding:3px 6px;border-radius:4px">{{ e.sso_redirect_uri }}</code></p>
+      <ol style="margin:0 0 14px 16px;line-height:2;font-size:13px">
+        <li>Klicke auf <strong>„Jetzt anmelden"</strong> — Microsoft-Login öffnet sich in einem neuen Fenster.</li>
+        <li>Melde dich als Entra-Administrator an (MFA wird unterstützt).<br>
+            <small>Falls ein Consent-Dialog erscheint: <em>„Im Namen der Organisation zustimmen"</em> ankreuzen.</small></li>
+        <li>Das Fenster <strong>schließt sich automatisch</strong> und das Setup läuft weiter.</li>
+      </ol>
+      <div class="actions" style="margin-bottom:6px">
+        <button class="btn primary" id="btn-azure-login" onclick="startAzureLogin()">Jetzt anmelden &rarr;</button>
+      </div>
+      <p class="hint" style="margin:0 0 14px;font-size:12px;color:#888">
+        Login bricht mit <code>AADSTS50011</code> (Redirect-URI) ab?
+        <a href="#" onclick="startAzureLogin('btn-azure-login','paste-section',true);return false;">Per Localhost anmelden (Copy-Paste)</a>
+      </p>
+      <div id="paste-section" style="display:none">
+        <div class="settings-row">
+          <label for="auth-url-paste">URL aus der Adressleiste</label>
+          <input type="text" id="auth-url-paste"
+                 placeholder="http://localhost:{{ e.webui_port }}/auth/callback?code=…&state=…"
+                 style="width:100%;font-family:monospace;font-size:12px" autocapitalize="off" autocorrect="off" spellcheck="false">
+        </div>
+        <div id="paste-result" style="margin-top:8px;display:none"></div>
+        <div class="actions" style="margin-top:10px">
+          <button class="btn primary" id="paste-btn" onclick="submitPastedUrl()">Setup fortsetzen</button>
+        </div>
+      </div>
+      {% endif %}
+    </div>
     {% endif %}
   </div>
 </div>
@@ -525,10 +563,6 @@
       hochgeladen.
     </div>
     {% endif %}
-    <div style="margin-top:10px;padding:10px 14px;background:#f8f7f6;border-radius:6px;opacity:.5;font-size:12px;color:#64748b">
-      <strong>Geplant:</strong> Aufteilung in zwei Apps nach Least-Privilege-Prinzip —
-      App A (Laufzeit, kein <code>Exchange.ManageAsApp</code>) · App B (Setup-Wizard only).
-    </div>
     {% else %}
     <p class="hint">Erstellt nach erfolgreichem Entra-Login (Schritt 4).</p>
     {% endif %}
@@ -618,9 +652,6 @@
       der Schlüssel verlässt Azure nie.
       Empfohlen für Cloud-Deployments; lokal-only (z.&nbsp;B. Raspberry&nbsp;Pi) kann diesen Schritt überspringen.
     </p>
-    <p class="hint" style="margin-bottom:14px">
-      Kosten: ca.&nbsp;0,13&nbsp;€/Monat bei 43.000 Signaturen. Standard-Tier reicht aus.
-    </p>
 
     {% if not e.azure_app_created %}
     <div class="alert warn" style="margin-bottom:12px">Erst Schritt 5 (Entra App-Registrierung) abschließen.</div>
@@ -663,7 +694,7 @@
             Falls der Login-Tab eine Fehlerseite zeigt: URL aus der Adressleiste kopieren und hier einfügen.
           </p>
           <input type="text" id="kv-arm-paste-url"
-            placeholder="https://sig.zarenko.net/auth/callback?code=…"
+            placeholder="https://sig.contoso.com/auth/callback?code=…"
             style="width:100%;box-sizing:border-box;font-family:monospace;font-size:11px;margin-bottom:6px" autocapitalize="off" autocorrect="off" spellcheck="false">
           <button type="button" class="btn primary" style="font-size:12px;padding:4px 10px"
             onclick="submitArmPaste()">Verbinden</button>
@@ -706,38 +737,50 @@
         <div class="settings-row" style="margin-bottom:10px">
           <label>Resource Group</label>
           <div>
-            <select id="kv-rg-sel" style="width:280px" onchange="onKvRgChange()" disabled>
+            <select id="kv-rg-sel" style="width:280px" onchange="onKvRgChange()" disabled
+                    data-vm-rg="{{ e.vm_resource_group }}">
               <option value="">— Lade… —</option>
             </select>
             <input type="text" id="kv-rg-manual"
-              placeholder="vorhandene-resource-group"
+              placeholder="{{ e.vm_resource_group or 'vorhandene-resource-group' }}"
               style="display:none;margin-top:6px;width:260px" autocapitalize="off" autocorrect="off" spellcheck="false">
             <div id="kv-new-rg-row" style="display:none;margin-top:6px">
               <span style="font-size:12px;color:#6b7280">Name der neuen Resource Group:</span>
-              <input type="text" id="kv-new-rg-name" value="rg-exo-signature" style="margin-left:8px;width:220px" autocapitalize="off" autocorrect="off" spellcheck="false">
+              <input type="text" id="kv-new-rg-name" value="{{ e.vm_resource_group or 'rg-exo-signature' }}" style="margin-left:8px;width:220px" autocapitalize="off" autocorrect="off" spellcheck="false">
             </div>
+            {% if e.vm_resource_group %}
+            <span class="hint" style="display:block;margin-top:4px">Vorbelegt mit der Ressourcengruppe der VM (<code>{{ e.vm_resource_group }}</code>).</span>
+            {% endif %}
           </div>
         </div>
 
         <div class="settings-row" style="margin-bottom:10px">
           <label for="kv-vault-name">Vault-Name</label>
           <div>
-            <input type="text" id="kv-vault-name" placeholder="exo-sig-keys" style="width:220px" autocapitalize="off" autocorrect="off" spellcheck="false">
-            <span class="hint" style="display:block;margin-top:3px">3–24 Zeichen, alphanumerisch und Bindestrich</span>
+            <input type="text" id="kv-vault-name" placeholder="exo-sig-keys" style="width:220px"
+                   data-gateway-name="{{ s.GATEWAY_NAME or 'Contoso' }}" autocapitalize="off" autocorrect="off" spellcheck="false">
+            <span class="hint" style="display:block;margin-top:3px">Global eindeutig über ganz Azure — 3–24 Zeichen, alphanumerisch und Bindestrich</span>
           </div>
         </div>
 
         <div class="settings-row" style="margin-bottom:12px">
           <label for="kv-location">Region</label>
+          {% set _regionen = ['germanywestcentral','westeurope','northeurope','switzerlandnorth','uksouth','eastus','westus2'] %}
           <select id="kv-location" style="width:240px">
-            <option value="germanywestcentral">Deutschland West Mitte</option>
-            <option value="westeurope" selected>Westeuropa (Niederlande)</option>
-            <option value="northeurope">Nordeuropa (Irland)</option>
-            <option value="switzerlandnorth">Schweiz Nord</option>
-            <option value="uksouth">UK Süd</option>
-            <option value="eastus">USA Ost</option>
-            <option value="westus2">USA West 2</option>
+            {% if e.vm_location and e.vm_location not in _regionen %}
+            <option value="{{ e.vm_location }}" selected>{{ e.vm_location }} (Region der VM)</option>
+            {% endif %}
+            <option value="germanywestcentral" {% if e.vm_location == 'germanywestcentral' %}selected{% endif %}>Deutschland West Mitte</option>
+            <option value="westeurope" {% if e.vm_location == 'westeurope' or not e.vm_location %}selected{% endif %}>Westeuropa (Niederlande)</option>
+            <option value="northeurope" {% if e.vm_location == 'northeurope' %}selected{% endif %}>Nordeuropa (Irland)</option>
+            <option value="switzerlandnorth" {% if e.vm_location == 'switzerlandnorth' %}selected{% endif %}>Schweiz Nord</option>
+            <option value="uksouth" {% if e.vm_location == 'uksouth' %}selected{% endif %}>UK Süd</option>
+            <option value="eastus" {% if e.vm_location == 'eastus' %}selected{% endif %}>USA Ost</option>
+            <option value="westus2" {% if e.vm_location == 'westus2' %}selected{% endif %}>USA West 2</option>
           </select>
+          {% if e.vm_location %}
+          <span class="hint" style="display:block;margin-top:3px">Vorbelegt mit der Region der VM (<code>{{ e.vm_location }}</code>).</span>
+          {% endif %}
         </div>
       </div>
 
@@ -817,9 +860,8 @@
         {% if s.REINJECT_MODE == 'smtp' %}
         <li><strong>Inbound Connector</strong> ← <code>{{ e.public_hostname or "hostname" }}</code> (Gateway → EXO, TLS required)</li>
         {% endif %}
-        <li><strong>Transport Rule</strong>: alle ausgehenden Mails via Gateway, außer <code>X-Sig-Applied: 1</code></li>
+        <li><strong>Transport Rule</strong>: alle ausgehenden Mails via Gateway, außer <code>{{ s.LOOP_HEADER or 'X-Sig-Applied' }}: 1</code></li>
       </ul>
-      <span style="color:#16a34a">EXO re-signiert mit DKIM nach der Signatur-Injektion — maximale Zustellbarkeit.</span>
     </p>
     {% if not e.azure_app_created %}
     <div class="alert warn" style="margin-bottom:0">Erst Schritt 3 (Entra-Login) abschließen.</div>
@@ -997,7 +1039,7 @@
 <div class="wizard-step {% if e.setup_complete %}done{% endif %}" id="step-10">
   <div class="step-header">
     <span class="step-badge">7</span>
-    <span class="step-title">Verbindungstest</span>
+    <span class="step-title">Verbindungstest &amp; Abnahme</span>
     {% if e.setup_complete %}
     <span class="step-status done">Setup abgeschlossen</span>
     {% else %}
@@ -1010,7 +1052,7 @@
     </p>
     <div class="settings-row">
       <label for="test-from">Absender (interner Benutzer)</label>
-      <input type="email" id="test-from" placeholder="user@zarenko.net" style="width:280px">
+      <input type="email" id="test-from" placeholder="user@contoso.com" style="width:280px">
     </div>
     <div class="settings-row">
       <label for="test-to">Empfänger (extern)</label>
@@ -1018,32 +1060,34 @@
     </div>
     <div id="test-result" style="margin-top:8px;display:none"></div>
 
+    <div class="actions" style="margin-top:12px">
+      <button class="btn primary" onclick="sendTestMail()">Test-Mail senden</button>
+    </div>
+
     {# Abnahme: die Anlage als Ganzes, nicht die Einzelschritte darueber.
        Wer alle Haekchen im Assistenten hat, weiss damit noch nicht, ob Post
-       durchlaeuft — deshalb eine eigene Sicht entlang der Zusagen. #}
-    <div style="margin-top:16px;padding-top:14px;border-top:1px solid #f0f0f0">
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <strong style="font-size:13px;flex:1;min-width:200px">Abnahme</strong>
-        <button class="btn secondary btn-sm" id="abnahme-btn" onclick="abnahmePruefen()">
-          Betriebsbereitschaft prüfen</button>
+       durchlaeuft — deshalb eine eigene Sicht entlang der Zusagen. Eigene
+       Karte, damit sie nicht unter dem Test-Mail-Block gequetscht wirkt. #}
+    <div style="margin-top:18px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+        <strong style="font-size:14px;flex:1;min-width:200px">Abnahme — Betriebsbereitschaft</strong>
         <span id="abnahme-kurz" style="font-size:12px"></span>
       </div>
-      <p class="hint" style="margin:6px 0 0">
+      <p class="hint" style="margin:0 0 10px">
         Geht jeden Punkt durch, den ein laufendes Gateway erfüllen muss —
-        Erreichbarkeit, Anmeldung, Exchange, aktivierte Postfächer, Rückweg,
-        Benachrichtigung. Jeder Punkt sagt dazu, was er <em>nicht</em> abdeckt.
+        Erreichbarkeit, Anmeldung, Exchange, Signaturvorlage, aktivierte
+        Postfächer, Rückweg, Benachrichtigung.
       </p>
+      <button class="btn secondary" id="abnahme-btn" onclick="abnahmePruefen()">
+        Betriebsbereitschaft prüfen</button>
       <div id="abnahme-liste" style="display:none;margin-top:10px;font-size:12px"></div>
     </div>
 
-    <div class="actions" style="margin-top:12px">
-      <button class="btn primary" onclick="sendTestMail()">Test-Mail senden</button>
-      {% if not e.setup_complete %}
+    {% if not e.setup_complete %}
+    <div class="actions" style="margin-top:14px">
       <button class="btn secondary" onclick="markComplete()">Setup als abgeschlossen markieren</button>
-      {% else %}
-      <a href="/" class="btn secondary">Zur Übersicht</a>
-      {% endif %}
     </div>
+    {% endif %}
   </div>
 </div>
 
@@ -1228,11 +1272,22 @@ async function sendTestMail() {
   });
 
   if (resp.ok) {
-    showAlert(result, 'success', 'Test-Mail gesendet &rarr; ' + to_email + '. Bitte Posteingang prüfen.');
+    // „Angenommen" ist nicht „zugestellt": Die Test-Mail wird nur an den
+    // Gateway-Listener übergeben; die eigentliche Zustellung läuft danach
+    // asynchron über Exchange und kann noch scheitern.
+    showAlert(result, 'success', 'Test-Mail an das Gateway übergeben &rarr; ' + to_email +
+      '. Das bestätigt noch keine Zustellung — ob sie ankommt, zeigt der Posteingang bzw. die ' +
+      'Exchange-Nachrichtenverfolgung (Message Trace).');
   } else {
     const d = await resp.json().catch(() => ({}));
     showAlert(result, 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));
   }
+}
+
+async function saveWizardGatewayName() {
+  const val = (document.getElementById('wizard-gateway-name').value || '').trim() || 'EXO Signature Gateway';
+  wacheFertig('wizard-gateway-name-btn',
+              await savePartial({GATEWAY_NAME: val}, 'wizard-gateway-name-result', 'setup:gatewayName'));
 }
 
 async function saveBootstrapClientId() {
@@ -1798,10 +1853,22 @@ async function submitArmPaste() {
   }
 }
 
+// Vault-Namen sind global über ganz Azure eindeutig — ein generisches
+// „exo-sig-keys" ist wahrscheinlich vergeben. Vorschlag um den Gateway-/
+// Firmennamen ergänzen, auf die 24-Zeichen-Grenze gekürzt.
+function _kvVaultNameVorschlag() {
+  const el = document.getElementById('kv-vault-name');
+  if (!el || el.value) return;
+  const gw = (el.dataset.gatewayName || 'Contoso');
+  const slug = gw.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  if (slug) el.placeholder = ('exo-sig-keys-' + slug).slice(0, 24);
+}
+
 function toggleKvCreate() {
   const checked = document.getElementById('kv-create-toggle').checked;
   document.getElementById('kv-manual-section').style.display = checked ? 'none' : 'block';
   document.getElementById('kv-create-section').style.display = checked ? 'block' : 'none';
+  if (checked) _kvVaultNameVorschlag();
   if (checked && !_kvSubsLoaded) {
     loadKvSubscriptions();
   }
@@ -1956,6 +2023,13 @@ async function loadKvResourceGroups(subscriptionId) {
     otherOpt.value = '__other__'; otherOpt.textContent = '…andere';
     sel.appendChild(otherOpt);
     sel.disabled = false;
+    // Vorauswahl: die Ressourcengruppe der VM, wenn sie in der Liste steht.
+    const vmRg = sel.dataset.vmRg;
+    if (vmRg) {
+      for (var j = 0; j < sel.options.length; j++) {
+        if (sel.options[j].value === vmRg) { sel.selectedIndex = j; break; }
+      }
+    }
     onKvRgChange();
   } catch(e) {
     ursache(e, 'setup:1872');
@@ -2248,10 +2322,11 @@ async function saveKeyvault() {
   </div>
   <div class="step-body">
     <p style="font-size:13px;color:#555;margin-bottom:12px;line-height:1.6">
-      Der Update-Watcher ist ein systemd-Service auf dem Host, der Aktualisierungen
+      Der Update-Watcher ist ein systemd-Dienst auf dem Host, der Aktualisierungen
       aus dem Web UI (<em>Erweitert → Gateway aktualisieren</em>) entgegennimmt.
-      Er wird bei einer Neuinstallation via <code>azure-vm-setup.ps1</code>
-      automatisch eingerichtet.<br>
+      Bei einer Azure-Neuinstallation (<code>azure-vm-setup.ps1</code>) wird er
+      automatisch eingerichtet; auf anderen Wegen (Raspberry&nbsp;Pi, on-prem,
+      reines <code>docker compose</code>) einmalig mit dem Installer unten.<br>
       {% if e.watcher_ok %}
       <span style="color:#16a34a;font-weight:600">● Service läuft und schreibt Heartbeat.</span>
       {% else %}
@@ -2262,11 +2337,20 @@ async function saveKeyvault() {
     {% if not e.watcher_ok %}
     <details open style="margin-bottom:12px">
       <summary style="font-size:13px;font-weight:600;color:#0369a1;cursor:pointer;user-select:none;margin-bottom:10px">
-        Einrichtung per SSH (einmalig)
+        Einrichtung auf dem Host (einmalig)
       </summary>
 
       <p style="font-size:12px;color:#555;margin-bottom:8px;line-height:1.5">
-        Verbinde dich per SSH mit der Azure-VM und führe den folgenden Block einmalig aus:
+        Am einfachsten per SSH auf dem Host, aus dem Gateway-Verzeichnis:
+      </p>
+      <div style="position:relative">
+        <button type="button" class="copy-btn" data-copy-target="watcher-installer" title="Kopieren"
+                style="position:absolute;top:10px;right:10px;background:#1e293b;color:#e2e8f0"></button>
+        <pre style="background:#0f172a;color:#e2e8f0;border-radius:8px;padding:14px 16px;font-size:11px;line-height:1.7;overflow-x:auto;white-space:pre;margin-bottom:10px"><code id="watcher-installer">sudo bash install-update-watcher.sh</code></pre>
+      </div>
+
+      <p style="font-size:12px;color:#555;margin-bottom:8px;line-height:1.5">
+        Oder den systemd-Dienst von Hand anlegen (führt dasselbe aus):
       </p>
       <div style="position:relative">
         <button type="button" class="copy-btn" data-copy-target="ssh-updater-script" title="Ganzen Block kopieren"
@@ -2343,7 +2427,7 @@ sudo systemctl status exo-gateway-updater --no-pager</code></pre>
           <span style="font-size:11.5px;color:#b45309">⚠️ {{ addin_url_warning }}</span>
           <div style="display:flex;flex-direction:column;gap:4px;margin-top:2px">
             <input type="url" id="addin-base-url" value="{{ s.ADDIN_BASE_URL or '' }}"
-                   placeholder="https://sig.zarenko.net"
+                   placeholder="https://sig.contoso.com"
                    style="width:300px">
             <span class="hint">Öffentliche externe HTTPS-URL eintragen um die erkannte URL zu überschreiben</span>
             <div style="display:flex;align-items:center;gap:8px">
@@ -2364,7 +2448,7 @@ sudo systemctl status exo-gateway-updater --no-pager</code></pre>
             <summary style="font-size:11px;color:#94a3b8;cursor:pointer">URL manuell überschreiben</summary>
             <div style="display:flex;flex-direction:column;gap:4px;margin-top:6px">
               <input type="url" id="addin-base-url" value="{{ s.ADDIN_BASE_URL or '' }}"
-                     placeholder="https://sig.zarenko.net  (leer = automatisch)"
+                     placeholder="https://sig.contoso.com  (leer = automatisch)"
                      style="width:300px">
               <div style="display:flex;align-items:center;gap:8px">
                 <button class="btn secondary btn-sm" onclick="saveAddinBaseUrl()">Speichern</button>

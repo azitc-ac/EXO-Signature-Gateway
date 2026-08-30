@@ -5,6 +5,102 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.29 — 2026-08-30 — Einrichtungsassistent, Demo-Vorlagen und einheitlicher Loop-Header
+
+Sammlung von Verbesserungen an der Erstinstallation. Betriebsbereite Gateways
+sind nicht betroffen; **einmal zu tun** nur bei einer Änderung des Loop-Headers
+(siehe unten).
+
+### Frische Installation startet nicht mehr ohne Signaturvorlage
+
+Zur Laufzeit überdeckt ein Bind-Mount das Vorlagenverzeichnis des Images
+(`./templates:/app/templates`, auf Azure `/opt/exo-gateway/templates`). Die im
+Image mitgelieferten Beispielvorlagen waren dadurch unsichtbar; eine frische
+Installation hatte gar keine Vorlage und hängte eine **leere** Signatur an,
+obwohl die Verarbeitung als erfolgreich galt.
+
+- **Seeding beim Start.** Fehlende Vorlagen werden aus einer nicht überdeckten
+  Quelle (`app/seed_templates/`) nach `TEMPLATE_DIR` kopiert. Vorhandene Vorlagen
+  werden nie überschrieben; einzige Ausnahme ist eine leere (0-Byte)
+  Standardvorlage, die dadurch entstehen konnte — sie gilt als fehlend.
+- **Demo-Signatur** als Standardvorlage: zweispaltig, mit eingebettetem Logo,
+  abgerundetem Kasten, Emojis und den Feldern Firma, Name, Telefon, Mobil,
+  E-Mail. Sie zeigt zugleich, was der Signatur-Baukasten kann, und gibt einen
+  Startpunkt statt einer leeren Seite. Dazu ein Demo-Banner und die bisherigen
+  Beispielvorlagen.
+
+### Einrichtungsassistent
+
+- **Bootstrap-App vor der Anmeldung.** Der Anmeldeschritt setzt eine
+  Bootstrap-App voraus, stand aber über deren Einrichtung. Bei leerer
+  Bootstrap-Client-ID fiel die Anmeldung auf eine öffentliche Microsoft-App
+  zurück und endete in `AADSTS50011` (Redirect-URI-Mismatch). Die Bootstrap-App
+  steht jetzt als erster Teilschritt oben; der Anmelde-Knopf erscheint erst,
+  wenn ihre Client-ID gespeichert ist.
+- **Gateway-Name als eigener Schritt.** Der Name ist das Präfix aller in
+  Exchange angelegten Objekte (Connector, Transportregeln, Verteilerlisten) und
+  der App-Registrierung. Er lässt sich jetzt im Assistenten setzen — vor dem
+  Anlegen dieser Objekte —, statt nur unter „Erweitert".
+- **S/MIME ist Opt-in.** Die Aktivierung war in den S/MIME-fähigen Modi
+  vorangehakt. S/MIME zieht Inbound-Transportregeln und Zertifikatsverwaltung
+  nach sich — das soll eine bewusste Entscheidung sein, kein Vorgabewert.
+- **Key-Vault-Schritt.** Region und Ressourcengruppe werden mit denen der VM
+  vorbelegt (über die Instanz-Metadaten), statt einer festen Region. Der
+  Namensvorschlag für den Vault trägt den Gateway-/Firmennamen, da Vault-Namen
+  über ganz Azure eindeutig sein müssen. Kostenangabe entfernt (gehört in die
+  Doku), ebenso eine überholte Roadmap- und eine DKIM-Notiz.
+- **Verbindungstest & Abnahme.** Der Schritt heißt jetzt so und trennt beide
+  Teile sichtbar. Die Test-Mail-Meldung unterscheidet „an das Gateway übergeben"
+  von „zugestellt": Ein `202 Accepted` von Exchange bedeutet Annahme, nicht
+  Zustellung — der Downstream-Fehlschlag erschien zuvor als Erfolg.
+- **Beispiel-Domänen neutralisiert** (`…@contoso.com` statt einer realen
+  Betreiber-Domain) und einzelne überlange Anleitungstexte auf die Handlung
+  gekürzt (Begründungen in aufklappbare „Warum?"-Abschnitte verlagert).
+
+### Loop-Header auf allen Rückwegen einheitlich
+
+Der Header zur Schleifenerkennung ist über `LOOP_HEADER` einstellbar, wurde aber
+nur auf dem SMTP-Rückweg dynamisch gesetzt; der Graph-Rückweg (im IMAP+Graph-
+Modus der Hauptweg) und die EXO-Transportregel verwendeten einen fest
+verdrahteten Namen. Wer den Header änderte, bekam einen inkonsistenten Zustand:
+Gateway und Regel prüften unterschiedliche Namen, die Schleifen-Ausnahme griff
+nicht mehr zuverlässig.
+
+- Graph-Rückweg und das Connector-Setup-Skript beziehen den Namen jetzt aus
+  `LOOP_HEADER`.
+- **Zu tun bei Änderung:** Eine Änderung von `LOOP_HEADER` markiert den
+  EXO-Connector-Schritt wieder als offen — der Assistent (EXO-Connector) ist
+  dann erneut auszuführen, damit die Transportregel den neuen Namen prüft.
+
+### Abnahme (Betriebsbereitschaftsprüfung)
+
+- **Neuer Punkt „Signaturvorlage vorhanden"** — schlägt an, wenn keine Vorlage
+  mit Inhalt existiert (sonst wäre „bereit" für das Kernfeature trügerisch).
+- **„Von außen erreichbar"** löst den öffentlichen Namen jetzt tatsächlich auf
+  und vergleicht ihn mit der öffentlichen IP der VM, statt die Frage offen zu
+  lassen.
+- **„Exchange erreichbar"** prüft die im Token erteilten Anwendungsberechtigungen
+  und nennt fehlende (z. B. `Mail.Send`), statt nur die Tokenausstellung zu
+  bestätigen.
+- **Rückweg-Befund** benennt im IMAP-Modus Graph (`sendMail`) als eigentlichen
+  Rückweg; Rechtschreibung „außen" korrigiert.
+
+### Weiteres
+
+- **Update-Watcher überall.** Ein Installer (`install-update-watcher.sh`) richtet
+  den systemd-Dienst auf jedem Host mit systemd ein (Raspberry Pi, on-prem,
+  reines `docker compose`), nicht nur auf Azure. Der Assistententext ist nicht
+  länger Azure-spezifisch.
+- **Bootstrap-TLS.** Das Sitzungs-Cookie erhält das `Secure`-Flag erst, sobald
+  das Gateway TLS ausliefert. Vor dem ersten Zertifikat bediente die Oberfläche
+  HTTP; ein `Secure`-Cookie wurde dann über die öffentliche HTTP-Adresse nicht
+  gespeichert, sodass die Anmeldung nicht haftete.
+- **Passwort ändern.** Das Formular nimmt nicht mehr an der Erkennung
+  ungespeicherter Änderungen teil (ein Browser-Autofill des Feldes „Aktuelles
+  Passwort" meldete sonst eine Änderung, die man bei maskierten Feldern nicht
+  fand) und unterbindet das Autofill. Die Sammel-Leiste benennt zudem den
+  betroffenen Abschnitt und führt per Klick dorthin.
+
 ## v1.8.28 — 2026-08-27 — VM-Einrichtungsskript: vier Fehler, die eine Neuinstallation verhinderten
 
 **Zu tun:** Wer mit einer früheren Fassung von `azure-vm-setup.ps1` eine neue

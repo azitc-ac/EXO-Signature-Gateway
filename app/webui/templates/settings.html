@@ -89,20 +89,24 @@
     <div id="pw-change-form" style="display:none">
       <div class="settings-row">
         <label for="old-pw">Aktuelles Passwort</label>
-        <div class="pw-wrap"><input type="password" id="old-pw" placeholder="Aktuelles Passwort" style="width:220px"><button type="button" class="pw-eye" tabindex="-1" onmousedown="showPw('old-pw')" onmouseup="hidePw('old-pw')" onmouseleave="hidePw('old-pw')" ontouchstart="event.preventDefault();showPw('old-pw')" ontouchend="hidePw('old-pw')">&#128065;</button></div>
+        <div class="pw-wrap"><input type="password" id="old-pw" placeholder="Aktuelles Passwort" style="width:220px" autocomplete="new-password"><button type="button" class="pw-eye" tabindex="-1" onmousedown="showPw('old-pw')" onmouseup="hidePw('old-pw')" onmouseleave="hidePw('old-pw')" ontouchstart="event.preventDefault();showPw('old-pw')" ontouchend="hidePw('old-pw')">&#128065;</button></div>
       </div>
       <div class="settings-row">
         <label for="new-pw">Neues Passwort</label>
-        <div class="pw-wrap"><input type="password" id="new-pw" placeholder="mind. 8 Zeichen" style="width:220px" oninput="checkAccountPasswords()"><button type="button" class="pw-eye" tabindex="-1" onmousedown="showPw('new-pw')" onmouseup="hidePw('new-pw')" onmouseleave="hidePw('new-pw')" ontouchstart="event.preventDefault();showPw('new-pw')" ontouchend="hidePw('new-pw')">&#128065;</button></div>
+        <div class="pw-wrap"><input type="password" id="new-pw" placeholder="mind. 8 Zeichen" style="width:220px" autocomplete="new-password" oninput="checkAccountPasswords()"><button type="button" class="pw-eye" tabindex="-1" onmousedown="showPw('new-pw')" onmouseup="hidePw('new-pw')" onmouseleave="hidePw('new-pw')" ontouchstart="event.preventDefault();showPw('new-pw')" ontouchend="hidePw('new-pw')">&#128065;</button></div>
       </div>
       <div class="settings-row">
         <label for="new-pw2">Wiederholen</label>
-        <div class="pw-wrap"><input type="password" id="new-pw2" placeholder="Passwort bestätigen" style="width:220px" oninput="checkAccountPasswords()"><button type="button" class="pw-eye" tabindex="-1" onmousedown="showPw('new-pw2')" onmouseup="hidePw('new-pw2')" onmouseleave="hidePw('new-pw2')" ontouchstart="event.preventDefault();showPw('new-pw2')" ontouchend="hidePw('new-pw2')">&#128065;</button></div>
+        <div class="pw-wrap"><input type="password" id="new-pw2" placeholder="Passwort bestätigen" style="width:220px" autocomplete="new-password" oninput="checkAccountPasswords()"><button type="button" class="pw-eye" tabindex="-1" onmousedown="showPw('new-pw2')" onmouseup="hidePw('new-pw2')" onmouseleave="hidePw('new-pw2')" ontouchstart="event.preventDefault();showPw('new-pw2')" ontouchend="hidePw('new-pw2')">&#128065;</button></div>
       </div>
       <span id="account-pw-mismatch" style="color:#dc2626;font-size:12px;display:none">Passwörter stimmen nicht überein.</span>
       <div id="pw-result" style="display:none;margin-top:6px"></div>
       <div class="actions" style="margin-top:8px">
-        <button id="pw-btn" data-wache="old-pw,new-pw,new-pw2" type="button" class="btn secondary" onclick="changePassword()">Speichern</button>
+        {# Kein data-wache: Das Passwort-ändern-Formular ist ein transientes
+           Aktions-Formular, kein persistenter Einstellungs-Abschnitt. Als Wache
+           meldete ein Browser-Autofill von „Aktuelles Passwort" eine
+           ungespeicherte Änderung, die man bei maskierten Feldern nicht fand. #}
+        <button id="pw-btn" type="button" class="btn secondary" onclick="changePassword()">Speichern</button>
         <button type="button" class="btn secondary" onclick="hidePwChangeForm()">Abbrechen</button>
       </div>
     </div>

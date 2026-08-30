@@ -146,6 +146,10 @@ async def setup_wizard(
         "sso_redirect_uri": _build_redirect_uri(sso=True),
         "redirect_uri": _build_redirect_uri(),
         "webui_port": config.WEBUI_PORT,
+        # Region/Ressourcengruppe der VM als Vorschlag für den Key-Vault-Schritt
+        # — leer außerhalb Azure, dann greifen die statischen Vorgaben.
+        "vm_location": __import__("azure_imds").location(),
+        "vm_resource_group": __import__("azure_imds").resource_group(),
     }
     addin_base_url = _addin_base_url(request)
     return templates.TemplateResponse(

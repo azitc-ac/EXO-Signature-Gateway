@@ -37,6 +37,18 @@ from webui.hilfen import _build_redirect_uri
 router = APIRouter()
 
 
+def _cookie_secure() -> bool:
+    """`Secure`-Flag nur setzen, wenn das Gateway TLS ausliefert.
+
+    Vor dem Zertifikat bedient das Gateway die Weboberfläche über HTTP (main.py
+    schaltet TLS erst mit vorhandenem Cert). Ein `Secure`-Cookie würde dann über
+    die öffentliche http-Adresse NICHT gespeichert — die Anmeldung „gelingt",
+    haftet aber nicht, und man kommt nicht in die Einrichtung. Sobald TLS steht,
+    wird das Flag gesetzt und der Schutz greift wie zuvor."""
+    from pathlib import Path
+    return Path(config.SMTP_TLS_CERT).exists()
+
+
 def _sso_external_host() -> str:
     """Return the hostname the SSO redirect_uri is registered for, or ''."""
     external = (settings_store.get("ADDIN_BASE_URL") or "").rstrip("/")
@@ -220,7 +232,7 @@ async def auth_callback(
         response = RedirectResponse(next_url, status_code=302)
         response.set_cookie(
             sso_mod.SESSION_COOKIE, cookie_val,
-            max_age=sso_mod.SESSION_TTL, httponly=True, samesite="lax", secure=True,
+            max_age=sso_mod.SESSION_TTL, httponly=True, samesite="lax", secure=_cookie_secure(),
         )
         return response
 
@@ -338,7 +350,7 @@ async def api_sso_paste(request: Request):
     resp = JSONResponse({"ok": True, "upn": upn})
     resp.set_cookie(
         sso_mod.SESSION_COOKIE, cookie_val,
-        max_age=sso_mod.SESSION_TTL, httponly=True, samesite="lax", secure=True,
+        max_age=sso_mod.SESSION_TTL, httponly=True, samesite="lax", secure=_cookie_secure(),
     )
     return resp
 
@@ -355,7 +367,7 @@ async def auth_local(request: Request):
         resp = JSONResponse({"ok": True})
         resp.set_cookie(
             sso_mod.SESSION_COOKIE, cookie_val,
-            max_age=sso_mod.SESSION_TTL, httponly=True, samesite="lax", secure=True,
+            max_age=sso_mod.SESSION_TTL, httponly=True, samesite="lax", secure=_cookie_secure(),
         )
         log.info("Local admin login: %s", username_in)
         # Send notification about local admin login (fire-and-forget)

@@ -58,6 +58,14 @@ async def _lifespan(application):
         logging.getLogger(__name__).error(
             "Umstellung der CASTLE-Testumgebung fehlgeschlagen: %s", exc)
 
+    # Fehlende Bundle-Vorlagen anlegen — sonst startet eine frische Installation
+    # ohne Signaturvorlage und liefert eine leere Signatur.
+    try:
+        import template_seed
+        template_seed.seed_missing()
+    except Exception as exc:
+        logging.getLogger(__name__).error("Vorlagen-Seeding fehlgeschlagen: %s", exc)
+
     import acme_state
     acme_state.resume_pending_polls()
     yield

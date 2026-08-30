@@ -1,0 +1,39 @@
+<table cellpadding="0" cellspacing="0" border="0" style="font-family:Segoe UI, Calibri, Arial, sans-serif;font-size:11pt;color:#1f2937;border-collapse:collapse">
+  <tr><td style="padding:0">Mit freundlichen Grüßen</td></tr>
+  <tr><td style="padding:0;height:8px;font-size:8px;line-height:8px">&nbsp;</td></tr>
+  <tr>
+    <td style="padding:0">
+      <table cellpadding="0" cellspacing="0" border="0" style="font-family:Segoe UI, Calibri, Arial, sans-serif;font-size:11pt;color:#1f2937">
+        <tr><td style="padding:14px;border:1px solid #e2e8f0;border-radius:12px;background-color:#f8fafc">
+        <table cellpadding="0" cellspacing="0" border="0" style="font-family:Segoe UI, Calibri, Arial, sans-serif;font-size:11pt;color:#1f2937">
+        <tr>
+          <td style="padding:0">
+            <table cellpadding="0" cellspacing="0" border="0" style="font-family:Segoe UI, Calibri, Arial, sans-serif;font-size:11pt;color:#1f2937">
+              <tr>
+                <td style="vertical-align:middle;padding-right:16px">
+              <table cellpadding="0" cellspacing="0" border="0" style="font-family:Segoe UI, Calibri, Arial, sans-serif;font-size:11pt;color:#1f2937">
+              <tr><td style="padding:0"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHAAAABwCAYAAADG4PRLAAABqElEQVR42u3dQW7DIBBA0blBLtor5mzptptIqeoKPn5Is4d5tmTDADMXtcfX8yU+j9mtQQEIECBAgAAFQIAAAQIEKAACBAgQIEABECBAgAABiosBJTP+IEgCQAFQAPwR7xrACNRvG8Ag2imYA64NOeDakAOuDTnw2ogDrg058NqIA6+NOPDaiAOvjTjw2ogDr40IEOA+eKU+JAF3TFgdMQt4p75tAVhIUBExB6ifCwBrSSn1NwNY/Fo+ArA8y1Ho+/aA9cn2WwOesFaZBjxl0XTncYy3rz0WgAABAozUYAIE2AE8sQp6xzEBBAgQIECAAAEC9BvhPxCgqTRTaQABArw9oAVdJRVKKryFipqUFSrsVdirtF5pvc0tdifZXmaD538mqIhni7Ut1g45WP217JiRMB5AgBBXzxY57C6M57jJOJ4DXw9Yr3Tkcnyt0qHn8XIP1w7Eyx1d/BGvVXX1ThQuA7gKspIX189F4bKA5dVzgH+EPXGsLkEGKAAKgLcFvKpJ5qLEAwQIECBAgAABAhQAAQIECBCgAAgQIECAAAVAgAABAtwT8BsEygNbpaW1QwAAAABJRU5ErkJggg==" width="92" alt="Contoso" style="display:block;max-width:92px"></td></tr>
+              </table>
+                </td>
+                <td style="vertical-align:middle;padding-left:16px">
+              <table cellpadding="0" cellspacing="0" border="0" style="font-family:Segoe UI, Calibri, Arial, sans-serif;font-size:11pt;color:#1f2937">
+              <tr><td style="padding:0;font-weight:bold">{{ user.displayName }}</td></tr>
+              {% if user.jobTitle %}<tr><td style="padding:0;color:#6b7280">{{ user.jobTitle }}</td></tr>{% endif %}
+              {% if user.companyName %}<tr><td style="padding:0;font-weight:bold">{{ user.companyName }}</td></tr>{% endif %}
+              <tr><td style="padding:6px 0"><table cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td style="border-top:1px solid #e2e8f0;height:0;font-size:0"></td></tr></table></td></tr>
+              {% if user.phone %}<tr><td style="padding:0">📞 <a href="tel:{{ user.phone }}" style="color:#0369a1;text-decoration:none">{{ user.phone }}</a></td></tr>{% endif %}
+              {% if user.mobilePhone %}<tr><td style="padding:0">📱 <a href="tel:{{ user.mobilePhone }}" style="color:#0369a1;text-decoration:none">{{ user.mobilePhone }}</a></td></tr>{% endif %}
+              <tr><td style="padding:0">✉️ <a href="mailto:{{ user.mail }}" style="color:#0369a1;text-decoration:none">{{ user.mail }}</a></td></tr>
+              {% if user.website %}<tr><td style="padding:0">🌐 <a href="{{ user.website }}" style="color:#0369a1;text-decoration:none">{{ user.website }}</a></td></tr>{% endif %}
+              </table>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        </table>
+        </td></tr>
+      </table>
+    </td>
+  </tr>
+</table>

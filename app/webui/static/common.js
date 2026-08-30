@@ -727,14 +727,50 @@ function _speicherLeiste() {
   return el;
 }
 
+/* Beschriftung des Abschnitts, zu dem ein Wächter-Knopf gehört.
+ *
+ * ANLASS: Ein Passwort-Autofill löste „ungespeicherte Änderung"
+ * aus, aber die Leiste sagte nur „Eine Änderung …" — bei maskierten Feldern in
+ * einem eingeklappten Abschnitt fand der Nutzer nicht, WAS sich geändert hatte.
+ * Der Name (bevorzugt `data-wache-label`, sonst die Überschrift des Abschnitts)
+ * macht die Leiste zur Sprungmarke. Ohne auffindbaren Namen bleibt der bisherige
+ * Text — kein Rückschritt. */
+function _wacheLabel(btn) {
+  if (btn.dataset && btn.dataset.wacheLabel) return btn.dataset.wacheLabel.trim();
+  var sec = btn.closest && btn.closest('.settings-card, .card, .wizard-step, section, fieldset');
+  if (sec) {
+    var h = sec.querySelector('h1, h2, h3, h4, legend, .card-title, .step-title');
+    if (h && h.textContent.trim()) return h.textContent.trim();
+  }
+  return '';
+}
+
 function _speicherLeisteZeichnen() {
   var offen = _speicherKnoepfe.filter(function (b) { return b && !b.disabled; });
   var el = _speicherLeiste();
   if (!offen.length) { el.hidden = true; return; }
   el.hidden = false;
-  el.querySelector('.speicher-leiste-text').textContent =
-    offen.length === 1 ? 'Eine Änderung ist noch nicht gespeichert'
-                       : offen.length + ' Abschnitte sind noch nicht gespeichert';
+  var namen = [];
+  offen.forEach(function (b) {
+    var l = _wacheLabel(b);
+    if (l && namen.indexOf(l) === -1) namen.push(l);
+  });
+  var text;
+  if (offen.length === 1) {
+    text = namen.length ? 'Noch nicht gespeichert: ' + namen[0]
+                        : 'Eine Änderung ist noch nicht gespeichert';
+  } else {
+    text = offen.length + ' Abschnitte noch nicht gespeichert'
+         + (namen.length ? ': ' + namen.slice(0, 3).join(', ')
+                            + (namen.length > 3 ? ' …' : '') : '');
+  }
+  var span = el.querySelector('.speicher-leiste-text');
+  span.textContent = text;
+  // Sprungmarke: Klick auf den Text führt zum ersten offenen Abschnitt.
+  span.style.cursor = 'pointer';
+  span.onclick = function () {
+    offen[0].scrollIntoView({behavior: 'smooth', block: 'center'});
+  };
 }
 
 /* Kein Zeitgeber: `speicherWache()` ruft das nach jedem Zustandswechsel auf.

@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "global": {
+    "font_family": "Calibri, Arial, sans-serif",
+    "font_size": "9pt",
+    "base_color": "#6b7280",
+    "muted_color": "#94a3b8",
+    "link_color": "#6b7280"
+  },
+  "blocks": [
+    {
+      "id": "1",
+      "type": "divider",
+      "color": "#e2e8f0",
+      "margin": 8
+    },
+    {
+      "id": "2",
+      "type": "freetext",
+      "html": "<span style=\"font-size:9pt;color:#6b7280\">Diese E-Mail und eventuelle Anhänge sind vertraulich und ausschließlich für den/die bezeichneten Adressaten bestimmt. Wenn Sie nicht der vorgesehene Adressat sind oder diese E-Mail irrtümlich erhalten haben, informieren Sie bitte sofort den Absender und vernichten Sie diese Mail. Das unerlaubte Kopieren sowie die unbefugte Weitergabe dieser Mail ist nicht gestattet.</span>"
+    }
+  ]
+}

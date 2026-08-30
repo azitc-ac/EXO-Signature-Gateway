@@ -23,7 +23,8 @@ param(
     [Parameter(Mandatory)][string]$Organization,
     [Parameter(Mandatory)][string]$CertPath,
     [string]$GatewayName = "EXO Signature Gateway",
-    [string]$ConnectorName = "EXO Signature Gateway - Outbound"
+    [string]$ConnectorName = "EXO Signature Gateway - Outbound",
+    [string]$LoopHeader = "X-Sig-Applied"
 )
 
 Set-StrictMode -Version Latest
@@ -79,15 +80,17 @@ $signedRuleName = "$GatewayName - SMIME Signed Inbound"
 $existingSigned = Get-TransportRule -Identity $signedRuleName -ErrorAction SilentlyContinue
 
 if ($existingSigned) {
-    Write-Warn "Rule '$signedRuleName' already exists — updating comment"
-    Set-TransportRule -Identity $signedRuleName -Comments $managedBy | Out-Null
-    Write-OK "Rule comment updated: $signedRuleName"
+    Write-Warn "Rule '$signedRuleName' already exists — updating comment + Loop-Header"
+    Set-TransportRule -Identity $signedRuleName -Comments $managedBy `
+        -ExceptIfHeaderMatchesMessageHeader $LoopHeader `
+        -ExceptIfHeaderMatchesPatterns "1" | Out-Null
+    Write-OK "Rule comment + Loop-Header ($LoopHeader) updated: $signedRuleName"
 } else {
     New-TransportRule `
         -Name $signedRuleName `
         -FromScope NotInOrganization `
         -MessageTypeMatches Signed `
-        -ExceptIfHeaderMatchesMessageHeader "X-Sig-Applied" `
+        -ExceptIfHeaderMatchesMessageHeader $LoopHeader `
         -ExceptIfHeaderMatchesPatterns "1" `
         -RouteMessageOutboundConnector $connectorId `
         -StopRuleProcessing $true `
@@ -102,15 +105,17 @@ $encRuleName = "$GatewayName - SMIME Encrypted Inbound"
 $existingEnc = Get-TransportRule -Identity $encRuleName -ErrorAction SilentlyContinue
 
 if ($existingEnc) {
-    Write-Warn "Rule '$encRuleName' already exists — updating comment"
-    Set-TransportRule -Identity $encRuleName -Comments $managedBy | Out-Null
-    Write-OK "Rule comment updated: $encRuleName"
+    Write-Warn "Rule '$encRuleName' already exists — updating comment + Loop-Header"
+    Set-TransportRule -Identity $encRuleName -Comments $managedBy `
+        -ExceptIfHeaderMatchesMessageHeader $LoopHeader `
+        -ExceptIfHeaderMatchesPatterns "1" | Out-Null
+    Write-OK "Rule comment + Loop-Header ($LoopHeader) updated: $encRuleName"
 } else {
     New-TransportRule `
         -Name $encRuleName `
         -FromScope NotInOrganization `
         -MessageTypeMatches Encrypted `
-        -ExceptIfHeaderMatchesMessageHeader "X-Sig-Applied" `
+        -ExceptIfHeaderMatchesMessageHeader $LoopHeader `
         -ExceptIfHeaderMatchesPatterns "1" `
         -RouteMessageOutboundConnector $connectorId `
         -StopRuleProcessing $true `
