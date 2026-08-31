@@ -64,6 +64,26 @@
   <div id="upd-status" style="display:none"></div>
 </div>
 
+<!-- Update-Erfolg als Modal im Vordergrund: kein Timer (der brach beim
+     Wegnavigieren ab), der Neustart erfolgt erst beim Klick. Statisches Gerüst
+     wie das Vorschau-Modal, per JS gefüllt — so greift der Dark-Mode. -->
+<div id="upd-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:10px;width:90%;max-width:680px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.25)">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:14px 18px;border-bottom:1px solid #e2e8f0">
+      <div>
+        <strong id="upd-modal-title" style="font-size:15px;color:#15803d"></strong>
+        <div id="upd-modal-version" style="font-size:13px;color:#374151;margin-top:2px"></div>
+      </div>
+      <button class="btn secondary btn-sm" id="upd-modal-copy" title="Update-Protokoll kopieren" style="flex-shrink:0" onclick="_updCopy(this)">Kopieren</button>
+    </div>
+    <pre id="upd-modal-log" style="margin:0;white-space:pre-wrap;font-size:11px;overflow-y:auto;padding:14px 18px;color:#374151;flex:1"></pre>
+    <div style="display:flex;gap:8px;justify-content:flex-end;padding:12px 18px;border-top:1px solid #e2e8f0">
+      <button class="btn secondary" id="upd-modal-later" onclick="_updModalLater()">Später</button>
+      <button class="btn primary" id="upd-modal-reload" onclick="_updModalReload()">Neu laden</button>
+    </div>
+  </div>
+</div>
+
 <!-- Was-ist-neu Modal -->
 <div id="whats-new-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:12px;max-width:540px;width:92%;max-height:82vh;overflow-y:auto;padding:24px;position:relative;box-shadow:0 8px 32px rgba(0,0,0,0.2)">
@@ -469,10 +489,20 @@ function _updShowRunning(log) {
   </div>`;
 }
 
+// Text des zuletzt angezeigten Update-Protokolls — für den Kopieren-Knopf.
+let _updModalText = '';
+
 function _updShowSuccess(d) {
   if (_updReloadTimer) { clearInterval(_updReloadTimer); _updReloadTimer = null; }
   _updBtnReset();
-  const el = document.getElementById('upd-status'); el.style.display = 'block';
+  // Inline-Statusbox schließen — die Meldung kommt jetzt als Modal in den
+  // Vordergrund. KEIN Timer mehr: der Neustart erfolgt erst beim Klick auf
+  // „Neu laden". Ein Timer brach beim Wegnavigieren ab (dann lud die Seite nie
+  // neu und man blieb auf der alten Oberfläche), und der Protokolltext ließ
+  // sich nicht herauskopieren.
+  const inline = document.getElementById('upd-status');
+  if (inline) inline.style.display = 'none';
+
   // "Vorher" ist die Fassung, die DIESE Seite ausliefert — also die des laufenden
   // Containers. Der Watcher meldet stattdessen den Stand der VERSION-Datei im
   // Repository; wurde dort bereits gepullt, aber noch nicht gebaut, sind beide
@@ -480,26 +510,49 @@ function _updShowSuccess(d) {
   const vorher  = UPD_CURRENT_VERSION || d.version_before || '?';
   const nachher = d.version_after || '?';
   const geaendert = vorher !== nachher && nachher !== '?';
-  const versionStr = geaendert
+  const titel = geaendert ? 'Update erfolgreich!' : 'Neu gebaut — Version unverändert.';
+  const log = d.log || '';
+
+  document.getElementById('upd-modal-title').textContent = titel;
+  document.getElementById('upd-modal-version').innerHTML = geaendert
     ? `${esc(vorher)} → <strong>${esc(nachher)}</strong>`
     : `<strong>${esc(nachher)}</strong> (unverändert)`;
-  el.innerHTML = `<div class="alert success" style="font-size:13px">
-    <strong>${geaendert ? 'Update erfolgreich!' : 'Neu gebaut — Version unverändert.'}</strong> ${versionStr}
-    <pre style="margin:8px 0 0;white-space:pre-wrap;font-size:11px;max-height:200px;overflow-y:auto">${esc(d.log || '')}</pre>
-    <div style="margin-top:10px;display:flex;align-items:center;gap:8px">
-      <button class="btn primary btn-sm" onclick="clearInterval(_updReloadTimer);_updClear().then(()=>location.reload())">Jetzt neu laden</button>
-      <button class="btn secondary btn-sm" onclick="clearInterval(_updReloadTimer);_updClear()">Später</button>
-      <span id="upd-countdown" style="font-size:12px;color:#15803d"></span>
-    </div>
-  </div>`;
-  let t = 30;
-  const cd = document.getElementById('upd-countdown');
-  if (cd) cd.textContent = `(Seite lädt automatisch in ${t}s neu)`;
-  _updReloadTimer = setInterval(() => {
-    t--;
-    if (cd) cd.textContent = t > 0 ? `(Seite lädt automatisch in ${t}s neu)` : '';
-    if (t <= 0) { clearInterval(_updReloadTimer); _updClear().catch(()=>{}).finally(()=>location.reload()); }
-  }, 1000);
+  document.getElementById('upd-modal-log').textContent = log;
+  _updModalText = `${titel} ${geaendert ? vorher + ' -> ' + nachher : nachher + ' (unveraendert)'}\n\n${log}`;
+  document.getElementById('upd-modal').style.display = 'flex';
+}
+
+function _updModalReload() {
+  document.getElementById('upd-modal').style.display = 'none';
+  _updClear().catch(() => {}).finally(() => location.reload());
+}
+
+function _updModalLater() {
+  document.getElementById('upd-modal').style.display = 'none';
+  _updClear().catch(() => {});
+}
+
+function _updCopy(btn) {
+  const fertig = () => {
+    const alt = btn.textContent;
+    btn.textContent = 'Kopiert!';
+    setTimeout(() => { btn.textContent = alt; }, 1500);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(_updModalText).then(fertig).catch(() => _updCopyFallback(fertig));
+  } else {
+    _updCopyFallback(fertig);
+  }
+}
+
+function _updCopyFallback(fertig) {
+  const ta = document.createElement('textarea');
+  ta.value = _updModalText;
+  ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+  document.body.appendChild(ta);
+  ta.focus(); ta.select();
+  try { document.execCommand('copy'); fertig(); } catch (_) { /* Browser ohne Clipboard */ }
+  ta.remove();
 }
 
 function _updShowError(msg) {

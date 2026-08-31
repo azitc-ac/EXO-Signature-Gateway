@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.32 — 2026-08-31 — Update-Erfolg als Modal statt Countdown
+
+Nach einem Update über die Oberfläche erschien der Erfolg als Kasten mit einem
+30-Sekunden-Countdown bis zum automatischen Neuladen. Wer in dieser Zeit
+wegnavigierte, brach den Countdown ab — die Seite lud nie neu, und man blieb auf
+der alten Oberfläche. Der Protokolltext ließ sich zudem nicht herauskopieren.
+
+Der Erfolg erscheint jetzt als **Modal im Vordergrund**:
+
+- **Kein Timer.** Der Neustart erfolgt erst beim Klick auf „Neu laden";
+  „Später" schließt ohne Neuladen. Nichts hängt mehr an einem Countdown, der
+  beim Wegklicken verfällt.
+- **Kopieren-Knopf** oben rechts legt das vollständige Update-Protokoll (Version
+  und Log) in die Zwischenablage.
+
 ## v1.8.31 — 2026-08-31 — Deep-Links führen zur richtigen Karte
 
 Querverweise in der Oberfläche sprangen bisher an den Seitenanfang der Zielseite;
