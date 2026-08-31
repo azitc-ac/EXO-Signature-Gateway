@@ -840,7 +840,7 @@ async function backupRestore() {
       const warnItems = otherWarns.map(w => `<li style="color:#92400e">${w}</li>`).join('');
       const authBanner = authWarn ? `<div style="margin-top:10px;padding:10px 12px;background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;font-size:13px">
         ⚠ <strong>auth.pfx wurde wiederhergestellt</strong> — bitte in der Entra App-Registrierung prüfen ob das Zertifikat noch hinterlegt ist
-        (<a href="/advanced" style="color:#92400e">Einstellungen → Debug → EXO PowerShell Zertifikat</a>).
+        (<a href="/advanced#exo-ps-cert" style="color:#92400e">Einstellungen → EXO PowerShell Zertifikat</a>).
         Stimmt es nicht überein, schlägt die EXO PowerShell-Verbindung fehl.
       </div>` : '';
       result.innerHTML = `<div class="alert success">

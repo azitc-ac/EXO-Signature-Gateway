@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.31 — 2026-08-31 — Deep-Links führen zur richtigen Karte
+
+Querverweise in der Oberfläche sprangen bisher an den Seitenanfang der Zielseite;
+auf Seiten mit vielen Karten musste der passende Abschnitt gesucht werden. Alle
+internen Verweise zeigen jetzt per Anker auf die gemeinte Karte, und die
+Zielkarten wurden dafür ankerbar gemacht.
+
+- **Korrekte Ziele:** Fair-Use- und Lizenz-Hinweise → Karte „Lizenz"; Verweis auf
+  die automatische Zertifikatsbestellung → Karte „Zertifikat automatisch
+  bestellen"; Support-/Hub-Hinweise → Karte „Anbindung"; Hinweis auf den
+  Benachrichtigungs-Schalter → Karte „Benachrichtigungen"; der Backup-Hinweis
+  nach Wiederherstellung → Abschnitt „EXO PowerShell Zertifikat".
+- **Falsches Ziel behoben:** Der Verweis auf den Verschlüsselungs-Trigger führte
+  zur Karte „Betreff eingehender S/MIME-Mails" statt zu „Signieren &
+  Verschlüsseln", wo der Trigger steht.
+- Alle Verweisziele liegen in sichtbaren Karten (keiner hinter „Erweitert" oder
+  einem eingeklappten Bereich).
+
 ## v1.8.30 — 2026-08-31 — S/MIME wieder aktivierbar, Key-Vault-Migration und Abnahme-Nachschärfung
 
 Nacharbeit aus einem weiteren Durchlauf der Erstinstallation. Ein Fehler aus
