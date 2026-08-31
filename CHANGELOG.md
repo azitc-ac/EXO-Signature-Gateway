@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.39 — 2026-08-31 — Repo-Wurzel aufgeräumt
+
+Weniger Dateien im Repo-Stammverzeichnis (übersichtlichere GitHub-Startseite):
+
+- `package.json` / `package-lock.json` (nur `acorn` für den JS-Prüfer
+  `jsscopecheck`) nach `tools/` verschoben; die CI führt `npm ci` dort aus.
+- `.env.example` entfernt — Einstellungen werden in der Oberfläche gepflegt, und
+  `docker-compose.yml` nutzt `${VAR:-Vorgabe}` und kommt ohne `.env` aus.
+
 ## v1.8.38 — 2026-08-31 — Repository umbenannt: EXO-Signature-Gateway
 
 Das GitHub-Repository heißt jetzt **`EXO-Signature-Gateway`** (vorher
