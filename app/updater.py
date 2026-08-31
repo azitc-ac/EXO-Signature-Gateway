@@ -16,7 +16,7 @@ from update_core import (              # noqa: F401  (Teil der Modul-API)
     Updater,
 )
 
-GITHUB_REPO = "azitc-ac/EXO-signature-service"
+GITHUB_REPO = "azitc-ac/EXO-Signature-Gateway"
 
 _updater = Updater(repo=GITHUB_REPO, user_agent="EXO-Gateway/1")
 
