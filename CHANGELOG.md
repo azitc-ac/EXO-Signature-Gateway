@@ -5,7 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
-## v1.8.42 — 2026-08-31 — Compose: Dienst-/Container-/Image-Name auf „gateway"
+## v1.8.43 — 2026-08-31 — Ersteinrichtung bietet PFX-Import und DNS-01
+
+Die neuen TLS-Wege aus v1.8.41 (PFX-Import, Let's Encrypt DNS-01) standen bisher
+nur im Setup-Assistenten — den man erst nach dem ersten Zertifikat über HTTPS
+erreicht. Die **Ersteinrichtungs-Seite** (Port 80, bevor ein Zertifikat
+existiert) kannte weiterhin nur Let's Encrypt HTTP-01. Damit lief ein Betreiber,
+der Port 80 nicht öffnen will und noch kein Zertifikat hat, genau dort in eine
+Sackgasse, wo die Alternativen am wichtigsten sind.
+
+Die Ersteinrichtung zeigt jetzt dieselben drei Wege:
+
+- **Let's Encrypt (HTTP)** — wie bisher, Port 80 öffentlich erreichbar.
+- **Vorhandenes Zertifikat importieren (PFX/PKCS#12)** — wird gegen den
+  angegebenen Hostnamen geprüft; der private Schlüssel landet mit Rechten 600.
+- **Let's Encrypt DNS-01 (manuell)** — zeigt den zu setzenden TXT-Record und
+  stellt nach dessen Eintrag ohne eingehenden Port aus. ⚠️ Die Erneuerung
+  (~alle 90 Tage) ist auf diesem Weg manuell zu wiederholen.
+
+Nach erfolgreichem Import/Ausstellen startet der Dienst wie gewohnt automatisch
+neu und läuft danach über HTTPS.
 
 `docker-compose.yml` nannte Service, Image und Container noch
 `signature-service` bzw. `exo-signature-service` — im `docker compose ps` stand

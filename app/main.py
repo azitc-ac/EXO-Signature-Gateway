@@ -163,30 +163,76 @@ _SETUP_PAGE_TEMPLATE = """\
 <html lang="de">
 <head><meta charset="utf-8"><title>EXO Gateway Setup</title>
 <style>
-  body{{font-family:system-ui,sans-serif;max-width:480px;margin:80px auto;padding:0 20px;color:#1c1917}}
+  body{{font-family:system-ui,sans-serif;max-width:520px;margin:60px auto;padding:0 20px;color:#1c1917}}
   h1{{font-size:22px;margin-bottom:4px}}
-  .sub{{color:#78716c;margin-bottom:32px;font-size:14px}}
-  label{{display:block;font-size:13px;font-weight:600;margin-bottom:4px;margin-top:16px}}
-  input{{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #d4d0cc;border-radius:5px;font-size:14px}}
-  button{{margin-top:24px;width:100%;padding:10px;background:#0f172a;color:#fff;border:none;border-radius:5px;font-size:15px;cursor:pointer}}
-  .note{{margin-top:20px;font-size:12px;color:#78716c;line-height:1.5}}
-  .ok{{background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:16px;margin-top:24px}}
-  .err{{background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;padding:16px;margin-top:24px}}
-  pre{{font-size:11px;white-space:pre-wrap;word-break:break-all;margin:8px 0 0}}
+  .sub{{color:#78716c;margin-bottom:28px;font-size:14px}}
+  label{{display:block;font-size:13px;font-weight:600;margin-bottom:4px;margin-top:14px}}
+  input[type=text],input[type=email],input[type=password]{{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #d4d0cc;border-radius:5px;font-size:14px}}
+  input[type=file]{{margin-top:4px;font-size:13px}}
+  button{{margin-top:18px;width:100%;padding:10px;background:#0f172a;color:#fff;border:none;border-radius:5px;font-size:15px;cursor:pointer}}
+  .note{{margin-top:16px;font-size:12px;color:#78716c;line-height:1.5}}
+  .ok{{background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:16px;margin-top:20px}}
+  .err{{background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;padding:16px;margin-top:20px}}
+  .warn{{background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:10px 12px;margin-top:12px;font-size:12px;color:#92400e;line-height:1.5}}
+  pre{{font-size:11px;white-space:pre-wrap;word-break:break-all;margin:6px 0 0;background:#f5f5f4;border:1px solid #e7e5e4;border-radius:5px;padding:8px}}
+  details{{margin-top:14px;border:1px solid #e7e5e4;border-radius:6px;padding:0 14px 4px}}
+  summary{{cursor:pointer;font-weight:600;font-size:13px;padding:12px 0}}
+  .cb{{display:flex;align-items:center;gap:8px;font-weight:400;margin-top:14px}}
+  .cb input{{width:auto}}
+  h2{{font-size:14px;margin:0 0 2px}}
 </style></head>
 <body>
 <h1>EXO Signature Gateway</h1>
 <p class="sub">Erstkonfiguration — TLS-Zertifikat</p>
 {message}
+
+<h2>1 · Let's Encrypt (HTTP)</h2>
 <form method="POST" action="/">
+  <input type="hidden" name="action" value="letsencrypt">
   <label>Hostname (öffentlich erreichbar)</label>
   <input name="hostname" type="text" placeholder="sig.example.com" value="{hostname}" required>
   <label>E-Mail für Let's Encrypt</label>
   <input name="email" type="email" placeholder="admin@example.com" value="{email}">
   <button type="submit">Zertifikat beantragen</button>
 </form>
-<p class="note">DNS muss vor dem Zertifikatsantrag auf diese IP zeigen.<br>
-Nach Erfolg startet der Dienst automatisch neu und leitet auf <strong>https://{hostname_hint}</strong> weiter.</p>
+<p class="note">Weg 1 braucht Port 80 <strong>öffentlich erreichbar</strong>; DNS muss vorher
+auf diese IP zeigen. Nach Erfolg startet der Dienst automatisch neu und leitet auf
+<strong>https://{hostname_hint}</strong> weiter.</p>
+
+<details{pfx_open}>
+  <summary>2 · Vorhandenes Zertifikat importieren (PFX/PKCS#12)</summary>
+  <p class="note">Für Betreiber ohne offenen Port 80, die bereits ein Zertifikat haben
+  (auch Wildcard oder interne CA). Es muss zum Hostnamen passen.</p>
+  <form method="POST" action="/" enctype="multipart/form-data">
+    <input type="hidden" name="action" value="pfx">
+    <label>Hostname (muss zum Zertifikat passen)</label>
+    <input name="hostname" type="text" placeholder="sig.example.com" value="{hostname}" required>
+    <label>PFX-Datei</label>
+    <input name="pfx_file" type="file" accept=".pfx,.p12" required>
+    <label>Passwort (falls gesetzt)</label>
+    <input name="pfx_pass" type="password" autocomplete="new-password">
+    <button type="submit">Zertifikat importieren</button>
+  </form>
+</details>
+
+<details{dns01_open}>
+  <summary>3 · Let's Encrypt über DNS-01 (ohne Port 80)</summary>
+  <p class="note">Ohne offenen Port 80 und ohne vorhandenes Zertifikat: Du setzt einen
+  TXT-Record im DNS, danach stellt Let's Encrypt aus.</p>
+  <div class="warn">⚠️ <strong>Manuell:</strong> Die Erneuerung (~alle 90 Tage) musst du auf
+  diesem Weg jedes Mal wiederholen. Wo möglich ist Weg 1 oder ein importiertes
+  Zertifikat pflegeleichter.</div>
+  {dns01_block}
+  <form method="POST" action="/">
+    <input type="hidden" name="action" value="dns01-start">
+    <label>Hostname</label>
+    <input name="hostname" type="text" placeholder="sig.example.com" value="{hostname}" required>
+    <label>E-Mail für Let's Encrypt</label>
+    <input name="email" type="email" placeholder="admin@example.com" value="{email}">
+    <label class="cb"><input type="checkbox" name="staging" value="1"> Nur testen (Let's-Encrypt-Staging, kein gültiges Zertifikat)</label>
+    <button type="submit">TXT-Record anfordern</button>
+  </form>
+</details>
 </body></html>
 """
 
@@ -226,13 +272,157 @@ def _schedule_self_restart() -> None:
     threading.Thread(target=_exit, daemon=True).start()
 
 
-def _setup_page(hostname: str = "", email: str = "", message: str = "") -> bytes:
+def _setup_page(hostname: str = "", email: str = "", message: str = "",
+                dns01_block: str = "", dns01_open: bool = False,
+                pfx_open: bool = False) -> bytes:
     return _SETUP_PAGE_TEMPLATE.format(
-        hostname=hostname,
-        email=email,
+        hostname=_html_escape(hostname),
+        email=_html_escape(email),
         message=message,
-        hostname_hint=hostname or "sig.example.com",
+        hostname_hint=_html_escape(hostname or "sig.example.com"),
+        dns01_block=dns01_block,
+        dns01_open=" open" if (dns01_open or dns01_block) else "",
+        pfx_open=" open" if pfx_open else "",
     ).encode("utf-8")
+
+
+def _html_escape(s: str) -> str:
+    import html
+    return html.escape(str(s), quote=True)
+
+
+def _dns01_record_block(record_name: str, record_value: str) -> str:
+    """Nach dns01-start: den zu setzenden TXT-Record und den Ausstell-Knopf."""
+    return f"""\
+<div class="ok"><strong>TXT-Record setzen (Typ TXT):</strong>
+<label>Name</label><pre>{_html_escape(record_name)}</pre>
+<label>Wert</label><pre>{_html_escape(record_value)}</pre>
+<p class="note">Nach dem Setzen kurz auf die DNS-Verbreitung warten, dann ausstellen.</p>
+<form method="POST" action="/">
+  <input type="hidden" name="action" value="dns01-finish">
+  <button type="submit">Record gesetzt — jetzt ausstellen</button>
+</form></div>"""
+
+
+def _dns01_pending_block() -> str:
+    """Auf GET, falls eine DNS-01-Bestellung offen ist: nur der Ausstell-Knopf
+    (der TXT-Wert wurde beim Start angezeigt und wird nicht erneut berechnet)."""
+    return """\
+<div class="ok"><strong>Es liegt eine offene DNS-01-Bestellung vor.</strong>
+<p class="note">Wenn der TXT-Record gesetzt und verbreitet ist, jetzt ausstellen.</p>
+<form method="POST" action="/">
+  <input type="hidden" name="action" value="dns01-finish">
+  <button type="submit">Record gesetzt — jetzt ausstellen</button>
+</form></div>"""
+
+
+def _parse_multipart(content_type: str, body: bytes):
+    """multipart/form-data → (felder: dict[str,str], dateien: dict[str,bytes])."""
+    import email as _emaillib
+    msg = _emaillib.message_from_bytes(
+        b"Content-Type: " + content_type.encode() + b"\r\n\r\n" + body)
+    felder: dict[str, str] = {}
+    dateien: dict[str, bytes] = {}
+    if not msg.is_multipart():
+        return felder, dateien
+    for part in msg.get_payload():
+        name = part.get_param("name", header="content-disposition")
+        if not name:
+            continue
+        payload = part.get_payload(decode=True) or b""
+        if part.get_param("filename", header="content-disposition"):
+            dateien[name] = payload
+        else:
+            felder[name] = payload.decode("utf-8", "replace").strip()
+    return felder, dateien
+
+
+def _err(msg: str) -> str:
+    return f'<div class="err">{msg}</div>'
+
+
+def _bootstrap_letsencrypt(webroot: Path, hostname: str, email: str) -> str:
+    """Weg 1: HTTP-01 über certbot --webroot (braucht Port 80 öffentlich)."""
+    data_dir = Path(config.DATA_DIR)
+    le_cfg = data_dir / "le-config"
+    le_work = data_dir / "le-work"
+    le_logs = data_dir / "le-logs"
+    for d in [webroot, le_cfg, le_work, le_logs]:
+        d.mkdir(parents=True, exist_ok=True)
+
+    result = subprocess.run(
+        ["certbot", "certonly", "--webroot",
+         "-w", str(webroot), "-d", hostname,
+         "--cert-name", "gateway",
+         "--email", email, "--agree-tos", "--non-interactive",
+         "--config-dir", str(le_cfg),
+         "--work-dir", str(le_work),
+         "--logs-dir", str(le_logs)],
+        capture_output=True, text=True, timeout=120,
+    )
+    if result.returncode == 0:
+        cert_dir = le_cfg / "live" / "gateway"
+        try:
+            import shutil
+            cert_dest = Path(config.SMTP_TLS_CERT)
+            key_dest = Path(config.SMTP_TLS_KEY)
+            cert_dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(cert_dir / "fullchain.pem", cert_dest)
+            shutil.copy2(cert_dir / "privkey.pem", key_dest)
+            key_dest.chmod(0o600)
+            _schedule_self_restart()
+            return _setup_ok_message(hostname)
+        except OSError as exc:
+            output = (result.stdout or "").strip()
+            return (f'<div class="err"><strong>certbot OK, aber Kopieren fehlgeschlagen:</strong><br>'
+                    f"<pre>{_html_escape(str(exc))}</pre>"
+                    f"<pre>{_html_escape(output)}</pre></div>")
+    output = (result.stderr or result.stdout or "certbot error").strip()
+    return (f'<div class="err"><strong>certbot Fehler:</strong><br>'
+            f"<pre>{_html_escape(output)}</pre></div>")
+
+
+def _bootstrap_import_pfx(hostname: str, pfx_bytes: bytes, password: str) -> str:
+    """Weg 2: vorhandenes PFX/PKCS#12 importieren, gegen den Hostnamen geprüft."""
+    import tls_cert
+    if not hostname:
+        return _err("Bitte einen Hostnamen angeben, gegen den das Zertifikat geprüft wird.")
+    if not pfx_bytes:
+        return _err("Keine PFX-Datei empfangen.")
+    try:
+        tls_cert.install_pfx(pfx_bytes, password, hostname)
+    except ValueError as exc:
+        return _err(_html_escape(str(exc)))
+    except Exception as exc:                                 # noqa: BLE001
+        return _err("PFX konnte nicht gelesen werden: " + _html_escape(str(exc)))
+    _schedule_self_restart()
+    return _setup_ok_message(hostname)
+
+
+def _bootstrap_dns01_start(hostname: str, email: str, staging: bool):
+    """Weg 3, Schritt 1: Order anlegen, TXT-Record zurückgeben. → (message, block)."""
+    import tls_acme_dns
+    if not hostname:
+        return _err("Bitte einen Hostnamen angeben."), ""
+    try:
+        rec = asyncio.run(tls_acme_dns.start(hostname, email, staging))
+    except Exception as exc:                                 # noqa: BLE001
+        return _err("DNS-01 konnte nicht gestartet werden: " + _html_escape(str(exc))), ""
+    return "", _dns01_record_block(rec["record_name"], rec["record_value"])
+
+
+def _bootstrap_dns01_finish() -> str:
+    """Weg 3, Schritt 2: Challenge validieren, Zertifikat holen, installieren."""
+    import tls_acme_dns
+    try:
+        info = asyncio.run(tls_acme_dns.finish())
+    except ValueError as exc:
+        return _err(_html_escape(str(exc)))
+    except Exception as exc:                                 # noqa: BLE001
+        return _err("Ausstellung fehlgeschlagen: " + _html_escape(str(exc)))
+    _schedule_self_restart()
+    namen = info.get("hostnames") or [""]
+    return _setup_ok_message(namen[0])
 
 
 def _run_acme_http() -> None:
@@ -260,9 +450,15 @@ def _run_acme_http() -> None:
                 self.send_header("Location", dest)
                 self.end_headers()
             else:
+                try:
+                    import tls_acme_dns
+                    offen = bool(tls_acme_dns.pending())
+                except Exception:                           # noqa: BLE001
+                    offen = False
                 body = _setup_page(
                     hostname=settings_store.get("PUBLIC_HOSTNAME") or "",
                     email=settings_store.get("LE_EMAIL") or "",
+                    dns01_block=_dns01_pending_block() if offen else "",
                 )
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -279,59 +475,43 @@ def _run_acme_http() -> None:
                 return
             length = int(self.headers.get("Content-Length", 0))
             raw = self.rfile.read(length)
-            params = urllib.parse.parse_qs(raw.decode("utf-8", errors="replace"))
-            hostname = (params.get("hostname", [""])[0]).strip()
-            email = (params.get("email", [""])[0]).strip()
+            ctype = self.headers.get("Content-Type", "")
 
-            if hostname:
-                settings_store.update({"PUBLIC_HOSTNAME": hostname})
-            if email:
-                settings_store.update({"LE_EMAIL": email})
+            message = ""
+            dns01_block = ""
+            pfx_open = False
+            email = ""
 
-            data_dir = Path(config.DATA_DIR)
-            le_cfg = data_dir / "le-config"
-            le_work = data_dir / "le-work"
-            le_logs = data_dir / "le-logs"
-            for d in [webroot, le_cfg, le_work, le_logs]:
-                d.mkdir(parents=True, exist_ok=True)
-
-            result = subprocess.run(
-                ["certbot", "certonly", "--webroot",
-                 "-w", str(webroot), "-d", hostname,
-                 "--cert-name", "gateway",
-                 "--email", email, "--agree-tos", "--non-interactive",
-                 "--config-dir", str(le_cfg),
-                 "--work-dir", str(le_work),
-                 "--logs-dir", str(le_logs)],
-                capture_output=True, text=True, timeout=120,
-            )
-
-            if result.returncode == 0:
-                cert_dir = le_cfg / "live" / "gateway"
-                try:
-                    import shutil
-                    cert_dest = Path(config.SMTP_TLS_CERT)
-                    key_dest = Path(config.SMTP_TLS_KEY)
-                    cert_dest.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(cert_dir / "fullchain.pem", cert_dest)
-                    shutil.copy2(cert_dir / "privkey.pem", key_dest)
-                    message = _setup_ok_message(hostname)
-                    _schedule_self_restart()
-                except OSError as exc:
-                    output = (result.stdout or "").strip()
-                    message = (
-                        f'<div class="err"><strong>certbot OK, aber Kopieren fehlgeschlagen:</strong><br>'
-                        f"<pre>{exc}</pre>"
-                        f"<pre>{output}</pre></div>"
-                    )
+            if ctype.startswith("multipart/form-data"):
+                # Weg 2: PFX-Upload
+                felder, dateien = _parse_multipart(ctype, raw)
+                action = felder.get("action", "pfx")
+                hostname = felder.get("hostname", "").strip()
+                if hostname:
+                    settings_store.update({"PUBLIC_HOSTNAME": hostname})
+                pfx_open = True
+                message = _bootstrap_import_pfx(
+                    hostname, dateien.get("pfx_file", b""), felder.get("pfx_pass", ""))
             else:
-                output = (result.stderr or result.stdout or "certbot error").strip()
-                message = (
-                    f'<div class="err"><strong>certbot Fehler:</strong><br>'
-                    f"<pre>{output}</pre></div>"
-                )
+                params = urllib.parse.parse_qs(raw.decode("utf-8", errors="replace"))
+                action = (params.get("action", [""])[0]).strip() or "letsencrypt"
+                hostname = (params.get("hostname", [""])[0]).strip()
+                email = (params.get("email", [""])[0]).strip()
+                if hostname:
+                    settings_store.update({"PUBLIC_HOSTNAME": hostname})
+                if email:
+                    settings_store.update({"LE_EMAIL": email})
 
-            body = _setup_page(hostname=hostname, email=email, message=message)
+                if action == "dns01-start":
+                    staging = (params.get("staging", [""])[0]) in ("1", "on", "true")
+                    message, dns01_block = _bootstrap_dns01_start(hostname, email, staging)
+                elif action == "dns01-finish":
+                    message = _bootstrap_dns01_finish()
+                else:  # letsencrypt (Weg 1)
+                    message = _bootstrap_letsencrypt(webroot, hostname, email)
+
+            body = _setup_page(hostname=hostname, email=email, message=message,
+                               dns01_block=dns01_block, pfx_open=pfx_open)
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
