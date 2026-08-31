@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.37 — 2026-08-31 — legal/README.md nachgezogen (deutsch-only)
+
+`legal/README.md` beschrieb noch englische Fassungen — nach deren Entfernung
+(v1.8.36) richtiggestellt: ausschließlich deutsche Dokumente, keine Sprach-
+Spalte, der offene Punkt „Englische Übersetzungen" entfällt.
+
 ## v1.8.36 — 2026-08-31 — Rechtstexte nur noch deutsch
 
 Die englischen Fassungen der Rechtsdokumente wurden entfernt; maßgeblich und

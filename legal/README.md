@@ -1,8 +1,8 @@
 # legal/ — Rechtliche Dokumente
 
 Dieses Verzeichnis enthält die rechtlich verbindlichen Dokumente des EXO Signature Gateway
-und EXO Signature Hub. **Die deutschen Fassungen sind maßgeblich.** Die englischen
-Fassungen unter `en/` sind Übersetzungen zur Information.
+und EXO Signature Hub — **ausschließlich auf Deutsch** (die deutschen Fassungen sind
+maßgeblich; frühere englische Übersetzungen wurden entfernt).
 
 ---
 
@@ -50,7 +50,7 @@ Abgelöste Fassungen bleiben über die Git-Historie zugänglich.
 ## Aktuelle Versionen
 
 **Einzige Quelle ist `CURRENT_DOCUMENTS` in `app/legal_consent.py`.** Dort stehen
-Version, Anzeigename, Dateiname je Sprache und — über `no_consent_required` —
+Version, Anzeigename, Dateiname und — über `no_consent_required` —
 ob das Dokument zustimmungspflichtig ist.
 
 An dieser Stelle stand bis zum 17.08.2026 eine Tabelle zum Mitpflegen. Sie war
@@ -82,10 +82,6 @@ Registry sich decken und jede genannte Datei existiert.
 - **Preisliste als Anlage**: Die Preisliste verweist für Zertifikatspreise auf
   den Hub ("*siehe Hub*"). Eine Aussage dazu, was passiert wenn Hub-Preis und
   Preisliste abweichen, fehlt noch. Für spätere Version klären.
-
-- **Englische Übersetzungen**: Wurden von Claude Code erstellt und sind nicht
-  anwaltlich geprüft. Vor externem Einsatz (z. B. in Marketing-Materialien)
-  durch einen Muttersprachler mit juristischem Hintergrund überprüfen lassen.
 
 - **Gerichtsstand / Erfüllungsort**: Aachen. Passt für B2B im EU-Raum. Bei
   Kunden außerhalb der EU ggf. Schiedsgerichtsklausel erwägen.
