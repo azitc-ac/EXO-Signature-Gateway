@@ -592,7 +592,7 @@ aclLoadStatus();
 </script>
 
 <!-- ── EXO PowerShell Zertifikat ──────────────────────────────────────────── -->
-<div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
+<div class="wizard-step" id="exo-ps-cert" style="border-color:#78716c22;margin-bottom:20px">
   <div class="step-header">
     <span class="step-badge" style="background:#0369a1;font-size:10px">Cert</span>
     <span class="step-title">EXO PowerShell Zertifikat
@@ -825,7 +825,7 @@ document.addEventListener('DOMContentLoaded', acmeMethodLoad);
       <p class="hint" style="margin:0">
         Zum direkten Übertragen an den Support-Hub muss dieses Gateway erst registriert und
         freigegeben sein — einzurichten unter
-        <a href="/settings/connect">Einstellungen → Anbindung &amp; Lizenzen → Support-Hub</a>.
+        <a href="/settings/connect#anbindung">Einstellungen → Anbindung &amp; Lizenzen → Support-Hub</a>.
       </p>
       <button class="btn primary" id="sup-upload-btn" onclick="supportUpload()" disabled
               title="Erst unter Einstellungen → Anbindung &amp; Lizenzen registrieren" style="margin-top:8px">

@@ -15,7 +15,7 @@
 </p>
 
 <!-- ── Anbindung (eine Registrierung) ─────────────────────────────────────── -->
-<div class="settings-card" style="margin-bottom:18px">
+<div class="settings-card" id="anbindung" style="margin-bottom:18px">
   <h2 style="margin-top:0">Anbindung
     {% if hub_registered %}<span class="conn-badge conn-ok">✓ registriert</span>
     {% else %}<span class="conn-badge conn-wait">⚠ nicht registriert</span>{% endif %}
@@ -387,7 +387,7 @@ _initAdv('digicert');
 </script>
 
 <!-- ── Fair-Use-Lizenz ────────────────────────────────────────────────────── -->
-<div class="settings-card" style="margin-bottom:18px">
+<div class="settings-card" id="lizenz" style="margin-bottom:18px">
   <h2 style="margin-top:0">Lizenz
     <span class="conn-badge conn-wait" id="lic-badge">…</span>
   </h2>
@@ -528,7 +528,7 @@ _initAdv('digicert');
       {% else %}
       Es wurde noch keine Zustimmung erteilt. Sie entsteht dort, wo eine Bestellung
       ausgelöst wird: beim Einschalten der automatischen Bestellung
-      (<a href="/settings/smime">Einstellungen → S/MIME</a>) oder beim Start einer
+      (<a href="/settings/smime#auto-enroll-card">Einstellungen → S/MIME</a>) oder beim Start einer
       Sammelbestellung. Ohne sie lehnt die Betreiber-Gegenstelle jede Bestellung ab,
       sofern der Anbieter Bedingungen führt — und zwar erst im Lauf, nicht beim
       Einschalten.
@@ -797,7 +797,7 @@ function offeneAenderungAnzeigen(p){
   const hinweis = '<div style="margin-top:6px;font-size:11px;color:#92400e">'
     + 'Kommt nichts an und ist das Ziel eine Verteilerliste? Exchange lässt daran '
     + 'standardmäßig nur angemeldete Absender zu und weist alles andere ab. '
-    + 'Der Haken dafür steht unter <a href="/settings">Einstellungen</a> bei den '
+    + 'Der Haken dafür steht unter <a href="/settings#benachrichtigungen">Einstellungen</a> bei den '
     + 'Benachrichtigungen.</div>';
   document.getElementById('hub-konto-offen-text').innerHTML = text + hinweis;
   box.style.display='block';
