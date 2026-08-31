@@ -1022,6 +1022,27 @@
     "name": "api_test_graph"
   },
   {
+    "pfad": "/api/setup/tls/dns01/finish",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_tls_dns01_finish"
+  },
+  {
+    "pfad": "/api/setup/tls/dns01/start",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_tls_dns01_start"
+  },
+  {
+    "pfad": "/api/setup/tls/import-pfx",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_tls_import_pfx"
+  },
+  {
     "pfad": "/api/setup/verify/azure",
     "methoden": [
       "GET"

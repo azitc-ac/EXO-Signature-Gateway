@@ -37,7 +37,7 @@ import subprocess
 import urllib.parse
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.security import HTTPBasicCredentials
 
@@ -161,6 +161,75 @@ async def setup_wizard(
             "webui_port": config.WEBUI_PORT,
         },
     )
+
+
+@router.post("/api/setup/tls/import-pfx")
+async def api_tls_import_pfx(
+    user: str = Depends(_require_admin),
+    pfx_file: UploadFile = File(...),
+    password: str = Form(""),
+):
+    """Vorhandenes TLS-Zertifikat als PFX/PKCS#12 importieren (Alternative zu
+    Let's Encrypt für Betreiber, die Port 80 nicht öffnen wollen)."""
+    import tls_cert
+    host = (settings_store.get("PUBLIC_HOSTNAME")
+            or settings_store.get("LE_DOMAIN") or "").strip()
+    daten = await pfx_file.read()
+    try:
+        info = tls_cert.install_pfx(daten, password, host)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    except Exception as exc:                                 # noqa: BLE001
+        log.error("TLS-PFX-Import fehlgeschlagen: %s", exc)
+        raise HTTPException(400, f"Import fehlgeschlagen: {exc}")
+    if host:
+        settings_store.update({"LE_DOMAIN": host})
+    log.info("TLS-Zertifikat aus PFX importiert von %s (Namen: %s)",
+             user, ", ".join(info["hostnames"]))
+    return JSONResponse({"ok": True,
+                         "detail": "Zertifikat importiert. Neustart erforderlich.",
+                         **info})
+
+
+@router.post("/api/setup/tls/dns01/start")
+async def api_tls_dns01_start(request: Request, user: str = Depends(_require_admin)):
+    """Let's Encrypt DNS-01 (manuell), Schritt 1: Order anlegen, TXT-Record zeigen."""
+    import tls_acme_dns
+    data = await request.json()
+    domain = (data.get("domain") or settings_store.get("PUBLIC_HOSTNAME")
+              or settings_store.get("LE_DOMAIN") or "").strip()
+    email = (data.get("email") or settings_store.get("LE_EMAIL") or "").strip()
+    staging = bool(data.get("staging"))
+    try:
+        rec = await tls_acme_dns.start(domain, email, staging)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    except Exception as exc:                                 # noqa: BLE001
+        log.error("TLS DNS-01 start fehlgeschlagen: %s", exc)
+        raise HTTPException(502, f"Let's-Encrypt-Fehler: {exc}")
+    if domain:
+        settings_store.update({"LE_DOMAIN": domain})
+    if email:
+        settings_store.update({"LE_EMAIL": email})
+    log.info("TLS DNS-01 gestartet für %s von %s (staging=%s)", domain, user, staging)
+    return JSONResponse({"ok": True, **rec})
+
+
+@router.post("/api/setup/tls/dns01/finish")
+async def api_tls_dns01_finish(user: str = Depends(_require_admin)):
+    """Let's Encrypt DNS-01 (manuell), Schritt 2: validieren + Zertifikat holen."""
+    import tls_acme_dns
+    try:
+        info = await tls_acme_dns.finish()
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    except Exception as exc:                                 # noqa: BLE001
+        log.error("TLS DNS-01 finish fehlgeschlagen: %s", exc)
+        raise HTTPException(502, f"Let's-Encrypt-Fehler: {exc}")
+    log.info("TLS DNS-01 abgeschlossen von %s (Namen: %s)", user, ", ".join(info["hostnames"]))
+    return JSONResponse({"ok": True,
+                         "detail": "Zertifikat ausgestellt. Neustart erforderlich.",
+                         **info})
 
 
 @router.post("/api/setup/auth-paste")

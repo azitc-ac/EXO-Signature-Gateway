@@ -190,6 +190,18 @@ class AcmeClient:
         order["order_url"] = r.headers.get("Location", "")
         return order
 
+    async def new_order_dns(self, domain: str) -> dict:
+        """Place a new order for a DNS identifier (TLS cert, dns-01/http-01)."""
+        d = await self._fetch_directory()
+        r = await self._post(d["newOrder"], {
+            "identifiers": [{"type": "dns", "value": domain}],
+        })
+        if r.status_code != 201:
+            raise RuntimeError(f"ACME new-order failed: {r.status_code} {r.text[:300]}")
+        order = r.json()
+        order["order_url"] = r.headers.get("Location", "")
+        return order
+
     async def get_authorization(self, authz_url: str) -> dict:
         r = await self._post(authz_url, None)
         if r.status_code >= 400:
