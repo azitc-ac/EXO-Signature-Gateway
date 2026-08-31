@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.41 — 2026-08-31 — TLS-Zertifikat: PFX-Import und DNS-01 als Alternativen
+
+Bisher kam das TLS-Zertifikat nur über Let's Encrypt HTTP-01 (Port 80). Für
+Betreiber, die Port 80 nicht öffnen wollen, gibt es im Setup-Assistenten
+(Schritt 2.1) jetzt zwei Alternativen:
+
+- **Vorhandenes Zertifikat importieren (PFX/PKCS#12)** — auch Wildcard oder
+  interne CA. Das Zertifikat wird gegen den konfigurierten Hostnamen geprüft;
+  `key.pem` wird mit Rechten 600 abgelegt.
+- **Let's Encrypt DNS-01 (manuell)** — der Assistent zeigt den zu setzenden
+  TXT-Record, nach dem Eintrag wird ohne eingehenden Port ausgestellt.
+  ⚠️ Die Erneuerung (~alle 90 Tage) muss auf diesem Weg manuell wiederholt
+  werden (Staging-Option zum Testen vorhanden).
+
 ## v1.8.40 — 2026-08-31 — README: Produktname & Einleitung
 
 - Produktname durchgängig **„EXO Signature Gateway"** (Fließtext und

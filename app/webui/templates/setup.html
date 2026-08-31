@@ -154,7 +154,7 @@
 <div class="wizard-step {% if e.cert_exists %}done{% endif %}" id="step-le">
   <div class="step-header">
     <span class="step-badge">2.1</span>
-    <span class="step-title">TLS-Zertifikat (Let's Encrypt)</span>
+    <span class="step-title">TLS-Zertifikat</span>
     {% if e.cert_exists %}
     <span class="step-status done">Zertifikat vorhanden — HTTPS aktiv</span>
     {% else %}
@@ -164,9 +164,10 @@
   <div class="step-body">
     <p class="hint" style="margin-bottom:12px">
       Aktiviert HTTPS für das Web-UI und stellt das TLS-Client-Zertifikat bereit,
-      das der EXO Inbound Connector für Signaturprüfung benötigt (nur SMTP-Modus).
-      Port 80 muss für die ACME-Validierung öffentlich erreichbar sein.
+      das der EXO Inbound Connector für die Signaturprüfung benötigt (nur SMTP-Modus).
+      Drei Wege — je nachdem, ob Port 80 offen ist und ob schon ein Zertifikat vorliegt.
     </p>
+
     <div class="settings-row">
       <label for="le-domain">Domain</label>
       <input type="text" id="le-domain" value="{{ s.LE_DOMAIN or e.public_hostname }}" placeholder="mail.contoso.com" style="width:280px" autocapitalize="off" autocorrect="off" spellcheck="false">
@@ -175,16 +176,71 @@
       <label for="le-email">E-Mail (ACME)</label>
       <input type="email" id="le-email" value="{{ s.LE_EMAIL }}" placeholder="admin@domain.com" style="width:280px">
     </div>
-    <div id="le-result" style="margin-top:8px;display:none"></div>
-    <div class="actions" style="margin-top:12px">
-      <button class="btn primary" id="le-btn" onclick="renewCert()">
-        {% if e.cert_exists %}Zertifikat erneuern{% else %}Let's Encrypt starten{% endif %}
-      </button>
+
+    <!-- Weg 1: Let's Encrypt über Port 80 -->
+    <div style="margin-top:6px">
+      <strong style="font-size:13px">1 · Let's Encrypt (HTTP)</strong>
+      <span class="hint"> — Port 80 muss öffentlich erreichbar sein.</span>
+      <div id="le-result" style="margin-top:8px;display:none"></div>
+      <div class="actions" style="margin-top:8px">
+        <button class="btn primary" id="le-btn" onclick="renewCert()">
+          {% if e.cert_exists %}Zertifikat erneuern{% else %}Let's Encrypt starten{% endif %}
+        </button>
+      </div>
     </div>
+
+    <!-- Weg 2: vorhandenes Zertifikat importieren -->
+    <details style="margin-top:14px">
+      <summary style="cursor:pointer;font-weight:600;font-size:13px">2 · Vorhandenes Zertifikat importieren (PFX/PKCS#12)</summary>
+      <div style="margin-top:10px">
+        <p class="hint" style="margin-bottom:8px">
+          Für Betreiber, die Port 80 nicht öffnen wollen und bereits ein Zertifikat haben
+          (auch Wildcard oder interne CA). Das Zertifikat muss zum Hostnamen oben passen.
+        </p>
+        <div class="settings-row">
+          <label for="pfx-file">PFX-Datei</label>
+          <div class="settings-control"><input type="file" id="pfx-file" accept=".pfx,.p12"></div>
+        </div>
+        <div class="settings-row">
+          <label for="pfx-pass">Passwort</label>
+          <div class="settings-control"><input type="password" id="pfx-pass" placeholder="(falls gesetzt)" style="width:220px" autocomplete="new-password"></div>
+        </div>
+        <div id="pfx-result" style="margin-top:8px;display:none"></div>
+        <div class="actions" style="margin-top:8px">
+          <button class="btn primary" onclick="importTlsPfx(this)">Zertifikat importieren</button>
+        </div>
+      </div>
+    </details>
+
+    <!-- Weg 3: Let's Encrypt DNS-01 (manuell) -->
+    <details style="margin-top:12px">
+      <summary style="cursor:pointer;font-weight:600;font-size:13px">3 · Let's Encrypt über DNS-01 (ohne Port 80)</summary>
+      <div style="margin-top:10px">
+        <p class="hint" style="margin-bottom:8px">
+          Ohne offenen Port 80 und ohne vorhandenes Zertifikat: Du setzt einen
+          TXT-Record im DNS, danach stellt Let's Encrypt aus.
+        </p>
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px 10px;font-size:12px;color:#92400e;margin-bottom:10px">
+          ⚠️ <strong>Manuell:</strong> Die Erneuerung (~alle 90 Tage) musst du auf
+          diesem Weg jedes Mal wiederholen. Wo möglich ist Weg 1 oder ein
+          importiertes Zertifikat pflegeleichter.
+        </div>
+        <label class="checkbox-label" style="margin-bottom:8px">
+          <input type="checkbox" id="dns01-staging"> Nur testen (Let's-Encrypt-Staging, kein gültiges Zertifikat)
+        </label>
+        <div id="dns01-record" style="display:none;margin:8px 0"></div>
+        <div id="dns01-result" style="margin-top:8px;display:none"></div>
+        <div class="actions" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn secondary" id="dns01-start-btn" onclick="dns01Start(this)">TXT-Record anfordern</button>
+          <button class="btn primary" id="dns01-finish-btn" onclick="dns01Finish(this)" style="display:none">Record gesetzt — jetzt ausstellen</button>
+        </div>
+      </div>
+    </details>
+
     {% if e.cert_exists %}
-    <p class="hint" style="margin-top:8px">
-      Nach Ausstellung wechselt das Web-UI automatisch zu HTTPS — HTTP-Zugriff
-      wird auf HTTPS weitergeleitet.
+    <p class="hint" style="margin-top:12px">
+      Ein Zertifikat ist aktiv. Nach einer Neuausstellung wechselt das Web-UI
+      automatisch zu HTTPS; HTTP wird weitergeleitet.
     </p>
     {% endif %}
   </div>
@@ -1227,6 +1283,75 @@ async function renewCert() {
     const d = await resp.json().catch(() => ({}));
     showAlert(result, 'error', 'certbot-Fehler: ' + (d.detail || 'Unbekannt'));
   }
+}
+
+// ── Weg 2: PFX importieren ───────────────────────────────────────────────────
+async function importTlsPfx(btn) {
+  const res = document.getElementById('pfx-result');
+  const f = document.getElementById('pfx-file').files[0];
+  if (!f) { showAlert(res, 'error', 'Bitte eine PFX-Datei wählen.'); return; }
+  const fd = new FormData();
+  fd.append('pfx_file', f);
+  fd.append('password', document.getElementById('pfx-pass').value || '');
+  btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Importiere…';
+  hideAlert(res);
+  try {
+    const r = await fetch('/api/setup/tls/import-pfx', {method: 'POST', body: fd});
+    const d = await r.json().catch(() => ({}));
+    if (r.ok) {
+      showAlert(res, 'success', 'Importiert (' + (d.hostnames || []).join(', ') +
+        ', gültig bis ' + (d.not_after || '?').slice(0, 10) + '). <strong>Neustart erforderlich.</strong>');
+    } else {
+      showAlert(res, 'error', 'Fehler: ' + (d.detail || 'Import fehlgeschlagen'));
+    }
+  } catch (e) { showAlert(res, 'error', 'Fehler: ' + e.message); }
+  btn.disabled = false; btn.textContent = orig;
+}
+
+// ── Weg 3: Let's Encrypt DNS-01 (manuell) ────────────────────────────────────
+async function dns01Start(btn) {
+  const rec = document.getElementById('dns01-record');
+  const res = document.getElementById('dns01-result');
+  hideAlert(res);
+  btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Fordere an…';
+  try {
+    const r = await fetch('/api/setup/tls/dns01/start', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        domain: (document.getElementById('le-domain').value || '').trim(),
+        email: (document.getElementById('le-email').value || '').trim(),
+        staging: document.getElementById('dns01-staging').checked,
+      }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok) {
+      rec.style.display = 'block';
+      rec.innerHTML = 'Setze diesen TXT-Record und warte, bis er propagiert ist:<br>' +
+        '<code>' + esc(d.record_name) + '</code> = <code>' + esc(d.record_value) + '</code>' +
+        '<button class="copy-btn" data-copy="' + escAttr(d.record_value) + '" title="Wert kopieren" type="button">Kopieren</button>';
+      document.getElementById('dns01-finish-btn').style.display = '';
+    } else {
+      showAlert(res, 'error', 'Fehler: ' + (d.detail || 'Start fehlgeschlagen'));
+    }
+  } catch (e) { showAlert(res, 'error', 'Fehler: ' + e.message); }
+  btn.disabled = false; btn.textContent = orig;
+}
+
+async function dns01Finish(btn) {
+  const res = document.getElementById('dns01-result');
+  hideAlert(res);
+  btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Stelle aus… (1–2 Min.)';
+  try {
+    const r = await fetch('/api/setup/tls/dns01/finish', {method: 'POST'});
+    const d = await r.json().catch(() => ({}));
+    if (r.ok) {
+      showAlert(res, 'success', 'Zertifikat ausgestellt (' + (d.hostnames || []).join(', ') +
+        '). <strong>Neustart erforderlich.</strong>');
+    } else {
+      showAlert(res, 'error', 'Fehler: ' + (d.detail || 'Ausstellung fehlgeschlagen'));
+    }
+  } catch (e) { showAlert(res, 'error', 'Fehler: ' + e.message); }
+  btn.disabled = false; btn.textContent = orig;
 }
 
 async function setupExoConnector() {
