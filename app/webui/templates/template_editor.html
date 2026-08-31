@@ -801,7 +801,7 @@ function buildBlockForm(b) {
       ist gar nichts hinterlegt, entfällt der Block.
       Zweizeilig: Straße, darunter „PLZ Ort". Einzeilig: alles mit Komma getrennt.</p>`;
   } else if (t === 'divider') {
-    rows += row('Farbe', txt('color', b.color, '#e2e8f0'));
+    rows += row('Farbe', farbFeld('color', b.color || '#e2e8f0', b.id));
     rows += row('Abstand (px)', txt('margin', b.margin, '8'));
   } else if (t === 'phone' || t === 'mobile') {
     rows += row('Feld', fieldSelect(b.field||(t==='mobile'?'mobilePhone':'phone'),'field',b.id));

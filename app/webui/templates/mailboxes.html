@@ -667,7 +667,12 @@ async function loadMailboxes(silent) {
     var data = await resp.json();
     _mbData = data.mailboxes || [];
     await loadPolicies();       // policy selects must be filled before row rendering reads them
+    // Status-Spalte immer zeigen: /api/mailboxes liefert den letzten
+    // bekannten Gesundheitsstand aus MAILBOX_HEALTH mit; die Spalte ist damit
+    // sofort da (Werte oder „–"), nicht erst nach Knopfdruck.
+    _hasHealthData = true;
     renderMailboxTable(_mbData);
+    document.getElementById('th-status').style.display = '';
     if (slowHint) clearTimeout(slowHint);
     if (!silent) status.textContent = _mbData.length + ' Postfächer geladen';
     document.getElementById('mb-table-wrap').style.display = '';
@@ -681,12 +686,28 @@ async function loadMailboxes(silent) {
     // Seite — die Tabelle kommt aber per Abruf. Ohne diese Zeile stünde beim
     // Öffnen „noch nicht gespeichert".
     wacheNeuMessen('mb-save-btn');
+    // Liegt noch gar kein Gesundheitsstand vor (frisch, Scheduler-Erstlauf noch
+    // nicht durch), einmal im Hintergrund prüfen — damit die Spalte nicht
+    // dauerhaft „–" zeigt (ergänzt den periodischen Scheduler-Job).
+    if (!silent && !_healthAutoKicked && _mbData.length
+        && !_mbData.some(function(mb){ return mb.health_overall; })) {
+      _healthAutoKicked = true;
+      _kickHealthBackground();
+    }
   } catch(e) {
     if (slowHint) clearTimeout(slowHint);
     if (!silent) status.textContent = 'Fehler: ' + e.message;
   } finally {
     if (!silent) btn.disabled = false;
   }
+}
+
+var _healthAutoKicked = false;
+async function _kickHealthBackground() {
+  try {
+    var r = await fetch('/api/health/mailboxes', {method: 'POST'});
+    if (r.ok) await loadMailboxes(true);
+  } catch(_) { /* Scheduler holt es später nach */ }
 }
 
 async function refreshMailboxStatus() {

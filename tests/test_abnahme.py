@@ -158,5 +158,54 @@ def test_exchange_ok_mit_allen_rollen(monkeypatch):
     monkeypatch.setattr(
         graph_client, "_acquire_token",
         lambda: _jwt_mit_rollen(["User.Read.All", "Mail.Send", "Mail.ReadWrite"]))
+    monkeypatch.setattr(abnahme, "_exo_rollen", lambda: {"Exchange.ManageAsApp"})
     p = abnahme._exchange()
     assert p["zustand"] == abnahme.OK
+
+
+def test_exchange_meldet_fehlende_exo_rolle(monkeypatch):
+    """Exchange.ManageAsApp fehlt im EXO-Token → OFFEN (die kritische Rolle)."""
+    import graph_client
+    monkeypatch.setattr(
+        graph_client, "_acquire_token",
+        lambda: _jwt_mit_rollen(["User.Read.All", "Mail.Send", "Mail.ReadWrite"]))
+    monkeypatch.setattr(abnahme, "_exo_rollen", lambda: set())
+    p = abnahme._exchange()
+    assert p["zustand"] == abnahme.OFFEN
+    assert "Exchange.ManageAsApp" in p["befund"]
+
+
+# ── Von außen erreichbar — Selbstabruf + IP-Vergleich ────────────
+
+def test_aussen_selbstabruf_beweist_bindung(monkeypatch):
+    import aussenadresse
+    monkeypatch.setattr(aussenadresse, "konfiguriert", lambda: "https://gw.example.com")
+    monkeypatch.setattr(abnahme, "_dns_adressen", lambda h: ["203.0.113.5"])
+    monkeypatch.setattr(abnahme, "_self_fetch_bestaetigt", lambda basis: True)
+    p = abnahme._aussenadresse()
+    assert p["zustand"] == abnahme.OK
+    assert "nachweislich" in p["befund"]
+
+
+def test_aussen_ip_vergleich_als_rueckfall(monkeypatch):
+    """Ohne Selbstabruf greift der Vergleich mit der externen öffentlichen IP."""
+    import aussenadresse
+    monkeypatch.setattr(aussenadresse, "konfiguriert", lambda: "https://gw.example.com")
+    monkeypatch.setattr(abnahme, "_dns_adressen", lambda h: ["203.0.113.5"])
+    monkeypatch.setattr(abnahme, "_self_fetch_bestaetigt", lambda basis: False)
+    monkeypatch.setattr(abnahme, "_oeffentliche_ip", lambda: None)          # IMDS leer
+    monkeypatch.setattr(abnahme, "_oeffentliche_ip_extern", lambda: "203.0.113.5")
+    p = abnahme._aussenadresse()
+    assert p["zustand"] == abnahme.OK
+    assert "203.0.113.5" in p["befund"]
+
+
+def test_aussen_falsche_ip_meldet_offen(monkeypatch):
+    import aussenadresse
+    monkeypatch.setattr(aussenadresse, "konfiguriert", lambda: "https://gw.example.com")
+    monkeypatch.setattr(abnahme, "_dns_adressen", lambda h: ["198.51.100.9"])
+    monkeypatch.setattr(abnahme, "_self_fetch_bestaetigt", lambda basis: False)
+    monkeypatch.setattr(abnahme, "_oeffentliche_ip", lambda: None)
+    monkeypatch.setattr(abnahme, "_oeffentliche_ip_extern", lambda: "203.0.113.5")
+    p = abnahme._aussenadresse()
+    assert p["zustand"] == abnahme.OFFEN

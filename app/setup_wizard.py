@@ -741,6 +741,11 @@ def run_mailbox_dg_update(app_id: str, tenant_domain: str, members: list[str]) -
     ]
     if members:
         cmd += ["-Members", ",".join(members)]
+    # Im imap-Modus den IMAP-FullAccess gleich mit aktivieren, damit neu
+    # aktivierte Postfächer nicht ohne IMAP-Zugriff bleiben (still durchfallen).
+    mode = (settings_store.get("REINJECT_MODE") or "smtp").strip()
+    if mode in ("imap", "smtp587") and settings_store.get("IMAP_ACCESS_CONFIGURED"):
+        cmd.append("-GrantImapFullAccess")
 
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=180)

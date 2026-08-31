@@ -289,7 +289,7 @@
   </div>
 </div>
 
-<div class="settings-card">
+<div class="settings-card" id="portal">
   <h3 style="margin-top:0;margin-bottom:4px">Secure Message Portal</h3>
   <p class="hint" style="margin-bottom:12px">
     Hat ein Empfänger einer <code>{{ s.ENC_TRIGGER or '#enc' }}</code>-Mail kein S/MIME-Zertifikat, wird die Mail
@@ -434,7 +434,7 @@
 
 </div>
 
-<div class="settings-card">
+<div class="settings-card" id="schluesselablage">
   <h3 style="margin-top:0;margin-bottom:12px">Schlüsselablage</h3>
 
   <h3 style="margin-top:0;margin-bottom:8px">Azure Key Vault</h3>
@@ -493,7 +493,11 @@
   </div>
   </div>
 
-  <div data-adv="smime" style="display:none">
+  {# Verschlüsselung ruhender Schlüssel ist sicherheitsrelevant und gehört NICHT
+     hinter „erweitert": ein aktivierter Schalter ohne Passwort speichert die
+     Schlüssel unverschlüsselt. Deshalb immer sichtbar (der Hinweis unten macht
+     den tatsächlichen Zustand ehrlich). #}
+  <div>
   <div style="border-top:1px solid #f0f0f0;margin:16px 0 14px"></div>
 
   <div class="settings-row" style="align-items:flex-start">

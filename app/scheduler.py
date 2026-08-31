@@ -22,6 +22,9 @@ _last_acl_refresh: float = 0.0         # monotonic; 0 = never (triggers fetch on
 _ACL_REFRESH_INTERVAL = 12 * 60 * 60   # Exchange IP ranges change rarely — twice a day is plenty
 _last_hub_orders_poll: float = 0.0     # monotonic; 0 = never (triggers poll on first tick)
 _HUB_ORDERS_INTERVAL = 15 * 60         # offene Hub-Zertifikatsbestellungen + Katalog-Refresh
+_last_health_run: float = 0.0          # monotonic; 0 = never (triggers run on first tick)
+_HEALTH_INTERVAL = 30 * 60             # Postfach-Gesundheit periodisch, damit die Übersicht
+                                       # auch ohne Knopfdruck einen aktuellen Stand zeigt
 
 
 # ── TLS / Let's Encrypt ───────────────────────────────────────────────────────
@@ -407,6 +410,27 @@ def _poll_hub_orders() -> None:
         _last_hub_orders_poll = time.monotonic()
 
 
+def _refresh_mailbox_health() -> None:
+    """Postfach-Gesundheit periodisch prüfen und in MAILBOX_HEALTH schreiben.
+
+    Ohne diesen Job lief der Check nur auf Knopfdruck — die Status-Spalte war
+    nach dem Setup leer, bis jemand „Status aktualisieren" drückte. Jetzt zeigt
+    die Übersicht auch beim ersten Blick einen (aktuellen) Stand."""
+    global _last_health_run
+    try:
+        import asyncio
+        import health_check
+        cfg = settings_store.get("MAILBOX_CONFIG") or {}
+        if cfg:                                   # nur wenn es Postfächer gibt
+            res = asyncio.run(health_check.run_all_checks())
+            log.info("scheduler: Postfach-Gesundheit geprüft (%d Postfach/Postfächer)",
+                     len(res) if isinstance(res, dict) else 0)
+    except Exception as exc:
+        log.warning("scheduler: Postfach-Gesundheitsprüfung fehlgeschlagen: %s", exc)
+    finally:
+        _last_health_run = time.monotonic()
+
+
 def _loop() -> None:
     while True:
         try:
@@ -422,6 +446,8 @@ def _loop() -> None:
                 _refresh_smtp_acl()
             if time.monotonic() - _last_hub_orders_poll > _HUB_ORDERS_INTERVAL:
                 _poll_hub_orders()
+            if time.monotonic() - _last_health_run > _HEALTH_INTERVAL:
+                _refresh_mailbox_health()
         except Exception as exc:
             log.error("scheduler loop error: %s", exc)
         time.sleep(60)

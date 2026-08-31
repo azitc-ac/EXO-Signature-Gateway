@@ -5,6 +5,78 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.30 — 2026-08-31 — S/MIME wieder aktivierbar, Key-Vault-Migration und Abnahme-Nachschärfung
+
+Nacharbeit aus einem weiteren Durchlauf der Erstinstallation. Ein Fehler aus
+v1.8.29 ist behoben (S/MIME-Aktivierung), dazu Reparaturen an der
+Key-Vault-Migration und mehrere Verbesserungen an Abnahme und Oberfläche.
+
+### S/MIME ließ sich nicht mehr aktivieren (Regression aus v1.8.29)
+
+Der Opt-in-Default aus v1.8.29 (S/MIME nicht vorangehakt) war richtig, aber der
+Modus-Schritt schrieb den Haken beim Speichern nicht mit — der Wert ging beim
+Neuladen verloren, S/MIME war nicht aktivierbar. Der Haken ist jetzt eine
+persistente Einstellung (`SMIME_ENABLED`), die der Modus-Schritt mitschreibt und
+der Assistent daraus wiederherstellt.
+
+### Azure Key Vault
+
+- **Migration im Standardmodus repariert.** Der Import speicherte Schlüssel als
+  „exportable"; Azure verlangt dafür zwingend eine Release-Policy (Secure Key
+  Release, Premium-Vault) und lehnte den Import auf einem Standard-Vault ab
+  (`AKV.SKR.1004`) — der Standard-Migrationsweg funktionierte damit nie.
+  Schlüssel werden jetzt **nicht-exportierbar** importiert; das funktioniert auf
+  jedem Standard-Vault. Die Wiederherstellbarkeit kommt weiterhin aus dem
+  lokalen, verschlüsselten Backup (`key.pem.bak`), nicht aus einem Rück-Export.
+- **Ehrliche Beschriftung.** Der Sammel-Knopf verspricht „lokal löschen" nur
+  noch im strikten Modus; im Fallback-Modus (Vorgabe) bleibt ein lokales Backup,
+  was der Text jetzt sagt.
+- **Konsistente Knöpfe.** Sammel- und Einzel-Migration hängen beide am
+  Vorhandensein eines lokalen Schlüssels statt am Vault-Modus — in jedem Modus
+  gibt es damit einen funktionierenden Migrationsweg.
+
+### Abnahme (Betriebsbereitschaftsprüfung)
+
+- **„Von außen erreichbar" beweist die Bindung.** Statt bei nicht ermittelbarer
+  öffentlicher IP aufzugeben (bei Standard-SKU-IPs liefern die
+  Instanz-Metadaten das Feld leer), ruft die Prüfung jetzt den öffentlichen
+  Namen auf und vergleicht ein pro-Start erzeugtes Token — führt der Name zu
+  dieser Instanz, ist die Bindung bewiesen. Als Rückfall dient eine externe
+  IP-Ermittlung und der Abgleich mit dem DNS-Eintrag.
+- **„Exchange erreichbar" prüft Exchange.ManageAsApp.** Bisher wurden nur die
+  Graph-Berechtigungen geprüft; die für Connector, Verteilerliste, IMAP und
+  Nachrichtenverfolgung nötige Exchange-Verwaltungsrolle steht in einem eigenen
+  Token und wird nun mitgeprüft.
+
+### Postfächer
+
+- **Status läuft von allein.** Die Postfach-Gesundheit wird periodisch im
+  Hintergrund geprüft und beim ersten Blick angezeigt — bisher blieb die
+  Status-Spalte leer, bis jemand „Status aktualisieren" drückte. Die Spalte ist
+  jetzt immer vorhanden und zeigt den letzten bekannten Stand.
+- **Health-Detail ehrlich.** Der Schlüssel-Status meldet „Key Vault" nur noch,
+  wenn für dieses Postfach tatsächlich ein Schlüssel im Vault liegt — vorher
+  genügte ein global gesetzter Vault, was einen fehlenden Schlüssel verdeckte.
+- **IMAP-Zugriff für neue Postfächer.** Im IMAP-Modus verlangt App-only-IMAP
+  Zugriff pro Postfach; ein tenant-weiter Grant existiert nicht. Beim Aktivieren
+  eines Postfachs wird der Zugriff jetzt automatisch mitgesetzt — sonst fiel ein
+  neu aktiviertes Postfach beim Rückweg still durch.
+
+### Oberfläche
+
+- **Schlüsselverschlüsselung sichtbar.** Die Verschlüsselung ruhender privater
+  Schlüssel (AES-256) steht nicht länger hinter „Erweitert"; ein aktivierter
+  Schalter ohne gesetztes Passwort weist weiterhin darauf hin, dass die
+  Schlüssel dann unverschlüsselt liegen.
+- **Entra-Login:** Plattform-Bezeichnung an den Anmelde-Dialog angeglichen
+  („Public client/native (mobile & desktop)"), Kopier-Knöpfe für App-Name und
+  Redirect-URIs.
+- **Signatur-Baukasten:** Trennlinien-Farbe über einen Farbwähler statt als
+  Freitext; die Beispielvorlage „Mit Logo" bringt jetzt ein Beispiel-Logo mit.
+- **Deep-Links:** „Portal konfigurieren" und der Key-Vault-Hinweis springen zur
+  richtigen Karte statt an den Seitenanfang; ein ins Leere zeigender Link zur
+  Schlüsselablage ist korrigiert.
+
 ## v1.8.29 — 2026-08-30 — Einrichtungsassistent, Demo-Vorlagen und einheitlicher Loop-Header
 
 Sammlung von Verbesserungen an der Erstinstallation. Betriebsbereite Gateways

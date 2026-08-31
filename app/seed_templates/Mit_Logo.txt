@@ -5,6 +5,6 @@ Mit freundlichen Grüßen
 --
 {% if user.phone %}Tel: {{ user.phone }}{% endif %}
 {% if user.mobilePhone %}Mobil: {{ user.mobilePhone }}{% endif %}
-{{ user.mail }}
+{% if user.mail %}{{ user.mail }}{% endif %}
 {% if user.website %}{{ user.website }}{% endif %}
 {% if user.bookingsUrl %}Termin buchen: {{ user.bookingsUrl }}{% endif %}

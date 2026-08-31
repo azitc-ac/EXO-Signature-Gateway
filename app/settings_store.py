@@ -51,6 +51,10 @@ DEFAULTS: dict = {
     "SMIME_AUTO_RULES": [],               # [{action: encrypt|sign|nosign, sender, recipient, mode: and|or}]
     "LICENSE_KEY": "",                    # Fair-Use-Lizenz (EXOSIG1.…, Ed25519-signiert, Tenant-gebunden)
     "CATALOG_PROVIDERS_DISABLED": [],     # Hub-Anbieter-IDs, die der GW-Betreiber lokal ausblendet
+    # Opt-in-Entscheidung des Assistenten, S/MIME einzurichten (Modus-Schritt).
+    # Steuert die Sichtbarkeit des S/MIME-Schritts und muss persistieren, sonst
+    # geht die Wahl beim Neuladen verloren und S/MIME lässt sich nicht aktivieren.
+    "SMIME_ENABLED": False,
     "SMIME_SIGNING_ENABLED": True,    # Automatically sign outbound mails when a cert exists
     # Zertifikat bestellen, sobald ein Postfach für S/MIME aktiviert wird.
     # ⚠️ Kann Geld kosten: Der Bezugsweg entscheidet. Die Postfachseite fragt
