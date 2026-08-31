@@ -8,9 +8,9 @@
 > für Dritte oder Verkauf/Anbieten als Service durch andere als den
 > Lizenzgeber.
 
-Ein Docker-basierter SMTP-Proxy, der automatisch personalisierte E-Mail-Signaturen in Exchange Online (EXO) einbettet – und **vollständig auf Azure betrieben werden kann, ohne ausgehenden Port 25**.
+Ein Docker-basierter SMTP-Proxy, der in Exchange Online (EXO) automatisch personalisierte E-Mail-Signaturen einbettet und Mails per **S/MIME signiert und verschlüsselt** – und dabei **vollständig auf Azure betrieben werden kann, ohne ausgehenden Port 25**. Als **SMTP-Relay** kann er zusätzlich einen lokalen Exchange-Server für Geräte im eigenen Netz (Drucker, Scanner, Fachanwendungen) ersetzen.
 
-Exchange Online bietet serverseitige Transportregeln für Disclaimer – diese sind jedoch auf einfache, statische Textbausteine mit begrenzten AD-Attributen beschränkt. Dieser Service geht deutlich weiter (Überblick in den Funktionen unten).
+Exchange Online bietet serverseitige Transportregeln für Disclaimer – diese sind jedoch auf einfache, statische Textbausteine mit begrenzten AD-Attributen beschränkt.
 
 ---
 
@@ -54,7 +54,7 @@ Exchange Online bietet serverseitige Transportregeln für Disclaimer – diese s
 
 ## Wie es funktioniert
 
-Outlook und andere Mail-Clients kommunizieren immer direkt mit Exchange Online (über MAPI oder REST) – nie über diesen Service. Der Service hängt sich als **serverseitiger Transport-Gateway** in den Outbound-Pfad von Exchange Online ein:
+Outlook und andere Mail-Clients kommunizieren immer direkt mit Exchange Online (über MAPI oder REST) – nie über dieses Gateway. Es hängt sich **serverseitig** in den Outbound-Pfad von Exchange Online ein:
 
 ```
 Outlook / Mail-Client
@@ -63,7 +63,7 @@ Outlook / Mail-Client
 Exchange Online (EXO)
        │ Outbound Transport Connector → SMTP Port 25 (eingehend zum Gateway)
        ▼
-EXO Signature Service  ◄── MS Graph API (Absenderdaten)
+EXO Signature Gateway  ◄── MS Graph API (Absenderdaten)
        │
        ├─ smtp-Modus (Vorgabe, klassisch): SMTP Port 25 → EXO Smarthost
        │
@@ -80,8 +80,8 @@ Exchange Online (EXO) → Zustellung an Empfänger
 ```
 
 1. Outlook sendet die Mail wie gewohnt an Exchange Online (MAPI/REST).
-2. Eine **EXO-Transportregel** leitet ausgehende Mails der konfigurierten Absender über einen **Send Connector** an diesen Service weiter (SMTP Port 25, eingehend zum Gateway-Container).
-3. Der Service schlägt den Absender per Microsoft Graph API nach und injiziert die Jinja2-Signatur (HTML + Plaintext) – auch bei Nur-Text- und TNEF-Mails (Outlook RTF).
+2. Eine **EXO-Transportregel** leitet ausgehende Mails der konfigurierten Absender über einen **Send Connector** an dieses Gateway weiter (SMTP Port 25, eingehend zum Gateway-Container).
+3. Das Gateway schlägt den Absender per Microsoft Graph API nach und injiziert die Jinja2-Signatur (HTML + Plaintext) – auch bei Nur-Text- und TNEF-Mails (Outlook RTF).
 4. Die signierte Mail wird je nach `REINJECT_MODE` zurück an Exchange übergeben (Details unten).
 
 ---
@@ -110,7 +110,7 @@ Exchange Online (EXO) → Zustellung an Empfänger
 | **993** | IMAPS | `outlook.office365.com` | IMAP APPEND (Inbox-Inject ohne Draft-Flag) | `imap` |
 | **25** | SMTP | `<tenant>.mail.protection.outlook.com` | Re-inject via SMTP | `smtp` (nicht Azure-kompatibel) |
 
-Azure VMs blockieren ausgehenden Port 25. Mit `REINJECT_MODE=graph` oder `imap` ist der Service vollständig ohne outbound Port 25 betreibbar.
+Azure VMs blockieren ausgehenden Port 25. Mit `REINJECT_MODE=graph` oder `imap` ist das Gateway vollständig ohne outbound Port 25 betreibbar.
 
 ---
 
@@ -265,7 +265,7 @@ docker compose up -d
 
 ### 3. First-Run — TLS-Zertifikat via Port 80
 
-Beim allerersten Start existiert noch kein TLS-Zertifikat. Der Service startet einen
+Beim allerersten Start existiert noch kein TLS-Zertifikat. Das Gateway startet einen
 minimalen Setup-Wizard auf **Port 80 (HTTP)**:
 
 ```
@@ -318,7 +318,7 @@ bildet `443 → 8080` ab. Alle Einstellungen werden in der Oberfläche gepflegt
 | **S/MIME** | Zertifikat-Import, Empfänger-Zertifikate, Azure-Key-Vault-Migration, CASTLE-ACME-Enrollment, Secure Message Portal |
 | **SMTP-Relay** | Geräte im eigenen Netz (Drucker, Scanner) über das Gateway senden lassen — Geräteliste und Lernmodus |
 | **Einstellungen** | Alle Konfigurationsoptionen, Test-Mail, Let's Encrypt, Re-inject-Modus, Entra-App, Anbindung & Lizenzen, Update & Backup |
-| **Log** | Live-Ansicht der Service-Logs |
+| **Log** | Live-Ansicht der Gateway-Logs |
 | **Add-in** | Office-Add-in für Outlook (Signatur-Vorschau und -Auswahl im Verfassenfenster) |
 | **Setup** | Erstkonfigurationsassistent (App-Registrierung, Connector, IMAP-Zugriff, Anmeldung prüfen) |
 | **Debug** | ACME-Versandmethode, Account-Key-Reset, Exchange Header Observatory |
@@ -336,7 +336,7 @@ Mails können pro Absender digital signiert und/oder verschlüsselt werden.
 3. Funktioniert in allen Modi (Graph, IMAP, SMTP)
 
 **Azure Key Vault Integration:**  
-Private Schlüssel können optional in Azure Key Vault gespeichert werden. Der Service signiert dann via Key Vault Sign API – der private Schlüssel verlässt das HSM nie. Fallback-Modus (`KV_KEY_MODE=fallback`) erlaubt lokale Backup-Kopie als Ausfallsicherung.
+Private Schlüssel können optional in Azure Key Vault gespeichert werden. Das Gateway signiert dann via Key Vault Sign API – der private Schlüssel verlässt das HSM nie. Fallback-Modus (`KV_KEY_MODE=fallback`) erlaubt lokale Backup-Kopie als Ausfallsicherung.
 
 Für die Verschlüsselung werden Empfänger-Zertifikate separat verwaltet (Bereich "Empfängerzertifikate").
 
@@ -344,7 +344,7 @@ Für die Verschlüsselung werden Empfänger-Zertifikate separat verwaltet (Berei
 
 ## S/MIME Zertifikat-Lifecycle & Auto-Enrollment (CASTLE ACME)
 
-Der Service überwacht Zertifikatsablaufdaten und kann Erneuerungen anstoßen. Pro Benutzer ist ein CA-Backend konfigurierbar.
+Das Gateway überwacht Zertifikatsablaufdaten und kann Erneuerungen anstoßen. Pro Benutzer ist ein CA-Backend konfigurierbar.
 
 ### Verfügbare Backends
 
@@ -373,7 +373,7 @@ Gateway          CASTLE ACME              Exchange Online (Postfach)
 ```
 
 **Warum Graph API Polling statt SMTP-Intercept:**  
-Der MX-Record der Betreiberdomain zeigt auf Exchange Online — die Challenge-E-Mail geht direkt ins Postfach, ohne den Gateway zu passieren. Der Service pollt daher aktiv das Postfach via Graph API.
+Der MX-Record der Betreiberdomain zeigt auf Exchange Online — die Challenge-E-Mail geht direkt ins Postfach, ohne den Gateway zu passieren. Das Gateway pollt daher aktiv das Postfach via Graph API.
 
 **Kein Port 25 / kein ACS nötig:**  
 Die Challenge-Antwort wird per `Graph sendMail` gesendet. Exchange routet die Antwortmail über den Outbound-Connector zurück durch das Gateway — der Handler erkennt `Subject: Re: ACME:` und baut ein RFC 8823-konformes MIME mit CRLF neu auf. Damit gelangt die Antwort zu CASTLE – ohne direkten Port-25-Zugang.
@@ -422,7 +422,7 @@ als `{{ custom.<name> }}` verfügbar. Einzelne Werte können pro Postfach
 
 ## Mail-Typen
 
-Der Service verarbeitet alle gängigen MIME-Formate korrekt:
+Das Gateway verarbeitet alle gängigen MIME-Formate korrekt:
 
 - **HTML-Mails** – Signatur wird vor `</body>` eingefügt
 - **Nur-Text-Mails** – werden zu `multipart/alternative` konvertiert (Text + HTML)
@@ -438,13 +438,13 @@ Port 80 ist im mitgelieferten `docker-compose.yml` bereits offen (HTTP-01 Challe
 1. Sicherstellen dass Port 80 und Port 25 extern erreichbar sind (Firewall / NAT-Regel).
 2. In der Web-UI unter **Einstellungen → TLS / Let's Encrypt** Domain und E-Mail eintragen.
 3. Button **Zertifikat erneuern** klicken.
-4. Nach Erfolg: **Service neu starten** (Button in Einstellungen oder `docker compose restart`).
+4. Nach Erfolg: **Gateway neu starten** (Button in Einstellungen oder `docker compose restart`).
 
 ---
 
 ## Gesendete Elemente (Sent Items)
 
-Wenn `SENT_ITEMS_UPDATE` aktiviert ist, patcht der Service nach dem Versand die Mail in den Gesendeten Elementen des Absenders mit der signierten Version.
+Wenn `SENT_ITEMS_UPDATE` aktiviert ist, patcht das Gateway nach dem Versand die Mail in den Gesendeten Elementen des Absenders mit der signierten Version.
 
 **Voraussetzung:** `Mail.ReadWrite.All` Application Permission mit Admin Consent.
 

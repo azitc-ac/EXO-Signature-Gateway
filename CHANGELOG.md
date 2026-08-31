@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.40 — 2026-08-31 — README: Produktname & Einleitung
+
+- Produktname durchgängig **„EXO Signature Gateway"** (Fließtext und
+  Flow-Diagramm). Fachbegriffe bleiben: „Service Principal", „Self-Service" und
+  der Lizenztext.
+- Einleitung um **S/MIME-Signatur/-Verschlüsselung** und **SMTP-Relay** (Ersatz
+  für einen lokalen Exchange-Server) ergänzt; der überflüssige Schlusssatz
+  entfällt.
+
 ## v1.8.39 — 2026-08-31 — Repo-Wurzel aufgeräumt
 
 Weniger Dateien im Repo-Stammverzeichnis (übersichtlichere GitHub-Startseite):
