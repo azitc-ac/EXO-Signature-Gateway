@@ -5,7 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
-## v1.8.44 — 2026-08-31 — TLS-Setup: gleiche Wege-Kästen, PFX-Prüfung übergehbar
+## v1.8.45 — 2026-08-31 — README: Abschnitt „Betrieb on-prem"
+
+Für Betreiber, die das Gateway auf eigener Hardware/VM statt in Azure betreiben,
+ein eigener README-Abschnitt mit den on-prem-spezifischen Punkten: Docker-/
+Compose-Installation samt Debian-12-vs-13-Unterschied (`docker-compose` mit vs.
+`docker compose` ohne Bindestrich), das Setzen der Bind-Mount-Rechte auf
+UID 1000 (sonst Start-Crash, weil Docker fehlende Ordner als root anlegt),
+Zertifikat ohne offenen Port 80 (DNS-01 oder PFX-Import), Split-Horizon-DNS,
+`smtp`-Modus lokal nutzbar sowie — mangels Azure Key Vault — die Verschlüsselung
+ruhender S/MIME-Schlüssel per Passwort. Der Schnellstart verweist beim First-Run
+zusätzlich auf DNS-01/PFX für Hosts ohne von außen offenen Port 80.
 
 **Menüführung.** Ersteinrichtung und Setup-Assistent zeigen die drei TLS-Wege
 jetzt einheitlich als aufklappbare Kästen unter der Frage „Wo soll das

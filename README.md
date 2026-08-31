@@ -146,6 +146,89 @@ Zusätzlich zu den Standard-Berechtigungen:
 
 ---
 
+## Betrieb on-prem (Linux, außerhalb von Azure)
+
+Selbst-Hosting auf eigener Hardware oder VM (Hyper-V, Proxmox, Bare-Metal,
+Raspberry Pi) — ohne `azure-vm-setup.ps1`. Getestet auf Debian 12/13 (x86-64),
+läuft nativ ebenso auf ARM64. Ports, Dimensionierung, Erstinbetriebnahme und
+Re-inject-Modi wie in den Abschnitten **Netzwerk-Anforderungen**,
+**Dimensionierung des Hosts**, **Schnellstart** und **Re-inject-Modi**. On-prem
+kommen nur wenige Punkte hinzu:
+
+### Docker + Compose installieren
+
+```bash
+sudo apt update
+sudo apt install -y docker.io docker-compose
+sudo systemctl enable --now docker
+sudo usermod -aG docker "$USER"     # danach einmal ab- und wieder anmelden
+```
+
+Die nativen Debian-Pakete liefern den Befehl **`docker-compose`** (mit
+Bindestrich): auf Debian 13 ist das Compose v2, auf Debian 12 Compose v1 (1.29) —
+beide funktionieren mit der mitgelieferten `docker-compose.yml` (sie hat keinen
+`version:`-Schlüssel). Das plugin-basierte **`docker compose`** (ohne Bindestrich)
+gibt es nur über das offizielle Docker-CE-Repo. In dieser Doku steht überall
+`docker compose`; je nach Installation stattdessen `docker-compose` verwenden.
+
+### Verzeichnis-Rechte setzen (sonst Crash beim Start)
+
+Der Container läuft als **`appuser` (UID 1000)**. Fehlende Bind-Mount-Ordner legt
+Docker als **root** an — dann bricht der Start mit
+`PermissionError: [Errno 13] … '/app/data/settings.tmp'` ab. Deshalb die Ordner
+vor dem ersten Start anlegen und übereignen:
+
+```bash
+git clone https://github.com/azitc-ac/EXO-Signature-Gateway.git
+cd EXO-Signature-Gateway
+mkdir -p data certs
+sudo chown -R 1000:1000 data certs templates
+docker compose up -d --build        # --build baut lokal; es gibt kein vorgebautes Registry-Image
+docker compose ps                   # exo-signature-gateway "healthy"?
+```
+
+### Zertifikat ohne offenen Port 80
+
+Ist Port 80 nicht von außen erreichbar (NAT, rein intern), im First-Run-Wizard
+statt Let's Encrypt HTTP-01 einen der beiden anderen Wege wählen:
+**Let's Encrypt DNS-01** (validiert per DNS-TXT, kein eingehender Port) oder
+**PFX-Import** (eigenes Zertifikat hochladen). ⚠️ DNS-01 muss ~alle 90 Tage
+manuell erneuert werden.
+
+### DNS
+
+- Feste/reservierte IP für den Host.
+- **Split-Horizon-DNS** empfohlen: intern zeigt der Hostname auf die **private**
+  IP (öffentlich weiter auf die öffentliche), damit interne Clients und die
+  Selbst-Checks des Gateways direkt zugehen statt über Hairpin-NAT. Kein Konflikt
+  mit Let's-Encrypt DNS-01.
+
+### Re-inject-Modus
+
+On-prem mit freiem ausgehendem Port 25 ist die Vorgabe **`smtp`** nutzbar (in
+Azure gesperrt, dort `graph` oder `imap`).
+
+### Schlüssel ohne Azure Key Vault
+
+Ohne Azure entfallen die Cloud-Spezifika: kein IMDS (der Regions-/
+Ressourcengruppen-Vorschlag im Key-Vault-Schritt bleibt leer — unkritisch) und
+kein Azure Key Vault. Die privaten S/MIME-Schlüssel liegen dann **lokal** unter
+`data/`. Dafür die **Verschlüsselung ruhender Schlüssel** setzen: *Einstellungen →
+S/MIME → „Verschlüsselung ruhender Schlüssel"* — der Schalter ist ab Werk an,
+wird aber erst mit einem gesetzten Passwort wirksam. (Azure Key Vault bleibt als
+optionale Alternative bestehen.)
+
+### Updates
+
+```bash
+git pull && docker compose up -d --build
+```
+
+Die Bind-Mounts `data/`, `certs/`, `templates/` bleiben erhalten → Konfiguration
+und Zertifikat überstehen das Update. (Alternativ per Web-UI: *Update & Backup*.)
+
+---
+
 ## Voraussetzungen
 
 - Docker + Docker Compose
@@ -276,6 +359,9 @@ http://<öffentliche-IP>
 
 Dort Hostname (`sig.example.com`) und Let's Encrypt E-Mail eintragen → **Zertifikat beantragen**.
 Voraussetzung: DNS des Hostnamens zeigt bereits auf diese IP (Let's Encrypt validiert via DNS).
+
+> Ohne von außen offenen Port 80 (NAT, rein intern): im Wizard **Let's Encrypt DNS-01**
+> oder **PFX-Import** statt HTTP-01 wählen — siehe Abschnitt **Betrieb on-prem**.
 
 Nach Erfolg:
 
