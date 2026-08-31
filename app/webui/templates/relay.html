@@ -1,8 +1,13 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>Einstellungen</h1>
+<h1>SMTP-Relay</h1>
 
-{% set nav_aktiv = "relay" %}{% include "_nav_einstellungen.html" %}
+<p class="hint" style="max-width:720px;margin:0 0 16px">
+  Lässt Geräte und Anwendungen im eigenen Netz — Drucker, Scanner,
+  Fachanwendungen — ihre E-Mails über das Gateway versenden, so wie über einen
+  lokalen Exchange-Server. Nur Geräte aus der Liste unten dürfen einliefern, alle
+  anderen werden abgewiesen. Verfügbar nur im Modus „SMTP Port 25".
+</p>
 
 <div id="relay-warnung" style="display:none;margin-bottom:16px"></div>
 
@@ -12,11 +17,11 @@
     <span style="display:inline-block;font-size:10px;font-weight:700;color:#92400e;background:#fef3c7;border:1px solid #fcd34d;border-radius:4px;padding:1px 6px;margin-left:6px;vertical-align:middle">PREVIEW</span>
   </h2>
   <p style="font-size:13px;color:#555;margin:0 0 14px">
-    Eine Geräteliste von Hand zu füllen setzt voraus, dass du alle Geräte kennst.
-    Der Lernmodus gibt stattdessen einen Bereich <strong>befristet</strong> frei und
-    nimmt jedes Gerät auf, das darin etwas Zulässiges einliefert. Löse danach an
-    jedem Gerät einen Testversand aus — Kommentar und Ansprechpartner trägst du
-    in Ruhe nach.
+    Wenn du nicht alle Geräte-Adressen kennst: Der Lernmodus gibt einen IP-Bereich
+    <strong>zeitlich befristet</strong> frei und trägt jedes Gerät, das darin gültig
+    einliefert, automatisch in die Geräteliste ein. Löse anschließend an jedem Gerät
+    einmal einen Testversand aus; Kommentar und Ansprechpartner kannst du später
+    ergänzen.
   </p>
 
   <div id="lern-aktiv" style="display:none;background:#fffbeb;border:1px solid #fde68a;
@@ -73,17 +78,19 @@
     <span id="geraete-result" style="font-size:12px;margin-left:8px"></span>
   </div>
   <p style="font-size:13px;color:#555;margin:10px 0 14px">
-    Diese Liste <strong>ist</strong> die Freigabe: Nur wer hier steht, darf einliefern.
-    Die Spalten rechts zeigen, wie viel ein Gerät in den letzten 30/90/180/360 Tagen
-    geschickt hat — lauter Nullen bei einem alten Eintrag heisst, dass er weg kann.
+    Nur die in der folgenden Liste eingetragenen Geräte dürfen Mails einliefern.
+    Die Spalten rechts zeigen das Sendeaufkommen der letzten 30/90/180/360 Tage —
+    ein alter Eintrag mit durchgehend 0 wird nicht mehr genutzt und kann entfernt
+    werden.
   </p>
   <p style="font-size:13px;color:#555;margin:0 0 14px">
-    <strong>TLS</strong> zeigt, ob die letzte Einlieferung verschlüsselt war.
-    Steht dort <em>Klartext</em>, sendet dieses Gerät unverschlüsselt.
+    Die Spalte <strong>TLS</strong> zeigt, ob die letzte Einlieferung verschlüsselt
+    war; <em>Klartext</em> bedeutet unverschlüsselt.
     <br>
-    Das ist erlaubt: Alte Drucker und Scanner können kein <code>STARTTLS</code>, und
-    daran scheitert sonst der Umstieg. Das Gateway bietet Verschlüsselung weiterhin an —
-    ein Gerät, das sie kann, nutzt sie. Für Exchange selbst bleibt TLS Pflicht.
+    Bei Relay-Geräten ist das zulässig, weil ältere Drucker und Scanner kein
+    <code>STARTTLS</code> beherrschen. Das Gateway bietet TLS weiterhin an — Geräte,
+    die es können, nutzen es automatisch. Für die Verbindung zu Exchange bleibt TLS
+    Pflicht.
   </p>
 
   <div class="tabellen-rollbereich">
@@ -126,10 +133,9 @@
             onclick="abweisungenLeeren(this)">Liste leeren</button>
   </div>
   <p style="font-size:13px;color:#555;margin:10px 0 14px">
-    Diese Geräte wollten einliefern und durften nicht. Meist ist es ein Gerät, das
-    noch niemand angemeldet hat — dann genügt <em>Übernehmen</em>. Steht die Adresse
-    schon in der Geräteliste, scheiterte sie an der Absender- oder Zielgrenze; den
-    Grund siehst du daneben.
+    Abgewiesene Einlieferungen. Meist ein noch nicht eingetragenes Gerät — dann
+    genügt <em>Übernehmen</em>. Steht die Adresse bereits in der Geräteliste, wurde
+    sie an der Absender- oder Zielbeschränkung abgewiesen; der Grund steht daneben.
   </p>
   <div class="tabellen-rollbereich">
     <table class="config-table" style="min-width:700px">

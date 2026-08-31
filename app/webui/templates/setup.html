@@ -650,7 +650,9 @@
       Private S/MIME-Schlüssel werden in Azure Key Vault gespeichert.
       Jede Signierung ruft die <strong>Key Vault Sign API</strong> auf —
       der Schlüssel verlässt Azure nie.
-      Empfohlen für Cloud-Deployments; lokal-only (z.&nbsp;B. Raspberry&nbsp;Pi) kann diesen Schritt überspringen.
+      Optional und benötigt eine Azure-Subscription — grundsätzlich empfehlenswert,
+      besonders wenn das Gateway selbst in Azure läuft. Ohne Azure-Subscription kann
+      dieser Schritt übersprungen werden.
     </p>
 
     {% if not e.azure_app_created %}
@@ -2331,8 +2333,9 @@ async function saveKeyvault() {
       Der Update-Watcher ist ein systemd-Dienst auf dem Host, der Aktualisierungen
       aus dem Web UI (<em>Erweitert → Gateway aktualisieren</em>) entgegennimmt.
       Bei einer Azure-Neuinstallation (<code>azure-vm-setup.ps1</code>) wird er
-      automatisch eingerichtet; auf anderen Wegen (Raspberry&nbsp;Pi, on-prem,
-      reines <code>docker compose</code>) einmalig mit dem Installer unten.<br>
+      automatisch eingerichtet; auf anderen Wegen (selbst gehostet – z.&nbsp;B.
+      Linux-Host, Raspberry&nbsp;Pi –, on-prem, reines <code>docker compose</code>)
+      einmalig mit dem Installer unten.<br>
       {% if e.watcher_ok %}
       <span style="color:#16a34a;font-weight:600">● Service läuft und schreibt Heartbeat.</span>
       {% else %}
