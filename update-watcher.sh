@@ -59,7 +59,7 @@ while true; do
     _log_target=""; [ -n "$TARGET_VERSION" ] && _log_target=" (Ziel: v${TARGET_VERSION})"
     write_status "{\"state\":\"running\",\"log\":\"Kanal ${CHANNEL}${_log_target}: wird aktualisiert...\",\"version_before\":\"$VER_BEFORE\"}"
     LOG=$(do_git_update 2>&1) && \
-      LOG2=$(cd "$REPO" && docker compose up -d --build 2>&1) && \
+      LOG2=$(cd "$REPO" && docker compose up -d --build --remove-orphans 2>&1) && \
       { docker image prune -f >/dev/null 2>&1 || true; } && \
       VER_AFTER=$(cat "$REPO/VERSION" 2>/dev/null | tr -d "[:space:]" || echo "?") && \
       write_status "{\"state\":\"success\",\"finished\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"version_before\":\"$VER_BEFORE\",\"version_after\":\"$VER_AFTER\",\"channel\":\"$CHANNEL\",\"log\":$(printf "%s\n%s" "$LOG" "$LOG2" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')}" && \

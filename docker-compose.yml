@@ -1,8 +1,8 @@
 services:
-  signature-service:
+  signature-gateway:
     build: .
-    image: exo-signature-service:latest
-    container_name: exo-signature-service
+    image: exo-signature-gateway:latest
+    container_name: exo-signature-gateway
     restart: unless-stopped
     ports:
       - "80:80"             # ACME HTTP-01 Challenge für Let's Encrypt

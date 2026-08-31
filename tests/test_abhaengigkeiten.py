@@ -69,7 +69,7 @@ def test_fassungen_stimmen_ueberein():
         + "\n  ".join(f"{n}: gefordert {a}, installiert wird {b}"
                       for n, (a, b) in sorted(abweichend.items()))
         + "\n\nNach einer Änderung an requirements.txt die Lock-Datei neu erzeugen:"
-          "\n  docker exec exo-signature-service pip freeze > app/requirements.lock")
+          "\n  docker exec exo-signature-gateway pip freeze > app/requirements.lock")
 
 
 def test_keine_offenen_fassungen():

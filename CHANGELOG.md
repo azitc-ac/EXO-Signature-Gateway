@@ -5,6 +5,25 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.42 — 2026-08-31 — Compose: Dienst-/Container-/Image-Name auf „gateway"
+
+`docker-compose.yml` nannte Service, Image und Container noch
+`signature-service` bzw. `exo-signature-service` — im `docker compose ps` stand
+so „service", obwohl das Produkt „Gateway" heißt. Vereinheitlicht auf
+`signature-gateway` / `exo-signature-gateway`; das Health-Feld und die
+Hilfetexte ziehen nach.
+
+Für bestehende Installationen ändert das den Containernamen. Beim Aktualisieren
+den alten Container einmalig entfernen, damit die Ports frei werden:
+
+```
+docker compose down
+docker compose up -d --build
+```
+
+Der reguläre Update-Weg (Web-UI bzw. Host-Watcher) läuft über
+`docker compose` aus dem Repo-Verzeichnis und ist vom Namen unabhängig.
+
 ## v1.8.41 — 2026-08-31 — TLS-Zertifikat: PFX-Import und DNS-01 als Alternativen
 
 Bisher kam das TLS-Zertifikat nur über Let's Encrypt HTTP-01 (Port 80). Für
