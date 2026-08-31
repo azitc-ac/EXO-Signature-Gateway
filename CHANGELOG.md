@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.33 — 2026-08-31 — Update-Hinweis nicht mehr Azure-spezifisch
+
+Der Hinweis beim „Gateway aktualisieren" nannte als Voraussetzung den
+Host-Watcher „auf der Azure-VM". Der Watcher läuft auf jedem unterstützten Host
+(Raspberry Pi, on-prem, reines `docker compose`); der Text spricht jetzt neutral
+vom „Host".
+
 ## v1.8.32 — 2026-08-31 — Update-Erfolg als Modal statt Countdown
 
 Nach einem Update über die Oberfläche erschien der Erfolg als Kasten mit einem
