@@ -1,71 +1,77 @@
 # Update-Anleitung — EXO Signature Gateway
 
-## Standardupdate (empfohlen)
+## Empfohlen: über die Weboberfläche
 
-```bash
-cd /home/alex/EXO-signature-service
-git pull
-docker compose up -d --build
-```
+**Einstellungen → Update & Backup → „Gateway aktualisieren".**
 
-Der Container wird neu gebaut und gestartet. Laufende SMTP-Verbindungen werden dabei
-kurz unterbrochen (typisch < 5 Sekunden). Exchange Online queued solche Mails und
-stellt sie danach erneut zu — kein Datenverlust.
+- Kanal wählen — Entwicklungsstand (`main`) oder stabile **Releases** —, dann
+  *Auf Updates prüfen* und aktualisieren.
+- Über den Kanal *Releases* lässt sich gezielt eine bestimmte Version wählen,
+  auch ein **Rollback** auf eine ältere (nur der Code-Stand; die Einstellungen
+  bleiben unverändert).
+- Der Container wird neu gebaut und gestartet; laufende SMTP-Verbindungen brechen
+  dabei kurz ab (wenige Sekunden). Exchange Online stellt solche Mails erneut zu
+  — kein Datenverlust.
+- Nach dem Update zeigt die Oberfläche das Ergebnis samt Versionswechsel; ein
+  Klick lädt die Seite neu.
+
+**Voraussetzung:** der Host-Watcher-Dienst (`exo-gateway-updater.service`) läuft.
+Auf Azure-VMs richtet ihn `azure-vm-setup.ps1` automatisch ein; auf anderen Wegen
+einmalig mit `sudo bash install-update-watcher.sh` (siehe **Einrichtung →
+Update-Watcher**).
 
 ---
 
-## Was ist persistent, was wird ersetzt?
+## Backup & Wiederherstellung
+
+Ebenfalls unter **Update & Backup**:
+
+- **Backup erstellen** — umfasst Einstellungen, Signaturvorlagen (samt
+  Baukasten-Daten) und Zertifikate.
+- **Backup wiederherstellen** — vollständig oder selektiv (einzelne Vorlagen).
+
+Ein Backup über die Kommandozeile ist nicht nötig.
+
+---
+
+## Was bleibt, was wird ersetzt?
 
 | Pfad | Typ | Verhalten beim Update |
 |------|-----|----------------------|
 | `./data/` | Bind-Mount | **Bleibt erhalten** — settings.json, Zertifikate, Logs, DB |
-| `./templates/` | Bind-Mount | **Bleibt erhalten** — eigene E-Mail-Vorlagen |
+| `./templates/` | Bind-Mount | **Bleibt erhalten** — Signaturvorlagen |
 | `./certs/` | Bind-Mount | **Bleibt erhalten** — TLS-Zertifikate |
 | `./.env` | Datei auf Host | **Bleibt erhalten** — wird nie vom Image überschrieben |
-| App-Code (`app/`) | Im Image | **Wird ersetzt** durch neue Version |
+| App-Code (`app/`) | Im Image | **Wird ersetzt** durch die neue Version |
 
 ---
 
-## Optionales Backup vor dem Update
+## Fallback: Kommandozeile
+
+Nur nötig für ein Self-Hosting ohne Watcher-Dienst oder im Notfall — aus dem
+Installationsverzeichnis:
 
 ```bash
-cp -a data/ data.bak-$(date +%Y%m%d)
+git pull && docker compose up -d --build
 ```
 
-Sichert `settings.json`, `mail_audit.db`, Logs und ACME-Account-Keys.
-
----
-
-## Rollback
-
-Falls nach einem Update etwas nicht stimmt:
+Rollback auf einen früheren Stand:
 
 ```bash
-# Commit-Hash des letzten funktionierenden Stands ermitteln:
-git log --oneline -10
-
-# Auf diesen Stand zurücksetzen:
-git checkout <commit-hash>
+git log --oneline -10          # letzten funktionierenden Commit/Tag finden
+git checkout <commit-oder-tag>
 docker compose up -d --build
+# zurück auf aktuell:  git checkout main && git pull && docker compose up -d --build
 ```
 
-`./data/` bleibt dabei unangetastet — die ältere Version liest das vorhandene
-`settings.json` weiterhin. Unbekannte (neuere) Einstellungsfelder werden ignoriert.
-
-Um wieder auf den aktuellen Stand zu kommen:
-
-```bash
-git checkout main
-git pull
-docker compose up -d --build
-```
+`./data/` bleibt dabei unangetastet; eine ältere Version liest das vorhandene
+`settings.json` weiter und ignoriert unbekannte (neuere) Felder.
 
 ---
 
 ## Hinweise
 
-- Niemals zwei Instanzen auf dasselbe `./data/`-Verzeichnis zeigen lassen
-  (z.B. eine Dev-Instanz auf Port 8081 + Prod auf 8080 — beide brauchen
-  separate `./data/`-Verzeichnisse).
-- Nach dem Update: im Dashboard prüfen, ob alle Mailboxen noch konfiguriert
-  sind und die Health-Spalte grün zeigt.
+- Niemals zwei Instanzen auf dasselbe `./data/`-Verzeichnis zeigen lassen — jede
+  Instanz braucht ein eigenes.
+- Nach dem Update im Dashboard bzw. unter **Postfächer** prüfen, ob alle
+  Postfächer konfiguriert sind und der Status grün zeigt.

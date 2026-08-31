@@ -5,6 +5,27 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.35 — 2026-08-31 — Dokumentation: Funktionsüberblick, aktualisiert und nur noch deutsch
+
+Die README ist überarbeitet und auf Deutsch konzentriert (die englische Fassung
+wurde entfernt).
+
+- **Neuer Funktionsüberblick** — Signatur-Baukasten inkl. HTML→Baukasten-Rück-
+  konvertierung und eingebetteter Logos, Banner/Disclaimer, Richtlinien- und
+  Gruppen-Zuweisung, gemischte Empfänger (Bifurkation, auch auf Azure via Port
+  587), S/MIME (PFX-Import, Key Vault, CASTLE ACME, Empfänger-Zertifikat-
+  Harvesting, Secure Message Portal; kommerzielle Zertifikate in Vorbereitung),
+  Massenoperationen, SMTP-Relay, Outlook-Add-in.
+- **Flow-Diagramm** um den Port-587-Weg (aufgeteilte Sendungen) ergänzt; der
+  Vorgabemodus ist korrekt als `smtp` ausgewiesen.
+- **Dimensionierung des Hosts** für kleine/mittlere/große Umgebungen ergänzt.
+- **Korrekturen:** Azure-VM (Debian 12/arm64, `Standard_B2ps_v2`), Web-UI über
+  Port 443 (nicht 8080), eigene Template-Variablen (`custom.*`) genannt.
+- **Entfernt:** die veraltete Konfigurations-Tabelle (settings.json wird in der
+  Oberfläche gepflegt) und der optionale `.env`-Secrets-Schritt.
+- **Update-Anleitung** stellt jetzt den Weg über die Oberfläche voran
+  (Kommandozeile nur noch als Rückfall).
+
 ## v1.8.34 — 2026-08-31 — SMTP-Relay im Hauptmenü, Texte überarbeitet
 
 - **SMTP-Relay ist ein eigener Hauptmenüpunkt** (zwischen S/MIME und
