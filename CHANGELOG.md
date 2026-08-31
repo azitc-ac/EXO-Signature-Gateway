@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.34 — 2026-08-31 — SMTP-Relay im Hauptmenü, Texte überarbeitet
+
+- **SMTP-Relay ist ein eigener Hauptmenüpunkt** (zwischen S/MIME und
+  Einstellungen), statt eines Unterreiters der Einstellungen. Die Seite trägt
+  jetzt den Titel „SMTP-Relay" und eine kurze Einleitung, was die Funktion tut.
+- **Erklärtexte der Relay-Seite überarbeitet** — sachlicher und knapper, im Ton
+  am Rest der Oberfläche.
+- **Key-Vault-Hinweis präzisiert:** Der Schritt ist optional und setzt eine
+  Azure-Subscription voraus (empfehlenswert vor allem, wenn das Gateway selbst
+  in Azure läuft); ohne Subscription kann er übersprungen werden.
+- **Plattform-Hinweise generischer:** „Raspberry Pi" als alleiniges Beispiel ist
+  ersetzt durch „selbst gehostet — z. B. Linux-Host, Raspberry Pi".
+
 ## v1.8.33 — 2026-08-31 — Update-Hinweis nicht mehr Azure-spezifisch
 
 Der Hinweis beim „Gateway aktualisieren" nannte als Voraussetzung den

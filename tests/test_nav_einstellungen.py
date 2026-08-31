@@ -2,25 +2,23 @@
 
 ANLASS (2026-08-25)
 -------------------
-Sie stand wortgleich in acht Vorlagen. Beim Hinzufügen des Reiters „SMTP-Relay"
-wären acht gleichlautende Änderungen fällig gewesen — und dabei bleibt
-erfahrungsgemäss eine liegen. Der Befund gehört damit in die Klasse „X ist der
-einzige, der Y nicht macht": nicht vermerken, sondern die Struktur ändern und
-prüfbar machen (CLAUDE.md, Gemeinsame Bausteine, Regel 4).
+Sie stand wortgleich in acht Vorlagen. Beim Hinzufügen eines Reiters wären acht
+gleichlautende Änderungen fällig gewesen — und dabei bleibt erfahrungsgemäss
+eine liegen. Der Befund gehört in die Klasse „X ist der einzige, der Y nicht
+macht": nicht vermerken, sondern die Struktur ändern und prüfbar machen
+(CLAUDE.md, Gemeinsame Bausteine, Regel 4).
 
-⚠️ Der zweite Teil ist der leicht zu übersehende: Das Include entscheidet
-anhand von `s`, ob der Relay-Reiter erscheint. Eine Seite, die `s` nicht in
-ihren Kontext gibt, verliert den Reiter still — die Vorlage ist syntaktisch
-einwandfrei, `jscheck` und `darkcheck` sehen nichts, und auffallen würde es
-erst jemandem, der von genau dieser Seite aus weiterklicken will.
+NACHTRAG (2026-08-31)
+---------------------
+SMTP-Relay ist vom Einstellungen-Unterreiter zum eigenen Hauptmenüpunkt geworden
+(zwischen S/MIME und Einstellungen). Die Tests darunter sichern beide Seiten:
+die eine Quelle der Reiterleiste UND die neue Einordnung des Relays.
 """
 import re
 import sys
 from pathlib import Path
 
 import pytest
-
-from test_seiten import client                                  # noqa: F401
 
 WURZEL = Path(__file__).resolve().parent.parent
 VORLAGEN = WURZEL / "app" / "webui" / "templates"
@@ -37,13 +35,6 @@ SEITEN = {
     "setup.html": "einrichtung",
     "debug.html": None,
 }
-
-PFADE = {"settings.html": "/settings",
-         "settings_signature.html": "/settings/signature",
-         "settings_smime.html": "/settings/smime",
-         "settings_connect.html": "/settings/connect",
-         "backup.html": "/backup", "advanced.html": "/advanced",
-         "setup.html": "/setup", "debug.html": "/debug"}
 
 
 def test_keine_vorlage_baut_die_leiste_selbst():
@@ -74,40 +65,30 @@ def test_jede_seite_bindet_die_leiste_ein(datei, aktiv):
             f"falschen) Reiter hervor — erwartet: {aktiv}")
 
 
-@pytest.mark.parametrize("datei", SEITEN)
-def test_jede_seite_bekommt_s_in_den_kontext(client, datei):
-    """⚠️ Ohne `s` verschwindet der Relay-Reiter genau auf dieser einen Seite.
+# ── SMTP-Relay: Hauptmenüpunkt, kein Unterreiter mehr ─────────────────────────
 
-    Geprüft wird gegen die gerenderte Antwort, nicht gegen den Quelltext der
-    Route: Der Kontext kann aus einer Hilfsfunktion kommen (so bei /advanced
-    und /debug), und eine Suche nach `"s":` im Routenmodul fände ihn dann
-    nicht — sie meldete eine Lücke, die keine ist, und übersähe eine echte.
-    """
-    import settings_store
-    settings_store.update({"SMTP_RELAY_ENABLED": True})
-    try:
-        antwort = client.get(PFADE[datei])
-        assert antwort.status_code == 200, f"{PFADE[datei]}: {antwort.status_code}"
-        assert 'href="/relay"' in antwort.text, (
-            f"Auf {PFADE[datei]} fehlt der Relay-Reiter, obwohl das Relay "
-            "eingeschaltet ist — vermutlich fehlt `s` im Kontext dieser Route.")
-    finally:
-        settings_store.update({"SMTP_RELAY_ENABLED": False})
+def test_relay_nicht_mehr_im_untermenue():
+    """Der Relay-Reiter ist aus der Einstellungs-Leiste raus (jetzt Hauptmenü)."""
+    text = (VORLAGEN / "_nav_einstellungen.html").read_text("utf-8")
+    assert "/relay" not in text, (
+        "SMTP-Relay ist ein Hauptmenüpunkt — es darf nicht mehr als "
+        "Einstellungen-Unterreiter erscheinen.")
 
 
-def test_reiter_bleibt_weg_solange_das_relay_aus_ist(client):
-    """Gegenprobe — sonst prüfte der Test oben nur, dass irgendwo `/relay` steht.
+def test_relay_im_hauptmenue_zwischen_smime_und_einstellungen():
+    text = (VORLAGEN / "base.html").read_text("utf-8")
+    i_smime = text.find(">S/MIME</a>")
+    i_relay = text.find(">SMTP-Relay</a>")
+    i_settings = text.find(">Einstellungen</a>")
+    assert -1 not in (i_smime, i_relay, i_settings), (
+        "S/MIME-, SMTP-Relay- oder Einstellungen-Eintrag im Hauptmenü nicht gefunden")
+    assert i_smime < i_relay < i_settings, (
+        "SMTP-Relay muss im Hauptmenü zwischen S/MIME und Einstellungen stehen")
 
-    Ein Reiter für eine abgeschaltete Funktion verstellt die Leiste auf dem
-    Telefon, und die Seite dahinter wäre leer.
-    """
-    import settings_store
-    settings_store.update({"SMTP_RELAY_ENABLED": False})
-    for pfad in PFADE.values():
-        text = client.get(pfad).text
-        # ⚠️ Nur die REITERLEISTE, nicht jeder Verweis auf die Seite. Ein
-        # Erklärtext darf auf /relay verlinken (advanced.html tut das, wenn das
-        # Relay an ist) — geprüft wird hier, ob der REITER wegbleibt.
-        leiste = re.search(r'<ul class="nav-sub-tabs">.*?</ul>', text, re.S)
-        assert leiste, f"{pfad}: keine Reiterleiste"
-        assert 'href="/relay"' not in leiste.group(0), pfad
+
+def test_relay_seite_ohne_einstellungs_untereiter():
+    """Als Top-Level-Seite bindet /relay die Einstellungs-Reiter nicht mehr ein."""
+    text = (VORLAGEN / "relay.html").read_text("utf-8")
+    assert "_nav_einstellungen.html" not in text, (
+        "Die Relay-Seite ist ein Hauptmenüpunkt und soll die "
+        "Einstellungs-Reiterleiste nicht mehr einbinden.")
