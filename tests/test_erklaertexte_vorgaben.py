@@ -90,10 +90,9 @@ ZUSAGEN = [
 # (Datei, Einstellung, Textstelle, erwartete Vorgabe) — wie oben, nur für
 # Markdown-Dateien im Wurzelverzeichnis.
 DOKU_ZUSAGEN = [
-    ("README.de.md", "REINJECT_MODE",
-     "`REINJECT_MODE` ist ab Werk `smtp`", "smtp"),
+    # README ist nur noch deutsch (die englische Fassung wurde entfernt).
     ("README.md", "REINJECT_MODE",
-     "`REINJECT_MODE` ships as `smtp`", "smtp"),
+     "`REINJECT_MODE` ist ab Werk `smtp`", "smtp"),
 ]
 
 
