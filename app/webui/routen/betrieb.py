@@ -108,7 +108,7 @@ async def health():
     # `echo`: pro Prozess erzeugtes Token, mit dem die Abnahme prüft, ob der
     # öffentliche Name zu GENAU dieser Instanz führt (siehe abnahme._aussenadresse).
     import abnahme
-    return JSONResponse({"status": "ok", "service": "exo-signature-service",
+    return JSONResponse({"status": "ok", "service": "exo-signature-gateway",
                          "echo": abnahme.echo_token()})
 
 @router.get("/api/health/mailboxes")

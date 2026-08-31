@@ -32,7 +32,7 @@ import asyncio
 import subprocess
 import sys
 
-CONTAINER = "exo-signature-service"
+CONTAINER = "exo-signature-gateway"
 BASIS = "https://127.0.0.1"
 SEITEN = ["/settings", "/settings/signature", "/settings/smime", "/settings/connect",
           "/mailboxes", "/advanced", "/backup", "/setup", "/smime"]
