@@ -334,9 +334,12 @@ def _check_smime_key(email: str) -> dict:
             return _make_result("ok", "Backup-Schlüssel vorhanden")
         return _make_result("ok", "Lokaler Schlüssel vorhanden")
 
-    # No local key — check Key Vault
-    kv_url = (settings_store.get("KEYVAULT_URL") or "").strip()
-    if kv_url:
+    # Kein lokaler Schlüssel/Backup — nur „ok/Key Vault" melden, wenn für DIESES
+    # Postfach tatsächlich ein Schlüssel im Key Vault liegt. Ein global gesetztes
+    # KEYVAULT_URL sagt darüber nichts; die autoritative Auskunft gibt
+    # default_key_location() (dieselbe Quelle wie der kv_sign-Check) — sonst
+    # behauptet die Anzeige „Key Vault" bei einem Postfach ganz ohne Schlüssel.
+    if smime_store.default_key_location(email) == "kv":
         return _make_result("ok", "Key Vault")
 
     return _make_result("error", "Kein Schlüssel gefunden (lokal + Key Vault)")
@@ -500,8 +503,14 @@ async def run_checks_for_mailbox(email: str, exo_data: dict | None = None) -> di
         checks["kv_sign"] = res
     elif smime_active and key_loc == "local":
         checks["kv_sign"] = _make_result("skip", "Lokaler Schlüssel — nicht in Key Vault")
+    elif not smime_active:
+        checks["kv_sign"] = _make_result("skip", "S/MIME nicht aktiv")
+    elif not kv_url:
+        checks["kv_sign"] = _make_result("skip", "Key Vault nicht konfiguriert")
+    elif key_loc == "none":
+        checks["kv_sign"] = _make_result("skip", "Kein Schlüssel für dieses Postfach")
     else:
-        checks["kv_sign"] = _make_result("skip", "Key Vault nicht konfiguriert oder S/MIME inaktiv")
+        checks["kv_sign"] = _make_result("skip", "Kein Key-Vault-Schlüssel für dieses Postfach")
 
     overall = _compute_overall(checks)
     result = {

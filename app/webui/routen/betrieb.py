@@ -105,7 +105,11 @@ def _sent_items_nach_freigabe_aufraeumen(sender: str, empfaenger: list[str],
 
 @router.get("/health")
 async def health():
-    return JSONResponse({"status": "ok", "service": "exo-signature-service"})
+    # `echo`: pro Prozess erzeugtes Token, mit dem die Abnahme prüft, ob der
+    # öffentliche Name zu GENAU dieser Instanz führt (siehe abnahme._aussenadresse).
+    import abnahme
+    return JSONResponse({"status": "ok", "service": "exo-signature-service",
+                         "echo": abnahme.echo_token()})
 
 @router.get("/api/health/mailboxes")
 async def api_health_mailboxes(_=Depends(_require_admin)):

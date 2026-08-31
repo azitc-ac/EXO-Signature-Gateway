@@ -12,9 +12,9 @@
   <p class="hint" style="margin-bottom:12px">
     Import per PKCS12-Bundle (.p12 / .pfx) oder automatisch über die konfigurierte Zertifizierungsstelle (Auto-Enroll).
     Ausgehende Mails werden signiert, sobald ein Standardzertifikat vorliegt.
-    Empfohlen: Schlüssel in <strong>Azure Key Vault</strong> migrieren (<a href="/settings#smime">Einstellungen → S/MIME</a>) —
+    Empfohlen: Schlüssel in <strong>Azure Key Vault</strong> migrieren (<a href="/settings/smime#schluesselablage">Einstellungen → S/MIME</a>) —
     dort verlässt der private Schlüssel nie den HSM-Speicher.
-    Benutzer werden unter <a href="/settings">Einstellungen → Postfach-Konfiguration</a> aktiviert.
+    Benutzer werden unter <a href="/mailboxes">Postfächer</a> aktiviert.
   </p>
 
   {% if kv_configured or has_any_local_key or has_any_unmigrated_key %}
@@ -35,17 +35,20 @@
                   border-radius:6px;user-select:none">Schlüsselverwaltung</summary>
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;padding:10px 12px;
               background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;align-items:center">
-    {% if has_any_local_key and kv_mode != 'strict' %}
+    {% if has_any_local_key %}
     <a class="btn secondary btn-sm" href="/api/smime/backup-all-keys" download
        title="Alle lokalen Schlüssel (key.pem + key.pem.bak) als verschlüsseltes ZIP herunterladen">
       ↓ Alle lokalen Schlüssel sichern
     </a>
     {% endif %}
-    {% if kv_configured and has_any_unmigrated_key and kv_mode != 'strict' %}
+    {# Bulk und Einzel-„→ KV" hängen beide an „lokaler Schlüssel vorhanden",
+       nicht am KV-Modus — sonst fehlt in strict der Bulk-Weg, während der
+       Einzelweg bleibt (inkonsistent). #}
+    {% if kv_configured and has_any_unmigrated_key %}
     <button class="btn secondary btn-sm" style="border-color:#b45309;color:#b45309"
             onclick="migrateAllAndBackup()"
-            title="Alle lokalen Schlüssel zu Azure Key Vault migrieren, lokale key.pem löschen (key.pem.bak bleibt als Fallback)">
-      → Alle zu KV migrieren &amp; lokal löschen
+            title="{% if kv_mode == 'strict' %}Alle lokalen Schlüssel zu Azure Key Vault migrieren und lokal löschen{% else %}Alle lokalen Schlüssel zu Azure Key Vault migrieren; lokales key.pem.bak bleibt als Fallback{% endif %}">
+      {% if kv_mode == 'strict' %}→ Alle zu KV migrieren &amp; lokal löschen{% else %}→ Alle zu KV migrieren (lokales Backup bleibt){% endif %}
     </button>
     {% endif %}
     {% if kv_configured %}
@@ -331,7 +334,7 @@
                 → KV
               </button>
               {% endif %}
-              {% if kv_mode != 'strict' and (c.get("has_local_key") or c.get("has_kv_backup")) %}
+              {% if c.get("has_local_key") or c.get("has_kv_backup") %}
               <a class="btn secondary btn-sm"
                  href="/api/smime/backup-key/{{ u.email | urlencode }}/{{ c.slot_id }}"
                  download
@@ -481,7 +484,7 @@
   {% else %}
   <p class="hint">
     Keine Postfächer für S/MIME-Signatur aktiviert.
-    Aktivierung unter <a href="/settings">Einstellungen → Postfach-Konfiguration</a>
+    Aktivierung unter <a href="/mailboxes">Postfächer</a>
     (Spalte <em>S/MIME</em> anhaken).
   </p>
   {% endif %}
@@ -491,7 +494,7 @@
 <h2 style="margin-top:32px">Verschlüsselungs-Zertifikate (Empfänger)</h2>
 <p class="hint" style="margin-bottom:14px">
   Öffentliche Zertifikate externer Empfänger für S/MIME-Verschlüsselung.
-  Mails mit dem konfigurierten Verschlüsselungs-Trigger (→ <a href="/settings">Einstellungen → S/MIME</a>) im Betreff werden automatisch verschlüsselt, wenn ein Zertifikat vorhanden ist.
+  Mails mit dem konfigurierten Verschlüsselungs-Trigger (→ <a href="/settings/smime#smime">Einstellungen → S/MIME</a>) im Betreff werden automatisch verschlüsselt, wenn ein Zertifikat vorhanden ist.
   Fehlende Zertifikate führen zu einem NDR an den Absender.
 </p>
 
@@ -1790,7 +1793,7 @@ async function migrateSlotToKv(email, slotId, btn) {
   </div>
   <div id="portal-empty" class="hint" style="display:none;margin-bottom:12px">Keine aktiven Portal-Nachrichten.</div>
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-    <a class="btn secondary" href="/settings/smime" style="text-decoration:none">Portal konfigurieren</a>
+    <a class="btn secondary" href="/settings/smime#portal" style="text-decoration:none">Portal konfigurieren</a>
     <span id="portal-admin-result" style="font-size:12px"></span>
   </div>
 </div>

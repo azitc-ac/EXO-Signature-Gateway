@@ -50,10 +50,59 @@ def _punkt(name: str, zustand: str, befund: str = "", zu_tun: str = "",
             "zu_tun": zu_tun, "deckt_nicht": deckt_nicht}
 
 
+import secrets as _secrets
+
+# Einmal je Prozess erzeugtes Token. Wird über /health ausgeliefert; die
+# Abnahme ruft den öffentlichen Namen auf und prüft, ob GENAU dieses Token
+# zurückkommt — damit ist die Bindung „Name → diese Instanz" bewiesen, ohne die
+# eigene öffentliche IP zu kennen (umgeht das IMDS-Loch bei Standard-SKU-IPs).
+_ECHO_TOKEN = _secrets.token_hex(16)
+
+
+def echo_token() -> str:
+    return _ECHO_TOKEN
+
+
 def _oeffentliche_ip() -> str | None:
-    """Öffentliche IP dieses Gateways, best effort über Azure IMDS."""
+    """Öffentliche IP dieses Gateways, best effort über Azure IMDS.
+
+    ⚠️ Bei Standard-SKU-Public-IPs liefert IMDS dieses Feld leer — deshalb ist
+    das nur der erste billige Versuch, nicht der Beweis."""
     import azure_imds
     return azure_imds.public_ip()
+
+
+def _oeffentliche_ip_extern() -> str | None:
+    """Öffentliche IP über einen externen Echo-Dienst — greift, wo IMDS leer
+    bleibt (Standard-SKU). Kurzer Timeout, mehrere Dienste als Rückfall."""
+    import urllib.request
+    for url in ("https://api.ipify.org", "https://checkip.amazonaws.com",
+                "https://ifconfig.me/ip"):
+        try:
+            with urllib.request.urlopen(url, timeout=3) as resp:   # noqa: S310
+                ip = resp.read().decode().strip()
+            if ip and ("." in ip or ":" in ip):
+                return ip
+        except Exception:                                          # noqa: BLE001
+            continue
+    return None
+
+
+def _self_fetch_bestaetigt(basis: str) -> bool:
+    """Ruft den öffentlichen Namen auf und prüft das Echo-Token.
+
+    Kehrt der eigene Token zurück, führt der Name nachweislich zu DIESER
+    Instanz. Schlägt der Abruf fehl (Hairpin-NAT, Cert noch nicht gültig),
+    heißt das NICHT „falsch" — dann greift der IP-Vergleich als Rückfall."""
+    import json
+    import urllib.request
+    url = basis.rstrip("/") + "/health"
+    try:
+        with urllib.request.urlopen(url, timeout=3) as resp:       # noqa: S310
+            data = json.loads(resp.read().decode())
+        return data.get("echo") == _ECHO_TOKEN
+    except Exception:                                              # noqa: BLE001
+        return False
 
 
 def _dns_adressen(name: str) -> list[str]:
@@ -84,7 +133,13 @@ def _aussenadresse() -> dict:
             f"{basis} — der Name löst nicht auf.",
             f"Einen DNS-Eintrag für {host} auf die öffentliche IP dieses "
             "Gateways setzen; sonst ist es von außen nicht erreichbar.")
-    eigene = _oeffentliche_ip()
+    # Stärkster Beweis: über den öffentlichen Namen zurück zu dieser Instanz.
+    if _self_fetch_bestaetigt(basis):
+        return _punkt("Von außen erreichbar", OK,
+                      f"{host}: über den öffentlichen Namen erreichbar und führt "
+                      "nachweislich zu diesem Gateway")
+    # Sonst: öffentliche IP ermitteln (IMDS, dann externer Echo) und vergleichen.
+    eigene = _oeffentliche_ip() or _oeffentliche_ip_extern()
     if eigene and eigene in adressen:
         return _punkt("Von außen erreichbar", OK,
                       f"{host} → {eigene} (zeigt auf dieses Gateway)")
@@ -94,11 +149,11 @@ def _aussenadresse() -> dict:
             f"{host} zeigt auf {', '.join(adressen)}, dieses Gateway hat aber "
             f"{eigene}.",
             "Den DNS-Eintrag auf die öffentliche IP dieses Gateways umstellen.")
-    # Eigene IP nicht ermittelbar (nicht-Azure): wenigstens die Auflösung zeigen.
     return _punkt(
         "Von außen erreichbar", OK, f"{host} → {', '.join(adressen)}",
-        deckt_nicht="Ob diese Adresse zu genau diesem Gateway gehört, ist von "
-                    "hier nicht feststellbar (öffentliche IP nicht ermittelbar).")
+        deckt_nicht="Ob diese Adresse zu genau diesem Gateway gehört, ließ sich "
+                    "nicht bestätigen (Selbstabruf und öffentliche IP nicht "
+                    "möglich).")
 
 
 def _tls() -> dict:
@@ -160,6 +215,29 @@ def _token_rollen(token: str) -> set[str] | None:
     return {str(r) for r in roles}
 
 
+def _exo_rollen() -> set[str] | None:
+    """Anwendungsrollen im EXO-Token (Audience outlook.office365.com).
+
+    `Exchange.ManageAsApp` ist die eigentlich kritische Verwaltungsberechtigung
+    (Connector, Verteilerliste, IMAP, Message-Trace) und steht NICHT im
+    Graph-Token. Wir holen das EXO-Token über dieselbe MSAL-Maschinerie, die
+    keyvault/smtp_submit für Nicht-Graph-Scopes nutzen. `None`, wenn kein Token
+    zu beschaffen ist."""
+    import graph_client
+    app = graph_client._get_msal_app()
+    if app is None:
+        return None
+    try:
+        result = app.acquire_token_for_client(
+            scopes=["https://outlook.office365.com/.default"])
+    except Exception:                                          # noqa: BLE001
+        return None
+    tok = result.get("access_token") if isinstance(result, dict) else None
+    if not tok:
+        return None
+    return _token_rollen(tok)
+
+
 def _exchange() -> dict:
     import graph_client
     token = graph_client._acquire_token()
@@ -177,18 +255,26 @@ def _exchange() -> dict:
     if "Mail.ReadWrite" not in rollen and "Mail.Read" not in rollen:
         erwartet.add("Mail.ReadWrite")
     fehlt = sorted(r for r in erwartet if r not in rollen)
+
+    # Exchange.ManageAsApp steht im separaten EXO-Token — dort nachsehen.
+    exo = _exo_rollen()
+    exo_hinweis = ""
+    if exo is not None and "Exchange.ManageAsApp" not in exo:
+        fehlt.append("Exchange.ManageAsApp")
+    elif exo is None:
+        exo_hinweis = ("Exchange.ManageAsApp ließ sich nicht prüfen "
+                       "(kein EXO-Token) — greift erst im Betrieb.")
+
     if fehlt:
         return _punkt(
             "Exchange erreichbar", OFFEN,
-            f"Zugangsdaten vorhanden, aber Berechtigung fehlt: {', '.join(fehlt)}.",
+            f"Zugangsdaten vorhanden, aber Berechtigung fehlt: {', '.join(sorted(set(fehlt)))}.",
             "Im Entra Admin Center die Administratorzustimmung für die fehlenden "
             "Anwendungsberechtigungen erteilen.")
     return _punkt(
         "Exchange erreichbar", OK,
-        f"Zugangsdaten und {len(rollen)} Berechtigung(en) vorhanden",
-        deckt_nicht="Geprüft sind die Graph-Berechtigungen im Token; "
-                    "Exchange-eigene Rollen (Exchange.ManageAsApp) stehen in "
-                    "einem separaten Token und sind hier nicht sichtbar.")
+        f"Zugangsdaten, Graph- und Exchange-Berechtigungen vorhanden",
+        deckt_nicht=exo_hinweis)
 
 
 def _postfaecher() -> dict:

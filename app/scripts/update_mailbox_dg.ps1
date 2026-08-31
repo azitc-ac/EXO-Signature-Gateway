@@ -9,7 +9,12 @@ param(
     [Parameter(Mandatory)][string]$Organization,
     [Parameter(Mandatory)][string]$CertPath,
     [string]$GatewayName = "EXO Signature Gateway",
-    [string]$Members = ""
+    [string]$Members = "",
+    # Modus `imap`: App-only-IMAP (XOAUTH2) verlangt FullAccess PRO Postfach —
+    # einen tenant-weiten IMAP-Grant gibt es nicht. Beim Aktivieren wird der
+    # Grant deshalb gleich mitgesetzt, sonst fiele ein neues Postfach beim
+    # IMAP-APPEND-Reinject still durch.
+    [switch]$GrantImapFullAccess
 )
 
 Set-StrictMode -Version Latest
@@ -103,6 +108,29 @@ try {
         }
     } else {
         Write-Warn "Transport rule '$ruleName' not found — skipping rule update"
+    }
+
+    # ── IMAP FullAccess (nur Modus imap) ──────────────────────────────────────
+    if ($GrantImapFullAccess -and $MemberList.Count -gt 0) {
+        Write-Step "Granting IMAP FullAccess to service principal for active mailboxes..."
+        $sp = Get-ServicePrincipal | Where-Object { $_.AppId -eq $AppId }
+        if (-not $sp) {
+            Write-Warn "Kein EXO Service Principal fuer AppId $AppId — IMAP-Zugriff erst einrichten (Schritt IMAP)."
+        } else {
+            foreach ($m in $MemberList) {
+                try {
+                    Add-MailboxPermission -Identity $m -User $sp.ObjectId `
+                        -AccessRights FullAccess -AutoMapping $false -ErrorAction Stop | Out-Null
+                    Write-OK "IMAP FullAccess: $m"
+                } catch {
+                    if ($_.Exception.Message -like '*already present*') {
+                        Write-OK "IMAP FullAccess: $m (bereits vorhanden)"
+                    } else {
+                        Write-Host "[ERROR] IMAP FullAccess $m : $_" -ForegroundColor Red
+                    }
+                }
+            }
+        }
     }
 
     Write-OK "Done. Active mailboxes: $($MemberList -join ', ')"

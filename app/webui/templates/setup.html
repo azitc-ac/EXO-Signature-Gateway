@@ -271,7 +271,7 @@
     <div style="border-top:1px solid #e2e8f0;padding-top:12px;margin-bottom:12px">
       <label style="display:flex;gap:8px;align-items:center;cursor:pointer">
         <input type="checkbox" id="smime-enabled-wizard"
-          {% if e.smime_rules_created %}checked{% endif %}
+          {% if e.smime_rules_created or s.SMIME_ENABLED %}checked{% endif %}
           onchange="updateModeSelection()">
         <span style="font-size:13px">
           <strong>S/MIME aktivieren</strong>
@@ -448,12 +448,12 @@
         <ol style="margin:0 0 12px 16px;line-height:2">
           <li>Öffne das <a href="https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade" target="_blank" rel="noopener">Entra Admin Center → App-Registrierungen</a></li>
           <li>Klicke <strong>„Neue Registrierung"</strong></li>
-          <li>Name: z.B. <code>{{ s.GATEWAY_NAME or 'EXO Signature Gateway' }} Login</code></li>
+          <li>Name: z.B. <code>{{ s.GATEWAY_NAME or 'EXO Signature Gateway' }} Login</code><button class="copy-btn" data-copy="{{ s.GATEWAY_NAME or 'EXO Signature Gateway' }} Login" title="Kopieren" type="button"></button></li>
           <li>Kontotyp: <em>Nur Konten in diesem Organisationsverzeichnis</em></li>
-          <li>Plattform <strong>„Mobile and desktop applications"</strong> hinzufügen → Redirect-URI <strong>exakt</strong>:
-            <br><code style="font-size:12px;background:#f1f5f9;padding:2px 5px;border-radius:4px">{{ e.sso_redirect_uri }}</code>
+          <li>Redirect-URI-Typ <strong>„Public client/native (mobile &amp; desktop)"</strong> wählen (im Anmelde-Dialog so benannt; unter <em>Authentifizierung</em> heißt dieselbe Plattform „Mobile and desktop applications"). Redirect-URI <strong>exakt</strong>:
+            <br><code style="font-size:12px;background:#f1f5f9;padding:2px 5px;border-radius:4px">{{ e.sso_redirect_uri }}</code><button class="copy-btn" data-copy="{{ e.sso_redirect_uri }}" title="Kopieren" type="button"></button>
             <br><small style="color:#888">Kein Port, kein Slash am Ende — sonst AADSTS50011. Gleich mit hinzufügen:
-            <code>http://localhost:{{ e.webui_port }}/auth/callback</code> (Localhost-Notausgang).</small>
+            <code>http://localhost:{{ e.webui_port }}/auth/callback</code><button class="copy-btn" data-copy="http://localhost:{{ e.webui_port }}/auth/callback" title="Kopieren" type="button"></button> (Localhost-Notausgang).</small>
             <details style="margin-top:4px">
               <summary style="cursor:pointer;color:#0369a1;font-size:12px">Warum diese Plattform (nicht „Web"/„SPA")?</summary>
               <small style="color:#b45309;display:block;margin-top:4px">
@@ -1550,10 +1550,16 @@ async function saveModeSelection() {
   const relayCb = document.getElementById('relay-enabled-wizard');
   const relayAn = !!(relayCb && relayCb.checked && mode === 'smtp');
 
+  // S/MIME ist Opt-in (Default aus). Der Haken MUSS mitgeschrieben werden —
+  // sonst bliebe S/MIME dauerhaft aus und liesse sich nicht aktivieren. In
+  // Graph-Modus ist S/MIME nicht möglich, dort immer aus.
+  const smimeCb = document.getElementById('smime-enabled-wizard');
+  const smimeAn = !!(smimeCb && smimeCb.checked && mode !== 'graph');
+
   const resp = await fetch('/settings', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({REINJECT_MODE: mode, SMTP_RELAY_ENABLED: relayAn}),
+    body: JSON.stringify({REINJECT_MODE: mode, SMTP_RELAY_ENABLED: relayAn, SMIME_ENABLED: smimeAn}),
   });
 
   if (resp.ok) {

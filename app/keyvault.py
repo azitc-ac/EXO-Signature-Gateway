@@ -111,9 +111,20 @@ async def key_exists(email: str) -> bool:
 
 
 def _kv_exportable() -> bool:
-    """Return True when KV_KEY_MODE is 'fallback' (key is importable back from KV)."""
-    import settings_store as _ss
-    return _ss.get("KV_KEY_MODE") != "strict"
+    """Schlüssel werden IMMER nicht-exportierbar importiert.
+
+    Ein exportierbarer Schlüssel verlangt in Azure zwingend eine Release-Policy
+    (Secure Key Release, Premium-Vault/Managed HSM) — ohne sie lehnt ein
+    gewöhnlicher Standard-Vault den Import ab (`AKV.SKR.1004: Exportable keys
+    must have release policy`). Das traf jeden Standard-Migrationsweg
+    (Fallback-Modus) und war damit für Neukunden unbenutzbar.
+
+    Exportierbarkeit AUS dem Vault wird auch nicht gebraucht: Die
+    Wiederherstellbarkeit im Fallback-Modus kommt aus dem lokalen `key.pem.bak`,
+    nicht aus einem Rück-Export aus dem Vault (nichts im Code liest den Schlüssel
+    aus dem Vault zurück). Damit funktioniert der Import auf jedem Standard-Vault
+    ohne SKR/Release-Policy."""
+    return False
 
 
 async def import_rsa_key(email: str, private_key_pem: bytes) -> str:
@@ -210,11 +221,14 @@ async def import_rsa_key(email: str, private_key_pem: bytes) -> str:
     if resp.status_code not in (200, 201):
         body = resp.text[:500]
         # AKV.SKR.1003: exportable attribute of an existing key cannot be changed.
-        # Retry without the exportable flag so the existing attribute is preserved.
-        if resp.status_code == 400 and "AKV.SKR.1003" in body:
+        # AKV.SKR.1004: exportable keys require a release policy (Standard-Vault
+        #   lehnt sie ab). Beide Fälle löst derselbe Retry: ohne exportable-Flag
+        #   importieren (nicht-exportierbar), was auf jedem Vault funktioniert.
+        if resp.status_code == 400 and ("AKV.SKR.1003" in body or "AKV.SKR.1004" in body):
             log.warning(
-                "keyvault: existing key has different exportable setting for %s — "
-                "retrying without changing the attribute", email
+                "keyvault: exportable-Attribut abgelehnt für %s (%s) — "
+                "erneuter Versuch ohne exportable-Flag",
+                email, "SKR.1003" if "AKV.SKR.1003" in body else "SKR.1004"
             )
             payload_retry = {"key": jwk, "key_ops": ["sign", "verify"], "attributes": {}}
             async with httpx.AsyncClient(timeout=30) as client2:
