@@ -36,8 +36,8 @@ def lc(tmp_path, monkeypatch):
     monkeypatch.setattr(legal_consent, "_LEGAL_DIR", tmp_path / "legal")
     monkeypatch.setattr(legal_consent, "_DB_PATH", tmp_path / "consent.db")
     monkeypatch.setattr(legal_consent, "CURRENT_DOCUMENTS", {
-        "muster": {"version": "1.0", "label_de": "Muster", "label_en": "Sample",
-                   "path_de": "de/muster-v1.0.md", "path_en": "de/muster-v1.0.md"},
+        "muster": {"version": "1.0", "label_de": "Muster",
+                   "path_de": "de/muster-v1.0.md"},
     })
     monkeypatch.setattr(legal_consent, "CONTEXT_DOCUMENTS", {"gate": ["muster"]})
     return tmp_path / "legal" / "de" / "muster-v1.0.md"
@@ -59,7 +59,7 @@ def test_alle_registrierten_dokumente_existieren():
     """
     fehlend = []
     for doc_id, doc in legal_consent.CURRENT_DOCUMENTS.items():
-        for schluessel in ("path_de", "path_en"):
+        for schluessel in ("path_de",):
             rel = doc.get(schluessel)
             if rel and not (REPO / "legal" / rel).exists():
                 fehlend.append(f"{doc_id}.{schluessel} → {rel}")
@@ -97,7 +97,7 @@ def test_aenderungshistorie_nennt_die_geltende_fassung():
     """
     fehlend = []
     for doc_id, doc in legal_consent.CURRENT_DOCUMENTS.items():
-        for schluessel in ("path_de", "path_en"):
+        for schluessel in ("path_de",):
             rel = doc.get(schluessel)
             if not rel:
                 continue

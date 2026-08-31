@@ -66,7 +66,6 @@ def index_bauen(docs: dict) -> str:
             kennung: {
                 "version": d["version"],
                 "de": {"path": d["path_de"], "title": d["label_de"]},
-                "en": {"path": d["path_en"], "title": d["label_en"]},
             }
             for kennung, d in sorted(docs.items())
         },
@@ -85,9 +84,8 @@ def main(argv: list[str]) -> int:
 
     paare = [(INDEX_REL, INDEX_REL)]
     for d in docs.values():
-        for schluessel in ("path_de", "path_en"):
-            rel = f"legal/{d[schluessel]}"
-            paare.append((rel, rel))
+        rel = f"legal/{d['path_de']}"
+        paare.append((rel, rel))
 
     # index.json ist erzeugt, nicht geschrieben — vor dem Vergleich auffrischen.
     soll = index_bauen(docs)
