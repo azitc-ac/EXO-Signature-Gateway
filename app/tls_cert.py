@@ -65,11 +65,20 @@ def _write_atomar(pfad: Path, daten: bytes, rechte: int) -> None:
     tmp.replace(pfad)
 
 
-def install_pfx(pfx_bytes: bytes, password: str, expected_host: str = "") -> dict:
+def install_pfx(pfx_bytes: bytes, password: str, expected_host: str = "",
+                allow_mismatch: bool = False) -> dict:
     """PFX entpacken, gegen `expected_host` prüfen und als cert.pem/key.pem ablegen.
 
-    Wirft `ValueError` bei ungültigem PFX, fehlendem Schlüssel oder Hostname-
-    Nichtübereinstimmung. Gibt `{hostnames, not_after}` zurück.
+    Der Hostname-Abgleich (`host_matches`) folgt RFC 6125: ein Wildcard `*.x`
+    deckt genau EINE Ebene ab (`a.x`, nicht `a.b.x`) — dieselbe Regel, nach der
+    ein Browser das Zertifikat später akzeptiert oder ablehnt. Passt es nicht,
+    wird der Import abgelehnt, ES SEI DENN `allow_mismatch` — dann importiert der
+    Betreiber bewusst (z.B. Zugriff hinter einem Proxy oder per IP) und die
+    Nichtübereinstimmung kommt als `warnung` zurück statt als Fehler.
+
+    Wirft `ValueError` bei ungültigem PFX, fehlendem Schlüssel oder (ohne
+    Übergehen) Hostname-Nichtübereinstimmung. Gibt `{hostnames, not_after,
+    warnung}` zurück.
     """
     from cryptography.hazmat.primitives.serialization import (
         pkcs12, Encoding, PrivateFormat, NoEncryption)
@@ -83,10 +92,15 @@ def install_pfx(pfx_bytes: bytes, password: str, expected_host: str = "") -> dic
         raise ValueError("PFX enthält kein Zertifikat mit privatem Schlüssel.")
 
     namen = cert_hostnames(cert)
+    warnung = ""
     if expected_host and not host_matches(expected_host, namen):
-        raise ValueError(
-            f"Zertifikat passt nicht zum Hostnamen {expected_host!r} "
-            f"(enthält: {', '.join(namen) or 'keine DNS-Namen'}).")
+        meldung = (f"Zertifikat passt nicht zum Hostnamen {expected_host!r} "
+                   f"(enthält: {', '.join(namen) or 'keine DNS-Namen'}).")
+        if not allow_mismatch:
+            raise ValueError(meldung + " Ein Browser würde es hier ebenfalls "
+                             "ablehnen. Ist der Import trotzdem gewollt, die "
+                             "Option 'Prüfung übergehen' aktivieren.")
+        warnung = meldung
 
     cert_pem = cert.public_bytes(Encoding.PEM) + b"".join(
         c.public_bytes(Encoding.PEM) for c in (chain or []))
@@ -95,4 +109,5 @@ def install_pfx(pfx_bytes: bytes, password: str, expected_host: str = "") -> dic
     _write_atomar(Path(config.SMTP_TLS_CERT), cert_pem, 0o644)
     _write_atomar(Path(config.SMTP_TLS_KEY), key_pem, 0o600)
 
-    return {"hostnames": namen, "not_after": cert.not_valid_after_utc.isoformat()}
+    return {"hostnames": namen, "warnung": warnung,
+            "not_after": cert.not_valid_after_utc.isoformat()}

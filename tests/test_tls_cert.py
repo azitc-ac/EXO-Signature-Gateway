@@ -85,6 +85,25 @@ def test_install_pfx_lehnt_falschen_hostnamen_ab(tmp_path, monkeypatch):
     assert not (tmp_path / "cert.pem").exists()  # nichts geschrieben
 
 
+def test_install_pfx_uebergeht_mismatch_mit_flag(tmp_path, monkeypatch):
+    """allow_mismatch=True: importiert trotz Nichtübereinstimmung, meldet Warnung."""
+    import config
+    monkeypatch.setattr(config, "SMTP_TLS_CERT", str(tmp_path / "cert.pem"))
+    monkeypatch.setattr(config, "SMTP_TLS_KEY", str(tmp_path / "key.pem"))
+    info = tls_cert.install_pfx(_pfx("gw.example.com"), "", "anderer.example.com",
+                                allow_mismatch=True)
+    assert info["warnung"]                                       # Warnung gesetzt
+    assert (tmp_path / "cert.pem").exists()                      # trotzdem geschrieben
+    assert (tmp_path / "key.pem").stat().st_mode & 0o777 == 0o600
+
+
+def test_wildcard_deckt_nur_eine_ebene(tmp_path, monkeypatch):
+    """*.zarenko.net passt zu a.zarenko.net, NICHT zu a.b.zarenko.net (RFC 6125)."""
+    assert tls_cert.host_matches("hv01.zarenko.net", ["*.zarenko.net"])
+    assert not tls_cert.host_matches("hv01.test.zarenko.net", ["*.zarenko.net"])
+    assert tls_cert.host_matches("hv01.test.zarenko.net", ["*.test.zarenko.net"])
+
+
 # ── DNS-01 CSR ────────────────────────────────────────────────────────────────
 
 def test_dns01_csr_traegt_den_hostnamen():

@@ -179,30 +179,33 @@ _SETUP_PAGE_TEMPLATE = """\
   summary{{cursor:pointer;font-weight:600;font-size:13px;padding:12px 0}}
   .cb{{display:flex;align-items:center;gap:8px;font-weight:400;margin-top:14px}}
   .cb input{{width:auto}}
-  h2{{font-size:14px;margin:0 0 2px}}
+  .ask{{font-weight:600;font-size:15px;margin:20px 0 8px}}
 </style></head>
 <body>
 <h1>EXO Signature Gateway</h1>
 <p class="sub">Erstkonfiguration — TLS-Zertifikat</p>
 {message}
+<p class="ask">Wo soll das TLS-Zertifikat herkommen?</p>
 
-<h2>1 · Let's Encrypt (HTTP)</h2>
-<form method="POST" action="/">
-  <input type="hidden" name="action" value="letsencrypt">
-  <label>Hostname (öffentlich erreichbar)</label>
-  <input name="hostname" type="text" placeholder="sig.example.com" value="{hostname}" required>
-  <label>E-Mail für Let's Encrypt</label>
-  <input name="email" type="email" placeholder="admin@example.com" value="{email}">
-  <button type="submit">Zertifikat beantragen</button>
-</form>
-<p class="note">Weg 1 braucht Port 80 <strong>öffentlich erreichbar</strong>; DNS muss vorher
-auf diese IP zeigen. Nach Erfolg startet der Dienst automatisch neu und leitet auf
-<strong>https://{hostname_hint}</strong> weiter.</p>
+<details{le_open}>
+  <summary>1 · Let's Encrypt über HTTP</summary>
+  <p class="note">Braucht Port 80 <strong>öffentlich erreichbar</strong>; DNS muss vorher
+  auf diese IP zeigen. Nach Erfolg startet der Dienst automatisch neu und leitet auf
+  <strong>https://{hostname_hint}</strong> weiter.</p>
+  <form method="POST" action="/">
+    <input type="hidden" name="action" value="letsencrypt">
+    <label>Hostname (öffentlich erreichbar)</label>
+    <input name="hostname" type="text" placeholder="sig.example.com" value="{hostname}" required>
+    <label>E-Mail für Let's Encrypt</label>
+    <input name="email" type="email" placeholder="admin@example.com" value="{email}">
+    <button type="submit">Zertifikat beantragen</button>
+  </form>
+</details>
 
 <details{pfx_open}>
   <summary>2 · Vorhandenes Zertifikat importieren (PFX/PKCS#12)</summary>
   <p class="note">Für Betreiber ohne offenen Port 80, die bereits ein Zertifikat haben
-  (auch Wildcard oder interne CA). Es muss zum Hostnamen passen.</p>
+  (auch Wildcard oder interne CA). Es sollte zum Hostnamen passen.</p>
   <form method="POST" action="/" enctype="multipart/form-data">
     <input type="hidden" name="action" value="pfx">
     <label>Hostname (muss zum Zertifikat passen)</label>
@@ -211,6 +214,7 @@ auf diese IP zeigen. Nach Erfolg startet der Dienst automatisch neu und leitet a
     <input name="pfx_file" type="file" accept=".pfx,.p12" required>
     <label>Passwort (falls gesetzt)</label>
     <input name="pfx_pass" type="password" autocomplete="new-password">
+    <label class="cb"><input type="checkbox" name="pfx_force" value="1"> Prüfung übergehen (Zertifikat trotzdem verwenden)</label>
     <button type="submit">Zertifikat importieren</button>
   </form>
 </details>
@@ -275,13 +279,17 @@ def _schedule_self_restart() -> None:
 def _setup_page(hostname: str = "", email: str = "", message: str = "",
                 dns01_block: str = "", dns01_open: bool = False,
                 pfx_open: bool = False) -> bytes:
+    # Genau ein Weg ist aufgeklappt: der zuletzt benutzte, sonst Weg 1.
+    dns01_aktiv = bool(dns01_open or dns01_block)
+    le_open = not (pfx_open or dns01_aktiv)
     return _SETUP_PAGE_TEMPLATE.format(
         hostname=_html_escape(hostname),
         email=_html_escape(email),
         message=message,
         hostname_hint=_html_escape(hostname or "sig.example.com"),
         dns01_block=dns01_block,
-        dns01_open=" open" if (dns01_open or dns01_block) else "",
+        le_open=" open" if le_open else "",
+        dns01_open=" open" if dns01_aktiv else "",
         pfx_open=" open" if pfx_open else "",
     ).encode("utf-8")
 
@@ -382,7 +390,8 @@ def _bootstrap_letsencrypt(webroot: Path, hostname: str, email: str) -> str:
             f"<pre>{_html_escape(output)}</pre></div>")
 
 
-def _bootstrap_import_pfx(hostname: str, pfx_bytes: bytes, password: str) -> str:
+def _bootstrap_import_pfx(hostname: str, pfx_bytes: bytes, password: str,
+                          allow_mismatch: bool = False) -> str:
     """Weg 2: vorhandenes PFX/PKCS#12 importieren, gegen den Hostnamen geprüft."""
     import tls_cert
     if not hostname:
@@ -390,11 +399,13 @@ def _bootstrap_import_pfx(hostname: str, pfx_bytes: bytes, password: str) -> str
     if not pfx_bytes:
         return _err("Keine PFX-Datei empfangen.")
     try:
-        tls_cert.install_pfx(pfx_bytes, password, hostname)
+        info = tls_cert.install_pfx(pfx_bytes, password, hostname, allow_mismatch)
     except ValueError as exc:
         return _err(_html_escape(str(exc)))
     except Exception as exc:                                 # noqa: BLE001
         return _err("PFX konnte nicht gelesen werden: " + _html_escape(str(exc)))
+    if info.get("warnung"):
+        log.warning("PFX importiert trotz Nichtübereinstimmung: %s", info["warnung"])
     _schedule_self_restart()
     return _setup_ok_message(hostname)
 
@@ -490,8 +501,10 @@ def _run_acme_http() -> None:
                 if hostname:
                     settings_store.update({"PUBLIC_HOSTNAME": hostname})
                 pfx_open = True
+                allow = felder.get("pfx_force", "") in ("1", "on", "true")
                 message = _bootstrap_import_pfx(
-                    hostname, dateien.get("pfx_file", b""), felder.get("pfx_pass", ""))
+                    hostname, dateien.get("pfx_file", b""),
+                    felder.get("pfx_pass", ""), allow)
             else:
                 params = urllib.parse.parse_qs(raw.decode("utf-8", errors="replace"))
                 action = (params.get("action", [""])[0]).strip() or "letsencrypt"
