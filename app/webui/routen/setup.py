@@ -168,15 +168,18 @@ async def api_tls_import_pfx(
     user: str = Depends(_require_admin),
     pfx_file: UploadFile = File(...),
     password: str = Form(""),
+    allow_mismatch: bool = Form(False),
 ):
     """Vorhandenes TLS-Zertifikat als PFX/PKCS#12 importieren (Alternative zu
-    Let's Encrypt für Betreiber, die Port 80 nicht öffnen wollen)."""
+    Let's Encrypt für Betreiber, die Port 80 nicht öffnen wollen).
+
+    `allow_mismatch` übergeht bewusst die Hostname-Prüfung (Import trotzdem)."""
     import tls_cert
     host = (settings_store.get("PUBLIC_HOSTNAME")
             or settings_store.get("LE_DOMAIN") or "").strip()
     daten = await pfx_file.read()
     try:
-        info = tls_cert.install_pfx(daten, password, host)
+        info = tls_cert.install_pfx(daten, password, host, allow_mismatch)
     except ValueError as exc:
         raise HTTPException(400, str(exc))
     except Exception as exc:                                 # noqa: BLE001
@@ -184,8 +187,9 @@ async def api_tls_import_pfx(
         raise HTTPException(400, f"Import fehlgeschlagen: {exc}")
     if host:
         settings_store.update({"LE_DOMAIN": host})
-    log.info("TLS-Zertifikat aus PFX importiert von %s (Namen: %s)",
-             user, ", ".join(info["hostnames"]))
+    log.info("TLS-Zertifikat aus PFX importiert von %s (Namen: %s%s)",
+             user, ", ".join(info["hostnames"]),
+             "; übergangen: " + info["warnung"] if info.get("warnung") else "")
     return JSONResponse({"ok": True,
                          "detail": "Zertifikat importiert. Neustart erforderlich.",
                          **info})

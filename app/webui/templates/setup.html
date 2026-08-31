@@ -177,17 +177,21 @@
       <input type="email" id="le-email" value="{{ s.LE_EMAIL }}" placeholder="admin@domain.com" style="width:280px">
     </div>
 
-    <!-- Weg 1: Let's Encrypt über Port 80 -->
-    <div style="margin-top:6px">
-      <strong style="font-size:13px">1 · Let's Encrypt (HTTP)</strong>
-      <span class="hint"> — Port 80 muss öffentlich erreichbar sein.</span>
-      <div id="le-result" style="margin-top:8px;display:none"></div>
-      <div class="actions" style="margin-top:8px">
-        <button class="btn primary" id="le-btn" onclick="renewCert()">
-          {% if e.cert_exists %}Zertifikat erneuern{% else %}Let's Encrypt starten{% endif %}
-        </button>
+    <p style="font-weight:600;font-size:14px;margin:16px 0 8px">Wo soll das TLS-Zertifikat herkommen?</p>
+
+    <!-- Weg 1: Let's Encrypt über HTTP -->
+    <details open style="margin-top:6px">
+      <summary style="cursor:pointer;font-weight:600;font-size:13px">1 · Let's Encrypt über HTTP</summary>
+      <div style="margin-top:10px">
+        <p class="hint" style="margin-bottom:8px">Port 80 muss öffentlich erreichbar sein.</p>
+        <div id="le-result" style="margin-top:8px;display:none"></div>
+        <div class="actions" style="margin-top:8px">
+          <button class="btn primary" id="le-btn" onclick="renewCert()">
+            {% if e.cert_exists %}Zertifikat erneuern{% else %}Let's Encrypt starten{% endif %}
+          </button>
+        </div>
       </div>
-    </div>
+    </details>
 
     <!-- Weg 2: vorhandenes Zertifikat importieren -->
     <details style="margin-top:14px">
@@ -205,6 +209,9 @@
           <label for="pfx-pass">Passwort</label>
           <div class="settings-control"><input type="password" id="pfx-pass" placeholder="(falls gesetzt)" style="width:220px" autocomplete="new-password"></div>
         </div>
+        <label class="checkbox-label" style="margin-top:8px">
+          <input type="checkbox" id="pfx-force"> Prüfung übergehen (Zertifikat trotzdem verwenden)
+        </label>
         <div id="pfx-result" style="margin-top:8px;display:none"></div>
         <div class="actions" style="margin-top:8px">
           <button class="btn primary" onclick="importTlsPfx(this)">Zertifikat importieren</button>
@@ -1293,14 +1300,17 @@ async function importTlsPfx(btn) {
   const fd = new FormData();
   fd.append('pfx_file', f);
   fd.append('password', document.getElementById('pfx-pass').value || '');
+  fd.append('allow_mismatch', document.getElementById('pfx-force').checked ? 'true' : 'false');
   btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Importiere…';
   hideAlert(res);
   try {
     const r = await fetch('/api/setup/tls/import-pfx', {method: 'POST', body: fd});
     const d = await r.json().catch(() => ({}));
     if (r.ok) {
-      showAlert(res, 'success', 'Importiert (' + (d.hostnames || []).join(', ') +
-        ', gültig bis ' + (d.not_after || '?').slice(0, 10) + '). <strong>Neustart erforderlich.</strong>');
+      let msg = 'Importiert (' + (d.hostnames || []).join(', ') +
+        ', gültig bis ' + (d.not_after || '?').slice(0, 10) + '). <strong>Neustart erforderlich.</strong>';
+      if (d.warnung) msg += '<br>⚠️ ' + esc(d.warnung);
+      showAlert(res, 'success', msg);
     } else {
       showAlert(res, 'error', 'Fehler: ' + (d.detail || 'Import fehlgeschlagen'));
     }

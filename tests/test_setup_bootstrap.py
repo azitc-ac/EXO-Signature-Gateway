@@ -45,12 +45,17 @@ def _pfx(host: str, password: bytes = b"") -> bytes:
 def test_bootstrap_seite_bietet_alle_drei_wege():
     seite = main._setup_page(hostname="sig.example.com", email="a@b.de").decode()
     for marker in [
-        "1 · Let's Encrypt", "2 · Vorhandenes Zertifikat", "3 · Let's Encrypt über DNS-01",
+        "Wo soll das TLS-Zertifikat herkommen?",
+        "1 · Let's Encrypt über HTTP", "2 · Vorhandenes Zertifikat",
+        "3 · Let's Encrypt über DNS-01",
         'name="action" value="letsencrypt"', 'name="action" value="pfx"',
         'name="action" value="dns01-start"', 'enctype="multipart/form-data"',
-        'accept=".pfx,.p12"',
+        'accept=".pfx,.p12"', 'name="pfx_force"',
     ]:
         assert marker in seite, f"Bootstrap-Seite fehlt: {marker}"
+    # Alle drei Wege sind <details>-Kästen, Weg 1 standardmäßig offen.
+    assert seite.count("<details") == 3
+    assert seite.count("<details open>") == 1
 
 
 def test_bootstrap_dns01_record_block_klappt_sektion_auf():
@@ -128,6 +133,25 @@ def test_bootstrap_pfx_ohne_datei(monkeypatch, _kein_neustart):
 def test_bootstrap_pfx_ohne_hostname(monkeypatch, _kein_neustart):
     msg = main._bootstrap_import_pfx("", _pfx("gw.example.com"), "")
     assert "class=\"err\"" in msg and _kein_neustart == []
+
+
+def test_bootstrap_pfx_mismatch_ohne_uebergehen_blockt(tmp_path, monkeypatch, _kein_neustart):
+    import config
+    monkeypatch.setattr(config, "SMTP_TLS_CERT", str(tmp_path / "cert.pem"))
+    monkeypatch.setattr(config, "SMTP_TLS_KEY", str(tmp_path / "key.pem"))
+    msg = main._bootstrap_import_pfx("anderer.example.com", _pfx("gw.example.com"), "")
+    assert "class=\"err\"" in msg and _kein_neustart == []
+    assert not (tmp_path / "cert.pem").exists()
+
+
+def test_bootstrap_pfx_mismatch_mit_uebergehen(tmp_path, monkeypatch, _kein_neustart):
+    import config
+    monkeypatch.setattr(config, "SMTP_TLS_CERT", str(tmp_path / "cert.pem"))
+    monkeypatch.setattr(config, "SMTP_TLS_KEY", str(tmp_path / "key.pem"))
+    msg = main._bootstrap_import_pfx("anderer.example.com", _pfx("gw.example.com"), "",
+                                     allow_mismatch=True)
+    assert "class=\"ok\"" in msg and _kein_neustart == [1]      # importiert + Neustart
+    assert (tmp_path / "cert.pem").exists()
 
 
 # ── DNS-01: Fehlerpfade ohne Netz ───────────────────────────────────────────────

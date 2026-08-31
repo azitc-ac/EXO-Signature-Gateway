@@ -5,7 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
-## v1.8.43 — 2026-08-31 — Ersteinrichtung bietet PFX-Import und DNS-01
+## v1.8.44 — 2026-08-31 — TLS-Setup: gleiche Wege-Kästen, PFX-Prüfung übergehbar
+
+**Menüführung.** Ersteinrichtung und Setup-Assistent zeigen die drei TLS-Wege
+jetzt einheitlich als aufklappbare Kästen unter der Frage „Wo soll das
+TLS-Zertifikat herkommen?". Weg 1 ist standardmäßig offen und heißt „Let's
+Encrypt über HTTP"; nach einer Aktion klappt der zuletzt benutzte Weg auf.
+
+**PFX-Hostnameprüfung übergehbar.** Der Abgleich folgt RFC 6125: ein Wildcard
+`*.example.com` deckt genau eine Ebene ab (`a.example.com`, nicht
+`a.b.example.com`) — dieselbe Regel, nach der ein Browser das Zertifikat später
+akzeptiert. Passt das importierte Zertifikat nicht zum Hostnamen, wird der
+Import weiterhin abgelehnt und der Grund genannt. Neu: die Option „Prüfung
+übergehen" importiert bewusst trotzdem — für Betreiber, die den Namen anders
+auflösen (Zugriff hinter einem Proxy oder per IP). Die Nichtübereinstimmung
+wird dann als Warnung angezeigt statt als Fehler.
 
 Die neuen TLS-Wege aus v1.8.41 (PFX-Import, Let's Encrypt DNS-01) standen bisher
 nur im Setup-Assistenten — den man erst nach dem ersten Zertifikat über HTTPS
