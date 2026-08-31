@@ -346,22 +346,28 @@ cd EXO-Signature-Gateway
 docker compose up -d
 ```
 
-### 3. First-Run — TLS-Zertifikat via Port 80
+### 3. First-Run — TLS-Zertifikat einrichten
 
-Beim allerersten Start existiert noch kein TLS-Zertifikat. Das Gateway startet einen
-minimalen Setup-Wizard auf **Port 80 (HTTP)**:
+Beim allerersten Start existiert noch kein TLS-Zertifikat. Das Gateway startet dafür
+einen minimalen Setup-Wizard auf **Port 80 (HTTP)** — erreichbar direkt per IP, ein
+DNS-Name muss dafür noch nicht gesetzt sein:
 
 ```
 http://<öffentliche-IP>
 ```
 
-> DNS muss noch nicht gesetzt sein — IP-Zugriff reicht für diesen Schritt.
+Der Wizard bietet drei Wege zum Zertifikat:
 
-Dort Hostname (`sig.example.com`) und Let's Encrypt E-Mail eintragen → **Zertifikat beantragen**.
-Voraussetzung: DNS des Hostnamens zeigt bereits auf diese IP (Let's Encrypt validiert via DNS).
+- **Let's Encrypt HTTP-01** (Standard): Let's Encrypt ruft zur Prüfung Port 80 **von
+  außen** auf. Voraussetzung: Der DNS-Name zeigt bereits auf diese IP **und** Port 80
+  ist aus dem Internet erreichbar.
+- **Let's Encrypt DNS-01**: Prüfung über einen TXT-Record, **ohne** eingehenden Port —
+  für NAT/rein interne Hosts. ⚠️ Erneuerung ~alle 90 Tage manuell.
+- **PFX-Import**: eigenes Zertifikat hochladen (auch Wildcard oder interne CA).
 
-> Ohne von außen offenen Port 80 (NAT, rein intern): im Wizard **Let's Encrypt DNS-01**
-> oder **PFX-Import** statt HTTP-01 wählen — siehe Abschnitt **Betrieb on-prem**.
+Hostname (`sig.example.com`) und — bei Let's Encrypt — die ACME-E-Mail eintragen, Weg
+wählen, Zertifikat beziehen. Hinweise für NAT/rein interne Hosts im Abschnitt
+**Betrieb on-prem**.
 
 Nach Erfolg:
 
