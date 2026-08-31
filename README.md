@@ -1,4 +1,4 @@
-# EXO Signature Service
+# EXO Signature Gateway
 
 > **Lizenz:** [PolyForm Internal Use License 1.0.0](LICENSE.md) (Community
 > Edition) — frei nutzbar für eigene/interne Zwecke (auch im Unternehmen)
