@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.46 — 2026-08-31 — README: First-Run-Schritt präzisiert
+
+Der Schnellstart-Schritt zum ersten Zertifikat beschrieb nur Let's Encrypt und
+sagte dabei „validiert via DNS" — das ist die HTTP-01-Prüfung über Port 80, nicht
+DNS. Der Schritt nennt jetzt korrekt alle drei Wege des Wizards: HTTP-01 (Port 80
+von außen), DNS-01 (TXT-Record, kein eingehender Port) und PFX-Import, jeweils mit
+ihren tatsächlichen Voraussetzungen.
+
 ## v1.8.45 — 2026-08-31 — README: Abschnitt „Betrieb on-prem"
 
 Für Betreiber, die das Gateway auf eigener Hardware/VM statt in Azure betreiben,
