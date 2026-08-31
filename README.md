@@ -128,7 +128,7 @@ Das mitgelieferte Skript `azure-vm-setup.ps1` legt eine Debian-12-VM (arm64,
     -Location "northeurope" `
     -ResourceGroup "exo-gateway-rg" `
     -SshPublicKeyFile "~/.ssh/id_rsa.pub" `
-    -RepoUrl "https://github.com/azitc-ac/EXO-signature-service.git"
+    -RepoUrl "https://github.com/azitc-ac/EXO-Signature-Gateway.git"
 ```
 
 Nach Abschluss zeigt das Skript die öffentliche IP und die nächsten Schritte (DNS setzen,
@@ -253,8 +253,8 @@ Multi-Arch).
 ### 1. Repository klonen
 
 ```bash
-git clone https://github.com/azitc-ac/EXO-signature-service.git
-cd EXO-signature-service
+git clone https://github.com/azitc-ac/EXO-Signature-Gateway.git
+cd EXO-Signature-Gateway
 ```
 
 ### 2. Starten

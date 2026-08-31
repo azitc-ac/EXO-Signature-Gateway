@@ -17,7 +17,7 @@ Behandlung **privater Repositorys**, die der Hub am 2026-07-26 bekam:
     Exception-Zweig als „Not Found" — genau die Meldung, über die sich der
     Betreiber beim Hub beschwert hatte.
 
-Gemessen: `azitc-ac/EXO-signature-service` ist öffentlich (VERSION per HTTP 200
+Gemessen: `azitc-ac/EXO-Signature-Gateway` ist öffentlich (VERSION per HTTP 200
 abrufbar), `azitc-ac/sig-provider` privat (404). Das Gateway brauchte den
 Rückfall also heute nicht — aber sobald das Gateway-Repo privat wird (bei einem
 kommerziellen Produkt naheliegend), bräche dort dieselbe Meldung ohne Rückfall.

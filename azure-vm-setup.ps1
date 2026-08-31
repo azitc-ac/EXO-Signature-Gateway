@@ -46,7 +46,7 @@ param(
     [string]$VmSize         = "Standard_B2ps_v2",
     [string]$VmImage        = "Debian:debian-12:12-arm64:latest",
     [string]$SshPublicKeyFile = "~/.ssh/id_rsa.pub",
-    [string]$RepoUrl        = "https://github.com/azitc-ac/EXO-signature-service.git"
+    [string]$RepoUrl        = "https://github.com/azitc-ac/EXO-Signature-Gateway.git"
 )
 
 Set-StrictMode -Version Latest

@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.38 — 2026-08-31 — Repository umbenannt: EXO-Signature-Gateway
+
+Das GitHub-Repository heißt jetzt **`EXO-Signature-Gateway`** (vorher
+`EXO-signature-service`) und trägt eine Kurzbeschreibung. Referenzen nachgezogen:
+Klon-URL (README), Deploy-Skript (`azure-vm-setup.ps1`) und die integrierte
+Update-Prüfung (`updater.GITHUB_REPO`). Alte Adressen leiten per
+GitHub-Redirect weiter.
+
 ## v1.8.37 — 2026-08-31 — legal/README.md nachgezogen (deutsch-only)
 
 `legal/README.md` beschrieb noch englische Fassungen — nach deren Entfernung
