@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.36 — 2026-08-31 — Rechtstexte nur noch deutsch
+
+Die englischen Fassungen der Rechtsdokumente wurden entfernt; maßgeblich und
+angezeigt ist ausschließlich die deutsche Fassung (die Zustimmung war ohnehin an
+die deutsche Fassung gebunden). Bestehende `?lang=en`-Verweise fallen auf die
+deutsche Fassung zurück — keine toten Adressen.
+
+- `legal/en/` entfernt; Registry (`CURRENT_DOCUMENTS`) und `legal/index.json`
+  sind auf Deutsch reduziert; `tools/legal-sync-check.py` pflegt nur noch die
+  deutsche Spalte.
+
 ## v1.8.35 — 2026-08-31 — Dokumentation: Funktionsüberblick, aktualisiert und nur noch deutsch
 
 Die README ist überarbeitet und auf Deutsch konzentriert (die englische Fassung

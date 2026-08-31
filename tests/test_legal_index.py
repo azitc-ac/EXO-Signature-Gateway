@@ -58,7 +58,7 @@ def test_jede_genannte_datei_existiert():
     fehlend = [
         rel
         for d in legal_consent.CURRENT_DOCUMENTS.values()
-        for rel in (d["path_de"], d["path_en"])
+        for rel in (d["path_de"],)
         if not (ROOT / "legal" / rel).is_file()
     ]
     assert not fehlend, f"in CURRENT_DOCUMENTS genannt, aber nicht vorhanden: {fehlend}"
@@ -72,7 +72,7 @@ def test_dateiname_traegt_die_angegebene_version():
     falsch = [
         (kennung, d["version"], rel)
         for kennung, d in legal_consent.CURRENT_DOCUMENTS.items()
-        for rel in (d["path_de"], d["path_en"])
+        for rel in (d["path_de"],)
         if f"-v{d['version']}.md" not in rel
     ]
     assert not falsch, f"Version und Dateiname passen nicht zusammen: {falsch}"

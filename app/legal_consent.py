@@ -24,30 +24,22 @@ CURRENT_DOCUMENTS: dict[str, dict] = {
     "hub-terms": {
         "version": "2.3",
         "label_de": "Hub-Nutzungsbedingungen",
-        "label_en": "Hub Terms of Use",
         "path_de": "de/hub-nutzungsbedingungen-v2.3.md",
-        "path_en": "en/hub-terms-of-use-v2.3.md",
     },
     "license-supplement": {
         "version": "2.1",
         "label_de": "Lizenzbedingungen-Ergänzung",
-        "label_en": "License Terms Supplement",
         "path_de": "de/lizenzbedingungen-ergaenzung-v2.1.md",
-        "path_en": "en/license-supplement-v2.1.md",
     },
     "payment-invoice": {
         "version": "1.0",
         "label_de": "Zahlungsbedingungen Rechnungskauf",
-        "label_en": "Payment Terms for Invoice Purchase",
         "path_de": "de/zahlungsbedingungen-rechnung-v1.0.md",
-        "path_en": "en/payment-terms-invoice-v1.0.md",
     },
     "price-list": {
         "version": "1.2",
         "label_de": "Preisliste",
-        "label_en": "Price List",
         "path_de": "de/preisliste-v1.2.md",
-        "path_en": "en/price-list-v1.2.md",
         "no_consent_required": True,
     },
     # Eine Datenschutzerklärung ist eine INFORMATION nach Art. 13/14 DSGVO, keine
@@ -57,9 +49,7 @@ CURRENT_DOCUMENTS: dict[str, dict] = {
     "product-privacy": {
         "version": "1.0",
         "label_de": "Datenschutzerklärung (Gateway & Hub)",
-        "label_en": "Privacy Policy (Gateway & Hub)",
         "path_de": "de/produkt-datenschutz-v1.0.md",
-        "path_en": "en/product-privacy-policy-v1.0.md",
         "no_consent_required": True,
     },
     # Art. 28 Abs. 3 DSGVO verlangt, dass die Verarbeitung durch einen Vertrag
@@ -69,9 +59,7 @@ CURRENT_DOCUMENTS: dict[str, dict] = {
     "dpa": {
         "version": "1.0",
         "label_de": "Auftragsverarbeitungsvertrag (Diagnosepakete)",
-        "label_en": "Data Processing Agreement (diagnostic bundles)",
         "path_de": "de/auftragsverarbeitung-v1.0.md",
-        "path_en": "en/data-processing-agreement-v1.0.md",
     },
 }
 
@@ -112,11 +100,12 @@ def _conn() -> sqlite3.Connection:
 
 
 def _doc_path(doc_id: str, lang: str = "de") -> Path | None:
+    # Deutsch ist die einzige (maßgebliche) Fassung; `lang` bleibt aus
+    # Kompatibilität erhalten, wird aber nicht mehr unterschieden.
     doc = CURRENT_DOCUMENTS.get(doc_id)
     if not doc:
         return None
-    key = "path_de" if lang != "en" else "path_en"
-    return _LEGAL_DIR / doc.get(key, doc["path_de"])
+    return _LEGAL_DIR / doc["path_de"]
 
 
 def compute_document_hash(doc_id: str) -> str:
@@ -128,15 +117,9 @@ def compute_document_hash(doc_id: str) -> str:
 
 
 def get_document_text(doc_id: str, lang: str = "de") -> str:
-    """Read Markdown text. Falls back to DE if EN not found."""
-    p = _doc_path(doc_id, lang)
-    if p and p.exists():
-        return p.read_text(encoding="utf-8")
-    if lang != "de":
-        p2 = _doc_path(doc_id, "de")
-        if p2 and p2.exists():
-            return p2.read_text(encoding="utf-8")
-    return ""
+    """Read Markdown text (Deutsch — die einzige gepflegte Fassung)."""
+    p = _doc_path(doc_id)
+    return p.read_text(encoding="utf-8") if p and p.exists() else ""
 
 
 def current_versions() -> dict:
@@ -211,7 +194,6 @@ def pending_reconsent() -> list[dict]:
                 offen.append({
                     "doc_id": doc_id,
                     "label_de": doc.get("label_de", doc_id),
-                    "label_en": doc.get("label_en", doc_id),
                     "version": doc["version"],
                     "content_hash": h,
                     "previous_version": frueher["version"],
@@ -260,7 +242,6 @@ def consent_status_all() -> dict:
         result[doc_id] = {
             "version": version,
             "label_de": doc.get("label_de", doc_id),
-            "label_en": doc.get("label_en", doc_id),
             "accepted": accepted_at is not None,
             "accepted_at": accepted_at,
             "no_consent_required": doc.get("no_consent_required", False),
