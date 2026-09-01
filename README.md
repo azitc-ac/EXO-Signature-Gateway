@@ -528,9 +528,15 @@ Das Gateway verarbeitet alle gängigen MIME-Formate korrekt:
 Port 80 ist im mitgelieferten `docker-compose.yml` bereits offen (HTTP-01 Challenge).
 
 1. Sicherstellen dass Port 80 und Port 25 extern erreichbar sind (Firewall / NAT-Regel).
-2. In der Web-UI unter **Einstellungen → TLS / Let's Encrypt** Domain und E-Mail eintragen.
-3. Button **Zertifikat erneuern** klicken.
+2. In der Web-UI unter **Einstellungen → Einrichtung → TLS-Zertifikat** Domain und E-Mail eintragen.
+3. Weg **Let's Encrypt über HTTP** wählen und **Zertifikat beantragen** klicken.
 4. Nach Erfolg: **Gateway neu starten** (Button in Einstellungen oder `docker compose restart`).
+
+Danach erneuert sich das Zertifikat automatisch: Der Hintergrunddienst stößt die
+Erneuerung an, sobald die Restlaufzeit die eingestellte Schwelle unterschreitet
+(Vorgabe 14 Tage, am HTTP-Weg ein-/ausschaltbar). Damit das erneuerte Zertifikat
+ausgeliefert wird, ist anschließend ein Neustart nötig — eine Benachrichtigung
+weist darauf hin.
 
 ---
 

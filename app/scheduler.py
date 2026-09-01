@@ -99,9 +99,17 @@ def _check_tls_cert() -> None:
     if result is None:
         return
     days, expiry_str, domain = result
-    renew_days = int(settings_store.get("LE_RENEW_DAYS") or 7)
-    if days <= renew_days and domain:
-        _try_le_renewal(domain, days, expiry_str)
+    renew_days = int(settings_store.get("LE_RENEW_DAYS") or 14)
+    if days > renew_days or not domain:
+        return
+    # Auto-Renew abgeschaltet → nicht selbst erneuern, aber den nahenden Ablauf
+    # melden, damit ein Zertifikat nicht still ausläuft (dieser Lauf ist täglich).
+    if settings_store.get("LE_AUTO_RENEW") is False:
+        if settings_store.get("NOTIFY_LE_EVENTS") is not False:
+            import notification
+            notification.send_le_expiry_alert(domain, days, expiry_str)
+        return
+    _try_le_renewal(domain, days, expiry_str)
 
 
 # ── S/MIME cert alerts + lifecycle ───────────────────────────────────────────

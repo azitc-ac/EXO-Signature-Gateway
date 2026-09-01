@@ -192,6 +192,16 @@
             {% if e.cert_exists %}Zertifikat erneuern{% else %}Let's Encrypt starten{% endif %}
           </button>
         </div>
+        <label class="checkbox-label" style="margin-top:14px">
+          <input type="checkbox" id="le-auto-renew" {% if s.LE_AUTO_RENEW is not false %}checked{% endif %}>
+          Automatisch erneuern
+        </label>
+        <div style="margin-top:6px;font-size:13px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span><input type="number" class="eng" id="le-renew-days" value="{{ s.LE_RENEW_DAYS or 14 }}" min="1" max="30" style="width:64px"> Tage vor Ablauf</span>
+          <button class="btn secondary btn-sm" id="le-renew-btn" data-wache-hinweis="le-renew-result" data-wache="le-auto-renew,le-renew-days" onclick="saveLeRenew()">Speichern</button>
+          <span id="le-renew-result" style="font-size:12px"></span>
+        </div>
+        <p class="hint" style="margin-top:6px">Erneuert wird nur dieser Weg automatisch (DNS-01 und Import nicht). Nach einer automatischen Erneuerung ist ein Neustart nötig, damit das neue Zertifikat ausgeliefert wird — eine Benachrichtigung weist darauf hin.</p>
       </div>
     </details>
 
@@ -1292,6 +1302,13 @@ async function renewCert() {
     const d = await resp.json().catch(() => ({}));
     showAlert(result, 'error', 'certbot-Fehler: ' + (d.detail || 'Unbekannt'));
   }
+}
+
+async function saveLeRenew() {
+  wacheFertig('le-renew-btn', await savePartial({
+    LE_AUTO_RENEW: document.getElementById('le-auto-renew').checked,
+    LE_RENEW_DAYS: parseInt(document.getElementById('le-renew-days').value, 10) || 14,
+  }, 'le-renew-result'));
 }
 
 // ── Weg 2: PFX importieren ───────────────────────────────────────────────────

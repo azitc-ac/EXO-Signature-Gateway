@@ -300,14 +300,10 @@
       <label for="cert-warn-days">S/MIME Zertifikat – Warnung ab</label>
       <input type="number" class="eng" id="cert-warn-days" value="{{ s.CERT_WARN_DAYS or 14 }}" min="1" max="90" style="width:80px"> Tage vor Ablauf
     </div>
-    <div class="settings-row">
-      <label for="le-renew-days">Let's Encrypt – Erneuerung ab</label>
-      <input type="number" class="eng" id="le-renew-days" value="{{ s.LE_RENEW_DAYS or 7 }}" min="1" max="30" style="width:80px"> Tage vor Ablauf
-    </div>
     </div>
 
     <div class="actions" style="margin-top:12px;flex-wrap:wrap;gap:8px">
-      <button class="btn secondary" id="benachr-btn" data-wache-hinweis="benachrichtigungen-result" data-wache="notif-enabled,notif-mailbox,daily-report-enabled,daily-report-time,notify-startup,notify-smime-expiry,notify-cert-renewal,notify-le-events,notify-local-admin-login,notify-cert-waiting,notify-user-cert,cert-warn-days,le-renew-days" onclick="saveBenachrichtigungen()">Speichern</button>
+      <button class="btn secondary" id="benachr-btn" data-wache-hinweis="benachrichtigungen-result" data-wache="notif-enabled,notif-mailbox,daily-report-enabled,daily-report-time,notify-startup,notify-smime-expiry,notify-cert-renewal,notify-le-events,notify-local-admin-login,notify-cert-waiting,notify-user-cert,cert-warn-days" onclick="saveBenachrichtigungen()">Speichern</button>
       <span id="benachrichtigungen-result" style="font-size:12px;align-self:center"></span>
       <button class="btn secondary" onclick="sendTestNotification()" style="margin-left:16px">Test-Benachrichtigung senden</button>
       <span id="notif-test-result" style="font-size:13px;align-self:center"></span>
@@ -889,7 +885,6 @@ async function saveBenachrichtigungen() {
     NOTIFY_CERT_WAITING: document.getElementById('notify-cert-waiting').checked,
     NOTIFY_USER_CERT: document.getElementById('notify-user-cert').checked,
     CERT_WARN_DAYS: parseInt(document.getElementById('cert-warn-days').value, 10) || 14,
-    LE_RENEW_DAYS: parseInt(document.getElementById('le-renew-days').value, 10) || 7,
   }, 'benachrichtigungen-result');
   wacheFertig('benachr-btn', _ok);
 }
