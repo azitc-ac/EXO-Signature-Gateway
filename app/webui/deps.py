@@ -84,6 +84,23 @@ def _lernmodus_rest_min() -> int:
 templates.env.globals["lernmodus_rest_min"] = _lernmodus_rest_min
 
 
+def _smtp_relay_aktiv() -> bool:
+    """Ob der SMTP-Relay-Weg eingeschaltet ist — steuert den Menüpunkt.
+
+    Wie `lernmodus_rest_min` bewusst ein Jinja-Global und kein Kontextwert: der
+    Menüpunkt steht in base.html und soll ohne Zutun jeder einzelnen Route
+    erscheinen bzw. verschwinden. Bei jedem Aufruf frisch gelesen, damit ein
+    Umschalten ohne Neustart wirkt.
+    """
+    try:
+        return bool(settings_store.get("SMTP_RELAY_ENABLED"))
+    except Exception:                                   # noqa: BLE001
+        return False                                    # nie die Seite kippen
+
+
+templates.env.globals["smtp_relay_aktiv"] = _smtp_relay_aktiv
+
+
 def _gateway_name() -> str:
     """Name des Gateways — bei jedem Aufruf frisch gelesen, damit eine Änderung
     ohne Neustart wirkt."""
