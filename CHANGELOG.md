@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.48 — 2026-09-01 — Menüpunkt SMTP-Relay nur bei aktivem Feature
+
+Der Menüpunkt „SMTP-Relay" erschien immer, auch wenn der Relay-Weg gar nicht
+eingeschaltet war. Er wird jetzt nur angezeigt, wenn `SMTP_RELAY_ENABLED` gesetzt
+ist. Eingeschaltet wird der Relay-Weg weiterhin im Einrichtungs-Assistenten, der
+unabhängig davon erreichbar bleibt — es entsteht also keine Sackgasse.
+
 ## v1.8.47 — 2026-09-01 — Setup: Migrations-Hinweis nur auf frischem Gateway
 
 Der Hinweis „Du migrierst dieses Gateway auf einen neuen Server und hast ein
