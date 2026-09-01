@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.49 — 2026-09-01 — TLS: Erneuerung sichtbar am HTTP-Weg, Advanced-Dublette raus
+
+Der doppelte Abschnitt „TLS / Let's Encrypt" unter Einstellungen → Erweitert ist
+entfernt; die Zertifikatsverwaltung liegt vollständig im Einrichtungs-Assistenten
+(Schritt „TLS-Zertifikat").
+
+Die automatische Erneuerung des Let's-Encrypt-Zertifikats gab es bereits, sie war
+aber unsichtbar und immer an. Sie ist jetzt am HTTP-Weg des Assistenten sichtbar
+und steuerbar: Schalter „Automatisch erneuern" (Vorgabe an) samt Tagesschwelle
+(Vorgabe **14** Tage vor Ablauf, bisher 7). Ist der Schalter aus, erneuert der
+Dienst nicht selbst, meldet aber den nahenden Ablauf. Erneuert wird nur der
+HTTP-Weg — DNS-01 und PFX-Import bleiben manuell. Nach einer Erneuerung ist ein
+Neustart nötig, damit das neue Zertifikat ausgeliefert wird; darauf weist eine
+Benachrichtigung hin.
+
+Die Tagesschwelle wanderte dabei aus Einstellungen → Benachrichtigungen an den
+HTTP-Weg — eine Stelle statt zwei.
+
 ## v1.8.48 — 2026-09-01 — Menüpunkt SMTP-Relay nur bei aktivem Feature
 
 Der Menüpunkt „SMTP-Relay" erschien immer, auch wenn der Relay-Weg gar nicht

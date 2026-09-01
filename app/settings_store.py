@@ -153,7 +153,8 @@ DEFAULTS: dict = {
     "DAILY_REPORT_ENABLED": False,   # Send daily stats email
     "DAILY_REPORT_TIME": "08:00",    # HH:MM in LOG_TIMEZONE
     "CERT_WARN_DAYS": 14,            # Warn this many days before S/MIME cert expiry
-    "LE_RENEW_DAYS": 7,              # Attempt LE renewal this many days before expiry
+    "LE_AUTO_RENEW": True,           # HTTP-01 cert: let the scheduler auto-renew via certbot
+    "LE_RENEW_DAYS": 14,             # Attempt LE renewal this many days before expiry
     "NOTIFY_STARTUP": None,          # None/True = send; False = suppress startup notification
     "NOTIFY_SMIME_EXPIRY": None,     # None/True = send; False = suppress S/MIME expiry admin alert
     "NOTIFY_CERT_RENEWAL": None,     # None/True = send; False = suppress renewal success/failure
