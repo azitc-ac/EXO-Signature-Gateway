@@ -41,7 +41,8 @@
 </div>
 {% endif %}
 
-<!-- ── Restore (Migration) ─────────────────────────────────────────────────── -->
+<!-- ── Restore (Migration) — nur auf frischem, unkonfiguriertem Gateway ──────── -->
+{% if not e.core_config_done %}
 <div class="wizard-step" id="migration-hint" style="border-color:#0369a133;margin-bottom:20px">
   <div class="step-header">
     <span class="step-badge" style="font-size:15px;line-height:1;flex-shrink:0">↩</span>
@@ -73,6 +74,7 @@
     </div>
   </div>
 </div>
+{% endif %}
 
 <!-- ── Step 1: Admin-Passwort ──────────────────────────────────────────────── -->
 <div class="wizard-step {% if not e.password_change_needed %}done{% endif %}" id="step-1">
@@ -2767,12 +2769,24 @@ function _migrationSetDone(label, keepPanel) {
   if (!keepPanel) document.getElementById('setup-restore-panel').style.display = 'none';
 }
 function migrationChooseNo() {
+  // Entscheidung merken, sonst kommt der Hinweis bei jedem Neuladen der
+  // Setup-Seite zurück (früher änderte diese Wahl nur das DOM).
+  try { localStorage.setItem('migrationHintDismissed', '1'); } catch (e) {}
   _migrationSetDone('Neuinstallation — kein Backup wiederhergestellt');
 }
 function toggleSetupRestorePanel() {
   var p = document.getElementById('setup-restore-panel');
   p.style.display = p.style.display === 'none' ? '' : 'none';
 }
+// Auf frischem Gateway (Hinweis wird gerendert): einmal weggeklickt bleibt weg.
+document.addEventListener('DOMContentLoaded', function () {
+  try {
+    if (localStorage.getItem('migrationHintDismissed')) {
+      var card = document.getElementById('migration-hint');
+      if (card) card.style.display = 'none';
+    }
+  } catch (e) {}
+});
 
 function setupRestoreConfirm() {
   var input = document.getElementById('setup-restore-file');

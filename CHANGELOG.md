@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.47 — 2026-09-01 — Setup: Migrations-Hinweis nur auf frischem Gateway
+
+Der Hinweis „Du migrierst dieses Gateway auf einen neuen Server und hast ein
+Backup?" erschien auf der Setup-Seite unabhängig vom Zustand — auch auf einem
+längst eingerichteten, laufenden Gateway. „Ohne Backup starten" änderte zudem nur
+die Anzeige, ohne die Wahl zu merken, sodass der Hinweis bei jedem Neuladen
+zurückkam. Auf einem konfigurierten Gateway ist es überdies fehl am Platz, das
+Einspielen eines Backups anzubieten, das die laufende Konfiguration überschreibt.
+
+Der Hinweis erscheint jetzt nur noch, solange die Kernkonfiguration (Tenant, App,
+Domain, Secret) fehlt — also auf einem frischen Gateway. Die Wahl „Ohne Backup
+starten" wird gemerkt und kehrt nach dem Wegklicken nicht wieder.
+
 ## v1.8.46 — 2026-08-31 — README: First-Run-Schritt präzisiert
 
 Der Schnellstart-Schritt zum ersten Zertifikat beschrieb nur Let's Encrypt und
