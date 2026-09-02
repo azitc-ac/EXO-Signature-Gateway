@@ -1223,8 +1223,10 @@ async function changePassword() {
   });
 
   if (resp.ok) {
-    showAlert(result, 'success', 'Passwort geändert. Seite lädt neu…');
-    setTimeout(() => location.reload(), 1500);
+    // Nach dem Passwortwechsel abmelden → Neu-Anmeldung mit dem neuen Passwort
+    // erzwingen (die alte Sitzung entstand ggf. aus admin/admin).
+    showAlert(result, 'success', 'Passwort geändert. Bitte neu anmelden…');
+    setTimeout(() => { location.href = '/auth/logout'; }, 1500);
   } else {
     const d = await resp.json().catch(() => ({}));
     showAlert(result, 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));

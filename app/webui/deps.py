@@ -139,6 +139,10 @@ def _check_password(password: str) -> bool:
     stored_hash = settings_store.get("ADMIN_PASSWORD_HASH") or ""
     if stored_hash:
         return _verify_password(password, stored_hash)
+    # Leeres Passwort nie akzeptieren — auch nicht, falls WEBUI_PASSWORD wider
+    # Erwarten leer wäre (der admin-Default in config verhindert das bereits).
+    if not password or not config.WEBUI_PASSWORD:
+        return False
     return secrets.compare_digest(password.encode(), config.WEBUI_PASSWORD.encode())
 
 

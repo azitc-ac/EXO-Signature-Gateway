@@ -107,7 +107,12 @@ COPY legal/ /app/legal/
 COPY VERSION /app/VERSION
 COPY CHANGELOG.md /app/CHANGELOG.md
 
-RUN useradd -m appuser && chown -R appuser /app
+# Die Mountpunkte VOR dem chown anlegen: Sonst legt sie die folgende
+# VOLUME-Anweisung als root:root an, und appuser (UID 1000) kann nicht in
+# /app/data schreiben → PermissionError beim ersten Start (Crash-Loop).
+RUN mkdir -p /app/data /app/certs /app/templates \
+ && useradd -m appuser \
+ && chown -R appuser /app
 USER appuser
 
 EXPOSE 25 80 8080
