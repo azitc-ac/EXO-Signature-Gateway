@@ -5,6 +5,25 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.53 — 2026-09-03 — Sicherheit: Rollen-Kopffeld und ACME-Pfad gehärtet
+
+Zwei Sicherheitskorrekturen. **Zu tun: aktualisieren** — beide greifen
+automatisch, keine Konfigurationsänderung nötig.
+
+- **Rechteausweitung über das Sitzungs-Kopffeld geschlossen.** Die Anmeldung
+  akzeptiert das signierte Sitzungsmerkmal auch aus dem Kopffeld
+  `X-Addin-Session` (für das Outlook-Add-in). Die Rollenprüfung las es jedoch nur
+  aus dem Cookie und wertete ein fehlendes Cookie als Verwaltung — ein Bearbeiter,
+  der sein Token als Kopffeld ohne Cookie schickte, erhielt so Verwaltungsrechte.
+  Rolle und Kennung stammen jetzt aus derselben Quelle; ein Bearbeiter bleibt
+  Bearbeiter, unabhängig vom Anmeldeweg.
+
+- **Pfad-Ausbruch im ACME-Challenge-Handler (Port 80) geschlossen.** Der
+  HTTP-Server für die Let's-Encrypt-Prüfung löste `..` im angefragten Pfad nicht
+  auf; über `/.well-known/acme-challenge/…` liessen sich dadurch Dateien
+  ausserhalb des Challenge-Verzeichnisses lesen. Der Handler liefert jetzt
+  ausschliesslich Dateien innerhalb dieses Verzeichnisses aus.
+
 ## v1.8.52 — 2026-09-02 — Einrichtungs-Assistent: klarere Reihenfolge und Marker
 
 Mehrere UX-Verbesserungen am Setup-Assistenten:

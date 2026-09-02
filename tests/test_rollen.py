@@ -101,6 +101,31 @@ def test_die_verwaltung_kommt_ueberall_hin(verwaltungs_sitzung, adresse, zweck):
     assert antwort.status_code != 403, f"{adresse} ({zweck}) verweigert auch der Verwaltung"
 
 
+def test_bearbeiter_per_addin_header_ist_kein_admin(monkeypatch):
+    """⚠️ Rechteausweitung: `_get_session_user` akzeptiert das Token auch aus dem
+    Kopffeld `X-Addin-Session` (Add-in-Weg). `_get_session_role` las früher nur
+    den Cookie und gab sonst ADMIN zurück — ein Bearbeiter, der sein Token als
+    Header OHNE Cookie schickt, wäre damit Verwaltung geworden. Editor-Token per
+    Header an eine Admin-Route muss 403 ergeben; Rolle kommt aus demselben Weg.
+    """
+    from starlette.testclient import TestClient
+    import sso
+    from webui import app as wa
+    monkeypatch.setattr(sso, "_get_secret", lambda: "testgeheimnis-fuer-die-rollenpruefung")
+
+    editor = sso.create_session_cookie("bearbeiter@example.org", role=sso.ROLE_EDITOR)
+    with TestClient(wa.app) as c:
+        antwort = c.get("/api/mailboxes", headers={"X-Addin-Session": editor})
+    assert antwort.status_code == 403, f"Editor per Header nicht abgewiesen → {antwort.status_code}"
+
+    # Gegenprobe: Verwaltungs-Token per Header wird weiterhin als Verwaltung
+    # gelesen (die Rolle darf im Header-Pfad nicht generell verloren gehen).
+    admin = sso.create_session_cookie("chefin@example.org", role=sso.ROLE_ADMIN)
+    with TestClient(wa.app) as c:
+        antwortA = c.get("/api/mailboxes", headers={"X-Addin-Session": admin})
+    assert antwortA.status_code != 403, f"Admin per Header fälschlich abgewiesen → {antwortA.status_code}"
+
+
 def test_schnittstellenbeschreibung_ist_abgeschaltet():
     """⚠️ FastAPI liefert /docs, /redoc und /openapi.json ohne Anmeldung aus.
     Am 19.08.2026 lagen dort 229 Endpunkte samt Parametern offen — die

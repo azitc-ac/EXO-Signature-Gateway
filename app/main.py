@@ -436,6 +436,24 @@ def _bootstrap_dns01_finish() -> str:
     return _setup_ok_message(namen[0])
 
 
+def _acme_challenge_datei(webroot: Path, urlpfad: str) -> Path | None:
+    """Sichere Auflösung einer `/.well-known/acme-challenge/`-Anfrage.
+
+    `BaseHTTPRequestHandler` normalisiert `..` NICHT. Ohne Containment-Prüfung
+    liesse `/.well-known/acme-challenge/../../../settings.json` das Auslesen von
+    Geheimnissen über Port 80 zu (settings.json enthält CLIENT_SECRET u.a.).
+    Gibt nur eine Datei INNERHALB von webroot zurück, sonst None.
+    """
+    try:
+        pfad = urlpfad.split("?", 1)[0]                       # Query abschneiden
+        ziel = (webroot / pfad.lstrip("/")).resolve()
+        if ziel.is_relative_to(webroot.resolve()) and ziel.is_file():
+            return ziel
+    except (OSError, ValueError):
+        pass
+    return None
+
+
 def _run_acme_http() -> None:
     webroot = Path(config.DATA_DIR) / "acme-webroot"
     webroot.mkdir(parents=True, exist_ok=True)
@@ -445,11 +463,11 @@ def _run_acme_http() -> None:
         def do_GET(self):
             # Serve ACME challenges directly
             if self.path.startswith("/.well-known/acme-challenge/"):
-                path = webroot / self.path.lstrip("/")
-                if path.is_file():
+                datei = _acme_challenge_datei(webroot, self.path)
+                if datei is not None:
                     self.send_response(200)
                     self.end_headers()
-                    self.wfile.write(path.read_bytes())
+                    self.wfile.write(datei.read_bytes())
                     return
                 self.send_response(404)
                 self.end_headers()
