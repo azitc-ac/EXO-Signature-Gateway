@@ -168,12 +168,23 @@ def _get_session_user(request: Request) -> str | None:
 
 
 def _get_session_role(request: Request) -> str:
-    """Rolle aus dem Sitzungskeks. HTTP-Basic gilt immer als Verwaltung."""
-    cookie = request.cookies.get(sso_mod.SESSION_COOKIE)
-    if cookie:
-        payload = sso_mod.verify_session_cookie(cookie)
+    """Rolle aus dem Sitzungsmerkmal — aus DEMSELBEN Weg wie `_get_session_user`
+    (Cookie ODER `X-Addin-Session`-Header). Nur wenn gar kein gültiges
+    Sitzungsmerkmal vorliegt, gilt der HTTP-Basic-Notzugang als Verwaltung.
+
+    ⚠️ Früher las diese Funktion NUR den Cookie und gab sonst `ROLE_ADMIN`
+    zurück. Ein Bearbeiter, der sein (per Add-in an JS zurückgereichtes) Token
+    als Header ohne Cookie schickte, wurde von `_get_session_user` angemeldet,
+    hier aber mangels Cookie zur Verwaltung — eine Rechteausweitung. Rolle und
+    Kennung müssen aus derselben Quelle kommen.
+    """
+    token = (request.cookies.get(sso_mod.SESSION_COOKIE)
+             or request.headers.get("X-Addin-Session"))
+    if token:
+        payload = sso_mod.verify_session_cookie(token)
         if payload:
             return payload.get("r", sso_mod.ROLE_ADMIN)
+    # Kein/ungültiges Sitzungsmerkmal → HTTP-Basic-Notzugang gilt als Verwaltung.
     return sso_mod.ROLE_ADMIN
 
 
