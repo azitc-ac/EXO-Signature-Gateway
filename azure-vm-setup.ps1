@@ -169,7 +169,6 @@ $cloudInit = @(
     '  - |',
     '    cat > /opt/exo-gateway/.env << ENVEOF',
     '    WEBUI_SECRET_KEY=$(openssl rand -hex 32)',
-    '    WEBUI_PASSWORD=changeme',
     '    TENANT_ID=',
     '    CLIENT_ID=',
     '    CLIENT_SECRET=',

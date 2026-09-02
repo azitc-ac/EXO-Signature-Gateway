@@ -61,11 +61,12 @@ def _cert_expiry() -> str:
 
 
 # Platzhalter-Kennwörter, die als unsicher gelten und einen Wechsel erzwingen:
-#   "admin"    = Vorgabe im Quelltext (config.py)
-#   "changeme" = Platzhalter aus azure-vm-setup.ps1 cloud-init (.env)
-# Beide MÜSSEN hier stehen, sonst meldet der Einrichtungsassistent Schritt 1
-# (Kennwort ändern) fälschlich als erledigt, solange noch der Platzhalter aus
-# der Auslieferung aktiv ist.
+#   "admin"    = einheitlicher Auslieferungs-Standard (config.py)
+#   "changeme" = Alt-Platzhalter früherer azure-vm-setup.ps1-VMs (.env). Neue
+#                Installationen setzen ihn nicht mehr (überall admin), er bleibt
+#                hier aber als Schutz für Bestands-VMs, die ihn noch tragen.
+# Alle MÜSSEN hier stehen, sonst meldet der Einrichtungsassistent Schritt 1
+# (Kennwort ändern) fälschlich als erledigt, solange noch ein Platzhalter aktiv ist.
 _DEFAULT_PASSWORDS = {"admin", "changeme", ""}
 
 
