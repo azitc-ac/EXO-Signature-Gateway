@@ -213,3 +213,40 @@ def test_lesen_ohne_init_liefert_die_datei_nicht_die_vorgaben(data_dir, monkeypa
     monkeypatch.setattr(ss, "_data", {})
     assert ss.get("CLIENT_ID") == "aus-der-datei"
     assert len(ss.get_all()) > 1
+
+
+# ── Migration v2 → v3: STRIP_CLIENT_SIGS aufgeteilt ───────────────────────────
+
+def test_migration_strip_client_sigs_an_wird_desktop(store, monkeypatch):
+    """Ein gespeichertes STRIP_CLIENT_SIGS=True war die bewusste Wahl für die
+    Heuristik → landet in _DESKTOP; _MOBILE kommt auf True; alter Schlüssel weg."""
+    daten = {"STRIP_CLIENT_SIGS": True}
+    aus = ss._migrate_v2_to_v3(daten)
+    assert aus["STRIP_CLIENT_SIGS_DESKTOP"] is True
+    assert aus["STRIP_CLIENT_SIGS_MOBILE"] is True
+    assert "STRIP_CLIENT_SIGS" not in aus
+
+
+def test_migration_strip_client_sigs_aus_bleibt_desktop_aus(store):
+    aus = ss._migrate_v2_to_v3({"STRIP_CLIENT_SIGS": False})
+    assert aus["STRIP_CLIENT_SIGS_DESKTOP"] is False
+    assert aus["STRIP_CLIENT_SIGS_MOBILE"] is True
+    assert "STRIP_CLIENT_SIGS" not in aus
+
+
+def test_migration_ohne_alten_schluessel_aendert_nichts(store):
+    """Wer den Schlüssel nie gespeichert hatte, bekommt nur die neuen Vorgaben
+    (Mobile an, Desktop aus) — die Migration fasst nichts an."""
+    aus = ss._migrate_v2_to_v3({"CLIENT_ID": "x"})
+    assert "STRIP_CLIENT_SIGS_DESKTOP" not in aus
+    assert "STRIP_CLIENT_SIGS_MOBILE" not in aus
+
+
+def test_migrationskette_setzt_desktop_und_entfernt_alt(store):
+    """Über die volle Kette (_run_migrations): alte Datei mit STRIP_CLIENT_SIGS
+    kommt mit _DESKTOP heraus, ohne den alten Schlüssel, auf aktueller Version."""
+    daten, geaendert = ss._run_migrations({"STRIP_CLIENT_SIGS": True})
+    assert geaendert
+    assert daten["STRIP_CLIENT_SIGS_DESKTOP"] is True
+    assert "STRIP_CLIENT_SIGS" not in daten
+    assert daten["_SCHEMA_VERSION"] == ss.SETTINGS_SCHEMA_VERSION

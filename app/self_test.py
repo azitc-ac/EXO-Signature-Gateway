@@ -353,9 +353,12 @@ def test_no_false_skip_on_client_sig() -> TestResult:
 
 
 def test_client_sig_stripped() -> TestResult:
-    name = "Outlook-Client-Sig wird vor Injection gestrippt"
-    if settings_store.get("STRIP_CLIENT_SIGS") is False:
-        return TestResult(name, True, "STRIP_CLIENT_SIGS deaktiviert — Test übersprungen")
+    name = "Outlook-Desktop-Sig wird vor Injection gestrippt"
+    # Prüft die Desktop-Heuristik (WordSection); sie hängt an
+    # STRIP_CLIENT_SIGS_DESKTOP (Vorgabe aus). Ist sie nicht ausdrücklich an,
+    # gibt es nichts zu strippen — Test überspringen.
+    if settings_store.get("STRIP_CLIENT_SIGS_DESKTOP") is not True:
+        return TestResult(name, True, "STRIP_CLIENT_SIGS_DESKTOP aus — Test übersprungen")
     html_in = _outlook_html(include_client_sig=True)
     _, html_out = _run(_multipart(html_in))
     sp = _sig_pos(html_out)
