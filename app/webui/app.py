@@ -193,6 +193,71 @@ async def _attach_user_role(request: Request, call_next):
     return response
 
 
+# ── Sicherheits-Header ──────────────────────────────────────────────────────────
+# ⚠️ Add-in-Seiten (/addin/…) werden von Office in einem iframe gerahmt — dort
+# darf KEIN Frame-Verbot gesetzt werden, sonst lädt das Add-in nicht.
+_ADDIN_FRAME_FREI = "/addin/"
+
+
+@app.middleware("http")
+async def _sicherheits_header(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    if not request.url.path.startswith(_ADDIN_FRAME_FREI):
+        response.headers.setdefault("X-Frame-Options", "DENY")
+    if _webui_scheme() == "https":
+        response.headers.setdefault(
+            "Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    # CSP zunächst nur berichtend (die Oberfläche nutzt viele Inline-Styles/-Skripte):
+    # bricht nichts, dokumentiert die Zielrichtung, schränkt object-/base-uri und die
+    # zulässigen Rahmen-Eltern (Office fürs Add-in) bereits ein.
+    response.headers.setdefault(
+        "Content-Security-Policy-Report-Only",
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
+        "object-src 'none'; base-uri 'self'; "
+        "frame-ancestors 'self' https://outlook.office.com "
+        "https://outlook.office365.com https://*.office.com")
+    return response
+
+
+# ── Herkunftsprüfung gegen CSRF ─────────────────────────────────────────────────
+# Mutierende Anfragen müssen von der eigenen Oberfläche kommen. Ausgenommen:
+# Add-in (Token im Kopffeld statt Cookie → nicht CSRF-fähig) und die
+# Cross-Origin-Anmeldewege von Office/SSO (Sitzungsaufbau, keine sensible Mutation
+# unter bestehendem Cookie).
+_SICHERE_METHODEN = frozenset({"GET", "HEAD", "OPTIONS", "TRACE"})
+_HERKUNFT_FREI = ("/addin/", "/api/addin/", "/api/auth/", "/auth/")
+
+
+def _erlaubte_hosts(request: Request) -> set[str]:
+    hosts = {"localhost", "127.0.0.1"}
+    for h in (request.headers.get("host"), request.headers.get("x-forwarded-host")):
+        if h:
+            hosts.add(h.split(",")[0].split(":")[0].strip().lower())
+    ph = (settings_store.get("PUBLIC_HOSTNAME") or "").strip().lower()
+    if ph:
+        hosts.add(ph.replace("https://", "").replace("http://", "").split("/")[0].split(":")[0])
+    return hosts
+
+
+@app.middleware("http")
+async def _herkunft_pruefen(request: Request, call_next):
+    if (request.method not in _SICHERE_METHODEN
+            and not request.headers.get("X-Addin-Session")
+            and not request.url.path.startswith(_HERKUNFT_FREI)):
+        quelle = request.headers.get("origin") or request.headers.get("referer") or ""
+        if quelle:
+            from urllib.parse import urlparse
+            q_host = (urlparse(quelle).hostname or "").lower()
+            if q_host and q_host not in _erlaubte_hosts(request):
+                log.warning("Herkunftsprüfung: %s %s von fremder Herkunft %r abgewiesen",
+                            request.method, request.url.path, quelle)
+                return JSONResponse({"detail": "Ungültige Herkunft"}, status_code=403)
+    return await call_next(request)
+
+
 # ── Helpers ────────────────────────────────────────────────────────────────────
 def _webui_scheme() -> str:
     """https if TLS cert is present, http otherwise."""
