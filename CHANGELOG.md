@@ -5,6 +5,25 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.56 — 2026-09-03 — Client-Signatur-Entfernung in zwei Schalter getrennt
+
+Ein Schalter „Selbsterstellte Client-Signaturen entfernen" steuerte bisher zwei
+verschieden riskante Dinge zugleich: das sichere Entfernen der
+Outlook-Mobile-Signatur (an bekannten Kennungen) und eine experimentelle
+Heuristik für Outlook-Desktop, die im Einzelfall danebengreifen kann. Sein
+Vorgabewert war „an", während der UI-Text seit v1.4.91 „im Zweifel deaktiviert
+lassen" empfahl — Vorgabe und Empfehlung widersprachen sich.
+
+Jetzt zwei getrennte Schalter:
+- **Outlook-Mobile-Signatur entfernen** — Vorgabe **an**, ohne Warnhinweis (sicher).
+- **Selbsterstellte Desktop-Signaturen entfernen (experimentell)** — Vorgabe
+  **aus**; Warnhinweis und Erkennungs-Schwellenwert erscheinen nur, wenn er an ist.
+
+Beim Update wird der bisherige Wert übernommen: Wer die Entfernung bewusst
+gespeichert hatte, behält die Desktop-Heuristik; alle anderen bekommen die neue,
+vorsichtige Vorgabe (Mobile an, Desktop aus). Das Entfernen einer *eigenen*,
+früher vom Gateway gesetzten Signatur hängt weiterhin an keinem der Schalter.
+
 ## v1.8.55 — 2026-09-03 — Sicherheit: Web-UI-Härtung (Header, Herkunft, Anmeldebremse)
 
 Drei Härtungen der Weboberfläche. **Zu tun: aktualisieren** — alle greifen

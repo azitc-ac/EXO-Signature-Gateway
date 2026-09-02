@@ -210,7 +210,8 @@ DEFAULTS: dict = {
     # ── Outlook Add-in ───────────────────────────────────────────────────────
     "ADDIN_ENABLED": False,             # Show add-in setup section and serve manifest
     "ADDIN_BASE_URL": "",               # External public URL override (e.g. https://sig.zarenko.net)
-    "STRIP_CLIENT_SIGS": True,          # Strip client-generated Outlook signatures before injection
+    "STRIP_CLIENT_SIGS_MOBILE": True,   # (1) Outlook-Mobile-Signatur entfernen — sicher (bekannte Div-IDs)
+    "STRIP_CLIENT_SIGS_DESKTOP": False,  # (3) Outlook-Desktop-Heuristik — experimentell, Vorgabe aus
     "SIG_STRIP_MIN_MATCH_PCT": 50,      # Fingerprint match threshold % for signature stripping
     # Widerrufspruefung (CRL) fuer Empfaengerzertifikate. Vorgabe AN: Die Zusage
     # "Zertifikate werden gegen Sperrlisten geprueft" gilt sonst nicht. Ist eine
@@ -295,6 +296,7 @@ INTERNAL_KEYS = frozenset({
 # Oberfläche, um sie zu löschen. Wer vorher Sectigo oder SwissSign konfiguriert
 # hatte, dessen Zugangsdaten lagen weiter in der Datei.
 OBSOLETE_KEYS = {
+    "STRIP_CLIENT_SIGS":           "in STRIP_CLIENT_SIGS_MOBILE (sicher, an) und _DESKTOP (experimentell, aus) aufgeteilt (v1.8.56); Migration v2→v3 übernimmt den Wert nach _DESKTOP",
     "SMTP_ACL_EXTRA_CIDRS":        "Zusatzliste erlaubter Quellnetze — durch das SMTP-Relay ersetzt (v1.8.15), das Absender und Ziel mitprüft",
     "SMTP_RELAY_NETWORKS":         "Netz ist keine Freigabe mehr — die Geräteliste ist es (v1.8.4); Lernbereich: SMTP_RELAY_LERN_NETZE",
     "SMTP_RELAY_EXTERNAL":         "je Gerät statt global (v1.8.4); Vorgabe für neue Geräte: SMTP_RELAY_EXTERN_VORGABE",
@@ -389,7 +391,7 @@ def purge_obsolete() -> list:
 # new DEFAULTS key does NOT need a migration — that's handled automatically by
 # the dict-merge in init(). Migrations run once, in order, and are recorded via
 # the internal "_SCHEMA_VERSION" key so they never re-run on an already-migrated file.
-SETTINGS_SCHEMA_VERSION = 2
+SETTINGS_SCHEMA_VERSION = 3
 
 
 def _migrate_v0_to_v1(data: dict) -> dict:
@@ -419,6 +421,29 @@ def _migrate_v1_to_v2(data: dict) -> dict:
     return data
 
 
+def _migrate_v2_to_v3(data: dict) -> dict:
+    """STRIP_CLIENT_SIGS in zwei Schalter aufgeteilt.
+
+    Der eine Schalter gatete zwei verschieden riskante Dinge: das sichere
+    Entfernen der Outlook-Mobile-Signatur (an bekannten Div-IDs) und die
+    experimentelle Desktop-Heuristik. Sein Vorgabewert True widersprach seit
+    v1.4.91 der UI-Empfehlung „im Zweifel deaktiviert lassen".
+
+    Ein GESPEICHERTER Wert war die bewusste Wahl für die Heuristik → nach
+    `_DESKTOP`. `_MOBILE` kommt neu auf True (sicher). Wer nie speicherte, hat
+    den Schlüssel nicht in der Datei; für den greifen die neuen Vorgaben
+    (Mobile an, Desktop aus) — er verliert die Heuristik, die er nur per Vorgabe
+    anhatte.
+    """
+    if "STRIP_CLIENT_SIGS" in data:
+        data["STRIP_CLIENT_SIGS_DESKTOP"] = bool(data.get("STRIP_CLIENT_SIGS"))
+        data["STRIP_CLIENT_SIGS_MOBILE"] = True
+        data.pop("STRIP_CLIENT_SIGS", None)
+        log.info("settings_store: STRIP_CLIENT_SIGS → _DESKTOP=%s, _MOBILE=True",
+                 data["STRIP_CLIENT_SIGS_DESKTOP"])
+    return data
+
+
 # Ordered list of (target_version, migration_fn). Each fn receives the full
 # settings dict and returns the migrated dict. Append new entries as the
 # schema evolves — never remove, reorder, or renumber existing ones, since a
@@ -426,6 +451,7 @@ def _migrate_v1_to_v2(data: dict) -> dict:
 _MIGRATIONS: list[tuple[int, Callable[[dict], dict]]] = [
     (1, _migrate_v0_to_v1),
     (2, _migrate_v1_to_v2),
+    (3, _migrate_v2_to_v3),
 ]
 
 

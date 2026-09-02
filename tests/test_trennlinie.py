@@ -216,7 +216,7 @@ def test_die_linie_liegt_innerhalb_der_marker():
 def test_zweiter_durchlauf_erzeugt_keine_zweite_linie(monkeypatch):
     """Der vollständige Weg: einfügen, entfernen, wieder einfügen."""
     monkeypatch.setattr(mp.settings_store, "get", lambda k, *a, **kw:
-                        None if k == "STRIP_CLIENT_SIGS" else False)
+                        None if k == "STRIP_CLIENT_SIGS_MOBILE" else False)
     einmal = _einfuegen(APPLE_MAIL)
     zurueck = mp._strip_client_sig_divs(einmal, SIG)
     assert "<hr" not in zurueck, "Die eigene Linie wurde beim Entfernen nicht mitgenommen"

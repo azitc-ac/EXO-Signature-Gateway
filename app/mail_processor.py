@@ -795,14 +795,15 @@ def _strip_client_sig_divs(html: str, sig_html: str = "") -> str:
 
     Drei Aufgaben, und sie sind NICHT gleich riskant:
 
-    1. Outlook **Mobile** — an bekannten Div-IDs, eindeutig.
+    1. Outlook **Mobile** — an bekannten Div-IDs, eindeutig. Schalter
+       `STRIP_CLIENT_SIGS_MOBILE` (Vorgabe an — sicher).
     2. Eine **früher vom Gateway selbst** gesetzte Signatur — an unseren eigenen
        Markern, exakt.
     3. Outlook **Desktop** — Heuristik „der letzte namenlose Block ist wohl die
-       Signatur". Die kann danebengreifen, deshalb hängt das Ganze an einem
-       Schalter, der als „experimentell" gekennzeichnet ist.
+       Signatur". Die kann danebengreifen, deshalb Schalter
+       `STRIP_CLIENT_SIGS_DESKTOP` (Vorgabe aus — „experimentell").
 
-    ⚠️ Schritt 2 hängt bewusst NICHT am Schalter. Er beschriftet das Entfernen
+    ⚠️ Schritt 2 hängt bewusst an KEINEM der beiden Schalter. Er beschriftet das Entfernen
     fremder, geratener Signaturen — die eigene erkennen wir dagegen an einem
     Merkmal, das wir selbst gesetzt haben; dabei ist nichts zu raten und nichts
     falsch zuzuschneiden. Bis v1.7.190 lag die Prüfung ganz oben und schaltete
@@ -814,10 +815,11 @@ def _strip_client_sig_divs(html: str, sig_html: str = "") -> str:
     Wer aber beides abschaltet, bekäme zwei Gateway-Signaturen — Riegel davor
     weg, Aufräumen dahinter weg.
     """
-    schalter_an = settings_store.get("STRIP_CLIENT_SIGS") is not False
+    mobile_an = settings_store.get("STRIP_CLIENT_SIGS_MOBILE") is not False
+    desktop_an = settings_store.get("STRIP_CLIENT_SIGS_DESKTOP") is True
     lower = html.lower()
     # Outlook Mobile: divs with known IDs
-    if schalter_an:
+    if mobile_an:
         for div_id in _CLIENT_SIG_DIV_IDS:
             pattern = re.compile(
                 r'<div\b[^>]*\bid=["\']' + re.escape(div_id) + r'["\'][^>]*>',
@@ -883,9 +885,9 @@ def _strip_client_sig_divs(html: str, sig_html: str = "") -> str:
                             )
                             return html[:div_start] + html[end_pos:]
 
-    # Ab hier nur noch die ratende Erkennung fremder Signaturen — die hängt am
-    # Schalter. Schritt 2 oben ist zu diesem Zeitpunkt bereits gelaufen.
-    if not schalter_an:
+    # Ab hier nur noch die ratende Desktop-Heuristik (3) — sie hängt am eigenen
+    # Schalter STRIP_CLIENT_SIGS_DESKTOP. Schritt 2 oben ist bereits gelaufen.
+    if not desktop_an:
         return html
 
     # Outlook desktop (Word editor): signature is the last top-level <div> inside

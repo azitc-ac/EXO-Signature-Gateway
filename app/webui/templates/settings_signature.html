@@ -69,18 +69,33 @@
     </div>
   </div>
 
+  <!-- (1) Outlook-Mobile-Signatur — sicher (bekannte Div-IDs), kein Warnhinweis -->
   <div class="settings-row">
     <label class="checkbox-label">
-      <input type="checkbox" id="strip-client-sigs"
-             {% if s.STRIP_CLIENT_SIGS is not false %}checked{% endif %}
-             onchange="toggleSigStripConfig(this.checked)">
-      Selbsterstellte Client-Signaturen entfernen <span style="color:#b45309;font-weight:600">(experimentell)</span>
+      <input type="checkbox" id="strip-client-sigs-mobile"
+             {% if s.STRIP_CLIENT_SIGS_MOBILE is not false %}checked{% endif %}>
+      Outlook-Mobile-Signatur entfernen
     </label>
-    <span class="hint">Outlook-Signaturen werden vor der Gateway-Injektion entfernt — verhindert Doppel-Signaturen.<br>
-    <strong style="color:#b45309">⚠ Auf eigene Gefahr — Feature in Entwicklung:</strong> kann Mails im Einzelfall fehlerhaft zuschneiden. Im Zweifel deaktiviert lassen.</span>
+    <span class="hint">Die von Outlook Mobile angehängte Signatur wird vor der Gateway-Injektion entfernt — verhindert Doppel-Signaturen. Eindeutig an bekannten Kennungen, ungefährlich.</span>
   </div>
 
-  <div id="sig-strip-config" {% if s.STRIP_CLIENT_SIGS is false %}style="display:none"{% endif %}>
+  <!-- (3) Outlook-Desktop-Heuristik — experimentell; Warnhinweis + Regler nur sichtbar, wenn an -->
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="strip-client-sigs-desktop"
+             {% if s.STRIP_CLIENT_SIGS_DESKTOP %}checked{% endif %}
+             onchange="toggleSigStripConfig(this.checked)">
+      Selbsterstellte Desktop-Signaturen entfernen <span style="color:#b45309;font-weight:600">(experimentell)</span>
+    </label>
+  </div>
+
+  <div id="sig-strip-config" {% if not s.STRIP_CLIENT_SIGS_DESKTOP %}style="display:none"{% endif %}>
+    <p class="hint" style="margin:0 0 10px">
+      <strong style="color:#b45309">⚠ Auf eigene Gefahr — Feature in Entwicklung:</strong>
+      Outlook-Desktop-Signaturen werden per Heuristik erkannt und vor der
+      Gateway-Injektion entfernt; das kann Mails im Einzelfall fehlerhaft
+      zuschneiden. Im Zweifel deaktiviert lassen.
+    </p>
     <div class="settings-row" style="align-items:center">
       <label for="sig-strip-pct">Erkennungs-Schwellenwert</label>
       <div class="settings-control" style="display:flex;align-items:center;gap:12px">
@@ -130,7 +145,7 @@
   <div data-adv="sig" style="display:none">
   </div>
   <div class="actions" style="margin-top:14px">
-    <button class="btn secondary" id="signatur-btn" data-wache="fallback,loop-header,sent-items,skip-duplicate-sig,skip-sig-in-thread,strip-client-sigs,sig-strip-pct,sig-image-mode,nosig-trigger,sign-internal-only"
+    <button class="btn secondary" id="signatur-btn" data-wache="fallback,loop-header,sent-items,skip-duplicate-sig,skip-sig-in-thread,strip-client-sigs-mobile,strip-client-sigs-desktop,sig-strip-pct,sig-image-mode,nosig-trigger,sign-internal-only"
             data-wache-hinweis="signatur-btn-result"
             onclick="saveSignatur()">Speichern</button>
     <span id="signatur-btn-result" style="font-size:12px;margin-left:8px"></span>
@@ -232,7 +247,8 @@ async function saveSignatur() {
     SENT_ITEMS_UPDATE: document.getElementById('sent-items').checked,
     SKIP_DUPLICATE_SIG: document.getElementById('skip-duplicate-sig').checked,
     SKIP_SIG_IN_THREAD: document.getElementById('skip-sig-in-thread').checked,
-    STRIP_CLIENT_SIGS: document.getElementById('strip-client-sigs').checked,
+    STRIP_CLIENT_SIGS_MOBILE: document.getElementById('strip-client-sigs-mobile').checked,
+    STRIP_CLIENT_SIGS_DESKTOP: document.getElementById('strip-client-sigs-desktop').checked,
     SIG_STRIP_MIN_MATCH_PCT: parseInt(document.getElementById('sig-strip-pct').value, 10),
     SIG_IMAGE_MODE: document.getElementById('sig-image-mode').value,
     NOSIG_TRIGGER: (document.getElementById('nosig-trigger').value || '').trim() || '#nosig',
