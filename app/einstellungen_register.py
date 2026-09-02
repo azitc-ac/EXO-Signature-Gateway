@@ -162,6 +162,13 @@ REGISTER: dict[str, E] = {
               "Fall mehr Angriffsfläche als Nutzen. Der Abschnitt SMTP-Smarthost "
               "in advanced.html nennt den Weg, damit er nicht unbemerkt bleibt."),
     "REINJECT_MODE": E(art=OPTION, ort="setup.html"),
+    "RELAY_TENANT_CHECK": E(
+        art=NOTNAGEL,
+        grund="Sicherheits-Gate: Post aus dem EXO-IP-Raum (den sich alle "
+              "M365-Tenants teilen) muss aus dem eigenen Tenant stammen "
+              "(X-MS-Exchange-CrossTenant-Id == TENANT_ID). Vorgabe an; nur in "
+              "der Konfigurationsdatei abschaltbar, etwa für ein bewusst "
+              "mehrmandantiges Relay."),
     "SECURE_PORTAL_BASE_URL": E(art=OPTION, ort="settings_smime.html"),
     "SECURE_PORTAL_ENABLED": E(art=OPTION, ort="settings_smime.html"),
     "SECURE_PORTAL_OTP": E(art=OPTION, ort="settings_smime.html"),

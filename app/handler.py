@@ -458,6 +458,35 @@ class SignatureHandler:
             log.info("Eingang: from=%s to=%s subject=%r mid=%s",
                      sender, recipients, _subject[:80], _mid)
 
+            # ── Tenant-Gate: Post aus dem EXO-IP-Raum muss aus dem EIGENEN
+            # Tenant stammen. Microsofts Adressbereiche teilen sich ALLE
+            # M365-Tenants; ohne diese Prüfung könnte ein fremder Tenant über
+            # einen Outbound-Connector auf unseren Hostnamen den Gateway als
+            # offenes Relay unter der Reputation des eigenen Tenants missbrauchen.
+            # EXO stempelt `X-MS-Exchange-CrossTenant-Id` auf dem eigenen Connector;
+            # ein fremder Tenant trägt seine eigene Kennung und kann unsere nicht
+            # setzen. Relay-Geräte (aus_relay_netz) sind lokal und tragen den
+            # Header nicht → ausgenommen. Nur über die Konfigurationsdatei
+            # abschaltbar (RELAY_TENANT_CHECK, NOTNAGEL) — etwa für ein bewusst
+            # mehrmandantiges Relay.
+            if (peer_ip and not aus_relay_netz
+                    and settings_store.get("RELAY_TENANT_CHECK") is not False):
+                _own_tenant = (config.TENANT_ID or settings_store.get("TENANT_ID")
+                               or "").strip().lower()
+                _hdr_tenant = (msg.get("X-MS-Exchange-CrossTenant-Id") or "").strip().lower()
+                if _own_tenant and _hdr_tenant and _hdr_tenant != _own_tenant:
+                    log.warning("SMTP: rejected — CrossTenant-Id %r != eigener Tenant "
+                                "(fremder Tenant über Connector?)", _hdr_tenant)
+                    _audit("tenant_fremd", error="fremder Tenant")
+                    return "554 5.7.1 Access denied: message not from this tenant"
+                # Konnte NICHT geprüft werden → annehmen, aber sichtbar machen
+                # (eine still ausfallende Schutzfunktion ist das Gefährliche).
+                if not _own_tenant:
+                    log.warning("SMTP: Herkunftsprüfung übersprungen — TENANT_ID nicht "
+                                "gesetzt; Post von %s ohne CrossTenant-Prüfung angenommen", peer_ip)
+                elif not _hdr_tenant:
+                    log.warning("SMTP: keine CrossTenant-Id im Kopf — Post von %s angenommen", peer_ip)
+
             # ── Harvest-only mode (BCC to harvest address) ────────────────────
             harvest_rcpt = (settings_store.get("SMIME_HARVEST_RCPT") or "").lower().strip()
             if harvest_rcpt and any(r.lower() == harvest_rcpt for r in recipients):
