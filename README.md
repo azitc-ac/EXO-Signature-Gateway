@@ -307,11 +307,6 @@ angezeigten Empfängern, Graph kann das nicht. Voraussetzung ist die
 Anwendungsberechtigung `SMTP.SendAsApp`. Im Modus `smtp` spielt Port 587 keine
 Rolle.
 
-⚠️ Der Wert `smtp587` ist ein **Altname für `imap`** — er wird noch angenommen
-und protokolliert eine Warnung. Der Modus macht IMAP APPEND, kein SMTP auf 587.
-Wer eine alte `settings.json` hat, betreibt also einen IMAP-Weg unter einem
-SMTP-Namen.
-
 ---
 
 ## Schnellstart
