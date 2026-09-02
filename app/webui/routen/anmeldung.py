@@ -357,12 +357,24 @@ async def api_sso_paste(request: Request):
 @router.post("/auth/local")
 async def auth_local(request: Request):
     """Local admin login — creates session cookie."""
+    import login_drossel
+    ip = request.client.host if request.client else "unbekannt"
     data = await request.json()
     username_in = (data.get("username") or "").strip()
     password_in = (data.get("password") or "")
+    # Brute-Force-Bremse: nach mehreren Fehlversuchen exponentielles Backoff,
+    # sowohl je Quell-IP als auch je Benutzername.
+    schluessel = [ip, f"u:{username_in.lower()}"]
+    warte = max((login_drossel.sperr_sekunden(k) for k in schluessel), default=0.0)
+    if warte > 0:
+        log.warning("Anmeldung gedrosselt: %s (noch %.0fs)", ip, warte)
+        raise HTTPException(429, "Zu viele Fehlversuche — bitte kurz warten.",
+                            headers={"Retry-After": str(int(warte) + 1)})
     username = settings_store.get("WEBUI_USERNAME") or "admin"
     if (secrets.compare_digest(username_in.encode(), username.encode())
             and _check_password(password_in)):
+        for k in schluessel:
+            login_drossel.erfolg(k)
         cookie_val = sso_mod.create_session_cookie(username_in, local=True)
         resp = JSONResponse({"ok": True})
         resp.set_cookie(
@@ -372,10 +384,12 @@ async def auth_local(request: Request):
         log.info("Local admin login: %s", username_in)
         # Send notification about local admin login (fire-and-forget)
         import notification as _notif
-        ip = request.client.host if request.client else "unbekannt"
         ua = request.headers.get("user-agent", "unbekannt")
         asyncio.get_event_loop().run_in_executor(None, _notif.send_local_admin_login, ip, ua, username_in)
         return resp
+    for k in schluessel:
+        login_drossel.fehlversuch(k)
+    log.warning("Fehlgeschlagene Anmeldung: Benutzer %r von %s", username_in, ip)
     raise HTTPException(401, "Benutzername oder Passwort falsch")
 
 @router.post("/auth/logout")

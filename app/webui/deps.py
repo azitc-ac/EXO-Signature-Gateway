@@ -196,10 +196,17 @@ def _check_auth(request: Request,
         return user
     # Örtliche Verwaltung als Notzugang — bleibt immer erreichbar.
     if credentials and credentials.username and credentials.password:
+        import login_drossel
+        ip = request.client.host if request.client else "?"
+        if login_drossel.gesperrt(ip):
+            raise HTTPException(429, "Zu viele Fehlversuche — bitte kurz warten.")
         username = settings_store.get("WEBUI_USERNAME") or "admin"
         if (secrets.compare_digest(credentials.username.encode(), username.encode())
                 and _check_password(credentials.password)):
+            login_drossel.erfolg(ip)
             return credentials.username
+        login_drossel.fehlversuch(ip)
+        log.warning("Fehlgeschlagene Basic-Anmeldung von %s", ip)
     path = request.url.path
     is_api = path.startswith("/api/") or path.startswith("/log/")
     raise _NotAuthenticated(is_api=is_api)

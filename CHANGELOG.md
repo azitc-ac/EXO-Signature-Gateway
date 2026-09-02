@@ -5,6 +5,29 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.55 — 2026-09-03 — Sicherheit: Web-UI-Härtung (Header, Herkunft, Anmeldebremse)
+
+Drei Härtungen der Weboberfläche. **Zu tun: aktualisieren** — alle greifen
+automatisch, keine Konfigurationsänderung nötig.
+
+- **Sicherheits-Header** auf allen Antworten: `X-Content-Type-Options: nosniff`,
+  `Referrer-Policy`, `X-Frame-Options: DENY` (Schutz gegen Clickjacking) und —
+  über HTTPS — `Strict-Transport-Security`. Dazu eine `Content-Security-Policy`
+  vorerst nur **berichtend** (`…-Report-Only`), damit nichts bricht. Die
+  Add-in-Seiten (`/addin/…`) bleiben bewusst ohne Frame-Verbot, da Outlook sie
+  in einem Rahmen lädt.
+
+- **Herkunftsprüfung gegen CSRF.** Verändernde Anfragen (POST/PUT/PATCH/DELETE)
+  werden abgewiesen, wenn ihre Herkunft (`Origin`/`Referer`) nicht zur eigenen
+  Adresse passt. Das Outlook-Add-in (Kennung im Kopffeld statt Cookie) und die
+  Anmeldewege bleiben ausgenommen.
+
+- **Anmeldebremse.** Nach mehreren Fehlversuchen greift eine zunehmende
+  Verzögerung — je Quell-IP und je Benutzername, für die örtliche Anmeldung wie
+  für den HTTP-Basic-Notzugang. Fehlversuche werden protokolliert. Der
+  Notzugang bleibt erreichbar; er lässt sich nur nicht mehr im Sekundentakt
+  durchprobieren.
+
 ## v1.8.54 — 2026-09-03 — Sicherheit: Weiterleitung fremder Tenants unterbunden
 
 Der SMTP-Listener nimmt Verbindungen aus Microsofts Exchange-Online-Adressbereichen
