@@ -10,7 +10,12 @@ def _require(name: str) -> str:
 
 
 def _optional(name: str, default: str = "") -> str:
-    return os.environ.get(name, default)
+    # Ein GESETZTES, aber leeres Env-Var (docker-compose `${VAR:-}`) liefert mit
+    # os.environ.get(name, default) den leeren String STATT des Defaults. Bei
+    # WEBUI_PASSWORD hätte das nur ein leeres Passwort akzeptiert und admin/admin
+    # ausgesperrt; bei numerischen/JSON-Werten wäre `int("")`/`json.loads("")`
+    # abgestürzt. Ein leerer Wert wird deshalb wie „nicht gesetzt" behandelt.
+    return os.environ.get(name) or default
 
 
 # ── Secrets / bootstrap ────────────────────────────────────────────────────────

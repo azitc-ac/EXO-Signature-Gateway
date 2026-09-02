@@ -337,9 +337,18 @@ cd EXO-Signature-Gateway
 
 ### 2. Starten
 
+Die Bind-Mounts `data/` und `certs/` müssen dem Container-Benutzer (UID 1000)
+gehören — sonst bricht der erste Start mit `PermissionError` ab, weil Docker
+fehlende Ordner als root anlegt:
+
 ```bash
-docker compose up -d
+mkdir -p data certs
+sudo chown -R 1000:1000 data certs templates
+docker compose up -d --build
 ```
+
+`--build` baut das Image lokal (es gibt kein vorgebautes Registry-Image) und
+vermeidet die „pull access denied"-Warnung beim ersten Start.
 
 ### 3. First-Run — TLS-Zertifikat einrichten
 

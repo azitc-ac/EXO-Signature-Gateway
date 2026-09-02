@@ -5,6 +5,36 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.50 — 2026-09-02 — Erst-Installation on-prem: Login, Rechte, Setup-Zugang
+
+Vier Erst-Install-Probleme bei manueller Linux-Installation (`docker compose`,
+ohne Azure-Skript) — zwei blockierten die Erstinbetriebnahme.
+
+- **Anmeldung nach frischem Start (kritisch).** `docker-compose.yml` reicht
+  `WEBUI_PASSWORD` als gesetzt-aber-leer weiter (`${WEBUI_PASSWORD:-}`); die
+  Auswertung nahm das als leeres Passwort statt als „nicht gesetzt" und
+  akzeptierte deshalb nur ein leeres Passwort — das dokumentierte `admin/admin`
+  scheiterte. Ein leerer Wert gilt jetzt als „nicht gesetzt": `admin/admin`
+  greift auf einem frischen Gateway, ein leeres Passwort wird nie akzeptiert.
+  Nach dem ersten Anmelden erzwingt der Assistent ohnehin ein eigenes Passwort.
+
+- **Container-Start (kritisch).** Die Verzeichnisse `/app/data` und `/app/certs`
+  entstanden im Image als root und waren für den Dienst-Benutzer (UID 1000) nicht
+  beschreibbar → `PermissionError`, Start-Schleife. Sie werden jetzt vor dem
+  Rechtewechsel angelegt und gehören dem Dienst-Benutzer. Bei Bind-Mounts müssen
+  die Host-Ordner weiterhin ihm gehören — der Schnellstart nennt den `chown`.
+
+- **Setup-Zugang.** Die Setup-Seite wurde auf einem noch nicht abgesicherten
+  Gateway anonym ausgeliefert, während jedes Speichern eine Anmeldung verlangte —
+  ein editierbarer, aber beim Sichern scheiternder Assistent. Nicht Angemeldete
+  werden jetzt zur Anmeldung geleitet; nach einem Passwortwechsel wird die
+  Sitzung beendet (Neu-Anmeldung mit dem neuen Passwort). Der irreführende
+  „Einrichtung"-Verweis auf der Anmeldeseite entfällt.
+
+- **Erststart-Meldung.** `docker compose up` ohne `--build` versuchte zunächst,
+  ein nicht vorhandenes Registry-Image zu ziehen („pull access denied"), bevor es
+  lokal baute. Der Schnellstart nutzt jetzt `--build`.
+
 ## v1.8.49 — 2026-09-01 — TLS: Erneuerung sichtbar am HTTP-Weg, Advanced-Dublette raus
 
 Der doppelte Abschnitt „TLS / Let's Encrypt" unter Einstellungen → Erweitert ist

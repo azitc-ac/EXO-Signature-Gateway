@@ -22,12 +22,13 @@ ueberschreiben — je nach Reihenfolge lautlos. Also: lokal lassen.
 
 ZUR ANMELDUNG
 -------------
-Alle Endpunkte verlangen `_require_admin`. Einzige Ausnahme ist die Seite
-`GET /setup` selbst: Sie prueft Sitzung bzw. Basic-Auth IM RUMPF und ist
-anonym erreichbar, solange ueberhaupt noch kein Anmeldeweg eingerichtet ist
-(`_setup_requires_auth()`) — sonst waere ein frisch aufgesetztes Gateway nicht
-einzurichten. `tests/test_wachen.py` fuehrt sie deshalb mit dieser Begruendung
-in `ERLAUBT_OHNE_ANMELDUNG`.
+Alle Endpunkte verlangen `_require_admin`. Die Seite `GET /setup` selbst prueft
+Sitzung bzw. Basic-Auth IM RUMPF (nicht per Depends) und leitet
+Nichtangemeldete zur Anmeldung. Ein frisch aufgesetztes Gateway ist ueber
+`admin/admin` erreichbar und sperrt sich damit nicht aus — ein anonym
+gerenderter, aber beim Speichern scheiternder Wizard entfaellt.
+`tests/test_wachen.py` fuehrt `/setup` deshalb weiter in
+`ERLAUBT_OHNE_ANMELDUNG` (Wache im Rumpf, nicht per Depends).
 """
 from __future__ import annotations
 
@@ -55,20 +56,6 @@ from webui.hilfen import (
 )
 
 router = APIRouter()
-
-def _setup_requires_auth() -> bool:
-    """True once any authentication method is configured (setup page must no longer be anonymous)."""
-    # Explicit password hash stored → local password was changed from default
-    if settings_store.get("ADMIN_PASSWORD_HASH"):
-        return True
-    # SSO admin users + Bootstrap client configured → Entra login possible
-    if settings_store.get("ADMIN_USERS") and settings_store.get("BOOTSTRAP_CLIENT_ID"):
-        return True
-    # Custom password via env var (not the default 'admin')
-    if config.WEBUI_PASSWORD and config.WEBUI_PASSWORD != "admin":
-        return True
-    return False
-
 
 def _addin_url_warning(base_url: str) -> str:
     """Return a warning string if the URL is unlikely to be publicly reachable, else ''."""
@@ -105,8 +92,10 @@ async def setup_wizard(
             and _check_password(credentials.password)
         )
 
-    # Once any auth method is configured, block anonymous access
-    if _setup_requires_auth() and not authed:
+    # Nichtangemeldete zur Anmeldung — kein anonym gerenderter, aber beim
+    # Speichern scheiternder Wizard mehr. admin/admin greift auf einem frischen
+    # Gateway (config._optional), also kein Lockout.
+    if not authed:
         return RedirectResponse(
             f"/auth/login?next={urllib.parse.quote('/setup', safe='')}",
             status_code=302,
