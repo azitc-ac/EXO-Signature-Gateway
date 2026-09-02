@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.54 — 2026-09-03 — Sicherheit: Weiterleitung fremder Tenants unterbunden
+
+Der SMTP-Listener nimmt Verbindungen aus Microsofts Exchange-Online-Adressbereichen
+an — die sich **alle** Microsoft-365-Tenants teilen. Post, deren Absender nicht als
+verarbeitetes Postfach konfiguriert ist, wurde bisher unverändert weitergeleitet
+(im Vorgabemodus an den Smarthost hinaus). Ein fremder Tenant hätte darüber — mit
+einem Connector auf den Hostnamen des Gateways — Post unter der Reputation des
+eigenen Tenants versenden können.
+
+Neu prüft das Gateway bei Post aus diesem Adressraum die von Exchange gesetzte
+Tenant-Kennung (`X-MS-Exchange-CrossTenant-Id`) gegen die eigene `TENANT_ID` und
+weist Fremde mit `554` ab. Freigegebene Relay-Geräte im eigenen Netz sind
+ausgenommen. Fehlt die eigene `TENANT_ID` oder die Kennung im Kopf, wird die Post
+angenommen und sichtbar protokolliert (statt still zu blockieren). Die Prüfung ist
+Vorgabe an und nur in der Konfigurationsdatei abschaltbar (`RELAY_TENANT_CHECK`),
+etwa für ein bewusst mehrmandantiges Relay.
+
+Zu tun: aktualisieren; auf einem korrekt eingerichteten Gateway ist keine
+Konfigurationsänderung nötig.
+
 ## v1.8.53 — 2026-09-03 — Sicherheit: Rollen-Kopffeld und ACME-Pfad gehärtet
 
 Zwei Sicherheitskorrekturen. **Zu tun: aktualisieren** — beide greifen
