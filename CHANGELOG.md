@@ -5,7 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
-## v1.8.50 — 2026-09-02 — Erst-Installation on-prem: Login, Rechte, Setup-Zugang
+## v1.8.51 — 2026-09-02 — Standard-Login einheitlich `admin/admin`
+
+Der Erst-Login war uneinheitlich: `admin/admin` bei manueller Installation, aber
+`admin/changeme` auf VMs, die `azure-vm-setup.ps1` anlegte (das Skript schrieb den
+Platzhalter `changeme` in die `.env`). Das Skript setzt kein Passwort mehr —
+damit greift überall der einheitliche Standard `admin/admin`, und die
+Oberfläche nennt nur noch `admin`.
+
+Der erzwungene Passwortwechsel beim ersten Anmelden bleibt. Bestehende VMs, die
+noch `changeme` tragen, werden weiterhin zum Wechsel aufgefordert.
 
 Vier Erst-Install-Probleme bei manueller Linux-Installation (`docker compose`,
 ohne Azure-Skript) — zwei blockierten die Erstinbetriebnahme.
