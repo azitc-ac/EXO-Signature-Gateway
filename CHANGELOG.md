@@ -5,6 +5,36 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.52 — 2026-09-02 — Einrichtungs-Assistent: klarere Reihenfolge und Marker
+
+Mehrere UX-Verbesserungen am Setup-Assistenten:
+
+- **TLS-Schritt bei vorhandenem Zertifikat entschärft.** Läuft HTTPS bereits,
+  stand der „Zertifikat erneuern"-Weg aufgeklappt und als Hauptaktion da — das
+  verleitete zu einer unnötigen Neuausstellung (zählt auf das Let's-Encrypt-Limit
+  von 5 pro Domain und Woche). Jetzt erscheint prominent „✓ Zertifikat aktiv —
+  Erneuerung läuft automatisch, nichts zu tun"; die Bezugswege sind eingeklappt
+  und der Erneuern-Knopf ist eine Nebenaktion.
+
+- **S/MIME-Schritt direkt hinter seine Aktivierung gerückt.** Der Haken „S/MIME
+  aktivieren" setzte nur ein Flag; der eigentliche Regel-Schritt lag weit unten
+  und wurde übersehen. Er steht jetzt unmittelbar nach „Modus & Funktionen" und
+  „Gateway-Name" (sein Knopf bleibt bis zum EXO-Connector deaktiviert), und der
+  Haken verlinkt direkt dorthin.
+
+- **Nummerierung vereinheitlicht.** Zwischenschritte trugen verwirrende
+  Dezimalnummern (2.1, 3.1); sie sind jetzt wie die übrigen Einschübe als Tag
+  ausgezeichnet („TLS", „Name").
+
+- **Auth-Zertifikat-Marker entschärft.** Der grüne „Vorhanden — Setup kann
+  fortgesetzt werden"-Kasten suggerierte einen abgeschlossenen Schritt; jetzt ein
+  dezenter Inline-Haken.
+
+- **Update-Watcher-Anleitung ohne feste Pfad-Annahmen.** Der manuelle
+  systemd-Block nannte feste Pfade/Benutzer, die auf einem selbst gehosteten Host
+  ins Leere liefen. Er entfällt zugunsten des Hinweises, dass der Installer Pfad
+  und Benutzer selbst erkennt.
+
 ## v1.8.51 — 2026-09-02 — Standard-Login einheitlich `admin/admin`
 
 Der Erst-Login war uneinheitlich: `admin/admin` bei manueller Installation, aber

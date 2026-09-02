@@ -155,7 +155,7 @@
 <!-- ── Step 3: TLS-Zertifikat (Let's Encrypt) ─────────────────────────────── -->
 <div class="wizard-step {% if e.cert_exists %}done{% endif %}" id="step-le">
   <div class="step-header">
-    <span class="step-badge">2.1</span>
+    <span class="step-badge" style="background:#64748b;width:auto;padding:0 10px;border-radius:10px;font-size:12px">TLS</span>
     <span class="step-title">TLS-Zertifikat</span>
     {% if e.cert_exists %}
     <span class="step-status done">Zertifikat vorhanden — HTTPS aktiv</span>
@@ -179,16 +179,24 @@
       <input type="email" id="le-email" value="{{ s.LE_EMAIL }}" placeholder="admin@domain.com" style="width:280px">
     </div>
 
+    {% if e.cert_exists %}
+    <div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:6px;padding:10px 12px;font-size:13px;color:#065f46;margin:14px 0 8px">
+      ✓ Zertifikat aktiv — HTTPS läuft. Die Erneuerung erfolgt automatisch; hier ist normalerweise
+      nichts zu tun. Nur bei Bedarf (neuer Hostname, Wechsel des Bezugswegs) unten manuell eingreifen.
+    </div>
+    <p style="font-weight:600;font-size:14px;margin:16px 0 8px">Zertifikat neu ausstellen, importieren oder Bezugsweg wechseln</p>
+    {% else %}
     <p style="font-weight:600;font-size:14px;margin:16px 0 8px">Wo soll das TLS-Zertifikat herkommen?</p>
+    {% endif %}
 
     <!-- Weg 1: Let's Encrypt über HTTP -->
-    <details open style="margin-top:6px">
+    <details {% if not e.cert_exists %}open{% endif %} style="margin-top:6px">
       <summary style="cursor:pointer;font-weight:600;font-size:13px">1 · Let's Encrypt über HTTP</summary>
       <div style="margin-top:10px">
         <p class="hint" style="margin-bottom:8px">Port 80 muss öffentlich erreichbar sein.</p>
         <div id="le-result" style="margin-top:8px;display:none"></div>
         <div class="actions" style="margin-top:8px">
-          <button class="btn primary" id="le-btn" onclick="renewCert()">
+          <button class="btn {% if e.cert_exists %}secondary{% else %}primary{% endif %}" id="le-btn" onclick="renewCert()">
             {% if e.cert_exists %}Zertifikat erneuern{% else %}Let's Encrypt starten{% endif %}
           </button>
         </div>
@@ -350,7 +358,7 @@
           onchange="updateModeSelection()">
         <span style="font-size:13px">
           <strong>S/MIME aktivieren</strong>
-          <span style="color:#888;font-weight:normal"> — S/MIME-Inbound-Transport-Regeln einrichten (Schritt S/MIME weiter unten)</span>
+          <span style="color:#888;font-weight:normal"> — die S/MIME-Regeln richtest du im <a href="#step-smime">Schritt S/MIME</a> direkt darunter ein</span>
         </span>
       </label>
       <p class="hint" style="margin:6px 0 0 26px">
@@ -416,7 +424,7 @@
 <!-- ── Step 3.1: Gateway-Name (Präfix für EXO-Objekte) — vor dem Anlegen setzen -->
 <div class="wizard-step {% if e.azure_app_created %}done{% endif %}" id="step-gateway-name">
   <div class="step-header">
-    <span class="step-badge">3.1</span>
+    <span class="step-badge" style="background:#64748b;width:auto;padding:0 10px;border-radius:10px;font-size:12px">Name</span>
     <span class="step-title">Gateway-Name</span>
     {% if e.azure_app_created %}
     <span class="step-status done">{{ s.GATEWAY_NAME or 'EXO Signature Gateway' }}</span>
@@ -446,6 +454,56 @@
       <button class="btn primary" id="wizard-gateway-name-btn" data-wache="wizard-gateway-name" data-wache-hinweis="wizard-gateway-name-result" onclick="saveWizardGatewayName()">Speichern</button>
       <span id="wizard-gateway-name-result" style="font-size:12px;margin-left:8px"></span>
     </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ── S/MIME Inbound Transport-Regeln (optional; Button erst nach EXO-Connector) ── -->
+<div class="wizard-step {% if e.smime_rules_created %}done{% endif %}" id="step-smime" style="border-color:#7c3aed22">
+  <div class="step-header">
+    <span class="step-badge" style="background:#7c3aed;width:auto;padding:0 10px;border-radius:10px;font-size:12px">S/MIME</span>
+    <span class="step-title">S/MIME – Inbound Transport-Regeln</span>
+    {% if e.smime_rules_created %}
+    <span class="step-status done" style="background:#f3e8ff;color:#7c3aed">Eingerichtet</span>
+    <button class="verify-btn" style="color:#7c3aed;border-color:#7c3aed" onclick="verifyStep('smime', this)" title="Konfiguration in EXO prüfen">↻</button>
+    <span class="verify-result" id="verify-smime-result"></span>
+    {% else %}
+    <span class="step-status pending" style="background:#f3e8ff;color:#7c3aed">Optional</span>
+    {% endif %}
+  </div>
+  <div class="step-body">
+    <p class="hint" style="margin-bottom:12px">
+      Erstellt zwei Transport-Regeln in Exchange Online:
+    </p>
+    <ul style="margin:0 0 14px 16px;line-height:1.9;font-size:13px">
+      <li><strong>Signierte Mails</strong>: Externe signierte Eingangs-Mails werden über das Gateway geleitet.
+        Das Gateway entfernt S/MIME-Signatur, sammelt Public Key des Absenders und ergänzt den Betreff
+        (<code>[signiert von Max Mustermann]</code>).</li>
+      <li><strong>Verschlüsselte Mails</strong>: Das Gateway entschlüsselt mit dem privaten Schlüssel des
+        internen Empfängers und ergänzt Betreff (<code>[verschlüsselt]</code> oder
+        <code>[verschlüsselt, signiert von …]</code>).<br>
+        Voraussetzung: privater Schlüssel unter <a href="/smime">S/MIME → Signatur-Zertifikate</a> importiert.</li>
+    </ul>
+
+    {% if not e.exo_connector_created %}
+    <div class="alert warn" style="margin-bottom:12px">Zuerst den EXO-Connector einrichten (Schritt weiter unten).</div>
+    {% endif %}
+
+    <div id="smime-rules-result" style="margin-top:8px;display:none"></div>
+    <div class="actions" style="margin-top:12px">
+      <button class="btn primary" id="smime-rules-btn"
+        onclick="setupSmimeRules()"
+        {% if not e.exo_connector_created %}disabled{% endif %}>
+        {% if e.smime_rules_created %}Transport-Regeln neu erstellen{% else %}S/MIME Transport-Regeln einrichten{% endif %}
+      </button>
+    </div>
+
+    {% if e.smime_rules_created %}
+    <p class="hint" style="margin-top:10px">
+      Regeln aktiv:<br>
+      <code>{{ gateway_name }} - SMIME Signed Inbound</code> (Signed → Gateway)<br>
+      <code>{{ gateway_name }} - SMIME Encrypted Inbound</code> (Encrypted → Gateway)
+    </p>
     {% endif %}
   </div>
 </div>
@@ -951,7 +1009,7 @@
     <div style="border:1px solid #e2e8f0;border-radius:6px;padding:12px;margin:12px 0;background:#f8fafc">
       <strong style="font-size:13px">Auth-Zertifikat (Exchange Online App-Auth)</strong>
       {% if e.auth_cert_exists %}
-      <div class="alert success" style="margin:8px 0 0 0;font-size:13px">✓ Vorhanden — Setup kann fortgesetzt werden.</div>
+      <div style="margin:8px 0 0 0;font-size:13px;color:#15803d">✓ Auth-Zertifikat vorhanden</div>
       {% else %}
       <p class="hint" style="margin:8px 0">Kein Auth-Zertifikat gefunden. Entweder oben in Schritt 5 „Erneut anmelden" ausführen (generiert & lädt automatisch hoch) <em>oder</em> hier manuell generieren und im Entra Admin Center hochladen.</p>
       <div id="cert-gen-result" style="display:none;margin-top:8px"></div>
@@ -1058,56 +1116,6 @@
       Abgeschlossen. Bei neuen Postfächern diesen Schritt erneut ausführen.
     </p>
     {% endif %}
-    {% endif %}
-  </div>
-</div>
-
-<!-- ── Steps 8+9 (opt): S/MIME Inbound Transport Rules ───────────────────── -->
-<div class="wizard-step {% if e.smime_rules_created %}done{% endif %}" id="step-smime" style="border-color:#7c3aed22">
-  <div class="step-header">
-    <span class="step-badge" style="background:#7c3aed;width:auto;padding:0 10px;border-radius:10px;font-size:12px">S/MIME</span>
-    <span class="step-title">S/MIME – Inbound Transport-Regeln</span>
-    {% if e.smime_rules_created %}
-    <span class="step-status done" style="background:#f3e8ff;color:#7c3aed">Eingerichtet</span>
-    <button class="verify-btn" style="color:#7c3aed;border-color:#7c3aed" onclick="verifyStep('smime', this)" title="Konfiguration in EXO prüfen">↻</button>
-    <span class="verify-result" id="verify-smime-result"></span>
-    {% else %}
-    <span class="step-status pending" style="background:#f3e8ff;color:#7c3aed">Optional</span>
-    {% endif %}
-  </div>
-  <div class="step-body">
-    <p class="hint" style="margin-bottom:12px">
-      Erstellt zwei Transport-Regeln in Exchange Online:
-    </p>
-    <ul style="margin:0 0 14px 16px;line-height:1.9;font-size:13px">
-      <li><strong>Signierte Mails</strong>: Externe signierte Eingangs-Mails werden über das Gateway geleitet.
-        Das Gateway entfernt S/MIME-Signatur, sammelt Public Key des Absenders und ergänzt den Betreff
-        (<code>[signiert von Max Mustermann]</code>).</li>
-      <li><strong>Verschlüsselte Mails</strong>: Das Gateway entschlüsselt mit dem privaten Schlüssel des
-        internen Empfängers und ergänzt Betreff (<code>[verschlüsselt]</code> oder
-        <code>[verschlüsselt, signiert von …]</code>).<br>
-        Voraussetzung: privater Schlüssel unter <a href="/smime">S/MIME → Signatur-Zertifikate</a> importiert.</li>
-    </ul>
-
-    {% if not e.exo_connector_created %}
-    <div class="alert warn" style="margin-bottom:12px">Erst Schritt 6 (EXO Connector) abschließen.</div>
-    {% endif %}
-
-    <div id="smime-rules-result" style="margin-top:8px;display:none"></div>
-    <div class="actions" style="margin-top:12px">
-      <button class="btn primary" id="smime-rules-btn"
-        onclick="setupSmimeRules()"
-        {% if not e.exo_connector_created %}disabled{% endif %}>
-        {% if e.smime_rules_created %}Transport-Regeln neu erstellen{% else %}S/MIME Transport-Regeln einrichten{% endif %}
-      </button>
-    </div>
-
-    {% if e.smime_rules_created %}
-    <p class="hint" style="margin-top:10px">
-      Regeln aktiv:<br>
-      <code>{{ gateway_name }} - SMIME Signed Inbound</code> (Signed → Gateway)<br>
-      <code>{{ gateway_name }} - SMIME Encrypted Inbound</code> (Encrypted → Gateway)
-    </p>
     {% endif %}
   </div>
 </div>
@@ -2515,35 +2523,12 @@ async function saveKeyvault() {
       </div>
 
       <p style="font-size:12px;color:#555;margin-bottom:8px;line-height:1.5">
-        Oder den systemd-Dienst von Hand anlegen (führt dasselbe aus):
+        Der Installer erkennt Installationspfad und Benutzer automatisch und legt den
+        systemd-Dienst <code>exo-gateway-updater</code> (als <code>root</code>, führt
+        <code>update-watcher.sh</code> aus) selbst an — auf Azure ebenso wie on-prem
+        (Raspberry&nbsp;Pi, eigener Linux-Host). Ein manuelles Nachbauen mit festen
+        Pfaden ist nicht nötig.
       </p>
-      <div style="position:relative">
-        <button type="button" class="copy-btn" data-copy-target="ssh-updater-script" title="Ganzen Block kopieren"
-                style="position:absolute;top:10px;right:10px;background:#1e293b;color:#e2e8f0"></button>
-        <pre style="background:#0f172a;color:#e2e8f0;border-radius:8px;padding:14px 16px;font-size:11px;line-height:1.7;overflow-x:auto;white-space:pre;margin-bottom:10px"><code id="ssh-updater-script">ssh azureuser@{{ e.public_hostname or 'HOSTNAME' }}
-
-sudo chmod 755 /opt/exo-gateway/update-watcher.sh
-
-sudo tee /etc/systemd/system/exo-gateway-updater.service &gt; /dev/null &lt;&lt; 'UNITEOF'
-[Unit]
-Description=EXO Gateway Update Watcher
-After=docker.service
-Requires=docker.service
-
-[Service]
-ExecStart=/opt/exo-gateway/update-watcher.sh
-Restart=always
-RestartSec=10
-User=root
-
-[Install]
-WantedBy=multi-user.target
-UNITEOF
-
-sudo systemctl daemon-reload
-sudo systemctl enable --now exo-gateway-updater
-sudo systemctl status exo-gateway-updater --no-pager</code></pre>
-      </div>
 
       <p style="font-size:12px;color:#64748b">
         Nach ca. 60 Sekunden schreibt der Service seinen ersten Heartbeat —
