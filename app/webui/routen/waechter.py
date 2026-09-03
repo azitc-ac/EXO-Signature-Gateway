@@ -14,18 +14,16 @@ from __future__ import annotations
 import json
 import secrets
 from datetime import datetime, timezone
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
-import config
 import settings_store
+import waechter_state
 from webui.deps import log, _require_admin, _hash_password, _verify_password
 
 router = APIRouter()
 
-_STATE = Path(config.DATA_DIR) / "watchdog_state.json"
 _MAX_BODY = 1024
 
 
@@ -34,18 +32,8 @@ def _now() -> str:
 
 
 def zustand() -> dict:
-    """Aktueller Wächter-Zustand aus der Datei — {} wenn noch keiner da ist."""
-    try:
-        return json.loads(_STATE.read_text("utf-8"))
-    except Exception:                                       # noqa: BLE001
-        return {}
-
-
-def _zustand_schreiben(d: dict) -> None:
-    tmp = _STATE.with_suffix(".tmp")
-    tmp.write_text(json.dumps(d), encoding="utf-8")
-    tmp.chmod(0o600)
-    tmp.replace(_STATE)
+    """Aktueller Wächter-Zustand — {} wenn noch keiner da ist."""
+    return waechter_state.lesen()
 
 
 @router.post("/api/watchdog/heartbeat")
@@ -63,15 +51,13 @@ async def watchdog_heartbeat(request: Request):
         payload = json.loads(raw or b"{}")
     except Exception:                                       # noqa: BLE001
         payload = {}
-    st = zustand()
-    st.update({
-        "last_seen": _now(),
-        "bypass_active": bool(payload.get("bypass_active")),
-        "fails": int(payload.get("fails") or 0),
-        "oks": int(payload.get("oks") or 0),
-        "healthy": bool(payload.get("healthy")),
-    })
-    _zustand_schreiben(st)
+    waechter_state.merge(
+        last_seen=_now(),
+        bypass_active=bool(payload.get("bypass_active")),
+        fails=int(payload.get("fails") or 0),
+        oks=int(payload.get("oks") or 0),
+        healthy=bool(payload.get("healthy")),
+    )
     return JSONResponse({"ok": True})
 
 
