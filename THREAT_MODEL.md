@@ -47,9 +47,10 @@ Sicherheit des Hosts sowie DoS auf Bandbreitenebene.
   Schlüsseln. Das schützt gegen Teilkopien, **nicht** gegen Vollzugriff auf
   `data/` — wer das Verzeichnis liest, hat beides. Alternative: Azure Key Vault.
 - **Lieferkette.** Der Update-Watcher läuft als **root** und macht
-  `git reset --hard` ohne Signatur-/Tag-Prüfung; der pwsh-Tarball wird ohne
-  Prüfsumme geladen. Das Base-Image ist per Digest gepinnt, `requirements.lock`
-  aus dem Produktivcontainer. (Härtung offen: `git verify-tag`, pwsh-SHA256.)
+  `git reset --hard` ohne Signatur-/Tag-Prüfung. Base-Image per Digest gepinnt,
+  `requirements.lock` aus dem Produktivcontainer, **pwsh-Tarball per SHA256
+  geprüft**. (Härtung offen: signierte Tags / `git verify-tag` — braucht zuerst
+  eine Tag-Signatur-Infrastruktur.)
 - **CSP ist vorerst nur berichtend** (`Content-Security-Policy-Report-Only`), weil
   die Oberfläche viele Inline-Styles/-Skripte nutzt.
 - **Single Point of Failure.** Ein Container im Mailfluss; fällt er aus, staut

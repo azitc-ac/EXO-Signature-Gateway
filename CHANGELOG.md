@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.63 — 2026-09-03 — Lieferkette: PowerShell-Tarball mit Prüfsumme
+
+Der PowerShell-Tarball wurde beim Image-Build bisher ohne Integritätsprüfung
+geladen. Er wird jetzt gegen die offizielle SHA256 (je Architektur, amd64/arm64)
+geprüft — ein manipulierter oder beschädigter Download bricht den Build ab. Das
+Base-Image war bereits per Digest gepinnt. Beim Anheben der PowerShell-Version
+sind beide Hashes mitzuziehen (Hinweis im Dockerfile).
+
 ## v1.8.62 — 2026-09-03 — THREAT_MODEL.md: Vertrauensgrenzen dokumentiert
 
 Ein Threat Model beschreibt die Vertrauensgrenzen (Port 25/80/443, Container↔Host,
