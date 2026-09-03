@@ -108,8 +108,15 @@ async def health():
     # `echo`: pro Prozess erzeugtes Token, mit dem die Abnahme prüft, ob der
     # öffentliche Name zu GENAU dieser Instanz führt (siehe abnahme._aussenadresse).
     import abnahme
-    return JSONResponse({"status": "ok", "service": "exo-signature-gateway",
-                         "echo": abnahme.echo_token()})
+    import health_check
+    liv = health_check.liveness()
+    # Status hängt am SMTP-Listener — das ist der Weg, auf dem ausgehende Post
+    # staut. `graph_token` wird berichtet, steuert den Bypass aber NICHT
+    # (ein abgelaufenes Secret ist ein Konfig-Fehler, kein Listener-Ausfall).
+    status = "ok" if liv["smtp_listener"] else "degraded"
+    body = {"status": status, "service": "exo-signature-gateway",
+            "echo": abnahme.echo_token(), **liv}
+    return JSONResponse(body, status_code=200 if status == "ok" else 503)
 
 @router.get("/api/health/mailboxes")
 async def api_health_mailboxes(_=Depends(_require_admin)):

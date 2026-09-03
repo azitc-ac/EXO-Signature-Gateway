@@ -127,6 +127,7 @@ from webui.routen import settings as _routen_settings
 from webui.routen import vorlagen as _routen_vorlagen        # noqa: E402
 from webui.routen import setup as _routen_setup              # noqa: E402
 from webui.routen import smime as _routen_smime              # noqa: E402
+from webui.routen import waechter as _routen_waechter        # noqa: E402
 
 # EINE Quelle: hieraus werden die Router eingebunden, und `tests/test_routes.py`
 # zaehlt daraus die Routen ab.
@@ -140,7 +141,7 @@ from webui.routen import smime as _routen_smime              # noqa: E402
 ROUTENMODULE = [_routen_addin, _routen_backup, _routen_hub, _routen_mailboxes,
                 _routen_portal, _routen_settings, _routen_setup, _routen_smime,
                 _routen_vorlagen, _routen_betrieb, _routen_aktualisierung,
-                _routen_anmeldung, _routen_relay]
+                _routen_anmeldung, _routen_relay, _routen_waechter]
 
 for _modul in ROUTENMODULE:
     app.include_router(_modul.router)

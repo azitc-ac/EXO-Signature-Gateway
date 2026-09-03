@@ -213,6 +213,16 @@ DEFAULTS: dict = {
     "STRIP_CLIENT_SIGS_MOBILE": True,   # (1) Outlook-Mobile-Signatur entfernen — sicher (bekannte Div-IDs)
     "STRIP_CLIENT_SIGS_DESKTOP": False,  # (3) Outlook-Desktop-Heuristik — experimentell, Vorgabe aus
     "SIG_STRIP_MIN_MATCH_PCT": 50,      # Fingerprint match threshold % for signature stripping
+    # ── Bypass-Wächter (Transportregel-Failover) ──────────────────────────────
+    "WATCHDOG_ENABLED": False,          # Wizard-Schritt abgeschlossen
+    "WATCHDOG_KIND": "",                # "azure" | "cron"
+    "WATCHDOG_TOKEN_HASH": "",          # PBKDF2-Hash des Heartbeat-Tokens
+    "WATCHDOG_SP_OBJECT_ID": "",        # Azure: Object-ID der Managed Identity
+    # Zeitstempel/Bypass-Zustand liegen bewusst in data/watchdog_state.json, nicht
+    # hier — der Heartbeat (1/min) würde sonst settings.json samt Geheimnissen
+    # minütlich neu schreiben.
+    "EXO_RULE_SIG": "",                 # Name der Signatur-Transportregel (leer = "Route via <Name>")
+    "EXO_RULE_SMIME": "",               # Name der S/MIME-Transportregel (erst nach Regeltrennung)
     # Widerrufspruefung (CRL) fuer Empfaengerzertifikate. Vorgabe AN: Die Zusage
     # "Zertifikate werden gegen Sperrlisten geprueft" gilt sonst nicht. Ist eine
     # Sperrliste nicht erreichbar, geht die Nachricht ueber das Portal statt
@@ -277,6 +287,7 @@ SECRET_KEYS = frozenset({
     "SMTP_SUBMIT_CLIENT_SECRET",
     "SMTP_SUBMIT_PASSWORD",
     "SSO_SESSION_SECRET",         # signiert die Sitzungs-Cookies
+    "WATCHDOG_TOKEN_HASH",        # PBKDF2-Hash des Wächter-Heartbeat-Tokens
 })
 
 # Laufzeitzustand, den der Dienst selbst über force_update() schreibt. Nicht in

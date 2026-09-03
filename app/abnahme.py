@@ -95,12 +95,20 @@ def _self_fetch_bestaetigt(basis: str) -> bool:
     Instanz. Schlägt der Abruf fehl (Hairpin-NAT, Cert noch nicht gültig),
     heißt das NICHT „falsch" — dann greift der IP-Vergleich als Rückfall."""
     import json
+    import urllib.error
     import urllib.request
     url = basis.rstrip("/") + "/health"
     try:
         with urllib.request.urlopen(url, timeout=3) as resp:       # noqa: S310
             data = json.loads(resp.read().decode())
         return data.get("echo") == _ECHO_TOKEN
+    except urllib.error.HTTPError as e:
+        # /health antwortet 503, wenn der SMTP-Listener nicht bindet — das echo
+        # steht auch dann im Rumpf. Für den Namensabgleich zählt nur das Token.
+        try:
+            return json.loads(e.read().decode()).get("echo") == _ECHO_TOKEN
+        except Exception:                                          # noqa: BLE001
+            return False
     except Exception:                                              # noqa: BLE001
         return False
 

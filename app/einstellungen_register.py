@@ -178,6 +178,13 @@ REGISTER: dict[str, E] = {
     "SIGN_INTERNAL_ONLY_MAIL": E(art=OPTION, ort="settings_signature.html"),
     "SIG_IMAGE_MODE": E(art=OPTION, ort="settings_signature.html"),
     "SIG_STRIP_MIN_MATCH_PCT": E(art=OPTION, ort="settings_signature.html"),
+    # Bypass-Wächter: vom Wizard/Heartbeat gesetzt, kein direktes Bedienfeld.
+    "WATCHDOG_ENABLED": E(art=ZUSTAND),
+    "WATCHDOG_KIND": E(art=ZUSTAND),
+    "WATCHDOG_TOKEN_HASH": E(art=GEHEIMNIS),
+    "WATCHDOG_SP_OBJECT_ID": E(art=ZUSTAND),
+    "EXO_RULE_SIG": E(art=ZUSTAND),
+    "EXO_RULE_SMIME": E(art=ZUSTAND),
     "SKIP_DUPLICATE_SIG": E(art=OPTION, ort="settings_signature.html"),
     "SKIP_SIG_IN_THREAD": E(art=OPTION, ort="settings_signature.html"),
     "STRIP_SUBJECT_TAGS": E(art=OPTION, ort="settings_smime.html"),
