@@ -1554,6 +1554,27 @@
     "name": "api_usermail_standard"
   },
   {
+    "pfad": "/api/watchdog/heartbeat",
+    "methoden": [
+      "POST"
+    ],
+    "name": "watchdog_heartbeat"
+  },
+  {
+    "pfad": "/api/watchdog/status",
+    "methoden": [
+      "GET"
+    ],
+    "name": "watchdog_status"
+  },
+  {
+    "pfad": "/api/watchdog/token/rotate",
+    "methoden": [
+      "POST"
+    ],
+    "name": "watchdog_token_rotate"
+  },
+  {
     "pfad": "/api/welcome/dismiss",
     "methoden": [
       "POST"

@@ -270,6 +270,26 @@ async def _acquire_token_async() -> str | None:
     return await loop.run_in_executor(None, _acquire_token)
 
 
+def cached_token_valid() -> bool:
+    """True, wenn ein GÜLTIGES Graph-Token im MSAL-Cache liegt — OHNE Netzaufruf.
+
+    Für `/health`: `acquire_token_silent` liefert bei Client-Credentials nur aus
+    dem Cache; ist keins da oder abgelaufen (kein Refresh-Token in diesem Fluss),
+    kommt None zurück, ohne dass ein neues geholt wird. Der Gesundheitscheck löst
+    also nie einen Token-Abruf aus. Kann direkt nach dem Start (leerer Cache, noch
+    kein Graph-Aufruf) False liefern — das Feld ist bewusst nur informativ und
+    steuert den Bypass NICHT (siehe /health-Status: nur der SMTP-Listener zählt).
+    """
+    try:
+        app = _get_msal_app()
+        if app is None:
+            return False
+        result = app.acquire_token_silent(_SCOPES, account=None)
+        return bool(result and "access_token" in result)
+    except Exception:                                       # noqa: BLE001
+        return False
+
+
 def _get_msal_app():
     """Return the first available MSAL ConfidentialClientApplication from the pool.
 

@@ -56,6 +56,7 @@ ERLAUBT_OHNE_ANMELDUNG: dict[str, str] = {
     # ── Prüft die Anmeldung SELBST im Rumpf, nicht per Depends.
     "/log/stream":  "eigene Token-Prüfung (_check_log_token) — 401 bei ungültigem Token",
     "/setup":       "prüft Sitzung/Basic im Rumpf; leitet Nichtangemeldete zur Anmeldung",
+    "/api/watchdog/heartbeat": "eigene Token-Prüfung (X-Watchdog-Token) — 401 bei falschem Token",
     "/api/whoami":  "gibt für Nichtangemeldete ausdrücklich Nullwerte zurück, kein Geheimnis",
 
     # ── Nachrichtenportal: richtet sich an externe Empfänger OHNE Konto.

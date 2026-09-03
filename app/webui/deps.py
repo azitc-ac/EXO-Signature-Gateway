@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import json
 import logging
 import secrets
 from pathlib import Path
@@ -99,6 +100,27 @@ def _smtp_relay_aktiv() -> bool:
 
 
 templates.env.globals["smtp_relay_aktiv"] = _smtp_relay_aktiv
+
+
+def _bypass_gemeldet() -> dict | None:
+    """Fürs Banner: Hat der Bypass-Wächter zuletzt einen aktiven Bypass gemeldet?
+    Dann geht ausgehende Post ohne Signatur raus. Rückgabe {seit} oder None.
+
+    (Ein Folgeschritt ergänzt die UNABHÄNGIGE EXO-Regelabfrage, damit ein
+    vergessener Bypass auch dann auffällt, wenn der Wächter selbst tot ist.)
+    """
+    try:
+        import config
+        st = json.loads(
+            (Path(config.DATA_DIR) / "watchdog_state.json").read_text("utf-8"))
+        if st.get("bypass_active"):
+            return {"seit": st.get("last_seen") or ""}
+    except Exception:                                       # noqa: BLE001
+        pass
+    return None
+
+
+templates.env.globals["bypass_gemeldet"] = _bypass_gemeldet
 
 
 def _gateway_name() -> str:

@@ -456,6 +456,19 @@
     </div>
     {% endif %}
 
+    {# Bypass aktiv: ausgehende Post geht ohne Signatur raus. Gehört auf JEDE
+       Seite, sonst fällt ein „vergessener" Bypass nicht auf. Global aus deps.py. #}
+    {% set _bypass = bypass_gemeldet() %}
+    {% if _bypass %}
+    <div id="bypass-banner"
+         style="background:#fef2f2;border-bottom:2px solid #fca5a5;padding:9px 16px;
+                font-size:13px;color:#991b1b;display:flex;gap:10px;
+                align-items:center;flex-wrap:wrap">
+      <strong>Ausfallsicherung aktiv (Bypass)</strong>
+      <span>Ausgehende Post wird derzeit <strong>ohne Signatur</strong> zugestellt{% if _bypass.seit %} — gemeldet seit {{ _bypass.seit }}{% endif %}.</span>
+    </div>
+    {% endif %}
+
     {# `weit` fuer Seiten, die Daten NEBENEINANDER zeigen (Postfachtabelle,
        Baukasten). Fliesstext bleibt bei 960px: ueber die volle Breite eines
        grossen Bildschirms gesetzt, ist er kaum noch zu lesen. #}

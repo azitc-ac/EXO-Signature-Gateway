@@ -52,6 +52,32 @@ def _make_result(status: str, detail: str) -> dict:
     return {"status": status, "checked_at": _now_str(), "detail": detail}
 
 
+# ── Liveness für /health (Bypass-Wächter) ─────────────────────────────────────
+
+def _smtp_listener_ok() -> bool:
+    """Nimmt der SMTP-Listener auf Port 25 Verbindungen an? Aktive Probe statt
+    Flag: eine gebundene Buchse ist die ehrliche Aussage, ein Startflag nicht."""
+    import socket
+    import config
+    try:
+        with socket.create_connection(("127.0.0.1", int(config.SMTP_PORT)), timeout=1.0):
+            return True
+    except OSError:
+        return False
+
+
+def liveness() -> dict:
+    """Kompakter Zustand für `/health` — der Bypass-Wächter braucht nur das."""
+    import config
+    import graph_client
+    return {
+        "smtp_listener": _smtp_listener_ok(),
+        "graph_token": graph_client.cached_token_valid(),
+        "reinject_mode": settings_store.get("REINJECT_MODE") or "smtp",
+        "version": config.VERSION,
+    }
+
+
 # ── Check 1: exo_mailbox ──────────────────────────────────────────────────────
 
 def _check_exo_mailbox_sync(email: str) -> dict:

@@ -396,6 +396,28 @@ def test_class_sentinel_in_result() -> TestResult:
 
 # ── Runner ─────────────────────────────────────────────────────────────────────
 
+def test_watchdog_heartbeat_recent() -> TestResult:
+    name = "Bypass-Wächter meldet sich (letzte 5 min)"
+    if settings_store.get("WATCHDOG_ENABLED") is not True:
+        return TestResult(name, True, "Wächter nicht eingerichtet — Test übersprungen")
+    import config
+    import json
+    from datetime import datetime, timezone
+    from pathlib import Path
+    try:
+        st = json.loads(
+            (Path(config.DATA_DIR) / "watchdog_state.json").read_text("utf-8"))
+        seen = datetime.strptime(st.get("last_seen", ""), "%Y-%m-%dT%H:%M:%SZ") \
+            .replace(tzinfo=timezone.utc)
+        alter = (datetime.now(timezone.utc) - seen).total_seconds()
+    except Exception:                                       # noqa: BLE001
+        return TestResult(name, False, "Kein Heartbeat empfangen — läuft der Wächter?")
+    if alter <= 300:
+        return TestResult(name, True, f"zuletzt vor {int(alter)} s gesehen ✓")
+    return TestResult(name, False,
+                      f"letzter Heartbeat vor {int(alter // 60)} min — Wächter tot?")
+
+
 _ALL_TESTS = [
     test_new_email,
     test_outlook_desktop_reply,
@@ -409,6 +431,7 @@ _ALL_TESTS = [
     test_client_sig_stripped,
     test_outlook_separator_not_stripped,
     test_class_sentinel_in_result,
+    test_watchdog_heartbeat_recent,
 ]
 
 

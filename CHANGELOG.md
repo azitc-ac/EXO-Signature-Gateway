@@ -5,7 +5,32 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
-## v1.8.56 — 2026-09-03 — Client-Signatur-Entfernung in zwei Schalter getrennt
+## v1.8.57 — 2026-09-03 — Ausfallsicherung: Gateway-Basis für den Bypass-Wächter
+
+Grundlage für einen späteren Failover: Fällt das Gateway aus, soll ausgehende
+Post nicht in der Warteschlange hängen, sondern (unsigniert) zugestellt werden —
+ein externer Wächter schaltet dazu die Signatur-Transportregel ab und wieder an.
+Dieser Schritt liefert nur die **Gateway-Seite** dafür; der Wächter selbst und
+der Einrichtungsschritt folgen.
+
+- **`/health` sagt jetzt mehr:** zusätzlich `smtp_listener` (aktive Probe auf
+  Port 25), `graph_token` (aus dem Cache, ohne Netzaufruf), `reinject_mode` und
+  `version`. Bindet der SMTP-Listener nicht, antwortet `/health` mit `503`/
+  `degraded` — so muss ein Wächter nicht in den Rumpf schauen. Ein fehlendes
+  Graph-Token macht `/health` bewusst **nicht** ungesund (das ist ein
+  Konfigurationsfehler, kein Mailstau).
+- **Heartbeat-Kanal:** `POST /api/watchdog/heartbeat` (eigenes Token im
+  Kopffeld) nimmt den Zustand des Wächters entgegen; `GET /api/watchdog/status`
+  und `POST /api/watchdog/token/rotate` (beide nur für die Verwaltung) für
+  Anzeige und Token-Wechsel. Der wechselnde Zustand liegt in
+  `data/watchdog_state.json`, nicht in der Konfiguration.
+- **Sichtbarkeit:** Meldet der Wächter einen aktiven Bypass, erscheint auf jeder
+  Seite ein rotes Banner „Ausfallsicherung aktiv — Post geht ohne Signatur".
+  Ein Selbsttest warnt, wenn ein eingerichteter Wächter sich länger nicht
+  gemeldet hat.
+
+Noch nicht enthalten: die Aufteilung der Transportregel (Signaturen vs. S/MIME),
+der Einrichtungsschritt und der Wächter-Code selbst.
 
 Ein Schalter „Selbsterstellte Client-Signaturen entfernen" steuerte bisher zwei
 verschieden riskante Dinge zugleich: das sichere Entfernen der
