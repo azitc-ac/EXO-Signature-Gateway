@@ -21,12 +21,13 @@ def anlage(monkeypatch, tmp_path):
     from webui import app as wa
     from webui import deps
     from webui.routen import waechter
+    import waechter_state
 
     werte = {"WATCHDOG_TOKEN_HASH": deps._hash_password("gutes-token"),
              "WATCHDOG_ENABLED": True, "WATCHDOG_KIND": "cron"}
     import settings_store
     monkeypatch.setattr(settings_store, "get", lambda k, *a, **kw: werte.get(k))
-    monkeypatch.setattr(waechter, "_STATE", tmp_path / "watchdog_state.json")
+    monkeypatch.setattr(waechter_state, "PFAD", tmp_path / "watchdog_state.json")
     with TestClient(wa.app) as c:
         yield c, waechter
 
@@ -37,7 +38,8 @@ def test_falsches_token_401_ohne_details(anlage):
                headers={"X-Watchdog-Token": "falsch"})
     assert r.status_code == 401
     assert "bypass" not in r.text.lower()          # keine Zustands-Details preisgeben
-    assert not waechter._STATE.exists()             # nichts geschrieben
+    import waechter_state
+    assert not waechter_state.PFAD.exists()         # nichts geschrieben
 
 
 def test_fehlendes_token_401(anlage):

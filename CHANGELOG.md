@@ -5,7 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
-## v1.8.58 — 2026-09-03 — `/health`: SMTP-Listener-Prüfung ohne Portverbindung
+## v1.8.59 — 2026-09-03 — Ausfallsicherung: unabhängige Regelzustand-Prüfung
+
+Ergänzt die Ausfallsicherung um eine **eigene, nur lesende** Kontrolle: Ist der
+Bypass-Wächter eingerichtet, prüft das Gateway einmal täglich in Exchange Online,
+ob die Signatur-Transportregel aktiv ist (`Get-TransportRule`). Ist sie
+abgeschaltet, erscheint das Banner „Ausfallsicherung aktiv — Post geht ohne
+Signatur" auch dann, wenn der Wächter selbst nicht mehr läuft.
+
+Die Prüfung ändert in Exchange nichts (read-only) und läuft nur, wenn der
+Wächter eingerichtet ist — Gateways ohne diese Funktion machen keinen
+zusätzlichen Exchange-Aufruf.
 
 Die in v1.8.57 ergänzte `smtp_listener`-Prüfung öffnete bei jedem `/health`-Aufruf
 eine Verbindung auf `127.0.0.1:25`. Das bremste den Web-Server, solange der

@@ -291,6 +291,17 @@ def _run_daily() -> None:
     _check_smime_lifecycle()
     _check_license_expiry()
 
+    # Unabhängige, NUR LESENDE Prüfung des Signatur-Regelzustands — nur wenn der
+    # Bypass-Wächter eingerichtet ist (sonst gibt es keinen Bypass zu erkennen,
+    # und wir ersparen allen anderen Gateways den täglichen EXO-Login). Fängt
+    # einen aktiven Bypass auch dann, wenn der Wächter selbst tot ist.
+    if settings_store.get("WATCHDOG_ENABLED") is True:
+        try:
+            import waechter_regel
+            waechter_regel.pruefe_und_merke()
+        except Exception as exc:                            # noqa: BLE001
+            log.warning("scheduler: Regelzustand-Prüfung fehlgeschlagen: %s", exc)
+
     # Portal cleanup
     try:
         import portal_store
