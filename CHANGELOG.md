@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.61 — 2026-09-03 — README: Datenspeicherung & Aufbewahrung
+
+Ein neuer Abschnitt beschreibt, welche Daten das Gateway speichert und wie lange:
+Audit-Log (inkl. Betreffzeile, keine Mailinhalte, Vorgabe 30 Tage), Betriebslog,
+das verschlüsselte Secure Message Portal (Vorgabe 14 Tage) und die IP-Angaben des
+SMTP-Relays. Rein beschreibend, gegen den Code geprüft — hilft Betreibern bei der
+eigenen Datenschutz-Einordnung.
+
 ## v1.8.60 — 2026-09-03 — SECURITY.md: Meldeweg für Sicherheitslücken
 
 Eine `SECURITY.md` benennt den vertraulichen Meldeweg für Sicherheitsprobleme
