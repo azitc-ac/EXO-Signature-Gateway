@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.60 — 2026-09-03 — SECURITY.md: Meldeweg für Sicherheitslücken
+
+Eine `SECURITY.md` benennt den vertraulichen Meldeweg für Sicherheitsprobleme
+(E-Mail statt öffentlichem Issue), die unterstützten Versionen und den Umgang mit
+Meldungen (erst Fix, dann Text; keine Betreiber-Interna). Nebenbei ein veralteter
+Kommentar in `requirements.lock` entschärft (feste Testzahl entfernt).
+
 ## v1.8.59 — 2026-09-03 — Ausfallsicherung: unabhängige Regelzustand-Prüfung
 
 Ergänzt die Ausfallsicherung um eine **eigene, nur lesende** Kontrolle: Ist der

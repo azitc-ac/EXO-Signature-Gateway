@@ -25,7 +25,8 @@
 # pip freeze aus dem PRODUKTIV laufenden Container der Azure-VM
 # (Gateway v1.7.168, 09.08.2026) — also der Stand, der nachweislich Mails
 # verarbeitet, und nicht eine frische Aufloesung, die noch niemand im Betrieb
-# gesehen hat. Die volle Testsuite lief gegen genau diesen Baum: 483 gruen.
+# gesehen hat. Die volle Testsuite lief gegen genau diesen Baum gruen (die Zahl
+# der Tests waechst laufend — sie hier festzuschreiben veraltet nur).
 #
 # AKTUALISIEREN
 # -------------
