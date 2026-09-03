@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.62 — 2026-09-03 — THREAT_MODEL.md: Vertrauensgrenzen dokumentiert
+
+Ein Threat Model beschreibt die Vertrauensgrenzen (Port 25/80/443, Container↔Host,
+Gateway↔Azure), die durchgesetzten Schutzmaßnahmen und — ehrlich getrennt — die
+verbleibenden Annahmen und Restrisiken (u.a. Schlüsselpasswort neben den
+Schlüsseln, unsignierte Lieferkette, CSP nur berichtend, Single Point of Failure,
+tenantweite Graph-Rechte). Von SECURITY.md verlinkt.
+
 ## v1.8.61 — 2026-09-03 — README: Datenspeicherung & Aufbewahrung
 
 Ein neuer Abschnitt beschreibt, welche Daten das Gateway speichert und wie lange:
