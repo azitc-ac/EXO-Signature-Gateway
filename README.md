@@ -562,6 +562,24 @@ Wenn `SENT_ITEMS_UPDATE` aktiviert ist, patcht das Gateway nach dem Versand die 
 
 ---
 
+## Datenspeicherung & Aufbewahrung
+
+Alle Daten bleiben im eigenen Tenant bzw. auf dem eigenen Host — nichts läuft
+über eine fremde Cloud. Gespeichert wird (alles unter `./data/`, SQLite):
+
+| Was | Inhalt | Aufbewahrung |
+|---|---|---|
+| **Audit-Log** | Absender, Empfänger, **Betreffzeile**, Message-ID, Aktion, Zeit — **keine** Mailinhalte | `LOG_RETENTION_DAYS` (Vorgabe **30 Tage**), danach automatisch gelöscht |
+| **Betriebsprotokoll** | technische Logzeilen (rotierend) | `LOG_RETENTION_DAYS` |
+| **Secure Message Portal** *(nur wenn genutzt)* | Nachrichteninhalte und Antworten **AES-256-GCM-verschlüsselt**; der Schlüssel liegt im Link-Fragment, nicht in der Datenbank | `SECURE_PORTAL_RETENTION_DAYS` (Vorgabe **14 Tage**), täglicher Cleanup |
+| **SMTP-Relay** *(nur wenn genutzt)* | IP-Adressen der Geräteliste und abgewiesener Quellen samt Absender/Ziel — für die Betriebsübersicht | bis zur manuellen Entfernung |
+
+Die Aufbewahrungsfristen sind in **Einstellungen** änderbar. Ein Backup
+(*Update & Backup*) enthält `data/` und `templates/` — also auch Audit-Log und
+ggf. Portal-Daten; entsprechend geschützt aufbewahren.
+
+---
+
 ## Architektur
 
 Ein Container, mehrere Bausteine (Code unter `app/`, Web-Routen unter
