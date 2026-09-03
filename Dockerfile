@@ -42,17 +42,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # ── PowerShell — install from GitHub release (arch-aware, no MS repo needed) ──
 # Supports amd64 (x86_64) and arm64 (aarch64) which covers both dev and Pi prod.
+# ⚠️ Der Tarball wird gegen die offizielle SHA256 geprueft (Lieferkette). Beim
+# Anheben von PS_VERSION BEIDE Hashes aus
+# https://github.com/PowerShell/PowerShell/releases/download/v<VERSION>/hashes.sha256
+# mit uebernehmen — sonst schlaegt der Build fehl (genau das ist der Zweck).
 RUN set -eux; \
     ARCH="$(dpkg --print-architecture)"; \
     PS_VERSION="7.6.2"; \
     case "${ARCH}" in \
-        amd64)   PS_ARCH="x64"    ;; \
-        arm64)   PS_ARCH="arm64"  ;; \
+        amd64)   PS_ARCH="x64";   PS_SHA="6cbcfbf20e376aa62ffd91c973493c41a7a52ddfd5a5db3ff9bc12f0d0fe9292" ;; \
+        arm64)   PS_ARCH="arm64"; PS_SHA="a8d4e386dfafda385d0604045eed03ce6f3a843d45fc8f0b9588b836ca17cdb8" ;; \
         *)       echo "Unsupported arch: ${ARCH}" && exit 1 ;; \
     esac; \
     PS_URL="https://github.com/PowerShell/PowerShell/releases/download/v${PS_VERSION}/powershell-${PS_VERSION}-linux-${PS_ARCH}.tar.gz"; \
     mkdir -p /opt/microsoft/powershell/7; \
     wget -q -O /tmp/pwsh.tar.gz "${PS_URL}"; \
+    echo "${PS_SHA}  /tmp/pwsh.tar.gz" | sha256sum -c -; \
     tar -xz -C /opt/microsoft/powershell/7 -f /tmp/pwsh.tar.gz; \
     rm /tmp/pwsh.tar.gz; \
     chmod +x /opt/microsoft/powershell/7/pwsh; \
