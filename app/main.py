@@ -610,6 +610,11 @@ async def _run_smtp() -> None:
         require_starttls=tls_ctx is not None,
     )
     controller.start()
+    # Für die /health-Liveness (Bypass-Wächter): den Controller prozessweit
+    # sichtbar machen — health_check liest daran non-blocking ab, ob der Listener
+    # bedient, statt eine Verbindung auf :25 aufzubauen.
+    import runtime_state
+    runtime_state.smtp_controller = controller
     log.info(
         "SMTP listener started on port %d (TLS: %s)",
         config.SMTP_PORT,

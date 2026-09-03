@@ -55,14 +55,24 @@ def _make_result(status: str, detail: str) -> dict:
 # ── Liveness für /health (Bypass-Wächter) ─────────────────────────────────────
 
 def _smtp_listener_ok() -> bool:
-    """Nimmt der SMTP-Listener auf Port 25 Verbindungen an? Aktive Probe statt
-    Flag: eine gebundene Buchse ist die ehrliche Aussage, ein Startflag nicht."""
-    import socket
-    import config
+    """Bedient der SMTP-Listener? Non-blocking über den Zustand des
+    aiosmtpd-Controllers — KEIN Verbindungsaufbau auf :25.
+
+    ⚠️ Bewusst kein `socket.create_connection` auf :25: Das würde (a) den
+    Event-Loop des /health-Handlers bis zum Timeout bremsen, wenn der Listener
+    weg ist, und (b) bei jedem Aufruf eine Leerverbindung im SMTP-Log erzeugen.
+    `server.is_serving()` liest nur ein Flag — der Bypass-Wächter selbst spricht
+    ohnehin nur HTTPS mit /health, nie SMTP.
+    """
     try:
-        with socket.create_connection(("127.0.0.1", int(config.SMTP_PORT)), timeout=1.0):
-            return True
-    except OSError:
+        import runtime_state
+        c = runtime_state.smtp_controller
+        srv = getattr(c, "server", None) if c is not None else None
+        if srv is None:
+            return False
+        is_serving = getattr(srv, "is_serving", None)
+        return bool(is_serving()) if callable(is_serving) else True
+    except Exception:                                       # noqa: BLE001
         return False
 
 

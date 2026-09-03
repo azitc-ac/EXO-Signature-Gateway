@@ -5,7 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
-## v1.8.57 — 2026-09-03 — Ausfallsicherung: Gateway-Basis für den Bypass-Wächter
+## v1.8.58 — 2026-09-03 — `/health`: SMTP-Listener-Prüfung ohne Portverbindung
+
+Die in v1.8.57 ergänzte `smtp_listener`-Prüfung öffnete bei jedem `/health`-Aufruf
+eine Verbindung auf `127.0.0.1:25`. Das bremste den Web-Server, solange der
+Listener aus war, und erzeugte im SMTP-Log bei jedem Aufruf eine Leerverbindung.
+Der Zustand wird jetzt direkt am laufenden Listener abgelesen (kein
+Verbindungsaufbau). Am `/health`-Inhalt ändert sich nichts; ein Überwachungs-
+dienst braucht weiterhin nur HTTPS (`GET /health`), nie Port 25.
 
 Grundlage für einen späteren Failover: Fällt das Gateway aus, soll ausgehende
 Post nicht in der Warteschlange hängen, sondern (unsigniert) zugestellt werden —
