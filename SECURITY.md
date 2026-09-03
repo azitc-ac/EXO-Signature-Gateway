@@ -14,6 +14,9 @@ einem Proof of Concept.
 Wir bestätigen den Eingang innerhalb von **drei Werktagen** und halten dich über
 den Stand auf dem Laufenden.
 
+Die Vertrauensgrenzen und durchgesetzten Schutzmaßnahmen sind im
+[Threat Model](THREAT_MODEL.md) beschrieben.
+
 ## Unterstützte Versionen
 
 Sicherheitskorrekturen fließen in die **jeweils aktuelle Version** ein. Das
