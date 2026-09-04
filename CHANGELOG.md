@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.66 — 2026-09-04 — Setup: Verteilerlisten-Bedingung ist fester Regelbestandteil ab Anlage
+
+Die Absender-Bedingung „nur Mitglieder der Verteilerliste" (`FromMemberOf`) ist
+jetzt von Anfang an fester Bestandteil der Transportregel — nicht mehr etwas, das
+ein späterer Schritt nachreicht. Das Connector-Setup legt die (zunächst leere)
+Verteilerliste vor der Regel an und erzeugt die Regel direkt mit dieser Bedingung;
+eine leere Liste matcht niemanden. Damit gibt es keinen Moment, in dem die Regel
+ohne die Bedingung existiert.
+
+Ergänzend stellt ein erneuter Setup-Lauf die Bedingung auch dann wieder her, wenn
+sie einer bestehenden Regel abhandengekommen ist (das konnte durch das in v1.8.65
+behobene Leeren der Bedingung bei „keine aktiven Postfächer" geschehen). Wer eine
+Regel ohne die Verteilerlisten-Bedingung vorfindet, löst den Connector-Setup-Schritt
+erneut aus.
+
 ## v1.8.65 — 2026-09-04 — Setup: Transportregel-Gate ausfallsicher, Passwortänderung im Assistenten
 
 **Die Gateway-Transportregel wird nie mehr ungefiltert aktiv.** Die Regel „Route
