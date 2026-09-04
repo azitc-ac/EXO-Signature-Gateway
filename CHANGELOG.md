@@ -5,7 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
-## v1.8.66 — 2026-09-04 — Setup: Verteilerlisten-Bedingung ist fester Regelbestandteil ab Anlage
+## v1.8.67 — 2026-09-04 — Werkzeug: Soll-Abgleich der Tenant-Konfiguration
+
+Ein neues, read-only arbeitendes Werkzeug vergleicht die Exchange-/Azure-Konfiguration,
+auf die ein Gateway angewiesen ist (Transportregeln, Connectoren, Verteilerlisten,
+RemoteDomain), gegen einen ausformulierten Soll-Zustand und meldet jede Abweichung —
+etwa eine aktive Routing-Regel ohne ihre Absender-Verteilerlisten-Bedingung, eine
+verbotene empfängerbezogene Bedingung, oder übrig gebliebene Test-Mode-Connectoren.
+
+Der Soll ist dreistufig gefasst: feste Invarianten, aus wenigen Eingaben abgeleitete
+Werte (z.B. Smarthost aus dem Hostnamen) und der kleine Rest echter Betreiber-Eingaben.
+Die Vergleichslogik ist durch Tests abgedeckt und läuft ohne Tenant — sie fängt
+Konfigurations-Fehlzustände, die in einem laufenden, befüllten Tenant nicht auffallen,
+weil sie nur bei einer frischen Einrichtung entstehen.
 
 Die Absender-Bedingung „nur Mitglieder der Verteilerliste" (`FromMemberOf`) ist
 jetzt von Anfang an fester Bestandteil der Transportregel — nicht mehr etwas, das
