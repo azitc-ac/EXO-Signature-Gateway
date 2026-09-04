@@ -158,6 +158,14 @@ if ($existingRule) {
         -ExceptIfMessageTypeMatches Calendaring | Out-Null
     Write-OK "Transport Rule comment + Loop-Header ($LoopHeader) + Calendaring-Ausnahme aktualisiert"
 } else {
+    # ⚠️ DEAKTIVIERT anlegen. Die Regel hat hier noch KEIN FromMemberOf-Gate
+    # (das setzt update_mailbox_dg.ps1 anhand der aktiven Postfächer). Eine
+    # aktive Regel mit nur `FromScope InOrganization` würde JEDE interne Mail
+    # durch das noch nicht fertig konfigurierte Gateway leiten — und dort
+    # steckenbleiben lassen. Erst wenn Postfächer eingerichtet sind, aktiviert
+    # update_mailbox_dg.ps1 die Regel (mit gesetztem FromMemberOf). Ein
+    # erneutes Setup einer bereits AKTIVEN Regel lässt deren Zustand unberührt
+    # (der Aktualisieren-Zweig fasst -Enabled nicht an).
     New-TransportRule `
         -Name $ruleName `
         -FromScope InOrganization `
@@ -167,8 +175,9 @@ if ($existingRule) {
         -RouteMessageOutboundConnector $outConnectorId `
         -Priority 0 `
         -Comments $managedBy `
+        -Enabled $false `
         -Mode Enforce | Out-Null
-    Write-OK "Transport Rule created (priority 0, Kalender-Einladungen ausgenommen)"
+    Write-OK "Transport Rule created (DEAKTIVIERT bis Postfächer eingerichtet sind; priority 0, Kalender-Einladungen ausgenommen)"
 }
 
 # ── Done ──────────────────────────────────────────────────────────────────────

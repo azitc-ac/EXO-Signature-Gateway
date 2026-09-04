@@ -98,13 +98,22 @@ try {
     Write-Step "Updating transport rule '$ruleName'..."
     $rule = Get-TransportRule -Identity $ruleName -ErrorAction SilentlyContinue
     if ($rule) {
+        # Das Gate ist IMMER die DG — NIE leeren. Eine Regel ohne FromMemberOf
+        # (nur FromScope InOrganization) matcht JEDEN internen Absender und
+        # leitet den gesamten internen Mailverkehr durchs Gateway; kann es nicht
+        # zustellen (z.B. noch nicht fertig konfiguriert), staut/verwirft
+        # Exchange die Post. Genau das war der frühere `-FromMemberOf $null`-Fall.
+        #
+        # Bei null aktiven Postfächern zeigt das Gate deshalb auf eine LEERE DG
+        # (matcht niemanden) UND die Regel wird deaktiviert — doppelt
+        # ausfallsicher. Aktiviert wird sie erst, wenn es aktive Postfächer gibt.
+        Set-TransportRule -Identity $ruleName -FromMemberOf @($dgName) -Comments $managedBy | Out-Null
         if ($MemberList.Count -gt 0) {
-            Set-TransportRule -Identity $ruleName -FromMemberOf @($dgName) -Comments $managedBy | Out-Null
-            Write-OK "Transport rule updated: FromMemberOf=$dgName"
+            Enable-TransportRule -Identity $ruleName -Confirm:$false | Out-Null
+            Write-OK "Transport rule updated: FromMemberOf=$dgName, aktiviert"
         } else {
-            # No members — remove DG condition so nothing is routed (implicit)
-            Set-TransportRule -Identity $ruleName -FromMemberOf $null -Comments $managedBy | Out-Null
-            Write-OK "Transport rule updated: FromMemberOf cleared (no active mailboxes)"
+            Disable-TransportRule -Identity $ruleName -Confirm:$false | Out-Null
+            Write-OK "Transport rule updated: keine aktiven Postfaecher -> Gate auf leere DG, Regel DEAKTIVIERT"
         }
     } else {
         Write-Warn "Transport rule '$ruleName' not found — skipping rule update"

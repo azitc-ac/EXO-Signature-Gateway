@@ -108,6 +108,10 @@
     <p class="hint">Passwort wurde bereits geändert. <a href="#" onclick="document.getElementById('pw-change-form').style.display='block';return false">Erneut ändern</a></p>
     <div id="pw-change-form" style="display:none;margin-top:12px">
       <div class="settings-row">
+        <label for="old-pw">Aktuelles Passwort</label>
+        <input type="password" id="old-pw" placeholder="Aktuelles Passwort" style="width:260px" autocomplete="current-password">
+      </div>
+      <div class="settings-row">
         <label for="new-pw">Neues Passwort</label>
         <input type="password" id="new-pw" placeholder="mind. 8 Zeichen" style="width:260px">
       </div>
@@ -1218,16 +1222,21 @@ function hideAlert(el) {
 async function changePassword() {
   const pw  = document.getElementById('new-pw').value;
   const pw2 = document.getElementById('new-pw2').value;
+  const oldEl = document.getElementById('old-pw');   // nur im „Erneut ändern"-Zweig vorhanden
   const result = document.getElementById('pw-result');
 
   if (pw.length < 8) { showAlert(result, 'error', 'Passwort muss mind. 8 Zeichen haben.'); return; }
   if (pw !== pw2)    { showAlert(result, 'error', 'Passwörter stimmen nicht überein.'); return; }
+  // Ist bereits ein Passwort gesetzt (Feld sichtbar), verlangt der Server das aktuelle.
+  if (oldEl && !oldEl.value) { showAlert(result, 'error', 'Bitte aktuelles Passwort eingeben.'); return; }
 
   hideAlert(result);
+  const body = {password: pw};
+  if (oldEl) body.old_password = oldEl.value;
   const resp = await fetch('/api/setup/change-password', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({password: pw}),
+    body: JSON.stringify(body),
   });
 
   if (resp.ok) {

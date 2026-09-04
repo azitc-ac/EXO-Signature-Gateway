@@ -5,6 +5,31 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.65 — 2026-09-04 — Setup: Transportregel-Gate ausfallsicher, Passwortänderung im Assistenten
+
+**Die Gateway-Transportregel wird nie mehr ungefiltert aktiv.** Die Regel „Route
+via …" entstand beim Connector-Schritt sofort aktiv, ihr Absender-Gate (die
+Verteilerliste der aktiven Postfächer, `FromMemberOf`) wurde aber erst in einem
+späteren Schritt gesetzt — beim Einrichten der Postfächer. In der Zwischenzeit
+hatte die Regel als einzige Bedingung „interner Absender" und leitete damit
+**jede** interne Mail durch das noch nicht fertig konfigurierte Gateway; konnte
+es nicht zustellen, blieb die Post liegen. Verschärfend leerte der Fall „keine
+aktiven Postfächer" das Gate (`FromMemberOf` entfernt) — was die Regel für
+**alle** öffnete statt sie zu schließen.
+
+Jetzt: Die Regel wird **deaktiviert** angelegt und erst aktiviert, wenn es aktive
+Postfächer gibt. Das Gate zeigt **immer** auf die Verteilerliste und wird nie
+geleert; ohne aktive Postfächer zeigt es auf die leere Liste (matcht niemanden)
+und die Regel bleibt deaktiviert. Eine bereits aktive Regel behält ihren Zustand
+bei einem erneuten Setup-Lauf. Wer eine Installation aus einer betroffenen
+Fassung hat: Setup-Schritt für die Postfächer erneut auslösen — er setzt das Gate
+korrekt und aktiviert die Regel nur bei vorhandenen Postfächern.
+
+**Passwortänderung im Ersteinrichtungs-Assistenten.** Das Formular „erneut
+ändern" fragte das aktuelle Passwort nicht ab, obwohl der Server es verlangt,
+sobald bereits ein Passwort gesetzt ist — die Änderung schlug dann fehl. Das
+Formular hat jetzt ein Feld für das aktuelle Passwort.
+
 ## v1.8.64 — 2026-09-04 — Setup: Transportregel ohne empfängerbezogene Bedingung
 
 Das Connector-Setup legte die Gateway-Transportregel mit einer empfängerbezogenen
