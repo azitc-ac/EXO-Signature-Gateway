@@ -141,9 +141,18 @@ Write-Step "Checking Transport Rule..."
 $ruleName = "Route via $GatewayName"
 $existingRule = Get-TransportRule -Identity $ruleName -ErrorAction SilentlyContinue
 
+# ⚠️ KEINE empfängerbezogene Bedingung (SentToScope o.ä.). Exchange spaltet
+# Mehr-Empfänger-Mails im Categorizer auf (Bifurkation); eine Bedingung auf den
+# Empfänger lässt die interne Fork am Gateway VORBEI (unsigniert direkt
+# zugestellt) — der "Karen-Bug". Das Absender-Gate ist FromScope InOrganization
+# plus FromMemberOf (Letzteres setzt update_mailbox_dg.ps1 anhand der aktiven
+# Postfächer). Siehe CLAUDE.md, Abschnitt Bifurkations-Falle.
 if ($existingRule) {
     Write-Warn "Transport Rule '$ruleName' exists — updating comment + Loop-Header + Calendaring-Ausnahme"
+    # -SentToScope $null heilt eine alt-installierte Regel, die die verbotene
+    # Empfänger-Bedingung noch trägt (idempotent, wenn sie bereits fehlt).
     Set-TransportRule -Identity $ruleName -Comments $managedBy `
+        -SentToScope $null `
         -ExceptIfHeaderMatchesMessageHeader $LoopHeader `
         -ExceptIfHeaderMatchesPatterns "1" `
         -ExceptIfMessageTypeMatches Calendaring | Out-Null
@@ -152,7 +161,6 @@ if ($existingRule) {
     New-TransportRule `
         -Name $ruleName `
         -FromScope InOrganization `
-        -SentToScope NotInOrganization `
         -ExceptIfHeaderMatchesMessageHeader $LoopHeader `
         -ExceptIfHeaderMatchesPatterns "1" `
         -ExceptIfMessageTypeMatches Calendaring `

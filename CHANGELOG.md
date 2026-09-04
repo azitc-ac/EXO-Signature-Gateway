@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.64 — 2026-09-04 — Setup: Transportregel ohne empfängerbezogene Bedingung
+
+Das Connector-Setup legte die Gateway-Transportregel mit einer empfängerbezogenen
+Bedingung an (nur Post an externe Empfänger). Das ist bei Mehr-Empfänger-Mails
+falsch: Exchange spaltet solche Mails im Categorizer auf (Bifurkation), und eine
+Empfänger-Bedingung lässt die interne Teilkopie am Gateway vorbei — sie wird
+unsigniert direkt zugestellt, während die externe Teilkopie signiert wird. Das
+Absender-Gate ist stattdessen „interner Absender" plus die Mitgliederliste der
+aktiven Postfächer; über welche Empfänger die Mail geht, entscheidet das Gateway
+selbst.
+
+Neu angelegte Regeln tragen die Bedingung nicht mehr. Ein erneuter Setup-Lauf
+entfernt sie auch aus einer bereits bestehenden Regel. Betroffen waren nur
+Installationen, deren Regel über diesen Setup-Schritt entstand; produktiv
+laufende Regeln ohne die Bedingung bleiben unverändert.
+
 ## v1.8.63 — 2026-09-03 — Lieferkette: PowerShell-Tarball mit Prüfsumme
 
 Der PowerShell-Tarball wurde beim Image-Build bisher ohne Integritätsprüfung

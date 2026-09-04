@@ -47,6 +47,21 @@ def test_exo_regelskripte_nehmen_loopheader_param():
         assert '-ExceptIfHeaderMatchesMessageHeader "X-Sig-Applied"' not in script, name
 
 
+def test_connector_regel_hat_keine_empfaengerbedingung():
+    """Die Gateway-Transportregel darf KEINE empfängerbezogene Bedingung tragen
+    (SentToScope o.ä.). Sonst bifurkiert Exchange die interne Fork am Gateway
+    vorbei (Karen-Bug). Absender-Gate = FromScope InOrganization + FromMemberOf
+    (Letzteres setzt update_mailbox_dg.ps1). Siehe CLAUDE.md, Bifurkations-Falle.
+    """
+    script = (WURZEL / "app" / "scripts" / "setup_exo_connector.ps1").read_text()
+    # New-TransportRule (Anlegen) darf die Empfänger-Bedingung nicht setzen.
+    assert "-SentToScope NotInOrganization" not in script
+    # Das Absender-Gate bleibt.
+    assert "-FromScope InOrganization" in script
+    # Der Aktualisieren-Zweig heilt eine alt-installierte Regel aktiv.
+    assert "-SentToScope $null" in script
+
+
 def test_setting_aenderung_setzt_connector_offen(monkeypatch):
     from webui.routen import settings as settings_route
     import settings_store
