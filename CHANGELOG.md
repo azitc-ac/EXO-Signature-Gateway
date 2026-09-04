@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.69 — 2026-09-05 — Grundlage für getrennte Signatur-/S-MIME-Route (inaktiv)
+
+Vorbereitung für einen Ausfall-Bypass: Fällt das Gateway aus, soll reine
+Signatur-Post unsigniert weiterlaufen können, während verschlüsselungsfähige Post
+bewusst in der Warteschlange bleibt (sie darf nie unverschlüsselt hinaus). Dazu
+wird die eine Routing-Regel künftig in zwei Wege getrennt — einen Signatur-Weg
+(im Ausfall abschaltbar) und einen S/MIME-Weg (bleibt bestehen).
+
+Dieser Schritt liefert nur die Grundlage: die Zuordnung der Postfächer (nach
+S/MIME-Fähigkeit) und die Namensgebung, mit Tests. Es wird noch **nichts**
+aufgeteilt und keine Transportregel geändert — das folgt als eigener, ausdrücklich
+zu aktivierender Schritt.
+
 ## v1.8.68 — 2026-09-04 — Update: Compose-Variante des Hosts erkennen (v2/v1)
 
 Der Update-Watcher läuft als root und rief fest `docker compose` (v2) auf. Ist das
