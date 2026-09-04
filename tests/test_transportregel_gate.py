@@ -48,6 +48,25 @@ def test_connector_update_stellt_gate_wieder_her():
     assert "-FromMemberOf @($dgName)" in update_block
 
 
+def test_split_skript_haelt_dieselben_invarianten():
+    """setup_rule_split.ps1 (Phase 1) darf keine Regel aktiv+ungegatet lassen."""
+    s = (SKRIPTE / "setup_rule_split.ps1").read_text()
+    code = "\n".join(z for z in s.splitlines() if not z.lstrip().startswith("#"))
+    # Gate wird nie geleert.
+    assert "-FromMemberOf $null" not in code
+    # Gate immer auf die DG gesetzt; Aktivierung nach Mitgliederzahl.
+    assert "-FromMemberOf @($dgName)" in code            # in Set-RuleGate
+    assert "Enable-TransportRule" in code
+    assert "Disable-TransportRule" in code
+    # Neue S/MIME-Regel: gegated + deaktiviert angelegt, keine Empfaengerbedingung.
+    i = code.index("New-TransportRule")
+    j = code.index("Out-Null", i)
+    anlage = code[i:j]
+    assert "-FromMemberOf @($smimeDg)" in anlage
+    assert "-Enabled $false" in anlage
+    assert "-SentToScope" not in code
+
+
 def test_dg_update_leert_das_gate_nie():
     """Das FromMemberOf-Gate darf nie geleert werden; Null-Postfach → deaktivieren."""
     s = (SKRIPTE / "update_mailbox_dg.ps1").read_text()

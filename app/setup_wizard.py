@@ -725,6 +725,14 @@ def run_mailbox_dg_update(app_id: str, tenant_domain: str, members: list[str]) -
     update the transport rule to route only DG members.
     Returns {"ok": bool, "output": str}.
     """
+    # Bypass-Wächter Phase 1: Bei aktivem Regel-Split zwei Wege pflegen (Signatur
+    # bypass-fähig, S/MIME wartend). Der Nicht-Split-Pfad darunter bleibt unberührt.
+    import regel_split
+    if regel_split.split_aktiv():
+        cfg = settings_store.get("MAILBOX_CONFIG") or {}
+        part = regel_split.partitioniere(cfg)
+        return run_rule_split_setup(app_id, tenant_domain, part["signatur"], part["smime"])
+
     script = Path("/app/scripts/update_mailbox_dg.ps1")
     if not script.exists():
         return {"ok": False, "output": "PowerShell script not found"}
@@ -757,6 +765,41 @@ def run_mailbox_dg_update(app_id: str, tenant_domain: str, members: list[str]) -
         return {"ok": False, "output": output}
     except Exception as exc:
         log.error("Mailbox DG update error: %s", exc)
+        return {"ok": False, "output": str(exc)}
+
+
+def run_rule_split_setup(app_id: str, tenant_domain: str,
+                         sig_members: list[str], smime_members: list[str]) -> dict:
+    """Bypass-Wächter Phase 1: pflegt BEIDE Wege via setup_rule_split.ps1
+    (Signatur-Weg bypass-fähig, S/MIME-Weg wartend). Erwartet die bereits
+    partitionierten Adresslisten (siehe regel_split.partitioniere)."""
+    script = Path("/app/scripts/setup_rule_split.ps1")
+    if not script.exists():
+        return {"ok": False, "output": "setup_rule_split.ps1 nicht gefunden"}
+    if not _AUTH_CERT_PATH.exists():
+        return {"ok": False, "output": "Auth-Zertifikat nicht gefunden — bitte Schritt 5 ausführen."}
+    gateway_name = settings_store.get("GATEWAY_NAME") or "EXO Signature Gateway"
+    loop = settings_store.get("LOOP_HEADER") or "X-Sig-Applied"
+    cmd = [
+        "pwsh", "-NoProfile", "-NonInteractive", "-File", str(script),
+        "-AppId", app_id, "-Organization", tenant_domain,
+        "-CertPath", str(_AUTH_CERT_PATH), "-GatewayName", gateway_name,
+        "-LoopHeader", loop,
+    ]
+    if sig_members:
+        cmd += ["-SigMembers", ",".join(sig_members)]
+    if smime_members:
+        cmd += ["-SmimeMembers", ",".join(smime_members)]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        output = (proc.stdout + "\n" + proc.stderr).strip()
+        if proc.returncode == 0:
+            log.info("Rule split ok (sig=%d, smime=%d)", len(sig_members), len(smime_members))
+            return {"ok": True, "output": output}
+        log.error("Rule split failed rc=%d: %s", proc.returncode, output)
+        return {"ok": False, "output": output}
+    except Exception as exc:
+        log.error("Rule split error: %s", exc)
         return {"ok": False, "output": str(exc)}
 
 
