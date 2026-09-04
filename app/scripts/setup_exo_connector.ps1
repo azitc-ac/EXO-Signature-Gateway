@@ -135,40 +135,58 @@ if ($SkipInboundConnector) {
     }
 }
 
+# ── Distribution Group (Absender-Gate der Regel) ──────────────────────────────
+# Die Regel wird von Anfang an auf die Verteilerliste der aktiven Postfächer
+# gefiltert (FromMemberOf) — die Bedingung ist FESTER Regelbestandteil, nicht
+# etwas, das ein späterer Schritt nachreicht. Die Liste wird hier (leer) angelegt;
+# eine leere Liste matcht niemanden (ausfallsicher). Mitglieder + Aktivierung
+# pflegt danach update_mailbox_dg.ps1 (gleiche DG, gleiche Parameter).
+$dgName = "$GatewayName - Enabled Mailboxes"
+if (-not (Get-DistributionGroup -Identity $dgName -ErrorAction SilentlyContinue)) {
+    Write-Step "Creating Distribution Group '$dgName' (leer, Gate der Regel)..."
+    New-DistributionGroup -Name $dgName -Type Distribution `
+        -MemberJoinRestriction Closed -MemberDepartRestriction Closed | Out-Null
+    Start-Sleep -Seconds 5
+    Write-OK "Distribution Group created (leer)"
+} else {
+    Write-OK "Distribution Group exists: $dgName"
+}
+
 # ── Transport Rule ────────────────────────────────────────────────────────────
 Write-Step "Checking Transport Rule..."
 
 $ruleName = "Route via $GatewayName"
 $existingRule = Get-TransportRule -Identity $ruleName -ErrorAction SilentlyContinue
 
-# ⚠️ KEINE empfängerbezogene Bedingung (SentToScope o.ä.). Exchange spaltet
-# Mehr-Empfänger-Mails im Categorizer auf (Bifurkation); eine Bedingung auf den
-# Empfänger lässt die interne Fork am Gateway VORBEI (unsigniert direkt
-# zugestellt) — der "Karen-Bug". Das Absender-Gate ist FromScope InOrganization
-# plus FromMemberOf (Letzteres setzt update_mailbox_dg.ps1 anhand der aktiven
-# Postfächer). Siehe CLAUDE.md, Abschnitt Bifurkations-Falle.
+# Absender-Gate: FromScope InOrganization PLUS FromMemberOf (die eben angelegte,
+# zunächst leere DG). Die DL-Bedingung ist FESTER Regelbestandteil ab Anlage.
+# KEINE empfängerbezogene Bedingung (SentToScope o.ä.): Exchange spaltet
+# Mehr-Empfänger-Mails im Categorizer auf (Bifurkation); eine Empfänger-Bedingung
+# ließe die interne Fork am Gateway VORBEI (der "Karen-Bug"). Siehe CLAUDE.md.
 if ($existingRule) {
-    Write-Warn "Transport Rule '$ruleName' exists — updating comment + Loop-Header + Calendaring-Ausnahme"
-    # -SentToScope $null heilt eine alt-installierte Regel, die die verbotene
-    # Empfänger-Bedingung noch trägt (idempotent, wenn sie bereits fehlt).
+    Write-Warn "Transport Rule '$ruleName' exists — updating gate + comment + Loop-Header + Calendaring-Ausnahme"
+    # -FromMemberOf @($dgName) STELLT das Gate wieder her, falls es einer Regel
+    # abhandenkam (z.B. durch den früheren `-FromMemberOf $null`-Fehler). Ohne
+    # Gate matcht die Regel jeden internen Absender → Mailausfall.
+    # -SentToScope $null heilt eine alt-installierte Regel mit der verbotenen
+    # Empfänger-Bedingung (idempotent, wenn sie bereits fehlt).
     Set-TransportRule -Identity $ruleName -Comments $managedBy `
+        -FromMemberOf @($dgName) `
         -SentToScope $null `
         -ExceptIfHeaderMatchesMessageHeader $LoopHeader `
         -ExceptIfHeaderMatchesPatterns "1" `
         -ExceptIfMessageTypeMatches Calendaring | Out-Null
-    Write-OK "Transport Rule comment + Loop-Header ($LoopHeader) + Calendaring-Ausnahme aktualisiert"
+    Write-OK "Transport Rule gate=$dgName + Loop-Header ($LoopHeader) + Calendaring-Ausnahme aktualisiert"
 } else {
-    # ⚠️ DEAKTIVIERT anlegen. Die Regel hat hier noch KEIN FromMemberOf-Gate
-    # (das setzt update_mailbox_dg.ps1 anhand der aktiven Postfächer). Eine
-    # aktive Regel mit nur `FromScope InOrganization` würde JEDE interne Mail
-    # durch das noch nicht fertig konfigurierte Gateway leiten — und dort
-    # steckenbleiben lassen. Erst wenn Postfächer eingerichtet sind, aktiviert
-    # update_mailbox_dg.ps1 die Regel (mit gesetztem FromMemberOf). Ein
-    # erneutes Setup einer bereits AKTIVEN Regel lässt deren Zustand unberührt
-    # (der Aktualisieren-Zweig fasst -Enabled nicht an).
+    # Von Anfang an mit FromMemberOf-Gate (leere DG → matcht niemanden) UND
+    # DEAKTIVIERT (doppelt ausfallsicher). update_mailbox_dg.ps1 pflegt Mitglieder
+    # und aktiviert die Regel, sobald es aktive Postfächer gibt. Ein erneutes
+    # Setup einer bereits AKTIVEN Regel lässt deren Zustand unberührt (der
+    # Aktualisieren-Zweig fasst -Enabled nicht an).
     New-TransportRule `
         -Name $ruleName `
         -FromScope InOrganization `
+        -FromMemberOf @($dgName) `
         -ExceptIfHeaderMatchesMessageHeader $LoopHeader `
         -ExceptIfHeaderMatchesPatterns "1" `
         -ExceptIfMessageTypeMatches Calendaring `
@@ -177,7 +195,7 @@ if ($existingRule) {
         -Comments $managedBy `
         -Enabled $false `
         -Mode Enforce | Out-Null
-    Write-OK "Transport Rule created (DEAKTIVIERT bis Postfächer eingerichtet sind; priority 0, Kalender-Einladungen ausgenommen)"
+    Write-OK "Transport Rule created (Gate=$dgName, DEAKTIVIERT bis Postfächer eingerichtet; priority 0, Kalender-Einladungen ausgenommen)"
 }
 
 # ── Done ──────────────────────────────────────────────────────────────────────
