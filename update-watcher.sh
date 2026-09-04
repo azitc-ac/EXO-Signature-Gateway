@@ -34,6 +34,20 @@ do_git_update() {
 export HOME="${HOME:-/root}"
 git config --global --add safe.directory "$REPO" 2>/dev/null || true
 
+# Compose-Variante des HOSTS ermitteln: v2 ("docker compose") bevorzugt, sonst
+# v1 ("docker-compose"). ⚠️ Der Watcher läuft als root; das v2-Plugin kann
+# NUTZER-LOKAL liegen (~/.docker/cli-plugins) und für root fehlen — dann schlug
+# der Rebuild mit "unknown shorthand flag: 'd' in -d" fehl, obwohl "docker compose"
+# im Login des Betreibers funktioniert. Fallback auf v1 statt hartem Abbruch.
+if docker compose version >/dev/null 2>&1; then
+  DC=(docker compose)
+elif command -v docker-compose >/dev/null 2>&1; then
+  DC=(docker-compose)
+else
+  echo "WARNUNG: weder 'docker compose' (v2) noch 'docker-compose' (v1) fuer Nutzer '$(id -un)' gefunden — Rebuild wird scheitern" >&2
+  DC=(docker compose)
+fi
+
 # Veraltetes "running" vom letzten Absturz wegräumen
 if python3 -c "import json,sys; d=json.load(open('$STATUS')); sys.exit(0 if d.get('state')=='running' else 1)" 2>/dev/null; then
   rm -f "$STATUS"
@@ -48,7 +62,7 @@ while true; do
 
   if [ -f "$RESTART_TRIGGER" ]; then
     rm -f "$RESTART_TRIGGER"
-    cd "$REPO" && docker compose restart 2>&1 || true
+    cd "$REPO" && "${DC[@]}" restart 2>&1 || true
   fi
 
   if [ -f "$TRIGGER" ]; then
@@ -59,7 +73,7 @@ while true; do
     _log_target=""; [ -n "$TARGET_VERSION" ] && _log_target=" (Ziel: v${TARGET_VERSION})"
     write_status "{\"state\":\"running\",\"log\":\"Kanal ${CHANNEL}${_log_target}: wird aktualisiert...\",\"version_before\":\"$VER_BEFORE\"}"
     LOG=$(do_git_update 2>&1) && \
-      LOG2=$(cd "$REPO" && docker compose up -d --build --remove-orphans 2>&1) && \
+      LOG2=$(cd "$REPO" && "${DC[@]}" up -d --build --remove-orphans 2>&1) && \
       { docker image prune -f >/dev/null 2>&1 || true; } && \
       VER_AFTER=$(cat "$REPO/VERSION" 2>/dev/null | tr -d "[:space:]" || echo "?") && \
       write_status "{\"state\":\"success\",\"finished\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"version_before\":\"$VER_BEFORE\",\"version_after\":\"$VER_AFTER\",\"channel\":\"$CHANNEL\",\"log\":$(printf "%s\n%s" "$LOG" "$LOG2" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')}" && \

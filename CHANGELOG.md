@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.68 — 2026-09-04 — Update: Compose-Variante des Hosts erkennen (v2/v1)
+
+Der Update-Watcher läuft als root und rief fest `docker compose` (v2) auf. Ist das
+Compose-v2-Plugin nur **nutzer-lokal** installiert (`~/.docker/cli-plugins`), fehlt es
+für root — der Rebuild-Schritt eines Updates brach dann mit „unknown shorthand flag:
+'d' in -d" ab, obwohl `docker compose` im Login des Betreibers funktioniert (weshalb die
+Erstinstallation lief). Der Git-Teil des Updates lief bereits durch; nur das Neubauen scheiterte.
+
+Der Watcher ermittelt jetzt die vorhandene Compose-Variante — `docker compose` (v2)
+bevorzugt, sonst `docker-compose` (v1), sonst eine sichtbare Warnung — und nutzt sie
+sowohl für den Neustart als auch für den Rebuild. Wer bereits eine betroffene
+Installation hat: den Watcher-Dienst nach dem Update einmal neu starten, damit die neue
+Fassung greift.
+
 ## v1.8.67 — 2026-09-04 — Werkzeug: Soll-Abgleich der Tenant-Konfiguration
 
 Ein neues, read-only arbeitendes Werkzeug vergleicht die Exchange-/Azure-Konfiguration,
