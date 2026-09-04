@@ -5,6 +5,25 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.70 — 2026-09-05 — Getrennte Signatur-/S-MIME-Route (opt-in, Ausfall-Bypass)
+
+Aufbauend auf der Grundlage aus v1.8.69: Ist die Trennung aktiviert, pflegt das
+Gateway zwei Routing-Wege statt einem — einen **Signatur-Weg** (Regel + Liste der
+reinen Signatur-Postfächer) und einen **S/MIME-Weg** (Regel + Liste der
+verschlüsselungsfähigen Postfächer). Ein externer Wächter darf im Ausfall nur den
+Signatur-Weg abschalten: dessen Post läuft dann unsigniert weiter, während
+verschlüsselungsfähige Post bewusst in der Warteschlange bleibt (sie könnte
+verschlüsselt gehören und darf nie unverschlüsselt hinaus). Sie geht nicht
+verloren — Exchange stellt sie zu, sobald das Gateway zurück ist.
+
+Beide Wege folgen denselben Ausfallsicherungen wie die Einzelregel: Das
+Verteilerlisten-Gate ist immer gesetzt (nie geleert), eine Regel ist genau dann
+aktiv, wenn ihre Liste Mitglieder hat, keine empfängerbezogene Bedingung.
+
+**Vorgabe: aus.** Bestehende Installationen bleiben unverändert (eine Regel). Die
+Trennung wird ausdrücklich aktiviert; der bestehende Weg bleibt dabei der
+Signatur-Weg, neu kommt nur der S/MIME-Weg dazu.
+
 ## v1.8.69 — 2026-09-05 — Grundlage für getrennte Signatur-/S-MIME-Route (inaktiv)
 
 Vorbereitung für einen Ausfall-Bypass: Fällt das Gateway aus, soll reine

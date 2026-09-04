@@ -56,6 +56,31 @@ def test_leere_config(rs):
     assert rs.partitioniere({}) == {"signatur": [], "smime": []}
 
 
+def test_split_aktiv_liest_setting(monkeypatch):
+    import settings_store, regel_split
+    monkeypatch.setattr(settings_store, "get", lambda k, *a: True if k == "WATCHDOG_RULE_SPLIT" else "")
+    assert regel_split.split_aktiv() is True
+    monkeypatch.setattr(settings_store, "get", lambda k, *a: False if k == "WATCHDOG_RULE_SPLIT" else "")
+    assert regel_split.split_aktiv() is False
+
+
+def test_dg_update_delegiert_an_split_wenn_aktiv(monkeypatch):
+    """Bei aktivem Split partitioniert run_mailbox_dg_update und ruft den Split-Weg."""
+    import settings_store, regel_split, setup_wizard
+    cfg = {"g1": {"sig": True, "smime": True, "primary": "enc@x.de"},
+           "g2": {"sig": True, "smime": False, "primary": "sig@x.de"}}
+    monkeypatch.setattr(regel_split, "split_aktiv", lambda: True)
+    monkeypatch.setattr(settings_store, "get",
+                        lambda k, *a: cfg if k == "MAILBOX_CONFIG" else "")
+    captured = {}
+    monkeypatch.setattr(setup_wizard, "run_rule_split_setup",
+                        lambda app, tenant, sig, smime: captured.update(sig=sig, smime=smime) or {"ok": True, "output": ""})
+    r = setup_wizard.run_mailbox_dg_update("app", "t.onmicrosoft.com", ["enc@x.de", "sig@x.de"])
+    assert r["ok"]
+    assert captured["sig"] == ["sig@x.de"]      # reine Signatur → bypass-fähig
+    assert captured["smime"] == ["enc@x.de"]    # verschlüsselungsfähig → Warte-Weg
+
+
 def test_namen_least_disruption(rs):
     # Signatur-Weg = bestehender Weg; S/MIME-Weg neu.
     assert rs.signatur_regelname() == "Route via EXO Signature Gateway"

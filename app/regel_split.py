@@ -25,6 +25,11 @@ import settings_store
 import waechter_regel
 
 
+def split_aktiv() -> bool:
+    """Opt-in: ist die Regeltrennung (Phase 1) aktiviert? Vorgabe aus (False)."""
+    return settings_store.get("WATCHDOG_RULE_SPLIT") is True
+
+
 def _gw() -> str:
     return settings_store.get("GATEWAY_NAME") or "EXO Signature Gateway"
 
