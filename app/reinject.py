@@ -244,7 +244,50 @@ def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
         _send_smtp(mail_from, rcpt_tos, content_bytes)
 
 
+# Veraltete Signatur-Kopfzeilen, die vor dem smtp-Reinject weg müssen.
+_STALE_SIGN_HEADERS = (b"dkim-signature", b"arc-seal",
+                       b"arc-message-signature", b"arc-authentication-results")
+
+
+def _strip_stale_signatures(content_bytes: bytes) -> bytes:
+    """Entfernt veraltete DKIM-/ARC-Kopfzeilen — byte-genau, nur im Kopf.
+
+    Warum: Beim smtp-Reinject läuft die Mail ZURÜCK durch Exchange, das beim
+    finalen Ausgang ohnehin neu DKIM-/ARC-signiert. Die vor dem Gateway gesetzte
+    DKIM passt nach dem Body-Umbau aber nicht mehr (`body hash did not verify`)
+    und die ARC-Kette bricht (`cv=fail`) — beide bleiben als kaputte Signaturen
+    kleben und drücken die Zustellbarkeit (bei strengen Empfängern → Spam).
+
+    Der Body wird NICHT angefasst (kein Reparsen/Reserialisieren) — eine
+    S/MIME-Signatur, die den Inhalt deckt, bleibt damit intakt. DKIM/ARC sind
+    äußere Nachrichten-Kopfzeilen und nicht Teil des S/MIME-signierten Inhalts.
+    """
+    sep = b"\r\n\r\n"
+    idx = content_bytes.find(sep)
+    if idx < 0:
+        sep = b"\n\n"
+        idx = content_bytes.find(sep)
+        if idx < 0:
+            return content_bytes  # kein Kopf/Body-Trenner → unangetastet
+    head = content_bytes[:idx]
+    rest = content_bytes[idx:]                       # Trenner + Body, unverändert
+    nl = b"\r\n" if b"\r\n" in head else b"\n"
+    out: list[bytes] = []
+    skip = False
+    for line in head.split(nl):
+        if line[:1] in (b" ", b"\t"):               # Fortsetzungszeile (gefalteter Header)
+            if not skip:
+                out.append(line)
+            continue
+        name = line.split(b":", 1)[0].strip().lower()
+        skip = name in _STALE_SIGN_HEADERS
+        if not skip:
+            out.append(line)
+    return nl.join(out) + rest
+
+
 def _send_smtp(mail_from: str, rcpt_tos: list[str], content_bytes: bytes) -> None:
+    content_bytes = _strip_stale_signatures(content_bytes)
     port = settings_store.get("EXO_PORT") or config._ENV_SEEDS["EXO_PORT"]
     smarthost = config.EXO_SMARTHOST or settings_store.get("EXO_SMARTHOST") or ""
 

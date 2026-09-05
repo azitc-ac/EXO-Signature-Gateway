@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.73 — 2026-09-05 — SMTP-Reinject: veraltete DKIM-/ARC-Signaturen entfernen (Zustellbarkeit)
+
+Im SMTP-Reinject-Modus läuft bearbeitete Post zur Rückeinspeisung erneut durch
+Exchange, das beim endgültigen Ausgang neu DKIM-/ARC-signiert. Die **vor** dem
+Gateway gesetzte DKIM-Signatur passt nach dem Einfügen der Signatur/dem Umbau des
+Textkörpers aber nicht mehr — sie blieb als **fehlschlagende** Signatur an der
+Mail kleben („body hash did not verify"), und die ARC-Kette brach (`cv=fail`).
+Bei strengen Empfängern (z.B. Gmail) drückt das die Zustellbarkeit bis in den
+Spam-Ordner.
+
+Vor dem SMTP-Reinject werden die veralteten `DKIM-Signature`- und `ARC-*`-Kopf­
+zeilen jetzt entfernt; Exchange setzt beim finalen Ausgang genau eine gültige
+Signatur. Das Entfernen erfolgt **byte-genau nur im Kopf** — der Textkörper bleibt
+unangetastet, damit eine S/MIME-Signatur (die den Inhalt deckt) intakt bleibt.
+
+Betrifft nur `REINJECT_MODE=smtp`. Der `imap`-Weg (Rückeinspeisung per Graph)
+war nie betroffen — er erzeugt ohnehin genau eine gültige Signatur.
+
 ## v1.8.72 — 2026-09-05 — Regel-Split: Ein-Element-Mitgliederliste brach die Einrichtung ab
 
 Beim Aktivieren der getrennten Route (v1.8.70) brach die Einrichtung mit „The
