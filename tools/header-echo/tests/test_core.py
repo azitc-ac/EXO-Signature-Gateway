@@ -183,6 +183,11 @@ def test_reply_carries_headers_and_loop_guards():
     assert reply["Message-ID"].endswith("@azitc.org>")
     body = reply.get_body(preferencelist=("plain",)).get_content()
     assert "Received-Stationen: 2" in body
+    html_part = reply.get_body(preferencelist=("html",))
+    assert html_part is not None and html_part.get_content_type() == "text/html"
+    html_body = html_part.get_content()
+    assert "Received-Stationen" in html_body and "mx.example.com" in html_body
+    assert "Hallo" not in html_body
     assert "Message-ID: <abc@example.com>" in body
     assert "Hallo" not in body                       # nie den Rumpf zurückschicken
     attachments = list(reply.iter_attachments())

@@ -6,6 +6,13 @@ zurück: Received-Kette, Authentication-Results, DKIM-Signatur, Message-ID, alle
 unverändert und zusätzlich als Anhang `headers.txt`. Der Rumpf der Mail wird
 nie zurückgeschickt.
 
+Die Antwort ist eine `multipart/alternative`-Mail. Die HTML-Ansicht ist dem
+Message Header Analyzer (mha.azurewebsites.net) nachempfunden: Zusammenfassung,
+Received-Stationen in Laufrichtung mit der Verzögerung je Hop und der
+Gesamtlaufzeit, `X-Forefront-Antispam-Report` und `X-Microsoft-Antispam`
+aufgeschlüsselt mit der Bedeutung der Schlüssel, alle übrigen Kopfzeilen als
+Tabelle. Die Textansicht enthält die rohen Kopfzeilen.
+
 Das Werkzeug ist unabhängig vom Gateway und von Microsoft 365. Es braucht ein
 IMAP/SMTP-Postfach (gedacht: IONOS) und einen Ort, an dem einmal pro Minute ein
 Python-Skript läuft. Vorgesehen ist eine **Azure Function im Consumption-Plan**;
