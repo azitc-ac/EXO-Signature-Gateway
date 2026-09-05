@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Übersicht</h1>
+<p class="hint" style="max-width:720px;margin:0 0 16px">
+  Geräte im eigenen Netz — Drucker, Scanner, Fachanwendungen — liefern hier auf
+  Port <span id="ue-port">25</span> ein; der Dienst prüft Gerät, Absender und Ziel
+  und übergibt die Nachricht an Exchange Online.
+</p>
+
+<div id="ue-warnungen" style="margin-bottom:16px"></div>
+
+<div class="stats-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px">
+  <div class="stat-card"><div class="stat-value" id="k-heute">–</div><div class="stat-label">Heute zugestellt</div></div>
+  <div class="stat-card" id="c-fehler"><div class="stat-value" id="k-fehler">–</div><div class="stat-label">Heute abgelehnt / Fehler</div></div>
+  <div class="stat-card"><div class="stat-value" id="k-geraete">–</div><div class="stat-label">Geräte</div></div>
+  <div class="stat-card" id="c-abgewiesen"><div class="stat-value" id="k-abgewiesen">–</div><div class="stat-label">Abgewiesene Adressen</div></div>
+  <div class="stat-card" id="c-adressen"><div class="stat-value" id="k-adressen">–</div><div class="stat-label">Bekannte Postfachadressen</div></div>
+</div>
+
+<div class="settings-card" style="margin-bottom:20px">
+  <h2 style="margin-top:0">Zustand</h2>
+  <table class="config-table" style="max-width:720px">
+    <tbody id="zustand-body"><tr><td colspan="2" style="color:#888">Wird geladen …</td></tr></tbody>
+  </table>
+</div>
+
+<div class="settings-card">
+  <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+    <h2 style="margin:0">Letzte Einlieferungen</h2>
+    <a href="/log" class="hint" style="margin-left:auto">Live-Protokoll</a>
+  </div>
+  <div class="tabellen-rollbereich" style="margin-top:10px">
+    <table class="config-table" style="min-width:760px">
+      <thead><tr><th>Zeit (UTC)</th><th>Gerät</th><th>Absender</th><th>An</th><th>Betreff</th><th>Ergebnis</th></tr></thead>
+      <tbody id="ereignis-body"><tr><td colspan="6" style="color:#888">Wird geladen …</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+function zeile(k, v) { return '<tr><td style="width:240px;font-weight:600">' + k + '</td><td>' + v + '</td></tr>'; }
+function ampel(ok, text) {
+  return '<span data-state="' + (ok ? 'ok' : 'err') + '" style="font-weight:600">' + (ok ? '✓ ' : '✗ ') + esc(text) + '</span>';
+}
+async function laden() {
+  const r = await getJSON('/api/uebersicht');
+  if (!r.ok) return;
+  document.getElementById('ue-port').textContent = r.smtp_port;
+  const h = r.heute || {};
+  document.getElementById('k-heute').textContent = h.relay || 0;
+  const fehler = (h.relay_abgelehnt || 0) + (h.relay_fehler || 0);
+  document.getElementById('k-fehler').textContent = fehler;
+  document.getElementById('c-fehler').classList.toggle('warn', fehler > 0);
+  document.getElementById('k-geraete').textContent = r.geraete;
+  document.getElementById('k-abgewiesen').textContent = r.abgewiesen;
+  document.getElementById('c-abgewiesen').classList.toggle('warn', r.abgewiesen > 0);
+  document.getElementById('k-adressen').textContent = r.adressen;
+  document.getElementById('c-adressen').classList.toggle('error', r.adressen === 0);
+
+  const w = [];
+  if (!r.relay_an) w.push('<strong>Das Relay ist abgeschaltet.</strong> Jede Einlieferung wird abgewiesen. Einschalten unter <a href="/einstellungen">Einstellungen</a>.');
+  if (r.adressen === 0) w.push('<strong>Keine Postfachadressen bekannt.</strong> Ohne sie lassen sich Absender und Ziel nicht prüfen — jede Einlieferung wird mit 451 abgewiesen. Postfachliste abrufen oder Adressen eintragen: <a href="/einstellungen#adressen">Einstellungen → Adressquelle</a>.');
+  if (!r.rueckweg.konfiguriert) w.push('<strong>Kein Rückweg konfiguriert.</strong> Angenommene Post kann nicht zugestellt werden. <a href="/einstellungen#rueckweg">Einstellungen → Rückweg</a>.');
+  if (!r.tls.vorhanden) w.push('<strong>Kein TLS-Zertifikat.</strong> Der Listener bietet kein STARTTLS an.');
+  const box = document.getElementById('ue-warnungen');
+  box.innerHTML = w.map(function (t) {
+    return '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;font-size:13px;color:#92400e;margin-bottom:8px">' + t + '</div>';
+  }).join('');
+
+  const z = [];
+  z.push(zeile('Relay', ampel(r.relay_an, r.relay_an ? 'eingeschaltet' : 'abgeschaltet') + (r.lernmodus ? ' · <span style="color:#92400e">Lernmodus läuft</span>' : '')));
+  z.push(zeile('Rückweg', ampel(r.rueckweg.konfiguriert, (r.rueckweg.modus === 'submit' ? 'Port 587 (Konto) → ' : 'Smarthost Port 25 → ') + (r.rueckweg.ziel || '—'))));
+  const e = r.exo || {};
+  z.push(zeile('Postfachliste', esc(String(e.postfaecher)) + ' aus Exchange Online' + (e.handeintraege ? ' + ' + e.handeintraege + ' von Hand' : '')
+    + (e.letzter_erfolg ? ' · Stand ' + esc(e.letzter_erfolg) : '')
+    + (e.letzter_fehler ? ' · <span data-state="err">' + esc(e.letzter_fehler) + '</span>' : '')
+    + (!e.abfrage_moeglich ? ' · <span class="hint">' + esc(e.abfrage_hinweis) + '</span>' : '')));
+  z.push(zeile('TLS-Zertifikat', r.tls.vorhanden
+    ? ampel(true, (r.tls.hostnames || []).join(', ') + ' · bis ' + (r.tls.not_after || '').slice(0, 10) + (r.tls.selbstsigniert ? ' · selbstsigniert' : ''))
+    : ampel(false, 'fehlt')));
+  z.push(zeile('Geräte', r.geraete + ' eingetragen' + (r.gesperrt ? ', ' + r.gesperrt + ' gesperrt' : '') + (r.klartext ? ', ' + r.klartext + ' im Klartext' : '')));
+  document.getElementById('zustand-body').innerHTML = z.join('');
+
+  const tb = document.getElementById('ereignis-body');
+  if (!(r.ereignisse || []).length) {
+    tb.innerHTML = '<tr><td colspan="6" style="color:#888">Noch keine Einlieferung.</td></tr>';
+    return;
+  }
+  const label = {relay: 'zugestellt', relay_abgelehnt: 'abgelehnt', relay_fehler: 'Zustellfehler'};
+  tb.innerHTML = r.ereignisse.map(function (ev) {
+    const ok = ev.action === 'relay';
+    return '<tr><td style="white-space:nowrap;font-size:12px">' + esc((ev.ts || '').replace('T', ' ').replace('Z', '')) + '</td>'
+      + '<td><code>' + esc(ev.quelle || '—') + '</code></td>'
+      + '<td style="font-size:12px">' + esc(ev.sender || '—') + '</td>'
+      + '<td style="font-size:12px">' + esc((ev.recipients || []).slice(0, 3).join(', ')) + '</td>'
+      + '<td style="font-size:12px">' + esc(ev.subject || '') + '</td>'
+      + '<td><span data-state="' + (ok ? 'ok' : 'err') + '">' + esc(label[ev.action] || ev.action) + '</span>'
+      + (ev.error ? '<div class="hint" style="margin:2px 0 0">' + esc(ev.error) + '</div>' : '') + '</td></tr>';
+  }).join('');
+}
+laden();
+setInterval(laden, 30000);
+</script>
+{% endblock %}
