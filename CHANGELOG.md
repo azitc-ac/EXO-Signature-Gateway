@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.72 — 2026-09-05 — Regel-Split: Ein-Element-Mitgliederliste brach die Einrichtung ab
+
+Beim Aktivieren der getrennten Route (v1.8.70) brach die Einrichtung mit „The
+property 'Count' cannot be found" ab, sobald ein Weg **genau ein** Postfach hatte:
+Eine PowerShell-Hilfsfunktion, die eine Liste zurückgibt, wird beim Zuweisen an
+eine Variable im Ein-Element-Fall zu einem Einzelwert entpackt — der spätere
+Zugriff auf `.Count` schlägt dann fehl. Behoben, indem die Zuweisung die Liste
+erzwingt (dieselbe Falle, die im DG-Update-Skript bereits vermerkt war).
+
+Betrifft nur die (opt-in, standardmäßig ausgeschaltete) Regeltrennung.
+
 ## v1.8.71 — 2026-09-05 — IMAP-Zugriff nur noch auf aktive Postfächer (Least Privilege)
 
 Für den IMAP-Modus (Rückeinspeisung per IMAP APPEND) registriert das Setup einen

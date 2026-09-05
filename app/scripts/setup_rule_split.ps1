@@ -47,8 +47,11 @@ $sigRule     = "Route via $GatewayName"
 $smimeRule   = "Route via $GatewayName (S/MIME)"
 $connector   = "$GatewayName - Outbound"
 
-$sigList   = Split-List $SigMembers
-$smimeList = Split-List $SmimeMembers
+# ⚠️ @() ZWINGEND an der Zuweisung: eine Funktion, die @(...) liefert, wird beim
+# Zuweisen zu einem Skalar entpackt (Ein-Element-Fall) → .Count fehlt unter
+# Set-StrictMode. Gleiche Falle wie in update_mailbox_dg.ps1.
+$sigList   = @(Split-List $SigMembers)
+$smimeList = @(Split-List $SmimeMembers)
 
 # ── DG anlegen + Mitglieder synchronisieren ──────────────────────────────────
 function Sync-Dg([string]$dgName, [string[]]$desired) {
