@@ -1,0 +1,13 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "ECHO_MAIL_USER": "echo@azitc.org",
+    "ECHO_MAIL_PASSWORD": "",
+    "ECHO_IMAP_HOST": "imap.ionos.de",
+    "ECHO_SMTP_HOST": "smtp.ionos.de",
+    "ECHO_REQUIRE_AUTH_PASS": "true",
+    "ECHO_DRY_RUN": "true"
+  }
+}
