@@ -48,8 +48,21 @@ jobs:
       # privat und hier nicht ausgecheckt — deshalb der eingeschränkte Modus,
       # der nur die Gateway-Prüfungen fährt. Die Spiegelung der gemeinsamen
       # Dateien wird beim Hub-Lauf geprüft, wo beide Bäume vorliegen.
-      - name: Drift-Prüfung (nur Gateway)
-        run: python tools/driftcheck.py --gateway-only
+      # Das EXO SMTP Relay (oeffentlich) fuehrt gespiegelte Kopien von
+      # smtp_relay.py, relay_hosts.py, secure_io.py u.a. Hier faellt auf, wenn
+      # das RELAY eine davon geaendert hat; die Gegenrichtung prueft das Relay
+      # naechtlich. Ausgecheckt und gleich wieder entfernt, damit die folgenden
+      # Pruefungen (darkcheck, routencheck, …) nicht in den fremden Baum laufen.
+      - name: EXO SMTP Relay auschecken
+        uses: actions/checkout@v4
+        with:
+          repository: azitc-ac/exo-smtp-relay
+          path: relay-repo
+
+      - name: Drift-Prüfung (Gateway und Relay-Spiegelung)
+        run: |
+          python tools/driftcheck.py --gateway-only --relay relay-repo
+          rm -rf relay-repo
 
       - name: Dark Mode
         run: python tools/darkcheck.py app/webui/templates app/webui/static/dark-mode.css

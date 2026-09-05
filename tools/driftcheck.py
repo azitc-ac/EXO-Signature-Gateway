@@ -17,6 +17,7 @@ AUFRUF
 ------
     python3 tools/driftcheck.py                 # beide Anwendungen
     python3 tools/driftcheck.py --gateway-only
+    python3 tools/driftcheck.py --relay PFAD    # zusaetzlich gegen das EXO SMTP Relay
 
 Rückgabe 1, wenn eine echte Lücke gefunden wurde. Bekannte, bewusst akzeptierte
 Fälle stehen in ACCEPTED — mit Begründung, nicht nur mit Namen.
@@ -31,6 +32,10 @@ from pathlib import Path
 
 GATEWAY = Path(__file__).resolve().parent.parent
 HUB = GATEWAY.parent / "sig-provider"
+# Das EXO SMTP Relay — die Auskopplung des Relays als eigener Dienst. Welche
+# Dateien gespiegelt sind, weiss das Relay selbst (tools/driftcheck.py dort);
+# die Liste wird von dort geladen, damit es nur EINE Quelle gibt.
+RELAY = GATEWAY.parent / "exo-smtp-relay"
 
 # Bewusst akzeptierte Ausnahmen: Datei → Grund. Wer hier etwas einträgt, muss
 # den Grund hinschreiben; "später" ist kein Grund.
@@ -280,6 +285,50 @@ def check_mirrored(rep: Report, hub_verfuegbar: bool = True) -> None:
             rep.note(f"{rel}: identisch ({ha[:8]})")
 
 
+def _relay_mirrored(relay: Path) -> list[tuple[str, str]]:
+    """Die Spiegelliste des Relays aus dessen driftcheck.py — ohne es auszuführen."""
+    import importlib.util
+    quelle = relay / "tools" / "driftcheck.py"
+    spec = importlib.util.spec_from_file_location("relay_driftcheck", quelle)
+    modul = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(modul)
+    return list(modul.MIRRORED)
+
+
+def check_relay_mirrored(rep: Report, relay: Path | None) -> None:
+    """Gespiegelte Dateien Gateway ↔ EXO SMTP Relay.
+
+    Die Gegenrichtung zum naechtlichen Abgleich im Relay-Repo: Dort faellt auf,
+    wenn das GATEWAY eine Regel aendert; hier faellt auf, wenn das RELAY eine
+    aendert — und zwar beim naechsten Gateway-Lauf, nicht erst, wenn jemand die
+    beiden Klone nebeneinanderlegt. Das Relay-Repo ist oeffentlich, die CI
+    checkt es ohne Token aus.
+    """
+    if relay is None or not (relay / "tools" / "driftcheck.py").is_file():
+        rep.note("Relay-Spiegelung uebersprungen — Relay-Baum nicht vorhanden "
+                 f"({RELAY} oder --relay PFAD)")
+        return
+    try:
+        liste = _relay_mirrored(relay)
+    except Exception as exc:                                   # noqa: BLE001
+        rep.fail(f"Relay-Spiegelliste nicht lesbar ({relay / 'tools/driftcheck.py'}): {exc}")
+        return
+    for rel, why in liste:
+        a, b = GATEWAY / rel, relay / rel
+        if not a.is_file() or not b.is_file():
+            missing = "Gateway" if not a.is_file() else "Relay"
+            rep.fail(f"{rel} fehlt in {missing} — muss in Gateway und Relay gleich sein ({why})")
+            continue
+        ha = hashlib.sha256(a.read_bytes()).hexdigest()
+        hb = hashlib.sha256(b.read_bytes()).hexdigest()
+        if ha != hb:
+            rep.fail(f"{rel} weicht vom Relay ab (Gateway {ha[:8]} / Relay {hb[:8]}) — "
+                     f"im Relay `tools/spiegel_holen.py --uebernehmen`, oder die "
+                     f"Relay-Fassung hierher kopieren ({why})")
+        else:
+            rep.note(f"{rel}: identisch mit dem Relay ({ha[:8]})")
+
+
 # ── 5. Geheimnisse ohne secure_io schreiben ──────────────────────────────────
 def check_secret_writes(rep: Report, roots: list[tuple[str, Path]]) -> None:
     ok = 0
@@ -409,7 +458,9 @@ def check_pinned_requirements(rep: Report, roots: list[tuple[str, Path]]) -> Non
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--gateway-only", action="store_true")
+    ap.add_argument("--relay", help="Pfad zum EXO-SMTP-Relay-Baum (Vorgabe: ../exo-smtp-relay)")
     args = ap.parse_args()
+    relay = Path(args.relay) if args.relay else (RELAY if RELAY.is_dir() else None)
 
     roots = [("Gateway", GATEWAY)]
     if not args.gateway_only:
@@ -423,6 +474,7 @@ def main() -> int:
     check_escapers(rep, roots)
     check_atomic_writes(rep, roots)
     check_mirrored(rep, hub_verfuegbar=hub_da)
+    check_relay_mirrored(rep, relay)
     check_secret_writes(rep, roots)
     check_gateway_template_secrets(rep)
     check_pinned_requirements(rep, roots)
