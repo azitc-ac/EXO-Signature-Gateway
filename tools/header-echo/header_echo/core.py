@@ -227,6 +227,7 @@ def build_reply(cfg: Config, msg: Message, raw_header: bytes, target: str,
         f"Authentifizierung:  {auth or '(nicht geprüft)'}\n"
         f"\n"
         f"Die Kopfzeilen folgen unverändert, zusätzlich als Anhang headers.txt.\n"
+        f"Die HTML-Ansicht dieser Mail zeigt sie aufbereitet wie im Message Header Analyzer.\n"
         f"Diese Antwort wurde automatisch erzeugt; Antworten darauf werden nicht gelesen.\n"
         f"\n"
         f"---------- Kopfzeilen ----------\n"
@@ -246,6 +247,8 @@ def build_reply(cfg: Config, msg: Message, raw_header: bytes, target: str,
         reply["In-Reply-To"] = message_id
         reply["References"] = message_id
     reply.set_content(body, charset="utf-8")
+    from .report import build_html          # hier, nicht oben: report importiert core
+    reply.add_alternative(build_html(msg, cfg.echo_from, auth, now), subtype="html", charset="utf-8")
     reply.add_attachment(header_text.encode("utf-8"), maintype="text", subtype="plain",
                          filename="headers.txt")
     return reply
