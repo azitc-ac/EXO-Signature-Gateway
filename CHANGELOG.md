@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.73 — 2026-09-05 — Werkzeug: Spiegelprüfung gegen das EXO SMTP Relay
+
+Das SMTP-Relay lebt seit v0.2.0 als eigener Dienst im Repository
+`azitc-ac/exo-smtp-relay` (öffentlich). Zehn Dateien sind dort geprüfte Kopien
+aus dem Gateway (`smtp_relay.py`, `relay_hosts.py`, `secure_io.py`, `common.js`
+u.a.). `tools/driftcheck.py` vergleicht sie jetzt auch in dieser Richtung
+(`--relay PFAD`, Vorgabe `../exo-smtp-relay`); die Liste, WAS gespiegelt ist,
+liest es aus dem Relay-Baum, damit es nur eine Quelle gibt. Die CI checkt das
+Relay-Repo aus und prüft mit — so fällt eine Änderung am Relay-Kern beim
+nächsten Gateway-Lauf auf, nicht erst, wenn jemand beide Klone nebeneinanderlegt.
+Die Gegenrichtung (Gateway ändert eine Regel) prüft das Relay nächtlich und
+öffnet dort einen PR. Kein Produktcode geändert.
+
 ## v1.8.72 — 2026-09-05 — Regel-Split: Ein-Element-Mitgliederliste brach die Einrichtung ab
 
 Beim Aktivieren der getrennten Route (v1.8.70) brach die Einrichtung mit „The
