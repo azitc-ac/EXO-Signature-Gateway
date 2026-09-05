@@ -48,16 +48,23 @@ jobs:
       # privat und hier nicht ausgecheckt — deshalb der eingeschränkte Modus,
       # der nur die Gateway-Prüfungen fährt. Die Spiegelung der gemeinsamen
       # Dateien wird beim Hub-Lauf geprüft, wo beide Bäume vorliegen.
-      # Das EXO SMTP Relay (oeffentlich) fuehrt gespiegelte Kopien von
-      # smtp_relay.py, relay_hosts.py, secure_io.py u.a. Hier faellt auf, wenn
-      # das RELAY eine davon geaendert hat; die Gegenrichtung prueft das Relay
-      # naechtlich. Ausgecheckt und gleich wieder entfernt, damit die folgenden
-      # Pruefungen (darkcheck, routencheck, …) nicht in den fremden Baum laufen.
+      # Das EXO SMTP Relay fuehrt gespiegelte Kopien von smtp_relay.py,
+      # relay_hosts.py, secure_io.py u.a. Hier faellt auf, wenn das RELAY eine
+      # davon geaendert hat; die Gegenrichtung prueft das Relay naechtlich.
+      # Ausgecheckt und gleich wieder entfernt, damit die folgenden Pruefungen
+      # (darkcheck, routencheck, …) nicht in den fremden Baum laufen.
+      #
+      # Zugriff: Ist das Relay-Repo oeffentlich, reicht das eingebaute Token.
+      # Ist es privat, braucht dieses Repo das Secret RELAY_TOKEN (Fine-grained
+      # PAT, nur azitc-ac/exo-smtp-relay, Contents: Read-only) — das Token
+      # eines Repos sieht kein anderes privates Repo, auch nicht in derselben
+      # Organisation ("Not Found" beim Auschecken).
       - name: EXO SMTP Relay auschecken
         uses: actions/checkout@v4
         with:
           repository: azitc-ac/exo-smtp-relay
           path: relay-repo
+          token: ${{ secrets.RELAY_TOKEN || github.token }}
 
       - name: Drift-Prüfung (Gateway und Relay-Spiegelung)
         run: |
