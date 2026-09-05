@@ -36,7 +36,9 @@ MIRRORED: list[tuple[str, str]] = [
     ("app/webui/static/dark-mode.css", "Dunkelmodus"),
 ]
 
-KANDIDATEN = (RELAY.parent, RELAY.parent / "EXO-Signature-Gateway", RELAY.parent.parent / "EXO-Signature-Gateway")
+# Das Gateway daneben (eigenes Repo: ../EXO-Signature-Gateway) oder darüber
+# (Monorepo-Phase, als der Baum unter relay/ lag).
+KANDIDATEN = (RELAY.parent / "EXO-Signature-Gateway", RELAY.parent, RELAY.parent.parent / "EXO-Signature-Gateway")
 
 
 def _sha(p: Path) -> str:

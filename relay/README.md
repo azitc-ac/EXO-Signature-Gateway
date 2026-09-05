@@ -75,7 +75,7 @@ Wer das grosse Gateway betreibt, kann dessen `auth.pfx` und App-ID übernehmen.
 ### Docker (Linux, Raspberry Pi)
 
 ```bash
-git clone <dieses Repository> exo-smtp-relay && cd exo-smtp-relay
+git clone https://github.com/azitc-ac/exo-smtp-relay.git && cd exo-smtp-relay
 docker compose up -d --build
 ```
 
@@ -170,19 +170,12 @@ Was das Relay bewusst **nicht** hat: Signaturen, S/MIME, ACME, Graph, Microsoft-
 Login, Hub-Anbindung. Wer das braucht, betreibt das Gateway — dessen Relay ist
 dasselbe.
 
-### Eigenes Repository
+### Herkunft
 
-Dieser Baum liegt zunächst als `relay/` im Gateway-Repository. Er ist so
-gebaut, dass er samt Historie in ein eigenes Repository wandern kann:
-
-```bash
-git subtree split --prefix=relay -b relay-main
-git push git@github.com:azitc-ac/exo-smtp-relay.git relay-main:main
-```
-
-Die CI (`.github/workflows/ci.yml`) und die Tests setzen das Gateway nicht
-voraus; die Spiegelprüfung überspringt sich, wenn kein Gateway-Baum daneben
-liegt.
+Der Dienst entstand als Auskopplung aus dem Gateway
+([Pull Request #1](https://github.com/azitc-ac/EXO-Signature-Gateway/pull/1)),
+in dem die Entstehung Schritt für Schritt nachlesbar ist. Seit v0.2.0 lebt er
+in diesem eigenen Repository.
 
 ---
 
