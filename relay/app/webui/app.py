@@ -1,6 +1,6 @@
-"""Die Weboberfläche — Anmeldung, Übersicht, Geräte, Einstellungen, Protokoll.
+"""Die Weboberfläche — Dashboard, Einrichtung, Einstellungen, Protokoll.
 
-Vier Routenmodule, ein Fundament (`deps.py`). Die Schnittstellenbeschreibung
+Fünf Routenmodule, ein Fundament (`deps.py`). Die Schnittstellenbeschreibung
 (/docs, /openapi.json) ist abgeschaltet: Für einen Dienst, der mit Port 25 im
 Netz steht, ist die Landkarte der eigenen Angriffsfläche keine Beigabe.
 """
@@ -22,13 +22,15 @@ app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 
 from webui.routen import anmeldung as _routen_anmeldung        # noqa: E402
 from webui.routen import betrieb as _routen_betrieb            # noqa: E402
+from webui.routen import einrichtung as _routen_einrichtung    # noqa: E402
 from webui.routen import einstellungen as _routen_einstellungen  # noqa: E402
 from webui.routen import relay as _routen_relay                # noqa: E402
 
 # EINE Quelle: hieraus werden die Router eingebunden, und die Tests zählen
 # daraus die Routen ab (include_router kopiert ab FastAPI 0.139 nicht mehr
 # nach app.routes).
-ROUTENMODULE = (_routen_anmeldung, _routen_betrieb, _routen_einstellungen, _routen_relay)
+ROUTENMODULE = (_routen_anmeldung, _routen_betrieb, _routen_einrichtung,
+                _routen_einstellungen, _routen_relay)
 for _modul in ROUTENMODULE:
     app.include_router(_modul.router)
 

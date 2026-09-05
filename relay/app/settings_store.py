@@ -35,6 +35,13 @@ DEFAULTS: dict = {
     "ADMIN_PASSWORD_HASH": "",
     "SESSION_SECRET": "",
     "PUBLIC_HOSTNAME": "",          # Hostname, unter dem Exchange den Dienst erreicht
+    "SETUP_COMPLETE": False,        # Assistent abgeschlossen — vorher leitet "/" dorthin
+
+    # ── Einrichtung über Entra (Assistent) ───────────────────────────────────
+    "BOOTSTRAP_CLIENT_ID": "",      # eigene Login-App (Public Client) für den Assistenten
+    "BOOTSTRAP_REDIRECT_URIS": [],  # dort registrierte Rückadressen (nach erstem Login bekannt)
+    "TENANT_ID": "",
+    "AZURE_APP_CREATED": False,     # App-Registrierung samt Zertifikat steht
 
     # ── Rückweg zu Exchange Online ───────────────────────────────────────────
     "EXO_SMARTHOST": "",            # <tenant>.mail.protection.outlook.com

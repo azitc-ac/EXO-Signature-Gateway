@@ -70,12 +70,13 @@ class RelayHandler:
         tls = bool(getattr(session, "ssl", None))
         t0 = time.monotonic()
 
-        def _audit(action: str, *, subject: str = "", mid: str = "", error: str | None = None) -> None:
+        def _audit(action: str, *, subject: str = "", mid: str = "", error: str | None = None,
+                   extern: bool = False) -> None:
             try:
                 mail_audit.log_event(sender=sender, recipients=recipients, subject=subject,
                                      message_id=mid, action=action, size_bytes=len(raw),
                                      processing_ms=int((time.monotonic() - t0) * 1000),
-                                     error=error, quelle=peer_ip)
+                                     error=error, quelle=peer_ip, tls=tls, extern=extern)
             except Exception as exc:                          # noqa: BLE001
                 log.warning("mail_audit: %s nicht protokolliert: %s", action, exc)
 
@@ -99,6 +100,11 @@ class RelayHandler:
             return antwort
 
         # ── 3. Zustellen ─────────────────────────────────────────────────────
+        # Fürs Dashboard: ging etwas nach draussen? Gemessen an den bekannten
+        # Adressen — dieselbe Frage, die `pruefe()` für die Zielgrenze stellt.
+        import exo_mailboxes
+        bekannt = exo_mailboxes.known_addresses()
+        extern = any((r or "").strip().lower() not in bekannt for r in recipients)
         subject, mid = "", ""
         try:
             msg = email.message_from_bytes(raw)
@@ -113,12 +119,12 @@ class RelayHandler:
             # smtplib blockiert — nicht auf der Ereignisschleife des Listeners.
             await asyncio.to_thread(smarthost.send, sender, recipients, inhalt)
         except Exception as exc:                              # noqa: BLE001
-            _audit("relay_fehler", subject=subject, mid=mid, error=str(exc)[:300])
+            _audit("relay_fehler", subject=subject, mid=mid, error=str(exc)[:300], extern=extern)
             # 4xx: Das Gerät soll es erneut versuchen. Die Post ist NICHT
             # angenommen — lieber ein Wiederversuch als ein stiller Verlust.
             return "451 4.4.1 Zustellung an Exchange Online fehlgeschlagen, bitte erneut versuchen"
 
         relay_hosts.merke_zustellung(peer_ip, tls=tls)
-        _audit("relay", subject=subject, mid=mid)
+        _audit("relay", subject=subject, mid=mid, extern=extern)
         log.info("SMTP-Relay: %s → %s (von %s)", sender, ", ".join(recipients[:3]), peer_ip)
         return "250 OK"
