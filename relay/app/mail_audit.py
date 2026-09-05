@@ -49,18 +49,27 @@ def init_db() -> None:
                 size_bytes    INTEGER,
                 processing_ms INTEGER,
                 error         TEXT,
-                quelle        TEXT
+                quelle        TEXT,
+                -- 1 = mit STARTTLS, 0 = Klartext; 1 = mindestens ein Ziel ausserhalb
+                tls           INTEGER NOT NULL DEFAULT 0,
+                extern        INTEGER NOT NULL DEFAULT 0
             )
         """)
         conn.execute("CREATE INDEX IF NOT EXISTS idx_ts     ON mail_log(ts)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_action ON mail_log(action)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_quelle ON mail_log(quelle)")
+        vorhanden = {z["name"] for z in conn.execute("PRAGMA table_info(mail_log)")}
+        for spalte in ("tls", "extern"):
+            if spalte not in vorhanden:
+                conn.execute(f"ALTER TABLE mail_log ADD COLUMN {spalte} INTEGER NOT NULL DEFAULT 0")
     _initialised = True
     log.info("mail_audit: Datenbank bereit unter %s", DB_PATH)
 
 
 def log_event(*, sender: str, recipients: list[str], subject: str, message_id: str,
               action: str, size_bytes: int = 0, processing_ms: int = 0,
-              error: str | None = None, quelle: str = "") -> None:
+              error: str | None = None, quelle: str = "", tls: bool = False,
+              extern: bool = False) -> None:
     if not _initialised:
         log.warning("mail_audit: log_event(%s) verworfen — Datenbank nicht bereit", action)
         return
@@ -69,9 +78,10 @@ def log_event(*, sender: str, recipients: list[str], subject: str, message_id: s
         with _lock, _conn() as conn:
             conn.execute(
                 "INSERT INTO mail_log (ts, sender, recipients, subject, message_id, action, "
-                "size_bytes, processing_ms, error, quelle) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                "size_bytes, processing_ms, error, quelle, tls, extern) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                 (ts, sender, json.dumps(recipients, ensure_ascii=False), subject, message_id,
-                 action, size_bytes, processing_ms, error, quelle))
+                 action, size_bytes, processing_ms, error, quelle, int(bool(tls)), int(bool(extern))))
     except Exception as exc:                                  # noqa: BLE001
         log.warning("mail_audit: Schreiben fehlgeschlagen: %s", exc)
 
@@ -121,6 +131,44 @@ def zaehler_heute() -> dict[str, int]:
     except Exception as exc:                                  # noqa: BLE001
         log.warning("mail_audit: Tageszähler fehlgeschlagen: %s", exc)
         return {}
+
+
+def auswertung(tage: int = 30) -> dict:
+    """Für das Dashboard: je Gerät, was in den letzten `tage` Tagen geschah.
+
+    Liefert {"quellen": {ip: {...}}, "gesamt": {...}} mit je: zugestellt, tls,
+    klartext, intern, extern, abgelehnt, fehler. Die Zahlen kommen aus dem
+    Mail-Protokoll, nicht aus den Tageszählern der Geräteliste: Nur hier steht,
+    OB eine Einlieferung verschlüsselt war und WOHIN sie ging.
+    """
+    leer = lambda: {"zugestellt": 0, "tls": 0, "klartext": 0, "intern": 0, "extern": 0,  # noqa: E731
+                    "abgelehnt": 0, "fehler": 0}
+    if not _initialised:
+        return {"quellen": {}, "gesamt": leer()}
+    grenze = (datetime.now(timezone.utc) - timedelta(days=tage)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    try:
+        with _conn() as conn:
+            zeilen = conn.execute(
+                "SELECT quelle, "
+                "SUM(CASE WHEN action='relay' THEN 1 ELSE 0 END) AS zugestellt, "
+                "SUM(CASE WHEN action='relay' AND tls=1 THEN 1 ELSE 0 END) AS tls, "
+                "SUM(CASE WHEN action='relay' AND tls=0 THEN 1 ELSE 0 END) AS klartext, "
+                "SUM(CASE WHEN action='relay' AND extern=0 THEN 1 ELSE 0 END) AS intern, "
+                "SUM(CASE WHEN action='relay' AND extern=1 THEN 1 ELSE 0 END) AS extern, "
+                "SUM(CASE WHEN action='relay_abgelehnt' THEN 1 ELSE 0 END) AS abgelehnt, "
+                "SUM(CASE WHEN action='relay_fehler' THEN 1 ELSE 0 END) AS fehler "
+                "FROM mail_log WHERE ts >= ? GROUP BY quelle", (grenze,)).fetchall()
+    except Exception as exc:                                  # noqa: BLE001
+        log.warning("mail_audit: Auswertung fehlgeschlagen: %s", exc)
+        return {"quellen": {}, "gesamt": leer()}
+    quellen: dict[str, dict] = {}
+    gesamt = leer()
+    for z in zeilen:
+        d = {k: int(z[k] or 0) for k in gesamt}
+        quellen[z["quelle"] or "?"] = d
+        for k in gesamt:
+            gesamt[k] += d[k]
+    return {"quellen": quellen, "gesamt": gesamt, "tage": tage}
 
 
 def prune_old_events(retention_days: int = 90) -> int:

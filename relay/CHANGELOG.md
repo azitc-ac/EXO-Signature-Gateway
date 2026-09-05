@@ -1,5 +1,21 @@
 # Changelog — EXO SMTP Relay
 
+## 0.2.0 — 2026-09-05 — Einrichtungsassistent und Dashboard
+
+- **Einrichtung** in sechs Schritten wie beim Gateway: Passwort, Hostname
+  (TLS-Zertifikat wird darauf ausgestellt), Entra-Login, Connector, Geräte,
+  Abschluss. Der Entra-Login legt im Hintergrund die App-Registrierung an
+  (nur `Exchange.ManageAsApp`, kein Geheimnis), erteilt die Zustimmung, weist
+  die Rolle Exchange-Administrator zu, erzeugt das Auth-Zertifikat, lädt es
+  hoch, erkennt Tenant und Smarthost und trägt die Rückadresse an der
+  Login-App nach. Die Startseite führt dorthin, bis der Abschluss geklickt ist.
+- **Dashboard** statt Übersicht und Geräteseite: je Gerät die Einlieferungen im
+  gewählten Zeitraum (heute / 7 / 30 / 90 Tage) mit TLS, Klartext, intern,
+  extern, abgelehnt — dazu Geräteverwaltung, Abweisungen und Lernmodus.
+  Das Mail-Protokoll hält dafür je Einlieferung fest, ob sie verschlüsselt kam
+  und ob ein Ziel ausserhalb lag.
+- Vier Seiten: Dashboard, Einrichtung, Einstellungen, Protokolle.
+
 ## 0.1.0 — 2026-09-04
 
 Erste Fassung: das SMTP-Relay des EXO Signature Gateway als eigenständiger,

@@ -1,4 +1,4 @@
-"""Routen des Relays — Geräteliste, Lernmodus, Abweisungen.
+"""Schnittstelle des Relays — Geräteliste, Lernmodus, Abweisungen (Seite: Dashboard).
 
 Inhaltlich das Routenmodul des Gateways; Abweichungen: kein `REINJECT_MODE`
 (hier fest `smtp`), und der Zustand der Adressquelle wird mitgeliefert, weil
@@ -11,14 +11,14 @@ import ipaddress
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import JSONResponse
 
 import exo_mailboxes
 import relay_hosts
 import settings_store
 import smtp_relay
 
-from webui.deps import templates, log, _gateway_name, _require_admin
+from webui.deps import log, _require_admin
 
 router = APIRouter()
 
@@ -34,14 +34,6 @@ def _zustand() -> dict:
         "max_minuten": smtp_relay.MAX_LERNDAUER_MIN,
         "standard_minuten": smtp_relay.STANDARD_LERNDAUER_MIN,
     }
-
-
-@router.get("/relay", response_class=HTMLResponse)
-async def relay_page(request: Request, user: str = Depends(_require_admin)):
-    return templates.TemplateResponse(
-        request=request, name="relay.html",
-        context={"active": "relay", "gateway_name": _gateway_name(),
-                 "fenster": list(relay_hosts.FENSTER)})
 
 
 @router.get("/api/relay/liste")

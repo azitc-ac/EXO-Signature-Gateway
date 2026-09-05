@@ -25,8 +25,8 @@
         <div class="nav-links" id="nav-links">
             <ul>
                 {% if active != 'login' %}
-                <li><a href="/" class="{% if active == 'uebersicht' %}active{% endif %}">Übersicht</a></li>
-                <li><a href="/relay" class="{% if active == 'relay' %}active{% endif %}">Geräte</a></li>
+                <li><a href="/" class="{% if active == 'dashboard' %}active{% endif %}">Dashboard</a></li>
+                <li><a href="/einrichtung" class="{% if active == 'einrichtung' %}active{% endif %}">Einrichtung</a></li>
                 <li><a href="/einstellungen" class="{% if active == 'einstellungen' %}active{% endif %}">Einstellungen</a></li>
                 <li><a href="/log" class="{% if active == 'log' %}active{% endif %}">Protokolle</a></li>
                 {% endif %}
@@ -89,7 +89,7 @@
       <strong>Lernmodus läuft</strong>
       <span>Geräte aus dem freigegebenen Bereich dürfen einliefern und werden
         aufgenommen — noch {{ _lern_rest }} Minute{{ '' if _lern_rest == 1 else 'n' }}.</span>
-      <a href="/relay" style="color:#92400e;font-weight:700;margin-left:auto">Zur Geräteliste</a>
+      <a href="/" style="color:#92400e;font-weight:700;margin-left:auto">Zum Dashboard</a>
     </div>
     {% endif %}
 

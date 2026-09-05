@@ -9,7 +9,10 @@ WURZEL = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(WURZEL / "app"))
 
 # Ohne Anmeldung erreichbar — namentlich, damit es eine Entscheidung bleibt.
-OHNE_WACHE = {"/auth/login", "/auth/local", "/auth/logout", "/health", "/log/stream", "/static"}
+# `/auth/callback` führt ohne Sitzung nichts aus (siehe einrichtung.py), ist aber
+# erreichbar, weil Microsoft dorthin zurückleitet.
+OHNE_WACHE = {"/auth/login", "/auth/local", "/auth/logout", "/auth/callback", "/health",
+              "/log/stream", "/static"}
 
 
 @pytest.fixture
@@ -64,11 +67,17 @@ def test_jede_route_verlangt_anmeldung(client):
 
 
 def test_seiten_nach_anmeldung(client):
+    import settings_store
     _anmelden(client)
-    for pfad in ("/", "/relay", "/einstellungen", "/log"):
+    r = client.get("/", follow_redirects=False)
+    assert r.status_code == 302 and r.headers["location"] == "/einrichtung", (
+        "vor dem Abschluss der Einrichtung führt die Startseite dorthin")
+    settings_store.update({"SETUP_COMPLETE": True})
+    for pfad in ("/", "/einrichtung", "/einstellungen", "/log"):
         r = client.get(pfad)
         assert r.status_code == 200, pfad
         assert "<nav" in r.text
+    assert client.get("/relay").status_code == 404, "die alte Geräteseite gibt es nicht mehr"
 
 
 def test_falsches_passwort_wird_gedrosselt(client):

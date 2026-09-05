@@ -108,31 +108,45 @@ Für die Postfachabfrage wird `pwsh` getrennt installiert.
 
 ---
 
-## Einrichtung in fünf Schritten
+## Einrichtung — wenige Klicks
 
-1. **Einstellungen → Relay**: Hostname eintragen, unter dem Exchange den Dienst
-   erreicht (steht im TLS-Zertifikat und im Connector).
-2. **Rückweg**: Smarthost `<domäne-mit-bindestrichen>.mail.protection.outlook.com`
-   eintragen, *Verbindung testen*.
-3. **Anmeldung als Anwendung**: Tenant-Domäne und App-ID eintragen,
-   Auth-Zertifikat erzeugen, `.cer` herunterladen und in Entra bei der
-   App-Registrierung hochladen. *Anmeldung testen*.
-4. **Adressquelle**: *Jetzt abrufen* — die Postfachliste erscheint. Oder Adressen
-   von Hand eintragen.
-5. **Inbound-Connector**: anlegen (Zertifikat- oder Adressvariante), dann
-   **Geräte**: Lernmodus starten und an jedem Gerät einen Testdruck auslösen —
-   oder Geräte von Hand eintragen.
+Die Startseite führt nach der Anmeldung zum **Einrichtungsassistenten**
+(`/einrichtung`), bis dieser abgeschlossen ist. Sechs Schritte, jeder mit
+sichtbarem Zustand:
+
+1. **Adminzugang sichern** — eigenes Passwort.
+2. **Hostname** — der Name, unter dem Exchange den Dienst kennt. Das
+   TLS-Zertifikat wird selbstsigniert darauf ausgestellt.
+3. **Entra-Login** — einmal als Entra-Administrator anmelden. Im Hintergrund
+   legt der Dienst die App-Registrierung an (nur `Exchange.ManageAsApp`, kein
+   Geheimnis), erteilt die Zustimmung, weist die Rolle Exchange-Administrator
+   zu, erzeugt das Auth-Zertifikat und lädt es hoch, erkennt Tenant und
+   Smarthost und holt die Postfachliste. Für den Login dient eine kleine
+   Login-App (Public Client); wer das Gateway betreibt, trägt dessen
+   „… Login"-App ein.
+4. **Inbound-Connector** — Zertifikat- oder IP-Variante, per PowerShell.
+5. **Geräte** — Lernmodus starten und an jedem Gerät einen Testversand
+   auslösen, oder Geräte von Hand eintragen.
+6. **Abschluss** — danach führt die Startseite zum Dashboard.
+
+Alles, was der Assistent setzt, lässt sich unter *Einstellungen* ändern. Ohne
+Entra-Login geht es auch: App-ID, Tenant und Zertifikat von Hand, oder ganz ohne
+App-Registrierung mit Adressen von Hand.
 
 ---
 
 ## Betrieb
 
-- **Übersicht**: Zustand von Relay, Rückweg, Adressquelle und Zertifikat; Zähler
-  des Tages; letzte Einlieferungen mit Grund einer Ablehnung.
-- **Geräte**: Liste mit Sendeaufkommen der letzten 30/90/180/360 Tage, Sperren,
-  Kommentar und Ansprechpartner; die Spalte *TLS* zeigt, wer im Klartext liefert.
-  Abgewiesene Adressen mit Absender, Ziel und Grund — *Übernehmen* genügt für
-  ein neues Gerät.
+Vier Seiten: **Dashboard**, **Einrichtung**, **Einstellungen**, **Protokolle**.
+
+- **Dashboard**: Zähler für den gewählten Zeitraum (heute / 7 / 30 / 90 Tage);
+  je Gerät die Einlieferungen mit **TLS** bzw. **Klartext** und an **interne**
+  bzw. **externe** Empfänger, dazu Abgelehntes und das Aufkommen der letzten
+  30/90/180/360 Tage. Geräte sperren, kommentieren, freigeben; abgewiesene
+  Adressen mit Absender, Ziel und Grund — *Übernehmen* genügt für ein neues
+  Gerät; Lernmodus; letzte Einlieferungen.
+- **Einstellungen**: Rückweg, Tenant und App, Adressquelle, Connector,
+  Zertifikate, Anmeldung, Betrieb.
 - **Protokolle**: Live-Protokoll und Suche; jede Nachricht trägt eine
   `[mail:…]`-Trace-ID.
 - **Daten**: alles unter `data/` (Einstellungen, Geräteliste, Mail-Protokoll,
