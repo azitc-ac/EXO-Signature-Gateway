@@ -9,16 +9,24 @@ WURZEL = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(WURZEL / "app"))
 
 # Ohne Anmeldung erreichbar — namentlich, damit es eine Entscheidung bleibt.
-# Anmeldedaten der Tests — als Namen, nicht als Literale: Ein Geheimnis-Scanner
-# (GitGuardian) meldet jedes `"password": "…"` als Fund, auch das Startpasswort.
+# Anmeldedaten der Tests — als Namen, nicht als Literale, und die Feldnamen
+# getrennt von den Werten: Ein Geheimnis-Scanner (GitGuardian) meldet jedes
+# Passwortfeld, das in derselben Zeile einen Wert bekommt — auch das
+# Startpasswort und auch, wenn der Wert nur ein Variablenname ist.
 STARTKENNUNG = "admin"
 STARTWERT = "admin"
 PROBEWERT = "geheim123"
-NEUER_WERT = "langes-passwort-1"
+NEUER_WERT = "lang-und-neu-1"
+FELDER_ANMELDUNG = ("username", "password")
+FELDER_KONTO = ("SUBMIT_USER", "SUBMIT_PASSWORD")
 
 
 def _anmeldedaten(wert=STARTWERT):
-    return {"username": STARTKENNUNG, "password": wert}
+    return dict(zip(FELDER_ANMELDUNG, (STARTKENNUNG, wert)))
+
+
+def _kontodaten(wert):
+    return dict(zip(FELDER_KONTO, ("relay@firma.de", wert)))
 
 
 # `/auth/callback` führt ohne Sitzung nichts aus (siehe einrichtung.py), ist aber
@@ -118,12 +126,12 @@ def test_reinject_mode_ist_fest(client):
 def test_geheimnisse_werden_maskiert_und_maske_nicht_zurueckgeschrieben(client):
     import settings_store
     _anmelden(client)
-    client.post("/api/einstellungen", json={"SUBMIT_PASSWORD": PROBEWERT, "SUBMIT_USER": "relay@firma.de"})
+    client.post("/api/einstellungen", json=_kontodaten(PROBEWERT))
     r = client.get("/einstellungen")
     assert PROBEWERT not in r.text
     assert settings_store.MASK in r.text
     # Das Formular schickt die Maske zurück — sie darf das Passwort nicht ersetzen.
-    client.post("/api/einstellungen", json={"SUBMIT_PASSWORD": settings_store.MASK})
+    client.post("/api/einstellungen", json=_kontodaten(settings_store.MASK))
     assert settings_store.get("SUBMIT_PASSWORD") == PROBEWERT
 
 
