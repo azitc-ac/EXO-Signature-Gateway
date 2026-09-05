@@ -85,3 +85,11 @@ def partitioniere(mailbox_config: dict | None) -> dict:
             signatur.append(addr)
         # weder sig noch smime → nicht aktiv, überspringen
     return {"signatur": sorted(set(signatur)), "smime": sorted(set(smime))}
+
+
+def aktive_adressen(mailbox_config: dict | None) -> list[str]:
+    """Alle AKTIVEN Postfächer (sig ODER smime aktiviert), sortiert/dedupliziert.
+    Maßgeblich für den IMAP-FullAccess-Grant (Least Privilege: nur diese, nicht
+    tenantweit alle Postfächer)."""
+    p = partitioniere(mailbox_config)
+    return sorted(set(p["signatur"]) | set(p["smime"]))
