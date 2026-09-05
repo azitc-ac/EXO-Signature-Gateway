@@ -65,6 +65,10 @@ def test_split_skript_haelt_dieselben_invarianten():
     assert "-FromMemberOf @($smimeDg)" in anlage
     assert "-Enabled $false" in anlage
     assert "-SentToScope" not in code
+    # Array-Flattening-Falle: @() ZWINGEND an der Zuweisung (sonst .Count-Fehler
+    # unter StrictMode bei Ein-Element-Liste; im Dev-Live-Test aufgetreten).
+    assert "@(Split-List $SigMembers)" in code
+    assert "@(Split-List $SmimeMembers)" in code
 
 
 def test_dg_update_leert_das_gate_nie():
