@@ -115,3 +115,39 @@ jobs:
       # etwa ein Paket, das in requirements.txt fehlt.
       - name: Docker build
         run: docker build -t exo-signature-gateway:ci .
+
+  # ── EXO SMTP Relay (relay/) ──────────────────────────────────────────────
+  # Der eigenständige Dienst unter relay/ bringt seine eigene CI mit
+  # (relay/.github/workflows/ci.yml) — die greift erst im eigenen Repository.
+  # Bis dahin laufen seine Tests und sein Container-Build hier mit, damit ein
+  # Pull Request am Gateway das Relay nicht unbemerkt bricht.
+  relay-tests:
+    name: Relay — Tests und Spiegelprüfung
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: relay
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Abhängigkeiten
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r app/requirements.lock -r tests/requirements.txt
+      - name: Tests
+        run: pytest tests/ -v
+      # Beide Bäume liegen hier vor — die gespiegelten Dateien müssen
+      # inhaltsgleich sein.
+      - name: Spiegelprüfung gegen das Gateway
+        run: python tools/driftcheck.py --gateway ..
+
+  relay-build:
+    name: Relay — Container baut
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Docker build
+        run: docker build -t exo-smtp-relay:ci relay
+
