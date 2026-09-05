@@ -1,0 +1,25 @@
+# Raspberry-Pi-Rückfallweg: derselbe Code als Dauerdienst.
+#   sudo cp pi/header-echo.service /etc/systemd/system/
+#   sudo cp pi/header-echo.env /etc/header-echo.env && sudo chmod 600 /etc/header-echo.env
+#   sudo systemctl enable --now header-echo
+[Unit]
+Description=Header-Echo (IONOS-Postfach beantwortet Mails mit ihren Kopfzeilen)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nobody
+Group=nogroup
+WorkingDirectory=/opt/header-echo
+EnvironmentFile=/etc/header-echo.env
+ExecStart=/usr/bin/python3 -m header_echo --loop 60
+Restart=always
+RestartSec=30
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

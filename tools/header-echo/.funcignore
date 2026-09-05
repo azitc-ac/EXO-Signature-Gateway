@@ -1,0 +1,11 @@
+.git*
+.venv/
+__pycache__/
+*.pyc
+tests/
+pi/
+deploy.ps1
+README.md
+local.settings.json
+local.settings.json.example
+.pytest_cache/
