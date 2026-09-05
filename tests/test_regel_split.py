@@ -56,6 +56,24 @@ def test_leere_config(rs):
     assert rs.partitioniere({}) == {"signatur": [], "smime": []}
 
 
+def test_aktive_adressen_union(rs):
+    cfg = {
+        "g1": {"sig": True, "smime": True, "primary": "enc@x.de"},
+        "g2": {"sig": True, "smime": False, "primary": "sig@x.de"},
+        "g3": {"sig": False, "smime": False, "primary": "off@x.de"},  # inaktiv
+    }
+    assert rs.aktive_adressen(cfg) == ["enc@x.de", "sig@x.de"]
+
+
+def test_imap_grant_nur_aktive_postfaecher():
+    """Least Privilege: IMAP-FullAccess enumeriert nicht mehr tenantweit alle."""
+    import inspect
+    import setup_wizard
+    src = inspect.getsource(setup_wizard.run_imap_access_setup)
+    assert "Get-Mailbox -RecipientTypeDetails UserMailbox -ResultSize Unlimited" not in src
+    assert "regel_split.aktive_adressen" in src
+
+
 def test_split_aktiv_liest_setting(monkeypatch):
     import settings_store, regel_split
     monkeypatch.setattr(settings_store, "get", lambda k, *a: True if k == "WATCHDOG_RULE_SPLIT" else "")

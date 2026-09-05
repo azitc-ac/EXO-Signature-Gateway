@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.71 — 2026-09-05 — IMAP-Zugriff nur noch auf aktive Postfächer (Least Privilege)
+
+Für den IMAP-Modus (Rückeinspeisung per IMAP APPEND) registriert das Setup einen
+Dienstprinzipal und erteilt ihm Postfachzugriff (FullAccess). Bisher wurde dieser
+Zugriff **tenantweit auf alle** Benutzerpostfächer erteilt — deutlich mehr als
+nötig. Jetzt bekommt der Dienstprinzipal FullAccess nur noch auf die **aktiven**
+Postfächer (die, die das Gateway tatsächlich verarbeitet); neue Postfächer werden
+beim Aktivieren einzeln ergänzt (unverändert).
+
+Betrifft nur den IMAP-Modus. Bereits erteilte, zu weit gehende Berechtigungen
+werden dabei nicht automatisch entzogen — sie können bei Bedarf manuell entfernt
+werden.
+
 ## v1.8.70 — 2026-09-05 — Getrennte Signatur-/S-MIME-Route (opt-in, Ausfall-Bypass)
 
 Aufbauend auf der Grundlage aus v1.8.69: Ist die Trennung aktiviert, pflegt das

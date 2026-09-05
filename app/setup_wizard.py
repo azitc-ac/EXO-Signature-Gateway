@@ -602,13 +602,15 @@ def run_exo_connector_setup(
 
 def run_imap_access_setup(app_id: str, tenant_domain: str) -> dict:
     """
-    Register the app as EXO Service Principal and grant IMAP FullAccess to all
-    user mailboxes.  Erforderlich für REINJECT_MODE=imap (IMAP APPEND, Azure
-    ohne Port 25). Der Altname `smtp587` bezeichnet denselben Modus.
+    Register the app as EXO Service Principal and grant IMAP FullAccess to the
+    ACTIVE mailboxes (Least Privilege — nicht tenantweit allen). Erforderlich für
+    REINJECT_MODE=imap (IMAP APPEND, Azure ohne Port 25). Der Altname `smtp587`
+    bezeichnet denselben Modus.
 
     Two things happen:
       1. New-ServicePrincipal — registers the app in EXO so IMAP XOAUTH2 works
-      2. Add-MailboxPermission (FullAccess) — grants per-mailbox IMAP access
+      2. Add-MailboxPermission (FullAccess) — grants IMAP access to the active
+         mailboxes only (nicht mehr `Get-Mailbox … -ResultSize Unlimited`)
     """
     import requests as _req
 
@@ -647,6 +649,12 @@ def run_imap_access_setup(app_id: str, tenant_domain: str) -> dict:
     except Exception as exc:
         return {"ok": False, "output": f"Graph-Abfrage fehlgeschlagen: {exc}"}
 
+    # Least Privilege: FullAccess NUR auf die aktiven Postfächer, nicht tenantweit
+    # auf alle. Als PS-Array-Literal (Adressen einfach-gequotet).
+    import regel_split
+    _aktiv = regel_split.aktive_adressen(settings_store.get("MAILBOX_CONFIG"))
+    _members_ps = ", ".join("'" + a.replace("'", "''") + "'" for a in _aktiv)
+
     ps_lines = [
         "$ErrorActionPreference = 'Stop'",
         "",
@@ -669,28 +677,28 @@ def run_imap_access_setup(app_id: str, tenant_domain: str) -> dict:
         "    Write-Host \"Service Principal bereits vorhanden: $($sp.ObjectId)\"",
         "}",
         "",
-        "# 2. FullAccess auf alle Postfächer setzen",
-        "$mailboxes = Get-Mailbox -RecipientTypeDetails UserMailbox -ResultSize Unlimited",
+        "# 2. FullAccess NUR auf die aktiven Postfächer (Least Privilege)",
+        f"$mailboxes = @({_members_ps})",
         "$count = 0",
         "$failed = 0",
         "foreach ($m in $mailboxes) {",
         "    try {",
-        "        Add-MailboxPermission -Identity $m.PrimarySmtpAddress"
+        "        Add-MailboxPermission -Identity $m"
         " -User $sp.ObjectId -AccessRights FullAccess"
         " -AutoMapping $false -ErrorAction Stop | Out-Null",
-        "        Write-Host \"+ $($m.PrimarySmtpAddress)\"",
+        "        Write-Host \"+ $m\"",
         "        $count++",
         "    } catch {",
         "        if ($_.Exception.Message -like '*already present*') {",
-        "            Write-Host \"= $($m.PrimarySmtpAddress) (bereits vorhanden)\"",
+        "            Write-Host \"= $m (bereits vorhanden)\"",
         "            $count++",
         "        } else {",
-        "            Write-Host \"FEHLER $($m.PrimarySmtpAddress): $($_.Exception.Message)\"",
+        "            Write-Host \"FEHLER $m : $($_.Exception.Message)\"",
         "            $failed++",
         "        }",
         "    }",
         "}",
-        "Write-Host \"Fertig: $count Postfächer konfiguriert, $failed Fehler.\"",
+        "Write-Host \"Fertig: $count aktive Postfächer konfiguriert, $failed Fehler.\"",
         "if ($failed -gt 0) { exit 1 }",
         "Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue",
     ]
