@@ -5,6 +5,33 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.83 — 2026-09-07 — Least Privilege: App-Zugriff auch per RBAC for Applications
+
+Die Least-Privilege-Routine, die den Graph-/IMAP-Zugriff der Gateway-App auf die
+aktiven Postfächer beschränkt (`APP_ACCESS_POLICY_ENABLED`), legt jetzt **beide**
+Zugriffsmodelle an, die Exchange Online parallel führt: die klassische
+ApplicationAccessPolicy (RestrictAccess) **und** eine RBAC-for-Applications-
+Zuweisung (Rollen `Application Mail.Send`/`Mail.ReadWrite`), gescoped über einen
+Management-Scope auf dieselbe Postfach-Gruppe.
+
+Hintergrund: Für Postfächer mit bestimmten Premium-Lizenzen (Microsoft 365
+Copilot, Defender-Zusätze) greift die klassische ApplicationAccessPolicy nicht
+mehr — Exchange verlangt dort eine RBAC-Zuweisung. Fehlt sie, beantwortet Graph
+den App-only-Zugriff auf ein solches Postfach mit `403 ErrorAccessDenied — Access
+to OData is disabled: [RAOP] : Blocked by tenant configured AppOnly AccessPolicy
+settings`. Fürs Gateway heißt das: der Graph-Reinject scheitert, IMAP-APPEND
+entfällt bei externen Empfängern, und die Post dieses Absenders landet **unbemerkt
+in der Warteschlange** statt zuzustellen — während Standardpostfächer im selben
+Tenant weiterlaufen. `Test-ApplicationAccessPolicy` meldet dabei irreführend
+„Granted", weil es nur das klassische Modell prüft; der Zugriff wird erst zur
+Laufzeit im Ressourcen-Modell abgewiesen.
+
+Die Zuweisung wird bei jeder Postfach-Änderung mitgepflegt (idempotent) und bleibt
+über den Management-Scope auf die Gateway-Postfächer begrenzt. Tenants ohne
+RBAC-for-Applications sind nicht betroffen: schlägt der Schritt fehl, bleibt die
+klassische Policy aus Schritt 3 wirksam. Es ist nichts zu tun — beim nächsten
+Speichern der Postfächer wird die Zuweisung automatisch angelegt.
+
 ## v1.8.82 — 2026-09-07 — Bypass-Wächter: Alarm in der Übersicht + Heartbeat
 
 Der Bypass-Wächter wird jetzt in der **Übersicht** sichtbar, wenn etwas nicht

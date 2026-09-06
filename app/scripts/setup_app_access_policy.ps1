@@ -1,8 +1,10 @@
 #Requires -Modules ExchangeOnlineManagement
 <#
 .SYNOPSIS
-    Least Privilege: pflegt eine ApplicationAccessPolicy (RestrictAccess), die den
-    Graph-/IMAP-Zugriff der App auf GENAU die Gateway-Postfächer beschränkt.
+    Least Privilege: beschränkt den Graph-/IMAP-Zugriff der App auf GENAU die
+    Gateway-Postfächer — über BEIDE Modelle, die Exchange Online parallel fährt:
+    die klassische ApplicationAccessPolicy (RestrictAccess) UND die neue
+    RBAC-for-Applications-Zuweisung.
 
     Idempotent, bei jeder Postfach-Änderung aufrufbar:
       1. Security-Gruppe (mail-enabled) sicherstellen — ApplicationAccessPolicy
@@ -11,6 +13,12 @@
          (`-BypassSecurityGroupManagerCheck`, da die App-only-Identität nicht
          Gruppen-Manager ist). Nicht existierende Adressen werden übersprungen.
       3. Policy anlegen (RestrictAccess), falls noch keine für die App existiert.
+      4. RBAC for Applications: Management-Scope auf DIESELBE Gruppe + die Rollen
+         Application Mail.Send/Mail.ReadWrite der App zuweisen. Postfächer mit
+         Copilot/Defender ignorieren die klassische Policy und verlangen RBAC;
+         ohne diese Zuweisung antwortet Graph mit "[RAOP] AppOnly AccessPolicy"
+         (403) und der Reinject scheitert. Best-effort: fehlt RBAC im Tenant,
+         bleibt die Policy aus Schritt 3 wirksam.
 
     ⚠️ ZWEI FALLEN (aus dem Live-Test):
       - NIE die Gruppe leeren, solange eine RestrictAccess-Policy greift: eine
@@ -82,6 +90,37 @@ try {
         Write-OK "ApplicationAccessPolicy angelegt (RestrictAccess)"
     } else {
         Write-OK "Policy vorhanden; Mitglieder synchronisiert ($($members_now.Count))"
+    }
+
+    # ── 4. RBAC for Applications (Copilot-/Defender-Postfaecher verlangen es) ───
+    # Fuer Premium-Postfaecher greift die klassische Policy aus Schritt 3 NICHT
+    # mehr; Exchange verlangt dort eine RBAC-Rollenzuweisung. Analog gescoped auf
+    # DIESELBE Gruppe (Least Privilege). Best-effort + idempotent — scheitert es,
+    # bleibt die klassische Policy wirksam, das Speichern darf nicht kippen.
+    if ($members_now.Count -eq 0) {
+        Write-Warn "Gruppe leer — RBAC-Zuweisung wird NICHT angelegt."
+    } else {
+        try {
+            $sp = Get-ServicePrincipal -ErrorAction SilentlyContinue | Where-Object { $_.AppId -eq $AppId } | Select-Object -First 1
+            if (-not $sp) {
+                Write-Warn "Kein EXO-ServicePrincipal fuer $AppId — RBAC uebersprungen."
+            } else {
+                $grpDn = (Get-DistributionGroup -Identity $GroupName).DistinguishedName
+                $scopeName = "$GroupName - RBAC Scope"
+                if (-not (Get-ManagementScope -Identity $scopeName -ErrorAction SilentlyContinue)) {
+                    New-ManagementScope -Name $scopeName -RecipientRestrictionFilter "MemberOfGroup -eq '$grpDn'" | Out-Null
+                    Write-OK "RBAC Management-Scope angelegt ($scopeName)"
+                }
+                foreach ($role in @("Application Mail.Send", "Application Mail.ReadWrite")) {
+                    $have = Get-ManagementRoleAssignment -RoleAssignee $sp.ObjectId -ErrorAction SilentlyContinue | Where-Object { $_.Role -eq $role }
+                    if ($have) { Write-OK "RBAC-Zuweisung vorhanden: $role"; continue }
+                    New-ManagementRoleAssignment -App $sp.ObjectId -Role $role -CustomResourceScope $scopeName | Out-Null
+                    Write-OK "RBAC-Zuweisung angelegt: $role"
+                }
+            }
+        } catch {
+            Write-Warn "RBAC-for-Apps uebersprungen: $($_.Exception.Message)"
+        }
     }
 } finally {
     Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
