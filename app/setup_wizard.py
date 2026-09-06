@@ -571,6 +571,7 @@ def run_exo_connector_setup(
 
     gateway_name = settings_store.get("GATEWAY_NAME") or "EXO Signature Gateway"
     loop_header = (settings_store.get("LOOP_HEADER") or "X-Sig-Applied").strip() or "X-Sig-Applied"
+    import waechter_regel
     cmd = [
         "pwsh", "-NoProfile", "-NonInteractive", "-File", str(script),
         "-AppId", app_id,
@@ -579,6 +580,9 @@ def run_exo_connector_setup(
         "-SmtpProxyHostname", smtp_proxy_hostname,
         "-GatewayName", gateway_name,
         "-LoopHeader", loop_header,
+        # Regelname aus der EINEN Quelle; Altname fuer die einmalige Migration.
+        "-RuleName", waechter_regel.regelname(),
+        "-RuleNameOld", waechter_regel.basis_regelname(),
     ]
     if skip_inbound_connector:
         cmd.append("-SkipInboundConnector")
@@ -748,12 +752,15 @@ def run_mailbox_dg_update(app_id: str, tenant_domain: str, members: list[str]) -
         return {"ok": False, "output": "Auth-Zertifikat nicht gefunden — bitte Schritt 5 (Entra App-Registrierung → „App-Registrierung neu einrichten“) ausführen."}
 
     gateway_name = settings_store.get("GATEWAY_NAME") or "EXO Signature Gateway"
+    import waechter_regel
     cmd = [
         "pwsh", "-NoProfile", "-NonInteractive", "-File", str(script),
         "-AppId", app_id,
         "-Organization", tenant_domain,
         "-CertPath", str(_AUTH_CERT_PATH),
         "-GatewayName", gateway_name,
+        "-RuleName", waechter_regel.regelname(),
+        "-RuleNameOld", waechter_regel.basis_regelname(),
     ]
     if members:
         cmd += ["-Members", ",".join(members)]
@@ -788,11 +795,17 @@ def run_rule_split_setup(app_id: str, tenant_domain: str,
         return {"ok": False, "output": "Auth-Zertifikat nicht gefunden — bitte Schritt 5 ausführen."}
     gateway_name = settings_store.get("GATEWAY_NAME") or "EXO Signature Gateway"
     loop = settings_store.get("LOOP_HEADER") or "X-Sig-Applied"
+    import regel_split
+    import waechter_regel
     cmd = [
         "pwsh", "-NoProfile", "-NonInteractive", "-File", str(script),
         "-AppId", app_id, "-Organization", tenant_domain,
         "-CertPath", str(_AUTH_CERT_PATH), "-GatewayName", gateway_name,
         "-LoopHeader", loop,
+        # Regelnamen aus der EINEN Quelle; SigRuleNameOld fuer die Migration.
+        "-SigRuleName", regel_split.signatur_regelname(),
+        "-SigRuleNameOld", waechter_regel.basis_regelname(),
+        "-SmimeRuleName", regel_split.smime_regelname(),
     ]
     if sig_members:
         cmd += ["-SigMembers", ",".join(sig_members)]
@@ -1109,19 +1122,24 @@ def _run_verify_ps(body: str) -> dict:
 
 def verify_connector(smtp_mode: bool = False) -> dict:
     """Check EXO connectors and transport rule. Inbound Connector only required in SMTP mode."""
+    import waechter_regel
     gw = (settings_store.get("GATEWAY_NAME") or "EXO Signature Gateway").replace('"', '`"')
+    # Regelname aus der EINEN Quelle; auch der frühere Name gilt (vor der Migration),
+    # damit die Prüfung während der Umstellung nicht fälschlich fehlschlägt.
+    rule_ident = waechter_regel.regelname().replace('"', '`"')
+    rule_old = waechter_regel.basis_regelname().replace('"', '`"')
     if smtp_mode:
         ps = (
             f'$out  = $null -ne (Get-OutboundConnector -Identity "{gw} - Outbound" -ErrorAction SilentlyContinue)\n'
             f'$in   = $null -ne (Get-InboundConnector  -Identity "{gw} - Inbound"  -ErrorAction SilentlyContinue)\n'
-            f'$rule = $null -ne (Get-TransportRule      -Identity "Route via {gw}"  -ErrorAction SilentlyContinue)\n'
+            f'$rule = ($null -ne (Get-TransportRule -Identity "{rule_ident}" -ErrorAction SilentlyContinue)) -or ($null -ne (Get-TransportRule -Identity "{rule_old}" -ErrorAction SilentlyContinue))\n'
             'Write-Output (@{ok=$out -and $in -and $rule; outbound=$out; inbound=$in; rule=$rule} | ConvertTo-Json -Compress)\n'
         )
     else:
         ps = (
             f'$out  = $null -ne (Get-OutboundConnector -Identity "{gw} - Outbound" -ErrorAction SilentlyContinue)\n'
             f'$in   = $null -ne (Get-InboundConnector  -Identity "{gw} - Inbound"  -ErrorAction SilentlyContinue)\n'
-            f'$rule = $null -ne (Get-TransportRule      -Identity "Route via {gw}"  -ErrorAction SilentlyContinue)\n'
+            f'$rule = ($null -ne (Get-TransportRule -Identity "{rule_ident}" -ErrorAction SilentlyContinue)) -or ($null -ne (Get-TransportRule -Identity "{rule_old}" -ErrorAction SilentlyContinue))\n'
             'Write-Output (@{ok=$out -and $rule; outbound=$out; inbound=$in; rule=$rule} | ConvertTo-Json -Compress)\n'
         )
     return _run_verify_ps(ps)

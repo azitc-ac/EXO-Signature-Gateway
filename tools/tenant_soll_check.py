@@ -37,7 +37,7 @@ def ableiten(inputs: dict) -> dict:
     gw = inputs["gateway_name"]
     host = inputs.get("public_hostname", "")
     return {
-        "regel_name":    f"Route via {gw}",
+        "regel_name":    f"Route via {gw} (Signatur)",
         "dg_name":       f"{gw} - Enabled Mailboxes",
         "dg_alias":      f"{gw} - Enabled Mailboxes".replace(" ", ""),  # EXO entfernt Leerzeichen
         "connector_out": f"{gw} - Outbound",

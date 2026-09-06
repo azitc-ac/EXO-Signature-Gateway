@@ -15,9 +15,12 @@ INERT: dieses Modul definiert nur Namen + Partitionierung. Es legt KEINE Regeln
 an und ruft kein EXO. Der Live-Split (zweite DG + zweite Regel) kommt in einem
 eigenen, opt-in-gesteuerten Schritt mit Live-Test.
 
-Namensschema (least-disruption): der bestehende Weg bleibt der Signatur-Weg —
-Regel `Route via <GatewayName>` + DG `… - Enabled Mailboxes`. Neu kommt nur der
-S/MIME-Weg dazu. So bleibt eine nicht aufgeteilte Installation unberührt.
+Namensschema: der Signatur-Weg heißt `Route via <GatewayName> (Signatur)` + DG
+`… - Enabled Mailboxes`, der S/MIME-Weg `Route via <GatewayName> (S/MIME)` + DG
+`… - SMIME Mailboxes` — symmetrisch. Die Namen kommen aus EINER Quelle
+(`waechter_regel.regelname()` / `smime_regelname()`, Vorrang `EXO_RULE_SIG/SMIME`);
+die PS-Skripte bekommen sie als Parameter und benennen bestehende Regeln einmalig
+in-place um. Nichts wird hart kodiert — der Name variiert je System.
 """
 from __future__ import annotations
 
@@ -35,8 +38,8 @@ def _gw() -> str:
 
 
 def signatur_regelname() -> str:
-    """Bypass-fähige Signatur-Regel = der bestehende Weg (identisch zu
-    waechter_regel.regelname(), damit die Wächter-Statusabfrage konsistent bleibt)."""
+    """Bypass-fähige Signatur-Regel — identisch zu waechter_regel.regelname()
+    (die EINE Quelle), damit Wächter-Statusabfrage und Split denselben Namen sehen."""
     return waechter_regel.regelname()
 
 

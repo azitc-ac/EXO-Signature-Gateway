@@ -5,8 +5,8 @@ auffällt, wenn der externe Wächter selbst tot ist. Läuft im Scheduler,
 best-effort, read-only — kann den Mailfluss nicht anfassen. Der Zustand landet
 in `data/watchdog_state.json` (`rule_state`) und speist das Banner.
 
-⚠️ Solange die Transportregel noch nicht aufgeteilt ist (Phase 1), fragt das
-hier die bestehende Regel `Route via <GatewayName>` ab.
+Der abzufragende Regelname kommt aus `regelname()` — der EINEN Quelle für alle
+Skripte (Vorrang `EXO_RULE_SIG`, sonst `Route via <GatewayName> (Signatur)`).
 """
 from __future__ import annotations
 
@@ -26,14 +26,33 @@ _SCRIPT = Path("/app/scripts/get_transport_rule_state.ps1")
 _AUTH_CERT = Path(config.DATA_DIR) / "auth.pfx"
 
 
-def regelname() -> str:
-    """Name der Signatur-Transportregel — aus EXO_RULE_SIG, sonst der heutige
-    Standardname (vor der Regeltrennung)."""
+def basis_regelname() -> str:
+    """Der ungetrennte Name des Signatur-Wegs — wie ihn das Connector-Setup anlegt.
+    Vorrang hat ein ausdrücklich gesetztes EXO_RULE_SIG (der Name kann je System
+    völlig anders lauten); sonst aus GATEWAY_NAME abgeleitet. Dient als
+    Migrationsquelle beim Umbenennen auf den „(Signatur)"-Namen."""
     r = (settings_store.get("EXO_RULE_SIG") or "").strip()
     if r:
         return r
     gw = settings_store.get("GATEWAY_NAME") or "EXO Signature Gateway"
     return f"Route via {gw}"
+
+
+def regelname() -> str:
+    """Name der Signatur-Transportregel — die EINE Quelle für alle Skripte.
+
+    Nichts wird hart kodiert; der Name variiert je System:
+      1. ausdrücklich gesetztes EXO_RULE_SIG hat immer Vorrang (kann je System
+         völlig anders lauten),
+      2. sonst aus GATEWAY_NAME abgeleitet, mit dem Zusatz „(Signatur)"
+         (symmetrisch zur „(S/MIME)"-Regel). So legt der Setup-Assistent sie an;
+         bestehende Installationen werden von `basis_regelname()` einmalig
+         hierher umbenannt."""
+    r = (settings_store.get("EXO_RULE_SIG") or "").strip()
+    if r:
+        return r
+    gw = settings_store.get("GATEWAY_NAME") or "EXO Signature Gateway"
+    return f"Route via {gw} (Signatur)"
 
 
 def pruefe_und_merke() -> str | None:

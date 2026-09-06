@@ -24,6 +24,11 @@ param(
     [Parameter(Mandatory)][string]$SmtpProxyHostname,
     [string]$GatewayName = "EXO Signature Gateway",
     [string]$LoopHeader = "X-Sig-Applied",
+    # Name der Signatur-Regel — kommt aus der EINEN Python-Quelle (waechter_regel.regelname()).
+    # RuleNameOld = frueherer Name (waechter_regel.basis_regelname()) fuer die einmalige
+    # In-place-Umbenennung. Leer = defensiver Rueckfall auf die abgeleitete Form.
+    [string]$RuleName = "",
+    [string]$RuleNameOld = "",
     [switch]$SkipInboundConnector
 )
 
@@ -155,7 +160,22 @@ if (-not (Get-DistributionGroup -Identity $dgName -ErrorAction SilentlyContinue)
 # ── Transport Rule ────────────────────────────────────────────────────────────
 Write-Step "Checking Transport Rule..."
 
-$ruleName = "Route via $GatewayName"
+# Regelname aus der EINEN Quelle (Parameter); defensiver Rueckfall auf die
+# abgeleitete Form, falls der Aufrufer ihn (noch) nicht mitgibt.
+$ruleName = if ($RuleName) { $RuleName } else { "Route via $GatewayName (Signatur)" }
+
+# Migration: bestehende Installationen trugen den Signatur-Weg unter dem frueheren
+# Namen ohne "(Signatur)". In-place umbenennen (Set-TransportRule -Name), damit
+# Regel-ID/Prioritaet/Zustand erhalten bleiben — nichts wird geloescht/neu angelegt.
+if ($RuleNameOld -and $RuleNameOld -ne $ruleName) {
+    if (-not (Get-TransportRule -Identity $ruleName -ErrorAction SilentlyContinue)) {
+        if (Get-TransportRule -Identity $RuleNameOld -ErrorAction SilentlyContinue) {
+            Set-TransportRule -Identity $RuleNameOld -Name $ruleName | Out-Null
+            Write-OK "Transport Rule umbenannt: '$RuleNameOld' -> '$ruleName'"
+        }
+    }
+}
+
 $existingRule = Get-TransportRule -Identity $ruleName -ErrorAction SilentlyContinue
 
 # Absender-Gate: FromScope InOrganization PLUS FromMemberOf (die eben angelegte,

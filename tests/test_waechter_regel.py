@@ -30,15 +30,28 @@ def _stub_pwsh(monkeypatch, tmp_path, stdout: str):
 
 
 def test_regelname_faellt_auf_standard_zurueck(monkeypatch):
+    # Standardname trägt den "(Signatur)"-Zusatz (symmetrisch zu "(S/MIME)").
     monkeypatch.setattr(wr.settings_store, "get",
                         lambda k, *a, **kw: {"GATEWAY_NAME": "EXO Signature Gateway"}.get(k))
-    assert wr.regelname() == "Route via EXO Signature Gateway"
+    assert wr.regelname() == "Route via EXO Signature Gateway (Signatur)"
+    # basis_regelname() liefert den früheren Namen (Migrationsquelle) — OHNE Zusatz.
+    assert wr.basis_regelname() == "Route via EXO Signature Gateway"
+
+
+def test_regelname_variiert_mit_gateway_name(monkeypatch):
+    # Kein Hardcode: der Name folgt GATEWAY_NAME (je System anders).
+    monkeypatch.setattr(wr.settings_store, "get",
+                        lambda k, *a, **kw: {"GATEWAY_NAME": "EXO Signature Gateway RASPI"}.get(k))
+    assert wr.regelname() == "Route via EXO Signature Gateway RASPI (Signatur)"
+    assert wr.basis_regelname() == "Route via EXO Signature Gateway RASPI"
 
 
 def test_regelname_nimmt_gesetzten_wert(monkeypatch):
+    # EXO_RULE_SIG hat Vorrang und gilt für beide (kein Zusatz, kein Rename).
     monkeypatch.setattr(wr.settings_store, "get",
                         lambda k, *a, **kw: {"EXO_RULE_SIG": "EXO Signature Gateway - Signatures"}.get(k))
     assert wr.regelname() == "EXO Signature Gateway - Signatures"
+    assert wr.basis_regelname() == "EXO Signature Gateway - Signatures"
 
 
 def test_enabled_wird_gemerkt(monkeypatch, tmp_path):

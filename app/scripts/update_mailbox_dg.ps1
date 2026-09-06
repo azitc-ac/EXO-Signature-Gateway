@@ -10,6 +10,10 @@ param(
     [Parameter(Mandatory)][string]$CertPath,
     [string]$GatewayName = "EXO Signature Gateway",
     [string]$Members = "",
+    # Signatur-Regelname aus der EINEN Python-Quelle; RuleNameOld = frueherer Name
+    # fuer die einmalige In-place-Umbenennung. Leer = defensiver Rueckfall.
+    [string]$RuleName = "",
+    [string]$RuleNameOld = "",
     # Modus `imap`: App-only-IMAP (XOAUTH2) verlangt FullAccess PRO Postfach —
     # einen tenant-weiten IMAP-Grant gibt es nicht. Beim Aktivieren wird der
     # Grant deshalb gleich mitgesetzt, sonst fiele ein neues Postfach beim
@@ -35,7 +39,7 @@ function Write-Warn([string]$msg) { Write-Host "[WARN] $msg"     -ForegroundColo
 $managedBy = "##Managed by $GatewayName, last update: $(Get-Date -Format 'yyyy-MM-dd HH:mm')##"
 
 $dgName   = "$GatewayName - Enabled Mailboxes"
-$ruleName = "Route via $GatewayName"
+$ruleName = if ($RuleName) { $RuleName } else { "Route via $GatewayName (Signatur)" }
 
 # ── Load certificate ──────────────────────────────────────────────────────────
 Write-Step "Loading certificate from $CertPath"
@@ -95,6 +99,16 @@ try {
     if (-not $toAdd -and -not $toRemove) { Write-OK "Members already in sync" }
 
     # ── Update transport rule ─────────────────────────────────────────────────
+    # Migration: bestehende Installation ggf. vom frueheren Namen (ohne "(Signatur)")
+    # in-place umbenennen, bevor wir die Regel anfassen.
+    if ($RuleNameOld -and $RuleNameOld -ne $ruleName) {
+        if (-not (Get-TransportRule -Identity $ruleName -ErrorAction SilentlyContinue)) {
+            if (Get-TransportRule -Identity $RuleNameOld -ErrorAction SilentlyContinue) {
+                Set-TransportRule -Identity $RuleNameOld -Name $ruleName | Out-Null
+                Write-OK "Transport rule umbenannt: '$RuleNameOld' -> '$ruleName'"
+            }
+        }
+    }
     Write-Step "Updating transport rule '$ruleName'..."
     $rule = Get-TransportRule -Identity $ruleName -ErrorAction SilentlyContinue
     if ($rule) {

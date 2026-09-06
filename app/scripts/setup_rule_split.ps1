@@ -3,7 +3,7 @@
 .SYNOPSIS
     Bypass-Wächter Phase 1: pflegt ZWEI Routing-Wege statt einem.
 
-    - Signatur-Weg (bypass-fähig): Regel "Route via <GatewayName>" + DG
+    - Signatur-Weg (bypass-fähig): Regel "Route via <GatewayName> (Signatur)" + DG
       "<GatewayName> - Enabled Mailboxes" — nur reine Signatur-Postfächer.
     - S/MIME-Weg (Warte-Regel): Regel "Route via <GatewayName> (S/MIME)" + DG
       "<GatewayName> - SMIME Mailboxes" — verschlüsselungsfähige Postfächer.
@@ -26,6 +26,12 @@ param(
     [string]$GatewayName = "EXO Signature Gateway",
     [string]$SigMembers = "",
     [string]$SmimeMembers = "",
+    # Regelnamen aus der EINEN Python-Quelle (regel_split/waechter_regel).
+    # SigRuleNameOld = frueherer Signatur-Name fuer die einmalige In-place-Umbenennung.
+    # Leer = defensiver Rueckfall auf die abgeleitete Form.
+    [string]$SigRuleName = "",
+    [string]$SigRuleNameOld = "",
+    [string]$SmimeRuleName = "",
     [string]$LoopHeader = "X-Sig-Applied"
 )
 
@@ -43,8 +49,8 @@ function Split-List([string]$csv) {
 $managedBy   = "##Managed by $GatewayName (Split), last update: $(Get-Date -Format 'yyyy-MM-dd HH:mm')##"
 $sigDg       = "$GatewayName - Enabled Mailboxes"
 $smimeDg     = "$GatewayName - SMIME Mailboxes"
-$sigRule     = "Route via $GatewayName"
-$smimeRule   = "Route via $GatewayName (S/MIME)"
+$sigRule     = if ($SigRuleName)   { $SigRuleName }   else { "Route via $GatewayName (Signatur)" }
+$smimeRule   = if ($SmimeRuleName) { $SmimeRuleName } else { "Route via $GatewayName (S/MIME)" }
 $connector   = "$GatewayName - Outbound"
 
 # ⚠️ @() ZWINGEND an der Zuweisung: eine Funktion, die @(...) liefert, wird beim
@@ -100,9 +106,19 @@ try {
     if (-not $outConn) { throw "Outbound Connector '$connector' not found — run connector setup first." }
 
     # ── Signatur-Weg ─────────────────────────────────────────────────────────
+    # Migration: bestehenden Weg ggf. vom frueheren Namen (ohne "(Signatur)") auf
+    # den aktuellen umbenennen — in-place, damit Regel-ID/Prioritaet/Zustand bleiben.
+    if ($SigRuleNameOld -and $SigRuleNameOld -ne $sigRule) {
+        if (-not (Get-TransportRule -Identity $sigRule -ErrorAction SilentlyContinue)) {
+            if (Get-TransportRule -Identity $SigRuleNameOld -ErrorAction SilentlyContinue) {
+                Set-TransportRule -Identity $SigRuleNameOld -Name $sigRule | Out-Null
+                Write-OK "Signatur-Regel umbenannt: '$SigRuleNameOld' -> '$sigRule'"
+            }
+        }
+    }
     Sync-Dg $sigDg $sigList
     if (-not (Get-TransportRule -Identity $sigRule -ErrorAction SilentlyContinue)) {
-        throw "Signatur-Regel '$sigRule' fehlt — Connector-Setup zuerst ausfuehren."
+        throw "Signatur-Regel '$sigRule' fehlt ('$SigRuleNameOld' auch nicht) — Connector-Setup zuerst ausfuehren."
     }
     Set-RuleGate $sigRule $sigDg $sigList.Count
 
