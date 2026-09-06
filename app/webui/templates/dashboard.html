@@ -76,6 +76,16 @@ function dismissWelcome() {
   </div>
 </div>
 
+<!-- Bypass-Wächter — nur sichtbar, wenn der Wächter eingerichtet ist. Inhalt +
+     Warnstufe (error/warn/success) setzt JS über die Klasse, nie über Inline-Farben. -->
+<div id="watchdog-dash-banner" style="display:none;margin-bottom:20px">
+  <div id="watchdog-dash-alert" class="alert" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+    <div id="watchdog-dash-text"></div>
+    <button class="btn secondary" style="white-space:nowrap;flex-shrink:0"
+            onclick="window.location='/advanced#watchdog'">Anzeigen</button>
+  </div>
+</div>
+
 {% if password_change_needed %}
 <div class="alert warn" style="margin-bottom:20px">
   <strong>Sicherheitshinweis:</strong> Es ist noch das Standard-Passwort (<code>admin</code>) aktiv.
@@ -502,6 +512,43 @@ function openInFlightInfo(active, maintHeld, dfCount) {
       (sub ? '<div class="sys-sub">' + sub + '</div>' : '') +
       '</div>';
   }
+  async function loadWatchdogBanner() {
+    var wrap = document.getElementById('watchdog-dash-banner');
+    if (!wrap) return;
+    try {
+      var r = await fetch('/api/watchdog/status');
+      if (!r.ok) { wrap.style.display = 'none'; return; }
+      var d = await r.json();
+      if (!d.enabled) { wrap.style.display = 'none'; return; }   // nicht eingerichtet → nichts
+      var kind = d.kind === 'cron' ? 'cron-Host' : (d.kind === 'azure' ? 'Azure Function' : 'Wächter');
+      var seenMs = d.last_seen ? Date.parse(d.last_seen) : NaN;
+      var seenTxt = isNaN(seenMs) ? 'noch nie' : (new Date(seenMs).toLocaleString('de-DE') + ' Uhr');
+      var ageMin = isNaN(seenMs) ? null : Math.floor((Date.now() - seenMs) / 60000);
+      var bypass = d.bypass_active || d.rule_state === 'Disabled';
+      var stale  = (ageMin === null) || (ageMin > 15);   // der Wächter prüft alle 5 min
+
+      var cls, html;
+      if (bypass) {
+        cls = 'error';
+        html = '<strong>Bypass AKTIV</strong> — die Signatur-Transportregel ist abgeschaltet, '
+             + 'ausgehende Post läuft derzeit <strong>unsigniert</strong> (das Gateway gilt als ausgefallen). '
+             + 'S/MIME-Post wartet bewusst in der Exchange-Queue. Zuletzt gesehen: ' + seenTxt + '.';
+      } else if (stale) {
+        cls = 'warn';
+        html = '<strong>Bypass-Wächter meldet sich nicht</strong> (' + kind + ') — zuletzt gesehen: '
+             + seenTxt + '. Läuft der Wächter noch? Solange er schweigt, bliebe ein Gateway-Ausfall unbemerkt.';
+      } else {
+        wrap.style.display = 'none';   // gesund → kein Banner (Status steht in der Wächter-Card)
+        return;
+      }
+      document.getElementById('watchdog-dash-alert').className = 'alert ' + cls;
+      document.getElementById('watchdog-dash-text').innerHTML = html;
+      wrap.style.display = 'block';
+    } catch(e) {
+      wrap.style.display = 'none';
+    }
+  }
+
   async function loadSys() {
     try {
       const d = await getJSON('/api/system/info');
@@ -598,7 +645,9 @@ function openInFlightInfo(active, maintHeld, dfCount) {
     } catch(e) { ursache(e, 'dashboard:567'); }
   }
   loadSys();
+  loadWatchdogBanner();
   setInterval(loadSys, 10000);
+  setInterval(loadWatchdogBanner, 30000);   // Wächter-Zustand ändert sich langsam
 })();
 </script>
 

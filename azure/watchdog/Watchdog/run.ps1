@@ -45,25 +45,46 @@ function Test-GatewayHealthy {
     return $false
 }
 
+# ── Heartbeat: dem Gateway melden, dass der Wächter lebt + wie es steht ──
+# Best-effort: ein Heartbeat-Fehler darf den Lauf nie scheitern lassen. Die URL
+# leitet sich aus der Health-URL ab (…/health → …/api/watchdog/heartbeat).
+function Send-Heartbeat([bool]$healthy, [bool]$bypassActive) {
+    if (-not $token) { return }
+    try {
+        $base = $healthUrl -replace '/health/?$', ''
+        $body = @{ healthy = $healthy; bypass_active = $bypassActive } | ConvertTo-Json -Compress
+        Invoke-RestMethod -Uri "$base/api/watchdog/heartbeat" -Method Post `
+            -Headers @{ "X-Watchdog-Token" = $token } -ContentType "application/json" `
+            -Body $body -TimeoutSec 10 -SkipCertificateCheck | Out-Null
+    } catch {
+        Write-Host "Heartbeat fehlgeschlagen (unkritisch): $($_.Exception.Message)"
+    }
+}
+
 $healthy = Test-GatewayHealthy
 Write-Host "Gateway healthy = $healthy"
 
 # ── Regel nach Bedarf schalten (idempotent; NUR die Signatur-Regel) ──
+$bypassActive = $false
 Import-Module ExchangeOnlineManagement
 Connect-ExchangeOnline -ManagedIdentity -Organization $org -ShowBanner:$false | Out-Null
 try {
     $rule = Get-TransportRule -Identity $ruleName -ErrorAction SilentlyContinue
-    if (-not $rule) { Write-Host "Regel '$ruleName' nicht gefunden — nichts zu tun."; return }
-
-    if (-not $healthy -and $rule.State -eq "Enabled") {
+    if (-not $rule) {
+        Write-Host "Regel '$ruleName' nicht gefunden — nichts zu tun."
+    } elseif (-not $healthy -and $rule.State -eq "Enabled") {
         Disable-TransportRule -Identity $ruleName -Confirm:$false
+        $bypassActive = $true
         Write-Host "BYPASS AKTIV: Gateway ausgefallen → Signatur-Regel '$ruleName' DEAKTIVIERT."
     } elseif ($healthy -and $rule.State -eq "Disabled") {
         Enable-TransportRule -Identity $ruleName -Confirm:$false
         Write-Host "ERHOLT: Gateway wieder da → Signatur-Regel '$ruleName' AKTIVIERT."
     } else {
+        $bypassActive = ($rule.State -eq "Disabled")
         Write-Host "Kein Wechsel nötig (healthy=$healthy, State=$($rule.State))."
     }
 } finally {
     Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
 }
+
+Send-Heartbeat $healthy $bypassActive
