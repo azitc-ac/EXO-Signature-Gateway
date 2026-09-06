@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.78 — 2026-09-06 — Bypass-Wächter: cron-Variante für einen eigenen Zweithost
+
+Neben der Azure-Function gibt es den Wächter jetzt auch als **cron-Variante**
+(`contrib/watchdog/`): ein PowerShell-Skript mit systemd-Timer für einen eigenen
+zweiten Rechner — für Betreiber ohne Azure-Function-Dienst. Gleiche Aufgabe,
+gleiche Grenzen: schaltet ausschließlich die **Signatur**-Regel (Enable/Disable),
+löscht oder erstellt nie eine Regel, lässt die S/MIME-Regel unberührt, entprellt
+über mehrere Fehlversuche.
+
+Der Unterschied zur Azure-Variante liegt allein in der Anmeldung: Ohne Managed
+Identity meldet sich der cron-Wächter per **Zertifikat** der Wächter-App an (mit
+derselben minimalen Rolle „Transport Rules"). Das Zertifikat (`600`) ist der Preis
+fürs Auskommen ohne Azure. Beide Varianten sind gleichwertig; die Auswahl steht in
+`WATCHDOG_KIND` (`azure` | `cron`).
+
+Wie die Azure-Variante bleibt alles **inert**, solange der Wächter nicht
+eingerichtet und aktiviert ist.
+
 ## v1.8.77 — 2026-09-06 — Bypass-Wächter: externer Wächter-Dienst (Azure Function)
 
 Der Bypass-Wächter bekommt seinen eigentlichen Dienst: eine **Azure Function**

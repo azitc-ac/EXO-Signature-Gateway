@@ -1,0 +1,9 @@
+[Unit]
+Description=EXO Signature Gateway — Bypass-Waechter (Health -> Signatur-Regel schalten)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/exo-watchdog/watchdog.env
+ExecStart=/usr/bin/pwsh -NoProfile -NonInteractive -File /opt/exo-watchdog/watchdog.ps1

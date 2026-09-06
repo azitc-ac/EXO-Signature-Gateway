@@ -10,6 +10,7 @@ Transportregeln. Diese Prüfungen halten seinen Wirkungskreis eng:
 from pathlib import Path
 
 _AZ = Path(__file__).resolve().parent.parent / "azure" / "watchdog"
+_CRON = Path(__file__).resolve().parent.parent / "contrib" / "watchdog"
 
 
 def test_run_schaltet_nur_und_loescht_nie():
@@ -40,3 +41,31 @@ def test_rolle_ist_minimal():
     # keine breiten Rollen versehentlich vergeben
     for weit in ("Organization Management", "Mail Recipients", "Role Management"):
         assert weit not in s
+
+
+# ── cron-Variante (contrib/watchdog/) — dieselben Invarianten, Cert statt MI ──
+
+def test_cron_schaltet_nur_und_loescht_nie():
+    s = (_CRON / "watchdog.ps1").read_text()
+    assert "Disable-TransportRule" in s
+    assert "Enable-TransportRule" in s
+    assert "Remove-TransportRule" not in s          # nie löschen
+    assert "New-TransportRule" not in s             # nie anlegen
+
+
+def test_cron_fasst_nur_die_signatur_regel_an():
+    s = (_CRON / "watchdog.ps1").read_text()
+    assert "SIG_RULE_NAME" in s
+    # im ausführenden Teil (nach dem Kommentarkopf) keine S/MIME-Regel
+    body = s.split("Set-StrictMode", 1)[-1]
+    assert "S/MIME" not in body
+
+
+def test_cron_timer_und_service_verweisen_aufeinander():
+    """Der Timer aktiviert timers.target; der Service ruft genau watchdog.ps1."""
+    timer = (_CRON / "exo-watchdog.timer").read_text()
+    service = (_CRON / "exo-watchdog.service").read_text()
+    assert "WantedBy=timers.target" in timer
+    assert "OnUnitActiveSec=5min" in timer
+    assert "watchdog.ps1" in service
+    assert "Type=oneshot" in service
