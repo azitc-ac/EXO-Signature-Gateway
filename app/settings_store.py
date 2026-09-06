@@ -223,7 +223,7 @@ DEFAULTS: dict = {
     # Zeitstempel/Bypass-Zustand liegen bewusst in data/watchdog_state.json, nicht
     # hier — der Heartbeat (1/min) würde sonst settings.json samt Geheimnissen
     # minütlich neu schreiben.
-    "EXO_RULE_SIG": "",                 # Name der Signatur-Transportregel (leer = "Route via <Name>")
+    "EXO_RULE_SIG": "",                 # Name der Signatur-Transportregel (leer = "Route via <Name> (Signatur)")
     "EXO_RULE_SMIME": "",               # Name der S/MIME-Transportregel (erst nach Regeltrennung)
     # Widerrufspruefung (CRL) fuer Empfaengerzertifikate. Vorgabe AN: Die Zusage
     # "Zertifikate werden gegen Sperrlisten geprueft" gilt sonst nicht. Ist eine

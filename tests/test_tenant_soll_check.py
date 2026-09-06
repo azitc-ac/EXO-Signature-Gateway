@@ -27,7 +27,7 @@ def gut() -> dict:
     """Ein korrekter, prod-naher Zustand (frische Kopie je Aufruf)."""
     return copy.deepcopy({
         "transportregeln": [
-            {"Name": "Route via EXO Signature Gateway", "State": "Enabled", "Priority": 1,
+            {"Name": "Route via EXO Signature Gateway (Signatur)", "State": "Enabled", "Priority": 1,
              "Mode": "Enforce", "FromScope": "InOrganization", "SentToScope": "",
              "FromMemberOf": ["EXOSignatureGateway-EnabledMailboxes@zarenko.onmicrosoft.com"],
              "RouteMessageOutboundConnector": "EXO Signature Gateway - Outbound",

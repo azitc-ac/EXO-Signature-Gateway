@@ -99,9 +99,58 @@ def test_dg_update_delegiert_an_split_wenn_aktiv(monkeypatch):
     assert captured["smime"] == ["enc@x.de"]    # verschlüsselungsfähig → Warte-Weg
 
 
-def test_namen_least_disruption(rs):
-    # Signatur-Weg = bestehender Weg; S/MIME-Weg neu.
-    assert rs.signatur_regelname() == "Route via EXO Signature Gateway"
+def test_split_wrapper_uebergibt_regelnamen_als_parameter(monkeypatch):
+    """Die Namen kommen aus der EINEN Quelle und werden dem PS-Skript als Parameter
+    übergeben — das Skript rät keinen Namen. Guard gegen Rückfall auf Hardcode."""
+    from pathlib import Path as _P
+    import subprocess as sp
+    import setup_wizard, settings_store
+    monkeypatch.setattr(settings_store, "get",
+                        lambda k, *a: {"GATEWAY_NAME": "EXO Signature Gateway",
+                                       "LOOP_HEADER": "X-Sig-Applied"}.get(k, ""))
+    monkeypatch.setattr(_P, "exists", lambda self: True)
+    cap = {}
+
+    class _Proc:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+    monkeypatch.setattr(sp, "run", lambda cmd, **k: cap.update(cmd=cmd) or _Proc())
+
+    setup_wizard.run_rule_split_setup("app", "t.onmicrosoft.com", ["sig@x.de"], ["enc@x.de"])
+    cmd = cap["cmd"]
+    assert "-SigRuleName" in cmd and "Route via EXO Signature Gateway (Signatur)" in cmd
+    assert "-SmimeRuleName" in cmd and "Route via EXO Signature Gateway (S/MIME)" in cmd
+    # Migrationsquelle (früherer Name, ohne Zusatz) wird mitgegeben:
+    assert "-SigRuleNameOld" in cmd and "Route via EXO Signature Gateway" in cmd
+
+
+def test_dg_update_wrapper_uebergibt_regelnamen(monkeypatch):
+    """Auch der Nicht-Split-Pfad (update_mailbox_dg.ps1) bekommt Namen + Altnamen."""
+    from pathlib import Path as _P
+    import subprocess as sp
+    import setup_wizard, settings_store, regel_split
+    monkeypatch.setattr(regel_split, "split_aktiv", lambda: False)   # Nicht-Split-Pfad
+    monkeypatch.setattr(settings_store, "get",
+                        lambda k, *a: {"GATEWAY_NAME": "EXO Signature Gateway"}.get(k, ""))
+    monkeypatch.setattr(_P, "exists", lambda self: True)
+    cap = {}
+
+    class _Proc:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+    monkeypatch.setattr(sp, "run", lambda cmd, **k: cap.update(cmd=cmd) or _Proc())
+
+    setup_wizard.run_mailbox_dg_update("app", "t.onmicrosoft.com", ["sig@x.de"])
+    cmd = cap["cmd"]
+    assert "-RuleName" in cmd and "Route via EXO Signature Gateway (Signatur)" in cmd
+    assert "-RuleNameOld" in cmd and "Route via EXO Signature Gateway" in cmd
+
+
+def test_namen_symmetrisch(rs):
+    # Signatur- und S/MIME-Weg tragen symmetrische Zusätze; abgeleitet aus GATEWAY_NAME.
+    assert rs.signatur_regelname() == "Route via EXO Signature Gateway (Signatur)"
     assert rs.smime_regelname() == "Route via EXO Signature Gateway (S/MIME)"
     assert rs.signatur_dg_name() == "EXO Signature Gateway - Enabled Mailboxes"
     assert rs.smime_dg_name() == "EXO Signature Gateway - SMIME Mailboxes"

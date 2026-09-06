@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.84 — 2026-09-07 — Signatur-Transportregel heißt „(Signatur)" (symmetrisch zu „(S/MIME)")
+
+Die Signatur-Route heißt jetzt **„Route via <Gateway-Name> (Signatur)"** — symmetrisch
+zur S/MIME-Route „… (S/MIME)". Der Setup-Assistent legt sie von Anfang an so an;
+bestehende Installationen werden beim nächsten Setup-/Postfach-Schritt **einmalig
+automatisch umbenannt** (in-place, Regel behält ID, Priorität und Zustand — nichts
+wird gelöscht oder neu angelegt).
+
+Wichtiger als der Name: der Regelname wird **nicht mehr an mehreren Stellen
+hartkodiert**. Er hat genau eine Quelle (aus dem Gateway-Namen abgeleitet, oder
+ausdrücklich über `EXO_RULE_SIG`/`EXO_RULE_SMIME`); die PowerShell-Skripte
+(Connector-Setup, Postfach-Aktualisierung, Regeltrennung) bekommen ihn als Parameter
+und leiten keinen Namen mehr selbst ab. So kann er je System unterschiedlich lauten,
+ohne dass eine Stelle abweicht.
+
+Zu tun ist nichts — die Umbenennung geschieht automatisch. Wer den Namen ausdrücklich
+gesetzt hat (`EXO_RULE_SIG`), behält ihn unverändert.
+
 ## v1.8.83 — 2026-09-07 — Least Privilege: App-Zugriff auch per RBAC for Applications
 
 Die Least-Privilege-Routine, die den Graph-/IMAP-Zugriff der Gateway-App auf die
