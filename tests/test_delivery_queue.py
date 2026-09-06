@@ -2,10 +2,14 @@
 Warteschlange (Grund „delivery_failed") statt verloren zu gehen — und der
 Aufrufer wirft NICHT, sodass Exchange 250 OK bekommt (kein NDR, keine Dublette).
 """
+from pathlib import Path
+
 import held_mails
 import reinject
 import settings_store
 import stats
+
+_TPL = Path(__file__).resolve().parent.parent / "app" / "webui" / "templates"
 
 
 def test_held_reason_und_count_nach_grund(tmp_path, monkeypatch):
@@ -54,3 +58,23 @@ def test_manueller_retry_wirft_statt_neu_einzureihen(monkeypatch):
         reinject.send("a@x.de", ["b@x.de"],
                       b"From: a@x.de\r\nTo: b@x.de\r\n\r\nbody", queue_on_failure=False)
     assert called["hold"] is False
+
+
+# ── UI-Sichtbarkeit: Zustellfehler-Mails dürfen NICHT am Wartungsmodus hängen ──
+# (Regression vom 2026-09-06: Warteschlange war nur bei aktivem Wartungsmodus
+#  sichtbar → Zustellfehler-Mails wuchsen unsichtbar an.)
+
+def test_advanced_queue_nicht_allein_am_wartungsmodus():
+    s = (_TPL / "advanced.html").read_text()
+    # Queue wird beim Laden IMMER geholt, nicht nur wenn der Modus an ist.
+    assert "if (_initialMode) window.loadHeldMails()" not in s
+    # Sichtbarkeit über die entkoppelte Funktion, die auch auf vorhandene Mails schaut.
+    assert "_applyQueueVisibility" in s
+
+
+def test_dashboard_unterscheidet_zustellfehler_von_wartung():
+    s = (_TPL / "dashboard.html").read_text()
+    assert "delivery_failed_count" in s          # getrennte Zahl wird genutzt
+    assert "delivery-failed-banner" in s          # eigenes, wartungsmodus-unabhängiges Banner
+    # der pauschale Alt-Text darf nicht zurückkehren
+    assert "held + ' Mail" not in s

@@ -106,17 +106,25 @@ function saveLexwareFix(enabled) {
   var _currentPreviewId = null;
   var _initialMode = {{ 'true' if s.MAINTENANCE_MODE else 'false' }};
 
-  // Update toggle + status label only — no recursion into loadHeldMails
+  // Update toggle + status label only — no recursion into loadHeldMails.
+  // Die Warteschlange NICHT hier ein-/ausblenden: Zustellfehler-Mails sammeln
+  // sich auch bei ausgeschaltetem Wartungsmodus an und müssen sichtbar bleiben.
+  // Über die Sichtbarkeit entscheidet allein _applyQueueVisibility().
   function _applyModeUI(enabled) {
     var toggle = document.getElementById('maintenance-toggle');
     var statusText = document.getElementById('maintenance-status-text');
-    var queue = document.getElementById('maintenance-queue');
     if (toggle) toggle.checked = enabled;
     if (statusText) {
       statusText.textContent = enabled ? 'Aktiv — Mails werden zurückgehalten' : 'Deaktiviert';
       statusText.style.color = enabled ? '#b45309' : '#57534e';
     }
-    if (queue) queue.style.display = enabled ? 'block' : 'none';
+  }
+
+  // Queue zeigt sich, sobald Mails da sind (jeder Grund) ODER der Wartungsmodus
+  // an ist — nur eine leere Queue bei aus­geschaltetem Wartungsmodus bleibt verborgen.
+  function _applyQueueVisibility(enabled, hasMails) {
+    var queue = document.getElementById('maintenance-queue');
+    if (queue) queue.style.display = (enabled || hasMails) ? 'block' : 'none';
   }
 
   window.setMaintenanceMode = async function(enabled) {
@@ -127,7 +135,8 @@ function saveLexwareFix(enabled) {
     });
     if (!r.ok) { alert('Fehler beim Speichern'); return; }
     _applyModeUI(enabled);
-    if (enabled) window.loadHeldMails();
+    // Immer neu laden: beim Ausschalten kann die Queue wegen Zustellfehlern bleiben.
+    window.loadHeldMails();
   };
 
   window.loadHeldMails = async function() {
@@ -137,6 +146,7 @@ function saveLexwareFix(enabled) {
       var d = await r.json();
       // Update mode UI without recursing
       _applyModeUI(d.maintenance_mode);
+      _applyQueueVisibility(d.maintenance_mode, d.mails.length > 0);
       document.getElementById('held-count').textContent = d.mails.length;
       var container = document.getElementById('held-mails-table');
       if (!d.mails.length) {
@@ -246,9 +256,10 @@ function saveLexwareFix(enabled) {
     window.loadHeldMails();
   };
 
-  // Init — apply UI state from server-rendered value, then load queue if active
+  // Init — Modus-UI aus dem servergerenderten Wert, dann Queue IMMER laden:
+  // sonst blieben Zustellfehler-Mails bei ausgeschaltetem Wartungsmodus unsichtbar.
   _applyModeUI(_initialMode);
-  if (_initialMode) window.loadHeldMails();
+  window.loadHeldMails();
 
   // Click outside modal to close
   var _modal = document.getElementById('held-preview-modal');
