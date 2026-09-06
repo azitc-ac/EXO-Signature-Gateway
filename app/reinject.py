@@ -118,8 +118,40 @@ def _is_bifurcated(rcpt_tos: list[str], content_bytes: bytes) -> bool:
     return bool(header_addrs - rcpt_set)
 
 
+def _fail_delivery(mail_from: str, rcpt_tos: list[str],
+                   content_bytes: bytes, grund: str, queue: bool) -> None:
+    """Zustellfehler behandeln.
+
+    queue=True (automatischer Weg): Fallnetz — Mail NICHT verlieren, sondern in die
+    Warteschlange legen (Grund „delivery_failed"). Aufrufer kehrt normal zurück →
+    Exchange bekommt 250 OK, die Mail wartet auf einen Retry (Freigabe in der
+    Oberfläche). Sichtbar über `delivery_queued` und die Warteschlangen-Übersicht.
+
+    queue=False (manueller Retry aus der Oberfläche): NICHT erneut einreihen,
+    sondern werfen — damit die Freigabe ehrlich „fehlgeschlagen" meldet und die
+    Mail in der Queue bleibt, statt „OK" vorzutäuschen.
+
+    Scheitert selbst das Einreihen, wird laut geworfen — lieber ein Fehler als ein
+    stiller Verlust.
+    """
+    if not queue:
+        raise RuntimeError(f"Zustellung fehlgeschlagen ({grund})")
+    try:
+        import held_mails
+        mid = held_mails.hold(mail_from, list(rcpt_tos), content_bytes,
+                              reason="delivery_failed")
+        stats.increment("delivery_queued")
+        log.warning("Zustellung endgültig fehlgeschlagen (%s) — Mail in Warteschlange "
+                    "gelegt (id=%s, from=%s, to=%s). Retry über die Oberfläche.",
+                    grund, mid, mail_from, rcpt_tos)
+    except Exception as exc:                                  # noqa: BLE001
+        log.error("Unzustellbare Mail konnte NICHT eingereiht werden (Grund %s): %s",
+                  grund, exc)
+        raise RuntimeError(f"Zustellung fehlgeschlagen ({grund}); Einreihen ebenfalls: {exc}")
+
+
 def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
-         force_mime: bool = False) -> None:
+         force_mime: bool = False, queue_on_failure: bool = True) -> None:
     """
     Re-inject a mail.  Mode is controlled by REINJECT_MODE setting:
       "smtp"  — forward via SMTP to EXO smarthost (requires port 25 outbound)
@@ -213,9 +245,13 @@ def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
             return
         if settings_store.get("GRAPH_SMTP_FALLBACK"):
             log.warning("Graph re-inject failed — falling back to SMTP (GRAPH_SMTP_FALLBACK enabled)")
-            _send_smtp(mail_from, rcpt_tos, content_bytes)
+            try:
+                _send_smtp(mail_from, rcpt_tos, content_bytes)
+            except Exception as exc:                          # noqa: BLE001
+                _fail_delivery(mail_from, rcpt_tos, content_bytes, f"graph+smtp: {exc}", queue_on_failure)
         else:
-            raise RuntimeError("Graph API re-inject failed — SMTP fallback disabled")
+            _fail_delivery(mail_from, rcpt_tos, content_bytes,
+                           "Graph fehlgeschlagen, SMTP-Fallback aus", queue_on_failure)
     elif mode in ("imap", "smtp587"):
         import email as _em
         import smtp_submit
@@ -235,13 +271,16 @@ def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
                 ok = graph_reinject.send_via_graph(mail_from, imap_failed, content_bytes)
             if ok:
                 stats.increment("graph_api_calls")
-            if not ok:
-                raise RuntimeError(
-                    f"IMAP APPEND and Graph re-inject both failed for {imap_failed} — "
-                    "check IMAP.AccessAsApp permission and Graph sendMail grant"
-                )
+            else:
+                _fail_delivery(
+                    mail_from, imap_failed, content_bytes,
+                    "IMAP APPEND und Graph beide fehlgeschlagen "
+                    "(IMAP.AccessAsApp / Graph sendMail prüfen)", queue_on_failure)
     else:
-        _send_smtp(mail_from, rcpt_tos, content_bytes)
+        try:
+            _send_smtp(mail_from, rcpt_tos, content_bytes)
+        except Exception as exc:                              # noqa: BLE001
+            _fail_delivery(mail_from, rcpt_tos, content_bytes, f"SMTP-Reinject: {exc}", queue_on_failure)
 
 
 # Veraltete Signatur-Kopfzeilen, die vor dem smtp-Reinject weg müssen.

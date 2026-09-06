@@ -26,8 +26,13 @@ def _ensure_dir() -> None:
 
 
 def hold(sender: str, recipients: list[str], raw_bytes: bytes,
-         processed_msg: "_email_mod.message.Message | None" = None) -> str:
-    """Store a mail in the held queue. Returns the new mail ID."""
+         processed_msg: "_email_mod.message.Message | None" = None,
+         reason: str = "maintenance") -> str:
+    """Store a mail in the held queue. Returns the new mail ID.
+
+    reason: "maintenance" (Wartungsmodus) oder "delivery_failed" (Zustellung nach
+    Verarbeitung/Entschlüsselung endgültig gescheitert — Fallnetz gegen Verlust).
+    """
     _ensure_dir()
 
     # Enforce cap — drop oldest first.
@@ -62,6 +67,7 @@ def hold(sender: str, recipients: list[str], raw_bytes: bytes,
     entry = {
         "id": mail_id,
         "timestamp": datetime.now(timezone.utc).isoformat(),
+        "reason": reason,
         "from_addr": sender,
         "to_addrs": list(recipients),
         "subject": subject,
@@ -86,6 +92,7 @@ def list_all() -> list[dict]:
             result.append({
                 "id":         d["id"],
                 "timestamp":  d["timestamp"],
+                "reason":     d.get("reason", "maintenance"),
                 "from_addr":  d["from_addr"],
                 "to_addrs":   d["to_addrs"],
                 "subject":    d["subject"],
@@ -129,6 +136,16 @@ def delete(mail_id: str) -> bool:
     return False
 
 
-def count() -> int:
+def count(reason: str | None = None) -> int:
+    """Anzahl in der Warteschlange. Ohne reason: alle; mit reason: nur dieser Grund."""
     _ensure_dir()
-    return len(list(_HELD_DIR.glob("*.json")))
+    if reason is None:
+        return len(list(_HELD_DIR.glob("*.json")))
+    n = 0
+    for p in _HELD_DIR.glob("*.json"):
+        try:
+            if json.loads(p.read_text(encoding="utf-8")).get("reason", "maintenance") == reason:
+                n += 1
+        except Exception:
+            pass
+    return n

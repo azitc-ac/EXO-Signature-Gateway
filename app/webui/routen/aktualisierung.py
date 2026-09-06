@@ -115,6 +115,7 @@ async def api_system_info(user: str = Depends(_require_admin)):
         "peak_hour_cnt":    peak[1] if peak else None,
         "maintenance_mode": bool(settings_store.get("MAINTENANCE_MODE")),
         "held_mail_count":  _held_mails_mod.count(),
+        "delivery_failed_count": _held_mails_mod.count("delivery_failed"),
     }
 
 @router.get("/api/system/mail-hourly")
