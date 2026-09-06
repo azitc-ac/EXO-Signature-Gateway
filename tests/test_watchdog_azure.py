@@ -61,6 +61,16 @@ def test_cron_fasst_nur_die_signatur_regel_an():
     assert "S/MIME" not in body
 
 
+def test_beide_senden_heartbeat():
+    """Beide Wächter melden sich beim Gateway (sonst bliebe 'zuletzt gesehen' leer
+    und die Dashboard-Anzeige könnte einen toten Wächter nicht erkennen)."""
+    for pfad in ((_AZ / "Watchdog" / "run.ps1"), (_CRON / "watchdog.ps1")):
+        s = pfad.read_text()
+        assert "api/watchdog/heartbeat" in s
+        assert "X-Watchdog-Token" in s
+        assert "bypass_active" in s          # Zustand wird mitgemeldet
+
+
 def test_cron_timer_und_service_verweisen_aufeinander():
     """Der Timer aktiviert timers.target; der Service ruft genau watchdog.ps1."""
     timer = (_CRON / "exo-watchdog.timer").read_text()

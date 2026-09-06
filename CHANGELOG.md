@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.82 — 2026-09-07 — Bypass-Wächter: Alarm in der Übersicht + Heartbeat
+
+Der Bypass-Wächter wird jetzt in der **Übersicht** sichtbar, wenn etwas nicht
+stimmt — sonst bliebe der Ausfall der Schutzfunktion selbst unbemerkt:
+
+- **Bypass aktiv** (Signatur-Regel abgeschaltet, ausgehende Post läuft unsigniert):
+  rotes Banner.
+- **Wächter meldet sich nicht** (kein Heartbeat seit über 15 Minuten, obwohl
+  eingerichtet): gelbes Banner — genau der Fall, in dem ein Gateway-Ausfall sonst
+  niemandem auffiele.
+- Ist alles in Ordnung, erscheint kein Banner; der laufende Zustand steht in der
+  Wächter-Karte (Erweitert → Bypass-Wächter).
+
+Damit „zuletzt gesehen" überhaupt einen Wert hat, **melden sich beide Wächter jetzt
+per Heartbeat** beim Gateway (Azure-Function und cron-Variante): nach jedem Lauf
+schicken sie Gesundheit und Bypass-Zustand an den bestehenden Heartbeat-Endpunkt
+(mit ihrem Token). Ein Heartbeat-Fehler lässt den Wächter-Lauf nie scheitern.
+
 ## v1.8.81 — 2026-09-07 — Bypass-Wächter: Variante in der Oberfläche wählbar
 
 Der Bypass-Wächter lässt sich nun vollständig in der Oberfläche einrichten
