@@ -5,6 +5,25 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.77 — 2026-09-06 — Bypass-Wächter: externer Wächter-Dienst (Azure Function)
+
+Der Bypass-Wächter bekommt seinen eigentlichen Dienst: eine **Azure Function**
+(zeitgesteuert), die von außen die Gateway-`/health` überwacht und bei Ausfall die
+**Signatur**-Transportregel abschaltet — ausgehende Signatur-Post läuft dann
+unsigniert weiter, statt sich in Exchange zu stauen; bei Erholung schaltet er sie
+wieder ein. Die **S/MIME-Regel bleibt immer an** (verschlüsselungsfähige Post
+wartet bewusst). Er läuft bewusst **extern**, überlebt also den Ausfall des
+Gateway-Hosts.
+
+Sicher gehalten: Anmeldung an Exchange per **Managed Identity** (kein Geheimnis im
+Wächter), mit der **minimalen** Rolle „Transport Rules" (kein Postfach-/Mail-/
+Admin-Zugriff); er schaltet nur, löscht nie, fasst nur die Signatur-Regel an, und
+ist entprellt (mehrere Fehlversuche, bevor der Bypass greift).
+
+Dies liefert die **Artefakte** (Function-Code, Deploy-Skizze, Rollen-Setup) —
+noch nichts wird deployt oder scharf geschaltet. Die cron-Variante für einen
+eigenen Zweithost und die Auswahl in der Oberfläche folgen.
+
 ## v1.8.76 — 2026-09-06 — Least Privilege: App-Zugriffs-Gruppe automatisch pflegen; Speichern vereinheitlicht
 
 **App-Zugriffs-Gruppe wird mitgepflegt.** Eine ApplicationAccessPolicy kann den
