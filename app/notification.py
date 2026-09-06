@@ -319,8 +319,10 @@ def send_daily_report(daily: dict, total: dict) -> bool:
         queue_block = (
             f'<h3 style="color:#e74c3c;margin-top:20px">⚠ Unzustellbare Mails in der '
             f'Warteschlange: {_df}</h3>'
-            f'<p style="margin:4px 0">Nach Verarbeitung/Entschlüsselung nicht zustellbar — '
-            f'in der Oberfläche prüfen und erneut freigeben (Retry).</p>'
+            f'<p style="margin:4px 0">Nach Verarbeitung/Entschlüsselung nicht zustellbar. '
+            f'Sie werden automatisch erneut zugestellt (Kadenz wie Exchange: minütlich, '
+            f'dann alle 5, dann alle 15 Minuten, Aufgabe nach 2 Tagen). Bleibt es dauerhaft, '
+            f'die Zustellwege prüfen — einsehen und sofort zustellen in der Oberfläche.</p>'
         )
 
     body = (

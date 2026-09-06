@@ -63,10 +63,13 @@ function dismissWelcome() {
 <div id="delivery-failed-banner" style="display:none;margin-bottom:20px">
   <div class="alert error" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
     <div>
-      <strong>Zustellfehler</strong> — <span id="delivery-failed-count">0</span> entschlüsselte Mail(s)
+      <strong>Zustellfehler</strong> — <span id="delivery-failed-count">0</span> Mail(s)
       konnten nicht zugestellt werden und warten in der Warteschlange (statt verloren zu gehen).
-      Prüfe die Zustellwege und stelle sie danach unter
-      <a href="/advanced#maintenance" style="color:inherit;font-weight:700">Erweitert → Wartungsmodus</a> erneut zu.
+      Sie werden <strong>automatisch erneut zugestellt</strong> (Kadenz wie Exchange: erst
+      minütlich, dann alle 5, dann alle 15 Minuten, Aufgabe nach 2 Tagen). Bleibt es dauerhaft,
+      prüfe die Zustellwege; unter
+      <a href="/advanced#maintenance" style="color:inherit;font-weight:700">Erweitert → Wartungsmodus</a>
+      kannst du sie einsehen und sofort zustellen.
     </div>
     <button class="btn secondary" style="white-space:nowrap;flex-shrink:0"
             onclick="window.location='/advanced#maintenance'">Anzeigen</button>
@@ -465,12 +468,12 @@ function openInFlightInfo(active, maintHeld, dfCount) {
   if (dfCount > 0) lines.push(dfCount + ' Mail' + (dfCount > 1 ? 's warten' : ' wartet') + ' wegen Zustellfehler in der Warteschlange (Erweitert → Wartungsmodus).');
   var msg = lines.length ? lines.join('<br>') : 'Keine Mails in Verarbeitung — System idle.';
   var col = total > 0 ? '#d97706' : '#16a34a';
-  document.getElementById('poolModalTitle').textContent = 'In Flight — Live-Status';
+  document.getElementById('poolModalTitle').textContent = 'Warteschlange — Live-Status';
   document.getElementById('poolModalContent').innerHTML =
     '<div style="font-size:32px;font-weight:700;color:' + col + ';margin-bottom:8px">' + total + '</div>' +
     '<div style="font-size:13px;color:#44403c;margin-bottom:16px">' + msg + '</div>' +
     '<div style="font-size:11px;color:#a8a29e">Wert wird alle 10 Sekunden aktualisiert. ' +
-    'In-Flight-Mails erscheinen nach Abschluss im Audit-Log.</div>';
+    'Verarbeitete Mails erscheinen nach Abschluss im Audit-Log.</div>';
   document.getElementById('poolModal').style.display = 'flex';
 }
 
@@ -541,7 +544,7 @@ function openInFlightInfo(active, maintHeld, dfCount) {
       const inFlightSub = subParts.length ? subParts.join(', ') : 'Keine Mails in Verarbeitung';
 
       grid.innerHTML =
-        tile('In Flight', inFlightTotal, inFlightSub, infClass, 'openInFlightInfo(' + d.in_flight + ',' + maintHeld + ',' + dfCount + ')') +
+        tile('Warteschlange', inFlightTotal, inFlightSub, infClass, 'openInFlightInfo(' + d.in_flight + ',' + maintHeld + ',' + dfCount + ')') +
         tile('Ø Zeit / Mail', avgMs, 'pro Nachricht, letzte 24 h', '', 'openMailHourlyModal()') +
         tile('Mail-Peak heute', d.peak_hour != null ? d.peak_hour + ':xx Uhr · ' + d.peak_hour_cnt + ' Mails' : '—', 'geschäftigste Stunde', '', peakOnclick) +
         tile('RAM (Prozess)', d.rss_mb != null ? d.rss_mb + ' MB' : '—', 'RSS') +

@@ -35,6 +35,12 @@
         <button class="btn danger" onclick="deleteAllHeld()" style="font-size:12px;padding:4px 10px">Alle löschen</button>
       </div>
     </div>
+    <p style="color:#78716c;font-size:12px;margin:0 0 10px">
+      Enthält im Wartungsmodus zurückgehaltene Mails <strong>und</strong> Mails mit Grund
+      „⚠ Zustellfehler" (nach Verarbeitung/Entschlüsselung nicht zustellbar). Zustellfehler
+      werden automatisch erneut zugestellt (Kadenz wie Exchange: minütlich, dann alle 5, dann
+      alle 15 Minuten, Aufgabe nach 2 Tagen); mit „Zustellen" kannst du es jederzeit sofort auslösen.
+    </p>
     <div id="held-mails-table">
       <p style="color:#a8a29e;font-size:13px">Keine zurückgehaltenen Mails.</p>
     </div>
