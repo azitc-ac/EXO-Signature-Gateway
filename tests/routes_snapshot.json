@@ -1554,6 +1554,13 @@
     "name": "api_usermail_standard"
   },
   {
+    "pfad": "/api/watchdog/config",
+    "methoden": [
+      "POST"
+    ],
+    "name": "watchdog_config"
+  },
+  {
     "pfad": "/api/watchdog/heartbeat",
     "methoden": [
       "POST"

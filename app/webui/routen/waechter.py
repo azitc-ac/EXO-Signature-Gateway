@@ -61,6 +61,17 @@ async def watchdog_heartbeat(request: Request):
     return JSONResponse({"ok": True})
 
 
+def _config_hinweise() -> dict:
+    """Werte, die beide Wächter-Varianten brauchen — zum Kopieren in der Oberfläche."""
+    import waechter_regel
+    basis = (settings_store.get("ADDIN_BASE_URL") or "").strip().rstrip("/")
+    return {
+        "health_url": (basis + "/health") if basis else "",
+        "organization": (settings_store.get("TENANT_DOMAIN") or "").strip(),
+        "sig_rule_name": waechter_regel.regelname(),
+    }
+
+
 @router.get("/api/watchdog/status")
 async def watchdog_status(user: str = Depends(_require_admin)):
     """Für die Oberfläche: zuletzt gesehen, Bypass-Zustand, Regelzustand."""
@@ -72,6 +83,47 @@ async def watchdog_status(user: str = Depends(_require_admin)):
         "bypass_active": bool(st.get("bypass_active")),
         "rule_state": st.get("rule_state") or "unbekannt",   # von der EXO-Prüfung (Folgeschritt)
         "token_set": bool(settings_store.get("WATCHDOG_TOKEN_HASH")),
+        "hinweise": _config_hinweise(),
+    })
+
+
+@router.post("/api/watchdog/config")
+async def watchdog_config(request: Request, user: str = Depends(_require_admin)):
+    """Variante wählen (azure|cron) und den Wächter scharf-/stellen. Aktivieren geht
+    nur mit gewählter Variante UND gesetztem Token — sonst liefe ein Wächter ins Leere."""
+    try:
+        body = json.loads(await request.body() or b"{}")
+    except Exception:                                          # noqa: BLE001
+        body = {}
+    updates: dict = {}
+
+    kind = body.get("kind")
+    if kind is not None:
+        if kind not in ("", "azure", "cron"):
+            return JSONResponse({"ok": False, "detail": "Variante muss 'azure' oder 'cron' sein."},
+                                status_code=400)
+        updates["WATCHDOG_KIND"] = kind
+
+    enabled = body.get("enabled")
+    if enabled is not None:
+        enabled = bool(enabled)
+        if enabled:
+            k = updates.get("WATCHDOG_KIND", settings_store.get("WATCHDOG_KIND") or "")
+            if k not in ("azure", "cron"):
+                return JSONResponse({"ok": False, "detail": "Erst eine Variante wählen."},
+                                    status_code=400)
+            if not settings_store.get("WATCHDOG_TOKEN_HASH"):
+                return JSONResponse({"ok": False, "detail": "Erst ein Heartbeat-Token erzeugen."},
+                                    status_code=400)
+        updates["WATCHDOG_ENABLED"] = enabled
+
+    if updates:
+        settings_store.update(updates)
+        log.info("Watchdog-Konfiguration geändert von %s: %s", user, sorted(updates))
+    return JSONResponse({
+        "ok": True,
+        "kind": settings_store.get("WATCHDOG_KIND") or "",
+        "enabled": settings_store.get("WATCHDOG_ENABLED") is True,
     })
 
 
