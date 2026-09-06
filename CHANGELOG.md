@@ -5,6 +5,25 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.79 — 2026-09-06 — Warteschlange auch außerhalb des Wartungsmodus sichtbar
+
+Nach Verarbeitung/Entschlüsselung unzustellbare Post landet in derselben
+Warteschlange wie zurückgehaltene Wartungsmodus-Mails. Diese Warteschlange war in
+der Oberfläche jedoch **nur bei aktivem Wartungsmodus** eingeblendet — Mails, die
+wegen eines Zustellfehlers dort lagen, wuchsen bei ausgeschaltetem Wartungsmodus
+**unsichtbar** an. Genau das darf ein Fallnetz nicht: sein Wirken muss sichtbar sein.
+
+Behoben an drei Stellen:
+
+- **Erweitert → Wartungsmodus:** Die Warteschlange erscheint jetzt, sobald Mails
+  vorliegen (gleich welchen Grundes) oder der Wartungsmodus an ist — ihre
+  Sichtbarkeit ist vom Schalter entkoppelt.
+- **Übersicht:** Ein eigenes, wartungsmodus-unabhängiges **Zustellfehler-Banner**
+  weist auf wartende Mails hin. Die „In Flight"-Kachel unterscheidet nun
+  „im Wartungsmodus zurückgehalten" von „wegen Zustellfehler in der Warteschlange"
+  — vorher wurde beides pauschal dem Wartungsmodus zugeschrieben.
+- Der Tagesbericht führt die Zahl bereits (unverändert).
+
 ## v1.8.78 — 2026-09-06 — Bypass-Wächter: cron-Variante für einen eigenen Zweithost
 
 Neben der Azure-Function gibt es den Wächter jetzt auch als **cron-Variante**

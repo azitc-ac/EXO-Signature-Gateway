@@ -60,6 +60,19 @@ function dismissWelcome() {
   </div>
 </div>
 
+<div id="delivery-failed-banner" style="display:none;margin-bottom:20px">
+  <div class="alert error" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+    <div>
+      <strong>Zustellfehler</strong> — <span id="delivery-failed-count">0</span> entschlüsselte Mail(s)
+      konnten nicht zugestellt werden und warten in der Warteschlange (statt verloren zu gehen).
+      Prüfe die Zustellwege und stelle sie danach unter
+      <a href="/advanced#maintenance" style="color:inherit;font-weight:700">Erweitert → Wartungsmodus</a> erneut zu.
+    </div>
+    <button class="btn secondary" style="white-space:nowrap;flex-shrink:0"
+            onclick="window.location='/advanced#maintenance'">Anzeigen</button>
+  </div>
+</div>
+
 {% if password_change_needed %}
 <div class="alert warn" style="margin-bottom:20px">
   <strong>Sicherheitshinweis:</strong> Es ist noch das Standard-Passwort (<code>admin</code>) aktiv.
@@ -442,12 +455,14 @@ function closePoolModal() {
 
 var _sysToday = new Date().toISOString().slice(0,10);
 
-function openInFlightInfo(active, held) {
-  held = held || 0;
-  var total = active + held;
+function openInFlightInfo(active, maintHeld, dfCount) {
+  maintHeld = maintHeld || 0;
+  dfCount = dfCount || 0;
+  var total = active + maintHeld + dfCount;
   var lines = [];
   if (active > 0) lines.push(active + ' Mail' + (active > 1 ? 's werden' : ' wird') + ' gerade verarbeitet.');
-  if (held > 0) lines.push(held + ' Mail' + (held > 1 ? 's sind' : ' ist') + ' im Wartungsmodus zurückgehalten (Erweitert → Wartungsmodus).');
+  if (maintHeld > 0) lines.push(maintHeld + ' Mail' + (maintHeld > 1 ? 's sind' : ' ist') + ' im Wartungsmodus zurückgehalten (Erweitert → Wartungsmodus).');
+  if (dfCount > 0) lines.push(dfCount + ' Mail' + (dfCount > 1 ? 's warten' : ' wartet') + ' wegen Zustellfehler in der Warteschlange (Erweitert → Wartungsmodus).');
   var msg = lines.length ? lines.join('<br>') : 'Keine Mails in Verarbeitung — System idle.';
   var col = total > 0 ? '#d97706' : '#16a34a';
   document.getElementById('poolModalTitle').textContent = 'In Flight — Live-Status';
@@ -497,31 +512,36 @@ function openInFlightInfo(active, held) {
       }
       const diskClass = d.disk_pct >= 90 ? 'sys-disk-crit' : d.disk_pct >= 75 ? 'sys-disk-warn' : '';
       const heldCount = d.held_mail_count || 0;
+      const dfCount   = d.delivery_failed_count || 0;   // Zustellfehler-Teilmenge
+      const maintHeld = Math.max(0, heldCount - dfCount); // Rest = wegen Wartungsmodus
       const inFlightTotal = d.in_flight + heldCount;
       const infClass  = inFlightTotal > 0 ? 'sys-inflight-pos' : 'sys-inflight-0';
       const grid = document.getElementById('sysGrid');
       const peakOnclick = d.peak_hour != null ? 'openAuditModal("' + _sysToday + '","","' + d.peak_hour + '")' : null;
       const avgMs = d.avg_ms_24h != null ? d.avg_ms_24h + ' ms' : '—';
-      // Wartungsmodus-Banner
+      // Wartungsmodus-Banner (nur echte Wartungs-Rückhaltungen zählen)
       if (d.maintenance_mode) {
         document.getElementById('maintenance-banner').style.display = 'block';
-        document.getElementById('maintenance-held-count').textContent = heldCount;
+        document.getElementById('maintenance-held-count').textContent = maintHeld;
       } else {
         document.getElementById('maintenance-banner').style.display = 'none';
       }
-      let inFlightSub;
-      if (heldCount > 0 && d.in_flight > 0) {
-        inFlightSub = d.in_flight + ' in Verarbeitung, ' + heldCount + ' im Wartungsmodus zurückgehalten';
-      } else if (heldCount > 0) {
-        inFlightSub = heldCount + ' im Wartungsmodus zurückgehalten';
-      } else if (d.in_flight > 0) {
-        inFlightSub = 'Mails in Verarbeitung';
+      // Zustellfehler-Banner (unabhängig vom Wartungsmodus)
+      var dfBanner = document.getElementById('delivery-failed-banner');
+      if (dfCount > 0) {
+        dfBanner.style.display = 'block';
+        document.getElementById('delivery-failed-count').textContent = dfCount;
       } else {
-        inFlightSub = 'Keine Mails in Verarbeitung';
+        dfBanner.style.display = 'none';
       }
+      var subParts = [];
+      if (d.in_flight > 0) subParts.push(d.in_flight + ' in Verarbeitung');
+      if (maintHeld > 0)   subParts.push(maintHeld + ' im Wartungsmodus zurückgehalten');
+      if (dfCount > 0)     subParts.push(dfCount + ' wegen Zustellfehler in der Warteschlange');
+      const inFlightSub = subParts.length ? subParts.join(', ') : 'Keine Mails in Verarbeitung';
 
       grid.innerHTML =
-        tile('In Flight', inFlightTotal, inFlightSub, infClass, 'openInFlightInfo(' + d.in_flight + ',' + heldCount + ')') +
+        tile('In Flight', inFlightTotal, inFlightSub, infClass, 'openInFlightInfo(' + d.in_flight + ',' + maintHeld + ',' + dfCount + ')') +
         tile('Ø Zeit / Mail', avgMs, 'pro Nachricht, letzte 24 h', '', 'openMailHourlyModal()') +
         tile('Mail-Peak heute', d.peak_hour != null ? d.peak_hour + ':xx Uhr · ' + d.peak_hour_cnt + ' Mails' : '—', 'geschäftigste Stunde', '', peakOnclick) +
         tile('RAM (Prozess)', d.rss_mb != null ? d.rss_mb + ' MB' : '—', 'RSS') +
