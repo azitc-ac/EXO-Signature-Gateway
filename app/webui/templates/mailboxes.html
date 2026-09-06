@@ -224,15 +224,11 @@ async function ankerAnwenden() {
          änderungen macht, wird der speichern knopf drückbar was gut ist aber es
          kommt dort kein hinweis, dass noch nicht gespeichert wurde."
          Zutreffend — die Änderungsüberwachung gab es bis dahin nur auf den
-         Einstellungsseiten. Der zweite Knopf („Nur lokal") ist eine Variante
-         derselben Aktion und teilt sich deshalb den Hinweis. -->
-    <button class="btn secondary" id="mb-save-btn" onclick="saveMailboxes(true)"
+         Einstellungsseiten. -->
+    <button class="btn secondary" id="mb-save-btn" onclick="saveMailboxes()"
             data-wache-container="#mb-tbody" data-wache-hinweis="mb-wache-hinweis"
             style="display:none">
-      In EXO speichern (DG aktualisieren)
-    </button>
-    <button class="btn secondary" id="mb-local-btn" onclick="saveMailboxes(false)" style="display:none">
-      Nur lokal speichern
+      Speichern
     </button>
     <span id="mb-wache-hinweis" style="font-size:12px;margin-left:8px"></span>
   </div>
@@ -680,7 +676,6 @@ async function loadMailboxes(silent) {
     // alle Masse null, die Hoehe fiele auf die Untergrenze.
     tabellenHoeheAnpassen();
     document.getElementById('mb-save-btn').style.display = '';
-    document.getElementById('mb-local-btn').style.display = '';
     document.getElementById('mb-refresh-btn').style.display = '';
     // ⚠️ Erst jetzt steht der Ausgangsstand. Die Wache misst ihn beim Laden der
     // Seite — die Tabelle kommt aber per Abruf. Ohne diese Zeile stünde beim
@@ -1217,7 +1212,7 @@ async function autoEnrollBestaetigt(payload) {
   return confirm(frage);
 }
 
-async function saveMailboxes(updateDg) {
+async function saveMailboxes() {
   var result = document.getElementById('mb-result');
   var sigBoxes = document.querySelectorAll('.mb-sig');
   var smimeBoxes = document.querySelectorAll('.mb-smime');
@@ -1259,22 +1254,22 @@ async function saveMailboxes(updateDg) {
   // fünfzig Zertifikate. Was bei der CA liegt, lässt sich nicht zurückholen.
   if (!(await autoEnrollBestaetigt(payload))) return;
 
-  var btn = updateDg ? document.getElementById('mb-save-btn') : document.getElementById('mb-local-btn');
+  var btn = document.getElementById('mb-save-btn');
   btn.disabled = true;
   var origText = btn.textContent;
-  btn.textContent = updateDg ? 'Wird in EXO übertragen… (kann 2 Min. dauern)' : 'Speichert…';
+  btn.textContent = 'Wird gespeichert… (EXO, kann 2 Min. dauern)';
   result.style.display = 'none';
   try {
     var resp = await fetch('/api/mailboxes/save', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({mailboxes: payload, update_dg: updateDg}),
+      body: JSON.stringify({mailboxes: payload, update_dg: true}),
     });
     var d = await resp.json().catch(function() { return {}; });
     if (resp.ok && d.ok) {
       var out = d.dg_output ? '<br><code style="font-size:11px">' + d.dg_output.replace(/\n/g,'<br>') + '</code>' : '';
       result.className = 'alert success';
-      result.innerHTML = updateDg ? 'In EXO gespeichert.' + out : 'Lokal gespeichert.';
+      result.innerHTML = 'Gespeichert (lokal + Verteilerliste).' + out;
       refreshFairUse();
       // Der ausführliche Kasten bleibt (er trägt die Ausgabe der
       // Verteilerlisten-Aktualisierung); die Wache meldet zusätzlich am Knopf,

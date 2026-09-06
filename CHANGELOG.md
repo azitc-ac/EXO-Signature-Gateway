@@ -5,6 +5,25 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.76 — 2026-09-06 — Least Privilege: App-Zugriffs-Gruppe automatisch pflegen; Speichern vereinheitlicht
+
+**App-Zugriffs-Gruppe wird mitgepflegt.** Eine ApplicationAccessPolicy kann den
+Postfachzugriff der App (Graph/IMAP) auf genau die Gateway-Postfächer beschränken;
+sie stützt sich auf eine eigene Sicherheitsgruppe (`… - App Scope`). Damit die
+nicht veraltet, wird ihre Mitgliedschaft jetzt bei jedem Speichern der Postfächer
+automatisch abgeglichen — auf die aktiven Postfächer plus das Benachrichtigungs­
+postfach. Ausfallsicher: die Gruppe wird nie geleert, solange die Beschränkung
+greift (leere Gruppe = kein Zugriff), und die Policy wird nur bei befüllter Gruppe
+angelegt. Standardmäßig aus (`APP_ACCESS_POLICY_ENABLED`); ohne die Umstellung
+ändert sich nichts. Greift eine Beschränkung doch einmal daneben, geht keine Post
+verloren — sie wartet im Zustell-Fallnetz.
+
+**Postfach-Speichern vereinheitlicht.** Der zweite Knopf („Nur lokal speichern")
+entfällt. Ein „Speichern" sichert jetzt immer lokal **und** aktualisiert die
+Verteilerliste **und** die App-Zugriffs-Gruppe — kein Nebeneinander mehr, das man
+verwechseln konnte. (Die lokale Sicherung erfolgt ohnehin zuerst; ist Exchange
+kurz nicht erreichbar, ist der lokale Stand trotzdem gespeichert.)
+
 ## v1.8.75 — 2026-09-06 — Fallnetz: unzustellbare Post wird nicht mehr verloren
 
 Kann eine Mail nach der Verarbeitung/Entschlüsselung endgültig nicht zugestellt
