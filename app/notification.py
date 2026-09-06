@@ -308,6 +308,21 @@ def send_daily_report(daily: dict, total: dict) -> bool:
             warn_rows += _row(c["email"], f'{label} (bis {c["expiry"]})', color)
         warn_block = f'<h3 style="color:#e74c3c;margin-top:20px">⚠ Ablaufende Zertifikate</h3><table>{warn_rows}</table>'
 
+    # ── Unzustellbare Mails in der Warteschlange (Fallnetz) ──
+    # Nach Verarbeitung/Entschlüsselung endgültig unzustellbare Post landet in der
+    # Warteschlange statt verloren zu gehen. Damit dieses Fallnetz nicht still
+    # anwächst, gehört die Zahl in den Tagesbericht (CLAUDE.md).
+    import held_mails as _held
+    _df = _held.count("delivery_failed")
+    queue_block = ""
+    if _df:
+        queue_block = (
+            f'<h3 style="color:#e74c3c;margin-top:20px">⚠ Unzustellbare Mails in der '
+            f'Warteschlange: {_df}</h3>'
+            f'<p style="margin:4px 0">Nach Verarbeitung/Entschlüsselung nicht zustellbar — '
+            f'in der Oberfläche prüfen und erneut freigeben (Retry).</p>'
+        )
+
     body = (
         f'<h3 style="margin-top:4px">Statistiken heute – {date_str}</h3>'
         f'<table>{rows_today}</table>'
@@ -315,7 +330,7 @@ def send_daily_report(daily: dict, total: dict) -> bool:
         f'<table>{rows_month}</table>'
         f'<h3 style="margin-top:20px">Gateway</h3>'
         f'<table>{gw_rows}</table>'
-        f'{tls_block}{warn_block}'
+        f'{tls_block}{warn_block}{queue_block}'
     )
     html = _html_wrap(f"EXO Gateway – Tagesbericht {date_str}", "#2c3e50", body)
 

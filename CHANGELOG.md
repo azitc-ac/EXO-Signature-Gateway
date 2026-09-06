@@ -5,6 +5,25 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.75 — 2026-09-06 — Fallnetz: unzustellbare Post wird nicht mehr verloren
+
+Kann eine Mail nach der Verarbeitung/Entschlüsselung endgültig nicht zugestellt
+werden (z.B. IMAP-APPEND und Graph scheitern beide, oder der Smarthost ist nicht
+erreichbar), wurde bisher ein Fehler geworfen — die bereits entschlüsselte Fassung
+ging damit verloren. Jetzt landet sie stattdessen in der **Warteschlange** (Grund
+„Zustellfehler"), dieselbe, die auch der Wartungsmodus nutzt. So geht keine Post
+verloren; sie lässt sich in der Oberfläche prüfen und erneut zustellen.
+
+Sichtbar gemacht (eine stille Warteschlange wäre wertlos): Anzahl in der
+Betriebsübersicht, eine eigene Zeile im Tagesbericht, sobald etwas wartet, und in
+der Warteschlangen-Tabelle eine Spalte „Grund". Ein **manueller** Zustellversuch,
+der erneut scheitert, meldet ehrlich einen Fehler und lässt die Mail in der
+Warteschlange (statt „OK" vorzutäuschen).
+
+Nebennutzen: härtere Least-Privilege-Umstellungen (Postfach-Zugriff einschränken)
+werden dadurch abgesichert — trifft eine Einschränkung versehentlich ein
+benötigtes Postfach, wartet die Post, statt verloren zu gehen.
+
 ## v1.8.74 — 2026-09-05 — Werkzeug: Spiegelprüfung gegen das EXO SMTP Relay
 
 Das SMTP-Relay lebt seit v0.2.0 als eigener Dienst im Repository

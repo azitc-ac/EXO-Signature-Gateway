@@ -164,7 +164,7 @@ async def api_held_mail_release(mail_id: str, _: str = Depends(_require_admin)):
     from_addr, to_addrs, raw_bytes = result
     try:
         await asyncio.get_event_loop().run_in_executor(
-            None, lambda: _reinject.send(from_addr, to_addrs, raw_bytes)
+            None, lambda: _reinject.send(from_addr, to_addrs, raw_bytes, queue_on_failure=False)
         )
     except Exception as exc:
         raise HTTPException(500, f"Zustellung fehlgeschlagen: {exc}")
