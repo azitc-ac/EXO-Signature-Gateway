@@ -5,6 +5,28 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.80 — 2026-09-06 — Zustellfehler-Warteschlange: automatischer Retry (Exchange-Kadenz)
+
+Nach Verarbeitung/Entschlüsselung nicht zustellbare Post landet im Fallnetz (Grund
+„Zustellfehler"). Bisher musste jede solche Mail von Hand erneut zugestellt werden;
+jetzt versucht das Gateway die Zustellung **automatisch** erneut. Die Kadenz ist an
+Exchanges eigenen Queue-Retry angelehnt (Transport service, Standardwerte):
+
+- **4×** im Abstand von **1 Minute** (kurze Aussetzer),
+- danach **6×** alle **5 Minuten**,
+- danach alle **15 Minuten**,
+- **Aufgabe nach 2 Tagen** — anders als Exchange wird dann **nicht** zugestellt und
+  **nicht** gelöscht (das ist der Sinn des Fallnetzes): die automatischen Versuche
+  enden, die Mail bleibt zur manuellen Zustellung sichtbar liegen.
+
+Der Retry läuft im Hintergrund-Scheduler; jede Mail trägt ihren nächsten Versuch,
+Versuchszähler und die Ablauffrist bei sich. Der „Zustellen"-Knopf löst weiterhin
+jederzeit sofort aus. Erfolgreich zugestellte Mails verschwinden aus der Warteschlange.
+
+Nebenbei in der Übersicht: die Kachel heißt jetzt **„Warteschlange"** statt „In Flight"
+und schlüsselt auf (in Verarbeitung / im Wartungsmodus / wegen Zustellfehler); das
+Zustellfehler-Banner nennt keine Annahme mehr über den Mailinhalt.
+
 ## v1.8.79 — 2026-09-06 — Warteschlange auch außerhalb des Wartungsmodus sichtbar
 
 Nach Verarbeitung/Entschlüsselung unzustellbare Post landet in derselben

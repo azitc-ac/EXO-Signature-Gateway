@@ -25,6 +25,10 @@ _HUB_ORDERS_INTERVAL = 15 * 60         # offene Hub-Zertifikatsbestellungen + Ka
 _last_health_run: float = 0.0          # monotonic; 0 = never (triggers run on first tick)
 _HEALTH_INTERVAL = 30 * 60             # Postfach-Gesundheit periodisch, damit die Übersicht
                                        # auch ohne Knopfdruck einen aktuellen Stand zeigt
+_last_retry_run: float = 0.0           # monotonic; 0 = never (triggers run on first tick)
+_RETRY_INTERVAL = 60                   # jede Minute — feinste Exchange-Retry-Stufe ist 1 min
+                                       # (Glitch); die eigentliche Kadenz steckt pro Mail in
+                                       # held_mails.next_retry
 
 
 # ── TLS / Let's Encrypt ───────────────────────────────────────────────────────
@@ -450,6 +454,44 @@ def _refresh_mailbox_health() -> None:
         _last_health_run = time.monotonic()
 
 
+def _retry_held_deliveries() -> None:
+    """Auto-Retry für Post, die nach Verarbeitung/Entschlüsselung nicht zustellbar
+    war und im Fallnetz liegt (Grund „delivery_failed"). Die Kadenz ist an Exchanges
+    Queue-Retry angelehnt und steckt pro Mail in `next_retry` (held_mails); dieser
+    Job stellt nur die fälligen zu.
+
+    Erfolg → aus der Warteschlange entfernt. Fehlschlag → nächster Versuch geplant;
+    nach 2 Tagen (Exchange-Ablauffrist) wird aufgegeben, die Mail aber NICHT gelöscht,
+    sondern bleibt zur manuellen Zustellung sichtbar liegen."""
+    global _last_retry_run
+    try:
+        import held_mails
+        import reinject
+        for mail_id in held_mails.due_for_retry():
+            roh = held_mails.get_raw(mail_id)
+            if roh is None:
+                continue
+            from_addr, to_addrs, raw = roh
+            try:
+                reinject.send(from_addr, to_addrs, raw, queue_on_failure=False)
+                held_mails.delete(mail_id)
+                log.info("scheduler: Zustellfehler-Mail %s erfolgreich nachgestellt", mail_id)
+            except Exception as exc:                            # noqa: BLE001
+                zustand = held_mails.mark_retry_failed(mail_id)
+                if zustand.get("retry_exhausted"):
+                    log.warning("scheduler: Zustellfehler-Mail %s nach 2 Tagen aufgegeben — "
+                                "bleibt zur manuellen Zustellung in der Warteschlange: %s",
+                                mail_id, exc)
+                else:
+                    log.info("scheduler: Nachstellen von %s fehlgeschlagen (Versuch %d), "
+                             "erneuter Versuch geplant: %s",
+                             mail_id, zustand.get("attempts", 0), exc)
+    except Exception as exc:                                    # noqa: BLE001
+        log.warning("scheduler: Zustell-Retry fehlgeschlagen: %s", exc)
+    finally:
+        _last_retry_run = time.monotonic()
+
+
 def _loop() -> None:
     while True:
         try:
@@ -467,6 +509,8 @@ def _loop() -> None:
                 _poll_hub_orders()
             if time.monotonic() - _last_health_run > _HEALTH_INTERVAL:
                 _refresh_mailbox_health()
+            if time.monotonic() - _last_retry_run > _RETRY_INTERVAL:
+                _retry_held_deliveries()
         except Exception as exc:
             log.error("scheduler loop error: %s", exc)
         time.sleep(60)

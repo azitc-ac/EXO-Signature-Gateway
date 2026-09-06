@@ -142,7 +142,8 @@ def _fail_delivery(mail_from: str, rcpt_tos: list[str],
                               reason="delivery_failed")
         stats.increment("delivery_queued")
         log.warning("Zustellung endgültig fehlgeschlagen (%s) — Mail in Warteschlange "
-                    "gelegt (id=%s, from=%s, to=%s). Retry über die Oberfläche.",
+                    "gelegt (id=%s, from=%s, to=%s). Automatischer Retry (Exchange-Kadenz) "
+                    "oder Freigabe über die Oberfläche.",
                     grund, mid, mail_from, rcpt_tos)
     except Exception as exc:                                  # noqa: BLE001
         log.error("Unzustellbare Mail konnte NICHT eingereiht werden (Grund %s): %s",
