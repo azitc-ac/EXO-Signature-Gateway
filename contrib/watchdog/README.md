@@ -9,7 +9,8 @@ immer an** — verschlüsselungsfähige Post darf nie unverschlüsselt hinaus.
 > **Wähle diese Variante**, wenn du keinen Azure-Function-Dienst betreiben
 > willst. Die Azure-Variante ist bequemer (Managed Identity, kein Zertifikat);
 > diese kommt ohne Azure aus, verlangt dafür ein **Zertifikat** der Wächter-App.
-> Die Auswahl steht in `WATCHDOG_KIND` (`azure` | `cron`).
+> Die Auswahl (Variante, Heartbeat-Token, Aktivierung) triffst du in der
+> Oberfläche unter **Erweitert → Bypass-Wächter** (`WATCHDOG_KIND` = `azure` | `cron`).
 
 ## ⚠️ Muss auf einem ANDEREN Host laufen
 Ein Wächter auf demselben Host stirbt mit dem Gateway und schaltet nie um. Nimm

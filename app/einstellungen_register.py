@@ -180,7 +180,7 @@ REGISTER: dict[str, E] = {
     "SIG_STRIP_MIN_MATCH_PCT": E(art=OPTION, ort="settings_signature.html"),
     # Bypass-Wächter: vom Wizard/Heartbeat gesetzt, kein direktes Bedienfeld.
     "WATCHDOG_ENABLED": E(art=ZUSTAND),
-    "WATCHDOG_KIND": E(art=ZUSTAND),
+    "WATCHDOG_KIND": E(art=OPTION, ort="/api/watchdog/config"),
     "WATCHDOG_TOKEN_HASH": E(art=GEHEIMNIS),
     "WATCHDOG_SP_OBJECT_ID": E(art=ZUSTAND),
     "WATCHDOG_RULE_SPLIT": E(art=ZUSTAND),

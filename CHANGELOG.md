@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.81 — 2026-09-07 — Bypass-Wächter: Variante in der Oberfläche wählbar
+
+Der Bypass-Wächter lässt sich nun vollständig in der Oberfläche einrichten
+(**Erweitert → Bypass-Wächter**), statt die Variante nur über die
+Konfigurationsdatei zu setzen:
+
+- **Variante wählen** — Azure Function (serverlos, Managed Identity, empfohlen für
+  Produktion) oder cron auf einem eigenen Zweithost (ohne Azure, Anmeldung per
+  Zertifikat). Die Karte zeigt je nach Wahl die passende Anleitung.
+- **Heartbeat-Token erzeugen** — einmalig sichtbar, gespeichert wird nur der Hash.
+- **Kopierwerte** für den Wächter (Health-URL, Organisation, Name der
+  Signatur-Regel) werden direkt angezeigt.
+- **Aktivieren** ist gegen Fehlbedienung gesichert: es geht nur mit gewählter
+  Variante *und* gesetztem Token — sonst liefe ein Wächter ins Leere.
+- Ein Statusband zeigt, wann sich der Wächter zuletzt gemeldet hat, ob gerade ein
+  Bypass aktiv ist und in welchem Zustand die Regel steht.
+
 ## v1.8.80 — 2026-09-06 — Zustellfehler-Warteschlange: automatischer Retry (Exchange-Kadenz)
 
 Nach Verarbeitung/Entschlüsselung nicht zustellbare Post landet im Fallnetz (Grund

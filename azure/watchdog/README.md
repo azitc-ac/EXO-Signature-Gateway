@@ -10,8 +10,9 @@ Er läuft in Azure (serverlos), also **unabhängig vom Gateway-Host** — genau 
 ist der Sinn: Wenn der Gateway-Host stirbt, muss jemand anderes handeln.
 
 > Alternative: der **cron-Wächter** (`contrib/watchdog/`) für einen eigenen
-> zweiten Host. Beide sind gleichwertig; die Auswahl steht in `WATCHDOG_KIND`
-> (`azure` | `cron`).
+> zweiten Host. Beide sind gleichwertig; die Auswahl (Variante, Heartbeat-Token,
+> Aktivierung) triffst du in der Oberfläche unter **Erweitert → Bypass-Wächter**
+> (`WATCHDOG_KIND` = `azure` | `cron`).
 
 ## Architektur
 ```
