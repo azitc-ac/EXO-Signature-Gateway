@@ -219,6 +219,7 @@ DEFAULTS: dict = {
     "WATCHDOG_TOKEN_HASH": "",          # PBKDF2-Hash des Heartbeat-Tokens
     "WATCHDOG_SP_OBJECT_ID": "",        # Azure: Object-ID der Managed Identity
     "WATCHDOG_RULE_SPLIT": False,       # Phase 1: Route-Regel in Signatur-/S-MIME-Weg getrennt (opt-in)
+    "APP_ACCESS_POLICY_ENABLED": False, # Least Privilege: ApplicationAccessPolicy-Scope-Gruppe automatisch pflegen
     # Zeitstempel/Bypass-Zustand liegen bewusst in data/watchdog_state.json, nicht
     # hier — der Heartbeat (1/min) würde sonst settings.json samt Geheimnissen
     # minütlich neu schreiben.

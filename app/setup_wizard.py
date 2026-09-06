@@ -811,6 +811,60 @@ def run_rule_split_setup(app_id: str, tenant_domain: str,
         return {"ok": False, "output": str(exc)}
 
 
+def _app_scope_adressen() -> list[str]:
+    """Postfächer, auf die das Gateway per Graph/IMAP zugreift — Grundlage der
+    ApplicationAccessPolicy-Scope-Gruppe (Least Privilege): **aktive** Postfächer
+    (MAILBOX_CONFIG, sig ODER smime) plus das Notification-Postfach.
+
+    ACME-Poll-Postfächer sind bewusst NICHT gesondert enthalten: ACME-Enrollment
+    läuft auf bereits S/MIME-aktiven Postfächern, die damit schon in der aktiven
+    Menge sind. (Wer ausnahmsweise vor dem Aktivieren enrollt, muss das Postfach
+    zuerst aktiv schalten.)
+    """
+    adr: set[str] = set()
+    for v in (settings_store.get("MAILBOX_CONFIG") or {}).values():
+        if isinstance(v, dict) and (v.get("sig") or v.get("smime")):
+            a = (v.get("primary") or v.get("email") or "").strip().lower()
+            if a:
+                adr.add(a)
+    notif = (settings_store.get("NOTIFICATION_MAILBOX") or "").strip().lower()
+    if notif and "@" in notif:
+        adr.add(notif)
+    return sorted(adr)
+
+
+def run_app_access_policy_sync(app_id: str, tenant_domain: str) -> dict:
+    """Pflegt die ApplicationAccessPolicy-Scope-Gruppe anhand der aktuell per
+    Graph/IMAP genutzten Postfächer (Least Privilege). Idempotent; No-op, solange
+    APP_ACCESS_POLICY_ENABLED nicht gesetzt ist. Best-effort — ein Fehler hier
+    darf das Speichern der Postfächer nicht scheitern lassen."""
+    if settings_store.get("APP_ACCESS_POLICY_ENABLED") is not True:
+        return {"ok": True, "output": "nicht aktiviert — übersprungen"}
+    script = Path("/app/scripts/setup_app_access_policy.ps1")
+    if not script.exists() or not _AUTH_CERT_PATH.exists():
+        return {"ok": False, "output": "Skript oder Auth-Zertifikat fehlt"}
+    gateway_name = settings_store.get("GATEWAY_NAME") or "EXO Signature Gateway"
+    members = _app_scope_adressen()
+    cmd = [
+        "pwsh", "-NoProfile", "-NonInteractive", "-File", str(script),
+        "-AppId", app_id, "-Organization", tenant_domain,
+        "-CertPath", str(_AUTH_CERT_PATH),
+        "-GroupName", f"{gateway_name} - App Scope",
+    ]
+    if members:
+        cmd += ["-Members", ",".join(members)]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+        output = (proc.stdout + "\n" + proc.stderr).strip()
+        ok = proc.returncode == 0
+        (log.info if ok else log.error)(
+            "App-Access-Policy-Sync rc=%d (%d Postfächer im Scope)", proc.returncode, len(members))
+        return {"ok": ok, "output": output}
+    except Exception as exc:
+        log.error("App-Access-Policy-Sync Fehler: %s", exc)
+        return {"ok": False, "output": str(exc)}
+
+
 def run_fetch_bookings_urls(app_id: str, tenant_domain: str, emails: list[str]) -> dict:
     """
     Fetch ExchangeGuid for each mailbox via PS and compute Bookings URLs.

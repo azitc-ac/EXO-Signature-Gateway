@@ -344,6 +344,15 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
     if body.get("update_dg") and app_id and tenant_domain:
         import setup_wizard
         result = setup_wizard.run_mailbox_dg_update(app_id, tenant_domain, enabled_members)
+        # Least Privilege: App-Scope-Gruppe der ApplicationAccessPolicy mitpflegen,
+        # damit sie bei Postfach-Änderungen nicht driftet (No-op, solange nicht
+        # aktiviert). Best-effort — darf das Speichern nicht scheitern lassen.
+        # run_app_access_policy_sync loggt intern und wirft nicht; das try ist nur
+        # ein Sicherheitsnetz gegen Unerwartetes, damit das Speichern nie kippt.
+        try:
+            setup_wizard.run_app_access_policy_sync(app_id, tenant_domain)
+        except Exception:                                      # noqa: BLE001
+            pass
         return {"ok": result["ok"], "saved": True,
                 "dg_output": result.get("output", ""), "auto_enrollment": auto}
     return {"ok": True, "saved": True, "auto_enrollment": auto}

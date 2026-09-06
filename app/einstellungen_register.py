@@ -184,6 +184,7 @@ REGISTER: dict[str, E] = {
     "WATCHDOG_TOKEN_HASH": E(art=GEHEIMNIS),
     "WATCHDOG_SP_OBJECT_ID": E(art=ZUSTAND),
     "WATCHDOG_RULE_SPLIT": E(art=ZUSTAND),
+    "APP_ACCESS_POLICY_ENABLED": E(art=ZUSTAND),
     "EXO_RULE_SIG": E(art=ZUSTAND),
     "EXO_RULE_SMIME": E(art=ZUSTAND),
     "SKIP_DUPLICATE_SIG": E(art=OPTION, ort="settings_signature.html"),
