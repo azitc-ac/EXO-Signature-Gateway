@@ -70,10 +70,15 @@ az rest --method POST \
 ```
 
 **3. EXO-RBAC-Rolle „Transport Rules"** — die eigentliche *Schreib*-Berechtigung
-(nur Transportregeln). Einmalig mit dem Gateway-Auth-Zertifikat:
+(nur Transportregeln). Am einfachsten über die **Gateway-Oberfläche**:
+*Erweitert → Bypass-Wächter → „Berechtigungen der Wächter-Identität einrichten" →
+MI-AppId + Objekt-ID eintragen → „Rolle zuweisen"* (das Gateway ruft
+`grant_watchdog_role.ps1` mit dem Auth-Zertifikat auf).
+
+Alternativ per Kommandozeile (Skript liegt im Container):
 ```bash
 docker exec exo-signature-gateway pwsh -NoLogo -NonInteractive -File \
-  /app/../azure/watchdog/setup_watchdog_role.ps1 \
+  /app/scripts/grant_watchdog_role.ps1 \
   -AppId <GATEWAY_APP_ID> -Organization zarenko.onmicrosoft.com -CertPath /app/data/auth.pfx \
   -WatchdogAppId <MI-AppId> -WatchdogObjectId <MI-ObjectId>
 ```

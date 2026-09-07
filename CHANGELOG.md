@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.90 — 2026-09-07 — Bypass-Wächter: geführte Einrichtung in der Oberfläche (Phase 2)
+
+Die Wächter-Karte (Erweitert → Bypass-Wächter) führt jetzt durch die Einrichtung der
+Berechtigungen statt nur auf die README zu verweisen. Aufklappbar unter
+„Berechtigungen der Wächter-Identität einrichten":
+
+- **Schritt 1+2 (in Azure):** die exakten, kopierbaren Befehle für die App-Rolle
+  `Exchange.ManageAsApp` und die Entra-Rolle `Global Reader` — mit Platzhalter für die
+  MI-Objekt-ID.
+- **Schritt 3 (das Gateway erledigt es):** MI-AppId + Objekt-ID eintragen, Knopf
+  „Rolle zuweisen" → das Gateway weist die EXO-RBAC-Rolle „Transport Rules" per
+  Auth-Zertifikat zu (`POST /api/watchdog/grant-role` → `grant_watchdog_role.ps1`).
+- **Status prüfen:** Knopf zeigt Heartbeat, Bypass- und Regelzustand live.
+
+So bleibt der Wächter least-privilege (kein „Exchange Administrator"), und der eine
+automatisierbare Teil läuft ohne Kommandozeile. Das Rollen-Skript liegt jetzt im
+Container (`app/scripts/grant_watchdog_role.ps1`); die README nennt den korrekten Weg.
+
 ## v1.8.89 — 2026-09-07 — Bypass-Wächter (Azure): least-privilege-Berechtigung dokumentiert
 
 Der Azure-Wächter läuft ohne breite „Exchange Administrator"-Rolle. Bestätigt wurde

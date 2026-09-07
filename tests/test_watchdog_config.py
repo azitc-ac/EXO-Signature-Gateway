@@ -86,3 +86,41 @@ def test_deaktivieren_immer_moeglich(anlage):
     r = c.post("/api/watchdog/config", json={"enabled": False})
     assert r.status_code == 200 and r.json()["enabled"] is False
     assert werte["WATCHDOG_ENABLED"] is False
+
+
+def test_grant_role_lehnt_ungueltige_guids_ab(anlage):
+    c, _ = anlage
+    r = c.post("/api/watchdog/grant-role",
+               json={"watchdog_app_id": "kein-guid", "watchdog_object_id": "auch-nicht"})
+    assert r.status_code == 400
+
+
+def test_grant_role_ruft_skript_mit_mi_ids(anlage, monkeypatch):
+    """Valide GUIDs → grant_watchdog_role.ps1 wird mit den MI-IDs aufgerufen."""
+    c, _ = anlage
+    from pathlib import Path as _P
+    import subprocess as sp
+    import config
+    import settings_store
+    monkeypatch.setattr(settings_store, "get",
+                        lambda k, *a: {"TENANT_DOMAIN": "t.onmicrosoft.com",
+                                       "CLIENT_ID": "gw-app"}.get(k, ""))
+    monkeypatch.setattr(config, "CLIENT_ID", "gw-app", raising=False)
+    monkeypatch.setattr(_P, "exists", lambda self: True)
+    cap = {}
+
+    class _Proc:
+        returncode = 0
+        stdout = "GRANT-ROLE-OK\n[OK] Rolle 'Transport Rules' zugewiesen."
+        stderr = ""
+    monkeypatch.setattr(sp, "run", lambda cmd, **k: cap.update(cmd=cmd) or _Proc())
+
+    app_id = "ffbf6e48-afd7-48ed-8e05-d44c0e99ee58"
+    obj_id = "775da29a-df34-4880-afe6-089369a12cde"
+    r = c.post("/api/watchdog/grant-role",
+               json={"watchdog_app_id": app_id, "watchdog_object_id": obj_id})
+    assert r.status_code == 200 and r.json()["ok"] is True
+    cmd = cap["cmd"]
+    assert "-WatchdogAppId" in cmd and app_id in cmd
+    assert "-WatchdogObjectId" in cmd and obj_id in cmd
+    assert "grant_watchdog_role.ps1" in " ".join(cmd)

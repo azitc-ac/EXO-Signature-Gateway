@@ -338,6 +338,33 @@ function saveLexwareFix(enabled) {
       </div>
     </div>
 
+    <!-- Berechtigungen der Wächter-Identität (least-privilege, kein Exchange Administrator) -->
+    <details id="watchdog-perms" style="margin-bottom:14px">
+      <summary style="cursor:pointer;font-size:13px;color:#0369a1;font-weight:600">Berechtigungen der Wächter-Identität einrichten</summary>
+      <div style="font-size:13px;color:#334155;line-height:1.6;margin-top:8px">
+        <p style="margin:0 0 8px">Die Managed Identity braucht drei Zuweisungen — <strong>kein</strong> „Exchange Administrator". Schritt 1+2 laufen in Azure (Directory-Admin), Schritt 3 erledigt das Gateway.</p>
+        <p style="margin:8px 0 4px"><strong>1+2 — in Azure ausführen</strong> (<code>&lt;MI-ObjektID&gt;</code> = <code>az functionapp identity show -n &lt;App&gt; -g &lt;RG&gt; --query principalId -o tsv</code>):</p>
+        <pre style="font-size:11px;border:1px solid #e2e8f0;border-radius:5px;padding:8px;overflow-x:auto;white-space:pre;line-height:1.5"># 1) App-Rolle Exchange.ManageAsApp (Anmelden)
+EXO_SP=$(az ad sp show --id 00000002-0000-0ff1-ce00-000000000000 --query id -o tsv)
+az rest --method POST --url "https://graph.microsoft.com/v1.0/servicePrincipals/&lt;MI-ObjektID&gt;/appRoleAssignments" \
+  --headers "Content-Type=application/json" \
+  --body "{\"principalId\":\"&lt;MI-ObjektID&gt;\",\"resourceId\":\"$EXO_SP\",\"appRoleId\":\"dc50a0fb-09a3-484d-be87-e023b12c6440\"}"
+
+# 2) Entra Global Reader (nur Lesen)
+az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/directory/roleAssignments" \
+  --headers "Content-Type=application/json" \
+  --body "{\"principalId\":\"&lt;MI-ObjektID&gt;\",\"roleDefinitionId\":\"f2ef992c-3afb-46b9-b7cf-a126ee74c451\",\"directoryScopeId\":\"/\"}"</pre>
+        <p style="margin:12px 0 4px"><strong>3 — EXO-Schreibrolle „Transport Rules"</strong> (das Gateway weist sie zu):</p>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+          <input id="wd-mi-appid" placeholder="MI AppId (Client-ID)" style="font-size:12px;padding:5px 8px;width:290px;max-width:100%">
+          <input id="wd-mi-objid" placeholder="MI Objekt-ID" style="font-size:12px;padding:5px 8px;width:290px;max-width:100%">
+          <button class="btn secondary btn-sm" onclick="grantWatchdogRole()">Rolle zuweisen</button>
+        </div>
+        <span id="wd-grant-result" class="field-msg" style="font-size:12px;display:block;margin-top:6px"></span>
+        <p class="hint" style="margin-top:8px">Alle Zuweisungen propagieren ~15–30 Min. Danach unten aktivieren und den Status prüfen.</p>
+      </div>
+    </details>
+
     <label class="checkbox-label" style="font-weight:600 !important">
       <input type="checkbox" id="watchdog-enabled" onchange="setWatchdogEnabled(this.checked)">
       Bypass-Wächter aktiv
@@ -345,7 +372,10 @@ function saveLexwareFix(enabled) {
     </label>
   </div>
 
-  <div id="watchdog-status" style="margin-top:16px;font-size:12px;color:#78716c"></div>
+  <div style="margin-top:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <button class="btn secondary btn-sm" onclick="loadWatchdogStatus()">Status prüfen</button>
+    <div id="watchdog-status" style="font-size:12px;color:#78716c"></div>
+  </div>
   </div>
 </div>
 
@@ -400,6 +430,21 @@ function saveLexwareFix(enabled) {
       return;
     }
     _applyEnabledUI(d.enabled);
+  };
+
+  window.grantWatchdogRole = async function(){
+    var appid = (document.getElementById('wd-mi-appid').value || '').trim();
+    var objid = (document.getElementById('wd-mi-objid').value || '').trim();
+    if (!appid || !objid){ showMsg('wd-grant-result', 'AppId und Objekt-ID angeben.', false); return; }
+    showMsg('wd-grant-result', 'Weise Rolle zu … (kann ~30 s dauern)', true);
+    var r = await fetch('/api/watchdog/grant-role', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({watchdog_app_id: appid, watchdog_object_id: objid})});
+    var d = await r.json().catch(function(){ return {}; });
+    if (r.ok && d.ok){
+      showMsg('wd-grant-result', 'Rolle „Transport Rules" zugewiesen. Schritt 1+2 (App-Rolle + Global Reader) nicht vergessen; danach ~15–30 Min Propagierung.', true);
+    } else {
+      showMsg('wd-grant-result', 'Fehler: ' + (d.detail || d.output || r.status), false);
+    }
   };
 
   window.loadWatchdogStatus = async function(){

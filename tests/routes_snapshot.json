@@ -1561,6 +1561,13 @@
     "name": "watchdog_config"
   },
   {
+    "pfad": "/api/watchdog/grant-role",
+    "methoden": [
+      "POST"
+    ],
+    "name": "watchdog_grant_role"
+  },
+  {
     "pfad": "/api/watchdog/heartbeat",
     "methoden": [
       "POST"
