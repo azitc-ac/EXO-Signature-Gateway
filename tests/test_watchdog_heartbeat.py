@@ -59,6 +59,18 @@ def test_richtiges_token_schreibt_zustand(anlage):
     assert st["last_seen"]                          # Zeitstempel gesetzt
 
 
+def test_heartbeat_speichert_exo_error(anlage):
+    """Meldet der Wächter einen EXO-Fehler, wird er im Zustand festgehalten —
+    Grundlage fürs Dashboard, das 'lebt, aber nicht handlungsfähig' anzeigt."""
+    c, waechter = anlage
+    r = c.post("/api/watchdog/heartbeat",
+               json={"healthy": True, "bypass_active": False,
+                     "exo_error": "AADSTS... role not yet effective"},
+               headers={"X-Watchdog-Token": "gutes-token"})
+    assert r.status_code == 200
+    assert "role not yet effective" in waechter.zustand().get("exo_error", "")
+
+
 def test_zu_grosser_rumpf_413(anlage):
     c, _ = anlage
     r = c.post("/api/watchdog/heartbeat", content=b"x" * 2000,

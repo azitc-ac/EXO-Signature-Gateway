@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.85 — 2026-09-07 — Bypass-Wächter: Heartbeat auch bei EXO-Fehler, „handlungsunfähig" sichtbar
+
+Der externe Wächter sendet seinen Heartbeat jetzt **in jedem Fall** — auch wenn die
+Anmeldung an Exchange scheitert. Bisher stand die EXO-Anmeldung vor dem Heartbeat
+ohne Fehlerbehandlung: schlug sie fehl (etwa während die EXO-Rolle nach der
+Einrichtung 15–30 Minuten propagiert), brach der Lauf ab, **bevor** der Heartbeat
+gesendet wurde — und die Übersicht meldete „Wächter meldet sich nicht", obwohl er lief.
+
+Jetzt gilt: Leben ≠ Handlungsfähigkeit, und beides wird getrennt sichtbar. Meldet der
+Wächter einen EXO-Fehler, zeigt die Übersicht **„Bypass-Wächter ohne EXO-Zugriff"** —
+er läuft, kann die Transportregel im Ausfall aber nicht schalten (Hinweis auf die
+fehlende Rolle „Transport Rules"). Ohne diese Unterscheidung sähe ein handlungsunfähiger
+Wächter fälschlich „alles in Ordnung" aus.
+
+Gilt für beide Varianten (Azure-Function und cron).
+
 ## v1.8.84 — 2026-09-07 — Signatur-Transportregel heißt „(Signatur)" (symmetrisch zu „(S/MIME)")
 
 Die Signatur-Route heißt jetzt **„Route via <Gateway-Name> (Signatur)"** — symmetrisch

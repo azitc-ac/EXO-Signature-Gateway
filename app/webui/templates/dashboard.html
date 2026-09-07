@@ -533,6 +533,12 @@ function openInFlightInfo(active, maintHeld, dfCount) {
         html = '<strong>Bypass AKTIV</strong> — die Signatur-Transportregel ist abgeschaltet, '
              + 'ausgehende Post läuft derzeit <strong>unsigniert</strong> (das Gateway gilt als ausgefallen). '
              + 'S/MIME-Post wartet bewusst in der Exchange-Queue. Zuletzt gesehen: ' + seenTxt + '.';
+      } else if (d.exo_error) {
+        // Wächter lebt (Heartbeat frisch), kann aber die Regel nicht schalten.
+        cls = 'warn';
+        html = '<strong>Bypass-Wächter ohne EXO-Zugriff</strong> (' + kind + ') — er läuft, kann die '
+             + 'Transportregel aber <strong>nicht schalten</strong> (im Ausfall gäbe es keinen Bypass). '
+             + 'Prüfe die EXO-Rolle „Transport Rules". Fehler: ' + esc(String(d.exo_error)) + '. Zuletzt: ' + seenTxt + '.';
       } else if (stale) {
         cls = 'warn';
         html = '<strong>Bypass-Wächter meldet sich nicht</strong> (' + kind + ') — zuletzt gesehen: '

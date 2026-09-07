@@ -57,6 +57,9 @@ async def watchdog_heartbeat(request: Request):
         fails=int(payload.get("fails") or 0),
         oks=int(payload.get("oks") or 0),
         healthy=bool(payload.get("healthy")),
+        # Leben ≠ handlungsfähig: meldet der Wächter einen EXO-Fehler, läuft er
+        # zwar, kann aber die Regel nicht schalten — das gehört sichtbar gemacht.
+        exo_error=str(payload.get("exo_error") or "")[:300],
     )
     return JSONResponse({"ok": True})
 
@@ -83,6 +86,7 @@ async def watchdog_status(user: str = Depends(_require_admin)):
         "bypass_active": bool(st.get("bypass_active")),
         "rule_state": st.get("rule_state") or "unbekannt",   # von der EXO-Prüfung (Folgeschritt)
         "token_set": bool(settings_store.get("WATCHDOG_TOKEN_HASH")),
+        "exo_error": st.get("exo_error") or "",              # Wächter lebt, aber EXO-Zugriff fehlt
         "hinweise": _config_hinweise(),
     })
 
