@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.94 — 2026-09-07 — Bypass-Wächter (Azure): Installer-Kern — Function per ARM-REST anlegen (KV-Stil)
+
+Grundstein für den in-Gateway-Installer der Wächter-Function, nach Vorbild der
+Key-Vault-Einrichtung: das neue Modul `watchdog_deploy.py` legt die Azure-Function
+**ohne `az`/`func`** an — reine ARM-REST-Aufrufe (`httpx`) mit dem delegierten
+Admin-Token, genau wie `keyvault.py`. Es erstellt Storage + Consumption-Function-App
+(System-Managed-Identity, PowerShell 7.6), lädt den Function-Code per Kudu-ZipDeploy
+hoch (der eine Schritt, den Key Vault nicht kennt) und setzt die App-Einstellungen.
+Der Function-Quellcode liegt dafür jetzt im Image (`/app/watchdog_function`).
+
+End-to-End gegen echtes Azure verifiziert (RG → Storage → Function+MI → ZipDeploy →
+Settings; die „Watchdog"-Function war danach registriert; Test-Ressourcen wieder
+gelöscht). Die Oberfläche (Subscription/RG wählen → anlegen) und das Verketten mit
+den bestehenden Berechtigungs-Schritten folgen als nächste Bausteine.
+
 ## v1.8.93 — 2026-09-07 — Bypass-Wächter (Azure): Deploy-Doku nutzt die aktuelle PowerShell-Runtime
 
 Die Deploy-Skizze pinnte PowerShell 7.4 (läuft nur bis 10.11.2026). Sie nimmt jetzt
