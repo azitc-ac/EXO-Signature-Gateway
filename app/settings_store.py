@@ -175,7 +175,8 @@ DEFAULTS: dict = {
     # ── Provider Hub (EXO Signature Hub) — ONE account (support + cert) ────────
     "HUB_BASE_URL": "",              # e.g. https://sighub.zarenko.net — the provider hub
     "HUB_CUSTOMER_EMAIL": "",        # this gateway's registered email (username at the hub)
-    "HUB_CUSTOMER_NAME": "",         # display name sent on registration
+    "HUB_CUSTOMER_NAME": "",         # Ansprechpartner (optional), sent on registration
+    "HUB_CUSTOMER_COMPANY": "",      # Firma / Rechtsform — Pflicht bei der Registrierung
     "HUB_API_KEY": "",               # issued by the hub after approval (secret) — used for support AND cert
     "HUB_CLAIM_TOKEN": "",           # single-use token to pull the issued API key (self-service registration)
     "GATEWAY_ID": "",                # stable per-install id sent to the hub (X-Gateway-Id, gateway tracking)

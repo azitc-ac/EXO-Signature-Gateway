@@ -93,10 +93,13 @@ async def register() -> dict:
     base = _base()
     email = (settings_store.get("HUB_CUSTOMER_EMAIL") or "").strip().lower()
     name = (settings_store.get("HUB_CUSTOMER_NAME") or "").strip()
+    company = (settings_store.get("HUB_CUSTOMER_COMPANY") or "").strip()
     if not base:
         return {"ok": False, "error": "Hub-Adresse (HUB_BASE_URL) nicht gesetzt."}
     if "@" not in email:
         return {"ok": False, "error": "Gültige Kunden-E-Mail erforderlich."}
+    if not company:
+        return {"ok": False, "error": "Firma / Rechtsform erforderlich."}
     claim = secrets.token_urlsafe(32)
     settings_store.update({"HUB_CLAIM_TOKEN": claim})
     receipts = legal_consent.get_consent_receipts_for_hub()
@@ -110,7 +113,8 @@ async def register() -> dict:
     try:
         async with httpx.AsyncClient(timeout=20) as c:
             r = await c.post(f"{base}/api/register",
-                             json={"email": email, "name": name, "want": "support",
+                             json={"email": email, "name": name, "company": company,
+                                   "want": "support",
                                    "claim_token": claim, "consent_receipts": receipts})
         data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
         if r.status_code == 200 and data.get("ok"):

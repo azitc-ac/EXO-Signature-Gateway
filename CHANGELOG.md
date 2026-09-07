@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.96 — 2026-09-08 — Anbindung: Firma/Rechtsform verpflichtend
+
+Bei der Registrierung dieses Gateways am Hub (Einstellungen → Anbindung & Lizenzen)
+wird jetzt die **Firma / Rechtsform** verpflichtend abgefragt; der **Ansprechpartner**
+(Name) bleibt optional. Beide Angaben werden mit der Registrierung an den Hub
+übermittelt und dort beim Konto angezeigt. „Verbinden" verweigert die Registrierung
+ohne Firma (auch serverseitig in `hub_client.register()` geprüft). Die übrigen
+Abrechnungsdaten (Anschrift, USt-IdNr.) werden unverändert erst beim Zertifikatsbezug
+erhoben.
+
+Neuer Einstellungsschlüssel `HUB_CUSTOMER_COMPANY` (in `settings_store.DEFAULTS` und
+im Einstellungs-Register unter `/api/hub/config`).
+
 ## v1.8.95 — 2026-09-08 — Bypass-Wächter (Azure): Function-Installer in der Oberfläche
 
 Der in v1.8.94 gelegte Installer-Kern (`watchdog_deploy.py`) hat jetzt seine
