@@ -12,12 +12,16 @@ Token-Hash (Geheimnis) und die Konfiguration.
 from __future__ import annotations
 
 import json
+import re
 import secrets
+import subprocess
 from datetime import datetime, timezone
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
+import config
 import settings_store
 import waechter_state
 from webui.deps import log, _require_admin, _hash_password, _verify_password
@@ -25,6 +29,7 @@ from webui.deps import log, _require_admin, _hash_password, _verify_password
 router = APIRouter()
 
 _MAX_BODY = 1024
+_GUID = re.compile(r"^[0-9a-fA-F-]{36}$")
 
 
 def _now() -> str:
@@ -139,3 +144,47 @@ async def watchdog_token_rotate(user: str = Depends(_require_admin)):
     settings_store.update({"WATCHDOG_TOKEN_HASH": _hash_password(token)})
     log.info("Watchdog-Token rotiert von %s", user)
     return JSONResponse({"ok": True, "token": token})
+
+
+@router.post("/api/watchdog/grant-role")
+async def watchdog_grant_role(request: Request, user: str = Depends(_require_admin)):
+    """Weist der Wächter-Identität die EXO-SCHREIB-Rolle „Transport Rules" zu — der
+    einzige Teil, den das Gateway selbst erledigen kann (per Auth-Zertifikat).
+    App-Rolle `Exchange.ManageAsApp` und Entra „Global Reader" bleiben Azure-/
+    Directory-Admin (die Oberfläche zeigt die Befehle)."""
+    try:
+        body = json.loads(await request.body() or b"{}")
+    except Exception:                                          # noqa: BLE001
+        body = {}
+    app_id = str(body.get("watchdog_app_id") or "").strip()
+    obj_id = str(body.get("watchdog_object_id") or "").strip()
+    if not _GUID.match(app_id) or not _GUID.match(obj_id):
+        return JSONResponse({"ok": False, "detail": "AppId und Objekt-ID müssen GUIDs sein."},
+                            status_code=400)
+    script = Path("/app/scripts/grant_watchdog_role.ps1")
+    cert = Path(config.DATA_DIR) / "auth.pfx"
+    if not script.exists() or not cert.exists():
+        return JSONResponse({"ok": False, "detail": "Skript oder Auth-Zertifikat fehlt."},
+                            status_code=500)
+    gw_app = config.CLIENT_ID or settings_store.get("CLIENT_ID") or ""
+    org = settings_store.get("TENANT_DOMAIN") or ""
+    if not gw_app or not org:
+        return JSONResponse({"ok": False, "detail": "Gateway unvollständig (CLIENT_ID/TENANT_DOMAIN)."},
+                            status_code=400)
+    cmd = ["pwsh", "-NoProfile", "-NonInteractive", "-File", str(script),
+           "-AppId", gw_app, "-Organization", org, "-CertPath", str(cert),
+           "-WatchdogAppId", app_id, "-WatchdogObjectId", obj_id]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+        out = (proc.stdout + "\n" + proc.stderr).strip()
+        ok = proc.returncode == 0 and "GRANT-ROLE-OK" in proc.stdout
+        if ok:
+            log.info("Watchdog-Rolle 'Transport Rules' zugewiesen von %s (MI %s)", user, app_id)
+        else:
+            log.warning("Watchdog-Rollenzuweisung fehlgeschlagen rc=%d: %s", proc.returncode, out[:300])
+        zeilen = [ln.strip() for ln in out.splitlines()
+                  if ln.strip().startswith("[OK]") or "error" in ln.lower() or "fehler" in ln.lower()]
+        return JSONResponse({"ok": ok, "output": "\n".join(zeilen[-6:]) or out[-400:]})
+    except Exception as exc:                                   # noqa: BLE001
+        log.error("Watchdog-Rollenzuweisung Fehler: %s", exc)
+        return JSONResponse({"ok": False, "detail": str(exc)}, status_code=500)
