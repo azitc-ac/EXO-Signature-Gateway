@@ -26,21 +26,36 @@ verwalten) mit der **minimalen** Rolle „Transport Rules" (siehe unten).
 
 ## Deploy (Skizze, `az` CLI)
 ```bash
-RG=rg-exo-watchdog; APP=exo-sig-watchdog; LOC=westeurope
-az group create -n $RG -l $LOC
-az storage account create -n exosigwd$RANDOM -g $RG -l $LOC --sku Standard_LRS
-az functionapp create -n $APP -g $RG -s <storage> -c $LOC \
-   --runtime powershell --runtime-version 7.4 --functions-version 4 --consumption-plan-location $LOC
-az functionapp identity assign -n $APP -g $RG          # System-assigned Managed Identity
-func azure functionapp publish $APP                     # aus diesem Verzeichnis
+RG=rg-exo-watchdog; APP=exo-sig-watchdog; LOC=northeurope
 
-# App-Einstellungen
+# ⚠️ IMMER die aktuell unterstützte PowerShell-Version nehmen — NICHT diese Zahl blind
+# kopieren. Aktuelle Liste (höchste = neueste):
+#   az functionapp list-runtimes --os windows --query "powershell[].version" -o tsv
+PS_VER=7.6
+
+az group create -n $RG -l $LOC
+az storage account create -n exosigwd$RANDOM -g $RG -l $LOC --sku Standard_LRS --min-tls-version TLS1_2
+az functionapp create -n $APP -g $RG -s <storage> -c $LOC --os-type Windows \
+   --runtime powershell --runtime-version $PS_VER --functions-version 4 --consumption-plan-location $LOC
+az functionapp identity assign -n $APP -g $RG          # System-assigned Managed Identity
+
+# Code deployen — mit Functions Core Tools …
+func azure functionapp publish $APP                     # aus diesem Verzeichnis
+# … oder OHNE func per Zip:
+#   zip -r wd.zip host.json requirements.psd1 Watchdog/
+#   az functionapp deployment source config-zip -n $APP -g $RG --src wd.zip
+
+# App-Einstellungen (SIG_RULE_NAME aus der Gateway-UI kopieren)
 az functionapp config appsettings set -n $APP -g $RG --settings \
    GATEWAY_HEALTH_URL="https://sig.zarenko.net/health" \
    EXO_ORGANIZATION="zarenko.onmicrosoft.com" \
-   SIG_RULE_NAME="Route via EXO Signature Gateway" \
+   SIG_RULE_NAME="Route via EXO Signature Gateway (Signatur)" \
    FAIL_THRESHOLD=3 \
    WATCHDOG_TOKEN="<Token aus /api/watchdog/token/rotate>"
+
+# Läuft eine ältere Runtime? (az warnt beim create/config) — nachziehen:
+#   az functionapp config set -n $APP -g $RG --powershell-version $PS_VER
+# Prüfen:  az functionapp config show -n $APP -g $RG --query powerShellVersion -o tsv
 ```
 
 Die Managed Identity braucht für Exchange **drei** Zuweisungen — least-privilege,
