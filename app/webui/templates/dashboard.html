@@ -106,16 +106,17 @@ function dismissWelcome() {
 {% endif %}
 
 <!-- Mail-Stats -->
+{# action "*" = alle Aktionen (leerer Filter im Audit-Modal) — für „Verarbeitet". #}
 {% macro stat_cell(val, action, date) %}
 {% if val and val > 0 and action %}
-<a href="#" class="audit-link" data-action="{{ action }}" data-date="{{ date }}"
+<a href="#" class="audit-link" data-action="{{ '' if action == '*' else action }}" data-date="{{ date }}"
    style="color:inherit;text-decoration:none;border-bottom:1px dotted #aaa;cursor:pointer">{{ val }}</a>
 {% else %}{{ val }}{% endif %}
 {% endmacro %}
 
 {% macro stat_cell_3d(val, action) %}
 {% if val and val > 0 and action %}
-<a href="#" class="audit-link-3d" data-action="{{ action }}"
+<a href="#" class="audit-link-3d" data-action="{{ '' if action == '*' else action }}"
    style="color:inherit;text-decoration:none;border-bottom:1px dotted #aaa;cursor:pointer">{{ val }}</a>
 {% else %}{{ val or 0 }}{% endif %}
 {% endmacro %}
@@ -158,7 +159,7 @@ function dismissWelcome() {
       </tr>
     </thead>
     <tbody>
-      {{ stat_row("Verarbeitet", stats_daily.processed, stats_3d.processed, stats_monthly_m2.processed, stats_monthly_m1.processed, stats_monthly.processed, stats_prev_yearly.processed, stats_yearly.processed, "") }}
+      {{ stat_row("Verarbeitet", stats_daily.processed, stats_3d.processed, stats_monthly_m2.processed, stats_monthly_m1.processed, stats_monthly.processed, stats_prev_yearly.processed, stats_yearly.processed, "*") }}
       {{ stat_row("S/MIME signiert", stats_daily.smime_signed, stats_3d.smime_signed, stats_monthly_m2.smime_signed, stats_monthly_m1.smime_signed, stats_monthly.smime_signed, stats_prev_yearly.smime_signed, stats_yearly.smime_signed, "smime_signed") }}
       {{ stat_row("S/MIME verschlüsselt", stats_daily.smime_encrypted, stats_3d.smime_encrypted, stats_monthly_m2.smime_encrypted, stats_monthly_m1.smime_encrypted, stats_monthly.smime_encrypted, stats_prev_yearly.smime_encrypted, stats_yearly.smime_encrypted, "smime_encrypted") }}
       {{ stat_row("S/MIME entschlüsselt", stats_daily.smime_decrypted, stats_3d.smime_decrypted, stats_monthly_m2.smime_decrypted, stats_monthly_m1.smime_decrypted, stats_monthly.smime_decrypted, stats_prev_yearly.smime_decrypted, stats_yearly.smime_decrypted, "smime_decrypted") }}
