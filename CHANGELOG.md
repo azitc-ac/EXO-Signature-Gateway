@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.93 — 2026-09-07 — Bypass-Wächter (Azure): Deploy-Doku nutzt die aktuelle PowerShell-Runtime
+
+Die Deploy-Skizze pinnte PowerShell 7.4 (läuft nur bis 10.11.2026). Sie nimmt jetzt
+eine `PS_VER`-Variable mit ausdrücklichem Hinweis, immer die **aktuell unterstützte**
+Version zu verwenden (Liste per `az functionapp list-runtimes --os windows`), plus
+einem Nachzieh-Befehl (`az functionapp config set --powershell-version`) und einer
+Prüfung. So bekommt auch eine Neuinstallation die aktuelle Runtime, statt eine, die
+bald ausläuft. Ergänzt: Zip-Deploy ohne Functions Core Tools, korrekter
+`SIG_RULE_NAME` („(Signatur)").
+
 ## v1.8.92 — 2026-09-07 — Bypass-Wächter (cron): Einrichtungs-Doku auf das verifizierte Berechtigungsmodell
 
 Die cron-Variante (`contrib/watchdog/`, für Betreiber ohne Azure) nannte bisher nur
