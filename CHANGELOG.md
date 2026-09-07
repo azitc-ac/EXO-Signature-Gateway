@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.87 — 2026-09-07 — Übersicht: „Verarbeitet" ist anklickbar (alle Mails im Protokoll)
+
+Die Zeile **„Verarbeitet"** in der Statistik-Übersicht öffnet jetzt wie die anderen
+Kennzahlen (S/MIME signiert/verschlüsselt …) das Mail-Protokoll — nur ohne
+Aktions-Filter, also **alle** verarbeiteten Mails des jeweiligen Zeitraums (Heute,
+3 Tage, Monat, Jahr). Bisher war nur diese Zeile stumm, obwohl jede verarbeitete
+Transaktion im Protokoll steht; die Detailansicht war also da, nur nicht verdrahtet.
+
 ## v1.8.86 — 2026-09-07 — Bypass-Wächter (Azure): Einrichtungs-Doku zur Managed-Identity-Berechtigung
 
 Präzisierung der Einrichtung des Azure-Wächters: Eine Managed Identity braucht für
