@@ -342,9 +342,19 @@ function saveLexwareFix(enabled) {
     <details id="watchdog-perms" style="margin-bottom:14px">
       <summary style="cursor:pointer;font-size:13px;color:#0369a1;font-weight:600">Berechtigungen der Wächter-Identität einrichten</summary>
       <div style="font-size:13px;color:#334155;line-height:1.6;margin-top:8px">
-        <p style="margin:0 0 8px">Die Managed Identity braucht drei Zuweisungen — <strong>kein</strong> „Exchange Administrator". Schritt 1+2 laufen in Azure (Directory-Admin), Schritt 3 erledigt das Gateway.</p>
-        <p style="margin:8px 0 4px"><strong>1+2 — in Azure ausführen</strong> (<code>&lt;MI-ObjektID&gt;</code> = <code>az functionapp identity show -n &lt;App&gt; -g &lt;RG&gt; --query principalId -o tsv</code>):</p>
-        <pre style="font-size:11px;border:1px solid #e2e8f0;border-radius:5px;padding:8px;overflow-x:auto;white-space:pre;line-height:1.5"># 1) App-Rolle Exchange.ManageAsApp (Anmelden)
+        <p style="margin:0 0 8px">Drei Zuweisungen — <strong>kein</strong> „Exchange Administrator". Trage zuerst die IDs der Managed Identity ein (<code>az functionapp identity show -n &lt;App&gt; -g &lt;RG&gt;</code> → <code>clientId</code>/<code>principalId</code>):</p>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px">
+          <input id="wd-mi-appid" placeholder="MI AppId (Client-ID)" style="font-size:12px;padding:5px 8px;width:290px;max-width:100%">
+          <input id="wd-mi-objid" placeholder="MI Objekt-ID (principalId)" style="font-size:12px;padding:5px 8px;width:290px;max-width:100%">
+        </div>
+
+        <p style="margin:8px 0 4px"><strong>1+2 — App-Rolle <code>Exchange.ManageAsApp</code> + Entra „Global Reader"</strong> (Anmelden/Lesen):</p>
+        <button class="btn secondary btn-sm" onclick="grantWatchdogGraph()">Berechtigungen erteilen (Azure-Login)</button>
+        <span id="wd-graph-result" class="field-msg" style="font-size:12px;display:block;margin-top:6px"></span>
+        <p class="hint" style="margin:6px 0 0">Öffnet einen Azure-Login; die Zuweisung läuft mit deinem Admin-Token — das Gateway bekommt kein neues stehendes Recht.</p>
+        <details style="margin-top:6px">
+          <summary style="cursor:pointer;font-size:12px;color:#64748b">… oder manuell per az-Befehl</summary>
+          <pre style="font-size:11px;border:1px solid #e2e8f0;border-radius:5px;padding:8px;overflow-x:auto;white-space:pre;line-height:1.5"># 1) App-Rolle Exchange.ManageAsApp (Anmelden)
 EXO_SP=$(az ad sp show --id 00000002-0000-0ff1-ce00-000000000000 --query id -o tsv)
 az rest --method POST --url "https://graph.microsoft.com/v1.0/servicePrincipals/&lt;MI-ObjektID&gt;/appRoleAssignments" \
   --headers "Content-Type=application/json" \
@@ -354,12 +364,10 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/servicePrincipals/
 az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/directory/roleAssignments" \
   --headers "Content-Type=application/json" \
   --body "{\"principalId\":\"&lt;MI-ObjektID&gt;\",\"roleDefinitionId\":\"f2ef992c-3afb-46b9-b7cf-a126ee74c451\",\"directoryScopeId\":\"/\"}"</pre>
-        <p style="margin:12px 0 4px"><strong>3 — EXO-Schreibrolle „Transport Rules"</strong> (das Gateway weist sie zu):</p>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
-          <input id="wd-mi-appid" placeholder="MI AppId (Client-ID)" style="font-size:12px;padding:5px 8px;width:290px;max-width:100%">
-          <input id="wd-mi-objid" placeholder="MI Objekt-ID" style="font-size:12px;padding:5px 8px;width:290px;max-width:100%">
-          <button class="btn secondary btn-sm" onclick="grantWatchdogRole()">Rolle zuweisen</button>
-        </div>
+        </details>
+
+        <p style="margin:14px 0 4px"><strong>3 — EXO-Schreibrolle „Transport Rules"</strong> (das Gateway erledigt es):</p>
+        <button class="btn secondary btn-sm" onclick="grantWatchdogRole()">Rolle zuweisen</button>
         <span id="wd-grant-result" class="field-msg" style="font-size:12px;display:block;margin-top:6px"></span>
         <p class="hint" style="margin-top:8px">Alle Zuweisungen propagieren ~15–30 Min. Danach unten aktivieren und den Status prüfen.</p>
       </div>
@@ -431,6 +439,25 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
     }
     _applyEnabledUI(d.enabled);
   };
+
+  window.grantWatchdogGraph = async function(){
+    var objid = (document.getElementById('wd-mi-objid').value || '').trim();
+    if (!objid){ showMsg('wd-graph-result', 'MI Objekt-ID angeben.', false); return; }
+    var r = await fetch('/api/watchdog/start-grants?mi_object_id=' + encodeURIComponent(objid));
+    var d = await r.json().catch(function(){ return {}; });
+    if (!r.ok || !d.auth_url){ showMsg('wd-graph-result', 'Fehler: ' + (d.detail || r.status), false); return; }
+    showMsg('wd-graph-result', 'Azure-Login geöffnet — bitte im Popup anmelden …', true);
+    window.open(d.auth_url, 'wd-grants', 'width=520,height=700');
+  };
+
+  window.addEventListener('message', function(ev){
+    var t = (ev.data || {}).type;
+    if (t === 'watchdog-grants-done'){
+      showMsg('wd-graph-result', 'App-Rolle + Global Reader erteilt. Propagierung ~15–30 Min, danach unten aktivieren.', true);
+    } else if (t === 'watchdog-grants-fail'){
+      showMsg('wd-graph-result', 'Fehler: ' + ((ev.data || {}).msg || 'unbekannt'), false);
+    }
+  });
 
   window.grantWatchdogRole = async function(){
     var appid = (document.getElementById('wd-mi-appid').value || '').trim();

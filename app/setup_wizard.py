@@ -344,6 +344,50 @@ async def _grant_admin_consent(token: str, our_sp_id: str) -> None:
         log.warning("Could not find EXO service principal: %s", exc)
 
 
+_GLOBAL_READER_ROLE_ID = "f2ef992c-3afb-46b9-b7cf-a126ee74c451"
+_EXO_MANAGE_AS_APP_ROLE_ID = "dc50a0fb-09a3-484d-be87-e023b12c6440"
+
+
+async def grant_watchdog_graph_roles(token: str, mi_object_id: str) -> dict:
+    """Erteilt der Bypass-Wächter-Identität (Managed Identity) die zwei GRAPH-
+    Zuweisungen, die sie zum Anmelden an EXO braucht — mit dem delegierten
+    Admin-Token (derselbe Weg wie die App-Registrierung im Assistenten, KEIN neues
+    stehendes Recht fürs Gateway):
+      1. App-Rolle Exchange.ManageAsApp (Ressource = Office 365 Exchange Online),
+      2. Entra-Directory-Rolle „Global Reader" (nur-lesen, kleinste Anmelde-Rolle).
+    Die EXO-RBAC-Schreibrolle „Transport Rules" kommt separat (grant_watchdog_role.ps1).
+    Idempotent: bereits vorhandene Zuweisungen gelten als Erfolg."""
+    def _ok_or_exists(exc: Exception) -> bool:
+        m = str(exc).lower()
+        return any(w in m for w in ("already", "exists", "conflict", "added object references"))
+
+    ergebnis = {"app_role": False, "global_reader": False, "fehler": []}
+    try:
+        exo_sp_id = await _get_sp_id_for_resource(token, _EXO_APP_ID)
+        await _gh("post", f"{GRAPH}/servicePrincipals/{mi_object_id}/appRoleAssignments", token,
+                  json={"principalId": mi_object_id, "resourceId": exo_sp_id,
+                        "appRoleId": _EXO_MANAGE_AS_APP_ROLE_ID})
+        ergebnis["app_role"] = True
+    except Exception as exc:                                    # noqa: BLE001
+        if _ok_or_exists(exc):
+            ergebnis["app_role"] = True
+        else:
+            ergebnis["fehler"].append(f"App-Rolle Exchange.ManageAsApp: {exc}")
+    try:
+        await _gh("post", f"{GRAPH}/roleManagement/directory/roleAssignments", token,
+                  json={"principalId": mi_object_id, "roleDefinitionId": _GLOBAL_READER_ROLE_ID,
+                        "directoryScopeId": "/"})
+        ergebnis["global_reader"] = True
+    except Exception as exc:                                    # noqa: BLE001
+        if _ok_or_exists(exc):
+            ergebnis["global_reader"] = True
+        else:
+            ergebnis["fehler"].append(f"Global Reader: {exc}")
+    log.info("Watchdog-Graph-Rollen: app_role=%s global_reader=%s fehler=%s",
+             ergebnis["app_role"], ergebnis["global_reader"], ergebnis["fehler"])
+    return ergebnis
+
+
 async def _assign_exchange_admin_role(token: str, sp_id: str) -> None:
     """Assign the Exchange Administrator directory role to the service principal."""
     try:

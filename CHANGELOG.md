@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.91 — 2026-09-07 — Bypass-Wächter: App-Rolle + Global Reader per Azure-Login aus der Oberfläche
+
+Die beiden Graph-Zuweisungen der Wächter-Identität (App-Rolle `Exchange.ManageAsApp`
+und Entra „Global Reader") lassen sich jetzt **direkt aus der Oberfläche** erteilen —
+kein manuelles `az` mehr nötig. In der Wächter-Karte: MI-AppId + Objekt-ID eintragen,
+**„Berechtigungen erteilen (Azure-Login)"** öffnet ein Azure-Anmeldefenster; die
+Zuweisung läuft mit dem **delegierten Admin-Token** — genau der Weg, über den der
+Setup-Assistent schon die App-Registrierung anlegt und Berechtigungen vergibt. Das
+Gateway erhält dadurch **kein** neues stehendes Recht.
+
+Damit erledigt die Oberfläche nun alle drei Schritte: 1+2 per Azure-Login, 3 (EXO-RBAC
+„Transport Rules") per Gateway-Zertifikat. Die manuellen `az`-Befehle bleiben als
+Alternative dokumentiert. Umgesetzt über den bestehenden delegierten Flow-Mechanismus
+(`flow=watchdog_grants` in der PKCE-Sitzung, Popup wie beim Setup).
+
 ## v1.8.90 — 2026-09-07 — Bypass-Wächter: geführte Einrichtung in der Oberfläche (Phase 2)
 
 Die Wächter-Karte (Erweitert → Bypass-Wächter) führt jetzt durch die Einrichtung der

@@ -95,6 +95,12 @@ def test_grant_role_lehnt_ungueltige_guids_ab(anlage):
     assert r.status_code == 400
 
 
+def test_start_grants_lehnt_ungueltige_guid_ab(anlage):
+    c, _ = anlage
+    r = c.get("/api/watchdog/start-grants?mi_object_id=nope")
+    assert r.status_code == 400
+
+
 def test_grant_role_ruft_skript_mit_mi_ids(anlage, monkeypatch):
     """Valide GUIDs → grant_watchdog_role.ps1 wird mit den MI-IDs aufgerufen."""
     c, _ = anlage

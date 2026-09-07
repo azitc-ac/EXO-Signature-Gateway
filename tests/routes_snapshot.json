@@ -1575,6 +1575,13 @@
     "name": "watchdog_heartbeat"
   },
   {
+    "pfad": "/api/watchdog/start-grants",
+    "methoden": [
+      "GET"
+    ],
+    "name": "watchdog_start_grants"
+  },
+  {
     "pfad": "/api/watchdog/status",
     "methoden": [
       "GET"
