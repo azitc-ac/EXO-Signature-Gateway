@@ -110,8 +110,19 @@
     </select>
     <input type="url" id="hub-base" placeholder="https://..." style="width:100%;max-width:360px;font-size:13px;margin-top:6px;display:none" autocapitalize="off" autocorrect="off" spellcheck="false">
   </div>
-  <div class="settings-row" style="margin-bottom:8px"><label>Deine E-Mail</label>
-    <input type="email" id="hub-email" placeholder="kunde@firma.de" style="width:100%;max-width:360px;font-size:13px" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+  <div class="settings-row" style="margin-bottom:8px"><label>Konto-E-Mail</label>
+    <div style="width:100%;max-width:360px">
+      <span id="hub-notif-dg" data-email="{{ s.NOTIFICATION_DG_EMAIL or '' }}"
+            data-external="{{ '1' if s.NOTIFICATION_DG_ACCEPT_EXTERNAL else '0' }}" style="display:none"></span>
+      <select id="hub-email-mode" onchange="hubEmailModeChanged()" style="width:100%;font-size:13px">
+        <option value="dg">Benachrichtigungs-Verteilerliste verwenden (empfohlen)</option>
+        <option value="manual">Mail-Adresse eingeben…</option>
+      </select>
+      <input type="email" id="hub-email" placeholder="kunde@firma.de"
+             style="width:100%;font-size:13px;margin-top:6px;display:none"
+             autocapitalize="off" autocorrect="off" spellcheck="false">
+      <div id="hub-email-dg-info" style="display:none;margin-top:6px;font-size:12px"></div>
+    </div></div>
   <div class="settings-row" style="margin-bottom:8px"><label>Firma / Rechtsform</label>
     <input type="text" id="hub-company" placeholder="Musterfirma GmbH" required style="width:100%;max-width:360px;font-size:13px"></div>
   <div class="settings-row" style="margin-bottom:8px"><label>Ansprechpartner (optional)</label>
@@ -639,9 +650,52 @@ function hubBaseSelectChanged(){
   if(sel.value==='__other__'){ b.style.display=''; if(b.value===HUB_DEFAULT_BASE) b.value=''; b.focus(); }
   else { b.style.display='none'; b.value=sel.value; }
 }
+// Konto-E-Mail: Verteilerliste (empfohlen) vs. manuelle Adresse.
+// Die Liste ist nur wählbar, wenn sie eingerichtet ist UND Mail von außerhalb
+// des Tenants annimmt — sonst weist Exchange die Hub-Bestätigungsmails ab.
+function _notifDg(){ const el=document.getElementById('hub-notif-dg');
+  return {email:(el?el.dataset.email:'').trim(), external: !!el && el.dataset.external==='1'}; }
+function _hubEmailModeInit(current){
+  const dg=_notifDg(), sel=document.getElementById('hub-email-mode');
+  if(!sel) return;
+  sel.value = (dg.email && dg.external && current===dg.email) ? 'dg' : 'manual';
+  hubEmailModeChanged(true);
+}
+function hubEmailModeChanged(keep){
+  const mode=document.getElementById('hub-email-mode').value;
+  const inp=document.getElementById('hub-email');
+  const info=document.getElementById('hub-email-dg-info');
+  const dg=_notifDg();
+  if(mode==='manual'){
+    inp.style.display=''; info.style.display='none';
+    if(!keep && inp.value===dg.email) inp.value='';
+    if(!keep) inp.focus();
+    return;
+  }
+  inp.style.display='none';
+  if(dg.email && dg.external){
+    inp.value=dg.email; info.style.display='block';
+    info.innerHTML='<span style="color:#64748b">Konto-E-Mail: <strong>'+esc(dg.email)
+      +'</strong> — die Benachrichtigungs-Verteilerliste.</span>';
+    return;
+  }
+  // Nicht wählbar: Erklärtext + Verweis, Auswahl zurück auf „manuell".
+  const fehlt = !dg.email
+    ? 'Es ist noch keine Benachrichtigungs-Verteilerliste eingerichtet.'
+    : 'Die Verteilerliste nimmt noch keine Mail von außerhalb des Tenants an.';
+  info.style.display='block';
+  info.innerHTML='<div class="alert error" style="margin:0;font-size:12px">'+fehlt
+    +' Der Hub schickt Bestätigungs- und Zertifikatsmails von außerhalb des Tenants; ohne den Haken '
+    +'„Verteilerliste nimmt auch Mail von außerhalb des Tenants an" weist Exchange sie stillschweigend ab. '
+    +'Richte die Liste unter <a href="/settings#benachrichtigungen">Einstellungen → Benachrichtigungen &amp; Tagesbericht</a> '
+    +'ein und setze den Haken — dann steht diese Option zur Verfügung. Bis dahin bitte „Mail-Adresse eingeben…" wählen.</div>';
+  document.getElementById('hub-email-mode').value='manual';
+  inp.style.display=''; if(inp.value===dg.email) inp.value='';
+}
 async function hubLoadConfig() { try { const d=await (await fetch('/api/hub/config')).json();
   const b=document.getElementById('hub-base'), e=document.getElementById('hub-email'), n=document.getElementById('hub-name'), co=document.getElementById('hub-company'), sel=document.getElementById('hub-base-select');
   if(e) e.value=d.email||''; if(n) n.value=d.name||''; if(co) co.value=d.company||'';
+  _hubEmailModeInit(d.email||'');
   if(b){
     b.value = d.base_url || HUB_DEFAULT_BASE;
     if(sel){ sel.value = (d.base_url && d.base_url!==HUB_DEFAULT_BASE) ? '__other__' : HUB_DEFAULT_BASE; hubBaseSelectChanged(); }
