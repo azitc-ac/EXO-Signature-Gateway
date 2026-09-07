@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.89 — 2026-09-07 — Bypass-Wächter (Azure): least-privilege-Berechtigung dokumentiert
+
+Der Azure-Wächter läuft ohne breite „Exchange Administrator"-Rolle. Bestätigt wurde
+das least-privilege-Rezept für die Managed Identity, das jetzt vollständig in
+`azure/watchdog/README.md` steht — **drei** Zuweisungen statt einer breiten Rolle:
+
+1. App-Rolle `Exchange.ManageAsApp` — der reine Anmelde-Schlüssel (allein wirkungslos),
+2. Entra-Rolle `Global Reader` (nur-lesen) — die kleinste unterstützte Directory-Rolle,
+   mit der sich eine Managed Identity überhaupt an Exchange Online PowerShell anmelden kann,
+3. EXO-RBAC-Rolle „Transport Rules" (per `New-ManagementRoleAssignment -App`) — die
+   eigentliche Schreibberechtigung, begrenzt auf Transportregeln.
+
+Hintergrund: „RBAC for Applications" in Exchange deckt nur Graph/EWS-Datenrollen ab,
+nicht Verwaltungs-Cmdlets wie Transportregeln; und Anwendungen können nicht Mitglied
+einer Rollengruppe werden. Deshalb ist die Kombination oben nötig — sie hält den
+Wächter auf genau eine Schreib-Fähigkeit begrenzt (lesen darf er per Global Reader,
+schreiben nur Regeln). Betrifft nur die Einrichtung des externen Wächters.
+
 ## v1.8.88 — 2026-09-07 — Setup-Assistent: angelegte EXO-Objekte anzeigen; IMAP-Hinweis aktualisiert
 
 Schritt 6 (EXO Outbound Connector + Transportregel) zeigt nach der Einrichtung die
