@@ -49,6 +49,12 @@ Wächter schaltet die Regel damit, ohne EXO-Voll-Admin). Alle einmalig, brauchen
 Tenant-Directory-Admin. `MI_OBJ` ist die Objekt-ID der MI (`az functionapp identity
 show -n $APP -g $RG --query principalId -o tsv`).
 
+> **Am einfachsten über die Oberfläche:** *Erweitert → Bypass-Wächter →
+> „Berechtigungen der Wächter-Identität einrichten"* — dort MI-AppId + Objekt-ID
+> eintragen und **„Berechtigungen erteilen (Azure-Login)"** (macht Schritt 1+2 mit
+> deinem Admin-Token, ganz ohne Kommandozeile) sowie **„Rolle zuweisen"** (Schritt 3).
+> Die folgenden Befehle sind der manuelle Weg zur selben Sache.
+
 **1. App-Rolle `Exchange.ManageAsApp`** — der reine *Anmelde*-Schlüssel. Allein
 erlaubt sie NICHTS (jedes Cmdlet → 403); Berechtigungen kommen aus Schritt 2+3:
 ```bash

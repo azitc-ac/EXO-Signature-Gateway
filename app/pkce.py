@@ -59,11 +59,13 @@ def generate_pkce_pair() -> tuple[str, str]:
     return verifier, challenge
 
 
-def create_session(redirect_uri: str, scopes: list | None = None, flow: str = "setup", next_url: str = "/") -> tuple[str, str]:
+def create_session(redirect_uri: str, scopes: list | None = None, flow: str = "setup",
+                   next_url: str = "/", extra: dict | None = None) -> tuple[str, str]:
     """
     Create a new PKCE session.
     Returns (state, authorization_url).
     flow: "setup" for wizard, "sso" for login
+    extra: flow-spezifische Zusatzdaten (z.B. {"mi_object_id": …}), im Callback lesbar.
     """
     _prune_sessions()
     state = secrets.token_urlsafe(24)
@@ -74,6 +76,7 @@ def create_session(redirect_uri: str, scopes: list | None = None, flow: str = "s
         "created_at": time.monotonic(),
         "flow": flow,
         "next_url": next_url if next_url.startswith("/") else "/",
+        "extra": extra or {},
     }
 
     use_scopes = scopes if scopes is not None else BOOTSTRAP_SCOPES

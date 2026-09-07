@@ -129,6 +129,29 @@ def _arm_callback_page(ok: bool, msg: str = "") -> str:
 </body></html>"""
 
 
+def _watchdog_callback_page(ok: bool, msg: str = "") -> str:
+    if ok:
+        icon, heading, color = "✓", "Berechtigungen erteilt", "#16a34a"
+        body_text = "App-Rolle + Global Reader gesetzt. Dieses Fenster schließt sich…"
+    else:
+        icon, heading, color = "✗", "Erteilung fehlgeschlagen", "#dc2626"
+        body_text = msg or "Unbekannter Fehler"
+    post_msg = ('{"type":"watchdog-grants-done"}' if ok
+                else '{"type":"watchdog-grants-fail","msg":' + repr(msg) + '}')
+    return f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><title>{heading}</title></head>
+<body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f8fafc">
+<div style="text-align:center;padding:40px;max-width:460px">
+  <div style="font-size:52px;margin-bottom:16px">{icon}</div>
+  <h2 style="color:{color};margin:0 0 10px">{heading}</h2>
+  <p style="color:#64748b;margin:0">{body_text}</p>
+</div>
+<script>
+  try {{ window.opener && window.opener.postMessage({post_msg}, window.opener.location.origin); }} catch(e) {{}}
+  {'setTimeout(function(){window.close();},1500);' if ok else ''}
+</script>
+</body></html>"""
+
+
 @router.get("/auth/start")
 async def auth_start(request: Request):
     """Return Azure AD auth URL as JSON (for fetch callers in the setup wizard).
@@ -148,6 +171,21 @@ async def auth_start_redirect(request: Request):
     redirect_uri = _build_redirect_uri()
     _state, auth_url = pkce_mod.create_session(redirect_uri, flow="setup")
     return RedirectResponse(auth_url)
+
+@router.get("/api/watchdog/start-grants")
+async def watchdog_start_grants(mi_object_id: str = "", _: str = Depends(_require_admin)):
+    """Startet einen delegierten Azure-Login (Popup), um der Wächter-Managed-Identity
+    die zwei Graph-Zuweisungen zu erteilen (App-Rolle Exchange.ManageAsApp + Entra
+    „Global Reader") — mit dem Admin-Token, wie die App-Registrierung im Assistenten.
+    KEIN neues stehendes Recht fürs Gateway. Liefert die Azure-Login-URL (Popup)."""
+    oid = (mi_object_id or "").strip()
+    if len(oid) != 36 or not all(c in "0123456789abcdefABCDEF-" for c in oid):
+        return JSONResponse({"ok": False, "detail": "Ungültige MI-Objekt-ID (GUID erwartet)."},
+                            status_code=400)
+    redirect_uri = _setup_redirect_uri()
+    _state, auth_url = pkce_mod.create_session(redirect_uri, flow="watchdog_grants",
+                                               extra={"mi_object_id": oid})
+    return JSONResponse({"auth_url": auth_url})
 
 @router.get("/auth/callback", response_class=HTMLResponse)
 async def auth_callback(
@@ -259,6 +297,21 @@ async def auth_callback(
         except Exception as exc:
             log.warning("Add-in redirect URI patch failed: %s", exc)
         return RedirectResponse("/setup?addin_uri_patched=1#step-addin", status_code=303)
+
+    elif flow == "watchdog_grants":
+        # Bypass-Wächter: der MI die zwei Graph-Zuweisungen erteilen (App-Rolle +
+        # Global Reader) mit dem delegierten Admin-Token. Popup meldet dem Opener.
+        access_token = token_resp.get("access_token", "")
+        mi_oid = (session_obj.get("extra") or {}).get("mi_object_id", "")
+        try:
+            import setup_wizard
+            res = await setup_wizard.grant_watchdog_graph_roles(access_token, mi_oid)
+            ok = bool(res.get("app_role") and res.get("global_reader"))
+            msg = "" if ok else ("; ".join(res.get("fehler", [])) or "Teilweise fehlgeschlagen")
+        except Exception as exc:                               # noqa: BLE001
+            log.error("Watchdog-Graph-Grants fehlgeschlagen: %s", exc)
+            ok, msg = False, str(exc)
+        return HTMLResponse(_watchdog_callback_page(ok, msg))
 
     else:
         # Setup flow (popup, HTTPS redirect): run post-auth setup, then self-close
