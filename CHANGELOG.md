@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.88 — 2026-09-07 — Setup-Assistent: angelegte EXO-Objekte anzeigen; IMAP-Hinweis aktualisiert
+
+Schritt 6 (EXO Outbound Connector + Transportregel) zeigt nach der Einrichtung die
+**tatsächlich angelegten Objekte** aufklappbar an: Outbound- (und im SMTP-Modus
+Inbound-)Connector sowie die Transportregel(n) — Signatur, und bei aktiver
+Regeltrennung zusätzlich die S/MIME-Regel. Die Namen kommen aus der einen Quelle
+(Gateway-Name bzw. `waechter_regel`/`regel_split`), nicht aus einer Ableitung in der
+Vorlage.
+
+Der Hinweis im IMAP-Schritt („Bei neuen Postfächern diesen Schritt erneut ausführen")
+war überholt: Neue Postfächer erhalten den IMAP-Zugriff seit Längerem automatisch
+beim Speichern auf der Postfächer-Seite (S/MIME aktivieren). Der Text sagt das jetzt.
+
 ## v1.8.87 — 2026-09-07 — Übersicht: „Verarbeitet" ist anklickbar (alle Mails im Protokoll)
 
 Die Zeile **„Verarbeitet"** in der Statistik-Übersicht öffnet jetzt wie die anderen
