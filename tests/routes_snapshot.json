@@ -581,6 +581,13 @@
     "name": "api_get_mailboxes"
   },
   {
+    "pfad": "/api/mailboxes/dg-status",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_dg_status"
+  },
+  {
     "pfad": "/api/mailboxes/fetch-bookings-urls",
     "methoden": [
       "POST"
