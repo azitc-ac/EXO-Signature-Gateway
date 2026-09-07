@@ -8,10 +8,14 @@
     Management-Rolle "Transport Rules" ist der kleinste vorgefertigte Umfang dafür
     (Transportregel-Cmdlets, kein Postfach-/Mail-Zugriff, keine Admin-Rechte).
 
-    ⚠️ Das ist NUR die EXO-RBAC-Berechtigung. Damit die Managed Identity sich
-    ueberhaupt an EXO anmelden kann, braucht sie ZUSAETZLICH die App-Rolle
-    `Exchange.ManageAsApp` (Graph, siehe README Schritt 1) — die erteilt dieses
-    Skript NICHT (anderer Auth-Weg: Graph statt EXO-Cmdlets). Ohne sie: UnAuthorized.
+    ⚠️ Das ist NUR die EXO-RBAC-Schreibberechtigung. Damit die Managed Identity
+    sich ueberhaupt an EXO anmelden kann, braucht sie ZUSAETZLICH (Graph, siehe
+    README Schritt 1+2, erteilt dieses Skript NICHT):
+      - App-Rolle `Exchange.ManageAsApp` (Anmelde-Schluessel), UND
+      - eine unterstuetzte Entra-Directory-Rolle; kleinste mit Schreibrecht ueber
+        diese RBAC-Zuweisung ist `Global Reader` (nur-lesen).
+    Fehlt eines davon: UnAuthorized. KEIN "Exchange Administrator" noetig
+    (2026-09-07 live bestaetigt).
 
     Laeuft einmalig bei der Einrichtung, verbindet sich mit dem bestehenden
     Gateway-/Admin-App-Zertifikat (Exchange.ManageAsApp).

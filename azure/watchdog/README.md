@@ -43,14 +43,15 @@ az functionapp config appsettings set -n $APP -g $RG --settings \
    WATCHDOG_TOKEN="<Token aus /api/watchdog/token/rotate>"
 ```
 
-Die Managed Identity braucht für Exchange **zwei** Dinge (siehe
-[MS-Doku](https://learn.microsoft.com/en-us/powershell/exchange/connect-exo-powershell-managed-identity)):
+Die Managed Identity braucht für Exchange **drei** Zuweisungen — least-privilege,
+**ohne** breite „Exchange Administrator"-Rolle (2026-09-07 live bestätigt: der
+Wächter schaltet die Regel damit, ohne EXO-Voll-Admin). Alle einmalig, brauchen
+Tenant-Directory-Admin. `MI_OBJ` ist die Objekt-ID der MI (`az functionapp identity
+show -n $APP -g $RG --query principalId -o tsv`).
 
-**1. App-Rolle `Exchange.ManageAsApp`** — der reine *Anmelde*-Schlüssel. Für sich
-genommen erlaubt sie NICHTS (jedes Cmdlet → 403); erst die Rolle in Schritt 2 gibt
-Berechtigungen. Einmalig per Graph erteilen (braucht Tenant-Directory-Admin):
+**1. App-Rolle `Exchange.ManageAsApp`** — der reine *Anmelde*-Schlüssel. Allein
+erlaubt sie NICHTS (jedes Cmdlet → 403); Berechtigungen kommen aus Schritt 2+3:
 ```bash
-MI_OBJ=$(az ad sp list --filter "displayName eq '$APP'" --query "[0].id" -o tsv)
 EXO_SP=$(az ad sp show --id 00000002-0000-0ff1-ce00-000000000000 --query id -o tsv)
 az rest --method POST \
   --url "https://graph.microsoft.com/v1.0/servicePrincipals/$MI_OBJ/appRoleAssignments" \
@@ -58,8 +59,18 @@ az rest --method POST \
   --body "{\"principalId\":\"$MI_OBJ\",\"resourceId\":\"$EXO_SP\",\"appRoleId\":\"dc50a0fb-09a3-484d-be87-e023b12c6440\"}"
 ```
 
-**2. Minimale EXO-RBAC-Rolle „Transport Rules"** — die eigentliche *Berechtigung*
-(nur Transportregeln, sonst nichts). Einmalig mit dem Gateway-Auth-Zertifikat:
+**2. Entra-Rolle `Global Reader`** (nur-lesen) — Managed Identities können sich nur
+mit einer *unterstützten* Directory-Rolle an EXO PowerShell anmelden. Global Reader
+ist die kleinste, die das erlaubt (liest, schreibt nichts):
+```bash
+az rest --method POST \
+  --url "https://graph.microsoft.com/v1.0/roleManagement/directory/roleAssignments" \
+  --headers "Content-Type=application/json" \
+  --body "{\"principalId\":\"$MI_OBJ\",\"roleDefinitionId\":\"f2ef992c-3afb-46b9-b7cf-a126ee74c451\",\"directoryScopeId\":\"/\"}"
+```
+
+**3. EXO-RBAC-Rolle „Transport Rules"** — die eigentliche *Schreib*-Berechtigung
+(nur Transportregeln). Einmalig mit dem Gateway-Auth-Zertifikat:
 ```bash
 docker exec exo-signature-gateway pwsh -NoLogo -NonInteractive -File \
   /app/../azure/watchdog/setup_watchdog_role.ps1 \
@@ -68,10 +79,13 @@ docker exec exo-signature-gateway pwsh -NoLogo -NonInteractive -File \
 ```
 (MI-AppId/ObjectId liefert `az functionapp identity show -n $APP -g $RG`.)
 
-⚠️ **Keine breite Entra-Rolle** (z.B. „Exchange Administrator") zuweisen — dann wäre
-`Exchange.ManageAsApp` voller EXO-Zugriff. Die Kombination App-Rolle + „Transport
-Rules"-RBAC hält den Wächter auf genau eine Fähigkeit begrenzt. Beide Zuweisungen
-propagieren ~15–30 Min, bevor `Connect-ExchangeOnline -ManagedIdentity` greift.
+⚠️ **Kein „Exchange Administrator".** Die Kombination App-Rolle + Global Reader
+(lesen) + „Transport Rules"-RBAC (schreiben) hält den Wächter auf genau eine
+Schreib-Fähigkeit begrenzt. Alle Zuweisungen propagieren ~15–30 Min, bevor
+`Connect-ExchangeOnline -ManagedIdentity` greift. Die MI heißt in EXO
+„EXO Signature Gateway Watchdog" — sie taucht **nicht** im Rollengruppen-Dialog
+auf (Apps können keine Rollengruppen-Mitglieder sein; die RBAC-Zuweisung erfolgt
+direkt per `New-ManagementRoleAssignment -App`, das erledigt Schritt 3).
 
 ## Konfiguration
 | App-Einstellung | Zweck |

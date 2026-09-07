@@ -7,7 +7,9 @@
 #
 # Läuft EXTERN (Azure), überlebt also den Ausfall des Gateway-Hosts. Authentifiziert
 # sich an Exchange per MANAGED IDENTITY (kein Zertifikat zu verwalten); die Identität
-# hat eine minimale EXO-Rolle "Transport Rules" (siehe setup_watchdog_role.ps1).
+# hat least-privilege: App-Rolle Exchange.ManageAsApp (anmelden) + Entra "Global
+# Reader" (lesen) + EXO-RBAC "Transport Rules" (nur Regeln schreiben) — KEIN
+# Exchange Administrator. Einrichtung siehe README + setup_watchdog_role.ps1.
 #
 # App-Einstellungen (Function App → Konfiguration):
 #   GATEWAY_HEALTH_URL   z.B. https://sig.zarenko.net/health
