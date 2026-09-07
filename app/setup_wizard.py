@@ -383,6 +383,14 @@ async def grant_watchdog_graph_roles(token: str, mi_object_id: str) -> dict:
             ergebnis["global_reader"] = True
         else:
             ergebnis["fehler"].append(f"Global Reader: {exc}")
+    # AppId der MI auflösen (der Graph-Token kann das) — die UI füllt damit das
+    # AppId-Feld für den EXO-Schritt „Transport Rules" automatisch.
+    ergebnis["app_id"] = ""
+    try:
+        sp = await _gh("get", f"{GRAPH}/servicePrincipals/{mi_object_id}?$select=appId", token)
+        ergebnis["app_id"] = sp.get("appId", "")
+    except Exception as exc:                                    # noqa: BLE001
+        log.warning("Watchdog: AppId der MI nicht auflösbar: %s", exc)
     log.info("Watchdog-Graph-Rollen: app_role=%s global_reader=%s fehler=%s",
              ergebnis["app_role"], ergebnis["global_reader"], ergebnis["fehler"])
     return ergebnis

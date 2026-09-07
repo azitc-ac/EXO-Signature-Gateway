@@ -5,6 +5,28 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.95 — 2026-09-08 — Bypass-Wächter (Azure): Function-Installer in der Oberfläche
+
+Der in v1.8.94 gelegte Installer-Kern (`watchdog_deploy.py`) hat jetzt seine
+Bedienung: In der Wächter-Karte (Erweitert → Bypass-Wächter, Variante „Azure
+Function") erscheint **„Function automatisch anlegen"**. Ablauf wie bei der
+Key-Vault-Einrichtung — Azure-Zugriff holen (delegierter Admin-Login), Abo und
+Ressourcengruppe wählen (oder neu anlegen), Region und Function-Namen angeben,
+**„Function anlegen"**. Das Gateway legt Storage + Function-App (Managed Identity,
+PowerShell) an, lädt den Wächter-Code hoch und trägt die Einstellungen ein
+(`GATEWAY_HEALTH_URL`, `EXO_ORGANIZATION`, `SIG_RULE_NAME`, Heartbeat-Token); der
+Fortschritt läuft mit.
+
+Danach verkettet sich der Weg: Nach dem Anlegen ist die Objekt-ID der Managed
+Identity vorbelegt, und **„Berechtigungen erteilen (Azure-Login)"** übernimmt nach
+dem Login zusätzlich die aufgelöste AppId — so muss keine ID mehr von Hand aus der
+Azure-Konsole abgeschrieben werden. Es bleibt bei drei least-privilege-Zuweisungen
+(App-Rolle `Exchange.ManageAsApp`, Entra „Global Reader", EXO-Rolle „Transport
+Rules"), **kein** „Exchange Administrator".
+
+Ein neues stehendes Recht bekommt das Gateway dabei nicht: Sämtliche Azure-Schritte
+laufen mit dem delegierten Token des angemeldeten Admins, genau wie bei Key Vault.
+
 ## v1.8.94 — 2026-09-07 — Bypass-Wächter (Azure): Installer-Kern — Function per ARM-REST anlegen (KV-Stil)
 
 Grundstein für den in-Gateway-Installer der Wächter-Function, nach Vorbild der

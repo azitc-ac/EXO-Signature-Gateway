@@ -17,6 +17,9 @@ def test_grant_graph_roles_setzt_approle_und_global_reader(monkeypatch):
 
     async def fake_gh(method, url, token, **kw):
         calls.append((method, url, kw.get("json")))
+        # Der abschliessende GET holt die AppId der MI (fürs UI-Autofill).
+        if method == "get" and "servicePrincipals/" in url:
+            return {"appId": "mi-app-id-123"}
         return {}
 
     async def fake_sp(token, app_id):
@@ -27,6 +30,7 @@ def test_grant_graph_roles_setzt_approle_und_global_reader(monkeypatch):
 
     res = asyncio.run(setup_wizard.grant_watchdog_graph_roles("tok", "mi-obj-id"))
     assert res["app_role"] and res["global_reader"] and not res["fehler"]
+    assert res["app_id"] == "mi-app-id-123"                          # AppId aufgelöst
 
     approle = [c for c in calls if "appRoleAssignments" in c[1]][0]
     assert "mi-obj-id" in approle[1]                                  # auf der MI

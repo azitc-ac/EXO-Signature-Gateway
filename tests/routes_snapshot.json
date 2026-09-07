@@ -1561,6 +1561,20 @@
     "name": "watchdog_config"
   },
   {
+    "pfad": "/api/watchdog/deploy/start",
+    "methoden": [
+      "POST"
+    ],
+    "name": "watchdog_deploy_start"
+  },
+  {
+    "pfad": "/api/watchdog/deploy/status",
+    "methoden": [
+      "GET"
+    ],
+    "name": "watchdog_deploy_status"
+  },
+  {
     "pfad": "/api/watchdog/grant-role",
     "methoden": [
       "POST"

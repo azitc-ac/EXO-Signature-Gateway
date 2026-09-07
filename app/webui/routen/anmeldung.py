@@ -129,15 +129,16 @@ def _arm_callback_page(ok: bool, msg: str = "") -> str:
 </body></html>"""
 
 
-def _watchdog_callback_page(ok: bool, msg: str = "") -> str:
+def _watchdog_callback_page(ok: bool, msg: str = "", app_id: str = "") -> str:
+    import json as _json
     if ok:
         icon, heading, color = "✓", "Berechtigungen erteilt", "#16a34a"
         body_text = "App-Rolle + Global Reader gesetzt. Dieses Fenster schließt sich…"
     else:
         icon, heading, color = "✗", "Erteilung fehlgeschlagen", "#dc2626"
         body_text = msg or "Unbekannter Fehler"
-    post_msg = ('{"type":"watchdog-grants-done"}' if ok
-                else '{"type":"watchdog-grants-fail","msg":' + repr(msg) + '}')
+    post_msg = (_json.dumps({"type": "watchdog-grants-done", "app_id": app_id}) if ok
+                else _json.dumps({"type": "watchdog-grants-fail", "msg": msg}))
     return f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><title>{heading}</title></head>
 <body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f8fafc">
 <div style="text-align:center;padding:40px;max-width:460px">
@@ -308,10 +309,11 @@ async def auth_callback(
             res = await setup_wizard.grant_watchdog_graph_roles(access_token, mi_oid)
             ok = bool(res.get("app_role") and res.get("global_reader"))
             msg = "" if ok else ("; ".join(res.get("fehler", [])) or "Teilweise fehlgeschlagen")
+            app_id = res.get("app_id", "")
         except Exception as exc:                               # noqa: BLE001
             log.error("Watchdog-Graph-Grants fehlgeschlagen: %s", exc)
-            ok, msg = False, str(exc)
-        return HTMLResponse(_watchdog_callback_page(ok, msg))
+            ok, msg, app_id = False, str(exc), ""
+        return HTMLResponse(_watchdog_callback_page(ok, msg, app_id))
 
     else:
         # Setup flow (popup, HTTPS redirect): run post-auth setup, then self-close
