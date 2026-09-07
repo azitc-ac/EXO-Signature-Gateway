@@ -1054,6 +1054,15 @@
       Mail-Flow: Outlook &rarr; EXO &rarr; Transport Rule &rarr; Gateway &rarr; Graph sendMail &rarr; EXO Delivery
       {% endif %}
     </p>
+    <details style="margin-top:10px">
+      <summary style="cursor:pointer;font-size:13px;color:#0369a1">Angelegte Objekte anzeigen</summary>
+      <ul style="margin:8px 0 0 16px;line-height:1.9;font-size:13px;color:#334155">
+        <li>Outbound Connector: <code>{{ e.exo_connector_out }}</code></li>
+        {% if s.REINJECT_MODE == 'smtp' %}<li>Inbound Connector: <code>{{ e.exo_connector_in }}</code></li>{% endif %}
+        <li>Transportregel (Signatur): <code>{{ e.exo_rule_sig }}</code></li>
+        {% if e.exo_split_aktiv %}<li>Transportregel (S/MIME): <code>{{ e.exo_rule_smime }}</code></li>{% endif %}
+      </ul>
+    </details>
     {% endif %}
   </div>
 </div>
@@ -1117,7 +1126,9 @@
     </div>
     {% if e.imap_access_configured %}
     <p class="hint" style="margin-top:8px">
-      Abgeschlossen. Bei neuen Postfächern diesen Schritt erneut ausführen.
+      Abgeschlossen. Neue Postfächer erhalten den IMAP-Zugriff automatisch beim
+      Speichern auf der Postfächer-Seite (S/MIME aktivieren) — dieser Schritt muss
+      dafür nicht erneut ausgeführt werden.
     </p>
     {% endif %}
     {% endif %}

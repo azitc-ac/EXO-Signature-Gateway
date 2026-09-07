@@ -140,6 +140,16 @@ async def setup_wizard(
         "vm_location": __import__("azure_imds").location(),
         "vm_resource_group": __import__("azure_imds").resource_group(),
     }
+    # Angelegte EXO-Objekte zum Anzeigen in Schritt 6 — Regelnamen aus der EINEN
+    # Quelle (waechter_regel/regel_split), Connector-Namen aus dem Gateway-Namen.
+    import regel_split
+    import waechter_regel
+    _gw = _gateway_name()
+    effective["exo_connector_out"] = f"{_gw} - Outbound"
+    effective["exo_connector_in"] = f"{_gw} - Inbound"
+    effective["exo_rule_sig"] = waechter_regel.regelname()
+    effective["exo_split_aktiv"] = regel_split.split_aktiv()
+    effective["exo_rule_smime"] = regel_split.smime_regelname()
     addin_base_url = _addin_base_url(request)
     return templates.TemplateResponse(
         request=request, name="setup.html",
