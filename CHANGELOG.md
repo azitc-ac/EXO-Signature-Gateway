@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.97 — 2026-09-08 — Anbindung: Konto-E-Mail als Auswahl (Verteilerliste oder manuell)
+
+Das freie E-Mail-Feld der Registrierung (Einstellungen → Anbindung & Lizenzen)
+wird durch eine Auswahl ersetzt: **„Benachrichtigungs-Verteilerliste verwenden
+(empfohlen)"** oder **„Mail-Adresse eingeben…"**. Das Hub-Konto empfängt
+Zertifikats- und Bestätigungsmails, auch antwortpflichtige — eine gemeinsam
+betreute Verteilerliste ist dafür geeigneter als ein persönliches Postfach.
+
+Die Verteilerliste ist nur wählbar, wenn sie eingerichtet ist **und** Mail von
+außerhalb des Tenants annimmt: Der Hub schreibt von außerhalb, und ohne den Haken
+„Verteilerliste nimmt auch Mail von außerhalb des Tenants an" weist Exchange die
+Mails stillschweigend ab (Annahmebestätigung an den Absender, die Liste erhält
+nichts). Ist das nicht erfüllt, erklärt ein Hinweis den fehlenden Schritt und
+verweist auf Einstellungen → Benachrichtigungen & Tagesbericht; bis dahin bleibt
+die manuelle Adresse aktiv.
+
 ## v1.8.96 — 2026-09-08 — Anbindung: Firma/Rechtsform verpflichtend
 
 Bei der Registrierung dieses Gateways am Hub (Einstellungen → Anbindung & Lizenzen)
