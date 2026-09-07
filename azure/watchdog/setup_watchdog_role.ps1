@@ -8,7 +8,12 @@
     Management-Rolle "Transport Rules" ist der kleinste vorgefertigte Umfang dafür
     (Transportregel-Cmdlets, kein Postfach-/Mail-Zugriff, keine Admin-Rechte).
 
-    Läuft einmalig bei der Einrichtung, verbindet sich mit dem bestehenden
+    ⚠️ Das ist NUR die EXO-RBAC-Berechtigung. Damit die Managed Identity sich
+    ueberhaupt an EXO anmelden kann, braucht sie ZUSAETZLICH die App-Rolle
+    `Exchange.ManageAsApp` (Graph, siehe README Schritt 1) — die erteilt dieses
+    Skript NICHT (anderer Auth-Weg: Graph statt EXO-Cmdlets). Ohne sie: UnAuthorized.
+
+    Laeuft einmalig bei der Einrichtung, verbindet sich mit dem bestehenden
     Gateway-/Admin-App-Zertifikat (Exchange.ManageAsApp).
 
 .PARAMETER WatchdogAppId

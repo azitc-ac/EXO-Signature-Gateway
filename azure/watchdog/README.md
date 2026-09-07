@@ -43,8 +43,23 @@ az functionapp config appsettings set -n $APP -g $RG --settings \
    WATCHDOG_TOKEN="<Token aus /api/watchdog/token/rotate>"
 ```
 
-Dann die **minimale EXO-Rolle** an die Managed Identity erteilen (einmalig, mit dem
-Gateway-Auth-Zertifikat):
+Die Managed Identity braucht für Exchange **zwei** Dinge (siehe
+[MS-Doku](https://learn.microsoft.com/en-us/powershell/exchange/connect-exo-powershell-managed-identity)):
+
+**1. App-Rolle `Exchange.ManageAsApp`** — der reine *Anmelde*-Schlüssel. Für sich
+genommen erlaubt sie NICHTS (jedes Cmdlet → 403); erst die Rolle in Schritt 2 gibt
+Berechtigungen. Einmalig per Graph erteilen (braucht Tenant-Directory-Admin):
+```bash
+MI_OBJ=$(az ad sp list --filter "displayName eq '$APP'" --query "[0].id" -o tsv)
+EXO_SP=$(az ad sp show --id 00000002-0000-0ff1-ce00-000000000000 --query id -o tsv)
+az rest --method POST \
+  --url "https://graph.microsoft.com/v1.0/servicePrincipals/$MI_OBJ/appRoleAssignments" \
+  --headers "Content-Type=application/json" \
+  --body "{\"principalId\":\"$MI_OBJ\",\"resourceId\":\"$EXO_SP\",\"appRoleId\":\"dc50a0fb-09a3-484d-be87-e023b12c6440\"}"
+```
+
+**2. Minimale EXO-RBAC-Rolle „Transport Rules"** — die eigentliche *Berechtigung*
+(nur Transportregeln, sonst nichts). Einmalig mit dem Gateway-Auth-Zertifikat:
 ```bash
 docker exec exo-signature-gateway pwsh -NoLogo -NonInteractive -File \
   /app/../azure/watchdog/setup_watchdog_role.ps1 \
@@ -53,13 +68,18 @@ docker exec exo-signature-gateway pwsh -NoLogo -NonInteractive -File \
 ```
 (MI-AppId/ObjectId liefert `az functionapp identity show -n $APP -g $RG`.)
 
+⚠️ **Keine breite Entra-Rolle** (z.B. „Exchange Administrator") zuweisen — dann wäre
+`Exchange.ManageAsApp` voller EXO-Zugriff. Die Kombination App-Rolle + „Transport
+Rules"-RBAC hält den Wächter auf genau eine Fähigkeit begrenzt. Beide Zuweisungen
+propagieren ~15–30 Min, bevor `Connect-ExchangeOnline -ManagedIdentity` greift.
+
 ## Konfiguration
 | App-Einstellung | Zweck |
 |---|---|
 | `GATEWAY_HEALTH_URL` | z.B. `https://sig.zarenko.net/health` |
 | `WATCHDOG_TOKEN` | Klartext-Token; das Gateway prüft dessen PBKDF2-Hash (`/api/watchdog/token/rotate` erzeugt ihn einmalig) |
 | `EXO_ORGANIZATION` | z.B. `zarenko.onmicrosoft.com` |
-| `SIG_RULE_NAME` | Name der Signatur-Regel, z.B. `Route via EXO Signature Gateway` |
+| `SIG_RULE_NAME` | Name der Signatur-Regel, z.B. `Route via EXO Signature Gateway (Signatur)` (aus der Gateway-UI kopieren: Erweitert → Bypass-Wächter) |
 | `FAIL_THRESHOLD` | aufeinanderfolgende Fehlversuche bis Bypass (Vorgabe 3, je 10 s) |
 
 ## Sicherheit
