@@ -101,6 +101,105 @@ def test_start_grants_lehnt_ungueltige_guid_ab(anlage):
     assert r.status_code == 400
 
 
+def _reset_deploy():
+    from webui.routen import waechter
+    waechter._deploy.update(running=False, ok=None, step="", msg="",
+                            principal_id="", host="", app="")
+
+
+def test_deploy_start_fehlende_felder_400(anlage):
+    _reset_deploy()
+    c, _ = anlage
+    r = c.post("/api/watchdog/deploy/start", json={"subscription_id": "x"})
+    assert r.status_code == 400
+
+
+def test_deploy_start_ungueltige_subscription_guid_400(anlage, monkeypatch):
+    _reset_deploy()
+    c, _ = anlage
+    from webui.routen import waechter
+    monkeypatch.setattr(waechter, "keyvault_arm_ok", lambda upn: True)
+    r = c.post("/api/watchdog/deploy/start", json={
+        "subscription_id": "kein-guid", "resource_group": "rg",
+        "location": "westeurope", "app_name": "exo-sig-watchdog"})
+    assert r.status_code == 400
+    assert "GUID" in r.json()["detail"]
+
+
+def test_deploy_start_ungueltiger_app_name_400(anlage, monkeypatch):
+    _reset_deploy()
+    c, _ = anlage
+    from webui.routen import waechter
+    monkeypatch.setattr(waechter, "keyvault_arm_ok", lambda upn: True)
+    r = c.post("/api/watchdog/deploy/start", json={
+        "subscription_id": "775da29a-df34-4880-afe6-089369a12cde",
+        "resource_group": "rg", "location": "westeurope",
+        "app_name": "-ungueltig-"})       # beginnt mit Bindestrich
+    assert r.status_code == 400
+
+
+def test_deploy_start_ohne_azure_zugriff_400(anlage, monkeypatch):
+    """Ohne delegierten ARM-Token (kein Azure-Login) → 400, kein Task."""
+    _reset_deploy()
+    c, _ = anlage
+    from webui.routen import waechter
+    monkeypatch.setattr(waechter, "keyvault_arm_ok", lambda upn: False)
+    r = c.post("/api/watchdog/deploy/start", json={
+        "subscription_id": "775da29a-df34-4880-afe6-089369a12cde",
+        "resource_group": "rg", "location": "westeurope",
+        "app_name": "exo-sig-watchdog"})
+    assert r.status_code == 400
+    assert waechter._deploy["running"] is False
+
+
+def test_deploy_start_409_wenn_schon_laeuft(anlage, monkeypatch):
+    c, _ = anlage
+    from webui.routen import waechter
+    waechter._deploy.update(running=True)
+    try:
+        r = c.post("/api/watchdog/deploy/start", json={
+            "subscription_id": "775da29a-df34-4880-afe6-089369a12cde",
+            "resource_group": "rg", "location": "westeurope",
+            "app_name": "exo-sig-watchdog"})
+        assert r.status_code == 409
+    finally:
+        _reset_deploy()
+
+
+def test_deploy_start_valide_startet_task(anlage, monkeypatch):
+    """Valide Eingabe + Azure-Zugriff → 200, Hintergrund-Orchestrator wird gerufen."""
+    _reset_deploy()
+    c, _ = anlage
+    from webui.routen import waechter
+    monkeypatch.setattr(waechter, "keyvault_arm_ok", lambda upn: True)
+    monkeypatch.setattr(waechter, "_get_session_user", lambda req: "admin@t.de")
+    gerufen = {}
+
+    async def _fake_run(upn, sub, rg, loc, app_name, create_rg):
+        gerufen.update(upn=upn, sub=sub, rg=rg, loc=loc, app=app_name, create_rg=create_rg)
+    monkeypatch.setattr(waechter, "_run_deploy", _fake_run)
+    try:
+        r = c.post("/api/watchdog/deploy/start", json={
+            "subscription_id": "775da29a-df34-4880-afe6-089369a12cde",
+            "resource_group": "rg-neu", "location": "northeurope",
+            "app_name": "exo-sig-watchdog", "create_rg": True})
+        assert r.status_code == 200 and r.json()["started"] is True
+    finally:
+        _reset_deploy()
+    assert gerufen["sub"] == "775da29a-df34-4880-afe6-089369a12cde"
+    assert gerufen["app"] == "exo-sig-watchdog" and gerufen["create_rg"] is True
+
+
+def test_deploy_status_liefert_zustandsform(anlage):
+    _reset_deploy()
+    c, _ = anlage
+    r = c.get("/api/watchdog/deploy/status")
+    assert r.status_code == 200
+    d = r.json()
+    for k in ("running", "step", "ok", "msg", "principal_id", "host", "app"):
+        assert k in d
+
+
 def test_grant_role_ruft_skript_mit_mi_ids(anlage, monkeypatch):
     """Valide GUIDs → grant_watchdog_role.ps1 wird mit den MI-IDs aufgerufen."""
     c, _ = anlage
