@@ -111,6 +111,9 @@ COPY app/ .
 COPY legal/ /app/legal/
 COPY VERSION /app/VERSION
 COPY CHANGELOG.md /app/CHANGELOG.md
+# Function-Quellcode des Bypass-Wächters (Azure-Variante) — der In-Gateway-Installer
+# (watchdog_deploy.build_function_zip) zippt daraus und lädt ihn per ARM/Kudu hoch.
+COPY azure/watchdog/ /app/watchdog_function/
 
 # Die Mountpunkte VOR dem chown anlegen: Sonst legt sie die folgende
 # VOLUME-Anweisung als root:root an, und appuser (UID 1000) kann nicht in
