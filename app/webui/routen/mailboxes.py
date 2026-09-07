@@ -40,6 +40,50 @@ from webui.deps import (
 router = APIRouter()
 
 
+# ── Verteilerlisten-Aktualisierung: Hintergrundlauf ──────────────────────────
+# Das DG-Update ruft EXO PowerShell und dauert bis zu zwei Minuten. Früher lief
+# es synchron im Request — und zwar UNGETHREADET, blockierte also den ganzen
+# Event-Loop (alle anderen Anfragen standen zwei Minuten). Jetzt läuft es in
+# einem Hintergrund-Task; die Oberfläche pollt `_dg_status` über
+# `/api/mailboxes/dg-status`. Der lokale `MAILBOX_CONFIG`-Teil des Speicherns
+# ist davon unberührt und weiterhin sofort fertig.
+#
+# Ein Lauf pro Prozess genügt: Der Speichern-Knopf ist während des Laufs
+# gesperrt, ein zweites paralleles Update kann es also nicht geben.
+_dg_status: dict = {"state": "idle", "ok": None, "output": ""}
+
+
+async def _run_dg_update_bg(app_id: str, tenant_domain: str,
+                            enabled_members: list[str]) -> None:
+    import setup_wizard
+    _dg_status.update({"state": "running", "ok": None, "output": ""})
+    loop = asyncio.get_event_loop()
+    try:
+        result = await loop.run_in_executor(
+            None, lambda: setup_wizard.run_mailbox_dg_update(
+                app_id, tenant_domain, enabled_members))
+        # Least Privilege: App-Scope-Gruppe mitpflegen (No-op, solange nicht
+        # aktiviert). Best-effort — darf den Lauf nicht scheitern lassen.
+        try:
+            await loop.run_in_executor(
+                None, lambda: setup_wizard.run_app_access_policy_sync(
+                    app_id, tenant_domain))
+        except Exception:                                      # noqa: BLE001
+            pass
+        _dg_status.update({"state": "done", "ok": bool(result.get("ok")),
+                           "output": result.get("output", "")})
+    except Exception as e:                                     # noqa: BLE001
+        log.error("DG-Hintergrundlauf gescheitert: %s", e)
+        _dg_status.update({"state": "done", "ok": False,
+                           "output": f"Fehler: {e}"})
+
+
+@router.get("/api/mailboxes/dg-status")
+async def api_dg_status(_=Depends(_require_admin)):
+    return dict(_dg_status)
+
+
+
 @router.get("/api/mailboxes")
 async def api_get_mailboxes(_=Depends(_require_admin)):
     """List all EXO mailboxes + their current MAILBOX_CONFIG + cached health status."""
@@ -340,21 +384,16 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
                 settings_store.update({"USER_BOOKINGS": current})
         asyncio.create_task(_fetch_new())
 
-    # Update EXO Distribution Group if wizard is complete
+    # Update EXO Distribution Group if wizard is complete.
+    # ⚠️ Der lokale Teil (MAILBOX_CONFIG oben) ist damit BEREITS gespeichert.
+    # Das DG-Update läuft im Hintergrund (bis zu zwei Minuten EXO PowerShell) —
+    # der Request kehrt sofort zurück, die Oberfläche pollt `/api/mailboxes/
+    # dg-status`. So hängt weder die Seite noch der Event-Loop.
     if body.get("update_dg") and app_id and tenant_domain:
-        import setup_wizard
-        result = setup_wizard.run_mailbox_dg_update(app_id, tenant_domain, enabled_members)
-        # Least Privilege: App-Scope-Gruppe der ApplicationAccessPolicy mitpflegen,
-        # damit sie bei Postfach-Änderungen nicht driftet (No-op, solange nicht
-        # aktiviert). Best-effort — darf das Speichern nicht scheitern lassen.
-        # run_app_access_policy_sync loggt intern und wirft nicht; das try ist nur
-        # ein Sicherheitsnetz gegen Unerwartetes, damit das Speichern nie kippt.
-        try:
-            setup_wizard.run_app_access_policy_sync(app_id, tenant_domain)
-        except Exception:                                      # noqa: BLE001
-            pass
-        return {"ok": result["ok"], "saved": True,
-                "dg_output": result.get("output", ""), "auto_enrollment": auto}
+        asyncio.create_task(
+            _run_dg_update_bg(app_id, tenant_domain, enabled_members))
+        return {"ok": True, "saved": True, "dg_running": True,
+                "auto_enrollment": auto}
     return {"ok": True, "saved": True, "auto_enrollment": auto}
 
 

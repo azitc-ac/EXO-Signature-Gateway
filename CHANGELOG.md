@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.98 — 2026-09-08 — Postfach speichern: Verteilerlisten-Update im Hintergrund
+
+Beim Speichern der Postfachliste (Postfächer → Speichern) wird die lokale
+Konfiguration wie bisher sofort gesichert; die Aktualisierung der Exchange-
+Verteilerliste (EXO PowerShell, bis zu zwei Minuten) läuft nun im Hintergrund.
+Der Speichern-Knopf bleibt bis zum Abschluss als „wird gespeichert…", die Seite
+wartet nicht mehr auf eine lange Anfrage.
+
+Zuvor lief dieser Aufruf synchron **und ungethreadet** im Request und blockierte
+damit den gesamten Dienst — jede andere Anfrage stand still, solange das Update
+lief. Zusätzlich blieb bei einem Proxy-Timeout ohne Rückmeldung offen, ob die
+Verteilerliste aktualisiert wurde. Neuer Statusendpunkt `/api/mailboxes/dg-status`,
+den die Oberfläche pollt; schlägt das Update fehl, meldet die Seite das getrennt
+vom (bereits erfolgten) lokalen Speichern.
+
 ## v1.8.97 — 2026-09-08 — Anbindung: Konto-E-Mail als Auswahl (Verteilerliste oder manuell)
 
 Das freie E-Mail-Feld der Registrierung (Einstellungen → Anbindung & Lizenzen)

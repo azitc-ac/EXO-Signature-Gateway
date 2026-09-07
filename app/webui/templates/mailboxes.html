@@ -1266,26 +1266,65 @@ async function saveMailboxes() {
       body: JSON.stringify({mailboxes: payload, update_dg: true}),
     });
     var d = await resp.json().catch(function() { return {}; });
-    if (resp.ok && d.ok) {
-      var out = d.dg_output ? '<br><code style="font-size:11px">' + d.dg_output.replace(/\n/g,'<br>') + '</code>' : '';
-      result.className = 'alert success';
-      result.innerHTML = 'Gespeichert (lokal + Verteilerliste).' + out;
+    if (resp.ok && d.ok && d.dg_running) {
+      // Lokal ist bereits gespeichert; die Verteilerliste wird im Hintergrund
+      // bei EXO aktualisiert (bis zu 2 Min.). Knopf bleibt gesperrt und zeigt
+      // „wird gespeichert…", während wir den Server-Status pollen — die Seite
+      // hängt nicht an einer langen Anfrage.
+      result.className = 'alert';
+      result.innerHTML = 'Lokal gespeichert. Verteilerliste wird bei EXO aktualisiert (kann bis zu 2 Min. dauern)…';
+      result.style.display = 'block';
       refreshFairUse();
-      // Der ausführliche Kasten bleibt (er trägt die Ausgabe der
-      // Verteilerlisten-Aktualisierung); die Wache meldet zusätzlich am Knopf,
-      // dass nichts mehr offen ist — sonst bliebe dort „noch nicht gespeichert"
-      // stehen, obwohl gespeichert wurde.
+      await _pollDgStatus(result);
+    } else if (resp.ok && d.ok) {
+      result.className = 'alert success';
+      result.innerHTML = 'Gespeichert.';
+      result.style.display = 'block';
+      refreshFairUse();
       wacheFertig('mb-save-btn', true);
     } else {
       result.className = 'alert error';
-      result.innerHTML = 'Fehler: ' + (d.dg_output || d.detail || 'Unbekannt');
+      result.innerHTML = 'Fehler: ' + esc(d.detail || 'Unbekannt');
+      result.style.display = 'block';
       wacheFertig('mb-save-btn', false);
     }
+  } catch (e) {
+    result.className = 'alert error';
+    result.innerHTML = 'Speichern fehlgeschlagen: ' + esc(String(e));
     result.style.display = 'block';
+    wacheFertig('mb-save-btn', false);
   } finally {
     btn.disabled = false;
     btn.textContent = origText;
   }
+}
+
+// Pollt den Hintergrundlauf der Verteilerlisten-Aktualisierung. Läuft, bis der
+// Server "done" meldet; der Sicherheitsdeckel (~160 s) bricht das Warten ab,
+// ohne es als Fehler zu werten — der Lauf kann serverseitig weiterlaufen, und
+// bis Exchange die Liste überall kennt, vergehen ohnehin 5–15 Min.
+async function _pollDgStatus(result) {
+  for (var i = 0; i < 80; i++) {
+    await new Promise(function(r) { setTimeout(r, 2000); });
+    var s;
+    try { s = await (await fetch('/api/mailboxes/dg-status')).json(); }
+    catch (e) { continue; }                       // Netzhaken → weiterversuchen
+    if (!s || s.state !== 'done') continue;
+    if (s.ok) {
+      var out = s.output ? '<br><code style="font-size:11px">' + esc(s.output).replace(/\n/g, '<br>') + '</code>' : '';
+      result.className = 'alert success';
+      result.innerHTML = 'Gespeichert (lokal + Verteilerliste).' + out;
+      wacheFertig('mb-save-btn', true);
+    } else {
+      result.className = 'alert error';
+      result.innerHTML = 'Lokal gespeichert, aber die Verteilerliste konnte nicht aktualisiert werden: ' + esc(s.output || 'Unbekannt');
+      wacheFertig('mb-save-btn', false);
+    }
+    return;
+  }
+  result.className = 'alert';
+  result.innerHTML = 'Lokal gespeichert. Die Aktualisierung der Verteilerliste dauert länger als erwartet und läuft im Hintergrund weiter.';
+  wacheFertig('mb-save-btn', true);
 }
 
 
