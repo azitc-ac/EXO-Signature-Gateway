@@ -45,11 +45,11 @@ function Test-GatewayHealthy {
 # Heartbeat: dem Gateway melden, dass der Wächter lebt + wie es steht (best-effort;
 # ein Heartbeat-Fehler darf den Lauf nie scheitern lassen). URL aus der Health-URL
 # abgeleitet (…/health → …/api/watchdog/heartbeat).
-function Send-Heartbeat([bool]$healthy, [bool]$bypassActive) {
+function Send-Heartbeat([bool]$healthy, [bool]$bypassActive, [string]$exoError = "") {
     if (-not $token) { return }
     try {
         $base = $healthUrl -replace '/health/?$', ''
-        $body = @{ healthy = $healthy; bypass_active = $bypassActive } | ConvertTo-Json -Compress
+        $body = @{ healthy = $healthy; bypass_active = $bypassActive; exo_error = $exoError } | ConvertTo-Json -Compress
         Invoke-RestMethod -Uri "$base/api/watchdog/heartbeat" -Method Post `
             -Headers @{ "X-Watchdog-Token" = $token } -ContentType "application/json" `
             -Body $body -TimeoutSec 10 -SkipCertificateCheck | Out-Null
@@ -61,29 +61,37 @@ function Send-Heartbeat([bool]$healthy, [bool]$bypassActive) {
 $healthy = Test-GatewayHealthy
 Write-Host "$(Get-Date -Format o)  Gateway healthy = $healthy"
 
+# ⚠️ EXO-Fehler dürfen den Heartbeat NICHT verhindern (sonst „meldet sich nicht",
+# obwohl der Wächter läuft). try/catch — Heartbeat läuft immer, trägt den Fehler mit.
 $bypassActive = $false
-$cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
-    $certPath, [string]$null,
-    ([System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet))
-Import-Module ExchangeOnlineManagement
-Connect-ExchangeOnline -AppId $appId -Certificate $cert -Organization $org -ShowBanner:$false | Out-Null
+$exoError = ""
 try {
-    $rule = Get-TransportRule -Identity $ruleName -ErrorAction SilentlyContinue
-    if (-not $rule) {
-        Write-Host "Regel '$ruleName' nicht gefunden — nichts zu tun."
-    } elseif (-not $healthy -and $rule.State -eq "Enabled") {
-        Disable-TransportRule -Identity $ruleName -Confirm:$false
-        $bypassActive = $true
-        Write-Host "BYPASS AKTIV: Signatur-Regel '$ruleName' DEAKTIVIERT."
-    } elseif ($healthy -and $rule.State -eq "Disabled") {
-        Enable-TransportRule -Identity $ruleName -Confirm:$false
-        Write-Host "ERHOLT: Signatur-Regel '$ruleName' AKTIVIERT."
-    } else {
-        $bypassActive = ($rule.State -eq "Disabled")
-        Write-Host "Kein Wechsel nötig (healthy=$healthy, State=$($rule.State))."
+    $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
+        $certPath, [string]$null,
+        ([System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet))
+    Import-Module ExchangeOnlineManagement
+    Connect-ExchangeOnline -AppId $appId -Certificate $cert -Organization $org -ShowBanner:$false | Out-Null
+    try {
+        $rule = Get-TransportRule -Identity $ruleName -ErrorAction SilentlyContinue
+        if (-not $rule) {
+            Write-Host "Regel '$ruleName' nicht gefunden — nichts zu tun."
+        } elseif (-not $healthy -and $rule.State -eq "Enabled") {
+            Disable-TransportRule -Identity $ruleName -Confirm:$false
+            $bypassActive = $true
+            Write-Host "BYPASS AKTIV: Signatur-Regel '$ruleName' DEAKTIVIERT."
+        } elseif ($healthy -and $rule.State -eq "Disabled") {
+            Enable-TransportRule -Identity $ruleName -Confirm:$false
+            Write-Host "ERHOLT: Signatur-Regel '$ruleName' AKTIVIERT."
+        } else {
+            $bypassActive = ($rule.State -eq "Disabled")
+            Write-Host "Kein Wechsel nötig (healthy=$healthy, State=$($rule.State))."
+        }
+    } finally {
+        Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
     }
-} finally {
-    Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
+} catch {
+    $exoError = $_.Exception.Message
+    Write-Host "EXO-Fehler (Heartbeat wird dennoch gesendet): $exoError"
 }
 
-Send-Heartbeat $healthy $bypassActive
+Send-Heartbeat $healthy $bypassActive $exoError

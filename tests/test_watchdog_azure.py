@@ -71,6 +71,19 @@ def test_beide_senden_heartbeat():
         assert "bypass_active" in s          # Zustand wird mitgemeldet
 
 
+def test_heartbeat_laeuft_auch_bei_exo_fehler():
+    """EXO-Fehler darf den Heartbeat nicht verhindern (sonst 'meldet sich nicht',
+    obwohl der Wächter läuft — z.B. während die EXO-Rolle propagiert). Der EXO-Teil
+    steht in einem try/catch, der Fehler wird als exo_error mitgesendet."""
+    for pfad in ((_AZ / "Watchdog" / "run.ps1"), (_CRON / "watchdog.ps1")):
+        s = pfad.read_text()
+        assert "exo_error" in s
+        # Der Send-Heartbeat-Aufruf steht NACH dem catch (nicht im try), läuft also immer.
+        idx_catch = s.rfind("} catch {")
+        idx_hb = s.rfind("Send-Heartbeat $healthy $bypassActive")
+        assert idx_catch != -1 and idx_hb > idx_catch
+
+
 def test_cron_timer_und_service_verweisen_aufeinander():
     """Der Timer aktiviert timers.target; der Service ruft genau watchdog.ps1."""
     timer = (_CRON / "exo-watchdog.timer").read_text()
