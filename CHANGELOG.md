@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.86 — 2026-09-07 — Bypass-Wächter (Azure): Einrichtungs-Doku zur Managed-Identity-Berechtigung
+
+Präzisierung der Einrichtung des Azure-Wächters: Eine Managed Identity braucht für
+Exchange **zwei** Zuweisungen, nicht nur eine. Die App-Rolle `Exchange.ManageAsApp`
+ist allein nur der *Anmelde*-Schlüssel (ohne Rolle liefert jedes Cmdlet 403); die
+eigentliche Berechtigung kommt aus der minimalen EXO-RBAC-Rolle „Transport Rules".
+Fehlt die App-Rolle, scheitert `Connect-ExchangeOnline -ManagedIdentity` mit
+`UnAuthorized` — der Wächter läuft dann, kann die Regel aber nicht schalten (was die
+Übersicht seit v1.8.85 als „ohne EXO-Zugriff" anzeigt).
+
+`azure/watchdog/README.md` beschreibt jetzt beide Schritte (App-Rolle per Graph,
+RBAC-Rolle per Skript) und warnt ausdrücklich davor, eine breite Entra-Rolle
+(„Exchange Administrator") zu vergeben — die Kombination App-Rolle + „Transport
+Rules" hält den Wächter auf genau eine Fähigkeit begrenzt.
+
 ## v1.8.85 — 2026-09-07 — Bypass-Wächter: Heartbeat auch bei EXO-Fehler, „handlungsunfähig" sichtbar
 
 Der externe Wächter sendet seinen Heartbeat jetzt **in jedem Fall** — auch wenn die
