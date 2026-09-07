@@ -107,6 +107,7 @@ async def api_hub_config_get(user: str = Depends(_require_admin)):
         "base_url": settings_store.get("HUB_BASE_URL") or "",
         "email": settings_store.get("HUB_CUSTOMER_EMAIL") or "",
         "name": settings_store.get("HUB_CUSTOMER_NAME") or "",
+        "company": settings_store.get("HUB_CUSTOMER_COMPANY") or "",
         "registered": hub_client.is_registered(),
         "claim_pending": bool((settings_store.get("HUB_CLAIM_TOKEN") or "").strip()
                               and not (settings_store.get("HUB_API_KEY") or "").strip()),
@@ -121,6 +122,7 @@ async def api_hub_config_set(request: Request, user: str = Depends(_require_admi
         "HUB_BASE_URL": (data.get("base_url") or "").strip().rstrip("/"),
         "HUB_CUSTOMER_EMAIL": (data.get("email") or "").strip().lower(),
         "HUB_CUSTOMER_NAME": (data.get("name") or "").strip(),
+        "HUB_CUSTOMER_COMPANY": (data.get("company") or "").strip(),
     }
     if updates["HUB_BASE_URL"] and not updates["HUB_BASE_URL"].startswith(("http://", "https://")):
         return JSONResponse({"ok": False, "error": "Hub-Adresse muss mit http(s):// beginnen."}, status_code=400)

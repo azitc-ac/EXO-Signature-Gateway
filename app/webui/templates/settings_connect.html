@@ -112,10 +112,12 @@
   </div>
   <div class="settings-row" style="margin-bottom:8px"><label>Deine E-Mail</label>
     <input type="email" id="hub-email" placeholder="kunde@firma.de" style="width:100%;max-width:360px;font-size:13px" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
-  <div class="settings-row" style="margin-bottom:8px"><label>Name (optional)</label>
+  <div class="settings-row" style="margin-bottom:8px"><label>Firma / Rechtsform</label>
+    <input type="text" id="hub-company" placeholder="Musterfirma GmbH" required style="width:100%;max-width:360px;font-size:13px"></div>
+  <div class="settings-row" style="margin-bottom:8px"><label>Ansprechpartner (optional)</label>
     <input type="text" id="hub-name" style="width:100%;max-width:360px;font-size:13px"></div>
   <div class="actions" style="margin:6px 0 10px">
-    <button data-wache="hub-base,hub-email,hub-name" data-wache-hinweis="hub-config-btn-hinweis" id="hub-config-btn" class="btn secondary" onclick="hubSaveConfig()">Speichern</button>
+    <button data-wache="hub-base,hub-email,hub-company,hub-name" data-wache-hinweis="hub-config-btn-hinweis" id="hub-config-btn" class="btn secondary" onclick="hubSaveConfig()">Speichern</button>
     <span id="hub-config-btn-hinweis" style="font-size:12px;margin-left:8px"></span>
     <button class="btn primary" onclick="hubConnect()">Verbinden</button>
     <button class="btn secondary" onclick="hubPollClaim(true)">Bestätigung prüfen</button>
@@ -638,8 +640,8 @@ function hubBaseSelectChanged(){
   else { b.style.display='none'; b.value=sel.value; }
 }
 async function hubLoadConfig() { try { const d=await (await fetch('/api/hub/config')).json();
-  const b=document.getElementById('hub-base'), e=document.getElementById('hub-email'), n=document.getElementById('hub-name'), sel=document.getElementById('hub-base-select');
-  if(e) e.value=d.email||''; if(n) n.value=d.name||'';
+  const b=document.getElementById('hub-base'), e=document.getElementById('hub-email'), n=document.getElementById('hub-name'), co=document.getElementById('hub-company'), sel=document.getElementById('hub-base-select');
+  if(e) e.value=d.email||''; if(n) n.value=d.name||''; if(co) co.value=d.company||'';
   if(b){
     b.value = d.base_url || HUB_DEFAULT_BASE;
     if(sel){ sel.value = (d.base_url && d.base_url!==HUB_DEFAULT_BASE) ? '__other__' : HUB_DEFAULT_BASE; hubBaseSelectChanged(); }
@@ -647,13 +649,15 @@ async function hubLoadConfig() { try { const d=await (await fetch('/api/hub/conf
   const gw=document.getElementById('hub-gwid'); if(gw && d.gateway_id) gw.innerHTML='Diese Gateway-ID: <code>'+d.gateway_id+'</code>'+copyBtnHtml(d.gateway_id);
   if(d.claim_pending){ _startHubPoll(); }
   } catch(e){ ursache(e, 'settings_connect:485'); } }
-async function hubSaveConfig() { const body={base_url:document.getElementById('hub-base').value.trim(),email:document.getElementById('hub-email').value.trim(),name:document.getElementById('hub-name').value.trim()};
+async function hubSaveConfig() { const body={base_url:document.getElementById('hub-base').value.trim(),email:document.getElementById('hub-email').value.trim(),company:document.getElementById('hub-company').value.trim(),name:document.getElementById('hub-name').value.trim()};
   const d=await (await fetch('/api/hub/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
   _hubMsg(d.ok?'Anbindung gespeichert.':('Fehler: '+(d.error||'')), d.ok);
   wacheFertig('hub-config-btn', !!d.ok); }
 let _hubTimer=null;
 const HUB_POLL_SECS=5;   // Auto-Prüfung alle 5s, solange die Seite offen ist
-async function hubConnect() { await hubSaveConfig(); _hubMsg('Verbinde… Registrierung wird übermittelt.',true);
+async function hubConnect() {
+  if(!document.getElementById('hub-company').value.trim()){ _hubMsg('Firma / Rechtsform ist Pflicht.',false); document.getElementById('hub-company').focus(); return; }
+  await hubSaveConfig(); _hubMsg('Verbinde… Registrierung wird übermittelt.',true);
   const d=await (await fetch('/api/hub/register',{method:'POST'})).json();
   if(!d.ok){ _hubMsg('Fehler: '+(d.error||'Unbekannt'),false); return; }
   if(d.email_sent){

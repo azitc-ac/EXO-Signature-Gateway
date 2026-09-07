@@ -118,6 +118,7 @@ REGISTER: dict[str, E] = {
     "HUB_CLAIM_TOKEN": E(art=GEHEIMNIS),
     "HUB_CUSTOMER_EMAIL": E(art=OPTION, ort="/api/hub/config"),
     "HUB_CUSTOMER_NAME": E(art=OPTION, ort="/api/hub/config"),
+    "HUB_CUSTOMER_COMPANY": E(art=OPTION, ort="/api/hub/config"),
     "IMAP_ACCESS_CONFIGURED": E(art=ZUSTAND),
     "INTERNAL_GROUPS": E(art=STRUKTUR, ort="/api/settings/internal-groups"),
     "KEYVAULT_RESOURCE_ID": E(art=OPTION, ort="/api/setup/keyvault/assign-role"),
