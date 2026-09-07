@@ -22,10 +22,14 @@ einen zweiten kleinen Rechner (anderer Raspi, andere VM, ein Always-on-Gerät).
 sudo apt-get install -y powershell        # oder distro-spezifisch
 pwsh -c 'Install-Module ExchangeOnlineManagement -Scope AllUsers -Force'
 ```
-Ein **Zertifikat der Wächter-App** (eigene App-Registrierung mit
-`Exchange.ManageAsApp`, minimale Rolle „Transport Rules") als `.pfx` ohne
-Passwort. Getrennt von der Gateway-App halten — der Wächter braucht nur diese
-eine Fähigkeit.
+Eine **eigene App-Registrierung** (getrennt von der Gateway-App) mit einem
+**Zertifikat** als `.pfx` ohne Passwort. Sie braucht dieselben drei Berechtigungen
+wie die Azure-Variante (least-privilege, **kein** „Exchange Administrator"):
+1. API-Berechtigung **`Exchange.ManageAsApp`** (Admin-Consent) — Anmelden,
+2. Entra-Rolle **`Global Reader`** — kleinste unterstützte Anmelde-Rolle (nur lesen),
+3. EXO-RBAC-Rolle **„Transport Rules"** — die eigentliche Schreibberechtigung.
+
+Siehe „Berechtigungen erteilen" unten.
 
 ## Installation
 ```bash
@@ -46,16 +50,25 @@ systemctl list-timers exo-watchdog.timer
 sudo systemctl start exo-watchdog.service && journalctl -u exo-watchdog -n 30
 ```
 
-## Minimale EXO-Rolle einmalig erteilen
-Dieselbe „Transport Rules"-Rolle wie bei der Azure-Variante, nur dass hier eine
-App **mit Zertifikat** statt einer Managed Identity berechtigt wird — vom
-Gateway-Host aus mit dem Gateway-Auth-Zertifikat:
+## Berechtigungen erteilen (einmalig)
+Am einfachsten über die **Gateway-Oberfläche** — der Wizard funktioniert für beide
+Varianten: *Erweitert → Bypass-Wächter → „Berechtigungen der Wächter-Identität
+einrichten"*, dort die **AppId + SP-Objekt-ID der Zertifikats-App** eintragen
+(statt der MI-IDs), dann „Berechtigungen erteilen (Azure-Login)" (Schritt 1+2:
+`Exchange.ManageAsApp` + Global Reader) und „Rolle zuweisen" (Schritt 3: Transport
+Rules). Die SP-Objekt-ID liefert `az ad sp show --id <WAECHTER-APP-ID> --query id -o tsv`.
+
+Nur die EXO-Schreibrolle auch per Kommandozeile (vom Gateway-Host, mit dem
+Gateway-Auth-Zertifikat):
 ```bash
 docker exec exo-signature-gateway pwsh -NoLogo -NonInteractive -File \
-  /app/../azure/watchdog/setup_watchdog_role.ps1 \
+  /app/scripts/grant_watchdog_role.ps1 \
   -AppId <GATEWAY_APP_ID> -Organization zarenko.onmicrosoft.com -CertPath /app/data/auth.pfx \
   -WatchdogAppId <WAECHTER-APP-ID> -WatchdogObjectId <WAECHTER-SP-OBJECT-ID>
 ```
+Schritt 1+2 (App-Rolle + Global Reader) manuell: siehe die `az`-Befehle in
+[azure/watchdog/README.md](../../azure/watchdog/README.md) — identisch, nur mit der
+SP-Objekt-ID der Zertifikats-App.
 
 ## Konfiguration (`/etc/exo-watchdog/watchdog.env`)
 | Variable | Zweck |
@@ -65,13 +78,14 @@ docker exec exo-signature-gateway pwsh -NoLogo -NonInteractive -File \
 | `EXO_ORGANIZATION` | z.B. `zarenko.onmicrosoft.com` |
 | `WATCHDOG_APP_ID` | App-ID der Wächter-App |
 | `WATCHDOG_CERT_PATH` | Pfad zur `.pfx` (600) |
-| `SIG_RULE_NAME` | Name der Signatur-Regel, z.B. `Route via EXO Signature Gateway` |
+| `SIG_RULE_NAME` | Name der Signatur-Regel, z.B. `Route via EXO Signature Gateway (Signatur)` (aus der Gateway-UI kopieren: Erweitert → Bypass-Wächter) |
 | `FAIL_THRESHOLD` | Fehlversuche bis Bypass (Vorgabe 3, je 10 s) |
 
 ## Sicherheit
 - Schaltet **ausschließlich** die Signatur-Regel (Enable/Disable); die S/MIME-Regel
   wird nie berührt, keine Regel wird je gelöscht oder angelegt.
-- Rolle **nur** „Transport Rules" — kein Postfach-, Mail- oder Admin-Zugriff.
+- **Schreiben** nur „Transport Rules" (EXO-RBAC); Lesen via Global Reader. Kein
+  Schreibzugriff auf Postfächer/Mail, kein „Exchange Administrator".
 - **Entprellt** (mehrere Fehlversuche), damit ein kurzer Aussetzer keinen Bypass auslöst.
 - Idempotent: schaltet nur, wenn sich der Zustand tatsächlich ändern muss.
 - Das Zertifikat (`600`) ist der Preis fürs Auskommen ohne Azure; schütze es entsprechend.
