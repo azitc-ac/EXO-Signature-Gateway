@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.92 — 2026-09-07 — Bypass-Wächter (cron): Einrichtungs-Doku auf das verifizierte Berechtigungsmodell
+
+Die cron-Variante (`contrib/watchdog/`, für Betreiber ohne Azure) nannte bisher nur
+die EXO-Rolle „Transport Rules" und verwies auf einen Skriptpfad, den es im Container
+gar nicht gab. Die Zertifikats-App braucht aber — wie die Managed Identity — **drei**
+Zuweisungen: `Exchange.ManageAsApp` (Anmelden), Entra „Global Reader" (Lesen) und die
+EXO-RBAC-Rolle „Transport Rules" (Schreiben); ohne „Global Reader" scheitert die
+Anmeldung mit `UnAuthorized`.
+
+Die README nennt jetzt alle drei, den korrekten Skriptpfad
+(`app/scripts/grant_watchdog_role.ps1`) und den einfachsten Weg: der Wizard unter
+Erweitert → Bypass-Wächter funktioniert für **beide** Varianten — für die cron-App
+trägt man dort einfach deren AppId + SP-Objekt-ID ein. Regelname-Beispiel auf
+„(Signatur)" aktualisiert. Nur Dokumentation.
+
 ## v1.8.91 — 2026-09-07 — Bypass-Wächter: App-Rolle + Global Reader per Azure-Login aus der Oberfläche
 
 Die beiden Graph-Zuweisungen der Wächter-Identität (App-Rolle `Exchange.ManageAsApp`
