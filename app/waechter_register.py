@@ -86,6 +86,21 @@ def holen(id: str) -> dict | None:
     return _laden().get(id)
 
 
+def merke_azure(id: str, **felder) -> bool:
+    """Azure-Metadaten eines Wächters nachtragen (z.B. app_id nach der Auflösung,
+    grants_done nach der Rollenzuweisung) — damit Objekt-ID UND AppId je Wächter
+    fest hinterlegt sind statt in freien Feldern. False, wenn unbekannt."""
+    with _LOCK:
+        d = _laden()
+        if id not in d:
+            return False
+        az = dict(d[id].get("azure") or {})
+        az.update(felder)
+        d[id]["azure"] = az
+        _speichern(d)
+        return True
+
+
 def _ohne_geheimnis(e: dict) -> dict:
     return {k: v for k, v in e.items() if k != "token_hash"}
 

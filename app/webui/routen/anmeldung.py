@@ -174,18 +174,30 @@ async def auth_start_redirect(request: Request):
     return RedirectResponse(auth_url)
 
 @router.get("/api/watchdog/start-grants")
-async def watchdog_start_grants(mi_object_id: str = "", _: str = Depends(_require_admin)):
+async def watchdog_start_grants(mi_object_id: str = "", watcher_id: str = "",
+                                _: str = Depends(_require_admin)):
     """Startet einen delegierten Azure-Login (Popup), um der Wächter-Managed-Identity
     die zwei Graph-Zuweisungen zu erteilen (App-Rolle Exchange.ManageAsApp + Entra
     „Global Reader") — mit dem Admin-Token, wie die App-Registrierung im Assistenten.
-    KEIN neues stehendes Recht fürs Gateway. Liefert die Azure-Login-URL (Popup)."""
+    KEIN neues stehendes Recht fürs Gateway. Liefert die Azure-Login-URL (Popup).
+
+    Mit `watcher_id` kommt die Objekt-ID aus dem Register (keine freien Felder);
+    `mi_object_id` bleibt für den manuellen/cron-Weg."""
+    wid = (watcher_id or "").strip()
     oid = (mi_object_id or "").strip()
+    if wid:
+        import waechter_register
+        e = waechter_register.holen(wid)
+        oid = ((e or {}).get("azure") or {}).get("principal_id", "") if e else ""
+        if not oid:
+            return JSONResponse({"ok": False, "detail": "Wächter unbekannt oder ohne Objekt-ID."},
+                                status_code=400)
     if len(oid) != 36 or not all(c in "0123456789abcdefABCDEF-" for c in oid):
         return JSONResponse({"ok": False, "detail": "Ungültige MI-Objekt-ID (GUID erwartet)."},
                             status_code=400)
     redirect_uri = _setup_redirect_uri()
     _state, auth_url = pkce_mod.create_session(redirect_uri, flow="watchdog_grants",
-                                               extra={"mi_object_id": oid})
+                                               extra={"mi_object_id": oid, "watcher_id": wid})
     return JSONResponse({"auth_url": auth_url})
 
 @router.get("/auth/callback", response_class=HTMLResponse)
@@ -310,6 +322,12 @@ async def auth_callback(
             ok = bool(res.get("app_role") and res.get("global_reader"))
             msg = "" if ok else ("; ".join(res.get("fehler", [])) or "Teilweise fehlgeschlagen")
             app_id = res.get("app_id", "")
+            # AppId fest am Wächter hinterlegen (statt nur ins UI-Feld) — dann
+            # braucht die Rollenzuweisung keine freien Felder mehr.
+            wid = (session_obj.get("extra") or {}).get("watcher_id", "")
+            if wid and app_id:
+                import waechter_register
+                waechter_register.merke_azure(wid, app_id=app_id)
         except Exception as exc:                               # noqa: BLE001
             log.error("Watchdog-Graph-Grants fehlgeschlagen: %s", exc)
             ok, msg, app_id = False, str(exc), ""

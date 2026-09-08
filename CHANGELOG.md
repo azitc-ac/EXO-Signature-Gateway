@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.104 — 2026-09-08 — Bypass-Wächter: Berechtigungen direkt am Wächter (statt freier ID-Felder)
+
+Die Berechtigungs-Schritte hingen bisher im „Wächter hinzufügen"-Bereich und
+waren nur sichtbar, solange dort die Azure-Variante gewählt war — ein bereits
+angelegter Wächter, dem noch Rechte fehlten, ließ sich so gar nicht mehr
+autorisieren.
+
+Jetzt hat jeder Azure-Wächter in der Liste einen Knopf **„Berechtigungen"**: ein
+Azure-Login erteilt App-Rolle `Exchange.ManageAsApp` + Entra „Global Reader" und
+weist anschließend **automatisch** die EXO-Rolle „Transport Rules" zu — die
+nötigen IDs kommen aus dem Register, nichts mehr von Hand eintippen. Ist ein
+Wächter fertig eingerichtet, zeigt die Zeile **„✓ berechtigt"**.
+
+Der frühere Weg mit freien Feldern (AppId/Objekt-ID) bleibt als eingeklappter
+Abschnitt **„Berechtigungen manuell zuweisen (cron / Sonderfall)"** erhalten —
+gedacht für die cron-Variante mit eigener Zertifikats-App.
+
 ## v1.8.103 — 2026-09-08 — Bypass-Wächter: Rollen-Skript brach an einer Ausgabemeldung ab
 
 Das Zuweisen der EXO-Rolle „Transport Rules" scheiterte mit
