@@ -577,6 +577,7 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
   var _wdArmOk = false;
   var _wdDeployTimer = null;
   var _wdGrantWatcher = null;   // aktiver per-Wächter-Grant (chaint Rolle nach den Graph-Grants)
+  var _wdWatchers = [];         // letzte Wächter-Liste (für Umbenennen-Default)
 
   window.wdArmLogin = async function(){
     var btn = document.getElementById('wd-arm-btn');
@@ -734,6 +735,19 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
     return { text: 'läuft · Gateway gesund', farbe: '#166534' };
   }
 
+  window.wdRename = async function(id){
+    var akt = (_wdWatchers.find(function(w){ return w.id === id; }) || {}).name || '';
+    var neu = prompt('Neuer Name für den Wächter:', akt);
+    if (neu === null) return;                 // abgebrochen
+    neu = neu.trim();
+    if (!neu || neu === akt) return;
+    var r = await fetch('/api/watchdog/rename', {method:'POST',
+      headers:{'Content-Type':'application/json'}, body: JSON.stringify({id: id, name: neu})});
+    var d = await r.json().catch(function(){ return {}; });
+    if (r.ok && d.ok) loadWatchdogStatus();
+    else alert('Umbenennen fehlgeschlagen: ' + (d.detail || r.status));
+  };
+
   window.wdRemove = async function(id, kind){
     if (!confirm('Wächter „' + id + '" entfernen?' +
         (kind === 'azure' ? '\n\nDie Azure-Ressourcen (Function/Storage/Plan, ggf. Ressourcengruppe) werden gelöscht.' : ''))) return;
@@ -757,6 +771,7 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
       var r = await fetch('/api/watchdog/status'); if(!r.ok) return;
       var d = await r.json();
       var watchers = d.watchers || [];
+      _wdWatchers = watchers;
       document.getElementById('wd-count').textContent = watchers.length;
       var art = { azure: 'Azure Function', cron: 'cron' };
       var liste = document.getElementById('wd-liste');
@@ -783,6 +798,7 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
           if (w.kind === 'azure' && az.principal_id && !az.grants_done){
             knoepfe += '<button class="btn secondary btn-sm" style="margin-right:6px" onclick="wdGrant(\'' + esc(w.id) + '\')">Berechtigungen erteilen</button>';
           }
+          knoepfe += '<button class="btn secondary btn-sm" style="margin-right:6px" onclick="wdRename(\'' + esc(w.id) + '\')">Umbenennen</button>';
           knoepfe += '<button class="btn secondary btn-sm" onclick="wdRemove(\'' + esc(w.id) + '\',\'' + esc(w.kind) + '\')">Entfernen</button>';
           return '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;'
             + 'padding:9px 0;border-bottom:1px solid #f0f0f0">'

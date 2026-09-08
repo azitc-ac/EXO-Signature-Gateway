@@ -72,6 +72,15 @@ def test_heartbeat_nur_erlaubte_felder():
     assert reg.heartbeat_aktualisieren("unbekannt", {"healthy": True}) is False
 
 
+def test_umbenennen():
+    reg.registrieren(id="wd_a", name="Alt", kind="azure", token_hash="H:ta")
+    assert reg.umbenennen("wd_a", "  Neu  ") is True
+    assert reg.holen("wd_a")["name"] == "Neu"          # getrimmt
+    assert reg.umbenennen("wd_a", "   ") is False       # leer → abgelehnt
+    assert reg.holen("wd_a")["name"] == "Neu"           # unverändert
+    assert reg.umbenennen("unbekannt", "X") is False
+
+
 def test_merke_azure_traegt_appid_und_grants_nach():
     reg.registrieren(id="wd_a", name="A", kind="azure", token_hash="H:ta",
                      azure={"principal_id": "obj-1", "app_id": ""})

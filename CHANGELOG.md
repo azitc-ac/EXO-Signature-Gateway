@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.107 — 2026-09-09 — Bypass-Wächter: Wächter umbenennen
+
+Jeder Wächter lässt sich in der Liste über „Umbenennen" mit einem eigenen
+Anzeigenamen versehen. Der Vorgabename bleibt sinnvoll (Azure: Name der
+Function-App; cron: der beim Erzeugen angegebene Name), ist aber jederzeit
+überschreibbar — auch für einen aus einer früheren Fassung übernommenen Wächter.
+
 ## v1.8.106 — 2026-09-09 — Rechtstexte: richtige Überschrift, Titel aus dem Dokument, PDF-Download
 
 Der Rechtstext-Betrachter trug für **jedes** Dokument dieselbe feste Überschrift

@@ -86,6 +86,20 @@ def holen(id: str) -> dict | None:
     return _laden().get(id)
 
 
+def umbenennen(id: str, name: str) -> bool:
+    """Anzeigename eines Wächters setzen. False, wenn unbekannt."""
+    name = (name or "").strip()[:80]
+    if not name:
+        return False
+    with _LOCK:
+        d = _laden()
+        if id not in d:
+            return False
+        d[id]["name"] = name
+        _speichern(d)
+        return True
+
+
 def merke_azure(id: str, **felder) -> bool:
     """Azure-Metadaten eines Wächters nachtragen (z.B. app_id nach der Auflösung,
     grants_done nach der Rollenzuweisung) — damit Objekt-ID UND AppId je Wächter

@@ -1610,6 +1610,13 @@
     "name": "watchdog_remove"
   },
   {
+    "pfad": "/api/watchdog/rename",
+    "methoden": [
+      "POST"
+    ],
+    "name": "watchdog_rename"
+  },
+  {
     "pfad": "/api/watchdog/start-grants",
     "methoden": [
       "GET"
