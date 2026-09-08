@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.99 — 2026-09-08 — Übersicht: alte Zahlen nur klickbar mit Detaildaten; längere Aufbewahrung für Krypto/Fehler
+
+In der Übersicht überlebt die aggregierte Zahl (z. B. „1 verschlüsselte Mail im
+Juli") die Protokoll-Rotation, die Detailzeilen dahinter aber nicht — ein Klick
+landete dann auf einer leeren Liste. Zwei Änderungen:
+
+- Eine Zahl ist jetzt **nur noch anklickbar, wenn dahinter noch Detailzeilen
+  liegen**. Ist der Zeitraum aus dem Protokoll gerollt, steht die Zahl als reiner
+  Text — kein Sprung ins Leere mehr. (Ein Abfrage-Fenster je Seitenaufruf, die
+  Prüfung je Zelle ist ein reiner Zeichenkettenvergleich.)
+- Neue Einstellung **Krypto/Fehler-Aufbewahrung (Tage)** (Erweitert → Protokoll,
+  Vorgabe 730). Sie hält die Detailzeilen für die Fälle länger vor, in denen man
+  später noch nachsehen will: S/MIME (signiert/verschlüsselt/entschlüsselt),
+  Fehler und Abweisungen sowie die Warteschlange. Der übrige, hochvolumige
+  Postverkehr (reine HTML-Signatur, Durchläufe) rotiert weiter nach der normalen
+  Log-Aufbewahrung. Diese Zeilen sind niedrigvolumig; sie lange zu halten kostet
+  fast nichts.
+
 ## v1.8.98 — 2026-09-08 — Postfach speichern: Verteilerlisten-Update im Hintergrund
 
 Beim Speichern der Postfachliste (Postfächer → Speichern) wird die lokale

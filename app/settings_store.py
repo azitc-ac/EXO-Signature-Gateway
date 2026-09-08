@@ -29,6 +29,7 @@ DEFAULTS: dict = {
     "LE_DOMAIN": "",
     "LE_EMAIL": "",
     "LOG_RETENTION_DAYS": 30,
+    "KRYPTO_LOG_RETENTION_DAYS": 730,
     "LOG_TIMEZONE": "Europe/Berlin",
     "SMIME_HARVEST_RCPT": "",
     "SMIME_TAG_ENCRYPTED": "verschlüsselt",

@@ -411,6 +411,14 @@ async def dashboard(request: Request, user: str = Depends(_check_auth)):
     from datetime import datetime as _dt
     import smime_store as _smime_store
     import stats as _stats_mod2
+    import mail_audit as _audit_mod
+    # Eine Übersichtszahl ist nur klickbar, wenn dahinter noch Detailzeilen liegen.
+    # Die Zahl (Aggregat) überlebt das Pruning, die Zeilen nicht — ein Klick ins
+    # Leere wäre eine falsche Zusage. Ein Fenster-Query je Aufruf, die Prüfung je
+    # Zelle ist ein reiner Zeichenketten-Vergleich.
+    _detail_fenster = _audit_mod.detail_zeitfenster()
+    def _klickbar(action, date_str):
+        return _audit_mod.zeitraum_hat_detail(_detail_fenster, action or "", date_str or "")
     pw_change = _password_change_required()
     total = get_stats()
     daily = _stats_mod2.get_today()
@@ -455,6 +463,7 @@ async def dashboard(request: Request, user: str = Depends(_check_auth)):
             "password_change_needed": pw_change,
             "gateway_name": _gateway_name(),
             "show_welcome_banner": not settings_store.get("WELCOME_DISMISSED"),
+            "klickbar": _klickbar,
         },
     )
 
