@@ -66,6 +66,30 @@ def test_alle_registrierten_dokumente_existieren():
     assert not fehlend, "Registry zeigt ins Leere: " + ", ".join(fehlend)
 
 
+def test_document_title_ist_die_dokument_h1(monkeypatch):
+    """Der angezeigte Titel MUSS die erste Überschrift (# …) des Dokuments sein.
+    Sonst driftet die Liste/Viewer-Überschrift vom Dokument ab — genau der
+    verwirrende Fall, in dem das Modal etwas anderes sagte als das Dokument."""
+    monkeypatch.setattr(legal_consent, "_LEGAL_DIR", REPO / "legal")
+    abweichend = []
+    for doc_id in legal_consent.CURRENT_DOCUMENTS:
+        text = (REPO / "legal" / legal_consent.CURRENT_DOCUMENTS[doc_id]["path_de"]).read_text(encoding="utf-8")
+        h1 = next((l.strip()[2:].strip() for l in text.splitlines() if l.strip().startswith("# ")), None)
+        assert h1, f"{doc_id}: keine H1-Überschrift im Dokument"
+        got = legal_consent.document_title(doc_id)
+        if got != h1:
+            abweichend.append(f"{doc_id}: document_title '{got}' ≠ H1 '{h1}'")
+    assert not abweichend, "; ".join(abweichend)
+
+
+def test_document_title_faellt_auf_label_zurueck(monkeypatch, tmp_path):
+    """Ohne Datei/H1 → Fallback auf label_de (kein Absturz)."""
+    monkeypatch.setattr(legal_consent, "_LEGAL_DIR", tmp_path)   # leer → kein Dokumenttext
+    doc_id = next(iter(legal_consent.CURRENT_DOCUMENTS))
+    erwartet = legal_consent.CURRENT_DOCUMENTS[doc_id].get("label_de", doc_id)
+    assert legal_consent.document_title(doc_id) == erwartet
+
+
 def test_dokumentversion_stimmt_mit_dateiname_und_text_ueberein():
     """Version in der Registry, im Dateinamen und in der Kopfzeile müssen
     zusammenpassen. Sonst behauptet die Oberfläche eine Version, die im

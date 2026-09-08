@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.106 — 2026-09-09 — Rechtstexte: richtige Überschrift, Titel aus dem Dokument, PDF-Download
+
+Der Rechtstext-Betrachter trug für **jedes** Dokument dieselbe feste Überschrift
+„Nutzungsbedingungen — Zertifikatsbezug" — auch bei der Datenschutzerklärung, der
+Preisliste oder den Lizenzbedingungen, die damit nichts zu tun haben. Nur der
+darunter gerenderte Dokumenttitel stimmte.
+
+- Die Überschrift des Betrachters ist jetzt der **echte Titel des Dokuments**
+  (aus dessen erster Überschrift abgeleitet). Beim Zustimmungs-Fluss zur
+  Zertifizierungsstelle bleibt „Zertifikatsbezug" — dort ist es korrekt.
+- Auch die **Liste** der rechtlichen Dokumente nennt jeden Eintrag mit seinem
+  tatsächlichen Titel; Liste, Betrachter und Dokument stimmen überein (eine
+  Quelle: die Dokumentüberschrift).
+- Neuer **„Als PDF speichern"-Knopf** je Rechtstext (in der Liste und im
+  Betrachter): öffnet eine druckoptimierte Ansicht, aus der der Browser ein PDF
+  erzeugt — ohne zusätzliche Software.
+
 ## v1.8.105 — 2026-09-08 — Bypass-Wächter: sichtbarer Zustand je Wächter, Popup-Fix, klarere Bedienung
 
 Die Wächter-Liste zeigte bei einem gesunden Wächter nur „vor 3 min" — man sah

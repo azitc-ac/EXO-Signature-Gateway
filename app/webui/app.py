@@ -1458,6 +1458,7 @@ async def api_legal_doc(doc_id: str, lang: str = "de", user: str = Depends(_requ
         "doc_id": doc_id,
         "version": doc["version"],
         "label": doc.get(f"label_{lang}", doc.get("label_de", doc_id)),
+        "title": legal_consent.document_title(doc_id, lang),   # aus der Dokument-H1 (Viewer-Überschrift)
         "text": text,
         "content_hash": legal_consent.compute_document_hash(doc_id),
     })

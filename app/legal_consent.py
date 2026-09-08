@@ -122,6 +122,19 @@ def get_document_text(doc_id: str, lang: str = "de") -> str:
     return p.read_text(encoding="utf-8") if p and p.exists() else ""
 
 
+def document_title(doc_id: str, lang: str = "de") -> str:
+    """Anzeigetitel eines Rechtstexts — die ERSTE Markdown-Überschrift (# …) des
+    Dokuments. Eine Quelle: so stimmen Liste, Viewer-Überschrift und PDF immer mit
+    dem überein, was IM Dokument steht. Fallback auf label_de bzw. die doc_id."""
+    text = get_document_text(doc_id, lang)
+    for zeile in text.splitlines():
+        z = zeile.strip()
+        if z.startswith("# "):
+            return z[2:].strip()
+    doc = CURRENT_DOCUMENTS.get(doc_id) or {}
+    return doc.get(f"label_{lang}", doc.get("label_de", doc_id))
+
+
 def current_versions() -> dict:
     """Welche Fassung je Dokument gerade gilt.
 
@@ -242,6 +255,7 @@ def consent_status_all() -> dict:
         result[doc_id] = {
             "version": version,
             "label_de": doc.get("label_de", doc_id),
+            "title": document_title(doc_id),          # aus der Dokument-H1 (Liste == Ansicht)
             "accepted": accepted_at is not None,
             "accepted_at": accepted_at,
             "no_consent_required": doc.get("no_consent_required", False),

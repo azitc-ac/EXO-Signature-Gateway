@@ -610,10 +610,11 @@ _initAdv('digicert');
 <div id="terms-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:1000;align-items:center;justify-content:center">
   <div class="dlg-card" style="max-width:560px;width:92%;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)">
     <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0">
-      <strong>Nutzungsbedingungen — Zertifikatsbezug</strong>
+      <strong id="terms-modal-title">Nutzungsbedingungen — Zertifikatsbezug</strong>
     </div>
     <div id="terms-text" class="legal-view" style="padding:16px 20px;overflow-y:auto;font-size:13px;line-height:1.5;flex:1">Lade…</div>
     <div style="padding:12px 20px;border-top:1px solid #e2e8f0;display:flex;justify-content:flex-end;gap:8px">
+      <button class="btn secondary" id="terms-pdf-btn" style="display:none;margin-right:auto" onclick="legalPrintDoc(_termsCurrentDoc)">Als PDF speichern</button>
       <button class="btn secondary" id="terms-cancel-btn" onclick="_termsClose()">Abbrechen</button>
       <button class="btn primary" id="terms-confirm-btn" onclick="_termsConfirm()">Akzeptieren</button>
     </div>
@@ -935,6 +936,9 @@ async function _openTermsModal(viewOnly) {
   _termsViewOnly = viewOnly;
   const modal=document.getElementById('terms-modal'), txt=document.getElementById('terms-text');
   const confirmBtn=document.getElementById('terms-confirm-btn'), cancelBtn=document.getElementById('terms-cancel-btn');
+  // Hier ist „Zertifikatsbezug" korrekt (Bedingungen der Zertifizierungsstelle).
+  document.getElementById('terms-modal-title').textContent = 'Nutzungsbedingungen — Zertifikatsbezug';
+  document.getElementById('terms-pdf-btn').style.display = 'none';   // kommt von /api/hub/cert/terms, nicht aus der Doc-Liste
   confirmBtn.style.display = viewOnly ? 'none' : '';
   cancelBtn.textContent = viewOnly ? 'Schließen' : 'Abbrechen';
   txt.textContent='Lade…'; modal.style.display='flex';
@@ -2112,14 +2116,16 @@ async function legalLoadStatus() {
           ? '<span class="conn-badge conn-ok">✓ akzeptiert ' + (st.accepted_at ? st.accepted_at.slice(0,10) : '') + '</span>'
           : '<span class="conn-badge conn-wait">ausstehend</span>';
       return '<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f0f0f0">'
-        + '<div style="flex:1;font-size:13px;font-weight:500">' + doc.label + ' <span class="muted" style="font-weight:400">v' + (st.version||'1.0') + '</span></div>'
+        + '<div style="flex:1;font-size:13px;font-weight:500">' + esc(st.title || doc.label) + ' <span class="muted" style="font-weight:400">v' + (st.version||'1.0') + '</span></div>'
         + badge
-        + '<button class="btn secondary" style="padding:2px 9px;font-size:11px" onclick="legalViewDoc(\'' + doc.id + '\')">'
-        + 'Lesen</button>'
+        + '<button class="btn secondary" style="padding:2px 9px;font-size:11px" onclick="legalViewDoc(\'' + doc.id + '\')">Lesen</button>'
+        + '<button class="btn secondary" style="padding:2px 9px;font-size:11px" onclick="legalPrintDoc(\'' + doc.id + '\')">PDF</button>'
         + '</div>';
     }).join('');
   } catch(e) { ursache(e, 'settings_connect:1352'); }
 }
+
+var _termsCurrentDoc = null;
 
 async function legalViewDoc(docId) {
   const d = await (await fetch('/api/legal/doc/' + docId + '?lang=de')).json();
@@ -2128,11 +2134,46 @@ async function legalViewDoc(docId) {
   const txt = document.getElementById('terms-text');
   const confirmBtn = document.getElementById('terms-confirm-btn');
   const cancelBtn = document.getElementById('terms-cancel-btn');
+  // Überschrift = echter Dokumenttitel (aus der H1), nicht die feste
+  // „Zertifikatsbezug"-Zeile — die passte nur zum Zertifikats-Fluss.
+  document.getElementById('terms-modal-title').textContent =
+    (d.title || d.label || 'Rechtstext') + ' · v' + (d.version || '');
+  _termsCurrentDoc = docId;
+  document.getElementById('terms-pdf-btn').style.display = '';
   _setMarkdown(txt, d.text);
   confirmBtn.style.display = 'none';
   cancelBtn.textContent = 'Schließen';
   modal.style.display = 'flex';
 }
+
+// Rechtstext als PDF: eigenständige Druckseite in neuem Fenster (Browser →
+// „Als PDF speichern"). Kein Server-PDF nötig; nutzt denselben Renderer wie die
+// Ansicht, das PDF sieht also genauso aus. Fenster SYNCHRON öffnen (Popup-Blocker).
+window.legalPrintDoc = async function(docId){
+  if (!docId) return;
+  var win = window.open('', '_blank');
+  if (!win){ alert('Bitte Popups für diese Seite erlauben — die Druckansicht öffnet in einem neuen Fenster.'); return; }
+  try { win.document.write('<!doctype html><meta charset=utf-8><title>Lädt…</title><body style="font:14px sans-serif;padding:24px">Lädt…</body>'); } catch(e){}
+  var d = await (await fetch('/api/legal/doc/' + encodeURIComponent(docId) + '?lang=de')).json();
+  if (!d.ok){ try { win.document.body.textContent = 'Dokument nicht verfügbar.'; } catch(e){} return; }
+  var titel = (d.title || d.label || 'Rechtstext') + ' · v' + (d.version || '');
+  var seite = '<!doctype html><html lang="de"><head><meta charset="utf-8">'
+    + '<meta name="viewport" content="width=device-width, initial-scale=1">'
+    + '<title>' + esc(titel) + '</title><style>'
+    + 'body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:820px;'
+    + 'margin:0 auto;padding:28px 32px;color:#1e293b;line-height:1.55}'
+    + '.wd-bar{position:sticky;top:0;background:#f8fafc;border-bottom:1px solid #e2e8f0;'
+    + 'margin:-28px -32px 18px;padding:10px 32px;display:flex;gap:12px;align-items:center}'
+    + '.wd-bar button{font-size:13px;padding:6px 14px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;cursor:pointer}'
+    + '.wd-bar span{font-size:12px;color:#64748b}'
+    + '@media print{.wd-bar{display:none}body{padding:0}}'
+    + '</style></head><body>'
+    + '<div class="wd-bar"><button onclick="window.print()">Als PDF speichern / Drucken</button>'
+    + '<span>' + esc(titel) + '</span></div>'
+    + _mdToHtml(d.text)
+    + '</body></html>';
+  try { win.document.open(); win.document.write(seite); win.document.close(); } catch(e){ alert('Konnte Druckansicht nicht öffnen.'); }
+};
 
 document.addEventListener('DOMContentLoaded', legalLoadStatus);
 
