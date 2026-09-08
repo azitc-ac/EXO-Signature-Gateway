@@ -72,6 +72,17 @@ def test_heartbeat_nur_erlaubte_felder():
     assert reg.heartbeat_aktualisieren("unbekannt", {"healthy": True}) is False
 
 
+def test_merke_azure_traegt_appid_und_grants_nach():
+    reg.registrieren(id="wd_a", name="A", kind="azure", token_hash="H:ta",
+                     azure={"principal_id": "obj-1", "app_id": ""})
+    assert reg.merke_azure("wd_a", app_id="app-1")
+    assert reg.holen("wd_a")["azure"]["app_id"] == "app-1"
+    assert reg.holen("wd_a")["azure"]["principal_id"] == "obj-1"   # Bestehendes bleibt
+    assert reg.merke_azure("wd_a", grants_done=True)
+    assert reg.holen("wd_a")["azure"]["grants_done"] is True
+    assert reg.merke_azure("unbekannt", app_id="x") is False
+
+
 def test_irgendein_bypass_aktiv():
     reg.registrieren(id="wd_a", name="A", kind="cron", token_hash="H:ta")
     reg.registrieren(id="wd_b", name="B", kind="azure", token_hash="H:tb")

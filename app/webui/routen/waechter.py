@@ -164,8 +164,20 @@ async def watchdog_grant_role(request: Request, user: str = Depends(_require_adm
         body = json.loads(await request.body() or b"{}")
     except Exception:                                          # noqa: BLE001
         body = {}
-    app_id = str(body.get("watchdog_app_id") or "").strip()
-    obj_id = str(body.get("watchdog_object_id") or "").strip()
+    # Mit watcher_id kommen AppId + Objekt-ID aus dem Register (keine freien
+    # Felder); watchdog_app_id/-object_id bleiben für den manuellen/cron-Weg.
+    wid = str(body.get("watcher_id") or "").strip()
+    if wid:
+        e = waechter_register.holen(wid)
+        az = (e or {}).get("azure") or {}
+        app_id = str(az.get("app_id") or "").strip()
+        obj_id = str(az.get("principal_id") or "").strip()
+        if not app_id:
+            return JSONResponse({"ok": False, "detail": "AppId noch nicht aufgelöst — erst "
+                                "‚Berechtigungen erteilen (Azure-Login)‘ ausführen."}, status_code=400)
+    else:
+        app_id = str(body.get("watchdog_app_id") or "").strip()
+        obj_id = str(body.get("watchdog_object_id") or "").strip()
     if not _GUID.match(app_id) or not _GUID.match(obj_id):
         return JSONResponse({"ok": False, "detail": "AppId und Objekt-ID müssen GUIDs sein."},
                             status_code=400)
@@ -188,6 +200,8 @@ async def watchdog_grant_role(request: Request, user: str = Depends(_require_adm
         ok = proc.returncode == 0 and "GRANT-ROLE-OK" in proc.stdout
         if ok:
             log.info("Watchdog-Rolle 'Transport Rules' zugewiesen von %s (MI %s)", user, app_id)
+            if wid:
+                waechter_register.merke_azure(wid, grants_done=True)
         else:
             log.warning("Watchdog-Rollenzuweisung fehlgeschlagen rc=%d: %s", proc.returncode, out[:300])
         zeilen = [ln.strip() for ln in out.splitlines()

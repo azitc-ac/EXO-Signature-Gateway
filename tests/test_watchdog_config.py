@@ -227,3 +227,51 @@ def test_grant_role_ruft_skript_mit_mi_ids(anlage, monkeypatch):
     assert "-WatchdogAppId" in cmd and app_id in cmd
     assert "-WatchdogObjectId" in cmd and obj_id in cmd
     assert "grant_watchdog_role.ps1" in " ".join(cmd)
+
+
+def test_grant_role_per_watcher_id_aus_register(anlage, monkeypatch):
+    """watcher_id → AppId/Objekt-ID kommen aus dem Register; Erfolg setzt grants_done."""
+    c, _ = anlage
+    from pathlib import Path as _P
+    import subprocess as sp
+    import config, settings_store, waechter_register
+    monkeypatch.setattr(settings_store, "get",
+                        lambda k, *a: {"TENANT_DOMAIN": "t.onmicrosoft.com", "CLIENT_ID": "gw-app"}.get(k, ""))
+    monkeypatch.setattr(config, "CLIENT_ID", "gw-app", raising=False)
+    monkeypatch.setattr(_P, "exists", lambda self: True)
+    cap = {}
+
+    class _Proc:
+        returncode = 0
+        stdout = "GRANT-ROLE-OK\n[OK]"
+        stderr = ""
+    monkeypatch.setattr(sp, "run", lambda cmd, **k: cap.update(cmd=cmd) or _Proc())
+
+    app_id = "ffbf6e48-afd7-48ed-8e05-d44c0e99ee58"
+    obj_id = "775da29a-df34-4880-afe6-089369a12cde"
+    waechter_register.registrieren(id="wd_a", name="A", kind="azure", token_hash="h",
+                                   azure={"principal_id": obj_id, "app_id": app_id})
+    r = c.post("/api/watchdog/grant-role", json={"watcher_id": "wd_a"})
+    assert r.status_code == 200 and r.json()["ok"] is True
+    assert app_id in cap["cmd"] and obj_id in cap["cmd"]
+    assert waechter_register.holen("wd_a")["azure"]["grants_done"] is True   # Status vermerkt
+
+
+def test_grant_role_per_watcher_id_ohne_appid_400(anlage):
+    """watcher_id ohne aufgelöste AppId → 400 (erst Graph-Grants nötig, kein Skriptlauf)."""
+    c, _ = anlage
+    import waechter_register
+    waechter_register.registrieren(id="wd_b", name="B", kind="azure", token_hash="h",
+                                   azure={"principal_id": "775da29a-df34-4880-afe6-089369a12cde", "app_id": ""})
+    r = c.post("/api/watchdog/grant-role", json={"watcher_id": "wd_b"})
+    assert r.status_code == 400
+
+
+def test_start_grants_watcher_id_guards(anlage):
+    c, _ = anlage
+    import waechter_register
+    # unbekannter Wächter → 400
+    assert c.get("/api/watchdog/start-grants?watcher_id=nope").status_code == 400
+    # registriert, aber ohne Objekt-ID → 400
+    waechter_register.registrieren(id="wd_c", name="C", kind="azure", token_hash="h", azure={})
+    assert c.get("/api/watchdog/start-grants?watcher_id=wd_c").status_code == 400

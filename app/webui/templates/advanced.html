@@ -403,12 +403,14 @@ function saveLexwareFix(enabled) {
         <textarea id="wd-cron-env" readonly style="width:100%;box-sizing:border-box;font-size:11px;font-family:monospace;min-height:170px;border:1px solid #e2e8f0;border-radius:5px;padding:8px"></textarea>
       </div>
     </div>
+  </div>
 
-    <!-- Berechtigungen der Wächter-Identität (least-privilege, kein Exchange Administrator; Azure) -->
-    <details id="watchdog-perms" style="margin-bottom:14px">
-      <summary style="cursor:pointer;font-size:13px;color:#0369a1;font-weight:600">Berechtigungen der Wächter-Identität einrichten</summary>
+  <!-- Berechtigungen manuell (cron-Zertifikats-App oder Sonderfall) — Azure-Wächter
+       nutzen den Knopf „Berechtigungen" direkt am Wächter in der Liste oben. -->
+  <details id="watchdog-perms" style="margin-top:14px">
+    <summary style="cursor:pointer;font-size:13px;color:#0369a1;font-weight:600">Berechtigungen manuell zuweisen (cron / Sonderfall)</summary>
       <div style="font-size:13px;color:#334155;line-height:1.6;margin-top:8px">
-        <p style="margin:0 0 8px">Drei Zuweisungen — <strong>kein</strong> „Exchange Administrator". Trage zuerst die IDs der Managed Identity ein (<code>az functionapp identity show -n &lt;App&gt; -g &lt;RG&gt;</code> → <code>clientId</code>/<code>principalId</code>):</p>
+        <p style="margin:0 0 8px">Für <strong>Azure-Wächter</strong> geht das per Knopf <strong>„Berechtigungen"</strong> direkt am Wächter (IDs kommen aus dem Register). Hier der manuelle Weg (z. B. cron mit eigener Zertifikats-App): drei Zuweisungen — <strong>kein</strong> „Exchange Administrator". IDs der Identität eintragen:</p>
         <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px">
           <input id="wd-mi-appid" placeholder="MI AppId (Client-ID)" style="font-size:12px;padding:5px 8px;width:290px;max-width:100%">
           <input id="wd-mi-objid" placeholder="MI Objekt-ID (principalId)" style="font-size:12px;padding:5px 8px;width:290px;max-width:100%">
@@ -449,11 +451,11 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
     return r ? r.value : '';
   }
   function _applyKindUI(kind){
+    // #watchdog-perms ist jetzt der manuelle/cron-Weg auf Kartenebene (immer da) —
+    // nicht mehr an die Variantenwahl gebunden.
     var inst = document.getElementById('wd-installer');
     var cron = document.getElementById('wd-cron');
-    var perms = document.getElementById('watchdog-perms');
     if (inst) inst.style.display = (kind === 'azure') ? 'block' : 'none';
-    if (perms) perms.style.display = (kind === 'azure') ? 'block' : 'none';
     if (cron) cron.style.display = (kind === 'cron') ? 'block' : 'none';
   }
   function _applyEnabledUI(on){
@@ -508,18 +510,42 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
     window.open(d.auth_url, 'wd-grants', 'width=520,height=700');
   };
 
+  // Per-Wächter (Azure): Objekt-ID kommt aus dem Register; nach den Graph-Grants
+  // zieht der Message-Handler automatisch die EXO-Rolle nach. Keine freien Felder.
+  window.wdGrant = async function(id){
+    _wdGrantWatcher = id;
+    var r = await fetch('/api/watchdog/start-grants?watcher_id=' + encodeURIComponent(id));
+    var d = await r.json().catch(function(){ return {}; });
+    if (!r.ok || !d.auth_url){ alert('Fehler: ' + (d.detail || r.status)); _wdGrantWatcher = null; return; }
+    window.open(d.auth_url, 'wd-grants', 'width=520,height=700');
+  };
+
+  async function _wdRoleForWatcher(id){
+    var r = await fetch('/api/watchdog/grant-role', {method:'POST',
+      headers:{'Content-Type':'application/json'}, body: JSON.stringify({watcher_id: id})});
+    var d = await r.json().catch(function(){ return {}; });
+    if (r.ok && d.ok) alert('Berechtigungen erteilt (App-Rolle + Global Reader + Transport Rules).\n'
+      + 'Propagierung ~15–30 Min, dann verschwindet „EXO: UnAuthorized".');
+    else alert('Rolle zuweisen fehlgeschlagen: ' + (d.detail || d.output || r.status));
+    loadWatchdogStatus();
+  }
+
   window.addEventListener('message', function(ev){
     var d = ev.data || {};
     var t = d.type;
     if (t === 'watchdog-grants-done'){
-      if (d.app_id){
-        var ai = document.getElementById('wd-mi-appid');
-        if (ai && !ai.value) ai.value = d.app_id;
+      if (_wdGrantWatcher){
+        var wid = _wdGrantWatcher; _wdGrantWatcher = null;   // App-Rolle+GR erteilt → EXO-Rolle nachziehen
+        _wdRoleForWatcher(wid);
+      } else {
+        if (d.app_id){ var ai = document.getElementById('wd-mi-appid'); if (ai && !ai.value) ai.value = d.app_id; }
+        showMsg('wd-graph-result', 'App-Rolle + Global Reader erteilt' + (d.app_id ? ' (AppId übernommen)' : '')
+          + '. Danach Schritt 3 („Rolle zuweisen").', true);
       }
-      showMsg('wd-graph-result', 'App-Rolle + Global Reader erteilt' + (d.app_id ? ' (AppId übernommen)' : '')
-        + '. Propagierung ~15–30 Min, dann Schritt 3 und aktivieren.', true);
     } else if (t === 'watchdog-grants-fail'){
-      showMsg('wd-graph-result', 'Fehler: ' + (d.msg || 'unbekannt'), false);
+      _wdGrantWatcher = null;
+      if (document.getElementById('wd-graph-result')) showMsg('wd-graph-result', 'Fehler: ' + (d.msg || 'unbekannt'), false);
+      else alert('Berechtigungen fehlgeschlagen: ' + (d.msg || 'unbekannt'));
     } else if (t === 'arm-auth-done'){
       _wdArmOk = true;
       var box = document.getElementById('wd-arm-box');
@@ -539,6 +565,7 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
   // ── Automatischer Installer (Azure) ──────────────────────────────────────
   var _wdArmOk = false;
   var _wdDeployTimer = null;
+  var _wdGrantWatcher = null;   // aktiver per-Wächter-Grant (chaint Rolle nach den Graph-Grants)
 
   window.wdArmLogin = async function(){
     var btn = document.getElementById('wd-arm-btn');
@@ -644,12 +671,9 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
       document.getElementById('wd-deploy-progress').style.display = 'none';
       document.getElementById('wd-deploy-btn').disabled = false;
       if (d.ok){
-        showMsg('wd-deploy-result', (d.msg || 'Function angelegt.'), true);
-        if (d.principal_id){
-          var oi = document.getElementById('wd-mi-objid'); if (oi) oi.value = d.principal_id;
-        }
-        var perms = document.getElementById('watchdog-perms'); if (perms) perms.open = true;
-        loadWatchdogStatus();
+        showMsg('wd-deploy-result', (d.msg || 'Function angelegt.')
+          + ' Jetzt oben beim neuen Wächter „Berechtigungen" klicken.', true);
+        loadWatchdogStatus();   // der neue Wächter erscheint mit „Berechtigungen"-Knopf
       } else {
         showMsg('wd-deploy-result', 'Fehler: ' + (d.msg || 'unbekannt'), false);
       }
@@ -715,12 +739,21 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
           var teile = [ _relativ(w.last_seen) ];
           if (w.bypass_active) teile.push('<span style="color:#b45309;font-weight:600">Bypass AKTIV</span>');
           if (w.exo_error) teile.push('<span style="color:#dc2626">⚠ EXO: ' + esc(w.exo_error) + '</span>');
+          var az = w.azure || {};
+          var knoepfe = '';
+          // Azure-Wächter: Berechtigungen direkt am Wächter (IDs aus dem Register).
+          if (w.kind === 'azure' && az.principal_id){
+            knoepfe += az.grants_done
+              ? '<span style="font-size:12px;color:#166534;margin-right:8px">✓ berechtigt</span>'
+              : '<button class="btn secondary btn-sm" style="margin-right:6px" onclick="wdGrant(\'' + esc(w.id) + '\')">Berechtigungen</button>';
+          }
+          knoepfe += '<button class="btn secondary btn-sm" onclick="wdRemove(\'' + esc(w.id) + '\',\'' + esc(w.kind) + '\')">Entfernen</button>';
           return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;'
             + 'padding:7px 0;border-bottom:1px solid #f0f0f0">'
             + '<div><strong>' + esc(w.name || w.id) + '</strong>'
             + ' <span style="color:#94a3b8">· ' + esc(art[w.kind] || w.kind || '') + '</span><br>'
             + '<span style="font-size:12px;color:#78716c">' + teile.join(' · ') + '</span></div>'
-            + '<button class="btn secondary btn-sm" onclick="wdRemove(\'' + esc(w.id) + '\',\'' + esc(w.kind) + '\')">Entfernen</button>'
+            + '<div style="white-space:nowrap">' + knoepfe + '</div>'
             + '</div>';
         }).join('');
       }
