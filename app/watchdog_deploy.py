@@ -149,7 +149,15 @@ async def create_function_app(sub: str, rg: str, app: str, location: str,
         "properties": {"computeMode": "Dynamic", "reserved": False},
     })
     if resp.status_code not in (200, 201, 202):
-        return False, f"Plan (HTTP {resp.status_code}): {_err(resp)}", {}
+        roh = _err(resp)
+        if "quota" in roh.lower() or "Y1 VMs" in roh:
+            # Eingeschränkte Abos (Sponsorship/Free) haben oft 0 Y1-Kontingent.
+            return False, ("Kein Y1-Kontingent (Consumption/serverlos) in dieser Region/diesem Abo. "
+                           "Optionen: andere Region wählen · Y1-Kontingent anfordern "
+                           "(Portal → Nutzung + Kontingente, bei Sponsorship per Support-Ticket) · "
+                           "oder die cron-Variante nutzen (braucht kein Azure-Kontingent). "
+                           f"[ARM: {roh[:200]}]"), {}
+        return False, f"Plan (HTTP {resp.status_code}): {roh}", {}
 
     # 2) Function-App (site)
     share = app.lower()[:60]
