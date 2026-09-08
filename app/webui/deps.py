@@ -110,9 +110,15 @@ def _bypass_gemeldet() -> dict | None:
     """
     try:
         import waechter_state
+        import waechter_register
         st = waechter_state.lesen()
-        if st.get("bypass_active") or st.get("rule_state") == "Disabled":
-            return {"seit": st.get("last_seen") or st.get("rule_checked") or ""}
+        # rule_state (global, vom Scheduler) fängt einen Bypass auch dann, wenn
+        # ALLE Wächter tot sind; die Wächter-Heartbeats fangen ihn früher.
+        if st.get("rule_state") == "Disabled" or waechter_register.irgendein_bypass_aktiv():
+            seit = st.get("rule_checked") or ""
+            juengster = max((w.get("last_seen") or "" for w in waechter_register.liste()),
+                            default="")
+            return {"seit": juengster or seit or st.get("last_seen") or ""}
     except Exception:                                       # noqa: BLE001
         pass
     return None

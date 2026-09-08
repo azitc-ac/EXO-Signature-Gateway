@@ -217,14 +217,15 @@ DEFAULTS: dict = {
     "SIG_STRIP_MIN_MATCH_PCT": 50,      # Fingerprint match threshold % for signature stripping
     # ── Bypass-Wächter (Transportregel-Failover) ──────────────────────────────
     "WATCHDOG_ENABLED": False,          # Wizard-Schritt abgeschlossen
-    "WATCHDOG_KIND": "",                # "azure" | "cron"
-    "WATCHDOG_TOKEN_HASH": "",          # PBKDF2-Hash des Heartbeat-Tokens
+    "WATCHDOG_KIND": "",                # Legacy-Anzeige der Art; je Wächter im Register (data/watchdog_watchers.json)
+    "WATCHDOG_TOKEN_HASH": "",          # Legacy-Einzel-Token (vor dem Mehrwächter-Register); neue Wächter haben eigene Tokens
     "WATCHDOG_SP_OBJECT_ID": "",        # Azure: Object-ID der Managed Identity
     "WATCHDOG_RULE_SPLIT": False,       # Phase 1: Route-Regel in Signatur-/S-MIME-Weg getrennt (opt-in)
     "APP_ACCESS_POLICY_ENABLED": False, # Least Privilege: ApplicationAccessPolicy-Scope-Gruppe automatisch pflegen
-    # Zeitstempel/Bypass-Zustand liegen bewusst in data/watchdog_state.json, nicht
-    # hier — der Heartbeat (1/min) würde sonst settings.json samt Geheimnissen
-    # minütlich neu schreiben.
+    # Wächter-Register (Heartbeats/Zustand je Wächter) liegt in
+    # data/watchdog_watchers.json, der globale Regelzustand in
+    # data/watchdog_state.json — NICHT hier: der Heartbeat (1/min) würde sonst
+    # settings.json samt Geheimnissen minütlich neu schreiben.
     "EXO_RULE_SIG": "",                 # Name der Signatur-Transportregel (leer = "Route via <Name> (Signatur)")
     "EXO_RULE_SMIME": "",               # Name der S/MIME-Transportregel (erst nach Regeltrennung)
     # Widerrufspruefung (CRL) fuer Empfaengerzertifikate. Vorgabe AN: Die Zusage

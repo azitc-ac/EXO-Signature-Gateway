@@ -296,34 +296,48 @@ function saveLexwareFix(enabled) {
     Ein <strong>externer</strong> Wächter überwacht die Gateway-<code>/health</code> und schaltet bei
     Ausfall die Signatur-Transportregel ab (ausgehende Post fließt dann unsigniert weiter, statt sich in
     Exchange zu stauen); bei Erholung schaltet er sie wieder ein. Die <strong>S/MIME-Regel bleibt immer an</strong>
-    — verschlüsselungsfähige Post wartet bewusst. Wähle, wo der Wächter läuft:
+    — verschlüsselungsfähige Post wartet bewusst. Mehrere Wächter (Azure und/oder cron) sind möglich und
+    erhöhen die Ausfallsicherheit.
   </p>
 
-  <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px">
-    <label class="checkbox-label" style="align-items:flex-start">
-      <input type="radio" name="watchdog-kind" value="azure" onchange="watchdogKindGewaehlt()">
-      <span><strong>Azure Function</strong> (empfohlen) — serverlos, Anmeldung per Managed Identity,
-        kein Zertifikat zu verwalten. Für Produktion.</span>
-    </label>
-    <label class="checkbox-label" style="align-items:flex-start">
-      <input type="radio" name="watchdog-kind" value="cron" onchange="watchdogKindGewaehlt()">
-      <span><strong>cron auf eigenem Zweithost</strong> — ohne Azure, Anmeldung per Zertifikat der
-        Wächter-App. Muss auf einem <em>anderen</em> Rechner als das Gateway laufen.</span>
-    </label>
-  </div>
-  <div style="margin-bottom:16px">
-    <button class="btn secondary btn-sm" id="watchdog-kind-btn" onclick="saveWatchdogKind()">Variante speichern</button>
-    <span id="watchdog-kind-result" class="field-msg" style="font-size:12px;margin-left:8px"></span>
+  <!-- ── Aktuelle Wächter ──────────────────────────────────────────────────── -->
+  <div style="margin-bottom:14px">
+    <div style="font-size:13px;font-weight:600;color:#44403c;margin-bottom:6px">
+      Aktuelle Wächter: <span id="wd-count">0</span>
+    </div>
+    <div id="wd-liste" style="font-size:13px;color:#78716c">— wird geladen … —</div>
+    <div id="watchdog-status" style="font-size:12px;color:#78716c;margin-top:8px"></div>
   </div>
 
-  <div id="watchdog-setup" style="display:none">
-    <h3 style="font-size:14px;margin:6px 0 8px">Einrichtung</h3>
-    <p style="font-size:13px;color:#57534e;margin:0 0 10px">
-      Diese Werte trägt der Wächter (Azure-App-Einstellungen bzw. <code>watchdog.env</code>).
-      Vollständige Anleitung: <code id="watchdog-readme">azure/watchdog/README.md</code>.
-    </p>
+  <label class="checkbox-label" style="font-weight:600 !important">
+    <input type="checkbox" id="watchdog-enabled" onchange="setWatchdogEnabled(this.checked)">
+    Bypass-Wächter aktiv
+    <span id="watchdog-enabled-text" style="font-weight:400;font-size:13px;color:#57534e;margin-left:8px">Deaktiviert</span>
+  </label>
 
-    <!-- ── Automatischer Installer (nur Azure-Variante) ──────────────────────── -->
+  <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+    <button class="btn secondary btn-sm" onclick="loadWatchdogStatus()">Aktualisieren</button>
+    <button class="btn secondary btn-sm" id="wd-add-btn" onclick="wdToggleAdd()">Wächter hinzufügen</button>
+  </div>
+
+  <!-- ── Wächter hinzufügen ────────────────────────────────────────────────── -->
+  <div id="wd-add-panel" style="display:none;margin-top:14px;padding:14px;border:1px solid #e2e8f0;border-radius:8px">
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:#44403c">Neuen Wächter hinzufügen</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px">
+      <label class="checkbox-label" style="align-items:flex-start">
+        <input type="radio" name="watchdog-kind" value="azure" onchange="watchdogKindGewaehlt()">
+        <span><strong>Azure Function</strong> (empfohlen) — serverlos, Anmeldung per Managed Identity.
+          Das Gateway legt sie selbst an.</span>
+      </label>
+      <label class="checkbox-label" style="align-items:flex-start">
+        <input type="radio" name="watchdog-kind" value="cron" onchange="watchdogKindGewaehlt()">
+        <span><strong>cron auf eigenem Zweithost</strong> — ohne Azure, Anmeldung per Zertifikat der
+          Wächter-App. Das Gateway erzeugt ein Skript-Bundle zum Copy-Paste (auf einem <em>anderen</em>
+          Rechner ausführen).</span>
+      </label>
+    </div>
+
+    <!-- ── Automatischer Installer (Azure) ──────────────────────────────────── -->
     <div id="wd-installer" style="display:none;margin-bottom:16px;padding:14px;border:1px solid #bfdbfe;border-radius:8px;background:#eff6ff">
       <div style="font-size:13px;font-weight:600;color:#1e40af;margin-bottom:6px">Function automatisch anlegen (empfohlen)</div>
       <p style="font-size:12px;color:#334155;margin:0 0 10px;line-height:1.6">
@@ -371,23 +385,26 @@ function saveLexwareFix(enabled) {
       </div>
     </div>
 
-    <div class="tabellen-rollbereich">
-      <table style="font-size:12px;border-collapse:collapse;margin-bottom:12px;min-width:520px">
-        <tr><td style="padding:2px 12px 2px 0;color:#78716c;white-space:nowrap">GATEWAY_HEALTH_URL</td><td><code id="wd-health">—</code></td></tr>
-        <tr><td style="padding:2px 12px 2px 0;color:#78716c;white-space:nowrap">EXO_ORGANIZATION</td><td><code id="wd-org">—</code></td></tr>
-        <tr><td style="padding:2px 12px 2px 0;color:#78716c;white-space:nowrap">SIG_RULE_NAME</td><td><code id="wd-rule">—</code></td></tr>
-      </table>
-    </div>
-    <div style="margin-bottom:14px">
-      <button class="btn secondary btn-sm" onclick="rotateWatchdogToken()">Heartbeat-Token erzeugen</button>
-      <span id="watchdog-token-state" class="field-msg" style="font-size:12px;margin-left:8px"></span>
-      <div id="watchdog-token-box" style="display:none;margin-top:8px;padding:10px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px">
-        <div style="font-size:12px;color:#92400e;margin-bottom:4px">Einmalig sichtbar — jetzt kopieren (<strong>WATCHDOG_TOKEN</strong>):</div>
-        <code id="watchdog-token-value" style="font-size:12px;word-break:break-all"></code>
+    <!-- ── cron-Bundle erzeugen (cron-Variante) ─────────────────────────────── -->
+    <div id="wd-cron" style="display:none;margin-bottom:16px;padding:14px;border:1px solid #bfdbfe;border-radius:8px">
+      <div style="font-size:13px;font-weight:600;color:#1e40af;margin-bottom:6px">cron-Bundle erzeugen</div>
+      <p style="font-size:12px;color:#334155;margin:0 0 10px;line-height:1.6">
+        Das Gateway registriert den Wächter mit eigenem Token und füllt eine <code>watchdog.env</code>
+        vor. AppId und Zertifikat deiner Wächter-App trägst du dort selbst nach (Anmeldung per
+        Zertifikat). Vollständige Anleitung: <code>contrib/watchdog/README.md</code>.
+      </p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+        <input id="wd-cron-name" placeholder="Name (z. B. cron auf host2)" style="font-size:12px;padding:5px 8px;width:260px;max-width:100%">
+        <button class="btn secondary btn-sm" onclick="wdCronGenerate()">Bundle erzeugen</button>
+      </div>
+      <span id="wd-cron-result" class="field-msg" style="font-size:12px;display:block;margin-bottom:6px"></span>
+      <div id="wd-cron-box" style="display:none">
+        <div style="font-size:12px;color:#92400e;margin-bottom:4px">Einmalig sichtbar — jetzt kopieren (enthält das Token):</div>
+        <textarea id="wd-cron-env" readonly style="width:100%;box-sizing:border-box;font-size:11px;font-family:monospace;min-height:170px;border:1px solid #e2e8f0;border-radius:5px;padding:8px"></textarea>
       </div>
     </div>
 
-    <!-- Berechtigungen der Wächter-Identität (least-privilege, kein Exchange Administrator) -->
+    <!-- Berechtigungen der Wächter-Identität (least-privilege, kein Exchange Administrator; Azure) -->
     <details id="watchdog-perms" style="margin-bottom:14px">
       <summary style="cursor:pointer;font-size:13px;color:#0369a1;font-weight:600">Berechtigungen der Wächter-Identität einrichten</summary>
       <div style="font-size:13px;color:#334155;line-height:1.6;margin-top:8px">
@@ -421,17 +438,6 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
         <p class="hint" style="margin-top:8px">Alle Zuweisungen propagieren ~15–30 Min. Danach unten aktivieren und den Status prüfen.</p>
       </div>
     </details>
-
-    <label class="checkbox-label" style="font-weight:600 !important">
-      <input type="checkbox" id="watchdog-enabled" onchange="setWatchdogEnabled(this.checked)">
-      Bypass-Wächter aktiv
-      <span id="watchdog-enabled-text" style="font-weight:400;font-size:13px;color:#57534e;margin-left:8px">Deaktiviert</span>
-    </label>
-  </div>
-
-  <div style="margin-top:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-    <button class="btn secondary btn-sm" onclick="loadWatchdogStatus()">Status prüfen</button>
-    <div id="watchdog-status" style="font-size:12px;color:#78716c"></div>
   </div>
   </div>
 </div>
@@ -443,12 +449,12 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
     return r ? r.value : '';
   }
   function _applyKindUI(kind){
-    var setup = document.getElementById('watchdog-setup');
-    if (setup) setup.style.display = kind ? 'block' : 'none';
-    var rm = document.getElementById('watchdog-readme');
-    if (rm) rm.textContent = (kind === 'cron') ? 'contrib/watchdog/README.md' : 'azure/watchdog/README.md';
     var inst = document.getElementById('wd-installer');
+    var cron = document.getElementById('wd-cron');
+    var perms = document.getElementById('watchdog-perms');
     if (inst) inst.style.display = (kind === 'azure') ? 'block' : 'none';
+    if (perms) perms.style.display = (kind === 'azure') ? 'block' : 'none';
+    if (cron) cron.style.display = (kind === 'cron') ? 'block' : 'none';
   }
   function _applyEnabledUI(on){
     var cb = document.getElementById('watchdog-enabled');
@@ -459,24 +465,25 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
 
   window.watchdogKindGewaehlt = function(){ _applyKindUI(_selectedKind()); };
 
-  window.saveWatchdogKind = async function(){
-    var k = _selectedKind();
-    if (!k){ showMsg('watchdog-kind-result', 'Bitte eine Variante wählen.', false); return; }
-    var r = await fetch('/api/watchdog/config', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({kind:k})});
-    var d = await r.json().catch(function(){ return {}; });
-    if (r.ok && d.ok) showMsg('watchdog-kind-result', 'Gespeichert.', true);
-    else showMsg('watchdog-kind-result', 'Fehler: ' + (d.detail || r.status), false);
+  window.wdToggleAdd = function(){
+    var p = document.getElementById('wd-add-panel');
+    if (!p) return;
+    p.style.display = (p.style.display === 'none' || !p.style.display) ? 'block' : 'none';
   };
 
-  window.rotateWatchdogToken = async function(){
-    var r = await fetch('/api/watchdog/token/rotate', {method:'POST'});
+  window.wdCronGenerate = async function(){
+    var name = (document.getElementById('wd-cron-name').value || '').trim();
+    showMsg('wd-cron-result', 'Erzeuge …', true);
+    var r = await fetch('/api/watchdog/cron/generate', {method:'POST',
+      headers:{'Content-Type':'application/json'}, body: JSON.stringify({name: name})});
     var d = await r.json().catch(function(){ return {}; });
-    if (r.ok && d.token){
-      document.getElementById('watchdog-token-value').textContent = d.token;
-      document.getElementById('watchdog-token-box').style.display = 'block';
-      showMsg('watchdog-token-state', 'Neues Token erzeugt.', true);
+    if (r.ok && d.ok){
+      document.getElementById('wd-cron-env').value = d.env || '';
+      document.getElementById('wd-cron-box').style.display = 'block';
+      showMsg('wd-cron-result', 'Registriert. watchdog.env unten kopieren, AppId/Zertifikat ergänzen.', true);
+      loadWatchdogStatus();
     } else {
-      showMsg('watchdog-token-state', 'Fehler: ' + (d.detail || r.status), false);
+      showMsg('wd-cron-result', 'Fehler: ' + (d.detail || r.status), false);
     }
   };
 
@@ -664,26 +671,65 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
     }
   };
 
+  function _relativ(iso){
+    if (!iso) return 'noch kein Heartbeat';
+    var t = Date.parse(iso.replace(' ', 'T'));
+    if (isNaN(t)) return iso;
+    var s = Math.max(0, Math.round((Date.now() - t) / 1000));
+    if (s < 90) return 'vor ' + s + ' s';
+    if (s < 5400) return 'vor ' + Math.round(s / 60) + ' min';
+    if (s < 172800) return 'vor ' + Math.round(s / 3600) + ' h';
+    return 'vor ' + Math.round(s / 86400) + ' Tagen';
+  }
+
+  window.wdRemove = async function(id, kind){
+    if (!confirm('Wächter „' + id + '" entfernen?' +
+        (kind === 'azure' ? '\n\nDie Azure-Ressourcen (Function/Storage/Plan, ggf. Ressourcengruppe) werden gelöscht.' : ''))) return;
+    var r = await fetch('/api/watchdog/remove', {method:'POST',
+      headers:{'Content-Type':'application/json'}, body: JSON.stringify({id: id})});
+    var d = await r.json().catch(function(){ return {}; });
+    if (r.ok && d.ok){
+      if (d.kind === 'cron' && d.befehle){ alert((d.hinweis || '') + '\n\n' + d.befehle); }
+      else if (d.detail){ alert(d.detail); }
+      loadWatchdogStatus();
+    } else if (r.status === 400 && /Azure-Zugriff/.test(d.detail || '')){
+      alert('Für den Rückbau eines Azure-Wächters erst Azure-Zugriff holen: „Wächter hinzufügen" → „Azure-Zugriff holen", dann erneut entfernen.');
+      var p = document.getElementById('wd-add-panel'); if (p) p.style.display = 'block';
+    } else {
+      alert('Fehler: ' + (d.detail || r.status));
+    }
+  };
+
   window.loadWatchdogStatus = async function(){
     try{
       var r = await fetch('/api/watchdog/status'); if(!r.ok) return;
       var d = await r.json();
-      if (d.kind){
-        var el = document.querySelector('input[name="watchdog-kind"][value="' + d.kind + '"]');
-        if (el) el.checked = true;
+      var watchers = d.watchers || [];
+      document.getElementById('wd-count').textContent = watchers.length;
+      var art = { azure: 'Azure Function', cron: 'cron' };
+      var liste = document.getElementById('wd-liste');
+      if (!watchers.length){
+        liste.innerHTML = '— noch keiner. Mit „Wächter hinzufügen" einrichten. —';
+      } else {
+        liste.innerHTML = watchers.map(function(w){
+          var teile = [ _relativ(w.last_seen) ];
+          if (w.bypass_active) teile.push('<span style="color:#b45309;font-weight:600">Bypass AKTIV</span>');
+          if (w.exo_error) teile.push('<span style="color:#dc2626">⚠ EXO: ' + esc(w.exo_error) + '</span>');
+          return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;'
+            + 'padding:7px 0;border-bottom:1px solid #f0f0f0">'
+            + '<div><strong>' + esc(w.name || w.id) + '</strong>'
+            + ' <span style="color:#94a3b8">· ' + esc(art[w.kind] || w.kind || '') + '</span><br>'
+            + '<span style="font-size:12px;color:#78716c">' + teile.join(' · ') + '</span></div>'
+            + '<button class="btn secondary btn-sm" onclick="wdRemove(\'' + esc(w.id) + '\',\'' + esc(w.kind) + '\')">Entfernen</button>'
+            + '</div>';
+        }).join('');
       }
-      _applyKindUI(d.kind || _selectedKind());
-      var h = d.hinweise || {};
-      document.getElementById('wd-health').textContent = h.health_url || '(Basis-URL nicht gesetzt — unter Add-in/Anbindung eintragen)';
-      document.getElementById('wd-org').textContent = h.organization || '(Tenant-Domäne unbekannt)';
-      document.getElementById('wd-rule').textContent = h.sig_rule_name || '—';
       _applyEnabledUI(d.enabled);
       var s = document.getElementById('watchdog-status');
       if (s){
-        s.textContent = 'Token: ' + (d.token_set ? 'gesetzt' : 'nicht gesetzt')
-          + '  ·  zuletzt gesehen: ' + (d.last_seen || 'nie')
-          + '  ·  Bypass: ' + (d.bypass_active ? 'AKTIV' : 'inaktiv')
-          + '  ·  Regel: ' + (d.rule_state || 'unbekannt');
+        s.textContent = watchers.length
+          ? ('Regel: ' + (d.rule_state || 'unbekannt') + '  ·  Bypass: ' + (d.bypass_active ? 'AKTIV' : 'inaktiv'))
+          : '';
       }
     } catch(e){ console.error('watchdog status:', e); }
   };

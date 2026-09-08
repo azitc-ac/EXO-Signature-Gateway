@@ -24,6 +24,7 @@ from fastapi.responses import JSONResponse
 import config
 import settings_store
 import waechter_state
+import waechter_register
 from webui.deps import log, _require_admin, _hash_password, _verify_password, _get_session_user
 
 router = APIRouter()
@@ -33,7 +34,7 @@ _GUID = re.compile(r"^[0-9a-fA-F-]{36}$")
 
 # Zustand der laufenden Function-Provisionierung (nur einer gleichzeitig).
 _deploy: dict = {"running": False, "step": "", "ok": None, "msg": "",
-                 "principal_id": "", "host": "", "app": ""}
+                 "principal_id": "", "host": "", "app": "", "watcher_id": ""}
 
 
 def _now() -> str:
@@ -47,11 +48,15 @@ def zustand() -> dict:
 
 @router.post("/api/watchdog/heartbeat")
 async def watchdog_heartbeat(request: Request):
-    """Der Wächter meldet sich. Token im Kopffeld `X-Watchdog-Token`."""
-    stored = settings_store.get("WATCHDOG_TOKEN_HASH") or ""
+    """Ein Wächter meldet sich. Token im Kopffeld `X-Watchdog-Token`, optional
+    `X-Watchdog-Id` (neue Wächter). Legacy-Wächter ohne Id werden per Token-Scan
+    über das Register zugeordnet — so überlebt der bestehende Prod-Wächter den
+    Umbau ohne Änderung."""
     token = request.headers.get("X-Watchdog-Token") or ""
-    # Falscher/fehlender Token → 401 ohne jedes Detail.
-    if not stored or not token or not _verify_password(token, stored):
+    wid_hdr = (request.headers.get("X-Watchdog-Id") or "").strip()
+    # Falscher/fehlender Token oder unbekannter Wächter → 401 ohne jedes Detail.
+    wid = waechter_register.zuordnen(token, wid_hdr or None, _verify_password)
+    if not wid:
         return JSONResponse({"detail": "unauthorized"}, status_code=401)
     raw = await request.body()
     if len(raw) > _MAX_BODY:
@@ -60,16 +65,16 @@ async def watchdog_heartbeat(request: Request):
         payload = json.loads(raw or b"{}")
     except Exception:                                       # noqa: BLE001
         payload = {}
-    waechter_state.merge(
-        last_seen=_now(),
-        bypass_active=bool(payload.get("bypass_active")),
-        fails=int(payload.get("fails") or 0),
-        oks=int(payload.get("oks") or 0),
-        healthy=bool(payload.get("healthy")),
+    waechter_register.heartbeat_aktualisieren(wid, {
+        "last_seen": _now(),
+        "bypass_active": bool(payload.get("bypass_active")),
+        "fails": int(payload.get("fails") or 0),
+        "oks": int(payload.get("oks") or 0),
+        "healthy": bool(payload.get("healthy")),
         # Leben ≠ handlungsfähig: meldet der Wächter einen EXO-Fehler, läuft er
         # zwar, kann aber die Regel nicht schalten — das gehört sichtbar gemacht.
-        exo_error=str(payload.get("exo_error") or "")[:300],
-    )
+        "exo_error": str(payload.get("exo_error") or "")[:300],
+    })
     return JSONResponse({"ok": True})
 
 
@@ -86,17 +91,28 @@ def _config_hinweise() -> dict:
 
 @router.get("/api/watchdog/status")
 async def watchdog_status(user: str = Depends(_require_admin)):
-    """Für die Oberfläche: zuletzt gesehen, Bypass-Zustand, Regelzustand."""
-    st = zustand()
+    """Für die Oberfläche: Liste der Wächter (je zuletzt gesehen/Zustand), der
+    globale Regelzustand und die Kopierwerte. Zusätzlich Aggregat-Felder für die
+    bisherige Einzelanzeige (bis die Liste in der Oberfläche steht)."""
+    st = zustand()                                            # globaler Regelzustand
+    watchers = waechter_register.liste()
+    last_seen = max((w.get("last_seen") or "" for w in watchers), default="")
+    any_bypass = any(w.get("bypass_active") for w in watchers) or bool(st.get("bypass_active"))
+    exo_err = next((w.get("exo_error") for w in watchers if w.get("exo_error")), "") \
+        or (st.get("exo_error") or "")
+    kind = watchers[0]["kind"] if watchers else (settings_store.get("WATCHDOG_KIND") or "")
     return JSONResponse({
         "enabled": settings_store.get("WATCHDOG_ENABLED") is True,
-        "kind": settings_store.get("WATCHDOG_KIND") or "",
-        "last_seen": st.get("last_seen") or "",
-        "bypass_active": bool(st.get("bypass_active")),
-        "rule_state": st.get("rule_state") or "unbekannt",   # von der EXO-Prüfung (Folgeschritt)
-        "token_set": bool(settings_store.get("WATCHDOG_TOKEN_HASH")),
-        "exo_error": st.get("exo_error") or "",              # Wächter lebt, aber EXO-Zugriff fehlt
+        "rule_state": st.get("rule_state") or "unbekannt",   # von der EXO-Prüfung des Schedulers
+        "watchers": watchers,
+        "count": len(watchers),
         "hinweise": _config_hinweise(),
+        # ── Aggregat (Rückwärtskompatibilität der alten Einzelanzeige) ──
+        "kind": kind,
+        "last_seen": last_seen,
+        "bypass_active": any_bypass,
+        "token_set": len(watchers) > 0 or bool(settings_store.get("WATCHDOG_TOKEN_HASH")),
+        "exo_error": exo_err,
     })
 
 
@@ -120,14 +136,12 @@ async def watchdog_config(request: Request, user: str = Depends(_require_admin))
     enabled = body.get("enabled")
     if enabled is not None:
         enabled = bool(enabled)
-        if enabled:
-            k = updates.get("WATCHDOG_KIND", settings_store.get("WATCHDOG_KIND") or "")
-            if k not in ("azure", "cron"):
-                return JSONResponse({"ok": False, "detail": "Erst eine Variante wählen."},
-                                    status_code=400)
-            if not settings_store.get("WATCHDOG_TOKEN_HASH"):
-                return JSONResponse({"ok": False, "detail": "Erst ein Heartbeat-Token erzeugen."},
-                                    status_code=400)
+        # Scharfstellen nur, wenn es überhaupt einen Wächter gibt — sonst liefe
+        # der Regelzustands-Check ins Leere. (Legacy-Token zählt als Wächter.)
+        if enabled and not (waechter_register.anzahl() > 0
+                            or settings_store.get("WATCHDOG_TOKEN_HASH")):
+            return JSONResponse({"ok": False, "detail": "Erst einen Wächter hinzufügen."},
+                                status_code=400)
         updates["WATCHDOG_ENABLED"] = enabled
 
     if updates:
@@ -138,16 +152,6 @@ async def watchdog_config(request: Request, user: str = Depends(_require_admin))
         "kind": settings_store.get("WATCHDOG_KIND") or "",
         "enabled": settings_store.get("WATCHDOG_ENABLED") is True,
     })
-
-
-@router.post("/api/watchdog/token/rotate")
-async def watchdog_token_rotate(user: str = Depends(_require_admin)):
-    """Neues Heartbeat-Token erzeugen — Klartext wird EINMALIG zurückgegeben,
-    gespeichert wird nur der PBKDF2-Hash."""
-    token = secrets.token_urlsafe(32)
-    settings_store.update({"WATCHDOG_TOKEN_HASH": _hash_password(token)})
-    log.info("Watchdog-Token rotiert von %s", user)
-    return JSONResponse({"ok": True, "token": token})
 
 
 @router.post("/api/watchdog/grant-role")
@@ -248,9 +252,25 @@ async def _run_deploy(upn: str, sub: str, rg: str, loc: str, app_name: str, crea
             _deploy.update(running=False, ok=False, msg=msg); return
 
         _step("Einstellungen")
+        # Eigenes Token je Wächter (NICHT mehr das globale rotieren — sonst sperrt
+        # ein zweiter Installer den ersten Wächter aus). Registrierung mit den
+        # Rückbau-Metadaten, damit das Gateway später GENAU das löschen kann.
         token_klar = secrets.token_urlsafe(32)
-        settings_store.update({"WATCHDOG_TOKEN_HASH": _hash_password(token_klar),
-                               "WATCHDOG_KIND": "azure"})
+        wid = waechter_register.neue_id()
+        waechter_register.registrieren(
+            id=wid,
+            name=f"Azure – {rg}/{app_name}",
+            kind="azure",
+            token_hash=_hash_password(token_klar),
+            azure={
+                "subscription": sub, "resource_group": rg, "app_name": app_name,
+                "location": loc, "storage": storage, "plan": f"{app_name}-plan",
+                "created_rg": bool(create_rg),
+                "principal_id": _deploy.get("principal_id", ""), "app_id": "",
+            },
+        )
+        _deploy["watcher_id"] = wid
+        settings_store.update({"WATCHDOG_KIND": "azure"})     # nur Anzeige; Aktivieren bleibt manuell
         health = _health_base_url()
         app_settings = {
             "GATEWAY_HEALTH_URL": (health + "/health") if health else "",
@@ -258,13 +278,15 @@ async def _run_deploy(upn: str, sub: str, rg: str, loc: str, app_name: str, crea
             "SIG_RULE_NAME": waechter_regel.regelname(),
             "FAIL_THRESHOLD": "3",
             "WATCHDOG_TOKEN": token_klar,
+            "WATCHDOG_ID": wid,
         }
         ok, msg = await wd.set_app_settings(sub, rg, app_name, app_settings, token)
         if not ok:
             _deploy.update(running=False, ok=False, msg=msg); return
 
         _deploy.update(running=False, ok=True, step="Fertig",
-                       msg="Function angelegt. Als Nächstes die Berechtigungen erteilen (unten).")
+                       msg="Function angelegt und als Wächter registriert. "
+                           "Als Nächstes die Berechtigungen erteilen (unten).")
     except Exception as exc:                                    # noqa: BLE001
         log.error("Watchdog-Deploy-Fehler: %s", exc)
         _deploy.update(running=False, ok=False, msg=str(exc))
@@ -301,7 +323,8 @@ async def watchdog_deploy_start(request: Request, user: str = Depends(_require_a
     if not keyvault_arm_ok(upn):
         return JSONResponse({"ok": False, "detail": "Kein Azure-Zugriff — erst per Azure-Login."},
                             status_code=400)
-    _deploy.update(running=True, ok=None, step="Start", msg="", principal_id="", host="", app=app_name)
+    _deploy.update(running=True, ok=None, step="Start", msg="",
+                   principal_id="", host="", app=app_name, watcher_id="")
     asyncio.create_task(_run_deploy(upn, sub, rg, loc, app_name, create_rg))
     log.info("Watchdog-Deploy gestartet von %s: %s/%s (%s)", user, rg, app_name, loc)
     return JSONResponse({"ok": True, "started": True})
@@ -315,4 +338,94 @@ def keyvault_arm_ok(upn: str) -> bool:
 @router.get("/api/watchdog/deploy/status")
 async def watchdog_deploy_status(user: str = Depends(_require_admin)):
     return JSONResponse({k: _deploy.get(k) for k in
-                         ("running", "step", "ok", "msg", "principal_id", "host", "app")})
+                         ("running", "step", "ok", "msg", "principal_id", "host", "app", "watcher_id")})
+
+
+# ── Rückbau: Wächter entfernen ────────────────────────────────────────────────
+
+@router.post("/api/watchdog/remove")
+async def watchdog_remove(request: Request, user: str = Depends(_require_admin)):
+    """Wächter entfernen. Azure: das Gateway löscht per ARM GENAU das, was es
+    angelegt hat (delegierter Login nötig). cron: aus dem Register nehmen und die
+    Entfern-Befehle für den Zweithost zurückgeben (der fremde Host bleibt uns
+    unerreichbar)."""
+    try:
+        body = json.loads(await request.body() or b"{}")
+    except Exception:                                          # noqa: BLE001
+        body = {}
+    wid = str(body.get("id") or "").strip()
+    eintrag = waechter_register.holen(wid)
+    if not eintrag:
+        return JSONResponse({"ok": False, "detail": "Wächter nicht gefunden."}, status_code=404)
+    kind = eintrag.get("kind")
+
+    if kind == "cron":
+        waechter_register.entfernen(wid)
+        log.info("Watchdog (cron) entfernt von %s: %s", user, wid)
+        return JSONResponse({"ok": True, "kind": "cron",
+            "hinweis": "Auf dem Wächter-Host ausführen, um ihn stillzulegen:",
+            "befehle": ("sudo systemctl disable --now exo-watchdog.timer\n"
+                        "sudo rm -f /etc/systemd/system/exo-watchdog.timer "
+                        "/etc/systemd/system/exo-watchdog.service\n"
+                        "sudo rm -rf /etc/exo-watchdog /opt/exo-watchdog\n"
+                        "sudo systemctl daemon-reload")})
+
+    # Azure: Ressourcen löschen, dann aus dem Register nehmen.
+    az = eintrag.get("azure") or {}
+    upn = _get_session_user(request) or ""
+    if not keyvault_arm_ok(upn):
+        return JSONResponse({"ok": False, "detail": "Kein Azure-Zugriff — erst per Azure-Login."},
+                            status_code=400)
+    if not az.get("subscription") or not az.get("resource_group") or not az.get("app_name"):
+        # Kein vollständiger Rückbau-Datensatz (z.B. migrierter Legacy-Wächter):
+        # nur aus dem Register nehmen, Azure-Ressourcen bleiben stehen.
+        waechter_register.entfernen(wid)
+        return JSONResponse({"ok": True, "kind": "azure", "nur_register": True,
+                             "detail": "Aus dem Register genommen. Azure-Ressourcen "
+                                       "waren nicht hinterlegt — dort ggf. manuell entfernen."})
+    import keyvault
+    import watchdog_deploy as wd
+    tok = keyvault.get_user_arm_token(upn)
+    ok, msg = await wd.delete_resources(
+        az["subscription"], az["resource_group"], az["app_name"],
+        az.get("storage", ""), az.get("plan", ""), bool(az.get("created_rg")), tok)
+    if not ok:
+        return JSONResponse({"ok": False, "detail": f"Azure-Löschen fehlgeschlagen: {msg}"},
+                            status_code=502)
+    waechter_register.entfernen(wid)
+    log.info("Watchdog (azure) entfernt von %s: %s (%s)", user, wid, az.get("app_name"))
+    return JSONResponse({"ok": True, "kind": "azure",
+                         "detail": "Function und angelegte Ressourcen entfernt. Verwaiste "
+                                   "Rollen-Zuweisungen der gelöschten Identität sind harmlos."})
+
+
+# ── cron-Wächter: Bundle zum Copy-Paste erzeugen ──────────────────────────────
+
+@router.post("/api/watchdog/cron/generate")
+async def watchdog_cron_generate(request: Request, user: str = Depends(_require_admin)):
+    """Registriert einen cron-Wächter (eigenes Token + Id) und gibt eine
+    vorbefüllte `watchdog.env` zum Copy-Paste zurück. AppId/Zertifikat der
+    Wächter-App trägt der Betreiber selbst nach (cert-basierte Anmeldung)."""
+    try:
+        body = json.loads(await request.body() or b"{}")
+    except Exception:                                          # noqa: BLE001
+        body = {}
+    name = (str(body.get("name") or "").strip() or "cron-Wächter")[:80]
+    token_klar = secrets.token_urlsafe(32)
+    wid = waechter_register.neue_id()
+    waechter_register.registrieren(id=wid, name=name, kind="cron",
+                                   token_hash=_hash_password(token_klar))
+    h = _config_hinweise()
+    env_text = (
+        "# /etc/exo-watchdog/watchdog.env  (chmod 600)\n"
+        f"GATEWAY_HEALTH_URL={h['health_url']}\n"
+        f"WATCHDOG_TOKEN={token_klar}\n"
+        f"WATCHDOG_ID={wid}\n"
+        f"EXO_ORGANIZATION={h['organization']}\n"
+        "WATCHDOG_APP_ID=<AppId deiner Wächter-App>\n"
+        "WATCHDOG_CERT_PATH=/etc/exo-watchdog/watchdog.pfx\n"
+        f"SIG_RULE_NAME={h['sig_rule_name']}\n"
+        "FAIL_THRESHOLD=3\n"
+    )
+    log.info("Watchdog (cron) registriert von %s: %s (%s)", user, wid, name)
+    return JSONResponse({"ok": True, "id": wid, "token": token_klar, "env": env_text})
