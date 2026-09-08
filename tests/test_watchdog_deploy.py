@@ -49,6 +49,42 @@ def test_build_function_zip_enthaelt_die_dateien(monkeypatch):
     assert {"host.json", "requirements.psd1", "Watchdog/function.json", "Watchdog/run.ps1"} <= names
 
 
+def test_provider_schon_registriert_kein_post(monkeypatch):
+    calls = []
+
+    async def arm(method, url, token, body=None, timeout=60):
+        calls.append((method, url))
+        if method == "get":
+            return _Resp(200, {"registrationState": "Registered"})
+        return _Resp(200)
+    monkeypatch.setattr(wd, "_arm", arm)
+    ok, msg = asyncio.run(wd.ensure_providers_registered("s", "tok"))
+    assert ok, msg
+    assert not any(m == "post" for m, _ in calls)        # nichts zu registrieren
+
+
+def test_provider_wird_registriert_und_gepollt(monkeypatch):
+    """Regression zum 409 'not registered to use namespace Microsoft.Storage':
+    nicht registriert → POST register, dann Poll bis 'Registered'."""
+    zustand = {"Microsoft.Storage": ["NotRegistered", "Registering", "Registered"],
+               "Microsoft.Web": ["Registered"]}
+    calls = []
+
+    async def arm(method, url, token, body=None, timeout=60):
+        ns = "Microsoft.Storage" if "Microsoft.Storage" in url else "Microsoft.Web"
+        calls.append((method, ns))
+        if method == "post":
+            return _Resp(202)
+        folge = zustand[ns]
+        wert = folge.pop(0) if len(folge) > 1 else folge[0]
+        return _Resp(200, {"registrationState": wert})
+    monkeypatch.setattr(wd, "_arm", arm)
+    ok, msg = asyncio.run(wd.ensure_providers_registered("s", "tok", delay=0))
+    assert ok, msg
+    assert ("post", "Microsoft.Storage") in calls        # Storage wurde registriert
+    assert ("post", "Microsoft.Web") not in calls        # Web war schon registriert
+
+
 def test_create_storage_sendet_body(monkeypatch):
     """Regression: der Storage-PUT muss den Rumpf (sku/kind/location) mitsenden."""
     arm = _fake_arm([

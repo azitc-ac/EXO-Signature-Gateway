@@ -234,6 +234,14 @@ async def _run_deploy(upn: str, sub: str, rg: str, loc: str, app_name: str, crea
             if not ok:
                 _deploy.update(running=False, ok=False, msg=msg); return
 
+        # Frische Subscriptions haben Microsoft.Storage/Microsoft.Web nicht
+        # registriert (ARM 409) — einmalig pro Abo nachholen, sonst scheitert
+        # das Anlegen von Storage/Function.
+        _step("Ressourcenanbieter")
+        ok, msg = await wd.ensure_providers_registered(sub, token)
+        if not ok:
+            _deploy.update(running=False, ok=False, msg=msg); return
+
         _step("Storage-Konto")
         ok, msg, conn = await wd.create_storage_account(sub, rg, storage, loc, token)
         if not ok:

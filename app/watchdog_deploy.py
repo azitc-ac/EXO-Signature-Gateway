@@ -66,6 +66,35 @@ async def _poll_provisioning(url: str, token: str, tries: int = 40, delay: float
     return False, "Timeout"
 
 
+async def ensure_providers_registered(sub: str, token: str,
+                                      namespaces: tuple[str, ...] = ("Microsoft.Storage", "Microsoft.Web"),
+                                      tries: int = 40, delay: float = 5) -> tuple[bool, str]:
+    """Ressourcenanbieter je Subscription registrieren, falls nötig.
+
+    Frische Subscriptions haben Microsoft.Storage/Microsoft.Web nicht registriert
+    (ARM 409 „not registered to use namespace"). Registrierung ist einmalig pro
+    Abo und asynchron — GET-Poll auf registrationState == 'Registered'."""
+    import asyncio
+    for ns in namespaces:
+        base = f"{_ARM}/subscriptions/{sub}/providers/{ns}?api-version=2021-04-01"
+        resp = await _arm("get", base, token, timeout=30)
+        state = (resp.json().get("registrationState", "") if resp.status_code == 200 else "")
+        if state == "Registered":
+            continue
+        reg = await _arm("post", f"{_ARM}/subscriptions/{sub}/providers/{ns}/register"
+                         "?api-version=2021-04-01", token, timeout=30)
+        if reg.status_code not in (200, 202):
+            return False, f"{ns} registrieren (HTTP {reg.status_code}): {_err(reg)}"
+        for _ in range(tries):
+            r = await _arm("get", base, token, timeout=30)
+            if r.status_code == 200 and r.json().get("registrationState") == "Registered":
+                break
+            await asyncio.sleep(delay)
+        else:
+            return False, f"{ns}: Registrierung nicht rechtzeitig abgeschlossen"
+    return True, "ok"
+
+
 async def create_storage_account(sub: str, rg: str, name: str, location: str,
                                  token: str) -> tuple[bool, str, str]:
     """Storage-Konto anlegen (Consumption-Function braucht eins) + Connection-String
