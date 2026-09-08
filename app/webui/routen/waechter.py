@@ -357,6 +357,24 @@ def keyvault_arm_ok(upn: str) -> bool:
     return bool(upn) and bool(keyvault.get_user_arm_token(upn))
 
 
+@router.post("/api/watchdog/rename")
+async def watchdog_rename(request: Request, user: str = Depends(_require_admin)):
+    """Anzeigename eines Wächters ändern (der Vorgabename bleibt sinnvoll, ist aber
+    überschreibbar — gilt für neue wie migrierte Wächter)."""
+    try:
+        body = json.loads(await request.body() or b"{}")
+    except Exception:                                          # noqa: BLE001
+        body = {}
+    wid = str(body.get("id") or "").strip()
+    name = str(body.get("name") or "").strip()
+    if not wid or not name:
+        return JSONResponse({"ok": False, "detail": "id und name nötig."}, status_code=400)
+    if not waechter_register.umbenennen(wid, name):
+        return JSONResponse({"ok": False, "detail": "Wächter nicht gefunden."}, status_code=404)
+    log.info("Watchdog umbenannt von %s: %s → %s", user, wid, name[:80])
+    return JSONResponse({"ok": True})
+
+
 @router.get("/api/watchdog/deploy/status")
 async def watchdog_deploy_status(user: str = Depends(_require_admin)):
     return JSONResponse({k: _deploy.get(k) for k in

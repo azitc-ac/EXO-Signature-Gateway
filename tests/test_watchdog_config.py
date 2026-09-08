@@ -267,6 +267,27 @@ def test_grant_role_per_watcher_id_ohne_appid_400(anlage):
     assert r.status_code == 400
 
 
+def test_rename_setzt_namen(anlage):
+    c, _ = anlage
+    import waechter_register
+    waechter_register.registrieren(id="wd_r", name="Alt", kind="azure", token_hash="h")
+    r = c.post("/api/watchdog/rename", json={"id": "wd_r", "name": "Mein Wächter"})
+    assert r.status_code == 200 and r.json()["ok"] is True
+    assert waechter_register.holen("wd_r")["name"] == "Mein Wächter"
+
+
+def test_rename_unbekannt_404(anlage):
+    c, _ = anlage
+    r = c.post("/api/watchdog/rename", json={"id": "gibtsnicht", "name": "X"})
+    assert r.status_code == 404
+
+
+def test_rename_leer_400(anlage):
+    c, _ = anlage
+    r = c.post("/api/watchdog/rename", json={"id": "wd_x", "name": "  "})
+    assert r.status_code == 400
+
+
 def test_start_grants_watcher_id_guards(anlage):
     c, _ = anlage
     import waechter_register
