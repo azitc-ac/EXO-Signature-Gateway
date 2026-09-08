@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.105 — 2026-09-08 — Bypass-Wächter: sichtbarer Zustand je Wächter, Popup-Fix, klarere Bedienung
+
+Die Wächter-Liste zeigte bei einem gesunden Wächter nur „vor 3 min" — man sah
+faktisch nichts. Jetzt steht je Wächter ein farbiger Zustand (**läuft · Gateway
+gesund** / **Gateway-Ausfall erkannt** / **Exchange nicht erreichbar** / **meldet
+sich nicht**) plus die Fakten: letzter Heartbeat, Ressourcengruppe, Region,
+Berechtigungsstand (**✓ berechtigt** / **Berechtigung offen**) und ein aktiver
+Bypass.
+
+- **Popup-Fix:** Der Knopf „Berechtigungen erteilen" öffnete das Azure-Login-
+  Fenster erst nach einem Netzwerkaufruf — dann greift der Popup-Blocker (vor
+  allem auf iOS-Safari), und scheinbar passierte nichts. Das Fenster wird jetzt
+  direkt beim Klick geöffnet; wird es doch blockiert, kommt ein klarer Hinweis.
+- **Klarere Bedienung:** Knopf heißt „Berechtigungen erteilen"; unter der Liste
+  erklärt ein kurzer Text, was „Berechtigungen erteilen" und „Entfernen" tun.
+- **Einheitlichere Namen:** neu angelegte Azure-Wächter heißen nach ihrer
+  Function (kurz); wo sie laufen (Ressourcengruppe/Region), zeigt die Liste.
+
 ## v1.8.104 — 2026-09-08 — Bypass-Wächter: Berechtigungen direkt am Wächter (statt freier ID-Felder)
 
 Die Berechtigungs-Schritte hingen bisher im „Wächter hinzufügen"-Bereich und

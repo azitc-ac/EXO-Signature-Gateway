@@ -281,7 +281,7 @@ async def _run_deploy(upn: str, sub: str, rg: str, loc: str, app_name: str, crea
         wid = waechter_register.neue_id()
         waechter_register.registrieren(
             id=wid,
-            name=f"Azure – {rg}/{app_name}",
+            name=app_name,                                   # kurz, wie in Azure — Details (RG/Region) zeigt die Liste
             kind="azure",
             token_hash=_hash_password(token_klar),
             azure={
