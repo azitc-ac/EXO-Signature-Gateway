@@ -33,17 +33,17 @@
     },
     "price-list": {
       "de": {
-        "path": "de/preisliste-v1.2.md",
+        "path": "de/preisliste-v1.3.md",
         "title": "Preisliste"
       },
-      "version": "1.2"
+      "version": "1.3"
     },
     "product-privacy": {
       "de": {
-        "path": "de/produkt-datenschutz-v1.0.md",
+        "path": "de/produkt-datenschutz-v1.1.md",
         "title": "Datenschutzerklärung (Gateway & Hub)"
       },
-      "version": "1.0"
+      "version": "1.1"
     }
   }
 }

@@ -1,6 +1,6 @@
 # Preisliste EXO Signature Gateway und EXO Signature Hub
 
-**Version 1.2 — Stand 28. Juli 2026**
+**Version 1.3 — Stand 9. September 2026**
 
 Alle Preise verstehen sich in Euro zuzüglich der gesetzlichen Umsatzsteuer und
 gelten gegenüber Unternehmern i.S.d. § 14 BGB.
@@ -9,6 +9,10 @@ gelten gegenüber Unternehmern i.S.d. § 14 BGB.
 
 ## Änderungen gegenüber früheren Fassungen
 
+- **1.3 (9. September 2026)** — Rechenbeispiel für das 101. Postfach korrigiert
+  (eine Lizenz, nicht zehn — es gibt keine Mindestabnahme). Individuelle
+  Konditionen bereits ab 250 Lizenzen auf Anfrage. Zertifikats-Richtpreise:
+  Verweis auf den Katalog (unter Vorbehalt) statt „siehe Hub".
 - **1.2 (28. Juli 2026)** — Abschnitt „Abrechnungsintervall für Lizenzen": Die
   Zahlungsweise lässt sich jederzeit ändern, nicht erst zum Ende des laufenden
   Abrechnungszeitraums. Der Wechsel wirkt sofort und wird taggenau angerechnet.
@@ -50,14 +54,14 @@ Beispiele:
 | Aktivierte Postfächer | Lizenzen | Monatlich | Jährlich bei Vorauszahlung |
 |---|---|---|---|
 | 100 | 0 | 0,00 € | 0,00 € |
-| 101 | 10 | 10,00 € | 108,00 € |
+| 101 | 1 | 1,00 € | 10,80 € |
 | 110 | 10 | 10,00 € | 108,00 € |
 | 125 | 25 | 25,00 € | 270,00 € |
 | 300 | 200 | 200,00 € | 2.160,00 € |
 | 500 | 400 | 400,00 € | 4.320,00 € |
 
-Für Umgebungen ab 1.000 aktivierten Postfächern gelten individuelle
-Konditionen auf Anfrage.
+Ab 250 Lizenzen (350 aktivierte Postfächer) sind individuelle Konditionen auf
+Anfrage möglich; die obige Staffel gilt als Listenpreis.
 
 ---
 
@@ -69,10 +73,12 @@ Bestellvorgang zu akzeptieren.
 
 | Produkt | Validierung | Laufzeit | Preis |
 |---|---|---|---|
-| Certum S/MIME | Mailbox-validiert | 1 Jahr | *siehe Hub* |
-| SwissSign S/MIME | Mailbox-validiert | 1 Jahr | *siehe Hub* |
+| Certum S/MIME | Mailbox-validiert | 1 Jahr | Richtpreis im Katalog (unter Vorbehalt) |
+| SwissSign S/MIME | Mailbox-validiert | 1 Jahr | Richtpreis im Katalog (unter Vorbehalt) |
 
-Die jeweils gültigen Zertifikatspreise werden im Hub ausgewiesen.
+Die Richtpreise (unter Vorbehalt) stehen im Zertifikats-Katalog des Gateways
+unter *Anbindung → Zertifikatsbezug*. Verbindlich werden sie, sobald die
+Anbindung der jeweiligen Zertifizierungsstelle abgeschlossen ist.
 
 ---
 

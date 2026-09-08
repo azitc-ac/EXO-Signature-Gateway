@@ -37,9 +37,9 @@ CURRENT_DOCUMENTS: dict[str, dict] = {
         "path_de": "de/zahlungsbedingungen-rechnung-v1.0.md",
     },
     "price-list": {
-        "version": "1.2",
+        "version": "1.3",
         "label_de": "Preisliste",
-        "path_de": "de/preisliste-v1.2.md",
+        "path_de": "de/preisliste-v1.3.md",
         "no_consent_required": True,
     },
     # Eine Datenschutzerklärung ist eine INFORMATION nach Art. 13/14 DSGVO, keine
@@ -47,9 +47,9 @@ CURRENT_DOCUMENTS: dict[str, dict] = {
     # no_consent_required: sie erscheint in der Dokumentenliste und ist lesbar,
     # taucht aber in keinem Consent-Gate auf.
     "product-privacy": {
-        "version": "1.0",
+        "version": "1.1",
         "label_de": "Datenschutzerklärung (Gateway & Hub)",
-        "path_de": "de/produkt-datenschutz-v1.0.md",
+        "path_de": "de/produkt-datenschutz-v1.1.md",
         "no_consent_required": True,
     },
     # Art. 28 Abs. 3 DSGVO verlangt, dass die Verarbeitung durch einen Vertrag
