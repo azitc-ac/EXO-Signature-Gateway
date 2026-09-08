@@ -16,15 +16,18 @@ pytest.importorskip("starlette.testclient", reason="httpx wird für TestClient b
 
 
 @pytest.fixture
-def anlage(monkeypatch):
+def anlage(monkeypatch, tmp_path):
     from starlette.testclient import TestClient
     from webui import app as wa
     from webui import deps
     import settings_store
+    import waechter_register
 
     werte = {"WATCHDOG_TOKEN_HASH": "", "WATCHDOG_KIND": "", "WATCHDOG_ENABLED": False}
     monkeypatch.setattr(settings_store, "get", lambda k, *a, **kw: werte.get(k))
     monkeypatch.setattr(settings_store, "update", lambda upd: werte.update(upd))
+    # Register isolieren, damit anzahl()/liste() im Test deterministisch sind.
+    monkeypatch.setattr(waechter_register, "PFAD", tmp_path / "watchdog_watchers.json")
     wa.app.dependency_overrides[deps._require_admin] = lambda: "tester"
     try:
         with TestClient(wa.app) as c:
@@ -47,36 +50,31 @@ def test_variante_speichern(anlage):
     assert werte["WATCHDOG_KIND"] == "azure"
 
 
-def test_aktivieren_ohne_variante_400(anlage):
+def test_aktivieren_ohne_waechter_400(anlage):
+    """Kein registrierter Wächter und kein Legacy-Token → Aktivieren abgelehnt."""
     c, werte = anlage
-    werte["WATCHDOG_TOKEN_HASH"] = "hash"        # Token da, aber keine Variante
     r = c.post("/api/watchdog/config", json={"enabled": True})
     assert r.status_code == 400
     assert werte["WATCHDOG_ENABLED"] is False
 
 
-def test_aktivieren_ohne_token_400(anlage):
+def test_aktivieren_mit_legacy_token_ok(anlage):
+    """Legacy-Token (vor dem Register) zählt weiterhin als Wächter."""
     c, werte = anlage
-    werte["WATCHDOG_KIND"] = "cron"              # Variante da, aber kein Token
-    r = c.post("/api/watchdog/config", json={"enabled": True})
-    assert r.status_code == 400
-    assert werte["WATCHDOG_ENABLED"] is False
-
-
-def test_aktivieren_mit_variante_und_token(anlage):
-    c, werte = anlage
-    werte["WATCHDOG_KIND"] = "azure"
     werte["WATCHDOG_TOKEN_HASH"] = "hash"
     r = c.post("/api/watchdog/config", json={"enabled": True})
     assert r.status_code == 200 and r.json()["enabled"] is True
     assert werte["WATCHDOG_ENABLED"] is True
 
 
-def test_variante_und_aktivieren_in_einem_aufruf(anlage):
-    """kind im selben Request zählt fürs Gate (nicht nur der gespeicherte Wert)."""
+def test_aktivieren_mit_registriertem_waechter_ok(anlage, monkeypatch):
+    """Ein registrierter Wächter genügt fürs Aktivieren — auch ohne Legacy-Token."""
     c, werte = anlage
-    werte["WATCHDOG_TOKEN_HASH"] = "hash"
-    r = c.post("/api/watchdog/config", json={"kind": "cron", "enabled": True})
+    import waechter_register
+    from webui import deps
+    waechter_register.registrieren(id="wd_x", name="X", kind="azure",
+                                   token_hash=deps._hash_password("t"))
+    r = c.post("/api/watchdog/config", json={"enabled": True})
     assert r.status_code == 200 and r.json()["enabled"] is True
 
 

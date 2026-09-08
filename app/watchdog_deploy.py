@@ -210,6 +210,36 @@ async def deploy_code(sub: str, rg: str, app: str, token: str,
     return True, "ok"
 
 
+async def delete_resources(sub: str, rg: str, app: str, storage: str, plan: str,
+                           created_rg: bool, token: str) -> tuple[bool, str]:
+    """Rückbau — löscht GENAU das, was der Installer angelegt hat.
+
+    ⚠️ Hat der Installer die Ressourcengruppe SELBST angelegt (`created_rg`), wird
+    sie ganz gelöscht (nimmt Storage/Plan/Site in einem Rutsch mit). Lag eine
+    BESTEHENDE RG vor, werden NUR die drei erzeugten Ressourcen einzeln entfernt —
+    niemals die fremde RG. Reihenfolge: Site vor Plan (der Plan lässt sich nicht
+    löschen, solange die Site ihn nutzt), dann Storage. 404 gilt als Erfolg
+    (schon weg). Löschungen laufen teils asynchron (202) — das genügt uns."""
+    base = f"{_ARM}/subscriptions/{sub}/resourceGroups/{rg}"
+    ok_codes = (200, 202, 204, 404)
+    if created_rg:
+        resp = await _arm("delete", f"{base}?api-version=2022-12-01", token, timeout=60)
+        if resp.status_code not in ok_codes:
+            return False, f"RG löschen (HTTP {resp.status_code}): {_err(resp)}"
+        return True, "ok"
+    fehler = []
+    ziele = [
+        ("Function", f"{base}/providers/Microsoft.Web/sites/{app}?api-version=2023-12-01"),
+        ("Plan", f"{base}/providers/Microsoft.Web/serverfarms/{plan}?api-version=2023-12-01"),
+        ("Storage", f"{base}/providers/Microsoft.Storage/storageAccounts/{storage}?api-version=2023-01-01"),
+    ]
+    for label, url in ziele:
+        resp = await _arm("delete", url, token, timeout=60)
+        if resp.status_code not in ok_codes:
+            fehler.append(f"{label} HTTP {resp.status_code}")
+    return (not fehler), ("ok" if not fehler else "; ".join(fehler))
+
+
 async def set_app_settings(sub: str, rg: str, app: str, settings: dict, token: str) -> tuple[bool, str]:
     """App-Einstellungen mischen (GET bestehende, aktualisieren, PUT)."""
     base = (f"{_ARM}/subscriptions/{sub}/resourceGroups/{rg}"

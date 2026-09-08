@@ -648,6 +648,15 @@ def main() -> None:
         langzeit_days=int(settings_store.get("KRYPTO_LOG_RETENTION_DAYS") or 730),
     )
 
+    # Bypass-Wächter: bestehenden Einzel-Wächter einmalig ins Mehrwächter-Register
+    # übernehmen (stört ihn nicht — sein Token bleibt gültig).
+    try:
+        import waechter_register
+        if waechter_register.migrieren_falls_noetig():
+            log.info("Watchdog: bestehender Wächter ins Register übernommen")
+    except Exception as exc:                                    # noqa: BLE001
+        log.warning("Watchdog-Register-Migration übersprungen: %s", exc)
+
     # Monatstabellen jenseits des Aufbewahrungsfensters verwerfen. Beim Start
     # statt nächtlich: Es fällt höchstens eine Tabelle im Monat an, und die
     # aktuelle wird bei jedem Schreibzugriff ohnehin selbst angelegt.

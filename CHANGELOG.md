@@ -5,6 +5,33 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.100 — 2026-09-08 — Bypass-Wächter: mehrere Wächter nebeneinander (Azure + cron), hinzufügen/entfernen aus der Oberfläche
+
+Bisher kannte das Gateway genau einen Wächter. Jetzt können **mehrere** parallel
+laufen — für Ausfallsicherheit (fällt ein Wächter aus, übernimmt der andere) und
+um Azure- und cron-Varianten zu mischen.
+
+- **Wächter-Liste** in der Oberfläche (Erweitert → Bypass-Wächter): „Aktuelle
+  Wächter: N" mit Art, letztem Heartbeat und Zustand je Wächter, dazu je Zeile
+  ein **Entfernen** und ein **Wächter hinzufügen**.
+- **Eigenes Heartbeat-Token je Wächter.** Ein zweiter Wächter sperrt den ersten
+  nicht mehr aus; jeder meldet sich getrennt (Zuordnung über eine Wächter-Id,
+  bestehende Wächter zusätzlich über das Token).
+- **Rückbau aus der Oberfläche.** Azure: das Gateway löscht per Azure-Login genau
+  die Ressourcen, die es angelegt hat (eine selbst angelegte Ressourcengruppe
+  ganz, sonst nur Function/Storage/Plan — eine bestehende Gruppe bleibt
+  unangetastet). cron: der Wächter wird aus der Liste genommen und die Befehle
+  zum Stilllegen des Zweithosts werden angezeigt.
+- **cron-Bundle-Generator.** Für die cron-Variante erzeugt das Gateway eine
+  vorbefüllte `watchdog.env` (mit eigenem Token und Id) zum Copy-Paste; AppId und
+  Zertifikat der Wächter-App trägt der Betreiber selbst nach.
+
+Ein bereits eingerichteter Wächter wird beim Update automatisch in die Liste
+übernommen und läuft unverändert weiter. Ein stiller Ausfall eines von mehreren
+Wächtern wird im Selbsttest sichtbar gemacht (nicht unter „läuft ja noch einer"
+verborgen). Ein zuvor separater Knopf zum Erzeugen eines einzelnen Tokens
+entfällt — Tokens gehören jetzt zum jeweiligen Wächter.
+
 ## v1.8.99 — 2026-09-08 — Übersicht: alte Zahlen nur klickbar mit Detaildaten; längere Aufbewahrung für Krypto/Fehler
 
 In der Übersicht überlebt die aggregierte Zahl (z. B. „1 verschlüsselte Mail im

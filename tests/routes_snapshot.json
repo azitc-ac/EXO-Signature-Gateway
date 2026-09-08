@@ -1568,6 +1568,13 @@
     "name": "watchdog_config"
   },
   {
+    "pfad": "/api/watchdog/cron/generate",
+    "methoden": [
+      "POST"
+    ],
+    "name": "watchdog_cron_generate"
+  },
+  {
     "pfad": "/api/watchdog/deploy/start",
     "methoden": [
       "POST"
@@ -1596,6 +1603,13 @@
     "name": "watchdog_heartbeat"
   },
   {
+    "pfad": "/api/watchdog/remove",
+    "methoden": [
+      "POST"
+    ],
+    "name": "watchdog_remove"
+  },
+  {
     "pfad": "/api/watchdog/start-grants",
     "methoden": [
       "GET"
@@ -1608,13 +1622,6 @@
       "GET"
     ],
     "name": "watchdog_status"
-  },
-  {
-    "pfad": "/api/watchdog/token/rotate",
-    "methoden": [
-      "POST"
-    ],
-    "name": "watchdog_token_rotate"
   },
   {
     "pfad": "/api/welcome/dismiss",

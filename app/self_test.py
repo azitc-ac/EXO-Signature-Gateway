@@ -400,22 +400,30 @@ def test_watchdog_heartbeat_recent() -> TestResult:
     name = "Bypass-Wächter meldet sich (letzte 5 min)"
     if settings_store.get("WATCHDOG_ENABLED") is not True:
         return TestResult(name, True, "Wächter nicht eingerichtet — Test übersprungen")
-    import config
-    import json
     from datetime import datetime, timezone
-    from pathlib import Path
-    try:
-        st = json.loads(
-            (Path(config.DATA_DIR) / "watchdog_state.json").read_text("utf-8"))
-        seen = datetime.strptime(st.get("last_seen", ""), "%Y-%m-%dT%H:%M:%SZ") \
-            .replace(tzinfo=timezone.utc)
-        alter = (datetime.now(timezone.utc) - seen).total_seconds()
-    except Exception:                                       # noqa: BLE001
-        return TestResult(name, False, "Kein Heartbeat empfangen — läuft der Wächter?")
-    if alter <= 300:
-        return TestResult(name, True, f"zuletzt vor {int(alter)} s gesehen ✓")
+    import waechter_register
+    watchers = waechter_register.liste()
+    if not watchers:
+        return TestResult(name, False, "Kein Wächter registriert — läuft der Wächter?")
+
+    def _alter(w) -> float | None:
+        try:
+            seen = datetime.strptime(w.get("last_seen", ""), "%Y-%m-%dT%H:%M:%SZ") \
+                .replace(tzinfo=timezone.utc)
+            return (datetime.now(timezone.utc) - seen).total_seconds()
+        except Exception:                                      # noqa: BLE001
+            return None
+
+    n = len(watchers)
+    still = [w.get("name") or w.get("id") for w in watchers
+             if (_alter(w) is None or _alter(w) > 300)]
+    if not still:
+        juengster = int(min(a for a in (_alter(w) for w in watchers) if a is not None))
+        return TestResult(name, True, f"{n} Wächter aktiv, jüngster vor {juengster} s ✓")
+    # Ein stiller Wächter unter mehreren ist ein Teilausfall — sichtbar machen,
+    # NICHT unter „läuft ja noch einer" verschwinden lassen.
     return TestResult(name, False,
-                      f"letzter Heartbeat vor {int(alter // 60)} min — Wächter tot?")
+                      f"{n} Wächter, still: {', '.join(still)} — läuft/laufen der/die?")
 
 
 _ALL_TESTS = [

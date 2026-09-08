@@ -23,6 +23,7 @@ $ErrorActionPreference = 'Stop'
 
 $healthUrl = $env:GATEWAY_HEALTH_URL
 $token     = $env:WATCHDOG_TOKEN
+$watcherId = $env:WATCHDOG_ID        # ordnet den Heartbeat im Mehrwächter-Register zu (optional)
 $org       = $env:EXO_ORGANIZATION
 $ruleName  = $env:SIG_RULE_NAME
 $threshold = [int]($env:FAIL_THRESHOLD); if ($threshold -lt 1) { $threshold = 3 }
@@ -35,6 +36,7 @@ if (-not $healthUrl -or -not $org -or -not $ruleName) {
 function Test-GatewayHealthy {
     $headers = @{}
     if ($token) { $headers["X-Watchdog-Token"] = $token }
+    if ($watcherId) { $headers["X-Watchdog-Id"] = $watcherId }
     for ($i = 0; $i -lt $threshold; $i++) {
         try {
             $r = Invoke-RestMethod -Uri $healthUrl -Headers $headers -TimeoutSec 10 -SkipCertificateCheck
@@ -55,8 +57,10 @@ function Send-Heartbeat([bool]$healthy, [bool]$bypassActive, [string]$exoError =
     try {
         $base = $healthUrl -replace '/health/?$', ''
         $body = @{ healthy = $healthy; bypass_active = $bypassActive; exo_error = $exoError } | ConvertTo-Json -Compress
+        $hbHeaders = @{ "X-Watchdog-Token" = $token }
+        if ($watcherId) { $hbHeaders["X-Watchdog-Id"] = $watcherId }
         Invoke-RestMethod -Uri "$base/api/watchdog/heartbeat" -Method Post `
-            -Headers @{ "X-Watchdog-Token" = $token } -ContentType "application/json" `
+            -Headers $hbHeaders -ContentType "application/json" `
             -Body $body -TimeoutSec 10 -SkipCertificateCheck | Out-Null
     } catch {
         Write-Host "Heartbeat fehlgeschlagen (unkritisch): $($_.Exception.Message)"
