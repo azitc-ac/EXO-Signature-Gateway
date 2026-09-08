@@ -311,21 +311,99 @@ def get_mail_hourly(date: str) -> list[dict]:
         return []
 
 
-def prune_old_events(retention_days: int = 90) -> int:
-    """Delete events older than *retention_days*. Returns the number of deleted rows."""
+# Kategorien, deren Detailzeilen laenger aufbewahrt werden als der uebrige,
+# hochvolumige Postverkehr — genau die, hinter denen man in der Uebersicht spaeter
+# noch nachsehen will: Krypto (S/MIME), Fehler/Abweisungen und die Warteschlange.
+# Reine HTML-Signatur ("signed") und Durchlaeufe zaehlen NICHT dazu (Massenware,
+# kurze Aufbewahrung). Diese Zeilen sind niedrigvolumig; sie lange zu halten kostet
+# fast nichts (grobe Schaetzung: 100 Krypto-Mails/Tag * ~200 B * 730 Tage ~= 15 MB).
+LANGZEIT_ACTIONS = (
+    "smime_encrypted", "smime_signed", "smime_decrypted",     # Krypto
+    "error", "fallback", "tenant_fremd", "relay_abgelehnt",   # Fehler/Abweisung
+    "held",                                                    # Warteschlange
+)
+
+
+def _cutoff_iso(days: int) -> str:
+    return (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def prune_old_events(retention_days: int = 90, langzeit_days: int | None = None) -> int:
+    """Alte Detailzeilen loeschen. Hochvolumige Zeilen (normale Signatur, Durchlauf)
+    nach *retention_days*; die verdichtungswuerdigen Kategorien (LANGZEIT_ACTIONS)
+    erst nach *langzeit_days* — damit die Klick-Liste hinter den Uebersichtszahlen
+    fuer genau diese Faelle lange erhalten bleibt. `langzeit_days=None` faellt auf
+    *retention_days* zurueck (altes Verhalten); nie kuerzer als *retention_days*.
+    Gibt die Zahl geloeschter Zeilen zurueck."""
     if not _initialised:
         return 0
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=retention_days)).strftime(
-        "%Y-%m-%dT%H:%M:%SZ"
-    )
+    langzeit_days = retention_days if langzeit_days is None else max(langzeit_days, retention_days)
+    cutoff = _cutoff_iso(retention_days)
+    lang_cutoff = _cutoff_iso(langzeit_days)
+    ph = ",".join("?" * len(LANGZEIT_ACTIONS))
     try:
         with _lock, _conn() as conn:
             deleted = conn.execute(
-                "DELETE FROM mail_log WHERE ts < ?", (cutoff,)
+                f"DELETE FROM mail_log WHERE ts < ? "
+                f"AND (action IS NULL OR action NOT IN ({ph}))",
+                (cutoff, *LANGZEIT_ACTIONS),
+            ).rowcount
+            deleted += conn.execute(
+                f"DELETE FROM mail_log WHERE ts < ? AND action IN ({ph})",
+                (lang_cutoff, *LANGZEIT_ACTIONS),
             ).rowcount
         if deleted:
-            log.info("mail_audit: pruned %d events older than %d days", deleted, retention_days)
+            log.info("mail_audit: pruned %d events (retention %d d, Langzeit %d d)",
+                     deleted, retention_days, langzeit_days)
         return deleted
     except Exception as exc:
         log.warning("mail_audit: prune failed: %s", exc)
         return 0
+
+
+def detail_zeitfenster() -> dict:
+    """Pro action-Wert das Fenster (min_ts, max_ts) der NOCH vorhandenen
+    Detailzeilen, plus "*" ueber alle. Grundlage fuer die Klickbarkeit der
+    Uebersichtszahlen: die aggregierte Zahl ueberlebt das Pruning, die Zeilen
+    dahinter nicht — also nur verlinken, wo noch Zeilen liegen."""
+    if not _initialised:
+        return {}
+    try:
+        with _conn() as conn:
+            rows = conn.execute(
+                "SELECT action, MIN(ts) AS mn, MAX(ts) AS mx FROM mail_log "
+                "WHERE ts IS NOT NULL GROUP BY action"
+            ).fetchall()
+        fenster: dict = {}
+        gmin = gmax = None
+        for r in rows:
+            if not r["mn"]:
+                continue
+            fenster[r["action"]] = (r["mn"], r["mx"])
+            gmin = r["mn"] if gmin is None or r["mn"] < gmin else gmin
+            gmax = r["mx"] if gmax is None or r["mx"] > gmax else gmax
+        if gmin:
+            fenster["*"] = (gmin, gmax)
+        return fenster
+    except Exception as exc:
+        log.warning("mail_audit: detail_zeitfenster failed: %s", exc)
+        return {}
+
+
+def zeitraum_hat_detail(fenster: dict, action: str, date_str: str) -> bool:
+    """Ueberlappt der Zeitraum (YYYY | YYYY-MM | YYYY-MM-DD) mit dem Fenster
+    vorhandener Detailzeilen fuer *action* ("*" = alle)? Reine Zeichenketten-
+    Vergleiche auf ISO-Zeitstempeln — lexikografisch = chronologisch."""
+    if not action:
+        return False
+    w = fenster.get("*" if action == "*" else action)
+    if not w:
+        return False
+    mn, mx = w
+    if len(date_str) == 4:          # Jahr
+        start, end = f"{date_str}-01-01", f"{date_str}-12-31T23:59:59Z"
+    elif len(date_str) == 7:        # Monat
+        start, end = f"{date_str}-01", f"{date_str}-31T23:59:59Z"
+    else:                           # Tag
+        start, end = date_str, f"{date_str}T23:59:59Z"
+    return mn <= end and mx >= start

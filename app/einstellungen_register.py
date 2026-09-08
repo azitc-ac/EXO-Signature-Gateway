@@ -133,6 +133,7 @@ REGISTER: dict[str, E] = {
     "LICENSE_KEY": E(art=GEHEIMNIS),
     "LOG_LEVEL": E(art=OPTION, ort="advanced.html"),
     "LOG_RETENTION_DAYS": E(art=OPTION, ort="advanced.html"),
+    "KRYPTO_LOG_RETENTION_DAYS": E(art=OPTION, ort="advanced.html"),
     "LOG_TIMEZONE": E(art=OPTION, ort="advanced.html"),
     "LOOP_HEADER": E(art=OPTION, ort="settings_signature.html"),
     "MAILBOX_CONFIG": E(art=STRUKTUR, ort="/api/addin/signature"),

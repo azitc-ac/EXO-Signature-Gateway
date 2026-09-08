@@ -644,7 +644,8 @@ def main() -> None:
     import mail_audit
     mail_audit.init_db()
     mail_audit.prune_old_events(
-        retention_days=int(settings_store.get("LOG_RETENTION_DAYS") or 90)
+        retention_days=int(settings_store.get("LOG_RETENTION_DAYS") or 90),
+        langzeit_days=int(settings_store.get("KRYPTO_LOG_RETENTION_DAYS") or 730),
     )
 
     # Monatstabellen jenseits des Aufbewahrungsfensters verwerfen. Beim Start

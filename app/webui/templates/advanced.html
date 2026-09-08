@@ -1175,6 +1175,13 @@ document.addEventListener('DOMContentLoaded', acmeMethodLoad);
       </div>
     </div>
     <div class="settings-row">
+      <label for="krypto-retention">Krypto/Fehler-Aufbewahrung (Tage)</label>
+      <div class="settings-control">
+        <input type="number" class="eng" id="krypto-retention" value="{{ s.KRYPTO_LOG_RETENTION_DAYS }}" min="1" max="3650" style="width:80px">
+        <span class="hint">Detailzeilen hinter den Übersichtszahlen für S/MIME, Fehler/Abweisungen und die Warteschlange — bleiben so lange nachschlagbar (verdichtet, wenige Zeilen)</span>
+      </div>
+    </div>
+    <div class="settings-row">
       <label for="log-timezone">Log-Zeitzone</label>
       <div class="settings-control">
         <select id="log-timezone">
@@ -1186,7 +1193,7 @@ document.addEventListener('DOMContentLoaded', acmeMethodLoad);
       </div>
     </div>
     <div class="actions" style="margin-top:8px">
-      <button class="btn secondary" id="logging-btn" data-wache-hinweis="logging-result" data-wache="log-level,log-retention,log-timezone" onclick="saveLogging()">Speichern</button>
+      <button class="btn secondary" id="logging-btn" data-wache-hinweis="logging-result" data-wache="log-level,log-retention,krypto-retention,log-timezone" onclick="saveLogging()">Speichern</button>
       <span id="logging-result" style="font-size:12px;margin-left:8px"></span>
     </div>
   </div>
@@ -1332,6 +1339,7 @@ async function saveLogging() {
   wacheFertig('logging-btn', await savePartial({
     LOG_LEVEL: document.getElementById('log-level').value,
     LOG_RETENTION_DAYS: parseInt(document.getElementById('log-retention').value, 10) || 30,
+    KRYPTO_LOG_RETENTION_DAYS: parseInt(document.getElementById('krypto-retention').value, 10) || 730,
     LOG_TIMEZONE: document.getElementById('log-timezone').value,
   }, 'logging-result', 'advanced:logging'));
 }
