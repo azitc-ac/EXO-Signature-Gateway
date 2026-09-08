@@ -1,6 +1,6 @@
 # Datenschutzerklärung für EXO Signature Gateway und EXO Signature Hub
 
-**Version 1.0 — Stand 25. Juli 2026**
+**Version 1.1 — Stand 9. September 2026**
 
 Diese Erklärung informiert nach Art. 13 und 14 DSGVO über die Verarbeitung
 personenbezogener Daten im Zusammenhang mit der Software **EXO Signature
@@ -57,7 +57,7 @@ Verbindet ein Kunde sein Gateway mit dem Hub, werden einmalig übermittelt und
 bei uns dauerhaft gespeichert:
 
 - E-Mail-Adresse des Kunden,
-- Name bzw. Firmenbezeichnung, soweit angegeben (optionales Feld),
+- Firmenbezeichnung (Pflichtangabe) sowie Name des Ansprechpartners, soweit angegeben,
 - Domain des Microsoft-365-Mandanten des Kunden,
 - Versionsnummer des Gateways zum Zeitpunkt der Anbindung,
 - ein einmalig gültiges technisches Token zur Abholung des Zugangsschlüssels,

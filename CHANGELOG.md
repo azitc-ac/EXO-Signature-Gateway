@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.108 — 2026-09-09 — Preisliste & Datenschutz: Korrekturen
+
+**Datenschutzerklärung → v1.1:** Die Angabe „Name bzw. Firmenbezeichnung, soweit
+angegeben (optionales Feld)" war überholt — bei der Anbindung ist die
+Firmenbezeichnung Pflicht, der Name des Ansprechpartners optional. Text
+entsprechend richtiggestellt (rein informativ, keine Zustimmung nötig).
+
+**Preisliste → v1.3:**
+- Rechenbeispiel für das 101. Postfach korrigiert: **eine** Lizenz (1,00 €/Monat
+  bzw. 10,80 € jährlich), nicht zehn — es gibt keine Mindestabnahme; die alte „10"
+  widersprach der tatsächlichen Berechnung (`Lizenzen = Postfächer − 100`).
+- Individuelle Konditionen bereits **ab 250 Lizenzen** auf Anfrage möglich (die
+  Staffel gilt als Listenpreis); zuvor erst ab 1.000 Postfächern.
+- Zertifikats-Richtpreise: Verweis auf den **Katalog** im Gateway (Anbindung →
+  Zertifikatsbezug, unter Vorbehalt) statt des nichtssagenden „siehe Hub";
+  verbindlich, sobald die Zertifizierungsstellen angebunden sind.
+
 ## v1.8.107 — 2026-09-09 — Bypass-Wächter: Wächter umbenennen
 
 Jeder Wächter lässt sich in der Liste über „Umbenennen" mit einem eigenen
