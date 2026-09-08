@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.103 — 2026-09-08 — Bypass-Wächter: Rollen-Skript brach an einer Ausgabemeldung ab
+
+Das Zuweisen der EXO-Rolle „Transport Rules" scheiterte mit
+`The property 'ServiceId' cannot be found on this object`. Das von
+`New-ServicePrincipal` zurückgegebene Objekt führt keine `ServiceId`-Eigenschaft;
+unter `Set-StrictMode` bricht ein solcher Zugriff hart ab — und zwar an einer
+reinen **Ausgabemeldung**, noch bevor die Rolle zugewiesen war. Der Zugriff
+entfällt; die Anlage des Service-Principals und die Rollenzuweisung laufen
+unverändert (idempotent). Der Service-Principal wird bei einem erneuten Lauf
+wiedererkannt, ein zuvor abgebrochener Versuch also sauber fortgesetzt.
+
 ## v1.8.102 — 2026-09-08 — Bypass-Wächter (Azure): verständliche Meldung bei fehlendem Y1-Kontingent
 
 Scheitert das Anlegen der Function am fehlenden Consumption-Kontingent (Azure:

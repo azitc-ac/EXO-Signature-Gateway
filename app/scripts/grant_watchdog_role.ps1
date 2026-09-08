@@ -29,12 +29,16 @@ Connect-ExchangeOnline -AppId $AppId -Certificate $cert -Organization $Organizat
 
 try {
     # ── EXO-Service-Principal fuer die Waechter-Identitaet sicherstellen ──
+    # Kein Zugriff auf $sp.ServiceId fuer die Ausgabe: die zurueckgegebenen
+    # ServicePrincipal-Objekte fuehren diese Eigenschaft nicht, und unter
+    # Set-StrictMode bricht ein solcher Zugriff das Skript ab, BEVOR die Rolle
+    # zugewiesen ist. Die IDs kennen wir ohnehin aus den Parametern.
     $sp = Get-ServicePrincipal -ErrorAction SilentlyContinue | Where-Object { $_.AppId -eq $WatchdogAppId }
     if (-not $sp) {
-        $sp = New-ServicePrincipal -AppId $WatchdogAppId -ObjectId $WatchdogObjectId -DisplayName $WatchdogName
-        Write-Output ("[OK] EXO-Service-Principal angelegt: " + $sp.ServiceId)
+        New-ServicePrincipal -AppId $WatchdogAppId -ObjectId $WatchdogObjectId -DisplayName $WatchdogName | Out-Null
+        Write-Output ("[OK] EXO-Service-Principal angelegt (AppId " + $WatchdogAppId + ").")
     } else {
-        Write-Output ("[OK] EXO-Service-Principal vorhanden: " + $sp.ServiceId)
+        Write-Output ("[OK] EXO-Service-Principal vorhanden (AppId " + $WatchdogAppId + ").")
     }
 
     # ── Rolle "Transport Rules" zuweisen (idempotent) ──
