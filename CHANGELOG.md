@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.101 — 2026-09-08 — Bypass-Wächter (Azure): Ressourcenanbieter auf frischem Abo automatisch registrieren
+
+Der Function-Installer scheiterte auf einer frischen Azure-Subscription mit
+`HTTP 409: The subscription is not registered to use namespace 'Microsoft.Storage'`.
+In Azure muss jeder Ressourcen-Typ pro Subscription einmalig registriert sein;
+auf neuen Abos sind `Microsoft.Storage` und `Microsoft.Web` das noch nicht.
+
+Der Installer holt das jetzt selbst nach: vor dem Anlegen von Storage/Function
+werden die benötigten Ressourcenanbieter geprüft und — falls nötig — registriert
+(die Registrierung ist asynchron; es wird bis „Registered" gewartet). Kein
+manueller Schritt im Portal mehr nötig.
+
 ## v1.8.100 — 2026-09-08 — Bypass-Wächter: mehrere Wächter nebeneinander (Azure + cron), hinzufügen/entfernen aus der Oberfläche
 
 Bisher kannte das Gateway genau einen Wächter. Jetzt können **mehrere** parallel
