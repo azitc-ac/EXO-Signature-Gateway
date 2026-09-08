@@ -307,6 +307,7 @@ function saveLexwareFix(enabled) {
     </div>
     <div id="wd-liste" style="font-size:13px;color:#78716c">— wird geladen … —</div>
     <div id="watchdog-status" style="font-size:12px;color:#78716c;margin-top:8px"></div>
+    <p class="hint" style="margin:8px 0 0"><strong>Berechtigungen erteilen</strong>: gibt dem Azure-Wächter per Azure-Login die nötigen Exchange-Rechte (bis „✓ berechtigt" steht — vorher meldet er „EXO: UnAuthorized"). <strong>Entfernen</strong>: baut den Wächter samt seiner Azure-Ressourcen ab. Öffnet ein Popup — falls nichts passiert, Popups für diese Seite erlauben.</p>
   </div>
 
   <label class="checkbox-label" style="font-weight:600 !important">
@@ -503,21 +504,31 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
   window.grantWatchdogGraph = async function(){
     var objid = (document.getElementById('wd-mi-objid').value || '').trim();
     if (!objid){ showMsg('wd-graph-result', 'MI Objekt-ID angeben.', false); return; }
-    var r = await fetch('/api/watchdog/start-grants?mi_object_id=' + encodeURIComponent(objid));
-    var d = await r.json().catch(function(){ return {}; });
-    if (!r.ok || !d.auth_url){ showMsg('wd-graph-result', 'Fehler: ' + (d.detail || r.status), false); return; }
+    // Fenster SYNCHRON im Klick öffnen — sonst blockiert es der Popup-Blocker
+    // (nach dem await ist die Klick-Geste vorbei, v.a. auf iOS-Safari).
+    var win = window.open('about:blank', 'wd-grants', 'width=520,height=700');
     showMsg('wd-graph-result', 'Azure-Login geöffnet — bitte im Popup anmelden …', true);
-    window.open(d.auth_url, 'wd-grants', 'width=520,height=700');
+    try {
+      var r = await fetch('/api/watchdog/start-grants?mi_object_id=' + encodeURIComponent(objid));
+      var d = await r.json().catch(function(){ return {}; });
+      if (!r.ok || !d.auth_url){ if (win) win.close(); showMsg('wd-graph-result', 'Fehler: ' + (d.detail || r.status), false); return; }
+      if (win) win.location.href = d.auth_url; else window.open(d.auth_url, 'wd-grants');
+    } catch(e){ if (win) win.close(); showMsg('wd-graph-result', 'Fehler: ' + e.message, false); }
   };
 
   // Per-Wächter (Azure): Objekt-ID kommt aus dem Register; nach den Graph-Grants
   // zieht der Message-Handler automatisch die EXO-Rolle nach. Keine freien Felder.
   window.wdGrant = async function(id){
+    // Fenster SYNCHRON öffnen (Popup-Blocker), DANN Ziel setzen.
+    var win = window.open('about:blank', 'wd-grants', 'width=520,height=700');
+    if (!win){ alert('Bitte Popups für diese Seite erlauben — der Azure-Login öffnet sich in einem Popup-Fenster.'); return; }
     _wdGrantWatcher = id;
-    var r = await fetch('/api/watchdog/start-grants?watcher_id=' + encodeURIComponent(id));
-    var d = await r.json().catch(function(){ return {}; });
-    if (!r.ok || !d.auth_url){ alert('Fehler: ' + (d.detail || r.status)); _wdGrantWatcher = null; return; }
-    window.open(d.auth_url, 'wd-grants', 'width=520,height=700');
+    try {
+      var r = await fetch('/api/watchdog/start-grants?watcher_id=' + encodeURIComponent(id));
+      var d = await r.json().catch(function(){ return {}; });
+      if (!r.ok || !d.auth_url){ win.close(); alert('Fehler: ' + (d.detail || r.status)); _wdGrantWatcher = null; return; }
+      win.location.href = d.auth_url;   // → Azure-Login; nach Erfolg zieht der Handler die EXO-Rolle nach
+    } catch(e){ win.close(); alert('Fehler: ' + e.message); _wdGrantWatcher = null; }
   };
 
   async function _wdRoleForWatcher(id){
@@ -706,6 +717,23 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
     return 'vor ' + Math.round(s / 86400) + ' Tagen';
   }
 
+  function _alterSek(iso){
+    if (!iso) return null;
+    var t = Date.parse(iso.replace(' ', 'T'));
+    return isNaN(t) ? null : Math.max(0, (Date.now() - t) / 1000);
+  }
+
+  // Ehrlicher Zustand eines Wächters aus dem, was er MELDET (Heartbeat-Alter,
+  // healthy, exo_error, bypass). Gibt {text, farbe} für die farbige Statuszeile.
+  function _wZustand(w){
+    var age = _alterSek(w.last_seen);
+    if (age === null)   return { text: 'eingerichtet — noch kein Heartbeat', farbe: '#78716c' };
+    if (age > 900)      return { text: 'meldet sich nicht (seit ' + _relativ(w.last_seen) + ') — läuft der Wächter?', farbe: '#dc2626' };
+    if (w.exo_error)    return { text: 'läuft, aber Exchange nicht erreichbar', farbe: '#b45309' };
+    if (!w.healthy)     return { text: 'läuft — Gateway-Ausfall erkannt (Bypass greift)', farbe: '#b45309' };
+    return { text: 'läuft · Gateway gesund', farbe: '#166534' };
+  }
+
   window.wdRemove = async function(id, kind){
     if (!confirm('Wächter „' + id + '" entfernen?' +
         (kind === 'azure' ? '\n\nDie Azure-Ressourcen (Function/Storage/Plan, ggf. Ressourcengruppe) werden gelöscht.' : ''))) return;
@@ -736,23 +764,33 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
         liste.innerHTML = '— noch keiner. Mit „Wächter hinzufügen" einrichten. —';
       } else {
         liste.innerHTML = watchers.map(function(w){
-          var teile = [ _relativ(w.last_seen) ];
-          if (w.bypass_active) teile.push('<span style="color:#b45309;font-weight:600">Bypass AKTIV</span>');
-          if (w.exo_error) teile.push('<span style="color:#dc2626">⚠ EXO: ' + esc(w.exo_error) + '</span>');
           var az = w.azure || {};
+          var z = _wZustand(w);
+          // Zeile 1: farbiger Zustand (das Wichtigste zuerst).
+          var status = '<span style="color:' + z.farbe + ';font-weight:600">● ' + esc(z.text) + '</span>';
+          // Zeile 2: konkrete Fakten — Heartbeat, Region, Berechtigung, Bypass, EXO-Fehlertext.
+          var fakten = [];
+          if (w.last_seen) fakten.push('Heartbeat ' + esc(_relativ(w.last_seen)));
+          if (az.resource_group) fakten.push('RG ' + esc(az.resource_group));
+          if (az.location) fakten.push(esc(az.location));
+          if (w.kind === 'azure' && (az.location || az.resource_group)) fakten.push(az.grants_done
+            ? '<span style="color:#166534">✓ berechtigt</span>'
+            : '<span style="color:#b45309">Berechtigung offen</span>');
+          else if (w.kind === 'azure') fakten.push('<span style="color:#94a3b8">vor dem Register angelegt — Herkunft unbekannt</span>');
+          if (w.bypass_active) fakten.push('<span style="color:#b45309;font-weight:600">Bypass AKTIV</span>');
+          if (w.exo_error) fakten.push('<span style="color:#dc2626">EXO: ' + esc(w.exo_error) + '</span>');
           var knoepfe = '';
-          // Azure-Wächter: Berechtigungen direkt am Wächter (IDs aus dem Register).
-          if (w.kind === 'azure' && az.principal_id){
-            knoepfe += az.grants_done
-              ? '<span style="font-size:12px;color:#166534;margin-right:8px">✓ berechtigt</span>'
-              : '<button class="btn secondary btn-sm" style="margin-right:6px" onclick="wdGrant(\'' + esc(w.id) + '\')">Berechtigungen</button>';
+          if (w.kind === 'azure' && az.principal_id && !az.grants_done){
+            knoepfe += '<button class="btn secondary btn-sm" style="margin-right:6px" onclick="wdGrant(\'' + esc(w.id) + '\')">Berechtigungen erteilen</button>';
           }
           knoepfe += '<button class="btn secondary btn-sm" onclick="wdRemove(\'' + esc(w.id) + '\',\'' + esc(w.kind) + '\')">Entfernen</button>';
-          return '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;'
-            + 'padding:7px 0;border-bottom:1px solid #f0f0f0">'
-            + '<div><strong>' + esc(w.name || w.id) + '</strong>'
+          return '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;'
+            + 'padding:9px 0;border-bottom:1px solid #f0f0f0">'
+            + '<div style="min-width:0"><strong>' + esc(w.name || w.id) + '</strong>'
             + ' <span style="color:#94a3b8">· ' + esc(art[w.kind] || w.kind || '') + '</span><br>'
-            + '<span style="font-size:12px;color:#78716c">' + teile.join(' · ') + '</span></div>'
+            + status
+            + (fakten.length ? '<br><span style="font-size:12px;color:#78716c">' + fakten.join(' · ') + '</span>' : '')
+            + '</div>'
             + '<div style="white-space:nowrap">' + knoepfe + '</div>'
             + '</div>';
         }).join('');
