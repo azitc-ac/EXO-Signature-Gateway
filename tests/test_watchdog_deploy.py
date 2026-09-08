@@ -85,6 +85,18 @@ def test_provider_wird_registriert_und_gepollt(monkeypatch):
     assert ("post", "Microsoft.Web") not in calls        # Web war schon registriert
 
 
+def test_function_app_quota_meldung_ist_sprechend(monkeypatch):
+    """Y1-Kontingent 0 (401) → actionable Meldung (Region/Kontingent/cron), nicht roh."""
+    body = {"error": {"message": "Operation cannot be completed without additional quota. "
+                                 "Current Limit (Y1 VMs): 0"}}
+    arm = _fake_arm([("put", "serverfarms/", _Resp(401, body))])
+    monkeypatch.setattr(wd, "_arm", arm)
+    ok, msg, info = asyncio.run(
+        wd.create_function_app("s", "rg", "app", "northeurope", "CONN", "7.6", "tok"))
+    assert not ok and info == {}
+    assert "Y1-Kontingent" in msg and "cron" in msg.lower()
+
+
 def test_create_storage_sendet_body(monkeypatch):
     """Regression: der Storage-PUT muss den Rumpf (sku/kind/location) mitsenden."""
     arm = _fake_arm([

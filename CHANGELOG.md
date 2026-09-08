@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.102 — 2026-09-08 — Bypass-Wächter (Azure): verständliche Meldung bei fehlendem Y1-Kontingent
+
+Scheitert das Anlegen der Function am fehlenden Consumption-Kontingent (Azure:
+„Current Limit (Y1 VMs): 0", HTTP 401), zeigt der Installer nun eine
+handlungsorientierte Meldung statt der rohen ARM-Antwort: andere Region wählen,
+Y1-Kontingent anfordern (Portal → Nutzung + Kontingente; bei Sponsorship-Abos per
+Support-Ticket) — oder die cron-Variante nutzen, die kein Azure-Kontingent
+braucht. Das Kontingent selbst lässt sich nicht per Code beschaffen; die Meldung
+weist den Weg.
+
 ## v1.8.101 — 2026-09-08 — Bypass-Wächter (Azure): Ressourcenanbieter auf frischem Abo automatisch registrieren
 
 Der Function-Installer scheiterte auf einer frischen Azure-Subscription mit
