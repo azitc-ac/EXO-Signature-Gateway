@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.110 — 2026-09-09 — Zertifikat-Katalog: Vorschau-Anbieter
+
+Der Anbieterkatalog kann Zertifizierungsstellen im Status **Vorschau** enthalten.
+Ein solcher Anbieter erscheint mit Preis und Beschreibung, ist aber **noch nicht
+bestellbar** und mit „Vorschau" gekennzeichnet — so wird ein kommender Bezugsweg
+samt Preis vorab sichtbar, bevor er freigegeben ist.
+
+Der Status kommt aus dem Katalog (Gegenstück zur Betreiber-Seite). Das Gateway
+zeigt den Preis, markiert den Anbieter in der Katalogübersicht und in der
+Backend-Bezeichnung als „Vorschau" und bietet ihn nicht zur Auswahl pro Postfach
+an (er erscheint als „noch nicht bestellbar"). Eine dennoch ausgelöste Bestellung
+wird abgelehnt, bevor ein Schlüssel erzeugt wird.
+
 ## v1.8.109 — 2026-09-09 — Rechtliche Dokumente: „ausstehend" verständlich gemacht
 
 Zustimmungspflichtige, aber an eine Aktion gebundene Rechtstexte

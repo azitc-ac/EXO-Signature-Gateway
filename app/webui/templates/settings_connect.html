@@ -1595,7 +1595,9 @@ async function certLoadCatalog() {
       return '<tr style="border-bottom:1px solid #f0f0f0;' + dim + '">'
         + '<td style="padding:5px 8px;text-align:center"><input type="checkbox" '
           + (on ? 'checked' : '') + ' onchange="certToggleProvider(\'' + esc(p.id) + '\', this.checked)"></td>'
-        + '<td style="padding:5px 8px;font-weight:600">' + esc(p.label || p.id) + '</td>'
+        + '<td style="padding:5px 8px;font-weight:600">' + esc(p.label || p.id)
+          + (p.preview ? ' <span style="background:#fef3c7;color:#92400e;font-weight:600;font-size:11px;padding:1px 6px;border-radius:6px;margin-left:4px">Vorschau</span>' : '')
+          + '</td>'
         + '<td style="padding:5px 8px;color:#666">' + esc(p.description || '') + '</td>'
         + '<td style="padding:5px 8px">' + (p.validity_months ? p.validity_months + ' Mon.' : '—') + '</td>'
         + '<td style="padding:5px 8px;text-align:right">' + price(p.price_cents) + '</td>'

@@ -32,7 +32,8 @@ class HubProviderBackend(CABackend):
             parts.append(f"{price}/Zertifikat zzgl. MwSt.")
         if months:
             parts.append(f"{months} Monate")
-        return " — ".join(parts) + " (über Hub)"
+        suffix = " (Vorschau — über Hub)" if self._p.get("preview") else " (über Hub)"
+        return " — ".join(parts) + suffix
 
     def can_auto_renew(self) -> bool:
         return True
@@ -45,6 +46,11 @@ class HubProviderBackend(CABackend):
         import hub_client
         if not hub_client.cert_is_registered():
             return "Cert-Provider-Hub nicht registriert/freigegeben (Erweitert-Tab)."
+        # Vorschau: der Hub liefert `available=false` an normale Konten (für das
+        # Betreiber-Konto `available=true`, dann ist der Anbieter ganz normal
+        # bestellbar). „preview & !available" ist also genau der Teaser-Fall.
+        if self._p.get("preview") and not self._p.get("available"):
+            return "Vorschau — Preis zur Info, noch nicht bestellbar."
         if not self._p.get("available"):
             return "Anbieter im Hub derzeit nicht verfügbar."
         return ""
@@ -78,6 +84,12 @@ veranlassen.</p>
         if not hub_client.cert_is_registered():
             raise RuntimeError(
                 "Cert-Provider-Hub nicht registriert/freigegeben (Erweitert-Tab).")
+        # Vorschau-Anbieter sind für normale Konten nicht bestellbar (der Hub gibt
+        # dann `available=false`). Defensiv hier abfangen — der Hub weist eine
+        # solche Bestellung ohnehin mit 403 ab, aber so entsteht gar nicht erst
+        # ein Schlüssel/CSR und die Meldung ist klar.
+        if self._p.get("preview") and not self._p.get("available"):
+            raise RuntimeError("Anbieter ist noch in Vorschau — noch nicht bestellbar.")
         provider_id = self._p.get("id", "")
         ca_terms_accepted_at = (extra or {}).get("ca_terms_accepted_at", "")
         key_pem, csr_pem = _generate_key_and_csr_pem(email)

@@ -91,6 +91,7 @@ def list_backends() -> list[dict]:
             "name": b.get_name(), "label": b.get_label(), "auto": True,
             "ready": b.is_ready(), "not_ready_reason": b.not_ready_reason(),
             "hub": True,
+            "preview": bool(p.get("preview")),
             "description": p.get("description", ""),
             "price_cents": p.get("price_cents"),
             "currency": hub_catalog.currency(),
