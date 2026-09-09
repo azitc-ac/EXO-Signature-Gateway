@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.112 — 2026-09-09 — Anbindung: Konto-/Rechnungsadresse lesbarer
+
+Kleinigkeiten an der Adressanzeige der Anbindung: „Kontoadresse" und „Rechnungen
+an" bekommen einen Doppelpunkt; lange Adressen stehen jetzt in kleinerer Schrift
+und brechen um, statt die Karte zu breit zu machen; der „Ändern…"-Knopf wird nicht
+mehr gequetscht. Geht die Rechnung an dieselbe Adresse wie das Konto, steht nur
+noch **„wie Konto"** statt der langen Adresse plus „(wie Konto)".
+
 ## v1.8.111 — 2026-09-09 — Zertifikats-Katalog: Vorschau-Anbieter werden angezeigt
 
 Ein als Vorschau markierter Anbieter (`preview`) tauchte in der Katalog-Liste des
