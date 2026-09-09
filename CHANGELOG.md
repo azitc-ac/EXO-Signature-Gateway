@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.111 — 2026-09-09 — Zertifikats-Katalog: Vorschau-Anbieter werden angezeigt
+
+Ein als Vorschau markierter Anbieter (`preview`) tauchte in der Katalog-Liste des
+Gateways („Verfügbare Zertifizierungsstellen") nicht auf: Der Filter verwarf alle
+Einträge mit `available=false` — und genau das sind Vorschau-Anbieter für
+Nicht-Betreiber. Sie sind aber bewusst **sichtbar** (Teaser mit Preis und
+„Vorschau"-Badge, das der Render bereits vorsah), nur nicht bestellbar (das gated
+der Hub). Der Filter berücksichtigt jetzt `preview`, sodass solche Anbieter
+erscheinen.
+
 ## v1.8.110 — 2026-09-09 — Zertifikat-Katalog: Vorschau-Anbieter
 
 Der Anbieterkatalog kann Zertifizierungsstellen im Status **Vorschau** enthalten.

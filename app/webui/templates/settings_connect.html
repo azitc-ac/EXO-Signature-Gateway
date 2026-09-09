@@ -1565,7 +1565,10 @@ function certKatalogStoerungZeigen(z) {
 async function certLoadCatalog() {
   try {
     const d = await getJSON('/api/cert/catalog');
-    const provs = (d.providers || []).filter(function(p){ return p.available !== false; });
+    // Vorschau-Anbieter haben für Nicht-Betreiber available=false, sind aber
+    // bewusst SICHTBAR (Teaser mit Preis + „Vorschau"-Badge) — nur nicht bestellbar
+    // (der Hub gated die Bestellung). Daher: available!=false ODER preview.
+    const provs = (d.providers || []).filter(function(p){ return p.available !== false || p.preview; });
     // Leere Liste ist zweideutig: „es gibt nichts" oder „Abruf gescheitert".
     // Bis 24.08.2026 verschwand die Box in beiden Fällen wortlos, und ein
     // gestörter Abruf sah aus wie eine Welt ohne Zertifizierungsstellen.
