@@ -770,6 +770,13 @@
     "name": "api_relay_liste"
   },
   {
+    "pfad": "/api/relay/stats",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_relay_stats"
+  },
+  {
     "pfad": "/api/restart",
     "methoden": [
       "POST"

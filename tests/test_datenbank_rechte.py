@@ -39,6 +39,7 @@ sys.path.insert(0, str(WURZEL / "app"))
 # kommt, wo `harden_file` steht.
 DATENBANKEN = [
     ("relay_hosts", "DB_PATH"),
+    ("relay_stats", "DB_PATH"),
     ("sig_thread", "DB_PATH"),
     ("mail_audit", "DB_PATH"),
     ("portal_store", "_DB_PATH"),

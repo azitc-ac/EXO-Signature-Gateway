@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.113 — 2026-09-09 — SMTP-Relay: Statistik (Volumen + Top-Absender/-Empfänger)
+
+Die Relay-Seite hat ein **Statistik-Panel**: über einen wählbaren Zeitraum
+(7/30/90/360 Tage) die Gesamtzahl der Mails, das **Volumen**, die Zahl aktiver
+Geräte sowie die **Top-Absender** und **Top-Empfänger** (je Anzahl und Volumen).
+Die Pro-Gerät-Zähler je Zeitfenster gab es bereits in der Geräteliste.
+
+Erfasst wird verdichtet pro Tag in einem **gateway-eigenen** Modul
+(`relay_stats`, eigene Datenbank) — bewusst getrennt von `relay_hosts`, das mit
+dem eigenständigen SMTP-Relay-Produkt byte-gleich gespiegelt ist. Nebenbei
+behoben: die vorhandene, aber nie aufgerufene Aufräumfunktion der Relay-Zähler
+läuft jetzt täglich (die Tageszähler wuchsen bisher unbegrenzt).
+
 ## v1.8.112 — 2026-09-09 — Anbindung: Konto-/Rechnungsadresse lesbarer
 
 Kleinigkeiten an der Adressanzeige der Anbindung: „Kontoadresse" und „Rechnungen

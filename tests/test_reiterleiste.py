@@ -115,10 +115,11 @@ def test_einstellungsseiten_sind_gleich_breit(vorlage):
 def test_relay_tabellen_nutzen_den_gemeinsamen_rollbereich():
     """Nicht neu implementieren, was es gibt — `.tabellen-rollbereich` ist da."""
     text = (VORLAGEN / "relay.html").read_text("utf-8")
-    assert text.count('class="tabellen-rollbereich"') == 2
+    # Vier Tabellen: Geräte, Abgewiesen, Top-Absender, Top-Empfänger (v1.8.113).
+    assert text.count('class="tabellen-rollbereich"') == 4
     assert "overflow-x:auto" not in text, (
         "Der Rollbereich ist mit Inline-CSS nachgebaut statt die vorhandene "
         "Klasse zu nutzen.")
-    assert text.count('class="config-table"') == 2, (
+    assert text.count('class="config-table"') == 4, (
         "Die Tabellen brauchen die gemeinsame Tabellenklasse — sonst fehlen "
         "Rahmen, Zeilentrenner und die Dark-Mode-Abdeckung.")

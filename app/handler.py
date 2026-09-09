@@ -424,6 +424,10 @@ class SignatureHandler:
             # Relay-Geraete ist STARTTLS seit v1.8.7 keine Pflicht mehr — ohne
             # diese Angabe waere nicht mehr erkennbar, wer im Klartext liefert.
             relay_hosts.merke_zustellung(peer_ip, tls=bool(getattr(session, "ssl", None)))
+            # Volumen + Top-Absender/-Empfänger in der gateway-eigenen Statistik
+            # (nicht in relay_hosts — das ist mit exo-smtp-relay gespiegelt).
+            import relay_stats
+            relay_stats.merke(peer_ip, absender=sender, empfaenger=recipients, bytes_=len(raw))
         wants_encryption = False  # tracked for fallback safety
         _t0 = time.monotonic()
 
