@@ -253,6 +253,8 @@ async def api_audit_events(
     date_to: str | None = None,
     action: str | None = None,
     sender: str | None = None,
+    nur_relay: bool = False,
+    relay_ip: str | None = None,
     limit: int = 200,
     offset: int = 0,
 ):
@@ -260,11 +262,12 @@ async def api_audit_events(
     import json as _json
     events = _audit_mod.query_events(
         date=date, date_from=date_from, date_to=date_to,
-        action=action, sender=sender,
+        action=action, sender=sender, nur_relay=nur_relay, relay_ip=relay_ip,
         limit=min(limit, 500), offset=offset,
     )
     total = _audit_mod.count_events(date=date, date_from=date_from, date_to=date_to,
-                                    action=action, sender=sender)
+                                    action=action, sender=sender,
+                                    nur_relay=nur_relay, relay_ip=relay_ip)
     for e in events:
         try:
             e["recipients"] = _json.loads(e["recipients"] or "[]")

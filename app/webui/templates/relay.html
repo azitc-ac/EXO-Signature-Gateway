@@ -159,7 +159,7 @@
 </div>
 
 <!-- ── Abgewiesen ────────────────────────────────────────────────────────── -->
-<div class="settings-card">
+<div class="settings-card" style="margin-bottom:20px">
   <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
     <h2 style="margin:0">Abgewiesen</h2>
     <span class="hint" id="abgewiesen-anzahl"></span>
@@ -181,6 +181,39 @@
       </thead>
       <tbody id="abgewiesen-body">
         <tr><td colspan="7" style="color:#888">Wird geladen …</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── Protokoll ─────────────────────────────────────────────────────────── -->
+<div class="settings-card">
+  <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+    <h2 style="margin:0">Protokoll</h2>
+    <span class="hint" id="proto-info"></span>
+    <span style="margin-left:auto;display:flex;gap:6px">
+      <button class="btn secondary btn-sm" id="proto-prev" onclick="protokollBlaettern(-1)" disabled>‹ neuer</button>
+      <button class="btn secondary btn-sm" id="proto-next" onclick="protokollBlaettern(1)" disabled>älter ›</button>
+    </span>
+  </div>
+  <p style="font-size:13px;color:#555;margin:10px 0 14px">
+    Nur die über das Relay eingelieferte Post — zum Nachschlagen, ob eine
+    Nachricht hinausging, an wen und wann, und wie das Gateway sie behandelt hat.
+    <em>Abgewiesen</em> steht für eine an der Geräte-, Absender- oder Zielgrenze
+    zurückgewiesene Einlieferung; der Grund steht dann in der Betreffspalte.
+    Das übrige Mail-Protokoll — auch der Exchange-Weg — liegt im
+    <a href="/dashboard">Dashboard</a>.
+  </p>
+  <div class="tabellen-rollbereich">
+    <table class="config-table" style="min-width:760px">
+      <thead>
+        <tr>
+          <th>Zeit</th><th>Quelle</th><th>Absender</th><th>An</th>
+          <th>Betreff</th><th>Aktion</th>
+        </tr>
+      </thead>
+      <tbody id="proto-body">
+        <tr><td colspan="6" style="color:#888">Wird geladen …</td></tr>
       </tbody>
     </table>
   </div>
@@ -487,8 +520,74 @@ async function statsLaden() {
   fuelle(document.getElementById('stats-empfaenger'), r.top_empfaenger || []);
 }
 
+// ── Protokoll (nur Relay) ─────────────────────────────────────────────────────
+const _PROTO_LABELS = {
+  signed: 'Signiert', smime_signed: 'S/MIME sign.', smime_encrypted: 'S/MIME enc.',
+  smime_decrypted: 'S/MIME dec.', auto_submitted: 'Auto-Submit', calendar: 'Kalender',
+  fallback: 'Fallback', error: 'Fehler', relay_abgelehnt: 'Abgewiesen',
+  internal_only_skip: 'Nur intern', held: 'Warteschlange', portal: 'Portal',
+  tenant_fremd: 'Fremder Tenant',
+};
+const _PROTO_COLORS = {
+  signed: '#1c1917', smime_signed: '#0369a1', smime_encrypted: '#0e7490',
+  smime_decrypted: '#0891b2', auto_submitted: '#78716c', calendar: '#78716c',
+  fallback: '#d97706', error: '#dc2626', relay_abgelehnt: '#dc2626',
+  internal_only_skip: '#78716c', held: '#d97706', portal: '#0369a1',
+  tenant_fremd: '#dc2626',
+};
+let _protoOffset = 0;
+const _PROTO_LIMIT = 100;
+
+async function protokollLaden() {
+  const r = await postJSONGet('/api/audit/events?nur_relay=1&limit=' + _PROTO_LIMIT
+                              + '&offset=' + _protoOffset);
+  const tb = document.getElementById('proto-body');
+  if (!r) { tb.innerHTML = '<tr><td colspan="6" style="color:#991b1b">Protokoll nicht abrufbar.</td></tr>'; return; }
+  const events = r.events || [];
+  const total = r.total || 0;
+  document.getElementById('proto-info').textContent =
+    total === 0 ? 'Keine Einträge'
+                : (_protoOffset + 1) + '–' + Math.min(_protoOffset + events.length, total)
+                  + ' von ' + total;
+  document.getElementById('proto-prev').disabled = _protoOffset === 0;
+  document.getElementById('proto-next').disabled =
+    _protoOffset + events.length >= total;
+  if (!events.length) {
+    tb.innerHTML = '<tr><td colspan="6" style="color:#888">Noch nichts über das '
+      + 'Relay eingeliefert.</td></tr>';
+    return;
+  }
+  tb.innerHTML = events.map(function (e) {
+    const rcpts = (e.recipients || []).join(', ');
+    const label = _PROTO_LABELS[e.action] || e.action || '';
+    const color = _PROTO_COLORS[e.action] || '#555';
+    // Bei Abweisungen steht der Grund (error) an der Stelle des Betreffs — dort
+    // gibt es ohnehin keinen, und es ist genau die Angabe, die man dann sucht.
+    const betreff = e.subject
+      ? esc(e.subject)
+      : (e.error ? '<span style="color:#dc2626">' + esc(e.error) + '</span>'
+                 : '<span style="color:#aaa">—</span>');
+    return '<tr>'
+      + '<td style="white-space:nowrap;font-size:12px;color:#78716c">' + esc(zeitKurz(e.ts)) + '</td>'
+      + '<td style="white-space:nowrap"><code>' + esc(e.relay_ip || '—') + '</code></td>'
+      + '<td style="font-size:12px;word-break:break-all">' + esc(e.sender || '—') + '</td>'
+      + '<td style="font-size:12px;word-break:break-all;color:#555">' + esc(rcpts || '—') + '</td>'
+      + '<td style="font-size:12px;max-width:260px;overflow:hidden;text-overflow:ellipsis;'
+        + 'white-space:nowrap" title="' + escAttr(e.subject || e.error || '') + '">' + betreff + '</td>'
+      + '<td style="white-space:nowrap"><span style="color:' + color + ';font-weight:600">'
+        + esc(label) + '</span></td>'
+      + '</tr>';
+  }).join('');
+}
+
+function protokollBlaettern(richtung) {
+  _protoOffset = Math.max(0, _protoOffset + richtung * _PROTO_LIMIT);
+  protokollLaden();
+}
+
 laden(false);
 statsLaden();
+protokollLaden();
 // Solange der Lernmodus läuft, kommen neue Geräte von selbst dazu — dann lohnt
 // ein Blick alle zehn Sekunden. Sonst wäre es unnötiger Verkehr.
 setInterval(function () {
