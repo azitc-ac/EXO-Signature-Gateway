@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.109 — 2026-09-09 — Rechtliche Dokumente: „ausstehend" verständlich gemacht
+
+Zustimmungspflichtige, aber an eine Aktion gebundene Rechtstexte
+(Zahlungsbedingungen Rechnungskauf, Auftragsverarbeitung/AVV, Lizenzbedingungen-
+Ergänzung) zeigten in der Dokumentenliste ein „ausstehend" — ohne Möglichkeit,
+sie dort zu akzeptieren, und ohne Hinweis. Das wirkte wie eine offene Pflicht,
+ist aber Absicht: Die Zustimmung entsteht **beim Auslösen der jeweiligen Aktion**
+(Antrag auf Rechnungskauf, Hochladen eines Diagnosepakets, Lizenzkauf) — genau
+dann, wenn das Dokument gilt. Die Liste zeigt jetzt **„nur bei Bedarf"** und eine
+Zeile „wird … akzeptiert" statt des irreführenden „ausstehend".
+
 ## v1.8.108 — 2026-09-09 — Preisliste & Datenschutz: Korrekturen
 
 **Datenschutzerklärung → v1.1:** Die Angabe „Name bzw. Firmenbezeichnung, soweit

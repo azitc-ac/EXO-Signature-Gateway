@@ -2099,24 +2099,31 @@ async function legalLoadStatus() {
     const d = await (await fetch('/api/legal/status')).json();
     if (!d.ok) return;
     _legalStatus = d.documents;
+    // `wann`: Rechtstexte mit Zustimmung werden NICHT hier, sondern beim Auslösen
+    // der jeweiligen Aktion akzeptiert (die Zustimmung IST die Handlung). Das
+    // erklärt der Hinweis, damit „nur bei Bedarf" nicht wie eine offene Pflicht wirkt.
     const docs = [
-      {id:'hub-terms', label:'Hub-Nutzungsbedingungen', consent: true},
-      {id:'license-supplement', label:'Lizenzbedingungen-Ergänzung', consent: true},
-      {id:'payment-invoice', label:'Zahlungsbedingungen (Rechnungskauf)', consent: true},
-      {id:'dpa', label:'Auftragsverarbeitungsvertrag (Diagnosepakete)', consent: true},
+      {id:'hub-terms', label:'Hub-Nutzungsbedingungen', consent: true, wann:'bei der Hub-Anbindung'},
+      {id:'license-supplement', label:'Lizenzbedingungen-Ergänzung', consent: true, wann:'beim Lizenzkauf'},
+      {id:'payment-invoice', label:'Zahlungsbedingungen (Rechnungskauf)', consent: true, wann:'beim Antrag auf Rechnungskauf'},
+      {id:'dpa', label:'Auftragsverarbeitungsvertrag (Diagnosepakete)', consent: true, wann:'beim Hochladen eines Diagnosepakets'},
       {id:'price-list', label:'Preisliste', consent: false},
       {id:'product-privacy', label:'Datenschutzerklärung (Gateway &amp; Hub)', consent: false},
     ];
     const list = document.getElementById('legal-doc-list');
     list.innerHTML = docs.map(function(doc) {
       const st = d.documents[doc.id] || {};
+      const pending = doc.consent && !st.accepted;
       const badge = !doc.consent
         ? '<span class="muted" style="font-size:11px">informativ</span>'
         : st.accepted
           ? '<span class="conn-badge conn-ok">✓ akzeptiert ' + (st.accepted_at ? st.accepted_at.slice(0,10) : '') + '</span>'
-          : '<span class="conn-badge conn-wait">ausstehend</span>';
+          : '<span class="muted" style="font-size:11px">nur bei Bedarf</span>';
+      const hint = (pending && doc.wann)
+        ? '<div class="hint" style="font-size:11px;margin-top:1px">wird ' + esc(doc.wann) + ' akzeptiert</div>'
+        : '';
       return '<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f0f0f0">'
-        + '<div style="flex:1;font-size:13px;font-weight:500">' + esc(st.title || doc.label) + ' <span class="muted" style="font-weight:400">v' + (st.version||'1.0') + '</span></div>'
+        + '<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500">' + esc(st.title || doc.label) + ' <span class="muted" style="font-weight:400">v' + (st.version||'1.0') + '</span></div>' + hint + '</div>'
         + badge
         + '<button class="btn secondary" style="padding:2px 9px;font-size:11px" onclick="legalViewDoc(\'' + doc.id + '\')">Lesen</button>'
         + '<button class="btn secondary" style="padding:2px 9px;font-size:11px" onclick="legalPrintDoc(\'' + doc.id + '\')">PDF</button>'
