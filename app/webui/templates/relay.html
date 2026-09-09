@@ -11,6 +11,40 @@
 
 <div id="relay-warnung" style="display:none;margin-bottom:16px"></div>
 
+<!-- ── Statistik ─────────────────────────────────────────────────────────── -->
+<div class="settings-card" style="margin-bottom:20px">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+    <h2 style="margin:0">Statistik</h2>
+    <select id="stats-zeitraum" onchange="statsLaden()" style="font-size:13px;padding:4px 8px">
+      <option value="7">letzte 7 Tage</option>
+      <option value="30" selected>letzte 30 Tage</option>
+      <option value="90">letzte 90 Tage</option>
+      <option value="360">letzte 360 Tage</option>
+    </select>
+  </div>
+  <div id="stats-gesamt" class="hint" style="font-size:13px;margin:8px 0 12px">Wird geladen …</div>
+  <div style="display:flex;gap:24px;flex-wrap:wrap">
+    <div style="flex:1;min-width:300px">
+      <h3 style="font-size:14px;margin:0 0 6px">Top-Absender</h3>
+      <div class="tabellen-rollbereich">
+        <table class="config-table" style="min-width:320px">
+          <thead><tr><th>Absender</th><th style="text-align:right">Mails</th><th style="text-align:right">Volumen</th></tr></thead>
+          <tbody id="stats-absender"><tr><td colspan="3" style="color:#888">—</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div style="flex:1;min-width:300px">
+      <h3 style="font-size:14px;margin:0 0 6px">Top-Empfänger</h3>
+      <div class="tabellen-rollbereich">
+        <table class="config-table" style="min-width:320px">
+          <thead><tr><th>Empfänger</th><th style="text-align:right">Mails</th><th style="text-align:right">Volumen</th></tr></thead>
+          <tbody id="stats-empfaenger"><tr><td colspan="3" style="color:#888">—</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ── Lernmodus ─────────────────────────────────────────────────────────── -->
 <div class="settings-card" style="margin-bottom:20px">
   <h2 style="margin-top:0">Lernmodus
@@ -426,7 +460,35 @@ async function lernStoppen(btn) {
   location.reload();
 }
 
+function _volumen(bytes) {
+  var b = bytes || 0;
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b / 1024).toFixed(1).replace('.', ',') + ' KB';
+  if (b < 1073741824) return (b / 1048576).toFixed(1).replace('.', ',') + ' MB';
+  return (b / 1073741824).toFixed(2).replace('.', ',') + ' GB';
+}
+
+async function statsLaden() {
+  const tage = document.getElementById('stats-zeitraum').value;
+  const r = await postJSONGet('/api/relay/stats?tage=' + encodeURIComponent(tage));
+  if (!r || !r.ok) return;
+  document.getElementById('stats-gesamt').textContent =
+    r.gesamt_anzahl + ' Mails · ' + _volumen(r.gesamt_bytes) + ' · '
+    + r.geraete + ' Gerät(e) im Zeitraum';
+  function fuelle(el, zeilen) {
+    if (!zeilen.length) { el.innerHTML = '<tr><td colspan="3" style="color:#888">Keine Daten im Zeitraum</td></tr>'; return; }
+    el.innerHTML = zeilen.map(function (z) {
+      return '<tr><td style="word-break:break-all">' + esc(z.name || '—') + '</td>'
+        + '<td style="text-align:right">' + z.anzahl + '</td>'
+        + '<td style="text-align:right">' + _volumen(z.bytes) + '</td></tr>';
+    }).join('');
+  }
+  fuelle(document.getElementById('stats-absender'), r.top_absender || []);
+  fuelle(document.getElementById('stats-empfaenger'), r.top_empfaenger || []);
+}
+
 laden(false);
+statsLaden();
 // Solange der Lernmodus läuft, kommen neue Geräte von selbst dazu — dann lohnt
 // ein Blick alle zehn Sekunden. Sonst wäre es unnötiger Verkehr.
 setInterval(function () {

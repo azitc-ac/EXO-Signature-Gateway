@@ -75,6 +75,15 @@ async def api_relay_liste(namen: int = 0, user: str = Depends(_require_admin)):
     })
 
 
+@router.get("/api/relay/stats")
+async def api_relay_stats(tage: int = 30, user: str = Depends(_require_admin)):
+    """Relay-Kennzahlen: Gesamt-Anzahl/-Volumen + Top-Absender/-Empfänger über
+    einen Zeitraum (7/30/90/360 Tage). Für das Statistik-Panel der Relay-Seite."""
+    import relay_stats
+    tage = tage if tage in (7, 30, 90, 360) else 30
+    return JSONResponse({"ok": True, **relay_stats.statistik(tage)})
+
+
 @router.post("/api/relay/geraet")
 async def api_relay_geraet(request: Request, user: str = Depends(_require_admin)):
     """Gerät anlegen oder ändern.

@@ -315,6 +315,17 @@ def _run_daily() -> None:
     except Exception as exc:
         log.warning("scheduler: portal cleanup failed: %s", exc)
 
+    # Relay-Zähler/-Aggregate jenseits der Aufbewahrung verwerfen. (relay_hosts
+    # brachte die Funktion mit, rief sie aber nie — hier vom gateway-eigenen
+    # Scheduler aus, ohne das gespiegelte Modul selbst anzufassen.)
+    try:
+        import relay_hosts
+        import relay_stats
+        relay_hosts.aufraeumen()
+        relay_stats.aufraeumen()
+    except Exception as exc:
+        log.warning("scheduler: relay cleanup failed: %s", exc)
+
     _wurzelspeicher_auffrischen()
     _crl_vorwaermen()
 
