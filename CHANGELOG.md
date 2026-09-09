@@ -5,6 +5,69 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.0 — 2026-09-10 — Release
+
+Sammelfassung der Arbeit seit v1.8.0 (24.08.2026) — 106 Einträge. Die einzelnen
+Änderungen stehen unverändert weiter unten; dieser Eintrag markiert nur den
+Stand, der als Release veröffentlicht wurde.
+
+**SMTP-Relay: Geräte und Anwendungen liefern über das Gateway ein.** Drucker,
+Scanner und Fachanwendungen im eigenen Netz können ihre E-Mails über das Gateway
+versenden, so wie über einen lokalen Exchange-Server — das nimmt einem
+Exchange-Umzug den häufigsten Blocker. Dazu gehören eine Geräteliste mit Zählern,
+ein zeitlich befristeter Lernmodus, der neu einliefernde Geräte selbst einträgt,
+eine Abweisungsliste, die zeigt woran eine Einlieferung real scheitert, eine
+Statistik (Volumen, Top-Absender und -Empfänger je Zeitraum) und ein eigenes
+Protokoll ausschließlich der Relay-Post. Für ältere Geräte ist STARTTLS keine
+Pflicht; zur Verbindung mit Exchange bleibt TLS zwingend. Nur Geräte aus der
+Liste dürfen einliefern, und nur im Modus „SMTP Port 25".
+
+**Ausfall-Wächter: eine unabhängige Instanz überwacht den Mailfluss.** Ein oder
+mehrere Wächter — als Azure Function oder als cron-Job auf einem Zweithost —
+laufen getrennt vom Gateway, senden einen Heartbeat und schlagen in der Übersicht
+Alarm, wenn das Gateway nicht mehr erreichbar oder handlungsunfähig ist. Der
+Heartbeat kommt auch dann, wenn Exchange einen Fehler meldet, damit ein solcher
+Zustand sichtbar wird statt still zu bleiben. Wächter lassen sich in der
+Oberfläche hinzufügen, umbenennen und zurückbauen; der Azure-Installer legt die
+Function samt Berechtigungen an und meldet fehlende Voraussetzungen verständlich
+(Ressourcenanbieter, Kontingent). Die Berechtigungen werden least-privilege
+vergeben.
+
+**Zustellung geht nicht mehr verloren.** Unzustellbare Post landet in einer
+Warteschlange statt verworfen zu werden, wird nach Exchange-Kadenz automatisch
+erneut zugestellt und ist auch außerhalb des Wartungsmodus einsehbar. Beim
+SMTP-Reinject werden veraltete DKIM-/ARC-Signaturen entfernt, die sonst die
+Zustellbarkeit beschädigen.
+
+**Ausfallsicheres Transportregel-Gate.** Die Transportregel, die Post ins Gateway
+lenkt, wird jetzt deaktiviert angelegt und ihr Absender-Gate (`FromMemberOf`)
+nie geleert — eine leere Bedingung hätte die Regel für *alle* internen Absender
+geöffnet und den gesamten Mailverkehr durchs Gateway gezwungen. Die Regel wird
+nach Mitgliederzahl aktiviert oder deaktiviert. Zusätzlich gibt es ein Werkzeug
+zum Soll-Abgleich der Tenant-Konfiguration.
+
+**Least Privilege und Web-Härtung.** Der App-Zugriff auf Postfächer läuft über
+eine automatisch gepflegte Zugriffsgruppe und wahlweise über RBAC for
+Applications; IMAP-Zugriff besteht nur noch für aktive Postfächer. Die Web-UI
+bekam Sicherheits-Header, Herkunftsprüfung und eine Anmeldebremse; die
+Weiterleitung von Post fremder Tenants wurde unterbunden, das Rollen-Kopffeld und
+der ACME-Pfad gehärtet. Neu dokumentiert: `SECURITY.md` (Meldeweg),
+`THREAT_MODEL.md` (Vertrauensgrenzen) und eine Prüfsumme für das
+PowerShell-Paket.
+
+**Rechtstexte, Dokumentation, Repository.** Die Rechtstexte sind nur noch
+deutsch, mit korrigierter Preisliste und Datenschutzerklärung, richtiger
+Überschrift, aus dem Dokument abgeleitetem Titel und PDF-Download. Das Repository
+heißt jetzt **EXO-Signature-Gateway**; README und Funktionsüberblick wurden
+überarbeitet und um den On-Prem-Betrieb ergänzt.
+
+**Oberfläche vereinheitlicht.** Das Speichern folgt einer Linie (ein Feld gehört
+zu genau einem überwachten Knopf, Rückmeldung am Ort der Handlung), die
+Einstellungszeilen einer Regel statt vieler Einzelfälle; Tabellen und Seiten sind
+auf dem Telefon bedienbar, S/MIME und Signatur je Rubrik in einer Karte
+zusammengefasst. Ein Prüfer schlägt jetzt bei erfundenen CSS-Klassen und bei
+Farben ohne Dunkelmodus-Abdeckung an.
+
 ## v1.8.114 — 2026-09-10 — SMTP-Relay: eigenes Protokoll
 
 Die Relay-Seite hat ein **Protokoll**, das ausschließlich die über das SMTP-Relay
