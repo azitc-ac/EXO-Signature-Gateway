@@ -402,7 +402,8 @@ class SignatureHandler:
                 try:
                     mail_audit.log_event(
                         sender=sender, recipients=recipients, subject="",
-                        message_id="", action="relay_abgelehnt", error=grund)
+                        message_id="", action="relay_abgelehnt", error=grund,
+                        relay_ip=peer_ip)
                 except Exception:                       # noqa: BLE001
                     pass                                # Protokoll darf Post nie aufhalten
                 # Auch hier merken: Ein EINGETRAGENES Geraet, das an der
@@ -430,6 +431,12 @@ class SignatureHandler:
             relay_stats.merke(peer_ip, absender=sender, empfaenger=recipients, bytes_=len(raw))
         wants_encryption = False  # tracked for fallback safety
         _t0 = time.monotonic()
+        # Quelle einer per SMTP-Relay eingelieferten Nachricht — leer bei Post,
+        # die auf dem regulaeren Exchange-Weg kommt. Damit wird jede Audit-Zeile
+        # als Relay-Zeile erkennbar; die relay-fokussierte Protokollansicht filtert
+        # genau darauf. (Kommt spaeter eine SMTP-AUTH-Identitaet dazu, tritt sie
+        # neben die IP — beides ist je nach Auth-Stufe die aussagekraeftige Groesse.)
+        _relay_quelle = peer_ip if aus_relay_netz else ""
 
         def _audit(action: str, *, subject: str = "", error: str | None = None) -> None:
             try:
@@ -442,6 +449,7 @@ class SignatureHandler:
                     size_bytes=len(raw),
                     processing_ms=int((time.monotonic() - _t0) * 1000),
                     error=error,
+                    relay_ip=_relay_quelle,
                 )
             except Exception as exc:
                 log.warning("mail_audit: _audit(%s) failed — dashboard/stats counter "

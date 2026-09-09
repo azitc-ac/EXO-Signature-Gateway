@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.8.114 — 2026-09-10 — SMTP-Relay: eigenes Protokoll
+
+Die Relay-Seite hat ein **Protokoll**, das ausschließlich die über das SMTP-Relay
+eingelieferte Post zeigt — zum Nachschlagen, ob eine Nachricht hinausging, an wen
+und wann, und wie das Gateway sie behandelt hat (signiert, S/MIME, Durchlauf,
+Fehler, abgewiesen). Bei einer abgewiesenen Einlieferung steht der Grund an der
+Stelle des Betreffs. Jede Zeile nennt die **Quelle** (die einliefernde Adresse);
+das übrige Mail-Protokoll samt Exchange-Weg bleibt im Dashboard.
+
+Technisch trägt dazu jede Protokollzeile die Relay-Quelle (`relay_ip`), leer bei
+Post auf dem regulären Exchange-Weg. Bestehende Protokoll-Datenbanken bekommen die
+Spalte beim Start automatisch. Der Protokoll-Endpunkt filtert darauf
+(`nur_relay`), gestützt auf einen eigenen Index.
+
 ## v1.8.113 — 2026-09-09 — SMTP-Relay: Statistik (Volumen + Top-Absender/-Empfänger)
 
 Die Relay-Seite hat ein **Statistik-Panel**: über einen wählbaren Zeitraum
