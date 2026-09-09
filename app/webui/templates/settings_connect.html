@@ -29,9 +29,9 @@
        sichtbar und lässt sich hier ändern, statt nur beim Anbieter. -->
   <div style="border-top:1px solid #e5e7eb;margin-top:12px;padding-top:12px">
     <div class="settings-row" style="margin-bottom:6px;align-items:baseline">
-      <label style="margin:0">Kontoadresse</label>
-      <span id="hub-konto-mail" style="font-weight:600"></span>
-      <button class="btn secondary" style="margin-left:10px" onclick="kontoWechselOeffnen()">Ändern…</button>
+      <label style="margin:0">Kontoadresse:</label>
+      <span id="hub-konto-mail" style="font-weight:600;font-size:13px;word-break:break-all"></span>
+      <button class="btn secondary" style="margin-left:10px;flex-shrink:0" onclick="kontoWechselOeffnen()">Ändern…</button>
     </div>
     <p class="hint" style="margin:0;font-size:12px">
       Hierhin gehen Mitteilungen zu Zertifikaten, Nutzungsbedingungen und Sperren —
@@ -42,9 +42,9 @@
     <!-- Rechnungsadresse: getrennt, weil Buchhaltung und Betrieb selten dasselbe
          Postfach lesen. Leer = alles geht an die Kontoadresse. -->
     <div class="settings-row" style="margin:12px 0 6px;align-items:baseline">
-      <label style="margin:0">Rechnungen an</label>
-      <span id="hub-rech-mail" style="font-weight:600"></span>
-      <button class="btn secondary" style="margin-left:10px" onclick="rechAdresseOeffnen()">Ändern…</button>
+      <label style="margin:0">Rechnungen an:</label>
+      <span id="hub-rech-mail" style="font-weight:600;font-size:13px;word-break:break-all"></span>
+      <button class="btn secondary" style="margin-left:10px;flex-shrink:0" onclick="rechAdresseOeffnen()">Ändern…</button>
     </div>
     <p class="hint" style="margin:0;font-size:12px">
       Nur Rechnungen, Gutschriften und Erstattungen. Ohne eigenen Eintrag gehen
@@ -908,7 +908,7 @@ async function kontoAdresseLaden(){
       const r=document.getElementById('hub-rech-mail');
       // Ohne eigenen Eintrag ausdruecklich benennen, wohin Rechnungen gehen —
       // ein leeres Feld liesse offen, ob sie irgendwo landen.
-      if(r) r.textContent = d.billing_email || (d.email+'  (wie Konto)');
+      if(r) r.textContent = d.billing_email || 'wie Konto';
       offeneAenderungAnzeigen(d.pending);
       return;
     }
