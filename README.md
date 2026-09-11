@@ -142,7 +142,7 @@ Nur in einem spezifischen Fall: Ein externer Absender schickt eine S/MIME-versch
 Zusätzlich zu den Standard-Berechtigungen:
 
 1. **Entra-Portal**: App → API-Berechtigungen → Office 365 Exchange Online → `IMAP.AccessAsApp` → Admin-Zustimmung
-2. **Setup-Wizard** → Schritt "IMAP-Zugriff einrichten" (registriert Service Principal in EXO + setzt `FullAccess` auf alle Postfächer)
+2. **Setup-Wizard** → Schritt "IMAP-Zugriff einrichten" (registriert Service Principal in EXO + setzt `FullAccess` **nur auf die aktiven Postfächer** — die in `MAILBOX_CONFIG` aktivierten, nicht tenantweit auf alle; Least Privilege). Nach dem Aktivieren weiterer Postfächer den Schritt erneut ausführen, damit auch sie den Zugriff erhalten.
 
 ---
 
@@ -242,6 +242,7 @@ und Zertifikat überstehen das Update. (Alternativ per Web-UI: *Update & Backup*
 | `Mail.ReadWrite.All` | ✓* | Gesendete Elemente patchen; schließt `Mail.Read.All` ein |
 | `Exchange.ManageAsApp` | ✓ | EXO PowerShell (Connector/DG-Setup via Wizard) |
 | `IMAP.AccessAsApp` | IMAP-Modus | IMAP APPEND in Empfänger-Postfächer (kein Draft) |
+| `SMTP.SendAsApp` | Port 587 (optional) | SMTP-Einlieferung als Absender für bifurkierte Mails (gemischte interne/externe Empfänger in `graph`/`imap`) |
 
 *\* Schließt `Mail.Read.All` ein (für CASTLE ACME Mailbox-Polling benötigt).*
 
