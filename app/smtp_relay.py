@@ -248,7 +248,7 @@ def pruefe(absender: str, empfaenger: list[str], ip: str) -> tuple[bool, str, st
     # unveraendert weiter. Die Oberflaeche bietet das Relay deshalb nur im
     # Modus `smtp` an — durchgesetzt wird es hier, weil der Modus danach noch
     # umgestellt werden kann.
-    modus = settings_store.reinject_mode()
+    modus = (settings_store.get("REINJECT_MODE") or "smtp").strip()
     if modus != "smtp":
         return (False,
                 f"Relay von {ip} abgelehnt — der Rückweg steht auf {modus!r}; "
