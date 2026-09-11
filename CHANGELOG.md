@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.1 — 2026-09-11 — README: IMAP-Berechtigungen auf Least-Privilege-Stand
+
+Die README-Beschreibung der IMAP-Einrichtung war veraltet: Sie nannte `FullAccess`
+„auf alle Postfächer". Tatsächlich setzt der Schritt „IMAP-Zugriff einrichten" den
+Grant nur auf die **aktiven** (in `MAILBOX_CONFIG` aktivierten) Postfächer — Least
+Privilege, nicht tenantweit. Ergänzt um den Hinweis, den Schritt nach dem Aktivieren
+weiterer Postfächer erneut auszuführen.
+
+Zusätzlich `SMTP.SendAsApp` in die Berechtigungsübersicht aufgenommen (bislang nur im
+Abschnitt zum Port-587-Sonderweg erwähnt): Einlieferung als Absender für bifurkierte
+Mails mit gemischten internen/externen Empfängern in den Modi `graph`/`imap`.
+
 ## v1.9.0 — 2026-09-10 — Release
 
 Sammelfassung der Arbeit seit v1.8.0 (24.08.2026) — 106 Einträge. Die einzelnen
