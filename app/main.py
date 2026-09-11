@@ -161,9 +161,18 @@ def _submission_authenticator(server, session, envelope, mechanism, auth_data):
         return AuthResult(success=False, handled=False)
     if not isinstance(auth_data, LoginPassword):
         return AuthResult(success=False, handled=False)
+    # Quell-IP der Anmeldung für die Anmelde-Bremse (Brute-Force-Schutz je IP).
+    quelle = ""
+    try:
+        peer = getattr(session, "peer", None)
+        if peer:
+            quelle = peer[0]
+    except Exception:                                         # noqa: BLE001
+        pass
     try:
         import sende_identitaeten
-        ident = sende_identitaeten.pruefe_login(auth_data.login, auth_data.password)
+        ident = sende_identitaeten.pruefe_login(
+            auth_data.login, auth_data.password, quelle)
     except Exception as exc:                                  # noqa: BLE001
         log.warning("Submission-Auth: Prüfung fehlgeschlagen: %s", exc)
         return AuthResult(success=False, handled=False)

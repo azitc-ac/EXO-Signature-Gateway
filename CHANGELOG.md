@@ -5,6 +5,38 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.4 — 2026-09-12 — Sende-Identitäten: intern/extern je Identität, Absenderschutz, Anmelde-Bremse
+
+Die Sende-Identitäten (Login-Einlieferung über Port 587) bekommen dieselben
+Grenzen, die ein Port-25-Relay-Gerät schon hat — durchgesetzt im Gateway, nicht
+nur in der Oberfläche.
+
+- **Ziel intern (Vorgabe) oder auch extern — je Identität.** Neuer Schalter
+  *auch extern senden* in der Liste und im Anlegen-Formular. Ohne den Haken darf
+  eine Identität nur an Empfänger im eigenen Tenant zustellen (bekannte
+  Postfächer); ein externes Ziel wird mit `550` abgewiesen. Mit dem Haken sind
+  externe Empfänger erlaubt. Das spiegelt das bestehende Geräte-Flag des
+  SMTP-Relays.
+- **Absenderdomäne muss dem Tenant gehören.** Eine Identität darf nur *als* eine
+  Adresse der eigenen Domänen einliefern (Prüfung gegen die bekannten
+  Postfachadressen und `TENANT_DOMAIN`); andernfalls `550`. Ohne diese Grenze
+  könnte ein Login unter beliebiger Fremddomäne senden — ein offenes Relay. Der
+  bereits vorhandene, optionale Absender-*Pin* bleibt die feinere Grenze für eine
+  einzelne Adresse. Lässt sich die Domänen-/Postfachliste (noch) nicht bestimmen,
+  wird vorsichtshalber temporär mit `451` abgewiesen statt geraten.
+- **Zustellweg festgelegt (bislang nur implizit):** Eine angenommene Einlieferung
+  durchläuft den normalen Verarbeitungsweg und geht über den eingestellten
+  Rückweg zurück an Exchange — genau wie Post vom Connector. Sie wird also
+  signiert bzw. S/MIME-behandelt, wenn ihr Absender ein aktiviertes Postfach ist,
+  und sonst unverändert weitergereicht. Im Modus *SMTP Port 25* trägt der
+  Smarthost jede tenant-eigene Absenderadresse; in den Graph-Modi kann Graph nur
+  „als" ein echtes Postfach senden — daher die Absenderdomänen-Grenze oben.
+- **Anmelde-Bremse am Port 587.** Wiederholte Fehlanmeldungen einer Quell-IP
+  werden gedrosselt (dieselbe Drossel mit exponentiellem Backoff wie der
+  Web-Login). Eine gedrosselte IP wird abgewiesen, ohne dass überhaupt ein
+  Passwort geprüft wird; ein erfolgreicher Login löscht die Zählung. Ein
+  passwortbasierter Port ohne Bremse lädt sonst zum Durchprobieren ein.
+
 ## v1.9.3 — 2026-09-11 — Rückweg-Modi: „Graph-only" / „Graph++"; 587 nur noch in Graph++
 
 Die beiden Azure-Modi tragen klarere Namen und eine schärfere Abgrenzung.

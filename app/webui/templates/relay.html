@@ -39,11 +39,12 @@
       <thead>
         <tr>
           <th>Name</th><th>Login</th><th>Absender (Shared Mailbox)</th>
+          <th style="text-align:center">Extern</th>
           <th style="text-align:center">Aktiv</th><th></th>
         </tr>
       </thead>
       <tbody id="identitaeten-body">
-        <tr><td colspan="5" style="color:#888">Wird geladen …</td></tr>
+        <tr><td colspan="6" style="color:#888">Wird geladen …</td></tr>
       </tbody>
     </table>
   </div>
@@ -66,11 +67,16 @@
         <label for="neu-id-absender" style="font-size:12px;color:#555">Absender (optional)</label><br>
         <input type="text" id="neu-id-absender" placeholder="kundendienst@firma.de" style="margin-top:3px">
       </div>
+      <label class="checkbox-label" style="align-self:center">
+        <input type="checkbox" id="neu-id-extern"> auch extern senden
+      </label>
       <button class="btn secondary" onclick="identitaetHinzufuegen(this)">Hinzufügen</button>
     </div>
     <p class="hint" style="margin:8px 0 0">
       Ist ein <strong>Absender</strong> angegeben, darf sich dieses Login nur unter
-      genau dieser Adresse anmelden — sonst unter jeder.
+      genau dieser Adresse anmelden — sonst unter jeder Adresse der eigenen Domäne.
+      Ohne den Haken <strong>auch extern senden</strong> darf die Identität nur an
+      Empfänger im eigenen Tenant zustellen (Vorgabe).
     </p>
     <div id="neu-id-result" style="display:none;margin-top:10px"></div>
   </div>
@@ -373,7 +379,7 @@ function zeichneIdentitaeten(liste) {
   document.getElementById('identitaeten-anzahl').textContent =
     liste.length ? liste.length + ' Identität' + (liste.length === 1 ? '' : 'en') : '';
   if (!liste.length) {
-    tb.innerHTML = '<tr><td colspan="5" style="color:#888">Noch keine Identität '
+    tb.innerHTML = '<tr><td colspan="6" style="color:#888">Noch keine Identität '
       + 'angelegt.</td></tr>';
     return;
   }
@@ -384,6 +390,9 @@ function zeichneIdentitaeten(liste) {
       '<td>' + esc(i.name || '—') + '</td>'
       + '<td><code>' + esc(i.login) + '</code></td>'
       + '<td style="font-size:12px;color:#555">' + esc(i.absender || '—') + '</td>'
+      + '<td style="text-align:center"><input type="checkbox"' + (i.extern ? ' checked' : '')
+        + ' title="auch an externe Empfänger senden"'
+        + ' onchange="identitaetExtern(\'' + escAttr(i.id) + '\', this)"></td>'
       + '<td style="text-align:center"><input type="checkbox"' + (i.aktiv ? ' checked' : '')
         + ' onchange="identitaetAktiv(\'' + escAttr(i.id) + '\', this)"></td>'
       + '<td style="white-space:nowrap">'
@@ -402,16 +411,23 @@ async function identitaetHinzufuegen(btn) {
   const login = (document.getElementById('neu-id-login').value || '').trim();
   const pw = document.getElementById('neu-id-pw').value || '';
   const absender = (document.getElementById('neu-id-absender').value || '').trim();
+  const extern = document.getElementById('neu-id-extern').checked;
   if (!login || !pw) { showAlert(box, 'error', 'Login und Passwort sind nötig.'); return; }
   btn.disabled = true;
   const r = await postJSON('/api/relay/identitaet',
-    { name: name, login: login, passwort: pw, absender: absender });
+    { name: name, login: login, passwort: pw, absender: absender, extern: extern });
   btn.disabled = false;
   if (!r.ok) { showAlert(box, 'error', esc(r.error || 'Fehler beim Anlegen.')); return; }
   hideAlert(box);
   ['neu-id-name', 'neu-id-login', 'neu-id-pw', 'neu-id-absender']
     .forEach(function (id) { document.getElementById(id).value = ''; });
+  document.getElementById('neu-id-extern').checked = false;
   laden(false);
+}
+
+async function identitaetExtern(id, cb) {
+  const r = await postJSON('/api/relay/identitaet', { id: id, extern: cb.checked });
+  if (!r.ok) { cb.checked = !cb.checked; showMsg(cb, r.error || 'Fehler', false); }
 }
 
 async function identitaetAktiv(id, cb) {

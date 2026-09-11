@@ -101,6 +101,7 @@ async def api_relay_identitaet(request: Request, user: str = Depends(_require_ad
                 absender=daten.get("absender"),
                 aktiv=daten.get("aktiv"),
                 passwort=(daten.get("passwort") or None),
+                extern=daten.get("extern"),
             )
             if not ok:
                 return JSONResponse({"ok": False, "error": "Identität nicht gefunden."},
@@ -112,6 +113,7 @@ async def api_relay_identitaet(request: Request, user: str = Depends(_require_ad
             login=daten.get("login") or "",
             passwort=daten.get("passwort") or "",
             absender=daten.get("absender") or "",
+            extern=bool(daten.get("extern")),
         )
         log.info("Sende-Identität %s (%s) durch %s angelegt",
                  rec["id"], rec["login"], user)
