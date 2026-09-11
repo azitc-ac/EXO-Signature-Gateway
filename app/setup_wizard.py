@@ -660,8 +660,8 @@ def run_imap_access_setup(app_id: str, tenant_domain: str) -> dict:
     """
     Register the app as EXO Service Principal and grant IMAP FullAccess to the
     ACTIVE mailboxes (Least Privilege — nicht tenantweit allen). Erforderlich für
-    REINJECT_MODE=imap (IMAP APPEND, Azure ohne Port 25). Der Altname `smtp587`
-    bezeichnet denselben Modus.
+    REINJECT_MODE=graph_plus („Graph++", Azure ohne Port 25). Die Altnamen
+    `imap`/`smtp587` bezeichnen denselben Modus.
 
     Two things happen:
       1. New-ServicePrincipal — registers the app in EXO so IMAP XOAUTH2 works
@@ -818,8 +818,8 @@ def run_mailbox_dg_update(app_id: str, tenant_domain: str, members: list[str]) -
         cmd += ["-Members", ",".join(members)]
     # Im imap-Modus den IMAP-FullAccess gleich mit aktivieren, damit neu
     # aktivierte Postfächer nicht ohne IMAP-Zugriff bleiben (still durchfallen).
-    mode = (settings_store.get("REINJECT_MODE") or "smtp").strip()
-    if mode in ("imap", "smtp587") and settings_store.get("IMAP_ACCESS_CONFIGURED"):
+    mode = settings_store.reinject_mode()
+    if mode == "graph_plus" and settings_store.get("IMAP_ACCESS_CONFIGURED"):
         cmd.append("-GrantImapFullAccess")
 
     try:

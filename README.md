@@ -69,10 +69,10 @@ EXO Signature Gateway  ◄── MS Graph API (Absenderdaten)
        │
        ├─ graph-Modus (Azure): Graph API sendMail HTTPS
        │
-       ├─ imap-Modus (Azure, S/MIME-Inbound): Graph API sendMail HTTPS (ausgehend)
+       ├─ Graph++ (graph_plus, Azure, mit S/MIME): Graph sendMail + IMAP/587-Lückenfüller
        │                                       IMAP APPEND Port 993 (S/MIME-Entschlüsselung)
        │
-       └─ gemischte Empfänger (in graph/imap): SMTP-Einlieferung Port 587
+       └─ gemischte Empfänger (nur in Graph++): SMTP-Einlieferung Port 587
                                                 (von Exchange aufgeteilte Sendungen —
                                                  volle Empfängerliste; Azure-tauglich)
        ▼
@@ -107,16 +107,16 @@ Exchange Online (EXO) → Zustellung an Empfänger
 | **443** | HTTPS | `login.microsoftonline.com` | Azure AD Token-Endpunkt | alle |
 | **443** | HTTPS | `acme.castle.cloud` | CASTLE ACME (S/MIME-Zertifikate) | bei CASTLE-Enrollment |
 | **443** | HTTPS | `acme-v02.api.letsencrypt.org` | Let's Encrypt TLS-Zertifikat | bei Let's Encrypt |
-| **993** | IMAPS | `outlook.office365.com` | IMAP APPEND (Inbox-Inject ohne Draft-Flag) | `imap` |
+| **993** | IMAPS | `outlook.office365.com` | IMAP APPEND (Inbox-Inject ohne Draft-Flag) | `graph_plus` |
 | **25** | SMTP | `<tenant>.mail.protection.outlook.com` | Re-inject via SMTP | `smtp` (nicht Azure-kompatibel) |
 
-Azure VMs blockieren ausgehenden Port 25. Mit `REINJECT_MODE=graph` oder `imap` ist das Gateway vollständig ohne outbound Port 25 betreibbar.
+Azure VMs blockieren ausgehenden Port 25. Mit `REINJECT_MODE=graph` oder `graph_plus` ist das Gateway vollständig ohne outbound Port 25 betreibbar.
 
 ---
 
 ## Betrieb auf Azure (kein ausgehender Port 25)
 
-Für den Azure-Betrieb `REINJECT_MODE=graph` oder `imap` wählen (die Vorgabe `smtp` braucht ausgehenden Port 25, den Azure-VMs sperren). Beide Azure-Modi benötigen nur ausgehend Port 443 (HTTPS); der `imap`-Modus ergänzt dies um IMAPS Port 993 für einen speziellen Anwendungsfall (siehe unten).
+Für den Azure-Betrieb `REINJECT_MODE=graph` (Graph-only) oder `graph_plus` (Graph++) wählen (die Vorgabe `smtp` braucht ausgehenden Port 25, den Azure-VMs sperren). Beide Azure-Modi benötigen nur ausgehend Port 443 (HTTPS); Graph++ ergänzt dies um IMAPS Port 993 für einen speziellen Anwendungsfall (siehe unten).
 
 ### Azure VM anlegen (PowerShell-Skript)
 
@@ -135,9 +135,9 @@ Nach Abschluss zeigt das Skript die öffentliche IP und die nächsten Schritte (
 Setup-Wizard aufrufen).
 
 **Wann wird IMAP APPEND benötigt?**  
-Nur in einem spezifischen Fall: Ein externer Absender schickt eine S/MIME-verschlüsselte Mail an einen internen Empfänger. Der Gateway entschlüsselt sie und muss das Ergebnis direkt ins Postfach des Empfängers legen. Die Graph API (`POST /mailFolders/inbox/messages`) setzt dabei das `MSGFLAG_UNSENT`-Flag — Outlook zeigt die Mail als Entwurf mit Senden-Knopf. IMAP APPEND setzt dieses Flag nicht; die Nachricht landet als echte empfangene Mail. **Ausgehende Mails** (Signatur-Injektion) laufen im `imap`-Modus weiterhin über Graph API sendMail.
+Nur in einem spezifischen Fall: Ein externer Absender schickt eine S/MIME-verschlüsselte Mail an einen internen Empfänger. Der Gateway entschlüsselt sie und muss das Ergebnis direkt ins Postfach des Empfängers legen. Die Graph API (`POST /mailFolders/inbox/messages`) setzt dabei das `MSGFLAG_UNSENT`-Flag — Outlook zeigt die Mail als Entwurf mit Senden-Knopf. IMAP APPEND setzt dieses Flag nicht; die Nachricht landet als echte empfangene Mail. **Ausgehende Mails** (Signatur-Injektion) laufen in Graph++ weiterhin über Graph API sendMail.
 
-### Voraussetzungen für imap-Modus
+### Voraussetzungen für Graph++ (`graph_plus`)
 
 Zusätzlich zu den Standard-Berechtigungen:
 
@@ -206,7 +206,7 @@ manuell erneuert werden.
 ### Re-inject-Modus
 
 On-prem mit freiem ausgehendem Port 25 ist die Vorgabe **`smtp`** nutzbar (in
-Azure gesperrt, dort `graph` oder `imap`).
+Azure gesperrt, dort `graph` oder `graph_plus`).
 
 ### Schlüssel ohne Azure Key Vault
 
@@ -242,7 +242,7 @@ und Zertifikat überstehen das Update. (Alternativ per Web-UI: *Update & Backup*
 | `Mail.ReadWrite.All` | ✓* | Gesendete Elemente patchen; schließt `Mail.Read.All` ein |
 | `Exchange.ManageAsApp` | ✓ | EXO PowerShell (Connector/DG-Setup via Wizard) |
 | `IMAP.AccessAsApp` | IMAP-Modus | IMAP APPEND in Empfänger-Postfächer (kein Draft) |
-| `SMTP.SendAsApp` | Port 587 (optional) | SMTP-Einlieferung als Absender für bifurkierte Mails (gemischte interne/externe Empfänger in `graph`/`imap`) |
+| `SMTP.SendAsApp` | Port 587 (optional) | SMTP-Einlieferung als Absender für bifurkierte Mails (gemischte interne/externe Empfänger, nur in Graph++) |
 
 *\* Schließt `Mail.Read.All` ein (für CASTLE ACME Mailbox-Polling benötigt).*
 
@@ -274,23 +274,27 @@ Untergrenze**.
 
 ## Re-inject-Modi
 
-> **Begriffe:** Der *Modus* (`REINJECT_MODE`) bestimmt, wie der Gateway fertig verarbeitete Mails zurück an Exchange übergibt. IMAP APPEND ist kein eigener Modus, sondern ein Mechanismus innerhalb des `imap`-Modus für einen spezifischen Fall (S/MIME-Entschlüsselung).
+> **Begriffe:** Der *Modus* (`REINJECT_MODE`) bestimmt, wie der Gateway fertig verarbeitete Mails zurück an Exchange übergibt. IMAP APPEND und Port 587 sind **keine** eigenen Modi, sondern Mechanismen innerhalb von **Graph++** für zwei Sonderfälle (eingehende S/MIME-Entschlüsselung bzw. gemischte Empfänger).
 
-Der Modus wird in der Web-UI unter **Einstellungen → Re-inject-Modus** oder via `REINJECT_MODE` konfiguriert.
+Der Modus wird in der Web-UI unter **Einstellungen → Re-inject-Modus** oder via `REINJECT_MODE` konfiguriert. Es gibt drei Werte: `smtp`, `graph` (Anzeige „Graph-only") und `graph_plus` (Anzeige „Graph++").
 
-### `graph` — Azure ohne Port 25
+### `graph` — „Graph-only" (Azure, nur über Graph)
 
-- **Alle** Re-injects über Graph API `sendMail` (HTTPS)
-- Kein Port 25 erforderlich; funktioniert auf Azure
-- S/MIME-entschlüsselte Inbound-Mails werden über `/mailFolders/inbox/messages` injiziert – kann Draft-Status erzeugen
-- Kein `IMAP.AccessAsApp` erforderlich
+- **Alle** Re-injects über Graph API `sendMail` (HTTPS) — kein Port 25, kein 587, kein TLS-Zertifikat.
+- **Nur Signaturen, kein S/MIME.** Eingehende verschlüsselte Mail liesse sich nur über `/mailFolders/inbox/messages` einspielen (erzeugt einen Entwurf), daher ist S/MIME hier abgeschaltet.
+- Gemischte Empfänger (intern+extern) werden über eine Graph-Heuristik (send-to-all) zugestellt: volle Antwort-an-Alle, verlustfrei — aber seltene Duplikate, falls der Dienst genau zwischen den beiden Teilnachrichten neu startet.
+- Kein `IMAP.AccessAsApp` erforderlich. Preview; für den vollen Funktionsumfang → Graph++.
 
-### `imap` — Azure mit S/MIME-Inbound ohne Draft-Flag
+### `graph_plus` — „Graph++" (Azure, voll: Signaturen + S/MIME)
 
-- **Ausgehende Mails** (Signatur-Injektion): identisch zu `graph` — Graph API `sendMail` (HTTPS)
-- **S/MIME-entschlüsselte Inbound-Mails**: IMAP APPEND (Port 993) direkt ins Postfach des Empfängers — kein Draft-Flag, keine "Senden"-Schaltfläche in Outlook
-- **Kein ausgehender Port 25** erforderlich
-- Erfordert `IMAP.AccessAsApp` + EXO Service Principal (via Setup-Wizard einrichtbar)
+Graph als Hauptweg, ergänzt um zwei Lückenfüller:
+
+- **Ausgehende Mails** (Signatur-Injektion): Graph API `sendMail` (HTTPS) — der Großteil.
+- **Eingehende, S/MIME-entschlüsselte Mail**: IMAP APPEND (Port 993) direkt ins Postfach — kein Draft-Flag, keine „Senden"-Schaltfläche in Outlook.
+- **Gemischte (intern+extern) Empfänger**: Port 587 (authentifizierte Übermittlung als der Absender) für deterministische, vollständige Antwort-an-Alle.
+- **Kein ausgehender Port 25**, kein TLS-Zertifikat nötig.
+- Erfordert `IMAP.AccessAsApp` + EXO Service Principal (via Setup-Wizard); der 587-Anteil braucht `SMTP.SendAsApp`.
+- Altnamen `imap`/`smtp587` (in Bestandsanlagen) bezeichnen denselben Modus und werden weiterhin angenommen.
 
 ### `smtp` — Vorgabe / klassisch
 
@@ -302,11 +306,11 @@ Der Modus wird in der Web-UI unter **Einstellungen → Re-inject-Modus** oder vi
 ### Port 587 — kein Modus, sondern ein Sonderweg
 
 ⚠️ Häufiges Missverständnis: Einen „587-Modus" gibt es nicht. Port 587 kommt
-**innerhalb** von `graph` und `imap` zum Zug, und zwar für Post, die Exchange in
+**innerhalb** von `graph_plus` (Graph++) zum Zug, und zwar für Post, die Exchange in
 Teilnachrichten aufgeteilt hat: Nur SMTP trennt Zustellempfänger von den
 angezeigten Empfängern, Graph kann das nicht. Voraussetzung ist die
-Anwendungsberechtigung `SMTP.SendAsApp`. Im Modus `smtp` spielt Port 587 keine
-Rolle.
+Anwendungsberechtigung `SMTP.SendAsApp`. In den Modi `graph` (Graph-only) und
+`smtp` spielt Port 587 keine Rolle.
 
 ---
 

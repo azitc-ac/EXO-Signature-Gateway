@@ -299,9 +299,7 @@ def _postfaecher() -> dict:
 
 def _rueckweg() -> dict:
     import settings_store
-    modus = (settings_store.get("REINJECT_MODE") or "smtp").strip()
-    if modus == "smtp587":
-        modus = "imap"           # Altname
+    modus = settings_store.reinject_mode()   # normalisiert die Altnamen imap/smtp587 → graph_plus
     if modus == "smtp":
         ziel = (settings_store.get("EXO_SMARTHOST") or "").strip()
         if not ziel:
@@ -312,12 +310,12 @@ def _rueckweg() -> dict:
                       f"per SMTP-Smarthost ({ziel})",
                       deckt_nicht="Ob ausgehender Port 25 offen ist, zeigt erst "
                                   "die erste Zustellung.")
-    if modus == "imap":
-        # IMAP ist nur der S/MIME-Inbound-Sonderfall; der eigentliche Rückweg
-        # an Exchange läuft auch hier über Graph (sendMail).
+    if modus == "graph_plus":
+        # Graph++ = Graph als Hauptweg; IMAP nur für eingehende S/MIME-Post,
+        # 587 nur für gemischte Empfänger.
         return _punkt(
             "Post geht an Exchange zurück", OK,
-            "per Graph (sendMail); IMAP nur für eingehende S/MIME-Post",
+            "per Graph (sendMail); IMAP nur für eingehende S/MIME-Post, 587 nur für gemischte Empfänger",
             deckt_nicht="Ob die nötigen Anwendungsberechtigungen vollständig "
                         "erteilt sind, zeigt erst der Betrieb.")
     return _punkt("Post geht an Exchange zurück", OK, "per Graph (sendMail)",

@@ -315,7 +315,7 @@ async def _send_challenge_reply(
     Method is controlled by settings ACME_REPLY_METHOD:
       "auto"        — relay through Exchange via the normal reinject path (reinject.py),
                       i.e. the SAME authenticated outbound route any other outbound mail
-                      takes, following REINJECT_MODE (graph/smtp/imap). Default.
+                      takes, following REINJECT_MODE (smtp/graph/graph_plus). Default.
       "graph"       — force Graph API sendMail via Exchange, regardless of REINJECT_MODE
       "direct_smtp" — direct SMTP straight to the CA domain's MX, bypassing Exchange
                       entirely. UNRELIABLE for any domain with real SPF/DKIM — the
@@ -324,7 +324,7 @@ async def _send_challenge_reply(
                       "Cannot forward emails that are not authenticated" for castle.cloud).
                       Kept only as an explicit manual override — "auto" never selects it.
 
-    Earlier version of "auto" resolved smtp/imap REINJECT_MODE to "direct_smtp", which
+    Earlier version of "auto" resolved smtp/graph_plus REINJECT_MODE to "direct_smtp", which
     caused exactly the above 550 rejection — direct-to-MX bypasses Exchange's own
     SPF/DKIM-aligned outbound path, so any real-world CA that checks sender
     authentication (like CASTLE's Cloudflare-routed inbox) rejects it. Routing through
@@ -352,7 +352,7 @@ async def _send_challenge_reply(
                 None, functools.partial(reinject.send, from_email, [to_email], raw_mime, force_mime=True)
             )
             log.info("ACME challenge reply sent (reinject/%s) from %s to %s",
-                      settings_store.get("REINJECT_MODE") or "smtp", from_email, to_email)
+                      settings_store.reinject_mode(), from_email, to_email)
             return True
         except Exception as exc:
             log.error("ACME challenge reply reinject error: %s", exc)

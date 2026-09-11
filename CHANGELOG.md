@@ -5,6 +5,30 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.3 — 2026-09-11 — Rückweg-Modi: „Graph-only" / „Graph++"; 587 nur noch in Graph++
+
+Die beiden Azure-Modi tragen klarere Namen und eine schärfere Abgrenzung.
+
+- **Graph++** (interner Wert `graph_plus`) ist der volle Azure-Modus: Graph als
+  Hauptweg, ergänzt um zwei Lückenfüller — IMAP APPEND für eingehende
+  verschlüsselte Mail (S/MIME) und Port 587 für gemischte (intern+extern)
+  Empfänger. **Graph-only** (`graph`) ist der reine Graph-Weg: nur Signaturen,
+  kein S/MIME. Der bisherige Name „IMAP + Graph" gab IMAP zu viel Gewicht — es ist
+  nur einer von zwei Randfällen neben Graph.
+- Die Altnamen `imap` und `smtp587` bezeichnen weiterhin Graph++ und werden
+  angenommen; **Bestandsanlagen laufen unverändert** (keine Migration nötig). Ein
+  zentraler Normalisierer bildet sie auf `graph_plus` ab und protokolliert eine
+  Umstellungs-Empfehlung.
+- **Verhaltensschärfung:** Port 587 (authentifizierte Übermittlung als der
+  Absender) kommt nur noch in **Graph++** zum Zug. Im **Graph-only**-Modus werden
+  gemischte Empfänger allein über die Graph-Heuristik (send-to-all) zugestellt:
+  volle Antwort-an-Alle, verlustfrei — mit dem bekannten Randfall seltener
+  Duplikate, falls der Dienst genau zwischen den beiden Teilnachrichten neu
+  startet. Damit ist „Graph-only" auch wörtlich nur Graph. Für den
+  deterministischen Weg (und S/MIME) den Modus Graph++ wählen.
+- Oberfläche, README und Erklärtexte durchgängig auf die neue Benennung gebracht;
+  das Begriffsregister (`tools/begriffecheck.py`) setzt sie durch.
+
 ## v1.9.2 — 2026-09-11 — SMTP-Relay: Sende-Identitäten mit eigenem Login (587)
 
 Geräte und Anwendungen können sich jetzt mit einem **eigenen Login** (Benutzer und

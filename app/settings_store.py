@@ -74,11 +74,17 @@ DEFAULTS: dict = {
                                         # transport rule routes all sender-DG mail through the gateway
                                         # unconditionally now (see CLAUDE.md "Bifurkations-Falle").
     # ── Re-injection ─────────────────────────────────────────────────────────
-    # Rückweg an Exchange. ⚠️ `smtp587` ist ein ALTNAME für `imap` — der Modus
-    # macht IMAP APPEND, kein SMTP auf 587. In den Modi `graph` und `imap`
-    # kommt Port 587 zusätzlich zum Zug, aber nur für aufgeteilte ausgehende
-    # Post (reinject.send); im Modus `smtp` nie.
-    "REINJECT_MODE": "smtp",       # "smtp" (Port 25) | "graph" | "imap"
+    # Rückweg an Exchange. Kanonische Werte:
+    #   `smtp`       — Port 25 (klassisch, Smarthost)
+    #   `graph`      — „Graph-only": nur Signaturen, kein S/MIME
+    #   `graph_plus` — „Graph++": Graph als Hauptweg PLUS zwei Lückenfüller —
+    #                  IMAP APPEND für eingehend verschlüsselte Mail und Port 587
+    #                  für gemischte (intern+extern) Empfänger.
+    # ⚠️ `imap` und `smtp587` sind ALTNAMEN für `graph_plus` und werden von
+    # reinject_mode() dorthin normalisiert (Bestandsanlagen tragen sie in ihrer
+    # settings.json). Nie direkt gegen "imap"/"smtp587" vergleichen — immer
+    # reinject_mode() nutzen.
+    "REINJECT_MODE": "smtp",       # kanonisch: "smtp" | "graph" | "graph_plus"
     "GRAPH_SMTP_FALLBACK": False,  # Allow SMTP fallback when Graph re-inject fails
     # Graph-Modus, Behandlung gemischter intern/extern-Mails (bifurkierte Forks)
     # ohne SMTP.SendAsApp. Werte:
@@ -539,6 +545,34 @@ def get_all() -> dict:
         if not _data:
             init()
         return dict(_data)
+
+
+# ── Rückweg-Modus: Altnamen normalisieren ────────────────────────────────────
+# Ein Ding, ein Wert. `imap` und `smtp587` sind ALTNAMEN für `graph_plus`
+# ("Graph++") — Bestandsanlagen tragen sie in ihrer settings.json. Jeder
+# Modus-Vergleich im Code läuft über diese eine Funktion, nie direkt gegen
+# "imap"/"smtp587" (Ausnahme: rein abwärtskompatible Vergleiche, siehe
+# begriffecheck).
+_REINJECT_ALIASES = {"imap": "graph_plus", "smtp587": "graph_plus"}
+_reinject_alias_gewarnt: set[str] = set()
+
+
+def reinject_mode() -> str:
+    """Kanonischer Rückweg-Modus: ``"smtp"`` | ``"graph"`` | ``"graph_plus"``.
+
+    Die Altnamen ``imap`` und ``smtp587`` werden auf ``graph_plus`` abgebildet
+    (einmalige Warnung je Altname und Prozess). Ein leerer Wert wird zu ``smtp``
+    (die Vorgabe); ein unbekannter Wert bleibt unverändert — der Dispatch in
+    ``reinject.send()`` behandelt alles ausser ``graph``/``graph_plus`` als smtp.
+    """
+    roh = (get("REINJECT_MODE") or "smtp").strip()
+    if roh in _REINJECT_ALIASES:
+        if roh not in _reinject_alias_gewarnt:
+            _reinject_alias_gewarnt.add(roh)
+            log.warning("REINJECT_MODE=%r ist ein Altname für 'graph_plus' — "
+                        "bitte in den Einstellungen auf 'graph_plus' umstellen", roh)
+        return _REINJECT_ALIASES[roh]
+    return roh
 
 
 _TRUTHY = ("1", "true", "yes", "on")

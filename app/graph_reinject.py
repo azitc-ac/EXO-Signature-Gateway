@@ -579,7 +579,7 @@ def send_via_graph(mail_from: str, rcpt_tos: list[str], content_bytes: bytes) ->
     # and cause HTTP 400 InvalidInternetMessageHeader — simply omit them.
     #
     # Der Name kommt aus LOOP_HEADER (nicht hartkodiert): Graph ist im
-    # IMAP+Graph/Azure-Modus der HAUPT-Rückweg, und ein fester Name hier ließe
+    # Graph++/Azure-Modus der HAUPT-Rückweg, und ein fester Name hier ließe
     # ihn gegenüber der EXO-Regel und dem SMTP-Weg auseinanderlaufen.
     internet_headers = [{"name": loop_detector.header_name(), "value": "1"}]
 
