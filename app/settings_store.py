@@ -110,6 +110,10 @@ DEFAULTS: dict = {
     # erlaubter Quellnetze ohne Absender- und Zielprüfung. Sie ist entfallen.
     "RELAY_TENANT_CHECK": True,        # Post aus EXO-IP-Raum muss aus eigenem Tenant sein (CrossTenant-Id)
     "SMTP_RELAY_ENABLED": False,       # bewusste Freischaltung, Vorgabe aus
+    # Authentifizierte Einlieferung (Submission 587) durch Sende-Identitäten mit
+    # eigenem Login — Fundament der verwalteten Sende-Identitäten. Vorgabe aus;
+    # der 587-Listener weist jede Anmeldung ab, solange dies aus ist.
+    "SUBMISSION_ENABLED": False,
     # ⚠️ Die FREIGABE steht nicht hier, sondern in der Geräteliste
     # (`relay_hosts.py`, eigene Datenbank). Diese Netze sagen nur, WORAUS der
     # Lernmodus lernen darf — ausserhalb seines Zeitfensters lassen sie nichts

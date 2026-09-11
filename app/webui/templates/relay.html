@@ -11,6 +11,71 @@
 
 <div id="relay-warnung" style="display:none;margin-bottom:16px"></div>
 
+<!-- ── Sende-Identitäten ─────────────────────────────────────────────────── -->
+<div class="settings-card" style="margin-bottom:20px">
+  <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+    <h2 style="margin:0">Sende-Identitäten
+      <span style="display:inline-block;font-size:10px;font-weight:700;color:#92400e;background:#fef3c7;border:1px solid #fcd34d;border-radius:4px;padding:1px 6px;margin-left:6px;vertical-align:middle">PREVIEW</span>
+    </h2>
+    <span class="hint" id="identitaeten-anzahl"></span>
+  </div>
+  <p style="font-size:13px;color:#555;margin:10px 0 14px">
+    Anwendungen und Geräte, die sich mit einem eigenen <strong>Login</strong>
+    (Benutzer und Passwort über TLS) am Submission-Port <code>587</code> anmelden,
+    statt nur über ihre IP-Adresse. So können auch Geräte einliefern, die kein
+    OAuth beherrschen. Ein Login gehört zu einer Identität; mehrere Geräte dürfen
+    es teilen.
+  </p>
+
+  <label class="checkbox-label" style="margin-bottom:6px">
+    <input type="checkbox" id="submission-an" onchange="submissionUmschalten(this)">
+    Authentifizierte Einlieferung (587) aktivieren
+    <span id="submission-result" style="font-size:12px;margin-left:8px"></span>
+  </label>
+  <p class="hint" id="submission-hinweis" style="margin:0 0 14px;display:none"></p>
+
+  <div class="tabellen-rollbereich">
+    <table class="config-table" style="min-width:640px">
+      <thead>
+        <tr>
+          <th>Name</th><th>Login</th><th>Absender (Shared Mailbox)</th>
+          <th style="text-align:center">Aktiv</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="identitaeten-body">
+        <tr><td colspan="5" style="color:#888">Wird geladen …</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div style="border-top:1px solid #e2e8f0;margin-top:16px;padding-top:14px">
+    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+      <div>
+        <label for="neu-id-name" style="font-size:12px;color:#555">Name</label><br>
+        <input type="text" id="neu-id-name" placeholder="Kundendienst" style="margin-top:3px">
+      </div>
+      <div>
+        <label for="neu-id-login" style="font-size:12px;color:#555">Login</label><br>
+        <input type="text" id="neu-id-login" placeholder="kundendienst@firma.de" style="margin-top:3px">
+      </div>
+      <div>
+        <label for="neu-id-pw" style="font-size:12px;color:#555">Passwort</label><br>
+        <input type="password" id="neu-id-pw" placeholder="mind. 8 Zeichen" style="margin-top:3px">
+      </div>
+      <div>
+        <label for="neu-id-absender" style="font-size:12px;color:#555">Absender (optional)</label><br>
+        <input type="text" id="neu-id-absender" placeholder="kundendienst@firma.de" style="margin-top:3px">
+      </div>
+      <button class="btn secondary" onclick="identitaetHinzufuegen(this)">Hinzufügen</button>
+    </div>
+    <p class="hint" style="margin:8px 0 0">
+      Ist ein <strong>Absender</strong> angegeben, darf sich dieses Login nur unter
+      genau dieser Adresse anmelden — sonst unter jeder.
+    </p>
+    <div id="neu-id-result" style="display:none;margin-top:10px"></div>
+  </div>
+</div>
+
 <!-- ── Statistik ─────────────────────────────────────────────────────────── -->
 <div class="settings-card" style="margin-bottom:20px">
   <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
@@ -238,6 +303,9 @@ async function laden(mitNamen) {
   zeichneGeraete(r.geraete);
   zeichneAbgewiesen(r.abgewiesen);
   zeichneLernmodus(r.lernmodus);
+  zeichneIdentitaeten(r.identitaeten);
+  const sub = document.getElementById('submission-an');
+  if (sub) { sub.checked = !!r.submission_an; zeigeSubmissionHinweis(!!r.submission_an); }
   zeichneWarnung(r);
   // ⚠️ Erst jetzt steht der Ausgangsstand. Die Wache misst ihn beim Laden der
   // Seite — die Tabelle kommt aber per `fetch`. Ohne diese Zeile stünde beim
@@ -278,6 +346,92 @@ function zeichneWarnung(r) {
     + 'border-radius:8px;padding:12px 14px;font-size:13px;color:#92400e">'
     + text + '</div>';
   box.style.display = '';
+}
+
+// ── Sende-Identitäten ─────────────────────────────────────────────────────────
+async function submissionUmschalten(cb) {
+  const ok = await savePartial({ SUBMISSION_ENABLED: cb.checked }, 'submission-result');
+  if (!ok) { cb.checked = !cb.checked; return; }
+  zeigeSubmissionHinweis(cb.checked);
+}
+
+function zeigeSubmissionHinweis(an) {
+  const h = document.getElementById('submission-hinweis');
+  if (!h) return;
+  if (an) {
+    h.innerHTML = 'Geräte richten sich auf <code>' + esc(location.hostname)
+      + ':587</code> mit STARTTLS und ihrem Login ein.';
+    h.style.display = '';
+  } else {
+    h.style.display = 'none';
+  }
+}
+
+function zeichneIdentitaeten(liste) {
+  const tb = document.getElementById('identitaeten-body');
+  liste = liste || [];
+  document.getElementById('identitaeten-anzahl').textContent =
+    liste.length ? liste.length + ' Identität' + (liste.length === 1 ? '' : 'en') : '';
+  if (!liste.length) {
+    tb.innerHTML = '<tr><td colspan="5" style="color:#888">Noch keine Identität '
+      + 'angelegt.</td></tr>';
+    return;
+  }
+  tb.innerHTML = '';
+  liste.forEach(function (i) {
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td>' + esc(i.name || '—') + '</td>'
+      + '<td><code>' + esc(i.login) + '</code></td>'
+      + '<td style="font-size:12px;color:#555">' + esc(i.absender || '—') + '</td>'
+      + '<td style="text-align:center"><input type="checkbox"' + (i.aktiv ? ' checked' : '')
+        + ' onchange="identitaetAktiv(\'' + escAttr(i.id) + '\', this)"></td>'
+      + '<td style="white-space:nowrap">'
+        + '<button class="btn secondary btn-sm" onclick="identitaetPasswort(\''
+          + escAttr(i.id) + '\', this)">Passwort…</button> '
+        + '<button class="btn secondary btn-sm" onclick="identitaetLoeschen(\''
+          + escAttr(i.id) + '\', this)">Löschen</button>'
+      + '</td>';
+    tb.appendChild(tr);
+  });
+}
+
+async function identitaetHinzufuegen(btn) {
+  const box = document.getElementById('neu-id-result');
+  const name = (document.getElementById('neu-id-name').value || '').trim();
+  const login = (document.getElementById('neu-id-login').value || '').trim();
+  const pw = document.getElementById('neu-id-pw').value || '';
+  const absender = (document.getElementById('neu-id-absender').value || '').trim();
+  if (!login || !pw) { showAlert(box, 'error', 'Login und Passwort sind nötig.'); return; }
+  btn.disabled = true;
+  const r = await postJSON('/api/relay/identitaet',
+    { name: name, login: login, passwort: pw, absender: absender });
+  btn.disabled = false;
+  if (!r.ok) { showAlert(box, 'error', esc(r.error || 'Fehler beim Anlegen.')); return; }
+  hideAlert(box);
+  ['neu-id-name', 'neu-id-login', 'neu-id-pw', 'neu-id-absender']
+    .forEach(function (id) { document.getElementById(id).value = ''; });
+  laden(false);
+}
+
+async function identitaetAktiv(id, cb) {
+  const r = await postJSON('/api/relay/identitaet', { id: id, aktiv: cb.checked });
+  if (!r.ok) { cb.checked = !cb.checked; showMsg(cb, r.error || 'Fehler', false); }
+}
+
+async function identitaetPasswort(id, btn) {
+  const pw = prompt('Neues Passwort (mindestens 8 Zeichen):');
+  if (pw === null) return;
+  const r = await postJSON('/api/relay/identitaet', { id: id, passwort: pw });
+  showMsg(btn, r.ok ? 'gesetzt' : (r.error || 'Fehler'), r.ok);
+}
+
+async function identitaetLoeschen(id, btn) {
+  if (!confirm('Diese Identität entfernen? Das zugehörige Login kann sich danach '
+             + 'nicht mehr anmelden.')) return;
+  btn.disabled = true;
+  await postJSON('/api/relay/identitaet/loeschen', { id: id });
+  laden(false);
 }
 
 function zeichneLernmodus(l) {
@@ -567,9 +721,15 @@ async function protokollLaden() {
       ? esc(e.subject)
       : (e.error ? '<span style="color:#dc2626">' + esc(e.error) + '</span>'
                  : '<span style="color:#aaa">—</span>');
+    // Quelle: die authentifizierte Identität ist die aussagekräftige Größe;
+    // die IP steht als Zusatz daneben. Ohne Login (IP-Relay) nur die IP.
+    const quelle = e.relay_id
+      ? esc(e.relay_id) + (e.relay_ip
+          ? ' <span style="color:#94a3b8;font-size:11px">' + esc(e.relay_ip) + '</span>' : '')
+      : '<code>' + esc(e.relay_ip || '—') + '</code>';
     return '<tr>'
       + '<td style="white-space:nowrap;font-size:12px;color:#78716c">' + esc(zeitKurz(e.ts)) + '</td>'
-      + '<td style="white-space:nowrap"><code>' + esc(e.relay_ip || '—') + '</code></td>'
+      + '<td style="white-space:nowrap">' + quelle + '</td>'
       + '<td style="font-size:12px;word-break:break-all">' + esc(e.sender || '—') + '</td>'
       + '<td style="font-size:12px;word-break:break-all;color:#555">' + esc(rcpts || '—') + '</td>'
       + '<td style="font-size:12px;max-width:260px;overflow:hidden;text-overflow:ellipsis;'

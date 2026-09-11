@@ -35,6 +35,9 @@ SMIME_KEY_PASSWORD = _optional("SMIME_KEY_PASSWORD", "")  # Empty = no encryptio
 
 # ── Structural (fixed at container start) ──────────────────────────────────────
 SMTP_PORT = int(_optional("SMTP_PORT", "25"))
+# Submission-Port (587) für authentifizierte Einlieferung durch Geräte/Apps mit
+# eigenem Login (Sende-Identitäten). Getrennt von 25 (Exchange-Connector).
+SUBMISSION_PORT = int(_optional("SUBMISSION_PORT", "587"))
 SMTP_TLS_CERT = _optional("SMTP_TLS_CERT", "/app/certs/cert.pem")
 SMTP_TLS_KEY = _optional("SMTP_TLS_KEY", "/app/certs/key.pem")
 WEBUI_PORT = int(_optional("WEBUI_PORT", "8080"))

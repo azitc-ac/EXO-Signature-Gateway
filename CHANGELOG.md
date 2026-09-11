@@ -5,6 +5,35 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.2 — 2026-09-11 — SMTP-Relay: Sende-Identitäten mit eigenem Login (587)
+
+Geräte und Anwendungen können sich jetzt mit einem **eigenen Login** (Benutzer und
+Passwort über TLS) am neuen Submission-Port **587** anmelden, statt nur über ihre
+IP-Adresse erkannt zu werden. Das öffnet die Einlieferung für Geräte, die kein
+OAuth beherrschen (ältere Drucker, Scanner, Fachanwendungen wie SAP), und für
+Gateways ohne feste Absender-IP.
+
+Auf der Relay-Seite gibt es dazu die neue Rubrik **Sende-Identitäten**: eine
+Identität besteht aus Name, Login, Passwort und optional einer Absenderadresse.
+Ein Login gehört zu einer Identität; mehrere Geräte dürfen es teilen. Ist eine
+Absenderadresse hinterlegt, darf sich dieses Login nur unter genau dieser Adresse
+anmelden — sonst unter jeder. Passwörter werden ausschließlich als Hash gespeichert
+(pbkdf2-sha256, Datei mit Rechten 600), nie im Klartext.
+
+Der 587-Listener verlangt **TLS zwingend** (Anmeldung erst nach STARTTLS) und wird
+ohne Zertifikat gar nicht erst gebunden. Die Freischaltung steuert der Schalter
+*Authentifizierte Einlieferung (587) aktivieren*; solange er aus ist, weist der Port
+jede Anmeldung ab. Zu Port 25 (Exchange-Connector) bleibt das getrennt.
+
+Das Relay-Protokoll zeigt für authentifizierte Einlieferungen die **Identität** als
+Quelle (mit der Geräte-IP als Zusatz); jede Protokollzeile führt Quelle und, wo
+vorhanden, die Identität getrennt.
+
+Wer 587 nutzen will, gibt den Port am Gerät an (`Server:587`, STARTTLS, Login) und
+sorgt dafür, dass er erreichbar ist — bei Betrieb im eigenen Netz genügt die
+Compose-Portfreigabe (ist enthalten), hinter einer Firewall die entsprechende
+Regel.
+
 ## v1.9.1 — 2026-09-11 — README: IMAP-Berechtigungen auf Least-Privilege-Stand
 
 Die README-Beschreibung der IMAP-Einrichtung war veraltet: Sie nannte `FullAccess`
