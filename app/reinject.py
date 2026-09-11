@@ -154,9 +154,15 @@ def _fail_delivery(mail_from: str, rcpt_tos: list[str],
 def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
          force_mime: bool = False, queue_on_failure: bool = True) -> None:
     """
-    Re-inject a mail.  Mode is controlled by REINJECT_MODE setting:
-      "smtp"  — forward via SMTP to EXO smarthost (requires port 25 outbound)
-      "graph" — send via Graph API sendMail (HTTPS only, works on Azure)
+    Re-inject a mail.  Mode is controlled by REINJECT_MODE setting (canonical
+    values via settings_store.reinject_mode(); "imap"/"smtp587" are legacy
+    aliases for "graph_plus"):
+      "smtp"       — forward via SMTP to EXO smarthost (requires port 25 outbound)
+      "graph"      — "Graph-only": Graph API sendMail only (HTTPS, Azure).
+                     Bifurcation handled by the Graph send-to-all heuristic, NO 587.
+      "graph_plus" — "Graph++": graph as the workhorse PLUS two gap-fillers —
+                     IMAP APPEND (inbound decrypted S/MIME) and port 587
+                     (deterministic delivery of bifurcated mixed-recipient mail).
 
     force_mime=True routes through the raw-MIME Graph path even for plain
     multipart messages (e.g. inbound decrypted mail that must preserve
@@ -183,7 +189,7 @@ def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
          (e.g. the internal-only fork of a mixed send) are DROPPED here —
          their recipients already receive the send-to-all copy.
     """
-    mode = settings_store.get("REINJECT_MODE") or "smtp"
+    mode = settings_store.reinject_mode()
 
     # Bifurcation handling (587 as-sender + send_to_all) is an OUTBOUND-only
     # feature: it only makes sense for mail SENT BY a tenant mailbox that
@@ -199,27 +205,33 @@ def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
     _known = exo_mailboxes.known_addresses()
     _sender_internal = bool(_known) and (mail_from or "").strip().lower() in _known
 
-    if (mode in ("graph", "imap", "smtp587")
+    if (mode in ("graph", "graph_plus")
             and _sender_internal
             and _is_bifurcated(rcpt_tos, content_bytes)):
-        import smtp_submit
-        log.info("Bifurcated transaction detected (envelope ⊂ headers) — "
-                 "trying SMTP 587 as-sender for header-preserving delivery: to=%s", rcpt_tos)
-        if smtp_submit.deliver_outbound_as_sender(mail_from, rcpt_tos, content_bytes):
-            return
+        # 587 (deterministische Zustellung ALS der Absender) gehört zu Graph++
+        # (`graph_plus`). Im reinen `graph` (Graph-only) gibt es 587 bewusst
+        # NICHT — dort trägt allein die send-to-all-Heuristik die gemischten
+        # Empfänger (volle Reply-All, verlustfrei; siehe unten).
+        if mode == "graph_plus":
+            import smtp_submit
+            log.info("Bifurcated transaction (envelope ⊂ headers) — trying SMTP "
+                     "587 as-sender for header-preserving delivery: to=%s", rcpt_tos)
+            if smtp_submit.deliver_outbound_as_sender(mail_from, rcpt_tos, content_bytes):
+                return
 
-        # ── Graph-only handling of bifurcated forks (no SMTP.SendAsApp) ────
-        # GRAPH_MIXED_FORK_MODE (see settings_store):
-        #   "send_to_all" — first fork signs + sends to ALL header recipients
-        #      (delivers exactly once per recipient via the X-Sig-Applied rule
-        #      exception, verified no round-trip); siblings drop once the
-        #      send-to-all is CONFIRMED; a failed send-to-all falls through to
-        #      scoped delivery (never loss). Full Reply-All. Slight delay
-        #      possible when the two forks arrive a few seconds apart.
-        #   "scoped" — fall through to the per-mode path below, which
-        #      reduces headers to this fork's envelope: no duplicate, no loss,
-        #      Reply-All incomplete for this fork.
-        # Default is "send_to_all" (full Reply-All, fail-safe).
+        # ── Graph send-to-all für bifurkierte Forks ──────────────────────────
+        # Der EINZIGE Weg im Modus `graph`; im Modus `graph_plus` der Fallback,
+        # falls 587 nicht greift. GRAPH_MIXED_FORK_MODE (siehe settings_store):
+        #   "send_to_all" — erste Fork signiert + sendet an ALLE Header-Empfänger
+        #      (genau eine Zustellung je Empfänger über die X-Sig-Applied-
+        #      Ausnahme; Geschwister-Fork verwirft sich per Message-ID, sobald der
+        #      Versand BESTÄTIGT ist; scheitert er, wird beschnitten zugestellt —
+        #      nie Verlust). Volle Reply-All. Leichte Verzögerung möglich, wenn
+        #      die Forks ein paar Sekunden auseinander eintreffen.
+        #   "scoped" — fällt auf den Modus-Pfad unten durch (Header auf die
+        #      Envelope-Empfänger beschnitten): kein Duplikat, aber Reply-All
+        #      für diese Fork unvollständig.
+        # Vorgabe: "send_to_all" (volle Reply-All, fail-safe).
         fork_mode = (settings_store.get("GRAPH_MIXED_FORK_MODE") or "send_to_all").strip().lower()
         if fork_mode == "send_to_all":
             if _handle_mixed_fork(mail_from, rcpt_tos, content_bytes, force_mime):
@@ -227,8 +239,8 @@ def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
             log.info("Mixed-fork send_to_all not applicable/failed — scoped %s "
                      "delivery for %s (fail-safe)", mode, rcpt_tos)
         else:
-            log.info("587 unavailable, GRAPH_MIXED_FORK_MODE=scoped — scoped %s "
-                     "delivery for %s (Reply-All incomplete)", mode, rcpt_tos)
+            log.info("GRAPH_MIXED_FORK_MODE=scoped — scoped %s delivery for %s "
+                     "(Reply-All incomplete)", mode, rcpt_tos)
 
     if mode == "graph":
         import email as _em
@@ -253,11 +265,9 @@ def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
         else:
             _fail_delivery(mail_from, rcpt_tos, content_bytes,
                            "Graph fehlgeschlagen, SMTP-Fallback aus", queue_on_failure)
-    elif mode in ("imap", "smtp587"):
+    elif mode == "graph_plus":
         import email as _em
         import smtp_submit
-        if mode == "smtp587":
-            log.warning("REINJECT_MODE=smtp587 is deprecated — rename to 'imap' in settings")
         # IMAP APPEND works only for internal (same-tenant) mailboxes.
         # External recipients (Bookings confirmations, external S/MIME replies etc.)
         # fall back to Graph sendMail so outbound delivery still works.

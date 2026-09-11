@@ -864,7 +864,7 @@ async function saveGatewayName() {
   <div class="step-header">
     <span class="step-badge" style="background:#0369a1;font-size:10px">Graph</span>
     <span class="step-title">Gemischte Mails — Antworten-an-Alle
-      <span style="font-weight:400;font-size:12px;color:#57534e"> — nur in den Modi Graph API und IMAP + Graph relevant</span>
+      <span style="font-weight:400;font-size:12px;color:#57534e"> — nur in den Modi Graph-only und Graph++ relevant</span>
     </span>
   </div>
   <div class="step-body">
@@ -874,12 +874,13 @@ async function saveGatewayName() {
       aber nur ihre eigenen Zustellempfänger.
     </p>
     <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
-      In den Modi <strong>Graph API</strong> und <strong>IMAP + Graph</strong> versucht das
-      Gateway solche Teilnachrichten zuerst über <strong>authentifizierte SMTP-Übermittlung
-      (Port 587)</strong> zuzustellen — als der ursprüngliche Absender. Nur SMTP trennt
-      Zustellempfänger und angezeigte Empfänger voneinander (derselbe Mechanismus wie bei
-      Blindkopien); Graph kann das nicht. Gelingt das, ist Antworten-an-Alle vollständig und
-      <em>diese Einstellung bleibt ohne Wirkung</em>.
+      Im Modus <strong>Graph++</strong> versucht das Gateway solche Teilnachrichten zuerst über
+      <strong>authentifizierte SMTP-Übermittlung (Port 587)</strong> zuzustellen — als der
+      ursprüngliche Absender. Nur SMTP trennt Zustellempfänger und angezeigte Empfänger
+      voneinander (derselbe Mechanismus wie bei Blindkopien); Graph kann das nicht. Gelingt das,
+      ist Antworten-an-Alle vollständig und <em>diese Einstellung bleibt ohne Wirkung</em>. Im
+      Modus <strong>Graph-only</strong> gibt es keinen 587-Weg — dort bestimmt immer diese
+      Einstellung, wie aufgeteilte Nachrichten zugestellt werden.
       <br>
       Voraussetzung dafür ist die Anwendungsberechtigung <code>SMTP.SendAsApp</code>. Fehlt sie,
       entscheidet die Einstellung unten, wie stattdessen verfahren wird.
@@ -923,7 +924,7 @@ async function saveMixedFork() {
   </div>
   <div class="step-body">
     <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
-      Betrifft nur die Modi <strong>Graph API</strong> und <strong>IMAP + Graph</strong>.
+      Betrifft nur die Modi <strong>Graph-only</strong> und <strong>Graph++</strong>.
       Lehnt Graph eine bearbeitete Nachricht ab, kann das Gateway sie stattdessen über den
       <strong>SMTP-Smarthost (Port 25)</strong> zustellen.
       <br>
@@ -1013,8 +1014,8 @@ async function saveExoPort() {
   <div class="step-body">
     <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
       Der Weg, über den aufgeteilte Nachrichten zugestellt werden (siehe oben). Er wird
-      <strong>nur</strong> in den Modi <strong>Graph API</strong> und <strong>IMAP + Graph</strong>
-      benutzt — im Modus <strong>SMTP Port 25</strong> nie. Die Vorgaben passen für Exchange
+      <strong>nur</strong> im Modus <strong>Graph++</strong>
+      benutzt — in den Modi <strong>Graph-only</strong> und <strong>SMTP Port 25</strong> nie. Die Vorgaben passen für Exchange
       Online; sie zu ändern ist nur nötig, wenn ein anderer Übermittlungsserver dazwischen steht.
     </p>
     <div class="settings-row">
@@ -1059,7 +1060,7 @@ async function saveExoPort() {
           dieses Postfach, die echte Adresse bleibt nur in der Antwortadresse erhalten.
           <br>
           Bleibt das Feld leer, entfällt der Weg ersatzlos — die betroffene Nachricht wird nicht
-          zugestellt. Im Modus <strong>IMAP + Graph</strong> ist das der Regelfall und
+          zugestellt. Im Modus <strong>Graph++</strong> ist das der Regelfall und
           unbedenklich, weil dort intern per IMAP zugestellt wird.
         </span>
       </div>

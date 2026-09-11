@@ -354,8 +354,8 @@ async def api_setup_exo_connector(request: Request, user: str = Depends(_require
     if missing:
         raise HTTPException(400, f"Fehlende Konfiguration: {', '.join(missing)}")
 
-    reinject_mode = settings_store.get("REINJECT_MODE") or "smtp"
-    skip_inbound = reinject_mode in ("graph", "imap", "smtp587")
+    reinject_mode = settings_store.reinject_mode()
+    skip_inbound = reinject_mode in ("graph", "graph_plus")
     result = setup_wizard.run_exo_connector_setup(
         app_id=app_id,
         tenant_domain=tenant_domain,
@@ -443,7 +443,7 @@ async def api_setup_imap_access(request: Request, user: str = Depends(_require_a
 @router.get("/api/setup/verify/connector")
 async def api_verify_connector(_=Depends(_require_admin)):
     import setup_wizard
-    reinject_mode = settings_store.get("REINJECT_MODE") or "smtp"
+    reinject_mode = settings_store.reinject_mode()
     smtp_mode = reinject_mode == "smtp"
     return setup_wizard.verify_connector(smtp_mode=smtp_mode)
 

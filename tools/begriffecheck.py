@@ -95,25 +95,28 @@ class Begriff:
 REGISTER = [
     Begriff(
         name="Rückweg-Modi",
-        kanonisch="`smtp` (Port 25) · `graph` · `imap`",
+        kanonisch="`smtp` (Port 25) · `graph` (Anzeige: Graph-only) · "
+                  "`graph_plus` (Anzeige: Graph++)",
         verboten={
             r"587[- ]Modus": "Einen 587-Modus gibt es nicht. Port 587 ist ein "
-                             "Sonderweg innerhalb von `graph` und `imap`.",
-            r"Graph[- ]only[- ]Modus": "Der Modus heisst `graph`; „Graph-only“ "
-                                       "suggeriert, es liefe ausschliesslich "
-                                       "über Graph — 587 kommt dort ebenfalls "
-                                       "zum Zug.",
+                             "Sonderweg innerhalb von `graph_plus`.",
+            r"IMAP\s*\+\s*Graph": "Der kombinierte Modus heisst Graph++ "
+                                  "(intern `graph_plus`). Die alte Bezeichnung gab "
+                                  "IMAP zu viel Gewicht — es ist nur einer von zwei "
+                                  "Lückenfüllern neben Graph als Hauptweg.",
         },
         ausnahmen={
             "CHANGELOG.md": "Historische Einträge bleiben, wie sie geschrieben "
                             "wurden — sie beschreiben den Stand ihres Tages.",
+            "begriffecheck.py": "beschreibt die Regel selbst (zitiert die Varianten)",
             "test_begriffe.py": "prüft diese Regel und zitiert dafür die "
                                 "verbotenen Varianten",
         },
     ),
     Begriff(
-        name="Altname smtp587",
-        kanonisch="`imap` (der Altname `smtp587` wird noch angenommen)",
+        name="Altnamen imap/smtp587",
+        kanonisch="`graph_plus` (Graph++; die Altnamen `imap`/`smtp587` "
+                  "werden noch angenommen)",
         verboten={
             # Der Altname darf vorkommen — aber nur, wo er auch erklärt oder
             # abwärtskompatibel verglichen wird. Beides entscheidet
@@ -123,13 +126,13 @@ REGISTER = [
             # steht meist DAVOR (Kommentar über dem Code).
             r"smtp587":
                 "`smtp587` ohne Hinweis darauf, dass es ein Altname für "
-                "`imap` ist — der Modus macht IMAP APPEND, kein SMTP auf 587.",
+                "`graph_plus` ist — der Modus fährt Graph + IMAP APPEND + 587, "
+                "kein reines SMTP auf 587.",
         },
         ausnahmen={
             "CHANGELOG.md": "historische Einträge",
-            "settings_store.py": "definiert den Altnamen und erklärt ihn im "
+            "settings_store.py": "definiert die Altnamen und erklärt sie im "
                                  "Kommentar darüber",
-            "reinject.py": "nimmt den Altnamen entgegen und warnt zur Laufzeit",
             "begriffecheck.py": "beschreibt die Regel selbst",
             "test_begriffe.py": "prüft diese Regel und zitiert dafür die "
                                 "verbotenen Varianten",

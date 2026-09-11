@@ -52,7 +52,7 @@ def test_erklaerende_umgebung_wird_verschont():
     """Wer den Altnamen erklärt, verwendet ihn nicht."""
     zeilen = [
         "# Rueckweg an Exchange.",
-        "# `smtp587` ist ein Altname fuer `imap` — der Modus macht IMAP APPEND.",
+        "# `smtp587` ist ein Altname fuer `graph_plus` — Graph + IMAP APPEND + 587.",
         '    "REINJECT_MODE": "smtp",',
     ]
     assert begriffecheck._wird_erklaert(zeilen, 1)
@@ -97,13 +97,14 @@ def test_pruefung_laeuft_in_der_ci():
 PROBEN = {
     "Rückweg-Modi": (
         ["Im 587-Modus läuft die Zustellung anders.",
-         "Der Graph-only-Modus kann kein S/MIME."],
+         "Wir nutzen den IMAP + Graph Modus für Azure."],
         ["Im Modus `graph` läuft die Zustellung über sendMail.",
-         "Port 587 ist ein Sonderweg innerhalb von `imap`."],
+         "Graph-only kann kein S/MIME.",
+         "Port 587 ist ein Sonderweg innerhalb von Graph++."],
     ),
-    "Altname smtp587": (
+    "Altnamen imap/smtp587": (
         ["Stelle den Rückweg auf smtp587, dann läuft es über Port 587."],
-        ["Der Modus heisst `imap`."],
+        ["Der kanonische Wert ist `graph_plus` (Graph++)."],
     ),
     "aktiviert statt eingeschaltet": (
         ["Das Postfach ist für S/MIME eingeschaltet.",

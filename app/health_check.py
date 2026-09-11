@@ -83,7 +83,7 @@ def liveness() -> dict:
     return {
         "smtp_listener": _smtp_listener_ok(),
         "graph_token": graph_client.cached_token_valid(),
-        "reinject_mode": settings_store.get("REINJECT_MODE") or "smtp",
+        "reinject_mode": settings_store.reinject_mode(),
         "version": config.VERSION,
     }
 
@@ -121,7 +121,7 @@ def _check_exo_batch_sync(emails: list[str]) -> dict:
 
     app_id = _config.CLIENT_ID or settings_store.get("CLIENT_ID") or ""
     tenant_domain = settings_store.get("TENANT_DOMAIN") or ""
-    reinject_mode = settings_store.get("REINJECT_MODE") or "smtp"
+    reinject_mode = settings_store.reinject_mode()
 
     if not app_id or not tenant_domain:
         error_result = {"dg_member": False, "dg_fixed": False, "imap_perm": None, "imap_fixed": False,
@@ -132,7 +132,7 @@ def _check_exo_batch_sync(emails: list[str]) -> dict:
                         "error": "Auth-Zertifikat nicht gefunden"}
         return {e: dict(error_result) for e in emails}
 
-    check_imap = (reinject_mode == "imap")
+    check_imap = (reinject_mode == "graph_plus")
     gw = settings_store.get("GATEWAY_NAME") or "EXO Signature Gateway"
     dg_name = f"{gw} - Enabled Mailboxes"
 
@@ -430,7 +430,7 @@ async def run_checks_for_mailbox(email: str, exo_data: dict | None = None) -> di
     email = email.lower().strip()
     mailbox_config: dict = settings_store.get("MAILBOX_CONFIG") or {}
     cfg = mailbox_match.match_sender(mailbox_config, email)
-    reinject_mode = settings_store.get("REINJECT_MODE") or "smtp"
+    reinject_mode = settings_store.reinject_mode()
     kv_url = (settings_store.get("KEYVAULT_URL") or "").strip()
     smime_active = cfg.get("smime_sign") or cfg.get("smime_encrypt") or cfg.get("smime")
 
@@ -458,7 +458,7 @@ async def run_checks_for_mailbox(email: str, exo_data: dict | None = None) -> di
             else:
                 checks["dg_member"] = _make_result("error", "Nicht in Distribution Group")
 
-            if reinject_mode == "imap":
+            if reinject_mode == "graph_plus":
                 imap_perm = data.get("imap_perm")
                 imap_fixed = data.get("imap_fixed", False)
                 if imap_fixed:
@@ -472,7 +472,7 @@ async def run_checks_for_mailbox(email: str, exo_data: dict | None = None) -> di
                 else:
                     checks["imap_permission"] = _make_result("skip", "SP nicht gefunden")
             else:
-                checks["imap_permission"] = _make_result("skip", "REINJECT_MODE != imap")
+                checks["imap_permission"] = _make_result("skip", "REINJECT_MODE != graph_plus")
     else:
         # Run PS for single mailbox (fallback when called directly)
         batch_result = await loop.run_in_executor(None, _check_exo_batch_sync, [email])
@@ -492,7 +492,7 @@ async def run_checks_for_mailbox(email: str, exo_data: dict | None = None) -> di
             else:
                 checks["dg_member"] = _make_result("error", "Nicht in Distribution Group")
 
-            if reinject_mode == "imap":
+            if reinject_mode == "graph_plus":
                 imap_perm = data.get("imap_perm")
                 imap_fixed = data.get("imap_fixed", False)
                 if imap_fixed:
@@ -506,7 +506,7 @@ async def run_checks_for_mailbox(email: str, exo_data: dict | None = None) -> di
                 else:
                     checks["imap_permission"] = _make_result("skip", "SP nicht gefunden")
             else:
-                checks["imap_permission"] = _make_result("skip", "REINJECT_MODE != imap")
+                checks["imap_permission"] = _make_result("skip", "REINJECT_MODE != graph_plus")
 
     # 4. template
     if cfg.get("sig"):
