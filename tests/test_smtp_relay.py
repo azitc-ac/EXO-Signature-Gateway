@@ -160,14 +160,13 @@ def test_nur_im_smtp_modus(anlage):
     gut = ("drucker@firma.de", ["chefin@firma.de"], "10.1.5.30")
     assert smtp_relay.pruefe(*gut)[0], "im Modus smtp muss es gehen"
 
-    # Aliasse (imap/smtp587) werden auf den kanonischen graph_plus normalisiert —
-    # der Grund nennt daher den kanonischen Modus, nicht den eingegebenen Altnamen.
-    for modus, erwartet in [("graph", "graph"), ("graph_plus", "graph_plus"),
-                            ("imap", "graph_plus"), ("smtp587", "graph_plus")]:
+    # Jeder Nicht-smtp-Modus (inkl. der Altnamen) wird abgelehnt. smtp_relay liest
+    # den Rohwert (Datei ist mit dem Relay-Repo gespiegelt) und nennt ihn im Grund.
+    for modus in ("graph", "graph_plus", "imap", "smtp587"):
         anlage["REINJECT_MODE"] = modus
         erlaubt, grund, antwort = smtp_relay.pruefe(*gut)
         assert not erlaubt, f"Modus {modus} hätte abgelehnt werden müssen"
-        assert erwartet in grund, f"der Grund muss den (kanonischen) Modus nennen: {grund!r}"
+        assert modus in grund, "der Grund muss den Modus nennen"
         # 4xx, nicht 5xx: Das Gerät soll es nach einer Umstellung erneut
         # versuchen — die Ursache ist Konfiguration, kein dauerhafter Fehler.
         assert antwort.startswith("451"), antwort
