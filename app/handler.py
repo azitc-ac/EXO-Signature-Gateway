@@ -365,7 +365,31 @@ class SignatureHandler:
         recipients = envelope.rcpt_tos
         raw = envelope.content
 
-        if peer_ip and not aus_relay_netz:
+        # Authentifizierte Einlieferung (Submission 587): Der Peer hat sich mit
+        # dem Login einer Sende-Identität angemeldet. Das ersetzt die IP-Prüfung —
+        # ein Gerät mit gültigem Login darf einliefern, gleich aus welchem Netz.
+        _ident = (getattr(session, "auth_data", None)
+                  if getattr(session, "authenticated", False) else None)
+
+        if _ident:
+            import sende_identitaeten
+            erlaubt, grund, antwort = sende_identitaeten.pruefe(_ident, sender, recipients)
+            if not erlaubt:
+                log.warning("Submission abgelehnt: %s", grund)
+                try:
+                    mail_audit.log_event(
+                        sender=sender, recipients=recipients, subject="",
+                        message_id="", action="relay_abgelehnt", error=grund,
+                        relay_ip=peer_ip, relay_id=str(_ident.get("login", "")))
+                except Exception:                       # noqa: BLE001
+                    pass
+                return antwort
+            log.info("Submission: %s → %s (Identität %s, von %s)",
+                     sender, ", ".join(recipients[:3]),
+                     _ident.get("name") or _ident.get("login"), peer_ip)
+            import relay_stats
+            relay_stats.merke(peer_ip, absender=sender, empfaenger=recipients, bytes_=len(raw))
+        elif peer_ip and not aus_relay_netz:
             import smtp_acl
             if not smtp_acl.is_allowed(peer_ip):
                 log.warning("SMTP: rejected connection from %s — not an allowed "
@@ -390,7 +414,9 @@ class SignatureHandler:
         # ⚠️ Die Relay-Pruefung steht NACH dem Einlesen von Absender und
         # Empfaengern, weil sie beide braucht — und VOR jeder Verarbeitung,
         # damit eine abgelehnte Nachricht das Gateway nicht erst durchlaeuft.
-        if aus_relay_netz:
+        # `not _ident`: eine authentifizierte Submission ist oben schon geprueft;
+        # sie soll nicht zusaetzlich als IP-Relay behandelt werden.
+        if aus_relay_netz and not _ident:
             erlaubt, grund, antwort = smtp_relay.pruefe(sender, recipients, peer_ip)
             if not erlaubt:
                 log.warning("%s", grund)
@@ -434,9 +460,11 @@ class SignatureHandler:
         # Quelle einer per SMTP-Relay eingelieferten Nachricht — leer bei Post,
         # die auf dem regulaeren Exchange-Weg kommt. Damit wird jede Audit-Zeile
         # als Relay-Zeile erkennbar; die relay-fokussierte Protokollansicht filtert
-        # genau darauf. (Kommt spaeter eine SMTP-AUTH-Identitaet dazu, tritt sie
-        # neben die IP — beides ist je nach Auth-Stufe die aussagekraeftige Groesse.)
-        _relay_quelle = peer_ip if aus_relay_netz else ""
+        # genau darauf. relay_ip = Quell-IP (IP-Relay oder Geraet der Submission),
+        # relay_id = die authentifizierte Sende-Identitaet (Login) — je nach
+        # Auth-Stufe ist mal das eine, mal das andere die aussagekraeftige Groesse.
+        _relay_quelle = peer_ip if (aus_relay_netz or _ident) else ""
+        _relay_id = str(_ident.get("login", "")) if _ident else ""
 
         def _audit(action: str, *, subject: str = "", error: str | None = None) -> None:
             try:
@@ -450,6 +478,7 @@ class SignatureHandler:
                     processing_ms=int((time.monotonic() - _t0) * 1000),
                     error=error,
                     relay_ip=_relay_quelle,
+                    relay_id=_relay_id,
                 )
             except Exception as exc:
                 log.warning("mail_audit: _audit(%s) failed — dashboard/stats counter "

@@ -50,15 +50,21 @@ def init_db() -> None:
                 size_bytes    INTEGER,
                 processing_ms INTEGER,
                 error         TEXT,
-                relay_ip      TEXT
+                relay_ip      TEXT,
+                relay_id      TEXT
             )
         """)
-        # Bestands-DBs kennen die Spalte noch nicht — `CREATE TABLE IF NOT EXISTS`
+        # Bestands-DBs kennen die Spalten noch nicht — `CREATE TABLE IF NOT EXISTS`
         # legt sie nicht nachtraeglich an. Ohne diese Wanderung schluege jeder
-        # INSERT mit relay_ip fehl (und der Relay-Filter faende nie etwas).
+        # INSERT mit relay_ip/relay_id fehl (und der Relay-Filter faende nie etwas).
+        # relay_ip = Quell-IP (IP-Relay), relay_id = authentifizierte Sende-Identitaet
+        # (Submission 587); je nach Auth-Stufe ist mal das eine, mal das andere die
+        # aussagekraeftige Groesse.
         spalten = {r["name"] for r in conn.execute("PRAGMA table_info(mail_log)")}
         if "relay_ip" not in spalten:
             conn.execute("ALTER TABLE mail_log ADD COLUMN relay_ip TEXT")
+        if "relay_id" not in spalten:
+            conn.execute("ALTER TABLE mail_log ADD COLUMN relay_id TEXT")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_ts     ON mail_log(ts)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_action ON mail_log(action)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_sender ON mail_log(sender)")
@@ -89,6 +95,7 @@ def log_event(
     processing_ms: int = 0,
     error: str | None = None,
     relay_ip: str = "",
+    relay_id: str = "",
 ) -> None:
     if not _initialised:
         log.warning("mail_audit: log_event(%s) dropped — DB not yet initialised", action)
@@ -98,8 +105,8 @@ def log_event(
         with _lock, _conn() as conn:
             conn.execute(
                 "INSERT INTO mail_log "
-                "(ts, sender, recipients, subject, message_id, action, size_bytes, processing_ms, error, relay_ip) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "(ts, sender, recipients, subject, message_id, action, size_bytes, processing_ms, error, relay_ip, relay_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     ts,
                     sender,
@@ -111,6 +118,7 @@ def log_event(
                     processing_ms,
                     error,
                     relay_ip or None,
+                    relay_id or None,
                 ),
             )
     except Exception as exc:
@@ -168,7 +176,10 @@ def query_events(
         conditions.append("relay_ip = ?")
         params.append(relay_ip)
     elif nur_relay:
-        conditions.append("relay_ip IS NOT NULL AND relay_ip != ''")
+        # Relay-Post ist beides: IP-Relay (relay_ip) UND authentifizierte
+        # Submission (relay_id). Der relay-fokussierte Filter erfasst beide.
+        conditions.append("((relay_ip IS NOT NULL AND relay_ip != '') "
+                          "OR (relay_id IS NOT NULL AND relay_id != ''))")
     where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
     params += [limit, offset]
     try:
@@ -216,7 +227,10 @@ def count_events(
         conditions.append("relay_ip = ?")
         params.append(relay_ip)
     elif nur_relay:
-        conditions.append("relay_ip IS NOT NULL AND relay_ip != ''")
+        # Relay-Post ist beides: IP-Relay (relay_ip) UND authentifizierte
+        # Submission (relay_id). Der relay-fokussierte Filter erfasst beide.
+        conditions.append("((relay_ip IS NOT NULL AND relay_ip != '') "
+                          "OR (relay_id IS NOT NULL AND relay_id != ''))")
     where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
     try:
         with _conn() as conn:

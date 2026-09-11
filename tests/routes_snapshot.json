@@ -756,6 +756,20 @@
     "name": "api_relay_geraet_loeschen"
   },
   {
+    "pfad": "/api/relay/identitaet",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_relay_identitaet"
+  },
+  {
+    "pfad": "/api/relay/identitaet/loeschen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_relay_identitaet_loeschen"
+  },
+  {
     "pfad": "/api/relay/lernmodus",
     "methoden": [
       "POST"

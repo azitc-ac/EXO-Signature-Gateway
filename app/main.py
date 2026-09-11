@@ -147,6 +147,31 @@ class _LenientController(Controller):
         return _LenientSMTP(self.handler, **self.SMTP_kwargs)
 
 
+def _submission_authenticator(server, session, envelope, mechanism, auth_data):
+    """Prüft die Anmeldung am Submission-Listener (587) gegen die
+    Sende-Identitäten. Bei Erfolg wird die Identität als `auth_data` an die
+    Sitzung gehängt — der Handler liest sie später aus `session.auth_data`.
+
+    Solange `SUBMISSION_ENABLED` aus ist, wird jede Anmeldung abgewiesen; der
+    Port ist dann zwar offen, nimmt aber niemanden an (live umschaltbar, ohne
+    Neustart).
+    """
+    from aiosmtpd.smtp import AuthResult, LoginPassword
+    if not settings_store.get("SUBMISSION_ENABLED"):
+        return AuthResult(success=False, handled=False)
+    if not isinstance(auth_data, LoginPassword):
+        return AuthResult(success=False, handled=False)
+    try:
+        import sende_identitaeten
+        ident = sende_identitaeten.pruefe_login(auth_data.login, auth_data.password)
+    except Exception as exc:                                  # noqa: BLE001
+        log.warning("Submission-Auth: Prüfung fehlgeschlagen: %s", exc)
+        return AuthResult(success=False, handled=False)
+    if ident:
+        return AuthResult(success=True, auth_data=ident)
+    return AuthResult(success=False, handled=False)
+
+
 def _build_tls_context() -> ssl.SSLContext | None:
     cert = Path(config.SMTP_TLS_CERT)
     key = Path(config.SMTP_TLS_KEY)
@@ -620,11 +645,37 @@ async def _run_smtp() -> None:
         config.SMTP_PORT,
         "yes" if tls_ctx else "no",
     )
+
+    # Submission-Listener (587): authentifizierte Einlieferung durch
+    # Sende-Identitäten. Setzt TLS zwingend voraus (Submission ohne TLS wäre ein
+    # Klartext-Login) — ohne Zertifikat wird er gar nicht erst gebunden. Die
+    # tatsächliche Freischaltung steuert `SUBMISSION_ENABLED` (im Authenticator
+    # geprüft, live umschaltbar).
+    sub_controller = None
+    if tls_ctx is not None:
+        sub_controller = _LenientController(
+            handler,
+            hostname="0.0.0.0",
+            port=config.SUBMISSION_PORT,
+            tls_context=tls_ctx,
+            require_starttls=True,
+            auth_required=True,
+            auth_require_tls=True,
+            authenticator=_submission_authenticator,
+        )
+        sub_controller.start()
+        log.info("Submission listener started on port %d (AUTH, TLS required)",
+                 config.SUBMISSION_PORT)
+    else:
+        log.info("Submission listener NOT started — kein TLS-Zertifikat "
+                 "(Port %d bleibt zu)", config.SUBMISSION_PORT)
     try:
         while True:
             await asyncio.sleep(3600)
     finally:
         controller.stop()
+        if sub_controller is not None:
+            sub_controller.stop()
 
 
 def main() -> None:

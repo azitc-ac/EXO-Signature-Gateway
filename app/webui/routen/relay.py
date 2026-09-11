@@ -72,7 +72,64 @@ async def api_relay_liste(namen: int = 0, user: str = Depends(_require_admin)):
         "lernmodus": _zustand(),
         "relay_an": bool(settings_store.get("SMTP_RELAY_ENABLED")),
         "modus": (settings_store.get("REINJECT_MODE") or "smtp").strip(),
+        "submission_an": bool(settings_store.get("SUBMISSION_ENABLED")),
+        "identitaeten": _identitaeten_liste(),
     })
+
+
+def _identitaeten_liste() -> list:
+    import sende_identitaeten
+    return sende_identitaeten.liste()
+
+
+@router.post("/api/relay/identitaet")
+async def api_relay_identitaet(request: Request, user: str = Depends(_require_admin)):
+    """Sende-Identität anlegen (ohne `id`) oder ändern (mit `id`).
+
+    Beim Ändern bleibt ein leeres Passwortfeld ohne Wirkung — so lässt sich Name
+    oder Absender ändern, ohne das Passwort neu zu setzen (Geheimnis-Regel: nie
+    den Hash zurück in die Oberfläche geben, das Feld bleibt leer).
+    """
+    import sende_identitaeten
+    daten = await request.json()
+    id_ = (daten.get("id") or "").strip()
+    try:
+        if id_:
+            ok = sende_identitaeten.aktualisieren(
+                id_,
+                name=daten.get("name"),
+                absender=daten.get("absender"),
+                aktiv=daten.get("aktiv"),
+                passwort=(daten.get("passwort") or None),
+            )
+            if not ok:
+                return JSONResponse({"ok": False, "error": "Identität nicht gefunden."},
+                                    status_code=404)
+            log.info("Sende-Identität %s durch %s geändert", id_, user)
+            return JSONResponse({"ok": True})
+        rec = sende_identitaeten.anlegen(
+            name=daten.get("name") or "",
+            login=daten.get("login") or "",
+            passwort=daten.get("passwort") or "",
+            absender=daten.get("absender") or "",
+        )
+        log.info("Sende-Identität %s (%s) durch %s angelegt",
+                 rec["id"], rec["login"], user)
+        return JSONResponse({"ok": True, "identitaet": rec})
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+
+
+@router.post("/api/relay/identitaet/loeschen")
+async def api_relay_identitaet_loeschen(request: Request,
+                                        user: str = Depends(_require_admin)):
+    import sende_identitaeten
+    daten = await request.json()
+    id_ = (daten.get("id") or "").strip()
+    weg = sende_identitaeten.entfernen(id_)
+    if weg:
+        log.info("Sende-Identität %s durch %s entfernt", id_, user)
+    return JSONResponse({"ok": weg})
 
 
 @router.get("/api/relay/stats")
