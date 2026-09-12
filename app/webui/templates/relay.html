@@ -96,6 +96,15 @@
   <div id="stats-gesamt" class="hint" style="font-size:13px;margin:8px 0 12px">Wird geladen …</div>
   <div style="display:flex;gap:24px;flex-wrap:wrap">
     <div style="flex:1;min-width:300px">
+      <h3 style="font-size:14px;margin:0 0 6px">Top-Identitäten <span class="hint" style="font-weight:400">(587)</span></h3>
+      <div class="tabellen-rollbereich">
+        <table class="config-table" style="min-width:320px">
+          <thead><tr><th>Identität</th><th style="text-align:right">Mails</th><th style="text-align:right">Volumen</th></tr></thead>
+          <tbody id="stats-identitaeten"><tr><td colspan="3" style="color:#888">—</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div style="flex:1;min-width:300px">
       <h3 style="font-size:14px;margin:0 0 6px">Top-Absender</h3>
       <div class="tabellen-rollbereich">
         <table class="config-table" style="min-width:320px">
@@ -686,6 +695,7 @@ async function statsLaden() {
         + '<td style="text-align:right">' + _volumen(z.bytes) + '</td></tr>';
     }).join('');
   }
+  fuelle(document.getElementById('stats-identitaeten'), r.top_identitaeten || []);
   fuelle(document.getElementById('stats-absender'), r.top_absender || []);
   fuelle(document.getElementById('stats-empfaenger'), r.top_empfaenger || []);
 }
