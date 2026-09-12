@@ -178,6 +178,12 @@ def _submission_authenticator(server, session, envelope, mechanism, auth_data):
         return AuthResult(success=False, handled=False)
     if ident:
         return AuthResult(success=True, auth_data=ident)
+    # Fehlgeschlagene Anmeldung sichtbar machen (Angriffs-Indikator).
+    try:
+        import anmelde_ereignisse
+        anmelde_ereignisse.merke("587", quelle, "Login/Passwort abgewiesen")
+    except Exception:                                         # noqa: BLE001
+        pass
     return AuthResult(success=False, handled=False)
 
 

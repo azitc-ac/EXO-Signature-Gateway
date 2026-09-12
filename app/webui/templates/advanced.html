@@ -1122,6 +1122,11 @@ async function saveSmtpSubmit() {
       <summary style="cursor:pointer;font-size:13px;color:#57534e">Zuletzt abgewiesene Quellen</summary>
       <div id="acl-rejects" style="font-size:12px;font-family:monospace;margin-top:8px;color:#555">…</div>
     </details>
+
+    <details style="margin-top:10px">
+      <summary style="cursor:pointer;font-size:13px;color:#57534e">Abgewiesene Anmeldungen (Web-UI · 587 · Port 25) <span id="anm-summe" style="color:#92400e"></span></summary>
+      <div id="anm-ereignisse" style="font-size:12px;font-family:monospace;margin-top:8px;color:#555">…</div>
+    </details>
   </div>
 </div>
 <script>
@@ -1134,6 +1139,21 @@ async function aclLoadStatus() {
     const rj = document.getElementById('acl-rejects');
     rj.innerHTML = d.recent_rejects.length
       ? d.recent_rejects.map(x => new Date(x.ts).toLocaleString('de-DE') + '  ' + x.ip).join('<br>')
+      : 'keine';
+  } catch(e) {}
+}
+async function anmLoad() {
+  try {
+    const r = await fetch('/api/anmelde-ereignisse'); const d = await r.json();
+    const stand = d.stand || {}, labels = d.labels || {};
+    const summe = Object.keys(stand).reduce((a, k) => a + (stand[k] || 0), 0);
+    document.getElementById('anm-summe').textContent = summe ? '(' + summe + ' seit Start)' : '';
+    const el = document.getElementById('anm-ereignisse');
+    const kurz = { web: 'Web-UI', '587': '587', port25: 'Port 25' };
+    el.innerHTML = (d.letzte && d.letzte.length)
+      ? d.letzte.map(x => new Date(x.ts).toLocaleString('de-DE')
+          + '  [' + esc(kurz[x.quelle] || x.quelle) + ']  ' + esc(x.ip || '?')
+          + (x.grund ? '  ' + esc(x.grund) : '')).join('<br>')
       : 'keine';
   } catch(e) {}
 }
@@ -1155,6 +1175,7 @@ async function aclRefresh() {
   setTimeout(function(){ el.textContent=''; }, 3000);
 }
 aclLoadStatus();
+anmLoad();
 </script>
 
 <!-- ── EXO PowerShell Zertifikat ──────────────────────────────────────────── -->

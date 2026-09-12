@@ -690,6 +690,18 @@ async def api_smtp_acl_status(_: str = Depends(_require_admin)):
     })
 
 
+@app.get("/api/anmelde-ereignisse")
+async def api_anmelde_ereignisse(_: str = Depends(_require_admin)):
+    """Abgewiesene/gedrosselte Anmeldungen (Web-UI, 587) und Quell-IP-Ablehnungen
+    (Port 25) — Angriffs-Indikator fürs Erweitert-Panel."""
+    import anmelde_ereignisse
+    return JSONResponse({
+        "stand": anmelde_ereignisse.stand(),
+        "labels": anmelde_ereignisse.LABELS,
+        "letzte": anmelde_ereignisse.letzte(40),
+    })
+
+
 @app.post("/api/smtp-acl/refresh")
 async def api_smtp_acl_refresh(_: str = Depends(_require_admin)):
     """Fetch the current Exchange Online IP ranges on demand."""

@@ -39,12 +39,13 @@
       <thead>
         <tr>
           <th>Name</th><th>Login</th><th>Absender (Shared Mailbox)</th>
+          <th>Zuletzt aktiv</th>
           <th style="text-align:center">Extern</th>
           <th style="text-align:center">Aktiv</th><th></th>
         </tr>
       </thead>
       <tbody id="identitaeten-body">
-        <tr><td colspan="6" style="color:#888">Wird geladen …</td></tr>
+        <tr><td colspan="7" style="color:#888">Wird geladen …</td></tr>
       </tbody>
     </table>
   </div>
@@ -62,6 +63,8 @@
       <div>
         <label for="neu-id-pw" style="font-size:12px;color:#555">Passwort</label><br>
         <input type="password" id="neu-id-pw" placeholder="mind. 8 Zeichen" style="margin-top:3px">
+        <button type="button" class="btn secondary btn-sm" style="margin-top:4px"
+                onclick="idPwGenerieren()" title="Starkes Zufallspasswort erzeugen und anzeigen">Generieren</button>
       </div>
       <div>
         <label for="neu-id-absender" style="font-size:12px;color:#555">Absender (optional)</label><br>
@@ -388,7 +391,7 @@ function zeichneIdentitaeten(liste) {
   document.getElementById('identitaeten-anzahl').textContent =
     liste.length ? liste.length + ' Identität' + (liste.length === 1 ? '' : 'en') : '';
   if (!liste.length) {
-    tb.innerHTML = '<tr><td colspan="6" style="color:#888">Noch keine Identität '
+    tb.innerHTML = '<tr><td colspan="7" style="color:#888">Noch keine Identität '
       + 'angelegt.</td></tr>';
     return;
   }
@@ -399,6 +402,7 @@ function zeichneIdentitaeten(liste) {
       '<td>' + esc(i.name || '—') + '</td>'
       + '<td><code>' + esc(i.login) + '</code></td>'
       + '<td style="font-size:12px;color:#555">' + esc(i.absender || '—') + '</td>'
+      + '<td style="font-size:12px;color:#555">' + (i.zuletzt ? esc(i.zuletzt) : '<span style="color:#94a3b8">nie</span>') + '</td>'
       + '<td style="text-align:center"><input type="checkbox"' + (i.extern ? ' checked' : '')
         + ' title="auch an externe Empfänger senden"'
         + ' onchange="identitaetExtern(\'' + escAttr(i.id) + '\', this)"></td>'
@@ -414,6 +418,24 @@ function zeichneIdentitaeten(liste) {
       + '</td>';
     tb.appendChild(tr);
   });
+}
+
+function _starkesPasswort(n) {
+  // Ohne mehrdeutige Zeichen (0/O, 1/l/I) — soll am Gerät abtippbar bleiben.
+  const alpha = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+  const arr = new Uint32Array(n);
+  crypto.getRandomValues(arr);
+  let s = '';
+  for (let i = 0; i < n; i++) s += alpha[arr[i] % alpha.length];
+  return s;
+}
+
+function idPwGenerieren() {
+  const f = document.getElementById('neu-id-pw');
+  f.type = 'text';                 // sichtbar, damit man es zum Gerät kopieren kann
+  f.value = _starkesPasswort(20);
+  f.focus();
+  f.select();
 }
 
 async function identitaetHinzufuegen(btn) {
@@ -432,6 +454,7 @@ async function identitaetHinzufuegen(btn) {
   hideAlert(box);
   ['neu-id-name', 'neu-id-login', 'neu-id-pw', 'neu-id-absender']
     .forEach(function (id) { document.getElementById(id).value = ''; });
+  document.getElementById('neu-id-pw').type = 'password';
   document.getElementById('neu-id-extern').checked = false;
   laden(false);
 }

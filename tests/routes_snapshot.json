@@ -161,6 +161,13 @@
     "name": "api_update_admin_user"
   },
   {
+    "pfad": "/api/anmelde-ereignisse",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_anmelde_ereignisse"
+  },
+  {
     "pfad": "/api/audit/events",
     "methoden": [
       "GET"

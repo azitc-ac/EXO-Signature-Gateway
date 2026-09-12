@@ -225,6 +225,11 @@ def _check_auth(request: Request,
         import login_drossel
         ip = request.client.host if request.client else "?"
         if login_drossel.gesperrt(ip):
+            try:
+                import anmelde_ereignisse
+                anmelde_ereignisse.merke("web", ip, "gedrosselt")
+            except Exception:
+                pass
             raise HTTPException(429, "Zu viele Fehlversuche — bitte kurz warten.")
         username = settings_store.get("WEBUI_USERNAME") or "admin"
         if (secrets.compare_digest(credentials.username.encode(), username.encode())
@@ -232,6 +237,11 @@ def _check_auth(request: Request,
             login_drossel.erfolg(ip)
             return credentials.username
         login_drossel.fehlversuch(ip)
+        try:
+            import anmelde_ereignisse
+            anmelde_ereignisse.merke("web", ip, "HTTP-Basic abgewiesen")
+        except Exception:
+            pass
         log.warning("Fehlgeschlagene Basic-Anmeldung von %s", ip)
     path = request.url.path
     is_api = path.startswith("/api/") or path.startswith("/log/")

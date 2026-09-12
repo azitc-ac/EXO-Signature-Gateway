@@ -396,6 +396,14 @@ class SignatureHandler:
                 log.warning("SMTP: rejected connection from %s — not an allowed "
                             "source (Exchange Online allowlist)", peer_ip)
                 smtp_acl.record_reject(peer_ip)
+                # Auch im übergreifenden Angriffs-Indikator vermerken (Tagesbericht
+                # + Live-Panel), nicht nur in der ACL-eigenen Liste.
+                try:
+                    import anmelde_ereignisse
+                    anmelde_ereignisse.merke("port25", peer_ip,
+                                             "Quelle nicht in der Erlaubnisliste")
+                except Exception:                       # noqa: BLE001
+                    pass
                 # ⚠️ Nur bei eingeschaltetem Relay merken. Sonst sammelte jedes
                 # Gateway die Adressen jedes Spam-Bots, der je eine Sitzung bis
                 # DATA gefuehrt hat — eine Liste, in der das eine neue Geraet

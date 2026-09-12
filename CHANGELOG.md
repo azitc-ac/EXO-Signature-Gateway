@@ -5,6 +5,37 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.7 — 2026-09-12 — Abgewiesene Anmeldungen sichtbar; „Zuletzt aktiv" + Passwort-Generator
+
+**Angriffe werden nicht mehr still verschluckt.** Abgewiesene und gedrosselte
+Anmeldeversuche werden jetzt einheitlich erfasst und angezeigt — nicht nur im
+Logbuch. Eine Schutzfunktion (Brute-Force-Bremse, Quell-IP-Erlaubnisliste), deren
+Wirken nirgends sichtbar ist, fällt sonst unbemerkt aus.
+
+- Erfasst über **drei Wege**: Web-UI-Login (Formular und HTTP-Basic-Notzugang),
+  Submission-Port **587** (Sende-Identitäten) und Quell-IP-Ablehnungen an **Port
+  25** (Exchange-Connector-Erlaubnisliste).
+- **Tagesbericht:** je Weg eine Zeile, **nur wenn es Vorfälle gab** (die Zahl,
+  nicht eine Dauerzeile mit 0), mit derselben „seit dem letzten Bericht"-Herkunft
+  wie die übrigen Tageswerte.
+- **Erweitert-Tab:** neues Panel „Abgewiesene Anmeldungen (Web-UI · 587 · Port
+  25)" mit den jüngsten Ereignissen (Zeit, Quelle, IP, Grund) und der Gesamtzahl
+  seit Start. Die bestehende Liste „Zuletzt abgewiesene Quellen" (Port-25-ACL)
+  bleibt daneben erhalten.
+- Zählung rein im Speicher (pro Prozess); ein Neustart setzt zurück — für einen
+  Angriffs-Indikator vertretbar und bewusst **ohne** Schreibzugriff je Versuch,
+  damit ein Fehllogin-Sturm keine Plattenlast erzeugt.
+
+**Sende-Identitäten** (weiterhin PREVIEW):
+
+- Neue Spalte **„Zuletzt aktiv"** — der letzte Tag, an dem ein Login etwas
+  eingeliefert hat (aus den vorhandenen Tagesaggregaten, kein zusätzlicher
+  Schreibweg). So ist eine tote von einer benutzten Identität unterscheidbar und
+  ein vergessenes Login erkennbar.
+- **„Passwort generieren"** im Anlegen-Formular: erzeugt ein starkes
+  Zufallspasswort (20 Zeichen, ohne verwechselbare Zeichen) und zeigt es zum
+  Übertragen ans Gerät an.
+
 ## v1.9.6 — 2026-09-12 — Update-Dialog gestrafft; Sende-Identitäten: Absender nachträglich änderbar
 
 - **Update-Erfolgsdialog:** Nach einem erfolgreichen Update steht jetzt das

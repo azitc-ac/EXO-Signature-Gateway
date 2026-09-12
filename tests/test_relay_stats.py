@@ -78,6 +78,20 @@ def test_identitaet_wird_getrennt_je_login_gezaehlt(db):
     assert s["geraete"] == 2                                # IP-Sicht zählt weiter zwei Geräte
 
 
+def test_letzte_aktivitaet_je_identitaet(db):
+    from datetime import timedelta
+    heute = db._jetzt().strftime("%Y-%m-%d")
+    frueher = (db._jetzt() - timedelta(days=3)).strftime("%Y-%m-%d")
+    with db._conn() as c:
+        c.execute("INSERT INTO identitaet (identitaet, tag, anzahl, bytes) VALUES ('kd@f.de',?,1,1)", (frueher,))
+        c.execute("INSERT INTO identitaet (identitaet, tag, anzahl, bytes) VALUES ('kd@f.de',?,1,1)", (heute,))
+        c.execute("INSERT INTO identitaet (identitaet, tag, anzahl, bytes) VALUES ('alt@f.de',?,1,1)", (frueher,))
+    aktiv = db.letzte_aktivitaet()
+    assert aktiv["kd@f.de"] == heute          # jüngster Tag gewinnt
+    assert aktiv["alt@f.de"] == frueher
+    assert db.letzte_aktivitaet() != {} and "gibtsnicht@f.de" not in db.letzte_aktivitaet()
+
+
 def test_aufraeumen_loescht_auch_identitaeten(db):
     alt = (db._jetzt() - timedelta(days=db.AUFBEWAHRUNG_TAGE + 5)).strftime("%Y-%m-%d")
     with db._conn() as c:

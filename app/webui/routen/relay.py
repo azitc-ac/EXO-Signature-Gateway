@@ -79,7 +79,13 @@ async def api_relay_liste(namen: int = 0, user: str = Depends(_require_admin)):
 
 def _identitaeten_liste() -> list:
     import sende_identitaeten
-    return sende_identitaeten.liste()
+    import relay_stats
+    liste = sende_identitaeten.liste()
+    # „Zuletzt aktiv" aus den Identitäts-Tagesaggregaten anreichern (Login = Schlüssel).
+    aktiv = relay_stats.letzte_aktivitaet()
+    for i in liste:
+        i["zuletzt"] = aktiv.get((i.get("login") or "").lower(), "")
+    return liste
 
 
 @router.post("/api/relay/identitaet")
