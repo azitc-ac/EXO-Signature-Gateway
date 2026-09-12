@@ -127,6 +127,22 @@ def statistik(tage_zurueck: int = 30, grenze_top: int = 20) -> dict:
         return leer
 
 
+def letzte_aktivitaet(tage_zurueck: int = AUFBEWAHRUNG_TAGE) -> dict:
+    """{identitaet(login): letzter Tag mit Einlieferung} über den Zeitraum.
+
+    Aus den Tagesaggregaten der Identitäts-Tabelle — kein zusätzlicher Schreibweg
+    je Mail (das „zuletzt aktiv" der Oberfläche fällt so nebenbei ab)."""
+    ab = (_jetzt() - timedelta(days=max(1, tage_zurueck))).strftime("%Y-%m-%d")
+    try:
+        with _conn() as c:
+            return {z["identitaet"]: z["m"] for z in c.execute(
+                "SELECT identitaet, MAX(tag) m FROM identitaet "
+                "WHERE tag >= ? GROUP BY identitaet", (ab,))}
+    except Exception as exc:                          # pragma: no cover
+        log.warning("relay_stats.letzte_aktivitaet fehlgeschlagen: %s", exc)
+        return {}
+
+
 def aufraeumen(tage: int = AUFBEWAHRUNG_TAGE) -> int:
     """Aggregate jenseits der Aufbewahrung löschen."""
     grenze = (_jetzt() - timedelta(days=tage)).strftime("%Y-%m-%d")

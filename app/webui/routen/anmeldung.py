@@ -441,6 +441,11 @@ async def auth_local(request: Request):
     warte = max((login_drossel.sperr_sekunden(k) for k in schluessel), default=0.0)
     if warte > 0:
         log.warning("Anmeldung gedrosselt: %s (noch %.0fs)", ip, warte)
+        try:
+            import anmelde_ereignisse
+            anmelde_ereignisse.merke("web", ip, "gedrosselt")
+        except Exception:
+            pass
         raise HTTPException(429, "Zu viele Fehlversuche — bitte kurz warten.",
                             headers={"Retry-After": str(int(warte) + 1)})
     username = settings_store.get("WEBUI_USERNAME") or "admin"
@@ -462,6 +467,11 @@ async def auth_local(request: Request):
         return resp
     for k in schluessel:
         login_drossel.fehlversuch(k)
+    try:
+        import anmelde_ereignisse
+        anmelde_ereignisse.merke("web", ip, "Formular-Login abgewiesen")
+    except Exception:
+        pass
     log.warning("Fehlgeschlagene Anmeldung: Benutzer %r von %s", username_in, ip)
     raise HTTPException(401, "Benutzername oder Passwort falsch")
 

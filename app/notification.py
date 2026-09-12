@@ -187,6 +187,13 @@ def send_daily_report(daily: dict, total: dict) -> bool:
     date_str = now.strftime("%d.%m.%Y")
     monthly = _stats_mod.get_period(now.year, now.month)
 
+    # Abgewiesene/gedrosselte Anmeldungen (Web-UI, 587) und Quell-IP-Ablehnungen
+    # (Port 25) seit dem letzten Bericht — dieselbe „seit-letztem-Bericht"-Herkunft
+    # wie die übrigen Tageswerte (verbraucht den eigenen Snapshot, daher genau
+    # einmal je Bericht). Sichtbarkeit gegen stille Angriffe (CLAUDE.md Regel 8).
+    import anmelde_ereignisse as _ae
+    _abgewiesen = _ae.seit_letztem_bericht()
+
     # ── Heute ──
     def dval(key):
         return daily.get(key, 0)
@@ -232,6 +239,10 @@ def send_daily_report(daily: dict, total: dict) -> bool:
         _row("Antworten in Ketten", _ketten_text(dval("antworten"),
                                                   dval("stapel_verhindert")),
              _ketten_farbe(dval("antworten"), dval("stapel_verhindert"))),
+        # Angriffs-Indikator: nur zeigen, wenn es etwas gab. Eine Dauerzeile mit
+        # 0 würde überlesen — hier zählt gerade der Ausschlag.
+        *[(_row(_ae.LABELS.get(q, q), _abgewiesen[q], "#e67e22")
+           if _abgewiesen.get(q) else "") for q in _ae.QUELLEN],
     ])
 
     # ── Diesen Monat ──
