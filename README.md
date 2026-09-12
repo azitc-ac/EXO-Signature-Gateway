@@ -95,6 +95,7 @@ Exchange Online (EXO) → Zustellung an Empfänger
 | **25** | SMTP + STARTTLS | Exchange Online (Transport Connector) | Eingehende Mails zur Verarbeitung | **immer** |
 | **80** | HTTP | Let's Encrypt-Server / Browser | HTTP-01 ACME Challenge; First-Run-Setup-Wizard | **immer** |
 | **443** | HTTPS | Admins / Browser | Web-UI & REST-API | **immer** |
+| **587** | SMTP (STARTTLS + AUTH) | Geräte/Anwendungen mit Login (Sende-Identitäten) | Authentifizierte Einlieferung ohne feste Absender-IP | nur wenn *Authentifizierte Einlieferung (587)* aktiviert |
 
 > Intern hört der Container auf Port 8080; Docker mappt `443:8080`. Am Router / in der VM-Firewall
 > nur Port 443 (nicht 8080) öffnen.
@@ -111,6 +112,43 @@ Exchange Online (EXO) → Zustellung an Empfänger
 | **25** | SMTP | `<tenant>.mail.protection.outlook.com` | Re-inject via SMTP | `smtp` (nicht Azure-kompatibel) |
 
 Azure VMs blockieren ausgehenden Port 25. Mit `REINJECT_MODE=graph` oder `graph_plus` ist das Gateway vollständig ohne outbound Port 25 betreibbar.
+
+---
+
+## Sende-Identitäten (authentifizierte Einlieferung, Port 587)
+
+Neben der IP-basierten Geräteerkennung des SMTP-Relays (Port 25) können sich
+Geräte und Anwendungen auch mit einem **eigenen Login** (Benutzer + Passwort über
+TLS) am Submission-Port **587** anmelden. Das öffnet die Einlieferung für Geräte
+ohne OAuth (ältere Drucker, Scanner, Fachanwendungen wie SAP) und für Gateways
+ohne feste Absender-IP.
+
+Eine *Sende-Identität* besteht aus Name, Login, Passwort und optional einer
+Absenderadresse. Ein Login gehört zu einer Identität; mehrere Geräte dürfen es
+teilen. Passwörter werden ausschließlich als Hash gespeichert (pbkdf2-sha256), nie
+im Klartext.
+
+**Grenzen** (durchgesetzt im Gateway, nicht nur in der Oberfläche):
+
+- **Absenderdomäne** — eine Identität darf nur *als* eine Adresse der eigenen
+  Tenant-Domänen einliefern (Schutz vor offenem Relay).
+- **Absender-Pin** (optional) — ist eine Absenderadresse hinterlegt, darf sich
+  dieses Login nur unter genau dieser Adresse anmelden; sonst unter jeder Adresse
+  der eigenen Domäne.
+- **Ziel intern/extern** — Vorgabe ist *nur intern*: die Identität darf nur an
+  Empfänger im eigenen Tenant zustellen. Mit dem Schalter *auch extern senden* sind
+  externe Empfänger erlaubt.
+- **Anmelde-Bremse** — wiederholte Fehlanmeldungen einer Quell-IP werden
+  gedrosselt (exponentielles Backoff), bevor überhaupt ein Passwort geprüft wird.
+
+**Einrichten:** Auf der Relay-Seite die Rubrik *Sende-Identitäten* öffnen,
+*Authentifizierte Einlieferung (587) aktivieren* einschalten und eine Identität
+anlegen. Am Gerät `Server:587`, STARTTLS und das Login eintragen. Der Port
+verlangt TLS zwingend (Anmeldung erst nach STARTTLS) und wird ohne
+TLS-Zertifikat gar nicht erst geöffnet. Angenommene Post läuft danach über den
+normalen Verarbeitungs- und Rückweg zurück an Exchange — sie wird signiert bzw.
+S/MIME-behandelt, wenn ihr Absender ein aktiviertes Postfach ist, sonst
+unverändert weitergereicht.
 
 ---
 

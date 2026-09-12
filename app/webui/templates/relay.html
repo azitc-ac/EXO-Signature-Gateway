@@ -405,6 +405,8 @@ function zeichneIdentitaeten(liste) {
       + '<td style="text-align:center"><input type="checkbox"' + (i.aktiv ? ' checked' : '')
         + ' onchange="identitaetAktiv(\'' + escAttr(i.id) + '\', this)"></td>'
       + '<td style="white-space:nowrap">'
+        + '<button class="btn secondary btn-sm" onclick="identitaetAbsender(\''
+          + escAttr(i.id) + '\', \'' + escAttr(i.absender || '') + '\', this)">Absender…</button> '
         + '<button class="btn secondary btn-sm" onclick="identitaetPasswort(\''
           + escAttr(i.id) + '\', this)">Passwort…</button> '
         + '<button class="btn secondary btn-sm" onclick="identitaetLoeschen(\''
@@ -449,6 +451,16 @@ async function identitaetPasswort(id, btn) {
   if (pw === null) return;
   const r = await postJSON('/api/relay/identitaet', { id: id, passwort: pw });
   showMsg(btn, r.ok ? 'gesetzt' : (r.error || 'Fehler'), r.ok);
+}
+
+async function identitaetAbsender(id, aktuell, btn) {
+  const v = prompt('Absender-Pin für dieses Login. Leer lassen = keine Bindung '
+    + '(das Login darf dann unter jeder Adresse der eigenen Domäne senden):',
+    aktuell || '');
+  if (v === null) return;
+  const r = await postJSON('/api/relay/identitaet', { id: id, absender: v.trim() });
+  showMsg(btn, r.ok ? 'gesetzt' : (r.error || 'Fehler'), r.ok);
+  if (r.ok) laden(false);
 }
 
 async function identitaetLoeschen(id, btn) {
