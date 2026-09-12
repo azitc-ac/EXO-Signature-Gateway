@@ -5,7 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
-## v1.9.4 — 2026-09-12 — Sende-Identitäten: intern/extern je Identität, Absenderschutz, Anmelde-Bremse
+## v1.9.5 — 2026-09-12 — Relay-Statistik: Top-Identitäten (587)
+
+Die Statistik auf der Relay-Seite zeigt jetzt eine Liste **Top-Identitäten** —
+Anzahl und Volumen je Sende-Identität (Login), über den gewählten Zeitraum.
+
+- Bislang verdichtete die Statistik nur je Gerät (IP), Absender und Empfänger.
+  Für die authentifizierte Einlieferung über Port 587 ist aber die **Identität**
+  die aussagekräftige Grösse, nicht die IP: Ein Login darf sich mehrere Geräte
+  teilen, die dann unter verschiedenen IPs, aber derselben Identität einliefern.
+  Die neue Liste bündelt sie je Login.
+- Erfasst wird nur bei Login-Einlieferung; reine IP-Relay-Geräte erscheinen wie
+  bisher unter Top-Absender/-Empfänger und in der Gerätezahl. Die Aufbewahrung
+  (400 Tage) und das automatische Aufräumen gelten für die neue Aggregation
+  gleichermassen.
 
 Die Sende-Identitäten (Login-Einlieferung über Port 587) bekommen dieselben
 Grenzen, die ein Port-25-Relay-Gerät schon hat — durchgesetzt im Gateway, nicht

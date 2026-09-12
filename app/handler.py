@@ -388,7 +388,8 @@ class SignatureHandler:
                      sender, ", ".join(recipients[:3]),
                      _ident.get("name") or _ident.get("login"), peer_ip)
             import relay_stats
-            relay_stats.merke(peer_ip, absender=sender, empfaenger=recipients, bytes_=len(raw))
+            relay_stats.merke(peer_ip, absender=sender, empfaenger=recipients,
+                              bytes_=len(raw), identitaet=str(_ident.get("login", "")))
         elif peer_ip and not aus_relay_netz:
             import smtp_acl
             if not smtp_acl.is_allowed(peer_ip):

@@ -62,3 +62,25 @@ def test_merke_ohne_absender_zaehlt_nur_geraet(db):
     s = db.statistik(30)
     assert s["gesamt_anzahl"] == 1 and s["gesamt_bytes"] == 42
     assert s["top_absender"] == [] and s["top_empfaenger"] == []
+    assert s["top_identitaeten"] == []                    # ohne Login keine Identitäts-Zeile
+
+
+def test_identitaet_wird_getrennt_je_login_gezaehlt(db):
+    # Ein Login, zwei Geräte-IPs — die Identität bündelt beide.
+    db.merke("10.0.0.5", absender="kd@x.de", empfaenger=["a@y.de"], bytes_=1000,
+             identitaet="Kundendienst@Firma.de")
+    db.merke("10.0.0.9", absender="kd@x.de", empfaenger=["b@y.de"], bytes_=500,
+             identitaet="kundendienst@firma.de")           # gleicher Login, andere IP
+    s = db.statistik(30)
+    top_i = {z["name"]: z for z in s["top_identitaeten"]}
+    assert top_i["kundendienst@firma.de"]["anzahl"] == 2   # case-insensitiv gebündelt
+    assert top_i["kundendienst@firma.de"]["bytes"] == 1500
+    assert s["geraete"] == 2                                # IP-Sicht zählt weiter zwei Geräte
+
+
+def test_aufraeumen_loescht_auch_identitaeten(db):
+    alt = (db._jetzt() - timedelta(days=db.AUFBEWAHRUNG_TAGE + 5)).strftime("%Y-%m-%d")
+    with db._conn() as c:
+        c.execute("INSERT INTO identitaet (identitaet, tag, anzahl, bytes) VALUES ('kd@x.de',?,1,1)", (alt,))
+    assert db.aufraeumen() >= 1
+    assert not db.statistik(360)["top_identitaeten"]

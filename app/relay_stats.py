@@ -46,6 +46,13 @@ def _conn() -> sqlite3.Connection:
         empfaenger TEXT NOT NULL, tag TEXT NOT NULL,
         anzahl INTEGER NOT NULL DEFAULT 0, bytes INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (empfaenger, tag)) WITHOUT ROWID""")
+    # Volumen je Sende-Identität (Login), sofern die Einlieferung über Port 587
+    # authentifiziert war. Getrennt von `ip`, weil sich ein Login mehrere Geräte
+    # (IPs) teilen darf und die aussagekräftige Grösse dann die Identität ist.
+    c.execute("""CREATE TABLE IF NOT EXISTS identitaet (
+        identitaet TEXT NOT NULL, tag TEXT NOT NULL,
+        anzahl INTEGER NOT NULL DEFAULT 0, bytes INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (identitaet, tag)) WITHOUT ROWID""")
     return c
 
 
@@ -57,13 +64,16 @@ def _heute() -> str:
     return _jetzt().strftime("%Y-%m-%d")
 
 
-def merke(ip: str, absender: str = "", empfaenger: list | None = None, bytes_: int = 0) -> None:
+def merke(ip: str, absender: str = "", empfaenger: list | None = None,
+          bytes_: int = 0, identitaet: str = "") -> None:
     """Eine angenommene Relay-Mail verbuchen (Tag/Volumen + Absender-/Empfänger-
-    Aggregat). Best-effort: Zählen darf den Mailfluss nie aufhalten."""
+    Aggregat, bei Login-Einlieferung zusätzlich je Identität). Best-effort:
+    Zählen darf den Mailfluss nie aufhalten."""
     ip = (ip or "").strip()
     tag = _heute()
     groesse = max(0, int(bytes_ or 0))
     absender = (absender or "").strip().lower()[:200]
+    identitaet = (identitaet or "").strip().lower()[:200]
     ziele = [(e or "").strip().lower()[:200] for e in (empfaenger or []) if (e or "").strip()]
     try:
         with _lock, _conn() as c:
@@ -75,6 +85,10 @@ def merke(ip: str, absender: str = "", empfaenger: list | None = None, bytes_: i
                 c.execute("INSERT INTO absender (absender, tag, anzahl, bytes) VALUES (?,?,1,?) "
                           "ON CONFLICT(absender, tag) DO UPDATE SET anzahl = anzahl + 1, "
                           "bytes = bytes + excluded.bytes", (absender, tag, groesse))
+            if identitaet:
+                c.execute("INSERT INTO identitaet (identitaet, tag, anzahl, bytes) VALUES (?,?,1,?) "
+                          "ON CONFLICT(identitaet, tag) DO UPDATE SET anzahl = anzahl + 1, "
+                          "bytes = bytes + excluded.bytes", (identitaet, tag, groesse))
             for ziel in ziele:
                 c.execute("INSERT INTO empfaenger (empfaenger, tag, anzahl, bytes) VALUES (?,?,1,?) "
                           "ON CONFLICT(empfaenger, tag) DO UPDATE SET anzahl = anzahl + 1, "
@@ -88,7 +102,8 @@ def statistik(tage_zurueck: int = 30, grenze_top: int = 20) -> dict:
     die letzten *tage_zurueck* Tage."""
     ab = (_jetzt() - timedelta(days=max(1, tage_zurueck))).strftime("%Y-%m-%d")
     leer = {"tage": tage_zurueck, "gesamt_anzahl": 0, "gesamt_bytes": 0,
-            "geraete": 0, "top_absender": [], "top_empfaenger": []}
+            "geraete": 0, "top_absender": [], "top_empfaenger": [],
+            "top_identitaeten": []}
     try:
         with _conn() as c:
             g = c.execute("SELECT COALESCE(SUM(anzahl),0) a, COALESCE(SUM(bytes),0) b, "
@@ -105,6 +120,7 @@ def statistik(tage_zurueck: int = 30, grenze_top: int = 20) -> dict:
                 "gesamt_anzahl": g["a"], "gesamt_bytes": g["b"], "geraete": g["g"],
                 "top_absender": _top("absender", "absender"),
                 "top_empfaenger": _top("empfaenger", "empfaenger"),
+                "top_identitaeten": _top("identitaet", "identitaet"),
             }
     except Exception as exc:                          # pragma: no cover
         log.warning("relay_stats.statistik fehlgeschlagen: %s", exc)
@@ -119,6 +135,7 @@ def aufraeumen(tage: int = AUFBEWAHRUNG_TAGE) -> int:
             weg = c.execute("DELETE FROM tage WHERE tag < ?", (grenze,)).rowcount
             weg += c.execute("DELETE FROM absender WHERE tag < ?", (grenze,)).rowcount
             weg += c.execute("DELETE FROM empfaenger WHERE tag < ?", (grenze,)).rowcount
+            weg += c.execute("DELETE FROM identitaet WHERE tag < ?", (grenze,)).rowcount
             return weg
     except Exception as exc:                          # pragma: no cover
         log.warning("relay_stats.aufraeumen fehlgeschlagen: %s", exc)
