@@ -76,7 +76,13 @@
       </div>
       <button class="btn secondary btn-sm" id="upd-modal-copy" title="Update-Protokoll kopieren" style="flex-shrink:0" onclick="_updCopy(this)">Kopieren</button>
     </div>
-    <pre id="upd-modal-log" style="margin:0;white-space:pre-wrap;font-size:11px;overflow-y:auto;padding:14px 18px;color:#374151;flex:1"></pre>
+    <div style="padding:14px 18px;overflow-y:auto;flex:1">
+      <pre id="upd-modal-fazit" style="margin:0;white-space:pre-wrap;font-size:13px;color:#374151;line-height:1.55"></pre>
+      <details id="upd-modal-details" style="margin-top:12px">
+        <summary style="cursor:pointer;font-size:12px;color:#0369a1">Vollständiges Protokoll anzeigen</summary>
+        <pre id="upd-modal-log" style="margin:8px 0 0;white-space:pre-wrap;font-size:11px;color:#64748b"></pre>
+      </details>
+    </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;padding:12px 18px;border-top:1px solid #e2e8f0">
       <button class="btn secondary" id="upd-modal-later" onclick="_updModalLater()">Später</button>
       <button class="btn primary" id="upd-modal-reload" onclick="_updModalReload()">Neu laden</button>
@@ -517,7 +523,18 @@ function _updShowSuccess(d) {
   document.getElementById('upd-modal-version').innerHTML = geaendert
     ? `${esc(vorher)} → <strong>${esc(nachher)}</strong>`
     : `<strong>${esc(nachher)}</strong> (unverändert)`;
+  // Fürs schnelle Lesen genügt das Ende des Protokolls (die eigentliche
+  // Erkenntnis: was gebaut/gestartet wurde). Der volle Verlauf — git pull,
+  // Build-Ausgabe — liegt darunter eingeklappt für den Fall der Fehlersuche.
+  const zeilen = log.split('\n').map(s => s.replace(/\s+$/, '')).filter(s => s.length);
+  const fazit = zeilen.slice(-4).join('\n');
+  document.getElementById('upd-modal-fazit').textContent = fazit || log;
   document.getElementById('upd-modal-log').textContent = log;
+  const det = document.getElementById('upd-modal-details');
+  if (det) {
+    det.open = false;                                   // immer eingeklappt starten
+    det.style.display = (zeilen.length > 4) ? '' : 'none';   // nichts zu verstecken → weg
+  }
   _updModalText = `${titel} ${geaendert ? vorher + ' -> ' + nachher : nachher + ' (unveraendert)'}\n\n${log}`;
   document.getElementById('upd-modal').style.display = 'flex';
 }

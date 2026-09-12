@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.6 — 2026-09-12 — Update-Dialog gestrafft; Sende-Identitäten: Absender nachträglich änderbar
+
+- **Update-Erfolgsdialog:** Nach einem erfolgreichen Update steht jetzt das
+  **Ergebnis** im Vordergrund — die letzten Protokollzeilen, also was gebaut und
+  gestartet wurde. Der vollständige Verlauf (git pull, Build-Ausgabe) liegt
+  darunter **eingeklappt** und lässt sich bei Bedarf aufklappen; der
+  Kopieren-Knopf übernimmt weiterhin das ganze Protokoll. Bei kurzen Protokollen
+  entfällt das Aufklappen.
+- **Sende-Identitäten:** Die Absenderadresse (der optionale *Pin*) einer
+  bestehenden Identität lässt sich jetzt über die Oberfläche ändern oder
+  entfernen — bisher ging das nur beim Anlegen. Leeres Feld hebt die Bindung auf
+  (das Login darf dann unter jeder Adresse der eigenen Domäne senden).
+- **README:** Abschnitt zu den Sende-Identitäten ergänzt (authentifizierte
+  Einlieferung über Port 587, Grenzen, Einrichtung); Port 587 in der
+  Inbound-Porttabelle nachgetragen.
+
 ## v1.9.5 — 2026-09-12 — Relay-Statistik: Top-Identitäten (587)
 
 Die Statistik auf der Relay-Seite zeigt jetzt eine Liste **Top-Identitäten** —

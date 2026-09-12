@@ -163,6 +163,17 @@ def test_pruefe_intern_temporaer_wenn_postfaecher_unbekannt(store, monkeypatch):
     assert antwort.startswith("451")
 
 
+def test_aktualisieren_absender_pin_setzen_und_leeren(store):
+    rec = si.anlegen("A", "a@f.de", "passwort1")           # ohne Pin
+    assert si.liste()[0]["absender"] == ""
+    si.aktualisieren(rec["id"], absender="KD@Firma.de")     # setzen (normalisiert)
+    assert si.liste()[0]["absender"] == "kd@firma.de"
+    si.aktualisieren(rec["id"], absender="")                # leeren = Pin entfernen
+    assert si.liste()[0]["absender"] == ""
+    si.aktualisieren(rec["id"], passwort="ganzneu9")        # None-Felder lassen Pin unberührt
+    assert si.liste()[0]["absender"] == ""
+
+
 def test_aktualisieren_extern_umschalten(store):
     rec = si.anlegen("A", "a@f.de", "passwort1")
     assert si.liste()[0]["extern"] is False
