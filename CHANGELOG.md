@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.9 — 2026-09-14 — Erweitert: „Relaispostfach" → „Ersatz-Absenderpostfach"
+
+Das Feld unter *Erweitert* (Einstellung `SMTP_SUBMIT_USER`) hieß „Relaispostfach"
+und ließ sich leicht mit der **SMTP-Relay**-Funktion (Geräte liefern über das
+Gateway ein) verwechseln — es ist etwas anderes: das Ersatz-Absenderpostfach für
+die **eingehende** Port-587-Einlieferung, wenn Graph nicht „als" einen externen
+Absender senden kann (die Nachricht wird auf dieses Postfach umgeschrieben, die
+echte Adresse bleibt in der Antwortadresse). Nur die Beschriftung ändert sich;
+Verhalten und Einstellung bleiben unverändert.
+
 ## v1.9.8 — 2026-09-13 — Tagesbericht: Schlüssel-Prüfungen von echten Signaturen getrennt
 
 Die Zeile **„Key Vault Signaturen"** zählte bisher auch die **Schlüssel-Prüfung
