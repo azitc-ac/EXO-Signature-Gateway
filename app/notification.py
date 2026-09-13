@@ -209,6 +209,10 @@ def send_daily_report(daily: dict, total: dict) -> bool:
         _row("Zertifikate gesammelt",dval("certs_harvested")),
         _row("Graph API Aufrufe",      dval("graph_api_calls")),
         _row("Key Vault Signaturen",   dval("kv_sign_calls")),
+        # Getrennt von den Signaturen: die halbstündliche Schlüssel-Prüfung des
+        # Gesundheits-Checks. Früher lief sie in „Key Vault Signaturen" mit und
+        # ließ den Bericht nach Signier-Verkehr aussehen, den es nicht gab.
+        _row("Schlüssel-Prüfungen (Key Vault)", dval("kv_key_pruefung"), "#888"),
         _row("Fallbacks",  dval("fallback"), "#e67e22" if dval("fallback") else ""),
         _row("Fehler",     dval("errors"),   "#e74c3c" if dval("errors")   else ""),
         # Nur zeigen, wenn es etwas zu zeigen gibt — eine Dauerzeile mit 0

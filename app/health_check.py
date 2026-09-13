@@ -400,7 +400,9 @@ async def _check_kv_sign(email: str) -> dict:
                 algo = "ES256" if _get_cert_key_type(cert_der) == "EC" else "RS256"
         except Exception:
             pass
-        await keyvault.sign(email, digest, algorithm=algo)
+        # zaehlen=False: die Probe ist keine Nachrichten-Signatur, sondern eine
+        # Schlüssel-Prüfung — zählt in kv_key_pruefung, nicht in kv_sign_calls.
+        await keyvault.sign(email, digest, algorithm=algo, zaehlen=False)
         return _make_result("ok", "Sign API erreichbar")
     except Exception as exc:
         return _make_result("error", f"Sign API Fehler: {exc}")

@@ -275,11 +275,17 @@ async def patch_key_ops(email: str) -> bool:
         return False
 
 
-async def sign(email: str, digest_bytes: bytes, algorithm: str = "RS256") -> bytes:
+async def sign(email: str, digest_bytes: bytes, algorithm: str = "RS256",
+               zaehlen: bool = True) -> bytes:
     """
     Sign digest_bytes using Key Vault Sign API.
     Returns raw signature bytes.
     Raises on failure.
+
+    `zaehlen`: True (Vorgabe) zählt als echte Nachrichten-Signatur
+    (`kv_sign_calls`). Der Gesundheits-Check ruft mit `zaehlen=False` — seine
+    Test-Signatur zählt dann als Schlüssel-Prüfung (`kv_key_pruefung`), nicht als
+    Signatur-Aktivität.
     """
     key_name = _email_to_key_name(email)
     token = await _get_kv_token()
@@ -307,7 +313,7 @@ async def sign(email: str, digest_bytes: bytes, algorithm: str = "RS256") -> byt
     b64 = resp.json().get("value", "")
     # Key Vault returns base64url-encoded signature
     raw = base64.urlsafe_b64decode(b64 + "==")
-    stats.increment("kv_sign_calls")
+    stats.increment("kv_sign_calls" if zaehlen else "kv_key_pruefung")
     return raw
 
 

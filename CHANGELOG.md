@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.8 — 2026-09-13 — Tagesbericht: Schlüssel-Prüfungen von echten Signaturen getrennt
+
+Die Zeile **„Key Vault Signaturen"** zählte bisher auch die **Schlüssel-Prüfung
+des Gesundheits-Checks** mit — das Gateway signiert alle 30 Minuten einen
+Test-Digest im Key Vault, um zu prüfen, dass der S/MIME-Schlüssel noch
+funktioniert. An Tagen ohne Mail standen dort deshalb Dutzende „Signaturen" ohne
+eine einzige verarbeitete Nachricht, was sich wie Signier-Verkehr las, den es
+nicht gab.
+
+- **„Key Vault Signaturen"** zählt jetzt **nur noch echte Nachrichten-Signaturen**.
+- Die Prüf-Signaturen erscheinen separat als **„Schlüssel-Prüfungen (Key Vault)"**
+  — die Schlüssel-Prüfung bleibt also sichtbar, nur nicht mehr als Signatur.
+- Technisch: `keyvault.sign(..., zaehlen=False)` für den Prüfpfad; neuer Zähler
+  `kv_key_pruefung`.
+
 ## v1.9.7 — 2026-09-12 — Abgewiesene Anmeldungen sichtbar; „Zuletzt aktiv" + Passwort-Generator
 
 **Angriffe werden nicht mehr still verschluckt.** Abgewiesene und gedrosselte

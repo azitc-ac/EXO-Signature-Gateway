@@ -26,6 +26,10 @@ KEYS = (
     "processed", "fallback", "errors", "held",
     "smime_signed", "smime_encrypted", "smime_decrypted", "certs_harvested",
     "graph_api_calls", "kv_sign_calls",
+    # Schlüssel-Prüfung des Gesundheits-Checks (halbstündliche Test-Signatur im
+    # Key Vault) — GETRENNT von kv_sign_calls, sonst zählt die Probe als
+    # Signatur-Aktivität und der Bericht liest sich nach Verkehr, den es nicht gab.
+    "kv_key_pruefung",
     # Belege eines Fremdsystems, deren Aufbau die Korrektur nicht mehr trifft.
     # Zaehlt, damit es im Tagesbericht auffaellt statt nur im Protokoll zu
     # stehen: Der Lexware-Fix lief von Juli bis August 2026 wirkungslos mit,
