@@ -62,8 +62,21 @@ def generate_pkce_pair() -> tuple[str, str]:
     return verifier, challenge
 
 
+class InteractionRequired(RuntimeError):
+    """Der Token-Endpunkt verlangt einen interaktiven Schritt — ein Conditional-
+    Access-Step-up (typisch MFA, AADSTS50076). Der Fehler kommt im Back-Channel-
+    Token-Tausch, wo kein Dialog möglich ist; er trägt den **Claims-Challenge**,
+    mit dem die Autorisierung NEU gestartet werden muss, damit Entra den Dialog
+    zeigt. Getrennt von RuntimeError, damit der Callback ihn gezielt behandelt."""
+
+    def __init__(self, message: str, claims: str):
+        super().__init__(message)
+        self.claims = claims
+
+
 def create_session(redirect_uri: str, scopes: list | None = None, flow: str = "setup",
-                   next_url: str = "/", extra: dict | None = None) -> tuple[str, str]:
+                   next_url: str = "/", extra: dict | None = None,
+                   claims: str | None = None) -> tuple[str, str]:
     """
     Create a new PKCE session.
     Returns (state, authorization_url).
@@ -93,6 +106,10 @@ def create_session(redirect_uri: str, scopes: list | None = None, flow: str = "s
         "code_challenge_method": "S256",
         "prompt": "select_account",
     }
+    if claims:
+        # Conditional-Access-Step-up: mit dem Claims-Challenge fordert Entra genau
+        # die fehlende Kontrolle (z. B. MFA) beim interaktiven Sign-in an.
+        params["claims"] = claims
     auth_url = "https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize?" + urllib.parse.urlencode(params)
     log.debug("PKCE session created state=%s flow=%s", state, flow)
     return state, auth_url
@@ -143,6 +160,11 @@ async def exchange_code(code: str, verifier: str, redirect_uri: str, scopes: lis
     body = resp.json()
     if "access_token" not in body:
         err = body.get("error_description") or body.get("error") or str(body)
+        claims = body.get("claims")
+        if claims:
+            # Conditional Access verlangt einen interaktiven Step-up (z. B. MFA):
+            # der Claims-Challenge muss zurück an /authorize (siehe Callback).
+            raise InteractionRequired(f"Token exchange failed: {err}", claims=claims)
         raise RuntimeError(f"Token exchange failed: {err}")
 
     log.info("PKCE token exchange succeeded")
