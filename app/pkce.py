@@ -76,7 +76,7 @@ class InteractionRequired(RuntimeError):
 
 def create_session(redirect_uri: str, scopes: list | None = None, flow: str = "setup",
                    next_url: str = "/", extra: dict | None = None,
-                   claims: str | None = None) -> tuple[str, str]:
+                   claims: str | None = None, prompt: str = "select_account") -> tuple[str, str]:
     """
     Create a new PKCE session.
     Returns (state, authorization_url).
@@ -104,7 +104,7 @@ def create_session(redirect_uri: str, scopes: list | None = None, flow: str = "s
         "state": state,
         "code_challenge": challenge,
         "code_challenge_method": "S256",
-        "prompt": "select_account",
+        "prompt": prompt,
     }
     if claims:
         # Conditional-Access-Step-up: mit dem Claims-Challenge fordert Entra genau
@@ -160,10 +160,20 @@ async def exchange_code(code: str, verifier: str, redirect_uri: str, scopes: lis
     body = resp.json()
     if "access_token" not in body:
         err = body.get("error_description") or body.get("error") or str(body)
-        claims = body.get("claims")
-        if claims:
-            # Conditional Access verlangt einen interaktiven Step-up (z. B. MFA):
-            # der Claims-Challenge muss zurück an /authorize (siehe Callback).
+        error = body.get("error", "")
+        codes = body.get("error_codes") or []
+        claims = body.get("claims") or ""
+        # Struktur des Token-Fehlers sichtbar machen (ein Fehlerkörper enthält KEINE
+        # Tokens) — so ist am Protokoll ablesbar, ob Entra einen Claims-Challenge
+        # mitschickt oder nicht.
+        log.warning("PKCE token error: error=%s codes=%s suberror=%s hat_claims=%s",
+                    error, codes, body.get("suberror"), bool(claims))
+        # Conditional-Access-Step-up (typisch MFA, AADSTS50076) ist interaktiv
+        # nachziehbar. Erkennung NICHT nur am `claims`-Feld (das fehlt bei der
+        # Auth-Code-Einlösung oft), sondern auch am Fehlercode 50076 /
+        # error=interaction_required.
+        if (error == "interaction_required" or claims or 50076 in codes
+                or "AADSTS50076" in err):
             raise InteractionRequired(f"Token exchange failed: {err}", claims=claims)
         raise RuntimeError(f"Token exchange failed: {err}")
 

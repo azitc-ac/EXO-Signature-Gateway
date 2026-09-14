@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.13 — 2026-09-14 — SSO-MFA-Step-up: Erkennung am Fehlercode + erzwungene frische Anmeldung
+
+Korrektur zu v1.9.12: In der Praxis liefert Entra bei der Auth-Code-Einlösung den
+`AADSTS50076`-Fehler **ohne** `claims`-Feld — die rein claims-basierte Erkennung
+griff daher nicht. Jetzt wird der Step-up **am Fehlercode** erkannt
+(`50076` / `error=interaction_required`), nicht nur am Claims-Feld, und die erneute
+Autorisierung erzwingt eine **frische Anmeldung** (`prompt=login`). Damit wertet
+Entra die Conditional-Access-Bedingung am **interaktiven** Sign-in aus und zeigt den
+MFA-Dialog; ein etwaiger Claims-Challenge wird weiterhin mitgegeben. Der
+Schleifenschutz (nur ein Nachziehversuch) bleibt. Nutzer mit verwaltetem Gerät sind
+unberührt (kein Step-up, kein zweiter Versuch).
+
+Zusätzlich wird die Struktur eines Token-Fehlers protokolliert (Fehlercode,
+Suberror, ob ein Claims-Challenge dabei ist) — ohne Tokens —, damit ein solcher
+Fall künftig ohne Rätselraten einzuordnen ist.
+
 ## v1.9.12 — 2026-09-14 — SSO-Anmeldung: MFA-Step-up bei Conditional Access wird jetzt interaktiv nachgezogen
 
 Ergänzt v1.9.11: Das Weglassen des ungenutzten `User.Read`-Scopes allein genügte
