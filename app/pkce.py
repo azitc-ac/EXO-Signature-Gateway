@@ -143,6 +143,50 @@ def create_session(redirect_uri: str, scopes: list | None = None, flow: str = "s
     return state, auth_url
 
 
+def create_implicit_session(redirect_uri: str, next_url: str = "/") -> tuple[str, str]:
+    """SSO-Login über den Implicit-`id_token`-Flow.
+
+    Holt die Identität DIREKT vom `/authorize` (front-channel, `response_mode=
+    form_post`) — **ohne Graph-Token**. Dadurch wird eine Conditional-Access-
+    Bedingung am **interaktiven** Sign-in ausgewertet (MFA-Dialog bei nicht
+    verwalteten Geräten, verwaltete Geräte erfüllen sie ohne Interaktion), statt
+    im Back-Channel-Token-Tausch für Graph mit AADSTS50076 zu scheitern.
+
+    KEIN PKCE-`code_challenge` (das gehört zum Code-Flow) und KEIN Ressourcen-Scope
+    (nur `openid profile email`). Der `nonce` wird in der Sitzung hinterlegt und im
+    Callback gegen das id_token geprüft (Replay-/Injektionsschutz). Gibt
+    (state, authorization_url) zurück.
+
+    ⚠️ Setzt in der App-Registrierung die implizite Erteilung von **ID-Token**
+    voraus; ist sie aus, lehnt Entra mit `unsupported_response_type` ab.
+    """
+    _prune_sessions()
+    state = secrets.token_urlsafe(24)
+    nonce = secrets.token_urlsafe(24)
+    _sessions[state] = {
+        "redirect_uri": redirect_uri,
+        "created_at": time.monotonic(),
+        "flow": "sso_implicit",
+        "nonce": nonce,
+        "next_url": next_url if next_url.startswith("/") else "/",
+        "extra": {},
+    }
+    params = {
+        "client_id": _get_client_id(),
+        "response_type": "id_token",
+        "response_mode": "form_post",
+        "redirect_uri": redirect_uri,
+        "scope": "openid profile email",
+        "state": state,
+        "nonce": nonce,
+        "prompt": "select_account",
+    }
+    auth_url = ("https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize?"
+                + urllib.parse.urlencode(params))
+    log.debug("PKCE implicit session created state=%s", state)
+    return state, auth_url
+
+
 def pop_session(state: str) -> dict | None:
     """
     Retrieve and remove a session by state.

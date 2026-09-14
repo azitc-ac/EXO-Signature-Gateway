@@ -88,6 +88,67 @@ def decode_id_token(token: str) -> dict:
         return {}
 
 
+_jwks_clients: dict = {}
+
+
+def _jwks_client(jwks_uri: str):
+    """Zwischengespeicherter PyJWKClient je JWKS-URI (holt Entras Signaturschlüssel)."""
+    from jwt import PyJWKClient
+    c = _jwks_clients.get(jwks_uri)
+    if c is None:
+        c = PyJWKClient(jwks_uri)
+        _jwks_clients[jwks_uri] = c
+    return c
+
+
+def verify_id_token(id_token: str, nonce: str) -> dict | None:
+    """Prüft ein FRONT-CHANNEL id_token (Implicit-Flow) VOLLSTÄNDIG und gibt die
+    Claims zurück oder None.
+
+    Anders als `decode_id_token` (Back-Channel, HTTPS-vertraut) kommt dieses Token
+    ungeprüft durch den Browser — es MUSS verifiziert werden:
+      - Signatur gegen Entras JWKS (RS256),
+      - Audience == unsere Bootstrap-Client-ID,
+      - Aussteller/`tid` == unser Tenant,
+      - Ablauf (exp), und
+      - `nonce` == der in der Sitzung hinterlegte Wert (Replay-/Injektionsschutz).
+    """
+    try:
+        import jwt
+        import config as _config
+        client_id = (settings_store.get("BOOTSTRAP_CLIENT_ID") or "").strip()
+        tenant = (settings_store.get("TENANT_ID")
+                  or getattr(_config, "TENANT_ID", "") or "").strip()
+        if not client_id:
+            log.warning("verify_id_token: keine BOOTSTRAP_CLIENT_ID gesetzt")
+            return None
+        jwks_uri = (f"https://login.microsoftonline.com/{tenant}/discovery/v2.0/keys"
+                    if tenant else
+                    "https://login.microsoftonline.com/organizations/discovery/v2.0/keys")
+        signing_key = _jwks_client(jwks_uri).get_signing_key_from_jwt(id_token)
+        claims = jwt.decode(
+            id_token, signing_key.key, algorithms=["RS256"],
+            audience=client_id, leeway=60,
+            options={"require": ["exp", "aud"], "verify_iss": False},
+        )
+        if tenant:
+            tid = (claims.get("tid") or "").strip()
+            iss = claims.get("iss") or ""
+            if tid and tid != tenant:
+                log.warning("verify_id_token: tid %r != Tenant %r", tid, tenant)
+                return None
+            if f"/{tenant}/" not in iss:
+                log.warning("verify_id_token: Aussteller %r passt nicht zum Tenant", iss)
+                return None
+        if nonce and claims.get("nonce") != nonce:
+            log.warning("verify_id_token: nonce stimmt nicht überein")
+            return None
+        return claims
+    except Exception as exc:                                  # noqa: BLE001
+        log.warning("verify_id_token fehlgeschlagen: %s", exc)
+        return None
+
+
 def get_upn_from_token_response(token_resp: dict) -> str:
     """Extract UPN from token response (id_token preferred_username claim)."""
     id_token = token_resp.get("id_token", "")
