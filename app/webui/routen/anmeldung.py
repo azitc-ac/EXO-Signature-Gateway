@@ -245,13 +245,19 @@ async def auth_callback(
         # MFA-Dialog zeigt. Schleifenschutz: nur, wenn nicht schon ein Retry war.
         already = bool(session_obj.get("extra", {}).get("claims_retry"))
         if flow == "sso" and not already:
+            # Erzwungene FRISCHE Anmeldung (prompt=login), damit Entra die CA-
+            # Bedingung — und damit MFA — am interaktiven Sign-in auswertet und den
+            # Dialog zeigt (der Back-Channel-Token-Tausch kann das nicht). Claims
+            # mitgeben, falls Entra einen mitgeschickt hat (oft nicht).
             _state, auth_url = pkce_mod.create_session(
                 session_obj["redirect_uri"], scopes=use_scopes, flow="sso",
                 next_url=session_obj.get("next_url", "/"),
-                extra={"claims_retry": True}, claims=ir.claims,
+                extra={"claims_retry": True}, claims=(ir.claims or None),
+                prompt="login",
             )
             log.info("SSO: Conditional-Access-Step-up (MFA) erkannt → erneute "
-                     "Autorisierung mit Claims-Challenge")
+                     "Autorisierung (prompt=login%s)",
+                     ", claims" if ir.claims else "")
             return RedirectResponse(auth_url, status_code=302)
         # Bereits ein Retry ODER kein SSO-Flow → als Fehler zeigen (kein Endlos-Loop).
         log.error("PKCE token exchange failed (interaction required, kein weiterer "
