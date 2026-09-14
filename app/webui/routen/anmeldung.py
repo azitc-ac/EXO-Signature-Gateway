@@ -265,18 +265,27 @@ async def auth_callback(
             return RedirectResponse(
                 f"/auth/login?error=not_admin&upn={urllib.parse.quote(upn)}", status_code=302
             )
-        # Auto-patch: if user entry lacks an OID but we have one now, save it
+        # Auto-patch: Eintrag über die stabile oid finden und den UPN nachziehen,
+        # falls das Konto umbenannt wurde; sonst eine fehlende oid an einem
+        # UPN-Treffer nachtragen. So bleibt die Anzeige nach einer Umbenennung aktuell.
         if oid:
             users = sso_mod.normalize_users()
             patched = False
             for entry in users:
-                if entry["upn"] == upn.lower() and not entry.get("id"):
-                    entry["id"] = oid
-                    patched = True
+                if (entry.get("id") or "").lower() == oid.lower():
+                    if entry["upn"] != upn.lower():
+                        entry["upn"] = upn.lower()      # UPN nach Umbenennung nachziehen
+                        patched = True
                     break
+            else:
+                for entry in users:                     # kein oid-Treffer → oid nachtragen
+                    if entry["upn"] == upn.lower() and not entry.get("id"):
+                        entry["id"] = oid
+                        patched = True
+                        break
             if patched:
                 settings_store.update({"ADMIN_USERS": users})
-                log.info("Auto-patched OID for SSO user %s → %s", upn, oid)
+                log.info("Auto-patched ADMIN_USERS entry for %s (oid %s)", upn, oid)
         log.info("SSO login successful: %s (role: %s, oid: %s)", upn, role, oid or "n/a")
         cookie_val = sso_mod.create_session_cookie(upn, local=False, role=role)
         next_url = session_obj.get("next_url") or request.query_params.get("next", "/")
@@ -499,7 +508,16 @@ async def api_whoami(request: Request):
 
 @router.get("/api/admin-users")
 async def api_get_admin_users(_=Depends(_require_admin)):
-    return JSONResponse({"users": sso_mod.normalize_users()})
+    # Gespeicherte UPNs aus der stabilen oid auffrischen (überlebt Umbenennungen),
+    # damit die Liste den STETS AKTUELLEN UPN zeigt. Best-effort und in einem Thread,
+    # weil resolve_oid_to_upn synchron Graph ruft — ein Graph-Hänger darf die Liste
+    # nicht blockieren.
+    import asyncio
+    try:
+        users = await asyncio.to_thread(sso_mod.refresh_stored_upns)
+    except Exception:                                         # noqa: BLE001
+        users = sso_mod.normalize_users()
+    return JSONResponse({"users": users})
 
 @router.post("/api/admin-users")
 async def api_add_admin_user(request: Request, user: str = Depends(_require_admin)):

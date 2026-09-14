@@ -160,6 +160,57 @@ def resolve_upn_to_oid(upn: str) -> str | None:
         return None
 
 
+def resolve_oid_to_upn(oid: str) -> str | None:
+    """Resolve an Entra Object ID to its CURRENT UPN via Microsoft Graph.
+
+    Gegenstück zu resolve_upn_to_oid — die oid ist der stabile Anker, der UPN kann
+    sich ändern (Umbenennung). Rückgabe: UPN (klein) oder None. Sync httpx.
+    """
+    if not oid:
+        return None
+    try:
+        import graph_client
+        import httpx
+        token = graph_client._acquire_token()
+        if not token:
+            return None
+        url = f"https://graph.microsoft.com/v1.0/users/{oid}?$select=userPrincipalName"
+        with httpx.Client(timeout=15) as client:
+            resp = client.get(url, headers={"Authorization": f"Bearer {token}"})
+        if resp.status_code == 200:
+            return ((resp.json().get("userPrincipalName") or "").strip().lower()) or None
+        log.warning("resolve_oid_to_upn: HTTP %s for %s", resp.status_code, oid)
+        return None
+    except Exception as exc:                                  # noqa: BLE001
+        log.warning("resolve_oid_to_upn error for %s: %s", oid, exc)
+        return None
+
+
+def refresh_stored_upns() -> list[dict]:
+    """Für jeden Eintrag mit oid den aktuellen UPN aus Graph holen und bei Änderung
+    in ADMIN_USERS persistieren — damit Anzeige, Aktionen und Speicher konsistent
+    bleiben, wenn ein Konto umbenannt wurde (die oid bleibt der Anker).
+
+    Best-effort: schlägt eine Auflösung fehl, bleibt der gespeicherte UPN. Gibt die
+    (aktuelle) Nutzerliste zurück. NUR aus dem Hauptprozess aufrufen (persistiert).
+    """
+    users = normalize_users()
+    geaendert = False
+    for entry in users:
+        oid = (entry.get("id") or "").strip()
+        if not oid:
+            continue
+        aktuell = resolve_oid_to_upn(oid)
+        if aktuell and aktuell != entry["upn"]:
+            log.info("ADMIN_USERS: UPN aktualisiert %s → %s (oid %s)",
+                     entry["upn"], aktuell, oid)
+            entry["upn"] = aktuell
+            geaendert = True
+    if geaendert:
+        settings_store.update({"ADMIN_USERS": users})
+    return users
+
+
 def is_allowed(upn: str) -> bool:
     """Check if UPN has any configured role."""
     return get_role(upn) is not None

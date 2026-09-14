@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.10 — 2026-09-14 — Benutzerverwaltung: aktueller UPN (aus Objekt-ID), Objekt-ID beim Hovern
+
+Wird ein Konto in Entra umbenannt (neuer UPN), zeigte die Benutzerliste weiterhin
+den **alten** Anmeldenamen. Weil die Anmeldung ohnehin über die stabile
+**Objekt-ID** erfolgt, wird der angezeigte UPN jetzt daraus aktuell gehalten:
+
+- Beim **Laden der Liste** und bei **jeder Anmeldung** wird der gespeicherte UPN
+  aus der Objekt-ID aufgefrischt (Umbenennungen werden nachgezogen; die Objekt-ID
+  bleibt der Anker). Anzeige, Rollenänderung und Entfernen bleiben dadurch
+  konsistent. Best-effort: ist Graph gerade nicht erreichbar, bleibt der zuletzt
+  bekannte UPN stehen.
+- Die **Objekt-ID** erscheint jetzt als Tooltip, wenn man über den Namen fährt.
+
 ## v1.9.9 — 2026-09-14 — Erweitert: „Relaispostfach" → „Ersatz-Absenderpostfach"
 
 Das Feld unter *Erweitert* (Einstellung `SMTP_SUBMIT_USER`) hieß „Relaispostfach"

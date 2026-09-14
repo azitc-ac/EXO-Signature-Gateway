@@ -418,7 +418,7 @@ function renderAdminUsers(users) {
       ? '<button disabled title="Eigenes Konto" class="btn secondary btn-sm" style="opacity:0.4;cursor:not-allowed">Entfernen</button>'
       : '<button class="btn secondary btn-sm" style="color:#dc2626;border-color:#fca5a5" onclick="removeAdminUser(\'' + u.upn.replace(/'/g,"\\'") + '\')">Entfernen</button>';
     return '<tr style="' + (isSelf ? 'background:#f8fafc' : '') + '">' +
-      '<td style="padding:6px 10px;font-family:monospace;font-size:12px;white-space:nowrap">' + u.upn + '</td>' +
+      '<td style="padding:6px 10px;font-family:monospace;font-size:12px;white-space:nowrap;cursor:help" title="Objekt-ID: ' + (u.id || '(keine hinterlegt)') + '">' + u.upn + '</td>' +
       '<td style="padding:6px 8px;white-space:nowrap">' + select + '</td>' +
       '<td style="padding:6px 8px;white-space:nowrap">' + removeBtn + '</td>' +
       '</tr>';
