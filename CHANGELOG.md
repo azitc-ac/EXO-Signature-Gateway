@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.14 — 2026-09-14 — Sent Item: Betreff-Trigger werden auch im Einzelfall entfernt
+
+Eine Mail mit einem Betreff-Trigger (`#nosig`, `#nodigsig`, `#enc`) wurde korrekt
+zugestellt — der Empfänger sah den bereinigten Betreff —, aber das eigene
+**„Gesendete Elemente"** behielt die Schlüsselwörter. Grund: Beim Angleichen des
+gesendeten Elements gab nur der Verschlüsselungsweg den bereinigten Betreff mit;
+der Normalfall (signiert bzw. Signatur unterdrückt, ein einzelnes gesendetes
+Element) patchte nur den Text, nicht den Betreff. Jetzt wird der bereinigte Betreff
+in allen Fällen übernommen.
+
 ## v1.9.13 — 2026-09-14 — SSO-MFA-Step-up: Erkennung am Fehlercode + erzwungene frische Anmeldung
 
 Korrektur zu v1.9.12: In der Praxis liefert Entra bei der Auth-Code-Einlösung den

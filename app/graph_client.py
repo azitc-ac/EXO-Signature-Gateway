@@ -482,7 +482,11 @@ async def cleanup_sent_items(
                 )
                 return False  # caller retries to catch & delete the sendMail copy
             # Signed mail: patch the single item and we're done.
-            r = await _patch_item(items[0]["id"])
+            # patch_subject MUSS mit: bei Betreff-Triggern (#nosig/#nodigsig/#enc)
+            # hat der Handler den Betreff bereinigt und reicht ihn als `subject`
+            # durch — ohne diesen Parameter behielt das Sent Item den Roh-Betreff
+            # samt Schlüsselwörtern (der Verschlüsselungspfad gab ihn schon mit).
+            r = await _patch_item(items[0]["id"], patch_subject=subject)
             if r is None:
                 return None
             log.info("Sent item patched for %s (message-id %s)", sender_email, message_id)
