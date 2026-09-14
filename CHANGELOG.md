@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.11 — 2026-09-14 — SSO-Anmeldung: MFA-Abfrage bei Conditional Access erscheint jetzt
+
+Die Anmeldung forderte bislang neben der Identität ein **Graph-Token** (`User.Read`)
+an, das sie **nicht benutzt** (Name/Objekt-ID kommen aus dem `id_token`). Verlangt
+eine **Conditional-Access-Regel** MFA (z. B. für nicht verwaltete Geräte ausserhalb
+vertrauenswürdiger Standorte), wurde dieser Step-up an der Graph-Token-Anforderung
+im **Back-Channel** ausgelöst — dort kann kein MFA-Dialog erscheinen, die Anmeldung
+scheiterte nur mit einer Fehlermeldung. Nutzer mit verwaltetem Gerät kamen durch
+(die Geräte-Bedingung wird ohne Interaktion erfüllt), Nutzer ohne nicht.
+
+Die Anmeldung fordert jetzt **nur noch Identitäts-Scopes** (`openid profile email`).
+Damit wird die CA-Bedingung am **interaktiven Sign-in** ausgewertet, wo Entra den
+MFA-Dialog zeigen kann — die betroffenen Nutzer werden zur MFA aufgefordert statt
+abgewiesen. Nebeneffekt: weniger angeforderte Rechte (Least Privilege), da das
+Access-Token ohnehin nicht verwendet wurde.
+
 ## v1.9.10 — 2026-09-14 — Benutzerverwaltung: aktueller UPN (aus Objekt-ID), Objekt-ID beim Hovern
 
 Wird ein Konto in Entra umbenannt (neuer UPN), zeigte die Benutzerliste weiterhin

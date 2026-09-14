@@ -35,8 +35,11 @@ BOOTSTRAP_SCOPES = [
     "offline_access",
 ]
 
-# Minimal scopes for SSO login (identity only)
-SSO_SCOPES = ["openid", "profile", "email", "User.Read", "offline_access"]
+# Minimal scopes for SSO login (identity only) — KEIN Graph-Resource-Scope
+# (User.Read/offline_access): der Login nutzt das Access-Token nicht, und ein
+# Resource-Scope verschiebt einen MFA-Step-up in den Back-Channel, wo kein Dialog
+# erscheinen kann. So wird MFA am interaktiven Sign-in ausgewertet. Siehe sso.py.
+SSO_SCOPES = ["openid", "profile", "email"]
 
 # Delegated ARM scope — lets the logged-in user access their Azure subscriptions
 ARM_SCOPES = ["https://management.azure.com/user_impersonation", "offline_access"]
