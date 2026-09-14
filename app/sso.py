@@ -22,7 +22,13 @@ ROLE_EDITOR = "editor"
 VALID_ROLES = {ROLE_ADMIN, ROLE_EDITOR}
 
 # Scopes for SSO login (minimal, just identity)
-SSO_SCOPES = ["openid", "profile", "email", "User.Read", "offline_access"]
+# Nur Identität — bewusst KEIN `User.Read`/`offline_access`: Der Login benutzt das
+# Access-Token nicht (Identität kommt aus dem id_token). Ein Graph-Resource-Scope
+# löst die Token-Ausstellung im Back-Channel aus; verlangt eine Conditional-Access-
+# Regel dort MFA, kann der Dialog NICHT erscheinen (kein interaktiver Kanal) und der
+# Login scheitert nur mit einem Fehler. Ohne Resource-Scope wird MFA am interaktiven
+# Sign-in ausgewertet, wo Entra den Dialog zeigen kann. NICHT wieder erweitern.
+SSO_SCOPES = ["openid", "profile", "email"]
 
 
 def _get_secret() -> str:
