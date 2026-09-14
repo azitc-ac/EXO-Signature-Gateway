@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.12 — 2026-09-14 — SSO-Anmeldung: MFA-Step-up bei Conditional Access wird jetzt interaktiv nachgezogen
+
+Ergänzt v1.9.11: Das Weglassen des ungenutzten `User.Read`-Scopes allein genügte
+nicht — auch `openid profile email` beziehen ein Token für **Microsoft Graph**, und
+verlangt eine Conditional-Access-Regel dort MFA, meldet der Token-Tausch im
+Back-Channel `AADSTS50076` („you must use multi-factor authentication"). Dort kann
+kein Dialog erscheinen; die Anmeldung scheiterte weiter mit einer Fehlermeldung.
+
+Anders als ein harter Block (`53003`) trägt dieser Fehler einen **Claims-Challenge**.
+Die Anmeldung startet die Autorisierung jetzt bei `AADSTS50076` **einmal automatisch
+neu** — mit diesem Challenge —, sodass Entra den **MFA-Dialog** am interaktiven
+Sign-in zeigt. Danach läuft die Anmeldung normal durch. Nutzer mit verwaltetem
+Gerät sind unberührt (ihre Bedingung wird ohne Interaktion erfüllt); Nutzer auf
+nicht verwalteten Geräten werden zur MFA aufgefordert statt abgewiesen. Ein
+Schleifenschutz verhindert wiederholte Versuche, falls die MFA nicht gelingt.
+
 ## v1.9.11 — 2026-09-14 — SSO-Anmeldung: MFA-Abfrage bei Conditional Access erscheint jetzt
 
 Die Anmeldung forderte bislang neben der Identität ein **Graph-Token** (`User.Read`)

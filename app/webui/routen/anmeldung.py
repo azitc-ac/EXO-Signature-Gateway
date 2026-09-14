@@ -238,6 +238,33 @@ async def auth_callback(
         token_resp = await pkce_mod.exchange_code(
             code, session_obj["verifier"], session_obj["redirect_uri"], scopes=use_scopes
         )
+    except pkce_mod.InteractionRequired as ir:
+        # Conditional Access verlangt einen interaktiven Step-up (z. B. MFA). Der kam
+        # im Back-Channel-Token-Tausch, wo kein Dialog möglich ist → Autorisierung
+        # EINMAL neu starten, diesmal mit dem Claims-Challenge, damit Entra den
+        # MFA-Dialog zeigt. Schleifenschutz: nur, wenn nicht schon ein Retry war.
+        already = bool(session_obj.get("extra", {}).get("claims_retry"))
+        if flow == "sso" and not already:
+            _state, auth_url = pkce_mod.create_session(
+                session_obj["redirect_uri"], scopes=use_scopes, flow="sso",
+                next_url=session_obj.get("next_url", "/"),
+                extra={"claims_retry": True}, claims=ir.claims,
+            )
+            log.info("SSO: Conditional-Access-Step-up (MFA) erkannt → erneute "
+                     "Autorisierung mit Claims-Challenge")
+            return RedirectResponse(auth_url, status_code=302)
+        # Bereits ein Retry ODER kein SSO-Flow → als Fehler zeigen (kein Endlos-Loop).
+        log.error("PKCE token exchange failed (interaction required, kein weiterer "
+                  "Versuch): %s", ir)
+        if flow == "sso":
+            return RedirectResponse(f"/auth/login?error={urllib.parse.quote(str(ir))}", status_code=302)
+        if flow == "arm":
+            return HTMLResponse(_arm_callback_page(ok=False, msg=str(ir)))
+        return templates.TemplateResponse(
+            request=request, name="setup.html",
+            context={"s": settings_store.public_view(), "e": {}, "active": "setup",
+                     "auth_error": str(ir), "gateway_name": _gateway_name()},
+        )
     except Exception as exc:
         log.error("PKCE token exchange failed: %s", exc)
         if flow == "sso":
