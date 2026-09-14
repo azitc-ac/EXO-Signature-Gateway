@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.15 — 2026-09-14 — SSO auf nicht verwalteten Geräten: MFA-Abfrage erscheint (Client-Capability cp1)
+
+Die eigentliche Ursache, warum die MFA-Abfrage bei nicht verwalteten Geräten
+ausblieb: Die Anmeldung deklarierte gegenüber Entra nicht die Fähigkeit, einen
+**Claims-Challenge** zu verarbeiten (`cp1`). Ohne diese Deklaration liefert Entra
+bei einem Conditional-Access-Step-up **keinen** Challenge, sondern lässt den
+Token-Bezug wortlos scheitern (`AADSTS50076`) — es gab also nichts, woran die
+interaktive MFA-Abfrage hätte anknüpfen können.
+
+Die Anmeldung deklariert jetzt `cp1` (Parameter
+`claims={"access_token":{"xms_cc":{"values":["cp1"]}}}`) an Autorisierungs- und
+Token-Endpunkt. Damit liefert Entra den Step-up-Challenge, den die Anmeldung
+automatisch mit einer erneuten, interaktiven Autorisierung nachzieht — der
+MFA-Dialog erscheint, danach läuft die Anmeldung durch. Verwaltete Geräte erfüllen
+die Bedingung weiterhin ohne Interaktion und sind unberührt.
+
 ## v1.9.14 — 2026-09-14 — Sent Item: Betreff-Trigger werden auch im Einzelfall entfernt
 
 Eine Mail mit einem Betreff-Trigger (`#nosig`, `#nodigsig`, `#enc`) wurde korrekt

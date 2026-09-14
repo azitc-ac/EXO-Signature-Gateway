@@ -83,10 +83,31 @@ def test_exchange_code_normaler_fehler_bleibt_runtimeerror(monkeypatch):
     assert not isinstance(ei.value, pkce.InteractionRequired)
 
 
-def test_create_session_haengt_claims_an(monkeypatch):
+def test_create_session_deklariert_immer_cp1(monkeypatch):
+    import urllib.parse
     monkeypatch.setattr(pkce, "_get_client_id", lambda: "cid")
-    _s, url = pkce.create_session("https://rp/cb", scopes=["openid"], flow="sso",
-                                  claims='{"a":1}')
-    assert "claims=" in url                              # Challenge geht an /authorize
-    _s2, url2 = pkce.create_session("https://rp/cb", scopes=["openid"], flow="sso")
-    assert "claims=" not in url2                         # ohne Challenge kein Param
+    # Ohne Step-up wird cp1 TROTZDEM deklariert (sonst kein Claims-Challenge von Entra).
+    _s, url = pkce.create_session("https://rp/cb", scopes=["openid"], flow="sso")
+    q = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+    assert "xms_cc" in q["claims"][0] and "cp1" in q["claims"][0]
+    # Mit Step-up-Challenge: Challenge UND cp1 zusammengeführt.
+    _s2, url2 = pkce.create_session(
+        "https://rp/cb", scopes=["openid"], flow="sso",
+        claims='{"access_token":{"acrs":{"essential":true,"value":"c1"}}}')
+    q2 = urllib.parse.parse_qs(urllib.parse.urlparse(url2).query)
+    assert "cp1" in q2["claims"][0] and "acrs" in q2["claims"][0]
+
+
+def test_claims_mit_cp1_merge():
+    import json
+    import base64
+    assert json.loads(pkce._claims_mit_cp1(None)) == {
+        "access_token": {"xms_cc": {"values": ["cp1"]}}}
+    merged = json.loads(pkce._claims_mit_cp1(
+        '{"access_token":{"acrs":{"essential":true,"value":"c1"}}}'))
+    assert merged["access_token"]["xms_cc"] == {"values": ["cp1"]}
+    assert merged["access_token"]["acrs"]["value"] == "c1"
+    b64 = base64.b64encode(b'{"access_token":{"acrs":{"value":"c25"}}}').decode()
+    m2 = json.loads(pkce._claims_mit_cp1(b64))
+    assert m2["access_token"]["xms_cc"]["values"] == ["cp1"]
+    assert m2["access_token"]["acrs"]["value"] == "c25"

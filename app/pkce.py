@@ -62,6 +62,34 @@ def generate_pkce_pair() -> tuple[str, str]:
     return verifier, challenge
 
 
+def _claims_mit_cp1(challenge: str | None) -> str:
+    """Baut den `claims`-Parameter: deklariert IMMER die Client-Capability `cp1`
+    (nur dann schickt Entra überhaupt einen Claims-Challenge, statt bei einem
+    Conditional-Access-Step-up wortlos zu scheitern), und webt einen vorhandenen
+    Step-up-Challenge mit ein.
+
+    `challenge` kann rohes JSON ODER base64-kodiert sein (Entra liefert beide
+    Formen). Nicht parsebar → unverändert weiterreichen (cp1 ist dann bereits am
+    Token-Request deklariert).
+    """
+    import json
+    import base64
+    cp1 = {"values": ["cp1"]}
+    if not challenge:
+        return json.dumps({"access_token": {"xms_cc": cp1}}, separators=(",", ":"))
+    obj = None
+    try:
+        obj = json.loads(challenge)
+    except Exception:                                        # noqa: BLE001
+        try:
+            obj = json.loads(base64.b64decode(challenge + "===").decode("utf-8"))
+        except Exception:                                    # noqa: BLE001
+            return challenge
+    at = obj.setdefault("access_token", {})
+    at.setdefault("xms_cc", cp1)
+    return json.dumps(obj, separators=(",", ":"))
+
+
 class InteractionRequired(RuntimeError):
     """Der Token-Endpunkt verlangt einen interaktiven Schritt — ein Conditional-
     Access-Step-up (typisch MFA, AADSTS50076). Der Fehler kommt im Back-Channel-
@@ -105,11 +133,11 @@ def create_session(redirect_uri: str, scopes: list | None = None, flow: str = "s
         "code_challenge": challenge,
         "code_challenge_method": "S256",
         "prompt": prompt,
+        # cp1 IMMER deklarieren (+ Step-up-Challenge, falls vorhanden). Ohne cp1
+        # schickt Entra bei einem CA-Step-up keinen Challenge, sondern scheitert
+        # wortlos — genau der beobachtete Fall (hat_claims=False).
+        "claims": _claims_mit_cp1(claims),
     }
-    if claims:
-        # Conditional-Access-Step-up: mit dem Claims-Challenge fordert Entra genau
-        # die fehlende Kontrolle (z. B. MFA) beim interaktiven Sign-in an.
-        params["claims"] = claims
     auth_url = "https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize?" + urllib.parse.urlencode(params)
     log.debug("PKCE session created state=%s flow=%s", state, flow)
     return state, auth_url
@@ -152,6 +180,10 @@ async def exchange_code(code: str, verifier: str, redirect_uri: str, scopes: lis
         "redirect_uri": redirect_uri,
         "code_verifier": verifier,
         "scope": " ".join(scopes if scopes is not None else BOOTSTRAP_SCOPES),
+        # Client-Capability cp1: nur so liefert Entra bei einem Conditional-Access-
+        # Step-up (MFA) einen Claims-Challenge zurück, den der Callback interaktiv
+        # nachziehen kann — statt wortlos mit AADSTS50076 zu scheitern.
+        "claims": _claims_mit_cp1(None),
     }
 
     async with httpx.AsyncClient(timeout=30) as client:
@@ -166,8 +198,9 @@ async def exchange_code(code: str, verifier: str, redirect_uri: str, scopes: lis
         # Struktur des Token-Fehlers sichtbar machen (ein Fehlerkörper enthält KEINE
         # Tokens) — so ist am Protokoll ablesbar, ob Entra einen Claims-Challenge
         # mitschickt oder nicht.
-        log.warning("PKCE token error: error=%s codes=%s suberror=%s hat_claims=%s",
-                    error, codes, body.get("suberror"), bool(claims))
+        log.warning("PKCE token error: error=%s codes=%s suberror=%s claims=%s",
+                    error, codes, body.get("suberror"),
+                    (claims[:120] + "…") if len(claims) > 120 else (claims or "-"))
         # Conditional-Access-Step-up (typisch MFA, AADSTS50076) ist interaktiv
         # nachziehbar. Erkennung NICHT nur am `claims`-Feld (das fehlt bei der
         # Auth-Code-Einlösung oft), sondern auch am Fehlercode 50076 /
