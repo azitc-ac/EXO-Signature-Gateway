@@ -389,6 +389,74 @@ async def auth_callback(
             return HTMLResponse(_setup_callback_page(ok=False, msg=str(exc)))
         return HTMLResponse(_setup_callback_page(ok=True))
 
+@router.post("/auth/callback")
+async def auth_callback_implicit(request: Request):
+    """Front-Channel-Rückkehr des SSO-Implicit-Flows (response_mode=form_post):
+    Entra POSTet das id_token hierher. Es wird VOLLSTÄNDIG verifiziert (Signatur,
+    Audience, Tenant, Ablauf, nonce), dann Rolle prüfen und Sitzung setzen.
+
+    Body ist application/x-www-form-urlencoded — direkt geparst, damit keine
+    multipart-Abhängigkeit nötig ist.
+    """
+    raw = await request.body()
+    form = urllib.parse.parse_qs(raw.decode("utf-8", "replace"))
+    id_token = (form.get("id_token", [""])[0]).strip()
+    state = (form.get("state", [""])[0]).strip()
+    error = (form.get("error", [""])[0]).strip()
+    error_description = (form.get("error_description", [""])[0]).strip()
+
+    session_obj = pkce_mod.pop_session(state) if state else None
+    if error:
+        msg = f"{error}: {error_description}" if error_description else error
+        return RedirectResponse(f"/auth/login?error={urllib.parse.quote(msg)}", status_code=302)
+    if not session_obj:
+        return RedirectResponse("/auth/login?error=session_expired", status_code=302)
+
+    claims = sso_mod.verify_id_token(id_token, session_obj.get("nonce", ""))
+    if not claims:
+        return RedirectResponse("/auth/login?error=token_ungueltig", status_code=302)
+
+    upn = (claims.get("preferred_username") or claims.get("upn")
+           or claims.get("email") or "").strip()
+    oid = (claims.get("oid") or claims.get("sub") or "").strip()
+    role = (sso_mod.get_role_by_oid(oid) if oid else None) or sso_mod.get_role(upn)
+    if not role:
+        log.warning("SSO login denied (id_token) for UPN: %s (oid: %s)", upn, oid or "n/a")
+        return RedirectResponse(
+            f"/auth/login?error=not_admin&upn={urllib.parse.quote(upn)}", status_code=302)
+
+    # UPN aus der stabilen oid nachziehen (identisch zum Code-Flow).
+    if oid:
+        users = sso_mod.normalize_users()
+        patched = False
+        for entry in users:
+            if (entry.get("id") or "").lower() == oid.lower():
+                if entry["upn"] != upn.lower():
+                    entry["upn"] = upn.lower()
+                    patched = True
+                break
+        else:
+            for entry in users:
+                if entry["upn"] == upn.lower() and not entry.get("id"):
+                    entry["id"] = oid
+                    patched = True
+                    break
+        if patched:
+            settings_store.update({"ADMIN_USERS": users})
+
+    log.info("SSO login successful (id_token): %s (role: %s, oid: %s)", upn, role, oid or "n/a")
+    cookie_val = sso_mod.create_session_cookie(upn, local=False, role=role)
+    next_url = session_obj.get("next_url", "/")
+    if not next_url.startswith("/"):
+        next_url = "/"
+    response = RedirectResponse(next_url, status_code=302)
+    response.set_cookie(
+        sso_mod.SESSION_COOKIE, cookie_val,
+        max_age=sso_mod.SESSION_TTL, httponly=True, samesite="lax", secure=_cookie_secure(),
+    )
+    return response
+
+
 @router.get("/auth/login", response_class=HTMLResponse)
 async def auth_login(request: Request, error: str = "", next: str = "/"):
     """Login page — shown to unauthenticated users."""
@@ -409,20 +477,17 @@ async def auth_login(request: Request, error: str = "", next: str = "/"):
 
 @router.get("/auth/login/microsoft")
 async def auth_login_microsoft(request: Request, next: str = "/"):
-    """Start SSO PKCE flow with minimal scopes."""
+    """Start SSO über den Implicit-id_token-Flow (kein Graph-Token → MFA-Step-up
+    erscheint am interaktiven Sign-in; siehe pkce.create_implicit_session)."""
     redirect_uri = _build_redirect_uri(sso=True)
-    _state, auth_url = pkce_mod.create_session(
-        redirect_uri, scopes=sso_mod.SSO_SCOPES, flow="sso", next_url=next
-    )
+    _state, auth_url = pkce_mod.create_implicit_session(redirect_uri, next_url=next)
     return RedirectResponse(auth_url)
 
 @router.get("/api/auth/sso-url")
 async def api_sso_url(request: Request):
-    """Return Microsoft SSO auth URL as JSON (for fetch callers — no auth needed)."""
+    """Microsoft-SSO-Auth-URL als JSON (für fetch-Aufrufer). Implicit-id_token-Flow."""
     redirect_uri = _build_redirect_uri(sso=True)
-    _state, auth_url = pkce_mod.create_session(
-        redirect_uri, scopes=sso_mod.SSO_SCOPES, flow="sso"
-    )
+    _state, auth_url = pkce_mod.create_implicit_session(redirect_uri)
     return JSONResponse({"auth_url": auth_url})
 
 @router.post("/api/auth/sso-paste")

@@ -1680,6 +1680,13 @@
     "name": "auth_callback"
   },
   {
+    "pfad": "/auth/callback",
+    "methoden": [
+      "POST"
+    ],
+    "name": "auth_callback_implicit"
+  },
+  {
     "pfad": "/auth/local",
     "methoden": [
       "POST"

@@ -5,6 +5,28 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.16 — 2026-09-14 — SSO-Login über Implicit-id_token-Flow (MFA auf nicht verwalteten Geräten)
+
+Der eigentliche, tragfähige Fix für den MFA-Step-up. Bisher holte der Login die
+Identität über den Auth-Code-Flow und bezog dabei ein **Microsoft-Graph-Token**.
+Verlangt eine Conditional-Access-Regel MFA, wird das erst beim Graph-Token-Bezug
+im Back-Channel geprüft — wo kein Dialog möglich ist, sodass die Anmeldung mit
+`AADSTS50076` scheiterte (und Entra dabei, wie live bestätigt, keinen
+Claims-Challenge mitschickt, an dem ein Nachziehen ansetzen könnte).
+
+Der Login holt die Identität jetzt **direkt vom Autorisierungs-Endpunkt**
+(`response_type=id_token`, `response_mode=form_post`) — **ganz ohne Graph-Token**.
+Dadurch wird die Conditional-Access-Bedingung am **interaktiven** Sign-in
+ausgewertet: Auf einem nicht verwalteten Gerät erscheint der **MFA-Dialog**; ein
+verwaltetes Gerät erfüllt die Bedingung weiterhin ohne Interaktion. Das
+Front-Channel-id_token wird vollständig geprüft (Signatur gegen Entras JWKS,
+Audience, Tenant, Ablauf und `nonce`).
+
+⚠️ **Einmalige Voraussetzung in Entra:** In der App-Registrierung *„EXO Signature
+Gateway Login"* unter *Authentifizierung → Implizite Erteilung* **„ID-Token"**
+aktivieren. Ohne diesen Haken lehnt Entra den Flow mit `unsupported_response_type`
+ab. Der Setup-/Assistenten-Login (Auth-Code) ist davon unberührt.
+
 ## v1.9.15 — 2026-09-14 — SSO auf nicht verwalteten Geräten: MFA-Abfrage erscheint (Client-Capability cp1)
 
 Die eigentliche Ursache, warum die MFA-Abfrage bei nicht verwalteten Geräten
