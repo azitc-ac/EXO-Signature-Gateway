@@ -389,7 +389,7 @@ async def auth_callback(
             return HTMLResponse(_setup_callback_page(ok=False, msg=str(exc)))
         return HTMLResponse(_setup_callback_page(ok=True))
 
-@router.post("/auth/callback")
+@router.post("/auth/id-callback")
 async def auth_callback_implicit(request: Request):
     """Front-Channel-Rückkehr des SSO-Implicit-Flows (response_mode=form_post):
     Entra POSTet das id_token hierher. Es wird VOLLSTÄNDIG verifiziert (Signatur,
@@ -478,15 +478,19 @@ async def auth_login(request: Request, error: str = "", next: str = "/"):
 @router.get("/auth/login/microsoft")
 async def auth_login_microsoft(request: Request, next: str = "/"):
     """Start SSO über den Implicit-id_token-Flow (kein Graph-Token → MFA-Step-up
-    erscheint am interaktiven Sign-in; siehe pkce.create_implicit_session)."""
-    redirect_uri = _build_redirect_uri(sso=True)
+    erscheint am interaktiven Sign-in; siehe pkce.create_implicit_session).
+
+    EIGENER Redirect-Pfad `/auth/id-callback` (Web-Plattform, ID-Token-Erteilung) —
+    getrennt vom Code-Flow-Callback `/auth/callback` (publicClient), damit sich beide
+    nicht in die Quere kommen."""
+    redirect_uri = _build_redirect_uri(sso=True, path="/auth/id-callback")
     _state, auth_url = pkce_mod.create_implicit_session(redirect_uri, next_url=next)
     return RedirectResponse(auth_url)
 
 @router.get("/api/auth/sso-url")
 async def api_sso_url(request: Request):
     """Microsoft-SSO-Auth-URL als JSON (für fetch-Aufrufer). Implicit-id_token-Flow."""
-    redirect_uri = _build_redirect_uri(sso=True)
+    redirect_uri = _build_redirect_uri(sso=True, path="/auth/id-callback")
     _state, auth_url = pkce_mod.create_implicit_session(redirect_uri)
     return JSONResponse({"auth_url": auth_url})
 
