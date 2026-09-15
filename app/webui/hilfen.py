@@ -83,7 +83,7 @@ def _password_change_required() -> bool:
     return config.WEBUI_PASSWORD in _DEFAULT_PASSWORDS
 
 
-def _build_redirect_uri(sso: bool = False) -> str:
+def _build_redirect_uri(sso: bool = False, path: str = "/auth/callback") -> str:
     """Rückadresse für den Anmeldeablauf.
 
     SSO: ADDIN_BASE_URL (kanonische Außenadresse, ohne Port) hat Vorrang vor
@@ -91,6 +91,11 @@ def _build_redirect_uri(sso: bool = False) -> str:
     in jedem Tenant HTTP auf localhost verwenden. Der Browser landet danach auf
     localhost (Verbindung scheitert), der Betreiber kopiert die Adresse aus der
     Adressleiste in den Assistenten.
+
+    `path`: Standard `/auth/callback` (Code-Flow). Der Implicit-id_token-Login nutzt
+    einen EIGENEN Pfad (`/auth/id-callback`) — er braucht eine **Web**-Plattform in
+    der App-Registrierung, der Code-Flow bleibt auf seiner **publicClient**-URI. So
+    kollidieren beide nicht (kein Verschieben, kein erzwungenes Client-Secret).
 
     Gebraucht vom Einrichtungsmodul und von den Anmelderouten in `app.py`.
     """
@@ -102,8 +107,8 @@ def _build_redirect_uri(sso: bool = False) -> str:
         import aussenadresse
         external = aussenadresse.konfiguriert()
         if external:
-            return f"{external}/auth/callback"
-    return f"http://localhost:{config.WEBUI_PORT}/auth/callback"
+            return f"{external}{path}"
+    return f"http://localhost:{config.WEBUI_PORT}{path}"
 
 
 def _addin_base_url(request: Request) -> str:

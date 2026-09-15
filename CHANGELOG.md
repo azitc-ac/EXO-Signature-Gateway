@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.17 — 2026-09-15 — SSO Implicit-Login: eigener Callback-Pfad (kein Konflikt mit dem Code-Flow)
+
+Nachschärfung zu v1.9.16: Der Implicit-id_token-Login braucht eine **Web**-Plattform
+in der App-Registrierung; der bestehende Setup-/Assistenten-Login (Auth-Code) läuft
+als **öffentlicher Client ohne Secret** über eine `publicClient`-Redirect-URI. Würde
+man dieselbe URI nach „Web" verschieben, verlangte Entra plötzlich ein Client-Secret
+(`AADSTS7000218`) und der Setup-Login bräche.
+
+Deshalb nutzt der Implicit-Login jetzt einen **eigenen** Rückkehrpfad
+**`/auth/id-callback`** (Web-Plattform, ID-Token-Erteilung). Der Code-Flow bleibt auf
+`/auth/callback` (publicClient) völlig unberührt — beide Wege existieren
+nebeneinander, ohne sich zu beeinflussen.
+
+⚠️ **Voraussetzung in Entra** (einmalig, additiv — nichts wird verschoben): In der App
+*„EXO Signature Gateway Login"* eine **Web**-Plattform hinzufügen mit Redirect-URI
+`https://<host>/auth/id-callback` und dort **„ID-Token"** aktivieren. Die vorhandene
+`publicClient`-URI `/auth/callback` bleibt bestehen.
+
 ## v1.9.16 — 2026-09-14 — SSO-Login über Implicit-id_token-Flow (MFA auf nicht verwalteten Geräten)
 
 Der eigentliche, tragfähige Fix für den MFA-Step-up. Bisher holte der Login die
