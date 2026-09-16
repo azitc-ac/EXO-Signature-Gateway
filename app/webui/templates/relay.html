@@ -3,7 +3,7 @@
 <h1>SMTP-Relay</h1>
 
 <p class="hint" style="max-width:720px;margin:0 0 16px">
-  Hier geht es um SMTP-Relay im Besonderen und SMTP-Einlieferung im Allgemeinen.
+  Hier geht es um SMTP-Relay und SMTP-Einlieferung allgemein.
   Lässt Geräte und Anwendungen im eigenen Netz — Drucker, Scanner,
   Fachanwendungen — ihre E-Mails über das Gateway versenden, so wie über einen
   lokalen Exchange-Server. Nur eingetragene Geräte bzw. angemeldete
@@ -61,21 +61,21 @@
       <div>
         <label for="neu-id-name" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Anzeigename</label>
         <div style="display:flex;gap:6px;align-items:center">
-          <input type="text" id="neu-id-name" placeholder="Drucker EG" style="flex:1;min-width:0;margin:0;box-sizing:border-box">
+          <input type="text" id="neu-id-name" placeholder="Drucker EG" autocomplete="off" style="flex:1;min-width:0;margin:0;box-sizing:border-box">
           <button type="button" class="copy-btn" data-copy-field="neu-id-name" title="Anzeigename kopieren"></button>
         </div>
       </div>
       <div>
         <label for="neu-id-login" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Login <span class="hint" style="font-weight:400">(= EXO-Alias)</span></label>
         <div style="display:flex;gap:6px;align-items:center">
-          <input type="text" id="neu-id-login" placeholder="drucker.eg" oninput="idAdressVorschau()" style="flex:1;min-width:0;margin:0;box-sizing:border-box">
+          <input type="text" id="neu-id-login" placeholder="drucker.eg" oninput="idAdressVorschau()" autocomplete="off" style="flex:1;min-width:0;margin:0;box-sizing:border-box">
           <button type="button" class="copy-btn" data-copy-field="neu-id-login" title="Login kopieren"></button>
         </div>
       </div>
       <div>
         <label for="neu-id-pw" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Passwort</label>
         <div style="display:flex;gap:6px;align-items:center">
-          <input type="password" id="neu-id-pw" placeholder="mind. 8 Zeichen" style="flex:1;min-width:0;margin:0;box-sizing:border-box">
+          <input type="password" id="neu-id-pw" placeholder="mind. 8 Zeichen" autocomplete="new-password" style="flex:1;min-width:0;margin:0;box-sizing:border-box">
           <button type="button" class="copy-btn" data-copy-field="neu-id-pw" title="Passwort kopieren"></button>
         </div>
         <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
