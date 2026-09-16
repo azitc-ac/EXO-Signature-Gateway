@@ -219,13 +219,13 @@ def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
         except Exception:                                     # noqa: BLE001
             _ist_ident = False
         if _ist_ident:
-            import email as _em
             import graph_reinject
-            _ct = _em.message_from_bytes(content_bytes).get_content_type().lower()
-            if force_mime or _ct in ("multipart/signed", "application/pkcs7-mime"):
-                ok = graph_reinject.send_via_graph_mime(mail_from, rcpt_tos, content_bytes)
-            else:
-                ok = graph_reinject.send_via_graph(mail_from, rcpt_tos, content_bytes)
+            # IMMER Raw-MIME: Identitätspost kommt fertig vom Gerät — sie 1:1 an
+            # Graph zu geben bewahrt Aufbau/Anhänge und vermeidet die
+            # JSON-Rekonstruktion (`send_via_graph`), die einfache Nachrichten als
+            # TNEF/`winmail.dat` verpackt bzw. in Outlook Classic weiß darstellt
+            # (CLAUDE.md: „Immer Raw-MIME verwenden").
+            ok = graph_reinject.send_via_graph_mime(mail_from, rcpt_tos, content_bytes)
             if ok:
                 stats.increment("graph_api_calls")
                 log.info("Identitätspost über Graph zugestellt: from=%s to=%s",

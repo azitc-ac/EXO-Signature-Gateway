@@ -33,11 +33,12 @@ def welt(monkeypatch):
     monkeypatch.setattr(sende_identitaeten, "ist_identitaets_adresse",
                         lambda a: (a or "").lower() == _IDENT)
     monkeypatch.setattr(stats, "increment", lambda *a, **k: None)
-    ruf = {"graph": [], "smtp": []}
+    # Getrennt zählen: mime = Raw-MIME (send_via_graph_mime), json = Rekonstruktion.
+    ruf = {"mime": [], "json": [], "smtp": []}
     monkeypatch.setattr(graph_reinject, "send_via_graph",
-                        lambda mf, rc, cb: (ruf["graph"].append((mf, tuple(rc))) or True))
+                        lambda mf, rc, cb: (ruf["json"].append((mf, tuple(rc))) or True))
     monkeypatch.setattr(graph_reinject, "send_via_graph_mime",
-                        lambda mf, rc, cb: (ruf["graph"].append((mf, tuple(rc))) or True))
+                        lambda mf, rc, cb: (ruf["mime"].append((mf, tuple(rc))) or True))
     monkeypatch.setattr(reinject, "_send_smtp",
                         lambda mf, rc, cb: ruf["smtp"].append((mf, tuple(rc))))
     return ruf
@@ -48,30 +49,34 @@ def _setting(monkeypatch, an: bool):
                         lambda k, *a, **kw: (an if k == "IDENT_DELIVER_VIA_GRAPH" else None))
 
 
-def test_identitaetspost_geht_ueber_graph_trotz_smtp_modus(welt, monkeypatch):
+def test_identitaetspost_geht_ueber_graph_als_raw_mime(welt, monkeypatch):
     _setting(monkeypatch, True)
     reinject.send(_IDENT, ["kunde@extern.de"], _ROH)
-    assert welt["graph"] == [(_IDENT, ("kunde@extern.de",))]
+    # Über Graph — und zwar Raw-MIME, NICHT die JSON-Rekonstruktion (sonst TNEF/
+    # winmail.dat bzw. weiß in Outlook Classic).
+    assert welt["mime"] == [(_IDENT, ("kunde@extern.de",))]
+    assert welt["json"] == []
     assert welt["smtp"] == []                    # NICHT über den Smarthost
 
 
 def test_abschalter_laesst_identitaetspost_dem_modus_folgen(welt, monkeypatch):
     _setting(monkeypatch, False)                 # Notnagel: aus
     reinject.send(_IDENT, ["kunde@extern.de"], _ROH)
-    assert welt["graph"] == []                   # kein Graph-Zwang
+    assert welt["mime"] == [] and welt["json"] == []   # kein Graph-Zwang
     assert welt["smtp"] == [(_IDENT, ("kunde@extern.de",))]
 
 
 def test_fremde_post_bleibt_beim_modus(welt, monkeypatch):
     _setting(monkeypatch, True)
     reinject.send("normal@firma.de", ["kunde@extern.de"], _ROH)   # keine Identität
-    assert welt["graph"] == []
+    assert welt["mime"] == [] and welt["json"] == []
     assert welt["smtp"] == [("normal@firma.de", ("kunde@extern.de",))]
 
 
 def test_graph_fehler_faellt_auf_den_modus_zurueck(welt, monkeypatch):
     _setting(monkeypatch, True)
-    monkeypatch.setattr(graph_reinject, "send_via_graph", lambda mf, rc, cb: False)
+    # Identitätspost geht über den Raw-MIME-Weg → diesen scheitern lassen.
+    monkeypatch.setattr(graph_reinject, "send_via_graph_mime", lambda mf, rc, cb: False)
     reinject.send(_IDENT, ["kunde@extern.de"], _ROH)
     # Graph versucht (und gescheitert) → Rückfall auf den Smarthost, kein Verlust.
     assert welt["smtp"] == [(_IDENT, ("kunde@extern.de",))]
