@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.25 — 2026-09-16 — Relay-Statistik: gleichmäßiges 2×2-Raster
+
+Die vier Statistik-Top-Listen lagen in einem umbrechenden Flex-Streifen, der je
+nach Fensterbreite auch als drei-plus-eine brechen konnte — eine Liste stand dann
+allein in einer Zeile. Sie liegen jetzt in einem festen Raster: schmal
+untereinander, ab 640 px genau zwei Spalten. Bei der geraden Zahl an Listen ergibt
+das stets zwei und zwei statt einer einzelnen am Ende.
+
 ## v1.9.24 — 2026-09-16 — Dashboard: vollständige Beschriftung der Mail-Aktionen
 
 Die Aktionsspalte des Dashboard-Mail-Protokolls kannte nur einen Teil der
