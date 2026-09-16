@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.38 — 2026-09-16 — Sende-Identitäten: Graph-Zustellung immer als Raw-MIME
+
+Identitätspost, die über Graph zugestellt wird, ging für einfache Nachrichten bisher
+über die JSON-Rekonstruktion (`send_via_graph`). Das verpackte solche Mails als TNEF
+(`winmail.dat`) bzw. stellte sie in Outlook Classic weiß dar. Da die Nachricht fertig
+vom Gerät kommt, wird sie jetzt **immer als Raw-MIME** 1:1 an Graph gegeben — Aufbau
+und Anhänge bleiben erhalten, keine Rekonstruktion. Scheitert Graph, greift wie bisher
+der Rückfall auf den allgemeinen Rückweg.
+
 ## v1.9.37 — 2026-09-16 — Relay-Protokoll scrollt in sich; Betriebs-Objekte aus den Adresslisten
 
 - **Relay-Protokoll**: Die Tabelle bekommt auf großen Schirmen denselben Höhen-Deckel
