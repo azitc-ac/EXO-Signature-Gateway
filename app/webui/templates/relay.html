@@ -424,8 +424,8 @@ function zeigeSubmissionHinweis(an) {
   const h = document.getElementById('submission-hinweis');
   if (!h) return;
   if (an) {
-    h.innerHTML = 'Geräte richten sich auf <code>' + esc(location.hostname)
-      + ':587</code> mit STARTTLS und ihrem Login ein.';
+    h.innerHTML = 'Am Gerät als Postausgangsserver <code>' + esc(location.hostname)
+      + ':587</code> mit STARTTLS eintragen, dazu das jeweilige Login.';
     h.style.display = '';
   } else {
     h.style.display = 'none';
