@@ -5,8 +5,12 @@
 <p class="hint" style="max-width:720px;margin:0 0 16px">
   Lässt Geräte und Anwendungen im eigenen Netz — Drucker, Scanner,
   Fachanwendungen — ihre E-Mails über das Gateway versenden, so wie über einen
-  lokalen Exchange-Server. Nur Geräte aus der Liste unten dürfen einliefern, alle
-  anderen werden abgewiesen. Verfügbar nur im Modus „SMTP Port 25".
+  lokalen Exchange-Server. Nur eingetragene Geräte bzw. angemeldete
+  Sende-Identitäten dürfen einliefern, alle anderen werden abgewiesen.
+  Die <strong>IP-Geräteliste</strong> (unten) setzt den Rückweg „SMTP Port 25"
+  voraus; die authentifizierte Einlieferung über <strong>Port 587</strong>
+  (Sende-Identitäten) läuft auch in den Graph-Modi — dann stellt das Gateway
+  per Graph zu.
 </p>
 
 <div id="relay-warnung" style="display:none;margin-bottom:16px"></div>
@@ -366,8 +370,10 @@ function zeichneWarnung(r) {
          + '<a href="/setup#step-mode">Einrichtung → Modus &amp; Funktionen</a>.';
   } else if (r.modus !== 'smtp') {
     text = '<strong>Der Rückweg steht auf „' + esc(r.modus) + '".</strong> '
-         + 'Das Relay setzt <strong>SMTP Port 25</strong> voraus und weist '
-         + 'derzeit jede Einlieferung ab.';
+         + 'Die <strong>IP-Geräteliste</strong> setzt „SMTP Port 25" voraus und '
+         + 'weist derzeit jede Geräte-Einlieferung ab. Die authentifizierte '
+         + 'Einlieferung über <strong>Port 587</strong> (Sende-Identitäten) '
+         + 'funktioniert weiterhin — das Gateway stellt dann per Graph zu.';
   }
   if (!text) { box.style.display = 'none'; return; }
   box.innerHTML = '<div style="background:#fffbeb;border:1px solid #fde68a;'
@@ -736,14 +742,14 @@ async function statsLaden() {
   function fuelle(el, zeilen) {
     if (!zeilen.length) { el.innerHTML = '<tr><td colspan="3" style="color:#888">Keine Daten im Zeitraum</td></tr>'; return; }
     function zeile(z, versteckt) {
-      return '<tr' + (versteckt ? ' class="stats-mehr" style="display:none"' : '') + '>'
+      return '<tr' + (versteckt ? ' data-stats-mehr style="display:none"' : '') + '>'
         + '<td style="word-break:break-all">' + esc(z.name || '—') + '</td>'
         + '<td style="text-align:right">' + z.anzahl + '</td>'
         + '<td style="text-align:right">' + _volumen(z.bytes) + '</td></tr>';
     }
     var html = zeilen.map(function (z, i) { return zeile(z, i >= STATS_TOP); }).join('');
     if (zeilen.length > STATS_TOP) {
-      html += '<tr class="stats-umschalter"><td colspan="3" style="text-align:center;padding:6px 0">'
+      html += '<tr data-stats-umschalter><td colspan="3" style="text-align:center;padding:6px 0">'
         + '<a href="#" onclick="statsMehr(this);return false" style="font-size:12px;color:#0369a1">'
         + (zeilen.length - STATS_TOP) + ' weitere anzeigen</a></td></tr>';
     }
@@ -758,7 +764,7 @@ async function statsLaden() {
 function statsMehr(a) {
   var tb = a.closest('tbody');
   if (!tb) return;
-  tb.querySelectorAll('.stats-mehr').forEach(function (r) { r.style.display = ''; });
+  tb.querySelectorAll('[data-stats-mehr]').forEach(function (r) { r.style.display = ''; });
   var zeile = a.closest('tr');
   if (zeile) zeile.style.display = 'none';   // Umschalter ausblenden
 }

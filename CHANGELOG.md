@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.20 — 2026-09-16 — Relay: Hinweistexte korrigiert (587 läuft auch in den Graph-Modi)
+
+- Der Einleitungstext und das Warnband der Relay-Seite behaupteten „verfügbar nur
+  im Modus SMTP Port 25" bzw. „weist derzeit jede Einlieferung ab". Das gilt nur für
+  die **IP-Geräteliste** (Smarthost-Rückweg). Die **authentifizierte Einlieferung
+  über Port 587** (Sende-Identitäten) funktioniert **auch in den Graph-Modi** — das
+  Gateway stellt dann per Graph zu. Beide Texte klären das jetzt.
+- Das Ausklappen der Statistik-Listen kommt ohne erfundene CSS-Klasse aus
+  (`data-*`-Anker statt Klasse; behebt den Klassen-Prüflauf).
+
 ## v1.9.19 — 2026-09-16 — Relay-Statistik: Top-Geräte; alle Top-Listen als Top 10 mit Ausklappen
 
 - **Neu: „Top-Geräte"** in der Relay-Statistik — je Quell-IP **Mails und Volumen**.
