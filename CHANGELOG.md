@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.24 — 2026-09-16 — Dashboard: vollständige Beschriftung der Mail-Aktionen
+
+Die Aktionsspalte des Dashboard-Mail-Protokolls kannte nur einen Teil der
+möglichen Aktionen; die übrigen (Nur intern, Warteschlange, Portal, Fremder
+Tenant, Abgewiesen) erschienen als technischer Rohtext. Die Beschriftungstabelle
+ist jetzt vollständig und deckt dieselben Aktionen ab wie die Relay-Protokollansicht.
+
 ## v1.9.23 — 2026-09-16 — Relay-Protokoll zeigt durchgereichte Einlieferungen
 
 Über das Relay eingelieferte Post erschien in der Statistik (Anzahl, Volumen),
