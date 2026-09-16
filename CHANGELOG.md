@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.23 — 2026-09-16 — Relay-Protokoll zeigt durchgereichte Einlieferungen
+
+Über das Relay eingelieferte Post erschien in der Statistik (Anzahl, Volumen),
+aber nicht im Relay-Protokoll — im Extremfall „8 in der Statistik, 0 im
+Protokoll". Ursache: Ein Relay-Gerät (Drucker, Anwendung) hat als Absender so gut
+wie nie ein konfiguriertes Signatur-Postfach; seine Nachricht läuft deshalb durch
+den Pass-Through-Zweig für nicht konfigurierte Absender. Dieser Zweig leitete die
+Nachricht unverändert weiter, schrieb aber **keine** Zeile ins Mail-Protokoll — er
+war der einzige Zustellweg ohne Audit-Eintrag.
+
+Der Pass-Through protokolliert die Einlieferung jetzt mit der Aktion
+**Durchgereicht**. Ist es Relay-Post, trägt die Zeile die Quell-IP bzw. die
+Sende-Identität und erscheint damit in der relay-fokussierten Protokollansicht;
+Post auf dem normalen Exchange-Weg erscheint ohne Relay-Merkmal im Dashboard.
+Damit stimmen Statistik und Protokoll wieder überein.
+
 ## v1.9.22 — 2026-09-16 — SMTP-EHLO nennt den öffentlichen Hostnamen; Setup-Label „Hostname"
 
 - Ausgehende SMTP-Verbindungen des Gateways (Reinject-Smarthost, 587-Submission,

@@ -783,6 +783,15 @@ class SignatureHandler:
             if not _mailbox_cfg or not (_sender_cfg.get("sig") or _sender_cfg.get("smime")):
                 log.debug("Sender %s not in active MAILBOX_CONFIG — forwarding as-is", sender)
                 reinject.send(sender, recipients, raw)
+                # ⚠️ Diese Zeile war lange der Blind-Fleck des Mail-Protokolls: Ein
+                # Relay-Gerät (Drucker, App) hat als Absender praktisch NIE ein
+                # konfiguriertes Signatur-Postfach — seine Post läuft also GENAU
+                # hier durch. Ohne diesen Audit-Eintrag füllte die Einlieferung
+                # zwar relay_stats (→ Statistik), tauchte aber nirgends im Protokoll
+                # auf ("8 in der Statistik, 0 im Protokoll"). relay_ip/relay_id sind
+                # in _relay_quelle/_relay_id bereits gesetzt, sobald es Relay-Post
+                # ist — die relay-fokussierte Ansicht findet die Zeile dann.
+                _audit("durchgereicht")
                 return "250 OK"
 
             # ── Loop detection ────────────────────────────────────────────────
