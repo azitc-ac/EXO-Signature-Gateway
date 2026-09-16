@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.37 — 2026-09-16 — Relay-Protokoll scrollt in sich; Betriebs-Objekte aus den Adresslisten
+
+- **Relay-Protokoll**: Die Tabelle bekommt auf großen Schirmen denselben Höhen-Deckel
+  wie die Geräte-Liste (max. 60 % Fensterhöhe) und scrollt darüber in sich, mit
+  klebender Kopfzeile, statt die Seite zu verlängern. Sie zeigt weiterhin bis zu 100
+  Zeilen je Seite (mit Blättern); die zugrundeliegenden Einträge bewahrt das
+  Mail-Protokoll standardmäßig 90 Tage auf.
+- **Aus den Adresslisten ausblenden**: Alle vom Gateway angelegten Betriebs-Objekte
+  werden mit `HiddenFromAddressListsEnabled` erstellt — die Shared Mailboxes der
+  Sende-Identitäten und des Benachrichtigungs-Postfachs sowie die Verteiler-/
+  Security-Gruppen (Postfach-Gate der Transportregel, Regel-Split, App-Sende-Umfang).
+  Sie sind fürs Adressbuch irrelevant; Antworten laufen ohnehin über die
+  Absenderadresse, nicht über die GAL. Wirkt für neu angelegte Objekte; bestehende
+  werden beim nächsten Lauf des jeweiligen Einrichtungsschritts nachgezogen.
+
 ## v1.9.36 — 2026-09-16 — Sende-Identitäten: kein Browser-Autofill im Anlegen-Formular
 
 Der Browser erkannte das Anlege-Formular (Text- plus Passwortfeld) als Login und

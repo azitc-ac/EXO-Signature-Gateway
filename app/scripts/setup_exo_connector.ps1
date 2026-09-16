@@ -156,6 +156,9 @@ if (-not (Get-DistributionGroup -Identity $dgName -ErrorAction SilentlyContinue)
 } else {
     Write-OK "Distribution Group exists: $dgName"
 }
+# Aus den Adresslisten ausblenden: reines Betriebs-Objekt (Gate der Transportregel),
+# im Adressbuch irrelevant. Idempotent, auch fuer bestehende Gruppen bei Re-Runs.
+Set-DistributionGroup -Identity $dgName -HiddenFromAddressListsEnabled $true -ErrorAction SilentlyContinue
 
 # ── Transport Rule ────────────────────────────────────────────────────────────
 Write-Step "Checking Transport Rule..."

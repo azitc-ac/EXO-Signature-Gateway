@@ -71,6 +71,8 @@ try {
     } else {
         Write-OK "Distribution Group exists"
     }
+    # Aus den Adresslisten ausblenden: Gate der Transportregel, im Adressbuch irrelevant.
+    Set-DistributionGroup -Identity $dgName -HiddenFromAddressListsEnabled $true -ErrorAction SilentlyContinue
 
     # ── Sync members ──────────────────────────────────────────────────────────
     Write-Step "Syncing members ($($MemberList.Count) configured)..."

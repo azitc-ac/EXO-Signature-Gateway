@@ -61,6 +61,8 @@ try {
         Start-Sleep -Seconds 6
         Write-OK "Security-Gruppe angelegt"
     }
+    # Aus den Adresslisten ausblenden: reine App-Scope-Gruppe, im Adressbuch irrelevant.
+    Set-DistributionGroup -Identity $GroupName -HiddenFromAddressListsEnabled $true -ErrorAction SilentlyContinue
 
     # ── 2. Mitglieder synchronisieren ─────────────────────────────────────────
     $current = @(Get-DistributionGroupMember -Identity $GroupName -ResultSize Unlimited |

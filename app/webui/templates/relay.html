@@ -333,7 +333,7 @@
     Das übrige Mail-Protokoll — auch der Exchange-Weg — liegt im
     <a href="/dashboard">Dashboard</a>.
   </p>
-  <div class="tabellen-rollbereich">
+  <div class="tabellen-rollbereich" id="proto-scroll">
     <table class="config-table" style="min-width:760px">
       <thead>
         <tr>
@@ -957,18 +957,18 @@ function protokollBlaettern(richtung) {
 }
 
 function relayTabellenHoehe() {
-  // Wie in der Postfach-Tabelle: auf großen Schirmen die Geräte-Liste auf eine
-  // feste Höhe deckeln, damit der WAAGERECHTE Rollbalken erreichbar bleibt (sonst
-  // sitzt er bei langer Liste ganz unten, außer Sicht). Die klebende Kopfzeile
-  // und overflow kommen aus style.css. Auf kleinen Schirmen KEIN Deckel (sonst
-  // fängt die Box die Wischgeste ab) — dort rollt die Liste waagerecht wie bisher.
-  var box = document.getElementById('geraete-scroll');
-  if (!box) return;
-  if (!window.matchMedia('(pointer: fine), (min-width: 1100px)').matches) {
-    box.style.maxHeight = '';
-    return;
-  }
-  box.style.maxHeight = Math.round(window.innerHeight * 0.6) + 'px';
+  // Wie in der Postfach-Tabelle: auf großen Schirmen die Geräte-Liste UND das
+  // Protokoll auf eine feste Höhe deckeln, damit sie in sich scrollen (klebende
+  // Kopfzeile) statt die Seite zu verlängern — das Protokoll zeigt bis zu 100
+  // Zeilen je Seite. Die klebende Kopfzeile und overflow kommen aus style.css.
+  // Auf kleinen Schirmen KEIN Deckel (sonst fängt die Box die Wischgeste ab) —
+  // dort rollt die Liste waagerecht wie bisher.
+  var gross = window.matchMedia('(pointer: fine), (min-width: 1100px)').matches;
+  ['geraete-scroll', 'proto-scroll'].forEach(function (id) {
+    var box = document.getElementById(id);
+    if (!box) return;
+    box.style.maxHeight = gross ? (Math.round(window.innerHeight * 0.6) + 'px') : '';
+  });
 }
 window.addEventListener('resize', relayTabellenHoehe);
 relayTabellenHoehe();

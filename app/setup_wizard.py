@@ -1042,7 +1042,7 @@ $dg = Get-DistributionGroup -Identity $dgName -ErrorAction SilentlyContinue
 if (-not $dg) {{
     $dg = New-DistributionGroup -Name $dgName -Alias $dgAlias -Type Distribution -MemberJoinRestriction Closed -MemberDepartRestriction Closed -ErrorAction Stop
 }}
-Set-DistributionGroup -Identity $dg.Identity -RequireSenderAuthenticationEnabled {require_auth} -ErrorAction Stop
+Set-DistributionGroup -Identity $dg.Identity -RequireSenderAuthenticationEnabled {require_auth} -HiddenFromAddressListsEnabled $true -ErrorAction Stop
 $membersStr = '{members_csv}'
 $desired = @()
 if ($membersStr) {{
@@ -1119,6 +1119,8 @@ $mbx = Get-Mailbox -Identity '{alias}' -ErrorAction SilentlyContinue
 if (-not $mbx) {{
     $mbx = New-Mailbox -Shared -Name '{display_name}' -DisplayName '{display_name}' -Alias '{alias}' -ErrorAction Stop
 }}
+# Aus den Adresslisten ausblenden: ein reines Betriebs-Postfach, im Adressbuch irrelevant.
+Set-Mailbox -Identity '{alias}' -HiddenFromAddressListsEnabled $true -ErrorAction SilentlyContinue
 $email = if ($mbx.PrimarySmtpAddress) {{ $mbx.PrimarySmtpAddress }} else {{ '' }}
 Write-Output (@{{ok=$true; email=$email}} | ConvertTo-Json -Compress)
 Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
@@ -1199,6 +1201,9 @@ if (-not $mbx) {{
     $mbx = New-Mailbox -Shared -Name '{alias_l}' -DisplayName '{display_l}' -Alias '{alias_l}' -PrimarySmtpAddress '{primary_l}' -ErrorAction Stop
     $created = $true
 }}
+# Aus den Adresslisten ausblenden: eine Sende-Identität ist ein Betriebs-Postfach,
+# im Adressbuch irrelevant (Antworten laufen über die From-Adresse, nicht die GAL).
+Set-Mailbox -Identity '{primary_l}' -HiddenFromAddressListsEnabled $true -ErrorAction SilentlyContinue
 $email = if ($mbx.PrimarySmtpAddress) {{ $mbx.PrimarySmtpAddress }} else {{ '' }}
 Write-Output (@{{ok=$true; email="$email"; created=$created}} | ConvertTo-Json -Compress)
 Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
