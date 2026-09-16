@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.28 — 2026-09-16 — Registerkorrektur zur Domänen-Vorauswahl
+
+`RELAY_IDENT_DEFAULT_DOMAIN` wird serverseitig beim Anlegen einer Sende-Identität
+gemerkt, nicht über ein Formular gespeichert. Der Eintrag im Einstellungsregister
+verweist deshalb jetzt auf den Endpunkt `/api/relay/identitaet` statt auf die
+Vorlage (die Registerprüfung verlangt, dass der Schlüssel an seinem angegebenen Ort
+tatsächlich gespeichert wird).
+
 ## v1.9.27 — 2026-09-16 — Sende-Identitäten: Shared Mailbox wird beim Anlegen automatisch erzeugt
 
 Eine Sende-Identität war bisher nur ein Gateway-seitiges Login — die Adresse, unter
