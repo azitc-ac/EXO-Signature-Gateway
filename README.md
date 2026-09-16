@@ -127,8 +127,10 @@ Eine *Sende-Identität* besteht aus **Anzeigename**, **Login** und **Domäne** s
 einem Passwort. Der Login ist zugleich der EXO-Alias; mit der Domäne ergibt er die
 Adresse der Shared Mailbox (`login@domäne`), die beim Anlegen automatisch als
 **unlizenziertes Shared Mailbox** in Exchange erzeugt wird (idempotent) und
-zugleich Absender und Antwort-Postfach ist. Die Domäne wird aus den autoritativen
-Tenant-Domänen gewählt (die Default-Domäne `*.onmicrosoft.com` taugt dafür nicht).
+zugleich Absender und Antwort-Postfach ist. Die Domäne wird aus den akzeptierten
+Tenant-Domänen gewählt, die ein Postfach tragen können (`Authoritative` und
+`InternalRelay`); die nackte Default-Domäne `*.onmicrosoft.com` ist als Absender
+unschön und wird nicht vorausgewählt.
 Ein Login gehört zu einer Identität; mehrere Geräte dürfen es teilen. Passwörter
 werden ausschließlich als Hash gespeichert (pbkdf2-sha256), nie im Klartext; die
 Anmeldung erfolgt am **Gateway**, nicht an Exchange.

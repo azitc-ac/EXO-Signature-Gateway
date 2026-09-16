@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.30 — 2026-09-16 — Sende-Identitäten: Zustellung über Graph; mehr wählbare Domänen
+
+- **Zustellung über Graph (neu, Vorgabe an).** Post einer Sende-Identität geht jetzt
+  über die Graph-API als deren Shared Mailbox — unabhängig vom allgemeinen Rückweg.
+  Exchange erzeugt die Nachricht dann aus dem eigenen Haus, sodass SPF, DKIM und DMARC
+  greifen, ohne dass die öffentliche IP des Gateways im SPF-Eintrag der Absenderdomäne
+  stehen muss (im SMTP-Modus wäre genau das nötig, sonst SPF-Fail). Ein Schalter in
+  *Erweitert → „Sende-Identitäten über Graph zustellen"* schaltet es ab (Notnagel);
+  scheitert Graph im Einzelfall (etwa bevor die Sende-Umfang-Änderung propagiert ist),
+  fällt die Zustellung automatisch auf den allgemeinen Rückweg zurück — nichts geht
+  verloren.
+- **Domänenauswahl erweitert.** Beim Anlegen einer Identität sind nun auch
+  `InternalRelay`-Domänen wählbar, nicht nur `Authoritative`. In einem geteilten
+  Namensraum ist Exchange Online bei InternalRelay nur einer der Zustellwege; ein
+  normales Postfach mit Primäradresse in einer solchen Domäne ist gängig und
+  unproblematisch. Die frühere Beschränkung war zu eng.
+
 ## v1.9.29 — 2026-09-16 — Sende-Identitäten: Shared Mailbox kommt in den App-Sende-Umfang
 
 Damit das Gateway später per Graph „als" die Shared Mailbox einer Sende-Identität

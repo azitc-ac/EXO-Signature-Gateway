@@ -205,6 +205,36 @@ def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
     _known = exo_mailboxes.known_addresses()
     _sender_internal = bool(_known) and (mail_from or "").strip().lower() in _known
 
+    # ── Sende-Identitäten: Post bevorzugt über Graph, unabhängig vom Modus ──────
+    # Exchange erzeugt die Nachricht dann aus dem eigenen Haus (kein SMTP-Hop mit
+    # Gateway-IP) → SPF/DKIM/DMARC greifen ohne DNS-Eintrag fürs Gateway. Abschalter
+    # IDENT_DELIVER_VIA_GRAPH (Vorgabe an, in „Erweitert"). Scheitert Graph (App-Scope
+    # noch nicht propagiert o.ä.), fällt es auf den normalen Modus-Pfad unten zurück
+    # — dann geht die Post über den Smarthost, nur ohne den SPF-Vorteil.
+    if settings_store.get("IDENT_DELIVER_VIA_GRAPH") is not False:
+        _ist_ident = False
+        try:
+            import sende_identitaeten
+            _ist_ident = sende_identitaeten.ist_identitaets_adresse(mail_from)
+        except Exception:                                     # noqa: BLE001
+            _ist_ident = False
+        if _ist_ident:
+            import email as _em
+            import graph_reinject
+            _ct = _em.message_from_bytes(content_bytes).get_content_type().lower()
+            if force_mime or _ct in ("multipart/signed", "application/pkcs7-mime"):
+                ok = graph_reinject.send_via_graph_mime(mail_from, rcpt_tos, content_bytes)
+            else:
+                ok = graph_reinject.send_via_graph(mail_from, rcpt_tos, content_bytes)
+            if ok:
+                stats.increment("graph_api_calls")
+                log.info("Identitätspost über Graph zugestellt: from=%s to=%s",
+                         mail_from, rcpt_tos)
+                return
+            log.warning("Identitätspost: Graph-Versand fehlgeschlagen für %s — "
+                        "Rückfall auf Modus %s (ohne SPF-Vorteil)", mail_from, mode)
+            # fällt durch zum normalen Modus-Pfad unten
+
     if (mode in ("graph", "graph_plus")
             and _sender_internal
             and _is_bifurcated(rcpt_tos, content_bytes)):
