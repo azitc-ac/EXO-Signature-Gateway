@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.19 — 2026-09-16 — Relay-Statistik: Top-Geräte; alle Top-Listen als Top 10 mit Ausklappen
+
+- **Neu: „Top-Geräte"** in der Relay-Statistik — je Quell-IP **Mails und Volumen**.
+  Die Daten lagen bereits vor (`relay_stats` verdichtet pro Gerät/Tag), sie werden
+  jetzt angezeigt.
+- **Die Pro-Gerät-Spalte „30/90/180/360" ist aus der Geräte-Tabelle entfernt** und in
+  die Statistik überführt — die Tabelle wird dadurch schmaler und übersichtlicher.
+  (Die Statistik füllt sich aus laufendem Relay-Verkehr; historische Gerätezähler
+  aus der Zeit vor dem Statistik-Feature wandern nicht mit.)
+- **Alle Top-Listen** (Geräte/Identitäten/Absender/Empfänger) zeigen jetzt die
+  **ersten 10**, der Rest lässt sich mit „N weitere anzeigen" **ausklappen** —
+  damit lange Listen die Seite nicht sprengen.
+
 ## v1.9.18 — 2026-09-16 — SMTP-Relay: Geräte-Tabelle rollt wie die Postfächer, Anlegen-Formular aufgeräumt
 
 - **Geräte-Tabelle waagerecht scrollbar erreichbar:** Auf großen Schirmen wird die
