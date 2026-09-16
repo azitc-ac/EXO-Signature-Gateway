@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.18 — 2026-09-16 — SMTP-Relay: Geräte-Tabelle rollt wie die Postfächer, Anlegen-Formular aufgeräumt
+
+- **Geräte-Tabelle waagerecht scrollbar erreichbar:** Auf großen Schirmen wird die
+  Liste jetzt (wie die Postfach-Tabelle) auf eine feste Höhe gedeckelt, mit
+  klebender Kopfzeile — so bleibt der **waagerechte Rollbalken erreichbar**, statt
+  bei langer Liste ganz unten außer Sicht zu sitzen. Auf kleinen Schirmen rollt sie
+  wie bisher (kein Höhen-Deckel, damit die Wischgeste frei bleibt).
+- **Spalte „Kommentar" breiter** (in der Tabelle und im Hinzufügen-Feld).
+- **Sende-Identitäten – Anlegen-Formular aufgeräumt:** einheitliches, mitlaufendes
+  Raster (Name/Login/Passwort/Absender), engerer Abstand zwischen Beschriftung und
+  Feld; Schalter „auch extern senden" und „Hinzufügen" in einer eigenen Zeile
+  darunter. Auf schmalen Schirmen stapeln die Felder sauber untereinander.
+
 ## v1.9.17 — 2026-09-15 — SSO Implicit-Login: eigener Callback-Pfad (kein Konflikt mit dem Code-Flow)
 
 Nachschärfung zu v1.9.16: Der Implicit-id_token-Login braucht eine **Web**-Plattform
