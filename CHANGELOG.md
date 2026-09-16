@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.39 — 2026-09-16 — Relay-Protokoll: Absender-/An-Spalten sauber gekürzt
+
+Die Spalten *Absender* und *An* brachen lange E-Mail-Adressen buchstabenweise um
+(`word-break: break-all` → „papaz ar73 @gm ail.co m"). Sie werden jetzt wie die
+Betreffspalte behandelt: einzeilig, bei Überlänge mit „…" gekürzt, der vollständige
+Wert erscheint im Tooltip. Deutlich ruhigeres Tabellenbild.
+
 ## v1.9.38 — 2026-09-16 — Sende-Identitäten: Graph-Zustellung immer als Raw-MIME
 
 Identitätspost, die über Graph zugestellt wird, ging für einfache Nachrichten bisher
