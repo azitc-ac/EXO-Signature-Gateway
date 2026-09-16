@@ -749,6 +749,13 @@
     "name": "api_relay_abweisungen_leeren"
   },
   {
+    "pfad": "/api/relay/domaenen",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_relay_domaenen"
+  },
+  {
     "pfad": "/api/relay/geraet",
     "methoden": [
       "POST"

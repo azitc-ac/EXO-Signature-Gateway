@@ -120,6 +120,10 @@ DEFAULTS: dict = {
     # eigenem Login — Fundament der verwalteten Sende-Identitäten. Vorgabe aus;
     # der 587-Listener weist jede Anmeldung ab, solange dies aus ist.
     "SUBMISSION_ENABLED": False,
+    # Zuletzt für eine Sende-Identität gewählte Domäne — Vorauswahl im
+    # Domänen-Dropdown der nächsten Identität (die Shared-Mailbox-Adresse ist
+    # `login@domäne`). Keine Freischaltung, nur ein Komfortwert.
+    "RELAY_IDENT_DEFAULT_DOMAIN": "",
     # ⚠️ Die FREIGABE steht nicht hier, sondern in der Geräteliste
     # (`relay_hosts.py`, eigene Datenbank). Diese Netze sagen nur, WORAUS der
     # Lernmodus lernen darf — ausserhalb seines Zeitfensters lassen sie nichts

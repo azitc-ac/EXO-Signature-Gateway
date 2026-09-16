@@ -1136,6 +1136,89 @@ Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
         return {"ok": False, "email": "", "output": str(exc)}
 
 
+def _ps_lit(wert: str) -> str:
+    """Einen Wert für ein PowerShell-Single-Quote-Literal absichern.
+
+    In PS wird ein `'` durch Verdopplung maskiert; Zeilenumbrüche entfernen wir,
+    damit ein Feldwert (etwa der Anzeigename) keine PS-Zeile einschieben kann.
+    """
+    return (wert or "").replace("\r", " ").replace("\n", " ").replace("'", "''")
+
+
+def run_create_shared_mailbox(alias: str, display_name: str,
+                              primary_smtp: str) -> dict:
+    """Legt (idempotent) eine unlizenzierte Shared Mailbox für eine Sende-Identität an.
+
+    Verallgemeinerung von `run_create_notification_mailbox`: hier wird die
+    Primäradresse EXPLIZIT gesetzt (`-PrimarySmtpAddress`), weil die Default-Domäne
+    eines Tenants i.d.R. `*.onmicrosoft.com` ist und `login@domäne` aus einer
+    autoritativen Domäne kommen soll — sich EXO die Adresse also nicht selbst
+    ausdenken darf.
+
+    Idempotent über `Get-Mailbox` auf die Primäradresse: existiert das Postfach
+    schon (auch als reguläres Postfach der Adresse), wird nichts angelegt und
+    `created=False` gemeldet. Gibt `{ok, email, created, output}` zurück.
+    """
+    if not _AUTH_CERT_PATH.exists():
+        return {"ok": False, "email": "", "created": False,
+                "output": "Auth-Zertifikat nicht gefunden"}
+    app_id = config.CLIENT_ID or settings_store.get("CLIENT_ID") or ""
+    org = settings_store.get("TENANT_DOMAIN") or ""
+    if not app_id or not org:
+        return {"ok": False, "email": "", "created": False,
+                "output": "CLIENT_ID oder TENANT_DOMAIN nicht konfiguriert"}
+    if not primary_smtp or "@" not in primary_smtp:
+        return {"ok": False, "email": "", "created": False,
+                "output": "Keine gültige Primäradresse übergeben"}
+
+    cert = str(_AUTH_CERT_PATH)
+    alias_l = _ps_lit(alias)
+    display_l = _ps_lit(display_name or alias)
+    primary_l = _ps_lit(primary_smtp)
+
+    ps_script = f"""
+$ErrorActionPreference = 'Stop'
+$cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
+    '{cert}', [string]$null,
+    ([System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet))
+Connect-ExchangeOnline -AppId '{app_id}' -Certificate $cert -Organization '{org}' -ShowBanner:$false -ShowProgress:$false
+$mbx = Get-Mailbox -Identity '{primary_l}' -ErrorAction SilentlyContinue
+$created = $false
+if (-not $mbx) {{
+    $mbx = New-Mailbox -Shared -Name '{alias_l}' -DisplayName '{display_l}' -Alias '{alias_l}' -PrimarySmtpAddress '{primary_l}' -ErrorAction Stop
+    $created = $true
+}}
+$email = if ($mbx.PrimarySmtpAddress) {{ $mbx.PrimarySmtpAddress }} else {{ '' }}
+Write-Output (@{{ok=$true; email="$email"; created=$created}} | ConvertTo-Json -Compress)
+Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
+"""
+    try:
+        proc = subprocess.run(
+            ["pwsh", "-NoProfile", "-NonInteractive", "-Command", ps_script],
+            capture_output=True, text=True, timeout=120,
+        )
+        output = (proc.stdout + "\n" + proc.stderr).strip()
+        import json as _json
+        for line in proc.stdout.strip().splitlines():
+            line = line.strip()
+            if line.startswith("{"):
+                try:
+                    result = _json.loads(line)
+                    if result.get("ok"):
+                        log.info("Shared Mailbox %s: %s (created=%s)",
+                                 primary_smtp, result.get("email"), result.get("created"))
+                        return {"ok": True, "email": result.get("email", ""),
+                                "created": bool(result.get("created")), "output": output}
+                except Exception:
+                    pass
+        log.error("Shared-Mailbox-Anlage %s fehlgeschlagen rc=%d: %s",
+                  primary_smtp, proc.returncode, output)
+        return {"ok": False, "email": "", "created": False, "output": output}
+    except Exception as exc:
+        log.error("Shared-Mailbox-Anlage %s Fehler: %s", primary_smtp, exc)
+        return {"ok": False, "email": "", "created": False, "output": str(exc)}
+
+
 # ── EXO state verification ────────────────────────────────────────────────────
 
 def _run_verify_ps(body: str) -> dict:
@@ -1170,6 +1253,43 @@ def _run_verify_ps(body: str) -> dict:
         return {"ok": False, "error": (proc.stderr or proc.stdout)[:300]}
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
+
+
+_domaenen_cache: dict | None = None
+
+
+def list_accepted_domains(refresh: bool = False) -> dict:
+    """Autoritative akzeptierte Domänen des Tenants (für die Sende-Identitäten).
+
+    Nur `Authoritative` — nur solche taugen als Primäradresse eines Postfachs
+    (`InternalRelay` wie zuweilen die Vanity-Domäne nicht). Zusätzlich die
+    EXO-Default-Domäne (i.d.R. `*.onmicrosoft.com`) als Information; die Vorauswahl
+    im UI ist NICHT diese, sondern eine bewusst gewählte (Route/Einstellung).
+
+    Ergebnis wird prozessweit gecacht (der Aufruf dauert ~30–60 s); `refresh=True`
+    erzwingt einen neuen Abruf. Rückgabe: `{ok, domaenen: [..], default_exo: str}`.
+    """
+    global _domaenen_cache
+    if _domaenen_cache is not None and not refresh:
+        return _domaenen_cache
+    body = (
+        "$doms = Get-AcceptedDomain | Where-Object { $_.DomainType -eq 'Authoritative' } "
+        "| Select-Object -ExpandProperty DomainName\n"
+        "$def  = Get-AcceptedDomain | Where-Object { $_.Default -eq $true } "
+        "| Select-Object -ExpandProperty DomainName -First 1\n"
+        "Write-Output (@{ok=$true; domaenen=@($doms); default_exo=\"$def\"} | ConvertTo-Json -Compress)\n"
+    )
+    res = _run_verify_ps(body)
+    if res.get("ok"):
+        doms = res.get("domaenen") or []
+        if isinstance(doms, str):        # ConvertTo-Json kann ein Ein-Element-Array skalar liefern
+            doms = [doms]
+        ergebnis = {"ok": True, "domaenen": [str(d) for d in doms],
+                    "default_exo": res.get("default_exo", "")}
+        _domaenen_cache = ergebnis
+        return ergebnis
+    return {"ok": False, "domaenen": [], "default_exo": "",
+            "error": res.get("error", "Domänen nicht abrufbar")}
 
 
 def verify_connector(smtp_mode: bool = False) -> dict:

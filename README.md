@@ -123,10 +123,15 @@ TLS) am Submission-Port **587** anmelden. Das öffnet die Einlieferung für Ger�
 ohne OAuth (ältere Drucker, Scanner, Fachanwendungen wie SAP) und für Gateways
 ohne feste Absender-IP.
 
-Eine *Sende-Identität* besteht aus Name, Login, Passwort und optional einer
-Absenderadresse. Ein Login gehört zu einer Identität; mehrere Geräte dürfen es
-teilen. Passwörter werden ausschließlich als Hash gespeichert (pbkdf2-sha256), nie
-im Klartext.
+Eine *Sende-Identität* besteht aus **Anzeigename**, **Login** und **Domäne** sowie
+einem Passwort. Der Login ist zugleich der EXO-Alias; mit der Domäne ergibt er die
+Adresse der Shared Mailbox (`login@domäne`), die beim Anlegen automatisch als
+**unlizenziertes Shared Mailbox** in Exchange erzeugt wird (idempotent) und
+zugleich Absender und Antwort-Postfach ist. Die Domäne wird aus den autoritativen
+Tenant-Domänen gewählt (die Default-Domäne `*.onmicrosoft.com` taugt dafür nicht).
+Ein Login gehört zu einer Identität; mehrere Geräte dürfen es teilen. Passwörter
+werden ausschließlich als Hash gespeichert (pbkdf2-sha256), nie im Klartext; die
+Anmeldung erfolgt am **Gateway**, nicht an Exchange.
 
 **Grenzen** (durchgesetzt im Gateway, nicht nur in der Oberfläche):
 
@@ -143,12 +148,19 @@ im Klartext.
 
 **Einrichten:** Auf der Relay-Seite die Rubrik *Sende-Identitäten* öffnen,
 *Authentifizierte Einlieferung (587) aktivieren* einschalten und eine Identität
-anlegen. Am Gerät `Server:587`, STARTTLS und das Login eintragen. Der Port
-verlangt TLS zwingend (Anmeldung erst nach STARTTLS) und wird ohne
-TLS-Zertifikat gar nicht erst geöffnet. Angenommene Post läuft danach über den
-normalen Verarbeitungs- und Rückweg zurück an Exchange — sie wird signiert bzw.
-S/MIME-behandelt, wenn ihr Absender ein aktiviertes Postfach ist, sonst
-unverändert weitergereicht.
+anlegen (Anzeigename, Login, Domäne, Passwort). Beim Speichern legt das Gateway
+die zugehörige Shared Mailbox automatisch an; die abgeleitete Adresse wird vorab
+angezeigt. Am Gerät `Server:587`, STARTTLS und das Login eintragen; der
+Envelope-Absender muss die Shared-Mailbox-Adresse sein. Der Port verlangt TLS
+zwingend (Anmeldung erst nach STARTTLS) und wird ohne TLS-Zertifikat gar nicht
+erst geöffnet. Angenommene Post läuft danach über den normalen Verarbeitungs- und
+Rückweg zurück an Exchange — sie wird signiert bzw. S/MIME-behandelt, wenn ihr
+Absender ein aktiviertes Postfach ist, sonst unverändert weitergereicht.
+
+> In den Cloud-Rückwegen (`graph`, `graph_plus`) muss die Shared Mailbox im
+> Sende-Umfang der Anwendung liegen (ApplicationAccessPolicy-Gruppe bzw. SendAs),
+> sonst lehnt Graph mit `403` ab. Im Modus `smtp` trägt der Smarthost die Adresse
+> ohne weitere Freigabe.
 
 ---
 
