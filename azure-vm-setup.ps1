@@ -5,7 +5,7 @@
 
 .DESCRIPTION
     Legt eine Debian 12 Bookworm-VM (Standard_B2s) mit statischer öffentlicher IP an,
-    öffnet die benötigten Ports (80, 443, 25, 22) und installiert Docker + das Gateway.
+    öffnet die benötigten Ports (22, 80, 443, 25, 587) und installiert Docker + das Gateway.
 
 .PARAMETER ResourceGroup
     Name der Ressourcengruppe (wird angelegt falls nicht vorhanden).
@@ -268,10 +268,16 @@ Write-Info "cloud-init läuft nach dem ersten Boot im Hintergrund (~3–5 Min.).
 Write-Step "Firewall-Regeln setzen"
 
 $rules = @(
-    @{ name="SSH";   port=22;  prio=100; desc="SSH-Zugang (Verwaltung)" },
-    @{ name="HTTP";  port=80;  prio=110; desc="Let's Encrypt HTTP-01 + Setup-Wizard" },
-    @{ name="HTTPS"; port=443; prio=120; desc="Web-UI + Office Add-in" },
-    @{ name="SMTP";  port=25;  prio=130; desc="Exchange Online Outbound Connector" }
+    @{ name="SSH";        port=22;  prio=100; desc="SSH-Zugang (Verwaltung)" },
+    @{ name="HTTP";       port=80;  prio=110; desc="Let's Encrypt HTTP-01 + Setup-Wizard" },
+    @{ name="HTTPS";      port=443; prio=120; desc="Web-UI + Office Add-in" },
+    @{ name="SMTP";       port=25;  prio=130; desc="Exchange Online Outbound Connector" },
+    # Eingehende Submission (587) fuer Sende-Identitaeten: Geraete/Anwendungen
+    # liefern mit eigenem Login ueber TLS ein. Der Listener oeffnet nur bei
+    # vorhandenem TLS-Zertifikat und weist ohne aktivierte Submission jede
+    # Anmeldung ab (Anmelde-Bremse gegen Brute-Force) — der offene Port ist damit
+    # unkritisch. Wer die Quellen kennt, kann die Regel spaeter auf deren IPs engen.
+    @{ name="Submission"; port=587; prio=140; desc="Sende-Identitaeten: authentifizierte Einlieferung (587)" }
 )
 
 foreach ($r in $rules) {

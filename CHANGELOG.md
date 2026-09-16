@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.32 — 2026-09-16 — Azure-VM-Setup öffnet Port 587 (Sende-Identitäten)
+
+Das Skript `azure-vm-setup.ps1` öffnete eingehend nur 22, 80, 443 und 25 — der
+Submission-Port **587** für die authentifizierte Einlieferung der Sende-Identitäten
+fehlte, sodass Geräte den Listener auf einer Azure-VM nicht erreichen konnten. Die
+Netzwerk-Sicherheitsgruppe öffnet 587 jetzt mit. Der Port ist unkritisch: Der
+Listener startet nur mit TLS-Zertifikat, verlangt STARTTLS und AUTH, weist ohne
+aktivierte Submission jede Anmeldung ab und bremst Fehlversuche je Quell-IP. Wer die
+einliefernden Quellen kennt, kann die Regel nachträglich auf deren IPs einengen.
+(Container und Docker-Compose veröffentlichten 587 bereits; es fehlte allein die
+NSG-Regel.) Port 587 ist zudem als eigene Vertrauensgrenze ins Threat Model
+aufgenommen.
+
 ## v1.9.31 — 2026-09-16 — Sende-Identitäten: Domänen-Dropdown lädt sofort
 
 Die Auswahl der Domäne beim Anlegen einer Sende-Identität hing am Abruf der
