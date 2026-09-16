@@ -78,6 +78,17 @@ def test_identitaet_wird_getrennt_je_login_gezaehlt(db):
     assert s["geraete"] == 2                                # IP-Sicht zählt weiter zwei Geräte
 
 
+def test_top_geraete_zeigt_ip_mit_mails_und_volumen(db):
+    db.merke("10.0.0.5", absender="a@x.de", empfaenger=["z@y.de"], bytes_=1000)
+    db.merke("10.0.0.5", absender="a@x.de", empfaenger=["z@y.de"], bytes_=500)
+    db.merke("10.0.0.9", absender="b@x.de", empfaenger=["z@y.de"], bytes_=200)
+    top = {z["name"]: z for z in db.statistik(30)["top_geraete"]}
+    assert top["10.0.0.5"]["anzahl"] == 2 and top["10.0.0.5"]["bytes"] == 1500
+    assert top["10.0.0.9"]["anzahl"] == 1 and top["10.0.0.9"]["bytes"] == 200
+    # Reihenfolge: das aktivste Gerät zuerst
+    assert db.statistik(30)["top_geraete"][0]["name"] == "10.0.0.5"
+
+
 def test_letzte_aktivitaet_je_identitaet(db):
     from datetime import timedelta
     heute = db._jetzt().strftime("%Y-%m-%d")

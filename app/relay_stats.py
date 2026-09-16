@@ -97,12 +97,15 @@ def merke(ip: str, absender: str = "", empfaenger: list | None = None,
         log.warning("relay_stats.merke fehlgeschlagen: %s", exc)
 
 
-def statistik(tage_zurueck: int = 30, grenze_top: int = 20) -> dict:
-    """Gesamt-Anzahl/-Volumen + Top-Absender/-Empfänger (je Anzahl + Bytes) über
-    die letzten *tage_zurueck* Tage."""
+def statistik(tage_zurueck: int = 30, grenze_top: int = 100) -> dict:
+    """Gesamt-Anzahl/-Volumen + Top-Geräte/-Absender/-Empfänger/-Identitäten (je
+    Anzahl + Bytes) über die letzten *tage_zurueck* Tage.
+
+    `grenze_top` großzügig (100), damit die Oberfläche „Top 10 + Rest ausklappen"
+    anbieten kann, ohne nachzuladen."""
     ab = (_jetzt() - timedelta(days=max(1, tage_zurueck))).strftime("%Y-%m-%d")
     leer = {"tage": tage_zurueck, "gesamt_anzahl": 0, "gesamt_bytes": 0,
-            "geraete": 0, "top_absender": [], "top_empfaenger": [],
+            "geraete": 0, "top_geraete": [], "top_absender": [], "top_empfaenger": [],
             "top_identitaeten": []}
     try:
         with _conn() as c:
@@ -118,6 +121,7 @@ def statistik(tage_zurueck: int = 30, grenze_top: int = 20) -> dict:
             return {
                 "tage": tage_zurueck,
                 "gesamt_anzahl": g["a"], "gesamt_bytes": g["b"], "geraete": g["g"],
+                "top_geraete": _top("tage", "ip"),
                 "top_absender": _top("absender", "absender"),
                 "top_empfaenger": _top("empfaenger", "empfaenger"),
                 "top_identitaeten": _top("identitaet", "identitaet"),
