@@ -191,6 +191,39 @@ def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
     """
     mode = settings_store.reinject_mode()
 
+    # ── Domänen-Routing: eigene Next-Hop-Ziele vorab abspalten ───────────────
+    # Empfänger, deren Domäne auf ein konfiguriertes Ziel (≠ EXO) zeigt, werden
+    # UNVERÄNDERT dorthin relayt (kein DKIM-Strip, kein Graph/Modus-Pfad — ein
+    # Fremdserver ist über Graph nicht erreichbar und signiert nicht neu). Der
+    # Rest läuft den normalen Modus-Pfad unten. Eine Transaktion kann Empfänger
+    # mehrerer Domänen tragen → je Ziel eine eigene SMTP-Sitzung.
+    #
+    # NUR im smtp-Modus, aus zwei Gründen: (1) das Relay setzt den Smarthost-Weg
+    # ohnehin voraus (durchgesetzt in smtp_relay.pruefe); (2) in den Graph-Modi
+    # würde das Abspalten die Bifurkations-`send_to_all`-Heuristik täuschen — sie
+    # sendet an die volle Header-Liste und stellte die schon gerouteten Empfänger
+    # ein zweites Mal zu.
+    import domain_routing
+    if mode == "smtp":
+        _gruppen = domain_routing.gruppiere(rcpt_tos)
+        if any(zid != domain_routing.EXO for zid in _gruppen):
+            for _zid, _rs in _gruppen.items():
+                if _zid == domain_routing.EXO:
+                    continue
+                try:
+                    _relay_to_target(_zid, mail_from, _rs, content_bytes)
+                except Exception as exc:                      # noqa: BLE001
+                    _fail_delivery(mail_from, _rs, content_bytes,
+                                   f"Routing→{_zid}: {exc}", queue_on_failure)
+            rcpt_tos = _gruppen.get(domain_routing.EXO, [])
+            if not rcpt_tos:
+                return
+    elif domain_routing.ziele() and any(
+            domain_routing.route_fuer(d) != domain_routing.EXO
+            for d in {(r or "").rsplit("@", 1)[-1].lower() for r in rcpt_tos if "@" in (r or "")}):
+        log.warning("Domänen-Routing ist konfiguriert, aber der Rückweg steht auf "
+                    "%r — Routing wirkt nur im smtp-Modus; Post geht an EXO", mode)
+
     # Bifurcation handling (587 as-sender + send_to_all) is an OUTBOUND-only
     # feature: it only makes sense for mail SENT BY a tenant mailbox that
     # Exchange split into forks. Inbound external mail (e.g. an S/MIME-signed
@@ -407,3 +440,49 @@ def _send_smtp(mail_from: str, rcpt_tos: list[str], content_bytes: bytes) -> Non
     except Exception as exc:
         log.error("SMTP re-inject failed: from=%s to=%s: %s", mail_from, rcpt_tos, exc)
         raise
+
+
+def _relay_to_target(ziel_id: str, mail_from: str, rcpt_tos: list[str],
+                     content_bytes: bytes) -> None:
+    """Pass-through-Relay an ein konfiguriertes Next-Hop-Ziel (NICHT EXO).
+
+    Anders als `_send_smtp`: KEIN `_strip_stale_signatures` — die Mail wird
+    byte-genau durchgereicht. Ein Fremdserver signiert nicht neu; ein Strip
+    zerstörte gültige DKIM-/S-MIME-Signaturen. Kein `X-Sig-Applied` nötig: der
+    Hop verlässt den Exchange-Transport, die FromMemberOf-Regel sieht ihn nie
+    wieder.
+
+    Wie beim EXO-Weg präsentieren wir das Proxy-TLS-Zertifikat — ein
+    on-prem-Receive-Connector kann uns darüber als vertrauenswürdigen Partner
+    erkennen (Kern des Hybrid-Vertrauens; die Betreiber-Seite dazu ist Sache der
+    Connector-/Zert-Konfiguration auf beiden Seiten, nicht dieses Hops).
+    """
+    import domain_routing
+    cfg = domain_routing.aufloesen(ziel_id)
+    host, port = cfg["host"], cfg["port"]
+    if not host:
+        raise RuntimeError(f"Routing-Ziel {ziel_id!r} hat keinen Host konfiguriert")
+
+    tls_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    tls_ctx.check_hostname = False
+    tls_ctx.verify_mode = ssl.CERT_NONE
+    cert_path = Path(config.SMTP_TLS_CERT)
+    key_path = Path(config.SMTP_TLS_KEY)
+    if cert_path.exists() and key_path.exists():
+        try:
+            tls_ctx.load_cert_chain(certfile=str(cert_path), keyfile=str(key_path))
+        except Exception as e:                                # noqa: BLE001
+            log.debug("Could not load client cert for routing TLS: %s", e)
+
+    import aussenadresse
+    with smtplib.SMTP(host, port, timeout=30,
+                      local_hostname=aussenadresse.ehlo_hostname()) as smtp:
+        smtp.ehlo()
+        if cfg["starttls"]:
+            smtp.starttls(context=tls_ctx)
+            smtp.ehlo()
+        if cfg["user"] and cfg["pass"]:
+            smtp.login(cfg["user"], cfg["pass"])
+        smtp.sendmail(mail_from, rcpt_tos, content_bytes)
+    log.info("Routing re-inject OK: from=%s to=%s via Ziel %s (%s:%s)",
+             mail_from, rcpt_tos, ziel_id, host, port)

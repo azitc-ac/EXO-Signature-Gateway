@@ -138,6 +138,16 @@ DEFAULTS: dict = {
     "SMTP_RELAY_EXTERN_VORGABE": False,  # Rechte, die ein gelerntes Gerät bekommt
     "RELAY_USER": "",              # Optional SMTP AUTH user (e.g. SES "apikey")
     "RELAY_PASSWORD": "",          # Optional SMTP AUTH password
+    # ── Domänen-Routing: Next-Hop je Empfängerdomäne ─────────────────────────
+    # Standardziel ist IMMER EXO (EXO_SMARTHOST/EXO_PORT/RELAY_USER/-PASSWORD);
+    # hier stehen nur ABWEICHENDE Ziele. Bearbeitete Post, deren Empfängerdomäne
+    # ein eigenes Ziel trifft, wird UNVERÄNDERT dorthin relayt (kein DKIM-Strip,
+    # der nur für den EXO-Rückweg richtig ist — siehe reinject._relay_to_target).
+    # Das Passwort steht separat in RELAY_TARGET_PW, weil es als Geheimnis
+    # maskiert werden muss, host/port/user aber sichtbar bleiben sollen.
+    "RELAY_TARGETS": {},      # {"onprem": {"host","port","starttls","user"}}
+    "RELAY_TARGET_PW": {},    # {ziel_id: klartext} — Geheimnis; Klartext nötig für SMTP AUTH
+    "DOMAIN_ROUTES": {},      # {"contoso.de": "onprem"} — ohne Treffer → EXO
     # ── SMTP-Übermittlung (Port 587) ─────────────────────────────────────────
     # ⚠️ Diese Werte tragen ZWEI verschiedene Wege (siehe smtp_submit.py):
     #   1. ausgehende Post, die Exchange in Teilnachrichten aufgeteilt hat —
@@ -306,6 +316,7 @@ SECRET_KEYS = frozenset({
     "HUB_CLAIM_TOKEN",            # einmaliger Anbindungs-Token zum Hub
     "LICENSE_KEY",                # signierter Lizenzschlüssel
     "RELAY_PASSWORD",
+    "RELAY_TARGET_PW",            # {ziel_id: klartext} — SMTP-AUTH-Passwörter der Routing-Ziele
     "SMIME_KEY_PASSWORD",         # entschlüsselt die S/MIME-Privatschlüssel
     "SMTP_SUBMIT_CLIENT_SECRET",
     "SMTP_SUBMIT_PASSWORD",
@@ -381,6 +392,8 @@ def public_view() -> dict:
         v = d[k]
         if isinstance(v, list):
             d[k] = [MASK] * len(v)        # APP_POOL: Länge bleibt aussagekräftig
+        elif isinstance(v, dict):
+            d[k] = {kk: MASK for kk in v}  # RELAY_TARGET_PW: Ziel-IDs bleiben, Werte maskiert
         elif v:
             d[k] = MASK
     return d

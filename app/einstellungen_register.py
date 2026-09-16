@@ -155,6 +155,9 @@ REGISTER: dict[str, E] = {
     "PORTAL_BRAND_NAME": E(art=OPTION, ort="settings_smime.html"),
     "PUBLIC_HOSTNAME": E(art=OPTION, ort="/api/setup/exo-connector"),
     "RELAY_PASSWORD": E(art=GEHEIMNIS),
+    "RELAY_TARGETS": E(art=STRUKTUR, ort="/api/relay/ziel"),
+    "RELAY_TARGET_PW": E(art=GEHEIMNIS),
+    "DOMAIN_ROUTES": E(art=STRUKTUR, ort="/api/relay/route"),
     "RELAY_USER": E(
         art=NOTNAGEL,
         grund="Benutzername für einen vorgeschalteten Relay, der eine Anmeldung "

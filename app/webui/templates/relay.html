@@ -110,6 +110,97 @@
   </div>
 </div>
 
+<!-- ── Domänen-Routing ──────────────────────────────────────────────────────── -->
+<div class="settings-card" style="margin-bottom:20px">
+  <h2 style="margin:0">Domänen-Routing</h2>
+  <p style="font-size:13px;color:#555;margin:10px 0 14px">
+    Bearbeitete Post geht standardmäßig an <strong>Exchange Online</strong>. Hier
+    lassen sich einzelne <strong>Empfängerdomänen</strong> stattdessen an einen
+    anderen Server zustellen — etwa an einen lokalen Exchange im Hybrid-Betrieb.
+    Post an eine geroutete Domäne wird <strong>unverändert</strong> weitergereicht
+    (keine Signatur-Nachbearbeitung, kein DKIM-Eingriff).
+    <br>⚠️ Wirkt nur im Rückweg-Modus <strong>„SMTP Port 25"</strong>; in den
+    Graph-Modi geht alle Post an Exchange Online.
+  </p>
+
+  <h3 style="font-size:14px;margin:0 0 8px">Weiterleitungsziele</h3>
+  <div class="tabellen-rollbereich">
+    <table class="config-table" style="min-width:620px">
+      <thead>
+        <tr>
+          <th>Kürzel</th><th>Host</th><th>Port</th>
+          <th style="text-align:center">STARTTLS</th><th>Login</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="ziele-body">
+        <tr><td colspan="6" style="color:#888">Wird geladen …</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div style="border-top:1px solid #e2e8f0;margin-top:16px;padding-top:14px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px 12px;align-items:start">
+      <div>
+        <label for="neu-ziel-id" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Kürzel <span class="hint" style="font-weight:400">(intern)</span></label>
+        <input type="text" id="neu-ziel-id" placeholder="onprem" autocomplete="off" style="width:100%;margin:0;box-sizing:border-box">
+      </div>
+      <div>
+        <label for="neu-ziel-host" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Host</label>
+        <input type="text" id="neu-ziel-host" placeholder="mail.contoso.local" autocomplete="off" style="width:100%;margin:0;box-sizing:border-box">
+      </div>
+      <div>
+        <label for="neu-ziel-port" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Port</label>
+        <input type="number" id="neu-ziel-port" value="25" min="1" max="65535" style="width:100%;margin:0;box-sizing:border-box">
+      </div>
+      <div>
+        <label for="neu-ziel-user" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Login <span class="hint" style="font-weight:400">(optional)</span></label>
+        <input type="text" id="neu-ziel-user" placeholder="—" autocomplete="off" style="width:100%;margin:0;box-sizing:border-box">
+      </div>
+      <div>
+        <label for="neu-ziel-pw" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Passwort <span class="hint" style="font-weight:400">(optional)</span></label>
+        <input type="password" id="neu-ziel-pw" placeholder="—" autocomplete="new-password" style="width:100%;margin:0;box-sizing:border-box">
+      </div>
+      <div style="align-self:end;padding-bottom:6px">
+        <label class="checkbox-label" style="margin:0"><input type="checkbox" id="neu-ziel-tls" checked> STARTTLS</label>
+      </div>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button type="button" class="btn" onclick="zielHinzufuegen(this)">Ziel speichern</button>
+      <span class="hint">Vorhandenes Kürzel = ändern. Ein leeres Passwortfeld lässt ein gesetztes unverändert.</span>
+    </div>
+    <div id="neu-ziel-result" style="display:none;margin-top:10px"></div>
+  </div>
+
+  <h3 style="font-size:14px;margin:20px 0 8px">Domäne&nbsp;→&nbsp;Ziel</h3>
+  <div class="tabellen-rollbereich">
+    <table class="config-table" style="min-width:420px">
+      <thead>
+        <tr><th>Empfängerdomäne</th><th>Ziel</th><th></th></tr>
+      </thead>
+      <tbody id="routen-body">
+        <tr><td colspan="3" style="color:#888">Wird geladen …</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div style="border-top:1px solid #e2e8f0;margin-top:16px;padding-top:14px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px 12px;align-items:end">
+      <div>
+        <label for="neu-route-domain" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Empfängerdomäne</label>
+        <input type="text" id="neu-route-domain" placeholder="contoso.de" autocomplete="off" style="width:100%;margin:0;box-sizing:border-box">
+      </div>
+      <div>
+        <label for="neu-route-ziel" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Ziel</label>
+        <select id="neu-route-ziel" style="width:100%;margin:0;box-sizing:border-box"></select>
+      </div>
+      <div style="padding-bottom:1px">
+        <button type="button" class="btn" onclick="routeHinzufuegen(this)">Route speichern</button>
+      </div>
+    </div>
+    <div id="neu-route-result" style="display:none;margin-top:10px"></div>
+  </div>
+</div>
+
 <!-- ── Statistik ─────────────────────────────────────────────────────────── -->
 <style>
   /* Statistik-Tabellen bewusst kompakter als die übrigen config-tables:
@@ -367,6 +458,8 @@ async function laden(mitNamen) {
   zeichneAbgewiesen(r.abgewiesen);
   zeichneLernmodus(r.lernmodus);
   zeichneIdentitaeten(r.identitaeten);
+  zeichneZiele(r.ziele);
+  zeichneRouten(r.routen, r.ziele);
   const sub = document.getElementById('submission-an');
   if (sub) { sub.checked = !!r.submission_an; zeigeSubmissionHinweis(!!r.submission_an); }
   zeichneWarnung(r);
@@ -473,6 +566,131 @@ function zeichneIdentitaeten(liste) {
       + '</td>';
     tb.appendChild(tr);
   });
+}
+
+// ── Domänen-Routing ───────────────────────────────────────────────────────────
+function zeichneZiele(liste) {
+  const tb = document.getElementById('ziele-body');
+  liste = liste || [];
+  if (!liste.length) {
+    tb.innerHTML = '<tr><td colspan="6" style="color:#888">Kein eigenes Ziel — '
+      + 'alle Post geht an Exchange Online.</td></tr>';
+    return;
+  }
+  tb.innerHTML = '';
+  liste.forEach(function (z) {
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td><code>' + esc(z.id) + '</code></td>'
+      + '<td style="font-size:12px">' + esc(z.host || '—') + '</td>'
+      + '<td>' + (z.port || 25) + '</td>'
+      + '<td style="text-align:center">' + (z.starttls ? 'ja' : '<span style="color:#94a3b8">nein</span>') + '</td>'
+      + '<td style="font-size:12px;color:#555">' + (z.user ? esc(z.user) + (z.hat_passwort ? ' 🔒' : '') : '<span style="color:#94a3b8">—</span>') + '</td>'
+      + '<td style="white-space:nowrap">'
+        + '<button class="btn secondary btn-sm" onclick="zielBearbeiten(' + escAttr(JSON.stringify(z)) + ')">Bearbeiten</button> '
+        + '<button class="btn secondary btn-sm" onclick="zielLoeschen(\'' + escAttr(z.id) + '\', this)">Löschen</button>'
+      + '</td>';
+    tb.appendChild(tr);
+  });
+}
+
+function zeichneRouten(routen, ziele) {
+  routen = routen || {};
+  ziele = ziele || [];
+  // Ziel-Dropdown des Anlege-Formulars aus den vorhandenen Zielen füllen.
+  const sel = document.getElementById('neu-route-ziel');
+  const behalten = sel.value;
+  sel.innerHTML = '<option value="">— Exchange Online (Standard) —</option>'
+    + ziele.map(function (z) {
+        return '<option value="' + escAttr(z.id) + '">' + esc(z.id) + ' (' + esc(z.host) + ')</option>';
+      }).join('');
+  if (behalten) sel.value = behalten;
+
+  const tb = document.getElementById('routen-body');
+  const domains = Object.keys(routen).sort();
+  if (!domains.length) {
+    tb.innerHTML = '<tr><td colspan="3" style="color:#888">Keine Route — '
+      + 'jede Domäne geht an Exchange Online.</td></tr>';
+    return;
+  }
+  const bekannt = {};
+  ziele.forEach(function (z) { bekannt[z.id] = z.host; });
+  tb.innerHTML = '';
+  domains.forEach(function (d) {
+    const zid = routen[d];
+    const gueltig = Object.prototype.hasOwnProperty.call(bekannt, zid);
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td><code>' + esc(d) + '</code></td>'
+      + '<td style="font-size:12px">' + esc(zid)
+        + (gueltig ? ' <span style="color:#94a3b8">(' + esc(bekannt[zid]) + ')</span>'
+                   : ' <span style="color:#991b1b" title="Ziel gibt es nicht — Post geht an Exchange Online">⚠ unbekannt</span>') + '</td>'
+      + '<td><button class="btn secondary btn-sm" onclick="routeLoeschen(\'' + escAttr(d) + '\', this)">Entfernen</button></td>';
+    tb.appendChild(tr);
+  });
+}
+
+function zielBearbeiten(z) {
+  document.getElementById('neu-ziel-id').value = z.id || '';
+  document.getElementById('neu-ziel-host').value = z.host || '';
+  document.getElementById('neu-ziel-port').value = z.port || 25;
+  document.getElementById('neu-ziel-user').value = z.user || '';
+  document.getElementById('neu-ziel-pw').value = '';   // leer = unverändert
+  document.getElementById('neu-ziel-tls').checked = !!z.starttls;
+  document.getElementById('neu-ziel-id').focus();
+}
+
+async function zielHinzufuegen(btn) {
+  const box = document.getElementById('neu-ziel-result');
+  const id = (document.getElementById('neu-ziel-id').value || '').trim();
+  const host = (document.getElementById('neu-ziel-host').value || '').trim();
+  const port = parseInt(document.getElementById('neu-ziel-port').value, 10) || 25;
+  const user = (document.getElementById('neu-ziel-user').value || '').trim();
+  const pw = document.getElementById('neu-ziel-pw').value || '';
+  const tls = document.getElementById('neu-ziel-tls').checked;
+  if (!id || !host) { showAlert(box, 'error', 'Kürzel und Host sind nötig.'); return; }
+  btn.disabled = true;
+  const r = await postJSON('/api/relay/ziel',
+    { id: id, host: host, port: port, starttls: tls, user: user, passwort: pw });
+  btn.disabled = false;
+  if (!r || !r.ok) { showAlert(box, 'error', (r && r.error) || 'Speichern fehlgeschlagen.'); return; }
+  showAlert(box, 'success', 'Ziel gespeichert.');
+  ['neu-ziel-id', 'neu-ziel-host', 'neu-ziel-user', 'neu-ziel-pw'].forEach(function (f) {
+    document.getElementById(f).value = '';
+  });
+  document.getElementById('neu-ziel-port').value = 25;
+  document.getElementById('neu-ziel-tls').checked = true;
+  laden();
+}
+
+async function zielLoeschen(id, btn) {
+  if (!confirm('Ziel „' + id + '" entfernen? Routen, die darauf zeigen, gehen '
+             + 'wieder an Exchange Online.')) return;
+  btn.disabled = true;
+  const r = await postJSON('/api/relay/ziel/loeschen', { id: id });
+  if (!r || !r.ok) { btn.disabled = false; return; }
+  laden();
+}
+
+async function routeHinzufuegen(btn) {
+  const box = document.getElementById('neu-route-result');
+  const domain = (document.getElementById('neu-route-domain').value || '').trim();
+  const ziel = document.getElementById('neu-route-ziel').value || '';
+  if (!domain) { showAlert(box, 'error', 'Bitte eine Domäne angeben.'); return; }
+  btn.disabled = true;
+  const r = await postJSON('/api/relay/route', { domain: domain, ziel: ziel });
+  btn.disabled = false;
+  if (!r || !r.ok) { showAlert(box, 'error', (r && r.error) || 'Speichern fehlgeschlagen.'); return; }
+  showAlert(box, 'success', 'Route gespeichert.');
+  document.getElementById('neu-route-domain').value = '';
+  laden();
+}
+
+async function routeLoeschen(domain, btn) {
+  btn.disabled = true;
+  const r = await postJSON('/api/relay/route', { domain: domain, ziel: '' });
+  if (!r || !r.ok) { btn.disabled = false; return; }
+  laden();
 }
 
 function _starkesPasswort(n) {

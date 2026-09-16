@@ -115,10 +115,11 @@ def test_einstellungsseiten_sind_gleich_breit(vorlage):
 def test_relay_tabellen_nutzen_den_gemeinsamen_rollbereich():
     """Nicht neu implementieren, was es gibt — `.tabellen-rollbereich` ist da."""
     text = (VORLAGEN / "relay.html").read_text("utf-8")
-    # Acht Tabellen: Sende-Identitäten (v1.9), Geräte, Abgewiesen, Top-Geräte
-    # (v1.9.19), Top-Identitäten (v1.9.5), Top-Absender, Top-Empfänger (v1.8.113)
-    # und das Relay-Protokoll (v1.8.114).
-    assert text.count('class="tabellen-rollbereich"') == 8
+    # Zehn Tabellen: Sende-Identitäten (v1.9), Geräte, Abgewiesen, Top-Geräte
+    # (v1.9.19), Top-Identitäten (v1.9.5), Top-Absender, Top-Empfänger (v1.8.113),
+    # das Relay-Protokoll (v1.8.114) und die zwei Routing-Tabellen (v1.9.42:
+    # Weiterleitungsziele + Domäne→Ziel).
+    assert text.count('class="tabellen-rollbereich"') == 10
     assert "overflow-x:auto" not in text, (
         "Der Rollbereich ist mit Inline-CSS nachgebaut statt die vorhandene "
         "Klasse zu nutzen.")
@@ -126,7 +127,7 @@ def test_relay_tabellen_nutzen_den_gemeinsamen_rollbereich():
     # (Statistik-Top-Listen, v1.9.22) — die gemeinsame Basisklasse bleibt.
     plain = text.count('class="config-table"')
     eng = text.count('class="config-table stats-eng"')
-    assert plain + eng == 8, (
+    assert plain + eng == 10, (
         "Die Tabellen brauchen die gemeinsame Tabellenklasse — sonst fehlen "
         "Rahmen, Zeilentrenner und die Dark-Mode-Abdeckung.")
     assert eng == 4, "Die vier Statistik-Top-Listen tragen den stats-eng-Modifier."

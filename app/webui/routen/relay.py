@@ -20,6 +20,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
+import domain_routing
 import relay_hosts
 import settings_store
 import smtp_relay
@@ -74,6 +75,8 @@ async def api_relay_liste(namen: int = 0, user: str = Depends(_require_admin)):
         "modus": (settings_store.get("REINJECT_MODE") or "smtp").strip(),
         "submission_an": bool(settings_store.get("SUBMISSION_ENABLED")),
         "identitaeten": _identitaeten_liste(),
+        "ziele": domain_routing.oeffentliche_ziele(),
+        "routen": domain_routing.routen(),
     })
 
 
@@ -193,6 +196,58 @@ async def api_relay_identitaet_loeschen(request: Request,
     if weg:
         log.info("Sende-Identität %s durch %s entfernt", id_, user)
     return JSONResponse({"ok": weg})
+
+
+@router.post("/api/relay/ziel")
+async def api_relay_ziel(request: Request, user: str = Depends(_require_admin)):
+    """Weiterleitungsziel anlegen oder ändern.
+
+    Ein leeres Passwortfeld lässt ein vorhandenes Passwort unverändert (wie bei
+    den Sende-Identitäten): so lassen sich Host/Port/Login ändern, ohne das
+    Passwort neu einzutippen. Der Klartext wird nie zurückgegeben.
+    """
+    daten = await request.json()
+    try:
+        domain_routing.setze_ziel(
+            ziel_id=daten.get("id") or "",
+            host=daten.get("host") or "",
+            port=daten.get("port") or 25,
+            starttls=bool(daten.get("starttls", True)),
+            user=daten.get("user") or "",
+            passwort=(daten.get("passwort") or None),
+        )
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    log.info("Routing-Ziel %s durch %s gespeichert",
+             (daten.get("id") or "").strip().lower(), user)
+    return JSONResponse({"ok": True})
+
+
+@router.post("/api/relay/ziel/loeschen")
+async def api_relay_ziel_loeschen(request: Request,
+                                  user: str = Depends(_require_admin)):
+    daten = await request.json()
+    id_ = (daten.get("id") or "").strip().lower()
+    weg = domain_routing.loesche_ziel(id_)
+    if weg:
+        log.info("Routing-Ziel %s durch %s entfernt (samt zugehöriger Routen)",
+                 id_, user)
+    return JSONResponse({"ok": weg})
+
+
+@router.post("/api/relay/route")
+async def api_relay_route(request: Request, user: str = Depends(_require_admin)):
+    """Eine Empfängerdomäne einem Ziel zuordnen. Ziel leer/'exo' entfernt die
+    Route (Domäne geht wieder an EXO)."""
+    daten = await request.json()
+    try:
+        domain_routing.setze_route(daten.get("domain") or "", daten.get("ziel") or "")
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    log.info("Domänen-Route %s→%s durch %s gesetzt",
+             (daten.get("domain") or "").strip().lower(),
+             (daten.get("ziel") or "exo").strip().lower(), user)
+    return JSONResponse({"ok": True})
 
 
 @router.get("/api/relay/domaenen")
