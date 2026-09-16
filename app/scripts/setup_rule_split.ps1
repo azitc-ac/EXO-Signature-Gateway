@@ -69,6 +69,8 @@ function Sync-Dg([string]$dgName, [string[]]$desired) {
         Start-Sleep -Seconds 5
         $dg = Get-DistributionGroup -Identity $dgName
     }
+    # Aus den Adresslisten ausblenden: Betriebs-DG, im Adressbuch irrelevant.
+    Set-DistributionGroup -Identity $dgName -HiddenFromAddressListsEnabled $true -ErrorAction SilentlyContinue
     $current = @(Get-DistributionGroupMember -Identity $dgName -ResultSize Unlimited |
         ForEach-Object { $_.PrimarySmtpAddress.ToLower() })
     $want = @($desired | ForEach-Object { $_.ToLower() })
