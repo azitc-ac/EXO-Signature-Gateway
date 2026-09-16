@@ -5,6 +5,30 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.22 — 2026-09-16 — SMTP-EHLO nennt den öffentlichen Hostnamen; Setup-Label „Hostname"
+
+- Ausgehende SMTP-Verbindungen des Gateways (Reinject-Smarthost, 587-Submission,
+  NDR-Rückweg, ACME-Antwort an den fremden MX) meldeten sich im EHLO/HELO bisher
+  mit dem Container-Standardnamen — im Docker die interne Bridge-IP, die im
+  Empfänger-Trace als `[172.x.x.x]` auftauchte. Sie nennen jetzt den öffentlichen
+  Hostnamen aus dem Setup-Assistenten (`PUBLIC_HOSTNAME`, auf den reinen Host
+  reduziert). Rein kosmetisch — die eigentliche Verbindung kommt weiterhin über
+  die öffentliche IP, SPF/DMARC waren nie betroffen —, aber der Trace ist damit
+  sauber lesbar. Ist kein öffentlicher Hostname gesetzt, bleibt es beim
+  bisherigen Verhalten.
+- Der Assistent beschriftet das Feld für den öffentlichen Namen jetzt schlicht
+  „Hostname" statt „HTTP-Hostname": Derselbe Name dient auch dem TLS-Zertifikat
+  und dem EXO-Outbound-Connector, „HTTP" war zu eng gefasst.
+- Relay-Protokoll, Leermeldung: Der Hinweis „Noch nichts über das Relay
+  eingeliefert" ließ sich als „gar keine Mail versandt" missverstehen, obwohl das
+  Protokoll bewusst **nur** die beiden SMTP-Einlieferungswege zeigt (Geräte-Relay
+  und 587-Submission) und Post über den normalen Exchange-Weg ausblendet. Die
+  Leermeldung sagt das jetzt ausdrücklich und verweist für den Exchange-Weg aufs
+  Dashboard.
+- Die vier Statistik-Top-Listen sind kompakter: flachere Zeilen und engere
+  Spalten (Kompakt-Modifier `stats-eng`), damit sie nebeneinander weniger Breite
+  belegen.
+
 ## v1.9.21 — 2026-09-16 — Relay: Einleitungssatz zur Einordnung
 
 Der Hinweistext der Relay-Seite beginnt jetzt mit „Hier geht es um SMTP-Relay im

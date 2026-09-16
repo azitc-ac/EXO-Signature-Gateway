@@ -277,7 +277,9 @@ def _send_ndr(original_sender: str, missing_certs: list[str] | None = None,
     try:
         smarthost = config.EXO_SMARTHOST or settings_store.get("EXO_SMARTHOST") or ""
         port = int(settings_store.get("EXO_PORT") or 25)
-        with smtplib.SMTP(smarthost, port, timeout=15) as smtp:
+        import aussenadresse
+        with smtplib.SMTP(smarthost, port, timeout=15,
+                          local_hostname=aussenadresse.ehlo_hostname()) as smtp:
             smtp.ehlo()
             smtp.starttls(context=ctx)
             smtp.ehlo()

@@ -362,7 +362,11 @@ def _send_smtp(mail_from: str, rcpt_tos: list[str], content_bytes: bytes) -> Non
             log.debug("Could not load client cert for SMTP TLS: %s", e)
 
     try:
-        with smtplib.SMTP(smarthost, port, timeout=30) as smtp:
+        import aussenadresse
+        # EHLO mit der FQDN des Gateways statt der internen Docker-IP (die sonst
+        # als [172.x.x.x] im Empfänger-Trace steht); None → smtplib-Default.
+        with smtplib.SMTP(smarthost, port, timeout=30,
+                          local_hostname=aussenadresse.ehlo_hostname()) as smtp:
             smtp.ehlo()
             smtp.starttls(context=tls_ctx)
             smtp.ehlo()

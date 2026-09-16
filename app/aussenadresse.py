@@ -65,6 +65,22 @@ def konfiguriert() -> str | None:
     return None
 
 
+def ehlo_hostname() -> str | None:
+    """Reiner öffentlicher Hostname für den EHLO/HELO-Namen ausgehender
+    SMTP-Verbindungen (Reinject-Smarthost und 587-Submission).
+
+    Aus `PUBLIC_HOSTNAME` (Setup-Wizard „Öffentlicher Hostname"), auf den reinen
+    Host reduziert (ohne Schema, Pfad, Port). `None`, wenn nicht gesetzt — dann
+    nimmt smtplib seinen Default (im Container die interne Docker-IP, die im
+    Empfänger-Trace als `[172.x.x.x]` auftaucht). Ein FQDN dort ist sauberer.
+    """
+    roh = (settings_store.get("PUBLIC_HOSTNAME") or "").strip()
+    if not roh:
+        return None
+    roh = roh.split("://", 1)[-1].split("/", 1)[0].split(":", 1)[0].strip()
+    return roh or None
+
+
 def basis() -> str:
     """Aussenadresse fuer Verweise, die per Mail hinausgehen — immer eine Adresse.
 

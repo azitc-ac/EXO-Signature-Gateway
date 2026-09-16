@@ -122,6 +122,11 @@ def test_relay_tabellen_nutzen_den_gemeinsamen_rollbereich():
     assert "overflow-x:auto" not in text, (
         "Der Rollbereich ist mit Inline-CSS nachgebaut statt die vorhandene "
         "Klasse zu nutzen.")
-    assert text.count('class="config-table"') == 8, (
+    # Vier Tabellen tragen zusätzlich den Kompakt-Modifier `stats-eng`
+    # (Statistik-Top-Listen, v1.9.22) — die gemeinsame Basisklasse bleibt.
+    plain = text.count('class="config-table"')
+    eng = text.count('class="config-table stats-eng"')
+    assert plain + eng == 8, (
         "Die Tabellen brauchen die gemeinsame Tabellenklasse — sonst fehlen "
         "Rahmen, Zeilentrenner und die Dark-Mode-Abdeckung.")
+    assert eng == 4, "Die vier Statistik-Top-Listen tragen den stats-eng-Modifier."
