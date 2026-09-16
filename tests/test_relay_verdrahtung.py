@@ -107,6 +107,27 @@ def test_relay_netz_umgeht_die_quell_ip_liste(anlage):
     assert anlage["_gesehen"], "die Nachricht kam nicht bis zur Zustellung"
 
 
+def test_relay_durchgereicht_erzeugt_audit_zeile(anlage):
+    """⚠️ Sonst zeigt die Statistik Einlieferungen, die im Protokoll fehlen.
+
+    Ein Relay-Gerät (Drucker) hat als Absender NIE ein konfiguriertes
+    Signatur-Postfach — seine Post läuft durch den MAILBOX_CONFIG-Pass-Through
+    (`sender not in active MAILBOX_CONFIG — forwarding as-is`). Fehlt dort der
+    Audit-Eintrag, füllt die Einlieferung zwar relay_stats (→ Statistik zählt
+    sie), taucht aber nirgends im Mail-Protokoll auf. Genau dieser Widerspruch
+    trat auf: 8 in der Statistik, 0 im Protokoll.
+
+    Der Eintrag MUSS als Relay-Zeile erkennbar sein (relay_ip gesetzt), sonst
+    findet ihn die relay-fokussierte Protokollansicht nicht.
+    """
+    antwort = _lauf("10.1.5.30")
+    assert antwort.startswith("250"), antwort
+    durchgereicht = [e for e in anlage["_ereignisse"]
+                     if e.get("action") == "durchgereicht"]
+    assert len(durchgereicht) == 1, anlage["_ereignisse"]
+    assert durchgereicht[0]["relay_ip"] == "10.1.5.30", durchgereicht[0]
+
+
 def test_fremdes_netz_wird_weiter_abgewiesen(anlage):
     """Die Umgehung gilt nur für das eingetragene Netz — sonst nichts."""
     antwort = _lauf("203.0.113.9")
