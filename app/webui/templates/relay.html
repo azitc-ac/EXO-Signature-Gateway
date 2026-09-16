@@ -95,6 +95,15 @@
 </div>
 
 <!-- ── Statistik ─────────────────────────────────────────────────────────── -->
+<style>
+  /* Statistik-Tabellen bewusst kompakter als die übrigen config-tables:
+     flachere Zeilen und engere Spalten, damit die vier Top-Listen nebeneinander
+     nicht auseinanderlaufen. */
+  .stats-eng th, .stats-eng td { padding: 3px 9px; }
+  .stats-eng td { line-height: 1.3; }
+  .stats-eng td:nth-child(2), .stats-eng td:nth-child(3),
+  .stats-eng th:nth-child(2), .stats-eng th:nth-child(3) { white-space: nowrap; }
+</style>
 <div class="settings-card" style="margin-bottom:20px">
   <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
     <h2 style="margin:0">Statistik</h2>
@@ -106,38 +115,38 @@
     </select>
   </div>
   <div id="stats-gesamt" class="hint" style="font-size:13px;margin:8px 0 12px">Wird geladen …</div>
-  <div style="display:flex;gap:24px;flex-wrap:wrap">
-    <div style="flex:1;min-width:300px">
+  <div style="display:flex;gap:16px;flex-wrap:wrap">
+    <div style="flex:1;min-width:230px">
       <h3 style="font-size:14px;margin:0 0 6px">Top-Geräte <span class="hint" style="font-weight:400">(Quell-IP)</span></h3>
       <div class="tabellen-rollbereich">
-        <table class="config-table" style="min-width:320px">
+        <table class="config-table stats-eng" style="min-width:230px">
           <thead><tr><th>Adresse</th><th style="text-align:right">Mails</th><th style="text-align:right">Volumen</th></tr></thead>
           <tbody id="stats-geraete"><tr><td colspan="3" style="color:#888">—</td></tr></tbody>
         </table>
       </div>
     </div>
-    <div style="flex:1;min-width:300px">
+    <div style="flex:1;min-width:230px">
       <h3 style="font-size:14px;margin:0 0 6px">Top-Identitäten <span class="hint" style="font-weight:400">(587)</span></h3>
       <div class="tabellen-rollbereich">
-        <table class="config-table" style="min-width:320px">
+        <table class="config-table stats-eng" style="min-width:230px">
           <thead><tr><th>Identität</th><th style="text-align:right">Mails</th><th style="text-align:right">Volumen</th></tr></thead>
           <tbody id="stats-identitaeten"><tr><td colspan="3" style="color:#888">—</td></tr></tbody>
         </table>
       </div>
     </div>
-    <div style="flex:1;min-width:300px">
+    <div style="flex:1;min-width:230px">
       <h3 style="font-size:14px;margin:0 0 6px">Top-Absender</h3>
       <div class="tabellen-rollbereich">
-        <table class="config-table" style="min-width:320px">
+        <table class="config-table stats-eng" style="min-width:230px">
           <thead><tr><th>Absender</th><th style="text-align:right">Mails</th><th style="text-align:right">Volumen</th></tr></thead>
           <tbody id="stats-absender"><tr><td colspan="3" style="color:#888">—</td></tr></tbody>
         </table>
       </div>
     </div>
-    <div style="flex:1;min-width:300px">
+    <div style="flex:1;min-width:230px">
       <h3 style="font-size:14px;margin:0 0 6px">Top-Empfänger</h3>
       <div class="tabellen-rollbereich">
-        <table class="config-table" style="min-width:320px">
+        <table class="config-table stats-eng" style="min-width:230px">
           <thead><tr><th>Empfänger</th><th style="text-align:right">Mails</th><th style="text-align:right">Volumen</th></tr></thead>
           <tbody id="stats-empfaenger"><tr><td colspan="3" style="color:#888">—</td></tr></tbody>
         </table>
@@ -803,8 +812,10 @@ async function protokollLaden() {
   document.getElementById('proto-next').disabled =
     _protoOffset + events.length >= total;
   if (!events.length) {
-    tb.innerHTML = '<tr><td colspan="6" style="color:#888">Noch nichts über das '
-      + 'Relay eingeliefert.</td></tr>';
+    tb.innerHTML = '<tr><td colspan="6" style="color:#888">Noch keine Einlieferung '
+      + 'über Geräte-Relay oder 587-Submission erfasst. Post über den normalen '
+      + 'Exchange-Weg erscheint hier <b>nicht</b> — die liegt im '
+      + '<a href="/dashboard">Dashboard</a>.</td></tr>';
     return;
   }
   tb.innerHTML = events.map(function (e) {

@@ -266,7 +266,9 @@ def deliver_inbound(mail_from: str, rcpt_tos: list[str], content_bytes: bytes) -
     token = _acquire_smtp_token()
 
     try:
-        with smtplib.SMTP(host, port, timeout=30) as smtp:
+        import aussenadresse
+        with smtplib.SMTP(host, port, timeout=30,
+                          local_hostname=aussenadresse.ehlo_hostname()) as smtp:
             smtp.ehlo()
             smtp.starttls(context=tls_ctx)
             smtp.ehlo()
@@ -340,7 +342,9 @@ def deliver_outbound_as_sender(sender: str, rcpt_tos: list[str],
         return False
 
     try:
-        with smtplib.SMTP(host, port, timeout=30) as smtp:
+        import aussenadresse
+        with smtplib.SMTP(host, port, timeout=30,
+                          local_hostname=aussenadresse.ehlo_hostname()) as smtp:
             smtp.ehlo()
             smtp.starttls(context=tls_ctx)
             smtp.ehlo()

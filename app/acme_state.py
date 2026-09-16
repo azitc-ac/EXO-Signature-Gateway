@@ -288,7 +288,9 @@ def _send_reply_direct_smtp(from_email: str, to_email: str, raw_mime: bytes) -> 
     log.info("ACME direct SMTP: resolved MX for %s → %s", domain, mx_host)
     ctx = ssl.create_default_context()
     try:
-        with smtplib.SMTP(mx_host, 25, timeout=30) as smtp:
+        import aussenadresse
+        with smtplib.SMTP(mx_host, 25, timeout=30,
+                          local_hostname=aussenadresse.ehlo_hostname()) as smtp:
             smtp.ehlo()
             if smtp.has_extn("STARTTLS"):
                 smtp.starttls(context=ctx)
