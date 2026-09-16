@@ -109,6 +109,7 @@ Exchange Online (EXO) → Zustellung an Empfänger
 | **443** | HTTPS | `acme.castle.cloud` | CASTLE ACME (S/MIME-Zertifikate) | bei CASTLE-Enrollment |
 | **443** | HTTPS | `acme-v02.api.letsencrypt.org` | Let's Encrypt TLS-Zertifikat | bei Let's Encrypt |
 | **993** | IMAPS | `outlook.office365.com` | IMAP APPEND (Inbox-Inject ohne Draft-Flag) | `graph_plus` |
+| **587** | SMTP (STARTTLS + XOAUTH2) | `smtp.office365.com` | Submission als Absender: bifurkierte gemischte Empfänger + eingehende externe Post | `graph_plus` |
 | **25** | SMTP | `<tenant>.mail.protection.outlook.com` | Re-inject via SMTP | `smtp` (nicht Azure-kompatibel) |
 
 Azure VMs blockieren ausgehenden Port 25. Mit `REINJECT_MODE=graph` oder `graph_plus` ist das Gateway vollständig ohne outbound Port 25 betreibbar.
