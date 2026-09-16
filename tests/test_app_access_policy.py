@@ -18,7 +18,22 @@ def test_app_scope_adressen_aktiv_plus_notification(monkeypatch):
         "NOTIFICATION_MAILBOX": "notif@x.de",
     }
     monkeypatch.setattr(settings_store, "get", lambda k, *a: data.get(k))
+    import sende_identitaeten
+    monkeypatch.setattr(sende_identitaeten, "liste", lambda: [])   # hermetisch
     assert setup_wizard._app_scope_adressen() == ["a@x.de", "b@x.de", "notif@x.de"]
+
+
+def test_app_scope_enthaelt_sende_identitaeten(monkeypatch):
+    """Die Shared-Mailbox-Adressen der Sende-Identitäten gehören in den Scope —
+    sonst scheitert Graph `sendMail` „als" sie an der ApplicationAccessPolicy."""
+    monkeypatch.setattr(settings_store, "get",
+                        lambda k, *a: {"NOTIFICATION_MAILBOX": "notif@x.de"}.get(k))
+    import sende_identitaeten
+    monkeypatch.setattr(sende_identitaeten, "liste", lambda: [
+        {"adresse": "Drucker.EG@Firma.de"},    # wird kleingeschrieben aufgenommen
+        {"adresse": ""},                        # ohne Adresse (keine Domäne) → ignoriert
+    ])
+    assert setup_wizard._app_scope_adressen() == ["drucker.eg@firma.de", "notif@x.de"]
 
 
 def test_sync_noop_wenn_nicht_aktiviert(monkeypatch):

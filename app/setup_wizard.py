@@ -895,6 +895,17 @@ def _app_scope_adressen() -> list[str]:
     notif = (settings_store.get("NOTIFICATION_MAILBOX") or "").strip().lower()
     if notif and "@" in notif:
         adr.add(notif)
+    # Sende-Identitäten: ihre Shared-Mailbox-Adressen brauchen ebenfalls
+    # App-Zugriff — Graph `sendMail` „als" die Shared Mailbox scheitert sonst an
+    # der ApplicationAccessPolicy (RAOP-403). Lazy importiert (kein Ringschluss).
+    try:
+        import sende_identitaeten
+        for i in sende_identitaeten.liste():
+            a = (i.get("adresse") or "").strip().lower()
+            if a and "@" in a:
+                adr.add(a)
+    except Exception:                       # noqa: BLE001 — Scope ist best-effort
+        pass
     return sorted(adr)
 
 

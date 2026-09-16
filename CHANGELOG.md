@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.29 — 2026-09-16 — Sende-Identitäten: Shared Mailbox kommt in den App-Sende-Umfang
+
+Damit das Gateway später per Graph „als" die Shared Mailbox einer Sende-Identität
+senden kann, muss diese im Sende-Umfang der Anwendung liegen (ApplicationAccessPolicy)
+— sonst lehnt Graph mit einem Zugriffsfehler ab. Die Adressen der Sende-Identitäten
+fließen jetzt in die App-Scope-Gruppe ein, und beim Anlegen einer Identität wird der
+Abgleich automatisch angestoßen. Die Änderung an der Exchange-Richtlinie propagiert
+wie eine Verteilerlisten-Änderung erst nach einigen Minuten; die Oberfläche weist
+darauf hin. Ist die Richtlinienpflege nicht aktiviert, bleibt alles unverändert.
+
 ## v1.9.28 — 2026-09-16 — Registerkorrektur zur Domänen-Vorauswahl
 
 `RELAY_IDENT_DEFAULT_DOMAIN` wird serverseitig beim Anlegen einer Sende-Identität

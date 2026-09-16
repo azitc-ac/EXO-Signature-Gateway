@@ -553,10 +553,17 @@ async function identitaetHinzufuegen(btn) {
   // Identität steht; die Shared Mailbox ist die zweite Hälfte des Pakets.
   const adr = (r.identitaet && r.identitaet.adresse) || (login + '@' + domaene);
   const mb = r.mailbox;
+  // Sende-Umfang (ApplicationAccessPolicy): null = nicht verwaltet; sonst ok/Fehler.
+  var scope = '';
+  if (r.scope && r.scope.ok) {
+    scope = ' Der Graph-Sende-Umfang wurde aktualisiert — greift nach einigen Minuten EXO-Propagation.';
+  } else if (r.scope) {
+    scope = ' ⚠ Abgleich des Sende-Umfangs fehlgeschlagen — Graph-Versand als diese Adresse erst nach manueller Freigabe.';
+  }
   if (mb && mb.ok) {
     showAlert(box, 'success', 'Identität angelegt. Shared Mailbox '
       + (mb.created ? 'erstellt' : 'war bereits vorhanden') + ': <code>'
-      + esc(mb.email || adr) + '</code>');
+      + esc(mb.email || adr) + '</code>.' + scope);
   } else if (mb) {
     showAlert(box, 'error', 'Identität angelegt, aber die Shared Mailbox <code>'
       + esc(adr) + '</code> konnte NICHT erstellt werden: '
