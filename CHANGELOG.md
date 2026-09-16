@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.41 — 2026-09-16 — Postfächer: „Postfächer laden" fragt EXO frisch ab
+
+Der Knopf *Postfächer laden* lieferte den zwischengespeicherten Stand (Cache-Dauer
+eine Stunde); eine gerade angelegte Shared Mailbox erschien deshalb erst nach
+Ablauf des Caches, und wiederholtes Klicken half nicht. Der explizite Klick umgeht
+den Cache jetzt und fragt Exchange frisch ab (`/api/mailboxes?refresh=1`); die
+stillen Ladevorgänge — Seitenaufruf und nach dem Speichern — nutzen weiter den
+Cache. Zusätzlich verwirft das Anlegen einer Sende-Identität den Postfach-Cache, so
+dass die neue Shared Mailbox auch ohne erzwungenen Abruf erscheint. Hinweis: Das
+Auftauchen in Exchange selbst kann nach dem Anlegen noch einige Minuten dauern
+(EXO-Propagation) — das lässt sich clientseitig nicht beschleunigen.
+
 ## v1.9.40 — 2026-09-16 — Relay: Hinweis zur Geräte-Einrichtung klarer formuliert
 
 Der Einrichtungshinweis „Geräte richten sich auf host:587 … ein" war schief. Neu:

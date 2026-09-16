@@ -85,12 +85,17 @@ async def api_dg_status(_=Depends(_require_admin)):
 
 
 @router.get("/api/mailboxes")
-async def api_get_mailboxes(_=Depends(_require_admin)):
-    """List all EXO mailboxes + their current MAILBOX_CONFIG + cached health status."""
+async def api_get_mailboxes(refresh: bool = False, _=Depends(_require_admin)):
+    """List all EXO mailboxes + their current MAILBOX_CONFIG + cached health status.
+
+    `refresh=1` umgeht den 1-Stunden-Cache und fragt EXO frisch ab — für den
+    expliziten „Postfächer laden"-Knopf, damit eine gerade angelegte Shared Mailbox
+    ohne Cache-Wartezeit erscheint (EXO-Propagation kann trotzdem einige Minuten
+    dauern)."""
     import asyncio
     import exo_mailboxes
     import mailbox_match
-    raw = await asyncio.to_thread(exo_mailboxes.list_mailboxes)
+    raw = await asyncio.to_thread(exo_mailboxes.list_mailboxes, bool(refresh))
     _type_map = {"UserMailbox": "user", "SharedMailbox": "shared",
                  "RoomMailbox": "room", "EquipmentMailbox": "equipment"}
     users = [{"email": m["primary"], "name": m.get("display_name") or m["primary"],
