@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.40 — 2026-09-16 — Relay: Hinweis zur Geräte-Einrichtung klarer formuliert
+
+Der Einrichtungshinweis „Geräte richten sich auf host:587 … ein" war schief. Neu:
+„Am Gerät als Postausgangsserver host:587 mit STARTTLS eintragen, dazu das jeweilige
+Login."
+
 ## v1.9.39 — 2026-09-16 — Relay-Protokoll: Absender-/An-Spalten sauber gekürzt
 
 Die Spalten *Absender* und *An* brachen lange E-Mail-Adressen buchstabenweise um
