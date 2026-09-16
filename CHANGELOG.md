@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.26 — 2026-09-16 — Sende-Identitäten: gleich breite Felder, Kopierknöpfe, Passwort direkt kopiert
+
+- Die Eingabefelder beim Anlegen einer Sende-Identität (Name, Login, Passwort,
+  Absender) sind jetzt gleich breit. Bisher war das Passwortfeld schmaler, weil es
+  sich die Zeile mit dem Generieren-Knopf teilte — der steht nun unter dem Feld.
+- Jedes Feld hat rechts einen kleinen Kopierknopf im gewohnten Stil (kopiert den
+  aktuellen Feldinhalt).
+- „Generieren" legt das erzeugte Passwort zusätzlich direkt in die Zwischenablage
+  und bestätigt das mit einem kurzen Hinweis am Feld.
+
 ## v1.9.25 — 2026-09-16 — Relay-Statistik: gleichmäßiges 2×2-Raster
 
 Die vier Statistik-Top-Listen lagen in einem umbrechenden Flex-Streifen, der je

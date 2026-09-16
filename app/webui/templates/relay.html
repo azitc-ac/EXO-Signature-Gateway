@@ -56,26 +56,39 @@
   </div>
 
   <div style="border-top:1px solid #e2e8f0;margin-top:16px;padding-top:14px">
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px 12px;align-items:end">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px 12px;align-items:start">
       <div>
         <label for="neu-id-name" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Name</label>
-        <input type="text" id="neu-id-name" placeholder="Kundendienst" style="width:100%;margin:0;box-sizing:border-box">
+        <div style="display:flex;gap:6px;align-items:center">
+          <input type="text" id="neu-id-name" placeholder="Kundendienst" style="flex:1;min-width:0;margin:0;box-sizing:border-box">
+          <button type="button" class="copy-btn" data-copy-field="neu-id-name" title="Name kopieren"></button>
+        </div>
       </div>
       <div>
         <label for="neu-id-login" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Login</label>
-        <input type="text" id="neu-id-login" placeholder="kundendienst@firma.de" style="width:100%;margin:0;box-sizing:border-box">
+        <div style="display:flex;gap:6px;align-items:center">
+          <input type="text" id="neu-id-login" placeholder="kundendienst@firma.de" style="flex:1;min-width:0;margin:0;box-sizing:border-box">
+          <button type="button" class="copy-btn" data-copy-field="neu-id-login" title="Login kopieren"></button>
+        </div>
       </div>
       <div>
         <label for="neu-id-pw" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Passwort</label>
-        <div style="display:flex;gap:6px">
+        <div style="display:flex;gap:6px;align-items:center">
           <input type="password" id="neu-id-pw" placeholder="mind. 8 Zeichen" style="flex:1;min-width:0;margin:0;box-sizing:border-box">
-          <button type="button" class="btn secondary btn-sm" style="flex-shrink:0;white-space:nowrap"
-                  onclick="idPwGenerieren()" title="Starkes Zufallspasswort erzeugen und anzeigen">Generieren</button>
+          <button type="button" class="copy-btn" data-copy-field="neu-id-pw" title="Passwort kopieren"></button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
+          <button type="button" class="btn secondary btn-sm" onclick="idPwGenerieren()"
+                  title="Starkes Zufallspasswort erzeugen, anzeigen und in die Zwischenablage kopieren">Generieren</button>
+          <span class="field-msg" id="neu-id-pw-hint" style="display:none;font-size:12px"></span>
         </div>
       </div>
       <div>
         <label for="neu-id-absender" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Absender (optional)</label>
-        <input type="text" id="neu-id-absender" placeholder="kundendienst@firma.de" style="width:100%;margin:0;box-sizing:border-box">
+        <div style="display:flex;gap:6px;align-items:center">
+          <input type="text" id="neu-id-absender" placeholder="kundendienst@firma.de" style="flex:1;min-width:0;margin:0;box-sizing:border-box">
+          <button type="button" class="copy-btn" data-copy-field="neu-id-absender" title="Absender kopieren"></button>
+        </div>
       </div>
     </div>
     <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-top:12px">
@@ -464,9 +477,18 @@ function _starkesPasswort(n) {
 function idPwGenerieren() {
   const f = document.getElementById('neu-id-pw');
   f.type = 'text';                 // sichtbar, damit man es zum Gerät kopieren kann
-  f.value = _starkesPasswort(20);
+  const pw = _starkesPasswort(20);
+  f.value = pw;
   f.focus();
   f.select();
+  // Ein erzeugtes Passwort ist einmalig sichtbar — direkt in die Zwischenablage,
+  // damit es ohne Extra-Klick am Gerät einfügbar ist. Rückmeldung im üblichen
+  // Stil (showMsg/field-msg, wie „gespeichert" bei den Haken).
+  navigator.clipboard.writeText(pw).then(function () {
+    showMsg('neu-id-pw-hint', 'erzeugt und kopiert', true);
+  }).catch(function () {
+    showMsg('neu-id-pw-hint', 'erzeugt (Zwischenablage nicht verfügbar)', false);
+  });
 }
 
 async function identitaetHinzufuegen(btn) {
@@ -486,6 +508,7 @@ async function identitaetHinzufuegen(btn) {
   ['neu-id-name', 'neu-id-login', 'neu-id-pw', 'neu-id-absender']
     .forEach(function (id) { document.getElementById(id).value = ''; });
   document.getElementById('neu-id-pw').type = 'password';
+  document.getElementById('neu-id-pw-hint').style.display = 'none';
   document.getElementById('neu-id-extern').checked = false;
   laden(false);
 }
