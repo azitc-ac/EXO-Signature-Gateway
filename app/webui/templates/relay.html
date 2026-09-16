@@ -51,26 +51,30 @@
   </div>
 
   <div style="border-top:1px solid #e2e8f0;margin-top:16px;padding-top:14px">
-    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px 12px;align-items:end">
       <div>
-        <label for="neu-id-name" style="font-size:12px;color:#555">Name</label><br>
-        <input type="text" id="neu-id-name" placeholder="Kundendienst" style="margin-top:3px">
+        <label for="neu-id-name" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Name</label>
+        <input type="text" id="neu-id-name" placeholder="Kundendienst" style="width:100%;margin:0;box-sizing:border-box">
       </div>
       <div>
-        <label for="neu-id-login" style="font-size:12px;color:#555">Login</label><br>
-        <input type="text" id="neu-id-login" placeholder="kundendienst@firma.de" style="margin-top:3px">
+        <label for="neu-id-login" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Login</label>
+        <input type="text" id="neu-id-login" placeholder="kundendienst@firma.de" style="width:100%;margin:0;box-sizing:border-box">
       </div>
       <div>
-        <label for="neu-id-pw" style="font-size:12px;color:#555">Passwort</label><br>
-        <input type="password" id="neu-id-pw" placeholder="mind. 8 Zeichen" style="margin-top:3px">
-        <button type="button" class="btn secondary btn-sm" style="margin-top:4px"
-                onclick="idPwGenerieren()" title="Starkes Zufallspasswort erzeugen und anzeigen">Generieren</button>
+        <label for="neu-id-pw" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Passwort</label>
+        <div style="display:flex;gap:6px">
+          <input type="password" id="neu-id-pw" placeholder="mind. 8 Zeichen" style="flex:1;min-width:0;margin:0;box-sizing:border-box">
+          <button type="button" class="btn secondary btn-sm" style="flex-shrink:0;white-space:nowrap"
+                  onclick="idPwGenerieren()" title="Starkes Zufallspasswort erzeugen und anzeigen">Generieren</button>
+        </div>
       </div>
       <div>
-        <label for="neu-id-absender" style="font-size:12px;color:#555">Absender (optional)</label><br>
-        <input type="text" id="neu-id-absender" placeholder="kundendienst@firma.de" style="margin-top:3px">
+        <label for="neu-id-absender" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Absender (optional)</label>
+        <input type="text" id="neu-id-absender" placeholder="kundendienst@firma.de" style="width:100%;margin:0;box-sizing:border-box">
       </div>
-      <label class="checkbox-label" style="align-self:center">
+    </div>
+    <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-top:12px">
+      <label class="checkbox-label" style="margin:0">
         <input type="checkbox" id="neu-id-extern"> auch extern senden
       </label>
       <button class="btn secondary" onclick="identitaetHinzufuegen(this)">Hinzufügen</button>
@@ -210,11 +214,11 @@
     Pflicht.
   </p>
 
-  <div class="tabellen-rollbereich">
+  <div class="tabellen-rollbereich" id="geraete-scroll">
     <table class="config-table" style="min-width:760px">
       <thead>
         <tr>
-          <th>Adresse</th><th>Name (DNS)</th><th>Kommentar</th>
+          <th>Adresse</th><th>Name (DNS)</th><th style="min-width:240px">Kommentar</th>
           <th>Ansprechpartner</th><th style="text-align:center">Extern</th>
           <th style="text-align:center">TLS</th>
           <th>Letzte Mail</th>
@@ -234,7 +238,7 @@
         <label for="neu-ip" style="font-size:12px;color:#555">Gerät von Hand hinzufügen</label><br>
         <input type="text" id="neu-ip" placeholder="10.1.5.7" style="margin-top:3px">
       </div>
-      <input type="text" id="neu-kommentar" placeholder="Kopierer Empfang" style="flex:1;min-width:160px">
+      <input type="text" id="neu-kommentar" placeholder="Kopierer Empfang" style="flex:1;min-width:320px">
       <button class="btn secondary" onclick="geraetHinzufuegen(this)">Hinzufügen</button>
     </div>
     <div id="neu-result" style="display:none;margin-top:10px"></div>
@@ -805,6 +809,23 @@ function protokollBlaettern(richtung) {
   _protoOffset = Math.max(0, _protoOffset + richtung * _PROTO_LIMIT);
   protokollLaden();
 }
+
+function relayTabellenHoehe() {
+  // Wie in der Postfach-Tabelle: auf großen Schirmen die Geräte-Liste auf eine
+  // feste Höhe deckeln, damit der WAAGERECHTE Rollbalken erreichbar bleibt (sonst
+  // sitzt er bei langer Liste ganz unten, außer Sicht). Die klebende Kopfzeile
+  // und overflow kommen aus style.css. Auf kleinen Schirmen KEIN Deckel (sonst
+  // fängt die Box die Wischgeste ab) — dort rollt die Liste waagerecht wie bisher.
+  var box = document.getElementById('geraete-scroll');
+  if (!box) return;
+  if (!window.matchMedia('(pointer: fine), (min-width: 1100px)').matches) {
+    box.style.maxHeight = '';
+    return;
+  }
+  box.style.maxHeight = Math.round(window.innerHeight * 0.6) + 'px';
+}
+window.addEventListener('resize', relayTabellenHoehe);
+relayTabellenHoehe();
 
 laden(false);
 statsLaden();
