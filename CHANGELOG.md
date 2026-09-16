@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.31 — 2026-09-16 — Sende-Identitäten: Domänen-Dropdown lädt sofort
+
+Die Auswahl der Domäne beim Anlegen einer Sende-Identität hing am Abruf der
+Tenant-Domänen aus Exchange (~30–60 s) und begann erst beim Anklicken des Feldes;
+nach jedem Neustart war die Wartezeit wieder da. Jetzt:
+
+- Die abgerufene Liste wird zusätzlich auf der Platte zwischengespeichert und
+  überlebt Neustarts — nur der allererste Abruf je Installation ist noch langsam.
+- Beim Start wärmt das Gateway die Liste im Hintergrund vor, sodass das Dropdown
+  beim Öffnen der Seite in der Regel schon gefüllt ist.
+- Das Dropdown lädt jetzt beim Öffnen der Seite (nicht erst beim Anklicken), und
+  ein Link **aktualisieren** erzwingt bei Bedarf einen frischen Abruf; die aktuelle
+  Auswahl bleibt dabei erhalten. Schlägt ein Neu-Abruf fehl, bleibt der letzte gute
+  Stand stehen.
+
 ## v1.9.30 — 2026-09-16 — Sende-Identitäten: Zustellung über Graph; mehr wählbare Domänen
 
 - **Zustellung über Graph (neu, Vorgabe an).** Post einer Sende-Identität geht jetzt

@@ -1267,6 +1267,21 @@ def _run_verify_ps(body: str) -> dict:
 
 
 _domaenen_cache: dict | None = None
+_DOMAENEN_DATEI = Path(config.DATA_DIR) / "accepted_domains.json"
+
+
+def _domaenen_von_platte() -> dict | None:
+    """Zuletzt erfolgreich abgerufene Domänenliste von der Platte (oder None)."""
+    try:
+        if _DOMAENEN_DATEI.exists():
+            import json as _json
+            d = _json.loads(_DOMAENEN_DATEI.read_text("utf-8"))
+            if d.get("domaenen"):
+                return {"ok": True, "domaenen": [str(x) for x in d["domaenen"]],
+                        "default_exo": d.get("default_exo", "")}
+    except Exception:                       # noqa: BLE001
+        pass
+    return None
 
 
 def list_accepted_domains(refresh: bool = False) -> dict:
@@ -1280,12 +1295,22 @@ def list_accepted_domains(refresh: bool = False) -> dict:
     (i.d.R. `*.onmicrosoft.com`) als Information; die Vorauswahl im UI ist NICHT
     diese, sondern eine bewusst gewählte (Route/Einstellung).
 
-    Ergebnis wird prozessweit gecacht (der Aufruf dauert ~30–60 s); `refresh=True`
-    erzwingt einen neuen Abruf. Rückgabe: `{ok, domaenen: [..], default_exo: str}`.
+    ⚠️ Der EXO-Abruf dauert ~30–60 s. Deshalb ZWEI Cache-Ebenen: prozessweit im
+    Speicher UND auf der Platte (`accepted_domains.json`) — letztere überlebt
+    Neustarts/Rebuilds, sodass nur der allererste Abruf je Installation langsam ist.
+    Ohne `refresh` wird gar nicht erst EXO gefragt, solange ein Cache existiert.
+    `refresh=True` erzwingt einen frischen Abruf und schreibt beide Ebenen fort;
+    schlägt der frische Abruf fehl, bleibt der letzte gute Stand erhalten.
+    Rückgabe: `{ok, domaenen: [..], default_exo: str}`.
     """
     global _domaenen_cache
-    if _domaenen_cache is not None and not refresh:
-        return _domaenen_cache
+    if not refresh:
+        if _domaenen_cache is not None:
+            return _domaenen_cache
+        platte = _domaenen_von_platte()
+        if platte is not None:
+            _domaenen_cache = platte
+            return platte
     body = (
         "$doms = Get-AcceptedDomain | Where-Object { $_.DomainType -eq 'Authoritative' "
         "-or $_.DomainType -eq 'InternalRelay' } | Select-Object -ExpandProperty DomainName\n"
@@ -1301,7 +1326,19 @@ def list_accepted_domains(refresh: bool = False) -> dict:
         ergebnis = {"ok": True, "domaenen": [str(d) for d in doms],
                     "default_exo": res.get("default_exo", "")}
         _domaenen_cache = ergebnis
+        try:
+            import json as _json
+            _DOMAENEN_DATEI.write_text(_json.dumps(ergebnis), "utf-8")
+        except Exception:                   # noqa: BLE001 — Cache ist best-effort
+            pass
         return ergebnis
+    # Frischer Abruf gescheitert → letzter guter Stand (Speicher, dann Platte).
+    if _domaenen_cache is not None:
+        return _domaenen_cache
+    platte = _domaenen_von_platte()
+    if platte is not None:
+        _domaenen_cache = platte
+        return platte
     return {"ok": False, "domaenen": [], "default_exo": "",
             "error": res.get("error", "Domänen nicht abrufbar")}
 

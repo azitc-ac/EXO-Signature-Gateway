@@ -67,7 +67,7 @@
       <div>
         <label for="neu-id-login" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Login <span class="hint" style="font-weight:400">(= EXO-Alias)</span></label>
         <div style="display:flex;gap:6px;align-items:center">
-          <input type="text" id="neu-id-login" placeholder="drucker.eg" oninput="idAdressVorschau()" onfocus="idDomaenenLadenEinmal()" style="flex:1;min-width:0;margin:0;box-sizing:border-box">
+          <input type="text" id="neu-id-login" placeholder="drucker.eg" oninput="idAdressVorschau()" style="flex:1;min-width:0;margin:0;box-sizing:border-box">
           <button type="button" class="copy-btn" data-copy-field="neu-id-login" title="Login kopieren"></button>
         </div>
       </div>
@@ -84,8 +84,9 @@
         </div>
       </div>
       <div>
-        <label for="neu-id-domaene" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Domäne</label>
-        <select id="neu-id-domaene" onchange="idAdressVorschau()" onfocus="idDomaenenLadenEinmal()" style="width:100%;margin:0;box-sizing:border-box">
+        <label for="neu-id-domaene" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Domäne
+          <a href="#" onclick="idDomaenenLaden(true);return false;" style="font-weight:400;font-size:11px;color:#0369a1;margin-left:6px">aktualisieren</a></label>
+        <select id="neu-id-domaene" onchange="idAdressVorschau()" style="width:100%;margin:0;box-sizing:border-box">
           <option value="">— lädt …</option>
         </select>
       </div>
@@ -490,27 +491,24 @@ function idPwGenerieren() {
   });
 }
 
-// Domänen erst laden, wenn die Form wirklich benutzt wird — der EXO-Abruf ist
-// langsam (bis ~1 Min beim ersten Mal je Prozess, danach gecacht). Ein Aufruf pro
-// Seitenaufruf reicht.
-let _domaenenGeladen = false;
-function idDomaenenLadenEinmal() {
-  if (_domaenenGeladen) return;
-  _domaenenGeladen = true;
-  idDomaenenLaden();
-}
-
-async function idDomaenenLaden() {
+// Domänen werden beim Seitenaufruf geladen (Aufruf am Ende des Scripts). Der
+// EXO-Abruf ist langsam (bis ~1 Min beim allerersten Mal je Installation), das
+// Ergebnis liegt aber auf der Platte gecacht — danach kommt es sofort. Mit
+// `refresh=true` (Link „aktualisieren") wird EXO neu befragt.
+async function idDomaenenLaden(refresh) {
   const sel = document.getElementById('neu-id-domaene');
   if (!sel) return;
-  const r = await postJSONGet('/api/relay/domaenen');
+  const behalten = sel.value;               // aktuelle Auswahl über den Neuaufbau retten
+  if (refresh) sel.innerHTML = '<option value="">— aktualisiere …</option>';
+  const r = await postJSONGet('/api/relay/domaenen' + (refresh ? '?refresh=1' : ''));
   if (!r || !r.ok || !(r.domaenen || []).length) {
-    sel.innerHTML = '<option value="">— keine autoritative Domäne abrufbar —</option>';
+    sel.innerHTML = '<option value="">— keine Domäne abrufbar —</option>';
     idAdressVorschau();
     return;
   }
+  const vorwahl = behalten || r.standard;
   sel.innerHTML = r.domaenen.map(function (d) {
-    return '<option value="' + escAttr(d) + '"' + (d === r.standard ? ' selected' : '')
+    return '<option value="' + escAttr(d) + '"' + (d === vorwahl ? ' selected' : '')
       + '>' + esc(d) + '</option>';
   }).join('');
   idAdressVorschau();
@@ -957,6 +955,7 @@ relayTabellenHoehe();
 laden(false);
 statsLaden();
 protokollLaden();
+idDomaenenLaden();          // Domänen-Dropdown früh füllen (Platten-Cache = sofort)
 // Solange der Lernmodus läuft, kommen neue Geräte von selbst dazu — dann lohnt
 // ein Blick alle zehn Sekunden. Sonst wäre es unnötiger Verkehr.
 setInterval(function () {
