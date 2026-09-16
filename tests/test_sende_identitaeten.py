@@ -217,6 +217,18 @@ def test_aktualisieren_absender_pin_setzen_und_leeren(store):
     assert si.liste()[0]["absender"] == ""
 
 
+def test_kontingent_setzen_und_klemmen(store):
+    """Weiches Tageskontingent: setzbar, Vorgabe 0 (unbegrenzt), negativ → 0."""
+    rec = si.anlegen("A", "a", "passwort1")
+    assert si.liste()[0]["kontingent"] == 0        # Vorgabe: unbegrenzt
+    si.aktualisieren(rec["id"], kontingent=5000)
+    assert si.liste()[0]["kontingent"] == 5000
+    si.aktualisieren(rec["id"], kontingent=-3)      # negativ → geklemmt auf 0
+    assert si.liste()[0]["kontingent"] == 0
+    si.aktualisieren(rec["id"], name="Neu", kontingent=None)   # None = unverändert
+    assert si.liste()[0]["kontingent"] == 0
+
+
 def test_aktualisieren_extern_umschalten(store):
     rec = si.anlegen("A", "a", "passwort1")
     assert si.liste()[0]["extern"] is False

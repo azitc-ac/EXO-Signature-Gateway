@@ -147,6 +147,47 @@ def letzte_aktivitaet(tage_zurueck: int = AUFBEWAHRUNG_TAGE) -> dict:
         return {}
 
 
+def identitaet_zaehler(tage_zurueck: int = 30) -> dict:
+    """Sendezähler je Sende-Identität (Login): `heute` und `zeitraum` (Summe über
+    die letzten *tage_zurueck* Tage). Für die Kontingent-/Transparenzanzeige.
+
+    Der Tag ist wie überall in diesem Modul der UTC-Tag — das „heute" folgt also
+    UTC-Mitternacht, konsistent mit den gespeicherten Aggregaten.
+    """
+    heute = _heute()
+    ab = (_jetzt() - timedelta(days=max(1, tage_zurueck))).strftime("%Y-%m-%d")
+    ergebnis: dict = {}
+    try:
+        with _conn() as c:
+            for z in c.execute(
+                    "SELECT identitaet, "
+                    "COALESCE(SUM(CASE WHEN tag = ? THEN anzahl ELSE 0 END),0) heute, "
+                    "COALESCE(SUM(anzahl),0) zeitraum "
+                    "FROM identitaet WHERE tag >= ? GROUP BY identitaet",
+                    (heute, ab)):
+                ergebnis[z["identitaet"]] = {"heute": z["heute"], "zeitraum": z["zeitraum"]}
+    except Exception as exc:                          # pragma: no cover
+        log.warning("relay_stats.identitaet_zaehler fehlgeschlagen: %s", exc)
+    return ergebnis
+
+
+def heute_zaehler(login: str) -> int:
+    """Heutige Sendeanzahl einer Identität (UTC-Tag); 0 bei Fehler/unbekannt.
+
+    Schlanker Einzelabruf für die weiche Kontingent-Warnung im Einlieferungspfad.
+    """
+    login = (login or "").strip().lower()
+    if not login:
+        return 0
+    try:
+        with _conn() as c:
+            r = c.execute("SELECT COALESCE(SUM(anzahl),0) a FROM identitaet "
+                          "WHERE identitaet = ? AND tag = ?", (login, _heute())).fetchone()
+            return int(r["a"]) if r else 0
+    except Exception:                                 # pragma: no cover
+        return 0
+
+
 def aufraeumen(tage: int = AUFBEWAHRUNG_TAGE) -> int:
     """Aggregate jenseits der Aufbewahrung löschen."""
     grenze = (_jetzt() - timedelta(days=tage)).strftime("%Y-%m-%d")

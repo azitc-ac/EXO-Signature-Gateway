@@ -137,6 +137,9 @@ def _oeffentlich(rec: dict) -> dict:
         "absender": rec.get("absender", ""),
         "extern": bool(rec.get("extern", False)),
         "aktiv": bool(rec.get("aktiv", True)),
+        # Weiches Tageskontingent (Mails/UTC-Tag); 0 = unbegrenzt. Nur Transparenz/
+        # Warnung, keine Abweisung.
+        "kontingent": int(rec.get("kontingent", 0) or 0),
         "erstellt": rec.get("erstellt", ""),
     }
 
@@ -213,11 +216,12 @@ def anlegen(name: str, login: str, passwort: str, domaene: str = "",
 
 def aktualisieren(id_: str, *, name: str | None = None, absender: str | None = None,
                   aktiv: bool | None = None, passwort: str | None = None,
-                  extern: bool | None = None) -> bool:
+                  extern: bool | None = None, kontingent: int | None = None) -> bool:
     """Ändert Felder einer Identität. Leeres Passwort = unverändert.
 
     Ein Feld, das `None` ist, bleibt unverändert (so lässt sich z.B. nur `extern`
-    umschalten, ohne die übrigen Werte mitzusenden).
+    umschalten, ohne die übrigen Werte mitzusenden). `kontingent` ist das weiche
+    Tageskontingent (0 = unbegrenzt); negative Werte werden auf 0 geklemmt.
     """
     with _lock:
         for rec in _laden():
@@ -231,6 +235,11 @@ def aktualisieren(id_: str, *, name: str | None = None, absender: str | None = N
                 rec["aktiv"] = bool(aktiv)
             if extern is not None:
                 rec["extern"] = bool(extern)
+            if kontingent is not None:
+                try:
+                    rec["kontingent"] = max(0, int(kontingent))
+                except (TypeError, ValueError):
+                    rec["kontingent"] = 0
             if passwort:
                 if len(passwort) < 8:
                     raise ValueError("Passwort zu kurz (mindestens 8 Zeichen).")

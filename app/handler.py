@@ -392,6 +392,16 @@ class SignatureHandler:
             import relay_stats
             relay_stats.merke(peer_ip, absender=sender, empfaenger=recipients,
                               bytes_=len(raw), identitaet=str(_ident.get("login", "")))
+            # Weiches Tageskontingent: nur ein Protokoll-Hinweis, KEINE Abweisung —
+            # die Einlieferung läuft weiter. Nur prüfen, wenn überhaupt ein Limit
+            # gesetzt ist (die allermeisten Identitäten haben keins).
+            _kont = int(_ident.get("kontingent") or 0)
+            if _kont:
+                _heute_n = relay_stats.heute_zaehler(str(_ident.get("login", "")))
+                if _heute_n > _kont:
+                    log.warning("Sende-Identität %s über Tageskontingent (%d/%d) — "
+                                "Einlieferung läuft weiter (weiches Limit)",
+                                _ident.get("login") or "?", _heute_n, _kont)
         elif peer_ip and not aus_relay_netz:
             import smtp_acl
             if not smtp_acl.is_allowed(peer_ip):
