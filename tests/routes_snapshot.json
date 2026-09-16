@@ -784,6 +784,27 @@
     "name": "api_relay_identitaet_loeschen"
   },
   {
+    "pfad": "/api/relay/route",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_relay_route"
+  },
+  {
+    "pfad": "/api/relay/ziel",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_relay_ziel"
+  },
+  {
+    "pfad": "/api/relay/ziel/loeschen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_relay_ziel_loeschen"
+  },
+  {
     "pfad": "/api/relay/lernmodus",
     "methoden": [
       "POST"

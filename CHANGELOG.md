@@ -5,6 +5,38 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.42 — 2026-09-17 — Domänen-Routing: Empfängerdomänen an eigene Zielserver
+
+Bearbeitete Post ging bisher ausnahmslos an einen einzigen Smarthost (Exchange
+Online). Neu lässt sich je **Empfängerdomäne** ein abweichender Zielserver
+wählen — etwa ein lokaler Exchange im Hybrid-Betrieb. Auf der Relay-Seite gibt es
+dazu zwei neue Abschnitte: **Weiterleitungsziele** (Host, Port, STARTTLS,
+optionaler Login samt Passwort) und **Domäne → Ziel**. Ohne Zuordnung bleibt
+Exchange Online das Standardziel.
+
+Post an eine geroutete Domäne wird **unverändert** durchgereicht: kein Eingriff in
+DKIM/ARC. Beim Rückweg über Exchange werden veraltete Signaturen entfernt, weil
+Exchange am Ausgang neu signiert — zu einem Fremdserver wäre das falsch und
+zerstörte gültige Signaturen. Eine Nachricht mit Empfängern in mehreren Domänen
+wird je Ziel in einer eigenen Zustellung aufgeteilt.
+
+Das Routing wirkt nur im Rückweg-Modus **„SMTP Port 25"**: es setzt den
+Smarthost-Weg voraus, und in den Graph-Modi würde das Abspalten die Heuristik für
+gemischte (interne/externe) Empfänger stören. Steht der Modus anders und ist
+dennoch eine Route gesetzt, wird das protokolliert und die Post geht an Exchange
+Online.
+
+Kein offenes Relay: das Routing ändert nur den nächsten Server für Post, die die
+Einlieferungsprüfung ohnehin passiert hat; die Domänen-Zuordnung ist eine
+ausdrückliche Freigabeliste. Ziel-Passwörter werden wie alle Geheimnisse maskiert
+und nie angezeigt.
+
+Ein vollständiger Hybrid-Mailfluss (interne Vertrauensstellung, „als ob das
+Gateway nicht dazwischen wäre") ist damit allein noch nicht erreichbar — dazu
+gehört Connector- und Zertifikatskonfiguration auf Exchange-Online- wie auf
+lokaler Seite. Das Routing stellt die Transport-Seite bereit; die Vertrauens-Seite
+folgt.
+
 ## v1.9.41 — 2026-09-16 — Postfächer: „Postfächer laden" fragt EXO frisch ab
 
 Der Knopf *Postfächer laden* lieferte den zwischengespeicherten Stand (Cache-Dauer

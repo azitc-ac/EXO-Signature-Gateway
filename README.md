@@ -366,6 +366,34 @@ Graph als Hauptweg, ergänzt um zwei Lückenfüller:
 - Erfordert ausgehenden Port 25 – **nicht Azure-kompatibel**
 - Kein zusätzliches App-Permission erforderlich
 
+#### Domänen-Routing (Next-Hop je Empfängerdomäne)
+
+Standardmäßig geht alle bearbeitete Post an den einen EXO-Smarthost. Im
+`smtp`-Modus lässt sich je **Empfängerdomäne** ein abweichender Zielserver
+wählen — etwa ein lokaler Exchange im Hybrid-Betrieb. Auf der Relay-Seite unter
+*Domänen-Routing*: **Weiterleitungsziele** (Host, Port, STARTTLS, optionaler
+Login samt Passwort) anlegen und einzelnen Domänen zuordnen. Ohne Zuordnung
+bleibt Exchange Online das Ziel.
+
+- Post an eine geroutete Domäne wird **unverändert** durchgereicht — kein
+  Eingriff in DKIM/ARC (anders als beim Rückweg über Exchange, das neu signiert).
+- Empfänger mehrerer Domänen in einer Nachricht werden je Ziel getrennt
+  zugestellt.
+- Wirkt **nur im `smtp`-Modus**; in den Graph-Modi geht alle Post an Exchange
+  Online.
+- Kein offenes Relay: die Domänen-Zuordnung ist eine ausdrückliche Freigabeliste,
+  Ziel-Passwörter werden maskiert.
+
+> ⚠️ Für einen echten **Hybrid-Mailfluss** (eingehende Post landet on-prem als
+> „intern", `AuthAs: Internal`) reicht das Routing allein nicht: Das Gateway
+> terminiert die TLS-Verbindung und liefert mit eigener IP und eigenem Zertifikat
+> ein. Der on-prem-Empfangsconnector des Hybrid-Assistenten vertraut aber der
+> EXO-Identität (Zertifikat `mail.protection.outlook.com` bzw. EXO-IP-Bereiche),
+> nicht dem Gateway. Damit on-prem die Gateway-Post als intern annimmt, braucht es
+> dort einen Empfangsconnector mit `AuthMechanism=ExternalAuthoritative` und der
+> Gateway-IP in `RemoteIPRanges` (oder die Gateway-IP zusätzlich am bestehenden
+> Connector). Das ist eine on-prem-Anpassung, keine Gateway-Einstellung.
+
 ### Port 587 — kein Modus, sondern ein Sonderweg
 
 ⚠️ Häufiges Missverständnis: Einen „587-Modus" gibt es nicht. Port 587 kommt
