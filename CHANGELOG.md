@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.35 — 2026-09-16 — Sende-Identitäten: Signatur je Identität (über die Postfach-Signatur)
+
+Die Shared Mailbox einer Sende-Identität ist ein echtes Postfach und lässt sich
+darum wie jedes andere signieren: Unter *Postfächer* die Adresse mit `sig` und einer
+Vorlage aktivieren, und der reguläre Signierpfad hängt die Signatur an die Post
+dieser Identität an — kein eigener Signaturweg nötig. Die Identitäten-Tabelle zeigt
+je Zeile den Stand (**Signatur ✓** bzw. **Signatur…**) und verlinkt zur Konfiguration.
+Hinweis: Die Signatur zieht Name/Titel/Telefon aus den Verzeichnis-Attributen der
+Shared Mailbox; die sind oft dünn — eine überwiegend statische Vorlage oder gepflegte
+Entra-Attribute liefern das beste Ergebnis.
+
 ## v1.9.34 — 2026-09-16 — Sende-Identitäten: Sendezähler + weiches Tageskontingent
 
 Die Identitäten-Tabelle zeigt jetzt je Identität, wie viel sie einliefert: die

@@ -463,6 +463,9 @@ function zeichneIdentitaeten(liste) {
       + '<td style="text-align:center"><input type="checkbox"' + (i.aktiv ? ' checked' : '')
         + ' onchange="identitaetAktiv(\'' + escAttr(i.id) + '\', this)"></td>'
       + '<td style="white-space:nowrap">'
+        + '<button class="btn secondary btn-sm" onclick="location.href=\'/mailboxes\'"'
+          + ' title="Signatur dieser Identität = Signatur ihrer Shared Mailbox; in Postfächer konfigurieren">'
+          + (i.signatur_aktiv ? 'Signatur ✓' : 'Signatur…') + '</button> '
         + '<button class="btn secondary btn-sm" onclick="identitaetPasswort(\''
           + escAttr(i.id) + '\', this)">Passwort…</button> '
         + '<button class="btn secondary btn-sm" onclick="identitaetLoeschen(\''
