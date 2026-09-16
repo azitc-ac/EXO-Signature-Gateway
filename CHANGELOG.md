@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.33 — 2026-09-16 — README: ausgehenden Port 587 in der Portliste ergänzt
+
+Die Outbound-Portliste („Container → Internet") führte den ausgehenden
+Submission-Port **587** nicht auf, obwohl das Gateway ihn im Modus `graph_plus`
+nutzt: `smtp_submit` liefert darüber authentifiziert als Absender ein
+(`smtp.office365.com`, XOAUTH2) — für bifurkierte gemischte Empfänger und
+eingehende externe Post. Die Zeile ist nachgetragen. (Rein dokumentarisch; am
+Verhalten ändert sich nichts.)
+
 ## v1.9.32 — 2026-09-16 — Azure-VM-Setup öffnet Port 587 (Sende-Identitäten)
 
 Das Skript `azure-vm-setup.ps1` öffnete eingehend nur 22, 80, 443 und 25 — der
