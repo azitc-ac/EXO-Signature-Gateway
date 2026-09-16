@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.36 — 2026-09-16 — Sende-Identitäten: kein Browser-Autofill im Anlegen-Formular
+
+Der Browser erkannte das Anlege-Formular (Text- plus Passwortfeld) als Login und
+füllte gespeicherte Zugangsdaten ein. Login und Anzeigename tragen jetzt
+`autocomplete="off"`, das Passwortfeld `autocomplete="new-password"` (signalisiert
+„neues Passwort setzen") — kein Autofill mehr. Außerdem Einleitungstext der
+Relay-Seite gestrafft.
+
 ## v1.9.35 — 2026-09-16 — Sende-Identitäten: Signatur je Identität (über die Postfach-Signatur)
 
 Die Shared Mailbox einer Sende-Identität ist ein echtes Postfach und lässt sich
