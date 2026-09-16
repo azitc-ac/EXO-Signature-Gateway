@@ -959,6 +959,48 @@ async function saveGraphFallback() {
 }
 </script>
 
+<!-- ── Sende-Identitäten: Zustellweg ──────────────────────────────────────── -->
+<div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
+  <div class="step-header">
+    <span class="step-badge" style="background:#0369a1;font-size:10px">Graph</span>
+    <span class="step-title">Sende-Identitäten über Graph zustellen</span>
+  </div>
+  <div class="step-body">
+    <p style="font-size:13px;color:#555;margin-bottom:14px;line-height:1.6">
+      Post einer <strong>Sende-Identität</strong> (Port 587) wird über die Graph-API als
+      deren Shared Mailbox zugestellt — <strong>unabhängig vom gewählten Rückweg</strong>.
+      Vorteil: Exchange erzeugt die Nachricht aus dem eigenen Haus, sodass
+      <strong>SPF, DKIM und DMARC</strong> greifen, ohne dass die öffentliche IP des
+      Gateways im SPF-Eintrag der Absenderdomäne stehen muss. Voraussetzung ist, dass die
+      Shared Mailbox im Sende-Umfang der Anwendung liegt (wird beim Anlegen mit eingerichtet).
+    </p>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+      <label style="display:flex;align-items:center;gap:8px;font-size:14px">
+        <input type="checkbox" id="ident-graph"
+               {% if s.IDENT_DELIVER_VIA_GRAPH %}checked{% endif %}>
+        Sende-Identitäten über Graph zustellen
+      </label>
+      <button class="btn secondary" id="ident-graph-btn" data-wache-hinweis="ident-graph-result" data-wache="ident-graph"
+              onclick="saveIdentGraph()">Speichern</button>
+      <span id="ident-graph-result" style="font-size:12px;margin-left:4px"></span>
+    </div>
+    <p class="hint" style="margin-bottom:0">
+      Standardmäßig <strong>an</strong>. Ausschalten nur als Notnagel: Dann folgt auch
+      Identitätspost dem allgemeinen Rückweg (im SMTP-Modus über den Smarthost) — und die
+      Absenderdomäne braucht die Gateway-IP im SPF-Eintrag, sonst droht SPF-Fail. Scheitert
+      Graph im Einzelfall (etwa bevor die Sende-Umfang-Änderung propagiert ist), fällt die
+      Zustellung ohnehin automatisch auf den allgemeinen Rückweg zurück.
+    </p>
+  </div>
+</div>
+<script>
+async function saveIdentGraph() {
+  wacheFertig('ident-graph-btn', await savePartial(
+    {IDENT_DELIVER_VIA_GRAPH: document.getElementById('ident-graph').checked},
+    'ident-graph-result', 'advanced:identGraph'));
+}
+</script>
+
 <!-- ── SMTP-Smarthost (Port 25) ───────────────────────────────────────────── -->
 <div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px">
   <div class="step-header">

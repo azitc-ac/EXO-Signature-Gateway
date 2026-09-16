@@ -147,6 +147,20 @@ def liste() -> list[dict]:
         return [_oeffentlich(r) for r in reversed(_laden())]
 
 
+def ist_identitaets_adresse(adresse: str) -> bool:
+    """Ist `adresse` die Shared-Mailbox-Adresse einer Sende-Identität?
+
+    Für die Zustellwahl in `reinject.send`: Post einer Identität geht bevorzugt
+    über Graph (SPF/DKIM sauber aus EXO), unabhängig vom `reinject_mode`. Vergleich
+    gegen den Absender-Pin (`absender` = abgeleitete Adresse), klein geschrieben.
+    """
+    a = (adresse or "").strip().lower()
+    if not a:
+        return False
+    with _lock:
+        return any((r.get("absender") or "").strip().lower() == a for r in _laden())
+
+
 # ── CRUD ──────────────────────────────────────────────────────────────────────
 
 def anlegen(name: str, login: str, passwort: str, domaene: str = "",

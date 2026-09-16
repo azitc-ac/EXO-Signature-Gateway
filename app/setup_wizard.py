@@ -1270,12 +1270,15 @@ _domaenen_cache: dict | None = None
 
 
 def list_accepted_domains(refresh: bool = False) -> dict:
-    """Autoritative akzeptierte Domänen des Tenants (für die Sende-Identitäten).
+    """Akzeptierte Domänen des Tenants, die ein Postfach tragen können.
 
-    Nur `Authoritative` — nur solche taugen als Primäradresse eines Postfachs
-    (`InternalRelay` wie zuweilen die Vanity-Domäne nicht). Zusätzlich die
-    EXO-Default-Domäne (i.d.R. `*.onmicrosoft.com`) als Information; die Vorauswahl
-    im UI ist NICHT diese, sondern eine bewusst gewählte (Route/Einstellung).
+    `Authoritative` UND `InternalRelay`: In einem geteilten Namensraum ist EXO bei
+    InternalRelay nur EINER der Zustellwege (unbekannte Empfänger werden relayed),
+    ein normales EXO-Postfach mit Primäradresse dort ist aber völlig gängig — die
+    frühere Beschränkung auf `Authoritative` war zu eng. `ExternalRelay` (EXO trägt
+    dort gar kein Postfach) bleibt aussen vor. Zusätzlich die EXO-Default-Domäne
+    (i.d.R. `*.onmicrosoft.com`) als Information; die Vorauswahl im UI ist NICHT
+    diese, sondern eine bewusst gewählte (Route/Einstellung).
 
     Ergebnis wird prozessweit gecacht (der Aufruf dauert ~30–60 s); `refresh=True`
     erzwingt einen neuen Abruf. Rückgabe: `{ok, domaenen: [..], default_exo: str}`.
@@ -1284,8 +1287,8 @@ def list_accepted_domains(refresh: bool = False) -> dict:
     if _domaenen_cache is not None and not refresh:
         return _domaenen_cache
     body = (
-        "$doms = Get-AcceptedDomain | Where-Object { $_.DomainType -eq 'Authoritative' } "
-        "| Select-Object -ExpandProperty DomainName\n"
+        "$doms = Get-AcceptedDomain | Where-Object { $_.DomainType -eq 'Authoritative' "
+        "-or $_.DomainType -eq 'InternalRelay' } | Select-Object -ExpandProperty DomainName\n"
         "$def  = Get-AcceptedDomain | Where-Object { $_.Default -eq $true } "
         "| Select-Object -ExpandProperty DomainName -First 1\n"
         "Write-Output (@{ok=$true; domaenen=@($doms); default_exo=\"$def\"} | ConvertTo-Json -Compress)\n"

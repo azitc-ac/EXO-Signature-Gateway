@@ -120,6 +120,10 @@ DEFAULTS: dict = {
     # eigenem Login — Fundament der verwalteten Sende-Identitäten. Vorgabe aus;
     # der 587-Listener weist jede Anmeldung ab, solange dies aus ist.
     "SUBMISSION_ENABLED": False,
+    # Post einer Sende-Identität bevorzugt über Graph zustellen (unabhängig vom
+    # REINJECT_MODE) — Exchange sendet dann aus dem eigenen Haus, SPF/DKIM/DMARC
+    # greifen ohne DNS-Eintrag fürs Gateway. Vorgabe an; Abschalter in „Erweitert".
+    "IDENT_DELIVER_VIA_GRAPH": True,
     # Zuletzt für eine Sende-Identität gewählte Domäne — Vorauswahl im
     # Domänen-Dropdown der nächsten Identität (die Shared-Mailbox-Adresse ist
     # `login@domäne`). Keine Freischaltung, nur ein Komfortwert.
