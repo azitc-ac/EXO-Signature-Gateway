@@ -165,6 +165,16 @@ Absender ein aktiviertes Postfach ist, sonst unverändert weitergereicht.
 > sonst lehnt Graph mit `403` ab. Im Modus `smtp` trägt der Smarthost die Adresse
 > ohne weitere Freigabe.
 
+**Signatur je Identität:** Die Shared Mailbox einer Identität ist ein echtes
+Postfach und wird wie jedes andere signiert. Aktiviert man sie unter *Postfächer*
+(`sig` + Vorlage), hängt der reguläre Signierpfad die Signatur an ihre Post an —
+ein eigener Signaturweg für Identitäten ist nicht nötig. Die Identitäten-Tabelle
+zeigt je Zeile den Stand (*Signatur ✓* bzw. *Signatur…*) und verlinkt dorthin.
+Zu beachten: Die Signatur zieht ihre Felder (Name, Titel, Telefon) aus den
+Verzeichnis-Attributen der Shared Mailbox — die sind oft dünn besetzt; eine Vorlage
+mit überwiegend statischem Inhalt oder gepflegte Entra-Attribute liefern das beste
+Ergebnis.
+
 ---
 
 ## Betrieb auf Azure (kein ausgehender Port 25)

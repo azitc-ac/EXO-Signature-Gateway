@@ -85,12 +85,19 @@ def _identitaeten_liste() -> list:
     # Tagesaggregaten anreichern (Login = Schlüssel).
     aktiv = relay_stats.letzte_aktivitaet()
     zaehler = relay_stats.identitaet_zaehler(30)
+    # Signatur je Identität (Etappe 5): die Shared Mailbox der Identität wird wie
+    # ein normales Postfach signiert — `signatur_aktiv` sagt, ob ihre Adresse in
+    # MAILBOX_CONFIG mit `sig` steht. Konfiguriert wird das in „Postfächer".
+    import mailbox_match
+    cfg = settings_store.get("MAILBOX_CONFIG") or {}
     for i in liste:
         login = (i.get("login") or "").lower()
         i["zuletzt"] = aktiv.get(login, "")
         z = zaehler.get(login) or {}
         i["heute"] = z.get("heute", 0)
         i["dreissig"] = z.get("zeitraum", 0)
+        adr = (i.get("adresse") or "").lower()
+        i["signatur_aktiv"] = bool(adr and mailbox_match.match_sender(cfg, adr).get("sig"))
     return liste
 
 
