@@ -5,6 +5,28 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.27 — 2026-09-16 — Sende-Identitäten: Shared Mailbox wird beim Anlegen automatisch erzeugt
+
+Eine Sende-Identität war bisher nur ein Gateway-seitiges Login — die Adresse, unter
+der ein Gerät einliefern sollte, existierte in Exchange nicht, und man musste sie
+von Hand anlegen. Das verwaltete Modell schließt diese Lücke:
+
+- Eine Identität besteht jetzt aus **Anzeigename**, **Login** (= EXO-Alias) und
+  **Domäne**. Daraus ergibt sich die Adresse `login@domäne`, die beim Speichern
+  automatisch als **unlizenzierte Shared Mailbox** in Exchange angelegt wird
+  (idempotent). Sie ist zugleich Absender-Pin und Antwort-Postfach.
+- Die Domäne wird aus den **autoritativen** Tenant-Domänen gewählt (Dropdown mit
+  gemerkter Vorauswahl). Die EXO-Default-Domäne ist meist `*.onmicrosoft.com` und
+  taugt nicht als Absender; sie wird daher nicht automatisch verwendet.
+- Vor dem Anlegen zeigt die Oberfläche die Adresse, die erzeugt wird.
+- Das frühere freie Feld *Absender (optional)* entfällt: Der Absender ist im
+  verwalteten Modell immer die Shared-Mailbox-Adresse, ein separater Pin wäre
+  überflüssig und missverständlich.
+
+In den Cloud-Rückwegen (`graph`/`graph_plus`) muss die Shared Mailbox zusätzlich im
+Sende-Umfang der Anwendung liegen (ApplicationAccessPolicy/SendAs); im Modus `smtp`
+trägt der Smarthost sie ohne weitere Freigabe.
+
 ## v1.9.26 — 2026-09-16 — Sende-Identitäten: gleich breite Felder, Kopierknöpfe, Passwort direkt kopiert
 
 - Die Eingabefelder beim Anlegen einer Sende-Identität (Name, Login, Passwort,

@@ -43,7 +43,7 @@
     <table class="config-table" style="min-width:640px">
       <thead>
         <tr>
-          <th>Name</th><th>Login</th><th>Absender (Shared Mailbox)</th>
+          <th>Anzeigename</th><th>Login</th><th>Adresse (Shared Mailbox)</th>
           <th>Zuletzt aktiv</th>
           <th style="text-align:center">Extern</th>
           <th style="text-align:center">Aktiv</th><th></th>
@@ -58,16 +58,16 @@
   <div style="border-top:1px solid #e2e8f0;margin-top:16px;padding-top:14px">
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px 12px;align-items:start">
       <div>
-        <label for="neu-id-name" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Name</label>
+        <label for="neu-id-name" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Anzeigename</label>
         <div style="display:flex;gap:6px;align-items:center">
-          <input type="text" id="neu-id-name" placeholder="Kundendienst" style="flex:1;min-width:0;margin:0;box-sizing:border-box">
-          <button type="button" class="copy-btn" data-copy-field="neu-id-name" title="Name kopieren"></button>
+          <input type="text" id="neu-id-name" placeholder="Drucker EG" style="flex:1;min-width:0;margin:0;box-sizing:border-box">
+          <button type="button" class="copy-btn" data-copy-field="neu-id-name" title="Anzeigename kopieren"></button>
         </div>
       </div>
       <div>
-        <label for="neu-id-login" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Login</label>
+        <label for="neu-id-login" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Login <span class="hint" style="font-weight:400">(= EXO-Alias)</span></label>
         <div style="display:flex;gap:6px;align-items:center">
-          <input type="text" id="neu-id-login" placeholder="kundendienst@firma.de" style="flex:1;min-width:0;margin:0;box-sizing:border-box">
+          <input type="text" id="neu-id-login" placeholder="drucker.eg" oninput="idAdressVorschau()" onfocus="idDomaenenLadenEinmal()" style="flex:1;min-width:0;margin:0;box-sizing:border-box">
           <button type="button" class="copy-btn" data-copy-field="neu-id-login" title="Login kopieren"></button>
         </div>
       </div>
@@ -84,13 +84,13 @@
         </div>
       </div>
       <div>
-        <label for="neu-id-absender" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Absender (optional)</label>
-        <div style="display:flex;gap:6px;align-items:center">
-          <input type="text" id="neu-id-absender" placeholder="kundendienst@firma.de" style="flex:1;min-width:0;margin:0;box-sizing:border-box">
-          <button type="button" class="copy-btn" data-copy-field="neu-id-absender" title="Absender kopieren"></button>
-        </div>
+        <label for="neu-id-domaene" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Domäne</label>
+        <select id="neu-id-domaene" onchange="idAdressVorschau()" onfocus="idDomaenenLadenEinmal()" style="width:100%;margin:0;box-sizing:border-box">
+          <option value="">— lädt …</option>
+        </select>
       </div>
     </div>
+    <div id="neu-id-vorschau" class="hint" style="margin:10px 0 0;display:none"></div>
     <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-top:12px">
       <label class="checkbox-label" style="margin:0">
         <input type="checkbox" id="neu-id-extern"> auch extern senden
@@ -98,10 +98,11 @@
       <button class="btn secondary" onclick="identitaetHinzufuegen(this)">Hinzufügen</button>
     </div>
     <p class="hint" style="margin:8px 0 0">
-      Ist ein <strong>Absender</strong> angegeben, darf sich dieses Login nur unter
-      genau dieser Adresse anmelden — sonst unter jeder Adresse der eigenen Domäne.
-      Ohne den Haken <strong>auch extern senden</strong> darf die Identität nur an
-      Empfänger im eigenen Tenant zustellen (Vorgabe).
+      Der <strong>Login</strong> ist der EXO-Alias; mit der <strong>Domäne</strong> ergibt
+      er die Adresse der Shared Mailbox (<code>login@domäne</code>). Diese wird beim
+      Anlegen automatisch in Exchange erzeugt (unlizenziert) und ist zugleich Absender
+      und Antwort-Postfach. Ohne den Haken <strong>auch extern senden</strong> darf die
+      Identität nur an Empfänger im eigenen Tenant zustellen (Vorgabe).
     </p>
     <div id="neu-id-result" style="display:none;margin-top:10px"></div>
   </div>
@@ -453,8 +454,6 @@ function zeichneIdentitaeten(liste) {
       + '<td style="text-align:center"><input type="checkbox"' + (i.aktiv ? ' checked' : '')
         + ' onchange="identitaetAktiv(\'' + escAttr(i.id) + '\', this)"></td>'
       + '<td style="white-space:nowrap">'
-        + '<button class="btn secondary btn-sm" onclick="identitaetAbsender(\''
-          + escAttr(i.id) + '\', \'' + escAttr(i.absender || '') + '\', this)">Absender…</button> '
         + '<button class="btn secondary btn-sm" onclick="identitaetPasswort(\''
           + escAttr(i.id) + '\', this)">Passwort…</button> '
         + '<button class="btn secondary btn-sm" onclick="identitaetLoeschen(\''
@@ -491,25 +490,86 @@ function idPwGenerieren() {
   });
 }
 
+// Domänen erst laden, wenn die Form wirklich benutzt wird — der EXO-Abruf ist
+// langsam (bis ~1 Min beim ersten Mal je Prozess, danach gecacht). Ein Aufruf pro
+// Seitenaufruf reicht.
+let _domaenenGeladen = false;
+function idDomaenenLadenEinmal() {
+  if (_domaenenGeladen) return;
+  _domaenenGeladen = true;
+  idDomaenenLaden();
+}
+
+async function idDomaenenLaden() {
+  const sel = document.getElementById('neu-id-domaene');
+  if (!sel) return;
+  const r = await postJSONGet('/api/relay/domaenen');
+  if (!r || !r.ok || !(r.domaenen || []).length) {
+    sel.innerHTML = '<option value="">— keine autoritative Domäne abrufbar —</option>';
+    idAdressVorschau();
+    return;
+  }
+  sel.innerHTML = r.domaenen.map(function (d) {
+    return '<option value="' + escAttr(d) + '"' + (d === r.standard ? ' selected' : '')
+      + '>' + esc(d) + '</option>';
+  }).join('');
+  idAdressVorschau();
+}
+
+// Vorschau der Adresse, die beim Anlegen als Shared Mailbox erzeugt wird.
+function idAdressVorschau() {
+  const v = document.getElementById('neu-id-vorschau');
+  if (!v) return;
+  const login = (document.getElementById('neu-id-login').value || '').trim().toLowerCase();
+  const sel = document.getElementById('neu-id-domaene');
+  const domaene = sel ? (sel.value || '') : '';
+  if (login && domaene) {
+    v.innerHTML = '→ Shared Mailbox <code>' + esc(login) + '@' + esc(domaene)
+      + '</code> wird beim Anlegen in Exchange erzeugt';
+    v.style.display = '';
+  } else {
+    v.style.display = 'none';
+  }
+}
+
 async function identitaetHinzufuegen(btn) {
   const box = document.getElementById('neu-id-result');
   const name = (document.getElementById('neu-id-name').value || '').trim();
   const login = (document.getElementById('neu-id-login').value || '').trim();
   const pw = document.getElementById('neu-id-pw').value || '';
-  const absender = (document.getElementById('neu-id-absender').value || '').trim();
+  const sel = document.getElementById('neu-id-domaene');
+  const domaene = sel ? (sel.value || '') : '';
   const extern = document.getElementById('neu-id-extern').checked;
   if (!login || !pw) { showAlert(box, 'error', 'Login und Passwort sind nötig.'); return; }
+  if (!domaene) { showAlert(box, 'error', 'Bitte eine Domäne wählen.'); return; }
+  const orig = btn.textContent;
   btn.disabled = true;
+  btn.textContent = 'lege an … (bis zu 1 Min)';
   const r = await postJSON('/api/relay/identitaet',
-    { name: name, login: login, passwort: pw, absender: absender, extern: extern });
+    { name: name, login: login, passwort: pw, domaene: domaene, extern: extern });
   btn.disabled = false;
+  btn.textContent = orig;
   if (!r.ok) { showAlert(box, 'error', esc(r.error || 'Fehler beim Anlegen.')); return; }
-  hideAlert(box);
-  ['neu-id-name', 'neu-id-login', 'neu-id-pw', 'neu-id-absender']
+  // Identität steht; die Shared Mailbox ist die zweite Hälfte des Pakets.
+  const adr = (r.identitaet && r.identitaet.adresse) || (login + '@' + domaene);
+  const mb = r.mailbox;
+  if (mb && mb.ok) {
+    showAlert(box, 'success', 'Identität angelegt. Shared Mailbox '
+      + (mb.created ? 'erstellt' : 'war bereits vorhanden') + ': <code>'
+      + esc(mb.email || adr) + '</code>');
+  } else if (mb) {
+    showAlert(box, 'error', 'Identität angelegt, aber die Shared Mailbox <code>'
+      + esc(adr) + '</code> konnte NICHT erstellt werden: '
+      + esc((mb.output || '').slice(0, 200)) + ' — bitte in Exchange prüfen.');
+  } else {
+    showAlert(box, 'success', 'Identität angelegt: <code>' + esc(adr) + '</code>');
+  }
+  ['neu-id-name', 'neu-id-login', 'neu-id-pw']
     .forEach(function (id) { document.getElementById(id).value = ''; });
   document.getElementById('neu-id-pw').type = 'password';
   document.getElementById('neu-id-pw-hint').style.display = 'none';
   document.getElementById('neu-id-extern').checked = false;
+  idAdressVorschau();
   laden(false);
 }
 
@@ -528,16 +588,6 @@ async function identitaetPasswort(id, btn) {
   if (pw === null) return;
   const r = await postJSON('/api/relay/identitaet', { id: id, passwort: pw });
   showMsg(btn, r.ok ? 'gesetzt' : (r.error || 'Fehler'), r.ok);
-}
-
-async function identitaetAbsender(id, aktuell, btn) {
-  const v = prompt('Absender-Pin für dieses Login. Leer lassen = keine Bindung '
-    + '(das Login darf dann unter jeder Adresse der eigenen Domäne senden):',
-    aktuell || '');
-  if (v === null) return;
-  const r = await postJSON('/api/relay/identitaet', { id: id, absender: v.trim() });
-  showMsg(btn, r.ok ? 'gesetzt' : (r.error || 'Fehler'), r.ok);
-  if (r.ok) laden(false);
 }
 
 async function identitaetLoeschen(id, btn) {

@@ -96,6 +96,32 @@ def _norm_login(login: str | bytes) -> str:
     return login.strip().lower()
 
 
+def alias_gueltig(login: str) -> bool:
+    """Ist `login` ein gültiger EXO-Alias (und damit als Anmeldename brauchbar)?
+
+    Der Login IST der EXO-Alias (verwaltetes-Identitäten-Modell): daraus wird die
+    Shared-Mailbox-Adresse `login@domäne` gebildet. Ein Alias trägt daher KEIN
+    `@` und keinen Leerraum. Erlaubt sind Buchstaben/Ziffern und `. _ -` (die
+    üblichen Alias-Zeichen); der Rest würde `New-Mailbox -Alias` scheitern lassen.
+    """
+    login = (login or "").strip()
+    if not login or "@" in login or any(c.isspace() for c in login):
+        return False
+    return all(c.isalnum() or c in "._-" for c in login)
+
+
+def abgeleitete_adresse(login: str, domaene: str) -> str:
+    """Shared-Mailbox-Adresse einer Identität = `login@domäne`, klein geschrieben.
+
+    Leer, wenn eines von beiden fehlt — dann gibt es (noch) keinen Absender-Pin.
+    """
+    login = _norm_login(login)
+    domaene = (domaene or "").strip().lower().lstrip("@")
+    if not login or not domaene:
+        return ""
+    return f"{login}@{domaene}"
+
+
 # ── öffentliche Sicht (ohne Hash) ─────────────────────────────────────────────
 
 def _oeffentlich(rec: dict) -> dict:
@@ -103,6 +129,11 @@ def _oeffentlich(rec: dict) -> dict:
         "id": rec["id"],
         "name": rec.get("name", ""),
         "login": rec.get("login", ""),
+        "domaene": rec.get("domaene", ""),
+        # `adresse` = Shared-Mailbox-Adresse = Absender-Pin. Historisch unter
+        # `absender` gespeichert; beide zeigen im verwalteten Modell auf denselben
+        # Wert (login@domäne). `absender` bleibt für Bestandsdaten/pruefe erhalten.
+        "adresse": rec.get("absender", ""),
         "absender": rec.get("absender", ""),
         "extern": bool(rec.get("extern", False)),
         "aktiv": bool(rec.get("aktiv", True)),
@@ -118,9 +149,18 @@ def liste() -> list[dict]:
 
 # ── CRUD ──────────────────────────────────────────────────────────────────────
 
-def anlegen(name: str, login: str, passwort: str, absender: str = "",
+def anlegen(name: str, login: str, passwort: str, domaene: str = "",
             extern: bool = False) -> dict:
-    """Legt eine Identität an. Wirft ValueError bei leerem/doppeltem Login.
+    """Legt eine Identität an. Wirft ValueError bei leerem/doppeltem/ungültigem Login.
+
+    Verwaltetes-Identitäten-Modell (Plan 11.09.): Der `login` IST der EXO-Alias;
+    zusammen mit `domaene` ergibt er die Shared-Mailbox-Adresse `login@domäne`,
+    die zugleich der Absender-Pin ist (`absender`). Es gibt kein separates
+    Absender-Feld mehr — „als wer" ist damit eindeutig die Shared Mailbox.
+
+    `name` wird zum EXO-Anzeigenamen. `domaene` sollte eine autoritative
+    Tenant-Domäne sein (der Aufrufer wählt sie aus der Domänenliste); ist sie
+    leer, bleibt der Pin leer (die Identität funktioniert dann noch nicht).
 
     `extern=False` (Vorgabe) heisst „darf nur an interne Empfänger senden" —
     spiegelt das Geräte-Flag des Port-25-Relays.
@@ -128,11 +168,15 @@ def anlegen(name: str, login: str, passwort: str, absender: str = "",
     name = (name or "").strip()
     login_n = _norm_login(login)
     passwort = passwort or ""
-    absender = (absender or "").strip().lower()
+    domaene = (domaene or "").strip().lower().lstrip("@")
     if not login_n:
         raise ValueError("Login darf nicht leer sein.")
+    if not alias_gueltig(login_n):
+        raise ValueError("Login ist der EXO-Alias: nur Buchstaben, Ziffern und "
+                         "„. _ -“, kein @ und kein Leerzeichen (z. B. drucker.eg).")
     if len(passwort) < 8:
         raise ValueError("Passwort zu kurz (mindestens 8 Zeichen).")
+    adresse = abgeleitete_adresse(login_n, domaene)
     with _lock:
         daten = _laden()
         if any(_norm_login(r.get("login", "")) == login_n for r in daten):
@@ -141,8 +185,9 @@ def anlegen(name: str, login: str, passwort: str, absender: str = "",
             "id": secrets.token_hex(6),
             "name": name or login_n,
             "login": login_n,
+            "domaene": domaene,
             "passwort_hash": _hash_passwort(passwort),
-            "absender": absender,
+            "absender": adresse,      # Pin = Shared-Mailbox-Adresse
             "extern": bool(extern),
             "aktiv": True,
             "erstellt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -252,9 +297,11 @@ def pruefe(ident: dict, sender: str, recipients: list[str]) -> tuple[bool, str, 
 
     Drei Grenzen, in dieser Reihenfolge — Rückgabe: (erlaubt, grund, smtp_antwort):
 
-    1. **Absender-Pin** — ist der Identität eine feste Absenderadresse zugeordnet
-       (`absender`, i.d.R. das Shared Mailbox), muss der Envelope-Absender genau
-       diese sein; sonst könnte ein Login als beliebiger Absender einliefern.
+    1. **Absender-Pin** — im verwalteten Modell ist `absender` immer die aus
+       Login+Domäne abgeleitete Shared-Mailbox-Adresse; der Envelope-Absender muss
+       genau diese sein, sonst könnte ein Login als beliebiger Absender einliefern.
+       (Bestandsdaten ohne Domäne haben ggf. einen leeren Pin — dann greift nur
+       Grenze 2, die Domänenprüfung.)
     2. **Absenderdomäne im Tenant** — wie beim Port-25-Relay (`smtp_relay.pruefe`)
        darf eine Identität nur AS einer tenant-eigenen Adresse einliefern; sonst
        wäre das Gateway ein offenes Relay für beliebige Absenderdomänen. Geprüft

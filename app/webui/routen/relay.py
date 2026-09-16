@@ -114,16 +114,35 @@ async def api_relay_identitaet(request: Request, user: str = Depends(_require_ad
                                     status_code=404)
             log.info("Sende-Identität %s durch %s geändert", id_, user)
             return JSONResponse({"ok": True})
+        domaene = (daten.get("domaene") or "").strip().lower().lstrip("@")
         rec = sende_identitaeten.anlegen(
             name=daten.get("name") or "",
             login=daten.get("login") or "",
             passwort=daten.get("passwort") or "",
-            absender=daten.get("absender") or "",
+            domaene=domaene,
             extern=bool(daten.get("extern")),
         )
         log.info("Sende-Identität %s (%s) durch %s angelegt",
                  rec["id"], rec["login"], user)
-        return JSONResponse({"ok": True, "identitaet": rec})
+        # Gewählte Domäne als Vorauswahl für die nächste Identität merken.
+        if domaene:
+            try:
+                settings_store.update({"RELAY_IDENT_DEFAULT_DOMAIN": domaene})
+            except Exception:               # noqa: BLE001 — Vorauswahl ist nicht kritisch
+                pass
+        # Shared Mailbox anlegen (verwaltetes-Identitäten-Modell): die abgeleitete
+        # Adresse ist zugleich Absender-Pin und Antwort-Postfach. Idempotent; läuft
+        # als EXO PowerShell (~30–60 s) in einem Thread, damit der Event-Loop frei
+        # bleibt. Schlägt es fehl (z. B. fehlende Rechte), bleibt die Identität
+        # bestehen — der Aufrufer sieht das Ergebnis und kann es erneut anstoßen.
+        mailbox = None
+        if rec.get("adresse"):
+            import setup_wizard
+            import asyncio
+            mailbox = await asyncio.to_thread(
+                setup_wizard.run_create_shared_mailbox,
+                rec["login"], rec["name"], rec["adresse"])
+        return JSONResponse({"ok": True, "identitaet": rec, "mailbox": mailbox})
     except ValueError as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
 
@@ -138,6 +157,31 @@ async def api_relay_identitaet_loeschen(request: Request,
     if weg:
         log.info("Sende-Identität %s durch %s entfernt", id_, user)
     return JSONResponse({"ok": weg})
+
+
+@router.get("/api/relay/domaenen")
+async def api_relay_domaenen(refresh: bool = False,
+                            user: str = Depends(_require_admin)):
+    """Autoritative Tenant-Domänen für das Sende-Identitäten-Dropdown + Vorauswahl.
+
+    Die Vorauswahl (`standard`) ist die zuletzt gewählte Domäne
+    (`RELAY_IDENT_DEFAULT_DOMAIN`), sonst die erste autoritative Domäne, die NICHT
+    `*.onmicrosoft.com` ist (die EXO-Default-Domäne ist unschön als Absender),
+    sonst die erste überhaupt. Der EXO-Abruf ist langsam (~30–60 s) und gecacht;
+    `?refresh=1` erzwingt einen frischen Abruf.
+    """
+    import setup_wizard
+    import asyncio
+    res = await asyncio.to_thread(setup_wizard.list_accepted_domains, bool(refresh))
+    domaenen = res.get("domaenen", []) if res.get("ok") else []
+    gewaehlt = (settings_store.get("RELAY_IDENT_DEFAULT_DOMAIN") or "").strip().lower()
+    if gewaehlt in domaenen:
+        standard = gewaehlt
+    else:
+        nicht_ms = [d for d in domaenen if not d.lower().endswith(".onmicrosoft.com")]
+        standard = (nicht_ms or domaenen or [""])[0]
+    return JSONResponse({"ok": res.get("ok", False), "domaenen": domaenen,
+                         "standard": standard, "error": res.get("error", "")})
 
 
 @router.get("/api/relay/stats")
