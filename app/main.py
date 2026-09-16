@@ -782,6 +782,17 @@ def main() -> None:
         daemon=True,
     ).start()
 
+    # Domänenliste der Sende-Identitäten im Hintergrund vorwärmen: der EXO-Abruf
+    # dauert ~30–60 s und landet im Platten-Cache, sodass das Domänen-Dropdown
+    # später sofort erscheint. Best-effort; fragt EXO nicht, wenn der Cache steht.
+    def _warm_domaenen() -> None:
+        try:
+            import setup_wizard
+            setup_wizard.list_accepted_domains()
+        except Exception as exc:                        # noqa: BLE001
+            log.debug("Domänen-Vorwärmung übersprungen: %s", exc)
+    threading.Thread(target=_warm_domaenen, daemon=True).start()
+
     asyncio.run(_run_smtp())
 
 
