@@ -81,10 +81,16 @@ def _identitaeten_liste() -> list:
     import sende_identitaeten
     import relay_stats
     liste = sende_identitaeten.liste()
-    # „Zuletzt aktiv" aus den Identitäts-Tagesaggregaten anreichern (Login = Schlüssel).
+    # „Zuletzt aktiv" + Sendezähler (heute/30 Tage) aus den Identitäts-
+    # Tagesaggregaten anreichern (Login = Schlüssel).
     aktiv = relay_stats.letzte_aktivitaet()
+    zaehler = relay_stats.identitaet_zaehler(30)
     for i in liste:
-        i["zuletzt"] = aktiv.get((i.get("login") or "").lower(), "")
+        login = (i.get("login") or "").lower()
+        i["zuletzt"] = aktiv.get(login, "")
+        z = zaehler.get(login) or {}
+        i["heute"] = z.get("heute", 0)
+        i["dreissig"] = z.get("zeitraum", 0)
     return liste
 
 
@@ -108,6 +114,7 @@ async def api_relay_identitaet(request: Request, user: str = Depends(_require_ad
                 aktiv=daten.get("aktiv"),
                 passwort=(daten.get("passwort") or None),
                 extern=daten.get("extern"),
+                kontingent=daten.get("kontingent"),
             )
             if not ok:
                 return JSONResponse({"ok": False, "error": "Identität nicht gefunden."},

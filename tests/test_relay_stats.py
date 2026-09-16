@@ -109,3 +109,16 @@ def test_aufraeumen_loescht_auch_identitaeten(db):
         c.execute("INSERT INTO identitaet (identitaet, tag, anzahl, bytes) VALUES ('kd@x.de',?,1,1)", (alt,))
     assert db.aufraeumen() >= 1
     assert not db.statistik(360)["top_identitaeten"]
+
+
+def test_identitaet_zaehler_heute_und_zeitraum(db):
+    db.merke("10.0.0.1", absender="a@x.de", empfaenger=["c@y.de"], bytes_=100, identitaet="Drucker.EG")
+    db.merke("10.0.0.1", absender="a@x.de", empfaenger=["c@y.de"], bytes_=100, identitaet="drucker.eg")
+    vor3 = (db._jetzt() - timedelta(days=3)).strftime("%Y-%m-%d")
+    with db._conn() as c:
+        c.execute("INSERT INTO identitaet (identitaet, tag, anzahl, bytes) VALUES ('drucker.eg',?,5,500)", (vor3,))
+    z = db.identitaet_zaehler(30)
+    assert z["drucker.eg"]["heute"] == 2         # zwei heute (case-insensitiv aggregiert)
+    assert z["drucker.eg"]["zeitraum"] == 7      # 2 heute + 5 vor 3 Tagen
+    assert db.heute_zaehler("Drucker.EG") == 2   # case-insensitiv
+    assert db.heute_zaehler("gibtsnicht") == 0

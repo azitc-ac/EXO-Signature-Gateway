@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.34 — 2026-09-16 — Sende-Identitäten: Sendezähler + weiches Tageskontingent
+
+Die Identitäten-Tabelle zeigt jetzt je Identität, wie viel sie einliefert: die
+Anzahl **heute** und (als Tooltip) über **30 Tage**. Dazu lässt sich ein
+**Tageskontingent** eintragen. Es ist bewusst **weich**: Wird es überschritten,
+läuft die Einlieferung weiter — es erscheint nur ein Warnhinweis in der Tabelle und
+eine Zeile im Protokoll. Kein Kontingent (leer/0) bedeutet unbegrenzt. So sieht man
+auf einen Blick, ob ein Gerät ungewöhnlich viel sendet, ohne legitime Post zu
+blockieren. Benachrichtigungsmails an den Absender und eine Kampagnenerkennung
+folgen in einem eigenen Schritt.
+
 ## v1.9.33 — 2026-09-16 — README: ausgehenden Port 587 in der Portliste ergänzt
 
 Die Outbound-Portliste („Container → Internet") führte den ausgehenden
