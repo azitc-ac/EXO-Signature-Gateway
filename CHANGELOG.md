@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.21 — 2026-09-16 — Relay: Einleitungssatz zur Einordnung
+
+Der Hinweistext der Relay-Seite beginnt jetzt mit „Hier geht es um SMTP-Relay im
+Besonderen und SMTP-Einlieferung im Allgemeinen." — macht gleich zu Beginn
+deutlich, dass die Seite beide Einlieferungswege umfasst (IP-Geräte-Relay und die
+authentifizierte 587-Submission der Sende-Identitäten).
+
 ## v1.9.20 — 2026-09-16 — Relay: Hinweistexte korrigiert (587 läuft auch in den Graph-Modi)
 
 - Der Einleitungstext und das Warnband der Relay-Seite behaupteten „verfügbar nur
