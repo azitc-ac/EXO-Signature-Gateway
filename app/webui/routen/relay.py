@@ -136,13 +136,27 @@ async def api_relay_identitaet(request: Request, user: str = Depends(_require_ad
         # bleibt. Schlägt es fehl (z. B. fehlende Rechte), bleibt die Identität
         # bestehen — der Aufrufer sieht das Ergebnis und kann es erneut anstoßen.
         mailbox = None
+        scope = None
         if rec.get("adresse"):
             import setup_wizard
             import asyncio
+            import config
             mailbox = await asyncio.to_thread(
                 setup_wizard.run_create_shared_mailbox,
                 rec["login"], rec["name"], rec["adresse"])
-        return JSONResponse({"ok": True, "identitaet": rec, "mailbox": mailbox})
+            # Neue Shared Mailbox in den App-Sende-Umfang aufnehmen, damit Graph
+            # „als" sie senden darf (ApplicationAccessPolicy — sonst RAOP-403).
+            # No-op, solange APP_ACCESS_POLICY_ENABLED aus ist. ⚠️ Die EXO-Policy
+            # propagiert wie der DG erst nach einigen Minuten — der erste Graph-Send
+            # greift entsprechend verzögert.
+            if mailbox and mailbox.get("ok"):
+                app_id = config.CLIENT_ID or settings_store.get("CLIENT_ID") or ""
+                tenant = settings_store.get("TENANT_DOMAIN") or ""
+                if app_id and tenant:
+                    scope = await asyncio.to_thread(
+                        setup_wizard.run_app_access_policy_sync, app_id, tenant)
+        return JSONResponse({"ok": True, "identitaet": rec,
+                             "mailbox": mailbox, "scope": scope})
     except ValueError as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
 
