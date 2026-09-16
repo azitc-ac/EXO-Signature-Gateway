@@ -140,6 +140,15 @@ def list_mailboxes(force: bool = False) -> list[dict]:
         return mbs or _cache
 
 
+def invalidate_cache() -> None:
+    """Cache als abgelaufen markieren — der nächste `list_mailboxes()` fragt EXO
+    frisch. Nach dem Anlegen eines Postfachs aufrufen, damit es (sobald EXO es
+    propagiert hat) auch ohne erzwungenen Abruf erscheint."""
+    global _cache_ts
+    with _lock:
+        _cache_ts = 0.0
+
+
 def known_addresses() -> set[str]:
     """All known primary + alias addresses from the CURRENT cache snapshot,
     lowercased. Unlike list_mailboxes(), this NEVER triggers a PowerShell

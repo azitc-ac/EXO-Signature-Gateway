@@ -164,6 +164,14 @@ async def api_relay_identitaet(request: Request, user: str = Depends(_require_ad
             # propagiert wie der DG erst nach einigen Minuten — der erste Graph-Send
             # greift entsprechend verzögert.
             if mailbox and mailbox.get("ok"):
+                # Postfach-Cache verwerfen, damit die neue Shared Mailbox unter
+                # „Postfächer" ohne die 1h-Cache-Wartezeit erscheint (sobald EXO sie
+                # propagiert hat).
+                try:
+                    import exo_mailboxes
+                    exo_mailboxes.invalidate_cache()
+                except Exception:               # noqa: BLE001
+                    pass
                 app_id = config.CLIENT_ID or settings_store.get("CLIENT_ID") or ""
                 tenant = settings_store.get("TENANT_DOMAIN") or ""
                 if app_id and tenant:
