@@ -5,7 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
-## v1.9.43 — 2026-09-17 — Einrichtungs-Assistent: Schrittfolge & Links, README-Dimensionierung
+## v1.9.44 — 2026-09-17 — docker-compose: HTTPS-Host-Port konfigurierbar (Reverse-Proxy)
+
+Der HTTPS-Host-Port ist jetzt über `GW_WEBUI_PORT` einstellbar (Vorgabe **443**,
+unverändert). Das erlaubt, das Gateway hinter einen **eigenen Reverse-Proxy** zu
+legen, der Port 443 der öffentlichen Adresse belegt — etwa eine SNI-Weiche, die
+sich eine einzige öffentliche IP mit anderen Diensten teilt. Dann in der `.env`
+z. B. `GW_WEBUI_PORT=8443` setzen; der Proxy reicht den TLS-Verkehr für den
+Gateway-Hostnamen an diesen Port durch. Bestehende Installationen bleiben ohne
+`.env`-Eintrag auf 443.
 
 Drei Verbesserungen aus einem Erst-Installations-Durchlauf:
 
