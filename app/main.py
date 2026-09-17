@@ -188,6 +188,19 @@ def _submission_authenticator(server, session, envelope, mechanism, auth_data):
 
 
 def _build_tls_context() -> ssl.SSLContext | None:
+    # Separates Listener-Zert (falls hinterlegt) hat Vorrang — die Web-UI bleibt
+    # davon unberührt (die lädt weiter config.SMTP_TLS_CERT). Scheitert das
+    # separate Zert, Rückfall aufs gemeinsame, statt ganz ohne TLS zu starten.
+    import smtp_cert
+    paar = smtp_cert.pfade()
+    if paar:
+        try:
+            ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+            ctx.load_cert_chain(certfile=paar[0], keyfile=paar[1])
+            log.info("SMTP-Listener nutzt separates Zertifikat (%s)", paar[0])
+            return ctx
+        except Exception as exc:                          # noqa: BLE001
+            log.error("Separates SMTP-Zert nicht ladbar (%s) — Rückfall aufs gemeinsame Zert", exc)
     cert = Path(config.SMTP_TLS_CERT)
     key = Path(config.SMTP_TLS_KEY)
     if not cert.exists() or not key.exists():

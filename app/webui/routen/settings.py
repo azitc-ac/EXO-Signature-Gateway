@@ -26,7 +26,7 @@ Betrieb. Beide verlangen die Verwaltungsrolle; `tests/test_wachen.py` fuehrt
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 import graph_client
@@ -256,3 +256,37 @@ async def settings_save(request: Request, user: str = Depends(_require_admin)):
     settings_store.update(clean)
     log.info("Settings updated by %s: %s", user, list(clean.keys()))
     return JSONResponse({"ok": True})
+
+
+# ── Separates SMTP-Listener-Zertifikat (Erweitert) ───────────────────────────
+@router.get("/api/smtp-cert")
+async def api_smtp_cert_info(_=Depends(_require_admin)):
+    import smtp_cert
+    return JSONResponse(smtp_cert.info())
+
+
+@router.post("/api/smtp-cert")
+async def api_smtp_cert_save(pfx: UploadFile = File(...), password: str = Form(""),
+                            user: str = Depends(_require_admin)):
+    """Separates SMTP-Listener-Zert aus einer hochgeladenen PFX/PKCS#12-Datei
+    (Zert + Schlüssel, optional Kette). Passwort optional."""
+    import smtp_cert
+    data = await pfx.read()
+    if not data:
+        return JSONResponse({"ok": False, "error": "Keine PFX-Datei empfangen."},
+                            status_code=400)
+    try:
+        smtp_cert.speichern_pfx(data, password)
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    log.info("Separates SMTP-Listener-Zert (PFX) gesetzt durch %s", user)
+    return JSONResponse({"ok": True, "info": smtp_cert.info(), "restart_needed": True})
+
+
+@router.post("/api/smtp-cert/remove")
+async def api_smtp_cert_remove(user: str = Depends(_require_admin)):
+    import smtp_cert
+    weg = smtp_cert.entfernen()
+    if weg:
+        log.info("Separates SMTP-Listener-Zert entfernt durch %s", user)
+    return JSONResponse({"ok": True, "entfernt": weg, "restart_needed": weg})

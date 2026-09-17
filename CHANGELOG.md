@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.45 — 2026-09-17 — Separates SMTP-Zertifikat per PFX-Upload (Einstellungen → Erweitert)
+
+Standardmäßig teilen sich SMTP-Listener und Web-UI ein Zertifikat (Let's Encrypt
+auf den Gateway-Namen). Hinter einem SNI-Reverse-Proxy muss der Listener aber
+mitunter einen **anderen** Namen präsentieren als die Web-UI — etwa wenn ein
+Exchange-Connector per TLS einen Hostnamen validiert, der nicht der Gateway-Name
+ist. Unter **Einstellungen → Erweitert** lässt sich dafür jetzt eine
+**PFX-/PKCS#12-Datei** (Zertifikat und Schlüssel in einem, Passwort optional) nur
+für den SMTP-Listener hochladen; die Web-UI bleibt unverändert auf dem
+gemeinsamen Zert.
+
+Die PFX wird beim Hochladen entpackt und geprüft (lesbar, Passwort stimmt,
+enthält Schlüssel + passendes Zertifikat), bevor sie gespeichert wird — ein
+kaputtes Paket liesse den Listener sonst beim Neustart ganz ohne TLS hochkommen.
+Scheitert das separate Zert zur Laufzeit, fällt der Listener auf das gemeinsame
+zurück, statt TLS abzuschalten. Wirkt nach einem Neustart.
+
 ## v1.9.44 — 2026-09-17 — docker-compose: HTTPS-Host-Port konfigurierbar (Reverse-Proxy)
 
 Der HTTPS-Host-Port ist jetzt über `GW_WEBUI_PORT` einstellbar (Vorgabe **443**,
