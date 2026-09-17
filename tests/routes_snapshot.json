@@ -1414,6 +1414,27 @@
     "name": "api_smtp_acl_status"
   },
   {
+    "pfad": "/api/smtp-cert",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_smtp_cert_info"
+  },
+  {
+    "pfad": "/api/smtp-cert",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_smtp_cert_save"
+  },
+  {
+    "pfad": "/api/smtp-cert/remove",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_smtp_cert_remove"
+  },
+  {
     "pfad": "/api/support/download",
     "methoden": [
       "GET"

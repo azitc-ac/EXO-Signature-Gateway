@@ -89,6 +89,100 @@ function saveLexwareFix(enabled) {
 }
 </script>
 
+<div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px" id="smtp-cert">
+  <div class="step-header">
+    <span class="step-badge" style="background:#0369a1;font-size:10px">TLS</span>
+    <span class="step-title">SMTP-Zertifikat (separat)
+      <span style="font-weight:400;font-size:12px;color:#57534e"> — eigenes Zert für den SMTP-Listener</span>
+    </span>
+  </div>
+  <div class="step-body">
+    <p style="font-size:13px;color:#57534e;margin:0 0 12px">
+      Standardmäßig nutzt der SMTP-Listener (Port 25/587) dasselbe Zertifikat wie die
+      Web-UI (Let's Encrypt, Gateway-Name). Hinter einem SNI-Reverse-Proxy muss der
+      Listener aber ggf. einen <strong>anderen</strong> Namen präsentieren als die
+      Web-UI — etwa wenn ein Exchange-Connector per TLS einen Hostnamen validiert, der
+      nicht der Gateway-Name ist. Hier lässt sich dafür eine <strong>PFX-/PKCS#12-Datei</strong>
+      (Zertifikat und Schlüssel in einem) hochladen; die Web-UI bleibt unverändert.
+      Wirkt nach einem Neustart.
+    </p>
+    <div id="smtp-cert-status" style="font-size:13px;margin:0 0 12px;padding:10px 12px;border:1px solid #e2e8f0;border-radius:6px">— wird geladen … —</div>
+    <div style="display:grid;gap:10px;max-width:520px">
+      <div>
+        <label for="smtp-pfx" style="display:block;font-size:12px;color:#57534e;margin-bottom:3px">PFX-/PKCS#12-Datei <span style="font-weight:400;color:#78716c">(.pfx / .p12 — enthält Zert + Schlüssel, ggf. Kette)</span></label>
+        <input type="file" id="smtp-pfx" accept=".pfx,.p12" style="font-size:13px">
+      </div>
+      <div>
+        <label for="smtp-pfx-pw" style="display:block;font-size:12px;color:#57534e;margin-bottom:3px">Passwort <span style="font-weight:400;color:#78716c">(falls die PFX eines hat)</span></label>
+        <input type="password" id="smtp-pfx-pw" autocomplete="new-password" placeholder="—" style="width:260px;max-width:100%;box-sizing:border-box">
+      </div>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button type="button" class="btn primary" onclick="smtpCertSpeichern(this)">Zertifikat setzen</button>
+      <button type="button" class="btn secondary btn-sm" id="smtp-cert-remove-btn" style="display:none" onclick="smtpCertEntfernen(this)">Separates Zert entfernen</button>
+      <span id="smtp-cert-result" style="font-size:12px"></span>
+    </div>
+    <div id="smtp-cert-restart" hidden style="margin-top:12px;padding:10px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;font-size:13px;color:#92400e">
+      Gespeichert — wirkt erst nach einem <strong>Neustart</strong> des Dienstes.
+      <button type="button" class="btn secondary btn-sm" style="margin-left:8px" onclick="smtpCertNeustart(this)">Jetzt neu starten</button>
+    </div>
+  </div>
+</div>
+<script>
+async function smtpCertLaden() {
+  const box = document.getElementById('smtp-cert-status');
+  try {
+    const r = await fetch('/api/smtp-cert').then(x => x.json());
+    const rm = document.getElementById('smtp-cert-remove-btn');
+    let t;
+    if (r.override) { t = '<strong>Separates Zert aktiv.</strong> '; rm.style.display = ''; }
+    else { t = 'Kein separates Zert — es gilt das <strong>gemeinsame</strong> Web-UI-Zert. '; rm.style.display = 'none'; }
+    if (r.subject) {
+      t += 'Betreff: <code>' + esc(r.subject) + '</code>';
+      if (r.san && r.san.length) t += ', SAN: <code>' + esc(r.san.join(', ')) + '</code>';
+      if (r.not_after) t += ', gültig bis ' + esc(String(r.not_after).slice(0, 10));
+    } else if (r.fehler) {
+      t += '<span style="color:#dc2626">Zert nicht lesbar: ' + esc(r.fehler) + '</span>';
+    }
+    box.innerHTML = t;
+  } catch (e) { box.textContent = 'Status nicht abrufbar.'; }
+}
+
+async function smtpCertSpeichern(btn) {
+  const res = document.getElementById('smtp-cert-result');
+  const f = document.getElementById('smtp-pfx').files[0];
+  if (!f) { res.textContent = 'Bitte eine PFX-Datei wählen.'; res.style.color = '#dc2626'; return; }
+  const fd = new FormData();
+  fd.append('pfx', f);
+  fd.append('password', document.getElementById('smtp-pfx-pw').value || '');
+  btn.disabled = true;
+  const r = await fetch('/api/smtp-cert', {method: 'POST', body: fd}).then(x => x.json());
+  btn.disabled = false;
+  if (!r.ok) { res.textContent = 'Fehler: ' + (r.error || '?'); res.style.color = '#dc2626'; return; }
+  res.textContent = 'gespeichert'; res.style.color = '#16a34a';
+  document.getElementById('smtp-pfx').value = '';
+  document.getElementById('smtp-pfx-pw').value = '';
+  if (r.restart_needed) document.getElementById('smtp-cert-restart').hidden = false;
+  smtpCertLaden();
+}
+
+async function smtpCertEntfernen(btn) {
+  if (!confirm('Separates SMTP-Zert entfernen? Der Listener nutzt danach wieder das gemeinsame Web-UI-Zert.')) return;
+  btn.disabled = true;
+  const r = await fetch('/api/smtp-cert/remove', {method: 'POST'}).then(x => x.json());
+  btn.disabled = false;
+  if (r.restart_needed) document.getElementById('smtp-cert-restart').hidden = false;
+  smtpCertLaden();
+}
+
+async function smtpCertNeustart(btn) {
+  btn.disabled = true; btn.textContent = 'startet neu …';
+  await fetch('/api/restart', {method: 'POST'});
+  setTimeout(() => location.reload(), 6000);
+}
+smtpCertLaden();
+</script>
+
 <!-- ── Preview-Modal ─────────────────────────────────────────────────────── -->
 <div id="held-preview-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:10px;width:90%;max-width:900px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.25)">
