@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.46 — 2026-09-17 — SMTP-Zertifikat: Kette wird beim Upload automatisch vervollständigt
+
+Beim Hochladen eines separaten SMTP-Zertifikats (Einstellungen → Erweitert) wird
+die Zertifikatskette jetzt automatisch vervollständigt: fehlende
+Zwischenzertifikate werden über die **AIA-URL** (Authority Information Access,
+„CA Issuers") des Zertifikats nachgeladen, dem Aussteller aufwärts folgend bis
+zum Root. Der Root selbst wird nicht mitgesendet — den hat die Gegenstelle im
+Trust-Store.
+
+Hintergrund: Strenge Gegenstellen — etwa **Exchange Online** beim ausgehenden
+SMTP — bauen die Kette **nicht** selbst über AIA, sondern erwarten, dass der
+Server die vollständige Kette (Leaf + Zwischenzertifikate) im TLS-Handshake
+präsentiert. Eine PFX, die nur das Leaf enthält, führte sonst zu abgelehnten
+Verbindungen („full certificate chain to a trusted root not found in TLS
+handshake"). Das entfällt jetzt — auch nach einer Zertifikatserneuerung, bei der
+oft nur das Leaf neu kommt.
+
+AIA-/Netzfehler beim Nachladen sind nicht fatal: dann bleibt die Kette so, wie
+sie hochgeladen wurde (mit Protokollwarnung).
+
 ## v1.9.45 — 2026-09-17 — Separates SMTP-Zertifikat per PFX-Upload (Einstellungen → Erweitert)
 
 Standardmäßig teilen sich SMTP-Listener und Web-UI ein Zertifikat (Let's Encrypt

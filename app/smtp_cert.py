@@ -51,6 +51,100 @@ def _passt(cert_pem: bytes, key_pem: bytes) -> bool:
     return pub_c == pub_k
 
 
+def _pem_blocks(pem: bytes) -> list[bytes]:
+    """Zerlegt eine PEM-Sammlung in einzelne Zertifikatsblöcke (byte-genau)."""
+    begin, end = b"-----BEGIN CERTIFICATE-----", b"-----END CERTIFICATE-----"
+    out, i = [], 0
+    while True:
+        b = pem.find(begin, i)
+        if b < 0:
+            break
+        e = pem.find(end, b)
+        if e < 0:
+            break
+        out.append(pem[b:e + len(end)] + b"\n")
+        i = e + len(end)
+    return out
+
+
+def _load_cert_any(raw: bytes):
+    from cryptography import x509
+    try:
+        return x509.load_der_x509_certificate(raw)
+    except Exception:                                     # noqa: BLE001
+        return x509.load_pem_x509_certificate(raw)
+
+
+def _aia_ca_issuer(cert) -> str | None:
+    """CA-Issuers-URL aus der AIA-Erweiterung — oder None."""
+    from cryptography import x509
+    from cryptography.x509.oid import ExtensionOID, AuthorityInformationAccessOID
+    try:
+        aia = cert.extensions.get_extension_for_oid(
+            ExtensionOID.AUTHORITY_INFORMATION_ACCESS).value
+    except x509.ExtensionNotFound:
+        return None
+    for desc in aia:
+        if desc.access_method == AuthorityInformationAccessOID.CA_ISSUERS:
+            try:
+                return desc.access_location.value
+            except Exception:                             # noqa: BLE001
+                return None
+    return None
+
+
+def _hole_zert(url: str):
+    """Lädt ein Zertifikat von einer AIA-URL (DER oder PEM). Getrennt, damit
+    Tests den Netzzugriff ersetzen können."""
+    import urllib.request
+    with urllib.request.urlopen(url, timeout=10) as r:    # noqa: S310 — feste AIA-URLs
+        return _load_cert_any(r.read())
+
+
+def _fp(cert) -> bytes:
+    from cryptography.hazmat.primitives import hashes
+    return cert.fingerprint(hashes.SHA256())
+
+
+def _mit_kette(cert_pem: bytes) -> bytes:
+    """Ergänzt fehlende Zwischenzertifikate, indem der AIA-Kette (CA Issuers)
+    vom Leaf aufwärts gefolgt wird, bis ein selbstsigniertes (Root) erreicht ist.
+
+    Der Root wird NICHT mitgesendet (den hat der Client im Trust-Store — „Root =
+    Client, Intermediates = Server"). Nötig, weil strenge Gegenstellen wie
+    Exchange Online kein AIA-Chasing machen und die volle Kette im Handshake
+    erwarten. Netz-/AIA-Fehler sind nicht fatal: dann bleibt die Kette so, wie
+    sie kam (mit Warnung).
+    """
+    from cryptography import x509
+    from cryptography.hazmat.primitives.serialization import Encoding
+    blocks = _pem_blocks(cert_pem)
+    if not blocks:
+        return cert_pem
+    seen = {_fp(x509.load_pem_x509_certificate(b)) for b in blocks}
+    for _ in range(8):                                    # Schleifen-Deckel
+        last = x509.load_pem_x509_certificate(blocks[-1])
+        if last.issuer == last.subject:
+            break                                          # schon beim Root
+        url = _aia_ca_issuer(last)
+        if not url:
+            break
+        try:
+            inter = _hole_zert(url)
+        except Exception as exc:                          # noqa: BLE001
+            log.warning("AIA-Kettenaufbau: %s nicht ladbar (%s) — Kette bleibt, "
+                        "wie sie kam", url, exc)
+            break
+        if inter.issuer == inter.subject:
+            break                                          # Root — nicht mitsenden
+        fp = _fp(inter)
+        if fp in seen:
+            break                                          # Zyklus-Schutz
+        seen.add(fp)
+        blocks.append(inter.public_bytes(Encoding.PEM))
+    return b"".join(blocks)
+
+
 def speichern(cert_pem: bytes, key_pem: bytes) -> None:
     """Separates Listener-Zert setzen.
 
@@ -74,9 +168,11 @@ def speichern(cert_pem: bytes, key_pem: bytes) -> None:
             f"Privater Schlüssel nicht lesbar (unverschlüsseltes PEM erwartet): {exc}")
     if not _passt(cert_pem, key_pem):
         raise ValueError("Schlüssel und Zertifikat gehören nicht zusammen")
+    cert_pem = _mit_kette(cert_pem)          # fehlende Intermediates per AIA ergänzen
     secure_io.write_secret_bytes(CERT, cert_pem)
     secure_io.write_secret_bytes(KEY, key_pem)
-    log.info("Separates SMTP-Listener-Zert gesetzt: %s", _info_dict(cert_pem).get("subject"))
+    log.info("Separates SMTP-Listener-Zert gesetzt: %s (%d Zert(e) in der Kette)",
+             _info_dict(cert_pem).get("subject"), len(_pem_blocks(cert_pem)))
 
 
 def speichern_pfx(pfx_bytes: bytes, password: str | None = None) -> None:

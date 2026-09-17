@@ -275,8 +275,11 @@ async def api_smtp_cert_save(pfx: UploadFile = File(...), password: str = Form("
     if not data:
         return JSONResponse({"ok": False, "error": "Keine PFX-Datei empfangen."},
                             status_code=400)
+    import asyncio
     try:
-        smtp_cert.speichern_pfx(data, password)
+        # speichern_pfx vervollständigt die Kette per AIA (Netz-I/O) → Thread,
+        # damit der Event-Loop nicht blockiert.
+        await asyncio.to_thread(smtp_cert.speichern_pfx, data, password)
     except ValueError as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
     log.info("Separates SMTP-Listener-Zert (PFX) gesetzt durch %s", user)
