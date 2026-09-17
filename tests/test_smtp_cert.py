@@ -116,6 +116,83 @@ def test_pfx_falsches_passwort_wird_abgelehnt():
     assert not smtp_cert.aktiv()
 
 
+def _hierarchie():
+    """leaf → int → root (self-signed), mit AIA-CA-Issuers-URLs.
+    Rückgabe: (leaf_pem, {url: cert_obj})."""
+    from cryptography import x509
+    from cryptography.x509.oid import NameOID, AuthorityInformationAccessOID
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    now = datetime.datetime.now(datetime.timezone.utc)
+    def _k():
+        return rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    def _n(cn):
+        return x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, cn)])
+    def _aia(url):
+        return x509.AuthorityInformationAccess([x509.AccessDescription(
+            AuthorityInformationAccessOID.CA_ISSUERS,
+            x509.UniformResourceIdentifier(url))])
+    rk, ik, lk = _k(), _k(), _k()
+    rn, iname, ln = _n("TestRoot"), _n("TestInt"), _n("*.test.example")
+    nb, na = now - datetime.timedelta(days=1), now + datetime.timedelta(days=3650)
+    root = (x509.CertificateBuilder().subject_name(rn).issuer_name(rn)
+            .public_key(rk.public_key()).serial_number(x509.random_serial_number())
+            .not_valid_before(nb).not_valid_after(na).sign(rk, hashes.SHA256()))
+    inter = (x509.CertificateBuilder().subject_name(iname).issuer_name(rn)
+             .public_key(ik.public_key()).serial_number(x509.random_serial_number())
+             .not_valid_before(nb).not_valid_after(na)
+             .add_extension(_aia("http://test/root"), False).sign(rk, hashes.SHA256()))
+    leaf = (x509.CertificateBuilder().subject_name(ln).issuer_name(iname)
+            .public_key(lk.public_key()).serial_number(x509.random_serial_number())
+            .not_valid_before(nb).not_valid_after(na)
+            .add_extension(_aia("http://test/int"), False).sign(ik, hashes.SHA256()))
+    P = serialization.Encoding.PEM
+    return leaf.public_bytes(P), {"http://test/int": inter, "http://test/root": root}
+
+
+def test_mit_kette_folgt_aia_bis_root(monkeypatch):
+    leaf_pem, url_map = _hierarchie()
+    monkeypatch.setattr(smtp_cert, "_hole_zert", lambda url: url_map[url])
+    full = smtp_cert._mit_kette(leaf_pem)
+    # leaf + intermediate — der self-signed Root wird NICHT mitgesendet
+    assert full.count(b"BEGIN CERTIFICATE") == 2
+    from cryptography import x509
+    zwei = smtp_cert._pem_blocks(full)
+    assert "TestInt" in x509.load_pem_x509_certificate(zwei[1]).subject.rfc4514_string()
+
+
+def test_mit_kette_selbstsigniert_ist_no_op(monkeypatch):
+    # Self-signed (issuer==subject) → keine AIA-Verfolgung, kein Netz.
+    def _boom(url):
+        raise AssertionError("darf nicht aufgerufen werden")
+    monkeypatch.setattr(smtp_cert, "_hole_zert", _boom)
+    c, _ = _selfsigned("solo.example.net")
+    assert smtp_cert._mit_kette(c).count(b"BEGIN CERTIFICATE") == 1
+
+
+def test_aia_ca_issuer_liest_url():
+    leaf_pem, _ = _hierarchie()
+    from cryptography import x509
+    cert = x509.load_pem_x509_certificate(leaf_pem)
+    assert smtp_cert._aia_ca_issuer(cert) == "http://test/int"
+
+
+def test_speichern_vervollstaendigt_die_kette(monkeypatch):
+    # End-to-end: ein Leaf mit AIA wird gespeichert → Kette ist ergänzt.
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    leaf_pem, url_map = _hierarchie()
+    # ein gültiger (parsebarer) Schlüssel; er passt nicht zum Leaf, darum _passt
+    # umgehen — hier geht es nur um die Ketten-Ergänzung im Speicherpfad.
+    key_pem = rsa.generate_private_key(65537, 2048).private_bytes(
+        serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption())
+    monkeypatch.setattr(smtp_cert, "_passt", lambda c, k: True)
+    monkeypatch.setattr(smtp_cert, "_hole_zert", lambda url: url_map[url])
+    smtp_cert.speichern(leaf_pem, key_pem)
+    assert smtp_cert.CERT.read_bytes().count(b"BEGIN CERTIFICATE") == 2
+
+
 def test_entfernen_faellt_auf_gemeinsam_zurueck():
     c, k = _selfsigned()
     smtp_cert.speichern(c, k)
