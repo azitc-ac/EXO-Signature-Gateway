@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.43 — 2026-09-17 — Einrichtungs-Assistent: Schrittfolge & Links, README-Dimensionierung
+
+Drei Verbesserungen aus einem Erst-Installations-Durchlauf:
+
+- **Der Schritt „S/MIME – Inbound Transport-Regeln" stand vor seinen
+  Voraussetzungen.** Er saß zwischen „Gateway-Name" und dem Entra-Login, obwohl
+  die Regeln erst nach dem EXO-Connector erstellbar sind (der Connector braucht
+  die App-Registrierung, die den Entra-Login braucht). Der Schritt steht jetzt
+  **hinter dem EXO-Connector**, wo sein Knopf tatsächlich ausführbar ist — kein
+  Schritt mehr vor seinen Voraussetzungen. Die S/MIME-Aktivierung bleibt weiter
+  oben am Modus-Schritt.
+- **Der Link „Entra Admin Center → App-Registrierungen" führte auf das schwere
+  `portal.azure.com`.** Er zeigt jetzt auf `entra.microsoft.com` (dieselbe
+  Ansicht, aber die dedizierte Admin-Oberfläche lädt spürbar schneller,
+  besonders auf schwacher Hardware).
+- **README nennt jetzt eine konkrete Azure-Größe mit Kosten.** Empfehlung
+  `Standard_B2pls_v2` (ARM64, 2 vCPU / 4 GB, ~€31/Monat) statt des oft
+  voreingestellten, überdimensionierten `B2ps_v2` (8 GB) — mit Kostenaufstellung
+  und ARM-/Regions-Hinweisen.
+
 ## v1.9.42 — 2026-09-17 — Domänen-Routing: Empfängerdomänen an eigene Zielserver
 
 Bearbeitete Post ging bisher ausnahmslos an einen einzigen Smarthost (Exchange

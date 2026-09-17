@@ -333,6 +333,24 @@ Untergrenze**.
   unter `data/`; bei hohem Aufkommen entsprechend großzügiger wählen.
 - Läuft auf **x64 und ARM64** gleichermaßen (Azure-VM wie Raspberry Pi).
 
+**Empfohlene Azure-Größe: `Standard_B2pls_v2`** (ARM64/Ampere, 2 vCPU, **4 GB**) —
+deckt Build (~1,5 GB) und Laufzeit ab, ohne wie das oft voreingestellte
+`B2ps_v2` (8 GB) zu überdimensionieren. Richtwert Gesamtkosten (Azure-Retail,
+northeurope, ~730 h/Monat):
+
+| Posten | Kosten |
+|---|---|
+| VM `B2pls_v2` (Linux, 24/7) | ~$27/Monat |
+| OS-Disk 30 GB Standard SSD (E4) | ~$2,4/Monat |
+| 1× statische Standard-Public-IP | ~$3,65/Monat |
+| **Summe** | **≈ $33/Monat (~€31)** — mit 1-Jahres-Reservierung ~€22–24 |
+
+- **ARM (Ampere) ist bei gleichem RAM ~15–20 % günstiger** als x64.
+- Für sehr geringes Aufkommen genügt auch x64 `B1ms` (1 vCPU/2 GB, ~$16/Monat;
+  Build ggf. mit Swap). Premium-SSD ist nicht nötig (kein hoher IOPS-Bedarf).
+- Regionale Preise variieren ~10–15 % (swedencentral ist die günstigste
+  EU-Region). Es genügt **eine** statische Public IP.
+
 ---
 
 ## Re-inject-Modi
