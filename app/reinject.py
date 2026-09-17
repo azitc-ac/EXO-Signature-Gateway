@@ -466,8 +466,18 @@ def _relay_to_target(ziel_id: str, mail_from: str, rcpt_tos: list[str],
     tls_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
     tls_ctx.check_hostname = False
     tls_ctx.verify_mode = ssl.CERT_NONE
-    cert_path = Path(config.SMTP_TLS_CERT)
-    key_path = Path(config.SMTP_TLS_KEY)
+    # Client-Zert für den on-prem-Hop: das SEPARATE SMTP-Zert (falls gesetzt),
+    # damit der Gateway on-prem mit derselben Identität auftritt wie am Listener
+    # (z.B. *.zarenko.net, das ein on-prem-Receive-Connector per
+    # TlsDomainCapabilities als vertrauenswürdig erkennt). Sonst das gemeinsame
+    # Zert. ⚠️ NICHT für _send_smtp (EXO-Smarthost) — EXOs Inbound-Connector
+    # erwartet dort weiter den Gateway-Namen (TlsSenderCertificateName).
+    import smtp_cert
+    _paar = smtp_cert.pfade()
+    if _paar:
+        cert_path, key_path = Path(_paar[0]), Path(_paar[1])
+    else:
+        cert_path, key_path = Path(config.SMTP_TLS_CERT), Path(config.SMTP_TLS_KEY)
     if cert_path.exists() and key_path.exists():
         try:
             tls_ctx.load_cert_chain(certfile=str(cert_path), keyfile=str(key_path))

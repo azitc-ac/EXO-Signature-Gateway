@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.47 — 2026-09-18 — Domänen-Routing: on-prem-Hop nutzt das separate SMTP-Zert als Client-Zert
+
+Beim Weiterleiten an ein eigenes Ziel (Domänen-Routing) präsentiert der Gateway
+jetzt das **separate SMTP-Zertifikat** (falls gesetzt, Einstellungen → Erweitert)
+auch als **Client-Zertifikat** gegenüber dem Zielserver — statt des gemeinsamen
+Web-UI-Zerts. So tritt der Gateway zum Ziel mit derselben Identität auf wie am
+Listener; ein empfangender Server kann ihn darüber gezielt als vertrauenswürdig
+einstufen (z. B. per `TlsDomainCapabilities` auf den Zertifikatsnamen). Ist kein
+separates Zert hinterlegt, bleibt es beim gemeinsamen.
+
+Der Smarthost-Rückweg zu Exchange Online (`_send_smtp`) ist bewusst **nicht**
+betroffen — dort erwartet der EXO-Inbound-Connector weiterhin den Gateway-Namen
+(`TlsSenderCertificateName`).
+
 ## v1.9.46 — 2026-09-17 — SMTP-Zertifikat: Kette wird beim Upload automatisch vervollständigt
 
 Beim Hochladen eines separaten SMTP-Zertifikats (Einstellungen → Erweitert) wird

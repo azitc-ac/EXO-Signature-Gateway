@@ -141,9 +141,60 @@ def test_relay_to_target_reicht_byte_genau_durch_ohne_dkim_strip(monkeypatch):
     mf, rt, content = gesendet["args"]
     assert mf == "erika@zarenko.net"
     assert rt == ["a@contoso.de"]
+    # (Client-Zert-Wahl wird separat geprüft, s.u.)
     # BYTE-GENAU durchgereicht: DKIM bleibt, nichts angefasst
     assert content == raw
     assert b"DKIM-Signature" in content
     assert gesendet["host"] == "ex.local" and gesendet["port"] == 25
     assert "starttls" not in gesendet      # starttls=False → kein STARTTLS
     assert "login" not in gesendet         # kein user/pass → kein AUTH
+
+
+def test_relay_to_target_praesentiert_separates_smtp_zert(monkeypatch, tmp_path):
+    """Der on-prem-Hop präsentiert das SEPARATE SMTP-Zert (falls gesetzt) als
+    Client-Zert — nicht das gemeinsame. So tritt der Gateway on-prem mit der
+    Listener-Identität auf (TlsDomainCapabilities)."""
+    import ssl as _ssl
+    import smtp_cert
+    import aussenadresse
+    _fake_settings(monkeypatch, {
+        "RELAY_TARGETS": {"onprem": {"host": "ex.local", "port": 25, "starttls": True}},
+        "RELAY_TARGET_PW": {},
+    })
+    cf = tmp_path / "smtp_cert.pem"
+    kf = tmp_path / "smtp_key.pem"
+    cf.write_text("cert"); kf.write_text("key")
+    monkeypatch.setattr(smtp_cert, "pfade", lambda: (str(cf), str(kf)))
+    monkeypatch.setattr(aussenadresse, "ehlo_hostname", lambda: "gw.test")
+
+    used = {}
+    monkeypatch.setattr(_ssl.SSLContext, "load_cert_chain",
+                        lambda self, certfile, keyfile: used.update(cert=certfile))
+
+    class FakeSMTP:
+        def __init__(self, *a, **k):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def ehlo(self):
+            pass
+
+        def starttls(self, context=None):
+            pass
+
+        def login(self, *a):
+            pass
+
+        def sendmail(self, *a):
+            pass
+
+    monkeypatch.setattr(reinject.smtplib, "SMTP", FakeSMTP)
+    reinject._relay_to_target("onprem", "a@x.de", ["b@ex.local"], b"raw")
+
+    # das Override-Zert, NICHT config.SMTP_TLS_CERT
+    assert used.get("cert") == str(cf)
