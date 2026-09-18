@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Kampagnen</h1>
+
+<p class="hint" style="max-width:760px;margin:0 0 16px">
+  Eine Kampagne zeigt ein <strong>Banner</strong> für einen <strong>Zeitraum</strong>,
+  optional nur einer <strong>Zielgruppe</strong>. Ist zum Sendezeitpunkt eine
+  passende Kampagne aktiv, gewinnt ihr Banner über das sonst zugewiesene. Ohne
+  aktive Kampagne bleibt alles wie eingestellt — kein Eingriff in den Mailfluss,
+  nur der Banner-Teil der Signatur.
+</p>
+
+<!-- ── Kampagnen-Liste ─────────────────────────────────────────────────────── -->
+<div class="settings-card" style="margin-bottom:20px">
+  <h2 style="margin:0 0 12px">Kampagnen</h2>
+  <div class="tabellen-rollbereich">
+    <table class="config-table" style="min-width:720px">
+      <thead>
+        <tr>
+          <th>Name</th><th>Banner</th><th>Zeitraum</th><th>Gruppe</th>
+          <th>Status</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="kampagnen-body">
+        <tr><td colspan="6" style="color:#888">Wird geladen …</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div style="border-top:1px solid #e2e8f0;margin-top:16px;padding-top:14px">
+    <h3 style="font-size:14px;margin:0 0 10px" id="form-titel">Neue Kampagne</h3>
+    <input type="hidden" id="k-id">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px 12px;align-items:start">
+      <div>
+        <label for="k-name" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Name</label>
+        <input type="text" id="k-name" placeholder="Sommeraktion" autocomplete="off" style="width:100%;margin:0;box-sizing:border-box">
+      </div>
+      <div>
+        <label for="k-banner" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Banner-Vorlage</label>
+        <select id="k-banner" style="width:100%;margin:0;box-sizing:border-box"></select>
+      </div>
+      <div>
+        <label for="k-group" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Zielgruppe <span class="hint" style="font-weight:400">(optional)</span></label>
+        <select id="k-group" style="width:100%;margin:0;box-sizing:border-box"></select>
+      </div>
+      <div>
+        <label for="k-start" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Start <span class="hint" style="font-weight:400">(leer = sofort)</span></label>
+        <input type="datetime-local" id="k-start" style="width:100%;margin:0;box-sizing:border-box">
+      </div>
+      <div>
+        <label for="k-end" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Ende <span class="hint" style="font-weight:400">(leer = offen)</span></label>
+        <input type="datetime-local" id="k-end" style="width:100%;margin:0;box-sizing:border-box">
+      </div>
+      <div style="align-self:end;padding-bottom:6px">
+        <label class="checkbox-label" style="margin:0"><input type="checkbox" id="k-enabled" checked> aktiviert</label>
+      </div>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button type="button" class="btn" onclick="kampagneSpeichern(this)">Speichern</button>
+      <button type="button" class="btn secondary" onclick="kampagneFormLeeren()" id="k-abbrechen" style="display:none">Abbrechen</button>
+      <span class="hint">Zeiten in deiner Ortszeit; gespeichert wird in UTC.</span>
+    </div>
+    <div id="k-result" style="display:none;margin-top:10px"></div>
+  </div>
+</div>
+
+<script>
+let _banners = [], _groups = [];
+
+async function ladenK() {
+  let r;
+  try {
+    const res = await fetch('/api/campaigns');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    r = await res.json();
+  } catch (e) {
+    document.getElementById('kampagnen-body').innerHTML =
+      '<tr><td colspan="6" style="color:#991b1b">Liste nicht abrufbar: ' + esc(String(e)) + '</td></tr>';
+    return;
+  }
+  if (!r || !r.ok) return;
+  _banners = r.banners || [];
+  _groups = r.groups || [];
+  fuelleAuswahl();
+  zeichneKampagnen(r.campaigns || []);
+}
+
+function fuelleAuswahl() {
+  const b = document.getElementById('k-banner');
+  const behaltenB = b.value;
+  b.innerHTML = _banners.map(function (n) {
+    return '<option value="' + escAttr(n) + '">' + esc(n) + '</option>';
+  }).join('');
+  if (behaltenB) b.value = behaltenB;
+
+  const g = document.getElementById('k-group');
+  const behaltenG = g.value;
+  g.innerHTML = '<option value="">— alle Postfächer —</option>'
+    + _groups.map(function (n) {
+        return '<option value="' + escAttr(n) + '">' + esc(n) + '</option>';
+      }).join('');
+  if (behaltenG) g.value = behaltenG;
+}
+
+const _STATUS = {
+  aktiv:      { text: 'aktiv',      farbe: '#166534' },
+  geplant:    { text: 'geplant',    farbe: '#0369a1' },
+  abgelaufen: { text: 'abgelaufen', farbe: '#94a3b8' },
+  aus:        { text: 'aus',        farbe: '#94a3b8' }
+};
+
+function zeichneKampagnen(liste) {
+  const tb = document.getElementById('kampagnen-body');
+  if (!liste.length) {
+    tb.innerHTML = '<tr><td colspan="6" style="color:#888">Noch keine Kampagne.</td></tr>';
+    return;
+  }
+  tb.innerHTML = '';
+  liste.forEach(function (k) {
+    const st = _STATUS[k.status] || _STATUS.aus;
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td>' + esc(k.name || '—') + '</td>'
+      + '<td><code>' + esc(k.banner || '—') + '</code></td>'
+      + '<td style="font-size:12px;color:#555;white-space:nowrap">' + zeitraumText(k) + '</td>'
+      + '<td style="font-size:12px">' + (k.group ? esc(k.group) : '<span style="color:#94a3b8">alle</span>') + '</td>'
+      + '<td style="font-weight:600;color:' + st.farbe + '">' + st.text + '</td>'
+      + '<td style="white-space:nowrap">'
+        + '<button class="btn secondary btn-sm" onclick="kampagneBearbeiten(' + escAttr(JSON.stringify(k)) + ')">Bearbeiten</button> '
+        + '<button class="btn secondary btn-sm" onclick="kampagneLoeschen(\'' + escAttr(k.id) + '\', this)">Löschen</button>'
+      + '</td>';
+    tb.appendChild(tr);
+  });
+}
+
+function zeitraumText(k) {
+  const s = k.start ? fmtLokal(k.start) : 'sofort';
+  const e = k.end ? fmtLokal(k.end) : 'offen';
+  return esc(s + ' – ' + e);
+}
+
+function fmtLokal(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return iso;
+  return d.toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit',
+                                     hour: '2-digit', minute: '2-digit' });
+}
+
+// UTC-ISO ↔ datetime-local (Ortszeit ohne Zone)
+function isoZuLokalInput(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  const p = function (n) { return String(n).padStart(2, '0'); };
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate())
+       + 'T' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+function lokalInputZuIso(v) {
+  if (!v) return '';
+  const d = new Date(v);          // datetime-local wird als Ortszeit gedeutet
+  return isNaN(d) ? '' : d.toISOString();
+}
+
+function kampagneBearbeiten(k) {
+  document.getElementById('k-id').value = k.id || '';
+  document.getElementById('k-name').value = k.name || '';
+  fuelleAuswahl();
+  document.getElementById('k-banner').value = k.banner || '';
+  document.getElementById('k-group').value = k.group || '';
+  document.getElementById('k-start').value = isoZuLokalInput(k.start);
+  document.getElementById('k-end').value = isoZuLokalInput(k.end);
+  document.getElementById('k-enabled').checked = k.enabled !== false;
+  document.getElementById('form-titel').textContent = 'Kampagne bearbeiten';
+  document.getElementById('k-abbrechen').style.display = '';
+  document.getElementById('k-name').focus();
+}
+
+function kampagneFormLeeren() {
+  ['k-id', 'k-name', 'k-start', 'k-end'].forEach(function (id) {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('k-group').value = '';
+  document.getElementById('k-enabled').checked = true;
+  document.getElementById('form-titel').textContent = 'Neue Kampagne';
+  document.getElementById('k-abbrechen').style.display = 'none';
+}
+
+async function kampagneSpeichern(btn) {
+  const box = document.getElementById('k-result');
+  const name = (document.getElementById('k-name').value || '').trim();
+  const banner = document.getElementById('k-banner').value || '';
+  if (!name) { showAlert(box, 'error', 'Bitte einen Namen angeben.'); return; }
+  if (!banner) { showAlert(box, 'error', 'Bitte eine Banner-Vorlage wählen.'); return; }
+  const payload = {
+    id: document.getElementById('k-id').value || '',
+    name: name,
+    banner: banner,
+    group: document.getElementById('k-group').value || '',
+    start: lokalInputZuIso(document.getElementById('k-start').value),
+    end: lokalInputZuIso(document.getElementById('k-end').value),
+    enabled: document.getElementById('k-enabled').checked
+  };
+  btn.disabled = true;
+  const r = await postJSON('/api/campaigns', payload);
+  btn.disabled = false;
+  if (!r || !r.ok) { showAlert(box, 'error', (r && r.error) || 'Speichern fehlgeschlagen.'); return; }
+  showAlert(box, 'success', 'Gespeichert.');
+  kampagneFormLeeren();
+  ladenK();
+}
+
+async function kampagneLoeschen(id, btn) {
+  if (!confirm('Kampagne entfernen?')) return;
+  btn.disabled = true;
+  const r = await postJSON('/api/campaigns/delete', { id: id });
+  if (!r || !r.ok) { btn.disabled = false; return; }
+  ladenK();
+}
+
+ladenK();
+</script>
+{% endblock %}

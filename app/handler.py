@@ -1019,6 +1019,23 @@ class SignatureHandler:
                 sig_html, sig_txt = signature_engine.render(user_data, template_name=template_name)
                 _banner_tpl = ((_policies.get("banner") or "") if _use_pol
                                else _sender_cfg.get("banner_template", "")).strip()
+                # Banner-Kampagne (Zeitfenster + optionale Zielgruppe) hat Vorrang:
+                # ist zum Sendezeitpunkt eine passende Kampagne aktiv, gewinnt ihr
+                # Banner über das der Richtlinie/des Postfachs. Unabhängig von
+                # use_policy — eine Kampagne ist ein Marketing-Vorgang, kein
+                # Postfach-Attribut. Rein additiv, kein Mailfluss-Eingriff.
+                _campaigns = settings_store.get("BANNER_CAMPAIGNS") or []
+                if _campaigns:
+                    import banner_campaigns
+                    import mailbox_match as _mmk
+                    from datetime import datetime as _dtk, timezone as _tzk
+                    _ck = _mmk.match_sender_key(
+                        settings_store.get("MAILBOX_CONFIG") or {}, sender)
+                    _kmp = banner_campaigns.aktive_kampagne(
+                        _campaigns, _dtk.now(_tzk.utc), _ck,
+                        settings_store.get("INTERNAL_GROUPS") or {})
+                    if _kmp:
+                        _banner_tpl = _kmp
                 if _banner_tpl:
                     _banner_html, _ = signature_engine.render(user_data, template_name=_banner_tpl)
                     if _banner_html:

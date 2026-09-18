@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.54 — 2026-09-18 — Banner-Kampagnen: Banner mit Zeitfenster und Zielgruppe
+
+Neue Seite *Kampagnen*: Eine Kampagne zeigt ein Banner für einen Zeitraum
+(Start/Ende, jeweils optional — leer bedeutet „läuft schon" bzw. „läuft weiter"),
+wahlweise nur einer Zielgruppe (den internen Gruppen aus den Richtlinien). Ist
+zum Sendezeitpunkt eine passende Kampagne aktiv, gewinnt ihr Banner über das
+sonst zugewiesene; ohne aktive Kampagne bleibt alles unverändert.
+
+Das greift ausschließlich im Banner-Teil der Signatur — **kein** Eingriff in den
+Mailfluss, kein Loop-/Header-Thema, nur eine Datumsprüfung im vorhandenen
+Signaturweg. Die Zeiten werden in der Oberfläche in Ortszeit eingegeben und in
+UTC gespeichert.
+
+In dieser Stufe verwaltet die Verwaltung die Kampagnen. Die Delegation an eine
+eigene Rolle folgt separat.
+
 ## v1.9.53 — 2026-09-18 — SMTP-Relay: kein Preview mehr
 
 Das SMTP-Relay für eigene Geräte ist keine Vorschau mehr — das PREVIEW-Abzeichen

@@ -210,6 +210,27 @@
     "name": "api_backup_restore"
   },
   {
+    "pfad": "/api/campaigns",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_campaigns"
+  },
+  {
+    "pfad": "/api/campaigns",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_campaigns_save"
+  },
+  {
+    "pfad": "/api/campaigns/delete",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_campaigns_delete"
+  },
+  {
     "pfad": "/api/cert/catalog",
     "methoden": [
       "GET"
@@ -791,27 +812,6 @@
     "name": "api_relay_identitaet_loeschen"
   },
   {
-    "pfad": "/api/relay/route",
-    "methoden": [
-      "POST"
-    ],
-    "name": "api_relay_route"
-  },
-  {
-    "pfad": "/api/relay/ziel",
-    "methoden": [
-      "POST"
-    ],
-    "name": "api_relay_ziel"
-  },
-  {
-    "pfad": "/api/relay/ziel/loeschen",
-    "methoden": [
-      "POST"
-    ],
-    "name": "api_relay_ziel_loeschen"
-  },
-  {
     "pfad": "/api/relay/lernmodus",
     "methoden": [
       "POST"
@@ -826,11 +826,32 @@
     "name": "api_relay_liste"
   },
   {
+    "pfad": "/api/relay/route",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_relay_route"
+  },
+  {
     "pfad": "/api/relay/stats",
     "methoden": [
       "GET"
     ],
     "name": "api_relay_stats"
+  },
+  {
+    "pfad": "/api/relay/ziel",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_relay_ziel"
+  },
+  {
+    "pfad": "/api/relay/ziel/loeschen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_relay_ziel_loeschen"
   },
   {
     "pfad": "/api/restart",
@@ -1818,6 +1839,13 @@
       "GET"
     ],
     "name": "health"
+  },
+  {
+    "pfad": "/kampagnen",
+    "methoden": [
+      "GET"
+    ],
+    "name": "kampagnen_page"
   },
   {
     "pfad": "/log",
