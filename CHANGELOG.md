@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.48 — 2026-09-18 — Domänen-Routing: on-prem-Hop nutzt wieder das gemeinsame Zert (stabile Basis)
+
+Der on-prem-Hop präsentiert als Client-Zertifikat wieder das gemeinsame Zert
+statt des separaten SMTP-Zerts (Rücknahme von v1.9.47). Für den validierten
+Hybrid-Weg ist das Client-Zertifikat ohne Belang: Das on-prem-Vertrauen läuft
+**IP-basiert** über einen Empfangsconnector mit
+`AuthMechanism=Tls,ExternalAuthoritative` und der Gateway- bzw. Load-Balancer-
+Quell-IP in `RemoteIPRanges` — nicht über den Zertifikatsnamen. STARTTLS selbst
+braucht nur irgendein gültiges Zert.
+
+Damit ist die stabile Codebasis auf das Minimum für diesen Weg zurückgeführt.
+Der cert-genaue Weg (`TlsDomainCapabilities`/Direct Trust) bleibt möglich, ist
+aber zurückgestellt: er scheitert am proprietären XOORG-Protokoll bzw. verlangt
+unsupported AD-Eingriffe. Das separate SMTP-Zertifikat (Einstellungen →
+Erweitert) bleibt unverändert erhalten — es wird für den **Listener** gebraucht,
+damit Exchange Online die Verbindung zum Gateway per Zertifikatsname annimmt.
+
 ## v1.9.47 — 2026-09-18 — Domänen-Routing: on-prem-Hop nutzt das separate SMTP-Zert als Client-Zert
 
 Beim Weiterleiten an ein eigenes Ziel (Domänen-Routing) präsentiert der Gateway
