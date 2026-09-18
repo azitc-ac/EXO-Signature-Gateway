@@ -406,11 +406,26 @@ bleibt Exchange Online das Ziel.
 > „intern", `AuthAs: Internal`) reicht das Routing allein nicht: Das Gateway
 > terminiert die TLS-Verbindung und liefert mit eigener IP und eigenem Zertifikat
 > ein. Der on-prem-Empfangsconnector des Hybrid-Assistenten vertraut aber der
-> EXO-Identität (Zertifikat `mail.protection.outlook.com` bzw. EXO-IP-Bereiche),
-> nicht dem Gateway. Damit on-prem die Gateway-Post als intern annimmt, braucht es
-> dort einen Empfangsconnector mit `AuthMechanism=ExternalAuthoritative` und der
-> Gateway-IP in `RemoteIPRanges` (oder die Gateway-IP zusätzlich am bestehenden
-> Connector). Das ist eine on-prem-Anpassung, keine Gateway-Einstellung.
+> EXO-Identität, nicht dem Gateway.
+>
+> **Stabiler Weg (validiert): IP-basiertes Vertrauen.** On-prem einen eigenen
+> Empfangsconnector `Inbound from <Gateway> (Coexistence)` mit
+> `PermissionGroups=ExchangeServers`, `AuthMechanism=Tls,ExternalAuthoritative`
+> und der **Quell-IP des Gateways** in `RemoteIPRanges` anlegen. Sieht der
+> on-prem-Exchange das Gateway hinter einem Load-Balancer (z. B. Kemp mit SNAT),
+> ist das die **LB-IP**, nicht die des Gateways.
+>
+> - ⚠️ `Tls` MUSS in `AuthMechanism` bleiben — sonst bietet der Connector kein
+>   STARTTLS an, das Gateway bricht mit `QUIT` ab → **Mailstopp**.
+> - ⚠️ `ExternalAuthoritative` vertraut **jedem** Host hinter dieser Quell-IP.
+>   Das ist nur vertretbar, wenn der Load-Balancer eingehende Post
+>   **ausschließlich** vom Gateway erhält (eine einzige Route). Diese Bedingung
+>   ist Teil des Sicherheitsvertrags.
+> - Der cert-genaue Weg (`TlsDomainCapabilities`/Direct Trust) ist bewusst
+>   **zurückgestellt** — er scheitert an XOORG bzw. verlangt unsupported
+>   AD-Eingriffe; siehe Forschungsnotiz. Der IP-Weg ist die stabile Basis.
+>
+> Das ist eine on-prem-Anpassung, keine Gateway-Einstellung.
 
 ### Port 587 — kein Modus, sondern ein Sonderweg
 
