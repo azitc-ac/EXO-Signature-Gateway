@@ -126,6 +126,48 @@ def test_bearbeiter_per_addin_header_ist_kein_admin(monkeypatch):
     assert antwortA.status_code != 403, f"Admin per Header fälschlich abgewiesen → {antwortA.status_code}"
 
 
+@pytest.fixture
+def kampagnen_sitzung(monkeypatch):
+    """Angemeldeter Kampagnen-Manager — echtes Sitzungskeks."""
+    from starlette.testclient import TestClient
+    import sso
+    from webui import app as wa
+    monkeypatch.setattr(sso, "_get_secret", lambda: "testgeheimnis-fuer-die-rollenpruefung")
+    keks = sso.create_session_cookie("marketing@example.org", role=sso.ROLE_CAMPAIGN)
+    with TestClient(wa.app) as c:
+        c.cookies.set(sso.SESSION_COOKIE, keks)
+        yield c
+
+
+def test_kampagnen_manager_darf_kampagnen(kampagnen_sitzung):
+    """Die Gegenprobe zur Sperre: seine eigene Aufgabe muss er erreichen."""
+    antwort = kampagnen_sitzung.get("/api/campaigns")
+    assert antwort.status_code == 200, antwort.text[:200]
+    assert "campaigns" in antwort.json()
+
+
+@pytest.mark.parametrize("adresse,zweck", VERBOTEN)
+def test_kampagnen_manager_kommt_nicht_an_admin_routen(kampagnen_sitzung, adresse, zweck):
+    """⚠️ 403: Er ist angemeldet, aber die Kampagnen-Rolle ist eng — Postfächer,
+    Zuweisungen, Zertifikate, Benutzerverwaltung, Protokoll bleiben verwehrt."""
+    antwort = kampagnen_sitzung.get(adresse)
+    assert antwort.status_code == 403, f"{adresse} ({zweck}) → {antwort.status_code}"
+
+
+def test_bearbeiter_darf_keine_kampagnen(bearbeiter_sitzung):
+    """Die Grenze in die andere Richtung: Ein Signatur-Editor darf Kampagnen NICHT
+    verwalten — die Wache lässt nur admin/kampagnen."""
+    antwort = bearbeiter_sitzung.get("/api/campaigns")
+    assert antwort.status_code == 403, f"Editor an /api/campaigns → {antwort.status_code}"
+
+
+def test_kampagnen_manager_kommt_an_vorlagen(kampagnen_sitzung):
+    """Er baut seine Banner selbst: die Vorlagen-Routen (nur `_check_auth`) stehen
+    ihm offen — bewusst, siehe KAMPAGNEN_DARF-Kommentar in test_wachen."""
+    antwort = kampagnen_sitzung.get("/api/templates")
+    assert antwort.status_code == 200, antwort.text[:200]
+
+
 def test_schnittstellenbeschreibung_ist_abgeschaltet():
     """⚠️ FastAPI liefert /docs, /redoc und /openapi.json ohne Anmeldung aus.
     Am 19.08.2026 lagen dort 229 Endpunkte samt Parametern offen — die

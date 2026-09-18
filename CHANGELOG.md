@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.55 — 2026-09-18 — Kampagnen: eigene Rolle „Kampagnen-Manager"
+
+Neue Benutzerrolle **Kampagnen-Manager**: Sie darf Banner-Kampagnen verwalten und
+— um die Banner selbst zu bauen — Vorlagen bearbeiten. Alles Übrige bleibt der
+Verwaltung vorbehalten (Postfächer, Zuweisungen, Zertifikate, Benutzer,
+Protokolle sind verwehrt). So kann eine Marketing-Abteilung Kampagnen eigenständig
+fahren, ohne Vollzugriff. Ein Signatur-Editor kann Kampagnen ausdrücklich **nicht**
+verwalten.
+
+Die Rolle wird in der Benutzerverwaltung (Einstellungen) zugewiesen; ein
+Kampagnen-Manager landet nach der Anmeldung direkt auf der Kampagnen-Seite. Die
+Grenze ist doppelt geprüft — als Aufzählung der erlaubten Routen und über echte
+Aufrufe mit einer Kampagnen-Sitzung.
+
 ## v1.9.54 — 2026-09-18 — Banner-Kampagnen: Banner mit Zeitfenster und Zielgruppe
 
 Neue Seite *Kampagnen*: Eine Kampagne zeigt ein Banner für einen Zeitraum

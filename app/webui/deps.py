@@ -255,6 +255,19 @@ def _require_admin(request: Request, user: str = Depends(_check_auth)) -> str:
     return user
 
 
+def _require_kampagnen(request: Request, user: str = Depends(_check_auth)) -> str:
+    """Verlangt die Verwaltungs- ODER die Kampagnen-Rolle; sonst 403.
+
+    Marketing soll Banner-Kampagnen ohne Vollzugriff fahren können. Ein
+    Signatur-Editor darf das ausdrücklich NICHT — die Rolle ist eng geschnitten.
+    Die Grenze wird in `test_wachen.py` (KAMPAGNEN_DARF) und `test_rollen.py`
+    (echte Aufrufe) geprüft; wer sie lockert, sieht es dort scheitern.
+    """
+    if _get_session_role(request) not in (sso_mod.ROLE_ADMIN, sso_mod.ROLE_CAMPAIGN):
+        raise HTTPException(403, "Kampagnen-Berechtigung erforderlich")
+    return user
+
+
 # ── Protokollstrom im Arbeitsspeicher ────────────────────────────────────────
 #
 # Aus `app.py` hierher verschoben (21.08.2026). Beide Seiten brauchen sie: Dort

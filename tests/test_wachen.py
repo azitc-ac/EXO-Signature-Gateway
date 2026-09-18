@@ -218,6 +218,39 @@ EDITOR_DARF: dict[str, str] = {
 }
 
 
+# Was die Rolle `kampagnen` (Kampagnen-Manager) an EIGENEN Routen darf. Alles
+# Weitere verlangt die Verwaltung. Ein Signatur-Editor darf hiervon NICHTS —
+# `_require_kampagnen` lässt nur admin/kampagnen durch. Vollständig aufgezählt,
+# wie EDITOR_DARF; wer hier einträgt, gibt einem Kampagnen-Manager Zugriff.
+#
+# (Ein Kampagnen-Manager erreicht zusätzlich die EDITOR_DARF-Routen — Vorlagen
+# und Vorschau —, weil die nur `_check_auth` verlangen; er baut damit seine
+# Banner. Das ist gewollt und steht dort, nicht hier.)
+KAMPAGNEN_DARF: dict[str, str] = {
+    "/kampagnen":            "Kampagnen-Seite",
+    "/api/campaigns":        "Kampagnen lesen und speichern",
+    "/api/campaigns/delete": "Kampagne entfernen",
+}
+
+
+def test_nur_die_kampagnen_liste_traegt_die_kampagnen_wache():
+    """Genau die Kampagnen-Routen hängen an `_require_kampagnen` (und NICHT an
+    `_require_admin`). Eine andere Route mit dieser Wache wäre ein Versehen —
+    dann käme ein Kampagnen-Manager irgendwo hin, wo er nicht hingehört."""
+    from webui.deps import _require_admin, _require_kampagnen
+    kampagnen = sorted({r.path for r in _alle_routen()
+                        if _hat_wache(r.dependant, {_require_kampagnen})
+                        and not _hat_wache(r.dependant, {_require_admin})})
+    unerwartet = [p for p in kampagnen if p not in KAMPAGNEN_DARF]
+    assert not unerwartet, (
+        "Diese Routen tragen die Kampagnen-Wache, stehen aber nicht in "
+        "KAMPAGNEN_DARF:\n  " + "\n  ".join(unerwartet))
+    verwaist = [p for p in KAMPAGNEN_DARF if p not in kampagnen]
+    assert not verwaist, (
+        "Diese Einträge in KAMPAGNEN_DARF sind überflüssig — die Route gibt es "
+        "nicht mehr oder sie trägt die Wache nicht:\n  " + "\n  ".join(verwaist))
+
+
 def test_nur_die_editor_liste_kommt_ohne_verwaltungsrolle_aus():
     """Alles ausserhalb von EDITOR_DARF verlangt `_require_admin`.
 
@@ -230,11 +263,15 @@ def test_nur_die_editor_liste_kommt_ohne_verwaltungsrolle_aus():
     naheliegendere Weg ist; ohne Prüfung fällt niemandem auf, dass damit eine
     Rolle mitgemeint ist.
     """
-    from webui.deps import _check_auth, _require_admin
-    wachen = _wachen()
+    from webui.deps import _check_auth, _require_admin, _require_kampagnen
+    # Ein Editor erreicht NUR Routen mit reiner `_check_auth`-Wache — nicht die
+    # der Verwaltung (`_require_admin`) UND nicht die der Kampagnen-Rolle
+    # (`_require_kampagnen` lässt nur admin/kampagnen). Letztere stehen in
+    # KAMPAGNEN_DARF und werden hier ausgenommen.
     nur_auth = sorted({r.path for r in _alle_routen()
                        if _hat_wache(r.dependant, {_check_auth})
-                       and not _hat_wache(r.dependant, {_require_admin})})
+                       and not _hat_wache(r.dependant, {_require_admin})
+                       and not _hat_wache(r.dependant, {_require_kampagnen})})
     unerwartet = [p for p in nur_auth if p not in EDITOR_DARF]
     assert not unerwartet, (
         "Diese Routen kommen ohne Verwaltungsrolle aus, stehen aber nicht in "

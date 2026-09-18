@@ -17,9 +17,10 @@ log = logging.getLogger(__name__)
 SESSION_COOKIE = "exo_session"
 SESSION_TTL = 8 * 3600  # 8 hours
 
-ROLE_ADMIN  = "admin"
-ROLE_EDITOR = "editor"
-VALID_ROLES = {ROLE_ADMIN, ROLE_EDITOR}
+ROLE_ADMIN    = "admin"
+ROLE_EDITOR   = "editor"
+ROLE_CAMPAIGN = "kampagnen"      # Kampagnen-Manager: verwaltet Banner-Kampagnen
+VALID_ROLES = {ROLE_ADMIN, ROLE_EDITOR, ROLE_CAMPAIGN}
 
 # Scopes for SSO login (minimal, just identity)
 # Nur Identität — bewusst KEIN `User.Read`/`offline_access`: Der Login benutzt das
