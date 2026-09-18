@@ -749,6 +749,13 @@
     "name": "api_relay_abweisungen_leeren"
   },
   {
+    "pfad": "/api/relay/coex",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_relay_coex"
+  },
+  {
     "pfad": "/api/relay/domaenen",
     "methoden": [
       "GET"

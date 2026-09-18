@@ -20,6 +20,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
+import coexistence
 import domain_routing
 import relay_hosts
 import settings_store
@@ -77,6 +78,7 @@ async def api_relay_liste(namen: int = 0, user: str = Depends(_require_admin)):
         "identitaeten": _identitaeten_liste(),
         "ziele": domain_routing.oeffentliche_ziele(),
         "routen": domain_routing.routen(),
+        "coex": coexistence.ansicht(_gateway_name()),
     })
 
 
@@ -248,6 +250,25 @@ async def api_relay_route(request: Request, user: str = Depends(_require_admin))
              (daten.get("domain") or "").strip().lower(),
              (daten.get("ziel") or "exo").strip().lower(), user)
     return JSONResponse({"ok": True})
+
+
+@router.post("/api/relay/coex")
+async def api_relay_coex(request: Request, user: str = Depends(_require_admin)):
+    """Parameter des on-prem-Koexistenz-Connectors speichern und das Auf-/Abbau-
+    Skript zurückgeben. Das Gateway führt on-prem NICHTS aus — es erzeugt nur das
+    Skript zum Kopieren (siehe coexistence.py)."""
+    daten = await request.json()
+    try:
+        coex = coexistence.speichern(
+            gateway_name=daten.get("gateway_name") or "",
+            source_ip=daten.get("source_ip") or "",
+            servers=daten.get("servers") or [],
+        )
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    log.info("Koexistenz-Connector-Parameter durch %s gespeichert (Quell-IP %s)",
+             user, coex.get("source_ip"))
+    return JSONResponse({"ok": True, "coex": coex})
 
 
 @router.get("/api/relay/domaenen")

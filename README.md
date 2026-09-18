@@ -425,7 +425,12 @@ bleibt Exchange Online das Ziel.
 >   **zurückgestellt** — er scheitert an XOORG bzw. verlangt unsupported
 >   AD-Eingriffe; siehe Forschungsnotiz. Der IP-Weg ist die stabile Basis.
 >
-> Das ist eine on-prem-Anpassung, keine Gateway-Einstellung.
+> Das ist eine on-prem-Anpassung, keine Gateway-Einstellung — das dafür nötige
+> PowerShell (Aufbau **und** Abriss) erzeugt die Relay-Seite unter
+> *Hybrid-Koexistenz*: Gateway-Name, Quell-IP und optional die Server eintragen,
+> das Skript kopieren und in der Exchange Management Shell ausführen. Der
+> Connector heißt `Inbound from <Gateway> (Coexistence)`; die Parameter werden
+> gemerkt, sodass sich derselbe Weg jederzeit abreißen und wieder aufbauen lässt.
 
 ### Port 587 — kein Modus, sondern ein Sonderweg
 

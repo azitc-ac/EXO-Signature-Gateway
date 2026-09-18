@@ -148,6 +148,10 @@ DEFAULTS: dict = {
     "RELAY_TARGETS": {},      # {"onprem": {"host","port","starttls","user"}}
     "RELAY_TARGET_PW": {},    # {ziel_id: klartext} — Geheimnis; Klartext nötig für SMTP AUTH
     "DOMAIN_ROUTES": {},      # {"contoso.de": "onprem"} — ohne Treffer → EXO
+    # Parameter des on-prem-Koexistenz-Connectors (Hybrid). NUR zum erneuten
+    # Erzeugen des Auf-/Abbau-Skripts (coexistence.py) — das Gateway führt on-prem
+    # nichts aus. {"gateway_name","source_ip","servers":[...]}
+    "COEX_CONFIG": {},
     # ── SMTP-Übermittlung (Port 587) ─────────────────────────────────────────
     # ⚠️ Diese Werte tragen ZWEI verschiedene Wege (siehe smtp_submit.py):
     #   1. ausgehende Post, die Exchange in Teilnachrichten aufgeteilt hat —
