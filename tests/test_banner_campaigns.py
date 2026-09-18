@@ -18,7 +18,9 @@ def _iso(dt: datetime) -> str:
     return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-NOW = datetime(2026, 7, 15, 12, 0, tzinfo=timezone.utc)   # fester Bezug NUR im Test
+# Relativer Bezug (keine Zeitbombe, siehe test_keine_zeitbomben): jetzt, ohne
+# Mikrosekunden — damit parse_zeit(_iso(NOW)) == NOW self-konsistent bleibt.
+NOW = datetime.now(timezone.utc).replace(microsecond=0)
 
 
 def _kmp(**kw):
@@ -87,13 +89,13 @@ def test_leere_liste_none():
 
 # ── parse_zeit ───────────────────────────────────────────────────────────────
 def test_parse_zeit_akzeptiert_z_und_offset():
-    z = bc.parse_zeit("2026-07-15T12:00:00Z")
-    off = bc.parse_zeit("2026-07-15T12:00:00+00:00")
+    z = bc.parse_zeit(NOW.strftime("%Y-%m-%dT%H:%M:%SZ"))
+    off = bc.parse_zeit(NOW.strftime("%Y-%m-%dT%H:%M:%S+00:00"))
     assert z == off == NOW
 
 
 def test_parse_zeit_naiv_wird_utc():
-    dt = bc.parse_zeit("2026-07-15T12:00:00")
+    dt = bc.parse_zeit(NOW.strftime("%Y-%m-%dT%H:%M:%S"))
     assert dt.tzinfo is not None and dt == NOW
 
 
