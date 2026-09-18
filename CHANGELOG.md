@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.50 — 2026-09-18 — Domänen-Routing: Hinweis zum Ermitteln der Hybrid-Domänen
+
+Unter *Domäne → Ziel* steht jetzt, wie sich die für den Hybrid-Betrieb relevanten
+Domänen on-prem auflisten lassen: `(Get-HybridConfiguration).Domains` in der
+Exchange Management Shell. So muss man nicht raten, welche Empfängerdomänen an den
+on-prem-Exchange geroutet werden sollen.
+
 ## v1.9.49 — 2026-09-18 — Hybrid-Koexistenz: on-prem-Empfangsconnector als Skript (Auf- und Abbau)
 
 Neue Karte auf der Relay-Seite *Hybrid-Koexistenz*: Sie erzeugt das PowerShell
