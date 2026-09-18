@@ -207,12 +207,15 @@ def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
     if mode == "smtp":
         _gruppen = domain_routing.gruppiere(rcpt_tos)
         if any(zid != domain_routing.EXO for zid in _gruppen):
+            import relay_stats
             for _zid, _rs in _gruppen.items():
                 if _zid == domain_routing.EXO:
                     continue
                 try:
                     _relay_to_target(_zid, mail_from, _rs, content_bytes)
+                    relay_stats.merke_routing(_zid, len(content_bytes), ok=True)
                 except Exception as exc:                      # noqa: BLE001
+                    relay_stats.merke_routing(_zid, len(content_bytes), ok=False)
                     _fail_delivery(mail_from, _rs, content_bytes,
                                    f"Routing→{_zid}: {exc}", queue_on_failure)
             rcpt_tos = _gruppen.get(domain_routing.EXO, [])

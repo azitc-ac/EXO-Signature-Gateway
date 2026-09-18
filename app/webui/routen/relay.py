@@ -79,7 +79,13 @@ async def api_relay_liste(namen: int = 0, user: str = Depends(_require_admin)):
         "ziele": domain_routing.oeffentliche_ziele(),
         "routen": domain_routing.routen(),
         "coex": coexistence.ansicht(_gateway_name()),
+        "coex_stats": _routing_statistik(),
     })
+
+
+def _routing_statistik() -> dict:
+    import relay_stats
+    return relay_stats.routing_statistik(30)
 
 
 def _identitaeten_liste() -> list:

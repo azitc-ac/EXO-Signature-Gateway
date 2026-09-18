@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.51 — 2026-09-18 — Hybrid-Koexistenz: durchfließende Post sichtbar, Skripte einklappbar
+
+Die Karte *Hybrid-Koexistenz* zeigt jetzt die an on-prem-Ziele geroutete Post der
+letzten 30 Tage: je Ziel Anzahl, Volumen, Fehlversuche und Zeitpunkt der letzten
+Zustellung, dazu eine Gesamtsumme. So ist im Betrieb ohne Log-Suche sichtbar, ob
+und wie viel Hybrid-Post durch das Gateway läuft.
+
+Das Gateway reicht diese Post **byte-genau** durch — Betreff und Inhalt werden
+nicht gelesen. Erfasst werden deshalb nur Anzahl, Volumen, Ziel und Zeitpunkt
+(als Tagesaggregat, 400 Tage Aufbewahrung wie die übrige Relay-Statistik), keine
+Absender oder Empfänger.
+
+Die erzeugten PowerShell-Blöcke (Aufbau, Abriss) sind jetzt **einklappbar** und
+standardmäßig zugeklappt, damit die Karte übersichtlich bleibt.
+
 ## v1.9.50 — 2026-09-18 — Domänen-Routing: Hinweis zum Ermitteln der Hybrid-Domänen
 
 Unter *Domäne → Ziel* steht jetzt, wie sich die für den Hybrid-Betrieb relevanten

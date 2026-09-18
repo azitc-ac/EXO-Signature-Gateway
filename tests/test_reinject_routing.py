@@ -6,6 +6,7 @@ und der Rest geht an `_send_smtp`; in einem Graph-Modus ist das Routing inaktiv
 DKIM-Strip, der nur für den EXO-Rückweg richtig ist.
 """
 import reinject
+import relay_stats
 import settings_store
 import domain_routing
 
@@ -31,11 +32,13 @@ def test_smtp_modus_spaltet_routende_empfaenger_ab(monkeypatch):
         "DOMAIN_ROUTES": {"contoso.de": "onprem"},
         "IDENT_DELIVER_VIA_GRAPH": False,
     })
-    relay_calls, smtp_calls = [], []
+    relay_calls, smtp_calls, stats_calls = [], [], []
     monkeypatch.setattr(reinject, "_relay_to_target",
                         lambda z, mf, rt, cb: relay_calls.append((z, list(rt))))
     monkeypatch.setattr(reinject, "_send_smtp",
                         lambda mf, rt, cb: smtp_calls.append(list(rt)))
+    monkeypatch.setattr(relay_stats, "merke_routing",
+                        lambda z, bytes_=0, ok=True: stats_calls.append((z, ok)))
 
     reinject.send("erika@zarenko.net",
                   ["a@contoso.de", "b@zarenko.net", "c@contoso.de"],
@@ -43,6 +46,7 @@ def test_smtp_modus_spaltet_routende_empfaenger_ab(monkeypatch):
 
     assert relay_calls == [("onprem", ["a@contoso.de", "c@contoso.de"])]
     assert smtp_calls == [["b@zarenko.net"]]
+    assert stats_calls == [("onprem", True)]        # geroutete Mail wird verbucht
 
 
 def test_alle_empfaenger_gerouted_kein_exo_versand(monkeypatch):
@@ -58,12 +62,38 @@ def test_alle_empfaenger_gerouted_kein_exo_versand(monkeypatch):
                         lambda z, mf, rt, cb: relay_calls.append((z, list(rt))))
     monkeypatch.setattr(reinject, "_send_smtp",
                         lambda mf, rt, cb: smtp_calls.append(list(rt)))
+    monkeypatch.setattr(relay_stats, "merke_routing",
+                        lambda z, bytes_=0, ok=True: None)
 
     reinject.send("erika@zarenko.net", ["a@contoso.de", "b@contoso.de"],
                   b"From: erika@zarenko.net\r\n\r\nkorpus")
 
     assert relay_calls == [("onprem", ["a@contoso.de", "b@contoso.de"])]
     assert smtp_calls == []          # kein EXO-Rest → gar kein _send_smtp
+
+
+def test_relay_fehler_wird_als_fehler_verbucht(monkeypatch):
+    _neutralisiere_umfeld(monkeypatch)
+    monkeypatch.setattr(settings_store, "reinject_mode", lambda: "smtp")
+    _fake_settings(monkeypatch, {
+        "RELAY_TARGETS": {"onprem": {"host": "ex.local"}},
+        "DOMAIN_ROUTES": {"contoso.de": "onprem"},
+        "IDENT_DELIVER_VIA_GRAPH": False,
+    })
+    stats_calls, fail_calls = [], []
+    monkeypatch.setattr(reinject, "_relay_to_target",
+                        lambda z, mf, rt, cb: (_ for _ in ()).throw(RuntimeError("nope")))
+    monkeypatch.setattr(reinject, "_send_smtp", lambda *a: None)
+    monkeypatch.setattr(reinject, "_fail_delivery",
+                        lambda *a, **k: fail_calls.append(a))
+    monkeypatch.setattr(relay_stats, "merke_routing",
+                        lambda z, bytes_=0, ok=True: stats_calls.append((z, ok)))
+
+    reinject.send("erika@zarenko.net", ["a@contoso.de"],
+                  b"From: erika@zarenko.net\r\n\r\nkorpus")
+
+    assert stats_calls == [("onprem", False)]      # Fehlversuch als Fehler verbucht
+    assert fail_calls                              # _fail_delivery wurde gerufen
 
 
 def test_graph_modus_routing_inaktiv(monkeypatch):

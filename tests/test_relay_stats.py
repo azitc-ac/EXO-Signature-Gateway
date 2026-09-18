@@ -111,6 +111,53 @@ def test_aufraeumen_loescht_auch_identitaeten(db):
     assert not db.statistik(360)["top_identitaeten"]
 
 
+def test_routing_erfasst_ziel_volumen_und_zeit(db):
+    db.merke_routing("onprem", bytes_=1000, ok=True)
+    db.merke_routing("Onprem", bytes_=500, ok=True)        # case-insensitiv
+    st = db.routing_statistik(30)
+    assert st["gesamt_anzahl"] == 2 and st["gesamt_bytes"] == 1500
+    assert st["gesamt_fehler"] == 0
+    assert len(st["je_ziel"]) == 1
+    z = st["je_ziel"][0]
+    assert z["ziel"] == "onprem" and z["anzahl"] == 2 and z["bytes"] == 1500
+    assert z["zuletzt"]                                     # Zeitpunkt gesetzt
+
+
+def test_routing_zaehlt_fehler_getrennt(db):
+    db.merke_routing("onprem", bytes_=100, ok=True)
+    db.merke_routing("onprem", bytes_=100, ok=False)
+    st = db.routing_statistik(30)
+    assert st["gesamt_anzahl"] == 2                          # Fehlversuch zählt als Transaktion
+    assert st["gesamt_fehler"] == 1
+    assert st["je_ziel"][0]["fehler"] == 1
+
+
+def test_routing_ohne_ziel_ist_noop(db):
+    db.merke_routing("", bytes_=100, ok=True)
+    assert db.routing_statistik(30)["gesamt_anzahl"] == 0
+
+
+def test_routing_statistik_achtet_zeitfenster(db):
+    alt = (db._jetzt() - timedelta(days=95)).strftime("%Y-%m-%d")
+    with db._conn() as c:
+        c.execute("INSERT INTO routing (ziel, tag, anzahl, bytes, fehler, zuletzt) "
+                  "VALUES ('alt',?,9,900,0,'2020-01-01T00:00:00Z')", (alt,))
+    db.merke_routing("neu", bytes_=100, ok=True)
+    st30 = db.routing_statistik(30)
+    assert st30["gesamt_anzahl"] == 1
+    assert [z["ziel"] for z in st30["je_ziel"]] == ["neu"]
+    assert any(z["ziel"] == "alt" for z in db.routing_statistik(360)["je_ziel"])
+
+
+def test_aufraeumen_loescht_routing(db):
+    alt = (db._jetzt() - timedelta(days=db.AUFBEWAHRUNG_TAGE + 5)).strftime("%Y-%m-%d")
+    with db._conn() as c:
+        c.execute("INSERT INTO routing (ziel, tag, anzahl, bytes, fehler, zuletzt) "
+                  "VALUES ('onprem',?,1,1,0,'x')", (alt,))
+    assert db.aufraeumen() >= 1
+    assert db.routing_statistik(360)["je_ziel"] == []
+
+
 def test_identitaet_zaehler_heute_und_zeitraum(db):
     db.merke("10.0.0.1", absender="a@x.de", empfaenger=["c@y.de"], bytes_=100, identitaet="Drucker.EG")
     db.merke("10.0.0.1", absender="a@x.de", empfaenger=["c@y.de"], bytes_=100, identitaet="drucker.eg")
