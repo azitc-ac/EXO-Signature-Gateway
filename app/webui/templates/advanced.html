@@ -89,6 +89,60 @@ function saveLexwareFix(enabled) {
 }
 </script>
 
+<!-- ── Domänen-Routing / Hybrid-Koexistenz (Anzeige-Schalter) ────────────────── -->
+<div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px" id="domain-routing">
+  <div class="step-header">
+    <span class="step-badge" style="background:#0369a1;font-size:10px">Relay</span>
+    <span class="step-title">Domänen-Routing
+      <span style="font-weight:400;font-size:12px;color:#57534e"> — blendet die Karten auf der SMTP-Relay-Seite ein</span>
+    </span>
+  </div>
+  <div class="step-body">
+  <p style="font-size:13px;color:#57534e;margin:0 0 14px">
+    Bearbeitete Post geht standardmäßig an Exchange Online. Hier lassen sich einzelne
+    Empfängerdomänen stattdessen an einen anderen Server zustellen — etwa an einen
+    lokalen Exchange im Hybrid-Betrieb.
+  </p>
+  <label class="checkbox-label" style="font-weight:600 !important">
+    <input type="checkbox" id="domain-routing-toggle"
+           {% if s.DOMAIN_ROUTING_ENABLED %}checked{% endif %}
+           onchange="saveDomainRouting(this)">
+    Domänen-Routing aktivieren
+    <span id="domain-routing-result" style="font-weight:400;font-size:12px;margin-left:8px"></span>
+  </label>
+
+  <div id="coex-toggle-wrap" style="margin-top:16px;padding-top:14px;border-top:1px solid #e2e8f0;{% if not s.DOMAIN_ROUTING_ENABLED %}display:none{% endif %}">
+    <p style="font-size:13px;color:#57534e;margin:0 0 12px">
+      Gegenstück zum Domänen-Routing: Damit ein on-prem-Exchange die vom Gateway
+      zugestellte Post als intern annimmt (<code>AuthAs: Internal</code>), braucht er
+      dort einen eigenen Empfangsconnector, der der Quell-IP des Gateways vertraut.
+    </p>
+    <label class="checkbox-label" style="font-weight:600 !important">
+      <input type="checkbox" id="coex-toggle"
+             {% if s.COEX_ENABLED %}checked{% endif %}
+             onchange="saveCoex(this)">
+      Hybrid-Koexistenz aktivieren
+      <span id="coex-toggle-result" style="font-weight:400;font-size:12px;margin-left:8px"></span>
+    </label>
+  </div>
+  </div>
+</div>
+<script>
+async function saveDomainRouting(cb) {
+  // Koexistenz hängt am Routing: wird Routing abgeschaltet, geht Koexistenz mit.
+  const payload = { DOMAIN_ROUTING_ENABLED: cb.checked };
+  if (!cb.checked) payload.COEX_ENABLED = false;
+  const ok = await savePartial(payload, 'domain-routing-result');
+  if (!ok) { cb.checked = !cb.checked; return; }
+  if (!cb.checked) document.getElementById('coex-toggle').checked = false;
+  document.getElementById('coex-toggle-wrap').style.display = cb.checked ? '' : 'none';
+}
+async function saveCoex(cb) {
+  const ok = await savePartial({ COEX_ENABLED: cb.checked }, 'coex-toggle-result');
+  if (!ok) { cb.checked = !cb.checked; }
+}
+</script>
+
 <div class="wizard-step" style="border-color:#78716c22;margin-bottom:20px" id="smtp-cert">
   <div class="step-header">
     <span class="step-badge" style="background:#0369a1;font-size:10px">TLS</span>

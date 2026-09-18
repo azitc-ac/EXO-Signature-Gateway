@@ -111,7 +111,8 @@
 </div>
 
 <!-- ── Domänen-Routing ──────────────────────────────────────────────────────── -->
-<div class="settings-card" style="margin-bottom:20px">
+<!-- Sichtbar nur bei DOMAIN_ROUTING_ENABLED (Schalter in Einstellungen → Erweitert) -->
+<div class="settings-card" style="margin-bottom:20px{% if not s.DOMAIN_ROUTING_ENABLED %};display:none{% endif %}">
   <h2 style="margin:0">Domänen-Routing</h2>
   <p style="font-size:13px;color:#555;margin:10px 0 14px">
     Bearbeitete Post geht standardmäßig an <strong>Exchange Online</strong>. Hier
@@ -207,7 +208,8 @@
 </div>
 
 <!-- ── Hybrid-Koexistenz (on-prem-Connector) ──────────────────────────────── -->
-<div class="settings-card" style="margin-bottom:20px">
+<!-- Sichtbar nur bei COEX_ENABLED (Schalter in Einstellungen → Erweitert) -->
+<div class="settings-card" style="margin-bottom:20px{% if not s.COEX_ENABLED %};display:none{% endif %}">
   <h2 style="margin:0">Hybrid-Koexistenz <span class="hint" style="font-weight:400">(on-prem-Connector)</span></h2>
   <p style="font-size:13px;color:#555;margin:10px 0 12px">
     Gegenstück zum Domänen-Routing: Damit ein <strong>on-prem-Exchange</strong> die
