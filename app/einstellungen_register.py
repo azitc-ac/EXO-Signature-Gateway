@@ -96,6 +96,7 @@ REGISTER: dict[str, E] = {
     "CLIENT_SECRET": E(art=GEHEIMNIS, ort="/setup"),
     "CRL_CHECK": E(art=OPTION, ort="settings_smime.html"),
     "CUSTOM_POLICIES": E(art=STRUKTUR, ort="/api/settings/custom-policies"),
+    "BANNER_CAMPAIGNS": E(art=STRUKTUR, ort="/api/campaigns"),
     "CUSTOM_TEMPLATE_VARS": E(art=STRUKTUR, ort="settings_signature.html"),
     "DAILY_REPORT_ENABLED": E(art=OPTION, ort="settings.html"),
     "DAILY_REPORT_TIME": E(art=OPTION, ort="settings.html"),

@@ -26,6 +26,10 @@ DEFAULTS: dict = {
     "TEMPLATE_POLICIES": {"sig": "default", "min": "Minimal", "addin": "*"},  # {sig, min (Antwort-Signatur), banner, disclaimer, addin}
     "INTERNAL_GROUPS": {},      # {"Vertrieb": ["<guid>", ...], ...} — interne Postfach-Gruppen
     "CUSTOM_POLICIES": [],      # [{"condition_type": "group", "group_name": "...", "applies_to": "sig|min|banner|disclaimer", "template": "..."}] — first-match-wins
+    # Banner-Kampagnen: ein Banner zeitfenster-/gruppengesteuert (banner_campaigns.py).
+    # [{"id","name","banner","start","end","group","enabled"}] — aktive Kampagne
+    # zieht das Banner der Richtlinie/des Postfachs vor. start/end UTC-ISO, leer=offen.
+    "BANNER_CAMPAIGNS": [],
     "LE_DOMAIN": "",
     "LE_EMAIL": "",
     "LOG_RETENTION_DAYS": 30,
