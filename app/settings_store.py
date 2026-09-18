@@ -152,6 +152,12 @@ DEFAULTS: dict = {
     # Erzeugen des Auf-/Abbau-Skripts (coexistence.py) — das Gateway führt on-prem
     # nichts aus. {"gateway_name","source_ip","servers":[...]}
     "COEX_CONFIG": {},
+    # Reine ANZEIGE-Schalter (Einstellungen → Erweitert): blenden die jeweilige
+    # Karte auf der SMTP-Relay-Seite ein/aus, damit die Seite für Nicht-Nutzer
+    # nicht überladen wirkt. Das Routing selbst wirkt ohnehin nur mit
+    # konfigurierten Zielen; Koexistenz hängt am Routing (aus, wenn Routing aus).
+    "DOMAIN_ROUTING_ENABLED": False,
+    "COEX_ENABLED": False,
     # ── SMTP-Übermittlung (Port 587) ─────────────────────────────────────────
     # ⚠️ Diese Werte tragen ZWEI verschiedene Wege (siehe smtp_submit.py):
     #   1. ausgehende Post, die Exchange in Teilnachrichten aufgeteilt hat —

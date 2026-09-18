@@ -159,6 +159,8 @@ REGISTER: dict[str, E] = {
     "RELAY_TARGET_PW": E(art=GEHEIMNIS),
     "DOMAIN_ROUTES": E(art=STRUKTUR, ort="/api/relay/route"),
     "COEX_CONFIG": E(art=STRUKTUR, ort="/api/relay/coex"),
+    "DOMAIN_ROUTING_ENABLED": E(art=OPTION, ort="advanced.html"),
+    "COEX_ENABLED": E(art=OPTION, ort="advanced.html"),
     "RELAY_USER": E(
         art=NOTNAGEL,
         grund="Benutzername für einen vorgeschalteten Relay, der eine Anmeldung "

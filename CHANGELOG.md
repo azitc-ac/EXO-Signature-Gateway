@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.52 — 2026-09-18 — Domänen-Routing & Hybrid-Koexistenz: Anzeige über Schalter in „Erweitert"
+
+Die Karten *Domänen-Routing* und *Hybrid-Koexistenz* auf der SMTP-Relay-Seite sind
+jetzt standardmäßig ausgeblendet und werden über zwei Schalter in
+*Einstellungen → Erweitert* eingeblendet: „Domänen-Routing aktivieren" zeigt die
+Routing-Karte, der davon abhängige Schalter „Hybrid-Koexistenz aktivieren" die
+Koexistenz-Karte. So bleibt die Relay-Seite für alle übersichtlich, die diese
+Funktionen nicht nutzen.
+
+Reine Anzeige-Schalter: Das Routing wirkt ohnehin nur mit konfigurierten Zielen,
+und die Koexistenz hängt am Routing — wird Routing abgeschaltet, geht die
+Koexistenz-Anzeige mit.
+
 ## v1.9.51 — 2026-09-18 — Hybrid-Koexistenz: durchfließende Post sichtbar, Skripte einklappbar
 
 Die Karte *Hybrid-Koexistenz* zeigt jetzt die an on-prem-Ziele geroutete Post der
