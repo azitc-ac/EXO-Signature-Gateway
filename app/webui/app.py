@@ -408,8 +408,11 @@ async def dashboard(request: Request, user: str = Depends(_check_auth)):
     # öffnet, eine Sackgasse — die Weiterleitung bringt ihn dorthin, wo er
     # arbeiten kann. Die Daten selbst schützen die Endpunkte darunter, die
     # allesamt die Verwaltungsrolle verlangen.
-    if _get_session_role(request) != sso_mod.ROLE_ADMIN:
-        return RedirectResponse("/template", status_code=302)
+    _rolle = _get_session_role(request)
+    if _rolle != sso_mod.ROLE_ADMIN:
+        # Kampagnen-Manager starten auf ihrer Seite, Signatur-Editoren im Editor.
+        ziel = "/kampagnen" if _rolle == sso_mod.ROLE_CAMPAIGN else "/template"
+        return RedirectResponse(ziel, status_code=302)
     from datetime import datetime as _dt
     import smime_store as _smime_store
     import stats as _stats_mod2

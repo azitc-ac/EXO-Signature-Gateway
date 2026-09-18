@@ -16,7 +16,7 @@ import banner_campaigns
 import settings_store
 import signature_engine
 
-from webui.deps import templates, log, _gateway_name, _require_admin
+from webui.deps import templates, log, _gateway_name, _require_kampagnen
 
 router = APIRouter()
 
@@ -33,7 +33,7 @@ def _ansicht() -> dict:
 
 
 @router.get("/kampagnen", response_class=HTMLResponse)
-async def kampagnen_page(request: Request, user: str = Depends(_require_admin)):
+async def kampagnen_page(request: Request, user: str = Depends(_require_kampagnen)):
     return templates.TemplateResponse(
         request=request, name="kampagnen.html",
         context={"active": "kampagnen", "gateway_name": _gateway_name()},
@@ -41,12 +41,12 @@ async def kampagnen_page(request: Request, user: str = Depends(_require_admin)):
 
 
 @router.get("/api/campaigns")
-async def api_campaigns(user: str = Depends(_require_admin)):
+async def api_campaigns(user: str = Depends(_require_kampagnen)):
     return JSONResponse({"ok": True, **_ansicht()})
 
 
 @router.post("/api/campaigns")
-async def api_campaigns_save(request: Request, user: str = Depends(_require_admin)):
+async def api_campaigns_save(request: Request, user: str = Depends(_require_kampagnen)):
     daten = await request.json()
     try:
         rec = banner_campaigns.speichern(daten)
@@ -58,7 +58,7 @@ async def api_campaigns_save(request: Request, user: str = Depends(_require_admi
 
 
 @router.post("/api/campaigns/delete")
-async def api_campaigns_delete(request: Request, user: str = Depends(_require_admin)):
+async def api_campaigns_delete(request: Request, user: str = Depends(_require_kampagnen)):
     daten = await request.json()
     weg = banner_campaigns.loeschen(daten.get("id") or "")
     if weg:

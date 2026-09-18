@@ -11,7 +11,7 @@
 <div class="settings-card" id="admin-users">
   <h2>Zugangsdaten</h2>
   <h3 style="margin-top:0;margin-bottom:8px">Entra-Konten (SSO)</h3>
-  <p class="hint">Admins haben vollen Zugriff. Signatur-Editoren sehen nur Übersicht, Vorlagen und Vorschau.</p>
+  <p class="hint">Admins haben vollen Zugriff. Signatur-Editoren sehen nur Vorlagen und Vorschau. Kampagnen-Manager verwalten Banner-Kampagnen (und Vorlagen), sonst nichts.</p>
   <div id="admin-users-list" style="margin-bottom:14px;overflow-x:auto"></div>
 
   <!-- Benutzer-Suchfeld -->
@@ -55,6 +55,7 @@
         <select id="admin-role-input" style="height:30px;border:1px solid #cbd5e1;border-radius:6px;padding:0 8px;font-size:13px">
           <option value="admin">Admin</option>
           <option value="editor">Signatur-Editor</option>
+          <option value="kampagnen">Kampagnen-Manager</option>
         </select>
         <button class="btn primary" style="padding:4px 16px;font-size:13px" onclick="addAdminUserFromPicker()">Hinzufügen</button>
         <button class="btn secondary" style="padding:4px 10px;font-size:13px" onclick="_clearAdminPicker()">Abbrechen</button>
@@ -413,6 +414,7 @@ function renderAdminUsers(users) {
       (isSelf ? ';opacity:0.5;cursor:not-allowed' : '') + '">' +
       '<option value="admin"'  + (u.role==='admin'  ? ' selected' : '') + '>Admin</option>' +
       '<option value="editor"' + (u.role==='editor' ? ' selected' : '') + '>Signatur-Editor</option>' +
+      '<option value="kampagnen"' + (u.role==='kampagnen' ? ' selected' : '') + '>Kampagnen-Manager</option>' +
       '</select>';
     var removeBtn = isSelf
       ? '<button disabled title="Eigenes Konto" class="btn secondary btn-sm" style="opacity:0.4;cursor:not-allowed">Entfernen</button>'
