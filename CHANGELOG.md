@@ -5,6 +5,30 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.49 — 2026-09-18 — Hybrid-Koexistenz: on-prem-Empfangsconnector als Skript (Auf- und Abbau)
+
+Neue Karte auf der Relay-Seite *Hybrid-Koexistenz*: Sie erzeugt das PowerShell
+zum Einrichten **und** Entfernen des on-prem-Empfangsconnectors, der die vom
+Gateway zugestellte Post als intern (`AuthAs: Internal`) annimmt. Eingabe:
+Gateway-Name (bestimmt den Connector-Namen `Inbound from <Gateway>
+(Coexistence)`), die **Quell-IP**, unter der der on-prem-Exchange das Gateway
+sieht, und optional die Zielserver. Die Parameter werden gemerkt, sodass sich
+derselbe Weg jederzeit abreißen und wieder aufbauen lässt.
+
+Das Gateway führt on-prem **nichts** aus — der on-prem-Exchange ist ein fremdes
+System hinter eigener Verwaltung. Es liefert nur das Skript zum Kopieren; der
+Vorgang bleibt so nachvollziehbar und umkehrbar.
+
+Der erzeugte Connector nutzt `AuthMechanism=Tls,ExternalAuthoritative`,
+`PermissionGroups=ExchangeServers` und die Quell-IP in `RemoteIPRanges`. Zwei
+Bedingungen stehen im Skript und in der Oberfläche als Warnung:
+
+- `ExternalAuthoritative` vertraut **jedem** Host hinter der angegebenen
+  Quell-IP. Das ist nur vertretbar, wenn der davor liegende Load-Balancer
+  eingehende Post **ausschließlich** vom Gateway erhält (eine einzige Route).
+- `Tls` muss in `AuthMechanism` bleiben, sonst bietet der Connector kein STARTTLS
+  an und die Zustellung bricht ab.
+
 ## v1.9.48 — 2026-09-18 — Domänen-Routing: on-prem-Hop nutzt wieder das gemeinsame Zert (stabile Basis)
 
 Der on-prem-Hop präsentiert als Client-Zertifikat wieder das gemeinsame Zert

@@ -201,6 +201,63 @@
   </div>
 </div>
 
+<!-- ── Hybrid-Koexistenz (on-prem-Connector) ──────────────────────────────── -->
+<div class="settings-card" style="margin-bottom:20px">
+  <h2 style="margin:0">Hybrid-Koexistenz <span class="hint" style="font-weight:400">(on-prem-Connector)</span></h2>
+  <p style="font-size:13px;color:#555;margin:10px 0 12px">
+    Gegenstück zum Domänen-Routing: Damit ein <strong>on-prem-Exchange</strong> die
+    vom Gateway zugestellte Post als <strong>intern</strong> annimmt
+    (<code>AuthAs: Internal</code>), braucht er dort einen eigenen
+    Empfangsconnector, der der <strong>Quell-IP</strong> des Gateways vertraut.
+    Das Gateway richtet on-prem nichts selbst ein — es erzeugt hier das
+    <strong>PowerShell-Skript zum Kopieren</strong> (Aufbau und Abriss), das in der
+    Exchange&nbsp;Management&nbsp;Shell läuft. Der Connector heißt
+    <code>Inbound from &lt;Gateway&gt; (Coexistence)</code>.
+  </p>
+  <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;font-size:12.5px;color:#92400e;margin-bottom:14px">
+    ⚠️ <strong>ExternalAuthoritative</strong> vertraut <strong>jedem</strong> Host
+    hinter dieser Quell-IP — nur vertretbar, wenn der davor liegende
+    Load-Balancer eingehende Post <strong>ausschließlich vom Gateway</strong> erhält
+    (eine einzige Route).<br>
+    ⚠️ Sieht der on-prem-Exchange das Gateway hinter einem Load-Balancer mit SNAT
+    (z.&nbsp;B. Kemp), ist die Quell-IP die <strong>des Load-Balancers</strong>,
+    nicht die des Gateways.
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px 12px;align-items:start">
+    <div>
+      <label for="coex-gw" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Gateway-Name <span class="hint" style="font-weight:400">(im Connector-Namen)</span></label>
+      <input type="text" id="coex-gw" placeholder="EXO-Gateway" autocomplete="off" style="width:100%;margin:0;box-sizing:border-box">
+    </div>
+    <div>
+      <label for="coex-ip" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Quell-IP <span class="hint" style="font-weight:400">(wie on-prem sie sieht)</span></label>
+      <input type="text" id="coex-ip" placeholder="203.0.113.5 oder /24" autocomplete="off" style="width:100%;margin:0;box-sizing:border-box">
+    </div>
+    <div>
+      <label for="coex-server" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Server <span class="hint" style="font-weight:400">(optional, mehrere per Komma)</span></label>
+      <input type="text" id="coex-server" placeholder="EX10, EX11 — leer = lokaler Server" autocomplete="off" style="width:100%;margin:0;box-sizing:border-box">
+    </div>
+  </div>
+  <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <button type="button" class="btn" onclick="coexSpeichern(this)">Speichern &amp; Skript erzeugen</button>
+    <span class="hint">Die Parameter werden gemerkt — Abriss und Wiederaufbau jederzeit über dasselbe Skript.</span>
+  </div>
+  <div id="coex-result" style="display:none;margin-top:10px"></div>
+
+  <div id="coex-skripte" style="display:none;margin-top:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:0 0 6px">
+      <h3 style="font-size:14px;margin:0">Aufbau</h3>
+      <button type="button" class="btn secondary btn-sm" onclick="coexKopieren('coex-build', this)">Kopieren</button>
+    </div>
+    <pre id="coex-build" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;font-size:12px;color:#1e293b;overflow:auto;white-space:pre;margin:0 0 16px"></pre>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:0 0 6px">
+      <h3 style="font-size:14px;margin:0">Abriss</h3>
+      <button type="button" class="btn secondary btn-sm" onclick="coexKopieren('coex-teardown', this)">Kopieren</button>
+    </div>
+    <pre id="coex-teardown" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;font-size:12px;color:#1e293b;overflow:auto;white-space:pre;margin:0"></pre>
+  </div>
+</div>
+
 <!-- ── Statistik ─────────────────────────────────────────────────────────── -->
 <style>
   /* Statistik-Tabellen bewusst kompakter als die übrigen config-tables:
@@ -460,6 +517,7 @@ async function laden(mitNamen) {
   zeichneIdentitaeten(r.identitaeten);
   zeichneZiele(r.ziele);
   zeichneRouten(r.routen, r.ziele);
+  zeichneCoex(r.coex);
   const sub = document.getElementById('submission-an');
   if (sub) { sub.checked = !!r.submission_an; zeigeSubmissionHinweis(!!r.submission_an); }
   zeichneWarnung(r);
@@ -691,6 +749,60 @@ async function routeLoeschen(domain, btn) {
   const r = await postJSON('/api/relay/route', { domain: domain, ziel: '' });
   if (!r || !r.ok) { btn.disabled = false; return; }
   laden();
+}
+
+// ── Hybrid-Koexistenz (on-prem-Connector) ────────────────────────────────────
+function zeichneCoex(coex) {
+  coex = coex || {};
+  const gw = document.getElementById('coex-gw');
+  const ip = document.getElementById('coex-ip');
+  const srv = document.getElementById('coex-server');
+  // Vorbelegen, ohne eine gerade laufende Eingabe zu überschreiben.
+  if (document.activeElement !== gw) gw.value = coex.gateway_name || '';
+  if (document.activeElement !== ip) ip.value = coex.source_ip || '';
+  if (document.activeElement !== srv) srv.value = (coex.servers || []).join(', ');
+  _coexSkripteZeigen(coex);
+}
+
+function _coexSkripteZeigen(coex) {
+  const box = document.getElementById('coex-skripte');
+  if (coex && coex.bereit) {
+    document.getElementById('coex-build').textContent = coex.build || '';
+    document.getElementById('coex-teardown').textContent = coex.teardown || '';
+    box.style.display = '';
+  } else {
+    box.style.display = 'none';
+  }
+}
+
+async function coexSpeichern(btn) {
+  const box = document.getElementById('coex-result');
+  const gw = (document.getElementById('coex-gw').value || '').trim();
+  const ip = (document.getElementById('coex-ip').value || '').trim();
+  const srv = (document.getElementById('coex-server').value || '').trim();
+  if (!gw || !ip) { showAlert(box, 'error', 'Gateway-Name und Quell-IP sind nötig.'); return; }
+  btn.disabled = true;
+  const r = await postJSON('/api/relay/coex',
+    { gateway_name: gw, source_ip: ip, servers: srv });
+  btn.disabled = false;
+  if (!r || !r.ok) { showAlert(box, 'error', (r && r.error) || 'Speichern fehlgeschlagen.'); return; }
+  showAlert(box, 'success', 'Gespeichert. Skript unten kopieren und on-prem ausführen.');
+  _coexSkripteZeigen(r.coex);
+}
+
+async function coexKopieren(id, btn) {
+  const text = document.getElementById(id).textContent || '';
+  try {
+    await navigator.clipboard.writeText(text);
+    const alt = btn.textContent; btn.textContent = 'Kopiert ✓';
+    setTimeout(function () { btn.textContent = alt; }, 1500);
+  } catch (e) {
+    // Zwischenablage verweigert (kein HTTPS-Kontext o.ä.) → markieren zum
+    // manuellen Kopieren, statt still zu scheitern.
+    const el = document.getElementById(id);
+    const rng = document.createRange(); rng.selectNodeContents(el);
+    const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(rng);
+  }
 }
 
 function _starkesPasswort(n) {
