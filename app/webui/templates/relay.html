@@ -250,16 +250,42 @@
   <div id="coex-result" style="display:none;margin-top:10px"></div>
 
   <div id="coex-skripte" style="display:none;margin-top:16px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin:0 0 6px">
-      <h3 style="font-size:14px;margin:0">Aufbau</h3>
-      <button type="button" class="btn secondary btn-sm" onclick="coexKopieren('coex-build', this)">Kopieren</button>
+    <details>
+      <summary style="cursor:pointer;font-weight:600;font-size:14px;padding:4px 0">Aufbau-Skript</summary>
+      <div style="margin-top:8px">
+        <button type="button" class="btn secondary btn-sm" onclick="coexKopieren('coex-build', this)">Kopieren</button>
+        <pre id="coex-build" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;font-size:12px;color:#1e293b;overflow:auto;white-space:pre;margin:8px 0 0"></pre>
+      </div>
+    </details>
+    <details style="margin-top:10px">
+      <summary style="cursor:pointer;font-weight:600;font-size:14px;padding:4px 0">Abriss-Skript</summary>
+      <div style="margin-top:8px">
+        <button type="button" class="btn secondary btn-sm" onclick="coexKopieren('coex-teardown', this)">Kopieren</button>
+        <pre id="coex-teardown" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;font-size:12px;color:#1e293b;overflow:auto;white-space:pre;margin:8px 0 0"></pre>
+      </div>
+    </details>
+  </div>
+
+  <!-- Sichtbarkeit der durchfließenden Hybrid-Post -->
+  <div style="margin-top:18px;border-top:1px solid #e2e8f0;padding-top:14px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap">
+      <h3 style="font-size:14px;margin:0">Durch das Gateway geroutet <span class="hint" style="font-weight:400">(letzte 30 Tage)</span></h3>
+      <span id="coex-fluss-summe" class="hint"></span>
     </div>
-    <pre id="coex-build" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;font-size:12px;color:#1e293b;overflow:auto;white-space:pre;margin:0 0 16px"></pre>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin:0 0 6px">
-      <h3 style="font-size:14px;margin:0">Abriss</h3>
-      <button type="button" class="btn secondary btn-sm" onclick="coexKopieren('coex-teardown', this)">Kopieren</button>
+    <p class="hint" style="margin:6px 0 10px">
+      Das Gateway reicht Hybrid-Post byte-genau durch — Betreff und Inhalt werden
+      nicht gelesen. Sichtbar sind Anzahl, Volumen, Ziel und Zeitpunkt.
+    </p>
+    <div class="tabellen-rollbereich">
+      <table class="config-table" style="min-width:460px">
+        <thead>
+          <tr><th>Ziel</th><th>Mails</th><th>Volumen</th><th>Fehler</th><th>Zuletzt</th></tr>
+        </thead>
+        <tbody id="coex-fluss-body">
+          <tr><td colspan="5" style="color:#888">Wird geladen …</td></tr>
+        </tbody>
+      </table>
     </div>
-    <pre id="coex-teardown" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;font-size:12px;color:#1e293b;overflow:auto;white-space:pre;margin:0"></pre>
   </div>
 </div>
 
@@ -523,6 +549,7 @@ async function laden(mitNamen) {
   zeichneZiele(r.ziele);
   zeichneRouten(r.routen, r.ziele);
   zeichneCoex(r.coex);
+  zeichneCoexStats(r.coex_stats);
   const sub = document.getElementById('submission-an');
   if (sub) { sub.checked = !!r.submission_an; zeigeSubmissionHinweis(!!r.submission_an); }
   zeichneWarnung(r);
@@ -808,6 +835,40 @@ async function coexKopieren(id, btn) {
     const rng = document.createRange(); rng.selectNodeContents(el);
     const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(rng);
   }
+}
+
+function zeichneCoexStats(st) {
+  st = st || {};
+  const summe = document.getElementById('coex-fluss-summe');
+  const anz = st.gesamt_anzahl || 0;
+  summe.textContent = anz
+    ? anz + ' Mail' + (anz === 1 ? '' : 's') + ' · ' + _volumen(st.gesamt_bytes || 0)
+      + (st.gesamt_fehler ? ' · ' + st.gesamt_fehler + ' Fehler' : '')
+    : '';
+  const tb = document.getElementById('coex-fluss-body');
+  const ziele = st.je_ziel || [];
+  if (!ziele.length) {
+    tb.innerHTML = '<tr><td colspan="5" style="color:#888">Noch keine geroutete '
+      + 'Post im Zeitraum.</td></tr>';
+    return;
+  }
+  tb.innerHTML = '';
+  ziele.forEach(function (z) {
+    const zuletzt = z.zuletzt
+      ? new Date(z.zuletzt).toLocaleString('de-DE',
+          { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
+      : '<span style="color:#94a3b8">—</span>';
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td><code>' + esc(z.ziel) + '</code></td>'
+      + '<td>' + (z.anzahl || 0) + '</td>'
+      + '<td style="white-space:nowrap">' + _volumen(z.bytes || 0) + '</td>'
+      + '<td>' + (z.fehler
+          ? '<span style="color:#991b1b">' + z.fehler + '</span>'
+          : '<span style="color:#94a3b8">0</span>') + '</td>'
+      + '<td style="font-size:12px;color:#555;white-space:nowrap">' + zuletzt + '</td>';
+    tb.appendChild(tr);
+  });
 }
 
 function _starkesPasswort(n) {

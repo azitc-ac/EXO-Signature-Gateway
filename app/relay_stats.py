@@ -53,6 +53,16 @@ def _conn() -> sqlite3.Connection:
         identitaet TEXT NOT NULL, tag TEXT NOT NULL,
         anzahl INTEGER NOT NULL DEFAULT 0, bytes INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (identitaet, tag)) WITHOUT ROWID""")
+    # Domänen-Routing / Hybrid-Koexistenz: an ein Next-Hop-Ziel (≠ EXO) geroutete
+    # Post, je Ziel und Tag. `fehler` zählt die Transaktionen, die das Ziel nicht
+    # annahm; `zuletzt` merkt den letzten Zeitpunkt (ISO) für „zuletzt aktiv".
+    # Das Gateway reicht diese Post byte-genau durch — Betreff/Inhalt werden nicht
+    # gelesen, deshalb hier nur Anzahl/Volumen/Ziel/Zeit, keine Absender/Empfänger.
+    c.execute("""CREATE TABLE IF NOT EXISTS routing (
+        ziel TEXT NOT NULL, tag TEXT NOT NULL,
+        anzahl INTEGER NOT NULL DEFAULT 0, bytes INTEGER NOT NULL DEFAULT 0,
+        fehler INTEGER NOT NULL DEFAULT 0, zuletzt TEXT NOT NULL DEFAULT '',
+        PRIMARY KEY (ziel, tag)) WITHOUT ROWID""")
     return c
 
 
@@ -95,6 +105,56 @@ def merke(ip: str, absender: str = "", empfaenger: list | None = None,
                           "bytes = bytes + excluded.bytes", (ziel, tag, groesse))
     except Exception as exc:                          # pragma: no cover
         log.warning("relay_stats.merke fehlgeschlagen: %s", exc)
+
+
+def merke_routing(ziel: str, bytes_: int = 0, ok: bool = True) -> None:
+    """Eine an ein Next-Hop-Ziel (Hybrid) geroutete Transaktion verbuchen.
+    Best-effort: Zählen darf den Mailfluss nie aufhalten."""
+    ziel = (ziel or "").strip().lower()[:100]
+    if not ziel:
+        return
+    tag = _heute()
+    groesse = max(0, int(bytes_ or 0))
+    fehler = 0 if ok else 1
+    jetzt = _jetzt().strftime("%Y-%m-%dT%H:%M:%SZ")
+    try:
+        with _lock, _conn() as c:
+            c.execute(
+                "INSERT INTO routing (ziel, tag, anzahl, bytes, fehler, zuletzt) "
+                "VALUES (?,?,1,?,?,?) "
+                "ON CONFLICT(ziel, tag) DO UPDATE SET anzahl = anzahl + 1, "
+                "bytes = bytes + excluded.bytes, fehler = fehler + excluded.fehler, "
+                "zuletzt = excluded.zuletzt",
+                (ziel, tag, groesse, fehler, jetzt))
+    except Exception as exc:                          # pragma: no cover
+        log.warning("relay_stats.merke_routing fehlgeschlagen: %s", exc)
+
+
+def routing_statistik(tage_zurueck: int = 30) -> dict:
+    """Gesamt-Anzahl/-Volumen/-Fehler + je Ziel für die an on-prem-Ziele geroutete
+    (Hybrid-)Post über die letzten *tage_zurueck* Tage. `zuletzt` = letzter
+    Zeitpunkt je Ziel (für „zuletzt aktiv")."""
+    ab = (_jetzt() - timedelta(days=max(1, tage_zurueck))).strftime("%Y-%m-%d")
+    leer = {"tage": tage_zurueck, "gesamt_anzahl": 0, "gesamt_bytes": 0,
+            "gesamt_fehler": 0, "je_ziel": []}
+    try:
+        with _conn() as c:
+            g = c.execute(
+                "SELECT COALESCE(SUM(anzahl),0) a, COALESCE(SUM(bytes),0) b, "
+                "COALESCE(SUM(fehler),0) f FROM routing WHERE tag >= ?", (ab,)).fetchone()
+            je_ziel = [
+                {"ziel": z["ziel"], "anzahl": z["a"], "bytes": z["b"],
+                 "fehler": z["f"], "zuletzt": z["z"]}
+                for z in c.execute(
+                    "SELECT ziel, SUM(anzahl) a, SUM(bytes) b, SUM(fehler) f, "
+                    "MAX(zuletzt) z FROM routing WHERE tag >= ? "
+                    "GROUP BY ziel ORDER BY a DESC", (ab,))]
+            return {"tage": tage_zurueck, "gesamt_anzahl": g["a"],
+                    "gesamt_bytes": g["b"], "gesamt_fehler": g["f"],
+                    "je_ziel": je_ziel}
+    except Exception as exc:                          # pragma: no cover
+        log.warning("relay_stats.routing_statistik fehlgeschlagen: %s", exc)
+        return leer
 
 
 def statistik(tage_zurueck: int = 30, grenze_top: int = 100) -> dict:
@@ -197,6 +257,7 @@ def aufraeumen(tage: int = AUFBEWAHRUNG_TAGE) -> int:
             weg += c.execute("DELETE FROM absender WHERE tag < ?", (grenze,)).rowcount
             weg += c.execute("DELETE FROM empfaenger WHERE tag < ?", (grenze,)).rowcount
             weg += c.execute("DELETE FROM identitaet WHERE tag < ?", (grenze,)).rowcount
+            weg += c.execute("DELETE FROM routing WHERE tag < ?", (grenze,)).rowcount
             return weg
     except Exception as exc:                          # pragma: no cover
         log.warning("relay_stats.aufraeumen fehlgeschlagen: %s", exc)
