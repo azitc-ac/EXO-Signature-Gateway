@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.53 — 2026-09-18 — SMTP-Relay: kein Preview mehr
+
+Das SMTP-Relay für eigene Geräte ist keine Vorschau mehr — das PREVIEW-Abzeichen
+im Einrichtungsassistenten entfällt. Der Hinweis dort ist auf das Wesentliche
+gekürzt: Nach dem Speichern erscheint der Reiter *SMTP-Relay*, dort werden Geräte
+eingetragen oder über den Lernmodus aufgenommen.
+
 ## v1.9.52 — 2026-09-18 — Domänen-Routing & Hybrid-Koexistenz: Anzeige über Schalter in „Erweitert"
 
 Die Karten *Domänen-Routing* und *Hybrid-Koexistenz* auf der SMTP-Relay-Seite sind
