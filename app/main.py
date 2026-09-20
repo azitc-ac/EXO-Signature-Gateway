@@ -2,7 +2,6 @@ import asyncio
 import logging
 import os
 import ssl
-import subprocess
 import threading
 import time
 import urllib.parse
@@ -403,44 +402,19 @@ def _err(msg: str) -> str:
 
 
 def _bootstrap_letsencrypt(webroot: Path, hostname: str, email: str) -> str:
-    """Weg 1: HTTP-01 über certbot --webroot (braucht Port 80 öffentlich)."""
-    data_dir = Path(config.DATA_DIR)
-    le_cfg = data_dir / "le-config"
-    le_work = data_dir / "le-work"
-    le_logs = data_dir / "le-logs"
-    for d in [webroot, le_cfg, le_work, le_logs]:
-        d.mkdir(parents=True, exist_ok=True)
+    """Weg 1: HTTP-01 über certbot --webroot (braucht Port 80 öffentlich).
 
-    result = subprocess.run(
-        ["certbot", "certonly", "--webroot",
-         "-w", str(webroot), "-d", hostname,
-         "--cert-name", "gateway",
-         "--email", email, "--agree-tos", "--non-interactive",
-         "--config-dir", str(le_cfg),
-         "--work-dir", str(le_work),
-         "--logs-dir", str(le_logs)],
-        capture_output=True, text=True, timeout=120,
-    )
-    if result.returncode == 0:
-        cert_dir = le_cfg / "live" / "gateway"
-        try:
-            import shutil
-            cert_dest = Path(config.SMTP_TLS_CERT)
-            key_dest = Path(config.SMTP_TLS_KEY)
-            cert_dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(cert_dir / "fullchain.pem", cert_dest)
-            shutil.copy2(cert_dir / "privkey.pem", key_dest)
-            key_dest.chmod(0o600)
-            _schedule_self_restart()
-            return _setup_ok_message(hostname)
-        except OSError as exc:
-            output = (result.stdout or "").strip()
-            return (f'<div class="err"><strong>certbot OK, aber Kopieren fehlgeschlagen:</strong><br>'
-                    f"<pre>{_html_escape(str(exc))}</pre>"
-                    f"<pre>{_html_escape(output)}</pre></div>")
-    output = (result.stderr or result.stdout or "certbot error").strip()
+    Ausstellung UND Erneuerung teilen sich `le_certbot` (eine Quelle, damit die
+    Verzeichnisse und die Übernahme ans Listener-Zertifikat nicht auseinander-
+    driften — siehe Modul-Docstring). `webroot` bleibt im Kopf aus Kompatibilität;
+    das Verzeichnis bestimmt `le_certbot` selbst (identisch: DATA_DIR/acme-webroot)."""
+    import le_certbot
+    ok, info = le_certbot.ausstellen(hostname, email)
+    if ok:
+        _schedule_self_restart()
+        return _setup_ok_message(hostname)
     return (f'<div class="err"><strong>certbot Fehler:</strong><br>'
-            f"<pre>{_html_escape(output)}</pre></div>")
+            f"<pre>{_html_escape(info)}</pre></div>")
 
 
 def _bootstrap_import_pfx(hostname: str, pfx_bytes: bytes, password: str,
