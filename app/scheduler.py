@@ -2,7 +2,6 @@
 S/MIME lifecycle management (user renewal notifications)."""
 import asyncio
 import logging
-import subprocess
 import threading
 import time
 from datetime import datetime, timezone
@@ -54,48 +53,38 @@ def _tls_days_left() -> tuple[int, str, str] | None:
 
 
 def _try_le_renewal(domain: str, days_left: int, expiry_str: str) -> None:
+    """Erneuerung über die gemeinsame Quelle `le_certbot` (dieselben Verzeichnisse
+    und dieselbe Übernahme wie die Ausstellung — siehe le_certbot-Docstring).
+
+    Höchstens ein Versuch je Tag. Bei tatsächlicher Erneuerung wird das Zertifikat
+    schon von `le_certbot` an den Listener-Pfad übernommen; hier folgt der Neustart,
+    denn der Listener liest das Zertifikat beim Start. Greift die Erneuerung nicht
+    (kein certbot-verwaltetes Zert, unverändert, Fehler), wird der nahende Ablauf
+    gemeldet, damit nichts still ausläuft."""
     global _le_renewed_date
     today = datetime.now().strftime("%Y-%m-%d")
     if _le_renewed_date == today:
         return
+    _le_renewed_date = today
 
-    import config
-    cert_path = Path(config.SMTP_TLS_CERT)
-    mtime_before = cert_path.stat().st_mtime if cert_path.exists() else 0
-    webroot = str(Path(config.DATA_DIR) / "acme-webroot")
-    le_email = settings_store.get("LE_EMAIL") or ""
-
-    cmd = ["certbot", "renew", "--webroot", "-w", webroot, "--non-interactive", "--quiet"]
-    if le_email:
-        cmd += ["--email", le_email]
-
+    import le_certbot
     log.info("scheduler: TLS cert expires in %d days, running certbot renew…", days_left)
-    try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-        _le_renewed_date = today
-        if proc.returncode == 0 and cert_path.exists() and cert_path.stat().st_mtime > mtime_before:
-            from cryptography import x509
-            from smime_store import _get_expiry
-            new_cert = x509.load_pem_x509_certificate(cert_path.read_bytes())
-            new_expiry = _get_expiry(new_cert).strftime("%d.%m.%Y")
-            log.info("scheduler: TLS cert renewed – new expiry %s. Restart recommended.", new_expiry)
-            if settings_store.get("NOTIFY_LE_EVENTS") is not False:
-                import notification
-                notification.send_le_renewed(domain, new_expiry)
-        else:
-            log.warning("scheduler: certbot ran (rc=%d) but cert unchanged – sending alert",
-                        proc.returncode)
-            if settings_store.get("NOTIFY_LE_EVENTS") is not False:
-                import notification
-                notification.send_le_expiry_alert(domain, days_left, expiry_str)
-    except FileNotFoundError:
-        log.debug("scheduler: certbot not found — sending expiry alert")
+    status, info = le_certbot.erneuern()
+
+    if status == "renewed":
+        log.info("scheduler: TLS cert renewed – new expiry %s. Restarting to load it.", info)
         if settings_store.get("NOTIFY_LE_EVENTS") is not False:
             import notification
-            notification.send_le_expiry_alert(domain, days_left, expiry_str)
-        _le_renewed_date = today
-    except Exception as exc:
-        log.error("scheduler: certbot error: %s", exc)
+            notification.send_le_renewed(domain, info)
+        import main
+        main._schedule_self_restart()
+        return
+
+    log.warning("scheduler: TLS renew ineffektiv (status=%s, %s) – sende Ablauf-Alarm",
+                status, info)
+    if settings_store.get("NOTIFY_LE_EVENTS") is not False:
+        import notification
+        notification.send_le_expiry_alert(domain, days_left, expiry_str)
 
 
 def _check_tls_cert() -> None:

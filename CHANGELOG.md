@@ -5,6 +5,30 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.56 — 2026-09-20 — Let's-Encrypt-Auto-Erneuerung repariert (eine Quelle für Ausstellen und Erneuern)
+
+Das automatische Erneuern des TLS-Zertifikats (certbot/HTTP-01) griff nicht: Es
+meldete „läuft bald ab, bitte manuell erneuern", obwohl Auto-Renew eingeschaltet
+war. Ursache waren zwei auseinandergelaufene Code-Wege:
+
+- Die **Ausstellung** gab certbot ausdrücklich `--config-dir/--work-dir/--logs-dir`
+  unter `DATA_DIR` (vom Container-Benutzer schreibbar). Die **Erneuerung** ließ
+  diese Flags weg und traf damit die Default-Verzeichnisse (`/etc/letsencrypt`,
+  `/var/log/letsencrypt`, root-eigen) — dort lag die Renewal-Konfiguration nicht,
+  also fand `certbot renew` nichts und brach ab.
+- Selbst bei erfolgreicher Erneuerung fehlte die **Übernahme**: certbot legt das
+  neue Zertifikat in seinem Live-Verzeichnis ab, der Listener liest aber die Kopie
+  unter `SMTP_TLS_CERT`. Der Erneuerungs-Pfad kopierte sie nie zurück.
+
+Beide Wege teilen sich jetzt eine Quelle (`le_certbot`): dieselben Verzeichnisse
+und dieselbe Übernahme ans Listener-Zertifikat. Nach einer tatsächlichen
+Erneuerung startet der Dienst neu, damit das neue Zertifikat geladen wird (es wird
+beim Start gelesen). Kein root nötig — alles unter `DATA_DIR`.
+
+Nach dem Update erneuern sich per HTTP-01 ausgestellte Zertifikate wieder von
+selbst. Der manuelle DNS-01-Weg (für Betreiber ohne offenen Port 80) hat weiterhin
+keine automatische Erneuerung — dort bleibt der Hinweis in der Oberfläche richtig.
+
 ## v1.9.55 — 2026-09-18 — Kampagnen: eigene Rolle „Kampagnen-Manager"
 
 Neue Benutzerrolle **Kampagnen-Manager**: Sie darf Banner-Kampagnen verwalten und
