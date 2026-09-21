@@ -84,6 +84,20 @@ def test_ausstellen_und_erneuern_nutzen_dieselben_verzeichnisse(env, monkeypatch
         assert str(dd["config"]).startswith(str(env))     # DATA_DIR, nicht /etc/letsencrypt
 
 
+def test_erneuern_unterdrueckt_zufallsverzoegerung(env, monkeypatch):
+    """certbot legt im non-interactive-Modus sonst bis zu ~8 Min Zufallsverzögerung
+    VOR die Erneuerung, die das Subprozess-Timeout auffrisst (live: „random delay
+    of 172s" bei 180s Timeout → nie erneuert). --no-random-sleep-on-renew ist
+    Pflicht; ohne die Flag kehrt der Timeout-Bug zurück."""
+    captured = []
+    monkeypatch.setattr(le_certbot.subprocess, "run",
+                        lambda cmd, **kw: captured.append(list(cmd)) or _FakeProc(1))
+    _managed()
+    le_certbot.erneuern()
+    assert captured, "certbot renew wurde nicht aufgerufen"
+    assert "--no-random-sleep-on-renew" in captured[0]
+
+
 def test_erneuern_ohne_konfig_ist_not_managed(env, monkeypatch):
     called = []
     monkeypatch.setattr(le_certbot.subprocess, "run",

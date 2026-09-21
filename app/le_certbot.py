@@ -37,7 +37,11 @@ log = logging.getLogger(__name__)
 
 CERT_NAME = "gateway"
 _TIMEOUT_ISSUE = 120
-_TIMEOUT_RENEW = 180
+# ⚠️ Großzügig: certbot ist nach dem Wegfall der Zufallsverzögerung (s.u.) in
+# Sekunden fertig, aber ein langsamer ACME-/Netz-Moment soll nicht ins Timeout
+# laufen. Der eigentliche Fallstrick war NICHT die Dauer der Erneuerung, sondern
+# die Zufallsverzögerung davor — siehe --no-random-sleep-on-renew in erneuern().
+_TIMEOUT_RENEW = 300
 
 
 def _dirs() -> dict[str, Path]:
@@ -132,8 +136,15 @@ def erneuern(force: bool = False) -> tuple[str, str]:
     if not verwaltet():
         return "not_managed", ""
     served_before = _expiry(Path(config.SMTP_TLS_CERT))
+    # ⚠️ --no-random-sleep-on-renew ist ZWINGEND: certbot legt im
+    # non-interactive-Modus sonst eine Zufallsverzögerung von bis zu ~8 Minuten
+    # VOR die Erneuerung (Lastverteilung für breite Cron-Jobs). Wir planen die
+    # Erneuerung selbst (einmal täglich im Scheduler), brauchen die Streuung nicht
+    # — und die Verzögerung fraß sonst das Subprozess-Timeout auf, bevor certbot
+    # überhaupt die Challenge begann (live gemessen: „random delay of 172s" bei
+    # 180s Timeout → status=error/timeout, Zert nie erneuert).
     cmd = (["certbot", "renew", "--cert-name", CERT_NAME,
-            "--non-interactive", "--quiet"] + _dir_flags())
+            "--non-interactive", "--no-random-sleep-on-renew", "--quiet"] + _dir_flags())
     if force:
         cmd.append("--force-renewal")
     try:
