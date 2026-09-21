@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.60 — 2026-09-21 — Let's-Encrypt-Erneuerung: certbot-Zufallsverzögerung unterdrückt (lief sonst ins Timeout)
+
+Nachtrag zu v1.9.56: Die automatische Erneuerung fand die Renewal-Konfiguration
+seither korrekt, brach aber in der Praxis mit Timeout ab, ohne zu erneuern.
+Ursache: `certbot renew` legt im nicht-interaktiven Modus eine **Zufalls-
+verzögerung von bis zu ~8 Minuten vor** die Erneuerung (Lastverteilung für breit
+gestreute Cron-Jobs). Diese Verzögerung überstieg das Subprozess-Timeout, bevor
+certbot die Challenge überhaupt begann (im Betrieb gemessen: „random delay of
+172s" bei 180 s Timeout → Abbruch, Zertifikat nie erneuert).
+
+Da das Gateway die Erneuerung ohnehin selbst plant (einmal täglich), ist die
+Streuung überflüssig: `--no-random-sleep-on-renew` schaltet sie ab, das Timeout
+wurde zusätzlich auf 300 s angehoben. Damit läuft die Erneuerung prompt durch.
+Die HTTP-01-Validierung selbst war die ganze Zeit in Ordnung (per
+`certbot renew --dry-run` bestätigt).
+
 ## v1.9.59 — 2026-09-21 — Auth-Zertifikat: manuelles Erzeugen ersetzt kein laufendes mehr
 
 Das manuelle „Auth-Zertifikat generieren" ersetzt jetzt **kein bereits
