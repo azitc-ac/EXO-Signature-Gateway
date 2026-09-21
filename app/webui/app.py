@@ -26,7 +26,6 @@ from fastapi import FastAPI, Request, Form, Depends, HTTPException, status, Uplo
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-import secure_io as _secure_io
 from fastapi.templating import Jinja2Templates
 
 import config
@@ -947,11 +946,16 @@ async def api_config_export(user: str = Depends(_require_admin)):
     # ── S/MIME signing certs (cert + private key) ─────────────────────────────
     smime_dir = _ss.SMIME_DIR
     if smime_dir.exists():
+        # Aktives (Default-)Signaturzert je Nutzer aus der SLOT-Struktur lesen —
+        # NICHT mehr das Altlayout `user_dir/cert.pem`, das seit dem Multi-Cert-
+        # Refactor leer ist (sonst exportiert die Schleife still null Zertifikate).
         for user_dir in sorted(smime_dir.iterdir()):
-            cert_p = user_dir / "cert.pem"
-            key_p  = user_dir / "key.pem"
-            if not cert_p.exists():
+            if not user_dir.is_dir():
                 continue
+            paths = _ss.get_signing_paths(user_dir.name, allow_backup=True)
+            if not paths:
+                continue
+            cert_p, key_p = paths
             elem = _ET.SubElement(root, "smime-signing-cert")
             elem.set("email", user_dir.name)
             _ET.SubElement(elem, "cert").text = _b64.b64encode(cert_p.read_bytes()).decode()
@@ -1057,14 +1061,11 @@ async def api_config_import(
         if not email_addr or not cert_b64:
             continue
         try:
-            user_dir = _ss.SMIME_DIR / email_addr
-            user_dir.mkdir(parents=True, exist_ok=True)
-            (user_dir / "cert.pem").write_bytes(_b64.b64decode(cert_b64))
-            if key_b64:
-                # Privatschluessel aus dem Konfigurationsimport — ueber secure_io,
-                # sonst 644 (Audit 2026-07-26).
-                _secure_io.write_secret_bytes(user_dir / "key.pem",
-                                              _b64.b64decode(key_b64))
+            # In die SLOT-Struktur importieren UND als Default setzen (nicht flach
+            # ins Altlayout) — sonst lädt der Listener das importierte Zert nie.
+            # Key-Härtung (600) besorgt import_signing_pem über secure_io.
+            _ss.import_signing_pem(email_addr, _b64.b64decode(cert_b64),
+                                   _b64.b64decode(key_b64) if key_b64 else b"")
             certs_restored += 1
         except Exception as exc:
             log.warning("Config import: could not restore signing cert for %s: %s", email_addr, exc)
