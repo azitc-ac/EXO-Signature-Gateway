@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.57 — 2026-09-21 — S/MIME: Erneuerung per Upload wird aktiv; Konfig-Export erfasst Zertifikate
+
+Zwei Fehler im S/MIME-Zertifikats-Lebenszyklus behoben (dieselbe Klasse wie die
+LE-Auto-Erneuerung: ein Artefakt wird geschrieben, aber die alte Fassung weiter
+benutzt):
+
+- **Erneuerung per Zertifikats-Upload aktivierte das neue Zertifikat nicht.** Ein
+  über die Selbstbedienung oder den Admin-Upload eingespieltes (erneuertes)
+  Zertifikat landete in einem neuen Slot, aber der „aktive"-Zeiger blieb auf dem
+  alten stehen — das Gateway signierte weiter mit dem ablaufenden Zertifikat, und
+  die Ablaufwarnung ließ sich nicht schließen. Ein hochgeladenes Zertifikat wird
+  jetzt immer das aktive, wie bei den automatischen (ACME-)Erneuerungen.
+
+- **Der Konfigurations-Export übersah alle S/MIME-Signaturzertifikate.** Er las
+  noch das alte flache Dateilayout (`cert.pem` je Nutzer); die Ablage ist seit dem
+  Mehrfach-Zertifikat-Umbau slot-basiert. Auf jeder betroffenen Installation
+  exportierte er dadurch **null** Signaturzertifikate — ohne Fehler. Export und
+  Import arbeiten jetzt slot-basiert (Import setzt das Zertifikat auch aktiv);
+  Export→Import verliert keine privaten Schlüssel mehr.
+
 ## v1.9.56 — 2026-09-20 — Let's-Encrypt-Auto-Erneuerung repariert (eine Quelle für Ausstellen und Erneuern)
 
 Das automatische Erneuern des TLS-Zertifikats (certbot/HTTP-01) griff nicht: Es

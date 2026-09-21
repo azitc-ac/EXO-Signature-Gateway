@@ -271,14 +271,40 @@ def store_p12_slot(email: str, p12_bytes: bytes, password: str = "") -> dict:
     secure_io.write_secret_bytes(
         slot_dir / "key.pem",
         private_key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, _key_encryption()))
+    # Ein hochgeladenes/erneuertes Zert wird IMMER der neue Default — wie bei den
+    # ACME-Erneuerungen (store_pem_slot, "always become the new default"). Der
+    # frühere "nur wenn keiner existiert"-Zweig ließ eine Erneuerung per Upload
+    # wirkungslos: neuer Slot angelegt, aber der Default zeigte nie um → das
+    # Gateway signierte weiter mit dem alten, ablaufenden Zert.
     default_file = user_dir / "default"
-    if not default_file.exists():
-        default_file.write_text(slot)
+    default_file.write_text(slot)
     log.info("S/MIME cert stored for %s — slot %s — %s", email, slot, cert.subject.rfc4514_string())
     info = _cert_info(cert, email)
     info["slot_id"] = slot
     info["is_default"] = (default_file.read_text().strip() == slot)
     return info
+
+
+def import_signing_pem(email: str, cert_pem: bytes, key_pem: bytes) -> None:
+    """Ein exportiertes Signatur-Zertifikat (rohe PEM-Bytes) in einen Slot
+    übernehmen und als Default setzen — für den Konfigurations-Import.
+
+    Schreibt in die SLOT-Struktur (`certs/{slot}/`), NICHT ins Altlayout
+    `cert.pem` flach, und setzt den Default. Sonst lädt der Listener das
+    importierte Zert nie — genau der frühere Export/Import-Bug (Export las das
+    leere Altlayout, Import schrieb dorthin zurück, am aktiven Slot vorbei).
+    Bewahrt die Bytes exakt (kein Re-Encrypt), damit es unabhängig vom
+    Key-Passwort round-trippt — symmetrisch zum Export über `get_signing_paths`."""
+    email = email.lower().strip()
+    cert = x509.load_pem_x509_certificate(cert_pem)
+    slot = _slot_id(cert)
+    slot_dir = SMIME_DIR / email / "certs" / slot
+    slot_dir.mkdir(parents=True, exist_ok=True)
+    (slot_dir / "cert.pem").write_bytes(cert_pem)
+    if key_pem:
+        secure_io.write_secret_bytes(slot_dir / "key.pem", key_pem)
+    (SMIME_DIR / email / "default").write_text(slot)
+    log.info("S/MIME cert imported (config) for %s — slot %s", email, slot)
 
 
 def set_default_slot(email: str, slot_id: str) -> None:
