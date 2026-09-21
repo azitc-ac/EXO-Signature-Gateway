@@ -372,6 +372,20 @@ async def api_gen_auth_cert(request: Request, user: str = Depends(_require_admin
     """Generate a self-signed auth cert, save PFX locally, return public cert PEM."""
     from setup_wizard import _generate_auth_cert, _AUTH_CERT_PATH, _write_auth_pfx
 
+    # Ein BESTEHENDES Auth-Zert nie still ersetzen: Dieser manuelle Weg lädt das
+    # neue Zertifikat NICHT in Entra hoch — Connect-ExchangeOnline bräche mit
+    # AADSTS700027, bis es von Hand eingefügt ist. Zum Erneuern gehört der
+    # Auto-Weg ("Erneut anmelden" in Schritt 5: generiert UND lädt in Entra hoch
+    # UND tauscht danach). Der manuelle Knopf ist nur der Reparaturweg, wenn noch
+    # gar kein Zert vorliegt (die Oberfläche zeigt ihn auch nur dann).
+    if _AUTH_CERT_PATH.exists():
+        raise HTTPException(409,
+            "Es ist bereits ein Auth-Zertifikat hinterlegt. Zum Erneuern bitte in "
+            "Schritt 5 die Funktion 'Erneut anmelden' verwenden: sie generiert das "
+            "neue Zertifikat, laedt es automatisch in Entra hoch und tauscht es dann. "
+            "Der manuelle Weg wuerde das laufende Zertifikat ersetzen, ohne es in "
+            "Entra zu registrieren.")
+
     try:
         cert_der, pfx_bytes = _generate_auth_cert()
     except Exception as exc:
