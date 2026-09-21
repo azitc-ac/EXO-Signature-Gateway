@@ -120,6 +120,16 @@ def _generate_auth_cert() -> tuple[bytes, bytes]:
         return der, pfx_f.read_bytes()
 
 
+def _write_auth_pfx(pfx_bytes: bytes) -> None:
+    """auth.pfx sicher ablegen — 600, Ordner 700, atomar. EINE Stelle für BEIDE
+    Schreibwege (Setup-Flow + Rotier-Endpunkt), damit die Rechte nicht
+    auseinanderlaufen. Die PFX ist passwortlos (privater EXO-Auth-Schlüssel im
+    Klartext), steht namentlich in der 600-Tabelle (CLAUDE.md) — früher schrieben
+    beide Stellen mit `write_bytes` (umask 644)."""
+    import secure_io
+    secure_io.write_secret_bytes(_AUTH_CERT_PATH, pfx_bytes)
+
+
 async def _upload_key_credential(token: str, app_object_id: str, cert_der: bytes) -> None:
     """Upload a certificate public key to an Azure AD app registration."""
     from datetime import datetime, timezone, timedelta
@@ -531,8 +541,7 @@ async def run_post_auth_setup(token: str) -> dict:
     try:
         cert_der, pfx_bytes = _generate_auth_cert()
         await _upload_key_credential(token, app_info["app_object_id"], cert_der)
-        _AUTH_CERT_PATH.parent.mkdir(parents=True, exist_ok=True)
-        _AUTH_CERT_PATH.write_bytes(pfx_bytes)
+        _write_auth_pfx(pfx_bytes)
         result["auth_cert"] = str(_AUTH_CERT_PATH)
         log.info("Auth certificate generated and uploaded")
     except Exception as exc:
