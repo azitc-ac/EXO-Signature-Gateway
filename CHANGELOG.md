@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.59 — 2026-09-21 — Auth-Zertifikat: manuelles Erzeugen ersetzt kein laufendes mehr
+
+Das manuelle „Auth-Zertifikat generieren" ersetzt jetzt **kein bereits
+hinterlegtes** Zertifikat mehr. Dieser Weg lädt das neue Zertifikat nicht in
+Entra hoch; hätte er das laufende ersetzt, wäre `Connect-ExchangeOnline` mit
+`AADSTS700027` (Zertifikat-Drift) ausgefallen, bis der Schlüssel von Hand in Entra
+eingetragen ist. Er dient nur noch der Reparatur, wenn gar kein Zertifikat
+vorliegt (so zeigt ihn die Oberfläche ohnehin schon).
+
+Zum **Erneuern** eines vorhandenen Zertifikats führt der vorhandene Weg *Erneut
+anmelden* (Einrichtung, Schritt 5): Er generiert das neue Zertifikat, lädt es
+automatisch in Entra hoch und tauscht es erst danach — ohne Ausfallfenster.
+Bewusst wurde dafür der bestehende Anmelde-Weg genutzt, kein zweiter aufgebaut.
+
 ## v1.9.58 — 2026-09-21 — Ablaufkontrolle fürs separate SMTP-Zert; auth.pfx wird 600 geschrieben
 
 Zwei weitere Audit-Funde behoben:
