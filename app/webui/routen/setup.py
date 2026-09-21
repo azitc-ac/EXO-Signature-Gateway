@@ -370,15 +370,14 @@ async def api_setup_exo_connector(request: Request, user: str = Depends(_require
 @router.post("/api/setup/gen-auth-cert")
 async def api_gen_auth_cert(request: Request, user: str = Depends(_require_admin)):
     """Generate a self-signed auth cert, save PFX locally, return public cert PEM."""
-    from setup_wizard import _generate_auth_cert, _AUTH_CERT_PATH
+    from setup_wizard import _generate_auth_cert, _AUTH_CERT_PATH, _write_auth_pfx
 
     try:
         cert_der, pfx_bytes = _generate_auth_cert()
     except Exception as exc:
         raise HTTPException(500, f"Zertifikat-Generierung fehlgeschlagen: {exc}")
 
-    _AUTH_CERT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    _AUTH_CERT_PATH.write_bytes(pfx_bytes)
+    _write_auth_pfx(pfx_bytes)
     log.info("Auth certificate generated and saved to %s by %s", _AUTH_CERT_PATH, user)
 
     # Convert DER → PEM for display/download

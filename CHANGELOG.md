@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.58 — 2026-09-21 — Ablaufkontrolle fürs separate SMTP-Zert; auth.pfx wird 600 geschrieben
+
+Zwei weitere Audit-Funde behoben:
+
+- **Ein separates SMTP-Listener-Zertifikat lief unbemerkt ab.** Der Listener
+  bevorzugt ein hinterlegtes eigenes Zertifikat (Einstellungen → Erweitert), das
+  aber keine automatische Erneuerung hat; die tägliche Ablaufkontrolle prüfte nur
+  das gemeinsame Zertifikat. Läuft das separate Zertifikat nun auf den
+  Schwellwert zu, wird — wie beim gemeinsamen — eine Ablaufwarnung verschickt.
+
+- **auth.pfx wurde mit 644 statt 600 geschrieben.** Das Authentifizierungs-
+  zertifikat für Exchange Online enthält den privaten Schlüssel im Klartext
+  (passwortlos) und steht namentlich in der 600-Tabelle. Beide Schreibwege (Erst-
+  einrichtung und „Zertifikat neu erzeugen") teilen sich jetzt eine Stelle, die
+  über `secure_io` mit 600 schreibt. Bestehende Dateien wurden schon beim Start
+  gehärtet (`harden_tree`); jetzt stimmt das Recht bereits ab dem Schreiben, ohne
+  Fenster bis zum nächsten Neustart. Es ist nichts zu tun.
+
 ## v1.9.57 — 2026-09-21 — S/MIME: Erneuerung per Upload wird aktiv; Konfig-Export erfasst Zertifikate
 
 Zwei Fehler im S/MIME-Zertifikats-Lebenszyklus behoben (dieselbe Klasse wie die

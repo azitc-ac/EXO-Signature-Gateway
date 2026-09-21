@@ -105,6 +105,35 @@ def _check_tls_cert() -> None:
     _try_le_renewal(domain, days, expiry_str)
 
 
+def _check_smtp_cert() -> None:
+    """Separates SMTP-Listener-Zert (smtp_cert): der Listener serviert es bevorzugt,
+    es wird aber nur per Upload gesetzt und hat KEINEN Auto-Renew. Scheduler und
+    Health prüften bisher nur das gemeinsame Zert — ein separates lief STILL ab
+    (Schutzfunktion, deren Ausfall unsichtbar ist, CLAUDE.md-Regel 8). Hier daher
+    NUR Ablauf-Alarm, kein certbot (das separate Zert verwaltet certbot nicht)."""
+    import smtp_cert
+    if not smtp_cert.aktiv():
+        return
+    try:
+        from cryptography import x509
+        from smime_store import _get_expiry
+        cert = x509.load_pem_x509_certificate(smtp_cert.CERT.read_bytes())
+        expiry = _get_expiry(cert)
+        days = (expiry - datetime.now(timezone.utc)).days
+    except Exception as exc:                          # noqa: BLE001
+        log.warning("scheduler: separates SMTP-Zert nicht lesbar: %s", exc)
+        return
+    renew_days = int(settings_store.get("LE_RENEW_DAYS") or 14)
+    if days > renew_days:
+        return
+    if settings_store.get("NOTIFY_LE_EVENTS") is not False:
+        import notification
+        info = smtp_cert.info()
+        san = info.get("san") or []
+        label = san[0] if san else (info.get("subject") or "SMTP-Listener-Zert")
+        notification.send_le_expiry_alert(label, days, expiry.strftime("%d.%m.%Y"))
+
+
 # ── S/MIME cert alerts + lifecycle ───────────────────────────────────────────
 
 def _get_gateway_url() -> str:
@@ -281,6 +310,7 @@ def _check_license_expiry() -> None:
 def _run_daily() -> None:
     # Cert checks always run (independent of report settings)
     _check_tls_cert()
+    _check_smtp_cert()
     _check_smime_lifecycle()
     _check_license_expiry()
 
