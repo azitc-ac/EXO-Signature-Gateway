@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.61 — 2026-09-22 — LE-Erneuerungs-Mail: Deep-Link zum Neustart-Bereich
+
+Die Mail „Let's Encrypt Zertifikat erneuert" enthält jetzt einen Knopf, der direkt
+zum Neustart-Bereich unter *Einstellungen → Erweitert* führt (`/advanced#neustart`).
+Bewusst nur eine **Navigation** zum Neustart-Knopf, kein direkter Auslöser: Ein
+Link, der beim Aufruf (GET) eine Aktion ausführte, würde von Mail-Sicherheits-
+scannern („Safe Links") vorab besucht und damit einen Neustart ungewollt
+auslösen. Den Neustart bestätigt man weiterhin selbst mit einem Klick.
+
 ## v1.9.60 — 2026-09-21 — Let's-Encrypt-Erneuerung: certbot-Zufallsverzögerung unterdrückt (lief sonst ins Timeout)
 
 Nachtrag zu v1.9.56: Die automatische Erneuerung fand die Renewal-Konfiguration

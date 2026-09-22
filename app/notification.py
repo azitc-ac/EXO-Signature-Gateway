@@ -399,12 +399,23 @@ def send_le_renewed(domain: str, new_expiry: str) -> bool:
     if not to:
         return False
     now = datetime.now().strftime("%d.%m.%Y %H:%M")
+    import aussenadresse
+    base = (aussenadresse.basis() or "").rstrip("/")
+    # ⚠️ Deep-Link NUR zur NAVIGATION (Sprung zum Neustart-Knopf), NICHT zum
+    # direkten Auslösen: Ein GET-Link, der eine Aktion triggert, würde von
+    # Mail-Safe-Links vorab „detoniert" → ungewollter Neustart. Der Nutzer klickt
+    # den Knopf im Erweitert-Bereich bewusst selbst.
+    knopf = (f'<p style="margin-top:14px"><a href="{base}/advanced#neustart" '
+             f'style="display:inline-block;background:#0078d4;color:#fff;text-decoration:none;'
+             f'padding:9px 18px;border-radius:6px;font-size:14px">Zum Neustart-Bereich →</a></p>'
+             if base else '')
     body = (f'<table>'
             f'{_row("Domain", domain)}'
             f'{_row("Neues Ablaufdatum", new_expiry)}'
             f'{_row("Erneuert am", now)}'
             f'</table>'
-            f'<p style="color:#e67e22;margin-top:16px">⚠ Container-Neustart empfohlen, damit das neue Zertifikat aktiv wird.</p>')
+            f'<p style="color:#e67e22;margin-top:16px">⚠ Container-Neustart empfohlen, damit das neue Zertifikat aktiv wird.</p>'
+            f'{knopf}')
     html = _html_wrap("✓ Let's Encrypt Zertifikat erneuert", "#27ae60", body)
     return _graph_send(to, f"Let's Encrypt erneuert – {domain}", html)
 
