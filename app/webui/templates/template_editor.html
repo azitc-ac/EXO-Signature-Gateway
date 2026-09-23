@@ -4,10 +4,7 @@
 <script src="/static/sig_preview.js?v={{ version }}"></script>
 <h1>Signaturen</h1>
 
-<ul class="nav-sub-tabs">
-  <li><a href="/template" class="nav-sub-tab active">Vorlagen</a></li>
-  <li><a href="/preview" class="nav-sub-tab">Vorschau</a></li>
-</ul>
+{% set nav_aktiv = 'vorlagen' %}{% include "_nav_signaturen.html" %}
 
 <!-- Template-Auswahl -->
 <div class="settings-card" style="margin-bottom:16px">

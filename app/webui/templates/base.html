@@ -33,10 +33,10 @@
                 {% if _role == 'admin' %}
                 <li><a href="/" class="{% if active == 'dashboard' %}active{% endif %}">Übersicht</a></li>
                 {% endif %}
-                <li><a href="/template" class="{% if active in ('template', 'preview') %}active{% endif %}">Signaturen</a></li>
-                {% if _role in ('admin', 'kampagnen') %}
-                <li><a href="/kampagnen" class="{% if active == 'kampagnen' %}active{% endif %}">Kampagnen</a></li>
-                {% endif %}
+                {# „Kampagnen" ist kein eigener Hauptpunkt mehr, sondern ein
+                   Unterreiter von „Signaturen" (_nav_signaturen.html) — daher
+                   färbt die Kampagnen-Seite denselben Hauptpunkt ein. #}
+                <li><a href="/template" class="{% if active in ('template', 'preview', 'kampagnen') %}active{% endif %}">Signaturen</a></li>
                 {% if _role == 'admin' %}
                 <li><a href="/mailboxes" class="{% if active == 'mailboxes' %}active{% endif %}">Postfächer</a></li>
                 <li><a href="/smime" class="{% if active == 'smime' %}active{% endif %}">S/MIME</a></li>

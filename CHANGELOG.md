@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.62 — 2026-09-23 — „Kampagnen" ist ein Unterreiter von „Signaturen"
+
+„Kampagnen" war ein eigener Hauptmenüpunkt und steht jetzt als Reiter neben
+„Vorlagen" und „Vorschau" unter „Signaturen". Eine Kampagne ist ein
+zeitgesteuertes Banner auf derselben Signatur-Ebene; dort eingeordnet hält sie
+das Hauptmenü kürzer und die verwandten Funktionen beieinander. Der Reiter
+erscheint nur für Rollen, die Kampagnen verwalten dürfen (Verwaltung,
+Kampagnen-Manager) — für reine Signatur-Bearbeiter bleibt er ausgeblendet, weil
+die Kampagnen-Seite ihnen ohnehin verwehrt ist. Die Reiterleiste der Signaturen
+liegt jetzt in einer gemeinsamen Vorlage, statt auf jeder der drei Seiten
+wiederholt zu werden.
+
 ## v1.9.61 — 2026-09-22 — LE-Erneuerungs-Mail: Deep-Link zum Neustart-Bereich
 
 Die Mail „Let's Encrypt Zertifikat erneuert" enthält jetzt einen Knopf, der direkt
