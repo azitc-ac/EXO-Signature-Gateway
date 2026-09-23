@@ -1,0 +1,24 @@
+{# Die Reiterleiste der Signaturen — EINE Quelle (vgl. _nav_einstellungen.html).
+
+   ANLASS (2026-09-23): „Kampagnen" war ein eigener Hauptmenüpunkt. Es gehört
+   aber neben „Vorlagen" und „Vorschau" unter „Signaturen" — eine Kampagne ist
+   ein zeitgesteuertes Banner auf derselben Signatur-Ebene. Die Leiste stand
+   zuvor wortgleich inline in template_editor.html UND preview.html; ein dritter
+   Reiter hätte eine dritte Kopie bedeutet (Drift-Gefahr, vgl. _nav_einstellungen).
+
+   Aufruf:  {% set nav_aktiv = 'vorschau' %}{% include "_nav_signaturen.html" %}
+   Ohne `nav_aktiv` ist kein Reiter hervorgehoben.
+
+   ⚠️ „Kampagnen" erscheint nur für Rollen, die es bedienen dürfen
+   (admin/kampagnen) — `_require_kampagnen` verweigert Editoren die Route, ein
+   sichtbarer Reiter führte sie sonst auf einen 403-Link. Rolle wie in base.html
+   herleiten, damit das Partial ohne Vorbedingung im aufrufenden Kontext trägt.
+#}
+{% set _rolle = request.state.user_role if request.state.user_role is defined else 'admin' %}
+<ul class="nav-sub-tabs">
+  <li><a href="/template" class="nav-sub-tab{% if nav_aktiv == 'vorlagen' %} active{% endif %}">Vorlagen</a></li>
+  <li><a href="/preview" class="nav-sub-tab{% if nav_aktiv == 'vorschau' %} active{% endif %}">Vorschau</a></li>
+  {% if _rolle in ('admin', 'kampagnen') %}
+  <li><a href="/kampagnen" class="nav-sub-tab{% if nav_aktiv == 'kampagnen' %} active{% endif %}">Kampagnen</a></li>
+  {% endif %}
+</ul>
