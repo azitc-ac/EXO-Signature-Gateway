@@ -122,7 +122,10 @@ def _rewrite_from(content_bytes: bytes, relay_user: str) -> bytes:
     if orig_addr and "Reply-To" not in msg:
         msg["Reply-To"] = email.utils.formataddr((orig_name or orig_addr, orig_addr))
 
-    return msg.as_bytes()
+    # policy=SMTP: CRLF erzwingen. compat32-Reserialisierung erzeugte sonst
+    # bare LF, das der 587-Egress (deliver_inbound → smtp.sendmail) roh
+    # weiterreicht → Exchange zerlegt Multipart-Boundaries nicht (leerer Body).
+    return msg.as_bytes(policy=email.policy.SMTP)
 
 
 def _acquire_imap_tokens() -> list[str]:
