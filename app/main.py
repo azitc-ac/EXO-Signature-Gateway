@@ -187,27 +187,26 @@ def _submission_authenticator(server, session, envelope, mechanism, auth_data):
 
 
 def _build_tls_context() -> ssl.SSLContext | None:
-    # Separates Listener-Zert (falls hinterlegt) hat Vorrang — die Web-UI bleibt
-    # davon unberührt (die lädt weiter config.SMTP_TLS_CERT). Scheitert das
-    # separate Zert, Rückfall aufs gemeinsame, statt ganz ohne TLS zu starten.
+    # Der SMTP-Listener kann MEHRERE Namen bedienen und wählt per SNI das
+    # passende Zert: z.B. sig.azitc.eu für den Signatur-Connector UND
+    # mail.zarenko.net (Wildcard) für den Hybrid-Koexistenz-Inbound. Beide
+    # Connectoren validieren per DomainValidation ihren eigenen TlsDomain —
+    # mit nur EINEM Zert scheitert zwangsläufig einer.
+    #
+    # Rein additiv: Das Default-Zert bleibt das bisherige (separates Listener-
+    # Zert, falls hinterlegt, sonst das gemeinsame config.SMTP_TLS_CERT). Ohne
+    # SNI oder ohne passenden Namen bleibt es beim Default. NEU ist nur: passt
+    # der angefragte Name zu einem ANDEREN vorliegenden Zert, wird dieses
+    # präsentiert. Reihenfolge = Vorrang des Default-Zerts.
     import smtp_cert
-    paar = smtp_cert.pfade()
-    if paar:
-        try:
-            ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-            ctx.load_cert_chain(certfile=paar[0], keyfile=paar[1])
-            log.info("SMTP-Listener nutzt separates Zertifikat (%s)", paar[0])
-            return ctx
-        except Exception as exc:                          # noqa: BLE001
-            log.error("Separates SMTP-Zert nicht ladbar (%s) — Rückfall aufs gemeinsame Zert", exc)
-    cert = Path(config.SMTP_TLS_CERT)
-    key = Path(config.SMTP_TLS_KEY)
-    if not cert.exists() or not key.exists():
-        log.warning("TLS cert/key not found (%s / %s), starting SMTP without TLS", cert, key)
-        return None
-    ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-    ctx.load_cert_chain(certfile=str(cert), keyfile=str(key))
-    return ctx
+    kandidaten: list[tuple[str, str]] = []
+    sep = smtp_cert.pfade()
+    if sep:
+        kandidaten.append(sep)
+    gemeinsam = (str(config.SMTP_TLS_CERT), str(config.SMTP_TLS_KEY))
+    if gemeinsam != sep and Path(gemeinsam[0]).exists() and Path(gemeinsam[1]).exists():
+        kandidaten.append(gemeinsam)
+    return smtp_cert.baue_listener_kontext(kandidaten)
 
 
 _SETUP_PAGE_TEMPLATE = """\

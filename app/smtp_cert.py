@@ -13,6 +13,7 @@ Wirkt nach einem Neustart — der Listener lädt sein Zert beim Start
 (`main._build_tls_context`).
 """
 import logging
+import ssl
 from pathlib import Path
 
 import config
@@ -32,6 +33,90 @@ def aktiv() -> bool:
 def pfade() -> tuple[str, str] | None:
     """(cert, key) des separaten Listener-Zerts — oder None (dann gemeinsames Zert)."""
     return (str(CERT), str(KEY)) if aktiv() else None
+
+
+def zert_namen(cert_path: str) -> set[str]:
+    """Hostnamen, die ein Zertifikat abdeckt: alle SAN-DNS-Einträge, plus der
+    CN als Rückfall. Kleingeschrieben zurückgegeben. Für die SNI-Auswahl im
+    SMTP-Listener (welches Zert gehört zu welchem angefragten Namen)."""
+    from cryptography import x509
+    from cryptography.x509.oid import ExtensionOID, NameOID
+    try:
+        cert = _leaf(Path(cert_path).read_bytes())
+    except Exception:                                     # noqa: BLE001
+        return set()
+    namen: set[str] = set()
+    try:
+        san = cert.extensions.get_extension_for_oid(
+            ExtensionOID.SUBJECT_ALTERNATIVE_NAME)
+        namen.update(n.lower() for n in san.value.get_values_for_type(x509.DNSName))
+    except x509.ExtensionNotFound:
+        pass
+    for attr in cert.subject.get_attributes_for_oid(NameOID.COMMON_NAME):
+        if isinstance(attr.value, str):
+            namen.add(attr.value.lower())
+    return namen
+
+
+def name_passt(server_name: str, namen: set[str]) -> bool:
+    """Passt ein per SNI angefragter Hostname zu einem der Zert-Namen?
+
+    Wildcard nach RFC 6125: `*.example.net` deckt GENAU EINE linke Ebene ab
+    (`host.example.net`) — nicht `example.net` und nicht `a.b.example.net`.
+    """
+    if not server_name:
+        return False
+    sn = server_name.lower().rstrip(".")
+    for name in namen:
+        name = name.lower().rstrip(".")
+        if name == sn:
+            return True
+        if name.startswith("*."):
+            suffix = name[1:]                    # ".example.net"
+            if sn.endswith(suffix):
+                rest = sn[: -len(suffix)]
+                if rest and "." not in rest:     # genau eine Ebene, nicht leer
+                    return True
+    return False
+
+
+def baue_listener_kontext(kandidaten: list[tuple[str, str]]):
+    """SSLContext für den SMTP-Listener aus einer Vorrang-Liste von (cert, key).
+
+    Das ERSTE ladbare Zert ist der Default (bisheriges Verhalten). Liegen
+    mehrere vor, wählt ein SNI-Callback nach angefragtem Hostnamen; ohne bzw.
+    ohne passendes SNI bleibt es beim Default. Gibt None zurück, wenn kein Zert
+    ladbar ist (dann startet der Listener ohne TLS).
+    """
+    geladen: list[tuple[ssl.SSLContext, set[str], str]] = []
+    for cert, key in kandidaten:
+        try:
+            ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+            ctx.load_cert_chain(certfile=cert, keyfile=key)
+            geladen.append((ctx, zert_namen(cert), cert))
+        except Exception as exc:                          # noqa: BLE001
+            log.error("Listener-Zert nicht ladbar (%s) — übersprungen: %s", cert, exc)
+
+    if not geladen:
+        return None
+
+    default_ctx = geladen[0][0]           # Vorrang wie bisher
+    if len(geladen) == 1:
+        log.info("SMTP-Listener nutzt Zert %s", geladen[0][2])
+        return default_ctx
+
+    def _sni(sslobj, server_name, _ctx):
+        if server_name:
+            for ctx, namen, _c in geladen:
+                if name_passt(server_name, namen):
+                    sslobj.context = ctx
+                    return
+        # kein/kein passender Name → Default-Kontext (bisheriges Verhalten)
+
+    default_ctx.sni_callback = _sni
+    log.info("SMTP-Listener: SNI über %d Zerts — %s", len(geladen),
+             "; ".join("%s→%s" % (c, sorted(n)) for _c, n, c in geladen))
+    return default_ctx
 
 
 def _leaf(cert_pem: bytes):

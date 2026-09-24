@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.63 — 2026-09-24 — SMTP-Listener: Zertifikatswahl per SNI (mehrere Namen auf einem Port)
+
+Der SMTP-Listener (Port 25 und der Submission-Port 587) wählt sein
+TLS-Zertifikat jetzt nach dem im Handshake angefragten Hostnamen (SNI). Damit
+kann **ein** Gateway auf demselben Port mehrere TLS-Namen bedienen — etwa einen
+ausgehenden Connector, der den einen Hostnamen per `DomainValidation` prüft, und
+einen zweiten (z. B. eingehende Koexistenz-Post), der einen anderen erwartet.
+
+Vorher präsentierte der Listener nur **ein** Zertifikat. Erwartete ein Connector
+per `DomainValidation` einen anderen Namen, scheiterte die TLS-Aushandlung
+(`450 4.4.317 … SubjectMismatch`) und die Post blieb in der Warteschlange hängen.
+
+Rein additiv: Liegt kein SNI vor oder passt der Name zu keinem hinterlegten
+Zertifikat, wird wie bisher das Default-Zertifikat präsentiert (das separate
+Listener-Zertifikat, falls hinterlegt, sonst das gemeinsame). Neu ist nur, dass
+ein zweiter, ebenfalls vorliegender Name gezielt bedient wird. Kein Eingriff
+nötig, außer man betreibt eine solche Mehr-Namen-Konstellation.
+
 ## v1.9.62 — 2026-09-23 — „Kampagnen" ist ein Unterreiter von „Signaturen"
 
 „Kampagnen" war ein eigener Hauptmenüpunkt und steht jetzt als Reiter neben
