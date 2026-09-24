@@ -2,6 +2,7 @@ import asyncio
 import email
 import email.header
 import email.mime.text
+import email.policy
 import email.utils
 import logging
 import re
@@ -22,6 +23,20 @@ import signature_engine
 import stats
 
 log = logging.getLogger(__name__)
+
+
+def _smtp_bytes(msg: email.message.Message) -> bytes:
+    """MIME → Bytes für den Reinject-/SMTP-Weg: IMMER policy=SMTP (CRLF).
+
+    ⚠️ Ohne Policy erzeugt as_bytes() bare LF (\\n). Der SMTP-Reinject reicht die
+    Bytes roh an Exchange weiter (smtplib normalisiert Bytes NICHT — nur
+    Dot-Stuffing), und Exchange zerlegt ein Multipart mit bare-LF-Boundaries
+    nicht → zugestellt wird ein leerer Body (an anderen Connectoren auch
+    550 5.6.11 BareLinefeedsAreIllegal). CRLF ist zugleich die S/MIME-Kanonform,
+    die die Signatur erwartet — bare LF bräche sie. Deshalb ist policy=SMTP an
+    JEDEM Reinject-Serialisierungspunkt Pflicht (Geprüft: tests/test_reinject_crlf.py).
+    """
+    return msg.as_bytes(policy=email.policy.SMTP)
 
 
 def _portal_base_url() -> str:
@@ -708,7 +723,7 @@ class SignatureHandler:
                         tag = _build_subject_tag(enc=True, signer_name=signer_name)
                         _apply_subject_tag(inner_msg, tag, outer_subject)
                         loop_detector.mark_as_signed(inner_msg)
-                        reinject.send(sender, recipients, inner_msg.as_bytes(),
+                        reinject.send(sender, recipients, _smtp_bytes(inner_msg),
                                       force_mime=True)
                         stats.increment("processed")
                         stats.increment("smime_decrypted")
@@ -721,7 +736,7 @@ class SignatureHandler:
                     log.warning("Encrypted inbound — no private key for %s, forwarding as-is",
                                 recipients)
                 loop_detector.mark_as_signed(msg)
-                reinject.send(sender, recipients, msg.as_bytes())
+                reinject.send(sender, recipients, _smtp_bytes(msg))
                 return "250 OK"
 
             # ── Inbound signed mail: strip + harvest (full-process mode) ──────
@@ -748,7 +763,7 @@ class SignatureHandler:
                                 del inner_msg["To"]
                             inner_msg["To"] = ", ".join(recipients)
                             loop_detector.mark_as_signed(inner_msg)
-                            reinject.send(sender, recipients, inner_msg.as_bytes())
+                            reinject.send(sender, recipients, _smtp_bytes(inner_msg))
                             log.info("S/MIME own-mail forwarded: stripped and "
                                      "re-delivered from=%s to=%s", sender, recipients)
                         else:
@@ -771,7 +786,7 @@ class SignatureHandler:
                                 tag = _build_subject_tag(enc=False, signer_name=signer_name)
                                 _apply_subject_tag(inner_msg, tag, outer_subject)
                                 loop_detector.mark_as_signed(inner_msg)
-                                reinject.send(sender, recipients, inner_msg.as_bytes())
+                                reinject.send(sender, recipients, _smtp_bytes(inner_msg))
                                 stats.increment("processed")
                                 log.info("S/MIME inbound signed stripped from=%s signer=%s",
                                          sender, signer_name)
@@ -780,7 +795,7 @@ class SignatureHandler:
                         else:
                             log.debug("S/MIME inbound signed pass-through (strip disabled) from=%s", sender)
                         loop_detector.mark_as_signed(msg)
-                        reinject.send(sender, recipients, msg.as_bytes())
+                        reinject.send(sender, recipients, _smtp_bytes(msg))
                         return "250 OK"
 
             # ── Active mailbox filter ──────────────────────────────────────────
@@ -1057,12 +1072,12 @@ class SignatureHandler:
                       _img_mode, _use_cid, wants_encryption)
             if suppress_html_sig:
                 modified = msg
-                outbound = msg.as_bytes()
+                outbound = _smtp_bytes(msg)
                 log.info("HTML-Auto-Signatur unterdrückt für %s", sender)
             else:
                 modified = mail_processor.inject(msg, sig_html, sig_txt,
                                                   use_cid_images=_use_cid, force=_force_sig)
-                outbound = modified.as_bytes()
+                outbound = _smtp_bytes(modified)
 
             # ── S/MIME signing ─────────────────────────────────────────────────
             # Skip signing when encryption is requested: sign-then-encrypt
@@ -1175,7 +1190,7 @@ class SignatureHandler:
                     if "Subject" in enc_msg:
                         del enc_msg["Subject"]
                     enc_msg["Subject"] = _encode_subject(new_subject)
-                    outbound = enc_msg.as_bytes()
+                    outbound = _smtp_bytes(enc_msg)
                     log.info("Mail encrypted for %s", recipients)
 
             if settings_store.get("MAINTENANCE_MODE"):

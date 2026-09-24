@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.64 — 2026-09-24 — Reinject: CRLF erzwingen — leerer Body im SMTP-Modus behoben
+
+Im Modus `REINJECT_MODE=smtp` (und auf dem 587-Einlieferungsweg) wurde signierte
+Post mit **leerem Body** zugestellt. Ursache: Die reinjizierte MIME wurde ohne
+`policy=SMTP` serialisiert und trug dadurch **bare LF** (`\n`) statt CRLF.
+`smtplib.sendmail` reicht Bytes unverändert weiter (nur Punkt-Stuffing, keine
+Zeilenenden-Normalisierung); Exchange erkennt Multipart-Grenzen mit bare LF
+nicht und stellt eine leere `text/plain` zu.
+
+Jetzt laufen alle Reinject-/SMTP-Serialisierungen über einen Helfer, der
+**immer** `policy=SMTP` (CRLF) verwendet — an acht Stellen im Signatur- und
+S/MIME-Weg sowie beim 587-Absenderumschreiben. CRLF ist zugleich die
+S/MIME-Kanonform, die die Signatur erwartet; bare LF hätte sie gebrochen.
+
+Der Graph-Weg war nicht betroffen (er normalisiert vor dem Base64 ohnehin auf
+CRLF), weshalb Installationen im Graph-Modus nichts bemerkten. Betroffen waren
+Aufbauten mit SMTP-Reinject. Nichts zu tun außer aktualisieren.
+
 ## v1.9.63 — 2026-09-24 — SMTP-Listener: Zertifikatswahl per SNI (mehrere Namen auf einem Port)
 
 Der SMTP-Listener (Port 25 und der Submission-Port 587) wählt sein
