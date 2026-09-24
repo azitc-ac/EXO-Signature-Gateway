@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.67 — 2026-09-25 — Nachzug zu v1.9.66: Vorlagen-Verwaltungstests auf Pflicht-Art
+
+Die Bestandstests für das Anlegen von Vorlagen riefen `/create` noch ohne Art
+auf und liefen mit der neuen Pflicht-Art (v1.9.66) auf 400. Sie geben die Art
+jetzt mit; ergänzt um Fälle „ohne Art wird abgewiesen". Keine Verhaltensänderung
+am Produkt.
+
 ## v1.9.66 — 2026-09-25 — Vorlagen-Typen (Signatur/Banner/Disclaimer) konsequent im UI
 
 Jede Vorlage hat jetzt **genau eine Art**: Signatur, Banner oder Disclaimer
