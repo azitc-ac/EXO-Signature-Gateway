@@ -51,23 +51,36 @@ def test_neue_vorlage_wird_sofort_angelegt(klient):
     """Sonst steht sie erst nach dem ersten Speichern in der Auswahl — wer
     zwischendurch wegnavigiert, findet seine Arbeit nicht wieder."""
     c, verz = klient
-    r = c.post("/api/templates/Neue/create")
+    r = c.post("/api/templates/Neue/create", json={"kind": "signatur"})
     assert r.status_code == 200, r.text
     assert (verz / "Neue.html").exists() and (verz / "Neue.txt").exists()
     assert (verz / "Neue.html").read_text() == ""
+    # Die Art wird beim Anlegen in die Meta geschrieben (Pflicht seit v1.9.66).
+    import signature_engine as se
+    assert se.vorlagen_art("Neue") == "signatur"
+
+
+def test_anlegen_ohne_art_wird_abgewiesen(klient):
+    """Die Art ist Pflicht — ohne sie fiele die Vorlage auf 'signatur' und ließe
+    sich als Signatur zuweisen, auch wenn sie als Banner gemeint war."""
+    c, _ = klient
+    assert c.post("/api/templates/Ohne/create").status_code == 400
+    assert c.post("/api/templates/Quatsch/create", json={"kind": "x"}).status_code == 400
 
 
 def test_vorhandene_vorlage_wird_nicht_ueberschrieben(klient):
     c, verz = klient
     (verz / "Da.html").write_text("<p>Inhalt</p>", encoding="utf-8")
-    r = c.post("/api/templates/Da/create")
+    r = c.post("/api/templates/Da/create", json={"kind": "signatur"})
     assert r.status_code == 409
     assert "<p>Inhalt</p>" in (verz / "Da.html").read_text()
 
 
 def test_default_ist_geschuetzt(klient):
     c, _ = klient
-    assert c.post("/api/templates/default/create").status_code == 400
+    # Mit gültiger Art, damit wirklich der default-Schutz greift (400) und nicht
+    # schon die Art-Pflicht.
+    assert c.post("/api/templates/default/create", json={"kind": "signatur"}).status_code == 400
 
 
 # ── Umbenennen ───────────────────────────────────────────────────────────────
