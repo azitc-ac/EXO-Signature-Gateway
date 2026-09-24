@@ -12,11 +12,19 @@
     <label style="font-weight:600;white-space:nowrap">Aktive Vorlage:</label>
     <select id="tpl-selector" style="min-width:180px;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px"
             onchange="switchTemplate(this.value)">
-      <optgroup label="Signaturen">
-      {% for t in template_list %}
-      <option value="{{ t }}" {% if t == current_template %}selected{% endif %}>{{ t }}</option>
+      {# Auswahl nach Art gruppiert: Signaturen, Banner, Disclaimer. Jede Art
+         steht in einer eigenen Optgruppe — dieselbe Trennung, die auch die
+         Zuweisungs-Dropdowns filtert. #}
+      {% set art_labels = {'signatur': 'Signaturen', 'banner': 'Banner', 'disclaimer': 'Disclaimer'} %}
+      {% for art, namen in template_gruppen.items() %}
+      {% if namen %}
+      <optgroup label="{{ art_labels.get(art, art) }}">
+      {% for t in namen %}
+      <option value="{{ t }}" {% if t == current_template and not usermail_key %}selected{% endif %}>{{ t }}</option>
       {% endfor %}
       </optgroup>
+      {% endif %}
+      {% endfor %}
       {# Nachrichten an Postfachinhaber stehen in einer EIGENEN Gruppe. Sie
          liegen im selben Verzeichnis und werden im selben Baukasten bearbeitet
          — in der Signaturliste hätten sie aber nichts zu suchen: Von dort aus
@@ -49,10 +57,53 @@
     {% endif %}
     {% endif %}
   </div>
+  {% if not usermail_key %}
+  {# Die Art bestimmt, in welchen Zuweisungslisten die Vorlage erscheint. Sie
+     steht auf dem aktuellen Wert vorbelegt — wer nichts ändert, behält sie beim
+     Speichern (buildMeta überträgt sie IMMER). Für 'default' ist sie fest: die
+     Basissignatur ist keine andere Art. #}
+  <div style="display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap">
+    <label for="tpl-kind" style="font-weight:600;white-space:nowrap">Art:</label>
+    <select id="tpl-kind" style="padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px"
+            {% if current_template == 'default' %}disabled title="Die Standardsignatur ist immer eine Signatur."{% endif %}>
+      <option value="signatur" {% if template_kind == 'signatur' %}selected{% endif %}>Signatur</option>
+      <option value="banner" {% if template_kind == 'banner' %}selected{% endif %}>Banner</option>
+      <option value="disclaimer" {% if template_kind == 'disclaimer' %}selected{% endif %}>Disclaimer</option>
+    </select>
+    <span class="hint" style="margin:0">Bestimmt, in welchen Zuweisungslisten die Vorlage erscheint.</span>
+  </div>
+  {% endif %}
   <p class="hint" style="margin-top:8px;margin-bottom:0">
     Vorlage <strong>"{{ current_template }}"</strong> wird bearbeitet.
     {% if current_template == 'default' %}Die Standard-Vorlage wird verwendet, wenn in der Postfach-Konfiguration keine andere Vorlage gewählt ist.{% endif %}
   </p>
+</div>
+
+{# Dialog „Neue Vorlage": Name + Art. Die Art ist Pflicht — sie entscheidet, in
+   welche Zuweisungsliste die Vorlage kommt. #}
+<div id="neu-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1000;align-items:center;justify-content:center">
+  <div class="settings-card" style="max-width:420px;width:90%;background:#fff">
+    <h3 style="margin-top:0">Neue Vorlage</h3>
+    <div style="margin-bottom:12px">
+      <label for="neu-name" style="display:block;font-weight:600;margin-bottom:4px">Name</label>
+      <input id="neu-name" type="text" style="width:100%;padding:6px 8px;border:1px solid #d1d5db;border-radius:4px;box-sizing:border-box"
+             placeholder="Buchstaben, Zahlen, - und _" onkeydown="if(event.key==='Enter')neuAnlegen()">
+    </div>
+    <div style="margin-bottom:16px">
+      <label for="neu-kind" style="display:block;font-weight:600;margin-bottom:4px">Art</label>
+      <select id="neu-kind" style="width:100%;padding:6px 8px;border:1px solid #d1d5db;border-radius:4px">
+        <option value="signatur">Signatur</option>
+        <option value="banner">Banner</option>
+        <option value="disclaimer">Disclaimer</option>
+      </select>
+      <span class="hint" style="display:block;margin:4px 0 0">Bestimmt, in welchen Zuweisungslisten die Vorlage erscheint.</span>
+    </div>
+    <div id="neu-err" style="display:none;color:#991b1b;margin-bottom:10px;font-size:13px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn secondary" type="button" onclick="neuSchliessen()">Abbrechen</button>
+      <button class="btn" type="button" onclick="neuAnlegen()">Anlegen</button>
+    </div>
+  </div>
 </div>
 
 {% if usermail_key %}
@@ -372,6 +423,7 @@
 const TEMPLATE_NAME = {{ current_template | tojson }};
 const USERMAIL_KEY  = {{ usermail_key | tojson }};
 const HAS_META      = {{ has_meta | tojson }};
+const TEMPLATE_KIND = {{ template_kind | tojson }};
 // Quelltext nach dem letzten Baukasten-Speichern von Hand geaendert.
 const QUELLTEXT_NEUER = {{ quelltext_neuer | tojson }};
 const CUSTOM_VARS   = {{ (custom_vars or []) | tojson }};
@@ -1243,6 +1295,12 @@ function buildMeta() {
     meta.usermail_key = USERMAIL_KEY;
     const f = document.getElementById('um-betreff');
     meta.betreff = f ? f.value.trim() : '';
+  } else {
+    // Die Art IMMER mitschreiben. Ohne das fiele eine Vorlage bei jedem
+    // Speichern auf 'signatur' zurück — ein zugewiesener Banner verschwände
+    // still aus seinem Dropdown. Der Wert steht auf der aktuellen Art vorbelegt.
+    const kindSel = document.getElementById('tpl-kind');
+    meta.kind = (kindSel && kindSel.value) || TEMPLATE_KIND || 'signatur';
   }
   return meta;
 }
@@ -1522,16 +1580,32 @@ async function loadMeta() {
 window.switchTemplate = function(name) {
   window.location.href = '/template?name=' + encodeURIComponent(name);
 };
-window.createNewTemplate = async function() {
-  const name = prompt('Name der neuen Vorlage (nur Buchstaben, Zahlen, - und _):');
-  if (!name) return;
+// Anlegen über einen Dialog mit Name UND Art — die Art ist Pflicht, damit die
+// Vorlage in der richtigen Zuweisungsliste landet (ein prompt() kann keine
+// Auswahl anbieten).
+window.createNewTemplate = function() {
+  const err = document.getElementById('neu-err');
+  err.style.display = 'none';
+  document.getElementById('neu-name').value = '';
+  document.getElementById('neu-kind').value = 'signatur';
+  document.getElementById('neu-modal').style.display = 'flex';
+  document.getElementById('neu-name').focus();
+};
+window.neuSchliessen = function() {
+  document.getElementById('neu-modal').style.display = 'none';
+};
+window.neuAnlegen = async function() {
+  const err = document.getElementById('neu-err');
+  const name = document.getElementById('neu-name').value;
+  const kind = document.getElementById('neu-kind').value;
   const safe = name.replace(/[^a-zA-Z0-9_\-]/g, '').replace(/^[-_]+|[-_]+$/g, '');
-  if (!safe) { alert('Ungültiger Name.'); return; }
-  if (safe === 'default') { alert('"default" ist reserviert.'); return; }
+  const zeige = m => { err.textContent = m; err.style.display = 'block'; };
+  if (!safe) { zeige('Bitte einen gültigen Namen eingeben (Buchstaben, Zahlen, - und _).'); return; }
+  if (safe === 'default') { zeige('"default" ist reserviert.'); return; }
   // Erst anlegen, dann hin: Sonst steht die Vorlage nicht in der Auswahl, und
   // wer zwischendurch wegnavigiert, findet seine Arbeit nicht wieder.
-  const d = await postJSON('/api/templates/' + encodeURIComponent(safe) + '/create', {});
-  if (!d.ok) { alert('Fehler: ' + (d.detail || d.error || 'Unbekannt')); return; }
+  const d = await postJSON('/api/templates/' + encodeURIComponent(safe) + '/create', {kind: kind});
+  if (!d.ok) { zeige('Fehler: ' + (d.detail || d.error || 'Unbekannt')); return; }
   window.location.href = '/template?name=' + encodeURIComponent(d.name);
 };
 // Kopieren ueber die Schnittstelle, nicht ueber den Quelltext: der HTML-Code

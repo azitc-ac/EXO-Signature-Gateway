@@ -433,8 +433,42 @@ async function ankerAnwenden() {
 
 <script>
 var _mbData = [];
-var _templateList = {{ templates_list | tojson }};
+// Vorlagen nach Art. `_templateList` bleibt die Signaturliste (sig/min/addin);
+// Banner/Disclaimer ziehen aus _templatesByKind.
+var _templatesByKind = {{ templates_by_kind | tojson }};
+var _templateList = _templatesByKind.signatur || ['default'];
 var _addinEnabled = {{ 'true' if addin_enabled else 'false' }};
+
+// Ein <select> mit den Vorlagen einer Art füllen.
+//   kind      — 'signatur' | 'banner' | 'disclaimer'
+//   aktuell   — vorausgewählter Wert
+//   opts.mitLeer/leerText — führende „— keine —"-Zeile
+//   opts.auchZeigen — weitere Werte, die als Option vorhanden sein MÜSSEN
+// Sicherheitsnetz: ein zugewiesener Wert abweichender Art (oder noch nicht
+// typisiert) erscheint trotzdem — als „… (andere Art)" —, damit die Auswahl
+// nicht auf leer springt und Speichern die Zuweisung löscht.
+function _fuelleVorlagenSelect(sel, kind, aktuell, opts) {
+  opts = opts || {};
+  sel.innerHTML = '';
+  if (opts.mitLeer) {
+    var leer = document.createElement('option');
+    leer.value = ''; leer.textContent = opts.leerText || '— keine —';
+    if (!aktuell) leer.selected = true;
+    sel.appendChild(leer);
+  }
+  var typListe = _templatesByKind[kind] || [];
+  var namen = typListe.slice();
+  (opts.auchZeigen || []).concat([aktuell]).forEach(function(v) {
+    if (v && namen.indexOf(v) === -1) namen.push(v);  // Sicherheitsnetz
+  });
+  namen.forEach(function(name) {
+    var opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = (typListe.indexOf(name) === -1) ? name + ' (andere Art)' : name;
+    if (name === aktuell) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
 
 function showAlert(el, type, msg) {
   el.className = 'alert ' + type;
@@ -522,63 +556,19 @@ async function loadPolicies() {
 
     // Standardsignatur
     var sigSel = document.getElementById('policy-sig-tpl');
-    if (sigSel) {
-      sigSel.innerHTML = '';
-      _templateList.forEach(function(name) {
-        var opt = document.createElement('option');
-        opt.value = name; opt.textContent = name;
-        if (name === (d.sig || 'default')) opt.selected = true;
-        sigSel.appendChild(opt);
-      });
-    }
+    if (sigSel) _fuelleVorlagenSelect(sigSel, 'signatur', d.sig || 'default');
 
-    // Minimalsignatur (— keine — + Vorlagen)
+    // Minimalsignatur (— keine — + Signaturen)
     var minSel = document.getElementById('policy-min-tpl');
-    if (minSel) {
-      minSel.innerHTML = '';
-      var none = document.createElement('option');
-      none.value = ''; none.textContent = '— keine —';
-      if (!d.min) none.selected = true;
-      minSel.appendChild(none);
-      _templateList.forEach(function(name) {
-        var opt = document.createElement('option');
-        opt.value = name; opt.textContent = name;
-        if (name === d.min) opt.selected = true;
-        minSel.appendChild(opt);
-      });
-    }
+    if (minSel) _fuelleVorlagenSelect(minSel, 'signatur', d.min, {mitLeer: true});
 
-    // Banner (— keine — + Vorlagen)
+    // Banner (— keine — + Banner-Vorlagen)
     var bannerPolSel = document.getElementById('policy-banner-tpl');
-    if (bannerPolSel) {
-      bannerPolSel.innerHTML = '';
-      var bNone = document.createElement('option');
-      bNone.value = ''; bNone.textContent = '— keine —';
-      if (!d.banner) bNone.selected = true;
-      bannerPolSel.appendChild(bNone);
-      _templateList.forEach(function(name) {
-        var opt = document.createElement('option');
-        opt.value = name; opt.textContent = name;
-        if (name === d.banner) opt.selected = true;
-        bannerPolSel.appendChild(opt);
-      });
-    }
+    if (bannerPolSel) _fuelleVorlagenSelect(bannerPolSel, 'banner', d.banner, {mitLeer: true});
 
-    // Disclaimer (— keine — + Vorlagen)
+    // Disclaimer (— keine — + Disclaimer-Vorlagen)
     var disclaimerPolSel = document.getElementById('policy-disclaimer-tpl');
-    if (disclaimerPolSel) {
-      disclaimerPolSel.innerHTML = '';
-      var dNone = document.createElement('option');
-      dNone.value = ''; dNone.textContent = '— keine —';
-      if (!d.disclaimer) dNone.selected = true;
-      disclaimerPolSel.appendChild(dNone);
-      _templateList.forEach(function(name) {
-        var opt = document.createElement('option');
-        opt.value = name; opt.textContent = name;
-        if (name === d.disclaimer) opt.selected = true;
-        disclaimerPolSel.appendChild(opt);
-      });
-    }
+    if (disclaimerPolSel) _fuelleVorlagenSelect(disclaimerPolSel, 'disclaimer', d.disclaimer, {mitLeer: true});
 
     // Add-in Vorlagen
     var addinCtrl = document.getElementById('policy-addin-ctrl');
@@ -654,7 +644,8 @@ async function loadMailboxes(silent) {
       var tresp = await fetch('/api/templates');
       if (tresp.ok) {
         var tdata = await tresp.json();
-        _templateList = tdata.templates || ['default'];
+        if (tdata.by_kind) _templatesByKind = tdata.by_kind;
+        _templateList = (_templatesByKind && _templatesByKind.signatur) || tdata.templates || ['default'];
       }
     } catch(_) { /* ignore, keep server-rendered list */ }
 
@@ -743,13 +734,10 @@ function _buildTemplateSelect(idx, selectedTemplate, sigEnabled, policyActive, p
   if (policyActive) sel.title = 'Wird durch Vorlagenrichtlinie gesteuert';
   var effective = policyActive ? (policyTemplate || selectedTemplate || 'default')
                                : (selectedTemplate || 'default');
-  _templateList.forEach(function(name) {
-    var opt = document.createElement('option');
-    opt.value = name;
-    opt.textContent = name;
-    if (name === effective) opt.selected = true;
-    sel.appendChild(opt);
-  });
+  // Signatur; beide möglichen Werte (Postfach- und Richtlinien-Vorlage) als
+  // Sicherheitsnetz, weil _applyPolicy später zwischen ihnen umschaltet.
+  _fuelleVorlagenSelect(sel, 'signatur', effective,
+                        {auchZeigen: [selectedTemplate, policyTemplate]});
   return sel;
 }
 
@@ -987,19 +975,11 @@ function renderMailboxTable(mailboxes) {
     minSigSel.className = 'mb-min-sig';
     minSigSel.dataset.idx = String(i);
     minSigSel.style.cssText = 'font-size:12px;max-width:130px';
-    var optNone = document.createElement('option');
-    optNone.value = '';
-    optNone.textContent = '— keine —';
-    minSigSel.appendChild(optNone);
     var _effectiveMinTpl = policyActive
       ? (document.getElementById('policy-min-tpl').value || '')
       : (mb.min_template || '');
-    _templateList.forEach(function(name) {
-      var opt = document.createElement('option');
-      opt.value = name; opt.textContent = name;
-      if (name === _effectiveMinTpl) opt.selected = true;
-      minSigSel.appendChild(opt);
-    });
+    _fuelleVorlagenSelect(minSigSel, 'signatur', _effectiveMinTpl,
+      {mitLeer: true, auchZeigen: [mb.min_template, document.getElementById('policy-min-tpl').value]});
     var _minDisabled = !mb.sig || policyActive;
     minSigSel.disabled = _minDisabled;
     minSigSel.style.opacity = _minDisabled ? '0.4' : '1';
@@ -1013,19 +993,12 @@ function renderMailboxTable(mailboxes) {
     bannerSel.className = 'mb-banner';
     bannerSel.dataset.idx = String(i);
     bannerSel.style.cssText = 'font-size:12px;max-width:130px';
-    var bannerOptNone = document.createElement('option');
-    bannerOptNone.value = '';
-    bannerOptNone.textContent = '— kein Banner —';
-    bannerSel.appendChild(bannerOptNone);
     var _effectiveBanner = policyActive
       ? (document.getElementById('policy-banner-tpl').value || '')
       : (mb.banner_template || '');
-    _templateList.forEach(function(name) {
-      var opt = document.createElement('option');
-      opt.value = name; opt.textContent = name;
-      if (name === _effectiveBanner) opt.selected = true;
-      bannerSel.appendChild(opt);
-    });
+    _fuelleVorlagenSelect(bannerSel, 'banner', _effectiveBanner,
+      {mitLeer: true, leerText: '— kein Banner —',
+       auchZeigen: [mb.banner_template, document.getElementById('policy-banner-tpl').value]});
     var _bannerDisabled = !mb.sig || policyActive;
     bannerSel.disabled = _bannerDisabled;
     bannerSel.style.opacity = _bannerDisabled ? '0.4' : '1';
@@ -1039,19 +1012,12 @@ function renderMailboxTable(mailboxes) {
     disclaimerSel.className = 'mb-disclaimer';
     disclaimerSel.dataset.idx = String(i);
     disclaimerSel.style.cssText = 'font-size:12px;max-width:130px';
-    var disclaimerOptNone = document.createElement('option');
-    disclaimerOptNone.value = '';
-    disclaimerOptNone.textContent = '— kein —';
-    disclaimerSel.appendChild(disclaimerOptNone);
     var _effectiveDisclaimer = policyActive
       ? (document.getElementById('policy-disclaimer-tpl').value || '')
       : (mb.disclaimer_template || '');
-    _templateList.forEach(function(name) {
-      var opt = document.createElement('option');
-      opt.value = name; opt.textContent = name;
-      if (name === _effectiveDisclaimer) opt.selected = true;
-      disclaimerSel.appendChild(opt);
-    });
+    _fuelleVorlagenSelect(disclaimerSel, 'disclaimer', _effectiveDisclaimer,
+      {mitLeer: true, leerText: '— kein —',
+       auchZeigen: [mb.disclaimer_template, document.getElementById('policy-disclaimer-tpl').value]});
     var _disclaimerDisabled = !mb.sig || policyActive;
     disclaimerSel.disabled = _disclaimerDisabled;
     disclaimerSel.style.opacity = _disclaimerDisabled ? '0.4' : '1';
@@ -1486,6 +1452,8 @@ async function saveGroups() {
 var _customPolicies = []; // [{condition_type, group_name, applies_to, template}]
 
 var _APPLIES_TO_LABELS = {sig: 'Standardsignatur', min: 'Minimalsignatur', banner: 'Banner', disclaimer: 'Disclaimer'};
+// Welchen Vorlagentyp der jeweilige Slot zuweist — spiegelt signature_engine.SLOT_ART.
+var _SLOT_ART = {sig: 'signatur', min: 'signatur', banner: 'banner', disclaimer: 'disclaimer'};
 
 function _renderCustomPoliciesTable() {
   var tbody = document.getElementById('cpol-tbody');
@@ -1539,25 +1507,22 @@ function _renderCustomPoliciesTable() {
       if (slot === pol.applies_to) opt.selected = true;
       appSel.appendChild(opt);
     });
-    appSel.addEventListener('change', function() { _customPolicies[i].applies_to = this.value; });
+    appSel.addEventListener('change', function() {
+      _customPolicies[i].applies_to = this.value;
+      // „Betrifft" bestimmt die Art — Vorlagenliste danach neu filtern, den
+      // aktuellen Wert als Sicherheitsnetz behalten.
+      _fuelleVorlagenSelect(tplSel, _SLOT_ART[this.value] || 'signatur',
+                            _customPolicies[i].template, {mitLeer: true});
+    });
     tdApp.appendChild(appSel);
     tr.appendChild(tdApp);
 
-    // Vorlage select
+    // Vorlage select — Art richtet sich nach „Betrifft"
     var tdTpl = document.createElement('td');
     tdTpl.style.padding = '6px 8px';
     var tplSel = document.createElement('select');
     tplSel.style.cssText = 'font-size:12px;width:130px';
-    var noneOpt = document.createElement('option');
-    noneOpt.value = ''; noneOpt.textContent = '— keine —';
-    if (!pol.template) noneOpt.selected = true;
-    tplSel.appendChild(noneOpt);
-    _templateList.forEach(function(name) {
-      var opt = document.createElement('option');
-      opt.value = name; opt.textContent = name;
-      if (name === pol.template) opt.selected = true;
-      tplSel.appendChild(opt);
-    });
+    _fuelleVorlagenSelect(tplSel, _SLOT_ART[pol.applies_to] || 'signatur', pol.template, {mitLeer: true});
     tplSel.addEventListener('change', function() { _customPolicies[i].template = this.value; });
     tdTpl.appendChild(tplSel);
     tr.appendChild(tdTpl);

@@ -27,7 +27,7 @@ def _ansicht() -> dict:
              for c in banner_campaigns.liste()]
     return {
         "campaigns": camps,
-        "banners": signature_engine.list_templates("signatur"),
+        "banners": signature_engine.list_templates("banner"),
         "groups": sorted((settings_store.get("INTERNAL_GROUPS") or {}).keys()),
     }
 

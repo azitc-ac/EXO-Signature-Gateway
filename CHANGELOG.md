@@ -5,6 +5,33 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.66 — 2026-09-25 — Vorlagen-Typen (Signatur/Banner/Disclaimer) konsequent im UI
+
+Jede Vorlage hat jetzt **genau eine Art**: Signatur, Banner oder Disclaimer
+(Nachrichten an Postfachinhaber bleiben eine eigene Art). Beim Anlegen im Editor
+wählst du die Art — sie ist Pflicht — und kannst sie später über das Feld „Art"
+ändern. Die Auswahl zeigt die Vorlagen nach Art gruppiert.
+
+**Warum:** Bisher war jede Vorlage technisch eine „Signatur", und dieselbe Liste
+füllte jedes Zuweisungs-Dropdown. Eine als Banner gemeinte Vorlage ließ sich so
+ebenso als Standardsignatur zuweisen wie umgekehrt — ein Klick genügte. Die
+Banner-Auswahl der Kampagnen und die Zuweisungslisten der Postfächer zogen
+allesamt aus der Signaturliste.
+
+**Jetzt** zeigt jedes Zuweisungs-Dropdown nur die passende Art: die
+Signatur-/Minimalsignatur-/Add-in-Felder Signaturen, die Banner-Felder Banner,
+die Disclaimer-Felder Disclaimer; bei den Gruppen-Richtlinien richtet sich die
+Vorlagenliste nach „Betrifft".
+
+**Bestand:** Beim Start werden vorhandene Vorlagen, die **eindeutig** nur als
+Banner bzw. Disclaimer zugewiesen sind, automatisch der jeweiligen Art
+zugeordnet (konservativ: mehrdeutige — auch als Signatur genutzte — bleiben
+Signatur, und nur vorhandene Baukasten-Daten werden ergänzt). Zusätzlich zeigt
+jedes Dropdown die **aktuell zugewiesene** Vorlage weiterhin an, selbst wenn ihre
+Art abweicht — so verschwindet keine bestehende Zuweisung und Speichern
+überschreibt sie nicht versehentlich. Wer eine noch als Signatur geführte Vorlage
+als Banner nutzen will, stellt ihre Art einmalig im Editor um.
+
 ## v1.9.65 — 2026-09-24 — Domänen-Routing: Per-Empfänger-Entscheidung (Cloud-Postfächer bleiben in der Cloud)
 
 Neue Option **Per-Empfänger-Routing** (SMTP-Relay → Domänen-Routing, Vorgabe

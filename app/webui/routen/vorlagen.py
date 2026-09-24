@@ -115,9 +115,13 @@ def _usermail_key(fname: str) -> str:
 
 @router.get("/api/templates")
 async def api_get_templates(_=Depends(_check_auth)):
-    """List available signature template names."""
+    """Vorlagennamen: `templates` = Signaturen (Rückwärtskompatibilität),
+    `by_kind` = nach Art gruppiert für die typgefilterten Dropdowns."""
     import signature_engine
-    return {"templates": signature_engine.list_templates()}
+    return {
+        "templates": signature_engine.list_templates(),
+        "by_kind": signature_engine.templates_nach_art(),
+    }
 
 @router.delete("/api/templates/{name}")
 async def api_delete_template(name: str, _=Depends(_check_auth)):
@@ -187,14 +191,28 @@ async def api_rename_template(name: str, request: Request, _=Depends(_check_auth
     })
 
 @router.post("/api/templates/{name}/create")
-async def api_create_template(name: str, _=Depends(_check_auth)):
-    """Leere Vorlage anlegen, damit sie sofort in der Auswahl steht.
+async def api_create_template(name: str, request: Request, _=Depends(_check_auth)):
+    """Leere Vorlage einer gewählten Art anlegen, damit sie sofort in der
+    passenden Auswahl steht.
 
     Bisher fuehrte „+ Neue Vorlage" nur auf die Bearbeitungsseite; auf der
     Platte entstand nichts. Die Vorlage tauchte deshalb erst nach dem ersten
     Speichern in der Liste auf — wer zwischendurch wegnavigierte, fand seine
     Arbeit nicht wieder und legte sie ein zweites Mal an.
+
+    Die Art ist beim Anlegen PFLICHT: ohne sie fiele die Vorlage auf 'signatur'
+    und liesse sich als Signatur zuweisen, auch wenn sie als Banner gemeint war.
     """
+    import signature_engine
+    try:
+        daten = await request.json()
+    except Exception:
+        daten = {}
+    kind = (daten.get("kind") or "").strip() if isinstance(daten, dict) else ""
+    erlaubt = set(signature_engine.SLOT_ART.values())  # signatur/banner/disclaimer (+ oof)
+    if kind not in erlaubt:
+        raise HTTPException(400, "Bitte eine Art wählen (Signatur, Banner oder Disclaimer).")
+
     safe = _re.sub(r"[^a-zA-Z0-9_\-]", "", name).strip("-_")
     if not safe:
         raise HTTPException(400, "Ungültiger Name (Buchstaben, Ziffern, - und _).")
@@ -206,10 +224,15 @@ async def api_create_template(name: str, _=Depends(_check_auth)):
 
     (verz / f"{safe}.html").write_text("", encoding="utf-8")
     (verz / f"{safe}.txt").write_text("", encoding="utf-8")
-    import signature_engine
+    # Meta mit der Art anlegen (leerer Baukasten). So steht die Vorlage sofort in
+    # der richtigen Liste, noch bevor der Baukasten das erste Mal gespeichert hat.
+    import json as _json
+    (verz / f"{safe}.meta.json").write_text(
+        _json.dumps({"version": 1, "kind": kind, "blocks": []}, ensure_ascii=False, indent=2),
+        encoding="utf-8")
     signature_engine._reload_env()
-    log.info("Template '%s' angelegt (leer) von %s", safe, _)
-    return JSONResponse({"ok": True, "name": safe})
+    log.info("Template '%s' (Art %s) angelegt (leer) von %s", safe, kind, _)
+    return JSONResponse({"ok": True, "name": safe, "kind": kind})
 
 @router.post("/api/templates/{name}/duplicate")
 async def api_duplicate_template(name: str, request: Request, _=Depends(_check_auth)):
@@ -332,6 +355,14 @@ async def api_save_template_meta(name: str, request: Request, _=Depends(_check_a
     if not isinstance(meta, dict) or "blocks" not in meta:
         raise HTTPException(400, "Meta-JSON muss 'blocks' enthalten")
     meta.setdefault("version", 1)
+    # Art absichern. Ein ungültiger Wert wird abgewiesen; fehlt die Art (alte
+    # Clients), die bestehende bewahren — NICHT still auf 'signatur' fallen, sonst
+    # verschwände ein zugewiesener Banner aus seinem Dropdown.
+    if "kind" in meta:
+        if not signature_engine.ist_bekannte_art(meta["kind"]):
+            raise HTTPException(400, f"Unbekannte Vorlagen-Art: {meta.get('kind')!r}")
+    else:
+        meta["kind"] = signature_engine.vorlagen_art(fname)
     if not (meta.get("blocks") or []):
         # Eine leere Bausteinliste ergibt eine leere Vorlage — und jede damit
         # versandte Mail traegt gar keine Signatur mehr. Am 02.08.2026 ist
@@ -457,7 +488,10 @@ async def template_editor(request: Request, user: str = Depends(_check_auth)):
     html_path = Path(config.TEMPLATE_DIR) / f"{fname}.html"
     txt_path = Path(config.TEMPLATE_DIR) / f"{fname}.txt"
     meta_path = Path(config.TEMPLATE_DIR) / f"{fname}.meta.json"
-    template_list = _sig_engine.list_templates()
+    # Auswahl nach Art gruppiert (Signaturen/Banner/Disclaimer) plus die Art der
+    # gerade geöffneten Vorlage — der Editor zeigt und bewahrt sie.
+    template_gruppen = _sig_engine.templates_nach_art()
+    template_kind = _sig_engine.vorlagen_art(fname)
     custom_vars = [cv["name"] for cv in (settings_store.get("CUSTOM_TEMPLATE_VARS") or []) if cv.get("name")]
     return templates.TemplateResponse(
         request=request, name="template_editor.html",
@@ -489,7 +523,8 @@ async def template_editor(request: Request, user: str = Depends(_check_auth)):
             "active": "template",
             "saved": request.query_params.get("saved"),
             "current_template": name,
-            "template_list": template_list,
+            "template_gruppen": template_gruppen,
+            "template_kind": template_kind,
             "custom_vars": custom_vars,
             "gateway_name": _gateway_name(),
             # Nachrichten an Postfachinhaber. Sie liegen im selben Verzeichnis
