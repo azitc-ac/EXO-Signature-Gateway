@@ -826,6 +826,13 @@
     "name": "api_relay_liste"
   },
   {
+    "pfad": "/api/relay/mailuser-sync",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_relay_mailuser_sync"
+  },
+  {
     "pfad": "/api/relay/route",
     "methoden": [
       "POST"
