@@ -167,7 +167,16 @@ function kampagneBearbeiten(k) {
   document.getElementById('k-id').value = k.id || '';
   document.getElementById('k-name').value = k.name || '';
   fuelleAuswahl();
-  document.getElementById('k-banner').value = k.banner || '';
+  // Sicherheitsnetz: ein zugewiesenes Banner, das (noch) nicht als Art „banner"
+  // typisiert ist, steht sonst nicht in der Liste — die Auswahl spränge weg und
+  // Speichern überschriebe die Kampagne mit einem falschen Banner.
+  const bsel = document.getElementById('k-banner');
+  if (k.banner && !Array.prototype.some.call(bsel.options, function (o) { return o.value === k.banner; })) {
+    const o = document.createElement('option');
+    o.value = k.banner; o.textContent = k.banner + ' (andere Art)';
+    bsel.appendChild(o);
+  }
+  bsel.value = k.banner || '';
   document.getElementById('k-group').value = k.group || '';
   document.getElementById('k-start').value = isoZuLokalInput(k.start);
   document.getElementById('k-end').value = isoZuLokalInput(k.end);

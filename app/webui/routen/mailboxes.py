@@ -427,7 +427,10 @@ async def api_fetch_bookings_urls(_=Depends(_require_admin)):
 async def mailboxes_page(request: Request, user: str = Depends(_require_admin)):
     import signature_engine as _sig_engine
     import mailbox_migrate
-    templates_list = _sig_engine.list_templates()
+    # Vorlagen nach Art für die typgefilterten Zuweisungs-Dropdowns
+    # (Signatur/Banner/Disclaimer). Die Signaturliste steckt darin als
+    # templates_by_kind["signatur"] — daraus speist sich sig/min/addin im Frontend.
+    templates_by_kind = _sig_engine.templates_nach_art()
     # Billige Prüfung, ob die Umstellung auf dauerhafte Anker noch aussteht:
     # nur die vorhandenen Schlüssel ansehen, KEIN EXO-Abruf. Der teure Teil
     # (Live-Abgleich) passiert erst, wenn jemand die Vorschau anfordert.
@@ -439,7 +442,8 @@ async def mailboxes_page(request: Request, user: str = Depends(_require_admin)):
                      if mailbox_migrate._is_email_key(k))
     return templates.TemplateResponse(
         request=request, name="mailboxes.html",
-        context={"active": "mailboxes", "templates_list": templates_list,
+        context={"active": "mailboxes",
+                 "templates_by_kind": templates_by_kind,
                  "gateway_name": _gateway_name(),
                  "migration_offen": altbestand,
                  "addin_enabled": bool(settings_store.get("ADDIN_ENABLED"))},

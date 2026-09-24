@@ -747,6 +747,20 @@ def main() -> None:
     except Exception as exc:
         log.error("Bereinigung der Einstellungen fehlgeschlagen: %s", exc)
 
+    # Vorlagen-Arten des Bestands einmalig setzen: Vorlagen, die eindeutig nur
+    # als Banner/Disclaimer zugewiesen sind, bekommen ihr `kind`. Vor der
+    # Einführung der Arten galt jede Vorlage als Signatur; ohne diesen Lauf
+    # fielen die zugewiesenen Banner/Disclaimer aus ihren typgefilterten
+    # Dropdowns. Konservativ und idempotent (siehe vorlagen_typ.py).
+    try:
+        import vorlagen_typ
+        umtypisiert = vorlagen_typ.migriere_bestand()
+        if umtypisiert:
+            log.info("Vorlagen-Arten gesetzt: %s",
+                     ", ".join(f"{n}→{a}" for n, a in umtypisiert))
+    except Exception as exc:
+        log.warning("Auto-Typisierung der Vorlagen übersprungen: %s", exc)
+
     # Migrate S/MIME keys to encrypted storage if SMIME_KEY_PASSWORD is configured
     try:
         import smime_store

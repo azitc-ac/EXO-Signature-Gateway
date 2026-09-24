@@ -8,6 +8,33 @@ from graph_client import UserData
 
 log = logging.getLogger(__name__)
 
+# ── Vorlagen-Arten (kind) ─────────────────────────────────────────────────────
+# Jede Vorlage hat GENAU EINE Art. `signatur` ist die Vorgabe und zugleich der
+# Rückfall für Dateien ohne Meta (siehe vorlagen_art()). Die Zuweisungslisten der
+# Oberfläche zeigen je Verwendungszweck nur die passende Art — so lässt sich ein
+# Banner nicht als Signatur zuweisen und umgekehrt.
+# (Der OOO-Slot `oof` und die Art `oof` kommen mit dem Abwesenheits-Feature dazu.)
+ARTEN: tuple[str, ...] = ("signatur", "banner", "disclaimer", "usermail")
+
+# Zuordnung Zuweisungs-Slot → Vorlagen-Art. Ein Slot ist die ROLLE, in der eine
+# Vorlage verwendet wird. `min` (Antwort-Minimalsignatur) und `addin`
+# (Add-in-Auswahl) sind Signaturen im engeren Sinn und ziehen deshalb aus der Art
+# `signatur`; nur `banner`/`disclaimer` haben eigene Arten. Grundlage sowohl für
+# die typgefilterten Dropdowns als auch für die Auto-Typisierung des Bestands.
+SLOT_ART: dict[str, str] = {
+    "sig": "signatur",
+    "min": "signatur",
+    "addin": "signatur",
+    "banner": "banner",
+    "disclaimer": "disclaimer",
+}
+
+
+def ist_bekannte_art(art: str) -> bool:
+    """Ist `art` eine gültige Vorlagen-Art (für die Validierung beim Speichern)?"""
+    return art in ARTEN
+
+
 _env: Environment | None = None
 
 
@@ -101,18 +128,21 @@ def render(user: UserData, template_name: str | None = None) -> tuple[str, str]:
 
 
 def vorlagen_art(name: str) -> str:
-    """Art einer Vorlage: `"signatur"` (Vorgabe) oder `"usermail"`.
+    """Art einer Vorlage: eine aus `ARTEN` (`signatur`/`banner`/`disclaimer`/`usermail`).
 
     Massgeblich ist `kind` in der Meta-Datei, nicht der Dateiname. Vorlagen ohne
     Meta — von Hand abgelegte HTML-Dateien — gelten als Signatur; so waren sie
-    immer gemeint, bevor es die Unterscheidung gab.
+    immer gemeint, bevor es die Unterscheidung gab. Ein unbekanntes `kind` fällt
+    ebenfalls auf `signatur` zurück (defensiv: lieber sichtbar in der
+    Signaturliste als in gar keiner).
     """
     import json
     import os
     pfad = os.path.join(config.TEMPLATE_DIR, f"{name}.meta.json")
     try:
         with open(pfad, encoding="utf-8") as f:
-            return json.load(f).get("kind") or "signatur"
+            art = json.load(f).get("kind") or "signatur"
+        return art if art in ARTEN else "signatur"
     except Exception:
         return "signatur"
 
@@ -169,3 +199,22 @@ def list_templates(art: str = "signatur") -> list[str]:
     # unzusammenhaengenden Stellen. Eine Sonderstellung, die man beim Suchen
     # mitdenken muss, ist keine Hilfe.
     return sorted(names, key=lambda n: (n.lower(), n))
+
+
+def templates_nach_art() -> dict[str, list[str]]:
+    """Vorlagennamen je Zuweisungs-Art — Grundlage der typgefilterten Dropdowns.
+
+    Liefert einen Eintrag pro tatsächlich zugewiesener Art (die Werte aus
+    `SLOT_ART`, also `signatur`/`banner`/`disclaimer`; `oof` sobald es dazukommt).
+    Die Signaturliste trägt wie in `list_templates()` immer `default`. Arten ohne
+    Vorlage stehen mit leerer Liste drin, damit die Oberfläche keinen fehlenden
+    Schlüssel behandeln muss.
+
+    ⚠️ `usermail` fehlt bewusst: Nachrichten an Postfachinhaber sind keine
+    zuweisbare Vorlage — genau das trennt `SLOT_ART` von `ARTEN`.
+    """
+    arten: list[str] = []
+    for art in SLOT_ART.values():
+        if art not in arten:
+            arten.append(art)
+    return {art: list_templates(art) for art in arten}
