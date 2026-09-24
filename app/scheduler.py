@@ -28,6 +28,8 @@ _last_retry_run: float = 0.0           # monotonic; 0 = never (triggers run on f
 _RETRY_INTERVAL = 60                   # jede Minute — feinste Exchange-Retry-Stufe ist 1 min
                                        # (Glitch); die eigentliche Kadenz steckt pro Mail in
                                        # held_mails.next_retry
+_last_mailuser_run: float = 0.0        # monotonic; 0 = never (triggers run on first tick)
+_MAILUSER_INTERVAL = 24 * 60 * 60      # onprem-MailUser-Liste täglich abgleichen (Per-Empfänger-Routing)
 
 
 # ── TLS / Let's Encrypt ───────────────────────────────────────────────────────
@@ -522,6 +524,27 @@ def _retry_held_deliveries() -> None:
         _last_retry_run = time.monotonic()
 
 
+def _refresh_onprem_mailusers() -> None:
+    """Onprem-MailUser-Liste periodisch abgleichen — NUR bei aktivem
+    Per-Empfänger-Routing. Läuft im Hauptprozess (settings_store.update ok).
+    Scheitert der Abruf, bleibt die bestehende maßgebliche Liste unangetastet."""
+    global _last_mailuser_run
+    try:
+        if settings_store.get("PER_RECIPIENT_ROUTING") is True:
+            import exo_mailusers
+            r = exo_mailusers.refresh_and_store(
+                datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
+            if r.get("ok"):
+                log.info("scheduler: Onprem-MailUser abgeglichen (%s Adressen)", r.get("count"))
+            else:
+                log.warning("scheduler: Onprem-MailUser-Abgleich fehlgeschlagen — "
+                            "bestehende Liste bleibt maßgeblich")
+    except Exception as exc:                                    # noqa: BLE001
+        log.warning("scheduler: Onprem-MailUser-Abgleich fehlgeschlagen: %s", exc)
+    finally:
+        _last_mailuser_run = time.monotonic()
+
+
 def _loop() -> None:
     while True:
         try:
@@ -541,6 +564,8 @@ def _loop() -> None:
                 _refresh_mailbox_health()
             if time.monotonic() - _last_retry_run > _RETRY_INTERVAL:
                 _retry_held_deliveries()
+            if time.monotonic() - _last_mailuser_run > _MAILUSER_INTERVAL:
+                _refresh_onprem_mailusers()
         except Exception as exc:
             log.error("scheduler loop error: %s", exc)
         time.sleep(60)

@@ -71,15 +71,45 @@ def route_fuer(domain: str) -> str:
     return ziel_id
 
 
+def _per_empfaenger_aktiv() -> bool:
+    """Per-Empfänger-Routing eingeschaltet? (Bool kommt aus JSON als echtes
+    True/False; nur explizites True zählt.)"""
+    return settings_store.get("PER_RECIPIENT_ROUTING") is True
+
+
+def route_fuer_empfaenger(adresse: str) -> str:
+    """Ziel-ID für einen konkreten EMPFÄNGER.
+
+    Verfeinert `route_fuer()` um die Per-Empfänger-Entscheidung: Zeigt die
+    Domäne auf ein Nicht-EXO-Ziel (onprem), geht dorthin NUR, wer wirklich dort
+    liegt — d.h. in der maßgeblichen Onprem-MailUser-Liste steht
+    (`exo_mailusers`). Alle übrigen Empfänger derselben Domäne gehen an EXO;
+    im Hybrid stellt EXO ein onprem-Postfach zur Not selbst zu (MailUser),
+    also kein Mailverlust, nur kein unnötiger Umweg über onprem.
+
+    Ist die Option aus, gilt die reine Domänen-Route (Rückwärtskompatibilität:
+    ganze Domäne → Ziel).
+    """
+    ziel = route_fuer(_domain(adresse))
+    if ziel == EXO:
+        return EXO
+    if not _per_empfaenger_aktiv():
+        return ziel
+    import exo_mailusers
+    adr = (adresse or "").strip().lower()
+    return ziel if adr in exo_mailusers.adressen_gespeichert() else EXO
+
+
 def gruppiere(rcpt_tos: list[str]) -> dict[str, list[str]]:
     """Empfänger nach aufgelöstem Ziel gruppieren (Reihenfolge bleibt erhalten).
 
     Schlüssel sind immer entweder `EXO` oder eine gültige Ziel-ID. Der EXO-Eimer
-    fehlt, wenn kein Empfänger dorthin geht.
+    fehlt, wenn kein Empfänger dorthin geht. Nutzt `route_fuer_empfaenger`, damit
+    bei aktiver Option nur echte Onprem-Postfächer aufs Ziel gehen (sonst EXO).
     """
     gruppen: dict[str, list[str]] = {}
     for r in rcpt_tos:
-        ziel_id = route_fuer(_domain(r))
+        ziel_id = route_fuer_empfaenger(r)
         gruppen.setdefault(ziel_id, []).append(r)
     return gruppen
 

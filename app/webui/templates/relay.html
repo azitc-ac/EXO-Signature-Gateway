@@ -205,6 +205,26 @@
     </div>
     <div id="neu-route-result" style="display:none;margin-top:10px"></div>
   </div>
+
+  <div style="border-top:1px solid #e2e8f0;margin-top:20px;padding-top:14px">
+    <h3 style="font-size:14px;margin:0 0 8px">Per-Empfänger-Routing</h3>
+    <p class="hint" style="margin:0 0 10px">
+      Ohne diese Option geht an eine geroutete Domäne die <strong>ganze Domäne</strong>
+      aufs Ziel — auch Cloud-Postfächer, die dort einen unnötigen Umweg nehmen. Mit
+      der Option gehen nur die Postfächer aufs Ziel, die <strong>wirklich dort
+      liegen</strong> (in Exchange&nbsp;Online als <em>MailUser</em> sichtbar); alle
+      übrigen Empfänger der Domäne stellt Exchange&nbsp;Online direkt zu.
+    </p>
+    <label class="checkbox-label" style="margin:0">
+      <input type="checkbox" id="per-recipient" onchange="perRecipientUmschalten(this)">
+      Nur echte onprem-Postfächer (MailUser) aufs Ziel routen
+    </label>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px">
+      <button type="button" class="btn secondary" onclick="mailuserAbgleichen(this)">Onprem-Postfächer abgleichen</button>
+      <span class="hint" id="mailuser-stand">—</span>
+    </div>
+    <div id="mailuser-result" style="display:none;margin-top:10px"></div>
+  </div>
 </div>
 
 <!-- ── Hybrid-Koexistenz (on-prem-Connector) ──────────────────────────────── -->
@@ -540,6 +560,44 @@ function zeitKurz(iso) {
                                     hour:'2-digit', minute:'2-digit'});
 }
 
+function zeichneMailuserStand(mu) {
+  const el = document.getElementById('mailuser-stand');
+  if (!el) return;
+  const n = (mu && typeof mu.count === 'number') ? mu.count : 0;
+  const ts = (mu && mu.ts) ? mu.ts : '';
+  el.textContent = n + ' onprem-Postfach' + (n === 1 ? '' : 'er')
+    + (ts ? ' · Stand ' + ts.replace('T', ' ').replace('Z', ' UTC')
+          : ' · noch kein Abgleich');
+}
+
+async function perRecipientUmschalten(cb) {
+  const ok = await savePartial({ PER_RECIPIENT_ROUTING: cb.checked }, 'mailuser-result');
+  // Beim EINSCHALTEN sofort die maßgebliche Onprem-Liste laden (Force-Load).
+  if (ok && cb.checked) await mailuserAbgleichen(null);
+}
+
+async function mailuserAbgleichen(btn) {
+  const stand = document.getElementById('mailuser-stand');
+  if (btn) btn.disabled = true;
+  if (stand) stand.textContent = 'Gleiche ab … (kann bis zu 30 s dauern)';
+  try {
+    const r = await postJSON('/api/relay/mailuser-sync', {});
+    if (r && r.ok) {
+      zeichneMailuserStand({ count: r.count, ts: r.ts });
+      showMsg(document.getElementById('mailuser-result'),
+              r.count + ' onprem-Postfächer abgeglichen.', true);
+    } else {
+      zeichneMailuserStand(_stand ? _stand.mailuser : null);
+      showMsg(document.getElementById('mailuser-result'),
+              'Abgleich fehlgeschlagen — bestehende Liste bleibt maßgeblich.', false);
+    }
+  } catch (e) {
+    showMsg(document.getElementById('mailuser-result'), 'Fehler: ' + e.message, false);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 async function laden(mitNamen) {
   const r = await postJSONGet('/api/relay/liste' + (mitNamen ? '?namen=1' : ''));
   if (!r || !r.ok) return;
@@ -550,6 +608,9 @@ async function laden(mitNamen) {
   zeichneIdentitaeten(r.identitaeten);
   zeichneZiele(r.ziele);
   zeichneRouten(r.routen, r.ziele);
+  const pr = document.getElementById('per-recipient');
+  if (pr) pr.checked = !!r.per_recipient;
+  zeichneMailuserStand(r.mailuser);
   zeichneCoex(r.coex);
   zeichneCoexStats(r.coex_stats);
   const sub = document.getElementById('submission-an');
