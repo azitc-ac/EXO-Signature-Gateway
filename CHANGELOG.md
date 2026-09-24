@@ -5,6 +5,28 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.65 — 2026-09-24 — Domänen-Routing: Per-Empfänger-Entscheidung (Cloud-Postfächer bleiben in der Cloud)
+
+Neue Option **Per-Empfänger-Routing** (SMTP-Relay → Domänen-Routing, Vorgabe
+aus). Ist eine Empfängerdomäne auf ein Nicht-EXO-Ziel geroutet (z. B. ein lokaler
+Exchange im Hybrid-Betrieb), ging dorthin bisher die **ganze Domäne** — auch
+Cloud-Postfächer, die dort nur einen unnötigen Umweg nehmen und im ungünstigen
+Fall (Ziel vorübergehend nicht erreichbar) hängen bleiben. Mit der Option gehen
+nur die Postfächer aufs Ziel, die **wirklich dort liegen** — im Cloud-Tenant als
+`MailUser` sichtbar; alle übrigen Empfänger derselben Domäne stellt Exchange
+Online direkt zu.
+
+Die maßgebliche Onprem-Liste wird per `Get-MailUser` aus Exchange Online
+ermittelt (externe B2B-Gäste und Teams-Objekte ausgefiltert), **persistent**
+gehalten und ersetzt nur durch einen **erfolgreichen** Abgleich — ein
+fehlgeschlagener Abruf lässt die bestehende Liste unangetastet, damit nicht
+plötzlich alles umgeleitet wird. Abgleich: beim Einschalten der Option, per Knopf
+„Onprem-Postfächer abgleichen" und täglich automatisch. Anzahl und Zeitpunkt des
+letzten Abgleichs werden angezeigt.
+
+Rückwärtskompatibel: Ist die Option aus, gilt wie bisher die domänenweite Route.
+Wirkt — wie das Domänen-Routing insgesamt — nur im Rückweg-Modus „SMTP Port 25".
+
 ## v1.9.64 — 2026-09-24 — Reinject: CRLF erzwingen — leerer Body im SMTP-Modus behoben
 
 Im Modus `REINJECT_MODE=smtp` (und auf dem 587-Einlieferungsweg) wurde signierte

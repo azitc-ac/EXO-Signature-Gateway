@@ -152,6 +152,15 @@ DEFAULTS: dict = {
     "RELAY_TARGETS": {},      # {"onprem": {"host","port","starttls","user"}}
     "RELAY_TARGET_PW": {},    # {ziel_id: klartext} — Geheimnis; Klartext nötig für SMTP AUTH
     "DOMAIN_ROUTES": {},      # {"contoso.de": "onprem"} — ohne Treffer → EXO
+    # Per-Empfänger-Routing: greift eine Domänen-Route auf ein Nicht-EXO-Ziel,
+    # geht dorthin nur, wer WIRKLICH dort liegt — die onprem-Postfächer, die in
+    # EXO als MailUser erscheinen (ONPREM_MAILUSERS). Der Rest der Domäne → EXO.
+    # Aus = klassische Domänen-weite Route. ONPREM_MAILUSERS ist eine
+    # persistierte, maßgebliche Liste, ersetzt nur durch einen erfolgreichen
+    # Abgleich (exo_mailusers.refresh_and_store).
+    "PER_RECIPIENT_ROUTING": False,
+    "ONPREM_MAILUSERS": [],   # ["max.mustermann@zarenko.net", …] — via EXO Get-MailUser
+    "ONPREM_MAILUSERS_TS": "", # ISO8601 des letzten erfolgreichen Abgleichs
     # Parameter des on-prem-Koexistenz-Connectors (Hybrid). NUR zum erneuten
     # Erzeugen des Auf-/Abbau-Skripts (coexistence.py) — das Gateway führt on-prem
     # nichts aus. {"gateway_name","source_ip","servers":[...]}

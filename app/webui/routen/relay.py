@@ -22,6 +22,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 import coexistence
 import domain_routing
+import exo_mailusers
 import relay_hosts
 import settings_store
 import smtp_relay
@@ -78,9 +79,24 @@ async def api_relay_liste(namen: int = 0, user: str = Depends(_require_admin)):
         "identitaeten": _identitaeten_liste(),
         "ziele": domain_routing.oeffentliche_ziele(),
         "routen": domain_routing.routen(),
+        "per_recipient": settings_store.get("PER_RECIPIENT_ROUTING") is True,
+        "mailuser": exo_mailusers.stand(),
         "coex": coexistence.ansicht(_gateway_name()),
         "coex_stats": _routing_statistik(),
     })
+
+
+@router.post("/api/relay/mailuser-sync")
+async def api_relay_mailuser_sync(user: str = Depends(_require_admin)):
+    """Onprem-MailUser jetzt bei EXO abgleichen (Get-MailUser). Blockierend
+    (~Sekunden) → in einen Thread ausgelagert. Ersetzt die maßgebliche Liste
+    NUR bei Erfolg; sonst bleibt die bestehende unangetastet."""
+    import asyncio
+    now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    r = await asyncio.to_thread(exo_mailusers.refresh_and_store, now_iso)
+    log.info("Onprem-MailUser-Abgleich durch %s: ok=%s count=%s",
+             user, r.get("ok"), r.get("count"))
+    return JSONResponse(r)
 
 
 def _routing_statistik() -> dict:
