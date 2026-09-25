@@ -30,6 +30,10 @@ _RETRY_INTERVAL = 60                   # jede Minute — feinste Exchange-Retry-
                                        # held_mails.next_retry
 _last_mailuser_run: float = 0.0        # monotonic; 0 = never (triggers run on first tick)
 _MAILUSER_INTERVAL = 24 * 60 * 60      # onprem-MailUser-Liste täglich abgleichen (Per-Empfänger-Routing)
+_last_ooo_run: float = 0.0             # monotonic; 0 = never (triggers run on first tick)
+_OOO_INTERVAL = 10 * 60                # zentrale Abwesenheitsnotiz normalisieren; dank
+                                       # Idempotenz (nur PATCH bei echter Abweichung) ist
+                                       # häufiges Pollen unschädlich für Exchanges Dedup
 
 
 # ── TLS / Let's Encrypt ───────────────────────────────────────────────────────
@@ -545,6 +549,24 @@ def _refresh_onprem_mailusers() -> None:
         _last_mailuser_run = time.monotonic()
 
 
+def _sync_ooo() -> None:
+    """Zentrale Abwesenheitsnotiz normalisieren (nur wenn eingeschaltet).
+
+    Best-effort und idempotent: abwesenheit.poll_alle() PATCHt ein Postfach nur,
+    wenn dessen aktueller OOF-Text vom zuletzt gesetzten abweicht — so wird
+    Exchanges „einmal je Absender"-Dedup nicht bei jedem Lauf zurückgesetzt.
+    """
+    global _last_ooo_run
+    try:
+        if settings_store.get("OOO_ENABLED"):
+            import abwesenheit
+            asyncio.run(abwesenheit.poll_alle())
+    except Exception as exc:                                        # noqa: BLE001
+        log.warning("scheduler: OOO-Normalisierung fehlgeschlagen: %s", exc)
+    finally:
+        _last_ooo_run = time.monotonic()
+
+
 def _loop() -> None:
     while True:
         try:
@@ -566,6 +588,8 @@ def _loop() -> None:
                 _retry_held_deliveries()
             if time.monotonic() - _last_mailuser_run > _MAILUSER_INTERVAL:
                 _refresh_onprem_mailusers()
+            if time.monotonic() - _last_ooo_run > _OOO_INTERVAL:
+                _sync_ooo()
         except Exception as exc:
             log.error("scheduler loop error: %s", exc)
         time.sleep(60)

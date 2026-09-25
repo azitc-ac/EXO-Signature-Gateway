@@ -30,6 +30,10 @@ DEFAULTS: dict = {
     # [{"id","name","banner","start","end","group","enabled"}] — aktive Kampagne
     # zieht das Banner der Richtlinie/des Postfachs vor. start/end UTC-ISO, leer=offen.
     "BANNER_CAMPAIGNS": [],
+    # Zentrale Abwesenheitsnotiz (Out-of-Office): Master-Schalter. Der eigentliche
+    # Text kommt aus einer Vorlage der Art `oof`, zugewiesen über TEMPLATE_POLICIES
+    # ["oof"] bzw. Gruppen (CUSTOM_POLICIES applies_to=oof). Siehe abwesenheit.py.
+    "OOO_ENABLED": False,
     "LE_DOMAIN": "",
     "LE_EMAIL": "",
     "LOG_RETENTION_DAYS": 30,
@@ -354,6 +358,7 @@ INTERNAL_KEYS = frozenset({
     "GATEWAY_AUDIT_LOG",          # health_check.py — stand hier bis 23.08.2026
                                   # nicht, obwohl daneben geschrieben
     "_DAILY_LAST_RUN",            # scheduler.py
+    "_OOO_STATE",                 # abwesenheit.py — zuletzt gesetzter OOF-Text je Postfach
     "_SCHEMA_VERSION",            # Migrationsstand, s.u.
 })
 

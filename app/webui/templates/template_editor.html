@@ -15,7 +15,7 @@
       {# Auswahl nach Art gruppiert: Signaturen, Banner, Disclaimer. Jede Art
          steht in einer eigenen Optgruppe — dieselbe Trennung, die auch die
          Zuweisungs-Dropdowns filtert. #}
-      {% set art_labels = {'signatur': 'Signaturen', 'banner': 'Banner', 'disclaimer': 'Disclaimer'} %}
+      {% set art_labels = {'signatur': 'Signaturen', 'banner': 'Banner', 'disclaimer': 'Disclaimer', 'oof': 'Abwesenheit'} %}
       {% for art, namen in template_gruppen.items() %}
       {% if namen %}
       <optgroup label="{{ art_labels.get(art, art) }}">
@@ -69,6 +69,7 @@
       <option value="signatur" {% if template_kind == 'signatur' %}selected{% endif %}>Signatur</option>
       <option value="banner" {% if template_kind == 'banner' %}selected{% endif %}>Banner</option>
       <option value="disclaimer" {% if template_kind == 'disclaimer' %}selected{% endif %}>Disclaimer</option>
+      <option value="oof" {% if template_kind == 'oof' %}selected{% endif %}>Abwesenheit</option>
     </select>
     <span class="hint" style="margin:0">Bestimmt, in welchen Zuweisungslisten die Vorlage erscheint.</span>
   </div>
@@ -95,6 +96,7 @@
         <option value="signatur">Signatur</option>
         <option value="banner">Banner</option>
         <option value="disclaimer">Disclaimer</option>
+        <option value="oof">Abwesenheit</option>
       </select>
       <span class="hint" style="display:block;margin:4px 0 0">Bestimmt, in welchen Zuweisungslisten die Vorlage erscheint.</span>
     </div>

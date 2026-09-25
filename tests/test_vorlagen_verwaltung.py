@@ -32,11 +32,13 @@ def einstellungen(monkeypatch):
     import settings_store
     daten = {
         "MAILBOX_CONFIG": {
-            "a@x.de": {"sig": True, "template": "Alt", "min_template": "Alt"},
+            "a@x.de": {"sig": True, "template": "Alt", "min_template": "Alt",
+                       "banner_template": "Alt", "disclaimer_template": "Alt"},
             "b@x.de": {"sig": True, "template": "Andere",
                        "addin_templates": ["Alt", "Andere"]},
         },
-        "TEMPLATE_POLICIES": {"sig": "Alt", "min": "Andere", "addin": "*"},
+        "TEMPLATE_POLICIES": {"sig": "Alt", "min": "Andere", "addin": "*",
+                              "banner": "Alt", "disclaimer": "Alt", "oof": "Alt"},
         "CUSTOM_POLICIES": [{"condition_type": "group", "group_name": "G",
                              "applies_to": "sig", "template": "Alt"}],
     }
@@ -106,10 +108,15 @@ def test_umbenennen_zieht_jeden_verweis_mit(klient, einstellungen):
     mc = einstellungen["MAILBOX_CONFIG"]
     assert mc["a@x.de"]["template"] == "Neu"
     assert mc["a@x.de"]["min_template"] == "Neu"
+    # banner/disclaimer folgten bis 2026-09-25 NICHT mit — jetzt schon.
+    assert mc["a@x.de"]["banner_template"] == "Neu"
+    assert mc["a@x.de"]["disclaimer_template"] == "Neu"
     assert mc["b@x.de"]["addin_templates"] == ["Neu", "Andere"]
     assert mc["b@x.de"]["template"] == "Andere", "fremder Verweis angefasst"
-    assert einstellungen["TEMPLATE_POLICIES"]["sig"] == "Neu"
-    assert einstellungen["TEMPLATE_POLICIES"]["min"] == "Andere", "fremder Verweis angefasst"
+    tp = einstellungen["TEMPLATE_POLICIES"]
+    assert tp["sig"] == "Neu"
+    assert tp["banner"] == "Neu" and tp["disclaimer"] == "Neu" and tp["oof"] == "Neu"
+    assert tp["min"] == "Andere", "fremder Verweis angefasst"
     assert einstellungen["CUSTOM_POLICIES"][0]["template"] == "Neu"
     # Und die Meldung sagt, was nachgezogen wurde.
     assert r.json()["verweise"], r.json()

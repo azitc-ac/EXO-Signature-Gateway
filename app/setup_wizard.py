@@ -35,6 +35,10 @@ _GRAPH_PERMISSIONS = [
     {"id": "e2a3a72e-5f79-4c64-b1b1-878b674786c9", "type": "Role"},
     # Mail.Send — needed for Graph API re-inject (Azure non-Enterprise mode)
     {"id": "b633e1c5-b582-4048-a93e-9f11b44c7e96", "type": "Role"},
+    # MailboxSettings.ReadWrite — zentrale Abwesenheitsnotiz (automaticRepliesSetting
+    # lesen/normalisieren). Wird mit angelegt; braucht Admin-Consent. Ohne Consent
+    # meldet der OOO-Poll 403 und überspringt — nichts anderes bricht.
+    {"id": "6931bccd-447a-43d1-b442-00a195474933", "type": "Role"},
 ]
 _EXO_PERMISSIONS = [
     # Exchange.ManageAsApp
