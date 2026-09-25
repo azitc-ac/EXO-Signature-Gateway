@@ -119,24 +119,20 @@ def test_nutzer_hat_text_geaendert_wird_neu_gesetzt(monkeypatch):
     assert calls["patch"] == 1
 
 
-def test_disabled_wird_nicht_gesetzt_und_state_geleert(monkeypatch):
-    async def fake_get(upn, token):
-        return "ok", {"status": "disabled"}
-    patched = {"n": 0}
+def test_disabled_bekommt_trotzdem_den_text(monkeypatch):
+    """Auch bei AUSgeschalteter Abwesenheit wird der Firmentext hinterlegt (damit
+    er beim Einschalten schon dasteht) — Status bleibt disabled, nichts wird
+    versendet."""
+    setting = {"status": "disabled", "internalReplyMessage": "", "externalReplyMessage": ""}
+    calls = {"patch": 0}
+    canonical = {"internalReplyMessage": "<p>OOF</p>", "externalReplyMessage": "<p>OOF</p>"}
+    _mock_seams(monkeypatch, setting, calls, canonical)
 
-    async def fake_patch(*a):
-        patched["n"] += 1
-        return {}
-    monkeypatch.setattr(abwesenheit, "_get_setting", fake_get)
-    monkeypatch.setattr(abwesenheit, "_patch_setting", fake_patch)
-    monkeypatch.setattr(abwesenheit, "oof_vorlage_fuer", lambda *a: "Firma")
-    monkeypatch.setattr(abwesenheit, "_state_speichern", lambda st: None)
-
-    state = {"a@x.de": {"intern": "x", "extern": "x"}}
-    r = _run(abwesenheit.setze_fuer_postfach("a@x.de", "a@x.de", {}, {}, "T", state))
-    assert r == abwesenheit.AUS
-    assert patched["n"] == 0
-    assert "a@x.de" not in state  # gemerkter Text vergessen → beim Wieder-An sicher neu
+    state: dict = {}
+    r = _run(abwesenheit.setze_fuer_postfach("a@x.de", "a@x.de", {}, {}, "TOK", state))
+    assert r == abwesenheit.GESETZT
+    assert calls["patch"] == 1                       # Text wurde gesetzt
+    assert "a@x.de" in state                          # und gemerkt (Idempotenz)
 
 
 def test_403_meldet_kein_zugriff(monkeypatch):

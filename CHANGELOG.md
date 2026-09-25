@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.73 — 2026-09-25 — Abwesenheit: Firmentext für alle Postfächer vorbelegen
+
+Die zentrale Abwesenheitsnotiz hinterlegt den einheitlichen Firmentext jetzt für
+**alle aktivierten Postfächer — unabhängig davon, ob die Abwesenheit gerade an
+oder aus ist**. Vorteil: Schaltet ein Postfachinhaber seine Abwesenheit in
+Outlook/OWA ein, steht der fertige Text bereits da, und man sieht sofort, wie die
+Antwort aussieht.
+
+Status, Zeitraum und Empfängerkreis bleiben unangetastet — bei ausgeschalteter
+Abwesenheit wird nichts versendet, nur der hinterlegte Text ist gesetzt. Bisher
+wurde der Text nur bei aktiver Abwesenheit gesetzt. Weiterhin idempotent: geändert
+wird nur, wenn der hinterlegte Text tatsächlich abweicht.
+
+⚠️ Ein zuvor selbst verfasster, aber nicht aktivierter Abwesenheitstext eines
+Postfachs wird dabei durch den Firmentext ersetzt — das ist der Zweck der
+zentralen Vereinheitlichung.
+
 ## v1.9.72 — 2026-09-25 — Lizenz: nach Ablauf keine Erinnerungen mehr
 
 Vor dem Ablauf einer Fair-Use-Lizenz wird weiterhin rechtzeitig erinnert

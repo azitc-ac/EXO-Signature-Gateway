@@ -3,11 +3,15 @@
 MODELL (2026-09-25 entschieden): „User schaltet nativ, Gateway normalisiert Text".
 Der Postfachinhaber schaltet seine Abwesenheit wie gewohnt in Outlook/OWA ein
 (inkl. Zeitraum). Das Gateway pollt periodisch, liest je Postfach
-`automaticRepliesSetting` und überschreibt — solange die Abwesenheit AN ist — den
-intern/extern-Text mit dem einheitlichen Firmentext (einer Vorlage der Art `oof`,
-zugewiesen über dieselbe Richtlinien-/Gruppen-Mechanik wie Signatur/Banner).
-Status, Zeitraum und Empfängerkreis (`externalAudience`) bleiben unangetastet —
-nur der TEXT wird vereinheitlicht.
+`automaticRepliesSetting` und legt den intern/extern-Text auf den einheitlichen
+Firmentext (eine Vorlage der Art `oof`, zugewiesen über dieselbe Richtlinien-/
+Gruppen-Mechanik wie Signatur/Banner). Status, Zeitraum und Empfängerkreis
+(`externalAudience`) bleiben unangetastet — nur der TEXT wird vereinheitlicht.
+
+⚠️ Der Text wird für ALLE aktivierten Postfächer hinterlegt, UNABHÄNGIG davon, ob
+die Abwesenheit gerade an oder aus ist. So sieht der Postfachinhaber beim
+Einschalten in Outlook sofort den fertigen Firmentext. Bei ausgeschalteter
+Abwesenheit wird dadurch nichts versendet — nur der hinterlegte Text ist gesetzt.
 
 ⚠️ IDEMPOTENZ IST PFLICHT. Exchange sendet die Abwesenheit „einmal je Absender".
 Jedes PATCH setzt diese Dedup zurück → der Empfänger bekäme bei jedem Poll eine
@@ -41,7 +45,6 @@ _GRAPH = "https://graph.microsoft.com/v1.0"
 # Ergebniskennungen je Postfach (für die Zusammenfassung/den Tagesbericht).
 GESETZT = "gesetzt"
 UNVERAENDERT = "unveraendert"
-AUS = "aus"                    # Abwesenheit ist nicht aktiv → nichts zu tun
 KEINE_VORLAGE = "keine_vorlage"  # dem Postfach ist keine oof-Vorlage zugewiesen
 KEIN_ZUGRIFF = "kein_zugriff"  # 403 — Consent fehlt
 FEHLER = "fehler"
@@ -187,13 +190,12 @@ async def setze_fuer_postfach(upn: str, sender: str, mailbox_cfg: dict,
     if status_lese != "ok" or setting is None:
         return FEHLER
 
-    if setting.get("status") in (None, "disabled"):
-        # Abwesenheit aus → nichts überschreiben; gemerkten Text vergessen, damit
-        # beim nächsten Einschalten sicher neu gesetzt wird.
-        if state.pop(upn.lower(), None) is not None:
-            _state_speichern(state)
-        return AUS
-
+    # Der Firmentext wird IMMER hinterlegt — auch wenn die Abwesenheit gerade AUS
+    # ist. Vorteil: Beim Einschalten in Outlook/OWA steht der einheitliche Text
+    # schon da, man sieht sofort, wie die Antwort aussieht. Status und Zeitplan
+    # rührt der PATCH nicht an (_patch_setting setzt nur die beiden Texte) — eine
+    # ausgeschaltete Abwesenheit bleibt ausgeschaltet, es wird nichts versendet.
+    # zeitraum_text() liefert bei ausgeschalteter/unbefristeter Abwesenheit "".
     user_data = await graph_client.get_user(upn)
     html, _txt = render_oof(user_data, template, zeitraum_text(setting))
 
@@ -249,7 +251,7 @@ def _persist_last(summary: dict) -> None:
 async def poll_alle() -> dict:
     """Alle aktivierten Postfächer normalisieren. Gibt eine Zählung je Ergebnis
     zurück (mit Bezugsgröße für den Tagesbericht)."""
-    zaehlung = {k: 0 for k in (GESETZT, UNVERAENDERT, AUS, KEINE_VORLAGE, KEIN_ZUGRIFF, FEHLER)}
+    zaehlung = {k: 0 for k in (GESETZT, UNVERAENDERT, KEINE_VORLAGE, KEIN_ZUGRIFF, FEHLER)}
     if not settings_store.get("OOO_ENABLED"):
         return {"aktiv": False, **zaehlung, "gesamt": 0}
 
@@ -280,9 +282,9 @@ async def poll_alle() -> dict:
     if zaehlung[KEIN_ZUGRIFF]:
         log.warning("OOO: %d von %d Postfächern ohne Zugriff (MailboxSettings.ReadWrite — "
                     "Admin-Consent fehlt)", zaehlung[KEIN_ZUGRIFF], zaehlung_gesamt)
-    log.info("OOO-Poll: von %d Postfächern %d gesetzt, %d unverändert, %d aus, "
+    log.info("OOO-Poll: von %d Postfächern %d Text gesetzt, %d unverändert, "
              "%d ohne Vorlage, %d kein Zugriff, %d Fehler",
-             zaehlung_gesamt, zaehlung[GESETZT], zaehlung[UNVERAENDERT], zaehlung[AUS],
+             zaehlung_gesamt, zaehlung[GESETZT], zaehlung[UNVERAENDERT],
              zaehlung[KEINE_VORLAGE], zaehlung[KEIN_ZUGRIFF], zaehlung[FEHLER])
     ergebnis = {"aktiv": True, **zaehlung, "gesamt": zaehlung_gesamt}
     _persist_last(ergebnis)
