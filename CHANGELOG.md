@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.72 — 2026-09-25 — Lizenz: nach Ablauf keine Erinnerungen mehr
+
+Vor dem Ablauf einer Fair-Use-Lizenz wird weiterhin rechtzeitig erinnert
+(30/14/7/1 Tage), damit verlängert oder neu gekauft werden kann. **Ist die Lizenz
+abgelaufen, gibt es keine Erinnerung mehr.** Ein abgelaufener Zustand ist dauerhaft;
+täglich per Mail darauf hinzuweisen, dass eine frühere Lizenz abgelaufen ist,
+bringt niemandem etwas — ein Fair-Use-Produkt behelligt den Betreiber damit nicht,
+unabhängig davon, ob die kostenlose Postfachgrenze überschritten wird.
+
+Ursache der bisherigen Wiederholung: Der Merker „schon gemeldet" lag nur im
+Arbeitsspeicher und wurde bei jedem Neustart des Dienstes geleert — ein häufig neu
+startendes Gateway mahnte dadurch die längst abgelaufene Lizenz immer wieder an.
+Die Ablauf-Meldung entfällt nun ganz; die Vorab-Erinnerungen bleiben.
+
 ## v1.9.71 — 2026-09-25 — Setup: angeforderte Berechtigungen vollständig und aus einer Quelle anzeigen
 
 Schritt 5 des Assistenten (Entra App-Registrierung) zeigt die angeforderten
