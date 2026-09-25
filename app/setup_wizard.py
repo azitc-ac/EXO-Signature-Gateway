@@ -171,6 +171,22 @@ async def create_app_registration(token: str, public_hostname: str) -> dict:
         app_object_id = existing_apps[0]["id"]
         app_id = existing_apps[0]["appId"]
         log.info("Reusing existing app: appId=%s objectId=%s", app_id, app_object_id)
+        # Angeforderte Berechtigungen auf den Soll-Stand bringen. Ohne diesen PATCH
+        # fehlte eine später hinzugekommene Rolle (z.B. MailboxSettings.ReadWrite
+        # für die zentrale Abwesenheitsnotiz) in der Portal-Liste des Bestands —
+        # der eigentliche Grant folgt unten idempotent über appRoleAssignments,
+        # aber die „API-Berechtigungen" sollen den tatsächlichen Stand zeigen.
+        # Best-effort: schlägt der PATCH fehl, trägt der Grant die Funktion trotzdem.
+        try:
+            await _gh("patch", f"{GRAPH}/applications/{app_object_id}", token, json={
+                "requiredResourceAccess": [
+                    {"resourceAppId": _GRAPH_APP_ID, "resourceAccess": _GRAPH_PERMISSIONS},
+                    {"resourceAppId": _EXO_APP_ID, "resourceAccess": _EXO_PERMISSIONS},
+                ],
+            })
+            log.info("Updated requiredResourceAccess on existing app to desired set")
+        except Exception as exc:                                    # noqa: BLE001
+            log.warning("Could not update requiredResourceAccess on reuse: %s", exc)
     else:
         app_body = {
             "displayName": gateway_name,
