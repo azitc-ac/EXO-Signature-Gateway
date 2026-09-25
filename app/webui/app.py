@@ -432,6 +432,17 @@ async def dashboard(request: Request, user: str = Depends(_check_auth)):
     prev_year = now.year - 1
     m1y, m1m = _prev_month(now.year, now.month, 1)
     m2y, m2m = _prev_month(now.year, now.month, 2)
+    # Zentrale Abwesenheitsnotiz: laufende Zahl mit Bezugsgröße für die Übersicht.
+    # None = Funktion aus (dann keine Zeile). kein_zugriff>0 = stiller Ausfall
+    # (fehlender Consent) → im Template rot. (CLAUDE.md Regel 8.)
+    ooo_status = None
+    if settings_store.get("OOO_ENABLED"):
+        _ol = settings_store.get("_OOO_LAST") or {}
+        ooo_status = {
+            "aktiv": _ol.get("gesetzt", 0) + _ol.get("unveraendert", 0),
+            "gesamt": _ol.get("gesamt", 0),
+            "kein_zugriff": _ol.get("kein_zugriff", 0),
+        }
     signing_certs = _smime_store.list_certs()
     recipient_certs = _smime_store.list_recipient_certs()
     warn_days = int(settings_store.get("CERT_WARN_DAYS") or 14)
@@ -463,6 +474,7 @@ async def dashboard(request: Request, user: str = Depends(_check_auth)):
             "cert_expiry": _cert_expiry(),
             "signing_certs": signing_certs,
             "expiring_certs": expiring_certs,
+            "ooo_status": ooo_status,
             "active": "dashboard",
             "password_change_needed": pw_change,
             "gateway_name": _gateway_name(),

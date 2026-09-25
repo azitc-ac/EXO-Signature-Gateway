@@ -105,6 +105,18 @@ function dismissWelcome() {
 </div>
 {% endif %}
 
+{% if ooo_status %}
+<div class="alert {{ 'warn' if ooo_status.kein_zugriff else '' }}" style="margin-bottom:20px">
+  <strong>Zentrale Abwesenheit:</strong>
+  {{ ooo_status.aktiv }} von {{ ooo_status.gesamt }} Postfächern aktiv normalisiert.
+  {% if ooo_status.kein_zugriff %}
+  Kein Zugriff auf {{ ooo_status.kein_zugriff }} Postfach(e) — die Berechtigung
+  <code>MailboxSettings.ReadWrite</code> ist nicht per Admin-Consent erteilt; bis
+  dahin bleibt die Notiz dort unverändert.
+  {% endif %}
+</div>
+{% endif %}
+
 <!-- Mail-Stats -->
 {# action "*" = alle Aktionen (leerer Filter im Audit-Modal) — für „Verarbeitet". #}
 {# Nur verlinken, wenn zu diesem Zeitraum noch Detailzeilen da sind — sonst wäre
