@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.76 — 2026-09-25 — Abwesenheit automatisch aus dem Kalender (opt-in)
+
+Neue, standardmäßig ausgeschaltete Option: Trägt ein Postfachinhaber einen
+Kalendertermin mit dem Status **„Abwesend"** ein, der mindestens so lange dauert
+wie eingestellt (Vorgabe **8 Stunden**, wählbar 4/6/8/12/24 h), aktiviert das
+Gateway die native Abwesenheit automatisch für **genau dieses Zeitfenster** — mit
+dem einheitlichen Firmentext. „Urlaub im Kalender eintragen, den Rest macht der
+Dienst."
+
+- Schalter und Schwelle unter *Postfächer → Zentrale Abwesenheitsnotiz*.
+- Wird eine so aktivierte Abwesenheit von Hand wieder ausgeschaltet, bleibt sie
+  aus — die Automatik aktiviert dasselbe Fenster kein zweites Mal.
+- Läuft der Termin ab, endet die Abwesenheit von selbst (Exchange stellt sie am
+  hinterlegten Ende ab).
+- Voraussetzung: die Berechtigung **`Calendars.Read`** (wird mit angelegt; braucht
+  Admin-Consent). Ohne Consent bleibt die Option wirkungslos.
+
 ## v1.9.75 — 2026-09-25 — Gruppenbasierte Variablenwerte (z. B. Vertreter je Team)
 
 Eigene Variablen lassen sich jetzt **je interner Gruppe** mit einem Wert belegen —

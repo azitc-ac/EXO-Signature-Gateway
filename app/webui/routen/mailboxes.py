@@ -448,5 +448,7 @@ async def mailboxes_page(request: Request, user: str = Depends(_require_admin)):
                  "migration_offen": altbestand,
                  "addin_enabled": bool(settings_store.get("ADDIN_ENABLED")),
                  "ooo_enabled": bool(settings_store.get("OOO_ENABLED")),
+                 "ooo_calendar_auto": bool(settings_store.get("OOO_CALENDAR_AUTO")),
+                 "ooo_calendar_min_hours": int(settings_store.get("OOO_CALENDAR_MIN_HOURS") or 8),
                  "group_vars": settings_store.get("GROUP_VARS") or {}},
     )

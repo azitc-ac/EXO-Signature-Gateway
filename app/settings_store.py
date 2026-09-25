@@ -35,6 +35,11 @@ DEFAULTS: dict = {
     # Text kommt aus einer Vorlage der Art `oof`, zugewiesen über TEMPLATE_POLICIES
     # ["oof"] bzw. Gruppen (CUSTOM_POLICIES applies_to=oof). Siehe abwesenheit.py.
     "OOO_ENABLED": False,
+    # Abwesenheit automatisch aus dem Kalender aktivieren (opt-in): Termine mit
+    # Status „Abwesend" (showAs=oof) ab OOO_CALENDAR_MIN_HOURS Dauer schalten die
+    # native Abwesenheit für ihr Zeitfenster ein. Braucht Calendars.Read (Consent).
+    "OOO_CALENDAR_AUTO": False,
+    "OOO_CALENDAR_MIN_HOURS": 8,
     "LE_DOMAIN": "",
     "LE_EMAIL": "",
     "LOG_RETENTION_DAYS": 30,
