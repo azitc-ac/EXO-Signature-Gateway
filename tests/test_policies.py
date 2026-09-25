@@ -58,3 +58,32 @@ def test_first_match_wins(monkeypatch):
            INTERNAL_GROUPS={"G": ["a@x.de"]})
     pol, _ = policies.resolve_policies("a@x.de", mc, {"use_policy": True})
     assert pol["oof"] == "Erste"
+
+
+# ── Gruppenbasierte Variablen ──────────────────────────────────────────────────
+
+def test_group_vars_fuer_mitglied(monkeypatch):
+    mc = {"a@x.de": {}}
+    _store(monkeypatch,
+           INTERNAL_GROUPS={"Vertrieb": ["a@x.de"]},
+           GROUP_VARS={"Vertrieb": {"vertreter_mail": "chef@x.de", "vertreter_tel": "123"}})
+    v = policies.group_vars_for("a@x.de", mc)
+    assert v == {"vertreter_mail": "chef@x.de", "vertreter_tel": "123"}
+
+
+def test_group_vars_nicht_mitglied_leer(monkeypatch):
+    mc = {"a@x.de": {}}
+    _store(monkeypatch,
+           INTERNAL_GROUPS={"Vertrieb": ["b@x.de"]},
+           GROUP_VARS={"Vertrieb": {"vertreter_mail": "chef@x.de"}})
+    assert policies.group_vars_for("a@x.de", mc) == {}
+
+
+def test_group_vars_first_match_bei_mehreren_gruppen(monkeypatch):
+    mc = {"a@x.de": {}}
+    _store(monkeypatch,
+           INTERNAL_GROUPS={"A": ["a@x.de"], "B": ["a@x.de"]},
+           GROUP_VARS={"A": {"vertreter_mail": "erste@x.de"},
+                       "B": {"vertreter_mail": "zweite@x.de"}})
+    # A steht in INTERNAL_GROUPS zuerst → gewinnt
+    assert policies.group_vars_for("a@x.de", mc)["vertreter_mail"] == "erste@x.de"

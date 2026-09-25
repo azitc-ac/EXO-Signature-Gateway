@@ -52,3 +52,29 @@ def resolve_policies(sender: str, mailbox_cfg: dict | None = None,
             if overrides:
                 policies = {**policies, **overrides}
     return policies, use_pol
+
+
+def group_vars_for(sender: str, mailbox_cfg: dict | None = None) -> dict:
+    """Custom-Variablenwerte, die den Gruppen des Absenders zugewiesen sind.
+
+    `GROUP_VARS = {Gruppenname: {var: wert}}`. Ist der Absender in mehreren Gruppen,
+    gewinnt der ERSTE Treffer je Variable (first-match, wie bei den Richtlinien) —
+    die Reihenfolge folgt `INTERNAL_GROUPS`. Rangfolge insgesamt (aufgelöst beim
+    Aufrufer): Entra-Feld < Gruppen-Wert < Postfach-Override.
+    """
+    group_vars = settings_store.get("GROUP_VARS") or {}
+    groups = settings_store.get("INTERNAL_GROUPS") or {}
+    if not group_vars or not groups:
+        return {}
+    if mailbox_cfg is None:
+        mailbox_cfg = settings_store.get("MAILBOX_CONFIG") or {}
+    key = mailbox_match.match_sender_key(mailbox_cfg, sender)
+    if not key:
+        return {}
+    ergebnis: dict = {}
+    for gname, mitglieder in groups.items():
+        if key in (mitglieder or []):
+            for vname, vwert in (group_vars.get(gname) or {}).items():
+                if vname and vwert and vname not in ergebnis:  # first-match-wins
+                    ergebnis[vname] = vwert
+    return ergebnis

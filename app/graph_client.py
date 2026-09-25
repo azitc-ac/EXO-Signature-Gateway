@@ -601,6 +601,16 @@ async def get_user(email: str) -> UserData:
         for cv in custom_vars
         if cv.get("name") and cv.get("entra_field")
     }
+    # Gruppen-Ebene: Variablenwerte, die den Gruppen des Absenders zugewiesen sind
+    # (z.B. Vertreter je Team). Rang: Entra-Feld (oben) < Gruppe < Postfach-Override
+    # (die USER_OVERRIDES-Schleife unten schlägt beide). Für Variablen OHNE
+    # Entra-Mapping (rein manuell, wie vertreter_*) ist die Gruppe die Quelle.
+    try:
+        import policies as _pol
+        for _vn, _vv in _pol.group_vars_for(resolved_mail).items():
+            custom[_vn] = _vv
+    except Exception as _exc:                                       # noqa: BLE001
+        log.debug("group vars resolution skipped: %s", _exc)
 
     ud = UserData(
         displayName=user_overrides.get("user.displayName") or data.get("displayName") or "",

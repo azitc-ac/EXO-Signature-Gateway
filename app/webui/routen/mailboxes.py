@@ -447,5 +447,6 @@ async def mailboxes_page(request: Request, user: str = Depends(_require_admin)):
                  "gateway_name": _gateway_name(),
                  "migration_offen": altbestand,
                  "addin_enabled": bool(settings_store.get("ADDIN_ENABLED")),
-                 "ooo_enabled": bool(settings_store.get("OOO_ENABLED"))},
+                 "ooo_enabled": bool(settings_store.get("OOO_ENABLED")),
+                 "group_vars": settings_store.get("GROUP_VARS") or {}},
     )

@@ -164,6 +164,7 @@ REGISTER: dict[str, E] = {
     "COEX_ENABLED": E(art=OPTION, ort="advanced.html"),
     "PER_RECIPIENT_ROUTING": E(art=OPTION, ort="relay.html"),
     "OOO_ENABLED": E(art=OPTION, ort="mailboxes.html"),  # zentrale Abwesenheitsnotiz
+    "GROUP_VARS": E(art=STRUKTUR, ort="/api/settings/internal-groups/save"),  # Custom-Vars je Gruppe
     "ONPREM_MAILUSERS": E(art=ZUSTAND),      # via Get-MailUser abgeglichen, nicht von Hand
     "ONPREM_MAILUSERS_TS": E(art=ZUSTAND),   # Zeitpunkt des letzten Abgleichs
     "RELAY_USER": E(

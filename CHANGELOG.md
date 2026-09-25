@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.75 — 2026-09-25 — Gruppenbasierte Variablenwerte (z. B. Vertreter je Team)
+
+Eigene Variablen lassen sich jetzt **je interner Gruppe** mit einem Wert belegen —
+nicht mehr nur pro Postfach. Damit setzt man z. B. eine Vertretung einmal für ein
+ganzes Team: unter *Postfächer → Interne Gruppen → Variablen* je Gruppe
+`name → wert` hinterlegen (etwa `vertreter_mail`, `vertreter_tel`), in Vorlagen
+per `{{ '{{' }} custom.vertreter_mail {{ '}}' }}` nutzbar — auch in
+Abwesenheitsnotizen.
+
+Rangfolge bei der Auflösung: **Verzeichnis-Feld < Gruppenwert < Postfach-Override**
+(das Speziellere gewinnt). Ist ein Postfach in mehreren Gruppen, gewinnt je
+Variable die erste passende Gruppe. Verwaiste Gruppenwerte (zu gelöschten Gruppen)
+werden beim Speichern entfernt.
+
 ## v1.9.74 — 2026-09-25 — Abwesenheit: Platzhalter für Start- und Enddatum
 
 Abwesenheits-Vorlagen (Art *Abwesenheit*) kennen jetzt neben `{name}` und
