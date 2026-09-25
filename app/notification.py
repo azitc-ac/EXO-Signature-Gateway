@@ -294,7 +294,7 @@ def send_daily_report(daily: dict, total: dict) -> bool:
         _n = _ol.get("gesamt", 0)
         _aktiv = _ol.get("gesetzt", 0) + _ol.get("unveraendert", 0)
         _kz = _ol.get("kein_zugriff", 0)
-        _txt = f"{_aktiv} von {_n} Postfächern aktiv"
+        _txt = f"{_aktiv} von {_n} Postfächern mit zentralem Text"
         _col = ""
         if _kz:
             _txt += f" · kein Zugriff auf {_kz} (MailboxSettings-Consent fehlt)"
