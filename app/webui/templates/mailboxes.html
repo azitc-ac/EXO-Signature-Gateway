@@ -367,6 +367,32 @@ async function ankerAnwenden() {
     (Admin-Consent); ohne sie bleibt die Funktion wirkungslos.
   </p>
 
+  <!-- Abwesenheit automatisch aus dem Kalender (opt-in) -->
+  <label class="checkbox-label" style="margin-top:12px">
+    <input type="checkbox" id="ooo-cal-auto" onchange="oooCalAutoUmschalten(this)"
+           {% if ooo_calendar_auto %}checked{% endif %}>
+    Abwesenheit automatisch aus dem Kalender aktivieren
+    <span id="ooo-cal-result" style="font-size:12px;margin-left:8px"></span>
+  </label>
+  <div class="settings-row" style="margin-top:6px">
+    <label for="ooo-cal-hours">Ab welcher Termindauer</label>
+    <div class="settings-control">
+      <select id="ooo-cal-hours" onchange="oooCalHoursSpeichern(this)"
+              style="font-size:13px;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px">
+        {% for h, lbl in [(4,'4 Stunden'),(6,'6 Stunden'),(8,'8 Stunden'),(12,'12 Stunden'),(24,'ganztägig (24 h)')] %}
+        <option value="{{ h }}" {% if ooo_calendar_min_hours == h %}selected{% endif %}>{{ lbl }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+  <p class="hint" style="margin:4px 0 0;max-width:640px">
+    Termine mit dem Status <em>Abwesend</em> ab dieser Dauer schalten die native
+    Abwesenheit für ihr Zeitfenster automatisch ein (mit dem Firmentext). Der
+    Nutzer trägt nur den Termin ein — den Rest macht der Dienst. Wird eine so
+    aktivierte Abwesenheit von Hand wieder ausgeschaltet, bleibt sie aus.
+    Erfordert zusätzlich <code>Calendars.Read</code> (Admin-Consent).
+  </p>
+
   <!-- Interne Gruppen -->
   <div style="margin-top:20px;border-top:1px solid #e2e8f0;padding-top:16px">
     <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:6px;display:flex;align-items:center;gap:8px">
@@ -680,6 +706,13 @@ async function savePolicies() {
 // Zentrale Abwesenheitsnotiz: reiner Schalter \u2192 speichert sofort.
 async function oooUmschalten(cb) {
   await savePartial({ OOO_ENABLED: cb.checked }, 'ooo-result');
+}
+// Kalender-Automatik: Schalter + Schwelle (Dropdown) \u2192 speichern sofort.
+async function oooCalAutoUmschalten(cb) {
+  await savePartial({ OOO_CALENDAR_AUTO: cb.checked }, 'ooo-cal-result');
+}
+async function oooCalHoursSpeichern(sel) {
+  await savePartial({ OOO_CALENDAR_MIN_HOURS: parseInt(sel.value, 10) }, 'ooo-cal-result');
 }
 
 // ── Postfächer ───────────────────────────────────────────────────────────────

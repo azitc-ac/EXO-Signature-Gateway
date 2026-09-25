@@ -92,7 +92,7 @@ def _mock_seams(monkeypatch, setting, calls, canonical):
     async def fake_get(upn, token):
         return "ok", dict(setting)
 
-    async def fake_patch(upn, token, s, html):
+    async def fake_patch(upn, token, s, html, status=None, start=None, ende=None):
         calls["patch"] += 1
         setting["internalReplyMessage"] = canonical["internalReplyMessage"]
         setting["externalReplyMessage"] = canonical["externalReplyMessage"]
@@ -152,6 +152,83 @@ def test_disabled_bekommt_trotzdem_den_text(monkeypatch):
     assert r == abwesenheit.GESETZT
     assert calls["patch"] == 1                       # Text wurde gesetzt
     assert "a@x.de" in state                          # und gemerkt (Idempotenz)
+
+
+def test_fenster_texte():
+    s = {"dateTime": "2026-10-01T00:00:00", "timeZone": "UTC"}
+    e = {"dateTime": "2026-10-10T00:00:00", "timeZone": "UTC"}
+    z, ab, bis = abwesenheit._fenster_texte(s, e)
+    assert z == "vom 01.10.2026 bis 10.10.2026" and ab == "01.10.2026" and bis == "10.10.2026"
+
+
+def test_kalender_auto_aktiviert_bei_disabled(monkeypatch):
+    """Ist die Abwesenheit AUS und liegt ein qualifizierender Kalendertermin vor,
+    schaltet die Automatik die native Abwesenheit für dessen Fenster ein — und
+    respektiert danach ein manuelles Wieder-Ausschalten (kein erneutes Aktivieren
+    für dasselbe Fenster)."""
+    setting = {"status": "disabled", "internalReplyMessage": "", "externalReplyMessage": ""}
+    patch_calls: list = []
+
+    async def fake_get(upn, token):
+        return "ok", dict(setting)
+
+    async def fake_patch(upn, token, s, html, status=None, start=None, ende=None):
+        patch_calls.append({"status": status, "start": start, "ende": ende})
+        return {"internalReplyMessage": html, "externalReplyMessage": html}
+
+    async def fake_user(upn):
+        return UserData(displayName="E", custom={})
+
+    async def fake_fenster(upn, token):
+        return ({"dateTime": "2026-10-01T00:00:00", "timeZone": "UTC"},
+                {"dateTime": "2026-10-10T00:00:00", "timeZone": "UTC"})
+
+    monkeypatch.setattr(abwesenheit, "_get_setting", fake_get)
+    monkeypatch.setattr(abwesenheit, "_patch_setting", fake_patch)
+    monkeypatch.setattr(graph_client, "get_user", fake_user)
+    monkeypatch.setattr(abwesenheit, "_kalender_oof_fenster", fake_fenster)
+    monkeypatch.setattr(abwesenheit, "oof_vorlage_fuer", lambda *a: "Firma")
+    monkeypatch.setattr(signature_engine, "render", lambda u, template_name=None: ("<p>OOF</p>", "OOF"))
+    monkeypatch.setattr(abwesenheit, "_state_speichern", lambda st: None)
+    monkeypatch.setattr(settings_store, "get", lambda k, d=None: {"OOO_CALENDAR_AUTO": True}.get(k, d))
+
+    state: dict = {}
+    r = _run(abwesenheit.setze_fuer_postfach("a@x.de", "a@x.de", {}, {}, "T", state))
+    assert r == abwesenheit.GESETZT
+    assert patch_calls[0]["status"] == "scheduled"
+    assert patch_calls[0]["start"]["dateTime"].startswith("2026-10-01")
+    assert state["a@x.de"].get("auto_win")   # Fenster gemerkt
+
+    # Nutzer schaltet von Hand wieder aus (Status bleibt disabled, gleiches Fenster)
+    patch_calls.clear()
+    _run(abwesenheit.setze_fuer_postfach("a@x.de", "a@x.de", {}, {}, "T", state))
+    assert all(pc["status"] is None for pc in patch_calls), "darf nicht erneut aktivieren"
+
+
+def test_kalender_auto_aus_lässt_status(monkeypatch):
+    """Ist die Automatik AUS, wird der Status nie verändert (nur Text)."""
+    setting = {"status": "disabled", "internalReplyMessage": "", "externalReplyMessage": ""}
+    patch_calls: list = []
+
+    async def fake_get(upn, token):
+        return "ok", dict(setting)
+
+    async def fake_patch(upn, token, s, html, status=None, start=None, ende=None):
+        patch_calls.append(status)
+        return {"internalReplyMessage": html, "externalReplyMessage": html}
+
+    async def fake_user(upn):
+        return UserData(displayName="E", custom={})
+    monkeypatch.setattr(abwesenheit, "_get_setting", fake_get)
+    monkeypatch.setattr(abwesenheit, "_patch_setting", fake_patch)
+    monkeypatch.setattr(graph_client, "get_user", fake_user)
+    monkeypatch.setattr(abwesenheit, "oof_vorlage_fuer", lambda *a: "Firma")
+    monkeypatch.setattr(signature_engine, "render", lambda u, template_name=None: ("<p>OOF</p>", "OOF"))
+    monkeypatch.setattr(abwesenheit, "_state_speichern", lambda st: None)
+    monkeypatch.setattr(settings_store, "get", lambda k, d=None: {"OOO_CALENDAR_AUTO": False}.get(k, d))
+
+    _run(abwesenheit.setze_fuer_postfach("a@x.de", "a@x.de", {}, {}, "T", {}))
+    assert patch_calls == [None]   # nur Text, kein Status
 
 
 def test_403_meldet_kein_zugriff(monkeypatch):

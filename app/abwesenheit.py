@@ -24,6 +24,12 @@ triebe Exchanges eigene HTML-Neukodierung den Vergleich bei jedem Poll auf
 ⚠️ BERECHTIGUNG: braucht `MailboxSettings.ReadWrite` (Anwendung). Ohne
 Admin-Consent liefert Graph 403 — dann wird sauber gemeldet und übersprungen,
 nichts bricht.
+
+KALENDER-AUTOMATIK (opt-in, `OOO_CALENDAR_AUTO`): Ist sie an, aktiviert das
+Gateway die native Abwesenheit selbsttätig für Kalendertermine mit Status
+„Abwesend" (showAs=oof) ab `OOO_CALENDAR_MIN_HOURS` Dauer. Braucht zusätzlich
+`Calendars.Read`. Nur EINMAL je Terminfenster (Merker `auto_win` im State), damit
+ein manuelles Wieder-Ausschalten durch den Nutzer respektiert wird.
 """
 from __future__ import annotations
 
@@ -173,16 +179,20 @@ async def _get_setting(upn: str, token: str) -> tuple[str, dict | None]:
         return "fehler", None
 
 
-async def _patch_setting(upn: str, token: str, setting: dict,
-                         html: str) -> dict | None:
-    """intern/extern-Text setzen, übrige Felder (Status/Zeitraum/Empfängerkreis)
-    unangetastet lassen. Gibt das von Graph zurückgegebene (kanonische) Setting."""
-    rumpf = {
-        "automaticRepliesSetting": {
-            "internalReplyMessage": html,
-            "externalReplyMessage": html,
-        }
-    }
+async def _patch_setting(upn: str, token: str, setting: dict, html: str,
+                         status: str | None = None,
+                         start: dict | None = None, ende: dict | None = None) -> dict | None:
+    """intern/extern-Text setzen; optional auch Status + Zeitplan (für die
+    Kalender-Automatik). Übergebene Felder werden gesetzt, alle anderen bleiben
+    unangetastet. Gibt das von Graph zurückgegebene (kanonische) Setting."""
+    inner: dict = {"internalReplyMessage": html, "externalReplyMessage": html}
+    if status:
+        inner["status"] = status
+    if start:
+        inner["scheduledStartDateTime"] = start
+    if ende:
+        inner["scheduledEndDateTime"] = ende
+    rumpf = {"automaticRepliesSetting": inner}
     url = f"{_GRAPH}/users/{upn}/mailboxSettings"
     async with httpx.AsyncClient(timeout=15) as client:
         resp = await client.patch(
@@ -193,6 +203,69 @@ async def _patch_setting(upn: str, token: str, setting: dict,
         resp.raise_for_status()
         daten = resp.json()
     return (daten or {}).get("automaticRepliesSetting")
+
+
+# ── Kalender-Automatik (opt-in) ────────────────────────────────────────────────
+
+_LOOKAHEAD_TAGE = 120   # so weit vorausschauen für „Abwesend"-Kalendertermine
+
+
+def _fenster_texte(start_raw: dict, end_raw: dict) -> tuple[str, str, str]:
+    """(zeitraum, ab, bis) aus den Roh-Datumsangaben eines Kalendertermins."""
+    s, e = _dt(start_raw), _dt(end_raw)
+    ab = f"{s:%d.%m.%Y}" if s else ""
+    bis = f"{e:%d.%m.%Y}" if e else ""
+    if ab and bis:
+        zeitraum = f"vom {ab} bis {bis}"
+    elif bis:
+        zeitraum = f"bis {bis}"
+    elif ab:
+        zeitraum = f"ab {ab}"
+    else:
+        zeitraum = ""
+    return zeitraum, ab, bis
+
+
+async def _kalender_oof_fenster(upn: str, token: str) -> tuple[dict, dict] | None:
+    """(start_raw, end_raw) des maßgeblichen „Abwesend"-Kalendertermins, oder None.
+
+    Berücksichtigt nur Termine mit Status `showAs == "oof"` ab der eingestellten
+    Mindestdauer (`OOO_CALENDAR_MIN_HOURS`). Ein gerade laufender Termin hat
+    Vorrang, sonst der nächste kommende. Rein lesend (Calendars.Read)."""
+    from datetime import datetime, timezone, timedelta
+    min_h = float(settings_store.get("OOO_CALENDAR_MIN_HOURS") or 8)
+    jetzt = datetime.now(timezone.utc)
+    von = jetzt.strftime("%Y-%m-%dT%H:%M:%S")
+    bis = (jetzt + timedelta(days=_LOOKAHEAD_TAGE)).strftime("%Y-%m-%dT%H:%M:%S")
+    url = (f"{_GRAPH}/users/{upn}/calendarView?startDateTime={von}&endDateTime={bis}"
+           f"&$select=start,end,showAs,subject&$top=100&$orderby=start/dateTime")
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            resp = await client.get(url, headers={
+                "Authorization": f"Bearer {token}",
+                "Prefer": 'outlook.timezone="UTC"'})   # → start/end kommen in UTC
+        if resp.status_code == 403:
+            log.warning("OOO-Kalender: kein Zugriff auf %s (Calendars.Read-Consent fehlt)", upn)
+            return None
+        resp.raise_for_status()
+        events = resp.json().get("value", [])
+    except Exception as exc:                                       # noqa: BLE001
+        log.warning("OOO-Kalender lesen für %s fehlgeschlagen: %s", upn, exc)
+        return None
+    jetzt_naiv = jetzt.replace(tzinfo=None)   # _dt liefert naive (UTC-)datetimes
+    kandidaten = []
+    for ev in events:
+        if ev.get("showAs") != "oof":
+            continue
+        s, e = _dt(ev.get("start")), _dt(ev.get("end"))
+        if not s or not e or (e - s).total_seconds() < min_h * 3600:
+            continue
+        kandidaten.append((s, e, ev.get("start"), ev.get("end")))
+    if not kandidaten:
+        return None
+    laufend = [k for k in kandidaten if k[0] <= jetzt_naiv <= k[1]]
+    wahl = min(laufend or kandidaten, key=lambda k: k[0])
+    return wahl[2], wahl[3]
 
 
 # ── Ein Postfach normalisieren ────────────────────────────────────────────────
@@ -222,23 +295,43 @@ async def setze_fuer_postfach(upn: str, sender: str, mailbox_cfg: dict,
     html, _txt = render_oof(user_data, template, zeitraum_text(setting), _ab, _bis)
 
     merk = state.get(upn.lower()) or {}
-    if (setting.get("internalReplyMessage") == merk.get("intern")
-            and setting.get("externalReplyMessage") == merk.get("extern")):
-        # Aktueller Text ist exakt der zuletzt von uns gesetzte → nichts tun.
-        # ⚠️ Genau diese Prüfung verhindert das Zurücksetzen der „einmal je
-        # Absender"-Dedup bei jedem Poll.
+    auto_win = merk.get("auto_win")
+
+    # Kalender-Automatik (opt-in): Ist die Abwesenheit AUS und liegt ein
+    # qualifizierender „Abwesend"-Termin vor, aktivieren wir die native Abwesenheit
+    # für dessen Fenster — aber nur EINMAL je Fenster (auto_win). Schaltet der
+    # Nutzer sie danach von Hand wieder aus, wird NICHT erneut aktiviert.
+    setze_status = setze_start = setze_ende = None
+    if (settings_store.get("OOO_CALENDAR_AUTO")
+            and setting.get("status") in (None, "disabled")):
+        fenster = await _kalender_oof_fenster(upn, token)
+        if fenster:
+            win_key = f"{(fenster[0] or {}).get('dateTime')}|{(fenster[1] or {}).get('dateTime')}"
+            if auto_win != win_key:
+                setze_status, setze_start, setze_ende = "scheduled", fenster[0], fenster[1]
+                auto_win = win_key
+                _z, _ab, _bis = _fenster_texte(fenster[0], fenster[1])
+                html, _txt = render_oof(user_data, template, _z, _ab, _bis)
+
+    aendern_text = not (setting.get("internalReplyMessage") == merk.get("intern")
+                        and setting.get("externalReplyMessage") == merk.get("extern"))
+    if not aendern_text and setze_status is None:
+        # Text unverändert und keine Statusänderung → nichts tun.
+        # ⚠️ Diese Prüfung verhindert das Zurücksetzen der „einmal je Absender"-Dedup.
         return UNVERAENDERT
 
-    kanonisch = await _patch_setting(upn, token, setting, html)
-    # Die von Graph zurückgegebene Fassung merken (Exchange kann HTML neu
-    # kodieren) — sonst schlägt der nächste Vergleich immer fehl.
+    kanonisch = await _patch_setting(upn, token, setting, html,
+                                     status=setze_status, start=setze_start, ende=setze_ende)
+    # Die von Graph zurückgegebene Fassung merken (Exchange kann HTML neu kodieren) —
+    # sonst schlägt der nächste Vergleich immer fehl.
     if kanonisch:
-        state[upn.lower()] = {
-            "intern": kanonisch.get("internalReplyMessage"),
-            "extern": kanonisch.get("externalReplyMessage"),
-        }
+        neu = {"intern": kanonisch.get("internalReplyMessage"),
+               "extern": kanonisch.get("externalReplyMessage")}
     else:
-        state[upn.lower()] = {"intern": html, "extern": html}
+        neu = {"intern": html, "extern": html}
+    if auto_win:
+        neu["auto_win"] = auto_win
+    state[upn.lower()] = neu
     _state_speichern(state)
     return GESETZT
 

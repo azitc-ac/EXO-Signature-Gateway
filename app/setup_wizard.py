@@ -39,6 +39,7 @@ _GRAPH_PERMISSION_SPECS = [
     {"name": "Mail.ReadWrite",           "id": "e2a3a72e-5f79-4c64-b1b1-878b674786c9"},  # sent-item patching
     {"name": "Mail.Send",                "id": "b633e1c5-b582-4048-a93e-9f11b44c7e96"},  # Graph-Reinject
     {"name": "MailboxSettings.ReadWrite","id": "6931bccd-447a-43d1-b442-00a195474933"},  # zentrale Abwesenheitsnotiz
+    {"name": "Calendars.Read",           "id": "798ee544-9d2d-430c-a058-570e29e34338"},  # OOO aus Kalender (opt-in)
 ]
 _EXO_PERMISSION_SPECS = [
     {"name": "Exchange.ManageAsApp",     "id": "dc50a0fb-09a3-484d-be87-e023b12c6440"},
