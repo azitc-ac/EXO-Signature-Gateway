@@ -150,6 +150,12 @@ async def setup_wizard(
     effective["exo_rule_sig"] = waechter_regel.regelname()
     effective["exo_split_aktiv"] = regel_split.split_aktiv()
     effective["exo_rule_smime"] = regel_split.smime_regelname()
+    # Angeforderte App-Rollen aus DERSELBEN Quelle wie der Graph-Antrag — die
+    # Anzeige in Schritt 5 kann so nicht mehr von den tatsächlich beantragten
+    # Berechtigungen abdriften. Lokaler Alias-Import: der Name `setup_wizard` ist
+    # hier die Route-Funktion selbst (gleichnamig), nicht das Modul.
+    import setup_wizard as _sw
+    effective["permission_names"] = _sw.permission_names()
     addin_base_url = _addin_base_url(request)
     return templates.TemplateResponse(
         request=request, name="setup.html",
