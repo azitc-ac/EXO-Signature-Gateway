@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.71 — 2026-09-25 — Setup: angeforderte Berechtigungen vollständig und aus einer Quelle anzeigen
+
+Schritt 5 des Assistenten (Entra App-Registrierung) zeigt die angeforderten
+App-Rollen jetzt vollständig und **aus derselben Quelle, aus der auch der
+Graph-Antrag gebaut wird**. Die bisher dort gepflegte feste Liste war von den
+tatsächlich beantragten Rollen abgedriftet: Sie nannte drei Rollen, während das
+Gateway sechs anfordert — es fehlten `Mail.Send`, `IMAP.AccessAsApp` und (neu)
+`MailboxSettings.ReadWrite`. Wer eine Rolle ergänzt, trägt sie künftig an einer
+Stelle ein; Antrag und Anzeige bleiben zwangsläufig deckungsgleich.
+
 ## v1.9.70 — 2026-09-25 — Setup: Berechtigungen bestehender Installationen auf den Soll-Stand bringen
 
 Ein erneuter Setup-Login (Anmeldung als Administrator) bringt die

@@ -137,6 +137,29 @@ def test_keine_seite_gibt_ein_geheimnis_aus(client):
             assert v not in html, f"{pfad} gibt {k} im Klartext aus"
 
 
+def test_setup_zeigt_angeforderte_berechtigungen(client):
+    """Schritt 5 listet die App-Rollen aus DERSELBEN Quelle wie der Graph-Antrag
+    (setup_wizard.permission_names). Fängt zweierlei: die Abdrift der Anzeige von
+    den tatsächlich beantragten Rollen UND den Namensschatten (die Route heißt
+    selbst `setup_wizard`, das Modul ist nur lokal unter Alias erreichbar — ohne
+    ihn liefe die Zeile auf einen 500).
+
+    Anmeldung per Basic-Auth: /setup umgeht die override-Dependencies und prüft
+    die Session/Basic selbst; admin/admin greift auf dem frischen Test-Gateway.
+    """
+    import settings_store as ss
+    import config as _cfg
+    # Unabhängig von der Testreihenfolge: ohne Hash prüft _check_password gegen
+    # config.WEBUI_PASSWORD (ein vorheriger Test setzt ADMIN_PASSWORD_HASH auf einen
+    # Platzhalter). AZURE_APP_CREATED, damit der Schritt-5-Block überhaupt rendert.
+    ss.update({"AZURE_APP_CREATED": True, "ADMIN_PASSWORD_HASH": ""})
+    r = client.get("/setup", auth=("admin", _cfg.WEBUI_PASSWORD or "admin"),
+                   follow_redirects=False)
+    assert r.status_code == 200, f"{r.status_code} (Auth/Redirect?)"
+    for name in ("MailboxSettings.ReadWrite", "Mail.Send", "IMAP.AccessAsApp"):
+        assert name in r.text, f"Berechtigung {name} fehlt in der Setup-Anzeige"
+
+
 # ── Ebene 2: Rundumlauf über alle parameterlosen GET-Routen ─────────────────
 
 # Endpunkte, die fest auf das Datenverzeichnis des Containers zugreifen

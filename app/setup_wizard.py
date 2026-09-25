@@ -28,24 +28,32 @@ _GRAPH_APP_ID = "00000003-0000-0000-c000-000000000000"  # Microsoft Graph
 _EXO_APP_ID = "00000002-0000-0ff1-ce00-000000000000"    # Exchange Online
 
 # ── Permission IDs ────────────────────────────────────────────────────────────
-_GRAPH_PERMISSIONS = [
-    # User.Read.All
-    {"id": "df021288-bdef-4463-88db-98f22de89214", "type": "Role"},
-    # Mail.ReadWrite — needed for sent-item patching
-    {"id": "e2a3a72e-5f79-4c64-b1b1-878b674786c9", "type": "Role"},
-    # Mail.Send — needed for Graph API re-inject (Azure non-Enterprise mode)
-    {"id": "b633e1c5-b582-4048-a93e-9f11b44c7e96", "type": "Role"},
-    # MailboxSettings.ReadWrite — zentrale Abwesenheitsnotiz (automaticRepliesSetting
-    # lesen/normalisieren). Wird mit angelegt; braucht Admin-Consent. Ohne Consent
-    # meldet der OOO-Poll 403 und überspringt — nichts anderes bricht.
-    {"id": "6931bccd-447a-43d1-b442-00a195474933", "type": "Role"},
+# EINE Quelle: Name + ID je App-Rolle. Daraus werden abgeleitet (a) der
+# resourceAccess-Rumpf für Graph ({id, type}) und (b) die Anzeige der
+# angeforderten Berechtigungen im Setup-Assistenten (permission_names()). Wer eine
+# Rolle ergänzt, trägt sie HIER ein — API-Antrag und Anzeige bleiben dann
+# zwangsläufig deckungsgleich (vorher war die Anzeige eine handgepflegte Liste, die
+# von den tatsächlich beantragten Rollen abgedriftet war).
+_GRAPH_PERMISSION_SPECS = [
+    {"name": "User.Read.All",            "id": "df021288-bdef-4463-88db-98f22de89214"},
+    {"name": "Mail.ReadWrite",           "id": "e2a3a72e-5f79-4c64-b1b1-878b674786c9"},  # sent-item patching
+    {"name": "Mail.Send",                "id": "b633e1c5-b582-4048-a93e-9f11b44c7e96"},  # Graph-Reinject
+    {"name": "MailboxSettings.ReadWrite","id": "6931bccd-447a-43d1-b442-00a195474933"},  # zentrale Abwesenheitsnotiz
 ]
-_EXO_PERMISSIONS = [
-    # Exchange.ManageAsApp
-    {"id": "dc50a0fb-09a3-484d-be87-e023b12c6440", "type": "Role"},
-    # IMAP.AccessAsApp — für IMAP APPEND (Modus `imap`, Azure ohne Port 25)
-    {"id": "5e5addcd-3e8d-4e90-baf5-964efab2b20a", "type": "Role"},
+_EXO_PERMISSION_SPECS = [
+    {"name": "Exchange.ManageAsApp",     "id": "dc50a0fb-09a3-484d-be87-e023b12c6440"},
+    {"name": "IMAP.AccessAsApp",         "id": "5e5addcd-3e8d-4e90-baf5-964efab2b20a"},  # IMAP APPEND (Modus imap)
 ]
+_GRAPH_PERMISSIONS = [{"id": s["id"], "type": "Role"} for s in _GRAPH_PERMISSION_SPECS]
+_EXO_PERMISSIONS = [{"id": s["id"], "type": "Role"} for s in _EXO_PERMISSION_SPECS]
+
+
+def permission_names() -> list[str]:
+    """Namen aller angeforderten App-Rollen (Graph + EXO) — für die Anzeige im
+    Setup-Assistenten. Aus derselben Quelle wie der API-Antrag, damit beides nicht
+    auseinanderläuft."""
+    return [s["name"] for s in _GRAPH_PERMISSION_SPECS + _EXO_PERMISSION_SPECS]
+
 
 # Exchange Administrator built-in role ID (constant across all tenants)
 _EXCHANGE_ADMIN_ROLE_ID = "29232cdf-9323-42fd-ade2-1d097af3e4de"
