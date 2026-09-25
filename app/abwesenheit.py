@@ -100,6 +100,16 @@ def zeitraum_text(setting: dict) -> str:
     return ""
 
 
+def start_ende_text(setting: dict) -> tuple[str, str]:
+    """(ab, bis) als einzelne Datumsstrings (TT.MM.JJJJ) für die Platzhalter
+    `{abwesend_ab}`/`{abwesend_bis}`. Leer, wenn ohne Zeitplan."""
+    if setting.get("status") != "scheduled":
+        return "", ""
+    start = _dt(setting.get("scheduledStartDateTime"))
+    ende = _dt(setting.get("scheduledEndDateTime"))
+    return (f"{start:%d.%m.%Y}" if start else ""), (f"{ende:%d.%m.%Y}" if ende else "")
+
+
 # ── Vorlagenauswahl ───────────────────────────────────────────────────────────
 
 def oof_vorlage_fuer(sender: str, mailbox_cfg: dict, sender_cfg: dict) -> str:
@@ -119,19 +129,30 @@ def oof_vorlage_fuer(sender: str, mailbox_cfg: dict, sender_cfg: dict) -> str:
 
 # ── Text rendern ──────────────────────────────────────────────────────────────
 
-def render_oof(user_data, template_name: str, zeitraum: str) -> tuple[str, str]:
+def render_oof(user_data, template_name: str, zeitraum: str,
+               ab: str = "", bis: str = "") -> tuple[str, str]:
     """(html, txt) der Abwesenheitsnotiz aus der oof-Vorlage.
 
     Die Vorlage kennt alle Signatur-Variablen (`{{ user.x }}`, `{{ custom.x }}`).
-    Zusätzlich ersetzt diese Funktion die literalen Platzhalter `{zeitraum}` und
-    `{name}` NACH dem Rendern — einfache geschweifte Klammern sind kein Jinja und
-    laufen unverändert durch, sodass ein Betreiber sie ohne Template-Kenntnis
-    verwenden kann.
+    Zusätzlich ersetzt diese Funktion die literalen Platzhalter NACH dem Rendern —
+    einfache geschweifte Klammern sind kein Jinja und laufen unverändert durch,
+    sodass ein Betreiber sie ohne Template-Kenntnis verwenden kann:
+
+      {name}         Anzeigename des Postfachinhabers
+      {zeitraum}     „vom TT.MM.JJJJ bis TT.MM.JJJJ" (zusammengesetzt)
+      {abwesend_ab}  Startdatum allein (TT.MM.JJJJ)
+      {abwesend_bis} Enddatum allein (TT.MM.JJJJ)
+
+    Datumsangaben stehen nur bei einer geplanten Abwesenheit (`scheduled`) zur
+    Verfügung; sonst sind sie leer, und die Vorlage sollte das aushalten.
     """
     html, txt = signature_engine.render(user_data, template_name=template_name)
     name = getattr(user_data, "displayName", "") or ""
-    html = html.replace("{zeitraum}", _html.escape(zeitraum)).replace("{name}", _html.escape(name))
-    txt = txt.replace("{zeitraum}", zeitraum).replace("{name}", name)
+    ersetzungen = {"{name}": name, "{zeitraum}": zeitraum,
+                   "{abwesend_ab}": ab, "{abwesend_bis}": bis}
+    for marke, wert in ersetzungen.items():
+        html = html.replace(marke, _html.escape(wert))
+        txt = txt.replace(marke, wert)
     return html, txt
 
 
@@ -197,7 +218,8 @@ async def setze_fuer_postfach(upn: str, sender: str, mailbox_cfg: dict,
     # ausgeschaltete Abwesenheit bleibt ausgeschaltet, es wird nichts versendet.
     # zeitraum_text() liefert bei ausgeschalteter/unbefristeter Abwesenheit "".
     user_data = await graph_client.get_user(upn)
-    html, _txt = render_oof(user_data, template, zeitraum_text(setting))
+    _ab, _bis = start_ende_text(setting)
+    html, _txt = render_oof(user_data, template, zeitraum_text(setting), _ab, _bis)
 
     merk = state.get(upn.lower()) or {}
     if (setting.get("internalReplyMessage") == merk.get("intern")

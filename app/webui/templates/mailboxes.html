@@ -361,7 +361,8 @@ async function ankerAnwenden() {
     Solange die Abwesenheit eines Postfachs (nativ in Outlook/OWA geschaltet)
     aktiv ist, überschreibt das Gateway ihren Text mit der oben zugewiesenen
     <em>Abwesenheit</em>-Vorlage — Status und Zeitraum bleiben unangetastet.
-    Platzhalter <code>{zeitraum}</code> und <code>{name}</code> werden eingesetzt.
+    Platzhalter <code>{name}</code>, <code>{zeitraum}</code>,
+    <code>{abwesend_ab}</code> und <code>{abwesend_bis}</code> werden eingesetzt.
     Erfordert die Berechtigung <code>MailboxSettings.ReadWrite</code>
     (Admin-Consent); ohne sie bleibt die Funktion wirkungslos.
   </p>

@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.74 — 2026-09-25 — Abwesenheit: Platzhalter für Start- und Enddatum
+
+Abwesenheits-Vorlagen (Art *Abwesenheit*) kennen jetzt neben `{name}` und
+`{zeitraum}` (dem zusammengesetzten „vom … bis …") auch die Einzeldaten
+`{abwesend_ab}` und `{abwesend_bis}` (jeweils TT.MM.JJJJ). Damit lässt sich der
+Text frei formulieren, z. B. „Ich bin ab {abwesend_ab} abwesend und ab
+{abwesend_bis} wieder erreichbar." Die Datumsangaben stehen bei einer geplanten
+Abwesenheit zur Verfügung; ohne Zeitplan bleiben sie leer.
+
 ## v1.9.73 — 2026-09-25 — Abwesenheit: Firmentext für alle Postfächer vorbelegen
 
 Die zentrale Abwesenheitsnotiz hinterlegt den einheitlichen Firmentext jetzt für
