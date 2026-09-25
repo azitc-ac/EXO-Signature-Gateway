@@ -25,7 +25,8 @@ DEFAULTS: dict = {
     "MAILBOX_CONFIG": {},  # {email: {"sig": true, "smime": true, "use_policy": true}} — empty = NOTHING processed (handler.py pass-through)
     "TEMPLATE_POLICIES": {"sig": "default", "min": "Minimal", "addin": "*"},  # {sig, min (Antwort-Signatur), banner, disclaimer, addin}
     "INTERNAL_GROUPS": {},      # {"Vertrieb": ["<guid>", ...], ...} — interne Postfach-Gruppen
-    "CUSTOM_POLICIES": [],      # [{"condition_type": "group", "group_name": "...", "applies_to": "sig|min|banner|disclaimer", "template": "..."}] — first-match-wins
+    "CUSTOM_POLICIES": [],      # [{"condition_type": "group", "group_name": "...", "applies_to": "sig|min|banner|disclaimer|oof", "template": "..."}] — first-match-wins
+    "GROUP_VARS": {},           # {"Vertrieb": {"vertreter_name": "...", ...}} — Custom-Var-Werte je Gruppe (first-match); Rang: Entra < Gruppe < Postfach-Override
     # Banner-Kampagnen: ein Banner zeitfenster-/gruppengesteuert (banner_campaigns.py).
     # [{"id","name","banner","start","end","group","enabled"}] — aktive Kampagne
     # zieht das Banner der Richtlinie/des Postfachs vor. start/end UTC-ISO, leer=offen.

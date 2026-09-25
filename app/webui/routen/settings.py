@@ -84,7 +84,16 @@ async def api_save_internal_groups(request: Request, _=Depends(_require_admin)):
     groups = data.get("groups")
     if not isinstance(groups, dict):
         raise HTTPException(400, "groups must be a dict")
-    settings_store.update({"INTERNAL_GROUPS": groups})
+    aenderung: dict = {"INTERNAL_GROUPS": groups}
+    # Gruppen-Variablen (optional) im selben Speichervorgang: {Gruppe: {var: wert}}.
+    # Nur Gruppen behalten, die es auch gibt — sonst bleiben Werte verwaister
+    # Gruppen ewig liegen.
+    group_vars = data.get("group_vars")
+    if isinstance(group_vars, dict):
+        bereinigt = {g: v for g, v in group_vars.items()
+                     if g in groups and isinstance(v, dict) and v}
+        aenderung["GROUP_VARS"] = bereinigt
+    settings_store.update(aenderung)
     return JSONResponse({"ok": True})
 
 
