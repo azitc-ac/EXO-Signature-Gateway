@@ -284,11 +284,29 @@ def send_daily_report(daily: dict, total: dict) -> bool:
     except Exception:
         pass
 
+    # Zentrale Abwesenheitsnotiz: laufende Zahl MIT Bezugsgröße. Erscheint immer,
+    # wenn die Funktion an ist — die Null („0 von N aktiv") ist hier die Meldung.
+    # Fehlender Consent (kein_zugriff) ist ein STILLER Ausfall (die Notiz würde
+    # nicht normalisiert, ohne dass es auffällt) → rot. (CLAUDE.md Regel 8.)
+    ooo_row = ""
+    if settings_store.get("OOO_ENABLED"):
+        _ol = settings_store.get("_OOO_LAST") or {}
+        _n = _ol.get("gesamt", 0)
+        _aktiv = _ol.get("gesetzt", 0) + _ol.get("unveraendert", 0)
+        _kz = _ol.get("kein_zugriff", 0)
+        _txt = f"{_aktiv} von {_n} Postfächern aktiv"
+        _col = ""
+        if _kz:
+            _txt += f" · kein Zugriff auf {_kz} (MailboxSettings-Consent fehlt)"
+            _col = "#e74c3c"
+        ooo_row = _row("Zentrale Abwesenheit", _txt, _col)
+
     gw_rows = "".join([
         _row("Version",           config.VERSION),
         _row("Hostname",          hostname or container_host),
         *([ _row("IP-Adresse", ip_str) ] if ip_str else []),
         *([ _row("Container-Uptime", uptime_str) ] if uptime_str else []),
+        ooo_row,
     ])
 
     # ── TLS cert ──

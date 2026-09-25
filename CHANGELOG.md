@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.69 — 2026-09-25 — Abwesenheitsnotiz: laufende Zahl in Tagesbericht und Übersicht
+
+Ist die zentrale Abwesenheitsnotiz an, zeigen Tagesbericht und Übersicht jetzt
+eine **laufende Zahl mit Bezugsgröße**: „X von N Postfächern aktiv normalisiert".
+Fehlt der Admin-Consent für `MailboxSettings.ReadWrite`, erscheint dort zusätzlich
+eine **Warnung** — sonst bliebe der Ausfall unsichtbar: Die Notiz würde nicht
+vereinheitlicht, und ohne diese Zeile fiele es niemandem auf. Die Null ist hier
+die Meldung und wird deshalb immer angezeigt, solange die Funktion an ist.
+
 ## v1.9.68 — 2026-09-25 — Zentrale Abwesenheitsnotiz (einheitlicher Out-of-Office-Text)
 
 Neue Funktion (Vorgabe **aus**): Solange ein Postfachinhaber seine Abwesenheit

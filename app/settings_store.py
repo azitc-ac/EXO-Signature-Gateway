@@ -359,6 +359,7 @@ INTERNAL_KEYS = frozenset({
                                   # nicht, obwohl daneben geschrieben
     "_DAILY_LAST_RUN",            # scheduler.py
     "_OOO_STATE",                 # abwesenheit.py — zuletzt gesetzter OOF-Text je Postfach
+    "_OOO_LAST",                  # abwesenheit.py — Zählung des letzten Poll-Laufs
     "_SCHEMA_VERSION",            # Migrationsstand, s.u.
 })
 

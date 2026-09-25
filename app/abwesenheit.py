@@ -47,6 +47,7 @@ KEIN_ZUGRIFF = "kein_zugriff"  # 403 — Consent fehlt
 FEHLER = "fehler"
 
 _STATE_KEY = "_OOO_STATE"       # {mailbox_key: {"intern": <kanonisch>, "extern": <kanonisch>}}
+_LAST_KEY = "_OOO_LAST"         # Zählung des letzten Poll-Laufs (für Tagesbericht/Übersicht)
 
 
 # ── Zustand (zuletzt gesetzter Text je Postfach) ──────────────────────────────
@@ -238,6 +239,13 @@ def _aktive_postfaecher(mailbox_cfg: dict) -> list[tuple[str, dict]]:
     return out
 
 
+def _persist_last(summary: dict) -> None:
+    """Zählung des letzten Laufs merken — für die laufende Zahl in Tagesbericht
+    und Übersicht (Sichtbarkeit gegen stillen Ausfall, CLAUDE.md Regel 8)."""
+    from datetime import datetime, timezone
+    settings_store.force_update({_LAST_KEY: {**summary, "ts": datetime.now(timezone.utc).isoformat()}})
+
+
 async def poll_alle() -> dict:
     """Alle aktivierten Postfächer normalisieren. Gibt eine Zählung je Ergebnis
     zurück (mit Bezugsgröße für den Tagesbericht)."""
@@ -249,12 +257,16 @@ async def poll_alle() -> dict:
     postfaecher = _aktive_postfaecher(mailbox_cfg)
     zaehlung_gesamt = len(postfaecher)
     if not postfaecher:
-        return {"aktiv": True, **zaehlung, "gesamt": 0}
+        ergebnis = {"aktiv": True, **zaehlung, "gesamt": 0}
+        _persist_last(ergebnis)
+        return ergebnis
 
     token = await graph_client._acquire_token_async()
     if not token:
         log.warning("OOO-Poll: kein Graph-Token — übersprungen")
-        return {"aktiv": True, **zaehlung, "gesamt": zaehlung_gesamt, "kein_token": True}
+        ergebnis = {"aktiv": True, **zaehlung, "gesamt": zaehlung_gesamt, "kein_token": True}
+        _persist_last(ergebnis)
+        return ergebnis
 
     state = _state()
     for upn, sender_cfg in postfaecher:
@@ -272,4 +284,6 @@ async def poll_alle() -> dict:
              "%d ohne Vorlage, %d kein Zugriff, %d Fehler",
              zaehlung_gesamt, zaehlung[GESETZT], zaehlung[UNVERAENDERT], zaehlung[AUS],
              zaehlung[KEINE_VORLAGE], zaehlung[KEIN_ZUGRIFF], zaehlung[FEHLER])
-    return {"aktiv": True, **zaehlung, "gesamt": zaehlung_gesamt}
+    ergebnis = {"aktiv": True, **zaehlung, "gesamt": zaehlung_gesamt}
+    _persist_last(ergebnis)
+    return ergebnis

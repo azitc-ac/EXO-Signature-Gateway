@@ -162,6 +162,19 @@ def test_poll_aus_wenn_deaktiviert(monkeypatch):
     assert r["aktiv"] is False
 
 
+def test_poll_persistiert_letzten_lauf(monkeypatch):
+    """Die laufende Zahl (Tagesbericht/Übersicht) speist sich aus _OOO_LAST — der
+    Poll muss sie schreiben, mit Bezugsgröße (gesamt) und Zeitstempel."""
+    store = {"OOO_ENABLED": True, "MAILBOX_CONFIG": {}}
+    captured: dict = {}
+    monkeypatch.setattr(settings_store, "get", lambda k, d=None: store.get(k, d))
+    monkeypatch.setattr(settings_store, "force_update", lambda patch: captured.update(patch))
+    r = _run(abwesenheit.poll_alle())
+    assert r["aktiv"] is True and r["gesamt"] == 0
+    assert "_OOO_LAST" in captured
+    assert captured["_OOO_LAST"]["gesamt"] == 0 and "ts" in captured["_OOO_LAST"]
+
+
 def test_aktive_postfaecher_email_und_guid(monkeypatch):
     cfg = {
         "a@x.de": {"sig": True},                                   # klassisch, aktiv
