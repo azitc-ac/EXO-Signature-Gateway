@@ -53,6 +53,25 @@ def test_render_ersetzt_name_und_zeitraum(tmp_path, monkeypatch):
     assert txt == "Erika ist weg vom 01.10.2026 bis 10.10.2026."
 
 
+def test_render_ersetzt_start_und_ende(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "TEMPLATE_DIR", str(tmp_path))
+    (tmp_path / "Firma.html").write_text("<p>ab {abwesend_ab}, zurück am {abwesend_bis}</p>", encoding="utf-8")
+    (tmp_path / "Firma.txt").write_text("ab {abwesend_ab}, zurück am {abwesend_bis}", encoding="utf-8")
+    signature_engine._reload_env()
+    html, txt = abwesenheit.render_oof(
+        UserData(displayName="E", custom={}), "Firma", "", ab="10.09.2026", bis="25.09.2026")
+    assert "ab 10.09.2026, zurück am 25.09.2026" in html
+    assert txt == "ab 10.09.2026, zurück am 25.09.2026"
+
+
+def test_start_ende_text():
+    s = {"status": "scheduled",
+         "scheduledStartDateTime": {"dateTime": "2026-09-10T00:00:00.0000000", "timeZone": "UTC"},
+         "scheduledEndDateTime": {"dateTime": "2026-09-25T00:00:00.0000000", "timeZone": "UTC"}}
+    assert abwesenheit.start_ende_text(s) == ("10.09.2026", "25.09.2026")
+    assert abwesenheit.start_ende_text({"status": "alwaysEnabled"}) == ("", "")
+
+
 # ── Vorlagenauswahl ───────────────────────────────────────────────────────────
 
 def test_oof_vorlage_aus_policy(monkeypatch):
