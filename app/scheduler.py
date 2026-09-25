@@ -277,27 +277,27 @@ def _should_run_daily(last_run_date: str) -> bool:
 
 
 def _check_license_expiry() -> None:
-    """Erinnerung an ablaufende Fair-Use-Lizenz (30/14/7/1 Tage + abgelaufen).
-    Dedup in-memory pro Schwelle — nach Container-Restart maximal eine
-    Wiederholung, gleiche Semantik wie die Zertifikats-Warnungen."""
+    """Erinnerung, dass eine Fair-Use-Lizenz demnächst abläuft (30/14/7/1 Tage) —
+    damit rechtzeitig verlängert/neu gekauft werden kann.
+
+    ⚠️ Ist die Lizenz bereits ABGELAUFEN, wird NICHT (mehr) benachrichtigt. Das ist
+    ein Dauerzustand; die Vorab-Warnungen haben rechtzeitig erinnert. Ein
+    Fair-Use-Produkt mahnt den Betreiber danach nicht täglich per Mail — unabhängig
+    davon, ob die Freigrenze überschritten wird. (Vorher lief genau das: der
+    In-Memory-Dedup wurde bei jedem Container-Neustart geleert, ein täglich neu
+    startendes Gateway mahnte täglich erneut die längst abgelaufene Lizenz an.)
+    status() liefert für eine abgelaufene Lizenz kein `expires` → der frühe
+    Ausstieg unten greift von selbst.
+
+    Dedup der Vorab-Warnungen in-memory pro Schwelle — nach Container-Restart
+    maximal eine Wiederholung, gleiche Semantik wie die Zertifikats-Warnungen."""
     try:
         import license as _lic
         import notification
         st = _lic.status()
-        if not st.get("licensed") and not st.get("reason"):
-            return  # keine Lizenz eingespielt — nichts zu erinnern
         expires = st.get("expires") or ""
-        # Abgelaufene Lizenz: status() liefert licensed=False mit reason
-        if not st.get("licensed") and "abgelaufen" in (st.get("reason") or ""):
-            key_full = (settings_store.get("LICENSE_KEY") or "").strip()
-            payload, _ = _lic.verify(key_full, check_expiry=False)
-            dedup = "license:expired"
-            if payload and dedup not in _cert_alerts_sent:
-                notification.send_license_expiry_warning(payload, -1)
-                _cert_alerts_sent.add(dedup)
-            return
         if not expires:
-            return
+            return  # keine (gültige, befristete) Lizenz → nichts zu erinnern
         from datetime import date
         days_left = (date.fromisoformat(expires) - date.today()).days
         # Aufsteigend: die KLEINSTE passende Schwelle zählt (10 Tage Rest → 14),
