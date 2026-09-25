@@ -13,8 +13,7 @@ log = logging.getLogger(__name__)
 # Rückfall für Dateien ohne Meta (siehe vorlagen_art()). Die Zuweisungslisten der
 # Oberfläche zeigen je Verwendungszweck nur die passende Art — so lässt sich ein
 # Banner nicht als Signatur zuweisen und umgekehrt.
-# (Der OOO-Slot `oof` und die Art `oof` kommen mit dem Abwesenheits-Feature dazu.)
-ARTEN: tuple[str, ...] = ("signatur", "banner", "disclaimer", "usermail")
+ARTEN: tuple[str, ...] = ("signatur", "banner", "disclaimer", "oof", "usermail")
 
 # Zuordnung Zuweisungs-Slot → Vorlagen-Art. Ein Slot ist die ROLLE, in der eine
 # Vorlage verwendet wird. `min` (Antwort-Minimalsignatur) und `addin`
@@ -27,6 +26,7 @@ SLOT_ART: dict[str, str] = {
     "addin": "signatur",
     "banner": "banner",
     "disclaimer": "disclaimer",
+    "oof": "oof",          # zentrale Abwesenheitsnotiz (Out-of-Office)
 }
 
 

@@ -43,20 +43,32 @@ def _vorlagenverweise_umbenennen(alt: str, neu: str) -> dict:
     mehr gibt. Der Signaturdienst fällt dann wortlos auf „default" zurück; der
     Betreiber merkt es erst an einer falschen Signatur.
 
-    Orte (Stand 2026-08-03):
-      MAILBOX_CONFIG[*]  -> "template", "min_template", "addin_templates" (Liste)
-      TEMPLATE_POLICIES  -> "sig", "min", "addin"
+    Orte (Stand 2026-09-25):
+      MAILBOX_CONFIG[*]  -> "template", "min_template", "banner_template",
+                            "disclaimer_template" (Strings), "addin_templates" (Liste)
+      TEMPLATE_POLICIES  -> "sig", "min", "banner", "disclaimer", "oof" (Strings),
+                            "addin" ("*" oder Liste)
       CUSTOM_POLICIES[*] -> "template"
+
+    ⚠️ Bis 2026-09-25 folgten Umbenennungen nur sig/min/addin bzw. template/
+    min_template — banner/disclaimer/oof fielen still durch. Renaming ist damit
+    gefährlicher als Löschen (das fällt sofort auf). Deshalb: die per-Postfach-
+    Stringfelder und die Policy-Slots aus signature_engine.SLOT_ART führen; wer
+    einen Slot ergänzt, ergänzt ihn dort und ist hier automatisch dabei.
     """
+    import signature_engine
     geaendert: dict[str, int] = {}
     aenderungen: dict[str, object] = {}
 
+    # Per-Postfach-Stringfelder je Slot (sig→template; die übrigen: <slot>_template).
+    mc_felder = ["template" if slot == "sig" else f"{slot}_template"
+                 for slot in signature_engine.SLOT_ART if slot != "addin"]
     mc = settings_store.get("MAILBOX_CONFIG") or {}
     n_mc = 0
     for cfg in mc.values():
         if not isinstance(cfg, dict):
             continue
-        for feld in ("template", "min_template"):
+        for feld in mc_felder:
             if cfg.get(feld) == alt:
                 cfg[feld] = neu
                 n_mc += 1
@@ -71,9 +83,13 @@ def _vorlagenverweise_umbenennen(alt: str, neu: str) -> dict:
     tp = settings_store.get("TEMPLATE_POLICIES") or {}
     n_tp = 0
     if isinstance(tp, dict):
-        for feld in ("sig", "min", "addin"):
-            if tp.get(feld) == alt:
+        for feld in signature_engine.SLOT_ART:      # sig/min/banner/disclaimer/oof/addin
+            wert = tp.get(feld)
+            if wert == alt:                          # Stringslot
                 tp[feld] = neu
+                n_tp += 1
+            elif isinstance(wert, list) and alt in wert:   # addin-Liste
+                tp[feld] = [neu if x == alt else x for x in wert]
                 n_tp += 1
     if n_tp:
         aenderungen["TEMPLATE_POLICIES"] = tp

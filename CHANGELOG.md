@@ -5,6 +5,39 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.68 — 2026-09-25 — Zentrale Abwesenheitsnotiz (einheitlicher Out-of-Office-Text)
+
+Neue Funktion (Vorgabe **aus**): Solange ein Postfachinhaber seine Abwesenheit
+wie gewohnt in Outlook/OWA einschaltet, überschreibt das Gateway den Text ihrer
+Auto-Antwort mit einem **einheitlichen Firmentext** — Status, Zeitraum und
+Empfängerkreis der nativen Abwesenheit bleiben unangetastet. So sieht die
+Out-of-Office-Antwort aller Postfächer gleich aus, ohne dass jemand ein eigenes
+Bedienfeld braucht: geschaltet wird nativ, vereinheitlicht wird zentral.
+
+**So wird sie eingerichtet:** eine Vorlage der neuen Art **Abwesenheit** anlegen
+(Baukasten wie bei Signaturen; Platzhalter `{name}` und `{zeitraum}` werden
+eingesetzt) und unter *Postfächer → Vorlagen-Richtlinien* der Zeile *Abwesenheit*
+zuweisen — global, je Gruppe oder beides. Dann *Zentrale Abwesenheitsnotiz
+aktivieren* anhaken.
+
+**Wie es arbeitet:** Ein periodischer Abgleich liest je aktiviertem Postfach die
+Abwesenheits-Einstellung. Ist sie an, wird der intern/extern-Text auf die
+zugewiesene Vorlage normalisiert — aber **nur, wenn er wirklich abweicht**.
+Exchange versendet eine Abwesenheit „einmal je Absender"; würde bei jedem Abgleich
+neu geschrieben, käme beim Empfänger wiederholt eine Auto-Antwort an. Verglichen
+wird deshalb gegen die zuletzt gesetzte, von Exchange zurückgegebene Fassung.
+
+**Voraussetzung:** die Anwendungsberechtigung **`MailboxSettings.ReadWrite`**.
+Neue Installationen legen sie mit an; bestehende brauchen einen erneuten
+**Admin-Consent** (Setup → Berechtigungen). Ohne Consent bleibt die Funktion
+wirkungslos und meldet das im Protokoll — nichts anderes ändert sich.
+
+**Nebenbei behoben:** Das Umbenennen einer Vorlage zog bisher nur Signatur- und
+Add-in-Verweise nach; Zuweisungen als **Banner** oder **Disclaimer** (per Postfach
+oder Richtlinie) fielen still durch und zeigten danach ins Leere. Umbenennen folgt
+jetzt allen Zuweisungs-Slots (Signatur, Antwort-Signatur, Banner, Disclaimer,
+Abwesenheit, Add-in).
+
 ## v1.9.67 — 2026-09-25 — Nachzug zu v1.9.66: Vorlagen-Verwaltungstests auf Pflicht-Art
 
 Die Bestandstests für das Anlegen von Vorlagen riefen `/create` noch ohne Art

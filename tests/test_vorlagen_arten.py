@@ -45,7 +45,7 @@ def test_templates_nach_art_gruppiert(tmp_path, monkeypatch):
         (tmp_path / f"{name}.html").write_text("<p>x</p>", encoding="utf-8")
         (tmp_path / f"{name}.meta.json").write_text(json.dumps({"kind": kind}), encoding="utf-8")
     gruppen = signature_engine.templates_nach_art()
-    assert set(gruppen.keys()) == {"signatur", "banner", "disclaimer"}
+    assert set(gruppen.keys()) == {"signatur", "banner", "disclaimer", "oof"}
     assert "default" in gruppen["signatur"]          # Signaturliste trägt immer default
     assert "Ban1" in gruppen["banner"]
     assert "Dis1" in gruppen["disclaimer"]

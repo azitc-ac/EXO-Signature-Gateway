@@ -163,6 +163,7 @@ REGISTER: dict[str, E] = {
     "DOMAIN_ROUTING_ENABLED": E(art=OPTION, ort="advanced.html"),
     "COEX_ENABLED": E(art=OPTION, ort="advanced.html"),
     "PER_RECIPIENT_ROUTING": E(art=OPTION, ort="relay.html"),
+    "OOO_ENABLED": E(art=OPTION, ort="mailboxes.html"),  # zentrale Abwesenheitsnotiz
     "ONPREM_MAILUSERS": E(art=ZUSTAND),      # via Get-MailUser abgeglichen, nicht von Hand
     "ONPREM_MAILUSERS_TS": E(art=ZUSTAND),   # Zeitpunkt des letzten Abgleichs
     "RELAY_USER": E(
