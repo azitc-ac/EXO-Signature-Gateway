@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.70 — 2026-09-25 — Setup: Berechtigungen bestehender Installationen auf den Soll-Stand bringen
+
+Ein erneuter Setup-Login (Anmeldung als Administrator) bringt die
+App-Registrierung einer **bestehenden** Installation jetzt vollständig auf den
+aktuellen Berechtigungs-Soll: Die angeforderten API-Berechtigungen werden auf die
+vollständige Liste gepatcht, und alle App-Rollen werden — wie bei der
+Erstanlage — idempotent zugewiesen. Bisher wurde die Berechtigungsliste einer
+schon vorhandenen App nicht aktualisiert; eine nach der Erstinstallation
+hinzugekommene Rolle (etwa `MailboxSettings.ReadWrite` für die zentrale
+Abwesenheitsnotiz) fehlte dann in der Portal-Ansicht.
+
+So wird eine neue Berechtigung nachgezogen: als Administrator erneut über den
+Setup-Login anmelden — der Rest läuft automatisch. Alternativ im Azure-Portal
+unter *App-Registrierungen → [Gateway-App] → API-Berechtigungen* ergänzen und die
+Administrator-Zustimmung erteilen.
+
 ## v1.9.69 — 2026-09-25 — Abwesenheitsnotiz: laufende Zahl in Tagesbericht und Übersicht
 
 Ist die zentrale Abwesenheitsnotiz an, zeigen Tagesbericht und Übersicht jetzt
