@@ -224,6 +224,9 @@
   <div style="font-weight:600;font-size:13px;margin-bottom:6px">Eigene Variablen</div>
   <p class="hint" style="margin-bottom:10px">
     In Vorlagen als <code>{{ "{{" }} custom.varname {{ "}}" }}</code> verwenden. Variablenname: nur Buchstaben, Ziffern, Underscore.
+    Ein Entra-Feld füllt die Variable automatisch aus dem Verzeichnis; bleibt es auf
+    <em>„manuell"</em>, kommt der Wert aus einem Benutzer-Override oder einer
+    Gruppen-Zuweisung (z.B. Vertreter je Team).
   </p>
 
   <div id="custom-vars-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px"></div>
@@ -278,7 +281,7 @@ function _customVarRow(name, entraField) {
            style="width:140px;font-family:monospace;font-size:13px" class="cv-name"
            oninput="this.value=this.value.replace(/[^a-zA-Z0-9_]/g,'')">
     <select class="cv-field" style="flex:1;min-width:220px;max-width:340px;font-size:13px;padding:4px 6px;border:1px solid #d1d5db;border-radius:6px">
-      <option value="">— Entra-Feld wählen —</option>
+      <option value="">— manuell (Override/Gruppe) —</option>
       ${opts}
     </select>
     <button type="button" onclick="this.closest('.custom-var-row').remove()"
@@ -297,7 +300,11 @@ async function saveCustomVars() {
   for (const row of rows) {
     const name  = row.querySelector('.cv-name').value.trim();
     const field = row.querySelector('.cv-field').value.trim();
-    if (!name || !field) continue;
+    // Nur der Name ist Pflicht. Leeres Entra-Feld = manuelle Variable: ihr Wert
+    // kommt aus einem Benutzer-Override oder einer Gruppen-Zuweisung (z.B.
+    // Vertreter). Ohne diese Lockerung liessen sich Variablen ohne AD-Mapping gar
+    // nicht anlegen — die Zeile wurde beim Speichern still verworfen.
+    if (!name) continue;
     if (!/^[a-zA-Z0-9_]+$/.test(name)) {
       document.getElementById('custom-vars-result').textContent = `Ungültiger Name: "${name}"`;
       document.getElementById('custom-vars-result').style.color = '#dc2626';

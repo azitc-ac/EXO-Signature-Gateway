@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.77 — 2026-09-30 — Eigene Variablen ohne Entra-Feld anlegbar (manuelle Werte)
+
+Eine eigene Variable lässt sich jetzt auch **ohne Zuordnung zu einem Entra-Feld**
+anlegen. Ihr Wert kommt dann aus einem Benutzer-Override oder einer
+Gruppen-Zuweisung — etwa eine Vertreter-Adresse je Team (`{{ '{{' }} custom.vertreter_mail {{ '}}' }}`).
+
+Bisher verlangte die Anlage zwingend ein Entra-Feld; eine Zeile ohne Feld wurde
+beim Speichern still verworfen. Dadurch ließen sich rein manuelle Variablen gar
+nicht anlegen — sie erschienen weder im Benutzer-Override noch in der Editor-
+Auswahl. Jetzt genügt der Name; das Feld darf auf „manuell" stehen. Die
+Verzeichnis-Abfrage bleibt davon unberührt (leere Felder werden ignoriert).
+
 ## v1.9.76 — 2026-09-25 — Abwesenheit automatisch aus dem Kalender (opt-in)
 
 Neue, standardmäßig ausgeschaltete Option: Trägt ein Postfachinhaber einen
