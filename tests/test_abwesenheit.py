@@ -39,6 +39,21 @@ def test_zeitraum_unbefristet_leer():
     assert abwesenheit.zeitraum_text({"status": "alwaysEnabled"}) == ""
 
 
+def test_zeitraum_eintaegig_wird_geglaettet():
+    """Start und Ende am selben Tag → „am X" statt „vom X bis X"."""
+    s = {"status": "scheduled",
+         "scheduledStartDateTime": {"dateTime": "2026-09-30T11:30:00.0000000", "timeZone": "UTC"},
+         "scheduledEndDateTime": {"dateTime": "2026-09-30T20:00:00.0000000", "timeZone": "UTC"}}
+    assert abwesenheit.zeitraum_text(s) == "am 30.09.2026"
+
+
+def test_fenster_texte_eintaegig():
+    s = {"dateTime": "2026-09-30T11:30:00", "timeZone": "UTC"}
+    e = {"dateTime": "2026-09-30T20:00:00", "timeZone": "UTC"}
+    z, ab, bis = abwesenheit._fenster_texte(s, e)
+    assert z == "am 30.09.2026" and ab == "30.09.2026" and bis == "30.09.2026"
+
+
 # ── Platzhalter ───────────────────────────────────────────────────────────────
 
 def test_render_ersetzt_name_und_zeitraum(tmp_path, monkeypatch):

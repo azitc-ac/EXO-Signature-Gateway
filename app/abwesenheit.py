@@ -98,6 +98,8 @@ def zeitraum_text(setting: dict) -> str:
     start = _dt(setting.get("scheduledStartDateTime"))
     ende = _dt(setting.get("scheduledEndDateTime"))
     if start and ende:
+        if start.date() == ende.date():
+            return f"am {start:%d.%m.%Y}"          # Ein-Tages-Abwesenheit
         return f"vom {start:%d.%m.%Y} bis {ende:%d.%m.%Y}"
     if ende:
         return f"bis {ende:%d.%m.%Y}"
@@ -216,7 +218,7 @@ def _fenster_texte(start_raw: dict, end_raw: dict) -> tuple[str, str, str]:
     ab = f"{s:%d.%m.%Y}" if s else ""
     bis = f"{e:%d.%m.%Y}" if e else ""
     if ab and bis:
-        zeitraum = f"vom {ab} bis {bis}"
+        zeitraum = f"am {ab}" if ab == bis else f"vom {ab} bis {bis}"   # Ein-Tages-Fall
     elif bis:
         zeitraum = f"bis {bis}"
     elif ab:
