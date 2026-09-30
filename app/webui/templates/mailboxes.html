@@ -1411,9 +1411,19 @@ function _renderGroupsTable() {
     var members = _groups[name] || [];
     var tr = document.createElement('tr');
     tr.style.borderBottom = '1px solid #f0f0f0';
+    // Verstecktes Zustandsfeld: kodiert Mitglieder UND Variablen dieser Gruppe.
+    // Die Speicher-Wache misst nur Formularfelder — ohne dieses Feld bliebe eine
+    // Änderung an Mitgliedern/Variablen einer BESTEHENDEN Gruppe unbemerkt und der
+    // Speichern-Knopf grau (die JS-Variablen _groups/_groupVars sind für die Wache
+    // unsichtbar). Ändert ein Modal den Zustand, ändert sich hier der Wert → die
+    // Wache erkennt „noch nicht gespeichert".
+    var _grpState = members.join(',') + '||' + JSON.stringify(_groupVars[name] || {});
     tr.innerHTML =
-      '<td style="padding:6px 8px"><input type="text" value="' + esc(name) + '" ' +
-        'data-orig="' + esc(name) + '" style="font-size:12px;width:150px;padding:3px 6px;border:1px solid #d1d5db;border-radius:4px" ' +
+      '<td style="padding:6px 8px">' +
+        '<input type="hidden" class="grp-state" value="' + escAttr(_grpState) + '">' +
+        '<input type="text" value="' + esc(name) + '" ' +
+        'data-orig="' + esc(name) + '" autocapitalize="off" autocorrect="off" spellcheck="false" ' +
+        'style="font-size:12px;width:150px;padding:3px 6px;border:1px solid #d1d5db;border-radius:4px" ' +
         'onchange="renameGroup(this)"></td>' +
       '<td style="padding:6px 8px;font-size:12px;color:#374151">' +
         '<span>' + members.length + ' Postfach' + (members.length !== 1 ? 'fächer' : '') + '</span> ' +
@@ -1528,8 +1538,10 @@ function _varRow(name, wert) {
   row.style.cssText = 'display:flex;gap:6px;align-items:center';
   row.innerHTML =
     '<input type="text" class="vars-name" placeholder="Name (z.B. vertreter_mail)" ' +
+      'autocapitalize="off" autocorrect="off" spellcheck="false" ' +
       'value="' + escAttr(name || '') + '" style="flex:0 0 200px;font-size:12px;padding:4px 6px;border:1px solid #d1d5db;border-radius:4px">' +
     '<input type="text" class="vars-wert" placeholder="Wert" ' +
+      'autocapitalize="off" autocorrect="off" spellcheck="false" ' +
       'value="' + escAttr(wert || '') + '" style="flex:1;font-size:12px;padding:4px 6px;border:1px solid #d1d5db;border-radius:4px">' +
     '<button class="btn secondary" onclick="this.parentNode.remove()" style="font-size:11px;padding:2px 8px" title="Zeile entfernen">✕</button>';
   return row;

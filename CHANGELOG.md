@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.78 — 2026-09-30 — Gruppen-Variablen: Speichern wird jetzt korrekt aktiv
+
+Zwei Fehler bei den Gruppen-Variablen behoben:
+
+- **Speichern blieb grau.** Änderungen an den Variablen (oder Mitgliedern) einer
+  bereits bestehenden Gruppe aktivierten den Speichern-Knopf nicht — der Wert ließ
+  sich im Modal übernehmen, aber nicht sichern, und war nach dem Neuladen wieder
+  weg. Ursache: Die Speicher-Überwachung misst nur Formularfelder, die
+  Gruppen-Zuordnung liegt aber in internen Strukturen. Jede Gruppenzeile trägt
+  jetzt ein verstecktes Zustandsfeld, das Mitglieder und Variablen abbildet — eine
+  Änderung wird damit als „noch nicht gespeichert" erkannt.
+- **Automatische Großschreibung.** Die Eingabefelder für Variablennamen/-werte und
+  den Gruppennamen erzwangen auf Mobilgeräten die Groß-/Kleinschreibung. Das ist
+  abgeschaltet (`autocapitalize`/`autocorrect` aus) — Namen wie `vertreter_mail`
+  bleiben, wie getippt.
+
 ## v1.9.77 — 2026-09-30 — Eigene Variablen ohne Entra-Feld anlegbar (manuelle Werte)
 
 Eine eigene Variable lässt sich jetzt auch **ohne Zuordnung zu einem Entra-Feld**
