@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.80 — 2026-09-30 — Gruppen-Variablen: Namen auswählen statt tippen
+
+Beim Zuweisen eines Variablenwerts zu einer Gruppe wird der Variablenname jetzt aus
+den **definierten eigenen Variablen ausgewählt** (Dropdown), statt frei getippt zu
+werden. Das verhindert Tippfehler und Namenskollisionen und stellt sicher, dass
+jeder Gruppenwert eine echte, dem Vorlagen-Editor bekannte Variable trifft — dieselbe
+Logik wie bei den Benutzer-Overrides.
+
+Eigene Variablen werden weiterhin an einer Stelle definiert (*Signaturen → Eigene
+Variablen*). Sind noch keine definiert, verweist der Gruppen-Dialog dorthin. Ein
+bereits gesetzter Wert zu einer inzwischen entfernten Variable bleibt sichtbar
+(als „nicht definiert" markiert), damit nichts unbemerkt verlorengeht.
+
 ## v1.9.79 — 2026-09-30 — Gruppen: Mitglieder und Variablen speichern sofort
 
 Das Zuweisen von Mitgliedern und Variablen zu einer Gruppe wird jetzt **direkt beim
