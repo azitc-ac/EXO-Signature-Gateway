@@ -366,22 +366,36 @@ async def setze_fuer_postfach(upn: str, sender: str, mailbox_cfg: dict,
                 html, _txt = render_oof(user_data, template, _z, _ab, _bis,
                                         anhang_html, anhang_txt)
 
-    aendern_text = not (setting.get("internalReplyMessage") == merk.get("intern")
-                        and setting.get("externalReplyMessage") == merk.get("extern"))
-    if not aendern_text and setze_status is None:
-        # Text unverändert und keine Statusänderung → nichts tun.
+    # Neu setzen, wenn EINES zutrifft:
+    #  (a) UNSER gerenderter Text hat sich geändert (Vorlage/Signatur/Variable/
+    #      Einstellung) — verglichen gegen den zuletzt von uns erzeugten Render;
+    #  (b) der Text in Exchange weicht vom zuletzt gesetzten ab (jemand hat ihn
+    #      von Hand geändert → wieder normalisieren);
+    #  (c) ein Statuswechsel steht an (Kalender-Automatik).
+    # Sonst nichts tun.
+    # ⚠️ Ohne (a) propagierte eine Vorlagen-/Signaturänderung NIE: der Vergleich
+    # „Exchange-aktuell == zuletzt-gesetzt" ist dann wahr, obwohl der neue Render
+    # anders aussieht. Verglichen wird gegen unseren gemerkten Render (nicht gegen
+    # Exchanges kanonische Fassung), weil Exchange das HTML umkodiert und ein
+    # direkter Vergleich sonst immer „ungleich" wäre (Dauer-PATCH).
+    render_gleich = html == merk.get("render")
+    exchange_gleich = (setting.get("internalReplyMessage") == merk.get("intern")
+                       and setting.get("externalReplyMessage") == merk.get("extern"))
+    if render_gleich and exchange_gleich and setze_status is None:
         # ⚠️ Diese Prüfung verhindert das Zurücksetzen der „einmal je Absender"-Dedup.
         return UNVERAENDERT
 
     kanonisch = await _patch_setting(upn, token, setting, html,
                                      status=setze_status, start=setze_start, ende=setze_ende)
-    # Die von Graph zurückgegebene Fassung merken (Exchange kann HTML neu kodieren) —
-    # sonst schlägt der nächste Vergleich immer fehl.
+    # Zwei Dinge merken: die von Graph zurückgegebene (kanonische) Fassung — Exchange
+    # kann HTML neu kodieren, ein Vergleich dagegen erkennt Fremdänderungen — UND
+    # unseren erzeugten Render, um eigene Vorlagen-/Signaturänderungen zu erkennen.
     if kanonisch:
         neu = {"intern": kanonisch.get("internalReplyMessage"),
                "extern": kanonisch.get("externalReplyMessage")}
     else:
         neu = {"intern": html, "extern": html}
+    neu["render"] = html
     if auto_win:
         neu["auto_win"] = auto_win
     state[upn.lower()] = neu

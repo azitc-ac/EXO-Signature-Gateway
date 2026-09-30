@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.83 — 2026-10-01 — Abwesenheit: Vorlagen-/Signaturänderungen greifen sofort
+
+Fehler behoben: Eine Änderung an der Abwesenheits-Vorlage, an einer Variable
+(z. B. Vertreter) oder an den neuen Signatur-/Banner-Schaltern wirkte sich **nicht**
+auf bereits hinterlegte Abwesenheiten aus. Grund: Der Abgleich prüfte nur, ob der
+Text in Exchange noch dem zuletzt gesetzten entspricht — nicht, ob der **neu
+erzeugte** Text abweicht. Solange niemand die Abwesenheit von Hand änderte, blieb
+der alte Text stehen.
+
+Jetzt wird zusätzlich der zuletzt erzeugte Text gemerkt und verglichen: Ändert sich
+die Vorlage/Signatur/Variable, wird die Abwesenheit beim nächsten Abgleich einmalig
+neu gesetzt. Die „einmal je Empfänger"-Schutzlogik bleibt erhalten (kein wiederholtes
+Setzen bei unverändertem Text).
+
 ## v1.9.82 — 2026-09-30 — Editor-Autocomplete, Signatur unter der Abwesenheit, einheitliche Platzhalter
 
 Drei Verbesserungen rund um Variablen und Abwesenheit:
