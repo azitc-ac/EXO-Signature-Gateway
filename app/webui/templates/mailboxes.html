@@ -470,7 +470,7 @@ async function ankerAnwenden() {
     <p style="font-size:11px;color:#64748b;margin-top:0;margin-bottom:12px">Nur konfigurierte Postfächer werden angezeigt.</p>
     <div id="members-modal-list" style="display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto"></div>
     <div style="margin-top:16px;display:flex;gap:8px">
-      <button class="btn secondary" onclick="saveMembersModal()" style="font-size:12px">Übernehmen</button>
+      <button class="btn secondary" onclick="saveMembersModal()" style="font-size:12px">Speichern</button>
       <button class="btn secondary" onclick="closeMembersModal()" style="font-size:12px">Abbrechen</button>
     </div>
   </div>
@@ -489,7 +489,7 @@ async function ankerAnwenden() {
     <div id="vars-modal-list" style="display:flex;flex-direction:column;gap:6px"></div>
     <button class="btn secondary" onclick="addVarRow()" style="font-size:12px;margin-top:10px">+ Variable</button>
     <div style="margin-top:16px;display:flex;gap:8px">
-      <button class="btn secondary" onclick="saveVarsModal()" style="font-size:12px">Übernehmen</button>
+      <button class="btn secondary" onclick="saveVarsModal()" style="font-size:12px">Speichern</button>
       <button class="btn secondary" onclick="closeVarsModal()" style="font-size:12px">Abbrechen</button>
     </div>
   </div>
@@ -1517,16 +1517,20 @@ function closeMembersModal() {
   _memberModalGroupName = null;
 }
 
-function saveMembersModal() {
+async function saveMembersModal() {
   if (!_memberModalGroupName) return;
   var checked = [];
   document.querySelectorAll('#members-modal-list input[type=checkbox]:checked').forEach(function(cb) {
     checked.push(cb.value);
   });
   _groups[_memberModalGroupName] = checked;
-  closeMembersModal();
   _renderGroupsTable();
   _renderCustomPoliciesTable(); // refresh group selects
+  // Sofort persistieren — kein separater Speichern-Schritt mehr. Bei Fehler bleibt
+  // das Modal offen, damit man es erneut versuchen kann (die Änderung steckt noch
+  // im Puffer, und die Wache zeigt sie über das versteckte Zustandsfeld an).
+  if (await saveGroups()) closeMembersModal();
+  else alert('Speichern fehlgeschlagen — bitte erneut versuchen.');
 }
 
 // ── Gruppen-Variablen-Modal ────────────────────────────────────────────────
@@ -1568,7 +1572,7 @@ function closeVarsModal() {
   _varsModalGroupName = null;
 }
 
-function saveVarsModal() {
+async function saveVarsModal() {
   if (!_varsModalGroupName) return;
   var werte = {};
   document.querySelectorAll('#vars-modal-list .vars-row').forEach(function(row) {
@@ -1578,8 +1582,10 @@ function saveVarsModal() {
   });
   if (Object.keys(werte).length) _groupVars[_varsModalGroupName] = werte;
   else delete _groupVars[_varsModalGroupName];
-  closeVarsModal();
   _renderGroupsTable();   // Zähler „Variablen (N)" aktualisieren
+  // Sofort persistieren (siehe saveMembersModal).
+  if (await saveGroups()) closeVarsModal();
+  else alert('Speichern fehlgeschlagen — bitte erneut versuchen.');
 }
 
 async function loadGroups() {
@@ -1595,8 +1601,9 @@ async function loadGroups() {
   } catch(_) { ursache(_, 'mailboxes:1128'); }
 }
 
+// Persistiert Gruppen UND Gruppen-Variablen. Gibt true bei Erfolg zurück, damit
+// die Modals (sofort speichern) darauf reagieren können.
 async function saveGroups() {
-  var res = document.getElementById('groups-save-result');
   try {
     var r = await fetch('/api/settings/internal-groups/save', {
       method: 'POST',
@@ -1607,8 +1614,10 @@ async function saveGroups() {
     // normalisiert der Browser zu rgb(), die Dark-Mode-Regeln greifen dann
     // nicht mehr. `wacheFertig` setzt `data-zustand`, das CSS färbt.
     wacheFertig('groups-btn', r.ok, r.ok ? '✓ Gespeichert' : '✗ Fehler');
+    return r.ok;
   } catch(e) {
     wacheFertig('groups-btn', false, '✗ ' + e.message);
+    return false;
   }
 }
 
