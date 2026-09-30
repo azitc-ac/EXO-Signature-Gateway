@@ -393,6 +393,26 @@ async function ankerAnwenden() {
     Erfordert zusätzlich <code>Calendars.Read</code> (Admin-Consent).
   </p>
 
+  <!-- Signatur / Banner unter die Abwesenheit hängen (opt-in) -->
+  <label class="checkbox-label" style="margin-top:12px">
+    <input type="checkbox" id="ooo-append-sig" onchange="oooAppendSigUmschalten(this)"
+           {% if ooo_append_signature %}checked{% endif %}>
+    Zugewiesene Signatur unter die Abwesenheit hängen
+    <span id="ooo-append-sig-result" style="font-size:12px;margin-left:8px"></span>
+  </label>
+  <label class="checkbox-label" style="margin-top:6px">
+    <input type="checkbox" id="ooo-append-banner" onchange="oooAppendBannerUmschalten(this)"
+           {% if ooo_append_banner %}checked{% endif %}>
+    Zugewiesenes Banner unter die Abwesenheit hängen
+    <span id="ooo-append-banner-result" style="font-size:12px;margin-left:8px"></span>
+  </label>
+  <p class="hint" style="margin:4px 0 0;max-width:640px">
+    Hängt die Signatur (bzw. das Banner) des Postfachs unter den Abwesenheitstext —
+    wie bei normaler Mail. Statischer Schnappschuss; <strong>Bilder/Logos per CID
+    erscheinen in nativen Abwesenheitsantworten meist nicht</strong>, reine
+    Text-/HTML-Signaturen sind unkritisch.
+  </p>
+
   <!-- Interne Gruppen -->
   <div style="margin-top:20px;border-top:1px solid #e2e8f0;padding-top:16px">
     <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:6px;display:flex;align-items:center;gap:8px">
@@ -713,6 +733,12 @@ async function oooCalAutoUmschalten(cb) {
 }
 async function oooCalHoursSpeichern(sel) {
   await savePartial({ OOO_CALENDAR_MIN_HOURS: parseInt(sel.value, 10) }, 'ooo-cal-result');
+}
+async function oooAppendSigUmschalten(cb) {
+  await savePartial({ OOO_APPEND_SIGNATURE: cb.checked }, 'ooo-append-sig-result');
+}
+async function oooAppendBannerUmschalten(cb) {
+  await savePartial({ OOO_APPEND_BANNER: cb.checked }, 'ooo-append-banner-result');
 }
 
 // ── Postfächer ───────────────────────────────────────────────────────────────

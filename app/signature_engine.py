@@ -75,11 +75,16 @@ def _resolve_template_names(template_name: str | None) -> tuple[str, str]:
     return f"{template_name}.html", f"{template_name}.txt"
 
 
-def render(user: UserData, template_name: str | None = None) -> tuple[str, str]:
+def render(user: UserData, template_name: str | None = None,
+           extra: dict | None = None) -> tuple[str, str]:
+    """`(html, txt)` einer Vorlage. `extra` reicht zusätzliche Template-Variablen
+    durch (z.B. `zeitraum`/`name` der Abwesenheit), sodass sie wie jede andere
+    Variable als `{{ … }}` verwendbar sind."""
     env = _get_env()
     ctx = {
         "user": user,
         "custom": user.custom,
+        **(extra or {}),
     }
 
     html_file, txt_file = _resolve_template_names(template_name)

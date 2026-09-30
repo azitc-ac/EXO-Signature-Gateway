@@ -166,6 +166,8 @@ REGISTER: dict[str, E] = {
     "OOO_ENABLED": E(art=OPTION, ort="mailboxes.html"),  # zentrale Abwesenheitsnotiz
     "OOO_CALENDAR_AUTO": E(art=OPTION, ort="mailboxes.html"),   # OOO aus Kalender
     "OOO_CALENDAR_MIN_HOURS": E(art=OPTION, ort="mailboxes.html"),
+    "OOO_APPEND_SIGNATURE": E(art=OPTION, ort="mailboxes.html"),  # Signatur unter OOF
+    "OOO_APPEND_BANNER": E(art=OPTION, ort="mailboxes.html"),     # Banner unter OOF
     "GROUP_VARS": E(art=STRUKTUR, ort="/api/settings/internal-groups/save"),  # Custom-Vars je Gruppe
     "ONPREM_MAILUSERS": E(art=ZUSTAND),      # via Get-MailUser abgeglichen, nicht von Hand
     "ONPREM_MAILUSERS_TS": E(art=ZUSTAND),   # Zeitpunkt des letzten Abgleichs

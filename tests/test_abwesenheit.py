@@ -68,6 +68,51 @@ def test_render_ersetzt_name_und_zeitraum(tmp_path, monkeypatch):
     assert txt == "Erika ist weg vom 01.10.2026 bis 10.10.2026."
 
 
+def test_render_platzhalter_als_jinja(tmp_path, monkeypatch):
+    """Vereinheitlichte Syntax: {{ zeitraum }} / {{ name }} funktionieren wie
+    Template-Variablen (nicht nur die {..}-Kurzform)."""
+    monkeypatch.setattr(config, "TEMPLATE_DIR", str(tmp_path))
+    (tmp_path / "J.html").write_text("<p>{{ name }} ist weg {{ zeitraum }}</p>", encoding="utf-8")
+    (tmp_path / "J.txt").write_text("{{ name }} ist weg {{ zeitraum }}", encoding="utf-8")
+    signature_engine._reload_env()
+    html, txt = abwesenheit.render_oof(
+        UserData(displayName="Erika", custom={}), "J", "am 30.09.2026")
+    assert "Erika ist weg am 30.09.2026" in html
+    assert txt == "Erika ist weg am 30.09.2026"
+
+
+def test_render_haengt_anhang_an(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "TEMPLATE_DIR", str(tmp_path))
+    (tmp_path / "K.html").write_text("<p>OOF</p>", encoding="utf-8")
+    (tmp_path / "K.txt").write_text("OOF", encoding="utf-8")
+    signature_engine._reload_env()
+    html, txt = abwesenheit.render_oof(
+        UserData(displayName="E", custom={}), "K", "", anhang_html="<p>SIG</p>", anhang_txt="SIG")
+    assert html == "<p>OOF</p><p>SIG</p>"
+    assert txt == "OOF\nSIG"
+
+
+def test_oof_anhang_signatur_und_banner(monkeypatch):
+    """_oof_anhang hängt nur an, was per Schalter aktiviert ist."""
+    store = {"OOO_APPEND_SIGNATURE": True, "OOO_APPEND_BANNER": True,
+             "TEMPLATE_POLICIES": {"sig": "Sig", "banner": "Ban"},
+             "CUSTOM_POLICIES": [], "INTERNAL_GROUPS": {}}
+    monkeypatch.setattr(settings_store, "get", lambda k, d=None: store.get(k, d))
+    def fake_render(u, template_name=None, extra=None):
+        return (f"<sig:{template_name}>", f"sig:{template_name}")
+    monkeypatch.setattr(signature_engine, "render", fake_render)
+    h, t = abwesenheit._oof_anhang(UserData(custom={}), "a@x.de", {}, {"use_policy": True})
+    assert "<sig:Sig>" in h and "<sig:Ban>" in h
+
+
+def test_oof_anhang_aus_wenn_schalter_aus(monkeypatch):
+    store = {"OOO_APPEND_SIGNATURE": False, "OOO_APPEND_BANNER": False,
+             "TEMPLATE_POLICIES": {"sig": "Sig"}, "CUSTOM_POLICIES": [], "INTERNAL_GROUPS": {}}
+    monkeypatch.setattr(settings_store, "get", lambda k, d=None: store.get(k, d))
+    h, t = abwesenheit._oof_anhang(UserData(custom={}), "a@x.de", {}, {"use_policy": True})
+    assert h == "" and t == ""
+
+
 def test_render_ersetzt_start_und_ende(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "TEMPLATE_DIR", str(tmp_path))
     (tmp_path / "Firma.html").write_text("<p>ab {abwesend_ab}, zurück am {abwesend_bis}</p>", encoding="utf-8")
@@ -120,7 +165,7 @@ def _mock_seams(monkeypatch, setting, calls, canonical):
     monkeypatch.setattr(abwesenheit, "_patch_setting", fake_patch)
     monkeypatch.setattr(graph_client, "get_user", fake_user)
     monkeypatch.setattr(abwesenheit, "oof_vorlage_fuer", lambda *a: "Firma")
-    monkeypatch.setattr(signature_engine, "render", lambda u, template_name=None: ("<p>OOF</p>", "OOF"))
+    monkeypatch.setattr(signature_engine, "render", lambda u, template_name=None, extra=None: ("<p>OOF</p>", "OOF"))
     monkeypatch.setattr(abwesenheit, "_state_speichern", lambda st: None)
 
 
@@ -203,7 +248,7 @@ def test_kalender_auto_aktiviert_bei_disabled(monkeypatch):
     monkeypatch.setattr(graph_client, "get_user", fake_user)
     monkeypatch.setattr(abwesenheit, "_kalender_oof_fenster", fake_fenster)
     monkeypatch.setattr(abwesenheit, "oof_vorlage_fuer", lambda *a: "Firma")
-    monkeypatch.setattr(signature_engine, "render", lambda u, template_name=None: ("<p>OOF</p>", "OOF"))
+    monkeypatch.setattr(signature_engine, "render", lambda u, template_name=None, extra=None: ("<p>OOF</p>", "OOF"))
     monkeypatch.setattr(abwesenheit, "_state_speichern", lambda st: None)
     monkeypatch.setattr(settings_store, "get", lambda k, d=None: {"OOO_CALENDAR_AUTO": True}.get(k, d))
 
@@ -238,7 +283,7 @@ def test_kalender_auto_aus_lässt_status(monkeypatch):
     monkeypatch.setattr(abwesenheit, "_patch_setting", fake_patch)
     monkeypatch.setattr(graph_client, "get_user", fake_user)
     monkeypatch.setattr(abwesenheit, "oof_vorlage_fuer", lambda *a: "Firma")
-    monkeypatch.setattr(signature_engine, "render", lambda u, template_name=None: ("<p>OOF</p>", "OOF"))
+    monkeypatch.setattr(signature_engine, "render", lambda u, template_name=None, extra=None: ("<p>OOF</p>", "OOF"))
     monkeypatch.setattr(abwesenheit, "_state_speichern", lambda st: None)
     monkeypatch.setattr(settings_store, "get", lambda k, d=None: {"OOO_CALENDAR_AUTO": False}.get(k, d))
 

@@ -40,6 +40,10 @@ DEFAULTS: dict = {
     # native Abwesenheit für ihr Zeitfenster ein. Braucht Calendars.Read (Consent).
     "OOO_CALENDAR_AUTO": False,
     "OOO_CALENDAR_MIN_HOURS": 8,
+    # Unter den Abwesenheitstext optional die zugewiesene Signatur / das Banner
+    # anhängen (statischer Schnappschuss; Bilder per CID rendern in OOF oft nicht).
+    "OOO_APPEND_SIGNATURE": False,
+    "OOO_APPEND_BANNER": False,
     "LE_DOMAIN": "",
     "LE_EMAIL": "",
     "LOG_RETENTION_DAYS": 30,

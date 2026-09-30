@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.82 — 2026-09-30 — Editor-Autocomplete, Signatur unter der Abwesenheit, einheitliche Platzhalter
+
+Drei Verbesserungen rund um Variablen und Abwesenheit:
+
+- **Autocomplete im Signatur-Editor:** Tippt man in einem Textfeld `custom.` oder
+  `user.`, erscheint eine Vorschlagsliste der bekannten Variablen (Pfeiltasten +
+  Enter/Tab, Klick). Das verhindert Tippfehler und Namens-Verwechslungen. Wirkt in
+  allen Textbereichen des Editors, auch im Roh-HTML/-Text.
+- **Signatur/Banner unter der Abwesenheit:** Neue Schalter (Vorgabe aus) hängen die
+  dem Postfach zugewiesene Signatur — und optional das Banner — unter den
+  Abwesenheitstext, wie bei normaler Mail. Statischer Schnappschuss; Bilder per CID
+  erscheinen in nativen Abwesenheitsantworten in der Regel nicht (reine Text-/
+  HTML-Signaturen sind unkritisch).
+- **Einheitliche Platzhalter:** `{{ name }}`, `{{ zeitraum }}`, `{{ abwesend_ab }}`
+  und `{{ abwesend_bis }}` sind jetzt auch als normale Template-Variablen verwendbar
+  (nicht nur als Kurzform `{…}`). Die Kurzform bleibt als Alias erhalten.
+
 ## v1.9.81 — 2026-09-30 — Abwesenheit: Ein-Tages-Zeitraum als „am …"
 
 Dauert eine Abwesenheit nur einen Tag, steht im Platzhalter `{zeitraum}` jetzt

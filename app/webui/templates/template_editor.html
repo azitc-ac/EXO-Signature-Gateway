@@ -410,6 +410,14 @@
 [data-theme="dark"] .prop-row input[type=text],
 [data-theme="dark"] .prop-row select,
 [data-theme="dark"] .prop-row textarea { background:#0f172a;border-color:#334155;color:#e2e8f0 }
+/* Variablen-Autocomplete (custom./user. in Textfeldern) */
+#var-ac { position:absolute;z-index:3000;display:none;min-width:180px;max-height:220px;
+  overflow-y:auto;background:#fff;border:1px solid #d1d5db;border-radius:6px;
+  box-shadow:0 6px 20px rgba(0,0,0,0.15);font-size:12px;font-family:monospace }
+.var-ac-item { padding:4px 10px;cursor:pointer;white-space:nowrap }
+.var-ac-item.sel, .var-ac-item:hover { background:#ede9fe;color:#6d28d9 }
+[data-theme="dark"] #var-ac { background:#1e293b;border-color:#334155;color:#e2e8f0 }
+[data-theme="dark"] .var-ac-item.sel, [data-theme="dark"] .var-ac-item:hover { background:#1e3a5f;color:#e2e8f0 }
 .col-block-item {
   border:1px solid #d1d5db;border-radius:4px;padding:4px 8px;font-size:11px;
   display:flex;align-items:center;gap:4px;background:#f1f5f9;
@@ -650,6 +658,68 @@ function colorSelect(val, name, bid, extra) {
   const base_opts = COLOR_OPTIONS.map(o => `<option value="${o.v}"${o.v===val?' selected':''}>${o.l}</option>`).join('');
   return `<select name="${esc(name)}" data-bid="${bid}" onchange="blockPropChange(this)">${base_opts}${extra_opts}</select>`;
 }
+
+// ── Variablen-Autocomplete ──────────────────────────────────────────────────
+// Tippt man in einem Textfeld „custom." oder „user.", erscheint eine Vorschlagsliste
+// der bekannten Variablen (wie IntelliSense). Verhindert Tippfehler/Namens-
+// Mismatches. Wirkt in allen <textarea> des Editors (Bausteine + Roh-HTML/-Text).
+(function () {
+  const FELDER = USER_FIELDS.map(f => 'user.' + f).concat(CUSTOM_VARS.map(c => 'custom.' + c));
+  let box = null, ziel = null, start = -1, treffer = [], sel = 0;
+  function kasten() {
+    if (!box) { box = document.createElement('div'); box.id = 'var-ac'; document.body.appendChild(box); }
+    return box;
+  }
+  function zu() { if (box) box.style.display = 'none'; ziel = null; }
+  function zeichnen() {
+    if (!box) return;
+    Array.prototype.forEach.call(box.children, (c, i) => c.classList.toggle('sel', i === sel));
+  }
+  function zeigen(ta) {
+    const pos = ta.selectionStart;
+    const m = ta.value.slice(0, pos).match(/(user|custom)\.(\w*)$/);
+    if (!m) { zu(); return; }
+    const praefix = (m[1] + '.' + m[2]).toLowerCase();
+    treffer = FELDER.filter(f => f.toLowerCase().startsWith(praefix));
+    if (!treffer.length) { zu(); return; }
+    start = pos - (m[1].length + 1 + m[2].length);
+    sel = 0; ziel = ta;
+    const b = kasten();
+    b.innerHTML = treffer.map((f, i) =>
+      `<div class="var-ac-item" data-i="${i}">${esc(f)}</div>`).join('');
+    const r = ta.getBoundingClientRect();
+    b.style.left = (r.left + window.scrollX) + 'px';
+    b.style.top = (r.bottom + window.scrollY + 2) + 'px';
+    b.style.display = 'block';
+    zeichnen();   // markiert den ersten Treffer (sel) — nicht via class="" (CSS-Check)
+  }
+  function einfuegen(i) {
+    if (!ziel || !treffer[i]) return;
+    const f = treffer[i], pos = ziel.selectionStart;
+    ziel.value = ziel.value.slice(0, start) + f + ziel.value.slice(pos);
+    const np = start + f.length;
+    ziel.selectionStart = ziel.selectionEnd = np;
+    const t = ziel; zu();
+    t.dispatchEvent(new Event('input', {bubbles: true}));
+    t.dispatchEvent(new Event('change', {bubbles: true}));
+    t.focus();
+  }
+  document.addEventListener('input', e => {
+    if (e.target && e.target.tagName === 'TEXTAREA') zeigen(e.target);
+  });
+  document.addEventListener('keydown', e => {
+    if (!box || box.style.display === 'none') return;
+    if (e.key === 'ArrowDown') { sel = (sel + 1) % treffer.length; zeichnen(); e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { sel = (sel - 1 + treffer.length) % treffer.length; zeichnen(); e.preventDefault(); }
+    else if (e.key === 'Enter' || e.key === 'Tab') { einfuegen(sel); e.preventDefault(); }
+    else if (e.key === 'Escape') { zu(); }
+  });
+  document.addEventListener('mousedown', e => {
+    const it = e.target.closest ? e.target.closest('.var-ac-item') : null;
+    if (it) { e.preventDefault(); einfuegen(+it.dataset.i); }
+    else if (box && e.target !== ziel) { zu(); }
+  });
+})();
 
 // ── Render block card ─────────────────────────────────────────────────────────
 function renderCard(b, container, listRef) {
