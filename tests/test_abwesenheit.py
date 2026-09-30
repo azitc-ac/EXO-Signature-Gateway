@@ -198,6 +198,26 @@ def test_nutzer_hat_text_geaendert_wird_neu_gesetzt(monkeypatch):
     assert calls["patch"] == 1
 
 
+def test_vorlagenaenderung_propagiert_trotz_gleichem_exchange_text(monkeypatch):
+    """Ändert sich UNSER Render (Vorlage/Signatur/Variable), muss neu gesetzt
+    werden — auch wenn Exchange noch exakt den zuletzt gesetzten Text trägt.
+    Schlägt fehl, wenn nur „Exchange == zuletzt-gesetzt" verglichen wird."""
+    # Exchange trägt den ALTEN Text; state kennt ihn als kanonisch UND als render.
+    setting = {"status": "alwaysEnabled",
+               "internalReplyMessage": "<p>ALT</p>", "externalReplyMessage": "<p>ALT</p>"}
+    calls = {"patch": 0}
+    canonical = {"internalReplyMessage": "<p>NEU</p>", "externalReplyMessage": "<p>NEU</p>"}
+    _mock_seams(monkeypatch, setting, calls, canonical)
+    # signature_engine.render liefert jetzt den NEUEN Text (Vorlage wurde geändert):
+    monkeypatch.setattr(signature_engine, "render",
+                        lambda u, template_name=None, extra=None: ("<p>NEU</p>", "NEU"))
+    state = {"a@x.de": {"intern": "<p>ALT</p>", "extern": "<p>ALT</p>", "render": "<p>ALT</p>"}}
+    r = _run(abwesenheit.setze_fuer_postfach("a@x.de", "a@x.de", {}, {}, "TOK", state))
+    assert r == abwesenheit.GESETZT
+    assert calls["patch"] == 1                       # neu gesetzt, obwohl Exchange==ALT==kanonisch
+    assert state["a@x.de"]["render"] == "<p>NEU</p>"  # neuer Render gemerkt
+
+
 def test_disabled_bekommt_trotzdem_den_text(monkeypatch):
     """Auch bei AUSgeschalteter Abwesenheit wird der Firmentext hinterlegt (damit
     er beim Einschalten schon dasteht) — Status bleibt disabled, nichts wird
