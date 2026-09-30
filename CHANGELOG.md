@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.79 — 2026-09-30 — Gruppen: Mitglieder und Variablen speichern sofort
+
+Das Zuweisen von Mitgliedern und Variablen zu einer Gruppe wird jetzt **direkt beim
+Bestätigen des Dialogs gespeichert** — kein separater „Speichern"-Schritt mehr für
+diese Aktionen. Bisher merkte der Dialog die Änderung nur vor; wer den
+anschließenden Speichern-Klick ausließ, verlor sie beim Neuladen. Mit dem
+Sofort-Speichern entfällt diese Fehlerquelle ganz.
+
+Schlägt das Speichern fehl (z. B. Netz), bleibt der Dialog offen, damit man es
+erneut versuchen kann. Der „Speichern"-Knopf der Gruppen-Sektion bleibt für das
+Anlegen, Umbenennen und Löschen von Gruppen zuständig.
+
 ## v1.9.78 — 2026-09-30 — Gruppen-Variablen: Speichern wird jetzt korrekt aktiv
 
 Zwei Fehler bei den Gruppen-Variablen behoben:
