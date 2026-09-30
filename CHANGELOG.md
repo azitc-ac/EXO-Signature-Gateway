@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.81 — 2026-09-30 — Abwesenheit: Ein-Tages-Zeitraum als „am …"
+
+Dauert eine Abwesenheit nur einen Tag, steht im Platzhalter `{zeitraum}` jetzt
+„am 30.09.2026" statt des holprigen „vom 30.09.2026 bis 30.09.2026". Mehrtägige
+Zeiträume bleiben „vom … bis …". Gilt sowohl für nativ geplante Abwesenheiten als
+auch für die aus dem Kalender übernommenen.
+
 ## v1.9.80 — 2026-09-30 — Gruppen-Variablen: Namen auswählen statt tippen
 
 Beim Zuweisen eines Variablenwerts zu einer Gruppe wird der Variablenname jetzt aus
