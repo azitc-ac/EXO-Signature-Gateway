@@ -138,30 +138,77 @@ def oof_vorlage_fuer(sender: str, mailbox_cfg: dict, sender_cfg: dict) -> str:
 # ── Text rendern ──────────────────────────────────────────────────────────────
 
 def render_oof(user_data, template_name: str, zeitraum: str,
-               ab: str = "", bis: str = "") -> tuple[str, str]:
+               ab: str = "", bis: str = "",
+               anhang_html: str = "", anhang_txt: str = "") -> tuple[str, str]:
     """(html, txt) der Abwesenheitsnotiz aus der oof-Vorlage.
 
     Die Vorlage kennt alle Signatur-Variablen (`{{ user.x }}`, `{{ custom.x }}`).
-    Zusätzlich ersetzt diese Funktion die literalen Platzhalter NACH dem Rendern —
-    einfache geschweifte Klammern sind kein Jinja und laufen unverändert durch,
-    sodass ein Betreiber sie ohne Template-Kenntnis verwenden kann:
+    Die abwesenheitsspezifischen Werte stehen in ZWEI Formen bereit — bewusst
+    redundant, damit beide Bedienweisen funktionieren:
 
-      {name}         Anzeigename des Postfachinhabers
-      {zeitraum}     „vom TT.MM.JJJJ bis TT.MM.JJJJ" (zusammengesetzt)
-      {abwesend_ab}  Startdatum allein (TT.MM.JJJJ)
-      {abwesend_bis} Enddatum allein (TT.MM.JJJJ)
+      als Template-Variable (einheitliche Syntax):  {{ name }} {{ zeitraum }}
+                                                    {{ abwesend_ab }} {{ abwesend_bis }}
+      als Kurzform (Textersetzung nach dem Rendern): {name} {zeitraum}
+                                                    {abwesend_ab} {abwesend_bis}
 
     Datumsangaben stehen nur bei einer geplanten Abwesenheit (`scheduled`) zur
     Verfügung; sonst sind sie leer, und die Vorlage sollte das aushalten.
+
+    `anhang_html`/`anhang_txt` werden ANGEHÄNGT (Signatur/Banner, siehe
+    _oof_anhang) — nach dem oof-Text, wie bei normaler Mail.
     """
-    html, txt = signature_engine.render(user_data, template_name=template_name)
     name = getattr(user_data, "displayName", "") or ""
+    # Einheitliche {{ … }}-Form: als echte Template-Variablen durchreichen.
+    extra = {"name": name, "zeitraum": zeitraum, "abwesend_ab": ab, "abwesend_bis": bis}
+    html, txt = signature_engine.render(user_data, template_name=template_name, extra=extra)
+    # Kurzform {…} als Alias: Textersetzung nach dem Rendern.
     ersetzungen = {"{name}": name, "{zeitraum}": zeitraum,
                    "{abwesend_ab}": ab, "{abwesend_bis}": bis}
     for marke, wert in ersetzungen.items():
         html = html.replace(marke, _html.escape(wert))
         txt = txt.replace(marke, wert)
+    if anhang_html:
+        html = html + anhang_html
+    if anhang_txt:
+        txt = (txt + "\n" + anhang_txt) if txt else anhang_txt
     return html, txt
+
+
+def _oof_anhang(user_data, sender: str, mailbox_cfg: dict, sender_cfg: dict) -> tuple[str, str]:
+    """(html, txt) der optional unter die Abwesenheit gehängten Signatur (+ Banner).
+
+    Gesteuert über OOO_APPEND_SIGNATURE / OOO_APPEND_BANNER. Nutzt dieselbe
+    Richtlinien-/Postfach-Auflösung wie der normale Mailweg, damit dieselbe
+    Signatur erscheint, die der Absender sonst trägt.
+
+    ⚠️ Statischer Schnappschuss (Ansatz B): Bilder per CID rendern in nativen
+    OOF-Antworten in der Regel NICHT — reine Text-/HTML-Signaturen sind unkritisch.
+    """
+    append_sig = settings_store.get("OOO_APPEND_SIGNATURE")
+    append_banner = settings_store.get("OOO_APPEND_BANNER")
+    if not append_sig and not append_banner:
+        return "", ""       # nichts anzuhängen — Richtlinien-Auflösung gar nicht nötig
+    parts_html: list[str] = []
+    parts_txt: list[str] = []
+    pol, use_pol = _policies.resolve_policies(sender, mailbox_cfg, sender_cfg)
+    if append_sig:
+        sig_tpl = ((pol.get("sig") or "default") if use_pol
+                   else (sender_cfg.get("template") or "default"))
+        h, t = signature_engine.render(user_data, template_name=sig_tpl)
+        if h.strip():
+            parts_html.append(h)
+        if t.strip():
+            parts_txt.append(t)
+    if append_banner:
+        banner_tpl = ((pol.get("banner") or "") if use_pol
+                      else sender_cfg.get("banner_template", "")).strip()
+        if banner_tpl:
+            h, t = signature_engine.render(user_data, template_name=banner_tpl)
+            if h.strip():
+                parts_html.append(h)
+            if t.strip():
+                parts_txt.append(t)
+    return "".join(parts_html), "\n".join(parts_txt)
 
 
 # ── Graph: lesen / schreiben ──────────────────────────────────────────────────
@@ -293,8 +340,11 @@ async def setze_fuer_postfach(upn: str, sender: str, mailbox_cfg: dict,
     # ausgeschaltete Abwesenheit bleibt ausgeschaltet, es wird nichts versendet.
     # zeitraum_text() liefert bei ausgeschalteter/unbefristeter Abwesenheit "".
     user_data = await graph_client.get_user(upn)
+    # Optionaler Anhang (Signatur/Banner) — einmal berechnen, für beide Render-Wege.
+    anhang_html, anhang_txt = _oof_anhang(user_data, sender, mailbox_cfg, sender_cfg)
     _ab, _bis = start_ende_text(setting)
-    html, _txt = render_oof(user_data, template, zeitraum_text(setting), _ab, _bis)
+    html, _txt = render_oof(user_data, template, zeitraum_text(setting), _ab, _bis,
+                            anhang_html, anhang_txt)
 
     merk = state.get(upn.lower()) or {}
     auto_win = merk.get("auto_win")
@@ -313,7 +363,8 @@ async def setze_fuer_postfach(upn: str, sender: str, mailbox_cfg: dict,
                 setze_status, setze_start, setze_ende = "scheduled", fenster[0], fenster[1]
                 auto_win = win_key
                 _z, _ab, _bis = _fenster_texte(fenster[0], fenster[1])
-                html, _txt = render_oof(user_data, template, _z, _ab, _bis)
+                html, _txt = render_oof(user_data, template, _z, _ab, _bis,
+                                        anhang_html, anhang_txt)
 
     aendern_text = not (setting.get("internalReplyMessage") == merk.get("intern")
                         and setting.get("externalReplyMessage") == merk.get("extern"))
