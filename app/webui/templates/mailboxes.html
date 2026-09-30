@@ -1420,7 +1420,7 @@ function _renderGroupsTable() {
     var _grpState = members.join(',') + '||' + JSON.stringify(_groupVars[name] || {});
     tr.innerHTML =
       '<td style="padding:6px 8px">' +
-        '<input type="hidden" class="grp-state" value="' + escAttr(_grpState) + '">' +
+        '<input type="hidden" value="' + escAttr(_grpState) + '">' +
         '<input type="text" value="' + esc(name) + '" ' +
         'data-orig="' + esc(name) + '" autocapitalize="off" autocorrect="off" spellcheck="false" ' +
         'style="font-size:12px;width:150px;padding:3px 6px;border:1px solid #d1d5db;border-radius:4px" ' +
