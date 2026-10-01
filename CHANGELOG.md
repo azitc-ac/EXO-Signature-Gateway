@@ -5,6 +5,34 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.88 — 2026-10-01 — Abwesenheitsnotizen an externe Empfänger wurden nicht zugestellt
+
+Automatische Abwesenheitsnotizen (OOF) von Postfächern, die über das Gateway
+geroutet werden, erreichten externe Empfänger nicht.
+
+Ursache: Die Routing-Transportregel erfasst den gesamten Ausgang eines
+Gateway-Postfachs über `FromMemberOf` — also auch die von Exchange erzeugte
+Abwesenheitsnotiz. Eine automatische Antwort trägt per Konvention einen **leeren
+Absender** (`MAIL FROM:<>`, RFC 3834, damit Unzustellbarkeitsmeldungen nicht
+zurückprallen). Das Gateway reichte sie korrekt unverändert durch, aber der
+Smarthost verweigert einem leeren Absender das Weiterleiten an eine externe
+Domain (`451 4.4.4 … unauthenticated …`) — die Antwort blieb in der
+Warteschlange hängen und wurde nie zugestellt. Normale Post war nicht betroffen,
+weil sie einen echten Absender trägt.
+
+Behebung: Die Routing-Regeln nehmen Auto-Antworten jetzt aus
+(`ExceptIfHeaderContainsMessageHeader 'Auto-Submitted'`). Exchange versendet sie
+damit **nativ** direkt an den Empfänger — so, wie es ohne Gateway liefe.
+Abwesenheitsnotizen werden ohnehin nie signiert, verlieren durch die Umgehung
+also nichts; die Signatur ist (sofern aktiviert) bereits im OOF-Text enthalten.
+Die Ausnahme ist nicht empfängerbezogen und erzeugt daher keine Bifurkation.
+
+Die Regel-Anlage (`setup_exo_connector.ps1`, `setup_rule_split.ps1`) setzt die
+Ausnahme bei Neuinstallationen mit; der Aktualisieren-Zweig stellt sie bei
+Bestandsregeln wieder her. `tools/tenant_soll_check.py` meldet ihr Fehlen als
+Warnung. Bestandsinstallationen: einmal das Setup/den Soll-Check laufen lassen
+oder die vier Routing-Regeln um die Ausnahme ergänzen.
+
 ## v1.9.87 — 2026-10-01 — Zertifikats-Hinweise: TLS-Störer sichtbar, Partner-Zert-Rauschen weg
 
 Zwei Änderungen an der Sichtbarkeit und Dosierung von Zertifikats-Hinweisen.

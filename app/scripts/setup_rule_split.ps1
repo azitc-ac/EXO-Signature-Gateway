@@ -128,6 +128,10 @@ try {
     Sync-Dg $smimeDg $smimeList
     if (-not (Get-TransportRule -Identity $smimeRule -ErrorAction SilentlyContinue)) {
         Write-Step "Creating S/MIME rule '$smimeRule' (DEAKTIVIERT, gegated)..."
+        # Auto-Antwort-Ausnahme wie bei der Signatur-Regel (siehe
+        # setup_exo_connector.ps1): OOF/auto-generated umgehen das Gateway und
+        # werden nativ versendet — sonst scheitert ihr leerer Absender (MAIL
+        # FROM:<>) am Smarthost-Relay an externe Domains (451 4.4.4).
         New-TransportRule `
             -Name $smimeRule `
             -FromScope InOrganization `
@@ -135,6 +139,8 @@ try {
             -ExceptIfHeaderMatchesMessageHeader $LoopHeader `
             -ExceptIfHeaderMatchesPatterns "1" `
             -ExceptIfMessageTypeMatches Calendaring `
+            -ExceptIfHeaderContainsMessageHeader "Auto-Submitted" `
+            -ExceptIfHeaderContainsWords "auto" `
             -RouteMessageOutboundConnector $outConn.Identity `
             -Priority 0 `
             -Comments $managedBy `

@@ -32,6 +32,8 @@ def gut() -> dict:
              "FromMemberOf": ["EXOSignatureGateway-EnabledMailboxes@zarenko.onmicrosoft.com"],
              "RouteMessageOutboundConnector": "EXO Signature Gateway - Outbound",
              "ExceptIfHeaderMatchesMessageHeader": "X-Sig-Applied",
+             "ExceptIfHeaderContainsMessageHeader": "Auto-Submitted",
+             "ExceptIfHeaderContainsWords": ["auto"],
              "ExceptIfMessageTypeMatches": "Calendaring", "MessageTypeMatches": "",
              "StopRuleProcessing": False},
             {"Name": "EXO Signature Gateway - SMIME Signed Inbound", "State": "Enabled", "Priority": 14,
@@ -112,3 +114,16 @@ def test_fehlende_route_regel_ist_kritisch():
     st["transportregeln"] = [r for r in st["transportregeln"] if "Route via" not in r["Name"]]
     b = tsc.pruefe(st, INPUTS)
     assert any("fehlt" in x["text"] for x in _schweren(b, tsc.KRITISCH))
+
+
+def test_fehlende_auto_antwort_ausnahme_ist_warnung():
+    """Ohne die Auto-Submitted-Ausnahme läuft die OOF eines DL-Postfachs durchs
+    Gateway und scheitert extern (451, leerer Absender) — muss als WARNUNG
+    auffallen. Gegenprobe zum Gut-Zustand, der die Ausnahme trägt."""
+    st = gut()
+    for r in st["transportregeln"]:
+        if "Route via" in r["Name"]:
+            r["ExceptIfHeaderContainsMessageHeader"] = ""
+            r["ExceptIfHeaderContainsWords"] = []
+    b = tsc.pruefe(st, INPUTS)
+    assert any("Auto-Antwort-Ausnahme" in x["text"] for x in _schweren(b, tsc.WARNUNG)), b
