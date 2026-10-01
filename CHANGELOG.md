@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.84 — 2026-10-01 — Abwesenheit: Datumsangaben in lokaler Zeitzone
+
+Die Datumsangaben im Abwesenheitstext (`{zeitraum}`, `{abwesend_ab}`,
+`{abwesend_bis}`) werden jetzt in der konfigurierten Anzeige-Zeitzone
+(`LOG_TIMEZONE`, Vorgabe Europe/Berlin) berechnet. Vorher liefen sie in UTC — ein
+Kalendertermin, der lokal ganz am 01.10. liegt (00:00–21:30), erschien dadurch
+nahe Mitternacht fälschlich als „vom 30.09. bis 01.10." (weil der Start 22:00 UTC
+des Vortags ist). Jetzt steht korrekt „am 01.10.2026".
+
+Betrifft sowohl aus dem Kalender übernommene als auch nativ geplante
+Abwesenheiten; Windows-Zeitzonennamen werden toleriert.
+
 ## v1.9.83 — 2026-10-01 — Abwesenheit: Vorlagen-/Signaturänderungen greifen sofort
 
 Fehler behoben: Eine Änderung an der Abwesenheits-Vorlage, an einer Variable
