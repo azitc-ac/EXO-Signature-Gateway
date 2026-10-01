@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.90 — 2026-10-01 — Gruppen-Regeln: „noch nicht erprobt"-Hinweis entfernt
+
+Der Hinweis „Noch nicht im Betrieb erprobt" über den gruppenbasierten
+Vorlagen-Regeln entfällt — die Zuweisung einer Vorlage an die erste passende
+Gruppe ist erprobt. Die übrigen Hinweise (Gruppen-Verwaltung, S/MIME-Regeln)
+bleiben unverändert.
+
 ## v1.9.89 — 2026-10-01 — Abwesenheitsnotiz: Nachrichtentext als Absatz (Outlook-robust)
 
 Der Nachrichtentext einer zentralen Abwesenheitsnotiz wird jetzt als echter
