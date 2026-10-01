@@ -156,16 +156,15 @@ def start_ende_text(setting: dict) -> tuple[str, str]:
 def oof_vorlage_fuer(sender: str, mailbox_cfg: dict, sender_cfg: dict) -> str:
     """Name der oof-Vorlage für einen Absender, oder "" wenn keine.
 
-    Nutzt dieselbe Richtlinien-Auflösung wie die Signatur. Folgt das Postfach den
-    Richtlinien NICHT (use_policy=false), bleibt es bewusst außen vor: für die
-    Abwesenheit gibt es (bislang) keine Postfach-eigene Zuweisung, und die globale
-    Richtlinie einem selbstverwalteten Postfach aufzuzwingen widerspräche dessen
-    Sinn.
+    Nutzt dieselbe Auflösung wie die Signatur: folgt das Postfach den Richtlinien
+    (use_policy=true), kommt die Vorlage aus `TEMPLATE_POLICIES["oof"]` bzw. der
+    Gruppen-Richtlinie; sonst aus dem Postfach-eigenen Feld `oof_template` —
+    analog zu `template`/`banner_template`/`disclaimer_template`.
     """
     pol, use_pol = _policies.resolve_policies(sender, mailbox_cfg, sender_cfg)
-    if not use_pol:
-        return ""
-    return (pol.get("oof") or "").strip()
+    if use_pol:
+        return (pol.get("oof") or "").strip()
+    return (sender_cfg.get("oof_template") or "").strip()
 
 
 # ── Text rendern ──────────────────────────────────────────────────────────────

@@ -80,6 +80,7 @@ def zuweisungen_nach_art() -> dict[str, set[str]]:
         "min_template": "min",
         "banner_template": "banner",
         "disclaimer_template": "disclaimer",
+        "oof_template": "oof",
     }
     for cfg in (settings_store.get("MAILBOX_CONFIG") or {}).values():
         if not isinstance(cfg, dict):

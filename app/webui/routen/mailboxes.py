@@ -120,6 +120,7 @@ async def api_get_mailboxes(refresh: bool = False, _=Depends(_require_admin)):
             "min_template": cfg.get("min_template", ""),
             "banner_template": cfg.get("banner_template", ""),
             "disclaimer_template": cfg.get("disclaimer_template", ""),
+            "oof_template": cfg.get("oof_template", ""),
             "addin_templates": cfg.get("addin_templates", []),
             "use_policy": cfg.get("use_policy", True),
             "health_overall": h.get("overall"),
@@ -143,6 +144,7 @@ async def api_get_mailboxes(refresh: bool = False, _=Depends(_require_admin)):
                 "min_template": cfg.get("min_template", ""),
                 "banner_template": cfg.get("banner_template", ""),
                 "disclaimer_template": cfg.get("disclaimer_template", ""),
+                "oof_template": cfg.get("oof_template", ""),
                 "addin_templates": cfg.get("addin_templates", []),
                 "use_policy": cfg.get("use_policy", True),
                 "health_overall": h.get("overall"),
@@ -335,6 +337,7 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
         min_template = (m.get("min_template") or "").strip()
         banner_template = (m.get("banner_template") or "").strip()
         disclaimer_template = (m.get("disclaimer_template") or "").strip()
+        oof_template = (m.get("oof_template") or "").strip()
         addin_tpl = m.get("addin_templates", [])
         use_policy = bool(m.get("use_policy", True))
         entry: dict = {"sig": sig, "smime": smime, "use_policy": use_policy}
@@ -346,6 +349,8 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
             entry["banner_template"] = banner_template
         if disclaimer_template:
             entry["disclaimer_template"] = disclaimer_template
+        if oof_template:
+            entry["oof_template"] = oof_template
         if addin_tpl == "*" or (isinstance(addin_tpl, list) and addin_tpl):
             entry["addin_templates"] = addin_tpl
         mb = addr_to_mb.get(email)

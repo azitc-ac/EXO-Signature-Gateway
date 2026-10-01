@@ -211,6 +211,7 @@ async function ankerAnwenden() {
           </th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">Banner</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">Disclaimer</th>
+          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">Abwesenheit</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">Outlook Add-In</th>
         </tr>
       </thead>
@@ -1126,6 +1127,25 @@ function renderMailboxTable(mailboxes) {
     if (policyActive) disclaimerSel.title = 'Wird durch Vorlagenrichtlinie gesteuert';
     tdDisclaimer.appendChild(disclaimerSel);
 
+    // Abwesenheit (OOF) select — policy-controlled like disclaimer
+    var tdOof = document.createElement('td');
+    tdOof.style.cssText = 'text-align:center;padding:6px 8px';
+    var oofSel = document.createElement('select');
+    oofSel.className = 'mb-oof';
+    oofSel.dataset.idx = String(i);
+    oofSel.style.cssText = 'font-size:12px;max-width:130px';
+    var _effectiveOof = policyActive
+      ? (document.getElementById('policy-oof-tpl').value || '')
+      : (mb.oof_template || '');
+    _fuelleVorlagenSelect(oofSel, 'oof', _effectiveOof,
+      {mitLeer: true, leerText: '— keine —',
+       auchZeigen: [mb.oof_template, document.getElementById('policy-oof-tpl').value]});
+    var _oofDisabled = !(mb.sig || mb.smime) || policyActive;
+    oofSel.disabled = _oofDisabled;
+    oofSel.style.opacity = _oofDisabled ? '0.4' : '1';
+    if (policyActive) oofSel.title = 'Wird durch Vorlagenrichtlinie gesteuert';
+    tdOof.appendChild(oofSel);
+
     // Add-in Vorlagen — greyed when policyActive
     var tdAddin = document.createElement('td');
     tdAddin.style.cssText = 'padding:6px 8px';
@@ -1152,6 +1172,7 @@ function renderMailboxTable(mailboxes) {
     function _applyPolicy() {
       var pol = policyCb.checked;
       var sig = sigCb.checked;
+      var smime = smimeCb.checked;
       tplSel.disabled = !sig || pol;
       tplSel.style.opacity = (!sig || pol) ? '0.4' : '1';
       tplSel.title = pol ? 'Wird durch Vorlagenrichtlinie gesteuert' : '';
@@ -1172,22 +1193,31 @@ function renderMailboxTable(mailboxes) {
       disclaimerSel.title = pol ? 'Wird durch Vorlagenrichtlinie gesteuert' : '';
       disclaimerSel.value = pol ? (document.getElementById('policy-disclaimer-tpl').value || '')
                                 : (mb.disclaimer_template || '');
+      // Abwesenheit greift für aktivierte Postfächer (Signatur ODER S/MIME).
+      var oofAktiv = !(sig || smime) || pol;
+      oofSel.disabled = oofAktiv;
+      oofSel.style.opacity = oofAktiv ? '0.4' : '1';
+      oofSel.title = pol ? 'Wird durch Vorlagenrichtlinie gesteuert' : '';
+      oofSel.value = pol ? (document.getElementById('policy-oof-tpl').value || '')
+                         : (mb.oof_template || '');
       addinCtrl.style.opacity = (!sig || pol) ? '0.4' : '1';
       addinCtrl.style.pointerEvents = (!sig || pol) ? 'none' : '';
       addinCtrl.title = pol ? 'Wird durch Vorlagenrichtlinie gesteuert' : '';
     }
     policyCb.addEventListener('change', _applyPolicy);
     sigCb.addEventListener('change', _applyPolicy);
+    smimeCb.addEventListener('change', _applyPolicy);   // Abwesenheit gilt auch für S/MIME-only
 
     if (isResource) {
       tplSel.disabled = true; tplSel.style.opacity = '0.4';
       minSigSel.disabled = true; minSigSel.style.opacity = '0.4';
       bannerSel.disabled = true; bannerSel.style.opacity = '0.4';
       disclaimerSel.disabled = true; disclaimerSel.style.opacity = '0.4';
+      oofSel.disabled = true; oofSel.style.opacity = '0.4';
       addinCtrl.style.pointerEvents = 'none'; addinCtrl.style.opacity = '0.4';
     }
 
-    // Column order: Status, Postfach, Signatur, S/MIME, Vorlagen-Richtlinien, Standardsignatur, Minimalsignatur, Banner, Disclaimer, Outlook Add-In
+    // Column order: Status, Postfach, Signatur, S/MIME, Vorlagen-Richtlinien, Standardsignatur, Minimalsignatur, Banner, Disclaimer, Abwesenheit, Outlook Add-In
     tr.appendChild(tdStatus);
     tr.appendChild(tdEmail);
     tr.appendChild(tdSig);
@@ -1197,6 +1227,7 @@ function renderMailboxTable(mailboxes) {
     tr.appendChild(tdMinSig);
     tr.appendChild(tdBanner);
     tr.appendChild(tdDisclaimer);
+    tr.appendChild(tdOof);
     tr.appendChild(tdAddin);
     tbody.appendChild(tr);
   });
@@ -1292,6 +1323,7 @@ async function saveMailboxes() {
   var minSigSelects = document.querySelectorAll('.mb-min-sig');
   var bannerSelects = document.querySelectorAll('.mb-banner');
   var disclaimerSelects = document.querySelectorAll('.mb-disclaimer');
+  var oofSelects = document.querySelectorAll('.mb-oof');
   var policyBoxes = document.querySelectorAll('.mb-policy');
   var payload = [];
   sigBoxes.forEach(function(cb, i) {
@@ -1316,6 +1348,7 @@ async function saveMailboxes() {
       min_template: minSigSelects[i] ? minSigSelects[i].value : '',
       banner_template: bannerSelects[i] ? bannerSelects[i].value : '',
       disclaimer_template: disclaimerSelects[i] ? disclaimerSelects[i].value : '',
+      oof_template: oofSelects[i] ? oofSelects[i].value : '',
       addin_templates: addinTemplates,
       use_policy: policyBoxes[i] ? policyBoxes[i].checked : true,
     });
