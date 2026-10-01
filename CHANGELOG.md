@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.91 — 2026-10-01 — Gruppen-Verwaltung: „noch nicht erprobt"-Hinweis entfernt
+
+Auch über der Gruppen-Verwaltung entfällt der Hinweis „Noch nicht im Betrieb
+erprobt" — die interne Gruppierung von Postfächern ist erprobt. Damit tragen die
+Gruppen-Bereiche keinen Vorbehalt mehr; der Hinweis bei den S/MIME-Regeln bleibt.
+
 ## v1.9.90 — 2026-10-01 — Gruppen-Regeln: „noch nicht erprobt"-Hinweis entfernt
 
 Der Hinweis „Noch nicht im Betrieb erprobt" über den gruppenbasierten
