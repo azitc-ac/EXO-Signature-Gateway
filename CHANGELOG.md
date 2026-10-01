@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.92 — 2026-10-01 — Abwesenheit: Vorlage auch je Postfach wählbar
+
+Die Abwesenheits-Vorlage (OOF) lässt sich jetzt — wie Signatur, Banner und
+Disclaimer — auch **pro Postfach** zuweisen. Bisher griff sie nur über die
+Vorlagen-Richtlinie bzw. Gruppen; ein Postfach mit abgeschalteter
+Richtlinien-Übernahme (`use_policy=false`) blieb außen vor.
+
+Neu: eine Spalte „Abwesenheit" in der Postfach-Tabelle (aktiv, wenn das Postfach
+Signatur **oder** S/MIME nutzt und die Richtlinien-Übernahme aus ist). Folgt das
+Postfach den Richtlinien, kommt die Vorlage weiterhin von dort; sonst aus dem
+Postfach-eigenen Feld `oof_template`. Die Auto-Typzuordnung beim Start erkennt
+das Feld ebenfalls.
+
 ## v1.9.91 — 2026-10-01 — Gruppen-Verwaltung: „noch nicht erprobt"-Hinweis entfernt
 
 Auch über der Gruppen-Verwaltung entfällt der Hinweis „Noch nicht im Betrieb

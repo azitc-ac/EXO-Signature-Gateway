@@ -177,10 +177,20 @@ def test_oof_vorlage_aus_policy(monkeypatch):
     assert abwesenheit.oof_vorlage_fuer("a@x.de", {}, {"use_policy": True}) == "Firma"
 
 
-def test_oof_leer_bei_use_policy_false(monkeypatch):
+def test_oof_leer_bei_use_policy_false_ohne_feld(monkeypatch):
+    """use_policy=false UND kein Postfach-eigenes oof_template → keine Vorlage."""
     store = {"TEMPLATE_POLICIES": {"oof": "Firma"}, "CUSTOM_POLICIES": [], "INTERNAL_GROUPS": {}}
     monkeypatch.setattr(settings_store, "get", lambda k, d=None: store.get(k, d))
     assert abwesenheit.oof_vorlage_fuer("a@x.de", {}, {"use_policy": False}) == ""
+
+
+def test_oof_vorlage_per_postfach_bei_use_policy_false(monkeypatch):
+    """use_policy=false → Postfach-eigenes oof_template gilt (wie template/banner_template);
+    die globale Richtlinie wird NICHT aufgezwungen."""
+    store = {"TEMPLATE_POLICIES": {"oof": "Firma"}, "CUSTOM_POLICIES": [], "INTERNAL_GROUPS": {}}
+    monkeypatch.setattr(settings_store, "get", lambda k, d=None: store.get(k, d))
+    cfg = {"use_policy": False, "oof_template": "Eigene"}
+    assert abwesenheit.oof_vorlage_fuer("a@x.de", {}, cfg) == "Eigene"
 
 
 # ── Ein Postfach normalisieren (gemockte Nahtstellen) ─────────────────────────
