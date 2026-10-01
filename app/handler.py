@@ -807,7 +807,13 @@ class SignatureHandler:
             _sender_cfg: dict = mailbox_match.match_sender(_mailbox_cfg, sender)
             if not _mailbox_cfg or not (_sender_cfg.get("sig") or _sender_cfg.get("smime")):
                 log.debug("Sender %s not in active MAILBOX_CONFIG — forwarding as-is", sender)
-                reinject.send(sender, recipients, raw)
+                # mark_as_signed_bytes ist PFLICHT wie auf jedem anderen Rückweg:
+                # Diese durchgeleitete Fremd-Post geht zurück in den Exchange-
+                # Transport. Wird sie von einer Regel wieder zum Gateway geroutet
+                # (die Loop-Ausnahme greift nur bei gesetztem X-Sig-Applied), läuft
+                # sie sonst endlos im Kreis bis „hop count exceeded" — live passiert
+                # mit eingehenden Newslettern an ein nicht-konfiguriertes Postfach.
+                reinject.send(sender, recipients, loop_detector.mark_as_signed_bytes(raw))
                 # ⚠️ Diese Zeile war lange der Blind-Fleck des Mail-Protokolls: Ein
                 # Relay-Gerät (Drucker, App) hat als Absender praktisch NIE ein
                 # konfiguriertes Signatur-Postfach — seine Post läuft also GENAU

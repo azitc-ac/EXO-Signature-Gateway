@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.85 — 2026-10-01 — Mail-Schleife behoben: durchgeleitete Fremd-Post wird markiert
+
+Post von Absendern, die **nicht** in der Postfach-Konfiguration stehen, wird
+unverändert weitergeleitet („forwarding as-is"). Dabei fehlte auf diesem einen
+Rückweg die **Loop-Markierung** (`X-Sig-Applied`): Wird eine solche Nachricht von
+einer Transportregel wieder zum Gateway geleitet, greift die Loop-Ausnahme der
+Regel nur bei gesetztem Header — fehlt er, läuft die Nachricht endlos im Kreis, bis
+Exchange sie mit „Hop count exceeded – possible mail loop" abweist und sie
+dauerhaft im Wiederhol-Fallnetz hängt.
+
+Dieser Rückweg setzt den Loop-Header jetzt wie alle anderen. Betroffen waren z. B.
+eingehende Newsletter an ein nicht als Gateway-Postfach konfiguriertes Postfach.
+
 ## v1.9.84 — 2026-10-01 — Abwesenheit: Datumsangaben in lokaler Zeitzone
 
 Die Datumsangaben im Abwesenheitstext (`{zeitraum}`, `{abwesend_ab}`,

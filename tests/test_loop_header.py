@@ -47,6 +47,25 @@ def test_exo_regelskripte_nehmen_loopheader_param():
         assert '-ExceptIfHeaderMatchesMessageHeader "X-Sig-Applied"' not in script, name
 
 
+def test_durchleit_zweig_markiert_loop_header():
+    """Der Durchleit-Zweig (Absender nicht in MAILBOX_CONFIG → „forwarding as-is")
+    MUSS den Loop-Header setzen. Ohne Markierung routet eine Transportregel die
+    durchgeleitete Fremd-Post endlos zurück zum Gateway (live: eingehende Newsletter
+    an ein nicht-konfiguriertes Postfach → 26 Hops → „hop count exceeded").
+    Jeder Transport-Rückweg braucht X-Sig-Applied (CLAUDE.md, Loop-Gefahr)."""
+    import handler
+    src = inspect.getsource(handler)
+    i = src.index("not in active MAILBOX_CONFIG")
+    j = src.index('_audit("durchgereicht")', i)
+    block = src[i:j]
+    # Die nackte (unmarkierte) Variante darf im Durchleit-Zweig NICHT vorkommen —
+    # sonst ist X-Sig-Applied nicht gesetzt und die Mail loopt. (Nur den Kommentar
+    # nach dem Funktionsnamen zu durchsuchen genügt nicht — er nennt ihn ohnehin.)
+    assert "reinject.send(sender, recipients, raw)" not in block, (
+        "Durchleit-Reinject ohne Loop-Markierung → Endlosschleife")
+    assert "mark_as_signed_bytes(raw)" in block
+
+
 def test_connector_regel_hat_keine_empfaengerbedingung():
     """Die Gateway-Transportregel darf KEINE empfängerbezogene Bedingung tragen
     (SentToScope o.ä.). Sonst bifurkiert Exchange die interne Fork am Gateway
