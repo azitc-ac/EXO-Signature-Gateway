@@ -87,6 +87,38 @@ def _dt(wert: dict | None) -> datetime | None:
         return None
 
 
+def _lokal_datum(wert: dict | None) -> datetime | None:
+    """Eine Graph-dateTimeTimeZone in die konfigurierte Anzeige-Zeitzone
+    (`LOG_TIMEZONE`, Vorgabe Europe/Berlin) umrechnen — als naive lokale Zeit.
+
+    ⚠️ Grund: Kalendertermine kommen in UTC (Prefer=UTC), native Abwesenheiten in
+    ihrer gespeicherten Zone. Ohne Umrechnung stünde nahe Mitternacht das falsche
+    Datum im Text (ein Termin 22:00 UTC ist in Berlin bereits der nächste Tag).
+    Windows-Zonennamen (z.B. „W. Europe Standard Time") sind nicht per ZoneInfo
+    auflösbar; in dem Fall gilt die Angabe als bereits lokal und wird unverändert
+    formatiert.
+    """
+    d = _dt(wert)
+    if not d:
+        return None
+    from datetime import timezone
+    from zoneinfo import ZoneInfo
+    quelle = (wert.get("timeZone") or "").strip() if isinstance(wert, dict) else ""
+    anzeige = settings_store.get("LOG_TIMEZONE") or "UTC"
+    try:
+        ziel = ZoneInfo(anzeige)
+    except Exception:                                              # noqa: BLE001
+        return d   # unbekannte Anzeige-Zone → so lassen
+    if quelle.upper() == "UTC" or quelle == "":
+        aware = d.replace(tzinfo=timezone.utc)
+    else:
+        try:
+            aware = d.replace(tzinfo=ZoneInfo(quelle))
+        except Exception:                                         # noqa: BLE001
+            return d   # Windows-Name o.ä. → bereits lokal, unverändert lassen
+    return aware.astimezone(ziel).replace(tzinfo=None)
+
+
 def zeitraum_text(setting: dict) -> str:
     """Menschlicher Zeitraum aus dem OOF-Setting, oder "" wenn ohne Zeitplan.
 
@@ -95,8 +127,8 @@ def zeitraum_text(setting: dict) -> str:
     """
     if setting.get("status") != "scheduled":
         return ""
-    start = _dt(setting.get("scheduledStartDateTime"))
-    ende = _dt(setting.get("scheduledEndDateTime"))
+    start = _lokal_datum(setting.get("scheduledStartDateTime"))
+    ende = _lokal_datum(setting.get("scheduledEndDateTime"))
     if start and ende:
         if start.date() == ende.date():
             return f"am {start:%d.%m.%Y}"          # Ein-Tages-Abwesenheit
@@ -113,8 +145,8 @@ def start_ende_text(setting: dict) -> tuple[str, str]:
     `{abwesend_ab}`/`{abwesend_bis}`. Leer, wenn ohne Zeitplan."""
     if setting.get("status") != "scheduled":
         return "", ""
-    start = _dt(setting.get("scheduledStartDateTime"))
-    ende = _dt(setting.get("scheduledEndDateTime"))
+    start = _lokal_datum(setting.get("scheduledStartDateTime"))
+    ende = _lokal_datum(setting.get("scheduledEndDateTime"))
     return (f"{start:%d.%m.%Y}" if start else ""), (f"{ende:%d.%m.%Y}" if ende else "")
 
 
@@ -260,8 +292,9 @@ _LOOKAHEAD_TAGE = 120   # so weit vorausschauen für „Abwesend"-Kalendertermin
 
 
 def _fenster_texte(start_raw: dict, end_raw: dict) -> tuple[str, str, str]:
-    """(zeitraum, ab, bis) aus den Roh-Datumsangaben eines Kalendertermins."""
-    s, e = _dt(start_raw), _dt(end_raw)
+    """(zeitraum, ab, bis) aus den Roh-Datumsangaben eines Kalendertermins —
+    in lokaler Anzeigezeit (Kalenderfenster kommt in UTC)."""
+    s, e = _lokal_datum(start_raw), _lokal_datum(end_raw)
     ab = f"{s:%d.%m.%Y}" if s else ""
     bis = f"{e:%d.%m.%Y}" if e else ""
     if ab and bis:
