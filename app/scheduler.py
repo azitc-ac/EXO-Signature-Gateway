@@ -224,9 +224,17 @@ def _send_user_renewal_notification(
 
 def _check_smime_lifecycle() -> None:
     """
-    1. Send admin alert for all expiring certs (signing + recipient).
+    1. Send admin alert for expiring SIGNING certs (own mailboxes).
     2. For S/MIME-enabled users with notify_user=True: send per-threshold
        renewal notifications to the user themselves.
+
+    ⚠️ Empfänger-Zertifikate (Kommunikationspartner) lösen BEWUSST keinen
+    Admin-Alarm aus. Sie sind für den Betreiber nicht handhabbar — es ist das
+    Zertifikat eines Fremden, das sich beim nächsten signierten Eingang von
+    selbst erneuert (store_recipient_cert). Eine tägliche, dringlich wirkende
+    Mail über den Ablauf eines Partner-Zertifikats, mit dem evtl. nie
+    verschlüsselt wurde, ist reines Rauschen. Nur eigene Signatur-Zertifikate
+    kann und muss der Betreiber erneuern — nur die werden gemeldet.
     """
     import smime_store
     import notification
@@ -236,9 +244,8 @@ def _check_smime_lifecycle() -> None:
     ca_user_config: dict = settings_store.get("CA_USER_CONFIG") or {}
     today = datetime.now().strftime("%Y-%m-%d")
 
-    # ── Admin alerts (all cert types) ──────────────────────────────────────
-    all_certs = smime_store.list_certs() + smime_store.list_recipient_certs()
-    for c in all_certs:
+    # ── Admin alerts (eigene Signatur-Zertifikate) ─────────────────────────
+    for c in smime_store.list_certs():
         if c.get("error"):
             continue
         email = c.get("email", "")

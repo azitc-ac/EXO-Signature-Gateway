@@ -60,6 +60,22 @@ def _cert_expiry() -> str:
         return f"Fehler: {exc}"
 
 
+def _tls_cert_days() -> "int | None":
+    """Restlaufzeit des TLS-Transportzertifikats in Tagen (negativ = abgelaufen),
+    oder None wenn kein/unlesbares Zertifikat. Für den Dashboard-Störer: eine Zahl,
+    aus der ein sichtbarer Hinweis werden kann, statt nur einer Dauerzeile."""
+    cert_path = Path(config.SMTP_TLS_CERT)
+    if not cert_path.exists():
+        return None
+    try:
+        from cryptography import x509
+        from cryptography.hazmat.backends import default_backend
+        cert = x509.load_pem_x509_certificate(cert_path.read_bytes(), default_backend())
+        return (cert.not_valid_after_utc - datetime.now(timezone.utc)).days
+    except Exception:
+        return None
+
+
 # Platzhalter-Kennwörter, die als unsicher gelten und einen Wechsel erzwingen:
 #   "admin"    = einheitlicher Auslieferungs-Standard (config.py)
 #   "changeme" = Alt-Platzhalter früherer azure-vm-setup.ps1-VMs (.env). Neue
