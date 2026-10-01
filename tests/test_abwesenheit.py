@@ -81,6 +81,43 @@ def test_render_platzhalter_als_jinja(tmp_path, monkeypatch):
     assert txt == "Erika ist weg am 30.09.2026"
 
 
+def test_nachricht_als_absatz_entfernt_tabelle():
+    """Einspaltige Baukasten-Tabelle → <p>-Absatz (Outlook kollabiert sonst die
+    breitenlose Zelle auf 24pt). Inline-Links bleiben erhalten."""
+    html = ('<table cellpadding="0" cellspacing="0" border="0" '
+            'style="font-family:Calibri;font-size:11pt;color:#1f2937;border-collapse:collapse">\n'
+            '  <tr><td style="padding:0">Ich bin weg. Kontakt: '
+            '<a href="mailto:x@y.de">x@y.de</a>.</td></tr>\n</table>')
+    out = abwesenheit._nachricht_als_absatz(html)
+    assert "<table" not in out and "<td" not in out
+    assert out.startswith("<p ")
+    assert '<a href="mailto:x@y.de">x@y.de</a>' in out      # Inline-Auszeichnung bleibt
+    assert "font-family:Calibri" in out and "font-size:11pt" in out
+
+
+def test_nachricht_als_absatz_laesst_verschachteltes_unveraendert():
+    """Zwei/verschachtelte Tabellen: konservativ unverändert lassen (nicht zerlegen)."""
+    html = ('<table style="x"><tr><td>A</td></tr></table>'
+            '<table style="y"><tr><td>B</td></tr></table>')
+    assert abwesenheit._nachricht_als_absatz(html) == html
+
+
+def test_render_oof_erzeugt_absatz_statt_tabelle(tmp_path, monkeypatch):
+    """End-to-End: eine Baukasten-Tabellen-Vorlage wird als Absatz gerendert."""
+    monkeypatch.setattr(config, "TEMPLATE_DIR", str(tmp_path))
+    (tmp_path / "T.html").write_text(
+        '<table cellpadding="0" cellspacing="0" border="0" '
+        'style="font-family:Calibri;font-size:11pt;color:#1f2937;border-collapse:collapse">\n'
+        '  <tr><td style="padding:0">Ich bin {{ zeitraum }} nicht da.</td></tr>\n</table>',
+        encoding="utf-8")
+    (tmp_path / "T.txt").write_text("Ich bin {{ zeitraum }} nicht da.", encoding="utf-8")
+    signature_engine._reload_env()
+    html, _ = abwesenheit.render_oof(
+        UserData(displayName="Erika", custom={}), "T", "am 30.09.2026")
+    assert "<table" not in html and "<td" not in html
+    assert "Ich bin am 30.09.2026 nicht da." in html
+
+
 def test_render_haengt_anhang_an(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "TEMPLATE_DIR", str(tmp_path))
     (tmp_path / "K.html").write_text("<p>OOF</p>", encoding="utf-8")
