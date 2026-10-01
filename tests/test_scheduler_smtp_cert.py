@@ -59,6 +59,35 @@ def test_kein_alarm_ohne_separates_zert(umgebung, monkeypatch):
     assert not umgebung
 
 
+def test_tls_days_left_leitet_domain_aus_cert_ab(monkeypatch, tmp_path):
+    """Leere LE_DOMAIN darf Auto-Renew + Ablauf-Alarm NICHT still abschalten:
+    _tls_days_left liefert dann die Domain aus dem Zertifikat (CN). Sonst kehrt
+    _check_tls_cert bei „or not domain" vorzeitig um — genau so lief das
+    certbot-verwaltete Gateway-Zert mit leerer LE_DOMAIN unbemerkt ab."""
+    import config
+    cf = tmp_path / "cert.pem"
+    cf.write_bytes(_cert_pem(days=5))
+    monkeypatch.setattr(config, "SMTP_TLS_CERT", str(cf))
+    monkeypatch.setattr(scheduler.settings_store, "get",
+                        lambda k, *a, **kw: {"LE_DOMAIN": ""}.get(k, None))
+    res = scheduler._tls_days_left()
+    assert res is not None
+    days, expiry, domain = res
+    assert domain == "mail.example", f"Domain nicht aus CN abgeleitet: {domain!r}"
+
+
+def test_tls_days_left_bevorzugt_le_domain(monkeypatch, tmp_path):
+    """Ist LE_DOMAIN gesetzt, gilt sie (nicht der CN)."""
+    import config
+    cf = tmp_path / "cert.pem"
+    cf.write_bytes(_cert_pem(days=5))
+    monkeypatch.setattr(config, "SMTP_TLS_CERT", str(cf))
+    monkeypatch.setattr(scheduler.settings_store, "get",
+                        lambda k, *a, **kw: {"LE_DOMAIN": "gesetzt.example"}.get(k, None))
+    _, _, domain = scheduler._tls_days_left()
+    assert domain == "gesetzt.example"
+
+
 def test_kein_alarm_wenn_noch_lange_gueltig(umgebung, monkeypatch, tmp_path):
     cf = tmp_path / "cert.pem"
     cf.write_bytes(_cert_pem(days=200))

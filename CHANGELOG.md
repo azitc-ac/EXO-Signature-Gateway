@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.86 — 2026-10-01 — TLS-Zertifikat lief bei leerer LE-Domain still ab
+
+Ein Let's-Encrypt-Zertifikat, das certbot zwar verwaltet, für das aber keine
+LE-Domain in den Einstellungen hinterlegt war, wurde **nicht automatisch erneuert
+und löste auch keinen Ablauf-Alarm aus** — es lief unbemerkt ab. Folge: Ist der
+Exchange-Connector auf TLS-Domänenprüfung gestellt, bricht danach die Zustellung
+ans Gateway (`450 4.4.317 Cannot establish connection`) und ausgehende Post bleibt
+hängen.
+
+Ursache: Die tägliche Prüfung kehrte bei fehlender LE-Domain vorzeitig um („or not
+domain"). Jetzt wird die Domain, wenn nicht gesetzt, aus dem Zertifikat (CN)
+abgeleitet — Auto-Erneuerung und Ablauf-Alarm greifen damit auch ohne explizit
+hinterlegte LE-Domain. (Eine Schutzfunktion, deren Ausfall unsichtbar war.)
+
 ## v1.9.85 — 2026-10-01 — Mail-Schleife behoben: durchgeleitete Fremd-Post wird markiert
 
 Post von Absendern, die **nicht** in der Postfach-Konfiguration stehen, wird
