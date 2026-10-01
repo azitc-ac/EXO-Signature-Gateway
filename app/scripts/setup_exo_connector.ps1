@@ -193,13 +193,23 @@ if ($existingRule) {
     # Gate matcht die Regel jeden internen Absender → Mailausfall.
     # -SentToScope $null heilt eine alt-installierte Regel mit der verbotenen
     # Empfänger-Bedingung (idempotent, wenn sie bereits fehlt).
+    # -ExceptIfHeaderContainsMessageHeader 'Auto-Submitted' + Wort 'auto' nimmt
+    # Auto-Antworten (OOF/auto-generated, RFC 3834) von der Gateway-Route aus:
+    # Exchange versendet sie NATIV. Ohne diese Ausnahme läuft die OOF eines
+    # DL-Postfachs durchs Gateway, hat aber leeren Absender (MAIL FROM:<>) — der
+    # Smarthost verweigert einem leeren Absender das Relay an externe Domains
+    # (451 4.4.4), die Antwort landet still in der Warteschlange. OOF werden nie
+    # signiert, verlieren durch die Umgehung also nichts. 'auto' matcht
+    # auto-generated/auto-replied/auto-notified, lässt 'no' (normale Post) frei.
     Set-TransportRule -Identity $ruleName -Comments $managedBy `
         -FromMemberOf @($dgName) `
         -SentToScope $null `
         -ExceptIfHeaderMatchesMessageHeader $LoopHeader `
         -ExceptIfHeaderMatchesPatterns "1" `
-        -ExceptIfMessageTypeMatches Calendaring | Out-Null
-    Write-OK "Transport Rule gate=$dgName + Loop-Header ($LoopHeader) + Calendaring-Ausnahme aktualisiert"
+        -ExceptIfMessageTypeMatches Calendaring `
+        -ExceptIfHeaderContainsMessageHeader "Auto-Submitted" `
+        -ExceptIfHeaderContainsWords "auto" | Out-Null
+    Write-OK "Transport Rule gate=$dgName + Loop-Header ($LoopHeader) + Calendaring- & Auto-Antwort-Ausnahme aktualisiert"
 } else {
     # Von Anfang an mit FromMemberOf-Gate (leere DG → matcht niemanden) UND
     # DEAKTIVIERT (doppelt ausfallsicher). update_mailbox_dg.ps1 pflegt Mitglieder
@@ -213,12 +223,14 @@ if ($existingRule) {
         -ExceptIfHeaderMatchesMessageHeader $LoopHeader `
         -ExceptIfHeaderMatchesPatterns "1" `
         -ExceptIfMessageTypeMatches Calendaring `
+        -ExceptIfHeaderContainsMessageHeader "Auto-Submitted" `
+        -ExceptIfHeaderContainsWords "auto" `
         -RouteMessageOutboundConnector $outConnectorId `
         -Priority 0 `
         -Comments $managedBy `
         -Enabled $false `
         -Mode Enforce | Out-Null
-    Write-OK "Transport Rule created (Gate=$dgName, DEAKTIVIERT bis Postfächer eingerichtet; priority 0, Kalender-Einladungen ausgenommen)"
+    Write-OK "Transport Rule created (Gate=$dgName, DEAKTIVIERT bis Postfächer eingerichtet; priority 0, Kalender-Einladungen + Auto-Antworten ausgenommen)"
 }
 
 # ── Done ──────────────────────────────────────────────────────────────────────

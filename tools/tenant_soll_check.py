@@ -104,6 +104,16 @@ def pruefe(state: dict, inputs: dict) -> list[dict]:
                 f"Loop-Header={r.get('ExceptIfHeaderMatchesMessageHeader')} (Soll: {loop}).")
         if r.get("ExceptIfMessageTypeMatches") != "Calendaring":
             add(HINWEIS, obj, "Kalender-Ausnahme (ExceptIfMessageTypeMatches=Calendaring) fehlt.")
+        # Auto-Antwort-Ausnahme: ohne sie läuft die OOF eines DL-Postfachs durchs
+        # Gateway, scheitert mit leerem Absender am Smarthost-Relay (451 4.4.4) und
+        # wird extern NIE zugestellt. Match auf 'auto' im Auto-Submitted-Header.
+        worte = [w.lower() for w in (r.get("ExceptIfHeaderContainsWords") or [])]
+        if (r.get("ExceptIfHeaderContainsMessageHeader") != "Auto-Submitted"
+                or "auto" not in worte):
+            add(WARNUNG, obj,
+                "Auto-Antwort-Ausnahme fehlt (ExceptIfHeaderContainsMessageHeader="
+                "Auto-Submitted, Wort 'auto') — externe Abwesenheitsnotizen werden "
+                "nicht zugestellt.")
         if r.get("Mode") != "Enforce":
             add(HINWEIS, obj, f"Mode={r.get('Mode')} (Soll: Enforce).")
 
