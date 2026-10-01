@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import html as _html
 import logging
+import re
 from datetime import datetime
 
 import httpx
@@ -169,6 +170,45 @@ def oof_vorlage_fuer(sender: str, mailbox_cfg: dict, sender_cfg: dict) -> str:
 
 # ── Text rendern ──────────────────────────────────────────────────────────────
 
+_TABELLE_RE = re.compile(r'<table\b[^>]*style="([^"]*)"[^>]*>(.*?)</table>', re.DOTALL | re.I)
+_ROW_RE = re.compile(r'<tr\b[^>]*>(.*?)</tr>', re.DOTALL | re.I)
+_CELL_RE = re.compile(r'<td\b[^>]*>(.*?)</td>', re.DOTALL | re.I)
+_FONT_KEYS = ("font-family", "font-size", "color")
+
+
+def _nachricht_als_absatz(html: str) -> str:
+    """Wandelt die einspaltige Baukasten-Tabelle der OOF-Nachricht in <p>-Absätze.
+
+    Grund (belegt an einer echt empfangenen OOF, 2026-10-01): Outlooks Word-Engine
+    vergibt BREITENLOSEN Tabellenzellen `width:24pt` und kollabiert den Text auf ein
+    Wort pro Zeile. Ein echter Absatz entgeht dem. Betrifft NUR den Nachrichtentext
+    — die Signatur (separat angehängt) bleibt Baukasten.
+
+    Konservativ: greift nur bei GENAU EINER, nicht verschachtelten Tabelle. Bei
+    etwas Komplexerem bleibt das HTML unverändert — eine mehrspaltige/verschachtelte
+    Vorlage soll nicht zerlegt werden. Inline-Auszeichnung (Links, <strong>) im
+    Zellinhalt bleibt erhalten."""
+    if html.count("<table") != 1 or "<td" not in html:
+        return html
+    m = _TABELLE_RE.search(html)
+    if not m:
+        return html
+    tbl_style, inner = m.group(1), m.group(2)
+    font = ";".join(p.strip() for p in tbl_style.split(";")
+                    if any(p.strip().lower().startswith(k) for k in _FONT_KEYS))
+    absaetze: list[str] = []
+    for row in _ROW_RE.findall(inner):
+        zelle = _CELL_RE.search(row)
+        if not zelle:
+            continue
+        text = zelle.group(1).strip()
+        if not text or text.replace("&nbsp;", "").strip() == "":
+            continue  # Abstandszeile des Baukastens
+        stil = "margin:0 0 10px 0" + (";" + font if font else "")
+        absaetze.append(f'<p style="{stil}">{text}</p>')
+    return "".join(absaetze) if absaetze else html
+
+
 def render_oof(user_data, template_name: str, zeitraum: str,
                ab: str = "", bis: str = "",
                anhang_html: str = "", anhang_txt: str = "") -> tuple[str, str]:
@@ -199,6 +239,8 @@ def render_oof(user_data, template_name: str, zeitraum: str,
     for marke, wert in ersetzungen.items():
         html = html.replace(marke, _html.escape(wert))
         txt = txt.replace(marke, wert)
+    # Nachrichtentext als Absatz statt Tabelle (Outlook-robust, siehe Funktion).
+    html = _nachricht_als_absatz(html)
     if anhang_html:
         html = html + anhang_html
     if anhang_txt:

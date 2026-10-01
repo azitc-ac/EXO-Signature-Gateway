@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.89 — 2026-10-01 — Abwesenheitsnotiz: Nachrichtentext als Absatz (Outlook-robust)
+
+Der Nachrichtentext einer zentralen Abwesenheitsnotiz wird jetzt als echter
+Absatz (`<p>`) ausgegeben statt in einer Baukasten-Tabelle.
+
+Hintergrund: Outlooks Word-Rendering vergibt Tabellenzellen **ohne** Breitenangabe
+intern `width:24pt` und bricht den Text dann auf ein Wort pro Zeile um — die
+Notiz erschien beim Empfänger als schmale Spalte. Ein Absatz ist davon nicht
+betroffen. Die Umwandlung greift konservativ: nur bei einer einzelnen, nicht
+verschachtelten Tabelle; alles Komplexere bleibt unverändert, und
+Inline-Auszeichnung (Links, Fettung) im Text bleibt erhalten. Eine optional
+angehängte Signatur ist davon unberührt.
+
 ## v1.9.88 — 2026-10-01 — Abwesenheitsnotizen an externe Empfänger wurden nicht zugestellt
 
 Automatische Abwesenheitsnotizen (OOF) von Postfächern, die über das Gateway
