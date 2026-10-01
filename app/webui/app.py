@@ -109,7 +109,7 @@ app.mount("/static", StaticFiles(directory=str(_STATIC_DIR)), name="static")
 # bzw. Uebersichtsseite) — waeren sie mitgewandert, holte `app.py` sie aus einem
 # Routenmodul zurueck, also genau die verkehrte Richtung.
 from webui.hilfen import (                                   # noqa: E402
-    _cert_expiry, _build_redirect_uri, _password_change_required,
+    _cert_expiry, _tls_cert_days, _build_redirect_uri, _password_change_required,
 )
 
 # ── Routenmodule ─────────────────────────────────────────────────────────────
@@ -443,10 +443,22 @@ async def dashboard(request: Request, user: str = Depends(_check_auth)):
             "gesamt": _ol.get("gesamt", 0),
             "kein_zugriff": _ol.get("kein_zugriff", 0),
         }
+    # TLS-Zertifikats-Störer: sichtbarer Hinweis, wenn die Restlaufzeit unter die
+    # Erneuerungsschwelle fällt — dann hätte die Auto-Erneuerung längst greifen
+    # müssen. So hängt der Ablauf nicht allein an einer Schwellen-Mail (die still
+    # ausfallen kann, siehe TLS-Vorfall 30.09.).
+    _tls_days = _tls_cert_days()
+    _renew_days = int(settings_store.get("LE_RENEW_DAYS") or 14)
+    tls_warnung = ({"days": _tls_days, "renew_days": _renew_days}
+                   if _tls_days is not None and _tls_days <= _renew_days else None)
     signing_certs = _smime_store.list_certs()
-    recipient_certs = _smime_store.list_recipient_certs()
     warn_days = int(settings_store.get("CERT_WARN_DAYS") or 14)
-    expiring_certs = [c for c in signing_certs + recipient_certs
+    # Nur eigene Signatur-Zertifikate im Störer — Partner-Zertifikate
+    # (list_recipient_certs) sind für den Betreiber nicht handhabbar und wirken
+    # unter „⚠ Ablaufende Zertifikate" unnötig dringlich; sie bleiben in der
+    # S/MIME-Verwaltungsseite sichtbar. (Gleiche Begründung wie im Tagesbericht
+    # und im Admin-Alarm, scheduler._check_smime_lifecycle.)
+    expiring_certs = [c for c in signing_certs
                       if not c.get("error") and c.get("days_left", 999) <= warn_days]
     return templates.TemplateResponse(
         request=request, name="dashboard.html",
@@ -472,6 +484,7 @@ async def dashboard(request: Request, user: str = Depends(_check_auth)):
             "prev_month_2": f"{m2y:04d}-{m2m:02d}",
             "prev_year_str": str(prev_year),
             "cert_expiry": _cert_expiry(),
+            "tls_warnung": tls_warnung,
             "signing_certs": signing_certs,
             "expiring_certs": expiring_certs,
             "ooo_status": ooo_status,

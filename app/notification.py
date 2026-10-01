@@ -328,9 +328,13 @@ def send_daily_report(daily: dict, total: dict) -> bool:
         pass
 
     # ── Expiring S/MIME certs ──
+    # Nur EIGENE Signatur-Zertifikate — nicht die der Kommunikationspartner
+    # (list_recipient_certs). Ein Partner-Zertifikat ist für den Betreiber nicht
+    # handhabbar und erneuert sich beim nächsten signierten Eingang von selbst;
+    # unter einem roten „⚠ Ablaufende Zertifikate" wirkt es unnötig dringlich.
+    # (Gleiche Begründung wie im Admin-Alarm, scheduler._check_smime_lifecycle.)
     warn_days = int(settings_store.get("CERT_WARN_DAYS") or 14)
-    all_certs = smime_store.list_certs() + smime_store.list_recipient_certs()
-    warn_certs = [c for c in all_certs
+    warn_certs = [c for c in smime_store.list_certs()
                   if not c.get("error") and c.get("days_left", 999) <= warn_days]
     warn_block = ""
     if warn_certs:

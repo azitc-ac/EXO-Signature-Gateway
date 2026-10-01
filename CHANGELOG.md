@@ -5,6 +5,29 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.87 — 2026-10-01 — Zertifikats-Hinweise: TLS-Störer sichtbar, Partner-Zert-Rauschen weg
+
+Zwei Änderungen an der Sichtbarkeit und Dosierung von Zertifikats-Hinweisen.
+
+**TLS-Zertifikat als Dashboard-Störer.** Läuft das TLS-Transportzertifikat unter
+die Erneuerungsschwelle (Vorgabe 14 Tage), erscheint jetzt ein gelber Hinweis auf
+der Übersichtsseite — und ein roter, sobald es abgelaufen ist. Bis dahin hing die
+rechtzeitige Erneuerung allein an einer Hinweis-Mail; fällt die aus (siehe v1.9.86),
+lief das Zertifikat unbemerkt ab. Ein Störer auf dem Dashboard ist nicht still: Die
+Restlaufzeit stand zwar schon als Dauerzeile im Zertifikate-Abschnitt, eine Zahl
+ohne Dringlichkeit wird aber überlesen. Unterschreitet die Restlaufzeit die
+Schwelle, hätte die Auto-Erneuerung längst greifen müssen — der Hinweis macht
+sichtbar, dass sie es nicht getan hat.
+
+**Keine Admin-Warnung mehr für Empfänger-Zertifikate.** Der tägliche Ablauf-Alarm
+an den Betreiber umfasste bisher auch die Zertifikate von Kommunikationspartnern.
+Die sind für den Betreiber nicht handhabbar — es ist das Zertifikat eines Fremden,
+das sich beim nächsten signierten Eingang von selbst erneuert — und eine dringlich
+wirkende Mail über den Ablauf eines Partner-Zertifikats, mit dem evtl. nie
+verschlüsselt wurde, ist reines Rauschen. Gemeldet werden jetzt nur noch die eigenen
+Signatur-Zertifikate, die der Betreiber tatsächlich erneuern kann. Die
+Erneuerungs-Benachrichtigung an die Postfach-Nutzer selbst war davon nie betroffen.
+
 ## v1.9.86 — 2026-10-01 — TLS-Zertifikat lief bei leerer LE-Domain still ab
 
 Ein Let's-Encrypt-Zertifikat, das certbot zwar verwaltet, für das aber keine

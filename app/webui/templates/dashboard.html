@@ -93,6 +93,20 @@ function dismissWelcome() {
 </div>
 {% endif %}
 
+{% if tls_warnung %}
+<div class="alert {{ 'error' if tls_warnung.days <= 0 else 'warn' }}" style="margin-bottom:20px">
+  {% if tls_warnung.days <= 0 %}
+  <strong>✗ TLS-Zertifikat abgelaufen</strong> (vor {{ -tls_warnung.days }} Tag{{ '' if -tls_warnung.days == 1 else 'en' }}).
+  Die Zustellung ans Gateway kann scheitern (<code>450 4.4.317</code>) — ausgehende Post bleibt hängen.
+  Bitte sofort erneuern: <a href="/setup#step-le">Einrichtung → TLS-Zertifikat</a>.
+  {% else %}
+  <strong>⚠ TLS-Zertifikat läuft in {{ tls_warnung.days }} Tag{{ '' if tls_warnung.days == 1 else 'en' }} ab.</strong>
+  Die automatische Erneuerung hätte bis hierhin greifen müssen — offenbar funktioniert sie nicht.
+  Bitte prüfen: <a href="/setup#step-le">Einrichtung → TLS-Zertifikat</a>.
+  {% endif %}
+</div>
+{% endif %}
+
 {% if expiring_certs %}
 <div class="alert warn" style="margin-bottom:20px">
   <strong>⚠ Ablaufende Zertifikate:</strong>
