@@ -52,6 +52,17 @@ def _tls_days_left() -> tuple[int, str, str] | None:
         now = datetime.now(timezone.utc)
         expiry = _get_expiry(cert)
         days = (expiry - now).days
+        if not domain:
+            # ⚠️ Ohne diese Ableitung schaltet eine leere LE_DOMAIN in
+            # _check_tls_cert („or not domain") die Auto-Erneuerung UND den
+            # Ablauf-Alarm still ab — genau so lief das Gateway-Zert (certbot-
+            # verwaltet, aber LE_DOMAIN leer) unbemerkt ab. Die Domain aus dem
+            # Zertifikat (CN) ableiten, damit beides wieder greift.
+            try:
+                from cryptography.x509.oid import NameOID
+                domain = cert.subject.get_attributes_for_oid(NameOID.COMMON_NAME)[0].value
+            except Exception:                                     # noqa: BLE001
+                domain = ""
         return days, expiry.strftime("%d.%m.%Y"), domain
     except Exception as exc:
         log.warning("scheduler: TLS cert read failed: %s", exc)
