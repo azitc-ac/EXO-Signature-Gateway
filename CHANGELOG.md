@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.93 — 2026-10-02 — Postfächer speichern: „nicht gespeichert"-Hinweis schließt beim lokalen Abschluss
+
+Beim Speichern der Postfach-Tabelle wird die Verteilerliste bei Exchange
+aktualisiert — das dauert 5–15 Minuten und läuft serverseitig im Hintergrund.
+Bisher blieb währenddessen der Hinweis „← noch nicht gespeichert" offen und der
+Knopf auf „wird gespeichert…", was so aussah, als hinge das Speichern.
+
+Jetzt wird der Hinweis geschlossen, sobald der **lokale** Teil durch ist; die
+Verteilerlisten-Aktualisierung läuft davon unabhängig im Hintergrund weiter
+(unberührt davon, ob man weiterarbeitet oder die Seite verlässt). Eine
+Statuszeile meldet den Abschluss nach. Änderungen, die man während der
+Hintergrund-Aktualisierung macht, bleiben korrekt als „noch nicht gespeichert"
+markiert.
+
 ## v1.9.92 — 2026-10-01 — Abwesenheit: Vorlage auch je Postfach wählbar
 
 Die Abwesenheits-Vorlage (OOF) lässt sich jetzt — wie Signatur, Banner und
