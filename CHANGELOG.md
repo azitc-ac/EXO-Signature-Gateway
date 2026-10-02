@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.100 — 2026-10-03 — Self-Service: Rolle streng begrenzt + vollständige Vorschau
+
+**Sicherheit:** Eine Self-Service-Sitzung (ein Postfach-Nutzer, der sich an /self
+anmeldet) konnte über die reine Anmeldeprüfung auch die **Vorlagen** erreichen und
+ändern — alles, was einem Bearbeiter offensteht. Behoben: Eine Self-Service-Sitzung
+gilt jetzt ausschließlich für die Self-Service-Endpunkte (/self, /api/self/*); jede
+Verwaltungs- oder Editor-Route antwortet mit 403. (Normale Verwalter/Bearbeiter sind
+unverändert.)
+
+**Vorschau:** Die Vorschau unter /self zeigt jetzt auch **Banner und Disclaimer**,
+die das Postfach tatsächlich bekommt — nicht mehr nur Abwesenheit und Signatur.
+
 ## v1.9.99 — 2026-10-03 — SSO: Implicit-id_token-Flow beim Setup-Login automatisch einrichten
 
 Der Microsoft-SSO-Login, der Add-in-Login und der Self-Service nutzen den
