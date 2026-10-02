@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.95 — 2026-10-02 — Vorschau: Abwesenheit durchspielbar, Banner/Disclaimer nach Art gefiltert
+
+Die Signatur-Vorschau bekommt ein Feld **Abwesenheit** (zwischen Postfach und
+Signatur). Damit lässt sich die Abwesenheitsnotiz wie Signatur, Banner und
+Disclaimer frei zusammenstellen und als „Was wäre wenn" durchspielen; die Notiz
+erscheint über der Signatur, der Zeitraum darin ist ein Beispielwert.
+
+Zudem behoben: Die Dropdowns **Banner** und **Disclaimer** listeten bisher die
+Signaturvorlagen statt der Vorlagen ihrer eigenen Art. Jetzt zeigt jedes Feld nur
+Vorlagen seiner Art (Banner → Banner, Disclaimer → Disclaimer, Abwesenheit →
+Abwesenheit).
+
 ## v1.9.94 — 2026-10-02 — Richtlinien-folgende Postfächer speichern keine eigenen Vorlagenwerte mehr
 
 Folgt ein Postfach den Vorlagen-Richtlinien (`use_policy` an), sind die

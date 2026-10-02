@@ -13,6 +13,10 @@
     </select>
   </div>
   <div>
+    <label for="oof-sel" style="display:block;font-size:13px;color:#555;margin-bottom:4px">Abwesenheit</label>
+    <select id="oof-sel" style="width:190px" onchange="loadPreview()"></select>
+  </div>
+  <div>
     <label for="template-sel" style="display:block;font-size:13px;color:#555;margin-bottom:4px">Signatur</label>
     <select id="template-sel" style="width:190px" onchange="loadPreview()"></select>
   </div>
@@ -27,9 +31,10 @@
 </div>
 
 <p style="font-size:12px;color:#6b7280;margin:-10px 0 18px">
-  Die drei Felder gelten hier unabhängig von der Postfach-Konfiguration —
-  so lässt sich jede Zusammenstellung durchspielen. Was ein Postfach
-  <em>tatsächlich</em> bekommt, steht unter <a href="/mailboxes">Postfächer</a>.
+  Die Felder gelten hier unabhängig von der Postfach-Konfiguration —
+  so lässt sich jede Zusammenstellung durchspielen. Die Abwesenheitsnotiz
+  erscheint über der Signatur, der Zeitraum darin ist ein Beispielwert. Was ein
+  Postfach <em>tatsächlich</em> bekommt, steht unter <a href="/mailboxes">Postfächer</a>.
 </p>
 
 <div id="error-box" class="alert error" style="display:none"></div>
@@ -67,13 +72,16 @@
   const emailSel   = document.getElementById('email-sel');
   const presetEmail = {{ email | tojson }};
 
-  // Die drei Vorlagenfelder unterscheiden sich nur in Schlüssel und Vorgabe.
-  // Als Tabelle statt dreimal derselbe Block — sonst weicht beim nächsten
-  // Eingriff eines der drei ab.
+  // Die Vorlagenfelder unterscheiden sich nur in Schlüssel, Vorgabe und ihrer
+  // Art. Als Tabelle statt je ein eigener Block — sonst weicht beim nächsten
+  // Eingriff eines ab. `kind` steuert BEIDES: aus welcher Art das Dropdown
+  // gefüllt wird (Banner zeigt Banner, nicht Signaturen) und welchen Parameter
+  // die Vorschau-Anfrage bekommt.
   const FELDER = [
-    {el: document.getElementById('template-sel'),   schluessel: 'exo.vorschau.signatur',   vorgabe: 'default'},
-    {el: document.getElementById('banner-sel'),     schluessel: 'exo.vorschau.banner',     vorgabe: ''},
-    {el: document.getElementById('disclaimer-sel'), schluessel: 'exo.vorschau.disclaimer', vorgabe: ''},
+    {el: document.getElementById('oof-sel'),        schluessel: 'exo.vorschau.oof',        vorgabe: '',        kind: 'oof'},
+    {el: document.getElementById('template-sel'),   schluessel: 'exo.vorschau.signatur',   vorgabe: 'default', kind: 'signatur'},
+    {el: document.getElementById('banner-sel'),     schluessel: 'exo.vorschau.banner',     vorgabe: '',        kind: 'banner'},
+    {el: document.getElementById('disclaimer-sel'), schluessel: 'exo.vorschau.disclaimer', vorgabe: '',        kind: 'disclaimer'},
   ];
 
   // Load mailboxes + templates in parallel on page load
@@ -97,18 +105,20 @@
     if (presetEmail && adressen.includes(presetEmail)) emailSel.value = presetEmail;
     else vorschauPostfachWaehlen(emailSel, adressen);
 
-    // Die drei Vorlagenfelder füllen. „— keine —" trägt den leeren Wert und
-    // steht in ALLEN dreien: Auch die Signatur soll sich weglassen lassen, um
-    // Banner oder Disclaimer für sich zu betrachten.
-    const tpls = tData.templates || ['default'];
+    // Jedes Feld aus SEINER Art füllen (by_kind) — sonst zeigten Banner und
+    // Disclaimer die Signaturliste. „— keine —" trägt den leeren Wert und steht
+    // in ALLEN: auch die Signatur soll sich weglassen lassen, um Banner oder
+    // Disclaimer für sich zu betrachten.
+    const byKind = tData.by_kind || {};
     FELDER.forEach(f => {
+      const liste = byKind[f.kind] || [];
       f.el.innerHTML = '';
-      [['', '— keine —'], ...tpls.map(n => [n, n])].forEach(([wert, text]) => {
+      [['', '— keine —'], ...liste.map(n => [n, n])].forEach(([wert, text]) => {
         const o = document.createElement('option');
         o.value = wert; o.textContent = text;
         f.el.appendChild(o);
       });
-      auswahlWaehlen(f.el, f.schluessel, ['', ...tpls], f.vorgabe);
+      auswahlWaehlen(f.el, f.schluessel, ['', ...liste], f.vorgabe);
     });
 
     // Sobald ein Postfach gewaehlt ist, sofort laden — sonst steht die Seite
@@ -122,8 +132,10 @@
   window.loadPreview = async function () {
     const email = emailSel.value;
     if (!email) return;
-    const [sig, banner, disclaimer] = FELDER.map(f => f.el.value);
-    FELDER.forEach(f => auswahlMerken(f.schluessel, f.el.value));
+    // Werte nach Art statt nach Position lesen — die Reihenfolge der FELDER
+    // (OOF vorangestellt) ist sonst eine stille Stolperstelle.
+    const werte = {};
+    FELDER.forEach(f => { werte[f.kind] = f.el.value; auswahlMerken(f.schluessel, f.el.value); });
 
     document.getElementById('error-box').style.display  = 'none';
     document.getElementById('preview-area').style.display = 'none';
@@ -134,17 +146,22 @@
       // würde ein leerer Banner auf die Postfach-Konfiguration zurückfallen —
       // „ausdrücklich keiner" liesse sich dann gar nicht ausdrücken.
       const p = new URLSearchParams({
-        email, template: sig, banner, disclaimer, explizit: '1',
+        email, template: werte.signatur, banner: werte.banner,
+        disclaimer: werte.disclaimer, oof: werte.oof, explizit: '1',
       });
       const r = await fetch('/api/preview-data?' + p.toString());
       const d = await r.json();
 
       if (d.error) showError('Graph-Fehler: ' + d.error);
 
+      // Die Abwesenheitsnotiz steht über der Signatur — so sieht die echte
+      // OOF-Antwort aus (Nachricht zuerst, Signatur darunter).
       sigVorschau(document.getElementById('pv-html'),
-                  (d.html || '') + (d.banner_html || '') + (d.disclaimer_html || ''));
-      document.getElementById('pv-txt').textContent  = d.txt || '';
-      document.getElementById('pv-src').textContent  = d.html || '';
+                  (d.oof_html || '') + (d.html || '') + (d.banner_html || '') + (d.disclaimer_html || ''));
+      document.getElementById('pv-txt').textContent  =
+                  (d.oof_txt ? d.oof_txt + '\n\n' : '') + (d.txt || '');
+      document.getElementById('pv-src').textContent  =
+                  (d.oof_html ? d.oof_html + '\n' : '') + (d.html || '');
 
       document.getElementById('preview-area').style.display = '';
     } catch(e) {

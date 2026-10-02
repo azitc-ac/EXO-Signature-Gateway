@@ -588,6 +588,7 @@ async def api_preview_data(
     template: str = "default",
     banner: str = "",
     disclaimer: str = "",
+    oof: str = "",
     explizit: bool = False,
     user: str = Depends(_check_auth),
 ):
@@ -655,6 +656,18 @@ async def api_preview_data(
     disclaimer_html = ""
     if disclaimer:
         disclaimer_html, _ = signature_engine.render(user_data, template_name=disclaimer)
+    # Abwesenheitsnotiz: wie im Betrieb über abwesenheit.render_oof (Absatz-Umbau,
+    # {name}/{zeitraum}-Platzhalter). Der Zeitraum ist ein Beispielwert — im Betrieb
+    # füllt ihn der Kalender/Zeitplan. Gruppen-Variablen (Vertreter) stecken schon
+    # in user_data.custom (graph_client.get_user merged sie). KEIN Anhang hier: die
+    # Signatur hat in der Vorschau ihr eigenes Feld.
+    oof_html, oof_txt = "", ""
+    if oof:
+        import abwesenheit
+        oof_html, oof_txt = abwesenheit.render_oof(
+            user_data, oof, "vom 24.12.2026 bis 02.01.2027",
+            "24.12.2026", "02.01.2027")
     return JSONResponse({"html": sig_html, "txt": sig_txt, "error": error,
                          "banner_html": banner_html, "banner_template": banner,
-                         "disclaimer_html": disclaimer_html, "disclaimer_template": disclaimer})
+                         "disclaimer_html": disclaimer_html, "disclaimer_template": disclaimer,
+                         "oof_html": oof_html, "oof_txt": oof_txt, "oof_template": oof})
