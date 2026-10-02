@@ -160,3 +160,41 @@ def migriere_bestand() -> list[tuple[str, str]]:
     if geaendert:
         signature_engine._reload_env()
     return geaendert
+
+
+# Postfach-eigene Vorlagenfelder. Bei use_policy=true wirkungslos (die Richtlinie
+# entscheidet) — siehe mailboxes.py-Speicherpfad und addin.py:api_addin_templates.
+_POLICY_FELDER = ("template", "min_template", "banner_template",
+                  "disclaimer_template", "oof_template", "addin_templates")
+
+
+def bereinige_eingefrorene_vorlagen() -> int:
+    """Entfernt postfach-eigene Vorlagenfelder aus Einträgen mit use_policy=true.
+
+    Diese Felder wurden früher beim Speichern mitgeschrieben, auch wenn das
+    Postfach den Richtlinien folgt — eine eingefrorene Kopie der damaligen
+    Richtlinie. Wirkungslos, solange die Übernahme an ist; schaltet man sie
+    später ab, würden die veralteten Werte unbemerkt aktiv. Idempotent; gibt die
+    Zahl der bereinigten Einträge zurück.
+
+    ⚠️ Nur bei EXPLIZITEM use_policy=true. Ein Alt-Eintrag ohne use_policy-Schlüssel
+    (vor Einführung der Richtlinien-Übernahme) trug seine Vorlagen postfach-eigen
+    und MUSS sie behalten — darum `is True`, nicht `.get(..., True)`.
+    """
+    import settings_store
+    cfg = settings_store.get("MAILBOX_CONFIG") or {}
+    if not isinstance(cfg, dict):
+        return 0
+    neu: dict = {}
+    bereinigt = 0
+    for key, eintrag in cfg.items():
+        if isinstance(eintrag, dict) and eintrag.get("use_policy") is True:
+            rest = {k: v for k, v in eintrag.items() if k not in _POLICY_FELDER}
+            if len(rest) != len(eintrag):
+                bereinigt += 1
+                neu[key] = rest
+                continue
+        neu[key] = eintrag
+    if bereinigt:
+        settings_store.update({"MAILBOX_CONFIG": neu})
+    return bereinigt

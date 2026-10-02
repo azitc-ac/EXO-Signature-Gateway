@@ -119,3 +119,42 @@ def test_default_bleibt_unberuehrt(verz, monkeypatch):
     geaendert = vorlagen_typ.migriere_bestand()
 
     assert geaendert == []
+
+
+# ── Aufräumen eingefrorener Vorlagenfelder (use_policy=true) ──────────────────
+
+def _store(monkeypatch, mailbox_config):
+    """settings_store.get liefert MAILBOX_CONFIG; update() fängt den Schreibwert."""
+    import settings_store
+    geschrieben = {}
+    monkeypatch.setattr(settings_store, "get",
+                        lambda k, d=None: mailbox_config if k == "MAILBOX_CONFIG" else d)
+    monkeypatch.setattr(settings_store, "update", lambda d: geschrieben.update(d))
+    return geschrieben
+
+
+def test_bereinige_entfernt_felder_bei_use_policy_true(monkeypatch):
+    cfg = {"guid1": {"sig": True, "use_policy": True,
+                     "banner_template": "B", "oof_template": "O",
+                     "known_addresses": ["a@x.de"]}}
+    geschrieben = _store(monkeypatch, cfg)
+    n = vorlagen_typ.bereinige_eingefrorene_vorlagen()
+    assert n == 1
+    neu = geschrieben["MAILBOX_CONFIG"]["guid1"]
+    assert "banner_template" not in neu and "oof_template" not in neu
+    assert neu["sig"] is True and neu["known_addresses"] == ["a@x.de"]  # Rest bleibt
+
+
+def test_bereinige_laesst_use_policy_false_in_ruhe(monkeypatch):
+    cfg = {"g": {"sig": True, "use_policy": False, "oof_template": "Eigene"}}
+    geschrieben = _store(monkeypatch, cfg)
+    assert vorlagen_typ.bereinige_eingefrorene_vorlagen() == 0
+    assert geschrieben == {}        # kein Schreibvorgang
+
+
+def test_bereinige_laesst_altbestand_ohne_use_policy_in_ruhe(monkeypatch):
+    """Alt-Eintrag ohne use_policy-Schlüssel trug Vorlagen postfach-eigen → behalten."""
+    cfg = {"g": {"sig": True, "template": "Firma"}}
+    geschrieben = _store(monkeypatch, cfg)
+    assert vorlagen_typ.bereinige_eingefrorene_vorlagen() == 0
+    assert geschrieben == {}

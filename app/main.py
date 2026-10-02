@@ -758,6 +758,12 @@ def main() -> None:
         if umtypisiert:
             log.info("Vorlagen-Arten gesetzt: %s",
                      ", ".join(f"{n}→{a}" for n, a in umtypisiert))
+        # Einmaliges Aufräumen: eingefrorene Vorlagenfelder aus richtlinien-
+        # folgenden Postfach-Einträgen entfernen (idempotent, siehe vorlagen_typ).
+        bereinigt = vorlagen_typ.bereinige_eingefrorene_vorlagen()
+        if bereinigt:
+            log.info("Eingefrorene Vorlagenfelder aus %d richtlinien-folgenden "
+                     "Postfach-Eintrag/en entfernt", bereinigt)
     except Exception as exc:
         log.warning("Auto-Typisierung der Vorlagen übersprungen: %s", exc)
 

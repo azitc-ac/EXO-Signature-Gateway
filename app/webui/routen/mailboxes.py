@@ -341,18 +341,27 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
         addin_tpl = m.get("addin_templates", [])
         use_policy = bool(m.get("use_policy", True))
         entry: dict = {"sig": sig, "smime": smime, "use_policy": use_policy}
-        if template and template != "default":
-            entry["template"] = template
-        if min_template:
-            entry["min_template"] = min_template
-        if banner_template:
-            entry["banner_template"] = banner_template
-        if disclaimer_template:
-            entry["disclaimer_template"] = disclaimer_template
-        if oof_template:
-            entry["oof_template"] = oof_template
-        if addin_tpl == "*" or (isinstance(addin_tpl, list) and addin_tpl):
-            entry["addin_templates"] = addin_tpl
+        # Postfach-eigene Vorlagenfelder NUR speichern, wenn das Postfach den
+        # Richtlinien NICHT folgt. Bei use_policy=true sind diese Dropdowns in der
+        # UI ausgegraut und zeigen den Richtlinien-Wert; schriebe man ihn mit, fröre
+        # man eine Kopie der Richtlinie ins Postfach ein — unsichtbar, bis jemand
+        # die Richtlinien-Übernahme abschaltet und plötzlich ein veralteter Wert
+        # aktiv wird. Bei use_policy=true entscheidet allein die Richtlinie (für
+        # Signatur/Banner/Disclaimer/Abwesenheit UND Add-in, siehe
+        # addin.py:api_addin_templates und policies.resolve_policies).
+        if not use_policy:
+            if template and template != "default":
+                entry["template"] = template
+            if min_template:
+                entry["min_template"] = min_template
+            if banner_template:
+                entry["banner_template"] = banner_template
+            if disclaimer_template:
+                entry["disclaimer_template"] = disclaimer_template
+            if oof_template:
+                entry["oof_template"] = oof_template
+            if addin_tpl == "*" or (isinstance(addin_tpl, list) and addin_tpl):
+                entry["addin_templates"] = addin_tpl
         mb = addr_to_mb.get(email)
         if mb:
             key = mb["guid"]
