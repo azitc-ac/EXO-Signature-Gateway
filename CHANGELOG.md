@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.94 — 2026-10-02 — Richtlinien-folgende Postfächer speichern keine eigenen Vorlagenwerte mehr
+
+Folgt ein Postfach den Vorlagen-Richtlinien (`use_policy` an), sind die
+Vorlagen-Auswahlen in der Tabelle ausgegraut und zeigen den Richtlinien-Wert.
+Bisher wurde dieser Wert beim Speichern trotzdem als postfach-eigenes Feld
+abgelegt — eine eingefrorene Kopie der damaligen Richtlinie. Solange die
+Übernahme aktiv ist, blieb das wirkungslos (die Richtlinie entscheidet); schaltet
+man sie aber später ab, wurden die veralteten Kopien unbemerkt aktiv.
+
+Jetzt werden postfach-eigene Vorlagenfelder (Signatur, Minimal, Banner,
+Disclaimer, Abwesenheit, Add-in) nur noch gespeichert, wenn das Postfach den
+Richtlinien NICHT folgt. Beim Start räumt ein einmaliger, idempotenter Lauf die
+bereits eingefrorenen Werte aus richtlinien-folgenden Einträgen weg; Einträge mit
+eigener Vorlagenwahl und Alt-Einträge ohne Richtlinien-Schalter bleiben unberührt.
+
 ## v1.9.93 — 2026-10-02 — Postfächer speichern: „nicht gespeichert"-Hinweis schließt beim lokalen Abschluss
 
 Beim Speichern der Postfach-Tabelle wird die Verteilerliste bei Exchange
