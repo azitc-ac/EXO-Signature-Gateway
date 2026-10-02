@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.101 — 2026-10-03 — Self-Service: Vorlagenwahl standardmäßig gesperrt, freischaltbar
+
+Im Self-Service können Nutzer ihre OOF- und Signaturvorlage **standardmäßig nicht
+mehr selbst wählen** — sie verwalten nur noch An/Aus und Zeitraum ihrer Abwesenheit;
+es gilt die zugewiesene Vorlage. Die Vorschau zeigt sie dennoch vollständig.
+
+Die Vorlagenwahl ist **freischaltbar**:
+- **pro Gruppe** — über eine Auswahl interner Gruppen (Postfächer → Zentrale
+  Abwesenheit → „Vorlagenwahl erlauben (Gruppen)"), oder
+- **pro Postfach** — über das Feld `self_templates` im Postfach-Eintrag.
+
+Die Sperre ist server-seitig durchgesetzt: Ohne Freischaltung werden Vorlagen-Felder
+beim Speichern ignoriert, egal was gesendet wird — die zugewiesene Vorlage bleibt.
+
 ## v1.9.100 — 2026-10-03 — Self-Service: Rolle streng begrenzt + vollständige Vorschau
 
 **Sicherheit:** Eine Self-Service-Sitzung (ein Postfach-Nutzer, der sich an /self
