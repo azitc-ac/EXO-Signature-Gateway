@@ -44,6 +44,12 @@ DEFAULTS: dict = {
     # anhängen (statischer Schnappschuss; Bilder per CID rendern in OOF oft nicht).
     "OOO_APPEND_SIGNATURE": False,
     "OOO_APPEND_BANNER": False,
+    # Self-Service (opt-in): erlaubt Postfach-Nutzern, ihre Abwesenheit und ihre
+    # eigene Standard-Signaturvorlage selbst zu verwalten (Seite /self, auch als
+    # Outlook-Add-in-Taskpane). Aus → nur Anzeige/Vorschau. An → die eigene Wahl
+    # setzt use_policy des eigenen Postfachs auf false (der Betreiber behält die
+    # Hoheit über die Freigabe selbst).
+    "SELF_SERVICE_ENABLED": False,
     "LE_DOMAIN": "",
     "LE_EMAIL": "",
     "LOG_RETENTION_DAYS": 30,

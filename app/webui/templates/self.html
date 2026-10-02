@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meine Abwesenheit &amp; Signatur</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, Arial, sans-serif; color: #1e293b;
+         margin: 0; padding: 16px; background: #f8fafc; font-size: 14px; }
+  .wrap { max-width: 640px; margin: 0 auto; }
+  h1 { font-size: 18px; margin: 0 0 2px; }
+  .sub { color: #64748b; font-size: 12px; margin: 0 0 16px; }
+  .karte { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+           padding: 16px; margin-bottom: 16px; }
+  .karte h2 { font-size: 15px; margin: 0 0 12px; }
+  label { display: block; font-size: 13px; color: #475569; margin: 10px 0 4px; }
+  select, input[type=date] { width: 100%; max-width: 320px; padding: 7px 8px;
+           border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; background: #fff; }
+  .radiozeile { display: flex; gap: 16px; flex-wrap: wrap; margin: 4px 0 2px; }
+  .radiozeile label { display: inline-flex; align-items: center; gap: 6px; margin: 0; cursor: pointer; }
+  .vorschau { border: 1px solid #e2e8f0; border-radius: 6px; padding: 14px; background: #fff;
+              min-height: 60px; overflow-x: auto; }
+  .btn { background: #2563eb; color: #fff; border: 0; border-radius: 6px;
+         padding: 10px 18px; font-size: 14px; cursor: pointer; }
+  .btn:disabled { background: #94a3b8; cursor: not-allowed; }
+  .hinweis { padding: 10px 14px; border-radius: 6px; font-size: 13px; margin-bottom: 16px; }
+  .hinweis.warn { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+  .hinweis.err  { background: #fef2f2; border: 1px solid #fca5a5; color: #991b1b; }
+  .hinweis.ok   { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; }
+  .fuss { color: #94a3b8; font-size: 11px; text-align: center; margin-top: 8px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Meine Abwesenheit &amp; Signatur</h1>
+  <p class="sub" id="wer">{{ gateway_name }}</p>
+
+  <div id="lade" class="sub">Lädt…</div>
+  <div id="fehler" class="hinweis err" hidden></div>
+  <div id="nur-anzeige" class="hinweis warn" hidden>
+    Nur Anzeige — die Selbstverwaltung ist für dieses Gateway nicht freigeschaltet.
+    Du kannst alles durchspielen, aber nicht speichern.
+  </div>
+
+  <div id="inhalt" hidden>
+    <!-- Abwesenheit -->
+    <div class="karte">
+      <h2>Abwesenheit</h2>
+      <div class="radiozeile" id="status-wahl">
+        <label><input type="radio" name="status" value="disabled"> Aus</label>
+        <label><input type="radio" name="status" value="alwaysEnabled"> Immer an</label>
+        <label><input type="radio" name="status" value="scheduled"> Zeitraum</label>
+      </div>
+      <div id="zeitraum-felder" hidden style="display:flex;gap:12px;flex-wrap:wrap">
+        <div><label for="von">Von</label><input type="date" id="von"></div>
+        <div><label for="bis">Bis</label><input type="date" id="bis"></div>
+      </div>
+      <label for="oof-sel">Vorlage der Abwesenheitsnotiz</label>
+      <select id="oof-sel"></select>
+    </div>
+
+    <!-- Signatur -->
+    <div class="karte">
+      <h2>Signatur</h2>
+      <label for="sig-sel">Meine Standard-Signaturvorlage</label>
+      <select id="sig-sel"></select>
+    </div>
+
+    <!-- Vorschau -->
+    <div class="karte">
+      <h2>Vorschau</h2>
+      <p class="sub" style="margin-top:-6px">So sieht es beim Empfänger aus (Zeitraum-Angaben nach deiner Wahl).</p>
+      <div class="vorschau" id="vorschau"></div>
+    </div>
+
+    <div id="speicher-hinweis" class="hinweis ok" hidden></div>
+    <button class="btn" id="speichern">Speichern</button>
+  </div>
+
+  <p class="fuss">{{ gateway_name }} · Self-Service</p>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var TOKEN = null;   // Add-in-Sitzungstoken (im Browser null → Cookie trägt)
+  var ctx = null, entwurf = {}, previewTimer = null;
+
+  function api(path, opts) {
+    opts = opts || {};
+    opts.credentials = 'include';
+    opts.headers = opts.headers || {};
+    if (TOKEN) opts.headers['X-Addin-Session'] = TOKEN;
+    return fetch(path, opts);
+  }
+  function el(id) { return document.getElementById(id); }
+  function zeigeFehler(t) { el('fehler').textContent = t; el('fehler').hidden = false; el('lade').hidden = true; }
+
+  async function laden() {
+    var r;
+    try { r = await api('/api/self/context'); }
+    catch (e) { zeigeFehler('Verbindungsfehler: ' + e.message); return; }
+    if (r.status === 401) { window.location = '/auth/login?next=/self'; return; }
+    if (r.status === 403) { zeigeFehler('Für dieses Postfach ist kein Self-Service verfügbar.'); return; }
+    if (!r.ok) { zeigeFehler('Fehler beim Laden (' + r.status + ').'); return; }
+    ctx = await r.json();
+    el('lade').hidden = true;
+    el('inhalt').hidden = false;
+    el('wer').textContent = ctx.email;
+    if (!ctx.freigeschaltet) el('nur-anzeige').hidden = false;
+    if (ctx.zugriff === false)
+      zeigeFehler('Kein Zugriff auf die Postfacheinstellungen — bitte den Betreiber informieren.');
+
+    fuelle('oof-sel', ctx.oof_templates, ctx.oof_template, '— keine —');
+    fuelle('sig-sel', ctx.sig_templates, ctx.sig_template || 'default', null);
+    var st = (ctx.ooo && ctx.ooo.status) || 'disabled';
+    var rb = document.querySelector('input[name=status][value="' + st + '"]');
+    if (rb) rb.checked = true;
+    if (ctx.ooo) { el('von').value = ctx.ooo.start || ''; el('bis').value = ctx.ooo.ende || ''; }
+    zeitraumSichtbarkeit();
+
+    // Sperren, wenn nicht freigeschaltet (reine Anzeige/Vorschau bleibt).
+    if (!ctx.freigeschaltet) {
+      el('speichern').hidden = true;
+      ['oof-sel','sig-sel','von','bis'].forEach(function (i) { el(i).disabled = true; });
+      document.querySelectorAll('input[name=status]').forEach(function (x) { x.disabled = true; });
+    }
+    vorschau();
+  }
+
+  function fuelle(id, liste, aktuell, leerText) {
+    var s = el(id); s.innerHTML = '';
+    if (leerText !== null) s.appendChild(opt('', leerText));
+    (liste || []).forEach(function (n) { s.appendChild(opt(n, n)); });
+    s.value = aktuell || '';
+  }
+  function opt(v, t) { var o = document.createElement('option'); o.value = v; o.textContent = t; return o; }
+
+  function statusWert() {
+    var c = document.querySelector('input[name=status]:checked');
+    return c ? c.value : 'disabled';
+  }
+  function zeitraumSichtbarkeit() {
+    el('zeitraum-felder').hidden = (statusWert() !== 'scheduled');
+  }
+
+  function vorschau() {
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(async function () {
+      var p = new URLSearchParams({
+        oof: el('oof-sel').value, sig: el('sig-sel').value,
+        status: statusWert(), start: el('von').value, ende: el('bis').value,
+      });
+      try {
+        var r = await api('/api/self/preview?' + p.toString());
+        if (!r.ok) return;
+        var d = await r.json();
+        el('vorschau').innerHTML = (d.oof_html || '') + (d.sig_html || '')
+          || '<span style="color:#94a3b8">— nichts ausgewählt —</span>';
+      } catch (e) { /* Vorschau ist unkritisch */ }
+    }, 250);
+  }
+
+  async function speichern() {
+    var btn = el('speichern'); btn.disabled = true; var alt = btn.textContent; btn.textContent = 'Speichert…';
+    el('speicher-hinweis').hidden = true;
+    try {
+      var r = await api('/api/self/save', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          oof_template: el('oof-sel').value, sig_template: el('sig-sel').value,
+          oof_status: statusWert(), oof_start: el('von').value, oof_ende: el('bis').value,
+        }),
+      });
+      var d = await r.json().catch(function () { return {}; });
+      if (r.ok && d.ok) {
+        el('speicher-hinweis').className = 'hinweis ok';
+        el('speicher-hinweis').textContent = '✓ Gespeichert. Deine Abwesenheit und Signatur sind gesetzt.';
+      } else {
+        el('speicher-hinweis').className = 'hinweis err';
+        el('speicher-hinweis').textContent = '✗ ' + (d.detail || ('Fehler ' + r.status));
+      }
+    } catch (e) {
+      el('speicher-hinweis').className = 'hinweis err';
+      el('speicher-hinweis').textContent = '✗ ' + e.message;
+    }
+    el('speicher-hinweis').hidden = false;
+    btn.disabled = false; btn.textContent = alt;
+  }
+
+  el('status-wahl').addEventListener('change', function () { zeitraumSichtbarkeit(); vorschau(); });
+  ['oof-sel','sig-sel','von','bis'].forEach(function (i) {
+    el(i).addEventListener('change', vorschau);
+  });
+  el('speichern').addEventListener('click', speichern);
+
+  laden();
+}());
+</script>
+</body>
+</html>

@@ -30,7 +30,7 @@ import sso as sso_mod
 
 from webui.deps import (
     templates, log, _gateway_name, _check_auth, _require_admin,
-    _check_password, _get_session_user, _get_session_role,
+    _check_password, _get_session_user, _get_session_role, self_service_rolle,
 )
 from webui.hilfen import _build_redirect_uri
 
@@ -294,6 +294,8 @@ async def auth_callback(
         # Try OID first, then fall back to UPN
         role = (sso_mod.get_role_by_oid(oid) if oid else None) or sso_mod.get_role(upn)
         if not role:
+            role = self_service_rolle(upn)   # kein Admin/Editor, aber ggf. Self-Service
+        if not role:
             log.warning("SSO login denied for UPN: %s (oid: %s)", upn, oid or "n/a")
             return RedirectResponse(
                 f"/auth/login?error=not_admin&upn={urllib.parse.quote(upn)}", status_code=302
@@ -420,6 +422,8 @@ async def auth_callback_implicit(request: Request):
            or claims.get("email") or "").strip()
     oid = (claims.get("oid") or claims.get("sub") or "").strip()
     role = (sso_mod.get_role_by_oid(oid) if oid else None) or sso_mod.get_role(upn)
+    if not role:
+        role = self_service_rolle(upn)   # kein Admin/Editor, aber ggf. Self-Service
     if not role:
         log.warning("SSO login denied (id_token) for UPN: %s (oid: %s)", upn, oid or "n/a")
         return RedirectResponse(
