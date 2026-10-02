@@ -1372,15 +1372,19 @@ async function saveMailboxes() {
     });
     var d = await resp.json().catch(function() { return {}; });
     if (resp.ok && d.ok && d.dg_running) {
-      // Lokal ist bereits gespeichert; die Verteilerliste wird im Hintergrund
-      // bei EXO aktualisiert (bis zu 2 Min.). Knopf bleibt gesperrt und zeigt
-      // „wird gespeichert…", während wir den Server-Status pollen — die Seite
-      // hängt nicht an einer langen Anfrage.
-      result.className = 'alert';
-      result.innerHTML = 'Lokal gespeichert. Verteilerliste wird bei EXO aktualisiert (kann bis zu 2 Min. dauern)…';
-      result.style.display = 'block';
+      // Der LOKALE Teil ist durch → Wache SOFORT schliessen ("noch nicht
+      // gespeichert" weg), damit nicht der Eindruck entsteht, das Speichern
+      // hänge. Die Verteilerlisten-Aktualisierung läuft serverseitig im
+      // Hintergrund weiter — unabhängig davon, was auf der Seite noch passiert
+      // (Weiterarbeiten, Navigieren). Darum _pollDgStatus OHNE await: es führt
+      // nur die Statuszeile nach und fasst die Wache NICHT erneut an (sonst
+      // würden zwischenzeitlich neue Änderungen fälschlich als gespeichert gelten).
       refreshFairUse();
-      await _pollDgStatus(result);
+      wacheFertig('mb-save-btn', true);
+      result.className = 'alert';
+      result.innerHTML = 'Lokal gespeichert. Die Verteilerliste wird bei EXO im Hintergrund aktualisiert (5–15 Min.) — du kannst weiterarbeiten.';
+      result.style.display = 'block';
+      _pollDgStatus(result);
     } else if (resp.ok && d.ok) {
       result.className = 'alert success';
       result.innerHTML = 'Gespeichert.';
@@ -1399,7 +1403,9 @@ async function saveMailboxes() {
     result.style.display = 'block';
     wacheFertig('mb-save-btn', false);
   } finally {
-    btn.disabled = false;
+    // Knopf-Zustand gehört der Wache (jeder Zweig oben ruft wacheFertig): bei
+    // Erfolg gesperrt, bei Fehler wieder offen. Hier daher NICHT disabled=false
+    // setzen — das würde den eben korrekt gesperrten Knopf wieder öffnen.
     btn.textContent = origText;
   }
 }
@@ -1415,21 +1421,22 @@ async function _pollDgStatus(result) {
     try { s = await (await fetch('/api/mailboxes/dg-status')).json(); }
     catch (e) { continue; }                       // Netzhaken → weiterversuchen
     if (!s || s.state !== 'done') continue;
+    // NUR die Statuszeile nachführen — die Wache ist beim lokalen Abschluss schon
+    // geschlossen. Sie hier erneut anzufassen würde Änderungen, die der Nutzer
+    // WÄHREND der Hintergrund-Aktualisierung gemacht hat, fälschlich als
+    // gespeichert markieren.
     if (s.ok) {
       var out = s.output ? '<br><code style="font-size:11px">' + esc(s.output).replace(/\n/g, '<br>') + '</code>' : '';
       result.className = 'alert success';
-      result.innerHTML = 'Gespeichert (lokal + Verteilerliste).' + out;
-      wacheFertig('mb-save-btn', true);
+      result.innerHTML = 'Gespeichert (lokal + Verteilerliste aktualisiert).' + out;
     } else {
       result.className = 'alert error';
       result.innerHTML = 'Lokal gespeichert, aber die Verteilerliste konnte nicht aktualisiert werden: ' + esc(s.output || 'Unbekannt');
-      wacheFertig('mb-save-btn', false);
     }
     return;
   }
   result.className = 'alert';
   result.innerHTML = 'Lokal gespeichert. Die Aktualisierung der Verteilerliste dauert länger als erwartet und läuft im Hintergrund weiter.';
-  wacheFertig('mb-save-btn', true);
 }
 
 
