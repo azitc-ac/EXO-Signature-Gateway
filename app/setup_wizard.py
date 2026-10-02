@@ -469,6 +469,41 @@ _BOOTSTRAP_TARGET_NAME = "EXO Signature Gateway Login"
 _BOOTSTRAP_OLD_NAMES = {"EXO Signature Gateway Setup", "EXO Signature Service Setup"}
 
 
+def _implicit_web_patch(web: dict | None, id_callback: str) -> dict | None:
+    """Gewünschtes `web`-Objekt für den Implicit-id_token-Flow, oder None, wenn
+    schon korrekt.
+
+    Der Microsoft-SSO-Knopf, der Add-in-Login UND der Self-Service nutzen den
+    Implicit-id_token-Flow (`/auth/login/microsoft` → `/auth/id-callback`). Der
+    braucht an der Bootstrap-App eine **Web**-Plattform mit der id-callback-URI
+    UND `implicitGrantSettings.enableIdTokenIssuance=true`. Fehlt das, antwortet
+    Entra mit AADSTS700054 („response_type 'id_token' is not enabled").
+
+    Bis 2026-10 war das ein MANUELLER Azure-Schritt (nur prod hatte ihn, der Raspi
+    nie) — es gab kein Code-Gegenstück. Dieser Helfer schließt die Lücke: er wird
+    beim Setup-Login (Schritt 4) angewandt und zieht jede Umgebung nach.
+
+    Das volle (aus Graph gelesene) `web` wird zurückgegeben, nur um die beiden
+    Felder ergänzt — so bleiben andere web-Unterfelder (homePageUrl, logoutUrl,
+    redirectUriSettings) beim PATCH erhalten (ein partielles `web` würde den
+    Komplextyp ersetzen und sie verlieren).
+    """
+    web = dict(web or {})
+    uris = list(web.get("redirectUris") or [])
+    implicit = dict(web.get("implicitGrantSettings") or {})
+    dirty = False
+    if id_callback not in uris:
+        uris.append(id_callback)
+        web["redirectUris"] = uris
+        dirty = True
+    if not implicit.get("enableIdTokenIssuance"):
+        implicit["enableIdTokenIssuance"] = True
+        implicit.setdefault("enableAccessTokenIssuance", False)  # nur Identität, kein Access-Token
+        web["implicitGrantSettings"] = implicit
+        dirty = True
+    return web if dirty else None
+
+
 async def patch_bootstrap_redirect_uri(token: str, hostname: str) -> None:
     """Add the public SSO redirect URI to the Bootstrap app and normalise its displayName."""
     if not hostname:
@@ -487,7 +522,7 @@ async def patch_bootstrap_redirect_uri(token: str, hostname: str) -> None:
     try:
         resp = await _gh(
             "get",
-            f"{GRAPH}/applications?$filter=appId eq '{bootstrap_id}'&$select=id,displayName,publicClient",
+            f"{GRAPH}/applications?$filter=appId eq '{bootstrap_id}'&$select=id,displayName,publicClient,web",
             token,
         )
         apps = resp.get("value", [])
@@ -505,6 +540,17 @@ async def patch_bootstrap_redirect_uri(token: str, hostname: str) -> None:
             log.info("Added SSO redirect URI %s to Bootstrap app", public_uri)
         else:
             log.info("SSO redirect URI already present on Bootstrap app")
+
+        # Implicit-id_token-Flow (SSO-Knopf, Add-in-Login, Self-Service) absichern —
+        # die id-callback-URI muss ZEICHENGLEICH zur Anmelde-Rückadresse sein
+        # (aussenadresse.konfiguriert(), dieselbe Quelle wie _build_redirect_uri).
+        import aussenadresse
+        extern = aussenadresse.konfiguriert()
+        id_callback = f"{extern}/auth/id-callback" if extern else f"https://{hostname}/auth/id-callback"
+        web_neu = _implicit_web_patch(apps[0].get("web"), id_callback)
+        if web_neu is not None:
+            patch["web"] = web_neu
+            log.info("Bootstrap app: Implicit-id_token-Flow sichergestellt (%s)", id_callback)
 
         if current_name in _BOOTSTRAP_OLD_NAMES:
             patch["displayName"] = _BOOTSTRAP_TARGET_NAME

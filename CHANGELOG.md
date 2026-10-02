@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.99 — 2026-10-03 — SSO: Implicit-id_token-Flow beim Setup-Login automatisch einrichten
+
+Der Microsoft-SSO-Login, der Add-in-Login und der Self-Service nutzen den
+Implicit-id_token-Flow. Der braucht an der Login-App-Registrierung eine
+**Web-Plattform mit der id-callback-Adresse** und **aktivierte ID-Token-Erteilung**
+— sonst lehnt Entra mit `AADSTS700054 (response_type 'id_token' is not enabled)`
+ab. Das war bisher ein **manueller** Azure-Schritt ohne Code-Gegenstück: Umgebungen,
+auf denen er von Hand gemacht wurde, liefen; andere nicht.
+
+Der Setup-Login (Schritt 4 „erneut anmelden") stellt das jetzt **automatisch** sicher
+— er ergänzt an der Login-App die fehlende Web-Redirect-Adresse und schaltet die
+ID-Token-Erteilung ein (nur Identität, kein Access-Token). Bestehende Installationen
+ziehen das durch ein erneutes Setup-Anmelden nach; neue bekommen es von Anfang an.
+Die id-callback-Adresse wird aus derselben Quelle gebildet wie die Anmelde-Rückadresse,
+damit sie zeichengleich übereinstimmt.
+
 ## v1.9.98 — 2026-10-02 — Self-Service als Outlook-Add-in-Taskpane
 
 Die Self-Service-Seite (/self) ist jetzt direkt aus Outlook erreichbar: ein neuer
