@@ -199,6 +199,30 @@ async def addin_manifest(request: Request):
               </Group>
             </OfficeTab>
           </ExtensionPoint>
+          <!-- Self-Service beim LESEN jeder Mail erreichbar: Abwesenheit +
+               eigene Signatur verwalten (Taskpane /self). -->
+          <ExtensionPoint xsi:type="MessageReadCommandSurface">
+            <OfficeTab id="TabDefault">
+              <Group id="exo.self.group">
+                <Label resid="selfGroupLabel"/>
+                <Control xsi:type="Button" id="exo.self.btn">
+                  <Label resid="selfBtnLabel"/>
+                  <Supertip>
+                    <Title resid="selfBtnTitle"/>
+                    <Description resid="selfBtnDesc"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="icon16"/>
+                    <bt:Image size="32" resid="icon32"/>
+                    <bt:Image size="80" resid="icon80"/>
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <SourceLocation resid="selfUrl"/>
+                  </Action>
+                </Control>
+              </Group>
+            </OfficeTab>
+          </ExtensionPoint>
         </DesktopFormFactor>
       </Host>
     </Hosts>
@@ -212,6 +236,7 @@ async def addin_manifest(request: Request):
       <bt:Urls>
         <bt:Url id="functionFile" DefaultValue="{base}/addin/function"/>
         <bt:Url id="taskpaneUrl"  DefaultValue="{base}/addin/compose"/>
+        <bt:Url id="selfUrl"      DefaultValue="{base}/self"/>
       </bt:Urls>
       <bt:ShortStrings>
         <!-- Im Menuband steht der Gruppenname UNTEN, die Knopfbeschriftung
@@ -220,9 +245,13 @@ async def addin_manifest(request: Request):
         <bt:String id="groupLabel" DefaultValue="Signatur"/>
         <bt:String id="btnLabel"   DefaultValue="EXO Signatur"/>
         <bt:String id="btnTitle"   DefaultValue="EXO Signatur"/>
+        <bt:String id="selfGroupLabel" DefaultValue="Self-Service"/>
+        <bt:String id="selfBtnLabel"   DefaultValue="Abwesenheit"/>
+        <bt:String id="selfBtnTitle"   DefaultValue="Abwesenheit &amp; Signatur"/>
       </bt:ShortStrings>
       <bt:LongStrings>
         <bt:String id="btnDesc" DefaultValue="Gateway-Signatur einfügen"/>
+        <bt:String id="selfBtnDesc" DefaultValue="Eigene Abwesenheit und Signatur verwalten"/>
       </bt:LongStrings>
     </Resources>
   </VersionOverrides>

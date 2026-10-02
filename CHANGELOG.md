@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.98 — 2026-10-02 — Self-Service als Outlook-Add-in-Taskpane
+
+Die Self-Service-Seite (/self) ist jetzt direkt aus Outlook erreichbar: ein neuer
+Knopf **„Abwesenheit"** (Gruppe Self-Service) erscheint beim Lesen einer Mail im
+Menüband und öffnet die Verwaltung als Taskpane. Die Anmeldung läuft wie beim
+Signatur-Add-in über den Office-Dialog (die Taskpane selbst darf nicht zu Azure
+navigieren); im normalen Browser bleibt es bei der gewohnten Anmeldung.
+
+Damit ersetzt das Panel den verzerrten nativen Abwesenheitsdialog durch eine
+korrekte Vorschau — direkt dort, wo die Nutzer arbeiten.
+
 ## v1.9.97 — 2026-10-02 — Self-Service: Abwesenheit + eigene Signatur selbst verwalten
 
 Neue Seite **/self**: Postfach-Nutzer verwalten ihre Abwesenheitsnotiz (Vorlage,

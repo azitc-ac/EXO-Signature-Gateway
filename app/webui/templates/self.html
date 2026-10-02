@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Meine Abwesenheit &amp; Signatur</title>
+<!-- office.js lädt auch im Browser (dann ohne Host) — die Office-Pfade greifen nur
+     in Outlook. Fehlt es (Offline/CDN blockiert), läuft die Seite als Browser-Seite. -->
+<script src="https://appsforoffice.microsoft.com/lib/1.1/hosted/office.js"></script>
 <style>
   * { box-sizing: border-box; }
   body { font-family: 'Segoe UI', system-ui, Arial, sans-serif; color: #1e293b;
@@ -85,8 +88,45 @@
 <script>
 (function () {
   "use strict";
-  var TOKEN = null;   // Add-in-Sitzungstoken (im Browser null → Cookie trägt)
-  var ctx = null, entwurf = {}, previewTimer = null;
+  // Add-in-Sitzungstoken: im Outlook-Add-in trägt der Header (der Dialog-Login
+  // reicht ihn zurück), im Browser bleibt er null und der Sitzungskeks trägt.
+  var TOKEN = null;
+  try { TOKEN = localStorage.getItem('exo_addin_session') || null; } catch (e) { /* egal */ }
+  var ctx = null, previewTimer = null, loginLaeuft = false;
+
+  function imOffice() {
+    try { return !!(window.Office && Office.context && Office.context.mailbox
+                    && Office.context.ui && Office.context.ui.displayDialogAsync); }
+    catch (e) { return false; }
+  }
+
+  // Anmeldung nötig (401): im Add-in über den Office-Dialog (die Taskpane darf
+  // nicht selbst zu Azure navigieren — X-Frame-Options), im Browser per Weiterleitung.
+  function anmelden() {
+    if (!imOffice()) { window.location = '/auth/login?next=/self'; return; }
+    if (loginLaeuft) return;
+    loginLaeuft = true;
+    var url = window.location.origin + '/auth/login/microsoft?next='
+              + encodeURIComponent('/addin/auth-complete');
+    Office.context.ui.displayDialogAsync(url, { height: 60, width: 30, promptBeforeOpen: false },
+      function (res) {
+        if (res.status !== Office.AsyncResultStatus.Succeeded) { loginLaeuft = false; return; }
+        var dlg = res.value;
+        dlg.addEventHandler(Office.EventType.DialogMessageReceived, function (arg) {
+          try {
+            var d = JSON.parse(arg.message || '{}');
+            if (d.status === 'ok' && d.token) {
+              TOKEN = d.token;
+              try { localStorage.setItem('exo_addin_session', d.token); } catch (e) { /* egal */ }
+              dlg.close(); loginLaeuft = false; laden();      // mit Token neu laden
+              return;
+            }
+          } catch (e) { /* ignorieren */ }
+          dlg.close(); loginLaeuft = false;
+        });
+        dlg.addEventHandler(Office.EventType.DialogEventReceived, function () { loginLaeuft = false; });
+      });
+  }
 
   function api(path, opts) {
     opts = opts || {};
@@ -102,7 +142,7 @@
     var r;
     try { r = await api('/api/self/context'); }
     catch (e) { zeigeFehler('Verbindungsfehler: ' + e.message); return; }
-    if (r.status === 401) { window.location = '/auth/login?next=/self'; return; }
+    if (r.status === 401) { anmelden(); return; }
     if (r.status === 403) { zeigeFehler('Für dieses Postfach ist kein Self-Service verfügbar.'); return; }
     if (!r.ok) { zeigeFehler('Fehler beim Laden (' + r.status + ').'); return; }
     ctx = await r.json();
@@ -196,7 +236,14 @@
   });
   el('speichern').addEventListener('click', speichern);
 
-  laden();
+  // Erst starten, wenn Office initialisiert ist — sonst wäre imOffice() beim ersten
+  // 401 unzuverlässig und ein Add-in-Nutzer liefe fälschlich in die Browser-
+  // Weiterleitung. Office.onReady feuert in Outlook UND im Browser (dort mit Host
+  // null); der Timer ist der Fallback, falls office.js gar nicht lädt.
+  var gestartet = false;
+  function start() { if (!gestartet) { gestartet = true; laden(); } }
+  if (window.Office && Office.onReady) { Office.onReady(start); }
+  setTimeout(start, 1500);
 }());
 </script>
 </body>
