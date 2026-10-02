@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.96 — 2026-10-02 — Abwesenheit: Variablen mit `oof.`-Präfix + englischer Zeitraum
+
+Die Abwesenheits-Variablen gibt es jetzt unter einem eigenen Namensraum:
+`{{ oof.name }}`, `{{ oof.zeitraum }}`, `{{ oof.abwesend_ab }}`,
+`{{ oof.abwesend_bis }}` — plus neu `{{ oof.period }}`, die englische Fassung von
+`oof.zeitraum` (*from … to …* statt *vom … bis …*). Der Editor zeigt sie bei
+Abwesenheits-Vorlagen unter „Verfügbare Variablen" an und schlägt sie beim Tippen
+von `oof.` vor.
+
+Die bisherigen, unpräfixierten Platzhalter (`{{ zeitraum }}` usw.) funktionieren
+unverändert weiter — bestehende Vorlagen brauchen nichts zu ändern.
+
 ## v1.9.95 — 2026-10-02 — Vorschau: Abwesenheit durchspielbar, Banner/Disclaimer nach Art gefiltert
 
 Die Signatur-Vorschau bekommt ein Feld **Abwesenheit** (zwischen Postfach und
