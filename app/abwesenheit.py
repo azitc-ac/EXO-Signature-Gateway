@@ -208,6 +208,20 @@ def _nachricht_als_absatz(html: str) -> str:
     return "".join(absaetze) if absaetze else html
 
 
+def _period_en(ab: str, bis: str) -> str:
+    """Englische Entsprechung zu zeitraum_text, als Baustein {{ oof.period }}:
+    'from X to Y' / 'on X' (Ein-Tages) / 'until Y' / 'from X'; leer ohne Daten.
+    Das Datumsformat bleibt wie in der deutschen Fassung (TT.MM.JJJJ) — nur die
+    Bindewörter sind englisch."""
+    if ab and bis:
+        return f"on {ab}" if ab == bis else f"from {ab} to {bis}"
+    if bis:
+        return f"until {bis}"
+    if ab:
+        return f"from {ab}"
+    return ""
+
+
 def render_oof(user_data, template_name: str, zeitraum: str,
                ab: str = "", bis: str = "",
                anhang_html: str = "", anhang_txt: str = "") -> tuple[str, str]:
@@ -217,23 +231,32 @@ def render_oof(user_data, template_name: str, zeitraum: str,
     Die abwesenheitsspezifischen Werte stehen in ZWEI Formen bereit — bewusst
     redundant, damit beide Bedienweisen funktionieren:
 
-      als Template-Variable (einheitliche Syntax):  {{ name }} {{ zeitraum }}
-                                                    {{ abwesend_ab }} {{ abwesend_bis }}
-      als Kurzform (Textersetzung nach dem Rendern): {name} {zeitraum}
-                                                    {abwesend_ab} {abwesend_bis}
+      bevorzugt, mit oof-Präfix:  {{ oof.name }} {{ oof.zeitraum }}
+                                  {{ oof.abwesend_ab }} {{ oof.abwesend_bis }} {{ oof.period }}
+      als Kurzform:               {oof.name} {oof.zeitraum} {oof.period} …
+      Rückwärtskompatibel (alt):  {{ name }} {{ zeitraum }} {{ abwesend_ab }}
+                                  {{ abwesend_bis }} bzw. {name} {zeitraum} …
 
-    Datumsangaben stehen nur bei einer geplanten Abwesenheit (`scheduled`) zur
-    Verfügung; sonst sind sie leer, und die Vorlage sollte das aushalten.
+    `{{ oof.period }}` ist die englische Fassung von `{{ oof.zeitraum }}`
+    (from … to …). Datumsangaben gibt es nur bei geplanter Abwesenheit
+    (`scheduled`); sonst sind sie leer, und die Vorlage sollte das aushalten.
 
     `anhang_html`/`anhang_txt` werden ANGEHÄNGT (Signatur/Banner, siehe
     _oof_anhang) — nach dem oof-Text, wie bei normaler Mail.
     """
     name = getattr(user_data, "displayName", "") or ""
-    # Einheitliche {{ … }}-Form: als echte Template-Variablen durchreichen.
-    extra = {"name": name, "zeitraum": zeitraum, "abwesend_ab": ab, "abwesend_bis": bis}
+    period = _period_en(ab, bis)
+    # oof-Namensraum (bevorzugt) + alte unpräfixierte Form (Bestandsvorlagen wie
+    # Testoof nutzen {{ zeitraum }}) — beide als echte Template-Variablen.
+    oof_ns = {"name": name, "zeitraum": zeitraum, "period": period,
+              "abwesend_ab": ab, "abwesend_bis": bis}
+    extra = {"oof": oof_ns,
+             "name": name, "zeitraum": zeitraum, "abwesend_ab": ab, "abwesend_bis": bis}
     html, txt = signature_engine.render(user_data, template_name=template_name, extra=extra)
-    # Kurzform {…} als Alias: Textersetzung nach dem Rendern.
-    ersetzungen = {"{name}": name, "{zeitraum}": zeitraum,
+    # Kurzform {…} als Alias: Textersetzung nach dem Rendern — mit und ohne Präfix.
+    ersetzungen = {"{oof.name}": name, "{oof.zeitraum}": zeitraum, "{oof.period}": period,
+                   "{oof.abwesend_ab}": ab, "{oof.abwesend_bis}": bis,
+                   "{name}": name, "{zeitraum}": zeitraum,
                    "{abwesend_ab}": ab, "{abwesend_bis}": bis}
     for marke, wert in ersetzungen.items():
         html = html.replace(marke, _html.escape(wert))

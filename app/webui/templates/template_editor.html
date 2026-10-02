@@ -371,6 +371,11 @@
     <code>user.website</code>, <code>user.bookingsUrl</code>{% if custom_vars %},
     {% for cv in custom_vars %}<code>custom.{{ cv }}</code>{% if not loop.last %}, {% endif %}{% endfor %}
     <span style="color:#888">(eigene Variablen)</span>{% endif %}
+    {% if template_kind == 'oof' %}<br>
+    <code>oof.name</code>, <code>oof.zeitraum</code>,
+    <code>oof.period</code> <span style="color:#888">(Englisch: from … to …)</span>,
+    <code>oof.abwesend_ab</code>, <code>oof.abwesend_bis</code>
+    <span style="color:#888">(Abwesenheit — nur bei geplantem Zeitraum befüllt)</span>{% endif %}
   </div>
 </div>
 
@@ -664,7 +669,12 @@ function colorSelect(val, name, bid, extra) {
 // der bekannten Variablen (wie IntelliSense). Verhindert Tippfehler/Namens-
 // Mismatches. Wirkt in allen <textarea> des Editors (Bausteine + Roh-HTML/-Text).
 (function () {
-  const FELDER = USER_FIELDS.map(f => 'user.' + f).concat(CUSTOM_VARS.map(c => 'custom.' + c));
+  // oof.-Variablen nur bei Abwesenheits-Vorlagen vorschlagen.
+  const OOF_FIELDS = (TEMPLATE_KIND === 'oof')
+    ? ['oof.name', 'oof.zeitraum', 'oof.period', 'oof.abwesend_ab', 'oof.abwesend_bis'] : [];
+  const FELDER = USER_FIELDS.map(f => 'user.' + f)
+    .concat(CUSTOM_VARS.map(c => 'custom.' + c))
+    .concat(OOF_FIELDS);
   let box = null, ziel = null, start = -1, treffer = [], sel = 0;
   function kasten() {
     if (!box) { box = document.createElement('div'); box.id = 'var-ac'; document.body.appendChild(box); }
@@ -677,7 +687,7 @@ function colorSelect(val, name, bid, extra) {
   }
   function zeigen(ta) {
     const pos = ta.selectionStart;
-    const m = ta.value.slice(0, pos).match(/(user|custom)\.(\w*)$/);
+    const m = ta.value.slice(0, pos).match(/(user|custom|oof)\.(\w*)$/);
     if (!m) { zu(); return; }
     const praefix = (m[1] + '.' + m[2]).toLowerCase();
     treffer = FELDER.filter(f => f.toLowerCase().startsWith(praefix));

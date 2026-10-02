@@ -118,6 +118,44 @@ def test_render_oof_erzeugt_absatz_statt_tabelle(tmp_path, monkeypatch):
     assert "Ich bin am 30.09.2026 nicht da." in html
 
 
+def test_period_en_varianten():
+    assert abwesenheit._period_en("01.10.2026", "05.10.2026") == "from 01.10.2026 to 05.10.2026"
+    assert abwesenheit._period_en("01.10.2026", "01.10.2026") == "on 01.10.2026"   # Ein-Tages
+    assert abwesenheit._period_en("", "05.10.2026") == "until 05.10.2026"
+    assert abwesenheit._period_en("01.10.2026", "") == "from 01.10.2026"
+    assert abwesenheit._period_en("", "") == ""
+
+
+def test_render_oof_namensraum(tmp_path, monkeypatch):
+    """Neuer oof-Namensraum: {{ oof.name }} / {{ oof.zeitraum }} / {{ oof.period }}."""
+    monkeypatch.setattr(config, "TEMPLATE_DIR", str(tmp_path))
+    (tmp_path / "N.html").write_text(
+        "<p>{{ oof.name }} — {{ oof.zeitraum }} / {{ oof.period }} "
+        "({{ oof.abwesend_ab }}–{{ oof.abwesend_bis }})</p>", encoding="utf-8")
+    (tmp_path / "N.txt").write_text("{{ oof.name }} {{ oof.period }}", encoding="utf-8")
+    signature_engine._reload_env()
+    html, txt = abwesenheit.render_oof(
+        UserData(displayName="Erika", custom={}),
+        "N", "vom 01.10.2026 bis 05.10.2026", "01.10.2026", "05.10.2026")
+    assert "Erika" in html and "vom 01.10.2026 bis 05.10.2026" in html
+    assert "from 01.10.2026 to 05.10.2026" in html      # oof.period (Englisch)
+    assert "01.10.2026–05.10.2026" in html              # ab/bis
+    assert txt == "Erika from 01.10.2026 to 05.10.2026"
+
+
+def test_render_oof_kurzform_mit_praefix(tmp_path, monkeypatch):
+    """Kurzform mit Präfix: {oof.zeitraum} / {oof.period} werden ersetzt."""
+    monkeypatch.setattr(config, "TEMPLATE_DIR", str(tmp_path))
+    (tmp_path / "K.html").write_text("<p>{oof.zeitraum} · {oof.period}</p>", encoding="utf-8")
+    (tmp_path / "K.txt").write_text("x", encoding="utf-8")
+    signature_engine._reload_env()
+    html, _ = abwesenheit.render_oof(
+        UserData(displayName="E", custom={}), "K",
+        "am 01.10.2026", "01.10.2026", "01.10.2026")
+    assert "am 01.10.2026 · on 01.10.2026" in html
+    assert "{oof." not in html
+
+
 def test_render_haengt_anhang_an(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "TEMPLATE_DIR", str(tmp_path))
     (tmp_path / "K.html").write_text("<p>OOF</p>", encoding="utf-8")
