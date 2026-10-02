@@ -197,7 +197,8 @@
         var r = await api('/api/self/preview?' + p.toString());
         if (!r.ok) return;
         var d = await r.json();
-        el('vorschau').innerHTML = (d.oof_html || '') + (d.sig_html || '')
+        el('vorschau').innerHTML =
+          (d.oof_html || '') + (d.sig_html || '') + (d.banner_html || '') + (d.disclaimer_html || '')
           || '<span style="color:#94a3b8">— nichts ausgewählt —</span>';
       } catch (e) { /* Vorschau ist unkritisch */ }
     }, 250);

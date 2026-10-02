@@ -86,6 +86,29 @@ def test_bearbeiter_kommt_an_seine_vorlagen(bearbeiter_sitzung):
     assert "templates" in antwort.json()
 
 
+@pytest.fixture
+def self_sitzung(monkeypatch):
+    """Sitzung eines Self-Service-Nutzers (ROLE_SELF)."""
+    from starlette.testclient import TestClient
+    import sso
+    from webui import app as wa
+    monkeypatch.setattr(sso, "_get_secret", lambda: "testgeheimnis-fuer-die-rollenpruefung")
+    keks = sso.create_session_cookie("mig3@azitc.eu", role=sso.ROLE_SELF)
+    with TestClient(wa.app) as c:
+        c.cookies.set(sso.SESSION_COOKIE, keks)
+        yield c
+
+
+@pytest.mark.parametrize("adresse,zweck",
+                         VERBOTEN + [("/api/templates", "Vorlagen lesen/ändern")])
+def test_self_service_nutzer_wird_abgewiesen(self_sitzung, adresse, zweck):
+    """⚠️ Kernschutz (gemeldet 2026-10-03): ROLE_SELF ist streng auf die
+    Self-Endpunkte begrenzt. Eine Self-Sitzung darf WEDER an die Vorlagen (der
+    gemeldete Fehler) NOCH an irgendeine Editor-/Verwaltungsroute. 403, nicht 401."""
+    antwort = self_sitzung.get(adresse)
+    assert antwort.status_code == 403, f"{adresse} ({zweck}) → {antwort.status_code}"
+
+
 def test_bearbeiter_kann_keine_testmail_verschicken(bearbeiter_sitzung):
     """Die Route verschickt echte Mail mit frei wählbarem Absender und Empfänger."""
     antwort = bearbeiter_sitzung.post("/api/test-mail",

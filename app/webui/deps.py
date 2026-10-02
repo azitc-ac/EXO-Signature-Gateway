@@ -219,6 +219,14 @@ def _check_auth(request: Request,
     """Sitzungskeks → örtliches HTTP-Basic → 401 bzw. Weiterleitung."""
     user = _get_session_user(request)
     if user:
+        # ⚠️ Eine Self-Service-Sitzung (ROLE_SELF) ist KEINE Verwaltungs-/Editor-
+        # Sitzung. Ohne diese Sperre käme ein Postfach-Nutzer über die reine
+        # `_check_auth`-Wache an alles, was einem Bearbeiter offensteht — u.a. die
+        # VORLAGEN (anlegen/ändern/löschen). ROLE_SELF gilt ausschliesslich für die
+        # `_require_self`-Endpunkte (/self, /api/self/*); hier → 403 (kein Login-
+        # Loop, der Nutzer IST angemeldet, nur nicht berechtigt).
+        if _get_session_role(request) == sso_mod.ROLE_SELF:
+            raise HTTPException(403, "Nur Self-Service verfügbar (/self).")
         return user
     # Örtliche Verwaltung als Notzugang — bleibt immer erreichbar.
     if credentials and credentials.username and credentials.password:

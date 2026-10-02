@@ -126,18 +126,39 @@ def _iso_aus_setting(setting: dict) -> tuple[str, str]:
     return iso(setting.get("scheduledStartDateTime")), iso(setting.get("scheduledEndDateTime"))
 
 
+async def _banner_disclaimer_html(email: str) -> tuple[str, str]:
+    """(banner_html, disclaimer_html), die das Postfach TATSÄCHLICH bekäme — wie im
+    Betrieb aufgelöst (Richtlinie bzw. Postfach-eigene Felder). Nicht nutzerwählbar;
+    gehört aber in die Vorschau, damit sie vollständig ist."""
+    import policies as _pol
+    mb_all = settings_store.get("MAILBOX_CONFIG") or {}
+    sender_cfg = mailbox_match.match_sender(mb_all, email)
+    pol, use_pol = _pol.resolve_policies(email, mb_all, sender_cfg)
+    banner = ((pol.get("banner") or "") if use_pol else sender_cfg.get("banner_template", "")).strip()
+    disclaimer = ((pol.get("disclaimer") or "") if use_pol else sender_cfg.get("disclaimer_template", "")).strip()
+    if not banner and not disclaimer:
+        return "", ""
+    user_data = await graph_client.get_user(email)
+    b = signature_engine.render(user_data, template_name=banner)[0] if banner else ""
+    d = signature_engine.render(user_data, template_name=disclaimer)[0] if disclaimer else ""
+    return b, d
+
+
 @router.get("/api/self/preview")
 async def self_preview(oof: str = "", sig: str = "", status: str = "scheduled",
                        start: str = "", ende: str = "",
                        email: str = Depends(_require_self)):
-    """Korrekte Vorschau für das EIGENE Postfach — OOF (über der Signatur) + Signatur."""
+    """Korrekte, VOLLSTÄNDIGE Vorschau fürs eigene Postfach: OOF (über der Signatur)
+    + Signatur + Banner + Disclaimer (wie die echte Mail)."""
     oof_html, oof_txt = await _render_oof_fuer(email, oof, status, start, ende)
     sig_html, sig_txt = "", ""
     if sig:
         user_data = await graph_client.get_user(email)
         sig_html, sig_txt = signature_engine.render(user_data, template_name=sig)
+    banner_html, disclaimer_html = await _banner_disclaimer_html(email)
     return JSONResponse({"oof_html": oof_html, "oof_txt": oof_txt,
-                         "sig_html": sig_html, "sig_txt": sig_txt})
+                         "sig_html": sig_html, "sig_txt": sig_txt,
+                         "banner_html": banner_html, "disclaimer_html": disclaimer_html})
 
 
 # ── Speichern ──────────────────────────────────────────────────────────────────
