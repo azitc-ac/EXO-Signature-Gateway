@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.97 — 2026-10-02 — Self-Service: Abwesenheit + eigene Signatur selbst verwalten
+
+Neue Seite **/self**: Postfach-Nutzer verwalten ihre Abwesenheitsnotiz (Vorlage,
+An/Aus, Zeitraum) und ihre eigene Standard-Signaturvorlage selbst — mit einer
+**korrekten Vorschau** (anders als der native Outlook-Abwesenheitsdialog, der die
+Darstellung verzerrt). Die Abwesenheit wird sofort bei Exchange gesetzt.
+
+Freigabe liegt beim Betreiber: Schalter **„Self-Service erlauben"** (unter
+Postfächer → Zentrale Abwesenheit; Vorgabe aus). Ist er aus, ist /self nur
+Anzeige/Vorschau. Ist er an, dürfen Nutzer wählen; ihre eigene Wahl setzt die
+Richtlinien-Übernahme ihres Postfachs auf aus.
+
+Sicherheit: /self meldet sich über die Anmeldung an; jede Aktion bezieht sich
+ausschließlich auf das eigene Postfach (die Identität stammt aus der Sitzung, nie
+aus einem Parameter). Ein gewöhnlicher Postfach-Nutzer erhält nur dann eine
+Sitzung, wenn Self-Service freigeschaltet ist und sein Postfach verwaltet wird.
+(Die Einbettung als Outlook-Add-in-Taskpane folgt separat.)
+
 ## v1.9.96 — 2026-10-02 — Abwesenheit: Variablen mit `oof.`-Präfix + englischer Zeitraum
 
 Die Abwesenheits-Variablen gibt es jetzt unter einem eigenen Namensraum:

@@ -255,6 +255,42 @@ def _require_admin(request: Request, user: str = Depends(_check_auth)) -> str:
     return user
 
 
+def self_service_rolle(upn: str) -> str | None:
+    """Rolle `ROLE_SELF`, wenn Self-Service freigeschaltet ist UND der angemeldete
+    Nutzer ein im Gateway aktiviertes Postfach ist — sonst None.
+
+    Beim Login für Nicht-Admins aufgerufen: ein gewöhnlicher Postfach-Nutzer soll
+    NUR dann eine Sitzung bekommen, wenn der Betreiber Self-Service erlaubt und das
+    Postfach überhaupt verwaltet wird. Sonst bleibt es bei der bisherigen Abweisung.
+    """
+    if not upn or settings_store.get("SELF_SERVICE_ENABLED") is not True:
+        return None
+    import mailbox_match
+    cfg = settings_store.get("MAILBOX_CONFIG") or {}
+    treffer = mailbox_match.match_sender(cfg, upn.strip().lower())
+    # match_sender liefert {} wenn die Adresse zu keinem Eintrag passt.
+    return sso_mod.ROLE_SELF if treffer else None
+
+
+def _require_self(request: Request) -> str:
+    """Self-Service: verlangt eine GÜLTIGE Sitzung (Cookie ODER X-Addin-Session)
+    und liefert die E-Mail des angemeldeten Nutzers (klein).
+
+    ⚠️ KEIN HTTP-Basic-Notzugang: der hat keine Postfach-Identität und gälte als
+    Verwaltung. Self-Service braucht die EIGENE Identität. Die Self-Endpunkte
+    beziehen jede Aktion ausschliesslich auf DIESE Adresse — nie auf einen
+    Parameter (sonst könnte Nutzer A das Postfach von Nutzer B verändern).
+
+    Jede gültige Sitzung genügt (Admin wie Self): ein Admin verwaltet darüber sein
+    eigenes Postfach. Die Freigabe-Prüfung (SELF_SERVICE_ENABLED) sitzt zusätzlich
+    in den schreibenden Endpunkten.
+    """
+    user = _get_session_user(request)
+    if not user:
+        raise HTTPException(401, "Anmeldung erforderlich")
+    return user.strip().lower()
+
+
 def _require_kampagnen(request: Request, user: str = Depends(_check_auth)) -> str:
     """Verlangt die Verwaltungs- ODER die Kampagnen-Rolle; sonst 403.
 

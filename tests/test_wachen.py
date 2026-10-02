@@ -81,6 +81,10 @@ ERLAUBT_OHNE_ANMELDUNG: dict[str, str] = {
     "/addin/function":        "Funktionsdatei des Add-ins",
     "/addin/auth-complete":   "Abschlussseite des Anmeldedialogs",
     "/addin/icon/{size_str}": "Symbol des Add-ins",
+    # Self-Service-SEITE: öffentliches HTML wie /addin/compose — die Navigation
+    # kann keinen Auth-Header mitgeben, die Identität klärt das JS über die
+    # /api/self/*-Endpunkte (die hängen an _require_self).
+    "/self":                  "Self-Service-Seite, meldet sich über die API an",
 
     # ── Betrieb
     "/health": "Gesundheitsprüfung für Container und Überwachung",
@@ -88,8 +92,11 @@ ERLAUBT_OHNE_ANMELDUNG: dict[str, str] = {
 
 
 def _wachen():
-    from webui.deps import _check_auth, _require_admin
-    return {_check_auth, _require_admin}
+    # _require_self ist eine vollwertige Wache (verlangt eine gültige Sitzung,
+    # scopt auf das eigene Postfach) — nur eben keine Admin-Wache. Routen, die
+    # ausschliesslich daran hängen, sind also NICHT ungeschützt.
+    from webui.deps import _check_auth, _require_admin, _require_self
+    return {_check_auth, _require_admin, _require_self}
 
 
 def _hat_wache(dependant, wachen, tiefe: int = 0) -> bool:

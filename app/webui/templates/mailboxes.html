@@ -414,6 +414,21 @@ async function ankerAnwenden() {
     Text-/HTML-Signaturen sind unkritisch.
   </p>
 
+  <!-- Self-Service: Nutzer verwalten ihre Abwesenheit + Signatur selbst -->
+  <label class="checkbox-label" style="margin-top:16px">
+    <input type="checkbox" id="self-service" onchange="selfServiceUmschalten(this)"
+           {% if self_service_enabled %}checked{% endif %}>
+    Self-Service erlauben (Nutzer verwalten ihre Abwesenheit &amp; Signatur selbst)
+    <span id="self-service-result" style="font-size:12px;margin-left:8px"></span>
+  </label>
+  <p class="hint" style="margin:4px 0 0;max-width:640px">
+    Schaltet die Seite <a href="/self" target="_blank">/self</a> frei: Postfach-Nutzer
+    wählen dort ihre Abwesenheits-Vorlage, schalten an/aus, setzen den Zeitraum und
+    ihre eigene Standard-Signatur — mit korrekter Vorschau (anders als der native
+    Outlook-Dialog). Die eigene Wahl setzt die Richtlinien-Übernahme des Postfachs
+    auf aus. Ist der Schalter aus, ist die Seite nur Anzeige/Vorschau.
+  </p>
+
   <!-- Interne Gruppen -->
   <div style="margin-top:20px;border-top:1px solid #e2e8f0;padding-top:16px">
     <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:6px;display:flex;align-items:center;gap:8px">
@@ -724,6 +739,9 @@ async function oooAppendSigUmschalten(cb) {
 }
 async function oooAppendBannerUmschalten(cb) {
   await savePartial({ OOO_APPEND_BANNER: cb.checked }, 'ooo-append-banner-result');
+}
+async function selfServiceUmschalten(cb) {
+  await savePartial({ SELF_SERVICE_ENABLED: cb.checked }, 'self-service-result');
 }
 
 // ── Postfächer ───────────────────────────────────────────────────────────────

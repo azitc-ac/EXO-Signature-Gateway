@@ -868,6 +868,27 @@
     "name": "api_restart"
   },
   {
+    "pfad": "/api/self/context",
+    "methoden": [
+      "GET"
+    ],
+    "name": "self_context"
+  },
+  {
+    "pfad": "/api/self/preview",
+    "methoden": [
+      "GET"
+    ],
+    "name": "self_preview"
+  },
+  {
+    "pfad": "/api/self/save",
+    "methoden": [
+      "POST"
+    ],
+    "name": "self_save"
+  },
+  {
     "pfad": "/api/settings/custom-policies",
     "methoden": [
       "GET"
@@ -1909,6 +1930,13 @@
       "GET"
     ],
     "name": "relay_page"
+  },
+  {
+    "pfad": "/self",
+    "methoden": [
+      "GET"
+    ],
+    "name": "self_page"
   },
   {
     "pfad": "/settings",

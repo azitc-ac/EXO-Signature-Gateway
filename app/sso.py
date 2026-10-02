@@ -20,7 +20,9 @@ SESSION_TTL = 8 * 3600  # 8 hours
 ROLE_ADMIN    = "admin"
 ROLE_EDITOR   = "editor"
 ROLE_CAMPAIGN = "kampagnen"      # Kampagnen-Manager: verwaltet Banner-Kampagnen
-VALID_ROLES = {ROLE_ADMIN, ROLE_EDITOR, ROLE_CAMPAIGN}
+ROLE_SELF     = "self"           # Self-Service: verwaltet NUR das EIGENE Postfach
+                                 # (Abwesenheit + eigene Signaturwahl), kein Admin.
+VALID_ROLES = {ROLE_ADMIN, ROLE_EDITOR, ROLE_CAMPAIGN, ROLE_SELF}
 
 # Scopes for SSO login (minimal, just identity)
 # Nur Identität — bewusst KEIN `User.Read`/`offline_access`: Der Login benutzt das
