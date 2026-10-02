@@ -88,6 +88,35 @@ def test_darf_vorlagen_gruppe_ohne_mitgliedschaft(monkeypatch):
     assert sv._darf_vorlagen_waehlen("a@x.de") is False
 
 
+def test_zeitraum_deckt_ganzen_endtag_ab(monkeypatch):
+    """Ein Zeitraum meint ganze Tage: Beginn 00:00, Ende 23:59 — NICHT 00:00 am
+    Endtag (sonst wäre der letzte Tag nicht abgedeckt). Hier in UTC geprüft
+    (tz-unabhängig robust)."""
+    from webui.routen import selfservice as sv
+    monkeypatch.setattr(settings_store, "get", lambda k, d=None: {"LOG_TIMEZONE": "UTC"}.get(k, d))
+    s = sv._synth_setting("scheduled", "2026-07-01", "2026-07-05")
+    assert s["scheduledStartDateTime"]["dateTime"].startswith("2026-07-01T00:00:00")
+    assert s["scheduledEndDateTime"]["dateTime"].startswith("2026-07-05T23:59:59")
+
+
+def test_zeitraum_lokale_zeitzone_round_trip(monkeypatch):
+    """Lokale Tage (Europe/Berlin) → UTC und zurück: zeitraum_text zeigt dieselben
+    Kalendertage (kein Verrutschen durch die Zeitzone)."""
+    import pytest
+    from zoneinfo import ZoneInfo
+    try:
+        ZoneInfo("Europe/Berlin")
+    except Exception:
+        pytest.skip("keine tzdata für Europe/Berlin")
+    from webui.routen import selfservice as sv
+    import abwesenheit
+    monkeypatch.setattr(settings_store, "get",
+                        lambda k, d=None: {"LOG_TIMEZONE": "Europe/Berlin"}.get(k, d))
+    s = sv._synth_setting("scheduled", "2026-07-01", "2026-07-05")   # Sommer: CEST=UTC+2
+    assert s["scheduledStartDateTime"]["dateTime"].startswith("2026-06-30T22:00:00")
+    assert abwesenheit.zeitraum_text(s) == "vom 01.07.2026 bis 05.07.2026"
+
+
 CB = "https://sig.example/auth/id-callback"
 
 
