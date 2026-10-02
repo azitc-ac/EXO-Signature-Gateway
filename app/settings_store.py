@@ -50,6 +50,9 @@ DEFAULTS: dict = {
     # setzt use_policy des eigenen Postfachs auf false (der Betreiber behält die
     # Hoheit über die Freigabe selbst).
     "SELF_SERVICE_ENABLED": False,
+    # Vorlagenwahl im Self-Service ist standardmäßig AUS. Freischaltbar pro Postfach
+    # (MAILBOX_CONFIG[...]["self_templates"]) oder pro interner Gruppe (hier gelistet).
+    "SELF_TEMPLATE_GROUPS": [],
     "LE_DOMAIN": "",
     "LE_EMAIL": "",
     "LOG_RETENTION_DAYS": 30,

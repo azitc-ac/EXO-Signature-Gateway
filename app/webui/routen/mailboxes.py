@@ -467,6 +467,8 @@ async def mailboxes_page(request: Request, user: str = Depends(_require_admin)):
                  "ooo_append_signature": bool(settings_store.get("OOO_APPEND_SIGNATURE")),
                  "ooo_append_banner": bool(settings_store.get("OOO_APPEND_BANNER")),
                  "self_service_enabled": settings_store.get("SELF_SERVICE_ENABLED") is True,
+                 "self_template_groups": settings_store.get("SELF_TEMPLATE_GROUPS") or [],
+                 "internal_group_names": sorted((settings_store.get("INTERNAL_GROUPS") or {}).keys()),
                  "group_vars": settings_store.get("GROUP_VARS") or {},
                  # Namen der definierten eigenen Variablen — im Gruppen-Dialog nur
                  # noch auswählbar (keine frei getippten Namen → keine Kollisionen).

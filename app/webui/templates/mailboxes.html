@@ -423,10 +423,28 @@ async function ankerAnwenden() {
   </label>
   <p class="hint" style="margin:4px 0 0;max-width:640px">
     Schaltet die Seite <a href="/self" target="_blank">/self</a> frei: Postfach-Nutzer
-    wählen dort ihre Abwesenheits-Vorlage, schalten an/aus, setzen den Zeitraum und
-    ihre eigene Standard-Signatur — mit korrekter Vorschau (anders als der native
-    Outlook-Dialog). Die eigene Wahl setzt die Richtlinien-Übernahme des Postfachs
-    auf aus. Ist der Schalter aus, ist die Seite nur Anzeige/Vorschau.
+    schalten dort ihre Abwesenheit an/aus, setzen den Zeitraum — mit korrekter Vorschau
+    (anders als der native Outlook-Dialog). Ist der Schalter aus, ist die Seite nur
+    Anzeige/Vorschau.
+  </p>
+  <!-- Vorlagenwahl im Self-Service: standardmäßig AUS. Pro Gruppe freischaltbar. -->
+  <div class="settings-row" style="margin-top:12px" id="self-tpl-groups-row">
+    <label for="self-tpl-groups">Vorlagenwahl erlauben (Gruppen)</label>
+    <div class="settings-control">
+      <select id="self-tpl-groups" multiple size="4" onchange="saveSelfTplGroups()"
+              style="min-width:220px">
+        {% for g in internal_group_names %}
+        <option value="{{ g }}" {% if g in self_template_groups %}selected{% endif %}>{{ g }}</option>
+        {% endfor %}
+      </select>
+      <span id="self-tpl-groups-result" style="font-size:12px;margin-left:8px"></span>
+    </div>
+  </div>
+  <p class="hint" style="margin:4px 0 0;max-width:640px">
+    Standardmäßig können Nutzer ihre OOF- und Signaturvorlage <strong>nicht</strong>
+    selbst wählen (nur an/aus/Zeitraum). Mitglieder der hier gewählten internen
+    Gruppen dürfen zusätzlich die Vorlagen selbst wählen. Einzelne Postfächer lassen
+    sich über das Feld <code>self_templates</code> im Postfach-Eintrag freischalten.
   </p>
 
   <!-- Interne Gruppen -->
@@ -742,6 +760,12 @@ async function oooAppendBannerUmschalten(cb) {
 }
 async function selfServiceUmschalten(cb) {
   await savePartial({ SELF_SERVICE_ENABLED: cb.checked }, 'self-service-result');
+}
+async function saveSelfTplGroups() {
+  var sel = document.getElementById('self-tpl-groups');
+  var gewaehlt = Array.prototype.filter.call(sel.options, function (o) { return o.selected; })
+                      .map(function (o) { return o.value; });
+  await savePartial({ SELF_TEMPLATE_GROUPS: gewaehlt }, 'self-tpl-groups-result');
 }
 
 // ── Postfächer ───────────────────────────────────────────────────────────────

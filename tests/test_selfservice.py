@@ -51,6 +51,43 @@ def test_require_self_ohne_sitzung_401(monkeypatch):
     assert exc.value.status_code == 401
 
 
+# ── Vorlagenwahl: standardmäßig gesperrt, freischaltbar pro Postfach/Gruppe ──────
+
+_MB = {"g1": {"known_addresses": ["a@x.de"], "primary": "a@x.de", "sig": True}}
+
+
+def _store_tpl(monkeypatch, mb, groups=None, intern=None):
+    data = {"MAILBOX_CONFIG": mb, "SELF_TEMPLATE_GROUPS": groups or [],
+            "INTERNAL_GROUPS": intern or {}, "TEMPLATE_POLICIES": {}, "CUSTOM_POLICIES": []}
+    monkeypatch.setattr(settings_store, "get", lambda k, d=None: data.get(k, d))
+
+
+def test_darf_vorlagen_standard_aus(monkeypatch):
+    """Standard: niemand darf die Vorlagen selbst wählen."""
+    from webui.routen import selfservice as sv
+    _store_tpl(monkeypatch, _MB)
+    assert sv._darf_vorlagen_waehlen("a@x.de") is False
+
+
+def test_darf_vorlagen_pro_postfach(monkeypatch):
+    from webui.routen import selfservice as sv
+    mb = {"g1": {**_MB["g1"], "self_templates": True}}
+    _store_tpl(monkeypatch, mb)
+    assert sv._darf_vorlagen_waehlen("a@x.de") is True
+
+
+def test_darf_vorlagen_pro_gruppe(monkeypatch):
+    from webui.routen import selfservice as sv
+    _store_tpl(monkeypatch, _MB, groups=["team"], intern={"team": ["g1"]})
+    assert sv._darf_vorlagen_waehlen("a@x.de") is True
+
+
+def test_darf_vorlagen_gruppe_ohne_mitgliedschaft(monkeypatch):
+    from webui.routen import selfservice as sv
+    _store_tpl(monkeypatch, _MB, groups=["team"], intern={"team": ["andere"]})
+    assert sv._darf_vorlagen_waehlen("a@x.de") is False
+
+
 CB = "https://sig.example/auth/id-callback"
 
 
