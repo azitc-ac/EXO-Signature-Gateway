@@ -77,16 +77,39 @@ def _postfach(email: str) -> tuple[str, dict]:
     return key, dict(cfg[key])
 
 
+def _als_utc(datum: str, uhrzeit: str) -> dict:
+    """Ein lokales Datum (YYYY-MM-DD) + Uhrzeit → Graph-dateTimeTimeZone in UTC.
+
+    Die <input type=date> liefern nur ein Datum; ein Zeitraum meint den GANZEN Tag,
+    also lokal 00:00 bis 23:59. „Lokal" = die Anzeige-Zeitzone (LOG_TIMEZONE,
+    Vorgabe Europe/Berlin) — dieselbe, in der zeitraum_text die Daten zeigt. Wir
+    rechnen die lokale Wand-Uhrzeit in einen eindeutigen UTC-Zeitpunkt um und senden
+    timeZone=UTC (Graph-sicher; Windows-/IANA-Namen sind beim Schreiben heikel)."""
+    from datetime import datetime, timezone
+    from zoneinfo import ZoneInfo
+    try:
+        tz = ZoneInfo(settings_store.get("LOG_TIMEZONE") or "UTC")
+    except Exception:                                              # noqa: BLE001
+        tz = timezone.utc
+    lokal = datetime.fromisoformat(f"{datum}T{uhrzeit}").replace(tzinfo=tz)
+    utc = lokal.astimezone(timezone.utc)
+    return {"dateTime": utc.strftime("%Y-%m-%dT%H:%M:%S.0000000"), "timeZone": "UTC"}
+
+
 def _synth_setting(status: str, start: str, ende: str) -> dict:
     """Ein automaticRepliesSetting-ähnliches dict aus den Nutzereingaben bauen,
     damit zeitraum_text()/start_ende_text() denselben Text liefern wie im Betrieb.
-    `start`/`ende` sind ISO-Datumsangaben (YYYY-MM-DD) aus den <input type=date>."""
+    `start`/`ende` sind ISO-Datumsangaben (YYYY-MM-DD) aus den <input type=date>.
+
+    Ein Zeitraum deckt die ganzen Tage ab: lokal `start` 00:00 bis `ende` 23:59.
+    (Date-only-UI; wer in Outlook stundengenau plant, verliert das beim Speichern
+    über /self — bewusste Vereinfachung.)"""
     s: dict = {"status": status}
     if status == "scheduled":
         if start:
-            s["scheduledStartDateTime"] = {"dateTime": f"{start}T00:00:00.0000000", "timeZone": "UTC"}
+            s["scheduledStartDateTime"] = _als_utc(start, "00:00:00")
         if ende:
-            s["scheduledEndDateTime"] = {"dateTime": f"{ende}T00:00:00.0000000", "timeZone": "UTC"}
+            s["scheduledEndDateTime"] = _als_utc(ende, "23:59:59")
     return s
 
 

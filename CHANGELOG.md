@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.102 — 2026-10-03 — Self-Service: Abwesenheits-Zeitraum deckt ganze Tage ab
+
+Ein im Self-Service gesetzter Zeitraum umfasst jetzt die **ganzen Tage**: lokal vom
+Startdatum 00:00 bis zum Enddatum 23:59 (in der konfigurierten Anzeige-Zeitzone).
+Bisher lagen Beginn und Ende auf 00:00 Uhr UTC — dadurch war der **letzte Tag nicht
+abgedeckt** und das Fenster gegenüber der lokalen Zeit verschoben. Die Datumsauswahl
+(nur Datum, keine Uhrzeit) wird für den Umrechnung eindeutig in UTC übersetzt.
+
 ## v1.9.101 — 2026-10-03 — Self-Service: Vorlagenwahl standardmäßig gesperrt, freischaltbar
 
 Im Self-Service können Nutzer ihre OOF- und Signaturvorlage **standardmäßig nicht
