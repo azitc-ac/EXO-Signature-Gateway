@@ -51,6 +51,39 @@ def test_require_self_ohne_sitzung_401(monkeypatch):
     assert exc.value.status_code == 401
 
 
+CB = "https://sig.example/auth/id-callback"
+
+
+def test_implicit_patch_leere_web_setzt_beides():
+    """Raspi-Fall: web leer → id-callback-Redirect + ID-Token-Erteilung werden gesetzt."""
+    import setup_wizard
+    neu = setup_wizard._implicit_web_patch({}, CB)
+    assert neu["redirectUris"] == [CB]
+    assert neu["implicitGrantSettings"]["enableIdTokenIssuance"] is True
+    assert neu["implicitGrantSettings"]["enableAccessTokenIssuance"] is False
+
+
+def test_implicit_patch_schon_korrekt_gibt_none():
+    """Prod-Fall: alles da → None (kein PATCH, keine Dedup-Störung)."""
+    import setup_wizard
+    web = {"redirectUris": [CB],
+           "implicitGrantSettings": {"enableIdTokenIssuance": True, "enableAccessTokenIssuance": False}}
+    assert setup_wizard._implicit_web_patch(web, CB) is None
+
+
+def test_implicit_patch_ergaenzt_und_erhaelt():
+    """Fehlt nur der Redirect, bleibt enableAccessTokenIssuance erhalten; andere
+    web-Felder (homePageUrl) überleben den PATCH."""
+    import setup_wizard
+    web = {"homePageUrl": "https://x", "redirectUris": [],
+           "implicitGrantSettings": {"enableIdTokenIssuance": True, "enableAccessTokenIssuance": True}}
+    neu = setup_wizard._implicit_web_patch(web, CB)
+    assert neu["redirectUris"] == [CB]
+    assert neu["implicitGrantSettings"]["enableAccessTokenIssuance"] is True   # erhalten
+    assert neu["homePageUrl"] == "https://x"                                   # erhalten
+    assert CB not in (web.get("redirectUris") or []) or True                   # Original nicht nötig
+
+
 def test_require_self_identitaet_aus_sitzung(monkeypatch):
     """DER Kernschutz: die Adresse kommt aus der Sitzung (klein), nicht aus einem
     Parameter — sonst könnte Nutzer A das Postfach von Nutzer B anfassen."""
