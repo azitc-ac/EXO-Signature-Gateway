@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.104 — 2026-10-03 — Skalierung: Graph-Nutzerprofil wird zwischengespeichert
+
+`get_user` liest das Nutzerprofil aus Microsoft Graph. Der Abwesenheits-Poll ruft
+es je Postfach bei jedem Durchlauf auf — ungecacht war das je Postfach ein
+Graph-Aufruf alle zehn Minuten und skaliert nicht auf viele hundert bis tausende
+Postfächer. Das Profil (Name, Position, Telefon aus Entra) ändert sich selten und
+wird jetzt prozessweit mit kurzer Lebensdauer zwischengespeichert — das halbiert die
+Graph-Last des Polls.
+
+Wichtig: Zwischengespeichert wird **nur** das Graph-Profil. Einstellungsabhängige
+Werte (Postfach-Overrides, Gruppen- und eigene Variablen, Website) werden bei jedem
+Aufruf frisch aufgelöst — Änderungen durch den Betreiber greifen also sofort, nichts
+friert ein.
+
 ## v1.9.103 — 2026-10-03 — Self-Service: „ganztägig" + optionale Uhrzeiten
 
 Der Abwesenheits-Zeitraum unter /self hat jetzt eine Checkbox **„ganztägig"**

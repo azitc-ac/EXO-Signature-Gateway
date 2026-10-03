@@ -75,6 +75,16 @@ _throttled_until: dict[str, float] = {}   # client_id → monotonic timestamp
 _last_used_client_id: str = ""            # für mark_throttled nach 429
 _call_stats: dict[str, dict] = {}        # client_id → {date, hours[24], peak_hour, peak_count}
 
+# Cache für das rohe Graph-Nutzerprofil (NUR die Graph-Felder). Der OOO-Poll ruft
+# get_user je Postfach je Durchlauf (alle 10 min) — ungecacht wäre das je Postfach
+# ein Graph-Call bei JEDEM Poll und skaliert nicht auf Tausende Postfächer. Das
+# Profil (displayName/jobTitle/… aus Entra) ändert sich selten, darum TTL-Cache.
+# ⚠️ NUR die Graph-Daten werden gecacht; die settings-abhängigen Teile (Overrides,
+# Gruppen-/Custom-Variablen, Website) merkt get_user bei JEDEM Aufruf frisch —
+# Admin-Änderungen greifen also sofort, nichts friert ein.
+_USER_DATA_TTL = 3600.0                   # s — Profil ändert sich selten
+_user_data_cache: dict[str, tuple[dict, float]] = {}   # email → (data, ablauf_monotonic)
+
 
 def _flush_to_db() -> None:
     """Schreibt akkumulierte Stundenzähler in die SQLite-DB. Läuft im Hintergrund-Thread."""
@@ -565,26 +575,39 @@ def _resolve_entra_field(field: str, data: dict, ext: dict, phones: list) -> str
     return str(data.get(field) or "")
 
 
-async def get_user(email: str) -> UserData:
+async def _graph_user_data(email: str) -> dict | None:
+    """Rohes Graph-Nutzerprofil — der EINZIGE Graph-Call in get_user —, prozessweit
+    per TTL gecacht. None bei fehlendem Token / 404 / Fehler (NICHT gecacht, damit
+    transiente Fehler erneut versucht werden)."""
+    schluessel = (email or "").lower()
+    now = time.monotonic()
+    treffer = _user_data_cache.get(schluessel)
+    if treffer and treffer[1] > now:
+        return treffer[0]
+
     token = await _acquire_token_async()
     if not token:
-        return UserData(mail=email)
-
+        return None
     url = f"https://graph.microsoft.com/v1.0/users/{email}?$select={_build_select_fields()}"
     headers = {"Authorization": f"Bearer {token}"}
-
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.get(url, headers=headers)
-
         if resp.status_code == 404:
             log.warning("Graph: user not found: %s", email)
-            return UserData(mail=email)
-
+            return None
         resp.raise_for_status()
         data = resp.json()
     except Exception as exc:
         log.error("Graph API error for %s: %s", email, exc)
+        return None
+    _user_data_cache[schluessel] = (data, now + _USER_DATA_TTL)
+    return data
+
+
+async def get_user(email: str) -> UserData:
+    data = await _graph_user_data(email)
+    if data is None:
         return UserData(mail=email)
 
     ext = data.get("onPremisesExtensionAttributes") or {}
