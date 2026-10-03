@@ -765,6 +765,69 @@ def test_ankuendigung_auch_extern(tmp_path, monkeypatch):
     assert "Weitere geplante Abwesenheiten" in patched["extern"]
 
 
+def test_ankuendigung_einstellungen_rangfolge(monkeypatch):
+    """Rangfolge je Feld: Postfach-eigener Wert ÜBER betreiberweiter Vorgabe
+    (OOO_ANNOUNCE_*) ÜBER festem Fallback."""
+    store = {"OOO_ANNOUNCE_MODE": "tage", "OOO_ANNOUNCE_X": 10,
+             "OOO_ANNOUNCE_PRIVAT": False, "OOO_ANNOUNCE_EXTERN": True}
+    monkeypatch.setattr(settings_store, "get", lambda k, d=None: store.get(k, d))
+    # Kein Postfach-Wert → betreiberweite Vorgabe gilt.
+    g = abwesenheit._ankuendigung_einstellungen({})
+    assert g["mode"] == "tage" and g["x"] == 10 and g["privat"] is False and g["extern"] is True
+    # Postfach-Wert übersteuert die Vorgabe feldweise.
+    p = abwesenheit._ankuendigung_einstellungen(
+        {"oof_announce_mode": "anzahl", "oof_announce_x": 2, "oof_announce_privat": True})
+    assert p["mode"] == "anzahl" and p["x"] == 2 and p["privat"] is True
+    assert p["extern"] is True        # nicht gesetzt → weiter die Vorgabe
+
+
+def test_abwesend_jetzt():
+    """`alwaysEnabled` = immer abwesend; `scheduled` nur im Fenster; `disabled` nie."""
+    from datetime import datetime, timezone, timedelta
+    assert abwesenheit._abwesend_jetzt({"status": "alwaysEnabled"}) is True
+    assert abwesenheit._abwesend_jetzt({"status": "disabled"}) is False
+    now = datetime.now(timezone.utc)
+    def z(d):
+        return {"dateTime": (now + timedelta(days=d)).strftime("%Y-%m-%dT%H:%M:%S"), "timeZone": "UTC"}
+    laufend = {"status": "scheduled", "scheduledStartDateTime": z(-1), "scheduledEndDateTime": z(1)}
+    kuenftig = {"status": "scheduled", "scheduledStartDateTime": z(3), "scheduledEndDateTime": z(6)}
+    assert abwesenheit._abwesend_jetzt(laufend) is True
+    assert abwesenheit._abwesend_jetzt(kuenftig) is False
+
+
+def test_status_uebersicht_cached_und_zaehlt_abwesende(monkeypatch):
+    """Scan liest je Postfach den Status, zählt die gerade Abwesenden — und bedient
+    sich beim zweiten Aufruf aus dem Cache (kein erneuter Graph-Lauf)."""
+    reads = {"n": 0}
+    store = {}
+
+    async def fake_token():
+        return "TOK"
+
+    async def fake_get(upn, token):
+        reads["n"] += 1
+        st = "alwaysEnabled" if upn == "a@x.de" else "disabled"
+        return "ok", {"status": st, "internalReplyMessage": "", "externalReplyMessage": ""}
+
+    monkeypatch.setattr(abwesenheit, "_aktive_postfaecher",
+                        lambda cfg: [("a@x.de", {}), ("b@x.de", {})])
+    monkeypatch.setattr(graph_client, "_acquire_token_async", fake_token)
+    monkeypatch.setattr(abwesenheit, "_get_setting", fake_get)
+    monkeypatch.setattr(settings_store, "get",
+                        lambda k, d=None: store.get(k, {"MAILBOX_CONFIG": {"x": 1}}.get(k, d)))
+    monkeypatch.setattr(settings_store, "force_update", lambda patch: store.update(patch))
+
+    r1 = _run(abwesenheit.status_uebersicht())
+    assert r1["gesamt"] == 2 and r1["abwesend"] == 1
+    assert reads["n"] == 2
+    # Zweiter Aufruf innerhalb der TTL → Cache, kein weiterer Read.
+    r2 = _run(abwesenheit.status_uebersicht())
+    assert r2["abwesend"] == 1 and reads["n"] == 2, "zweiter Aufruf hätte den Cache nutzen müssen"
+    # force umgeht den Cache.
+    _run(abwesenheit.status_uebersicht(force=True))
+    assert reads["n"] == 4
+
+
 def test_ankuendigung_an_false_unterdrueckt_und_spart_read(tmp_path, monkeypatch):
     """`oof_announce=false` schaltet die Ankündigung ab — und dann wird der Kalender
     gar nicht erst gelesen (kein Graph-Aufruf). Default (Feld fehlt) = an."""

@@ -7,6 +7,13 @@
     "name": "dashboard"
   },
   {
+    "pfad": "/abwesenheit",
+    "methoden": [
+      "GET"
+    ],
+    "name": "abwesenheit_page"
+  },
+  {
     "pfad": "/addin/auth-complete",
     "methoden": [
       "GET"
@@ -54,6 +61,13 @@
       "GET"
     ],
     "name": "api_abnahme"
+  },
+  {
+    "pfad": "/api/abwesenheit/uebersicht",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_abwesenheit_uebersicht"
   },
   {
     "pfad": "/api/acme/account-reset",

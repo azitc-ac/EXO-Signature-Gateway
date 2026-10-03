@@ -129,6 +129,7 @@ from webui.routen import smime as _routen_smime              # noqa: E402
 from webui.routen import waechter as _routen_waechter        # noqa: E402
 from webui.routen import campaigns as _routen_campaigns      # noqa: E402
 from webui.routen import selfservice as _routen_selfservice  # noqa: E402
+from webui.routen import abwesenheit as _routen_abwesenheit  # noqa: E402
 
 # EINE Quelle: hieraus werden die Router eingebunden, und `tests/test_routes.py`
 # zaehlt daraus die Routen ab.
@@ -143,7 +144,7 @@ ROUTENMODULE = [_routen_addin, _routen_backup, _routen_hub, _routen_mailboxes,
                 _routen_portal, _routen_settings, _routen_setup, _routen_smime,
                 _routen_vorlagen, _routen_betrieb, _routen_aktualisierung,
                 _routen_anmeldung, _routen_relay, _routen_waechter,
-                _routen_campaigns, _routen_selfservice]
+                _routen_campaigns, _routen_selfservice, _routen_abwesenheit]
 
 for _modul in ROUTENMODULE:
     app.include_router(_modul.router)

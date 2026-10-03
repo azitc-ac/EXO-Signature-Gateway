@@ -60,6 +60,8 @@ FEHLER = "fehler"
 
 _STATE_KEY = "_OOO_STATE"       # {mailbox_key: {"intern": <kanonisch>, "extern": <kanonisch>}}
 _LAST_KEY = "_OOO_LAST"         # Zählung des letzten Poll-Laufs (für Tagesbericht/Übersicht)
+_UEBERSICHT_KEY = "_OOO_UEBERSICHT"   # gecachter Status-Scan fürs Admin-Dashboard
+_UEBERSICHT_TTL_S = 300               # 5 Minuten — Dashboard bedient sich daraus
 
 # Begrenzte Nebenläufigkeit im Poll: ohne sie lief die Schleife sequenziell (ein
 # Postfach nach dem anderen), was bei Tausenden Postfächern das 10-Min-Fenster
@@ -543,18 +545,31 @@ def _braucht_kalender(sender_cfg: dict, template_name: str = "") -> bool:
 # ── Ankündigung künftiger Abwesenheiten (Variable {{ oof.ankuendigung }}) ──────
 
 def _ankuendigung_einstellungen(sender_cfg: dict) -> dict:
-    """Umfang/Filter der Ankündigung je Postfach (gesetzt über den Self-Service).
-    `an` ob der Nutzer die Ankündigung will (Vorgabe ja, sobald die Vorlage die
-    Variable nutzt — opt-out je Postfach über `oof_announce=false`), `mode` ∈
-    {anzahl, tage}, `x` die Zahl, `privat` ob private Termine zählen (Vorgabe ja),
-    `extern` ob die Zeile auch im externen Text erscheint (Vorgabe nein → nur
-    intern)."""
+    """Umfang/Filter der Ankündigung. Rangfolge je Feld: Postfach-eigener Wert
+    (Self-Service) ÜBER betreiberweiter Vorgabe (`OOO_ANNOUNCE_*`). `an` ob der
+    Nutzer die Ankündigung will (Vorgabe ja, sobald die Vorlage die Variable nutzt —
+    opt-out je Postfach über `oof_announce=false`), `mode` ∈ {anzahl, tage}, `x` die
+    Zahl, `privat` ob private Termine zählen, `extern` ob die Zeile auch im externen
+    Text erscheint (Vorgabe nein → nur intern)."""
+    g_mode = settings_store.get("OOO_ANNOUNCE_MODE") or "anzahl"
+    g_x = settings_store.get("OOO_ANNOUNCE_X")
+    g_privat = settings_store.get("OOO_ANNOUNCE_PRIVAT")
+    g_extern = settings_store.get("OOO_ANNOUNCE_EXTERN")
+    # Postfach-eigener Wert hat Vorrang; fehlt er, gilt die betreiberweite Vorgabe.
+    mode = sender_cfg.get("oof_announce_mode") or g_mode
+    x_roh = sender_cfg.get("oof_announce_x")
+    if x_roh in (None, ""):
+        x_roh = g_x if g_x is not None else 3
+    privat = sender_cfg.get("oof_announce_privat",
+                            g_privat if g_privat is not None else True)
+    extern = sender_cfg.get("oof_announce_extern",
+                            g_extern if g_extern is not None else False)
     return {
         "an": sender_cfg.get("oof_announce", True) is not False,
-        "mode": (sender_cfg.get("oof_announce_mode") or "anzahl"),
-        "x": max(1, int(sender_cfg.get("oof_announce_x") or 3)),
-        "privat": sender_cfg.get("oof_announce_privat", True) is not False,
-        "extern": bool(sender_cfg.get("oof_announce_extern")),
+        "mode": mode if mode in ("anzahl", "tage") else "anzahl",
+        "x": max(1, int(x_roh or 3)),
+        "privat": privat is not False,
+        "extern": bool(extern),
     }
 
 
@@ -830,3 +845,76 @@ async def poll_alle() -> dict:
     ergebnis = {"aktiv": True, **zaehlung, "gesamt": zaehlung_gesamt}
     _persist_last(ergebnis)
     return ergebnis
+
+
+# ── Status-Übersicht fürs Admin-Dashboard ─────────────────────────────────────
+
+def _abwesend_jetzt(setting: dict) -> bool:
+    """Ist das Postfach GERADE abwesend? `alwaysEnabled` immer; `scheduled` nur im
+    Fenster. In der Anzeige-Zeitzone verglichen (konsistent mit zeitraum_text)."""
+    status = setting.get("status")
+    if status == "alwaysEnabled":
+        return True
+    if status != "scheduled":
+        return False
+    from datetime import datetime, timezone
+    from zoneinfo import ZoneInfo
+    try:
+        jetzt = datetime.now(ZoneInfo(settings_store.get("LOG_TIMEZONE") or "UTC")).replace(tzinfo=None)
+    except Exception:                                              # noqa: BLE001
+        jetzt = datetime.now(timezone.utc).replace(tzinfo=None)
+    s = _lokal_datum(setting.get("scheduledStartDateTime"))
+    e = _lokal_datum(setting.get("scheduledEndDateTime"))
+    return (s is None or s <= jetzt) and (e is None or jetzt <= e)
+
+
+async def _uebersicht_eintrag(upn: str, token: str) -> dict:
+    status_lese, setting = await _get_setting(upn, token)
+    if status_lese == "kein_zugriff":
+        return {"upn": upn, "zugriff": False, "status": "?", "zeitraum": "", "abwesend": False}
+    if status_lese != "ok" or setting is None:
+        return {"upn": upn, "zugriff": True, "status": "?", "zeitraum": "", "abwesend": False, "fehler": True}
+    return {"upn": upn, "zugriff": True,
+            "status": setting.get("status", "disabled"),
+            "zeitraum": zeitraum_text(setting),
+            "abwesend": _abwesend_jetzt(setting)}
+
+
+async def status_uebersicht(force: bool = False) -> dict:
+    """Status (an/aus/Zeitraum, gerade abwesend?) je aktiviertem Postfach — gecacht.
+
+    Bedient das Admin-Dashboard. Graph wird nur gelesen, wenn der Cache älter als
+    `_UEBERSICHT_TTL_S` ist oder `force=True` (Knopf „aktualisieren"). Nebenläufig
+    mit demselben Deckel wie der Poll, damit auch viele Postfächer das Fenster nicht
+    sprengen. Läuft im Web-Prozess (kein Subprozess) → force_update ist sicher."""
+    from datetime import datetime, timezone
+    cache = settings_store.get(_UEBERSICHT_KEY) or {}
+    jetzt = datetime.now(timezone.utc)
+    if not force and cache.get("ts"):
+        try:
+            if (jetzt - datetime.fromisoformat(cache["ts"])).total_seconds() < _UEBERSICHT_TTL_S:
+                return cache
+        except ValueError:
+            pass
+    mailbox_cfg = settings_store.get("MAILBOX_CONFIG") or {}
+    postfaecher = _aktive_postfaecher(mailbox_cfg)
+    token = await graph_client._acquire_token_async()
+    if not token:
+        return cache or {"ts": jetzt.isoformat(), "items": [], "gesamt": 0,
+                         "abwesend": 0, "kein_token": True}
+    sem = asyncio.Semaphore(_POLL_PARALLEL)
+
+    async def _einen(upn: str) -> dict:
+        async with sem:
+            try:
+                return await _uebersicht_eintrag(upn, token)
+            except Exception as exc:                               # noqa: BLE001
+                log.warning("OOO-Übersicht für %s fehlgeschlagen: %s", upn, exc)
+                return {"upn": upn, "zugriff": True, "status": "?", "zeitraum": "",
+                        "abwesend": False, "fehler": True}
+
+    items = list(await asyncio.gather(*[_einen(u) for u, _ in postfaecher]))
+    erg = {"ts": jetzt.isoformat(), "items": items, "gesamt": len(items),
+           "abwesend": sum(1 for i in items if i.get("abwesend"))}
+    settings_store.force_update({_UEBERSICHT_KEY: erg})
+    return erg

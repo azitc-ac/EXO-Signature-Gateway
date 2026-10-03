@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block main_klasse %}weit{% endblock %}
+{% block content %}
+<h1>Abwesenheit</h1>
+
+<style>
+  .ab-badge { display:inline-block; padding:2px 9px; border-radius:11px; font-size:12px; font-weight:600; white-space:nowrap }
+  .ab-badge[data-s="abwesend"] { background:#dcfce7; color:#166534 }
+  .ab-badge[data-s="geplant"]  { background:#fef3c7; color:#92400e }
+  .ab-badge[data-s="aus"]      { background:#f1f5f9; color:#64748b }
+  .ab-badge[data-s="fehler"]   { background:#fef2f2; color:#991b1b }
+  [data-theme="dark"] .ab-badge[data-s="abwesend"] { background:#064e3b; color:#a7f3d0 }
+  [data-theme="dark"] .ab-badge[data-s="geplant"]  { background:#4a3410; color:#fde68a }
+  [data-theme="dark"] .ab-badge[data-s="aus"]      { background:#334155; color:#cbd5e1 }
+  [data-theme="dark"] .ab-badge[data-s="fehler"]   { background:#4a1414; color:#fca5a5 }
+  #ab-tabelle th, #ab-tabelle td { padding:7px 10px; text-align:left; border-bottom:1px solid #e5e7eb; font-size:13px }
+  [data-theme="dark"] #ab-tabelle th, [data-theme="dark"] #ab-tabelle td { border-bottom-color:#334155 }
+  #ab-tabelle th { font-weight:600; color:#555; font-size:12px }
+</style>
+
+<div id="ooo-aus-hinweis" class="alert warn" style="display:none;margin-bottom:14px">
+  Die zentrale Abwesenheitsnotiz ist derzeit <strong>aus</strong> — die Übersicht zeigt den
+  Live-Status der Postfächer, aber das Gateway vereinheitlicht die Texte nicht.
+  Einschalten unter <a href="/mailboxes" style="color:inherit;font-weight:700">Postfächer</a>.
+</div>
+
+<!-- Übersicht -->
+<div class="settings-card" style="margin-bottom:18px">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+    <div>
+      <strong id="ab-summe">—</strong> gerade abwesend
+      <span class="muted" id="ab-stand" style="margin-left:10px"></span>
+    </div>
+    <button class="btn secondary btn-sm" id="ab-refresh" onclick="abLaden(true)">Aktualisieren</button>
+  </div>
+  <div style="overflow-x:auto;margin-top:10px">
+    <table id="ab-tabelle" style="width:100%;border-collapse:collapse">
+      <thead>
+        <tr>
+          <th>Postfach</th><th>Status</th><th>Zeitraum</th>
+          <th>Vorlage</th><th>Kalender</th><th>Ankündigung</th>
+        </tr>
+      </thead>
+      <tbody id="ab-tbody">
+        <tr><td colspan="6" class="muted">Lädt…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Vorgaben für die Ankündigung -->
+<div class="settings-card">
+  <h2 style="margin-top:0">Vorgaben für die Ankündigung</h2>
+  <p class="hint" style="max-width:680px">
+    Nutzt eine Abwesenheitsvorlage die Variable <code>{{ '{{ oof.ankuendigung }}' }}</code>,
+    gelten diese Vorgaben für alle Postfächer. Einzelne Nutzer können sie im
+    Self-Service übersteuern.
+  </p>
+  <div class="settings-row">
+    <label for="ann-mode">Umfang</label>
+    <div class="settings-control">
+      <select id="ann-mode" onchange="annSpeichern()">
+        <option value="anzahl" {% if ann_mode == 'anzahl' %}selected{% endif %}>die nächsten … Abwesenheiten</option>
+        <option value="tage" {% if ann_mode == 'tage' %}selected{% endif %}>Abwesenheiten der nächsten … Tage</option>
+      </select>
+    </div>
+  </div>
+  <div class="settings-row">
+    <label for="ann-x">Anzahl bzw. Tage</label>
+    <div class="settings-control">
+      <input type="number" id="ann-x" min="1" max="50" value="{{ ann_x }}" style="width:80px" onchange="annSpeichern()">
+    </div>
+  </div>
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="ann-privat" {% if ann_privat %}checked{% endif %} onchange="annSpeichern()">
+      private Termine mitzählen
+    </label>
+  </div>
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="ann-extern" {% if ann_extern %}checked{% endif %} onchange="annSpeichern()">
+      auch externen Absendern zeigen
+    </label>
+  </div>
+  <span id="ann-result" style="font-size:12px"></span>
+</div>
+
+<script>
+function abBadge(it) {
+  var s, label;
+  if (it.status === 'alwaysEnabled') { s = 'abwesend'; label = 'immer an'; }
+  else if (it.status === 'scheduled') { s = it.abwesend ? 'abwesend' : 'geplant'; label = it.abwesend ? 'abwesend' : 'geplant'; }
+  else if (it.status === 'disabled') { s = 'aus'; label = 'aus'; }
+  else { s = 'fehler'; label = it.zugriff === false ? 'kein Zugriff' : '?'; }
+  return '<span class="ab-badge" data-s="' + s + '">' + esc(label) + '</span>';
+}
+
+function abKalender(v) {
+  if (v === true) return 'an';
+  if (v === false) return 'aus';
+  return '<span class="muted">Vorgabe</span>';
+}
+
+async function abLaden(force) {
+  var tbody = document.getElementById('ab-tbody');
+  try {
+    var r = await fetch('/api/abwesenheit/uebersicht' + (force ? '?force=1' : ''));
+    if (!r.ok) { tbody.innerHTML = '<tr><td colspan="6" class="muted">Fehler ' + r.status + '</td></tr>'; return; }
+    var d = await r.json();
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="6" class="muted">Verbindungsfehler</td></tr>'; return;
+  }
+  document.getElementById('ooo-aus-hinweis').style.display = d.ooo_enabled ? 'none' : 'block';
+  document.getElementById('ab-summe').textContent = d.abwesend + ' von ' + d.gesamt;
+  var stand = document.getElementById('ab-stand');
+  if (d.kein_token) stand.textContent = '· kein Graph-Zugriff';
+  else if (d.ts) stand.textContent = '· Stand: ' + new Date(d.ts).toLocaleString('de-DE');
+  else stand.textContent = '';
+  if (!d.items || !d.items.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="muted">Keine aktivierten Postfächer.</td></tr>'; return;
+  }
+  tbody.innerHTML = d.items.map(function (it) {
+    return '<tr>'
+      + '<td>' + esc(it.name || it.upn) + '</td>'
+      + '<td>' + abBadge(it) + '</td>'
+      + '<td>' + esc(it.zeitraum || '') + '</td>'
+      + '<td>' + (it.oof_template ? esc(it.oof_template) : '<span class="muted">— keine —</span>') + '</td>'
+      + '<td>' + abKalender(it.kalender) + '</td>'
+      + '<td>' + (it.ankuendigung ? 'an' : '<span class="muted">—</span>') + '</td>'
+      + '</tr>';
+  }).join('');
+}
+
+async function annSpeichern() {
+  var x = Math.max(1, Math.min(50, parseInt(document.getElementById('ann-x').value, 10) || 3));
+  document.getElementById('ann-x').value = x;
+  await savePartial({
+    OOO_ANNOUNCE_MODE: document.getElementById('ann-mode').value,
+    OOO_ANNOUNCE_X: x,
+    OOO_ANNOUNCE_PRIVAT: document.getElementById('ann-privat').checked,
+    OOO_ANNOUNCE_EXTERN: document.getElementById('ann-extern').checked,
+  }, 'ann-result');
+}
+
+abLaden(false);
+</script>
+{% endblock %}
