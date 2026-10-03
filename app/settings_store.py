@@ -40,6 +40,13 @@ DEFAULTS: dict = {
     # native Abwesenheit für ihr Zeitfenster ein. Braucht Calendars.Read (Consent).
     "OOO_CALENDAR_AUTO": False,
     "OOO_CALENDAR_MIN_HOURS": 8,
+    # Wie oft der Kalender je Postfach WIRKLICH bei Graph gelesen wird. Der
+    # OOO-Poll läuft alle 10 Minuten; der Kalender ändert sich selten. Ohne Cache
+    # liefe calendarView je Postfach bei JEDEM Poll — bei tausenden Postfächern
+    # untragbar. Das gelesene Fenster wird deshalb in _OOO_STATE gecacht und erst
+    # nach dieser Stundenzahl neu gelesen (Self-Service erzwingt sofort ein
+    # Auffrischen). Gilt für Kalender-Automatik UND Ankündigungs-Variable.
+    "OOO_CALENDAR_REFRESH_HOURS": 6,
     # Unter den Abwesenheitstext optional die zugewiesene Signatur / das Banner
     # anhängen (statischer Schnappschuss; Bilder per CID rendern in OOF oft nicht).
     "OOO_APPEND_SIGNATURE": False,

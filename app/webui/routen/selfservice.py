@@ -298,4 +298,17 @@ async def self_save(request: Request, email: str = Depends(_require_self)):
         log.warning("self_save: OOF-PATCH fehlgeschlagen für %s: %s", email, exc)
         raise HTTPException(502, "Abwesenheit konnte bei Exchange nicht gesetzt werden.")
     log.info("Self-Service: %s hat Abwesenheit (status=%s) + Vorlagen gesetzt", email, status)
+
+    # On-demand: Kalender-Cache dieses Postfachs sofort auffrischen, damit die
+    # Kalender-Automatik / Ankündigung nicht bis zum nächsten N-Stunden-Refresh
+    # mit veralteten Terminen rechnet. Nur, wenn das Postfach überhaupt
+    # Kalenderdaten braucht (Vorlagen-Nutzungs-Gate) — sonst keine Graph-Last.
+    try:
+        _key, _cfg = _postfach(email)
+        if abwesenheit._braucht_kalender(_cfg, oof_tpl):
+            st = abwesenheit._state()
+            await abwesenheit.kalender_fenster(email, token, st, force=True)
+            abwesenheit._state_speichern(st)
+    except Exception as exc:                                       # noqa: BLE001
+        log.warning("self_save: Kalender-Cache-Refresh fehlgeschlagen für %s: %s", email, exc)
     return JSONResponse({"ok": True})

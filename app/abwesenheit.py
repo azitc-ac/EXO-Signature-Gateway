@@ -384,7 +384,13 @@ async def _kalender_oof_fenster(upn: str, token: str) -> tuple[dict, dict] | Non
 
     Berücksichtigt nur Termine mit Status `showAs == "oof"` ab der eingestellten
     Mindestdauer (`OOO_CALENDAR_MIN_HOURS`). Ein gerade laufender Termin hat
-    Vorrang, sonst der nächste kommende. Rein lesend (Calendars.Read)."""
+    Vorrang, sonst der nächste kommende. Rein lesend (Calendars.Read).
+
+    ⚠️ Rückgabe-Vertrag für den Cache (`kalender_fenster`): `None` heißt
+    „zuverlässig kein qualifizierender Termin" (inkl. 403 — der Zustand ändert
+    sich nicht in Minuten, also cachebar). Ein ECHTER Fehler (Netzwerk, 5xx)
+    wird GEWORFEN, nicht als None zurückgegeben — sonst würde der Cache ein
+    vorübergehendes Problem als „kein Termin" für Stunden festschreiben."""
     from datetime import datetime, timezone, timedelta
     min_h = float(settings_store.get("OOO_CALENDAR_MIN_HOURS") or 8)
     jetzt = datetime.now(timezone.utc)
@@ -404,7 +410,7 @@ async def _kalender_oof_fenster(upn: str, token: str) -> tuple[dict, dict] | Non
         events = resp.json().get("value", [])
     except Exception as exc:                                       # noqa: BLE001
         log.warning("OOO-Kalender lesen für %s fehlgeschlagen: %s", upn, exc)
-        return None
+        raise      # echter Fehler → NICHT cachen (siehe Docstring)
     jetzt_naiv = jetzt.replace(tzinfo=None)   # _dt liefert naive (UTC-)datetimes
     kandidaten = []
     for ev in events:
@@ -419,6 +425,73 @@ async def _kalender_oof_fenster(upn: str, token: str) -> tuple[dict, dict] | Non
     laufend = [k for k in kandidaten if k[0] <= jetzt_naiv <= k[1]]
     wahl = min(laufend or kandidaten, key=lambda k: k[0])
     return wahl[2], wahl[3]
+
+
+def _kalender_auto_an(sender_cfg: dict) -> bool:
+    """Ist die Kalender-Automatik für DIESES Postfach aktiv?
+
+    Per-Postfach-Opt-in (`ooo_calendar`, True/False) übersteuert den Tenant-Default
+    `OOO_CALENDAR_AUTO`. Fehlt das Feld (der Regelfall), gilt der Default — so
+    bleibt die bisherige rein globale Schaltung rückwärtskompatibel, und ein
+    Betreiber kann zugleich einzelne Postfächer gezielt ein- oder ausnehmen."""
+    v = sender_cfg.get("ooo_calendar")
+    if v is None:
+        return bool(settings_store.get("OOO_CALENDAR_AUTO"))
+    return bool(v)
+
+
+async def kalender_fenster(upn: str, token: str, state: dict,
+                           *, force: bool = False) -> tuple[dict, dict] | None:
+    """Maßgebliches „Abwesend"-Kalenderfenster — aus dem Cache bedient.
+
+    Graph (`calendarView`) wird nur WIRKLICH gelesen, wenn der gecachte Wert älter
+    als `OOO_CALENDAR_REFRESH_HOURS` ist oder `force=True` (on-demand beim
+    Self-Save). Das ist der Kern der Skalierung: Der OOO-Poll läuft alle 10 Minuten,
+    aber der Kalender ändert sich selten — ohne Cache liefe pro Postfach bei jedem
+    Poll ein calendarView-Aufruf.
+
+    Gecacht wird je Postfach unter `state[upn]["kal"] = {"ts", "fenster"}`. Auch
+    das NICHT-Vorhandensein eines Termins (`fenster=None`) wird gemerkt, damit es
+    zwischenzeitlich nicht erneut abgefragt wird. Ein echter Lesefehler aktualisiert
+    den Cache NICHT (dann gilt der vorige Wert weiter, und der nächste Poll
+    versucht es erneut) — nur so wird ein vorübergehendes Problem nicht für Stunden
+    als „kein Termin" festgeschrieben. Mutiert `state` in-place."""
+    from datetime import datetime, timezone
+    merk = state.get(upn.lower())
+    if merk is None:
+        merk = {}
+        state[upn.lower()] = merk
+    kal = merk.get("kal") or {}
+    refresh_h = float(settings_store.get("OOO_CALENDAR_REFRESH_HOURS") or 6)
+    jetzt = datetime.now(timezone.utc)
+    if kal.get("ts") and not force:
+        try:
+            alter = (jetzt - datetime.fromisoformat(kal["ts"])).total_seconds()
+            if alter < refresh_h * 3600:
+                f = kal.get("fenster")
+                return (f["start"], f["end"]) if f else None
+        except ValueError:
+            pass   # unlesbarer Zeitstempel → als abgelaufen behandeln
+    try:
+        fenster = await _kalender_oof_fenster(upn, token)
+    except Exception:                                              # noqa: BLE001
+        # Echter Fehler: Cache NICHT anfassen; vorigen (ggf. veralteten) Wert liefern.
+        f = kal.get("fenster")
+        return (f["start"], f["end"]) if f else None
+    merk["kal"] = {"ts": jetzt.isoformat(),
+                   "fenster": ({"start": fenster[0], "end": fenster[1]} if fenster else None)}
+    return fenster
+
+
+def _braucht_kalender(sender_cfg: dict, template_name: str = "") -> bool:
+    """Braucht dieses Postfach überhaupt einen Kalender-Read?
+
+    Grundlage des „Vorlagen-Nutzungs-Gates": Wo weder die Kalender-Automatik läuft
+    noch eine Vorlage Kalenderdaten verwendet, wird Graph erst gar nicht nach dem
+    Kalender gefragt. In dieser Stufe (B2) genügt die aktive Automatik;
+    Stufe C erweitert das um die Ankündigungs-Variable in der zugewiesenen
+    oof-Vorlage."""
+    return _kalender_auto_an(sender_cfg)
 
 
 # ── Ein Postfach normalisieren ────────────────────────────────────────────────
@@ -450,17 +523,24 @@ async def setze_fuer_postfach(upn: str, sender: str, mailbox_cfg: dict,
     html, _txt = render_oof(user_data, template, zeitraum_text(setting), _ab, _bis,
                             anhang_html, anhang_txt)
 
-    merk = state.get(upn.lower()) or {}
+    # merk MUSS mit state verknüpft sein: kalender_fenster() legt den Cache unter
+    # state[upn]["kal"] ab. Wäre merk eine lose Kopie, ginge dieser Cache verloren.
+    merk = state.get(upn.lower())
+    if merk is None:
+        merk = {}
+        state[upn.lower()] = merk
     auto_win = merk.get("auto_win")
 
     # Kalender-Automatik (opt-in): Ist die Abwesenheit AUS und liegt ein
     # qualifizierender „Abwesend"-Termin vor, aktivieren wir die native Abwesenheit
     # für dessen Fenster — aber nur EINMAL je Fenster (auto_win). Schaltet der
     # Nutzer sie danach von Hand wieder aus, wird NICHT erneut aktiviert.
+    # Der Kalender wird über den gecachten Helfer gelesen (Refresh alle N h), und
+    # die Automatik gilt per Postfach (ooo_calendar) bzw. per Tenant-Default.
     setze_status = setze_start = setze_ende = None
-    if (settings_store.get("OOO_CALENDAR_AUTO")
+    if (_kalender_auto_an(sender_cfg)
             and setting.get("status") in (None, "disabled")):
-        fenster = await _kalender_oof_fenster(upn, token)
+        fenster = await kalender_fenster(upn, token, state)
         if fenster:
             win_key = f"{(fenster[0] or {}).get('dateTime')}|{(fenster[1] or {}).get('dateTime')}"
             if auto_win != win_key:
@@ -502,6 +582,12 @@ async def setze_fuer_postfach(upn: str, sender: str, mailbox_cfg: dict,
     neu["render"] = html
     if auto_win:
         neu["auto_win"] = auto_win
+    # Den Kalender-Cache über den State-Neubau retten (kalender_fenster hat ihn
+    # evtl. gerade aufgefrischt) — sonst liefe beim nächsten Poll wieder ein
+    # calendarView-Aufruf, als gäbe es keinen Cache.
+    kal = merk.get("kal")
+    if kal:
+        neu["kal"] = kal
     # In-Memory mutieren; poll_alle persistiert den gesamten State EINMAL am Ende
     # (statt je Postfach einen vollen settings.json-Schreibvorgang — das skaliert
     # nicht). Verschiedene Postfächer schreiben verschiedene Keys → nebenläufig sicher.

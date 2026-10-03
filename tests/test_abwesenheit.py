@@ -464,6 +464,137 @@ def test_poll_persistiert_letzten_lauf(monkeypatch):
     assert captured["_OOO_LAST"]["gesamt"] == 0 and "ts" in captured["_OOO_LAST"]
 
 
+# ── B2: per-Postfach-Opt-in + Kalender-Cache ──────────────────────────────────
+
+def test_kalender_auto_an_per_postfach_uebersteuert_global(monkeypatch):
+    """`ooo_calendar` je Postfach schlägt den Tenant-Default OOO_CALENDAR_AUTO;
+    fehlt das Feld, gilt der Default. Schlägt fehl, wenn die Rangfolge kippt."""
+    def _mit(global_auto):
+        monkeypatch.setattr(settings_store, "get",
+                            lambda k, d=None: {"OOO_CALENDAR_AUTO": global_auto}.get(k, d))
+    _mit(True)
+    assert abwesenheit._kalender_auto_an({}) is True            # kein Feld → Default an
+    assert abwesenheit._kalender_auto_an({"ooo_calendar": False}) is False  # Postfach aus
+    _mit(False)
+    assert abwesenheit._kalender_auto_an({}) is False           # kein Feld → Default aus
+    assert abwesenheit._kalender_auto_an({"ooo_calendar": True}) is True    # Postfach an
+
+
+def test_kalender_cache_vermeidet_zweiten_read(monkeypatch):
+    """Der zweite Aufruf innerhalb des Refresh-Fensters liest NICHT erneut bei
+    Graph — das ist der Skalierungs-Kern. Schlägt fehl, wenn der Cache entfällt."""
+    reads = {"n": 0}
+
+    async def fake_fenster(upn, token):
+        reads["n"] += 1
+        return ({"dateTime": "2026-10-01T00:00:00", "timeZone": "UTC"},
+                {"dateTime": "2026-10-10T00:00:00", "timeZone": "UTC"})
+
+    monkeypatch.setattr(abwesenheit, "_kalender_oof_fenster", fake_fenster)
+    monkeypatch.setattr(settings_store, "get",
+                        lambda k, d=None: {"OOO_CALENDAR_REFRESH_HOURS": 6}.get(k, d))
+    state: dict = {}
+    f1 = _run(abwesenheit.kalender_fenster("a@x.de", "T", state))
+    f2 = _run(abwesenheit.kalender_fenster("a@x.de", "T", state))
+    assert f1 and f2 and f1[0]["dateTime"].startswith("2026-10-01")
+    assert reads["n"] == 1, "zweiter Aufruf hätte den Cache nutzen müssen"
+    assert state["a@x.de"]["kal"]["fenster"]["start"]["dateTime"].startswith("2026-10-01")
+
+
+def test_kalender_cache_refresh_nach_ablauf(monkeypatch):
+    """Ist der gecachte Wert älter als OOO_CALENDAR_REFRESH_HOURS, wird neu gelesen."""
+    reads = {"n": 0}
+
+    async def fake_fenster(upn, token):
+        reads["n"] += 1
+        return None     # kein Termin
+
+    monkeypatch.setattr(abwesenheit, "_kalender_oof_fenster", fake_fenster)
+    monkeypatch.setattr(settings_store, "get",
+                        lambda k, d=None: {"OOO_CALENDAR_REFRESH_HOURS": 6}.get(k, d))
+    # Cache mit einem 7h alten Zeitstempel vorbelegen → abgelaufen.
+    from datetime import datetime, timezone, timedelta
+    alt = (datetime.now(timezone.utc) - timedelta(hours=7)).isoformat()
+    state = {"a@x.de": {"kal": {"ts": alt, "fenster": None}}}
+    _run(abwesenheit.kalender_fenster("a@x.de", "T", state))
+    assert reads["n"] == 1, "abgelaufener Cache hätte neu lesen müssen"
+
+
+def test_kalender_cache_force_liest_neu(monkeypatch):
+    """force=True (Self-Save) liest neu, auch wenn der Cache frisch ist."""
+    reads = {"n": 0}
+
+    async def fake_fenster(upn, token):
+        reads["n"] += 1
+        return None
+
+    monkeypatch.setattr(abwesenheit, "_kalender_oof_fenster", fake_fenster)
+    monkeypatch.setattr(settings_store, "get",
+                        lambda k, d=None: {"OOO_CALENDAR_REFRESH_HOURS": 6}.get(k, d))
+    from datetime import datetime, timezone
+    state = {"a@x.de": {"kal": {"ts": datetime.now(timezone.utc).isoformat(), "fenster": None}}}
+    _run(abwesenheit.kalender_fenster("a@x.de", "T", state, force=True))
+    assert reads["n"] == 1, "force hätte den frischen Cache umgehen müssen"
+
+
+def test_kalender_cache_fehler_wird_nicht_gecacht(monkeypatch):
+    """Ein echter Lesefehler (Exception) darf den Cache NICHT auf „kein Termin"
+    festschreiben — sonst bliebe die Automatik nach einem Netz-Schluckauf für
+    Stunden blind. Der Zeitstempel bleibt der alte, der nächste Poll versucht es
+    erneut."""
+    async def fake_fenster(upn, token):
+        raise RuntimeError("Graph 503")
+
+    monkeypatch.setattr(abwesenheit, "_kalender_oof_fenster", fake_fenster)
+    monkeypatch.setattr(settings_store, "get",
+                        lambda k, d=None: {"OOO_CALENDAR_REFRESH_HOURS": 6}.get(k, d))
+    from datetime import datetime, timezone, timedelta
+    alt = (datetime.now(timezone.utc) - timedelta(hours=7)).isoformat()
+    state = {"a@x.de": {"kal": {"ts": alt, "fenster": None}}}
+    r = _run(abwesenheit.kalender_fenster("a@x.de", "T", state))
+    assert r is None
+    assert state["a@x.de"]["kal"]["ts"] == alt, "Fehler darf den Zeitstempel nicht erneuern"
+
+
+def test_kal_cache_ueberlebt_state_neubau(monkeypatch):
+    """Nach setze_fuer_postfach muss der Kalender-Cache (`kal`) im State erhalten
+    bleiben — sonst liefe beim nächsten Poll wieder ein calendarView-Aufruf."""
+    setting = {"status": "disabled", "internalReplyMessage": "", "externalReplyMessage": ""}
+    reads = {"n": 0}
+
+    async def fake_get(upn, token):
+        return "ok", dict(setting)
+
+    async def fake_patch(upn, token, s, html, status=None, start=None, ende=None):
+        return {"internalReplyMessage": html, "externalReplyMessage": html}
+
+    async def fake_user(upn):
+        return UserData(displayName="E", custom={})
+
+    async def fake_fenster(upn, token):
+        reads["n"] += 1
+        return ({"dateTime": "2026-10-01T00:00:00", "timeZone": "UTC"},
+                {"dateTime": "2026-10-10T00:00:00", "timeZone": "UTC"})
+
+    monkeypatch.setattr(abwesenheit, "_get_setting", fake_get)
+    monkeypatch.setattr(abwesenheit, "_patch_setting", fake_patch)
+    monkeypatch.setattr(graph_client, "get_user", fake_user)
+    monkeypatch.setattr(abwesenheit, "_kalender_oof_fenster", fake_fenster)
+    monkeypatch.setattr(abwesenheit, "oof_vorlage_fuer", lambda *a: "Firma")
+    monkeypatch.setattr(signature_engine, "render",
+                        lambda u, template_name=None, extra=None: ("<p>OOF</p>", "OOF"))
+    monkeypatch.setattr(abwesenheit, "_state_speichern", lambda st: None)
+    monkeypatch.setattr(settings_store, "get",
+                        lambda k, d=None: {"OOO_CALENDAR_AUTO": True,
+                                           "OOO_CALENDAR_REFRESH_HOURS": 6}.get(k, d))
+    state: dict = {}
+    _run(abwesenheit.setze_fuer_postfach("a@x.de", "a@x.de", {}, {}, "T", state))
+    assert "kal" in state["a@x.de"], "Kalender-Cache ging beim State-Neubau verloren"
+    # Zweiter Lauf: Cache frisch → kein erneuter calendarView-Read.
+    _run(abwesenheit.setze_fuer_postfach("a@x.de", "a@x.de", {}, {}, "T", state))
+    assert reads["n"] == 1, "zweiter Poll hätte den Kalender-Cache nutzen müssen"
+
+
 def test_aktive_postfaecher_email_und_guid(monkeypatch):
     cfg = {
         "a@x.de": {"sig": True},                                   # klassisch, aktiv

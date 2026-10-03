@@ -386,12 +386,27 @@ async function ankerAnwenden() {
       </select>
     </div>
   </div>
+  <div class="settings-row" style="margin-top:6px">
+    <label for="ooo-cal-refresh">Kalender neu lesen alle</label>
+    <div class="settings-control">
+      <select id="ooo-cal-refresh" onchange="oooCalRefreshSpeichern(this)"
+              style="font-size:13px;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px">
+        {% for h, lbl in [(2,'2 Stunden'),(4,'4 Stunden'),(6,'6 Stunden'),(12,'12 Stunden'),(24,'24 Stunden')] %}
+        <option value="{{ h }}" {% if ooo_calendar_refresh_hours == h %}selected{% endif %}>{{ lbl }}</option>
+        {% endfor %}
+      </select>
+      <span id="ooo-cal-refresh-result" style="font-size:12px;margin-left:8px"></span>
+    </div>
+  </div>
   <p class="hint" style="margin:4px 0 0;max-width:640px">
     Termine mit dem Status <em>Abwesend</em> ab dieser Dauer schalten die native
     Abwesenheit für ihr Zeitfenster automatisch ein (mit dem Firmentext). Der
     Nutzer trägt nur den Termin ein — den Rest macht der Dienst. Wird eine so
     aktivierte Abwesenheit von Hand wieder ausgeschaltet, bleibt sie aus.
     Erfordert zusätzlich <code>Calendars.Read</code> (Admin-Consent).
+    Dieser Schalter ist der <strong>Vorgabewert für alle Postfächer</strong>; in
+    der Tabelle oben lässt er sich je Postfach auf <em>an</em> oder <em>aus</em>
+    stellen. Der Kalender wird gecacht und nur alle paar Stunden neu gelesen.
   </p>
 
   <!-- Signatur / Banner unter die Abwesenheit hängen (opt-in) -->
@@ -751,6 +766,9 @@ async function oooCalAutoUmschalten(cb) {
 }
 async function oooCalHoursSpeichern(sel) {
   await savePartial({ OOO_CALENDAR_MIN_HOURS: parseInt(sel.value, 10) }, 'ooo-cal-result');
+}
+async function oooCalRefreshSpeichern(sel) {
+  await savePartial({ OOO_CALENDAR_REFRESH_HOURS: parseInt(sel.value, 10) }, 'ooo-cal-refresh-result');
 }
 async function oooAppendSigUmschalten(cb) {
   await savePartial({ OOO_APPEND_SIGNATURE: cb.checked }, 'ooo-append-sig-result');
@@ -1187,6 +1205,26 @@ function renderMailboxTable(mailboxes) {
     oofSel.style.opacity = _oofDisabled ? '0.4' : '1';
     if (policyActive) oofSel.title = 'Wird durch Vorlagenrichtlinie gesteuert';
     tdOof.appendChild(oofSel);
+    // Kalender-Automatik je Postfach (tri-state): Vorgabe (= Tenant-Schalter) /
+    // an / aus. KEIN Vorlagenfeld — gilt unabhängig von der Richtlinie, deshalb
+    // nicht ausgegraut, wenn das Postfach den Richtlinien folgt.
+    var calSel = document.createElement('select');
+    calSel.className = 'mb-ooo-cal';
+    calSel.dataset.idx = String(i);
+    calSel.style.cssText = 'font-size:11px;max-width:130px;margin-top:3px';
+    calSel.title = 'Abwesenheit automatisch aus dem Kalender aktivieren';
+    [['', 'Kalender: Vorgabe'], ['1', 'Kalender: an'], ['0', 'Kalender: aus']]
+      .forEach(function(o) {
+        var opt = document.createElement('option');
+        opt.value = o[0]; opt.textContent = o[1];
+        calSel.appendChild(opt);
+      });
+    calSel.value = (mb.ooo_calendar === true) ? '1'
+                 : (mb.ooo_calendar === false) ? '0' : '';
+    var _calDisabled = !(mb.sig || mb.smime);
+    calSel.disabled = _calDisabled;
+    calSel.style.opacity = _calDisabled ? '0.4' : '1';
+    tdOof.appendChild(calSel);
 
     // Add-in Vorlagen — greyed when policyActive
     var tdAddin = document.createElement('td');
@@ -1242,6 +1280,11 @@ function renderMailboxTable(mailboxes) {
       oofSel.title = pol ? 'Wird durch Vorlagenrichtlinie gesteuert' : '';
       oofSel.value = pol ? (document.getElementById('policy-oof-tpl').value || '')
                          : (mb.oof_template || '');
+      // Kalender-Automatik hängt NUR daran, ob das Postfach aktiv ist (sig/smime),
+      // nicht an der Richtlinie — sie ist kein Vorlagenfeld.
+      var calInaktiv = !(sig || smime);
+      calSel.disabled = calInaktiv;
+      calSel.style.opacity = calInaktiv ? '0.4' : '1';
       addinCtrl.style.opacity = (!sig || pol) ? '0.4' : '1';
       addinCtrl.style.pointerEvents = (!sig || pol) ? 'none' : '';
       addinCtrl.title = pol ? 'Wird durch Vorlagenrichtlinie gesteuert' : '';
@@ -1366,6 +1409,7 @@ async function saveMailboxes() {
   var bannerSelects = document.querySelectorAll('.mb-banner');
   var disclaimerSelects = document.querySelectorAll('.mb-disclaimer');
   var oofSelects = document.querySelectorAll('.mb-oof');
+  var calSelects = document.querySelectorAll('.mb-ooo-cal');
   var policyBoxes = document.querySelectorAll('.mb-policy');
   var payload = [];
   sigBoxes.forEach(function(cb, i) {
@@ -1391,6 +1435,7 @@ async function saveMailboxes() {
       banner_template: bannerSelects[i] ? bannerSelects[i].value : '',
       disclaimer_template: disclaimerSelects[i] ? disclaimerSelects[i].value : '',
       oof_template: oofSelects[i] ? oofSelects[i].value : '',
+      ooo_calendar: calSelects[i] ? calSelects[i].value : '',
       addin_templates: addinTemplates,
       use_policy: policyBoxes[i] ? policyBoxes[i].checked : true,
     });

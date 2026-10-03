@@ -166,6 +166,7 @@ REGISTER: dict[str, E] = {
     "OOO_ENABLED": E(art=OPTION, ort="mailboxes.html"),  # zentrale Abwesenheitsnotiz
     "OOO_CALENDAR_AUTO": E(art=OPTION, ort="mailboxes.html"),   # OOO aus Kalender
     "OOO_CALENDAR_MIN_HOURS": E(art=OPTION, ort="mailboxes.html"),
+    "OOO_CALENDAR_REFRESH_HOURS": E(art=OPTION, ort="mailboxes.html"),  # Kalender-Cache-Refresh
     "OOO_APPEND_SIGNATURE": E(art=OPTION, ort="mailboxes.html"),  # Signatur unter OOF
     "OOO_APPEND_BANNER": E(art=OPTION, ort="mailboxes.html"),     # Banner unter OOF
     "SELF_SERVICE_ENABLED": E(art=OPTION, ort="mailboxes.html"),  # Nutzer-Self-Service (/self)
