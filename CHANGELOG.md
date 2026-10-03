@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.106 — 2026-10-03 — Skalierung: Kalender wird gecacht + Automatik pro Postfach schaltbar
+
+Die Kalender-Automatik (Abwesenheit aus „Abwesend"-Terminen aktivieren) las den
+Kalender bei **jedem** Poll — alle zehn Minuten ein `calendarView`-Aufruf je
+Postfach. Der Kalender ändert sich aber selten; bei vielen hundert bis tausenden
+Postfächern war das die größte verbleibende Graph-Last des Polls.
+
+Das gelesene „Abwesend"-Fenster wird jetzt je Postfach zwischengespeichert und erst
+nach einem einstellbaren Intervall (neu: **Kalender neu lesen alle …**, Vorgabe
+6 Stunden) neu abgefragt. Auch das Nicht-Vorhandensein eines Termins wird gemerkt,
+damit es nicht erneut abgefragt wird; ein echter Lesefehler (Netz, Serverfehler)
+schreibt den Cache hingegen nicht fort, sondern wird beim nächsten Poll erneut
+versucht. Speichert ein Nutzer seine Abwesenheit im Self-Service, wird sein
+Kalender sofort neu gelesen — ohne auf das Intervall zu warten.
+
+Zusätzlich lässt sich die Kalender-Automatik jetzt **je Postfach** auf *an* oder
+*aus* stellen (Tabelle *Postfächer*, Spalte *Abwesenheit*). Der globale Schalter
+bleibt der Vorgabewert für alle Postfächer, die nichts Eigenes gesetzt haben —
+bestehende Installationen verhalten sich unverändert.
+
 ## v1.9.105 — 2026-10-03 — Skalierung: Abwesenheits-Poll läuft nebenläufig + schreibt einmal
 
 Der Abwesenheits-Poll arbeitete die Postfächer streng nacheinander ab und schrieb
