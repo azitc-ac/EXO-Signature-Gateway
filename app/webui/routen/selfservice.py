@@ -115,14 +115,23 @@ def _synth_setting(status: str, start: str, ende: str,
 
 
 async def _render_oof_fuer(email: str, oof_tpl: str, status: str, start: str, ende: str,
-                           start_zeit: str = "", ende_zeit: str = "") -> tuple[str, str]:
-    """(html, txt) der Abwesenheit für die eigene Adresse — wie im Betrieb."""
+                           start_zeit: str = "", ende_zeit: str = "",
+                           token: str | None = None) -> tuple[str, str, str]:
+    """(html_intern, html_extern, txt) der Abwesenheit für die eigene Adresse — wie
+    im Betrieb (inkl. Ankündigung künftiger Abwesenheiten, falls die Vorlage sie
+    nutzt; die Ankündigung steht ggf. nur im internen Text). Ohne `token` wird keine
+    Ankündigung gelesen (reine Vorschau ohne Kalenderzugriff)."""
     if not oof_tpl:
-        return "", ""
+        return "", "", ""
     user_data = await graph_client.get_user(email)
     synth = _synth_setting(status or "scheduled", start, ende, start_zeit, ende_zeit)
     _ab, _bis = abwesenheit.start_ende_text(synth)
-    return abwesenheit.render_oof(user_data, oof_tpl, abwesenheit.zeitraum_text(synth), _ab, _bis)
+    z = abwesenheit.zeitraum_text(synth)
+    _key, cfg = _postfach(email)
+    html, html_extern = await abwesenheit.render_intern_extern(
+        user_data, email, token, oof_tpl, cfg, abwesenheit._state(), z, _ab, _bis)
+    _h, txt = abwesenheit.render_oof(user_data, oof_tpl, z, _ab, _bis)
+    return html, html_extern, txt
 
 
 # ── Seite ──────────────────────────────────────────────────────────────────────
@@ -218,7 +227,11 @@ async def self_preview(oof: str = "", sig: str = "", status: str = "scheduled",
                        email: str = Depends(_require_self)):
     """Korrekte, VOLLSTÄNDIGE Vorschau fürs eigene Postfach: OOF (über der Signatur)
     + Signatur + Banner + Disclaimer (wie die echte Mail)."""
-    oof_html, oof_txt = await _render_oof_fuer(email, oof, status, start, ende, start_zeit, ende_zeit)
+    # Token (best effort), damit die Vorschau die Ankündigung mitzeigt, falls die
+    # Vorlage sie nutzt. Ohne Token zeigt die Vorschau den Text ohne Ankündigung.
+    token = await graph_client._acquire_token_async()
+    oof_html, _oof_extern, oof_txt = await _render_oof_fuer(
+        email, oof, status, start, ende, start_zeit, ende_zeit, token)
     sig_html, sig_txt = "", ""
     if sig:
         user_data = await graph_client.get_user(email)
@@ -285,11 +298,26 @@ async def self_save(request: Request, email: str = Depends(_require_self)):
         raise HTTPException(403, "Kein Zugriff auf die Postfacheinstellungen (Consent fehlt).")
     if status_lese != "ok" or setting is None:
         raise HTTPException(502, "Postfacheinstellungen nicht lesbar.")
+
+    # On-demand: Kalender-Cache ZUERST auffrischen (nur wenn das Postfach überhaupt
+    # Kalenderdaten braucht — Vorlagen-Nutzungs-Gate), damit die gleich gerenderte
+    # Ankündigung schon die aktuellen Termine zeigt und der nächste Poll nichts
+    # Veraltetes findet.
+    try:
+        _k, _cfg = _postfach(email)
+        if abwesenheit._braucht_kalender(_cfg, oof_tpl):
+            st = abwesenheit._state()
+            await abwesenheit.kalender_fenster(email, token, st, force=True)
+            abwesenheit._state_speichern(st)
+    except Exception as exc:                                       # noqa: BLE001
+        log.warning("self_save: Kalender-Cache-Refresh fehlgeschlagen für %s: %s", email, exc)
+
     synth = _synth_setting(status, start, ende, start_zeit, ende_zeit)
-    html, _txt = await _render_oof_fuer(email, oof_tpl, status, start, ende, start_zeit, ende_zeit)
+    html, html_extern, _txt = await _render_oof_fuer(
+        email, oof_tpl, status, start, ende, start_zeit, ende_zeit, token)
     try:
         await abwesenheit._patch_setting(
-            email, token, setting, html,
+            email, token, setting, html, html_extern=html_extern,
             status=status,
             start=synth.get("scheduledStartDateTime"),
             ende=synth.get("scheduledEndDateTime"),
@@ -298,17 +326,4 @@ async def self_save(request: Request, email: str = Depends(_require_self)):
         log.warning("self_save: OOF-PATCH fehlgeschlagen für %s: %s", email, exc)
         raise HTTPException(502, "Abwesenheit konnte bei Exchange nicht gesetzt werden.")
     log.info("Self-Service: %s hat Abwesenheit (status=%s) + Vorlagen gesetzt", email, status)
-
-    # On-demand: Kalender-Cache dieses Postfachs sofort auffrischen, damit die
-    # Kalender-Automatik / Ankündigung nicht bis zum nächsten N-Stunden-Refresh
-    # mit veralteten Terminen rechnet. Nur, wenn das Postfach überhaupt
-    # Kalenderdaten braucht (Vorlagen-Nutzungs-Gate) — sonst keine Graph-Last.
-    try:
-        _key, _cfg = _postfach(email)
-        if abwesenheit._braucht_kalender(_cfg, oof_tpl):
-            st = abwesenheit._state()
-            await abwesenheit.kalender_fenster(email, token, st, force=True)
-            abwesenheit._state_speichern(st)
-    except Exception as exc:                                       # noqa: BLE001
-        log.warning("self_save: Kalender-Cache-Refresh fehlgeschlagen für %s: %s", email, exc)
     return JSONResponse({"ok": True})

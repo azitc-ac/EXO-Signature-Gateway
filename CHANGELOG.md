@@ -5,6 +5,25 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.107 — 2026-10-03 — Abwesenheit: Ankündigung künftiger Abwesenheiten in der Vorlage
+
+Abwesenheitsvorlagen kennen zwei neue Platzhalter: **`{{ oof.ankuendigung }}`**
+(deutsch) und **`{{ oof.announcement }}`** (englisch). Sie werden zu einer fertigen
+Zeile mit den nächsten geplanten Abwesenheiten, gelesen aus dem Kalender (Termine
+mit Status „Abwesend" ab der eingestellten Mindestdauer) — zum Beispiel „Weitere
+geplante Abwesenheiten: vom 02.11.2026 bis 06.11.2026; am 20.11.2026." Die aktuell
+laufende Abwesenheit wird ausgenommen, sie steht ohnehin im übrigen Text.
+
+Steht keiner der Platzhalter in der zugewiesenen Vorlage, wird der Kalender dafür
+gar nicht erst gelesen (kein zusätzlicher Graph-Zugriff). Die Zeile erscheint
+standardmäßig **nur im internen** Abwesenheitstext, nicht im externen. Umfang
+(Anzahl der genannten Abwesenheiten bzw. Vorausschau in Tagen), das Mitzählen
+privater Termine und die externe Sichtbarkeit sind je Postfach einstellbar.
+
+Die Variablen stehen in der Variablen-Hilfe des Vorlagen-Editors (Vorlagenart
+„Abwesenheit"). Der Kalender wird über denselben Cache gelesen wie die
+Kalender-Automatik (ein Zugriff speist beide).
+
 ## v1.9.106 — 2026-10-03 — Skalierung: Kalender wird gecacht + Automatik pro Postfach schaltbar
 
 Die Kalender-Automatik (Abwesenheit aus „Abwesend"-Terminen aktivieren) las den

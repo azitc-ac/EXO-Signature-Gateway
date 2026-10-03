@@ -375,7 +375,11 @@
     <code>oof.name</code>, <code>oof.zeitraum</code>,
     <code>oof.period</code> <span style="color:#888">(Englisch: from … to …)</span>,
     <code>oof.abwesend_ab</code>, <code>oof.abwesend_bis</code>
-    <span style="color:#888">(Abwesenheit — nur bei geplantem Zeitraum befüllt)</span>{% endif %}
+    <span style="color:#888">(Abwesenheit — nur bei geplantem Zeitraum befüllt)</span>,
+    <code>oof.ankuendigung</code>, <code>oof.announcement</code>
+    <span style="color:#888">(fertige Zeile mit den nächsten geplanten Abwesenheiten aus
+    dem Kalender; steht standardmäßig nur im internen Text — nur gefüllt, wenn die
+    Vorlage die Variable nutzt)</span>{% endif %}
   </div>
 </div>
 
@@ -671,7 +675,8 @@ function colorSelect(val, name, bid, extra) {
 (function () {
   // oof.-Variablen nur bei Abwesenheits-Vorlagen vorschlagen.
   const OOF_FIELDS = (TEMPLATE_KIND === 'oof')
-    ? ['oof.name', 'oof.zeitraum', 'oof.period', 'oof.abwesend_ab', 'oof.abwesend_bis'] : [];
+    ? ['oof.name', 'oof.zeitraum', 'oof.period', 'oof.abwesend_ab', 'oof.abwesend_bis',
+       'oof.ankuendigung', 'oof.announcement'] : [];
   const FELDER = USER_FIELDS.map(f => 'user.' + f)
     .concat(CUSTOM_VARS.map(c => 'custom.' + c))
     .concat(OOF_FIELDS);
