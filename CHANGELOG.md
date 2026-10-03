@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.103 — 2026-10-03 — Self-Service: „ganztägig" + optionale Uhrzeiten
+
+Der Abwesenheits-Zeitraum unter /self hat jetzt eine Checkbox **„ganztägig"**
+(standardmäßig an). Ist sie an, gilt wie bisher der ganze Tag (00:00–23:59). Nimmt
+man sie heraus, erscheinen **Uhrzeit-Auswahlen** für Beginn und Ende (30-Minuten-
+Schritte) — so lässt sich stundengenau planen. Beim nächsten Öffnen wird der zuvor
+gesetzte Zeitraum (inkl. Uhrzeiten) wieder angezeigt.
+
 ## v1.9.102 — 2026-10-03 — Self-Service: Abwesenheits-Zeitraum deckt ganze Tage ab
 
 Ein im Self-Service gesetzter Zeitraum umfasst jetzt die **ganzen Tage**: lokal vom

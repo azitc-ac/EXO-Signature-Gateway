@@ -96,30 +96,31 @@ def _als_utc(datum: str, uhrzeit: str) -> dict:
     return {"dateTime": utc.strftime("%Y-%m-%dT%H:%M:%S.0000000"), "timeZone": "UTC"}
 
 
-def _synth_setting(status: str, start: str, ende: str) -> dict:
+def _synth_setting(status: str, start: str, ende: str,
+                   start_zeit: str = "", ende_zeit: str = "") -> dict:
     """Ein automaticRepliesSetting-ähnliches dict aus den Nutzereingaben bauen,
     damit zeitraum_text()/start_ende_text() denselben Text liefern wie im Betrieb.
-    `start`/`ende` sind ISO-Datumsangaben (YYYY-MM-DD) aus den <input type=date>.
+    `start`/`ende` sind ISO-Datumsangaben (YYYY-MM-DD).
 
-    Ein Zeitraum deckt die ganzen Tage ab: lokal `start` 00:00 bis `ende` 23:59.
-    (Date-only-UI; wer in Outlook stundengenau plant, verliert das beim Speichern
-    über /self — bewusste Vereinfachung.)"""
+    Ohne Uhrzeiten (ganztägig) gilt lokal `start` 00:00 bis `ende` 23:59. Mit
+    `start_zeit`/`ende_zeit` (HH:MM) wird stundengenau geplant (Checkbox „ganztägig"
+    aus)."""
     s: dict = {"status": status}
     if status == "scheduled":
         if start:
-            s["scheduledStartDateTime"] = _als_utc(start, "00:00:00")
+            s["scheduledStartDateTime"] = _als_utc(start, f"{start_zeit}:00" if start_zeit else "00:00:00")
         if ende:
-            s["scheduledEndDateTime"] = _als_utc(ende, "23:59:59")
+            s["scheduledEndDateTime"] = _als_utc(ende, f"{ende_zeit}:00" if ende_zeit else "23:59:59")
     return s
 
 
-async def _render_oof_fuer(email: str, oof_tpl: str, status: str,
-                           start: str, ende: str) -> tuple[str, str]:
+async def _render_oof_fuer(email: str, oof_tpl: str, status: str, start: str, ende: str,
+                           start_zeit: str = "", ende_zeit: str = "") -> tuple[str, str]:
     """(html, txt) der Abwesenheit für die eigene Adresse — wie im Betrieb."""
     if not oof_tpl:
         return "", ""
     user_data = await graph_client.get_user(email)
-    synth = _synth_setting(status or "scheduled", start, ende)
+    synth = _synth_setting(status or "scheduled", start, ende, start_zeit, ende_zeit)
     _ab, _bis = abwesenheit.start_ende_text(synth)
     return abwesenheit.render_oof(user_data, oof_tpl, abwesenheit.zeitraum_text(synth), _ab, _bis)
 
@@ -159,7 +160,8 @@ async def self_context(email: str = Depends(_require_self)):
         # zu wählen (Standard), und die Oberfläche blendet die Dropdowns aus.
         "oof_templates": by_kind.get("oof", []) if darf else [],
         "sig_templates": by_kind.get("signatur", ["default"]) if darf else [],
-        "ooo": {"status": "disabled", "start": "", "ende": ""},
+        "ooo": {"status": "disabled", "start": "", "ende": "",
+                "start_zeit": "09:00", "ende_zeit": "17:00", "ganztaegig": True},
         "zugriff": True,
     }
     # Aktuellen OOF-Status aus Exchange lesen (nur Anzeige — kein Schreibzugriff).
@@ -169,8 +171,15 @@ async def self_context(email: str = Depends(_require_self)):
             status_lese, setting = await abwesenheit._get_setting(email, token)
             if status_lese == "ok" and setting:
                 daten["ooo"]["status"] = setting.get("status", "disabled")
-                ab, bis = _iso_aus_setting(setting)
-                daten["ooo"]["start"], daten["ooo"]["ende"] = ab, bis
+                sd, sz = _datum_zeit(setting.get("scheduledStartDateTime"))
+                ed, ez = _datum_zeit(setting.get("scheduledEndDateTime"))
+                daten["ooo"]["start"], daten["ooo"]["ende"] = sd, ed
+                # Ganztägig, wenn lokal 00:00 bis 23:59 — sonst die echten Uhrzeiten.
+                ganz = sz in ("", "00:00") and ez in ("", "23:59")
+                daten["ooo"]["ganztaegig"] = ganz
+                if not ganz:
+                    daten["ooo"]["start_zeit"] = sz or "09:00"
+                    daten["ooo"]["ende_zeit"] = ez or "17:00"
             elif status_lese == "kein_zugriff":
                 daten["zugriff"] = False
     except Exception as exc:                                       # noqa: BLE001
@@ -178,12 +187,10 @@ async def self_context(email: str = Depends(_require_self)):
     return JSONResponse(daten)
 
 
-def _iso_aus_setting(setting: dict) -> tuple[str, str]:
-    """(start, ende) als YYYY-MM-DD aus dem Setting (für <input type=date>)."""
-    def iso(d):
-        dt = abwesenheit._lokal_datum(d)
-        return f"{dt:%Y-%m-%d}" if dt else ""
-    return iso(setting.get("scheduledStartDateTime")), iso(setting.get("scheduledEndDateTime"))
+def _datum_zeit(d: dict | None) -> tuple[str, str]:
+    """(YYYY-MM-DD, HH:MM) in lokaler Anzeigezeit aus einer Graph-dateTimeTimeZone."""
+    dt = abwesenheit._lokal_datum(d)
+    return (f"{dt:%Y-%m-%d}", f"{dt:%H:%M}") if dt else ("", "")
 
 
 async def _banner_disclaimer_html(email: str) -> tuple[str, str]:
@@ -207,10 +214,11 @@ async def _banner_disclaimer_html(email: str) -> tuple[str, str]:
 @router.get("/api/self/preview")
 async def self_preview(oof: str = "", sig: str = "", status: str = "scheduled",
                        start: str = "", ende: str = "",
+                       start_zeit: str = "", ende_zeit: str = "",
                        email: str = Depends(_require_self)):
     """Korrekte, VOLLSTÄNDIGE Vorschau fürs eigene Postfach: OOF (über der Signatur)
     + Signatur + Banner + Disclaimer (wie die echte Mail)."""
-    oof_html, oof_txt = await _render_oof_fuer(email, oof, status, start, ende)
+    oof_html, oof_txt = await _render_oof_fuer(email, oof, status, start, ende, start_zeit, ende_zeit)
     sig_html, sig_txt = "", ""
     if sig:
         user_data = await graph_client.get_user(email)
@@ -235,6 +243,10 @@ async def self_save(request: Request, email: str = Depends(_require_self)):
     status = (body.get("oof_status") or "disabled").strip()
     start = (body.get("oof_start") or "").strip()
     ende = (body.get("oof_ende") or "").strip()
+    # Uhrzeiten nur, wenn NICHT ganztägig (Checkbox) — sonst leer → ganzer Tag.
+    ganztaegig = body.get("ganztaegig", True) is not False
+    start_zeit = "" if ganztaegig else (body.get("start_zeit") or "").strip()
+    ende_zeit = "" if ganztaegig else (body.get("ende_zeit") or "").strip()
     if status not in ("disabled", "alwaysEnabled", "scheduled"):
         raise HTTPException(400, "Ungültiger Status")
 
@@ -273,8 +285,8 @@ async def self_save(request: Request, email: str = Depends(_require_self)):
         raise HTTPException(403, "Kein Zugriff auf die Postfacheinstellungen (Consent fehlt).")
     if status_lese != "ok" or setting is None:
         raise HTTPException(502, "Postfacheinstellungen nicht lesbar.")
-    synth = _synth_setting(status, start, ende)
-    html, _txt = await _render_oof_fuer(email, oof_tpl, status, start, ende)
+    synth = _synth_setting(status, start, ende, start_zeit, ende_zeit)
+    html, _txt = await _render_oof_fuer(email, oof_tpl, status, start, ende, start_zeit, ende_zeit)
     try:
         await abwesenheit._patch_setting(
             email, token, setting, html,
