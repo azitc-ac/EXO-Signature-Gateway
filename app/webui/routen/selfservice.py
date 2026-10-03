@@ -67,19 +67,8 @@ def _effektive_vorlagen(email: str) -> tuple[str, str]:
     return oof, (sig or "default")
 
 
-def _ankuendigung_ins_eintrag(eintrag: dict, ann: dict) -> None:
-    """Ankündigungs-Einstellungen aus dem Self-Service in den Postfach-Eintrag
-    schreiben — server-seitig validiert, dem Client nie geglaubt. `ann` ist das
-    `announce`-Objekt aus dem Body (bzw. den Vorschau-Parametern)."""
-    eintrag["oof_announce"] = (ann.get("an") is not False)
-    eintrag["oof_announce_mode"] = "tage" if ann.get("mode") == "tage" else "anzahl"
-    try:
-        x = int(ann.get("x") or 3)
-    except (TypeError, ValueError):
-        x = 3
-    eintrag["oof_announce_x"] = min(50, max(1, x))
-    eintrag["oof_announce_privat"] = (ann.get("privat") is not False)
-    eintrag["oof_announce_extern"] = bool(ann.get("extern"))
+# Ankündigungs-Einstellungen schreiben: EINE Quelle in abwesenheit.py (Self + Admin).
+_ankuendigung_ins_eintrag = abwesenheit.ankuendigung_ins_eintrag
 
 
 def _postfach(email: str) -> tuple[str, dict]:
@@ -92,41 +81,10 @@ def _postfach(email: str) -> tuple[str, dict]:
     return key, dict(cfg[key])
 
 
-def _als_utc(datum: str, uhrzeit: str) -> dict:
-    """Ein lokales Datum (YYYY-MM-DD) + Uhrzeit → Graph-dateTimeTimeZone in UTC.
-
-    Die <input type=date> liefern nur ein Datum; ein Zeitraum meint den GANZEN Tag,
-    also lokal 00:00 bis 23:59. „Lokal" = die Anzeige-Zeitzone (LOG_TIMEZONE,
-    Vorgabe Europe/Berlin) — dieselbe, in der zeitraum_text die Daten zeigt. Wir
-    rechnen die lokale Wand-Uhrzeit in einen eindeutigen UTC-Zeitpunkt um und senden
-    timeZone=UTC (Graph-sicher; Windows-/IANA-Namen sind beim Schreiben heikel)."""
-    from datetime import datetime, timezone
-    from zoneinfo import ZoneInfo
-    try:
-        tz = ZoneInfo(settings_store.get("LOG_TIMEZONE") or "UTC")
-    except Exception:                                              # noqa: BLE001
-        tz = timezone.utc
-    lokal = datetime.fromisoformat(f"{datum}T{uhrzeit}").replace(tzinfo=tz)
-    utc = lokal.astimezone(timezone.utc)
-    return {"dateTime": utc.strftime("%Y-%m-%dT%H:%M:%S.0000000"), "timeZone": "UTC"}
-
-
-def _synth_setting(status: str, start: str, ende: str,
-                   start_zeit: str = "", ende_zeit: str = "") -> dict:
-    """Ein automaticRepliesSetting-ähnliches dict aus den Nutzereingaben bauen,
-    damit zeitraum_text()/start_ende_text() denselben Text liefern wie im Betrieb.
-    `start`/`ende` sind ISO-Datumsangaben (YYYY-MM-DD).
-
-    Ohne Uhrzeiten (ganztägig) gilt lokal `start` 00:00 bis `ende` 23:59. Mit
-    `start_zeit`/`ende_zeit` (HH:MM) wird stundengenau geplant (Checkbox „ganztägig"
-    aus)."""
-    s: dict = {"status": status}
-    if status == "scheduled":
-        if start:
-            s["scheduledStartDateTime"] = _als_utc(start, f"{start_zeit}:00" if start_zeit else "00:00:00")
-        if ende:
-            s["scheduledEndDateTime"] = _als_utc(ende, f"{ende_zeit}:00" if ende_zeit else "23:59:59")
-    return s
+# Zeitraum-Eingabe ↔ Graph-Setting: EINE Quelle in abwesenheit.py, von Self-Service
+# UND Admin-Dashboard genutzt (sonst driften zwei Zeitzonen-Umrechnungen).
+_als_utc = abwesenheit.als_utc
+_synth_setting = abwesenheit.synth_setting
 
 
 async def _render_oof_fuer(email: str, oof_tpl: str, status: str, start: str, ende: str,
@@ -222,10 +180,7 @@ async def self_context(email: str = Depends(_require_self)):
     return JSONResponse(daten)
 
 
-def _datum_zeit(d: dict | None) -> tuple[str, str]:
-    """(YYYY-MM-DD, HH:MM) in lokaler Anzeigezeit aus einer Graph-dateTimeTimeZone."""
-    dt = abwesenheit._lokal_datum(d)
-    return (f"{dt:%Y-%m-%d}", f"{dt:%H:%M}") if dt else ("", "")
+_datum_zeit = abwesenheit.datum_zeit   # EINE Quelle in abwesenheit.py
 
 
 async def _banner_disclaimer_html(email: str) -> tuple[str, str]:

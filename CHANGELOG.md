@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.111 — 2026-10-04 — Dashboard „Abwesenheit": Abwesenheit zentral je Nutzer setzen
+
+Im Abwesenheits-Dashboard lässt sich die Abwesenheit jetzt pro Postfach direkt
+durch die Verwaltung setzen: Je Zeile öffnet „Bearbeiten" einen Editor für
+Status (aus / immer an / Zeitraum mit Datum und optionaler Uhrzeit), die
+Kalender-Automatik (Vorgabe / an / aus) und die Ankündigungs-Einstellungen. Das
+Ergebnis wird sofort bei Exchange gesetzt — der Mitarbeiter muss nichts selbst
+tun.
+
+Die zugewiesene Abwesenheitsvorlage bleibt dabei unberührt (sie wird weiterhin
+über die Postfächer-Seite bzw. die Richtlinien vergeben) und wird im Editor nur
+angezeigt. Ist einem Postfach keine Vorlage zugewiesen, schaltet der Editor nur
+Status und Zeitraum und lässt den vorhandenen Text unverändert.
+
 ## v1.9.110 — 2026-10-03 — Dashboard „Abwesenheit": Übersichtstabelle mobil rollbar
 
 Die Übersichtstabelle des neuen Abwesenheits-Dashboards bekam auf schmalen
