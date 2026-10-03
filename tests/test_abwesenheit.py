@@ -419,6 +419,38 @@ def test_poll_aus_wenn_deaktiviert(monkeypatch):
     assert r["aktiv"] is False
 
 
+def test_poll_persistiert_state_einmal_und_verarbeitet_alle(monkeypatch):
+    """B1-Skalierung: State wird GENAU EINMAL persistiert (nicht je Postfach — sonst
+    N volle settings.json-Schreibvorgänge pro Poll), und alle Postfächer laufen
+    (nebenläufig) durch."""
+    speichern = []
+    async def fake_get(upn, token):
+        return "ok", {"status": "disabled", "internalReplyMessage": "", "externalReplyMessage": ""}
+    async def fake_patch(upn, token, setting, html, **kw):
+        return {"internalReplyMessage": html, "externalReplyMessage": html}
+    async def fake_user(upn):
+        return UserData(displayName="E", custom={})
+    async def fake_token():
+        return "TOK"
+    monkeypatch.setattr(abwesenheit, "_aktive_postfaecher",
+                        lambda cfg: [("a@x.de", {}), ("b@x.de", {}), ("c@x.de", {})])
+    monkeypatch.setattr(abwesenheit, "_get_setting", fake_get)
+    monkeypatch.setattr(abwesenheit, "_patch_setting", fake_patch)
+    monkeypatch.setattr(graph_client, "get_user", fake_user)
+    monkeypatch.setattr(graph_client, "_acquire_token_async", fake_token)
+    monkeypatch.setattr(abwesenheit, "oof_vorlage_fuer", lambda *a: "Firma")
+    monkeypatch.setattr(signature_engine, "render",
+                        lambda u, template_name=None, extra=None: ("<p>OOF</p>", "OOF"))
+    monkeypatch.setattr(abwesenheit, "_state_speichern", lambda st: speichern.append(1))
+    monkeypatch.setattr(abwesenheit, "_persist_last", lambda s: None)
+    monkeypatch.setattr(settings_store, "get",
+                        lambda k, d=None: {"OOO_ENABLED": True, "MAILBOX_CONFIG": {"x": 1},
+                                           "OOO_CALENDAR_AUTO": False}.get(k, d))
+    r = _run(abwesenheit.poll_alle())
+    assert r["gesamt"] == 3 and r[abwesenheit.GESETZT] == 3
+    assert speichern == [1], f"State muss genau EINMAL persistiert werden, war {len(speichern)}×"
+
+
 def test_poll_persistiert_letzten_lauf(monkeypatch):
     """Die laufende Zahl (Tagesbericht/Übersicht) speist sich aus _OOO_LAST — der
     Poll muss sie schreiben, mit Bezugsgröße (gesamt) und Zeitstempel."""

@@ -33,6 +33,7 @@ ein manuelles Wieder-Ausschalten durch den Nutzer respektiert wird.
 """
 from __future__ import annotations
 
+import asyncio
 import html as _html
 import logging
 import re
@@ -58,6 +59,12 @@ FEHLER = "fehler"
 
 _STATE_KEY = "_OOO_STATE"       # {mailbox_key: {"intern": <kanonisch>, "extern": <kanonisch>}}
 _LAST_KEY = "_OOO_LAST"         # Zählung des letzten Poll-Laufs (für Tagesbericht/Übersicht)
+
+# Begrenzte Nebenläufigkeit im Poll: ohne sie lief die Schleife sequenziell (ein
+# Postfach nach dem anderen), was bei Tausenden Postfächern das 10-Min-Fenster
+# sprengt. Der App-Pool + die 429-Drosselbehandlung in graph_client fangen
+# gleichzeitige Graph-Aufrufe ab; der Deckel hält die Spitze beherrschbar.
+_POLL_PARALLEL = 16
 
 
 # ── Zustand (zuletzt gesetzter Text je Postfach) ──────────────────────────────
@@ -495,8 +502,10 @@ async def setze_fuer_postfach(upn: str, sender: str, mailbox_cfg: dict,
     neu["render"] = html
     if auto_win:
         neu["auto_win"] = auto_win
+    # In-Memory mutieren; poll_alle persistiert den gesamten State EINMAL am Ende
+    # (statt je Postfach einen vollen settings.json-Schreibvorgang — das skaliert
+    # nicht). Verschiedene Postfächer schreiben verschiedene Keys → nebenläufig sicher.
     state[upn.lower()] = neu
-    _state_speichern(state)
     return GESETZT
 
 
@@ -550,13 +559,25 @@ async def poll_alle() -> dict:
         return ergebnis
 
     state = _state()
-    for upn, sender_cfg in postfaecher:
-        try:
-            ergebnis = await setze_fuer_postfach(upn, upn, mailbox_cfg, sender_cfg, token, state)
-        except Exception as exc:                                   # noqa: BLE001
-            log.warning("OOO für %s fehlgeschlagen: %s", upn, exc)
-            ergebnis = FEHLER
-        zaehlung[ergebnis] = zaehlung.get(ergebnis, 0) + 1
+    sem = asyncio.Semaphore(_POLL_PARALLEL)
+
+    async def _einen(upn: str, sender_cfg: dict) -> str:
+        async with sem:
+            try:
+                return await setze_fuer_postfach(upn, upn, mailbox_cfg, sender_cfg, token, state)
+            except Exception as exc:                               # noqa: BLE001
+                log.warning("OOO für %s fehlgeschlagen: %s", upn, exc)
+                return FEHLER
+
+    try:
+        ergebnisse = await asyncio.gather(*[_einen(u, c) for u, c in postfaecher])
+        for ergebnis in ergebnisse:
+            zaehlung[ergebnis] = zaehlung.get(ergebnis, 0) + 1
+    finally:
+        # State EINMAL persistieren (statt je Postfach) — auch bei Teilabbruch, damit
+        # bereits gesetzte Postfächer ihre „zuletzt gesetzt"-Marke behalten und beim
+        # nächsten Poll nicht erneut gePATCHt werden (Dedup-Reset vermeiden).
+        _state_speichern(state)
 
     if zaehlung[KEIN_ZUGRIFF]:
         log.warning("OOO: %d von %d Postfächern ohne Zugriff (MailboxSettings.ReadWrite — "
