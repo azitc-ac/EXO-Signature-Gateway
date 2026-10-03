@@ -765,6 +765,27 @@ def test_ankuendigung_auch_extern(tmp_path, monkeypatch):
     assert "Weitere geplante Abwesenheiten" in patched["extern"]
 
 
+def test_ankuendigung_an_false_unterdrueckt_und_spart_read(tmp_path, monkeypatch):
+    """`oof_announce=false` schaltet die Ankündigung ab — und dann wird der Kalender
+    gar nicht erst gelesen (kein Graph-Aufruf). Default (Feld fehlt) = an."""
+    monkeypatch.setattr(config, "TEMPLATE_DIR", str(tmp_path))
+    (tmp_path / "Mit.html").write_text("<p>{{ oof.ankuendigung }}</p>", encoding="utf-8")
+    called = {"n": 0}
+
+    async def fake_events(upn, token):
+        called["n"] += 1
+        return [_ev(3, 6)]
+
+    monkeypatch.setattr(abwesenheit, "_kalender_oof_events", fake_events)
+    monkeypatch.setattr(settings_store, "get",
+                        lambda k, d=None: {"OOO_CALENDAR_REFRESH_HOURS": 6}.get(k, d))
+    de, en = _run(abwesenheit.ankuendigung_fuer_render("a@x.de", "T", "Mit",
+                                                       {"oof_announce": False}, {}))
+    assert de == "" and en == "" and called["n"] == 0, "aus → leer UND kein Kalender-Read"
+    de2, _ = _run(abwesenheit.ankuendigung_fuer_render("a@x.de", "T", "Mit", {}, {}))
+    assert "Weitere geplante Abwesenheiten" in de2        # Default an
+
+
 def test_aktive_postfaecher_email_und_guid(monkeypatch):
     cfg = {
         "a@x.de": {"sig": True},                                   # klassisch, aktiv

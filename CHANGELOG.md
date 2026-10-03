@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.108 — 2026-10-03 — Self-Service: Ankündigung kommender Abwesenheiten einstellen
+
+Nutzt die zugewiesene Abwesenheitsvorlage die Ankündigungs-Variable, können die
+Postfach-Nutzer sie jetzt auf der Self-Service-Seite (/self, auch als
+Outlook-Add-in) selbst steuern: an/aus, Umfang (die nächsten X Abwesenheiten oder
+die Abwesenheiten der nächsten X Tage), ob private Termine mitzählen und ob die
+Zeile auch externen Absendern gezeigt wird (standardmäßig nur intern). Die
+Vorschau zeigt die Wahl sofort. Nutzt die Vorlage die Variable nicht, bleibt der
+Abschnitt ausgeblendet — die Einstellung hätte dort keine Wirkung.
+
+Die Werte werden serverseitig geprüft und auf sinnvolle Grenzen gebracht
+(1–50); jede Aktion bezieht sich ausschließlich auf das eigene, im Gateway
+verwaltete Postfach.
+
 ## v1.9.107 — 2026-10-03 — Abwesenheit: Ankündigung künftiger Abwesenheiten in der Vorlage
 
 Abwesenheitsvorlagen kennen zwei neue Platzhalter: **`{{ oof.ankuendigung }}`**
