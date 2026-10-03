@@ -48,6 +48,73 @@
   </div>
 </div>
 
+<!-- Betriebseinstellungen (von der Postfächer-Seite hierher gezogen) -->
+<div class="settings-card" style="margin-bottom:18px">
+  <h2 style="margin-top:0">Einstellungen</h2>
+
+  <label class="checkbox-label">
+    <input type="checkbox" id="ooo-enabled" onchange="oooUmschalten(this)" {% if ooo_enabled %}checked{% endif %}>
+    Zentrale Abwesenheitsnotiz aktivieren
+    <span id="ooo-result" style="font-size:12px;margin-left:8px"></span>
+  </label>
+  <p class="hint" style="margin:4px 0 12px;max-width:680px">
+    Solange die Abwesenheit eines Postfachs (nativ in Outlook/OWA geschaltet) aktiv
+    ist, überschreibt das Gateway ihren Text mit der zugewiesenen
+    <em>Abwesenheit</em>-Vorlage — Status und Zeitraum bleiben unangetastet.
+    Erfordert <code>MailboxSettings.ReadWrite</code> (Admin-Consent); ohne bleibt
+    die Funktion wirkungslos.
+  </p>
+
+  <label class="checkbox-label">
+    <input type="checkbox" id="ooo-cal-auto" onchange="oooCalAutoUmschalten(this)" {% if ooo_calendar_auto %}checked{% endif %}>
+    Abwesenheit automatisch aus dem Kalender aktivieren
+    <span id="ooo-cal-result" style="font-size:12px;margin-left:8px"></span>
+  </label>
+  <div class="settings-row">
+    <label for="ooo-cal-hours">Ab welcher Termindauer</label>
+    <div class="settings-control">
+      <select id="ooo-cal-hours" onchange="oooCalHoursSpeichern(this)">
+        {% for h, lbl in [(4,'4 Stunden'),(6,'6 Stunden'),(8,'8 Stunden'),(12,'12 Stunden'),(24,'ganztägig (24 h)')] %}
+        <option value="{{ h }}" {% if ooo_calendar_min_hours == h %}selected{% endif %}>{{ lbl }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+  <div class="settings-row">
+    <label for="ooo-cal-refresh">Kalender neu lesen alle</label>
+    <div class="settings-control">
+      <select id="ooo-cal-refresh" onchange="oooCalRefreshSpeichern(this)">
+        {% for h, lbl in [(2,'2 Stunden'),(4,'4 Stunden'),(6,'6 Stunden'),(12,'12 Stunden'),(24,'24 Stunden')] %}
+        <option value="{{ h }}" {% if ooo_calendar_refresh_hours == h %}selected{% endif %}>{{ lbl }}</option>
+        {% endfor %}
+      </select>
+      <span id="ooo-cal-refresh-result" style="font-size:12px;margin-left:8px"></span>
+    </div>
+  </div>
+  <p class="hint" style="margin:4px 0 12px;max-width:680px">
+    Termine mit Status <em>Abwesend</em> ab dieser Dauer schalten die native
+    Abwesenheit automatisch ein. Der globale Schalter ist die <strong>Vorgabe für
+    alle Postfächer</strong>; je Postfach lässt sie sich oben über „Bearbeiten" auf
+    <em>an</em>/<em>aus</em> stellen. Erfordert <code>Calendars.Read</code>.
+  </p>
+
+  <label class="checkbox-label">
+    <input type="checkbox" id="ooo-append-sig" onchange="oooAppendSigUmschalten(this)" {% if ooo_append_signature %}checked{% endif %}>
+    Zugewiesene Signatur unter die Abwesenheit hängen
+    <span id="ooo-append-sig-result" style="font-size:12px;margin-left:8px"></span>
+  </label>
+  <label class="checkbox-label">
+    <input type="checkbox" id="ooo-append-banner" onchange="oooAppendBannerUmschalten(this)" {% if ooo_append_banner %}checked{% endif %}>
+    Zugewiesenes Banner unter die Abwesenheit hängen
+    <span id="ooo-append-banner-result" style="font-size:12px;margin-left:8px"></span>
+  </label>
+  <p class="hint" style="margin:4px 0 0;max-width:680px">
+    Hängt Signatur bzw. Banner unter den Abwesenheitstext (statischer Schnappschuss;
+    <strong>Bilder/Logos per CID erscheinen in nativen Abwesenheitsantworten meist
+    nicht</strong>).
+  </p>
+</div>
+
 <!-- Vorgaben für die Ankündigung -->
 <div class="settings-card">
   <h2 style="margin-top:0">Vorgaben für die Ankündigung</h2>
@@ -295,6 +362,13 @@ async function abSpeichern() {
   } catch (e) { abm('abm-result').textContent = '✗ ' + e.message; }
   btn.disabled = false; btn.textContent = alt;
 }
+
+async function oooUmschalten(cb) { await savePartial({ OOO_ENABLED: cb.checked }, 'ooo-result'); }
+async function oooCalAutoUmschalten(cb) { await savePartial({ OOO_CALENDAR_AUTO: cb.checked }, 'ooo-cal-result'); }
+async function oooCalHoursSpeichern(sel) { await savePartial({ OOO_CALENDAR_MIN_HOURS: parseInt(sel.value, 10) }, 'ooo-cal-result'); }
+async function oooCalRefreshSpeichern(sel) { await savePartial({ OOO_CALENDAR_REFRESH_HOURS: parseInt(sel.value, 10) }, 'ooo-cal-refresh-result'); }
+async function oooAppendSigUmschalten(cb) { await savePartial({ OOO_APPEND_SIGNATURE: cb.checked }, 'ooo-append-sig-result'); }
+async function oooAppendBannerUmschalten(cb) { await savePartial({ OOO_APPEND_BANNER: cb.checked }, 'ooo-append-banner-result'); }
 
 async function annSpeichern() {
   var x = Math.max(1, Math.min(50, parseInt(document.getElementById('ann-x').value, 10) || 3));

@@ -121,7 +121,6 @@ async def api_get_mailboxes(refresh: bool = False, _=Depends(_require_admin)):
             "banner_template": cfg.get("banner_template", ""),
             "disclaimer_template": cfg.get("disclaimer_template", ""),
             "oof_template": cfg.get("oof_template", ""),
-            "ooo_calendar": cfg.get("ooo_calendar"),   # per-Postfach-Opt-in Kalender-OOF (tri-state)
             "addin_templates": cfg.get("addin_templates", []),
             "use_policy": cfg.get("use_policy", True),
             "health_overall": h.get("overall"),
@@ -146,8 +145,7 @@ async def api_get_mailboxes(refresh: bool = False, _=Depends(_require_admin)):
                 "banner_template": cfg.get("banner_template", ""),
                 "disclaimer_template": cfg.get("disclaimer_template", ""),
                 "oof_template": cfg.get("oof_template", ""),
-                "ooo_calendar": cfg.get("ooo_calendar"),   # per-Postfach-Opt-in Kalender-OOF (tri-state)
-                "addin_templates": cfg.get("addin_templates", []),
+                    "addin_templates": cfg.get("addin_templates", []),
                 "use_policy": cfg.get("use_policy", True),
                 "health_overall": h.get("overall"),
                 "health_checked": h.get("last_checked"),
@@ -343,13 +341,6 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
         addin_tpl = m.get("addin_templates", [])
         use_policy = bool(m.get("use_policy", True))
         entry: dict = {"sig": sig, "smime": smime, "use_policy": use_policy}
-        # Kalender-Automatik je Postfach (tri-state). Das ist KEIN Vorlagenfeld,
-        # sondern ein Funktions-Schalter — er gilt unabhängig von use_policy.
-        # ""  → Tenant-Default OOO_CALENDAR_AUTO (nichts speichern);
-        # "1"/"0" → ausdrücklich ein/aus (abwesenheit._kalender_auto_an liest das).
-        ooo_cal = (m.get("ooo_calendar") or "")
-        if ooo_cal in ("1", "0"):
-            entry["ooo_calendar"] = (ooo_cal == "1")
         # Postfach-eigene Vorlagenfelder NUR speichern, wenn das Postfach den
         # Richtlinien NICHT folgt. Bei use_policy=true sind diese Dropdowns in der
         # UI ausgegraut und zeigen den Richtlinien-Wert; schriebe man ihn mit, fröre
@@ -381,6 +372,18 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
         else:
             key = email          # EXO couldn't resolve → keep e-mail-keyed
             member = email
+        # ⚠️ Carryover: Dieser Speichervorgang baut `entry` KOMPLETT NEU und ersetzt
+        # danach MAILBOX_CONFIG ganz. Felder, die NICHT aus dieser Tabelle stammen,
+        # sondern anderswo gesetzt werden (Abwesenheits-Dashboard, Self-Service),
+        # gingen sonst bei jedem Postfach-Speichern verloren. Darum aus dem vorigen
+        # Eintrag übernehmen: Kalender-Automatik, Ankündigungs-Einstellungen und die
+        # Self-Service-Vorlagenfreigabe.
+        _alt = vorher.get(key, {})
+        for _f in ("ooo_calendar", "oof_announce", "oof_announce_mode",
+                   "oof_announce_x", "oof_announce_privat", "oof_announce_extern",
+                   "self_templates"):
+            if _f in _alt:
+                entry[_f] = _alt[_f]
         if key in config_map:    # two addresses of the same mailbox → OR the flags
             config_map[key]["sig"] = config_map[key].get("sig") or sig
             config_map[key]["smime"] = config_map[key].get("smime") or smime
@@ -470,12 +473,7 @@ async def mailboxes_page(request: Request, user: str = Depends(_require_admin)):
                  "gateway_name": _gateway_name(),
                  "migration_offen": altbestand,
                  "addin_enabled": bool(settings_store.get("ADDIN_ENABLED")),
-                 "ooo_enabled": bool(settings_store.get("OOO_ENABLED")),
-                 "ooo_calendar_auto": bool(settings_store.get("OOO_CALENDAR_AUTO")),
-                 "ooo_calendar_min_hours": int(settings_store.get("OOO_CALENDAR_MIN_HOURS") or 8),
-                 "ooo_calendar_refresh_hours": int(settings_store.get("OOO_CALENDAR_REFRESH_HOURS") or 6),
-                 "ooo_append_signature": bool(settings_store.get("OOO_APPEND_SIGNATURE")),
-                 "ooo_append_banner": bool(settings_store.get("OOO_APPEND_BANNER")),
+                 # Die OOF-/Kalender-Betreiberschalter sind auf /abwesenheit umgezogen.
                  "self_service_enabled": settings_store.get("SELF_SERVICE_ENABLED") is True,
                  "self_template_groups": settings_store.get("SELF_TEMPLATE_GROUPS") or [],
                  "internal_group_names": sorted((settings_store.get("INTERNAL_GROUPS") or {}).keys()),
