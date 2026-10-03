@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.105 — 2026-10-03 — Skalierung: Abwesenheits-Poll läuft nebenläufig + schreibt einmal
+
+Der Abwesenheits-Poll arbeitete die Postfächer streng nacheinander ab und schrieb
+seinen Zustand nach **jedem** Postfach erneut. Beides skaliert nicht auf viele
+hundert bis tausende Postfächer (ein Durchlauf hätte das Zehn-Minuten-Fenster
+gesprengt, und die Einstellungsdatei wäre pro Durchlauf hunderte Male neu
+geschrieben worden).
+
+Jetzt werden die Postfächer **begrenzt nebenläufig** verarbeitet (mehrere
+gleichzeitig; die vorhandene Drossel-/App-Pool-Logik fängt gleichzeitige
+Graph-Aufrufe ab), und der Zustand wird **einmal am Ende** gesichert. Zusammen mit
+dem Profil-Cache (v1.9.104) trägt der Poll damit auch bei tausenden Postfächern.
+
 ## v1.9.104 — 2026-10-03 — Skalierung: Graph-Nutzerprofil wird zwischengespeichert
 
 `get_user` liest das Nutzerprofil aus Microsoft Graph. Der Abwesenheits-Poll ruft
