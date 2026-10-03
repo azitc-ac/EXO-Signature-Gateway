@@ -351,83 +351,9 @@ async function ankerAnwenden() {
     <span id="policy-save-result" style="font-size:12px"></span>
   </div>
 
-  <!-- Zentrale Abwesenheitsnotiz — reiner Schalter, speichert sofort -->
-  <label class="checkbox-label" style="margin-top:16px">
-    <input type="checkbox" id="ooo-enabled" onchange="oooUmschalten(this)"
-           {% if ooo_enabled %}checked{% endif %}>
-    Zentrale Abwesenheitsnotiz aktivieren
-    <span id="ooo-result" style="font-size:12px;margin-left:8px"></span>
-  </label>
-  <p class="hint" style="margin:4px 0 0;max-width:640px">
-    Solange die Abwesenheit eines Postfachs (nativ in Outlook/OWA geschaltet)
-    aktiv ist, überschreibt das Gateway ihren Text mit der oben zugewiesenen
-    <em>Abwesenheit</em>-Vorlage — Status und Zeitraum bleiben unangetastet.
-    Platzhalter <code>{name}</code>, <code>{zeitraum}</code>,
-    <code>{abwesend_ab}</code> und <code>{abwesend_bis}</code> werden eingesetzt.
-    Erfordert die Berechtigung <code>MailboxSettings.ReadWrite</code>
-    (Admin-Consent); ohne sie bleibt die Funktion wirkungslos.
-  </p>
-
-  <!-- Abwesenheit automatisch aus dem Kalender (opt-in) -->
-  <label class="checkbox-label" style="margin-top:12px">
-    <input type="checkbox" id="ooo-cal-auto" onchange="oooCalAutoUmschalten(this)"
-           {% if ooo_calendar_auto %}checked{% endif %}>
-    Abwesenheit automatisch aus dem Kalender aktivieren
-    <span id="ooo-cal-result" style="font-size:12px;margin-left:8px"></span>
-  </label>
-  <div class="settings-row" style="margin-top:6px">
-    <label for="ooo-cal-hours">Ab welcher Termindauer</label>
-    <div class="settings-control">
-      <select id="ooo-cal-hours" onchange="oooCalHoursSpeichern(this)"
-              style="font-size:13px;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px">
-        {% for h, lbl in [(4,'4 Stunden'),(6,'6 Stunden'),(8,'8 Stunden'),(12,'12 Stunden'),(24,'ganztägig (24 h)')] %}
-        <option value="{{ h }}" {% if ooo_calendar_min_hours == h %}selected{% endif %}>{{ lbl }}</option>
-        {% endfor %}
-      </select>
-    </div>
-  </div>
-  <div class="settings-row" style="margin-top:6px">
-    <label for="ooo-cal-refresh">Kalender neu lesen alle</label>
-    <div class="settings-control">
-      <select id="ooo-cal-refresh" onchange="oooCalRefreshSpeichern(this)"
-              style="font-size:13px;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px">
-        {% for h, lbl in [(2,'2 Stunden'),(4,'4 Stunden'),(6,'6 Stunden'),(12,'12 Stunden'),(24,'24 Stunden')] %}
-        <option value="{{ h }}" {% if ooo_calendar_refresh_hours == h %}selected{% endif %}>{{ lbl }}</option>
-        {% endfor %}
-      </select>
-      <span id="ooo-cal-refresh-result" style="font-size:12px;margin-left:8px"></span>
-    </div>
-  </div>
-  <p class="hint" style="margin:4px 0 0;max-width:640px">
-    Termine mit dem Status <em>Abwesend</em> ab dieser Dauer schalten die native
-    Abwesenheit für ihr Zeitfenster automatisch ein (mit dem Firmentext). Der
-    Nutzer trägt nur den Termin ein — den Rest macht der Dienst. Wird eine so
-    aktivierte Abwesenheit von Hand wieder ausgeschaltet, bleibt sie aus.
-    Erfordert zusätzlich <code>Calendars.Read</code> (Admin-Consent).
-    Dieser Schalter ist der <strong>Vorgabewert für alle Postfächer</strong>; in
-    der Tabelle oben lässt er sich je Postfach auf <em>an</em> oder <em>aus</em>
-    stellen. Der Kalender wird gecacht und nur alle paar Stunden neu gelesen.
-  </p>
-
-  <!-- Signatur / Banner unter die Abwesenheit hängen (opt-in) -->
-  <label class="checkbox-label" style="margin-top:12px">
-    <input type="checkbox" id="ooo-append-sig" onchange="oooAppendSigUmschalten(this)"
-           {% if ooo_append_signature %}checked{% endif %}>
-    Zugewiesene Signatur unter die Abwesenheit hängen
-    <span id="ooo-append-sig-result" style="font-size:12px;margin-left:8px"></span>
-  </label>
-  <label class="checkbox-label" style="margin-top:6px">
-    <input type="checkbox" id="ooo-append-banner" onchange="oooAppendBannerUmschalten(this)"
-           {% if ooo_append_banner %}checked{% endif %}>
-    Zugewiesenes Banner unter die Abwesenheit hängen
-    <span id="ooo-append-banner-result" style="font-size:12px;margin-left:8px"></span>
-  </label>
-  <p class="hint" style="margin:4px 0 0;max-width:640px">
-    Hängt die Signatur (bzw. das Banner) des Postfachs unter den Abwesenheitstext —
-    wie bei normaler Mail. Statischer Schnappschuss; <strong>Bilder/Logos per CID
-    erscheinen in nativen Abwesenheitsantworten meist nicht</strong>, reine
-    Text-/HTML-Signaturen sind unkritisch.
-  </p>
+  {# Die OOF-/Kalender-Betreiberschalter (zentrale Abwesenheitsnotiz, Kalender-
+     Automatik, Signatur/Banner anhängen) sind auf die Seite „Abwesenheit"
+     umgezogen — dort sitzt der ganze Abwesenheits-Dunstkreis beisammen. #}
 
   <!-- Self-Service: Nutzer verwalten ihre Abwesenheit + Signatur selbst -->
   <label class="checkbox-label" style="margin-top:16px">
@@ -756,26 +682,7 @@ async function savePolicies() {
   }
 }
 
-// Zentrale Abwesenheitsnotiz: reiner Schalter \u2192 speichert sofort.
-async function oooUmschalten(cb) {
-  await savePartial({ OOO_ENABLED: cb.checked }, 'ooo-result');
-}
-// Kalender-Automatik: Schalter + Schwelle (Dropdown) \u2192 speichern sofort.
-async function oooCalAutoUmschalten(cb) {
-  await savePartial({ OOO_CALENDAR_AUTO: cb.checked }, 'ooo-cal-result');
-}
-async function oooCalHoursSpeichern(sel) {
-  await savePartial({ OOO_CALENDAR_MIN_HOURS: parseInt(sel.value, 10) }, 'ooo-cal-result');
-}
-async function oooCalRefreshSpeichern(sel) {
-  await savePartial({ OOO_CALENDAR_REFRESH_HOURS: parseInt(sel.value, 10) }, 'ooo-cal-refresh-result');
-}
-async function oooAppendSigUmschalten(cb) {
-  await savePartial({ OOO_APPEND_SIGNATURE: cb.checked }, 'ooo-append-sig-result');
-}
-async function oooAppendBannerUmschalten(cb) {
-  await savePartial({ OOO_APPEND_BANNER: cb.checked }, 'ooo-append-banner-result');
-}
+// Die OOF-/Kalender-/Anhang-Schalter sind auf die Seite \u201eAbwesenheit" umgezogen.
 async function selfServiceUmschalten(cb) {
   await savePartial({ SELF_SERVICE_ENABLED: cb.checked }, 'self-service-result');
 }
@@ -1205,26 +1112,7 @@ function renderMailboxTable(mailboxes) {
     oofSel.style.opacity = _oofDisabled ? '0.4' : '1';
     if (policyActive) oofSel.title = 'Wird durch Vorlagenrichtlinie gesteuert';
     tdOof.appendChild(oofSel);
-    // Kalender-Automatik je Postfach (tri-state): Vorgabe (= Tenant-Schalter) /
-    // an / aus. KEIN Vorlagenfeld — gilt unabhängig von der Richtlinie, deshalb
-    // nicht ausgegraut, wenn das Postfach den Richtlinien folgt.
-    var calSel = document.createElement('select');
-    calSel.className = 'mb-ooo-cal';
-    calSel.dataset.idx = String(i);
-    calSel.style.cssText = 'font-size:11px;max-width:130px;margin-top:3px';
-    calSel.title = 'Abwesenheit automatisch aus dem Kalender aktivieren';
-    [['', 'Kalender: Vorgabe'], ['1', 'Kalender: an'], ['0', 'Kalender: aus']]
-      .forEach(function(o) {
-        var opt = document.createElement('option');
-        opt.value = o[0]; opt.textContent = o[1];
-        calSel.appendChild(opt);
-      });
-    calSel.value = (mb.ooo_calendar === true) ? '1'
-                 : (mb.ooo_calendar === false) ? '0' : '';
-    var _calDisabled = !(mb.sig || mb.smime);
-    calSel.disabled = _calDisabled;
-    calSel.style.opacity = _calDisabled ? '0.4' : '1';
-    tdOof.appendChild(calSel);
+    // Kalender-Automatik je Postfach wird jetzt im Abwesenheits-Dashboard gesetzt.
 
     // Add-in Vorlagen — greyed when policyActive
     var tdAddin = document.createElement('td');
@@ -1280,11 +1168,6 @@ function renderMailboxTable(mailboxes) {
       oofSel.title = pol ? 'Wird durch Vorlagenrichtlinie gesteuert' : '';
       oofSel.value = pol ? (document.getElementById('policy-oof-tpl').value || '')
                          : (mb.oof_template || '');
-      // Kalender-Automatik hängt NUR daran, ob das Postfach aktiv ist (sig/smime),
-      // nicht an der Richtlinie — sie ist kein Vorlagenfeld.
-      var calInaktiv = !(sig || smime);
-      calSel.disabled = calInaktiv;
-      calSel.style.opacity = calInaktiv ? '0.4' : '1';
       addinCtrl.style.opacity = (!sig || pol) ? '0.4' : '1';
       addinCtrl.style.pointerEvents = (!sig || pol) ? 'none' : '';
       addinCtrl.title = pol ? 'Wird durch Vorlagenrichtlinie gesteuert' : '';
@@ -1409,7 +1292,6 @@ async function saveMailboxes() {
   var bannerSelects = document.querySelectorAll('.mb-banner');
   var disclaimerSelects = document.querySelectorAll('.mb-disclaimer');
   var oofSelects = document.querySelectorAll('.mb-oof');
-  var calSelects = document.querySelectorAll('.mb-ooo-cal');
   var policyBoxes = document.querySelectorAll('.mb-policy');
   var payload = [];
   sigBoxes.forEach(function(cb, i) {
@@ -1435,7 +1317,6 @@ async function saveMailboxes() {
       banner_template: bannerSelects[i] ? bannerSelects[i].value : '',
       disclaimer_template: disclaimerSelects[i] ? disclaimerSelects[i].value : '',
       oof_template: oofSelects[i] ? oofSelects[i].value : '',
-      ooo_calendar: calSelects[i] ? calSelects[i].value : '',
       addin_templates: addinTemplates,
       use_policy: policyBoxes[i] ? policyBoxes[i].checked : true,
     });

@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.112 — 2026-10-04 — Abwesenheits-Einstellungen gebündelt + Speicher-Verlust behoben
+
+Die OOF-/Kalender-Betreibereinstellungen (zentrale Abwesenheitsnotiz ein/aus,
+Kalender-Automatik samt Mindestdauer und Leseintervall, Signatur/Banner anhängen)
+sind von der Postfächer-Seite auf die Seite **Abwesenheit** umgezogen — der ganze
+Abwesenheits-Dunstkreis sitzt jetzt beisammen. Die Kalender-Automatik je Postfach
+wird nur noch dort über „Bearbeiten" gesetzt (der doppelte Schalter in der
+Postfach-Tabelle entfällt).
+
+Dabei behoben: Das Speichern der Postfächer-Seite baute jeden Eintrag neu auf und
+**verwarf dabei Einstellungen, die anderswo gesetzt wurden** — die Kalender-Automatik
+je Postfach, die Ankündigungs-Einstellungen und die Self-Service-Vorlagenfreigabe
+gingen bei jedem Speichern verloren. Diese Felder werden jetzt aus dem vorherigen
+Stand übernommen und bleiben erhalten.
+
 ## v1.9.111 — 2026-10-04 — Dashboard „Abwesenheit": Abwesenheit zentral je Nutzer setzen
 
 Im Abwesenheits-Dashboard lässt sich die Abwesenheit jetzt pro Postfach direkt

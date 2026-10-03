@@ -44,6 +44,12 @@ async def abwesenheit_page(request: Request, _user: str = Depends(_require_admin
             "active": "abwesenheit",
             "gateway_name": _gateway_name(),
             "ooo_enabled": bool(settings_store.get("OOO_ENABLED")),
+            # OOF-/Kalender-Betreiberschalter (von der Postfächer-Seite hierher gezogen).
+            "ooo_calendar_auto": bool(settings_store.get("OOO_CALENDAR_AUTO")),
+            "ooo_calendar_min_hours": int(settings_store.get("OOO_CALENDAR_MIN_HOURS") or 8),
+            "ooo_calendar_refresh_hours": int(settings_store.get("OOO_CALENDAR_REFRESH_HOURS") or 6),
+            "ooo_append_signature": bool(settings_store.get("OOO_APPEND_SIGNATURE")),
+            "ooo_append_banner": bool(settings_store.get("OOO_APPEND_BANNER")),
             # Betreiberweite Vorgaben für die Ankündigung (je Postfach übersteuerbar).
             "ann_mode": settings_store.get("OOO_ANNOUNCE_MODE") or "anzahl",
             "ann_x": int(settings_store.get("OOO_ANNOUNCE_X") or 3),

@@ -163,12 +163,12 @@ REGISTER: dict[str, E] = {
     "DOMAIN_ROUTING_ENABLED": E(art=OPTION, ort="advanced.html"),
     "COEX_ENABLED": E(art=OPTION, ort="advanced.html"),
     "PER_RECIPIENT_ROUTING": E(art=OPTION, ort="relay.html"),
-    "OOO_ENABLED": E(art=OPTION, ort="mailboxes.html"),  # zentrale Abwesenheitsnotiz
-    "OOO_CALENDAR_AUTO": E(art=OPTION, ort="mailboxes.html"),   # OOO aus Kalender
-    "OOO_CALENDAR_MIN_HOURS": E(art=OPTION, ort="mailboxes.html"),
-    "OOO_CALENDAR_REFRESH_HOURS": E(art=OPTION, ort="mailboxes.html"),  # Kalender-Cache-Refresh
-    "OOO_APPEND_SIGNATURE": E(art=OPTION, ort="mailboxes.html"),  # Signatur unter OOF
-    "OOO_APPEND_BANNER": E(art=OPTION, ort="mailboxes.html"),     # Banner unter OOF
+    "OOO_ENABLED": E(art=OPTION, ort="abwesenheit.html"),  # zentrale Abwesenheitsnotiz
+    "OOO_CALENDAR_AUTO": E(art=OPTION, ort="abwesenheit.html"),   # OOO aus Kalender
+    "OOO_CALENDAR_MIN_HOURS": E(art=OPTION, ort="abwesenheit.html"),
+    "OOO_CALENDAR_REFRESH_HOURS": E(art=OPTION, ort="abwesenheit.html"),  # Kalender-Cache-Refresh
+    "OOO_APPEND_SIGNATURE": E(art=OPTION, ort="abwesenheit.html"),  # Signatur unter OOF
+    "OOO_APPEND_BANNER": E(art=OPTION, ort="abwesenheit.html"),     # Banner unter OOF
     "OOO_ANNOUNCE_MODE": E(art=OPTION, ort="abwesenheit.html"),   # Ankündigung: Umfang-Modus
     "OOO_ANNOUNCE_X": E(art=OPTION, ort="abwesenheit.html"),      # Ankündigung: Zahl
     "OOO_ANNOUNCE_PRIVAT": E(art=OPTION, ort="abwesenheit.html"), # Ankündigung: privat mitzählen
