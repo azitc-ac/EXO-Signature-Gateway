@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.110 — 2026-10-03 — Dashboard „Abwesenheit": Übersichtstabelle mobil rollbar
+
+Die Übersichtstabelle des neuen Abwesenheits-Dashboards bekam auf schmalen
+Anzeigen keinen waagerechten Rollbereich mit Mindestbreite — auf dem Telefon
+hätten sich die sechs Spalten zusammengequetscht. Behoben (rollbarer Bereich +
+Mindestbreite), wie bei den übrigen breiten Tabellen.
+
 ## v1.9.109 — 2026-10-03 — Neues Dashboard „Abwesenheit" (Übersicht + Vorgaben)
 
 Neuer Menüpunkt **Abwesenheit** (Verwaltung): eine Übersicht aller aktivierten
