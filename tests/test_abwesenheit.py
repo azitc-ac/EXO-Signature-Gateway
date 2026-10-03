@@ -237,7 +237,7 @@ def _mock_seams(monkeypatch, setting, calls, canonical):
     async def fake_get(upn, token):
         return "ok", dict(setting)
 
-    async def fake_patch(upn, token, s, html, status=None, start=None, ende=None):
+    async def fake_patch(upn, token, s, html, html_extern=None, status=None, start=None, ende=None):
         calls["patch"] += 1
         setting["internalReplyMessage"] = canonical["internalReplyMessage"]
         setting["externalReplyMessage"] = canonical["externalReplyMessage"]
@@ -337,21 +337,21 @@ def test_kalender_auto_aktiviert_bei_disabled(monkeypatch):
     async def fake_get(upn, token):
         return "ok", dict(setting)
 
-    async def fake_patch(upn, token, s, html, status=None, start=None, ende=None):
+    async def fake_patch(upn, token, s, html, html_extern=None, status=None, start=None, ende=None):
         patch_calls.append({"status": status, "start": start, "ende": ende})
         return {"internalReplyMessage": html, "externalReplyMessage": html}
 
     async def fake_user(upn):
         return UserData(displayName="E", custom={})
 
-    async def fake_fenster(upn, token):
-        return ({"dateTime": "2026-10-01T00:00:00", "timeZone": "UTC"},
-                {"dateTime": "2026-10-10T00:00:00", "timeZone": "UTC"})
+    async def fake_events(upn, token):
+        return [{"start": {"dateTime": "2026-10-01T00:00:00", "timeZone": "UTC"},
+                 "end": {"dateTime": "2026-10-10T00:00:00", "timeZone": "UTC"}, "privat": False}]
 
     monkeypatch.setattr(abwesenheit, "_get_setting", fake_get)
     monkeypatch.setattr(abwesenheit, "_patch_setting", fake_patch)
     monkeypatch.setattr(graph_client, "get_user", fake_user)
-    monkeypatch.setattr(abwesenheit, "_kalender_oof_fenster", fake_fenster)
+    monkeypatch.setattr(abwesenheit, "_kalender_oof_events", fake_events)
     monkeypatch.setattr(abwesenheit, "oof_vorlage_fuer", lambda *a: "Firma")
     monkeypatch.setattr(signature_engine, "render", lambda u, template_name=None, extra=None: ("<p>OOF</p>", "OOF"))
     monkeypatch.setattr(abwesenheit, "_state_speichern", lambda st: None)
@@ -378,7 +378,7 @@ def test_kalender_auto_aus_lässt_status(monkeypatch):
     async def fake_get(upn, token):
         return "ok", dict(setting)
 
-    async def fake_patch(upn, token, s, html, status=None, start=None, ende=None):
+    async def fake_patch(upn, token, s, html, html_extern=None, status=None, start=None, ende=None):
         patch_calls.append(status)
         return {"internalReplyMessage": html, "externalReplyMessage": html}
 
@@ -485,12 +485,12 @@ def test_kalender_cache_vermeidet_zweiten_read(monkeypatch):
     Graph — das ist der Skalierungs-Kern. Schlägt fehl, wenn der Cache entfällt."""
     reads = {"n": 0}
 
-    async def fake_fenster(upn, token):
+    async def fake_events(upn, token):
         reads["n"] += 1
-        return ({"dateTime": "2026-10-01T00:00:00", "timeZone": "UTC"},
-                {"dateTime": "2026-10-10T00:00:00", "timeZone": "UTC"})
+        return [{"start": {"dateTime": "2026-10-01T00:00:00", "timeZone": "UTC"},
+                 "end": {"dateTime": "2026-10-10T00:00:00", "timeZone": "UTC"}, "privat": False}]
 
-    monkeypatch.setattr(abwesenheit, "_kalender_oof_fenster", fake_fenster)
+    monkeypatch.setattr(abwesenheit, "_kalender_oof_events", fake_events)
     monkeypatch.setattr(settings_store, "get",
                         lambda k, d=None: {"OOO_CALENDAR_REFRESH_HOURS": 6}.get(k, d))
     state: dict = {}
@@ -498,24 +498,24 @@ def test_kalender_cache_vermeidet_zweiten_read(monkeypatch):
     f2 = _run(abwesenheit.kalender_fenster("a@x.de", "T", state))
     assert f1 and f2 and f1[0]["dateTime"].startswith("2026-10-01")
     assert reads["n"] == 1, "zweiter Aufruf hätte den Cache nutzen müssen"
-    assert state["a@x.de"]["kal"]["fenster"]["start"]["dateTime"].startswith("2026-10-01")
+    assert state["a@x.de"]["kal"]["events"][0]["start"]["dateTime"].startswith("2026-10-01")
 
 
 def test_kalender_cache_refresh_nach_ablauf(monkeypatch):
     """Ist der gecachte Wert älter als OOO_CALENDAR_REFRESH_HOURS, wird neu gelesen."""
     reads = {"n": 0}
 
-    async def fake_fenster(upn, token):
+    async def fake_events(upn, token):
         reads["n"] += 1
-        return None     # kein Termin
+        return []     # keine Termine
 
-    monkeypatch.setattr(abwesenheit, "_kalender_oof_fenster", fake_fenster)
+    monkeypatch.setattr(abwesenheit, "_kalender_oof_events", fake_events)
     monkeypatch.setattr(settings_store, "get",
                         lambda k, d=None: {"OOO_CALENDAR_REFRESH_HOURS": 6}.get(k, d))
     # Cache mit einem 7h alten Zeitstempel vorbelegen → abgelaufen.
     from datetime import datetime, timezone, timedelta
     alt = (datetime.now(timezone.utc) - timedelta(hours=7)).isoformat()
-    state = {"a@x.de": {"kal": {"ts": alt, "fenster": None}}}
+    state = {"a@x.de": {"kal": {"ts": alt, "events": []}}}
     _run(abwesenheit.kalender_fenster("a@x.de", "T", state))
     assert reads["n"] == 1, "abgelaufener Cache hätte neu lesen müssen"
 
@@ -524,15 +524,15 @@ def test_kalender_cache_force_liest_neu(monkeypatch):
     """force=True (Self-Save) liest neu, auch wenn der Cache frisch ist."""
     reads = {"n": 0}
 
-    async def fake_fenster(upn, token):
+    async def fake_events(upn, token):
         reads["n"] += 1
-        return None
+        return []
 
-    monkeypatch.setattr(abwesenheit, "_kalender_oof_fenster", fake_fenster)
+    monkeypatch.setattr(abwesenheit, "_kalender_oof_events", fake_events)
     monkeypatch.setattr(settings_store, "get",
                         lambda k, d=None: {"OOO_CALENDAR_REFRESH_HOURS": 6}.get(k, d))
     from datetime import datetime, timezone
-    state = {"a@x.de": {"kal": {"ts": datetime.now(timezone.utc).isoformat(), "fenster": None}}}
+    state = {"a@x.de": {"kal": {"ts": datetime.now(timezone.utc).isoformat(), "events": []}}}
     _run(abwesenheit.kalender_fenster("a@x.de", "T", state, force=True))
     assert reads["n"] == 1, "force hätte den frischen Cache umgehen müssen"
 
@@ -542,15 +542,15 @@ def test_kalender_cache_fehler_wird_nicht_gecacht(monkeypatch):
     festschreiben — sonst bliebe die Automatik nach einem Netz-Schluckauf für
     Stunden blind. Der Zeitstempel bleibt der alte, der nächste Poll versucht es
     erneut."""
-    async def fake_fenster(upn, token):
+    async def fake_events(upn, token):
         raise RuntimeError("Graph 503")
 
-    monkeypatch.setattr(abwesenheit, "_kalender_oof_fenster", fake_fenster)
+    monkeypatch.setattr(abwesenheit, "_kalender_oof_events", fake_events)
     monkeypatch.setattr(settings_store, "get",
                         lambda k, d=None: {"OOO_CALENDAR_REFRESH_HOURS": 6}.get(k, d))
     from datetime import datetime, timezone, timedelta
     alt = (datetime.now(timezone.utc) - timedelta(hours=7)).isoformat()
-    state = {"a@x.de": {"kal": {"ts": alt, "fenster": None}}}
+    state = {"a@x.de": {"kal": {"ts": alt, "events": []}}}
     r = _run(abwesenheit.kalender_fenster("a@x.de", "T", state))
     assert r is None
     assert state["a@x.de"]["kal"]["ts"] == alt, "Fehler darf den Zeitstempel nicht erneuern"
@@ -565,21 +565,21 @@ def test_kal_cache_ueberlebt_state_neubau(monkeypatch):
     async def fake_get(upn, token):
         return "ok", dict(setting)
 
-    async def fake_patch(upn, token, s, html, status=None, start=None, ende=None):
+    async def fake_patch(upn, token, s, html, html_extern=None, status=None, start=None, ende=None):
         return {"internalReplyMessage": html, "externalReplyMessage": html}
 
     async def fake_user(upn):
         return UserData(displayName="E", custom={})
 
-    async def fake_fenster(upn, token):
+    async def fake_events(upn, token):
         reads["n"] += 1
-        return ({"dateTime": "2026-10-01T00:00:00", "timeZone": "UTC"},
-                {"dateTime": "2026-10-10T00:00:00", "timeZone": "UTC"})
+        return [{"start": {"dateTime": "2026-10-01T00:00:00", "timeZone": "UTC"},
+                 "end": {"dateTime": "2026-10-10T00:00:00", "timeZone": "UTC"}, "privat": False}]
 
     monkeypatch.setattr(abwesenheit, "_get_setting", fake_get)
     monkeypatch.setattr(abwesenheit, "_patch_setting", fake_patch)
     monkeypatch.setattr(graph_client, "get_user", fake_user)
-    monkeypatch.setattr(abwesenheit, "_kalender_oof_fenster", fake_fenster)
+    monkeypatch.setattr(abwesenheit, "_kalender_oof_events", fake_events)
     monkeypatch.setattr(abwesenheit, "oof_vorlage_fuer", lambda *a: "Firma")
     monkeypatch.setattr(signature_engine, "render",
                         lambda u, template_name=None, extra=None: ("<p>OOF</p>", "OOF"))
@@ -593,6 +593,176 @@ def test_kal_cache_ueberlebt_state_neubau(monkeypatch):
     # Zweiter Lauf: Cache frisch → kein erneuter calendarView-Read.
     _run(abwesenheit.setze_fuer_postfach("a@x.de", "a@x.de", {}, {}, "T", state))
     assert reads["n"] == 1, "zweiter Poll hätte den Kalender-Cache nutzen müssen"
+
+
+# ── C: Ankündigung künftiger Abwesenheiten ────────────────────────────────────
+
+def _ev(tage_ab_jetzt_start, tage_ab_jetzt_ende, privat=False):
+    from datetime import datetime, timezone, timedelta
+    jetzt = datetime.now(timezone.utc)
+    def iso(d):
+        return (jetzt + timedelta(days=d)).strftime("%Y-%m-%dT%H:%M:%S")
+    return {"start": {"dateTime": iso(tage_ab_jetzt_start), "timeZone": "UTC"},
+            "end": {"dateTime": iso(tage_ab_jetzt_ende), "timeZone": "UTC"},
+            "privat": privat}
+
+
+def test_ankuendigung_auswahl_laufende_und_vergangene_raus():
+    """Die aktuell laufende Abwesenheit (steht schon im OOF-Text) und vergangene
+    Termine werden ausgenommen; nur künftige bleiben."""
+    events = [_ev(-10, -5), _ev(-1, 1), _ev(3, 6), _ev(20, 25)]   # vorbei, laufend, 2 künftige
+    cfg = {"mode": "anzahl", "x": 10, "privat": True, "extern": False}
+    auswahl = abwesenheit._ankuendigung_auswahl(events, cfg)
+    assert len(auswahl) == 2
+    # der erste künftige Termin beginnt in 3 Tagen
+    from datetime import datetime, timezone
+    s0 = abwesenheit._dt(auswahl[0]["start"])
+    assert s0 > datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def test_ankuendigung_auswahl_modus_anzahl_begrenzt():
+    events = [_ev(2, 3), _ev(5, 6), _ev(8, 9), _ev(11, 12)]
+    cfg = {"mode": "anzahl", "x": 2, "privat": True, "extern": False}
+    assert len(abwesenheit._ankuendigung_auswahl(events, cfg)) == 2
+
+
+def test_ankuendigung_auswahl_modus_tage_begrenzt():
+    events = [_ev(2, 3), _ev(5, 6), _ev(40, 41)]
+    cfg = {"mode": "tage", "x": 10, "privat": True, "extern": False}
+    auswahl = abwesenheit._ankuendigung_auswahl(events, cfg)
+    assert len(auswahl) == 2       # der Termin in 40 Tagen fällt aus dem 10-Tage-Fenster
+
+
+def test_ankuendigung_auswahl_privat_filter():
+    events = [_ev(2, 3, privat=True), _ev(5, 6, privat=False)]
+    aus = abwesenheit._ankuendigung_auswahl(events, {"mode": "anzahl", "x": 10, "privat": False, "extern": False})
+    assert len(aus) == 1           # privater Termin ausgeschlossen
+    ein = abwesenheit._ankuendigung_auswahl(events, {"mode": "anzahl", "x": 10, "privat": True, "extern": False})
+    assert len(ein) == 2
+
+
+def test_ankuendigung_formatieren_de_en():
+    events = [{"start": {"dateTime": "2026-11-02T00:00:00", "timeZone": "UTC"},
+               "end": {"dateTime": "2026-11-06T00:00:00", "timeZone": "UTC"}},
+              {"start": {"dateTime": "2026-11-20T00:00:00", "timeZone": "UTC"},
+               "end": {"dateTime": "2026-11-20T00:00:00", "timeZone": "UTC"}}]
+    de = abwesenheit._ankuendigung_formatieren(events, "de")
+    en = abwesenheit._ankuendigung_formatieren(events, "en")
+    assert de == "Weitere geplante Abwesenheiten: vom 02.11.2026 bis 06.11.2026; am 20.11.2026."
+    assert en == "Further planned absences: from 02.11.2026 to 06.11.2026; on 20.11.2026."
+    assert abwesenheit._ankuendigung_formatieren([], "de") == ""
+
+
+def test_vorlage_nutzt_ankuendigung(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "TEMPLATE_DIR", str(tmp_path))
+    (tmp_path / "Mit.html").write_text("<p>{{ oof.ankuendigung }}</p>", encoding="utf-8")
+    (tmp_path / "Ohne.html").write_text("<p>{{ oof.zeitraum }}</p>", encoding="utf-8")
+    assert abwesenheit._vorlage_nutzt_ankuendigung("Mit") is True
+    assert abwesenheit._vorlage_nutzt_ankuendigung("Ohne") is False
+    assert abwesenheit._vorlage_nutzt_ankuendigung("") is False
+
+
+def test_braucht_kalender_durch_template_gate(tmp_path, monkeypatch):
+    """Auch ohne Kalender-Automatik braucht ein Postfach den Kalender, wenn seine
+    Vorlage die Ankündigungs-Variable nutzt — und NUR dann."""
+    monkeypatch.setattr(config, "TEMPLATE_DIR", str(tmp_path))
+    (tmp_path / "Mit.html").write_text("<p>{{ oof.ankuendigung }}</p>", encoding="utf-8")
+    (tmp_path / "Ohne.html").write_text("<p>x</p>", encoding="utf-8")
+    monkeypatch.setattr(settings_store, "get", lambda k, d=None: {"OOO_CALENDAR_AUTO": False}.get(k, d))
+    assert abwesenheit._braucht_kalender({}, "Mit") is True
+    assert abwesenheit._braucht_kalender({}, "Ohne") is False
+
+
+def test_render_oof_ankuendigungs_variable(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "TEMPLATE_DIR", str(tmp_path))
+    (tmp_path / "A.html").write_text("<p>Weg. {{ oof.ankuendigung }} [{oof.announcement}]</p>", encoding="utf-8")
+    (tmp_path / "A.txt").write_text("{{ oof.ankuendigung }}", encoding="utf-8")
+    signature_engine._reload_env()
+    html, txt = abwesenheit.render_oof(
+        UserData(displayName="E", custom={}), "A", "",
+        ankuendigung="Bald weg: am 01.12.2026.", announcement="Soon: on 01.12.2026.")
+    assert "Bald weg: am 01.12.2026." in html
+    assert "[Soon: on 01.12.2026.]" in html        # Kurzform mit Präfix
+    assert txt == "Bald weg: am 01.12.2026."
+
+
+def test_ankuendigung_nur_intern_divergenz(tmp_path, monkeypatch):
+    """Standard (oof_announce_extern=false): die Ankündigung erscheint im INTERNEN
+    Text, nicht im externen. Schlägt fehl, wenn beide Fassungen gleich gesetzt
+    werden."""
+    monkeypatch.setattr(config, "TEMPLATE_DIR", str(tmp_path))
+    (tmp_path / "Firma.html").write_text("<p>Ich bin weg. {{ oof.ankuendigung }}</p>", encoding="utf-8")
+    (tmp_path / "Firma.txt").write_text("weg", encoding="utf-8")
+    signature_engine._reload_env()
+
+    patched: dict = {}
+
+    async def fake_get(upn, token):
+        return "ok", {"status": "alwaysEnabled", "internalReplyMessage": "", "externalReplyMessage": ""}
+
+    async def fake_patch(upn, token, s, html, html_extern=None, status=None, start=None, ende=None):
+        patched["intern"] = html
+        patched["extern"] = html if html_extern is None else html_extern
+        return {"internalReplyMessage": html, "externalReplyMessage": patched["extern"]}
+
+    async def fake_user(upn):
+        return UserData(displayName="E", custom={})
+
+    async def fake_events(upn, token):
+        return [_ev(3, 6)]
+
+    monkeypatch.setattr(abwesenheit, "_get_setting", fake_get)
+    monkeypatch.setattr(abwesenheit, "_patch_setting", fake_patch)
+    monkeypatch.setattr(graph_client, "get_user", fake_user)
+    monkeypatch.setattr(abwesenheit, "_kalender_oof_events", fake_events)
+    monkeypatch.setattr(abwesenheit, "oof_vorlage_fuer", lambda *a: "Firma")
+    monkeypatch.setattr(abwesenheit, "_state_speichern", lambda st: None)
+    monkeypatch.setattr(settings_store, "get",
+                        lambda k, d=None: {"OOO_CALENDAR_AUTO": False,
+                                           "OOO_CALENDAR_REFRESH_HOURS": 6,
+                                           "OOO_APPEND_SIGNATURE": False,
+                                           "OOO_APPEND_BANNER": False}.get(k, d))
+    r = _run(abwesenheit.setze_fuer_postfach("a@x.de", "a@x.de", {}, {}, "T", {}))
+    assert r == abwesenheit.GESETZT
+    assert "Weitere geplante Abwesenheiten" in patched["intern"]
+    assert "Weitere geplante Abwesenheiten" not in patched["extern"]
+
+
+def test_ankuendigung_auch_extern(tmp_path, monkeypatch):
+    """Mit oof_announce_extern=true steht die Ankündigung auch im externen Text."""
+    monkeypatch.setattr(config, "TEMPLATE_DIR", str(tmp_path))
+    (tmp_path / "Firma.html").write_text("<p>weg {{ oof.ankuendigung }}</p>", encoding="utf-8")
+    (tmp_path / "Firma.txt").write_text("weg", encoding="utf-8")
+    signature_engine._reload_env()
+    patched: dict = {}
+
+    async def fake_get(upn, token):
+        return "ok", {"status": "alwaysEnabled", "internalReplyMessage": "", "externalReplyMessage": ""}
+
+    async def fake_patch(upn, token, s, html, html_extern=None, status=None, start=None, ende=None):
+        patched["extern"] = html if html_extern is None else html_extern
+        return {"internalReplyMessage": html, "externalReplyMessage": patched["extern"]}
+
+    async def fake_user(upn):
+        return UserData(displayName="E", custom={})
+
+    async def fake_events(upn, token):
+        return [_ev(3, 6)]
+
+    monkeypatch.setattr(abwesenheit, "_get_setting", fake_get)
+    monkeypatch.setattr(abwesenheit, "_patch_setting", fake_patch)
+    monkeypatch.setattr(graph_client, "get_user", fake_user)
+    monkeypatch.setattr(abwesenheit, "_kalender_oof_events", fake_events)
+    monkeypatch.setattr(abwesenheit, "oof_vorlage_fuer", lambda *a: "Firma")
+    monkeypatch.setattr(abwesenheit, "_state_speichern", lambda st: None)
+    monkeypatch.setattr(settings_store, "get",
+                        lambda k, d=None: {"OOO_CALENDAR_AUTO": False,
+                                           "OOO_CALENDAR_REFRESH_HOURS": 6,
+                                           "OOO_APPEND_SIGNATURE": False,
+                                           "OOO_APPEND_BANNER": False}.get(k, d))
+    _run(abwesenheit.setze_fuer_postfach("a@x.de", "a@x.de", {},
+                                         {"oof_announce_extern": True}, "T", {}))
+    assert "Weitere geplante Abwesenheiten" in patched["extern"]
 
 
 def test_aktive_postfaecher_email_und_guid(monkeypatch):

@@ -41,6 +41,7 @@ from datetime import datetime
 
 import httpx
 
+import config
 import graph_client
 import policies as _policies
 import settings_store
@@ -231,7 +232,8 @@ def _period_en(ab: str, bis: str) -> str:
 
 def render_oof(user_data, template_name: str, zeitraum: str,
                ab: str = "", bis: str = "",
-               anhang_html: str = "", anhang_txt: str = "") -> tuple[str, str]:
+               anhang_html: str = "", anhang_txt: str = "",
+               ankuendigung: str = "", announcement: str = "") -> tuple[str, str]:
     """(html, txt) der Abwesenheitsnotiz aus der oof-Vorlage.
 
     Die Vorlage kennt alle Signatur-Variablen (`{{ user.x }}`, `{{ custom.x }}`).
@@ -256,13 +258,15 @@ def render_oof(user_data, template_name: str, zeitraum: str,
     # oof-Namensraum (bevorzugt) + alte unpräfixierte Form (Bestandsvorlagen wie
     # Testoof nutzen {{ zeitraum }}) — beide als echte Template-Variablen.
     oof_ns = {"name": name, "zeitraum": zeitraum, "period": period,
-              "abwesend_ab": ab, "abwesend_bis": bis}
+              "abwesend_ab": ab, "abwesend_bis": bis,
+              "ankuendigung": ankuendigung, "announcement": announcement}
     extra = {"oof": oof_ns,
              "name": name, "zeitraum": zeitraum, "abwesend_ab": ab, "abwesend_bis": bis}
     html, txt = signature_engine.render(user_data, template_name=template_name, extra=extra)
     # Kurzform {…} als Alias: Textersetzung nach dem Rendern — mit und ohne Präfix.
     ersetzungen = {"{oof.name}": name, "{oof.zeitraum}": zeitraum, "{oof.period}": period,
                    "{oof.abwesend_ab}": ab, "{oof.abwesend_bis}": bis,
+                   "{oof.ankuendigung}": ankuendigung, "{oof.announcement}": announcement,
                    "{name}": name, "{zeitraum}": zeitraum,
                    "{abwesend_ab}": ab, "{abwesend_bis}": bis}
     for marke, wert in ersetzungen.items():
@@ -332,12 +336,17 @@ async def _get_setting(upn: str, token: str) -> tuple[str, dict | None]:
 
 
 async def _patch_setting(upn: str, token: str, setting: dict, html: str,
+                         html_extern: str | None = None,
                          status: str | None = None,
                          start: dict | None = None, ende: dict | None = None) -> dict | None:
     """intern/extern-Text setzen; optional auch Status + Zeitplan (für die
     Kalender-Automatik). Übergebene Felder werden gesetzt, alle anderen bleiben
-    unangetastet. Gibt das von Graph zurückgegebene (kanonische) Setting."""
-    inner: dict = {"internalReplyMessage": html, "externalReplyMessage": html}
+    unangetastet. Gibt das von Graph zurückgegebene (kanonische) Setting.
+
+    `html_extern` erlaubt einen abweichenden externen Text (Ankündigung nur intern);
+    fehlt er, gilt `html` für beide."""
+    extern = html if html_extern is None else html_extern
+    inner: dict = {"internalReplyMessage": html, "externalReplyMessage": extern}
     if status:
         inner["status"] = status
     if start:
@@ -379,25 +388,27 @@ def _fenster_texte(start_raw: dict, end_raw: dict) -> tuple[str, str, str]:
     return zeitraum, ab, bis
 
 
-async def _kalender_oof_fenster(upn: str, token: str) -> tuple[dict, dict] | None:
-    """(start_raw, end_raw) des maßgeblichen „Abwesend"-Kalendertermins, oder None.
+async def _kalender_oof_events(upn: str, token: str) -> list[dict]:
+    """Alle qualifizierenden „Abwesend"-Kalendertermine, sortiert nach Start.
 
-    Berücksichtigt nur Termine mit Status `showAs == "oof"` ab der eingestellten
-    Mindestdauer (`OOO_CALENDAR_MIN_HOURS`). Ein gerade laufender Termin hat
-    Vorrang, sonst der nächste kommende. Rein lesend (Calendars.Read).
+    Qualifizierend = Status `showAs == "oof"` ab der Mindestdauer
+    (`OOO_CALENDAR_MIN_HOURS`). Jeder Eintrag ist JSON-serialisierbar (passt in den
+    Cache): `{"start": <dateTimeTimeZone>, "end": <…>, "privat": <bool>}`. Rein
+    lesend (Calendars.Read). EIN Read für beide Verbraucher — Auto-OOF nimmt daraus
+    das maßgebliche Fenster, die Ankündigung die kommenden Termine.
 
-    ⚠️ Rückgabe-Vertrag für den Cache (`kalender_fenster`): `None` heißt
-    „zuverlässig kein qualifizierender Termin" (inkl. 403 — der Zustand ändert
-    sich nicht in Minuten, also cachebar). Ein ECHTER Fehler (Netzwerk, 5xx)
-    wird GEWORFEN, nicht als None zurückgegeben — sonst würde der Cache ein
-    vorübergehendes Problem als „kein Termin" für Stunden festschreiben."""
+    ⚠️ Rückgabe-Vertrag für den Cache: Eine Liste (auch leer) heißt „zuverlässig
+    gelesen" (inkl. 403 → leere Liste — der Zustand ändert sich nicht in Minuten,
+    also cachebar). Ein ECHTER Fehler (Netzwerk, 5xx) wird GEWORFEN — sonst würde
+    der Cache ein vorübergehendes Problem als „keine Termine" für Stunden
+    festschreiben."""
     from datetime import datetime, timezone, timedelta
     min_h = float(settings_store.get("OOO_CALENDAR_MIN_HOURS") or 8)
     jetzt = datetime.now(timezone.utc)
     von = jetzt.strftime("%Y-%m-%dT%H:%M:%S")
     bis = (jetzt + timedelta(days=_LOOKAHEAD_TAGE)).strftime("%Y-%m-%dT%H:%M:%S")
     url = (f"{_GRAPH}/users/{upn}/calendarView?startDateTime={von}&endDateTime={bis}"
-           f"&$select=start,end,showAs,subject&$top=100&$orderby=start/dateTime")
+           f"&$select=start,end,showAs,sensitivity&$top=100&$orderby=start/dateTime")
     try:
         async with httpx.AsyncClient(timeout=20) as client:
             resp = await client.get(url, headers={
@@ -405,26 +416,40 @@ async def _kalender_oof_fenster(upn: str, token: str) -> tuple[dict, dict] | Non
                 "Prefer": 'outlook.timezone="UTC"'})   # → start/end kommen in UTC
         if resp.status_code == 403:
             log.warning("OOO-Kalender: kein Zugriff auf %s (Calendars.Read-Consent fehlt)", upn)
-            return None
+            return []
         resp.raise_for_status()
         events = resp.json().get("value", [])
     except Exception as exc:                                       # noqa: BLE001
         log.warning("OOO-Kalender lesen für %s fehlgeschlagen: %s", upn, exc)
         raise      # echter Fehler → NICHT cachen (siehe Docstring)
-    jetzt_naiv = jetzt.replace(tzinfo=None)   # _dt liefert naive (UTC-)datetimes
-    kandidaten = []
+    out: list[dict] = []
     for ev in events:
         if ev.get("showAs") != "oof":
             continue
         s, e = _dt(ev.get("start")), _dt(ev.get("end"))
         if not s or not e or (e - s).total_seconds() < min_h * 3600:
             continue
-        kandidaten.append((s, e, ev.get("start"), ev.get("end")))
-    if not kandidaten:
+        out.append({"start": ev.get("start"), "end": ev.get("end"),
+                    "privat": (ev.get("sensitivity") in ("private", "confidential"))})
+    out.sort(key=lambda ev: _dt(ev["start"]) or datetime.max)
+    return out
+
+
+def _fenster_aus_events(events: list[dict]) -> tuple[dict, dict] | None:
+    """Maßgebliches Auto-OOF-Fenster aus der Terminliste: ein gerade laufender
+    Termin hat Vorrang, sonst der nächste kommende. (start_raw, end_raw) oder None."""
+    from datetime import datetime, timezone
+    jetzt_naiv = datetime.now(timezone.utc).replace(tzinfo=None)   # _dt liefert naiv
+    kand = []
+    for ev in events:
+        s, e = _dt(ev.get("start")), _dt(ev.get("end"))
+        if s and e:
+            kand.append((s, e, ev))
+    if not kand:
         return None
-    laufend = [k for k in kandidaten if k[0] <= jetzt_naiv <= k[1]]
-    wahl = min(laufend or kandidaten, key=lambda k: k[0])
-    return wahl[2], wahl[3]
+    laufend = [k for k in kand if k[0] <= jetzt_naiv <= k[1]]
+    wahl = min(laufend or kand, key=lambda k: k[0])
+    return wahl[2]["start"], wahl[2]["end"]
 
 
 def _kalender_auto_an(sender_cfg: dict) -> bool:
@@ -440,22 +465,23 @@ def _kalender_auto_an(sender_cfg: dict) -> bool:
     return bool(v)
 
 
-async def kalender_fenster(upn: str, token: str, state: dict,
-                           *, force: bool = False) -> tuple[dict, dict] | None:
-    """Maßgebliches „Abwesend"-Kalenderfenster — aus dem Cache bedient.
+async def kalender_events(upn: str, token: str, state: dict,
+                          *, force: bool = False) -> list[dict]:
+    """Qualifizierende „Abwesend"-Termine — aus dem Cache bedient.
 
     Graph (`calendarView`) wird nur WIRKLICH gelesen, wenn der gecachte Wert älter
     als `OOO_CALENDAR_REFRESH_HOURS` ist oder `force=True` (on-demand beim
     Self-Save). Das ist der Kern der Skalierung: Der OOO-Poll läuft alle 10 Minuten,
     aber der Kalender ändert sich selten — ohne Cache liefe pro Postfach bei jedem
-    Poll ein calendarView-Aufruf.
+    Poll ein calendarView-Aufruf. EIN gecachter Read speist beide Verbraucher
+    (Auto-OOF-Fenster und Ankündigung).
 
-    Gecacht wird je Postfach unter `state[upn]["kal"] = {"ts", "fenster"}`. Auch
-    das NICHT-Vorhandensein eines Termins (`fenster=None`) wird gemerkt, damit es
-    zwischenzeitlich nicht erneut abgefragt wird. Ein echter Lesefehler aktualisiert
-    den Cache NICHT (dann gilt der vorige Wert weiter, und der nächste Poll
-    versucht es erneut) — nur so wird ein vorübergehendes Problem nicht für Stunden
-    als „kein Termin" festgeschrieben. Mutiert `state` in-place."""
+    Gecacht wird je Postfach unter `state[upn]["kal"] = {"ts", "events"}`. Auch eine
+    leere Liste (keine Termine) wird gemerkt, damit sie zwischenzeitlich nicht erneut
+    abgefragt wird. Ein echter Lesefehler aktualisiert den Cache NICHT (dann gilt der
+    vorige Wert weiter, und der nächste Poll versucht es erneut) — nur so wird ein
+    vorübergehendes Problem nicht für Stunden als „keine Termine" festgeschrieben.
+    Mutiert `state` in-place."""
     from datetime import datetime, timezone
     merk = state.get(upn.lower())
     if merk is None:
@@ -468,30 +494,147 @@ async def kalender_fenster(upn: str, token: str, state: dict,
         try:
             alter = (jetzt - datetime.fromisoformat(kal["ts"])).total_seconds()
             if alter < refresh_h * 3600:
-                f = kal.get("fenster")
-                return (f["start"], f["end"]) if f else None
+                return list(kal.get("events") or [])
         except ValueError:
             pass   # unlesbarer Zeitstempel → als abgelaufen behandeln
     try:
-        fenster = await _kalender_oof_fenster(upn, token)
+        events = await _kalender_oof_events(upn, token)
     except Exception:                                              # noqa: BLE001
-        # Echter Fehler: Cache NICHT anfassen; vorigen (ggf. veralteten) Wert liefern.
-        f = kal.get("fenster")
-        return (f["start"], f["end"]) if f else None
-    merk["kal"] = {"ts": jetzt.isoformat(),
-                   "fenster": ({"start": fenster[0], "end": fenster[1]} if fenster else None)}
-    return fenster
+        # Echter Fehler: Cache NICHT anfassen; vorige (ggf. veraltete) Liste liefern.
+        return list(kal.get("events") or [])
+    merk["kal"] = {"ts": jetzt.isoformat(), "events": events}
+    return events
+
+
+async def kalender_fenster(upn: str, token: str, state: dict,
+                           *, force: bool = False) -> tuple[dict, dict] | None:
+    """Maßgebliches Auto-OOF-Kalenderfenster, aus dem gecachten Terminlauf
+    abgeleitet (ein laufender Termin hat Vorrang, sonst der nächste). Löst nur den
+    Cache aus — der eigentliche Read passiert einmal in `kalender_events`."""
+    return _fenster_aus_events(await kalender_events(upn, token, state, force=force))
+
+
+def _vorlage_nutzt_ankuendigung(template_name: str) -> bool:
+    """Steht die Ankündigungs-Variable (`oof.ankuendigung`/`oof.announcement`) im
+    Quelltext der oof-Vorlage? Das ist das „Vorlagen-Nutzungs-Gate": nur dann wird
+    überhaupt der Kalender nach künftigen Abwesenheiten gefragt."""
+    if not template_name:
+        return False
+    import os
+    datei = "signature" if template_name in ("", "default") else template_name
+    pfad = os.path.join(config.TEMPLATE_DIR, f"{datei}.html")
+    try:
+        with open(pfad, encoding="utf-8") as f:
+            src = f.read()
+    except OSError:
+        return False
+    return "oof.ankuendigung" in src or "oof.announcement" in src
 
 
 def _braucht_kalender(sender_cfg: dict, template_name: str = "") -> bool:
     """Braucht dieses Postfach überhaupt einen Kalender-Read?
 
     Grundlage des „Vorlagen-Nutzungs-Gates": Wo weder die Kalender-Automatik läuft
-    noch eine Vorlage Kalenderdaten verwendet, wird Graph erst gar nicht nach dem
-    Kalender gefragt. In dieser Stufe (B2) genügt die aktive Automatik;
-    Stufe C erweitert das um die Ankündigungs-Variable in der zugewiesenen
-    oof-Vorlage."""
-    return _kalender_auto_an(sender_cfg)
+    noch die zugewiesene Vorlage Kalenderdaten verwendet, wird Graph erst gar nicht
+    nach dem Kalender gefragt — der entscheidende Graph-Last-Deckel neben dem Cache."""
+    return _kalender_auto_an(sender_cfg) or _vorlage_nutzt_ankuendigung(template_name)
+
+
+# ── Ankündigung künftiger Abwesenheiten (Variable {{ oof.ankuendigung }}) ──────
+
+def _ankuendigung_einstellungen(sender_cfg: dict) -> dict:
+    """Umfang/Filter der Ankündigung je Postfach (Stufe-2-Self-UI setzt diese
+    Felder; in Stufe 1 gelten die Vorgaben). `mode` ∈ {anzahl, tage}, `x` die Zahl,
+    `privat` ob private Termine zählen (Vorgabe ja), `extern` ob die Zeile auch im
+    externen Text erscheint (Vorgabe nein → nur intern; greift erst mit Stufe 2)."""
+    return {
+        "mode": (sender_cfg.get("oof_announce_mode") or "anzahl"),
+        "x": max(1, int(sender_cfg.get("oof_announce_x") or 3)),
+        "privat": sender_cfg.get("oof_announce_privat", True) is not False,
+        "extern": bool(sender_cfg.get("oof_announce_extern")),
+    }
+
+
+def _ankuendigung_auswahl(events: list[dict], cfg: dict) -> list[dict]:
+    """Aus der (gecachten) Terminliste die anzukündigenden Termine wählen: die
+    aktuell LAUFENDE Abwesenheit wird ausgenommen (sie steht schon im OOF-Text),
+    vergangene ebenso; danach greift der Umfang (x Termine ODER x Tage) und der
+    Privat-Filter. Reine Auswahl-Logik, ohne Graph — damit testbar."""
+    from datetime import datetime, timezone, timedelta
+    jetzt = datetime.now(timezone.utc).replace(tzinfo=None)   # _dt liefert naiv (UTC)
+    kommend: list[tuple[datetime, dict]] = []
+    for ev in events:
+        s, e = _dt(ev.get("start")), _dt(ev.get("end"))
+        if not s or not e:
+            continue
+        if s <= jetzt <= e:
+            continue                 # läuft gerade → steht schon im OOF-Text
+        if e < jetzt:
+            continue                 # vergangen
+        if ev.get("privat") and not cfg["privat"]:
+            continue
+        kommend.append((s, ev))
+    kommend.sort(key=lambda t: t[0])
+    if cfg["mode"] == "tage":
+        grenze = jetzt + timedelta(days=cfg["x"])
+        return [ev for s, ev in kommend if s <= grenze]
+    return [ev for _s, ev in kommend[:cfg["x"]]]
+
+
+def _ankuendigung_formatieren(auswahl: list[dict], sprache: str) -> str:
+    """Eine fertige Zeile aus den gewählten Terminen. Leer, wenn nichts zu melden.
+    Datumsformat wie überall (TT.MM.JJJJ); nur die Bindewörter sind sprachabhängig."""
+    teile: list[str] = []
+    for ev in auswahl:
+        _z, ab, bis = _fenster_texte(ev.get("start"), ev.get("end"))
+        if not ab and not bis:
+            continue
+        if sprache == "en":
+            teile.append(_period_en(ab, bis))
+        else:
+            teile.append(_z)
+    teile = [t for t in teile if t]
+    if not teile:
+        return ""
+    if sprache == "en":
+        return "Further planned absences: " + "; ".join(teile) + "."
+    return "Weitere geplante Abwesenheiten: " + "; ".join(teile) + "."
+
+
+async def ankuendigung_fuer_render(upn: str, token: str, template_name: str,
+                                   sender_cfg: dict, state: dict) -> tuple[str, str]:
+    """(de, en) Ankündigungszeilen für die Render-Variablen — oder ("",""), wenn die
+    Vorlage die Variable nicht nutzt. Liest den Kalender über den gemeinsamen Cache
+    (ein Read speist Auto-OOF und Ankündigung)."""
+    if not token or not _vorlage_nutzt_ankuendigung(template_name):
+        return "", ""
+    cfg = _ankuendigung_einstellungen(sender_cfg)
+    events = await kalender_events(upn, token, state)
+    auswahl = _ankuendigung_auswahl(events, cfg)
+    return (_ankuendigung_formatieren(auswahl, "de"),
+            _ankuendigung_formatieren(auswahl, "en"))
+
+
+async def render_intern_extern(user_data, upn: str, token: str, template: str,
+                               sender_cfg: dict, state: dict, zeitraum: str,
+                               ab: str = "", bis: str = "",
+                               anhang_html: str = "", anhang_txt: str = "") -> tuple[str, str]:
+    """(html_intern, html_extern) der Abwesenheit inkl. Ankündigung.
+
+    Die Ankündigung steht standardmäßig NUR im internen Text; ist nichts
+    anzukündigen oder „auch extern" gesetzt, sind beide Fassungen gleich (ein
+    Render). GEMEINSAM genutzt von Poll (`setze_fuer_postfach`) und Self-Service,
+    damit beide Wege denselben Text erzeugen (sonst re-PATCHt der Poll nach jedem
+    Self-Save und setzt die Dedup zurück)."""
+    ank_de, ank_en = await ankuendigung_fuer_render(upn, token, template, sender_cfg, state)
+    html = render_oof(user_data, template, zeitraum, ab, bis,
+                      anhang_html, anhang_txt, ank_de, ank_en)[0]
+    if (ank_de or ank_en) and not _ankuendigung_einstellungen(sender_cfg)["extern"]:
+        html_extern = render_oof(user_data, template, zeitraum, ab, bis,
+                                 anhang_html, anhang_txt)[0]
+    else:
+        html_extern = html
+    return html, html_extern
 
 
 # ── Ein Postfach normalisieren ────────────────────────────────────────────────
@@ -519,9 +662,7 @@ async def setze_fuer_postfach(upn: str, sender: str, mailbox_cfg: dict,
     user_data = await graph_client.get_user(upn)
     # Optionaler Anhang (Signatur/Banner) — einmal berechnen, für beide Render-Wege.
     anhang_html, anhang_txt = _oof_anhang(user_data, sender, mailbox_cfg, sender_cfg)
-    _ab, _bis = start_ende_text(setting)
-    html, _txt = render_oof(user_data, template, zeitraum_text(setting), _ab, _bis,
-                            anhang_html, anhang_txt)
+    _z, _ab, _bis = zeitraum_text(setting), *start_ende_text(setting)
 
     # merk MUSS mit state verknüpft sein: kalender_fenster() legt den Cache unter
     # state[upn]["kal"] ab. Wäre merk eine lose Kopie, ginge dieser Cache verloren.
@@ -547,8 +688,12 @@ async def setze_fuer_postfach(upn: str, sender: str, mailbox_cfg: dict,
                 setze_status, setze_start, setze_ende = "scheduled", fenster[0], fenster[1]
                 auto_win = win_key
                 _z, _ab, _bis = _fenster_texte(fenster[0], fenster[1])
-                html, _txt = render_oof(user_data, template, _z, _ab, _bis,
-                                        anhang_html, anhang_txt)
+
+    # Intern/extern getrennt rendern (Ankündigung ggf. nur intern) — gemeinsamer Weg
+    # mit dem Self-Service, damit beide denselben Text erzeugen.
+    html, html_extern = await render_intern_extern(
+        user_data, upn, token, template, sender_cfg, state, _z, _ab, _bis,
+        anhang_html, anhang_txt)
 
     # Neu setzen, wenn EINES zutrifft:
     #  (a) UNSER gerenderter Text hat sich geändert (Vorlage/Signatur/Variable/
@@ -562,14 +707,17 @@ async def setze_fuer_postfach(upn: str, sender: str, mailbox_cfg: dict,
     # anders aussieht. Verglichen wird gegen unseren gemerkten Render (nicht gegen
     # Exchanges kanonische Fassung), weil Exchange das HTML umkodiert und ein
     # direkter Vergleich sonst immer „ungleich" wäre (Dauer-PATCH).
-    render_gleich = html == merk.get("render")
+    # render = interner Text; render_extern nur gemerkt, wenn er abweicht (Divergenz
+    # durch „Ankündigung nur intern") — sonst gilt render für beide.
+    render_gleich = (html == merk.get("render")
+                     and html_extern == (merk.get("render_extern") or merk.get("render")))
     exchange_gleich = (setting.get("internalReplyMessage") == merk.get("intern")
                        and setting.get("externalReplyMessage") == merk.get("extern"))
     if render_gleich and exchange_gleich and setze_status is None:
         # ⚠️ Diese Prüfung verhindert das Zurücksetzen der „einmal je Absender"-Dedup.
         return UNVERAENDERT
 
-    kanonisch = await _patch_setting(upn, token, setting, html,
+    kanonisch = await _patch_setting(upn, token, setting, html, html_extern=html_extern,
                                      status=setze_status, start=setze_start, ende=setze_ende)
     # Zwei Dinge merken: die von Graph zurückgegebene (kanonische) Fassung — Exchange
     # kann HTML neu kodieren, ein Vergleich dagegen erkennt Fremdänderungen — UND
@@ -578,8 +726,10 @@ async def setze_fuer_postfach(upn: str, sender: str, mailbox_cfg: dict,
         neu = {"intern": kanonisch.get("internalReplyMessage"),
                "extern": kanonisch.get("externalReplyMessage")}
     else:
-        neu = {"intern": html, "extern": html}
+        neu = {"intern": html, "extern": html_extern}
     neu["render"] = html
+    if html_extern != html:
+        neu["render_extern"] = html_extern
     if auto_win:
         neu["auto_win"] = auto_win
     # Den Kalender-Cache über den State-Neubau retten (kalender_fenster hat ihn
