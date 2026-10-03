@@ -34,15 +34,15 @@
     <button class="btn secondary btn-sm" id="ab-refresh" onclick="abLaden(true)">Aktualisieren</button>
   </div>
   <div class="tabellen-rollbereich" style="margin-top:10px">
-    <table id="ab-tabelle" style="min-width:620px;width:100%;border-collapse:collapse">
+    <table id="ab-tabelle" style="min-width:720px;width:100%;border-collapse:collapse">
       <thead>
         <tr>
           <th>Postfach</th><th>Status</th><th>Zeitraum</th>
-          <th>Vorlage</th><th>Kalender</th><th>Ankündigung</th>
+          <th>Vorlage</th><th>Kalender</th><th>Ankündigung</th><th></th>
         </tr>
       </thead>
       <tbody id="ab-tbody">
-        <tr><td colspan="6" class="muted">Lädt…</td></tr>
+        <tr><td colspan="7" class="muted">Lädt…</td></tr>
       </tbody>
     </table>
   </div>
@@ -86,7 +86,82 @@
   <span id="ann-result" style="font-size:12px"></span>
 </div>
 
+<!-- Editor-Modal: Admin setzt die Abwesenheit eines Postfachs -->
+<div id="ab-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1000;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:10px;max-width:520px;width:92%;max-height:86vh;overflow-y:auto;padding:24px;position:relative;box-shadow:0 8px 32px rgba(0,0,0,0.18)">
+    <button onclick="abSchliesse()" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:20px;cursor:pointer;color:#888">✕</button>
+    <h2 id="abm-titel" style="margin-top:0;font-size:16px;margin-bottom:2px">Abwesenheit</h2>
+    <p class="muted" id="abm-sub" style="margin-top:0;font-size:12px"></p>
+
+    <div id="abm-kein-zugriff" class="alert warn" style="display:none">
+      Kein Zugriff auf die Postfacheinstellungen (MailboxSettings-Consent fehlt).
+    </div>
+
+    <div id="abm-body">
+      <div id="abm-status" style="display:flex;gap:16px;margin-bottom:10px;flex-wrap:wrap">
+        <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer"><input type="radio" name="abm-status" value="disabled"> Aus</label>
+        <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer"><input type="radio" name="abm-status" value="alwaysEnabled"> Immer an</label>
+        <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer"><input type="radio" name="abm-status" value="scheduled"> Zeitraum</label>
+      </div>
+      <div id="abm-zeitraum" style="display:none;margin-bottom:10px">
+        <label style="display:inline-flex;align-items:center;gap:6px;margin:0 0 8px;cursor:pointer">
+          <input type="checkbox" id="abm-ganztaegig" checked> ganztägig
+        </label>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+          <div><label for="abm-von">Von</label><br><input type="date" id="abm-von"></div>
+          <div class="abm-zeit" style="display:none"><label for="abm-von-zeit">Uhrzeit</label><br><select id="abm-von-zeit"></select></div>
+          <div><label for="abm-bis">Bis</label><br><input type="date" id="abm-bis"></div>
+          <div class="abm-zeit" style="display:none"><label for="abm-bis-zeit">Uhrzeit</label><br><select id="abm-bis-zeit"></select></div>
+        </div>
+      </div>
+
+      <div class="settings-row">
+        <label for="abm-kalender">Kalender-Automatik</label>
+        <div class="settings-control">
+          <select id="abm-kalender">
+            <option value="">Vorgabe</option><option value="1">an</option><option value="0">aus</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="abm-ank-block">
+        <h3 style="margin:14px 0 4px;font-size:14px">Ankündigung kommender Abwesenheiten</h3>
+        <p class="muted" id="abm-ank-hinweis" style="margin:0 0 8px;font-size:12px"></p>
+        <label style="display:inline-flex;align-items:center;gap:6px;margin:0 0 8px;cursor:pointer">
+          <input type="checkbox" id="abm-ank-an"> ankündigen
+        </label>
+        <div id="abm-ank-felder">
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+            <div><label for="abm-ank-mode">Umfang</label><br>
+              <select id="abm-ank-mode">
+                <option value="anzahl">die nächsten … Abwesenheiten</option>
+                <option value="tage">Abwesenheiten der nächsten … Tage</option>
+              </select></div>
+            <div><label for="abm-ank-x">Anzahl / Tage</label><br>
+              <input type="number" id="abm-ank-x" min="1" max="50" value="3" style="width:72px"></div>
+          </div>
+          <label style="display:inline-flex;align-items:center;gap:6px;margin:10px 0 0;cursor:pointer">
+            <input type="checkbox" id="abm-ank-privat" checked> private Termine mitzählen
+          </label>
+          <label style="display:inline-flex;align-items:center;gap:6px;margin:6px 0 0;cursor:pointer">
+            <input type="checkbox" id="abm-ank-extern"> auch externen Absendern zeigen
+          </label>
+        </div>
+      </div>
+
+      <div style="margin-top:18px;display:flex;gap:8px;align-items:center">
+        <button class="btn primary btn-sm" id="abm-save" onclick="abSpeichern()">Speichern</button>
+        <button class="btn secondary btn-sm" onclick="abSchliesse()">Abbrechen</button>
+        <span id="abm-result" style="font-size:12px"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
+var AB_ITEMS = [];
+var AB_EDIT = null;   // gerade bearbeitetes Postfach (E-Mail)
+
 function abBadge(it) {
   var s, label;
   if (it.status === 'alwaysEnabled') { s = 'abwesend'; label = 'immer an'; }
@@ -106,10 +181,10 @@ async function abLaden(force) {
   var tbody = document.getElementById('ab-tbody');
   try {
     var r = await fetch('/api/abwesenheit/uebersicht' + (force ? '?force=1' : ''));
-    if (!r.ok) { tbody.innerHTML = '<tr><td colspan="6" class="muted">Fehler ' + r.status + '</td></tr>'; return; }
+    if (!r.ok) { tbody.innerHTML = '<tr><td colspan="7" class="muted">Fehler ' + r.status + '</td></tr>'; return; }
     var d = await r.json();
   } catch (e) {
-    tbody.innerHTML = '<tr><td colspan="6" class="muted">Verbindungsfehler</td></tr>'; return;
+    tbody.innerHTML = '<tr><td colspan="7" class="muted">Verbindungsfehler</td></tr>'; return;
   }
   document.getElementById('ooo-aus-hinweis').style.display = d.ooo_enabled ? 'none' : 'block';
   document.getElementById('ab-summe').textContent = d.abwesend + ' von ' + d.gesamt;
@@ -118,9 +193,10 @@ async function abLaden(force) {
   else if (d.ts) stand.textContent = '· Stand: ' + new Date(d.ts).toLocaleString('de-DE');
   else stand.textContent = '';
   if (!d.items || !d.items.length) {
-    tbody.innerHTML = '<tr><td colspan="6" class="muted">Keine aktivierten Postfächer.</td></tr>'; return;
+    tbody.innerHTML = '<tr><td colspan="7" class="muted">Keine aktivierten Postfächer.</td></tr>'; return;
   }
-  tbody.innerHTML = d.items.map(function (it) {
+  AB_ITEMS = d.items;
+  tbody.innerHTML = d.items.map(function (it, i) {
     return '<tr>'
       + '<td>' + esc(it.name || it.upn) + '</td>'
       + '<td>' + abBadge(it) + '</td>'
@@ -128,8 +204,96 @@ async function abLaden(force) {
       + '<td>' + (it.oof_template ? esc(it.oof_template) : '<span class="muted">— keine —</span>') + '</td>'
       + '<td>' + abKalender(it.kalender) + '</td>'
       + '<td>' + (it.ankuendigung ? 'an' : '<span class="muted">—</span>') + '</td>'
+      + '<td style="text-align:right"><button class="btn secondary btn-sm" onclick="abOeffne(' + i + ')">Bearbeiten</button></td>'
       + '</tr>';
   }).join('');
+}
+
+function abm(id) { return document.getElementById(id); }
+function abmStatusWert() {
+  var c = document.querySelector('input[name=abm-status]:checked');
+  return c ? c.value : 'disabled';
+}
+function abmZeiten() {
+  ['abm-von-zeit', 'abm-bis-zeit'].forEach(function (id) {
+    var s = abm(id); if (s.options.length) return;
+    for (var h = 0; h < 24; h++) for (var m = 0; m < 60; m += 30) {
+      var t = (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
+      s.appendChild(new Option(t, t));
+    }
+  });
+}
+function abmSichtbar() {
+  abm('abm-zeitraum').style.display = (abmStatusWert() === 'scheduled') ? 'block' : 'none';
+  var ganz = abm('abm-ganztaegig').checked;
+  document.querySelectorAll('#abm-zeitraum .abm-zeit').forEach(function (e) { e.style.display = ganz ? 'none' : 'block'; });
+  abm('abm-ank-felder').style.display = abm('abm-ank-an').checked ? 'block' : 'none';
+}
+
+async function abOeffne(i) {
+  var it = AB_ITEMS[i]; if (!it) return;
+  AB_EDIT = it.upn;
+  abm('abm-titel').textContent = it.name || it.upn;
+  abm('abm-sub').textContent = it.upn;
+  abm('abm-result').textContent = '';
+  abmZeiten();
+  abm('ab-modal').style.display = 'flex';
+  // Aktuellen Stand laden
+  var r = await fetch('/api/abwesenheit/postfach?email=' + encodeURIComponent(it.upn));
+  if (!r.ok) { abm('abm-result').textContent = 'Fehler beim Laden (' + r.status + ')'; return; }
+  var d = await r.json();
+  abm('abm-kein-zugriff').style.display = d.zugriff === false ? 'block' : 'none';
+  abm('abm-body').style.opacity = d.zugriff === false ? '0.5' : '1';
+  var st = (d.ooo && d.ooo.status) || 'disabled';
+  var rb = document.querySelector('input[name=abm-status][value="' + st + '"]'); if (rb) rb.checked = true;
+  if (d.ooo) {
+    abm('abm-von').value = d.ooo.start || ''; abm('abm-bis').value = d.ooo.ende || '';
+    abm('abm-ganztaegig').checked = d.ooo.ganztaegig !== false;
+    abm('abm-von-zeit').value = d.ooo.start_zeit || '09:00';
+    abm('abm-bis-zeit').value = d.ooo.ende_zeit || '17:00';
+  }
+  abm('abm-kalender').value = (d.kalender === true) ? '1' : (d.kalender === false) ? '0' : '';
+  // Ankündigungs-Block nur zeigen, wenn die Vorlage die Variable nutzt.
+  abm('abm-ank-block').style.display = d.announce_supported ? 'block' : 'none';
+  abm('abm-ank-hinweis').textContent = d.oof_template
+    ? ('Vorlage: ' + d.oof_template) : 'Keine Abwesenheitsvorlage zugewiesen.';
+  if (d.announce) {
+    abm('abm-ank-an').checked = d.announce.an !== false;
+    abm('abm-ank-mode').value = d.announce.mode || 'anzahl';
+    abm('abm-ank-x').value = d.announce.x || 3;
+    abm('abm-ank-privat').checked = d.announce.privat !== false;
+    abm('abm-ank-extern').checked = !!d.announce.extern;
+  }
+  abmSichtbar();
+}
+
+function abSchliesse() { abm('ab-modal').style.display = 'none'; AB_EDIT = null; }
+
+async function abSpeichern() {
+  if (!AB_EDIT) return;
+  var btn = abm('abm-save'); btn.disabled = true; var alt = btn.textContent; btn.textContent = 'Speichert…';
+  abm('abm-result').textContent = '';
+  var x = Math.max(1, Math.min(50, parseInt(abm('abm-ank-x').value, 10) || 3));
+  try {
+    var r = await fetch('/api/abwesenheit/postfach', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: AB_EDIT,
+        oof_status: abmStatusWert(), oof_start: abm('abm-von').value, oof_ende: abm('abm-bis').value,
+        ganztaegig: abm('abm-ganztaegig').checked,
+        start_zeit: abm('abm-von-zeit').value, ende_zeit: abm('abm-bis-zeit').value,
+        ooo_calendar: abm('abm-kalender').value,
+        announce: {
+          an: abm('abm-ank-an').checked, mode: abm('abm-ank-mode').value, x: x,
+          privat: abm('abm-ank-privat').checked, extern: abm('abm-ank-extern').checked,
+        },
+      }),
+    });
+    var d = await r.json().catch(function () { return {}; });
+    if (r.ok && d.ok) { abSchliesse(); abLaden(true); }
+    else { abm('abm-result').textContent = '✗ ' + (d.detail || ('Fehler ' + r.status)); }
+  } catch (e) { abm('abm-result').textContent = '✗ ' + e.message; }
+  btn.disabled = false; btn.textContent = alt;
 }
 
 async function annSpeichern() {
@@ -142,6 +306,11 @@ async function annSpeichern() {
     OOO_ANNOUNCE_EXTERN: document.getElementById('ann-extern').checked,
   }, 'ann-result');
 }
+
+document.getElementById('abm-status').addEventListener('change', abmSichtbar);
+abm('abm-ganztaegig').addEventListener('change', abmSichtbar);
+abm('abm-ank-an').addEventListener('change', abmSichtbar);
+abm('ab-modal').addEventListener('click', function (e) { if (e.target === this) abSchliesse(); });
 
 abLaden(false);
 </script>

@@ -63,6 +63,20 @@
     "name": "api_abnahme"
   },
   {
+    "pfad": "/api/abwesenheit/postfach",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_abwesenheit_postfach"
+  },
+  {
+    "pfad": "/api/abwesenheit/postfach",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_abwesenheit_postfach_setzen"
+  },
+  {
     "pfad": "/api/abwesenheit/uebersicht",
     "methoden": [
       "GET"

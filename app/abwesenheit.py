@@ -161,6 +161,60 @@ def start_ende_text(setting: dict) -> tuple[str, str]:
     return (f"{start:%d.%m.%Y}" if start else ""), (f"{ende:%d.%m.%Y}" if ende else "")
 
 
+# ── Zeitraum-Eingabe ↔ Graph-Setting (geteilt von Self-Service UND Admin) ──────
+
+def als_utc(datum: str, uhrzeit: str) -> dict:
+    """Ein lokales Datum (YYYY-MM-DD) + Uhrzeit (HH:MM:SS) → Graph-dateTimeTimeZone
+    in UTC. „Lokal" = Anzeige-Zeitzone (LOG_TIMEZONE). Wir rechnen die lokale
+    Wand-Uhrzeit in einen eindeutigen UTC-Zeitpunkt um und senden timeZone=UTC
+    (Graph-sicher; Windows-/IANA-Namen sind beim Schreiben heikel)."""
+    from datetime import datetime, timezone
+    from zoneinfo import ZoneInfo
+    try:
+        tz = ZoneInfo(settings_store.get("LOG_TIMEZONE") or "UTC")
+    except Exception:                                              # noqa: BLE001
+        tz = timezone.utc
+    lokal = datetime.fromisoformat(f"{datum}T{uhrzeit}").replace(tzinfo=tz)
+    utc = lokal.astimezone(timezone.utc)
+    return {"dateTime": utc.strftime("%Y-%m-%dT%H:%M:%S.0000000"), "timeZone": "UTC"}
+
+
+def synth_setting(status: str, start: str, ende: str,
+                  start_zeit: str = "", ende_zeit: str = "") -> dict:
+    """Ein automaticRepliesSetting-ähnliches dict aus Nutzereingaben bauen, damit
+    zeitraum_text()/start_ende_text() denselben Text liefern wie im Betrieb.
+    `start`/`ende` sind ISO-Datumsangaben (YYYY-MM-DD). Ohne Uhrzeiten (ganztägig)
+    gilt lokal `start` 00:00 bis `ende` 23:59."""
+    s: dict = {"status": status}
+    if status == "scheduled":
+        if start:
+            s["scheduledStartDateTime"] = als_utc(start, f"{start_zeit}:00" if start_zeit else "00:00:00")
+        if ende:
+            s["scheduledEndDateTime"] = als_utc(ende, f"{ende_zeit}:00" if ende_zeit else "23:59:59")
+    return s
+
+
+def datum_zeit(d: dict | None) -> tuple[str, str]:
+    """(YYYY-MM-DD, HH:MM) in lokaler Anzeigezeit aus einer Graph-dateTimeTimeZone."""
+    dt = _lokal_datum(d)
+    return (f"{dt:%Y-%m-%d}", f"{dt:%H:%M}") if dt else ("", "")
+
+
+def ankuendigung_ins_eintrag(eintrag: dict, ann: dict) -> None:
+    """Ankündigungs-Einstellungen aus der Oberfläche in einen Postfach-Eintrag
+    schreiben — serverseitig validiert/geklemmt, dem Client nie geglaubt. `ann` ist
+    das `announce`-Objekt (Self-Service UND Admin nutzen denselben Weg)."""
+    eintrag["oof_announce"] = (ann.get("an") is not False)
+    eintrag["oof_announce_mode"] = "tage" if ann.get("mode") == "tage" else "anzahl"
+    try:
+        x = int(ann.get("x") or 3)
+    except (TypeError, ValueError):
+        x = 3
+    eintrag["oof_announce_x"] = min(50, max(1, x))
+    eintrag["oof_announce_privat"] = (ann.get("privat") is not False)
+    eintrag["oof_announce_extern"] = bool(ann.get("extern"))
+
+
 # ── Vorlagenauswahl ───────────────────────────────────────────────────────────
 
 def oof_vorlage_fuer(sender: str, mailbox_cfg: dict, sender_cfg: dict) -> str:
