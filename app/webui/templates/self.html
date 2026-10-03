@@ -73,6 +73,36 @@
       </div>
     </div>
 
+    <!-- Ankündigung kommender Abwesenheiten — nur sichtbar, wenn die Vorlage die
+         Variable nutzt (sonst wirkungslos). -->
+    <div class="karte" id="ank-karte" hidden>
+      <h2>Kommende Abwesenheiten ankündigen</h2>
+      <p class="sub" style="margin-top:-6px">Setzt in deine Abwesenheitsnotiz eine
+        Zeile mit deinen nächsten geplanten Abwesenheiten aus dem Kalender.</p>
+      <label style="display:inline-flex;align-items:center;gap:6px;margin:0 0 10px;cursor:pointer">
+        <input type="checkbox" id="ank-an"> ankündigen
+      </label>
+      <div id="ank-felder">
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+          <div>
+            <label for="ank-mode">Umfang</label>
+            <select id="ank-mode">
+              <option value="anzahl">die nächsten … Abwesenheiten</option>
+              <option value="tage">Abwesenheiten der nächsten … Tage</option>
+            </select>
+          </div>
+          <div><label for="ank-x">Anzahl bzw. Tage</label>
+            <input type="number" id="ank-x" min="1" max="50" value="3" style="width:72px"></div>
+        </div>
+        <label style="display:inline-flex;align-items:center;gap:6px;margin:10px 0 0;cursor:pointer">
+          <input type="checkbox" id="ank-privat" checked> private Termine mitzählen
+        </label>
+        <label style="display:inline-flex;align-items:center;gap:6px;margin:6px 0 0;cursor:pointer">
+          <input type="checkbox" id="ank-extern"> auch externen Absendern zeigen
+        </label>
+      </div>
+    </div>
+
     <!-- Signatur (nur wenn Vorlagenwahl freigeschaltet) -->
     <div class="karte" id="sig-karte">
       <h2>Signatur</h2>
@@ -184,13 +214,39 @@
     zeitraumSichtbarkeit();
     zeitSichtbarkeit();
 
+    // Ankündigung: Karte nur zeigen, wenn die zugewiesene Vorlage die Variable nutzt.
+    el('ank-karte').hidden = !ctx.announce_supported;
+    if (ctx.announce) {
+      el('ank-an').checked = ctx.announce.an !== false;
+      el('ank-mode').value = ctx.announce.mode || 'anzahl';
+      el('ank-x').value = ctx.announce.x || 3;
+      el('ank-privat').checked = ctx.announce.privat !== false;
+      el('ank-extern').checked = !!ctx.announce.extern;
+    }
+    ankFelderSichtbarkeit();
+
     // Sperren, wenn nicht freigeschaltet (reine Anzeige/Vorschau bleibt).
     if (!ctx.freigeschaltet) {
       el('speichern').hidden = true;
-      ['oof-sel','sig-sel','von','bis','von-zeit','bis-zeit','ganztaegig'].forEach(function (i) { el(i).disabled = true; });
+      ['oof-sel','sig-sel','von','bis','von-zeit','bis-zeit','ganztaegig',
+       'ank-an','ank-mode','ank-x','ank-privat','ank-extern'].forEach(function (i) { el(i).disabled = true; });
       document.querySelectorAll('input[name=status]').forEach(function (x) { x.disabled = true; });
     }
     vorschau();
+  }
+
+  function ankFelderSichtbarkeit() { el('ank-felder').hidden = !el('ank-an').checked; }
+  function ankObj() {
+    return { an: el('ank-an').checked, mode: el('ank-mode').value, x: el('ank-x').value,
+             privat: el('ank-privat').checked, extern: el('ank-extern').checked };
+  }
+  function ankParams(p) {
+    p.ank_an = el('ank-an').checked ? '1' : '0';
+    p.ank_mode = el('ank-mode').value;
+    p.ank_x = el('ank-x').value;
+    p.ank_privat = el('ank-privat').checked ? '1' : '0';
+    p.ank_extern = el('ank-extern').checked ? '1' : '0';
+    return p;
   }
 
   function fuelle(id, liste, aktuell, leerText) {
@@ -235,10 +291,10 @@
   function vorschau() {
     clearTimeout(previewTimer);
     previewTimer = setTimeout(async function () {
-      var p = new URLSearchParams(zeitParams({
+      var p = new URLSearchParams(ankParams(zeitParams({
         oof: oofWahl(), sig: sigWahl(),
         status: statusWert(), start: el('von').value, ende: el('bis').value,
-      }));
+      })));
       try {
         var r = await api('/api/self/preview?' + p.toString());
         if (!r.ok) return;
@@ -261,6 +317,7 @@
           oof_status: statusWert(), oof_start: el('von').value, oof_ende: el('bis').value,
           ganztaegig: el('ganztaegig').checked,
           start_zeit: el('von-zeit').value, ende_zeit: el('bis-zeit').value,
+          announce: ankObj(),
         }),
       });
       var d = await r.json().catch(function () { return {}; });
@@ -281,7 +338,9 @@
 
   el('status-wahl').addEventListener('change', function () { zeitraumSichtbarkeit(); vorschau(); });
   el('ganztaegig').addEventListener('change', function () { zeitSichtbarkeit(); vorschau(); });
-  ['oof-sel','sig-sel','von','bis','von-zeit','bis-zeit'].forEach(function (i) {
+  el('ank-an').addEventListener('change', function () { ankFelderSichtbarkeit(); vorschau(); });
+  ['oof-sel','sig-sel','von','bis','von-zeit','bis-zeit',
+   'ank-mode','ank-x','ank-privat','ank-extern'].forEach(function (i) {
     el(i).addEventListener('change', vorschau);
   });
   el('speichern').addEventListener('click', speichern);

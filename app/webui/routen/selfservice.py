@@ -67,6 +67,21 @@ def _effektive_vorlagen(email: str) -> tuple[str, str]:
     return oof, (sig or "default")
 
 
+def _ankuendigung_ins_eintrag(eintrag: dict, ann: dict) -> None:
+    """Ankündigungs-Einstellungen aus dem Self-Service in den Postfach-Eintrag
+    schreiben — server-seitig validiert, dem Client nie geglaubt. `ann` ist das
+    `announce`-Objekt aus dem Body (bzw. den Vorschau-Parametern)."""
+    eintrag["oof_announce"] = (ann.get("an") is not False)
+    eintrag["oof_announce_mode"] = "tage" if ann.get("mode") == "tage" else "anzahl"
+    try:
+        x = int(ann.get("x") or 3)
+    except (TypeError, ValueError):
+        x = 3
+    eintrag["oof_announce_x"] = min(50, max(1, x))
+    eintrag["oof_announce_privat"] = (ann.get("privat") is not False)
+    eintrag["oof_announce_extern"] = bool(ann.get("extern"))
+
+
 def _postfach(email: str) -> tuple[str, dict]:
     """(config_key, sender_cfg) für die EIGENE Adresse. 403, wenn das Postfach im
     Gateway nicht verwaltet wird (Self-Service gilt nur für aktivierte Postfächer)."""
@@ -116,11 +131,13 @@ def _synth_setting(status: str, start: str, ende: str,
 
 async def _render_oof_fuer(email: str, oof_tpl: str, status: str, start: str, ende: str,
                            start_zeit: str = "", ende_zeit: str = "",
-                           token: str | None = None) -> tuple[str, str, str]:
+                           token: str | None = None,
+                           announce: dict | None = None) -> tuple[str, str, str]:
     """(html_intern, html_extern, txt) der Abwesenheit für die eigene Adresse — wie
     im Betrieb (inkl. Ankündigung künftiger Abwesenheiten, falls die Vorlage sie
     nutzt; die Ankündigung steht ggf. nur im internen Text). Ohne `token` wird keine
-    Ankündigung gelesen (reine Vorschau ohne Kalenderzugriff)."""
+    Ankündigung gelesen (reine Vorschau ohne Kalenderzugriff). `announce`
+    überschreibt die gespeicherten Ankündigungs-Felder für die Live-Vorschau."""
     if not oof_tpl:
         return "", "", ""
     user_data = await graph_client.get_user(email)
@@ -128,6 +145,9 @@ async def _render_oof_fuer(email: str, oof_tpl: str, status: str, start: str, en
     _ab, _bis = abwesenheit.start_ende_text(synth)
     z = abwesenheit.zeitraum_text(synth)
     _key, cfg = _postfach(email)
+    if announce is not None:
+        cfg = dict(cfg)
+        _ankuendigung_ins_eintrag(cfg, announce)
     html, html_extern = await abwesenheit.render_intern_extern(
         user_data, email, token, oof_tpl, cfg, abwesenheit._state(), z, _ab, _bis)
     _h, txt = abwesenheit.render_oof(user_data, oof_tpl, z, _ab, _bis)
@@ -159,6 +179,7 @@ async def self_context(email: str = Depends(_require_self)):
     by_kind = signature_engine.templates_nach_art()
     darf = _darf_vorlagen_waehlen(email)
     oof_eff, sig_eff = _effektive_vorlagen(email)
+    ank = abwesenheit._ankuendigung_einstellungen(cfg)
     daten = {
         "email": email,
         "freigeschaltet": _freigeschaltet(),
@@ -171,6 +192,11 @@ async def self_context(email: str = Depends(_require_self)):
         "sig_templates": by_kind.get("signatur", ["default"]) if darf else [],
         "ooo": {"status": "disabled", "start": "", "ende": "",
                 "start_zeit": "09:00", "ende_zeit": "17:00", "ganztaegig": True},
+        # Ankündigung künftiger Abwesenheiten: nur relevant, wenn die zugewiesene
+        # oof-Vorlage die Variable nutzt (sonst wirkt die Einstellung nicht).
+        "announce_supported": abwesenheit._vorlage_nutzt_ankuendigung(oof_eff),
+        "announce": {"an": ank["an"], "mode": ank["mode"], "x": ank["x"],
+                     "privat": ank["privat"], "extern": ank["extern"]},
         "zugriff": True,
     }
     # Aktuellen OOF-Status aus Exchange lesen (nur Anzeige — kein Schreibzugriff).
@@ -224,14 +250,19 @@ async def _banner_disclaimer_html(email: str) -> tuple[str, str]:
 async def self_preview(oof: str = "", sig: str = "", status: str = "scheduled",
                        start: str = "", ende: str = "",
                        start_zeit: str = "", ende_zeit: str = "",
+                       ank_an: str = "1", ank_mode: str = "anzahl", ank_x: str = "3",
+                       ank_privat: str = "1", ank_extern: str = "0",
                        email: str = Depends(_require_self)):
     """Korrekte, VOLLSTÄNDIGE Vorschau fürs eigene Postfach: OOF (über der Signatur)
-    + Signatur + Banner + Disclaimer (wie die echte Mail)."""
+    + Signatur + Banner + Disclaimer (wie die echte Mail). Die ank_*-Parameter
+    spiegeln die noch ungespeicherten Ankündigungs-Einstellungen in die Vorschau."""
     # Token (best effort), damit die Vorschau die Ankündigung mitzeigt, falls die
     # Vorlage sie nutzt. Ohne Token zeigt die Vorschau den Text ohne Ankündigung.
     token = await graph_client._acquire_token_async()
+    announce = {"an": ank_an != "0", "mode": ank_mode, "x": ank_x,
+                "privat": ank_privat != "0", "extern": ank_extern == "1"}
     oof_html, _oof_extern, oof_txt = await _render_oof_fuer(
-        email, oof, status, start, ende, start_zeit, ende_zeit, token)
+        email, oof, status, start, ende, start_zeit, ende_zeit, token, announce)
     sig_html, sig_txt = "", ""
     if sig:
         user_data = await graph_client.get_user(email)
@@ -263,16 +294,19 @@ async def self_save(request: Request, email: str = Depends(_require_self)):
     if status not in ("disabled", "alwaysEnabled", "scheduled"):
         raise HTTPException(400, "Ungültiger Status")
 
-    # 1) Vorlagenwahl NUR, wenn für dieses Postfach freigeschaltet (Standard: nein).
-    #    ⚠️ Server-seitig durchgesetzt — die Felder aus dem Body werden sonst
-    #    ignoriert, egal was der Client schickt. Darf der Nutzer nicht wählen, bleibt
-    #    MAILBOX_CONFIG unangetastet und es gilt die zugewiesene Vorlage.
-    if _darf_vorlagen_waehlen(email):
+    # 1) Postfach-eigene Einstellungen schreiben — in EINEM Schreibvorgang:
+    #    (a) Vorlagenwahl NUR, wenn für dieses Postfach freigeschaltet (Standard:
+    #        nein; server-seitig durchgesetzt, egal was der Client schickt), und
+    #    (b) die Ankündigungs-Einstellungen (an/aus, Umfang, privat, extern) — die
+    #        sind unabhängig von der Vorlagenwahl, denn die Abwesenheit selbst darf
+    #        der Nutzer ohnehin steuern.
+    key, _cfg = _postfach(email)
+    voll = settings_store.get("MAILBOX_CONFIG") or {}
+    eintrag = dict(voll.get(key, {}))
+    darf = _darf_vorlagen_waehlen(email)
+    if darf:
         oof_tpl = (body.get("oof_template") or "").strip()
         sig_tpl = (body.get("sig_template") or "").strip()
-        key, _cfg = _postfach(email)
-        voll = settings_store.get("MAILBOX_CONFIG") or {}
-        eintrag = dict(voll.get(key, {}))
         eintrag["use_policy"] = False
         if oof_tpl:
             eintrag["oof_template"] = oof_tpl
@@ -282,11 +316,12 @@ async def self_save(request: Request, email: str = Depends(_require_self)):
             eintrag["template"] = sig_tpl
         elif sig_tpl == "default":
             eintrag.pop("template", None)
-        voll[key] = eintrag
-        settings_store.update({"MAILBOX_CONFIG": voll})
     else:
-        # Keine Wahl erlaubt → zugewiesene OOF-Vorlage nehmen, Config NICHT ändern.
+        # Keine Wahl erlaubt → zugewiesene OOF-Vorlage nehmen, nicht überschreiben.
         oof_tpl, _sig = _effektive_vorlagen(email)
+    _ankuendigung_ins_eintrag(eintrag, body.get("announce") or {})
+    voll[key] = eintrag
+    settings_store.update({"MAILBOX_CONFIG": voll})
 
     # 2) Abwesenheit bei Exchange setzen (Status + Zeitraum + korrekt gerenderter
     #    Text), damit es sofort wirkt — nicht erst beim nächsten Poll.

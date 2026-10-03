@@ -159,6 +159,24 @@ def test_implicit_patch_ergaenzt_und_erhaelt():
     assert CB not in (web.get("redirectUris") or []) or True                   # Original nicht nötig
 
 
+def test_ankuendigung_ins_eintrag_validiert():
+    """Die Ankündigungsfelder aus dem Self-Service werden server-seitig validiert
+    und geklemmt — dem Client-Wert wird nicht geglaubt."""
+    from webui.routen import selfservice as sv
+    e = {}
+    sv._ankuendigung_ins_eintrag(e, {"an": True, "mode": "quatsch", "x": "999",
+                                     "privat": False, "extern": True})
+    assert e["oof_announce"] is True
+    assert e["oof_announce_mode"] == "anzahl"      # unbekannter Modus → anzahl
+    assert e["oof_announce_x"] == 50               # auf 1..50 geklemmt
+    assert e["oof_announce_privat"] is False
+    assert e["oof_announce_extern"] is True
+    e2 = {}
+    sv._ankuendigung_ins_eintrag(e2, {"an": False, "mode": "tage", "x": "foo"})
+    assert e2["oof_announce"] is False and e2["oof_announce_mode"] == "tage"
+    assert e2["oof_announce_x"] == 3               # ungültige Zahl → Default
+
+
 def test_require_self_identitaet_aus_sitzung(monkeypatch):
     """DER Kernschutz: die Adresse kommt aus der Sitzung (klein), nicht aus einem
     Parameter — sonst könnte Nutzer A das Postfach von Nutzer B anfassen."""

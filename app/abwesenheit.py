@@ -543,11 +543,14 @@ def _braucht_kalender(sender_cfg: dict, template_name: str = "") -> bool:
 # ── Ankündigung künftiger Abwesenheiten (Variable {{ oof.ankuendigung }}) ──────
 
 def _ankuendigung_einstellungen(sender_cfg: dict) -> dict:
-    """Umfang/Filter der Ankündigung je Postfach (Stufe-2-Self-UI setzt diese
-    Felder; in Stufe 1 gelten die Vorgaben). `mode` ∈ {anzahl, tage}, `x` die Zahl,
-    `privat` ob private Termine zählen (Vorgabe ja), `extern` ob die Zeile auch im
-    externen Text erscheint (Vorgabe nein → nur intern; greift erst mit Stufe 2)."""
+    """Umfang/Filter der Ankündigung je Postfach (gesetzt über den Self-Service).
+    `an` ob der Nutzer die Ankündigung will (Vorgabe ja, sobald die Vorlage die
+    Variable nutzt — opt-out je Postfach über `oof_announce=false`), `mode` ∈
+    {anzahl, tage}, `x` die Zahl, `privat` ob private Termine zählen (Vorgabe ja),
+    `extern` ob die Zeile auch im externen Text erscheint (Vorgabe nein → nur
+    intern)."""
     return {
+        "an": sender_cfg.get("oof_announce", True) is not False,
         "mode": (sender_cfg.get("oof_announce_mode") or "anzahl"),
         "x": max(1, int(sender_cfg.get("oof_announce_x") or 3)),
         "privat": sender_cfg.get("oof_announce_privat", True) is not False,
@@ -609,6 +612,8 @@ async def ankuendigung_fuer_render(upn: str, token: str, template_name: str,
     if not token or not _vorlage_nutzt_ankuendigung(template_name):
         return "", ""
     cfg = _ankuendigung_einstellungen(sender_cfg)
+    if not cfg["an"]:
+        return "", ""        # Nutzer hat die Ankündigung für sein Postfach abgeschaltet
     events = await kalender_events(upn, token, state)
     auswahl = _ankuendigung_auswahl(events, cfg)
     return (_ankuendigung_formatieren(auswahl, "de"),
