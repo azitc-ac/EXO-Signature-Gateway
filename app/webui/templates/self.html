@@ -56,9 +56,16 @@
         <label><input type="radio" name="status" value="alwaysEnabled"> Immer an</label>
         <label><input type="radio" name="status" value="scheduled"> Zeitraum</label>
       </div>
-      <div id="zeitraum-felder" hidden style="display:flex;gap:12px;flex-wrap:wrap">
-        <div><label for="von">Von</label><input type="date" id="von"></div>
-        <div><label for="bis">Bis</label><input type="date" id="bis"></div>
+      <div id="zeitraum-felder" hidden>
+        <label style="display:inline-flex;align-items:center;gap:6px;margin:0 0 8px;cursor:pointer">
+          <input type="checkbox" id="ganztaegig" checked> ganztägig
+        </label>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+          <div><label for="von">Von</label><input type="date" id="von"></div>
+          <div id="von-zeit-box" hidden><label for="von-zeit">Uhrzeit</label><select id="von-zeit"></select></div>
+          <div><label for="bis">Bis</label><input type="date" id="bis"></div>
+          <div id="bis-zeit-box" hidden><label for="bis-zeit">Uhrzeit</label><select id="bis-zeit"></select></div>
+        </div>
       </div>
       <div id="oof-tpl-block">
         <label for="oof-sel">Vorlage der Abwesenheitsnotiz</label>
@@ -167,13 +174,20 @@
     var st = (ctx.ooo && ctx.ooo.status) || 'disabled';
     var rb = document.querySelector('input[name=status][value="' + st + '"]');
     if (rb) rb.checked = true;
-    if (ctx.ooo) { el('von').value = ctx.ooo.start || ''; el('bis').value = ctx.ooo.ende || ''; }
+    fuelleZeiten();
+    if (ctx.ooo) {
+      el('von').value = ctx.ooo.start || ''; el('bis').value = ctx.ooo.ende || '';
+      el('ganztaegig').checked = ctx.ooo.ganztaegig !== false;
+      el('von-zeit').value = ctx.ooo.start_zeit || '09:00';
+      el('bis-zeit').value = ctx.ooo.ende_zeit || '17:00';
+    }
     zeitraumSichtbarkeit();
+    zeitSichtbarkeit();
 
     // Sperren, wenn nicht freigeschaltet (reine Anzeige/Vorschau bleibt).
     if (!ctx.freigeschaltet) {
       el('speichern').hidden = true;
-      ['oof-sel','sig-sel','von','bis'].forEach(function (i) { el(i).disabled = true; });
+      ['oof-sel','sig-sel','von','bis','von-zeit','bis-zeit','ganztaegig'].forEach(function (i) { el(i).disabled = true; });
       document.querySelectorAll('input[name=status]').forEach(function (x) { x.disabled = true; });
     }
     vorschau();
@@ -197,14 +211,34 @@
   function zeitraumSichtbarkeit() {
     el('zeitraum-felder').hidden = (statusWert() !== 'scheduled');
   }
+  function fuelleZeiten() {
+    ['von-zeit', 'bis-zeit'].forEach(function (id) {
+      var s = el(id); if (s.options.length) return;         // nur einmal füllen
+      for (var h = 0; h < 24; h++) for (var m = 0; m < 60; m += 30) {
+        var t = (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
+        s.appendChild(opt(t, t));
+      }
+    });
+  }
+  function zeitSichtbarkeit() {
+    var ganz = el('ganztaegig').checked;
+    el('von-zeit-box').hidden = ganz;
+    el('bis-zeit-box').hidden = ganz;
+  }
+  function zeitParams(p) {
+    var ganz = el('ganztaegig').checked;
+    p.start_zeit = ganz ? '' : el('von-zeit').value;
+    p.ende_zeit = ganz ? '' : el('bis-zeit').value;
+    return p;
+  }
 
   function vorschau() {
     clearTimeout(previewTimer);
     previewTimer = setTimeout(async function () {
-      var p = new URLSearchParams({
+      var p = new URLSearchParams(zeitParams({
         oof: oofWahl(), sig: sigWahl(),
         status: statusWert(), start: el('von').value, ende: el('bis').value,
-      });
+      }));
       try {
         var r = await api('/api/self/preview?' + p.toString());
         if (!r.ok) return;
@@ -225,6 +259,8 @@
         body: JSON.stringify({
           oof_template: oofWahl(), sig_template: sigWahl(),
           oof_status: statusWert(), oof_start: el('von').value, oof_ende: el('bis').value,
+          ganztaegig: el('ganztaegig').checked,
+          start_zeit: el('von-zeit').value, ende_zeit: el('bis-zeit').value,
         }),
       });
       var d = await r.json().catch(function () { return {}; });
@@ -244,7 +280,8 @@
   }
 
   el('status-wahl').addEventListener('change', function () { zeitraumSichtbarkeit(); vorschau(); });
-  ['oof-sel','sig-sel','von','bis'].forEach(function (i) {
+  el('ganztaegig').addEventListener('change', function () { zeitSichtbarkeit(); vorschau(); });
+  ['oof-sel','sig-sel','von','bis','von-zeit','bis-zeit'].forEach(function (i) {
     el(i).addEventListener('change', vorschau);
   });
   el('speichern').addEventListener('click', speichern);

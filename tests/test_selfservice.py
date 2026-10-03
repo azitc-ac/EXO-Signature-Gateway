@@ -99,6 +99,15 @@ def test_zeitraum_deckt_ganzen_endtag_ab(monkeypatch):
     assert s["scheduledEndDateTime"]["dateTime"].startswith("2026-07-05T23:59:59")
 
 
+def test_zeitraum_mit_uhrzeiten(monkeypatch):
+    """Nicht-ganztägig: die gewählten Uhrzeiten gelten (statt 00:00/23:59)."""
+    from webui.routen import selfservice as sv
+    monkeypatch.setattr(settings_store, "get", lambda k, d=None: {"LOG_TIMEZONE": "UTC"}.get(k, d))
+    s = sv._synth_setting("scheduled", "2026-07-01", "2026-07-05", "09:00", "17:00")
+    assert s["scheduledStartDateTime"]["dateTime"].startswith("2026-07-01T09:00:00")
+    assert s["scheduledEndDateTime"]["dateTime"].startswith("2026-07-05T17:00:00")
+
+
 def test_zeitraum_lokale_zeitzone_round_trip(monkeypatch):
     """Lokale Tage (Europe/Berlin) → UTC und zurück: zeitraum_text zeigt dieselben
     Kalendertage (kein Verrutschen durch die Zeitzone)."""
