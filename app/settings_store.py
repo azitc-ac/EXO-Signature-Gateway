@@ -51,6 +51,14 @@ DEFAULTS: dict = {
     # anhängen (statischer Schnappschuss; Bilder per CID rendern in OOF oft nicht).
     "OOO_APPEND_SIGNATURE": False,
     "OOO_APPEND_BANNER": False,
+    # Betreiberweite Vorgabe für die Ankündigungs-Variable ({{ oof.ankuendigung }}):
+    # Umfang (mode "anzahl"=die nächsten X Abwesenheiten / "tage"=X Tage Vorausschau),
+    # ob private Termine mitzählen, ob die Zeile auch externen Absendern gezeigt wird.
+    # Je Postfach über den Self-Service übersteuerbar (oof_announce_* in MAILBOX_CONFIG).
+    "OOO_ANNOUNCE_MODE": "anzahl",
+    "OOO_ANNOUNCE_X": 3,
+    "OOO_ANNOUNCE_PRIVAT": True,
+    "OOO_ANNOUNCE_EXTERN": False,
     # Self-Service (opt-in): erlaubt Postfach-Nutzern, ihre Abwesenheit und ihre
     # eigene Standard-Signaturvorlage selbst zu verwalten (Seite /self, auch als
     # Outlook-Add-in-Taskpane). Aus → nur Anzeige/Vorschau. An → die eigene Wahl
@@ -386,6 +394,7 @@ INTERNAL_KEYS = frozenset({
     "_DAILY_LAST_RUN",            # scheduler.py
     "_OOO_STATE",                 # abwesenheit.py — zuletzt gesetzter OOF-Text je Postfach
     "_OOO_LAST",                  # abwesenheit.py — Zählung des letzten Poll-Laufs
+    "_OOO_UEBERSICHT",            # abwesenheit.py — gecachter Status-Scan (Admin-Dashboard)
     "_SCHEMA_VERSION",            # Migrationsstand, s.u.
 })
 

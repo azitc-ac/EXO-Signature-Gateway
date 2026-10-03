@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.109 — 2026-10-03 — Neues Dashboard „Abwesenheit" (Übersicht + Vorgaben)
+
+Neuer Menüpunkt **Abwesenheit** (Verwaltung): eine Übersicht aller aktivierten
+Postfächer mit ihrem Abwesenheits-Status — wer gerade abwesend ist, der Zeitraum,
+die zugewiesene Abwesenheitsvorlage sowie der Zustand von Kalender-Automatik und
+Ankündigung. Die Statusdaten kommen aus einem gecachten, nebenläufigen Abruf über
+alle Postfächer (5-Minuten-Cache, Knopf „Aktualisieren"), damit die Seite auch bei
+vielen hundert Postfächern zügig lädt.
+
+Zusätzlich lassen sich hier die **betreiberweiten Vorgaben für die Ankündigung**
+setzen (Umfang: die nächsten X Abwesenheiten oder die der nächsten X Tage; ob
+private Termine mitzählen; ob die Zeile auch externen Absendern gezeigt wird).
+Einzelne Nutzer können diese Vorgaben im Self-Service weiterhin übersteuern.
+
+Dies ist die erste Stufe; das zentrale Setzen der Abwesenheit je Nutzer durch die
+Verwaltung folgt.
+
 ## v1.9.108 — 2026-10-03 — Self-Service: Ankündigung kommender Abwesenheiten einstellen
 
 Nutzt die zugewiesene Abwesenheitsvorlage die Ankündigungs-Variable, können die
