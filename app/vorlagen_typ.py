@@ -162,10 +162,12 @@ def migriere_bestand() -> list[tuple[str, str]]:
     return geaendert
 
 
-# Postfach-eigene Vorlagenfelder. Bei use_policy=true wirkungslos (die Richtlinie
-# entscheidet) — siehe mailboxes.py-Speicherpfad und addin.py:api_addin_templates.
-_POLICY_FELDER = ("template", "min_template", "banner_template",
-                  "disclaimer_template", "oof_template", "addin_templates")
+# Postfach-eigene Felder der RICHTLINIEN-Slots. Bei use_policy=true wirkungslos
+# (die Richtlinie entscheidet) — siehe policies.py und addin.py:api_addin_templates.
+# ⚠️ NICHT template/min_template/oof_template: Das sind seit v1.9.113 Nutzerwahlen,
+# die unabhängig von use_policy gelten (policies.WAHL_SLOTS). Stünden sie hier,
+# löschte dieser bei JEDEM Start laufende Aufräumer jede Self-Service-Wahl.
+_POLICY_FELDER = ("banner_template", "disclaimer_template", "addin_templates")
 
 
 def bereinige_eingefrorene_vorlagen() -> int:

@@ -184,3 +184,53 @@ def test_require_self_identitaet_aus_sitzung(monkeypatch):
                         lambda v: {"u": "Erika@X.DE", "r": sso.ROLE_SELF})
     assert deps._require_self(_Req(cookie="tok")) == "erika@x.de"
     assert deps._require_self(_Req(header="tok")) == "erika@x.de"   # Add-in-Weg
+
+
+# ── Vorlagenwahl je Kategorie (seit v1.9.113) ──────────────────────────────────
+
+_ARTEN = {"signatur": ["default", "Kurz", "Lang"], "oof": ["Urlaub"], "disclaimer": ["Recht"]}
+
+
+def test_wahl_fasst_use_policy_nie_an():
+    """Die alte Kopplung: eine Signaturwahl setzte use_policy=false und nahm dem
+    Postfach still Banner und Disclaimer der Richtlinie."""
+    from webui.routen import selfservice as sv
+    e = {"use_policy": True}
+    sv._wahl_ins_eintrag(e, {"sig": "Lang", "oof": "Urlaub"},
+                         {"sig": True, "min": True, "oof": True}, _ARTEN)
+    assert e == {"use_policy": True, "template": "Lang", "oof_template": "Urlaub"}
+
+
+def test_wahl_nur_fuer_freigegebene_kategorien():
+    from webui.routen import selfservice as sv
+    e = {"oof_template": "Firma"}
+    sv._wahl_ins_eintrag(e, {"sig": "Lang", "oof": ""},
+                         {"sig": True, "min": False, "oof": False}, _ARTEN)
+    assert e == {"oof_template": "Firma", "template": "Lang"}
+
+
+def test_wahl_standard_und_keine():
+    from webui.routen import selfservice as sv
+    e = {"template": "Lang", "min_template": "Kurz"}
+    sv._wahl_ins_eintrag(e, {"sig": sv.STANDARD, "min": ""},
+                         {"sig": True, "min": True, "oof": True}, _ARTEN)
+    assert e == {"min_template": ""}
+
+
+def test_wahl_fremder_art_wird_abgewiesen():
+    """Ein Disclaimer ist keine Signatur — per Hand geschickt muss das scheitern."""
+    from fastapi import HTTPException
+    from webui.routen import selfservice as sv
+    with pytest.raises(HTTPException) as exc:
+        sv._wahl_ins_eintrag({}, {"sig": "Recht"}, {"sig": True, "min": True, "oof": True}, _ARTEN)
+    assert exc.value.status_code == 400
+
+
+def test_waehlbar_je_kategorie(monkeypatch):
+    from webui.routen import selfservice as sv
+    mb = {"g1": {**_MB["g1"], "self_templates": True}}
+    data = {"MAILBOX_CONFIG": mb, "SELF_TEMPLATE_KATEGORIEN": ["oof"], "INTERNAL_GROUPS": {}}
+    monkeypatch.setattr(settings_store, "get", lambda k, d=None: data.get(k, d))
+    assert sv._waehlbar("a@x.de") == {"sig": False, "min": False, "oof": True}
+    data["MAILBOX_CONFIG"] = _MB          # Postfach nicht freigeschaltet → nichts
+    assert sv._waehlbar("a@x.de") == {"sig": False, "min": False, "oof": False}

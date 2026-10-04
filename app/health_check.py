@@ -305,6 +305,14 @@ Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
 
 # ── Check 4: template ─────────────────────────────────────────────────────────
 
+def _vorlage(email: str, cfg: dict) -> str:
+    """Die Signaturvorlage, die das Postfach im Betrieb TATSÄCHLICH bekommt —
+    dieselbe Auflösung wie handler.py (nicht das rohe `template`-Feld, das bei
+    einem Postfach ohne eigene Wahl fehlt)."""
+    import policies
+    return policies.vorlage_fuer(email, "sig", sender_cfg=cfg)
+
+
 async def _check_template(email: str, cfg: dict) -> dict:
     """Try to render the signature template for this user."""
     try:
@@ -313,13 +321,13 @@ async def _check_template(email: str, cfg: dict) -> dict:
         user = await graph_client.get_user(email)
         if not user.displayName:
             # Still try to render, but note incomplete data
-            template_name = cfg.get("template", "default")
+            template_name = _vorlage(email, cfg)
             try:
                 signature_engine.render(user, template_name=template_name)
             except Exception as exc:
                 return _make_result("error", f"Template-Fehler: {exc}")
             return _make_result("warn", "Benutzerdaten unvollständig (displayName leer)")
-        template_name = cfg.get("template", "default")
+        template_name = _vorlage(email, cfg)
         signature_engine.render(user, template_name=template_name)
         return _make_result("ok", "Vorlage gerendert")
     except Exception as exc:

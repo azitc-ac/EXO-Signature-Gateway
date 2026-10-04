@@ -215,11 +215,19 @@ def test_oof_vorlage_aus_policy(monkeypatch):
     assert abwesenheit.oof_vorlage_fuer("a@x.de", {}, {"use_policy": True}) == "Firma"
 
 
-def test_oof_leer_bei_use_policy_false_ohne_feld(monkeypatch):
-    """use_policy=false UND kein Postfach-eigenes oof_template → keine Vorlage."""
+def test_oof_folgt_dem_standard_auch_bei_use_policy_false(monkeypatch):
+    """Seit v1.9.113 ist die Abwesenheit eine Nutzerwahl, unabhängig von
+    use_policy: Ohne eigenes Feld gilt der Standard — auch bei use_policy=false."""
     store = {"TEMPLATE_POLICIES": {"oof": "Firma"}, "CUSTOM_POLICIES": [], "INTERNAL_GROUPS": {}}
     monkeypatch.setattr(settings_store, "get", lambda k, d=None: store.get(k, d))
-    assert abwesenheit.oof_vorlage_fuer("a@x.de", {}, {"use_policy": False}) == ""
+    assert abwesenheit.oof_vorlage_fuer("a@x.de", {}, {"use_policy": False}) == "Firma"
+
+
+def test_oof_ausdruecklich_keine(monkeypatch):
+    """Ein leeres Feld ist eine Wahl („keine"), kein Rückfall auf den Standard."""
+    store = {"TEMPLATE_POLICIES": {"oof": "Firma"}, "CUSTOM_POLICIES": [], "INTERNAL_GROUPS": {}}
+    monkeypatch.setattr(settings_store, "get", lambda k, d=None: store.get(k, d))
+    assert abwesenheit.oof_vorlage_fuer("a@x.de", {}, {"oof_template": ""}) == ""
 
 
 def test_oof_vorlage_per_postfach_bei_use_policy_false(monkeypatch):

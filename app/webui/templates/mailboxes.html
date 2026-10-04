@@ -202,7 +202,7 @@ async function ankerAnwenden() {
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:90px">Signatur</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:100px">S/MIME</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:120px"
-              title="Wenn aktiv: Vorlage wird aus Vorlagen-Richtlinien übernommen">Vorlagen-Richtlinien</th>
+              title="Wenn aktiv: Banner, Disclaimer und Add-in-Auswahl kommen aus der Richtlinie. Signatur, Antwort-Signatur und Abwesenheit sind davon unabhängig.">Vorlagen-Richtlinien</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">Standardsignatur</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:120px"
               title="Signatur ab der ZWEITEN eigenen Mail im Thread. Die erste Antwort (und neue Mails) bekommen weiter die Standardsignatur.">
@@ -251,9 +251,11 @@ async function ankerAnwenden() {
        Felder" — statt nachzusehen. -->
   <div id="policy-felder">
   <p class="hint" style="margin-bottom:14px;line-height:1.6">
-    Legt fest, welche Signaturvorlage gateway-weit als Standard gilt.
-    Postfächer mit aktivierter <em>Vorlagenrichtlinien</em>-Option übernehmen automatisch die hier hinterlegte Vorlage —
-    individuelle Abweichungen sind möglich, indem die Option pro Postfach deaktiviert wird.
+    <strong>Signatur, Antwort-Signatur und Abwesenheit</strong> sind eine Wahl je Postfach: Hier steht der
+    <em>Standard</em> für alle Postfächer ohne eigene Wahl (eine Gruppen-Regel unten kann ihn je Gruppe ändern).
+    Abweichen lässt sich in der Postfach-Tabelle oder — falls freigegeben — im Self-Service.<br>
+    <strong>Banner und Disclaimer</strong> sind verbindlich: Sie gelten für alle Postfächer mit aktivierter
+    <em>Vorlagen-Richtlinien</em>-Option; nur wer sie dort abschaltet, bekommt eigene.
   </p>
   <p class="hint" style="margin-bottom:14px;line-height:1.6">
     <strong>Antwort-Signatur:</strong> Antwortet ein Absender in einem Thread, in dem er <em>schon geschrieben</em> hat
@@ -263,8 +265,7 @@ async function ankerAnwenden() {
 
   <!-- Standard-Richtlinien (aktiv) -->
   <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:6px">
-    Standard-Richtlinien
-    <span style="font-size:11px;font-weight:400;color:#888;margin-left:4px">(gelten für alle Postfächer mit aktivierter Vorlagenrichtlinien-Option)</span>
+    Standards und Richtlinien
   </div>
   <div style="overflow-x:auto;margin-bottom:12px">
   <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:480px">
@@ -280,7 +281,7 @@ async function ankerAnwenden() {
       <!-- Standardsignatur — aktiv -->
       <tr style="border-bottom:1px solid #f0f0f0">
         <td style="padding:6px 8px;font-size:12px;font-weight:500">Standardsignatur</td>
-        <td style="padding:6px 8px;font-size:12px;color:#555">Alle Postfächer mit aktivierter Richtlinien-Übernahme</td>
+        <td style="padding:6px 8px;font-size:12px;color:#555">Standard für alle Postfächer ohne eigene Wahl</td>
         <td style="padding:6px 8px">
           <select id="policy-sig-tpl" style="font-size:12px;width:160px">
             <!-- filled by JS -->
@@ -294,7 +295,7 @@ async function ankerAnwenden() {
           Antwort-Signatur
           <span style="font-size:10px;font-weight:400;color:#94a3b8;display:block">ab 2. eigener Mail im Thread</span>
         </td>
-        <td style="padding:6px 8px;font-size:12px;color:#555">Alle Postfächer mit aktivierter Richtlinien-Übernahme</td>
+        <td style="padding:6px 8px;font-size:12px;color:#555">Standard für alle Postfächer ohne eigene Wahl</td>
         <td style="padding:6px 8px">
           <select id="policy-min-tpl" style="font-size:12px;width:160px"></select>
         </td>
@@ -327,7 +328,7 @@ async function ankerAnwenden() {
           Abwesenheit
           <span style="font-size:10px;font-weight:400;color:#94a3b8;display:block">Text der Out-of-Office-Antwort</span>
         </td>
-        <td style="padding:6px 8px;font-size:12px;color:#555">Alle Postfächer mit aktivierter Richtlinien-Übernahme</td>
+        <td style="padding:6px 8px;font-size:12px;color:#555">Standard für alle Postfächer ohne eigene Wahl</td>
         <td style="padding:6px 8px">
           <select id="policy-oof-tpl" style="font-size:12px;width:160px"></select>
         </td>
@@ -382,11 +383,22 @@ async function ankerAnwenden() {
     </div>
   </div>
   <p class="hint" style="margin:4px 0 0;max-width:640px">
-    Standardmäßig können Nutzer ihre OOF- und Signaturvorlage <strong>nicht</strong>
-    selbst wählen (nur an/aus/Zeitraum). Mitglieder der hier gewählten internen
-    Gruppen dürfen zusätzlich die Vorlagen selbst wählen. Einzelne Postfächer lassen
-    sich über das Feld <code>self_templates</code> im Postfach-Eintrag freischalten.
+    Standardmäßig können Nutzer ihre Vorlagen <strong>nicht</strong> selbst wählen
+    (nur an/aus/Zeitraum). Mitglieder der hier gewählten internen Gruppen dürfen
+    zusätzlich wählen — welche Kategorien, legen die Schalter darunter fest. Einzelne
+    Postfächer lassen sich über das Feld <code>self_templates</code> im Postfach-Eintrag
+    freischalten. Banner und Disclaimer sind nie wählbar.
   </p>
+  <h3 style="font-size:12px;font-weight:600;color:#374151;margin:12px 0 4px">Wählbare Kategorien
+    <span id="self-tpl-kat-result" style="font-size:12px;font-weight:400;margin-left:8px"></span></h3>
+  {% for kat, text in [("sig", "Signatur"), ("min", "Antwort-Signatur"), ("oof", "Abwesenheitsnotiz")] %}
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" class="self-tpl-kat" value="{{ kat }}" onchange="saveSelfTplKategorien()"
+             {% if kat in self_template_kategorien %}checked{% endif %}> {{ text }}
+    </label>
+  </div>
+  {% endfor %}
 
   <!-- Interne Gruppen -->
   <div style="margin-top:20px;border-top:1px solid #e2e8f0;padding-top:16px">
@@ -686,6 +698,11 @@ async function savePolicies() {
 async function selfServiceUmschalten(cb) {
   await savePartial({ SELF_SERVICE_ENABLED: cb.checked }, 'self-service-result');
 }
+async function saveSelfTplKategorien() {
+  var gewaehlt = Array.prototype.map.call(
+    document.querySelectorAll('.self-tpl-kat:checked'), function (cb) { return cb.value; });
+  await savePartial({ SELF_TEMPLATE_KATEGORIEN: gewaehlt }, 'self-tpl-kat-result');
+}
 async function saveSelfTplGroups() {
   var sel = document.getElementById('self-tpl-groups');
   var gewaehlt = Array.prototype.filter.call(sel.options, function (o) { return o.selected; })
@@ -792,22 +809,26 @@ async function refreshMailboxStatus() {
   setTimeout(function() { status.textContent = ''; }, 3000);
 }
 
-function _buildTemplateSelect(idx, selectedTemplate, sigEnabled, policyActive, policyTemplate) {
+// Wahl-Slots (Signatur, Antwort-Signatur, Abwesenheit) gehören dem Nutzer und
+// gelten unabhängig von der Richtlinien-Option (policies.py). Erste Auswahl ist
+// „Standard (X)": kein eigener Wert, das Postfach folgt dem Gruppen- bzw.
+// globalen Default und wandert mit, wenn der Betreiber ihn ändert.
+var STANDARD_WAHL = '__standard__';
+function _buildWahlSelect(idx, klasse, kind, mb, slot, feld, leerText) {
   var sel = document.createElement('select');
-  sel.className = 'mb-template';
+  sel.className = klasse;
   sel.dataset.idx = String(idx);
-  sel.style.fontSize = '12px';
-  sel.style.maxWidth = '130px';
-  var enabled = sigEnabled && !policyActive;
-  sel.disabled = !enabled;
-  sel.style.opacity = enabled ? '1' : '0.4';
-  if (policyActive) sel.title = 'Wird durch Vorlagenrichtlinie gesteuert';
-  var effective = policyActive ? (policyTemplate || selectedTemplate || 'default')
-                               : (selectedTemplate || 'default');
-  // Signatur; beide möglichen Werte (Postfach- und Richtlinien-Vorlage) als
-  // Sicherheitsnetz, weil _applyPolicy später zwischen ihnen umschaltet.
-  _fuelleVorlagenSelect(sel, 'signatur', effective,
-                        {auchZeigen: [selectedTemplate, policyTemplate]});
+  sel.style.cssText = 'font-size:12px;max-width:130px';
+  var eigen = mb[feld];                       // null/undefined = folgt dem Standard
+  var aktuell = (eigen === null || eigen === undefined) ? STANDARD_WAHL : eigen;
+  _fuelleVorlagenSelect(sel, kind, aktuell,
+    {mitLeer: leerText !== null, leerText: leerText || undefined, auchZeigen: [eigen]});
+  var std = (mb.standard || {})[slot] || '';
+  var o = document.createElement('option');
+  o.value = STANDARD_WAHL;
+  o.textContent = 'Standard (' + (std || 'keine') + ')';
+  sel.insertBefore(o, sel.firstChild);
+  sel.value = aktuell;
   return sel;
 }
 
@@ -1027,33 +1048,24 @@ function renderMailboxTable(mailboxes) {
     policyCb.className = 'mb-policy';
     policyCb.dataset.idx = String(i);
     policyCb.checked = policyActive;
-    policyCb.title = 'Vorlage aus Vorlagenrichtlinien übernehmen';
+    policyCb.title = 'Banner, Disclaimer und Add-in-Auswahl aus der Richtlinie übernehmen';
     if (isResource) policyCb.disabled = true;
     tdPolicy.appendChild(policyCb);
 
-    // Vorlage select — greyed when policyActive
+    // Signatur (Wahl-Slot, unabhängig von der Richtlinien-Option)
     var tdTpl = document.createElement('td');
     tdTpl.style.cssText = 'text-align:center;padding:6px 8px';
-    var tplSel = _buildTemplateSelect(i, mb.template, mb.sig, policyActive,
-                                     document.getElementById('policy-sig-tpl').value);
+    var tplSel = _buildWahlSelect(i, 'mb-template', 'signatur', mb, 'sig', 'template', null);
+    tplSel.disabled = !mb.sig;
+    tplSel.style.opacity = mb.sig ? '1' : '0.4';
     tdTpl.appendChild(tplSel);
 
-    // Antwort-Signatur (ab 2. eigener Mail im Thread) — greyed when policyActive
+    // Antwort-Signatur (ab 2. eigener Mail im Thread) — Wahl-Slot
     var tdMinSig = document.createElement('td');
     tdMinSig.style.cssText = 'text-align:center;padding:6px 8px';
-    var minSigSel = document.createElement('select');
-    minSigSel.className = 'mb-min-sig';
-    minSigSel.dataset.idx = String(i);
-    minSigSel.style.cssText = 'font-size:12px;max-width:130px';
-    var _effectiveMinTpl = policyActive
-      ? (document.getElementById('policy-min-tpl').value || '')
-      : (mb.min_template || '');
-    _fuelleVorlagenSelect(minSigSel, 'signatur', _effectiveMinTpl,
-      {mitLeer: true, auchZeigen: [mb.min_template, document.getElementById('policy-min-tpl').value]});
-    var _minDisabled = !mb.sig || policyActive;
-    minSigSel.disabled = _minDisabled;
-    minSigSel.style.opacity = _minDisabled ? '0.4' : '1';
-    if (policyActive) minSigSel.title = 'Wird durch Vorlagenrichtlinie gesteuert';
+    var minSigSel = _buildWahlSelect(i, 'mb-min-sig', 'signatur', mb, 'min', 'min_template', '— keine —');
+    minSigSel.disabled = !mb.sig;
+    minSigSel.style.opacity = mb.sig ? '1' : '0.4';
     tdMinSig.appendChild(minSigSel);
 
     // Banner select — policy-controlled like std template
@@ -1094,23 +1106,13 @@ function renderMailboxTable(mailboxes) {
     if (policyActive) disclaimerSel.title = 'Wird durch Vorlagenrichtlinie gesteuert';
     tdDisclaimer.appendChild(disclaimerSel);
 
-    // Abwesenheit (OOF) select — policy-controlled like disclaimer
+    // Abwesenheit (OOF) — Wahl-Slot; gilt für Signatur- ODER S/MIME-Postfächer
     var tdOof = document.createElement('td');
     tdOof.style.cssText = 'text-align:center;padding:6px 8px';
-    var oofSel = document.createElement('select');
-    oofSel.className = 'mb-oof';
-    oofSel.dataset.idx = String(i);
-    oofSel.style.cssText = 'font-size:12px;max-width:130px';
-    var _effectiveOof = policyActive
-      ? (document.getElementById('policy-oof-tpl').value || '')
-      : (mb.oof_template || '');
-    _fuelleVorlagenSelect(oofSel, 'oof', _effectiveOof,
-      {mitLeer: true, leerText: '— keine —',
-       auchZeigen: [mb.oof_template, document.getElementById('policy-oof-tpl').value]});
-    var _oofDisabled = !(mb.sig || mb.smime) || policyActive;
+    var oofSel = _buildWahlSelect(i, 'mb-oof', 'oof', mb, 'oof', 'oof_template', '— keine —');
+    var _oofDisabled = !(mb.sig || mb.smime);
     oofSel.disabled = _oofDisabled;
     oofSel.style.opacity = _oofDisabled ? '0.4' : '1';
-    if (policyActive) oofSel.title = 'Wird durch Vorlagenrichtlinie gesteuert';
     tdOof.appendChild(oofSel);
     // Kalender-Automatik je Postfach wird jetzt im Abwesenheits-Dashboard gesetzt.
 
@@ -1141,16 +1143,11 @@ function renderMailboxTable(mailboxes) {
       var pol = policyCb.checked;
       var sig = sigCb.checked;
       var smime = smimeCb.checked;
-      tplSel.disabled = !sig || pol;
-      tplSel.style.opacity = (!sig || pol) ? '0.4' : '1';
-      tplSel.title = pol ? 'Wird durch Vorlagenrichtlinie gesteuert' : '';
-      tplSel.value = pol ? (document.getElementById('policy-sig-tpl').value || 'default')
-                         : (mb.template || 'default');
-      minSigSel.disabled = !sig || pol;
-      minSigSel.style.opacity = (!sig || pol) ? '0.4' : '1';
-      minSigSel.title = pol ? 'Wird durch Vorlagenrichtlinie gesteuert' : '';
-      minSigSel.value = pol ? (document.getElementById('policy-min-tpl').value || '')
-                            : (mb.min_template || '');
+      // Wahl-Slots hängen nur am Signatur- bzw. S/MIME-Haken, nicht an der Richtlinie.
+      tplSel.disabled = !sig;
+      tplSel.style.opacity = sig ? '1' : '0.4';
+      minSigSel.disabled = !sig;
+      minSigSel.style.opacity = sig ? '1' : '0.4';
       bannerSel.disabled = !sig || pol;
       bannerSel.style.opacity = (!sig || pol) ? '0.4' : '1';
       bannerSel.title = pol ? 'Wird durch Vorlagenrichtlinie gesteuert' : '';
@@ -1162,12 +1159,9 @@ function renderMailboxTable(mailboxes) {
       disclaimerSel.value = pol ? (document.getElementById('policy-disclaimer-tpl').value || '')
                                 : (mb.disclaimer_template || '');
       // Abwesenheit greift für aktivierte Postfächer (Signatur ODER S/MIME).
-      var oofAktiv = !(sig || smime) || pol;
-      oofSel.disabled = oofAktiv;
-      oofSel.style.opacity = oofAktiv ? '0.4' : '1';
-      oofSel.title = pol ? 'Wird durch Vorlagenrichtlinie gesteuert' : '';
-      oofSel.value = pol ? (document.getElementById('policy-oof-tpl').value || '')
-                         : (mb.oof_template || '');
+      var oofAus = !(sig || smime);
+      oofSel.disabled = oofAus;
+      oofSel.style.opacity = oofAus ? '0.4' : '1';
       addinCtrl.style.opacity = (!sig || pol) ? '0.4' : '1';
       addinCtrl.style.pointerEvents = (!sig || pol) ? 'none' : '';
       addinCtrl.title = pol ? 'Wird durch Vorlagenrichtlinie gesteuert' : '';
