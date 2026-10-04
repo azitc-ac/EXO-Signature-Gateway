@@ -23,6 +23,7 @@ import signature_engine
 import mailbox_match
 import graph_client
 import abwesenheit
+import gruppen
 import policies as _policies
 from webui.deps import templates, log, _gateway_name, _require_self
 
@@ -52,11 +53,11 @@ def _darf_vorlagen_waehlen(email: str) -> bool:
     sender_cfg = mailbox_match.match_sender(mb_all, email)
     if sender_cfg.get("self_templates") is True:
         return True
-    gruppen = settings_store.get("SELF_TEMPLATE_GROUPS") or []
-    if gruppen:
+    freigabe_gruppen = settings_store.get("SELF_TEMPLATE_GROUPS") or []
+    if freigabe_gruppen:
         key = mailbox_match.match_sender_key(mb_all, email)
-        intern = settings_store.get("INTERNAL_GROUPS") or {}
-        for g in gruppen:
+        intern = gruppen.interne_gruppen()
+        for g in freigabe_gruppen:
             if key and key in (intern.get(g) or []):
                 return True
     return False
@@ -67,7 +68,9 @@ def _waehlbar(email: str) -> dict[str, bool]:
     Kategorie betreiberweit in `SELF_TEMPLATE_KATEGORIEN` (z.B. Signatur frei,
     Abwesenheit fest)."""
     darf = _darf_vorlagen_waehlen(email)
-    kat = settings_store.get("SELF_TEMPLATE_KATEGORIEN") or []
+    kat = list(settings_store.get("SELF_TEMPLATE_KATEGORIEN") or [])
+    if not abwesenheit.funktion_aktiv():
+        kat = [k for k in kat if k != "oof"]   # Abwesenheit ausgeblendet → nicht wählbar
     return {slot: bool(darf and slot in kat) for slot in _SLOT_ART}
 
 
@@ -182,6 +185,7 @@ async def self_context(email: str = Depends(_require_self)):
     daten = {
         "email": email,
         "freigeschaltet": _freigeschaltet(),
+        "abwesenheit_aktiv": abwesenheit.funktion_aktiv(),
         "darf_vorlagen": any(waehlbar.values()),
         "waehlbar": waehlbar,            # {sig, min, oof: bool}
         "oof_template": oof_eff,         # wirksam (für Vorschau/Anzeige)
@@ -307,6 +311,12 @@ async def self_save(request: Request, email: str = Depends(_require_self)):
     voll[key] = eintrag
     settings_store.update({"MAILBOX_CONFIG": voll})
     oof_tpl, _sig = _effektive_vorlagen(email)
+
+    # Funktion „Zentrale Abwesenheiten" aus → Exchange nicht anfassen (die
+    # Abwesenheit ist dann weder sichtbar noch Sache des Gateways).
+    if not abwesenheit.funktion_aktiv():
+        log.info("Self-Service: %s hat Vorlagen gesetzt (Abwesenheit ausgeschaltet)", email)
+        return JSONResponse({"ok": True})
 
     # 2) Abwesenheit bei Exchange setzen (Status + Zeitraum + korrekt gerenderter
     #    Text), damit es sofort wirkt — nicht erst beim nächsten Poll.

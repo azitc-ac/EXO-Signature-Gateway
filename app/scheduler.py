@@ -576,8 +576,8 @@ def _sync_ooo() -> None:
     """
     global _last_ooo_run
     try:
-        if settings_store.get("OOO_ENABLED"):
-            import abwesenheit
+        import abwesenheit
+        if abwesenheit.zentral_aktiv():
             asyncio.run(abwesenheit.poll_alle())
     except Exception as exc:                                        # noqa: BLE001
         log.warning("scheduler: OOO-Normalisierung fehlgeschlagen: %s", exc)

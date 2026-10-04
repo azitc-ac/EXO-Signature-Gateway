@@ -30,6 +30,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Uplo
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 import graph_client
+import gruppen
 import settings_store
 
 from webui.deps import (
@@ -75,7 +76,9 @@ async def api_get_template_policies(_=Depends(_require_admin)):
 
 @router.get("/api/settings/internal-groups")
 async def api_get_internal_groups(_=Depends(_require_admin)):
-    return JSONResponse(settings_store.get("INTERNAL_GROUPS") or {})
+    # Inklusive der berechneten Gruppe „Alle Postfächer" (gruppen.py) — die
+    # Oberfläche zeigt sie schreibgeschützt.
+    return JSONResponse(gruppen.interne_gruppen())
 
 
 @router.post("/api/settings/internal-groups/save")
@@ -84,6 +87,10 @@ async def api_save_internal_groups(request: Request, _=Depends(_require_admin)):
     groups = data.get("groups")
     if not isinstance(groups, dict):
         raise HTTPException(400, "groups must be a dict")
+    # Berechnete Gruppen („Alle Postfächer") nie persistieren — ihre Mitglieder
+    # entstehen bei jedem Zugriff neu. Ihre Variablen dürfen aber gespeichert werden.
+    alle_namen = set(groups) | {gruppen.ALLE}
+    groups = gruppen.nur_gespeicherte(groups)
     aenderung: dict = {"INTERNAL_GROUPS": groups}
     # Gruppen-Variablen (optional) im selben Speichervorgang: {Gruppe: {var: wert}}.
     # Nur Gruppen behalten, die es auch gibt — sonst bleiben Werte verwaister
@@ -91,7 +98,7 @@ async def api_save_internal_groups(request: Request, _=Depends(_require_admin)):
     group_vars = data.get("group_vars")
     if isinstance(group_vars, dict):
         bereinigt = {g: v for g, v in group_vars.items()
-                     if g in groups and isinstance(v, dict) and v}
+                     if g in alle_namen and isinstance(v, dict) and v}
         aenderung["GROUP_VARS"] = bereinigt
     settings_store.update(aenderung)
     return JSONResponse({"ok": True})

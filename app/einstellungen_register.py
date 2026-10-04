@@ -164,6 +164,7 @@ REGISTER: dict[str, E] = {
     "COEX_ENABLED": E(art=OPTION, ort="advanced.html"),
     "PER_RECIPIENT_ROUTING": E(art=OPTION, ort="relay.html"),
     "OOO_ENABLED": E(art=OPTION, ort="abwesenheit.html"),  # zentrale Abwesenheitsnotiz
+    "ABWESENHEIT_AKTIV": E(art=OPTION, ort="setup.html"),  # Funktion Abwesenheiten (Menü/Spalte/Abgleich)
     "OOO_CALENDAR_AUTO": E(art=OPTION, ort="abwesenheit.html"),   # OOO aus Kalender
     "OOO_CALENDAR_MIN_HOURS": E(art=OPTION, ort="abwesenheit.html"),
     "OOO_CALENDAR_REFRESH_HOURS": E(art=OPTION, ort="abwesenheit.html"),  # Kalender-Cache-Refresh

@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
 import banner_campaigns
+import gruppen
 import settings_store
 import signature_engine
 
@@ -28,7 +29,7 @@ def _ansicht() -> dict:
     return {
         "campaigns": camps,
         "banners": signature_engine.list_templates("banner"),
-        "groups": sorted((settings_store.get("INTERNAL_GROUPS") or {}).keys()),
+        "groups": sorted(gruppen.interne_gruppen().keys()),
     }
 
 

@@ -31,6 +31,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
 import config
+import gruppen
 import policies as _pol
 import settings_store
 
@@ -487,7 +488,8 @@ async def mailboxes_page(request: Request, user: str = Depends(_require_admin)):
                  "self_service_enabled": settings_store.get("SELF_SERVICE_ENABLED") is True,
                  "self_template_groups": settings_store.get("SELF_TEMPLATE_GROUPS") or [],
                  "self_template_kategorien": settings_store.get("SELF_TEMPLATE_KATEGORIEN") or [],
-                 "internal_group_names": sorted((settings_store.get("INTERNAL_GROUPS") or {}).keys()),
+                 "internal_group_names": sorted(gruppen.interne_gruppen().keys()),
+                 "gruppe_alle": gruppen.ALLE,
                  "group_vars": settings_store.get("GROUP_VARS") or {},
                  # Namen der definierten eigenen Variablen — im Gruppen-Dialog nur
                  # noch auswählbar (keine frei getippten Namen → keine Kollisionen).

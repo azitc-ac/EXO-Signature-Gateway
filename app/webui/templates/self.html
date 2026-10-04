@@ -48,8 +48,8 @@
   </div>
 
   <div id="inhalt" hidden>
-    <!-- Abwesenheit -->
-    <div class="karte">
+    <!-- Abwesenheit (nur bei eingeschalteter Funktion „Zentrale Abwesenheiten") -->
+    <div class="karte" id="oof-karte">
       <h2>Abwesenheit</h2>
       <div class="radiozeile" id="status-wahl">
         <label><input type="radio" name="status" value="disabled"> Aus</label>
@@ -209,6 +209,8 @@
     el('sig-block').hidden = !w.sig;
     el('min-block').hidden = !w.min;
     el('sig-karte').hidden = !(w.sig || w.min);
+    // Funktion „Zentrale Abwesenheiten verwalten" aus → keine Abwesenheits-Karten.
+    if (ctx.abwesenheit_aktiv === false) { el('oof-karte').hidden = true; }
     var st = (ctx.ooo && ctx.ooo.status) || 'disabled';
     var rb = document.querySelector('input[name=status][value="' + st + '"]');
     if (rb) rb.checked = true;
@@ -223,7 +225,7 @@
     zeitSichtbarkeit();
 
     // Ankündigung: Karte nur zeigen, wenn die zugewiesene Vorlage die Variable nutzt.
-    el('ank-karte').hidden = !ctx.announce_supported;
+    el('ank-karte').hidden = !ctx.announce_supported || ctx.abwesenheit_aktiv === false;
     if (ctx.announce) {
       el('ank-an').checked = ctx.announce.an !== false;
       el('ank-mode').value = ctx.announce.mode || 'anzahl';
@@ -353,7 +355,9 @@
       var d = await r.json().catch(function () { return {}; });
       if (r.ok && d.ok) {
         el('speicher-hinweis').className = 'hinweis ok';
-        el('speicher-hinweis').textContent = '✓ Gespeichert. Deine Abwesenheit und Signatur sind gesetzt.';
+        el('speicher-hinweis').textContent = ctx.abwesenheit_aktiv === false
+          ? '✓ Gespeichert. Deine Signatur ist gesetzt.'
+          : '✓ Gespeichert. Deine Abwesenheit und Signatur sind gesetzt.';
       } else {
         el('speicher-hinweis').className = 'hinweis err';
         el('speicher-hinweis').textContent = '✗ ' + (d.detail || ('Fehler ' + r.status));

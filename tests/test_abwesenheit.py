@@ -452,7 +452,7 @@ def test_poll_persistiert_state_einmal_und_verarbeitet_alle(monkeypatch):
     monkeypatch.setattr(abwesenheit, "_state_speichern", lambda st: speichern.append(1))
     monkeypatch.setattr(abwesenheit, "_persist_last", lambda s: None)
     monkeypatch.setattr(settings_store, "get",
-                        lambda k, d=None: {"OOO_ENABLED": True, "MAILBOX_CONFIG": {"x": 1},
+                        lambda k, d=None: {"OOO_ENABLED": True, "ABWESENHEIT_AKTIV": True, "MAILBOX_CONFIG": {"x": 1},
                                            "OOO_CALENDAR_AUTO": False}.get(k, d))
     r = _run(abwesenheit.poll_alle())
     assert r["gesamt"] == 3 and r[abwesenheit.GESETZT] == 3
@@ -462,7 +462,7 @@ def test_poll_persistiert_state_einmal_und_verarbeitet_alle(monkeypatch):
 def test_poll_persistiert_letzten_lauf(monkeypatch):
     """Die laufende Zahl (Tagesbericht/Übersicht) speist sich aus _OOO_LAST — der
     Poll muss sie schreiben, mit Bezugsgröße (gesamt) und Zeitstempel."""
-    store = {"OOO_ENABLED": True, "MAILBOX_CONFIG": {}}
+    store = {"OOO_ENABLED": True, "ABWESENHEIT_AKTIV": True, "MAILBOX_CONFIG": {}}
     captured: dict = {}
     monkeypatch.setattr(settings_store, "get", lambda k, d=None: store.get(k, d))
     monkeypatch.setattr(settings_store, "force_update", lambda patch: captured.update(patch))

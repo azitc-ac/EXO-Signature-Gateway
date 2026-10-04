@@ -23,6 +23,7 @@ Bestandsmigration ist `settings_store._migrate_v3_to_v4`.
 """
 from __future__ import annotations
 
+import gruppen
 import mailbox_match
 import settings_store
 
@@ -47,9 +48,9 @@ SLOT_FELD = {
 def _gruppen_overrides(sender: str, mailbox_cfg: dict) -> dict[str, str]:
     """{slot: vorlage} aus den Gruppen-Richtlinien, first-match-wins je Slot."""
     custom = settings_store.get("CUSTOM_POLICIES") or []
-    groups = settings_store.get("INTERNAL_GROUPS") or {}
-    if not custom or not groups:
+    if not custom:
         return {}
+    groups = gruppen.interne_gruppen()
     sender_key = mailbox_match.match_sender_key(mailbox_cfg, sender)
     if not sender_key:
         return {}
@@ -125,13 +126,13 @@ def group_vars_for(sender: str, mailbox_cfg: dict | None = None) -> dict:
 
     `GROUP_VARS = {Gruppenname: {var: wert}}`. Ist der Absender in mehreren Gruppen,
     gewinnt der ERSTE Treffer je Variable (first-match, wie bei den Richtlinien) —
-    die Reihenfolge folgt `INTERNAL_GROUPS`. Rangfolge insgesamt (aufgelöst beim
+    die Reihenfolge folgt `gruppen.interne_gruppen()` („Alle Postfächer" zuletzt). Rangfolge insgesamt (aufgelöst beim
     Aufrufer): Entra-Feld < Gruppen-Wert < Postfach-Override.
     """
     group_vars = settings_store.get("GROUP_VARS") or {}
-    groups = settings_store.get("INTERNAL_GROUPS") or {}
-    if not group_vars or not groups:
+    if not group_vars:
         return {}
+    groups = gruppen.interne_gruppen()
     if mailbox_cfg is None:
         mailbox_cfg = settings_store.get("MAILBOX_CONFIG") or {}
     key = mailbox_match.match_sender_key(mailbox_cfg, sender)

@@ -146,15 +146,16 @@ def test_migration_laeuft_nur_einmal():
     """Nach der Umstellung ist ein fehlendes Feld bei use_policy=false gewollt
     („folgt dem Standard") und darf nicht erneut festgeschrieben werden."""
     daten, geaendert = settings_store._run_migrations(
-        {"_SCHEMA_VERSION": 4, "MAILBOX_CONFIG": {"g": {"use_policy": False}}})
+        {"_SCHEMA_VERSION": settings_store.SETTINGS_SCHEMA_VERSION,
+         "MAILBOX_CONFIG": {"g": {"use_policy": False}}})
     assert not geaendert
     assert daten["MAILBOX_CONFIG"]["g"] == {"use_policy": False}
 
 
-def test_migrationskette_erreicht_v4():
+def test_migrationskette_ab_v3():
     daten, geaendert = settings_store._run_migrations(
         {"_SCHEMA_VERSION": 3, "MAILBOX_CONFIG": {"g": {"use_policy": False}}})
-    assert geaendert and daten["_SCHEMA_VERSION"] == 4
+    assert geaendert and daten["_SCHEMA_VERSION"] == settings_store.SETTINGS_SCHEMA_VERSION
     assert daten["MAILBOX_CONFIG"]["g"] == {"use_policy": False, "template": "default",
                                             "min_template": "", "oof_template": ""}
 

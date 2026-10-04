@@ -237,3 +237,20 @@ def test_geschuetzte_seite_ohne_anmeldung_nicht_erreichbar():
                 f"/api/mailboxes antwortet ohne Anmeldung mit {r.status_code}"
     finally:
         app.dependency_overrides.update(gesichert)
+
+
+# ── Funktionsschalter „Zentrale Abwesenheiten": Menüpunkt und Seite ──────────────────────────────────────────────
+
+def test_menue_und_seite_folgen_dem_schalter(client):
+    import settings_store
+    settings_store.update({"ABWESENHEIT_AKTIV": False})
+    r = client.get("/mailboxes")
+    assert 'href="/abwesenheit"' not in r.text
+    r = client.get("/abwesenheit", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"].startswith("/setup")
+
+    settings_store.update({"ABWESENHEIT_AKTIV": True})
+    r = client.get("/mailboxes")
+    assert 'href="/abwesenheit"' in r.text
+    assert client.get("/abwesenheit", follow_redirects=False).status_code == 200
+    settings_store.update({"ABWESENHEIT_AKTIV": False})

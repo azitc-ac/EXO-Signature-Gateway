@@ -289,7 +289,8 @@ def send_daily_report(daily: dict, total: dict) -> bool:
     # Fehlender Consent (kein_zugriff) ist ein STILLER Ausfall (die Notiz würde
     # nicht normalisiert, ohne dass es auffällt) → rot. (CLAUDE.md Regel 8.)
     ooo_row = ""
-    if settings_store.get("OOO_ENABLED"):
+    import abwesenheit as _abw
+    if _abw.zentral_aktiv():
         _ol = settings_store.get("_OOO_LAST") or {}
         _n = _ol.get("gesamt", 0)
         _aktiv = _ol.get("gesetzt", 0) + _ol.get("unveraendert", 0)
