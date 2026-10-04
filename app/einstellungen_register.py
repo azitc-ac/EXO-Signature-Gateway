@@ -175,6 +175,7 @@ REGISTER: dict[str, E] = {
     "OOO_ANNOUNCE_EXTERN": E(art=OPTION, ort="abwesenheit.html"), # Ankündigung: auch extern
     "SELF_SERVICE_ENABLED": E(art=OPTION, ort="mailboxes.html"),  # Nutzer-Self-Service (/self)
     "SELF_TEMPLATE_GROUPS": E(art=STRUKTUR, ort="mailboxes.html"),  # Gruppen mit Vorlagenwahl im Self-Service
+    "SELF_TEMPLATE_KATEGORIEN": E(art=OPTION, ort="mailboxes.html"),  # wählbare Kategorien (sig/min/oof)
     "GROUP_VARS": E(art=STRUKTUR, ort="/api/settings/internal-groups/save"),  # Custom-Vars je Gruppe
     "ONPREM_MAILUSERS": E(art=ZUSTAND),      # via Get-MailUser abgeglichen, nicht von Hand
     "ONPREM_MAILUSERS_TS": E(art=ZUSTAND),   # Zeitpunkt des letzten Abgleichs

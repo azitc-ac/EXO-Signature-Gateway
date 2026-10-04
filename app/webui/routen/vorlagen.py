@@ -606,7 +606,6 @@ async def api_preview_data(
     schickt das Kennzeichen NICHT: dort soll stehen, was das Postfach
     tatsaechlich bekaeme."""
     import graph_client as _gc
-    import mailbox_match
 
     # ⚠️ Nachrichten an Postfachinhaber gehen einen ANDEREN Weg als Signaturen:
     # Sie kennen weder `user` noch `custom`, sondern `empfaenger` und `ca`.
@@ -642,14 +641,17 @@ async def api_preview_data(
         sig_html, sig_txt = "", ""
     else:
         sig_html, sig_txt = signature_engine.render(user_data, template_name=template)
-    # Resolve banner and disclaimer: explicit param > mailbox config
+    # Resolve banner and disclaimer: explicit param > was das Postfach im Betrieb
+    # bekäme (policies.aufloesen — Richtlinie bzw. Postfach-Ausnahme). Bis v1.9.112
+    # stand hier das rohe Postfach-Feld; bei use_policy=true fehlte der Banner der
+    # Richtlinie dann in der Vorschau.
     if not explizit and email and (not banner or not disclaimer):
-        _mc = settings_store.get("MAILBOX_CONFIG") or {}
-        _cfg = mailbox_match.match_sender(_mc, email)
+        import policies as _pol
+        _v = _pol.aufloesen(email)
         if not banner:
-            banner = _cfg.get("banner_template", "")
+            banner = _v["banner"]
         if not disclaimer:
-            disclaimer = _cfg.get("disclaimer_template", "")
+            disclaimer = _v["disclaimer"]
     banner_html = ""
     if banner:
         banner_html, _ = signature_engine.render(user_data, template_name=banner)

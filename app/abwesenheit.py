@@ -220,15 +220,11 @@ def ankuendigung_ins_eintrag(eintrag: dict, ann: dict) -> None:
 def oof_vorlage_fuer(sender: str, mailbox_cfg: dict, sender_cfg: dict) -> str:
     """Name der oof-Vorlage für einen Absender, oder "" wenn keine.
 
-    Nutzt dieselbe Auflösung wie die Signatur: folgt das Postfach den Richtlinien
-    (use_policy=true), kommt die Vorlage aus `TEMPLATE_POLICIES["oof"]` bzw. der
-    Gruppen-Richtlinie; sonst aus dem Postfach-eigenen Feld `oof_template` —
-    analog zu `template`/`banner_template`/`disclaimer_template`.
+    Dieselbe Auflösung wie die Signatur (policies.aufloesen): die Wahl des
+    Postfachs (`oof_template`, auch "" = keine), sonst der Gruppen-, sonst der
+    globale Default — unabhängig von use_policy.
     """
-    pol, use_pol = _policies.resolve_policies(sender, mailbox_cfg, sender_cfg)
-    if use_pol:
-        return (pol.get("oof") or "").strip()
-    return (sender_cfg.get("oof_template") or "").strip()
+    return _policies.vorlage_fuer(sender, "oof", mailbox_cfg, sender_cfg)
 
 
 # ── Text rendern ──────────────────────────────────────────────────────────────
@@ -353,18 +349,16 @@ def _oof_anhang(user_data, sender: str, mailbox_cfg: dict, sender_cfg: dict) -> 
         return "", ""       # nichts anzuhängen — Richtlinien-Auflösung gar nicht nötig
     parts_html: list[str] = []
     parts_txt: list[str] = []
-    pol, use_pol = _policies.resolve_policies(sender, mailbox_cfg, sender_cfg)
+    vorlagen = _policies.aufloesen(sender, mailbox_cfg, sender_cfg)
     if append_sig:
-        sig_tpl = ((pol.get("sig") or "default") if use_pol
-                   else (sender_cfg.get("template") or "default"))
+        sig_tpl = vorlagen["sig"]
         h, t = signature_engine.render(user_data, template_name=sig_tpl)
         if h.strip():
             parts_html.append(h)
         if t.strip():
             parts_txt.append(t)
     if append_banner:
-        banner_tpl = ((pol.get("banner") or "") if use_pol
-                      else sender_cfg.get("banner_template", "")).strip()
+        banner_tpl = vorlagen["banner"]
         if banner_tpl:
             h, t = signature_engine.render(user_data, template_name=banner_tpl)
             if h.strip():

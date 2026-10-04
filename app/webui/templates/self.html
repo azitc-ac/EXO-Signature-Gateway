@@ -103,11 +103,17 @@
       </div>
     </div>
 
-    <!-- Signatur (nur wenn Vorlagenwahl freigeschaltet) -->
+    <!-- Signatur (nur wenn die jeweilige Kategorie freigeschaltet ist) -->
     <div class="karte" id="sig-karte">
       <h2>Signatur</h2>
-      <label for="sig-sel">Meine Standard-Signaturvorlage</label>
-      <select id="sig-sel"></select>
+      <div id="sig-block">
+        <label for="sig-sel">Meine Signatur</label>
+        <select id="sig-sel"></select>
+      </div>
+      <div id="min-block" style="margin-top:10px">
+        <label for="min-sel">Antwort-Signatur <span style="color:#64748b;font-weight:400">(ab der 2. eigenen Mail in einem Verlauf)</span></label>
+        <select id="min-sel"></select>
+      </div>
     </div>
 
     <!-- Vorschau -->
@@ -192,15 +198,17 @@
     if (ctx.zugriff === false)
       zeigeFehler('Kein Zugriff auf die Postfacheinstellungen — bitte den Betreiber informieren.');
 
-    fuelle('oof-sel', ctx.oof_templates, ctx.oof_template, '— keine —');
-    fuelle('sig-sel', ctx.sig_templates, ctx.sig_template || 'default', null);
-    // Vorlagenwahl ist standardmäßig gesperrt — Dropdowns nur bei Freischaltung
-    // (pro Postfach/Gruppe). Sonst gilt die zugewiesene Vorlage; die Vorschau
-    // zeigt sie trotzdem (über ctx.oof_template/ctx.sig_template).
-    if (!ctx.darf_vorlagen) {
-      el('oof-tpl-block').hidden = true;
-      el('sig-karte').hidden = true;
-    }
+    var w = ctx.waehlbar || {};
+    fuelleWahl('oof-sel', 'oof', '— keine —');
+    fuelleWahl('sig-sel', 'sig', null);
+    fuelleWahl('min-sel', 'min', '— keine —');
+    // Vorlagenwahl ist standardmäßig gesperrt — Dropdowns nur für freigegebene
+    // Kategorien. Sonst gilt die zugewiesene Vorlage; die Vorschau zeigt sie
+    // trotzdem (über ctx.oof_template/ctx.sig_template).
+    el('oof-tpl-block').hidden = !w.oof;
+    el('sig-block').hidden = !w.sig;
+    el('min-block').hidden = !w.min;
+    el('sig-karte').hidden = !(w.sig || w.min);
     var st = (ctx.ooo && ctx.ooo.status) || 'disabled';
     var rb = document.querySelector('input[name=status][value="' + st + '"]');
     if (rb) rb.checked = true;
@@ -228,7 +236,7 @@
     // Sperren, wenn nicht freigeschaltet (reine Anzeige/Vorschau bleibt).
     if (!ctx.freigeschaltet) {
       el('speichern').hidden = true;
-      ['oof-sel','sig-sel','von','bis','von-zeit','bis-zeit','ganztaegig',
+      ['oof-sel','sig-sel','min-sel','von','bis','von-zeit','bis-zeit','ganztaegig',
        'ank-an','ank-mode','ank-x','ank-privat','ank-extern'].forEach(function (i) { el(i).disabled = true; });
       document.querySelectorAll('input[name=status]').forEach(function (x) { x.disabled = true; });
     }
@@ -249,11 +257,33 @@
     return p;
   }
 
-  function fuelle(id, liste, aktuell, leerText) {
+  // „Standard (X)" folgt dem Default des Betreibers (Gruppe bzw. global) und
+  // wandert mit, wenn er ihn ändert; eine Vorlage hält die eigene Wahl fest.
+  var STANDARD = '__standard__';
+  function fuelleWahl(id, slot, leerText) {
     var s = el(id); s.innerHTML = '';
+    var std = (ctx.standard || {})[slot] || '';
+    s.appendChild(opt(STANDARD, 'Standard (' + (std || 'keine') + ')'));
     if (leerText !== null) s.appendChild(opt('', leerText));
-    (liste || []).forEach(function (n) { s.appendChild(opt(n, n)); });
-    s.value = aktuell || '';
+    var liste = ((ctx.listen || {})[slot] || []).slice();
+    var aktuell = (ctx.wahl || {})[slot];
+    if (aktuell === undefined || aktuell === null) aktuell = STANDARD;
+    if (aktuell && aktuell !== STANDARD && liste.indexOf(aktuell) === -1) liste.push(aktuell);
+    liste.forEach(function (n) { s.appendChild(opt(n, n)); });
+    s.value = aktuell;
+  }
+  // Die WIRKSAME Vorlage eines Slots — für die Vorschau.
+  function wirksam(slot, fest) {
+    if (!(ctx.waehlbar || {})[slot]) return fest || '';
+    var v = el(slot + '-sel').value;
+    return v === STANDARD ? ((ctx.standard || {})[slot] || '') : v;
+  }
+  function wahlObj() {
+    var o = {};
+    ['sig', 'min', 'oof'].forEach(function (s) {
+      if ((ctx.waehlbar || {})[s]) o[s] = el(s + '-sel').value;
+    });
+    return o;
   }
   function opt(v, t) { var o = document.createElement('option'); o.value = v; o.textContent = t; return o; }
 
@@ -262,8 +292,8 @@
     return c ? c.value : 'disabled';
   }
   // Vorlage: die Auswahl zählt nur, wenn freigeschaltet — sonst die zugewiesene.
-  function oofWahl() { return ctx.darf_vorlagen ? el('oof-sel').value : (ctx.oof_template || ''); }
-  function sigWahl() { return ctx.darf_vorlagen ? el('sig-sel').value : (ctx.sig_template || ''); }
+  function oofWahl() { return wirksam('oof', ctx.oof_template); }
+  function sigWahl() { return wirksam('sig', ctx.sig_template) || 'default'; }
   function zeitraumSichtbarkeit() {
     el('zeitraum-felder').hidden = (statusWert() !== 'scheduled');
   }
@@ -313,7 +343,7 @@
       var r = await api('/api/self/save', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          oof_template: oofWahl(), sig_template: sigWahl(),
+          wahl: wahlObj(),
           oof_status: statusWert(), oof_start: el('von').value, oof_ende: el('bis').value,
           ganztaegig: el('ganztaegig').checked,
           start_zeit: el('von-zeit').value, ende_zeit: el('bis-zeit').value,

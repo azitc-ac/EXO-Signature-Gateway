@@ -23,9 +23,9 @@ DEFAULTS: dict = {
     "WEBSITE_URL": "",  # Globale Website-URL für alle Nutzer (user.website)
     "CUSTOM_TEMPLATE_VARS": [],   # [{"name": "mobile", "entra_field": "mobilePhone"}, ...]
     "MAILBOX_CONFIG": {},  # {email: {"sig": true, "smime": true, "use_policy": true}} — empty = NOTHING processed (handler.py pass-through)
-    "TEMPLATE_POLICIES": {"sig": "default", "min": "Minimal", "addin": "*"},  # {sig, min (Antwort-Signatur), banner, disclaimer, addin}
+    "TEMPLATE_POLICIES": {"sig": "default", "min": "Minimal", "addin": "*"},  # {sig, min, oof: DEFAULT der Nutzerwahl; banner, disclaimer, addin: Richtlinie} — policies.py
     "INTERNAL_GROUPS": {},      # {"Vertrieb": ["<guid>", ...], ...} — interne Postfach-Gruppen
-    "CUSTOM_POLICIES": [],      # [{"condition_type": "group", "group_name": "...", "applies_to": "sig|min|banner|disclaimer|oof", "template": "..."}] — first-match-wins
+    "CUSTOM_POLICIES": [],      # [{"condition_type": "group", "group_name": "...", "applies_to": "sig|min|banner|disclaimer|oof", "template": "..."}] — first-match-wins; bei sig/min/oof Gruppen-DEFAULT, bei banner/disclaimer Richtlinie
     "GROUP_VARS": {},           # {"Vertrieb": {"vertreter_name": "...", ...}} — Custom-Var-Werte je Gruppe (first-match); Rang: Entra < Gruppe < Postfach-Override
     # Banner-Kampagnen: ein Banner zeitfenster-/gruppengesteuert (banner_campaigns.py).
     # [{"id","name","banner","start","end","group","enabled"}] — aktive Kampagne
@@ -61,13 +61,17 @@ DEFAULTS: dict = {
     "OOO_ANNOUNCE_EXTERN": False,
     # Self-Service (opt-in): erlaubt Postfach-Nutzern, ihre Abwesenheit und ihre
     # eigene Standard-Signaturvorlage selbst zu verwalten (Seite /self, auch als
-    # Outlook-Add-in-Taskpane). Aus → nur Anzeige/Vorschau. An → die eigene Wahl
-    # setzt use_policy des eigenen Postfachs auf false (der Betreiber behält die
-    # Hoheit über die Freigabe selbst).
+    # Outlook-Add-in-Taskpane). Aus → nur Anzeige/Vorschau. Die eigene Wahl gilt
+    # nur für Signatur/Antwort-Signatur/Abwesenheit; Banner und Disclaimer bleiben
+    # Sache der Richtlinie (policies.py, seit v1.9.113).
     "SELF_SERVICE_ENABLED": False,
     # Vorlagenwahl im Self-Service ist standardmäßig AUS. Freischaltbar pro Postfach
     # (MAILBOX_CONFIG[...]["self_templates"]) oder pro interner Gruppe (hier gelistet).
     "SELF_TEMPLATE_GROUPS": [],
+    # Welche Kategorien freigeschaltete Nutzer wählen dürfen: "sig" (Signatur),
+    # "min" (Antwort-Signatur), "oof" (Abwesenheit). Betreiberweit, z.B. für
+    # Kunden mit festem Markenauftritt nur "oof".
+    "SELF_TEMPLATE_KATEGORIEN": ["sig", "oof"],
     "LE_DOMAIN": "",
     "LE_EMAIL": "",
     "LOG_RETENTION_DAYS": 30,
@@ -502,7 +506,7 @@ def purge_obsolete() -> list:
 # new DEFAULTS key does NOT need a migration — that's handled automatically by
 # the dict-merge in init(). Migrations run once, in order, and are recorded via
 # the internal "_SCHEMA_VERSION" key so they never re-run on an already-migrated file.
-SETTINGS_SCHEMA_VERSION = 3
+SETTINGS_SCHEMA_VERSION = 4
 
 
 def _migrate_v0_to_v1(data: dict) -> dict:
@@ -555,6 +559,51 @@ def _migrate_v2_to_v3(data: dict) -> dict:
     return data
 
 
+def _migrate_v3_to_v4(data: dict) -> dict:
+    """Vorlagenwahl von `use_policy` entkoppelt (v1.9.113, siehe policies.py).
+
+    Signatur, Antwort-Signatur und Abwesenheit sind seither Nutzerwahl:
+    Postfach-Feld > Gruppen-Default > globaler Default, unabhängig von
+    `use_policy`; das gilt nur noch für Banner und Disclaimer. Ziel dieser
+    Migration: Die EFFEKTIVE Vorlage jedes Postfachs bleibt unverändert.
+
+    * `use_policy` falsch: Ein FEHLENDES Feld hiess bisher „default" (Signatur)
+      bzw. „keine" (Antwort-Signatur, Abwesenheit). Künftig hiesse es „folgt dem
+      Default" — darum wird der bisherige Wert ausdrücklich festgeschrieben.
+    * `use_policy` wahr oder fehlend: Hier galten diese Felder NICHT (die
+      Richtlinie entschied). Künftig wären sie eine Wahl — darum werden solche
+      eingefrorenen Kopien entfernt.
+
+    ⚠️ Nur als Migration, nicht bei jedem Start: Danach ist ein fehlendes Feld
+    bei use_policy=false eine gewollte „folgt dem Default"-Wahl.
+    """
+    cfg = data.get("MAILBOX_CONFIG")
+    if not isinstance(cfg, dict):
+        return data
+    neu: dict = {}
+    geaendert = 0
+    for key, eintrag in cfg.items():
+        if not isinstance(eintrag, dict):
+            neu[key] = eintrag
+            continue
+        e = dict(eintrag)
+        if not bool(e.get("use_policy", True)):
+            e.setdefault("template", "default")
+            e.setdefault("min_template", "")
+            e.setdefault("oof_template", "")
+        else:
+            for feld in ("template", "min_template", "oof_template"):
+                e.pop(feld, None)
+        if e != eintrag:
+            geaendert += 1
+        neu[key] = e
+    data["MAILBOX_CONFIG"] = neu
+    if geaendert:
+        log.info("settings_store: Vorlagenwahl entkoppelt — %d Postfach-Eintrag/Einträge "
+                 "auf ausdrückliche Wahl umgestellt", geaendert)
+    return data
+
+
 # Ordered list of (target_version, migration_fn). Each fn receives the full
 # settings dict and returns the migrated dict. Append new entries as the
 # schema evolves — never remove, reorder, or renumber existing ones, since a
@@ -563,6 +612,7 @@ _MIGRATIONS: list[tuple[int, Callable[[dict], dict]]] = [
     (1, _migrate_v0_to_v1),
     (2, _migrate_v1_to_v2),
     (3, _migrate_v2_to_v3),
+    (4, _migrate_v3_to_v4),
 ]
 
 

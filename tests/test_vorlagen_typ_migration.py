@@ -141,8 +141,19 @@ def test_bereinige_entfernt_felder_bei_use_policy_true(monkeypatch):
     n = vorlagen_typ.bereinige_eingefrorene_vorlagen()
     assert n == 1
     neu = geschrieben["MAILBOX_CONFIG"]["guid1"]
-    assert "banner_template" not in neu and "oof_template" not in neu
+    assert "banner_template" not in neu
     assert neu["sig"] is True and neu["known_addresses"] == ["a@x.de"]  # Rest bleibt
+    # Wahl-Slots (sig/min/oof) sind seit v1.9.113 Nutzerwahl und gelten auch bei
+    # use_policy=true — der bei jedem Start laufende Aufräumer darf sie NIE löschen.
+    assert neu["oof_template"] == "O"
+
+
+def test_bereinige_laesst_nutzerwahl_bei_use_policy_true_stehen(monkeypatch):
+    cfg = {"g": {"sig": True, "use_policy": True, "template": "Eigene",
+                 "min_template": "", "oof_template": "Urlaub"}}
+    geschrieben = _store(monkeypatch, cfg)
+    assert vorlagen_typ.bereinige_eingefrorene_vorlagen() == 0
+    assert geschrieben == {}
 
 
 def test_bereinige_laesst_use_policy_false_in_ruhe(monkeypatch):

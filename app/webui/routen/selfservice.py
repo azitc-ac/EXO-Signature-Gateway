@@ -23,6 +23,7 @@ import signature_engine
 import mailbox_match
 import graph_client
 import abwesenheit
+import policies as _policies
 from webui.deps import templates, log, _gateway_name, _require_self
 
 router = APIRouter()
@@ -34,13 +35,19 @@ def _freigeschaltet() -> bool:
     return settings_store.get("SELF_SERVICE_ENABLED") is True
 
 
+STANDARD = _policies.STANDARD_WAHL   # „folgt dem Standard" — EINE Quelle in policies.py
+
+# Wahl-Slot → Vorlagen-Art (Antwort-Signatur wählt aus den Signaturen).
+_SLOT_ART = {"sig": "signatur", "min": "signatur", "oof": "oof"}
+
+
 def _darf_vorlagen_waehlen(email: str) -> bool:
-    """Darf dieser Nutzer seine OOF-/Signaturvorlage selbst WÄHLEN? Standard: NEIN.
+    """Darf dieser Nutzer überhaupt Vorlagen selbst WÄHLEN? Standard: NEIN.
 
     Freischaltbar pro Postfach (`MAILBOX_CONFIG[...]["self_templates"]=true`) ODER
-    pro interner Gruppe (`SELF_TEMPLATE_GROUPS`). An/Aus der Abwesenheit und der
-    Zeitraum sind davon unabhängig — nur die Vorlagenwahl ist gated. Server-seitig
-    durchgesetzt, nie dem Client geglaubt."""
+    pro interner Gruppe (`SELF_TEMPLATE_GROUPS`). WELCHE Kategorien dann wählbar
+    sind, regelt `_waehlbar()`. An/Aus der Abwesenheit und der Zeitraum sind davon
+    unabhängig. Server-seitig durchgesetzt, nie dem Client geglaubt."""
     mb_all = settings_store.get("MAILBOX_CONFIG") or {}
     sender_cfg = mailbox_match.match_sender(mb_all, email)
     if sender_cfg.get("self_templates") is True:
@@ -55,16 +62,49 @@ def _darf_vorlagen_waehlen(email: str) -> bool:
     return False
 
 
+def _waehlbar(email: str) -> dict[str, bool]:
+    """{slot: darf wählen} für sig/min/oof — Postfach/Gruppe freigeschaltet UND die
+    Kategorie betreiberweit in `SELF_TEMPLATE_KATEGORIEN` (z.B. Signatur frei,
+    Abwesenheit fest)."""
+    darf = _darf_vorlagen_waehlen(email)
+    kat = settings_store.get("SELF_TEMPLATE_KATEGORIEN") or []
+    return {slot: bool(darf and slot in kat) for slot in _SLOT_ART}
+
+
+def _wahl_ins_eintrag(eintrag: dict, wahl, waehlbar: dict, by_kind: dict) -> None:
+    """Schreibt die Vorlagenwahl des Nutzers in seinen Postfach-Eintrag (in place).
+
+    Nur freigegebene Kategorien (`waehlbar`); nicht geschickte bleiben unverändert.
+    STANDARD → Feld entfernen (folgt Gruppe/global), "" → ausdrücklich keine
+    (nicht bei der Signatur), sonst eine Vorlage der PASSENDEN Art — sonst 400:
+    ein Nutzer könnte per Hand z.B. einen Disclaimer oder eine Nutzer-Mail als
+    Signatur eintragen.
+
+    ⚠️ `use_policy` wird hier NIE angefasst. Es steuert seit v1.9.113 nur noch
+    Banner/Disclaimer (Firma). Bis dahin setzte eine Signaturwahl es auf false und
+    nahm dem Postfach damit still Banner und Disclaimer der Richtlinie.
+    """
+    if not isinstance(wahl, dict):
+        raise HTTPException(400, "Ungültige Vorlagenwahl")
+    for slot, art in _SLOT_ART.items():
+        if not waehlbar.get(slot) or slot not in wahl:
+            continue
+        wert = wahl.get(slot)
+        wert = wert.strip() if isinstance(wert, str) else STANDARD
+        feld = _policies.SLOT_FELD[slot]
+        if wert == STANDARD or (slot == "sig" and not wert):
+            eintrag.pop(feld, None)
+        elif wert == "" or wert in by_kind.get(art, []):
+            eintrag[feld] = wert
+        else:
+            raise HTTPException(400, f"Unbekannte Vorlage: {wert}")
+
+
 def _effektive_vorlagen(email: str) -> tuple[str, str]:
     """(oof_template, sig_template), die dem Postfach aktuell ZUGEWIESEN sind — für
     Vorbelegung und Vorschau, wenn der Nutzer nicht selbst wählen darf."""
-    import policies as _pol
-    mb_all = settings_store.get("MAILBOX_CONFIG") or {}
-    sender_cfg = mailbox_match.match_sender(mb_all, email)
-    oof = abwesenheit.oof_vorlage_fuer(email, mb_all, sender_cfg)
-    pol, use_pol = _pol.resolve_policies(email, mb_all, sender_cfg)
-    sig = (pol.get("sig") or "default") if use_pol else (sender_cfg.get("template") or "default")
-    return oof, (sig or "default")
+    v = _policies.aufloesen(email)
+    return v["oof"], v["sig"]
 
 
 # Ankündigungs-Einstellungen schreiben: EINE Quelle in abwesenheit.py (Self + Admin).
@@ -135,19 +175,25 @@ async def self_context(email: str = Depends(_require_self)):
     """Aktueller Stand + Auswahlmöglichkeiten für das EIGENE Postfach."""
     key, cfg = _postfach(email)
     by_kind = signature_engine.templates_nach_art()
-    darf = _darf_vorlagen_waehlen(email)
+    waehlbar = _waehlbar(email)
     oof_eff, sig_eff = _effektive_vorlagen(email)
     ank = abwesenheit._ankuendigung_einstellungen(cfg)
+    std = _policies.standards(email)
     daten = {
         "email": email,
         "freigeschaltet": _freigeschaltet(),
-        "darf_vorlagen": darf,          # darf der Nutzer die Vorlagen selbst wählen?
-        "oof_template": oof_eff,         # aktuell zugewiesen/gewählt (Vorbelegung)
+        "darf_vorlagen": any(waehlbar.values()),
+        "waehlbar": waehlbar,            # {sig, min, oof: bool}
+        "oof_template": oof_eff,         # wirksam (für Vorschau/Anzeige)
         "sig_template": sig_eff,
-        # Auswahllisten nur, wenn die Wahl freigeschaltet ist — sonst gibt es nichts
-        # zu wählen (Standard), und die Oberfläche blendet die Dropdowns aus.
-        "oof_templates": by_kind.get("oof", []) if darf else [],
-        "sig_templates": by_kind.get("signatur", ["default"]) if darf else [],
+        # Je Wahl-Slot: der Standard, den das Postfach ohne eigene Wahl bekäme, und
+        # die eigene Wahl (STANDARD = keine eigene Wahl, "" = ausdrücklich keine).
+        "standard": {s: std[s] for s in _SLOT_ART},
+        "wahl": {s: (cfg.get(_policies.SLOT_FELD[s]) if _policies.hat_eigene_wahl(cfg, s) else STANDARD)
+                 for s in _SLOT_ART},
+        # Auswahllisten nur für freigegebene Kategorien.
+        "listen": {s: (by_kind.get(art, []) if waehlbar[s] else [])
+                   for s, art in _SLOT_ART.items()},
         "ooo": {"status": "disabled", "start": "", "ende": "",
                 "start_zeit": "09:00", "ende_zeit": "17:00", "ganztaegig": True},
         # Ankündigung künftiger Abwesenheiten: nur relevant, wenn die zugewiesene
@@ -187,12 +233,8 @@ async def _banner_disclaimer_html(email: str) -> tuple[str, str]:
     """(banner_html, disclaimer_html), die das Postfach TATSÄCHLICH bekäme — wie im
     Betrieb aufgelöst (Richtlinie bzw. Postfach-eigene Felder). Nicht nutzerwählbar;
     gehört aber in die Vorschau, damit sie vollständig ist."""
-    import policies as _pol
-    mb_all = settings_store.get("MAILBOX_CONFIG") or {}
-    sender_cfg = mailbox_match.match_sender(mb_all, email)
-    pol, use_pol = _pol.resolve_policies(email, mb_all, sender_cfg)
-    banner = ((pol.get("banner") or "") if use_pol else sender_cfg.get("banner_template", "")).strip()
-    disclaimer = ((pol.get("disclaimer") or "") if use_pol else sender_cfg.get("disclaimer_template", "")).strip()
+    v = _policies.aufloesen(email)
+    banner, disclaimer = v["banner"], v["disclaimer"]
     if not banner and not disclaimer:
         return "", ""
     user_data = await graph_client.get_user(email)
@@ -255,28 +297,16 @@ async def self_save(request: Request, email: str = Depends(_require_self)):
     #    (b) die Ankündigungs-Einstellungen (an/aus, Umfang, privat, extern) — die
     #        sind unabhängig von der Vorlagenwahl, denn die Abwesenheit selbst darf
     #        der Nutzer ohnehin steuern.
+    #    use_policy bleibt unberührt — siehe _wahl_ins_eintrag.
     key, _cfg = _postfach(email)
     voll = settings_store.get("MAILBOX_CONFIG") or {}
     eintrag = dict(voll.get(key, {}))
-    darf = _darf_vorlagen_waehlen(email)
-    if darf:
-        oof_tpl = (body.get("oof_template") or "").strip()
-        sig_tpl = (body.get("sig_template") or "").strip()
-        eintrag["use_policy"] = False
-        if oof_tpl:
-            eintrag["oof_template"] = oof_tpl
-        else:
-            eintrag.pop("oof_template", None)
-        if sig_tpl and sig_tpl != "default":
-            eintrag["template"] = sig_tpl
-        elif sig_tpl == "default":
-            eintrag.pop("template", None)
-    else:
-        # Keine Wahl erlaubt → zugewiesene OOF-Vorlage nehmen, nicht überschreiben.
-        oof_tpl, _sig = _effektive_vorlagen(email)
+    _wahl_ins_eintrag(eintrag, body.get("wahl") or {}, _waehlbar(email),
+                      signature_engine.templates_nach_art())
     _ankuendigung_ins_eintrag(eintrag, body.get("announce") or {})
     voll[key] = eintrag
     settings_store.update({"MAILBOX_CONFIG": voll})
+    oof_tpl, _sig = _effektive_vorlagen(email)
 
     # 2) Abwesenheit bei Exchange setzen (Status + Zeitraum + korrekt gerenderter
     #    Text), damit es sofort wirkt — nicht erst beim nächsten Poll.

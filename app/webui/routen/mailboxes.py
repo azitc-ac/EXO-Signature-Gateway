@@ -31,6 +31,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
 import config
+import policies as _pol
 import settings_store
 
 from webui.deps import (
@@ -116,11 +117,14 @@ async def api_get_mailboxes(refresh: bool = False, _=Depends(_require_admin)):
             "type": u.get("type", "user"),
             "sig": cfg.get("sig", False),
             "smime": cfg.get("smime", False),
-            "template": cfg.get("template", "default"),
-            "min_template": cfg.get("min_template", ""),
+            # Wahl-Slots roh: None = keine eigene Wahl (folgt dem Standard),
+            # "" = ausdrücklich keine. Der Standard steht in "standard".
+            "template": cfg.get("template"),
+            "min_template": cfg.get("min_template"),
             "banner_template": cfg.get("banner_template", ""),
             "disclaimer_template": cfg.get("disclaimer_template", ""),
-            "oof_template": cfg.get("oof_template", ""),
+            "oof_template": cfg.get("oof_template"),
+            "standard": _pol.standards(email, config_map),
             "addin_templates": cfg.get("addin_templates", []),
             "use_policy": cfg.get("use_policy", True),
             "health_overall": h.get("overall"),
@@ -140,11 +144,14 @@ async def api_get_mailboxes(refresh: bool = False, _=Depends(_require_admin)):
                 "type": "user",
                 "sig": cfg.get("sig", False),
                 "smime": cfg.get("smime", False),
-                "template": cfg.get("template", "default"),
-                "min_template": cfg.get("min_template", ""),
+                # Wahl-Slots roh: None = keine eigene Wahl (folgt dem Standard),
+                # "" = ausdrücklich keine. Der Standard steht in "standard".
+                "template": cfg.get("template"),
+                "min_template": cfg.get("min_template"),
                 "banner_template": cfg.get("banner_template", ""),
                 "disclaimer_template": cfg.get("disclaimer_template", ""),
-                "oof_template": cfg.get("oof_template", ""),
+                "oof_template": cfg.get("oof_template"),
+                "standard": _pol.standards(cemail, config_map),
                     "addin_templates": cfg.get("addin_templates", []),
                 "use_policy": cfg.get("use_policy", True),
                 "health_overall": h.get("overall"),
@@ -333,33 +340,36 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
         smime = bool(m.get("smime", False))
         if not (sig or smime):
             continue    # both off → passthrough by default, not stored
-        template = (m.get("template") or "default").strip()
-        min_template = (m.get("min_template") or "").strip()
         banner_template = (m.get("banner_template") or "").strip()
         disclaimer_template = (m.get("disclaimer_template") or "").strip()
-        oof_template = (m.get("oof_template") or "").strip()
         addin_tpl = m.get("addin_templates", [])
         use_policy = bool(m.get("use_policy", True))
         entry: dict = {"sig": sig, "smime": smime, "use_policy": use_policy}
-        # Postfach-eigene Vorlagenfelder NUR speichern, wenn das Postfach den
-        # Richtlinien NICHT folgt. Bei use_policy=true sind diese Dropdowns in der
-        # UI ausgegraut und zeigen den Richtlinien-Wert; schriebe man ihn mit, fröre
-        # man eine Kopie der Richtlinie ins Postfach ein — unsichtbar, bis jemand
-        # die Richtlinien-Übernahme abschaltet und plötzlich ein veralteter Wert
-        # aktiv wird. Bei use_policy=true entscheidet allein die Richtlinie (für
-        # Signatur/Banner/Disclaimer/Abwesenheit UND Add-in, siehe
-        # addin.py:api_addin_templates und policies.resolve_policies).
+        # Wahl-Slots (Signatur, Antwort-Signatur, Abwesenheit) gelten unabhängig
+        # von use_policy (policies.py): STANDARD_WAHL → kein Feld (folgt Gruppe/
+        # global), "" → ausdrücklich keine, sonst die Vorlage. Fehlt der Schlüssel
+        # in der Anfrage ganz, bleibt die bisherige Wahl (Übernahme unten).
+        _ohne_angabe: list[str] = []
+        for _slot in _pol.WAHL_SLOTS:
+            _feld = _pol.SLOT_FELD[_slot]
+            if _feld not in m:
+                _ohne_angabe.append(_feld)
+                continue
+            _wert = m.get(_feld)
+            _wert = _wert.strip() if isinstance(_wert, str) else _pol.STANDARD_WAHL
+            if _wert == _pol.STANDARD_WAHL or (_slot == "sig" and not _wert):
+                continue
+            entry[_feld] = _wert
+        # Richtlinien-Slots (Banner, Disclaimer, Add-in-Liste) NUR speichern, wenn
+        # das Postfach den Richtlinien NICHT folgt. Bei use_policy=true sind diese
+        # Dropdowns ausgegraut und zeigen den Richtlinien-Wert; schriebe man ihn
+        # mit, fröre man eine Kopie der Richtlinie ins Postfach ein — unsichtbar,
+        # bis jemand die Übernahme abschaltet und ein veralteter Wert aktiv wird.
         if not use_policy:
-            if template and template != "default":
-                entry["template"] = template
-            if min_template:
-                entry["min_template"] = min_template
             if banner_template:
                 entry["banner_template"] = banner_template
             if disclaimer_template:
                 entry["disclaimer_template"] = disclaimer_template
-            if oof_template:
-                entry["oof_template"] = oof_template
             if addin_tpl == "*" or (isinstance(addin_tpl, list) and addin_tpl):
                 entry["addin_templates"] = addin_tpl
         mb = addr_to_mb.get(email)
@@ -381,7 +391,7 @@ async def api_save_mailboxes(body: dict, _=Depends(_require_admin)):
         _alt = vorher.get(key, {})
         for _f in ("ooo_calendar", "oof_announce", "oof_announce_mode",
                    "oof_announce_x", "oof_announce_privat", "oof_announce_extern",
-                   "self_templates"):
+                   "self_templates", *_ohne_angabe):
             if _f in _alt:
                 entry[_f] = _alt[_f]
         if key in config_map:    # two addresses of the same mailbox → OR the flags
@@ -476,6 +486,7 @@ async def mailboxes_page(request: Request, user: str = Depends(_require_admin)):
                  # Die OOF-/Kalender-Betreiberschalter sind auf /abwesenheit umgezogen.
                  "self_service_enabled": settings_store.get("SELF_SERVICE_ENABLED") is True,
                  "self_template_groups": settings_store.get("SELF_TEMPLATE_GROUPS") or [],
+                 "self_template_kategorien": settings_store.get("SELF_TEMPLATE_KATEGORIEN") or [],
                  "internal_group_names": sorted((settings_store.get("INTERNAL_GROUPS") or {}).keys()),
                  "group_vars": settings_store.get("GROUP_VARS") or {},
                  # Namen der definierten eigenen Variablen — im Gruppen-Dialog nur

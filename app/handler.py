@@ -945,12 +945,12 @@ class SignatureHandler:
 
             # ── Normal outbound: inject signature ─────────────────────────────
             user_data = await graph_client.get_user(sender)
-            # Richtlinien-Auflösung (sig/min/banner/disclaimer/oof) — gemeinsam mit
-            # der zentralen Abwesenheitsnotiz, damit keine zwei Gruppenlogiken
-            # driften (siehe policies.resolve_policies).
+            # Vorlagen-Auflösung (sig/min/banner/disclaimer/oof) — EINE Quelle für
+            # Hot-Path, Abwesenheit, Self-Service, Add-in und Vorschau (siehe
+            # policies.aufloesen: Wahl-Slots Postfach > Gruppe > global, Banner/
+            # Disclaimer über use_policy).
             import policies as _policies_mod
-            _policies, _use_pol = _policies_mod.resolve_policies(
-                sender, _mailbox_cfg, _sender_cfg)
+            _vorlagen = _policies_mod.aufloesen(sender, _mailbox_cfg, _sender_cfg)
             _force_sig = False
 
             # Minimalsignatur bei Antworten: Hat der Absender in DIESEM Thread
@@ -997,8 +997,7 @@ class SignatureHandler:
                 # in beiden Fällen bleibt der volle Block ein zweites Mal aus,
                 # und genau das ist gemeint.
                 stats.increment("stapel_verhindert")
-                _min_tpl = ((_policies.get("min") or "") if _use_pol
-                            else (_sender_cfg.get("min_template") or "")).strip()
+                _min_tpl = _vorlagen["min"]
                 # ⚠️ BEIDE Zeilen tragen dasselbe Merkmal `SIG-KETTE:`. Sonst
                 # haengt die Nachprüfbarkeit an der Konfiguration: Wer eine
                 # Antwort-Signatur hinterlegt hat, sieht die eine Zeile nie,
@@ -1016,15 +1015,13 @@ class SignatureHandler:
                              "Signatur für %s", sender)
 
             if not suppress_html_sig and not _force_sig:
-                template_name = (_policies.get("sig") or "default") if _use_pol \
-                    else (_sender_cfg.get("template") or "default")
+                template_name = _vorlagen["sig"]
 
             if suppress_html_sig:
                 sig_html, sig_txt = "", ""
             else:
                 sig_html, sig_txt = signature_engine.render(user_data, template_name=template_name)
-                _banner_tpl = ((_policies.get("banner") or "") if _use_pol
-                               else _sender_cfg.get("banner_template", "")).strip()
+                _banner_tpl = _vorlagen["banner"]
                 # Banner-Kampagne (Zeitfenster + optionale Zielgruppe) hat Vorrang:
                 # ist zum Sendezeitpunkt eine passende Kampagne aktiv, gewinnt ihr
                 # Banner über das der Richtlinie/des Postfachs. Unabhängig von
@@ -1046,8 +1043,7 @@ class SignatureHandler:
                     _banner_html, _ = signature_engine.render(user_data, template_name=_banner_tpl)
                     if _banner_html:
                         sig_html = sig_html + _banner_html
-                _disclaimer_tpl = ((_policies.get("disclaimer") or "") if _use_pol
-                                   else _sender_cfg.get("disclaimer_template", "")).strip()
+                _disclaimer_tpl = _vorlagen["disclaimer"]
                 if _disclaimer_tpl:
                     _disclaimer_html, _ = signature_engine.render(user_data, template_name=_disclaimer_tpl)
                     if _disclaimer_html:

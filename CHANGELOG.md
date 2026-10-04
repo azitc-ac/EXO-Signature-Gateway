@@ -5,6 +5,49 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.113 — 2026-10-05 — Vorlagen: Signatur und Abwesenheit sind Nutzerwahl, Banner und Disclaimer Richtlinie
+
+Die Option **Vorlagen-Richtlinien** je Postfach koppelte bisher alle Vorlagen:
+Wer einem Postfach eine eigene Signatur gab — in der Postfach-Tabelle oder im
+Self-Service —, musste die Option abschalten und verlor damit **auch Banner und
+Disclaimer der Richtlinie**. Im Self-Service geschah das still: Eine Signaturwahl
+setzte die Option automatisch aus.
+
+Das Modell ist jetzt getrennt:
+
+* **Signatur, Antwort-Signatur, Abwesenheitsnotiz** sind eine Wahl je Postfach.
+  Ohne eigene Wahl gilt der **Standard**: die Gruppen-Regel, sonst die
+  gateway-weite Vorgabe im Abschnitt *Standards und Richtlinien*. In der
+  Postfach-Tabelle steht dafür die Auswahl „Standard (…)"; ein Postfach mit
+  dieser Auswahl wandert mit, wenn du den Standard änderst. „— keine —" ist eine
+  ausdrückliche Wahl.
+* **Banner und Disclaimer** (und die Add-in-Auswahl) bleiben verbindliche
+  Richtlinie. Die Option *Vorlagen-Richtlinien* betrifft nur noch sie — wer sie
+  für ein Postfach abschaltet, gibt ihm eigene Banner/Disclaimer.
+
+**Self-Service:** Unter *Self-Service* legst du mit den neuen Schaltern
+*Wählbare Kategorien* fest, was freigeschaltete Nutzer wählen dürfen: Signatur,
+Antwort-Signatur, Abwesenheitsnotiz (Vorgabe: Signatur und Abwesenheitsnotiz —
+wie bisher). Die Antwort-Signatur ist neu wählbar. Eine Wahl lässt Banner und
+Disclaimer unberührt; zulässig sind nur Vorlagen der passenden Art.
+
+**Umstellung des Bestands:** Beim ersten Start wird die Konfiguration einmalig
+so umgeschrieben, dass jedes Postfach **genau die Vorlagen behält, die es bisher
+bekam**. Postfächer ohne Richtlinien-Option bekommen ihre bisherige Signatur
+ausdrücklich eingetragen (ein fehlender Eintrag hiess bisher „default" bzw.
+„keine", künftig hiesse er „Standard"); bei Postfächern mit Richtlinien-Option
+werden wirkungslose Kopien alter Werte entfernt. Du musst nichts tun.
+
+Dabei auf dieselbe Auflösung umgestellt und damit behoben:
+
+* Der **Add-in-Abruf** einer Signatur wendete die Richtlinie nicht an: Bei aktiver
+  Richtlinie bot das Add-in alle Vorlagen an, wies die gewählte beim Abruf aber
+  ab und fiel auf das (oft leere) Postfach-Feld zurück.
+* Die **Live-Vorschau** im Baukasten zeigte bei aktiver Richtlinie nicht den
+  Banner/Disclaimer der Richtlinie, sondern ein wirkungsloses Postfach-Feld.
+* Der **Postfach-Check** prüfte die Signaturvorlage aus dem Postfach-Feld statt
+  der wirksamen Vorlage.
+
 ## v1.9.112 — 2026-10-04 — Abwesenheits-Einstellungen gebündelt + Speicher-Verlust behoben
 
 Die OOF-/Kalender-Betreibereinstellungen (zentrale Abwesenheitsnotiz ein/aus,

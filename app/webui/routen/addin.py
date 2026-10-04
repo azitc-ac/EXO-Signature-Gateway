@@ -44,6 +44,28 @@ from webui.hilfen import _addin_base_url
 router = APIRouter()
 
 
+def _addin_cfg(email: str) -> dict:
+    """Wirksame Add-in-Sicht eines Postfachs — EINE Quelle für beide Endpunkte.
+
+    `template`        = Standard-Signatur wie im Betrieb (policies: Postfach-Wahl >
+                        Gruppe > global; NICHT das rohe Feld, das ohne eigene Wahl fehlt).
+    `addin_templates` = Freigabeliste: Richtlinien-Slot `addin` bei use_policy,
+                        sonst das Postfach-eigene Feld.
+
+    ⚠️ Bis v1.9.112 wendete nur /api/addin/templates die Richtlinie an,
+    /api/addin/signature nicht — eine dort angebotene Vorlage wurde beim Abruf
+    abgewiesen und fiel auf das rohe (oft leere) Feld zurück.
+    """
+    import mailbox_match
+    import policies
+    mb_all = settings_store.get("MAILBOX_CONFIG") or {}
+    cfg = dict(mailbox_match.match_sender(mb_all, email) or {})
+    if cfg.get("use_policy", True):
+        cfg["addin_templates"] = (settings_store.get("TEMPLATE_POLICIES") or {}).get("addin", "*")
+    cfg["template"] = policies.vorlage_fuer(email, "sig", mb_all, cfg)
+    return cfg
+
+
 def _addin_allowed_templates(email: str, mailbox_cfg: dict) -> list[str]:
     """Return sorted list of templates the user may access in the add-in.
 
@@ -345,9 +367,8 @@ async def api_addin_signature(email: str, template: str = "", user: str = Depend
         return JSONResponse({"marked_html": "", "preview_html": ""})
 
     import mail_processor
-    import mailbox_match
-    mailbox_cfg = mailbox_match.match_sender(settings_store.get("MAILBOX_CONFIG") or {}, email)
-    default_template = mailbox_cfg.get("template") if isinstance(mailbox_cfg, dict) else None
+    mailbox_cfg = _addin_cfg(email)
+    default_template = mailbox_cfg["template"]
 
     # Use requested template only if it's in the user's allowed set
     allowed = _addin_allowed_templates(email, mailbox_cfg)
@@ -381,16 +402,9 @@ async def api_addin_signature(email: str, template: str = "", user: str = Depend
 async def api_addin_templates(email: str, user: str = Depends(_check_auth)):
     """Return list of templates available for this user in the add-in."""
     email = (email or "").strip().lower()
-    import mail_processor
-    import mailbox_match
-    mailbox_cfg = mailbox_match.match_sender(settings_store.get("MAILBOX_CONFIG") or {}, email)
-    if mailbox_cfg.get("use_policy", True):
-        policies = settings_store.get("TEMPLATE_POLICIES") or {}
-        mailbox_cfg = dict(mailbox_cfg)
-        mailbox_cfg["addin_templates"] = policies.get("addin", "*")
-        mailbox_cfg["template"] = policies.get("sig") or mailbox_cfg.get("template") or "default"
+    mailbox_cfg = _addin_cfg(email)
     allowed = _addin_allowed_templates(email, mailbox_cfg)
-    default_template = (mailbox_cfg.get("template") if isinstance(mailbox_cfg, dict) else None) or "default"
+    default_template = mailbox_cfg["template"]
     return JSONResponse({"templates": allowed, "default": default_template})
 
 

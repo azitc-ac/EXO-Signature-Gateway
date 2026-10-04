@@ -54,8 +54,16 @@ def mit_konfiguriertem_banner(monkeypatch, tmp_path):
 
     def gefaelscht(schluessel, *a, **kw):
         if schluessel == "MAILBOX_CONFIG":
-            return {"erika@example.org": {"banner_template": "Werbung",
-                                          "disclaimer_template": "Recht"}}
+            # use_policy=false: Banner/Disclaimer sind die Postfach-Ausnahme.
+            return {"erika@example.org": {"use_policy": False,
+                                          "banner_template": "Werbung",
+                                          "disclaimer_template": "Recht"},
+                    "max@example.org": {"use_policy": True,
+                                        "banner_template": "Recht"}}
+        if schluessel == "TEMPLATE_POLICIES":
+            return {"sig": "default", "banner": "Werbung"}
+        if schluessel in ("CUSTOM_POLICIES", "INTERNAL_GROUPS"):
+            return {} if schluessel == "INTERNAL_GROUPS" else []
         return echt(schluessel, *a, **kw)
 
     monkeypatch.setattr(settings_store, "get", gefaelscht)
@@ -77,6 +85,15 @@ def test_ohne_kennzeichen_gilt_die_postfach_konfiguration(client, mit_konfigurie
     assert d["banner_template"] == "Werbung"
     assert d["disclaimer_template"] == "Recht"
     assert "BANNER" in d["banner_html"]
+
+
+def test_ohne_kennzeichen_gilt_bei_richtlinie_der_richtlinien_banner(client, mit_konfiguriertem_banner):
+    """Folgt das Postfach der Richtlinie, zeigt die Live-Vorschau DEREN Banner —
+    nicht ein (wirkungsloses) Feld im Postfach-Eintrag. Bis v1.9.112 las die
+    Vorschau das rohe Feld und zeigte hier „Recht" statt „Werbung"."""
+    d = _hole(client, email="max@example.org", template="default")
+    assert d["banner_template"] == "Werbung"
+    assert d["disclaimer_template"] == ""
 
 
 def test_mit_kennzeichen_bedeutet_leer_wirklich_keiner(client, mit_konfiguriertem_banner):
