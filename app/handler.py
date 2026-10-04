@@ -1036,7 +1036,7 @@ class SignatureHandler:
                         settings_store.get("MAILBOX_CONFIG") or {}, sender)
                     _kmp = banner_campaigns.aktive_kampagne(
                         _campaigns, _dtk.now(_tzk.utc), _ck,
-                        settings_store.get("INTERNAL_GROUPS") or {})
+                        __import__("gruppen").interne_gruppen())
                     if _kmp:
                         _banner_tpl = _kmp
                 if _banner_tpl:

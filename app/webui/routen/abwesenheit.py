@@ -13,7 +13,7 @@ ist die nächste Stufe; hier steht zunächst die Übersicht + die Vorgaben.
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 import abwesenheit
 import graph_client
@@ -38,6 +38,9 @@ def _postfach_key(email: str) -> tuple[str, dict]:
 
 @router.get("/abwesenheit", response_class=HTMLResponse)
 async def abwesenheit_page(request: Request, _user: str = Depends(_require_admin)):
+    # Funktion aus → kein versteckter Zugang über die URL; zum Schalter führen.
+    if not abwesenheit.funktion_aktiv():
+        return RedirectResponse("/setup#step-mode", status_code=303)
     return templates.TemplateResponse(
         request=request, name="abwesenheit.html",
         context={

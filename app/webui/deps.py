@@ -101,6 +101,19 @@ def _smtp_relay_aktiv() -> bool:
 templates.env.globals["smtp_relay_aktiv"] = _smtp_relay_aktiv
 
 
+def _abwesenheit_aktiv() -> bool:
+    """Ob „Zentrale Abwesenheiten verwalten" an ist — steuert Menüpunkt, Spalte
+    und Standard-Zeile. Jinja-Global wie `smtp_relay_aktiv`, frisch je Aufruf."""
+    try:
+        import abwesenheit
+        return abwesenheit.funktion_aktiv()
+    except Exception:                                   # noqa: BLE001
+        return False                                    # nie die Seite kippen
+
+
+templates.env.globals["abwesenheit_aktiv"] = _abwesenheit_aktiv
+
+
 def _bypass_gemeldet() -> dict | None:
     """Fürs Banner: geht ausgehende Post gerade ohne Signatur raus? Zwei Quellen —
     der Heartbeat des Wächters (`bypass_active`) UND die unabhängige EXO-

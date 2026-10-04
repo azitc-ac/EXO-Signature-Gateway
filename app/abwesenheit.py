@@ -840,11 +840,27 @@ def _persist_last(summary: dict) -> None:
     settings_store.force_update({_LAST_KEY: {**summary, "ts": datetime.now(timezone.utc).isoformat()}})
 
 
+def funktion_aktiv() -> bool:
+    """Ist die Funktion „Zentrale Abwesenheiten verwalten" eingeschaltet
+    (Assistent → Modus & Funktionen)? Steuert Menü, Spalte und Self-Service."""
+    return settings_store.get("ABWESENHEIT_AKTIV") is True
+
+
+def zentral_aktiv() -> bool:
+    """Läuft der zentrale Abgleich (Text normalisieren, Kalender-Automatik)?
+
+    EINE Prüfung für Scheduler, Poll, Tagesbericht und Übersicht: Funktion an UND
+    zentrale Notiz an. Ist die Funktion aus, ist ihre Oberfläche ausgeblendet —
+    ein Abgleich liefe dann unsichtbar weiter, ohne dass jemand ihn abschalten kann.
+    """
+    return funktion_aktiv() and bool(settings_store.get("OOO_ENABLED"))
+
+
 async def poll_alle() -> dict:
     """Alle aktivierten Postfächer normalisieren. Gibt eine Zählung je Ergebnis
     zurück (mit Bezugsgröße für den Tagesbericht)."""
     zaehlung = {k: 0 for k in (GESETZT, UNVERAENDERT, KEINE_VORLAGE, KEIN_ZUGRIFF, FEHLER)}
-    if not settings_store.get("OOO_ENABLED"):
+    if not zentral_aktiv():
         return {"aktiv": False, **zaehlung, "gesamt": 0}
 
     mailbox_cfg = settings_store.get("MAILBOX_CONFIG") or {}

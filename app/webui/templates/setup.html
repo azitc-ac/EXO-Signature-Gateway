@@ -402,6 +402,27 @@
       </p>
     </div>
 
+    <!-- ── Zentrale Abwesenheiten ───────────────────────────────────────────
+         Funktionsschalter wie das Relay: blendet Menüpunkt „Abwesenheit", die
+         Abwesenheits-Spalte der Postfächer und die Abwesenheit im Self-Service
+         ein. Aus → auch kein Hintergrund-Abgleich (abwesenheit.zentral_aktiv). -->
+    <div style="border-top:1px solid #e2e8f0;padding-top:12px;margin-bottom:12px">
+      <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer">
+        <input type="checkbox" id="abwesenheit-wizard" style="margin-top:3px;flex-shrink:0"
+          {% if s.ABWESENHEIT_AKTIV %}checked{% endif %}>
+        <span style="font-size:13px">
+          <strong>Zentrale Abwesenheiten verwalten</strong>
+          <span style="color:#888;font-weight:normal"> — einheitliche Abwesenheitsnotizen aus
+          Vorlagen, Übersicht wer abwesend ist, Abwesenheit je Nutzer setzen</span>
+        </span>
+      </label>
+      <p class="hint" style="margin:6px 0 0 26px">
+        Blendet den Menüpunkt <strong>Abwesenheit</strong> und die Spalte <em>Abwesenheit</em>
+        auf der Seite Postfächer ein. Braucht die Graph-Berechtigung
+        <code>MailboxSettings.ReadWrite</code>.
+      </p>
+    </div>
+
     <div id="mode-result" style="display:none;margin-bottom:12px"></div>
     <div class="actions">
       <button class="btn primary" onclick="saveModeSelection()">Modus speichern &amp; Assistent anpassen</button>
@@ -1726,10 +1747,15 @@ async function saveModeSelection() {
   const smimeCb = document.getElementById('smime-enabled-wizard');
   const smimeAn = !!(smimeCb && smimeCb.checked && mode !== 'graph');
 
+  // Abwesenheiten: Funktionsschalter am selben Knopf (Speichern-Regel 1).
+  const abwCb = document.getElementById('abwesenheit-wizard');
+  const abwAn = !!(abwCb && abwCb.checked);
+
   const resp = await fetch('/settings', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({REINJECT_MODE: mode, SMTP_RELAY_ENABLED: relayAn, SMIME_ENABLED: smimeAn}),
+    body: JSON.stringify({REINJECT_MODE: mode, SMTP_RELAY_ENABLED: relayAn, SMIME_ENABLED: smimeAn,
+                          ABWESENHEIT_AKTIV: abwAn}),
   });
 
   if (resp.ok) {

@@ -229,7 +229,8 @@ def test_wahl_fremder_art_wird_abgewiesen():
 def test_waehlbar_je_kategorie(monkeypatch):
     from webui.routen import selfservice as sv
     mb = {"g1": {**_MB["g1"], "self_templates": True}}
-    data = {"MAILBOX_CONFIG": mb, "SELF_TEMPLATE_KATEGORIEN": ["oof"], "INTERNAL_GROUPS": {}}
+    data = {"MAILBOX_CONFIG": mb, "SELF_TEMPLATE_KATEGORIEN": ["oof"], "INTERNAL_GROUPS": {},
+            "ABWESENHEIT_AKTIV": True}
     monkeypatch.setattr(settings_store, "get", lambda k, d=None: data.get(k, d))
     assert sv._waehlbar("a@x.de") == {"sig": False, "min": False, "oof": True}
     data["MAILBOX_CONFIG"] = _MB          # Postfach nicht freigeschaltet → nichts

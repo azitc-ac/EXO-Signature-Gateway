@@ -211,7 +211,7 @@ async function ankerAnwenden() {
           </th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">Banner</th>
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">Disclaimer</th>
-          <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">Abwesenheit</th>
+          {% if abwesenheit_aktiv() %}<th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">Abwesenheit</th>{% endif %}
           <th style="text-align:center;padding:6px 8px;font-weight:600;color:#555;width:130px">Outlook Add-In</th>
         </tr>
       </thead>
@@ -322,8 +322,9 @@ async function ankerAnwenden() {
         </td>
         <td style="text-align:center;padding:6px 8px;color:#94a3b8;font-size:14px" title="Nicht löschbar">🔒</td>
       </tr>
-      <!-- Abwesenheit (OOO) -->
-      <tr style="border-bottom:1px solid #f0f0f0">
+      <!-- Abwesenheit (OOO) — bei ausgeschalteter Funktion nur VERBORGEN, nicht
+           entfernt: savePolicies liest das Feld und schriebe sonst "" (Standard weg). -->
+      <tr style="border-bottom:1px solid #f0f0f0" {% if not abwesenheit_aktiv() %}hidden{% endif %}>
         <td style="padding:6px 8px;font-size:12px;font-weight:500">
           Abwesenheit
           <span style="font-size:10px;font-weight:400;color:#94a3b8;display:block">Text der Out-of-Office-Antwort</span>
@@ -391,7 +392,7 @@ async function ankerAnwenden() {
   </p>
   <h3 style="font-size:12px;font-weight:600;color:#374151;margin:12px 0 4px">Wählbare Kategorien
     <span id="self-tpl-kat-result" style="font-size:12px;font-weight:400;margin-left:8px"></span></h3>
-  {% for kat, text in [("sig", "Signatur"), ("min", "Antwort-Signatur"), ("oof", "Abwesenheitsnotiz")] %}
+  {% for kat, text in [("sig", "Signatur"), ("min", "Antwort-Signatur"), ("oof", "Abwesenheitsnotiz")] if kat != "oof" or abwesenheit_aktiv() %}
   <div class="settings-row">
     <label class="checkbox-label">
       <input type="checkbox" class="self-tpl-kat" value="{{ kat }}" onchange="saveSelfTplKategorien()"
@@ -814,6 +815,8 @@ async function refreshMailboxStatus() {
 // „Standard (X)": kein eigener Wert, das Postfach folgt dem Gruppen- bzw.
 // globalen Default und wandert mit, wenn der Betreiber ihn ändert.
 var STANDARD_WAHL = '__standard__';
+// Funktion „Zentrale Abwesenheiten verwalten" (Assistent) — steuert die Spalte.
+var _abwesenheitAktiv = {{ abwesenheit_aktiv() | tojson }};
 function _buildWahlSelect(idx, klasse, kind, mb, slot, feld, leerText) {
   var sel = document.createElement('select');
   sel.className = klasse;
@@ -1189,7 +1192,7 @@ function renderMailboxTable(mailboxes) {
     tr.appendChild(tdMinSig);
     tr.appendChild(tdBanner);
     tr.appendChild(tdDisclaimer);
-    tr.appendChild(tdOof);
+    if (_abwesenheitAktiv) tr.appendChild(tdOof);
     tr.appendChild(tdAddin);
     tbody.appendChild(tr);
   });
@@ -1310,10 +1313,13 @@ async function saveMailboxes() {
       min_template: minSigSelects[i] ? minSigSelects[i].value : '',
       banner_template: bannerSelects[i] ? bannerSelects[i].value : '',
       disclaimer_template: disclaimerSelects[i] ? disclaimerSelects[i].value : '',
-      oof_template: oofSelects[i] ? oofSelects[i].value : '',
       addin_templates: addinTemplates,
       use_policy: policyBoxes[i] ? policyBoxes[i].checked : true,
     });
+    // Abwesenheits-Spalte nur bei eingeschalteter Funktion. Fehlt sie, bleibt der
+    // Schlüssel WEG — der Server übernimmt dann die bisherige Wahl. Ein '' hiesse
+    // „ausdrücklich keine" und löschte sie.
+    if (oofSelects[i]) payload[payload.length - 1].oof_template = oofSelects[i].value;
   });
   // ⚠️ Wird durch dieses Speichern eine Bestellung ausgelöst? Dann erst fragen.
   // Ohne diese Rückfrage wäre das automatische Bestellen eine stille Abbuchung:
@@ -1409,6 +1415,8 @@ var _groupVars = {{ group_vars | tojson }};  // {name: {var: wert, ...}} — Cus
 var _customVarNames = {{ custom_var_names | tojson }};  // definierte eigene Variablen (auswählbar)
 var _editingGroupRow = null; // TR-Element das gerade bearbeitet wird
 
+// Vordefinierte, berechnete Gruppe (gruppen.ALLE) — Name muss mit dem Server übereinstimmen.
+var GRUPPE_ALLE = {{ gruppe_alle | tojson }};
 function _groupNames() { return Object.keys(_groups); }
 
 function _renderGroupsTable() {
@@ -1431,6 +1439,24 @@ function _renderGroupsTable() {
     // unsichtbar). Ändert ein Modal den Zustand, ändert sich hier der Wert → die
     // Wache erkennt „noch nicht gespeichert".
     var _grpState = members.join(',') + '||' + JSON.stringify(_groupVars[name] || {});
+    if (name === GRUPPE_ALLE) {
+      // Vordefiniert und berechnet (gruppen.py): Mitglieder sind immer alle
+      // aktivierten Postfächer, auch neu hinzugekommene — weder umbenennbar noch
+      // löschbar, Mitglieder nicht von Hand pflegbar. Variablen gehen wie überall.
+      tr.innerHTML =
+        '<td style="padding:6px 8px;font-size:12px;font-weight:500">' +
+          '<input type="hidden" value="' + escAttr(_grpState) + '">' + esc(name) +
+          '<span style="display:block;font-size:10px;font-weight:400;color:#94a3b8">vordefiniert</span></td>' +
+        '<td style="padding:6px 8px;font-size:12px;color:#374151">' +
+          '<span>automatisch: ' + members.length + ' Postfach' + (members.length !== 1 ? 'fächer' : '') + '</span> ' +
+          '<button class="btn secondary" onclick="openVarsModal(this)" data-group="' + esc(name) + '" ' +
+            'style="font-size:11px;padding:1px 7px;margin-left:4px" ' +
+            'title="Custom-Variablen für alle Postfächer">Variablen (' +
+            Object.keys(_groupVars[name] || {}).length + ')</button></td>' +
+        '<td style="text-align:center;padding:6px 8px;color:#94a3b8;font-size:14px" title="Nicht löschbar">🔒</td>';
+      tbody.appendChild(tr);
+      return;
+    }
     tr.innerHTML =
       '<td style="padding:6px 8px">' +
         '<input type="hidden" value="' + escAttr(_grpState) + '">' +
@@ -1708,7 +1734,11 @@ function _renderCustomPoliciesTable() {
     tdApp.style.padding = '6px 8px';
     var appSel = document.createElement('select');
     appSel.style.cssText = 'font-size:12px;width:130px';
-    ['sig','min','banner','disclaimer','oof'].forEach(function(slot) {
+    // „Abwesenheit" nur bei eingeschalteter Funktion anbieten — eine bestehende
+    // Regel dieser Art bleibt aber sichtbar (sonst kippte sie beim Speichern um).
+    ['sig','min','banner','disclaimer','oof'].filter(function(slot) {
+      return slot !== 'oof' || _abwesenheitAktiv || pol.applies_to === 'oof';
+    }).forEach(function(slot) {
       var opt = document.createElement('option');
       opt.value = slot; opt.textContent = _APPLIES_TO_LABELS[slot];
       if (slot === pol.applies_to) opt.selected = true;

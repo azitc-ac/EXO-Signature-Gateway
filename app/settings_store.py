@@ -35,6 +35,11 @@ DEFAULTS: dict = {
     # Text kommt aus einer Vorlage der Art `oof`, zugewiesen über TEMPLATE_POLICIES
     # ["oof"] bzw. Gruppen (CUSTOM_POLICIES applies_to=oof). Siehe abwesenheit.py.
     "OOO_ENABLED": False,
+    # Funktion „Zentrale Abwesenheiten verwalten" (Assistent → Modus & Funktionen).
+    # Blendet Menüpunkt „Abwesenheit", die Abwesenheits-Spalte der Postfächer und
+    # die Abwesenheit im Self-Service ein. Aus → auch kein Hintergrund-Abgleich
+    # (abwesenheit.zentral_aktiv), damit nichts unsichtbar weiterläuft.
+    "ABWESENHEIT_AKTIV": False,
     # Abwesenheit automatisch aus dem Kalender aktivieren (opt-in): Termine mit
     # Status „Abwesend" (showAs=oof) ab OOO_CALENDAR_MIN_HOURS Dauer schalten die
     # native Abwesenheit für ihr Zeitfenster ein. Braucht Calendars.Read (Consent).
@@ -506,7 +511,7 @@ def purge_obsolete() -> list:
 # new DEFAULTS key does NOT need a migration — that's handled automatically by
 # the dict-merge in init(). Migrations run once, in order, and are recorded via
 # the internal "_SCHEMA_VERSION" key so they never re-run on an already-migrated file.
-SETTINGS_SCHEMA_VERSION = 4
+SETTINGS_SCHEMA_VERSION = 5
 
 
 def _migrate_v0_to_v1(data: dict) -> dict:
@@ -604,6 +609,32 @@ def _migrate_v3_to_v4(data: dict) -> dict:
     return data
 
 
+def _migrate_v4_to_v5(data: dict) -> dict:
+    """Schalter ABWESENHEIT_AKTIV eingeführt (Vorgabe aus).
+
+    Ohne diese Migration verschwänden auf Bestandsanlagen, die Abwesenheiten schon
+    nutzen, beim Update Menüpunkt und Spalte — und der Abgleich stünde still. Darum
+    an, sobald irgendein Merkmal der Nutzung vorliegt: zentrale Notiz an,
+    Kalender-Automatik an, eine Abwesenheitsvorlage als Standard, in einer
+    Gruppen-Regel oder an einem Postfach.
+    """
+    tp = data.get("TEMPLATE_POLICIES") or {}
+    cp = data.get("CUSTOM_POLICIES") or []
+    mc = data.get("MAILBOX_CONFIG") or {}
+    genutzt = bool(
+        data.get("OOO_ENABLED") or data.get("OOO_CALENDAR_AUTO")
+        or (isinstance(tp, dict) and (tp.get("oof") or "").strip())
+        or any(isinstance(p, dict) and p.get("applies_to") == "oof" for p in cp)
+        or any(isinstance(e, dict) and ((e.get("oof_template") or "").strip()
+                                        or e.get("ooo_calendar"))
+               for e in (mc.values() if isinstance(mc, dict) else []))
+    )
+    data["ABWESENHEIT_AKTIV"] = genutzt
+    log.info("settings_store: ABWESENHEIT_AKTIV=%s (Bestand %s)", genutzt,
+             "nutzt Abwesenheiten" if genutzt else "ohne Abwesenheiten")
+    return data
+
+
 # Ordered list of (target_version, migration_fn). Each fn receives the full
 # settings dict and returns the migrated dict. Append new entries as the
 # schema evolves — never remove, reorder, or renumber existing ones, since a
@@ -613,6 +644,7 @@ _MIGRATIONS: list[tuple[int, Callable[[dict], dict]]] = [
     (2, _migrate_v1_to_v2),
     (3, _migrate_v2_to_v3),
     (4, _migrate_v3_to_v4),
+    (5, _migrate_v4_to_v5),
 ]
 
 

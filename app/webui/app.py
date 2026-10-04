@@ -438,7 +438,8 @@ async def dashboard(request: Request, user: str = Depends(_check_auth)):
     # None = Funktion aus (dann keine Zeile). kein_zugriff>0 = stiller Ausfall
     # (fehlender Consent) → im Template rot. (CLAUDE.md Regel 8.)
     ooo_status = None
-    if settings_store.get("OOO_ENABLED"):
+    import abwesenheit as _abw
+    if _abw.zentral_aktiv():
         _ol = settings_store.get("_OOO_LAST") or {}
         ooo_status = {
             "aktiv": _ol.get("gesetzt", 0) + _ol.get("unveraendert", 0),

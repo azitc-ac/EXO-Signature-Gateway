@@ -5,6 +5,29 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.114 — 2026-10-05 — Abwesenheiten als zuschaltbare Funktion, vordefinierte Gruppe „Alle Postfächer"
+
+**Zentrale Abwesenheiten verwalten** ist jetzt ein Schalter im Einrichtungsassistenten
+unter *Modus & Funktionen*. Ist er an, erscheinen der Menüpunkt **Abwesenheit**, die
+Spalte *Abwesenheit* auf der Seite Postfächer, die Abwesenheit als Standard und als
+Gruppenregel sowie die Abwesenheits-Karten im Self-Service. Ist er aus, ist all das
+ausgeblendet. Dann läuft auch kein Abgleich der Abwesenheitstexte und keine
+Kalender-Automatik im Hintergrund weiter, und der Self-Service fasst die
+Abwesenheit bei Exchange nicht an. Bereits gesetzte Vorlagen-Zuordnungen bleiben
+erhalten und wirken wieder, sobald du den Schalter einschaltest.
+
+Bei neuen Installationen ist der Schalter aus. **Bestandsanlagen, die Abwesenheiten
+schon nutzen, bekommen ihn beim Update automatisch eingeschaltet.** Kriterien: zentrale
+Notiz oder Kalender-Automatik an, oder eine Abwesenheitsvorlage als Standard, in
+einer Gruppenregel oder an einem Postfach. Du musst nichts tun.
+
+**Vordefinierte Gruppe „Alle Postfächer":** Unter *Interne Gruppen* steht jetzt
+eine Gruppe, die immer alle aktivierten Postfächer enthält, auch neu
+hinzugekommene. Sie lässt sich in Gruppenregeln, für Banner-Kampagnen, für die
+Self-Service-Freigabe und mit Gruppen-Variablen nutzen. Umbenennen, löschen oder ihre
+Mitglieder von Hand pflegen kannst du sie nicht. Bei Gruppen-Variablen hat jede
+gezielte Gruppe Vorrang vor „Alle Postfächer".
+
 ## v1.9.113 — 2026-10-05 — Vorlagen: Signatur und Abwesenheit sind Nutzerwahl, Banner und Disclaimer Richtlinie
 
 Die Option **Vorlagen-Richtlinien** je Postfach koppelte bisher alle Vorlagen:
