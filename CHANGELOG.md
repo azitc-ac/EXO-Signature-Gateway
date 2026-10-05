@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.121 — 2026-10-05 — Prüfwerkzeug: Anmelde-Bremse als gemeinsame Datei
+
+Interne Änderung ohne Auswirkung auf den Betrieb: Die Brute-Force-Bremse für
+Anmeldungen (`login_drossel.py`) wird jetzt zusätzlich auf Gleichstand mit der
+Betreiber-Seite geprüft, die dieselbe Datei nutzt.
+
 ## v1.9.120 — 2026-10-05 — Filterfelder mit Löschkreuz, verborgene Elemente bleiben verborgen
 
 Die Filterfelder auf **Postfächer** und **S/MIME** haben jetzt wie die

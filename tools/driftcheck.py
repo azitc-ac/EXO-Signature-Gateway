@@ -53,6 +53,7 @@ MIRRORED: list[tuple[str, str]] = [
     ("app/secure_io.py", "Schreiben von Geheimnissen (600/700, atomar)"),
     ("app/update_core.py", "Selbst-Update, Container-Seite"),
     ("tools/hooks/pre-commit", "Commit-Hook (VERSION + Changelog-Pflicht)"),
+    ("app/login_drossel.py", "Brute-Force-Bremse für Anmeldungen (seit Hub v0.24.134)"),
 ]
 
 # Dateinamen, die ein Geheimnis enthalten. Wer eine davon schreibt, muss
