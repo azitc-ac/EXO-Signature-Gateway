@@ -623,3 +623,50 @@ def test_abwesenheit_normal_breit_und_hidden_wirkt(seite):
             "Prüf-Baustein fehlt — der Test prüfte sonst nichts"
     finally:
         settings_store.update({"ABWESENHEIT_AKTIV": vorher})
+
+
+def test_abwesenheit_filter_und_status_knopf(browser, server, monkeypatch):
+    """Freitextfilter mit ×, Knopf „Status = an" (nur eingeschaltete Abwesenheiten),
+    und der Knopfzustand überlebt ein Neuladen (localStorage)."""
+    import json
+    import settings_store
+    import sso
+    monkeypatch.setattr(sso, "_get_secret", lambda: "testgeheimnis-fuer-die-oberflaeche")
+    keks = sso.create_session_cookie("chefin@example.org", role=sso.ROLE_ADMIN)
+    daten = {"ts": None, "gesamt": 3, "abwesend": 1, "kein_token": False, "ooo_enabled": True,
+             "items": [
+                 {"upn": "anna@x.de", "name": "Anna", "status": "alwaysEnabled", "abwesend": True},
+                 {"upn": "bert@x.de", "name": "Bert", "status": "disabled"},
+                 {"upn": "carla@x.de", "name": "Carla", "status": "scheduled", "abwesend": False},
+             ]}
+    vorher = settings_store.get("ABWESENHEIT_AKTIV")
+    settings_store.update({"ABWESENHEIT_AKTIV": True})
+    try:
+        ctx = browser.new_context(viewport={"width": 1280, "height": 900})
+        ctx.add_cookies([{"name": sso.SESSION_COOKIE, "value": keks, "domain": "127.0.0.1", "path": "/"}])
+        ctx.route("**/api/abwesenheit/uebersicht*",
+                  lambda r: r.fulfill(status=200, content_type="application/json", body=json.dumps(daten)))
+        pg = ctx.new_page()
+        pg.goto(f"{server}/abwesenheit", wait_until="domcontentloaded")
+        pg.wait_for_selector("#ab-tbody tr[data-search]")
+
+        def sichtbar():
+            return pg.evaluate("""() => [...document.querySelectorAll('#ab-tbody tr[data-search]')]
+                .filter(t => t.style.display !== 'none').map(t => t.cells[0].textContent)""")
+
+        assert sichtbar() == ["Anna", "Bert", "Carla"]
+        assert not pg.is_visible("#ab-filter-x"), "× ohne Eingabe sichtbar"
+        pg.fill("#ab-filter", "bert")
+        assert sichtbar() == ["Bert"] and pg.is_visible("#ab-filter-x")
+        pg.click("#ab-filter-x")
+        assert sichtbar() == ["Anna", "Bert", "Carla"] and pg.input_value("#ab-filter") == ""
+
+        pg.click("#ab-nur-an")
+        assert sichtbar() == ["Anna", "Carla"], "„Status = an“ muss aus-Postfächer ausblenden"
+        assert pg.get_attribute("#ab-nur-an", "aria-pressed") == "true"
+        pg.reload(wait_until="domcontentloaded")
+        pg.wait_for_selector("#ab-tbody tr[data-search]")
+        assert sichtbar() == ["Anna", "Carla"], "Knopfzustand ging beim Neuladen verloren"
+        ctx.close()
+    finally:
+        settings_store.update({"ABWESENHEIT_AKTIV": vorher})
