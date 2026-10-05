@@ -42,6 +42,7 @@ import sys
 from pathlib import Path
 
 GATEWAY = Path(__file__).resolve().parent.parent
+HUB = GATEWAY.parent / "sig-provider"     # mit --hub zusätzlich geprüft
 
 # Bewusste Ausnahmen — mit Grund. Ohne Grund ist es keine Ausnahme.
 ERLAUBT: dict[str, str] = {
@@ -97,10 +98,16 @@ def pruefe(wurzel: Path) -> list[str]:
     return meldungen
 
 
-def main() -> int:
-    treffer = pruefe(GATEWAY)
-    print(("ok  " if not treffer else "!!  ")
-          + f"Gateway: {len(treffer)} breite Tabelle(n) ohne Rollbereich")
+def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    baeume = [(GATEWAY, "Gateway")]
+    if "--hub" in argv and HUB.is_dir():
+        baeume.append((HUB, "Hub"))
+    treffer = []
+    for wurzel, name in baeume:
+        t = pruefe(wurzel)
+        print(("ok  " if not t else "!!  ") + f"{name}: {len(t)} breite Tabelle(n) ohne Rollbereich")
+        treffer += [f"{name}/{x.strip()}" for x in t]
     if not treffer:
         return 0
     print("\nEine breite Tabelle braucht beides:\n"
