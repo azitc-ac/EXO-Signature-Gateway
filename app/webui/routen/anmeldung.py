@@ -200,6 +200,48 @@ async def watchdog_start_grants(mi_object_id: str = "", watcher_id: str = "",
                                                extra={"mi_object_id": oid, "watcher_id": wid})
     return JSONResponse({"auth_url": auth_url})
 
+@router.get("/api/setup/berechtigungen")
+async def setup_berechtigungen_status(nur: str = "", _: str = Depends(_require_admin)):
+    """Soll gegen Ist der Anwendungsberechtigungen (aus dem echten App-Token).
+    `nur` = kommagetrennte Rollennamen, um auf einen Funktionsbereich zu beschränken."""
+    import asyncio
+    import berechtigungen
+    namen = [n.strip() for n in nur.split(",") if n.strip()] or None
+    liste = await asyncio.to_thread(berechtigungen.status, namen)
+    return JSONResponse({"ok": True, "berechtigungen": liste})
+
+
+@router.get("/api/setup/berechtigungen/erteilen")
+async def setup_berechtigungen_erteilen(_: str = Depends(_require_admin)):
+    """Startet die Admin-Anmeldung (Popup), um fehlende Anwendungsberechtigungen der
+    bestehenden Gateway-App zu erteilen — NUR Rollen, kein neues Secret/Zertifikat
+    (setup_wizard.berechtigungen_nachziehen). Liefert die Login-URL."""
+    _state, auth_url = pkce_mod.create_session(_setup_redirect_uri(), flow="berechtigungen")
+    return JSONResponse({"auth_url": auth_url})
+
+
+def _berechtigungen_callback_page(ok: bool, msg: str = "") -> str:
+    """Popup-Abschluss: meldet dem öffnenden Fenster das Ergebnis und schliesst sich."""
+    import html as _html
+    import json as _json
+    heading = "Berechtigungen erteilt" if ok else "Erteilung fehlgeschlagen"
+    text = ("Neue Rollen stehen im nächsten Token — die Anzeige aktualisiert sich. "
+            "Entra braucht dafür mitunter einige Minuten.") if ok else (msg or "Unbekannter Fehler")
+    post = _json.dumps({"type": "berechtigungen-done" if ok else "berechtigungen-fail", "msg": msg})
+    return f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><title>{heading}</title></head>
+<body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f8fafc">
+<div style="text-align:center;padding:40px;max-width:460px">
+  <div style="font-size:52px;margin-bottom:16px">{"✓" if ok else "✗"}</div>
+  <h2 style="color:{"#16a34a" if ok else "#dc2626"};margin:0 0 10px">{heading}</h2>
+  <p style="color:#64748b;margin:0">{_html.escape(text)}</p>
+</div>
+<script>
+  try {{ window.opener && window.opener.postMessage({post}, window.opener.location.origin); }} catch(e) {{}}
+  {'setTimeout(function(){window.close();},2500);' if ok else ''}
+</script>
+</body></html>"""
+
+
 @router.get("/auth/callback", response_class=HTMLResponse)
 async def auth_callback(
     request: Request,
@@ -354,6 +396,19 @@ async def auth_callback(
         except Exception as exc:
             log.warning("Add-in redirect URI patch failed: %s", exc)
         return RedirectResponse("/setup?addin_uri_patched=1#step-addin", status_code=303)
+
+    elif flow == "berechtigungen":
+        # Fehlende Anwendungsberechtigungen erteilen — NUR Rollen (kein Secret/Zert).
+        access_token = token_resp.get("access_token", "")
+        try:
+            import setup_wizard
+            res = await setup_wizard.berechtigungen_nachziehen(access_token)
+            ok, msg = res["ok"], "; ".join(res["fehler"])
+            log.info("Berechtigungen nachgezogen: ok=%s %s", ok, msg)
+        except Exception as exc:                               # noqa: BLE001
+            log.error("Berechtigungen nachziehen fehlgeschlagen: %s", exc)
+            ok, msg = False, str(exc)
+        return HTMLResponse(_berechtigungen_callback_page(ok, msg))
 
     elif flow == "watchdog_grants":
         # Bypass-Wächter: der MI die zwei Graph-Zuweisungen erteilen (App-Rolle +

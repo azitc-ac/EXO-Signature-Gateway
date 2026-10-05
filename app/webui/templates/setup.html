@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_berechtigungen.html" import berechtigungen %}
 {% block content %}
 <h1>Einstellungen</h1>
 
@@ -418,9 +419,14 @@
       </label>
       <p class="hint" style="margin:6px 0 0 26px">
         Blendet den Menüpunkt <strong>Abwesenheit</strong> und die Spalte <em>Abwesenheit</em>
-        auf der Seite Postfächer ein. Braucht die Graph-Berechtigung
-        <code>MailboxSettings.ReadWrite</code>.
+        auf der Seite Postfächer ein.
       </p>
+      {% if e.azure_app_created %}
+      <div style="margin-left:26px">{{ berechtigungen("abw-wizard", "MailboxSettings.ReadWrite,Calendars.Read") }}</div>
+      {% else %}
+      <p class="hint" style="margin:4px 0 0 26px">Die nötigen Berechtigungen beantragt der Schritt
+        <em>Entra App-Registrierung</em>; ihren Stand siehst du danach hier.</p>
+      {% endif %}
     </div>
 
     <div id="mode-result" style="display:none;margin-bottom:12px"></div>
@@ -641,9 +647,12 @@
     <div class="alert success" style="margin-bottom:0">
       App-Registrierung <strong>{{ s.GATEWAY_NAME or 'EXO Signature Gateway' }}</strong> wurde erstellt.<br>
       App-ID: <code>{{ e.client_id if e.client_id else "–" }}</code>{% if e.client_id %}<button class="copy-btn" data-copy="{{ e.client_id }}" title="Kopieren" type="button"></button>{% endif %}<br>
-      Berechtigungen: {% for p in e.permission_names %}<code>{{ p }}</code>{% if not loop.last %}, {% endif %}{% endfor %}<br>
-      Admin-Consent: erteilt &bull; Exchange-Administrator-Rolle: zugewiesen
+      Exchange-Administrator-Rolle: zugewiesen
     </div>
+    {# Statt „Admin-Consent: erteilt" als fester Text: der echte Stand aus dem
+       App-Token, mit Knopf zum Nachziehen fehlender Rollen. #}
+    <h3 style="font-size:13px;margin:14px 0 4px">Anwendungsberechtigungen</h3>
+    {{ berechtigungen("app") }}
     {% if not e.auth_cert_exists %}
     <div class="alert error" style="margin-top:10px">
       <strong>Auth-Zertifikat fehlt.</strong> Die App-Registrierung wurde erstellt, aber die

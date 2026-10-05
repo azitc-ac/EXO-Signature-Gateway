@@ -1,0 +1,86 @@
+{#- Anwendungsberechtigungen: Soll gegen Ist, mit Knopf zum Beheben.
+    EIN Baustein für Einrichtungsassistent und Abwesenheits-Seite.
+
+    Ist = Rollen im echten App-Token (berechtigungen.py), nicht die Portal-Liste.
+    Beheben = Admin-Anmeldung im Popup → setup_wizard.berechtigungen_nachziehen
+    (NUR Rollen; kein neues Secret, kein neues Zertifikat).
+
+    Farben nur über data-zustand (.speicher-hinweis in style.css + dark-mode.css),
+    nie per JS gesetzt — sonst greift der Dark Mode nicht (CLAUDE.md, Regel 2).
+
+    Aufruf:  {% from "_berechtigungen.html" import berechtigungen %}
+             {{ berechtigungen("abw", "MailboxSettings.ReadWrite,Calendars.Read") }}
+-#}
+{% macro berechtigungen(kennung, nur="") %}
+<div id="ber-{{ kennung }}" data-nur="{{ nur }}" style="margin:6px 0 12px">
+  <div class="tabellen-rollbereich">
+    <table style="border-collapse:collapse;font-size:12px;min-width:360px">
+      <tbody class="ber-liste"><tr><td class="muted" style="padding:3px 8px 3px 0">Berechtigungen werden geprüft…</td></tr></tbody>
+    </table>
+  </div>
+  <div class="actions" style="margin-top:6px;gap:8px;flex-wrap:wrap">
+    <button class="btn secondary btn-sm ber-erteilen" type="button" hidden>Fehlende Berechtigungen erteilen</button>
+    <button class="btn secondary btn-sm ber-pruefen" type="button">Erneut prüfen</button>
+    <span class="speicher-hinweis ber-meldung" style="margin-left:0"></span>
+  </div>
+</div>
+<script>
+(function () {
+  var box = document.getElementById('ber-{{ kennung }}');
+  var liste = box.querySelector('.ber-liste');
+  var knopf = box.querySelector('.ber-erteilen');
+  var meldung = box.querySelector('.ber-meldung');
+
+  function melde(zustand, text) { meldung.dataset.zustand = zustand; meldung.textContent = text; }
+
+  async function pruefen() {
+    melde('', '');
+    try {
+      var r = await fetch('/api/setup/berechtigungen?nur=' + encodeURIComponent(box.dataset.nur || ''));
+      var d = await r.json();
+      liste.innerHTML = '';
+      var fehlt = 0, unbekannt = 0;
+      (d.berechtigungen || []).forEach(function (b) {
+        var zustand = b.erteilt === true ? 'fertig' : (b.erteilt === false ? 'fehler' : 'offen');
+        var text = b.erteilt === true ? '✓ erteilt' : (b.erteilt === false ? '✗ fehlt' : '? nicht prüfbar');
+        if (b.erteilt === false) fehlt++;
+        if (b.erteilt === null) unbekannt++;
+        var tr = document.createElement('tr');
+        tr.innerHTML = '<td style="padding:3px 12px 3px 0"><code>' + esc(b.name) + '</code></td>' +
+          '<td style="padding:3px 12px 3px 0" class="muted">' + esc(b.zweck || b.api) + '</td>' +
+          '<td style="padding:3px 0"><span class="speicher-hinweis" style="margin-left:0" data-zustand="' +
+          zustand + '">' + text + '</span></td>';
+        liste.appendChild(tr);
+      });
+      knopf.hidden = fehlt === 0;
+      if (unbekannt) melde('offen', 'Ohne eingerichtete App-Zugangsdaten nicht prüfbar.');
+    } catch (e) {
+      melde('fehler', '✗ Prüfung fehlgeschlagen' + ursache(e, 'berechtigungen'));
+    }
+  }
+
+  knopf.addEventListener('click', async function () {
+    melde('offen', 'Admin-Anmeldung im neuen Fenster…');
+    try {
+      var r = await fetch('/api/setup/berechtigungen/erteilen');
+      var d = await r.json();
+      if (!d.auth_url) { melde('fehler', '✗ Anmeldung ließ sich nicht starten'); return; }
+      window.open(d.auth_url, 'ber-login', 'width=520,height=700');
+    } catch (e) { melde('fehler', '✗ ' + e.message); }
+  });
+  box.querySelector('.ber-pruefen').addEventListener('click', pruefen);
+
+  window.addEventListener('message', function (ev) {
+    if (ev.origin !== window.location.origin || !ev.data) return;
+    if (ev.data.type === 'berechtigungen-done') {
+      melde('fertig', '✓ Erteilt — Entra braucht mitunter einige Minuten');
+      pruefen();
+    } else if (ev.data.type === 'berechtigungen-fail') {
+      melde('fehler', '✗ ' + (ev.data.msg || 'Erteilung fehlgeschlagen'));
+    }
+  });
+
+  pruefen();
+})();
+</script>
+{% endmacro %}

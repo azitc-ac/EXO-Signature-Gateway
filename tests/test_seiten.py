@@ -138,11 +138,9 @@ def test_keine_seite_gibt_ein_geheimnis_aus(client):
 
 
 def test_setup_zeigt_angeforderte_berechtigungen(client):
-    """Schritt 5 listet die App-Rollen aus DERSELBEN Quelle wie der Graph-Antrag
-    (setup_wizard.permission_names). Fängt zweierlei: die Abdrift der Anzeige von
-    den tatsächlich beantragten Rollen UND den Namensschatten (die Route heißt
-    selbst `setup_wizard`, das Modul ist nur lokal unter Alias erreichbar — ohne
-    ihn liefe die Zeile auf einen 500).
+    """Schritt 5 zeigt den Stand der App-Rollen (Baustein _berechtigungen.html),
+    und die Status-API liefert sie aus DERSELBEN Quelle wie der Graph-Antrag
+    (setup_wizard._*_PERMISSION_SPECS) — die Anzeige kann nicht abdriften.
 
     Anmeldung per Basic-Auth: /setup umgeht die override-Dependencies und prüft
     die Session/Basic selbst; admin/admin greift auf dem frischen Test-Gateway.
@@ -156,8 +154,11 @@ def test_setup_zeigt_angeforderte_berechtigungen(client):
     r = client.get("/setup", auth=("admin", _cfg.WEBUI_PASSWORD or "admin"),
                    follow_redirects=False)
     assert r.status_code == 200, f"{r.status_code} (Auth/Redirect?)"
+    assert 'id="ber-app"' in r.text, "Berechtigungs-Status fehlt in Schritt 5"
+    assert "Admin-Consent: erteilt" not in r.text, "fester Text statt echtem Stand"
+    namen = [b["name"] for b in client.get("/api/setup/berechtigungen").json()["berechtigungen"]]
     for name in ("MailboxSettings.ReadWrite", "Mail.Send", "IMAP.AccessAsApp"):
-        assert name in r.text, f"Berechtigung {name} fehlt in der Setup-Anzeige"
+        assert name in namen, f"Berechtigung {name} fehlt im Status"
 
 
 # ── Ebene 2: Rundumlauf über alle parameterlosen GET-Routen ─────────────────
