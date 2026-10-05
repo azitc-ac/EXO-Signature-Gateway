@@ -596,3 +596,30 @@ def test_auswahl_im_protokoll_ueberlebt_neue_zeilen(seite):
     assert nachher["pos"] == vorher["pos"], (
         "Es wurde nachgescrollt, obwohl eine Auswahl bestand — auf dem Telefon "
         "reisst genau das die Auswahl weg.")
+
+
+# ── Abwesenheits-Seite: normale Breite, versteckte Knöpfe bleiben versteckt ────
+
+def test_abwesenheit_normal_breit_und_hidden_wirkt(seite):
+    """Zwei Befunde aus einem Bildschirmfoto (05.10.2026):
+    1. Die Seite lief auf `weit` (1600px) — die Einstellungs-Karten zogen sich
+       auseinander, Auswahlfelder über 1200px breit.
+    2. „Fehlende Berechtigungen erteilen" stand sichtbar da, obwohl nichts fehlte:
+       `hidden` war gesetzt, aber `.btn { display:inline-flex }` überstimmte es.
+    Ohne App-Zugangsdaten liefert die Prüfung „nicht prüfbar" — der Knopf muss
+    dann ebenfalls verborgen sein (es fehlt nichts Bekanntes)."""
+    import settings_store
+    vorher = settings_store.get("ABWESENHEIT_AKTIV")
+    settings_store.update({"ABWESENHEIT_AKTIV": True})
+    try:
+        pg = seite("/abwesenheit", breite=1800, hoehe=1000)
+        pg.wait_for_timeout(600)
+        breite = pg.evaluate("() => document.querySelector('main').getBoundingClientRect().width")
+        assert breite <= 960, f"Seite {breite}px breit — erwartet normale Breite (≤960px)"
+        sichtbar = pg.evaluate("""() => [...document.querySelectorAll('.ber-erteilen')]
+            .filter(b => b.hidden && getComputedStyle(b).display !== 'none').length""")
+        assert sichtbar == 0, "ein Knopf mit `hidden` ist trotzdem sichtbar"
+        assert pg.evaluate("() => document.querySelectorAll('.ber-erteilen').length") >= 1, \
+            "Prüf-Baustein fehlt — der Test prüfte sonst nichts"
+    finally:
+        settings_store.update({"ABWESENHEIT_AKTIV": vorher})

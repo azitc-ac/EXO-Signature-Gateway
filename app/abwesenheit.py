@@ -340,8 +340,11 @@ def _oof_anhang(user_data, sender: str, mailbox_cfg: dict, sender_cfg: dict) -> 
     Richtlinien-/Postfach-Auflösung wie der normale Mailweg, damit dieselbe
     Signatur erscheint, die der Absender sonst trägt.
 
-    ⚠️ Statischer Schnappschuss (Ansatz B): Bilder per CID rendern in nativen
-    OOF-Antworten in der Regel NICHT — reine Text-/HTML-Signaturen sind unkritisch.
+    ⚠️ Statischer Schnappschuss (Ansatz B). Bilder bleiben hier `data:`-URIs —
+    anders als im Mailweg wandelt nichts sie in CID-Anhänge um (eine native
+    Abwesenheitsantwort hat keine Anhänge). Outlook & Co. zeigen sie an; Gmail
+    blendet `data:`-Bilder aus. Bis v1.9.117 stand hier „Bilder per CID rendern
+    meist nicht" — eine ungeprüfte Annahme, im Betrieb widerlegt.
     """
     append_sig = settings_store.get("OOO_APPEND_SIGNATURE")
     append_banner = settings_store.get("OOO_APPEND_BANNER")

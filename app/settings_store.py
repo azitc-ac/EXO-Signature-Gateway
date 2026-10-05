@@ -53,7 +53,7 @@ DEFAULTS: dict = {
     # Auffrischen). Gilt für Kalender-Automatik UND Ankündigungs-Variable.
     "OOO_CALENDAR_REFRESH_HOURS": 6,
     # Unter den Abwesenheitstext optional die zugewiesene Signatur / das Banner
-    # anhängen (statischer Schnappschuss; Bilder per CID rendern in OOF oft nicht).
+    # anhängen (statischer Schnappschuss; Bilder als data:-URI — Gmail blendet sie aus).
     "OOO_APPEND_SIGNATURE": False,
     "OOO_APPEND_BANNER": False,
     # Betreiberweite Vorgabe für die Ankündigungs-Variable ({{ oof.ankuendigung }}):

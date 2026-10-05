@@ -19,7 +19,7 @@
     </table>
   </div>
   <div class="actions" style="margin-top:6px;gap:8px;flex-wrap:wrap">
-    <button class="btn secondary btn-sm ber-erteilen" type="button" hidden>Fehlende Berechtigungen erteilen</button>
+    <button class="btn secondary btn-sm ber-erteilen" type="button" hidden style="display:none">Fehlende Berechtigungen erteilen</button>
     <button class="btn secondary btn-sm ber-pruefen" type="button">Erneut prüfen</button>
     <span class="speicher-hinweis ber-meldung" style="margin-left:0"></span>
   </div>
@@ -52,7 +52,10 @@
           zustand + '">' + text + '</span></td>';
         liste.appendChild(tr);
       });
+      // `hidden` allein reicht nicht: `.btn { display:inline-flex }` überstimmt die
+      // Browser-Vorgabe für [hidden] (style.css ist gespiegelt und bleibt unberührt).
       knopf.hidden = fehlt === 0;
+      knopf.style.display = fehlt === 0 ? 'none' : '';
       if (unbekannt) melde('offen', 'Ohne eingerichtete App-Zugangsdaten nicht prüfbar.');
     } catch (e) {
       melde('fehler', '✗ Prüfung fehlgeschlagen' + ursache(e, 'berechtigungen'));
