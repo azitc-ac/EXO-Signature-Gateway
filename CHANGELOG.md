@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.119 — 2026-10-05 — Abwesenheit: Übersicht filtern
+
+Über der Übersichtstabelle der Seite **Abwesenheit** gibt es jetzt ein Filterfeld
+(Name oder Adresse; × leert es) und den Knopf **„Status = an"**. Er zeigt nur
+Postfächer, deren Abwesenheit eingeschaltet ist: immer an, geplant oder gerade
+abwesend. Ist ein Filter aktiv, steht daneben, wie viele Postfächer er zeigt.
+Den Zustand des Knopfs merkt sich dein Browser.
+
 ## v1.9.118 — 2026-10-05 — Abwesenheit: normale Seitenbreite, Knopf- und Bildhinweis korrigiert
 
 Die Seite **Abwesenheit** lief über die volle Fensterbreite. Ihre
