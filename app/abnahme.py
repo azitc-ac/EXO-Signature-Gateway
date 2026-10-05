@@ -203,47 +203,16 @@ def _anmeldung() -> dict:
         "bestehen, ist aber kein Dauerzustand.")
 
 
+# Rollen aus dem Token lesen: EINE Quelle in berechtigungen.py (auch für den
+# Status im Einrichtungsassistenten und auf der Abwesenheits-Seite).
 def _token_rollen(token: str) -> set[str] | None:
-    """Die `roles`-Ansprüche (Anwendungsberechtigungen) aus einem JWT.
-
-    Ohne Signaturprüfung — es geht nur darum, WELCHE Rollen erteilt sind, nicht
-    um Vertrauen in das Token (das kommt direkt von MSAL). `None`, wenn das
-    Token nicht als JWT lesbar ist."""
-    import base64
-    import json
-    try:
-        payload = token.split(".")[1]
-        payload += "=" * (-len(payload) % 4)
-        data = json.loads(base64.urlsafe_b64decode(payload))
-    except Exception:                                          # noqa: BLE001
-        return None
-    roles = data.get("roles")
-    if not isinstance(roles, list):
-        return set()
-    return {str(r) for r in roles}
+    import berechtigungen
+    return berechtigungen.token_rollen(token)
 
 
 def _exo_rollen() -> set[str] | None:
-    """Anwendungsrollen im EXO-Token (Audience outlook.office365.com).
-
-    `Exchange.ManageAsApp` ist die eigentlich kritische Verwaltungsberechtigung
-    (Connector, Verteilerliste, IMAP, Message-Trace) und steht NICHT im
-    Graph-Token. Wir holen das EXO-Token über dieselbe MSAL-Maschinerie, die
-    keyvault/smtp_submit für Nicht-Graph-Scopes nutzen. `None`, wenn kein Token
-    zu beschaffen ist."""
-    import graph_client
-    app = graph_client._get_msal_app()
-    if app is None:
-        return None
-    try:
-        result = app.acquire_token_for_client(
-            scopes=["https://outlook.office365.com/.default"])
-    except Exception:                                          # noqa: BLE001
-        return None
-    tok = result.get("access_token") if isinstance(result, dict) else None
-    if not tok:
-        return None
-    return _token_rollen(tok)
+    import berechtigungen
+    return berechtigungen.exo_rollen()
 
 
 def _exchange() -> dict:

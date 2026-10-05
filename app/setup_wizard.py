@@ -29,31 +29,31 @@ _EXO_APP_ID = "00000002-0000-0ff1-ce00-000000000000"    # Exchange Online
 
 # ── Permission IDs ────────────────────────────────────────────────────────────
 # EINE Quelle: Name + ID je App-Rolle. Daraus werden abgeleitet (a) der
-# resourceAccess-Rumpf für Graph ({id, type}) und (b) die Anzeige der
-# angeforderten Berechtigungen im Setup-Assistenten (permission_names()). Wer eine
+# resourceAccess-Rumpf für Graph ({id, type}) und (b) der Soll-Stand, gegen den
+# berechtigungen.status() das echte App-Token prüft (Anzeige im Assistenten). Wer eine
 # Rolle ergänzt, trägt sie HIER ein — API-Antrag und Anzeige bleiben dann
 # zwangsläufig deckungsgleich (vorher war die Anzeige eine handgepflegte Liste, die
 # von den tatsächlich beantragten Rollen abgedriftet war).
 _GRAPH_PERMISSION_SPECS = [
-    {"name": "User.Read.All",            "id": "df021288-bdef-4463-88db-98f22de89214"},
-    {"name": "Mail.ReadWrite",           "id": "e2a3a72e-5f79-4c64-b1b1-878b674786c9"},  # sent-item patching
-    {"name": "Mail.Send",                "id": "b633e1c5-b582-4048-a93e-9f11b44c7e96"},  # Graph-Reinject
-    {"name": "MailboxSettings.ReadWrite","id": "6931bccd-447a-43d1-b442-00a195474933"},  # zentrale Abwesenheitsnotiz
-    {"name": "Calendars.Read",           "id": "798ee544-9d2d-430c-a058-570e29e34338"},  # OOO aus Kalender (opt-in)
+    {"name": "User.Read.All",            "id": "df021288-bdef-4463-88db-98f22de89214",
+     "zweck": "Benutzerdaten für die Signatur"},
+    {"name": "Mail.ReadWrite",           "id": "e2a3a72e-5f79-4c64-b1b1-878b674786c9",
+     "zweck": "Gesendete Kopie nachbessern, Postfach-Zustellung"},
+    {"name": "Mail.Send",                "id": "b633e1c5-b582-4048-a93e-9f11b44c7e96",
+     "zweck": "Zustellung über Graph"},
+    {"name": "MailboxSettings.ReadWrite","id": "6931bccd-447a-43d1-b442-00a195474933",
+     "zweck": "Zentrale Abwesenheitsnotiz"},
+    {"name": "Calendars.Read",           "id": "798ee544-9d2d-430c-a058-570e29e34338",
+     "zweck": "Abwesenheit aus dem Kalender"},
 ]
 _EXO_PERMISSION_SPECS = [
-    {"name": "Exchange.ManageAsApp",     "id": "dc50a0fb-09a3-484d-be87-e023b12c6440"},
-    {"name": "IMAP.AccessAsApp",         "id": "5e5addcd-3e8d-4e90-baf5-964efab2b20a"},  # IMAP APPEND (Modus imap)
+    {"name": "Exchange.ManageAsApp",     "id": "dc50a0fb-09a3-484d-be87-e023b12c6440",
+     "zweck": "Connector, Verteilerliste, Transportregeln"},
+    {"name": "IMAP.AccessAsApp",         "id": "5e5addcd-3e8d-4e90-baf5-964efab2b20a",
+     "zweck": "IMAP-Zustellung (Graph++)"},
 ]
 _GRAPH_PERMISSIONS = [{"id": s["id"], "type": "Role"} for s in _GRAPH_PERMISSION_SPECS]
 _EXO_PERMISSIONS = [{"id": s["id"], "type": "Role"} for s in _EXO_PERMISSION_SPECS]
-
-
-def permission_names() -> list[str]:
-    """Namen aller angeforderten App-Rollen (Graph + EXO) — für die Anzeige im
-    Setup-Assistenten. Aus derselben Quelle wie der API-Antrag, damit beides nicht
-    auseinanderläuft."""
-    return [s["name"] for s in _GRAPH_PERMISSION_SPECS + _EXO_PERMISSION_SPECS]
 
 
 # Exchange Administrator built-in role ID (constant across all tenants)
@@ -343,8 +343,18 @@ async def _get_app_roles(token: str, sp_id: str) -> dict:
     return {r["id"]: r["id"] for r in data.get("appRoles", [])}
 
 
-async def _grant_admin_consent(token: str, our_sp_id: str) -> None:
-    """Grant admin consent for all required app roles."""
+def _schon_erteilt(exc: Exception) -> bool:
+    """Graph meldet eine bereits bestehende Zuweisung als Fehler — das ist Erfolg."""
+    m = str(exc).lower()
+    return any(w in m for w in ("already", "exists", "conflict"))
+
+
+async def _grant_admin_consent(token: str, our_sp_id: str) -> list[str]:
+    """Grant admin consent for all required app roles. Idempotent.
+
+    Gibt die ECHTEN Fehlschläge zurück (bereits erteilte Rollen zählen nicht) —
+    der Setup-Lauf ignoriert sie wie bisher, `berechtigungen_nachziehen` meldet sie."""
+    fehler: list[str] = []
     graph_sp_id = await _get_sp_id_for_resource(token, _GRAPH_APP_ID)
     for perm in _GRAPH_PERMISSIONS:
         try:
@@ -361,6 +371,8 @@ async def _grant_admin_consent(token: str, our_sp_id: str) -> None:
             log.info("Granted Graph role %s", perm["id"])
         except Exception as exc:
             log.warning("Could not grant Graph role %s: %s", perm["id"], exc)
+            if not _schon_erteilt(exc):
+                fehler.append(f"Graph {perm['id']}: {exc}")
 
     try:
         exo_sp_id = await _get_sp_id_for_resource(token, _EXO_APP_ID)
@@ -379,8 +391,47 @@ async def _grant_admin_consent(token: str, our_sp_id: str) -> None:
                 log.info("Granted EXO role %s", perm["id"])
             except Exception as exc:
                 log.warning("Could not grant EXO role %s: %s", perm["id"], exc)
+                if not _schon_erteilt(exc):
+                    fehler.append(f"Exchange {perm['id']}: {exc}")
     except Exception as exc:
         log.warning("Could not find EXO service principal: %s", exc)
+        fehler.append(f"Exchange-Dienstprinzipal nicht gefunden: {exc}")
+    return fehler
+
+
+async def berechtigungen_nachziehen(token: str) -> dict:
+    """Fehlende Anwendungsberechtigungen der BESTEHENDEN Gateway-App erteilen.
+
+    Mit dem delegierten Admin-Token (Admin-Anmeldung im Popup). Tut NUR das:
+    angeforderte Berechtigungen (`requiredResourceAccess`) auf den Soll-Stand
+    bringen und die App-Rollen zuweisen. Kein neues Client-Secret, kein neues
+    Zertifikat — anders als der volle Setup-Lauf (create_app_registration), der
+    beides jedes Mal erneuert.
+    """
+    client_id = (settings_store.get("CLIENT_ID") or "").strip()
+    if not client_id:
+        raise RuntimeError("Keine Gateway-App eingerichtet (CLIENT_ID fehlt).")
+    apps = await _gh("get", f"{GRAPH}/applications?$filter=appId eq '{client_id}'&$select=id", token)
+    items = apps.get("value", [])
+    if not items:
+        raise RuntimeError(f"App {client_id} im Tenant nicht gefunden.")
+    try:
+        await _gh("patch", f"{GRAPH}/applications/{items[0]['id']}", token, json={
+            "requiredResourceAccess": [
+                {"resourceAppId": _GRAPH_APP_ID, "resourceAccess": _GRAPH_PERMISSIONS},
+                {"resourceAppId": _EXO_APP_ID, "resourceAccess": _EXO_PERMISSIONS},
+            ],
+        })
+    except Exception as exc:                                    # noqa: BLE001
+        log.warning("requiredResourceAccess nicht aktualisiert: %s", exc)
+    sps = await _gh("get", f"{GRAPH}/servicePrincipals?$filter=appId eq '{client_id}'&$select=id", token)
+    sp_items = sps.get("value", [])
+    if not sp_items:
+        raise RuntimeError(f"Dienstprinzipal zu {client_id} nicht gefunden.")
+    fehler = await _grant_admin_consent(token, sp_items[0]["id"])
+    # Neue Rollen stehen erst in einem NEUEN Token — den Cache verwerfen.
+    _gc.reset_msal_app()
+    return {"ok": not fehler, "fehler": fehler}
 
 
 _GLOBAL_READER_ROLE_ID = "f2ef992c-3afb-46b9-b7cf-a126ee74c451"

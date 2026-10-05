@@ -281,10 +281,28 @@ if (fs.existsSync(basis)) {
   zuweisungsNamen(a).forEach(n => gemeinsameNamen.add(n));
 }
 
-function nutztGemeinsames(html, datei) {
+function nutztGemeinsamesDirekt(html, datei) {
   return datei === 'base.html'
     || /\{%\s*extends\s+["']base\.html["']\s*%\}/.test(html)
     || /<script[^>]*\bsrc\s*=\s*["'][^"']*common\.js/.test(html);
+}
+
+// Baustein (`_name.html`, per {% from %}/{% include %} eingebunden): hat kein
+// eigenes `extends` — er erbt die Helfer der Seiten, die ihn einbinden. Er gilt
+// nur dann als „mit gemeinsamem JavaScript", wenn ES MINDESTENS EINE einbindende
+// Seite gibt und JEDE davon die Helfer hat. Bindet eine eigenständige Seite
+// (portal.html o.ä.) ihn ein, bleibt er streng geprüft — sonst gälte er zu Unrecht
+// als versorgt.
+function nutztGemeinsames(html, datei) {
+  if (nutztGemeinsamesDirekt(html, datei)) return true;
+  if (!datei.startsWith('_')) return false;
+  const muster = new RegExp('\\{%\\s*(?:from|include|import)\\s+["\']'
+                            + datei.replace(/\./g, '\\.') + '["\']');
+  const einbinder = fs.readdirSync(dir).filter(x => x.endsWith('.html') && x !== datei)
+    .map(x => [x, fs.readFileSync(path.join(dir, x), 'utf8')])
+    .filter(([, h]) => muster.test(h));
+  return einbinder.length > 0
+    && einbinder.every(([x, h]) => nutztGemeinsamesDirekt(h, x));
 }
 
 let treffer = 0, geprueft = 0, eigenstaendig = 0, unlesbar = 0;

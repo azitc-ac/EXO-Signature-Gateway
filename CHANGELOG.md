@@ -5,6 +5,30 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.117 — 2026-10-05 — Berechtigungen prüfen und fehlende direkt erteilen
+
+Der Einrichtungsassistent zeigte im Schritt *Entra App-Registrierung* die
+beantragten Berechtigungen und dazu den festen Text „Admin-Consent: erteilt",
+auch wenn eine Rolle gar nicht erteilt war. Beantragt ist aber nicht erteilt.
+Eine Rolle, die nach der Einrichtung neu hinzukam (etwa `MailboxSettings.ReadWrite`
+für die zentrale Abwesenheitsnotiz), steht in der Portal-Liste und fehlt trotzdem.
+
+Jetzt zeigt eine Tabelle je Berechtigung den **tatsächlichen Stand**. Er wird aus
+dem Anwendungstoken gelesen, das Entra dem Gateway ausstellt (✓ erteilt, ✗ fehlt,
+? nicht prüfbar). Fehlt etwas, erteilst du es über **„Fehlende Berechtigungen
+erteilen"**: Admin-Anmeldung im neuen Fenster, danach werden nur die
+Berechtigungen nachgetragen. Client-Secret und Anmeldezertifikat bleiben
+unverändert, anders als beim erneuten Durchlaufen der Anmeldung im Assistenten.
+
+Dieselbe Prüfung steht beim Schalter *Zentrale Abwesenheiten verwalten* im
+Assistenten und auf der Seite **Abwesenheit** unter *Einstellungen*, dort auf
+die beiden nötigen Berechtigungen beschränkt (`MailboxSettings.ReadWrite`,
+`Calendars.Read`). Meldet die Übersicht fehlenden Zugriff auf Postfächer, führt
+ein Link dorthin.
+
+Neu erteilte Rollen stehen erst in einem neuen Token. Entra braucht dafür
+mitunter einige Minuten; „Erneut prüfen" zeigt den aktuellen Stand.
+
 ## v1.9.116 — 2026-10-05 — Abwesenheit: Hinweis verweist auf den richtigen Schalter
 
 Ist die zentrale Abwesenheitsnotiz aus, verwies der Hinweis oben auf der Seite

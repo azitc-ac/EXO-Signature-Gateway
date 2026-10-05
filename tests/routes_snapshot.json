@@ -1015,6 +1015,20 @@
     "name": "api_auth_paste"
   },
   {
+    "pfad": "/api/setup/berechtigungen",
+    "methoden": [
+      "GET"
+    ],
+    "name": "setup_berechtigungen_status"
+  },
+  {
+    "pfad": "/api/setup/berechtigungen/erteilen",
+    "methoden": [
+      "GET"
+    ],
+    "name": "setup_berechtigungen_erteilen"
+  },
+  {
     "pfad": "/api/setup/bootstrap-client",
     "methoden": [
       "POST"
