@@ -598,6 +598,33 @@ def test_auswahl_im_protokoll_ueberlebt_neue_zeilen(seite):
         "reisst genau das die Auswahl weg.")
 
 
+def test_protokoll_am_telefon_ohne_seitliches_rollen(seite):
+    """Am Telefon darf der Protokollkasten nicht waagerecht rollen.
+
+    ⚠️ ANLASS (06.10.2026): Auf dem iPhone erschien im Kasten beim langen Drücken
+    nur die Lupe, markieren ging nicht — überall sonst schon. Der Kasten war das
+    einzige Element, das in beide Richtungen rollte. Der Test sichert die
+    Gegenmaßnahme (Umbruch statt Rollen); ob iOS damit markiert, prüft er NICHT —
+    das lässt sich nur am Gerät feststellen.
+    """
+    pg = seite("/log", breite=393)
+    if not pg.evaluate("() => typeof appendLine === 'function'"):
+        pytest.skip("Protokollseite nicht erreichbar")
+    pg.evaluate("() => { for (let i = 0; i < 10; i++) appendLine('2026-10-06 10:00:00 INFO     "
+                "hub_catalog: ' + 'sehr lange Zeile ohne Ende '.repeat(12) + i); }")
+    m = pg.evaluate("""() => { const w = document.getElementById('logWrap');
+        return {ueber: w.scrollWidth - w.clientWidth, ws: getComputedStyle(pre).whiteSpace}; }""")
+    assert m["ws"] == "pre-wrap", f"Zeilen brechen am Telefon nicht um ({m['ws']})"
+    assert m["ueber"] <= 1, f"Kasten rollt am Telefon {m['ueber']}px seitlich"
+
+
+def test_protokoll_am_desktop_eine_zeile_je_eintrag(seite):
+    pg = seite("/log", breite=1280)
+    if not pg.evaluate("() => typeof appendLine === 'function'"):
+        pytest.skip("Protokollseite nicht erreichbar")
+    assert pg.evaluate("() => getComputedStyle(pre).whiteSpace") == "pre"
+
+
 # ── Abwesenheits-Seite: normale Breite, versteckte Knöpfe bleiben versteckt ────
 
 def test_abwesenheit_normal_breit_und_hidden_wirkt(seite):
