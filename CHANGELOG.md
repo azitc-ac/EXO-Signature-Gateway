@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.122 — 2026-10-05 — Prüfwerkzeuge: auch die Betreiber-Seite prüfbar
+
+Interne Änderung ohne Auswirkung auf den Betrieb: Die Prüfungen für breite Tabellen
+und für den Aufbau der Einstellungszeilen lassen sich mit `--hub` zusätzlich auf die
+Betreiber-Seite anwenden, wie die übrigen Prüfungen schon.
+
 ## v1.9.121 — 2026-10-05 — Prüfwerkzeug: Anmelde-Bremse als gemeinsame Datei
 
 Interne Änderung ohne Auswirkung auf den Betrieb: Die Brute-Force-Bremse für

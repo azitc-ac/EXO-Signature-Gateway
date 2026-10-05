@@ -53,6 +53,11 @@ HUB = GATEWAY.parent / "sig-provider"
 ERLAUBT: dict[str, str] = {
     # Anker für JavaScript und Tests, nicht für Gestaltung.
     "js-hook": "reiner Zugriffsanker, absichtlich ohne Darstellung",
+    # Hub
+    "cb-log": "Hub/kunden.html: JS-Anker (querySelector in toggle()), ohne Darstellung",
+    "cb-cert": "Hub/kunden.html: JS-Anker (querySelector in toggle()), ohne Darstellung",
+    "b-": "Hub/customer.html: `b-{{ c.status }}` — Präfix + Jinja-Status; die Zielklassen "
+          "(b-approved/-pending/-suspended/-rejected) sind in base.html definiert",
 }
 
 # Präfixe, hinter denen erzeugte Namen stehen (Zustandsklassen aus Daten).
