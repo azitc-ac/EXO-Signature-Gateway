@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.123 — 2026-10-06 — Protokoll am Telefon wieder markierbar
+
+Im Protokoll (Live-Ansicht und Suchergebnis) ließ sich auf dem iPhone nichts
+markieren: Beim langen Drücken erschien nur die Lupe, eine Auswahl entstand nicht.
+Text außerhalb des Protokollkastens war markierbar. Der Kasten war das einzige
+Element, das in beide Richtungen rollte; das lange Drücken geriet an die seitliche
+Rollgeste. Bei schmalen Bildschirmen brechen die Zeilen jetzt um, und der Kasten
+rollt nur noch senkrecht. Am Desktop bleibt es bei einer Zeile je Eintrag.
+
 ## v1.9.122 — 2026-10-05 — Prüfwerkzeuge: auch die Betreiber-Seite prüfbar
 
 Interne Änderung ohne Auswirkung auf den Betrieb: Die Prüfungen für breite Tabellen
