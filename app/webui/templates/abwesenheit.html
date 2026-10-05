@@ -21,7 +21,7 @@
 <div id="ooo-aus-hinweis" class="alert warn" style="display:none;margin-bottom:14px">
   Die zentrale Abwesenheitsnotiz ist derzeit <strong>aus</strong> — die Übersicht zeigt den
   Live-Status der Postfächer, aber das Gateway vereinheitlicht die Texte nicht.
-  Einschalten unter <a href="/mailboxes" style="color:inherit;font-weight:700">Postfächer</a>.
+  Einschalten unten unter <a href="#ooo-einstellungen" style="color:inherit;font-weight:700">Einstellungen</a>.
 </div>
 
 <!-- Übersicht -->
@@ -49,7 +49,7 @@
 </div>
 
 <!-- Betriebseinstellungen (von der Postfächer-Seite hierher gezogen) -->
-<div class="settings-card" style="margin-bottom:18px">
+<div class="settings-card" id="ooo-einstellungen" style="margin-bottom:18px">
   <h2 style="margin-top:0">Einstellungen</h2>
 
   <label class="checkbox-label">
@@ -363,7 +363,11 @@ async function abSpeichern() {
   btn.disabled = false; btn.textContent = alt;
 }
 
-async function oooUmschalten(cb) { await savePartial({ OOO_ENABLED: cb.checked }, 'ooo-result'); }
+async function oooUmschalten(cb) {
+  // Der Aus-Hinweis oben folgt dem Schalter erst, wenn das Speichern gewirkt hat.
+  if (await savePartial({ OOO_ENABLED: cb.checked }, 'ooo-result'))
+    document.getElementById('ooo-aus-hinweis').style.display = cb.checked ? 'none' : 'block';
+}
 async function oooCalAutoUmschalten(cb) { await savePartial({ OOO_CALENDAR_AUTO: cb.checked }, 'ooo-cal-result'); }
 async function oooCalHoursSpeichern(sel) { await savePartial({ OOO_CALENDAR_MIN_HOURS: parseInt(sel.value, 10) }, 'ooo-cal-result'); }
 async function oooCalRefreshSpeichern(sel) { await savePartial({ OOO_CALENDAR_REFRESH_HOURS: parseInt(sel.value, 10) }, 'ooo-cal-refresh-result'); }

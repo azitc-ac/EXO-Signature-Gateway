@@ -270,3 +270,17 @@ def test_verfassen_leiste_fuehrt_zum_self_service_und_zurueck(client):
     settings_store.update({"ABWESENHEIT_AKTIV": False})
     assert "Meine Signatur verwalten" in client.get("/addin/compose").text
     assert "<h1>Meine Signatur</h1>" in client.get("/self").text
+
+
+def test_abwesenheit_aus_hinweis_zeigt_auf_den_schalter_dieser_seite(client):
+    """Der Schalter zog in v1.9.112 von „Postfächer“ auf diese Seite. Der Hinweis
+    verwies danach weiter auf /mailboxes, wo es ihn nicht mehr gab."""
+    import re
+    import settings_store
+    settings_store.update({"ABWESENHEIT_AKTIV": True})
+    html = client.get("/abwesenheit").text
+    hinweis = re.search(r'<div id="ooo-aus-hinweis".*?</div>', html, re.S).group(0)
+    ziel = re.search(r'href="#([^"]+)"', hinweis).group(1)
+    assert 'id="ooo-enabled"' in html[html.index('id="' + ziel + '"'):], "Anker führt nicht zum Schalter"
+    assert "/mailboxes" not in hinweis
+    settings_store.update({"ABWESENHEIT_AKTIV": False})
