@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.116 — 2026-10-05 — Abwesenheit: Hinweis verweist auf den richtigen Schalter
+
+Ist die zentrale Abwesenheitsnotiz aus, verwies der Hinweis oben auf der Seite
+**Abwesenheit** noch auf die Seite Postfächer. Der Schalter liegt seit v1.9.112
+aber auf derselben Seite unter *Einstellungen*, und der Link springt jetzt
+dorthin. Außerdem verschwindet der Hinweis jetzt, sobald du den Schalter
+einschaltest, und erscheint wieder, wenn du ihn ausschaltest. Bisher änderte er
+sich erst beim nächsten Laden der Übersicht.
+
 ## v1.9.115 — 2026-10-05 — Outlook-Add-in: eine Rubrik, ein Knopfname
 
 Das Add-in hat zwei Einstiegspunkte: einen beim Verfassen (Signatur einfügen) und
