@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_berechtigungen.html" import berechtigungen %}
+{% from "_filterfeld.html" import filterfeld %}
 {% block content %}
 <h1>Abwesenheit</h1>
 
@@ -34,13 +35,7 @@
     <button class="btn secondary btn-sm" id="ab-refresh" onclick="abLaden(true)">Aktualisieren</button>
   </div>
   <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center">
-    <span style="position:relative;flex:1 1 200px;max-width:320px;display:inline-flex">
-      <input type="text" id="ab-filter" placeholder="Filtern…" autocomplete="off"
-             autocapitalize="off" autocorrect="off" spellcheck="false"
-             style="flex:1;min-width:0;padding:5px 28px 5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px">
-      <button type="button" id="ab-filter-x" title="Filter löschen" aria-label="Filter löschen"
-              style="display:none;position:absolute;right:2px;top:50%;transform:translateY(-50%);border:0;background:none;cursor:pointer;color:#64748b;font-size:18px;line-height:1;padding:2px 6px">&times;</button>
-    </span>
+    {{ filterfeld("ab-filter") }}
     <button type="button" class="btn secondary btn-sm" id="ab-nur-an" aria-pressed="false"
             title="Nur Postfächer mit eingeschalteter Abwesenheit (immer an, geplant, abwesend)">Status = an</button>
     <span id="ab-filter-count" class="muted" style="font-size:12px"></span>
@@ -310,7 +305,6 @@ function abNurAnZeichnen() {
 function abFiltern() {
   var feld = document.getElementById('ab-filter');
   var q = (feld.value || '').trim().toLowerCase();
-  document.getElementById('ab-filter-x').style.display = q ? '' : 'none';
   var zeilen = document.querySelectorAll('#ab-tbody tr[data-search]');
   var sichtbar = 0;
   zeilen.forEach(function (tr) {
@@ -323,10 +317,6 @@ function abFiltern() {
 }
 
 document.getElementById('ab-filter').addEventListener('input', abFiltern);
-document.getElementById('ab-filter-x').addEventListener('click', function () {
-  var feld = document.getElementById('ab-filter');
-  feld.value = ''; abFiltern(); feld.focus();
-});
 document.getElementById('ab-nur-an').addEventListener('click', function () {
   AB_NUR_AN = !AB_NUR_AN;
   try { localStorage.setItem(AB_NUR_AN_KEY, AB_NUR_AN ? '1' : '0'); } catch (e) {}

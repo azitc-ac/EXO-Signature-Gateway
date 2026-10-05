@@ -1,0 +1,38 @@
+{#- Filterfeld mit Löschkreuz — EIN Baustein für alle Tabellenfilter.
+
+    Das × erscheint nur bei Eingabe; ein Klick leert das Feld, löst ein `input`-
+    Ereignis aus (die Seite filtert damit neu, egal wie sie zuhört) und setzt den
+    Fokus zurück. Sichtbarkeit über `hidden` (wirkt dank [hidden]-Regel in style.css).
+
+    `gegen_autofill`: Feld startet readonly und wird beim Fokus beschreibbar —
+    verhindert, dass der Browser gespeicherte Anmeldedaten hineinfüllt.
+
+    Aufruf:  {% from "_filterfeld.html" import filterfeld %}
+             {{ filterfeld("mb-filter", oninput="filterMailboxes()") }}
+-#}
+{% macro filterfeld(feld_id, placeholder="Filtern…", oninput="", gegen_autofill=false) %}
+<span style="position:relative;flex:1 1 200px;max-width:320px;display:inline-flex">
+  <input type="text" id="{{ feld_id }}" placeholder="{{ placeholder }}" autocomplete="off"
+         autocapitalize="off" autocorrect="off" spellcheck="false"
+         {% if oninput %}oninput="{{ oninput }}"{% endif %}
+         {% if gegen_autofill %}readonly onfocus="this.removeAttribute('readonly')"{% endif %}
+         style="flex:1;min-width:0;padding:5px 28px 5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px">
+  <button type="button" id="{{ feld_id }}-x" hidden title="Filter löschen" aria-label="Filter löschen"
+          style="position:absolute;right:2px;top:50%;transform:translateY(-50%);border:0;background:none;cursor:pointer;color:#64748b;font-size:18px;line-height:1;padding:2px 6px">&times;</button>
+</span>
+<script>
+(function () {
+  var feld = document.getElementById('{{ feld_id }}');
+  var x = document.getElementById('{{ feld_id }}-x');
+  function kreuz() { x.hidden = !feld.value; }
+  feld.addEventListener('input', kreuz);
+  x.addEventListener('click', function () {
+    feld.value = '';
+    feld.dispatchEvent(new Event('input', { bubbles: true }));
+    feld.removeAttribute('readonly');
+    feld.focus();
+  });
+  kreuz();
+})();
+</script>
+{% endmacro %}

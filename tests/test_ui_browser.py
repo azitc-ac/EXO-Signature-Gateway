@@ -670,3 +670,44 @@ def test_abwesenheit_filter_und_status_knopf(browser, server, monkeypatch):
         ctx.close()
     finally:
         settings_store.update({"ABWESENHEIT_AKTIV": vorher})
+
+
+# /smime fehlt bewusst: Das Feld erscheint dort nur mit S/MIME-Nutzern (die die
+# Testumgebung nicht hat). Dass es das Makro nutzt, prüft der Quelltext-Test unten;
+# das Makro-Verhalten samt Autofill-Schutz deckt /mailboxes ab.
+@pytest.mark.parametrize("pfad,feld", [("/abwesenheit", "ab-filter"),
+                                       ("/mailboxes", "mb-filter")])
+def test_filterfeld_loeschkreuz(seite, pfad, feld):
+    """Gemeinsames Filterfeld (_filterfeld.html): × nur bei Eingabe, Klick leert
+    und löst `input` aus (damit die Seite neu filtert)."""
+    import settings_store
+    vorher = settings_store.get("ABWESENHEIT_AKTIV")
+    settings_store.update({"ABWESENHEIT_AKTIV": True})
+    try:
+        pg = seite(pfad, breite=1280)
+        # Die Postfach-Tabelle (samt Filter) erscheint erst nach dem Laden — sichtbar machen.
+        pg.evaluate("() => { const w = document.getElementById('mb-table-wrap'); if (w) w.style.display = 'block'; }")
+        x = f"#{feld}-x"
+        assert not pg.is_visible(x), "× ohne Eingabe sichtbar"
+        pg.click(f"#{feld}")          # wie ein Nutzer: Fokus hebt den Autofill-Schutz (readonly) auf
+        pg.fill(f"#{feld}", "abc")
+        assert pg.is_visible(x), "× erscheint nicht bei Eingabe"
+        pg.evaluate(f"() => {{ window._eingaben = 0; document.getElementById('{feld}')"
+                    f".addEventListener('input', () => window._eingaben++); }}")
+        pg.click(x)
+        assert pg.input_value(f"#{feld}") == ""
+        assert pg.evaluate("() => window._eingaben") == 1, "Löschen filtert nicht neu"
+        assert not pg.is_visible(x)
+    finally:
+        settings_store.update({"ABWESENHEIT_AKTIV": vorher})
+
+
+def test_filterfelder_nur_ueber_das_makro():
+    """Executable statt Prosa: Ein von Hand gebautes Filterfeld hätte kein ×."""
+    import re
+    from pathlib import Path
+    vorlagen = Path(__file__).resolve().parent.parent / "app" / "webui" / "templates"
+    treffer = [f"{p.name}:{i}" for p in vorlagen.glob("*.html") if p.name != "_filterfeld.html"
+               for i, z in enumerate(p.read_text(encoding="utf-8").splitlines(), 1)
+               if re.search(r'<input[^>]*placeholder="Filter', z)]
+    assert not treffer, f"Filterfeld am Makro vorbei: {treffer}"
