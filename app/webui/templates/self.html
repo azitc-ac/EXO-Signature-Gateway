@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Meine Abwesenheit &amp; Signatur</title>
+<title>{% if abwesenheit_aktiv() %}Meine Abwesenheit &amp; Signatur{% else %}Meine Signatur{% endif %}</title>
 <!-- office.js lädt auch im Browser (dann ohne Host) — die Office-Pfade greifen nur
      in Outlook. Fehlt es (Offline/CDN blockiert), läuft die Seite als Browser-Seite. -->
 <script src="https://appsforoffice.microsoft.com/lib/1.1/hosted/office.js"></script>
@@ -37,7 +37,11 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>Meine Abwesenheit &amp; Signatur</h1>
+  <h1>{% if abwesenheit_aktiv() %}Meine Abwesenheit &amp; Signatur{% else %}Meine Signatur{% endif %}</h1>
+  {# Aus der Verfassen-Leiste gekommen: dorthin zurück (die Taskpane hat keinen Zurück-Knopf). #}
+  {% if request.query_params.get("von") == "verfassen" %}
+  <p class="sub"><a href="/addin/compose" style="color:#0078d4">← zurück zum Einfügen der Signatur</a></p>
+  {% endif %}
   <p class="sub" id="wer">{{ gateway_name }}</p>
 
   <div id="lade" class="sub">Lädt…</div>

@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json as _json_mod
 import uuid as _uuid
+from xml.sax.saxutils import escape as _xml_escape
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -135,6 +136,46 @@ async def addin_auth_complete(request: Request):
     return HTMLResponse(content=html, headers={"Cache-Control": _NO_STORE})
 
 
+# Office begrenzt ShortStrings (Rubrik, Knopf, Titel) auf 125 Zeichen, LongStrings
+# auf 250 — Annahme nach dem Manifest-Schema, nicht an Outlook gemessen. Im
+# Menüband wird ohnehin früher abgeschnitten.
+_KURZ, _LANG = 125, 250
+
+
+def _manifest_texte() -> dict[str, str]:
+    """Alle sichtbaren Texte des Manifests — XML-maskiert, EINE Quelle.
+
+    Rubrik (Gruppe im Menüband) ist an BEIDEN Einstiegspunkten der Gateway-Name;
+    der Knopf heisst an beiden gleich: „Signatur & Abwesenheit", oder nur
+    „Signatur", solange „Zentrale Abwesenheiten verwalten" aus ist.
+
+    ⚠️ Der Gateway-Name stand bis v1.9.114 unmaskiert in <ProviderName> — ein
+    Name mit „&" oder „<" machte das Manifest ungültig.
+    ⚠️ Die Texte werden beim ABRUF eingesetzt. Outlook kennt sie erst nach erneutem
+    Verteilen des Manifests; ein späteres Umschalten benennt installierte Knöpfe
+    nicht um.
+    """
+    import abwesenheit
+    name = (_gateway_name() or "").strip() or "EXO Signature Gateway"
+    abw = abwesenheit.funktion_aktiv()
+    knopf = "Signatur & Abwesenheit" if abw else "Signatur"
+    roh = {
+        "anbieter": (name, _KURZ),
+        "anzeige": (name, _KURZ),
+        "beschreibung": ("Gateway-Signatur einfügen" + (" und eigene Abwesenheit verwalten" if abw
+                                                        else " und eigene Signatur wählen"), _LANG),
+        "rubrik": (name, _KURZ),
+        "knopf": (knopf, _KURZ),
+        "titel_verfassen": (knopf, _KURZ),
+        "titel_lesen": (knopf, _KURZ),
+        "info_verfassen": ("Gateway-Signatur einfügen" + (", Abwesenheit und Signaturwahl verwalten"
+                                                          if abw else " und Signaturwahl verwalten"), _LANG),
+        "info_lesen": ("Eigene Abwesenheit und Signatur verwalten" if abw
+                       else "Eigene Signatur verwalten", _LANG),
+    }
+    return {k: _xml_escape(v[:grenze], {'"': "&quot;"}) for k, (v, grenze) in roh.items()}
+
+
 @router.get("/addin/manifest.xml")
 async def addin_manifest(request: Request):
     """Generate the Office Add-in manifest dynamically.
@@ -145,6 +186,7 @@ async def addin_manifest(request: Request):
     hostname = base.split("://")[-1].split(":")[0]
     # Stable add-in ID derived from the hostname so it never changes across restarts.
     addin_id = str(_uuid.uuid5(_uuid.NAMESPACE_DNS, f"exo-signature-addin.{hostname}"))
+    t = _manifest_texte()
     xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <OfficeApp
   xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
@@ -154,10 +196,10 @@ async def addin_manifest(request: Request):
 
   <Id>{addin_id}</Id>
   <Version>1.0.0</Version>
-  <ProviderName>{_gateway_name()}</ProviderName>
+  <ProviderName>{t['anbieter']}</ProviderName>
   <DefaultLocale>de-DE</DefaultLocale>
-  <DisplayName DefaultValue="EXO Signatur"/>
-  <Description DefaultValue="Zeigt und fügt die Gateway-Signatur beim Verfassen ein"/>
+  <DisplayName DefaultValue="{t['anzeige']}"/>
+  <Description DefaultValue="{t['beschreibung']}"/>
   <IconUrl DefaultValue="{base}/addin/icon/32.png"/>
   <HighResolutionIconUrl DefaultValue="{base}/addin/icon/64.png"/>
   <SupportUrl DefaultValue="{base}"/>
@@ -221,14 +263,15 @@ async def addin_manifest(request: Request):
               </Group>
             </OfficeTab>
           </ExtensionPoint>
-          <!-- Self-Service beim LESEN jeder Mail erreichbar: Abwesenheit +
-               eigene Signatur verwalten (Taskpane /self). -->
+          <!-- Self-Service beim LESEN jeder Mail erreichbar (Taskpane /self).
+               Gleiche Rubrik und gleicher Knopfname wie beim Verfassen: für den
+               Nutzer EIN Werkzeug, das je nach Lage das Passende öffnet. -->
           <ExtensionPoint xsi:type="MessageReadCommandSurface">
             <OfficeTab id="TabDefault">
               <Group id="exo.self.group">
-                <Label resid="selfGroupLabel"/>
+                <Label resid="groupLabel"/>
                 <Control xsi:type="Button" id="exo.self.btn">
-                  <Label resid="selfBtnLabel"/>
+                  <Label resid="btnLabel"/>
                   <Supertip>
                     <Title resid="selfBtnTitle"/>
                     <Description resid="selfBtnDesc"/>
@@ -262,18 +305,16 @@ async def addin_manifest(request: Request):
       </bt:Urls>
       <bt:ShortStrings>
         <!-- Im Menuband steht der Gruppenname UNTEN, die Knopfbeschriftung
-             direkt unter dem Symbol. Beide hiessen "Signatur" — damit stand
-             das Wort zweimal untereinander und nannte den Urheber nirgends. -->
-        <bt:String id="groupLabel" DefaultValue="Signatur"/>
-        <bt:String id="btnLabel"   DefaultValue="EXO Signatur"/>
-        <bt:String id="btnTitle"   DefaultValue="EXO Signatur"/>
-        <bt:String id="selfGroupLabel" DefaultValue="Self-Service"/>
-        <bt:String id="selfBtnLabel"   DefaultValue="Abwesenheit"/>
-        <bt:String id="selfBtnTitle"   DefaultValue="Abwesenheit &amp; Signatur"/>
+             direkt unter dem Symbol. Rubrik = Gateway-Name (der Urheber),
+             Knopf = was er tut — an beiden Einstiegspunkten gleich. -->
+        <bt:String id="groupLabel" DefaultValue="{t['rubrik']}"/>
+        <bt:String id="btnLabel"   DefaultValue="{t['knopf']}"/>
+        <bt:String id="btnTitle"   DefaultValue="{t['titel_verfassen']}"/>
+        <bt:String id="selfBtnTitle"   DefaultValue="{t['titel_lesen']}"/>
       </bt:ShortStrings>
       <bt:LongStrings>
-        <bt:String id="btnDesc" DefaultValue="Gateway-Signatur einfügen"/>
-        <bt:String id="selfBtnDesc" DefaultValue="Eigene Abwesenheit und Signatur verwalten"/>
+        <bt:String id="btnDesc" DefaultValue="{t['info_verfassen']}"/>
+        <bt:String id="selfBtnDesc" DefaultValue="{t['info_lesen']}"/>
       </bt:LongStrings>
     </Resources>
   </VersionOverrides>

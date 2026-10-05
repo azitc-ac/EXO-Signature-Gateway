@@ -254,3 +254,19 @@ def test_menue_und_seite_folgen_dem_schalter(client):
     assert 'href="/abwesenheit"' in r.text
     assert client.get("/abwesenheit", follow_redirects=False).status_code == 200
     settings_store.update({"ABWESENHEIT_AKTIV": False})
+
+
+def test_verfassen_leiste_fuehrt_zum_self_service_und_zurueck(client):
+    """Der Add-in-Knopf heisst beim Verfassen wie beim Lesen — die Verfassen-Leiste
+    muss also zur Selbstverwaltung führen, und /self wieder zurück."""
+    import settings_store
+    settings_store.update({"ABWESENHEIT_AKTIV": True})
+    r = client.get("/addin/compose")
+    assert 'href="/self?von=verfassen"' in r.text and "Meine Abwesenheit &amp; Signatur" in r.text
+    r = client.get("/self?von=verfassen")
+    assert 'href="/addin/compose"' in r.text
+    assert 'href="/addin/compose"' not in client.get("/self").text
+
+    settings_store.update({"ABWESENHEIT_AKTIV": False})
+    assert "Meine Signatur verwalten" in client.get("/addin/compose").text
+    assert "<h1>Meine Signatur</h1>" in client.get("/self").text
