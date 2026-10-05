@@ -100,6 +100,11 @@
   <p class="hint" id="hint-auto" style="display:none">
     Signatur wurde automatisch eingefügt. Vorlage wechseln oder <strong>Einfügen</strong> klicken zum Aktualisieren.
   </p>
+  {# Derselbe Knopf heisst beim Lesen „Signatur & Abwesenheit" und öffnet /self —
+     hier führt der Link dorthin, damit der Name auch beim Verfassen stimmt. #}
+  <p class="hint" style="margin-top:12px">
+    <a href="/self?von=verfassen" style="color:#0078d4">{% if abwesenheit_aktiv() %}Meine Abwesenheit &amp; Signatur verwalten{% else %}Meine Signatur verwalten{% endif %} →</a>
+  </p>
   <div style="margin-top:12px;font-size:10px;color:#cbd5e1;text-align:right">v{{ version }}</div>
   <details style="margin-top:8px;font-size:10px;color:#64748b">
     <summary style="cursor:pointer;color:#94a3b8">Debug</summary>

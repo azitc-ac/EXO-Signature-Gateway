@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.115 — 2026-10-05 — Outlook-Add-in: eine Rubrik, ein Knopfname
+
+Das Add-in hat zwei Einstiegspunkte: einen beim Verfassen (Signatur einfügen) und
+einen beim Lesen (Selbstverwaltung). Sie erschienen bisher unter zwei Rubriken
+(„Signatur" und „Self-Service") mit zwei Knopfnamen. Jetzt tragen beide **den
+Gateway-Namen als Rubrik** und denselben Knopf **„Signatur & Abwesenheit"**. Ist
+*Zentrale Abwesenheiten verwalten* aus, heißt der Knopf nur **„Signatur"**. Auch
+der Anzeigename des Add-ins ist jetzt der Gateway-Name.
+
+Beim Verfassen führt in der Seitenleiste ein Link „Meine Abwesenheit & Signatur
+verwalten" zur Selbstverwaltung und von dort zurück zum Einfügen.
+
+Behoben: Der Gateway-Name stand unmaskiert im Manifest. Ein Name mit „&" oder
+„<" machte es ungültig, und Outlook lehnte es beim Hochladen ab.
+
+**Zu tun:** Rubrik und Knopfname stehen im Manifest. Damit sie in Outlook
+erscheinen, verteile das Manifest neu (*Einstellungen → Outlook Add-in*, im
+Microsoft 365 Admin Center aktualisieren bzw. neu laden). Dasselbe gilt, wenn du
+später *Zentrale Abwesenheiten verwalten* umschaltest.
+
 ## v1.9.114 — 2026-10-05 — Abwesenheiten als zuschaltbare Funktion, vordefinierte Gruppe „Alle Postfächer"
 
 **Zentrale Abwesenheiten verwalten** ist jetzt ein Schalter im Einrichtungsassistenten
