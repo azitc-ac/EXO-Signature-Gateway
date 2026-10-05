@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.118 — 2026-10-05 — Abwesenheit: normale Seitenbreite, Knopf- und Bildhinweis korrigiert
+
+Die Seite **Abwesenheit** lief über die volle Fensterbreite. Ihre
+Einstellungs-Karten zogen sich dadurch weit auseinander, Auswahlfelder wurden
+über 1200 px breit. Sie hat jetzt die normale Breite; die Übersichtstabelle
+passt hinein und bleibt auf schmalen Anzeigen waagerecht rollbar.
+
+Behoben: „Fehlende Berechtigungen erteilen" wurde angezeigt, obwohl alle
+Berechtigungen erteilt waren.
+
+Korrigiert: Der Hinweis zu *Signatur/Banner unter die Abwesenheit hängen*
+behauptete, Bilder erschienen in Abwesenheitsantworten meist nicht. Tatsächlich
+stecken sie als eingebettete Daten im Text: Outlook und die meisten
+Mailprogramme zeigen sie an, Gmail blendet sie aus.
+
 ## v1.9.117 — 2026-10-05 — Berechtigungen prüfen und fehlende direkt erteilen
 
 Der Einrichtungsassistent zeigte im Schritt *Entra App-Registrierung* die
