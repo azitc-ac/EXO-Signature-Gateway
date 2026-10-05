@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.120 — 2026-10-05 — Filterfelder mit Löschkreuz, verborgene Elemente bleiben verborgen
+
+Die Filterfelder auf **Postfächer** und **S/MIME** haben jetzt wie die
+Abwesenheits-Übersicht ein ×, das den Filter leert. Alle drei nutzen denselben
+Baustein.
+
+Elemente mit dem Attribut `hidden` bleiben jetzt überall verborgen. Bisher konnte
+eine Stilregel sie wieder sichtbar machen. So erschien zuletzt „Fehlende
+Berechtigungen erteilen", obwohl nichts fehlte.
+
 ## v1.9.119 — 2026-10-05 — Abwesenheit: Übersicht filtern
 
 Über der Übersichtstabelle der Seite **Abwesenheit** gibt es jetzt ein Filterfeld

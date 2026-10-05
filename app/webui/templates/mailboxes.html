@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block main_klasse %}weit{% endblock %}
+{% from "_filterfeld.html" import filterfeld %}
 {% block content %}
 <h1>Postfächer</h1>
 
@@ -170,8 +171,7 @@ async function ankerAnwenden() {
   </div>
   <div id="mb-table-wrap" style="display:none">
     <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center">
-      <input readonly type="text" id="mb-filter" placeholder="Filtern…" oninput="filterMailboxes()"
-             style="flex:1 1 200px;max-width:320px;padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px" onfocus="this.removeAttribute('readonly')">
+      {{ filterfeld("mb-filter", oninput="filterMailboxes()", gegen_autofill=true) }}
       <select id="mb-type-filter" onchange="filterMailboxes()"
               style="padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px">
         <option value="">Alle Typen</option>
