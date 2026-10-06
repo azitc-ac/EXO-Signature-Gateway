@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.127 — 2026-10-06 — Scanner-Abbrüche wirklich leiser
+
+Abgebrochene TLS-Handshakes fremder Rechner auf Port 25 (meist Port-Scanner) sollten
+seit v1.8.x als einzeilige INFO-Meldung erscheinen statt als ERROR mit Traceback.
+Das griff nie: Der SMTP-Baustein meldet solche Abbrüche nicht als TLS-Fehler, sondern
+in einer eigenen Hülle, und der Filter prüfte nur die Hülle. Im Protokoll stand das
+Rauschen deshalb weiter als Fehler. Jetzt wird die eigentliche Ursache in der Hülle
+geprüft. Echte Fehler bleiben ERROR mit Traceback.
+
 ## v1.9.126 — 2026-10-06 — Protokoll: Markierung kopieren auf dem iPhone
 
 Auf dem iPhone legt Safari in den Protokollkästen beim langen Drücken eine
