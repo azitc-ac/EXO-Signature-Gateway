@@ -1,24 +1,11 @@
 {% extends "base.html" %}
 {% block content %}
 <style>
-/* ⚠️ Am Telefon brechen die Zeilen um, statt seitlich zu rollen.
- *
- * ANLASS (2026-10-06), iPhone/Safari: Im schwarzen Kasten erschien beim langen
- * Drücken nur die Lupe, eine Auswahl entstand nie — auch im ruhenden
- * Suchergebnis und bei angehaltenem Strom, während Text daneben, auf anderen
- * Seiten und auf fremden Seiten markierbar war. Der Kasten ist das einzige
- * Element, das in BEIDE Richtungen rollt (`white-space: pre` + `overflow-x:
- * auto`); das lange Drücken geriet dort an die Rollgeste.
- *
- * Ohne waagerechtes Rollen bleibt nur die senkrechte Geste — und umgebrochene
- * Zeilen liest man am Telefon ohnehin besser. Am Desktop bleibt es bei einer
- * Zeile je Eintrag. Die Regel steht hier und nicht in style.css, weil jene mit
- * dem Relay gespiegelt ist. */
-@media (max-width: 600px) {
-  .log-wrap { overflow-x: hidden; }
-  .log-pre  { white-space: pre-wrap; overflow-wrap: anywhere; padding: 10px 12px; }
-}
-.log-pre { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+/* Markierung im dunklen Kasten sichtbar machen. Der Kasten ist in beiden
+ * Farbschemata dunkel; die Standardfarbe der Markierung (iOS: blasses Blau)
+ * hebt sich davon kaum ab. Am 06.10.2026 bestand auf dem iPhone der Verdacht,
+ * man sehe die Markierung „nur nicht". */
+.log-pre::selection, .log-pre *::selection { background: #1e40af; color: #fff; }
 </style>
 
 <!-- ── Protokoll-Suche ───────────────────────────────────────────────────── -->
@@ -290,5 +277,39 @@ function _resizeLog() {
 }
 window.addEventListener('resize', _resizeLog);
 _resizeLog();
+
+// Diagnose (?diag=1): Was passiert beim langen Drücken im Protokollkasten?
+// ANLASS (06.10.2026): Auf dem iPhone erscheint dort nur die Lupe, eine Auswahl
+// entsteht nie — überall sonst schon. Am Rechner nicht nachstellbar (Chromium
+// markiert problemlos), deshalb misst das Gerät selbst und zeigt es an.
+if (/[?&]diag=1/.test(location.search)) (function () {
+    var box = document.createElement('div');
+    box.id = 'log-diag';
+    box.style.cssText = 'position:fixed;left:0;right:0;bottom:0;max-height:40vh;overflow:auto;z-index:9999;'
+        + 'background:#fff;color:#000;font:11px monospace;border-top:2px solid #000;padding:6px;white-space:pre-wrap';
+    document.body.appendChild(box);
+    var t0 = Date.now();
+    function z(text) { box.textContent = ((Date.now() - t0) / 1000).toFixed(2) + ' ' + text + '\n' + box.textContent; }
+    function name(e) { return e ? (e.nodeType === 3 ? '#text<' + name(e.parentNode) : e.tagName + (e.id ? '#' + e.id : '') + (e.className && typeof e.className === 'string' ? '.' + e.className.split(' ')[0] : '')) : '-'; }
+    function stil(el) { var c = getComputedStyle(el); return name(el) + ' us=' + c.userSelect + ' wus=' + c.webkitUserSelect + ' pe=' + c.pointerEvents + ' ta=' + c.touchAction; }
+    var kette = []; for (var e = pre; e; e = e.parentElement) kette.push(stil(e));
+    z('UA ' + navigator.userAgent.slice(0, 90) + '\n  ' + kette.join('\n  '));
+    ['touchstart', 'touchend', 'touchcancel', 'contextmenu', 'selectstart'].forEach(function (typ) {
+        document.addEventListener(typ, function (ev) {
+            var t = ev.changedTouches && ev.changedTouches[0];
+            var oben = t ? document.elementFromPoint(t.clientX, t.clientY) : null;
+            z(typ + ' ziel=' + name(ev.target) + (t ? ' oben=' + name(oben) : '') + (ev.defaultPrevented ? ' PREVENTED' : ''));
+        }, true);
+    });
+    document.addEventListener('selectionchange', function () {
+        var sel = window.getSelection();
+        z('selectionchange len=' + sel.toString().length + ' typ=' + sel.type + ' in=' + name(sel.anchorNode));
+    });
+    var _pd = Event.prototype.preventDefault;
+    Event.prototype.preventDefault = function () { if (/touch|select|context|pointer|mouse/.test(this.type)) z('preventDefault(' + this.type + ') von Skript'); return _pd.apply(this, arguments); };
+    var _rar = window.Selection.prototype.removeAllRanges;
+    window.Selection.prototype.removeAllRanges = function () { z('removeAllRanges() von Skript'); return _rar.apply(this, arguments); };
+    z('Diagnose aktiv — lange auf eine Protokollzeile drücken, dann auf den grauen Hinweistext oben');
+})();
 </script>
 {% endblock %}
