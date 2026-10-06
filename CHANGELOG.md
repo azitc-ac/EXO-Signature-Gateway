@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.124 — 2026-10-06 — Protokoll: Umbruch zurückgenommen, Diagnose für Touch-Geräte
+
+Der Umbruch aus v1.9.123 hat das Markieren auf dem iPhone nicht ermöglicht und ist
+wieder entfernt; das Protokoll zeigt wieder eine Zeile je Eintrag. Mit `?diag=1`
+an der Adresse der Protokollseite (`/log?diag=1`) erscheint unten eine Messanzeige:
+Sie listet, was beim Berühren und Markieren geschieht (Ziel-Element,
+Auswahländerungen, Stilwerte des Kastens). Damit lässt sich die Ursache am Gerät
+selbst feststellen.
+
+Die Markierung im dunklen Protokollkasten hat außerdem eine eigene, deutlich
+sichtbare Farbe; die Standardfarbe hob sich vom dunklen Grund kaum ab.
+
 ## v1.9.123 — 2026-10-06 — Protokoll am Telefon wieder markierbar
 
 Im Protokoll (Live-Ansicht und Suchergebnis) ließ sich auf dem iPhone nichts
