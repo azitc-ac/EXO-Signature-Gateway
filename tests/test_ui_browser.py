@@ -490,7 +490,10 @@ def test_massenoperation_zeigt_erst_nach_der_aktionswahl(seite, monkeypatch):
 
 # ── Hinweis auf nicht erprobte Bereiche ──────────────────────────────────────
 
-@pytest.mark.parametrize("pfad,anzahl", [("/mailboxes", 2), ("/settings/smime", 1)])
+# /mailboxes trug bis 01.10.2026 zwei Hinweise (Gruppen, Richtlinien) — beide als
+# erprobt entfernt (8b67c5a, bc20213). Der Test lief seither lokal rot; in der CI
+# fiel es nicht auf, weil dort kein Playwright installiert ist.
+@pytest.mark.parametrize("pfad,anzahl", [("/settings/smime", 1)])
 @pytest.mark.parametrize("thema", ["light", "dark"])
 def test_preview_hinweis_steht_und_leuchtet_nicht(seite, thema, pfad, anzahl):
     """Gruppen und Richtlinien tragen einen Hinweis — auch im Dunkelmodus lesbar.

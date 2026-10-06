@@ -398,10 +398,19 @@ def test_bestandsvorlagen_werden_zerlegt_nicht_nur_gerettet():
     Griffe es bei jeder Vorlage, wäre die Umwandlung formal verlustfrei und
     praktisch wertlos: alles bliebe ein Block HTML.
     """
+    # ⚠️ Die MITGELIEFERTEN Vorlagen, nicht `templates/`. Jenes ist das
+    # Laufzeitverzeichnis des Betreibers (gitignored, in den Container
+    # gebunden): In der CI ist es leer, der Test prüfte dort also nichts; lokal
+    # prüfte er die eigenen Vorlagen des Betreibers. Eine Abwesenheitsvorlage mit
+    # `{{ zeitraum }}` im Fließtext landet dort zu Recht im Netz — der
+    # Text-Baustein kennt keine Platzhalter, der Freitext gibt sie verlustfrei
+    # weiter. Das ist eine Grenze des Baukastens, kein Zerlegungsfehler.
     from pathlib import Path
-    verz = Path(__file__).resolve().parents[1] / "templates"
+    verz = Path(__file__).resolve().parents[1] / "app" / "seed_templates"
+    vorlagen = sorted(verz.glob("*.html"))
+    assert len(vorlagen) >= 5, f"mitgelieferte Vorlagen nicht gefunden in {verz}"
     im_netz = []
-    for f in sorted(verz.glob("*.html")):
+    for f in vorlagen:
         meta = tp.parse_html(f.read_text(encoding="utf-8"))
         if meta["_hinweise"] and len(meta["blocks"]) == 1:
             im_netz.append(f.name)
