@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.126 — 2026-10-06 — Protokoll: Markierung kopieren auf dem iPhone
+
+Auf dem iPhone legt Safari in den Protokollkästen beim langen Drücken eine
+Markierung an, zeigt sie aber nicht an: keine Hervorhebung, keine Griffe, kein Menü
+„Kopieren". Gemessen mit der Diagnose aus v1.9.124 — die Auswahl besteht, sie wird
+nur nicht gezeichnet. Außerhalb der Kästen funktioniert es normal.
+
+Die Seite merkt sich die Markierung deshalb selbst. Der Knopf am Kasten heißt dann
+„Markierung kopieren (N Zeichen)" und kopiert genau das Markierte; ohne Markierung
+weiterhin den ganzen Inhalt. Das Suchergebnis hat jetzt ebenfalls einen solchen
+Knopf. Am Desktop ändert sich nichts außer der Beschriftung.
+
 ## v1.9.125 — 2026-10-06 — Protokoll-Diagnose oben
 
 Die Messanzeige von `/log?diag=1` steht jetzt am oberen Rand (unten verdeckte

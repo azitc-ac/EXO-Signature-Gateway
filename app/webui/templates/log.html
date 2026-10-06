@@ -39,6 +39,8 @@
   <script>if (window.innerWidth > 600) document.getElementById('qs-details').open = true;</script>
   <div id="searchStats" style="font-size:12px;color:#666;margin-top:6px;display:none"></div>
   <div id="searchResults" style="margin-top:10px;display:none">
+    <button id="btnKopierenSuche" class="btn secondary btn-sm" style="margin-bottom:6px"
+            onclick="kopiereProtokoll(this, document.getElementById('searchPre'))">Kopieren</button>
     <div class="log-wrap" style="max-height:300px">
       <pre id="searchPre" class="log-pre"></pre>
     </div>
@@ -52,7 +54,7 @@
         style="flex:1;min-width:140px;padding:5px 10px;font-size:13px;border:1px solid #ccc;border-radius:6px"
         oninput="applyFilter()">
     <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;flex-wrap:wrap">
-        <button class="btn secondary btn-sm" onclick="kopiereProtokoll(this)">Kopieren</button>
+        <button id="btnKopieren" class="btn secondary btn-sm" onclick="kopiereProtokoll(this, pre)">Kopieren</button>
         <button class="btn secondary btn-sm" onclick="clearLog()">Leeren</button>
         <button id="btnScroll"   class="btn-toggle active" onclick="toggleScroll()">autoscroll ✓</button>
         <button id="btnVerbose"  class="btn-toggle"        onclick="toggleVerbose()">verbose ✗</button>
@@ -190,25 +192,71 @@ function appendLine(text) {
 
 // Alles im Sichtbereich in die Zwischenablage — auf dem Telefon der
 // verlässlichste Weg, weil kein genaues Markieren nötig ist.
-async function kopiereProtokoll(btn) {
-    var text = pre.textContent || '';
-    var alt = btn.textContent;
-    if (!text.trim()) { showMsg(btn, '', false); btn.textContent = 'nichts da'; }
+// ⚠️ iOS zeigt Markierungen in den Protokollkästen NICHT an.
+//
+// Gemessen am 06.10.2026 mit /log?diag=1 auf einem iPhone (iOS 18.7): Beim
+// langen Drücken entsteht eine echte Auswahl (`selectionchange`, Typ Range,
+// 2 bis 673 Zeichen beim Ziehen), nichts entfernt sie — aber Safari zeichnet
+// weder Hervorhebung noch Griffe noch das Menü „Kopieren". Ausserhalb der
+// Kästen geht es. Am Rechner nicht nachstellbar; Umbruch statt seitlichem
+// Rollen (v1.9.123) und eine eigene Markierungsfarbe änderten nichts.
+//
+// Die Auswahl besteht also, nur sieht man sie nicht. Die Seite merkt sie sich
+// deshalb selbst: Der Kopieren-Knopf des Kastens nennt die Zeichenzahl und
+// kopiert genau die Markierung. Gemerkt wird 20 s lang, weil das Tippen auf
+// den Knopf die Auswahl auf iOS schon aufheben kann, bevor `click` ankommt.
+var _merk = {text: '', quelle: null, zeit: 0};
+var _merkUhr = null;
+function _knopfFuer(quelle) {
+    return document.getElementById(quelle && quelle.id === 'searchPre' ? 'btnKopierenSuche' : 'btnKopieren');
+}
+function _merkFrisch(quelle) {
+    return _merk.text && _merk.quelle === quelle && Date.now() - _merk.zeit < 20000;
+}
+function _knoepfeBeschriften() {
+    [pre, document.getElementById('searchPre')].forEach(function (q) {
+        var b = _knopfFuer(q);
+        if (!b || b.dataset.meldet) return;
+        b.textContent = _merkFrisch(q) ? 'Markierung kopieren (' + _merk.text.length + ' Zeichen)' : 'Kopieren';
+    });
+}
+document.addEventListener('selectionchange', function () {
+    var sel = window.getSelection && window.getSelection();
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0) return;
+    var k = sel.getRangeAt(0).commonAncestorContainer;
+    if (k.nodeType === 3) k = k.parentNode;
+    var quelle = k && k.closest ? k.closest('.log-pre') : null;
+    if (!quelle) return;
+    var text = sel.toString();
+    if (!text.trim()) return;
+    _merk = {text: text, quelle: quelle, zeit: Date.now()};
+    _knoepfeBeschriften();
+    clearTimeout(_merkUhr);
+    _merkUhr = setTimeout(_knoepfeBeschriften, 20500);
+});
+
+async function kopiereProtokoll(btn, quelle) {
+    quelle = quelle || pre;
+    var nurMarkierung = _merkFrisch(quelle);
+    var text = nurMarkierung ? _merk.text : (quelle.textContent || '');
+    btn.dataset.meldet = '1';
+    if (!text.trim()) { btn.textContent = 'nichts da'; }
     else {
         try {
             await navigator.clipboard.writeText(text);
-            btn.textContent = 'kopiert ✓';
+            btn.textContent = nurMarkierung ? 'Markierung kopiert ✓' : 'kopiert ✓';
+            if (nurMarkierung) _merk = {text: '', quelle: null, zeit: 0};
         } catch (e) {
             // Ohne HTTPS oder ohne Berechtigung gibt es keine Zwischenablage.
             // Dann wenigstens alles markieren, damit ein Tippen genügt.
             var r = document.createRange();
-            r.selectNodeContents(pre);
+            r.selectNodeContents(quelle);
             var s = window.getSelection();
             s.removeAllRanges(); s.addRange(r);
             btn.textContent = 'markiert — jetzt kopieren';
         }
     }
-    setTimeout(function () { btn.textContent = alt; }, 2500);
+    setTimeout(function () { delete btn.dataset.meldet; _knoepfeBeschriften(); }, 2500);
 }
 
 function setStatus(label, cls) {
