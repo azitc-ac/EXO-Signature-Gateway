@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.128 — 2026-10-06 — Zwei Tests berichtigt
+
+Interne Änderung ohne Auswirkung auf den Betrieb. Die Prüfung, dass Vorlagen sich in
+Bausteine zerlegen lassen, nimmt jetzt die mitgelieferten Vorlagen statt des
+Vorlagenverzeichnisses der Installation (dort prüfte sie je nach Bestand alles oder
+nichts). Ein Oberflächentest erwartete noch zwei Hinweise „noch nicht erprobt" in der
+Postfachverwaltung, die seit v1.9.91 entfallen sind.
+
 ## v1.9.127 — 2026-10-06 — Scanner-Abbrüche wirklich leiser
 
 Abgebrochene TLS-Handshakes fremder Rechner auf Port 25 (meist Port-Scanner) sollten
