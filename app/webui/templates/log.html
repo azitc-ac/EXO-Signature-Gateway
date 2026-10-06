@@ -285,7 +285,7 @@ _resizeLog();
 if (/[?&]diag=1/.test(location.search)) (function () {
     var box = document.createElement('div');
     box.id = 'log-diag';
-    box.style.cssText = 'position:fixed;left:0;right:0;bottom:0;max-height:40vh;overflow:auto;z-index:9999;'
+    box.style.cssText = 'position:fixed;left:0;right:0;top:0;max-height:35vh;overflow:auto;z-index:9999;'
         + 'background:#fff;color:#000;font:11px monospace;border-top:2px solid #000;padding:6px;white-space:pre-wrap';
     document.body.appendChild(box);
     var t0 = Date.now();
@@ -309,6 +309,13 @@ if (/[?&]diag=1/.test(location.search)) (function () {
     Event.prototype.preventDefault = function () { if (/touch|select|context|pointer|mouse/.test(this.type)) z('preventDefault(' + this.type + ') von Skript'); return _pd.apply(this, arguments); };
     var _rar = window.Selection.prototype.removeAllRanges;
     window.Selection.prototype.removeAllRanges = function () { z('removeAllRanges() von Skript'); return _rar.apply(this, arguments); };
+    var _sl = -1, _st = -1;
+    wrap.addEventListener('scroll', function () {
+        if (Math.abs(wrap.scrollLeft - _sl) > 20 || Math.abs(wrap.scrollTop - _st) > 20) {
+            _sl = wrap.scrollLeft; _st = wrap.scrollTop; z('scroll links=' + _sl + ' oben=' + _st);
+        }
+    });
+    window.addEventListener('error', function (ev) { z('JS-FEHLER ' + ev.message); });
     z('Diagnose aktiv — lange auf eine Protokollzeile drücken, dann auf den grauen Hinweistext oben');
 })();
 </script>

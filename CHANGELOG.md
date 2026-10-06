@@ -5,6 +5,12 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.125 — 2026-10-06 — Protokoll-Diagnose oben
+
+Die Messanzeige von `/log?diag=1` steht jetzt am oberen Rand (unten verdeckte
+sie die Browserleiste mancher Telefone) und schreibt zusätzlich Rollbewegungen des
+Protokollkastens und Skriptfehler mit.
+
 ## v1.9.124 — 2026-10-06 — Protokoll: Umbruch zurückgenommen, Diagnose für Touch-Geräte
 
 Der Umbruch aus v1.9.123 hat das Markieren auf dem iPhone nicht ermöglicht und ist
