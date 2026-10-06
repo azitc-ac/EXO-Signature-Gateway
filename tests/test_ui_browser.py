@@ -598,6 +598,34 @@ def test_auswahl_im_protokoll_ueberlebt_neue_zeilen(seite):
         "reisst genau das die Auswahl weg.")
 
 
+def test_kopieren_nimmt_die_markierung(seite):
+    """Besteht eine Markierung im Kasten, kopiert der Knopf genau sie.
+
+    ⚠️ ANLASS (06.10.2026): iOS legt im Protokollkasten eine echte Auswahl an,
+    zeichnet sie aber nicht — kein Menü, kein „Kopieren". Der Knopf ist dort der
+    einzige Weg; kopierte er weiter den ganzen Kasten, wäre Markieren nutzlos.
+    """
+    pg = seite("/log", breite=393)
+    if not pg.evaluate("() => typeof appendLine === 'function'"):
+        pytest.skip("Protokollseite nicht erreichbar")
+    pg.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    pg.evaluate("""() => {
+      for (let i = 0; i < 30; i++) appendLine('2026-10-06 INFO  Zeile ' + i);
+      const r = document.createRange(); r.selectNodeContents(pre.children[pre.children.length - 3]);
+      const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+    }""")
+    pg.wait_for_timeout(200)
+    knopf = pg.locator("#btnKopieren")
+    assert "Markierung kopieren" in knopf.inner_text(), knopf.inner_text()
+    # Wie auf iOS: das Tippen hebt die Auswahl auf, bevor der Klick ankommt.
+    pg.evaluate("() => getSelection().removeAllRanges()")
+    knopf.click()
+    pg.wait_for_timeout(200)
+    inhalt = pg.evaluate("() => navigator.clipboard.readText()")
+    assert inhalt.strip().endswith("Zeile 27"), f"kopiert wurde: {inhalt[-80:]!r}"
+    assert "Zeile 0" not in inhalt, "der ganze Kasten wurde kopiert, nicht die Markierung"
+
+
 def test_protokoll_diagnose_nur_auf_wunsch(seite):
     """?diag=1 blendet die Messanzeige ein, sonst bleibt sie weg."""
     pg = seite("/log", breite=393)
