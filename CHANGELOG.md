@@ -5,6 +5,13 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.129 — 2026-10-07 — Gemeinsamer Relay-Baustein nachgezogen
+
+Interne Änderung ohne Auswirkung auf das Gateway: Die mit dem EXO SMTP Relay
+geteilte Prüfung kennt jetzt Domäneneinträge der Form `@firma.de` in der Handliste
+des Relays. Das Gateway führt keine solchen Einträge; seine Prüfung bleibt
+adressgenau.
+
 ## v1.9.128 — 2026-10-06 — Zwei Tests berichtigt
 
 Interne Änderung ohne Auswirkung auf den Betrieb. Die Prüfung, dass Vorlagen sich in
