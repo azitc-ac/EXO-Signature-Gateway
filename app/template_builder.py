@@ -450,7 +450,11 @@ def _freetext(b, _g, pad, _ind):
 # Hier entsteht das HTML aus einer festen Uebersetzung: dieselbe Eingabe ergibt
 # in jedem Browser dasselbe Ergebnis, und was nicht in der Syntax steht,
 # entsteht auch nicht. Ein Sanitizing-Schritt entfaellt deshalb.
-_AUS_LINK = re.compile(r"\[([^\]\n]+)\]\(([^)\s]+)\)")
+# Ziel ist entweder eine Adresse ohne Leerzeichen oder EIN Platzhalter
+# `{{ name }}` — der enthält Leerzeichen und fiele sonst durch. Gebraucht von den
+# Gateway-Nachrichten (`usermail`), deren Link erst beim Versand feststeht.
+_AUS_LINK = re.compile(r"\[([^\]\n]+)\]\((\{\{\s*[A-Za-z_][\w.]*\s*\}\}|[^)\s]+)\)")
+_AUS_PLATZHALTER = re.compile(r"^\{\{\s*[A-Za-z_][\w.]*\s*\}\}$")
 _AUS_FETT = re.compile(r"\*\*(?=\S)(.+?)(?<=\S)\*\*", re.DOTALL)
 _AUS_KURSIV = re.compile(r"(?<![\*\w])\*(?=\S)([^*\n]+?)(?<=\S)\*(?![\*\w])")
 # Nur Ziele, die in einer Signatur etwas zu suchen haben. `javascript:` und
@@ -469,7 +473,9 @@ def _auszeichnen(zeile_maskiert: str, g: dict) -> str:
     """
     def _link(m: re.Match) -> str:
         text, ziel = m.group(1), _htmllib.unescape(m.group(2))
-        if not ziel.lower().startswith(_ERLAUBTE_ZIELE):
+        # Ein Platzhalter wird erst beim Rendern zur Adresse. Er steht damit auf
+        # einer Stufe mit `web_link`, das `{{ user.website }}` genauso einsetzt.
+        if not (ziel.lower().startswith(_ERLAUBTE_ZIELE) or _AUS_PLATZHALTER.match(ziel)):
             return text          # unbrauchbares Ziel: Text behalten, Link fallen lassen
         lc = _farbe(g.get("link_color"), "#1e40af", g)
         return (f'<a href="{_htmllib.escape(ziel, quote=True)}"'

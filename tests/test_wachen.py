@@ -207,6 +207,7 @@ EDITOR_DARF: dict[str, str] = {
     "/api/templates":                   "Liste der Vorlagen",
     "/api/templates/{name}":            "Vorlage löschen",
     "/api/templates/{name}/meta":       "Baukasten-Daten lesen und speichern",
+    "/api/templates/{name}/kind":       "Art einer Vorlage setzen (wie beim Baukasten-Speichern)",
     "/api/templates/{name}/parse":      "Quelltext in Bausteine zerlegen",
     "/api/templates/{name}/create":     "Vorlage anlegen",
     "/api/templates/{name}/duplicate":  "Vorlage kopieren",

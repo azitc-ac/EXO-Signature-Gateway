@@ -29,11 +29,13 @@
          liegen im selben Verzeichnis und werden im selben Baukasten bearbeitet
          — in der Signaturliste hätten sie aber nichts zu suchen: Von dort aus
          wäre eine Zuweisung an ein Postfach ein Klick. #}
-      <optgroup label="Nachrichten an Postfachinhaber">
-      {% for u in usermails %}
+      {% for gruppe, label in [('intern', 'Nachrichten an Postfachinhaber'), ('extern', 'Nachrichten an externe Empfänger')] %}
+      <optgroup label="{{ label }}">
+      {% for u in usermails if u.gruppe == gruppe %}
       <option value="{{ u.name }}" {% if u.key == usermail_key %}selected{% endif %}>{{ u.anzeige }}</option>
       {% endfor %}
       </optgroup>
+      {% endfor %}
     </select>
     <button class="btn secondary" onclick="createNewTemplate()" type="button">+ Neue Vorlage</button>
     {# Kopieren, Umbenennen und Löschen gibt es für Nachrichten an
@@ -64,14 +66,15 @@
      Basissignatur ist keine andere Art. #}
   <div style="display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap">
     <label for="tpl-kind" style="font-weight:600;white-space:nowrap">Art:</label>
-    <select id="tpl-kind" style="padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px"
+    <select id="tpl-kind" onchange="artSpeichern(this)" style="padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px"
             {% if current_template == 'default' %}disabled title="Die Standardsignatur ist immer eine Signatur."{% endif %}>
       <option value="signatur" {% if template_kind == 'signatur' %}selected{% endif %}>Signatur</option>
       <option value="banner" {% if template_kind == 'banner' %}selected{% endif %}>Banner</option>
       <option value="disclaimer" {% if template_kind == 'disclaimer' %}selected{% endif %}>Disclaimer</option>
       <option value="oof" {% if template_kind == 'oof' %}selected{% endif %}>Abwesenheit</option>
     </select>
-    <span class="hint" style="margin:0">Bestimmt, in welchen Zuweisungslisten die Vorlage erscheint.</span>
+    <span id="tpl-kind-result" class="field-msg" style="margin:0"></span>
+    <span class="hint" style="margin:0">Bestimmt, in welchen Zuweisungslisten die Vorlage erscheint. Wird sofort gespeichert.</span>
   </div>
   {% endif %}
   <p class="hint" style="margin-top:8px;margin-bottom:0">
@@ -121,11 +124,14 @@
   </div>
 
   <p class="hint" style="margin:0">
-    Platzhalter im Text: <code>{% raw %}{{ empfaenger }}{% endraw %}</code> für die Adresse,
-    um die es geht, und <code>{% raw %}{{ ca }}{% endraw %}</code> für den Namen der
-    Zertifizierungsstelle. Der Betreff darf dieselben Platzhalter enthalten.<br>
-    Diese Nachricht geht an den <strong>Postfachinhaber</strong>, nicht an die Verwaltung —
-    und sie erklärt ihm, dass die gleich folgende Mail der Zertifizierungsstelle echt ist.
+    Platzhalter im Text und im Betreff:
+    {% for name, erkl in u.platzhalter.items() %}<code>{{ '{{ ' ~ name ~ ' }}' }}</code> {{ erkl }}{% if not loop.last %} · {% endif %}{% endfor %}<br>
+    {% if u.gruppe == 'extern' %}
+    Diese Nachricht geht an einen <strong>externen Empfänger</strong>, der das Gateway nicht kennt —
+    sie muss für sich allein verständlich und vertrauenswürdig sein.
+    {% else %}
+    Diese Nachricht geht an den <strong>Postfachinhaber</strong>, nicht an die Verwaltung.
+    {% endif %}
     {% if not u.ist_standard %}<br><span style="color:#b45309">Der Text weicht von der
     mitgelieferten Fassung ab.</span>{% endif %}
   </p>
@@ -442,7 +448,7 @@
 const TEMPLATE_NAME = {{ current_template | tojson }};
 const USERMAIL_KEY  = {{ usermail_key | tojson }};
 const HAS_META      = {{ has_meta | tojson }};
-const TEMPLATE_KIND = {{ template_kind | tojson }};
+let TEMPLATE_KIND = {{ template_kind | tojson }};
 // Quelltext nach dem letzten Baukasten-Speichern von Hand geaendert.
 const QUELLTEXT_NEUER = {{ quelltext_neuer | tojson }};
 const CUSTOM_VARS   = {{ (custom_vars or []) | tojson }};
@@ -1391,6 +1397,24 @@ function buildMeta() {
   }
   return meta;
 }
+
+// Die Art speichert SOFORT (Speicher-Regel 4: reiner Schalter ohne
+// Begleitfelder). Bis v1.9.129 wurde sie nur beim Baukasten-Speichern
+// mitgeschrieben — bei einer handgeschriebenen Vorlage also nie, und auch im
+// Baukasten blieb der Knopf nach einer reinen Art-Änderung gesperrt.
+window.artSpeichern = async function(sel) {
+  const vorher = TEMPLATE_KIND;
+  const d = await postJSON('/api/templates/' + encodeURIComponent(TEMPLATE_NAME) + '/kind',
+                           {kind: sel.value});
+  const el = document.getElementById('tpl-kind-result');
+  if (d.ok) {
+    TEMPLATE_KIND = sel.value;
+    showMsg(el, 'gespeichert', true);
+  } else {
+    sel.value = vorher;
+    showMsg(el, d.detail || d.error || 'nicht gespeichert', false);
+  }
+};
 
 window.usermailStandard = async function(key) {
   if (!confirm('Betreff und Text auf die mitgelieferte Fassung zurücksetzen?\n\n' +
