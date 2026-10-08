@@ -72,3 +72,12 @@ def test_manueller_bezug_verweist_weiterhin_auf_den_upload():
     entfernen wäre schlimmer als der ursprüngliche Fehler."""
     text = _text(assisted_manual.AssistedManualBackend)
     assert "selfservice" in text.lower(), "der manuelle Weg braucht den Upload"
+
+
+@pytest.mark.parametrize("name,klasse,aufbau", AUTOMATISCH)
+def test_anleitung_nennt_keine_restlaufzeit(name, klasse, aufbau):
+    """Die Restlaufzeit nennt die Vorlage `cert_renewal` darüber. Stand sie
+    zusätzlich in der Anleitung, hiess es bei abgelaufenem Zertifikat
+    „läuft in -3 Tagen ab"."""
+    text = _text(klasse, aufbau, days_left=-3)
+    assert "-3" not in text and "Tagen ab" not in text

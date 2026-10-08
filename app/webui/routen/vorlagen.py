@@ -621,6 +621,11 @@ async def preview(request: Request, email: str = "", user: str = Depends(_check_
         context={"email": email, "active": "preview", "gateway_name": _gateway_name()},
     )
 
+# Beispielzeitraum der Abwesenheit für die Vorschau — im Betrieb füllt ihn der
+# Kalender bzw. Zeitplan.
+_OOF_BEISPIEL = ("vom 24.12.2026 bis 02.01.2027", "24.12.2026", "02.01.2027")
+
+
 @router.get("/api/preview-data")
 async def api_preview_data(
     email: str = "",
@@ -680,6 +685,26 @@ async def api_preview_data(
             user_data = await _gc.get_user(email)
         except Exception as exc:
             error = str(exc)
+
+    # ⚠️ Die Live-Vorschau im Baukasten schickt JEDE Vorlage als `template` —
+    # auch Abwesenheit, Banner und Disclaimer. Bis v1.9.132 wurden die wie eine
+    # Signatur gerendert und der Banner/Disclaimer des Postfachs angehängt:
+    # Eine Abwesenheitsvorlage mit `{{ oof.zeitraum }}` brach dabei ab (`oof`
+    # gibt es nur im Abwesenheitsweg), der Text blieb leer, und in der Vorschau
+    # stand nur der Banner des Postfachs. Ein Banner erschien doppelt.
+    # Deshalb hier nach der Art: Abwesenheit wie im Betrieb über render_oof,
+    # Banner und Disclaimer für sich allein.
+    art = "" if explizit else signature_engine.vorlagen_art(template or "")
+    if art == "oof":
+        import abwesenheit
+        html, txt = abwesenheit.render_oof(user_data, template, *_OOF_BEISPIEL)
+        return JSONResponse({"html": html, "txt": txt, "error": error,
+                             "banner_html": "", "disclaimer_html": ""})
+    if art in ("banner", "disclaimer"):
+        html, txt = signature_engine.render(user_data, template_name=template)
+        return JSONResponse({"html": html, "txt": txt, "error": error,
+                             "banner_html": "", "disclaimer_html": ""})
+
     if explizit and not template:
         sig_html, sig_txt = "", ""
     else:
@@ -709,9 +734,7 @@ async def api_preview_data(
     oof_html, oof_txt = "", ""
     if oof:
         import abwesenheit
-        oof_html, oof_txt = abwesenheit.render_oof(
-            user_data, oof, "vom 24.12.2026 bis 02.01.2027",
-            "24.12.2026", "02.01.2027")
+        oof_html, oof_txt = abwesenheit.render_oof(user_data, oof, *_OOF_BEISPIEL)
     return JSONResponse({"html": sig_html, "txt": sig_txt, "error": error,
                          "banner_html": banner_html, "banner_template": banner,
                          "disclaimer_html": disclaimer_html, "disclaimer_template": disclaimer,
