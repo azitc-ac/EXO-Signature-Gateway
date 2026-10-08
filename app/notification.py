@@ -487,26 +487,15 @@ def send_renewal_notification_to_user(
         user_email, days, expiry, upload_url, user_config or {}
     )
 
-    urgency_color = "#e74c3c" if days <= 7 else "#e67e22"
-    if days < 0:
-        status_text = "ist <strong>ABGELAUFEN</strong>"
-        title = "⚠ S/MIME-Zertifikat abgelaufen – sofortige Erneuerung erforderlich"
-        subject = f"⚠ S/MIME-Zertifikat ABGELAUFEN – {user_email}"
-    else:
-        status_text = f"läuft in <strong>{days} Tagen</strong> ab ({expiry})"
-        title = f"⚠ S/MIME-Zertifikat läuft in {days} Tagen ab"
-        subject = f"⚠ S/MIME-Zertifikat läuft in {days} Tagen ab – {user_email}"
-
-    body = (
-        f'<p>Das S/MIME-Signaturzertifikat für Ihre E-Mail-Adresse '
-        f'<strong>{_esc(user_email)}</strong> '
-        f'<span style="color:{urgency_color}">{status_text}</span>.</p>'
-        f'<p>Ohne gültiges Zertifikat werden Ihre ausgehenden E-Mails '
-        f'<strong>nicht mehr automatisch digital signiert</strong>.</p>'
-        f'<h3 style="margin-top:20px;color:#2c3e50">So erneuern Sie Ihr Zertifikat:</h3>'
-        f'{instructions_html}'
-    )
-    html = _html_wrap(title, urgency_color, body)
+    # Die Anleitung ist fertiges HTML der CA-Anbindung und wird angefügt, nicht
+    # als Platzhalter eingesetzt — beim manuellen Bezug trägt sie den
+    # Upload-Link, und ein Platzhalter liesse sich aus der Vorlage löschen.
+    gerendert = _vorlage_rendern(
+        "cert_renewal", nachsatz=instructions_html, empfaenger=user_email,
+        tage=days, ablauf=expiry, abgelaufen=days < 0)
+    if gerendert is None:
+        return False
+    subject, html = gerendert
     return _graph_send(user_email, subject, html)
 
 

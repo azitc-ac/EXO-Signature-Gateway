@@ -7,6 +7,7 @@ lokal und verlässt das Gateway nie; offene Orders werden über den bestehenden
 hub_orders-Poller (source=digicert_direct) abgeholt.
 """
 import logging
+from html import escape as _esc
 
 from .base import CABackend
 from .csr import generate_key_and_csr_pem as _generate_key_and_csr_pem
@@ -38,8 +39,8 @@ class DigiCertDirectBackend(CABackend):
     def get_instructions_html(self, email: str, days_left: int, expiry_str: str,
                               upload_url: str, user_config: dict) -> str:
         return f"""
-<p>Ihr S/MIME-Zertifikat für <strong>{email}</strong> läuft in {days_left} Tagen ab
-({expiry_str}).</p>
+<p>Ihr S/MIME-Zertifikat für <strong>{_esc(email)}</strong> läuft in {days_left} Tagen ab
+({_esc(str(expiry_str))}).</p>
 <p>Die Erneuerung wurde automatisch über Ihr <strong>DigiCert-CertCentral-Konto</strong>
 beauftragt — Sie müssen nichts weiter tun. Das neue Zertifikat wird nach
 Ausstellung automatisch eingespielt.</p>
