@@ -247,3 +247,64 @@ def test_verwaltungsmails_maskieren_fremdtext(monkeypatch, aufruf):
     assert "<script>" not in html
     assert "&lt;script&gt;" in html
     assert "&amp;lt;" not in html, "doppelt maskiert"
+
+
+# ── Antwort aus dem Portal ───────────────────────────────────────────────────
+
+def _antwort(text="Danke, passt so.\nGruss", name="Max Muster", anhaenge=None):
+    return notification.send_portal_reply(
+        {"sender_email": "erika@example.org", "recipient_email": "max@partner.example",
+         "subject": "Vertrag"}, text, name, anhaenge)
+
+
+def test_antwort_vorgabe(monkeypatch):
+    g = _abfangen(monkeypatch)
+    _antwort(anhaenge=[{"name": "a.pdf", "data": ""}])
+    m = g[0]
+    assert m["to"] == "erika@example.org" and m["sender"] == "erika@example.org"
+    assert m["reply_to"] == "max@partner.example"
+    assert m["subject"] == "[verschlüsselt] Re: Vertrag — Antwort von Max Muster"
+    assert "Antwort von Max Muster" in m["html"]
+    assert "max@partner.example" in m["html"]
+    assert "a.pdf" in m["html"]
+    assert "Danke, passt so.<br>Gruss" in m["html"]
+
+
+def test_antwort_ohne_anhang_ohne_anhangzeile(monkeypatch):
+    g = _abfangen(monkeypatch)
+    _antwort()
+    assert "Anhänge" not in g[0]["html"]
+
+
+def test_antwort_kommt_aus_der_vorlage(monkeypatch, verz):
+    """Rückbau-Probe: Stünde der Text wieder fest im Code, griffe die
+    gespeicherte Fassung nicht."""
+    meta = usermail.standard_meta("portal_reply")
+    meta["blocks"] = [{"type": "text", "text": "Reply from {{ von }}"}]
+    meta["betreff"] = "Reply: {{ betreff }}"
+    (verz / f"{usermail.dateiname('portal_reply')}.meta.json").write_text(
+        json.dumps(meta), encoding="utf-8")
+    g = _abfangen(monkeypatch)
+    _antwort()
+    assert "Reply from Max Muster" in g[0]["html"]
+    assert "Sie haben eine Antwort" not in g[0]["html"]
+    # Was die Vorlage nicht wegnehmen kann: der Antworttext und das Tag
+    assert "Danke, passt so." in g[0]["html"]
+    assert g[0]["subject"] == "[verschlüsselt] Reply: Vertrag"
+
+
+def test_antwort_tag_folgt_der_einstellung(monkeypatch):
+    g = _abfangen(monkeypatch, SMIME_TAG_ENCRYPTED_ENABLED=False)
+    _antwort()
+    assert g[0]["subject"] == "Re: Vertrag — Antwort von Max Muster"
+
+
+def test_antworttext_wird_nicht_ausgewertet(monkeypatch):
+    """Text und Name stammen vom anonymen Portal-Nutzer: weder Jinja noch
+    Auszeichnung dürfen greifen."""
+    g = _abfangen(monkeypatch)
+    _antwort(text="{{ 7*7 }} **fett** <b>x</b>", name="{{ 6*7 }}")
+    html = g[0]["html"]
+    assert "49" not in html and "42" not in html
+    assert "{{ 7*7 }} **fett** &lt;b&gt;x&lt;/b&gt;" in html
+    assert "Antwort von {{ 6*7 }}" in g[0]["subject"]

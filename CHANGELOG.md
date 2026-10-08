@@ -5,6 +5,29 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.131 — 2026-10-08 — Portal-Antwort als Vorlage
+
+Antwortet ein externer Empfänger im Portal, geht seine Antwort als Mail an den
+Absender der verschlüsselten Nachricht. Auch diese Mail ist jetzt eine Vorlage:
+*Vorlagen → Auswahl → „Nachrichten an Postfachinhaber" → „Portal: Antwort des
+Empfängers"*. Anpassen lassen sich die Überschrift, der einleitende Satz, die
+Angaben zum Antwortenden und der Betreff. Platzhalter sind `{{ von }}`,
+`{{ adresse }}`, `{{ betreff }}` und `{{ anhaenge }}`. Vorbelegt ist der bisherige
+Wortlaut.
+
+Zwei Teile gehören bewusst nicht zur Vorlage:
+
+- **Der Antworttext** wird unter dem Text der Vorlage angefügt. Als Platzhalter
+  ließe er sich beim Umformulieren versehentlich löschen. Die Antwort käme dann
+  nie an, ohne dass es jemand bemerkt.
+- **Das Kennwort `[verschlüsselt]`** wird weiterhin vor den Betreff gesetzt,
+  solange die Verschlüsselung per Betreff-Kennwort eingeschaltet ist. Es sorgt
+  dafür, dass eine Rückantwort aus Outlook wieder verschlüsselt ins Portal geht
+  statt im Klartext hinaus.
+
+Name, Antworttext und Anhangnamen stammen vom Portal-Nutzer. Sie werden
+maskiert und weder als Platzhalter noch als Auszeichnung ausgewertet.
+
 ## v1.9.130 — 2026-10-08 — Portal-Nachrichten anpassbar, Vorlagen richtig einsortiert
 
 **Portal-Nachrichten als Vorlagen.** Die Benachrichtigung über eine verschlüsselte

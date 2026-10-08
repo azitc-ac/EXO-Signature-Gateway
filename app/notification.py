@@ -627,12 +627,13 @@ def _sende_nutzer_mail(schluessel: str, user_email: str, ca_label: str) -> bool:
 
 
 def _vorlage_rendern(schluessel: str, kopf: str = "", footer: str | None = None,
-                     **werte) -> tuple[str, str] | None:
+                     nachsatz: str = "", **werte) -> tuple[str, str] | None:
     """`(Betreff, fertiges HTML)` einer anpassbaren Gateway-Nachricht.
 
     EIN Weg für alle Nachrichten aus `usermail`: Text und Betreff aus der
     Vorlage, Rahmen (Überschrift, Kopf, Fusszeile) von hier. `kopf` ist das
-    Firmen-Branding der Portal-Nachrichten.
+    Firmen-Branding der Portal-Nachrichten, `nachsatz` fertiges HTML unter dem
+    Text, das die Vorlage nicht entfernen darf (der Antworttext des Portals).
     """
     import usermail
     ergebnis = usermail.rendern(schluessel, **werte)
@@ -641,8 +642,8 @@ def _vorlage_rendern(schluessel: str, kopf: str = "", footer: str | None = None,
     betreff, rumpf = ergebnis
     v = usermail.VORLAGEN[schluessel]
     titel = betreff if v.get("ueberschrift", True) else ""
-    return betreff, _html_wrap(titel, v.get("farbe", "#1e40af"), kopf + rumpf,
-                               footer=footer)
+    return betreff, _html_wrap(titel, v.get("farbe", "#1e40af"),
+                               kopf + rumpf + nachsatz, footer=footer)
 
 
 def send_user_cert_verification_pending(user_email: str, ca_label: str) -> bool:
@@ -774,30 +775,27 @@ def send_portal_reply(msg: dict, reply_text: str, reply_name: str = "",
     sender_email    = msg["sender_email"]
     recipient_email = msg["recipient_email"]
     subject         = msg["subject"]
-    import html as _h
+    # Name, Text und Anhangnamen kommen vom anonymen Portal-Nutzer. Name und
+    # Anhänge gehen als Platzhalter in die Vorlage (dort maskiert die Sandbox),
+    # der Text als fertiges HTML darunter — deshalb hier selbst maskiert.
+    #
+    # ⚠️ Der Antworttext ist bewusst kein Platzhalter: Löschte ihn jemand beim
+    # Umformulieren aus der Vorlage, käme die Antwort still nie an.
     attribution = reply_name or recipient_email
-    # reply_name/reply_text kommen vom anonymen Portal-Nutzer — zwingend escapen
-    attribution_esc = _h.escape(attribution)
-    escaped = _h.escape(reply_text).replace("\n", "<br>")
-    att_note = ""
-    if attachments:
-        names = ", ".join(a["name"] for a in attachments)
-        att_note = f'{_row("Anhänge", f"📎 {names}")}'
-    body = (
-        f'<p>Sie haben eine Antwort auf Ihre sichere Nachricht erhalten.</p>'
-        f'<table>'
-        f'{_row("Von", attribution)}'
-        f'{_row("E-Mail", recipient_email)}'
-        f'{_row("Betreff", subject)}'
-        f'{att_note}'
-        f'</table>'
-        f'<hr style="border:none;border-top:1px solid #eee;margin:16px 0">'
-        f'<div style="background:#f8fafc;border-left:4px solid #2563eb;padding:12px 16px;border-radius:4px">'
-        f'{escaped}'
-        f'</div>'
+    nachsatz = (
+        '<hr style="border:none;border-top:1px solid #eee;margin:16px 0">'
+        '<div style="background:#f8fafc;border-left:4px solid #2563eb;'
+        'padding:12px 16px;border-radius:4px">'
+        f'{_esc(reply_text).replace(chr(10), "<br>")}'
+        '</div>'
     )
-    html = _html_wrap(f"↩ Antwort von {attribution_esc}", "#2563eb", body)
-    subject_line = f"Re: {subject} — Antwort von {attribution}"
+    gerendert = _vorlage_rendern(
+        "portal_reply", nachsatz=nachsatz, von=attribution, adresse=recipient_email,
+        betreff=subject,
+        anhaenge=", ".join(a["name"] for a in attachments or []))
+    if gerendert is None:
+        return False
+    subject_line, html = gerendert
     # [verschlüsselt]-Tag voranstellen: Antwortet der Absender in Outlook auf
     # diese Mail, bleibt das Tag im Betreff → Auto-Encrypt im Gateway greift →
     # der Empfänger ohne Cert bekommt automatisch eine NEUE Portal-Nachricht.
