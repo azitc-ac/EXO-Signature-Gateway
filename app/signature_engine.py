@@ -152,6 +152,64 @@ def vorlagen_art(name: str) -> str:
         return "signatur"
 
 
+def _meta_lesen(name: str) -> dict | None:
+    import json
+    pfad = os.path.join(config.TEMPLATE_DIR, f"{name}.meta.json")
+    try:
+        with open(pfad, encoding="utf-8") as f:
+            meta = json.load(f)
+    except Exception:
+        return None
+    return meta if isinstance(meta, dict) else None
+
+
+def hat_bausteine(name: str) -> bool:
+    """Ist diese Vorlage eine Baukasten-Vorlage — gibt es Bausteine?
+
+    ⚠️ Nicht dasselbe wie „es gibt eine `.meta.json`". Eine Meta darf auch
+    NUR die Art tragen (`{"kind": "banner"}`), für handgeschriebene Vorlagen,
+    die keinen Baukasten haben. Wer aus dem blossen Vorhandensein der Datei auf
+    den Baukasten schliesst, öffnet eine solche Vorlage mit leerer Bausteinliste
+    — und das nächste Speichern ersetzt das handgeschriebene HTML durch nichts.
+    """
+    meta = _meta_lesen(name)
+    return bool(meta and meta.get("blocks"))
+
+
+def setze_art(name: str, art: str) -> bool:
+    """Art einer Vorlage festlegen. True, wenn sich etwas geändert hat.
+
+    EIN Weg für alle, die `kind` schreiben (Editor ohne Baukasten, Auto-
+    Typisierung beim Start). Fehlt die Meta, entsteht eine, die NUR die Art
+    trägt — siehe `hat_bausteine()`. Bestehende Felder bleiben unangetastet.
+    """
+    import json
+    if not ist_bekannte_art(art):
+        raise ValueError(f"Unbekannte Vorlagen-Art: {art!r}")
+    if not os.path.exists(os.path.join(config.TEMPLATE_DIR, f"{name}.html")):
+        return False
+    pfad = os.path.join(config.TEMPLATE_DIR, f"{name}.meta.json")
+    meta = _meta_lesen(name)
+    if meta is None:
+        if os.path.exists(pfad):
+            # Vorhanden, aber unlesbar: nicht überschreiben — darin könnten
+            # Bausteine stecken, die sich reparieren lassen.
+            log.warning("Vorlage %r: Meta nicht lesbar — Art nicht gesetzt", name)
+            return False
+        meta = {"version": 1}
+    if (meta.get("kind") or "signatur") == art and "kind" in meta:
+        return False
+    meta["kind"] = art
+    # Atomar; Rechte auf der Temp-Datei (replace() übernimmt die der Quelle).
+    tmp = pfad + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(meta, f, ensure_ascii=False, indent=2)
+    os.chmod(tmp, 0o644)
+    os.replace(tmp, pfad)
+    _reload_env()
+    return True
+
+
 def textfassung_fehlt(name: str) -> bool:
     """Gibt es zu dieser Vorlage KEINE Nur-Text-Fassung?
 

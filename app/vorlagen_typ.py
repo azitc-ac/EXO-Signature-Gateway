@@ -19,9 +19,11 @@ aktuell zugewiesene Vorlage zusätzlich).
 
 ⚠️ KONSERVATIV MIT ABSICHT
 --------------------------
-* Nur BESTEHENDE `.meta.json` werden ergänzt. Für handgeschriebene Vorlagen ohne
-  Meta würde eine Meta nur mit `kind` einen leeren Baukasten vortäuschen — das
-  überlassen wir dem Sicherheitsnetz und der bewussten Umstellung im Editor.
+* Handgeschriebene Vorlagen ohne Meta bekommen eine, die NUR `kind` trägt.
+  Bis v1.9.129 wurden sie ausgelassen, weil eine solche Meta im Editor einen
+  leeren Baukasten vorgetäuscht hätte; seit `signature_engine.hat_bausteine()`
+  öffnet der Editor sie weiter als Quelltext. Ausgelassen blieb damit gerade
+  der häufigste Fall — ein von Hand abgelegter Banner.
 * Idempotent: eine Vorlage, deren `kind` schon passt, wird nicht angefasst.
 * Ein bereits gesetztes abweichendes `kind` (z.B. schon `disclaimer`) wird NICHT
   überschrieben — eine bewusste Zuordnung sticht die Heuristik.
@@ -30,6 +32,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from pathlib import Path
 
 import config
@@ -106,35 +109,38 @@ _MIGRIERBAR = ("banner", "disclaimer")
 
 
 def _setze_kind(name: str, art: str) -> bool:
-    """`kind` in einer bestehenden Meta-Datei setzen. True, wenn geschrieben.
+    """`kind` setzen, wenn die Vorlage noch als Signatur gilt. True, wenn geschrieben.
 
-    Nur wenn die Meta existiert und das aktuelle `kind` fehlt oder `signatur`
-    ist — eine schon gesetzte abweichende Zuordnung bleibt unangetastet.
+    Ein bereits gesetztes abweichendes `kind` bleibt unangetastet — eine
+    bewusste Zuordnung sticht die Heuristik. Fehlt die Meta (handgeschriebene
+    Vorlage), entsteht eine, die NUR die Art trägt; das ist seit
+    `signature_engine.hat_bausteine()` gefahrlos, weil der Editor eine solche
+    Vorlage weiter als Quelltext öffnet.
     """
-    meta_pfad = Path(config.TEMPLATE_DIR) / f"{name}.meta.json"
-    if not meta_pfad.exists():
+    if signature_engine.vorlagen_art(name) != "signatur":
         return False
+    return signature_engine.setze_art(name, art)
+
+
+def _seed_arten() -> dict[str, str]:
+    """Name → Art der mitgelieferten Vorlagen, soweit nicht Signatur."""
+    import template_seed
+    arten: dict[str, str] = {}
     try:
-        meta = json.loads(meta_pfad.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
-        log.warning("Vorlage %r: Meta nicht lesbar (%s) — übersprungen", name, exc)
-        return False
-    if not isinstance(meta, dict):
-        return False
-    aktuell = meta.get("kind") or "signatur"
-    if aktuell == art:
-        return False
-    if aktuell != "signatur":
-        # Bewusst gesetzte andere Art (usermail o.a.) — Heuristik hält sich zurück.
-        return False
-    meta["kind"] = art
-    # Atomar schreiben, Rechte auf der Temp-Datei setzen (replace() übernimmt die
-    # der Quelldatei — dieselbe Falle wie in settings_store._save()/vorlagen.py).
-    tmp = meta_pfad.parent / f"{meta_pfad.name}.tmp"
-    tmp.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
-    tmp.chmod(0o644)
-    tmp.replace(meta_pfad)
-    return True
+        namen = os.listdir(template_seed.SEED_DIR)
+    except OSError:
+        return arten
+    for f in namen:
+        if not f.endswith(".meta.json"):
+            continue
+        try:
+            art = json.loads((Path(template_seed.SEED_DIR) / f).read_text(
+                encoding="utf-8")).get("kind")
+        except (OSError, ValueError):
+            continue
+        if art in _MIGRIERBAR:
+            arten[f[:-len(".meta.json")]] = art
+    return arten
 
 
 def migriere_bestand() -> list[tuple[str, str]]:
@@ -146,6 +152,25 @@ def migriere_bestand() -> list[tuple[str, str]]:
     """
     zuweisungen = zuweisungen_nach_art()
     geaendert: list[tuple[str, str]] = []
+
+    # 1) Mitgelieferte Vorlagen: Bis v1.9.129 trugen „Banner" und „Disclaimer"
+    #    im Seed KEINE Art und landeten auf jeder Installation in der
+    #    Signaturliste. Die Art kommt jetzt aus dem Seed — aber nur, wenn die
+    #    Vorlage nirgends als etwas anderes zugewiesen ist. Wer den Seed-
+    #    „Banner" zu seiner Signatur umgebaut und so zugewiesen hat, behält sie.
+    #
+    #    ⚠️ Nur ohne JEDE Art. Dieser Schritt läuft bei jedem Start; hat jemand
+    #    im Editor ausdrücklich „Signatur" gewählt, würde er sonst bei jedem
+    #    Neustart zurückgedreht.
+    for name, art in _seed_arten().items():
+        if zuweisungen.get(name, set()) - {art}:
+            continue
+        if "kind" in (signature_engine._meta_lesen(name) or {}):
+            continue
+        if _setze_kind(name, art):
+            geaendert.append((name, art))
+
+    # 2) Bestand: eindeutig als Banner bzw. Disclaimer zugewiesen.
     for name, arten in zuweisungen.items():
         if name in ("default", "signature"):
             continue

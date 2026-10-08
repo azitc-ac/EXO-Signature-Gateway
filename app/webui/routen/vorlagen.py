@@ -117,6 +117,8 @@ def _usermail_liste() -> list[dict]:
              "name": usermail.dateiname(k),
              "anzeige": v["anzeige"],
              "zweck": v["zweck"],
+             "gruppe": v.get("gruppe", "intern"),
+             "platzhalter": v.get("platzhalter") or {},
              "ist_standard": usermail.ist_standard(k)}
             for k, v in usermail.VORLAGEN.items()]
 
@@ -293,7 +295,7 @@ async def api_duplicate_template(name: str, request: Request, _=Depends(_check_a
 
     import signature_engine
     signature_engine._reload_env()
-    baukasten = "meta.json" in kopiert
+    baukasten = signature_engine.hat_bausteine(ziel)
     log.info("Template '%s' dupliziert nach '%s' (Baukasten: %s)",
              quelle, ziel, baukasten)
     return JSONResponse({
@@ -470,6 +472,34 @@ async def api_save_template_meta(name: str, request: Request, _=Depends(_check_a
     log.info("Template '%s' saved via builder by %s", safe, _)
     return {"ok": True, "html": html_content, "txt": txt_content}
 
+@router.post("/api/templates/{name}/kind")
+async def api_template_kind(name: str, request: Request, _=Depends(_check_auth)):
+    """Art einer Vorlage sofort setzen — für Baukasten- UND Quelltext-Vorlagen.
+
+    Bis v1.9.129 schrieb nur das Baukasten-Speichern die Art. Eine
+    handgeschriebene Vorlage (ohne Bausteine) liess sich damit nie aus der
+    Signaturliste holen, obwohl die Auswahl über dem Quelltext stand.
+    """
+    import signature_engine
+    safe = _re.sub(r"[^a-zA-Z0-9_\-]", "", name).strip("-_")
+    if not safe or safe in ("default", "signature"):
+        raise HTTPException(400, "Die Standardsignatur ist immer eine Signatur.")
+    if _usermail_key(safe):
+        raise HTTPException(400, "Gateway-Nachrichten haben eine feste Art.")
+    try:
+        daten = await request.json()
+    except Exception:
+        raise HTTPException(400, "Ungültiges JSON")
+    kind = (daten.get("kind") or "").strip() if isinstance(daten, dict) else ""
+    if kind not in signature_engine.SLOT_ART.values():
+        raise HTTPException(400, f"Unbekannte Vorlagen-Art: {kind!r}")
+    if not (Path(config.TEMPLATE_DIR) / f"{safe}.html").exists():
+        raise HTTPException(404, f"Vorlage '{safe}' nicht gefunden.")
+    if signature_engine.setze_art(safe, kind):
+        log.info("Template '%s': Art auf %s gesetzt von %s", safe, kind, _)
+    return JSONResponse({"ok": True, "kind": signature_engine.vorlagen_art(safe)})
+
+
 @router.post("/api/usermails/{schluessel}/standard")
 async def api_usermail_standard(schluessel: str, _=Depends(_check_auth)):
     """Die mitgelieferte Fassung wiederherstellen.
@@ -521,7 +551,16 @@ async def template_editor(request: Request, user: str = Depends(_check_auth)):
             # Für Nachrichten an Postfachinhaber IMMER wahr: Ohne eigene
             # Datei liefert der Meta-Endpunkt die mitgelieferte Fassung, und
             # der Editor soll sie laden statt leer zu bleiben.
-            "has_meta": meta_path.exists() or bool(_usermail_key(fname)),
+            #
+            # ⚠️ Massgeblich sind die BAUSTEINE, nicht die Datei: Eine Meta darf
+            # nur die Art tragen (handgeschriebene Vorlage, siehe
+            # signature_engine.hat_bausteine). Eine frisch angelegte, noch
+            # leere Vorlage öffnet dagegen im Baukasten — dort gibt es kein HTML
+            # zu verlieren.
+            "has_meta": (_sig_engine.hat_bausteine(fname)
+                         or (meta_path.exists() and not (html_path.exists()
+                                                         and html_path.read_text().strip()))
+                         or bool(_usermail_key(fname))),
             # Wurde der Quelltext NACH dem letzten Baukasten-Speichern
             # geaendert? Dann sind die Bausteine veraltet, und der Editor bietet
             # an, sie aus dem Quelltext neu zu lesen.
@@ -533,7 +572,7 @@ async def template_editor(request: Request, user: str = Depends(_check_auth)):
             # Oeffnen die alten Bausteine und verlor seine Arbeit beim
             # Speichern.
             "quelltext_neuer": (
-                meta_path.exists() and html_path.exists()
+                _sig_engine.hat_bausteine(fname) and html_path.exists()
                 and html_path.stat().st_mtime > meta_path.stat().st_mtime + 1
             ),
             "active": "template",
@@ -622,10 +661,14 @@ async def api_preview_data(
         # settings_store.get("CA_ANZEIGENAME") — eine Einstellung, die es nie gab,
         # sodass immer der Ersatztext griff und die Vorschau eine Einstellbarkeit
         # vortäuschte, die niemand herstellen konnte.
-        ergebnis = usermail.rendern(
-            schluessel,
-            email or "vorname.nachname@example.org",
-            "Ihrer Zertifizierungsstelle")
+        # Beispielwerte bringt jede Vorlage selbst mit (`beispiel`) — die
+        # Portal-Nachrichten kennen ganz andere Platzhalter als die
+        # Zertifikatsnachrichten. Eine eingegebene Adresse ersetzt nur
+        # `empfaenger`, und nur dort, wo es ihn gibt.
+        werte = usermail.beispielwerte(schluessel)
+        if email and "empfaenger" in werte:
+            werte["empfaenger"] = email
+        ergebnis = usermail.rendern(schluessel, **werte)
         betreff, rumpf = ergebnis if ergebnis else ("", "")
         return JSONResponse({"html": rumpf, "txt": "", "betreff": betreff,
                              "banner_html": "", "disclaimer_html": "", "error": None})

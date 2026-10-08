@@ -5,6 +5,52 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.130 — 2026-10-08 — Portal-Nachrichten anpassbar, Vorlagen richtig einsortiert
+
+**Portal-Nachrichten als Vorlagen.** Die Benachrichtigung über eine verschlüsselte
+Nachricht, der Zugangscode und die Lesebestätigung standen bisher fest im Quelltext,
+deutsch und unveränderlich. Sie sind jetzt Vorlagen im Baukasten, genau wie die
+Nachrichten zum Zertifikatsbezug: *Vorlagen → Auswahl → „Nachrichten an externe
+Empfänger"* bzw. *„Nachrichten an Postfachinhaber"*. Vorbelegt ist der bisherige
+Wortlaut, „Standard wiederherstellen" holt ihn zurück. Über dem Editor steht, welche
+Platzhalter die jeweilige Nachricht kennt (`{{ absender }}`, `{{ link }}`,
+`{{ code }}` …). Der Satz zum Zugangscode folgt weiterhin der Einstellung
+„Zugangscode"; er steht als Bedingung im Text und lässt sich mit umformulieren.
+Die Gültigkeit des Codes im Text stammt jetzt aus derselben Konstante, die ihn
+prüft, statt als feste „15" danebenzustehen.
+
+Im Freitext-Baustein darf ein Link jetzt auch auf einen Platzhalter zeigen:
+`[Nachricht öffnen]({{ link }})`. Bisher fiel ein solches Ziel wegen der
+Leerzeichen durch. Andere Ziele als `http(s)`, `mailto`, `tel` und relative Pfade
+bleiben ausgeschlossen.
+
+**Vorlagen in der falschen Liste.** Die mitgelieferten Vorlagen „Banner" und
+„Disclaimer" trugen keine Art und erschienen deshalb auf jeder Installation unter
+den Signaturen statt unter Banner bzw. Disclaimer. Sie tragen die Art jetzt. Beim
+Start werden bestehende Exemplare nachgezogen, sofern sie noch gar keine Art haben
+und nirgends als etwas anderes zugewiesen sind. Eine ausdrücklich gewählte Art
+bleibt unangetastet.
+
+Von Hand angelegte Vorlagen ohne Baukasten ließen sich bisher nicht umsortieren:
+Die Auswahl „Art" stand zwar über dem Quelltext, gespeichert wurde sie aber nur
+beim Speichern im Baukasten. Sie wirkt jetzt sofort und meldet am Feld, ob es
+geklappt hat; das gilt auch im Baukasten, wo der Speichern-Knopf nach einer reinen
+Art-Änderung gesperrt blieb. Eine solche Vorlage öffnet danach weiterhin im
+Quelltext. Ebenso ordnet die Typisierung beim Start jetzt auch handgeschriebene
+Vorlagen ein, die ausschließlich als Banner oder Disclaimer zugewiesen sind. Sie
+wurden bisher übergangen.
+
+Prüfe nach dem Update unter *Vorlagen*, ob in der Liste „Signaturen" noch
+etwas steht, das dort nicht hingehört. Die Art lässt sich direkt über dem Editor
+umstellen.
+
+**Maskierung in Verwaltungsmails.** In Benachrichtigungen an die Verwaltung gingen
+mehrere Werte aus fremder Quelle ungefiltert ins HTML: Fehlertexte von
+Zertifizierungsstellen, das Subject eines Zertifikats, der Anbietername aus dem
+Katalog und die Browserkennung bei einer lokalen Anmeldung. Die Maskierung sitzt
+jetzt in der gemeinsamen Zeilenfunktion dieser Mails statt bei einzelnen
+Aufrufern. Nichts zu tun.
+
 ## v1.9.129 — 2026-10-07 — Gemeinsamer Relay-Baustein nachgezogen
 
 Interne Änderung ohne Auswirkung auf das Gateway: Die mit dem EXO SMTP Relay

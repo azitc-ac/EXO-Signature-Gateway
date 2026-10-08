@@ -208,8 +208,18 @@ def test_bausteine_sind_freitext_nicht_html():
     das falsche Werkzeug.
     """
     import re
+
+    def blaetter(bloecke):
+        for b in bloecke:
+            # Abstand und Kasten tragen keinen Text, sondern Gestalt (der Knopf
+            # der Portal-Nachricht ist ein gefüllter Kasten um einen Freitext).
+            if b["type"] == "box":
+                yield from blaetter(b.get("children") or [])
+            elif b["type"] != "spacer":
+                yield b
+
     for schluessel, v in usermail.VORLAGEN.items():
-        for b in v["bloecke"]:
+        for b in blaetter(v["bloecke"]):
             assert b["type"] == "text", f"{schluessel}: Baustein vom Typ {b['type']}"
             assert not re.search(r"<[a-zA-Z/]", b.get("text") or ""), \
                 f"{schluessel}: rohes HTML im Freitext — es würde maskiert angezeigt"

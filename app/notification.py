@@ -124,9 +124,18 @@ def _esc(wert) -> str:
 
 
 def _row(label: str, value, color: str = "") -> str:
+    """Eine Zeile Beschriftung │ Wert. Maskiert BEIDES.
+
+    ⚠️ Bis v1.9.129 maskierte `_row` nichts, und nur drei von über vierzig
+    Aufrufern taten es selbst. Roh hinein gingen damit u.a. Fehlertexte
+    fremder Systeme, das Subject eines Zertifikats, der Anbietername aus dem
+    Hub-Katalog und die Browserkennung einer Anmeldung. Die Maskierung sitzt
+    deshalb hier — ein Aufrufer, der sie vergisst, kann nichts mehr anrichten.
+    Aufrufer übergeben ROHEN Text; selbst maskieren ergäbe `&amp;lt;`.
+    """
     style = f' style="color:{color};font-weight:700"' if color else ' style="font-weight:700"'
-    return (f'<tr><td style="padding:5px 16px 5px 0;color:#777;white-space:nowrap">{label}</td>'
-            f'<td{style}>{value}</td></tr>')
+    return (f'<tr><td style="padding:5px 16px 5px 0;color:#777;white-space:nowrap">{_esc(label)}</td>'
+            f'<td{style}>{_esc(value)}</td></tr>')
 
 
 def _html_wrap(title: str, color: str, body: str, footer: str | None = None) -> str:
@@ -134,7 +143,7 @@ def _html_wrap(title: str, color: str, body: str, footer: str | None = None) -> 
     if footer is None:
         footer = f"{gw_name} – automatischer Bericht"
     return f"""<html><body style="font-family:Arial,sans-serif;color:#333;max-width:620px;margin:0 auto">
-<h2 style="color:{color};margin-bottom:4px">{title}</h2>
+{f'<h2 style="color:{color};margin-bottom:4px">{title}</h2>' if title else ''}
 {body}
 <hr style="border:none;border-top:1px solid #eee;margin:28px 0 12px">
 <p style="color:#bbb;font-size:11px">{footer}</p>
@@ -490,7 +499,7 @@ def send_renewal_notification_to_user(
 
     body = (
         f'<p>Das S/MIME-Signaturzertifikat für Ihre E-Mail-Adresse '
-        f'<strong>{user_email}</strong> '
+        f'<strong>{_esc(user_email)}</strong> '
         f'<span style="color:{urgency_color}">{status_text}</span>.</p>'
         f'<p>Ohne gültiges Zertifikat werden Ihre ausgehenden E-Mails '
         f'<strong>nicht mehr automatisch digital signiert</strong>.</p>'
@@ -509,7 +518,7 @@ def send_cert_renewal_success(user_email: str, cert_info: dict) -> bool:
     if not to:
         return False
     body = (
-        f'<p>Das S/MIME-Signaturzertifikat für <strong>{user_email}</strong> '
+        f'<p>Das S/MIME-Signaturzertifikat für <strong>{_esc(user_email)}</strong> '
         f'wurde per Self-Service erfolgreich erneuert.</p>'
         f'<table>'
         f'{_row("Postfach", user_email)}'
@@ -529,7 +538,7 @@ def send_cert_renewal_failure(user_email: str, error: str) -> bool:
     if not to:
         return False
     body = (
-        f'<p>Der Self-Service-Zertifikat-Upload für <strong>{user_email}</strong> '
+        f'<p>Der Self-Service-Zertifikat-Upload für <strong>{_esc(user_email)}</strong> '
         f'ist fehlgeschlagen.</p>'
         f'<table>{_row("Fehler", error, "#e74c3c")}</table>'
         f'<p style="margin-top:12px">Bitte prüfen Sie die Logs und unterstützen Sie '
@@ -610,13 +619,30 @@ def _sende_nutzer_mail(schluessel: str, user_email: str, ca_label: str) -> bool:
     """
     if not _should_notify("NOTIFY_USER_CERT"):
         return False
-    import usermail
-    ergebnis = usermail.rendern(schluessel, user_email, ca_label or "")
-    if ergebnis is None:
+    gerendert = _vorlage_rendern(schluessel, empfaenger=user_email, ca=ca_label or "")
+    if gerendert is None:
         return False
+    betreff, html = gerendert
+    return _graph_send(user_email, betreff, html)
+
+
+def _vorlage_rendern(schluessel: str, kopf: str = "", footer: str | None = None,
+                     **werte) -> tuple[str, str] | None:
+    """`(Betreff, fertiges HTML)` einer anpassbaren Gateway-Nachricht.
+
+    EIN Weg für alle Nachrichten aus `usermail`: Text und Betreff aus der
+    Vorlage, Rahmen (Überschrift, Kopf, Fusszeile) von hier. `kopf` ist das
+    Firmen-Branding der Portal-Nachrichten.
+    """
+    import usermail
+    ergebnis = usermail.rendern(schluessel, **werte)
+    if ergebnis is None:
+        return None
     betreff, rumpf = ergebnis
-    farbe = usermail.VORLAGEN[schluessel].get("farbe", "#1e40af")
-    return _graph_send(user_email, betreff, _html_wrap(betreff, farbe, rumpf))
+    v = usermail.VORLAGEN[schluessel]
+    titel = betreff if v.get("ueberschrift", True) else ""
+    return betreff, _html_wrap(titel, v.get("farbe", "#1e40af"), kopf + rumpf,
+                               footer=footer)
 
 
 def send_user_cert_verification_pending(user_email: str, ca_label: str) -> bool:
@@ -664,11 +690,10 @@ def send_hub_cert_rejected(email: str, provider: str, note: str = "") -> bool:
     to = _get_notify_to()
     if not to:
         return False
-    import html as _h
     body = (
         f'<p>Eine Hub-Zertifikatsbestellung wurde abgelehnt.</p>'
         f'<table>{_row("Postfach", email)}{_row("Anbieter", provider)}'
-        f'{_row("Grund", _h.escape(note) or "—", "#e74c3c")}</table>'
+        f'{_row("Grund", note or "—", "#e74c3c")}</table>'
         f'<p style="margin-top:12px">Ein etwaiger Prepaid-Betrag wurde vom Hub '
         f'zurückerstattet. Bitte ggf. manuell erneuern oder Anbieter wechseln.</p>'
     )
@@ -690,55 +715,32 @@ def send_portal_notification(
     app-weit) — der Empfänger erkennt so den Absender, und der Versand hängt
     nicht von einem konfigurierten NOTIFICATION_MAILBOX ab.
     """
-    import html as _h
-    display = f"{_h.escape(sender_name)} &lt;{_h.escape(sender_email)}&gt;" \
-        if sender_name else _h.escape(sender_email)
-    body = (
-        f'<p>Sie haben eine verschlüsselte Nachricht von <strong>{display}</strong> erhalten.</p>'
-        f'<p style="margin-top:12px">Betreff: <strong>{_h.escape(subject)}</strong></p>'
-        f'<p style="margin-top:20px">'
-        f'<a href="{portal_url}" style="background:#2563eb;color:#fff;padding:10px 20px;'
-        f'border-radius:6px;text-decoration:none;font-weight:600;display:inline-block">'
-        f'🔒 Verschlüsselte Nachricht öffnen</a></p>'
-        f'<p style="margin-top:20px;color:#6b7280;font-size:13px">'
-        f'Der Link ist {retention_days} Tage gültig. '
-        + ('Beim Öffnen erhalten Sie einen Zugangscode an diese E-Mail-Adresse. '
-           if settings_store.get("SECURE_PORTAL_OTP") is not False else
-           'Bewahren Sie ihn vertraulich auf — wer diesen Link besitzt, kann die Nachricht lesen. ')
-        + f'<br>Die Entschlüsselung erfolgt ausschließlich in Ihrem Browser; '
-        f'der Server sieht den Inhalt der Nachricht nicht.</p>'
-    )
-    html = _html_wrap("🔒 Verschlüsselte Nachricht für Sie", "#2563eb",
-                      _portal_brand_header() + body, footer=_portal_footer())
-    return _graph_send(
-        recipient_email,
-        f"Verschlüsselte Nachricht von {sender_name or sender_email}: {subject}",
-        html,
-        sender=sender_email,
-    )
+    absender = f"{sender_name} <{sender_email}>" if sender_name else sender_email
+    # Werte roh übergeben — die Vorlagenumgebung maskiert beim Einsetzen.
+    gerendert = _vorlage_rendern(
+        "portal_notification", kopf=_portal_brand_header(), footer=_portal_footer(),
+        absender=absender, absender_name=sender_name or sender_email,
+        betreff=subject, link=portal_url, tage=retention_days,
+        zugangscode=settings_store.get("SECURE_PORTAL_OTP") is not False)
+    if gerendert is None:
+        return False
+    betreff, html = gerendert
+    return _graph_send(recipient_email, betreff, html, sender=sender_email)
 
 
 def send_portal_otp(msg: dict, code: str) -> bool:
     """Zugangscode für eine Portal-Nachricht an den Empfänger senden."""
-    import html as _h
     recipient_email = msg["recipient_email"]
     sender_email    = msg["sender_email"]
     sender_name     = msg.get("sender_name") or sender_email
-    body = (
-        f'<p>Ihr Zugangscode für die verschlüsselte Nachricht von '
-        f'<strong>{_h.escape(sender_name)}</strong>:</p>'
-        f'<p style="margin:20px 0;text-align:center">'
-        f'<span style="display:inline-block;font-size:32px;font-weight:700;'
-        f'letter-spacing:8px;background:#f1f5f9;color:#1e293b;'
-        f'padding:14px 28px;border-radius:8px">{code}</span></p>'
-        f'<p style="color:#6b7280;font-size:13px">'
-        f'Der Code ist 15 Minuten gültig. Wenn Sie ihn nicht angefordert haben, '
-        f'können Sie diese E-Mail ignorieren — die Nachricht bleibt geschützt.</p>'
-    )
-    html = _html_wrap("🔑 Ihr Zugangscode", "#2563eb",
-                      _portal_brand_header() + body, footer=_portal_footer())
-    return _graph_send(recipient_email, "Ihr Zugangscode für die verschlüsselte Nachricht",
-                       html, sender=sender_email)
+    import portal_store
+    gerendert = _vorlage_rendern(
+        "portal_otp", kopf=_portal_brand_header(), footer=_portal_footer(),
+        absender=sender_name, code=code, minuten=portal_store.OTP_VALIDITY_MIN)
+    if gerendert is None:
+        return False
+    betreff, html = gerendert
+    return _graph_send(recipient_email, betreff, html, sender=sender_email)
 
 
 def send_portal_read_receipt(msg: dict) -> bool:
@@ -757,19 +759,13 @@ def send_portal_read_receipt(msg: dict) -> bool:
         read_str = dt.strftime("%d.%m.%Y %H:%M Uhr")
     except Exception:
         read_str = read_at or "gerade eben"
-    import html as _h
-    body = (
-        f'<p>Ihre verschlüsselte Nachricht wurde gelesen.</p>'
-        f'<table>'
-        f'{_row("Empfänger", _h.escape(recipient_email))}'
-        f'{_row("Betreff", _h.escape(subject))}'
-        f'{_row("Gelesen am", read_str, "#16a34a")}'
-        f'</table>'
-    )
-    html = _html_wrap("✓ Sichere Nachricht gelesen", "#16a34a", body)
+    gerendert = _vorlage_rendern("portal_read_receipt", empfaenger=recipient_email,
+                                 betreff=subject, gelesen_am=read_str)
+    if gerendert is None:
+        return False
+    betreff, html = gerendert
     # Vom eigenen Postfach an sich selbst — unabhängig vom NOTIFICATION_MAILBOX
-    return _graph_send(sender_email, f"✓ Lesebestätigung: {subject}", html,
-                       sender=sender_email)
+    return _graph_send(sender_email, betreff, html, sender=sender_email)
 
 
 def send_portal_reply(msg: dict, reply_text: str, reply_name: str = "",
@@ -785,14 +781,14 @@ def send_portal_reply(msg: dict, reply_text: str, reply_name: str = "",
     escaped = _h.escape(reply_text).replace("\n", "<br>")
     att_note = ""
     if attachments:
-        names = ", ".join(_h.escape(a["name"]) for a in attachments)
+        names = ", ".join(a["name"] for a in attachments)
         att_note = f'{_row("Anhänge", f"📎 {names}")}'
     body = (
         f'<p>Sie haben eine Antwort auf Ihre sichere Nachricht erhalten.</p>'
         f'<table>'
-        f'{_row("Von", attribution_esc)}'
-        f'{_row("E-Mail", _h.escape(recipient_email))}'
-        f'{_row("Betreff", _h.escape(subject))}'
+        f'{_row("Von", attribution)}'
+        f'{_row("E-Mail", recipient_email)}'
+        f'{_row("Betreff", subject)}'
         f'{att_note}'
         f'</table>'
         f'<hr style="border:none;border-top:1px solid #eee;margin:16px 0">'

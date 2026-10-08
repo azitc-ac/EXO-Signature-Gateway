@@ -83,5 +83,6 @@
       "type": "booking_link",
       "label": "Termin buchen"
     }
-  ]
+  ],
+  "kind": "signatur"
 }

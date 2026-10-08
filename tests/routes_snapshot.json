@@ -1652,6 +1652,13 @@
     "name": "api_duplicate_template"
   },
   {
+    "pfad": "/api/templates/{name}/kind",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_template_kind"
+  },
+  {
     "pfad": "/api/templates/{name}/meta",
     "methoden": [
       "GET"

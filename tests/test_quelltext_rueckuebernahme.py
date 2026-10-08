@@ -38,13 +38,13 @@ def klient(tmp_path, monkeypatch):
 
 
 def _anlegen(verz, name, html, meta_alt=True):
-    (verz / f"{name}.meta.json").write_text('{"version":1,"blocks":[]}', encoding="utf-8")
+    (verz / f"{name}.meta.json").write_text('{"version":1,"blocks":[{"type":"text","text":"alt"}]}', encoding="utf-8")
     time.sleep(1.1)                      # Zeitstempel müssen sich unterscheiden
     (verz / f"{name}.html").write_text(html, encoding="utf-8")
     (verz / f"{name}.txt").write_text("x", encoding="utf-8")
     if not meta_alt:                     # umgekehrte Reihenfolge
         time.sleep(1.1)
-        (verz / f"{name}.meta.json").write_text('{"version":1,"blocks":[]}', encoding="utf-8")
+        (verz / f"{name}.meta.json").write_text('{"version":1,"blocks":[{"type":"text","text":"alt"}]}', encoding="utf-8")
 
 
 def test_neuerer_quelltext_wird_gemeldet(klient):
