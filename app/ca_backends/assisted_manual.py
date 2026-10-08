@@ -8,6 +8,7 @@ For CAs where no API access is available (Actalis Free S/MIME, similar).
 - Gateway auto-imports and notifies admin of success/failure
 """
 from .base import CABackend
+from html import escape as _esc
 
 _ACTALIS_DEFAULT_URL = "https://extrassl.actalis.it/portal/uapub/freeemailcert"
 
@@ -34,12 +35,13 @@ class AssistedManualBackend(CABackend):
         upload_url: str,
         user_config: dict,
     ) -> str:
-        portal_url = self.get_portal_url(email, user_config)
+        portal_url = _esc(self.get_portal_url(email, user_config))
+        upload_url = _esc(upload_url)
         return f"""
 <ol style="line-height:2.2;margin:0 0 0 18px;padding:0">
   <li>Öffnen Sie das Zertifikatsportal Ihrer CA:<br>
       <a href="{portal_url}" style="color:#0066cc">{portal_url}</a></li>
-  <li>Geben Sie Ihre E-Mail-Adresse <strong>{email}</strong> ein und bestätigen Sie
+  <li>Geben Sie Ihre E-Mail-Adresse <strong>{_esc(email)}</strong> ein und bestätigen Sie
       den Verifizierungscode, der an Ihre Adresse gesendet wird.</li>
   <li>Laden Sie die PKCS12-Datei (<code>.p12</code> / <code>.pfx</code>) herunter,
       die das Portal für Sie erstellt hat.</li>

@@ -7,6 +7,7 @@ Beschreibung und Preis kommen dynamisch aus hub_catalog — neue Anbieter
 oder Preisänderungen brauchen kein Gateway-Release.
 """
 import logging
+from html import escape as _esc
 
 from .base import CABackend
 from .csr import generate_key_and_csr_pem as _generate_key_and_csr_pem
@@ -63,9 +64,9 @@ class HubProviderBackend(CABackend):
                               upload_url: str, user_config: dict) -> str:
         label = self._p.get("label") or self._p.get("id", "")
         return f"""
-<p>Ihr S/MIME-Zertifikat für <strong>{email}</strong> läuft in {days_left} Tagen ab
-({expiry_str}).</p>
-<p>Die Erneuerung über <strong>{label}</strong> wurde automatisch beim
+<p>Ihr S/MIME-Zertifikat für <strong>{_esc(email)}</strong> läuft in {days_left} Tagen ab
+({_esc(str(expiry_str))}).</p>
+<p>Die Erneuerung über <strong>{_esc(label)}</strong> wurde automatisch beim
 Zertifikatsdienst beauftragt — Sie müssen nichts weiter tun. Das neue Zertifikat
 wird nach Ausstellung automatisch eingespielt.</p>
 <p style="color:#888;font-size:12px">Falls die automatische Ausstellung

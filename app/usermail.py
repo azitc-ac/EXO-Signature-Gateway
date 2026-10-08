@@ -145,6 +145,44 @@ VORLAGEN: dict[str, dict] = {
                  'Zertifikat gehört nicht in Ihr Mailprogramm.'),
         ],
     },
+    "cert_renewal": {
+        "anzeige": "Zertifikat: Erneuerung fällig",
+        "gruppe": "intern",
+        "ueberschrift": False,
+        # ⚠️ Die Anleitung ist kein Platzhalter, sondern wird angefügt
+        # (notification.send_renewal_notification_to_user): Sie hängt an der
+        # Zertifizierungsstelle des Postfachs, und beim manuellen Bezug trägt
+        # sie den Upload-Link. Gelöscht hiesse: keine Erneuerung, still.
+        "zweck": ("Geht an den Postfachinhaber, wenn sein Zertifikat bald abläuft "
+                  "oder abgelaufen ist. Die Anleitung der Zertifizierungsstelle "
+                  "wird unter diesem Text angefügt."),
+        "platzhalter": {
+            "empfaenger": "Adresse des Postfachs",
+            "tage": "verbleibende Tage bis zum Ablauf",
+            "ablauf": "Ablaufdatum des Zertifikats",
+            "abgelaufen": "wahr, wenn das Zertifikat bereits abgelaufen ist",
+        },
+        "beispiel": {"empfaenger": "vorname.nachname@example.org", "tage": 14,
+                     "ablauf": "22.10.2026", "abgelaufen": False},
+        "betreff": ("⚠ S/MIME-Zertifikat {% if abgelaufen %}ABGELAUFEN{% else %}"
+                    "läuft in {{ tage }} Tagen ab{% endif %} – {{ empfaenger }}"),
+        "farbe": "#c2410c",
+        "bloecke": [
+            _abs('⚠ S/MIME-Zertifikat {% if abgelaufen %}abgelaufen – sofortige '
+                 'Erneuerung erforderlich{% else %}läuft in {{ tage }} Tagen ab'
+                 '{% endif %}', bold=True, size="15pt", color="#c2410c"),
+            {"type": "spacer", "height": 10},
+            _abs('Das S/MIME-Signaturzertifikat für Ihre E-Mail-Adresse '
+                 '**{{ empfaenger }}** {% if abgelaufen %}ist **abgelaufen**'
+                 '{% else %}läuft in **{{ tage }} Tagen** ab ({{ ablauf }})'
+                 '{% endif %}.'),
+            _abs('Ohne gültiges Zertifikat werden Ihre ausgehenden E-Mails **nicht '
+                 'mehr automatisch digital signiert**.'),
+            {"type": "spacer", "height": 8},
+            _abs('So erneuern Sie Ihr Zertifikat:', bold=True, size="13pt",
+                 color="#1e293b"),
+        ],
+    },
     "portal_notification": {
         "anzeige": "Portal: verschlüsselte Nachricht bereit",
         "gruppe": "extern",

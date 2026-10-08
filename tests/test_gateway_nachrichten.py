@@ -308,3 +308,59 @@ def test_antworttext_wird_nicht_ausgewertet(monkeypatch):
     assert "49" not in html and "42" not in html
     assert "{{ 7*7 }} **fett** &lt;b&gt;x&lt;/b&gt;" in html
     assert "Antwort von {{ 6*7 }}" in g[0]["subject"]
+
+
+# ── Erneuerungsaufforderung an den Postfachinhaber ───────────────────────────
+
+def _erneuerung(tage=14, backend="assisted_manual", cfg=None):
+    return notification.send_renewal_notification_to_user(
+        "erika@example.org", {"days_left": tage, "expiry": "22.10.2026"},
+        "https://gw.example/smime/renew/tok", backend, cfg or {})
+
+
+def test_erneuerung_vorgabe(monkeypatch):
+    g = _abfangen(monkeypatch)
+    _erneuerung()
+    m = g[0]
+    assert m["to"] == "erika@example.org"
+    assert m["subject"] == "⚠ S/MIME-Zertifikat läuft in 14 Tagen ab – erika@example.org"
+    assert "14 Tagen" in m["html"] and "22.10.2026" in m["html"]
+    assert "nicht mehr automatisch digital signiert" in m["html"]
+    # Die Anleitung der Anbindung hängt darunter, samt Upload-Link
+    assert 'href="https://gw.example/smime/renew/tok"' in m["html"]
+
+
+def test_erneuerung_abgelaufen(monkeypatch):
+    g = _abfangen(monkeypatch)
+    _erneuerung(tage=-3)
+    assert g[0]["subject"] == "⚠ S/MIME-Zertifikat ABGELAUFEN – erika@example.org"
+    assert "sofortige Erneuerung erforderlich" in g[0]["html"]
+    assert "-3 Tagen" not in g[0]["html"].split("So erneuern")[0]
+
+
+def test_erneuerung_kommt_aus_der_vorlage(monkeypatch, verz):
+    """Rückbau-Probe — und die Anleitung überlebt eine Vorlage ohne sie."""
+    meta = usermail.standard_meta("cert_renewal")
+    meta["blocks"] = [{"type": "text", "text": "Renew {{ empfaenger }} in {{ tage }} days"}]
+    meta["betreff"] = "Renew: {{ empfaenger }}"
+    (verz / f"{usermail.dateiname('cert_renewal')}.meta.json").write_text(
+        json.dumps(meta), encoding="utf-8")
+    g = _abfangen(monkeypatch)
+    _erneuerung()
+    assert g[0]["subject"] == "Renew: erika@example.org"
+    assert "Renew erika@example.org in 14 days" in g[0]["html"]
+    assert "Ohne gültiges Zertifikat" not in g[0]["html"]
+    assert "smime/renew/tok" in g[0]["html"]
+
+
+def test_anleitungen_der_anbindungen_maskieren(monkeypatch):
+    """Anbietername aus dem Hub-Katalog und Portal-Adresse aus der Konfiguration
+    gingen roh in die Anleitung."""
+    from ca_backends.assisted_manual import AssistedManualBackend
+    from ca_backends.hub_provider import HubProviderBackend
+    html = HubProviderBackend({"id": "x", "label": BOESE}).get_instructions_html(
+        BOESE, 3, BOESE, "u", {})
+    assert "<script>" not in html and "&lt;script&gt;" in html
+    html = AssistedManualBackend().get_instructions_html(
+        BOESE, 3, "d", 'https://u.example/"><script>', {"portal_url": BOESE})
+    assert "<script>" not in html and '"><' not in html

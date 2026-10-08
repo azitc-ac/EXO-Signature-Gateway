@@ -5,6 +5,32 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.132 — 2026-10-08 — Erneuerungsaufforderung als Vorlage
+
+Die Mail an den Postfachinhaber, dass sein Zertifikat bald abläuft oder schon
+abgelaufen ist, ist jetzt eine Vorlage: *Vorlagen → Auswahl → „Nachrichten an
+Postfachinhaber" → „Zertifikat: Erneuerung fällig"*. Platzhalter sind
+`{{ empfaenger }}`, `{{ tage }}`, `{{ ablauf }}` und `{{ abgelaufen }}`. Der
+Unterschied zwischen „läuft bald ab" und „abgelaufen" steht als Bedingung im Text
+und im Betreff, du kannst also beide Fassungen umformulieren. Vorbelegt ist der
+bisherige Wortlaut.
+
+Die Anleitung der Zertifizierungsstelle wird weiterhin unter dem Text angefügt.
+Sie gehört nicht zur Vorlage, denn sie hängt an der Bezugsart des Postfachs und
+trägt beim manuellen Bezug den Upload-Link. Als Platzhalter ließe sie sich
+versehentlich löschen. Die Postfachinhaber bekämen dann keinen Weg zur
+Erneuerung mehr genannt.
+
+Die Überschrift ist jetzt immer orange. Bisher wurde sie in der letzten Woche vor
+dem Ablauf rot; eine Farbe, die von der Restlaufzeit abhängt, kann ein
+Baukasten-Baustein nicht tragen.
+
+**Maskierung der Anleitungen.** Die Anleitungen der Zertifizierungsstellen setzten
+ihre Werte unmaskiert ins HTML ein: den Anbieternamen aus dem Hub-Katalog, die
+Postfachadresse, das Ablaufdatum, die Portal-Adresse aus der
+Postfachkonfiguration und den Upload-Link. Alle Werte werden jetzt maskiert.
+Zu tun ist nichts.
+
 ## v1.9.131 — 2026-10-08 — Portal-Antwort als Vorlage
 
 Antwortet ein externer Empfänger im Portal, geht seine Antwort als Mail an den

@@ -16,6 +16,7 @@ CASTLE Platform: https://acme.castle.cloud/
 RFC 8823: https://www.rfc-editor.org/rfc/rfc8823
 """
 import logging
+from html import escape as _esc
 
 from .base import CABackend
 
@@ -53,7 +54,7 @@ class CastleAcmeBackend(CABackend):
 <ol style="line-height:2">
   <li>Das Gateway hat einen ACME-Auftrag bei
       <a href="{_CASTLE_PORTAL}">{_CASTLE_PORTAL}</a> platziert.</li>
-  <li>CASTLE sendet eine Challenge-E-Mail an <strong>{email}</strong>
+  <li>CASTLE sendet eine Challenge-E-Mail an <strong>{_esc(email)}</strong>
       (wird automatisch verarbeitet — kein Handlungsbedarf).</li>
   <li>Das Gateway antwortet auf die Challenge und lädt das neue Zertifikat herunter.</li>
   <li>Ihr Administrator erhält eine Bestätigung sobald das Zertifikat importiert ist.</li>
