@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.134 — 2026-10-08 — Selbstverwaltung ohne Freischaltung durchspielbar
+
+Ist die Selbstverwaltung für das Gateway nicht freigeschaltet, zeigt `/self` den
+Hinweis „Nur Anzeige — … Du kannst alles durchspielen, aber nicht speichern".
+Tatsächlich waren in diesem Zustand alle Felder gesperrt: Abwesenheit,
+Zeitraum, Vorlagenwahl und Ankündigung. Durchspielen ging also nicht. Jetzt
+entfällt nur der Speichern-Knopf; die Vorschau folgt jeder Änderung. Das
+Speichern verweigert der Server ohne Freischaltung weiterhin selbst.
+
 ## v1.9.133 — 2026-10-08 — Live-Vorschau für Abwesenheit, Banner und Disclaimer
 
 Die Live-Vorschau im Baukasten renderte jede Vorlage wie eine Signatur und hängte

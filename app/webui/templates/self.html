@@ -239,13 +239,12 @@
     }
     ankFelderSichtbarkeit();
 
-    // Sperren, wenn nicht freigeschaltet (reine Anzeige/Vorschau bleibt).
-    if (!ctx.freigeschaltet) {
-      el('speichern').hidden = true;
-      ['oof-sel','sig-sel','min-sel','von','bis','von-zeit','bis-zeit','ganztaegig',
-       'ank-an','ank-mode','ank-x','ank-privat','ank-extern'].forEach(function (i) { el(i).disabled = true; });
-      document.querySelectorAll('input[name=status]').forEach(function (x) { x.disabled = true; });
-    }
+    // Nicht freigeschaltet: nur der Speichern-Knopf entfällt. Die Felder bleiben
+    // bedienbar, damit sich alles in der Vorschau durchspielen lässt — so
+    // verspricht es der Hinweis oben. Bis v1.9.133 wurden hier auch alle Felder
+    // gesperrt; „durchspielen" ging dann nicht. Das Speichern verweigert der
+    // Server ohnehin selbst (/api/self/save → 403).
+    if (!ctx.freigeschaltet) el('speichern').hidden = true;
     vorschau();
   }
 
