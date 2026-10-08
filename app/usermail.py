@@ -257,6 +257,41 @@ VORLAGEN: dict[str, dict] = {
                  'Gelesen am: **{{ gelesen_am }}**'),
         ],
     },
+    "portal_reply": {
+        "anzeige": "Portal: Antwort des Empfängers",
+        "gruppe": "intern",
+        "ueberschrift": False,
+        # ⚠️ Der Antworttext ist KEIN Platzhalter, sondern wird unter der
+        # Vorlage angefügt (notification.send_portal_reply). Er ist der Grund
+        # für diese Mail — ein Platzhalter, den man beim Umformulieren löscht,
+        # hiesse: Die Antwort des Geschäftspartners kommt nie an, und niemand
+        # merkt es. Ebenso hängt der Code das [verschlüsselt]-Tag an den
+        # Betreff, nicht die Vorlage: Ohne Tag ginge die Rückantwort aus
+        # Outlook unverschlüsselt hinaus.
+        "zweck": ("Geht an den Absender einer Portal-Nachricht, wenn der Empfänger "
+                  "im Portal antwortet. Der Antworttext wird unter diesem Text "
+                  "angefügt, das Verschlüsselungs-Kennwort vor den Betreff."),
+        "platzhalter": {
+            "von": "Name des Antwortenden (sonst seine Adresse)",
+            "adresse": "Adresse des Antwortenden",
+            "betreff": "Betreff der ursprünglichen Nachricht",
+            "anhaenge": "Namen der Anhänge, leer wenn keine",
+        },
+        "beispiel": {"von": "Max Muster", "adresse": "max.muster@partner.example",
+                     "betreff": "Vertragsentwurf", "anhaenge": "angebot.pdf"},
+        "betreff": "Re: {{ betreff }} — Antwort von {{ von }}",
+        "farbe": "#2563eb",
+        "bloecke": [
+            _abs('↩ Antwort von {{ von }}', bold=True, size="15pt", color="#2563eb"),
+            {"type": "spacer", "height": 10},
+            _abs('Sie haben eine Antwort auf Ihre sichere Nachricht erhalten.'),
+            {"type": "spacer", "height": 8},
+            _abs('Von: **{{ von }}**\n'
+                 'E-Mail: **{{ adresse }}**\n'
+                 'Betreff: **{{ betreff }}**'
+                 '{% if anhaenge %}\nAnhänge: **📎 {{ anhaenge }}**{% endif %}'),
+        ],
+    },
 }
 
 
