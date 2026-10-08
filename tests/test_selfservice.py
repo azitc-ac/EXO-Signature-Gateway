@@ -235,3 +235,29 @@ def test_waehlbar_je_kategorie(monkeypatch):
     assert sv._waehlbar("a@x.de") == {"sig": False, "min": False, "oof": True}
     data["MAILBOX_CONFIG"] = _MB          # Postfach nicht freigeschaltet → nichts
     assert sv._waehlbar("a@x.de") == {"sig": False, "min": False, "oof": False}
+
+
+def test_nicht_freigeschaltet_bleibt_durchspielbar():
+    """Der Hinweis verspricht „Du kannst alles durchspielen, aber nicht
+    speichern". Bis v1.9.133 sperrte das Skript im selben Zustand jedes Feld —
+    durchspielen ging nicht. Gesperrt wird nur der Speichern-Knopf; das
+    Speichern selbst verweigert der Server (siehe unten)."""
+    import re
+    from pathlib import Path
+    quelle = (Path(__file__).parent.parent / "app/webui/templates/self.html").read_text()
+    assert "Du kannst alles durchspielen" in quelle
+    zweige = re.findall(r"if \(!ctx\.freigeschaltet\)(.*?)\n\s*\n", quelle, re.S)
+    assert zweige, "Zweig für „nicht freigeschaltet“ nicht gefunden"
+    for z in zweige:
+        assert ".disabled" not in z, f"Felder werden gesperrt: {z.strip()[:200]}"
+    assert any("el('speichern').hidden = true" in z for z in zweige)
+
+
+def test_speichern_ohne_freischaltung_verweigert(monkeypatch):
+    import asyncio
+    from fastapi import HTTPException
+    from webui.routen import selfservice
+    monkeypatch.setattr(settings_store, "get", lambda k, d=None: False if k == "SELF_SERVICE_ENABLED" else d)
+    with pytest.raises(HTTPException) as e:
+        asyncio.run(selfservice.self_save({}, email="erika@example.org"))
+    assert e.value.status_code == 403
