@@ -64,8 +64,6 @@ class HubProviderBackend(CABackend):
                               upload_url: str, user_config: dict) -> str:
         label = self._p.get("label") or self._p.get("id", "")
         return f"""
-<p>Ihr S/MIME-Zertifikat für <strong>{_esc(email)}</strong> läuft in {days_left} Tagen ab
-({_esc(str(expiry_str))}).</p>
 <p>Die Erneuerung über <strong>{_esc(label)}</strong> wurde automatisch beim
 Zertifikatsdienst beauftragt — Sie müssen nichts weiter tun. Das neue Zertifikat
 wird nach Ausstellung automatisch eingespielt.</p>

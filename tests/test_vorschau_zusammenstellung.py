@@ -123,3 +123,42 @@ def test_ausdrueckliche_wahl_schlaegt_die_konfiguration(client, mit_konfiguriert
     assert d["banner_template"] == "Recht"
     assert "DISCLAIMER" in d["banner_html"]
     assert d["disclaimer_html"] == ""
+
+
+# ── Live-Vorschau einer Abwesenheits-, Banner- oder Disclaimer-Vorlage ────────
+
+def _art(tmp_path, name, art, html):
+    import json
+    (tmp_path / f"{name}.html").write_text(html, encoding="utf-8")
+    (tmp_path / f"{name}.meta.json").write_text(json.dumps({"kind": art}), encoding="utf-8")
+
+
+def test_abwesenheit_rendert_wie_im_betrieb_ohne_postfach_banner(
+        client, mit_konfiguriertem_banner, tmp_path):
+    """Anlass (08.10.2026): Im Baukasten einer Abwesenheitsvorlage zeigte die
+    Live-Vorschau nur den Banner des Postfachs. Die Vorlage wurde als Signatur
+    gerendert, `{{ oof.zeitraum }}` brach dort ab, der Text blieb leer."""
+    _art(tmp_path, "Weg", "oof", "<p>Ich bin {{ oof.zeitraum }} abwesend.</p>")
+    import signature_engine
+    signature_engine._reload_env()
+    d = _hole(client, email="erika@example.org", template="Weg")
+    assert "Ich bin vom 24.12.2026 bis 02.01.2027 abwesend." in d["html"]
+    assert d["banner_html"] == "" and d["disclaimer_html"] == ""
+
+
+@pytest.mark.parametrize("art", ["banner", "disclaimer"])
+def test_banner_und_disclaimer_stehen_allein(client, mit_konfiguriertem_banner,
+                                              tmp_path, art):
+    """Sonst erschiene beim Bearbeiten eines Banners zusätzlich der Banner des
+    Postfachs — zwei Banner, von denen einer nicht der bearbeitete ist."""
+    _art(tmp_path, "Neu", art, "<p>NEU</p>")
+    import signature_engine
+    signature_engine._reload_env()
+    d = _hole(client, email="erika@example.org", template="Neu")
+    assert "NEU" in d["html"]
+    assert d["banner_html"] == "" and d["disclaimer_html"] == ""
+
+
+def test_signatur_bekommt_weiter_den_postfach_banner(client, mit_konfiguriertem_banner):
+    d = _hole(client, email="erika@example.org", template="signature")
+    assert "BANNER" in d["banner_html"] and "DISCLAIMER" in d["disclaimer_html"]

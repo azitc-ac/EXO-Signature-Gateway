@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.133 — 2026-10-08 — Live-Vorschau für Abwesenheit, Banner und Disclaimer
+
+Die Live-Vorschau im Baukasten renderte jede Vorlage wie eine Signatur und hängte
+Banner und Disclaimer des gewählten Postfachs an. Bei einer Abwesenheitsvorlage
+mit `{{ oof.zeitraum }}` brach das Rendern ab, weil diese Werte nur bei der
+Abwesenheit bereitstehen. Die Vorschau zeigte dann nur den Banner des Postfachs.
+Beim Bearbeiten eines Banners erschien zusätzlich der Banner des Postfachs.
+
+Jetzt richtet sich die Vorschau nach der Art der Vorlage:
+
+- **Abwesenheitsvorlagen** werden wie im Betrieb gerendert, mit einem
+  Beispielzeitraum.
+- **Banner und Disclaimer** erscheinen allein.
+- **Signaturen** zeigen wie bisher, was das Postfach tatsächlich bekäme.
+
+Die Anleitungen für den Zertifikatsbezug über den Hub und über DigiCert nannten
+die Restlaufzeit ein zweites Mal. Bei einem schon abgelaufenen Zertifikat stand
+dort „läuft in -3 Tagen ab". Der Satz entfällt. Die Erneuerungsaufforderung nennt
+Restlaufzeit und Ablauf bereits darüber.
+
 ## v1.9.132 — 2026-10-08 — Erneuerungsaufforderung als Vorlage
 
 Die Mail an den Postfachinhaber, dass sein Zertifikat bald abläuft oder schon
