@@ -492,7 +492,8 @@ def send_renewal_notification_to_user(
     # Upload-Link, und ein Platzhalter liesse sich aus der Vorlage löschen.
     gerendert = _vorlage_rendern(
         "cert_renewal", nachsatz=instructions_html, empfaenger=user_email,
-        tage=days, ablauf=expiry, abgelaufen=days < 0)
+        tage=days, ablauf=expiry, abgelaufen=days < 0,
+        dringend=days <= 7)
     if gerendert is None:
         return False
     subject, html = gerendert

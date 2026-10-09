@@ -167,6 +167,26 @@ def test_freitext_link_bleibt_streng():
     assert "<a " not in html
 
 
+
+def test_freitext_farbe_fuer_einzelne_woerter():
+    meta = {"blocks": [{"type": "text", "text": "Gelesen am: {farbe=#16a34a}**heute**{/farbe}"}]}
+    html = template_builder.render_html(meta)
+    assert '<span style="color:#16a34a"><strong>heute</strong></span>' in html
+    assert "{farbe" not in html
+    # Textfassung: Auszeichnung fällt weg, Wortlaut bleibt
+    assert "Gelesen am: heute" in template_builder.render_txt(meta)
+
+
+@pytest.mark.parametrize("roh", [
+    '{farbe=red}x{/farbe}',
+    '{farbe=#16a34a" onmouseover="alert(1)}x{/farbe}',
+    '{farbe=#16a34a}x',
+])
+def test_freitext_farbe_bleibt_streng(roh):
+    html = template_builder.render_html({"blocks": [{"type": "text", "text": roh}]})
+    assert "<span style=" not in html
+    assert "onmouseover=\"" not in html
+
 # ── Art einer handgeschriebenen Vorlage ──────────────────────────────────────
 
 @pytest.fixture
@@ -364,3 +384,27 @@ def test_anleitungen_der_anbindungen_maskieren(monkeypatch):
     html = AssistedManualBackend().get_instructions_html(
         BOESE, 3, "d", 'https://u.example/"><script>', {"portal_url": BOESE})
     assert "<script>" not in html and '"><' not in html
+
+
+
+# ── Farben wie vor dem Umbau (v1.9.129) ──────────────────────────────────────
+
+def test_lesebestaetigung_gruen(monkeypatch):
+    g = _abfangen(monkeypatch)
+    notification.send_portal_read_receipt({
+        "sender_email": "e@x.de", "recipient_email": "m@y.de", "subject": "S",
+        "read_at": "2026-10-08T12:32:00+00:00"})
+    html = g[0]["html"]
+    assert "✓ Sichere Nachricht gelesen" in html
+    assert '<span style="color:#16a34a"><strong>08.10.2026 14:32 Uhr</strong></span>' in html
+
+
+@pytest.mark.parametrize("tage,farbe,text", [
+    (14, "#e67e22", "läuft in <strong>14 Tagen</strong> ab (22.10.2026)"),
+    (5, "#e74c3c", "läuft in <strong>5 Tagen</strong> ab (22.10.2026)"),
+    (-3, "#e74c3c", "ist <strong>ABGELAUFEN</strong>"),
+])
+def test_erneuerung_dringlichkeitsfarbe(monkeypatch, tage, farbe, text):
+    g = _abfangen(monkeypatch)
+    _erneuerung(tage=tage)
+    assert f'<span style="color:{farbe}">{text}</span>' in g[0]["html"]

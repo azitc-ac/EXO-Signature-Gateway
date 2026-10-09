@@ -75,6 +75,30 @@ def _resolve_template_names(template_name: str | None) -> tuple[str, str]:
     return f"{template_name}.html", f"{template_name}.txt"
 
 
+def render_fehler(user: UserData, template_name: str | None = None,
+                  extra: dict | None = None) -> str | None:
+    """Warum die HTML-Vorlage nicht rendert — oder None, wenn sie es tut.
+
+    `render()` ist absichtlich nachsichtig: Eine kaputte Vorlage darf den
+    Mailfluss nicht anhalten, also gibt es bei einem Fehler "" zurück und
+    nimmt bei einer fehlenden Vorlage still `signature.html`. Wer wissen will,
+    OB eine Vorlage funktioniert, erfährt es dort deshalb nie — die
+    Postfach-Prüfung meldete bis v1.9.134 jede kaputte Vorlage als „ok".
+
+    Nur der HTML-Teil: Eine `.txt`-Fassung fehlt bei handgeschriebenen
+    Vorlagen regelmässig, das ist kein Fehler.
+    """
+    html_file, _ = _resolve_template_names(template_name)
+    ctx = {"user": user, "custom": user.custom, **(extra or {})}
+    try:
+        _get_env().get_template(html_file).render(**ctx)
+    except TemplateNotFound:
+        return f"Vorlage {html_file} fehlt"
+    except Exception as exc:
+        return f"{type(exc).__name__}: {exc}"
+    return None
+
+
 def render(user: UserData, template_name: str | None = None,
            extra: dict | None = None) -> tuple[str, str]:
     """`(html, txt)` einer Vorlage. `extra` reicht zusätzliche Template-Variablen
