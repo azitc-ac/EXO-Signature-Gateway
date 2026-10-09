@@ -319,16 +319,15 @@ async def _check_template(email: str, cfg: dict) -> dict:
         import graph_client
         import signature_engine
         user = await graph_client.get_user(email)
-        if not user.displayName:
-            # Still try to render, but note incomplete data
-            template_name = _vorlage(email, cfg)
-            try:
-                signature_engine.render(user, template_name=template_name)
-            except Exception as exc:
-                return _make_result("error", f"Template-Fehler: {exc}")
-            return _make_result("warn", "Benutzerdaten unvollständig (displayName leer)")
+        # ⚠️ Nicht `render()` und auf eine Ausnahme warten: render fängt jeden
+        # Fehler selbst ab und liefert "" — diese Prüfung meldete bis v1.9.134
+        # deshalb jede kaputte Vorlage als „ok". render_fehler sagt es.
         template_name = _vorlage(email, cfg)
-        signature_engine.render(user, template_name=template_name)
+        fehler = signature_engine.render_fehler(user, template_name=template_name)
+        if fehler:
+            return _make_result("error", f"Vorlage {template_name or 'default'}: {fehler}")
+        if not user.displayName:
+            return _make_result("warn", "Benutzerdaten unvollständig (displayName leer)")
         return _make_result("ok", "Vorlage gerendert")
     except Exception as exc:
         return _make_result("error", f"Template-Fehler: {exc}")

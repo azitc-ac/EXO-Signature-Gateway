@@ -457,6 +457,10 @@ _AUS_LINK = re.compile(r"\[([^\]\n]+)\]\((\{\{\s*[A-Za-z_][\w.]*\s*\}\}|[^)\s]+)
 _AUS_PLATZHALTER = re.compile(r"^\{\{\s*[A-Za-z_][\w.]*\s*\}\}$")
 _AUS_FETT = re.compile(r"\*\*(?=\S)(.+?)(?<=\S)\*\*", re.DOTALL)
 _AUS_KURSIV = re.compile(r"(?<![\*\w])\*(?=\S)([^*\n]+?)(?<=\S)\*(?![\*\w])")
+# Farbe für einzelne Wörter: `{farbe=#16a34a}Text{/farbe}`. Nicht `{#…}` — damit
+# beginnt in Jinja ein Kommentar, und der Text verschwände. Nur Hex-Werte; was
+# nicht passt, bleibt als Zeichen stehen.
+_AUS_FARBE = re.compile(r"\{farbe=(#[0-9a-fA-F]{6}|#[0-9a-fA-F]{3})\}(.+?)\{/farbe\}")
 # Nur Ziele, die in einer Signatur etwas zu suchen haben. `javascript:` und
 # `data:` bleiben damit aussen vor — ohne dass eine Sperrliste gepflegt werden
 # muss, die zwangslaeufig unvollstaendig waere.
@@ -484,6 +488,7 @@ def _auszeichnen(zeile_maskiert: str, g: dict) -> str:
     zeile = _AUS_LINK.sub(_link, zeile_maskiert)
     zeile = _AUS_FETT.sub(lambda m: f"<strong>{m.group(1)}</strong>", zeile)
     zeile = _AUS_KURSIV.sub(lambda m: f"<em>{m.group(1)}</em>", zeile)
+    zeile = _AUS_FARBE.sub(lambda m: f'<span style="color:{m.group(1)}">{m.group(2)}</span>', zeile)
     return zeile
 
 
@@ -931,6 +936,7 @@ def _render_block_txt(b: dict, g: dict, lines: list[str]) -> None:
             klar = _AUS_LINK.sub(lambda m: m.group(1), zeile)
             klar = _AUS_FETT.sub(lambda m: m.group(1), klar)
             klar = _AUS_KURSIV.sub(lambda m: m.group(1), klar)
+            klar = _AUS_FARBE.sub(lambda m: m.group(2), klar)
             if klar.strip():
                 lines.append(klar.rstrip())
     elif t == "freetext":

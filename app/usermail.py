@@ -161,21 +161,30 @@ VORLAGEN: dict[str, dict] = {
             "tage": "verbleibende Tage bis zum Ablauf",
             "ablauf": "Ablaufdatum des Zertifikats",
             "abgelaufen": "wahr, wenn das Zertifikat bereits abgelaufen ist",
+            "dringend": "wahr ab 7 Tagen vor dem Ablauf (und danach)",
         },
         "beispiel": {"empfaenger": "vorname.nachname@example.org", "tage": 14,
-                     "ablauf": "22.10.2026", "abgelaufen": False},
+                     "ablauf": "22.10.2026", "abgelaufen": False, "dringend": False},
         "betreff": ("⚠ S/MIME-Zertifikat {% if abgelaufen %}ABGELAUFEN{% else %}"
                     "läuft in {{ tage }} Tagen ab{% endif %} – {{ empfaenger }}"),
-        "farbe": "#c2410c",
+        "farbe": "#e67e22",
+        # Rot ab 7 Tagen vor dem Ablauf, sonst orange — wie vor dem Umbau. Die
+        # Bedingung steht im Text, weil eine Bausteinfarbe fest ist.
+        # ⚠️ `dringend` statt `tage <= 7`: Der Freitext wird vor dem Rendern
+        # maskiert, aus `<=` würde `&lt;=` und die Bedingung bräche.
         "bloecke": [
-            _abs('⚠ S/MIME-Zertifikat {% if abgelaufen %}abgelaufen – sofortige '
-                 'Erneuerung erforderlich{% else %}läuft in {{ tage }} Tagen ab'
-                 '{% endif %}', bold=True, size="15pt", color="#c2410c"),
+            _abs('{% if dringend %}{farbe=#e74c3c}⚠ S/MIME-Zertifikat '
+                 '{% if abgelaufen %}abgelaufen – sofortige Erneuerung erforderlich'
+                 '{% else %}läuft in {{ tage }} Tagen ab{% endif %}{/farbe}'
+                 '{% else %}⚠ S/MIME-Zertifikat läuft in {{ tage }} Tagen ab'
+                 '{% endif %}', bold=True, size="15pt", color="#e67e22"),
             {"type": "spacer", "height": 10},
             _abs('Das S/MIME-Signaturzertifikat für Ihre E-Mail-Adresse '
-                 '**{{ empfaenger }}** {% if abgelaufen %}ist **abgelaufen**'
-                 '{% else %}läuft in **{{ tage }} Tagen** ab ({{ ablauf }})'
-                 '{% endif %}.'),
+                 '**{{ empfaenger }}** {% if dringend %}{farbe=#e74c3c}'
+                 '{% if abgelaufen %}ist **ABGELAUFEN**{% else %}läuft in '
+                 '**{{ tage }} Tagen** ab ({{ ablauf }}){% endif %}{/farbe}'
+                 '{% else %}{farbe=#e67e22}läuft in **{{ tage }} Tagen** ab '
+                 '({{ ablauf }}){/farbe}{% endif %}.'),
             _abs('Ohne gültiges Zertifikat werden Ihre ausgehenden E-Mails **nicht '
                  'mehr automatisch digital signiert**.'),
             {"type": "spacer", "height": 8},
@@ -274,7 +283,7 @@ VORLAGEN: dict[str, dict] = {
     "portal_read_receipt": {
         "anzeige": "Portal: Lesebestätigung",
         "gruppe": "intern",
-        "ueberschrift": True,
+        "ueberschrift": False,
         "zweck": ("Geht an den Absender einer Portal-Nachricht, sobald der "
                   "Empfänger sie zum ersten Mal geöffnet hat."),
         "platzhalter": {
@@ -287,12 +296,16 @@ VORLAGEN: dict[str, dict] = {
                      "gelesen_am": "08.10.2026 14:32 Uhr"},
         "betreff": "✓ Lesebestätigung: {{ betreff }}",
         "farbe": "#16a34a",
+        # Grüne Überschrift und grüner Zeitpunkt wie vor dem Umbau (v1.9.129).
         "bloecke": [
+            _abs('✓ Sichere Nachricht gelesen', bold=True, size="15pt",
+                 color="#16a34a"),
+            {"type": "spacer", "height": 10},
             _abs('Ihre verschlüsselte Nachricht wurde gelesen.'),
             {"type": "spacer", "height": 8},
             _abs('Empfänger: **{{ empfaenger }}**\n'
                  'Betreff: **{{ betreff }}**\n'
-                 'Gelesen am: **{{ gelesen_am }}**'),
+                 'Gelesen am: {farbe=#16a34a}**{{ gelesen_am }}**{/farbe}'),
         ],
     },
     "portal_reply": {

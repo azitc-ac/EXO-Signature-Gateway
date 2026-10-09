@@ -5,6 +5,32 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.135 — 2026-10-09 — Farben der Nutzer-Mails, Postfach-Prüfung erkennt kaputte Vorlagen
+
+**Farben wie vor dem Umbau.** Beim Umbau zu Vorlagen (v1.9.130/132) verloren zwei
+Nachrichten ihre Farben:
+
+- **Lesebestätigung:** Die grüne Überschrift „✓ Sichere Nachricht gelesen“ und der
+  grüne Zeitpunkt hinter „Gelesen am“ sind wieder da.
+- **Erneuerungsaufforderung:** Überschrift und Restlaufzeit stehen wieder ab
+  sieben Tagen vor dem Ablauf (und danach) in Rot, sonst in Orange; ein
+  abgelaufenes Zertifikat heißt wieder „ABGELAUFEN“. Dafür gibt es den
+  Platzhalter `{{ dringend }}`.
+
+Hast du eine dieser beiden Vorlagen schon angepasst, behält sie deine Fassung.
+Die Farben bekommst du dann über „Standard wiederherstellen“.
+
+**Farbe für einzelne Wörter im Freitext.** Der Freitext-Baustein kennt jetzt
+`{farbe=#16a34a}Text{/farbe}`. Erlaubt sind nur Hex-Werte; alles andere bleibt
+als Zeichen stehen. In der Textfassung der Mail fällt die Auszeichnung weg.
+
+**Postfach-Prüfung.** Die Prüfung der Signaturvorlage meldete jede Vorlage als
+„ok“, auch eine, die sich nicht rendern ließ oder gar nicht mehr existierte. Das
+Rendern fängt Fehler bewusst selbst ab, damit eine kaputte Vorlage den Mailfluss
+nicht anhält. Die Prüfung wartete aber auf genau diesen Fehler. Jetzt meldet sie
+eine fehlerhafte oder fehlende Vorlage als Fehler, mit Grund. Eine fehlende
+Textfassung (`.txt`) gilt weiterhin nicht als Fehler.
+
 ## v1.9.134 — 2026-10-08 — Selbstverwaltung ohne Freischaltung durchspielbar
 
 Ist die Selbstverwaltung für das Gateway nicht freigeschaltet, zeigt `/self` den
