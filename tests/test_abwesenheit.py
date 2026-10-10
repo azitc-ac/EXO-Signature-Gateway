@@ -867,3 +867,70 @@ def test_aktive_postfaecher_email_und_guid(monkeypatch):
     out = dict(abwesenheit._aktive_postfaecher(cfg))
     assert "a@x.de" in out and "c@x.de" in out
     assert "b@x.de" not in out
+
+
+# ── Signatur/Banner unter der Abwesenheit: EIN Ort für alle Schreibwege ──────
+# Bis v1.9.139 berechnete nur der Poll den Anhang; Self-Service (/self) und
+# Admin-Dashboard setzten den Text ohne Signatur (Outlook-Testlauf T20b,
+# 11.10.2026). Der Poll fand ihn danach abweichend und schrieb ihn neu — jedes
+# Neuschreiben setzt Exchanges „einmal je Absender" zurück.
+
+def _anhang_umgebung(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "TEMPLATE_DIR", str(tmp_path))
+    (tmp_path / "K.html").write_text("<p>OOF</p>", encoding="utf-8")
+    (tmp_path / "K.txt").write_text("OOF", encoding="utf-8")
+    signature_engine._reload_env()
+    store = {"OOO_APPEND_SIGNATURE": True, "OOO_APPEND_BANNER": True,
+             "TEMPLATE_POLICIES": {"sig": "Sig", "banner": "Ban"},
+             "CUSTOM_POLICIES": [], "INTERNAL_GROUPS": {}, "MAILBOX_CONFIG": {}}
+    monkeypatch.setattr(settings_store, "get", lambda k, d=None: store.get(k, d))
+    echt = signature_engine.render
+
+    def render(u, template_name=None, extra=None):
+        if template_name in ("Sig", "Ban"):
+            return (f"<p>{template_name}</p>", template_name)
+        return echt(u, template_name=template_name, extra=extra)
+    monkeypatch.setattr(signature_engine, "render", render)
+
+
+def test_render_intern_extern_haengt_signatur_und_banner_selbst_an(tmp_path, monkeypatch):
+    import asyncio
+    _anhang_umgebung(tmp_path, monkeypatch)
+    html, extern = asyncio.run(abwesenheit.render_intern_extern(
+        UserData(displayName="E", custom={}), "a@x.de", "", "K", {"use_policy": True}, {}, ""))
+    assert html == "<p>OOF</p><p>Sig</p><p>Ban</p>" and extern == html
+
+
+def test_render_intern_extern_ohne_anhang_nur_fuer_vorschau(tmp_path, monkeypatch):
+    import asyncio
+    _anhang_umgebung(tmp_path, monkeypatch)
+    html, _ = asyncio.run(abwesenheit.render_intern_extern(
+        UserData(displayName="E", custom={}), "a@x.de", "", "K", {"use_policy": True}, {}, "",
+        mit_anhang=False))
+    assert html == "<p>OOF</p>"
+
+
+def test_nur_die_vorschau_schaltet_den_anhang_ab():
+    """Alle Aufrufer, die bei Exchange SCHREIBEN, lassen den Anhang an; nur die
+    /self-Vorschau (die Signatur und Banner selbst darunter setzt) schaltet ab."""
+    import ast
+    from pathlib import Path
+    app = Path(__file__).resolve().parent.parent / "app"
+    funde = []                      # (Datei, umschließende Funktion)
+    for f in app.rglob("*.py"):
+        baum = ast.parse(f.read_text(encoding="utf-8"))
+        for fn in ast.walk(baum):
+            if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            for knoten in ast.walk(fn):
+                if isinstance(knoten, ast.Call) and any(
+                        k.arg == "mit_anhang" and isinstance(k.value, ast.Constant)
+                        and k.value.value is False for k in knoten.keywords):
+                    funde.append((f.name, fn.name))
+    assert sorted(set(funde)) == [("selfservice.py", "self_preview")], funde
+    # Die Vorgaben selbst: Wer ohne Schlüsselwort aufruft (Self-Save, Admin,
+    # Poll), bekommt den Anhang.
+    import inspect
+    from webui.routen import selfservice
+    for fn in (abwesenheit.render_intern_extern, selfservice._render_oof_fuer):
+        assert inspect.signature(fn).parameters["mit_anhang"].default is True, fn
