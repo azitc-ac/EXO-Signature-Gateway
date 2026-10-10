@@ -198,7 +198,9 @@ Nach Abschluss zeigt das Skript die öffentliche IP und die nächsten Schritte (
 Setup-Wizard aufrufen).
 
 **Wann wird IMAP APPEND benötigt?**  
-Nur in einem spezifischen Fall: Ein externer Absender schickt eine S/MIME-verschlüsselte Mail an einen internen Empfänger. Der Gateway entschlüsselt sie und muss das Ergebnis direkt ins Postfach des Empfängers legen. Die Graph API (`POST /mailFolders/inbox/messages`) setzt dabei das `MSGFLAG_UNSENT`-Flag — Outlook zeigt die Mail als Entwurf mit Senden-Knopf. IMAP APPEND setzt dieses Flag nicht; die Nachricht landet als echte empfangene Mail. **Ausgehende Mails** (Signatur-Injektion) laufen in Graph++ weiterhin über Graph API sendMail.
+Nur in einem spezifischen Fall: Ein externer Absender schickt eine S/MIME-verschlüsselte Mail an einen internen Empfänger. Der Gateway entschlüsselt sie und muss das Ergebnis direkt ins Postfach des Empfängers legen. Die Graph API (`POST /mailFolders/inbox/messages`) setzt dabei das `MSGFLAG_UNSENT`-Flag — Outlook zeigt die Mail als Entwurf mit Senden-Knopf. IMAP APPEND setzt dieses Flag nicht; die Nachricht landet als echte empfangene Mail. **Ausgehende Mails** (Signatur-Injektion) und alle Mails von Absendern im eigenen Tenant laufen in Graph++ über Graph API sendMail und damit über den normalen Exchange-Zustellweg (Abwesenheitsnotiz, Posteingangsregeln).
+
+**Bekannte Grenze:** Für die per IMAP APPEND zugestellten S/MIME-Mails von externen Absendern laufen weder die Abwesenheitsnotiz noch Posteingangsregeln — IMAP APPEND legt die Nachricht nur ab, es ist kein Zustellweg. Graph kann nicht im Namen einer externen Adresse senden, deshalb gibt es für diese Mails keinen anderen Weg ohne ausgehenden Port 25.
 
 ### Voraussetzungen für Graph++ (`graph_plus`)
 

@@ -5,6 +5,33 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.139 — 2026-10-11 — Graph++: interne Post wieder über den Exchange-Zustellweg
+
+**Was falsch war.** Im Modus Graph++ legte das Gateway jede Mail an einen
+Empfänger im eigenen Tenant per IMAP APPEND direkt in dessen Postfach, auch
+rein interne Mails zwischen Postfächern, die das Gateway bearbeitet. IMAP
+APPEND ist kein Zustellweg, es legt nur ab. Für diese Mails liefen deshalb
+weder die Abwesenheitsnotiz noch Posteingangsregeln: Wer intern an eine
+abwesende Kollegin schrieb, bekam keine Abwesenheitsantwort. Vorgesehen war
+IMAP APPEND nur für eingehende entschlüsselte S/MIME-Post, so stand es auch in
+der Dokumentation.
+
+**Was jetzt gilt.** Entscheidend ist der Absender. Mails von Absendern im
+eigenen Tenant gehen über Graph sendMail und nehmen den normalen
+Exchange-Zustellweg. Mails von externen Absendern (eingehendes S/MIME) gehen
+weiter per IMAP APPEND, denn Graph kann nicht im Namen einer fremden Adresse
+senden. Scheitert Graph, fällt die interne Post auf IMAP APPEND zurück.
+
+`sendMail` legt dabei eine Kopie in „Gesendete Elemente" des Absenders ab. Bei
+internen Mails ohne Signatur entfernt das Gateway Outlooks inhaltsgleiches
+Original, damit dort keine Duplikate stehen.
+
+**Bekannte Grenze.** Für eingehende S/MIME-Mails von externen Absendern laufen
+Abwesenheitsnotiz und Posteingangsregeln weiterhin nicht. Eine eigene
+Abwesenheitsantwort des Gateways für diesen Fall ist vorgesehen.
+
+Nur Graph++ ist betroffen. In den Modi `smtp` und Graph-only ändert sich nichts.
+
 ## v1.9.138 — 2026-10-11 — Anmeldung: Ziel wird geprüft und geht nicht mehr verloren
 
 **Sicherheit: Weiterleitungsziel nach der Anmeldung.** Die Anmeldeseite nimmt

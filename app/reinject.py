@@ -151,8 +151,15 @@ def _fail_delivery(mail_from: str, rcpt_tos: list[str],
         raise RuntimeError(f"Zustellung fehlgeschlagen ({grund}); Einreihen ebenfalls: {exc}")
 
 
+# Rückgabe von send(): Die Post lief über Graph sendMail mit MIME, und dabei
+# legt Exchange IMMER eine Kopie in „Gesendete Elemente" des Absenders an. Der
+# Aufrufer räumt das Duplikat auf, wo es sonst niemand tut. Alle anderen Wege
+# geben None zurück (wie bisher).
+WEG_GRAPH_MIT_KOPIE = "graph_mit_kopie"
+
+
 def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
-         force_mime: bool = False, queue_on_failure: bool = True) -> None:
+         force_mime: bool = False, queue_on_failure: bool = True) -> str | None:
     """
     Re-inject a mail.  Mode is controlled by REINJECT_MODE setting (canonical
     values via settings_store.reinject_mode(); "imap"/"smtp587" are legacy
@@ -334,9 +341,35 @@ def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
     elif mode == "graph_plus":
         import email as _em
         import smtp_submit
+        # ── Absender im Tenant → Graph sendMail ──────────────────────────────
+        # Die Post nimmt so den Exchange-Zustellweg: Abwesenheitsantwort und
+        # Posteingangsregeln greifen. IMAP APPEND legt nur in den Ordner ab —
+        # bis v1.9.138 lief JEDE Post an einen Tenant-Empfänger so, auch rein
+        # interne Mails zwischen aktivierten Postfächern, und keine einzige
+        # davon löste eine Abwesenheitsantwort aus (Testlauf 11.10.2026).
+        # Immer Raw-MIME: Die Post kommt fertig an, sie 1:1 weiterzugeben bewahrt
+        # Aufbau und Anhänge (keine JSON-Rekonstruktion, CLAUDE.md).
+        if _sender_internal:
+            import graph_reinject
+            if graph_reinject.send_via_graph_mime(mail_from, rcpt_tos, content_bytes):
+                stats.increment("graph_api_calls")
+                return WEG_GRAPH_MIT_KOPIE
+            log.warning("Graph++: sendMail für %s fehlgeschlagen — Rückfall auf "
+                        "IMAP APPEND (ohne Abwesenheit/Regeln)", mail_from)
+            imap_failed = [r for r in rcpt_tos
+                           if not smtp_submit.deliver_inbound_imap(r, content_bytes)]
+            if imap_failed:
+                _fail_delivery(mail_from, imap_failed, content_bytes,
+                               "Graph sendMail und IMAP APPEND fehlgeschlagen",
+                               queue_on_failure)
+            return None
+        # ── Absender außerhalb → IMAP APPEND ─────────────────────────────────
+        # Graph kann nicht im Namen einer fremden Adresse senden. Das betrifft
+        # eingehende S/MIME-Post (entschlüsselt, Signatur entfernt, oder bei
+        # gescheiterter Entschlüsselung unverändert). Bekannte Grenze: Für diese
+        # Mails laufen weder Abwesenheitsantwort noch Posteingangsregeln.
         # IMAP APPEND works only for internal (same-tenant) mailboxes.
-        # External recipients (Bookings confirmations, external S/MIME replies etc.)
-        # fall back to Graph sendMail so outbound delivery still works.
+        # External recipients fall back to Graph sendMail.
         imap_failed = [r for r in rcpt_tos
                        if not smtp_submit.deliver_inbound_imap(r, content_bytes)]
         if imap_failed:

@@ -109,7 +109,7 @@ def _is_first_for_mid(sender: str, mid: str) -> bool:
 async def _cleanup_sent_item(
     sender: str, message_id: str, html_body: str,
     subject: str = "", to_recipients: list[str] | None = None,
-    replace_all: bool = False,
+    replace_all: bool = False, nur_duplikate: bool = False,
 ) -> None:
     """Delete the original unsigned Sent Item; for encrypted mails replace all copies.
 
@@ -123,7 +123,7 @@ async def _cleanup_sent_item(
         result = await graph_client.cleanup_sent_items(
             sender, message_id, html_body,
             subject=subject, to_recipients=to_recipients or [],
-            replace_all=replace_all,
+            replace_all=replace_all, nur_duplikate=nur_duplikate,
         )
         if result is None:           # permanent 4xx — no point retrying
             return
@@ -875,8 +875,21 @@ class SignatureHandler:
                         # re-enters Exchange transport (esp. via the 587 path), and
                         # without X-Sig-Applied the FromMemberOf rule routes it right
                         # back to us — infinite loop (happened live on 2026-07-07).
-                        reinject.send(sender, recipients, loop_detector.mark_as_signed_bytes(raw))
+                        weg = reinject.send(sender, recipients,
+                                            loop_detector.mark_as_signed_bytes(raw))
                         _audit("internal_only_skip")
+                        # Graph++ stellt Post aus dem Tenant über sendMail zu (damit
+                        # Abwesenheit und Posteingangsregeln greifen). sendMail mit
+                        # MIME legt IMMER eine Kopie in „Gesendete Elemente" ab —
+                        # neben Outlooks Original. Beide sind inhaltsgleich: nur das
+                        # Duplikat entfernen, nichts patchen. Unabhängig von
+                        # SENT_ITEMS_UPDATE, weil es hier nichts zu aktualisieren
+                        # gibt, sondern nur eine Folge des Zustellwegs zu beheben.
+                        _mid_skip = (msg.get("Message-ID") or "").strip()
+                        if (weg == reinject.WEG_GRAPH_MIT_KOPIE and _mid_skip
+                                and _is_first_for_mid(sender, _mid_skip)):
+                            asyncio.create_task(_cleanup_sent_item(
+                                sender, _mid_skip, "", nur_duplikate=True))
                         return "250 OK"
                     log.debug("Bifurcated internal fork of a mixed mail (send_to_all) — "
                               "signing + send-to-all instead of skipping: %s", recipients)

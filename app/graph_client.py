@@ -412,6 +412,7 @@ async def cleanup_sent_items(
     sender_email: str, message_id: str, html_body: str,
     subject: str = "", to_recipients: list[str] | None = None,
     replace_all: bool = False,
+    nur_duplikate: bool = False,
 ) -> bool | None:
     """Find all Sent Items with this Message-ID and clean up duplicates.
 
@@ -425,6 +426,14 @@ async def cleanup_sent_items(
     replace_all=True (encrypted mail):
       - Multiple items: delete ALL, create a fresh readable JSON Sent Item.
       - Single item: return False so caller retries once the sendMail copy appears.
+
+    nur_duplikate=True (unveränderte Post, die nur des Zustellwegs wegen über
+    sendMail lief — z.B. rein interne Mail im Modus Graph++):
+      - Mehrere Elemente: Originale löschen, die sendMail-Kopie behalten. Beide
+        sind inhaltsgleich, es gibt nichts zu patchen.
+      - Ein Element: NICHT patchen und NICHT fertig melden (False) — die
+        sendMail-Kopie kann noch kommen. Kommt sie nie, bleibt das Original
+        unangetastet stehen.
 
     Returns True on success, None on permanent 4xx, False on transient/not-found.
     """
@@ -480,6 +489,8 @@ async def cleanup_sent_items(
             return True
 
         if len(items) == 1:
+            if nur_duplikate:
+                return False      # sendMail-Kopie noch nicht da — weiter warten
             if replace_all:
                 # Encrypted: patch the single item immediately so it's readable,
                 # then keep retrying — the sendMail copy (encrypted) will appear soon.
