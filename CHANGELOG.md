@@ -5,6 +5,32 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.136 — 2026-10-11 — Antworten nach außen behalten lesbare References
+
+**Was falsch war.** Das Gateway schreibt jede bearbeitete Mail für den Rückweg
+neu. Dabei faltete es Kopfzeilen nach der Vorgabe von Pythons email-Paket bei
+78 Zeichen. Eine Kopfzeile, die sich so nicht umbrechen lässt, schrieb es
+stattdessen als RFC-2047-Wort. Genau das trifft die Message-ID von Exchange
+Online: 85 Zeichen ohne Leerzeichen. Bei jeder Antwort stand deshalb in
+`References` statt `<AMBPR05MB…@….outlook.com>` ein
+`=?utf-8?q?=3CAMBPR05MB…=40…?=`.
+
+**Folgen.** Darin erkennt kein Mailprogramm eine Kennung. Beim Empfänger
+fehlte der Bezug zur eigenen früheren Mail, die Konversation konnte
+zerfallen. Kam eine Antwort darauf wieder durchs Gateway, fand die
+Ketten-Erkennung die Ursprungsmail nicht mehr und hängte die volle Signatur
+an, obwohl die Antwort-Signatur gegolten hätte. Lange Betreffzeilen mit
+Umlauten wurden zudem regelwidrig zerlegt (ein kodiertes Wort direkt an
+Klartext).
+
+**Was jetzt gilt.** Beide Stellen, die empfangene Mails neu schreiben (der
+reguläre Rückweg und der Weg über Port 587), nutzen eine gemeinsame Policy:
+CRLF wie bisher, aber Zeilen bis 998 Zeichen, wie RFC 5322 sie erlaubt.
+Fremde Kopfzeilen bleiben damit, wie sie gekommen sind. Was das Gateway selbst
+setzt, wird weiterhin kodiert und gefaltet.
+
+Zu tun ist nichts. Bereits verschickte Mails behalten ihre kodierten Kopfzeilen.
+
 ## v1.9.135 — 2026-10-09 — Farben der Nutzer-Mails, Postfach-Prüfung erkennt kaputte Vorlagen
 
 **Farben wie vor dem Umbau.** Beim Umbau zu Vorlagen (v1.9.130/132) verloren zwei
