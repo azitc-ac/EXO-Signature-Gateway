@@ -689,14 +689,26 @@ async def ankuendigung_fuer_render(upn: str, token: str, template_name: str,
 async def render_intern_extern(user_data, upn: str, token: str, template: str,
                                sender_cfg: dict, state: dict, zeitraum: str,
                                ab: str = "", bis: str = "",
-                               anhang_html: str = "", anhang_txt: str = "") -> tuple[str, str]:
-    """(html_intern, html_extern) der Abwesenheit inkl. Ankündigung.
+                               mit_anhang: bool = True, sender: str = "") -> tuple[str, str]:
+    """(html_intern, html_extern) der Abwesenheit inkl. Ankündigung und — nach
+    OOO_APPEND_SIGNATURE/OOO_APPEND_BANNER — Signatur und Banner darunter.
+
+    Den Anhang berechnet DIESE Funktion, nicht der Aufrufer. Bis v1.9.139 tat
+    das nur der Poll; Self-Service und Admin-Dashboard riefen ohne ihn auf und
+    setzten den Text ohne Signatur. Der nächste Poll fand ihn abweichend und
+    schrieb ihn neu — und jedes Neuschreiben setzt bei Exchange „einmal je
+    Absender" zurück. `mit_anhang=False` nur für eine Vorschau, die Signatur
+    und Banner selbst darunter setzt.
 
     Die Ankündigung steht standardmäßig NUR im internen Text; ist nichts
     anzukündigen oder „auch extern" gesetzt, sind beide Fassungen gleich (ein
     Render). GEMEINSAM genutzt von Poll (`setze_fuer_postfach`) und Self-Service,
     damit beide Wege denselben Text erzeugen (sonst re-PATCHt der Poll nach jedem
     Self-Save und setzt die Dedup zurück)."""
+    anhang_html, anhang_txt = ("", "")
+    if mit_anhang:
+        anhang_html, anhang_txt = _oof_anhang(
+            user_data, sender or upn, settings_store.get("MAILBOX_CONFIG") or {}, sender_cfg)
     ank_de, ank_en = await ankuendigung_fuer_render(upn, token, template, sender_cfg, state)
     html = render_oof(user_data, template, zeitraum, ab, bis,
                       anhang_html, anhang_txt, ank_de, ank_en)[0]
@@ -731,8 +743,6 @@ async def setze_fuer_postfach(upn: str, sender: str, mailbox_cfg: dict,
     # ausgeschaltete Abwesenheit bleibt ausgeschaltet, es wird nichts versendet.
     # zeitraum_text() liefert bei ausgeschalteter/unbefristeter Abwesenheit "".
     user_data = await graph_client.get_user(upn)
-    # Optionaler Anhang (Signatur/Banner) — einmal berechnen, für beide Render-Wege.
-    anhang_html, anhang_txt = _oof_anhang(user_data, sender, mailbox_cfg, sender_cfg)
     _z, _ab, _bis = zeitraum_text(setting), *start_ende_text(setting)
 
     # merk MUSS mit state verknüpft sein: kalender_fenster() legt den Cache unter
@@ -764,7 +774,7 @@ async def setze_fuer_postfach(upn: str, sender: str, mailbox_cfg: dict,
     # mit dem Self-Service, damit beide denselben Text erzeugen.
     html, html_extern = await render_intern_extern(
         user_data, upn, token, template, sender_cfg, state, _z, _ab, _bis,
-        anhang_html, anhang_txt)
+        sender=sender)
 
     # Neu setzen, wenn EINES zutrifft:
     #  (a) UNSER gerenderter Text hat sich geändert (Vorlage/Signatur/Variable/

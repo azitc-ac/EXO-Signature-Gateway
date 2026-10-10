@@ -133,7 +133,8 @@ _synth_setting = abwesenheit.synth_setting
 async def _render_oof_fuer(email: str, oof_tpl: str, status: str, start: str, ende: str,
                            start_zeit: str = "", ende_zeit: str = "",
                            token: str | None = None,
-                           announce: dict | None = None) -> tuple[str, str, str]:
+                           announce: dict | None = None,
+                           mit_anhang: bool = True) -> tuple[str, str, str]:
     """(html_intern, html_extern, txt) der Abwesenheit für die eigene Adresse — wie
     im Betrieb (inkl. Ankündigung künftiger Abwesenheiten, falls die Vorlage sie
     nutzt; die Ankündigung steht ggf. nur im internen Text). Ohne `token` wird keine
@@ -150,7 +151,8 @@ async def _render_oof_fuer(email: str, oof_tpl: str, status: str, start: str, en
         cfg = dict(cfg)
         _ankuendigung_ins_eintrag(cfg, announce)
     html, html_extern = await abwesenheit.render_intern_extern(
-        user_data, email, token, oof_tpl, cfg, abwesenheit._state(), z, _ab, _bis)
+        user_data, email, token, oof_tpl, cfg, abwesenheit._state(), z, _ab, _bis,
+        mit_anhang=mit_anhang)
     _h, txt = abwesenheit.render_oof(user_data, oof_tpl, z, _ab, _bis)
     return html, html_extern, txt
 
@@ -262,8 +264,11 @@ async def self_preview(oof: str = "", sig: str = "", status: str = "scheduled",
     token = await graph_client._acquire_token_async()
     announce = {"an": ank_an != "0", "mode": ank_mode, "x": ank_x,
                 "privat": ank_privat != "0", "extern": ank_extern == "1"}
+    # mit_anhang=False: Die Seite setzt Signatur, Banner und Disclaimer selbst
+    # darunter (self.html) — mit Anhang stünden sie doppelt.
     oof_html, _oof_extern, oof_txt = await _render_oof_fuer(
-        email, oof, status, start, ende, start_zeit, ende_zeit, token, announce)
+        email, oof, status, start, ende, start_zeit, ende_zeit, token, announce,
+        mit_anhang=False)
     sig_html, sig_txt = "", ""
     if sig:
         user_data = await graph_client.get_user(email)

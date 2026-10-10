@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.140 — 2026-10-11 — Abwesenheit: Signatur und Banner auch beim Speichern über /self und das Dashboard
+
+**Was falsch war.** Ist „Signatur unter die Abwesenheit hängen“ bzw. „Banner
+unter die Abwesenheit hängen“ eingeschaltet, hängt das Gateway beides unter
+den Abwesenheitstext. Das tat aber nur der regelmäßige Abgleich. Wer die
+Abwesenheit selbst über /self (oder das Outlook-Add-in) oder ein Admin über das
+Abwesenheits-Dashboard setzte, schrieb den Text ohne Signatur und Banner. Der
+nächste Abgleich fand den Text abweichend und schrieb ihn neu. Jedes
+Neuschreiben setzt bei Exchange zurück, wem schon geantwortet wurde. Absender
+konnten die Abwesenheitsantwort dadurch ein zweites Mal bekommen.
+
+**Was jetzt gilt.** Signatur und Banner berechnet die Stelle, die den Text
+erzeugt, für alle drei Wege gemeinsam. Selbst gesetzter und abgeglichener
+Text sind damit gleich, und der Abgleich schreibt nichts mehr neu. Nur die
+Vorschau auf /self lässt sie weg, weil sie Signatur und Banner selbst darunter
+zeigt.
+
 ## v1.9.139 — 2026-10-11 — Graph++: interne Post wieder über den Exchange-Zustellweg
 
 **Was falsch war.** Im Modus Graph++ legte das Gateway jede Mail an einen
