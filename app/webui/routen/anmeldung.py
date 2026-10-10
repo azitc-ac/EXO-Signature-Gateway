@@ -19,6 +19,7 @@ from fastapi.responses import (HTMLResponse, JSONResponse, PlainTextResponse,
                                RedirectResponse, StreamingResponse)
 
 import asyncio
+import re
 import secrets
 import urllib.parse
 
@@ -365,7 +366,8 @@ async def auth_callback(
                 log.info("Auto-patched ADMIN_USERS entry for %s (oid %s)", upn, oid)
         log.info("SSO login successful: %s (role: %s, oid: %s)", upn, role, oid or "n/a")
         cookie_val = sso_mod.create_session_cookie(upn, local=False, role=role)
-        next_url = session_obj.get("next_url") or request.query_params.get("next", "/")
+        next_url = _sicheres_ziel(session_obj.get("next_url")
+                                  or request.query_params.get("next", "/"))
         response = RedirectResponse(next_url, status_code=302)
         response.set_cookie(
             sso_mod.SESSION_COOKIE, cookie_val,
@@ -505,15 +507,34 @@ async def auth_callback_implicit(request: Request):
 
     log.info("SSO login successful (id_token): %s (role: %s, oid: %s)", upn, role, oid or "n/a")
     cookie_val = sso_mod.create_session_cookie(upn, local=False, role=role)
-    next_url = session_obj.get("next_url", "/")
-    if not next_url.startswith("/"):
-        next_url = "/"
+    next_url = _sicheres_ziel(session_obj.get("next_url", "/"))
     response = RedirectResponse(next_url, status_code=302)
     response.set_cookie(
         sso_mod.SESSION_COOKIE, cookie_val,
         max_age=sso_mod.SESSION_TTL, httponly=True, samesite="lax", secure=_cookie_secure(),
     )
     return response
+
+
+_ZIEL_RE = re.compile(r"^/(?![/\\])[^\s\\\x00-\x1f\x7f]*$")
+
+
+def _sicheres_ziel(ziel) -> str:
+    """Wohin nach der Anmeldung weitergeleitet werden darf: nur ein Pfad auf
+    DIESEM Server, sonst "/".
+
+    `next` kommt aus der Adresszeile und ist damit frei wählbar. Ohne Prüfung
+    führt ein präparierter Anmeldelink nach dem Login woandershin — auf eine
+    fremde Seite (`//fremd.example`, `/\\fremd.example`: Browser lesen beides
+    als Host) oder, wo das Ziel im Browser per `location.href` gesetzt wird, in
+    ein `javascript:`-Ziel mit der frischen Sitzung.
+
+    EINE Prüfung für alle Wege: Anmeldeseite, Start des Microsoft-Logins, die
+    URL für `fetch`-Aufrufer und beide Rückrufe.
+    """
+    if not isinstance(ziel, str) or not _ZIEL_RE.match(ziel):
+        return "/"
+    return ziel
 
 
 @router.get("/auth/login", response_class=HTMLResponse)
@@ -524,7 +545,7 @@ async def auth_login(request: Request, error: str = "", next: str = "/"):
         request=request, name="login.html",
         context={
             "error": error,
-            "next": next,
+            "next": _sicheres_ziel(next),
             "upn": request.query_params.get("upn", ""),
             "sso_configured": sso_mod.sso_configured(),
             "sso_available": bool((settings_store.get("BOOTSTRAP_CLIENT_ID") or "").strip()),
@@ -543,14 +564,19 @@ async def auth_login_microsoft(request: Request, next: str = "/"):
     getrennt vom Code-Flow-Callback `/auth/callback` (publicClient), damit sich beide
     nicht in die Quere kommen."""
     redirect_uri = _build_redirect_uri(sso=True, path="/auth/id-callback")
-    _state, auth_url = pkce_mod.create_implicit_session(redirect_uri, next_url=next)
+    _state, auth_url = pkce_mod.create_implicit_session(redirect_uri,
+                                                        next_url=_sicheres_ziel(next))
     return RedirectResponse(auth_url)
 
 @router.get("/api/auth/sso-url")
-async def api_sso_url(request: Request):
-    """Microsoft-SSO-Auth-URL als JSON (für fetch-Aufrufer). Implicit-id_token-Flow."""
+async def api_sso_url(request: Request, next: str = "/"):
+    """Microsoft-SSO-Auth-URL als JSON (für fetch-Aufrufer). Implicit-id_token-Flow.
+
+    `next` reicht das Ziel der Anmeldeseite durch. Fehlte es, landete jeder
+    Microsoft-Login auf "/" — auch der aus dem Add-in, der /self öffnen sollte."""
     redirect_uri = _build_redirect_uri(sso=True, path="/auth/id-callback")
-    _state, auth_url = pkce_mod.create_implicit_session(redirect_uri)
+    _state, auth_url = pkce_mod.create_implicit_session(redirect_uri,
+                                                        next_url=_sicheres_ziel(next))
     return JSONResponse({"auth_url": auth_url})
 
 @router.post("/api/auth/sso-paste")
