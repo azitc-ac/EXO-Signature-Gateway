@@ -125,7 +125,10 @@ def _rewrite_from(content_bytes: bytes, relay_user: str) -> bytes:
     # policy=SMTP: CRLF erzwingen. compat32-Reserialisierung erzeugte sonst
     # bare LF, das der 587-Egress (deliver_inbound → smtp.sendmail) roh
     # weiterreicht → Exchange zerlegt Multipart-Boundaries nicht (leerer Body).
-    return msg.as_bytes(policy=email.policy.SMTP)
+    # mime_policy: dieselbe Policy wie handler._smtp_bytes (998 statt 78
+    # Zeichen), damit lange fremde Kopfzeilen nicht RFC-2047-kodiert werden.
+    import mime_policy
+    return msg.as_bytes(policy=mime_policy.SMTP_REINJECT)
 
 
 def _acquire_imap_tokens() -> list[str]:

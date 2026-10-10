@@ -35,8 +35,13 @@ def _smtp_bytes(msg: email.message.Message) -> bytes:
     550 5.6.11 BareLinefeedsAreIllegal). CRLF ist zugleich die S/MIME-Kanonform,
     die die Signatur erwartet — bare LF bräche sie. Deshalb ist policy=SMTP an
     JEDEM Reinject-Serialisierungspunkt Pflicht (Geprüft: tests/test_reinject_crlf.py).
+
+    Die Policy kommt aus `mime_policy`: SMTP, aber mit 998 statt 78 Zeichen je
+    Zeile — sonst kodiert sie lange fremde Kopfzeilen (References mit der
+    Exchange-Message-ID) nach RFC 2047, und beim Empfänger zerfällt die Kette.
     """
-    return msg.as_bytes(policy=email.policy.SMTP)
+    import mime_policy
+    return msg.as_bytes(policy=mime_policy.SMTP_REINJECT)
 
 
 def _portal_base_url() -> str:
