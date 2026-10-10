@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.137 — 2026-10-11 — secure_io: Windows-Zweig aus dem Relay übernommen
+
+`secure_io.py` ist in Gateway, Hub und SMTP-Relay inhaltsgleich. Das Relay
+läuft auch als Windows-Dienst; dort meldet NTFS keine Unix-Rechte, und das
+Härten der Geheimnisdateien beim Start warnte bei jedem Start umsonst. Unter
+Windows überspringt `harden_tree()` den Schritt jetzt, den Schutz liefern dort
+die Zugriffsrechte auf den Datenordner. Unter Linux, also im Gateway-Container,
+ändert sich nichts.
+
 ## v1.9.136 — 2026-10-11 — Antworten nach außen behalten lesbare References
 
 **Was falsch war.** Das Gateway schreibt jede bearbeitete Mail für den Rückweg
