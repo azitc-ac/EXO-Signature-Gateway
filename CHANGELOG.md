@@ -5,6 +5,28 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.138 — 2026-10-11 — Anmeldung: Ziel wird geprüft und geht nicht mehr verloren
+
+**Sicherheit: Weiterleitungsziel nach der Anmeldung.** Die Anmeldeseite nimmt
+im Parameter `next` entgegen, wohin es nach dem Login weitergehen soll. Dieser
+Wert wurde nicht ausreichend geprüft: Die Seite übernahm ihn im Browser direkt
+aus der Adresszeile, ein Rückruf leitete ihn ungeprüft weiter, der andere
+prüfte nur auf einen führenden Schrägstrich. Ein präparierter Anmeldelink
+konnte dadurch nach erfolgreichem Login auf eine fremde Seite führen oder im
+Browser Code im Fenster des Gateways auslösen. Voraussetzung war, dass jemand
+über einen solchen Link selbst den Login durchführt.
+
+Jetzt gilt eine einzige Prüfung für alle Wege: Erlaubt ist nur ein Pfad auf
+diesem Gateway, alles andere führt zur Startseite. Die Anmeldeseite bekommt das
+geprüfte Ziel vom Server und liest es nicht mehr selbst aus der Adresse.
+**Zu tun:** aktualisieren. Schlüssel oder Zugangsdaten müssen nicht erneuert
+werden.
+
+**Microsoft-Login kehrt zur aufgerufenen Seite zurück.** Wer eine geschützte
+Seite aufrief, etwa /self aus dem Outlook-Add-in, und sich auf der
+Anmeldeseite mit „Mit Microsoft anmelden" anmeldete, landete danach auf der
+Übersicht. Der Knopf gab das Ziel nicht an den Login weiter. Er tut es jetzt.
+
 ## v1.9.137 — 2026-10-11 — secure_io: Windows-Zweig aus dem Relay übernommen
 
 `secure_io.py` ist in Gateway, Hub und SMTP-Relay inhaltsgleich. Das Relay
