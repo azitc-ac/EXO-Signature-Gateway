@@ -46,7 +46,7 @@
        nicht am KV-Modus — sonst fehlt in strict der Bulk-Weg, während der
        Einzelweg bleibt (inkonsistent). #}
     {% if kv_configured and has_any_unmigrated_key %}
-    <button class="btn secondary btn-sm" style="border-color:#b45309;color:#b45309"
+    <button class="btn secondary btn-sm" 
             onclick="migrateAllAndBackup()"
             title="{% if kv_mode == 'strict' %}Alle lokalen Schlüssel zu Azure Key Vault migrieren und lokal löschen{% else %}Alle lokalen Schlüssel zu Azure Key Vault migrieren; lokales key.pem.bak bleibt als Fallback{% endif %}">
       {% if kv_mode == 'strict' %}→ Alle zu KV migrieren &amp; lokal löschen{% else %}→ Alle zu KV migrieren (lokales Backup bleibt){% endif %}
@@ -159,7 +159,7 @@
         </span>
       </label>
       <div style="display:flex;gap:10px;align-items:center;margin-top:10px;flex-wrap:wrap">
-        <button class="btn primary btn-sm" onclick="sammelVorschau()">Vorschau anzeigen</button>
+        <button class="btn secondary btn-sm" onclick="sammelVorschau()">Vorschau anzeigen</button>
         <span id="sammel-auswahl" class="muted" style="font-size:12px"></span>
       </div>
       <div id="sammel-ergebnis" class="sammel-ergebnis" style="display:none;margin-top:12px"></div>
@@ -330,7 +330,7 @@
               </a>
               {% endif %}
               {% if kv_configured and c.get("has_local_key") %}
-              <button class="btn secondary btn-sm" style="border-color:#b45309;color:#b45309"
+              <button class="btn secondary btn-sm" 
                       onclick="migrateSlotToKv('{{ u.email }}','{{ c.slot_id }}',this)"
                       title="Diesen Schlüssel zu Azure Key Vault migrieren">
                 → KV
@@ -511,7 +511,7 @@
     <input type="file" id="rcpt-cert-file" accept=".pem,.cer,.crt,.der">
   </div>
   <div class="actions" style="margin-top:12px">
-    <button class="btn primary" onclick="uploadRcptCert()">Empfänger-Zertifikat importieren</button>
+    <button class="btn secondary" onclick="uploadRcptCert()">Empfänger-Zertifikat importieren</button>
   </div>
   <div id="rcpt-upload-result" style="margin-top:10px;display:none"></div>
 </div>
@@ -542,13 +542,13 @@
         <td>{{ (w.gueltig_bis or '')[:10] }}</td>
         <td style="font-size:12px">{{ (w.seit or '')[:10] }}{% if (w.anzahl or 1) > 1 %}, {{ w.anzahl }}× gesehen{% endif %}</td>
         <td style="white-space:nowrap">
-          <button class="btn secondary" style="font-size:12px;padding:4px 10px"
+          <button class="btn secondary btn-sm" 
                   onclick="wartendFreigeben('{{ w.fingerabdruck }}', true)"
                   title="Diese Zertifizierungsstelle künftig anerkennen">Aussteller freigeben</button>
-          <button class="btn secondary" style="font-size:12px;padding:4px 10px"
+          <button class="btn secondary btn-sm" 
                   onclick="wartendFreigeben('{{ w.fingerabdruck }}', false)"
                   title="Nur dieses eine Zertifikat übernehmen">nur dieses</button>
-          <button class="btn secondary" style="font-size:12px;padding:4px 10px;color:#991b1b"
+          <button class="btn danger btn-sm" 
                   onclick="wartendVerwerfen('{{ w.fingerabdruck }}')">verwerfen</button>
         </td>
       </tr>
@@ -618,7 +618,7 @@
     </div>
     <div id="import-modal-result" class="alert" style="display:none;margin-top:12px"></div>
     <div class="actions" style="margin-top:16px">
-      <button class="btn primary" id="import-submit-btn" onclick="doImport()">Importieren</button>
+      <button class="btn secondary" id="import-submit-btn" onclick="doImport()">Importieren</button>
       <button class="btn secondary" onclick="closeImportModal()">Abbrechen</button>
     </div>
   </div>
@@ -1145,7 +1145,7 @@ async function sammelLaufPollen() {
 
   const knoepfe =
     (l.status === 'PAUSIERT'
-      ? '<button class="btn primary btn-sm" onclick="sammelFortsetzen()">Fortsetzen</button> '
+      ? '<button class="btn secondary btn-sm" onclick="sammelFortsetzen()">Fortsetzen</button> '
       : '') +
     (l.status === 'LAEUFT' || l.status === 'PAUSIERT'
       ? '<button class="btn secondary btn-sm" onclick="sammelAbbrechen()">Abbrechen</button>'

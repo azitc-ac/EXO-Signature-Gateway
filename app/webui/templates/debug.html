@@ -221,8 +221,8 @@ document.addEventListener('DOMContentLoaded', acmeAccountUsersLoad);
       </p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <button class="btn secondary" id="obs-rd-get-btn" onclick="obsGetRemoteDomain()">Aktuelle Einstellungen lesen</button>
-        <button class="btn primary"   id="obs-rd-set-btn" onclick="obsSetRemoteDomain()">RemoteDomain setzen / aktualisieren</button>
-        <button class="btn secondary" style="color:#dc2626;border-color:#fca5a5" id="obs-rd-del-btn" onclick="obsDeleteRemoteDomain()">Entfernen</button>
+        <button class="btn secondary"   id="obs-rd-set-btn" onclick="obsSetRemoteDomain()">RemoteDomain setzen / aktualisieren</button>
+        <button class="btn danger" id="obs-rd-del-btn" onclick="obsDeleteRemoteDomain()">Entfernen</button>
       </div>
       <div id="obs-rd-result" style="display:none;margin-top:10px"></div>
       <pre id="obs-rd-detail" style="display:none;font-size:11px;background:#f1f5f9;padding:8px;border-radius:4px;margin-top:8px;overflow-x:auto;white-space:pre-wrap"></pre>
@@ -253,9 +253,9 @@ document.addEventListener('DOMContentLoaded', acmeAccountUsersLoad);
         <span style="font-size:12px;color:#888;margin-left:8px">Zur Unterscheidung der Captures</span>
       </div>
       <div class="actions" style="margin-top:10px">
-        <button class="btn primary" id="obs-send-btn" onclick="obsSendTest()">Test-Mail senden (Graph API)</button>
+        <button class="btn secondary" id="obs-send-btn" onclick="obsSendTest()">Test-Mail senden (Graph API)</button>
         <button class="btn secondary" style="margin-left:8px" onclick="obsRefreshCaptures()">Captures aktualisieren ↻</button>
-        <button class="btn secondary" style="margin-left:8px;color:#dc2626;border-color:#fca5a5" onclick="obsClearCaptures()">Captures löschen</button>
+        <button class="btn danger" style="margin-left:8px" onclick="obsClearCaptures()">Captures löschen</button>
       </div>
       <div id="obs-send-result" style="display:none;margin-top:10px"></div>
     </div>
@@ -280,7 +280,7 @@ document.addEventListener('DOMContentLoaded', acmeAccountUsersLoad);
     <div style="border:1px solid #e2e8f0;border-radius:6px;padding:14px;margin-top:12px;background:#f8fafc">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
         <strong style="font-size:13px">Schritt D — Analyse-Ergebnisse</strong>
-        <button class="btn primary" onclick="obsRunAnalysis()">Analyse anzeigen</button>
+        <button class="btn secondary" onclick="obsRunAnalysis()">Analyse anzeigen</button>
       </div>
       <p style="font-size:12px;color:#555;margin-bottom:10px">
         Bewertet jeden Capture automatisch: CTE, Thread-Header, ACME-Block-Integrität, Zeilenenden,
@@ -663,13 +663,13 @@ async function obsRunAnalysis() {
       hier gibt es die vollständigen Rohdaten.
     </p>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
-      <a href="/api/health/mailboxes" target="_blank" class="btn secondary" style="font-size:13px">
+      <a href="/api/health/mailboxes" target="_blank" class="btn secondary">
         MAILBOX_HEALTH JSON öffnen ↗
       </a>
-      <button class="btn secondary" style="font-size:13px" onclick="loadHealthInline()">
+      <button class="btn secondary" onclick="loadHealthInline()">
         Health-Rohdaten anzeigen
       </button>
-      <button class="btn secondary" style="font-size:13px" onclick="loadAuditLogInline()">
+      <button class="btn secondary" onclick="loadAuditLogInline()">
         Gateway-Audit-Log anzeigen
       </button>
     </div>
@@ -742,7 +742,7 @@ async function loadAuditLogInline() {
         </select>
       </div>
       <div style="display:flex;align-items:center;gap:10px">
-        <button class="btn primary" id="selftest-btn" onclick="runSelfTest()">Selbsttest ausführen</button>
+        <button class="btn secondary" id="selftest-btn" onclick="runSelfTest()">Selbsttest ausführen</button>
         <span id="selftest-spinner" style="display:none;font-size:13px;color:#57534e">Läuft…</span>
       </div>
     </div>

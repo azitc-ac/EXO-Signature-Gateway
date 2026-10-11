@@ -54,7 +54,7 @@
     {% if current_template != 'default' %}
     <button class="btn secondary" onclick="renameTemplate('{{ current_template }}')"
             type="button" title="Vorlage umbenennen — Verweise ziehen mit">Umbenennen</button>
-    <button class="btn" style="background:#dc2626;color:#fff;border:none;padding:6px 14px;border-radius:4px;cursor:pointer;font-size:13px"
+    <button class="btn danger" style="cursor:pointer"
             onclick="deleteTemplate('{{ current_template }}')" type="button">Vorlage löschen</button>
     {% endif %}
     {% endif %}
@@ -106,7 +106,7 @@
     <div id="neu-err" style="display:none;color:#991b1b;margin-bottom:10px;font-size:13px"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end">
       <button class="btn secondary" type="button" onclick="neuSchliessen()">Abbrechen</button>
-      <button class="btn" type="button" onclick="neuAnlegen()">Anlegen</button>
+      <button class="btn secondary" type="button" onclick="neuAnlegen()">Anlegen</button>
     </div>
   </div>
 </div>
@@ -226,10 +226,10 @@
     <!-- Add block -->
     <div style="margin-top:12px;position:relative" id="add-block-wrap">
       <button class="btn secondary" onclick="toggleBlockPicker()" type="button"
-        style="width:100%;font-size:13px">+ Block hinzufügen</button>
+        style="width:100%">+ Block hinzufügen</button>
       <button class="btn secondary" onclick="alleEinrahmen()" type="button"
         id="einrahmen-btn"
-        style="width:100%;font-size:13px;margin-top:6px"
+        style="width:100%;margin-top:6px"
         title="Legt einen Kasten um die gesamte Signatur — die vorhandenen Blöcke wandern hinein">
         Signatur einrahmen</button>
       <div id="block-picker" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:99;background:#fff;border:1px solid #d1d5db;border-radius:6px;padding:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);margin-top:4px">
@@ -265,7 +265,7 @@
 
     <!-- Save button -->
     <div style="margin-top:16px;display:flex;gap:8px">
-      <button class="btn primary" onclick="saveBuilder()" id="save-builder-btn"
+      <button class="btn secondary" onclick="saveBuilder()" id="save-builder-btn"
               type="button" data-wache-container="#baukasten-felder"
               data-wache="um-betreff">Speichern</button>
     </div>
@@ -1077,8 +1077,8 @@ function buildBlockForm(b) {
       <strong>feste Breite</strong>. Ohne Breitenangabe bleibt der Kasten in Outlook eckig.
       Die Rundung ist dort angenähert: VML rechnet den Radius gegen die Höhe, die erst
       beim Anzeigen entsteht.</p>`;
-    ein += `<button class="btn secondary" type="button" onclick="kastenAufloesen('${b.id}')"
-        style="font-size:12px"
+    ein += `<button class="btn secondary btn-sm" type="button" onclick="kastenAufloesen('${b.id}')"
+        
         title="Rahmen entfernen, Inhalt behalten">Kasten auflösen (Inhalt behalten)</button>`;
     rows += behaelterEinstellungen(b.id, 'Rahmen, Farben & Abstände', ein);
     rows += `<div style="margin-top:8px">
@@ -1640,7 +1640,7 @@ function zeigeUmwandlungsHinweis(text, hinweise, ok) {
     'border:1px solid #bfdbfe;color:#1e40af';
   box.innerHTML = `<strong>Aus HTML übernommen.</strong> ${esc(text)}${liste}
     <div style="margin-top:8px">
-      <button class="btn secondary" style="font-size:12px"
+      <button class="btn secondary btn-sm" 
         onclick="umwandlungVerwerfen()">Verwerfen, beim HTML bleiben</button>
     </div>`;
 }

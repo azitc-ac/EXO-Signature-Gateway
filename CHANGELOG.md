@@ -5,6 +5,33 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.153 — 2026-10-12 — Einheitliche Knöpfe auf allen Seiten
+
+Die Linie aus v1.9.151 (*Einstellungen → Erweitert*) gilt jetzt für die ganze
+Verwaltungsoberfläche; 89 Knöpfe auf 14 Seiten wurden angeglichen.
+
+- **Blau** nur noch für den einen nächsten Schritt eines Ablaufs: Anmelden,
+  Zustimmen zu Rechtstexten, die Schritte des Einrichtungsassistenten,
+  Bestätigungen in Dialogen, „Verbinden“ mit dem Hub, „Abo abschließen“ und das
+  Auslösen einer Sammelbestellung. Speichern, Suchen, Prüfen, Importieren,
+  Herunterladen und die Debug-Werkzeuge sind grau.
+- **Rot** für alles, was löscht oder verwirft: Vorlage löschen, Wiederherstellen
+  aus einem Backup, Administrator entfernen, wartende Zertifikate verwerfen,
+  Debug-Aufzeichnungen leeren. „Wiederherstellen“ war als blauer Knopf
+  ausgezeichnet und per Stil rot übermalt; im Dunkelmodus stimmte das nicht.
+- **Grösse** nur noch über die Klasse: kleine Knöpfe in Tabellen-, Listen- und
+  Kopfzeilen, sonst normale. Die Postfachseite hatte allein 18 Knöpfe mit
+  handgeschriebener Grösse in vier verschiedenen Varianten.
+- **Reiter in den Zustimmungsdialogen** (neue Rechtstexte, Hub-Anbindung) nutzen
+  die gemeinsamen Umschaltknöpfe. Der aktive Reiter wurde bisher per Skript
+  eingefärbt, was der Dunkelmodus nicht erfasste.
+- Ein Test hält die Linie auf allen Seiten fest; ein neuer blauer Knopf braucht
+  dort eine Begründung.
+
+Nicht betroffen sind die eigenständigen Seiten mit eigenem Stylesheet: der
+Aufgabenbereich des Outlook-Add-ins, der Self-Service, das Nachrichtenportal
+und die S/MIME-Selbstbedienung.
+
 ## v1.9.152 — 2026-10-12 — Routing-Zahlen aufklappbar; Erweiterungskarten auf der Relay-Seite ans Ende
 
 **Neu: Was hinter den Zahlen der gerouteten Post steckt.** Unter *SMTP-Relay →

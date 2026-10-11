@@ -277,7 +277,7 @@
       <span id="reconsent-docs"></span>
       Bis zur Zustimmung gilt die bisherige Fassung fort; neue kostenpflichtige
       Vorgänge sind so lange nicht möglich. <strong>Der Mailfluss läuft unverändert weiter.</strong>
-      <button class="btn primary" style="margin-left:10px;padding:4px 12px;font-size:13px" onclick="_rcOpen()">Ansehen und zustimmen</button>
+      <button class="btn primary btn-sm" style="margin-left:10px" onclick="_rcOpen()">Ansehen und zustimmen</button>
     </div>
 
     <div id="reconsent-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:1001;align-items:center;justify-content:center">
@@ -286,7 +286,7 @@
           <strong>Geänderte Vertragsbedingungen</strong>
           <span class="muted" style="font-size:12px" id="rc-step-label"></span>
         </div>
-        <div id="rc-tabs" style="padding:4px 14px 0;border-bottom:1px solid #f0f0f0;display:flex;gap:0;flex-wrap:wrap"></div>
+        <div id="rc-tabs" style="padding:8px 14px;border-bottom:1px solid #f0f0f0;display:flex;gap:6px;flex-wrap:wrap"></div>
         <div id="rc-text" class="legal-view" style="padding:14px 20px;overflow-y:auto;font-size:12px;line-height:1.6;flex:1;min-height:0">Lade…</div>
         <div style="padding:10px 20px;border-top:1px solid #f0f0f0;background:#fafaf9">
           <div id="rc-checks"></div>
@@ -322,7 +322,7 @@
       function _rcOpen() {
         document.getElementById('reconsent-modal').style.display = 'flex';
         var tabs = _rcPending.map(function(p, i) {
-          return '<button id="rc-tab-' + i + '" class="btn secondary" style="border-radius:0;border-bottom:2px solid transparent;font-size:12px;padding:6px 14px" onclick="_rcTab(' + i + ')">' + esc(p.label_de) + '</button>';
+          return '<button type="button" id="rc-tab-' + i + '" class="btn-toggle" onclick="_rcTab(' + i + ')">' + esc(p.label_de) + '</button>';
         }).join('');
         document.getElementById('rc-tabs').innerHTML = tabs;
         document.getElementById('rc-checks').innerHTML = _rcPending.map(function(p, i) {
@@ -338,7 +338,7 @@
       async function _rcTab(idx) {
         _rcPending.forEach(function(_, i) {
           var t = document.getElementById('rc-tab-' + i);
-          if (t) t.style.borderBottom = i === idx ? '2px solid #2563eb' : '2px solid transparent';
+          if (t) t.classList.toggle('active', i === idx);   // Klasse statt JS-Farbe (Dark-Mode-Regel 2)
         });
         document.getElementById('rc-step-label').textContent = 'Dokument ' + (idx + 1) + ' von ' + _rcPending.length;
         var el = document.getElementById('rc-text');
