@@ -25,7 +25,7 @@
       <option value="main">Entwicklungsstand (main)</option>
       <option value="release">Releases (stabil)</option>
     </select>
-    <button class="btn secondary btn-sm" id="upd-check-btn" onclick="checkUpdate()" style="font-size:12px">
+    <button class="btn secondary btn-sm" id="upd-check-btn" onclick="checkUpdate()">
       Auf Updates prüfen
     </button>
   </div>
@@ -51,7 +51,7 @@
 
   <!-- Buttons -->
   <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
-    <button class="btn primary" id="upd-btn" onclick="startUpdate()" disabled style="display:flex;align-items:center;gap:6px;min-width:180px;justify-content:center">
+    <button class="btn secondary" id="upd-btn" onclick="startUpdate()" disabled style="display:flex;align-items:center;gap:6px;min-width:180px;justify-content:center">
       Jetzt aktualisieren
     </button>
     <button class="btn secondary" id="cl-btn" onclick="toggleChangelog()" style="display:flex;align-items:center;gap:6px">
@@ -133,7 +133,7 @@
   </div>
 
   <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-    <button class="btn primary" id="backup-dl-btn" onclick="backupDownload()">
+    <button class="btn secondary" id="backup-dl-btn" onclick="backupDownload()">
       Backup herunterladen
     </button>
     <span id="backup-dl-spinner" style="display:none;font-size:13px;color:#555">Erstelle ZIP…</span>
@@ -170,10 +170,10 @@
   <!-- Auswahlbaum — erscheint erst, wenn ein Backup gelesen wurde -->
   <div id="backup-auswahl" style="display:none;margin-bottom:14px">
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
-      <button type="button" class="btn secondary" onclick="backupAlleWaehlen(true)"
-              style="font-size:12px;padding:3px 10px">Alles</button>
-      <button type="button" class="btn secondary" onclick="backupAlleWaehlen(false)"
-              style="font-size:12px;padding:3px 10px">Nichts</button>
+      <button type="button" class="btn secondary btn-sm" onclick="backupAlleWaehlen(true)"
+>Alles</button>
+      <button type="button" class="btn secondary btn-sm" onclick="backupAlleWaehlen(false)"
+>Nichts</button>
       <span id="backup-auswahl-zahl" style="font-size:12px;color:#6b7280"></span>
     </div>
     <div id="backup-baum" style="border:1px solid #e2e8f0;border-radius:6px;padding:10px 12px;
@@ -181,9 +181,9 @@
   </div>
 
   <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
-    <button class="btn primary" id="backup-restore-btn" onclick="backupRestoreConfirm()"
+    <button class="btn danger" id="backup-restore-btn" onclick="backupRestoreConfirm()"
             disabled
-            style="background:#dc2626;border-color:#dc2626">
+>
       Wiederherstellen
     </button>
     <span id="backup-restore-spinner" style="display:none;font-size:13px;color:#555">
@@ -918,7 +918,7 @@ async function backupRestore() {
         ${warnItems ? `<ul style="margin:8px 0 0;padding-left:18px">${warnItems}</ul>` : ''}
         ${authBanner}
         <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-          <button class="btn primary" id="restart-btn" onclick="restartNow()">Jetzt neu starten</button>
+          <button class="btn secondary" id="restart-btn" onclick="restartNow()">Jetzt neu starten</button>
           <span id="restart-note" style="font-size:12px;color:#555">Übernimmt die wiederhergestellten Daten. (Alternativ: <code>docker compose restart</code>)</span>
         </div>
       </div>`;

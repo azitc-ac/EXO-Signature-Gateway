@@ -103,7 +103,7 @@ refreshFairUse();
   <div style="margin-top:9px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
     <button class="btn secondary btn-sm" id="anker-vorschau-btn" onclick="ankerVorschau()">
       Was würde sich ändern?</button>
-    <button class="btn primary btn-sm" id="anker-anwenden-btn" onclick="ankerAnwenden()"
+    <button class="btn secondary btn-sm" id="anker-anwenden-btn" onclick="ankerAnwenden()"
             style="display:none">Umstellen</button>
     <span id="anker-ergebnis" style="font-size:12px"></span>
   </div>
@@ -184,13 +184,13 @@ async function ankerAnwenden() {
     <div style="display:flex;gap:18px;margin-bottom:10px;flex-wrap:wrap">
       <span style="font-size:12px;color:#555;display:inline-flex;align-items:center;gap:5px">
         Signatur aktivieren:
-        <button class="btn secondary" onclick="setAllVisible('sig', true)" style="font-size:12px;padding:2px 9px">Alle</button>
-        <button class="btn secondary" onclick="setAllVisible('sig', false)" style="font-size:12px;padding:2px 9px">Kein</button>
+        <button class="btn secondary btn-sm" onclick="setAllVisible('sig', true)">Alle</button>
+        <button class="btn secondary btn-sm" onclick="setAllVisible('sig', false)">Kein</button>
       </span>
       <span style="font-size:12px;color:#555;display:inline-flex;align-items:center;gap:5px">
         S/MIME aktivieren:
-        <button class="btn secondary" onclick="setAllVisible('smime', true)" style="font-size:12px;padding:2px 9px">Alle</button>
-        <button class="btn secondary" onclick="setAllVisible('smime', false)" style="font-size:12px;padding:2px 9px">Kein</button>
+        <button class="btn secondary btn-sm" onclick="setAllVisible('smime', true)">Alle</button>
+        <button class="btn secondary btn-sm" onclick="setAllVisible('smime', false)">Kein</button>
       </span>
     </div>
     <div class="tabellen-rollbereich">
@@ -420,8 +420,8 @@ async function ankerAnwenden() {
     </table>
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <button class="btn secondary" onclick="addGroup()" style="font-size:12px">+ Gruppe erstellen</button>
-      <button id="groups-btn" data-wache-hinweis="groups-save-result" data-wache-container="#groups-tbody" class="btn secondary" onclick="saveGroups()" style="font-size:12px">Speichern</button>
+      <button class="btn secondary btn-sm" onclick="addGroup()">+ Gruppe erstellen</button>
+      <button id="groups-btn" data-wache-hinweis="groups-save-result" data-wache-container="#groups-tbody" class="btn secondary btn-sm" onclick="saveGroups()">Speichern</button>
       <span id="groups-save-result" style="font-size:12px"></span>
     </div>
   </div>
@@ -447,8 +447,8 @@ async function ankerAnwenden() {
     </table>
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <button class="btn secondary" onclick="addCustomPolicy()" style="font-size:12px">+ Gruppen-Regel</button>
-      <button id="cpol-btn" data-wache-hinweis="cpol-save-result" data-wache-container="#cpol-tbody" class="btn secondary" onclick="saveCustomPolicies()" style="font-size:12px">Speichern</button>
+      <button class="btn secondary btn-sm" onclick="addCustomPolicy()">+ Gruppen-Regel</button>
+      <button id="cpol-btn" data-wache-hinweis="cpol-save-result" data-wache-container="#cpol-tbody" class="btn secondary btn-sm" onclick="saveCustomPolicies()">Speichern</button>
       <span id="cpol-save-result" style="font-size:12px"></span>
     </div>
   </div>
@@ -462,8 +462,8 @@ async function ankerAnwenden() {
     <p style="font-size:11px;color:#64748b;margin-top:0;margin-bottom:12px">Nur konfigurierte Postfächer werden angezeigt.</p>
     <div id="members-modal-list" style="display:flex;flex-direction:column;gap:6px;max-height:340px;overflow-y:auto"></div>
     <div style="margin-top:16px;display:flex;gap:8px">
-      <button class="btn secondary" onclick="saveMembersModal()" style="font-size:12px">Speichern</button>
-      <button class="btn secondary" onclick="closeMembersModal()" style="font-size:12px">Abbrechen</button>
+      <button class="btn secondary btn-sm" onclick="saveMembersModal()">Speichern</button>
+      <button class="btn secondary btn-sm" onclick="closeMembersModal()">Abbrechen</button>
     </div>
   </div>
 </div>
@@ -479,10 +479,10 @@ async function ankerAnwenden() {
       schlägt den Gruppenwert, dieser schlägt den Vorgabewert aus dem Verzeichnis.
     </p>
     <div id="vars-modal-list" style="display:flex;flex-direction:column;gap:6px"></div>
-    <button class="btn secondary" id="vars-add-btn" onclick="addVarRow()" style="font-size:12px;margin-top:10px">+ Variable</button>
+    <button class="btn secondary btn-sm" id="vars-add-btn" onclick="addVarRow()" style="margin-top:10px">+ Variable</button>
     <div style="margin-top:16px;display:flex;gap:8px">
-      <button class="btn secondary" onclick="saveVarsModal()" style="font-size:12px">Speichern</button>
-      <button class="btn secondary" onclick="closeVarsModal()" style="font-size:12px">Abbrechen</button>
+      <button class="btn secondary btn-sm" onclick="saveVarsModal()">Speichern</button>
+      <button class="btn secondary btn-sm" onclick="closeVarsModal()">Abbrechen</button>
     </div>
   </div>
 </div>
@@ -1449,8 +1449,8 @@ function _renderGroupsTable() {
           '<span style="display:block;font-size:10px;font-weight:400;color:#94a3b8">vordefiniert</span></td>' +
         '<td style="padding:6px 8px;font-size:12px;color:#374151">' +
           '<span>automatisch: ' + members.length + ' Postfach' + (members.length !== 1 ? 'fächer' : '') + '</span> ' +
-          '<button class="btn secondary" onclick="openVarsModal(this)" data-group="' + esc(name) + '" ' +
-            'style="font-size:11px;padding:1px 7px;margin-left:4px" ' +
+          '<button class="btn secondary btn-sm" onclick="openVarsModal(this)" data-group="' + esc(name) + '" ' +
+            'style="margin-left:4px" ' +
             'title="Custom-Variablen für alle Postfächer">Variablen (' +
             Object.keys(_groupVars[name] || {}).length + ')</button></td>' +
         '<td style="text-align:center;padding:6px 8px;color:#94a3b8;font-size:14px" title="Nicht löschbar">🔒</td>';
@@ -1466,15 +1466,15 @@ function _renderGroupsTable() {
         'onchange="renameGroup(this)"></td>' +
       '<td style="padding:6px 8px;font-size:12px;color:#374151">' +
         '<span>' + members.length + ' Postfach' + (members.length !== 1 ? 'fächer' : '') + '</span> ' +
-        '<button class="btn secondary" onclick="openMembersModal(this)" data-group="' + esc(name) + '" ' +
-          'style="font-size:11px;padding:1px 7px;margin-left:4px">Bearbeiten</button> ' +
-        '<button class="btn secondary" onclick="openVarsModal(this)" data-group="' + esc(name) + '" ' +
-          'style="font-size:11px;padding:1px 7px;margin-left:2px" ' +
+        '<button class="btn secondary btn-sm" onclick="openMembersModal(this)" data-group="' + esc(name) + '" ' +
+          'style="margin-left:4px">Bearbeiten</button> ' +
+        '<button class="btn secondary btn-sm" onclick="openVarsModal(this)" data-group="' + esc(name) + '" ' +
+          'style="margin-left:2px" ' +
           'title="Custom-Variablen für diese Gruppe (z.B. Vertreter)">Variablen (' +
           Object.keys(_groupVars[name] || {}).length + ')</button></td>' +
       '<td style="text-align:center;padding:6px 8px">' +
-        '<button class="btn secondary" onclick="removeGroup(\'' + esc(name) + '\')" ' +
-          'style="font-size:11px;padding:2px 8px">✕</button></td>';
+        '<button class="btn secondary btn-sm" onclick="removeGroup(\'' + esc(name) + '\')" ' +
+          '>✕</button></td>';
     tbody.appendChild(tr);
   });
 }
@@ -1597,7 +1597,7 @@ function _varRow(name, wert) {
     '<input type="text" class="vars-wert" placeholder="Wert" ' +
       'autocapitalize="off" autocorrect="off" spellcheck="false" ' +
       'value="' + escAttr(wert || '') + '" style="flex:1;font-size:12px;padding:4px 6px;border:1px solid #d1d5db;border-radius:4px">' +
-    '<button class="btn secondary" onclick="this.parentNode.remove()" style="font-size:11px;padding:2px 8px" title="Zeile entfernen">✕</button>';
+    '<button class="btn secondary btn-sm" onclick="this.parentNode.remove()" title="Zeile entfernen">✕</button>';
   return row;
 }
 

@@ -57,8 +57,8 @@
           <option value="editor">Signatur-Editor</option>
           <option value="kampagnen">Kampagnen-Manager</option>
         </select>
-        <button class="btn primary" style="padding:4px 16px;font-size:13px" onclick="addAdminUserFromPicker()">Hinzufügen</button>
-        <button class="btn secondary" style="padding:4px 10px;font-size:13px" onclick="_clearAdminPicker()">Abbrechen</button>
+        <button class="btn secondary btn-sm" onclick="addAdminUserFromPicker()">Hinzufügen</button>
+        <button class="btn secondary btn-sm" onclick="_clearAdminPicker()">Abbrechen</button>
       </div>
     </div>
   </div>
@@ -418,7 +418,7 @@ function renderAdminUsers(users) {
       '</select>';
     var removeBtn = isSelf
       ? '<button disabled title="Eigenes Konto" class="btn secondary btn-sm" style="opacity:0.4;cursor:not-allowed">Entfernen</button>'
-      : '<button class="btn secondary btn-sm" style="color:#dc2626;border-color:#fca5a5" onclick="removeAdminUser(\'' + u.upn.replace(/'/g,"\\'") + '\')">Entfernen</button>';
+      : '<button class="btn danger btn-sm" onclick="removeAdminUser(\'' + u.upn.replace(/'/g,"\\'") + '\')">Entfernen</button>';
     return '<tr style="' + (isSelf ? 'background:#f8fafc' : '') + '">' +
       '<td style="padding:6px 10px;font-family:monospace;font-size:12px;white-space:nowrap;cursor:help" title="Objekt-ID: ' + (u.id || '(keine hinterlegt)') + '">' + u.upn + '</td>' +
       '<td style="padding:6px 8px;white-space:nowrap">' + select + '</td>' +

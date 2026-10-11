@@ -139,7 +139,7 @@
 
     <div id="lern-result" style="display:none;margin-top:12px"></div>
     <div class="actions" style="margin-top:12px">
-      <button class="btn primary" onclick="lernStarten(this)">Lernmodus starten</button>
+      <button class="btn secondary" onclick="lernStarten(this)">Lernmodus starten</button>
     </div>
   </div>
 </div>
@@ -415,7 +415,7 @@
       </div>
     </div>
     <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <button type="button" class="btn" onclick="zielHinzufuegen(this)">Ziel speichern</button>
+      <button type="button" class="btn secondary" onclick="zielHinzufuegen(this)">Ziel speichern</button>
       <span class="hint">Vorhandenes Kürzel = ändern. Ein leeres Passwortfeld lässt ein gesetztes unverändert.</span>
     </div>
     <div id="neu-ziel-result" style="display:none;margin-top:10px"></div>
@@ -449,7 +449,7 @@
         <select id="neu-route-ziel" style="width:100%;margin:0;box-sizing:border-box"></select>
       </div>
       <div style="padding-bottom:1px">
-        <button type="button" class="btn" onclick="routeHinzufuegen(this)">Route speichern</button>
+        <button type="button" class="btn secondary" onclick="routeHinzufuegen(this)">Route speichern</button>
       </div>
     </div>
     <div id="neu-route-result" style="display:none;margin-top:10px"></div>
@@ -515,7 +515,7 @@
     </div>
   </div>
   <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-    <button type="button" class="btn" onclick="coexSpeichern(this)">Speichern &amp; Skript erzeugen</button>
+    <button type="button" class="btn secondary" onclick="coexSpeichern(this)">Speichern &amp; Skript erzeugen</button>
     <span class="hint">Die Parameter werden gemerkt — Abriss und Wiederaufbau jederzeit über dasselbe Skript.</span>
   </div>
   <div id="coex-result" style="display:none;margin-top:10px"></div>
@@ -545,7 +545,9 @@
     </div>
     <p class="hint" style="margin:6px 0 10px">
       Das Gateway reicht Hybrid-Post byte-genau durch — Betreff und Inhalt werden
-      nicht gelesen. Sichtbar sind Anzahl, Volumen, Ziel und Zeitpunkt.
+      nicht gelesen. Ein Klick auf eine Zahl zeigt die einzelnen Vorgänge mit
+      Absender und Empfänger aus dem SMTP-Umschlag und, bei Fehlern, der Meldung
+      des Zielservers (30 Tage).
     </p>
     <div class="tabellen-rollbereich">
       <table class="config-table" style="min-width:460px">

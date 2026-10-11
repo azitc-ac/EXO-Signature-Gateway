@@ -86,7 +86,7 @@
         API-Schlüssel bleiben erhalten — an dieser Anbindung ist nichts einzustellen.
       </p>
       <div class="actions">
-        <button class="btn primary" onclick="kontoWechselAnfordern()">Bestätigungsmail senden</button>
+        <button class="btn secondary" onclick="kontoWechselAnfordern()">Bestätigungsmail senden</button>
         <button class="btn secondary" onclick="kontoWechselSchliessen()">Abbrechen</button>
       </div>
       <div id="hub-konto-msg" style="display:none;margin-top:8px"></div>
@@ -383,7 +383,7 @@ async function dcDomainSetup(){
     +'Name: <code>'+domain+'</code>'+copyBtnHtml(domain)+'<br>'
     +'Typ: <code>TXT</code><br>'
     +'Wert: <code>'+d.token+'</code>'+copyBtnHtml(d.token)
-    +'<div style="margin-top:10px"><button class="btn primary" onclick="dcDomainCheck()">Jetzt prüfen</button></div>'
+    +'<div style="margin-top:10px"><button class="btn secondary" onclick="dcDomainCheck()">Jetzt prüfen</button></div>'
     +'<p class="hint" style="margin:6px 0 0">Token 30 Tage gültig; erfolgreiche Validierung hält 398 Tage.</p>';
   _dcMsg(d.message||'Token erzeugt.',true);
 }
@@ -498,7 +498,7 @@ _initAdv('digicert');
         style="width:100%;max-width:520px;font-size:12px;font-family:monospace"
         autocapitalize="off" autocorrect="off" spellcheck="false">
     </div>
-    <div class="actions"><button class="btn primary" onclick="licApply()">Lizenz einspielen</button></div>
+    <div class="actions"><button class="btn secondary" onclick="licApply()">Lizenz einspielen</button></div>
   </details>
 
   <div id="lic-remove-row" style="display:none" class="actions">
@@ -562,9 +562,9 @@ _initAdv('digicert');
       <strong>Nutzungsbedingungen — Hub-Anbindung</strong>
       <span class="muted" style="font-size:12px" id="hc-step-label">Schritt 1 von 2</span>
     </div>
-    <div style="padding:4px 14px 0;border-bottom:1px solid #f0f0f0;display:flex;gap:0">
-      <button id="hc-tab-0" class="btn secondary" style="border-radius:0;border-bottom:2px solid #2563eb;font-size:12px;padding:6px 14px" onclick="_hcTab(0)">Hub-Nutzungsbedingungen</button>
-      <button id="hc-tab-1" class="btn secondary" style="border-radius:0;border-bottom:2px solid transparent;font-size:12px;padding:6px 14px" onclick="_hcTab(1)">Lizenzbedingungen-Ergänzung</button>
+    <div style="padding:8px 14px;border-bottom:1px solid #f0f0f0;display:flex;gap:6px;flex-wrap:wrap">
+      <button type="button" id="hc-tab-0" class="btn-toggle active" onclick="_hcTab(0)">Hub-Nutzungsbedingungen</button>
+      <button type="button" id="hc-tab-1" class="btn-toggle" onclick="_hcTab(1)">Lizenzbedingungen-Ergänzung</button>
     </div>
     <div id="hc-text" class="legal-view" style="padding:14px 20px;overflow-y:auto;font-size:12px;line-height:1.6;flex:1;min-height:0">Lade…</div>
     <div style="padding:10px 20px;border-top:1px solid #f0f0f0;background:#fafaf9">
@@ -726,7 +726,7 @@ function _hubWaitMsg(secs, sentTo){
   const intro = sentTo ? ('📧 Bestätigungsmail an <strong>'+sentTo+'</strong> gesendet. ') : '';
   _hubMsg(intro+'⏳ Öffne den Link in der Mail — dann verbindet sich das Gateway automatisch. '
     +'Nächste automatische Prüfung in <strong id="hub-cd">'+secs+'</strong>s. '
-    +'<button class="btn secondary" style="margin-left:6px;padding:2px 8px" onclick="hubPollClaim(true)">Jetzt prüfen</button>', true);
+    +'<button class="btn secondary btn-sm" style="margin-left:6px" onclick="hubPollClaim(true)">Jetzt prüfen</button>', true);
 }
 async function _hubClaimTick(){
   try{
@@ -1356,7 +1356,7 @@ function _renderCertDomains(d) {
   verified.forEach(dm=>{ html+='<span class="conn-badge conn-ok" style="margin:0 6px 4px 0">✓ '+dm+'</span>'; });
   pending.forEach(([dm,v])=>{ if(!v.verified) html+='<span class="conn-badge conn-wait" style="margin:0 6px 8px 0">⏳ '+dm+' (ausstehend — '+v.record_name+')'
     +copyBtnHtml(v.record_name)
-    +' <button class="btn secondary" style="padding:0 6px;font-size:11px;margin-left:4px" onclick="certDomainVerify(\''+dm+'\')">Jetzt prüfen</button></span>'; });
+    +' <button class="btn secondary btn-sm" style="margin-left:4px" onclick="certDomainVerify(\''+dm+'\')">Jetzt prüfen</button></span>'; });
   list.innerHTML = html || '<span class="muted">Noch keine Domain verifiziert.</span>';
 }
 function _renderBillingSection(d) {
@@ -1485,7 +1485,7 @@ async function certDomainRequest() {
       +'Wert: <code>'+r.record_value+'</code>'+copyBtnHtml(r.record_value)
       +(r.hint?('<br><span class="hint">'+r.hint+'</span>'):'');
   });
-  html+='<div style="margin-top:10px"><button class="btn primary" onclick="certDomainVerify()">Jetzt prüfen</button></div>'
+  html+='<div style="margin-top:10px"><button class="btn secondary" onclick="certDomainVerify()">Jetzt prüfen</button></div>'
     +'<p class="hint" style="margin:6px 0 0">DNS-Propagation kann einige Minuten dauern.'
     +(extra.length?' Beide Einträge können in derselben DNS-Sitzung gesetzt werden.':'')+'</p>';
   rec.innerHTML=html;
@@ -1516,7 +1516,7 @@ function _renderCertSteps(d) {
   if (termsOk) {
     s1body.innerHTML = '<span style="color:#166534;font-weight:600">Akzeptiert'
       + (d.terms_accepted_at ? (' am ' + esc(d.terms_accepted_at.slice(0, 10))) : '') + '</span>'
-      + ' <button class="btn secondary" style="padding:1px 8px;font-size:11px;margin-left:6px" onclick="certViewTerms()">Text ansehen</button>';
+      + ' <button class="btn secondary btn-sm" style="margin-left:6px" onclick="certViewTerms()">Text ansehen</button>';
     return;
   }
   if (!_HUB_REGISTERED) {
@@ -2016,8 +2016,9 @@ function _hcClose() {
   _hcPending = null;
 }
 async function _hcTab(idx) {
-  document.getElementById('hc-tab-0').style.borderBottom = idx === 0 ? '2px solid #2563eb' : '2px solid transparent';
-  document.getElementById('hc-tab-1').style.borderBottom = idx === 1 ? '2px solid #2563eb' : '2px solid transparent';
+  // Zustand als Klasse, nicht als Farbe per JS (Dark-Mode-Regel 2)
+  document.getElementById('hc-tab-0').classList.toggle('active', idx === 0);
+  document.getElementById('hc-tab-1').classList.toggle('active', idx === 1);
   document.getElementById('hc-step-label').textContent = 'Schritt ' + (idx + 1) + ' von 2';
   const txt = document.getElementById('hc-text');
   if (_hcData[idx]) { _setMarkdown(txt, _hcData[idx].text); return; }   // Cache-Pfad MUSS ebenfalls rendern
@@ -2130,8 +2131,8 @@ async function legalLoadStatus() {
       return '<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f0f0f0">'
         + '<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500">' + esc(st.title || doc.label) + ' <span class="muted" style="font-weight:400">v' + (st.version||'1.0') + '</span></div>' + hint + '</div>'
         + badge
-        + '<button class="btn secondary" style="padding:2px 9px;font-size:11px" onclick="legalViewDoc(\'' + doc.id + '\')">Lesen</button>'
-        + '<button class="btn secondary" style="padding:2px 9px;font-size:11px" onclick="legalPrintDoc(\'' + doc.id + '\')">PDF</button>'
+        + '<button class="btn secondary btn-sm" onclick="legalViewDoc(\'' + doc.id + '\')">Lesen</button>'
+        + '<button class="btn secondary btn-sm" onclick="legalPrintDoc(\'' + doc.id + '\')">PDF</button>'
         + '</div>';
     }).join('');
   } catch(e) { ursache(e, 'settings_connect:1352'); }

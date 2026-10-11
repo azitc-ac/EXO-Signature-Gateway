@@ -65,8 +65,8 @@
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
         <input type="file" id="setup-restore-file" accept=".zip"
                style="font-size:13px;border:1px solid #e2e8f0;border-radius:6px;padding:5px 8px;background:#fff">
-        <button class="btn secondary" id="setup-restore-btn" onclick="setupRestoreConfirm()"
-                style="background:#dc2626;border-color:#dc2626;color:#fff">
+        <button class="btn danger" id="setup-restore-btn" onclick="setupRestoreConfirm()"
+>
           Wiederherstellen
         </button>
         <span id="setup-restore-spinner" style="display:none;font-size:13px;color:#555">Wird wiederhergestellt…</span>
@@ -710,7 +710,7 @@
     <div id="poolRecommendation" style="background:#f8f7f6;border-radius:6px;padding:10px 14px;font-size:13px;margin-bottom:14px"></div>
     <div id="poolCurrentStatus" style="margin-bottom:12px;font-size:13px;color:#555"></div>
     <div id="poolAddSection" style="display:none">
-      <button id="btnAddPoolApp" onclick="startPoolAppLogin()" class="btn">+ App-Registrierung anlegen &rarr;</button>
+      <button id="btnAddPoolApp" onclick="startPoolAppLogin()" class="btn secondary">+ App-Registrierung anlegen &rarr;</button>
       <div id="poolPasteSection" style="display:none;margin-top:12px">
         <p style="font-size:13px;color:#555;margin:0 0 8px">
           Nach dem Login: URL aus der Adressleiste kopieren und hier einfügen.
@@ -786,8 +786,8 @@
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <span id="kv-arm-status-icon">🔑</span>
           <span id="kv-arm-status-text" style="flex:1;color:#374151">Azure-Login erforderlich, um Subscriptions und Vaults zu laden.</span>
-          <button type="button" class="btn secondary" id="kv-arm-btn" onclick="startArmLogin()"
-            style="white-space:nowrap;font-size:12px;padding:4px 10px"
+          <button type="button" class="btn secondary btn-sm" id="kv-arm-btn" onclick="startArmLogin()"
+            style="white-space:nowrap"
             {% if not e.azure_app_created %}disabled{% endif %}>
             Azure-Zugriff holen
           </button>
@@ -799,7 +799,7 @@
           <input type="text" id="kv-arm-paste-url"
             placeholder="https://sig.contoso.com/auth/callback?code=…"
             style="width:100%;box-sizing:border-box;font-family:monospace;font-size:11px;margin-bottom:6px" autocapitalize="off" autocorrect="off" spellcheck="false">
-          <button type="button" class="btn primary" style="font-size:12px;padding:4px 10px"
+          <button type="button" class="btn primary btn-sm" 
             onclick="submitArmPaste()">Verbinden</button>
         </div>
       </div>

@@ -22,7 +22,7 @@
 
     {% if sso_available and sso_host_matches %}
     <button type="button" id="btn-ms-login" class="btn primary"
-      style="display:block;width:100%;text-align:center;padding:12px;font-size:15px;margin-bottom:8px;box-sizing:border-box"
+      style="display:block;width:100%;text-align:center;margin-bottom:8px;box-sizing:border-box"
       onclick="startSsoLogin()"
       {% if not sso_configured %}disabled title="Noch keine Entra-Admins konfiguriert"{% endif %}>
       Mit Microsoft anmelden
