@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.143 — 2026-10-11 — Add-in-Manifest trägt die Gateway-Version
+
+**Was falsch war.** Das Add-in-Manifest meldete seit jeher die feste Version
+`1.0.0`. Ein über *Integrierte Apps* im Microsoft 365 Admin Center
+bereitgestelltes Add-in übernimmt Änderungen am Manifest aber nicht von selbst:
+Du musst es dort aktualisieren, und das setzt eine höhere Versionsnummer
+voraus. Neue Einstiegspunkte — etwa der Knopf in der Leseansicht für
+Abwesenheit und Signatur (v1.9.97) — kamen bei zentral bereitgestellten
+Add-ins deshalb nie an.
+
+**Was jetzt gilt.** Die Manifest-Version ist die Gateway-Version.
+
+**Was zu tun ist.** Nach diesem Update einmal im Admin Center unter
+*Einstellungen → Integrierte Apps* das Add-in auswählen und **Aktualisieren**
+wählen; dasselbe nach künftigen Updates, die das Add-in betreffen. Die
+Einrichtungsseite nennt den Schritt jetzt ebenfalls.
+
 ## v1.9.142 — 2026-10-11 — Banner und Disclaimer auch im Textteil der Mail
 
 **Was falsch war.** Das Gateway hängte Banner und Disclaimer nur an den
