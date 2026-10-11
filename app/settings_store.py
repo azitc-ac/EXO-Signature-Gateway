@@ -406,6 +406,7 @@ INTERNAL_KEYS = frozenset({
     "_OOO_UEBERSICHT",            # abwesenheit.py — gecachter Status-Scan (Admin-Dashboard)
     "_ADDIN_MANIFEST_STAND",      # webui/routen/addin.py — {hash, version} des zuletzt
                                   # ausgelieferten Manifests; Version steigt nur bei Änderung
+    "_TEAMS_APP_STAND",           # webui/routen/addin.py — dasselbe für das Teams-App-Paket (Tab)
     "_SCHEMA_VERSION",            # Migrationsstand, s.u.
 })
 

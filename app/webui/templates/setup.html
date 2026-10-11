@@ -2674,6 +2674,28 @@ async function saveKeyvault() {
         <strong>Auth:</strong> Nutzer werden beim ersten Öffnen zur Gateway-Anmeldung geleitet
       </p>
 
+      {% if addin_manifest_url %}
+      <div style="border-top:1px solid #f0f0f0;margin:14px 0 12px"></div>
+      <h3 style="margin:0 0 6px;font-size:13px;font-weight:600;color:#374151">Abwesenheit &amp; Signatur in der linken Leiste</h3>
+      <p class="hint" style="line-height:1.7;margin-bottom:8px">
+        Ein eigenes App-Paket legt den Self-Service als App links unter <strong>Apps</strong> ab —
+        unabhängig von einer geöffneten Mail. Laut Microsoft in Outlook im Web, Outlook für Windows
+        (klassisch und neu), Outlook für iOS/Android und Teams; <strong>nicht</strong> in Outlook für Mac
+        (dort bleibt der Knopf beim Lesen einer Mail). Das Add-in oben bleibt daneben bestehen.
+      </p>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+        <a href="{{ addin_manifest_url | replace('/addin/manifest.xml', '/addin/teams-app.zip') }}"
+           class="btn secondary btn-sm">App-Paket herunterladen (.zip)</a>
+      </div>
+      <ol style="margin:0 0 0 18px;padding:0;line-height:2.1;font-size:12.5px;color:#374151">
+        <li><strong>Einstellungen → Integrierte Apps</strong> → <strong>Apps hochladen</strong> → das .zip wählen</li>
+        <li>Benutzer/Gruppen zuweisen und bereitstellen</li>
+        <li>Wie beim Add-in: Microsoft nennt <strong>24 bis 72 Stunden</strong>, bis die App erscheint</li>
+        <li>Hochgeladen wird eine Datei, keine Adresse — eine neue Fassung erscheint hier mit höherer
+          Versionsnummer im Dateinamen und muss erneut hochgeladen werden.</li>
+      </ol>
+      {% endif %}
+
       {% if s.ADDIN_BASE_URL %}
       <div style="border-top:1px solid #f0f0f0;margin:14px 0 12px"></div>
       <h3 style="margin:0 0 8px;font-size:13px;font-weight:600;color:#374151">SSO Redirect URI</h3>

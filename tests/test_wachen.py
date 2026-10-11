@@ -80,6 +80,8 @@ ERLAUBT_OHNE_ANMELDUNG: dict[str, str] = {
     "/addin/compose":         "Aufgabenleiste, meldet sich selbst über den Dialog an",
     "/addin/function":        "Funktionsdatei des Add-ins",
     "/addin/auth-complete":   "Abschlussseite des Anmeldedialogs",
+    "/addin/auth-complete-teams": "Abschlussseite des Anmeldefensters im Tab (TeamsJS)",
+    "/addin/teams-app.zip":   "App-Paket für Integrierte Apps; enthält wie manifest.xml nichts Geheimes",
     "/addin/icon/{size_str}": "Symbol des Add-ins",
     # Self-Service-SEITE: öffentliches HTML wie /addin/compose — die Navigation
     # kann keinen Auth-Header mitgeben, die Identität klärt das JS über die

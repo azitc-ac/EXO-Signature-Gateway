@@ -21,6 +21,13 @@
     "name": "addin_auth_complete"
   },
   {
+    "pfad": "/addin/auth-complete-teams",
+    "methoden": [
+      "GET"
+    ],
+    "name": "addin_auth_complete_teams"
+  },
+  {
     "pfad": "/addin/compose",
     "methoden": [
       "GET"
@@ -47,6 +54,13 @@
       "GET"
     ],
     "name": "addin_manifest"
+  },
+  {
+    "pfad": "/addin/teams-app.zip",
+    "methoden": [
+      "GET"
+    ],
+    "name": "addin_teams_app"
   },
   {
     "pfad": "/advanced",

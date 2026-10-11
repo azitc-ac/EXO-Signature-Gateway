@@ -199,8 +199,15 @@ async def _attach_user_role(request: Request, call_next):
 
 # ── Sicherheits-Header ──────────────────────────────────────────────────────────
 # ⚠️ Add-in-Seiten (/addin/…) werden von Office in einem iframe gerahmt — dort
-# darf KEIN Frame-Verbot gesetzt werden, sonst lädt das Add-in nicht.
+# darf KEIN Frame-Verbot gesetzt werden, sonst lädt das Add-in nicht. Dasselbe
+# gilt für /self: Es ist die Taskpane des Lesen-Knopfs und der Tab in der
+# linken Leiste von Outlook/Teams. Bis v1.9.147 bekam /self „DENY" — in
+# Outlook im Web (iframe) konnte die Lesen-Ansicht damit nie laden.
 _ADDIN_FRAME_FREI = "/addin/"
+
+
+def _rahmen_erlaubt(pfad: str) -> bool:
+    return pfad.startswith(_ADDIN_FRAME_FREI) or pfad == "/self"
 
 
 @app.middleware("http")
@@ -208,7 +215,7 @@ async def _sicherheits_header(request: Request, call_next):
     response = await call_next(request)
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-    if not request.url.path.startswith(_ADDIN_FRAME_FREI):
+    if not _rahmen_erlaubt(request.url.path):
         response.headers.setdefault("X-Frame-Options", "DENY")
     if _webui_scheme() == "https":
         response.headers.setdefault(
@@ -222,7 +229,10 @@ async def _sicherheits_header(request: Request, call_next):
         "style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
         "object-src 'none'; base-uri 'self'; "
         "frame-ancestors 'self' https://outlook.office.com "
-        "https://outlook.office365.com https://*.office.com")
+        "https://outlook.office365.com https://*.office.com "
+        # Microsoft-365-Hosts für Tabs (Doku „Extend Personal Tab to Microsoft 365"):
+        "https://*.cloud.microsoft https://teams.microsoft.com "
+        "https://*.teams.microsoft.com https://*.microsoft365.com")
     return response
 
 

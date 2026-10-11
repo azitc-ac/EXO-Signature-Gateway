@@ -5,6 +5,46 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.148 — 2026-10-11 — Self-Service als App in der linken Leiste; Lesen-Ansicht lädt in Outlook im Web
+
+**Neu: App-Paket für die linke Leiste.** Abwesenheit und Signaturwahl waren
+bisher nur über einen Knopf beim Lesen oder Verfassen einer Mail erreichbar.
+Ein eigenes App-Paket (*Einrichtung → Outlook-Add-in → App-Paket
+herunterladen*) legt den Self-Service links unter *Apps* ab, unabhängig von
+einer geöffneten Mail. Laut Microsoft erscheint die App in Outlook im Web, in
+Outlook für Windows (klassisch und neu), in Outlook für iOS und Android sowie in
+Teams, nicht aber in Outlook für Mac. Dort bleibt der Knopf beim Lesen.
+
+- Das Add-in bleibt daneben unverändert bestehen. Die Signaturwahl pro Mail
+  gehört weiter zum Knopf beim Verfassen.
+- Im Tab startet die Anmeldung mit einem Klick auf *Anmelden*. Ein selbsttätig
+  geöffnetes Anmeldefenster würde der Popup-Blocker des Browsers aufhalten.
+- Das Paket wird als Datei in *Integrierte Apps* hochgeladen. Eine neue Fassung
+  trägt eine höhere Versionsnummer im Dateinamen und muss erneut hochgeladen
+  werden. Die Nummer steigt wie beim Add-in nur bei inhaltlicher Änderung.
+- Die Teams-Bibliothek wird vom Microsoft-CDN mit Integritätsprüfung geladen.
+
+**Behoben: Die Lesen-Ansicht des Add-ins lud in Outlook im Web nicht.** Die
+Seite des Knopfs beim Lesen wurde mit `X-Frame-Options: DENY` ausgeliefert.
+Outlook im Web zeigt die Taskpane in einem eingebetteten Rahmen, und den
+verbot diese Kopfzeile. Sie gilt jetzt nicht mehr für diese Seite, die auch
+der Tab braucht. Die zulässigen Rahmen-Eltern nennen zusätzlich die Hosts von
+Microsoft 365 (`*.cloud.microsoft`, Teams, `*.microsoft365.com`).
+
+**Behoben: Versionsnummer ließ sich von außen hochzählen.** Ohne die
+Einstellung „Add-in-Basis-URL“ stammt die Adresse im Manifest aus den
+Kopfzeilen der Anfrage. Seit v1.9.147 ging sie in die Prüfsumme ein, die über
+die Versionsnummer entscheidet. Jeder anonyme Abruf mit fremder Adresse hätte
+die Nummer erhöht und die Einstellungsdatei geschrieben. Adresse und Kennung
+zählen jetzt nicht mehr mit; eine andere Adresse ergibt ohnehin eine neue
+App-Kennung.
+
+**Zu tun:**
+- Weil sich die Berechnung geändert hat, trägt das Add-in-Manifest einmalig
+  v1.9.148. Klicke in *Integrierte Apps* beim Add-in einmal *Aktualisieren*.
+- Für die App in der linken Leiste lädst du das Paket herunter und lädst es in
+  *Integrierte Apps* hoch.
+
 ## v1.9.147 — 2026-10-11 — Add-in: Manifest-Version nur bei echter Änderung, Abmelden
 
 **Manifest-Version.** Seit v1.9.143 trug das Add-in-Manifest die
