@@ -754,3 +754,63 @@ def test_filterfelder_nur_ueber_das_makro():
                for i, z in enumerate(p.read_text(encoding="utf-8").splitlines(), 1)
                if re.search(r'<input[^>]*placeholder="Filter', z)]
     assert not treffer, f"Filterfeld am Makro vorbei: {treffer}"
+
+
+# ── /self: Zeitraum-Prüfung, Hinweise, Meldung nach Status (Testlauf 11.10.2026) ──
+
+def test_self_zeitraum_pruefung_und_meldungen(browser, server):
+    """/self bei 393 px mit nachgebildeten APIs:
+    * „Bis" vor „Von" → Hinweis sichtbar, Speichern gesperrt; korrigiert → frei.
+    * „Aus" → die Vorschau sagt, dass sie zeigt, wie die Antwort AUSSÄHE.
+    * Die Erfolgsmeldung nennt den gespeicherten Zustand (vorher hieß es auch
+      beim Ausschalten „Abwesenheit … gesetzt").
+    * Keine waagerechte Rollleiste.
+    """
+    import json
+    kontext = {"email": "a@x.de", "freigeschaltet": True, "abwesenheit_aktiv": True,
+               "darf_vorlagen": False, "waehlbar": {"sig": False, "min": False, "oof": False},
+               "oof_template": "K", "sig_template": "S", "standard": {}, "wahl": {}, "listen": {},
+               "ooo": {"status": "scheduled", "start": "2026-10-11", "ende": "2026-10-12",
+                       "start_zeit": "09:00", "ende_zeit": "17:00", "ganztaegig": True},
+               "announce_supported": False,
+               "announce": {"an": False, "mode": "anzahl", "x": 3, "privat": True, "extern": False},
+               "zugriff": True}
+    gesendet = []
+    ctx = browser.new_context(viewport={"width": 393, "height": 850})
+    ctx.route("**/api/self/context", lambda r: r.fulfill(
+        status=200, content_type="application/json", body=json.dumps(kontext)))
+    ctx.route("**/api/self/preview*", lambda r: r.fulfill(
+        status=200, content_type="application/json",
+        body=json.dumps({"oof_html": "<p>OOF</p>", "sig_html": "", "banner_html": "",
+                         "disclaimer_html": ""})))
+
+    def save(r):
+        gesendet.append(json.loads(r.request.post_data))
+        r.fulfill(status=200, content_type="application/json", body='{"ok": true}')
+    ctx.route("**/api/self/save", save)
+    pg = ctx.new_page()
+    pg.goto(f"{server}/self", wait_until="domcontentloaded")
+    pg.wait_for_selector("#inhalt:not([hidden])", timeout=10000)
+
+    pg.fill("#bis", "2026-10-09")
+    pg.dispatch_event("#bis", "change")
+    pg.wait_for_timeout(100)
+    assert pg.is_visible("#zeitraum-hinweis"), "Hinweis „Ende vor Beginn“ fehlt"
+    assert pg.is_disabled("#speichern"), "Speichern muss bei Ende vor Beginn gesperrt sein"
+    pg.fill("#bis", "2026-10-12")
+    pg.dispatch_event("#bis", "change")
+    pg.wait_for_timeout(100)
+    assert not pg.is_visible("#zeitraum-hinweis") and not pg.is_disabled("#speichern")
+
+    pg.check("input[name=status][value=disabled]")
+    pg.dispatch_event("input[name=status][value=disabled]", "change")
+    pg.wait_for_timeout(100)
+    assert "aus" in pg.text_content("#vorschau-hinweis").lower()
+    pg.click("#speichern")
+    pg.wait_for_selector("#speicher-hinweis:not([hidden])", timeout=5000)
+    assert gesendet[-1]["oof_status"] == "disabled"
+    assert pg.text_content("#speicher-hinweis") == "✓ Gespeichert. Deine Abwesenheit ist aus."
+
+    breit = pg.evaluate("document.documentElement.scrollWidth")
+    assert breit <= 393, f"Waagerechte Rollleiste bei 393 px: {breit}"
+    ctx.close()

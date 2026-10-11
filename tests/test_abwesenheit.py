@@ -28,30 +28,45 @@ def _run(coro):
 
 # ── Zeitraum ──────────────────────────────────────────────────────────────────
 
-def test_zeitraum_scheduled():
+@pytest.fixture
+def utc(monkeypatch):
+    """Anzeige-Zeitzone UTC, damit „00:00 UTC" auch lokal 00:00 ist."""
+    echt = settings_store.get
+    monkeypatch.setattr(settings_store, "get",
+                        lambda k, d=None: "UTC" if k == "LOG_TIMEZONE" else echt(k, d))
+
+
+def test_zeitraum_scheduled(utc):
+    """Ende 00:00 ist das Ende des Vortags (Graph/Outlook: Ende exklusiv)."""
     s = {"status": "scheduled",
          "scheduledStartDateTime": {"dateTime": "2026-10-01T00:00:00.0000000", "timeZone": "UTC"},
          "scheduledEndDateTime": {"dateTime": "2026-10-10T00:00:00.0000000", "timeZone": "UTC"}}
-    assert abwesenheit.zeitraum_text(s) == "vom 01.10.2026 bis 10.10.2026"
+    assert abwesenheit.zeitraum_text(s) == "vom 01.10.2026 bis 09.10.2026"
+    z = abwesenheit.zeitraum(s)
+    assert (z.en, z.ab, z.bis) == ("from 01.10.2026 to 09.10.2026", "01.10.2026", "09.10.2026")
 
 
 def test_zeitraum_unbefristet_leer():
     assert abwesenheit.zeitraum_text({"status": "alwaysEnabled"}) == ""
 
 
-def test_zeitraum_eintaegig_wird_geglaettet():
-    """Start und Ende am selben Tag → „am X" statt „vom X bis X"."""
+def test_zeitraum_eintaegig_wird_geglaettet(utc):
+    """Start und Ende am selben Tag → „am X", und weil der Tag nicht ganz
+    gemeint ist, mit Uhrzeit (Testlauf 11.10.2026: sonst las, wer um 21:00
+    schrieb, „am 30.09. abwesend", obwohl die Abwesenheit um 20:00 endete)."""
     s = {"status": "scheduled",
          "scheduledStartDateTime": {"dateTime": "2026-09-30T11:30:00.0000000", "timeZone": "UTC"},
          "scheduledEndDateTime": {"dateTime": "2026-09-30T20:00:00.0000000", "timeZone": "UTC"}}
-    assert abwesenheit.zeitraum_text(s) == "am 30.09.2026"
+    assert abwesenheit.zeitraum_text(s) == "am 30.09.2026 von 11:30 bis 20:00 Uhr"
+    assert abwesenheit.zeitraum(s).en == "on 30.09.2026 from 11:30 to 20:00"
 
 
-def test_fenster_texte_eintaegig():
+def test_fenster_texte_eintaegig(utc):
     s = {"dateTime": "2026-09-30T11:30:00", "timeZone": "UTC"}
     e = {"dateTime": "2026-09-30T20:00:00", "timeZone": "UTC"}
-    z, ab, bis = abwesenheit._fenster_texte(s, e)
-    assert z == "am 30.09.2026" and ab == "30.09.2026" and bis == "30.09.2026"
+    z = abwesenheit._fenster_texte(s, e)
+    assert z.de == "am 30.09.2026 von 11:30 bis 20:00 Uhr"
+    assert z.ab == "30.09.2026" and z.bis == "30.09.2026"
 
 
 # ── Platzhalter ───────────────────────────────────────────────────────────────
@@ -327,11 +342,11 @@ def test_disabled_bekommt_trotzdem_den_text(monkeypatch):
     assert "a@x.de" in state                          # und gemerkt (Idempotenz)
 
 
-def test_fenster_texte():
+def test_fenster_texte(utc):
     s = {"dateTime": "2026-10-01T00:00:00", "timeZone": "UTC"}
     e = {"dateTime": "2026-10-10T00:00:00", "timeZone": "UTC"}
-    z, ab, bis = abwesenheit._fenster_texte(s, e)
-    assert z == "vom 01.10.2026 bis 10.10.2026" and ab == "01.10.2026" and bis == "10.10.2026"
+    z = abwesenheit._fenster_texte(s, e)
+    assert z.de == "vom 01.10.2026 bis 09.10.2026" and z.ab == "01.10.2026" and z.bis == "09.10.2026"
 
 
 def test_kalender_auto_aktiviert_bei_disabled(monkeypatch):
@@ -649,15 +664,16 @@ def test_ankuendigung_auswahl_privat_filter():
     assert len(ein) == 2
 
 
-def test_ankuendigung_formatieren_de_en():
+def test_ankuendigung_formatieren_de_en(utc):
     events = [{"start": {"dateTime": "2026-11-02T00:00:00", "timeZone": "UTC"},
                "end": {"dateTime": "2026-11-06T00:00:00", "timeZone": "UTC"}},
               {"start": {"dateTime": "2026-11-20T00:00:00", "timeZone": "UTC"},
                "end": {"dateTime": "2026-11-20T00:00:00", "timeZone": "UTC"}}]
     de = abwesenheit._ankuendigung_formatieren(events, "de")
     en = abwesenheit._ankuendigung_formatieren(events, "en")
-    assert de == "Weitere geplante Abwesenheiten: vom 02.11.2026 bis 06.11.2026; am 20.11.2026."
-    assert en == "Further planned absences: from 02.11.2026 to 06.11.2026; on 20.11.2026."
+    # Ganztägige Kalendertermine enden um 00:00 des Folgetags (exklusiv): bis 05.11.
+    assert de == "Weitere geplante Abwesenheiten: vom 02.11.2026 bis 05.11.2026; am 20.11.2026."
+    assert en == "Further planned absences: from 02.11.2026 to 05.11.2026; on 20.11.2026."
     assert abwesenheit._ankuendigung_formatieren([], "de") == ""
 
 
@@ -934,3 +950,71 @@ def test_nur_die_vorschau_schaltet_den_anhang_ab():
     from webui.routen import selfservice
     for fn in (abwesenheit.render_intern_extern, selfservice._render_oof_fuer):
         assert inspect.signature(fn).parameters["mit_anhang"].default is True, fn
+
+
+# ── Zeitraum mit Uhrzeit (Testlauf 11.10.2026, /self-Befund 3) ───────────────
+
+@pytest.mark.parametrize("ein, de, en", [
+    # T20b: halber Tag — vorher „am 11.10.2026", Uhrzeit fehlte
+    (("2026-10-11T01:30", "2026-10-11T12:00"),
+     "am 11.10.2026 von 01:30 bis 12:00 Uhr", "on 11.10.2026 from 01:30 to 12:00"),
+    (("2026-10-11T13:00", "2026-10-11T23:59:59"),
+     "am 11.10.2026 ab 13:00 Uhr", "on 11.10.2026 from 13:00"),
+    (("2026-10-11T00:00", "2026-10-11T12:00"),
+     "am 11.10.2026 bis 12:00 Uhr", "on 11.10.2026 until 12:00"),
+    (("2026-10-10T14:00", "2026-10-13T09:00"),
+     "vom 10.10.2026, 14:00 Uhr bis 13.10.2026, 09:00 Uhr",
+     "from 10.10.2026, 14:00 to 13.10.2026, 09:00"),
+    (("2026-10-10T14:00", "2026-10-13T00:00"),
+     "vom 10.10.2026, 14:00 Uhr bis 12.10.2026", "from 10.10.2026, 14:00 to 12.10.2026"),
+    # ganztägig wie aus /self (synth_setting: 00:00 bis 23:59:59)
+    (("2026-10-10T00:00", "2026-10-12T23:59:59"),
+     "vom 10.10.2026 bis 12.10.2026", "from 10.10.2026 to 12.10.2026"),
+])
+def test_zeitraum_mit_uhrzeit(utc, ein, de, en):
+    s = {"status": "scheduled",
+         "scheduledStartDateTime": {"dateTime": ein[0], "timeZone": "UTC"},
+         "scheduledEndDateTime": {"dateTime": ein[1], "timeZone": "UTC"}}
+    z = abwesenheit.zeitraum(s)
+    assert (z.de, z.en) == (de, en)
+
+
+def test_synth_setting_ganztaegig_ohne_uhrzeit(utc):
+    """Die /self-Eingabe „ganztägig" ergibt einen Text ohne Uhrzeit."""
+    z = abwesenheit.zeitraum(abwesenheit.synth_setting("scheduled", "2026-10-11", "2026-10-11"))
+    assert z.de == "am 11.10.2026"
+    z = abwesenheit.zeitraum(abwesenheit.synth_setting("scheduled", "2026-10-11", "2026-10-11",
+                                                       "01:30", "12:00"))
+    assert z.de == "am 11.10.2026 von 01:30 bis 12:00 Uhr"
+
+
+def test_englischer_zeitraum_mit_uhrzeit_landet_im_text(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "TEMPLATE_DIR", str(tmp_path))
+    (tmp_path / "K.html").write_text("<p>{{ oof.zeitraum }} | {{ oof.period }}</p>", encoding="utf-8")
+    (tmp_path / "K.txt").write_text("x", encoding="utf-8")
+    signature_engine._reload_env()
+    html, _ = abwesenheit.render_oof(UserData(displayName="E", custom={}), "K",
+                                     "am 11.10.2026 von 01:30 bis 12:00 Uhr",
+                                     "11.10.2026", "11.10.2026",
+                                     period="on 11.10.2026 from 01:30 to 12:00")
+    assert "am 11.10.2026 von 01:30 bis 12:00 Uhr | on 11.10.2026 from 01:30 to 12:00" in html
+
+
+def test_jeder_schreibende_aufrufer_gibt_period_mit():
+    """Ohne `period` fiele {{ oof.period }} auf die reine Datumsfassung zurück —
+    deutsch mit Uhrzeit, englisch ohne. Jeder Aufruf von render_intern_extern
+    (und render_oof außer der Vorlagen-Vorschau) muss sie mitgeben."""
+    import ast
+    from pathlib import Path
+    app = Path(__file__).resolve().parent.parent / "app"
+    ohne = []
+    for f in app.rglob("*.py"):
+        for k in ast.walk(ast.parse(f.read_text(encoding="utf-8"))):
+            if not isinstance(k, ast.Call):
+                continue
+            name = getattr(k.func, "attr", None) or getattr(k.func, "id", None)
+            if name in ("render_intern_extern", "render_oof") and not any(
+                    kw.arg == "period" for kw in k.keywords):
+                ohne.append((f.name, name, k.lineno))
+    # Erlaubt: die Vorlagen-Vorschau (feste Beispieldaten ohne Uhrzeit, zwei Stellen)
+    assert {(f, n) for f, n, _ in ohne} == {("vorlagen.py", "render_oof")}, ohne

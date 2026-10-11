@@ -156,6 +156,12 @@ async def api_abwesenheit_postfach_setzen(request: Request, _user: str = Depends
     start_zeit = "" if ganztaegig else (body.get("start_zeit") or "").strip()
     ende_zeit = "" if ganztaegig else (body.get("ende_zeit") or "").strip()
 
+    # Vor dem Schreiben prüfen (gemeinsame Regel mit dem Self-Service).
+    _fehler = abwesenheit.zeitraum_fehler(
+        abwesenheit.synth_setting(status, start, ende, start_zeit, ende_zeit))
+    if _fehler:
+        raise HTTPException(400, _fehler)
+
     # 1) Konfig schreiben (Kalender-Automatik + Ankündigung) — EIN Schreibvorgang.
     voll = settings_store.get("MAILBOX_CONFIG") or {}
     eintrag = dict(voll.get(key, {}))
@@ -180,12 +186,12 @@ async def api_abwesenheit_postfach_setzen(request: Request, _user: str = Depends
 
     synth = abwesenheit.synth_setting(status, start, ende, start_zeit, ende_zeit)
     tpl = abwesenheit.oof_vorlage_fuer(email, voll, eintrag)
-    _ab, _bis = abwesenheit.start_ende_text(synth)
+    z = abwesenheit.zeitraum(synth)
     if tpl:
         user_data = await graph_client.get_user(email)
         html, html_extern = await abwesenheit.render_intern_extern(
             user_data, email, token, tpl, eintrag, abwesenheit._state(),
-            abwesenheit.zeitraum_text(synth), _ab, _bis)
+            z.de, z.ab, z.bis, period=z.en)
     else:
         # Keine Vorlage zugewiesen → den vorhandenen Text NICHT leeren, nur schalten.
         html = setting.get("internalReplyMessage") or ""
