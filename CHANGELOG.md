@@ -5,6 +5,32 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.151 — 2026-10-11 — Einheitliche Knöpfe unter „Erweitert“; Portal-Basis-URL unter „Erweiterte Einstellungen“
+
+**Knöpfe unter *Einstellungen → Erweitert* folgen jetzt einer Linie.** Die
+Seite hatte 40 Knöpfe in elf Varianten: Einige Aktionen waren kräftig blau
+(„Zertifikat setzen“, „Test-Mail senden“, „Bundle herunterladen“), andere
+gleichrangige grau, der Download des EXO-PowerShell-Zertifikats ein Link in
+einem dritten Blau, und Grössen standen teils von Hand im Code.
+
+- **Grau** für alle Aktionen der Seite, auch Senden und Herunterladen. Kräftiges
+  Blau markiert in der Oberfläche den einen nächsten Schritt eines Ablaufs
+  (Anmelden, Zustimmen, Einrichtungsassistent); die Karten unter *Erweitert*
+  stehen jede für sich. Einzige Ausnahme ist die Bestätigung im Dialog zum
+  Auftragsverarbeitungsvertrag.
+- **Rot** nur für Löschen.
+- **Grösse:** normal für Aktionen einer Karte, klein in Tabellen-, Listen- und
+  Kopfzeilen (Warteschlange, Wächterliste, Allowlist-Zeile). „Speichern“ beim
+  Gateway-Namen ist jetzt so gross wie alle anderen Speichern-Knöpfe.
+- Ein Test hält die Linie fest.
+
+**Portal-Basis-URL unter „Erweiterte Einstellungen“.** Unter *Einstellungen →
+S/MIME → Nachrichtenportal* stand das Feld bisher in der Grundansicht. Leer
+gelassen, leitet das Gateway die Adresse selbst ab; eine Angabe braucht es nur
+im Sonderfall. Es erscheint jetzt mit dem Schalter *Erweiterte Einstellungen*,
+wie Zugangscode, Aufbewahrung und Branding. Der gespeicherte Wert bleibt
+unverändert wirksam.
+
 ## v1.9.150 — 2026-10-11 — Favicon
 
 **Neu: eigenes Symbol im Browser-Tab.** Das Gateway hatte kein Favicon; der
