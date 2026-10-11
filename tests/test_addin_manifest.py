@@ -58,3 +58,14 @@ def test_knopf_ohne_abwesenheit_heisst_nur_signatur(monkeypatch):
     root = _manifest(monkeypatch, "Mein GW", False)
     assert _strings(root)["btnLabel"] == "Signatur"
     assert "Abwesenheit" not in ET.tostring(root, encoding="unicode")
+
+
+@pytest.mark.parametrize("ver,erwartet", [("1.9.143", "1.9.143"), ("2.0.07", "2.0.7"),
+                                          ("dev", "1.0.0"), ("1.9.143-rc1", "1.0.0"), ("", "1.0.0")])
+def test_manifest_version_folgt_der_gateway_version(monkeypatch, ver, erwartet):
+    """Zentral bereitgestellte Add-ins übernehmen ein geändertes Manifest nur mit
+    höherer Version — eine feste 1.0.0 hielt neue Knöpfe dort für immer fern."""
+    import config
+    monkeypatch.setattr(config, "VERSION", ver)
+    root = _manifest(monkeypatch, "Mein GW", True)
+    assert root.find("o:Version", NS).text == erwartet

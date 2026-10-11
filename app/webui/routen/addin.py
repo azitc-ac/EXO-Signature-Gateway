@@ -176,6 +176,22 @@ def _manifest_texte() -> dict[str, str]:
     return {k: _xml_escape(v[:grenze], {'"': "&quot;"}) for k, (v, grenze) in roh.items()}
 
 
+def _manifest_version() -> str:
+    """Manifest-Version = Gateway-Version.
+
+    Ein über „Integrierte Apps" hochgeladenes Add-in übernimmt Änderungen am
+    Manifest nicht von selbst: Der Admin muss es aktualisieren, und das setzt
+    eine höhere Versionsnummer voraus. Mit einer festen „1.0.0" kam ein neuer
+    Knopf (Lesen-Ansicht, v1.9.97) nie bei zentral bereitgestellten Add-ins an.
+    Schema: bis zu vier Teile aus Ziffern — „dev" o.ä. fällt auf 1.0.0 zurück.
+    """
+    v = str(config.VERSION).strip()
+    teile = v.split(".")
+    if 1 <= len(teile) <= 4 and all(t.isdigit() and len(t) <= 5 for t in teile):
+        return ".".join(str(int(t)) for t in teile)
+    return "1.0.0"
+
+
 @router.get("/addin/manifest.xml")
 async def addin_manifest(request: Request):
     """Generate the Office Add-in manifest dynamically.
@@ -195,7 +211,7 @@ async def addin_manifest(request: Request):
   xsi:type="MailApp">
 
   <Id>{addin_id}</Id>
-  <Version>1.0.0</Version>
+  <Version>{_manifest_version()}</Version>
   <ProviderName>{t['anbieter']}</ProviderName>
   <DefaultLocale>de-DE</DefaultLocale>
   <DisplayName DefaultValue="{t['anzeige']}"/>
