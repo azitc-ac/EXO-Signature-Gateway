@@ -38,7 +38,7 @@ def test_smtp_modus_spaltet_routende_empfaenger_ab(monkeypatch):
     monkeypatch.setattr(reinject, "_send_smtp",
                         lambda mf, rt, cb: smtp_calls.append(list(rt)))
     monkeypatch.setattr(relay_stats, "merke_routing",
-                        lambda z, bytes_=0, ok=True: stats_calls.append((z, ok)))
+                        lambda z, bytes_=0, ok=True, **kw: stats_calls.append((z, ok)))
 
     reinject.send("erika@zarenko.net",
                   ["a@contoso.de", "b@zarenko.net", "c@contoso.de"],
@@ -63,7 +63,7 @@ def test_alle_empfaenger_gerouted_kein_exo_versand(monkeypatch):
     monkeypatch.setattr(reinject, "_send_smtp",
                         lambda mf, rt, cb: smtp_calls.append(list(rt)))
     monkeypatch.setattr(relay_stats, "merke_routing",
-                        lambda z, bytes_=0, ok=True: None)
+                        lambda z, bytes_=0, ok=True, **kw: None)
 
     reinject.send("erika@zarenko.net", ["a@contoso.de", "b@contoso.de"],
                   b"From: erika@zarenko.net\r\n\r\nkorpus")
@@ -87,7 +87,7 @@ def test_relay_fehler_wird_als_fehler_verbucht(monkeypatch):
     monkeypatch.setattr(reinject, "_fail_delivery",
                         lambda *a, **k: fail_calls.append(a))
     monkeypatch.setattr(relay_stats, "merke_routing",
-                        lambda z, bytes_=0, ok=True: stats_calls.append((z, ok)))
+                        lambda z, bytes_=0, ok=True, **kw: stats_calls.append((z, ok)))
 
     reinject.send("erika@zarenko.net", ["a@contoso.de"],
                   b"From: erika@zarenko.net\r\n\r\nkorpus")

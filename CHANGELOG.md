@@ -5,6 +5,31 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.152 — 2026-10-12 — Routing-Zahlen aufklappbar; Erweiterungskarten auf der Relay-Seite ans Ende
+
+**Neu: Was hinter den Zahlen der gerouteten Post steckt.** Unter *SMTP-Relay →
+Hybrid-Koexistenz → Durch das Gateway geroutet* stand je Ziel nur eine Summe,
+etwa „21 Fehler“, ohne Hinweis, welche Mail, an wen und warum. Die Zahlen unter
+*Mails* und *Fehler* sind jetzt anklickbar und zeigen die einzelnen Vorgänge:
+Zeitpunkt, Absender und Empfänger aus dem SMTP-Umschlag, Grösse und das
+Ergebnis, bei einem Fehler mit der Meldung des Zielservers.
+
+- Eine Mail, die erst nach mehreren Versuchen durchgeht (die Warteschlange
+  wiederholt nach Exchange-Kadenz), zählt in der Summe bei jedem Versuch mit.
+  In der Liste ist das jetzt erkennbar: Gleiche Kennung bedeutet dieselbe Mail,
+  dazu „Versuch 2“, „Versuch 3“ usw. Die Kennung ist ein Prüfsummen-Präfix der
+  Mail; Betreff und Inhalt liest das Gateway weiterhin nicht.
+- Die Einzelvorgänge werden 30 Tage aufbewahrt, so lange, wie die Ansicht
+  reicht. Die Tagessummen bleiben wie bisher länger erhalten.
+- Aufgezeichnet wird ab diesem Update. Für ältere Vorgänge gibt es nur die
+  Summen; die Ansicht sagt das, statt eine kürzere Liste kommentarlos neben eine
+  grössere Zahl zu stellen.
+
+**Relay-Seite: Erweiterungen wieder ans Ende.** Sende-Identitäten,
+Domänen-Routing und Hybrid-Koexistenz stehen jetzt hinter Statistik, Lernmodus,
+Geräten, Abweisungen und Protokoll — die Geräte-Einlieferung ist die
+Kernfunktion des Relays.
+
 ## v1.9.151 — 2026-10-11 — Einheitliche Knöpfe unter „Erweitert“; Portal-Basis-URL unter „Erweiterte Einstellungen“
 
 **Knöpfe unter *Einstellungen → Erweitert* folgen jetzt einer Linie.** Die

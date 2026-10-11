@@ -220,9 +220,14 @@ def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
                     continue
                 try:
                     _relay_to_target(_zid, mail_from, _rs, content_bytes)
-                    relay_stats.merke_routing(_zid, len(content_bytes), ok=True)
+                    relay_stats.merke_routing(_zid, len(content_bytes), ok=True,
+                                              absender=mail_from, empfaenger=_rs,
+                                              inhalt=content_bytes)
                 except Exception as exc:                      # noqa: BLE001
-                    relay_stats.merke_routing(_zid, len(content_bytes), ok=False)
+                    relay_stats.merke_routing(_zid, len(content_bytes), ok=False,
+                                              absender=mail_from, empfaenger=_rs,
+                                              inhalt=content_bytes,
+                                              fehler_text=f"{type(exc).__name__}: {exc}")
                     _fail_delivery(mail_from, _rs, content_bytes,
                                    f"Routing→{_zid}: {exc}", queue_on_failure)
             rcpt_tos = _gruppen.get(domain_routing.EXO, [])

@@ -16,6 +16,255 @@
 
 <div id="relay-warnung" style="display:none;margin-bottom:16px"></div>
 
+<!-- ── Statistik ─────────────────────────────────────────────────────────── -->
+<style>
+  /* Statistik-Tabellen bewusst kompakter als die übrigen config-tables:
+     flachere Zeilen und engere Spalten, damit die vier Top-Listen nebeneinander
+     nicht auseinanderlaufen. */
+  .stats-eng th, .stats-eng td { padding: 3px 9px; }
+  .stats-eng td { line-height: 1.3; }
+  .stats-eng td:nth-child(2), .stats-eng td:nth-child(3),
+  .stats-eng th:nth-child(2), .stats-eng th:nth-child(3) { white-space: nowrap; }
+  /* Raster statt flex-wrap: bei gerader Zahl (aktuell vier Listen) nie eine
+     einzelne allein in einer Zeile. Schmal gestapelt, ab 640px genau zwei
+     Spalten → 2 und 2, kein 3+1-Umbruch. */
+  /* Eine Zahl, hinter der eine Liste steht (Routing: Mails/Fehler). Ein
+     <button>, kein <a>: es wird nichts navigiert, sondern aufgeklappt. Hier
+     statt in style.css, weil jene mit dem SMTP-Relay gespiegelt ist. */
+  .zahl-knopf {
+    background: none; border: none; padding: 0; font: inherit; cursor: pointer;
+    color: #0369a1; text-decoration: underline dotted; text-underline-offset: 3px;
+  }
+  .zahl-knopf[data-fehler="1"] { color: #991b1b; }
+  .zahl-knopf[aria-expanded="true"] { text-decoration-style: solid; font-weight: 600; }
+  [data-theme="dark"] .zahl-knopf                  { color: #7dd3fc; }
+  [data-theme="dark"] .zahl-knopf[data-fehler="1"] { color: #fca5a5; }
+  .stats-grid { display: grid; gap: 16px; grid-template-columns: 1fr; }
+  @media (min-width: 640px) { .stats-grid { grid-template-columns: 1fr 1fr; } }
+</style>
+<div class="settings-card" style="margin-bottom:20px">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+    <h2 style="margin:0">Statistik</h2>
+    <select id="stats-zeitraum" onchange="statsLaden()" style="font-size:13px;padding:4px 8px">
+      <option value="7">letzte 7 Tage</option>
+      <option value="30" selected>letzte 30 Tage</option>
+      <option value="90">letzte 90 Tage</option>
+      <option value="360">letzte 360 Tage</option>
+    </select>
+  </div>
+  <div id="stats-gesamt" class="hint" style="font-size:13px;margin:8px 0 12px">Wird geladen …</div>
+  <div class="stats-grid">
+    <div>
+      <h3 style="font-size:14px;margin:0 0 6px">Top-Geräte <span class="hint" style="font-weight:400">(Quell-IP)</span></h3>
+      <div class="tabellen-rollbereich">
+        <table class="config-table stats-eng" style="min-width:230px">
+          <thead><tr><th>Adresse</th><th style="text-align:right">Mails</th><th style="text-align:right">Volumen</th></tr></thead>
+          <tbody id="stats-geraete"><tr><td colspan="3" style="color:#888">—</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div>
+      <h3 style="font-size:14px;margin:0 0 6px">Top-Identitäten <span class="hint" style="font-weight:400">(587)</span></h3>
+      <div class="tabellen-rollbereich">
+        <table class="config-table stats-eng" style="min-width:230px">
+          <thead><tr><th>Identität</th><th style="text-align:right">Mails</th><th style="text-align:right">Volumen</th></tr></thead>
+          <tbody id="stats-identitaeten"><tr><td colspan="3" style="color:#888">—</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div>
+      <h3 style="font-size:14px;margin:0 0 6px">Top-Absender</h3>
+      <div class="tabellen-rollbereich">
+        <table class="config-table stats-eng" style="min-width:230px">
+          <thead><tr><th>Absender</th><th style="text-align:right">Mails</th><th style="text-align:right">Volumen</th></tr></thead>
+          <tbody id="stats-absender"><tr><td colspan="3" style="color:#888">—</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div>
+      <h3 style="font-size:14px;margin:0 0 6px">Top-Empfänger</h3>
+      <div class="tabellen-rollbereich">
+        <table class="config-table stats-eng" style="min-width:230px">
+          <thead><tr><th>Empfänger</th><th style="text-align:right">Mails</th><th style="text-align:right">Volumen</th></tr></thead>
+          <tbody id="stats-empfaenger"><tr><td colspan="3" style="color:#888">—</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Lernmodus ─────────────────────────────────────────────────────────── -->
+<div class="settings-card" style="margin-bottom:20px">
+  <h2 style="margin-top:0">Lernmodus
+    <span style="display:inline-block;font-size:10px;font-weight:700;color:#92400e;background:#fef3c7;border:1px solid #fcd34d;border-radius:4px;padding:1px 6px;margin-left:6px;vertical-align:middle">PREVIEW</span>
+  </h2>
+  <p style="font-size:13px;color:#555;margin:0 0 14px">
+    Wenn du nicht alle Geräte-Adressen kennst: Der Lernmodus gibt einen IP-Bereich
+    <strong>zeitlich befristet</strong> frei und trägt jedes Gerät, das darin gültig
+    einliefert, automatisch in die Geräteliste ein. Löse anschließend an jedem Gerät
+    einmal einen Testversand aus; Kommentar und Ansprechpartner kannst du später
+    ergänzen.
+  </p>
+
+  <div id="lern-aktiv" style="display:none;background:#fffbeb;border:1px solid #fde68a;
+       border-radius:8px;padding:12px 14px;margin-bottom:14px">
+    <div style="font-size:14px;color:#92400e;font-weight:700" id="lern-restzeit"></div>
+    <div style="font-size:12px;color:#92400e;margin-top:4px" id="lern-bereiche-aktiv"></div>
+    <button class="btn secondary" style="margin-top:10px" onclick="lernStoppen(this)">
+      Lernmodus jetzt beenden</button>
+  </div>
+
+  <div id="lern-formular">
+    <label for="lern-bereiche" style="font-size:12px;color:#555">Bereich</label>
+    <input type="text" id="lern-bereiche" style="width:100%;margin-top:3px"
+           placeholder="192.168.1.0/24  oder  172.16.16.10-172.16.17.20">
+    <p class="hint" style="margin:5px 0 0">
+      Ein Netz oder eine Spanne; mehrere durch Komma getrennt. Ausserhalb des
+      Zeitfensters lässt dieser Bereich <strong>nichts</strong> durch — er ist keine
+      Dauerfreigabe, sondern nur der Bereich, in dem gelernt werden darf.
+    </p>
+
+    <div style="display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;margin-top:12px">
+      <div>
+        <label for="lern-minuten" style="font-size:12px;color:#555">Dauer (Minuten)</label><br>
+        <input type="number" id="lern-minuten" min="1" max="120" value="15"
+               style="width:110px;margin-top:3px">
+      </div>
+      <label style="display:flex;gap:8px;align-items:center;cursor:pointer;padding-bottom:6px">
+        <input type="checkbox" id="lern-extern">
+        <span style="font-size:13px">Gelernte Geräte dürfen auch nach aussen senden</span>
+      </label>
+    </div>
+    <p class="hint" style="margin:5px 0 0">Höchstens 120 Minuten.</p>
+
+    <div id="lern-result" style="display:none;margin-top:12px"></div>
+    <div class="actions" style="margin-top:12px">
+      <button class="btn primary" onclick="lernStarten(this)">Lernmodus starten</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Geräte ────────────────────────────────────────────────────────────── -->
+<div class="settings-card" style="margin-bottom:20px">
+  <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+    <h2 style="margin:0">Geräte</h2>
+    <span class="hint" id="geraete-anzahl"></span>
+    <button class="btn secondary btn-sm" style="margin-left:auto"
+            onclick="namenAufloesen(this)">Namen auflösen</button>
+  </div>
+  <div class="actions" style="margin:10px 0 0">
+    <button class="btn secondary" id="geraete-btn"
+            data-wache-container="#geraete-body"
+            data-wache-hinweis="geraete-result"
+            onclick="geraeteSpeichern()">Speichern</button>
+    <span id="geraete-result" style="font-size:12px;margin-left:8px"></span>
+  </div>
+  <p style="font-size:13px;color:#555;margin:10px 0 14px">
+    Nur die in der folgenden Liste eingetragenen Geräte dürfen Mails einliefern.
+    Das Sendeaufkommen je Gerät (Mails und Volumen) steht jetzt in der
+    <strong>Statistik</strong> oben unter <em>Top-Geräte</em>.
+  </p>
+  <p style="font-size:13px;color:#555;margin:0 0 14px">
+    Die Spalte <strong>TLS</strong> zeigt, ob die letzte Einlieferung verschlüsselt
+    war; <em>Klartext</em> bedeutet unverschlüsselt.
+    <br>
+    Bei Relay-Geräten ist das zulässig, weil ältere Drucker und Scanner kein
+    <code>STARTTLS</code> beherrschen. Das Gateway bietet TLS weiterhin an — Geräte,
+    die es können, nutzen es automatisch. Für die Verbindung zu Exchange bleibt TLS
+    Pflicht.
+  </p>
+
+  <div class="tabellen-rollbereich" id="geraete-scroll">
+    <table class="config-table" style="min-width:760px">
+      <thead>
+        <tr>
+          <th>Adresse</th><th>Name (DNS)</th><th style="min-width:240px">Kommentar</th>
+          <th>Ansprechpartner</th><th style="text-align:center">Extern</th>
+          <th style="text-align:center">TLS</th>
+          <th>Letzte Mail</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="geraete-body">
+        <tr><td colspan="8" style="color:#888">Wird geladen …</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div style="border-top:1px solid #e2e8f0;margin-top:16px;padding-top:14px">
+    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+      <div>
+        <label for="neu-ip" style="font-size:12px;color:#555">Gerät von Hand hinzufügen</label><br>
+        <input type="text" id="neu-ip" placeholder="10.1.5.7" style="margin-top:3px">
+      </div>
+      <input type="text" id="neu-kommentar" placeholder="Kopierer Empfang" style="flex:1;min-width:320px">
+      <button class="btn secondary" onclick="geraetHinzufuegen(this)">Hinzufügen</button>
+    </div>
+    <div id="neu-result" style="display:none;margin-top:10px"></div>
+  </div>
+</div>
+
+<!-- ── Abgewiesen ────────────────────────────────────────────────────────── -->
+<div class="settings-card" style="margin-bottom:20px">
+  <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+    <h2 style="margin:0">Abgewiesen</h2>
+    <span class="hint" id="abgewiesen-anzahl"></span>
+    <button class="btn secondary btn-sm" style="margin-left:auto"
+            onclick="abweisungenLeeren(this)">Liste leeren</button>
+  </div>
+  <p style="font-size:13px;color:#555;margin:10px 0 14px">
+    Abgewiesene Einlieferungen. Meist ein noch nicht eingetragenes Gerät — dann
+    genügt <em>Übernehmen</em>. Steht die Adresse bereits in der Geräteliste, wurde
+    sie an der Absender- oder Zielbeschränkung abgewiesen; der Grund steht daneben.
+  </p>
+  <div class="tabellen-rollbereich">
+    <table class="config-table" style="min-width:700px">
+      <thead>
+        <tr>
+          <th>Adresse</th><th>Absender</th><th>An</th><th>Grund</th>
+          <th>Zuletzt</th><th style="text-align:right">Versuche</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="abgewiesen-body">
+        <tr><td colspan="7" style="color:#888">Wird geladen …</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── Protokoll ─────────────────────────────────────────────────────────── -->
+<div class="settings-card" style="margin-bottom:20px">
+  <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+    <h2 style="margin:0">Protokoll</h2>
+    <span class="hint" id="proto-info"></span>
+    <span style="margin-left:auto;display:flex;gap:6px">
+      <button class="btn secondary btn-sm" id="proto-prev" onclick="protokollBlaettern(-1)" disabled>‹ neuer</button>
+      <button class="btn secondary btn-sm" id="proto-next" onclick="protokollBlaettern(1)" disabled>älter ›</button>
+    </span>
+  </div>
+  <p style="font-size:13px;color:#555;margin:10px 0 14px">
+    Nur die über das Relay eingelieferte Post — zum Nachschlagen, ob eine
+    Nachricht hinausging, an wen und wann, und wie das Gateway sie behandelt hat.
+    <em>Abgewiesen</em> steht für eine an der Geräte-, Absender- oder Zielgrenze
+    zurückgewiesene Einlieferung; der Grund steht dann in der Betreffspalte.
+    Das übrige Mail-Protokoll — auch der Exchange-Weg — liegt im
+    <a href="/dashboard">Dashboard</a>.
+  </p>
+  <div class="tabellen-rollbereich" id="proto-scroll">
+    <table class="config-table" style="min-width:760px">
+      <thead>
+        <tr>
+          <th>Zeit</th><th>Quelle</th><th>Absender</th><th>An</th>
+          <th>Betreff</th><th>Aktion</th>
+        </tr>
+      </thead>
+      <tbody id="proto-body">
+        <tr><td colspan="6" style="color:#888">Wird geladen …</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
 <!-- ── Sende-Identitäten ─────────────────────────────────────────────────── -->
 <div class="settings-card" style="margin-bottom:20px">
   <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
@@ -308,244 +557,22 @@
         </tbody>
       </table>
     </div>
-  </div>
-</div>
-
-<!-- ── Statistik ─────────────────────────────────────────────────────────── -->
-<style>
-  /* Statistik-Tabellen bewusst kompakter als die übrigen config-tables:
-     flachere Zeilen und engere Spalten, damit die vier Top-Listen nebeneinander
-     nicht auseinanderlaufen. */
-  .stats-eng th, .stats-eng td { padding: 3px 9px; }
-  .stats-eng td { line-height: 1.3; }
-  .stats-eng td:nth-child(2), .stats-eng td:nth-child(3),
-  .stats-eng th:nth-child(2), .stats-eng th:nth-child(3) { white-space: nowrap; }
-  /* Raster statt flex-wrap: bei gerader Zahl (aktuell vier Listen) nie eine
-     einzelne allein in einer Zeile. Schmal gestapelt, ab 640px genau zwei
-     Spalten → 2 und 2, kein 3+1-Umbruch. */
-  .stats-grid { display: grid; gap: 16px; grid-template-columns: 1fr; }
-  @media (min-width: 640px) { .stats-grid { grid-template-columns: 1fr 1fr; } }
-</style>
-<div class="settings-card" style="margin-bottom:20px">
-  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-    <h2 style="margin:0">Statistik</h2>
-    <select id="stats-zeitraum" onchange="statsLaden()" style="font-size:13px;padding:4px 8px">
-      <option value="7">letzte 7 Tage</option>
-      <option value="30" selected>letzte 30 Tage</option>
-      <option value="90">letzte 90 Tage</option>
-      <option value="360">letzte 360 Tage</option>
-    </select>
-  </div>
-  <div id="stats-gesamt" class="hint" style="font-size:13px;margin:8px 0 12px">Wird geladen …</div>
-  <div class="stats-grid">
-    <div>
-      <h3 style="font-size:14px;margin:0 0 6px">Top-Geräte <span class="hint" style="font-weight:400">(Quell-IP)</span></h3>
+    <!-- Einzelvorgänge hinter einer angeklickten Zahl (Mails/Fehler) -->
+    <div id="coex-vorgaenge" hidden style="margin-top:12px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap">
+        <strong id="coex-vorgaenge-titel" style="font-size:13px"></strong>
+        <button type="button" class="btn secondary btn-sm" onclick="coexVorgaengeZu()">Schließen</button>
+      </div>
+      <p id="coex-vorgaenge-hinweis" class="hint" style="margin:4px 0 8px"></p>
       <div class="tabellen-rollbereich">
-        <table class="config-table stats-eng" style="min-width:230px">
-          <thead><tr><th>Adresse</th><th style="text-align:right">Mails</th><th style="text-align:right">Volumen</th></tr></thead>
-          <tbody id="stats-geraete"><tr><td colspan="3" style="color:#888">—</td></tr></tbody>
+        <table class="config-table" style="min-width:640px">
+          <thead>
+            <tr><th>Zeit</th><th>Absender</th><th>Empfänger</th><th>Größe</th><th>Ergebnis</th></tr>
+          </thead>
+          <tbody id="coex-vorgaenge-body"></tbody>
         </table>
       </div>
     </div>
-    <div>
-      <h3 style="font-size:14px;margin:0 0 6px">Top-Identitäten <span class="hint" style="font-weight:400">(587)</span></h3>
-      <div class="tabellen-rollbereich">
-        <table class="config-table stats-eng" style="min-width:230px">
-          <thead><tr><th>Identität</th><th style="text-align:right">Mails</th><th style="text-align:right">Volumen</th></tr></thead>
-          <tbody id="stats-identitaeten"><tr><td colspan="3" style="color:#888">—</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div>
-      <h3 style="font-size:14px;margin:0 0 6px">Top-Absender</h3>
-      <div class="tabellen-rollbereich">
-        <table class="config-table stats-eng" style="min-width:230px">
-          <thead><tr><th>Absender</th><th style="text-align:right">Mails</th><th style="text-align:right">Volumen</th></tr></thead>
-          <tbody id="stats-absender"><tr><td colspan="3" style="color:#888">—</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-    <div>
-      <h3 style="font-size:14px;margin:0 0 6px">Top-Empfänger</h3>
-      <div class="tabellen-rollbereich">
-        <table class="config-table stats-eng" style="min-width:230px">
-          <thead><tr><th>Empfänger</th><th style="text-align:right">Mails</th><th style="text-align:right">Volumen</th></tr></thead>
-          <tbody id="stats-empfaenger"><tr><td colspan="3" style="color:#888">—</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ── Lernmodus ─────────────────────────────────────────────────────────── -->
-<div class="settings-card" style="margin-bottom:20px">
-  <h2 style="margin-top:0">Lernmodus
-    <span style="display:inline-block;font-size:10px;font-weight:700;color:#92400e;background:#fef3c7;border:1px solid #fcd34d;border-radius:4px;padding:1px 6px;margin-left:6px;vertical-align:middle">PREVIEW</span>
-  </h2>
-  <p style="font-size:13px;color:#555;margin:0 0 14px">
-    Wenn du nicht alle Geräte-Adressen kennst: Der Lernmodus gibt einen IP-Bereich
-    <strong>zeitlich befristet</strong> frei und trägt jedes Gerät, das darin gültig
-    einliefert, automatisch in die Geräteliste ein. Löse anschließend an jedem Gerät
-    einmal einen Testversand aus; Kommentar und Ansprechpartner kannst du später
-    ergänzen.
-  </p>
-
-  <div id="lern-aktiv" style="display:none;background:#fffbeb;border:1px solid #fde68a;
-       border-radius:8px;padding:12px 14px;margin-bottom:14px">
-    <div style="font-size:14px;color:#92400e;font-weight:700" id="lern-restzeit"></div>
-    <div style="font-size:12px;color:#92400e;margin-top:4px" id="lern-bereiche-aktiv"></div>
-    <button class="btn secondary" style="margin-top:10px" onclick="lernStoppen(this)">
-      Lernmodus jetzt beenden</button>
-  </div>
-
-  <div id="lern-formular">
-    <label for="lern-bereiche" style="font-size:12px;color:#555">Bereich</label>
-    <input type="text" id="lern-bereiche" style="width:100%;margin-top:3px"
-           placeholder="192.168.1.0/24  oder  172.16.16.10-172.16.17.20">
-    <p class="hint" style="margin:5px 0 0">
-      Ein Netz oder eine Spanne; mehrere durch Komma getrennt. Ausserhalb des
-      Zeitfensters lässt dieser Bereich <strong>nichts</strong> durch — er ist keine
-      Dauerfreigabe, sondern nur der Bereich, in dem gelernt werden darf.
-    </p>
-
-    <div style="display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;margin-top:12px">
-      <div>
-        <label for="lern-minuten" style="font-size:12px;color:#555">Dauer (Minuten)</label><br>
-        <input type="number" id="lern-minuten" min="1" max="120" value="15"
-               style="width:110px;margin-top:3px">
-      </div>
-      <label style="display:flex;gap:8px;align-items:center;cursor:pointer;padding-bottom:6px">
-        <input type="checkbox" id="lern-extern">
-        <span style="font-size:13px">Gelernte Geräte dürfen auch nach aussen senden</span>
-      </label>
-    </div>
-    <p class="hint" style="margin:5px 0 0">Höchstens 120 Minuten.</p>
-
-    <div id="lern-result" style="display:none;margin-top:12px"></div>
-    <div class="actions" style="margin-top:12px">
-      <button class="btn primary" onclick="lernStarten(this)">Lernmodus starten</button>
-    </div>
-  </div>
-</div>
-
-<!-- ── Geräte ────────────────────────────────────────────────────────────── -->
-<div class="settings-card" style="margin-bottom:20px">
-  <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
-    <h2 style="margin:0">Geräte</h2>
-    <span class="hint" id="geraete-anzahl"></span>
-    <button class="btn secondary btn-sm" style="margin-left:auto"
-            onclick="namenAufloesen(this)">Namen auflösen</button>
-  </div>
-  <div class="actions" style="margin:10px 0 0">
-    <button class="btn secondary" id="geraete-btn"
-            data-wache-container="#geraete-body"
-            data-wache-hinweis="geraete-result"
-            onclick="geraeteSpeichern()">Speichern</button>
-    <span id="geraete-result" style="font-size:12px;margin-left:8px"></span>
-  </div>
-  <p style="font-size:13px;color:#555;margin:10px 0 14px">
-    Nur die in der folgenden Liste eingetragenen Geräte dürfen Mails einliefern.
-    Das Sendeaufkommen je Gerät (Mails und Volumen) steht jetzt in der
-    <strong>Statistik</strong> oben unter <em>Top-Geräte</em>.
-  </p>
-  <p style="font-size:13px;color:#555;margin:0 0 14px">
-    Die Spalte <strong>TLS</strong> zeigt, ob die letzte Einlieferung verschlüsselt
-    war; <em>Klartext</em> bedeutet unverschlüsselt.
-    <br>
-    Bei Relay-Geräten ist das zulässig, weil ältere Drucker und Scanner kein
-    <code>STARTTLS</code> beherrschen. Das Gateway bietet TLS weiterhin an — Geräte,
-    die es können, nutzen es automatisch. Für die Verbindung zu Exchange bleibt TLS
-    Pflicht.
-  </p>
-
-  <div class="tabellen-rollbereich" id="geraete-scroll">
-    <table class="config-table" style="min-width:760px">
-      <thead>
-        <tr>
-          <th>Adresse</th><th>Name (DNS)</th><th style="min-width:240px">Kommentar</th>
-          <th>Ansprechpartner</th><th style="text-align:center">Extern</th>
-          <th style="text-align:center">TLS</th>
-          <th>Letzte Mail</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody id="geraete-body">
-        <tr><td colspan="8" style="color:#888">Wird geladen …</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <div style="border-top:1px solid #e2e8f0;margin-top:16px;padding-top:14px">
-    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
-      <div>
-        <label for="neu-ip" style="font-size:12px;color:#555">Gerät von Hand hinzufügen</label><br>
-        <input type="text" id="neu-ip" placeholder="10.1.5.7" style="margin-top:3px">
-      </div>
-      <input type="text" id="neu-kommentar" placeholder="Kopierer Empfang" style="flex:1;min-width:320px">
-      <button class="btn secondary" onclick="geraetHinzufuegen(this)">Hinzufügen</button>
-    </div>
-    <div id="neu-result" style="display:none;margin-top:10px"></div>
-  </div>
-</div>
-
-<!-- ── Abgewiesen ────────────────────────────────────────────────────────── -->
-<div class="settings-card" style="margin-bottom:20px">
-  <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
-    <h2 style="margin:0">Abgewiesen</h2>
-    <span class="hint" id="abgewiesen-anzahl"></span>
-    <button class="btn secondary btn-sm" style="margin-left:auto"
-            onclick="abweisungenLeeren(this)">Liste leeren</button>
-  </div>
-  <p style="font-size:13px;color:#555;margin:10px 0 14px">
-    Abgewiesene Einlieferungen. Meist ein noch nicht eingetragenes Gerät — dann
-    genügt <em>Übernehmen</em>. Steht die Adresse bereits in der Geräteliste, wurde
-    sie an der Absender- oder Zielbeschränkung abgewiesen; der Grund steht daneben.
-  </p>
-  <div class="tabellen-rollbereich">
-    <table class="config-table" style="min-width:700px">
-      <thead>
-        <tr>
-          <th>Adresse</th><th>Absender</th><th>An</th><th>Grund</th>
-          <th>Zuletzt</th><th style="text-align:right">Versuche</th><th></th>
-        </tr>
-      </thead>
-      <tbody id="abgewiesen-body">
-        <tr><td colspan="7" style="color:#888">Wird geladen …</td></tr>
-      </tbody>
-    </table>
-  </div>
-</div>
-
-<!-- ── Protokoll ─────────────────────────────────────────────────────────── -->
-<div class="settings-card">
-  <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
-    <h2 style="margin:0">Protokoll</h2>
-    <span class="hint" id="proto-info"></span>
-    <span style="margin-left:auto;display:flex;gap:6px">
-      <button class="btn secondary btn-sm" id="proto-prev" onclick="protokollBlaettern(-1)" disabled>‹ neuer</button>
-      <button class="btn secondary btn-sm" id="proto-next" onclick="protokollBlaettern(1)" disabled>älter ›</button>
-    </span>
-  </div>
-  <p style="font-size:13px;color:#555;margin:10px 0 14px">
-    Nur die über das Relay eingelieferte Post — zum Nachschlagen, ob eine
-    Nachricht hinausging, an wen und wann, und wie das Gateway sie behandelt hat.
-    <em>Abgewiesen</em> steht für eine an der Geräte-, Absender- oder Zielgrenze
-    zurückgewiesene Einlieferung; der Grund steht dann in der Betreffspalte.
-    Das übrige Mail-Protokoll — auch der Exchange-Weg — liegt im
-    <a href="/dashboard">Dashboard</a>.
-  </p>
-  <div class="tabellen-rollbereich" id="proto-scroll">
-    <table class="config-table" style="min-width:760px">
-      <thead>
-        <tr>
-          <th>Zeit</th><th>Quelle</th><th>Absender</th><th>An</th>
-          <th>Betreff</th><th>Aktion</th>
-        </tr>
-      </thead>
-      <tbody id="proto-body">
-        <tr><td colspan="6" style="color:#888">Wird geladen …</td></tr>
-      </tbody>
-    </table>
   </div>
 </div>
 
@@ -924,14 +951,86 @@ function zeichneCoexStats(st) {
     const tr = document.createElement('tr');
     tr.innerHTML =
       '<td><code>' + esc(z.ziel) + '</code></td>'
-      + '<td>' + (z.anzahl || 0) + '</td>'
+      + '<td>' + (z.anzahl
+          ? '<button type="button" class="zahl-knopf" aria-expanded="false" data-ziel="'
+            + escAttr(z.ziel) + '" data-nur-fehler="0">' + z.anzahl + '</button>'
+          : '0') + '</td>'
       + '<td style="white-space:nowrap">' + _volumen(z.bytes || 0) + '</td>'
       + '<td>' + (z.fehler
-          ? '<span style="color:#991b1b">' + z.fehler + '</span>'
+          ? '<button type="button" class="zahl-knopf" data-fehler="1" aria-expanded="false" data-ziel="'
+            + escAttr(z.ziel) + '" data-nur-fehler="1">' + z.fehler + '</button>'
           : '<span style="color:#94a3b8">0</span>') + '</td>'
       + '<td style="font-size:12px;color:#555;white-space:nowrap">' + zuletzt + '</td>';
     tb.appendChild(tr);
   });
+  tb.querySelectorAll('.zahl-knopf').forEach(function (k) {
+    k.addEventListener('click', function () { coexVorgaengeZeigen(k); });
+  });
+}
+
+function coexVorgaengeZu() {
+  document.getElementById('coex-vorgaenge').hidden = true;
+  document.querySelectorAll('#coex-fluss-body .zahl-knopf').forEach(function (k) {
+    k.setAttribute('aria-expanded', 'false');
+  });
+}
+
+async function coexVorgaengeZeigen(knopf) {
+  // Zweiter Klick auf dieselbe Zahl klappt wieder zu.
+  if (knopf.getAttribute('aria-expanded') === 'true') { coexVorgaengeZu(); return; }
+  coexVorgaengeZu();
+  knopf.setAttribute('aria-expanded', 'true');
+  const ziel = knopf.dataset.ziel, nurFehler = knopf.dataset.nurFehler === '1';
+  const box = document.getElementById('coex-vorgaenge');
+  const tb = document.getElementById('coex-vorgaenge-body');
+  const hinweis = document.getElementById('coex-vorgaenge-hinweis');
+  document.getElementById('coex-vorgaenge-titel').textContent =
+    (nurFehler ? 'Fehlgeschlagene Zustellungen an ' : 'Zustellungen an ') + ziel;
+  tb.innerHTML = '<tr><td colspan="5" style="color:#888">Wird geladen …</td></tr>';
+  hinweis.textContent = '';
+  box.hidden = false;
+  // Eigener Abruf statt postJSONGet: jener schreibt Fehler in die Gerätetabelle.
+  let r;
+  try {
+    const res = await fetch('/api/relay/routing-ereignisse?ziel='
+      + encodeURIComponent(ziel) + (nurFehler ? '&fehler=1' : ''));
+    r = res.ok ? await res.json() : { ok: false, detail: 'HTTP ' + res.status };
+  } catch (e) { r = { ok: false, detail: String(e) }; }
+  if (!r.ok) {
+    tb.innerHTML = '<tr><td colspan="5" style="color:#991b1b">'
+      + esc(r.detail || r.error || 'Konnte nicht geladen werden.') + '</td></tr>';
+    return;
+  }
+  const liste = r.ereignisse || [];
+  const seit = r.seit ? new Date(r.seit).toLocaleString('de-DE',
+      { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '';
+  // Die Tagessummen reichen weiter zurück als die Einzelvorgänge — das sagen,
+  // statt eine kürzere Liste kommentarlos neben eine grössere Zahl zu stellen.
+  hinweis.textContent = (seit
+      ? 'Einzelheiten werden seit ' + seit + ' festgehalten; ältere Vorgänge zählen nur in den Summen oben.'
+      : 'Einzelheiten werden erst ab jetzt festgehalten; die bisherigen Vorgänge zählen nur in den Summen oben.')
+    + ' Gleiche Kennung = dieselbe Mail, erneut versucht.'
+    + (r.gekuerzt ? ' Gezeigt werden die neuesten 500.' : '');
+  if (!liste.length) {
+    tb.innerHTML = '<tr><td colspan="5" style="color:#888">Keine Einzelvorgänge im Zeitraum.</td></tr>';
+    return;
+  }
+  tb.innerHTML = liste.map(function (e) {
+    const zeit = new Date(e.zeit).toLocaleString('de-DE',
+      { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' });
+    const ergebnis = e.ok
+      ? '<span style="color:#166534">zugestellt</span>'
+      : '<span style="color:#991b1b">' + esc(e.fehler || 'Fehler') + '</span>';
+    const kennung = e.kennung
+      ? '<br><span class="hint">Mail ' + esc(e.kennung) + (e.versuch > 1 ? ' · Versuch ' + e.versuch : '') + '</span>'
+      : '';
+    return '<tr>'
+      + '<td style="white-space:nowrap;font-size:12px">' + zeit + kennung + '</td>'
+      + '<td><code>' + esc(e.absender || '—') + '</code></td>'
+      + '<td><code>' + esc(e.empfaenger || '—') + '</code></td>'
+      + '<td style="white-space:nowrap">' + _volumen(e.bytes || 0) + '</td>'
+      + '<td style="font-size:12px">' + ergebnis + '</td></tr>';
+  }).join('');
 }
 
 function _starkesPasswort(n) {

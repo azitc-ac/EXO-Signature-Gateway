@@ -119,8 +119,9 @@ def test_relay_tabellen_nutzen_den_gemeinsamen_rollbereich():
     # (v1.9.19), Top-Identitäten (v1.9.5), Top-Absender, Top-Empfänger (v1.8.113),
     # das Relay-Protokoll (v1.8.114), die zwei Routing-Tabellen (v1.9.42:
     # Weiterleitungsziele + Domäne→Ziel) und die Koexistenz-Fluss-Tabelle
-    # (v1.9.51: durch das Gateway geroutete Hybrid-Post).
-    assert text.count('class="tabellen-rollbereich"') == 11
+    # (v1.9.51: durch das Gateway geroutete Hybrid-Post), dazu deren
+    # Einzelvorgänge hinter den anklickbaren Zahlen (v1.9.152).
+    assert text.count('class="tabellen-rollbereich"') == 12
     assert "overflow-x:auto" not in text, (
         "Der Rollbereich ist mit Inline-CSS nachgebaut statt die vorhandene "
         "Klasse zu nutzen.")
@@ -128,7 +129,7 @@ def test_relay_tabellen_nutzen_den_gemeinsamen_rollbereich():
     # (Statistik-Top-Listen, v1.9.22) — die gemeinsame Basisklasse bleibt.
     plain = text.count('class="config-table"')
     eng = text.count('class="config-table stats-eng"')
-    assert plain + eng == 11, (
+    assert plain + eng == 12, (
         "Die Tabellen brauchen die gemeinsame Tabellenklasse — sonst fehlen "
         "Rahmen, Zeilentrenner und die Dark-Mode-Abdeckung.")
     assert eng == 4, "Die vier Statistik-Top-Listen tragen den stats-eng-Modifier."

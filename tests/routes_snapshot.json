@@ -882,6 +882,13 @@
     "name": "api_relay_route"
   },
   {
+    "pfad": "/api/relay/routing-ereignisse",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_relay_routing_ereignisse"
+  },
+  {
     "pfad": "/api/relay/stats",
     "methoden": [
       "GET"
