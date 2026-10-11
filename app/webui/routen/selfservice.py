@@ -144,16 +144,15 @@ async def _render_oof_fuer(email: str, oof_tpl: str, status: str, start: str, en
         return "", "", ""
     user_data = await graph_client.get_user(email)
     synth = _synth_setting(status or "scheduled", start, ende, start_zeit, ende_zeit)
-    _ab, _bis = abwesenheit.start_ende_text(synth)
-    z = abwesenheit.zeitraum_text(synth)
+    z = abwesenheit.zeitraum(synth)
     _key, cfg = _postfach(email)
     if announce is not None:
         cfg = dict(cfg)
         _ankuendigung_ins_eintrag(cfg, announce)
     html, html_extern = await abwesenheit.render_intern_extern(
-        user_data, email, token, oof_tpl, cfg, abwesenheit._state(), z, _ab, _bis,
-        mit_anhang=mit_anhang)
-    _h, txt = abwesenheit.render_oof(user_data, oof_tpl, z, _ab, _bis)
+        user_data, email, token, oof_tpl, cfg, abwesenheit._state(), z.de, z.ab, z.bis,
+        mit_anhang=mit_anhang, period=z.en)
+    _h, txt = abwesenheit.render_oof(user_data, oof_tpl, z.de, z.ab, z.bis, period=z.en)
     return html, html_extern, txt
 
 
@@ -299,6 +298,11 @@ async def self_save(request: Request, email: str = Depends(_require_self)):
     ende_zeit = "" if ganztaegig else (body.get("ende_zeit") or "").strip()
     if status not in ("disabled", "alwaysEnabled", "scheduled"):
         raise HTTPException(400, "Ungültiger Status")
+    # Vor JEDEM Schreiben prüfen — sonst stünde die Vorlagenwahl schon in der
+    # Konfiguration, während die Abwesenheit abgelehnt wird.
+    _fehler = abwesenheit.zeitraum_fehler(_synth_setting(status, start, ende, start_zeit, ende_zeit))
+    if _fehler:
+        raise HTTPException(400, _fehler)
 
     # 1) Postfach-eigene Einstellungen schreiben — in EINEM Schreibvorgang:
     #    (a) Vorlagenwahl NUR, wenn für dieses Postfach freigeschaltet (Standard:

@@ -261,3 +261,55 @@ def test_speichern_ohne_freischaltung_verweigert(monkeypatch):
     with pytest.raises(HTTPException) as e:
         asyncio.run(selfservice.self_save({}, email="erika@example.org"))
     assert e.value.status_code == 403
+
+
+class _JsonReq:
+    def __init__(self, body):
+        self._b = body
+
+    async def json(self):
+        return self._b
+
+
+def test_speichern_lehnt_ende_vor_beginn_ab_ohne_zu_schreiben(monkeypatch):
+    """Testlauf 11.10.2026: „von 11.10. bis 09.10." wurde angenommen. Jetzt
+    400, bevor die Konfiguration geschrieben wird (sonst stünde die
+    Vorlagenwahl schon drin, während die Abwesenheit abgelehnt wird)."""
+    import asyncio
+    from fastapi import HTTPException
+    from webui.routen import selfservice
+    geschrieben = []
+    monkeypatch.setattr(settings_store, "get",
+                        lambda k, d=None: True if k == "SELF_SERVICE_ENABLED"
+                        else ("UTC" if k == "LOG_TIMEZONE" else d))
+    monkeypatch.setattr(settings_store, "update", lambda d: geschrieben.append(d))
+    body = {"oof_status": "scheduled", "oof_start": "2026-10-11", "oof_ende": "2026-10-09"}
+    with pytest.raises(HTTPException) as e:
+        asyncio.run(selfservice.self_save(_JsonReq(body), email="erika@example.org"))
+    assert e.value.status_code == 400 and "Ende" in e.value.detail
+    assert geschrieben == []
+    # Gleicher Tag, Ende vor Beginn (Uhrzeit)
+    body = {"oof_status": "scheduled", "oof_start": "2026-10-11", "oof_ende": "2026-10-11",
+            "ganztaegig": False, "start_zeit": "12:00", "ende_zeit": "09:00"}
+    with pytest.raises(HTTPException):
+        asyncio.run(selfservice.self_save(_JsonReq(body), email="erika@example.org"))
+
+
+def test_zeitraum_fehler_regeln():
+    import abwesenheit
+    s = abwesenheit.synth_setting
+    assert abwesenheit.zeitraum_fehler(s("scheduled", "2026-10-11", "2026-10-09"))
+    assert abwesenheit.zeitraum_fehler(s("scheduled", "2026-10-11", "2026-10-11", "12:00", "12:00"))
+    assert not abwesenheit.zeitraum_fehler(s("scheduled", "2026-10-11", "2026-10-11"))
+    assert not abwesenheit.zeitraum_fehler(s("scheduled", "2026-10-11", ""))
+    assert not abwesenheit.zeitraum_fehler(s("disabled", "2026-10-11", "2026-10-09"))
+
+
+def test_seite_prueft_vor_dem_speichern_und_hat_ein_zeitlimit():
+    from pathlib import Path
+    html = (Path(__file__).resolve().parent.parent / "app/webui/templates/self.html").read_text(encoding="utf-8")
+    speichern = html.split("async function speichern()", 1)[1].split("\n  }\n", 1)[0]
+    assert "if (pruefeZeitraum()) return;" in speichern
+    assert "AbortController" in speichern and "signal: abbruch.signal" in speichern
+    assert "gespeichertText(status)" in speichern
+    assert "Abwesenheit und Signatur sind gesetzt" not in html

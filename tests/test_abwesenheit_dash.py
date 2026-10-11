@@ -51,7 +51,7 @@ def _mock(monkeypatch, store, patched):
     async def fake_user(email):
         return UserData(displayName="A", custom={})
 
-    async def fake_render(user, upn, token, tpl, cfg, state, z, ab="", bis=""):
+    async def fake_render(user, upn, token, tpl, cfg, state, z, ab="", bis="", **kw):
         return ("<p>OOF</p>", "<p>OOF</p>")
 
     monkeypatch.setattr(graph_client, "_acquire_token_async", fake_token)
@@ -102,3 +102,20 @@ def test_admin_fremdes_postfach_404(monkeypatch):
     with pytest.raises(HTTPException) as exc:
         _run(dash.api_abwesenheit_postfach_setzen(_Req(body)))
     assert exc.value.status_code == 404
+
+
+def test_admin_lehnt_ende_vor_beginn_ab_ohne_zu_schreiben(monkeypatch):
+    """Gemeinsame Regel mit /self (abwesenheit.zeitraum_fehler): abgelehnt,
+    bevor Konfiguration oder Exchange angefasst werden."""
+    from fastapi import HTTPException
+    store = {"MAILBOX_CONFIG": {k: dict(v) for k, v in _MB.items()}}
+    vorher = {k: dict(v) for k, v in store["MAILBOX_CONFIG"].items()}
+    patched: dict = {}
+    _mock(monkeypatch, store, patched)
+    body = {"email": "a@x.de", "oof_status": "scheduled",
+            "oof_start": "2026-11-05", "oof_ende": "2026-11-01", "ganztaegig": True,
+            "ooo_calendar": "1", "announce": {"an": True}}
+    with pytest.raises(HTTPException) as e:
+        _run(dash.api_abwesenheit_postfach_setzen(_Req(body)))
+    assert e.value.status_code == 400 and "Ende" in e.value.detail
+    assert patched == {} and store["MAILBOX_CONFIG"] == vorher

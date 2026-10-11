@@ -37,6 +37,7 @@ import asyncio
 import html as _html
 import logging
 import re
+from dataclasses import dataclass
 from datetime import datetime
 
 import httpx
@@ -130,35 +131,83 @@ def _lokal_datum(wert: dict | None) -> datetime | None:
     return aware.astimezone(ziel).replace(tzinfo=None)
 
 
-def zeitraum_text(setting: dict) -> str:
-    """Menschlicher Zeitraum aus dem OOF-Setting, oder "" wenn ohne Zeitplan.
+@dataclass(frozen=True)
+class Zeitraum:
+    """Ein Abwesenheitsfenster in Worten: `de` für {{ oof.zeitraum }}, `en` für
+    {{ oof.period }}, `ab`/`bis` als reine Daten (TT.MM.JJJJ) für
+    {{ oof.abwesend_ab }}/{{ oof.abwesend_bis }}. Alles leer ohne Zeitplan."""
+    de: str = ""
+    en: str = ""
+    ab: str = ""
+    bis: str = ""
 
-    Nur bei `status == "scheduled"` gibt es Start/Ende; bei `alwaysEnabled`
-    (unbefristet) bleibt der Zeitraum leer — die Vorlage muss das aushalten.
+
+def _zeitraum_aus(start: datetime | None, ende: datetime | None) -> Zeitraum:
+    """EINE Stelle, die aus Start/Ende (lokal, naiv) den Text baut — für die
+    native Abwesenheit, Kalendertermine, die Ankündigung, Self-Service und Admin.
+
+    Zwei Regeln, beide aus dem Testlauf vom 11.10.2026:
+
+    * **Uhrzeit nennen, wo der Tag nicht ganz gemeint ist.** Bis v1.9.140 stand
+      bei 01:30–12:00 „am 11.10.2026 abwesend" — wer um 13:00 schrieb, las
+      etwas Falsches. Ganztägig heißt: Beginn 00:00, Ende 23:59.
+    * **Ende um 00:00 ist das Ende des Vortags.** So enden ganztägige
+      Kalendertermine und viele Outlook-Abwesenheiten. Ohne die Regel hieß ein
+      eintägiger Termin am 10.10. „vom 10.10. bis 11.10.".
     """
+    from datetime import timedelta
+    if (ende is not None and (ende.hour, ende.minute) == (0, 0)
+            and (start is None or ende.date() > start.date())):
+        ende = ende - timedelta(minutes=1)
+    zs = f"{start:%H:%M}" if start and (start.hour, start.minute) != (0, 0) else ""
+    ze = (f"{ende:%H:%M}" if ende and (ende.hour, ende.minute) not in ((23, 59), (0, 0))
+          else "")      # 00:00 hier nur noch bei leerem Fenster (Start = Ende) → ganztägig
+    ab = f"{start:%d.%m.%Y}" if start else ""
+    bis = f"{ende:%d.%m.%Y}" if ende else ""
+    if ab and ab == bis:
+        if zs and ze:
+            return Zeitraum(f"am {ab} von {zs} bis {ze} Uhr", f"on {ab} from {zs} to {ze}", ab, bis)
+        if zs:
+            return Zeitraum(f"am {ab} ab {zs} Uhr", f"on {ab} from {zs}", ab, bis)
+        if ze:
+            return Zeitraum(f"am {ab} bis {ze} Uhr", f"on {ab} until {ze}", ab, bis)
+        return Zeitraum(f"am {ab}", f"on {ab}", ab, bis)
+
+    def de(d: str, z: str) -> str:
+        return f"{d}, {z} Uhr" if z else d
+
+    def en(d: str, z: str) -> str:
+        return f"{d}, {z}" if z else d
+    if ab and bis:
+        return Zeitraum(f"vom {de(ab, zs)} bis {de(bis, ze)}",
+                        f"from {en(ab, zs)} to {en(bis, ze)}", ab, bis)
+    if bis:
+        return Zeitraum(f"bis {de(bis, ze)}", f"until {en(bis, ze)}", ab, bis)
+    if ab:
+        return Zeitraum(f"ab {de(ab, zs)}", f"from {en(ab, zs)}", ab, bis)
+    return Zeitraum()
+
+
+def zeitraum(setting: dict) -> Zeitraum:
+    """Zeitraum aus einem automaticRepliesSetting. Nur bei `status == "scheduled"`
+    gibt es Start/Ende; bei `alwaysEnabled` (unbefristet) bleibt alles leer —
+    die Vorlage muss das aushalten."""
     if setting.get("status") != "scheduled":
-        return ""
-    start = _lokal_datum(setting.get("scheduledStartDateTime"))
-    ende = _lokal_datum(setting.get("scheduledEndDateTime"))
-    if start and ende:
-        if start.date() == ende.date():
-            return f"am {start:%d.%m.%Y}"          # Ein-Tages-Abwesenheit
-        return f"vom {start:%d.%m.%Y} bis {ende:%d.%m.%Y}"
-    if ende:
-        return f"bis {ende:%d.%m.%Y}"
-    if start:
-        return f"ab {start:%d.%m.%Y}"
-    return ""
+        return Zeitraum()
+    return _zeitraum_aus(_lokal_datum(setting.get("scheduledStartDateTime")),
+                         _lokal_datum(setting.get("scheduledEndDateTime")))
+
+
+def zeitraum_text(setting: dict) -> str:
+    """Deutscher Zeitraum aus dem OOF-Setting, oder "" ohne Zeitplan."""
+    return zeitraum(setting).de
 
 
 def start_ende_text(setting: dict) -> tuple[str, str]:
     """(ab, bis) als einzelne Datumsstrings (TT.MM.JJJJ) für die Platzhalter
     `{abwesend_ab}`/`{abwesend_bis}`. Leer, wenn ohne Zeitplan."""
-    if setting.get("status") != "scheduled":
-        return "", ""
-    start = _lokal_datum(setting.get("scheduledStartDateTime"))
-    ende = _lokal_datum(setting.get("scheduledEndDateTime"))
-    return (f"{start:%d.%m.%Y}" if start else ""), (f"{ende:%d.%m.%Y}" if ende else "")
+    z = zeitraum(setting)
+    return z.ab, z.bis
 
 
 # ── Zeitraum-Eingabe ↔ Graph-Setting (geteilt von Self-Service UND Admin) ──────
@@ -192,6 +241,21 @@ def synth_setting(status: str, start: str, ende: str,
         if ende:
             s["scheduledEndDateTime"] = als_utc(ende, f"{ende_zeit}:00" if ende_zeit else "23:59:59")
     return s
+
+
+def zeitraum_fehler(setting: dict) -> str:
+    """Warum dieser Zeitplan nicht gespeichert werden darf, oder "".
+
+    EINE Prüfung für Self-Service und Admin-Dashboard. Bis v1.9.140 nahm /self
+    „bis 09.10. — von 11.10." ohne Widerspruch an, und die Vorschau zeigte
+    „vom 11.10.2026 bis 09.10.2026 abwesend" (Testlauf 11.10.2026)."""
+    if setting.get("status") != "scheduled":
+        return ""
+    start = _dt(setting.get("scheduledStartDateTime"))
+    ende = _dt(setting.get("scheduledEndDateTime"))
+    if start and ende and ende <= start:
+        return "Das Ende der Abwesenheit liegt nicht nach ihrem Beginn."
+    return ""
 
 
 def datum_zeit(d: dict | None) -> tuple[str, str]:
@@ -285,7 +349,8 @@ def _period_en(ab: str, bis: str) -> str:
 def render_oof(user_data, template_name: str, zeitraum: str,
                ab: str = "", bis: str = "",
                anhang_html: str = "", anhang_txt: str = "",
-               ankuendigung: str = "", announcement: str = "") -> tuple[str, str]:
+               ankuendigung: str = "", announcement: str = "",
+               period: str | None = None) -> tuple[str, str]:
     """(html, txt) der Abwesenheitsnotiz aus der oof-Vorlage.
 
     Die Vorlage kennt alle Signatur-Variablen (`{{ user.x }}`, `{{ custom.x }}`).
@@ -306,7 +371,10 @@ def render_oof(user_data, template_name: str, zeitraum: str,
     _oof_anhang) — nach dem oof-Text, wie bei normaler Mail.
     """
     name = getattr(user_data, "displayName", "") or ""
-    period = _period_en(ab, bis)
+    # `period` kommt aus Zeitraum.en (mit Uhrzeit). Nur wer ohne ruft — die
+    # Vorlagen-Vorschau mit Beispieldaten —, bekommt die reine Datumsfassung.
+    if period is None:
+        period = _period_en(ab, bis)
     # oof-Namensraum (bevorzugt) + alte unpräfixierte Form (Bestandsvorlagen wie
     # Testoof nutzen {{ zeitraum }}) — beide als echte Template-Variablen.
     oof_ns = {"name": name, "zeitraum": zeitraum, "period": period,
@@ -424,21 +492,11 @@ async def _patch_setting(upn: str, token: str, setting: dict, html: str,
 _LOOKAHEAD_TAGE = 120   # so weit vorausschauen für „Abwesend"-Kalendertermine
 
 
-def _fenster_texte(start_raw: dict, end_raw: dict) -> tuple[str, str, str]:
-    """(zeitraum, ab, bis) aus den Roh-Datumsangaben eines Kalendertermins —
-    in lokaler Anzeigezeit (Kalenderfenster kommt in UTC)."""
-    s, e = _lokal_datum(start_raw), _lokal_datum(end_raw)
-    ab = f"{s:%d.%m.%Y}" if s else ""
-    bis = f"{e:%d.%m.%Y}" if e else ""
-    if ab and bis:
-        zeitraum = f"am {ab}" if ab == bis else f"vom {ab} bis {bis}"   # Ein-Tages-Fall
-    elif bis:
-        zeitraum = f"bis {bis}"
-    elif ab:
-        zeitraum = f"ab {ab}"
-    else:
-        zeitraum = ""
-    return zeitraum, ab, bis
+def _fenster_texte(start_raw: dict, end_raw: dict) -> Zeitraum:
+    """Zeitraum aus den Roh-Datumsangaben eines Kalendertermins — in lokaler
+    Anzeigezeit (Kalenderfenster kommt in UTC). Derselbe Text wie für die
+    native Abwesenheit (_zeitraum_aus)."""
+    return _zeitraum_aus(_lokal_datum(start_raw), _lokal_datum(end_raw))
 
 
 async def _kalender_oof_events(upn: str, token: str) -> list[dict]:
@@ -655,13 +713,10 @@ def _ankuendigung_formatieren(auswahl: list[dict], sprache: str) -> str:
     Datumsformat wie überall (TT.MM.JJJJ); nur die Bindewörter sind sprachabhängig."""
     teile: list[str] = []
     for ev in auswahl:
-        _z, ab, bis = _fenster_texte(ev.get("start"), ev.get("end"))
-        if not ab and not bis:
+        z = _fenster_texte(ev.get("start"), ev.get("end"))
+        if not z.ab and not z.bis:
             continue
-        if sprache == "en":
-            teile.append(_period_en(ab, bis))
-        else:
-            teile.append(_z)
+        teile.append(z.en if sprache == "en" else z.de)
     teile = [t for t in teile if t]
     if not teile:
         return ""
@@ -689,7 +744,8 @@ async def ankuendigung_fuer_render(upn: str, token: str, template_name: str,
 async def render_intern_extern(user_data, upn: str, token: str, template: str,
                                sender_cfg: dict, state: dict, zeitraum: str,
                                ab: str = "", bis: str = "",
-                               mit_anhang: bool = True, sender: str = "") -> tuple[str, str]:
+                               mit_anhang: bool = True, sender: str = "",
+                               period: str | None = None) -> tuple[str, str]:
     """(html_intern, html_extern) der Abwesenheit inkl. Ankündigung und — nach
     OOO_APPEND_SIGNATURE/OOO_APPEND_BANNER — Signatur und Banner darunter.
 
@@ -711,10 +767,10 @@ async def render_intern_extern(user_data, upn: str, token: str, template: str,
             user_data, sender or upn, settings_store.get("MAILBOX_CONFIG") or {}, sender_cfg)
     ank_de, ank_en = await ankuendigung_fuer_render(upn, token, template, sender_cfg, state)
     html = render_oof(user_data, template, zeitraum, ab, bis,
-                      anhang_html, anhang_txt, ank_de, ank_en)[0]
+                      anhang_html, anhang_txt, ank_de, ank_en, period=period)[0]
     if (ank_de or ank_en) and not _ankuendigung_einstellungen(sender_cfg)["extern"]:
         html_extern = render_oof(user_data, template, zeitraum, ab, bis,
-                                 anhang_html, anhang_txt)[0]
+                                 anhang_html, anhang_txt, period=period)[0]
     else:
         html_extern = html
     return html, html_extern
@@ -743,7 +799,7 @@ async def setze_fuer_postfach(upn: str, sender: str, mailbox_cfg: dict,
     # ausgeschaltete Abwesenheit bleibt ausgeschaltet, es wird nichts versendet.
     # zeitraum_text() liefert bei ausgeschalteter/unbefristeter Abwesenheit "".
     user_data = await graph_client.get_user(upn)
-    _z, _ab, _bis = zeitraum_text(setting), *start_ende_text(setting)
+    z = zeitraum(setting)
 
     # merk MUSS mit state verknüpft sein: kalender_fenster() legt den Cache unter
     # state[upn]["kal"] ab. Wäre merk eine lose Kopie, ginge dieser Cache verloren.
@@ -768,13 +824,13 @@ async def setze_fuer_postfach(upn: str, sender: str, mailbox_cfg: dict,
             if auto_win != win_key:
                 setze_status, setze_start, setze_ende = "scheduled", fenster[0], fenster[1]
                 auto_win = win_key
-                _z, _ab, _bis = _fenster_texte(fenster[0], fenster[1])
+                z = _fenster_texte(fenster[0], fenster[1])
 
     # Intern/extern getrennt rendern (Ankündigung ggf. nur intern) — gemeinsamer Weg
     # mit dem Self-Service, damit beide denselben Text erzeugen.
     html, html_extern = await render_intern_extern(
-        user_data, upn, token, template, sender_cfg, state, _z, _ab, _bis,
-        sender=sender)
+        user_data, upn, token, template, sender_cfg, state, z.de, z.ab, z.bis,
+        sender=sender, period=z.en)
 
     # Neu setzen, wenn EINES zutrifft:
     #  (a) UNSER gerenderter Text hat sich geändert (Vorlage/Signatur/Variable/

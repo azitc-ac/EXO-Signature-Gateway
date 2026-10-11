@@ -70,6 +70,7 @@
           <div><label for="bis">Bis</label><input type="date" id="bis"></div>
           <div id="bis-zeit-box" hidden><label for="bis-zeit">Uhrzeit</label><select id="bis-zeit"></select></div>
         </div>
+        <div id="zeitraum-hinweis" class="hinweis err" style="margin:10px 0 0" role="alert" hidden></div>
       </div>
       <div id="oof-tpl-block">
         <label for="oof-sel">Vorlage der Abwesenheitsnotiz</label>
@@ -123,7 +124,7 @@
     <!-- Vorschau -->
     <div class="karte">
       <h2>Vorschau</h2>
-      <p class="sub" style="margin-top:-6px">So sieht es beim Empfänger aus (Zeitraum-Angaben nach deiner Wahl).</p>
+      <p class="sub" id="vorschau-hinweis" style="margin-top:-6px">So sieht es beim Empfänger aus (Zeitraum-Angaben nach deiner Wahl).</p>
       <div class="vorschau" id="vorschau"></div>
     </div>
 
@@ -323,7 +324,31 @@
     return p;
   }
 
+  // „Bis" vor „Von" — dieselbe Regel prüft der Server (abwesenheit.zeitraum_fehler);
+  // hier nur, damit man es VOR dem Speichern sieht. Leere Felder sind kein Fehler.
+  function zeitraumFehler() {
+    if (statusWert() !== 'scheduled') return '';
+    var von = el('von').value, bis = el('bis').value;
+    if (!von || !bis) return '';
+    var ganz = el('ganztaegig').checked;
+    var a = von + 'T' + (ganz ? '00:00' : el('von-zeit').value);
+    var b = bis + 'T' + (ganz ? '23:59' : el('bis-zeit').value);
+    return b <= a ? 'Das Ende der Abwesenheit liegt nicht nach ihrem Beginn.' : '';
+  }
+  function pruefeZeitraum() {
+    var f = zeitraumFehler();
+    el('zeitraum-hinweis').textContent = f;
+    el('zeitraum-hinweis').hidden = !f;
+    if (ctx && ctx.freigeschaltet) el('speichern').disabled = !!f;
+    // Die Vorschau zeigt den Text auch bei „Aus" — dann als „so sähe es aus".
+    el('vorschau-hinweis').textContent = statusWert() === 'disabled'
+      ? 'Deine Abwesenheit ist aus. So sähe die Antwort aus, wenn du sie einschaltest:'
+      : 'So sieht es beim Empfänger aus (Zeitraum-Angaben nach deiner Wahl).';
+    return f;
+  }
+
   function vorschau() {
+    pruefeZeitraum();
     clearTimeout(previewTimer);
     previewTimer = setTimeout(async function () {
       var p = new URLSearchParams(ankParams(zeitParams({
@@ -341,15 +366,32 @@
     }, 250);
   }
 
+  // Was nach dem Speichern gilt — die Meldung muss den gespeicherten Zustand
+  // nennen. Bis v1.9.140 hieß es auch beim Ausschalten „Abwesenheit … gesetzt".
+  function gespeichertText(status) {
+    if (ctx.abwesenheit_aktiv === false) return '✓ Gespeichert. Deine Signatur ist gesetzt.';
+    var t = { disabled: 'Deine Abwesenheit ist aus.',
+              alwaysEnabled: 'Deine Abwesenheit ist eingeschaltet (ohne Enddatum).',
+              scheduled: 'Deine Abwesenheit ist für den gewählten Zeitraum eingeplant.' }[status] || '';
+    return '✓ Gespeichert. ' + t;
+  }
+
   async function speichern() {
+    if (pruefeZeitraum()) return;
     var btn = el('speichern'); btn.disabled = true; var alt = btn.textContent; btn.textContent = 'Speichert…';
     el('speicher-hinweis').hidden = true;
+    var status = statusWert();
+    // Zeitlimit: Ohne es blieb der Knopf bei einer hängenden Verbindung für immer
+    // auf „Speichert…" stehen, ohne jeden Hinweis (Testlauf 11.10.2026).
+    var abbruch = new AbortController();
+    var uhr = setTimeout(function () { abbruch.abort(); }, 30000);
     try {
       var r = await api('/api/self/save', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
+        signal: abbruch.signal,
         body: JSON.stringify({
           wahl: wahlObj(),
-          oof_status: statusWert(), oof_start: el('von').value, oof_ende: el('bis').value,
+          oof_status: status, oof_start: el('von').value, oof_ende: el('bis').value,
           ganztaegig: el('ganztaegig').checked,
           start_zeit: el('von-zeit').value, ende_zeit: el('bis-zeit').value,
           announce: ankObj(),
@@ -358,17 +400,18 @@
       var d = await r.json().catch(function () { return {}; });
       if (r.ok && d.ok) {
         el('speicher-hinweis').className = 'hinweis ok';
-        el('speicher-hinweis').textContent = ctx.abwesenheit_aktiv === false
-          ? '✓ Gespeichert. Deine Signatur ist gesetzt.'
-          : '✓ Gespeichert. Deine Abwesenheit und Signatur sind gesetzt.';
+        el('speicher-hinweis').textContent = gespeichertText(status);
       } else {
         el('speicher-hinweis').className = 'hinweis err';
         el('speicher-hinweis').textContent = '✗ ' + (d.detail || ('Fehler ' + r.status));
       }
     } catch (e) {
       el('speicher-hinweis').className = 'hinweis err';
-      el('speicher-hinweis').textContent = '✗ ' + e.message;
+      el('speicher-hinweis').textContent = e.name === 'AbortError'
+        ? '✗ Keine Antwort nach 30 Sekunden. Bitte lade die Seite neu und prüfe, was gespeichert ist.'
+        : '✗ ' + e.message;
     }
+    clearTimeout(uhr);
     el('speicher-hinweis').hidden = false;
     btn.disabled = false; btn.textContent = alt;
   }

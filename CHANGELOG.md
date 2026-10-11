@@ -5,6 +5,39 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.141 — 2026-10-11 — Abwesenheit: Zeitraum mit Uhrzeit, richtiges Ende, Prüfung von „bis“ vor „von“
+
+**Uhrzeit im Zeitraum.** War eine Abwesenheit nicht ganztägig, nannte der Text
+nur das Datum. Bei einer Abwesenheit von 01:30 bis 12:00 Uhr hieß es „Ich bin
+am 11.10.2026 abwesend“, und wer um 13:00 schrieb, las etwas Falsches. Jetzt
+steht die Uhrzeit dabei, wo der Tag nicht ganz gemeint ist: „am 11.10.2026 von
+01:30 bis 12:00 Uhr“, „vom 10.10.2026, 14:00 Uhr bis 13.10.2026“. Die
+englische Fassung (`{{ oof.period }}`) folgt genauso: „on 11.10.2026 from
+01:30 to 12:00“.
+
+**Ende um 00:00 ist das Ende des Vortags.** So enden ganztägige
+Kalendertermine und viele in Outlook gesetzte Abwesenheiten. Der Text nannte
+bisher den Folgetag: Ein ganztägiger Termin am 10.10. hieß „vom 10.10. bis
+11.10.“, eine Woche bis einschließlich Freitag „bis Samstag“. Das betraf die
+Abwesenheitsnotiz, die Kalender-Automatik und die Ankündigung kommender
+Abwesenheiten. Die Platzhalter `{{ oof.abwesend_bis }}` nennen jetzt ebenfalls
+den letzten Abwesenheitstag.
+
+Den Text erzeugt jetzt eine einzige Stelle für alle Wege: Abgleich,
+Kalender-Automatik, Ankündigung, Self-Service und Admin-Dashboard.
+
+**„Bis“ vor „von“ wird abgelehnt.** Self-Service und Admin-Dashboard nahmen
+einen Zeitraum an, dessen Ende vor dem Beginn lag, und die Vorschau zeigte
+„vom 11.10.2026 bis 09.10.2026“. Beide lehnen das jetzt mit einer Begründung
+ab, bevor etwas gespeichert wird. Auf /self erscheint der Hinweis schon bei der
+Eingabe, und der Speichern-Knopf ist so lange gesperrt.
+
+**/self: Meldungen.** Die Erfolgsmeldung nennt den gespeicherten Zustand
+(„Deine Abwesenheit ist aus.“ statt immer „… gesetzt“). Ist die Abwesenheit
+aus, sagt die Vorschau, dass sie zeigt, wie die Antwort beim Einschalten
+aussähe. Bleibt das Speichern ohne Antwort, meldet die Seite das nach 30
+Sekunden, statt endlos „Speichert…“ zu zeigen.
+
 ## v1.9.140 — 2026-10-11 — Abwesenheit: Signatur und Banner auch beim Speichern über /self und das Dashboard
 
 **Was falsch war.** Ist „Signatur unter die Abwesenheit hängen“ bzw. „Banner
