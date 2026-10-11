@@ -63,6 +63,19 @@ def _conn() -> sqlite3.Connection:
         anzahl INTEGER NOT NULL DEFAULT 0, bytes INTEGER NOT NULL DEFAULT 0,
         fehler INTEGER NOT NULL DEFAULT 0, zuletzt TEXT NOT NULL DEFAULT '',
         PRIMARY KEY (ziel, tag)) WITHOUT ROWID""")
+    # Einzelvorgänge derselben gerouteten Post — damit die Zahlen oben
+    # aufklappbar sind („was war Sache"). Nur Umschlagdaten aus der SMTP-
+    # Sitzung (MAIL FROM / RCPT TO), Grösse, Ergebnis und Fehlertext; Betreff
+    # und Inhalt werden weiterhin nicht gelesen. `kennung` ist ein Präfix der
+    # SHA-256 über die Bytes: Wiederholungen DERSELBEN Mail (Warteschlange,
+    # Exchange-Kadenz) tragen dieselbe Kennung, ohne dass man hineinsieht.
+    # Kürzer aufbewahrt als die Tagessummen (EREIGNIS_TAGE), weil Adressen.
+    c.execute("""CREATE TABLE IF NOT EXISTS routing_ereignis (
+        zeit TEXT NOT NULL, ziel TEXT NOT NULL, ok INTEGER NOT NULL,
+        bytes INTEGER NOT NULL DEFAULT 0, absender TEXT NOT NULL DEFAULT '',
+        empfaenger TEXT NOT NULL DEFAULT '', kennung TEXT NOT NULL DEFAULT '',
+        fehler TEXT NOT NULL DEFAULT '')""")
+    c.execute("CREATE INDEX IF NOT EXISTS routing_ereignis_zeit ON routing_ereignis (zeit)")
     return c
 
 
@@ -107,9 +120,16 @@ def merke(ip: str, absender: str = "", empfaenger: list | None = None,
         log.warning("relay_stats.merke fehlgeschlagen: %s", exc)
 
 
-def merke_routing(ziel: str, bytes_: int = 0, ok: bool = True) -> None:
-    """Eine an ein Next-Hop-Ziel (Hybrid) geroutete Transaktion verbuchen.
-    Best-effort: Zählen darf den Mailfluss nie aufhalten."""
+EREIGNIS_TAGE = 30              # Einzelvorgänge: so lange, wie die Ansicht reicht
+
+
+def merke_routing(ziel: str, bytes_: int = 0, ok: bool = True, *,
+                  absender: str = "", empfaenger: list | None = None,
+                  inhalt: bytes = b"", fehler_text: str = "") -> None:
+    """Eine an ein Next-Hop-Ziel (Hybrid) geroutete Transaktion verbuchen —
+    Tagessumme UND Einzelvorgang. Best-effort: Zählen darf den Mailfluss nie
+    aufhalten."""
+    import hashlib
     ziel = (ziel or "").strip().lower()[:100]
     if not ziel:
         return
@@ -117,6 +137,8 @@ def merke_routing(ziel: str, bytes_: int = 0, ok: bool = True) -> None:
     groesse = max(0, int(bytes_ or 0))
     fehler = 0 if ok else 1
     jetzt = _jetzt().strftime("%Y-%m-%dT%H:%M:%SZ")
+    kennung = hashlib.sha256(inhalt).hexdigest()[:12] if inhalt else ""
+    an = ", ".join((e or "").strip().lower() for e in (empfaenger or []) if (e or "").strip())[:1000]
     try:
         with _lock, _conn() as c:
             c.execute(
@@ -126,6 +148,12 @@ def merke_routing(ziel: str, bytes_: int = 0, ok: bool = True) -> None:
                 "bytes = bytes + excluded.bytes, fehler = fehler + excluded.fehler, "
                 "zuletzt = excluded.zuletzt",
                 (ziel, tag, groesse, fehler, jetzt))
+            c.execute(
+                "INSERT INTO routing_ereignis (zeit, ziel, ok, bytes, absender, "
+                "empfaenger, kennung, fehler) VALUES (?,?,?,?,?,?,?,?)",
+                (jetzt, ziel, 0 if fehler else 1, groesse,
+                 (absender or "").strip().lower()[:200], an, kennung,
+                 "" if ok else (fehler_text or "")[:500]))
     except Exception as exc:                          # pragma: no cover
         log.warning("relay_stats.merke_routing fehlgeschlagen: %s", exc)
 
@@ -155,6 +183,42 @@ def routing_statistik(tage_zurueck: int = 30) -> dict:
     except Exception as exc:                          # pragma: no cover
         log.warning("relay_stats.routing_statistik fehlgeschlagen: %s", exc)
         return leer
+
+
+def routing_ereignisse(ziel: str = "", nur_fehler: bool = False,
+                       tage_zurueck: int = 30, grenze: int = 500) -> dict:
+    """Einzelvorgänge der gerouteten Post, neueste zuerst.
+
+    `versuch` zählt je Kennung (gleiche Mail) aufsteigend durch, damit die
+    Oberfläche Wiederholungen derselben Mail als solche zeigt. `seit` ist der
+    älteste Vorgang überhaupt: Liegen Tagessummen vor diesem Zeitpunkt, gibt es
+    für sie keine Einzelheiten (aufgezeichnet erst seit v1.9.152)."""
+    ab = (_jetzt() - timedelta(days=max(1, tage_zurueck))).strftime("%Y-%m-%dT%H:%M:%SZ")
+    try:
+        with _conn() as c:
+            bed, werte = ["zeit >= ?"], [ab]
+            if ziel:
+                bed.append("ziel = ?"); werte.append(ziel.strip().lower())
+            alle = [dict(z) for z in c.execute(
+                "SELECT zeit, ziel, ok, bytes, absender, empfaenger, kennung, fehler "
+                f"FROM routing_ereignis WHERE {' AND '.join(bed)} ORDER BY zeit, rowid",
+                werte)]
+            seit = c.execute("SELECT MIN(zeit) m FROM routing_ereignis").fetchone()["m"] or ""
+    except Exception as exc:                          # pragma: no cover
+        log.warning("relay_stats.routing_ereignisse fehlgeschlagen: %s", exc)
+        return {"ereignisse": [], "seit": "", "gekuerzt": False}
+    zaehler: dict = {}
+    for e in alle:
+        if e["kennung"]:
+            zaehler[e["kennung"]] = zaehler.get(e["kennung"], 0) + 1
+            e["versuch"] = zaehler[e["kennung"]]
+        else:
+            e["versuch"] = 1
+        e["ok"] = bool(e["ok"])
+    if nur_fehler:
+        alle = [e for e in alle if not e["ok"]]
+    alle.reverse()
+    return {"ereignisse": alle[:grenze], "seit": seit, "gekuerzt": len(alle) > grenze}
 
 
 def statistik(tage_zurueck: int = 30, grenze_top: int = 100) -> dict:
@@ -258,6 +322,8 @@ def aufraeumen(tage: int = AUFBEWAHRUNG_TAGE) -> int:
             weg += c.execute("DELETE FROM empfaenger WHERE tag < ?", (grenze,)).rowcount
             weg += c.execute("DELETE FROM identitaet WHERE tag < ?", (grenze,)).rowcount
             weg += c.execute("DELETE FROM routing WHERE tag < ?", (grenze,)).rowcount
+            frueh = (_jetzt() - timedelta(days=EREIGNIS_TAGE)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            weg += c.execute("DELETE FROM routing_ereignis WHERE zeit < ?", (frueh,)).rowcount
             return weg
     except Exception as exc:                          # pragma: no cover
         log.warning("relay_stats.aufraeumen fehlgeschlagen: %s", exc)

@@ -104,6 +104,14 @@ def _routing_statistik() -> dict:
     return relay_stats.routing_statistik(30)
 
 
+@router.get("/api/relay/routing-ereignisse")
+async def api_relay_routing_ereignisse(ziel: str = "", fehler: int = 0,
+                                       user: str = Depends(_require_admin)):
+    """Einzelvorgänge hinter den Zahlen „Mails“/„Fehler“ der Routing-Tabelle."""
+    import relay_stats
+    return JSONResponse({"ok": True, **relay_stats.routing_ereignisse(ziel, bool(fehler), 30)})
+
+
 def _identitaeten_liste() -> list:
     import sende_identitaeten
     import relay_stats
