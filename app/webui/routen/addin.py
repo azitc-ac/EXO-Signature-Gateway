@@ -176,13 +176,9 @@ def _manifest_texte() -> dict[str, str]:
     return {k: _xml_escape(v[:grenze], {'"': "&quot;"}) for k, (v, grenze) in roh.items()}
 
 
-def _manifest_version() -> str:
-    """Manifest-Version = Gateway-Version.
+def _gateway_version_als_manifest() -> str:
+    """Gateway-Version in Manifest-Schreibweise.
 
-    Ein über „Integrierte Apps" hochgeladenes Add-in übernimmt Änderungen am
-    Manifest nicht von selbst: Der Admin muss es aktualisieren, und das setzt
-    eine höhere Versionsnummer voraus. Mit einer festen „1.0.0" kam ein neuer
-    Knopf (Lesen-Ansicht, v1.9.97) nie bei zentral bereitgestellten Add-ins an.
     Schema: bis zu vier Teile aus Ziffern — „dev" o.ä. fällt auf 1.0.0 zurück.
     """
     v = str(config.VERSION).strip()
@@ -190,6 +186,46 @@ def _manifest_version() -> str:
     if 1 <= len(teile) <= 4 and all(t.isdigit() and len(t) <= 5 for t in teile):
         return ".".join(str(int(t)) for t in teile)
     return "1.0.0"
+
+
+def _versionstupel(v: str) -> tuple[int, ...]:
+    try:
+        return tuple(int(t) for t in str(v).split("."))
+    except ValueError:
+        return (0,)
+
+
+def _manifest_version(inhalt: str) -> str:
+    """Manifest-Version: steigt nur, wenn sich das Manifest INHALTLICH ändert.
+
+    Ein über „Integrierte Apps" hochgeladenes Add-in übernimmt Änderungen am
+    Manifest nicht von selbst: Der Admin muss es aktualisieren, und das setzt
+    eine höhere Versionsnummer voraus. Mit einer festen „1.0.0" kam ein neuer
+    Knopf (Lesen-Ansicht, v1.9.97) nie bei zentral bereitgestellten Add-ins an.
+
+    Seit v1.9.143 war die Version deshalb die Gateway-Version, bei JEDEM Update
+    also eine neue — auch ohne jede Änderung am Manifest, und der Admin sah
+    dauernd ein Update, das keines war. Jetzt: `inhalt` ist das Manifest OHNE
+    Versionsnummer. Bleibt sein Hash gleich, bleibt die gespeicherte Version.
+    Ändert er sich (Knopf, Text, Adresse, Einstellung wie ABWESENHEIT_AKTIV),
+    gilt die aktuelle Gateway-Version — nie niedriger als die bisherige.
+    """
+    import hashlib
+    h = hashlib.sha256(inhalt.encode("utf-8")).hexdigest()
+    stand = settings_store.get("_ADDIN_MANIFEST_STAND") or {}
+    if isinstance(stand, dict) and stand.get("hash") == h and stand.get("version"):
+        return str(stand["version"])
+    neu = _gateway_version_als_manifest()
+    alt = isinstance(stand, dict) and stand.get("version")
+    if alt and _versionstupel(alt) >= _versionstupel(neu):
+        # Gleiche Gateway-Version, aber anderer Inhalt (z. B. Einstellung
+        # umgeschaltet): vierte Stelle hochzählen (1.9.146 → 1.9.146.1), damit
+        # „Aktualisieren" greift, ohne eine künftige Gateway-Version vorwegzunehmen.
+        teile = (list(_versionstupel(alt)) + [0, 0, 0, 0])[:4]
+        teile[3] += 1
+        neu = ".".join(str(t) for t in teile)
+    settings_store.force_update({"_ADDIN_MANIFEST_STAND": {"hash": h, "version": neu}})
+    return neu
 
 
 @router.get("/addin/manifest.xml")
@@ -211,7 +247,7 @@ async def addin_manifest(request: Request):
   xsi:type="MailApp">
 
   <Id>{addin_id}</Id>
-  <Version>{_manifest_version()}</Version>
+  <Version>__VERSION__</Version>
   <ProviderName>{t['anbieter']}</ProviderName>
   <DefaultLocale>de-DE</DefaultLocale>
   <DisplayName DefaultValue="{t['anzeige']}"/>
@@ -335,6 +371,7 @@ async def addin_manifest(request: Request):
     </Resources>
   </VersionOverrides>
 </OfficeApp>"""
+    xml = xml.replace("__VERSION__", _manifest_version(xml), 1)
     from fastapi.responses import Response
     return Response(content=xml, media_type="application/xml")
 

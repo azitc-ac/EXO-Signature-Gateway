@@ -5,6 +5,36 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.147 — 2026-10-11 — Add-in: Manifest-Version nur bei echter Änderung, Abmelden
+
+**Manifest-Version.** Seit v1.9.143 trug das Add-in-Manifest die
+Gateway-Version, also bei jedem Update eine neue Nummer, auch wenn sich am
+Manifest nichts geändert hatte. In *Integrierte Apps* stand dadurch ständig ein
+Update an, das keines war. Jetzt steigt die Nummer nur, wenn sich der Inhalt
+des Manifests ändert: Knöpfe, Texte, Adressen oder eine Einstellung, die
+Knopftexte bestimmt („Zentrale Abwesenheiten verwalten“). Die neue Nummer ist
+dann die laufende Gateway-Version. Ändert sich der Inhalt ohne Gateway-Update,
+zählt eine vierte Stelle hoch (z. B. 1.9.147.1). Die Nummer fällt nie, auch
+nicht nach dem Rückspielen eines älteren Standes.
+
+Bisher galt das Umschalten von „Zentrale Abwesenheiten verwalten“ als
+bekannte Grenze: Es änderte die Knopftexte, aber nicht die Versionsnummer, und
+kam erst mit dem nächsten Gateway-Update an. Das ist jetzt behoben.
+
+**Zu tun:** Nach diesem Update trägt das Manifest einmalig v1.9.147. Wähle das
+Add-in in *Integrierte Apps* einmal aus und klicke *Aktualisieren*. Danach
+nur noch, wenn sich die Nummer unter `/addin/manifest.xml` erhöht hat. Die
+Einrichtungsseite nennt jetzt die Wartezeit, die Microsoft angibt: Ein neu
+bereitgestelltes Add-in erscheint nach 24 bis 72 Stunden (bisher stand dort
+„bis zu 24 Stunden“).
+
+**Abmelden.** Die Taskpane beim Verfassen und die Self-Service-Seite im Add-in
+haben jetzt *Abmelden*. Die Anmeldung des Add-ins lag bis dahin dauerhaft im
+Speicher des Add-ins und ließ sich ohne Eingriff in den Browser nicht
+zurücksetzen. Das Sitzungsmerkmal ist signiert und wird vom Gateway nicht
+gespeichert, es lässt sich daher nicht widerrufen. *Abmelden* entfernt es aus
+dem Add-in und löscht den Sitzungskeks; danach ist eine neue Anmeldung nötig.
+
 ## v1.9.146 — 2026-10-11 — Add-in: Anmeldung in Outlook im Web nicht mehr vom Popup-Blocker verhindert
 
 **Was falsch war.** Das Add-in öffnete das Anmeldefenster mit
