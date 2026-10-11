@@ -1,0 +1,32 @@
+<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- Favicon: vereinfachter Briefumschlag aus login-logo.svg — auf 16 px lesbar,
+       deshalb ohne Schatten, Platzhalterzeilen und Siegel. -->
+  <defs>
+    <linearGradient id="env" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4f8ef7"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+    <linearGradient id="flap" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#d6e6ff"/>
+      <stop offset="100%" stop-color="#93bbff"/>
+    </linearGradient>
+    <linearGradient id="lock" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4ade80"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+    <clipPath id="body"><rect x="2" y="8" width="60" height="48" rx="10"/></clipPath>
+  </defs>
+
+  <!-- Umschlag -->
+  <rect x="2" y="8" width="60" height="48" rx="10" fill="url(#env)"/>
+  <path d="M2,8 L62,8 L32,33 Z" fill="url(#flap)" clip-path="url(#body)"/>
+
+  <!-- Signaturschwung -->
+  <path d="M11,46 C16,37 20,52 26,43 C30,37 34,50 41,41"
+        fill="none" stroke="#fbbf24" stroke-width="5" stroke-linecap="round"/>
+
+  <!-- S/MIME-Schloss -->
+  <circle cx="50" cy="48" r="13" fill="url(#lock)" stroke="#ffffff" stroke-width="2.5"/>
+  <rect x="44.5" y="47" width="11" height="8.5" rx="2" fill="#ffffff"/>
+  <path d="M46.5,47 v-2.8 a3.5,3.5 0 0 1 7,0 v2.8" fill="none" stroke="#ffffff" stroke-width="2.2"/>
+</svg>

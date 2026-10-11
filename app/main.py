@@ -213,6 +213,7 @@ _SETUP_PAGE_TEMPLATE = """\
 <!DOCTYPE html>
 <html lang="de">
 <head><meta charset="utf-8"><title>EXO Gateway Setup</title>
+<link rel="icon" href="{favicon}">
 <style>
   body{{font-family:system-ui,sans-serif;max-width:520px;margin:60px auto;padding:0 20px;color:#1c1917}}
   h1{{font-size:22px;margin-bottom:4px}}
@@ -327,6 +328,13 @@ def _schedule_self_restart() -> None:
     threading.Thread(target=_exit, daemon=True).start()
 
 
+def _favicon_data_uri() -> str:
+    """Das Favicon als data:-URI — der Einrichtungsserver liefert kein /static aus."""
+    import base64
+    svg = (Path(__file__).parent / "webui" / "static" / "favicon.svg").read_bytes()
+    return "data:image/svg+xml;base64," + base64.b64encode(svg).decode()
+
+
 def _setup_page(hostname: str = "", email: str = "", message: str = "",
                 dns01_block: str = "", dns01_open: bool = False,
                 pfx_open: bool = False) -> bytes:
@@ -334,6 +342,7 @@ def _setup_page(hostname: str = "", email: str = "", message: str = "",
     dns01_aktiv = bool(dns01_open or dns01_block)
     le_open = not (pfx_open or dns01_aktiv)
     return _SETUP_PAGE_TEMPLATE.format(
+        favicon=_favicon_data_uri(),
         hostname=_html_escape(hostname),
         email=_html_escape(email),
         message=message,

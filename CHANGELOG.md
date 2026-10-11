@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.150 — 2026-10-11 — Favicon
+
+**Neu: eigenes Symbol im Browser-Tab.** Das Gateway hatte kein Favicon; der
+Browser zeigte sein Standardsymbol, `/favicon.ico` antwortete mit 404. Jetzt
+erscheint ein vereinfachter Briefumschlag aus dem Anmelde-Logo — blau, mit
+goldenem Signaturschwung und grünem Schloss —, gestaltet so, dass er auch in
+16 Pixeln lesbar bleibt, im hellen wie im dunklen Browser.
+
+- Gilt für jede Seite: Verwaltung, Self-Service, Add-in, Nachrichtenportal,
+  S/MIME-Selbstbedienung und die Einrichtungsseite vor der Zertifikatsausstellung.
+- Ausgeliefert als SVG, als `favicon.ico` (16/32/48 Pixel) und als
+  `apple-touch-icon.png` für den Startbildschirm von iPhone und iPad.
+
 ## v1.9.149 — 2026-10-11 — Listener: TLS 1.0/1.1 und statisches RSA für Relay-Geräte
 
 **Behoben: Ältere Relay-Geräte scheiterten am STARTTLS-Handshake.** Der

@@ -1925,6 +1925,13 @@
     "name": "debug_page"
   },
   {
+    "pfad": "/favicon.ico",
+    "methoden": [
+      "GET"
+    ],
+    "name": "favicon"
+  },
+  {
     "pfad": "/health",
     "methoden": [
       "GET"
