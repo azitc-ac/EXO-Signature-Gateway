@@ -2661,10 +2661,10 @@ async function saveKeyvault() {
         <li><strong>Apps hochladen</strong> → <em>Office-Add-In</em></li>
         <li><strong>Link zur Manifestdatei</strong> → obige URL einfügen → <strong>Validieren</strong></li>
         <li>Benutzer/Gruppen zuweisen (z.&nbsp;B. <em>{{ s.GATEWAY_NAME or 'EXO Signature Gateway' }} – Enabled Mailboxes</em>)</li>
-        <li>Das Add-in erscheint in Outlook nach <strong>bis zu 24 Stunden</strong></li>
-        <li>Nach einem Gateway-Update: Add-in in <strong>Integrierte Apps</strong> auswählen →
-          <strong>Aktualisieren</strong>. Das Manifest trägt die Gateway-Version; ohne diesen
-          Schritt bleiben neue Knöpfe aus.</li>
+        <li>Das Add-in erscheint in Outlook nach <strong>24 bis 72 Stunden</strong> (Angabe von Microsoft)</li>
+        <li>Wenn sich das Manifest ändert (neuer Knopf, anderer Text, Abwesenheit ein/aus): Add-in in
+          <strong>Integrierte Apps</strong> auswählen → <strong>Aktualisieren</strong>. Die Versionsnummer
+          in <code>/addin/manifest.xml</code> steigt nur dann, nicht bei jedem Gateway-Update.</li>
       </ol>
 
       <div style="border-top:1px solid #f0f0f0;margin:14px 0 12px"></div>

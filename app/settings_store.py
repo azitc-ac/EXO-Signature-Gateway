@@ -404,6 +404,8 @@ INTERNAL_KEYS = frozenset({
     "_OOO_STATE",                 # abwesenheit.py — zuletzt gesetzter OOF-Text je Postfach
     "_OOO_LAST",                  # abwesenheit.py — Zählung des letzten Poll-Laufs
     "_OOO_UEBERSICHT",            # abwesenheit.py — gecachter Status-Scan (Admin-Dashboard)
+    "_ADDIN_MANIFEST_STAND",      # webui/routen/addin.py — {hash, version} des zuletzt
+                                  # ausgelieferten Manifests; Version steigt nur bei Änderung
     "_SCHEMA_VERSION",            # Migrationsstand, s.u.
 })
 

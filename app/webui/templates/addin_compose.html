@@ -97,6 +97,9 @@
     <button class="btn btn-secondary" onclick="loadSig()">↺ Neu laden</button>
   </div>
   <div class="status" id="status"></div>
+  <p class="hint" id="abmelden-zeile" style="display:none">
+    <a href="#" onclick="abmelden(); return false">Abmelden</a>
+  </p>
   <p class="hint" id="hint-auto" style="display:none">
     Signatur wurde automatisch eingefügt. Vorlage wechseln oder <strong>Einfügen</strong> klicken zum Aktualisieren.
   </p>
@@ -151,8 +154,25 @@
       if (info.host !== Office.HostType.Outlook) return;
       _email = (Office.context.mailbox.userProfile || {}).emailAddress || '';
       document.getElementById('user-info').textContent = _email || '(E-Mail nicht ermittelbar)';
+      _abmeldenZeigen();
       _loadTemplateList(_email).then(function() { loadSig(); });
     });
+
+    // Abmelden: Das Sitzungsmerkmal ist signiert und zustandslos — der Server kann
+    // es nicht widerrufen. Die Taskpane vergisst es, /auth/logout löscht den Keks
+    // des Anmeldedialogs. Danach verlangt der nächste Aufruf eine neue Anmeldung.
+    function _abmeldenZeigen() {
+      document.getElementById('abmelden-zeile').style.display = _addinSession ? '' : 'none';
+    }
+    function abmelden() {
+      _addinSession = '';
+      try { localStorage.removeItem('exo_addin_session'); } catch(_) { console.error('[addin_compose:abmelden]', _); }
+      fetch('/auth/logout', { method: 'POST', credentials: 'include' })
+        .catch(function(e) { console.error('[addin_compose:logout]', e); });
+      _abmeldenZeigen();
+      document.getElementById('login-required').style.display = '';
+      showStatus('Abgemeldet.', 'ok');
+    }
 
     async function _loadTemplateList(email) {
       if (!email) return;
@@ -537,6 +557,7 @@
           try { dlg.close(); } catch(_) { console.error('[addin_compose:495]', _); }
           if (ok) {
             document.getElementById('login-required').style.display = 'none';
+            _abmeldenZeigen();
             showStatus('Angemeldet ✓', 'ok');
             // Re-fetch the template list too — the first attempt ran pre-login (401).
             _loadTemplateList(_email).then(function() { loadSig(); });

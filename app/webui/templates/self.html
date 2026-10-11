@@ -132,7 +132,7 @@
     <button class="btn" id="speichern">Speichern</button>
   </div>
 
-  <p class="fuss">{{ gateway_name }} · Self-Service</p>
+  <p class="fuss">{{ gateway_name }} · Self-Service · <a href="#" id="abmelden">Abmelden</a></p>
 </div>
 
 <script>
@@ -432,6 +432,20 @@
     el(i).addEventListener('change', vorschau);
   });
   el('speichern').addEventListener('click', speichern);
+
+  // Abmelden: im Add-in Token vergessen und Keks löschen (das Merkmal ist
+  // zustandslos signiert, der Server kann es nicht widerrufen); bewusst KEIN
+  // sofortiges Neuladen — das würde gleich wieder den Anmeldedialog öffnen.
+  // Im Browser der gewohnte Weg über /auth/logout.
+  el('abmelden').addEventListener('click', function (ev) {
+    ev.preventDefault();
+    if (!imOffice()) { window.location = '/auth/logout'; return; }
+    TOKEN = null;
+    try { localStorage.removeItem('exo_addin_session'); } catch (e) { /* egal */ }
+    fetch('/auth/logout', { method: 'POST', credentials: 'include' }).catch(function () {});
+    el('inhalt').hidden = true;
+    zeigeFehler('Abgemeldet. Zum erneuten Anmelden den Knopf im Menüband noch einmal wählen.');
+  });
 
   // Erst starten, wenn Office initialisiert ist — sonst wäre imOffice() beim ersten
   // 401 unzuverlässig und ein Add-in-Nutzer liefe fälschlich in die Browser-
