@@ -103,6 +103,15 @@ def _sent_items_nach_freigabe_aufraeumen(sender: str, empfaenger: list[str],
     ))
 
 
+@router.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    # Browser fragen /favicon.ico auch ohne <link> an (JSON-Antworten, Fehlerseiten).
+    from fastapi.responses import FileResponse
+    from webui.deps import _STATIC_DIR
+    return FileResponse(_STATIC_DIR / "favicon.ico", media_type="image/x-icon",
+                        headers={"Cache-Control": "public, max-age=604800"})
+
+
 @router.get("/health")
 async def health():
     # `echo`: pro Prozess erzeugtes Token, mit dem die Abnahme prüft, ob der
