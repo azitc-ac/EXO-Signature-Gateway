@@ -75,6 +75,14 @@ def _resolve_template_names(template_name: str | None) -> tuple[str, str]:
     return f"{template_name}.html", f"{template_name}.txt"
 
 
+# Die Platzhalter, die abwesenheit.render_oof einer Abwesenheitsvorlage gibt
+# ({{ oof.x }}). Hier stehen sie, damit render_fehler eine solche Vorlage mit
+# demselben Kontext prüfen kann; tests/test_postfachpruefung_vorlage.py hält die
+# Liste mit render_oof deckungsgleich.
+OOF_PLATZHALTER = ("name", "zeitraum", "period", "abwesend_ab", "abwesend_bis",
+                   "ankuendigung", "announcement")
+
+
 def render_fehler(user: UserData, template_name: str | None = None,
                   extra: dict | None = None) -> str | None:
     """Warum die HTML-Vorlage nicht rendert — oder None, wenn sie es tut.
@@ -89,6 +97,12 @@ def render_fehler(user: UserData, template_name: str | None = None,
     Vorlagen regelmässig, das ist kein Fehler.
     """
     html_file, _ = _resolve_template_names(template_name)
+    if template_name and vorlagen_art(template_name) == "oof":
+        # Abwesenheitsvorlagen kennen {{ oof.x }} (und die alte Kurzform ohne
+        # Präfix) — nur im Abwesenheitsweg gesetzt. Ohne diesen Kontext meldete
+        # die Prüfung jede solche Vorlage als „'oof' is undefined".
+        leer = {k: "" for k in OOF_PLATZHALTER}
+        extra = {"oof": leer, **leer, **(extra or {})}
     ctx = {"user": user, "custom": user.custom, **(extra or {})}
     try:
         _get_env().get_template(html_file).render(**ctx)

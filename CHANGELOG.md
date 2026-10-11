@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.142 — 2026-10-11 — Banner und Disclaimer auch im Textteil der Mail
+
+**Was falsch war.** Das Gateway hängte Banner und Disclaimer nur an den
+HTML-Teil einer Mail, an den Textteil nur die Signatur. Bei S/MIME-signierten
+Mails, deren Inhalt danach niemand mehr ändern kann, fehlten Banner und
+Disclaimer deshalb in der Textfassung. Bei unsignierten Mails fiel es nicht
+auf, weil Exchange den Textteil dort aus dem HTML neu erzeugt. Wer Mails nur
+als Text liest oder anzeigen lässt, sah bei signierter Post den Disclaimer nie.
+
+**Was jetzt gilt.** Banner und Disclaimer stehen in beiden Teilen, im
+Textteil durch eine Leerzeile von der Signatur getrennt, so wie die Blöcke im
+HTML untereinander stehen.
+
+Außerdem prüft die Vorlagenprüfung (seit v1.9.135 Teil der Postfach-Prüfung)
+Abwesenheitsvorlagen jetzt mit ihren eigenen Platzhaltern. Bisher hätte sie
+jede Abwesenheitsvorlage als fehlerhaft gemeldet (`'oof' is undefined`). Die
+Postfach-Prüfung selbst prüft nur Signaturvorlagen und war nicht betroffen.
+
 ## v1.9.141 — 2026-10-11 — Abwesenheit: Zeitraum mit Uhrzeit, richtiges Ende, Prüfung von „bis“ vor „von“
 
 **Uhrzeit im Zeitraum.** War eine Abwesenheit nicht ganztägig, nannte der Text
