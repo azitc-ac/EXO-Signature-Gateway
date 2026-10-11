@@ -87,6 +87,8 @@ const GLOBALS = new Set([
   'CSS', 'DOMRect',
   // Office-Add-in-Laufzeit (als externes Skript geladen)
   'Office', 'OfficeRuntime', 'Excel', 'Word', 'Outlook',
+  // TeamsJS (Tab in der linken Leiste, als externes Skript geladen)
+  'microsoftTeams',
 ]);
 
 // ── Vorlage → prüfbares JavaScript ────────────────────────────────────────────

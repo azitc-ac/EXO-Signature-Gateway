@@ -164,9 +164,14 @@ async def self_page(request: Request):
     # kann keinen Auth-Header mitgeben. Die Identität klärt das JS über die
     # API-Endpunkte (Cookie im Browser bzw. X-Addin-Session im Add-in); ohne
     # gültige Sitzung liefern die APIs 401 und die Seite leitet zur Anmeldung.
+    # ?host=teams: als Tab in der linken Leiste (Teams-App-Paket, contentUrl).
+    # Dann lädt die Seite TeamsJS und meldet sich darüber an.
+    from webui.routen.addin import TEAMSJS_SRI, TEAMSJS_URL
     resp = templates.TemplateResponse(
         request=request, name="self.html",
-        context={"gateway_name": _gateway_name()},
+        context={"gateway_name": _gateway_name(),
+                 "im_teams": request.query_params.get("host") == "teams",
+                 "teamsjs_url": TEAMSJS_URL, "teamsjs_sri": TEAMSJS_SRI},
     )
     resp.headers["Cache-Control"] = _NO_STORE   # in Outlook-WebView nie cachen
     return resp

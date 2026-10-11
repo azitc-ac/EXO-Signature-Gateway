@@ -136,6 +136,101 @@ async def addin_auth_complete(request: Request):
     return HTMLResponse(content=html, headers={"Cache-Control": _NO_STORE})
 
 
+# ── Tab in der linken Leiste (Outlook, Teams, Microsoft-365-App) ──────────────
+# Die Abwesenheit und der übrige Self-Service hängen nicht an einer geöffneten
+# Mail. Ein Teams-App-Paket (Manifest ≥ 1.13) mit einem persönlichen Tab legt
+# /self links unter „Apps" ab — in Outlook im Web, Outlook für Windows (klassisch
+# und neu), Outlook für iOS/Android und Teams (Doku „Extend Personal Tab to
+# Microsoft 365"). Bewusst ein EIGENES Paket neben dem Add-in: Ein vereinigtes
+# Manifest liefe nicht in Outlook für Mac, und die bestehende Bereitstellung
+# des Add-ins bliebe unberührt.
+#
+# TeamsJS vom Microsoft-CDN, mit Integritätsprüfung. Neue Fassung: Datei laden,
+# `openssl dgst -sha384 -binary | openssl base64 -A`, beide Werte hier ersetzen.
+TEAMSJS_URL = "https://res.cdn.office.net/teams-js/2.34.0/js/MicrosoftTeams.min.js"
+TEAMSJS_SRI = "sha384-brW9AazbKR2dYw2DucGgWCCcmrm2oBFV4HQidyuyZRI/TnAkmOOnTARSTdps3Hwt"
+
+
+@router.get("/addin/auth-complete-teams", response_class=HTMLResponse)
+async def addin_auth_complete_teams(request: Request):
+    """Gegenstück zu /addin/auth-complete für den Tab: Das Anmeldefenster öffnet
+    TeamsJS (`authentication.authenticate`), zurück geht das Merkmal über
+    `authentication.notifySuccess` statt Office' messageParent."""
+    token = request.cookies.get(sso_mod.SESSION_COOKIE) or ""
+    payload = _json_mod.dumps({"status": "ok" if token else "no_session", "token": token})
+    html = (
+        "<!DOCTYPE html><html lang=\"de\"><head><meta charset=\"UTF-8\">"
+        "<title>Anmeldung…</title>"
+        f"<script src=\"{TEAMSJS_URL}\" integrity=\"{TEAMSJS_SRI}\" crossorigin=\"anonymous\"></script>"
+        "</head><body style=\"font-family:'Segoe UI',Arial,sans-serif;padding:20px;color:#1e293b;font-size:13px\">"
+        "<p id=\"msg\">Anmeldung abgeschlossen – Fenster schließt…</p>"
+        "<script>"
+        "microsoftTeams.app.initialize().then(function(){"
+        "  microsoftTeams.authentication.notifySuccess(JSON.stringify(" + payload + "));"
+        "}).catch(function(){ document.getElementById('msg').textContent = "
+        "  'Anmeldung abgeschlossen. Bitte dieses Fenster schließen.'; });"
+        "</script></body></html>"
+    )
+    return HTMLResponse(content=html, headers={"Cache-Control": _NO_STORE})
+
+
+def _teams_manifest(base: str) -> dict:
+    """Teams-App-Manifest (Schema 1.17) mit einem persönlichen Tab auf /self.
+
+    Texte aus _manifest_texte() — EINE Quelle für Add-in und Tab. Version wie
+    beim Add-in: steigt nur bei inhaltlicher Änderung, aber dreistellig (das
+    Teams-Schema erlaubt keine vierte Stelle).
+    Datenschutz/Nutzungsbedingungen sind Pflichtfelder; das Gateway hat keine
+    eigenen Rechtsseiten — für eine nur im eigenen Tenant verteilte App zeigen
+    sie auf das Gateway.
+    """
+    import html as _html
+    hostname = base.split("://")[-1].split(":")[0]
+    t = {k: _html.unescape(v) for k, v in _manifest_texte().items()}
+    m = {
+        "$schema": "https://developer.microsoft.com/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
+        "manifestVersion": "1.17",
+        "version": "__VERSION__",
+        "id": str(_uuid.uuid5(_uuid.NAMESPACE_DNS, f"exo-signature-tab.{hostname}")),
+        "developer": {"name": t["anbieter"][:32], "websiteUrl": base,
+                      "privacyUrl": base, "termsOfUseUrl": base},
+        "name": {"short": t["knopf"][:30], "full": f"{t['anzeige']} – {t['knopf']}"[:100]},
+        "description": {"short": t["info_lesen"][:80],
+                        "full": (f"{t['info_lesen']} — für das eigene Postfach, ohne eine Mail "
+                                 f"öffnen zu müssen. Bereitgestellt von {t['anbieter']}.")[:4000]},
+        "icons": {"color": "color.png", "outline": "outline.png"},
+        "accentColor": "#0078D4",
+        "staticTabs": [{
+            "entityId": "selfservice",
+            "name": t["knopf"][:128],
+            "contentUrl": f"{base}/self?host=teams",
+            "websiteUrl": f"{base}/self",
+            "scopes": ["personal"],
+        }],
+        "validDomains": [hostname],
+    }
+    roh = _json_mod.dumps(m, ensure_ascii=False, sort_keys=True)
+    m["version"] = _manifest_version(_ohne_adresse(roh, base, hostname, m["id"]),
+                                     "_TEAMS_APP_STAND", stellen=3)
+    return m
+
+
+@router.get("/addin/teams-app.zip")
+async def addin_teams_app(request: Request):
+    """App-Paket für Integrierte Apps: manifest.json + color.png (192) + outline.png (32)."""
+    import io, zipfile
+    from fastapi.responses import Response
+    m = _teams_manifest(_addin_base_url(request))
+    puffer = io.BytesIO()
+    with zipfile.ZipFile(puffer, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("manifest.json", _json_mod.dumps(m, ensure_ascii=False, indent=2))
+        z.writestr("color.png", _icon_png(192))
+        z.writestr("outline.png", _icon_png(32, umriss=True))
+    return Response(content=puffer.getvalue(), media_type="application/zip",
+                    headers={"Content-Disposition": f'attachment; filename="signatur-app-{m["version"]}.zip"',
+                             "Cache-Control": _NO_STORE})
+
+
 # Office begrenzt ShortStrings (Rubrik, Knopf, Titel) auf 125 Zeichen, LongStrings
 # auf 250 — Annahme nach dem Manifest-Schema, nicht an Outlook gemessen. Im
 # Menüband wird ohnehin früher abgeschnitten.
@@ -195,7 +290,21 @@ def _versionstupel(v: str) -> tuple[int, ...]:
         return (0,)
 
 
-def _manifest_version(inhalt: str) -> str:
+def _ohne_adresse(inhalt: str, base: str, hostname: str, app_id: str) -> str:
+    """Inhalt für den Versions-Hash: Adresse und Kennung durch Platzhalter ersetzt.
+
+    Ohne ADDIN_BASE_URL stammt die Adresse aus den Kopfzeilen der Anfrage — und
+    beide Manifeste sind anonym abrufbar. Ginge sie in den Hash ein, zählte jeder
+    Abruf mit fremdem X-Forwarded-Host die Version hoch und schriebe
+    settings.json. Eine echte Adressänderung braucht den Hash nicht: Die
+    Kennung hängt am Hostnamen, es entsteht ohnehin eine neue App.
+    """
+    return (inhalt.replace(base, "__BASIS__").replace(hostname, "__HOST__")
+            .replace(app_id, "__ID__"))
+
+
+def _manifest_version(inhalt: str, schluessel: str = "_ADDIN_MANIFEST_STAND",
+                      stellen: int = 4) -> str:
     """Manifest-Version: steigt nur, wenn sich das Manifest INHALTLICH ändert.
 
     Ein über „Integrierte Apps" hochgeladenes Add-in übernimmt Änderungen am
@@ -207,24 +316,26 @@ def _manifest_version(inhalt: str) -> str:
     also eine neue — auch ohne jede Änderung am Manifest, und der Admin sah
     dauernd ein Update, das keines war. Jetzt: `inhalt` ist das Manifest OHNE
     Versionsnummer. Bleibt sein Hash gleich, bleibt die gespeicherte Version.
-    Ändert er sich (Knopf, Text, Adresse, Einstellung wie ABWESENHEIT_AKTIV),
+    Ändert er sich (Knopf, Text, Einstellung wie ABWESENHEIT_AKTIV — Adresse und
+    Kennung zählen nicht, siehe _ohne_adresse),
     gilt die aktuelle Gateway-Version — nie niedriger als die bisherige.
     """
     import hashlib
     h = hashlib.sha256(inhalt.encode("utf-8")).hexdigest()
-    stand = settings_store.get("_ADDIN_MANIFEST_STAND") or {}
+    stand = settings_store.get(schluessel) or {}
     if isinstance(stand, dict) and stand.get("hash") == h and stand.get("version"):
         return str(stand["version"])
-    neu = _gateway_version_als_manifest()
+    neu = ".".join(_gateway_version_als_manifest().split(".")[:stellen])
     alt = isinstance(stand, dict) and stand.get("version")
     if alt and _versionstupel(alt) >= _versionstupel(neu):
         # Gleiche Gateway-Version, aber anderer Inhalt (z. B. Einstellung
-        # umgeschaltet): vierte Stelle hochzählen (1.9.146 → 1.9.146.1), damit
-        # „Aktualisieren" greift, ohne eine künftige Gateway-Version vorwegzunehmen.
-        teile = (list(_versionstupel(alt)) + [0, 0, 0, 0])[:4]
-        teile[3] += 1
+        # umgeschaltet): letzte erlaubte Stelle hochzählen. Beim Add-in die vierte
+        # (1.9.146 → 1.9.146.1), damit keine künftige Gateway-Version vorweggenommen
+        # wird. Das Teams-App-Manifest erlaubt nur drei Stellen — dort die dritte.
+        teile = (list(_versionstupel(alt)) + [0, 0, 0, 0])[:stellen]
+        teile[-1] += 1
         neu = ".".join(str(t) for t in teile)
-    settings_store.force_update({"_ADDIN_MANIFEST_STAND": {"hash": h, "version": neu}})
+    settings_store.force_update({schluessel: {"hash": h, "version": neu}})
     return neu
 
 
@@ -371,7 +482,7 @@ async def addin_manifest(request: Request):
     </Resources>
   </VersionOverrides>
 </OfficeApp>"""
-    xml = xml.replace("__VERSION__", _manifest_version(xml), 1)
+    xml = xml.replace("__VERSION__", _manifest_version(_ohne_adresse(xml, base, hostname, addin_id)), 1)
     from fastapi.responses import Response
     return Response(content=xml, media_type="application/xml")
 
@@ -379,16 +490,24 @@ async def addin_manifest(request: Request):
 @router.get("/addin/icon/{size_str}")
 async def addin_icon(size_str: str):
     """Serve an envelope icon as PNG (no PIL required)."""
-    import struct, zlib
     size = max(16, min(int(size_str.split(".")[0]), 128))
-    BR, BG, BB = 0, 120, 212   # #0078d4 blue background
-    WR, WG, WB = 255, 255, 255  # white foreground
+    from fastapi.responses import Response
+    return Response(content=_icon_png(size), media_type="image/png")
 
-    pixels = [[(BR, BG, BB)] * size for _ in range(size)]
+
+def _icon_png(size: int, umriss: bool = False) -> bytes:
+    """Briefumschlag als PNG. `umriss=True`: weiß auf TRANSPARENT (RGBA) — das
+    verlangt das Teams-App-Manifest für das „outline"-Symbol (32×32); sonst weiß
+    auf blauer Kachel (RGB), wie im Menüband."""
+    import struct, zlib
+    hinter = (0, 0, 0, 0) if umriss else (0, 120, 212)       # #0078d4 blue background
+    vorne = (255, 255, 255, 255) if umriss else (255, 255, 255)  # white foreground
+
+    pixels = [[hinter] * size for _ in range(size)]
 
     def put(row: int, col: int) -> None:
         if 0 <= row < size and 0 <= col < size:
-            pixels[row][col] = (WR, WG, WB)
+            pixels[row][col] = vorne
 
     def bline(r1: int, c1: int, r2: int, c2: int, w: int = 1) -> None:
         dr, dc = abs(r2 - r1), abs(c2 - c1)
@@ -430,14 +549,13 @@ async def addin_icon(size_str: str):
         c = struct.pack(">I", len(data)) + tag + data
         return c + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
 
-    png = (
+    farbtyp = 6 if umriss else 2   # 6 = RGBA, 2 = RGB
+    return (
         b"\x89PNG\r\n\x1a\n"
-        + _chunk(b"IHDR", struct.pack(">IIBBBBB", size, size, 8, 2, 0, 0, 0))
+        + _chunk(b"IHDR", struct.pack(">IIBBBBB", size, size, 8, farbtyp, 0, 0, 0))
         + _chunk(b"IDAT", zlib.compress(raw))
         + _chunk(b"IEND", b"")
     )
-    from fastapi.responses import Response
-    return Response(content=png, media_type="image/png")
 
 
 @router.get("/addin/function", response_class=HTMLResponse)

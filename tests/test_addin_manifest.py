@@ -122,3 +122,26 @@ def test_versionsnummer_ist_schemagerecht(monkeypatch):
     monkeypatch.setattr(config, "VERSION", "1.9.146")
     v = _version(_manifest(monkeypatch, "Mein GW", True, data))
     assert v == "1.9.146.8" and re.fullmatch(r"\d{1,5}(\.\d{1,5}){0,3}", v)
+
+
+def test_fremde_adresse_aendert_weder_version_noch_speicher(monkeypatch):
+    """Ohne ADDIN_BASE_URL kommt die Adresse aus X-Forwarded-Host, und das
+    Manifest ist anonym abrufbar. Ein Abruf mit fremdem Host darf die Version
+    nicht hochzählen und nichts in settings.json schreiben."""
+    import config
+    data = {}
+    schreibvorgaenge = []
+    monkeypatch.setattr(config, "VERSION", "1.9.148")
+    monkeypatch.setattr(settings_store, "get", lambda k, d=None: data.get(k, d))
+    monkeypatch.setattr(settings_store, "force_update",
+                        lambda patch: (schreibvorgaenge.append(patch), data.update(patch)))
+    data.update({"GATEWAY_NAME": "Mein GW", "ABWESENHEIT_AKTIV": True})   # KEIN ADDIN_BASE_URL
+
+    def abruf(host):
+        req = type("R", (), {"headers": {"x-forwarded-host": host, "x-forwarded-proto": "https"},
+                             "url": _Req.url})()
+        return ET.fromstring(asyncio.run(addin.addin_manifest(req)).body).find("o:Version", NS).text
+
+    erste = abruf("sig.example")
+    assert [abruf(h) for h in ("evil.example", "x.test", "sig.example")] == [erste] * 3
+    assert len(schreibvorgaenge) == 1, schreibvorgaenge

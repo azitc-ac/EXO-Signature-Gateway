@@ -7,6 +7,10 @@
 <!-- office.js lädt auch im Browser (dann ohne Host) — die Office-Pfade greifen nur
      in Outlook. Fehlt es (Offline/CDN blockiert), läuft die Seite als Browser-Seite. -->
 <script src="https://appsforoffice.microsoft.com/lib/1.1/hosted/office.js"></script>
+{% if im_teams %}
+<!-- Tab in der linken Leiste (Outlook/Teams): Anmeldung über TeamsJS. -->
+<script src="{{ teamsjs_url }}" integrity="{{ teamsjs_sri }}" crossorigin="anonymous"></script>
+{% endif %}
 <style>
   * { box-sizing: border-box; }
   body { font-family: 'Segoe UI', system-ui, Arial, sans-serif; color: #1e293b;
@@ -46,6 +50,12 @@
 
   <div id="lade" class="sub">Lädt…</div>
   <div id="fehler" class="hinweis err" hidden></div>
+  {# Im Tab muss die Anmeldung von einem Klick ausgehen — ein selbsttätig
+     geöffnetes Fenster hält der Popup-Blocker des Browsers auf. #}
+  <div id="tab-anmelden" class="hinweis warn" hidden>
+    Bitte melde dich an, um deine Einstellungen zu sehen.
+    <div style="margin-top:8px"><button class="btn" id="tab-anmelden-btn" type="button">Anmelden</button></div>
+  </div>
   <div id="nur-anzeige" class="hinweis warn" hidden>
     Nur Anzeige — die Selbstverwaltung ist für dieses Gateway nicht freigeschaltet.
     Du kannst alles durchspielen, aber nicht speichern.
@@ -143,6 +153,7 @@
   var TOKEN = null;
   try { TOKEN = localStorage.getItem('exo_addin_session') || null; } catch (e) { /* egal */ }
   var ctx = null, previewTimer = null, loginLaeuft = false;
+  var IM_TEAMS = {{ 'true' if im_teams else 'false' }};
 
   function imOffice() {
     try { return !!(window.Office && Office.context && Office.context.mailbox
@@ -153,6 +164,9 @@
   // Anmeldung nötig (401): im Add-in über den Office-Dialog (die Taskpane darf
   // nicht selbst zu Azure navigieren — X-Frame-Options), im Browser per Weiterleitung.
   function anmelden() {
+    // Im Tab NIE zur Anmeldeseite navigieren: Microsofts Anmeldung lässt sich
+    // nicht einbetten. Stattdessen Knopf zeigen (Klick → TeamsJS-Fenster).
+    if (IM_TEAMS) { el('lade').hidden = true; el('tab-anmelden').hidden = false; return; }
     if (!imOffice()) { window.location = '/auth/login?next=/self'; return; }
     if (loginLaeuft) return;
     loginLaeuft = true;
@@ -183,6 +197,33 @@
           dlg.close(); loginLaeuft = false;
         });
         dlg.addEventHandler(Office.EventType.DialogEventReceived, function () { loginLaeuft = false; });
+      });
+  }
+
+  // Tab: Anmeldefenster über TeamsJS; zurück kommt das Merkmal aus
+  // /addin/auth-complete-teams (authentication.notifySuccess).
+  function teamsAnmelden() {
+    if (loginLaeuft) return;
+    loginLaeuft = true;
+    var url = window.location.origin + '/auth/login/microsoft?next='
+              + encodeURIComponent('/addin/auth-complete-teams');
+    microsoftTeams.authentication.authenticate({ url: url, width: 600, height: 600 })
+      .then(function (ergebnis) {
+        loginLaeuft = false;
+        var d = {};
+        try { d = JSON.parse(ergebnis || '{}'); } catch (e) { /* unten gemeldet */ }
+        if (d.status === 'ok' && d.token) {
+          TOKEN = d.token;
+          try { localStorage.setItem('exo_addin_session', d.token); } catch (e) { /* egal */ }
+          el('tab-anmelden').hidden = true; el('fehler').hidden = true; el('lade').hidden = false;
+          laden();
+          return;
+        }
+        zeigeFehler('Anmeldung nicht abgeschlossen. Bitte erneut auf „Anmelden“ klicken.');
+      })
+      .catch(function (e) {
+        loginLaeuft = false;
+        zeigeFehler('Anmeldung abgebrochen: ' + ((e && e.message) || e));
       });
   }
 
@@ -439,11 +480,12 @@
   // Im Browser der gewohnte Weg über /auth/logout.
   el('abmelden').addEventListener('click', function (ev) {
     ev.preventDefault();
-    if (!imOffice()) { window.location = '/auth/logout'; return; }
+    if (!imOffice() && !IM_TEAMS) { window.location = '/auth/logout'; return; }
     TOKEN = null;
     try { localStorage.removeItem('exo_addin_session'); } catch (e) { /* egal */ }
     fetch('/auth/logout', { method: 'POST', credentials: 'include' }).catch(function () {});
     el('inhalt').hidden = true;
+    if (IM_TEAMS) { el('tab-anmelden').hidden = false; return; }
     zeigeFehler('Abgemeldet. Zum erneuten Anmelden den Knopf im Menüband noch einmal wählen.');
   });
 
@@ -453,8 +495,19 @@
   // null); der Timer ist der Fallback, falls office.js gar nicht lädt.
   var gestartet = false;
   function start() { if (!gestartet) { gestartet = true; laden(); } }
-  if (window.Office && Office.onReady) { Office.onReady(start); }
-  setTimeout(start, 1500);
+  el('tab-anmelden-btn').addEventListener('click', teamsAnmelden);
+  if (IM_TEAMS) {
+    // Im Tab erst nach app.initialize() — vorher lehnt TeamsJS jeden Aufruf ab.
+    if (window.microsoftTeams) {
+      microsoftTeams.app.initialize().then(start)
+        .catch(function (e) { zeigeFehler('Verbindung zu Outlook/Teams fehlgeschlagen: ' + ((e && e.message) || e)); });
+    } else {
+      zeigeFehler('Die Teams-Bibliothek konnte nicht geladen werden (Netz oder Integritätsprüfung).');
+    }
+  } else {
+    if (window.Office && Office.onReady) { Office.onReady(start); }
+    setTimeout(start, 1500);
+  }
 }());
 </script>
 </body>
