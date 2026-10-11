@@ -60,6 +60,10 @@ KEYS = (
     # niemand.
     "antworten",
     "stapel_verhindert",
+    # Abwesenheitsantworten, die das Gateway selbst geschickt hat, weil die Mail
+    # per Ablage (IMAP APPEND / Graph-Inject) statt per Zustellung ins Postfach
+    # kam — dort schickt Exchange keine (oof_ablage.py).
+    "oof_ablage_antwort",
     # Empfaengerzertifikate, die beim Verschluesseln abgelehnt wurden (abgelaufen,
     # noch nicht gueltig oder unlesbar). Die Nachricht geht dann ueber das Portal
     # bzw. per Unzustellbarkeitsmeldung hinaus — sie faellt also nicht aus, aber

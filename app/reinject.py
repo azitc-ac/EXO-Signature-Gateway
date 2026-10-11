@@ -355,9 +355,9 @@ def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
                 stats.increment("graph_api_calls")
                 return WEG_GRAPH_MIT_KOPIE
             log.warning("Graph++: sendMail für %s fehlgeschlagen — Rückfall auf "
-                        "IMAP APPEND (ohne Abwesenheit/Regeln)", mail_from)
+                        "IMAP APPEND (ohne Posteingangsregeln)", mail_from)
             imap_failed = [r for r in rcpt_tos
-                           if not smtp_submit.deliver_inbound_imap(r, content_bytes)]
+                           if not smtp_submit.deliver_inbound_imap(r, content_bytes, mail_from)]
             if imap_failed:
                 _fail_delivery(mail_from, imap_failed, content_bytes,
                                "Graph sendMail und IMAP APPEND fehlgeschlagen",
@@ -366,12 +366,13 @@ def send(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
         # ── Absender außerhalb → IMAP APPEND ─────────────────────────────────
         # Graph kann nicht im Namen einer fremden Adresse senden. Das betrifft
         # eingehende S/MIME-Post (entschlüsselt, Signatur entfernt, oder bei
-        # gescheiterter Entschlüsselung unverändert). Bekannte Grenze: Für diese
-        # Mails laufen weder Abwesenheitsantwort noch Posteingangsregeln.
+        # gescheiterter Entschlüsselung unverändert). Die Abwesenheitsantwort
+        # schickt dann das Gateway selbst (oof_ablage, seit v1.9.144);
+        # Posteingangsregeln laufen für diese Mails nicht (bekannte Grenze).
         # IMAP APPEND works only for internal (same-tenant) mailboxes.
         # External recipients fall back to Graph sendMail.
         imap_failed = [r for r in rcpt_tos
-                       if not smtp_submit.deliver_inbound_imap(r, content_bytes)]
+                       if not smtp_submit.deliver_inbound_imap(r, content_bytes, mail_from)]
         if imap_failed:
             import graph_reinject
             _ct = _em.message_from_bytes(content_bytes).get_content_type().lower()
