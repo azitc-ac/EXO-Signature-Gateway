@@ -169,7 +169,7 @@ def _acquire_imap_tokens() -> list[str]:
     return tokens
 
 
-def deliver_inbound_imap(rcpt_to: str, content_bytes: bytes) -> bool:
+def deliver_inbound_imap(rcpt_to: str, content_bytes: bytes, mail_from: str = "") -> bool:
     """
     Inject inbound message directly into recipient's INBOX via IMAP APPEND.
 
@@ -218,6 +218,10 @@ def deliver_inbound_imap(rcpt_to: str, content_bytes: bytes) -> bool:
             imap.logout()
             if typ == "OK":
                 log.info("IMAP inject OK: to=%s via %s:993", rcpt_to, host)
+                # Ablage, keine Zustellung: Exchange schickt keine Abwesenheits-
+                # antwort. mail_from = Umschlag-Absender; leer → keine Antwort.
+                import oof_ablage
+                oof_ablage.nach_ablage(mail_from, rcpt_to, content_bytes)
                 return True
             log.error("IMAP inject: APPEND returned %s %s for %s", typ, data, rcpt_to)
             return False

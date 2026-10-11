@@ -5,6 +5,46 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.144 — 2026-10-11 — Abwesenheitsantwort auch für eingehende S/MIME-Post von außen
+
+**Was fehlte.** Eingehende S/MIME-Post von externen Absendern legt das Gateway
+nach dem Entschlüsseln direkt in den Posteingang ab: im Modus Graph++ per IMAP
+APPEND, im Modus Graph-only per Graph („Create message"). Graph kann nicht im
+Namen einer fremden Adresse senden, ein echter Zustellweg steht dafür nicht
+bereit. Eine Ablage ist aber keine Zustellung, und Exchange schickt dabei keine
+Abwesenheitsantwort. Wer abwesend war, ließ verschlüsselt schreibende Partner
+deshalb ohne Antwort. Derselbe Fall trat auf dem seltenen Weg auf, auf dem die
+Mail per sendMail des Empfängers zugestellt wird: Absender ist dort der
+Empfänger selbst, und Exchanges Antwort hätte ihn statt des Absenders erreicht.
+
+**Was jetzt gilt.** Nach jeder solchen Ablage prüft das Gateway die
+Abwesenheitseinstellung des Empfängers und antwortet selbst, nach denselben
+Regeln wie Exchange:
+
+- Abwesenheit eingeschaltet oder im geplanten Zeitraum.
+- Absender im eigenen Tenant → interner Text; von außen → externer Text, je
+  nach Einstellung an alle, nur an Kontakte des Empfängers oder an niemanden.
+  Lassen sich die Kontakte nicht lesen, geht keine Antwort hinaus.
+- Je Absender einmal, bis sich Status, Zeitraum oder Text der Abwesenheit
+  ändern.
+- Keine Antwort auf automatisch erzeugte Post (RFC 3834): `Auto-Submitted`,
+  `Precedence: bulk/list/junk`, Listenpost, `X-Auto-Response-Suppress`, leerer
+  Umschlag-Absender, Systemadressen wie mailer-daemon oder postmaster.
+
+Die Antwort trägt `Auto-Submitted: auto-replied` und den Betreff
+„Automatische Antwort: …" (bei englischsprachigem Postfach „Automatic reply:
+…"). Anders als bei Exchange liegt sie danach in den *Gesendeten Elementen*
+des Empfängers. Posteingangsregeln laufen für abgelegte Post weiterhin nicht.
+
+Die Übersicht und der Tagesbericht zählen diese Antworten unter
+„Abwesenheitsantworten (Gateway)".
+
+Es ist nichts zu tun. Die Antwort nutzt die Berechtigungen, die das Gateway
+für die zentrale Abwesenheit und den Graph-Versand ohnehin hat
+(`MailboxSettings.ReadWrite`, `Mail.Send`). Für „nur Kontakte" braucht es
+zusätzlich `Contacts.Read`; fehlt sie, unterbleibt in diesem Fall die Antwort
+an externe Absender.
+
 ## v1.9.143 — 2026-10-11 — Add-in-Manifest trägt die Gateway-Version
 
 **Was falsch war.** Das Add-in-Manifest meldete seit jeher die feste Version

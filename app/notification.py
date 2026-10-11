@@ -245,6 +245,10 @@ def send_daily_report(daily: dict, total: dict) -> bool:
         # Verschluesselung — kein Zertifikatsmangel, sondern eine Aufgabe.
         (_row("Zertifikate warten auf Freigabe", dval("cert_wartet"), "#b45309")
          if dval("cert_wartet") else ""),
+        # Abwesenheitsantworten des Gateways für abgelegte Post — nur wenn es
+        # welche gab; ohne Abwesenheit ist die Null der Normalfall.
+        (_row("Abwesenheitsantworten (Gateway)", dval("oof_ablage_antwort"))
+         if dval("oof_ablage_antwort") else ""),
         # ⚠️ Hier gilt das UMGEKEHRTE: Diese Zeile erscheint IMMER, auch mit 0.
         # Bei der Ketten-Erkennung ist die Null die Meldung — sie bedeutet,
         # dass Signaturen womoeglich doppelt hinausgehen. Genau dieser Zustand

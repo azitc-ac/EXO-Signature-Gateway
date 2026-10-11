@@ -38,7 +38,7 @@ def wege(monkeypatch):
         aufrufe["graph"].append((frm, list(rcpts)))
         return ergebnis["graph"]
 
-    def imap(rcpt, data):
+    def imap(rcpt, data, mail_from=""):
         aufrufe["imap"].append(rcpt)
         return ergebnis["imap"] and rcpt.endswith("@t.de")
 

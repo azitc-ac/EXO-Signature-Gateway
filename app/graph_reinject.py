@@ -362,6 +362,11 @@ def _deliver_via_recipient_sendmail(
             )
         if resp.status_code == 202:
             log.info("Recipient sendMail OK: from=%s to=%s", fa, rcpt_tos)
+            # Umschlag-Absender ist hier der EMPFÄNGER selbst — Exchanges
+            # Abwesenheitsantwort erreicht den echten Absender nicht.
+            import oof_ablage
+            for r in rcpt_tos:
+                oof_ablage.nach_ablage(mail_from, r, content_bytes)
             return True
         log.warning(
             "Recipient sendMail failed: HTTP %s — %s",
@@ -452,6 +457,8 @@ def deliver_to_mailbox_mime(mail_from: str, rcpt_tos: list[str], content_bytes: 
                 except Exception as exc:
                     log.warning("Graph MIME isDraft PATCH exception for %s: %s", recipient, exc)
                 log.info("Graph MIME mailbox inject OK: from=%s to=%s", from_addr, recipient)
+                import oof_ablage
+                oof_ablage.nach_ablage(mail_from, recipient, content_bytes)
             else:
                 log.warning(
                     "Graph MIME mailbox inject failed for %s: HTTP %s — %s",
@@ -527,6 +534,8 @@ def deliver_to_mailbox(mail_from: str, rcpt_tos: list[str], content_bytes: bytes
                 except Exception as exc:
                     log.warning("Graph JSON isDraft PATCH exception for %s: %s", recipient, exc)
                 log.info("Graph JSON mailbox inject OK: from=%s to=%s", from_addr, recipient)
+                import oof_ablage
+                oof_ablage.nach_ablage(mail_from, recipient, content_bytes)
             else:
                 log.error("Graph JSON mailbox inject failed for %s: HTTP %s — %s",
                           recipient, resp.status_code, resp.text[:300])
