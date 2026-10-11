@@ -281,8 +281,9 @@ def _send_ndr(original_sender: str, missing_certs: list[str] | None = None,
     msg["Message-ID"] = email.utils.make_msgid(
         domain=original_sender.split("@", 1)[-1] if "@" in original_sender else None)
     # Der Absender ist DL-Mitglied → die FromMemberOf-Regel routet die NDR
-    # zurück zum Gateway. Auto-Submitted + X-Sig-Applied sorgen dafür, dass
-    # sie dort unverändert durchgereicht wird (keine Signatur, kein Loop).
+    # zurück zum Gateway. X-Sig-Applied sorgt dafür, dass sie dort unverändert
+    # durchgereicht wird (keine Signatur, kein Loop). Auto-Submitted allein
+    # trüge das NICHT: Graph sendMail verwirft den Kopf (gemessen 11.10.2026).
     msg["Auto-Submitted"] = "auto-replied"
     loop_detector.mark_as_signed(msg)
     import email.policy as _ep

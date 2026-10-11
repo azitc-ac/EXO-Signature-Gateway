@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.145 — 2026-10-11 — Gateway-Abwesenheitsantwort: nicht doppelt signiert
+
+**Was falsch war.** Die Abwesenheitsantwort aus v1.9.144 lief über die
+Transportregel noch einmal durch das Gateway und wurde dort wie normale Post
+behandelt: Signatur und Banner kamen ein zweites Mal hinzu (der
+Abwesenheitstext enthält sie schon), und das Gateway versuchte eine
+S/MIME-Signatur. Die Regel nimmt automatische Antworten über den Kopf
+`Auto-Submitted` aus, doch Microsoft Graph entfernt beim Versand
+`Auto-Submitted` und `Precedence`, während eigene `X-`-Kopfzeilen erhalten
+bleiben.
+
+**Was jetzt gilt.** Die Antwort ist als bereits bearbeitet markiert und geht
+an der Transportregel vorbei unverändert hinaus. Zusätzlich trägt sie
+`X-Auto-Response-Suppress: All`, worauf Exchange und Outlook nicht
+automatisch antworten. Abwesenheitsdienste, die nur `Auto-Submitted` beachten,
+antworten womöglich, wegen der Sperre je Absender aber höchstens einmal.
+
 ## v1.9.144 — 2026-10-11 — Abwesenheitsantwort auch für eingehende S/MIME-Post von außen
 
 **Was fehlte.** Eingehende S/MIME-Post von externen Absendern legt das Gateway

@@ -20,10 +20,20 @@ Dieses Modul schickt die Antwort dann selbst, mit Exchanges eigenen Regeln:
   `X-Auto-Response-Suppress` mit OOF/AutoReply/All, leerer Umschlag-Absender,
   Systemadressen (mailer-daemon, postmaster, …), Absender = Empfänger.
 
-Die Antwort trägt `Auto-Submitted: auto-replied` (RFC 3834 §5). Sie geht über
-Graph sendMail ALS der Empfänger; läuft sie über die Transportregel wieder durch
-das Gateway, reicht der Handler sie wegen `Auto-Submitted` unverändert durch.
-Der Abwesenheitstext enthält Signatur und Banner bereits (v1.9.140).
+Die Antwort geht über Graph sendMail ALS der Empfänger. ⚠️ Gemessen am
+11.10.2026 (VM): sendMail mit MIME **entfernt `Auto-Submitted` und
+`Precedence`**, `X-`-Kopfzeilen kommen an. Deshalb:
+
+* `X-Sig-Applied: 1` — die Transportregel nimmt die Antwort damit aus; ohne
+  ihn lief sie durchs Gateway und wurde wie normale Post signiert, obwohl der
+  Abwesenheitstext Signatur und Banner schon enthält (v1.9.140). Die
+  Regel-Ausnahme für `Auto-Submitted` greift nicht, der Kopf ist bei der
+  Regelprüfung schon fort.
+* `X-Auto-Response-Suppress: All` — kommt an; Exchange und Outlook antworten
+  darauf nicht automatisch.
+* `Auto-Submitted: auto-replied` bleibt gesetzt (RFC 3834 §5), auch wenn Graph
+  ihn heute verwirft. Eine Schleife mit fremden Abwesenheitsdiensten, die nur
+  auf `Auto-Submitted` achten, begrenzt die Sperre „einmal je Absender".
 
 Aufgerufen wird `nach_ablage()` an GENAU den Stellen, die ablegen statt
 zustellen (smtp_submit.deliver_inbound_imap, graph_reinject.deliver_to_mailbox
@@ -160,6 +170,8 @@ def antwort_bauen(empfaenger: str, absender: str, msg, html: str, locale: str) -
         a["References"] = mid
     a["Auto-Submitted"] = "auto-replied"
     a["X-Auto-Response-Suppress"] = "All"
+    import loop_detector
+    loop_detector.mark_as_signed(a)       # X-Sig-Applied: Regel-Ausnahme, s.o.
     a.set_content(html, subtype="html", charset="utf-8")
     import mime_policy
     return a.as_bytes(policy=mime_policy.SMTP_REINJECT)
