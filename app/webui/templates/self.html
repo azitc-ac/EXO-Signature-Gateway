@@ -158,9 +158,17 @@
     loginLaeuft = true;
     var url = window.location.origin + '/auth/login/microsoft?next='
               + encodeURIComponent('/addin/auth-complete');
-    Office.context.ui.displayDialogAsync(url, { height: 60, width: 30, promptBeforeOpen: false },
+    // promptBeforeOpen bleibt beim Standard (true) — sonst blockt der Popup-Blocker
+    // in Outlook im Web das Anmeldefenster (siehe addin_compose.html).
+    Office.context.ui.displayDialogAsync(url, { height: 60, width: 30 },
       function (res) {
-        if (res.status !== Office.AsyncResultStatus.Succeeded) { loginLaeuft = false; return; }
+        if (res.status !== Office.AsyncResultStatus.Succeeded) {
+          loginLaeuft = false;
+          zeigeFehler(res.error && res.error.code === 12009
+            ? 'Anmeldung abgebrochen — Seite neu laden und im Hinweis „Zulassen“ wählen.'
+            : 'Anmeldefenster konnte nicht geöffnet werden: ' + ((res.error && res.error.message) || ''));
+          return;
+        }
         var dlg = res.value;
         dlg.addEventHandler(Office.EventType.DialogMessageReceived, function (arg) {
           try {

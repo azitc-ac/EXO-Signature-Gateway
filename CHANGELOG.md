@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.146 — 2026-10-11 — Add-in: Anmeldung in Outlook im Web nicht mehr vom Popup-Blocker verhindert
+
+**Was falsch war.** Das Add-in öffnete das Anmeldefenster mit
+`promptBeforeOpen: false`. Damit verzichtet Office im Web auf seinen eigenen
+„Zulassen/Ignorieren“-Hinweis und öffnet das Fenster direkt. Der Klick auf
+*Jetzt anmelden* im Add-in zählt für das Outlook-Fenster aber nicht als
+Benutzeraktion, und der Popup-Blocker des Browsers (Standard in Edge und
+Chrome) blockt das Fenster. In Outlook im Web erschien nur „Browser
+restrictions prevented us from creating the dialog box“; anmelden ließ sich
+niemand. Betroffen waren die Taskpane beim Verfassen und die Self-Service-Seite
+im Add-in. Auf der Self-Service-Seite blieb der Fehler zudem stumm.
+
+**Was jetzt gilt.** Beide Aufrufe verwenden den Standard. Office im Web zeigt
+vor dem Anmeldefenster einen Hinweis; nach *Zulassen* öffnet sich das Fenster.
+Wählst du *Ignorieren*, sagt das Add-in, wie es weitergeht. Microsoft rät
+ausdrücklich davon ab, den Hinweis abzuschalten („Best practices and rules for
+the Office Dialog API“). Ein Test prüft jeden Aufruf des Office-Dialogs.
+
+**Zu tun:** nichts außer dem Update.
+
 ## v1.9.145 — 2026-10-11 — Gateway-Abwesenheitsantwort: nicht doppelt signiert
 
 **Was falsch war.** Die Abwesenheitsantwort aus v1.9.144 lief über die
