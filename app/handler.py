@@ -183,6 +183,15 @@ def _rebuild_acme_reply(msg: email.message.Message) -> email.message.EmailMessag
     return out
 
 
+def _txt_anhaengen(sig_txt: str, teil: str) -> str:
+    """Textfassung eines Banners/Disclaimers unter die Signatur — durch eine
+    Leerzeile getrennt, wie die Blöcke im HTML untereinander stehen."""
+    teil = teil.strip("\n")
+    if not sig_txt.strip():
+        return teil + "\n"
+    return sig_txt.rstrip("\n") + "\n\n" + teil + "\n"
+
+
 def _decode_subject(raw: str) -> str:
     """Decode RFC 2047 encoded subject header to plain Unicode."""
     try:
@@ -1057,15 +1066,26 @@ class SignatureHandler:
                         __import__("gruppen").interne_gruppen())
                     if _kmp:
                         _banner_tpl = _kmp
+                # Banner und Disclaimer in BEIDE Teile — HTML und Text. Bis
+                # v1.9.141 nur ins HTML: Bei S/MIME-signierter Post, deren
+                # Textteil Exchange nicht mehr anfassen kann, fehlten sie Lesern
+                # der Textfassung; ohne Signatur erzeugte Exchange den Textteil
+                # neu aus dem HTML, und dort standen sie (Testlauf T02/T04).
                 if _banner_tpl:
-                    _banner_html, _ = signature_engine.render(user_data, template_name=_banner_tpl)
+                    _banner_html, _banner_txt = signature_engine.render(
+                        user_data, template_name=_banner_tpl)
                     if _banner_html:
                         sig_html = sig_html + _banner_html
+                    if _banner_txt.strip():
+                        sig_txt = _txt_anhaengen(sig_txt, _banner_txt)
                 _disclaimer_tpl = _vorlagen["disclaimer"]
                 if _disclaimer_tpl:
-                    _disclaimer_html, _ = signature_engine.render(user_data, template_name=_disclaimer_tpl)
+                    _disclaimer_html, _disclaimer_txt = signature_engine.render(
+                        user_data, template_name=_disclaimer_tpl)
                     if _disclaimer_html:
                         sig_html = sig_html + _disclaimer_html
+                    if _disclaimer_txt.strip():
+                        sig_txt = _txt_anhaengen(sig_txt, _disclaimer_txt)
 
             _img_mode = settings_store.get("SIG_IMAGE_MODE") or "auto"
             _use_cid = (
