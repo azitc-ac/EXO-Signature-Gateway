@@ -5,6 +5,39 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.149 — 2026-10-11 — Listener: TLS 1.0/1.1 und statisches RSA für Relay-Geräte
+
+**Behoben: Ältere Relay-Geräte scheiterten am STARTTLS-Handshake.** Der
+SMTP-Listener nutzte Pythons TLS-Vorgaben. Unter OpenSSL 3 verbietet deren
+Sicherheitsstufe 2 TLS 1.0/1.1 samt SHA-1-Signaturen, und unter OpenSSL 3.5 —
+so im ausgelieferten Abbild — bleibt keine Suite mit statischem
+RSA-Schlüsseltausch übrig. Ein Drucker oder Scanner, der STARTTLS versucht (der
+Listener bietet es an), weicht nach einem gescheiterten Handshake in der Regel
+nicht auf Klartext aus. Dass STARTTLS für Relay-Geräte keine Pflicht ist (seit
+v1.8.7), half ihm deshalb nicht. Gemessen im Abbild: Ein Client mit nur
+`TLS_RSA_WITH_AES_128_CBC_SHA256` (typisch für ältere HP-Multifunktionsgeräte)
+fand keinen gemeinsamen Cipher, TLS 1.0 und 1.1 wurden als Protokoll abgelehnt.
+
+- **Jetzt** nutzt der Listener OpenSSLs `DEFAULT`-Liste auf Stufe 0 mit TLS 1.0
+  als Untergrenze, für jedes Zertifikat, auch die per SNI gewählten. Die
+  Reihenfolge bestimmt der Server: Exchange und moderne Clients handeln
+  weiterhin TLS 1.3 bzw. ECDHE mit AES-GCM aus; die alten Verfahren greifen nur,
+  wenn ein Gerät nichts anderes kann. Unverschlüsselte, anonyme, RC4- und
+  DES-Suites sind nicht enthalten.
+- **Statisches RSA braucht ein RSA-Zertifikat.** Let's Encrypt stellt über
+  certbot standardmässig ein EC-Zertifikat aus. Damit gehen TLS 1.0/1.1 (über
+  ECDHE), ein Gerät, das *nur* statisches RSA beherrscht, aber weiterhin nicht.
+  Für ein solches Gerät hinterlegst du unter *Einstellungen → Erweitert → SMTP-Zertifikat
+  (separat)* ein Zertifikat mit RSA-Schlüssel, oder du trägst das Gerät in
+  die Geräteliste ein und lässt es ohne STARTTLS einliefern.
+- Scheitert die Lockerung (etwa ein OpenSSL ohne TLS 1.0), bleibt es bei den
+  Vorgaben; der Listener startet in jedem Fall mit Zertifikat.
+- Ausgehende Verbindungen (Smarthost, Port 587, Graph) bleiben bei den strengen
+  Vorgaben. Ein Test hält fest, dass die Stufe nur am Listener gesenkt wird.
+
+**Zu tun:** Aktualisiere, wenn Geräte mit TLS 1.0/1.1 einliefern sollen. Sonst
+ändert sich nichts.
+
 ## v1.9.148 — 2026-10-11 — Self-Service als App in der linken Leiste; Lesen-Ansicht lädt in Outlook im Web
 
 **Neu: App-Paket für die linke Leiste.** Abwesenheit und Signaturwahl waren

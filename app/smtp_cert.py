@@ -80,6 +80,45 @@ def name_passt(server_name: str, namen: set[str]) -> bool:
     return False
 
 
+# Cipherliste des Listeners — Begründung in _altgeraete_zulassen().
+LISTENER_CIPHERS = "DEFAULT:@SECLEVEL=0"
+
+
+def _altgeraete_zulassen(ctx: ssl.SSLContext) -> None:
+    """TLS 1.0/1.1 und statischen RSA-Schlüsseltausch für Relay-Geräte zulassen.
+
+    Ein Drucker oder Scanner, der STARTTLS versucht (der Listener bietet es an),
+    weicht nach einem gescheiterten Handshake in der Regel nicht auf Klartext
+    aus. Mit Pythons Vorgaben scheitert er unter OpenSSL 3: Sicherheitsstufe 2
+    verbietet TLS 1.0/1.1 samt SHA-1-Signaturen, und unter OpenSSL 3.5 (im
+    Abbild) bleibt keine kRSA-Suite übrig — ein HP-Gerät mit nur
+    TLS_RSA_WITH_AES_128_CBC_SHA256 bekam keinen gemeinsamen Cipher (gemessen
+    2026-10-11 am Relay, das denselben Unterbau hat).
+
+    Die Reihenfolge bestimmt der Server (create_default_context setzt
+    OP_CIPHER_SERVER_PREFERENCE), DEFAULT ordnet TLS 1.3 und ECDHE/AES-GCM vorn
+    ein: Exchange und jeder moderne Client handeln weiterhin dasselbe aus wie
+    vorher. NULL-/anonyme Suites enthält DEFAULT nicht.
+
+    Statisches RSA braucht ein RSA-Zertifikat; mit einem EC-Zertifikat (certbot
+    stellt seit 2.0 standardmässig ECDSA aus) gehen nur TLS 1.0/1.1 mit ECDHE.
+    Nur der LISTENER — ausgehende Verbindungen (Smarthost, 587, Graph) bleiben
+    bei den strengen Vorgaben.
+    """
+    # Scheitert die Lockerung (OpenSSL ohne TLS 1.0, unbekannte Liste), bleibt
+    # es bei den Vorgaben. Der Listener darf daran NIE sein Zertifikat verlieren:
+    # baue_listener_kontext() würde es sonst als „nicht ladbar“ überspringen und
+    # ohne STARTTLS starten.
+    import warnings
+    try:
+        ctx.set_ciphers(LISTENER_CIPHERS)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)   # TLSv1 ist absichtlich
+            ctx.minimum_version = ssl.TLSVersion.TLSv1
+    except (ssl.SSLError, ValueError, AttributeError) as exc:
+        log.warning("Listener: TLS für Altgeräte nicht einstellbar, bleibt bei den Vorgaben: %s", exc)
+
+
 def baue_listener_kontext(kandidaten: list[tuple[str, str]]):
     """SSLContext für den SMTP-Listener aus einer Vorrang-Liste von (cert, key).
 
@@ -92,6 +131,7 @@ def baue_listener_kontext(kandidaten: list[tuple[str, str]]):
     for cert, key in kandidaten:
         try:
             ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+            _altgeraete_zulassen(ctx)
             ctx.load_cert_chain(certfile=cert, keyfile=key)
             geladen.append((ctx, zert_namen(cert), cert))
         except Exception as exc:                          # noqa: BLE001
