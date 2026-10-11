@@ -311,6 +311,7 @@
        auszublenden spart nicht Platz, sondern eine Frage: Wer das Portal aus
        hat, muss nicht entscheiden, wie lange Nachrichten dort liegen. -->
   <div id="portal-optionen" {% if not s.SECURE_PORTAL_ENABLED %}style="display:none"{% endif %}>
+  <div data-adv="smime" style="display:none">
   <div class="settings-row" style="margin-top:10px">
     <label for="portal-base-url">Portal-Basis-URL</label>
     <div class="settings-control">
@@ -321,7 +322,6 @@
         Leer = automatisch aus Add-in-Basis-URL bzw. Hostnamen abgeleitet.</span>
     </div>
   </div>
-  <div data-adv="smime" style="display:none">
   <div class="settings-row" style="margin-top:10px">
     <h3 style="margin:0 0 10px">Zugangscode (OTP)</h3>
     <label class="checkbox-label" style="flex-basis:100%">
