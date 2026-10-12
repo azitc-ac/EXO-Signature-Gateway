@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% if abwesenheit_aktiv() %}Meine Abwesenheit &amp; Signatur{% else %}Meine Signatur{% endif %}</title>
 {% include "_favicon.html" %}
+{% if not im_teams %}
 <!-- office.js lädt auch im Browser (dann ohne Host) — die Office-Pfade greifen nur
-     in Outlook. Fehlt es (Offline/CDN blockiert), läuft die Seite als Browser-Seite. -->
+     in Outlook. Fehlt es (Offline/CDN blockiert), läuft die Seite als Browser-Seite.
+     Im Tab nicht: Dort ist kein Office-Host, und office.js hält im Kopf das
+     Zeichnen der Seite an, solange es lädt. -->
 <script src="https://appsforoffice.microsoft.com/lib/1.1/hosted/office.js"></script>
-{% if im_teams %}
-<!-- Tab in der linken Leiste (Outlook/Teams): Anmeldung über TeamsJS. -->
-<script src="{{ teamsjs_url }}" integrity="{{ teamsjs_sri }}" crossorigin="anonymous"></script>
 {% endif %}
 <style>
   * { box-sizing: border-box; }
@@ -51,6 +51,7 @@
 
   <div id="lade" class="sub">Lädt…</div>
   <div id="fehler" class="hinweis err" hidden></div>
+  <p id="im-browser" class="sub" hidden><a href="/self" target="_blank" rel="noopener" style="color:#0078d4">Im Browser öffnen</a></p>
   {# Im Tab muss die Anmeldung von einem Klick ausgehen — ein selbsttätig
      geöffnetes Fenster hält der Popup-Blocker des Browsers auf. #}
   <div id="tab-anmelden" class="hinweis warn" hidden>
@@ -146,6 +147,12 @@
   <p class="fuss">{{ gateway_name }} · Self-Service · <a href="#" id="abmelden">Abmelden</a></p>
 </div>
 
+{% if im_teams %}
+<!-- Tab in der linken Leiste (Outlook/Teams): Anmeldung über TeamsJS. Erst am
+     Ende des Körpers — im Kopf hielte es die ganze Seite leer, solange das CDN
+     nicht antwortet. -->
+<script src="{{ teamsjs_url }}" integrity="{{ teamsjs_sri }}" crossorigin="anonymous"></script>
+{% endif %}
 <script>
 (function () {
   "use strict";
@@ -155,6 +162,8 @@
   try { TOKEN = localStorage.getItem('exo_addin_session') || null; } catch (e) { /* egal */ }
   var ctx = null, previewTimer = null, loginLaeuft = false;
   var IM_TEAMS = {{ 'true' if im_teams else 'false' }};
+  var TAB_WARTEZEIT_MS = 10000;
+  var TAB_KEINE_ANTWORT = 'Outlook/Teams hat die Verbindung zum Tab nicht bestätigt (nach 10 s ohne Antwort).';
 
   function imOffice() {
     try { return !!(window.Office && Office.context && Office.context.mailbox
@@ -500,10 +509,20 @@
   if (IM_TEAMS) {
     // Im Tab erst nach app.initialize() — vorher lehnt TeamsJS jeden Aufruf ab.
     if (window.microsoftTeams) {
-      microsoftTeams.app.initialize().then(start)
-        .catch(function (e) { zeigeFehler('Verbindung zu Outlook/Teams fehlgeschlagen: ' + ((e && e.message) || e)); });
+      // Antwortet der Host nie, bliebe „Lädt…" für immer stehen — dann lieber
+      // sagen, woran es hängt, und den Weg im Browser anbieten.
+      var tabWache = setTimeout(function () {
+        if (!gestartet) { zeigeFehler(TAB_KEINE_ANTWORT); el('im-browser').hidden = false; }
+      }, TAB_WARTEZEIT_MS);
+      microsoftTeams.app.initialize().then(function () { clearTimeout(tabWache); start(); })
+        .catch(function (e) {
+          clearTimeout(tabWache);
+          zeigeFehler('Verbindung zu Outlook/Teams fehlgeschlagen: ' + ((e && e.message) || e));
+          el('im-browser').hidden = false;
+        });
     } else {
       zeigeFehler('Die Teams-Bibliothek konnte nicht geladen werden (Netz oder Integritätsprüfung).');
+      el('im-browser').hidden = false;
     }
   } else {
     if (window.Office && Office.onReady) { Office.onReady(start); }
