@@ -20,6 +20,11 @@ Host die Verbindung nie, gab es kein Zeitlimit.
 
 Seite im Browser und im Outlook-Add-in: unverändert.
 
+Außerdem: Die Diagnoseausgabe des Verfassen-Add-ins suchte im Text nach einer
+fest eingetragenen Domäne. Sie sucht jetzt nach der Domäne des eigenen
+Postfachs. Die Signaturerkennung selbst war davon nicht betroffen — sie
+arbeitet mit einem Textmerkmal aus der gerenderten Signatur.
+
 ---
 
 ## v1.9.153 — 2026-10-12 — Einheitliche Knöpfe auf allen Seiten

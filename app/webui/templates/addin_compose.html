@@ -595,9 +595,11 @@
         // class
         var gM = body.match(/<div\b[^>]*\bclass=["'][^"']*exo-gateway-sig[^"']*["'][^>]*>/i);
         lines.push('class=exo-gateway-sig: ' + (gM ? 'JA @ ' + gM.index : 'NEIN'));
-        // text content probe
-        var txtP = body.indexOf('zarenko.net');
-        lines.push('text "zarenko.net": ' + (txtP !== -1 ? 'JA @ ' + txtP : 'NEIN'));
+        // Domäne des eigenen Postfachs im Text (Diagnose; die Erkennung selbst
+        // arbeitet mit _sigTextProbe aus der gerenderten Signatur).
+        var dom = (_email.split('@')[1] || '').toLowerCase();
+        var txtP = dom ? body.toLowerCase().indexOf(dom) : -1;
+        lines.push('text "' + (dom || '(keine Adresse)') + '": ' + (txtP !== -1 ? 'JA @ ' + txtP : 'NEIN'));
         // snippet of body[0..300]
         lines.push('--- Body[0..300] ---');
         lines.push(body.slice(0, 300));
