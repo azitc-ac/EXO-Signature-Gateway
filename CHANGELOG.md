@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.157 — 2026-10-12 — Hinweis zu den Rechtstext-Links nennt den Weg zum App-Paket
+
+Unter *Postfächer → Self-Service* hieß es nach einer Änderung der Links nur, das
+App-Paket sei neu hochzuladen — der Knopf zum Herunterladen liegt aber unter
+*Einrichtung → Outlook-Add-in*. Der Hinweis nennt jetzt diesen Weg.
+
+---
+
 ## v1.9.156 — 2026-10-12 — Self-Service-App: Datenschutz und Nutzungsbedingungen erreichbar
 
 Das App-Paket für Outlook/Teams (Tab „Signatur & Abwesenheit“) verlangt Links
