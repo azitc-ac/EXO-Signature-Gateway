@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.154 — 2026-10-12 — Self-Service-Tab: kein leerer Bildschirm mehr
+
+Im Tab „Signatur & Abwesenheit“ (linke Leiste in Outlook) konnte die Seite
+vollständig leer bleiben. Beide Fremdskripte — office.js und die
+Teams-Bibliothek — standen im Kopf der Seite; solange ein CDN nicht antwortet,
+zeichnet der Browser dann gar nichts, auch nicht „Lädt…“. Und bestätigte der
+Host die Verbindung nie, gab es kein Zeitlimit.
+
+- Im Tab wird office.js nicht mehr geladen (dort gibt es keinen Office-Host).
+- Die Teams-Bibliothek lädt erst hinter dem Seiteninhalt.
+- Antwortet Outlook/Teams nach 10 Sekunden nicht, erscheint eine Meldung und
+  der Link „Im Browser öffnen“.
+
+Seite im Browser und im Outlook-Add-in: unverändert.
+
+---
+
 ## v1.9.153 — 2026-10-12 — Einheitliche Knöpfe auf allen Seiten
 
 Die Linie aus v1.9.151 (*Einstellungen → Erweitert*) gilt jetzt für die ganze

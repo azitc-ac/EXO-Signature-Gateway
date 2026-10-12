@@ -16,11 +16,14 @@ import re
 import struct
 import zipfile
 import zlib
+from pathlib import Path
 
 import pytest
 
 import settings_store
 from webui.routen import addin
+
+VORLAGEN = Path(__file__).resolve().parent.parent / "app" / "webui" / "templates"
 
 
 class _Req:
@@ -192,3 +195,22 @@ def test_fremde_adresse_zaehlt_die_paketversion_nicht_hoch(monkeypatch):
 
     assert {version(h) for h in ("a.example", "b.example", "c.example")} == {"1.9.148"}
     assert len(schreib) == 1
+
+
+def test_tab_zeichnet_vor_den_fremdskripten(client):
+    """Im Tab blieb die Seite in Outlook leer: Skripte im <head> halten das
+    Zeichnen an, solange ihr CDN nicht antwortet. Im Tab daher kein office.js
+    (dort gibt es keinen Office-Host) und TeamsJS erst hinter dem Inhalt."""
+    mit = client.get("/self?host=teams").text
+    assert "appsforoffice.microsoft.com" not in mit
+    assert mit.index('id="lade"') < mit.index(f'src="{addin.TEAMSJS_URL}"')
+    ohne = client.get("/self").text
+    assert "appsforoffice.microsoft.com/lib/1.1/hosted/office.js" in ohne
+
+
+def test_tab_meldet_sich_wenn_der_host_nie_antwortet():
+    """Bleibt app.initialize() ohne Antwort, darf „Lädt…" nicht ewig stehen."""
+    text = (VORLAGEN / "self.html").read_text(encoding="utf-8")
+    assert "clearTimeout(tabWache)" in text
+    assert "zeigeFehler(TAB_KEINE_ANTWORT)" in text
+    assert 'id="im-browser"' in text
