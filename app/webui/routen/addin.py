@@ -174,15 +174,31 @@ async def addin_auth_complete_teams(request: Request):
     return HTMLResponse(content=html, headers={"Cache-Control": _NO_STORE})
 
 
+def rechtstext_url(schluessel: str, base: str, anker: str) -> str:
+    """Eigene Seite des Betreibers, sonst die öffentliche Gateway-Seite.
+
+    Nur https: Teams verlangt es, und ein „javascript:" o. Ä. aus der
+    Einstellung darf nicht ins Paket gelangen.
+    """
+    eigen = str(settings_store.get(schluessel) or "").strip()
+    if eigen.lower().startswith("https://") and len(eigen) > len("https://"):
+        return eigen
+    if eigen:
+        log.warning("%s ist keine https-Adresse und wird ignoriert: %r", schluessel, eigen[:80])
+    return f"{base}/self/rechtliches#{anker}"
+
+
 def _teams_manifest(base: str) -> dict:
     """Teams-App-Manifest (Schema 1.17) mit einem persönlichen Tab auf /self.
 
     Texte aus _manifest_texte() — EINE Quelle für Add-in und Tab. Version wie
     beim Add-in: steigt nur bei inhaltlicher Änderung, aber dreistellig (das
     Teams-Schema erlaubt keine vierte Stelle).
-    Datenschutz/Nutzungsbedingungen sind Pflichtfelder; das Gateway hat keine
-    eigenen Rechtsseiten — für eine nur im eigenen Tenant verteilte App zeigen
-    sie auf das Gateway.
+    Datenschutz/Nutzungsbedingungen sind Pflichtfelder und erscheinen im Store
+    bei jedem Nutzer. Bis v1.9.155 zeigten sie auf die Startseite des Gateways —
+    hinter der Anmeldung, für Nutzer also eine Sackgasse. Jetzt: die Seiten des
+    Betreibers (SELF_DATENSCHUTZ_URL / SELF_NUTZUNGSBEDINGUNGEN_URL), sonst die
+    öffentliche Seite /self/rechtliches.
     """
     import html as _html
     hostname = base.split("://")[-1].split(":")[0]
@@ -193,7 +209,8 @@ def _teams_manifest(base: str) -> dict:
         "version": "__VERSION__",
         "id": str(_uuid.uuid5(_uuid.NAMESPACE_DNS, f"exo-signature-tab.{hostname}")),
         "developer": {"name": t["anbieter"][:32], "websiteUrl": base,
-                      "privacyUrl": base, "termsOfUseUrl": base},
+                      "privacyUrl": rechtstext_url("SELF_DATENSCHUTZ_URL", base, "datenschutz"),
+                      "termsOfUseUrl": rechtstext_url("SELF_NUTZUNGSBEDINGUNGEN_URL", base, "nutzung")},
         "name": {"short": t["knopf"][:30], "full": f"{t['anzeige']} – {t['knopf']}"[:100]},
         "description": {"short": t["info_lesen"][:80],
                         "full": (f"{t['info_lesen']} — für das eigene Postfach, ohne eine Mail "

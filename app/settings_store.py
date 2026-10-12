@@ -70,6 +70,11 @@ DEFAULTS: dict = {
     # nur für Signatur/Antwort-Signatur/Abwesenheit; Banner und Disclaimer bleiben
     # Sache der Richtlinie (policies.py, seit v1.9.113).
     "SELF_SERVICE_ENABLED": False,
+    # Rechtstexte der Self-Service-App (Teams-Paket: privacyUrl/termsOfUseUrl).
+    # Leer = öffentliche Gateway-Seite /self/rechtliches. Verantwortlich ist der
+    # Betreiber des Gateways, nicht der Hersteller — daher seine eigenen Seiten.
+    "SELF_DATENSCHUTZ_URL": "",
+    "SELF_NUTZUNGSBEDINGUNGEN_URL": "",
     # Vorlagenwahl im Self-Service ist standardmäßig AUS. Freischaltbar pro Postfach
     # (MAILBOX_CONFIG[...]["self_templates"]) oder pro interner Gruppe (hier gelistet).
     "SELF_TEMPLATE_GROUPS": [],

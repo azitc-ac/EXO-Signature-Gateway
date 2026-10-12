@@ -177,6 +177,19 @@ async def self_page(request: Request):
     return resp
 
 
+@router.get("/self/rechtliches", response_class=HTMLResponse)
+async def self_rechtliches(request: Request):
+    """Datenschutz und Nutzung der Self-Service-App — öffentlich.
+
+    Ziel der Pflichtlinks im Teams-Paket, solange der Betreiber keine eigenen
+    Seiten einträgt. Muss ohne Anmeldung lesbar sein: Der Store zeigt die Links
+    vor dem Hinzufügen.
+    """
+    return templates.TemplateResponse(
+        request=request, name="self_rechtliches.html",
+        context={"gateway_name": _gateway_name()})
+
+
 # ── Daten ──────────────────────────────────────────────────────────────────────
 
 @router.get("/api/self/context")

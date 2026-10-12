@@ -60,6 +60,7 @@ ERLAUBT_OHNE_ANMELDUNG: dict[str, str] = {
     "/api/watchdog/heartbeat": "eigene Token-Prüfung (X-Watchdog-Token) — 401 bei falschem Token",
     "/api/whoami":  "gibt für Nichtangemeldete ausdrücklich Nullwerte zurück, kein Geheimnis",
     "/favicon.ico": "Symbol der Seite; Browser fragen es vor jeder Anmeldung an",
+    "/self/rechtliches": "Datenschutz/Nutzung der Self-Service-App; der Store verlinkt sie vor dem Hinzufügen",
 
     # ── Nachrichtenportal: richtet sich an externe Empfänger OHNE Konto.
     #    Der Zugang hängt am Merkmal in der Adresse und an der Einmalkennzahl.
