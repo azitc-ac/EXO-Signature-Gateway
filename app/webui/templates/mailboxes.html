@@ -370,6 +370,34 @@ async function ankerAnwenden() {
     (anders als der native Outlook-Dialog). Ist der Schalter aus, ist die Seite nur
     Anzeige/Vorschau.
   </p>
+  {# Pflichtlinks im Teams-Paket (Tab „Signatur & Abwesenheit"): Der Store zeigt
+     sie jedem Nutzer vor dem Hinzufügen — sie müssen ohne Anmeldung erreichbar sein. #}
+  <div class="settings-row" style="margin-top:12px">
+    <label for="self-datenschutz-url">Datenschutzerklärung (Link)</label>
+    <div class="settings-control">
+      <input type="url" id="self-datenschutz-url" value="{{ self_datenschutz_url }}"
+             placeholder="leer = /self/rechtliches" style="min-width:320px">
+    </div>
+  </div>
+  <div class="settings-row">
+    <label for="self-nutzung-url">Nutzungsbedingungen (Link)</label>
+    <div class="settings-control">
+      <input type="url" id="self-nutzung-url" value="{{ self_nutzung_url }}"
+             placeholder="leer = /self/rechtliches" style="min-width:320px">
+    </div>
+  </div>
+  <p class="hint" style="margin:4px 0 0;max-width:640px">
+    Erscheinen im App-Paket für Outlook/Teams. Trag die Seiten deiner Organisation ein
+    (nur https). Ohne Eintrag zeigen sie auf die öffentliche Seite
+    <a href="/self/rechtliches" target="_blank">/self/rechtliches</a>. Nach einer Änderung
+    das App-Paket unter Integrierte Apps neu hochladen.
+  </p>
+  <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+    <button class="btn secondary" id="self-recht-btn"
+            data-wache="self-datenschutz-url,self-nutzung-url" data-wache-hinweis="self-recht-result"
+            onclick="saveSelfRechtstexte()">Speichern</button>
+    <span id="self-recht-result" style="font-size:12px"></span>
+  </div>
   <!-- Vorlagenwahl im Self-Service: standardmäßig AUS. Pro Gruppe freischaltbar. -->
   <div class="settings-row" style="margin-top:12px" id="self-tpl-groups-row">
     <label for="self-tpl-groups">Vorlagenwahl erlauben (Gruppen)</label>
@@ -698,6 +726,20 @@ async function savePolicies() {
 // Die OOF-/Kalender-/Anhang-Schalter sind auf die Seite \u201eAbwesenheit" umgezogen.
 async function selfServiceUmschalten(cb) {
   await savePartial({ SELF_SERVICE_ENABLED: cb.checked }, 'self-service-result');
+}
+async function saveSelfRechtstexte() {
+  var felder = { SELF_DATENSCHUTZ_URL: 'self-datenschutz-url',
+                 SELF_NUTZUNGSBEDINGUNGEN_URL: 'self-nutzung-url' };
+  var werte = {};
+  for (var k in felder) {
+    var v = document.getElementById(felder[k]).value.trim();
+    if (v && v.toLowerCase().indexOf('https://') !== 0) {
+      showMsg(document.getElementById('self-recht-result'), '\u2717 Nur https-Adressen', false);
+      return;
+    }
+    werte[k] = v;
+  }
+  wacheFertig('self-recht-btn', await savePartial(werte, 'self-recht-result'));
 }
 async function saveSelfTplKategorien() {
   var gewaehlt = Array.prototype.map.call(

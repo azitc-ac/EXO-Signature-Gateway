@@ -214,3 +214,40 @@ def test_tab_meldet_sich_wenn_der_host_nie_antwortet():
     assert "clearTimeout(tabWache)" in text
     assert "zeigeFehler(TAB_KEINE_ANTWORT)" in text
     assert 'id="im-browser"' in text
+
+
+# ── Rechtstexte im Paket ──────────────────────────────────────────────────────
+
+def test_rechtstexte_ohne_eintrag_zeigen_auf_die_oeffentliche_seite(monkeypatch):
+    """Bis v1.9.155 zeigten sie auf die Startseite — hinter der Anmeldung."""
+    m = json.loads(_paket(monkeypatch).read("manifest.json"))
+    assert m["developer"]["privacyUrl"] == "https://sig.example/self/rechtliches#datenschutz"
+    assert m["developer"]["termsOfUseUrl"] == "https://sig.example/self/rechtliches#nutzung"
+
+
+def test_rechtstexte_des_betreibers_gehen_vor(monkeypatch):
+    m = json.loads(_paket(monkeypatch, {
+        "SELF_DATENSCHUTZ_URL": "https://firma.example/datenschutz",
+        "SELF_NUTZUNGSBEDINGUNGEN_URL": "https://firma.example/agb"}).read("manifest.json"))
+    assert m["developer"]["privacyUrl"] == "https://firma.example/datenschutz"
+    assert m["developer"]["termsOfUseUrl"] == "https://firma.example/agb"
+
+
+@pytest.mark.parametrize("wert", ["javascript:alert(1)", "http://firma.example/ds", "https://", " "])
+def test_nur_https_kommt_ins_paket(monkeypatch, wert):
+    m = json.loads(_paket(monkeypatch, {"SELF_DATENSCHUTZ_URL": wert}).read("manifest.json"))
+    assert m["developer"]["privacyUrl"].endswith("/self/rechtliches#datenschutz")
+
+
+def test_eigene_rechtstexte_zaehlen_die_paketversion_hoch(monkeypatch):
+    daten = {}
+    v1 = json.loads(_paket(monkeypatch, daten).read("manifest.json"))["version"]
+    daten["SELF_DATENSCHUTZ_URL"] = "https://firma.example/datenschutz"
+    v2 = json.loads(_paket(monkeypatch, daten).read("manifest.json"))["version"]
+    assert v1 != v2
+
+
+def test_rechtsseite_ist_ohne_anmeldung_lesbar(client):
+    r = client.get("/self/rechtliches")
+    assert r.status_code == 200
+    assert 'id="datenschutz"' in r.text and 'id="nutzung"' in r.text

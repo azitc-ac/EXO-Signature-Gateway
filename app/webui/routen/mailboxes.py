@@ -486,6 +486,8 @@ async def mailboxes_page(request: Request, user: str = Depends(_require_admin)):
                  "addin_enabled": bool(settings_store.get("ADDIN_ENABLED")),
                  # Die OOF-/Kalender-Betreiberschalter sind auf /abwesenheit umgezogen.
                  "self_service_enabled": settings_store.get("SELF_SERVICE_ENABLED") is True,
+                 "self_datenschutz_url": settings_store.get("SELF_DATENSCHUTZ_URL") or "",
+                 "self_nutzung_url": settings_store.get("SELF_NUTZUNGSBEDINGUNGEN_URL") or "",
                  "self_template_groups": settings_store.get("SELF_TEMPLATE_GROUPS") or [],
                  "self_template_kategorien": settings_store.get("SELF_TEMPLATE_KATEGORIEN") or [],
                  "internal_group_names": sorted(gruppen.interne_gruppen().keys()),

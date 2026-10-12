@@ -5,6 +5,35 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.156 — 2026-10-12 — Self-Service-App: Datenschutz und Nutzungsbedingungen erreichbar
+
+Das App-Paket für Outlook/Teams (Tab „Signatur & Abwesenheit“) verlangt Links
+zu Datenschutz und Nutzungsbedingungen; der Store zeigt sie jedem Nutzer vor
+dem Hinzufügen. Beide zeigten auf die Startseite des Gateways — hinter der
+Anmeldung, für Nutzer also eine Sackgasse, für Administratoren die Übersicht.
+
+- Neue öffentliche Seite **/self/rechtliches**: was die App verarbeitet
+  (Anmeldung über Entra ID, eigene Abwesenheit und Signaturwahl, Vorschau aus
+  den Verzeichnisangaben), wo es bleibt, und dass der Betreiber des Gateways
+  verantwortlich ist.
+- *Postfächer → Self-Service*: zwei Felder für die eigenen Seiten deiner
+  Organisation (nur https). Sind sie gesetzt, kommen sie ins Paket; sonst die
+  Seite oben.
+- **Zu tun:** Die Paketversion steigt dadurch. Lade das App-Paket
+  („App-Paket herunterladen“ beim Outlook-Add-in, Abschnitt „Abwesenheit &
+  Signatur in der linken Leiste“) unter *Integrierte Apps* neu hoch.
+
+---
+
+## v1.9.155 — 2026-10-12 — Add-in-Diagnose ohne feste Domäne
+
+Die Diagnoseausgabe des Verfassen-Add-ins suchte im Text nach einer fest
+eingetragenen Domäne. Sie sucht jetzt nach der Domäne des eigenen Postfachs.
+Die Signaturerkennung selbst war davon nicht betroffen — sie arbeitet mit
+einem Textmerkmal aus der gerenderten Signatur.
+
+---
+
 ## v1.9.154 — 2026-10-12 — Self-Service-Tab: kein leerer Bildschirm mehr
 
 Im Tab „Signatur & Abwesenheit“ (linke Leiste in Outlook) konnte die Seite
@@ -19,11 +48,6 @@ Host die Verbindung nie, gab es kein Zeitlimit.
   der Link „Im Browser öffnen“.
 
 Seite im Browser und im Outlook-Add-in: unverändert.
-
-Außerdem: Die Diagnoseausgabe des Verfassen-Add-ins suchte im Text nach einer
-fest eingetragenen Domäne. Sie sucht jetzt nach der Domäne des eigenen
-Postfachs. Die Signaturerkennung selbst war davon nicht betroffen — sie
-arbeitet mit einem Textmerkmal aus der gerenderten Signatur.
 
 ---
 

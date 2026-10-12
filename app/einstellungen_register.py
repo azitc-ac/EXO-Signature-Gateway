@@ -175,6 +175,8 @@ REGISTER: dict[str, E] = {
     "OOO_ANNOUNCE_PRIVAT": E(art=OPTION, ort="abwesenheit.html"), # Ankündigung: privat mitzählen
     "OOO_ANNOUNCE_EXTERN": E(art=OPTION, ort="abwesenheit.html"), # Ankündigung: auch extern
     "SELF_SERVICE_ENABLED": E(art=OPTION, ort="mailboxes.html"),  # Nutzer-Self-Service (/self)
+    "SELF_DATENSCHUTZ_URL": E(art=OPTION, ort="mailboxes.html"),  # Teams-Paket: privacyUrl
+    "SELF_NUTZUNGSBEDINGUNGEN_URL": E(art=OPTION, ort="mailboxes.html"),  # Teams-Paket: termsOfUseUrl
     "SELF_TEMPLATE_GROUPS": E(art=STRUKTUR, ort="mailboxes.html"),  # Gruppen mit Vorlagenwahl im Self-Service
     "SELF_TEMPLATE_KATEGORIEN": E(art=OPTION, ort="mailboxes.html"),  # wählbare Kategorien (sig/min/oof)
     "GROUP_VARS": E(art=STRUKTUR, ort="/api/settings/internal-groups/save"),  # Custom-Vars je Gruppe

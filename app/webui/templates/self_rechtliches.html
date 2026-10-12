@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Signatur &amp; Abwesenheit – Datenschutz und Nutzung</title>
+{% include "_favicon.html" %}
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, Arial, sans-serif; color: #1e293b;
+         margin: 0; padding: 16px; background: #f8fafc; font-size: 14px; line-height: 1.5; }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: #64748b; font-size: 12px; margin: 0 0 16px; }
+  .karte { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+           padding: 16px 20px; margin-bottom: 16px; }
+  .karte h2 { font-size: 16px; margin: 0 0 8px; }
+  ul { margin: 6px 0; padding-left: 20px; }
+  li { margin: 4px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Signatur &amp; Abwesenheit</h1>
+  <p class="sub">{{ gateway_name }}</p>
+
+  <div class="karte" id="datenschutz">
+    <h2>Datenschutz</h2>
+    <p><b>Verantwortlich</b> ist die Organisation, die dieses Gateway betreibt —
+      in der Regel dein Arbeitgeber. Fragen richtest du an deine IT-Abteilung.</p>
+    <p>Die App verarbeitet nur, was für die Verwaltung deines eigenen Postfachs nötig ist:</p>
+    <ul>
+      <li><b>Anmeldung</b> über Microsoft Entra ID (dein Name und deine E-Mail-Adresse),
+        um festzustellen, welches Postfach dir gehört. Danach hält ein Anmeldemerkmal
+        im Browser die Sitzung.</li>
+      <li><b>Deine Abwesenheit</b>: an/aus, Zeitraum und gewählte Vorlage. Sie wird
+        über Microsoft Graph in deinem Exchange-Postfach gesetzt.</li>
+      <li><b>Deine Signaturwahl</b>, gespeichert in der Konfiguration des Gateways.</li>
+      <li><b>Die Vorschau</b> entsteht aus den Vorlagen und deinen Verzeichnisangaben
+        (etwa Funktion und Telefonnummer), wie sie auch in der Signatur stehen.</li>
+    </ul>
+    <p>Alles bleibt auf dem Gateway deiner Organisation und in deren Microsoft-365-Umgebung.
+      Keine Weitergabe an Dritte, keine Werbung, keine Nutzungsauswertung.</p>
+  </div>
+
+  <div class="karte" id="nutzung">
+    <h2>Nutzung</h2>
+    <p>Die App dient allein dazu, die Abwesenheit und Signatur des eigenen Postfachs
+      einzusehen und – soweit freigegeben – zu ändern. Was du ändern darfst, legt der
+      Betreiber fest. Im Übrigen gelten die Regeln deiner Organisation für die Nutzung
+      ihrer IT.</p>
+  </div>
+</div>
+</body>
+</html>
