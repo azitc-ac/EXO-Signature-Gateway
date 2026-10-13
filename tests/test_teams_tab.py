@@ -169,7 +169,22 @@ def test_tab_navigiert_nie_zur_anmeldeseite():
     t = (Path(addin.__file__).resolve().parents[1] / "templates" / "self.html").read_text("utf-8")
     anm = t[t.index("function anmelden()"):]
     assert anm.index("if (IM_TEAMS)") < anm.index("window.location = '/auth/login")
-    assert "if (!imOffice() && !IM_TEAMS) { window.location = '/auth/logout'" in t
+    assert "if (!imOffice() && !IM_TEAMS && !IM_RAHMEN) { window.location = '/auth/logout'" in t
+
+
+def test_aufgabenbereich_navigiert_nie_zur_anmeldeseite():
+    """Im Rahmen (Lese-Knopf des Add-ins) endet /auth/login an X-Frame-Options:
+    DENY. anmelden() muss vor der Weiterleitung abbiegen, und der Start im
+    Rahmen darf keinen Zeitgeber vor Office.onReady haben (der war die Ursache:
+    imOffice() noch falsch beim ersten 401). Im Browser prüft das
+    test_ui_browser.py ausführlich; dies ist die Fassung für die CI."""
+    t = (VORLAGEN / "self.html").read_text("utf-8")
+    anm = t[t.index("function anmelden()"):]
+    assert anm.index("if (IM_RAHMEN)") < anm.index("window.location = '/auth/login")
+    rahmen = t[t.index("} else if (IM_RAHMEN) {"):]
+    rahmen = rahmen[:rahmen.index("} else {")]
+    assert "setTimeout(start" not in rahmen
+    assert "Office.onReady(function () { clearTimeout(addinWache); start(); })" in rahmen
 
 
 def test_anmeldeabschluss_fuer_teams(client):
