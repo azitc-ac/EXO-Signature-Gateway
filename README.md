@@ -574,6 +574,16 @@ bildet `443 → 8080` ab. Alle Einstellungen werden in der Oberfläche gepflegt
 
 Die Oberfläche folgt der Systemeinstellung für **hellen und dunklen Modus** und ist auf Telefonbreite (ab 320 px) bedienbar.
 
+### Outlook-Add-in und App bereitstellen
+
+Beides lädst du einmal im Microsoft 365 Admin Center unter *Integrierte Apps* hoch. Die Schritte stehen unter *Einrichtung → Outlook-Add-in*.
+
+- **Vorher die Admin-Rolle aktivieren** (mit PIM: Rolle aktivieren). Ohne aktive Rolle sind *Aktualisieren* und *Entfernen* ausgegraut.
+- **Wartezeit einplanen:** Microsoft nennt 24 bis 72 Stunden, bis Add-in und App in Outlook erscheinen; Exchange verteilt Postfach für Postfach. In der Wartezeit nichts entfernen und neu hochladen.
+- **Gateway-Updates brauchen kein neues Hochladen.** Was im Bereich bzw. in der App angezeigt wird, liefert das Gateway live aus. Neu hochzuladen ist nur, wenn sich das Paket ändert (neuer Knopf, andere Links) — dann steigt die Versionsnummer, und *Aktualisieren* genügt.
+- **Wo Nutzer die App finden:** in Outlook unter *Weitere Apps → Apps hinzufügen → Für Ihre Organisation erstellt → Öffnen*, in Teams ebenso im Store. Rechtsklick auf das Symbol in der Leiste → *Anheften*.
+- **Teams:** Zeigt das Teams Admin Center danach noch die alte Version, dort *Neue Version hochladen*. Anheften lässt sich die App in Teams zentral über eine Setup-Richtlinie (*Pinned apps*); für Outlook ist keine solche Richtlinie bekannt — dort heftet jeder Nutzer sie selbst über *Weitere Apps* an.
+
 ---
 
 ## S/MIME Signierung & Verschlüsselung

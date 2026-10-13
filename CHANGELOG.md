@@ -5,6 +5,30 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.161 — 2026-10-13 — Add-in und App: Bereitstellung mit Rolle, Wartezeit und Update-Weg
+
+*Einrichtung → Outlook-Add-in* nennt jetzt, was beim Bereitstellen sonst zu
+Fehlversuchen führt:
+
+- **Admin-Rolle vorher aktivieren** (mit PIM). Ohne aktive Rolle sind
+  *Aktualisieren* und *Entfernen* unter *Integrierte Apps* ausgegraut.
+- **In der Wartezeit nichts entfernen und neu hochladen.** Exchange verteilt das
+  Add-in Postfach für Postfach; Microsoft nennt 24 bis 72 Stunden.
+- **Aktualisieren genügt** bei einem geänderten Manifest. Fehlerbehebungen am
+  Inhalt des Bereichs kommen mit dem Gateway-Update, ohne neues Hochladen.
+- **Teams-App:** Steht im Teams Admin Center danach noch die alte Version, dort
+  *Neue Version hochladen*. Der Store in Outlook folgt dem Teams-Katalog mit
+  Verzögerung (gemessen rund eine halbe Stunde).
+
+Neu ist auch, wo Nutzer die App finden: Vor dem ersten Öffnen steht sie nicht
+unter *Weitere Apps*, sondern im Store unter *Für Ihre Organisation erstellt*.
+Nach dem Öffnen lässt sie sich per Rechtsklick in der Leiste anheften.
+
+Das README hat dazu einen eigenen Abschnitt, einschließlich des zentralen
+Anheftens in Teams über eine Setup-Richtlinie. Nichts zu tun.
+
+---
+
 ## v1.9.160 — 2026-10-13 — Add-in-Anmeldung: nach „Ignorieren“ erneut versuchen ohne Neuladen
 
 Vor dem Anmeldefenster zeigt Outlook im Web einen eigenen Hinweis mit

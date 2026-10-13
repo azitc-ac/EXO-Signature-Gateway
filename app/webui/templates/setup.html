@@ -2653,6 +2653,10 @@ async function saveKeyvault() {
 
       <!-- Deployment -->
       <h3 style="margin:0 0 10px;font-size:13px;font-weight:600;color:#374151">Deployment im M365 Admin Center</h3>
+      <p class="hint" style="line-height:1.7;margin-bottom:8px">
+        <strong>Vorher die Admin-Rolle aktivieren</strong> (Globaler Administrator; mit PIM: Rolle
+        aktivieren). Ohne aktive Rolle sind <em>Aktualisieren</em> und <em>Entfernen</em> ausgegraut.
+      </p>
       <ol style="margin:0 0 0 18px;padding:0;line-height:2.1;font-size:12.5px;color:#374151">
         <li>
           <a href="https://admin.microsoft.com" target="_blank" style="color:#0078d4">admin.microsoft.com</a>
@@ -2661,10 +2665,14 @@ async function saveKeyvault() {
         <li><strong>Apps hochladen</strong> → <em>Office-Add-In</em></li>
         <li><strong>Link zur Manifestdatei</strong> → obige URL einfügen → <strong>Validieren</strong></li>
         <li>Benutzer/Gruppen zuweisen (z.&nbsp;B. <em>{{ s.GATEWAY_NAME or 'EXO Signature Gateway' }} – Enabled Mailboxes</em>)</li>
-        <li>Das Add-in erscheint in Outlook nach <strong>24 bis 72 Stunden</strong> (Angabe von Microsoft)</li>
+        <li>Das Add-in erscheint in Outlook nach <strong>24 bis 72 Stunden</strong> (Angabe von Microsoft).
+          Exchange verteilt es Postfach für Postfach; ein Postfach kann früher dran sein als ein anderes.
+          <strong>In der Wartezeit nichts entfernen und neu hochladen</strong> — es ist kein Fehler, dass noch nichts zu sehen ist.</li>
         <li>Wenn sich das Manifest ändert (neuer Knopf, anderer Text, Abwesenheit ein/aus): Add-in in
-          <strong>Integrierte Apps</strong> auswählen → <strong>Aktualisieren</strong>. Die Versionsnummer
-          in <code>/addin/manifest.xml</code> steigt nur dann, nicht bei jedem Gateway-Update.</li>
+          <strong>Integrierte Apps</strong> auswählen → <strong>Aktualisieren</strong>. Entfernen und neu
+          hinzufügen ist nicht nötig. Die Versionsnummer in <code>/addin/manifest.xml</code> steigt nur
+          dann, nicht bei jedem Gateway-Update — Fehlerbehebungen am Inhalt des Bereichs kommen mit dem
+          Gateway-Update, ohne neues Hochladen.</li>
       </ol>
 
       <div style="border-top:1px solid #f0f0f0;margin:14px 0 12px"></div>
@@ -2693,6 +2701,13 @@ async function saveKeyvault() {
         <li>Wie beim Add-in: Microsoft nennt <strong>24 bis 72 Stunden</strong>, bis die App erscheint</li>
         <li>Hochgeladen wird eine Datei, keine Adresse — eine neue Fassung erscheint hier mit höherer
           Versionsnummer im Dateinamen und muss erneut hochgeladen werden.</li>
+        <li>Zeigt das <a href="https://admin.teams.microsoft.com" target="_blank" style="color:#0078d4">Teams Admin Center</a>
+          unter <strong>Teams-Apps → Apps verwalten</strong> danach noch die alte Version: dort die App
+          öffnen → <strong>Neue Version hochladen</strong>. Der Store in Outlook folgt dem Teams-Katalog
+          mit Verzögerung (gemessen rund eine halbe Stunde).</li>
+        <li>Nutzer finden die App in Outlook unter <strong>Weitere Apps → Apps hinzufügen → Für Ihre
+          Organisation erstellt</strong> → <strong>Öffnen</strong>, in Teams ebenso im Store. Rechtsklick
+          auf das Symbol in der Leiste → <strong>Anheften</strong> hält sie dort.</li>
       </ol>
       {% endif %}
 
