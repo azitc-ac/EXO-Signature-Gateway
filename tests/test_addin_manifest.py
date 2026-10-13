@@ -47,7 +47,7 @@ def test_manifest_ist_gueltiges_xml_auch_mit_sonderzeichen(monkeypatch, name):
 def test_beide_einstiegspunkte_teilen_rubrik_und_knopf(monkeypatch):
     root = _manifest(monkeypatch, "Mein GW", True)
     gruppen = [g for g in root.iter() if g.tag.endswith("}Group")]
-    assert len(gruppen) == 2
+    assert len(gruppen) == 4              # je zwei in VersionOverrides 1.0 und 1.1
     for g in gruppen:
         label = next(c for c in g if c.tag.endswith("}Label"))
         assert label.get("resid") == "groupLabel"
@@ -145,3 +145,42 @@ def test_fremde_adresse_aendert_weder_version_noch_speicher(monkeypatch):
     erste = abruf("sig.example")
     assert [abruf(h) for h in ("evil.example", "x.test", "sig.example")] == [erste] * 3
     assert len(schreibvorgaenge) == 1, schreibvorgaenge
+
+
+V11 = "http://schemas.microsoft.com/office/mailappversionoverrides/1.1"
+
+
+def _aktionen(vo):
+    """{Knopf-ID: Action-Element} innerhalb EINES VersionOverrides (ohne verschachtelte)."""
+    hosts = next(c for c in vo if c.tag.endswith("}Hosts"))
+    return {k.get("id"): next(a for a in k if a.tag.endswith("}Action"))
+            for k in hosts.iter() if k.tag.endswith("}Control")}
+
+
+def _kinder(action):
+    return {c.tag.split("}")[1]: c.text for c in action}
+
+
+def test_anheften_und_lese_knopf_ohne_mail_nur_in_version_1_1(monkeypatch):
+    """Bereich anheftbar (Lesen UND Verfassen), Lese-Knopf auch ohne ausgewählte
+    Mail (Classic Outlook). Beides kennt das Schema erst ab VersionOverrides 1.1 —
+    in 1.0 wäre es ungültig, Integrierte Apps lehnte das Manifest ab."""
+    root = _manifest(monkeypatch, "Mein GW", True)
+    v10 = root.find("v:VersionOverrides", NS)
+    v11 = v10.find(f"{{{V11}}}VersionOverrides")
+    assert v11 is not None, "VersionOverrides 1.1 fehlt"
+    assert v11.get("{http://www.w3.org/2001/XMLSchema-instance}type") == "VersionOverridesV1_1"
+    min11 = next(e for e in v11.iter() if e.tag.endswith("}Sets")).get("DefaultMinVersion")
+    assert min11 == "1.13"
+
+    for aktion in _aktionen(v10).values():
+        assert set(_kinder(aktion)) == {"SourceLocation"}
+
+    a11 = _aktionen(v11)
+    assert set(a11) == {"exo.sig.btn", "exo.self.btn"}
+    assert _kinder(a11["exo.sig.btn"]) == {"SourceLocation": None, "SupportsPinning": "true"}
+    assert _kinder(a11["exo.self.btn"]) == {"SourceLocation": None, "SupportsPinning": "true",
+                                            "SupportsNoItemContext": "true"}
+    # Beide Fassungen bringen ihre eigenen Ressourcen mit.
+    for vo in (v10, v11):
+        assert any(c.tag.endswith("}Resources") for c in vo)

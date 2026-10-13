@@ -356,6 +356,75 @@ def _manifest_version(inhalt: str, schluessel: str = "_ADDIN_MANIFEST_STAND",
     return neu
 
 
+def _manifest_hosts(v11: bool) -> str:
+    """<Hosts> des Add-ins — einmal für VersionOverrides 1.0, einmal für 1.1.
+
+    Nur 1.1 kennt `SupportsPinning` (Bereich bleibt beim Wechsel der Mail bzw.
+    bei der nächsten neuen Mail offen) und `SupportsNoItemContext` (Lese-Knopf
+    auch ohne ausgewählte Mail — laut Microsoft nur in Classic Outlook; in OWA
+    und im neuen Outlook stehen Add-in-Knöpfe nicht im Menüband). Ältere
+    Clients nehmen die 1.0-Fassung ohne beides.
+    """
+    pin = "\n                    <SupportsPinning>true</SupportsPinning>" if v11 else ""
+    ohne_mail = ("\n                    <SupportsNoItemContext>true</SupportsNoItemContext>"
+                 if v11 else "")
+    return """    <Hosts>
+      <Host xsi:type="MailHost">
+        <DesktopFormFactor>
+          <FunctionFile resid="functionFile"/>
+          <ExtensionPoint xsi:type="MessageComposeCommandSurface">
+            <OfficeTab id="TabDefault">
+              <Group id="exo.sig.group">
+                <Label resid="groupLabel"/>
+                <Control xsi:type="Button" id="exo.sig.btn">
+                  <Label resid="btnLabel"/>
+                  <Supertip>
+                    <Title resid="btnTitle"/>
+                    <Description resid="btnDesc"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="icon16"/>
+                    <bt:Image size="32" resid="icon32"/>
+                    <bt:Image size="80" resid="icon80"/>
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <SourceLocation resid="taskpaneUrl"/>{pin}
+                  </Action>
+                </Control>
+              </Group>
+            </OfficeTab>
+          </ExtensionPoint>
+          <!-- Self-Service beim LESEN jeder Mail erreichbar (Taskpane /self).
+               Gleiche Rubrik und gleicher Knopfname wie beim Verfassen: für den
+               Nutzer EIN Werkzeug, das je nach Lage das Passende öffnet. -->
+          <ExtensionPoint xsi:type="MessageReadCommandSurface">
+            <OfficeTab id="TabDefault">
+              <Group id="exo.self.group">
+                <Label resid="groupLabel"/>
+                <Control xsi:type="Button" id="exo.self.btn">
+                  <Label resid="btnLabel"/>
+                  <Supertip>
+                    <Title resid="selfBtnTitle"/>
+                    <Description resid="selfBtnDesc"/>
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="icon16"/>
+                    <bt:Image size="32" resid="icon32"/>
+                    <bt:Image size="80" resid="icon80"/>
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <SourceLocation resid="selfUrl"/>{pin}{ohne_mail}
+                  </Action>
+                </Control>
+              </Group>
+            </OfficeTab>
+          </ExtensionPoint>
+        </DesktopFormFactor>
+      </Host>
+    </Hosts>
+""".replace("{pin}", pin).replace("{ohne_mail}", ohne_mail)
+
+
 @router.get("/addin/manifest.xml")
 async def addin_manifest(request: Request):
     """Generate the Office Add-in manifest dynamically.
@@ -367,6 +436,7 @@ async def addin_manifest(request: Request):
     # Stable add-in ID derived from the hostname so it never changes across restarts.
     addin_id = str(_uuid.uuid5(_uuid.NAMESPACE_DNS, f"exo-signature-addin.{hostname}"))
     t = _manifest_texte()
+    hosts_v10, hosts_v11 = _manifest_hosts(False), _manifest_hosts(True)
     xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <OfficeApp
   xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
@@ -417,61 +487,7 @@ async def addin_manifest(request: Request):
       </bt:Sets>
     </Requirements>
 
-    <Hosts>
-      <Host xsi:type="MailHost">
-        <DesktopFormFactor>
-          <FunctionFile resid="functionFile"/>
-          <ExtensionPoint xsi:type="MessageComposeCommandSurface">
-            <OfficeTab id="TabDefault">
-              <Group id="exo.sig.group">
-                <Label resid="groupLabel"/>
-                <Control xsi:type="Button" id="exo.sig.btn">
-                  <Label resid="btnLabel"/>
-                  <Supertip>
-                    <Title resid="btnTitle"/>
-                    <Description resid="btnDesc"/>
-                  </Supertip>
-                  <Icon>
-                    <bt:Image size="16" resid="icon16"/>
-                    <bt:Image size="32" resid="icon32"/>
-                    <bt:Image size="80" resid="icon80"/>
-                  </Icon>
-                  <Action xsi:type="ShowTaskpane">
-                    <SourceLocation resid="taskpaneUrl"/>
-                  </Action>
-                </Control>
-              </Group>
-            </OfficeTab>
-          </ExtensionPoint>
-          <!-- Self-Service beim LESEN jeder Mail erreichbar (Taskpane /self).
-               Gleiche Rubrik und gleicher Knopfname wie beim Verfassen: für den
-               Nutzer EIN Werkzeug, das je nach Lage das Passende öffnet. -->
-          <ExtensionPoint xsi:type="MessageReadCommandSurface">
-            <OfficeTab id="TabDefault">
-              <Group id="exo.self.group">
-                <Label resid="groupLabel"/>
-                <Control xsi:type="Button" id="exo.self.btn">
-                  <Label resid="btnLabel"/>
-                  <Supertip>
-                    <Title resid="selfBtnTitle"/>
-                    <Description resid="selfBtnDesc"/>
-                  </Supertip>
-                  <Icon>
-                    <bt:Image size="16" resid="icon16"/>
-                    <bt:Image size="32" resid="icon32"/>
-                    <bt:Image size="80" resid="icon80"/>
-                  </Icon>
-                  <Action xsi:type="ShowTaskpane">
-                    <SourceLocation resid="selfUrl"/>
-                  </Action>
-                </Control>
-              </Group>
-            </OfficeTab>
-          </ExtensionPoint>
-        </DesktopFormFactor>
-      </Host>
-    </Hosts>
-
+{hosts_v10}
     <Resources>
       <bt:Images>
         <bt:Image id="icon16" DefaultValue="{base}/addin/icon/16.png"/>
@@ -497,6 +513,46 @@ async def addin_manifest(request: Request):
         <bt:String id="selfBtnDesc" DefaultValue="{t['info_lesen']}"/>
       </bt:LongStrings>
     </Resources>
+
+    <!-- 1.1 (Mailbox 1.13): Anheften + Lese-Knopf ohne ausgewählte Mail.
+         Clients darunter bleiben bei der 1.0-Fassung oben. -->
+    <VersionOverrides
+      xmlns="http://schemas.microsoft.com/office/mailappversionoverrides/1.1"
+      xsi:type="VersionOverridesV1_1">
+
+      <Requirements>
+        <bt:Sets DefaultMinVersion="1.13">
+          <bt:Set Name="Mailbox"/>
+        </bt:Sets>
+      </Requirements>
+
+{hosts_v11}
+    <Resources>
+      <bt:Images>
+        <bt:Image id="icon16" DefaultValue="{base}/addin/icon/16.png"/>
+        <bt:Image id="icon32" DefaultValue="{base}/addin/icon/32.png"/>
+        <bt:Image id="icon80" DefaultValue="{base}/addin/icon/80.png"/>
+      </bt:Images>
+      <bt:Urls>
+        <bt:Url id="functionFile" DefaultValue="{base}/addin/function"/>
+        <bt:Url id="taskpaneUrl"  DefaultValue="{base}/addin/compose"/>
+        <bt:Url id="selfUrl"      DefaultValue="{base}/self"/>
+      </bt:Urls>
+      <bt:ShortStrings>
+        <!-- Im Menuband steht der Gruppenname UNTEN, die Knopfbeschriftung
+             direkt unter dem Symbol. Rubrik = Gateway-Name (der Urheber),
+             Knopf = was er tut — an beiden Einstiegspunkten gleich. -->
+        <bt:String id="groupLabel" DefaultValue="{t['rubrik']}"/>
+        <bt:String id="btnLabel"   DefaultValue="{t['knopf']}"/>
+        <bt:String id="btnTitle"   DefaultValue="{t['titel_verfassen']}"/>
+        <bt:String id="selfBtnTitle"   DefaultValue="{t['titel_lesen']}"/>
+      </bt:ShortStrings>
+      <bt:LongStrings>
+        <bt:String id="btnDesc" DefaultValue="{t['info_verfassen']}"/>
+        <bt:String id="selfBtnDesc" DefaultValue="{t['info_lesen']}"/>
+      </bt:LongStrings>
+    </Resources>
+    </VersionOverrides>
   </VersionOverrides>
 </OfficeApp>"""
     xml = xml.replace("__VERSION__", _manifest_version(_ohne_adresse(xml, base, hostname, addin_id)), 1)

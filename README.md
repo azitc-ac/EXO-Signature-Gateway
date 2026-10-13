@@ -39,7 +39,7 @@ Zuschaltbar unter *Einrichtung → Modus & Funktionen* (Vorgabe aus).
 - **Auch für abgelegte Post** — im Modus Graph++ antwortet das Gateway selbst auf Post von außen, die per IMAP abgelegt wird (siehe [Graph++](#betrieb-auf-azure-kein-ausgehender-port-25)).
 
 ### Self-Service für Mitarbeitende
-- **Eigene Abwesenheit und Signatur** — Mitarbeitende schalten ihre Abwesenheit, legen den Zeitraum fest und sehen eine Vorschau, die dem späteren Ergebnis entspricht. Die Wahl der eigenen Vorlagen ist standardmäßig gesperrt und je Postfach oder Gruppe freischaltbar.
+- **Eigene Abwesenheit und Signatur** — drei Reiter: *Abwesenheit* (an/aus, Zeitraum, Vorlage), *Signatur* (unter jeder neuen Mail und ggf. unter der Abwesenheitsnotiz) und *Antwort-Signatur* (ab der 2. eigenen Mail im Verlauf, auch *keine*). Jeder Reiter hat eine eigene Vorschau als Beispiel-Mail und einen eigenen Speichern-Knopf. Die Wahl der eigenen Vorlagen ist standardmäßig gesperrt und je Postfach oder Gruppe freischaltbar.
 - **Drei Zugänge, eine Seite** — im Browser unter `/self`, als Knopf beim Lesen einer Mail im Outlook-Add-in und als App in der linken Leiste von Outlook (Web, Windows klassisch und neu, iOS, Android) und Teams. Die App wird als Paket unter *Integrierte Apps* hochgeladen.
 - **Anmeldung über Entra ID**; die Self-Service-Rolle erreicht nur das eigene Postfach. Schalter `SELF_SERVICE_ENABLED` (Vorgabe aus): ohne ihn ist die Seite reine Anzeige.
 
@@ -60,7 +60,7 @@ Zuschaltbar unter *Einrichtung → Modus & Funktionen* (Vorgabe aus).
 ### Betrieb
 - **Massenoperationen** — viele Postfächer auf einmal aktivieren und Zertifikate für viele zugleich bestellen/ausrollen (mit Vorschau und Kontingentprüfung).
 - **SMTP-Relay** — Geräte im eigenen Netz (Drucker, Scanner, Fachanwendungen) senden über das Gateway wie über einen lokalen Exchange-Server.
-- **Outlook-Add-in** — Signatur direkt im Outlook-Verfassenfenster vorschauen und auswählen; beim Lesen öffnet es den Self-Service.
+- **Outlook-Add-in** — Signatur direkt im Outlook-Verfassenfenster vorschauen und auswählen; beim Lesen öffnet es den Self-Service. Der Bereich lässt sich anheften; im klassischen Outlook steht der Knopf auch ohne ausgewählte Mail bereit.
 - **Anmeldung und Rollen** — Anmeldung über Entra ID mit den Rollen Admin, Bearbeiter (Vorlagen), Kampagnen-Manager und Self-Service; ein lokaler Notfallzugang bleibt.
 - **Dashboard & Überwachung** — Mailstatistik, S/MIME-Zähler, Zertifikatsablauf, RAM/Platte/Log-Überwachung.
 - **Selbst gehostet oder in Azure** — jeder x64/ARM64-Host (auch Raspberry Pi) oder vollständig in Azure ohne ausgehenden Port 25.
@@ -582,6 +582,7 @@ Beides lädst du einmal im Microsoft 365 Admin Center unter *Integrierte Apps* h
 - **Wartezeit einplanen:** Microsoft nennt 24 bis 72 Stunden, bis Add-in und App in Outlook erscheinen; Exchange verteilt Postfach für Postfach. In der Wartezeit nichts entfernen und neu hochladen.
 - **Gateway-Updates brauchen kein neues Hochladen.** Was im Bereich bzw. in der App angezeigt wird, liefert das Gateway live aus. Neu hochzuladen ist nur, wenn sich das Paket ändert (neuer Knopf, andere Links) — dann steigt die Versionsnummer, und *Aktualisieren* genügt.
 - **Wo Nutzer die App finden:** in Outlook unter *Weitere Apps → Apps hinzufügen → Für Ihre Organisation erstellt → Öffnen*, in Teams ebenso im Store. Rechtsklick auf das Symbol in der Leiste → *Anheften*.
+- **Bereich anheften:** Im Aufgabenbereich des Add-ins oben auf die Pinnadel klicken — er bleibt dann beim Wechsel der Mail offen bzw. öffnet sich bei der nächsten neuen Mail wieder (getrennt für Lesen und Verfassen). Ohne ausgewählte Mail steht der Knopf nur im klassischen Outlook bereit; in Outlook im Web und im neuen Outlook zeigt Microsoft Add-in-Knöpfe erst an einer ausgewählten Mail.
 - **Teams:** Zeigt das Teams Admin Center danach noch die alte Version, dort *Neue Version hochladen*. Anheften lässt sich die App in Teams zentral über eine Setup-Richtlinie (*Pinned apps*); für Outlook ist keine solche Richtlinie bekannt — dort heftet jeder Nutzer sie selbst über *Weitere Apps* an.
 
 ---
