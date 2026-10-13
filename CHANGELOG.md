@@ -5,6 +5,20 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.160 — 2026-10-13 — Add-in-Anmeldung: nach „Ignorieren“ erneut versuchen ohne Neuladen
+
+Vor dem Anmeldefenster zeigt Outlook im Web einen eigenen Hinweis mit
+*Zulassen* und *Ignorieren*. Wer im Aufgabenbereich des Lese-Knopfs
+*Ignorieren* wählte, sah bisher nur „Seite neu laden“; einen Knopf für den
+nächsten Versuch gab es nicht. Jetzt erscheint der Knopf *Anmelden*, dessen
+Klick den Hinweis erneut auslöst.
+
+Die Meldung nennt den Knopf zusätzlich englisch („Zulassen“ (Allow)), weil
+Outlook ihn in der Sprache seiner eigenen Oberfläche beschriftet. Dasselbe gilt
+für die Meldung beim Verfassen. Nichts zu tun.
+
+---
+
 ## v1.9.159 — 2026-10-13 — README: Abwesenheit und Self-Service beschrieben
 
 Die Funktionsübersicht im README nennt jetzt die Abwesenheits-Funktionen

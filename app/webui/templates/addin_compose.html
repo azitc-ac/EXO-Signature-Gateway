@@ -518,7 +518,7 @@
     // 12009 = im „Zulassen/Ignorieren“-Hinweis von Office „Ignorieren“ gewählt.
     function dialogFehlerText(res) {
       if (res.error && res.error.code === 12009)
-        return 'Anmeldung abgebrochen — bitte erneut auf „Jetzt anmelden“ klicken und im Hinweis „Zulassen“ wählen.';
+        return 'Anmeldung abgebrochen — bitte erneut auf „Jetzt anmelden“ klicken und im Hinweis „Zulassen“ (Allow) wählen.';
       return 'Anmeldefenster konnte nicht geöffnet werden: ' + ((res.error && res.error.message) || '');
     }
 

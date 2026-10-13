@@ -196,9 +196,14 @@
       function (res) {
         if (res.status !== Office.AsyncResultStatus.Succeeded) {
           loginLaeuft = false;
-          zeigeFehler(res.error && res.error.code === 12009
-            ? 'Anmeldung abgebrochen — Seite neu laden und im Hinweis „Zulassen“ wählen.'
-            : 'Anmeldefenster konnte nicht geöffnet werden: ' + ((res.error && res.error.message) || ''));
+          // 12009 = im Office-Hinweis „Ignorieren“ gewählt. Der Anmelden-Knopf
+          // bietet den nächsten Versuch an; sein Klick löst den Hinweis erneut aus.
+          if (res.error && res.error.code === 12009) {
+            zeigeFehler('Anmeldung abgebrochen. Klicke auf „Anmelden“ und wähle im Hinweis von Outlook „Zulassen“ (Allow).');
+            el('tab-anmelden').hidden = false;
+            return;
+          }
+          zeigeFehler('Anmeldefenster konnte nicht geöffnet werden: ' + ((res.error && res.error.message) || ''));
           return;
         }
         var dlg = res.value;
@@ -208,6 +213,7 @@
             if (d.status === 'ok' && d.token) {
               TOKEN = d.token;
               try { localStorage.setItem('exo_addin_session', d.token); } catch (e) { /* egal */ }
+              el('tab-anmelden').hidden = true; el('fehler').hidden = true; el('lade').hidden = false;
               dlg.close(); loginLaeuft = false; laden();      // mit Token neu laden
               return;
             }
@@ -513,7 +519,8 @@
   // null); der Timer ist der Fallback, falls office.js gar nicht lädt.
   var gestartet = false;
   function start() { if (!gestartet) { gestartet = true; laden(); } }
-  el('tab-anmelden-btn').addEventListener('click', teamsAnmelden);
+  // Derselbe Knopf im Tab (TeamsJS) und nach „Ignorieren“ im Add-in (Office-Dialog).
+  el('tab-anmelden-btn').addEventListener('click', function () { (IM_TEAMS ? teamsAnmelden : anmelden)(); });
   if (IM_TEAMS) {
     // Im Tab erst nach app.initialize() — vorher lehnt TeamsJS jeden Aufruf ab.
     if (window.microsoftTeams) {
