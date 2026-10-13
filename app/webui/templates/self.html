@@ -164,6 +164,11 @@
   var IM_TEAMS = {{ 'true' if im_teams else 'false' }};
   var TAB_WARTEZEIT_MS = 10000;
   var TAB_KEINE_ANTWORT = 'Outlook/Teams hat die Verbindung zum Tab nicht bestätigt (nach 10 s ohne Antwort).';
+  // Eingebettet (Aufgabenbereich des Add-ins, fremder Rahmen): Eine Weiterleitung
+  // zur Anmeldeseite endet dort im gesperrten Rahmen (X-Frame-Options: DENY).
+  var IM_RAHMEN = (function () { try { return window.self !== window.top; } catch (e) { return true; } }());
+  var ADDIN_KEINE_ANTWORT = 'Outlook hat das Add-in nicht initialisiert (nach 10 s ohne Antwort).';
+  var ADDIN_OHNE_DIALOG = 'Anmeldung hier nicht möglich: Outlook stellt dem Add-in kein Anmeldefenster bereit.';
 
   function imOffice() {
     try { return !!(window.Office && Office.context && Office.context.mailbox
@@ -177,7 +182,10 @@
     // Im Tab NIE zur Anmeldeseite navigieren: Microsofts Anmeldung lässt sich
     // nicht einbetten. Stattdessen Knopf zeigen (Klick → TeamsJS-Fenster).
     if (IM_TEAMS) { el('lade').hidden = true; el('tab-anmelden').hidden = false; return; }
-    if (!imOffice()) { window.location = '/auth/login?next=/self'; return; }
+    if (!imOffice()) {
+      if (IM_RAHMEN) { zeigeFehler(ADDIN_OHNE_DIALOG); el('im-browser').hidden = false; return; }
+      window.location = '/auth/login?next=/self'; return;
+    }
     if (loginLaeuft) return;
     loginLaeuft = true;
     var url = window.location.origin + '/auth/login/microsoft?next='
@@ -490,7 +498,7 @@
   // Im Browser der gewohnte Weg über /auth/logout.
   el('abmelden').addEventListener('click', function (ev) {
     ev.preventDefault();
-    if (!imOffice() && !IM_TEAMS) { window.location = '/auth/logout'; return; }
+    if (!imOffice() && !IM_TEAMS && !IM_RAHMEN) { window.location = '/auth/logout'; return; }
     TOKEN = null;
     try { localStorage.removeItem('exo_addin_session'); } catch (e) { /* egal */ }
     fetch('/auth/logout', { method: 'POST', credentials: 'include' }).catch(function () {});
@@ -524,7 +532,23 @@
       zeigeFehler('Die Teams-Bibliothek konnte nicht geladen werden (Netz oder Integritätsprüfung).');
       el('im-browser').hidden = false;
     }
+  } else if (IM_RAHMEN) {
+    // Aufgabenbereich: NUR nach Office.onReady starten. Ein Zeitgeber als
+    // Fallback startete in Outlook im Web vor der Initialisierung — imOffice()
+    // war beim 401 noch falsch, und die Seite leitete im Rahmen zur Anmeldung
+    // um. Bleibt die Antwort aus, sagen, woran es hängt.
+    if (window.Office && Office.onReady) {
+      var addinWache = setTimeout(function () {
+        if (!gestartet) { zeigeFehler(ADDIN_KEINE_ANTWORT); el('im-browser').hidden = false; }
+      }, TAB_WARTEZEIT_MS);
+      Office.onReady(function () { clearTimeout(addinWache); start(); });
+    } else {
+      zeigeFehler('Die Office-Bibliothek konnte nicht geladen werden.');
+      el('im-browser').hidden = false;
+    }
   } else {
+    // Eigenes Browserfenster: office.js meldet sich dort mit Host null; der
+    // Zeitgeber trägt, falls es gar nicht lädt.
     if (window.Office && Office.onReady) { Office.onReady(start); }
     setTimeout(start, 1500);
   }

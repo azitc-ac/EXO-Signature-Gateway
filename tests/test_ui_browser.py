@@ -814,3 +814,86 @@ def test_self_zeitraum_pruefung_und_meldungen(browser, server):
     breit = pg.evaluate("document.documentElement.scrollWidth")
     assert breit <= 393, f"Waagerechte Rollleiste bei 393 px: {breit}"
     ctx.close()
+
+
+# ── Self-Service im Aufgabenbereich des Add-ins ──────────────────────────────
+#
+# Anlass (13.10.2026): Der Lese-Knopf öffnete /self?et= im Aufgabenbereich von
+# Outlook im Web; der Bereich zeigte nur das Sperrsymbol. Die Seite startete per
+# 1,5-s-Zeitgeber vor Office.onReady, imOffice() war beim 401 noch falsch, und
+# anmelden() leitete IM RAHMEN zu /auth/login um — die Seite trägt
+# X-Frame-Options: DENY. Hier wird office.js durch einen Nachbau ersetzt, der
+# sich erst nach 3 s meldet (langsamer als der alte Zeitgeber).
+
+_OFFICE_LANGSAM = """
+window.__dialoge = [];
+window.Office = { AsyncResultStatus: { Succeeded: 'succeeded' },
+  EventType: { DialogMessageReceived: 'm', DialogEventReceived: 'e' },
+  onReady: function (cb) { setTimeout(function () {
+    if (%(mit_dialog)s) {
+      Office.context = { mailbox: {}, ui: { displayDialogAsync: function (url) { window.__dialoge.push(url); } } };
+    }
+    cb({ host: %(host)s });
+  }, %(verzoegerung)d); } };
+"""
+
+
+def _office_nachbau(ctx, mit_dialog=True, host="'Outlook'", verzoegerung=3000):
+    js = _OFFICE_LANGSAM % {"mit_dialog": "true" if mit_dialog else "false",
+                            "host": host, "verzoegerung": verzoegerung}
+    ctx.route("https://appsforoffice.microsoft.com/**",
+              lambda r: r.fulfill(status=200, content_type="application/javascript", body=js))
+
+
+def _im_rahmen(browser, server, **nachbau):
+    ctx = browser.new_context()
+    _office_nachbau(ctx, **nachbau)
+    pg = ctx.new_page()
+    pg.set_content(f'<iframe id="r" src="{server}/self?et=" width="320" height="440"></iframe>')
+    pg.wait_for_function("() => window.frames.length === 1")
+    rahmen = next(f for f in pg.frames if "/self" in f.url or "/auth" in f.url)
+    return ctx, pg, rahmen
+
+
+def test_aufgabenbereich_wartet_auf_office_und_oeffnet_den_dialog(browser, server):
+    ctx, pg, rahmen = _im_rahmen(browser, server)
+    try:
+        rahmen.wait_for_function("() => window.__dialoge && window.__dialoge.length > 0", timeout=8000)
+        assert "/auth/login/microsoft" in rahmen.evaluate("() => window.__dialoge[0]")
+        assert "/auth/login?" not in rahmen.url, rahmen.url
+    finally:
+        ctx.close()
+
+
+def test_aufgabenbereich_ohne_dialog_leitet_nicht_um(browser, server):
+    """Fehlt die Dialog-Schnittstelle, Meldung statt Weiterleitung in den Rahmen."""
+    ctx, pg, rahmen = _im_rahmen(browser, server, mit_dialog=False)
+    try:
+        rahmen.wait_for_selector("#fehler:not([hidden])", timeout=8000)
+        assert "kein Anmeldefenster" in rahmen.inner_text("#fehler")
+        assert rahmen.is_visible("#im-browser")
+        assert "/self" in rahmen.url and "/auth/login" not in rahmen.url, rahmen.url
+    finally:
+        ctx.close()
+
+
+def test_aufgabenbereich_meldet_sich_wenn_office_nie_antwortet(browser, server):
+    ctx, pg, rahmen = _im_rahmen(browser, server, verzoegerung=10 ** 9)
+    try:
+        rahmen.wait_for_selector("#fehler:not([hidden])", timeout=15000)
+        assert "nicht initialisiert" in rahmen.inner_text("#fehler")
+        assert "/auth/login" not in rahmen.url
+    finally:
+        ctx.close()
+
+
+def test_eigenes_fenster_leitet_weiter_zur_anmeldung(browser, server):
+    """Gegenstück: Ohne Rahmen bleibt der gewohnte Weg über /auth/login."""
+    ctx = browser.new_context()
+    _office_nachbau(ctx, mit_dialog=False, host="null", verzoegerung=10)
+    pg = ctx.new_page()
+    try:
+        pg.goto(f"{server}/self", wait_until="domcontentloaded")
+        pg.wait_for_url("**/auth/login?next=/self", timeout=8000)
+    finally:
+        ctx.close()

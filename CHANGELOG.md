@@ -5,6 +5,28 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.158 — 2026-10-13 — Lese-Knopf des Add-ins: Aufgabenbereich blieb gesperrt
+
+Der Knopf „Signatur & Abwesenheit“ in einer gelesenen Mail öffnet die
+Self-Service-Seite im Aufgabenbereich. In Outlook im Web zeigte der Bereich nur
+das Sperrsymbol des Browsers.
+
+- **Ursache:** Die Seite startete spätestens nach 1,5 s, auch wenn Outlook die
+  Add-in-Schnittstelle bis dahin nicht bereitgestellt hatte. Ohne Anmeldung
+  antwortete der Server mit 401, und weil die Seite sich noch nicht als Add-in
+  erkannte, leitete sie zur Anmeldeseite weiter — innerhalb des
+  Aufgabenbereichs. Die Anmeldeseite darf nicht eingebettet werden
+  (X-Frame-Options: DENY), also blieb der Bereich gesperrt.
+- **Jetzt:** Eingebettet startet die Seite erst, wenn Outlook die Schnittstelle
+  meldet, und öffnet die Anmeldung im Office-Dialog. Sie leitet dort nie zur
+  Anmeldeseite weiter. Antwortet Outlook nicht binnen 10 s oder fehlt das
+  Anmeldefenster, erscheint eine Meldung mit „Im Browser öffnen“. Im eigenen
+  Browserfenster bleibt der gewohnte Weg über die Anmeldeseite.
+- Nichts zu tun: Das Add-in-Manifest ist unverändert, die Seite wird bei jedem
+  Öffnen vom Gateway geladen.
+
+---
+
 ## v1.9.157 — 2026-10-12 — Hinweis zu den Rechtstext-Links nennt den Weg zum App-Paket
 
 Unter *Postfächer → Self-Service* hieß es nach einer Änderung der Links nur, das
