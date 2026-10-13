@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.163 — 2026-10-13 — Self-Service: MUSTER-Stempel kleiner
+
+Der Stempel über dem Blindtext der Vorschau stieß in der kurzen
+Antwort-Vorschau oben an den Rand und wurde abgeschnitten. Er ist jetzt kleiner
+und flacher geneigt. Nichts zu tun.
+
+---
+
 ## v1.9.162 — 2026-10-13 — Self-Service in drei Reitern, Add-in-Bereich anheftbar
 
 ### Self-Service: Abwesenheit · Signatur · Antwort-Signatur
