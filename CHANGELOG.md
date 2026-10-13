@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.159 — 2026-10-13 — README: Abwesenheit und Self-Service beschrieben
+
+Die Funktionsübersicht im README nennt jetzt die Abwesenheits-Funktionen
+(einheitlicher Text, Kalender-Automatik, Ankündigung künftiger Abwesenheiten,
+Admin-Seite *Abwesenheit*), den Self-Service mit seinen drei Zugängen (Browser,
+Lese-Knopf des Add-ins, App in der linken Leiste von Outlook und Teams),
+Banner-Kampagnen sowie Anmeldung und Rollen. Die Tabelle der Web-UI-Seiten ist
+entsprechend ergänzt. Keine Änderung am Programm, nichts zu tun.
+
+---
+
 ## v1.9.158 — 2026-10-13 — Lese-Knopf des Add-ins: Aufgabenbereich blieb gesperrt
 
 Der Knopf „Signatur & Abwesenheit“ in einer gelesenen Mail öffnet die

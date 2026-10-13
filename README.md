@@ -27,6 +27,21 @@ Exchange Online bietet serverseitige Transportregeln für Disclaimer – diese s
 ### Zuweisung & Richtlinien
 - **Pro Postfach oder per Richtlinie** — Signatur, Antwort-Signatur, Banner, Disclaimer und Add-in-Vorlage global, je Postfach oder je **Gruppe** zuweisen (interne Postfach-Gruppen, „erste Regel gewinnt").
 - **Antwort-/Minimalsignatur** — kürzere Signatur für Antworten innerhalb eines Threads.
+- **Banner-Kampagnen** — ein Banner mit Start/Ende und optionaler Zielgruppe, das für seine Laufzeit Vorrang vor dem regulären Banner hat; pflegbar von einer eigenen Rolle *Kampagnen-Manager* ohne Admin-Rechte.
+
+### Abwesenheit (Out of Office)
+Zuschaltbar unter *Einrichtung → Modus & Funktionen* (Vorgabe aus).
+- **Einheitlicher Abwesenheitstext** — eine Vorlage der Art *Abwesenheit* (Baukasten wie bei Signaturen, mit Zeitraum-Platzhaltern und der Signatur darunter) wird per Graph in die native Exchange-Abwesenheit geschrieben. Ein- und ausgeschaltet wird wie gewohnt in Outlook oder im Self-Service; Exchange verschickt die Antwort selbst.
+- **Zuweisung** global, je Gruppe oder je Postfach — wie bei Signaturen.
+- **Aus dem Kalender** (opt-in, je Postfach übersteuerbar) — ein Termin „Abwesend“ schaltet die Abwesenheit für seinen Zeitraum ein.
+- **Ankündigung künftiger Abwesenheiten** — `{{ oof.ankuendigung }}` / `{{ oof.announcement }}` setzt die nächsten geplanten Abwesenheiten aus dem Kalender in den Text, wahlweise nur für interne Empfänger.
+- **Übersicht für Admins** — Seite *Abwesenheit*: wer gerade abwesend ist, mit Vorlage, Zeitraum und Kalenderstatus; je Postfach zentral bearbeitbar.
+- **Auch für abgelegte Post** — im Modus Graph++ antwortet das Gateway selbst auf Post von außen, die per IMAP abgelegt wird (siehe [Graph++](#betrieb-auf-azure-kein-ausgehender-port-25)).
+
+### Self-Service für Mitarbeitende
+- **Eigene Abwesenheit und Signatur** — Mitarbeitende schalten ihre Abwesenheit, legen den Zeitraum fest und sehen eine Vorschau, die dem späteren Ergebnis entspricht. Die Wahl der eigenen Vorlagen ist standardmäßig gesperrt und je Postfach oder Gruppe freischaltbar.
+- **Drei Zugänge, eine Seite** — im Browser unter `/self`, als Knopf beim Lesen einer Mail im Outlook-Add-in und als App in der linken Leiste von Outlook (Web, Windows klassisch und neu, iOS, Android) und Teams. Die App wird als Paket unter *Integrierte Apps* hochgeladen.
+- **Anmeldung über Entra ID**; die Self-Service-Rolle erreicht nur das eigene Postfach. Schalter `SELF_SERVICE_ENABLED` (Vorgabe aus): ohne ihn ist die Seite reine Anzeige.
 
 ### Intelligente Mailverarbeitung
 - **Antworterkennung** — die Signatur steht vor dem zitierten Text, nicht gestapelt am Ende; eine bereits im Thread vorhandene Signatur wird nicht doppelt eingefügt.
@@ -45,7 +60,8 @@ Exchange Online bietet serverseitige Transportregeln für Disclaimer – diese s
 ### Betrieb
 - **Massenoperationen** — viele Postfächer auf einmal aktivieren und Zertifikate für viele zugleich bestellen/ausrollen (mit Vorschau und Kontingentprüfung).
 - **SMTP-Relay** — Geräte im eigenen Netz (Drucker, Scanner, Fachanwendungen) senden über das Gateway wie über einen lokalen Exchange-Server.
-- **Outlook-Add-in** — Signatur direkt im Outlook-Verfassenfenster vorschauen und auswählen.
+- **Outlook-Add-in** — Signatur direkt im Outlook-Verfassenfenster vorschauen und auswählen; beim Lesen öffnet es den Self-Service.
+- **Anmeldung und Rollen** — Anmeldung über Entra ID mit den Rollen Admin, Bearbeiter (Vorlagen), Kampagnen-Manager und Self-Service; ein lokaler Notfallzugang bleibt.
 - **Dashboard & Überwachung** — Mailstatistik, S/MIME-Zähler, Zertifikatsablauf, RAM/Platte/Log-Überwachung.
 - **Selbst gehostet oder in Azure** — jeder x64/ARM64-Host (auch Raspberry Pi) oder vollständig in Azure ohne ausgehenden Port 25.
 - **Hell-/Dunkelmodus**, nutzbar bis 320 px Breite.
@@ -545,13 +561,14 @@ bildet `443 → 8080` ab. Alle Einstellungen werden in der Oberfläche gepflegt
 | Seite | Funktion |
 |---|---|
 | **Dashboard** | Mail-Statistiken (Heute / Monat / Jahr), S/MIME-Zähler, Fehler, Zertifikatsablauf, System-Monitoring (RAM, Disk, Logs, In-Flight, Ø Verarbeitungszeit) |
-| **Signaturen** | Signaturen im Baukasten oder als HTML/Plaintext bearbeiten, Banner & Disclaimer, Vorschau; Richtlinien/Gruppen-Zuweisung |
+| **Signaturen** | Signaturen im Baukasten oder als HTML/Plaintext bearbeiten, Banner & Disclaimer, Abwesenheitsvorlagen, Vorschau; Richtlinien/Gruppen-Zuweisung; Banner-Kampagnen |
+| **Abwesenheit** | Wer gerade abwesend ist, Abwesenheit je Postfach setzen, Vorgaben für Ankündigungen (sichtbar, wenn die Funktion eingeschaltet ist) |
 | **Postfächer** | Aktivierte Postfächer verwalten, EXO-Verteilerliste synchronisieren, Zertifikate für mehrere Postfächer auf einmal bestellen (Massenoperationen) |
 | **S/MIME** | Zertifikat-Import, Empfänger-Zertifikate, Azure-Key-Vault-Migration, CASTLE-ACME-Enrollment, Secure Message Portal |
 | **SMTP-Relay** | Geräte im eigenen Netz (Drucker, Scanner) über das Gateway senden lassen — Geräteliste und Lernmodus |
 | **Einstellungen** | Alle Konfigurationsoptionen, Test-Mail, Let's Encrypt, Re-inject-Modus, Entra-App, Anbindung & Lizenzen, Update & Backup |
 | **Log** | Live-Ansicht der Gateway-Logs |
-| **Add-in** | Office-Add-in für Outlook (Signatur-Vorschau und -Auswahl im Verfassenfenster) |
+| **Add-in** | Office-Add-in für Outlook (Signatur-Vorschau und -Auswahl im Verfassenfenster, Self-Service beim Lesen) und App-Paket für die linke Leiste von Outlook und Teams |
 | **Setup** | Erstkonfigurationsassistent (App-Registrierung, Connector, IMAP-Zugriff, Anmeldung prüfen) |
 | **Debug** | ACME-Versandmethode, Account-Key-Reset, Exchange Header Observatory |
 
