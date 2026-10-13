@@ -310,6 +310,118 @@ def test_seite_prueft_vor_dem_speichern_und_hat_ein_zeitlimit():
     html = (Path(__file__).resolve().parent.parent / "app/webui/templates/self.html").read_text(encoding="utf-8")
     speichern = html.split("async function speichern()", 1)[1].split("\n  }\n", 1)[0]
     assert "if (pruefeZeitraum()) return;" in speichern
-    assert "AbortController" in speichern and "signal: abbruch.signal" in speichern
     assert "gespeichertText(status)" in speichern
+    # Zeitlimit im gemeinsamen Versandweg — und ALLE drei Knöpfe gehen darüber.
+    senden = html.split("async function senden(", 1)[1].split("\n  }\n", 1)[0]
+    assert "AbortController" in senden and "signal: abbruch.signal" in senden
+    assert html.count("api('/api/self/save'") == 1, "Speichern an senden() vorbei"
+    assert "await senden(" in speichern
+    assert "await senden(" in html.split("async function wahlSpeichern(", 1)[1].split("\n  }\n", 1)[0]
     assert "Abwesenheit und Signatur sind gesetzt" not in html
+
+
+# ── Speichern je Reiter (bereich) ─────────────────────────────────────────────
+
+def _speicher_umgebung(monkeypatch, waehlbar, cfg=None, oof_anhang=False):
+    from webui.routen import selfservice
+    import signature_engine
+    daten = {"SELF_SERVICE_ENABLED": True, "LOG_TIMEZONE": "UTC",
+             "ABWESENHEIT_AKTIV": True, "OOO_APPEND_SIGNATURE": oof_anhang,
+             "MAILBOX_CONFIG": cfg if cfg is not None else {
+                 "a@x.de": {"sig": True, "template": "Alt", "min_template": "Kurz"}}}
+    geschrieben = []
+    monkeypatch.setattr(settings_store, "get", lambda k, d=None: daten.get(k, d))
+    monkeypatch.setattr(settings_store, "update", lambda d: (geschrieben.append(d), daten.update(d)))
+    monkeypatch.setattr(selfservice, "_waehlbar", lambda e: waehlbar)
+    monkeypatch.setattr(signature_engine, "templates_nach_art",
+                        lambda: {"signatur": ["Alt", "Neu", "Kurz"], "oof": ["Urlaub"]})
+    return selfservice, geschrieben
+
+
+def test_signatur_reiter_speichert_nur_die_signatur(monkeypatch):
+    """Der Knopf im Reiter Signatur sichert NUR die Signaturwahl — keine
+    Abwesenheit (kein Graph-Aufruf), keine Antwort-Signatur, auch wenn die
+    Anfrage sie mitschickt."""
+    import asyncio
+    selfservice, geschrieben = _speicher_umgebung(
+        monkeypatch, {"sig": True, "min": True, "oof": True})
+    async def kein_graph(*a, **k):
+        raise AssertionError("Graph darf beim Signatur-Speichern nicht gerufen werden")
+    monkeypatch.setattr(selfservice.graph_client, "_acquire_token_async", kein_graph)
+    r = asyncio.run(selfservice.self_save(_JsonReq(
+        {"bereich": "signatur", "wahl": {"sig": "Neu", "min": "", "oof": "Urlaub"},
+         "oof_status": "alwaysEnabled"}), email="a@x.de"))
+    assert r.status_code == 200
+    eintrag = geschrieben[-1]["MAILBOX_CONFIG"]["a@x.de"]
+    assert eintrag["template"] == "Neu"
+    assert eintrag["min_template"] == "Kurz"          # unberührt
+    assert "oof_template" not in eintrag
+
+
+def test_antwort_reiter_keine_antwortsignatur(monkeypatch):
+    """„— keine —" (leer) wird als ausdrückliche Wahl gespeichert — der Handler
+    hängt dann an Antworten im Verlauf nichts an."""
+    import asyncio
+    selfservice, geschrieben = _speicher_umgebung(monkeypatch, {"sig": True, "min": True, "oof": False})
+    asyncio.run(selfservice.self_save(_JsonReq({"bereich": "antwort", "wahl": {"min": ""}}),
+                                      email="a@x.de"))
+    eintrag = geschrieben[-1]["MAILBOX_CONFIG"]["a@x.de"]
+    assert eintrag["min_template"] == "" and eintrag["template"] == "Alt"
+
+
+def test_reiter_ohne_freigabe_wird_abgewiesen(monkeypatch):
+    import asyncio
+    from fastapi import HTTPException
+    selfservice, geschrieben = _speicher_umgebung(monkeypatch, {"sig": True, "min": False, "oof": False})
+    with pytest.raises(HTTPException) as e:
+        asyncio.run(selfservice.self_save(_JsonReq({"bereich": "antwort", "wahl": {"min": ""}}),
+                                          email="a@x.de"))
+    assert e.value.status_code == 403 and geschrieben == []
+
+
+@pytest.mark.parametrize("bereich", ["sonstwas", ["signatur"], {"a": 1}])
+def test_unbekannter_bereich_400(monkeypatch, bereich):
+    import asyncio
+    from fastapi import HTTPException
+    selfservice, geschrieben = _speicher_umgebung(monkeypatch, {"sig": True, "min": True, "oof": True})
+    with pytest.raises(HTTPException) as e:
+        asyncio.run(selfservice.self_save(_JsonReq({"bereich": bereich, "wahl": {"sig": "Neu"}}),
+                                          email="a@x.de"))
+    assert e.value.status_code == 400 and geschrieben == []
+
+
+def test_signaturwechsel_frischt_abwesenheitstext_auf(monkeypatch):
+    """Hängt die Signatur unter der Abwesenheitsnotiz, setzt ein Signaturwechsel
+    deren Text sofort neu — Status und Zeitraum bleiben unangetastet."""
+    import asyncio
+    selfservice, _g = _speicher_umgebung(monkeypatch, {"sig": True, "min": True, "oof": True},
+                                         oof_anhang=True)
+    gepatcht = []
+    async def token():
+        return "t"
+    async def lesen(email, tok):
+        return "ok", {"status": "scheduled", "internalReplyMessage": "alt"}
+    async def nutzer(email):
+        return {}
+    async def rendern(*a, **k):
+        return "<p>neu</p>", "<p>neu</p>"
+    async def patchen(upn, tok, setting, html, html_extern=None, status=None, start=None, ende=None):
+        gepatcht.append({"html": html, "status": status, "start": start, "ende": ende})
+    monkeypatch.setattr(selfservice.graph_client, "_acquire_token_async", token)
+    monkeypatch.setattr(selfservice.graph_client, "get_user", nutzer)
+    monkeypatch.setattr(selfservice.abwesenheit, "_get_setting", lesen)
+    monkeypatch.setattr(selfservice.abwesenheit, "render_intern_extern", rendern)
+    monkeypatch.setattr(selfservice.abwesenheit, "_patch_setting", patchen)
+    monkeypatch.setattr(selfservice.abwesenheit, "_state", lambda: {})
+    monkeypatch.setattr(selfservice, "_effektive_vorlagen", lambda e: ("Urlaub", "Neu"))
+    r = asyncio.run(selfservice.self_save(_JsonReq({"bereich": "signatur", "wahl": {"sig": "Neu"}}),
+                                          email="a@x.de"))
+    import json
+    assert json.loads(r.body)["oof_aufgefrischt"] is True
+    assert gepatcht == [{"html": "<p>neu</p>", "status": None, "start": None, "ende": None}]
+
+    # Antwort-Signatur betrifft die Abwesenheitsnotiz nicht.
+    gepatcht.clear()
+    asyncio.run(selfservice.self_save(_JsonReq({"bereich": "antwort", "wahl": {"min": "Kurz"}}),
+                                      email="a@x.de"))
+    assert gepatcht == []

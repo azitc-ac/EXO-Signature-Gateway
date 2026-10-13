@@ -205,6 +205,14 @@ async def self_context(email: str = Depends(_require_self)):
         "email": email,
         "freigeschaltet": _freigeschaltet(),
         "abwesenheit_aktiv": abwesenheit.funktion_aktiv(),
+        # Hängt das Gateway die Signatur unter die Abwesenheitsnotiz? Dann gilt
+        # die Signaturwahl auch dort — die Seite sagt es dazu.
+        "oof_mit_signatur": bool(abwesenheit.funktion_aktiv()
+                                 and settings_store.get("OOO_APPEND_SIGNATURE")),
+        # Ebenso das Banner (OOO_APPEND_BANNER). Einen Disclaimer trägt die
+        # Abwesenheitsnotiz nie (abwesenheit._oof_anhang).
+        "oof_mit_banner": bool(abwesenheit.funktion_aktiv()
+                               and settings_store.get("OOO_APPEND_BANNER")),
         "darf_vorlagen": any(waehlbar.values()),
         "waehlbar": waehlbar,            # {sig, min, oof: bool}
         "oof_template": oof_eff,         # wirksam (für Vorschau/Anzeige)
@@ -267,7 +275,8 @@ async def _banner_disclaimer_html(email: str) -> tuple[str, str]:
 
 
 @router.get("/api/self/preview")
-async def self_preview(oof: str = "", sig: str = "", status: str = "scheduled",
+async def self_preview(oof: str = "", sig: str = "", min: str = "",
+                       status: str = "scheduled",
                        start: str = "", ende: str = "",
                        start_zeit: str = "", ende_zeit: str = "",
                        ank_an: str = "1", ank_mode: str = "anzahl", ank_x: str = "3",
@@ -287,16 +296,83 @@ async def self_preview(oof: str = "", sig: str = "", status: str = "scheduled",
         email, oof, status, start, ende, start_zeit, ende_zeit, token, announce,
         mit_anhang=False)
     sig_html, sig_txt = "", ""
-    if sig:
+    min_html = ""
+    if sig or min:
         user_data = await graph_client.get_user(email)
-        sig_html, sig_txt = signature_engine.render(user_data, template_name=sig)
+        if sig:
+            sig_html, sig_txt = signature_engine.render(user_data, template_name=sig)
+        # Antwort-Signatur (ab der 2. eigenen Mail im Verlauf). Leer = keine: Dann
+        # hängt das Gateway dort gar nichts an, auch Banner und Disclaimer nicht
+        # (handler.py: suppress_html_sig) — die Seite zeigt das so.
+        if min:
+            min_html = signature_engine.render(user_data, template_name=min)[0]
     banner_html, disclaimer_html = await _banner_disclaimer_html(email)
     return JSONResponse({"oof_html": oof_html, "oof_txt": oof_txt,
-                         "sig_html": sig_html, "sig_txt": sig_txt,
+                         "sig_html": sig_html, "sig_txt": sig_txt, "min_html": min_html,
                          "banner_html": banner_html, "disclaimer_html": disclaimer_html})
 
 
 # ── Speichern ──────────────────────────────────────────────────────────────────
+
+# Bereich (Reiter) → Wahl-Slot, den sein Knopf speichert. None = alles (Altform).
+_BEREICHE = {None: None, "abwesenheit": "oof", "signatur": "sig", "antwort": "min"}
+
+
+async def _wahl_speichern(email: str, wahl, bereich: str) -> JSONResponse:
+    """Nur die Vorlagenwahl EINES Reiters (Signatur bzw. Antwort-Signatur) —
+    Abwesenheit und Ankündigung bleiben unberührt.
+
+    Ändert sich die Signatur und hängt das Gateway sie unter die
+    Abwesenheitsnotiz, wird deren Text in Exchange sofort neu gesetzt (Status
+    und Zeitraum unverändert) — sonst stünde dort bis zum nächsten Abgleich die
+    alte Signatur, und ohne zentralen Abgleich bis zum nächsten Speichern der
+    Abwesenheit."""
+    slot = _BEREICHE[bereich]
+    if not isinstance(wahl, dict) or slot not in wahl:
+        raise HTTPException(400, "Keine Auswahl übermittelt")
+    if not _waehlbar(email).get(slot):
+        raise HTTPException(403, "Diese Auswahl ist für dein Postfach nicht freigegeben.")
+    key, _cfg = _postfach(email)
+    voll = settings_store.get("MAILBOX_CONFIG") or {}
+    eintrag = dict(voll.get(key, {}))
+    _wahl_ins_eintrag(eintrag, {slot: wahl[slot]}, _waehlbar(email),
+                      signature_engine.templates_nach_art())
+    voll[key] = eintrag
+    settings_store.update({"MAILBOX_CONFIG": voll})
+    log.info("Self-Service: %s hat die Vorlagenwahl %s gesetzt", email, slot)
+    oof_neu = None
+    if slot == "sig" and abwesenheit.funktion_aktiv() and settings_store.get("OOO_APPEND_SIGNATURE"):
+        oof_neu = await _oof_text_auffrischen(email)
+    return JSONResponse({"ok": True, "oof_aufgefrischt": oof_neu})
+
+
+async def _oof_text_auffrischen(email: str) -> bool:
+    """Text der Abwesenheitsnotiz in Exchange neu rendern und setzen — Status
+    und Zeitraum aus Exchange übernehmen, nicht anfassen. Best effort: Ein
+    Fehler hier macht die gespeicherte Signaturwahl nicht ungültig."""
+    try:
+        oof_tpl, _sig = _effektive_vorlagen(email)
+        if not oof_tpl:
+            return False
+        token = await graph_client._acquire_token_async()
+        if not token:
+            return False
+        status_lese, setting = await abwesenheit._get_setting(email, token)
+        if status_lese != "ok" or setting is None:
+            return False
+        z = abwesenheit.zeitraum(setting)
+        _k, cfg = _postfach(email)
+        user_data = await graph_client.get_user(email)
+        html, html_extern = await abwesenheit.render_intern_extern(
+            user_data, email, token, oof_tpl, cfg, abwesenheit._state(), z.de, z.ab, z.bis,
+            period=z.en)
+        await abwesenheit._patch_setting(email, token, setting, html, html_extern=html_extern)
+        return True
+    except Exception as exc:                                       # noqa: BLE001
+        log.warning("Self-Service: Abwesenheitstext nach Signaturwechsel nicht gesetzt (%s): %s",
+                    email, exc)
+        return False
+
 
 @router.post("/api/self/save")
 async def self_save(request: Request, email: str = Depends(_require_self)):
@@ -307,6 +383,13 @@ async def self_save(request: Request, email: str = Depends(_require_self)):
         body = await request.json()
     except Exception:
         raise HTTPException(400, "Ungültige Anfrage")
+    # Je Reiter ein Speichern-Knopf: Er sichert NUR seinen Bereich. Ohne
+    # `bereich` (ältere Seite im Cache) gilt wie bisher alles auf einmal.
+    bereich = body.get("bereich")
+    if not (bereich is None or isinstance(bereich, str)) or bereich not in _BEREICHE:
+        raise HTTPException(400, "Unbekannter Bereich")
+    if bereich in ("signatur", "antwort"):
+        return await _wahl_speichern(email, body.get("wahl") or {}, bereich)
     status = (body.get("oof_status") or "disabled").strip()
     start = (body.get("oof_start") or "").strip()
     ende = (body.get("oof_ende") or "").strip()
@@ -332,7 +415,10 @@ async def self_save(request: Request, email: str = Depends(_require_self)):
     key, _cfg = _postfach(email)
     voll = settings_store.get("MAILBOX_CONFIG") or {}
     eintrag = dict(voll.get(key, {}))
-    _wahl_ins_eintrag(eintrag, body.get("wahl") or {}, _waehlbar(email),
+    wahl = body.get("wahl") or {}
+    if bereich == "abwesenheit" and isinstance(wahl, dict):
+        wahl = {k: v for k, v in wahl.items() if k == "oof"}
+    _wahl_ins_eintrag(eintrag, wahl, _waehlbar(email),
                       signature_engine.templates_nach_art())
     _ankuendigung_ins_eintrag(eintrag, body.get("announce") or {})
     voll[key] = eintrag

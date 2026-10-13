@@ -38,6 +38,28 @@
   .hinweis.ok   { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; }
   .fuss { color: #94a3b8; font-size: 11px; text-align: center; margin-top: 8px; }
   [hidden] { display: none !important; }
+  /* Reiter: Abwesenheit · Signatur · Antwort-Signatur. Im schmalen
+     Aufgabenbereich (≈ 290 px Inhalt) passen alle drei in eine Zeile. */
+  .reiter { display: flex; gap: 2px; margin: 0 0 12px; border-bottom: 1px solid #e2e8f0; flex-wrap: wrap; }
+  .reiter button { flex: 1 1 auto; background: none; border: 0; border-bottom: 2px solid transparent;
+                   padding: 8px 4px; font: inherit; font-size: 13px; color: #64748b; cursor: pointer;
+                   white-space: nowrap; margin-bottom: -1px; }
+  .reiter button[aria-selected="true"] { color: #0078d4; border-bottom-color: #0078d4; }
+  .erklaer { font-size: 13px; color: #334155; margin: -4px 0 10px; line-height: 1.45; }
+  /* Beispiel-Mail der Vorschau: Blindtext mit schrägem MUSTER-Stempel — der
+     Stempel liegt NUR über dem Blindtext, die Signatur bleibt frei lesbar. */
+  .mail-kopf { font-size: 12px; color: #64748b; border-bottom: 1px solid #e2e8f0;
+               padding-bottom: 6px; margin-bottom: 10px; }
+  .muster { position: relative; color: #64748b; font-size: 13px; line-height: 1.5;
+            margin-bottom: 12px; overflow: hidden; }
+  .muster p { margin: 0 0 8px; }
+  .muster::after { content: "MUSTER"; position: absolute; top: 50%; left: 50%;
+                   transform: translate(-50%, -50%) rotate(-16deg); font-size: 30px; font-weight: 700;
+                   letter-spacing: 6px; color: #94a3b8; border: 3px solid #94a3b8; border-radius: 6px;
+                   padding: 0 12px; opacity: .45; pointer-events: none; white-space: nowrap; }
+  .zitat { border-left: 3px solid #e2e8f0; padding-left: 10px; margin-top: 14px; color: #94a3b8; font-size: 12px; }
+  .zitat p { margin: 0 0 6px; }
+  .keine-sig { color: #94a3b8; font-size: 12px; font-style: italic; margin: 0; }
 </style>
 </head>
 <body>
@@ -64,84 +86,145 @@
   </div>
 
   <div id="inhalt" hidden>
-    <!-- Abwesenheit (nur bei eingeschalteter Funktion „Zentrale Abwesenheiten") -->
-    <div class="karte" id="oof-karte">
-      <h2>Abwesenheit</h2>
-      <div class="radiozeile" id="status-wahl">
-        <label><input type="radio" name="status" value="disabled"> Aus</label>
-        <label><input type="radio" name="status" value="alwaysEnabled"> Immer an</label>
-        <label><input type="radio" name="status" value="scheduled"> Zeitraum</label>
-      </div>
-      <div id="zeitraum-felder" hidden>
-        <label style="display:inline-flex;align-items:center;gap:6px;margin:0 0 8px;cursor:pointer">
-          <input type="checkbox" id="ganztaegig" checked> ganztägig
-        </label>
-        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
-          <div><label for="von">Von</label><input type="date" id="von"></div>
-          <div id="von-zeit-box" hidden><label for="von-zeit">Uhrzeit</label><select id="von-zeit"></select></div>
-          <div><label for="bis">Bis</label><input type="date" id="bis"></div>
-          <div id="bis-zeit-box" hidden><label for="bis-zeit">Uhrzeit</label><select id="bis-zeit"></select></div>
-        </div>
-        <div id="zeitraum-hinweis" class="hinweis err" style="margin:10px 0 0" role="alert" hidden></div>
-      </div>
-      <div id="oof-tpl-block">
-        <label for="oof-sel">Vorlage der Abwesenheitsnotiz</label>
-        <select id="oof-sel"></select>
-      </div>
+    <div class="reiter" role="tablist" id="reiter-leiste">
+      <button type="button" role="tab" id="r-abw" data-reiter="abw" aria-controls="p-abw">Abwesenheit</button>
+      <button type="button" role="tab" id="r-sig" data-reiter="sig" aria-controls="p-sig">Signatur</button>
+      <button type="button" role="tab" id="r-min" data-reiter="min" aria-controls="p-min">Antwort-Signatur</button>
     </div>
 
-    <!-- Ankündigung kommender Abwesenheiten — nur sichtbar, wenn die Vorlage die
-         Variable nutzt (sonst wirkungslos). -->
-    <div class="karte" id="ank-karte" hidden>
-      <h2>Kommende Abwesenheiten ankündigen</h2>
-      <p class="sub" style="margin-top:-6px">Setzt in deine Abwesenheitsnotiz eine
-        Zeile mit deinen nächsten geplanten Abwesenheiten aus dem Kalender.</p>
-      <label style="display:inline-flex;align-items:center;gap:6px;margin:0 0 10px;cursor:pointer">
-        <input type="checkbox" id="ank-an"> ankündigen
-      </label>
-      <div id="ank-felder">
-        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
-          <div>
-            <label for="ank-mode">Umfang</label>
-            <select id="ank-mode">
-              <option value="anzahl">die nächsten … Abwesenheiten</option>
-              <option value="tage">Abwesenheiten der nächsten … Tage</option>
-            </select>
+    <!-- ── Reiter Abwesenheit ── -->
+    <section id="p-abw" role="tabpanel" aria-labelledby="r-abw">
+      <p class="erklaer">Die automatische Antwort, die Absender bekommen, während du nicht da bist.<span id="abw-mit-sig">
+        Darunter steht deine Signatur aus dem Reiter „Signatur“.</span></p>
+      <!-- Abwesenheit (nur bei eingeschalteter Funktion „Zentrale Abwesenheiten") -->
+      <div class="karte" id="oof-karte">
+        <h2>Abwesenheit</h2>
+        <div class="radiozeile" id="status-wahl">
+          <label><input type="radio" name="status" value="disabled"> Aus</label>
+          <label><input type="radio" name="status" value="alwaysEnabled"> Immer an</label>
+          <label><input type="radio" name="status" value="scheduled"> Zeitraum</label>
+        </div>
+        <div id="zeitraum-felder" hidden>
+          <label style="display:inline-flex;align-items:center;gap:6px;margin:0 0 8px;cursor:pointer">
+            <input type="checkbox" id="ganztaegig" checked> ganztägig
+          </label>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+            <div><label for="von">Von</label><input type="date" id="von"></div>
+            <div id="von-zeit-box" hidden><label for="von-zeit">Uhrzeit</label><select id="von-zeit"></select></div>
+            <div><label for="bis">Bis</label><input type="date" id="bis"></div>
+            <div id="bis-zeit-box" hidden><label for="bis-zeit">Uhrzeit</label><select id="bis-zeit"></select></div>
           </div>
-          <div><label for="ank-x">Anzahl bzw. Tage</label>
-            <input type="number" id="ank-x" min="1" max="50" value="3" style="width:72px"></div>
+          <div id="zeitraum-hinweis" class="hinweis err" style="margin:10px 0 0" role="alert" hidden></div>
         </div>
-        <label style="display:inline-flex;align-items:center;gap:6px;margin:10px 0 0;cursor:pointer">
-          <input type="checkbox" id="ank-privat" checked> private Termine mitzählen
+        <div id="oof-tpl-block">
+          <label for="oof-sel">Vorlage der Abwesenheitsnotiz</label>
+          <select id="oof-sel"></select>
+        </div>
+      </div>
+
+      <!-- Ankündigung kommender Abwesenheiten — nur sichtbar, wenn die Vorlage die
+           Variable nutzt (sonst wirkungslos). -->
+      <div class="karte" id="ank-karte" hidden>
+        <h2>Kommende Abwesenheiten ankündigen</h2>
+        <p class="sub" style="margin-top:-6px">Setzt in deine Abwesenheitsnotiz eine
+          Zeile mit deinen nächsten geplanten Abwesenheiten aus dem Kalender.</p>
+        <label style="display:inline-flex;align-items:center;gap:6px;margin:0 0 10px;cursor:pointer">
+          <input type="checkbox" id="ank-an"> ankündigen
         </label>
-        <label style="display:inline-flex;align-items:center;gap:6px;margin:6px 0 0;cursor:pointer">
-          <input type="checkbox" id="ank-extern"> auch externen Absendern zeigen
-        </label>
+        <div id="ank-felder">
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+            <div>
+              <label for="ank-mode">Umfang</label>
+              <select id="ank-mode">
+                <option value="anzahl">die nächsten … Abwesenheiten</option>
+                <option value="tage">Abwesenheiten der nächsten … Tage</option>
+              </select>
+            </div>
+            <div><label for="ank-x">Anzahl bzw. Tage</label>
+              <input type="number" id="ank-x" min="1" max="50" value="3" style="width:72px"></div>
+          </div>
+          <label style="display:inline-flex;align-items:center;gap:6px;margin:10px 0 0;cursor:pointer">
+            <input type="checkbox" id="ank-privat" checked> private Termine mitzählen
+          </label>
+          <label style="display:inline-flex;align-items:center;gap:6px;margin:6px 0 0;cursor:pointer">
+            <input type="checkbox" id="ank-extern"> auch externen Absendern zeigen
+          </label>
+        </div>
       </div>
-    </div>
 
-    <!-- Signatur (nur wenn die jeweilige Kategorie freigeschaltet ist) -->
-    <div class="karte" id="sig-karte">
-      <h2>Signatur</h2>
-      <div id="sig-block">
-        <label for="sig-sel">Meine Signatur</label>
-        <select id="sig-sel"></select>
+      <div class="karte">
+        <h2>Vorschau</h2>
+        <p class="sub" id="vorschau-hinweis" style="margin-top:-6px">So sieht es beim Empfänger aus (Zeitraum-Angaben nach deiner Wahl).</p>
+        <div class="vorschau" id="vorschau"></div>
       </div>
-      <div id="min-block" style="margin-top:10px">
-        <label for="min-sel">Antwort-Signatur <span style="color:#64748b;font-weight:400">(ab der 2. eigenen Mail in einem Verlauf)</span></label>
-        <select id="min-sel"></select>
+
+      <div id="speicher-hinweis" class="hinweis ok" hidden></div>
+      <button class="btn" id="speichern">Speichern</button>
+    </section>
+
+    <!-- ── Reiter Signatur ── -->
+    <section id="p-sig" role="tabpanel" aria-labelledby="r-sig" hidden>
+      <div class="karte">
+        <h2>Signatur</h2>
+        <p class="erklaer">Steht unter jeder neuen Mail, die du schreibst<span id="sig-auch-oof"> – und unter
+          deiner Abwesenheitsnotiz</span>.<span id="sig-fest"> Welche es ist, legt deine IT fest.</span></p>
+        <div id="sig-block">
+          <label for="sig-sel">Meine Signatur</label>
+          <select id="sig-sel"></select>
+        </div>
       </div>
-    </div>
+      <div class="karte">
+        <h2>Vorschau</h2>
+        <p class="sub" style="margin-top:-6px">So sieht eine neue Mail von dir beim Empfänger aus – der Text ist nur ein Beispiel.</p>
+        <div class="vorschau">
+          <div class="mail-kopf">An: Erika Mustermann · Betreff: Beispiel</div>
+          <div class="muster" aria-hidden="true">
+            <p>Sehr geehrte Frau Mustermann,</p>
+            <p>Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod
+              tempor invidunt ut labore et dolore magna aliquyam erat. At vero eos et accusam et
+              justo duo dolores et ea rebum.</p>
+            <p>Mit freundlichen Grüßen</p>
+          </div>
+          <div id="sig-vorschau"></div>
+        </div>
+      </div>
+      <div id="sig-hinweis" class="hinweis ok" hidden></div>
+      <button class="btn" id="sig-speichern" disabled>Speichern</button>
+    </section>
 
-    <!-- Vorschau -->
-    <div class="karte">
-      <h2>Vorschau</h2>
-      <p class="sub" id="vorschau-hinweis" style="margin-top:-6px">So sieht es beim Empfänger aus (Zeitraum-Angaben nach deiner Wahl).</p>
-      <div class="vorschau" id="vorschau"></div>
-    </div>
-
-    <div id="speicher-hinweis" class="hinweis ok" hidden></div>
-    <button class="btn" id="speichern">Speichern</button>
+    <!-- ── Reiter Antwort-Signatur ── -->
+    <section id="p-min" role="tabpanel" aria-labelledby="r-min" hidden>
+      <div class="karte">
+        <h2>Antwort-Signatur</h2>
+        <p class="erklaer">Ab deiner 2. eigenen Mail im selben Verlauf steht statt der vollen Signatur
+          diese – die volle steht dann ja schon weiter unten im Verlauf. Bei „— keine —“ hängt das
+          Gateway an solche Antworten nichts an, und du schreibst deinen Gruß selbst.</p>
+        <div id="min-block">
+          <label for="min-sel">Antwort-Signatur</label>
+          <select id="min-sel"></select>
+        </div>
+      </div>
+      <div class="karte">
+        <h2>Vorschau</h2>
+        <p class="sub" style="margin-top:-6px">So sieht deine Antwort in einem laufenden Verlauf aus – der Text ist nur ein Beispiel.</p>
+        <div class="vorschau">
+          <div class="mail-kopf">An: Erika Mustermann · Betreff: AW: AW: Beispiel</div>
+          <div class="muster" aria-hidden="true">
+            <p>Hallo Frau Mustermann,</p>
+            <p>Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor.</p>
+          </div>
+          <div id="min-vorschau"></div>
+          <div class="zitat" aria-hidden="true">
+            <p><b>Von:</b> Erika Mustermann · <b>Betreff:</b> AW: Beispiel</p>
+            <p>Stet clita kasd gubergren, no sea takimata sanctus est.</p>
+            <p><b>Von:</b> dir · <b>Betreff:</b> Beispiel</p>
+            <p>… mit deiner vollen Signatur aus der ersten Mail.</p>
+          </div>
+        </div>
+      </div>
+      <div id="min-hinweis" class="hinweis ok" hidden></div>
+      <button class="btn" id="min-speichern" disabled>Speichern</button>
+    </section>
   </div>
 
   <p class="fuss">{{ gateway_name }} · Self-Service · <a href="#" id="abmelden">Abmelden</a></p>
@@ -285,10 +368,22 @@
     // trotzdem (über ctx.oof_template/ctx.sig_template).
     el('oof-tpl-block').hidden = !w.oof;
     el('sig-block').hidden = !w.sig;
-    el('min-block').hidden = !w.min;
-    el('sig-karte').hidden = !(w.sig || w.min);
-    // Funktion „Zentrale Abwesenheiten verwalten" aus → keine Abwesenheits-Karten.
-    if (ctx.abwesenheit_aktiv === false) { el('oof-karte').hidden = true; }
+    el('sig-fest').hidden = !!w.sig;
+    el('sig-auch-oof').hidden = !ctx.oof_mit_signatur;
+    el('abw-mit-sig').hidden = !ctx.oof_mit_signatur;
+    gespeichert.sig = el('sig-sel').value;
+    gespeichert.min = el('min-sel').value;
+    // Reiter: Abwesenheit, solange die Funktion „Zentrale Abwesenheiten" an ist;
+    // Signatur und Antwort-Signatur, wenn der Nutzer sie wählen darf. Bliebe
+    // sonst nichts übrig, zeigt der Signatur-Reiter die zugewiesene zur Ansicht.
+    var sichtbar = { abw: ctx.abwesenheit_aktiv !== false, sig: !!w.sig, min: !!w.min };
+    if (!sichtbar.abw && !sichtbar.min) sichtbar.sig = true;
+    REITER.forEach(function (r) { el('r-' + r).hidden = !sichtbar[r]; });
+    var anzahl = REITER.filter(function (r) { return sichtbar[r]; }).length;
+    el('reiter-leiste').hidden = anzahl < 2;
+    var gemerkt = null;
+    try { gemerkt = localStorage.getItem('self_reiter'); } catch (e) { /* egal */ }
+    zeigeReiter(sichtbar[gemerkt] ? gemerkt : REITER.filter(function (r) { return sichtbar[r]; })[0]);
     var st = (ctx.ooo && ctx.ooo.status) || 'disabled';
     var rb = document.querySelector('input[name=status][value="' + st + '"]');
     if (rb) rb.checked = true;
@@ -318,7 +413,11 @@
     // verspricht es der Hinweis oben. Bis v1.9.133 wurden hier auch alle Felder
     // gesperrt; „durchspielen" ging dann nicht. Das Speichern verweigert der
     // Server ohnehin selbst (/api/self/save → 403).
-    if (!ctx.freigeschaltet) el('speichern').hidden = true;
+    if (!ctx.freigeschaltet) {
+      el('speichern').hidden = true;
+      el('sig-speichern').hidden = true;
+      el('min-speichern').hidden = true;
+    }
     vorschau();
   }
 
@@ -334,6 +433,16 @@
     p.ank_privat = el('ank-privat').checked ? '1' : '0';
     p.ank_extern = el('ank-extern').checked ? '1' : '0';
     return p;
+  }
+
+  var REITER = ['abw', 'sig', 'min'];
+  var gespeichert = { sig: null, min: null };       // zuletzt gespeicherte Wahl je Reiter
+  function zeigeReiter(r) {
+    REITER.forEach(function (x) {
+      el('p-' + x).hidden = x !== r;
+      el('r-' + x).setAttribute('aria-selected', x === r ? 'true' : 'false');
+    });
+    try { localStorage.setItem('self_reiter', r); } catch (e) { /* egal */ }
   }
 
   // „Standard (X)" folgt dem Default des Betreibers (Gruppe bzw. global) und
@@ -425,16 +534,26 @@
     clearTimeout(previewTimer);
     previewTimer = setTimeout(async function () {
       var p = new URLSearchParams(ankParams(zeitParams({
-        oof: oofWahl(), sig: sigWahl(),
+        oof: oofWahl(), sig: sigWahl(), min: wirksam('min', ''),
         status: statusWert(), start: el('von').value, ende: el('bis').value,
       })));
       try {
         var r = await api('/api/self/preview?' + p.toString());
         if (!r.ok) return;
         var d = await r.json();
-        el('vorschau').innerHTML =
-          (d.oof_html || '') + (d.sig_html || '') + (d.banner_html || '') + (d.disclaimer_html || '')
+        var anhang = (d.banner_html || '') + (d.disclaimer_html || '');
+        // Abwesenheitsnotiz wie in Exchange: Signatur und Banner nur, wenn das
+        // Gateway sie anhängt, nie ein Disclaimer (abwesenheit._oof_anhang).
+        // Bis v1.9.161 hing die Vorschau immer alles an.
+        el('vorschau').innerHTML = (d.oof_html || '')
+          + (ctx.oof_mit_signatur ? (d.sig_html || '') : '')
+          + (ctx.oof_mit_banner ? (d.banner_html || '') : '')
           || '<span style="color:#94a3b8">— nichts ausgewählt —</span>';
+        el('sig-vorschau').innerHTML = (d.sig_html || '') + anhang;
+        // Ohne Antwort-Signatur hängt das Gateway gar nichts an — auch Banner
+        // und Disclaimer nicht (wie im Mailweg).
+        el('min-vorschau').innerHTML = d.min_html ? d.min_html + anhang
+          : '<p class="keine-sig">Keine Antwort-Signatur – hier stünde nur dein eigener Gruß.</p>';
       } catch (e) { /* Vorschau ist unkritisch */ }
     }, 250);
   }
@@ -449,54 +568,89 @@
     return '✓ Gespeichert. ' + t;
   }
 
-  async function speichern() {
-    if (pruefeZeitraum()) return;
-    var btn = el('speichern'); btn.disabled = true; var alt = btn.textContent; btn.textContent = 'Speichert…';
-    el('speicher-hinweis').hidden = true;
-    var status = statusWert();
-    // Zeitlimit: Ohne es blieb der Knopf bei einer hängenden Verbindung für immer
-    // auf „Speichert…" stehen, ohne jeden Hinweis (Testlauf 11.10.2026).
+  // EIN Versandweg für alle drei Knöpfe — mit Zeitlimit: Ohne es blieb der
+  // Knopf bei einer hängenden Verbindung für immer auf „Speichert…" stehen,
+  // ohne jeden Hinweis (Testlauf 11.10.2026). Liefert die Antwortdaten oder null.
+  async function senden(body, btn, hinweis) {
+    btn.disabled = true; var alt = btn.textContent; btn.textContent = 'Speichert…';
+    el(hinweis).hidden = true;
     var abbruch = new AbortController();
     var uhr = setTimeout(function () { abbruch.abort(); }, 30000);
+    var ergebnis = null;
     try {
       var r = await api('/api/self/save', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        signal: abbruch.signal,
-        body: JSON.stringify({
-          wahl: wahlObj(),
-          oof_status: status, oof_start: el('von').value, oof_ende: el('bis').value,
-          ganztaegig: el('ganztaegig').checked,
-          start_zeit: el('von-zeit').value, ende_zeit: el('bis-zeit').value,
-          announce: ankObj(),
-        }),
+        signal: abbruch.signal, body: JSON.stringify(body),
       });
       var d = await r.json().catch(function () { return {}; });
-      if (r.ok && d.ok) {
-        el('speicher-hinweis').className = 'hinweis ok';
-        el('speicher-hinweis').textContent = gespeichertText(status);
-      } else {
-        el('speicher-hinweis').className = 'hinweis err';
-        el('speicher-hinweis').textContent = '✗ ' + (d.detail || ('Fehler ' + r.status));
-      }
+      if (r.ok && d.ok) { ergebnis = d; }
+      else { meldung(hinweis, 'err', '✗ ' + (d.detail || ('Fehler ' + r.status))); }
     } catch (e) {
-      el('speicher-hinweis').className = 'hinweis err';
-      el('speicher-hinweis').textContent = e.name === 'AbortError'
+      meldung(hinweis, 'err', e.name === 'AbortError'
         ? '✗ Keine Antwort nach 30 Sekunden. Bitte lade die Seite neu und prüfe, was gespeichert ist.'
-        : '✗ ' + e.message;
+        : '✗ ' + e.message);
     }
     clearTimeout(uhr);
-    el('speicher-hinweis').hidden = false;
     btn.disabled = false; btn.textContent = alt;
+    return ergebnis;
+  }
+  function meldung(id, art, text) {
+    el(id).className = 'hinweis ' + art; el(id).textContent = text; el(id).hidden = false;
+  }
+
+  async function speichern() {
+    if (pruefeZeitraum()) return;
+    var status = statusWert();
+    var wahl = {};
+    if ((ctx.waehlbar || {}).oof) wahl.oof = el('oof-sel').value;
+    var d = await senden({
+      bereich: 'abwesenheit', wahl: wahl,
+      oof_status: status, oof_start: el('von').value, oof_ende: el('bis').value,
+      ganztaegig: el('ganztaegig').checked,
+      start_zeit: el('von-zeit').value, ende_zeit: el('bis-zeit').value,
+      announce: ankObj(),
+    }, el('speichern'), 'speicher-hinweis');
+    if (d) meldung('speicher-hinweis', 'ok', gespeichertText(status));
+  }
+
+  // Signatur bzw. Antwort-Signatur: Der Knopf ist nur bedienbar, wenn die Wahl
+  // vom gespeicherten Stand abweicht — ein grauer Knopf heißt „nichts zu sichern".
+  function wahlGeaendert(slot) {
+    var knopf = el(slot + '-speichern'), hinweis = slot + '-hinweis';
+    var anders = el(slot + '-sel').value !== gespeichert[slot];
+    knopf.disabled = !anders;
+    if (anders) meldung(hinweis, 'warn', 'Noch nicht gespeichert.');
+    else el(hinweis).hidden = true;
+  }
+  async function wahlSpeichern(slot) {
+    var wahl = {}; wahl[slot] = el(slot + '-sel').value;
+    var d = await senden({ bereich: slot === 'sig' ? 'signatur' : 'antwort', wahl: wahl },
+                         el(slot + '-speichern'), slot + '-hinweis');
+    if (!d) return;
+    gespeichert[slot] = wahl[slot];
+    el(slot + '-speichern').disabled = true;
+    var t = slot === 'sig' ? '✓ Gespeichert. Neue Mails tragen ab jetzt diese Signatur.'
+      : (wirksam('min', '') ? '✓ Gespeichert. Antworten im Verlauf tragen ab jetzt diese Antwort-Signatur.'
+                            : '✓ Gespeichert. Antworten im Verlauf bekommen ab jetzt keine Signatur.');
+    if (slot === 'sig' && d.oof_aufgefrischt) t += ' Auch deine Abwesenheitsnotiz ist aktualisiert.';
+    meldung(slot + '-hinweis', 'ok', t);
   }
 
   el('status-wahl').addEventListener('change', function () { zeitraumSichtbarkeit(); vorschau(); });
   el('ganztaegig').addEventListener('change', function () { zeitSichtbarkeit(); vorschau(); });
   el('ank-an').addEventListener('change', function () { ankFelderSichtbarkeit(); vorschau(); });
-  ['oof-sel','sig-sel','von','bis','von-zeit','bis-zeit',
+  ['oof-sel','sig-sel','min-sel','von','bis','von-zeit','bis-zeit',
    'ank-mode','ank-x','ank-privat','ank-extern'].forEach(function (i) {
     el(i).addEventListener('change', vorschau);
   });
+  el('sig-sel').addEventListener('change', function () { wahlGeaendert('sig'); });
+  el('min-sel').addEventListener('change', function () { wahlGeaendert('min'); });
   el('speichern').addEventListener('click', speichern);
+  el('sig-speichern').addEventListener('click', function () { wahlSpeichern('sig'); });
+  el('min-speichern').addEventListener('click', function () { wahlSpeichern('min'); });
+  REITER.forEach(function (r) {
+    el('r-' + r).addEventListener('click', function () { zeigeReiter(r); });
+  });
 
   // Abmelden: im Add-in Token vergessen und Keks löschen (das Merkmal ist
   // zustandslos signiert, der Server kann es nicht widerrufen); bewusst KEIN

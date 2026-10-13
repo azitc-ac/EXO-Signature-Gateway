@@ -816,6 +816,142 @@ def test_self_zeitraum_pruefung_und_meldungen(browser, server):
     ctx.close()
 
 
+# ── /self: Reiter Abwesenheit · Signatur · Antwort-Signatur (13.10.2026) ─────
+
+def _self_kontext(**ueber):
+    k = {"email": "a@x.de", "freigeschaltet": True, "abwesenheit_aktiv": True,
+         "oof_mit_signatur": True, "darf_vorlagen": True,
+         "waehlbar": {"sig": True, "min": True, "oof": False},
+         "oof_template": "K", "sig_template": "S",
+         "standard": {"sig": "S", "min": "Kurz", "oof": "K"},
+         "wahl": {"sig": "__standard__", "min": "__standard__", "oof": "__standard__"},
+         "listen": {"sig": ["S", "Lang"], "min": ["Kurz"], "oof": []},
+         "ooo": {"status": "disabled", "start": "", "ende": "", "start_zeit": "09:00",
+                 "ende_zeit": "17:00", "ganztaegig": True},
+         "announce_supported": False,
+         "announce": {"an": False, "mode": "anzahl", "x": 3, "privat": True, "extern": False},
+         "zugriff": True}
+    k.update(ueber)
+    return k
+
+
+def _self_seite(browser, server, kontext, breite, gesendet):
+    import json
+    from urllib.parse import urlparse, parse_qs
+    ctx = browser.new_context(viewport={"width": breite, "height": 900})
+    ctx.route("**/api/self/context", lambda r: r.fulfill(
+        status=200, content_type="application/json", body=json.dumps(kontext)))
+
+    def vorschau(r):
+        q = parse_qs(urlparse(r.request.url).query)
+        mn = (q.get("min") or [""])[0]
+        r.fulfill(status=200, content_type="application/json", body=json.dumps({
+            "oof_html": "<p>OOF</p>",
+            "sig_html": f'<p class="sig-test">SIG {(q.get("sig") or [""])[0]}</p>',
+            "min_html": f'<p class="min-test">MIN {mn}</p>' if mn else "",
+            "banner_html": "", "disclaimer_html": ""}))
+    ctx.route("**/api/self/preview*", vorschau)
+
+    def save(r):
+        gesendet.append(json.loads(r.request.post_data))
+        r.fulfill(status=200, content_type="application/json", body='{"ok": true}')
+    ctx.route("**/api/self/save", save)
+    pg = ctx.new_page()
+    pg.goto(f"{server}/self", wait_until="domcontentloaded")
+    pg.wait_for_selector("#inhalt:not([hidden])", timeout=10000)
+    return ctx, pg
+
+
+@pytest.mark.parametrize("breite", [320, 393])
+def test_self_reiter_vorschau_und_speichern_je_reiter(browser, server, breite):
+    """Drei Reiter in EINER Zeile (Aufgabenbereich ≈ 320 px), je Reiter eine
+    Vorschau mit Beispiel-Mail und MUSTER-Stempel nur über dem Blindtext, und
+    ein Speichern-Knopf, der NUR seinen Bereich schickt."""
+    gesendet = []
+    ctx, pg = _self_seite(browser, server, _self_kontext(), breite, gesendet)
+    pg.evaluate("localStorage.removeItem('self_reiter')")
+
+    leiste = pg.locator("#reiter-leiste")
+    assert leiste.is_visible()
+    hoehen = pg.evaluate("[...document.querySelectorAll('#reiter-leiste button')]"
+                         ".map(b => Math.round(b.getBoundingClientRect().top))")
+    assert len(hoehen) == 3 and len(set(hoehen)) == 1, f"Reiter brechen um: {hoehen}"
+    assert pg.is_visible("#p-abw") and not pg.is_visible("#p-sig")
+
+    # Reiter Signatur
+    pg.click("#r-sig")
+    assert pg.is_visible("#p-sig") and not pg.is_visible("#p-abw")
+    pg.wait_for_selector("#sig-vorschau .sig-test", timeout=5000)
+    stempel = pg.evaluate("getComputedStyle(document.querySelector('#p-sig .muster'), '::after').content")
+    assert "MUSTER" in stempel
+    assert pg.evaluate("!document.querySelector('#sig-vorschau').closest('.muster')"), \
+        "Stempel liegt über der Signatur"
+    assert pg.is_visible("#sig-auch-oof"), "Hinweis „auch unter der Abwesenheitsnotiz“ fehlt"
+    assert pg.is_disabled("#sig-speichern"), "Knopf ohne Änderung muss grau sein"
+    pg.select_option("#sig-sel", "Lang")
+    pg.wait_for_function("document.querySelector('#sig-vorschau').textContent.includes('Lang')")
+    assert not pg.is_disabled("#sig-speichern")
+    assert "Noch nicht gespeichert" in pg.text_content("#sig-hinweis")
+    pg.select_option("#sig-sel", "__standard__")          # zurück zum gespeicherten Stand
+    assert pg.is_disabled("#sig-speichern") and not pg.is_visible("#sig-hinweis")
+    pg.select_option("#sig-sel", "Lang")
+    pg.click("#sig-speichern")
+    pg.wait_for_function("document.querySelector('#sig-hinweis').textContent.startsWith('✓')")
+    assert gesendet[-1] == {"bereich": "signatur", "wahl": {"sig": "Lang"}}
+    assert pg.is_disabled("#sig-speichern")
+
+    # Reiter Antwort-Signatur: „— keine —“
+    pg.click("#r-min")
+    pg.wait_for_selector("#min-vorschau .min-test", timeout=5000)
+    pg.select_option("#min-sel", "")
+    pg.wait_for_selector("#min-vorschau .keine-sig", timeout=5000)
+    pg.click("#min-speichern")
+    pg.wait_for_function("document.querySelector('#min-hinweis').textContent.startsWith('✓')")
+    assert gesendet[-1] == {"bereich": "antwort", "wahl": {"min": ""}}
+    assert "keine Signatur" in pg.text_content("#min-hinweis")
+
+    # Abwesenheit schickt ihren Bereich, ohne die Signaturwahl
+    pg.click("#r-abw")
+    pg.click("#speichern")
+    pg.wait_for_selector("#speicher-hinweis:not([hidden])", timeout=5000)
+    assert gesendet[-1]["bereich"] == "abwesenheit" and gesendet[-1]["wahl"] == {}
+
+    breit = pg.evaluate("document.documentElement.scrollWidth")
+    assert breit <= breite, f"Waagerechte Rollleiste bei {breite} px: {breit}"
+
+    # Gemerkter Reiter nach dem Neuladen
+    pg.click("#r-min")
+    pg.reload(wait_until="domcontentloaded")
+    pg.wait_for_selector("#inhalt:not([hidden])", timeout=10000)
+    assert pg.is_visible("#p-min")
+    ctx.close()
+
+
+@pytest.mark.parametrize("mit_sig", [True, False])
+def test_self_abwesenheits_vorschau_wie_in_exchange(browser, server, mit_sig):
+    """Die Vorschau der Abwesenheitsnotiz trägt die Signatur nur, wenn das
+    Gateway sie anhängt (OOO_APPEND_SIGNATURE) — bis v1.9.161 immer."""
+    ctx, pg = _self_seite(browser, server, _self_kontext(oof_mit_signatur=mit_sig), 393, [])
+    pg.wait_for_function("document.querySelector('#vorschau').textContent.includes('OOF')")
+    assert ("SIG" in pg.text_content("#vorschau")) is mit_sig
+    assert pg.is_visible("#abw-mit-sig") is mit_sig
+    ctx.close()
+
+
+def test_self_nur_ein_reiter_ohne_leiste(browser, server):
+    """Darf der Nutzer nichts wählen und ist die Abwesenheit aus, bleibt nur die
+    Signatur zur Ansicht — ohne Reiterleiste, ohne Auswahl, ohne Knopf-Wirkung."""
+    gesendet = []
+    k = _self_kontext(abwesenheit_aktiv=False, oof_mit_signatur=False,
+                      waehlbar={"sig": False, "min": False, "oof": False})
+    ctx, pg = _self_seite(browser, server, k, 393, gesendet)
+    assert not pg.is_visible("#reiter-leiste")
+    assert pg.is_visible("#p-sig") and not pg.is_visible("#sig-block")
+    assert pg.is_visible("#sig-fest") and not pg.is_visible("#sig-auch-oof")
+    pg.wait_for_selector("#sig-vorschau .sig-test", timeout=5000)
+    ctx.close()
+
+
 # ── Self-Service im Aufgabenbereich des Add-ins ──────────────────────────────
 #
 # Anlass (13.10.2026): Der Lese-Knopf öffnete /self?et= im Aufgabenbereich von

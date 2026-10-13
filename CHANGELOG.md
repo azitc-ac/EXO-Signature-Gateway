@@ -5,6 +5,67 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.162 — 2026-10-13 — Self-Service in drei Reitern, Add-in-Bereich anheftbar
+
+### Self-Service: Abwesenheit · Signatur · Antwort-Signatur
+
+Die Seite `/self` (Browser, Add-in, App) ist in drei Reiter geteilt. Jeder
+Reiter erklärt in einem Satz, wofür seine Einstellung gilt, zeigt eine eigene
+Vorschau und hat einen eigenen Speichern-Knopf, der nur seinen Bereich sichert:
+
+- **Abwesenheit:** Status, Zeitraum, Vorlage und Ankündigung wie bisher.
+- **Signatur:** die Signatur unter jeder neuen Mail. Hängt das Gateway sie
+  auch unter die Abwesenheitsnotiz (`OOO_APPEND_SIGNATURE`), sagt der Reiter
+  das dazu, und ein Wechsel setzt den Text der Notiz in Exchange sofort neu.
+  Status und Zeitraum der Abwesenheit bleiben dabei unberührt.
+- **Antwort-Signatur:** die Signatur ab der 2. eigenen Mail im Verlauf. Bisher
+  wurde sie ohne Vorschau gewählt. Mit *— keine —* hängt das Gateway an solche
+  Antworten nichts an.
+
+Die Vorschauen von Signatur und Antwort-Signatur zeigen eine Beispiel-Mail mit
+Blindtext, über dem ein schräger MUSTER-Stempel liegt; die Signatur selbst
+bleibt frei lesbar. Die Antwort-Vorschau deutet den zitierten Verlauf darunter an.
+
+Ein Reiter erscheint nur, wenn es darin etwas einzustellen gibt: Abwesenheit
+bei eingeschalteter Funktion *Zentrale Abwesenheiten*, Signatur und
+Antwort-Signatur bei freigegebener Vorlagenwahl. Bleibt nur einer übrig, entfällt
+die Reiterleiste. Darf ein Nutzer gar nichts wählen und ist die Abwesenheit
+aus, zeigt der Reiter Signatur die zugewiesene Signatur zur Ansicht. Der
+zuletzt geöffnete Reiter bleibt im Browser gemerkt.
+
+`POST /api/self/save` nimmt dafür das Feld `bereich` (`abwesenheit`,
+`signatur`, `antwort`). Ohne das Feld wird wie bisher alles gespeichert, damit
+eine noch geöffnete ältere Seite weiter funktioniert.
+
+**Korrektur der Abwesenheits-Vorschau:** Sie hing bisher immer Signatur, Banner
+und Disclaimer an. Die Notiz in Exchange trägt die Signatur aber nur bei
+`OOO_APPEND_SIGNATURE`, das Banner nur bei `OOO_APPEND_BANNER` und nie einen
+Disclaimer. Die Vorschau zeigt jetzt genau das.
+
+### Outlook-Add-in: Bereich anheftbar, Lese-Knopf auch ohne ausgewählte Mail
+
+Das Manifest enthält zusätzlich eine Fassung nach VersionOverrides 1.1
+(Mailbox 1.13):
+
+- **Anheften** (`SupportsPinning`) beim Verfassen und beim Lesen. Ein
+  angehefteter Bereich bleibt beim Wechsel der Mail offen bzw. öffnet sich bei
+  der nächsten neuen Mail wieder. Microsoft unterstützt das in Outlook im Web,
+  im neuen und im klassischen Outlook für Windows sowie in Outlook für Mac,
+  jeweils getrennt für Lesen und Verfassen.
+- **Lese-Knopf ohne ausgewählte Mail** (`SupportsNoItemContext`), etwa bei
+  ausgeblendetem Lesebereich. Laut Microsoft wirkt das nur im klassischen
+  Outlook; in Outlook im Web und im neuen Outlook stehen Add-in-Knöpfe nicht im
+  Menüband, dort ist weiterhin eine Mail auszuwählen.
+
+Clients unter Mailbox 1.13 verwenden die bisherige Fassung. Das Manifest besteht
+die Prüfung mit `office-addin-manifest validate`.
+
+**Zu tun:** Weil sich das Manifest ändert, steigt seine Versionsnummer. Lade es
+unter *Integrierte Apps → Add-in → Aktualisieren* neu hoch. Neue Berechtigungen
+kommen nicht hinzu.
+
+---
+
 ## v1.9.161 — 2026-10-13 — Add-in und App: Bereitstellung mit Rolle, Wartezeit und Update-Weg
 
 *Einrichtung → Outlook-Add-in* nennt jetzt, was beim Bereitstellen sonst zu
