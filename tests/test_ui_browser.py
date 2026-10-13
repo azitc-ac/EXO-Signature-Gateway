@@ -831,16 +831,23 @@ window.Office = { AsyncResultStatus: { Succeeded: 'succeeded' },
   EventType: { DialogMessageReceived: 'm', DialogEventReceived: 'e' },
   onReady: function (cb) { setTimeout(function () {
     if (%(mit_dialog)s) {
-      Office.context = { mailbox: {}, ui: { displayDialogAsync: function (url) { window.__dialoge.push(url); } } };
+      Office.context = { mailbox: {}, ui: { displayDialogAsync: function (url, opt, cb) {
+        window.__dialoge.push(url);
+        // Erster Versuch wie „Ignorieren“ im Office-Hinweis (Fehler 12009).
+        if (%(ablehnen)s && window.__dialoge.length === 1 && cb) {
+          cb({ status: 'failed', error: { code: 12009, message: 'ignoriert' } });
+        }
+      } } };
     }
     cb({ host: %(host)s });
   }, %(verzoegerung)d); } };
 """
 
 
-def _office_nachbau(ctx, mit_dialog=True, host="'Outlook'", verzoegerung=3000):
+def _office_nachbau(ctx, mit_dialog=True, host="'Outlook'", verzoegerung=3000, ablehnen=False):
     js = _OFFICE_LANGSAM % {"mit_dialog": "true" if mit_dialog else "false",
-                            "host": host, "verzoegerung": verzoegerung}
+                            "host": host, "verzoegerung": verzoegerung,
+                            "ablehnen": "true" if ablehnen else "false"}
     ctx.route("https://appsforoffice.microsoft.com/**",
               lambda r: r.fulfill(status=200, content_type="application/javascript", body=js))
 
@@ -861,6 +868,20 @@ def test_aufgabenbereich_wartet_auf_office_und_oeffnet_den_dialog(browser, serve
         rahmen.wait_for_function("() => window.__dialoge && window.__dialoge.length > 0", timeout=8000)
         assert "/auth/login/microsoft" in rahmen.evaluate("() => window.__dialoge[0]")
         assert "/auth/login?" not in rahmen.url, rahmen.url
+    finally:
+        ctx.close()
+
+
+def test_aufgabenbereich_nach_ignorieren_bietet_erneuten_versuch(browser, server):
+    """„Ignorieren“ (12009): Knopf statt „Seite neu laden“, sein Klick öffnet den Dialog erneut."""
+    ctx, pg, rahmen = _im_rahmen(browser, server, ablehnen=True)
+    try:
+        rahmen.wait_for_selector("#fehler:not([hidden])", timeout=8000)
+        assert "Allow" in rahmen.inner_text("#fehler")
+        assert rahmen.is_visible("#tab-anmelden-btn")
+        rahmen.click("#tab-anmelden-btn")
+        rahmen.wait_for_function("() => window.__dialoge.length === 2", timeout=3000)
+        assert "/auth/login/microsoft" in rahmen.evaluate("() => window.__dialoge[1]")
     finally:
         ctx.close()
 
