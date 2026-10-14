@@ -85,6 +85,14 @@ ERLAUBT_OHNE_ANMELDUNG: dict[str, str] = {
     "/addin/auth-complete-teams": "Abschlussseite des Anmeldefensters im Tab (TeamsJS)",
     "/addin/teams-app.zip":   "App-Paket für Integrierte Apps; enthält wie manifest.xml nichts Geheimes",
     "/addin/icon/{size_str}": "Symbol des Add-ins",
+    # Verfassen-Add-in (Start-Ereignis): Manifest, Laufzeit und Freigabeliste
+    # lädt Outlook anonym. Der Signatur-Endpunkt prüft statt einer Sitzung ein
+    # Bearer-Token (sso.verify_access_token) — die Adresse kommt aus dem Token.
+    "/addin/verfassen/manifest.xml":  "Manifest des Verfassen-Add-ins",
+    "/addin/verfassen/laufzeit.html": "Ereignis-Laufzeit (OWA/neues Outlook)",
+    "/addin/verfassen/laufzeit.js":   "Ereignis-Skript mit MSAL, enthält keine Geheimnisse",
+    "/.well-known/microsoft-officeaddins-allowed.json": "Freigabeliste für SSO in Classic Outlook",
+    "/api/addin/verfassen/signatur":  "Prüft ein Entra-Zugriffstoken statt einer Sitzung",
     # Self-Service-SEITE: öffentliches HTML wie /addin/compose — die Navigation
     # kann keinen Auth-Header mitgeben, die Identität klärt das JS über die
     # /api/self/*-Endpunkte (die hängen an _require_self).

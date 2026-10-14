@@ -152,6 +152,69 @@ def verify_id_token(id_token: str, nonce: str) -> dict | None:
         return None
 
 
+ADDIN_SCOPE = "access_as_user"
+
+
+def addin_api_scope() -> str:
+    """Bereich, den das Verfassen-Add-in per NAA für das Gateway anfordert."""
+    client_id = (settings_store.get("BOOTSTRAP_CLIENT_ID") or "").strip()
+    return f"api://{client_id}/{ADDIN_SCOPE}" if client_id else ""
+
+
+def verify_access_token(token: str) -> dict | None:
+    """Prüft ein Zugriffstoken, das das Verfassen-Add-in per NAA (MSAL,
+    createNestablePublicClientApplication) für UNSERE API geholt hat.
+
+    Muss vollständig gelten, sonst None:
+      - Signatur gegen Entras JWKS des Tenants (RS256),
+      - v2-Token (`ver` 2.0, Aussteller …/{tenant}/v2.0) — die Registrierung setzt
+        requestedAccessTokenVersion=2; ein v1-Token hätte einen anderen Aussteller,
+      - Audience == Bootstrap-Client-ID (v2 trägt die GUID, nicht die api://-URI),
+      - `azp` == Bootstrap-Client-ID: Nur unser eigenes Add-in holt dieses Token
+        (die App ist für sich selbst vorab berechtigt). Ein Token, das eine
+        fremde App für unsere API erhalten hätte, wird abgewiesen,
+      - `scp` enthält access_as_user,
+      - `tid` == unser Tenant.
+
+    Ohne TENANT_ID wird nichts angenommen — anders als bei verify_id_token gibt es
+    hier keinen „organizations"-Rückfall: ein Bearer-Token ist für sich allein
+    schon die Anmeldung, ohne Sitzung und ohne nonce.
+    """
+    try:
+        import jwt
+        import config as _config
+        client_id = (settings_store.get("BOOTSTRAP_CLIENT_ID") or "").strip()
+        tenant = (settings_store.get("TENANT_ID")
+                  or getattr(_config, "TENANT_ID", "") or "").strip()
+        if not client_id or not tenant:
+            log.warning("verify_access_token: BOOTSTRAP_CLIENT_ID oder TENANT_ID fehlt")
+            return None
+        jwks_uri = f"https://login.microsoftonline.com/{tenant}/discovery/v2.0/keys"
+        signing_key = _jwks_client(jwks_uri).get_signing_key_from_jwt(token)
+        claims = jwt.decode(
+            token, signing_key.key, algorithms=["RS256"],
+            audience=client_id, leeway=60,
+            issuer=f"https://login.microsoftonline.com/{tenant}/v2.0",
+            options={"require": ["exp", "aud", "iss"]},
+        )
+        if claims.get("ver") != "2.0":
+            log.warning("verify_access_token: Token-Version %r statt 2.0", claims.get("ver"))
+            return None
+        if (claims.get("tid") or "").strip() != tenant:
+            log.warning("verify_access_token: tid %r != Tenant", claims.get("tid"))
+            return None
+        if (claims.get("azp") or "").strip() != client_id:
+            log.warning("verify_access_token: azp %r ist nicht das eigene Add-in", claims.get("azp"))
+            return None
+        if ADDIN_SCOPE not in (claims.get("scp") or "").split():
+            log.warning("verify_access_token: Bereich %s fehlt (scp=%r)", ADDIN_SCOPE, claims.get("scp"))
+            return None
+        return claims
+    except Exception as exc:                                  # noqa: BLE001
+        log.warning("verify_access_token fehlgeschlagen: %s", exc)
+        return None
+
+
 def get_upn_from_token_response(token_resp: dict) -> str:
     """Extract UPN from token response (id_token preferred_username claim)."""
     id_token = token_resp.get("id_token", "")
