@@ -257,9 +257,15 @@ function ungebunden(code, bekannt) {
 // ── Ablauf ────────────────────────────────────────────────────────────────────
 
 const dir = process.argv[2];
-const gemeinsam = process.argv.slice(3);
+// `--eigen=datei.js`: eigenständiges Skript, das KEINE Vorlage einbindet (etwa
+// das Ereignis-Skript des Verfassen-Add-ins, das Outlook direkt lädt). Es wird
+// selbst geprüft — gegen die Browser-Globals und die Namen aus seiner eigenen
+// `/* global … */`-Zeile. Die übrigen .js-Argumente sind dagegen nur QUELLE
+// gemeinsamer Namen und werden nicht auf ungebundene Bezeichner untersucht.
+const eigene = process.argv.slice(3).filter(a => a.startsWith('--eigen=')).map(a => a.slice(8));
+const gemeinsam = process.argv.slice(3).filter(a => !a.startsWith('--eigen='));
 if (!dir) {
-  console.error('Aufruf: jsscopecheck.js <vorlagen-verzeichnis> [gemeinsame.js …]');
+  console.error('Aufruf: jsscopecheck.js <vorlagen-verzeichnis> [gemeinsame.js …] [--eigen=datei.js …]');
   process.exit(2);
 }
 
@@ -334,6 +340,27 @@ for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.html')).sort()) {
     gesehen.add(name);
     const zeile = code.slice(0, funde.find(x => x.name === name).pos).split('\n').length;
     console.log(`  ${f}: \`${name}\` ist in diesem Geltungsbereich nicht gebunden (ab Zeile ~${zeile} im JS)`);
+    treffer++;
+  }
+}
+
+for (const f of eigene) {
+  const code = fs.readFileSync(f, 'utf8');
+  const bekannt = new Set(GLOBALS);
+  for (const m of code.matchAll(/\/\*\s*global\s+([^*]*)\*\//g)) {
+    m[1].split(/[\s,]+/).filter(Boolean).forEach(n => bekannt.add(n.split(':')[0]));
+  }
+  let funde;
+  try {
+    funde = ungebunden(code, bekannt);
+  } catch (e) {
+    console.log(`  ${f}: nicht parsebar — ${e.message}`);
+    unlesbar++;
+    continue;
+  }
+  geprueft++;
+  for (const name of new Set(funde.map(x => x.name))) {
+    console.log(`  ${f}: \`${name}\` ist nicht gebunden (eigenständiges Skript)`);
     treffer++;
   }
 }

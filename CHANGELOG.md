@@ -5,6 +5,51 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.164 — 2026-10-14 — Erprobung: Signatur automatisch beim Verfassen
+
+### Zweites Add-in mit Start-Ereignis (in Erprobung)
+
+Unter `/addin/verfassen/manifest.xml` liegt ein zweites Outlook-Add-in mit
+eigener Kennung. Es fügt beim Öffnen einer **neuen** Mail die Gateway-Signatur
+ein, ohne dass jemand einen Knopf drückt (`OnNewMessageCompose`, Mailbox 1.10).
+Bei Antworten und Weiterleitungen fügt es nichts ein: Dort entscheidet das
+Gateway, ob die Antwort-Signatur greift, und das kann das Add-in nicht wissen.
+Eine eigene Outlook-Signatur wird für diese eine Mail ausgeblendet.
+
+Das bisherige Add-in (Knopf beim Verfassen und Lesen, Self-Service) bleibt
+unverändert. Getrennt ist es deshalb, weil Microsoft bei Add-ins mit
+Start-Ereignis jede Manifest-Änderung erst nach erneuter Admin-Zustimmung
+ausrollt und die Nutzer bis dahin vom Add-in sperrt.
+
+Die Anmeldung läuft still über Nested App Authentication (MSAL): Im
+Start-Ereignis darf kein Anmeldefenster aufgehen. Klappt sie nicht, erscheint
+ein Hinweis in der Mail, und es wird nichts eingefügt. Das Gateway prüft das
+Zugriffstoken vollständig (Signatur, Aussteller und Tenant, Audience, anfordernde
+App, Bereich `access_as_user`, Token-Version 2) und nimmt die Adresse aus dem
+Token, nicht aus der Anfrage. Postfächer, die das Gateway nicht betreut,
+bekommen keine Signatur.
+
+**Voraussetzung an der Anmelde-App (Bootstrap-App) in Entra:**
+
+1. *Authentifizierung → Plattform hinzufügen → Single-Page-Anwendung*, Umleitung
+   `brk-multihub://<dein Gateway-Host>`.
+2. *API verfügbar machen*: Anwendungs-ID-URI `api://<Client-ID>`, Bereich
+   `access_as_user`, die App selbst als Clientanwendung mit diesem Bereich.
+3. *Manifest*: `"requestedAccessTokenVersion": 2`.
+
+Add-ins mit Start-Ereignis starten nur, wenn ein Admin sie bereitstellt
+(*Integrierte Apps → Benutzerdefinierte Apps hochladen*). Für Classic Outlook
+liefert das Gateway dazu `/.well-known/microsoft-officeaddins-allowed.json`.
+
+### Prüfung eigenständiger Skripte
+
+`tools/jsscopecheck.js` las Skriptdateien bisher nur als Quelle gemeinsamer
+Namen; ein ungebundener Bezeichner in `common.js` oder `sig_preview.js` selbst
+blieb unbemerkt. Mit `--eigen=<datei>` wird eine Datei jetzt selbst geprüft;
+die CI tut das für `common.js`, `sig_preview.js` und das neue Ereignis-Skript.
+
+---
+
 ## v1.9.163 — 2026-10-13 — Self-Service: MUSTER-Stempel kleiner
 
 Der Stempel über dem Blindtext der Vorschau stieß in der kurzen

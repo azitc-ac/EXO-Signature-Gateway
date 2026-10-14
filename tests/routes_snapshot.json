@@ -7,6 +7,13 @@
     "name": "dashboard"
   },
   {
+    "pfad": "/.well-known/microsoft-officeaddins-allowed.json",
+    "methoden": [
+      "GET"
+    ],
+    "name": "officeaddins_allowed"
+  },
+  {
     "pfad": "/abwesenheit",
     "methoden": [
       "GET"
@@ -61,6 +68,27 @@
       "GET"
     ],
     "name": "addin_teams_app"
+  },
+  {
+    "pfad": "/addin/verfassen/laufzeit.html",
+    "methoden": [
+      "GET"
+    ],
+    "name": "verfassen_laufzeit_html"
+  },
+  {
+    "pfad": "/addin/verfassen/laufzeit.js",
+    "methoden": [
+      "GET"
+    ],
+    "name": "verfassen_laufzeit_js"
+  },
+  {
+    "pfad": "/addin/verfassen/manifest.xml",
+    "methoden": [
+      "GET"
+    ],
+    "name": "verfassen_manifest"
   },
   {
     "pfad": "/advanced",
@@ -166,6 +194,20 @@
       "GET"
     ],
     "name": "addin_update_redirect_uri"
+  },
+  {
+    "pfad": "/api/addin/verfassen/signatur",
+    "methoden": [
+      "GET"
+    ],
+    "name": "verfassen_signatur"
+  },
+  {
+    "pfad": "/api/addin/verfassen/signatur",
+    "methoden": [
+      "OPTIONS"
+    ],
+    "name": "verfassen_signatur_vorab"
   },
   {
     "pfad": "/api/admin-users",
