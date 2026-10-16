@@ -48,7 +48,7 @@ def test_ersetzen_laeuft_nicht_doppelt():
     q = _quelle()
     assert "var _ersetztGerade = false;" in q
     i = q.index("function replaceSig")
-    rumpf = q[i:q.index("function _doInsert", i)]
+    rumpf = q[i:q.index("function _signaturbereich", i)]
     assert "if (_ersetztGerade) return;" in rumpf, "replaceSig ohne Sperre"
     assert "_ersetztGerade = true;" in rumpf
     # Und wieder frei — sonst bleibt die Schaltfläche für immer wirkungslos.
@@ -61,7 +61,7 @@ def test_sperre_wird_auch_bei_lesefehler_geloest():
     """Der Weg, den man beim Aufräumen übersieht."""
     q = _quelle()
     i = q.index("function replaceSig")
-    rumpf = q[i:q.index("function _doInsert", i)]
+    rumpf = q[i:q.index("function _signaturbereich", i)]
     fehlerzweig = rumpf[rumpf.index("Lesevorgang fehlgeschlagen") - 200:
                         rumpf.index("Lesevorgang fehlgeschlagen")]
     assert "_ersetztGerade = false;" in fehlerzweig, (
@@ -73,6 +73,6 @@ def test_auch_der_einstieg_ist_gesperrt():
     Ersetzen läuft — sonst liefe ein überflüssiger Abruf ins Leere."""
     q = _quelle()
     i = q.index("function loadAndApply")
-    rumpf = q[i:q.index("function _autoInsertIfNew", i)]
+    rumpf = q[i:q.index("// Quote/forward boundaries", i)]
     assert "if (_ersetztGerade) return;" in rumpf, (
         "loadAndApply startet auch während eines laufenden Ersetzens")
