@@ -101,9 +101,6 @@
   <p class="hint" id="abmelden-zeile" style="display:none">
     <a href="#" onclick="abmelden(); return false">Abmelden</a>
   </p>
-  <p class="hint" id="hint-auto" style="display:none">
-    Signatur wurde automatisch eingefügt. Vorlage wechseln oder <strong>Einfügen</strong> klicken zum Aktualisieren.
-  </p>
   {# Derselbe Knopf heisst beim Lesen „Signatur & Abwesenheit" und öffnet /self —
      hier führt der Link dorthin, damit der Name auch beim Verfassen stimmt. #}
   <p class="hint" style="margin-top:12px">
@@ -129,10 +126,8 @@
     //      for exact region boundaries.  Tries current and previous template's probe to
     //      handle template switches (Minimal→Full: old probe "#gernperDu" isn't in Minimal;
     //      Full→Minimal: new probe "Alexander Zarenko" IS in Full → works directly).
-    //   2. _lastSetBody: last body we passed to setAsync (markers still intact).  Used as
-    //      fallback when both probes fail (edge case: probe text truly absent from old sig).
-    //      Warning: replaces from _lastSetBody as base, so user text typed between two
-    //      "Einfügen" clicks may be overwritten.  Rare but documented trade-off.
+    //   Kein Rückgriff auf einen früher gesetzten Text: Er kennt nicht, was danach
+    //   getippt wurde, und hat genau das gelöscht (Classic, 16.10.2026).
     var _sigTextProbe  = '';   // probe from current sig
     var _prevSigTextProbe = ''; // probe from previous sig (template switch support)
     // Laufende Nummer JEDES Abrufs. Wer schnell zwischen Vorlagen wechselt,
@@ -146,7 +141,6 @@
     // setAsync sind zwei Schritte, dazwischen kann ein zweiter Lauf den Text
     // lesen, den der erste gerade schreibt.
     var _ersetztGerade = false;
-    var _lastSetBody = null;
     var _addinSession = '';
     try { _addinSession = localStorage.getItem('exo_addin_session') || ''; } catch(_) { console.error('[addin_compose:131]', _); }
     function _authHeaders() { return _addinSession ? { 'X-Addin-Session': _addinSession } : {}; }
@@ -205,7 +199,6 @@
 
       document.getElementById('preview').innerHTML = '<span class="loading">Signatur wird geladen…</span>';
       document.getElementById('btn-insert').disabled = true;
-      document.getElementById('hint-auto').style.display = 'none';
 
       fetch('/api/addin/signature?email=' + encodeURIComponent(email) + tpl, { headers: _authHeaders() })
         .then(function(r) {
@@ -224,7 +217,9 @@
           if (_markedSig) {
             document.getElementById('preview').innerHTML = d.preview_html || '';
             document.getElementById('btn-insert').disabled = false;
-            if (onLoaded) { onLoaded(); } else { _autoInsertIfNew(); }
+            // Kein automatisches Einfügen: Das übernimmt das Verfassen-Add-in über
+            // den Signaturbereich. Hier wird nur auf Klick eingefügt.
+            if (onLoaded) onLoaded();
           } else {
             document.getElementById('preview').innerHTML =
               '<em style="color:#94a3b8">Keine Signatur für diesen Benutzer konfiguriert</em>';
@@ -244,26 +239,6 @@
       // Signaturen darin.
       if (_ersetztGerade) return;
       loadSig(null, function() { if (_markedSig) replaceSig(); });
-    }
-
-    function _autoInsertIfNew() {
-      if (!_markedSig) return;
-      // Replies have inReplyTo set — skip auto-insert.
-      if (Office.context.mailbox.item.inReplyTo) return;
-      Office.context.mailbox.item.body.getAsync(Office.CoercionType.Html, function(r) {
-        if (r.status !== Office.AsyncResultStatus.Succeeded) return;
-        var body = r.value || '';
-        // Already has our signature (comment / class / sentinel, incl. x_ prefix) → skip.
-        if (_findSigRegion(body, body.length)) return;
-        // Forwarded messages contain divRplyFwdMsg → skip.
-        if (/id=["']?divRplyFwdMsg["']?/i.test(body)) return;
-        _doInsert(function(ok) {
-          if (ok) {
-            document.getElementById('hint-auto').style.display = '';
-            showStatus('Automatisch eingefügt ✓', 'ok');
-          }
-        });
-      });
     }
 
     // Quote/forward boundaries of known clients (mirrors the gateway's
@@ -302,13 +277,15 @@
     // 1. id="exo-sig-s" on the wrapper div: survives Outlook Classic compose
     //    getAsync (class/comments/<a name> all stripped; id is kept as-is in
     //    compose mode, x_-prefixed only in read/quote context).
+    //    Classic writes it WITHOUT quotes (<div id=exo-sig-s>, measured 2026-10-16)
+    //    — quotes are optional, and a blank must precede id= (not data-id=).
     // 2. Comment markers: survive in OWA.
     // 3. class="exo-gateway-sig": survives in OWA.
     // x_ prefix handled in all patterns for Exchange-quoted content.
     function _findSigRegion(body, limit) {
       var region = null;
       function consider(s, e) { if (s !== -1 && e !== -1 && s < limit && (region === null || s < region.start)) region = { start: s, end: e }; }
-      var iM = body.match(/<div\b[^>]*\bid=["'](?:x_)?exo-sig-s["'][^>]*>/i);
+      var iM = body.match(/<div\b[^>]*\sid=["']?(?:x_)?exo-sig-s(?=["'\s>])[^>]*>/i);
       if (iM) { var ie = _matchCloseDiv(body, iM.index); if (ie !== -1) consider(iM.index, ie); }
       var c = body.indexOf(_MARKER_START);
       if (c !== -1) { var ce = body.indexOf(_MARKER_END, c); if (ce !== -1) consider(c, ce + _MARKER_END.length); }
@@ -448,6 +425,21 @@
       // ihn samt seiner eigenen Signatur zurück. Dann stehen beide im Text.
       if (_ersetztGerade) return;
       _ersetztGerade = true;
+      // Mailbox 1.10: nur den Signaturbereich setzen bzw. ersetzen — der Text
+      // der Mail bleibt unberührt, der Cursor auch. Ganzen Text neu zu schreiben
+      // (unten) ist nur der Weg für Clients ohne diese Schnittstelle.
+      if (_signaturbereich()) {
+        var item = Office.context.mailbox.item;
+        item.disableClientSignatureAsync(function() {
+          item.body.setSignatureAsync(_markedSig, { coercionType: Office.CoercionType.Html }, function(wr) {
+            _ersetztGerade = false;
+            showStatus(wr.status === Office.AsyncResultStatus.Succeeded
+              ? 'Signatur eingefügt ✓' : 'Fehler: ' + wr.error.message,
+              wr.status === Office.AsyncResultStatus.Succeeded ? 'ok' : 'err');
+          });
+        });
+        return;
+      }
       // Always read the current body so user text typed between inserts is preserved.
       Office.context.mailbox.item.body.getAsync(Office.CoercionType.Html, function(r) {
         if (r.status !== Office.AsyncResultStatus.Succeeded) {
@@ -467,22 +459,9 @@
           // Found in current body → replace directly (user text preserved)
           newBody = body.slice(0, region.start) + _markedSig + body.slice(region.end);
           replaced = true;
-        } else if (_lastSetBody !== null) {
-          // Fallback: use last body we set (has markers, but may not reflect user edits
-          // made after the previous insert)
-          var qpL = _findQuoteInsertPos(_lastSetBody);
-          var limL = (qpL === -1) ? _lastSetBody.length : qpL;
-          var regL = _findSigRegion(_lastSetBody, limL) || _findSigRegion(_lastSetBody, _lastSetBody.length);
-          if (regL) {
-            newBody = _lastSetBody.slice(0, regL.start) + _markedSig + _lastSetBody.slice(regL.end);
-            replaced = true;
-          } else {
-            var res = _computeInsert(body); newBody = res.body; replaced = res.replaced;
-          }
         } else {
           var res = _computeInsert(body); newBody = res.body; replaced = res.replaced;
         }
-        _lastSetBody = newBody;
         Office.context.mailbox.item.body.setAsync(newBody, { coercionType: Office.CoercionType.Html }, function(wr) {
           _ersetztGerade = false;
           showStatus(
@@ -495,18 +474,9 @@
       });
     }
 
-    function _doInsert(cb) {
-      // Use setAsync (full-body) so auto-insert works regardless of cursor position.
-      // setSelectedDataAsync fails silently when cursor is in To/Subject field.
-      Office.context.mailbox.item.body.setAsync(
-        _markedSig,
-        { coercionType: Office.CoercionType.Html },
-        function(r) {
-          var ok = r.status === Office.AsyncResultStatus.Succeeded;
-          if (ok) _lastSetBody = _markedSig;  // enables _lastSetBody fallback if probe fails
-          cb(ok);
-        }
-      );
+    function _signaturbereich() {
+      try { return Office.context.requirements.isSetSupported('Mailbox', '1.10'); }
+      catch (_) { return false; }
     }
 
     function showLoginRequired() {
@@ -584,7 +554,7 @@
         lines.push('Länge: ' + body.length);
 
         // id (primary, survives Outlook Classic compose)
-        var iM = body.match(/<div\b[^>]*\bid=["'](?:x_)?exo-sig-s["'][^>]*>/i);
+        var iM = body.match(/<div\b[^>]*\sid=["']?(?:x_)?exo-sig-s(?=["'\s>])[^>]*>/i);
         lines.push('div id=exo-sig-s: ' + (iM ? 'JA @ ' + iM.index + ' → "' + iM[0].slice(0,80) + '"' : 'NEIN'));
         // <a name> (tested, stripped)
         var aSM = body.match(/<a\b[^>]*\bname=["'](?:x_)?exo-sig-s["'][^>]*>/i);
@@ -606,7 +576,6 @@
 
         lines.push('_sigTextProbe: "' + _sigTextProbe + '"');
         lines.push('_prevSigTextProbe: "' + _prevSigTextProbe + '"');
-        lines.push('_lastSetBody: ' + (_lastSetBody !== null ? 'gesetzt (' + _lastSetBody.length + ' Z.)' : 'null'));
         // Test text-probe detection on current body
         var probeRegion = _findSigByProbe(body, _findQuoteInsertPos(body));
         lines.push('_findSigByProbe: ' + (probeRegion ? 'gefunden @ ' + probeRegion.start + '–' + probeRegion.end : 'NICHTS'));

@@ -5,6 +5,50 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.165 — 2026-10-16 — Add-in: „Einfügen“ lässt den getippten Text stehen
+
+### Der Aufgabenbereich fügt nicht mehr selbst ein
+
+Das Add-in für das automatische Einfügen beim Verfassen (seit v1.9.164) hat
+sich bewährt: Classic Outlook, neues Outlook und Outlook im Web fügen in neuen
+Mails genau eine Signatur ein, bei Antworten und Weiterleitungen keine, und
+beim Empfänger kommt genau eine an. Der bisherige Aufgabenbereich fügt deshalb
+nicht mehr selbst ein, sondern nur noch auf Klick auf **Einfügen**.
+
+Stelle das Add-in von `/addin/verfassen/manifest.xml` unter *Integrierte Apps*
+für alle Nutzer bereit, die die Signatur beim Verfassen sehen sollen. Bis es bei
+ihnen angekommen ist (gemessen rund einen Tag), fügen sie die Signatur über den
+Aufgabenbereich ein. Beim Versand setzt das Gateway sie ohnehin.
+
+### Getippter Text ging in Classic Outlook verloren
+
+Im Aufgabenbereich verschwand in Classic Outlook die bereits getippte Zeile,
+sobald er die Signatur einfügte — beim automatischen Einfügen nach der
+Anmeldung ebenso wie beim Klick auf **Einfügen**. Drei Ursachen:
+
+- Die Erkennung einer vorhandenen Signatur verlangte `id="exo-sig-s"` **mit**
+  Anführungszeichen. Classic Outlook speichert `<div id=exo-sig-s>` ohne und
+  entfernt zugleich den Kommentar `<!-- exo-sig-start -->`. Die Signatur galt
+  als nicht vorhanden.
+- Das automatische Einfügen setzte daraufhin den **ganzen** Text der Mail auf
+  die Signatur. Der Cursor stand danach in der Signatur, und alles weitere
+  Getippte übernahm deren Schrift.
+- **Einfügen** griff, wenn es keine Signatur fand, auf den zuletzt selbst
+  gesetzten Text zurück. Der kannte nichts, was danach getippt wurde.
+
+Jetzt setzt **Einfügen** nur den Signaturbereich (`setSignatureAsync`, Mailbox
+1.10), wie das Add-in beim Verfassen: Der Text der Mail bleibt unberührt, eine
+vorhandene Signatur wird ersetzt. Den ganzen Text schreibt der Aufgabenbereich
+nur noch in Clients ohne diese Schnittstelle neu, und dort auf Grundlage des
+aktuellen Textes. Die Erkennung nimmt die Kennung mit und ohne Anführungszeichen
+an, aber nicht mehr als Teil eines anderen Attributs wie `data-id=`.
+
+Im Admin Center ist dafür nichts zu tun: Das Manifest des bisherigen Add-ins
+bleibt gleich, und die Seite des Aufgabenbereichs wird bei jedem Öffnen frisch
+vom Gateway geladen.
+
+---
+
 ## v1.9.164 — 2026-10-14 — Erprobung: Signatur automatisch beim Verfassen
 
 ### Zweites Add-in mit Start-Ereignis (in Erprobung)
