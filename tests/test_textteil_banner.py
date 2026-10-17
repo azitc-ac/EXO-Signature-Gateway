@@ -24,8 +24,11 @@ def test_txt_anhaengen():
 
 
 def test_handler_haengt_banner_und_disclaimer_an_den_textteil():
+    # Seit v1.9.169 sammeln sich Banner und Disclaimer erst in _zusatz_txt
+    # (sie hängen nicht mehr an der Signatur), dann geht der Block an sig_txt.
     for teil in ("_banner_txt", "_disclaimer_txt"):
-        assert re.search(rf"sig_txt = _txt_anhaengen\(sig_txt, {teil}\)", HANDLER), teil
+        assert re.search(rf"_zusatz_txt = _txt_anhaengen\(_zusatz_txt, {teil}\)", HANDLER), teil
+    assert "sig_txt = _txt_anhaengen(sig_txt, _zusatz_txt)" in HANDLER
     # und verwirft den Textteil nicht mehr
     assert "_banner_html, _ = signature_engine.render" not in HANDLER
     assert "_disclaimer_html, _ = signature_engine.render" not in HANDLER

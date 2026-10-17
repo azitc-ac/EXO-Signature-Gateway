@@ -5,6 +5,49 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.169 — 2026-10-18 — Banner und Disclaimer unabhängig von der Signatur
+
+### Fehler: Mit dem Verfassen-Add-in fehlten Banner und Disclaimer
+
+Banner und Disclaimer hingen bisher an der Gateway-Signatur und entfielen mit
+ihr. Das Verfassen-Add-in (seit v1.9.164) fügt die Signatur schon beim
+Schreiben ein; das Gateway erkennt sie und setzt keine zweite. Damit entfielen
+auch Banner und Disclaimer: Jede neue Mail, deren Signatur das Add-in
+eingefügt hatte, ging ohne sie hinaus. Dasselbe galt für eine Signatur, die du
+im Aufgabenbereich des Add-ins mit „Einfügen“ gesetzt hast.
+
+Jetzt hängt das Gateway Banner und Disclaimer auch dann an, wenn die Signatur
+schon in der Mail steht. Die vorhandene Signatur bleibt dabei unangetastet, und
+der Block steht zwischen deinem Text und dem Zitat. Er trägt eine eigene
+Kennung, damit eine spätere Antwort ihn nicht für eine Gateway-Signatur hält.
+
+Kein Add-in liefert Banner oder Disclaimer selbst mit. Das bleibt so: Sie kommen
+immer vom Gateway, beim Versand.
+
+### Neu: Was `#nosig` und Antworten weglassen, ist einstellbar
+
+Unter *Einstellungen → Signatur*, direkt beim Nicht-signieren-Trigger:
+
+- **Der Trigger entfernt:** Signatur, Banner und Disclaimer (Vorgabe, wie
+  bisher) · Signatur und Banner, der Disclaimer bleibt · Signatur und
+  Disclaimer, das Banner bleibt · nur die Signatur.
+- **Antworten in derselben Kette:** ohne Banner und Disclaimer (Vorgabe) · nur
+  mit Disclaimer · nur mit Banner · mit beiden. Das gilt ab der zweiten eigenen
+  Mail in einer Kette, also dort, wo statt der vollen Signatur die
+  Antwort-Signatur oder gar keine steht.
+
+⚠️ **Verhaltensänderung bei Antworten:** Hast du eine Antwort-Signatur
+hinterlegt, bekamen Antworten in einer Kette bisher Banner und Disclaimer
+zusätzlich zur Antwort-Signatur, ohne Antwort-Signatur dagegen keines von
+beiden. Jetzt gilt in beiden Fällen dieselbe Einstellung, Vorgabe „ohne Banner
+und Disclaimer“. Willst du das bisherige Verhalten mit Antwort-Signatur
+behalten, wähle „mit beiden“.
+
+Rein interne Mails bleiben wie bisher unverändert, wenn „Rein interne Mails
+auch signieren“ aus ist.
+
+---
+
 ## v1.9.168 — 2026-10-17 — Abwesenheit: Ankündigung ohne Doppelung, ganztägige Termine ohne 02:00
 
 Zwei Fehler in der Ankündigung weiterer Abwesenheiten (`{{ oof.ankuendigung }}`).

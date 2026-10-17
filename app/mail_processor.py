@@ -221,7 +221,17 @@ def inject(
     sig_txt: str,
     use_cid_images: bool = True,
     force: bool = False,
+    zusatz: bool = False,
 ) -> email.message.Message:
+    """Signatur (oder mit `zusatz=True` nur Banner/Disclaimer) einfügen.
+
+    `zusatz=True`: Es steht KEINE Gateway-Signatur an — sie ist schon da (Add-in),
+    per #nosig abbestellt oder in einer Kette entfallen. Dann wird nichts
+    entfernt (weder eigene noch Client-Signaturen), keine Doppel-Prüfung
+    übersprungen, und der Block trägt eigene Marker (siehe _ZUSATZ_MARKER_START).
+    """
+    if zusatz:
+        force = True
     # If a gateway signature exists anywhere in the thread (compose area or quoted
     # content from previous mails), don't inject another one — prevents stacking
     # in ping-pong threads. The existing SKIP_DUPLICATE_SIG setting additionally
@@ -249,16 +259,17 @@ def inject(
     content_type = msg.get_content_type()
 
     if msg.get_content_maintype() == "multipart":
-        _inject_into_multipart(msg, sig_html_cid, sig_txt)
+        _inject_into_multipart(msg, sig_html_cid, sig_txt, zusatz=zusatz)
         if cid_images:
             _attach_cid_images_to_msg(msg, cid_images)
     elif content_type == "text/html":
         src_charset = msg.get_content_charset() or "utf-8"
         payload = msg.get_payload(decode=True).decode(src_charset, errors="replace")
-        payload = _strip_client_sig_divs(payload, sig_html_cid)
+        if not zusatz:
+            payload = _strip_client_sig_divs(payload, sig_html_cid)
         payload = _fix_lexware_format(payload)
         msg.set_param("charset", "utf-8")
-        _set_part_payload(msg, _append_html_sig(payload, sig_html_cid), "utf-8")
+        _set_part_payload(msg, _append_html_sig(payload, sig_html_cid, zusatz), "utf-8")
         if cid_images:
             # Wrap single-part HTML message in multipart/related so images can attach
             new_msg = email.mime.multipart.MIMEMultipart("related")
@@ -374,7 +385,8 @@ def _attach_cid_images_to_msg(
     parent_payload[idx] = related
 
 
-def _inject_into_multipart(msg: email.message.Message, sig_html: str, sig_txt: str) -> None:
+def _inject_into_multipart(msg: email.message.Message, sig_html: str, sig_txt: str,
+                           zusatz: bool = False) -> None:
     html_part = None
     txt_part = None
 
@@ -389,10 +401,11 @@ def _inject_into_multipart(msg: email.message.Message, sig_html: str, sig_txt: s
     if html_part is not None and sig_html:
         src_charset = html_part.get_content_charset() or "utf-8"
         payload = html_part.get_payload(decode=True).decode(src_charset, errors="replace")
-        payload = _strip_client_sig_divs(payload, sig_html)
+        if not zusatz:
+            payload = _strip_client_sig_divs(payload, sig_html)
         payload = _fix_lexware_format(payload)
         html_part.set_param("charset", "utf-8")
-        _set_part_payload(html_part, _append_html_sig(payload, sig_html), "utf-8")
+        _set_part_payload(html_part, _append_html_sig(payload, sig_html, zusatz), "utf-8")
 
     if txt_part is not None and sig_txt:
         src_charset = txt_part.get_content_charset() or "utf-8"
@@ -919,6 +932,15 @@ _SIG_DIV_ATTR_E = 'id="exo-sig-e"'
 # has stripped the <!-- exo-sig-start --> comment.
 _SIG_CLASS = "exo-gateway-sig"
 
+# Banner/Disclaimer OHNE Gateway-Signatur (Add-in-Signatur schon da, #nosig,
+# Antwort in einer Kette). Bewusst EIGENE Kennung: Mit den Signatur-Markern
+# hielte die nächste Antwort die Mail für signiert (Antwort-Signatur statt
+# vollem Block), und `_strip_client_sig_divs` entfernte den Block beim
+# nächsten Durchlauf als „alte Gateway-Signatur".
+_ZUSATZ_MARKER_START = "<!-- exo-zusatz-start -->"
+_ZUSATZ_MARKER_END = "<!-- exo-zusatz-end -->"
+_ZUSATZ_CLASS = "exo-gateway-zusatz"
+
 # Trennlinie zwischen Signatur und zitiertem Text.
 #
 # Form bewusst von Outlook für iOS/OWA übernommen — die setzen exakt dieses
@@ -1192,8 +1214,8 @@ def _trennstelle(html: str, idx: int) -> tuple[int, str, str]:
     return idx, _SIG_TRENNER, "eigene Trennlinie eingefuegt"
 
 
-def _append_html_sig(html: str, sig_html: str) -> str:
-    log.info("_append_html_sig: called, html_len=%d", len(html))
+def _append_html_sig(html: str, sig_html: str, zusatz: bool = False) -> str:
+    log.info("_append_html_sig: called, html_len=%d zusatz=%s", len(html), zusatz)
     lower = html.lower()
 
     # Insert before quoted content so signature sits between new text and quote.
@@ -1255,6 +1277,9 @@ def _append_html_sig(html: str, sig_html: str) -> str:
         Linie ausserhalb, bliebe sie stehen und bei jedem Durchlauf käme eine
         weitere dazu.
         """
+        if zusatz:
+            return (_ZUSATZ_MARKER_START + f'<div class="{_ZUSATZ_CLASS}">' + sig_html
+                    + "</div>" + trenner + _ZUSATZ_MARKER_END)
         return (
             _SIG_MARKER_START
             + f'<div class="{_SIG_CLASS}">'
