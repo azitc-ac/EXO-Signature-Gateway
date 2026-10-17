@@ -5,6 +5,42 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.167 — 2026-10-17 — Verfassen-Add-in auch in Outlook auf iOS und Android
+
+### Signatur beim Verfassen auf dem Handy
+
+Das Verfassen-Add-in (seit v1.9.164) fügt die Gateway-Signatur jetzt auch in
+Outlook auf iOS und Android ein, sobald du eine neue Mail beginnst. Bisher war
+es nur für Outlook auf Windows, Mac und im Web beschrieben; auf dem Handy setzte
+die Signatur erst das Gateway beim Versand.
+
+- Das Manifest hat dafür einen eigenen Abschnitt für Mobilgeräte mit demselben
+  Start-Ereignis (`OnNewMessageCompose`) und derselben Laufzeit.
+- Outlook mobil meldet offiziell nur die Schnittstellenversion Mailbox 1.5. Die
+  benötigten Funktionen (`getComposeTypeAsync`, `disableClientSignatureAsync`,
+  `setSignatureAsync`) sind dort für Start-Ereignisse aber freigeschaltet. Das
+  Manifest verlangt deshalb 1.5 statt 1.10. Fehlen die Funktionen auf einem
+  Client, beendet das Add-in still, ohne Fehlerhinweis.
+- Voraussetzung: Outlook für iOS bzw. Android ab Version 4.2433.0 (Start-Ereignis
+  ab 4.2352.0, Anmeldung über die App ab 4.2433.0).
+- Wie auf dem Desktop gilt: nur bei neuen Mails. In Antworten und
+  Weiterleitungen entscheidet weiter das Gateway. Auf dem Handy gibt es kein
+  Start-Ereignis, wenn du eine Mail über „Teilen“ unter iOS beginnst.
+
+Im Protokoll steht bei jedem Abruf jetzt die Plattform des Clients (etwa
+`iOS`, `Android`, `PC`, `OfficeOnline`), damit erkennbar ist, von welchem Gerät
+die Signatur geholt wurde.
+
+### Was du tun musst
+
+Das Manifest hat sich geändert. Bei Add-ins mit Start-Ereignis muss jede
+Manifest-Änderung im Microsoft 365 Admin Center bestätigt werden: *Einstellungen
+→ Integrierte Apps → das Verfassen-Add-in → Aktualisieren*. Bis dahin ist das
+Add-in für die Nutzer gesperrt. Danach dauert die Verteilung erfahrungsgemäß bis
+zu einem Tag.
+
+---
+
 ## v1.9.166 — 2026-10-17 — Interner Zustand des Verfassen-Add-ins deklariert
 
 Das Verfassen-Add-in (seit v1.9.164) merkt sich, mit welcher Versionsnummer
