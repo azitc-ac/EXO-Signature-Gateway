@@ -1018,3 +1018,129 @@ def test_jeder_schreibende_aufrufer_gibt_period_mit():
                 ohne.append((f.name, name, k.lineno))
     # Erlaubt: die Vorlagen-Vorschau (feste Beispieldaten ohne Uhrzeit, zwei Stellen)
     assert {(f, n) for f, n, _ in ohne} == {("vorlagen.py", "render_oof")}, ohne
+
+
+# ── Ganztägige Termine und die oben genannte Abwesenheit (17.10.2026) ──────────
+# Gemeldeter Text: „Ich bin vom 19.10.2026 bis 21.10.2026 abwesend … Weitere
+# geplante Abwesenheiten: vom 19.10.2026, 02:00 Uhr bis 22.10.2026, 02:00 Uhr."
+# Zwei Fehler: dieselbe Abwesenheit zweimal, und ein ganztägiger Termin mit 02:00.
+
+def _graph_kalender(monkeypatch, termine):
+    """httpx-Ersatz für calendarView, liefert `termine` wie Graph (Prefer UTC)."""
+    import httpx
+    gesehen = {}
+
+    class _Antwort:
+        status_code = 200
+        def raise_for_status(self): pass
+        def json(self): return {"value": termine}
+
+    class _Client:
+        def __init__(self, *a, **k): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def get(self, url, headers=None):
+            gesehen["url"] = url
+            return _Antwort()
+    monkeypatch.setattr(httpx, "AsyncClient", _Client)
+    return gesehen
+
+
+def _berlin(monkeypatch):
+    monkeypatch.setattr(settings_store, "get", lambda k, d=None: {
+        "LOG_TIMEZONE": "Europe/Berlin", "OOO_CALENDAR_MIN_HOURS": 8}.get(k, d))
+
+
+def _graph_termin(start, ende, ganztaegig):
+    return {"showAs": "oof", "isAllDay": ganztaegig, "sensitivity": "normal",
+            "start": {"dateTime": start + ".0000000", "timeZone": "UTC"},
+            "end": {"dateTime": ende + ".0000000", "timeZone": "UTC"}}
+
+
+def test_ganztaegiger_termin_ohne_uhrzeit(monkeypatch):
+    _berlin(monkeypatch)
+    gesehen = _graph_kalender(monkeypatch, [
+        _graph_termin("2026-10-19T00:00:00", "2026-10-22T00:00:00", True)])
+    ev = _run(abwesenheit._kalender_oof_events("a@x.de", "T"))[0]
+    assert "isAllDay" in gesehen["url"], "ohne isAllDay im $select ist der Fall nicht erkennbar"
+    z = abwesenheit._fenster_texte(ev["start"], ev["end"])
+    assert z.de == "vom 19.10.2026 bis 21.10.2026"
+    # Lokale Mitternacht als UTC-Zeitpunkt (MESZ = UTC+2) — auch für die Automatik.
+    assert ev["start"] == {"dateTime": "2026-10-18T22:00:00.0000000", "timeZone": "UTC"}
+
+
+def test_termin_mit_uhrzeit_bleibt_wie_er_ist(monkeypatch):
+    """Gegenprobe: Nur ganztägige Termine werden verschoben."""
+    _berlin(monkeypatch)
+    _graph_kalender(monkeypatch, [
+        _graph_termin("2026-10-19T06:00:00", "2026-10-19T16:00:00", False)])
+    ev = _run(abwesenheit._kalender_oof_events("a@x.de", "T"))[0]
+    assert abwesenheit._fenster_texte(ev["start"], ev["end"]).de == \
+        "am 19.10.2026 von 08:00 bis 18:00 Uhr"
+
+
+def test_alter_kalender_cache_wird_neu_gelesen(monkeypatch):
+    """Vor der Korrektur gecachte Termine tragen noch 00:00 UTC — sie dürfen
+    nicht bis zum nächsten Refresh (Stunden) weiter verwendet werden."""
+    from datetime import datetime, timezone
+    reads = {"n": 0}
+
+    async def fake_events(upn, token):
+        reads["n"] += 1
+        return []
+    monkeypatch.setattr(abwesenheit, "_kalender_oof_events", fake_events)
+    monkeypatch.setattr(settings_store, "get",
+                        lambda k, d=None: {"OOO_CALENDAR_REFRESH_HOURS": 6}.get(k, d))
+    frisch = datetime.now(timezone.utc).isoformat()
+    state = {"a@x.de": {"kal": {"ts": frisch, "events": []}}}           # ohne Stand
+    _run(abwesenheit.kalender_events("a@x.de", "T", state))
+    assert reads["n"] == 1
+    _run(abwesenheit.kalender_events("a@x.de", "T", state))             # jetzt mit Stand
+    assert reads["n"] == 1
+
+
+def _lokal_ev(tag_ab, tag_bis_exklusiv):
+    """Ganztägiger Termin, wie er nach der Korrektur im Cache steht."""
+    return {"start": abwesenheit.als_utc(tag_ab, "00:00:00"),
+            "end": abwesenheit.als_utc(tag_bis_exklusiv, "00:00:00"), "privat": False}
+
+
+@pytest.mark.parametrize("oben, erwartet", [
+    ((2, 4), [16]),          # gemeldeter Fall: Text oben nennt genau diesen Termin
+    ((3, 3), [16]),          # Überschneidung reicht
+    (None, [2, 16]),         # unbefristet: oben steht kein Zeitraum
+    ((5, 6), [2, 16]),       # Folgetag: eine andere Abwesenheit
+])
+def test_oben_genannte_abwesenheit_nicht_noch_einmal(monkeypatch, oben, erwartet):
+    """Ganztägige Termine in X Tagen (bis X+2, also drei Tage) und in 16 Tagen;
+    `oben`/`erwartet` in Tagen ab heute."""
+    _berlin(monkeypatch)
+    from datetime import datetime, timedelta, timezone
+    heute = datetime.now(timezone.utc).date()
+
+    def tag(n):
+        return heute + timedelta(days=n)
+
+    def tt(n):
+        return f"{tag(n):%d.%m.%Y}"
+    events = [_lokal_ev(f"{tag(2)}", f"{tag(5)}"), _lokal_ev(f"{tag(16)}", f"{tag(17)}")]
+    cfg = {"mode": "anzahl", "x": 10, "privat": True, "extern": False}
+    auswahl = abwesenheit._ankuendigung_auswahl(
+        events, cfg, (tt(oben[0]), tt(oben[1])) if oben else ("", ""))
+    assert [abwesenheit._fenster_texte(e["start"], e["end"]).ab for e in auswahl] == \
+        [tt(n) for n in erwartet]
+
+
+def test_render_gibt_den_oberen_zeitraum_an_die_ankuendigung(monkeypatch):
+    """Der gemeinsame Weg (Poll, Self-Service, Admin) reicht ab/bis durch."""
+    gesehen = {}
+
+    async def ank(upn, token, template, cfg, state, oben=("", "")):
+        gesehen["oben"] = oben
+        return "", ""
+    monkeypatch.setattr(abwesenheit, "ankuendigung_fuer_render", ank)
+    monkeypatch.setattr(abwesenheit, "render_oof", lambda *a, **k: ("<p>x</p>", "x"))
+    _run(abwesenheit.render_intern_extern(
+        UserData(displayName="E", custom={}), "a@x.de", "T", "K", {}, {},
+        "vom 19.10.2026 bis 21.10.2026", "19.10.2026", "21.10.2026", mit_anhang=False))
+    assert gesehen["oben"] == ("19.10.2026", "21.10.2026")

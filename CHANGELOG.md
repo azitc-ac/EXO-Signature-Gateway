@@ -5,6 +5,40 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.168 — 2026-10-17 — Abwesenheit: Ankündigung ohne Doppelung, ganztägige Termine ohne 02:00
+
+Zwei Fehler in der Ankündigung weiterer Abwesenheiten (`{{ oof.ankuendigung }}`).
+Ein Beispiel für den fehlerhaften Text:
+
+> Ich bin vom 19.10.2026 bis 21.10.2026 abwesend … Weitere geplante
+> Abwesenheiten: vom 19.10.2026, 02:00 Uhr bis 22.10.2026, 02:00 Uhr.
+
+### Die oben genannte Abwesenheit steht nicht mehr zusätzlich in der Ankündigung
+
+Ausgenommen war bisher nur eine Abwesenheit, die gerade läuft. Eine geplante,
+noch nicht begonnene stand deshalb doppelt im Text: oben als Zeitraum und unten
+als „weitere". Jetzt wird jeder Kalendertermin ausgenommen, der sich mit den
+Tagen des oben genannten Zeitraums überschneidet.
+
+### Ganztägige Termine beginnen um Mitternacht
+
+Ganztägige Kalendertermine haben keine Zeitzone. Graph liefert sie als
+Mitternacht in der angefragten Zone, hier UTC. Das Gateway las sie bisher als
+UTC-Zeitpunkt und rechnete sie in die Anzeigezeit um. In Mitteleuropa begann ein
+ganztägiger Termin deshalb um 02:00 (Sommerzeit) bzw. 01:00 und endete am Tag
+nach dem letzten Tag. Jetzt gilt die Mitternacht der eingestellten Zeitzone
+(*Einstellungen → Erweitert → Logging → Log-Zeitzone*). Das betrifft auch die Kalender-Automatik: Eine aus
+einem ganztägigen Termin gesetzte Abwesenheit beginnt jetzt um 00:00 statt eine
+bis zwei Stunden später.
+
+Termine mit Uhrzeit sind nicht betroffen.
+
+Für dich ist nichts zu tun. Die zwischengespeicherten Kalenderdaten werden nach
+dem Update einmal neu gelesen, und der nächste Abgleich (alle 10 Minuten) setzt
+den korrigierten Abwesenheitstext.
+
+---
+
 ## v1.9.167 — 2026-10-17 — Verfassen-Add-in auch in Outlook auf iOS und Android
 
 ### Signatur beim Verfassen auf dem Handy
