@@ -139,13 +139,44 @@
         Nicht verwechseln mit dem „Nicht-digital-signieren-Trigger" (S/MIME) unter Einstellungen → S/MIME.</span>
     </div>
   </div>
+
+  <div class="settings-row">
+    <label for="nosig-behaelt">Der Trigger entfernt</label>
+    <div class="settings-control">
+      <select id="nosig-behaelt">
+        {% for wert, text in [("", "Signatur, Banner und Disclaimer"),
+                              ("disclaimer", "Signatur und Banner – Disclaimer bleibt"),
+                              ("banner", "Signatur und Disclaimer – Banner bleibt"),
+                              ("beide", "Nur die Signatur – Banner und Disclaimer bleiben")] %}
+        <option value="{{ wert }}"{% if (s.NOSIG_BEHAELT or "") == wert %} selected{% endif %}>{{ text }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="settings-row">
+    <label for="kette-behaelt">Antworten in derselben Kette</label>
+    <div class="settings-control">
+      <select id="kette-behaelt">
+        {% for wert, text in [("", "Ohne Banner und Disclaimer"),
+                              ("disclaimer", "Nur mit Disclaimer"),
+                              ("banner", "Nur mit Banner"),
+                              ("beide", "Mit Banner und Disclaimer")] %}
+        <option value="{{ wert }}"{% if (s.KETTE_BEHAELT or "") == wert %} selected{% endif %}>{{ text }}</option>
+        {% endfor %}
+      </select>
+      <span class="hint">Gilt ab der zweiten eigenen Mail in einer Kette, also dort, wo statt der vollen
+        Signatur die Antwort-Signatur (oder keine) steht. Neue Mails bekommen Banner und Disclaimer immer –
+        auch wenn das Outlook-Add-in die Signatur schon eingefügt hat.</span>
+    </div>
+  </div>
   </div>
 
 
   <div data-adv="sig" style="display:none">
   </div>
   <div class="actions" style="margin-top:14px">
-    <button class="btn secondary" id="signatur-btn" data-wache="fallback,loop-header,sent-items,skip-duplicate-sig,skip-sig-in-thread,strip-client-sigs-mobile,strip-client-sigs-desktop,sig-strip-pct,sig-image-mode,nosig-trigger,sign-internal-only"
+    <button class="btn secondary" id="signatur-btn" data-wache="fallback,loop-header,sent-items,skip-duplicate-sig,skip-sig-in-thread,strip-client-sigs-mobile,strip-client-sigs-desktop,sig-strip-pct,sig-image-mode,nosig-trigger,nosig-behaelt,kette-behaelt,sign-internal-only"
             data-wache-hinweis="signatur-btn-result"
             onclick="saveSignatur()">Speichern</button>
     <span id="signatur-btn-result" style="font-size:12px;margin-left:8px"></span>
@@ -255,6 +286,8 @@ async function saveSignatur() {
     SIG_STRIP_MIN_MATCH_PCT: parseInt(document.getElementById('sig-strip-pct').value, 10),
     SIG_IMAGE_MODE: document.getElementById('sig-image-mode').value,
     NOSIG_TRIGGER: (document.getElementById('nosig-trigger').value || '').trim() || '#nosig',
+    NOSIG_BEHAELT: document.getElementById('nosig-behaelt').value,
+    KETTE_BEHAELT: document.getElementById('kette-behaelt').value,
     SIGN_INTERNAL_ONLY_MAIL: document.getElementById('sign-internal-only').checked,
   }, 'signatur-result');
   wacheFertig('signatur-btn', _ok);

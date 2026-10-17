@@ -183,6 +183,31 @@ def _rebuild_acme_reply(msg: email.message.Message) -> email.message.EmailMessag
     return out
 
 
+# Was zusätzlich zur (ggf. entfallenden) Signatur angehängt wird — Werte der
+# Einstellungen NOSIG_BEHAELT und KETTE_BEHAELT.
+ZUSATZ_WAHL = {
+    "": frozenset(),
+    "banner": frozenset({"banner"}),
+    "disclaimer": frozenset({"disclaimer"}),
+    "beide": frozenset({"banner", "disclaimer"}),
+}
+
+
+def zusatz_umfang(per_nosig: bool, in_kette: bool) -> frozenset:
+    """Welche von Banner/Disclaimer an diese Mail gehören.
+
+    #nosig im Betreff → NOSIG_BEHAELT; sonst Antwort in einer Kette, in der der
+    Absender schon signiert hat → KETTE_BEHAELT; sonst beide. Die Signatur
+    selbst entscheidet der Aufrufer — eine schon vorhandene Add-in-Signatur
+    ändert hieran nichts (Banner und Disclaimer liefert kein Add-in mit).
+    Unbekannte Werte gelten wie "" (nichts anhängen) — so wie die Vorgabe."""
+    if per_nosig:
+        return ZUSATZ_WAHL.get(settings_store.get("NOSIG_BEHAELT") or "", frozenset())
+    if in_kette:
+        return ZUSATZ_WAHL.get(settings_store.get("KETTE_BEHAELT") or "", frozenset())
+    return ZUSATZ_WAHL["beide"]
+
+
 def _txt_anhaengen(sig_txt: str, teil: str) -> str:
     """Textfassung eines Banners/Disclaimers unter die Signatur — durch eine
     Leerzeile getrennt, wie die Blöcke im HTML untereinander stehen."""
@@ -1008,6 +1033,7 @@ class SignatureHandler:
             if _bezuege:
                 stats.increment("antworten")
 
+            _per_nosig = suppress_html_sig     # #nosig im Betreff (für Banner/Disclaimer)
             if not suppress_html_sig and mail_processor._has_own_sig_in_compose_area(msg):
                 suppress_html_sig = True
                 log.info("Signatur bereits im Compose-Bereich (z.B. Add-in) — überspringe für %s", sender)
@@ -1049,44 +1075,57 @@ class SignatureHandler:
                 sig_html, sig_txt = "", ""
             else:
                 sig_html, sig_txt = signature_engine.render(user_data, template_name=template_name)
-                _banner_tpl = _vorlagen["banner"]
-                # Banner-Kampagne (Zeitfenster + optionale Zielgruppe) hat Vorrang:
-                # ist zum Sendezeitpunkt eine passende Kampagne aktiv, gewinnt ihr
-                # Banner über das der Richtlinie/des Postfachs. Unabhängig von
-                # use_policy — eine Kampagne ist ein Marketing-Vorgang, kein
-                # Postfach-Attribut. Rein additiv, kein Mailfluss-Eingriff.
-                _campaigns = settings_store.get("BANNER_CAMPAIGNS") or []
-                if _campaigns:
-                    import banner_campaigns
-                    import mailbox_match as _mmk
-                    from datetime import datetime as _dtk, timezone as _tzk
-                    _ck = _mmk.match_sender_key(
-                        settings_store.get("MAILBOX_CONFIG") or {}, sender)
-                    _kmp = banner_campaigns.aktive_kampagne(
-                        _campaigns, _dtk.now(_tzk.utc), _ck,
-                        __import__("gruppen").interne_gruppen())
-                    if _kmp:
-                        _banner_tpl = _kmp
-                # Banner und Disclaimer in BEIDE Teile — HTML und Text. Bis
-                # v1.9.141 nur ins HTML: Bei S/MIME-signierter Post, deren
-                # Textteil Exchange nicht mehr anfassen kann, fehlten sie Lesern
-                # der Textfassung; ohne Signatur erzeugte Exchange den Textteil
-                # neu aus dem HTML, und dort standen sie (Testlauf T02/T04).
-                if _banner_tpl:
-                    _banner_html, _banner_txt = signature_engine.render(
-                        user_data, template_name=_banner_tpl)
-                    if _banner_html:
-                        sig_html = sig_html + _banner_html
-                    if _banner_txt.strip():
-                        sig_txt = _txt_anhaengen(sig_txt, _banner_txt)
-                _disclaimer_tpl = _vorlagen["disclaimer"]
-                if _disclaimer_tpl:
-                    _disclaimer_html, _disclaimer_txt = signature_engine.render(
-                        user_data, template_name=_disclaimer_tpl)
-                    if _disclaimer_html:
-                        sig_html = sig_html + _disclaimer_html
-                    if _disclaimer_txt.strip():
-                        sig_txt = _txt_anhaengen(sig_txt, _disclaimer_txt)
+
+            # Banner und Disclaimer hängen NICHT an der Signatur. Bis v1.9.168
+            # standen sie in deren Zweig und entfielen mit ihr — auch dann, wenn
+            # das Verfassen-Add-in die Signatur schon gesetzt hatte: Jede so
+            # verfasste Mail ging ohne Pflicht-Disclaimer hinaus.
+            # Was bleibt, entscheiden zwei Einstellungen: #nosig (NOSIG_BEHAELT)
+            # und Antworten in einer Kette (KETTE_BEHAELT); sonst beide.
+            _zusatz = zusatz_umfang(_per_nosig, _in_kette)
+            _zusatz_html, _zusatz_txt = "", ""
+            _banner_tpl = _vorlagen["banner"] if "banner" in _zusatz else ""
+            # Banner-Kampagne (Zeitfenster + optionale Zielgruppe) hat Vorrang:
+            # ist zum Sendezeitpunkt eine passende Kampagne aktiv, gewinnt ihr
+            # Banner über das der Richtlinie/des Postfachs. Unabhängig von
+            # use_policy — eine Kampagne ist ein Marketing-Vorgang, kein
+            # Postfach-Attribut. Rein additiv, kein Mailfluss-Eingriff.
+            _campaigns = settings_store.get("BANNER_CAMPAIGNS") or []
+            if _campaigns and "banner" in _zusatz:
+                import banner_campaigns
+                import mailbox_match as _mmk
+                from datetime import datetime as _dtk, timezone as _tzk
+                _ck = _mmk.match_sender_key(
+                    settings_store.get("MAILBOX_CONFIG") or {}, sender)
+                _kmp = banner_campaigns.aktive_kampagne(
+                    _campaigns, _dtk.now(_tzk.utc), _ck,
+                    __import__("gruppen").interne_gruppen())
+                if _kmp:
+                    _banner_tpl = _kmp
+            # Banner und Disclaimer in BEIDE Teile — HTML und Text. Bis
+            # v1.9.141 nur ins HTML: Bei S/MIME-signierter Post, deren
+            # Textteil Exchange nicht mehr anfassen kann, fehlten sie Lesern
+            # der Textfassung; ohne Signatur erzeugte Exchange den Textteil
+            # neu aus dem HTML, und dort standen sie (Testlauf T02/T04).
+            if _banner_tpl:
+                _banner_html, _banner_txt = signature_engine.render(
+                    user_data, template_name=_banner_tpl)
+                if _banner_html:
+                    _zusatz_html = _zusatz_html + _banner_html
+                if _banner_txt.strip():
+                    _zusatz_txt = _txt_anhaengen(_zusatz_txt, _banner_txt)
+            _disclaimer_tpl = _vorlagen["disclaimer"] if "disclaimer" in _zusatz else ""
+            if _disclaimer_tpl:
+                _disclaimer_html, _disclaimer_txt = signature_engine.render(
+                    user_data, template_name=_disclaimer_tpl)
+                if _disclaimer_html:
+                    _zusatz_html = _zusatz_html + _disclaimer_html
+                if _disclaimer_txt.strip():
+                    _zusatz_txt = _txt_anhaengen(_zusatz_txt, _disclaimer_txt)
+            if not suppress_html_sig:
+                sig_html = sig_html + _zusatz_html
+                if _zusatz_txt.strip():
+                    sig_txt = _txt_anhaengen(sig_txt, _zusatz_txt)
 
             _img_mode = settings_store.get("SIG_IMAGE_MODE") or "auto"
             _use_cid = (
@@ -1096,7 +1135,13 @@ class SignatureHandler:
             )
             log.debug("Image mode: %r → use_cid_images=%s (wants_encryption=%s)",
                       _img_mode, _use_cid, wants_encryption)
-            if suppress_html_sig:
+            if suppress_html_sig and _zusatz_html:
+                modified = mail_processor.inject(msg, _zusatz_html, _zusatz_txt,
+                                                  use_cid_images=_use_cid, zusatz=True)
+                outbound = _smtp_bytes(modified)
+                log.info("HTML-Auto-Signatur unterdrückt für %s — Banner/Disclaimer angehängt (%s)",
+                         sender, "+".join(sorted(_zusatz)))
+            elif suppress_html_sig:
                 modified = msg
                 outbound = _smtp_bytes(msg)
                 log.info("HTML-Auto-Signatur unterdrückt für %s", sender)

@@ -124,6 +124,8 @@ DEFAULTS: dict = {
     # Lauf, nicht beim Einschalten.
     "SMIME_AUTO_ENROLL_TERMS_AT": "",
     "NOSIG_TRIGGER": "#nosig",        # Keyword in subject → suppress HTML auto-signature for this mail
+    "NOSIG_BEHAELT": "",              # was bei #nosig bleibt: "" | banner | disclaimer | beide
+    "KETTE_BEHAELT": "",              # dasselbe für Antworten in einer schon signierten Kette
     "NODIGSIG_TRIGGER": "#nodigsig",  # Keyword in subject → suppress S/MIME (digital) signature for this mail
     "SIGN_INTERNAL_ONLY_MAIL": False,  # False (default) = skip signing when EVERY recipient is a known
                                         # tenant mailbox (no external recipient at all). Needed since the

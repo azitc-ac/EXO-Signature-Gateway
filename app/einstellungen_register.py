@@ -141,6 +141,8 @@ REGISTER: dict[str, E] = {
     "MAINTENANCE_MODE": E(art=OPTION, ort="/api/maintenance/mode"),
     "NODIGSIG_TRIGGER": E(art=OPTION, ort="settings_smime.html"),
     "NOSIG_TRIGGER": E(art=OPTION, ort="settings_signature.html"),
+    "NOSIG_BEHAELT": E(art=OPTION, ort="settings_signature.html"),
+    "KETTE_BEHAELT": E(art=OPTION, ort="settings_signature.html"),
     "NOTIFICATIONS_ENABLED": E(art=OPTION, ort="settings.html"),
     "NOTIFICATION_DG_ACCEPT_EXTERNAL": E(art=OPTION, ort="/api/setup/notification-dg"),
     "NOTIFICATION_DG_EMAIL": E(art=ZUSTAND),
