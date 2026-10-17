@@ -38,7 +38,7 @@ import html as _html
 import logging
 import re
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 
 import httpx
 
@@ -489,7 +489,8 @@ async def _patch_setting(upn: str, token: str, setting: dict, html: str,
 
 # ── Kalender-Automatik (opt-in) ────────────────────────────────────────────────
 
-_LOOKAHEAD_TAGE = 120   # so weit vorausschauen für „Abwesend"-Kalendertermine
+_LOOKAHEAD_TAGE = 120
+_KAL_STAND = 2          # Aufbau des Kalender-Caches; 2 = ganztägige Termine in lokaler Mitternacht   # so weit vorausschauen für „Abwesend"-Kalendertermine
 
 
 def _fenster_texte(start_raw: dict, end_raw: dict) -> Zeitraum:
@@ -519,7 +520,7 @@ async def _kalender_oof_events(upn: str, token: str) -> list[dict]:
     von = jetzt.strftime("%Y-%m-%dT%H:%M:%S")
     bis = (jetzt + timedelta(days=_LOOKAHEAD_TAGE)).strftime("%Y-%m-%dT%H:%M:%S")
     url = (f"{_GRAPH}/users/{upn}/calendarView?startDateTime={von}&endDateTime={bis}"
-           f"&$select=start,end,showAs,sensitivity&$top=100&$orderby=start/dateTime")
+           f"&$select=start,end,showAs,sensitivity,isAllDay&$top=100&$orderby=start/dateTime")
     try:
         async with httpx.AsyncClient(timeout=20) as client:
             resp = await client.get(url, headers={
@@ -540,10 +541,28 @@ async def _kalender_oof_events(upn: str, token: str) -> list[dict]:
         s, e = _dt(ev.get("start")), _dt(ev.get("end"))
         if not s or not e or (e - s).total_seconds() < min_h * 3600:
             continue
-        out.append({"start": ev.get("start"), "end": ev.get("end"),
+        start, ende = ev.get("start"), ev.get("end")
+        if ev.get("isAllDay"):
+            start, ende = _ganztaegig_utc(start), _ganztaegig_utc(ende)
+        out.append({"start": start, "end": ende,
                     "privat": (ev.get("sensitivity") in ("private", "confidential"))})
     out.sort(key=lambda ev: _dt(ev["start"]) or datetime.max)
     return out
+
+
+def _ganztaegig_utc(wert: dict | None) -> dict | None:
+    """Grenze eines GANZTÄGIGEN Termins → UTC-Zeitpunkt der lokalen Mitternacht.
+
+    Ganztägige Termine haben keine Zeitzone: Graph liefert sie als Mitternacht in
+    der angefragten Zone, hier also „00:00 UTC" (Prefer outlook.timezone="UTC").
+    Als echter UTC-Zeitpunkt gelesen, begann ein ganztägiger Termin in Berlin um
+    02:00 und endete am Folgetag um 02:00 — so stand er in der Ankündigung, und
+    die Kalender-Automatik hätte die Abwesenheit zwei Stunden zu spät gestartet.
+    Gemeint ist die Mitternacht der Anzeige-Zeitzone (`LOG_TIMEZONE`)."""
+    d = _dt(wert)
+    if not d:
+        return wert
+    return als_utc(f"{d:%Y-%m-%d}", "00:00:00")
 
 
 def _fenster_aus_events(events: list[dict]) -> tuple[dict, dict] | None:
@@ -599,6 +618,8 @@ async def kalender_events(upn: str, token: str, state: dict,
         merk = {}
         state[upn.lower()] = merk
     kal = merk.get("kal") or {}
+    if kal.get("v") != _KAL_STAND:
+        kal = {}          # vor v1.9.168 gecacht: ganztägige Termine noch zwei Stunden verschoben
     refresh_h = float(settings_store.get("OOO_CALENDAR_REFRESH_HOURS") or 6)
     jetzt = datetime.now(timezone.utc)
     if kal.get("ts") and not force:
@@ -613,7 +634,7 @@ async def kalender_events(upn: str, token: str, state: dict,
     except Exception:                                              # noqa: BLE001
         # Echter Fehler: Cache NICHT anfassen; vorige (ggf. veraltete) Liste liefern.
         return list(kal.get("events") or [])
-    merk["kal"] = {"ts": jetzt.isoformat(), "events": events}
+    merk["kal"] = {"ts": jetzt.isoformat(), "events": events, "v": _KAL_STAND}
     return events
 
 
@@ -682,13 +703,30 @@ def _ankuendigung_einstellungen(sender_cfg: dict) -> dict:
     }
 
 
-def _ankuendigung_auswahl(events: list[dict], cfg: dict) -> list[dict]:
+def _tage(ab: str, bis: str) -> tuple[date, date] | None:
+    """(erster, letzter Tag) aus TT.MM.JJJJ-Angaben, oder None."""
+    try:
+        return (datetime.strptime(ab, "%d.%m.%Y").date(),
+                datetime.strptime(bis, "%d.%m.%Y").date())
+    except ValueError:
+        return None
+
+
+def _ankuendigung_auswahl(events: list[dict], cfg: dict,
+                          oben: tuple[str, str] = ("", "")) -> list[dict]:
     """Aus der (gecachten) Terminliste die anzukündigenden Termine wählen: die
     aktuell LAUFENDE Abwesenheit wird ausgenommen (sie steht schon im OOF-Text),
     vergangene ebenso; danach greift der Umfang (x Termine ODER x Tage) und der
-    Privat-Filter. Reine Auswahl-Logik, ohne Graph — damit testbar."""
+    Privat-Filter. Reine Auswahl-Logik, ohne Graph — damit testbar.
+
+    `oben` = (ab, bis) der Abwesenheit, die der Text selbst nennt (TT.MM.JJJJ).
+    Ein Termin, der sich mit diesen Tagen überschneidet, IST diese Abwesenheit
+    und wird nicht noch einmal als „weitere" angekündigt. Bis v1.9.167 galt das
+    nur für eine gerade laufende — eine geplante, noch nicht begonnene stand
+    oben UND in der Ankündigung."""
     from datetime import datetime, timezone, timedelta
     jetzt = datetime.now(timezone.utc).replace(tzinfo=None)   # _dt liefert naiv (UTC)
+    oben_tage = _tage(*oben)
     kommend: list[tuple[datetime, dict]] = []
     for ev in events:
         s, e = _dt(ev.get("start")), _dt(ev.get("end"))
@@ -696,6 +734,11 @@ def _ankuendigung_auswahl(events: list[dict], cfg: dict) -> list[dict]:
             continue
         if s <= jetzt <= e:
             continue                 # läuft gerade → steht schon im OOF-Text
+        if oben_tage:
+            z = _fenster_texte(ev.get("start"), ev.get("end"))
+            ev_tage = _tage(z.ab, z.bis)
+            if ev_tage and ev_tage[0] <= oben_tage[1] and ev_tage[1] >= oben_tage[0]:
+                continue             # dieselbe Abwesenheit wie im Text oben
         if e < jetzt:
             continue                 # vergangen
         if ev.get("privat") and not cfg["privat"]:
@@ -726,7 +769,8 @@ def _ankuendigung_formatieren(auswahl: list[dict], sprache: str) -> str:
 
 
 async def ankuendigung_fuer_render(upn: str, token: str, template_name: str,
-                                   sender_cfg: dict, state: dict) -> tuple[str, str]:
+                                   sender_cfg: dict, state: dict,
+                                   oben: tuple[str, str] = ("", "")) -> tuple[str, str]:
     """(de, en) Ankündigungszeilen für die Render-Variablen — oder ("",""), wenn die
     Vorlage die Variable nicht nutzt. Liest den Kalender über den gemeinsamen Cache
     (ein Read speist Auto-OOF und Ankündigung)."""
@@ -736,7 +780,7 @@ async def ankuendigung_fuer_render(upn: str, token: str, template_name: str,
     if not cfg["an"]:
         return "", ""        # Nutzer hat die Ankündigung für sein Postfach abgeschaltet
     events = await kalender_events(upn, token, state)
-    auswahl = _ankuendigung_auswahl(events, cfg)
+    auswahl = _ankuendigung_auswahl(events, cfg, oben)
     return (_ankuendigung_formatieren(auswahl, "de"),
             _ankuendigung_formatieren(auswahl, "en"))
 
@@ -765,7 +809,8 @@ async def render_intern_extern(user_data, upn: str, token: str, template: str,
     if mit_anhang:
         anhang_html, anhang_txt = _oof_anhang(
             user_data, sender or upn, settings_store.get("MAILBOX_CONFIG") or {}, sender_cfg)
-    ank_de, ank_en = await ankuendigung_fuer_render(upn, token, template, sender_cfg, state)
+    ank_de, ank_en = await ankuendigung_fuer_render(upn, token, template, sender_cfg, state,
+                                                    oben=(ab, bis))
     html = render_oof(user_data, template, zeitraum, ab, bis,
                       anhang_html, anhang_txt, ank_de, ank_en, period=period)[0]
     if (ank_de or ank_en) and not _ankuendigung_einstellungen(sender_cfg)["extern"]:
