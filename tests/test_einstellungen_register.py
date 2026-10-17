@@ -147,9 +147,17 @@ def _benutzte_schluessel() -> dict[str, list[str]]:
         # den er melden sollte.)
         code = "\n".join(z for z in p.read_text("utf-8").splitlines()
                          if not z.lstrip().startswith("#"))
+        # Führender Unterstrich zählt mit: Laufzeitzustand wie
+        # `_ADDIN_VERFASSEN_STAND` stand sonst außerhalb jeder Prüfung (v1.9.164
+        # schrieb ihn ohne Eintrag in INTERNAL_KEYS; aufgefallen erst als
+        # Warnung beim Start auf der VM).
         for m in re.finditer(
                 r'settings_store\.(?:get|get_bool|update|force_update)\(\s*'
-                r'[{"\']*([A-Z][A-Z0-9_]{3,})["\']', code):
+                r'[{"\']*(_?[A-Z][A-Z0-9_]{3,})["\']', code):
+            funde.setdefault(m.group(1), []).append(str(p.relative_to(WURZEL)))
+        # Schlüssel, die als Argument an `_manifest_version` gehen und dort
+        # per force_update geschrieben werden.
+        for m in re.finditer(r'_manifest_version\([^;]*?["\'](_[A-Z][A-Z0-9_]{3,})["\']', code, re.S):
             funde.setdefault(m.group(1), []).append(str(p.relative_to(WURZEL)))
 
     for p in (app / "webui" / "templates").glob("*.html"):

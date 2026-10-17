@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.166 — 2026-10-17 — Interner Zustand des Verfassen-Add-ins deklariert
+
+Das Verfassen-Add-in (seit v1.9.164) merkt sich, mit welcher Versionsnummer
+sein Manifest zuletzt ausgeliefert wurde (`_ADDIN_VERFASSEN_STAND`), damit die
+Nummer nur bei einer inhaltlichen Änderung steigt. Der Schlüssel fehlte in der
+Liste des Laufzeitzustands; beim Start erschien deshalb die Warnung „Nicht
+deklarierte Einstellungen in settings.json“. Am Verhalten änderte sich nichts.
+
+Die Prüfung, ob jeder benutzte Einstellungsschlüssel deklariert ist, erfasst
+jetzt auch Schlüssel mit führendem Unterstrich und solche, die über die
+Versionsverwaltung der Manifeste geschrieben werden. Beides lag bisher außerhalb
+der Prüfung.
+
+Für dich ist nichts zu tun.
+
+---
+
 ## v1.9.165 — 2026-10-16 — Add-in: „Einfügen“ lässt den getippten Text stehen
 
 ### Der Aufgabenbereich fügt nicht mehr selbst ein

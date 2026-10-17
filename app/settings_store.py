@@ -412,6 +412,7 @@ INTERNAL_KEYS = frozenset({
     "_ADDIN_MANIFEST_STAND",      # webui/routen/addin.py — {hash, version} des zuletzt
                                   # ausgelieferten Manifests; Version steigt nur bei Änderung
     "_TEAMS_APP_STAND",           # webui/routen/addin.py — dasselbe für das Teams-App-Paket (Tab)
+    "_ADDIN_VERFASSEN_STAND",     # webui/routen/addin_verfassen.py — dasselbe für das Verfassen-Add-in
     "_SCHEMA_VERSION",            # Migrationsstand, s.u.
 })
 
