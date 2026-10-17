@@ -44,8 +44,13 @@
     }).then(function (r) { return r.accessToken; });
   }
 
+  function plattform() {
+    try { return String(Office.context.diagnostics.platform || ''); } catch (e) { return ''; }
+  }
+
   function signaturHolen(zugriff) {
-    return fetch(EXO_VERFASSEN.api, { headers: { Authorization: 'Bearer ' + zugriff } })
+    var adresse = EXO_VERFASSEN.api + '?client=' + encodeURIComponent(plattform());
+    return fetch(adresse, { headers: { Authorization: 'Bearer ' + zugriff } })
       .then(function (r) {
         if (!r.ok) throw new Error('Gateway antwortet ' + r.status);
         return r.json();
@@ -54,6 +59,13 @@
 
   function beimVerfassen(event) {
     var item = Office.context.mailbox.item;
+    // Das Manifest verlangt nur Mailbox 1.5 (Outlook mobil). Fehlen die
+    // Signatur-APIs, still beenden — ein Hinweis hilft dort niemandem.
+    if (typeof item.getComposeTypeAsync !== 'function' || !item.body ||
+        typeof item.body.setSignatureAsync !== 'function') {
+      event.completed();
+      return;
+    }
     asynk(function (cb) { item.getComposeTypeAsync(cb); })
       .then(function (art) {
         // Antworten/Weiterleitungen: das Gateway entscheidet (Antwort-Signatur

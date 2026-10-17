@@ -185,12 +185,39 @@ def test_start_ereignis_und_laufzeit(umgebung):
     root = _manifest()
     ereignisse = [e for e in root.iter() if e.tag.endswith("}LaunchEvent")]
     assert [(e.get("Type"), e.get("FunctionName")) for e in ereignisse] == [
-        ("OnNewMessageCompose", "beimVerfassen")]
+        ("OnNewMessageCompose", "beimVerfassen")] * 2      # Desktop + Mobil
     handler = av.HANDLER_DATEI.read_text(encoding="utf-8")
     assert "Office.actions.associate('beimVerfassen'" in handler
     override = next(e for e in root.iter() if e.tag.endswith("}Override"))
     assert override.get("type") == "javascript"
     assert _urls(root)[override.get("resid")] == "https://sig.example" + av.LAUFZEIT_JS
+
+
+V11 = "{http://schemas.microsoft.com/office/mailappversionoverrides/1.1}"
+
+
+@pytest.mark.parametrize("formfaktor", ["DesktopFormFactor", "MobileFormFactor"])
+def test_beide_formfaktoren_starten_dieselbe_laufzeit(umgebung, formfaktor):
+    """Outlook mobil (iOS/Android) braucht einen eigenen MobileFormFactor; ohne
+    ihn passiert auf dem Handy beim Verfassen nichts."""
+    root = _manifest()
+    ff = next(e for e in root.iter() if e.tag == V11 + formfaktor)
+    punkt = ff.find(V11 + "ExtensionPoint")
+    assert punkt.get("{http://www.w3.org/2001/XMLSchema-instance}type") == "LaunchEvent"
+    ereignis = punkt.find(f"{V11}LaunchEvents/{V11}LaunchEvent")
+    assert (ereignis.get("Type"), ereignis.get("FunctionName")) == (
+        "OnNewMessageCompose", "beimVerfassen")
+    laufzeit = next(e for e in root.iter() if e.tag == V11 + "Runtime")
+    assert punkt.find(V11 + "SourceLocation").get("resid") == laufzeit.get("resid")
+
+
+def test_mindestversion_laesst_outlook_mobil_zu(umgebung):
+    """Outlook mobil meldet nur Mailbox 1.5. Verlangt das Manifest mehr, wird
+    das Add-in dort nie geladen — trotz MobileFormFactor."""
+    root = _manifest()
+    v11 = next(e for e in root.iter() if e.tag == V11 + "VersionOverrides")
+    sets = v11.find(f"{V11}Requirements/{{{NS['bt']}}}Sets")
+    assert sets.get("DefaultMinVersion") == "1.5"
 
 
 def test_well_known_nennt_genau_das_skript_aus_dem_manifest(umgebung):
@@ -227,6 +254,78 @@ def test_handler_fuegt_nur_bei_neuer_mail_ein_und_beendet_immer():
     Abschluss über event.completed() am Ende der Kette."""
     js = av.HANDLER_DATEI.read_text(encoding="utf-8")
     assert "art.composeType !== 'newMail') return null" in js
-    assert js.count("event.completed();") == 1          # Kommentar oben nennt es ohne „;“
+    assert js.count("event.completed();") == 2          # Kommentar oben nennt es ohne „;“
     assert ".then(function () { event.completed(); });" in js
     assert "acquireTokenPopup(" not in js and "loginPopup(" not in js   # kein Fenster im Ereignis
+
+
+def _handler_lauf(item_js: str) -> dict:
+    """Den echten Handler in Node ausführen, mit nachgebautem Office-Objekt."""
+    import shutil
+    import subprocess
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node fehlt (in der CI vorhanden)")
+    js = """
+var protokoll = {fertig: 0, abrufe: 0, hinweise: [], gesetzt: null};
+var handler = null;
+var item = %s;
+item.notificationMessages = {replaceAsync: function (id, m) { protokoll.hinweise.push(m.message); }};
+globalThis.Office = {
+  AsyncResultStatus: {Succeeded: 'succeeded', Failed: 'failed'},
+  CoercionType: {Html: 'html'},
+  MailboxEnums: {ItemNotificationMessageType: {InformationalMessage: 'info'}},
+  context: {mailbox: {item: item}, diagnostics: {platform: 'iOS'}},
+  actions: {associate: function (n, f) { handler = f; }}
+};
+globalThis.msal = {createNestablePublicClientApplication: function () {
+  return Promise.resolve({acquireTokenSilent: function () {
+    return Promise.resolve({accessToken: 'T'}); }}); }};
+globalThis.EXO_VERFASSEN = {clientId: 'C', authority: 'A', scope: 'S', api: 'https://x/api'};
+globalThis.fetch = function (url) { protokoll.abrufe++; protokoll.url = url;
+  return Promise.resolve({ok: true, json: function () { return Promise.resolve({html: '<p>SIG</p>'}); }}); };
+""" % item_js + av.HANDLER_DATEI.read_text(encoding="utf-8") + """
+handler({completed: function () { protokoll.fertig++; }});
+setTimeout(function () { process.stdout.write(JSON.stringify(protokoll)); }, 50);
+"""
+    out = subprocess.run([node, "-e", js], capture_output=True, text=True, check=True)
+    return json.loads(out.stdout)
+
+
+_OK = "function (cb) { cb({status: 'succeeded', value: %s}); }"
+_VOLL = ("{getComposeTypeAsync: " + _OK % "{composeType: 'newMail'}" +
+         ", disableClientSignatureAsync: " + _OK % "null" +
+         ", body: {setSignatureAsync: function (h, o, cb) { protokoll.gesetzt = h; "
+         "cb({status: 'succeeded'}); }}}")
+
+
+def test_handler_setzt_die_signatur_und_meldet_die_plattform():
+    p = _handler_lauf(_VOLL)
+    assert p["gesetzt"] == "<p>SIG</p>" and p["fertig"] == 1 and not p["hinweise"]
+    assert p["url"] == "https://x/api?client=iOS"
+
+
+@pytest.mark.parametrize("item", [
+    "{body: {}}",                                                    # beides fehlt
+    "{getComposeTypeAsync: " + _OK % "{composeType: 'newMail'}" + ", body: {}}",
+    "{body: {setSignatureAsync: function () {}}}",
+])
+def test_ohne_signatur_apis_still_beenden(item):
+    """Das Manifest verlangt nur Mailbox 1.5 (Outlook mobil). Fehlen die APIs,
+    beendet der Handler sofort — ohne Abruf und ohne Fehlerhinweis."""
+    p = _handler_lauf(item)
+    assert p == {"fertig": 1, "abrufe": 0, "hinweise": [], "gesetzt": None}
+
+
+@pytest.mark.parametrize("roh, erwartet", [
+    ("iOS", "iOS"), ("Android", "Android"), ("PC", "PC"), (None, "unbekannt"),
+    ("iOS\nFAKE 200 OK", "iOSFAKE200OK"), ("<script>", "script"), ("x" * 50, "x" * 20),
+])
+def test_plattform_im_protokoll_beschnitten(umgebung, rendern, caplog, roh, erwartet):
+    req = _Req("Bearer " + _token())
+    req.query_params = {"client": roh} if roh is not None else {}
+    import logging
+    with caplog.at_level(logging.INFO):
+        asyncio.run(av.verfassen_signatur(req))
+    zeile = next(r.getMessage() for r in caplog.records if "geliefert" in r.getMessage())
+    assert zeile.endswith(f"({erwartet})")

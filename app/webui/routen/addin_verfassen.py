@@ -23,6 +23,15 @@ Aufbau nach Microsofts Beispielen „Outlook-Event-SSO-NAA" und
   MSAL und Handler in EINER Datei. Für SSO in Classic muss genau diese Adresse
   in /.well-known/microsoft-officeaddins-allowed.json stehen.
 - Event-Add-ins starten nur, wenn ein Admin sie bereitgestellt hat.
+- Outlook auf iOS/Android (ab 4.2352.0): `MobileFormFactor` mit demselben
+  Ereignis und derselben HTML-Laufzeit. Mobil kennt offiziell nur Mailbox 1.5,
+  die hier benutzten APIs (`getComposeTypeAsync`, `disableClientSignatureAsync`,
+  `setSignatureAsync`) sind dort für Ereignisse freigeschaltet — deshalb
+  verlangt das Manifest 1.5 statt 1.10 (MS Learn, „Implement event-based
+  activation in Outlook mobile add-ins"). Das Ereignis selbst gibt es auf dem
+  Desktop erst ab 1.10; ältere Desktop-Clients bekommen es nicht. Der Handler
+  prüft die APIs trotzdem selbst, statt sich auf die Versionsangabe zu
+  verlassen. NAA ist auf iOS/Android ab 4.2433.0 allgemein verfügbar.
 
 Voraussetzung an der Bootstrap-App (Entra): SPA-Umleitung brk-multihub://<host>,
 API-URI api://<client-id> mit Bereich access_as_user, die App selbst als
@@ -118,7 +127,7 @@ async def verfassen_manifest(request: Request):
       xsi:type="VersionOverridesV1_1">
 
       <Requirements>
-        <bt:Sets DefaultMinVersion="1.10">
+        <bt:Sets DefaultMinVersion="1.5">
           <bt:Set Name="Mailbox"/>
         </bt:Sets>
       </Requirements>
@@ -138,6 +147,14 @@ async def verfassen_manifest(request: Request):
               <SourceLocation resid="laufzeitHtml"/>
             </ExtensionPoint>
           </DesktopFormFactor>
+          <MobileFormFactor>
+            <ExtensionPoint xsi:type="LaunchEvent">
+              <LaunchEvents>
+                <LaunchEvent Type="OnNewMessageCompose" FunctionName="beimVerfassen"/>
+              </LaunchEvents>
+              <SourceLocation resid="laufzeitHtml"/>
+            </ExtensionPoint>
+          </MobileFormFactor>
         </Host>
       </Hosts>
 
@@ -215,6 +232,18 @@ async def verfassen_signatur_vorab():
     return Response(status_code=204, headers=_CORS)
 
 
+def _plattform(request) -> str:
+    """`Office.context.diagnostics.platform` aus `?client=` — nur fürs Protokoll,
+    damit ein Abruf vom Handy von einem vom Desktop zu unterscheiden ist.
+    Vom Aufrufer frei wählbar, daher auf wenige harmlose Zeichen beschnitten."""
+    try:
+        roh = request.query_params.get("client") or ""
+    except AttributeError:
+        roh = ""
+    roh = "".join(z for z in roh if z.isascii() and (z.isalnum() or z in "._-"))[:20]
+    return roh or "unbekannt"
+
+
 @router.get(SIGNATUR_API)
 async def verfassen_signatur(request: Request):
     """Signatur des ANGEMELDETEN Nutzers — die Adresse stammt aus dem Token,
@@ -234,10 +263,11 @@ async def verfassen_signatur(request: Request):
         log.info("Verfassen-Add-in: %s wird vom Gateway nicht betreut — nichts einzufügen", email)
         return JSONResponse({"html": ""}, headers=_CORS)
     vorlage = _addin_cfg(email)["template"]
+    plattform = _plattform(request)
     try:
         user_data = await graph_client.get_user(email)
     except Exception:                                        # noqa: BLE001
         user_data = graph_client.UserData(mail=email)
     sig_html, _txt = signature_engine.render(user_data, vorlage)
-    log.info("Verfassen-Add-in: Signatur %r für %s geliefert", vorlage, email)
+    log.info("Verfassen-Add-in: Signatur %r für %s geliefert (%s)", vorlage, email, plattform)
     return JSONResponse({"html": markiert(sig_html) if sig_html else ""}, headers=_CORS)
