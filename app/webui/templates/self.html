@@ -12,42 +12,79 @@
      Zeichnen der Seite an, solange es lädt. -->
 <script src="https://appsforoffice.microsoft.com/lib/1.1/hosted/office.js"></script>
 {% endif %}
+<script>
+// Hell/Dunkel, bevor die Seite zeichnet (sonst blitzt sie hell auf).
+// Rangfolge: eigene Wahl (Knopf, dieselbe wie in der Verwaltung) → Design von
+// Teams/Outlook (kommt später, siehe hostDesign) → Einstellung von System/Browser.
+(function () {
+  var t = null;
+  try { t = localStorage.getItem('exo-theme'); } catch (e) { /* egal */ }
+  if (t !== 'dark' && t !== 'light')
+    t = window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', t);
+}());
+</script>
 <style>
+  /* Farben nur über diese Werte. Die Vorschau (.vorschau) bleibt bewusst hell:
+     Sie zeigt die Mail so, wie der Empfänger sie in aller Regel sieht. */
+  :root { color-scheme: light;
+    --grund: #f8fafc; --karte: #fff; --text: #1e293b; --text-2: #334155; --label: #475569;
+    --gedaempft: #64748b; --blass: #94a3b8; --rand: #e2e8f0; --feldrand: #cbd5e1; --feld: #fff;
+    --akzent: #0078d4; --knopf: #2563eb; --knopf-aus: #94a3b8;
+    --warn-g: #fffbeb; --warn-r: #fde68a; --warn-t: #92400e;
+    --err-g: #fef2f2;  --err-r: #fca5a5;  --err-t: #991b1b;
+    --ok-g: #ecfdf5;   --ok-r: #a7f3d0;   --ok-t: #065f46; }
+  :root[data-theme="dark"] { color-scheme: dark;
+    --grund: #0f172a; --karte: #1e293b; --text: #e2e8f0; --text-2: #cbd5e1; --label: #cbd5e1;
+    --gedaempft: #94a3b8; --blass: #64748b; --rand: #334155; --feldrand: #475569; --feld: #0f172a;
+    --akzent: #60a5fa; --knopf: #2563eb; --knopf-aus: #475569;
+    --warn-g: #422006; --warn-r: #854d0e; --warn-t: #fde68a;
+    --err-g: #450a0a;  --err-r: #991b1b;  --err-t: #fecaca;
+    --ok-g: #052e16;   --ok-r: #166534;   --ok-t: #bbf7d0; }
   * { box-sizing: border-box; }
-  body { font-family: 'Segoe UI', system-ui, Arial, sans-serif; color: #1e293b;
-         margin: 0; padding: 16px; background: #f8fafc; font-size: 14px; }
+  body { font-family: 'Segoe UI', system-ui, Arial, sans-serif; color: var(--text);
+         margin: 0; padding: 16px; background: var(--grund); font-size: 14px; }
   .wrap { max-width: 640px; margin: 0 auto; }
+  .kopf { display: flex; align-items: flex-start; gap: 8px; }
+  .kopf h1 { flex: 1 1 auto; }
   h1 { font-size: 18px; margin: 0 0 2px; }
-  .sub { color: #64748b; font-size: 12px; margin: 0 0 16px; }
-  .karte { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
+  .thema-knopf { flex: 0 0 auto; background: none; border: 1px solid var(--rand); border-radius: 6px;
+                 color: var(--gedaempft); font-size: 15px; line-height: 1; padding: 5px 8px; cursor: pointer; }
+  .sub { color: var(--gedaempft); font-size: 12px; margin: 0 0 16px; }
+  a.link { color: var(--akzent); }
+  .karte { background: var(--karte); border: 1px solid var(--rand); border-radius: 8px;
            padding: 16px; margin-bottom: 16px; }
   .karte h2 { font-size: 15px; margin: 0 0 12px; }
-  label { display: block; font-size: 13px; color: #475569; margin: 10px 0 4px; }
+  label { display: block; font-size: 13px; color: var(--label); margin: 10px 0 4px; }
   select, input[type=date] { width: 100%; max-width: 320px; padding: 7px 8px;
-           border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; background: #fff; }
+           border: 1px solid var(--feldrand); border-radius: 6px; font-size: 14px;
+           background: var(--feld); color: var(--text); }
+  input:not([type=checkbox]):not([type=radio]) { background: var(--feld); color: var(--text); }
   .radiozeile { display: flex; gap: 16px; flex-wrap: wrap; margin: 4px 0 2px; }
   .radiozeile label { display: inline-flex; align-items: center; gap: 6px; margin: 0; cursor: pointer; }
-  .vorschau { border: 1px solid #e2e8f0; border-radius: 6px; padding: 14px; background: #fff;
-              min-height: 60px; overflow-x: auto; }
-  .btn { background: #2563eb; color: #fff; border: 0; border-radius: 6px;
+  .vorschau { color-scheme: light; border: 1px solid var(--rand); border-radius: 6px; padding: 14px;
+              background: #fff; color: #1e293b; min-height: 60px; overflow-x: auto; }
+  .btn { background: var(--knopf); color: #fff; border: 0; border-radius: 6px;
          padding: 10px 18px; font-size: 14px; cursor: pointer; }
-  .btn:disabled { background: #94a3b8; cursor: not-allowed; }
+  .btn:disabled { background: var(--knopf-aus); cursor: not-allowed; }
   .hinweis { padding: 10px 14px; border-radius: 6px; font-size: 13px; margin-bottom: 16px; }
-  .hinweis.warn { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
-  .hinweis.err  { background: #fef2f2; border: 1px solid #fca5a5; color: #991b1b; }
-  .hinweis.ok   { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; }
-  .fuss { color: #94a3b8; font-size: 11px; text-align: center; margin-top: 8px; }
+  .hinweis.warn { background: var(--warn-g); border: 1px solid var(--warn-r); color: var(--warn-t); }
+  .hinweis.err  { background: var(--err-g);  border: 1px solid var(--err-r);  color: var(--err-t); }
+  .hinweis.ok   { background: var(--ok-g);   border: 1px solid var(--ok-r);   color: var(--ok-t); }
+  .fuss { color: var(--blass); font-size: 11px; text-align: center; margin-top: 8px; }
+  .fuss a { color: var(--gedaempft); }
   [hidden] { display: none !important; }
   /* Reiter: Abwesenheit · Signatur · Antwort-Signatur. Im schmalen
      Aufgabenbereich (≈ 290 px Inhalt) passen alle drei in eine Zeile. */
-  .reiter { display: flex; gap: 2px; margin: 0 0 12px; border-bottom: 1px solid #e2e8f0; flex-wrap: wrap; }
+  .reiter { display: flex; gap: 2px; margin: 0 0 12px; border-bottom: 1px solid var(--rand); flex-wrap: wrap; }
   .reiter button { flex: 1 1 auto; background: none; border: 0; border-bottom: 2px solid transparent;
-                   padding: 8px 4px; font: inherit; font-size: 13px; color: #64748b; cursor: pointer;
+                   padding: 8px 4px; font: inherit; font-size: 13px; color: var(--gedaempft); cursor: pointer;
                    white-space: nowrap; margin-bottom: -1px; }
-  .reiter button[aria-selected="true"] { color: #0078d4; border-bottom-color: #0078d4; }
-  .erklaer { font-size: 13px; color: #334155; margin: -4px 0 10px; line-height: 1.45; }
-  /* Beispiel-Mail der Vorschau: Blindtext mit schrägem MUSTER-Stempel — der
-     Stempel liegt NUR über dem Blindtext, die Signatur bleibt frei lesbar. */
+  .reiter button[aria-selected="true"] { color: var(--akzent); border-bottom-color: var(--akzent); }
+  .erklaer { font-size: 13px; color: var(--text-2); margin: -4px 0 10px; line-height: 1.45; }
+  /* Beispiel-Mail der Vorschau (immer hell, s. o.): Blindtext mit schrägem
+     MUSTER-Stempel — der Stempel liegt NUR über dem Blindtext, die Signatur
+     bleibt frei lesbar. */
   .mail-kopf { font-size: 12px; color: #64748b; border-bottom: 1px solid #e2e8f0;
                padding-bottom: 6px; margin-bottom: 10px; }
   .muster { position: relative; color: #64748b; font-size: 13px; line-height: 1.5;
@@ -64,16 +101,20 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>{% if abwesenheit_aktiv() %}Meine Abwesenheit &amp; Signatur{% else %}Meine Signatur{% endif %}</h1>
+  <div class="kopf">
+    <h1>{% if abwesenheit_aktiv() %}Meine Abwesenheit &amp; Signatur{% else %}Meine Signatur{% endif %}</h1>
+    <button type="button" class="thema-knopf" id="thema-knopf" aria-label="Hell/Dunkel umschalten"
+            title="Hell/Dunkel umschalten">☾</button>
+  </div>
   {# Aus der Verfassen-Leiste gekommen: dorthin zurück (die Taskpane hat keinen Zurück-Knopf). #}
   {% if request.query_params.get("von") == "verfassen" %}
-  <p class="sub"><a href="/addin/compose" style="color:#0078d4">← zurück zum Einfügen der Signatur</a></p>
+  <p class="sub"><a href="/addin/compose" class="link">← zurück zum Einfügen der Signatur</a></p>
   {% endif %}
   <p class="sub" id="wer">{{ gateway_name }}</p>
 
   <div id="lade" class="sub">Lädt…</div>
   <div id="fehler" class="hinweis err" hidden></div>
-  <p id="im-browser" class="sub" hidden><a href="/self" target="_blank" rel="noopener" style="color:#0078d4">Im Browser öffnen</a></p>
+  <p id="im-browser" class="sub" hidden><a href="/self" target="_blank" rel="noopener" class="link">Im Browser öffnen</a></p>
   {# Im Tab muss die Anmeldung von einem Klick ausgehen — ein selbsttätig
      geöffnetes Fenster hält der Popup-Blocker des Browsers auf. #}
   <div id="tab-anmelden" class="hinweis warn" hidden>
@@ -588,7 +629,7 @@
         el('vorschau').innerHTML = (d.oof_html || '')
           + (ctx.oof_mit_signatur ? (d.sig_html || '') : '')
           + (ctx.oof_mit_banner ? (d.banner_html || '') : '')
-          || '<span style="color:#94a3b8">— nichts ausgewählt —</span>';
+          || '<p class="keine-sig">— nichts ausgewählt —</p>';
         el('sig-vorschau').innerHTML = (d.sig_html || '') + anhang;
         // Ohne Antwort-Signatur hängt das Gateway gar nichts an — auch Banner
         // und Disclaimer nicht (wie im Mailweg).
@@ -707,6 +748,48 @@
     zeigeFehler('Abgemeldet. Zum erneuten Anmelden den Knopf im Menüband noch einmal wählen.');
   });
 
+  // ── Hell/Dunkel ─────────────────────────────────────────────────────────
+  // Der Kopf hat das Design schon gesetzt (eigene Wahl oder System/Browser).
+  // Hier: Knopf, Umstellen des Systems bei offener Seite, und das Design von
+  // Teams/Outlook — das gilt vor dem System, aber nie vor der eigenen Wahl.
+  var eigeneWahl = (function () {
+    try { var t = localStorage.getItem('exo-theme'); return (t === 'dark' || t === 'light') ? t : null; }
+    catch (e) { return null; }
+  }());
+  var hostHatDesign = false;
+  function thema(t) {
+    document.documentElement.setAttribute('data-theme', t);
+    el('thema-knopf').textContent = t === 'dark' ? '☀' : '☾';
+  }
+  function hostDesign(t) {
+    if (t !== 'dark' && t !== 'light') return;
+    hostHatDesign = true;
+    if (!eigeneWahl) thema(t);
+  }
+  // Teams meldet 'default' | 'dark' | 'contrast'; Hoher Kontrast ist dunkel.
+  function teamsDesign(name) { if (name) hostDesign(name === 'default' ? 'light' : 'dark'); }
+  // Outlook meldet keine Namen, nur Farben: dunkel, wenn der Hintergrund dunkel ist.
+  function officeDesign() {
+    try {
+      var f = String((Office.context.officeTheme || {}).bodyBackgroundColor || '').replace('#', '');
+      if (!/^[0-9a-f]{6}$/i.test(f)) return;
+      var hell = (parseInt(f.substr(0, 2), 16) * 299 + parseInt(f.substr(2, 2), 16) * 587
+                  + parseInt(f.substr(4, 2), 16) * 114) / 1000;
+      hostDesign(hell < 128 ? 'dark' : 'light');
+    } catch (e) { /* ohne Office-Design bleibt das System maßgeblich */ }
+  }
+  thema(document.documentElement.getAttribute('data-theme'));
+  el('thema-knopf').addEventListener('click', function () {
+    eigeneWahl = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    try { localStorage.setItem('exo-theme', eigeneWahl); } catch (e) { /* dann nur für jetzt */ }
+    thema(eigeneWahl);
+  });
+  try {
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function (e) {
+      if (!eigeneWahl && !hostHatDesign) thema(e.matches ? 'dark' : 'light');
+    });
+  } catch (e) { /* alte WebViews: dann gilt der Stand beim Laden */ }
+
   // Erst starten, wenn Office initialisiert ist — sonst wäre imOffice() beim ersten
   // 401 unzuverlässig und ein Add-in-Nutzer liefe fälschlich in die Browser-
   // Weiterleitung. Office.onReady feuert in Outlook UND im Browser (dort mit Host
@@ -723,7 +806,15 @@
       var tabWache = setTimeout(function () {
         if (!gestartet) { zeigeFehler(TAB_KEINE_ANTWORT); el('im-browser').hidden = false; }
       }, TAB_WARTEZEIT_MS);
-      microsoftTeams.app.initialize().then(function () { clearTimeout(tabWache); start(); })
+      microsoftTeams.app.initialize().then(function () {
+        clearTimeout(tabWache);
+        try {
+          microsoftTeams.app.getContext().then(function (c) { teamsDesign(c && c.app && c.app.theme); })
+            .catch(function () { /* System bleibt maßgeblich */ });
+          microsoftTeams.app.registerOnThemeChangeHandler(teamsDesign);
+        } catch (e) { /* dito */ }
+        start();
+      })
         .catch(function (e) {
           clearTimeout(tabWache);
           zeigeFehler('Verbindung zu Outlook/Teams fehlgeschlagen: ' + ((e && e.message) || e));
@@ -742,7 +833,7 @@
       var addinWache = setTimeout(function () {
         if (!gestartet) { zeigeFehler(ADDIN_KEINE_ANTWORT); el('im-browser').hidden = false; }
       }, TAB_WARTEZEIT_MS);
-      Office.onReady(function () { clearTimeout(addinWache); start(); });
+      Office.onReady(function () { clearTimeout(addinWache); officeDesign(); start(); });
     } else {
       zeigeFehler('Die Office-Bibliothek konnte nicht geladen werden.');
       el('im-browser').hidden = false;

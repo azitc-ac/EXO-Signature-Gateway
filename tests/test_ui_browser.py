@@ -967,7 +967,7 @@ window.Office = { AsyncResultStatus: { Succeeded: 'succeeded' },
   EventType: { DialogMessageReceived: 'm', DialogEventReceived: 'e' },
   onReady: function (cb) { setTimeout(function () {
     if (%(mit_dialog)s) {
-      Office.context = { mailbox: {}, ui: { displayDialogAsync: function (url, opt, cb) {
+      Office.context = { mailbox: {}, officeTheme: %(thema)s, ui: { displayDialogAsync: function (url, opt, cb) {
         window.__dialoge.push(url);
         // Erster Versuch wie „Ignorieren“ im Office-Hinweis (Fehler 12009).
         if (%(ablehnen)s && window.__dialoge.length === 1 && cb) {
@@ -980,8 +980,9 @@ window.Office = { AsyncResultStatus: { Succeeded: 'succeeded' },
 """
 
 
-def _office_nachbau(ctx, mit_dialog=True, host="'Outlook'", verzoegerung=3000, ablehnen=False):
-    js = _OFFICE_LANGSAM % {"mit_dialog": "true" if mit_dialog else "false",
+def _office_nachbau(ctx, mit_dialog=True, host="'Outlook'", verzoegerung=3000, ablehnen=False,
+                    thema="undefined"):
+    js = _OFFICE_LANGSAM % {"mit_dialog": "true" if mit_dialog else "false", "thema": thema,
                             "host": host, "verzoegerung": verzoegerung,
                             "ablehnen": "true" if ablehnen else "false"}
     ctx.route("https://appsforoffice.microsoft.com/**",
@@ -1066,7 +1067,9 @@ def test_eigenes_fenster_leitet_weiter_zur_anmeldung(browser, server):
 
 _TEAMS_NACHBAU = """
 window.__fenster = [];
-window.microsoftTeams = { app: { initialize: function () { return Promise.resolve(); } },
+window.microsoftTeams = { app: { initialize: function () { return Promise.resolve(); },
+    getContext: function () { return Promise.resolve({ app: { theme: window.__teamsThema } }); },
+    registerOnThemeChangeHandler: function (h) { window.__themaWechsel = h; } },
   authentication: { authenticate: function (o) { window.__fenster.push(o.url);
     return new Promise(function () {}); } } };
 """
@@ -1086,12 +1089,15 @@ window.msal = { createNestablePublicClientApplication: function (konf) {
 _TAB_KONTEXT = {"email": "a@x.de", "freigeschaltet": True, "abwesenheit_aktiv": True,
                 "darf_vorlagen": False, "waehlbar": {"sig": False, "min": False, "oof": False},
                 "oof_template": "K", "sig_template": "S", "standard": {}, "wahl": {}, "listen": {},
-                "ooo": {"status": "disabled"}, "announce_supported": False,
+                "ooo": {"status": "scheduled", "start": "2026-10-11", "ende": "2026-10-12",
+                        "start_zeit": "09:00", "ende_zeit": "17:00", "ganztaegig": False},
+                "announce_supported": False,
                 "announce": {"an": False, "mode": "anzahl", "x": 3, "privat": True, "extern": False},
                 "zugriff": True}
 
 
-def _tab(browser, server, monkeypatch, still=True, sitzung=200):
+def _tab(browser, server, monkeypatch, still=True, sitzung=200, system="light",
+         teams_thema=None, wahl=None):
     import json
     import settings_store
     echt = settings_store.get
@@ -1100,7 +1106,9 @@ def _tab(browser, server, monkeypatch, still=True, sitzung=200):
                         lambda k, *a, **kw: fest[k] if k in fest else echt(k, *a, **kw))
     from webui.routen import addin
     tausch, kontext = [], []
-    ctx = browser.new_context(viewport={"width": 393, "height": 850})
+    ctx = browser.new_context(viewport={"width": 393, "height": 850}, color_scheme=system)
+    ctx.add_init_script(f"window.__teamsThema = {json.dumps(teams_thema)};"
+                        + (f"localStorage.setItem('exo-theme', {json.dumps(wahl)});" if wahl else ""))
     # TeamsJS trägt eine Integritätsprüfung — ein Nachbau unter seiner Adresse
     # würde blockiert. Deshalb vorab einsetzen und das CDN leer antworten lassen.
     ctx.add_init_script(_TEAMS_NACHBAU)
@@ -1159,5 +1167,103 @@ def test_tab_ohne_naa_bietet_das_fenster(browser, server, monkeypatch, still, si
         pg.click("#tab-anmelden-btn")
         pg.wait_for_function("() => window.__fenster.length === 1", timeout=3000)
         assert "/auth/login/microsoft" in pg.evaluate("() => window.__fenster[0]")
+    finally:
+        ctx.close()
+
+
+
+# ── Self-Service: Hell/Dunkel ────────────────────────────────────────────────
+#
+# Rangfolge: eigene Wahl (Knopf, „exo-theme“ wie in der Verwaltung) → Design
+# von Teams/Outlook → System/Browser. Die Vorschau bleibt hell.
+
+_FLAECHEN_PRUEFUNG = """() => {
+  const lum = c => { const m = c.match(/\\d+(\\.\\d+)?/g); if (!m || (m.length > 3 && +m[3] === 0)) return null;
+                     return (+m[0] * 299 + +m[1] * 587 + +m[2] * 114) / 1000; };
+  const funde = [];
+  for (const e of document.querySelectorAll('body *')) {
+    if (e.closest('.vorschau') || !e.offsetParent) continue;
+    const st = getComputedStyle(e), g = lum(st.backgroundColor);
+    if (g !== null && g > 200) funde.push('hell: ' + (e.id || e.className || e.tagName));
+    const hatText = [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim());
+    if (hatText && lum(st.color) !== null && lum(st.color) < 110) funde.push('dunkler Text: ' + (e.id || e.className || e.tagName));
+  }
+  return funde;
+}"""
+
+
+def _thema(pg):
+    return pg.evaluate("() => document.documentElement.getAttribute('data-theme')")
+
+
+@pytest.mark.parametrize("breite", [393, 320])
+def test_self_folgt_dem_system_und_die_vorschau_bleibt_hell(browser, server, monkeypatch, breite):
+    ctx, pg, _t, _k = _tab(browser, server, monkeypatch, system="dark")
+    try:
+        pg.set_viewport_size({"width": breite, "height": 850})
+        pg.wait_for_selector("#inhalt:not([hidden])", timeout=8000)
+        assert _thema(pg) == "dark"
+        assert pg.evaluate("() => getComputedStyle(document.body).backgroundColor") == "rgb(15, 23, 42)"
+        assert pg.evaluate("() => getComputedStyle(document.querySelector('.vorschau')).backgroundColor") \
+            == "rgb(255, 255, 255)"
+        pg.evaluate("() => { document.getElementById('nur-anzeige').hidden = false; }")
+        assert pg.evaluate("() => [...document.querySelectorAll('input[type=date], select')]"
+                           ".filter(e => e.offsetParent).length") >= 2   # Felder sind im Bild
+        assert pg.evaluate(_FLAECHEN_PRUEFUNG) == []
+        assert pg.evaluate("() => document.documentElement.scrollWidth <= window.innerWidth")
+        assert pg.inner_text("#thema-knopf") == "☀"
+    finally:
+        ctx.close()
+
+
+def test_self_hell_hat_keine_dunklen_reste(browser, server, monkeypatch):
+    ctx, pg, _t, _k = _tab(browser, server, monkeypatch, system="light")
+    try:
+        pg.wait_for_selector("#inhalt:not([hidden])", timeout=8000)
+        assert _thema(pg) == "light"
+        assert pg.evaluate("() => getComputedStyle(document.body).backgroundColor") == "rgb(248, 250, 252)"
+    finally:
+        ctx.close()
+
+
+def test_self_teams_design_geht_vor_dem_system_und_folgt_dem_wechsel(browser, server, monkeypatch):
+    ctx, pg, _t, _k = _tab(browser, server, monkeypatch, system="light", teams_thema="dark")
+    try:
+        pg.wait_for_selector("#inhalt:not([hidden])", timeout=8000)
+        pg.wait_for_function("() => document.documentElement.getAttribute('data-theme') === 'dark'", timeout=3000)
+        pg.evaluate("() => window.__themaWechsel('default')")
+        assert _thema(pg) == "light"
+        pg.evaluate("() => window.__themaWechsel('contrast')")
+        assert _thema(pg) == "dark"
+    finally:
+        ctx.close()
+
+
+def test_self_eigene_wahl_geht_vor_teams_und_knopf_merkt_sie(browser, server, monkeypatch):
+    ctx, pg, _t, _k = _tab(browser, server, monkeypatch, system="dark", teams_thema="dark", wahl="light")
+    try:
+        pg.wait_for_selector("#inhalt:not([hidden])", timeout=8000)
+        pg.wait_for_timeout(300)
+        assert _thema(pg) == "light"
+        pg.evaluate("() => window.__themaWechsel('dark')")
+        assert _thema(pg) == "light"
+        pg.click("#thema-knopf")
+        assert _thema(pg) == "dark"
+        assert pg.evaluate("() => localStorage.getItem('exo-theme')") == "dark"
+    finally:
+        ctx.close()
+
+
+@pytest.mark.parametrize("farbe,erwartet", [("'#1f1f1f'", "dark"), ("'#ffffff'", "light")])
+def test_self_im_aufgabenbereich_folgt_dem_outlook_design(browser, server, farbe, erwartet):
+    ctx = browser.new_context(color_scheme="light" if erwartet == "dark" else "dark")
+    _office_nachbau(ctx, verzoegerung=10, thema="{ bodyBackgroundColor: %s }" % farbe)
+    pg = ctx.new_page()
+    try:
+        pg.set_content(f'<iframe id="r" src="{server}/self?et=" width="320" height="440"></iframe>')
+        pg.wait_for_function("() => window.frames.length === 1")
+        rahmen = next(f for f in pg.frames if "/self" in f.url)
+        rahmen.wait_for_function(
+            f"() => document.documentElement.getAttribute('data-theme') === '{erwartet}'", timeout=5000)
     finally:
         ctx.close()
