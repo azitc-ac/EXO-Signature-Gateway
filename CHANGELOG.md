@@ -5,6 +5,47 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.173 — 2026-10-18 — Einrichtung bereitet die Anmeldung ohne Fenster (NAA) selbst vor
+
+Das Verfassen-Add-in (seit v1.9.164) und die stille Anmeldung im
+Self-Service-Tab (seit v1.9.170) melden sich per Nested App Authentication
+(NAA) an. Dafür braucht die Anmelde-App des Gateways (Bootstrap-App) in Entra
+vier Einträge:
+
+- die SPA-Umleitung `brk-multihub://<dein Host>`
+- die API-Adresse `api://<Client-ID>` mit dem Bereich `access_as_user`
+- die App selbst als vorab berechtigten Client
+- Zugriffstoken der Version 2
+
+Bisher richtete die Einrichtung diese Einträge nicht ein, und die
+Anmeldeprüfung meldete trotzdem alles grün. Ohne sie fügte das Verfassen-Add-in
+nichts ein, und der Tab fiel auf das Anmeldefenster zurück.
+
+Jetzt gilt:
+
+- **Einrichtung:** Der Anmeldeschritt der Einrichtung ergänzt die vier
+  Einträge. Vorhandene Umleitungen, Adressen, Bereiche und Berechtigungen
+  bleiben unverändert.
+- **Anmeldeprüfung:** *Einrichtung → Outlook Add-in → SSO Redirect URI →
+  „Anmeldung prüfen“* zeigt die NAA-Einträge als eigenen Punkt. Fehlt etwas,
+  bietet sie den Knopf „In Entra ergänzen“ an.
+- **Abnahme:** Sie führt NAA als eigenen Punkt, sobald Add-in oder Self-Service
+  eingeschaltet ist.
+
+**Zu tun:**
+
+- **Du nutzt das Outlook-Add-in oder den Self-Service-Tab:** Öffne nach dem
+  Update *Einrichtung → Outlook Add-in → SSO Redirect URI → „Anmeldung
+  prüfen“*. Steht dort bei „Anmeldung für Add-in und Tab (NAA)“ ein ✗, klicke
+  „In Entra ergänzen“. Melde dich mit einem Konto an, das App-Registrierungen
+  ändern darf, etwa als Anwendungsadministrator. Danach zeigt die Prüfung ✓.
+  Das gilt auch für die Hinweise zu v1.9.164 und v1.9.170, wenn du die dort
+  genannten Einträge nicht selbst angelegt hast.
+- **Neue Installationen:** nichts. Die Einrichtung legt alles an.
+- **Ohne Add-in und ohne Self-Service:** nichts.
+
+---
+
 ## v1.9.172 — 2026-10-18 — Kein Suchindex für die Weboberfläche
 
 Eine Suchmaschine hatte die Anmeldeseite eines öffentlich erreichbaren

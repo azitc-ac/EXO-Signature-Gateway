@@ -338,7 +338,43 @@ def _benachrichtigung() -> dict:
                   f"{len(empf)} Empfänger über {absender}")
 
 
-PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _exchange,
+def _naa() -> dict:
+    """Bootstrap-App für NAA vorbereitet? Trägt das Verfassen-Add-in und die
+    stille Anmeldung im Self-Service-Tab. Bis v1.9.172 wurde das nur von Hand
+    eingetragen — eine Neuinstallation hatte es nie, ohne dass es auffiel."""
+    import settings_store
+    name = "Add-in und Tab: Anmeldung ohne Fenster (NAA)"
+    if not (settings_store.get("ADDIN_ENABLED") or settings_store.get("SELF_SERVICE_ENABLED")):
+        return _punkt(name, ENTFAELLT, "Weder Add-in noch Self-Service eingeschaltet")
+    client_id = (settings_store.get("BOOTSTRAP_CLIENT_ID") or "").strip()
+    if not client_id:
+        return _punkt(name, OFFEN, "Keine Bootstrap-Anwendung eingetragen.",
+                      "Einrichtung (Schritt Anmeldung) durchlaufen.")
+    import graph_client
+    import httpx
+    import setup_wizard
+    token = graph_client._acquire_token()
+    if not token:
+        return _punkt(name, UNBEKANNT, "Keine Graph-Zugangsdaten.",
+                      "Einrichtung durchlaufen.")
+    r = httpx.get("https://graph.microsoft.com/v1.0/applications"
+                  f"?$filter=appId eq '{client_id}'&$select=spa,api,identifierUris",
+                  headers={"Authorization": f"Bearer {token}"}, timeout=10)
+    r.raise_for_status()
+    apps = r.json().get("value", [])
+    if not apps:
+        return _punkt(name, OFFEN, f"Zu {client_id} gibt es keine Registrierung.",
+                      "Einrichtung (Schritt Anmeldung) erneut durchlaufen.")
+    fehlt = setup_wizard.naa_luecken(apps[0], client_id)
+    if fehlt:
+        return _punkt(name, OFFEN, "Es fehlt: " + "; ".join(fehlt) + ".",
+                      "Einstellungen → Einrichtung → „Anmeldung prüfen“ → „In Entra ergänzen“.")
+    return _punkt(name, OK, "Bootstrap-App vollständig vorbereitet",
+                  deckt_nicht="Ob Outlook/Teams das Token tatsächlich still "
+                              "ausgeben, zeigt erst ein Versuch im Client.")
+
+
+PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _naa, _exchange,
               _postfaecher, _signaturvorlage, _rueckweg, _benachrichtigung)
 
 

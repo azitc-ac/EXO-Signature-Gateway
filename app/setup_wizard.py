@@ -555,6 +555,99 @@ def _implicit_web_patch(web: dict | None, id_callback: str) -> dict | None:
     return web if dirty else None
 
 
+NAA_SCOPE = "access_as_user"
+
+
+def _naa_patches(app_obj: dict, client_id: str, ursprung: str) -> list[dict]:
+    """PATCH-Körper (0–2), die die Bootstrap-App für NAA vorbereiten.
+
+    NAA (Nested App Authentication) tragen das Verfassen-Add-in (Signatur beim
+    Schreiben) und die stille Anmeldung im Teams-/Outlook-Tab. Nötig sind:
+
+      * SPA-Umleitung `brk-multihub://<Ursprung>` (Host samt Port, wie im Browser),
+      * API-Adresse `api://<client-id>` mit dem Bereich `access_as_user`,
+      * die App selbst als vorab berechtigter Client — sonst fragte Entra
+        jeden Nutzer nach einer Zustimmung, die im Ereignis niemand geben kann,
+      * Zugriffstoken Version 2 (sso.verify_access_token prüft genau diese).
+
+    Bis v1.9.172 stand das nur als Text im Docstring von addin_verfassen.py;
+    eingetragen wurde es auf der VM von Hand. Neue Installationen hatten es nie.
+
+    Nur ERGÄNZEN, nie ersetzen: vorhandene Umleitungen, Adressen und Bereiche
+    bleiben. `api` ist ein Komplextyp — ein PATCH ersetzt ihn ganz, deshalb
+    geht immer das vollständige Objekt hinaus. Zwei Schritte, wenn der Bereich
+    neu ist: Entra nimmt eine Vorabberechtigung erst an, wenn der Bereich, auf
+    den sie zeigt, schon gespeichert ist.
+    """
+    import uuid
+    erster: dict = {}
+    spa = list((app_obj.get("spa") or {}).get("redirectUris") or [])
+    umleitung = f"brk-multihub://{ursprung}"
+    if ursprung and umleitung not in spa:
+        erster["spa"] = {"redirectUris": spa + [umleitung]}
+    uris = list(app_obj.get("identifierUris") or [])
+    if f"api://{client_id}" not in uris:
+        erster["identifierUris"] = uris + [f"api://{client_id}"]
+    api = dict(app_obj.get("api") or {})
+    bereiche = [dict(b) for b in (api.get("oauth2PermissionScopes") or [])]
+    bereich = next((b for b in bereiche if b.get("value") == NAA_SCOPE), None)
+    api_neu = False
+    if bereich is None:
+        bereich = {"id": str(uuid.uuid4()), "value": NAA_SCOPE, "type": "User", "isEnabled": True,
+                   "adminConsentDisplayName": "Gateway-Signatur als Benutzer abrufen",
+                   "adminConsentDescription": "Erlaubt dem Verfassen-Add-in und dem Self-Service-Tab, "
+                                              "im Namen des angemeldeten Benutzers auf das Gateway "
+                                              "zuzugreifen."}
+        bereiche.append(bereich)
+        api["oauth2PermissionScopes"] = bereiche
+        api_neu = True
+    elif not bereich.get("isEnabled"):
+        bereich["isEnabled"] = True
+        api["oauth2PermissionScopes"] = bereiche
+        api_neu = True
+    if api.get("requestedAccessTokenVersion") != 2:
+        api["requestedAccessTokenVersion"] = 2
+        api_neu = True
+    vorab = [dict(v) for v in (api.get("preAuthorizedApplications") or [])]
+    eigen = next((v for v in vorab if (v.get("appId") or "").lower() == client_id.lower()), None)
+    vorab_fehlt = eigen is None or bereich["id"] not in (eigen.get("delegatedPermissionIds") or [])
+    if vorab_fehlt:
+        if eigen is None:
+            vorab.append({"appId": client_id, "delegatedPermissionIds": [bereich["id"]]})
+        else:
+            eigen["delegatedPermissionIds"] = list(eigen.get("delegatedPermissionIds") or []) + [bereich["id"]]
+    if api_neu:
+        # Bereich neu: erst ohne die neue Vorabberechtigung speichern.
+        bisher = (app_obj.get("api") or {}).get("preAuthorizedApplications") or []
+        erster["api"] = {**api, "preAuthorizedApplications": list(bisher)}
+    patches = [erster] if erster else []
+    if vorab_fehlt:
+        patches.append({"api": {**api, "preAuthorizedApplications": vorab}})
+    return patches
+
+
+def naa_ursprung(hostname: str = "") -> str:
+    """Host[:Port] der Aussenadresse — daraus wird brk-multihub://… gebildet."""
+    import aussenadresse
+    from urllib.parse import urlparse
+    extern = aussenadresse.konfiguriert()
+    return (urlparse(extern).netloc if extern else hostname or "").lower()
+
+
+def naa_luecken(app_obj: dict, client_id: str) -> list[str]:
+    """Was für NAA an der Bootstrap-App fehlt, in Worten — leer heisst vollständig.
+
+    Aus DERSELBEN Soll-Funktion wie der Setzer (`_naa_patches`): Prüfung
+    (Anmeldeprüfung, Abnahme) und Einrichtung können so nicht auseinanderlaufen.
+    """
+    ursprung = naa_ursprung()
+    teile = {"spa": f"SPA-Umleitung brk-multihub://{ursprung}",
+             "identifierUris": f"API-Adresse api://{client_id}",
+             "api": f"Bereich {NAA_SCOPE} mit Tokenversion 2 und Vorabberechtigung"}
+    fehlt = sorted({k for p in _naa_patches(app_obj, client_id, ursprung) for k in p})
+    return [teile[k] for k in fehlt]
+
+
 async def patch_bootstrap_redirect_uri(token: str, hostname: str) -> None:
     """Add the public SSO redirect URI to the Bootstrap app and normalise its displayName."""
     if not hostname:
@@ -573,7 +666,8 @@ async def patch_bootstrap_redirect_uri(token: str, hostname: str) -> None:
     try:
         resp = await _gh(
             "get",
-            f"{GRAPH}/applications?$filter=appId eq '{bootstrap_id}'&$select=id,displayName,publicClient,web",
+            f"{GRAPH}/applications?$filter=appId eq '{bootstrap_id}'"
+            "&$select=id,displayName,publicClient,web,spa,api,identifierUris",
             token,
         )
         apps = resp.get("value", [])
@@ -612,6 +706,16 @@ async def patch_bootstrap_redirect_uri(token: str, hostname: str) -> None:
         settings_store.update({"BOOTSTRAP_REDIRECT_URIS": existing_uris})
     except Exception as exc:
         log.warning("Could not patch Bootstrap app: %s", exc)
+        return
+
+    # NAA (Verfassen-Add-in, stille Tab-Anmeldung) — eigener Block, damit ein
+    # Fehler hier die Anmelde-Rückadressen oben nicht mitnimmt.
+    try:
+        for koerper in _naa_patches(apps[0], bootstrap_id, naa_ursprung(hostname)):
+            await _gh("patch", f"{GRAPH}/applications/{obj_id}", token, json=koerper)
+            log.info("Bootstrap app: NAA ergänzt (%s)", ", ".join(sorted(koerper)))
+    except Exception as exc:
+        log.warning("Bootstrap app: NAA-Vorbereitung fehlgeschlagen: %s", exc)
 
 
 # ── Step: run full setup after PKCE callback ──────────────────────────────────
