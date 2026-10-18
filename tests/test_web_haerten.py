@@ -32,6 +32,20 @@ def test_sicherheits_header_auf_normaler_seite(client):
     assert "Content-Security-Policy-Report-Only" in r.headers
 
 
+@pytest.mark.parametrize("pfad", ["/auth/login", "/auth/login?next=/", "/", "/self",
+                                  "/self/rechtliches", "/addin/compose", "/gibt-es-nicht"])
+def test_keine_seite_in_den_suchindex(client, pfad):
+    """Google führte /auth/login?next=/ als gecrawlte Seite (Search Console, 2026)."""
+    r = client.get(pfad, follow_redirects=False)
+    assert r.headers.get("X-Robots-Tag") == "noindex, nofollow", (pfad, r.status_code)
+
+
+def test_kein_robots_disallow(client):
+    """Ein Disallow verhinderte, dass der Crawler das noindex überhaupt sieht."""
+    r = client.get("/robots.txt")
+    assert r.status_code != 200 or "Disallow: /\n" not in r.text + "\n"
+
+
 def test_addin_seite_ohne_frame_verbot(client):
     # Office rahmt /addin/… — hier darf KEIN X-Frame-Options: DENY stehen,
     # sonst lädt das Add-in nicht. (Statuscode egal, Middleware greift immer.)

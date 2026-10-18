@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.172 — 2026-10-18 — Kein Suchindex für die Weboberfläche
+
+Eine Suchmaschine hatte die Anmeldeseite eines öffentlich erreichbaren
+Gateways erfasst (`/auth/login?next=/`). Jetzt trägt jede Antwort der
+Weboberfläche den Header `X-Robots-Tag: noindex, nofollow`.
+
+Bewusst als Header und nicht als `robots.txt` mit `Disallow: /`: Eine
+gesperrte Adresse ruft der Crawler nicht mehr ab und sieht deshalb auch kein
+`noindex`. Bereits erfasste Adressen blieben so im Index stehen. Mit dem
+Header verschwinden sie beim nächsten Abruf.
+
+Zu tun hast du nichts. Ist deine Anmeldeseite schon in einem Suchindex, kannst
+du die Entfernung in der Search Console der Suchmaschine beschleunigen.
+
+---
+
 ## v1.9.171 — 2026-10-18 — Self-Service mit Dunkelmodus
 
 Der Self-Service (im Browser, als Tab in Teams/Outlook und im Aufgabenbereich
