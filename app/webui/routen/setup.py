@@ -554,7 +554,7 @@ async def api_verify_sso(_=Depends(_require_admin)):
             resp = await client.get(
                 "https://graph.microsoft.com/v1.0/applications"
                 f"?$filter=appId eq '{client_id}'"
-                "&$select=id,displayName,publicClient,web",
+                "&$select=id,displayName,publicClient,web,spa,api,identifierUris",
                 headers={"Authorization": f"Bearer {token}"})
         resp.raise_for_status()
         apps = resp.json().get("value", [])
@@ -580,6 +580,16 @@ async def api_verify_sso(_=Depends(_require_admin)):
             erwartet if passt else
             f"Gebraucht wird {erwartet}. Dort steht: "
             + (", ".join(registriert) or "nichts"))
+
+    # NAA (Verfassen-Add-in, stille Tab-Anmeldung): dieselbe Soll-Funktion wie
+    # der Setzer im Einrichtungs-Login — was er noch ergänzen würde, fehlt.
+    import setup_wizard
+    fehlt = setup_wizard.naa_luecken(app_obj, client_id)
+    schritt("Anmeldung für Add-in und Tab (NAA)", not fehlt,
+            "vollständig" if not fehlt else
+            "Es fehlt: " + "; ".join(fehlt) + ". „In Entra ergänzen“ trägt es nach.")
+    if fehlt:
+        ergebnis["nachholen"] = "/api/addin/update-redirect-uri"
 
     # Den eigenen Stand nachziehen, wenn er abweicht — genau diese Abweichung
     # war der Anlass für die Prüfung.

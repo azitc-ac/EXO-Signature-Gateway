@@ -713,6 +713,13 @@ async def addin_update_redirect_uri(request: Request, user: str = Depends(_requi
     port = config.WEBUI_PORT
     suffix = f":{port}" if port and port != 443 else ""
     old_uri = f"https://{hostname}{suffix}/auth/callback" if hostname else f"http://localhost:{port}/auth/callback"
+    # Ist die Aussenadresse schon registriert, über sie zurückkehren: Derselbe
+    # Weg ergänzt seit v1.9.173 auch NAA, und dafür ruft man ihn von außen auf
+    # (die Anmeldeprüfung bietet ihn an), nicht über den internen Port.
+    import aussenadresse
+    extern = aussenadresse.konfiguriert()
+    if extern and f"{extern}/auth/callback" in (settings_store.get("BOOTSTRAP_REDIRECT_URIS") or []):
+        old_uri = f"{extern}/auth/callback"
     _state, auth_url = pkce_mod.create_session(old_uri, flow="patch_redirect_uri")
     return RedirectResponse(auth_url)
 

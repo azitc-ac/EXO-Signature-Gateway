@@ -2818,6 +2818,12 @@ async function ssoPruefen() {
     html += '<p style="margin:6px 0 0;color:#b45309">Die hinterlegten Rückadressen '
          + 'wichen vom Stand in Azure ab und wurden nachgezogen.</p>';
   }
+  if (d.nachholen) {
+    html += '<p style="margin:6px 0 0"><a class="btn secondary btn-sm" href="' + escAttr(d.nachholen) + '">'
+         + 'In Entra ergänzen</a> <span style="color:#64748b">Öffnet die Microsoft-Anmeldung '
+         + '(Administrator); danach trägt das Gateway die fehlenden Teile in seine '
+         + 'Anmelde-App ein, ohne Vorhandenes zu ändern.</span></p>';
+  }
   html += '<p style="margin:6px 0 0;color:#64748b">Ob die Anmeldung durchläuft, '
        + 'zeigt erst ein Versuch: Zustimmungsrichtlinien, bedingten Zugriff und '
        + 'gesperrte Konten sieht diese Prüfung nicht.</p>';
