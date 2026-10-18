@@ -48,7 +48,7 @@ KNOPF = "11111111-2222-3333-4444-555555555555"
 def _stand(monkeypatch, aktiv=True, verfassen="1.9.167", knopf="1.9.163"):
     werte = {
         "ADDIN_ENABLED": aktiv,
-        "_ADDIN_VERFASSEN_STAND": {"hash": "h", "version": verfassen},
+        "_ADDIN_VERFASSEN_STAND": {"hash": "h", "version": verfassen, "seit": "2026-10-17"},
         "_ADDIN_MANIFEST_STAND": {"hash": "h", "version": knopf},
     }
     monkeypatch.setattr(health_check, "_addin_id_aus_adresse",
@@ -62,8 +62,9 @@ def test_aeltere_fassung_ist_warnung_mit_weg(monkeypatch):
     _stand(monkeypatch)
     r = health_check._check_addins({VERF: "1.9.164", KNOPF: "1.9.163"})
     assert r["status"] == "warn"
-    assert "1.9.164 installiert, aktuell 1.9.167" in r["detail"]
+    assert "Signatur automatisch: 1.9.164 statt 1.9.167 (seit 17.10.2026)" in r["detail"]
     assert "Integrierte Apps" in r["detail"]
+    assert len(r["detail"]) < 220, len(r["detail"])        # Handy: kurz halten
 
 
 def test_vierstellige_fassung_vergleicht_numerisch(monkeypatch):
@@ -135,6 +136,11 @@ def test_gesamtablauf_traegt_die_addin_fassung_ein(monkeypatch):
                         lambda e: health_check._make_result("ok", "da"))
     gespeichert = {}
     monkeypatch.setattr(settings_store, "force_update", lambda d: gespeichert.update(d))
+    import graph_client
+
+    async def kein_token():
+        return None
+    monkeypatch.setattr(graph_client, "_acquire_token_async", kein_token)
     exo = {"erika@contoso.example": {"dg_member": True, "dg_fixed": False, "imap_perm": None,
                                      "imap_fixed": False, "addins": {VERF: "1.9.164", KNOPF: "1.9.163"}}}
     r = asyncio.run(health_check.run_checks_for_mailbox("erika@contoso.example", exo_data=exo))
@@ -160,3 +166,153 @@ def test_ohne_aussenadresse_keine_abfrage(monkeypatch):
     werte = {"ADDIN_ENABLED": True, "_ADDIN_VERFASSEN_STAND": {"hash": "h", "version": "1.9.167"}}
     monkeypatch.setattr(settings_store, "get", lambda k, *a, **kw: werte.get(k))
     assert health_check._addin_soll() == []
+
+
+# ── Graph-Zugriff, Abwesenheit, Key-Vault-Drossel, Aufräumen (v1.9.176) ──────
+
+import asyncio
+
+
+class _Antwort:
+    def __init__(self, code, body=None):
+        self.status_code = code
+        self._body = body or {}
+        self.text = str(body)
+
+    def json(self):
+        return self._body
+
+
+def _graph(monkeypatch, antwort):
+    import httpx
+
+    class Client:
+        def __init__(self, *a, **kw):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def get(self, url, headers=None):
+            Client.url = url
+            return antwort
+    monkeypatch.setattr(httpx, "AsyncClient", Client)
+    return Client
+
+
+def test_graph_postfach_ok_und_raop(monkeypatch):
+    c = _graph(monkeypatch, _Antwort(200, {"id": "x"}))
+    r = asyncio.run(health_check._check_graph_postfach("a@contoso.example", "tok"))
+    assert r["status"] == "ok"
+    assert "/users/a@contoso.example/mailFolders/inbox" in c.url
+    _graph(monkeypatch, _Antwort(403, {"error": {"message": "Access to OData is disabled: [RAOP]"}}))
+    r = asyncio.run(health_check._check_graph_postfach("a@contoso.example", "tok"))
+    assert r["status"] == "error"
+    assert "[RAOP]" in r["detail"] and "RBAC for Applications" in r["detail"]
+    assert asyncio.run(health_check._check_graph_postfach("a@x", None))["status"] == "skip"
+
+
+def test_abwesenheit_nur_wenn_eingeschaltet(monkeypatch):
+    import abwesenheit
+    werte = {"ABWESENHEIT_AKTIV": False}
+    monkeypatch.setattr(settings_store, "get", lambda k, *a, **kw: werte.get(k))
+    assert asyncio.run(health_check._check_abwesenheit("a@x", "t"))["status"] == "skip"
+    werte["ABWESENHEIT_AKTIV"] = True
+
+    async def lesen(upn, token):
+        return lesen.zustand, None
+    monkeypatch.setattr(abwesenheit, "_get_setting", lesen)
+    for zustand, erwartet in (("ok", "ok"), ("kein_zugriff", "error"), ("fehler", "warn")):
+        lesen.zustand = zustand
+        assert asyncio.run(health_check._check_abwesenheit("a@x", "t"))["status"] == erwartet
+
+
+def test_kv_probe_hoechstens_taeglich_fehler_sofort():
+    from datetime import datetime, timedelta, timezone
+    jetzt = datetime.now(timezone.utc)
+    f = lambda d: d.strftime("%Y-%m-%dT%H:%M:%SZ")          # noqa: E731
+    frisch = {"status": "ok", "checked_at": f(jetzt - timedelta(hours=2))}
+    assert health_check._kv_frisch(frisch) is frisch
+    assert health_check._kv_frisch({"status": "ok", "checked_at": f(jetzt - timedelta(hours=25))}) is None
+    assert health_check._kv_frisch({"status": "error", "checked_at": f(jetzt)}) is None
+    assert health_check._kv_frisch(None) is None
+
+
+def test_status_nicht_mehr_konfigurierter_postfaecher_wird_entfernt(monkeypatch):
+    daten = {"MAILBOX_CONFIG": {"a@contoso.example": {"sig": True}},
+             "MAILBOX_HEALTH": {"a@contoso.example": {"overall": "ok"},
+                                "alt@contoso.example": {"overall": "error"}}}
+    monkeypatch.setattr(settings_store, "get", lambda k, *a, **kw: daten.get(k))
+    monkeypatch.setattr(settings_store, "force_update", lambda d: daten.update(d))
+    monkeypatch.setattr(health_check, "_check_exo_batch_sync", lambda e: {})
+
+    async def pruefe(email, exo_data=None):
+        return {"overall": "ok"}
+    monkeypatch.setattr(health_check, "run_checks_for_mailbox", pruefe)
+    asyncio.run(health_check.run_all_checks())
+    assert set(daten["MAILBOX_HEALTH"]) == {"a@contoso.example"}
+    # Teilliste (ein Postfach neu prüfen) räumt NICHT auf
+    daten["MAILBOX_HEALTH"]["alt@contoso.example"] = {"overall": "error"}
+    asyncio.run(health_check.run_all_checks(["a@contoso.example"]))
+    assert "alt@contoso.example" in daten["MAILBOX_HEALTH"]
+
+
+def test_kv_probe_im_ablauf_wird_bei_frischem_erfolg_uebersprungen(monkeypatch):
+    from datetime import datetime, timezone
+    import graph_client
+    import smime_store
+    jetzt = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    daten = {"KEYVAULT_URL": "https://kv.example",
+             "MAILBOX_CONFIG": {"a@contoso.example": {"smime": True}},
+             "MAILBOX_HEALTH": {"a@contoso.example": {"checks": {
+                 "kv_sign": {"status": "ok", "detail": "Sign API erreichbar", "checked_at": jetzt}}}}}
+    monkeypatch.setattr(settings_store, "get", lambda k, *a, **kw: daten.get(k))
+    monkeypatch.setattr(settings_store, "force_update", lambda d: daten.update(d))
+    monkeypatch.setattr(health_check, "_check_exo_mailbox_sync", lambda e: health_check._make_result("ok", ""))
+    monkeypatch.setattr(health_check, "_check_smime_cert", lambda e: health_check._make_result("ok", ""))
+    monkeypatch.setattr(health_check, "_check_smime_key", lambda e: health_check._make_result("ok", ""))
+    monkeypatch.setattr(smime_store, "default_key_location", lambda e: "kv")
+
+    async def kein_token():
+        return None
+    monkeypatch.setattr(graph_client, "_acquire_token_async", kein_token)
+    aufrufe = []
+
+    async def probe(email):
+        aufrufe.append(email)
+        return health_check._make_result("ok", "neu")
+    monkeypatch.setattr(health_check, "_check_kv_sign", probe)
+    exo = {"a@contoso.example": {"dg_member": True, "addins": {}}}
+    r = asyncio.run(health_check.run_checks_for_mailbox("a@contoso.example", exo_data=exo))
+    assert aufrufe == [] and r["checks"]["kv_sign"]["detail"] == "Sign API erreichbar"
+    # Ein Fehler beim letzten Mal → sofort neu prüfen
+    daten["MAILBOX_HEALTH"]["a@contoso.example"]["checks"]["kv_sign"]["status"] = "error"
+    asyncio.run(health_check.run_checks_for_mailbox("a@contoso.example", exo_data=exo))
+    assert aufrufe == ["a@contoso.example"]
+
+
+def test_neue_fassung_traegt_ihr_datum(monkeypatch):
+    import datetime as dt
+    from webui.routen import addin
+    gespeichert = {}
+    monkeypatch.setattr(settings_store, "get", lambda k, *a, **kw: gespeichert.get(k))
+    monkeypatch.setattr(settings_store, "force_update", lambda d: gespeichert.update(d))
+    addin._manifest_version("inhalt", "_X_STAND")
+    assert gespeichert["_X_STAND"]["seit"] == dt.date.today().isoformat()
+
+
+def test_stand_ohne_datum_nimmt_es_aus_dem_changelog(monkeypatch, tmp_path):
+    cl = tmp_path / "CHANGELOG.md"
+    cl.write_text("## v1.9.167 — 2026-10-17 — X\n\n## v1.9.146 — 2026-10-11 — Y\n", encoding="utf-8")
+    monkeypatch.setattr(health_check, "_CHANGELOG", cl)
+    assert health_check._versionsdatum("1.9.167") == "2026-10-17"
+    assert health_check._versionsdatum("1.9.146.1") == "2026-10-11"
+    assert health_check._versionsdatum("1.9.999") == ""
+    werte = {"ADDIN_ENABLED": True, "_ADDIN_VERFASSEN_STAND": {"hash": "h", "version": "1.9.167"}}
+    monkeypatch.setattr(settings_store, "get", lambda k, *a, **kw: werte.get(k))
+    monkeypatch.setattr(health_check, "_addin_id_aus_adresse", lambda art: VERF)
+    r = health_check._check_addins({VERF: "1.9.164"})
+    assert "(seit 17.10.2026)" in r["detail"]
