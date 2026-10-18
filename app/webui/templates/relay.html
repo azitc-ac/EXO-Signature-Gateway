@@ -161,7 +161,7 @@
   </div>
   <p style="font-size:13px;color:#555;margin:10px 0 14px">
     Nur die in der folgenden Liste eingetragenen Geräte dürfen Mails einliefern.
-    Das Sendeaufkommen je Gerät (Mails und Volumen) steht jetzt in der
+    Das Sendeaufkommen je Gerät (Mails und Volumen) steht in der
     <strong>Statistik</strong> oben unter <em>Top-Geräte</em>.
   </p>
   <p style="font-size:13px;color:#555;margin:0 0 14px">
@@ -1008,10 +1008,12 @@ async function coexVorgaengeZeigen(knopf) {
       { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '';
   // Die Tagessummen reichen weiter zurück als die Einzelvorgänge — das sagen,
   // statt eine kürzere Liste kommentarlos neben eine grössere Zahl zu stellen.
+  // Ohne `seit` gibt es noch keinen Einzelvorgang — dann nichts über ältere
+  // Vorgänge behaupten (früher: „erst ab jetzt“, ein Übergangstext vom Einbau).
   hinweis.textContent = (seit
-      ? 'Einzelheiten werden seit ' + seit + ' festgehalten; ältere Vorgänge zählen nur in den Summen oben.'
-      : 'Einzelheiten werden erst ab jetzt festgehalten; die bisherigen Vorgänge zählen nur in den Summen oben.')
-    + ' Gleiche Kennung = dieselbe Mail, erneut versucht.'
+      ? 'Einzelheiten werden seit ' + seit + ' festgehalten; ältere Vorgänge zählen nur in den Summen oben. '
+      : '')
+    + 'Gleiche Kennung = dieselbe Mail, erneut versucht.'
     + (r.gekuerzt ? ' Gezeigt werden die neuesten 500.' : '');
   if (!liste.length) {
     tb.innerHTML = '<tr><td colspan="5" style="color:#888">Keine Einzelvorgänge im Zeitraum.</td></tr>';

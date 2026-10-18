@@ -5,6 +5,66 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.176 — 2026-10-19 — Postfach-Status: Graph-Zugriff und Abwesenheit je Postfach, Key-Vault-Probe täglich
+
+### Neu: Graph-Zugriff je Postfach
+
+Der Status je Postfach hat einen Punkt **Graph-Zugriff**. Er liest die Kennung
+des Posteingangs und zeigt so, ob die App per Graph auf das Postfach zugreifen
+darf. Darüber laufen Zustellung und Ablage in den Modi Graph-only und Graph++.
+
+Bei Postfächern mit Premium-Lizenz (etwa Microsoft 365 Copilot) verlangt
+Exchange *RBAC for Applications*. Fehlt die Zuweisung, antwortet Graph für
+genau dieses Postfach mit 403 „[RAOP]“, während andere Postfächer derselben App
+funktionieren. Post dieses Absenders blieb dann ohne Meldung liegen, und
+`Test-ApplicationAccessPolicy` zeigt diesen Fall nicht an. Jetzt erscheint er als
+Fehler mit dem Weg: *Postfächer → Speichern* legt die Zuweisung an, wenn die
+App-Zugriffsbeschränkung eingeschaltet ist.
+
+### Add-in-Fassung: kürzer, mit Datum zum Abgleich
+
+Die Warnung zur Add-in-Fassung ist kürzer und nennt, seit wann die neue
+Fassung ausgeliefert wird, etwa *„Signatur automatisch: 1.9.164 statt 1.9.167
+(seit 17.10.2026)“*. Das Admin Center zeigt weder eine Versionsnummer noch, ob
+ein Update bestätigt ist. Der einzige Anhaltspunkt ist die Spalte *Last
+modified* unter *Integrierte Apps*. Liegt sie vor diesem Datum, ist das Add-in
+dort noch nicht aktualisiert. Ist sie gleich oder später, läuft die
+Verteilung, laut Microsoft bis zu 72 Stunden. Das Datum stammt aus dem
+gespeicherten Stand des Manifests, bei älteren Ständen aus dem Changelog.
+
+### Neu: Abwesenheit je Postfach
+
+Mit eingeschalteter zentraler Abwesenheit zeigt der Punkt **Abwesenheit**, ob
+das Gateway die Abwesenheitseinstellung des Postfachs lesen und damit setzen
+darf. Ein 403 führt zur Berechtigungsprüfung unter *Abwesenheit →
+Einstellungen*.
+
+### Key-Vault-Probe höchstens einmal am Tag
+
+Die Prüfung *Key Vault* ruft je Postfach einmal die Sign-API auf. Bei der
+Prüfung alle 30 Minuten waren das 48 Aufrufe je Postfach und Tag. Ein Erfolg
+gilt jetzt 24 Stunden. Nach einem Fehler wird bei jedem Lauf neu geprüft,
+damit eine Behebung sofort sichtbar wird.
+
+### Fehler: Status abgeschalteter Postfächer blieb stehen
+
+Wurde ein Postfach abgeschaltet, blieb sein letzter Status mit Datum und
+Zustand erhalten und wurde nie wieder geprüft. Ein solcher Eintrag mit
+„Fehler“ blieb monatelang sichtbar. Der regelmäßige Lauf über alle Postfächer
+entfernt jetzt den Status von Postfächern, die nicht mehr konfiguriert sind.
+
+### SMTP-Relay: zwei veraltete Hinweise
+
+„Das Sendeaufkommen … steht **jetzt** in der Statistik“ und „Einzelheiten
+werden **erst ab jetzt** festgehalten“ stammten aus der Einführung dieser
+Funktionen und ergaben danach keinen Sinn mehr. Der erste Satz steht jetzt
+ohne „jetzt“. Der zweite entfällt, solange noch kein Einzelvorgang erfasst ist.
+
+**Zu tun:** nichts. Die neuen Punkte erscheinen mit der nächsten
+Postfachprüfung (automatisch oder *Postfächer → Status aktualisieren*).
+
+---
+
 ## v1.9.175 — 2026-10-18 — Postfach-Status: Fassung der Outlook-Add-ins; Filter nach Signatur und S/MIME
 
 ### Neu: Welche Add-in-Fassung hat Exchange dem Postfach ausgeliefert?

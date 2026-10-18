@@ -358,7 +358,12 @@ def _manifest_version(inhalt: str, schluessel: str = "_ADDIN_MANIFEST_STAND",
         teile = (list(_versionstupel(alt)) + [0, 0, 0, 0])[:stellen]
         teile[-1] += 1
         neu = ".".join(str(t) for t in teile)
-    settings_store.force_update({schluessel: {"hash": h, "version": neu}})
+    # `seit`: Tag der neuen Fassung — der Postfach-Status nennt ihn, damit der
+    # Admin ihn mit „Last modified“ unter Integrierte Apps vergleichen kann
+    # (eine Versionsnummer zeigt das Admin Center nicht).
+    import datetime as _dt
+    settings_store.force_update({schluessel: {"hash": h, "version": neu,
+                                              "seit": _dt.date.today().isoformat()}})
     return neu
 
 

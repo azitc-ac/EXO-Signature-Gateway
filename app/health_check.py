@@ -359,8 +359,27 @@ def _addin_soll() -> list[dict]:
             continue
         kennung = _addin_id_aus_adresse(art)
         if kennung:
-            soll.append({"name": name, "id": str(kennung), "version": str(stand["version"])})
+            soll.append({"name": name, "id": str(kennung), "version": str(stand["version"]),
+                         "seit": str(stand.get("seit") or _versionsdatum(stand["version"]))})
     return soll
+
+
+_CHANGELOG = Path(__file__).resolve().parent / "CHANGELOG.md"      # im Image: /app/CHANGELOG.md
+if not _CHANGELOG.exists():
+    _CHANGELOG = Path(__file__).resolve().parent.parent / "CHANGELOG.md"
+
+
+def _versionsdatum(version: str) -> str:
+    """Datum einer Gateway-Version laut Changelog (ISO) — Rückfall für einen
+    Add-in-Stand ohne `seit` (vor v1.9.176). 1.9.146.1 zählt als 1.9.146."""
+    import re
+    kern = ".".join(str(version).split(".")[:3])
+    try:
+        text = _CHANGELOG.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+    m = re.search(r"^## v" + re.escape(kern) + r" — (\d{4}-\d{2}-\d{2})", text, re.M)
+    return m.group(1) if m else ""
 
 
 def _versionstupel(v: str) -> tuple[int, ...]:
@@ -392,14 +411,20 @@ def _check_addins(installiert: dict | None) -> dict:
             teile.append(f"{a['name']}: nicht installiert")
         elif _versionstupel(ist) < _versionstupel(a["version"]):
             alt.append(a["name"])
-            teile.append(f"{a['name']}: {ist} installiert, aktuell {a['version']}")
+            seit = ""
+            if a.get("seit"):
+                j, m, t = a["seit"].split("-")
+                seit = f" (seit {t}.{m}.{j})"
+            teile.append(f"{a['name']}: {ist} statt {a['version']}{seit}")
         else:
             teile.append(f"{a['name']}: {ist}")
     text = " · ".join(teile)
     if alt:
-        return _make_result("warn", text + " — Microsoft verteilt eine neue Fassung in 24–72 h "
-                            "nach „Aktualisieren“ unter Microsoft 365 Admin Center → Integrierte Apps. "
-                            "Bleibt es länger alt, dort prüfen, ob das Update bestätigt ist.")
+        # Kurz halten (Handy). Der Abgleich „Last modified“ ↔ „seit“ steht im
+        # Changelog v1.9.176; das Admin Center zeigt keine Versionsnummer.
+        return _make_result("warn", text + ". Integrierte Apps → Add-in → Aktualisieren; "
+                            "„Last modified“ vor diesem Datum = noch nicht aktualisiert. "
+                            "Danach bis 72 h.")
     if fehlt == len(soll):
         return _make_result("skip", text)
     return _make_result("ok", text)
@@ -518,6 +543,79 @@ async def _check_kv_sign(email: str) -> dict:
         return _make_result("error", f"Sign API Fehler: {exc}")
 
 
+# ── Check: Graph-Zugriff auf das Postfach ─────────────────────────────────────
+
+def _graph_fehlertext(resp) -> str:
+    try:
+        return str(resp.json().get("error", {}).get("message") or "")[:200]
+    except Exception:                                          # noqa: BLE001
+        return (resp.text or "")[:200]
+
+
+async def _check_graph_postfach(email: str, token: str | None) -> dict:
+    """Darf die App per Graph auf dieses Postfach zugreifen?
+
+    Darüber laufen Zustellung und Ablage (Modi graph/graph_plus). Postfächer mit
+    Premium-Lizenzen (z. B. Copilot) verlangen RBAC for Applications; ohne
+    Zuweisung antwortet Graph 403 „[RAOP]“, während andere Postfächer derselben
+    App funktionieren — Post dieses Absenders blieb dann still liegen
+    (VM 06./07.09.2026). `Test-ApplicationAccessPolicy` erkennt das NICHT, nur
+    ein echter Aufruf. Gelesen wird nur die Kennung des Posteingangs."""
+    if not token:
+        return _make_result("skip", "Kein Graph-Token")
+    import httpx
+    url = f"https://graph.microsoft.com/v1.0/users/{email}/mailFolders/inbox?$select=id"
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(url, headers={"Authorization": f"Bearer {token}"})
+    except Exception as exc:                                   # noqa: BLE001
+        return _make_result("skip", f"Graph nicht erreichbar: {exc}"[:200])
+    if resp.status_code == 200:
+        return _make_result("ok", "Graph darf auf das Postfach zugreifen")
+    text = _graph_fehlertext(resp)
+    if resp.status_code == 403:
+        hilfe = ("Bei Postfächern mit Premium-Lizenz (z. B. Copilot) verlangt Exchange "
+                 "RBAC for Applications: Postfächer → Speichern legt die Zuweisung an, "
+                 "wenn die App-Zugriffsbeschränkung eingeschaltet ist.")
+        return _make_result("error", f"Graph verweigert den Zugriff (403): {text} — {hilfe}")
+    return _make_result("warn", f"Graph antwortet {resp.status_code}: {text}")
+
+
+async def _check_abwesenheit(email: str, token: str | None) -> dict:
+    """Kann das Gateway die Abwesenheit dieses Postfachs lesen (und damit setzen)?
+    Nur mit eingeschalteter zentraler Abwesenheit."""
+    if not settings_store.get("ABWESENHEIT_AKTIV"):
+        return _make_result("skip", "Zentrale Abwesenheit ausgeschaltet")
+    if not token:
+        return _make_result("skip", "Kein Graph-Token")
+    import abwesenheit
+    zustand, _ = await abwesenheit._get_setting(email, token)
+    if zustand == "ok":
+        return _make_result("ok", "Abwesenheit lesbar")
+    if zustand == "kein_zugriff":
+        return _make_result("error", "Kein Zugriff auf die Abwesenheit (403) — Berechtigung "
+                            "MailboxSettings.ReadWrite prüfen: Abwesenheit → Einstellungen")
+    return _make_result("warn", "Abwesenheit nicht lesbar (siehe Protokoll)")
+
+
+# Die Sign-API-Probe kostet je Postfach einen Key-Vault-Aufruf. Ein Erfolg gilt
+# einen Tag; ein Fehler wird bei jedem Lauf neu geprüft, damit die Behebung
+# sofort sichtbar wird.
+_KV_GUELTIG = 24 * 3600
+
+
+def _kv_frisch(alt: dict | None) -> dict | None:
+    if not alt or alt.get("status") != "ok" or not alt.get("checked_at"):
+        return None
+    try:
+        t = datetime.strptime(alt["checked_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+    if (datetime.now(timezone.utc) - t).total_seconds() < _KV_GUELTIG:
+        return alt
+    return None
+
+
 # ── Overall status ────────────────────────────────────────────────────────────
 
 def _compute_overall(checks: dict) -> str:
@@ -595,6 +693,12 @@ async def run_checks_for_mailbox(email: str, exo_data: dict | None = None) -> di
     else:
         checks["template"] = _make_result("skip", "Signatur nicht aktiviert")
 
+    # Graph-Zugriff und Abwesenheit — ein Token für beide
+    import graph_client
+    token = await graph_client._acquire_token_async()
+    checks["graph_postfach"] = await _check_graph_postfach(email, token)
+    checks["abwesenheit"] = await _check_abwesenheit(email, token)
+
     # 5. smime_cert
     if smime_active:
         checks["smime_cert"] = _check_smime_cert(email)
@@ -614,9 +718,12 @@ async def run_checks_for_mailbox(email: str, exo_data: dict | None = None) -> di
     import smime_store as _sst
     key_loc = _sst.default_key_location(email)   # local | kv_backup | kv | none
     if kv_url and smime_active and key_loc in ("kv", "kv_backup"):
-        res = await _check_kv_sign(email)
-        if res.get("status") == "ok" and key_loc == "kv_backup":
-            res = _make_result("ok", "Sign API erreichbar (Key Vault + lokales Backup)")
+        alt = ((settings_store.get("MAILBOX_HEALTH") or {}).get(email) or {}).get("checks", {})
+        res = _kv_frisch(alt.get("kv_sign"))
+        if res is None:
+            res = await _check_kv_sign(email)
+            if res.get("status") == "ok" and key_loc == "kv_backup":
+                res = _make_result("ok", "Sign API erreichbar (Key Vault + lokales Backup)")
         checks["kv_sign"] = res
     elif smime_active and key_loc == "local":
         checks["kv_sign"] = _make_result("skip", "Lokaler Schlüssel — nicht in Key Vault")
@@ -647,6 +754,23 @@ async def run_checks_for_mailbox(email: str, exo_data: dict | None = None) -> di
 
 # ── All mailboxes ─────────────────────────────────────────────────────────────
 
+def _veraltete_entfernen(aktuell: list[str]) -> None:
+    """Status von Postfächern löschen, die nicht mehr konfiguriert sind.
+
+    Ein abgeschaltetes Postfach behielt seinen letzten Status — auf der VM
+    standen zwei Einträge vom 30.06. mit „Fehler“, die nie wieder geprüft
+    wurden. Nur im Lauf über ALLE Postfächer (eine Teilliste sagt nichts
+    darüber, was sonst noch konfiguriert ist)."""
+    health: dict = dict(settings_store.get("MAILBOX_HEALTH") or {})
+    soll = {e.lower() for e in aktuell}
+    weg = [e for e in health if e.lower() not in soll]
+    if weg:
+        for e in weg:
+            health.pop(e, None)
+        settings_store.force_update({"MAILBOX_HEALTH": health})
+        log.info("health_check: Status nicht mehr konfigurierter Postfächer entfernt: %d", len(weg))
+
+
 async def run_all_checks(emails: list[str] | None = None) -> dict:
     """
     Run checks for all configured mailboxes (or given list).
@@ -657,6 +781,7 @@ async def run_all_checks(emails: list[str] | None = None) -> dict:
     mailbox_config: dict = settings_store.get("MAILBOX_CONFIG") or {}
     if emails is None:
         emails = mailbox_match.configured_addresses(mailbox_config)
+        _veraltete_entfernen(emails)
     if not emails:
         log.info("health_check: no mailboxes configured — skipping")
         return {}
