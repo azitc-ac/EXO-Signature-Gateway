@@ -179,6 +179,18 @@ async function ankerAnwenden() {
         <option value="shared">Shared</option>
         <option value="resource">Raum &amp; Gerät</option>
       </select>
+      <select id="mb-sig-filter" onchange="filterMailboxes()" aria-label="Nach Signatur filtern"
+              style="padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px">
+        <option value="">Signatur: alle</option>
+        <option value="an">Signatur aktiviert</option>
+        <option value="aus">Signatur nicht aktiviert</option>
+      </select>
+      <select id="mb-smime-filter" onchange="filterMailboxes()" aria-label="Nach S/MIME filtern"
+              style="padding:5px 8px;border:1px solid #d1d5db;border-radius:4px;font-size:13px">
+        <option value="">S/MIME: alle</option>
+        <option value="an">S/MIME aktiviert</option>
+        <option value="aus">S/MIME nicht aktiviert</option>
+      </select>
       <span id="mb-filter-count" style="font-size:12px;color:#64748b"></span>
     </div>
     <div style="display:flex;gap:18px;margin-bottom:10px;flex-wrap:wrap">
@@ -969,15 +981,21 @@ var _hasHealthData = false;
 
 var _CHECK_LABELS = {
   exo_mailbox: 'EXO-Postfach', dg_member: 'DG-Mitglied', imap_permission: 'IMAP-Berechtigung',
-  template: 'Vorlage', smime_cert: 'S/MIME Zertifikat', smime_key: 'S/MIME Key', kv_sign: 'Key Vault'
+  template: 'Signatur', smime_cert: 'S/MIME Zertifikat', smime_key: 'S/MIME Key', kv_sign: 'Key Vault',
+  addins: 'Outlook-Add-ins'
 };
+
+// Zustände aus health_check._make_result — jeder muss hier stehen
+// (tests/test_postfachstatus_anzeige.py). Bis v1.9.174 stand hier „warning“,
+// geliefert wird aber „warn“: Warnungen erschienen grau mit „?“.
+var _STATUS_FARBE = {ok:'#15803d', warn:'#d97706', fixed:'#d97706', error:'#dc2626', skip:'#94a3b8'};
+var _STATUS_ZEICHEN = {ok:'●', warn:'⚠', fixed:'⚠', error:'✗', skip:'–'};
+var _STATUS_TEXT = {ok:'● OK', warn:'⚠ Warnung', fixed:'⚠ Behoben', error:'✗ Fehler', skip:'– entfällt'};
 
 function _healthBadge(mb) {
   if (!mb.health_overall) return '<span style="color:#bbb;font-size:16px" title="Noch nicht geprüft">–</span>';
-  var colorMap = {ok:'#16a34a', warning:'#d97706', error:'#dc2626'};
-  var symbolMap = {ok:'●', warning:'⚠', error:'✗'};
-  var color = colorMap[mb.health_overall] || '#888';
-  var sym = symbolMap[mb.health_overall] || '?';
+  var color = _STATUS_FARBE[mb.health_overall] || '#888';
+  var sym = _STATUS_ZEICHEN[mb.health_overall] || '?';
   var ts = mb.health_checked ? ' (geprüft: ' + new Date(mb.health_checked).toLocaleTimeString('de-DE') + ')' : '';
   return '<span style="color:' + color + ';font-size:16px;font-weight:700;vertical-align:middle" title="' + mb.health_overall + ts + '">' + sym + '</span>' +
     ' <button onclick="showHealthModal(_mbData[' + mb._idx + '])" ' +
@@ -992,8 +1010,8 @@ function showHealthModal(mb) {
   var checks = mb.health_checks || {};
   var rows = Object.entries(checks).map(function(entry) {
     var key = entry[0]; var c = entry[1];
-    var sColor = {ok:'#16a34a', warning:'#d97706', error:'#dc2626'}[c.status] || '#888';
-    var sSym = {ok:'● OK', warning:'⚠ Warnung', error:'✗ Fehler'}[c.status] || c.status;
+    var sColor = _STATUS_FARBE[c.status] || '#888';
+    var sSym = _STATUS_TEXT[c.status] || c.status;
     return '<tr style="border-bottom:1px solid #f0f0f0">' +
       '<td style="padding:6px 10px;font-size:12px;font-weight:600;white-space:nowrap">' + (_CHECK_LABELS[key] || key) + '</td>' +
       '<td style="padding:6px 8px;font-size:12px;color:' + sColor + ';white-space:nowrap;font-weight:700">' + sSym + '</td>' +
@@ -1249,16 +1267,26 @@ function filterMailboxes() {
   var typF = document.getElementById('mb-type-filter');
   var q = (feld ? feld.value : '').toLowerCase();
   var typ = typF ? typF.value : '';
+  var sigF = (document.getElementById('mb-sig-filter') || {}).value || '';
+  var smimeF = (document.getElementById('mb-smime-filter') || {}).value || '';
+  // Haken in der Zeile, nicht der gespeicherte Stand: Eine noch nicht
+  // gespeicherte Änderung soll der Filter so zeigen, wie sie gleich gilt.
+  function haken(tr, cls, soll) {
+    if (!soll) return true;
+    var cb = tr.querySelector(cls);
+    return !!(cb && cb.checked) === (soll === 'an');
+  }
   var zeilen = document.querySelectorAll('#mb-tbody tr');
   var sichtbar = 0;
   zeilen.forEach(function(tr) {
-    var passt = tr.dataset.search.includes(q) && (!typ || tr.dataset.mbtype === typ);
+    var passt = tr.dataset.search.includes(q) && (!typ || tr.dataset.mbtype === typ)
+      && haken(tr, '.mb-sig', sigF) && haken(tr, '.mb-smime', smimeF);
     tr.style.display = passt ? '' : 'none';
     if (passt) sichtbar++;
   });
   var zaehler = document.getElementById('mb-filter-count');
   if (zaehler) {
-    zaehler.textContent = (q || typ)
+    zaehler.textContent = (q || typ || sigF || smimeF)
       ? sichtbar + ' von ' + zeilen.length + ' Postfächern'
       : '';
   }

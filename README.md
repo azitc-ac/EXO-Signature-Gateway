@@ -595,7 +595,7 @@ bildet `443 → 8080` ab. Alle Einstellungen werden in der Oberfläche gepflegt
 | **Dashboard** | Mail-Statistiken (Heute / Monat / Jahr), S/MIME-Zähler, Fehler, Zertifikatsablauf, System-Monitoring (RAM, Disk, Logs, In-Flight, Ø Verarbeitungszeit) |
 | **Signaturen** | Signaturen im Baukasten oder als HTML/Plaintext bearbeiten, Banner & Disclaimer, Abwesenheitsvorlagen, Vorschau; Richtlinien/Gruppen-Zuweisung; Banner-Kampagnen |
 | **Abwesenheit** | Wer gerade abwesend ist, Abwesenheit je Postfach setzen, Vorgaben für Ankündigungen (sichtbar, wenn die Funktion eingeschaltet ist) |
-| **Postfächer** | Aktivierte Postfächer verwalten, EXO-Verteilerliste synchronisieren, Zertifikate für mehrere Postfächer auf einmal bestellen (Massenoperationen) |
+| **Postfächer** | Aktivierte Postfächer verwalten, nach Typ, Signatur und S/MIME filtern, EXO-Verteilerliste synchronisieren, Zertifikate für mehrere Postfächer auf einmal bestellen (Massenoperationen); Status je Postfach (Exchange, Verteilerliste, Signatur, S/MIME, ausgelieferte Fassung der Outlook-Add-ins) |
 | **S/MIME** | Zertifikat-Import, Empfänger-Zertifikate, Azure-Key-Vault-Migration, CASTLE-ACME-Enrollment, Secure Message Portal |
 | **SMTP-Relay** | Geräte im eigenen Netz (Drucker, Scanner) über das Gateway senden lassen — Geräteliste und Lernmodus |
 | **Einstellungen** | Alle Konfigurationsoptionen, Test-Mail, Let's Encrypt, Re-inject-Modus, Entra-App, Anbindung & Lizenzen, Update & Backup |
