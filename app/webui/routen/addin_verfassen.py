@@ -189,7 +189,8 @@ async def verfassen_laufzeit_html():
     return HTMLResponse(content=html, headers={"Cache-Control": _NO_STORE})
 
 
-def _konfiguration(base: str) -> dict:
+def naa_konfiguration() -> dict:
+    """MSAL-Angaben für NAA — dieselben für das Verfassen-Add-in und den Tab."""
     import config as _config
     client_id = (settings_store.get("BOOTSTRAP_CLIENT_ID") or "").strip()
     tenant = (settings_store.get("TENANT_ID") or getattr(_config, "TENANT_ID", "") or "").strip()
@@ -197,9 +198,12 @@ def _konfiguration(base: str) -> dict:
         "clientId": client_id,
         "authority": f"https://login.microsoftonline.com/{tenant or 'organizations'}",
         "scope": sso_mod.addin_api_scope(),
-        # Absolut: Relative Adressen gehen in der JS-only-Laufzeit nicht (MS Learn).
-        "api": base + SIGNATUR_API,
     }
+
+
+def _konfiguration(base: str) -> dict:
+    # Absolut: Relative Adressen gehen in der JS-only-Laufzeit nicht (MS Learn).
+    return {**naa_konfiguration(), "api": base + SIGNATUR_API}
 
 
 @router.get(LAUFZEIT_JS)
@@ -271,3 +275,42 @@ async def verfassen_signatur(request: Request):
     sig_html, _txt = signature_engine.render(user_data, vorlage)
     log.info("Verfassen-Add-in: Signatur %r für %s geliefert (%s)", vorlage, email, plattform)
     return JSONResponse({"html": markiert(sig_html) if sig_html else ""}, headers=_CORS)
+
+
+# ── Tab (Teams/Outlook): Anmeldung per NAA ─────────────────────────────────────
+# Der Tab meldete sich bisher nur über ein Anmeldefenster an
+# (`authentication.authenticate`). Das ist eine Webanmeldung ohne Broker: Auf
+# dem Handy fragt sie nach dem Benutzernamen, statt das Konto des Authenticators
+# zu nehmen. Mit NAA holt der Tab still ein Zugriffstoken über das Konto, mit
+# dem Teams bzw. Outlook angemeldet ist, und tauscht es hier gegen dasselbe
+# Sitzungsmerkmal, das das Anmeldefenster liefert. Das Fenster bleibt als
+# Rückfall.
+
+TAB_SITZUNG_API = "/addin/tab/sitzung"
+
+
+@router.post(TAB_SITZUNG_API)
+async def tab_sitzung(request: Request):
+    """NAA-Zugriffstoken → Self-Service-Sitzungsmerkmal (als `X-Addin-Session`).
+
+    Bewusst NUR die Rolle `ROLE_SELF`, auch für Verwalter: Der Tab braucht
+    nichts anderes, und ein Bearer-Token soll keine Verwaltungssitzung
+    eröffnen. Wer verwalten will, meldet sich über das Fenster an. Ohne
+    freigeschalteten Self-Service (oder ohne betreutes Postfach) 403 — der Tab
+    bietet dann das Anmeldefenster an.
+    """
+    from webui.deps import self_service_rolle
+    kopf = request.headers.get("authorization") or ""
+    claims = sso_mod.verify_access_token(kopf[7:].strip()) if kopf[:7].lower() == "bearer " else None
+    if not claims:
+        return JSONResponse({"detail": "Nicht angemeldet"}, status_code=401,
+                            headers={"Cache-Control": _NO_STORE})
+    email = (claims.get("preferred_username") or claims.get("upn") or "").strip().lower()
+    rolle = self_service_rolle(email) if "@" in email else None
+    if rolle != sso_mod.ROLE_SELF:
+        log.info("Tab-Anmeldung per NAA: %s ohne Self-Service — Anmeldefenster nötig", email or "?")
+        return JSONResponse({"detail": "Kein Self-Service"}, status_code=403,
+                            headers={"Cache-Control": _NO_STORE})
+    log.info("Tab-Anmeldung per NAA: %s", email)
+    return JSONResponse({"token": sso_mod.create_session_cookie(email, role=sso_mod.ROLE_SELF)},
+                        headers={"Cache-Control": _NO_STORE})

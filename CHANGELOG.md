@@ -5,6 +5,36 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.170 — 2026-10-18 — Tab: Anmeldung über das Konto von Teams/Outlook (NAA)
+
+Der Self-Service-Tab in Teams und Outlook meldete sich bisher nur über ein
+Anmeldefenster an. Dieses Fenster ist eine Webanmeldung ohne Broker: Auf dem
+Handy fragte es nach dem Benutzernamen, statt das Konto aus dem Authenticator
+zu nehmen. Auch am Rechner kam bei jeder neuen Sitzung erst der Knopf
+„Anmelden“.
+
+Jetzt versucht der Tab zuerst eine stille Anmeldung per Nested App
+Authentication (NAA): Teams bzw. Outlook reichen ein Zugriffstoken des Kontos
+durch, mit dem sie selbst angemeldet sind. Das Gateway prüft es wie beim
+Verfassen-Add-in (Signatur, Aussteller, Tenant, eigene App, Bereich
+`access_as_user`) und gibt dafür eine Self-Service-Sitzung aus. Es erscheint
+kein Fenster und keine Eingabe.
+
+- Die so entstandene Sitzung trägt **immer nur die Self-Service-Rolle**, auch
+  wenn du Verwalter bist. Ein durchgereichtes Token eröffnet keine
+  Verwaltungssitzung.
+- Ist Self-Service ausgeschaltet oder dein Postfach nicht vom Gateway
+  betreut, oder gibt der Host kein Token heraus, bleibt es beim bisherigen
+  Knopf mit dem Anmeldefenster. Der stille Versuch läuft je Aufruf nur einmal.
+- Am Teams-App-Paket ändert sich nichts. Du musst es nicht neu hochladen.
+
+Zu tun hast du nichts: NAA nutzt dieselbe App-Registrierung wie das
+Verfassen-Add-in (SPA-Umleitung `brk-multihub://<dein Host>`, Bereich
+`access_as_user`). Ist das Verfassen-Add-in eingerichtet, ist auch der Tab
+vorbereitet.
+
+---
+
 ## v1.9.169 — 2026-10-18 — Banner und Disclaimer unabhängig von der Signatur
 
 ### Fehler: Mit dem Verfassen-Add-in fehlten Banner und Disclaimer

@@ -89,6 +89,8 @@ const GLOBALS = new Set([
   'Office', 'OfficeRuntime', 'Excel', 'Word', 'Outlook',
   // TeamsJS (Tab in der linken Leiste, als externes Skript geladen)
   'microsoftTeams',
+  // MSAL (NAA im Tab; Verfassen-Add-in), als statisches Skript geladen
+  'msal',
 ]);
 
 // ── Vorlage → prüfbares JavaScript ────────────────────────────────────────────

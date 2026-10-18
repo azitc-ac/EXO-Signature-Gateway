@@ -166,12 +166,17 @@ async def self_page(request: Request):
     # gültige Sitzung liefern die APIs 401 und die Seite leitet zur Anmeldung.
     # ?host=teams: als Tab in der linken Leiste (Teams-App-Paket, contentUrl).
     # Dann lädt die Seite TeamsJS und meldet sich darüber an.
+    # Im Tab zusätzlich MSAL + NAA-Angaben: still anmelden über das Konto des
+    # Hosts (auf dem Handy der Authenticator), Fenster nur als Rückfall.
     from webui.routen.addin import TEAMSJS_SRI, TEAMSJS_URL
+    from webui.routen.addin_verfassen import MSAL_DATEI, TAB_SITZUNG_API, naa_konfiguration
     resp = templates.TemplateResponse(
         request=request, name="self.html",
         context={"gateway_name": _gateway_name(),
                  "im_teams": request.query_params.get("host") == "teams",
-                 "teamsjs_url": TEAMSJS_URL, "teamsjs_sri": TEAMSJS_SRI},
+                 "teamsjs_url": TEAMSJS_URL, "teamsjs_sri": TEAMSJS_SRI,
+                 "msal_url": "/static/vendor/" + MSAL_DATEI.name,
+                 "naa": {**naa_konfiguration(), "sitzung": TAB_SITZUNG_API}},
     )
     resp.headers["Cache-Control"] = _NO_STORE   # in Outlook-WebView nie cachen
     return resp
