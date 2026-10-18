@@ -5,6 +5,32 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.174 — 2026-10-18 — README mit Bildern; Self-Service-Vorschau ohne doppelte Grußformel
+
+### README
+
+Die Funktionsübersicht zeigt die wichtigsten Seiten jetzt als Bilder:
+Baukasten mit Live-Vorschau, Abwesenheits-Übersicht, Self-Service am Handy
+(auch im Dunkelmodus), Postfächer, S/MIME und SMTP-Relay. Die Bilder entstehen
+mit Beispieldaten aus `tools/readme_screenshots.py` und lassen sich damit nach
+Änderungen an der Oberfläche neu erzeugen.
+
+Neu beschrieben sind das Verfassen-Add-in (Signatur automatisch beim
+Verfassen, auch in Outlook für iOS und Android), die stille Anmeldung in der
+App, der Dunkelmodus im Self-Service, `#nosig` samt der Wahl, was Banner und
+Disclaimer dabei tun, die Abnahme, die Berechtigungsprüfung, die anpassbaren
+Mails an Nutzer und `X-Robots-Tag`.
+
+### Self-Service
+
+- Die Signatur-Vorschau zeigte die Grußformel doppelt: einmal im Mustertext der
+  Beispiel-Mail und einmal aus der Signatur selbst. Der Mustertext endet jetzt
+  ohne Grußformel; sie kommt allein aus der Vorlage, wie in der echten Mail.
+- Das Zahlenfeld für die Anzahl angekündigter Abwesenheiten hat denselben
+  Rahmen und Innenabstand wie die übrigen Felder.
+
+**Zu tun:** nichts.
+
 ## v1.9.173 — 2026-10-18 — Einrichtung bereitet die Anmeldung ohne Fenster (NAA) selbst vor
 
 Das Verfassen-Add-in (seit v1.9.164) und die stille Anmeldung im

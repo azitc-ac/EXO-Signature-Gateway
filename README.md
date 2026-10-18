@@ -22,7 +22,14 @@ Exchange Online bietet serverseitige Transportregeln für Disclaimer – diese s
 - **Signatur-Baukasten** — Signaturen aus Bausteinen zusammensetzen (Name, Kontaktzeilen, Logo, Trennlinie, Zwei-Spalten, Kasten mit runden Ecken, Social-Links, Anschrift, Badge, freies HTML) mit Live-Vorschau in der Weboberfläche.
 - **HTML → Baukasten (Rück-Konvertierung)** — bestehendes Signatur-HTML wird in bearbeitbare Bausteine zerlegt: eine vorhandene Signatur übernehmen statt neu bauen.
 - **Eingebettete Logos** — hochgeladene Bilder werden als Base64-Data-URI eingebettet (kein externes Hotlinking; rendert in Outlook und offline).
-- **Banner & Disclaimer** — eigene Banner- und Disclaimer-Vorlagen, unabhängig von der Signatur zuweisbar.
+- **Banner & Disclaimer** — eigene Banner- und Disclaimer-Vorlagen, unabhängig von der Signatur zuweisbar. Sie kommen immer vom Gateway beim Versand, auch wenn die Signatur schon beim Verfassen eingefügt wurde.
+- **`#nosig` im Betreff** — die Mail geht ohne Signatur hinaus; einstellbar, ob Banner und/oder Disclaimer trotzdem bleiben. Dasselbe lässt sich für Antworten in einer schon signierten Kette festlegen.
+
+<img src="docs/screenshots/vorlagen-editor.png" width="820" alt="Vorlagen-Editor: Baukasten links, Live-Vorschau mit Banner und Disclaimer rechts">
+
+<img src="docs/screenshots/baukasten-mit-logo.png" width="820" alt="Baukasten: Zwei-Spalten-Baustein aufgeklappt, links Name und Kontaktzeilen, rechts das Logo">
+
+<img src="docs/screenshots/baukasten-kompakt.png" width="820" alt="Baukasten: Bausteine Name und Telefon aufgeklappt mit ihren Einstellungen">
 
 ### Zuweisung & Richtlinien
 - **Pro Postfach oder per Richtlinie** — Signatur, Antwort-Signatur, Banner, Disclaimer und Add-in-Vorlage global, je Postfach oder je **Gruppe** zuweisen (interne Postfach-Gruppen, „erste Regel gewinnt").
@@ -31,6 +38,10 @@ Exchange Online bietet serverseitige Transportregeln für Disclaimer – diese s
 
 ### Abwesenheit (Out of Office)
 Zuschaltbar unter *Einrichtung → Modus & Funktionen* (Vorgabe aus).
+
+Die Abwesenheit ist zentral verwaltet und trotzdem die ganz normale Exchange-Abwesenheit: Die Übersicht liest den **Live-Zustand aus Exchange** — auch Abwesenheiten, die jemand selbst in Outlook gesetzt hat —, zeigt die gewählte Vorlage, den Zeitraum und die Kalenderkopplung und lässt neue Abwesenheiten direkt setzen. Text, Signatur und Banner kommen aus denselben Vorlagen wie die Signaturen. Diese Kombination aus Live-Übersicht, Kalenderkopplung, Ankündigung künftiger Abwesenheiten und Signaturverwaltung in einem Produkt haben wir bei anderen Anbietern nicht gefunden (Stand 10/2026).
+
+<img src="docs/screenshots/abwesenheit-uebersicht.png" width="820" alt="Abwesenheits-Übersicht: wer abwesend ist, mit Vorlage, Zeitraum, Kalender und Ankündigung">
 - **Einheitlicher Abwesenheitstext** — eine Vorlage der Art *Abwesenheit* (Baukasten wie bei Signaturen, mit Zeitraum-Platzhaltern und der Signatur darunter) wird per Graph in die native Exchange-Abwesenheit geschrieben. Ein- und ausgeschaltet wird wie gewohnt in Outlook oder im Self-Service; Exchange verschickt die Antwort selbst.
 - **Zuweisung** global, je Gruppe oder je Postfach — wie bei Signaturen.
 - **Aus dem Kalender** (opt-in, je Postfach übersteuerbar) — ein Termin „Abwesend“ schaltet die Abwesenheit für seinen Zeitraum ein.
@@ -41,7 +52,15 @@ Zuschaltbar unter *Einrichtung → Modus & Funktionen* (Vorgabe aus).
 ### Self-Service für Mitarbeitende
 - **Eigene Abwesenheit und Signatur** — drei Reiter: *Abwesenheit* (an/aus, Zeitraum, Vorlage), *Signatur* (unter jeder neuen Mail und ggf. unter der Abwesenheitsnotiz) und *Antwort-Signatur* (ab der 2. eigenen Mail im Verlauf, auch *keine*). Jeder Reiter hat eine eigene Vorschau als Beispiel-Mail und einen eigenen Speichern-Knopf. Die Wahl der eigenen Vorlagen ist standardmäßig gesperrt und je Postfach oder Gruppe freischaltbar.
 - **Drei Zugänge, eine Seite** — im Browser unter `/self`, als Knopf beim Lesen einer Mail im Outlook-Add-in und als App in der linken Leiste von Outlook (Web, Windows klassisch und neu, iOS, Android) und Teams. Die App wird als Paket unter *Integrierte Apps* hochgeladen.
-- **Anmeldung über Entra ID**; die Self-Service-Rolle erreicht nur das eigene Postfach. Schalter `SELF_SERVICE_ENABLED` (Vorgabe aus): ohne ihn ist die Seite reine Anzeige.
+- **Anmeldung über Entra ID**; die Self-Service-Rolle erreicht nur das eigene Postfach. In der App in Outlook und Teams läuft die Anmeldung still über die Anmeldung der App (Nested App Authentication), ein Anmeldefenster erscheint nur noch als Rückfall. Schalter `SELF_SERVICE_ENABLED` (Vorgabe aus): ohne ihn ist die Seite reine Anzeige.
+- **Hell oder dunkel** — nach eigener Wahl (Knopf oben rechts), sonst nach dem Design von Teams bzw. Outlook oder des Systems. Die Vorschau der Mail bleibt hell, so wie der Empfänger sie sieht.
+
+<p>
+<img src="docs/screenshots/self-abwesenheit.png" width="270" alt="Self-Service am Handy: eigene Abwesenheit mit Zeitraum und Vorlage">
+<img src="docs/screenshots/self-abwesenheit-vorschau.png" width="270" alt="Self-Service: Vorschau der Abwesenheitsnotiz als Beispiel-Mail">
+<img src="docs/screenshots/self-signatur-dunkel.png" width="270" alt="Self-Service im Dunkelmodus: Signatur-Vorschau">
+<img src="docs/screenshots/self-antwort.png" width="270" alt="Self-Service: Antwort-Signatur wählen">
+</p>
 
 ### Intelligente Mailverarbeitung
 - **Antworterkennung** — die Signatur steht vor dem zitierten Text, nicht gestapelt am Ende; eine bereits im Thread vorhandene Signatur wird nicht doppelt eingefügt.
@@ -57,14 +76,27 @@ Zuschaltbar unter *Einrichtung → Modus & Funktionen* (Vorgabe aus).
 - **Empfänger-Zertifikate einsammeln** — öffentliche Zertifikate externer Korrespondenten werden aus eingehender signierter Post gewonnen, sodass sich später ohne manuellen Import an sie verschlüsseln lässt.
 - **Secure Message Portal** — hat ein Empfänger kein Zertifikat, kann verschlüsselte Post über ein sicheres Web-Portal (mit E-Mail-Einmalcode) zugestellt werden, statt zu scheitern oder im Klartext zu gehen.
 
+<img src="docs/screenshots/smime-zertifikate.png" width="820" alt="S/MIME: Signaturzertifikate je Postfach mit Aussteller und Ablauf">
+
+<img src="docs/screenshots/smime-empfaenger.png" width="820" alt="S/MIME: eingesammelte Empfänger-Zertifikate">
+
 ### Betrieb
 - **Massenoperationen** — viele Postfächer auf einmal aktivieren und Zertifikate für viele zugleich bestellen/ausrollen (mit Vorschau und Kontingentprüfung).
+
+<img src="docs/screenshots/postfaecher.png" width="820" alt="Postfächer: Signatur, S/MIME und Vorlagen je Postfach">
 - **SMTP-Relay** — Geräte im eigenen Netz (Drucker, Scanner, Fachanwendungen) senden über das Gateway wie über einen lokalen Exchange-Server.
+
+<img src="docs/screenshots/relay.png" width="820" alt="SMTP-Relay: Geräteliste mit Adresse, DNS-Name, Kommentar und TLS der letzten Einlieferung">
 - **Outlook-Add-in** — Signatur direkt im Outlook-Verfassenfenster vorschauen und auswählen; beim Lesen öffnet es den Self-Service. Der Bereich lässt sich anheften; im klassischen Outlook steht der Knopf auch ohne ausgewählte Mail bereit.
+- **Signatur automatisch beim Verfassen** — ein zweites Add-in fügt die Gateway-Signatur ein, sobald eine neue Mail beginnt: in Outlook im Web, unter Windows (klassisch und neu), auf dem Mac sowie in Outlook für iOS und Android (ab Version 4.2433). Die Anmeldung läuft still, ohne Fenster. In Antworten entscheidet weiter das Gateway.
+- **Abnahme** — *Einrichtung → Verbindungstest & Abnahme* prüft die Anlage als Ganzes (Außenadresse, TLS, Anmeldung, Exchange-Rechte, Postfächer, Rückweg, Vorlagen, Benachrichtigung, Add-in-Anmeldung) und nennt bei jeder Lücke, was zu tun ist.
+- **Berechtigungen prüfen und nachtragen** — der Assistent zeigt je Berechtigung der App-Registrierung, ob sie tatsächlich erteilt ist, und trägt fehlende per Admin-Anmeldung nach, ohne Secret und Zertifikat zu ändern.
+- **Anpassbare Mails an Nutzer** — Portal-Benachrichtigung, Portal-Antwort und Erneuerungsaufforderung sind Vorlagen im selben Editor wie die Signaturen.
 - **Anmeldung und Rollen** — Anmeldung über Entra ID mit den Rollen Admin, Bearbeiter (Vorlagen), Kampagnen-Manager und Self-Service; ein lokaler Notfallzugang bleibt.
 - **Dashboard & Überwachung** — Mailstatistik, S/MIME-Zähler, Zertifikatsablauf, RAM/Platte/Log-Überwachung.
 - **Selbst gehostet oder in Azure** — jeder x64/ARM64-Host (auch Raspberry Pi) oder vollständig in Azure ohne ausgehenden Port 25.
 - **Hell-/Dunkelmodus**, nutzbar bis 320 px Breite.
+- **Nicht in Suchmaschinen** — jede Antwort der Weboberfläche trägt `X-Robots-Tag: noindex, nofollow`.
 
 ---
 

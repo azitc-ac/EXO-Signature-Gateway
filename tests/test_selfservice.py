@@ -425,3 +425,15 @@ def test_signaturwechsel_frischt_abwesenheitstext_auf(monkeypatch):
     asyncio.run(selfservice.self_save(_JsonReq({"bereich": "antwort", "wahl": {"min": "Kurz"}}),
                                       email="a@x.de"))
     assert gepatcht == []
+
+
+def test_muster_der_vorschau_ohne_grussformel():
+    """Die Grußformel kommt aus der Vorlage (Baustein „Grußformel“). Steht sie
+    zusätzlich im Mustertext, zeigt die Vorschau sie doppelt."""
+    import re
+    from pathlib import Path
+    html = (Path(__file__).resolve().parents[1] / "app/webui/templates/self.html").read_text("utf-8")
+    muster = re.findall(r'<div class="muster"[^>]*>(.*?)</div>', html, re.S)
+    assert muster, "Mustertext nicht gefunden"
+    for m in muster:
+        assert not re.search(r"Gr(ü|ue)(ß|ss)e", m), m
