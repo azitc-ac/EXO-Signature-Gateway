@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.171 — 2026-10-18 — Self-Service mit Dunkelmodus
+
+Der Self-Service (im Browser, als Tab in Teams/Outlook und im Aufgabenbereich
+des Add-ins) war bisher immer hell. Jetzt richtet er sich nach dieser
+Rangfolge:
+
+1. **Deine eigene Wahl** über den neuen Knopf ☾/☀ oben rechts. Es ist dieselbe
+   Wahl wie in der Verwaltungsoberfläche, und sie wird im jeweiligen Browser
+   gemerkt.
+2. **Das Design von Teams bzw. Outlook**, wenn die Seite dort läuft. Teams
+   meldet auch einen Wechsel bei offenem Tab, und „Hoher Kontrast“ gilt als
+   dunkel. Outlook meldet keinen Namen, nur eine Hintergrundfarbe. Daraus
+   leitet die Seite hell oder dunkel ab.
+3. **Die Einstellung von System bzw. Browser.**
+
+Die Vorschau von Signatur und Abwesenheitsnotiz bleibt hell: Sie zeigt die
+Mail so, wie Empfänger sie in aller Regel sehen.
+
+---
+
 ## v1.9.170 — 2026-10-18 — Tab: Anmeldung über das Konto von Teams/Outlook (NAA)
 
 Der Self-Service-Tab in Teams und Outlook meldete sich bisher nur über ein

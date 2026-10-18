@@ -184,7 +184,7 @@ def test_aufgabenbereich_navigiert_nie_zur_anmeldeseite():
     rahmen = t[t.index("} else if (IM_RAHMEN) {"):]
     rahmen = rahmen[:rahmen.index("} else {")]
     assert "setTimeout(start" not in rahmen
-    assert "Office.onReady(function () { clearTimeout(addinWache); start(); })" in rahmen
+    assert "Office.onReady(function () { clearTimeout(addinWache); officeDesign(); start(); })" in rahmen
 
 
 def test_anmeldeabschluss_fuer_teams(client):
