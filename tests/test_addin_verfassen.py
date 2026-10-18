@@ -329,3 +329,63 @@ def test_plattform_im_protokoll_beschnitten(umgebung, rendern, caplog, roh, erwa
         asyncio.run(av.verfassen_signatur(req))
     zeile = next(r.getMessage() for r in caplog.records if "geliefert" in r.getMessage())
     assert zeile.endswith(f"({erwartet})")
+
+
+# ── Tab: NAA-Token gegen Sitzungsmerkmal ───────────────────────────────────────
+
+def _tab(auth, monkeypatch, self_service=True, admins=None):
+    from webui import deps
+    daten_get = settings_store.get
+
+    def get(k, d=None):
+        if k == "SELF_SERVICE_ENABLED":
+            return self_service
+        if k == "ADMIN_USERS":
+            return admins or []
+        return daten_get(k, d)
+    monkeypatch.setattr(settings_store, "get", get)
+    monkeypatch.setattr(sso, "_get_secret", lambda: "testgeheimnis")
+    r = asyncio.run(av.tab_sitzung(_Req(auth)))
+    return r.status_code, json.loads(r.body), r.headers, deps
+
+
+def test_tab_tauscht_naa_token_gegen_self_sitzung(umgebung, monkeypatch):
+    code, body, kopf, deps = _tab("Bearer " + _token(), monkeypatch)
+    assert code == 200
+    sitzung = sso.verify_session_cookie(body["token"])
+    assert sitzung["u"] == "erika@zarenko.net"                 # aus dem Token, klein
+    assert sitzung["r"] == sso.ROLE_SELF
+    assert "no-store" in kopf["cache-control"]
+
+
+def test_tab_gibt_auch_verwaltern_nur_self(umgebung, monkeypatch):
+    """Ein Bearer-Token eröffnet keine Verwaltungssitzung."""
+    code, body, _k, _d = _tab("Bearer " + _token(), monkeypatch,
+                              admins=[{"upn": "erika@zarenko.net", "role": "admin"}])
+    assert code == 200 and sso.verify_session_cookie(body["token"])["r"] == sso.ROLE_SELF
+
+
+@pytest.mark.parametrize("auth", [None, "Bearer ", "Basic abc", "Bearer kaputt"])
+def test_tab_ohne_gueltiges_token_401(umgebung, monkeypatch, auth):
+    code, body, _k, _d = _tab(auth, monkeypatch)
+    assert code == 401 and "token" not in body
+
+
+def test_tab_fremde_app_401(umgebung, monkeypatch):
+    code, _b, _k, _d = _tab("Bearer " + _token(azp="FREMD"), monkeypatch)
+    assert code == 401
+
+
+def test_tab_ohne_self_service_403(umgebung, monkeypatch):
+    code, body, _k, _d = _tab("Bearer " + _token(), monkeypatch, self_service=False)
+    assert code == 403 and "token" not in body
+
+
+def test_tab_nicht_betreutes_postfach_403(umgebung, monkeypatch):
+    code, body, _k, _d = _tab("Bearer " + _token(preferred_username="fremd@zarenko.net"), monkeypatch)
+    assert code == 403 and "token" not in body
+
+
+def test_tab_sitzung_ist_eine_post_route():
+    routen = {(r.path, m) for r in av.router.routes for m in getattr(r, "methods", ())}
+    assert (av.TAB_SITZUNG_API, "POST") in routen

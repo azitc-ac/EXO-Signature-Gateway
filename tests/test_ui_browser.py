@@ -1054,3 +1054,110 @@ def test_eigenes_fenster_leitet_weiter_zur_anmeldung(browser, server):
         pg.wait_for_url("**/auth/login?next=/self", timeout=8000)
     finally:
         ctx.close()
+
+
+# ── Tab: stille Anmeldung per NAA ────────────────────────────────────────────
+#
+# Anlass (17.10.2026): Im Tab auf dem iPhone bat die Anmeldung um den
+# Benutzernamen, statt das Konto des Authenticators zu nehmen —
+# `authentication.authenticate` ist eine Webanmeldung ohne Broker. Jetzt
+# versucht der Tab zuerst still NAA; das Fenster bleibt der Rückfall.
+# TeamsJS und MSAL werden hier nachgebaut.
+
+_TEAMS_NACHBAU = """
+window.__fenster = [];
+window.microsoftTeams = { app: { initialize: function () { return Promise.resolve(); } },
+  authentication: { authenticate: function (o) { window.__fenster.push(o.url);
+    return new Promise(function () {}); } } };
+"""
+
+_MSAL_NACHBAU = """
+window.__naa = [];
+window.msal = { createNestablePublicClientApplication: function (konf) {
+  window.__naa.push(konf.auth.clientId);
+  return Promise.resolve({ acquireTokenSilent: function (a) {
+    window.__naa.push(a.scopes[0]);
+    return %(still)s ? Promise.resolve({ accessToken: 'ZUGRIFF' })
+                     : Promise.reject(new Error('InteractionRequired'));
+  } });
+} };
+"""
+
+_TAB_KONTEXT = {"email": "a@x.de", "freigeschaltet": True, "abwesenheit_aktiv": True,
+                "darf_vorlagen": False, "waehlbar": {"sig": False, "min": False, "oof": False},
+                "oof_template": "K", "sig_template": "S", "standard": {}, "wahl": {}, "listen": {},
+                "ooo": {"status": "disabled"}, "announce_supported": False,
+                "announce": {"an": False, "mode": "anzahl", "x": 3, "privat": True, "extern": False},
+                "zugriff": True}
+
+
+def _tab(browser, server, monkeypatch, still=True, sitzung=200):
+    import json
+    import settings_store
+    echt = settings_store.get
+    fest = {"BOOTSTRAP_CLIENT_ID": "CID", "TENANT_ID": "TID"}
+    monkeypatch.setattr(settings_store, "get",
+                        lambda k, *a, **kw: fest[k] if k in fest else echt(k, *a, **kw))
+    from webui.routen import addin
+    tausch, kontext = [], []
+    ctx = browser.new_context(viewport={"width": 393, "height": 850})
+    # TeamsJS trägt eine Integritätsprüfung — ein Nachbau unter seiner Adresse
+    # würde blockiert. Deshalb vorab einsetzen und das CDN leer antworten lassen.
+    ctx.add_init_script(_TEAMS_NACHBAU)
+    ctx.route(addin.TEAMSJS_URL, lambda r: r.fulfill(status=404, body=""))
+    ctx.route("**/static/vendor/msal-browser-*.js", lambda r: r.fulfill(
+        status=200, content_type="application/javascript",
+        body=_MSAL_NACHBAU % {"still": "true" if still else "false"}))
+
+    def tauschen(r):
+        tausch.append(r.request.headers.get("authorization"))
+        r.fulfill(status=sitzung, content_type="application/json",
+                  body=json.dumps({"token": "SITZUNG"} if sitzung == 200 else {"detail": "x"}))
+    ctx.route("**/addin/tab/sitzung", tauschen)
+
+    def ctx_abruf(r):
+        kopf = r.request.headers.get("x-addin-session")
+        kontext.append(kopf)
+        if kopf == "SITZUNG":
+            r.fulfill(status=200, content_type="application/json", body=json.dumps(_TAB_KONTEXT))
+        else:
+            r.fulfill(status=401, content_type="application/json", body='{"detail":"x"}')
+    ctx.route("**/api/self/context", ctx_abruf)
+    ctx.route("**/api/self/preview*", lambda r: r.fulfill(
+        status=200, content_type="application/json",
+        body=json.dumps({"oof_html": "", "sig_html": "", "banner_html": "", "disclaimer_html": ""})))
+    pg = ctx.new_page()
+    pg.goto(f"{server}/self?host=teams", wait_until="domcontentloaded")
+    return ctx, pg, tausch, kontext
+
+
+def test_tab_meldet_sich_still_per_naa_an(browser, server, monkeypatch):
+    ctx, pg, tausch, kontext = _tab(browser, server, monkeypatch)
+    try:
+        pg.wait_for_selector("#inhalt:not([hidden])", timeout=8000)
+        assert pg.evaluate("() => window.__naa") == ["CID", "api://CID/access_as_user"]
+        assert tausch == ["Bearer ZUGRIFF"]
+        assert kontext == [None, "SITZUNG"]                    # 401, dann mit Sitzung
+        assert not pg.is_visible("#tab-anmelden")
+        assert pg.evaluate("() => window.__fenster") == []      # kein Fenster
+        assert pg.evaluate("() => localStorage.getItem('exo_addin_session')") == "SITZUNG"
+    finally:
+        ctx.close()
+
+
+@pytest.mark.parametrize("still,sitzung", [(False, 200), (True, 403), (True, 401)])
+def test_tab_ohne_naa_bietet_das_fenster(browser, server, monkeypatch, still, sitzung):
+    """Scheitert NAA (kein stilles Token, Gateway lehnt ab): Knopf, Klick → Fenster.
+    Und nur EIN Versuch — sonst drehte sich die Seite im Kreis."""
+    ctx, pg, tausch, kontext = _tab(browser, server, monkeypatch, still=still, sitzung=sitzung)
+    try:
+        pg.wait_for_selector("#tab-anmelden:not([hidden])", timeout=8000)
+        assert pg.evaluate("() => window.__fenster") == []      # erst auf Klick
+        pg.wait_for_timeout(300)
+        assert len(tausch) == (1 if still else 0)
+        assert kontext == [None]
+        pg.click("#tab-anmelden-btn")
+        pg.wait_for_function("() => window.__fenster.length === 1", timeout=3000)
+        assert "/auth/login/microsoft" in pg.evaluate("() => window.__fenster[0]")
+    finally:
+        ctx.close()

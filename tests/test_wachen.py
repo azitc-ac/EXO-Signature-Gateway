@@ -93,6 +93,7 @@ ERLAUBT_OHNE_ANMELDUNG: dict[str, str] = {
     "/addin/verfassen/laufzeit.js":   "Ereignis-Skript mit MSAL, enthält keine Geheimnisse",
     "/.well-known/microsoft-officeaddins-allowed.json": "Freigabeliste für SSO in Classic Outlook",
     "/api/addin/verfassen/signatur":  "Prüft ein Entra-Zugriffstoken statt einer Sitzung",
+    "/addin/tab/sitzung":             "Ist die Anmeldung des Tabs: prüft ein Entra-Zugriffstoken (NAA), vergibt nur ROLE_SELF",
     # Self-Service-SEITE: öffentliches HTML wie /addin/compose — die Navigation
     # kann keinen Auth-Header mitgeben, die Identität klärt das JS über die
     # /api/self/*-Endpunkte (die hängen an _require_self).

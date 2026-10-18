@@ -63,6 +63,13 @@
     "name": "addin_manifest"
   },
   {
+    "pfad": "/addin/tab/sitzung",
+    "methoden": [
+      "POST"
+    ],
+    "name": "tab_sitzung"
+  },
+  {
     "pfad": "/addin/teams-app.zip",
     "methoden": [
       "GET"
