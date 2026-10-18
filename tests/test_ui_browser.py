@@ -1267,3 +1267,35 @@ def test_self_im_aufgabenbereich_folgt_dem_outlook_design(browser, server, farbe
             f"() => document.documentElement.getAttribute('data-theme') === '{erwartet}'", timeout=5000)
     finally:
         ctx.close()
+
+
+def test_postfachfilter_signatur_und_smime(seite):
+    """Filter „Signatur“ und „S/MIME“ (v1.9.175): nach dem Haken in der Zeile,
+    zusammen mit Text- und Typfilter, Zähler „x von y“."""
+    pg = seite("/mailboxes", breite=1280)
+    pg.evaluate("""() => {
+      document.getElementById('mb-table-wrap').style.display = 'block';
+      renderMailboxTable([
+        {email: 'a@contoso.example', name: 'A', type: 'user', sig: true,  smime: true},
+        {email: 'b@contoso.example', name: 'B', type: 'user', sig: true,  smime: false},
+        {email: 'c@contoso.example', name: 'C', type: 'shared', sig: false, smime: false},
+      ]); }""")
+
+    def sichtbar():
+        return pg.evaluate("""() => Array.from(document.querySelectorAll('#mb-tbody tr'))
+            .filter(tr => tr.style.display !== 'none').map(tr => tr.dataset.search.split(' ')[0])""")
+
+    assert sichtbar() == ["a@contoso.example", "b@contoso.example", "c@contoso.example"]
+    pg.select_option("#mb-sig-filter", "an")
+    assert sichtbar() == ["a@contoso.example", "b@contoso.example"]
+    assert pg.inner_text("#mb-filter-count") == "2 von 3 Postfächern"
+    pg.select_option("#mb-smime-filter", "an")
+    assert sichtbar() == ["a@contoso.example"]
+    pg.select_option("#mb-sig-filter", "aus")
+    pg.select_option("#mb-smime-filter", "aus")
+    assert sichtbar() == ["c@contoso.example"]
+    # Ungespeicherter Haken zählt beim nächsten Filtern
+    pg.select_option("#mb-smime-filter", "")
+    pg.evaluate("() => { document.querySelectorAll('#mb-tbody tr')[2]"
+                ".querySelector('.mb-sig').checked = true; filterMailboxes(); }")
+    assert sichtbar() == []

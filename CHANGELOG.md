@@ -5,6 +5,67 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.175 — 2026-10-18 — Postfach-Status: Fassung der Outlook-Add-ins; Filter nach Signatur und S/MIME
+
+### Neu: Welche Add-in-Fassung hat Exchange dem Postfach ausgeliefert?
+
+Der Status je Postfach (*Postfächer → ⓘ*) hat einen Punkt **Outlook-Add-ins**.
+Er fragt per `Get-App` ab, welche Fassung des Verfassen-Add-ins und des
+Add-ins mit Knopf in diesem Postfach installiert ist, und vergleicht sie mit
+der Fassung, die das Gateway ausliefert:
+
+- **OK:** aktuelle Fassung installiert.
+- **Warnung:** ältere Fassung installiert, etwa *„1.9.164 installiert, aktuell
+  1.9.167“*. Ein über *Integrierte Apps* bereitgestelltes Add-in übernimmt ein
+  neues Manifest erst, wenn es dort aktualisiert wurde; danach verteilt
+  Microsoft Postfach für Postfach, laut Microsoft in 24 bis 72 Stunden. Bleibt
+  die Warnung länger stehen, ist das Update im Admin Center vermutlich nicht
+  bestätigt.
+- **Entfällt:** Add-in nicht installiert. Das ist kein Fehler, weil ein Add-in
+  bewusst nur einem Teil der Nutzer zugewiesen sein kann.
+
+Bisher zeigte nichts im Gateway, ob ein Manifest-Update tatsächlich ankam. Das
+Admin Center nennt keine Versionsnummer, und eine organisationsweite Abfrage
+liefert für zentral bereitgestellte Add-ins nichts. Messbar ist nur die
+Fassung je Postfach. Die Abfrage läuft im ohnehin vorhandenen
+PowerShell-Durchlauf der Postfachprüfung und kostet rund eine Sekunde je
+Postfach und Add-in. Die Zeitgrenze des Durchlaufs wächst entsprechend mit.
+
+Die Kennung der Add-ins wird aus der eingestellten Außenadresse berechnet,
+nach derselben Formel wie im Manifest.
+
+### Fehler: Warnungen erschienen in der Postfachliste grau mit „?“
+
+Die Postfachliste kannte nur den Zustand `warning`, die Prüfung liefert aber
+`warn`, dazu `fixed` (automatisch behoben) und `skip` (entfällt). Eine Warnung
+erschien deshalb als graues „?“, und im Detailfenster standen die rohen
+Zustandsnamen. Jetzt gibt es gelbes ⚠ für Warnung und „behoben“ sowie „–
+entfällt“. Ein Test hält fest, dass die Anzeige jeden Zustand kennt, den die
+Prüfung liefern kann.
+
+### Klarerer Text bei der Signaturprüfung
+
+Statt „Vorlage gerendert“ steht dort jetzt *„Signatur „Mit_Logo“ mit den Daten
+des Postfachs fehlerfrei erstellt“*. Die Prüfung erzeugt die Signatur, die
+dieses Postfach im Betrieb tatsächlich bekommt, mit seinen Daten aus Entra.
+Eine fehlerhafte Vorlage oder ein leerer Anzeigename fallen damit vor der
+ersten Mail auf.
+
+### Neu: Postfächer nach Signatur und S/MIME filtern
+
+Neben *Alle Typen* filtern zwei Auswahlfelder nach *Signatur aktiviert / nicht
+aktiviert* und *S/MIME aktiviert / nicht aktiviert*. Maßgeblich ist der Haken
+in der Zeile, also auch eine noch nicht gespeicherte Änderung. Der Zähler
+zeigt „x von y Postfächern“. *Alle / Kein* wirken wie bisher nur auf die
+sichtbaren Zeilen.
+
+**Zu tun:** nichts. Der Punkt *Outlook-Add-ins* erscheint mit der nächsten
+Postfachprüfung (automatisch oder *Postfächer → Status aktualisieren*). Er
+braucht die Außenadresse unter *Einrichtung → Öffentlicher Hostname*; ist sie
+nicht gesetzt, entfällt er.
+
+---
+
 ## v1.9.174 — 2026-10-18 — README mit Bildern; Self-Service-Vorschau ohne doppelte Grußformel
 
 ### README

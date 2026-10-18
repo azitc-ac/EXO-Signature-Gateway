@@ -320,6 +320,12 @@ def _ohne_adresse(inhalt: str, base: str, hostname: str, app_id: str) -> str:
             .replace(app_id, "__ID__"))
 
 
+def knopf_addin_id(hostname: str) -> str:
+    """Kennung des Add-ins mit Knopf — aus dem Hostnamen, damit sie über
+    Neustarts gleich bleibt. Gegenstück: addin_verfassen.addin_id."""
+    return str(_uuid.uuid5(_uuid.NAMESPACE_DNS, f"exo-signature-addin.{hostname}"))
+
+
 def _manifest_version(inhalt: str, schluessel: str = "_ADDIN_MANIFEST_STAND",
                       stellen: int = 4) -> str:
     """Manifest-Version: steigt nur, wenn sich das Manifest INHALTLICH ändert.
@@ -434,7 +440,7 @@ async def addin_manifest(request: Request):
     base = _addin_base_url(request)
     hostname = base.split("://")[-1].split(":")[0]
     # Stable add-in ID derived from the hostname so it never changes across restarts.
-    addin_id = str(_uuid.uuid5(_uuid.NAMESPACE_DNS, f"exo-signature-addin.{hostname}"))
+    addin_id = knopf_addin_id(hostname)
     t = _manifest_texte()
     hosts_v10, hosts_v11 = _manifest_hosts(False), _manifest_hosts(True)
     xml = f"""<?xml version="1.0" encoding="UTF-8"?>

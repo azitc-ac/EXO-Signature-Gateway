@@ -140,6 +140,7 @@ def _check_exo_batch_sync(emails: list[str]) -> dict:
     emails_json = json.dumps(emails)
 
     ps_check_imap = "1" if check_imap else "0"
+    addin_ids_json = json.dumps([a["id"] for a in _addin_soll()])
 
     ps_script = f"""
 $ErrorActionPreference = 'SilentlyContinue'
@@ -158,6 +159,7 @@ $dgName = '{dg_name}'
 $checkImap = [int]'{ps_check_imap}'
 $emailsJson = '{emails_json.replace("'", "''")}'
 $emails = $emailsJson | ConvertFrom-Json
+$addinIds = @('{addin_ids_json.replace("'", "''")}' | ConvertFrom-Json)
 
 # Get SP for IMAP permission checks
 $sp = $null
@@ -234,11 +236,19 @@ foreach ($email in $emails) {{
         }}
     }}
 
+    # Welche Fassung der Add-ins Exchange diesem Postfach ausgeliefert hat (nur lesen)
+    $addins = @{{}}
+    foreach ($aid in $addinIds) {{
+        $app = Get-App -Mailbox $email -Identity $aid -ErrorAction SilentlyContinue
+        $addins[$aid] = if ($app) {{ [string]$app.AppVersion }} else {{ "" }}
+    }}
+
     $results[$emailLow] = @{{
         dg_member = $dgMember
         dg_fixed = $dgFixed
         imap_perm = $imapPerm
         imap_fixed = $imapFixed
+        addins = $addins
     }}
 }}
 
@@ -254,7 +264,10 @@ Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
 
         proc = subprocess.run(
             ["pwsh", "-NoProfile", "-NonInteractive", "-File", ps_path],
-            capture_output=True, text=True, timeout=180,
+            # Get-App ist ein Aufruf je Postfach und Add-in (VM 18.10.2026: 0,8–1,3 s) —
+            # die feste Grenze reichte für große Tenants nicht mehr.
+            capture_output=True, text=True,
+            timeout=180 + 2 * len(emails) * len(_addin_soll()),
         )
         Path(ps_path).unlink(missing_ok=True)
 
@@ -284,6 +297,7 @@ Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
                         "dg_fixed": bool(v.get("dg_fixed", False)),
                         "imap_perm": v.get("imap_perm"),
                         "imap_fixed": bool(v.get("imap_fixed", False)),
+                        "addins": v.get("addins") if isinstance(v.get("addins"), dict) else None,
                         "error": v.get("error"),
                     }
                 return result
@@ -301,6 +315,94 @@ Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
         error_result = {"dg_member": False, "dg_fixed": False, "imap_perm": None, "imap_fixed": False,
                         "error": str(exc)}
         return {e.lower(): dict(error_result) for e in emails}
+
+
+# ── Check: Outlook-Add-ins ────────────────────────────────────────────────────
+
+# Versionsstand je Add-in, geschrieben beim Ausliefern des Manifests
+# (webui/routen/addin.py::_manifest_version): {"hash", "version"}.
+_ADDINS = (("_ADDIN_VERFASSEN_STAND", "Signatur automatisch", "verfassen"),
+           ("_ADDIN_MANIFEST_STAND", "Add-in (Knopf)", "knopf"))
+
+
+def _addin_id_aus_adresse(art: str) -> str:
+    """Kennung aus der EINGESTELLTEN Außenadresse — dieselbe Formel wie beim
+    Ausliefern des Manifests.
+
+    ⚠️ Nicht aus dem Manifest-Abruf übernehmen: Ohne ADDIN_BASE_URL kommt der
+    Host dort aus X-Forwarded-Host, und das Manifest ist anonym abrufbar —
+    jeder könnte so eine Kennung in settings.json schreiben
+    (tests/test_addin_manifest.py::test_fremde_adresse_…)."""
+    from urllib.parse import urlsplit
+    import aussenadresse
+    host = urlsplit(aussenadresse.konfiguriert() or "").hostname
+    if not host:
+        return ""
+    if art == "verfassen":
+        from webui.routen.addin_verfassen import addin_id
+        return addin_id(host)
+    from webui.routen.addin import knopf_addin_id
+    return knopf_addin_id(host)
+
+
+def _addin_soll() -> list[dict]:
+    """Die Add-ins, deren ausgelieferte Fassung je Postfach verglichen wird.
+
+    Nur mit eingeschaltetem Add-in, eingestellter Außenadresse und wenn das
+    Manifest schon einmal ausgeliefert wurde (sonst gibt es keine Version)."""
+    if not settings_store.get("ADDIN_ENABLED"):
+        return []
+    soll = []
+    for schluessel, name, art in _ADDINS:
+        stand = settings_store.get(schluessel) or {}
+        if not (isinstance(stand, dict) and stand.get("version")):
+            continue
+        kennung = _addin_id_aus_adresse(art)
+        if kennung:
+            soll.append({"name": name, "id": str(kennung), "version": str(stand["version"])})
+    return soll
+
+
+def _versionstupel(v: str) -> tuple[int, ...]:
+    try:
+        return tuple(int(t) for t in str(v).split("."))
+    except ValueError:
+        return (0,)
+
+
+def _check_addins(installiert: dict | None) -> dict:
+    """Fassung der Outlook-Add-ins, die Exchange dem Postfach ausgeliefert hat,
+    gegen die Fassung, die das Gateway ausliefert.
+
+    Ein über „Integrierte Apps“ bereitgestelltes Add-in übernimmt ein neues
+    Manifest erst, wenn ein Admin es dort aktualisiert; danach verteilt
+    Microsoft Postfach für Postfach (24–72 h). Eine ältere Fassung ist deshalb
+    eine Warnung mit dem Weg, kein Fehler. „Nicht installiert“ ist neutral —
+    das Add-in kann bewusst nur einem Teil der Nutzer zugewiesen sein."""
+    soll = _addin_soll()
+    if not soll:
+        return _make_result("skip", "Kein Outlook-Add-in eingerichtet")
+    if installiert is None:
+        return _make_result("skip", "Nicht abgefragt (PowerShell-Fehler)")
+    teile, alt, fehlt = [], [], 0
+    for a in soll:
+        ist = (installiert.get(a["id"]) or "").strip()
+        if not ist:
+            fehlt += 1
+            teile.append(f"{a['name']}: nicht installiert")
+        elif _versionstupel(ist) < _versionstupel(a["version"]):
+            alt.append(a["name"])
+            teile.append(f"{a['name']}: {ist} installiert, aktuell {a['version']}")
+        else:
+            teile.append(f"{a['name']}: {ist}")
+    text = " · ".join(teile)
+    if alt:
+        return _make_result("warn", text + " — Microsoft verteilt eine neue Fassung in 24–72 h "
+                            "nach „Aktualisieren“ unter Microsoft 365 Admin Center → Integrierte Apps. "
+                            "Bleibt es länger alt, dort prüfen, ob das Update bestätigt ist.")
+    if fehlt == len(soll):
+        return _make_result("skip", text)
+    return _make_result("ok", text)
 
 
 # ── Check 4: template ─────────────────────────────────────────────────────────
@@ -328,7 +430,8 @@ async def _check_template(email: str, cfg: dict) -> dict:
             return _make_result("error", f"Vorlage {template_name or 'default'}: {fehler}")
         if not user.displayName:
             return _make_result("warn", "Benutzerdaten unvollständig (displayName leer)")
-        return _make_result("ok", "Vorlage gerendert")
+        return _make_result("ok", f"Signatur „{template_name or 'default'}“ mit den Daten "
+                            "des Postfachs fehlerfrei erstellt")
     except Exception as exc:
         return _make_result("error", f"Template-Fehler: {exc}")
 
@@ -449,73 +552,42 @@ async def run_checks_for_mailbox(email: str, exo_data: dict | None = None) -> di
     loop = asyncio.get_event_loop()
     checks["exo_mailbox"] = await loop.run_in_executor(None, _check_exo_mailbox_sync, email)
 
-    # 2+3. dg_member + imap_permission — use pre-fetched data if available
-    if exo_data is not None:
-        data = exo_data.get(email, {})
-        err = data.get("error")
-        if err:
-            checks["dg_member"] = _make_result("error", f"PS-Fehler: {err}")
-            checks["imap_permission"] = _make_result("skip", "PS-Fehler")
-        else:
-            dg_ok = data.get("dg_member", False)
-            dg_fixed = data.get("dg_fixed", False)
-            if dg_fixed:
-                checks["dg_member"] = _make_result("fixed", "Fehlte — automatisch hinzugefügt")
-                _append_audit("dg_member_added", email, "Automatisch zur DG hinzugefügt")
-            elif dg_ok:
-                checks["dg_member"] = _make_result("ok", "Mitglied der Distribution Group")
-            else:
-                checks["dg_member"] = _make_result("error", "Nicht in Distribution Group")
-
-            if reinject_mode == "graph_plus":
-                imap_perm = data.get("imap_perm")
-                imap_fixed = data.get("imap_fixed", False)
-                if imap_fixed:
-                    checks["imap_permission"] = _make_result(
-                        "fixed", "FullAccess fehlte — automatisch gesetzt")
-                    _append_audit("imap_permission_set", email, "FullAccess automatisch gesetzt")
-                elif imap_perm is True:
-                    checks["imap_permission"] = _make_result("ok", "FullAccess vorhanden")
-                elif imap_perm is False:
-                    checks["imap_permission"] = _make_result("error", "FullAccess fehlt")
-                else:
-                    checks["imap_permission"] = _make_result("skip", "SP nicht gefunden")
-            else:
-                checks["imap_permission"] = _make_result("skip", "REINJECT_MODE != graph_plus")
+    # 2+3. dg_member + imap_permission (+ Add-in-Fassung) — aus dem Sammellauf,
+    # sonst ein eigener PS-Lauf nur für dieses Postfach.
+    if exo_data is None:
+        exo_data = await loop.run_in_executor(None, _check_exo_batch_sync, [email])
+    data = exo_data.get(email, {})
+    err = data.get("error")
+    if err:
+        checks["dg_member"] = _make_result("error", f"PS-Fehler: {err}")
+        checks["imap_permission"] = _make_result("skip", "PS-Fehler")
     else:
-        # Run PS for single mailbox (fallback when called directly)
-        batch_result = await loop.run_in_executor(None, _check_exo_batch_sync, [email])
-        data = batch_result.get(email, {})
-        err = data.get("error")
-        if err:
-            checks["dg_member"] = _make_result("error", f"PS-Fehler: {err}")
-            checks["imap_permission"] = _make_result("skip", "PS-Fehler")
+        dg_ok = data.get("dg_member", False)
+        dg_fixed = data.get("dg_fixed", False)
+        if dg_fixed:
+            checks["dg_member"] = _make_result("fixed", "Fehlte — automatisch hinzugefügt")
+            _append_audit("dg_member_added", email, "Automatisch zur DG hinzugefügt")
+        elif dg_ok:
+            checks["dg_member"] = _make_result("ok", "Mitglied der Distribution Group")
         else:
-            dg_ok = data.get("dg_member", False)
-            dg_fixed = data.get("dg_fixed", False)
-            if dg_fixed:
-                checks["dg_member"] = _make_result("fixed", "Fehlte — automatisch hinzugefügt")
-                _append_audit("dg_member_added", email, "Automatisch zur DG hinzugefügt")
-            elif dg_ok:
-                checks["dg_member"] = _make_result("ok", "Mitglied der Distribution Group")
-            else:
-                checks["dg_member"] = _make_result("error", "Nicht in Distribution Group")
+            checks["dg_member"] = _make_result("error", "Nicht in Distribution Group")
 
-            if reinject_mode == "graph_plus":
-                imap_perm = data.get("imap_perm")
-                imap_fixed = data.get("imap_fixed", False)
-                if imap_fixed:
-                    checks["imap_permission"] = _make_result(
-                        "fixed", "FullAccess fehlte — automatisch gesetzt")
-                    _append_audit("imap_permission_set", email, "FullAccess automatisch gesetzt")
-                elif imap_perm is True:
-                    checks["imap_permission"] = _make_result("ok", "FullAccess vorhanden")
-                elif imap_perm is False:
-                    checks["imap_permission"] = _make_result("error", "FullAccess fehlt")
-                else:
-                    checks["imap_permission"] = _make_result("skip", "SP nicht gefunden")
+        if reinject_mode == "graph_plus":
+            imap_perm = data.get("imap_perm")
+            imap_fixed = data.get("imap_fixed", False)
+            if imap_fixed:
+                checks["imap_permission"] = _make_result(
+                    "fixed", "FullAccess fehlte — automatisch gesetzt")
+                _append_audit("imap_permission_set", email, "FullAccess automatisch gesetzt")
+            elif imap_perm is True:
+                checks["imap_permission"] = _make_result("ok", "FullAccess vorhanden")
+            elif imap_perm is False:
+                checks["imap_permission"] = _make_result("error", "FullAccess fehlt")
             else:
-                checks["imap_permission"] = _make_result("skip", "REINJECT_MODE != graph_plus")
+                checks["imap_permission"] = _make_result("skip", "SP nicht gefunden")
+        else:
+            checks["imap_permission"] = _make_result("skip", "REINJECT_MODE != graph_plus")
+    checks["addins"] = _check_addins(None if err else data.get("addins"))
 
     # 4. template
     if cfg.get("sig"):
