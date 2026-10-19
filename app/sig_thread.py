@@ -96,10 +96,9 @@ def _schluessel(postfach: str, message_id: str) -> bytes:
     return hashlib.blake2b(roh.encode("utf-8"), digest_size=16).digest()
 
 
-# Setzt das Verfassen-Add-in an den Entwurf, wenn es die Antwort-Regel
-# angewandt hat (Konversation enthält eine signierte Mail des Absenders).
-# handler.py übernimmt damit dieselbe Entscheidung — auch wenn References nur
-# einen Ast der Konversation tragen — und zählt die Wirkung.
+# Setzt das Verfassen-Add-in an den Entwurf, wenn es die Antwort-Signatur
+# gewählt hat. handler.py zählt damit die Wirkung („Stapel verhindert“); die
+# Entscheidung selbst trifft es weiter aus References und Zitat.
 ADDIN_KOPF = "X-Exo-Sig-Kette"
 
 

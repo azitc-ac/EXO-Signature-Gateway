@@ -205,7 +205,13 @@ def sender_already_in_thread(msg: email.message.Message, sender_addrs) -> bool:
     qpos = _find_first_quote_wrapper_pos(html)
     if qpos is None:
         return False  # no quoted thread → sender's first contribution
-    region = html[qpos:]
+    return marker_im_zitat(html[qpos:])
+
+
+def marker_im_zitat(region: str) -> bool:
+    """Steht im zitierten Teil eine Signatur dieses Gateways? EINE Prüfung für
+    den Versand (oben) und das Verfassen-Add-in, das statt des Zitats den
+    Text der beantworteten Mail prüft (graph_client.antwort_bezug)."""
     return bool(
         _SIG_MARKER_START in region
         or f'class="{_SIG_CLASS}"' in region

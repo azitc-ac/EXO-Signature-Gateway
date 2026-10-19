@@ -359,34 +359,73 @@ class UserData:
             self.custom = {}
 
 
-async def konversation_kennungen(postfach: str, konversation: str) -> list[str] | None:
-    """`internetMessageId` aller gesendeten/empfangenen Nachrichten einer
-    Konversation im Postfach (ohne Entwürfe — der gerade verfasste Entwurf
-    gehört nicht dazu). `None` = nicht ermittelbar (kein Token, Graph-Fehler).
+def _beantwortete(nachrichten: list[dict], postfach: str, art: str, an: list[str]) -> dict | None:
+    """Welche Nachricht der Konversation beantwortet bzw. weitergeleitet wird.
 
-    Für das Verfassen-Add-in: Beim Schreiben einer Antwort kennt Office.js nur
-    die `conversationId`, nicht References/In-Reply-To. Die Konversation ist
-    die Obermenge der References-Kette."""
+    Office.js nennt sie beim Verfassen nicht (weder Kennung noch Verweise).
+    Bei einer Antwort steht ihr Absender unter den Empfängern des Entwurfs,
+    bei „Allen antworten“ an erster Stelle — die jüngste Nachricht dieses
+    Absenders. Sonst die jüngste fremde Nachricht, zuletzt die jüngste."""
+    selbst = postfach.lower()
+    echt = [m for m in nachrichten if not m.get("isDraft") and m.get("internetMessageId")]
+    echt.sort(key=lambda m: m.get("receivedDateTime") or "", reverse=True)
+
+    def von(m):
+        return (((m.get("from") or {}).get("emailAddress") or {}).get("address") or "").lower()
+    fremd = [m for m in echt if von(m) != selbst]
+    an = [x.lower() for x in (an or [])]
+    if art == "reply" and an:
+        for kandidat in ([an[0]], an):
+            treffer = [m for m in fremd if von(m) in kandidat]
+            if treffer:
+                return treffer[0]
+    return (fremd or echt or [None])[0]
+
+
+async def antwort_bezug(postfach: str, konversation: str, art: str = "reply",
+                        an: list[str] | None = None) -> dict | None:
+    """Kette der beantworteten Mail — dieselben Angaben, die handler.py beim
+    Versand aus der Antwort liest: `kennungen` (ihre Message-ID plus ihre
+    References/In-Reply-To = die References der Antwort) und `marker` (eine
+    Gateway-Signatur in ihrem Text = im Zitat der Antwort).
+
+    ⚠️ Nicht die ganze Konversation: Sie enthält auch Zweige, die in der
+    beantworteten Mail nicht vorkommen. Wer auf eine ältere Mail antwortet,
+    bekäme sonst die Antwort-Signatur, obwohl die Empfänger die volle nie
+    gesehen haben (VM 19.10.2026, „Allen antworten“ auf eine Mail vor der
+    eigenen signierten Antwort). `None` = nicht ermittelbar."""
+    import email.message
     import httpx
     from urllib.parse import quote
+    import mail_processor
+    import sig_thread
     tok = await _acquire_token_async()
     if not tok or not konversation:
         return None
     filt = "conversationId eq '" + konversation.replace("'", "''") + "'"
     url = (f"https://graph.microsoft.com/v1.0/users/{quote(postfach)}/messages"
-           f"?$filter={quote(filt)}&$select=internetMessageId,isDraft&$top=100")
+           f"?$filter={quote(filt)}&$top=50&$select="
+           "internetMessageId,isDraft,from,receivedDateTime,internetMessageHeaders,body")
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.get(url, headers={"Authorization": f"Bearer {tok}"})
     except Exception as exc:                                   # noqa: BLE001
-        log.warning("konversation_kennungen %s: %s", postfach, exc)
+        log.warning("antwort_bezug %s: %s", postfach, exc)
         return None
     if resp.status_code != 200:
-        log.warning("konversation_kennungen %s: Graph %s %s", postfach, resp.status_code,
-                    resp.text[:200])
+        log.warning("antwort_bezug %s: Graph %s %s", postfach, resp.status_code, resp.text[:200])
         return None
-    return [m["internetMessageId"] for m in resp.json().get("value", [])
-            if not m.get("isDraft") and m.get("internetMessageId")]
+    m = _beantwortete(resp.json().get("value", []), postfach, art, an or [])
+    if not m:
+        return None
+    kopf = email.message.Message()
+    for h in m.get("internetMessageHeaders") or []:
+        if (h.get("name") or "").lower() in ("references", "in-reply-to"):
+            kopf[h["name"]] = h.get("value") or ""
+    return {"kennungen": [m["internetMessageId"]] + sig_thread.kennungen(kopf),
+            "marker": mail_processor.marker_im_zitat((m.get("body") or {}).get("content") or ""),
+            "von": (((m.get("from") or {}).get("emailAddress") or {}).get("address") or ""),
+            "zeit": m.get("receivedDateTime") or ""}
 
 
 _BETREFF_PRAEFIX = re.compile(
