@@ -96,6 +96,17 @@ def _schluessel(postfach: str, message_id: str) -> bytes:
     return hashlib.blake2b(roh.encode("utf-8"), digest_size=16).digest()
 
 
+# Setzt das Verfassen-Add-in an den Entwurf, wenn es die Antwort-Regel
+# angewandt hat (Konversation enthält eine signierte Mail des Absenders).
+# handler.py übernimmt damit dieselbe Entscheidung — auch wenn References nur
+# einen Ast der Konversation tragen — und zählt die Wirkung.
+ADDIN_KOPF = "X-Exo-Sig-Kette"
+
+
+def addin_hat_kette(msg) -> bool:
+    return (msg.get(ADDIN_KOPF) or "").strip() == "1"
+
+
 def kennungen(msg) -> list[str]:
     """Alle Nachrichtenkennungen, auf die sich *msg* beruft.
 

@@ -1,4 +1,5 @@
-/* Verfassen-Add-in: Gateway-Signatur bei NEUER Mail einfügen (OnNewMessageCompose).
+/* Verfassen-Add-in: Gateway-Signatur beim Verfassen einfügen (OnNewMessageCompose —
+ * neue Mail, Antwort, Weiterleitung).
  *
  * Wird von /addin/verfassen/laufzeit.js hinter MSAL (globalThis.msal) und der
  * Konfiguration EXO_VERFASSEN ausgeliefert — Classic Outlook lädt nur diese EINE
@@ -48,13 +49,27 @@
     try { return String(Office.context.diagnostics.platform || ''); } catch (e) { return ''; }
   }
 
-  function signaturHolen(zugriff) {
+  function signaturHolen(zugriff, konversation) {
     var adresse = EXO_VERFASSEN.api + '?client=' + encodeURIComponent(plattform());
+    if (konversation) adresse += '&konversation=' + encodeURIComponent(konversation);
     return fetch(adresse, { headers: { Authorization: 'Bearer ' + zugriff } })
       .then(function (r) {
         if (!r.ok) throw new Error('Gateway antwortet ' + r.status);
         return r.json();
-      }).then(function (d) { return d.html || ''; });
+      });
+  }
+
+  // Kennzeichnet den Entwurf: Die Antwort-Regel hat gegriffen. Das Gateway
+  // übernimmt die Entscheidung beim Versand und zählt sie. Ohne die API
+  // (Outlook mobil vor 4.2405) entscheidet es wie bisher selbst.
+  function ketteMelden(item) {
+    if (!item.internetHeaders || typeof item.internetHeaders.setAsync !== 'function') {
+      return Promise.resolve();
+    }
+    var kopf = {};
+    kopf[EXO_VERFASSEN.kettenkopf] = '1';
+    return asynk(function (cb) { item.internetHeaders.setAsync(kopf, cb); })
+      .catch(function () { /* Zählung ist Beiwerk */ });
   }
 
   function beimVerfassen(event) {
@@ -68,10 +83,20 @@
     }
     asynk(function (cb) { item.getComposeTypeAsync(cb); })
       .then(function (art) {
-        // Antworten/Weiterleitungen: das Gateway entscheidet (Antwort-Signatur
-        // ab der 2. eigenen Mail im Verlauf) — hier nichts einfügen.
-        if (!art || art.composeType !== 'newMail') return null;
-        return token().then(signaturHolen).then(function (html) {
+        // Antwort/Weiterleitung: Das Gateway wendet dieselbe Regel an wie beim
+        // Versand (volle Signatur beim ersten eigenen Beitrag, danach die
+        // Antwort-Signatur) und braucht dafür die Konversation. Ohne Kennung
+        // nichts einfügen — dann entscheidet das Gateway beim Versand.
+        var konversation = null;
+        if (!art) return null;
+        if (art.composeType !== 'newMail') {
+          konversation = item.conversationId;
+          if (!konversation) return null;
+        }
+        return token().then(function (z) { return signaturHolen(z, konversation); }).then(function (d) {
+          var html = (d && d.html) || '';
+          return (d && d.kette ? ketteMelden(item) : Promise.resolve()).then(function () { return html; });
+        }).then(function (html) {
           if (!html) return null;
           return asynk(function (cb) { item.disableClientSignatureAsync(cb); })
             .catch(function () { /* ohne Client-Signatur weiter */ })

@@ -182,8 +182,14 @@ def test_zaehler_haengt_an_der_wirkung_nicht_am_befund():
     quelle = (Path(__file__).resolve().parent.parent / "app" / "handler.py").read_text()
     erkennung = quelle.index("_in_kette = (")
     zweig = quelle.index("elif not suppress_html_sig and _in_kette:")
-    zaehler = quelle.index('stats.increment("stapel_verhindert")')
-    assert erkennung < zweig < zaehler, (
+    stellen = [i for i in range(len(quelle))
+               if quelle.startswith('stats.increment("stapel_verhindert")', i)]
+    assert len(stellen) == 2, stellen
+    addin_zweig = quelle.index("mail_processor._has_own_sig_in_compose_area(msg):")
+    addin_bedingung = quelle.index("if _addin_kette:", addin_zweig)
+    assert erkennung < addin_zweig < addin_bedingung < stellen[0] < zweig < stellen[1], (
         "»stapel_verhindert« wird gezählt, BEVOR feststeht, ob der volle Block "
-        "wirklich unterbleibt. Der Zähler gehört in den elif-Zweig — sonst "
-        "zählt er auch #nosig- und Add-in-Fälle mit.")
+        "wirklich unterbleibt. Gezählt wird im elif-Zweig und — seit v1.9.178 — "
+        "im Add-in-Zweig NUR mit dem Kennzeichen des Add-ins (X-Exo-Sig-Kette), "
+        "nicht schon wegen `_in_kette`: ein von Hand eingefügter voller Block "
+        "verhindert nichts.")

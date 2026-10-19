@@ -358,6 +358,36 @@ class UserData:
             self.custom = {}
 
 
+async def konversation_kennungen(postfach: str, konversation: str) -> list[str] | None:
+    """`internetMessageId` aller gesendeten/empfangenen Nachrichten einer
+    Konversation im Postfach (ohne Entwürfe — der gerade verfasste Entwurf
+    gehört nicht dazu). `None` = nicht ermittelbar (kein Token, Graph-Fehler).
+
+    Für das Verfassen-Add-in: Beim Schreiben einer Antwort kennt Office.js nur
+    die `conversationId`, nicht References/In-Reply-To. Die Konversation ist
+    die Obermenge der References-Kette."""
+    import httpx
+    from urllib.parse import quote
+    tok = await _acquire_token_async()
+    if not tok or not konversation:
+        return None
+    filt = "conversationId eq '" + konversation.replace("'", "''") + "'"
+    url = (f"https://graph.microsoft.com/v1.0/users/{quote(postfach)}/messages"
+           f"?$filter={quote(filt)}&$select=internetMessageId,isDraft&$top=100")
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(url, headers={"Authorization": f"Bearer {tok}"})
+    except Exception as exc:                                   # noqa: BLE001
+        log.warning("konversation_kennungen %s: %s", postfach, exc)
+        return None
+    if resp.status_code != 200:
+        log.warning("konversation_kennungen %s: Graph %s %s", postfach, resp.status_code,
+                    resp.text[:200])
+        return None
+    return [m["internetMessageId"] for m in resp.json().get("value", [])
+            if not m.get("isDraft") and m.get("internetMessageId")]
+
+
 async def update_sent_item(sender_email: str, message_id: str, html_body: str) -> bool | None:
     """Find a sent message by Message-ID and patch its HTML body."""
     token = await _acquire_token_async()

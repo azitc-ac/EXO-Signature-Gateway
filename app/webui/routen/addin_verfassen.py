@@ -203,7 +203,8 @@ def naa_konfiguration() -> dict:
 
 def _konfiguration(base: str) -> dict:
     # Absolut: Relative Adressen gehen in der JS-only-Laufzeit nicht (MS Learn).
-    return {**naa_konfiguration(), "api": base + SIGNATUR_API}
+    import sig_thread
+    return {**naa_konfiguration(), "api": base + SIGNATUR_API, "kettenkopf": sig_thread.ADDIN_KOPF}
 
 
 @router.get(LAUFZEIT_JS)
@@ -248,13 +249,37 @@ def _plattform(request) -> str:
     return roh or "unbekannt"
 
 
+def _konversation(request) -> str | None:
+    """`conversationId` aus `?konversation=` — `None`, wenn keine Antwort.
+    Office-Kennungen sind Base64 (auch URL-sicher); alles andere wird
+    verworfen, statt es in einen Graph-Filter zu tragen."""
+    try:
+        roh = request.query_params.get("konversation")
+    except AttributeError:
+        return None
+    if roh is None:
+        return None
+    roh = roh.strip()
+    if not roh or len(roh) > 512 or any(not (z.isascii() and (z.isalnum() or z in "+/=_-"))
+                                        for z in roh):
+        return ""
+    return roh
+
+
 @router.get(SIGNATUR_API)
 async def verfassen_signatur(request: Request):
     """Signatur des ANGEMELDETEN Nutzers — die Adresse stammt aus dem Token,
     nicht aus einem Parameter. Ohne Cookie, daher `*` als Ursprung unbedenklich.
 
     Leeres `html` heisst: nichts einfügen (Postfach nicht vom Gateway betreut
-    oder keine Vorlage)."""
+    oder keine Vorlage).
+
+    `?konversation=<conversationId>` kennzeichnet eine Antwort/Weiterleitung.
+    Dann gilt dieselbe Regel wie beim Versand (`policies.antwort_vorlage`):
+    Hat das Gateway in dieser Konversation schon eine Mail des Absenders
+    signiert, kommt die Antwort-Signatur (oder nichts), sonst die volle. Ist
+    die Konversation nicht ermittelbar, bleibt der Entwurf leer und das Gateway
+    entscheidet beim Versand wie bisher."""
     kopf = request.headers.get("authorization") or ""
     claims = sso_mod.verify_access_token(kopf[7:].strip()) if kopf[:7].lower() == "bearer " else None
     if not claims:
@@ -268,13 +293,38 @@ async def verfassen_signatur(request: Request):
         return JSONResponse({"html": ""}, headers=_CORS)
     vorlage = _addin_cfg(email)["template"]
     plattform = _plattform(request)
+    kette = False
+    konversation = _konversation(request)
+    if konversation == "":
+        log.info("Verfassen-Add-in: Antwort von %s mit unbrauchbarer Konversations-"
+                 "Kennung — Gateway entscheidet beim Versand (%s)", email, plattform)
+        return JSONResponse({"html": ""}, headers=_CORS)
+    if konversation is not None:
+        kennungen = await graph_client.konversation_kennungen(email, konversation)
+        if kennungen is None:
+            log.info("Verfassen-Add-in: Antwort von %s — Konversation nicht ermittelbar, "
+                     "Gateway entscheidet beim Versand (%s)", email, plattform)
+            return JSONResponse({"html": ""}, headers=_CORS)
+        import policies
+        import sig_thread
+        in_kette = sig_thread.kennt(email, kennungen)
+        vorlage = policies.antwort_vorlage(policies.aufloesen(email), in_kette)
+        if in_kette:
+            # Merkmal wie im Handler, damit `grep SIG-KETTE` jeden Fall findet.
+            log.info("SIG-KETTE: Add-in, Antwort in signierter Kette — %s für %s (%s)",
+                     f"Antwort-Signatur {vorlage!r}" if vorlage else "keine Signatur",
+                     email, plattform)
+        if not vorlage:
+            return JSONResponse({"html": "", "kette": in_kette}, headers=_CORS)
+        kette = in_kette
     try:
         user_data = await graph_client.get_user(email)
     except Exception:                                        # noqa: BLE001
         user_data = graph_client.UserData(mail=email)
     sig_html, _txt = signature_engine.render(user_data, vorlage)
     log.info("Verfassen-Add-in: Signatur %r für %s geliefert (%s)", vorlage, email, plattform)
-    return JSONResponse({"html": markiert(sig_html) if sig_html else ""}, headers=_CORS)
+    return JSONResponse({"html": markiert(sig_html) if sig_html else "", "kette": kette},
+                        headers=_CORS)
 
 
 # ── Tab (Teams/Outlook): Anmeldung per NAA ─────────────────────────────────────

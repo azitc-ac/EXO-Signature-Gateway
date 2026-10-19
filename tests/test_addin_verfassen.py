@@ -237,7 +237,8 @@ def test_laufzeit_skript_ist_eine_datei_mit_msal_konfig_und_handler(umgebung):
     assert konf == {"clientId": "CID",
                     "authority": "https://login.microsoftonline.com/TID",
                     "scope": "api://CID/access_as_user",
-                    "api": "https://sig.example" + av.SIGNATUR_API}
+                    "api": "https://sig.example" + av.SIGNATUR_API,
+                    "kettenkopf": "X-Exo-Sig-Kette"}
     assert "\nimport " not in inhalt and "\nexport " not in inhalt   # Classic: keine Importe
 
 
@@ -249,11 +250,10 @@ def test_msal_datei_unveraendert():
         "273d446b381814e563442267a072904fb3b7fd0164f4a688ede80f0d74565b3e"
 
 
-def test_handler_fuegt_nur_bei_neuer_mail_ein_und_beendet_immer():
-    """Statisch, weil Office.js hier nicht läuft: der Zweig für Antworten und der
-    Abschluss über event.completed() am Ende der Kette."""
+def test_handler_beendet_immer():
+    """Statisch, weil Office.js hier nicht läuft: Abschluss über
+    event.completed() am Ende der Kette. Antworten: tests/test_addin_antwort.py."""
     js = av.HANDLER_DATEI.read_text(encoding="utf-8")
-    assert "art.composeType !== 'newMail') return null" in js
     assert js.count("event.completed();") == 2          # Kommentar oben nennt es ohne „;“
     assert ".then(function () { event.completed(); });" in js
     assert "acquireTokenPopup(" not in js and "loginPopup(" not in js   # kein Fenster im Ereignis

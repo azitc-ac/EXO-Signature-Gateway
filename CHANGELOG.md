@@ -5,6 +5,31 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.178 — 2026-10-19 — Verfassen-Add-in: Signatur auch bei Antwort und Weiterleitung
+
+Das Add-in „Signatur automatisch“ fügt die Signatur jetzt auch beim Antworten
+und Weiterleiten ein, auf allen Geräten einschließlich iPhone und Android.
+Bisher blieb der Entwurf bei Antworten leer, und das Gateway setzte die
+Signatur erst beim Versand. Wer schrieb, sah also nicht, was hinausgeht.
+
+Es gilt dieselbe Regel wie beim Versand. Hat das Gateway in dieser Unterhaltung
+schon eine Mail des Absenders signiert, kommt die **Antwort-Signatur** (oder
+keine, wenn keine gewählt ist), sonst die volle Signatur. Outlook nennt dem
+Add-in beim Schreiben nur die Kennung der Unterhaltung. Das Gateway liest deren
+Nachrichten per Graph und gleicht sie mit den Mails ab, die es signiert hat.
+Ist die Unterhaltung nicht ermittelbar, bleibt der Entwurf leer, und das
+Gateway entscheidet beim Versand wie bisher.
+
+Hat das Add-in die Antwort-Signatur gewählt, kennzeichnet es den Entwurf mit
+dem Kopf `X-Exo-Sig-Kette`. Das Gateway übernimmt diese Entscheidung beim
+Versand, auch wenn die Mail selbst nur auf einen Teil der Unterhaltung
+verweist, und zählt sie in „Stapel verhindert“. Ohne diese Zählung fiele die
+Kennzahl auf null, sobald das Add-in die Antworten übernimmt.
+
+**Zu tun:** nichts. Das Manifest ändert sich nicht, im Admin Center ist keine
+Aktualisierung nötig. Outlook lädt die geänderte Laufzeit beim nächsten
+Verfassen.
+
 ## v1.9.177 — 2026-10-19 — Postfach-Status: eine Zeile je Outlook-Add-in
 
 Der Status je Postfach zeigt die beiden Outlook-Add-ins jetzt in getrennten
