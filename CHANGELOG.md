@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.177 — 2026-10-19 — Postfach-Status: eine Zeile je Outlook-Add-in
+
+Der Status je Postfach zeigt die beiden Outlook-Add-ins jetzt in getrennten
+Zeilen: **Add-in Signatur** (Verfassen-Add-in, „Signatur automatisch“) und
+**Add-in Knopf** (Add-in mit Knopf im Menüband). Bisher standen beide in einer
+Zeile „Outlook-Add-ins“. War eines davon veraltet, wurde die ganze Zeile gelb,
+und dass das andere schon die aktuelle Fassung hatte, war kaum zu erkennen.
+
+Beide Add-ins werden im Admin Center einzeln aktualisiert und von Microsoft
+unabhängig voneinander verteilt. Deshalb hat jedes jetzt seinen eigenen
+Zustand: grün mit „aktuell“, gelb mit Fassung, Datum und Weg, oder neutral,
+wenn das Add-in dem Postfach nicht zugewiesen ist.
+
+**Zu tun:** nichts. Der nächste Statuslauf (alle 30 Minuten oder *Status
+aktualisieren*) schreibt die neuen Zeilen.
+
 ## v1.9.176 — 2026-10-19 — Postfach-Status: Graph-Zugriff und Abwesenheit je Postfach, Key-Vault-Probe täglich
 
 ### Neu: Graph-Zugriff je Postfach

@@ -58,43 +58,59 @@ def _stand(monkeypatch, aktiv=True, verfassen="1.9.167", knopf="1.9.163"):
                         lambda k, *a, **kw: werte[k] if k in werte else alt(k, *a, **kw))
 
 
+def _pruefe(installiert):
+    return health_check._check_addins(installiert)
+
+
 def test_aeltere_fassung_ist_warnung_mit_weg(monkeypatch):
     _stand(monkeypatch)
-    r = health_check._check_addins({VERF: "1.9.164", KNOPF: "1.9.163"})
+    r = _pruefe({VERF: "1.9.164", KNOPF: "1.9.163"})["verfassen"]
     assert r["status"] == "warn"
-    assert "Signatur automatisch: 1.9.164 statt 1.9.167 (seit 17.10.2026)" in r["detail"]
+    assert r["detail"].startswith("1.9.164 statt 1.9.167 (seit 17.10.2026)")
     assert "Integrierte Apps" in r["detail"]
-    assert len(r["detail"]) < 220, len(r["detail"])        # Handy: kurz halten
+    assert len(r["detail"]) < 200, len(r["detail"])        # Handy: kurz halten
+
+
+def test_jedes_addin_hat_seine_eigene_zeile(monkeypatch):
+    """Ein veraltetes Add-in darf das aktuelle nicht mit gelb färben — in einer
+    gemeinsamen Zeile ging „Signatur automatisch: 1.9.167“ (aktuell) neben
+    „Knopf: 1.9.148 statt 1.9.164“ unter."""
+    _stand(monkeypatch, knopf="1.9.164")
+    r = _pruefe({VERF: "1.9.167", KNOPF: "1.9.148"})
+    assert r["verfassen"]["status"] == "ok" and "1.9.167" in r["verfassen"]["detail"]
+    assert r["knopf"]["status"] == "warn" and "1.9.148 statt 1.9.164" in r["knopf"]["detail"]
+    r = _pruefe({VERF: "1.9.164", KNOPF: "1.9.164"})
+    assert r["verfassen"]["status"] == "warn" and r["knopf"]["status"] == "ok"
 
 
 def test_vierstellige_fassung_vergleicht_numerisch(monkeypatch):
     _stand(monkeypatch, verfassen="1.9.146.1")
-    assert health_check._check_addins({VERF: "1.9.146", KNOPF: "1.9.163"})["status"] == "warn"
-    assert health_check._check_addins({VERF: "1.9.146.1", KNOPF: "1.9.163"})["status"] == "ok"
+    assert _pruefe({VERF: "1.9.146", KNOPF: "1.9.163"})["verfassen"]["status"] == "warn"
+    assert _pruefe({VERF: "1.9.146.1", KNOPF: "1.9.163"})["verfassen"]["status"] == "ok"
     # 1.9.99 < 1.9.100 — als Text wäre es umgekehrt
     _stand(monkeypatch, verfassen="1.9.100")
-    assert health_check._check_addins({VERF: "1.9.99", KNOPF: "1.9.163"})["status"] == "warn"
+    assert _pruefe({VERF: "1.9.99", KNOPF: "1.9.163"})["verfassen"]["status"] == "warn"
 
 
 def test_aktuell_ist_ok(monkeypatch):
     _stand(monkeypatch)
-    r = health_check._check_addins({VERF: "1.9.167", KNOPF: "1.9.163"})
-    assert r["status"] == "ok"
-    assert "Signatur automatisch: 1.9.167" in r["detail"]
+    r = _pruefe({VERF: "1.9.167", KNOPF: "1.9.163"})
+    assert r["verfassen"]["status"] == "ok" and r["knopf"]["status"] == "ok"
+    assert "1.9.167" in r["verfassen"]["detail"]
 
 
 def test_nicht_installiert_ist_neutral(monkeypatch):
     _stand(monkeypatch)
-    assert health_check._check_addins({VERF: "", KNOPF: ""})["status"] == "skip"
-    teil = health_check._check_addins({VERF: "", KNOPF: "1.9.163"})
-    assert teil["status"] == "ok" and "nicht installiert" in teil["detail"]
+    r = _pruefe({VERF: "", KNOPF: "1.9.163"})
+    assert r["verfassen"] == {**r["verfassen"], "status": "skip", "detail": "Nicht installiert"}
+    assert r["knopf"]["status"] == "ok"
 
 
 def test_ohne_addin_oder_abfrage_entfaellt(monkeypatch):
     _stand(monkeypatch, aktiv=False)
-    assert health_check._check_addins({VERF: "1.9.164"})["status"] == "skip"
+    assert {a["status"] for a in _pruefe({VERF: "1.9.164"}).values()} == {"skip"}
     _stand(monkeypatch)
-    assert health_check._check_addins(None)["status"] == "skip"
+    assert {a["status"] for a in _pruefe(None).values()} == {"skip"}
 
 
 def test_ps_lauf_fragt_get_app_mit_den_kennungen_ab(monkeypatch, tmp_path):
@@ -144,7 +160,9 @@ def test_gesamtablauf_traegt_die_addin_fassung_ein(monkeypatch):
     exo = {"erika@contoso.example": {"dg_member": True, "dg_fixed": False, "imap_perm": None,
                                      "imap_fixed": False, "addins": {VERF: "1.9.164", KNOPF: "1.9.163"}}}
     r = asyncio.run(health_check.run_checks_for_mailbox("erika@contoso.example", exo_data=exo))
-    assert r["checks"]["addins"]["status"] == "warn"
+    assert r["checks"]["addin_verfassen"]["status"] == "warn"
+    assert r["checks"]["addin_knopf"]["status"] == "ok"
+    assert "addins" not in r["checks"]
     assert r["overall"] == "warn"
 
 
@@ -314,5 +332,5 @@ def test_stand_ohne_datum_nimmt_es_aus_dem_changelog(monkeypatch, tmp_path):
     werte = {"ADDIN_ENABLED": True, "_ADDIN_VERFASSEN_STAND": {"hash": "h", "version": "1.9.167"}}
     monkeypatch.setattr(settings_store, "get", lambda k, *a, **kw: werte.get(k))
     monkeypatch.setattr(health_check, "_addin_id_aus_adresse", lambda art: VERF)
-    r = health_check._check_addins({VERF: "1.9.164"})
+    r = health_check._check_addins({VERF: "1.9.164"})["verfassen"]
     assert "(seit 17.10.2026)" in r["detail"]
