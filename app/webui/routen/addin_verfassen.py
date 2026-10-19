@@ -249,21 +249,35 @@ def _plattform(request) -> str:
     return roh or "unbekannt"
 
 
-def _konversation(request) -> str | None:
-    """`conversationId` aus `?konversation=` — `None`, wenn keine Antwort.
-    Office-Kennungen sind Base64 (auch URL-sicher); alles andere wird
-    verworfen, statt es in einen Graph-Filter zu tragen."""
-    try:
-        roh = request.query_params.get("konversation")
-    except AttributeError:
-        return None
-    if roh is None:
-        return None
-    roh = roh.strip()
+def _konversation(roh) -> str:
+    """Office-Kennungen sind Base64 (auch URL-sicher); alles andere wird
+    verworfen (`""`), statt es in einen Graph-Filter zu tragen."""
+    roh = (roh or "").strip()
     if not roh or len(roh) > 512 or any(not (z.isascii() and (z.isalnum() or z in "+/=_-"))
                                         for z in roh):
         return ""
     return roh
+
+
+def _antwort(request) -> dict | None:
+    """Angaben zu einer Antwort/Weiterleitung aus der Abfrage — `None` bei
+    einer neuen Mail. `art` (reply/forward) kennzeichnet sie; `konversation`
+    allein gilt aus Verträglichkeit mit v1.9.178 als Antwort. Betreff und
+    Empfänger dienen nur dem Vergleich, nie einem Graph-Filter."""
+    try:
+        q = request.query_params
+    except AttributeError:
+        return None
+    art = (q.get("art") or "").strip()
+    if art not in ("reply", "forward"):
+        if q.get("konversation") is None:
+            return None
+        art = "reply"
+    betreff = "".join(z for z in (q.get("betreff") or "") if z.isprintable())[:255]
+    an = [e.strip().lower() for e in (q.get("an") or "").split(",")
+          if "@" in e and len(e.strip()) <= 254][:20]
+    return {"art": art, "konversation": _konversation(q.get("konversation")),
+            "betreff": betreff, "an": an}
 
 
 @router.get(SIGNATUR_API)
@@ -274,7 +288,9 @@ async def verfassen_signatur(request: Request):
     Leeres `html` heisst: nichts einfügen (Postfach nicht vom Gateway betreut
     oder keine Vorlage).
 
-    `?konversation=<conversationId>` kennzeichnet eine Antwort/Weiterleitung.
+    `?art=reply|forward` kennzeichnet eine Antwort/Weiterleitung, mit
+    `konversation` (conversationId) und — als Rückfall, wo der Client keine
+    Kennung liefert (iOS) — `betreff` und `an`.
     Dann gilt dieselbe Regel wie beim Versand (`policies.antwort_vorlage`):
     Hat das Gateway in dieser Konversation schon eine Mail des Absenders
     signiert, kommt die Antwort-Signatur (oder nichts), sonst die volle. Ist
@@ -294,12 +310,21 @@ async def verfassen_signatur(request: Request):
     vorlage = _addin_cfg(email)["template"]
     plattform = _plattform(request)
     kette = False
-    konversation = _konversation(request)
-    if konversation == "":
-        log.info("Verfassen-Add-in: Antwort von %s mit unbrauchbarer Konversations-"
-                 "Kennung — Gateway entscheidet beim Versand (%s)", email, plattform)
-        return JSONResponse({"html": ""}, headers=_CORS)
-    if konversation is not None:
+    antwort = _antwort(request)
+    if antwort is not None:
+        konversation, weg = antwort["konversation"], "Kennung"
+        if not konversation and antwort["betreff"]:
+            konversation = await graph_client.konversation_per_betreff(
+                email, antwort["betreff"], antwort["an"])
+            weg = "Betreff"
+        # Zeigt, was der Client liefert — auf iOS fehlte die Kennung (19.10.2026).
+        log.info("Verfassen-Add-in: %s von %s — Kennung %s, Betreff %s, Konversation %s (%s)",
+                 "Antwort" if antwort["art"] == "reply" else "Weiterleitung", email,
+                 "ja" if antwort["konversation"] else "nein",
+                 "ja" if antwort["betreff"] else "nein",
+                 f"über {weg}" if konversation else "nicht gefunden", plattform)
+        if not konversation:
+            return JSONResponse({"html": ""}, headers=_CORS)
         kennungen = await graph_client.konversation_kennungen(email, konversation)
         if kennungen is None:
             log.info("Verfassen-Add-in: Antwort von %s — Konversation nicht ermittelbar, "

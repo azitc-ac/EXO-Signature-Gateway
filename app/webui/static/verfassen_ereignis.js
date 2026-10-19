@@ -49,9 +49,14 @@
     try { return String(Office.context.diagnostics.platform || ''); } catch (e) { return ''; }
   }
 
-  function signaturHolen(zugriff, konversation) {
+  function signaturHolen(zugriff, antwort) {
     var adresse = EXO_VERFASSEN.api + '?client=' + encodeURIComponent(plattform());
-    if (konversation) adresse += '&konversation=' + encodeURIComponent(konversation);
+    if (antwort) {
+      adresse += '&art=' + encodeURIComponent(antwort.art);
+      if (antwort.konversation) adresse += '&konversation=' + encodeURIComponent(antwort.konversation);
+      if (antwort.betreff) adresse += '&betreff=' + encodeURIComponent(antwort.betreff.slice(0, 255));
+      if (antwort.an) adresse += '&an=' + encodeURIComponent(antwort.an);
+    }
     return fetch(adresse, { headers: { Authorization: 'Bearer ' + zugriff } })
       .then(function (r) {
         if (!r.ok) throw new Error('Gateway antwortet ' + r.status);
@@ -72,6 +77,26 @@
       .catch(function () { /* Zählung ist Beiwerk */ });
   }
 
+  // Betreff und Empfänger des Entwurfs — Rückfall, wenn Outlook keine
+  // conversationId liefert (iOS im Antwortentwurf). Fehlt eine API oder
+  // scheitert sie, bleibt der Wert leer; das Gateway kommt damit zurecht.
+  function feld(obj, umwandeln) {
+    if (!obj || typeof obj.getAsync !== 'function') return Promise.resolve('');
+    return asynk(function (cb) { obj.getAsync(cb); }).then(umwandeln, function () { return ''; });
+  }
+
+  function antwortAngaben(item, art) {
+    return Promise.all([
+      feld(item.subject, function (v) { return String(v || ''); }),
+      feld(item.to, function (v) {
+        return (v || []).map(function (e) { return e.emailAddress; }).filter(Boolean)
+          .slice(0, 20).join(',');
+      })
+    ]).then(function (w) {
+      return { art: art, konversation: item.conversationId || '', betreff: w[0], an: w[1] };
+    });
+  }
+
   function beimVerfassen(event) {
     var item = Office.context.mailbox.item;
     // Das Manifest verlangt nur Mailbox 1.5 (Outlook mobil). Fehlen die
@@ -85,15 +110,16 @@
       .then(function (art) {
         // Antwort/Weiterleitung: Das Gateway wendet dieselbe Regel an wie beim
         // Versand (volle Signatur beim ersten eigenen Beitrag, danach die
-        // Antwort-Signatur) und braucht dafür die Konversation. Ohne Kennung
-        // nichts einfügen — dann entscheidet das Gateway beim Versand.
-        var konversation = null;
+        // Antwort-Signatur) und braucht dafür die Konversation — über deren
+        // Kennung oder, wo Outlook keine liefert, über Betreff und Empfänger.
+        // Findet das Gateway sie nicht, bleibt der Entwurf leer und es
+        // entscheidet beim Versand.
         if (!art) return null;
-        if (art.composeType !== 'newMail') {
-          konversation = item.conversationId;
-          if (!konversation) return null;
-        }
-        return token().then(function (z) { return signaturHolen(z, konversation); }).then(function (d) {
+        var angaben = art.composeType === 'newMail' ? Promise.resolve(null)
+          : antwortAngaben(item, art.composeType === 'forward' ? 'forward' : 'reply');
+        return angaben.then(function (antwort) {
+          return token().then(function (z) { return signaturHolen(z, antwort); });
+        }).then(function (d) {
           var html = (d && d.html) || '';
           return (d && d.kette ? ketteMelden(item) : Promise.resolve()).then(function () { return html; });
         }).then(function (html) {

@@ -5,6 +5,26 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.179 — 2026-10-19 — Verfassen-Add-in: Antworten auf iPhone und Android
+
+Mit v1.9.178 fügte das Add-in auf dem iPhone bei Antworten und Weiterleitungen
+nichts ein. Outlook auf iOS startet das Add-in zwar, liefert im Antwortentwurf
+aber keine Kennung der Unterhaltung. Ohne sie brach das Add-in still ab.
+
+Jetzt schickt das Add-in in diesem Fall Betreff und Empfänger des Entwurfs mit.
+Das Gateway sucht unter den letzten 100 Mails des Postfachs die jüngste mit
+demselben Betreff. Vorsätze wie *AW:*, *Re:*, *WG:* oder *Fwd:* zählen dabei
+nicht mit. Gibt es mehrere, gewinnt die Mail, deren Absender unter den
+Empfängern steht. Danach gilt dieselbe Regel wie zuvor: volle Signatur oder
+Antwort-Signatur. Findet sich keine passende Mail, bleibt der Entwurf leer,
+und das Gateway entscheidet beim Versand.
+
+Betreff und Empfänger dienen nur dem Vergleich im Gateway. Sie werden weder
+gespeichert noch in eine Graph-Abfrage eingesetzt.
+
+**Zu tun:** nichts. Keine Manifest-Änderung, keine Aktualisierung im Admin
+Center.
+
 ## v1.9.178 — 2026-10-19 — Verfassen-Add-in: Signatur auch bei Antwort und Weiterleitung
 
 Das Add-in „Signatur automatisch“ fügt die Signatur jetzt auch beim Antworten
