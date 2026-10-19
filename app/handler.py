@@ -1023,10 +1023,13 @@ class SignatureHandler:
             # haben). Er kann keinen Fehlalarm erzeugen — er prüft auf eine
             # Kennung, die ausschliesslich dieses Gateway setzt.
             _bezuege = sig_thread.kennungen(msg)
+            # Kennzeichen des Verfassen-Add-ins: Es hat die Antwort-Signatur
+            # gewählt. Es zählt nur die Wirkung (unten) — es entscheidet NICHT
+            # mit: Bis v1.9.180 galt der Kopf als Kette, und eine Fehl-
+            # entscheidung des Add-ins nahm so auch dem Gateway die Signatur.
             _addin_kette = sig_thread.addin_hat_kette(msg)
             _in_kette = (sig_thread.kennt(sender, _bezuege)
-                         or mail_processor.sender_already_in_thread(msg, {sender.lower()})
-                         or _addin_kette)
+                         or mail_processor.sender_already_in_thread(msg, {sender.lower()}))
 
             # Bezugsgröße für die Kennzahl: ausgehende Mails, die überhaupt in
             # einer Kette stehen. Ohne sie wäre die Wirkungszahl unten nicht zu

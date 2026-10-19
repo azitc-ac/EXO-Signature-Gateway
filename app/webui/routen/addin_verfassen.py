@@ -292,9 +292,10 @@ async def verfassen_signatur(request: Request):
     `konversation` (conversationId) und — als Rückfall, wo der Client keine
     Kennung liefert (iOS) — `betreff` und `an`.
     Dann gilt dieselbe Regel wie beim Versand (`policies.antwort_vorlage`):
-    Hat das Gateway in dieser Konversation schon eine Mail des Absenders
-    signiert, kommt die Antwort-Signatur (oder nichts), sonst die volle. Ist
-    die Konversation nicht ermittelbar, bleibt der Entwurf leer und das Gateway
+    Trägt die Kette der BEANTWORTETEN Mail (nicht die ganze Konversation)
+    schon eine vom Gateway signierte Mail des Absenders, kommt die
+    Antwort-Signatur (oder nichts), sonst die volle. Ist die beantwortete Mail
+    nicht ermittelbar, bleibt der Entwurf leer und das Gateway
     entscheidet beim Versand wie bisher."""
     kopf = request.headers.get("authorization") or ""
     claims = sso_mod.verify_access_token(kopf[7:].strip()) if kopf[:7].lower() == "bearer " else None
@@ -325,18 +326,23 @@ async def verfassen_signatur(request: Request):
                  f"über {weg}" if konversation else "nicht gefunden", plattform)
         if not konversation:
             return JSONResponse({"html": ""}, headers=_CORS)
-        kennungen = await graph_client.konversation_kennungen(email, konversation)
-        if kennungen is None:
-            log.info("Verfassen-Add-in: Antwort von %s — Konversation nicht ermittelbar, "
+        bezug = await graph_client.antwort_bezug(email, konversation, antwort["art"], antwort["an"])
+        if bezug is None:
+            log.info("Verfassen-Add-in: Antwort von %s — beantwortete Mail nicht ermittelbar, "
                      "Gateway entscheidet beim Versand (%s)", email, plattform)
             return JSONResponse({"html": ""}, headers=_CORS)
         import policies
         import sig_thread
-        in_kette = sig_thread.kennt(email, kennungen)
+        # Dieselbe Prüfung wie handler.py: Kette der beantworteten Mail ODER
+        # Gateway-Signatur in ihrem Text.
+        in_kette = sig_thread.kennt(email, bezug["kennungen"]) or bezug["marker"]
+        log.info("Verfassen-Add-in: beantwortet wird die Mail von %s (%s) — %s",
+                 bezug["von"], bezug["zeit"][:16],
+                 "eigene Signatur in ihrer Kette" if in_kette else "keine eigene Signatur in ihrer Kette")
         vorlage = policies.antwort_vorlage(policies.aufloesen(email), in_kette)
         if in_kette:
             # Merkmal wie im Handler, damit `grep SIG-KETTE` jeden Fall findet.
-            log.info("SIG-KETTE: Add-in, Antwort in signierter Kette — %s für %s (%s)",
+            log.info("SIG-KETTE: Add-in, beantwortete Mail trägt schon die eigene Signatur — %s für %s (%s)",
                      f"Antwort-Signatur {vorlage!r}" if vorlage else "keine Signatur",
                      email, plattform)
         if not vorlage:

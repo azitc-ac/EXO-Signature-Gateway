@@ -5,6 +5,35 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.181 — 2026-10-20 — Verfassen-Add-in: Antwort-Regel an der beantworteten Mail, nicht an der ganzen Unterhaltung
+
+Seit v1.9.178 prüfte das Add-in bei Antworten, ob in der **ganzen
+Unterhaltung** schon eine signierte Mail des Absenders steht. Das Gateway
+prüft beim Versand dagegen die **Kette der beantworteten Mail**, also deren
+Verweise auf frühere Nachrichten und den zitierten Text. Beides ist nicht
+dasselbe. Wer auf eine Mail antwortet, die **vor** der eigenen signierten
+Antwort kam, etwa mit „Allen antworten“ auf eine ältere Nachricht, bekam
+keine Signatur, obwohl die Empfänger in dieser Kette die volle nie gesehen
+hatten.
+
+Schwerer wog: Das Kennzeichen am Entwurf (`X-Exo-Sig-Kette`) galt beim Versand
+als Kette, und das Gateway übernahm die falsche Entscheidung. Die Mail ging
+ganz ohne Signatur hinaus.
+
+Jetzt:
+- Das Add-in bestimmt die beantwortete Mail: die jüngste Mail des Absenders,
+  dem geantwortet wird (bei „Allen antworten“ der erste Empfänger). Bei einer
+  Weiterleitung ist es die jüngste fremde Mail.
+- Es prüft genau wie das Gateway: deren Kennung und Verweise sowie eine
+  Gateway-Signatur in ihrem Text.
+- Das Kennzeichen am Entwurf zählt nur noch für „Stapel verhindert“. Ob eine
+  Mail in einer Kette steht, entscheidet beim Versand wieder allein das
+  Gateway.
+
+**Zu tun:** nichts für diese Änderung. Wer von v1.9.179 oder älter kommt,
+übernimmt mit diesem Update auch v1.9.180. Aktualisiere dann beide Add-ins im
+Admin Center, siehe dort.
+
 ## v1.9.180 — 2026-10-19 — Ein Zeichen überall; neue Namen der Outlook-Add-ins
 
 ### Ein Zeichen für Anmeldung, Browser, Outlook und Teams

@@ -41,10 +41,13 @@ def antwort(umgebung, monkeypatch):  # noqa: F811
     zustand = {"kennungen": ["<a@x>", "<b@x>"], "bekannt": set(), "graph": [],
                "vorlagen": {"sig": "Voll", "min": "Kurz", "oof": "", "banner": "", "disclaimer": ""}}
 
-    async def _kennungen(postfach, konv):
+    async def _bezug(postfach, konv, art="reply", an=None):
         zustand["graph"].append((postfach, konv))
-        return zustand["kennungen"]
-    monkeypatch.setattr(graph_client, "konversation_kennungen", _kennungen)
+        if zustand["kennungen"] is None:
+            return None
+        return {"kennungen": zustand["kennungen"], "marker": zustand.get("marker", False),
+                "von": "kunde@extern.de", "zeit": "2026-10-19T15:50:00Z"}
+    monkeypatch.setattr(graph_client, "antwort_bezug", _bezug)
     monkeypatch.setattr(sig_thread, "kennt",
                         lambda p, refs: bool(set(refs or []) & zustand["bekannt"]))
     monkeypatch.setattr(policies, "aufloesen", lambda e, *a, **kw: dict(zustand["vorlagen"]))
@@ -112,7 +115,13 @@ def test_gateway_und_addin_teilen_eine_regel():
     assert "antwort_vorlage(_vorlagen, True)" in quelle
 
 
-def test_graph_filter_maskiert_hochkomma(monkeypatch):
+def test_signatur_im_text_der_beantworteten_mail_zaehlt_wie_im_gateway(antwort):
+    """Zweites Netz wie handler.py (Marker im Zitat), auch ohne bekannte Kennung."""
+    antwort["marker"] = True
+    assert _abruf(KONV)["kette"] is True
+
+
+def test_graph_filter_maskiert_hochkomma_und_liest_die_kette(monkeypatch):
     urls = []
 
     async def _tok():
@@ -123,9 +132,16 @@ def test_graph_filter_maskiert_hochkomma(monkeypatch):
 
         @staticmethod
         def json():
-            return {"value": [{"internetMessageId": "<a@x>", "isDraft": False},
-                              {"internetMessageId": "<entwurf@x>", "isDraft": True},
-                              {"isDraft": False}]}
+            return {"value": [
+                {"internetMessageId": "<entwurf@x>", "isDraft": True,
+                 "receivedDateTime": "2026-10-19T21:00:00Z", "from": {"emailAddress": {"address": "kunde@y"}}},
+                {"internetMessageId": "<m2@y>", "isDraft": False, "receivedDateTime": "2026-10-19T15:50:00Z",
+                 "from": {"emailAddress": {"address": "Kunde@Y"}},
+                 "internetMessageHeaders": [{"name": "References", "value": "<m0@y>\r\n <m1@y>"},
+                                            {"name": "In-Reply-To", "value": "<m1@y>"},
+                                            {"name": "Subject", "value": "<nicht@kette>"}],
+                 "body": {"content": '<p>Hallo</p><div class="exo-gateway-sig">x</div>'}},
+            ]}
 
     class _Client:
         def __init__(self, **kw):
@@ -144,10 +160,51 @@ def test_graph_filter_maskiert_hochkomma(monkeypatch):
     import httpx
     monkeypatch.setattr(graph_client, "_acquire_token_async", _tok)
     monkeypatch.setattr(httpx, "AsyncClient", _Client)
-    ids = asyncio.run(graph_client.konversation_kennungen("e@x", "a'b"))
-    assert ids == ["<a@x>"]                       # Entwurf und Leeres verworfen
+    b = asyncio.run(graph_client.antwort_bezug("e@x", "a'b", "reply", ["kunde@y"]))
+    assert b["kennungen"] == ["<m2@y>", "<m0@y>", "<m1@y>", "<m1@y>"]
+    assert b["marker"] is True and b["von"] == "Kunde@Y"
     from urllib.parse import unquote
     assert "conversationId eq 'a''b'" in unquote(urls[0])
+    assert "internetMessageHeaders" in urls[0]
+
+
+def _m(mid, von, zeit, entwurf=False):
+    return {"internetMessageId": mid, "isDraft": entwurf, "receivedDateTime": zeit,
+            "from": {"emailAddress": {"address": von}}}
+
+
+# Die Unterhaltung vom 19.10.2026: Karsten → Stocker → eigene Antwort (signiert).
+VERLAUF = [
+    _m("<karsten@d>", "karsten@daad.de", "2026-10-19T10:35:00Z"),
+    _m("<stocker@d>", "stocker@daad.de", "2026-10-19T15:50:00Z"),
+    _m("<ich@z>", "alexander@zarenko.net", "2026-10-19T17:55:00Z"),
+    _m("<entwurf@z>", "alexander@zarenko.net", "2026-10-19T21:32:00Z", entwurf=True),
+]
+
+
+def test_allen_antworten_auf_die_mail_vor_der_eigenen_antwort():
+    """Nicht die jüngste Nachricht der Konversation (die eigene Antwort),
+    sondern die des Absenders, dem geantwortet wird."""
+    m = graph_client._beantwortete(VERLAUF, "alexander@zarenko.net", "reply",
+                                   ["stocker@daad.de", "karsten@daad.de", "edalati@daad.de"])
+    assert m["internetMessageId"] == "<stocker@d>"
+
+
+def test_erster_empfaenger_entscheidet_vor_den_uebrigen():
+    m = graph_client._beantwortete(VERLAUF, "alexander@zarenko.net", "reply",
+                                   ["karsten@daad.de", "stocker@daad.de"])
+    assert m["internetMessageId"] == "<karsten@d>"
+
+
+def test_weiterleitung_nimmt_die_juengste_fremde():
+    m = graph_client._beantwortete(VERLAUF, "alexander@zarenko.net", "forward", [])
+    assert m["internetMessageId"] == "<stocker@d>"
+
+
+def test_nur_eigene_nachrichten_nimmt_die_juengste():
+    eigene = [_m("<a@z>", "ich@z", "2026-10-19T11:30:56Z"), _m("<b@z>", "ich@z", "2026-10-19T11:31:02Z")]
+    assert graph_client._beantwortete(eigene, "ich@z", "reply", ["ich@z"])["internetMessageId"] == "<b@z>"
+    assert graph_client._beantwortete([], "ich@z", "reply", []) is None
 
 
 # ── Handler-Skript (Node) ────────────────────────────────────────────────────
@@ -263,18 +320,21 @@ def test_von_hand_eingefuegter_block_ohne_kopf_zaehlt_nicht(anlage, zaehler):  #
     assert "stapel_verhindert" not in zaehler
 
 
-def test_kopf_ohne_signatur_gateway_folgt_der_kette(anlage, zaehler):  # noqa: F811
-    """Add-in hat die Kette erkannt, aber keine Antwort-Signatur eingefügt
-    (keine gewählt) — References allein kennt das Gateway nicht."""
+def test_kopf_allein_nimmt_dem_gateway_die_signatur_nicht(anlage, zaehler):  # noqa: F811
+    """Bis v1.9.180 galt der Kopf als Kette. Lag das Add-in falsch (ganze
+    Konversation statt beantworteter Mail), fehlte die Signatur auch beim
+    Versand. Der Kopf zählt nur noch — die Kette bestimmt das Gateway."""
     html = _versand(anlage, _mit_kopf(_mail(betreff="AW: Hallo")))
-    assert "[Sig]" not in html
-    assert zaehler.count("stapel_verhindert") == 1
+    assert "[Sig]" in html
+    assert "stapel_verhindert" not in zaehler
 
 
-def test_kopf_mit_antwortvorlage_setzt_die_kurze(anlage, zaehler):  # noqa: F811
+def test_kette_des_gateways_mit_antwortvorlage_setzt_die_kurze(anlage, zaehler):  # noqa: F811
     anlage["MAILBOX_CONFIG"]["max@firma.de"]["min_template"] = "Kurz"
+    anlage["_kette"]["an"] = True
     html = _versand(anlage, _mit_kopf(_mail(betreff="AW: Hallo")))
     assert "[Kurz]" in html and "[Sig]" not in html
+    assert zaehler.count("stapel_verhindert") == 1
 
 
 # ── Rückfall über Betreff und Empfänger (iOS liefert keine conversationId) ──
