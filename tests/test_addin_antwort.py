@@ -152,11 +152,17 @@ def test_graph_filter_maskiert_hochkomma(monkeypatch):
 
 # ── Handler-Skript (Node) ────────────────────────────────────────────────────
 
-def _item(art, konv="null", mit_kopf=True):
+def _item(art, konv="null", mit_kopf=True, betreff=None, an=None):
     kopf = (", internetHeaders: {setAsync: function (k, cb) { protokoll.kopf = k; "
             "cb({status: 'succeeded'}); }}") if mit_kopf else ""
+    felder = ""
+    if betreff is not None:
+        felder += ", subject: {getAsync: " + _OK % json.dumps(betreff) + "}"
+    if an is not None:
+        felder += ", to: {getAsync: " + _OK % json.dumps(
+            [{"emailAddress": a, "displayName": "X"} for a in an]) + "}"
     return ("{getComposeTypeAsync: " + _OK % ("{composeType: '%s'}" % art) +
-            ", conversationId: " + konv +
+            ", conversationId: " + konv + felder +
             ", disableClientSignatureAsync: " + _OK % "null" +
             ", body: {setSignatureAsync: function (h, o, cb) { protokoll.gesetzt = h; "
             "cb({status: 'succeeded'}); }}" + kopf + "}")
@@ -165,13 +171,27 @@ def _item(art, konv="null", mit_kopf=True):
 @pytest.mark.parametrize("art", ["reply", "forward"])
 def test_antwort_fragt_mit_konversation_und_setzt_signatur(art):
     p = _handler_lauf(_item(art, "'K+/='"))
-    assert p["url"] == "https://x/api?client=iOS&konversation=K%2B%2F%3D"
+    assert p["url"] == f"https://x/api?client=iOS&art={art}&konversation=K%2B%2F%3D"
     assert p["gesetzt"] == "<p>SIG</p>" and p["fertig"] == 1
 
 
-def test_antwort_ohne_konversation_fragt_nicht():
-    p = _handler_lauf(_item("reply"))
-    assert p["abrufe"] == 0 and p["gesetzt"] is None and p["fertig"] == 1
+def test_ohne_kennung_schickt_betreff_und_empfaenger():
+    """iOS: conversationId im Antwortentwurf leer (VM 19.10.2026)."""
+    p = _handler_lauf(_item("reply", betreff="AW: Angebot & Termin",
+                            an=["kunde@extern.de", "b@x.de"]))
+    assert p["url"] == ("https://x/api?client=iOS&art=reply"
+                        "&betreff=AW%3A%20Angebot%20%26%20Termin&an=kunde%40extern.de%2Cb%40x.de")
+    assert p["gesetzt"] == "<p>SIG</p>" and p["fertig"] == 1
+
+
+def test_scheiternde_feld_api_bricht_nicht_ab():
+    item = _item("reply").replace(
+        ", disableClientSignatureAsync",
+        ", subject: {getAsync: function (cb) { cb({status: 'failed', error: {message: 'x'}}); }}"
+        ", disableClientSignatureAsync", 1)
+    p = _handler_lauf(item)
+    assert p["url"] == "https://x/api?client=iOS&art=reply" and p["fertig"] == 1
+    assert not p["hinweise"]
 
 
 def test_neue_mail_ohne_konversation_in_der_adresse():
@@ -255,3 +275,112 @@ def test_kopf_mit_antwortvorlage_setzt_die_kurze(anlage, zaehler):  # noqa: F811
     anlage["MAILBOX_CONFIG"]["max@firma.de"]["min_template"] = "Kurz"
     html = _versand(anlage, _mit_kopf(_mail(betreff="AW: Hallo")))
     assert "[Kurz]" in html and "[Sig]" not in html
+
+
+# ── Rückfall über Betreff und Empfänger (iOS liefert keine conversationId) ──
+
+def _abruf_mit(antwort, **q):
+    req = _Req("Bearer " + _token())
+    req.query_params = {"client": "iOS", **q}
+    return json.loads(asyncio.run(av.verfassen_signatur(req)).body)
+
+
+@pytest.fixture
+def betreff_suche(antwort, monkeypatch):
+    aufrufe = []
+
+    async def _suche(postfach, betreff, an):
+        aufrufe.append((postfach, betreff, an))
+        return antwort.get("gefunden")
+    monkeypatch.setattr(graph_client, "konversation_per_betreff", _suche)
+    return aufrufe
+
+
+def test_ohne_kennung_findet_die_konversation_ueber_den_betreff(antwort, betreff_suche, caplog):
+    antwort["gefunden"] = "KB"
+    antwort["bekannt"] = {"<a@x>"}
+    import logging
+    with caplog.at_level(logging.INFO):
+        body = _abruf_mit(antwort, art="reply", betreff="AW: Angebot", an="Kunde@Extern.de,x")
+    assert body == {"html": addin.markiert("<p>SIG Kurz</p>"), "kette": True}
+    assert betreff_suche == [("erika@zarenko.net", "AW: Angebot", ["kunde@extern.de"])]
+    assert antwort["graph"] == [("erika@zarenko.net", "KB")]
+    assert any("Kennung nein, Betreff ja, Konversation über Betreff" in r.getMessage()
+               for r in caplog.records)
+
+
+def test_betreff_ohne_treffer_nichts_einfuegen(antwort, betreff_suche, caplog):
+    import logging
+    with caplog.at_level(logging.INFO):
+        assert _abruf_mit(antwort, art="forward", betreff="WG: X") == {"html": ""}
+    assert antwort["graph"] == []
+    assert any("Weiterleitung" in r.getMessage() and "nicht gefunden" in r.getMessage()
+               for r in caplog.records)
+
+
+def test_antwort_ohne_kennung_und_betreff_fragt_graph_nicht(antwort, betreff_suche):
+    assert _abruf_mit(antwort, art="reply") == {"html": ""}
+    assert betreff_suche == [] and antwort["graph"] == []
+
+
+def test_kennung_hat_vorrang_vor_dem_betreff(antwort, betreff_suche):
+    _abruf_mit(antwort, art="reply", konversation=KONV, betreff="AW: X")
+    assert betreff_suche == [] and antwort["graph"] == [("erika@zarenko.net", KONV)]
+
+
+@pytest.mark.parametrize("roh, kern", [
+    ("AW: Angebot", "angebot"), ("Re: AW: WG: Angebot", "angebot"),
+    ("RE[2]: Angebot", "angebot"), ("Fwd:  Angebot  neu", "angebot neu"),
+    ("Antwort: Angebot", "angebot"), ("Angebot: Teil 2", "angebot: teil 2"),
+    ("Area: Nord", "area: nord"), ("", ""),
+])
+def test_betreff_kern(roh, kern):
+    assert graph_client.betreff_kern(roh) == kern
+
+
+def _graph_liste(monkeypatch, nachrichten):
+    async def _tok():
+        return "T"
+
+    class _Antwort:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {"value": nachrichten}
+
+    class _Client:
+        def __init__(self, **kw):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def get(self, url, headers=None):
+            return _Antwort()
+
+    import httpx
+    monkeypatch.setattr(graph_client, "_acquire_token_async", _tok)
+    monkeypatch.setattr(httpx, "AsyncClient", _Client)
+
+
+def _n(betreff, konv, von, entwurf=False):
+    return {"subject": betreff, "conversationId": konv, "isDraft": entwurf,
+            "from": {"emailAddress": {"address": von}}}
+
+
+def test_betreff_suche_bevorzugt_den_absender_unter_den_empfaengern(monkeypatch):
+    _graph_liste(monkeypatch, [
+        _n("AW: Angebot", "ENTWURF", "ich@x", entwurf=True),
+        _n("Angebot", "NEUESTE", "fremd@y"),
+        _n("Angebot", "RICHTIG", "Kunde@Extern.de"),
+        _n("Anderes", "X", "kunde@extern.de"),
+    ])
+    k = asyncio.run(graph_client.konversation_per_betreff("ich@x", "AW: Angebot", ["kunde@extern.de"]))
+    assert k == "RICHTIG"
+    assert asyncio.run(graph_client.konversation_per_betreff("ich@x", "WG: Angebot", [])) == "NEUESTE"
+    assert asyncio.run(graph_client.konversation_per_betreff("ich@x", "Gibt es nicht", [])) is None
+    assert asyncio.run(graph_client.konversation_per_betreff("ich@x", "AW: ", [])) is None

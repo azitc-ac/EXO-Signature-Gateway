@@ -3,6 +3,7 @@ import datetime
 import hashlib
 import json
 import logging
+import re
 import threading
 import time
 import urllib.parse
@@ -386,6 +387,57 @@ async def konversation_kennungen(postfach: str, konversation: str) -> list[str] 
         return None
     return [m["internetMessageId"] for m in resp.json().get("value", [])
             if not m.get("isDraft") and m.get("internetMessageId")]
+
+
+_BETREFF_PRAEFIX = re.compile(
+    r"^\s*(?:(?:re|aw|wg|fw|fwd|antw|antwort|wtr|tr|sv|vs|rv|enc)\s*(?:\[\d+\])?\s*:\s*)+",
+    re.IGNORECASE)
+
+
+def betreff_kern(betreff: str) -> str:
+    """Betreff ohne Antwort-/Weiterleitungs-Vorsätze (AW:, Re:, WG:, Fwd: …),
+    Leerraum zusammengefasst, Gross/klein egal — zum Vergleich über Sprachen."""
+    kern = _BETREFF_PRAEFIX.sub("", betreff or "")
+    return " ".join(kern.split()).casefold()
+
+
+async def konversation_per_betreff(postfach: str, betreff: str,
+                                   empfaenger: list[str] | None = None) -> str | None:
+    """`conversationId` der jüngsten Mail im Postfach mit demselben Betreff-Kern.
+
+    Rückfall für Outlook auf iOS: Im Antwortentwurf ist `item.conversationId`
+    dort leer (VM 19.10.2026, drei Antworten ohne Abruf). Unter mehreren
+    Treffern gewinnt eine Mail, deren Absender unter den Empfängern des
+    Entwurfs steht (bei einer Antwort der ursprüngliche Absender), sonst die
+    jüngste. Durchsucht die letzten 100 Nachrichten — geantwortet wird meist
+    auf Neues; ältere Fälle entscheidet das Gateway beim Versand."""
+    import httpx
+    from urllib.parse import quote
+    kern = betreff_kern(betreff)
+    tok = await _acquire_token_async()
+    if not tok or not kern:
+        return None
+    url = (f"https://graph.microsoft.com/v1.0/users/{quote(postfach)}/messages"
+           "?$top=100&$select=subject,conversationId,from,isDraft&$orderby=receivedDateTime%20desc")
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(url, headers={"Authorization": f"Bearer {tok}"})
+    except Exception as exc:                                   # noqa: BLE001
+        log.warning("konversation_per_betreff %s: %s", postfach, exc)
+        return None
+    if resp.status_code != 200:
+        log.warning("konversation_per_betreff %s: Graph %s %s", postfach, resp.status_code,
+                    resp.text[:200])
+        return None
+    treffer = [m for m in resp.json().get("value", [])
+               if not m.get("isDraft") and m.get("conversationId")
+               and betreff_kern(m.get("subject") or "") == kern]
+    an = {e.lower() for e in (empfaenger or [])}
+    if an:
+        passend = [m for m in treffer
+                   if (((m.get("from") or {}).get("emailAddress") or {}).get("address") or "").lower() in an]
+        treffer = passend or treffer
+    return treffer[0]["conversationId"] if treffer else None
 
 
 async def update_sent_item(sender_email: str, message_id: str, html_body: str) -> bool | None:
