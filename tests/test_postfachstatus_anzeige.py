@@ -175,9 +175,38 @@ def test_kennung_kommt_aus_der_eingestellten_aussenadresse(monkeypatch):
     monkeypatch.setattr(settings_store, "get", lambda k, *a, **kw: werte.get(k))
     from webui.routen.addin import knopf_addin_id
     from webui.routen.addin_verfassen import addin_id
-    soll = {a["name"]: a["id"] for a in health_check._addin_soll()}
-    assert soll == {"Signatur automatisch": addin_id("sig.contoso.example"),
-                    "Add-in (Knopf)": knopf_addin_id("sig.contoso.example")}
+    soll = {a["art"]: a["id"] for a in health_check._addin_soll()}
+    assert soll == {"verfassen": addin_id("sig.contoso.example"),
+                    "knopf": knopf_addin_id("sig.contoso.example")}
+
+
+def test_status_nennt_das_addin_wie_das_admin_center(monkeypatch):
+    """Der Name im Status ist der DisplayName aus dem Manifest — dieselbe
+    Funktion. Wer die Warnung liest, findet den Eintrag in „Integrierte Apps“."""
+    import xml.etree.ElementTree as ET
+    from webui.routen import addin, addin_verfassen as av
+    werte = {"ADDIN_ENABLED": True, "ADDIN_BASE_URL": "https://sig.contoso.example",
+             "GATEWAY_NAME": "Contoso & Co", "ABWESENHEIT_AKTIV": True}
+    monkeypatch.setattr(settings_store, "get", lambda k, d=None, *a, **kw: werte.get(k, d))
+    monkeypatch.setattr(settings_store, "force_update", lambda p: None)
+    monkeypatch.setattr(addin, "_gateway_name", lambda: "Contoso & Co")
+    import abwesenheit
+    monkeypatch.setattr(abwesenheit, "funktion_aktiv", lambda: True)
+    namen = addin.addin_namen()
+    assert namen == {"verfassen": "Contoso & Co – Signatur automatisch einfügen",
+                     "knopf": "Contoso & Co – Signatur & Abwesenheit"}
+
+    class _Req:
+        headers = {}
+        url = type("U", (), {"scheme": "https", "netloc": "sig.contoso.example",
+                             "hostname": "sig.contoso.example"})()
+    ns = {"o": "http://schemas.microsoft.com/office/appforoffice/1.1"}
+    import asyncio as _a
+    for art, abruf in (("knopf", addin.addin_manifest), ("verfassen", av.verfassen_manifest)):
+        xml = ET.fromstring(_a.run(abruf(_Req())).body)
+        assert xml.find("o:DisplayName", ns).get("DefaultValue") == namen[art]
+    r = health_check._check_addins({})
+    assert r["verfassen"]["name"] == namen["verfassen"] and r["knopf"]["name"] == namen["knopf"]
 
 
 def test_ohne_aussenadresse_keine_abfrage(monkeypatch):

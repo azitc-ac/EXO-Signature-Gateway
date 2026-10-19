@@ -241,8 +241,8 @@ async def addin_teams_app(request: Request):
     puffer = io.BytesIO()
     with zipfile.ZipFile(puffer, "w", zipfile.ZIP_DEFLATED) as z:
         z.writestr("manifest.json", _json_mod.dumps(m, ensure_ascii=False, indent=2))
-        z.writestr("color.png", _icon_png(192))
-        z.writestr("outline.png", _icon_png(32, umriss=True))
+        z.writestr("color.png", _symbol_png(192))
+        z.writestr("outline.png", _umriss_png(32))
     return Response(content=puffer.getvalue(), media_type="application/zip",
                     headers={"Content-Disposition": f'attachment; filename="signatur-app-{m["version"]}.zip"',
                              "Cache-Control": _NO_STORE})
@@ -284,6 +284,10 @@ def _manifest_texte() -> dict[str, str]:
                                                           if abw else " und Signaturwahl verwalten"), _LANG),
         "info_lesen": ("Eigene Abwesenheit und Signatur verwalten" if abw
                        else "Eigene Signatur verwalten", _LANG),
+        # Namen der beiden Outlook-Add-ins — so stehen sie im Admin Center
+        # (Integrierte Apps) und im Postfach-Status (addin_namen()).
+        "name_knopf": (f"{name} – {knopf}", _KURZ),
+        "name_verfassen": (f"{name} – Signatur automatisch einfügen", _KURZ),
     }
     return {k: _xml_escape(v[:grenze], {'"': "&quot;"}) for k, (v, grenze) in roh.items()}
 
@@ -459,7 +463,7 @@ async def addin_manifest(request: Request):
   <Version>__VERSION__</Version>
   <ProviderName>{t['anbieter']}</ProviderName>
   <DefaultLocale>de-DE</DefaultLocale>
-  <DisplayName DefaultValue="{t['anzeige']}"/>
+  <DisplayName DefaultValue="{t['name_knopf']}"/>
   <Description DefaultValue="{t['beschreibung']}"/>
   <IconUrl DefaultValue="{base}/addin/icon/32.png"/>
   <HighResolutionIconUrl DefaultValue="{base}/addin/icon/64.png"/>
@@ -573,19 +577,34 @@ async def addin_manifest(request: Request):
 
 @router.get("/addin/icon/{size_str}")
 async def addin_icon(size_str: str):
-    """Serve an envelope icon as PNG (no PIL required)."""
-    size = max(16, min(int(size_str.split(".")[0]), 128))
+    """Das Zeichen des Gateways als PNG — dieselbe Form wie Favicon und Login."""
+    try:
+        size = int(size_str.split(".")[0])
+    except ValueError:
+        size = 32
     from fastapi.responses import Response
-    return Response(content=_icon_png(size), media_type="image/png")
+    return Response(content=_symbol_png(size), media_type="image/png")
 
 
-def _icon_png(size: int, umriss: bool = False) -> bytes:
-    """Briefumschlag als PNG. `umriss=True`: weiß auf TRANSPARENT (RGBA) — das
-    verlangt das Teams-App-Manifest für das „outline"-Symbol (32×32); sonst weiß
-    auf blauer Kachel (RGB), wie im Menüband."""
+_SYMBOL_DIR = Path(__file__).resolve().parent.parent / "static" / "symbol"
+SYMBOL_GROESSEN = (16, 32, 64, 80, 128, 192)
+
+
+def _symbol_png(size: int) -> bytes:
+    """Gerendertes Zeichen (tools/symbole_rendern.py aus static/favicon.svg) in
+    der kleinsten vorhandenen Größe ≥ `size` — Outlook skaliert herunter, nie
+    hoch."""
+    n = next((g for g in SYMBOL_GROESSEN if g >= size), SYMBOL_GROESSEN[-1])
+    return (_SYMBOL_DIR / f"{n}.png").read_bytes()
+
+
+def _umriss_png(size: int) -> bytes:
+    """Briefumschlag weiß auf TRANSPARENT (RGBA) — das verlangt das
+    Teams-App-Manifest für das „outline"-Symbol (32×32, einfarbig). Das farbige
+    Zeichen taugt dafür nicht."""
     import struct, zlib
-    hinter = (0, 0, 0, 0) if umriss else (0, 120, 212)       # #0078d4 blue background
-    vorne = (255, 255, 255, 255) if umriss else (255, 255, 255)  # white foreground
+    hinter = (0, 0, 0, 0)
+    vorne = (255, 255, 255, 255)
 
     pixels = [[hinter] * size for _ in range(size)]
 
@@ -612,9 +631,7 @@ def _icon_png(size: int, umriss: bool = False) -> bytes:
     s = size / 32.0
     w = max(2, round(2.5 * s))  # bold stroke so the shape reads at 16px
 
-    # Envelope — a bold white outline on the blue tile. A thin pen glyph
-    # disappears at 16/32px (reads as a plain blue box); a chunky envelope
-    # outline stays legible at ribbon sizes.
+    # Kräftiger Umriss, damit der Umschlag auf 32 px lesbar bleibt.
     top, bot = round(9 * s), round(24 * s)
     left, right = round(5 * s), round(27 * s)
     midR, midC = round(17 * s), round(16 * s)
@@ -633,7 +650,7 @@ def _icon_png(size: int, umriss: bool = False) -> bytes:
         c = struct.pack(">I", len(data)) + tag + data
         return c + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
 
-    farbtyp = 6 if umriss else 2   # 6 = RGBA, 2 = RGB
+    farbtyp = 6                    # RGBA
     return (
         b"\x89PNG\r\n\x1a\n"
         + _chunk(b"IHDR", struct.pack(">IIBBBBB", size, size, 8, farbtyp, 0, 0, 0))
@@ -681,6 +698,15 @@ async def api_addin_signature(email: str, template: str = "", user: str = Depend
         return JSONResponse({"marked_html": "", "preview_html": ""})
 
     return JSONResponse({"marked_html": markiert(sig_html), "preview_html": sig_html})
+
+
+def addin_namen() -> dict[str, str]:
+    """{"verfassen", "knopf"} → Anzeigename des Add-ins, wie im Manifest (und
+    damit im Admin Center). EINE Quelle für Manifeste und Postfach-Status."""
+    import html as _html
+    t = _manifest_texte()
+    return {"verfassen": _html.unescape(t["name_verfassen"]),
+            "knopf": _html.unescape(t["name_knopf"])}
 
 
 def markiert(sig_html: str) -> str:

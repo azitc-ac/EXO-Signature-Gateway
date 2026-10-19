@@ -6,10 +6,12 @@ eigenständige Seiten mit eigenem <head> (Add-in, Self-Service, Portal,
 S/MIME-Selbstbedienung, Einrichtung) — genau dort fehlt so etwas als Erstes.
 Deshalb prüft der Test ALLE Vorlagen mit eigenem <head>, nicht eine Liste.
 
-Quelle ist static/favicon.svg. favicon.ico (16/32/48) und
-apple-touch-icon.png (180) sind daraus gerendert, einmalig mit cairosvg in
-einem Wegwerf-Container (python:3.11-slim + libcairo2). Wer das SVG ändert,
-rendert beide neu.
+Quelle ist static/favicon.svg — seit v1.9.180 das EINE Zeichen des Gateways
+(Entwurf C: Umschlag, Signaturschwung, Siegel, Schloss). favicon.ico,
+apple-touch-icon.png und die Add-in-/Teams-Symbole (static/symbol/) rendert
+`tools/symbole_rendern.py` daraus; login-logo.svg ist dieselbe Form mit
+weichem Schatten. Wer das SVG ändert, rendert neu — der Prüfsummen-Test unten
+schlägt sonst an.
 """
 import re
 import struct
@@ -87,3 +89,40 @@ def test_gerenderte_seite_verweist_auf_das_favicon(client):
     assert '<link rel="icon" href="/static/favicon.svg"' in html
     for pfad in ("/static/favicon.svg", "/static/apple-touch-icon.png"):
         assert client.get(pfad).status_code == 200, pfad
+
+
+# ── Ein Zeichen überall (v1.9.180) ──────────────────────────────────────────
+
+def test_gerenderte_symbole_stammen_aus_dem_aktuellen_svg():
+    import hashlib
+    soll = hashlib.sha256((STATIC / "favicon.svg").read_bytes()).hexdigest()
+    ist = (STATIC / "symbol" / "quelle.sha256").read_text().strip()
+    assert ist == soll, "favicon.svg geändert — tools/symbole_rendern.py ausführen"
+
+
+def _formen(svg: str) -> list[str]:
+    """Die zeichnenden Elemente ohne Kommentare, Filter und Gruppen."""
+    svg = re.sub(r"<!--.*?-->", "", svg, flags=re.S)
+    return re.findall(r"<(?:rect|path|circle)\b[^>]*>", svg.split("</defs>", 1)[1])
+
+
+def test_login_logo_ist_dieselbe_form_wie_das_favicon():
+    fav = (STATIC / "favicon.svg").read_text(encoding="utf-8")
+    login = (STATIC / "login-logo.svg").read_text(encoding="utf-8")
+    assert _formen(login) == _formen(fav) and len(_formen(fav)) >= 7
+    assert "feDropShadow" in login and "feDropShadow" not in fav
+
+
+@pytest.mark.parametrize("groesse, datei", [(16, 16), (32, 32), (64, 64), (80, 80), (20, 32),
+                                            (128, 128), (500, 192)])
+def test_addin_symbol_ist_das_zeichen(groesse, datei):
+    import asyncio
+    from webui.routen import addin
+    r = asyncio.run(addin.addin_icon(f"{groesse}.png"))
+    assert r.body == (STATIC / "symbol" / f"{datei}.png").read_bytes()
+    assert struct.unpack(">II", r.body[16:24]) == (datei, datei)
+
+
+def test_teams_farbsymbol_ist_das_zeichen():
+    from webui.routen import addin
+    assert addin._symbol_png(192) == (STATIC / "symbol" / "192.png").read_bytes()

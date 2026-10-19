@@ -5,6 +5,46 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.180 — 2026-10-19 — Ein Zeichen überall; neue Namen der Outlook-Add-ins
+
+### Ein Zeichen für Anmeldung, Browser, Outlook und Teams
+
+Das Gateway hatte drei verschiedene Symbole: ein ausgeschmücktes Logo auf der
+Anmeldeseite, ein vereinfachtes Favicon und einen weißen Umschlag auf blauer
+Kachel im Outlook-Menüband. Jetzt gibt es ein Zeichen: einen Umschlag mit
+Signaturschwung, einem dunkelroten Siegel auf der Spitze der Lasche (signiert)
+und einem grünen Schloss (verschlüsselt). Es ist flach gehalten und bleibt
+deshalb auch mit 16 Pixeln lesbar.
+
+Es erscheint als Favicon, als Symbol auf dem Home-Bildschirm (iOS), als Symbol
+beider Outlook-Add-ins und als Farbsymbol der Teams-App. Auf der Anmeldeseite
+steht dieselbe Form mit weichem Schatten.
+
+### Neue Namen der Outlook-Add-ins
+
+| bisher | jetzt |
+|---|---|
+| *EXO Signature Gateway* | *EXO Signature Gateway – Signatur & Abwesenheit* |
+| *EXO Signature Gateway – Signatur automatisch* | *EXO Signature Gateway – Signatur automatisch einfügen* |
+
+Der erste Teil ist der eingestellte Gateway-Name. Ist *Zentrale Abwesenheiten
+verwalten* aus, heißt das erste Add-in *… – Signatur*, wie sein Knopf.
+
+So stehen die Add-ins im Admin Center unter *Integrierte Apps*, und so nennt
+sie jetzt auch der Postfach-Status. Eine Warnung zur Add-in-Fassung führt
+damit direkt zum richtigen Eintrag. Die Knöpfe in Outlook behalten ihre
+Beschriftung.
+
+**Zu tun:** Name und Symbol stehen im Manifest. Outlook übernimmt sie erst,
+wenn du beide Add-ins im Admin Center aktualisierst: *Einstellungen →
+Integrierte Apps* → jeweils das Add-in öffnen → **Aktualisieren**. Mach das
+direkt nach dem Update. Laut Microsoft ist ein automatisch startendes Add-in
+bis zu dieser Bestätigung gesperrt, danach dauert die Verteilung bis zu 72
+Stunden. Für das neue Symbol der Teams-App lade das App-Paket neu herunter
+(*Einrichtung → Outlook-Add-in → App-Paket herunterladen*) und lade es unter
+*Integrierte Apps* hoch. Das ist optional, die App funktioniert auch mit dem
+alten Symbol.
+
 ## v1.9.179 — 2026-10-19 — Verfassen-Add-in: Antworten auf iPhone und Android
 
 Mit v1.9.178 fügte das Add-in auf dem iPhone bei Antworten und Weiterleitungen

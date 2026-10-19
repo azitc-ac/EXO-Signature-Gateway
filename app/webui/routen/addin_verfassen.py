@@ -91,7 +91,7 @@ async def verfassen_manifest(request: Request):
   <Version>__VERSION__</Version>
   <ProviderName>{t['anbieter']}</ProviderName>
   <DefaultLocale>de-DE</DefaultLocale>
-  <DisplayName DefaultValue="{t['anzeige']} – Signatur automatisch"/>
+  <DisplayName DefaultValue="{t['name_verfassen']}"/>
   <Description DefaultValue="Fügt beim Verfassen einer neuen Mail die Gateway-Signatur ein."/>
   <IconUrl DefaultValue="{base}/addin/icon/32.png"/>
   <HighResolutionIconUrl DefaultValue="{base}/addin/icon/64.png"/>
