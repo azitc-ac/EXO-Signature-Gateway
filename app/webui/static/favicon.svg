@@ -1,6 +1,7 @@
 <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-  <!-- Favicon: vereinfachter Briefumschlag aus login-logo.svg — auf 16 px lesbar,
-       deshalb ohne Schatten, Platzhalterzeilen und Siegel. -->
+  <!-- Das Zeichen des Gateways — EINE Form für Favicon, Login, Add-in-Symbole
+       und Teams-App (gerendert von tools/symbole_rendern.py). Flach, damit es
+       auf 16 px lesbar bleibt: Umschlag, Signaturschwung, Siegel, Schloss. -->
   <defs>
     <linearGradient id="env" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#4f8ef7"/>
@@ -14,18 +15,28 @@
       <stop offset="0%" stop-color="#4ade80"/>
       <stop offset="100%" stop-color="#059669"/>
     </linearGradient>
+    <radialGradient id="wachs" cx="38%" cy="32%" r="75%">
+      <stop offset="0%" stop-color="#c0262d"/>
+      <stop offset="60%" stop-color="#991b1b"/>
+      <stop offset="100%" stop-color="#6b1010"/>
+    </radialGradient>
     <clipPath id="body"><rect x="2" y="8" width="60" height="48" rx="10"/></clipPath>
   </defs>
 
-  <!-- Umschlag -->
+  <!-- Umschlag; die Lasche endet höher (y=27), damit das Siegel auf ihrer Spitze Platz hat -->
   <rect x="2" y="8" width="60" height="48" rx="10" fill="url(#env)"/>
-  <path d="M2,8 L62,8 L32,33 Z" fill="url(#flap)" clip-path="url(#body)"/>
+  <path d="M2,8 L62,8 L32,27 Z" fill="url(#flap)" clip-path="url(#body)"/>
 
   <!-- Signaturschwung -->
-  <path d="M11,46 C16,37 20,52 26,43 C30,37 34,50 41,41"
+  <path d="M11,47 C16,38 20,53 26,44 C30,38 34,51 41,42"
         fill="none" stroke="#fbbf24" stroke-width="5" stroke-linecap="round"/>
 
-  <!-- S/MIME-Schloss -->
+  <!-- Wachssiegel (signiert) auf der Laschenspitze -->
+  <path d="M32.00,18.90 L32.62,19.10 L33.17,19.59 L33.65,20.12 L34.13,20.44 L34.71,20.46 L35.40,20.32 L36.14,20.24 L36.76,20.45 L37.15,20.97 L37.30,21.70 L37.38,22.40 L37.58,22.94 L38.03,23.30 L38.68,23.60 L39.32,23.97 L39.70,24.50 L39.71,25.15 L39.41,25.83 L39.05,26.44 L38.90,27.00 L39.05,27.56 L39.41,28.17 L39.71,28.85 L39.70,29.50 L39.32,30.03 L38.68,30.40 L38.03,30.70 L37.58,31.06 L37.38,31.60 L37.30,32.30 L37.15,33.03 L36.76,33.55 L36.14,33.76 L35.40,33.68 L34.71,33.54 L34.13,33.56 L33.65,33.88 L33.17,34.41 L32.62,34.90 L32.00,35.10 L31.38,34.90 L30.83,34.41 L30.35,33.88 L29.87,33.56 L29.29,33.54 L28.60,33.68 L27.86,33.76 L27.24,33.55 L26.85,33.03 L26.70,32.30 L26.62,31.60 L26.42,31.06 L25.97,30.70 L25.32,30.40 L24.68,30.03 L24.30,29.50 L24.29,28.85 L24.59,28.17 L24.95,27.56 L25.10,27.00 L24.95,26.44 L24.59,25.83 L24.29,25.15 L24.30,24.50 L24.68,23.97 L25.32,23.60 L25.97,23.30 L26.42,22.94 L26.62,22.40 L26.70,21.70 L26.85,20.97 L27.24,20.45 L27.86,20.24 L28.60,20.32 L29.29,20.46 L29.87,20.44 L30.35,20.12 L30.83,19.59 L31.38,19.10Z" fill="url(#wachs)" stroke="#ffffff" stroke-width="1.2"/>
+  <path d="M28.6,27.3 L31.1,29.8 L35.6,24.6" fill="none" stroke="#fecaca" stroke-width="1.9"
+        stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- S/MIME-Schloss (verschlüsselt) -->
   <circle cx="50" cy="48" r="13" fill="url(#lock)" stroke="#ffffff" stroke-width="2.5"/>
   <rect x="44.5" y="47" width="11" height="8.5" rx="2" fill="#ffffff"/>
   <path d="M46.5,47 v-2.8 a3.5,3.5 0 0 1 7,0 v2.8" fill="none" stroke="#ffffff" stroke-width="2.2"/>

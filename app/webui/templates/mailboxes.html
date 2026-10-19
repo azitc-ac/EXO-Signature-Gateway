@@ -1013,7 +1013,8 @@ function showHealthModal(mb) {
     var sColor = _STATUS_FARBE[c.status] || '#888';
     var sSym = _STATUS_TEXT[c.status] || c.status;
     return '<tr style="border-bottom:1px solid #f0f0f0">' +
-      '<td style="padding:6px 10px;font-size:12px;font-weight:600;white-space:nowrap">' + (_CHECK_LABELS[key] || key) + '</td>' +
+      '<td style="padding:6px 10px;font-size:12px;font-weight:600;' + (c.name ? 'min-width:110px' : 'white-space:nowrap') + '">' +
+        esc(c.name || _CHECK_LABELS[key] || key) + '</td>' +
       '<td style="padding:6px 8px;font-size:12px;color:' + sColor + ';white-space:nowrap;font-weight:700">' + sSym + '</td>' +
       '<td style="padding:6px 8px;font-size:12px;color:#374151;word-break:break-word">' + esc(c.detail || '') + '</td>' +
       '</tr>';

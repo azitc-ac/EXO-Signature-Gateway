@@ -321,8 +321,8 @@ Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
 
 # Versionsstand je Add-in, geschrieben beim Ausliefern des Manifests
 # (webui/routen/addin.py::_manifest_version): {"hash", "version"}.
-_ADDINS = (("_ADDIN_VERFASSEN_STAND", "Signatur automatisch", "verfassen"),
-           ("_ADDIN_MANIFEST_STAND", "Add-in (Knopf)", "knopf"))
+_ADDINS = (("_ADDIN_VERFASSEN_STAND", "verfassen"),
+           ("_ADDIN_MANIFEST_STAND", "knopf"))
 
 
 def _addin_id_aus_adresse(art: str) -> str:
@@ -353,13 +353,13 @@ def _addin_soll() -> list[dict]:
     if not settings_store.get("ADDIN_ENABLED"):
         return []
     soll = []
-    for schluessel, name, art in _ADDINS:
+    for schluessel, art in _ADDINS:
         stand = settings_store.get(schluessel) or {}
         if not (isinstance(stand, dict) and stand.get("version")):
             continue
         kennung = _addin_id_aus_adresse(art)
         if kennung:
-            soll.append({"name": name, "art": art, "id": str(kennung), "version": str(stand["version"]),
+            soll.append({"art": art, "id": str(kennung), "version": str(stand["version"]),
                          "seit": str(stand.get("seit") or _versionsdatum(stand["version"]))})
     return soll
 
@@ -405,7 +405,7 @@ def _check_addins(installiert: dict | None) -> dict[str, dict]:
     das Add-in kann bewusst nur einem Teil der Nutzer zugewiesen sein."""
     soll = {a["art"]: a for a in _addin_soll()}
     ergebnis = {}
-    for _schluessel, _name, art in _ADDINS:
+    for _schluessel, art in _ADDINS:
         a = soll.get(art)
         if not a:
             ergebnis[art] = _make_result("skip", "Nicht eingerichtet")
@@ -429,6 +429,10 @@ def _check_addins(installiert: dict | None) -> dict[str, dict]:
                         "aktualisiert. Danach bis 72 h.")
         else:
             ergebnis[art] = _make_result("ok", f"{ist} — aktuell")
+    # Anzeigename wie im Admin Center — dort sucht man das Add-in.
+    from webui.routen.addin import addin_namen
+    for art, name in addin_namen().items():
+        ergebnis[art]["name"] = name
     return ergebnis
 
 
