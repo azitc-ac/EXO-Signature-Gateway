@@ -359,7 +359,7 @@ def _addin_soll() -> list[dict]:
             continue
         kennung = _addin_id_aus_adresse(art)
         if kennung:
-            soll.append({"name": name, "id": str(kennung), "version": str(stand["version"]),
+            soll.append({"name": name, "art": art, "id": str(kennung), "version": str(stand["version"]),
                          "seit": str(stand.get("seit") or _versionsdatum(stand["version"]))})
     return soll
 
@@ -389,45 +389,47 @@ def _versionstupel(v: str) -> tuple[int, ...]:
         return (0,)
 
 
-def _check_addins(installiert: dict | None) -> dict:
+def _check_addins(installiert: dict | None) -> dict[str, dict]:
     """Fassung der Outlook-Add-ins, die Exchange dem Postfach ausgeliefert hat,
-    gegen die Fassung, die das Gateway ausliefert.
+    gegen die Fassung, die das Gateway ausliefert — EIN Ergebnis je Add-in
+    ({art: result} für jede Art aus `_ADDINS`).
+
+    Getrennt, weil die Add-ins unabhängig voneinander aktualisiert und verteilt
+    werden: In einer gemeinsamen Zeile färbte ein veraltetes Add-in die ganze
+    Zeile gelb, und dass das andere längst aktuell war, ging darin unter.
 
     Ein über „Integrierte Apps“ bereitgestelltes Add-in übernimmt ein neues
     Manifest erst, wenn ein Admin es dort aktualisiert; danach verteilt
     Microsoft Postfach für Postfach (24–72 h). Eine ältere Fassung ist deshalb
     eine Warnung mit dem Weg, kein Fehler. „Nicht installiert“ ist neutral —
     das Add-in kann bewusst nur einem Teil der Nutzer zugewiesen sein."""
-    soll = _addin_soll()
-    if not soll:
-        return _make_result("skip", "Kein Outlook-Add-in eingerichtet")
-    if installiert is None:
-        return _make_result("skip", "Nicht abgefragt (PowerShell-Fehler)")
-    teile, alt, fehlt = [], [], 0
-    for a in soll:
+    soll = {a["art"]: a for a in _addin_soll()}
+    ergebnis = {}
+    for _schluessel, _name, art in _ADDINS:
+        a = soll.get(art)
+        if not a:
+            ergebnis[art] = _make_result("skip", "Nicht eingerichtet")
+            continue
+        if installiert is None:
+            ergebnis[art] = _make_result("skip", "Nicht abgefragt (PowerShell-Fehler)")
+            continue
         ist = (installiert.get(a["id"]) or "").strip()
         if not ist:
-            fehlt += 1
-            teile.append(f"{a['name']}: nicht installiert")
+            ergebnis[art] = _make_result("skip", "Nicht installiert")
         elif _versionstupel(ist) < _versionstupel(a["version"]):
-            alt.append(a["name"])
             seit = ""
             if a.get("seit"):
                 j, m, t = a["seit"].split("-")
                 seit = f" (seit {t}.{m}.{j})"
-            teile.append(f"{a['name']}: {ist} statt {a['version']}{seit}")
+            # Kurz halten (Handy). Das Admin Center zeigt keine Versionsnummer,
+            # nur „Last modified“ — daher der Abgleich mit dem Datum.
+            ergebnis[art] = _make_result(
+                "warn", f"{ist} statt {a['version']}{seit}. Integrierte Apps → Add-in → "
+                        "Aktualisieren; „Last modified“ vor diesem Datum = noch nicht "
+                        "aktualisiert. Danach bis 72 h.")
         else:
-            teile.append(f"{a['name']}: {ist}")
-    text = " · ".join(teile)
-    if alt:
-        # Kurz halten (Handy). Der Abgleich „Last modified“ ↔ „seit“ steht im
-        # Changelog v1.9.176; das Admin Center zeigt keine Versionsnummer.
-        return _make_result("warn", text + ". Integrierte Apps → Add-in → Aktualisieren; "
-                            "„Last modified“ vor diesem Datum = noch nicht aktualisiert. "
-                            "Danach bis 72 h.")
-    if fehlt == len(soll):
-        return _make_result("skip", text)
-    return _make_result("ok", text)
+            ergebnis[art] = _make_result("ok", f"{ist} — aktuell")
+    return ergebnis
 
 
 # ── Check 4: template ─────────────────────────────────────────────────────────
@@ -685,7 +687,9 @@ async def run_checks_for_mailbox(email: str, exo_data: dict | None = None) -> di
                 checks["imap_permission"] = _make_result("skip", "SP nicht gefunden")
         else:
             checks["imap_permission"] = _make_result("skip", "REINJECT_MODE != graph_plus")
-    checks["addins"] = _check_addins(None if err else data.get("addins"))
+    addins = _check_addins(None if err else data.get("addins"))
+    checks["addin_verfassen"] = addins["verfassen"]
+    checks["addin_knopf"] = addins["knopf"]
 
     # 4. template
     if cfg.get("sig"):
