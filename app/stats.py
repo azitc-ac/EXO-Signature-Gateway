@@ -60,6 +60,11 @@ KEYS = (
     # niemand.
     "antworten",
     "stapel_verhindert",
+    # Antworten, bei denen das Gateway die Signatur des Verfassen-Add-ins
+    # ersetzt hat, weil dessen geschätzte Wahl (voll/Antwort-Signatur) nicht zur
+    # beantworteten Mail passte (ANTWORT_LETZTES_WORT=gateway). Steigt die Zahl,
+    # schätzt das Add-in schlecht — sonst fiele es nur im Protokoll auf.
+    "addin_korrigiert",
     # Abwesenheitsantworten, die das Gateway selbst geschickt hat, weil die Mail
     # per Ablage (IMAP APPEND / Graph-Inject) statt per Zustellung ins Postfach
     # kam — dort schickt Exchange keine (oof_ablage.py).

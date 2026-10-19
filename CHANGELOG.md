@@ -5,6 +5,38 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.182 — 2026-10-20 — Antworten: beantwortete Mail genau erkennen; das Gateway hat das letzte Wort
+
+Outlook nennt dem Add-in „Signatur automatisch einfügen“ beim Schreiben einer
+Antwort nicht überall, auf welche Mail geantwortet wird. Bisher wurde sie
+geschätzt, und eine falsche Schätzung ging unverändert hinaus. Drei
+Änderungen:
+
+**Genau statt geschätzt, wo Outlook es kann.** Outlook im Web, das neue und
+das klassische Outlook nennen die beantwortete Mail (`inReplyTo`, Mailbox
+1.14). Das Add-in schickt sie mit, und das Gateway prüft genau diese Mail.
+
+**Bessere Schätzung auf iPhone und Android.** Dort fehlt die Angabe. Das
+Gateway vergleicht jetzt An **und** Cc des Entwurfs mit dem, was eine Antwort
+auf jede Mail der Unterhaltung ergäbe, auch auf die eigenen. Eine Antwort an
+alle auf die eigene Mail (An: der Empfänger, Cc: die übrigen) wird so nicht
+mehr mit einer Antwort auf die ältere Mail des Empfängers verwechselt. Bisher
+bekam sie die volle Signatur ein zweites Mal.
+
+**Das Gateway hat das letzte Wort.** Beim Versand kennt das Gateway die
+beantwortete Mail genau. Weicht die Wahl des Add-ins (volle Signatur oder
+Antwort-Signatur) von seiner Entscheidung ab, ersetzt es die Signatur des
+Add-ins durch die richtige. Wie oft das passiert, zeigt die Übersicht als
+„Add-in-Signatur ersetzt“. Eine über den Knopf im Menüband eingefügte
+Signatur bleibt immer unberührt.
+
+Neue Einstellung *Einstellungen → Signatur → Erweitert → Letztes Wort bei
+Antworten*: **Gateway** (Vorgabe) ersetzt bei Abweichung, **Add-in** lässt
+stehen, was im Entwurf stand.
+
+**Zu tun:** nichts. Keine Manifest-Änderung. Die neue Laufzeit lädt Outlook
+beim nächsten Verfassen.
+
 ## v1.9.181 — 2026-10-20 — Verfassen-Add-in: Antwort-Regel an der beantworteten Mail, nicht an der ganzen Unterhaltung
 
 Seit v1.9.178 prüfte das Add-in bei Antworten, ob in der **ganzen

@@ -53,9 +53,11 @@
     var adresse = EXO_VERFASSEN.api + '?client=' + encodeURIComponent(plattform());
     if (antwort) {
       adresse += '&art=' + encodeURIComponent(antwort.art);
+      if (antwort.bezug) adresse += '&bezug=' + encodeURIComponent(antwort.bezug);
       if (antwort.konversation) adresse += '&konversation=' + encodeURIComponent(antwort.konversation);
       if (antwort.betreff) adresse += '&betreff=' + encodeURIComponent(antwort.betreff.slice(0, 255));
       if (antwort.an) adresse += '&an=' + encodeURIComponent(antwort.an);
+      if (antwort.cc !== null) adresse += '&cc=' + encodeURIComponent(antwort.cc);
     }
     return fetch(adresse, { headers: { Authorization: 'Bearer ' + zugriff } })
       .then(function (r) {
@@ -64,15 +66,16 @@
       });
   }
 
-  // Kennzeichnet den Entwurf: Die Antwort-Regel hat gegriffen. Das Gateway
-  // übernimmt die Entscheidung beim Versand und zählt sie. Ohne die API
-  // (Outlook mobil vor 4.2405) entscheidet es wie bisher selbst.
-  function ketteMelden(item) {
+  // Kennzeichnet den Entwurf mit der Wahl des Add-ins: 1 = Antwort-Signatur,
+  // 0 = volle. Das Gateway vergleicht sie beim Versand mit seiner eigenen
+  // Entscheidung (ANTWORT_LETZTES_WORT) und zählt die Wirkung. Ohne die API
+  // (Outlook mobil vor 4.2405) bleibt die Signatur des Add-ins unangetastet.
+  function ketteMelden(item, kette) {
     if (!item.internetHeaders || typeof item.internetHeaders.setAsync !== 'function') {
       return Promise.resolve();
     }
     var kopf = {};
-    kopf[EXO_VERFASSEN.kettenkopf] = '1';
+    kopf[EXO_VERFASSEN.kettenkopf] = kette ? '1' : '0';
     return asynk(function (cb) { item.internetHeaders.setAsync(kopf, cb); })
       .catch(function () { /* Zählung ist Beiwerk */ });
   }
@@ -85,15 +88,27 @@
     return asynk(function (cb) { obj.getAsync(cb); }).then(umwandeln, function () { return ''; });
   }
 
+  function adressliste(v) {
+    return (v || []).map(function (e) { return e.emailAddress; }).filter(Boolean)
+      .slice(0, 20).join(',');
+  }
+
   function antwortAngaben(item, art) {
     return Promise.all([
       feld(item.subject, function (v) { return String(v || ''); }),
-      feld(item.to, function (v) {
-        return (v || []).map(function (e) { return e.emailAddress; }).filter(Boolean)
-          .slice(0, 20).join(',');
-      })
+      feld(item.to, adressliste),
+      // Cc unterscheidet „Allen antworten“ auf die eigene Mail von „Antworten“
+      // auf die des Empfängers. null = nicht lesbar (dann zählt nur An).
+      item.cc && typeof item.cc.getAsync === 'function'
+        ? asynk(function (cb) { item.cc.getAsync(cb); }).then(adressliste, function () { return null; })
+        : Promise.resolve(null)
     ]).then(function (w) {
-      return { art: art, konversation: item.conversationId || '', betreff: w[0], an: w[1] };
+      // inReplyTo (Mailbox 1.14) nennt die beantwortete Mail genau; wo es
+      // fehlt (Outlook mobil bis 1.5), schätzt das Gateway aus den übrigen Angaben.
+      var bezug = '';
+      try { bezug = item.inReplyTo || ''; } catch (e) { /* ältere Clients */ }
+      return { art: art, bezug: bezug, konversation: item.conversationId || '',
+               betreff: w[0], an: w[1], cc: w[2] };
     });
   }
 
@@ -115,13 +130,18 @@
         // Findet das Gateway sie nicht, bleibt der Entwurf leer und es
         // entscheidet beim Versand.
         if (!art) return null;
-        var angaben = art.composeType === 'newMail' ? Promise.resolve(null)
+        var antwortArt = art.composeType !== 'newMail';
+        var angaben = !antwortArt ? Promise.resolve(null)
           : antwortAngaben(item, art.composeType === 'forward' ? 'forward' : 'reply');
         return angaben.then(function (antwort) {
           return token().then(function (z) { return signaturHolen(z, antwort); });
         }).then(function (d) {
           var html = (d && d.html) || '';
-          return (d && d.kette ? ketteMelden(item) : Promise.resolve()).then(function () { return html; });
+          // Nur bei einer Antwort, für die das Gateway entschieden hat ("kette"
+          // vorhanden) — dann prüft es beim Versand nach (ANTWORT_LETZTES_WORT).
+          var entschieden = d && typeof d.kette === 'boolean' && antwortArt;
+          return (entschieden ? ketteMelden(item, d.kette) : Promise.resolve())
+            .then(function () { return html; });
         }).then(function (html) {
           if (!html) return null;
           return asynk(function (cb) { item.disableClientSignatureAsync(cb); })

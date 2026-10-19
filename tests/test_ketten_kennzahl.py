@@ -185,8 +185,8 @@ def test_zaehler_haengt_an_der_wirkung_nicht_am_befund():
     stellen = [i for i in range(len(quelle))
                if quelle.startswith('stats.increment("stapel_verhindert")', i)]
     assert len(stellen) == 2, stellen
-    addin_zweig = quelle.index("mail_processor._has_own_sig_in_compose_area(msg):")
-    addin_bedingung = quelle.index("if _addin_kette:", addin_zweig)
+    addin_zweig = quelle.index("if _im_entwurf:")
+    addin_bedingung = quelle.index("if _addin_wahl is True:", addin_zweig)
     assert erkennung < addin_zweig < addin_bedingung < stellen[0] < zweig < stellen[1], (
         "»stapel_verhindert« wird gezählt, BEVOR feststeht, ob der volle Block "
         "wirklich unterbleibt. Gezählt wird im elif-Zweig und — seit v1.9.178 — "
