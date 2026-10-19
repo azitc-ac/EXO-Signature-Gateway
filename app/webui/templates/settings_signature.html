@@ -174,9 +174,25 @@
 
 
   <div data-adv="sig" style="display:none">
+  <div class="settings-row">
+    <label for="antwort-letztes-wort">Letztes Wort bei Antworten</label>
+    <div class="settings-control">
+      <select id="antwort-letztes-wort">
+        {% for wert, text in [("gateway", "Gateway – ersetzt die Signatur des Add-ins, wenn nötig"),
+                              ("addin", "Add-in – was im Entwurf steht, geht hinaus")] %}
+        <option value="{{ wert }}"{% if (s.ANTWORT_LETZTES_WORT or "gateway") == wert %} selected{% endif %}>{{ text }}</option>
+        {% endfor %}
+      </select>
+      <span class="hint">Das Add-in „Signatur automatisch einfügen“ wählt bei Antworten schon beim Schreiben
+        zwischen voller und Antwort-Signatur. Outlook nennt ihm die beantwortete Mail aber nicht
+        überall (iPhone, Android); dort schätzt es sie. Das Gateway kennt sie beim Versand genau.
+        Entscheiden beide verschieden, gilt hier die Wahl. Über den Knopf eingefügte Signaturen
+        bleiben immer unberührt.</span>
+    </div>
+  </div>
   </div>
   <div class="actions" style="margin-top:14px">
-    <button class="btn secondary" id="signatur-btn" data-wache="fallback,loop-header,sent-items,skip-duplicate-sig,skip-sig-in-thread,strip-client-sigs-mobile,strip-client-sigs-desktop,sig-strip-pct,sig-image-mode,nosig-trigger,nosig-behaelt,kette-behaelt,sign-internal-only"
+    <button class="btn secondary" id="signatur-btn" data-wache="fallback,loop-header,sent-items,skip-duplicate-sig,skip-sig-in-thread,strip-client-sigs-mobile,strip-client-sigs-desktop,sig-strip-pct,sig-image-mode,nosig-trigger,nosig-behaelt,kette-behaelt,antwort-letztes-wort,sign-internal-only"
             data-wache-hinweis="signatur-btn-result"
             onclick="saveSignatur()">Speichern</button>
     <span id="signatur-btn-result" style="font-size:12px;margin-left:8px"></span>
@@ -288,6 +304,7 @@ async function saveSignatur() {
     NOSIG_TRIGGER: (document.getElementById('nosig-trigger').value || '').trim() || '#nosig',
     NOSIG_BEHAELT: document.getElementById('nosig-behaelt').value,
     KETTE_BEHAELT: document.getElementById('kette-behaelt').value,
+    ANTWORT_LETZTES_WORT: document.getElementById('antwort-letztes-wort').value,
     SIGN_INTERNAL_ONLY_MAIL: document.getElementById('sign-internal-only').checked,
   }, 'signatur-result');
   wacheFertig('signatur-btn', _ok);

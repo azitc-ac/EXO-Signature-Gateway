@@ -1023,11 +1023,10 @@ class SignatureHandler:
             # haben). Er kann keinen Fehlalarm erzeugen — er prüft auf eine
             # Kennung, die ausschliesslich dieses Gateway setzt.
             _bezuege = sig_thread.kennungen(msg)
-            # Kennzeichen des Verfassen-Add-ins: Es hat die Antwort-Signatur
-            # gewählt. Es zählt nur die Wirkung (unten) — es entscheidet NICHT
+            # Wahl des Verfassen-Add-ins (Kopf am Entwurf). Sie entscheidet NICHT
             # mit: Bis v1.9.180 galt der Kopf als Kette, und eine Fehl-
             # entscheidung des Add-ins nahm so auch dem Gateway die Signatur.
-            _addin_kette = sig_thread.addin_hat_kette(msg)
+            _addin_wahl = sig_thread.addin_wahl(msg)
             _in_kette = (sig_thread.kennt(sender, _bezuege)
                          or mail_processor.sender_already_in_thread(msg, {sender.lower()}))
 
@@ -1039,10 +1038,26 @@ class SignatureHandler:
                 stats.increment("antworten")
 
             _per_nosig = suppress_html_sig     # #nosig im Betreff (für Banner/Disclaimer)
-            if not suppress_html_sig and mail_processor._has_own_sig_in_compose_area(msg):
+            _im_entwurf = (not suppress_html_sig
+                           and mail_processor._has_own_sig_in_compose_area(msg))
+            # Das Add-in muss die beantwortete Mail oft schätzen (Outlook nennt
+            # sie ihm nicht überall); das Gateway kennt sie hier aus References.
+            # Weicht die Wahl ab und hat das Gateway das letzte Wort, wird die
+            # Signatur des Add-ins ersetzt. Nur mit Kopf — eine über den Knopf
+            # eingefügte Signatur trägt keinen und bleibt unangetastet.
+            if (_im_entwurf and _addin_wahl is not None and _addin_wahl != _in_kette
+                    and settings_store.antwort_letztes_wort() == "gateway"
+                    and mail_processor.addin_signatur_entfernen(msg)):
+                _im_entwurf = False
+                stats.increment("addin_korrigiert")
+                log.info("ADDIN-KORREKTUR: Add-in wählte die %s, die beantwortete Mail verlangt "
+                         "die %s — Signatur ersetzt für %s",
+                         "Antwort-Signatur" if _addin_wahl else "volle Signatur",
+                         "Antwort-Signatur" if _in_kette else "volle Signatur", sender)
+            if _im_entwurf:
                 suppress_html_sig = True
                 log.info("Signatur bereits im Compose-Bereich (z.B. Add-in) — überspringe für %s", sender)
-                if _addin_kette:
+                if _addin_wahl is True:
                     # Seit v1.9.178 setzt das Verfassen-Add-in auch bei Antworten
                     # die Signatur, nach derselben Regel (policies.antwort_vorlage),
                     # und kennzeichnet den Entwurf, wenn es die Antwort-Signatur

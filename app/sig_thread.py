@@ -96,14 +96,18 @@ def _schluessel(postfach: str, message_id: str) -> bytes:
     return hashlib.blake2b(roh.encode("utf-8"), digest_size=16).digest()
 
 
-# Setzt das Verfassen-Add-in an den Entwurf, wenn es die Antwort-Signatur
-# gewählt hat. handler.py zählt damit die Wirkung („Stapel verhindert“); die
-# Entscheidung selbst trifft es weiter aus References und Zitat.
+# Setzt das Verfassen-Add-in an eine Antwort, für die es entschieden hat:
+# "1" = Antwort-Signatur (beantwortete Mail trägt schon die eigene), "0" =
+# volle. handler.py vergleicht das mit seiner eigenen Entscheidung aus
+# References und Zitat (ANTWORT_LETZTES_WORT) und zählt die Wirkung.
 ADDIN_KOPF = "X-Exo-Sig-Kette"
 
 
-def addin_hat_kette(msg) -> bool:
-    return (msg.get(ADDIN_KOPF) or "").strip() == "1"
+def addin_wahl(msg) -> bool | None:
+    """True = Add-in wählte die Antwort-Signatur, False = die volle, None =
+    keine Wahl des Add-ins (neue Mail, älterer Client, Knopf im Menüband)."""
+    wert = (msg.get(ADDIN_KOPF) or "").strip()
+    return True if wert == "1" else False if wert == "0" else None
 
 
 def kennungen(msg) -> list[str]:

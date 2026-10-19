@@ -41,7 +41,7 @@ def antwort(umgebung, monkeypatch):  # noqa: F811
     zustand = {"kennungen": ["<a@x>", "<b@x>"], "bekannt": set(), "graph": [],
                "vorlagen": {"sig": "Voll", "min": "Kurz", "oof": "", "banner": "", "disclaimer": ""}}
 
-    async def _bezug(postfach, konv, art="reply", an=None):
+    async def _bezug(postfach, konv, art="reply", an=None, cc=None):
         zustand["graph"].append((postfach, konv))
         if zustand["kennungen"] is None:
             return None
@@ -283,9 +283,35 @@ def test_kette_setzt_den_kopf_auch_ohne_signatur():
     assert p["kopf"] == {"X-Exo-Sig-Kette": "1"} and p["gesetzt"] is None and p["fertig"] == 1
 
 
-def test_ohne_kette_kein_kopf():
+def test_volle_wahl_wird_ebenfalls_gekennzeichnet():
+    """„0“ = Add-in wählte die volle Signatur — das Gateway prüft beim Versand nach."""
     p = _lauf_mit_antwort(_item("reply", "'K'"), '{"html": "<p>V</p>", "kette": false}')
+    assert p["kopf"] == {"X-Exo-Sig-Kette": "0"} and p["gesetzt"] == "<p>V</p>"
+
+
+def test_ohne_entscheidung_kein_kopf():
+    """Gateway fand die beantwortete Mail nicht (kein "kette") — nichts zu prüfen."""
+    p = _lauf_mit_antwort(_item("reply", "'K'"), '{"html": ""}')
+    assert "kopf" not in p
+
+
+def test_neue_mail_ohne_kopf():
+    p = _lauf_mit_antwort(_item("newMail"), '{"html": "<p>V</p>", "kette": false}')
     assert "kopf" not in p and p["gesetzt"] == "<p>V</p>"
+
+
+def test_inreplyto_und_cc_gehen_mit():
+    item = _item("reply", betreff="AW: X", an=["a@x.de"]).replace(
+        "conversationId: null", "conversationId: null, inReplyTo: '<orig@x.de>', "
+        "cc: {getAsync: " + _OK % json.dumps([{"emailAddress": "c@x.de"}]) + "}", 1)
+    p = _handler_lauf(item)
+    assert p["url"] == ("https://x/api?client=iOS&art=reply&bezug=%3Corig%40x.de%3E"
+                        "&betreff=AW%3A%20X&an=a%40x.de&cc=c%40x.de")
+
+
+def test_cc_unlesbar_wird_nicht_geschickt():
+    p = _handler_lauf(_item("reply", betreff="AW: X", an=["a@x.de"]))
+    assert "&cc=" not in p["url"]
 
 
 def test_ohne_header_api_trotzdem_signatur():
@@ -309,9 +335,157 @@ def _mit_kopf(content: bytes) -> bytes:
 
 
 def test_addin_antwortsignatur_mit_kopf_zaehlt_als_verhindert(anlage, zaehler):  # noqa: F811
+    anlage["_kette"]["an"] = True                 # Gateway sieht es genauso
     html = _versand(anlage, _mit_kopf(_mail(betreff="AW: Hallo", rumpf="<p>T</p>" + ADDIN_SIG)))
     assert "Add-in-Signatur" in html and "[Sig]" not in html
-    assert zaehler.count("stapel_verhindert") == 1
+    assert zaehler.count("stapel_verhindert") == 1 and "addin_korrigiert" not in zaehler
+
+
+# ── Letztes Wort: Gateway prüft die Wahl des Add-ins nach ────────────────────
+
+def _kopf(wert: str, content: bytes) -> bytes:
+    return f"X-Exo-Sig-Kette: {wert}\r\nReferences: <alt@firma.de>\r\n".encode() + content
+
+
+def test_gateway_ersetzt_falsche_antwortsignatur_durch_die_volle(anlage, zaehler):  # noqa: F811
+    """Add-in schätzte „schon signiert“ (kurz), die beantwortete Mail trägt die
+    eigene Signatur aber nicht — Empfänger bekämen die volle nie."""
+    html = _versand(anlage, _kopf("1", _mail(betreff="AW: Hallo", rumpf="<p>T</p>" + ADDIN_SIG)))
+    assert "Add-in-Signatur" not in html and "[Sig]" in html
+    assert html.index("<p>T</p>") < html.index("[Sig]")
+    assert zaehler.count("addin_korrigiert") == 1 and "stapel_verhindert" not in zaehler
+
+
+def test_gateway_ersetzt_falsche_volle_durch_die_antwortsignatur(anlage, zaehler):  # noqa: F811
+    """Antwort auf die eigene Mail (VM 20.10.2026, 00:30) als Antwort auf eine
+    fremde geschätzt — volle Signatur ein zweites Mal."""
+    anlage["MAILBOX_CONFIG"]["max@firma.de"]["min_template"] = "Kurz"
+    anlage["_kette"]["an"] = True
+    html = _versand(anlage, _kopf("0", _mail(betreff="AW: Hallo", rumpf="<p>T</p>" + ADDIN_SIG)))
+    assert "Add-in-Signatur" not in html and "[Kurz]" in html and "[Sig]" not in html
+    assert zaehler.count("addin_korrigiert") == 1 and zaehler.count("stapel_verhindert") == 1
+
+
+def test_mit_letztem_wort_beim_addin_bleibt_der_entwurf(anlage, zaehler):  # noqa: F811
+    anlage["ANTWORT_LETZTES_WORT"] = "addin"
+    html = _versand(anlage, _kopf("1", _mail(betreff="AW: Hallo", rumpf="<p>T</p>" + ADDIN_SIG)))
+    assert "Add-in-Signatur" in html and "[Sig]" not in html
+    assert "addin_korrigiert" not in zaehler
+
+
+def test_ohne_kopf_bleibt_eine_knopf_signatur_unberuehrt(anlage, zaehler):  # noqa: F811
+    anlage["_kette"]["an"] = True
+    html = _versand(anlage, _mail(betreff="AW: Hallo", rumpf="<p>T</p>" + ADDIN_SIG))
+    assert "Add-in-Signatur" in html and "addin_korrigiert" not in zaehler
+
+
+@pytest.mark.parametrize("roh, erwartet", [("gateway", "gateway"), ("addin", "addin"),
+                                           ("", "gateway"), (None, "gateway"), ("Addin", "gateway")])
+def test_letztes_wort_im_zweifel_gateway(monkeypatch, roh, erwartet):
+    import settings_store
+    monkeypatch.setattr(settings_store, "get", lambda k, d=None: roh)
+    assert settings_store.antwort_letztes_wort() == erwartet
+
+
+# ── Entfernen der Add-in-Signatur ────────────────────────────────────────────
+
+import mail_processor  # noqa: E402
+
+ZITAT = '<div id="divRplyFwdMsg">Von: X</div><div>alt <div id="x_exo-sig-s">ALT-SIG</div></div>'
+
+
+@pytest.mark.parametrize("html, rest", [
+    ('<p>T</p><div id="exo-sig-s"><div><p>S</p></div><div>2</div></div><p>nach</p>' + ZITAT,
+     '<p>T</p><p>nach</p>' + ZITAT),
+    ('<p>T</p><!-- exo-sig-start --><div id="exo-sig-s" class="exo-gateway-sig">S</div>'
+     '<!-- exo-sig-end -->' + ZITAT, '<p>T</p>' + ZITAT),
+])
+def test_addin_block_wird_nur_im_verfassenbereich_entfernt(html, rest):
+    assert mail_processor._addin_block_entfernen(html) == rest
+
+
+def test_signatur_nur_im_zitat_bleibt():
+    assert mail_processor._addin_block_entfernen("<p>T</p>" + ZITAT) is None
+
+
+def test_kaputtes_html_wird_nicht_angefasst():
+    assert mail_processor._addin_block_entfernen('<p>T</p><div id="exo-sig-s"><div>offen') is None
+
+
+# ── Schätzung über An und Cc ─────────────────────────────────────────────────
+
+def _mk(mid, von, zeit, an, cc=()):
+    return {"internetMessageId": mid, "isDraft": False, "receivedDateTime": zeit,
+            "from": {"emailAddress": {"address": von}},
+            "toRecipients": [{"emailAddress": {"address": a}} for a in an],
+            "ccRecipients": [{"emailAddress": {"address": a}} for a in cc]}
+
+
+ICH = "alexander@zarenko.net"
+DAAD = [  # wie auf der VM am 19.10.2026
+    _mk("<k@d>", "karsten@daad.de", "2026-10-19T10:35:00Z", ["edalati@daad.de", "Alexander@zarenko.net", "stocker@daad.de"]),
+    _mk("<s@d>", "stocker@daad.de", "2026-10-19T15:50:00Z", ["karsten@daad.de", "edalati@daad.de", "Alexander@zarenko.net"]),
+    _mk("<ich@z>", ICH, "2026-10-19T17:55:00Z", ["stocker@daad.de"], ["karsten@daad.de", "edalati@daad.de"]),
+]
+
+
+def test_cc_trennt_die_eigene_mail_von_einer_juengeren_fremden():
+    """Stocker schreibt später nur an mich; ich antworte allen auf MEINE Mail
+    von 17:55 (An Stocker, Cc Karsten+Edalati). Stockers jüngere Mail ergäbe
+    An Stocker ohne Cc — nur der Cc-Vergleich schliesst sie aus."""
+    verlauf = DAAD + [_mk("<s2@d>", "stocker@daad.de", "2026-10-19T18:30:00Z", [ICH])]
+    m = graph_client._beantwortete(verlauf, ICH, "reply", ["stocker@daad.de"],
+                                   ["karsten@daad.de", "edalati@daad.de"])
+    assert m["internetMessageId"] == "<ich@z>"
+
+
+@pytest.mark.parametrize("an, cc, erwartet", [
+    (["stocker@daad.de", "karsten@daad.de", "edalati@daad.de"], [], "<s@d>"),   # Allen antworten auf Stocker
+    (["stocker@daad.de"], ["karsten@daad.de", "edalati@daad.de"], "<ich@z>"),   # Allen antworten auf die eigene
+    (["stocker@daad.de"], None, "<ich@z>"),          # Cc unbekannt: jüngste passende
+    # „Allen antworten“ auf Karsten ergibt dieselben Empfänger wie auf Stocker —
+    # nicht unterscheidbar, die jüngere gewinnt (beide ohne eigene Signatur).
+    (["karsten@daad.de", "edalati@daad.de", "stocker@daad.de"], [], "<s@d>"),
+    (["jemand@neu.de"], [], "<s@d>"),                # nichts passt: Rückfall jüngste fremde
+])
+def test_schaetzung_ueber_an_und_cc(an, cc, erwartet):
+    m = graph_client._beantwortete(DAAD, ICH, "reply", an, cc)
+    assert m["internetMessageId"] == erwartet
+
+
+# ── inReplyTo: genau statt geschätzt ─────────────────────────────────────────
+
+def test_inreplyto_wird_genutzt_und_schaetzung_entfaellt(antwort, betreff_suche, monkeypatch):
+    aufrufe = []
+
+    async def _genau(postfach, mid):
+        aufrufe.append(mid)
+        return {"kennungen": ["<orig@x>"], "marker": False, "von": "a@x", "zeit": "z"}
+    monkeypatch.setattr(graph_client, "bezug_per_kennung", _genau)
+    antwort["bekannt"] = {"<orig@x>"}
+    body = _abruf_mit(antwort, art="reply", bezug="<orig@x>", betreff="AW: X")
+    assert body["kette"] is True and aufrufe == ["<orig@x>"]
+    assert betreff_suche == [] and antwort["graph"] == []
+
+
+def test_inreplyto_nicht_gefunden_faellt_auf_die_schaetzung_zurueck(antwort, betreff_suche, monkeypatch):
+    async def _nichts(postfach, mid):
+        return None
+    monkeypatch.setattr(graph_client, "bezug_per_kennung", _nichts)
+    antwort["gefunden"] = "KB"
+    _abruf_mit(antwort, art="reply", bezug="<orig@x>", betreff="AW: X")
+    assert betreff_suche and antwort["graph"] == [("erika@zarenko.net", "KB")]
+
+
+@pytest.mark.parametrize("roh", ["keine-kennung", "<a b@x>", "<" + "a" * 1000 + "@x>"])
+def test_unbrauchbares_inreplyto_wird_ignoriert(antwort, betreff_suche, monkeypatch, roh):
+    aufrufe = []
+
+    async def _genau(postfach, mid):
+        aufrufe.append(mid)
+    monkeypatch.setattr(graph_client, "bezug_per_kennung", _genau)
+    _abruf_mit(antwort, art="reply", bezug=roh)
+    assert aufrufe == []
 
 
 def test_von_hand_eingefuegter_block_ohne_kopf_zaehlt_nicht(anlage, zaehler):  # noqa: F811

@@ -144,6 +144,62 @@ def _has_own_sig_in_compose_area(msg: email.message.Message) -> bool:
             or f"class='{_SIG_CLASS}'" in area)
 
 
+_ADDIN_DIV_RE = re.compile(r'<div\b[^>]*\bid=["\'](?:x_)?exo-sig-s["\'][^>]*>', re.IGNORECASE)
+
+
+def _addin_block_entfernen(html: str) -> str | None:
+    """Die Signatur des Add-ins (markiert(): Kommentar-Marker um
+    `<div id="exo-sig-s">…</div>`) aus dem Verfassenbereich entfernen.
+    `None` = keine gefunden. Klassisches Outlook verwirft die Kommentare beim
+    Verfassen, das Div mit seiner id überlebt — deshalb zuerst die Marker,
+    sonst das Div samt verschachtelter Divs."""
+    first_quote = _find_first_quote_wrapper_pos(html)
+    bereich = html if first_quote is None else html[:first_quote]
+    start = bereich.find(_SIG_MARKER_START)
+    if start != -1:
+        ende = html.find(_SIG_MARKER_END, start)
+        if ende != -1 and (first_quote is None or ende < first_quote):
+            return html[:start] + html[ende + len(_SIG_MARKER_END):]
+    m = _ADDIN_DIV_RE.search(bereich)
+    if not m:
+        return None
+    lower = html.lower()
+    pos, tiefe = m.end(), 1
+    while tiefe:
+        auf, zu = lower.find("<div", pos), lower.find("</div>", pos)
+        if zu == -1:
+            return None                      # kaputtes HTML: lieber nichts anfassen
+        if auf != -1 and auf < zu:
+            tiefe, pos = tiefe + 1, auf + 4
+        else:
+            tiefe, pos = tiefe - 1, zu + 6
+    return html[:m.start()] + html[pos:]
+
+
+def addin_signatur_entfernen(msg: email.message.Message) -> bool:
+    """Signatur des Verfassen-Add-ins aus allen HTML-Teilen entfernen, damit
+    das Gateway seine eigene Entscheidung einsetzen kann
+    (ANTWORT_LETZTES_WORT=gateway). True = entfernt und keine mehr übrig.
+
+    Der Textteil bleibt unberührt: Wie Outlook die Signatur dort abbildet, ist
+    nicht festgelegt, und Raten wäre schlimmer als eine doppelte Zeile, die
+    nur ein reiner Textleser sieht."""
+    entfernt = False
+    for teil in msg.walk():
+        if teil.get_content_type() != "text/html" or teil.is_multipart():
+            continue
+        zeichensatz = teil.get_content_charset() or "utf-8"
+        roh = teil.get_payload(decode=True)
+        if roh is None:
+            continue
+        html = roh.decode(zeichensatz, errors="replace")
+        neu = _addin_block_entfernen(html)
+        if neu is not None:
+            _set_part_payload(teil, neu, zeichensatz)
+            entfernt = True
+    return entfernt and not _has_own_sig_in_compose_area(msg)
+
+
 def _has_sig_in_thread(msg: email.message.Message, sig_html: str = "") -> bool:
     """Return True if a gateway signature is already present anywhere in the message.
 

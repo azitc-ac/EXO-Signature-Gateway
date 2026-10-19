@@ -274,10 +274,18 @@ def _antwort(request) -> dict | None:
             return None
         art = "reply"
     betreff = "".join(z for z in (q.get("betreff") or "") if z.isprintable())[:255]
-    an = [e.strip().lower() for e in (q.get("an") or "").split(",")
-          if "@" in e and len(e.strip()) <= 254][:20]
+    def adressen(roh):
+        return [e.strip().lower() for e in (roh or "").split(",")
+                if "@" in e and len(e.strip()) <= 254][:20]
+    an = adressen(q.get("an"))
+    # Cc nur, wenn der Client ihn geschickt hat (auch leer) — None = unbekannt.
+    cc = adressen(q.get("cc")) if q.get("cc") is not None else None
+    import sig_thread
+    bezug = (q.get("bezug") or "").strip()
+    if len(bezug) > 998 or not sig_thread._MID_RE.fullmatch(bezug):
+        bezug = ""
     return {"art": art, "konversation": _konversation(q.get("konversation")),
-            "betreff": betreff, "an": an}
+            "betreff": betreff, "an": an, "cc": cc, "bezug": bezug}
 
 
 @router.get(SIGNATUR_API)
@@ -288,9 +296,10 @@ async def verfassen_signatur(request: Request):
     Leeres `html` heisst: nichts einfügen (Postfach nicht vom Gateway betreut
     oder keine Vorlage).
 
-    `?art=reply|forward` kennzeichnet eine Antwort/Weiterleitung, mit
-    `konversation` (conversationId) und — als Rückfall, wo der Client keine
-    Kennung liefert (iOS) — `betreff` und `an`.
+    `?art=reply|forward` kennzeichnet eine Antwort/Weiterleitung. `bezug`
+    (item.inReplyTo, Mailbox 1.14) nennt die beantwortete Mail genau; fehlt
+    er, wird sie geschätzt: über `konversation` (conversationId) oder — wo der
+    Client keine liefert (iOS) — über `betreff` und `an`.
     Dann gilt dieselbe Regel wie beim Versand (`policies.antwort_vorlage`):
     Trägt die Kette der BEANTWORTETEN Mail (nicht die ganze Konversation)
     schon eine vom Gateway signierte Mail des Absenders, kommt die
@@ -313,20 +322,31 @@ async def verfassen_signatur(request: Request):
     kette = False
     antwort = _antwort(request)
     if antwort is not None:
-        konversation, weg = antwort["konversation"], "Kennung"
-        if not konversation and antwort["betreff"]:
-            konversation = await graph_client.konversation_per_betreff(
-                email, antwort["betreff"], antwort["an"])
-            weg = "Betreff"
-        # Zeigt, was der Client liefert — auf iOS fehlte die Kennung (19.10.2026).
-        log.info("Verfassen-Add-in: %s von %s — Kennung %s, Betreff %s, Konversation %s (%s)",
-                 "Antwort" if antwort["art"] == "reply" else "Weiterleitung", email,
-                 "ja" if antwort["konversation"] else "nein",
-                 "ja" if antwort["betreff"] else "nein",
-                 f"über {weg}" if konversation else "nicht gefunden", plattform)
-        if not konversation:
-            return JSONResponse({"html": ""}, headers=_CORS)
-        bezug = await graph_client.antwort_bezug(email, konversation, antwort["art"], antwort["an"])
+        art_text = "Antwort" if antwort["art"] == "reply" else "Weiterleitung"
+        bezug = None
+        if antwort["bezug"]:
+            # Genau bekannt (item.inReplyTo) — keine Schätzung nötig.
+            bezug = await graph_client.bezug_per_kennung(email, antwort["bezug"])
+        if bezug is not None:
+            log.info("Verfassen-Add-in: %s von %s — beantwortete Mail über inReplyTo (%s)",
+                     art_text, email, plattform)
+        else:
+            konversation, weg = antwort["konversation"], "Kennung"
+            if not konversation and antwort["betreff"]:
+                konversation = await graph_client.konversation_per_betreff(
+                    email, antwort["betreff"], antwort["an"])
+                weg = "Betreff"
+            # Zeigt, was der Client liefert — auf iOS fehlte die Kennung (19.10.2026).
+            log.info("Verfassen-Add-in: %s von %s — inReplyTo %s, Kennung %s, Betreff %s, "
+                     "Konversation %s (%s)", art_text, email,
+                     "ja (nicht gefunden)" if antwort["bezug"] else "nein",
+                     "ja" if antwort["konversation"] else "nein",
+                     "ja" if antwort["betreff"] else "nein",
+                     f"über {weg}" if konversation else "nicht gefunden", plattform)
+            if not konversation:
+                return JSONResponse({"html": ""}, headers=_CORS)
+            bezug = await graph_client.antwort_bezug(email, konversation, antwort["art"],
+                                                     antwort["an"], antwort["cc"])
         if bezug is None:
             log.info("Verfassen-Add-in: Antwort von %s — beantwortete Mail nicht ermittelbar, "
                      "Gateway entscheidet beim Versand (%s)", email, plattform)

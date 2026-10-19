@@ -359,19 +359,43 @@ class UserData:
             self.custom = {}
 
 
-def _beantwortete(nachrichten: list[dict], postfach: str, art: str, an: list[str]) -> dict | None:
+def _adressen(liste) -> set[str]:
+    return {((x.get("emailAddress") or {}).get("address") or "").lower()
+            for x in (liste or [])} - {""}
+
+
+def _beantwortete(nachrichten: list[dict], postfach: str, art: str, an: list[str],
+                  cc: list[str] | None = None) -> dict | None:
     """Welche Nachricht der Konversation beantwortet bzw. weitergeleitet wird.
 
-    Office.js nennt sie beim Verfassen nicht (weder Kennung noch Verweise).
-    Bei einer Antwort steht ihr Absender unter den Empfängern des Entwurfs,
-    bei „Allen antworten“ an erster Stelle — die jüngste Nachricht dieses
-    Absenders. Sonst die jüngste fremde Nachricht, zuletzt die jüngste."""
+    Wo Outlook es dem Add-in nicht sagt (inReplyTo fehlt, etwa auf iOS), wird
+    geschätzt: Für jede Nachricht — auch die eigenen — ergibt sich, wen Outlook
+    bei „Antworten“ und „Allen antworten“ einträgt. Die jüngste, deren
+    Ergebnis An (und, falls bekannt, Cc) des Entwurfs genau trifft, gewinnt.
+    Antwort auf die eigene Mail: An = ihr An, Cc = ihr Cc; auf eine fremde:
+    An = Absender (+ ihr An), Cc = ihr Cc — jeweils ohne einen selbst.
+    Passt keine (Empfänger geändert), die jüngste des ersten Empfängers, dann
+    die jüngste fremde, zuletzt die jüngste (VM 20.10.2026: Antwort auf die
+    eigene Mail an Stocker wurde als Antwort auf Stockers ältere Mail
+    geschätzt)."""
     selbst = postfach.lower()
     echt = [m for m in nachrichten if not m.get("isDraft") and m.get("internetMessageId")]
     echt.sort(key=lambda m: m.get("receivedDateTime") or "", reverse=True)
 
     def von(m):
         return (((m.get("from") or {}).get("emailAddress") or {}).get("address") or "").lower()
+
+    an_menge = {x.lower() for x in (an or [])}
+    cc_menge = None if cc is None else {x.lower() for x in cc}
+    if art == "reply" and an_menge:
+        for m in echt:
+            zu, kopie = _adressen(m.get("toRecipients")), _adressen(m.get("ccRecipients"))
+            if von(m) == selbst:
+                moeglich = [(zu, kopie), (zu, set())]
+            else:
+                moeglich = [({von(m)}, set()), (({von(m)} | zu) - {selbst}, kopie - {selbst})]
+            if any(a == an_menge and (cc_menge is None or k == cc_menge) for a, k in moeglich):
+                return m
     fremd = [m for m in echt if von(m) != selbst]
     an = [x.lower() for x in (an or [])]
     if art == "reply" and an:
@@ -383,7 +407,7 @@ def _beantwortete(nachrichten: list[dict], postfach: str, art: str, an: list[str
 
 
 async def antwort_bezug(postfach: str, konversation: str, art: str = "reply",
-                        an: list[str] | None = None) -> dict | None:
+                        an: list[str] | None = None, cc: list[str] | None = None) -> dict | None:
     """Kette der beantworteten Mail — dieselben Angaben, die handler.py beim
     Versand aus der Antwort liest: `kennungen` (ihre Message-ID plus ihre
     References/In-Reply-To = die References der Antwort) und `marker` (eine
@@ -394,18 +418,14 @@ async def antwort_bezug(postfach: str, konversation: str, art: str = "reply",
     bekäme sonst die Antwort-Signatur, obwohl die Empfänger die volle nie
     gesehen haben (VM 19.10.2026, „Allen antworten“ auf eine Mail vor der
     eigenen signierten Antwort). `None` = nicht ermittelbar."""
-    import email.message
     import httpx
     from urllib.parse import quote
-    import mail_processor
-    import sig_thread
     tok = await _acquire_token_async()
     if not tok or not konversation:
         return None
     filt = "conversationId eq '" + konversation.replace("'", "''") + "'"
     url = (f"https://graph.microsoft.com/v1.0/users/{quote(postfach)}/messages"
-           f"?$filter={quote(filt)}&$top=50&$select="
-           "internetMessageId,isDraft,from,receivedDateTime,internetMessageHeaders,body")
+           f"?$filter={quote(filt)}&$top=50&$select={_BEZUG_FELDER}")
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.get(url, headers={"Authorization": f"Bearer {tok}"})
@@ -415,7 +435,18 @@ async def antwort_bezug(postfach: str, konversation: str, art: str = "reply",
     if resp.status_code != 200:
         log.warning("antwort_bezug %s: Graph %s %s", postfach, resp.status_code, resp.text[:200])
         return None
-    m = _beantwortete(resp.json().get("value", []), postfach, art, an or [])
+    return _bezug_aus(_beantwortete(resp.json().get("value", []), postfach, art, an or [], cc))
+
+
+_BEZUG_FELDER = ("internetMessageId,isDraft,from,toRecipients,ccRecipients,receivedDateTime,"
+                 "internetMessageHeaders,body")
+
+
+def _bezug_aus(m: dict | None) -> dict | None:
+    """Kennungen, Marker, Absender und Zeit einer Nachricht (siehe antwort_bezug)."""
+    import email.message
+    import mail_processor
+    import sig_thread
     if not m:
         return None
     kopf = email.message.Message()
@@ -426,6 +457,32 @@ async def antwort_bezug(postfach: str, konversation: str, art: str = "reply",
             "marker": mail_processor.marker_im_zitat((m.get("body") or {}).get("content") or ""),
             "von": (((m.get("from") or {}).get("emailAddress") or {}).get("address") or ""),
             "zeit": m.get("receivedDateTime") or ""}
+
+
+async def bezug_per_kennung(postfach: str, message_id: str) -> dict | None:
+    """Wie antwort_bezug, aber für die GENAU bekannte beantwortete Mail —
+    `item.inReplyTo` (Office.js, Mailbox 1.14) nennt ihre Message-ID. Keine
+    Schätzung. `None` = nicht im Postfach gefunden oder Graph-Fehler."""
+    import httpx
+    from urllib.parse import quote
+    tok = await _acquire_token_async()
+    if not tok or not message_id:
+        return None
+    filt = "internetMessageId eq '" + message_id.replace("'", "''") + "'"
+    url = (f"https://graph.microsoft.com/v1.0/users/{quote(postfach)}/messages"
+           f"?$filter={quote(filt)}&$top=5&$select={_BEZUG_FELDER}")
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(url, headers={"Authorization": f"Bearer {tok}"})
+    except Exception as exc:                                   # noqa: BLE001
+        log.warning("bezug_per_kennung %s: %s", postfach, exc)
+        return None
+    if resp.status_code != 200:
+        log.warning("bezug_per_kennung %s: Graph %s %s", postfach, resp.status_code, resp.text[:200])
+        return None
+    # Dieselbe Mail liegt ggf. mehrfach vor (Posteingang + Kopie) — gleiche Kette.
+    echt = [m for m in resp.json().get("value", []) if not m.get("isDraft")]
+    return _bezug_aus(echt[0] if echt else None)
 
 
 _BETREFF_PRAEFIX = re.compile(

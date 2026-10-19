@@ -126,6 +126,11 @@ DEFAULTS: dict = {
     "NOSIG_TRIGGER": "#nosig",        # Keyword in subject → suppress HTML auto-signature for this mail
     "NOSIG_BEHAELT": "",              # was bei #nosig bleibt: "" | banner | disclaimer | beide
     "KETTE_BEHAELT": "",              # dasselbe für Antworten in einer schon signierten Kette
+    # Antworten: Weicht die Wahl des Verfassen-Add-ins (geschätzt, Outlook nennt
+    # dem Add-in die beantwortete Mail nicht immer) von der Entscheidung des
+    # Gateways an der echten Mail ab — wer gilt? "gateway" ersetzt die Signatur
+    # des Add-ins, "addin" lässt stehen, was im Entwurf stand.
+    "ANTWORT_LETZTES_WORT": "gateway",
     "NODIGSIG_TRIGGER": "#nodigsig",  # Keyword in subject → suppress S/MIME (digital) signature for this mail
     "SIGN_INTERNAL_ONLY_MAIL": False,  # False (default) = skip signing when EVERY recipient is a known
                                         # tenant mailbox (no external recipient at all). Needed since the
@@ -733,6 +738,13 @@ def get_all() -> dict:
 # begriffecheck).
 _REINJECT_ALIASES = {"imap": "graph_plus", "smtp587": "graph_plus"}
 _reinject_alias_gewarnt: set[str] = set()
+
+
+def antwort_letztes_wort() -> str:
+    """Wer bei Antworten gilt, wenn Verfassen-Add-in und Gateway verschieden
+    entscheiden: ``"gateway"`` (Vorgabe, auch bei leerem/unbekanntem Wert) oder
+    ``"addin"``. Im Zweifel das Gateway — es kennt die beantwortete Mail genau."""
+    return "addin" if (get("ANTWORT_LETZTES_WORT") or "").strip() == "addin" else "gateway"
 
 
 def reinject_mode() -> str:
