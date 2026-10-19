@@ -1023,8 +1023,10 @@ class SignatureHandler:
             # haben). Er kann keinen Fehlalarm erzeugen — er prüft auf eine
             # Kennung, die ausschliesslich dieses Gateway setzt.
             _bezuege = sig_thread.kennungen(msg)
+            _addin_kette = sig_thread.addin_hat_kette(msg)
             _in_kette = (sig_thread.kennt(sender, _bezuege)
-                         or mail_processor.sender_already_in_thread(msg, {sender.lower()}))
+                         or mail_processor.sender_already_in_thread(msg, {sender.lower()})
+                         or _addin_kette)
 
             # Bezugsgröße für die Kennzahl: ausgehende Mails, die überhaupt in
             # einer Kette stehen. Ohne sie wäre die Wirkungszahl unten nicht zu
@@ -1037,6 +1039,18 @@ class SignatureHandler:
             if not suppress_html_sig and mail_processor._has_own_sig_in_compose_area(msg):
                 suppress_html_sig = True
                 log.info("Signatur bereits im Compose-Bereich (z.B. Add-in) — überspringe für %s", sender)
+                if _addin_kette:
+                    # Seit v1.9.178 setzt das Verfassen-Add-in auch bei Antworten
+                    # die Signatur, nach derselben Regel (policies.antwort_vorlage),
+                    # und kennzeichnet den Entwurf, wenn es die Antwort-Signatur
+                    # statt des vollen Blocks gewählt hat. Die Wirkung tritt dann
+                    # hier ein — ohne diese Zählung fiele „von N Antworten X
+                    # Stapel verhindert" auf null und meldete die Erkennung als
+                    # ausgefallen. Am Kopf, nicht an `_in_kette`: Ein von Hand
+                    # eingefügter voller Block in einer Kette verhindert nichts.
+                    stats.increment("stapel_verhindert")
+                    log.info("SIG-KETTE: bereits in dieser Kette signiert — Signatur des "
+                             "Add-ins im Verfassenbereich bleibt für %s", sender)
             elif not suppress_html_sig and _in_kette:
                 # Ab der 2. eigenen Mail im Thread: Antwort-Signatur statt vollem Block.
                 #
@@ -1051,7 +1065,7 @@ class SignatureHandler:
                 # in beiden Fällen bleibt der volle Block ein zweites Mal aus,
                 # und genau das ist gemeint.
                 stats.increment("stapel_verhindert")
-                _min_tpl = _vorlagen["min"]
+                _min_tpl = _policies_mod.antwort_vorlage(_vorlagen, True)
                 # ⚠️ BEIDE Zeilen tragen dasselbe Merkmal `SIG-KETTE:`. Sonst
                 # haengt die Nachprüfbarkeit an der Konfiguration: Wer eine
                 # Antwort-Signatur hinterlegt hat, sieht die eine Zeile nie,

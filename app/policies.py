@@ -115,6 +115,15 @@ def aufloesen(sender: str, mailbox_cfg: dict | None = None,
     return ergebnis
 
 
+def antwort_vorlage(vorlagen: dict, in_kette: bool) -> str:
+    """Vorlage für eine Antwort/Weiterleitung — EINE Regel für Gateway
+    (handler.py, beim Versand) und Verfassen-Add-in (beim Schreiben).
+
+    Hat der Absender in dieser Kette schon eine vom Gateway signierte Mail,
+    gilt die Antwort-Signatur (`""` = keine), sonst die volle Signatur."""
+    return vorlagen["min"] if in_kette else vorlagen["sig"]
+
+
 def vorlage_fuer(sender: str, slot: str, mailbox_cfg: dict | None = None,
                  sender_cfg: dict | None = None) -> str:
     """Name der Vorlage eines Slots für einen Absender (siehe `aufloesen`)."""
