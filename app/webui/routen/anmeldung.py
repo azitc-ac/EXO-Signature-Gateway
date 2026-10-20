@@ -217,7 +217,8 @@ async def setup_berechtigungen_erteilen(_: str = Depends(_require_admin)):
     """Startet die Admin-Anmeldung (Popup), um fehlende Anwendungsberechtigungen der
     bestehenden Gateway-App zu erteilen — NUR Rollen, kein neues Secret/Zertifikat
     (setup_wizard.berechtigungen_nachziehen). Liefert die Login-URL."""
-    _state, auth_url = pkce_mod.create_session(_setup_redirect_uri(), flow="berechtigungen")
+    _state, auth_url = pkce_mod.create_session(_setup_redirect_uri(), flow="berechtigungen",
+                                               scopes=pkce_mod.BERECHTIGUNGEN_SCOPES)
     return JSONResponse({"auth_url": auth_url})
 
 
@@ -277,7 +278,7 @@ async def auth_callback(
         elif flow == "arm":
             use_scopes = pkce_mod.ARM_SCOPES
         else:
-            use_scopes = None
+            use_scopes = session_obj.get("scopes")      # None → BOOTSTRAP_SCOPES
         token_resp = await pkce_mod.exchange_code(
             code, session_obj["verifier"], session_obj["redirect_uri"], scopes=use_scopes
         )

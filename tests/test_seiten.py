@@ -356,3 +356,32 @@ def test_setup_vergleicht_teams_katalog_mit_dem_paket(client, monkeypatch, katal
 
 async def _gleich(version):
     return {"zustand": "ok", "version": version}
+
+
+def test_berechtigungen_erteilen_verlangt_nur_zwei_scopes(client, monkeypatch):
+    """Nachtragen einer App-Rolle braucht nicht die Schreibrechte des vollen
+    Einrichtungslaufs (Directory.ReadWrite.All, RoleManagement.ReadWrite.Directory).
+    Bis v1.10.3 verlangte das Zustimmungsfenster sie trotzdem — und der Code-Tausch
+    im Callback verlangte unabhängig vom /authorize die Vorgabe."""
+    import urllib.parse
+    import pkce
+    import setup_wizard
+    url = client.get("/api/setup/berechtigungen/erteilen").json()["auth_url"]
+    q = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)
+    assert q["scope"][0].split() == pkce.BERECHTIGUNGEN_SCOPES
+    for zuviel in ("Directory.ReadWrite.All", "RoleManagement.ReadWrite.Directory", "offline_access"):
+        assert zuviel not in q["scope"][0]
+
+    getauscht = {}
+
+    async def tausch(code, verifier, redirect_uri, scopes=None):
+        getauscht["scopes"] = scopes
+        return {"access_token": "tok"}
+
+    async def nachziehen(tok):
+        return {"ok": True, "fehler": []}
+    monkeypatch.setattr(pkce, "exchange_code", tausch)
+    monkeypatch.setattr(setup_wizard, "berechtigungen_nachziehen", nachziehen)
+    r = client.get(f"/auth/callback?code=c&state={q['state'][0]}")
+    assert r.status_code == 200 and "berechtigungen-done" in r.text
+    assert getauscht["scopes"] == pkce.BERECHTIGUNGEN_SCOPES

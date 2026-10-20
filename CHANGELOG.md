@@ -5,6 +5,35 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.4 — 2026-10-20 — „Fehlende Berechtigungen erteilen“ verlangt nur noch, was es braucht
+
+Der Knopf **Fehlende Berechtigungen erteilen** (Einrichtung, Abwesenheit,
+Teams-App) trägt fehlende Anwendungsberechtigungen der bestehenden
+Gateway-App nach. Dafür meldest du dich als Administrator an. Bisher
+verlangte diese Anmeldung dieselben delegierten Rechte wie der volle
+Einrichtungsassistent:
+
+- `Application.ReadWrite.All`
+- `AppRoleAssignment.ReadWrite.All`
+- `Directory.ReadWrite.All`
+- `RoleManagement.ReadWrite.Directory`
+- `offline_access`
+
+Zum Nachtragen braucht es nur die ersten beiden. Das Gateway trägt die Rolle
+in die App-Registrierung ein und weist sie zu. `Directory.ReadWrite.All` und
+`RoleManagement.ReadWrite.Directory` braucht nur der volle
+Einrichtungslauf, der die App anlegt und die Exchange-Rolle vergibt. Jetzt
+fragt die Anmeldung nur noch die beiden benötigten Rechte an, ohne
+`offline_access`. Der Token wird einmal benutzt und nicht gespeichert.
+
+Außerdem verlangte der Tausch des Anmeldecodes gegen den Token bisher immer
+die volle Liste, unabhängig davon, was beim Anmelden angefragt war. Jetzt
+gilt beim Tausch dieselbe Liste wie beim Anmelden.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.10.3 — 2026-10-20 — Dokumentation neu gegliedert
 
 Das README stellt das Gateway jetzt in Kürze vor: was es kann, mit Bildern,
