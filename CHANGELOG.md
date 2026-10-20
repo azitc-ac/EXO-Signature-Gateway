@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.185 — 2026-10-20 — Anmeldeseite mit eigenem Logo
+
+Die Anmeldeseite zeigt wieder ein eigenes, grösseres Bild: den Umschlag mit
+dem Siegel auf der Spitze der Lasche und dem Schloss unten rechts, mit
+weichem Schatten. Favicon, Add-in- und Teams-Symbole bleiben unverändert beim
+kleinen Zeichen aus v1.9.180.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.9.184 — 2026-10-20 — Antwort-Signatur nur, wenn deine Signatur in der beantworteten Mail steht
 
 Die Antwort-Signatur (statt der vollen) gilt jetzt genau dann, wenn deine
