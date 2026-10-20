@@ -161,6 +161,19 @@ def test_setup_zeigt_angeforderte_berechtigungen(client):
         assert name in namen, f"Berechtigung {name} fehlt im Status"
 
 
+def test_setup_nennt_die_fassung_des_teams_pakets(client):
+    """Neben dem Download steht die Fassung, die das Paket gerade trägt — das
+    Admin Center zeigt keine Versionsnummer, nur „Last modified“."""
+    import settings_store as ss
+    import config as _cfg
+    ss.update({"ADMIN_PASSWORD_HASH": ""})
+    r = client.get("/setup", auth=("admin", _cfg.WEBUI_PASSWORD or "admin"), follow_redirects=False)
+    assert r.status_code == 200
+    stand = ss.get("_TEAMS_APP_STAND")
+    assert stand and stand.get("version"), "Seite hat den Stand nicht ermittelt"
+    assert f"Fassung {stand['version']} · seit {stand['seit']}" in r.text
+
+
 # ── Ebene 2: Rundumlauf über alle parameterlosen GET-Routen ─────────────────
 
 # Endpunkte, die fest auf das Datenverzeichnis des Containers zugreifen

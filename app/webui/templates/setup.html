@@ -2694,6 +2694,10 @@ async function saveKeyvault() {
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
         <a href="{{ addin_manifest_url | replace('/addin/manifest.xml', '/addin/teams-app.zip') }}"
            class="btn secondary btn-sm">App-Paket herunterladen (.zip)</a>
+        {% if teams_app %}
+        <span class="hint" id="teams-app-fassung">Fassung {{ teams_app.version }}{% if teams_app.seit %} · seit {{ teams_app.seit }}{% endif %}
+          — ist <em>Last modified</em> in Integrierte Apps älter, lade das Paket erneut hoch.</span>
+        {% endif %}
       </div>
       <ol style="margin:0 0 0 18px;padding:0;line-height:2.1;font-size:12.5px;color:#374151">
         <li><strong>Einstellungen → Integrierte Apps</strong> → <strong>Apps hochladen</strong> → das .zip wählen</li>
