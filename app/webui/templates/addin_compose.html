@@ -228,8 +228,13 @@
         .catch(function(e) {
           if (!e) return; // handled above (401)
           if (meineNr !== _ladeNr) return;
-          document.getElementById('preview').innerHTML =
-            '<span class="err">Fehler beim Laden: ' + e.message + '</span>';
+          // Eigenständige Seite ohne common.js (kein esc): Text per textContent.
+          var fehler = document.createElement('span');
+          fehler.className = 'err';
+          fehler.textContent = 'Fehler beim Laden: ' + e.message;
+          var vorschau = document.getElementById('preview');
+          vorschau.innerHTML = '';
+          vorschau.appendChild(fehler);
         });
     }
 

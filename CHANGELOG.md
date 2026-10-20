@@ -5,6 +5,64 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.11 — 2026-10-21 — Fehlertexte maskiert; Meldungen und Zustimmungs-Dialoge vereinheitlicht
+
+- **Meldungskästen bleiben stehen.** Auf *Update & Backup*, *Einstellungen*
+  und *S/MIME-Einstellungen* verschwanden Meldungen nach 6 Sekunden, auf den
+  übrigen Seiten nicht. Eine Fehlermeldung, die verschwindet, während du
+  wegsiehst, sagt nicht mehr, ob das Speichern gewirkt hat. Jetzt bleibt jede
+  Meldung stehen, bis die nächste Aktion sie ersetzt. Technisch gibt es dafür
+  eine gemeinsame Funktion statt sechs lokaler Kopien.
+- **Meldungen im Dunkelmodus:** Folgende Meldungen setzten ihre Farbe selbst
+  und blieben im Dunkelmodus dunkelrot bzw. dunkelgrün auf dunklem Grund:
+  - Zustimmung zur Auftragsverarbeitung (*Erweitert*);
+  - DigiCert-Einstellungen;
+  - Zustimmung beim Hub-Verbinden und bei der Rechnungsstellung.
+
+  Jetzt nutzen sie die gemeinsamen Farben, die beide Modi abdecken.
+- Ein Test lässt keine neuen Stellen zu, die Farben per JavaScript setzen. Der
+  verbleibende Bestand (59 Stellen in 12 Vorlagen) ist festgehalten und darf
+  nur sinken.
+- **Zustimmung zu Rechtstexten: ein Dialog statt drei.** Folgende Aktionen
+  fragen vorher die Zustimmung zu den jeweiligen Bedingungen ab:
+  - Hub verbinden: Nutzungs- und Lizenzbedingungen;
+  - Rechnungskauf: Zahlungsbedingungen;
+  - Diagnosepaket senden: Auftragsverarbeitung.
+
+  Bisher hatte jede Aktion einen eigenen, gleich gebauten Dialog. Jetzt teilen
+  sie sich einen. Zwei sichtbare Folgen:
+  - Die Haken sind beim erneuten Öffnen immer leer. Bisher galt das nur für die
+    Auftragsverarbeitung.
+  - Ist der Zustimmungsstand nicht abrufbar, läuft die Aktion an den Server
+    weiter, und der Server prüft selbst. Das war schon bisher so, jetzt gilt
+    es überall gleich.
+
+  Ein Test stellt sicher, dass jeder Dialog genau die Dokumente abfragt, die
+  der Server für diese Aktion verlangt. Ein weiterer Test prüft den Ablauf
+  selbst: Fassung, Prüfsumme und Zusammenhang der Zustimmung, und dass die
+  Aktion erst nach gespeicherter Zustimmung läuft.
+- **Fehlertexte vom Server werden maskiert angezeigt.** Meldungskästen der
+  Weboberfläche setzten Fehlertexte vom Server bisher als HTML ein, an 35
+  Stellen auf neun Seiten der Verwaltung. Dazu kamen die Ausgabe von
+  Exchange-PowerShell beim Einrichten von Connector und Transportregel, ein
+  Hinweis zum Zertifikatsbezug, die Upload-Adresse bei der S/MIME-Erneuerung
+  und Fehleranzeigen auf Dashboard, Einstellungen, Einrichtung und im
+  Verfassen-Add-in. Letztere zeigen Browser-Fehlermeldungen, und die können
+  bei einer unlesbaren Antwort deren Anfang enthalten. Solche Texte können Namen aus Exchange oder Eingaben
+  enthalten. Eine spitze Klammer darin wurde dann als HTML ausgewertet statt
+  als Text angezeigt. Betroffen waren nur Seiten, die eine Anmeldung als Admin
+  erfordern. Jetzt werden diese Texte überall maskiert, und ein Test lässt
+  keine neue ungeschützte Stelle zu.
+- **Postfächer → Add-in-Vorlagen:** Die Auswahl in der Richtlinie und die in
+  jeder Postfachzeile waren zwei getrennt geschriebene, gleiche Bausteine. Jetzt
+  ist es einer. Das Verhalten bleibt gleich; in der Richtlinie bricht die
+  Beschriftung jetzt wie in den Zeilen nicht mehr um.
+
+**Zu tun:** aktualisieren. Wegen der Maskierung der Fehlertexte ist das
+Update empfohlen. Weitere Schritte sind nicht nötig.
+
+---
+
 ## v1.10.10 — 2026-10-21 — Doku: Einleitung, Bilder in den Funktionen
 
 - **README:** Die Einleitung nennt jetzt alle drei Säulen in einem Satz:

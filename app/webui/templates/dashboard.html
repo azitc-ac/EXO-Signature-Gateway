@@ -466,7 +466,7 @@ function showPoolTab(tabName, appIdx) {
         '<div style="margin-top:10px;font-size:10px;color:#a8a29e">Auf einen Balken klicken → Stundenansicht des Tages</div>';
     })
     .catch(function(e) {
-      area.innerHTML = '<span style="color:#dc2626;font-size:12px">Fehler: ' + e.message + '</span>';
+      area.innerHTML = '<span style="color:#dc2626;font-size:12px">Fehler: ' + esc(e.message) + '</span>';
     });
 }
 
@@ -494,7 +494,7 @@ function showPoolDayDrill(appIdx, date) {
     .catch(function(e) {
       var backBtn = '<button onclick="showPoolTab(\'' + _poolLastHistoryTab + '\',' + appIdx + ')" ' +
         'style="padding:4px 10px;border:1px solid #e2e8f0;border-radius:4px;background:#f8f7f6;cursor:pointer;font-size:12px;margin-bottom:10px">← Zurück</button>';
-      area.innerHTML = backBtn + '<span style="color:#dc2626;font-size:12px">Fehler: ' + e.message + '</span>';
+      area.innerHTML = backBtn + '<span style="color:#dc2626;font-size:12px">Fehler: ' + esc(e.message) + '</span>';
     });
 }
 
@@ -929,7 +929,7 @@ async function openMailHourlyModal() {
       '<thead><tr style="border-bottom:2px solid #e2e8f0"><th style="text-align:left;padding:4px 8px;color:#78716c">Stunde</th><th style="text-align:right;padding:4px 8px;color:#78716c">Mails</th><th style="text-align:right;padding:4px 8px;color:#78716c">Ø ms</th><th style="text-align:right;padding:4px 8px;color:#78716c">Peak ms</th></tr></thead>' +
       '<tbody>' + tableRows + '</tbody></table></div>';
   } catch(e) {
-    document.getElementById('mailHourlyContent').innerHTML = '<span style="color:#dc2626">Fehler: ' + e.message + '</span>';
+    document.getElementById('mailHourlyContent').innerHTML = '<span style="color:#dc2626">Fehler: ' + esc(e.message) + '</span>';
   }
 }
 

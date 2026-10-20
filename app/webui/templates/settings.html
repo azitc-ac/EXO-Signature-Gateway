@@ -314,13 +314,6 @@
 
 <script>
 
-function showAlert(el, type, msg) {
-  el.className = 'alert ' + type;
-  el.innerHTML = msg;
-  el.style.display = 'block';
-  setTimeout(() => { el.style.display = 'none'; }, 6000);
-}
-
 // savePartial() steht in common.js — eine Fassung fuer alle Seiten.
 
 function showPw(id) { var el = document.getElementById(id); if (el) el.type = 'text'; }
@@ -369,7 +362,7 @@ async function changePassword() {
     wacheNeuMessen('pw-btn');
   } else {
     const d = await resp.json().catch(() => ({}));
-    showAlert(result, 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));
+    showAlert(result, 'error', 'Fehler: ' + (esc(d.detail) || 'Unbekannt'));
     wacheFertig('pw-btn', false, '');
   }
 }
@@ -496,7 +489,7 @@ async function _fetchAdminUsers(q) {
     }));
   } catch(e) {
     var dd = document.getElementById('admin-dropdown');
-    dd.innerHTML = '<div style="padding:10px 12px;color:#dc2626;font-size:13px">Fehler: ' + e.message + '</div>';
+    dd.innerHTML = '<div style="padding:10px 12px;color:#dc2626;font-size:13px">Fehler: ' + esc(e.message) + '</div>';
   }
 }
 

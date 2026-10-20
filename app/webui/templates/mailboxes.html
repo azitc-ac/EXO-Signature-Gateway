@@ -579,17 +579,21 @@ function _fuelleVorlagenSelect(sel, kind, aktuell, opts) {
 
 // ── Vorlagenrichtlinien laden + speichern ────────────────────────────────────
 
-function _buildPolicyAddinControl(addinValue) {
-  var isAll = addinValue === '*';
-  var selected = Array.isArray(addinValue) ? addinValue : [];
+// Auswahl der Add-in-Vorlagen — EIN Baustein für Richtlinie und Postfachzeile.
+// Bis 2026-10-21 zweimal ausgeschrieben (der Kopien-Finder fand sie), Unterschied
+// nur die Namen, über die loadPolicies/savePolicies bzw. die Zeilen-Speicherung
+// die Auswahl wieder auslesen: o.allKlasse/o.allId, o.tplKlasse, o.idx, o.id.
+function _addinAuswahl(wert, o) {
+  var isAll = wert === '*';
+  var selected = Array.isArray(wert) ? wert : [];
 
   var details = document.createElement('details');
-  details.id = 'policy-addin-details';
+  if (o.id) details.id = o.id;
+  if (o.idx !== undefined) details.dataset.addinIdx = String(o.idx);
 
   var summary = document.createElement('summary');
-  summary.style.cssText = 'font-size:11px;cursor:pointer;user-select:none;list-style:none;display:flex;align-items:center;gap:4px';
-  summary.innerHTML = '<span style="font-size:10px;color:#64748b">▶</span><span id="policy-addin-summary-label" style="color:#374151">' +
-    (isAll ? 'Alle' : (selected.length ? selected.length + ' gewählt' : 'Nur Standard')) + '</span>';
+  summary.style.cssText = 'font-size:11px;cursor:pointer;user-select:none;white-space:nowrap;list-style:none;display:flex;align-items:center;gap:4px';
+  summary.innerHTML = '<span style="font-size:10px;color:#64748b">▶</span><span style="color:#374151"></span>';
   details.appendChild(summary);
   details.addEventListener('toggle', function() {
     summary.querySelector('span').textContent = details.open ? '▼' : '▶';
@@ -601,8 +605,11 @@ function _buildPolicyAddinControl(addinValue) {
   var masterLabel = document.createElement('label');
   masterLabel.style.cssText = 'display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap;font-size:11px;font-weight:600';
   var masterCb = document.createElement('input');
-  masterCb.type = 'checkbox'; masterCb.id = 'policy-addin-all';
-  if (isAll) masterCb.checked = true;
+  masterCb.type = 'checkbox';
+  if (o.allKlasse) masterCb.className = o.allKlasse;
+  if (o.allId) masterCb.id = o.allId;
+  if (o.idx !== undefined) masterCb.dataset.idx = String(o.idx);
+  masterCb.checked = isAll;
   masterLabel.appendChild(masterCb);
   masterLabel.appendChild(document.createTextNode('Alle (inkl. zukünftige)'));
   inner.appendChild(masterLabel);
@@ -612,40 +619,48 @@ function _buildPolicyAddinControl(addinValue) {
   inner.appendChild(hr);
 
   var tplWrap = document.createElement('div');
-  tplWrap.id = 'policy-addin-tpls';
   tplWrap.style.cssText = 'display:flex;flex-direction:column;gap:2px' + (isAll ? ';opacity:0.4' : '');
   _templateList.forEach(function(name) {
     var lbl = document.createElement('label');
     lbl.style.cssText = 'display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap;font-size:11px';
     var cb = document.createElement('input');
-    cb.type = 'checkbox'; cb.className = 'policy-addin-tpl'; cb.value = name;
-    if (isAll || selected.includes(name)) cb.checked = true;
-    if (isAll) cb.disabled = true;
-    lbl.appendChild(cb); lbl.appendChild(document.createTextNode(name));
+    cb.type = 'checkbox';
+    cb.className = o.tplKlasse;
+    cb.value = name;
+    if (o.idx !== undefined) cb.dataset.idx = String(o.idx);
+    cb.checked = isAll || selected.includes(name);
+    cb.disabled = isAll;
+    lbl.appendChild(cb);
+    lbl.appendChild(document.createTextNode(name));
     tplWrap.appendChild(lbl);
   });
   inner.appendChild(tplWrap);
   details.appendChild(inner);
 
-  function _updateLabel() {
-    var all = masterCb.checked;
-    var cnt = all ? null : tplWrap.querySelectorAll('.policy-addin-tpl:checked').length;
-    document.getElementById('policy-addin-summary-label').textContent =
-      all ? 'Alle' : (cnt ? cnt + ' gewählt' : 'Nur Standard');
+  function beschriften() {
+    var alle = masterCb.checked;
+    var n = alle ? 0 : tplWrap.querySelectorAll('.' + o.tplKlasse + ':checked').length;
+    summary.querySelector('span:last-child').textContent = alle ? 'Alle' : (n ? n + ' gewählt' : 'Nur Standard');
   }
   masterCb.addEventListener('change', function() {
-    var all = masterCb.checked;
-    tplWrap.querySelectorAll('.policy-addin-tpl').forEach(function(cb) {
-      cb.checked = all; cb.disabled = all;
+    var alle = masterCb.checked;
+    tplWrap.querySelectorAll('.' + o.tplKlasse).forEach(function(cb) {
+      cb.checked = alle;
+      cb.disabled = alle;
     });
-    tplWrap.style.opacity = all ? '0.4' : '1';
-    _updateLabel();
+    tplWrap.style.opacity = alle ? '0.4' : '1';
+    beschriften();
   });
-  tplWrap.querySelectorAll('.policy-addin-tpl').forEach(function(cb) {
-    cb.addEventListener('change', _updateLabel);
+  tplWrap.querySelectorAll('.' + o.tplKlasse).forEach(function(cb) {
+    cb.addEventListener('change', beschriften);
   });
-
+  beschriften();
   return details;
+}
+
+function _buildPolicyAddinControl(addinValue) {
+  return _addinAuswahl(addinValue, {id: 'policy-addin-details', allId: 'policy-addin-all',
+                                    tplKlasse: 'policy-addin-tpl'});
 }
 
 async function loadPolicies() {
@@ -884,12 +899,8 @@ function _buildWahlSelect(idx, klasse, kind, mb, slot, feld, leerText) {
 }
 
 function _buildAddinTemplatesControl(idx, addinTemplates, sigEnabled, policyActive) {
-  var isAll = addinTemplates === '*';
-  var selected = Array.isArray(addinTemplates) ? addinTemplates : [];
+  var details = _addinAuswahl(addinTemplates, {idx: idx, allKlasse: 'addin-all', tplKlasse: 'addin-tpl'});
   var active = _addinEnabled && sigEnabled && !policyActive;
-
-  var details = document.createElement('details');
-  details.dataset.addinIdx = String(idx);
   if (!active) {
     details.style.opacity = '0.4';
     details.style.pointerEvents = 'none';
@@ -897,77 +908,7 @@ function _buildAddinTemplatesControl(idx, addinTemplates, sigEnabled, policyActi
       ? 'Wird durch Vorlagenrichtlinie gesteuert'
       : (_addinEnabled ? 'Signatur deaktiviert' : 'Outlook Add-in nicht aktiviert (Einstellungen → Outlook Add-in)');
   }
-
-  var summary = document.createElement('summary');
-  summary.style.cssText = 'font-size:11px;cursor:pointer;user-select:none;white-space:nowrap;list-style:none;display:flex;align-items:center;gap:4px';
-  summary.innerHTML = '<span style="font-size:10px;color:#64748b">▶</span><span style="color:#374151">' +
-    (isAll ? 'Alle' : (selected.length ? selected.length + ' gewählt' : 'Nur Standard')) + '</span>';
-  details.appendChild(summary);
-
-  details.addEventListener('toggle', function() {
-    summary.querySelector('span').textContent = details.open ? '▼' : '▶';
-  });
-
-  var inner = document.createElement('div');
-  inner.style.cssText = 'padding:6px 2px 2px;display:flex;flex-direction:column;gap:3px';
-
-  var masterLabel = document.createElement('label');
-  masterLabel.style.cssText = 'display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap;font-size:11px;font-weight:600';
-  var masterCb = document.createElement('input');
-  masterCb.type = 'checkbox';
-  masterCb.className = 'addin-all';
-  masterCb.dataset.idx = String(idx);
-  if (isAll) masterCb.checked = true;
-  masterLabel.appendChild(masterCb);
-  masterLabel.appendChild(document.createTextNode('Alle (inkl. zukünftige)'));
-  inner.appendChild(masterLabel);
-
-  var hr = document.createElement('div');
-  hr.className = 'js-trenner';
-  inner.appendChild(hr);
-
-  var tplWrap = document.createElement('div');
-  tplWrap.style.cssText = 'display:flex;flex-direction:column;gap:2px';
-  if (isAll) tplWrap.style.opacity = '0.4';
-  _templateList.forEach(function(name) {
-    var lbl = document.createElement('label');
-    lbl.style.cssText = 'display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap;font-size:11px';
-    var cb = document.createElement('input');
-    cb.type = 'checkbox';
-    cb.className = 'addin-tpl';
-    cb.value = name;
-    cb.dataset.idx = String(idx);
-    if (isAll || selected.includes(name)) cb.checked = true;
-    if (isAll) cb.disabled = true;
-    lbl.appendChild(cb);
-    lbl.appendChild(document.createTextNode(name));
-    tplWrap.appendChild(lbl);
-  });
-  inner.appendChild(tplWrap);
-  details.appendChild(inner);
-
-  masterCb.addEventListener('change', function() {
-    var all = masterCb.checked;
-    tplWrap.querySelectorAll('.addin-tpl').forEach(function(cb) {
-      cb.checked = all;
-      cb.disabled = all;
-    });
-    tplWrap.style.opacity = all ? '0.4' : '1';
-    _updateAddinSummary(details, summary);
-  });
-  tplWrap.querySelectorAll('.addin-tpl').forEach(function(cb) {
-    cb.addEventListener('change', function() { _updateAddinSummary(details, summary); });
-  });
-
   return details;
-}
-
-function _updateAddinSummary(details, summary) {
-  var masterCb = details.querySelector('.addin-all');
-  var isAll = masterCb && masterCb.checked;
-  var count = isAll ? null : details.querySelectorAll('.addin-tpl:checked').length;
-  var label = isAll ? 'Alle' : (count ? count + ' gewählt' : 'Nur Standard');
-  summary.querySelector('span:last-child').textContent = label;
 }
 
 var _hasHealthData = false;

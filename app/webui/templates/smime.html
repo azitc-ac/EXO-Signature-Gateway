@@ -638,12 +638,6 @@
 <script>
 const _BACKEND_CAPS = {{ backends | tojson }};
 
-function showAlert(el, type, msg) {
-  el.className = 'alert ' + type;
-  el.innerHTML = msg;
-  el.style.display = 'block';
-}
-
 // ── Kompakte Liste: aufklappen auf Klick ───────────────────────────────────
 //
 // Die Liste zeigt in Ruhe nur die Kopfzeile je Postfach — Adresse, Anzahl der
@@ -1366,8 +1360,8 @@ async function sendRenewalNotification(email, btn) {
   const d = await resp.json().catch(() => ({}));
   showAlert(result, resp.ok ? 'success' : 'error',
     resp.ok
-      ? 'Benachrichtigung gesendet ✓<br><small>Upload-Link: <a href="' + d.upload_url + '" target="_blank">' + d.upload_url + '</a></small>'
-      : 'Fehler: ' + (d.detail || 'Unbekannt'));
+      ? 'Benachrichtigung gesendet ✓<br><small>Upload-Link: <a href="' + escAttr(d.upload_url) + '" target="_blank" rel="noopener">' + esc(d.upload_url) + '</a></small>'
+      : 'Fehler: ' + (esc(d.detail) || 'Unbekannt'));
 }
 
 async function generateToken(email, btn) {
@@ -1389,7 +1383,7 @@ async function generateToken(email, btn) {
       '</div>' +
       '<div style="color:#888;font-size:11px;margin-top:4px">Gültig für ' + d.expires_days + ' Tage</div>';
   } else {
-    showAlert(result, 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));
+    showAlert(result, 'error', 'Fehler: ' + (esc(d.detail) || 'Unbekannt'));
   }
 }
 
@@ -1448,7 +1442,7 @@ async function doImport() {
     setTimeout(() => { closeImportModal(); location.reload(); }, 1500);
   } else {
     const d = await resp.json().catch(() => ({}));
-    showAlert(result, 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));
+    showAlert(result, 'error', 'Fehler: ' + (esc(d.detail) || 'Unbekannt'));
   }
 }
 
@@ -1547,7 +1541,7 @@ async function uploadRcptCert() {
     setTimeout(() => location.reload(), 2000);
   } else {
     const d = await resp.json().catch(() => ({}));
-    showAlert(result, 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));
+    showAlert(result, 'error', 'Fehler: ' + (esc(d.detail) || 'Unbekannt'));
   }
 }
 

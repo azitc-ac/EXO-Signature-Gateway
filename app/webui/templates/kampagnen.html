@@ -214,7 +214,7 @@ async function kampagneSpeichern(btn) {
   btn.disabled = true;
   const r = await postJSON('/api/campaigns', payload);
   btn.disabled = false;
-  if (!r || !r.ok) { showAlert(box, 'error', (r && r.error) || 'Speichern fehlgeschlagen.'); return; }
+  if (!r || !r.ok) { showAlert(box, 'error', (r && esc(r.error)) || 'Speichern fehlgeschlagen.'); return; }
   showAlert(box, 'success', 'Gespeichert.');
   kampagneFormLeeren();
   ladenK();
