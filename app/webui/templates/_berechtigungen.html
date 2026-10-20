@@ -30,11 +30,16 @@
   var liste = box.querySelector('.ber-liste');
   var knopf = box.querySelector('.ber-erteilen');
   var meldung = box.querySelector('.ber-meldung');
+  var pruefKnopf = box.querySelector('.ber-pruefen');
 
   function melde(zustand, text) { meldung.dataset.zustand = zustand; meldung.textContent = text; }
 
-  async function pruefen() {
-    melde('', '');
+  // Jede Prüfung meldet sich am Ort: Ohne Änderung sähe die neu gezeichnete
+  // Tabelle aus wie vorher, und der Knopf wirkte, als täte er nichts.
+  // `hinweis` = [zustand, text] — Meldung, die nach der Prüfung stehen bleibt.
+  async function pruefen(hinweis) {
+    pruefKnopf.disabled = true;
+    melde('offen', 'Wird geprüft…');
     try {
       var r = await fetch('/api/setup/berechtigungen?nur=' + encodeURIComponent(box.dataset.nur || ''));
       var d = await r.json();
@@ -59,12 +64,18 @@
       });
       knopf.hidden = fehlt === 0;     // wirkt dank [hidden]-Regel in style.css auch auf .btn
       if (unbekannt) melde('offen', 'Ohne eingerichtete App-Zugangsdaten nicht prüfbar.');
+      else if (hinweis) melde(hinweis[0], hinweis[1]);
+      else melde('', 'Geprüft um ' + new Date().toLocaleTimeString('de-DE'));
     } catch (e) {
       melde('fehler', '✗ Prüfung fehlgeschlagen' + ursache(e, 'berechtigungen'));
+    } finally {
+      pruefKnopf.disabled = false;
     }
   }
 
+  var wartet = false;   // nur das Kästchen, das die Anmeldung gestartet hat, meldet den Ablauf
   knopf.addEventListener('click', async function () {
+    wartet = true;
     melde('offen', 'Admin-Anmeldung im neuen Fenster…');
     try {
       var r = await fetch('/api/setup/berechtigungen/erteilen');
@@ -73,15 +84,17 @@
       window.open(d.auth_url, 'ber-login', 'width=520,height=700');
     } catch (e) { melde('fehler', '✗ ' + e.message); }
   });
-  box.querySelector('.ber-pruefen').addEventListener('click', pruefen);
+  pruefKnopf.addEventListener('click', function () { pruefen(); });
 
   window.addEventListener('message', function (ev) {
     if (ev.origin !== window.location.origin || !ev.data) return;
     if (ev.data.type === 'berechtigungen-done') {
-      melde('fertig', '✓ Erteilt — Entra braucht mitunter einige Minuten');
-      pruefen();
+      pruefen(['fertig', '✓ Erteilt — fehlt noch etwas, braucht Entra mitunter einige Minuten; dann erneut prüfen']);
     } else if (ev.data.type === 'berechtigungen-fail') {
       melde('fehler', '✗ ' + (ev.data.msg || 'Erteilung fehlgeschlagen'));
+    } else if (ev.data.type === 'anmeldung-abgelaufen' && wartet) {
+      wartet = false;
+      melde('fehler', '✗ Anmeldung abgelaufen, nichts erteilt — bitte erneut erteilen');
     }
   });
 

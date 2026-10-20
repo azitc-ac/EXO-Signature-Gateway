@@ -335,6 +335,33 @@ def _get_effective_credentials() -> tuple[str, str, str]:
     return tenant, client_id, client_secret
 
 
+def frisches_app_token(scope: str = _SCOPES[0]) -> str | None:
+    """Anwendungstoken OHNE den gemeinsamen MSAL-Cache — für Prüfungen der Rollen.
+
+    `acquire_token_for_client` liefert seit MSAL 1.23 aus dem Cache (bis zu ~90 min)
+    und verweigert `force_refresh`. Eine Rolle, die nach dem Ausstellen erteilt
+    wurde, stünde bis zum Ablauf nicht im Token: „Erneut prüfen" zeigte dann stets
+    den alten Stand. Ein eigener, leerer Cache je Aufruf holt ein frisches Token.
+    `None` ohne Zugangsdaten oder bei Fehler."""
+    tenant, cid, secret = _get_effective_credentials()
+    if not (tenant and cid and secret):
+        return None
+    try:
+        app = msal.ConfidentialClientApplication(
+            cid, authority=f"https://login.microsoftonline.com/{tenant}",
+            client_credential=secret, token_cache=msal.TokenCache(),
+        )
+        result = app.acquire_token_for_client(scopes=[scope])
+    except Exception as exc:                                   # noqa: BLE001
+        log.warning("Frisches App-Token (%s) fehlgeschlagen: %s", scope, exc)
+        return None
+    if isinstance(result, dict) and result.get("access_token"):
+        return result["access_token"]
+    log.warning("Frisches App-Token (%s) fehlgeschlagen: %s", scope,
+                (result or {}).get("error_description") if isinstance(result, dict) else result)
+    return None
+
+
 @dataclass
 class UserData:
     displayName: str = ""

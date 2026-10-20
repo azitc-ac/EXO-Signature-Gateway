@@ -217,7 +217,9 @@ def _exo_rollen() -> set[str] | None:
 
 def _exchange() -> dict:
     import graph_client
-    token = graph_client._acquire_token()
+    # Frisch, nicht aus dem Cache — sonst fehlt eine eben erteilte Rolle bis zum
+    # Ablauf des Tokens (berechtigungen.graph_rollen, gleicher Grund).
+    token = graph_client.frisches_app_token()
     if not token:
         return _punkt("Exchange erreichbar", OFFEN, "Keine Graph-Zugangsdaten.",
                       "Einrichtung durchlaufen — ohne Graph kann das Gateway "

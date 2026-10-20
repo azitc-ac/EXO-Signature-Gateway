@@ -100,3 +100,86 @@ def test_doku_nennt_jede_beantragte_rolle():
     soll = {s["name"] for s in setup_wizard._GRAPH_PERMISSION_SPECS + setup_wizard._EXO_PERMISSION_SPECS}
     assert soll <= zeilen, f"in docs/installation.md fehlt: {sorted(soll - zeilen)}"
     assert "Mail.ReadWrite.All" not in zeilen
+
+
+# ── „Erneut prüfen" muss eine eben erteilte Rolle sehen ──────────────────
+# MSAL liefert Client-Credentials-Token bis zum Ablauf aus dem Cache und
+# verweigert force_refresh. Die Prüfung holt deshalb ein frisches Token.
+
+def test_graph_rollen_aus_frischem_token_nicht_aus_cache(monkeypatch):
+    import graph_client
+    monkeypatch.setattr(graph_client, "frisches_app_token", lambda *a: _jwt(["Mail.Send", "AppCatalog.Read.All"]))
+    monkeypatch.setattr(graph_client, "_acquire_token", lambda: _jwt(["Mail.Send"]))
+    monkeypatch.setattr(berechtigungen, "_rollen_im_cache", lambda: {"Mail.Send"})
+    monkeypatch.setattr(graph_client, "reset_msal_app", lambda: None)
+    assert "AppCatalog.Read.All" in berechtigungen.graph_rollen()
+
+
+def test_neue_rolle_verwirft_betriebs_cache(monkeypatch):
+    """Sieht die Prüfung mehr als das Betriebstoken, wird dessen Cache verworfen —
+    sonst bekäme z. B. der Teams-Katalog bis zum Tokenablauf weiter 403."""
+    import graph_client
+    aufrufe = []
+    monkeypatch.setattr(graph_client, "reset_msal_app", lambda: aufrufe.append(1))
+    monkeypatch.setattr(graph_client, "frisches_app_token", lambda *a: _jwt(["A", "B"]))
+    monkeypatch.setattr(berechtigungen, "_rollen_im_cache", lambda: {"A"})
+    berechtigungen.graph_rollen()
+    assert aufrufe == [1]
+    aufrufe.clear()
+    monkeypatch.setattr(berechtigungen, "_rollen_im_cache", lambda: {"A", "B"})
+    berechtigungen.graph_rollen()
+    assert aufrufe == []
+
+
+def test_exo_rollen_aus_frischem_token(monkeypatch):
+    import graph_client
+    scopes = []
+    monkeypatch.setattr(graph_client, "frisches_app_token",
+                        lambda scope=None: scopes.append(scope) or _jwt(["Exchange.ManageAsApp"]))
+    monkeypatch.setattr(graph_client, "_get_msal_app", lambda: None)
+    assert berechtigungen.exo_rollen() == {"Exchange.ManageAsApp"}
+    assert scopes == ["https://outlook.office365.com/.default"]
+
+
+def test_frisches_app_token_hat_eigenen_leeren_cache(monkeypatch):
+    import graph_client
+    import msal
+    erzeugt = []
+
+    class FakeApp:
+        def __init__(self, cid, **kw):
+            erzeugt.append(kw)
+
+        def acquire_token_for_client(self, scopes):
+            return {"access_token": "t-" + scopes[0]}
+
+    monkeypatch.setattr(graph_client, "_get_effective_credentials", lambda: ("tid", "cid", "geheim"))
+    monkeypatch.setattr(msal, "ConfidentialClientApplication", FakeApp)
+    assert graph_client.frisches_app_token() == "t-https://graph.microsoft.com/.default"
+    graph_client.frisches_app_token()
+    assert len(erzeugt) == 2
+    caches = [kw.get("token_cache") for kw in erzeugt]
+    assert all(isinstance(c, msal.TokenCache) for c in caches)
+    assert caches[0] is not caches[1]
+
+
+def test_frisches_app_token_ohne_zugangsdaten(monkeypatch):
+    import graph_client
+    monkeypatch.setattr(graph_client, "_get_effective_credentials", lambda: ("tid", "", ""))
+    assert graph_client.frisches_app_token() is None
+
+
+def test_erneut_pruefen_meldet_sich_am_ort():
+    """Der Knopf zeichnete dieselbe Tabelle neu und wirkte wie tot. Jetzt: Knopf
+    gesperrt + „Wird geprüft…", danach „Geprüft um …". Der Klick darf das Ereignis
+    nicht als Hinweis durchreichen, und nach dem Erteilen darf die Prüfung die
+    Erfolgsmeldung nicht sofort löschen."""
+    from pathlib import Path
+    t = (Path(__file__).parent.parent / "app/webui/templates/_berechtigungen.html").read_text()
+    assert "melde('offen', 'Wird geprüft…')" in t
+    assert "'Geprüft um ' + new Date()" in t
+    assert "pruefKnopf.disabled = true" in t and "pruefKnopf.disabled = false" in t
+    assert "addEventListener('click', pruefen)" not in t
+    assert "addEventListener('click', function () { pruefen(); })" in t
+    assert "pruefen(['fertig'," in t
+    assert "ev.data.type === 'anmeldung-abgelaufen' && wartet" in t

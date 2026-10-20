@@ -58,7 +58,9 @@ ARM_SCOPES = ["https://management.azure.com/user_impersonation", "offline_access
 
 # In-memory session store: state → {verifier, created_at, redirect_uri, flow}
 _sessions: dict[str, dict] = {}
-_SESSION_TTL = 600  # 10 minutes
+# 30 Minuten: Eine Admin-Zustimmung mit Prüfen der Rechte und MFA dauert mitunter
+# länger als die früheren 10 — die Rückkehr fand dann keine Sitzung mehr.
+_SESSION_TTL = 1800
 
 
 # ── PKCE helpers ──────────────────────────────────────────────────────────────
