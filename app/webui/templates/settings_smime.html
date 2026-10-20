@@ -559,13 +559,6 @@
 
 <script>
 
-function showAlert(el, type, msg) {
-  el.className = 'alert ' + type;
-  el.innerHTML = msg;
-  el.style.display = 'block';
-  setTimeout(() => { el.style.display = 'none'; }, 6000);
-}
-
 // Liefert true/false zurueck — wer eine Speicherwache benutzt, muss wissen, ob
 // es geklappt hat. Ohne Rueckgabewert meldete sie „gespeichert", sobald der
 // Aufruf zurueckkam, auch bei HTTP 400.
@@ -840,7 +833,7 @@ async function saveSmimeKeyPassword() {
     wacheNeuMessen('key-pw-btn');
     setTimeout(function() { location.reload(); }, 6000);
   } else {
-    showAlert(ziel, 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));
+    showAlert(ziel, 'error', 'Fehler: ' + (esc(d.detail) || 'Unbekannt'));
     wacheFertig('key-pw-btn', false, '');
   }
 }

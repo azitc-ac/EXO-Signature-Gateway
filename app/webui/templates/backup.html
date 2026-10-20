@@ -238,13 +238,6 @@
 </div>
 
 <script>
-function showAlert(el, type, msg) {
-  el.className = 'alert ' + type;
-  el.innerHTML = msg;
-  el.style.display = 'block';
-  setTimeout(() => { el.style.display = 'none'; }, 6000);
-}
-
 let _updPollTimer = null;
 let _updPollStart = null;
 let _watcherOk = false;
@@ -674,7 +667,7 @@ async function importConfig(input) {
     setTimeout(() => location.reload(), 1500);
   } else {
     const d = await resp.json().catch(() => ({}));
-    showAlert(result, 'error', 'Import-Fehler: ' + (d.detail || 'Unbekannt'));
+    showAlert(result, 'error', 'Import-Fehler: ' + (esc(d.detail) || 'Unbekannt'));
     result.style.display = 'block';
   }
   input.value = '';

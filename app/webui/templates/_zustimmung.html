@@ -1,0 +1,144 @@
+{#- Zustimmung zu Rechtstexten vor einer Aktion — EIN Baustein für alle Gates.
+
+    Anlass (2026-10-21): Hub-Anbindung (Gate A), Rechnungskauf (Gate B) und
+    Diagnosepaket (Gate C) hatten je einen eigenen Dialog mit eigenem Laden,
+    eigener Zustimmungs-Speicherung und eigener Meldung — dreimal dasselbe
+    Muster in zwei Bauweisen (der Kopien-Finder fand sie). Unterschiede lagen
+    nur darin, ob der Haken beim erneuten Öffnen zurückgesetzt wurde und wie
+    ein Fehler beim Statusabruf behandelt wurde.
+
+    Aufruf (Vorlage):
+      {% from "_zustimmung.html" import zustimmung_dialog %}
+      {{ zustimmung_dialog("hub", "Nutzungsbedingungen — Hub-Anbindung", "hub_connect",
+           [("hub-terms", "Hub-Nutzungsbedingungen", "Ich habe die <strong>Hub-Nutzungsbedingungen</strong> gelesen und akzeptiere sie.")],
+           "Akzeptieren &amp; Verbinden") }}
+    Aufruf (JavaScript), vor der eigentlichen Aktion:
+      await zustimmungDann('hub', aktion);
+    Fehlt eine Zustimmung, öffnet sich der Dialog und `aktion` läuft nach dem
+    Bestätigen; liegt alles vor, läuft sie sofort. Scheitert die Statusabfrage,
+    läuft sie ebenfalls — der Server prüft die Zustimmung selbst (Gate im Backend).
+-#}
+{% macro zustimmung_dialog(kennung, titel, kontext, dokumente, knopf, hinweis="") %}
+<div id="zs-{{ kennung }}" data-kontext="{{ kontext }}"
+     data-dokumente="{{ dokumente | map('first') | join(',') }}"
+     style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:1001;align-items:center;justify-content:center">
+  <div class="dlg-card" style="max-width:620px;width:94%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+    <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+      <div>
+        <strong>{{ titel }}</strong>
+        {% if hinweis %}<div class="hint" style="margin-top:4px">{{ hinweis }}</div>{% endif %}
+      </div>
+      {% if dokumente | length > 1 %}<span class="muted zs-schritt" style="font-size:12px;white-space:nowrap"></span>{% endif %}
+    </div>
+    {% if dokumente | length > 1 %}
+    <div style="padding:8px 14px;border-bottom:1px solid #f0f0f0;display:flex;gap:6px;flex-wrap:wrap">
+      {% for d in dokumente %}
+      <button type="button" class="btn-toggle zs-reiter" data-i="{{ loop.index0 }}"
+              onclick="zustimmungReiter('{{ kennung }}', {{ loop.index0 }})">{{ d[1] }}</button>
+      {% endfor %}
+    </div>
+    {% endif %}
+    <div class="legal-view zs-text" style="padding:14px 20px;overflow-y:auto;font-size:12px;line-height:1.6;flex:1;min-height:0">Lade…</div>
+    <div style="padding:10px 20px;border-top:1px solid #f0f0f0;background:#fafaf9">
+      {% for d in dokumente %}
+      <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:13px;margin-bottom:{{ '12px' if loop.last else '6px' }}">
+        <input type="checkbox" class="zs-haken" onchange="zustimmungHaken('{{ kennung }}')" style="margin-top:2px;flex-shrink:0">
+        <span>{{ d[2] | safe }}</span>
+      </label>
+      {% endfor %}
+      <div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap">
+        <button type="button" class="btn secondary" onclick="zustimmungSchliessen('{{ kennung }}')">Abbrechen</button>
+        <button type="button" class="btn primary zs-ok" disabled onclick="zustimmungBestaetigen('{{ kennung }}')">{{ knopf | safe }}</button>
+      </div>
+    </div>
+    <div class="field-msg zs-meldung" style="padding:6px 20px 10px"></div>
+  </div>
+</div>
+<script>
+(function () {
+  if (window.zustimmungDann) return;          // Steuerung nur einmal je Seite
+  var texte = {}, nachher = {};
+
+  function box(k) { return document.getElementById('zs-' + k); }
+  function dokumente(k) { return box(k).dataset.dokumente.split(','); }
+  function meldung(k, t, ok) { showMsg(box(k).querySelector('.zs-meldung'), t, ok); }
+
+  async function laden(id) {
+    if (texte[id]) return texte[id];
+    var d = await getJSON('/api/legal/doc/' + encodeURIComponent(id) + '?lang=de');
+    if (!d.ok || !d.text) throw new Error(errText(d));
+    texte[id] = d;
+    return d;
+  }
+
+  window.zustimmungReiter = async function (k, i) {
+    var b = box(k), txt = b.querySelector('.zs-text'), ids = dokumente(k);
+    b.querySelectorAll('.zs-reiter').forEach(function (r) {
+      r.classList.toggle('active', Number(r.dataset.i) === i);   // Zustand als Klasse (Dark-Mode-Regel 2)
+    });
+    var schritt = b.querySelector('.zs-schritt');
+    if (schritt) schritt.textContent = 'Schritt ' + (i + 1) + ' von ' + ids.length;
+    txt.classList.remove('md'); txt.textContent = 'Lade…';
+    try {
+      var d = await laden(ids[i]);
+      txt.classList.add('md'); txt.innerHTML = _mdToHtml(d.text);
+    } catch (e) {
+      txt.textContent = 'Fehler beim Laden: ' + e.message;
+    }
+  };
+
+  window.zustimmungHaken = function (k) {
+    var b = box(k), alle = true;
+    b.querySelectorAll('.zs-haken').forEach(function (h) { alle = alle && h.checked; });
+    b.querySelector('.zs-ok').disabled = !alle;
+  };
+
+  window.zustimmungSchliessen = function (k) {
+    box(k).style.display = 'none';
+    delete nachher[k];
+  };
+
+  window.zustimmungOeffnen = function (k, aktion) {
+    var b = box(k);
+    nachher[k] = aktion;
+    b.querySelectorAll('.zs-haken').forEach(function (h) { h.checked = false; });
+    window.zustimmungHaken(k);
+    b.querySelector('.zs-meldung').style.display = 'none';
+    b.style.display = 'flex';
+    window.zustimmungReiter(k, 0);
+  };
+
+  window.zustimmungBestaetigen = async function (k) {
+    var b = box(k), knopf = b.querySelector('.zs-ok');
+    knopf.disabled = true;
+    try {
+      for (var id of dokumente(k)) {
+        var d = await laden(id);
+        var r = await postJSON('/api/legal/consent', {
+          document_id: id, version: d.version, content_hash: d.content_hash,
+          context: b.dataset.kontext,
+        });
+        if (!r.ok) throw new Error('Zustimmung nicht gespeichert: ' + errText(r));
+      }
+    } catch (e) {
+      meldung(k, e.message, false);
+      knopf.disabled = false;
+      return;
+    }
+    var aktion = nachher[k];
+    window.zustimmungSchliessen(k);
+    if (aktion) await aktion();
+  };
+
+  // Liegt jede Zustimmung vor → Aktion sofort; sonst Dialog, Aktion danach.
+  window.zustimmungDann = async function (k, aktion) {
+    var s = await getJSON('/api/legal/status');
+    var docs = (s && s.documents) || {};
+    var fehlt = s.ok === false ? false            // Status nicht lesbar: Server-Gate entscheidet
+      : dokumente(k).some(function (id) { return !(docs[id] && docs[id].accepted); });
+    if (fehlt) { window.zustimmungOeffnen(k, aktion); return; }
+    await aktion();
+  };
+})();
+</script>
+{% endmacro %}

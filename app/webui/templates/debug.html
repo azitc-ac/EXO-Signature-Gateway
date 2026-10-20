@@ -296,13 +296,6 @@ document.addEventListener('DOMContentLoaded', acmeAccountUsersLoad);
 </div>
 
 <script>
-function showAlert(el, type, html) {
-  el.className = 'alert ' + type;
-  el.innerHTML = html;
-  el.style.display = 'block';
-}
-function hideAlert(el) { el.style.display = 'none'; }
-
 async function obsGetRemoteDomain() {
   const btn = document.getElementById('obs-rd-get-btn');
   const result = document.getElementById('obs-rd-result');
@@ -316,8 +309,9 @@ async function obsGetRemoteDomain() {
     detail.textContent = JSON.stringify(d, null, 2);
     detail.style.display = 'block';
   } else {
-    showAlert(result, d.error === 'not_found' ? 'warn' : 'error',
-      d.error === 'not_found' ? 'Remote Domain "Castle ACME" nicht vorhanden.' : ('Fehler: ' + (d.error || 'Unbekannt')));
+    const fehlt = d.error === 'not_found';
+    showAlert(result, fehlt ? 'warn' : 'error',
+      fehlt ? 'Remote Domain "Castle ACME" nicht vorhanden.' : ('Fehler: ' + (esc(d.error) || 'Unbekannt')));
     detail.style.display = 'none';
   }
 }
@@ -336,7 +330,7 @@ async function obsSetRemoteDomain() {
     detail.textContent = JSON.stringify(d, null, 2);
     detail.style.display = 'block';
   } else {
-    showAlert(result, 'error', 'Fehler: ' + (d.error || JSON.stringify(d)));
+    showAlert(result, 'error', 'Fehler: ' + (esc(d.error) || esc(JSON.stringify(d))));
     detail.style.display = 'none';
   }
 }
@@ -350,7 +344,7 @@ async function obsDeleteRemoteDomain() {
   const d = await r.json();
   btn.disabled = false; btn.textContent = 'Entfernen';
   showAlert(result, d.ok ? 'success' : 'error',
-    d.ok ? ('Entfernt: ' + (d.removed ? 'ja' : 'war nicht vorhanden')) : ('Fehler: ' + d.error));
+    d.ok ? ('Entfernt: ' + (d.removed ? 'ja' : 'war nicht vorhanden')) : ('Fehler: ' + esc(d.error)));
 }
 
 let _obsPoller = null;
@@ -378,7 +372,7 @@ async function obsSendTest() {
     if (_obsPoller) clearTimeout(_obsPoller);
     _obsPoller = setTimeout(() => { obsRefreshCaptures(); }, 15000);
   } else {
-    showAlert(result, 'error', 'Fehler: ' + JSON.stringify(d));
+    showAlert(result, 'error', 'Fehler: ' + esc(JSON.stringify(d)));
   }
 }
 

@@ -1233,17 +1233,6 @@
 </div>
 
 <script>
-function showAlert(el, type, msg) {
-  if (!el) return;
-  el.className = 'alert ' + type;
-  el.innerHTML = msg;
-  el.style.display = 'block';
-}
-
-function hideAlert(el) {
-  if (el) el.style.display = 'none';
-}
-
 async function changePassword() {
   const pw  = document.getElementById('new-pw').value;
   const pw2 = document.getElementById('new-pw2').value;
@@ -1271,7 +1260,7 @@ async function changePassword() {
     setTimeout(() => { location.href = '/auth/logout'; }, 1500);
   } else {
     const d = await resp.json().catch(() => ({}));
-    showAlert(result, 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));
+    showAlert(result, 'error', 'Fehler: ' + (esc(d.detail) || 'Unbekannt'));
   }
 }
 
@@ -1292,7 +1281,7 @@ async function saveHostname() {
     setTimeout(() => location.reload(), 1200);
   } else {
     const d = await resp.json().catch(() => ({}));
-    showAlert(result, 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));
+    showAlert(result, 'error', 'Fehler: ' + (esc(d.detail) || 'Unbekannt'));
   }
   wacheFertig('hostname-btn', !!resp.ok);
 }
@@ -1306,7 +1295,7 @@ async function testGraph() {
     showAlert(result, 'success', 'Graph-Verbindung OK. Organisation: <strong>' + (d.org || '?') + '</strong>');
   } else {
     const d = await resp.json().catch(() => ({}));
-    showAlert(result, 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));
+    showAlert(result, 'error', 'Fehler: ' + (esc(d.detail) || 'Unbekannt'));
   }
 }
 
@@ -1340,11 +1329,11 @@ async function renewCert() {
 
   if (resp.ok) {
     const d = await resp.json();
-    showAlert(result, 'success', (d.detail || 'Zertifikat erneuert.') + ' Bitte Service neu starten.');
+    showAlert(result, 'success', (esc(d.detail) || 'Zertifikat erneuert.') + ' Bitte Service neu starten.');
     setTimeout(() => location.reload(), 3000);
   } else {
     const d = await resp.json().catch(() => ({}));
-    showAlert(result, 'error', 'certbot-Fehler: ' + (d.detail || 'Unbekannt'));
+    showAlert(result, 'error', 'certbot-Fehler: ' + (esc(d.detail) || 'Unbekannt'));
   }
 }
 
@@ -1375,9 +1364,9 @@ async function importTlsPfx(btn) {
       if (d.warnung) msg += '<br>⚠️ ' + esc(d.warnung);
       showAlert(res, 'success', msg);
     } else {
-      showAlert(res, 'error', 'Fehler: ' + (d.detail || 'Import fehlgeschlagen'));
+      showAlert(res, 'error', 'Fehler: ' + (esc(d.detail) || 'Import fehlgeschlagen'));
     }
-  } catch (e) { showAlert(res, 'error', 'Fehler: ' + e.message); }
+  } catch (e) { showAlert(res, 'error', 'Fehler: ' + esc(e.message)); }
   btn.disabled = false; btn.textContent = orig;
 }
 
@@ -1404,9 +1393,9 @@ async function dns01Start(btn) {
         '<button class="copy-btn" data-copy="' + escAttr(d.record_value) + '" title="Wert kopieren" type="button">Kopieren</button>';
       document.getElementById('dns01-finish-btn').style.display = '';
     } else {
-      showAlert(res, 'error', 'Fehler: ' + (d.detail || 'Start fehlgeschlagen'));
+      showAlert(res, 'error', 'Fehler: ' + (esc(d.detail) || 'Start fehlgeschlagen'));
     }
-  } catch (e) { showAlert(res, 'error', 'Fehler: ' + e.message); }
+  } catch (e) { showAlert(res, 'error', 'Fehler: ' + esc(e.message)); }
   btn.disabled = false; btn.textContent = orig;
 }
 
@@ -1421,9 +1410,9 @@ async function dns01Finish(btn) {
       showAlert(res, 'success', 'Zertifikat ausgestellt (' + (d.hostnames || []).join(', ') +
         '). <strong>Neustart erforderlich.</strong>');
     } else {
-      showAlert(res, 'error', 'Fehler: ' + (d.detail || 'Ausstellung fehlgeschlagen'));
+      showAlert(res, 'error', 'Fehler: ' + (esc(d.detail) || 'Ausstellung fehlgeschlagen'));
     }
-  } catch (e) { showAlert(res, 'error', 'Fehler: ' + e.message); }
+  } catch (e) { showAlert(res, 'error', 'Fehler: ' + esc(e.message)); }
   btn.disabled = false; btn.textContent = orig;
 }
 
@@ -1445,12 +1434,12 @@ async function setupExoConnector() {
 
   if (resp.ok) {
     const d = await resp.json();
-    const output = (d.output || '').replace(/\n/g, '<br>');
+    const output = esc(d.output || '').replace(/\n/g, '<br>');   // erst maskieren, dann <br>
     showAlert(result, 'success', 'EXO-Connector eingerichtet.<br><br><code style="font-size:11px">' + output + '</code>');
     setTimeout(() => location.reload(), 3000);
   } else {
     const d = await resp.json().catch(() => ({}));
-    showAlert(result, 'error', 'Fehler: <pre style="margin:4px 0;font-size:11px">' + (d.detail || 'Unbekannt') + '</pre>');
+    showAlert(result, 'error', 'Fehler: <pre style="margin:4px 0;font-size:11px">' + (esc(d.detail) || 'Unbekannt') + '</pre>');
   }
 }
 
@@ -1480,7 +1469,7 @@ async function sendTestMail() {
       'Exchange-Nachrichtenverfolgung (Message Trace).');
   } else {
     const d = await resp.json().catch(() => ({}));
-    showAlert(result, 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));
+    showAlert(result, 'error', 'Fehler: ' + (esc(d.detail) || 'Unbekannt'));
   }
 }
 
@@ -1506,7 +1495,7 @@ async function saveBootstrapClientId() {
     setTimeout(() => location.reload(), 1200);
   } else {
     const d = await resp.json().catch(() => ({}));
-    showAlert(result, 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));
+    showAlert(result, 'error', 'Fehler: ' + (esc(d.detail) || 'Unbekannt'));
   }
   wacheFertig('bootstrap-client-id-btn', !!resp.ok);
 }
@@ -1563,7 +1552,7 @@ async function submitPastedUrl(pasteInputId, resultId) {
     setTimeout(() => location.reload(), 2500);
   } else {
     const d = await resp.json().catch(() => ({}));
-    showAlert(result, 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));
+    showAlert(result, 'error', 'Fehler: ' + (esc(d.detail) || 'Unbekannt'));
   }
 }
 
@@ -1588,7 +1577,7 @@ async function generateAuthCert() {
     showAlert(result, 'success', 'Zertifikat generiert und lokal gespeichert. Bitte jetzt im Entra Admin Center hochladen, dann "Exchange einrichten" klicken.');
   } else {
     const d = await resp.json().catch(() => ({}));
-    showAlert(result, 'error', 'Fehler: ' + (d.detail || 'Unbekannt'));
+    showAlert(result, 'error', 'Fehler: ' + (esc(d.detail) || 'Unbekannt'));
   }
 }
 
@@ -1618,7 +1607,7 @@ async function setupSmimeRules() {
 
   if (resp.ok) {
     const d = await resp.json();
-    const output = (d.output || '').replace(/\n/g, '<br>');
+    const output = esc(d.output || '').replace(/\n/g, '<br>');   // erst maskieren, dann <br>
     showAlert(result, 'success',
       'S/MIME Transport-Regeln eingerichtet.<br><br>' +
       '<code style="font-size:11px">' + output + '</code>');
@@ -1626,7 +1615,7 @@ async function setupSmimeRules() {
   } else {
     const d = await resp.json().catch(() => ({}));
     showAlert(result, 'error',
-      'Fehler: <pre style="margin:4px 0;font-size:11px">' + (d.detail || 'Unbekannt') + '</pre>');
+      'Fehler: <pre style="margin:4px 0;font-size:11px">' + (esc(d.detail) || 'Unbekannt') + '</pre>');
   }
 }
 
@@ -1647,7 +1636,7 @@ async function setupImapAccess() {
 
   if (resp.ok) {
     const d = await resp.json();
-    const output = (d.output || '').replace(/\n/g, '<br>');
+    const output = esc(d.output || '').replace(/\n/g, '<br>');   // erst maskieren, dann <br>
     showAlert(result, 'success',
       'IMAP-Zugriff konfiguriert.<br><br>' +
       '<code style="font-size:11px">' + output + '</code>');
@@ -1655,7 +1644,7 @@ async function setupImapAccess() {
   } else {
     const d = await resp.json().catch(() => ({}));
     showAlert(result, 'error',
-      'Fehler: <pre style="margin:4px 0;font-size:11px">' + (d.detail || 'Unbekannt') + '</pre>');
+      'Fehler: <pre style="margin:4px 0;font-size:11px">' + (esc(d.detail) || 'Unbekannt') + '</pre>');
   }
 }
 
@@ -2783,11 +2772,11 @@ async function setupRestore() {
         + '<span id="setup-restart-note" style="font-size:12px;color:#555">Übernimmt die wiederhergestellten Daten.</span>'
         + '</div></div>';
     } else {
-      result.innerHTML = '<div class="alert error"><strong>Fehler:</strong> ' + (d.error || 'Unbekannter Fehler') + '</div>';
+      result.innerHTML = '<div class="alert error"><strong>Fehler:</strong> ' + esc(d.error || 'Unbekannter Fehler') + '</div>';
       btn.disabled = false;
     }
   } catch(e) {
-    result.innerHTML = '<div class="alert error"><strong>Netzwerkfehler:</strong> ' + e.message + '</div>';
+    result.innerHTML = '<div class="alert error"><strong>Netzwerkfehler:</strong> ' + esc(e.message) + '</div>';
     btn.disabled = false;
   }
   spinner.style.display = 'none';
@@ -2892,7 +2881,7 @@ async function submitPoolAppUrl() {
     document.getElementById('pool-auth-url-paste').value = '';
     loadPoolStatus();
   } catch(e) {
-    showAlert(result, 'error', 'Fehler: ' + e.message);
+    showAlert(result, 'error', 'Fehler: ' + esc(e.message));
   } finally {
     btn.disabled = false;
     btn.textContent = 'Pool-App anlegen';

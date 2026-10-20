@@ -836,7 +836,7 @@ async function zielHinzufuegen(btn) {
   const r = await postJSON('/api/relay/ziel',
     { id: id, host: host, port: port, starttls: tls, user: user, passwort: pw });
   btn.disabled = false;
-  if (!r || !r.ok) { showAlert(box, 'error', (r && r.error) || 'Speichern fehlgeschlagen.'); return; }
+  if (!r || !r.ok) { showAlert(box, 'error', (r && esc(r.error)) || 'Speichern fehlgeschlagen.'); return; }
   showAlert(box, 'success', 'Ziel gespeichert.');
   ['neu-ziel-id', 'neu-ziel-host', 'neu-ziel-user', 'neu-ziel-pw'].forEach(function (f) {
     document.getElementById(f).value = '';
@@ -863,7 +863,7 @@ async function routeHinzufuegen(btn) {
   btn.disabled = true;
   const r = await postJSON('/api/relay/route', { domain: domain, ziel: ziel });
   btn.disabled = false;
-  if (!r || !r.ok) { showAlert(box, 'error', (r && r.error) || 'Speichern fehlgeschlagen.'); return; }
+  if (!r || !r.ok) { showAlert(box, 'error', (r && esc(r.error)) || 'Speichern fehlgeschlagen.'); return; }
   showAlert(box, 'success', 'Route gespeichert.');
   document.getElementById('neu-route-domain').value = '';
   laden();
@@ -910,7 +910,7 @@ async function coexSpeichern(btn) {
   const r = await postJSON('/api/relay/coex',
     { gateway_name: gw, source_ip: ip, servers: srv });
   btn.disabled = false;
-  if (!r || !r.ok) { showAlert(box, 'error', (r && r.error) || 'Speichern fehlgeschlagen.'); return; }
+  if (!r || !r.ok) { showAlert(box, 'error', (r && esc(r.error)) || 'Speichern fehlgeschlagen.'); return; }
   showAlert(box, 'success', 'Gespeichert. Skript unten kopieren und on-prem ausführen.');
   _coexSkripteZeigen(r.coex);
 }

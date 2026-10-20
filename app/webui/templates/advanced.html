@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_zustimmung.html" import zustimmung_dialog %}
 {% block content %}
 <h1>Einstellungen</h1>
 
@@ -1750,7 +1751,7 @@ async function sendTestMail() {
     showAlert(result, 'success', 'Test-Mail gesendet – prüfe den Posteingang von ' + to_email);
   } else {
     const data = await resp.json().catch(() => ({}));
-    showAlert(result, 'error', 'Fehler: ' + (data.detail || 'Unbekannt'));
+    showAlert(result, 'error', 'Fehler: ' + (esc(data.detail) || 'Unbekannt'));
   }
 }
 
@@ -1785,81 +1786,20 @@ async function restartContainer() {
   }
 }
 
-// ── Gate C: AVV vor dem Diagnosepaket-Upload ────────────────────────────────
-// Rechtstext als Markdown: _mdToHtml() aus common.js (bis 1.10.8 stand hier eine
-// Kopie davon, mit der Begründung, die Seite habe kein common.js — sie hat es über base.html).
-var _dpaData = null;
-
-function _dpaCheck(){ document.getElementById('dpa-confirm-btn').disabled = !document.getElementById('dpa-cb').checked; }
-function _dpaClose(){ document.getElementById('dpa-consent-modal').style.display='none'; }
-function _dpaMsg(t,ok){ var e=document.getElementById('dpa-msg'); e.textContent=t; e.style.color=ok?'#166534':'#dc2626'; e.style.display='block'; }
-
-async function _dpaOpen(){
-  var modal=document.getElementById('dpa-consent-modal'), txt=document.getElementById('dpa-text');
-  document.getElementById('dpa-cb').checked=false; _dpaCheck();
-  document.getElementById('dpa-msg').style.display='none';
-  modal.style.display='flex';
-  if(_dpaData){ txt.classList.add('md'); txt.innerHTML=_mdToHtml(_dpaData.text); return; }
-  txt.classList.remove('md'); txt.textContent='Lade…';
-  try{
-    var d=await (await fetch('/api/legal/doc/dpa?lang=de')).json();
-    if(d.ok){ _dpaData=d; txt.classList.add('md'); txt.innerHTML=_mdToHtml(d.text); }
-    else txt.textContent='Fehler beim Laden: '+(d.detail||'unbekannt');
-  }catch(e){ txt.textContent='Netzwerkfehler.' + ursache(e, 'advanced:975'); }
+// ── Gate C: AVV vor dem Diagnosepaket-Upload (_zustimmung.html) ──────────────
+async function supportUpload() {
+  await zustimmungDann('avv', _doSupportUpload);
 }
-
-async function _dpaConfirm(){
-  var btn=document.getElementById('dpa-confirm-btn'); btn.disabled=true;
-  if(!_dpaData){ _dpaMsg('Dokument nicht geladen.',false); btn.disabled=false; return; }
-  try{
-    var r=await fetch('/api/legal/consent',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({document_id:'dpa',version:_dpaData.version,
-                           content_hash:_dpaData.content_hash,context:'support_upload'})});
-    var d=await r.json().catch(function(){return {};});
-    if(!r.ok||!d.ok){ _dpaMsg('Konnte nicht gespeichert werden: '+(d.detail||'Fehler'),false); btn.disabled=false; return; }
-  }catch(e){ _dpaMsg('Netzwerkfehler.' + ursache(e, 'advanced:987'), false); btn.disabled=false; return; }
-  _dpaClose();
-  _doSupportUpload();          // Zustimmung liegt vor → Upload jetzt ausführen
-}
-
-// supportUpload() wird unten durch die gegatete Variante ersetzt.
-async function _gatedSupportUpload(){
-  try{
-    var s=await (await fetch('/api/legal/status')).json();
-    var acc = s && s.documents && s.documents.dpa && s.documents.dpa.accepted;
-    if(!acc){ await _dpaOpen(); return; }
-  }catch(e){ /* Statusabfrage fehlgeschlagen → Backend-Gate greift ohnehin */ }
-  await _doSupportUpload();
-}
-
-supportUpload = _gatedSupportUpload;
 </script>
 
 <!-- ── AVV-Dialog (Gate C: Diagnosepaket-Upload) ──────────────────────────── -->
-<div id="dpa-consent-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:1001;align-items:center;justify-content:center">
-  <div class="dlg-card" style="max-width:620px;width:94%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3)">
-    <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0">
-      <strong>Auftragsverarbeitungsvertrag</strong>
-      <div class="hint" style="margin-top:4px;font-size:12px">
-        Ein Diagnosepaket enthält ein Protokoll der Mailverarbeitung der letzten sieben Tage
-        (Absender, Empfänger, Betreff) — also personenbezogene Daten Ihrer Beschäftigten und
-        deren Kommunikationspartner. Nach Art. 28 DSGVO muss dafür vor der Übermittlung ein
-        Vertrag bestehen.
-      </div>
-    </div>
-    <div id="dpa-text" class="legal-view" style="padding:14px 20px;overflow-y:auto;font-size:12px;line-height:1.6;flex:1;min-height:0">Lade…</div>
-    <div style="padding:10px 20px;border-top:1px solid #f0f0f0;background:#fafaf9">
-      <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:13px;margin-bottom:12px">
-        <input type="checkbox" id="dpa-cb" onchange="_dpaCheck()" style="margin-top:2px;flex-shrink:0">
-        <span>Ich habe den <strong>Auftragsverarbeitungsvertrag</strong> gelesen und schließe ihn ab.</span>
-      </label>
-      <div style="display:flex;justify-content:flex-end;gap:8px">
-        <button class="btn secondary" onclick="_dpaClose()">Abbrechen</button>
-        <button class="btn primary" id="dpa-confirm-btn" disabled onclick="_dpaConfirm()">Abschließen &amp; Senden</button>
-      </div>
-    </div>
-    <div id="dpa-msg" style="display:none;padding:6px 20px 10px;font-size:12px"></div>
-  </div>
-</div>
+{{ zustimmung_dialog("avv", "Auftragsverarbeitungsvertrag", "support_upload", [
+     ("dpa", "Auftragsverarbeitungsvertrag",
+      "Ich habe den <strong>Auftragsverarbeitungsvertrag</strong> gelesen und schließe ihn ab."),
+   ], "Abschließen &amp; Senden",
+   "Ein Diagnosepaket enthält ein Protokoll der Mailverarbeitung der letzten sieben Tage "
+   "(Absender, Empfänger, Betreff) — also personenbezogene Daten deiner Beschäftigten und "
+   "deren Kommunikationspartner. Nach Art. 28 DSGVO muss dafür vor der Übermittlung ein "
+   "Vertrag bestehen.") }}
 
 {% endblock %}

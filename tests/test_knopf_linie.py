@@ -38,10 +38,9 @@ PRIMARY_ERLAUBT = {
     "setup.html": "*",                        # Einrichtungsassistent: jeder Schritt
     "base.html": {"_rcOpen", "_rcConfirm"},   # neue Rechtstexte ansehen/zustimmen
     "backup.html": {"_updModalReload"},       # Dialog nach dem Update
-    "settings_connect.html": {"_hcConfirm", "_invConfirm", "_termsConfirm",
-                              "hubConnect", "licAboKaufen"},   # Dialoge, Verbinden, Kauf
+    "settings_connect.html": {"_termsConfirm", "hubConnect", "licAboKaufen"},   # Dialog, Verbinden, Kauf
+    "_zustimmung.html": {"zustimmungBestaetigen"},   # Zustimmung zu Rechtstexten (Gates A–C)
     "smime.html": {"sammelStarten"},          # Sammelbestellung auslösen
-    "advanced.html": {"_dpaConfirm"},         # Dialog Auftragsverarbeitungsvertrag
 }
 # Eigenes Stylesheet, lädt style.css nicht — dort gelten deren Klassen.
 AUSGENOMMEN = {"addin_compose.html", "portal.html", "self.html", "smime_selfservice.html"}
@@ -113,7 +112,7 @@ def test_kein_link_im_knopf_gewand(seite):
 def test_reiter_in_dialogen_faerben_per_klasse():
     """Der aktive Reiter wurde per `style.borderBottom = '…#2563eb'` eingefärbt —
     der Browser normalisiert das zu rgb(), der Dunkelmodus greift dann nicht."""
-    for name in ("base.html", "settings_connect.html"):
+    for name in ("base.html", "_zustimmung.html"):   # Zustimmungs-Dialoge seit 2026-10-21 im Baustein
         text = (VORLAGEN / name).read_text(encoding="utf-8")
         assert "style.borderBottom" not in text, name
         assert "btn-toggle" in text, name

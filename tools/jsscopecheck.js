@@ -315,6 +315,25 @@ function nutztGemeinsames(html, datei) {
     && einbinder.every(([x, h]) => nutztGemeinsamesDirekt(h, x));
 }
 
+// Gegenrichtung zu nutztGemeinsames(): Eine SEITE ruft Funktionen auf, die ein
+// eingebundener Baustein bereitstellt (z. B. zustimmungDann() aus _zustimmung.html,
+// seit 2026-10-21). Deren Namen — Deklarationen und `window.x = …` — gelten auf
+// der Seite als gebunden. Nur direkt eingebundene Bausteine, nicht transitiv.
+function bausteinNamen(html) {
+  const namen = new Set();
+  for (const m of html.matchAll(/\{%-?\s*(?:from|include|import)\s+["']([^"']+)["']/g)) {
+    const datei = path.join(dir, m[1]);
+    if (!fs.existsSync(datei)) continue;
+    try {
+      const a = acorn.parse(ohneJinja(skripte(fs.readFileSync(datei, 'utf8'))),
+                            { ecmaVersion: 'latest', sourceType: 'script' });
+      deklarationen(a).forEach(n => namen.add(n));
+      zuweisungsNamen(a).forEach(n => namen.add(n));
+    } catch (e) { /* Syntax meldet jscheck.py; hier nichts hinzufügen */ }
+  }
+  return namen;
+}
+
 let treffer = 0, geprueft = 0, eigenstaendig = 0, unlesbar = 0;
 for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.html')).sort()) {
   const html = fs.readFileSync(path.join(dir, f), 'utf8');
@@ -325,6 +344,7 @@ for (const f of fs.readdirSync(dir).filter(x => x.endsWith('.html')).sort()) {
   const bekannt = new Set(GLOBALS);
   if (nutztGemeinsames(html, f)) gemeinsameNamen.forEach(n => bekannt.add(n));
   else eigenstaendig++;
+  bausteinNamen(html).forEach(n => bekannt.add(n));
 
   let funde;
   try {
