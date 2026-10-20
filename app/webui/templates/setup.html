@@ -1630,17 +1630,6 @@ async function setupSmimeRules() {
   }
 }
 
-function copyPS(preId, btn) {
-  const text = document.getElementById(preId).textContent;
-  navigator.clipboard.writeText(text).then(() => {
-    const orig = btn.textContent;
-    btn.textContent = 'Kopiert ✓';
-    setTimeout(() => { btn.textContent = orig; }, 2000);
-  }).catch(() => {
-    window.prompt('Bitte manuell kopieren:', text);
-  });
-}
-
 async function setupImapAccess() {
   const result = document.getElementById('imap-access-result');
   const btn    = document.getElementById('imap-access-btn');
@@ -1762,146 +1751,6 @@ async function saveModeSelection() {
   } else {
     showAlert(result, 'error', 'Fehler beim Speichern.');
   }
-}
-
-// ── (Observatory moved to /debug) ────────────────────────────────────────────
-
-async function obsGetRemoteDomain() {
-  const btn = document.getElementById('obs-rd-get-btn');
-  const result = document.getElementById('obs-rd-result');
-  const detail = document.getElementById('obs-rd-detail');
-  btn.disabled = true; btn.textContent = '…';
-  const r = await fetch('/api/setup/remote-domain-castle');
-  const d = await r.json();
-  btn.disabled = false; btn.textContent = 'Aktuelle Einstellungen lesen';
-  if (d.ok) {
-    showAlert(result, 'success', 'Remote Domain gefunden.');
-    detail.textContent = JSON.stringify(d, null, 2);
-    detail.style.display = 'block';
-  } else {
-    showAlert(result, d.error === 'not_found' ? 'warn' : 'error',
-      d.error === 'not_found' ? 'Remote Domain "Castle ACME" nicht vorhanden.' : ('Fehler: ' + (d.error || 'Unbekannt')));
-    detail.style.display = 'none';
-  }
-}
-
-async function obsSetRemoteDomain() {
-  const btn = document.getElementById('obs-rd-set-btn');
-  const result = document.getElementById('obs-rd-result');
-  const detail = document.getElementById('obs-rd-detail');
-  btn.disabled = true; btn.textContent = 'Konfiguriere… (ca. 30s)';
-  hideAlert(result);
-  const r = await fetch('/api/setup/remote-domain-castle', {method:'POST', headers:{'Content-Type':'application/json'}});
-  const d = await r.json();
-  btn.disabled = false; btn.textContent = 'RemoteDomain setzen / aktualisieren';
-  if (d.ok) {
-    showAlert(result, 'success', 'Remote Domain konfiguriert: <code>ByteEncoderTypeFor7BitCharsets=' + (d.ByteEncoderTypeFor7BitCharsets||'?') + '</code>');
-    detail.textContent = JSON.stringify(d, null, 2);
-    detail.style.display = 'block';
-  } else {
-    showAlert(result, 'error', 'Fehler: ' + (d.error || JSON.stringify(d)));
-    detail.style.display = 'none';
-  }
-}
-
-async function obsDeleteRemoteDomain() {
-  if (!confirm('Remote Domain "Castle ACME" wirklich entfernen?')) return;
-  const btn = document.getElementById('obs-rd-del-btn');
-  const result = document.getElementById('obs-rd-result');
-  btn.disabled = true; btn.textContent = '…';
-  const r = await fetch('/api/setup/remote-domain-castle', {method:'DELETE', headers:{'Content-Type':'application/json'}});
-  const d = await r.json();
-  btn.disabled = false; btn.textContent = 'Entfernen';
-  showAlert(result, d.ok ? 'success' : 'error',
-    d.ok ? ('Entfernt: ' + (d.removed ? 'ja' : 'war nicht vorhanden')) : ('Fehler: ' + d.error));
-}
-
-let _obsPoller = null;
-
-async function obsSendTest() {
-  const btn = document.getElementById('obs-send-btn');
-  const result = document.getElementById('obs-send-result');
-  const from_email = (document.getElementById('obs-from').value||'').trim();
-  const to_email   = (document.getElementById('obs-to').value||'acme@castle.cloud').trim();
-  const label      = (document.getElementById('obs-label').value||'').trim() || 'test-' + Date.now();
-  if (!from_email) { showAlert(result,'error','Absender-Adresse angeben.'); return; }
-  btn.disabled = true; btn.textContent = 'Sendet…';
-  hideAlert(result);
-  const r = await fetch('/api/test/send-graph-acme', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({from_email, to_email, label}),
-  });
-  const d = await r.json();
-  btn.disabled = false; btn.textContent = 'Test-Mail senden (Graph API)';
-  if (d.ok) {
-    showAlert(result, 'success',
-      'Gesendet ✓ — Subject: <code>' + d.subject + '</code><br>'
-      + 'Warte ~15s, dann automatisch Captures laden…');
-    // Auto-refresh captures after 15s
-    if (_obsPoller) clearTimeout(_obsPoller);
-    _obsPoller = setTimeout(() => { obsRefreshCaptures(); }, 15000);
-  } else {
-    showAlert(result, 'error', 'Fehler: ' + JSON.stringify(d));
-  }
-}
-
-async function obsRefreshCaptures() {
-  const d = await getJSON('/api/test/acme-capture');
-  const container = document.getElementById('obs-captures-container');
-  const captures = d.captures || [];
-  if (!captures.length) {
-    container.innerHTML = '<p style="color:#888;font-size:13px">Noch keine Captures.</p>';
-    return;
-  }
-  container.innerHTML = captures.map((c, i) => {
-    const ts = new Date(c.ts * 1000).toLocaleTimeString('de-DE');
-    const raw = c.raw || '';
-    // Split headers from body
-    const sep = raw.indexOf('\r\n\r\n') !== -1 ? '\r\n\r\n' : '\n\n';
-    const sepIdx = raw.indexOf(sep);
-    const headers = sepIdx !== -1 ? raw.substring(0, sepIdx) : raw;
-    const body    = sepIdx !== -1 ? raw.substring(sepIdx + sep.length) : '';
-    const headerLines = headers.split(/\r?\n/);
-    const interesting = ['content-transfer-encoding','content-type','content-id',
-      'from','to','subject','auto-submitted','thread-topic','thread-index',
-      'arc-seal','dkim-signature','x-ms-','mime-version'];
-    const highlighted = headerLines.map(l => {
-      const lower = l.toLowerCase();
-      const isInteresting = interesting.some(k => lower.startsWith(k));
-      if (isInteresting) {
-        const isBad = lower.startsWith('thread-') || lower.startsWith('arc-')
-          || lower.startsWith('dkim-') || lower.startsWith('x-ms-')
-          || lower.startsWith('content-id') || (lower.startsWith('content-transfer') && lower.includes('quoted'));
-        const isGood = lower.startsWith('content-transfer') && lower.includes('7bit');
-        const color = isBad ? '#dc2626' : isGood ? '#16a34a' : '#0284c7';
-        return `<span style="color:${color};font-weight:600">${esc(l)}</span>`;
-      }
-      return `<span style="color:#64748b">${esc(l)}</span>`;
-    }).join('\n');
-    return `<div style="margin-bottom:14px;border:1px solid #e2e8f0;border-radius:6px;overflow:hidden">
-      <div style="background:#f1f5f9;padding:6px 10px;display:flex;justify-content:space-between;align-items:center">
-        <span style="font-weight:600;font-size:13px">#${i+1} — ${ts} — <em style="color:#555;font-weight:400">${esc(c.label||'')}</em></span>
-        <button onclick="obsToggle('obs-raw-${i}')" style="font-size:11px;background:none;border:1px solid #cbd5e1;border-radius:4px;padding:2px 6px;cursor:pointer">Body ▾</button>
-      </div>
-      <pre style="margin:0;padding:8px 10px;font-size:11px;overflow-x:auto;white-space:pre-wrap;max-height:400px;overflow-y:auto">${highlighted}</pre>
-      <div id="obs-raw-${i}" style="display:none;border-top:1px solid #e2e8f0;padding:8px 10px;background:#fefce8">
-        <pre style="margin:0;font-size:11px;white-space:pre-wrap">${esc(body)}</pre>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-
-function obsToggle(id) {
-  const el = document.getElementById(id);
-  if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
-}
-
-async function obsClearCaptures() {
-  const _d = await sendJSON('DELETE', '/api/test/acme-capture');
-  if (!_d.ok) alert('Aufzeichnungen konnten nicht geleert werden: ' + errText(_d));
-  obsRefreshCaptures();
 }
 
 // Apply mode-based visibility on page load
@@ -2785,7 +2634,8 @@ async function abnahmePruefen() {
   showMsg(kurz, 'Prüfe…', true);
   const d = await getJSON('/api/abnahme');
   knopf.disabled = false;
-  if (!d) { showMsg(kurz, 'Prüfung nicht möglich', false); return; }
+  // getJSON liefert nie null, sondern {ok:false, error} — maßgeblich ist, ob der Bericht da ist.
+  if (!Array.isArray(d.punkte)) { showMsg(kurz, 'Prüfung nicht möglich: ' + errText(d), false); return; }
 
   // „bereit" verlangt AUCH null unbekannte Punkte — eine gescheiterte Prüfung
   // als Erfolg zu zählen wäre genau die Beruhigung, die eine Abnahme entwertet.
@@ -2815,7 +2665,8 @@ async function ssoPruefen() {
   showMsg(meldung, 'Frage Microsoft…', true);
   const d = await getJSON('/api/setup/verify/sso');
   knopf.disabled = false;
-  if (!d) { showMsg(meldung, 'Prüfung nicht möglich', false); return; }
+  // ok:false heißt hier auch „es fehlt etwas“ (mit schritte) — gescheitert ist nur ein Abruf ohne schritte.
+  if (!Array.isArray(d.schritte)) { showMsg(meldung, 'Prüfung nicht möglich: ' + errText(d), false); return; }
 
   showMsg(meldung, d.ok ? 'Alle Voraussetzungen erfüllt' : 'Es fehlt etwas', !!d.ok);
   let html = '<ul style="margin:0;padding-left:18px">';

@@ -577,13 +577,6 @@ function _fuelleVorlagenSelect(sel, kind, aktuell, opts) {
   });
 }
 
-function showAlert(el, type, msg) {
-  el.className = 'alert ' + type;
-  el.innerHTML = msg;
-  el.style.display = 'block';
-  setTimeout(function() { el.style.display = 'none'; }, 6000);
-}
-
 // ── Vorlagenrichtlinien laden + speichern ────────────────────────────────────
 
 function _buildPolicyAddinControl(addinValue) {

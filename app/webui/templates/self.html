@@ -547,13 +547,6 @@
     var v = el(slot + '-sel').value;
     return v === STANDARD ? ((ctx.standard || {})[slot] || '') : v;
   }
-  function wahlObj() {
-    var o = {};
-    ['sig', 'min', 'oof'].forEach(function (s) {
-      if ((ctx.waehlbar || {})[s]) o[s] = el(s + '-sel').value;
-    });
-    return o;
-  }
   function opt(v, t) { var o = document.createElement('option'); o.value = v; o.textContent = t; return o; }
 
   function statusWert() {

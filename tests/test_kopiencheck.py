@@ -67,3 +67,25 @@ def test_vendor_wird_uebersprungen(tmp_path):
         "vendor/b.js": "async function zwei(btn, res, id) {" + KERN + "}",
     })
     assert g == []
+
+
+def test_stand_sperrt_neue_kopie_und_laesst_weniger_zu(tmp_path):
+    quelle = tmp_path / "q"
+    quelle.mkdir()
+    stand = tmp_path / "stand.json"
+    (quelle / "a.js").write_text("async function eins(btn, res, id) {" + KERN + "}", encoding="utf-8")
+    (quelle / "b.js").write_text("async function zwei(btn, res, id) {" + KERN + "}", encoding="utf-8")
+
+    def lauf(*extra):
+        return subprocess.run(["node", str(WERKZEUG), "--min=40", f"--stand={stand}", *extra, str(quelle)],
+                              capture_output=True, text=True, cwd=WERKZEUG.parent.parent)
+
+    assert lauf("--schreiben").returncode == 0
+    assert lauf().returncode == 0
+    (quelle / "c.js").write_text("async function drei(btn, res, id) {" + KERN + "}", encoding="utf-8")
+    r = lauf()
+    assert r.returncode == 1 and "c.js" in r.stdout
+    (quelle / "c.js").unlink()
+    (quelle / "b.js").write_text("function nix() { return 1; }", encoding="utf-8")
+    r = lauf()
+    assert r.returncode == 0 and "Weniger als im Stand" in r.stdout

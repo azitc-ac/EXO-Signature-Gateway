@@ -24,7 +24,16 @@
  *   node tools/kopiencheck.js [--min=N] [--json] PFAD…
  *   node tools/kopiencheck.js app/webui/templates app/webui/static
  * Ausgabe: Gruppen, längste zuerst, je Fundstelle Datei:Zeilen.
- * Exit 0 immer — Bestandsaufnahme, (noch) keine Sperre.
+ *
+ * Sperre (CI) mit Ausgangsstand:
+ *   --stand=tools/kopien_stand.json             vergleicht, Exit 1 bei neuen Kopien
+ *   --stand=tools/kopien_stand.json --schreiben schreibt den Stand fest
+ * Der Stand hält je Datei fest, wie viele Tokens in Kopien stecken. Steigt die
+ * Zahl einer Datei, ist eine Kopie dazugekommen (oder eine bestehende länger
+ * geworden) — die CI schlägt fehl. Sinkt sie, ist das erwünscht; dann den Stand
+ * neu schreiben, damit der Gewinn gesichert ist. Bewusst je Datei und nicht je
+ * Gruppe: Gruppen-Kennungen verschieben sich bei jeder Bearbeitung in der Nähe,
+ * die Summe nicht.
  */
 'use strict';
 
@@ -35,6 +44,8 @@ const acorn = require('acorn');
 const args = process.argv.slice(2);
 const MIN = Number((args.find(a => a.startsWith('--min=')) || '--min=60').slice(6));
 const JSON_AUS = args.includes('--json');
+const STAND = (args.find(a => a.startsWith('--stand=')) || '').slice(8);
+const SCHREIBEN = args.includes('--schreiben');
 const wurzeln = args.filter(a => !a.startsWith('--'));
 
 // ── Quellen einsammeln ────────────────────────────────────────────────────────
@@ -166,6 +177,59 @@ const ergebnis = [...gruppen.values()]
     return { tokens: Math.max(...orte.map(o => o.tokens)), orte };
   })
   .sort((x, y) => y.tokens * y.orte.length - x.tokens * x.orte.length);
+
+// Tokens in Kopien je Datei (überlappende Stellen einer Datei nur einmal)
+function jeDatei() {
+  const bereiche = new Map();               // datei → [[von, bis]] in Tokens je Quelle
+  for (const s of stellen) {
+    if (!ergebnis.length) break;
+    const k = qs[s.qi].datei + '\u0000' + s.qi;
+    if (!bereiche.has(k)) bereiche.set(k, []);
+    bereiche.get(k).push([s.von, s.bis]);
+  }
+  const summe = {};
+  for (const [k, liste] of bereiche) {
+    const datei = path.relative(process.cwd(), k.split('\u0000')[0]);
+    liste.sort((a, b) => a[0] - b[0]);
+    let n = 0, ende = -1;
+    for (const [v, b] of liste) {
+      if (b <= ende) continue;
+      n += b - Math.max(v, ende + 1) + 1;
+      ende = b;
+    }
+    summe[datei] = (summe[datei] || 0) + n;
+  }
+  return Object.fromEntries(Object.entries(summe).sort());
+}
+
+if (STAND) {
+  const ist = jeDatei();
+  if (SCHREIBEN) {
+    fs.writeFileSync(STAND, JSON.stringify({ min: MIN, tokens_in_kopien: ist }, null, 1) + '\n');
+    console.log(`Stand geschrieben: ${STAND} (${Object.keys(ist).length} Dateien, `
+                + `${Object.values(ist).reduce((a, b) => a + b, 0)} Tokens in Kopien)`);
+    process.exit(0);
+  }
+  const soll = JSON.parse(fs.readFileSync(STAND, 'utf8'));
+  if (soll.min !== MIN) { console.log(`Stand wurde mit --min=${soll.min} geschrieben, Lauf mit ${MIN}.`); process.exit(1); }
+  const mehr = [], weniger = [];
+  for (const [d, n] of Object.entries(ist)) {
+    const alt = soll.tokens_in_kopien[d] || 0;
+    if (n > alt) mehr.push(`  ${d}: ${alt} → ${n} Tokens in Kopien`);
+    else if (n < alt) weniger.push(d);
+  }
+  for (const d of Object.keys(soll.tokens_in_kopien)) if (!(d in ist)) weniger.push(d);
+  if (mehr.length) {
+    console.log('Neue Kopien (oder bestehende verlängert):\n' + mehr.join('\n'));
+    console.log('\nDie Fundstellen zeigt: node tools/kopiencheck.js ' + wurzeln.join(' '));
+    console.log('Gemeinsamen Baustein nutzen (common.js) statt kopieren. Ist die Kopie gewollt, '
+                + 'den Stand mit --schreiben neu festhalten und das im Commit begründen.');
+    process.exit(1);
+  }
+  console.log(`Keine neuen Kopien (${Object.keys(ist).length} Dateien mit Altbestand).`
+              + (weniger.length ? ` Weniger als im Stand: ${weniger.join(', ')} — Stand neu schreiben (--schreiben).` : ''));
+  process.exit(0);
+}
 
 if (JSON_AUS) {
   console.log(JSON.stringify(ergebnis, null, 1));

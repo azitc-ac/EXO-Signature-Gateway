@@ -1786,49 +1786,9 @@ async function restartContainer() {
 }
 
 // ── Gate C: AVV vor dem Diagnosepaket-Upload ────────────────────────────────
-// Markdown-Renderer bewusst dupliziert statt geteilt: settings_connect.html und
-// advanced.html haben keine gemeinsame JS-Datei. Bei einer dritten Verwendung
-// gehört das in eine eigene static/legal.js.
+// Rechtstext als Markdown: _mdToHtml() aus common.js (bis 1.10.8 stand hier eine
+// Kopie davon, mit der Begründung, die Seite habe kein common.js — sie hat es über base.html).
 var _dpaData = null;
-
-function _dpaInline(s){
-  return esc(s)
-    .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
-    // Kursiv NACH fett — danach sind keine ** mehr übrig
-    .replace(/\*([^*\n]+)\*/g,'<em>$1</em>')
-    .replace(/`([^`]+)`/g,'<code>$1</code>')
-    .replace(/(https?:\/\/[^\s<)]+)/g,'<a href="$1" target="_blank" rel="noopener" style="color:#0369a1">$1</a>');
-}
-function _dpaMd(md){
-  var out=[];
-  String(md||'').replace(/\r\n/g,'\n').split(/\n{2,}/).forEach(function(block){
-    var lines=block.split('\n').filter(function(l){return l.trim()!=='';});
-    if(!lines.length) return;
-    if(lines.length>=2 && lines.every(function(l){return l.trim().charAt(0)==='|';})){
-      var rows=lines.filter(function(l){return !/^\|[\s:|-]+\|$/.test(l.trim());});
-      var h='<table style="width:100%;border-collapse:collapse;margin:8px 0;font-size:12px">';
-      rows.forEach(function(l,i){
-        var cells=l.trim().replace(/^\||\|$/g,'').split('|'); var tag=i===0?'th':'td';
-        h+='<tr>'+cells.map(function(c){return '<'+tag+' style="border:1px solid #e2e8f0;padding:4px 8px;text-align:left">'+_dpaInline(c.trim())+'</'+tag+'>';}).join('')+'</tr>';
-      });
-      out.push(h+'</table>'); return;
-    }
-    var m=lines[0].match(/^(#{1,4})\s+(.*)$/);
-    if(m){ var lvl=Math.min(m[1].length+1,4);
-      out.push('<h'+lvl+' style="margin:14px 0 6px;font-size:'+(16-m[1].length)+'px">'+_dpaInline(m[2])+'</h'+lvl+'>');
-      lines=lines.slice(1); if(!lines.length) return; }
-    if(lines.every(function(l){return /^-{3,}$/.test(l.trim());})){
-      out.push('<hr style="border:none;border-top:1px solid #e2e8f0;margin:12px 0">'); return; }
-    if(lines[0].trim().charAt(0)==='-'){
-      var items=[],cur='';
-      lines.forEach(function(l){ if(/^\s*-\s+/.test(l)){ if(cur)items.push(cur); cur=l.replace(/^\s*-\s+/,''); } else cur+=' '+l.trim(); });
-      if(cur)items.push(cur);
-      out.push('<ul style="margin:6px 0 6px 18px;padding:0">'+items.map(function(i){return '<li style="margin:2px 0">'+_dpaInline(i)+'</li>';}).join('')+'</ul>');
-      return; }
-    out.push('<p style="margin:0 0 10px">'+_dpaInline(lines.join(' '))+'</p>');
-  });
-  return out.join('');
-}
 
 function _dpaCheck(){ document.getElementById('dpa-confirm-btn').disabled = !document.getElementById('dpa-cb').checked; }
 function _dpaClose(){ document.getElementById('dpa-consent-modal').style.display='none'; }
@@ -1839,11 +1799,11 @@ async function _dpaOpen(){
   document.getElementById('dpa-cb').checked=false; _dpaCheck();
   document.getElementById('dpa-msg').style.display='none';
   modal.style.display='flex';
-  if(_dpaData){ txt.classList.add('md'); txt.innerHTML=_dpaMd(_dpaData.text); return; }
+  if(_dpaData){ txt.classList.add('md'); txt.innerHTML=_mdToHtml(_dpaData.text); return; }
   txt.classList.remove('md'); txt.textContent='Lade…';
   try{
     var d=await (await fetch('/api/legal/doc/dpa?lang=de')).json();
-    if(d.ok){ _dpaData=d; txt.classList.add('md'); txt.innerHTML=_dpaMd(d.text); }
+    if(d.ok){ _dpaData=d; txt.classList.add('md'); txt.innerHTML=_mdToHtml(d.text); }
     else txt.textContent='Fehler beim Laden: '+(d.detail||'unbekannt');
   }catch(e){ txt.textContent='Netzwerkfehler.' + ursache(e, 'advanced:975'); }
 }

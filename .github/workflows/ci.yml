@@ -107,6 +107,13 @@ jobs:
       # Prüfungen beanstandet. Eingeschränkt, weil eine gespiegelte Funktion
       # durchaus nur in der anderen Anwendung benutzt sein kann; die
       # vollständige Prüfung über beide Bäume läuft beim Hub.
+      # Kopien ohne Kategorie: gleich gebaute Stücke im Oberflächen-JavaScript.
+      # Der Altbestand steht in tools/kopien_stand.json; scheitern lässt die
+      # Prüfung nur ein ZUWACHS je Datei (2026-10-21: Fenster-Öffnen in vier
+      # Bauweisen, eine 140-Zeilen-Kopie, die keine Kategorie-Prüfung sah).
+      - name: Neue Kopien im Vorlagen-JavaScript
+        run: node tools/kopiencheck.js --stand=tools/kopien_stand.json app/webui/templates app/webui/static
+
       - name: Unbenutzte Funktionen (nur Gateway)
         run: python tools/deadcheck.py --gateway-only
 
