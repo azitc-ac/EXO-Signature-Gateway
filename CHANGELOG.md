@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.10 — 2026-10-21 — Doku: Einleitung, Bilder in den Funktionen
+
+- **README:** Die Einleitung nennt jetzt alle drei Säulen in einem Satz:
+  automatische Signaturen, Abwesenheit und S/MIME, die Add-ins für Outlook auf
+  PC und Handy, das SMTP-Relay mit Lernmodus als Ersatz für den lokalen
+  Exchange-Server und die kostenlose Nutzung bis 100 Postfächer.
+- **docs/funktionen.md:** Unter drei Bildern erschien der folgende Listenpunkt
+  als roher Text, mit sichtbaren `**` und `-`. Auf GitHub reicht ein HTML-Block
+  bis zur nächsten Leerzeile, und dort fehlte sie. Die Bilder stehen jetzt
+  hinter den Listen. Ein Test prüft README und alle Doku-Seiten auf dieses
+  Muster.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.10.9 — 2026-10-21 — Toter Code entfernt, zwei Anzeigefehler behoben, Kopien-Sperre in der CI
 
 **Behoben**

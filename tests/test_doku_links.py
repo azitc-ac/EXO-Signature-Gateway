@@ -43,3 +43,24 @@ def test_relative_links_und_anker(datei):
 def test_pruefung_greift():
     """Ohne einen einzigen Anker-Link wäre der Test oben still grün."""
     assert any("#" in z for d in DATEIEN for z in _links(d))
+
+
+def test_html_zeile_nicht_direkt_vor_markdown():
+    """Auf GitHub reicht ein HTML-Block bis zur nächsten Leerzeile. Steht direkt
+    unter einem <img> ein Listenpunkt, erscheint er roh, mit sichtbaren ** und -
+    (docs/funktionen.md, drei Stellen bis v1.10.9)."""
+    import re
+    html = re.compile(r"^\s*</?(img|p|div|br|table|details|summary)\b")
+    fehler = []
+    for p in [WURZEL / "README.md", *sorted((WURZEL / "docs").glob("*.md"))]:
+        zeilen = p.read_text(encoding="utf-8").splitlines()
+        im_code = False
+        for i in range(1, len(zeilen)):
+            if zeilen[i - 1].lstrip().startswith("```"):
+                im_code = not im_code
+            if im_code:
+                continue
+            z = zeilen[i]
+            if html.match(zeilen[i - 1]) and z.strip() and not z.lstrip().startswith("<"):
+                fehler.append(f"{p.relative_to(WURZEL)}:{i + 1}: {z[:60]}")
+    assert not fehler, "Leerzeile zwischen HTML und Markdown fehlt:\n" + "\n".join(fehler)
