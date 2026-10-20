@@ -45,6 +45,9 @@ _GRAPH_PERMISSION_SPECS = [
      "zweck": "Zentrale Abwesenheitsnotiz"},
     {"name": "Calendars.Read",           "id": "798ee544-9d2d-430c-a058-570e29e34338",
      "zweck": "Abwesenheit aus dem Kalender", "nur_wenn": "OOO_CALENDAR_READ"},
+    {"name": "AppCatalog.Read.All",      "id": "e12dae10-5a57-4817-b79d-dfbec5348930",
+     "zweck": "Fassung der Teams-App im Katalog", "nur_wenn": "TEAMS_APP_AKTIV",
+     "vorgabe": False},
 ]
 _EXO_PERMISSION_SPECS = [
     {"name": "Exchange.ManageAsApp",     "id": "dc50a0fb-09a3-484d-be87-e023b12c6440",
@@ -59,9 +62,13 @@ def benoetigt(spec: dict) -> bool:
     entfällt (Calendars.Read ↔ OOO_CALENDAR_READ). Eine nicht benötigte Rolle wird
     weder beantragt noch erteilt, und die Prüfung meldet ihr Fehlen nicht. Eine
     schon erteilte entzieht das Gateway NICHT selbst (nur ergänzen, nie
-    entziehen) — die Prüfung weist auf sie hin."""
+    entziehen) — die Prüfung weist auf sie hin. `vorgabe`: was gilt, wenn der
+    Schalter keinen Wert hat (Calendars.Read: an, AppCatalog.Read.All: aus)."""
     schalter = spec.get("nur_wenn")
-    return not schalter or settings_store.get(schalter) is not False
+    if not schalter:
+        return True
+    wert = settings_store.get(schalter)
+    return spec.get("vorgabe", True) if wert is None else wert is not False
 
 
 def _graph_permissions() -> list[dict]:

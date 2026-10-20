@@ -88,3 +88,15 @@ def test_nachziehen_meldet_echte_fehler(monkeypatch):
     monkeypatch.setattr(settings_store, "get", lambda k, d=None: {"CLIENT_ID": "cid"}.get(k, d))
     res = asyncio.run(setup_wizard.berechtigungen_nachziehen("tok"))
     assert res["ok"] is False and res["fehler"]
+
+
+def test_readme_nennt_jede_beantragte_rolle():
+    """Die Tabelle im README driftete: MailboxSettings.ReadWrite und Calendars.Read
+    fehlten, und dort stand „Mail.ReadWrite.All“ — eine Rolle, die Graph nicht kennt."""
+    import re
+    from pathlib import Path
+    readme = (Path(__file__).resolve().parent.parent / "README.md").read_text(encoding="utf-8")
+    zeilen = set(re.findall(r"^\| `([A-Za-z.]+)` \|", readme, re.M))
+    soll = {s["name"] for s in setup_wizard._GRAPH_PERMISSION_SPECS + setup_wizard._EXO_PERMISSION_SPECS}
+    assert soll <= zeilen, f"im README fehlt: {sorted(soll - zeilen)}"
+    assert "Mail.ReadWrite.All" not in zeilen

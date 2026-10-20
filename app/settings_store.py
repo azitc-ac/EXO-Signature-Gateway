@@ -327,6 +327,10 @@ DEFAULTS: dict = {
                                              # (Vorab-Hinweis zur CA-Bestaetigung + Fertigmeldung)
     # ── Outlook Add-in ───────────────────────────────────────────────────────
     "ADDIN_ENABLED": False,             # Show add-in setup section and serve manifest
+    # Die Teams-App (App-Paket, Tab in der linken Leiste) ist im Tenant bereitgestellt.
+    # An → AppCatalog.Read.All wird beantragt, und die Einrichtung vergleicht die
+    # Fassung im Teams-Katalog mit dem ausgelieferten Paket.
+    "TEAMS_APP_AKTIV": False,
     "ADDIN_BASE_URL": "",               # External public URL override (e.g. https://sig.zarenko.net)
     "STRIP_CLIENT_SIGS_MOBILE": True,   # (1) Outlook-Mobile-Signatur entfernen — sicher (bekannte Div-IDs)
     "STRIP_CLIENT_SIGS_DESKTOP": False,  # (3) Outlook-Desktop-Heuristik — experimentell, Vorgabe aus

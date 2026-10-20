@@ -485,6 +485,51 @@ async def bezug_per_kennung(postfach: str, message_id: str) -> dict | None:
     return _bezug_aus(echt[0] if echt else None)
 
 
+_UUID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+
+
+async def teams_katalog(externe_id: str) -> dict:
+    """Veröffentlichte Fassung der Teams-App im Katalog des Tenants.
+
+    `externe_id` ist die `id` aus manifest.json (addin._teams_manifest). Ergebnis
+    {"zustand", "version"} mit zustand ∈ ok | nicht_gefunden | recht_fehlt |
+    fehler. `recht_fehlt` (403) ist kein Fehler des Katalogs: Der Gateway-App
+    fehlt AppCatalog.Read.All, und die Einrichtung bietet das Erteilen an.
+    Nur eine UUID geht in den Filter."""
+    import httpx
+    from urllib.parse import quote
+    if not _UUID_RE.fullmatch(externe_id or ""):
+        return {"zustand": "fehler", "version": None}
+    tok = await _acquire_token_async()
+    if not tok:
+        return {"zustand": "fehler", "version": None}
+    filt = "externalId eq '" + externe_id + "'"
+    url = (f"https://graph.microsoft.com/v1.0/appCatalogs/teamsApps"
+           f"?$filter={quote(filt)}&$expand=appDefinitions")
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            resp = await client.get(url, headers={"Authorization": f"Bearer {tok}"})
+    except Exception as exc:                                   # noqa: BLE001
+        log.warning("teams_katalog: %s", exc)
+        return {"zustand": "fehler", "version": None}
+    if resp.status_code == 403:
+        return {"zustand": "recht_fehlt", "version": None}
+    if resp.status_code != 200:
+        log.warning("teams_katalog: Graph %s %s", resp.status_code, resp.text[:200])
+        return {"zustand": "fehler", "version": None}
+    versionen = [d.get("version") for a in resp.json().get("value", [])
+                 for d in a.get("appDefinitions") or []
+                 if d.get("publishingState") == "published" and d.get("version")]
+    if not versionen:
+        return {"zustand": "nicht_gefunden", "version": None}
+    def _tupel(v):
+        try:
+            return tuple(int(t) for t in str(v).split("."))
+        except ValueError:
+            return (0,)
+    return {"zustand": "ok", "version": max(versionen, key=_tupel)}
+
+
 _BETREFF_PRAEFIX = re.compile(
     r"^\s*(?:(?:re|aw|wg|fw|fwd|antw|antwort|wtr|tr|sv|vs|rv|enc)\s*(?:\[\d+\])?\s*:\s*)+",
     re.IGNORECASE)

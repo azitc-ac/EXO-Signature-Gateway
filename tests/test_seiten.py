@@ -320,3 +320,39 @@ def test_kalender_hauptschalter_sperrt_die_abhaengigen_felder(client):
     assert "disabled" not in re.search(r'<fieldset id="ooo-kal-block"[^>]*>', html).group(0)
     assert "hidden" in re.search(r'<p[^>]*id="ooo-kal-aus-hinweis"[^>]*>', html).group(0)
     settings_store.update({"ABWESENHEIT_AKTIV": False})
+
+
+@pytest.mark.parametrize("katalog,erwartet", [
+    ({"zustand": "ok", "version": "1.9.156"}, "⚠ Im Teams-Katalog: Fassung 1.9.156, das Paket hat"),
+    ({"zustand": "recht_fehlt", "version": None}, "<code>AppCatalog.Read.All</code> fehlt"),
+    ({"zustand": "nicht_gefunden", "version": None}, "Nicht im Teams-Katalog"),
+])
+def test_setup_vergleicht_teams_katalog_mit_dem_paket(client, monkeypatch, katalog, erwartet):
+    import settings_store as ss
+    import config as _cfg
+    import graph_client
+    aufrufe = []
+
+    async def fake(eid):
+        aufrufe.append(eid)
+        return dict(katalog)
+    monkeypatch.setattr(graph_client, "teams_katalog", fake)
+    ss.update({"ADMIN_PASSWORD_HASH": "", "ADDIN_ENABLED": True, "TEAMS_APP_AKTIV": True})
+    html = client.get("/setup", auth=("admin", _cfg.WEBUI_PASSWORD or "admin")).text
+    assert erwartet in html and 'id="ber-teams"' in html
+
+    paket = ss.get("_TEAMS_APP_STAND")["version"]                    # Paket = Katalog → aktuell
+    monkeypatch.setattr(graph_client, "teams_katalog",
+                        lambda eid: _gleich(paket))
+    html = client.get("/setup", auth=("admin", _cfg.WEBUI_PASSWORD or "admin")).text
+    assert f"✓ Im Teams-Katalog: Fassung {paket}, aktuell" in html
+
+    ss.update({"TEAMS_APP_AKTIV": False})                            # aus → keine Abfrage
+    n = len(aufrufe)
+    html = client.get("/setup", auth=("admin", _cfg.WEBUI_PASSWORD or "admin")).text
+    assert len(aufrufe) == n and 'id="teams-katalog-stand"' not in html and 'id="ber-teams"' not in html
+    ss.update({"ADDIN_ENABLED": False})
+
+
+async def _gleich(version):
+    return {"zustand": "ok", "version": version}

@@ -352,12 +352,15 @@ und Zertifikat überstehen das Update. (Alternativ per Web-UI: *Update & Backup*
 |---|---|---|
 | `User.Read.All` | ✓ | Benutzerdaten (Signaturfelder) per Graph lesen |
 | `Mail.Send` | ✓ | Mails über Graph API senden (Re-inject + ACME) |
-| `Mail.ReadWrite.All` | ✓* | Gesendete Elemente patchen; schließt `Mail.Read.All` ein |
+| `Mail.ReadWrite` | ✓* | Gesendete Elemente patchen; schließt `Mail.Read` ein |
+| `MailboxSettings.ReadWrite` | Abwesenheit | Zentrale Abwesenheitsnotiz setzen |
+| `Calendars.Read` | Abwesenheit, abschaltbar | Abwesenheit aus dem Kalender, Ankündigung; entfällt mit *Kalender der Postfächer lesen: aus* |
+| `AppCatalog.Read.All` | Teams-App (optional) | Fassung der Teams-App im Katalog prüfen; nur mit *Teams-App ist bereitgestellt* |
 | `Exchange.ManageAsApp` | ✓ | EXO PowerShell (Connector/DG-Setup via Wizard) |
 | `IMAP.AccessAsApp` | IMAP-Modus | IMAP APPEND in Empfänger-Postfächer (kein Draft) |
 | `SMTP.SendAsApp` | Port 587 (optional) | SMTP-Einlieferung als Absender für bifurkierte Mails (gemischte interne/externe Empfänger, nur in Graph++) |
 
-*\* Schließt `Mail.Read.All` ein (für CASTLE ACME Mailbox-Polling benötigt).*
+*\* Schließt `Mail.Read` ein (für CASTLE ACME Mailbox-Polling benötigt).*
 
 ---
 
