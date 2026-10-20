@@ -75,24 +75,11 @@
 
   var wartet = false;   // nur das Kästchen, das die Anmeldung gestartet hat, meldet den Ablauf
   knopf.addEventListener('click', async function () {
-    // Fenster SOFORT im Klick öffnen, erst danach die Adresse holen: Nach einem
-    // await gilt der Klick nicht mehr als Nutzergeste, und der Browser blockiert
-    // das Popup stumm (gleiches Muster wie die übrigen Anmeldefenster).
-    var win = window.open('about:blank', 'ber-login', 'width=520,height=700');
-    if (win) win.focus();
-    if (!win) {
-      melde('fehler', '✗ Der Browser hat das Anmeldefenster blockiert — Popups für diese Seite erlauben und erneut klicken');
-      return;
-    }
+    var auf = anmeldeFenster('/api/setup/berechtigungen/erteilen', 'ber-login', true);
     wartet = true;
     melde('offen', 'Admin-Anmeldung im neuen Fenster…');
-    try {
-      var r = await fetch('/api/setup/berechtigungen/erteilen');
-      var d = await r.json();
-      if (!d.auth_url) { win.close(); melde('fehler', '✗ Anmeldung ließ sich nicht starten'); return; }
-      win.location.href = d.auth_url;
-      win.focus();   // ein noch offenes Fenster gleichen Namens käme sonst nicht nach vorn
-    } catch (e) { win.close(); melde('fehler', '✗ ' + e.message); }
+    var r = await auf;
+    if (!r.ok) { wartet = false; melde('fehler', '✗ ' + r.fehler); }
   });
   pruefKnopf.addEventListener('click', function () { pruefen(); });
 
