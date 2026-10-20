@@ -5,6 +5,25 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.6 — 2026-10-20 — „Fehlende Berechtigungen erteilen“ öffnet das Anmeldefenster wieder
+
+Der Knopf öffnete das Anmeldefenster erst, nachdem das Gateway die
+Anmeldeadresse geliefert hatte. Zu diesem Zeitpunkt gilt der Klick für den
+Browser nicht mehr als Klick des Nutzers. Der Browser blockierte das Fenster
+deshalb als unerwünschtes Popup, je nach Einstellung ohne sichtbaren Hinweis,
+und der Knopf schien nichts zu tun. Alle anderen Anmeldefenster der Oberfläche
+öffnen zuerst ein leeres Fenster und laden die Adresse danach. Jetzt tut das
+auch dieser Knopf. Er holt das Fenster außerdem nach vorn: Ein noch offenes
+Fenster aus einem früheren Versuch wurde bisher im Hintergrund wiederverwendet.
+Blockiert der Browser das Fenster trotzdem, steht das jetzt am Knopf.
+
+Ein Test prüft alle Vorlagen auf Fenster, die erst nach einer Serverantwort
+geöffnet werden.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.10.5 — 2026-10-20 — Berechtigungen: „Erneut prüfen“ sieht neue Rollen, abgelaufene Anmeldung wird gemeldet
 
 **„Erneut prüfen“ zeigte stets den alten Stand.** Die Prüfung liest die
