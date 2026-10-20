@@ -1,55 +1,57 @@
-"""Anmeldefenster müssen IM Klick geöffnet werden, nicht nach einem `await`.
+"""Fenster öffnen: EIN Weg — `fensterImKlick()` / `anmeldeFenster()` in common.js.
 
-Nach einem `await` gilt der Klick nicht mehr als Nutzergeste. Der Browser
-blockiert das Popup dann stumm, und der Knopf scheint nichts zu tun. Der
-Berechtigungsblock (_berechtigungen.html) tat genau das, als einzige von sieben
-Stellen. Regel: Ein window.open mit echter Adresse, dem in derselben Funktion ein
-`await` vorausgeht, braucht davor ein window.open('about:blank' | '') als Platzhalter.
+Anlass (2026-10-20): Sieben Stellen öffneten Fenster in vier Bauweisen (Name,
+Ersatzweg, Meldung). Die jüngste (Berechtigungsblock) öffnete das Fenster erst
+nach einem `await`. Damit gilt der Klick nicht mehr als Nutzergeste, der Browser
+blockierte das Fenster stumm, und der Knopf schien nichts zu tun. Die
+Konsolidierung vom Juli hatte „Fenster öffnen“ nie als Kategorie, deshalb wuchs
+es nach. Jetzt erzwungen: `window.open` gibt es nur in common.js, und dort vor
+jedem `await`.
 """
 from __future__ import annotations
 
 import re
 from pathlib import Path
 
-VORLAGEN = Path(__file__).parent.parent / "app/webui/templates"
-_OPEN = re.compile(r"window\.open\(\s*([^,)]*)")
-# Anfang der umgebenden ASYNC-Funktion (nur dort kann ein `await` stehen). Innere
-# Helfer wie `.catch(function(){return {};})` verdecken ihn so nicht.
-_FUNKTION = re.compile(r"\basync\s+function\b|\basync\s*\(")
+WURZEL = Path(__file__).parent.parent / "app/webui"
+COMMON = WURZEL / "static/common.js"
 
 
-def _verstoesse(text: str) -> list[str]:
-    gefunden = []
-    for m in _OPEN.finditer(text):
-        arg = m.group(1).strip()
-        if arg in ("'about:blank'", '"about:blank"', "''", '""'):
-            continue
-        anfang = max((f.start() for f in _FUNKTION.finditer(text, 0, m.start())), default=0)
-        davor = text[anfang:m.start()]
-        if "await" not in davor:
-            continue
-        if re.search(r"window\.open\(\s*('about:blank'|\"about:blank\"|''|\"\")", davor):
-            continue
-        zeile = text.count("\n", 0, m.start()) + 1
-        gefunden.append(f"Zeile {zeile}: window.open({arg}…) nach await ohne Platzhalterfenster")
-    return gefunden
+def _dateien():
+    for p in sorted(WURZEL.rglob("*")):
+        if p.suffix in (".html", ".js") and "vendor" not in p.parts and p != COMMON:
+            yield p
 
 
-def test_kein_popup_nach_await_ohne_platzhalter():
-    fehler = []
-    for p in sorted(VORLAGEN.rglob("*.html")):
-        fehler += [f"{p.name} {v}" for v in _verstoesse(p.read_text(encoding="utf-8"))]
-    assert not fehler, "\n".join(fehler)
+def test_window_open_nur_in_common_js():
+    treffer = []
+    for p in _dateien():
+        for nr, zeile in enumerate(p.read_text(encoding="utf-8").splitlines(), 1):
+            if "window.open(" in zeile:
+                treffer.append(f"{p.relative_to(WURZEL)}:{nr}: {zeile.strip()[:90]}")
+    assert not treffer, ("Fenster nur über fensterImKlick()/anmeldeFenster() aus common.js öffnen:\n"
+                         + "\n".join(treffer))
 
 
-def test_pruefer_erkennt_das_muster():
-    schlecht = "k.addEventListener('click', async function () {\n var d = await f();\n window.open(d.auth_url, 'x');\n});"
-    gut = "k.addEventListener('click', async function () {\n var w = window.open('about:blank', 'x');\n var d = await f();\n w.location.href = d.auth_url;\n});"
-    assert _verstoesse(schlecht)
-    assert not _verstoesse(gut)
+def _funktion(js: str, name: str) -> str:
+    m = re.search(r"(async\s+)?function\s+" + name + r"\s*\(", js)
+    assert m, name
+    tiefe, i = 0, js.index("{", m.end())
+    for j in range(i, len(js)):
+        tiefe += {"{": 1, "}": -1}.get(js[j], 0)
+        if tiefe == 0:
+            return js[m.start():j + 1]
+    raise AssertionError(name)
 
 
-def test_berechtigungen_meldet_blockiertes_fenster():
-    t = (VORLAGEN / "_berechtigungen.html").read_text(encoding="utf-8")
-    assert "Der Browser hat das Anmeldefenster blockiert" in t
-    assert "win.focus()" in t
+def test_anmeldefenster_oeffnet_vor_dem_ersten_await():
+    js = COMMON.read_text(encoding="utf-8")
+    rumpf = _funktion(js, "anmeldeFenster")
+    assert rumpf.index("fensterImKlick(") < rumpf.index("await")
+    assert "window.open('about:blank'" in _funktion(js, "fensterImKlick")
+    assert "focus()" in _funktion(js, "fensterImKlick")
+
+
+def test_berechtigungen_nutzt_anmeldefenster():
+    t = (WURZEL / "templates/_berechtigungen.html").read_text(encoding="utf-8")
+    assert "anmeldeFenster('/api/setup/berechtigungen/erteilen'" in t

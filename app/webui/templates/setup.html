@@ -1517,27 +1517,15 @@ async function startAzureLogin(btnId, pasteSectionId, forceLocalhost) {
   const btn = document.getElementById(btnId);
   btn.disabled = true;
   btn.textContent = 'Öffne Login…';
-  // Open blank window synchronously to preserve user-gesture context on iOS Safari.
-  // Safari blocks window.open() called after any await.
-  const win = window.open('about:blank', '_blank');
-  try {
-    const resp = await fetch('/auth/start' + (forceLocalhost ? '?localhost=1' : ''));
-    if (!resp.ok) throw new Error((await resp.json().catch(()=>({}))).detail || resp.status);
-    const data = await resp.json();
-    if (win) {
-      win.location.href = data.auth_url;
-    } else {
-      window.open(data.auth_url, '_blank');
-    }
+  const r = await anmeldeFenster('/auth/start' + (forceLocalhost ? '?localhost=1' : ''));
+  if (r.ok) {
     document.getElementById(pasteSectionId).style.display = 'block';
     btn.textContent = 'Erneut anmelden';
-  } catch (e) {
-    if (win) win.close();
-    alert('Fehler beim Starten des Logins: ' + e.message);
+  } else {
+    alert('Fehler beim Starten des Logins: ' + r.fehler);
     btn.textContent = 'Jetzt anmelden →';
-  } finally {
-    btn.disabled = false;
   }
+  btn.disabled = false;
 }
 
 // Auto-Close-Login: das HTTPS-Popup meldet Erfolg/Fehler per postMessage zurück
@@ -2013,25 +2001,18 @@ async function startArmLogin() {
   const btn = document.getElementById('kv-arm-btn');
   btn.disabled = true;
   btn.textContent = 'Öffne Azure-Login…';
-  const win = window.open('about:blank', '_blank');
-  try {
-    const r = await fetch('/api/setup/keyvault/arm-auth-url');
-    if (!r.ok) throw new Error((await r.json().catch(()=>({}))).detail || r.status);
-    const data = await r.json();
-    if (win) win.location.href = data.auth_url;
-    else window.open(data.auth_url, '_blank');
+  const r = await anmeldeFenster('/api/setup/keyvault/arm-auth-url');
+  if (r.ok) {
     // Show paste fallback in case popup blocks postMessage
     setTimeout(function() {
       const pasteEl = document.getElementById('kv-arm-paste-section');
       if (!_kvArmOk && pasteEl) pasteEl.style.display = 'block';
     }, 4000);
-  } catch(e) {
-    if (win) win.close();
-    alert('Fehler: ' + e.message);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Azure-Zugriff holen';
+  } else {
+    alert('Fehler: ' + r.fehler);
   }
+  btn.disabled = false;
+  btn.textContent = 'Azure-Zugriff holen';
 }
 
 async function submitArmPaste() {
@@ -3028,22 +3009,15 @@ async function startPoolAppLogin() {
   const btn = document.getElementById('btnAddPoolApp');
   btn.disabled = true;
   btn.textContent = 'Öffne Login…';
-  const win = window.open('about:blank', '_blank');
-  try {
-    const resp = await fetch('/auth/start');
-    if (!resp.ok) throw new Error((await resp.json().catch(()=>({}))).detail || resp.status);
-    const data = await resp.json();
-    if (win) win.location.href = data.auth_url;
-    else window.open(data.auth_url, '_blank');
+  const r = await anmeldeFenster('/auth/start');
+  if (r.ok) {
     document.getElementById('poolPasteSection').style.display = 'block';
     btn.textContent = 'Erneut anmelden';
-  } catch(e) {
-    if (win) win.close();
-    showAlert(document.getElementById('wizard-alert'), 'error', 'Fehler beim Login: ' + e.message);
+  } else {
+    showAlert(document.getElementById('wizard-alert'), 'error', 'Fehler beim Login: ' + r.fehler);
     btn.textContent = '+ App-Registrierung anlegen';
-  } finally {
-    btn.disabled = false;
   }
+  btn.disabled = false;
 }
 
 async function submitPoolAppUrl() {

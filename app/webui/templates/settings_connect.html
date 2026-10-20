@@ -1055,7 +1055,7 @@ function _acctLedger(ledger) {
 // weiterleitet (BILLING_SUCCESS_URL), nicht zurueck aufs Gateway: im selben Tab
 // waere die Gateway-Seite weg.
 function _bezahlfenster() {
-  try { return window.open('', '_blank'); } catch (e) { return null; }
+  return fensterImKlick('_blank');
 }
 
 // Nach dem Bezahlen warten, bis der neue Zustand WIRKLICH da ist.
@@ -2164,8 +2164,8 @@ async function legalViewDoc(docId) {
 // Ansicht, das PDF sieht also genauso aus. Fenster SYNCHRON öffnen (Popup-Blocker).
 window.legalPrintDoc = async function(docId){
   if (!docId) return;
-  var win = window.open('', '_blank');
-  if (!win){ alert('Bitte Popups für diese Seite erlauben — die Druckansicht öffnet in einem neuen Fenster.'); return; }
+  var win = fensterImKlick('_blank');
+  if (!win){ alert(FENSTER_BLOCKIERT); return; }
   try { win.document.write('<!doctype html><meta charset=utf-8><title>Lädt…</title><body style="font:14px sans-serif;padding:24px">Lädt…</body>'); } catch(e){}
   var d = await (await fetch('/api/legal/doc/' + encodeURIComponent(docId) + '?lang=de')).json();
   if (!d.ok){ try { win.document.body.textContent = 'Dokument nicht verfügbar.'; } catch(e){} return; }

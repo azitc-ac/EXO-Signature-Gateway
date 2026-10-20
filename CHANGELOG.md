@@ -5,6 +5,31 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.7 — 2026-10-21 — Fenster öffnen über einen gemeinsamen Weg
+
+Die Oberfläche öffnete an sieben Stellen ein neues Fenster: Anmeldung in der
+Einrichtung (zweimal), Azure-Zugriff (zweimal), Rechte für den Bypass-Wächter
+(zweimal), Fehlende Berechtigungen erteilen, dazu Bezahlen und die
+Druckansicht der Rechtstexte. Dafür gab es vier Bauweisen, die sich
+unterschieden:
+- in der Reihenfolge, also ob das Fenster vor oder nach der Serverantwort
+  aufging;
+- im Ersatzweg, wenn der Browser das Fenster blockierte;
+- in der Meldung, die dann erschien oder ausblieb.
+
+Jetzt laufen alle Stellen über zwei gemeinsame Funktionen. Sie öffnen das
+Fenster im Klick selbst, laden die Adresse danach und holen das Fenster nach
+vorn. Blockiert der Browser das Fenster, erscheint überall dieselbe Meldung.
+Bisher versuchten einige Stellen dann ein zweites Mal, das Fenster zu öffnen,
+und auch dieser Versuch scheiterte stumm.
+
+Ein Test stellt sicher, dass es außerhalb dieser Funktionen kein eigenes
+Öffnen von Fenstern mehr gibt.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.10.6 — 2026-10-20 — „Fehlende Berechtigungen erteilen“ öffnet das Anmeldefenster wieder
 
 Der Knopf öffnete das Anmeldefenster erst, nachdem das Gateway die
