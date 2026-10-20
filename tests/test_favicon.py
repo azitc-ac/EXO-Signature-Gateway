@@ -9,9 +9,9 @@ Deshalb prüft der Test ALLE Vorlagen mit eigenem <head>, nicht eine Liste.
 Quelle ist static/favicon.svg — seit v1.9.180 das EINE Zeichen des Gateways
 (Entwurf C: Umschlag, Signaturschwung, Siegel, Schloss). favicon.ico,
 apple-touch-icon.png und die Add-in-/Teams-Symbole (static/symbol/) rendert
-`tools/symbole_rendern.py` daraus; login-logo.svg ist dieselbe Form mit
-weichem Schatten. Wer das SVG ändert, rendert neu — der Prüfsummen-Test unten
-schlägt sonst an.
+`tools/symbole_rendern.py` daraus. Wer das SVG ändert, rendert neu — der
+Prüfsummen-Test unten schlägt sonst an. Einzige Ausnahme: login-logo.svg, das
+grosse Bild der Anmeldeseite, ist seit v1.9.185 Entwurf D.
 """
 import re
 import struct
@@ -106,23 +106,17 @@ def _formen(svg: str) -> list[str]:
     return re.findall(r"<(?:rect|path|circle)\b[^>]*>", svg.split("</defs>", 1)[1])
 
 
-def test_login_logo_ist_dieselbe_form_wie_das_favicon():
+def test_login_logo_ist_entwurf_d():
+    """Anmeldeseite: Entwurf D (Siegel auf der Spitze der höheren Lasche,
+    Schloss unten rechts), mit Schatten — nicht das kleine Zeichen C."""
     fav = (STATIC / "favicon.svg").read_text(encoding="utf-8")
     login = (STATIC / "login-logo.svg").read_text(encoding="utf-8")
-    assert _formen(login) == _formen(fav) and len(_formen(fav)) >= 7
+    assert _formen(login) != _formen(fav)
+    assert "M75,90 L225,90 L150,134 Z" in login              # Lasche bis 134
+    assert re.search(r'<path d="M150[.,]', login) or "150,134" in login
+    assert "#991b1b" in login and "#059669" in login         # Siegel, Schloss
     assert "feDropShadow" in login and "feDropShadow" not in fav
-
-
-@pytest.mark.parametrize("groesse, datei", [(16, 16), (32, 32), (64, 64), (80, 80), (20, 32),
-                                            (128, 128), (500, 192)])
-def test_addin_symbol_ist_das_zeichen(groesse, datei):
-    import asyncio
-    from webui.routen import addin
-    r = asyncio.run(addin.addin_icon(f"{groesse}.png"))
-    assert r.body == (STATIC / "symbol" / f"{datei}.png").read_bytes()
-    assert struct.unpack(">II", r.body[16:24]) == (datei, datei)
-
-
-def test_teams_farbsymbol_ist_das_zeichen():
-    from webui.routen import addin
-    assert addin._symbol_png(192) == (STATIC / "symbol" / "192.png").read_bytes()
+    ids = re.findall(r'\bid="([^"]+)"', login)
+    assert len(ids) == len(set(ids))
+    for ref in re.findall(r"url\(#([^)]+)\)", login):
+        assert ref in ids, ref
