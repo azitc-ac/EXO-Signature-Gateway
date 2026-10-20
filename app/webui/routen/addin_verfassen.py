@@ -263,7 +263,8 @@ def _antwort(request) -> dict | None:
     """Angaben zu einer Antwort/Weiterleitung aus der Abfrage — `None` bei
     einer neuen Mail. `art` (reply/forward) kennzeichnet sie; `konversation`
     allein gilt aus Verträglichkeit mit v1.9.178 als Antwort. Betreff und
-    Empfänger dienen nur dem Vergleich, nie einem Graph-Filter."""
+    Empfänger dienen dem Vergleich; in einen Graph-Filter gehen sie nur
+    nach der strengen Prüfung `graph_client._FILTER_ADRESSE_RE`."""
     try:
         q = request.query_params
     except AttributeError:

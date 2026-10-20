@@ -19,6 +19,7 @@ Jetzt:
 """
 import asyncio
 import json
+import re
 
 import pytest
 
@@ -572,16 +573,21 @@ def test_betreff_kern(roh, kern):
     assert graph_client.betreff_kern(roh) == kern
 
 
-def _graph_liste(monkeypatch, nachrichten):
+def _graph_liste(monkeypatch, nachrichten, je_absender=None):
+    """Graph-Attrappe: ohne $filter die Liste `nachrichten`, mit Absender-Filter
+    die Liste aus `je_absender[adresse]`. Gibt die abgefragten URLs zurück."""
+    from urllib.parse import unquote
+    urls = []
+
     async def _tok():
         return "T"
 
     class _Antwort:
-        status_code = 200
+        def __init__(self, wert):
+            self.status_code, self._wert = 200, wert
 
-        @staticmethod
-        def json():
-            return {"value": nachrichten}
+        def json(self):
+            return {"value": self._wert}
 
     class _Client:
         def __init__(self, **kw):
@@ -594,16 +600,21 @@ def _graph_liste(monkeypatch, nachrichten):
             return False
 
         async def get(self, url, headers=None):
-            return _Antwort()
+            urls.append(unquote(url))
+            m = re.search(r"from/emailAddress/address eq '([^']*)'", unquote(url))
+            if m:
+                return _Antwort((je_absender or {}).get(m.group(1), []))
+            return _Antwort(nachrichten)
 
     import httpx
     monkeypatch.setattr(graph_client, "_acquire_token_async", _tok)
     monkeypatch.setattr(httpx, "AsyncClient", _Client)
+    return urls
 
 
-def _n(betreff, konv, von, entwurf=False):
+def _n(betreff, konv, von, entwurf=False, zeit="2026-10-19T12:00:00Z"):
     return {"subject": betreff, "conversationId": konv, "isDraft": entwurf,
-            "from": {"emailAddress": {"address": von}}}
+            "from": {"emailAddress": {"address": von}}, "receivedDateTime": zeit}
 
 
 def test_betreff_suche_bevorzugt_den_absender_unter_den_empfaengern(monkeypatch):
@@ -618,3 +629,59 @@ def test_betreff_suche_bevorzugt_den_absender_unter_den_empfaengern(monkeypatch)
     assert asyncio.run(graph_client.konversation_per_betreff("ich@x", "WG: Angebot", [])) == "NEUESTE"
     assert asyncio.run(graph_client.konversation_per_betreff("ich@x", "Gibt es nicht", [])) is None
     assert asyncio.run(graph_client.konversation_per_betreff("ich@x", "AW: ", [])) is None
+
+
+def _suche(postfach, betreff, an):
+    return asyncio.run(graph_client.konversation_per_betreff(postfach, betreff, an))
+
+
+def test_aeltere_mail_wird_ueber_den_absender_gefunden(monkeypatch):
+    # VM 20.10.2026: Die beantwortete Mail vom 17.10. lag ausserhalb der letzten 100.
+    urls = _graph_liste(monkeypatch, [_n("Anderes", "X", "a@b.de")], je_absender={
+        "echo25@mail.de": [_n("Header-Echo: (ohne Betreff)", "ALT", "echo25@mail.de",
+                              zeit="2026-10-17T19:06:00Z"),
+                           _n("Header-Echo: Test", "SEPT", "echo25@mail.de",
+                              zeit="2026-09-05T16:29:00Z")],
+        "zweit@x.de": [_n("Re: Header-Echo: (ohne Betreff)", "AELTER", "zweit@x.de",
+                          zeit="2026-10-01T08:00:00Z")]})
+    k = _suche("ich@x.de", "Re: Header-Echo: (ohne Betreff)", ["zweit@x.de", "echo25@mail.de", "ich@x.de"])
+    assert k == "ALT"                                   # jüngste über alle Absender
+    gefiltert = [u for u in urls if "$filter=" in u]
+    assert len(gefiltert) == 2                          # das eigene Postfach nicht
+    assert all("receivedDateTime ge" in u and "$orderby=receivedDateTime desc" in u for u in gefiltert)
+
+
+def test_absender_suche_nur_wenn_die_letzten_100_nichts_finden(monkeypatch):
+    # Antwort auf die eigene, neue Mail: Ein alter gleichnamiger Faden des
+    # Empfängers darf nicht gewinnen.
+    urls = _graph_liste(monkeypatch, [_n("Angebot", "EIGENE", "ich@x.de")], je_absender={
+        "kunde@extern.de": [_n("Angebot", "ALT", "kunde@extern.de", zeit="2025-01-01T00:00:00Z")]})
+    assert _suche("ich@x.de", "AW: Angebot", ["kunde@extern.de"]) == "EIGENE"
+    assert not [u for u in urls if "$filter=" in u]
+
+
+@pytest.mark.parametrize("adresse", [
+    "a'or'1@x.de", "a@x.de') or (1 eq 1", "a b@x.de", "a@x", "a(@x.de", "@x.de",
+])
+def test_unsichere_adresse_geht_nicht_in_den_filter(monkeypatch, adresse):
+    urls = _graph_liste(monkeypatch, [])
+    assert _suche("ich@x.de", "AW: Angebot", [adresse]) is None
+    assert not [u for u in urls if "$filter=" in u]
+
+
+def test_absender_suche_hoechstens_fuenf_adressen(monkeypatch):
+    urls = _graph_liste(monkeypatch, [])
+    _suche("ich@x.de", "AW: Angebot", [f"a{i}@x.de" for i in range(9)])
+    assert len([u for u in urls if "$filter=" in u]) == 5
+
+
+@pytest.mark.parametrize("aufruf", [
+    lambda mid: graph_client.update_sent_item("ich@x.de", mid, "<p>x</p>"),
+    lambda mid: graph_client.cleanup_sent_items("ich@x.de", mid, "<p>x</p>"),
+])
+def test_message_id_mit_hochkomma_bleibt_im_filter(monkeypatch, aufruf):
+    # Die Message-ID kommt aus dem Mailkopf; ein ' darf die Abfrage nicht
+    # verlassen — das gefundene Element wird danach geändert oder gelöscht.
+    urls = _graph_liste(monkeypatch, [])
+    asyncio.run(aufruf("<a' or internetMessageId ne 'b@x>"))
+    assert urls and "internetMessageId eq '<a'' or internetMessageId ne ''b@x>'" in urls[0]
