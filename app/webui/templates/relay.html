@@ -304,6 +304,7 @@
       </tbody>
     </table>
   </div>
+  <div class="msg" id="identitaeten-meldung" style="display:none;margin-top:8px"></div>
 
   <div style="border-top:1px solid #e2e8f0;margin-top:16px;padding-top:14px">
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px 12px;align-items:start">
@@ -1153,12 +1154,12 @@ async function identitaetHinzufuegen(btn) {
 
 async function identitaetExtern(id, cb) {
   const r = await postJSON('/api/relay/identitaet', { id: id, extern: cb.checked });
-  if (!r.ok) { cb.checked = !cb.checked; showMsg(cb, r.error || 'Fehler', false); }
+  if (!r.ok) { cb.checked = !cb.checked; showMsg('identitaeten-meldung', 'Nicht gespeichert: ' + errText(r), false); }
 }
 
 async function identitaetAktiv(id, cb) {
   const r = await postJSON('/api/relay/identitaet', { id: id, aktiv: cb.checked });
-  if (!r.ok) { cb.checked = !cb.checked; showMsg(cb, r.error || 'Fehler', false); }
+  if (!r.ok) { cb.checked = !cb.checked; showMsg('identitaeten-meldung', 'Nicht gespeichert: ' + errText(r), false); }
 }
 
 async function identitaetKontingent(id, input) {

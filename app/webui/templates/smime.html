@@ -1561,29 +1561,6 @@ async function deleteRcptCert(email) {
   else alert('Löschen fehlgeschlagen');
 }
 
-async function migrateToKv(email, btn) {
-  if (!confirm(`Privaten Schlüssel von ${email} zu Azure Key Vault migrieren?\n\nDie lokale Schlüsseldatei wird danach gelöscht. Das Zertifikat bleibt erhalten.`)) return;
-  const origText = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = 'Migriere...';
-  try {
-    const resp = await fetch(`/api/smime/keyvault/migrate/${encodeURIComponent(email)}`, {method:'POST'});
-    const data = await resp.json();
-    if (data.ok) {
-      alert(`Schlüssel erfolgreich zu Key Vault migriert.\nKey-ID: ${data.key_id}`);
-      location.reload();
-    } else {
-      alert(`Migration fehlgeschlagen: ${data.detail || data.error}`);
-      btn.disabled = false;
-      btn.textContent = origText;
-    }
-  } catch (err) {
-    alert('Netzwerkfehler: ' + err);
-    btn.disabled = false;
-    btn.textContent = origText;
-  }
-}
-
 // ⚠️ Drei Mängel, alle aus der Meldung des Nutzers („es fehlt das visuelle
 // feedback, dass ein ergebnis da ist und welches"):
 //

@@ -710,18 +710,6 @@ async function hubSaveConfig() { const body={base_url:document.getElementById('h
   wacheFertig('hub-config-btn', !!d.ok); }
 let _hubTimer=null;
 const HUB_POLL_SECS=5;   // Auto-Prüfung alle 5s, solange die Seite offen ist
-async function hubConnect() {
-  if(!document.getElementById('hub-company').value.trim()){ _hubMsg('Firma / Rechtsform ist Pflicht.',false); document.getElementById('hub-company').focus(); return; }
-  await hubSaveConfig(); _hubMsg('Verbinde… Registrierung wird übermittelt.',true);
-  const d=await (await fetch('/api/hub/register',{method:'POST'})).json();
-  if(!d.ok){ _hubMsg('Fehler: '+(d.error||'Unbekannt'),false); return; }
-  if(d.email_sent){
-    _startHubPoll(document.getElementById('hub-email').value.trim());
-  } else {
-    _hubMsg('Registrierung übermittelt (Status: <strong>'+(d.status||'pending')+'</strong>). '
-      +(d.message||'Nach Freigabe den API-Key manuell eintragen.'),true);
-  }
-}
 function _hubWaitMsg(secs, sentTo){
   const intro = sentTo ? ('📧 Bestätigungsmail an <strong>'+sentTo+'</strong> gesendet. ') : '';
   _hubMsg(intro+'⏳ Öffne den Link in der Mail — dann verbindet sich das Gateway automatisch. '
@@ -1399,22 +1387,6 @@ function _renderBillingSection(d) {
     }
   }
 }
-async function certRequestInvoice() {
-  const body={
-    billing_company:(document.getElementById('inv-req-company').value||'').trim(),
-    billing_address:(document.getElementById('inv-req-address').value||'').trim(),
-    billing_vat:(document.getElementById('inv-req-vat').value||'').trim(),
-    billing_contact:(document.getElementById('inv-req-contact').value||'').trim(),
-    billing_website:(document.getElementById('inv-req-website').value||'').trim(),
-  };
-  if(!_pflichtfelder([['inv-req-company', body.billing_company],
-                     ['inv-req-address', body.billing_address],
-                     ['inv-req-contact', body.billing_contact]])) return;
-  const d=await (await fetch('/api/hub/cert/request-invoice',{method:'POST',
-    headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
-  if(d.ok){ _acctMsg('Antrag gestellt — EXO Signature HUB wurde benachrichtigt.',true); acctLoad(); }
-  else { _certMsg('Fehler: '+(d.detail||d.error||'Unbekannt'),false); }
-}
 let _billingFilled=false;
 function _fillBillingFields(d) {
   if(_billingFilled) return;   // don't clobber in-progress edits on a later "Aktualisieren"
@@ -2004,7 +1976,6 @@ function _reflowPlain(txt) {
   return out.join('');
 }
 function _setPlainReflow(el, txt) { el.classList.add('md'); el.innerHTML = _reflowPlain(txt); }
-function _setPlain(el, txt) { el.classList.remove('md'); el.textContent = txt; }
 
 async function _hcOpen(callback) {
   _hcPending = callback;
@@ -2191,9 +2162,15 @@ window.legalPrintDoc = async function(docId){
 document.addEventListener('DOMContentLoaded', legalLoadStatus);
 
 // ── Hub-Connect: Gate A prüfen vor Verbinden ──────────────────────────────────
-var _origHubConnect = typeof hubConnect !== 'undefined' ? hubConnect : null;
-
-async function _gatedHubConnect() {
+// Bis 1.10.8 stand hier eine zweite, ältere hubConnect(), die beim Laden durch
+// diese Fassung ersetzt wurde — mitsamt der Pflichtprüfung der Firma, die nur dort
+// stand. Jetzt EINE Fassung, die Prüfung vorn (der Server verlangt die Firma ebenfalls).
+async function hubConnect() {
+  if (!document.getElementById('hub-company').value.trim()) {
+    _hubMsg('Firma / Rechtsform ist Pflicht.', false);
+    document.getElementById('hub-company').focus();
+    return;
+  }
   // Check if hub-terms + license-supplement are already accepted
   try {
     const d = await (await fetch('/api/legal/status')).json();
@@ -2221,9 +2198,7 @@ async function _doHubConnect() {
 }
 
 // ── Invoice-Request: Gate B prüfen ───────────────────────────────────────────
-var _origCertRequestInvoice = typeof certRequestInvoice !== 'undefined' ? certRequestInvoice : null;
-
-async function _gatedCertRequestInvoice() {
+async function certRequestInvoice() {
   try {
     const d = await (await fetch('/api/legal/status')).json();
     const docs = d.documents || {};
@@ -2252,11 +2227,5 @@ async function _doCertRequestInvoice() {
   else { _certMsg('Fehler: ' + (d.detail||d.error||'Unbekannt'), false); }
 }
 
-
-// ── Gated-Overrides (müssen nach allen Funktionsdefinitionen stehen) ──────────
-// hubConnect() → Gate A (Consent prüfen) → _doHubConnect()
-hubConnect = _gatedHubConnect;
-// certRequestInvoice() → Gate B (Consent prüfen) → _doCertRequestInvoice()
-certRequestInvoice = _gatedCertRequestInvoice;
 </script>
 {% endblock %}

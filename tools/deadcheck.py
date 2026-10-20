@@ -63,7 +63,17 @@ from pathlib import Path
 # von selbst und braucht den Eintrag nicht.
 ACCEPTED: dict[str, str] = {}
 
-DEF = re.compile(r"^\s*function\s+([A-Za-z_$][\w$]*)\s*\(", re.M)
+DEF = re.compile(r"^\s*(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(", re.M)
+
+# ── Vorlagen (seit 2026-10-21) ────────────────────────────────────────────────
+# Bis dahin prüfte das Werkzeug nur static/*.js. Funktionen in den Vorlagen sah es
+# nicht — und so blieben 140 Zeilen Diagnose-Funktionen in setup.html liegen, als
+# die Diagnose nach debug.html umzog (Kopie, nichts rief sie auf). Eine reine
+# Textsuche über ALLE Dateien hätte sie ebenfalls nicht gefunden: dieselben Namen
+# lebten in debug.html. Maßgeblich ist deshalb, welche Dateien zusammen EINE Seite
+# bilden: die Vorlage, ihre extends-Kette und alles per include/import Eingebundene.
+_BEZUG = re.compile(r"""\{%-?\s*(?:extends|include|import|from)\s+["']([^"']+)["']""")
+_SKRIPT = re.compile(r"<script(?![^>]*\bsrc\s*=)[^>]*>([\s\S]*?)</script>")
 
 
 def _dateien(wurzel: Path) -> tuple[list[Path], list[Path]]:
@@ -123,6 +133,58 @@ def pruefe(wurzel: Path, name: str, fremde: dict[Path, str] | None = None) -> li
     return befunde
 
 
+def _seiten(vorlagen: Path) -> dict[Path, set[Path]]:
+    """Je Vorlage die Menge der Vorlagen, aus denen sie als Seite besteht."""
+    alle = {p: p.read_text(encoding="utf-8") for p in sorted(vorlagen.rglob("*.html"))}
+    direkt = {p: {vorlagen / n for n in _BEZUG.findall(t)} & alle.keys() for p, t in alle.items()}
+    huelle: dict[Path, set[Path]] = {}
+    for p in alle:
+        menge, offen = {p}, [p]
+        while offen:
+            for q in direkt[offen.pop()]:
+                if q not in menge:
+                    menge.add(q)
+                    offen.append(q)
+        huelle[p] = menge
+    return huelle
+
+
+def pruefe_vorlagen(wurzel: Path, name: str) -> list[str]:
+    """Funktionen aus Skriptblöcken der Vorlagen, die auf KEINER Seite verwendet
+    werden, die diese Vorlage enthält. Verwendung = Name kommt in einer Datei der
+    Seite (oder in static/*.js) außerhalb einer Definition dieses Namens vor."""
+    vorlagen = wurzel / "app" / "webui" / "templates"
+    if not vorlagen.is_dir():
+        return []
+    huelle = _seiten(vorlagen)
+    text = {p: p.read_text(encoding="utf-8") for p in huelle}
+    statisch = " ".join(f.read_text(encoding="utf-8")
+                        for f in sorted((wurzel / "app" / "webui" / "static").glob("*.js")))
+    befunde = []
+    for t, inhalt in text.items():
+        for block in _SKRIPT.finditer(inhalt):
+            for m in DEF.finditer(block.group(1)):
+                fn = m.group(1)
+                if fn in ACCEPTED:
+                    continue
+                wort = re.compile(r"\b" + re.escape(fn) + r"\b")
+                definition = re.compile(r"function\s+" + re.escape(fn) + r"\s*\(")
+
+                def benutzt_in(s: str) -> bool:
+                    for z in s.splitlines():
+                        if wort.search(z) and not definition.search(z):
+                            return True
+                    return False
+
+                seiten = [p for p, h in huelle.items() if t in h]
+                if benutzt_in(statisch) or any(benutzt_in(text[d]) for p in seiten for d in huelle[p]):
+                    continue
+                zeile = inhalt.count("\n", 0, block.start(1) + m.start(1)) + 1   # m.start() schlösse den Umbruch aus ^\s* ein
+                befunde.append(f"  {name}: {fn}() in {t.relative_to(vorlagen)}:{zeile} "
+                               f"wird auf keiner Seite verwendet, die diese Vorlage enthält")
+    return befunde
+
+
 def main() -> int:
     hier = Path(__file__).resolve().parents[1]
     baeume = [(hier, "Gateway")]
@@ -139,6 +201,7 @@ def main() -> int:
             for f in _dateien(andere)[1]:
                 fremde[f] = f.read_text(encoding="utf-8")
         alle += pruefe(wurzel, name, fremde)
+        alle += pruefe_vorlagen(wurzel, name)
 
     if alle:
         print("Unbenutzte Funktionen im gemeinsamen JavaScript:")

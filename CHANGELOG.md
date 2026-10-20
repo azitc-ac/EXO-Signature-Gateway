@@ -5,6 +5,48 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.9 — 2026-10-21 — Toter Code entfernt, zwei Anzeigefehler behoben, Kopien-Sperre in der CI
+
+**Behoben**
+- **Einrichtung → Abnahme und SSO-Prüfung:** Scheiterte der Abruf, zeigte die
+  Abnahme „undefined offen, undefined ungeklärt“ statt einer Fehlermeldung.
+  Die Prüfung auf einen gescheiterten Abruf griff nie. Jetzt steht dort
+  „Prüfung nicht möglich“ mit dem Grund.
+- **Relay → Sende-Identitäten:** Scheiterte das Speichern von *Extern* oder
+  *Aktiv*, sprang der Haken zurück, aber die Fehlermeldung blieb unsichtbar.
+  Sie wurde in das Kästchen selbst geschrieben. Jetzt steht sie unter der
+  Tabelle.
+- **Hub verbinden:** Es gab zwei Fassungen der Funktion. Die erste, beim Laden
+  ersetzte, prüfte als einzige, ob die Firma angegeben ist. Jetzt gibt es eine
+  Fassung, und sie prüft die Firma vor dem Verbinden. Der Server verlangt die
+  Firma ohnehin, eine Lücke im Betrieb bestand also nicht.
+
+**Entfernt (toter Code)**
+- *Einrichtung*: rund 140 Zeilen Diagnose-Funktionen. Das ist eine Kopie aus
+  *Diagnose*, die beim Umzug dorthin liegen blieb; nichts rief sie auf.
+- Ebenso die ersetzten Fassungen von *Hub verbinden* und *Rechnungsstellung
+  beantragen*.
+- Fünf weitere Funktionen, die keine Seite aufruft.
+- Die Darstellung der Auftragsverarbeitung (*Erweitert*) nutzt jetzt die
+  gemeinsame Markdown-Darstellung statt einer Kopie. Die Ausgabe ist für alle
+  Rechtstexte gleich.
+
+**Prüfungen**
+- Die Prüfung auf unbenutzte Funktionen erfasst jetzt auch die Vorlagen. Sie
+  wertet dabei je Seite aus: Eine gleichnamige Funktion auf einer anderen Seite
+  zählt nicht als Verwendung.
+- Die CI lässt keine neuen Kopien im Oberflächen-Code mehr durch. Der Bestand
+  ist als Ausgangsstand festgehalten und darf nur schrumpfen.
+- Neue Tests:
+  - Funktionen werden nicht mehr nach ihrer Deklaration durch Zuweisung
+    ersetzt.
+  - Nach `getJSON`/`postJSON` steht keine Prüfung auf `null` mehr, die nie
+    greifen kann.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.10.8 — 2026-10-21 — Prüfwerkzeug: Kopien im Oberflächen-Code finden
 
 Neues Werkzeug `tools/kopiencheck.js`. Es findet gleich gebaute Stücke im
