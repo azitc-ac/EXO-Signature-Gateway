@@ -5,6 +5,46 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.184 — 2026-10-20 — Antwort-Signatur nur, wenn deine Signatur in der beantworteten Mail steht
+
+Die Antwort-Signatur (statt der vollen) gilt jetzt genau dann, wenn deine
+Signatur in der Mail, auf die du antwortest, **zu lesen ist**. Das Gateway
+beim Versand und das Add-in „Signatur automatisch einfügen“ prüfen das
+gleich.
+
+Bisher genügte ein Verweis: Stand irgendwo in `References` eine Mail, die
+das Gateway für dich signiert hatte, galt die Antwort als Teil einer
+signierten Kette. Ein Dienst, der auf deine Mail antwortet, ohne sie zu
+zitieren, nahm dir so die volle Signatur, obwohl in seiner Mail keine
+Signatur von dir stand. Umgekehrt erkannte das Gateway eine zitierte
+Signatur im Text nur an seiner eigenen unsichtbaren Kennung. Die verwirft ein
+fremdes Outlook beim Zitieren aber regelmässig. War dazu der Verweis nicht
+bekannt (etwa bei Mails von vor dem Signaturverlauf), kam die volle Signatur
+ein zweites Mal.
+
+Jetzt gilt:
+
+1. **Deine Signatur steht im Zitat der beantworteten Mail.** Erkannt an der
+   Kennung des Gateways oder am Text: Mindestens die Hälfte der Zeilen deiner
+   vollen oder deiner Antwort-Signatur, mindestens zwei, müssen vorkommen.
+   Geprüft wird nur das Zitat, nie dein eigener Text darüber. Dort steht
+   womöglich die Signatur deines Outlook, und sie darf keine Kette vortäuschen.
+2. **Oder die beantwortete Mail ist selbst deine signierte Mail**
+   (`In-Reply-To`), auch wenn sie nicht zitiert wird.
+3. Ein Verweis auf eine frühere signierte Mail allein zählt nicht mehr.
+
+Das gilt auch für automatische Benachrichtigungen, die deine Signatur
+enthalten (etwa von Microsoft Bookings). Eine Antwort darauf bekommt jetzt
+die Antwort-Signatur.
+
+Eine Antwort-Signatur mit nur einer Textzeile wird am Text nicht erkannt,
+nur an der Kennung. Eine einzelne Zeile (etwa der Name) kommt in fremden
+Mails zu leicht vor, schon in der zitierten Kopfzeile „Von:“.
+
+**Zu tun:** nichts. Die Änderung wirkt mit dem Update.
+
+---
+
 ## v1.9.183 — 2026-10-20 — Antworten auf ältere Mails werden auf iPhone und Android erkannt
 
 Fehlt dem Add-in „Signatur automatisch einfügen“ die Kennung der Unterhaltung

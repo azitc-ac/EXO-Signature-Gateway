@@ -1012,23 +1012,25 @@ class SignatureHandler:
             # konfigurierte Minimalsignatur, oder (wenn keine gewählt) gar nichts.
             # Die ERSTE eigene Mail im Thread (auch spät per To/Cc hinzugefügt)
             # bekommt die volle Signatur. #nosig-Trigger hat Vorrang.
-            # ⚠️ Die Erkennung läuft über References/In-Reply-To, NICHT über den
-            # Nachrichtentext. Die früheren HTML-Merkmale (Kommentar, id, class)
-            # überleben das Zitieren durch fremde Programme nicht — Outlooks
-            # Word-Editor schreibt zitiertes HTML um und verwirft sie. Nachgemessen
-            # an 400 echten Mails: intern erhalten, extern in KEINEM Fall.
-            # Der Marker-Abgleich bleibt als zweites Netz daneben: Er greift,
-            # wenn ein Programm References/In-Reply-To weglässt, der Marker aber
-            # noch da ist (typisch für Mails, die die Organisation nie verlassen
-            # haben). Er kann keinen Fehlalarm erzeugen — er prüft auf eine
-            # Kennung, die ausschliesslich dieses Gateway setzt.
+            # Massgeblich ist, ob deine Signatur in der BEANTWORTETEN Mail zu
+            # lesen ist (mail_processor.signatur_zu_lesen, dieselbe Prüfung wie
+            # im Verfassen-Add-in): Gateway-Kennung oder Text der Signatur im
+            # Zitat. Die Kennung allein reicht nicht — fremde Programme
+            # verwerfen sie beim Zitieren (400 echte Mails: extern in keinem
+            # Fall). Bis v1.9.183 galt stattdessen jede signierte Mail irgendwo
+            # in References als Kette; ein Echo-Dienst, der auf die signierte
+            # Mail verweist, ohne sie zu zitieren, nahm so die volle Signatur.
+            # Zusätzlich: Ist die beantwortete Mail selbst deine signierte Mail
+            # (In-Reply-To), gilt sie auch ohne Zitat.
             _bezuege = sig_thread.kennungen(msg)
             # Wahl des Verfassen-Add-ins (Kopf am Entwurf). Sie entscheidet NICHT
             # mit: Bis v1.9.180 galt der Kopf als Kette, und eine Fehl-
             # entscheidung des Add-ins nahm so auch dem Gateway die Signatur.
             _addin_wahl = sig_thread.addin_wahl(msg)
-            _in_kette = (sig_thread.kennt(sender, _bezuege)
-                         or mail_processor.sender_already_in_thread(msg, {sender.lower()}))
+            _in_kette = (sig_thread.kennt(sender, sig_thread.beantwortete(msg))
+                         or mail_processor.sender_already_in_thread(
+                             msg, {sender.lower()},
+                             signature_engine.erkennungs_zeilen(user_data, _vorlagen)))
 
             # Bezugsgröße für die Kennzahl: ausgehende Mails, die überhaupt in
             # einer Kette stehen. Ohne sie wäre die Wirkungszahl unten nicht zu

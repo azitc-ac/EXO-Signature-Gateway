@@ -83,6 +83,27 @@ OOF_PLATZHALTER = ("name", "zeitraum", "period", "abwesend_ab", "abwesend_bis",
                    "ankuendigung", "announcement")
 
 
+def erkennungs_zeilen(user: UserData, vorlagen: dict) -> list[list[str]]:
+    """Textzeilen der vollen und der Antwort-Signatur des Postfachs — woran
+    `mail_processor.signatur_zu_lesen` erkennt, dass sie in einer Mail steht.
+    Aus dem HTML, weil die `.txt`-Fassung handgeschriebener Vorlagen oft fehlt."""
+    import mail_processor
+    listen = []
+    for schluessel in ("sig", "min"):
+        name = (vorlagen or {}).get(schluessel)
+        if not name:
+            continue
+        try:
+            html, _txt = render(user, template_name=name)
+        except Exception as exc:                                # noqa: BLE001
+            log.warning("erkennungs_zeilen %s: %s", name, exc)
+            continue
+        zeilen = mail_processor.text_zeilen(html)
+        if zeilen:
+            listen.append(zeilen)
+    return listen
+
+
 def render_fehler(user: UserData, template_name: str | None = None,
                   extra: dict | None = None) -> str | None:
     """Warum die HTML-Vorlage nicht rendert — oder None, wenn sie es tut.

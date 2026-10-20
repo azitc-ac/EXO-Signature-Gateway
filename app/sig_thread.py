@@ -124,6 +124,20 @@ def kennungen(msg) -> list[str]:
     return _MID_RE.findall(roh)
 
 
+def beantwortete(msg) -> list[str]:
+    """Kennung der Mail, auf die *msg* unmittelbar antwortet: `In-Reply-To`,
+    sonst der letzte Eintrag von `References` (RFC 5322 §3.6.4).
+
+    Anders als `kennungen` NICHT die ganze Kette — die Antwort-Signatur hängt
+    an der beantworteten Mail, nicht daran, dass irgendwann vorher eine
+    signierte Mail lief (Echo-Dienst 17.10.2026: verweist auf die signierte
+    Mail, zitiert sie aber nicht)."""
+    direkt = _MID_RE.findall(msg.get("In-Reply-To") or "")
+    if direkt:
+        return direkt[-1:]
+    return _MID_RE.findall(msg.get("References") or "")[-1:]
+
+
 def merken(postfach: str, message_id: str) -> None:
     """Diese Nachricht wurde für dieses Postfach signiert."""
     if not postfach or not message_id:
