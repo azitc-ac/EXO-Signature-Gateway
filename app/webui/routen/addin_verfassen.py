@@ -320,7 +320,7 @@ async def verfassen_signatur(request: Request):
         return JSONResponse({"html": ""}, headers=_CORS)
     vorlage = _addin_cfg(email)["template"]
     plattform = _plattform(request)
-    kette = False
+    kette, user_data = False, None
     antwort = _antwort(request)
     if antwort is not None:
         art_text = "Antwort" if antwort["art"] == "reply" else "Weiterleitung"
@@ -352,27 +352,36 @@ async def verfassen_signatur(request: Request):
             log.info("Verfassen-Add-in: Antwort von %s — beantwortete Mail nicht ermittelbar, "
                      "Gateway entscheidet beim Versand (%s)", email, plattform)
             return JSONResponse({"html": ""}, headers=_CORS)
+        import mail_processor
         import policies
         import sig_thread
-        # Dieselbe Prüfung wie handler.py: Kette der beantworteten Mail ODER
-        # Gateway-Signatur in ihrem Text.
-        in_kette = sig_thread.kennt(email, bezug["kennungen"]) or bezug["marker"]
+        vorlagen = policies.aufloesen(email)
+        try:
+            user_data = await graph_client.get_user(email)
+        except Exception:                                    # noqa: BLE001
+            user_data = graph_client.UserData(mail=email)
+        # Dieselbe Prüfung wie handler.py: Ist deine Signatur in der
+        # beantworteten Mail zu lesen — oder ist sie selbst deine signierte Mail?
+        in_kette = (sig_thread.kennt(email, bezug["kennungen"][:1])
+                    or mail_processor.signatur_zu_lesen(
+                        bezug["html"], signature_engine.erkennungs_zeilen(user_data, vorlagen)))
         log.info("Verfassen-Add-in: beantwortet wird die Mail von %s (%s) — %s",
                  bezug["von"], bezug["zeit"][:16],
-                 "eigene Signatur in ihrer Kette" if in_kette else "keine eigene Signatur in ihrer Kette")
-        vorlage = policies.antwort_vorlage(policies.aufloesen(email), in_kette)
+                 "deine Signatur ist darin zu lesen" if in_kette else "deine Signatur steht nicht darin")
+        vorlage = policies.antwort_vorlage(vorlagen, in_kette)
         if in_kette:
             # Merkmal wie im Handler, damit `grep SIG-KETTE` jeden Fall findet.
-            log.info("SIG-KETTE: Add-in, beantwortete Mail trägt schon die eigene Signatur — %s für %s (%s)",
+            log.info("SIG-KETTE: Add-in, deine Signatur steht schon in der beantworteten Mail — %s für %s (%s)",
                      f"Antwort-Signatur {vorlage!r}" if vorlage else "keine Signatur",
                      email, plattform)
         if not vorlage:
             return JSONResponse({"html": "", "kette": in_kette}, headers=_CORS)
         kette = in_kette
-    try:
-        user_data = await graph_client.get_user(email)
-    except Exception:                                        # noqa: BLE001
-        user_data = graph_client.UserData(mail=email)
+    if user_data is None:
+        try:
+            user_data = await graph_client.get_user(email)
+        except Exception:                                    # noqa: BLE001
+            user_data = graph_client.UserData(mail=email)
     sig_html, _txt = signature_engine.render(user_data, vorlage)
     log.info("Verfassen-Add-in: Signatur %r für %s geliefert (%s)", vorlage, email, plattform)
     return JSONResponse({"html": markiert(sig_html) if sig_html else "", "kette": kette},

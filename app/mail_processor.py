@@ -237,23 +237,19 @@ def _strip_to_lines(h: str) -> str:
     return _H.unescape(h)
 
 
-def sender_already_in_thread(msg: email.message.Message, sender_addrs) -> bool:
-    """True if the SENDER has already contributed to THIS thread.
+def sender_already_in_thread(msg: email.message.Message, sender_addrs,
+                             zeilenlisten=()) -> bool:
+    """True, wenn im ZITAT dieser Mail schon eine Signatur des Absenders zu
+    lesen ist — dann bekommt die Antwort die Antwort-Signatur statt des vollen
+    Blocks (siehe `signatur_zu_lesen`).
 
-    Used to pick full vs minimal signature: the first reply (sender not yet in
-    the thread — e.g. a fresh reply, or being added to an existing ping-pong via
-    To/Cc) gets the FULL block; later replies get the minimal one.
+    Nur das Zitat, nie die ganze Mail: Im Verfassenbereich steht womöglich die
+    Client-Signatur des Absenders, und ein Textabgleich dort schlüge bei jeder
+    Antwort an (v1.4.312–316). Ohne erkanntes Zitat → False (volle Signatur).
 
-    Relies exclusively on gateway markers in the quoted region.  A "Von:/From:"
-    text heuristic was intentionally removed: it false-positives when a system
-    sends a notification FROM the sender's address (e.g. Microsoft Bookings), so
-    the sender's address appears in the "Von:" header of the quoted notification
-    even though the sender never wrote anything in that thread.  Gateway markers
-    (HTML comment, class attribute, sentinel id) are unambiguous and survive iOS
-    Mail quoting via the class attribute — no text fallback is needed.
-
-    Returns False when there is no quoted thread at all (→ sender's first
-    contribution → full signature).
+    Eine „Von:"-Zeile mit der Absenderadresse zählt bewusst nicht: Microsoft
+    Bookings verschickt Benachrichtigungen VON der Adresse des Postfachs, ohne
+    dass dessen Signatur darin stünde.
     """
     html = extract_html(msg) or ""
     if not html:
@@ -261,7 +257,54 @@ def sender_already_in_thread(msg: email.message.Message, sender_addrs) -> bool:
     qpos = _find_first_quote_wrapper_pos(html)
     if qpos is None:
         return False  # no quoted thread → sender's first contribution
-    return marker_im_zitat(html[qpos:])
+    return signatur_zu_lesen(html[qpos:], zeilenlisten)
+
+
+_ZEILENENDE_RE = re.compile(r"<\s*(?:br|/p|/div|/tr|/td|/th|/li|/h[1-6])\b[^>]*>", re.I)
+_TAG_RE = re.compile(r"<[^>]*>")
+_LEERRAUM_RE = re.compile(r"\s+")
+# Kürzere Zeilen („Mobil", „Gruss") kommen in fremdem Text zu leicht vor.
+_ZEILE_MIN = 8
+
+
+def _klartext(html_text: str) -> str:
+    import html as _html
+    return _LEERRAUM_RE.sub(" ", _html.unescape(_TAG_RE.sub(" ", html_text))).strip()
+
+
+def text_zeilen(sig_html: str) -> list[str]:
+    """Sichtbare Textzeilen einer gerenderten Signatur, Leerraum vereinheitlicht
+    — die Merkmale, an denen `signatur_zu_lesen` sie in einem Zitat erkennt."""
+    roh = _ZEILENENDE_RE.sub("\n", sig_html or "")
+    zeilen = (_klartext(z) for z in roh.split("\n"))
+    return list(dict.fromkeys(z for z in zeilen if len(z) >= _ZEILE_MIN))
+
+
+def signatur_zu_lesen(region_html: str, zeilenlisten=()) -> bool:
+    """Ist in *region_html* eine Signatur des Absenders zu lesen?
+
+    EINE Prüfung für den Versand (Zitat der Antwort) und das Verfassen-Add-in
+    (Text der beantworteten Mail). Zwei Merkmale:
+
+    * die Kennung dieses Gateways (`marker_im_zitat`) — übersteht aber das
+      Zitieren durch fremde Programme nicht (an 400 echten Mails: extern in
+      keinem Fall, VM 20.10.2026: 0 von 8),
+    * der TEXT der Signatur: mindestens die Hälfte ihrer Zeilen, mindestens
+      zwei, je Vorlage aus *zeilenlisten* (volle und Antwort-Signatur, siehe
+      `signature_engine.erkennungs_zeilen`). VM 20.10.2026: 7 von 8 Zeilen in
+      jeder echten Antwort, 0 in einer Mail, die nur auf die signierte Mail
+      verweist, ohne sie zu zitieren.
+
+    Ein Verweis in References/In-Reply-To allein genügt NICHT: Er sagt, dass
+    eine signierte Mail vorausging, nicht, dass die Signatur hier steht."""
+    if marker_im_zitat(region_html):
+        return True
+    listen = [z for z in zeilenlisten if len(z) >= 2]
+    if not listen:
+        return False
+    text = _klartext(region_html)
+    return any(sum(z in text for z in zeilen) >= max(2, (len(zeilen) + 1) // 2)
+               for zeilen in listen)
 
 
 def marker_im_zitat(region: str) -> bool:

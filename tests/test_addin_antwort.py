@@ -46,7 +46,7 @@ def antwort(umgebung, monkeypatch):  # noqa: F811
         zustand["graph"].append((postfach, konv))
         if zustand["kennungen"] is None:
             return None
-        return {"kennungen": zustand["kennungen"], "marker": zustand.get("marker", False),
+        return {"kennungen": zustand["kennungen"], "html": zustand.get("html", ""),
                 "von": "kunde@extern.de", "zeit": "2026-10-19T15:50:00Z"}
     monkeypatch.setattr(graph_client, "antwort_bezug", _bezug)
     monkeypatch.setattr(sig_thread, "kennt",
@@ -56,7 +56,8 @@ def antwort(umgebung, monkeypatch):  # noqa: F811
     async def _user(email):
         return graph_client.UserData(mail=email)
     monkeypatch.setattr(graph_client, "get_user", _user)
-    monkeypatch.setattr(signature_engine, "render", lambda u, t: (f"<p>SIG {t}</p>", ""))
+    monkeypatch.setattr(signature_engine, "render",
+                        lambda u, t=None, template_name=None: (f"<p>SIG {t or template_name}</p>", ""))
     return zustand
 
 
@@ -75,8 +76,14 @@ def test_erste_antwort_bekommt_die_volle_signatur(antwort):
     assert antwort["graph"] == [("erika@zarenko.net", KONV)]
 
 
-def test_in_signierter_kette_die_antwort_signatur_und_kennzeichen(antwort, caplog):
+def test_verweis_auf_signierte_mail_allein_reicht_nicht(antwort):
+    # Echo-Dienst 17.10.2026: verweist auf die signierte Mail, zitiert sie nicht.
     antwort["bekannt"] = {"<b@x>"}
+    assert _abruf(KONV) == {"html": addin.markiert("<p>SIG Voll</p>"), "kette": False}
+
+
+def test_antwort_auf_die_eigene_signierte_mail_die_antwort_signatur(antwort, caplog):
+    antwort["bekannt"] = {"<a@x>"}
     import logging
     with caplog.at_level(logging.INFO):
         body = _abruf(KONV)
@@ -117,9 +124,30 @@ def test_gateway_und_addin_teilen_eine_regel():
 
 
 def test_signatur_im_text_der_beantworteten_mail_zaehlt_wie_im_gateway(antwort):
-    """Zweites Netz wie handler.py (Marker im Zitat), auch ohne bekannte Kennung."""
-    antwort["marker"] = True
+    """Gateway-Kennung im Text der beantworteten Mail, ohne bekannte Kennung."""
+    antwort["html"] = '<p>Danke</p><div id="x_exo-sig-s">x</div>'
     assert _abruf(KONV)["kette"] is True
+
+
+SIG_ZEILEN = ("<table><tr><td>Erika Mustermann - Beratung</td></tr>"
+              "<tr><td>Musterweg 1, 52066 Aachen</td></tr><tr><td>Tel. +49 241 123456</td></tr>"
+              "<tr><td>erika@zarenko.net</td></tr></table>")
+
+
+@pytest.mark.parametrize("html, erwartet", [
+    # Fremdes Outlook hat die Kennung verworfen, der Text ist geblieben.
+    ("<p>Gern.</p><div>Von: Erika</div><p>Erika Mustermann - Beratung<br>Musterweg 1,"
+     "&nbsp;52066 Aachen<br>Tel.  +49 241 123456</p>", True),
+    # Nur eine Zeile (die Adresse steht z. B. im Kopf) — zu wenig.
+    ("<p>An: erika@zarenko.net</p><p>Hallo</p>", False),
+    ("<table><tr><td>x-sig-applied</td><td>1</td></tr></table>", False),
+])
+def test_text_der_signatur_in_der_beantworteten_mail(antwort, monkeypatch, html, erwartet):
+    monkeypatch.setattr(signature_engine, "render",
+                        lambda u, t=None, template_name=None:
+                        (SIG_ZEILEN if (t or template_name) == "Voll" else f"<p>SIG {t or template_name}</p>", ""))
+    antwort["html"] = html
+    assert _abruf(KONV)["kette"] is erwartet
 
 
 def test_graph_filter_maskiert_hochkomma_und_liest_die_kette(monkeypatch):
@@ -163,7 +191,7 @@ def test_graph_filter_maskiert_hochkomma_und_liest_die_kette(monkeypatch):
     monkeypatch.setattr(httpx, "AsyncClient", _Client)
     b = asyncio.run(graph_client.antwort_bezug("e@x", "a'b", "reply", ["kunde@y"]))
     assert b["kennungen"] == ["<m2@y>", "<m0@y>", "<m1@y>", "<m1@y>"]
-    assert b["marker"] is True and b["von"] == "Kunde@Y"
+    assert "exo-gateway-sig" in b["html"] and b["von"] == "Kunde@Y"
     from urllib.parse import unquote
     assert "conversationId eq 'a''b'" in unquote(urls[0])
     assert "internetMessageHeaders" in urls[0]
@@ -685,3 +713,85 @@ def test_message_id_mit_hochkomma_bleibt_im_filter(monkeypatch, aufruf):
     urls = _graph_liste(monkeypatch, [])
     asyncio.run(aufruf("<a' or internetMessageId ne 'b@x>"))
     assert urls and "internetMessageId eq '<a'' or internetMessageId ne ''b@x>'" in urls[0]
+
+
+# ── Gateway: Antwort-Signatur nur, wenn die eigene in der beantworteten Mail steht ──
+
+def _antwort_mail(rumpf, in_reply_to=None, references=None):
+    roh = _mail(betreff="AW: Hallo", rumpf=rumpf).decode()
+    kopf = "".join(f"{n}: {w}\r\n" for n, w in (("In-Reply-To", in_reply_to),
+                                                  ("References", references)) if w)
+    return roh.replace("Message-ID: <m1@firma.de>\r\n", "Message-ID: <m1@firma.de>\r\n" + kopf).encode()
+
+
+GW_SIG = ("<table><tr><td>Max Muster - Beratung</td></tr><tr><td>Musterweg 1, 52066 Aachen</td></tr>"
+          "<tr><td>Tel. +49 241 123456</td></tr><tr><td>max@firma.de</td></tr></table>")
+
+
+@pytest.fixture
+def gw_kette(anlage, monkeypatch):  # noqa: F811
+    anlage["MAILBOX_CONFIG"]["max@firma.de"]["min_template"] = "Kurz"
+    bekannt = {"<signiert@firma.de>"}
+    monkeypatch.setattr(sig_thread, "kennt", lambda s, refs: bool(set(refs or []) & bekannt))
+    monkeypatch.setattr(signature_engine, "render",
+                        lambda u, template_name=None, **kw:
+                        (GW_SIG if template_name == "Sig" else f"<p>[{template_name}]</p>", "x"))
+    return anlage
+
+
+def _bekam(html):
+    return "Kurz" if "[Kurz]" in html else "Voll" if html.count("Musterweg 1") else "nichts"
+
+
+def test_gw_verweis_ohne_zitat_bekommt_die_volle(gw_kette):
+    # Echo-Dienst (VM 17.10.2026): References nennt die signierte Mail, die
+    # beantwortete Mail selbst ist eine andere und zitiert sie nicht.
+    html = _versand(gw_kette, _antwort_mail("<p>Danke</p>", in_reply_to="<echo@x.de>",
+                                            references="<signiert@firma.de> <echo@x.de>"))
+    assert _bekam(html) == "Voll"
+
+
+def test_gw_antwort_auf_die_eigene_signierte_mail(gw_kette):
+    html = _versand(gw_kette, _antwort_mail("<p>Nachtrag</p>", in_reply_to="<signiert@firma.de>"))
+    assert _bekam(html) == "Kurz"
+
+
+def test_gw_ohne_in_reply_to_zaehlt_der_letzte_verweis(gw_kette):
+    html = _versand(gw_kette, _antwort_mail("<p>x</p>", references="<a@x.de> <signiert@firma.de>"))
+    assert _bekam(html) == "Kurz"
+
+
+def test_gw_signaturtext_im_zitat_ohne_kennung(gw_kette):
+    # Fremdes Outlook hat die Gateway-Kennung beim Zitieren verworfen.
+    zitat = ('<div id="divRplyFwdMsg">Von: Kunde</div><div><p>Frage</p><p>Max Muster - Beratung<br>'
+             'Musterweg 1, 52066 Aachen<br>Tel. +49 241 123456</p></div>')
+    html = _versand(gw_kette, _antwort_mail("<p>Antwort</p>" + zitat, in_reply_to="<kunde@x.de>"))
+    assert _bekam(html) == "Kurz"
+
+
+def test_gw_signaturtext_nur_im_verfassenbereich_zaehlt_nicht(gw_kette):
+    # v1.4.312–316: Die Client-Signatur im eigenen Text darf keine Kette vortäuschen.
+    eigen = "<p>Antwort</p><p>Max Muster - Beratung<br>Musterweg 1, 52066 Aachen<br>Tel. +49 241 123456</p>"
+    html = _versand(gw_kette, _antwort_mail(eigen, in_reply_to="<kunde@x.de>"))
+    assert "[Kurz]" not in html
+
+
+def test_gw_signaturtext_ueber_dem_zitat_zaehlt_nicht(gw_kette):
+    # Client-Signatur im eigenen Text, darunter ein Zitat OHNE die eigene.
+    eigen = "<p>Antwort</p><p>Max Muster - Beratung<br>Musterweg 1, 52066 Aachen<br>Tel. +49 241 123456</p>"
+    zitat = '<div id="divRplyFwdMsg">Von: Kunde</div><div><p>Frage ohne Signatur von Max</p></div>'
+    html = _versand(gw_kette, _antwort_mail(eigen + zitat, in_reply_to="<kunde@x.de>"))
+    assert "[Kurz]" not in html
+
+
+def test_gw_antwort_signatur_im_zitat_zaehlt_auch(gw_kette, monkeypatch):
+    # Die vorige Antwort trug nur die Antwort-Signatur — auch sie ist „zu lesen“.
+    kurz = "<p>Viele Grüsse, Max M.</p><p>Mobil 0151 99887766</p>"
+    monkeypatch.setattr(signature_engine, "render",
+                        lambda u, template_name=None, **kw:
+                        (GW_SIG if template_name == "Sig" else kurz if template_name == "Kurz"
+                         else f"<p>[{template_name}]</p>", "x"))
+    zitat = ('<div id="divRplyFwdMsg">Von: Kunde</div><div><p>Frage</p>'
+             '<p>Viele Grüsse, Max M.</p><p>Mobil 0151 99887766</p></div>')
+    html = _versand(gw_kette, _antwort_mail("<p>Antwort</p>" + zitat, in_reply_to="<kunde@x.de>"))
+    assert "Musterweg 1" not in html and html.count("Mobil 0151 99887766") == 2

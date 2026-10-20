@@ -443,9 +443,9 @@ _BEZUG_FELDER = ("internetMessageId,isDraft,from,toRecipients,ccRecipients,recei
 
 
 def _bezug_aus(m: dict | None) -> dict | None:
-    """Kennungen, Marker, Absender und Zeit einer Nachricht (siehe antwort_bezug)."""
+    """Kennungen, Text (HTML), Absender und Zeit einer Nachricht (siehe antwort_bezug).
+    `kennungen[0]` ist die eigene Message-ID der Nachricht."""
     import email.message
-    import mail_processor
     import sig_thread
     if not m:
         return None
@@ -454,7 +454,7 @@ def _bezug_aus(m: dict | None) -> dict | None:
         if (h.get("name") or "").lower() in ("references", "in-reply-to"):
             kopf[h["name"]] = h.get("value") or ""
     return {"kennungen": [m["internetMessageId"]] + sig_thread.kennungen(kopf),
-            "marker": mail_processor.marker_im_zitat((m.get("body") or {}).get("content") or ""),
+            "html": (m.get("body") or {}).get("content") or "",
             "von": (((m.get("from") or {}).get("emailAddress") or {}).get("address") or ""),
             "zeit": m.get("receivedDateTime") or ""}
 
