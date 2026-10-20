@@ -222,6 +222,33 @@ async def setup_berechtigungen_erteilen(_: str = Depends(_require_admin)):
     return JSONResponse({"auth_url": auth_url})
 
 
+def _sitzung_abgelaufen_page() -> str:
+    """Rückkehr von Microsoft, aber die PKCE-Sitzung ist weg (abgelaufen oder
+    Neustart). Welcher Ablauf es war, ist damit unbekannt. Im POPUP (Berechtigungen,
+    Einrichtung, Azure, Wächter) meldet die Seite das dem öffnenden Fenster und
+    bleibt stehen — vorher landete das Popup auf der Gateway-Anmeldung, nach der
+    nichts geschah. Ohne öffnendes Fenster (SSO als ganze Seite): wie bisher zur
+    Anmeldung."""
+    minuten = pkce_mod._SESSION_TTL // 60
+    return f"""<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Anmeldung abgelaufen</title></head>
+<body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f8fafc">
+<div style="text-align:center;padding:40px;max-width:460px">
+  <div style="font-size:52px;margin-bottom:16px">✗</div>
+  <h2 style="color:#dc2626;margin:0 0 10px">Anmeldung abgelaufen</h2>
+  <p style="color:#64748b;margin:0">Zwischen Start und Rückkehr lagen mehr als {minuten}
+  Minuten, oder das Gateway wurde neu gestartet. Es wurde nichts geändert.
+  Schließe dieses Fenster und starte den Vorgang erneut.</p>
+</div>
+<script>
+  if (window.opener) {{
+    try {{ window.opener.postMessage({{"type": "anmeldung-abgelaufen"}}, window.opener.location.origin); }} catch(e) {{}}
+  }} else {{
+    location.replace('/auth/login?error=session_expired');
+  }}
+</script>
+</body></html>"""
+
+
 def _berechtigungen_callback_page(ok: bool, msg: str = "") -> str:
     """Popup-Abschluss: meldet dem öffnenden Fenster das Ergebnis und schliesst sich."""
     import html as _html
@@ -267,7 +294,7 @@ async def auth_callback(
 
     session_obj = pkce_mod.pop_session(state)
     if not session_obj:
-        return RedirectResponse("/auth/login?error=session_expired", status_code=302)
+        return HTMLResponse(_sitzung_abgelaufen_page())
 
     flow = session_obj.get("flow", "setup")
 

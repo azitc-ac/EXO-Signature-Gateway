@@ -146,8 +146,8 @@ def _jwt_mit_rollen(rollen):
 
 def test_exchange_meldet_fehlende_berechtigung(monkeypatch):
     import graph_client
-    monkeypatch.setattr(graph_client, "_acquire_token",
-                        lambda: _jwt_mit_rollen(["User.Read.All"]))
+    monkeypatch.setattr(graph_client, "frisches_app_token",
+                        lambda *a: _jwt_mit_rollen(["User.Read.All"]))
     p = abnahme._exchange()
     assert p["zustand"] == abnahme.OFFEN
     assert "Mail.Send" in p["befund"]
@@ -156,7 +156,7 @@ def test_exchange_meldet_fehlende_berechtigung(monkeypatch):
 def test_exchange_ok_mit_allen_rollen(monkeypatch):
     import graph_client
     monkeypatch.setattr(
-        graph_client, "_acquire_token",
+        graph_client, "frisches_app_token",
         lambda: _jwt_mit_rollen(["User.Read.All", "Mail.Send", "Mail.ReadWrite"]))
     monkeypatch.setattr(abnahme, "_exo_rollen", lambda: {"Exchange.ManageAsApp"})
     p = abnahme._exchange()
@@ -167,7 +167,7 @@ def test_exchange_meldet_fehlende_exo_rolle(monkeypatch):
     """Exchange.ManageAsApp fehlt im EXO-Token → OFFEN (die kritische Rolle)."""
     import graph_client
     monkeypatch.setattr(
-        graph_client, "_acquire_token",
+        graph_client, "frisches_app_token",
         lambda: _jwt_mit_rollen(["User.Read.All", "Mail.Send", "Mail.ReadWrite"]))
     monkeypatch.setattr(abnahme, "_exo_rollen", lambda: set())
     p = abnahme._exchange()

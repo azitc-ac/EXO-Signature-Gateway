@@ -385,3 +385,33 @@ def test_berechtigungen_erteilen_verlangt_nur_zwei_scopes(client, monkeypatch):
     r = client.get(f"/auth/callback?code=c&state={q['state'][0]}")
     assert r.status_code == 200 and "berechtigungen-done" in r.text
     assert getauscht["scopes"] == pkce.BERECHTIGUNGEN_SCOPES
+
+
+def test_abgelaufene_anmeldung_meldet_sich_im_popup(client, monkeypatch):
+    """Kehrt das Zustimmungs-Popup nach Ablauf der PKCE-Sitzung zurück, landete es
+    auf der Gateway-Anmeldung, nichts war erteilt, und das Hauptfenster erfuhr es
+    nie. Jetzt: Seite meldet „anmeldung-abgelaufen" ans öffnende Fenster; ohne
+    öffnendes Fenster (SSO als ganze Seite) weiter zur Anmeldung."""
+    import time
+    import urllib.parse
+    import pkce
+    url = client.get("/api/setup/berechtigungen/erteilen").json()["auth_url"]
+    state = urllib.parse.parse_qs(urllib.parse.urlsplit(url).query)["state"][0]
+    # 20 Minuten Bedenkzeit (MFA, Rechte prüfen) — muss noch reichen
+    pkce._sessions[state]["created_at"] = time.monotonic() - 20 * 60
+
+    async def tausch(code, verifier, redirect_uri, scopes=None):
+        return {"access_token": "tok"}
+
+    async def nachziehen(tok):
+        return {"ok": True, "fehler": []}
+    import setup_wizard
+    monkeypatch.setattr(pkce, "exchange_code", tausch)
+    monkeypatch.setattr(setup_wizard, "berechtigungen_nachziehen", nachziehen)
+    r = client.get(f"/auth/callback?code=c&state={state}", follow_redirects=False)
+    assert r.status_code == 200 and "berechtigungen-done" in r.text
+
+    r = client.get("/auth/callback?code=c&state=unbekannt", follow_redirects=False)
+    assert r.status_code == 200
+    assert '"type": "anmeldung-abgelaufen"' in r.text
+    assert "location.replace('/auth/login?error=session_expired')" in r.text

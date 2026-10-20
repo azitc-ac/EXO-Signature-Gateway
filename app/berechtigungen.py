@@ -34,25 +34,42 @@ def token_rollen(token: str) -> set[str] | None:
     return {str(r) for r in roles}
 
 
-def graph_rollen() -> set[str] | None:
-    """Rollen im Graph-Anwendungstoken; `None` ohne Token/Zugangsdaten."""
+def _rollen_im_cache() -> set[str] | None:
+    """Rollen des Graph-Tokens, das der Betrieb gerade benutzt — ohne Netzaufruf
+    (`acquire_token_silent` liest bei Client-Credentials nur den Cache)."""
     import graph_client
-    token = graph_client._acquire_token()
-    return token_rollen(token) if token else None
+    try:
+        app = graph_client._get_msal_app()
+        result = app.acquire_token_silent(graph_client._SCOPES, account=None) if app else None
+    except Exception:                                          # noqa: BLE001
+        return None
+    tok = result.get("access_token") if isinstance(result, dict) else None
+    return token_rollen(tok) if tok else None
+
+
+def graph_rollen() -> set[str] | None:
+    """Rollen in einem FRISCHEN Graph-Anwendungstoken; `None` ohne Token/Zugangsdaten.
+
+    Frisch, nicht aus dem Cache: Eine eben erteilte Rolle stünde sonst bis zum
+    Ablauf des Tokens nicht darin. Weicht das Ergebnis vom Token im Betrieb ab,
+    wird dessen Cache verworfen — sonst sähe die Prüfung die Rolle, der Betrieb
+    (z. B. der Teams-Katalog) bekäme aber weiter 403."""
+    import graph_client
+    token = graph_client.frisches_app_token()
+    if not token:
+        return None
+    frisch = token_rollen(token)
+    alt = _rollen_im_cache()
+    if frisch is not None and alt is not None and alt != frisch:
+        graph_client.reset_msal_app()
+    return frisch
 
 
 def exo_rollen() -> set[str] | None:
     """Rollen im EXO-Token (Audience outlook.office365.com) — Exchange.ManageAsApp
     und IMAP.AccessAsApp stehen NICHT im Graph-Token. `None` ohne Token."""
     import graph_client
-    app = graph_client._get_msal_app()
-    if app is None:
-        return None
-    try:
-        result = app.acquire_token_for_client(scopes=["https://outlook.office365.com/.default"])
-    except Exception:                                          # noqa: BLE001
-        return None
-    tok = result.get("access_token") if isinstance(result, dict) else None
+    tok = graph_client.frisches_app_token("https://outlook.office365.com/.default")
     return token_rollen(tok) if tok else None
 
 

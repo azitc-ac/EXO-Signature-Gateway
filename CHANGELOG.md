@@ -5,6 +5,42 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.5 — 2026-10-20 — Berechtigungen: „Erneut prüfen“ sieht neue Rollen, abgelaufene Anmeldung wird gemeldet
+
+**„Erneut prüfen“ zeigte stets den alten Stand.** Die Prüfung liest die
+erteilten Rollen aus dem Anwendungstoken des Gateways. Dieses Token kam aus
+dem Cache der Microsoft-Anmeldebibliothek (MSAL) und bleibt dort bis zu etwa
+90 Minuten gültig. MSAL erlaubt für diese Tokenart kein erzwungenes Erneuern.
+Eine Rolle, die nach dem Ausstellen erteilt wurde, stand also bis zum Ablauf
+nicht im Token. Die Prüfung holt jetzt bei jedem Aufruf ein frisches Token mit
+eigenem, leerem Cache, für Graph wie für Exchange. Dasselbe gilt für den
+Punkt *Exchange erreichbar* der Abnahme. Sieht die Prüfung andere Rollen als
+das Token im Betrieb, wird dessen Cache verworfen. So nutzt auch der Betrieb
+die neue Rolle sofort, etwa der Abgleich mit dem Teams-Katalog
+(`AppCatalog.Read.All`), statt bis zum Ablauf weiter 403 zu bekommen.
+
+Außerdem meldet sich der Knopf jetzt am Ort. Während der Prüfung ist er
+gesperrt und zeigt „Wird geprüft…“, danach „Geprüft um …“. Bisher wurde
+dieselbe Tabelle neu gezeichnet, und der Klick sah aus, als passierte nichts.
+Nach einer Erteilung blieb die Meldung „✓ Erteilt“ bisher nicht stehen, weil
+die folgende Prüfung sie sofort löschte. Jetzt bleibt sie stehen.
+
+**Abgelaufene Admin-Anmeldung.** Zwischen dem Klick auf *Fehlende
+Berechtigungen erteilen* und der Rückkehr von Microsoft durften höchstens 10
+Minuten liegen. Wer die angefragten Rechte erst prüfte oder die MFA später
+bestätigte, kam ohne gültige Sitzung zurück. Das Fenster zeigte dann die
+Anmeldeseite des Gateways, es wurde nichts erteilt, und das Hauptfenster
+erfuhr davon nichts. Jetzt gilt die Sitzung 30 Minuten. Ist sie doch
+abgelaufen, sagt das Fenster das, und der Berechtigungsblock meldet:
+„Anmeldung abgelaufen, nichts erteilt“. Dasselbe Fenster erscheint bei allen
+Anmeldungen, die in einem eigenen Fenster laufen. Die normale Anmeldung als
+ganze Seite führt wie bisher zur Anmeldeseite.
+
+**Zu tun:** nichts. Hat eine frühere Erteilung keine Wirkung gezeigt, klicke
+erneut auf *Fehlende Berechtigungen erteilen*.
+
+---
+
 ## v1.10.4 — 2026-10-20 — „Fehlende Berechtigungen erteilen“ verlangt nur noch, was es braucht
 
 Der Knopf **Fehlende Berechtigungen erteilen** (Einrichtung, Abwesenheit,
