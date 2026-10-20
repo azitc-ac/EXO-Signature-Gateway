@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.8 — 2026-10-21 — Prüfwerkzeug: Kopien im Oberflächen-Code finden
+
+Neues Werkzeug `tools/kopiencheck.js`. Es findet gleich gebaute Stücke im
+JavaScript der Oberfläche, auch wenn die Variablen anders heißen. Die
+bisherigen Prüfungen erkannten nur Doppelungen aus bekannten Kategorien
+(HTML-Maskieren, Speichern, Meldungen). Eine Kopie, die noch niemand als
+Kategorie benannt hatte, blieb unbemerkt. So lief zuletzt das Öffnen von
+Anmeldefenstern auseinander. Das Werkzeug meldet vorerst nur und sperrt
+nichts. Ein Selbsttest prüft, dass es Kopien mit umbenannten Variablen findet
+und unterschiedliche Eigenschaften nicht als Kopie wertet.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.10.7 — 2026-10-21 — Fenster öffnen über einen gemeinsamen Weg
 
 Die Oberfläche öffnete an sieben Stellen ein neues Fenster: Anmeldung in der
