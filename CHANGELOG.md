@@ -5,6 +5,39 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.3 — 2026-10-20 — Dokumentation neu gegliedert
+
+Das README stellt das Gateway jetzt in Kürze vor: was es kann, mit Bildern,
+wie es arbeitet und wie du es startest. Zentrale Abwesenheit und die
+Steuerung aus Outlook auf PC und Handy (Self-Service und Signatur
+automatisch beim Verfassen) stehen ganz oben. Die Einzelheiten liegen unter
+`docs/`:
+
+- **[Funktionen](docs/funktionen.md):** Signaturen, Zuweisung, Abwesenheit,
+  Self-Service, S/MIME, Vorlagen und Variablen, Mail-Typen.
+- **[Installation](docs/installation.md):** Voraussetzungen und
+  Berechtigungen, Schnellstart, Azure, Betrieb vor Ort, Let's Encrypt.
+- **[Betrieb](docs/betrieb.md):** Ablauf, Ports, Rückweg-Modi,
+  Domänen-Routing, Sende-Identitäten, Größe des Hosts, Oberfläche, Add-ins
+  bereitstellen, Datenspeicherung, Architektur.
+
+Der Inhalt ist vollständig übernommen. Dabei korrigiert:
+
+- Das Add-in „Signatur automatisch einfügen“ war auch für Outlook auf dem
+  Mac genannt. Das ist nicht erprobt, die Angabe ist entfernt.
+- Bei *Gesendete Elemente* stand `Mail.ReadWrite.All`. Die Berechtigung
+  heißt `Mail.ReadWrite`.
+- Der Einrichtungsassistent nannte als Modus für den IMAP-Zugriff noch den
+  Altnamen `imap`. Es ist `graph_plus` („Graph++“).
+
+Die Bilder sind mit dem aktuellen Zeichen neu erzeugt. Ein Test prüft, dass
+alle Verweise zwischen README und `docs/` auf vorhandene Dateien und
+Überschriften zeigen.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.10.2 — 2026-10-20 — Teams-App: Fassung im Teams-Katalog prüfen
 
 Unter *Einrichtung → Outlook-Add-in*, im Abschnitt zur Teams-App, gibt es
