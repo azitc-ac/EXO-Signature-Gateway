@@ -5,6 +5,39 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.2 — 2026-10-20 — Teams-App: Fassung im Teams-Katalog prüfen
+
+Unter *Einrichtung → Outlook-Add-in*, im Abschnitt zur Teams-App, gibt es
+den neuen Schalter **Teams-App ist bereitgestellt**. Ist er an, liest das
+Gateway die veröffentlichte Fassung der App im Teams-Katalog deines Tenants
+und vergleicht sie mit dem Paket, das es ausliefert:
+
+- **aktuell:** Der Katalog hat mindestens die Fassung des Pakets.
+- **älter:** Die Seite nennt beide Fassungen und den Weg zum Aktualisieren.
+- **nicht im Katalog:** Das Paket wurde noch nicht hochgeladen.
+
+Bisher ließ sich das nicht prüfen. Das Admin Center zeigt unter
+*Integrierte Apps* keine Versionsnummer, nur *Last modified*.
+
+Für das Lesen braucht die Gateway-App `AppCatalog.Read.All`. Die Berechtigung
+liest nur und wird nur beantragt, solange der Schalter an ist. Fehlt sie,
+sagt die Seite das und bietet das Erteilen direkt an.
+
+Der Vergleich rechnet mit Zahlen: 1.10.0 ist neuer als 1.9.156. Eine
+eingereichte, aber noch nicht veröffentlichte Fassung zählt nicht.
+
+Die Tabelle der Anwendungsberechtigungen im README ist vervollständigt:
+`MailboxSettings.ReadWrite`, `Calendars.Read` und `AppCatalog.Read.All`
+fehlten. Statt `Mail.ReadWrite.All`, das es in Graph nicht gibt, steht dort
+jetzt `Mail.ReadWrite`, wie es die Einrichtung beantragt.
+
+**Zu tun:** Hast du die Teams-App bereitgestellt, setze den Haken bei
+*Teams-App ist bereitgestellt*. Darunter erscheint die Berechtigungsprüfung.
+Klicke *Fehlende Berechtigungen erteilen* und melde dich als Administrator
+an. Ohne Teams-App ist nichts zu tun.
+
+---
+
 ## v1.10.1 — 2026-10-20 — Abwesenheit: Kalender gar nicht lesen (Hauptschalter)
 
 Unter *Abwesenheit → Einstellungen* gibt es den neuen Schalter **Kalender der

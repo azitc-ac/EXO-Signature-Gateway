@@ -82,6 +82,7 @@ REGISTER: dict[str, E] = {
     "ACME_REPLY_METHOD": E(art=OPTION, ort="/api/acme/reply-method"),
     "ADDIN_BASE_URL": E(art=OPTION, ort="setup.html"),
     "ADDIN_ENABLED": E(art=OPTION, ort="setup.html"),
+    "TEAMS_APP_AKTIV": E(art=OPTION, ort="setup.html"),   # Teams-App bereitgestellt → Katalog prüfen
     "ADMIN_PASSWORD_HASH": E(art=GEHEIMNIS, ort="/api/setup/change-password"),
     "ADMIN_USERS": E(art=STRUKTUR, ort="/api/admin-users"),
     "APP_POOL": E(art=GEHEIMNIS, ort="/api/setup/app-pool/add"),
