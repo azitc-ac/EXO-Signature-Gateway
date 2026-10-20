@@ -35,6 +35,18 @@ BOOTSTRAP_SCOPES = [
     "offline_access",
 ]
 
+# Nur Anwendungsberechtigungen der BESTEHENDEN Gateway-App nachtragen
+# (setup_wizard.berechtigungen_nachziehen): requiredResourceAccess patchen
+# (Application.ReadWrite.All) und App-Rollen zuweisen (AppRoleAssignment.ReadWrite.All).
+# Bis v1.10.3 lief das mit BOOTSTRAP_SCOPES — das Zustimmungsfenster verlangte dann
+# auch Directory.ReadWrite.All und RoleManagement.ReadWrite.Directory, die nur der
+# volle Einrichtungslauf braucht (Exchange-Rolle, App anlegen). Kein offline_access:
+# der Token wird einmal benutzt und nicht gespeichert.
+BERECHTIGUNGEN_SCOPES = [
+    "https://graph.microsoft.com/Application.ReadWrite.All",
+    "https://graph.microsoft.com/AppRoleAssignment.ReadWrite.All",
+]
+
 # Minimal scopes for SSO login (identity only) — KEIN Graph-Resource-Scope
 # (User.Read/offline_access): der Login nutzt das Access-Token nicht, und ein
 # Resource-Scope verschiebt einen MFA-Step-up in den Back-Channel, wo kein Dialog
@@ -119,6 +131,9 @@ def create_session(redirect_uri: str, scopes: list | None = None, flow: str = "s
         "redirect_uri": redirect_uri,
         "created_at": time.monotonic(),
         "flow": flow,
+        # Dieselben Scopes beim Code-Tausch wie beim /authorize — sonst verlangte der
+        # Tausch die Vorgabe (BOOTSTRAP_SCOPES) und damit mehr, als zugestimmt wurde.
+        "scopes": scopes,
         "next_url": next_url if next_url.startswith("/") else "/",
         "extra": extra or {},
     }
