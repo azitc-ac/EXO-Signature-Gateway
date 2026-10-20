@@ -151,12 +151,22 @@ async def setup_wizard(
     effective["exo_split_aktiv"] = regel_split.split_aktiv()
     effective["exo_rule_smime"] = regel_split.smime_regelname()
     addin_base_url = _addin_base_url(request)
+    # Fassung des Teams-Pakets neben dem Download — das Admin Center zeigt keine
+    # Versionsnummer, nur „Last modified“; `seit` ist der Vergleichswert.
+    try:
+        from webui.routen.addin import _teams_manifest
+        teams_app = {"version": _teams_manifest(addin_base_url)["version"],
+                     "seit": (settings_store.get("_TEAMS_APP_STAND") or {}).get("seit", "")}
+    except Exception as exc:
+        log.warning("Einrichtung: Fassung des Teams-Pakets nicht ermittelt: %s", exc)
+        teams_app = None
     return templates.TemplateResponse(
         request=request, name="setup.html",
         context={
             "s": s, "e": effective, "active": "setup", "gateway_name": _gateway_name(),
             "addin_manifest_url": addin_base_url + "/addin/manifest.xml",
             "addin_url_warning": _addin_url_warning(addin_base_url),
+            "teams_app": teams_app,
             "webui_port": config.WEBUI_PORT,
         },
     )

@@ -5,6 +5,54 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.0 — 2026-10-20 — Release: Self-Service, Abwesenheit, Add-ins; neues Symbol erreicht die Teams-App
+
+Mit v1.10.0 beginnt eine neue Release-Reihe. Sie fasst die Entwicklung seit
+v1.9.0 zusammen: zentrale und selbst verwaltete Abwesenheit, Self-Service
+in Outlook und Teams, das Verfassen-Add-in mit Antwort-Erkennung auf allen
+Plattformen, Postfach-Status, Banner-Kampagnen, Domänen-Routing und
+Sende-Identitäten. Die Einzelheiten stehen in den Einträgen v1.9.1 bis
+v1.9.185.
+
+### Teams-App: das Symbol zählt zur Version
+
+Die Versionsnummer der Manifeste steigt nur, wenn sich ihr Inhalt ändert.
+Das Symbol gehörte bisher nicht dazu. Es steht nicht im Manifest, sondern
+liegt als Datei im Teams-App-Paket bzw. hinter einer gleichbleibenden
+Adresse. Nach dem neuen Zeichen in v1.9.180 trug das Teams-App-Paket deshalb
+das neue Bild unter der alten Nummer (auf einem Gateway, das die App vor
+v1.9.180 bereitgestellt hatte, etwa 1.9.156). Ein ersetztes Teams-Paket
+braucht aber eine höhere Version. Der Hinweis in v1.9.180, das Paket neu
+herunterzuladen und hochzuladen, konnte so nicht greifen.
+
+Jetzt geht eine Prüfsumme der ausgelieferten Symbole in die Version aller
+drei Manifeste ein. Ein Symbolwechsel ergibt künftig überall eine neue
+Version.
+
+- **Teams-App:** Ein Stand von vor dieser Version trägt das alte Symbol und
+  bekommt eine neue Nummer.
+- **Outlook-Add-ins:** Ihr Name änderte sich in v1.9.180 zusammen mit dem
+  Symbol. Hast du sie danach schon aktualisiert, behalten sie ihre Nummer,
+  und es ist kein weiteres Update nötig.
+
+Die Einrichtungsseite nennt neben *App-Paket herunterladen* die Fassung des
+Pakets und den Tag, seit dem es sie gibt. Das Admin Center zeigt keine
+Versionsnummer, nur *Last modified*. Ist das dort älter, ist das Paket neu.
+
+**Zu tun:**
+
+1. **Teams-App:** *Einrichtung → Outlook-Add-in → App-Paket herunterladen*.
+   Lade die Datei unter *Einstellungen → Integrierte Apps* hoch, über die
+   bestehende App (Aktualisieren bzw. neue Version hochladen). Zeigt das
+   Teams Admin Center danach noch die alte Version: *Teams-Apps → Apps
+   verwalten* → App öffnen → *Neue Version hochladen*.
+2. **Outlook-Add-ins:** Meldet der Postfach-Status eine ältere Fassung, öffne
+   das Add-in unter *Integrierte Apps* → **Aktualisieren**. Das betrifft
+   jedes Add-in, das du seit v1.9.180 noch nicht aktualisiert hast. Danach
+   dauert die Verteilung bis zu 72 Stunden.
+
+---
+
 ## v1.9.185 — 2026-10-20 — Anmeldeseite mit eigenem Logo
 
 Die Anmeldeseite zeigt wieder ein eigenes, grösseres Bild: den Umschlag mit

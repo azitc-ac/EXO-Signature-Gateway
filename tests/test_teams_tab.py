@@ -266,3 +266,36 @@ def test_rechtsseite_ist_ohne_anmeldung_lesbar(client):
     r = client.get("/self/rechtliches")
     assert r.status_code == 200
     assert 'id="datenschutz"' in r.text and 'id="nutzung"' in r.text
+
+
+# ── Symbolwechsel zählt die Version hoch (v1.10.0) ───────────────────────────
+# Bis v1.9.185 ging nur manifest.json in die Version ein. Das Symbol liegt aber
+# als Datei im Paket: Nach dem Symbolwechsel in v1.9.180 trug das Paket das neue
+# Bild unter der alten Nummer 1.9.156, und ein erneutes Hochladen konnte nicht
+# greifen (ein ersetztes Teams-Paket braucht eine höhere Version).
+
+def test_neues_symbol_gibt_neue_paketversion(monkeypatch):
+    data = {}
+    monkeypatch.setattr(addin, "_symbol_abdruck", lambda: "alt")
+    assert _manifest(monkeypatch, data=data, ver="1.9.156")["version"] == "1.9.156"
+    monkeypatch.setattr(addin, "_symbol_abdruck", lambda: "neu")
+    assert _manifest(monkeypatch, data=data, ver="1.10.0")["version"] == "1.10.0"
+    assert _manifest(monkeypatch, data=data, ver="1.10.1")["version"] == "1.10.0"   # danach stabil
+
+
+def test_teams_stand_ohne_abdruck_gilt_als_veraltet(monkeypatch):
+    """Der Bestand 1.9.156 entstand vor dem neuen Symbol — er muss springen."""
+    data = {}
+    _manifest(monkeypatch, data=data, ver="1.9.156")
+    data["_TEAMS_APP_STAND"].pop("symbol")
+    assert _manifest(monkeypatch, data=data, ver="1.10.0")["version"] == "1.10.0"
+
+
+def test_paketsymbol_geht_in_den_abdruck_ein(monkeypatch, tmp_path):
+    """Gegen den echten Abdruck: Eine geänderte 192.png (color.png im Paket) ändert ihn."""
+    for n in addin.SYMBOL_GROESSEN:
+        (tmp_path / f"{n}.png").write_bytes((addin._SYMBOL_DIR / f"{n}.png").read_bytes())
+    monkeypatch.setattr(addin, "_SYMBOL_DIR", tmp_path)
+    vorher = addin._symbol_abdruck()
+    (tmp_path / "192.png").write_bytes(b"anders")
+    assert addin._symbol_abdruck() != vorher

@@ -184,3 +184,30 @@ def test_anheften_und_lese_knopf_ohne_mail_nur_in_version_1_1(monkeypatch):
     # Beide Fassungen bringen ihre eigenen Ressourcen mit.
     for vo in (v10, v11):
         assert any(c.tag.endswith("}Resources") for c in vo)
+
+
+# ── Symbol im Versionsstand (v1.10.0) ────────────────────────────────────────
+
+def test_addin_stand_ohne_abdruck_springt_nicht(monkeypatch):
+    """Die Add-ins änderten in v1.9.180 Name UND Symbol zugleich: Ein Stand mit
+    passendem Hash trägt das neue Symbol schon. Er übernimmt den Abdruck, ohne
+    dass der Admin ein weiteres Mal aktualisieren muss."""
+    import config
+    data = {}
+    monkeypatch.setattr(config, "VERSION", "1.9.185")
+    _manifest(monkeypatch, "Mein GW", True, data)
+    data["_ADDIN_MANIFEST_STAND"].pop("symbol")
+    monkeypatch.setattr(config, "VERSION", "1.10.0")
+    assert _version(_manifest(monkeypatch, "Mein GW", True, data)) == "1.9.185"
+    assert data["_ADDIN_MANIFEST_STAND"]["symbol"] == addin._symbol_abdruck()
+
+
+def test_addin_neues_symbol_gibt_neue_version(monkeypatch):
+    import config
+    data = {}
+    monkeypatch.setattr(addin, "_symbol_abdruck", lambda: "alt")
+    monkeypatch.setattr(config, "VERSION", "1.10.0")
+    _manifest(monkeypatch, "Mein GW", True, data)
+    monkeypatch.setattr(addin, "_symbol_abdruck", lambda: "neu")
+    monkeypatch.setattr(config, "VERSION", "1.10.3")
+    assert _version(_manifest(monkeypatch, "Mein GW", True, data)) == "1.10.3"

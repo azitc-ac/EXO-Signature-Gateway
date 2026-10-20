@@ -228,7 +228,7 @@ def _teams_manifest(base: str) -> dict:
     }
     roh = _json_mod.dumps(m, ensure_ascii=False, sort_keys=True)
     m["version"] = _manifest_version(_ohne_adresse(roh, base, hostname, m["id"]),
-                                     "_TEAMS_APP_STAND", stellen=3)
+                                     "_TEAMS_APP_STAND", stellen=3, ohne_abdruck_veraltet=True)
     return m
 
 
@@ -331,7 +331,7 @@ def knopf_addin_id(hostname: str) -> str:
 
 
 def _manifest_version(inhalt: str, schluessel: str = "_ADDIN_MANIFEST_STAND",
-                      stellen: int = 4) -> str:
+                      stellen: int = 4, ohne_abdruck_veraltet: bool = False) -> str:
     """Manifest-Version: steigt nur, wenn sich das Manifest INHALTLICH ändert.
 
     Ein über „Integrierte Apps" hochgeladenes Add-in übernimmt Änderungen am
@@ -346,12 +346,30 @@ def _manifest_version(inhalt: str, schluessel: str = "_ADDIN_MANIFEST_STAND",
     Ändert er sich (Knopf, Text, Einstellung wie ABWESENHEIT_AKTIV — Adresse und
     Kennung zählen nicht, siehe _ohne_adresse),
     gilt die aktuelle Gateway-Version — nie niedriger als die bisherige.
+
+    Das Symbol zählt mit (`symbol`, siehe _symbol_abdruck): Es steht nicht im
+    Manifest, sondern als Datei im Teams-Paket bzw. hinter einer gleichbleibenden
+    Adresse. Bis v1.9.185 blieb die Version deshalb beim Symbolwechsel stehen, und
+    ein erneut hochgeladenes Teams-Paket trug dieselbe Nummer wie das alte.
+
+    `ohne_abdruck_veraltet`: Was gilt für einen Stand, der vor dem Abdruck
+    entstand? Teams-App: veraltet — ihr Name blieb beim Symbolwechsel (v1.9.180)
+    gleich, ein solcher Stand trägt also das alte Symbol. Outlook-Add-ins: nicht —
+    ihr Name änderte sich zugleich mit dem Symbol, jeder Stand ohne Abdruck mit
+    passendem Hash ist also schon jünger als das Symbol. Sie übernehmen den
+    Abdruck ohne neue Version (sonst müsste der Admin ein drittes Mal
+    aktualisieren und erneut bis zu 72 h warten).
     """
     import hashlib
     h = hashlib.sha256(inhalt.encode("utf-8")).hexdigest()
+    symbol = _symbol_abdruck()
     stand = settings_store.get(schluessel) or {}
     if isinstance(stand, dict) and stand.get("hash") == h and stand.get("version"):
-        return str(stand["version"])
+        if stand.get("symbol") == symbol:
+            return str(stand["version"])
+        if "symbol" not in stand and not ohne_abdruck_veraltet:
+            settings_store.force_update({schluessel: {**stand, "symbol": symbol}})
+            return str(stand["version"])
     neu = ".".join(_gateway_version_als_manifest().split(".")[:stellen])
     alt = isinstance(stand, dict) and stand.get("version")
     if alt and _versionstupel(alt) >= _versionstupel(neu):
@@ -366,7 +384,7 @@ def _manifest_version(inhalt: str, schluessel: str = "_ADDIN_MANIFEST_STAND",
     # Admin ihn mit „Last modified“ unter Integrierte Apps vergleichen kann
     # (eine Versionsnummer zeigt das Admin Center nicht).
     import datetime as _dt
-    settings_store.force_update({schluessel: {"hash": h, "version": neu,
+    settings_store.force_update({schluessel: {"hash": h, "version": neu, "symbol": symbol,
                                               "seit": _dt.date.today().isoformat()}})
     return neu
 
@@ -596,6 +614,19 @@ def _symbol_png(size: int) -> bytes:
     hoch."""
     n = next((g for g in SYMBOL_GROESSEN if g >= size), SYMBOL_GROESSEN[-1])
     return (_SYMBOL_DIR / f"{n}.png").read_bytes()
+
+
+def _symbol_abdruck() -> str:
+    """Prüfsumme aller Symbole, die Manifeste und Teams-Paket ausliefern.
+
+    Die gerenderten Dateien, nicht favicon.svg: Neu gerendert ändert sich das
+    Bild auch bei gleichem SVG (anderer Renderer). Geht in _manifest_version ein."""
+    import hashlib
+    h = hashlib.sha256()
+    for n in SYMBOL_GROESSEN:
+        h.update((_SYMBOL_DIR / f"{n}.png").read_bytes())
+    h.update(_umriss_png(32))
+    return h.hexdigest()
 
 
 def _umriss_png(size: int) -> bytes:
