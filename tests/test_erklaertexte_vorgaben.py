@@ -91,7 +91,7 @@ ZUSAGEN = [
 # Markdown-Dateien im Wurzelverzeichnis.
 DOKU_ZUSAGEN = [
     # README ist nur noch deutsch (die englische Fassung wurde entfernt).
-    ("README.md", "REINJECT_MODE",
+    ("docs/betrieb.md", "REINJECT_MODE",
      "`REINJECT_MODE` ist ab Werk `smtp`", "smtp"),
 ]
 

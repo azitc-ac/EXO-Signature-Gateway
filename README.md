@@ -1,813 +1,165 @@
 # EXO Signature Gateway
 
-> **Lizenz:** [PolyForm Internal Use License 1.0.0](LICENSE.md) (Community
-> Edition) — frei nutzbar für eigene/interne Zwecke (auch im Unternehmen)
-> für **bis zu 100 Postfächer**. Darüber hinaus ist eine kostenpflichtige
-> kommerzielle Lizenz erforderlich — Kontakt: alexander@zarenko.net. Unabhängig
-> von der Größe nicht erlaubt: Weiterverteilung, Betrieb als Dienstleistung
-> für Dritte oder Verkauf/Anbieten als Service durch andere als den
-> Lizenzgeber.
+**Signaturen, Abwesenheit und S/MIME für Exchange Online: zentral verwaltet,
+in Outlook auf PC und Handy sichtbar, ohne Software auf den Geräten.**
 
-Ein Docker-basierter SMTP-Proxy, der in Exchange Online (EXO) automatisch personalisierte E-Mail-Signaturen einbettet und Mails per **S/MIME signiert und verschlüsselt** – und dabei **vollständig auf Azure betrieben werden kann, ohne ausgehenden Port 25**. Als **SMTP-Relay** kann er zusätzlich einen lokalen Exchange-Server für Geräte im eigenen Netz (Drucker, Scanner, Fachanwendungen) ersetzen.
+Das Gateway hängt sich serverseitig in den Mailfluss von Exchange Online. Jede
+Mail bekommt die richtige Signatur mit aktuellen Daten aus Entra ID, gleich
+mit welchem Programm oder Gerät sie geschrieben wurde: Outlook, Outlook
+mobil, Apple Mail auf dem iPhone, ein Drucker im Netz. Die Abwesenheitsnotiz
+kommt aus denselben Vorlagen und wird zentral gesteuert. S/MIME signiert und
+verschlüsselt auf Wunsch jede Mail, mit automatisch erneuerten Zertifikaten.
 
-Exchange Online bietet serverseitige Transportregeln für Disclaimer – diese sind jedoch auf einfache, statische Textbausteine mit begrenzten AD-Attributen beschränkt.
+Selbst gehostet auf jedem Linux-Host (auch Raspberry Pi) oder vollständig in
+Azure, ohne ausgehenden Port 25. Alle Daten bleiben in deinem Tenant und auf
+deinem Host.
+
+> Frei für eigene Zwecke bis 100 Postfächer, darüber mit kommerzieller Lizenz,
+> siehe [Lizenz](#lizenz).
 
 ---
 
-## Funktionen
+## Was es kann
 
-### Signaturen
-- **Live-Absenderdaten über Graph** — Anzeigename, Position, Abteilung, Telefon/Mobil, Büro, Firma, Website, Bookings-Link und eigene `extensionAttributes`, je Absender zum Sendezeitpunkt abgerufen.
-- **Volles HTML** über Jinja2-Vorlagen — ohne die Grenzen der EXO-Transportregeln.
-- **Signatur-Baukasten** — Signaturen aus Bausteinen zusammensetzen (Name, Kontaktzeilen, Logo, Trennlinie, Zwei-Spalten, Kasten mit runden Ecken, Social-Links, Anschrift, Badge, freies HTML) mit Live-Vorschau in der Weboberfläche.
-- **HTML → Baukasten (Rück-Konvertierung)** — bestehendes Signatur-HTML wird in bearbeitbare Bausteine zerlegt: eine vorhandene Signatur übernehmen statt neu bauen.
-- **Eingebettete Logos** — hochgeladene Bilder werden als Base64-Data-URI eingebettet (kein externes Hotlinking; rendert in Outlook und offline).
-- **Banner & Disclaimer** — eigene Banner- und Disclaimer-Vorlagen, unabhängig von der Signatur zuweisbar. Sie kommen immer vom Gateway beim Versand, auch wenn die Signatur schon beim Verfassen eingefügt wurde.
-- **`#nosig` im Betreff** — die Mail geht ohne Signatur hinaus; einstellbar, ob Banner und/oder Disclaimer trotzdem bleiben. Dasselbe lässt sich für Antworten in einer schon signierten Kette festlegen.
+### Zentrale Abwesenheit
 
-<img src="docs/screenshots/vorlagen-editor.png" width="820" alt="Vorlagen-Editor: Baukasten links, Live-Vorschau mit Banner und Disclaimer rechts">
+Die Abwesenheitsnotiz ist zentral verwaltet und bleibt trotzdem die normale
+Exchange-Abwesenheit. Der Text kommt aus einer Vorlage mit Zeitraum,
+Vertretung und Signatur. Ein- und ausgeschaltet wird wie gewohnt in Outlook,
+im Self-Service oder zentral durch den Admin.
 
-<img src="docs/screenshots/baukasten-mit-logo.png" width="820" alt="Baukasten: Zwei-Spalten-Baustein aufgeklappt, links Name und Kontaktzeilen, rechts das Logo">
+- **Live-Übersicht:** wer gerade abwesend ist, mit Vorlage und Zeitraum, auch
+  wenn jemand die Abwesenheit selbst in Outlook gesetzt hat.
+- **Aus dem Kalender:** Ein Termin „Abwesend“ schaltet die Abwesenheit für
+  seinen Zeitraum ein. Abschaltbar bis hin zu „Kalender gar nicht lesen“.
+- **Ankündigung:** Die nächsten geplanten Abwesenheiten stehen auf Wunsch im
+  Text, etwa nur für interne Empfänger.
 
-<img src="docs/screenshots/baukasten-kompakt.png" width="820" alt="Baukasten: Bausteine Name und Telefon aufgeklappt mit ihren Einstellungen">
-
-### Zuweisung & Richtlinien
-- **Pro Postfach oder per Richtlinie** — Signatur, Antwort-Signatur, Banner, Disclaimer und Add-in-Vorlage global, je Postfach oder je **Gruppe** zuweisen (interne Postfach-Gruppen, „erste Regel gewinnt").
-- **Antwort-/Minimalsignatur** — kürzere Signatur für Antworten innerhalb eines Threads.
-- **Banner-Kampagnen** — ein Banner mit Start/Ende und optionaler Zielgruppe, das für seine Laufzeit Vorrang vor dem regulären Banner hat; pflegbar von einer eigenen Rolle *Kampagnen-Manager* ohne Admin-Rechte.
-
-### Abwesenheit (Out of Office)
-Zuschaltbar unter *Einrichtung → Modus & Funktionen* (Vorgabe aus).
-
-Die Abwesenheit ist zentral verwaltet und trotzdem die ganz normale Exchange-Abwesenheit: Die Übersicht liest den **Live-Zustand aus Exchange** — auch Abwesenheiten, die jemand selbst in Outlook gesetzt hat —, zeigt die gewählte Vorlage, den Zeitraum und die Kalenderkopplung und lässt neue Abwesenheiten direkt setzen. Text, Signatur und Banner kommen aus denselben Vorlagen wie die Signaturen. Diese Kombination aus Live-Übersicht, Kalenderkopplung, Ankündigung künftiger Abwesenheiten und Signaturverwaltung in einem Produkt haben wir bei anderen Anbietern nicht gefunden (Stand 10/2026).
+Diese Kombination aus Live-Übersicht, Kalenderkopplung, Ankündigung und
+Signaturverwaltung in einem Produkt gibt es unseres Wissens bei keinem
+anderen Anbieter (Stand 10/2026).
 
 <img src="docs/screenshots/abwesenheit-uebersicht.png" width="820" alt="Abwesenheits-Übersicht: wer abwesend ist, mit Vorlage, Zeitraum, Kalender und Ankündigung">
-- **Einheitlicher Abwesenheitstext** — eine Vorlage der Art *Abwesenheit* (Baukasten wie bei Signaturen, mit Zeitraum-Platzhaltern und der Signatur darunter) wird per Graph in die native Exchange-Abwesenheit geschrieben. Ein- und ausgeschaltet wird wie gewohnt in Outlook oder im Self-Service; Exchange verschickt die Antwort selbst.
-- **Zuweisung** global, je Gruppe oder je Postfach — wie bei Signaturen.
-- **Aus dem Kalender** (opt-in, je Postfach übersteuerbar) — ein Termin „Abwesend“ schaltet die Abwesenheit für seinen Zeitraum ein.
-- **Ankündigung künftiger Abwesenheiten** — `{{ oof.ankuendigung }}` / `{{ oof.announcement }}` setzt die nächsten geplanten Abwesenheiten aus dem Kalender in den Text, wahlweise nur für interne Empfänger.
-- **Übersicht für Admins** — Seite *Abwesenheit*: wer gerade abwesend ist, mit Vorlage, Zeitraum und Kalenderstatus; je Postfach zentral bearbeitbar.
-- **Auch für abgelegte Post** — im Modus Graph++ antwortet das Gateway selbst auf Post von außen, die per IMAP abgelegt wird (siehe [Graph++](#betrieb-auf-azure-kein-ausgehender-port-25)).
 
-### Self-Service für Mitarbeitende
-- **Eigene Abwesenheit und Signatur** — drei Reiter: *Abwesenheit* (an/aus, Zeitraum, Vorlage), *Signatur* (unter jeder neuen Mail und ggf. unter der Abwesenheitsnotiz) und *Antwort-Signatur* (ab der 2. eigenen Mail im Verlauf, auch *keine*). Jeder Reiter hat eine eigene Vorschau als Beispiel-Mail und einen eigenen Speichern-Knopf. Die Wahl der eigenen Vorlagen ist standardmäßig gesperrt und je Postfach oder Gruppe freischaltbar.
-- **Drei Zugänge, eine Seite** — im Browser unter `/self`, als Knopf beim Lesen einer Mail im Outlook-Add-in und als App in der linken Leiste von Outlook (Web, Windows klassisch und neu, iOS, Android) und Teams. Die App wird als Paket unter *Integrierte Apps* hochgeladen.
-- **Anmeldung über Entra ID**; die Self-Service-Rolle erreicht nur das eigene Postfach. In der App in Outlook und Teams läuft die Anmeldung still über die Anmeldung der App (Nested App Authentication), ein Anmeldefenster erscheint nur noch als Rückfall. Schalter `SELF_SERVICE_ENABLED` (Vorgabe aus): ohne ihn ist die Seite reine Anzeige.
-- **Hell oder dunkel** — nach eigener Wahl (Knopf oben rechts), sonst nach dem Design von Teams bzw. Outlook oder des Systems. Die Vorschau der Mail bleibt hell, so wie der Empfänger sie sieht.
+### Steuerung aus Outlook, auf PC und Handy
+
+Zwei Outlook-Add-ins bringen das Gateway dorthin, wo geschrieben wird:
+
+- **Self-Service:** Mitarbeitende setzen ihre Abwesenheit und wählen ihre
+  Signatur und Antwort-Signatur selbst, mit Vorschau als Beispiel-Mail. Als
+  Knopf beim Lesen einer Mail und als App in der linken Leiste von Outlook
+  (Web, Windows, iOS, Android) und Teams. Die Anmeldung läuft still über das
+  Outlook- bzw. Teams-Konto.
+- **Signatur automatisch beim Verfassen:** Die Signatur steht schon beim
+  Schreiben im Entwurf, in Outlook im Web, unter Windows und auf iOS und
+  Android. Bei Antworten gilt dieselbe Regel wie beim Versand: die volle
+  Signatur, solange deine noch nicht in der beantworteten Mail steht, danach
+  die kürzere Antwort-Signatur.
 
 <p>
 <img src="docs/screenshots/self-abwesenheit.png" width="270" alt="Self-Service am Handy: eigene Abwesenheit mit Zeitraum und Vorlage">
 <img src="docs/screenshots/self-abwesenheit-vorschau.png" width="270" alt="Self-Service: Vorschau der Abwesenheitsnotiz als Beispiel-Mail">
 <img src="docs/screenshots/self-signatur-dunkel.png" width="270" alt="Self-Service im Dunkelmodus: Signatur-Vorschau">
-<img src="docs/screenshots/self-antwort.png" width="270" alt="Self-Service: Antwort-Signatur wählen">
 </p>
 
-### Intelligente Mailverarbeitung
-- **Antworterkennung** — die Signatur steht vor dem zitierten Text, nicht gestapelt am Ende; eine bereits im Thread vorhandene Signatur wird nicht doppelt eingefügt.
-- **Client-Signaturen entfernen** — von Outlook Mobile u. a. hinzugefügte Signaturen werden erkannt und entfernt.
-- **Gemischte interne/externe Empfänger** — von Exchange in Teilnachrichten aufgeteilte Sendungen (Bifurkation) werden korrekt an jeden Empfänger zugestellt, mit vollständiger Empfängerliste (Antwort-an-Alle funktioniert) — **auch in Azure ohne Port 25**, über SMTP-Einlieferung auf Port 587.
-- **Alle gängigen Mailtypen** — HTML, Nur-Text und TNEF/winmail.dat (Outlook-RTF).
+### Signaturen ohne Grenzen
 
-### S/MIME
-- **Signieren und/oder Verschlüsseln je Absender**, in jedem Reinject-Modus.
-- **Eigene Zertifikate** — bestehende PFX-Zertifikate importieren (mehrere je Adresse möglich).
-- **Azure Key Vault (HSM)** — private Schlüssel können im Key Vault liegen; signiert wird über die Key-Vault-Sign-API, der Schlüssel verlässt das HSM nie.
-- **Automatischer Zertifikats-Lebenszyklus** — vollautomatische Ausstellung und Erneuerung über CASTLE ACME (RFC 8823), ohne Nutzerinteraktion. *Kommerzielle öffentliche S/MIME-Zertifikate über einen Zertifikats-Hub sind in Vorbereitung.*
-- **Empfänger-Zertifikate einsammeln** — öffentliche Zertifikate externer Korrespondenten werden aus eingehender signierter Post gewonnen, sodass sich später ohne manuellen Import an sie verschlüsseln lässt.
-- **Secure Message Portal** — hat ein Empfänger kein Zertifikat, kann verschlüsselte Post über ein sicheres Web-Portal (mit E-Mail-Einmalcode) zugestellt werden, statt zu scheitern oder im Klartext zu gehen.
+- **Live-Daten aus Entra ID** je Absender beim Versand: Name, Position,
+  Telefon, Abteilung, eigene Attribute.
+- **Baukasten** mit Live-Vorschau, oder freies HTML. Eine vorhandene
+  Signatur lässt sich übernehmen und in Bausteine zerlegen.
+- **Antwort-Signatur, Banner, Disclaimer** getrennt zuweisbar, global, je
+  Gruppe oder je Postfach. **Banner-Kampagnen** mit Zeitfenster und
+  Zielgruppe, gepflegt von einer eigenen Rolle.
+- **Saubere Antworten:** Die Signatur steht vor dem Zitat und stapelt sich
+  nicht. Die Signatur, die Outlook auf dem Handy selbst anhängt, wird
+  entfernt.
+
+<img src="docs/screenshots/vorlagen-editor.png" width="820" alt="Vorlagen-Editor: Baukasten links, Live-Vorschau mit Banner und Disclaimer rechts">
+
+### S/MIME, automatisch
+
+Signieren und verschlüsseln je Absender. Zertifikate werden automatisch
+bestellt und erneuert. Private Schlüssel können im Azure Key Vault (HSM)
+liegen. Zertifikate externer Partner sammelt das Gateway aus eingehender Post.
+Hat ein Empfänger kein Zertifikat, geht die Mail über ein sicheres Web-Portal.
 
 <img src="docs/screenshots/smime-zertifikate.png" width="820" alt="S/MIME: Signaturzertifikate je Postfach mit Aussteller und Ablauf">
 
-<img src="docs/screenshots/smime-empfaenger.png" width="820" alt="S/MIME: eingesammelte Empfänger-Zertifikate">
+### SMTP-Relay statt lokalem Exchange
+
+Drucker, Scanner und Fachanwendungen senden über das Gateway wie über einen
+lokalen Exchange-Server, mit Geräteliste und Lernmodus oder mit eigenem Login
+auf Port 587. Das nimmt einem Exchange-Umzug den häufigsten Blocker.
 
 ### Betrieb
-- **Massenoperationen** — viele Postfächer auf einmal aktivieren und Zertifikate für viele zugleich bestellen/ausrollen (mit Vorschau und Kontingentprüfung).
 
-<img src="docs/screenshots/postfaecher.png" width="820" alt="Postfächer: Signatur, S/MIME und Vorlagen je Postfach">
-- **SMTP-Relay** — Geräte im eigenen Netz (Drucker, Scanner, Fachanwendungen) senden über das Gateway wie über einen lokalen Exchange-Server.
+Einrichtungsassistent mit automatischer App-Registrierung, Abnahme der ganzen
+Anlage, Prüfung und Nachtrag der Berechtigungen, Postfach-Status,
+Dashboard, Anmeldung über Entra ID mit Rollen, Update und Backup in der
+Oberfläche, hell und dunkel, bedienbar ab 320 px Breite.
 
-<img src="docs/screenshots/relay.png" width="820" alt="SMTP-Relay: Geräteliste mit Adresse, DNS-Name, Kommentar und TLS der letzten Einlieferung">
-- **Outlook-Add-in** — Signatur direkt im Outlook-Verfassenfenster vorschauen und auswählen; beim Lesen öffnet es den Self-Service. Der Bereich lässt sich anheften; im klassischen Outlook steht der Knopf auch ohne ausgewählte Mail bereit.
-- **Signatur automatisch beim Verfassen** — ein zweites Add-in fügt die Gateway-Signatur ein, sobald eine Mail beginnt: in Outlook im Web, unter Windows (klassisch und neu), auf dem Mac sowie in Outlook für iOS und Android (ab Version 4.2433). Bei Antworten und Weiterleitungen gilt dieselbe Regel wie im Gateway: volle Signatur beim ersten eigenen Beitrag, danach die Antwort-Signatur. Die Anmeldung läuft still, ohne Fenster.
-- **Abnahme** — *Einrichtung → Verbindungstest & Abnahme* prüft die Anlage als Ganzes (Außenadresse, TLS, Anmeldung, Exchange-Rechte, Postfächer, Rückweg, Vorlagen, Benachrichtigung, Add-in-Anmeldung) und nennt bei jeder Lücke, was zu tun ist.
-- **Berechtigungen prüfen und nachtragen** — der Assistent zeigt je Berechtigung der App-Registrierung, ob sie tatsächlich erteilt ist, und trägt fehlende per Admin-Anmeldung nach, ohne Secret und Zertifikat zu ändern.
-- **Anpassbare Mails an Nutzer** — Portal-Benachrichtigung, Portal-Antwort und Erneuerungsaufforderung sind Vorlagen im selben Editor wie die Signaturen.
-- **Anmeldung und Rollen** — Anmeldung über Entra ID mit den Rollen Admin, Bearbeiter (Vorlagen), Kampagnen-Manager und Self-Service; ein lokaler Notfallzugang bleibt.
-- **Dashboard & Überwachung** — Mailstatistik, S/MIME-Zähler, Zertifikatsablauf, RAM/Platte/Log-Überwachung.
-- **Selbst gehostet oder in Azure** — jeder x64/ARM64-Host (auch Raspberry Pi) oder vollständig in Azure ohne ausgehenden Port 25.
-- **Hell-/Dunkelmodus**, nutzbar bis 320 px Breite.
-- **Nicht in Suchmaschinen** — jede Antwort der Weboberfläche trägt `X-Robots-Tag: noindex, nofollow`.
+Alle Funktionen im Einzelnen: **[docs/funktionen.md](docs/funktionen.md)**
 
 ---
 
-## Wie es funktioniert
-
-Outlook und andere Mail-Clients kommunizieren immer direkt mit Exchange Online (über MAPI oder REST) – nie über dieses Gateway. Es hängt sich **serverseitig** in den Outbound-Pfad von Exchange Online ein:
+## So funktioniert es
 
 ```
-Outlook / Mail-Client
-       │ MAPI / EAS / REST
-       ▼
-Exchange Online (EXO)
-       │ Outbound Transport Connector → SMTP Port 25 (eingehend zum Gateway)
-       ▼
-EXO Signature Gateway  ◄── MS Graph API (Absenderdaten)
-       │
-       ├─ smtp-Modus (Vorgabe, klassisch): SMTP Port 25 → EXO Smarthost
-       │
-       ├─ graph-Modus (Azure): Graph API sendMail HTTPS
-       │
-       ├─ Graph++ (graph_plus, Azure, mit S/MIME): Graph sendMail + IMAP/587-Lückenfüller
-       │                                       IMAP APPEND Port 993 (S/MIME-Entschlüsselung)
-       │
-       └─ gemischte Empfänger (nur in Graph++): SMTP-Einlieferung Port 587
-                                                (von Exchange aufgeteilte Sendungen —
-                                                 volle Empfängerliste; Azure-tauglich)
-       ▼
-Exchange Online (EXO) → Zustellung an Empfänger
+Outlook, Handy, Gerät ──► Exchange Online ──► Gateway ──► Exchange Online ──► Empfänger
+                                                │
+                                   Signatur, Banner, Disclaimer,
+                                   S/MIME — Daten per Graph aus Entra ID
 ```
 
-1. Outlook sendet die Mail wie gewohnt an Exchange Online (MAPI/REST).
-2. Eine **EXO-Transportregel** leitet ausgehende Mails der konfigurierten Absender über einen **Send Connector** an dieses Gateway weiter (SMTP Port 25, eingehend zum Gateway-Container).
-3. Das Gateway schlägt den Absender per Microsoft Graph API nach und injiziert die Jinja2-Signatur (HTML + Plaintext) – auch bei Nur-Text- und TNEF-Mails (Outlook RTF).
-4. Die signierte Mail wird je nach `REINJECT_MODE` zurück an Exchange übergeben (Details unten).
-
----
-
-## Netzwerk-Anforderungen
-
-### Inbound (Firewall / Port-Forwarding auf dem Host)
-
-| Port | Protokoll | Von wem | Zweck | Wann nötig |
-|------|-----------|---------|-------|------------|
-| **25** | SMTP + STARTTLS | Exchange Online (Transport Connector) | Eingehende Mails zur Verarbeitung | **immer** |
-| **80** | HTTP | Let's Encrypt-Server / Browser | HTTP-01 ACME Challenge; First-Run-Setup-Wizard | **immer** |
-| **443** | HTTPS | Admins / Browser | Web-UI & REST-API | **immer** |
-| **587** | SMTP (STARTTLS + AUTH) | Geräte/Anwendungen mit Login (Sende-Identitäten) | Authentifizierte Einlieferung ohne feste Absender-IP | nur wenn *Authentifizierte Einlieferung (587)* aktiviert |
-
-> Intern hört der Container auf Port 8080; Docker mappt `443:8080`. Am Router / in der VM-Firewall
-> nur Port 443 (nicht 8080) öffnen.
-
-### Outbound (Container → Internet)
-
-| Port | Protokoll | Ziel | Zweck | Re-inject-Modus |
-|------|-----------|------|-------|-----------------|
-| **443** | HTTPS | `graph.microsoft.com` | Graph API: Userdaten, sendMail, Mailbox-Polling | alle |
-| **443** | HTTPS | `login.microsoftonline.com` | Azure AD Token-Endpunkt | alle |
-| **443** | HTTPS | `acme.castle.cloud` | CASTLE ACME (S/MIME-Zertifikate) | bei CASTLE-Enrollment |
-| **443** | HTTPS | `acme-v02.api.letsencrypt.org` | Let's Encrypt TLS-Zertifikat | bei Let's Encrypt |
-| **993** | IMAPS | `outlook.office365.com` | IMAP APPEND (Inbox-Inject ohne Draft-Flag) | `graph_plus` |
-| **587** | SMTP (STARTTLS + XOAUTH2) | `smtp.office365.com` | Submission als Absender: bifurkierte gemischte Empfänger + eingehende externe Post | `graph_plus` |
-| **25** | SMTP | `<tenant>.mail.protection.outlook.com` | Re-inject via SMTP | `smtp` (nicht Azure-kompatibel) |
-
-Azure VMs blockieren ausgehenden Port 25. Mit `REINJECT_MODE=graph` oder `graph_plus` ist das Gateway vollständig ohne outbound Port 25 betreibbar.
-
----
-
-## Sende-Identitäten (authentifizierte Einlieferung, Port 587)
-
-Neben der IP-basierten Geräteerkennung des SMTP-Relays (Port 25) können sich
-Geräte und Anwendungen auch mit einem **eigenen Login** (Benutzer + Passwort über
-TLS) am Submission-Port **587** anmelden. Das öffnet die Einlieferung für Geräte
-ohne OAuth (ältere Drucker, Scanner, Fachanwendungen wie SAP) und für Gateways
-ohne feste Absender-IP.
-
-Eine *Sende-Identität* besteht aus **Anzeigename**, **Login** und **Domäne** sowie
-einem Passwort. Der Login ist zugleich der EXO-Alias; mit der Domäne ergibt er die
-Adresse der Shared Mailbox (`login@domäne`), die beim Anlegen automatisch als
-**unlizenziertes Shared Mailbox** in Exchange erzeugt wird (idempotent) und
-zugleich Absender und Antwort-Postfach ist. Die Domäne wird aus den akzeptierten
-Tenant-Domänen gewählt, die ein Postfach tragen können (`Authoritative` und
-`InternalRelay`); die nackte Default-Domäne `*.onmicrosoft.com` ist als Absender
-unschön und wird nicht vorausgewählt.
-Ein Login gehört zu einer Identität; mehrere Geräte dürfen es teilen. Passwörter
-werden ausschließlich als Hash gespeichert (pbkdf2-sha256), nie im Klartext; die
-Anmeldung erfolgt am **Gateway**, nicht an Exchange.
-
-**Grenzen** (durchgesetzt im Gateway, nicht nur in der Oberfläche):
-
-- **Absenderdomäne** — eine Identität darf nur *als* eine Adresse der eigenen
-  Tenant-Domänen einliefern (Schutz vor offenem Relay).
-- **Absender-Pin** (optional) — ist eine Absenderadresse hinterlegt, darf sich
-  dieses Login nur unter genau dieser Adresse anmelden; sonst unter jeder Adresse
-  der eigenen Domäne.
-- **Ziel intern/extern** — Vorgabe ist *nur intern*: die Identität darf nur an
-  Empfänger im eigenen Tenant zustellen. Mit dem Schalter *auch extern senden* sind
-  externe Empfänger erlaubt.
-- **Anmelde-Bremse** — wiederholte Fehlanmeldungen einer Quell-IP werden
-  gedrosselt (exponentielles Backoff), bevor überhaupt ein Passwort geprüft wird.
-
-**Einrichten:** Auf der Relay-Seite die Rubrik *Sende-Identitäten* öffnen,
-*Authentifizierte Einlieferung (587) aktivieren* einschalten und eine Identität
-anlegen (Anzeigename, Login, Domäne, Passwort). Beim Speichern legt das Gateway
-die zugehörige Shared Mailbox automatisch an; die abgeleitete Adresse wird vorab
-angezeigt. Am Gerät `Server:587`, STARTTLS und das Login eintragen; der
-Envelope-Absender muss die Shared-Mailbox-Adresse sein. Der Port verlangt TLS
-zwingend (Anmeldung erst nach STARTTLS) und wird ohne TLS-Zertifikat gar nicht
-erst geöffnet. Angenommene Post läuft danach über den normalen Verarbeitungs- und
-Rückweg zurück an Exchange — sie wird signiert bzw. S/MIME-behandelt, wenn ihr
-Absender ein aktiviertes Postfach ist, sonst unverändert weitergereicht.
-
-> In den Cloud-Rückwegen (`graph`, `graph_plus`) muss die Shared Mailbox im
-> Sende-Umfang der Anwendung liegen (ApplicationAccessPolicy-Gruppe bzw. SendAs),
-> sonst lehnt Graph mit `403` ab. Im Modus `smtp` trägt der Smarthost die Adresse
-> ohne weitere Freigabe.
-
-**Signatur je Identität:** Die Shared Mailbox einer Identität ist ein echtes
-Postfach und wird wie jedes andere signiert. Aktiviert man sie unter *Postfächer*
-(`sig` + Vorlage), hängt der reguläre Signierpfad die Signatur an ihre Post an —
-ein eigener Signaturweg für Identitäten ist nicht nötig. Die Identitäten-Tabelle
-zeigt je Zeile den Stand (*Signatur ✓* bzw. *Signatur…*) und verlinkt dorthin.
-Zu beachten: Die Signatur zieht ihre Felder (Name, Titel, Telefon) aus den
-Verzeichnis-Attributen der Shared Mailbox — die sind oft dünn besetzt; eine Vorlage
-mit überwiegend statischem Inhalt oder gepflegte Entra-Attribute liefern das beste
-Ergebnis.
-
----
-
-## Betrieb auf Azure (kein ausgehender Port 25)
-
-Für den Azure-Betrieb `REINJECT_MODE=graph` (Graph-only) oder `graph_plus` (Graph++) wählen (die Vorgabe `smtp` braucht ausgehenden Port 25, den Azure-VMs sperren). Beide Azure-Modi benötigen nur ausgehend Port 443 (HTTPS); Graph++ ergänzt dies um IMAPS Port 993 für einen speziellen Anwendungsfall (siehe unten).
-
-### Azure VM anlegen (PowerShell-Skript)
-
-Das mitgelieferte Skript `azure-vm-setup.ps1` legt eine Debian-12-VM (arm64,
-`Standard_B2ps_v2`) mit statischer IP und vorkonfigurierter Firewall an und installiert Docker + das Gateway:
-
-```powershell
-.\azure-vm-setup.ps1 `
-    -Location "northeurope" `
-    -ResourceGroup "exo-gateway-rg" `
-    -SshPublicKeyFile "~/.ssh/id_rsa.pub" `
-    -RepoUrl "https://github.com/azitc-ac/EXO-Signature-Gateway.git"
-```
-
-Nach Abschluss zeigt das Skript die öffentliche IP und die nächsten Schritte (DNS setzen,
-Setup-Wizard aufrufen).
-
-**Wann wird IMAP APPEND benötigt?**  
-Nur in einem spezifischen Fall: Ein externer Absender schickt eine S/MIME-verschlüsselte Mail an einen internen Empfänger. Der Gateway entschlüsselt sie und muss das Ergebnis direkt ins Postfach des Empfängers legen. Die Graph API (`POST /mailFolders/inbox/messages`) setzt dabei das `MSGFLAG_UNSENT`-Flag — Outlook zeigt die Mail als Entwurf mit Senden-Knopf. IMAP APPEND setzt dieses Flag nicht; die Nachricht landet als echte empfangene Mail. **Ausgehende Mails** (Signatur-Injektion) und alle Mails von Absendern im eigenen Tenant laufen in Graph++ über Graph API sendMail und damit über den normalen Exchange-Zustellweg (Abwesenheitsnotiz, Posteingangsregeln).
-
-**Abwesenheitsnotiz und Posteingangsregeln:** IMAP APPEND legt die Nachricht nur ab, es ist kein Zustellweg — Exchange schickt dafür keine Abwesenheitsnotiz. Das Gateway übernimmt das selbst (seit v1.9.144): Es liest die Abwesenheitseinstellung des Empfängers und antwortet nach Exchanges Regeln (interner/externer Text, „nur Kontakte“, einmal je Absender, keine Antwort auf automatisch erzeugte Post). Die Antwort liegt danach in den *Gesendeten Elementen* des Empfängers. **Bekannte Grenze:** Posteingangsregeln laufen für diese Mails nicht. Graph kann nicht im Namen einer externen Adresse senden, deshalb gibt es ohne ausgehenden Port 25 keinen echten Zustellweg.
-
-### Voraussetzungen für Graph++ (`graph_plus`)
-
-Zusätzlich zu den Standard-Berechtigungen:
-
-1. **Entra-Portal**: App → API-Berechtigungen → Office 365 Exchange Online → `IMAP.AccessAsApp` → Admin-Zustimmung
-2. **Setup-Wizard** → Schritt "IMAP-Zugriff einrichten" (registriert Service Principal in EXO + setzt `FullAccess` **nur auf die aktiven Postfächer** — die in `MAILBOX_CONFIG` aktivierten, nicht tenantweit auf alle; Least Privilege). Nach dem Aktivieren weiterer Postfächer den Schritt erneut ausführen, damit auch sie den Zugriff erhalten.
-
----
-
-## Betrieb on-prem (Linux, außerhalb von Azure)
-
-Selbst-Hosting auf eigener Hardware oder VM (Hyper-V, Proxmox, Bare-Metal,
-Raspberry Pi) — ohne `azure-vm-setup.ps1`. Getestet auf Debian 12/13 (x86-64),
-läuft nativ ebenso auf ARM64. Ports, Dimensionierung, Erstinbetriebnahme und
-Re-inject-Modi wie in den Abschnitten **Netzwerk-Anforderungen**,
-**Dimensionierung des Hosts**, **Schnellstart** und **Re-inject-Modi**. On-prem
-kommen nur wenige Punkte hinzu:
-
-### Docker + Compose installieren
-
-```bash
-sudo apt update
-sudo apt install -y docker.io docker-compose
-sudo systemctl enable --now docker
-sudo usermod -aG docker "$USER"     # danach einmal ab- und wieder anmelden
-```
-
-Die nativen Debian-Pakete liefern den Befehl **`docker-compose`** (mit
-Bindestrich): auf Debian 13 ist das Compose v2, auf Debian 12 Compose v1 (1.29) —
-beide funktionieren mit der mitgelieferten `docker-compose.yml` (sie hat keinen
-`version:`-Schlüssel). Das plugin-basierte **`docker compose`** (ohne Bindestrich)
-gibt es nur über das offizielle Docker-CE-Repo. In dieser Doku steht überall
-`docker compose`; je nach Installation stattdessen `docker-compose` verwenden.
-
-### Verzeichnis-Rechte setzen (sonst Crash beim Start)
-
-Der Container läuft als **`appuser` (UID 1000)**. Fehlende Bind-Mount-Ordner legt
-Docker als **root** an — dann bricht der Start mit
-`PermissionError: [Errno 13] … '/app/data/settings.tmp'` ab. Deshalb die Ordner
-vor dem ersten Start anlegen und übereignen:
-
-```bash
-git clone https://github.com/azitc-ac/EXO-Signature-Gateway.git
-cd EXO-Signature-Gateway
-mkdir -p data certs
-sudo chown -R 1000:1000 data certs templates
-docker compose up -d --build        # --build baut lokal; es gibt kein vorgebautes Registry-Image
-docker compose ps                   # exo-signature-gateway "healthy"?
-```
-
-### Zertifikat ohne offenen Port 80
-
-Ist Port 80 nicht von außen erreichbar (NAT, rein intern), im First-Run-Wizard
-statt Let's Encrypt HTTP-01 einen der beiden anderen Wege wählen:
-**Let's Encrypt DNS-01** (validiert per DNS-TXT, kein eingehender Port) oder
-**PFX-Import** (eigenes Zertifikat hochladen). ⚠️ DNS-01 muss ~alle 90 Tage
-manuell erneuert werden.
-
-### DNS
-
-- Feste/reservierte IP für den Host.
-- **Split-Horizon-DNS** empfohlen: intern zeigt der Hostname auf die **private**
-  IP (öffentlich weiter auf die öffentliche), damit interne Clients und die
-  Selbst-Checks des Gateways direkt zugehen statt über Hairpin-NAT. Kein Konflikt
-  mit Let's-Encrypt DNS-01.
-
-### Re-inject-Modus
-
-On-prem mit freiem ausgehendem Port 25 ist die Vorgabe **`smtp`** nutzbar (in
-Azure gesperrt, dort `graph` oder `graph_plus`).
-
-### Schlüssel ohne Azure Key Vault
-
-Ohne Azure entfallen die Cloud-Spezifika: kein IMDS (der Regions-/
-Ressourcengruppen-Vorschlag im Key-Vault-Schritt bleibt leer — unkritisch) und
-kein Azure Key Vault. Die privaten S/MIME-Schlüssel liegen dann **lokal** unter
-`data/`. Dafür die **Verschlüsselung ruhender Schlüssel** setzen: *Einstellungen →
-S/MIME → „Verschlüsselung ruhender Schlüssel"* — der Schalter ist ab Werk an,
-wird aber erst mit einem gesetzten Passwort wirksam. (Azure Key Vault bleibt als
-optionale Alternative bestehen.)
-
-### Updates
-
-```bash
-git pull && docker compose up -d --build
-```
-
-Die Bind-Mounts `data/`, `certs/`, `templates/` bleiben erhalten → Konfiguration
-und Zertifikat überstehen das Update. (Alternativ per Web-UI: *Update & Backup*.)
-
----
-
-## Voraussetzungen
-
-- Docker + Docker Compose
-- Microsoft 365 / Exchange Online Tenant
-- Azure App-Registrierung mit diesen **Application Permissions**:
-
-| Permission | Pflicht | Zweck |
-|---|---|---|
-| `User.Read.All` | ✓ | Benutzerdaten (Signaturfelder) per Graph lesen |
-| `Mail.Send` | ✓ | Mails über Graph API senden (Re-inject + ACME) |
-| `Mail.ReadWrite` | ✓* | Gesendete Elemente patchen; schließt `Mail.Read` ein |
-| `MailboxSettings.ReadWrite` | Abwesenheit | Zentrale Abwesenheitsnotiz setzen |
-| `Calendars.Read` | Abwesenheit, abschaltbar | Abwesenheit aus dem Kalender, Ankündigung; entfällt mit *Kalender der Postfächer lesen: aus* |
-| `AppCatalog.Read.All` | Teams-App (optional) | Fassung der Teams-App im Katalog prüfen; nur mit *Teams-App ist bereitgestellt* |
-| `Exchange.ManageAsApp` | ✓ | EXO PowerShell (Connector/DG-Setup via Wizard) |
-| `IMAP.AccessAsApp` | IMAP-Modus | IMAP APPEND in Empfänger-Postfächer (kein Draft) |
-| `SMTP.SendAsApp` | Port 587 (optional) | SMTP-Einlieferung als Absender für bifurkierte Mails (gemischte interne/externe Empfänger, nur in Graph++) |
-
-*\* Schließt `Mail.Read` ein (für CASTLE ACME Mailbox-Polling benötigt).*
-
----
-
-## Dimensionierung des Hosts
-
-Der Container ist im Dauerbetrieb genügsam (**~70–150 MB RAM**, geringe CPU-Last).
-Maßgeblich für die RAM-Untergrenze ist nicht die Postfachzahl, sondern der
-**Build**: PowerShell + das ExchangeOnlineManagement-Modul brauchen dabei
-kurzzeitig **~1,5 GB**. Deshalb sind **2 GB RAM überall die praktische
-Untergrenze**.
-
-| Umgebung | Postfächer / Aufkommen | RAM | vCPU | Disk | Beispiel |
-|---|---|---|---|---|---|
-| **Klein** | bis ~100, geringes Aufkommen | 2 GB | 2 | 32 GB | Azure `B2ps_v2`/`B2s`, Raspberry Pi 4/5 |
-| **Mittel** | ~100–500 | 2–4 GB | 2 | 32–64 GB | Azure `B2ps_v2`, kleiner Linux-Server |
-| **Groß** | 500+, hohes Aufkommen | 4 GB | 2–4 | 64+ GB | + App-Pool (siehe Hinweis) |
-
-- **Der begrenzende Faktor bei hohem Aufkommen ist nicht der Host, sondern die
-  Graph-API-Drosselung.** Dagegen hilft der **App-Pool** (mehrere
-  App-Registrierungen im Round-Robin), einzurichten im Setup-Assistenten — nicht
-  mehr RAM.
-- **Disk** wächst mit dem Audit-Log (SQLite) und den rotierenden Logdateien
-  unter `data/`; bei hohem Aufkommen entsprechend großzügiger wählen.
-- Läuft auf **x64 und ARM64** gleichermaßen (Azure-VM wie Raspberry Pi).
-
-**Empfohlene Azure-Größe: `Standard_B2pls_v2`** (ARM64/Ampere, 2 vCPU, **4 GB**) —
-deckt Build (~1,5 GB) und Laufzeit ab, ohne wie das oft voreingestellte
-`B2ps_v2` (8 GB) zu überdimensionieren. Richtwert Gesamtkosten (Azure-Retail,
-northeurope, ~730 h/Monat):
-
-| Posten | Kosten |
-|---|---|
-| VM `B2pls_v2` (Linux, 24/7) | ~$27/Monat |
-| OS-Disk 30 GB Standard SSD (E4) | ~$2,4/Monat |
-| 1× statische Standard-Public-IP | ~$3,65/Monat |
-| **Summe** | **≈ $33/Monat (~€31)** — mit 1-Jahres-Reservierung ~€22–24 |
-
-- **ARM (Ampere) ist bei gleichem RAM ~15–20 % günstiger** als x64.
-- Für sehr geringes Aufkommen genügt auch x64 `B1ms` (1 vCPU/2 GB, ~$16/Monat;
-  Build ggf. mit Swap). Premium-SSD ist nicht nötig (kein hoher IOPS-Bedarf).
-- Regionale Preise variieren ~10–15 % (swedencentral ist die günstigste
-  EU-Region). Es genügt **eine** statische Public IP.
-
----
-
-## Re-inject-Modi
-
-> **Begriffe:** Der *Modus* (`REINJECT_MODE`) bestimmt, wie der Gateway fertig verarbeitete Mails zurück an Exchange übergibt. IMAP APPEND und Port 587 sind **keine** eigenen Modi, sondern Mechanismen innerhalb von **Graph++** für zwei Sonderfälle (eingehende S/MIME-Entschlüsselung bzw. gemischte Empfänger).
-
-Der Modus wird in der Web-UI unter **Einstellungen → Re-inject-Modus** oder via `REINJECT_MODE` konfiguriert. Es gibt drei Werte: `smtp`, `graph` (Anzeige „Graph-only") und `graph_plus` (Anzeige „Graph++").
-
-### `graph` — „Graph-only" (Azure, nur über Graph)
-
-- **Alle** Re-injects über Graph API `sendMail` (HTTPS) — kein Port 25, kein 587, kein TLS-Zertifikat.
-- **Nur Signaturen, kein S/MIME.** Eingehende verschlüsselte Mail liesse sich nur über `/mailFolders/inbox/messages` einspielen (erzeugt einen Entwurf), daher ist S/MIME hier abgeschaltet.
-- Gemischte Empfänger (intern+extern) werden über eine Graph-Heuristik (send-to-all) zugestellt: volle Antwort-an-Alle, verlustfrei — aber seltene Duplikate, falls der Dienst genau zwischen den beiden Teilnachrichten neu startet.
-- Kein `IMAP.AccessAsApp` erforderlich. Preview; für den vollen Funktionsumfang → Graph++.
-
-### `graph_plus` — „Graph++" (Azure, voll: Signaturen + S/MIME)
-
-Graph als Hauptweg, ergänzt um zwei Lückenfüller:
-
-- **Ausgehende Mails** (Signatur-Injektion): Graph API `sendMail` (HTTPS) — der Großteil.
-- **Eingehende, S/MIME-entschlüsselte Mail**: IMAP APPEND (Port 993) direkt ins Postfach — kein Draft-Flag, keine „Senden"-Schaltfläche in Outlook.
-- **Gemischte (intern+extern) Empfänger**: Port 587 (authentifizierte Übermittlung als der Absender) für deterministische, vollständige Antwort-an-Alle.
-- **Kein ausgehender Port 25**, kein TLS-Zertifikat nötig.
-- Erfordert `IMAP.AccessAsApp` + EXO Service Principal (via Setup-Wizard); der 587-Anteil braucht `SMTP.SendAsApp`.
-- Altnamen `imap`/`smtp587` (in Bestandsanlagen) bezeichnen denselben Modus und werden weiterhin angenommen.
-
-### `smtp` — Vorgabe / klassisch
-
-- **Die Vorgabe** (`REINJECT_MODE` ist ab Werk `smtp`)
-- Re-inject via SMTP + STARTTLS an den EXO-Smarthost (`<tenant>.mail.protection.outlook.com:25`)
-- Erfordert ausgehenden Port 25 – **nicht Azure-kompatibel**
-- Kein zusätzliches App-Permission erforderlich
-
-#### Domänen-Routing (Next-Hop je Empfängerdomäne)
-
-Standardmäßig geht alle bearbeitete Post an den einen EXO-Smarthost. Im
-`smtp`-Modus lässt sich je **Empfängerdomäne** ein abweichender Zielserver
-wählen — etwa ein lokaler Exchange im Hybrid-Betrieb. Auf der Relay-Seite unter
-*Domänen-Routing*: **Weiterleitungsziele** (Host, Port, STARTTLS, optionaler
-Login samt Passwort) anlegen und einzelnen Domänen zuordnen. Ohne Zuordnung
-bleibt Exchange Online das Ziel.
-
-- Post an eine geroutete Domäne wird **unverändert** durchgereicht — kein
-  Eingriff in DKIM/ARC (anders als beim Rückweg über Exchange, das neu signiert).
-- Empfänger mehrerer Domänen in einer Nachricht werden je Ziel getrennt
-  zugestellt.
-- Wirkt **nur im `smtp`-Modus**; in den Graph-Modi geht alle Post an Exchange
-  Online.
-- Kein offenes Relay: die Domänen-Zuordnung ist eine ausdrückliche Freigabeliste,
-  Ziel-Passwörter werden maskiert.
-
-> ⚠️ Für einen echten **Hybrid-Mailfluss** (eingehende Post landet on-prem als
-> „intern", `AuthAs: Internal`) reicht das Routing allein nicht: Das Gateway
-> terminiert die TLS-Verbindung und liefert mit eigener IP und eigenem Zertifikat
-> ein. Der on-prem-Empfangsconnector des Hybrid-Assistenten vertraut aber der
-> EXO-Identität, nicht dem Gateway.
->
-> **Stabiler Weg (validiert): IP-basiertes Vertrauen.** On-prem einen eigenen
-> Empfangsconnector `Inbound from <Gateway> (Coexistence)` mit
-> `PermissionGroups=ExchangeServers`, `AuthMechanism=Tls,ExternalAuthoritative`
-> und der **Quell-IP des Gateways** in `RemoteIPRanges` anlegen. Sieht der
-> on-prem-Exchange das Gateway hinter einem Load-Balancer (z. B. Kemp mit SNAT),
-> ist das die **LB-IP**, nicht die des Gateways.
->
-> - ⚠️ `Tls` MUSS in `AuthMechanism` bleiben — sonst bietet der Connector kein
->   STARTTLS an, das Gateway bricht mit `QUIT` ab → **Mailstopp**.
-> - ⚠️ `ExternalAuthoritative` vertraut **jedem** Host hinter dieser Quell-IP.
->   Das ist nur vertretbar, wenn der Load-Balancer eingehende Post
->   **ausschließlich** vom Gateway erhält (eine einzige Route). Diese Bedingung
->   ist Teil des Sicherheitsvertrags.
-> - Der cert-genaue Weg (`TlsDomainCapabilities`/Direct Trust) ist bewusst
->   **zurückgestellt** — er scheitert an XOORG bzw. verlangt unsupported
->   AD-Eingriffe; siehe Forschungsnotiz. Der IP-Weg ist die stabile Basis.
->
-> Das ist eine on-prem-Anpassung, keine Gateway-Einstellung — das dafür nötige
-> PowerShell (Aufbau **und** Abriss) erzeugt die Relay-Seite unter
-> *Hybrid-Koexistenz*: Gateway-Name, Quell-IP und optional die Server eintragen,
-> das Skript kopieren und in der Exchange Management Shell ausführen. Der
-> Connector heißt `Inbound from <Gateway> (Coexistence)`; die Parameter werden
-> gemerkt, sodass sich derselbe Weg jederzeit abreißen und wieder aufbauen lässt.
-
-### Port 587 — kein Modus, sondern ein Sonderweg
-
-⚠️ Häufiges Missverständnis: Einen „587-Modus" gibt es nicht. Port 587 kommt
-**innerhalb** von `graph_plus` (Graph++) zum Zug, und zwar für Post, die Exchange in
-Teilnachrichten aufgeteilt hat: Nur SMTP trennt Zustellempfänger von den
-angezeigten Empfängern, Graph kann das nicht. Voraussetzung ist die
-Anwendungsberechtigung `SMTP.SendAsApp`. In den Modi `graph` (Graph-only) und
-`smtp` spielt Port 587 keine Rolle.
+Eine Transportregel in Exchange Online leitet die Post der aktivierten
+Postfächer an das Gateway. Es fügt Signatur, Banner und Disclaimer ein,
+signiert und verschlüsselt auf Wunsch und gibt die Mail an Exchange zurück:
+über SMTP oder, in Azure, über Microsoft Graph. Outlook und andere Programme
+sprechen weiter nur mit Exchange.
+
+Details zu Rückweg, Ports und Größe des Hosts: **[docs/betrieb.md](docs/betrieb.md)**
 
 ---
 
 ## Schnellstart
 
-### Unterstützte Architekturen — x86-64 (amd64) und ARM64
-
-Das Image baut **nativ auf `linux/amd64` (x86-64) und `linux/arm64`** — ein
-Selbsthosting läuft also gleichermaßen auf einem gewöhnlichen x64-Server/-VM
-wie auf einem Raspberry Pi. Es ist nichts zu konfigurieren:
-`docker compose up -d --build` erkennt die Host-Architektur und baut das
-passende Image (Base-Image, PowerShell und alle Python-Abhängigkeiten sind
-Multi-Arch).
-
-> **Nativ auf der Ziel-Architektur bauen.** Das Image **nicht** per QEMU-
-> Emulation cross-bauen (z.B. `docker buildx --platform linux/amd64` auf einem
-> ARM-Host): Der Build installiert das PowerShell-Modul
-> `ExchangeOnlineManagement`, das .NET ausführt — und .NET bricht unter
-> QEMU-User-Emulation ab (SIGABRT / Exit 134). Das ist eine Emulations-Grenze,
-> **kein** Architektur-Problem. Für x64 auf einer echten x64-Maschine bauen,
-> für ARM auf ARM.
-
-### 1. Repository klonen
-
 ```bash
 git clone https://github.com/azitc-ac/EXO-Signature-Gateway.git
 cd EXO-Signature-Gateway
-```
-
-### 2. Starten
-
-Die Bind-Mounts `data/` und `certs/` müssen dem Container-Benutzer (UID 1000)
-gehören — sonst bricht der erste Start mit `PermissionError` ab, weil Docker
-fehlende Ordner als root anlegt:
-
-```bash
-mkdir -p data certs
-sudo chown -R 1000:1000 data certs templates
+mkdir -p data certs && sudo chown -R 1000:1000 data certs templates
 docker compose up -d --build
 ```
 
-`--build` baut das Image lokal (es gibt kein vorgebautes Registry-Image) und
-vermeidet die „pull access denied"-Warnung beim ersten Start.
+1. `http://<IP-des-Hosts>` öffnen und das TLS-Zertifikat einrichten (Let's
+   Encrypt oder eigenes).
+2. `https://<dein-hostname>` öffnen, mit `admin` / `admin` anmelden und ein
+   neues Passwort setzen.
+3. Der Einrichtungsassistent legt die App-Registrierung in Entra ID an und
+   richtet Connector, Transportregel und Verteilerliste in Exchange Online ein.
 
-### 3. First-Run — TLS-Zertifikat einrichten
-
-Beim allerersten Start existiert noch kein TLS-Zertifikat. Das Gateway startet dafür
-einen minimalen Setup-Wizard auf **Port 80 (HTTP)** — erreichbar direkt per IP, ein
-DNS-Name muss dafür noch nicht gesetzt sein:
-
-```
-http://<öffentliche-IP>
-```
-
-Der Wizard bietet drei Wege zum Zertifikat:
-
-- **Let's Encrypt HTTP-01** (Standard): Let's Encrypt ruft zur Prüfung Port 80 **von
-  außen** auf. Voraussetzung: Der DNS-Name zeigt bereits auf diese IP **und** Port 80
-  ist aus dem Internet erreichbar.
-- **Let's Encrypt DNS-01**: Prüfung über einen TXT-Record, **ohne** eingehenden Port —
-  für NAT/rein interne Hosts. ⚠️ Erneuerung ~alle 90 Tage manuell.
-- **PFX-Import**: eigenes Zertifikat hochladen (auch Wildcard oder interne CA).
-
-Hostname (`sig.example.com`) und — bei Let's Encrypt — die ACME-E-Mail eintragen, Weg
-wählen, Zertifikat beziehen. Hinweise für NAT/rein interne Hosts im Abschnitt
-**Betrieb on-prem**.
-
-Nach Erfolg:
-
-```bash
-docker compose restart
-```
-
-### 4. HTTPS-Setup-Wizard
-
-Ab jetzt ist die Web-UI über HTTPS erreichbar:
-
-```
-https://sig.example.com
-```
-
-> **Standard-Login:** Benutzer `admin`, Passwort `admin` — einheitlich, auch auf
-> Azure-VMs. Der erste Schritt des Setup-Wizards erzwingt das Setzen eines neuen
-> Passworts.
-
-Der Setup-Wizard führt durch die Erstkonfiguration:
-
-- Azure App-Registrierung (automatisch via PKCE-Flow inkl. Admin-Consent)
-- EXO Connector, Transportregel, Verteilerliste
-- Optional: IMAP-Zugriff für Azure-Betrieb (`REINJECT_MODE=imap`)
+Voraussetzungen, Azure-VM per Skript, Betrieb vor Ort und Berechtigungen:
+**[docs/installation.md](docs/installation.md)**
 
 ---
 
-## Web-UI
+## Dokumentation
 
-Erreichbar über HTTPS unter dem konfigurierten Hostnamen (**Port 443**) — in
-Azure wie im Self-Hosting. Intern lauscht der Container auf Port 8080; Docker
-bildet `443 → 8080` ab. Alle Einstellungen werden in der Oberfläche gepflegt
-(die `data/settings.json` von Hand zu editieren ist nicht nötig).
-
-| Seite | Funktion |
+| | |
 |---|---|
-| **Dashboard** | Mail-Statistiken (Heute / Monat / Jahr), S/MIME-Zähler, Fehler, Zertifikatsablauf, System-Monitoring (RAM, Disk, Logs, In-Flight, Ø Verarbeitungszeit) |
-| **Signaturen** | Signaturen im Baukasten oder als HTML/Plaintext bearbeiten, Banner & Disclaimer, Abwesenheitsvorlagen, Vorschau; Richtlinien/Gruppen-Zuweisung; Banner-Kampagnen |
-| **Abwesenheit** | Wer gerade abwesend ist, Abwesenheit je Postfach setzen, Vorgaben für Ankündigungen (sichtbar, wenn die Funktion eingeschaltet ist) |
-| **Postfächer** | Aktivierte Postfächer verwalten, nach Typ, Signatur und S/MIME filtern, EXO-Verteilerliste synchronisieren, Zertifikate für mehrere Postfächer auf einmal bestellen (Massenoperationen); Status je Postfach (Exchange, Verteilerliste, Graph-Zugriff, Abwesenheit, Signatur, S/MIME, ausgelieferte Fassung der Outlook-Add-ins) |
-| **S/MIME** | Zertifikat-Import, Empfänger-Zertifikate, Azure-Key-Vault-Migration, CASTLE-ACME-Enrollment, Secure Message Portal |
-| **SMTP-Relay** | Geräte im eigenen Netz (Drucker, Scanner) über das Gateway senden lassen — Geräteliste und Lernmodus |
-| **Einstellungen** | Alle Konfigurationsoptionen, Test-Mail, Let's Encrypt, Re-inject-Modus, Entra-App, Anbindung & Lizenzen, Update & Backup |
-| **Log** | Live-Ansicht der Gateway-Logs |
-| **Add-in** | Office-Add-in für Outlook (Signatur-Vorschau und -Auswahl im Verfassenfenster, Self-Service beim Lesen) und App-Paket für die linke Leiste von Outlook und Teams |
-| **Setup** | Erstkonfigurationsassistent (App-Registrierung, Connector, IMAP-Zugriff, Anmeldung prüfen) |
-| **Debug** | ACME-Versandmethode, Account-Key-Reset, Exchange Header Observatory |
-
-Die Oberfläche folgt der Systemeinstellung für **hellen und dunklen Modus** und ist auf Telefonbreite (ab 320 px) bedienbar.
-
-### Outlook-Add-in und App bereitstellen
-
-Beides lädst du einmal im Microsoft 365 Admin Center unter *Integrierte Apps* hoch. Die Schritte stehen unter *Einrichtung → Outlook-Add-in*.
-
-- **Vorher die Admin-Rolle aktivieren** (mit PIM: Rolle aktivieren). Ohne aktive Rolle sind *Aktualisieren* und *Entfernen* ausgegraut.
-- **Wartezeit einplanen:** Microsoft nennt 24 bis 72 Stunden, bis Add-in und App in Outlook erscheinen; Exchange verteilt Postfach für Postfach. In der Wartezeit nichts entfernen und neu hochladen.
-- **Gateway-Updates brauchen kein neues Hochladen.** Was im Bereich bzw. in der App angezeigt wird, liefert das Gateway live aus. Neu hochzuladen ist nur, wenn sich das Paket ändert (neuer Knopf, andere Links) — dann steigt die Versionsnummer, und *Aktualisieren* genügt.
-- **Wo Nutzer die App finden:** in Outlook unter *Weitere Apps → Apps hinzufügen → Für Ihre Organisation erstellt → Öffnen*, in Teams ebenso im Store. Rechtsklick auf das Symbol in der Leiste → *Anheften*.
-- **Bereich anheften:** Im Aufgabenbereich des Add-ins oben auf die Pinnadel klicken — er bleibt dann beim Wechsel der Mail offen bzw. öffnet sich bei der nächsten neuen Mail wieder (getrennt für Lesen und Verfassen). Ohne ausgewählte Mail steht der Knopf nur im klassischen Outlook bereit; in Outlook im Web und im neuen Outlook zeigt Microsoft Add-in-Knöpfe erst an einer ausgewählten Mail.
-- **Teams:** Zeigt das Teams Admin Center danach noch die alte Version, dort *Neue Version hochladen*. Anheften lässt sich die App in Teams zentral über eine Setup-Richtlinie (*Pinned apps*); für Outlook ist keine solche Richtlinie bekannt — dort heftet jeder Nutzer sie selbst über *Weitere Apps* an.
-
----
-
-## S/MIME Signierung & Verschlüsselung
-
-Mails können pro Absender digital signiert und/oder verschlüsselt werden.
-
-1. PFX-Zertifikat über die Web-UI unter **S/MIME → Importieren** hochladen
-2. Zertifikat wird dem Absender automatisch zugeordnet; mehrere Zertifikate pro Adresse möglich
-3. Funktioniert in allen Modi (Graph, IMAP, SMTP)
-
-**Azure Key Vault Integration:**  
-Private Schlüssel können optional in Azure Key Vault gespeichert werden. Das Gateway signiert dann via Key Vault Sign API – der private Schlüssel verlässt das HSM nie. Fallback-Modus (`KV_KEY_MODE=fallback`) erlaubt lokale Backup-Kopie als Ausfallsicherung.
-
-Für die Verschlüsselung werden Empfänger-Zertifikate separat verwaltet (Bereich "Empfängerzertifikate").
-
----
-
-## S/MIME Zertifikat-Lifecycle & Auto-Enrollment (CASTLE ACME)
-
-Das Gateway überwacht Zertifikatsablaufdaten und kann Erneuerungen anstoßen. Pro Benutzer ist ein CA-Backend konfigurierbar.
-
-### Verfügbare Backends
-
-| Backend | Typ | Beschreibung |
-|---|---|---|
-| **Assisted Manual** | manuell | Benutzer erhält E-Mail mit Link zum CA-Portal und Self-Service-Upload-Link |
-| **CASTLE Platform (RFC 8823)** | vollautomatisch | ACME-Auftrag wird automatisch platziert, Zertifikat wird ohne Benutzerinteraktion importiert |
-
-### CASTLE ACME – Ablauf
-
-```
-Gateway          CASTLE ACME              Exchange Online (Postfach)
-   │                  │                           │
-   │── new-order ────►│                           │
-   │◄── authz ────────│                           │
-   │                  │── Challenge-E-Mail ───────►│
-   │                  │   Subject: "ACME: <token>" │
-   │◄── Graph API inbox poll (alle 30 s) ─────────│
-   │── Graph sendMail (Re: ACME: …) ──────────────►│
-   │                  │   (Exchange → Connector → Gateway → rebuild → CASTLE MX)
-   │                  │◄── RFC 8823-konforme Antwort
-   │── trigger_challenge ──►│                      │
-   │── finalize (CSR) ─────►│                      │
-   │◄── Zertifikat (PEM) ───│                      │
-   │── importiert Zertifikat, Admin-Benachrichtigung
-```
-
-**Warum Graph API Polling statt SMTP-Intercept:**  
-Der MX-Record der Betreiberdomain zeigt auf Exchange Online — die Challenge-E-Mail geht direkt ins Postfach, ohne den Gateway zu passieren. Das Gateway pollt daher aktiv das Postfach via Graph API.
-
-**Kein Port 25 / kein ACS nötig:**  
-Die Challenge-Antwort wird per `Graph sendMail` gesendet. Exchange routet die Antwortmail über den Outbound-Connector zurück durch das Gateway — der Handler erkennt `Subject: Re: ACME:` und baut ein RFC 8823-konformes MIME mit CRLF neu auf. Damit gelangt die Antwort zu CASTLE – ohne direkten Port-25-Zugang.
-
----
-
-## Signatur-Templates
-
-Signaturen lassen sich auf zwei Wegen pflegen:
-
-- **Baukasten** — ein visueller Editor in der Oberfläche setzt die Signatur aus
-  Bausteinen zusammen (Name, Kontaktzeilen, Logo, Trennlinie, Zwei-Spalten,
-  Kasten mit runden Ecken, Social-Links, Anschrift, Badge, freies HTML) mit
-  Live-Vorschau. Logos werden als Base64-Data-URI **eingebettet**. Bestehendes
-  Signatur-HTML kann eingefügt werden und wird **zurück in Bausteine zerlegt**
-  (Rück-Konvertierung), sodass sich eine vorhandene Signatur übernehmen lässt.
-  Banner und Disclaimer sind eigene Vorlagen und getrennt zuweisbar.
-- **HTML/Plaintext direkt** — die Vorlagen liegen unter `./templates/`, sind per
-  Volume gemountet und wirken sofort ohne Rebuild.
-
-Zugewiesen werden Signatur, Antwort-Signatur, Banner und Disclaimer global, je
-Postfach oder per **Richtlinie/Gruppe** (interne Postfach-Gruppen,
-„erste Regel gewinnt").
-
-### Verfügbare Jinja2-Variablen (`{{ user.* }}`)
-
-| Variable | Quelle |
-|---|---|
-| `user.displayName` | Graph `displayName` |
-| `user.jobTitle` | Graph `jobTitle` |
-| `user.department` | Graph `department` |
-| `user.companyName` | Graph `companyName` |
-| `user.mail` | Graph `mail` |
-| `user.phone` | Graph `businessPhones[0]` |
-| `user.mobilePhone` | Graph `mobilePhone` |
-| `user.officeLocation` | Graph `officeLocation` |
-| `user.website` | `USER_WEBSITES`-Override → `businessHomePage` → `extensionAttribute1` |
-| `user.bookingsUrl` | `USER_BOOKINGS`-Override → `extensionAttribute2` |
-
-**Eigene Variablen:** Zusätzlich lassen sich in der Oberfläche eigene Felder
-definieren, die aus einem beliebigen Entra-Attribut gefüllt werden — im Template
-als `{{ custom.<name> }}` verfügbar. Einzelne Werte können pro Postfach
-überschrieben werden.
-
----
-
-## Mail-Typen
-
-Das Gateway verarbeitet alle gängigen MIME-Formate korrekt:
-
-- **HTML-Mails** – Signatur wird vor `</body>` eingefügt
-- **Nur-Text-Mails** – werden zu `multipart/alternative` konvertiert (Text + HTML)
-- **TNEF/Winmail.dat** (Outlook RTF) – wird entpackt, HTML-Body extrahiert oder aus Plaintext rekonstruiert
-- **Multipart-Mails** – HTML- und Textteile werden jeweils separat ergänzt
-
----
-
-## Let's Encrypt
-
-Port 80 ist im mitgelieferten `docker-compose.yml` bereits offen (HTTP-01 Challenge).
-
-1. Sicherstellen dass Port 80 und Port 25 extern erreichbar sind (Firewall / NAT-Regel).
-2. In der Web-UI unter **Einstellungen → Einrichtung → TLS-Zertifikat** Domain und E-Mail eintragen.
-3. Weg **Let's Encrypt über HTTP** wählen und **Zertifikat beantragen** klicken.
-4. Nach Erfolg: **Gateway neu starten** (Button in Einstellungen oder `docker compose restart`).
-
-Danach erneuert sich das Zertifikat automatisch: Der Hintergrunddienst stößt die
-Erneuerung an, sobald die Restlaufzeit die eingestellte Schwelle unterschreitet
-(Vorgabe 14 Tage, am HTTP-Weg ein-/ausschaltbar). Damit das erneuerte Zertifikat
-ausgeliefert wird, ist anschließend ein Neustart nötig — eine Benachrichtigung
-weist darauf hin.
-
----
-
-## Gesendete Elemente (Sent Items)
-
-Wenn `SENT_ITEMS_UPDATE` aktiviert ist, patcht das Gateway nach dem Versand die Mail in den Gesendeten Elementen des Absenders mit der signierten Version.
-
-**Voraussetzung:** `Mail.ReadWrite.All` Application Permission mit Admin Consent.
-
----
-
-## Volumes
-
-| Pfad (Host) | Container | Inhalt |
-|---|---|---|
-| `./templates/` | `/app/templates/` | Signatur-Templates (wirken sofort) |
-| `./certs/` | `/app/certs/` | TLS-Zertifikat (`cert.pem`, `key.pem`) |
-| `./data/` | `/app/data/` | Einstellungen, S/MIME-Zertifikate, ACME-Daten |
-
----
-
-## Datenspeicherung & Aufbewahrung
-
-Alle Daten bleiben im eigenen Tenant bzw. auf dem eigenen Host — nichts läuft
-über eine fremde Cloud. Gespeichert wird (alles unter `./data/`, SQLite):
-
-| Was | Inhalt | Aufbewahrung |
-|---|---|---|
-| **Audit-Log** | Absender, Empfänger, **Betreffzeile**, Message-ID, Aktion, Zeit — **keine** Mailinhalte | `LOG_RETENTION_DAYS` (Vorgabe **30 Tage**), danach automatisch gelöscht |
-| **Betriebsprotokoll** | technische Logzeilen (rotierend) | `LOG_RETENTION_DAYS` |
-| **Secure Message Portal** *(nur wenn genutzt)* | Nachrichteninhalte und Antworten **AES-256-GCM-verschlüsselt**; der Schlüssel liegt im Link-Fragment, nicht in der Datenbank | `SECURE_PORTAL_RETENTION_DAYS` (Vorgabe **14 Tage**), täglicher Cleanup |
-| **SMTP-Relay** *(nur wenn genutzt)* | IP-Adressen der Geräteliste und abgewiesener Quellen samt Absender/Ziel — für die Betriebsübersicht | bis zur manuellen Entfernung |
-
-Die Aufbewahrungsfristen sind in **Einstellungen** änderbar. Ein Backup
-(*Update & Backup*) enthält `data/` und `templates/` — also auch Audit-Log und
-ggf. Portal-Daten; entsprechend geschützt aufbewahren.
-
----
-
-## Architektur
-
-Ein Container, mehrere Bausteine (Code unter `app/`, Web-Routen unter
-`app/webui/routen/`):
-
-- **SMTP-Listener** (Port 25) nimmt die von Exchange ausgeleitete Post an, prüft
-  Schleifen-Header und Quelle (inkl. SMTP-Relay-Geräteliste) und übergibt sie
-  der Verarbeitung.
-- **Verarbeitung** schlägt Absenderdaten per Graph nach, rendert die Signatur
-  (Jinja2 bzw. Baukasten), verarbeitet HTML/Plaintext/TNEF, wendet
-  Richtlinien/Gruppen an und signiert/verschlüsselt optional per S/MIME.
-- **Reinject** gibt die fertige Mail zurück an Exchange — je nach Modus über
-  Graph `sendMail`, IMAP APPEND oder SMTP (Smarthost bzw. Port 587 für von
-  Exchange aufgeteilte Sendungen).
-- **Web-UI** (FastAPI) für Einrichtung, Signaturen/Baukasten, Postfächer,
-  S/MIME, SMTP-Relay, Dashboard und Protokolle.
-- **S/MIME-Lebenszyklus** über ACME (CASTLE, RFC 8823), Zertifikatsablage
-  (lokal oder Azure Key Vault) und Empfänger-Zertifikat-Harvesting; Secure
-  Message Portal für Empfänger ohne Zertifikat.
-- **Zeitplaner** für tägliche Prüfungen (Zertifikatsablauf, Benachrichtigungen,
-  Postfach-Gesundheit).
-
-Alle veränderlichen Zustände liegen unter `data/` (Einstellungen, Zertifikate,
-ACME-Daten, Audit-Log) und `templates/` (Signaturvorlagen).
+| [Funktionen](docs/funktionen.md) | Signaturen, Zuweisung, Abwesenheit, Self-Service, S/MIME, Vorlagen und Variablen, Mail-Typen |
+| [Installation](docs/installation.md) | Voraussetzungen und Berechtigungen, Schnellstart, Azure, Betrieb vor Ort, Let's Encrypt |
+| [Betrieb](docs/betrieb.md) | Ablauf, Ports, Rückweg-Modi, Domänen-Routing, Sende-Identitäten, Größe des Hosts, Oberfläche, Add-ins bereitstellen, Datenspeicherung, Architektur |
+| [CHANGELOG](CHANGELOG.md) | Alle Änderungen, mit „Zu tun“ für bestehende Installationen |
+| [SECURITY](SECURITY.md) | Sicherheitslücken melden |
 
 ---
 
 ## Lizenz
 
-[PolyForm Internal Use License 1.0.0](LICENSE.md) (Community Edition) — frei
-für bis zu 100 Postfächer; darüber hinaus ist eine kostenpflichtige
-kommerzielle Lizenz erforderlich. Siehe vollständigen Text in `LICENSE.md`.
+[PolyForm Internal Use License 1.0.0](LICENSE.md) (Community Edition): frei
+nutzbar für eigene und interne Zwecke, auch im Unternehmen, für **bis zu 100
+Postfächer**. Darüber hinaus ist eine kostenpflichtige kommerzielle Lizenz
+erforderlich, Kontakt: alexander@zarenko.net. Unabhängig von der Größe nicht
+erlaubt: Weiterverteilung, Betrieb als Dienstleistung für Dritte oder
+Verkauf und Anbieten als Service durch andere als den Lizenzgeber.
