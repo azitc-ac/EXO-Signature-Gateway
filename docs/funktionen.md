@@ -27,13 +27,14 @@ Zuschaltbar unter *Einrichtung → Modus & Funktionen* (Vorgabe aus).
 
 Die Abwesenheit ist zentral verwaltet und trotzdem die ganz normale Exchange-Abwesenheit: Die Übersicht liest den **Live-Zustand aus Exchange** — auch Abwesenheiten, die jemand selbst in Outlook gesetzt hat —, zeigt die gewählte Vorlage, den Zeitraum und die Kalenderkopplung und lässt neue Abwesenheiten direkt setzen. Text, Signatur und Banner kommen aus denselben Vorlagen wie die Signaturen. Diese Kombination aus Live-Übersicht, Kalenderkopplung, Ankündigung künftiger Abwesenheiten und Signaturverwaltung in einem Produkt gibt es unseres Wissens bei keinem anderen Anbieter (Stand 10/2026).
 
-<img src="screenshots/abwesenheit-uebersicht.png" width="820" alt="Abwesenheits-Übersicht: wer abwesend ist, mit Vorlage, Zeitraum, Kalender und Ankündigung">
 - **Einheitlicher Abwesenheitstext** — eine Vorlage der Art *Abwesenheit* (Baukasten wie bei Signaturen, mit Zeitraum-Platzhaltern und der Signatur darunter) wird per Graph in die native Exchange-Abwesenheit geschrieben. Ein- und ausgeschaltet wird wie gewohnt in Outlook oder im Self-Service; Exchange verschickt die Antwort selbst.
 - **Zuweisung** global, je Gruppe oder je Postfach — wie bei Signaturen.
 - **Aus dem Kalender** (opt-in, je Postfach übersteuerbar) — ein Termin „Abwesend“ schaltet die Abwesenheit für seinen Zeitraum ein.
 - **Ankündigung künftiger Abwesenheiten** — `{{ oof.ankuendigung }}` / `{{ oof.announcement }}` setzt die nächsten geplanten Abwesenheiten aus dem Kalender in den Text, wahlweise nur für interne Empfänger.
 - **Übersicht für Admins** — Seite *Abwesenheit*: wer gerade abwesend ist, mit Vorlage, Zeitraum und Kalenderstatus; je Postfach zentral bearbeitbar.
 - **Auch für abgelegte Post** — im Modus Graph++ antwortet das Gateway selbst auf Post von außen, die per IMAP abgelegt wird (siehe [Graph++](installation.md#betrieb-auf-azure-kein-ausgehender-port-25)).
+
+<img src="screenshots/abwesenheit-uebersicht.png" width="820" alt="Abwesenheits-Übersicht: wer abwesend ist, mit Vorlage, Zeitraum, Kalender und Ankündigung">
 
 ## Self-Service für Mitarbeitende
 - **Eigene Abwesenheit und Signatur** — drei Reiter: *Abwesenheit* (an/aus, Zeitraum, Vorlage), *Signatur* (unter jeder neuen Mail und ggf. unter der Abwesenheitsnotiz) und *Antwort-Signatur* (ab der 2. eigenen Mail im Verlauf, auch *keine*). Jeder Reiter hat eine eigene Vorschau als Beispiel-Mail und einen eigenen Speichern-Knopf. Die Wahl der eigenen Vorlagen ist standardmäßig gesperrt und je Postfach oder Gruppe freischaltbar.
@@ -68,11 +69,7 @@ Die Abwesenheit ist zentral verwaltet und trotzdem die ganz normale Exchange-Abw
 
 ## Betrieb
 - **Massenoperationen** — viele Postfächer auf einmal aktivieren und Zertifikate für viele zugleich bestellen/ausrollen (mit Vorschau und Kontingentprüfung).
-
-<img src="screenshots/postfaecher.png" width="820" alt="Postfächer: Signatur, S/MIME und Vorlagen je Postfach">
 - **SMTP-Relay** — Geräte im eigenen Netz (Drucker, Scanner, Fachanwendungen) senden über das Gateway wie über einen lokalen Exchange-Server.
-
-<img src="screenshots/relay.png" width="820" alt="SMTP-Relay: Geräteliste mit Adresse, DNS-Name, Kommentar und TLS der letzten Einlieferung">
 - **Outlook-Add-in** — Signatur direkt im Outlook-Verfassenfenster vorschauen und auswählen; beim Lesen öffnet es den Self-Service. Der Bereich lässt sich anheften; im klassischen Outlook steht der Knopf auch ohne ausgewählte Mail bereit.
 - **Signatur automatisch beim Verfassen** — ein zweites Add-in fügt die Gateway-Signatur ein, sobald eine Mail beginnt: in Outlook im Web, unter Windows (klassisch und neu) sowie in Outlook für iOS und Android (ab Version 4.2433). Bei Antworten und Weiterleitungen gilt dieselbe Regel wie im Gateway: volle Signatur beim ersten eigenen Beitrag, danach die Antwort-Signatur. Die Anmeldung läuft still, ohne Fenster.
 - **Abnahme** — *Einrichtung → Verbindungstest & Abnahme* prüft die Anlage als Ganzes (Außenadresse, TLS, Anmeldung, Exchange-Rechte, Postfächer, Rückweg, Vorlagen, Benachrichtigung, Add-in-Anmeldung) und nennt bei jeder Lücke, was zu tun ist.
@@ -83,6 +80,10 @@ Die Abwesenheit ist zentral verwaltet und trotzdem die ganz normale Exchange-Abw
 - **Selbst gehostet oder in Azure** — jeder x64/ARM64-Host (auch Raspberry Pi) oder vollständig in Azure ohne ausgehenden Port 25.
 - **Hell-/Dunkelmodus**, nutzbar bis 320 px Breite.
 - **Nicht in Suchmaschinen** — jede Antwort der Weboberfläche trägt `X-Robots-Tag: noindex, nofollow`.
+
+<img src="screenshots/postfaecher.png" width="820" alt="Postfächer: Signatur, S/MIME und Vorlagen je Postfach">
+
+<img src="screenshots/relay.png" width="820" alt="SMTP-Relay: Geräteliste mit Adresse, DNS-Name, Kommentar und TLS der letzten Einlieferung">
 
 ---
 

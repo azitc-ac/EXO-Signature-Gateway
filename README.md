@@ -1,7 +1,9 @@
 # EXO Signature Gateway
 
-**Signaturen, Abwesenheit und S/MIME für Exchange Online: zentral verwaltet,
-in Outlook auf PC und Handy sichtbar, ohne Software auf den Geräten.**
+**Automatische Signaturen, Abwesenheit und S/MIME für Exchange Online: zentral
+verwaltet, mit Add-ins für Outlook auf PC und Handy – bei Bedarf mit SMTP-Relay
+samt Lernmodus als Ersatz für den lokalen Exchange-Server. Das alles bietet das
+EXO Signature Gateway in einem Produkt – für bis zu 100 Postfächer kostenlos.**
 
 Das Gateway hängt sich serverseitig in den Mailfluss von Exchange Online. Jede
 Mail bekommt die richtige Signatur mit aktuellen Daten aus Entra ID, gleich
