@@ -5,6 +5,47 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.1 — 2026-10-20 — Abwesenheit: Kalender gar nicht lesen (Hauptschalter)
+
+Unter *Abwesenheit → Einstellungen* gibt es den neuen Schalter **Kalender der
+Postfächer lesen**. Er ist an, wie bisher.
+
+Bisher war *Abwesenheit automatisch aus dem Kalender aktivieren* nur eine
+Vorgabe. Drei Wege lasen den Kalender auch, wenn er aus war:
+
+- Postfächer mit eigenem *Kalender-Automatik: an*.
+- Die Ankündigung kommender Abwesenheiten, sobald eine Abwesenheitsvorlage
+  `{{ oof.ankuendigung }}` enthält.
+- Das Speichern im Self-Service. Es liest den Kalender sofort neu, damit die
+  Vorschau stimmt.
+
+Außerdem beantragte die Einrichtung `Calendars.Read` immer. Das ist
+Lesezugriff auf alle Kalender des Tenants, ob die Funktion genutzt wird oder
+nicht.
+
+Ist der Hauptschalter aus:
+
+- Das Gateway liest an keiner Stelle einen Kalender, auch nicht für
+  Postfächer mit eigenem „an“.
+- Die Ankündigung erscheint nicht. Self-Service und Abwesenheits-Dashboard
+  bieten ihre Einstellungen nicht an.
+- Schon zwischengespeicherte Termine verwirft der nächste Abgleich (alle 10
+  Minuten).
+- `Calendars.Read` wird weder beantragt noch erteilt. Die Berechtigungsprüfung
+  meldet ihr Fehlen nicht als Lücke. Ist sie noch erteilt, steht dort
+  „erteilt, nicht benötigt“.
+
+Abwesenheiten, die die Automatik schon geplant hatte, bleiben in Exchange
+stehen. Das Gateway nimmt sie nicht zurück.
+
+**Zu tun:** nichts, solange der Kalender gelesen werden soll. Schaltest du
+ihn aus und willst die Berechtigung loswerden, widerrufe sie in Entra. Das
+Gateway entzieht keine Berechtigungen selbst. Weg: *Entra Admin Center →
+Unternehmensanwendungen* → deine Gateway-App → *Berechtigungen* →
+`Calendars.Read` → *Berechtigung widerrufen*.
+
+---
+
 ## v1.10.0 — 2026-10-20 — Release: Self-Service, Abwesenheit, Add-ins; neues Symbol erreicht die Teams-App
 
 Mit v1.10.0 beginnt eine neue Release-Reihe. Sie fasst die Entwicklung seit

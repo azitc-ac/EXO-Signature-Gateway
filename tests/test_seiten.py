@@ -298,3 +298,25 @@ def test_abwesenheit_aus_hinweis_zeigt_auf_den_schalter_dieser_seite(client):
     assert 'id="ooo-enabled"' in html[html.index('id="' + ziel + '"'):], "Anker führt nicht zum Schalter"
     assert "/mailboxes" not in hinweis
     settings_store.update({"ABWESENHEIT_AKTIV": False})
+
+
+def test_kalender_hauptschalter_sperrt_die_abhaengigen_felder(client):
+    """Aus: Automatik, Termindauer und Neulesen gesperrt, Widerrufs-Hinweis sichtbar.
+    An: alles bedienbar, Hinweis verborgen."""
+    import re
+    import settings_store
+    settings_store.update({"ABWESENHEIT_AKTIV": True, "OOO_CALENDAR_READ": False})
+    html = client.get("/abwesenheit").text
+    block = re.search(r'<fieldset id="ooo-kal-block"[^>]*>(.*?)</fieldset>', html, re.S)
+    assert block and "disabled" in block.group(0).split(">")[0]
+    for feld in ("ooo-cal-auto", "ooo-cal-hours", "ooo-cal-refresh"):
+        assert f'id="{feld}"' in block.group(1), f"{feld} liegt nicht im gesperrten Block"
+    assert re.search(r'id="ooo-cal-read"[^>]*>', html).group(0).find("checked") < 0
+    assert "hidden" not in re.search(r'<p[^>]*id="ooo-kal-aus-hinweis"[^>]*>', html).group(0)
+    assert "var KALENDER_LESEN = false;" in html
+
+    settings_store.update({"OOO_CALENDAR_READ": True})
+    html = client.get("/abwesenheit").text
+    assert "disabled" not in re.search(r'<fieldset id="ooo-kal-block"[^>]*>', html).group(0)
+    assert "hidden" in re.search(r'<p[^>]*id="ooo-kal-aus-hinweis"[^>]*>', html).group(0)
+    settings_store.update({"ABWESENHEIT_AKTIV": False})

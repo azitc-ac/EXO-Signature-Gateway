@@ -582,13 +582,25 @@ def _fenster_aus_events(events: list[dict]) -> tuple[dict, dict] | None:
     return wahl[2]["start"], wahl[2]["end"]
 
 
+def kalender_lesen() -> bool:
+    """Hauptschalter `OOO_CALENDAR_READ`: Darf das Gateway Kalender lesen?
+
+    Steht VOR allem anderen: Aus schlägt den Tenant-Default, das Opt-in je
+    Postfach und die Ankündigungs-Variable. `is not False`, damit ein fehlender
+    Wert (Bestand, Vorgabe) als „an“ gilt."""
+    return settings_store.get("OOO_CALENDAR_READ") is not False
+
+
 def _kalender_auto_an(sender_cfg: dict) -> bool:
     """Ist die Kalender-Automatik für DIESES Postfach aktiv?
 
     Per-Postfach-Opt-in (`ooo_calendar`, True/False) übersteuert den Tenant-Default
     `OOO_CALENDAR_AUTO`. Fehlt das Feld (der Regelfall), gilt der Default — so
     bleibt die bisherige rein globale Schaltung rückwärtskompatibel, und ein
-    Betreiber kann zugleich einzelne Postfächer gezielt ein- oder ausnehmen."""
+    Betreiber kann zugleich einzelne Postfächer gezielt ein- oder ausnehmen.
+    Über allem steht der Hauptschalter (kalender_lesen)."""
+    if not kalender_lesen():
+        return False
     v = sender_cfg.get("ooo_calendar")
     if v is None:
         return bool(settings_store.get("OOO_CALENDAR_AUTO"))
@@ -611,8 +623,13 @@ async def kalender_events(upn: str, token: str, state: dict,
     abgefragt wird. Ein echter Lesefehler aktualisiert den Cache NICHT (dann gilt der
     vorige Wert weiter, und der nächste Poll versucht es erneut) — nur so wird ein
     vorübergehendes Problem nicht für Stunden als „keine Termine" festgeschrieben.
-    Mutiert `state` in-place."""
+    Mutiert `state` in-place.
+
+    Hauptschalter aus (kalender_lesen): leere Liste, KEIN Read und kein
+    Cache-Eintrag — ein späteres Einschalten liest frisch."""
     from datetime import datetime, timezone
+    if not kalender_lesen():
+        return []
     merk = state.get(upn.lower())
     if merk is None:
         merk = {}
@@ -663,13 +680,21 @@ def _vorlage_nutzt_ankuendigung(template_name: str) -> bool:
     return "oof.ankuendigung" in src or "oof.announcement" in src
 
 
+def ankuendigung_moeglich(template_name: str) -> bool:
+    """Kann die Ankündigung erscheinen? Nur wenn die Vorlage sie nutzt UND der
+    Kalender gelesen werden darf. Dieselbe Frage für Abgleich und Oberfläche
+    (Self-Service, Abwesenheits-Seite) — sonst böte die Oberfläche eine
+    Einstellung an, die nie wirkt."""
+    return kalender_lesen() and _vorlage_nutzt_ankuendigung(template_name)
+
+
 def _braucht_kalender(sender_cfg: dict, template_name: str = "") -> bool:
     """Braucht dieses Postfach überhaupt einen Kalender-Read?
 
     Grundlage des „Vorlagen-Nutzungs-Gates": Wo weder die Kalender-Automatik läuft
     noch die zugewiesene Vorlage Kalenderdaten verwendet, wird Graph erst gar nicht
     nach dem Kalender gefragt — der entscheidende Graph-Last-Deckel neben dem Cache."""
-    return _kalender_auto_an(sender_cfg) or _vorlage_nutzt_ankuendigung(template_name)
+    return _kalender_auto_an(sender_cfg) or ankuendigung_moeglich(template_name)
 
 
 # ── Ankündigung künftiger Abwesenheiten (Variable {{ oof.ankuendigung }}) ──────
@@ -774,7 +799,7 @@ async def ankuendigung_fuer_render(upn: str, token: str, template_name: str,
     """(de, en) Ankündigungszeilen für die Render-Variablen — oder ("",""), wenn die
     Vorlage die Variable nicht nutzt. Liest den Kalender über den gemeinsamen Cache
     (ein Read speist Auto-OOF und Ankündigung)."""
-    if not token or not _vorlage_nutzt_ankuendigung(template_name):
+    if not token or not ankuendigung_moeglich(template_name):
         return "", ""
     cfg = _ankuendigung_einstellungen(sender_cfg)
     if not cfg["an"]:
@@ -916,9 +941,11 @@ async def setze_fuer_postfach(upn: str, sender: str, mailbox_cfg: dict,
         neu["auto_win"] = auto_win
     # Den Kalender-Cache über den State-Neubau retten (kalender_fenster hat ihn
     # evtl. gerade aufgefrischt) — sonst liefe beim nächsten Poll wieder ein
-    # calendarView-Aufruf, als gäbe es keinen Cache.
+    # calendarView-Aufruf, als gäbe es keinen Cache. Hauptschalter aus: Cache
+    # verwerfen — Termindaten bleiben nicht liegen, wenn der Kalender nicht
+    # gelesen werden soll (beim nächsten Poll für jedes aktive Postfach).
     kal = merk.get("kal")
-    if kal:
+    if kal and kalender_lesen():
         neu["kal"] = kal
     # In-Memory mutieren; poll_alle persistiert den gesamten State EINMAL am Ende
     # (statt je Postfach einen vollen settings.json-Schreibvorgang — das skaliert

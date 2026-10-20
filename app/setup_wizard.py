@@ -44,7 +44,7 @@ _GRAPH_PERMISSION_SPECS = [
     {"name": "MailboxSettings.ReadWrite","id": "6931bccd-447a-43d1-b442-00a195474933",
      "zweck": "Zentrale Abwesenheitsnotiz"},
     {"name": "Calendars.Read",           "id": "798ee544-9d2d-430c-a058-570e29e34338",
-     "zweck": "Abwesenheit aus dem Kalender"},
+     "zweck": "Abwesenheit aus dem Kalender", "nur_wenn": "OOO_CALENDAR_READ"},
 ]
 _EXO_PERMISSION_SPECS = [
     {"name": "Exchange.ManageAsApp",     "id": "dc50a0fb-09a3-484d-be87-e023b12c6440",
@@ -52,7 +52,23 @@ _EXO_PERMISSION_SPECS = [
     {"name": "IMAP.AccessAsApp",         "id": "5e5addcd-3e8d-4e90-baf5-964efab2b20a",
      "zweck": "IMAP-Zustellung (Graph++)"},
 ]
-_GRAPH_PERMISSIONS = [{"id": s["id"], "type": "Role"} for s in _GRAPH_PERMISSION_SPECS]
+
+
+def benoetigt(spec: dict) -> bool:
+    """Wird diese Rolle gebraucht? `nur_wenn` nennt den Schalter, ohne den sie
+    entfällt (Calendars.Read ↔ OOO_CALENDAR_READ). Eine nicht benötigte Rolle wird
+    weder beantragt noch erteilt, und die Prüfung meldet ihr Fehlen nicht. Eine
+    schon erteilte entzieht das Gateway NICHT selbst (nur ergänzen, nie
+    entziehen) — die Prüfung weist auf sie hin."""
+    schalter = spec.get("nur_wenn")
+    return not schalter or settings_store.get(schalter) is not False
+
+
+def _graph_permissions() -> list[dict]:
+    """resourceAccess für Graph — zur Laufzeit, weil `benoetigt` vom Schalter abhängt."""
+    return [{"id": s["id"], "type": "Role"} for s in _GRAPH_PERMISSION_SPECS if benoetigt(s)]
+
+
 _EXO_PERMISSIONS = [{"id": s["id"], "type": "Role"} for s in _EXO_PERMISSION_SPECS]
 
 
@@ -189,7 +205,7 @@ async def create_app_registration(token: str, public_hostname: str) -> dict:
         try:
             await _gh("patch", f"{GRAPH}/applications/{app_object_id}", token, json={
                 "requiredResourceAccess": [
-                    {"resourceAppId": _GRAPH_APP_ID, "resourceAccess": _GRAPH_PERMISSIONS},
+                    {"resourceAppId": _GRAPH_APP_ID, "resourceAccess": _graph_permissions()},
                     {"resourceAppId": _EXO_APP_ID, "resourceAccess": _EXO_PERMISSIONS},
                 ],
             })
@@ -203,7 +219,7 @@ async def create_app_registration(token: str, public_hostname: str) -> dict:
             "requiredResourceAccess": [
                 {
                     "resourceAppId": _GRAPH_APP_ID,
-                    "resourceAccess": _GRAPH_PERMISSIONS,
+                    "resourceAccess": _graph_permissions(),
                 },
                 {
                     "resourceAppId": _EXO_APP_ID,
@@ -284,7 +300,7 @@ async def create_pool_app(token: str, index: int) -> dict:
             "requiredResourceAccess": [
                 {
                     "resourceAppId": _GRAPH_APP_ID,
-                    "resourceAccess": _GRAPH_PERMISSIONS,   # same Graph scopes, no EXO
+                    "resourceAccess": _graph_permissions(),   # same Graph scopes, no EXO
                 },
             ],
         }
@@ -356,7 +372,7 @@ async def _grant_admin_consent(token: str, our_sp_id: str) -> list[str]:
     der Setup-Lauf ignoriert sie wie bisher, `berechtigungen_nachziehen` meldet sie."""
     fehler: list[str] = []
     graph_sp_id = await _get_sp_id_for_resource(token, _GRAPH_APP_ID)
-    for perm in _GRAPH_PERMISSIONS:
+    for perm in _graph_permissions():
         try:
             await _gh(
                 "post",
@@ -418,7 +434,7 @@ async def berechtigungen_nachziehen(token: str) -> dict:
     try:
         await _gh("patch", f"{GRAPH}/applications/{items[0]['id']}", token, json={
             "requiredResourceAccess": [
-                {"resourceAppId": _GRAPH_APP_ID, "resourceAccess": _GRAPH_PERMISSIONS},
+                {"resourceAppId": _GRAPH_APP_ID, "resourceAccess": _graph_permissions()},
                 {"resourceAppId": _EXO_APP_ID, "resourceAccess": _EXO_PERMISSIONS},
             ],
         })

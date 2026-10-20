@@ -57,9 +57,12 @@ def exo_rollen() -> set[str] | None:
 
 
 def status(nur: list[str] | None = None) -> list[dict]:
-    """[{name, api, zweck, erteilt}] je Soll-Rolle. `erteilt` ist True/False, oder
-    None, wenn sich das Token nicht beschaffen ließ (dann ist NICHTS bekannt —
-    nicht „fehlt"). `nur` beschränkt auf die genannten Rollen (Reihenfolge der Soll-Liste)."""
+    """[{name, api, zweck, erteilt, benoetigt}] je Rolle. `erteilt` ist True/False,
+    oder None, wenn sich das Token nicht beschaffen ließ (dann ist NICHTS bekannt —
+    nicht „fehlt"). `benoetigt` False: Die Rolle entfällt durch einen Schalter
+    (setup_wizard.benoetigt) — fehlt sie, ist das keine Lücke; ist sie erteilt,
+    lässt sie sich in Entra entziehen. `nur` beschränkt auf die genannten Rollen
+    (Reihenfolge der Soll-Liste)."""
     import setup_wizard
     graph, exo = graph_rollen(), exo_rollen()
     ergebnis = []
@@ -71,5 +74,6 @@ def status(nur: list[str] | None = None) -> list[dict]:
             ergebnis.append({
                 "name": s["name"], "api": api, "zweck": s.get("zweck", ""),
                 "erteilt": None if ist is None else (s["name"] in ist),
+                "benoetigt": setup_wizard.benoetigt(s),
             })
     return ergebnis
