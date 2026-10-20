@@ -117,3 +117,56 @@ def test_namen_fuer_das_auslesen_bleiben():
     assert "getElementById('policy-addin-all')" in t and "'.policy-addin-tpl:checked'" in t
     assert "querySelector('.addin-all')" in t and "querySelectorAll('.addin-tpl')" in t
     assert len(re.findall(r"function _addinAuswahl\(", t)) == 1
+
+
+def _richtlinien_lauf(js: str):
+    t = SEITE.read_text(encoding="utf-8")
+    teile = []
+    for name in ("_richtlinienZelle", "_richtlinienStand"):
+        a = t.index(f"function {name}(")
+        tiefe, i = 0, t.index("{", a)
+        for j in range(i, len(t)):
+            tiefe += {"{": 1, "}": -1}.get(t[j], 0)
+            if tiefe == 0:
+                break
+        teile.append(t[a:j + 1])
+    vorspann = _DOM + """
+      const felder = {'policy-banner-tpl': {value: 'Richtlinien-Banner'}};
+      document.getElementById = id => felder[id];
+      globalThis._fuelleVorlagenSelect = (sel, art, wert, o) => { sel.value = wert; sel._art = art; sel._o = o; };
+    """ + "\n".join(teile)
+    out = subprocess.run(["node", "-e", vorspann + "\n" + js], capture_output=True, text=True, check=True).stdout
+    return json.loads(out)
+
+
+_SEL = ("const s = td.querySelector('select');"
+        "console.log(JSON.stringify({v: s.value, aus: s.disabled, op: s.style.opacity, t: s.title,"
+        " k: s.className, i: s.dataset.idx, art: s._art, leer: s._o.leerText}));")
+
+
+def test_richtlinienzelle_ohne_richtlinie():
+    r = _richtlinien_lauf("const td = _richtlinienZelle(2, {sig: true}, false, 'mb-banner', 'banner',"
+                          " 'Eigen', 'policy-banner-tpl', '— kein Banner —');" + _SEL)
+    assert r == {"v": "Eigen", "aus": False, "op": "1", "t": "", "k": "mb-banner", "i": "2",
+                 "art": "banner", "leer": "— kein Banner —"}
+
+
+def test_richtlinienzelle_unter_richtlinie_und_ohne_signatur():
+    r = _richtlinien_lauf("const td = _richtlinienZelle(0, {sig: true}, true, 'mb-banner', 'banner',"
+                          " 'Eigen', 'policy-banner-tpl', 'x');" + _SEL)
+    assert r["v"] == "Richtlinien-Banner" and r["aus"] is True and r["t"] == "Wird durch Vorlagenrichtlinie gesteuert"
+    r = _richtlinien_lauf("const td = _richtlinienZelle(0, {sig: false}, false, 'mb-banner', 'banner',"
+                          " 'Eigen', 'policy-banner-tpl', 'x');" + _SEL)
+    assert r["v"] == "Eigen" and r["aus"] is True and r["op"] == "0.4"
+
+
+def test_umschalten_nutzt_denselben_stand():
+    r = _richtlinien_lauf("""
+      const td = _richtlinienZelle(0, {sig: true}, true, 'mb-banner', 'banner', 'Eigen', 'policy-banner-tpl', 'x');
+      const s = td.querySelector('select');
+      _richtlinienStand(s, true, false, 'Eigen', 'policy-banner-tpl');
+      console.log(JSON.stringify({v: s.value, aus: s.disabled, t: s.title}));""")
+    assert r == {"v": "Eigen", "aus": False, "t": ""}
+    t = SEITE.read_text(encoding="utf-8")
+    assert t.count("_richtlinienStand(bannerSel, sig, pol") == 1
+    assert t.count("_richtlinienStand(disclaimerSel, sig, pol") == 1

@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.12 — 2026-10-21 — Postfächer: Banner und Disclaimer aus einem Baustein
+
+Die Auswahl von Banner und Disclaimer in jeder Postfachzeile war zweimal
+ausgeschrieben, und das Umschalten der Vorlagenrichtlinie schrieb ihren Zustand
+ein drittes und viertes Mal aus. Jetzt bauen eine Funktion die Zelle und eine
+zweite deren Zustand: Sperre ohne Signatur oder unter Richtlinie, unter
+Richtlinie deren Wert, sonst der eigene. Das Verhalten bleibt gleich. Tests
+prüfen beide Fälle und das Umschalten.
+
+**Zu tun:** nichts.
+
+---
+
 ## v1.10.11 — 2026-10-21 — Fehlertexte maskiert; Meldungen und Zustimmungs-Dialoge vereinheitlicht
 
 - **Meldungskästen bleiben stehen.** Auf *Update & Backup*, *Einstellungen*

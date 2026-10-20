@@ -898,6 +898,34 @@ function _buildWahlSelect(idx, klasse, kind, mb, slot, feld, leerText) {
   return sel;
 }
 
+// Zelle mit Banner- bzw. Disclaimer-Auswahl einer Postfachzeile. Greift die
+// Vorlagenrichtlinie, zeigt sie deren Wert und ist gesperrt. Bis 2026-10-21 für
+// Banner und Disclaimer je einmal ausgeschrieben (Kopien-Finder).
+function _richtlinienZelle(i, mb, policyActive, klasse, art, eigenerWert, richtlinienId, leerText) {
+  var td = document.createElement('td');
+  td.style.cssText = 'text-align:center;padding:6px 8px';
+  var sel = document.createElement('select');
+  sel.className = klasse;
+  sel.dataset.idx = String(i);
+  sel.style.cssText = 'font-size:12px;max-width:130px';
+  var richtlinie = document.getElementById(richtlinienId).value || '';
+  _fuelleVorlagenSelect(sel, art, policyActive ? richtlinie : (eigenerWert || ''),
+    {mitLeer: true, leerText: leerText, auchZeigen: [eigenerWert, richtlinie]});
+  _richtlinienStand(sel, mb.sig, policyActive, eigenerWert, richtlinienId);
+  td.appendChild(sel);
+  return td;
+}
+
+// Zustand der Auswahl: gesperrt ohne Signatur oder unter Richtlinie; unter
+// Richtlinie deren Wert, sonst der eigene. Beim Aufbau UND beim Umschalten.
+function _richtlinienStand(sel, sig, pol, eigenerWert, richtlinienId) {
+  var gesperrt = !sig || pol;
+  sel.disabled = gesperrt;
+  sel.style.opacity = gesperrt ? '0.4' : '1';
+  sel.title = pol ? 'Wird durch Vorlagenrichtlinie gesteuert' : '';
+  sel.value = pol ? (document.getElementById(richtlinienId).value || '') : (eigenerWert || '');
+}
+
 function _buildAddinTemplatesControl(idx, addinTemplates, sigEnabled, policyActive) {
   var details = _addinAuswahl(addinTemplates, {idx: idx, allKlasse: 'addin-all', tplKlasse: 'addin-tpl'});
   var active = _addinEnabled && sigEnabled && !policyActive;
@@ -1067,43 +1095,13 @@ function renderMailboxTable(mailboxes) {
     minSigSel.style.opacity = mb.sig ? '1' : '0.4';
     tdMinSig.appendChild(minSigSel);
 
-    // Banner select — policy-controlled like std template
-    var tdBanner = document.createElement('td');
-    tdBanner.style.cssText = 'text-align:center;padding:6px 8px';
-    var bannerSel = document.createElement('select');
-    bannerSel.className = 'mb-banner';
-    bannerSel.dataset.idx = String(i);
-    bannerSel.style.cssText = 'font-size:12px;max-width:130px';
-    var _effectiveBanner = policyActive
-      ? (document.getElementById('policy-banner-tpl').value || '')
-      : (mb.banner_template || '');
-    _fuelleVorlagenSelect(bannerSel, 'banner', _effectiveBanner,
-      {mitLeer: true, leerText: '— kein Banner —',
-       auchZeigen: [mb.banner_template, document.getElementById('policy-banner-tpl').value]});
-    var _bannerDisabled = !mb.sig || policyActive;
-    bannerSel.disabled = _bannerDisabled;
-    bannerSel.style.opacity = _bannerDisabled ? '0.4' : '1';
-    if (policyActive) bannerSel.title = 'Wird durch Vorlagenrichtlinie gesteuert';
-    tdBanner.appendChild(bannerSel);
-
-    // Disclaimer select — policy-controlled like banner
-    var tdDisclaimer = document.createElement('td');
-    tdDisclaimer.style.cssText = 'text-align:center;padding:6px 8px';
-    var disclaimerSel = document.createElement('select');
-    disclaimerSel.className = 'mb-disclaimer';
-    disclaimerSel.dataset.idx = String(i);
-    disclaimerSel.style.cssText = 'font-size:12px;max-width:130px';
-    var _effectiveDisclaimer = policyActive
-      ? (document.getElementById('policy-disclaimer-tpl').value || '')
-      : (mb.disclaimer_template || '');
-    _fuelleVorlagenSelect(disclaimerSel, 'disclaimer', _effectiveDisclaimer,
-      {mitLeer: true, leerText: '— kein —',
-       auchZeigen: [mb.disclaimer_template, document.getElementById('policy-disclaimer-tpl').value]});
-    var _disclaimerDisabled = !mb.sig || policyActive;
-    disclaimerSel.disabled = _disclaimerDisabled;
-    disclaimerSel.style.opacity = _disclaimerDisabled ? '0.4' : '1';
-    if (policyActive) disclaimerSel.title = 'Wird durch Vorlagenrichtlinie gesteuert';
-    tdDisclaimer.appendChild(disclaimerSel);
+    // Banner und Disclaimer — Richtlinie (Vorlagenrichtlinie) statt Nutzerwahl
+    var tdBanner = _richtlinienZelle(i, mb, policyActive, 'mb-banner', 'banner',
+                                     mb.banner_template, 'policy-banner-tpl', '— kein Banner —');
+    var tdDisclaimer = _richtlinienZelle(i, mb, policyActive, 'mb-disclaimer', 'disclaimer',
+                                         mb.disclaimer_template, 'policy-disclaimer-tpl', '— kein —');
+    var bannerSel = tdBanner.querySelector('select');
+    var disclaimerSel = tdDisclaimer.querySelector('select');
 
     // Abwesenheit (OOF) — Wahl-Slot; gilt für Signatur- ODER S/MIME-Postfächer
     var tdOof = document.createElement('td');
@@ -1147,16 +1145,8 @@ function renderMailboxTable(mailboxes) {
       tplSel.style.opacity = sig ? '1' : '0.4';
       minSigSel.disabled = !sig;
       minSigSel.style.opacity = sig ? '1' : '0.4';
-      bannerSel.disabled = !sig || pol;
-      bannerSel.style.opacity = (!sig || pol) ? '0.4' : '1';
-      bannerSel.title = pol ? 'Wird durch Vorlagenrichtlinie gesteuert' : '';
-      bannerSel.value = pol ? (document.getElementById('policy-banner-tpl').value || '')
-                            : (mb.banner_template || '');
-      disclaimerSel.disabled = !sig || pol;
-      disclaimerSel.style.opacity = (!sig || pol) ? '0.4' : '1';
-      disclaimerSel.title = pol ? 'Wird durch Vorlagenrichtlinie gesteuert' : '';
-      disclaimerSel.value = pol ? (document.getElementById('policy-disclaimer-tpl').value || '')
-                                : (mb.disclaimer_template || '');
+      _richtlinienStand(bannerSel, sig, pol, mb.banner_template, 'policy-banner-tpl');
+      _richtlinienStand(disclaimerSel, sig, pol, mb.disclaimer_template, 'policy-disclaimer-tpl');
       // Abwesenheit greift für aktivierte Postfächer (Signatur ODER S/MIME).
       var oofAus = !(sig || smime);
       oofSel.disabled = oofAus;
