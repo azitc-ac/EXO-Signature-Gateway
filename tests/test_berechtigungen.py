@@ -60,7 +60,7 @@ def test_nachziehen_erteilt_nur_rollen(monkeypatch):
             return {"value": [{"id": "sp1"}]}
         if methode == "get":
             return {"value": [{"id": "res"}]}
-        if methode == "post" and "appRoleAssignments" in url and json["appRoleId"] == setup_wizard._GRAPH_PERMISSIONS[0]["id"]:
+        if methode == "post" and "appRoleAssignments" in url and json["appRoleId"] == setup_wizard._graph_permissions()[0]["id"]:
             raise RuntimeError("Permission being assigned already exists on the object")
         return {}
     monkeypatch.setattr(setup_wizard, "_gh", gh)
@@ -72,7 +72,7 @@ def test_nachziehen_erteilt_nur_rollen(monkeypatch):
     assert "addPassword" not in urls, "kein neues Secret"
     assert "keyCredentials" not in json.dumps([j for _, _, j in aufrufe if j]), "kein neues Zertifikat"
     erteilt = [j["appRoleId"] for m, _, j in aufrufe if m == "post"]
-    soll = [p["id"] for p in setup_wizard._GRAPH_PERMISSIONS + setup_wizard._EXO_PERMISSIONS]
+    soll = [p["id"] for p in setup_wizard._graph_permissions() + setup_wizard._EXO_PERMISSIONS]
     assert erteilt == soll
 
 

@@ -44,6 +44,12 @@ DEFAULTS: dict = {
     # Status „Abwesend" (showAs=oof) ab OOO_CALENDAR_MIN_HOURS Dauer schalten die
     # native Abwesenheit für ihr Zeitfenster ein. Braucht Calendars.Read (Consent).
     "OOO_CALENDAR_AUTO": False,
+    # Hauptschalter: Darf das Gateway Kalender überhaupt lesen? Aus → kein
+    # calendarView-Aufruf an keiner Stelle (Automatik, Ankündigung, Self-Service),
+    # auch nicht für Postfächer mit eigenem „Kalender: an“, und Calendars.Read wird
+    # nicht mehr beantragt. Für Tenants, die keinen Lesezugriff auf alle Kalender
+    # erteilen wollen. Vorgabe an: bisheriges Verhalten.
+    "OOO_CALENDAR_READ": True,
     "OOO_CALENDAR_MIN_HOURS": 8,
     # Wie oft der Kalender je Postfach WIRKLICH bei Graph gelesen wird. Der
     # OOO-Poll läuft alle 10 Minuten; der Kalender ändert sich selten. Ohne Cache

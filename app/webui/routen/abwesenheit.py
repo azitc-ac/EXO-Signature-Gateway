@@ -48,6 +48,7 @@ async def abwesenheit_page(request: Request, _user: str = Depends(_require_admin
             "gateway_name": _gateway_name(),
             "ooo_enabled": bool(settings_store.get("OOO_ENABLED")),
             # OOF-/Kalender-Betreiberschalter (von der Postfächer-Seite hierher gezogen).
+            "ooo_calendar_read": abwesenheit.kalender_lesen(),
             "ooo_calendar_auto": bool(settings_store.get("OOO_CALENDAR_AUTO")),
             "ooo_calendar_min_hours": int(settings_store.get("OOO_CALENDAR_MIN_HOURS") or 8),
             "ooo_calendar_refresh_hours": int(settings_store.get("OOO_CALENDAR_REFRESH_HOURS") or 6),
@@ -81,7 +82,7 @@ async def api_abwesenheit_uebersicht(force: int = 0, _user: str = Depends(_requi
             # tri-state: None=Vorgabe, True=an, False=aus
             "kalender": sender_cfg.get("ooo_calendar"),
             # Ankündigung wirkt nur, wenn an UND die Vorlage die Variable nutzt.
-            "ankuendigung": bool(ank["an"] and abwesenheit._vorlage_nutzt_ankuendigung(tpl)),
+            "ankuendigung": bool(ank["an"] and abwesenheit.ankuendigung_moeglich(tpl)),
         })
     # Nach „gerade abwesend" zuerst, dann Name — die Übersicht soll die Abwesenden zeigen.
     items.sort(key=lambda i: (not i.get("abwesend"), (i.get("name") or "").lower()))
@@ -109,7 +110,7 @@ async def api_abwesenheit_postfach(email: str, _user: str = Depends(_require_adm
         "email": email,
         "oof_template": oof_eff,                      # zugewiesene Vorlage (nur Anzeige)
         "kalender": sender_cfg.get("ooo_calendar"),   # tri-state None/True/False
-        "announce_supported": abwesenheit._vorlage_nutzt_ankuendigung(oof_eff),
+        "announce_supported": abwesenheit.ankuendigung_moeglich(oof_eff),
         "announce": {"an": ank["an"], "mode": ank["mode"], "x": ank["x"],
                      "privat": ank["privat"], "extern": ank["extern"]},
         "ooo": {"status": "disabled", "start": "", "ende": "",

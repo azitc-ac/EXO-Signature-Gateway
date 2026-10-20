@@ -43,7 +43,12 @@
       (d.berechtigungen || []).forEach(function (b) {
         var zustand = b.erteilt === true ? 'fertig' : (b.erteilt === false ? 'fehler' : 'offen');
         var text = b.erteilt === true ? '✓ erteilt' : (b.erteilt === false ? '✗ fehlt' : '? nicht prüfbar');
-        if (b.erteilt === false) fehlt++;
+        // Durch einen Schalter entfallen (z. B. Kalender nicht lesen): keine Lücke.
+        if (b.benoetigt === false) {
+          zustand = '';
+          text = b.erteilt === true ? 'erteilt, nicht benötigt — in Entra widerrufbar' : '– nicht benötigt';
+        }
+        if (b.erteilt === false && b.benoetigt !== false) fehlt++;
         if (b.erteilt === null) unbekannt++;
         var tr = document.createElement('tr');
         tr.innerHTML = '<td style="padding:3px 12px 3px 0"><code>' + esc(b.name) + '</code></td>' +

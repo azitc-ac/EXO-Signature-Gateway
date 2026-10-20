@@ -234,7 +234,7 @@ async def self_context(email: str = Depends(_require_self)):
                 "start_zeit": "09:00", "ende_zeit": "17:00", "ganztaegig": True},
         # Ankündigung künftiger Abwesenheiten: nur relevant, wenn die zugewiesene
         # oof-Vorlage die Variable nutzt (sonst wirkt die Einstellung nicht).
-        "announce_supported": abwesenheit._vorlage_nutzt_ankuendigung(oof_eff),
+        "announce_supported": abwesenheit.ankuendigung_moeglich(oof_eff),
         "announce": {"an": ank["an"], "mode": ank["mode"], "x": ank["x"],
                      "privat": ank["privat"], "extern": ank["extern"]},
         "zugriff": True,

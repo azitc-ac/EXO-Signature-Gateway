@@ -73,6 +73,23 @@
   {{ berechtigungen("abw", "MailboxSettings.ReadWrite,Calendars.Read") }}
 
   <label class="checkbox-label">
+    <input type="checkbox" id="ooo-cal-read" onchange="oooCalReadUmschalten(this)" {% if ooo_calendar_read %}checked{% endif %}>
+    Kalender der Postfächer lesen
+    <span id="ooo-cal-read-result" style="font-size:12px;margin-left:8px"></span>
+  </label>
+  <p class="hint" style="margin:4px 0 8px;max-width:680px">
+    Hauptschalter für alles, was Kalender braucht: die Automatik darunter und die
+    Ankündigung kommender Abwesenheiten. Aus heißt: Das Gateway liest keinen
+    Kalender, auch nicht bei Postfächern mit eigenem „Kalender: an“, und beantragt
+    <code>Calendars.Read</code> nicht mehr.
+  </p>
+  <p class="hint" id="ooo-kal-aus-hinweis" style="margin:0 0 12px;max-width:680px" {% if ooo_calendar_read %}hidden{% endif %}>
+    Eine schon erteilte <code>Calendars.Read</code> entzieht das Gateway nicht selbst.
+    Entferne sie in Entra: <em>Unternehmensanwendungen</em> → {{ gateway_name or 'Gateway-App' }}
+    → <em>Berechtigungen</em> → <code>Calendars.Read</code> → <em>Berechtigung widerrufen</em>.
+  </p>
+  <fieldset id="ooo-kal-block" style="border:0;padding:0;margin:0;min-width:0" {% if not ooo_calendar_read %}disabled{% endif %}>
+  <label class="checkbox-label">
     <input type="checkbox" id="ooo-cal-auto" onchange="oooCalAutoUmschalten(this)" {% if ooo_calendar_auto %}checked{% endif %}>
     Abwesenheit automatisch aus dem Kalender aktivieren
     <span id="ooo-cal-result" style="font-size:12px;margin-left:8px"></span>
@@ -104,6 +121,7 @@
     alle Postfächer</strong>; je Postfach lässt sie sich oben über „Bearbeiten" auf
     <em>an</em>/<em>aus</em> stellen. Erfordert <code>Calendars.Read</code>.
   </p>
+  </fieldset>
 
   <label class="checkbox-label">
     <input type="checkbox" id="ooo-append-sig" onchange="oooAppendSigUmschalten(this)" {% if ooo_append_signature %}checked{% endif %}>
@@ -246,6 +264,7 @@ function abBadge(it) {
 }
 
 function abKalender(v) {
+  if (!KALENDER_LESEN) return '<span class="muted">aus (Kalender nicht gelesen)</span>';
   if (v === true) return 'an';
   if (v === false) return 'aus';
   return '<span class="muted">Vorgabe</span>';
@@ -368,6 +387,7 @@ async function abOeffne(i) {
     abm('abm-bis-zeit').value = d.ooo.ende_zeit || '17:00';
   }
   abm('abm-kalender').value = (d.kalender === true) ? '1' : (d.kalender === false) ? '0' : '';
+  abm('abm-kalender').disabled = !KALENDER_LESEN;
   // Ankündigungs-Block nur zeigen, wenn die Vorlage die Variable nutzt.
   abm('abm-ank-block').style.display = d.announce_supported ? 'block' : 'none';
   abm('abm-ank-hinweis').textContent = d.oof_template
@@ -415,6 +435,17 @@ async function oooUmschalten(cb) {
   // Der Aus-Hinweis oben folgt dem Schalter erst, wenn das Speichern gewirkt hat.
   if (await savePartial({ OOO_ENABLED: cb.checked }, 'ooo-result'))
     document.getElementById('ooo-aus-hinweis').style.display = cb.checked ? 'none' : 'block';
+}
+var KALENDER_LESEN = {{ 'true' if ooo_calendar_read else 'false' }};
+async function oooCalReadUmschalten(cb) {
+  // Abhängige Bedienelemente, Hinweis und Tabelle folgen erst, wenn das Speichern gewirkt hat.
+  if (!(await savePartial({ OOO_CALENDAR_READ: cb.checked }, 'ooo-cal-read-result'))) { cb.checked = !cb.checked; return; }
+  KALENDER_LESEN = cb.checked;
+  document.getElementById('ooo-kal-block').disabled = !cb.checked;
+  document.getElementById('ooo-kal-aus-hinweis').hidden = cb.checked;
+  var pruef = document.querySelector('#ber-abw .ber-pruefen');
+  if (pruef) pruef.click();
+  abLaden(true);
 }
 async function oooCalAutoUmschalten(cb) { await savePartial({ OOO_CALENDAR_AUTO: cb.checked }, 'ooo-cal-result'); }
 async function oooCalHoursSpeichern(sel) { await savePartial({ OOO_CALENDAR_MIN_HOURS: parseInt(sel.value, 10) }, 'ooo-cal-result'); }
