@@ -497,43 +497,78 @@ def betreff_kern(betreff: str) -> str:
     return " ".join(kern.split()).casefold()
 
 
+# Nur schlichte Adressen gehen in einen Graph-Filter — kein Anführungszeichen,
+# keine Klammer, nichts, was die OData-Abfrage verlassen könnte.
+_FILTER_ADRESSE_RE = re.compile(r"[a-z0-9._%+-]{1,64}@[a-z0-9-]+(\.[a-z0-9-]+)+")
+
+
+def _betreff_treffer(nachrichten: list, kern: str) -> list:
+    return [m for m in nachrichten
+            if not m.get("isDraft") and m.get("conversationId")
+            and betreff_kern(m.get("subject") or "") == kern]
+
+
 async def konversation_per_betreff(postfach: str, betreff: str,
                                    empfaenger: list[str] | None = None) -> str | None:
     """`conversationId` der jüngsten Mail im Postfach mit demselben Betreff-Kern.
 
     Rückfall für Outlook auf iOS: Im Antwortentwurf ist `item.conversationId`
-    dort leer (VM 19.10.2026, drei Antworten ohne Abruf). Unter mehreren
-    Treffern gewinnt eine Mail, deren Absender unter den Empfängern des
-    Entwurfs steht (bei einer Antwort der ursprüngliche Absender), sonst die
-    jüngste. Durchsucht die letzten 100 Nachrichten — geantwortet wird meist
-    auf Neues; ältere Fälle entscheidet das Gateway beim Versand."""
+    dort leer (VM 19.10.2026, drei Antworten ohne Abruf). Zwei Stufen:
+
+    1. Die letzten 100 Nachrichten des Postfachs. Unter mehreren Treffern
+       gewinnt eine Mail, deren Absender unter den Empfängern des Entwurfs
+       steht (bei einer Antwort der ursprüngliche Absender), sonst die jüngste.
+    2. Nur wenn Stufe 1 gar keinen Treffer hat: je Empfänger die letzten 50
+       Mails VON dieser Adresse (Graph-Filter). Die 100 reichten auf der VM
+       am 20.10.2026 nur zwei Tage zurück; die beantwortete Mail vom 17.10.
+       lag knapp ausserhalb. Stufe 2 greift bewusst nicht, wenn Stufe 1 etwas
+       fand — sonst gewönne bei einer Antwort auf die eigene, neue Mail eine
+       alte gleichnamige Mail des Empfängers."""
     import httpx
     from urllib.parse import quote
     kern = betreff_kern(betreff)
     tok = await _acquire_token_async()
     if not tok or not kern:
         return None
-    url = (f"https://graph.microsoft.com/v1.0/users/{quote(postfach)}/messages"
-           "?$top=100&$select=subject,conversationId,from,isDraft&$orderby=receivedDateTime%20desc")
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(url, headers={"Authorization": f"Bearer {tok}"})
-    except Exception as exc:                                   # noqa: BLE001
-        log.warning("konversation_per_betreff %s: %s", postfach, exc)
-        return None
-    if resp.status_code != 200:
-        log.warning("konversation_per_betreff %s: Graph %s %s", postfach, resp.status_code,
-                    resp.text[:200])
-        return None
-    treffer = [m for m in resp.json().get("value", [])
-               if not m.get("isDraft") and m.get("conversationId")
-               and betreff_kern(m.get("subject") or "") == kern]
-    an = {e.lower() for e in (empfaenger or [])}
-    if an:
-        passend = [m for m in treffer
-                   if (((m.get("from") or {}).get("emailAddress") or {}).get("address") or "").lower() in an]
-        treffer = passend or treffer
-    return treffer[0]["conversationId"] if treffer else None
+    kopf = {"Authorization": f"Bearer {tok}"}
+    basis = f"https://graph.microsoft.com/v1.0/users/{quote(postfach)}/messages"
+    felder = "subject,conversationId,from,isDraft,receivedDateTime"
+
+    async def holen(client, url: str) -> list:
+        try:
+            resp = await client.get(url, headers=kopf)
+        except Exception as exc:                               # noqa: BLE001
+            log.warning("konversation_per_betreff %s: %s", postfach, exc)
+            return []
+        if resp.status_code != 200:
+            log.warning("konversation_per_betreff %s: Graph %s %s", postfach,
+                        resp.status_code, resp.text[:200])
+            return []
+        return resp.json().get("value", [])
+
+    an = [e.lower() for e in (empfaenger or [])]
+    async with httpx.AsyncClient(timeout=10) as client:
+        treffer = _betreff_treffer(await holen(
+            client, f"{basis}?$top=100&$select={felder}&$orderby=receivedDateTime%20desc"), kern)
+        if treffer:
+            passend = [m for m in treffer
+                       if (((m.get("from") or {}).get("emailAddress") or {}).get("address") or "").lower() in an]
+            return (passend or treffer)[0]["conversationId"]
+        # Stufe 2. Graph nimmt $orderby neben $filter nur, wenn das
+        # Sortierfeld zuerst im Filter steht — daher die receivedDateTime-Klausel.
+        adressen = [a for a in dict.fromkeys(an)
+                    if a != postfach.lower() and _FILTER_ADRESSE_RE.fullmatch(a)][:5]
+        listen = await asyncio.gather(*(holen(client, (
+            f"{basis}?$top=50&$select={felder}&$orderby=receivedDateTime%20desc&$filter="
+            + quote(f"receivedDateTime ge 1900-01-01T00:00:00Z and from/emailAddress/address eq '{a}'")))
+            for a in adressen))
+    treffer = sorted((m for liste in listen for m in _betreff_treffer(liste, kern)),
+                     key=lambda m: m.get("receivedDateTime") or "", reverse=True)
+    if treffer:
+        log.info("konversation_per_betreff %s: nicht unter den letzten 100, über den Absender "
+                 "gefunden (%s)", postfach, (treffer[0].get("receivedDateTime") or "")[:16])
+        return treffer[0]["conversationId"]
+    return None
 
 
 async def update_sent_item(sender_email: str, message_id: str, html_body: str) -> bool | None:
@@ -545,7 +580,7 @@ async def update_sent_item(sender_email: str, message_id: str, html_body: str) -
     mid = message_id.strip()
     if not mid.startswith("<"):
         mid = f"<{mid}>"
-    search_filter = urllib.parse.quote(f"internetMessageId eq '{mid}'")
+    search_filter = urllib.parse.quote("internetMessageId eq '" + mid.replace("'", "''") + "'")
     search_url = (
         f"https://graph.microsoft.com/v1.0/users/{sender_email}"
         f"/mailFolders/sentitems/messages?$filter={search_filter}&$select=id&$top=1"
@@ -622,7 +657,7 @@ async def cleanup_sent_items(
     mid = message_id.strip()
     if not mid.startswith("<"):
         mid = f"<{mid}>"
-    search_filter = urllib.parse.quote(f"internetMessageId eq '{mid}'")
+    search_filter = urllib.parse.quote("internetMessageId eq '" + mid.replace("'", "''") + "'")
     search_url = (
         f"https://graph.microsoft.com/v1.0/users/{sender_email}"
         f"/mailFolders/sentitems/messages"

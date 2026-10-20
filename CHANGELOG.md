@@ -5,6 +5,34 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.9.183 — 2026-10-20 — Antworten auf ältere Mails werden auf iPhone und Android erkannt
+
+Fehlt dem Add-in „Signatur automatisch einfügen“ die Kennung der Unterhaltung
+(Outlook auf iPhone und Android), sucht das Gateway sie über den Betreff. Diese
+Suche lief bisher nur über die letzten 100 Mails des Postfachs. In einem
+belebten Postfach reichen die nur wenige Tage zurück. Eine Antwort auf eine
+ältere Mail fand dann keine Unterhaltung, und die Signatur blieb im Entwurf
+leer, bis das Gateway sie beim Versand setzte.
+
+Findet sich unter den letzten 100 Mails keine mit demselben Betreff, fragt das
+Gateway jetzt gezielt nach Mails **von** den Empfängern des Entwurfs (je
+Adresse die letzten 50). Bei einer Antwort ist das der ursprüngliche
+Absender, und seine Mail wird unabhängig von ihrem Alter gefunden. Die zweite
+Suche greift bewusst nur, wenn die erste nichts gefunden hat. Sonst könnte bei
+einer Antwort auf die eigene, neue Mail ein alter Faden des Empfängers mit
+gleichem Betreff gewinnen. Es gehen höchstens fünf Adressen in die Abfrage,
+und nur solche, die einer strengen Adressprüfung genügen.
+
+Ausserdem werden Message-IDs in der Suche nach gesendeten Elementen jetzt
+maskiert. Ein Hochkomma in der Message-ID veränderte dort bisher die
+Graph-Abfrage. Weil das gefundene Element danach geändert oder gelöscht wird,
+hätte das ein anderes gesendetes Element desselben Absenders treffen können.
+
+**Zu tun:** nichts. Die Änderung wirkt mit dem Update, das Admin Center ist
+nicht beteiligt.
+
+---
+
 ## v1.9.182 — 2026-10-20 — Antworten: beantwortete Mail genau erkennen; das Gateway hat das letzte Wort
 
 Outlook nennt dem Add-in „Signatur automatisch einfügen“ beim Schreiben einer
