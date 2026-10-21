@@ -300,10 +300,7 @@ async function obsGetRemoteDomain() {
   const btn = document.getElementById('obs-rd-get-btn');
   const result = document.getElementById('obs-rd-result');
   const detail = document.getElementById('obs-rd-detail');
-  btn.disabled = true; btn.textContent = '…';
-  const r = await fetch('/api/setup/remote-domain-castle');
-  const d = await r.json();
-  btn.disabled = false; btn.textContent = 'Aktuelle Einstellungen lesen';
+  const d = await knopfAktion(btn, '…', () => getJSON('/api/setup/remote-domain-castle'));
   if (d.ok) {
     showAlert(result, 'success', 'Remote Domain gefunden.');
     detail.textContent = JSON.stringify(d, null, 2);
@@ -320,13 +317,10 @@ async function obsSetRemoteDomain() {
   const btn = document.getElementById('obs-rd-set-btn');
   const result = document.getElementById('obs-rd-result');
   const detail = document.getElementById('obs-rd-detail');
-  btn.disabled = true; btn.textContent = 'Konfiguriere… (ca. 30s)';
   hideAlert(result);
-  const r = await fetch('/api/setup/remote-domain-castle', {method:'POST', headers:{'Content-Type':'application/json'}});
-  const d = await r.json();
-  btn.disabled = false; btn.textContent = 'RemoteDomain setzen / aktualisieren';
+  const d = await knopfAktion(btn, 'Konfiguriere… (ca. 30s)', () => postJSON('/api/setup/remote-domain-castle'));
   if (d.ok) {
-    showAlert(result, 'success', 'Remote Domain konfiguriert: <code>ByteEncoderTypeFor7BitCharsets=' + (d.ByteEncoderTypeFor7BitCharsets||'?') + '</code>');
+    showAlert(result, 'success', 'Remote Domain konfiguriert: <code>ByteEncoderTypeFor7BitCharsets=' + esc(d.ByteEncoderTypeFor7BitCharsets||'?') + '</code>');
     detail.textContent = JSON.stringify(d, null, 2);
     detail.style.display = 'block';
   } else {
@@ -339,10 +333,7 @@ async function obsDeleteRemoteDomain() {
   if (!confirm('Remote Domain "Castle ACME" wirklich entfernen?')) return;
   const btn = document.getElementById('obs-rd-del-btn');
   const result = document.getElementById('obs-rd-result');
-  btn.disabled = true; btn.textContent = '…';
-  const r = await fetch('/api/setup/remote-domain-castle', {method:'DELETE', headers:{'Content-Type':'application/json'}});
-  const d = await r.json();
-  btn.disabled = false; btn.textContent = 'Entfernen';
+  const d = await knopfAktion(btn, '…', () => sendJSON('DELETE', '/api/setup/remote-domain-castle'));
   showAlert(result, d.ok ? 'success' : 'error',
     d.ok ? ('Entfernt: ' + (d.removed ? 'ja' : 'war nicht vorhanden')) : ('Fehler: ' + esc(d.error)));
 }
@@ -356,18 +347,11 @@ async function obsSendTest() {
   const to_email   = (document.getElementById('obs-to').value||'acme@castle.cloud').trim();
   const label      = (document.getElementById('obs-label').value||'').trim() || 'test-' + Date.now();
   if (!from_email) { showAlert(result,'error','Absender-Adresse angeben.'); return; }
-  btn.disabled = true; btn.textContent = 'Sendet…';
   hideAlert(result);
-  const r = await fetch('/api/test/send-graph-acme', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({from_email, to_email, label}),
-  });
-  const d = await r.json();
-  btn.disabled = false; btn.textContent = 'Test-Mail senden (Graph API)';
+  const d = await knopfAktion(btn, 'Sendet…', () => postJSON('/api/test/send-graph-acme', {from_email, to_email, label}));
   if (d.ok) {
     showAlert(result, 'success',
-      'Gesendet ✓ — Subject: <code>' + d.subject + '</code><br>'
+      'Gesendet ✓ — Subject: <code>' + esc(d.subject) + '</code><br>'
       + 'Warte ~15s, dann automatisch Captures laden…');
     if (_obsPoller) clearTimeout(_obsPoller);
     _obsPoller = setTimeout(() => { obsRefreshCaptures(); }, 15000);
@@ -737,7 +721,7 @@ async function loadAuditLogInline() {
       </div>
       <div style="display:flex;align-items:center;gap:10px">
         <button class="btn secondary" id="selftest-btn" onclick="runSelfTest()">Selbsttest ausführen</button>
-        <span id="selftest-spinner" style="display:none;font-size:13px;color:#57534e">Läuft…</span>
+        <span id="selftest-spinner" hidden></span>
       </div>
     </div>
 
@@ -808,50 +792,47 @@ var _selftestData = [];
 })();
 
 async function runSelfTest() {
-  const btn = document.getElementById('selftest-btn');
-  btn.disabled = true;
-  document.getElementById('selftest-spinner').style.display = '';
   document.getElementById('selftest-result').style.display = 'none';
   const template = document.getElementById('selftest-template').value;
   const email    = document.getElementById('selftest-email').value;
   const body = (template || email) ? JSON.stringify({template, email}) : undefined;
-  try {
-    const r = await fetch('/api/test/mail-processor', {
-      method: 'POST',
-      headers: body ? {'Content-Type': 'application/json'} : {},
-      body,
-    });
-    const d = await r.json();
-    _selftestData = d.results;
-    const allPassed = d.failed === 0;
-    const sigNote = d.using_real_sig
-      ? ` <span style="font-size:12px;font-weight:400;color:#0284c7">(echte Signatur: ${template || '—'} / ${email || '—'})</span>`
-      : '';
-    document.getElementById('selftest-summary').innerHTML = allPassed
-      ? `<span style="color:#16a34a">✓ Alle ${d.total} Tests bestanden</span>${sigNote}`
-      : `<span style="color:#dc2626">${d.failed} von ${d.total} Tests fehlgeschlagen</span>${sigNote}`;
-    document.getElementById('selftest-rows').innerHTML = d.results.map((t, i) => `
-      <tr style="border-bottom:1px solid #f1f5f9;${t.passed ? '' : 'background:#fef2f2'}">
-        <td style="padding:7px 8px">${t.name}</td>
-        <td style="text-align:center;padding:7px 8px">
-          ${t.passed ? '<span style="color:#16a34a;font-size:16px">✓</span>'
-                     : '<span style="color:#dc2626;font-size:16px">✗</span>'}
-        </td>
-        <td style="padding:7px 8px;color:#57534e;font-family:monospace;font-size:12px">${t.detail}</td>
-        <td style="text-align:center;padding:6px 8px">
-          ${(t.input_html || t.output_html)
-            ? `<button onclick="openSelftestPreview(${i})"
-                style="font-size:11px;padding:3px 10px;border:1px solid #cbd5e1;border-radius:4px;background:#f8fafc;cursor:pointer;color:#475569;white-space:nowrap">Vorschau</button>`
-            : '<span style="color:#cbd5e1;font-size:11px">—</span>'}
-        </td>
-      </tr>`).join('');
-    document.getElementById('selftest-result').style.display = '';
-  } catch(e) {
-    document.getElementById('selftest-summary').innerHTML = `<span style="color:#dc2626">Netzwerkfehler: ${esc(e.message)}</span>`;
-    document.getElementById('selftest-result').style.display = '';
-  }
-  btn.disabled = false;
-  document.getElementById('selftest-spinner').style.display = 'none';
+  await knopfAktion('selftest-btn', 'Läuft…', async () => {
+    try {
+      const r = await fetch('/api/test/mail-processor', {
+        method: 'POST',
+        headers: body ? {'Content-Type': 'application/json'} : {},
+        body,
+      });
+      const d = await r.json();
+      _selftestData = d.results;
+      const allPassed = d.failed === 0;
+      const sigNote = d.using_real_sig
+        ? ` <span style="font-size:12px;font-weight:400;color:#0284c7">(echte Signatur: ${esc(template || '—')} / ${esc(email || '—')})</span>`
+        : '';
+      document.getElementById('selftest-summary').innerHTML = allPassed
+        ? `<span style="color:#16a34a">✓ Alle ${d.total} Tests bestanden</span>${sigNote}`
+        : `<span style="color:#dc2626">${d.failed} von ${d.total} Tests fehlgeschlagen</span>${sigNote}`;
+      document.getElementById('selftest-rows').innerHTML = d.results.map((t, i) => `
+        <tr style="border-bottom:1px solid #f1f5f9;${t.passed ? '' : 'background:#fef2f2'}">
+          <td style="padding:7px 8px">${esc(t.name)}</td>
+          <td style="text-align:center;padding:7px 8px">
+            ${t.passed ? '<span style="color:#16a34a;font-size:16px">✓</span>'
+                       : '<span style="color:#dc2626;font-size:16px">✗</span>'}
+          </td>
+          <td style="padding:7px 8px;color:#57534e;font-family:monospace;font-size:12px">${esc(t.detail)}</td>
+          <td style="text-align:center;padding:6px 8px">
+            ${(t.input_html || t.output_html)
+              ? `<button onclick="openSelftestPreview(${i})"
+                  style="font-size:11px;padding:3px 10px;border:1px solid #cbd5e1;border-radius:4px;background:#f8fafc;cursor:pointer;color:#475569;white-space:nowrap">Vorschau</button>`
+              : '<span style="color:#cbd5e1;font-size:11px">—</span>'}
+          </td>
+        </tr>`).join('');
+      document.getElementById('selftest-result').style.display = '';
+    } catch(e) {
+      document.getElementById('selftest-summary').innerHTML = `<span style="color:#dc2626">Netzwerkfehler: ${esc(e.message)}</span>`;
+      document.getElementById('selftest-result').style.display = '';
+    }
+  }, {anzeige: 'selftest-spinner'});
 }
 
 function openSelftestPreview(idx) {

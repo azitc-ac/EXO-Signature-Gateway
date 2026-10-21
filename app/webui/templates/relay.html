@@ -607,24 +607,19 @@ async function perRecipientUmschalten(cb) {
 }
 
 async function mailuserAbgleichen(btn) {
+  // Die Standzeile ist keine reine Fortschrittsanzeige — sie zeigt danach den
+  // Stand wieder an. Deshalb der Text dort von Hand, der Pfeil am Knopf.
   const stand = document.getElementById('mailuser-stand');
-  if (btn) btn.disabled = true;
   if (stand) stand.textContent = 'Gleiche ab … (kann bis zu 30 s dauern)';
-  try {
-    const r = await postJSON('/api/relay/mailuser-sync', {});
-    if (r && r.ok) {
-      zeichneMailuserStand({ count: r.count, ts: r.ts });
-      showMsg(document.getElementById('mailuser-result'),
-              r.count + ' onprem-Postfächer abgeglichen.', true);
-    } else {
-      zeichneMailuserStand(_stand ? _stand.mailuser : null);
-      showMsg(document.getElementById('mailuser-result'),
-              'Abgleich fehlgeschlagen — bestehende Liste bleibt maßgeblich.', false);
-    }
-  } catch (e) {
-    showMsg(document.getElementById('mailuser-result'), 'Fehler: ' + e.message, false);
-  } finally {
-    if (btn) btn.disabled = false;
+  const r = await knopfAktion(btn, null, () => postJSON('/api/relay/mailuser-sync'));
+  if (r.ok) {
+    zeichneMailuserStand({ count: r.count, ts: r.ts });
+    showMsg(document.getElementById('mailuser-result'),
+            r.count + ' onprem-Postfächer abgeglichen.', true);
+  } else {
+    zeichneMailuserStand(_stand ? _stand.mailuser : null);
+    showMsg(document.getElementById('mailuser-result'),
+            'Abgleich fehlgeschlagen — bestehende Liste bleibt maßgeblich.', false);
   }
 }
 
@@ -832,10 +827,8 @@ async function zielHinzufuegen(btn) {
   const pw = document.getElementById('neu-ziel-pw').value || '';
   const tls = document.getElementById('neu-ziel-tls').checked;
   if (!id || !host) { showAlert(box, 'error', 'Kürzel und Host sind nötig.'); return; }
-  btn.disabled = true;
-  const r = await postJSON('/api/relay/ziel',
-    { id: id, host: host, port: port, starttls: tls, user: user, passwort: pw });
-  btn.disabled = false;
+  const r = await knopfAktion(btn, null, () => postJSON('/api/relay/ziel',
+      { id: id, host: host, port: port, starttls: tls, user: user, passwort: pw }));
   if (!r || !r.ok) { showAlert(box, 'error', (r && esc(r.error)) || 'Speichern fehlgeschlagen.'); return; }
   showAlert(box, 'success', 'Ziel gespeichert.');
   ['neu-ziel-id', 'neu-ziel-host', 'neu-ziel-user', 'neu-ziel-pw'].forEach(function (f) {
@@ -849,9 +842,8 @@ async function zielHinzufuegen(btn) {
 async function zielLoeschen(id, btn) {
   if (!confirm('Ziel „' + id + '" entfernen? Routen, die darauf zeigen, gehen '
              + 'wieder an Exchange Online.')) return;
-  btn.disabled = true;
-  const r = await postJSON('/api/relay/ziel/loeschen', { id: id });
-  if (!r || !r.ok) { btn.disabled = false; return; }
+  const r = await knopfAktion(btn, null, () => postJSON('/api/relay/ziel/loeschen', { id: id }));
+  if (!r.ok) return;
   laden();
 }
 
@@ -860,9 +852,7 @@ async function routeHinzufuegen(btn) {
   const domain = (document.getElementById('neu-route-domain').value || '').trim();
   const ziel = document.getElementById('neu-route-ziel').value || '';
   if (!domain) { showAlert(box, 'error', 'Bitte eine Domäne angeben.'); return; }
-  btn.disabled = true;
-  const r = await postJSON('/api/relay/route', { domain: domain, ziel: ziel });
-  btn.disabled = false;
+  const r = await knopfAktion(btn, null, () => postJSON('/api/relay/route', { domain: domain, ziel: ziel }));
   if (!r || !r.ok) { showAlert(box, 'error', (r && esc(r.error)) || 'Speichern fehlgeschlagen.'); return; }
   showAlert(box, 'success', 'Route gespeichert.');
   document.getElementById('neu-route-domain').value = '';
@@ -870,9 +860,8 @@ async function routeHinzufuegen(btn) {
 }
 
 async function routeLoeschen(domain, btn) {
-  btn.disabled = true;
-  const r = await postJSON('/api/relay/route', { domain: domain, ziel: '' });
-  if (!r || !r.ok) { btn.disabled = false; return; }
+  const r = await knopfAktion(btn, null, () => postJSON('/api/relay/route', { domain: domain, ziel: '' }));
+  if (!r.ok) return;
   laden();
 }
 
@@ -906,10 +895,8 @@ async function coexSpeichern(btn) {
   const ip = (document.getElementById('coex-ip').value || '').trim();
   const srv = (document.getElementById('coex-server').value || '').trim();
   if (!gw || !ip) { showAlert(box, 'error', 'Gateway-Name und Quell-IP sind nötig.'); return; }
-  btn.disabled = true;
-  const r = await postJSON('/api/relay/coex',
-    { gateway_name: gw, source_ip: ip, servers: srv });
-  btn.disabled = false;
+  const r = await knopfAktion(btn, null, () => postJSON('/api/relay/coex',
+      { gateway_name: gw, source_ip: ip, servers: srv }));
   if (!r || !r.ok) { showAlert(box, 'error', (r && esc(r.error)) || 'Speichern fehlgeschlagen.'); return; }
   showAlert(box, 'success', 'Gespeichert. Skript unten kopieren und on-prem ausführen.');
   _coexSkripteZeigen(r.coex);
@@ -1114,13 +1101,8 @@ async function identitaetHinzufuegen(btn) {
   const extern = document.getElementById('neu-id-extern').checked;
   if (!login || !pw) { showAlert(box, 'error', 'Login und Passwort sind nötig.'); return; }
   if (!domaene) { showAlert(box, 'error', 'Bitte eine Domäne wählen.'); return; }
-  const orig = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = 'lege an … (bis zu 1 Min)';
-  const r = await postJSON('/api/relay/identitaet',
-    { name: name, login: login, passwort: pw, domaene: domaene, extern: extern });
-  btn.disabled = false;
-  btn.textContent = orig;
+  const r = await knopfAktion(btn, 'lege an … (bis zu 1 Min)', () => postJSON('/api/relay/identitaet',
+    { name: name, login: login, passwort: pw, domaene: domaene, extern: extern }));
   if (!r.ok) { showAlert(box, 'error', esc(r.error || 'Fehler beim Anlegen.')); return; }
   // Identität steht; die Shared Mailbox ist die zweite Hälfte des Pakets.
   const adr = (r.identitaet && r.identitaet.adresse) || (login + '@' + domaene);
@@ -1182,8 +1164,7 @@ async function identitaetPasswort(id, btn) {
 async function identitaetLoeschen(id, btn) {
   if (!confirm('Diese Identität entfernen? Das zugehörige Login kann sich danach '
              + 'nicht mehr anmelden.')) return;
-  btn.disabled = true;
-  await postJSON('/api/relay/identitaet/loeschen', { id: id });
+  await knopfAktion(btn, null, () => postJSON('/api/relay/identitaet/loeschen', { id: id }), {gesperrtLassen: true});
   laden(false);
 }
 
@@ -1306,9 +1287,7 @@ async function geraeteSpeichern() {
 }
 
 async function sperreUmschalten(ip, sperren, btn) {
-  btn.disabled = true;
-  const r = await postJSON('/api/relay/geraet', { ip: ip, gesperrt: sperren });
-  btn.disabled = false;
+  const r = await knopfAktion(btn, null, () => postJSON('/api/relay/geraet', { ip: ip, gesperrt: sperren }));
   if (!r.ok) { showMsg(btn, r.error || 'Fehler', false); return; }
   laden(false);
 }
@@ -1316,8 +1295,7 @@ async function sperreUmschalten(ip, sperren, btn) {
 async function geraetLoeschen(ip, btn) {
   if (!confirm('Gerät ' + ip + ' entfernen? Es darf danach nicht mehr einliefern, '
              + 'und seine Zähler gehen verloren.')) return;
-  btn.disabled = true;
-  await postJSON('/api/relay/geraet/loeschen', { ip: ip });
+  await knopfAktion(btn, null, () => postJSON('/api/relay/geraet/loeschen', { ip: ip }), {gesperrtLassen: true});
   laden(false);
 }
 
@@ -1326,9 +1304,7 @@ async function geraetHinzufuegen(btn) {
   const kommentar = (document.getElementById('neu-kommentar').value || '').trim();
   const box = document.getElementById('neu-result');
   if (!ip) { showAlert(box, 'error', 'Ohne Adresse geht es nicht.'); return; }
-  btn.disabled = true;
-  const r = await postJSON('/api/relay/geraet', { ip: ip, kommentar: kommentar });
-  btn.disabled = false;
+  const r = await knopfAktion(btn, null, () => postJSON('/api/relay/geraet', { ip: ip, kommentar: kommentar }));
   if (!r.ok) { showAlert(box, 'error', esc(r.error || 'Fehler beim Speichern.')); return; }
   hideAlert(box);
   document.getElementById('neu-ip').value = '';
@@ -1337,25 +1313,18 @@ async function geraetHinzufuegen(btn) {
 }
 
 async function uebernehmen(ip, btn) {
-  btn.disabled = true;
-  const r = await postJSON('/api/relay/geraet', { ip: ip, kommentar: '' });
-  btn.disabled = false;
+  const r = await knopfAktion(btn, null, () => postJSON('/api/relay/geraet', { ip: ip, kommentar: '' }));
   if (!r.ok) { showMsg(btn, r.error || 'Fehler', false); return; }
   laden(false);
 }
 
 async function abweisungenLeeren(btn) {
-  btn.disabled = true;
-  await postJSON('/api/relay/abweisungen/leeren', {});
-  btn.disabled = false;
+  await knopfAktion(btn, null, () => postJSON('/api/relay/abweisungen/leeren'));
   laden(false);
 }
 
 async function namenAufloesen(btn) {
-  const alt = btn.textContent;
-  btn.disabled = true; btn.textContent = 'löst auf …';
-  await laden(true);
-  btn.disabled = false; btn.textContent = alt;
+  await knopfAktion(btn, 'löst auf …', () => laden(true));
 }
 
 async function lernStarten(btn) {
@@ -1366,14 +1335,12 @@ async function lernStarten(btn) {
     showAlert(box, 'error', 'Bereich erforderlich — bitte angeben.');
     return;
   }
-  btn.disabled = true;
-  const r = await postJSON('/api/relay/lernmodus', {
-    start: true,
-    bereiche: bereiche,
-    minuten: parseInt(document.getElementById('lern-minuten').value, 10) || 15,
-    extern_vorgabe: document.getElementById('lern-extern').checked,
-  });
-  btn.disabled = false;
+  const r = await knopfAktion(btn, null, () => postJSON('/api/relay/lernmodus', {
+      start: true,
+      bereiche: bereiche,
+      minuten: parseInt(document.getElementById('lern-minuten').value, 10) || 15,
+      extern_vorgabe: document.getElementById('lern-extern').checked,
+    }));
   if (!r.ok) { showAlert(box, 'error', esc(r.error || 'Fehler.')); return; }
   // ⚠️ Der Server meldet, wie viele Bereiche er VERSTANDEN hat. Ein Tippfehler
   // wird sonst gespeichert, wirkt nicht, und der Lernlauf verstreicht
@@ -1393,8 +1360,11 @@ async function lernStarten(btn) {
 }
 
 async function lernStoppen(btn) {
-  btn.disabled = true;
-  await postJSON('/api/relay/lernmodus', { start: false });
+  // Gesperrt lassen: Der Pfeil dreht, bis die Seite neu lädt.
+  await knopfAktion(btn, null, async () => {
+    await postJSON('/api/relay/lernmodus', { start: false });
+    return {ok: true};
+  }, {gesperrtLassen: true});
   location.reload();
 }
 

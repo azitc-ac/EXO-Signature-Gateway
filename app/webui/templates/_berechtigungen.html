@@ -38,9 +38,8 @@
   // Tabelle aus wie vorher, und der Knopf wirkte, als täte er nichts.
   // `hinweis` = [zustand, text] — Meldung, die nach der Prüfung stehen bleibt.
   async function pruefen(hinweis) {
-    pruefKnopf.disabled = true;
     melde('offen', 'Wird geprüft…');
-    try {
+    await knopfAktion(pruefKnopf, null, async function () { try {
       var r = await fetch('/api/setup/berechtigungen?nur=' + encodeURIComponent(box.dataset.nur || ''));
       var d = await r.json();
       liste.innerHTML = '';
@@ -68,9 +67,7 @@
       else melde('', 'Geprüft um ' + new Date().toLocaleTimeString('de-DE'));
     } catch (e) {
       melde('fehler', '✗ Prüfung fehlgeschlagen' + ursache(e, 'berechtigungen'));
-    } finally {
-      pruefKnopf.disabled = false;
-    }
+    } });
   }
 
   var wartet = false;   // nur das Kästchen, das die Anmeldung gestartet hat, meldet den Ablauf

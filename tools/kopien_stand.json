@@ -1,25 +1,23 @@
 {
  "min": 60,
  "tokens_in_kopien": {
-  "app/webui/static/common.js": 120,
   "app/webui/templates/abwesenheit.html": 275,
-  "app/webui/templates/advanced.html": 697,
-  "app/webui/templates/backup.html": 245,
+  "app/webui/templates/advanced.html": 498,
+  "app/webui/templates/backup.html": 70,
   "app/webui/templates/dashboard.html": 127,
-  "app/webui/templates/debug.html": 488,
+  "app/webui/templates/debug.html": 341,
   "app/webui/templates/kampagnen.html": 71,
-  "app/webui/templates/login.html": 64,
   "app/webui/templates/mailboxes.html": 136,
   "app/webui/templates/portal.html": 142,
   "app/webui/templates/preview.html": 63,
-  "app/webui/templates/relay.html": 1000,
+  "app/webui/templates/relay.html": 813,
   "app/webui/templates/self.html": 409,
-  "app/webui/templates/settings.html": 135,
+  "app/webui/templates/settings.html": 71,
   "app/webui/templates/settings_connect.html": 580,
   "app/webui/templates/settings_signature.html": 71,
   "app/webui/templates/settings_smime.html": 320,
-  "app/webui/templates/setup.html": 2429,
-  "app/webui/templates/smime.html": 279,
+  "app/webui/templates/setup.html": 1148,
+  "app/webui/templates/smime.html": 138,
   "app/webui/templates/template_editor.html": 428
  }
 }

@@ -16,6 +16,8 @@ from pathlib import Path
 import pytest
 from jinja2 import Environment, FileSystemLoader
 
+from test_knopf_aktion import common_funktion
+
 VORLAGEN = Path(__file__).parent.parent / "app/webui/templates"
 pytestmark = pytest.mark.skipif(shutil.which("node") is None, reason="node fehlt")
 
@@ -46,7 +48,7 @@ _STUBS = r"""
 const aufrufe = {post: [], msg: [], aktion: 0};
 let STATUS = {}, POST_OK = true;
 function el(cls){ return {cls, dataset:{}, style:{}, disabled:false, checked:false, textContent:'', innerHTML:'',
-  classList:{add(){},remove(){},toggle(){}}}; }
+  classList:{add(){},remove(){},toggle(){}}, matches: () => true}; }
 const box = el('box'); box.dataset = {dokumente:'hub-terms,license-supplement', kontext:KONTEXT};
 box.style.display = 'none';
 const teile = {'.zs-text':el('t'), '.zs-schritt':el('s'), '.zs-ok':el('ok'), '.zs-meldung':el('m')};
@@ -74,7 +76,9 @@ def _lauf(szenario: str, kontext: str = "hub_connect") -> dict:
     html = _rendern(kontext=kontext)
     gerendert = re.search(r'data-kontext="([^"]*)"', html).group(1)   # wie der Browser: aus dem Attribut
     skript = re.search(r"<script>([\s\S]*?)</script>", html).group(1)
-    js = f"const KONTEXT = {json.dumps(gerendert)};\n" + _STUBS + skript + "\n(async () => {\n" + szenario + "\n" \
+    # knopfAktion/laeuftZeigen echt aus common.js — keine Attrappe, die vom Original abweichen kann
+    echt = common_funktion("laeuftZeigen") + "\n" + common_funktion("knopfAktion") + "\n"
+    js = f"const KONTEXT = {json.dumps(gerendert)};\n" + _STUBS + echt + skript + "\n(async () => {\n" + szenario + "\n" \
         "console.log(JSON.stringify({aufrufe, display: box.style.display, ok_gesperrt: teile['.zs-ok'].disabled}));\n})();"
     out = subprocess.run(["node", "-e", js], capture_output=True, text=True, check=True).stdout
     return json.loads(out)

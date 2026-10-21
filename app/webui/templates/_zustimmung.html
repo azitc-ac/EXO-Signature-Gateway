@@ -110,21 +110,20 @@
 
   window.zustimmungBestaetigen = async function (k) {
     var b = box(k), knopf = b.querySelector('.zs-ok');
-    knopf.disabled = true;
-    try {
-      for (var id of dokumente(k)) {
-        var d = await laden(id);
-        var r = await postJSON('/api/legal/consent', {
-          document_id: id, version: d.version, content_hash: d.content_hash,
-          context: b.dataset.kontext,
-        });
-        if (!r.ok) throw new Error('Zustimmung nicht gespeichert: ' + errText(r));
-      }
-    } catch (e) {
-      meldung(k, e.message, false);
-      knopf.disabled = false;
-      return;
-    }
+    var erg = await knopfAktion(knopf, null, async function () {
+      try {
+        for (var id of dokumente(k)) {
+          var d = await laden(id);
+          var r = await postJSON('/api/legal/consent', {
+            document_id: id, version: d.version, content_hash: d.content_hash,
+            context: b.dataset.kontext,
+          });
+          if (!r.ok) throw new Error('Zustimmung nicht gespeichert: ' + errText(r));
+        }
+        return {ok: true};
+      } catch (e) { return {ok: false, error: e.message}; }
+    });
+    if (!erg.ok) { meldung(k, erg.error, false); return; }
     var aktion = nachher[k];
     window.zustimmungSchliessen(k);
     if (aktion) await aktion();

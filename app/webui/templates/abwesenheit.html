@@ -406,29 +406,23 @@ function abSchliesse() { abm('ab-modal').style.display = 'none'; AB_EDIT = null;
 
 async function abSpeichern() {
   if (!AB_EDIT) return;
-  var btn = abm('abm-save'); btn.disabled = true; var alt = btn.textContent; btn.textContent = 'Speichert…';
   abm('abm-result').textContent = '';
   var x = Math.max(1, Math.min(50, parseInt(abm('abm-ank-x').value, 10) || 3));
-  try {
-    var r = await fetch('/api/abwesenheit/postfach', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: AB_EDIT,
-        oof_status: abmStatusWert(), oof_start: abm('abm-von').value, oof_ende: abm('abm-bis').value,
-        ganztaegig: abm('abm-ganztaegig').checked,
-        start_zeit: abm('abm-von-zeit').value, ende_zeit: abm('abm-bis-zeit').value,
-        ooo_calendar: abm('abm-kalender').value,
-        announce: {
-          an: abm('abm-ank-an').checked, mode: abm('abm-ank-mode').value, x: x,
-          privat: abm('abm-ank-privat').checked, extern: abm('abm-ank-extern').checked,
-        },
-      }),
+  var d = await knopfAktion(abm('abm-save'), 'Speichert…', function () {
+    return postJSON('/api/abwesenheit/postfach', {
+      email: AB_EDIT,
+      oof_status: abmStatusWert(), oof_start: abm('abm-von').value, oof_ende: abm('abm-bis').value,
+      ganztaegig: abm('abm-ganztaegig').checked,
+      start_zeit: abm('abm-von-zeit').value, ende_zeit: abm('abm-bis-zeit').value,
+      ooo_calendar: abm('abm-kalender').value,
+      announce: {
+        an: abm('abm-ank-an').checked, mode: abm('abm-ank-mode').value, x: x,
+        privat: abm('abm-ank-privat').checked, extern: abm('abm-ank-extern').checked,
+      },
     });
-    var d = await r.json().catch(function () { return {}; });
-    if (r.ok && d.ok) { abSchliesse(); abLaden(true); }
-    else { abm('abm-result').textContent = '✗ ' + (d.detail || ('Fehler ' + r.status)); }
-  } catch (e) { abm('abm-result').textContent = '✗ ' + e.message; }
-  btn.disabled = false; btn.textContent = alt;
+  });
+  if (d.ok) { abSchliesse(); abLaden(true); }
+  else { abm('abm-result').textContent = '✗ ' + errText(d); }
 }
 
 async function oooUmschalten(cb) {
