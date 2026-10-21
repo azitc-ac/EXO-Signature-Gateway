@@ -39,14 +39,16 @@ class _Sitzung:
 
 
 class _Umschlag:
-    def __init__(self, content: bytes):
+    def __init__(self, content: bytes, empfaenger=("extern@example.com",)):
         self.mail_from = "nutzer@azitc.org"
-        self.rcpt_tos = ["extern@example.com"]
+        self.rcpt_tos = list(empfaenger)
         self.content = content
 
 
-def _nachricht(cross_tenant: str | None) -> bytes:
+def _nachricht(cross_tenant: str | None, mid: str = "<test-1@azitc.org>") -> bytes:
     kopf = "Subject: Hallo\r\nFrom: nutzer@azitc.org\r\n"
+    if mid:
+        kopf += f"Message-ID: {mid}\r\n"
     if cross_tenant is not None:
         kopf += f"X-MS-Exchange-CrossTenant-Id: {cross_tenant}\r\n"
     return (kopf + "\r\nText  mit  Leerzeichen\r\n").encode()
@@ -54,6 +56,7 @@ def _nachricht(cross_tenant: str | None) -> bytes:
 
 @pytest.fixture
 def anlage(monkeypatch):
+    monkeypatch.setattr(domain_routing, "_weitergeleitet", {})
     werte = {
         "TENANT_ID": OWN,
         "RELAY_TENANT_CHECK": True,
@@ -92,9 +95,9 @@ def anlage(monkeypatch):
     return werte
 
 
-def _lauf(content: bytes, ip="40.92.10.10", ident=None):
+def _lauf(content: bytes, ip="40.92.10.10", ident=None, empfaenger=("extern@example.com",)):
     h = handler.SignatureHandler()
-    return asyncio.run(h.handle_DATA(None, _Sitzung(ip, ident), _Umschlag(content)))
+    return asyncio.run(h.handle_DATA(None, _Sitzung(ip, ident), _Umschlag(content, empfaenger)))
 
 
 def test_eingetragener_tenant_geht_bytegenau_ans_ziel(anlage):
@@ -162,6 +165,61 @@ def test_authentifizierte_einlieferung_wird_nicht_weitergeleitet(anlage, monkeyp
     monkeypatch.setattr(relay_stats, "heute_zaehler", lambda *a: 0)
     _lauf(_nachricht(FREMD), ip="192.168.1.60", ident={"login": "drucker"})
     assert anlage["_weiter"] == []
+
+
+# ── Schleifenbremse ─────────────────────────────────────────────────────────
+# Anlass: Am 21.10.2026 schickte die Gegenseite (Regel ohne Ausnahme) jede
+# weitergereichte Kopie sofort wieder auf den Connector; ~10 Runden in 40 s,
+# beendet erst vom Hop-Zähler von Exchange Online.
+
+def test_schleife_wird_nach_zwei_runden_abgewiesen(anlage):
+    roh = _nachricht(FREMD)
+    assert _lauf(roh).startswith("250")
+    assert _lauf(roh).startswith("250")
+    antwort = _lauf(roh)
+    assert antwort.startswith("554"), antwort
+    assert len(anlage["_weiter"]) == 2
+    assert any(e.get("action") == "tenant_schleife" for e in anlage["_ereignisse"])
+
+
+def test_bifurkation_ist_keine_schleife(anlage):
+    # Gleiche Message-ID, verschiedene Empfänger: Exchange teilt eine Mail so auf.
+    roh = _nachricht(FREMD)
+    for r in ("a@example.com", "b@example.com", "c@example.com"):
+        assert _lauf(roh, empfaenger=(r,)).startswith("250")
+    assert len(anlage["_weiter"]) == 3
+
+
+def test_verschiedene_nachrichten_zaehlen_getrennt(anlage):
+    for i in range(4):
+        assert _lauf(_nachricht(FREMD, mid=f"<n{i}@azitc.org>")).startswith("250")
+
+
+def test_gescheiterter_hop_zaehlt_nicht(anlage):
+    # Ein 451 an Exchange ist kein Weiterreichen — die Wiederholungen danach
+    # dürfen nicht als Schleife gelten.
+    roh = _nachricht(FREMD)
+    anlage["_hop_fehler"] = True
+    for _ in range(3):
+        assert _lauf(roh).startswith("451")
+    anlage["_hop_fehler"] = False
+    assert _lauf(roh).startswith("250")
+
+
+def test_fenster_laeuft_ab():
+    domain_routing._weitergeleitet.clear()
+    for t in (0.0, 10.0):
+        domain_routing.merke_weiterleitung(FREMD, "<x@y>", ["e@x"], jetzt=t)
+    assert domain_routing.ist_schleife(FREMD, "<X@Y>", ["E@x"], jetzt=20.0)
+    assert not domain_routing.ist_schleife(
+        FREMD, "<x@y>", ["e@x"], jetzt=10.0 + domain_routing.SCHLEIFE_FENSTER_S + 1)
+    assert domain_routing._weitergeleitet == {}, "abgelaufene Einträge müssen weg"
+
+
+def test_ohne_message_id_keine_bremse(anlage):
+    roh = _nachricht(FREMD, mid="")
+    for _ in range(3):
+        assert _lauf(roh).startswith("250")
 
 
 # ── Verwaltung ──────────────────────────────────────────────────────────────
