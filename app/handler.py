@@ -575,6 +575,44 @@ class SignatureHandler:
             log.info("Eingang: from=%s to=%s subject=%r mid=%s",
                      sender, recipients, _subject[:80], _mid)
 
+            # ── Tenant-Weiterleitung: Post eines eingetragenen FREMDEN Tenants
+            # geht byte-genau an dessen Ziel (z. B. ein zweites Gateway im LAN,
+            # wenn sich beide eine öffentliche IP und damit Port 25 teilen) —
+            # vor jeder Verarbeitung, ohne Signatur, ohne DKIM-Eingriff.
+            # Steht VOR dem Tenant-Gate und gilt unabhängig von dessen Schalter:
+            # Ohne Route bleibt es bei der Abweisung unten. Scheitert der Hop,
+            # antwortet das Gateway vorläufig (451) und Exchange Online stellt
+            # erneut zu — KEINE eigene Warteschlange, deren Wiederholung über
+            # `reinject.send()` den eigenen Smarthost träfe.
+            # Nur für Post aus dem Exchange-Weg: Relay-Geräte und authentifizierte
+            # Einlieferungen (587) sind lokal — dort stammt die Kennung nicht von
+            # Exchange, sondern stünde so im Kopf, wie das Gerät sie schreibt.
+            if peer_ip and not aus_relay_netz and not _ident:
+                _fremd_tenant = (msg.get("X-MS-Exchange-CrossTenant-Id") or "").strip().lower()
+                _eigen_tenant = (config.TENANT_ID or settings_store.get("TENANT_ID")
+                                 or "").strip().lower()
+                if _fremd_tenant and _fremd_tenant != _eigen_tenant:
+                    import domain_routing
+                    _tziel = domain_routing.route_fuer_tenant(_fremd_tenant)
+                    if _tziel:
+                        import relay_stats
+                        try:
+                            reinject._relay_to_target(_tziel, sender, recipients, raw)
+                        except Exception as exc:              # noqa: BLE001
+                            log.error("Tenant-Weiterleitung %s → %s fehlgeschlagen: %s",
+                                      _fremd_tenant, _tziel, exc)
+                            relay_stats.merke_routing(
+                                _tziel, len(raw), ok=False, absender=sender,
+                                empfaenger=recipients, inhalt=raw,
+                                fehler_text=f"{type(exc).__name__}: {exc}")
+                            _audit("error", error=f"Tenant-Weiterleitung→{_tziel}: {exc}")
+                            return "451 4.4.0 Weiterleitung voruebergehend nicht moeglich"
+                        relay_stats.merke_routing(_tziel, len(raw), ok=True,
+                                                  absender=sender, empfaenger=recipients,
+                                                  inhalt=raw)
+                        _audit("tenant_weitergeleitet")
+                        return "250 OK"
+
             # ── Tenant-Gate: Post aus dem EXO-IP-Raum muss aus dem EIGENEN
             # Tenant stammen. Microsofts Adressbereiche teilen sich ALLE
             # M365-Tenants; ohne diese Prüfung könnte ein fremder Tenant über

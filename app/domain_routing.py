@@ -71,6 +71,41 @@ def route_fuer(domain: str) -> str:
     return ziel_id
 
 
+# Tenant-IDs sind GUIDs; kleingeschrieben verglichen (EXO schreibt sie klein,
+# die Oberfläche nimmt sie, wie sie im Entra-Portal stehen).
+_GUID_MUSTER = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+
+
+def _tenant_routen() -> dict:
+    r = settings_store.get("TENANT_ROUTES")
+    return r if isinstance(r, dict) else {}
+
+
+def route_fuer_tenant(tenant_id: str) -> str:
+    """Ziel-ID für Post eines FREMDEN Tenants — leer, wenn keine gültige Route greift.
+
+    Anders als bei Empfängerdomänen gibt es hier keinen Rückfall auf EXO: Post
+    eines fremden Tenants über den eigenen Smarthost zuzustellen, ist genau der
+    Missbrauch, den das Tenant-Gate in `handler.py` verhindert. Ohne Route bleibt
+    es bei dessen Abweisung.
+
+    Schlüssel ist die Kennung aus `X-MS-Exchange-CrossTenant-Id`, die Exchange
+    Online selbst stempelt — anders als die Absenderdomäne kann ein Absender sie
+    nicht frei wählen.
+    """
+    t = (tenant_id or "").strip().lower()
+    if not t:
+        return ""
+    ziel_id = (_tenant_routen().get(t) or "").strip()
+    if not ziel_id:
+        return ""
+    if ziel_id not in ziele():
+        log.warning("Tenant-Route %s → %r zeigt auf ein unbekanntes Ziel — "
+                    "Post dieses Tenants wird abgewiesen", t, ziel_id)
+        return ""
+    return ziel_id
+
+
 def _per_empfaenger_aktiv() -> bool:
     """Per-Empfänger-Routing eingeschaltet? (Bool kommt aus JSON als echtes
     True/False; nur explizites True zählt.)"""
@@ -201,7 +236,7 @@ def setze_ziel(ziel_id: str, host: str, port: int, starttls: bool,
 
 
 def loesche_ziel(ziel_id: str) -> bool:
-    """Ein Ziel entfernen — samt Passwort UND aller Routen, die darauf zeigten
+    """Ein Ziel entfernen — samt Passwort UND aller Domänen- und Tenant-Routen, die darauf zeigten
     (sonst zeigten sie ins Leere und fielen still auf EXO zurück)."""
     ziel_id = (ziel_id or "").strip().lower()
     z = dict(ziele())
@@ -212,8 +247,9 @@ def loesche_ziel(ziel_id: str) -> bool:
     pw = dict(pw) if isinstance(pw, dict) else {}
     pw.pop(ziel_id, None)
     r = {d: zid for d, zid in _routen().items() if zid != ziel_id}
+    tr = {t: zid for t, zid in _tenant_routen().items() if zid != ziel_id}
     settings_store.update({"RELAY_TARGETS": z, "RELAY_TARGET_PW": pw,
-                           "DOMAIN_ROUTES": r})
+                           "DOMAIN_ROUTES": r, "TENANT_ROUTES": tr})
     return True
 
 
@@ -232,3 +268,35 @@ def setze_route(domain: str, ziel_id: str) -> None:
             raise ValueError(f"Ziel {ziel_id!r} gibt es nicht")
         r[domain] = ziel_id
     settings_store.update({"DOMAIN_ROUTES": r})
+
+
+def tenant_routen() -> dict:
+    """Tenant→Ziel-Zuordnung für die Oberfläche (Kopie)."""
+    return dict(_tenant_routen())
+
+
+def setze_tenant_route(tenant_id: str, ziel_id: str) -> None:
+    """Post eines fremden Tenants an ein Ziel weiterreichen. `ziel_id` leer
+    entfernt die Route (Post des Tenants wird dann wieder abgewiesen).
+
+    Der eigene Tenant ist ausgeschlossen: seine Post wird hier verarbeitet, eine
+    Route darauf leitete den gesamten eigenen Mailfluss am Gateway vorbei.
+    """
+    tenant_id = (tenant_id or "").strip().lower()
+    if not _GUID_MUSTER.match(tenant_id):
+        raise ValueError("Bitte die Tenant-ID als GUID angeben "
+                         "(xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)")
+    import config
+    eigen = (config.TENANT_ID or settings_store.get("TENANT_ID") or "").strip().lower()
+    ziel_id = (ziel_id or "").strip().lower()
+    if ziel_id and tenant_id == eigen:
+        raise ValueError("Das ist der eigene Tenant — dessen Post verarbeitet "
+                         "dieses Gateway selbst")
+    r = dict(_tenant_routen())
+    if not ziel_id or ziel_id == EXO:
+        r.pop(tenant_id, None)
+    else:
+        if ziel_id not in ziele():
+            raise ValueError(f"Ziel {ziel_id!r} gibt es nicht")
+        r[tenant_id] = ziel_id
+    settings_store.update({"TENANT_ROUTES": r})

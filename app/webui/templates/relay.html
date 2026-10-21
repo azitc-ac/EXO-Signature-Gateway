@@ -370,8 +370,8 @@
     anderen Server zustellen — etwa an einen lokalen Exchange im Hybrid-Betrieb.
     Post an eine geroutete Domäne wird <strong>unverändert</strong> weitergereicht
     (keine Signatur-Nachbearbeitung, kein DKIM-Eingriff).
-    <br>⚠️ Wirkt nur im Rückweg-Modus <strong>„SMTP Port 25"</strong>; in den
-    Graph-Modi geht alle Post an Exchange Online.
+    <br>⚠️ Die Empfängerdomänen-Routen wirken nur im Rückweg-Modus <strong>„SMTP Port 25"</strong>; in den
+    Graph-Modi geht diese Post an Exchange Online.
   </p>
 
   <h3 style="font-size:14px;margin:0 0 8px">Weiterleitungsziele</h3>
@@ -454,6 +454,45 @@
       </div>
     </div>
     <div id="neu-route-result" style="display:none;margin-top:10px"></div>
+  </div>
+
+  <h3 style="font-size:14px;margin:20px 0 8px">Fremder Tenant&nbsp;→&nbsp;Ziel</h3>
+  <p class="hint" style="margin:0 0 8px">
+    Post eines <strong>anderen</strong> Microsoft-365-Tenants weist das Gateway
+    sonst ab. Ist der Tenant hier eingetragen, geht seine Post vor jeder
+    Verarbeitung <strong>unverändert</strong> an das Ziel — etwa an ein zweites
+    Gateway, wenn sich beide eine öffentliche Adresse teilen. Erkannt wird der
+    Tenant an der Kennung, die Exchange Online selbst in den Kopf schreibt
+    (<code>X-MS-Exchange-CrossTenant-Id</code>), nicht an der Absenderdomäne.
+    Wirkt in jedem Rückweg-Modus. Ist das Ziel nicht erreichbar, stellt
+    Exchange Online später erneut zu.
+  </p>
+  <div class="tabellen-rollbereich">
+    <table class="config-table" style="min-width:420px">
+      <thead>
+        <tr><th>Tenant-ID</th><th>Ziel</th><th></th></tr>
+      </thead>
+      <tbody id="tenant-routen-body">
+        <tr><td colspan="3" style="color:#888">Wird geladen …</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div style="border-top:1px solid #e2e8f0;margin-top:16px;padding-top:14px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px 12px;align-items:end">
+      <div>
+        <label for="neu-tenant-id" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Tenant-ID</label>
+        <input type="text" id="neu-tenant-id" placeholder="xxxxxxxx-xxxx-…" autocomplete="off" style="width:100%;margin:0;box-sizing:border-box">
+      </div>
+      <div>
+        <label for="neu-tenant-ziel" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Ziel</label>
+        <select id="neu-tenant-ziel" style="width:100%;margin:0;box-sizing:border-box"></select>
+      </div>
+      <div style="padding-bottom:1px">
+        <button type="button" class="btn secondary" onclick="tenantRouteHinzufuegen(this)">Route speichern</button>
+      </div>
+    </div>
+    <div id="neu-tenant-result" style="display:none;margin-top:10px"></div>
   </div>
 
   <div style="border-top:1px solid #e2e8f0;margin-top:20px;padding-top:14px">
@@ -639,6 +678,7 @@ async function laden(mitNamen) {
   zeichneIdentitaeten(r.identitaeten);
   zeichneZiele(r.ziele);
   zeichneRouten(r.routen, r.ziele);
+  zeichneTenantRouten(r.tenant_routen, r.ziele);
   const pr = document.getElementById('per-recipient');
   if (pr) pr.checked = !!r.per_recipient;
   zeichneMailuserStand(r.mailuser);
@@ -767,40 +807,90 @@ function zeichneZiele(liste) {
   });
 }
 
-function zeichneRouten(routen, ziele) {
+// Zuordnung → Ziel als Tabelle samt Ziel-Auswahl des Anlege-Formulars; gemeinsam
+// für Empfängerdomänen und fremde Tenants.
+// opt: {tbody, auswahl, auswahlLeer, leerText, unbekanntTitel, loeschen}
+function _routenTabelle(routen, ziele, opt) {
   routen = routen || {};
   ziele = ziele || [];
-  // Ziel-Dropdown des Anlege-Formulars aus den vorhandenen Zielen füllen.
-  const sel = document.getElementById('neu-route-ziel');
+  const sel = document.getElementById(opt.auswahl);
   const behalten = sel.value;
-  sel.innerHTML = '<option value="">— Exchange Online (Standard) —</option>'
+  sel.innerHTML = (opt.auswahlLeer ? '<option value="">' + esc(opt.auswahlLeer) + '</option>' : '')
     + ziele.map(function (z) {
         return '<option value="' + escAttr(z.id) + '">' + esc(z.id) + ' (' + esc(z.host) + ')</option>';
       }).join('');
   if (behalten) sel.value = behalten;
 
-  const tb = document.getElementById('routen-body');
-  const domains = Object.keys(routen).sort();
-  if (!domains.length) {
-    tabelleHinweis(tb, 3, 'Keine Route — '
-      + 'jede Domäne geht an Exchange Online.');
+  const tb = document.getElementById(opt.tbody);
+  const schluessel = Object.keys(routen).sort();
+  if (!schluessel.length) {
+    tabelleHinweis(tb, 3, esc(opt.leerText));
     return;
   }
   const bekannt = {};
   ziele.forEach(function (z) { bekannt[z.id] = z.host; });
   tb.innerHTML = '';
-  domains.forEach(function (d) {
-    const zid = routen[d];
+  schluessel.forEach(function (k) {
+    const zid = routen[k];
     const gueltig = Object.prototype.hasOwnProperty.call(bekannt, zid);
     const tr = document.createElement('tr');
     tr.innerHTML =
-      '<td><code>' + esc(d) + '</code></td>'
+      '<td><code>' + esc(k) + '</code></td>'
       + '<td style="font-size:12px">' + esc(zid)
         + (gueltig ? ' <span style="color:#94a3b8">(' + esc(bekannt[zid]) + ')</span>'
-                   : ' <span style="color:#991b1b" title="Ziel gibt es nicht — Post geht an Exchange Online">⚠ unbekannt</span>') + '</td>'
-      + '<td><button class="btn secondary btn-sm" onclick="routeLoeschen(\'' + escJsAttr(d) + '\', this)">Entfernen</button></td>';
+                   : ' <span style="color:#991b1b" title="' + escAttr(opt.unbekanntTitel) + '">⚠ unbekannt</span>') + '</td>'
+      + '<td><button class="btn secondary btn-sm" onclick="' + opt.loeschen + '(\'' + escJsAttr(k) + '\', this)">Entfernen</button></td>';
     tb.appendChild(tr);
   });
+}
+
+function zeichneRouten(routen, ziele) {
+  _routenTabelle(routen, ziele, {
+    tbody: 'routen-body', auswahl: 'neu-route-ziel',
+    auswahlLeer: '— Exchange Online (Standard) —',
+    leerText: 'Keine Route — jede Domäne geht an Exchange Online.',
+    unbekanntTitel: 'Ziel gibt es nicht — Post geht an Exchange Online',
+    loeschen: 'routeLoeschen'
+  });
+}
+
+function zeichneTenantRouten(routen, ziele) {
+  _routenTabelle(routen, ziele, {
+    tbody: 'tenant-routen-body', auswahl: 'neu-tenant-ziel',
+    auswahlLeer: (ziele && ziele.length) ? '' : '— erst ein Ziel anlegen —',
+    leerText: 'Keine Route — Post fremder Tenants wird abgewiesen.',
+    unbekanntTitel: 'Ziel gibt es nicht — Post wird abgewiesen',
+    loeschen: 'tenantRouteLoeschen'
+  });
+}
+
+// Route aus dem Anlege-Formular speichern (Domäne oder Tenant). Ziel leer heißt
+// beim Domänen-Routing „Exchange Online“, beim Tenant ist es Pflicht.
+async function _routeSpeichern(btn, opt) {
+  const box = document.getElementById(opt.box);
+  const wert = feldWert(opt.feld);
+  const ziel = document.getElementById(opt.auswahl).value || '';
+  if (!wert || (opt.zielPflicht && !ziel)) { showAlert(box, 'error', opt.fehlt); return; }
+  const daten = { ziel: ziel };
+  daten[opt.schluessel] = wert;
+  const r = await knopfAktion(btn, null, () => postJSON(opt.url, daten));
+  if (!r || !r.ok) { showAlert(box, 'error', (r && esc(r.error)) || 'Speichern fehlgeschlagen.'); return; }
+  showAlert(box, 'success', 'Route gespeichert.');
+  document.getElementById(opt.feld).value = '';
+  laden();
+}
+
+function tenantRouteHinzufuegen(btn) {
+  return _routeSpeichern(btn, { box: 'neu-tenant-result', feld: 'neu-tenant-id',
+    auswahl: 'neu-tenant-ziel', zielPflicht: true, schluessel: 'tenant',
+    url: '/api/relay/tenant-route', fehlt: 'Bitte Tenant-ID und Ziel angeben.' });
+}
+
+async function tenantRouteLoeschen(tenant, btn) {
+  if (!confirm('Route entfernen? Post dieses Tenants wird dann wieder abgewiesen.')) return;
+  const r = await knopfAktion(btn, null, () => postJSON('/api/relay/tenant-route', { tenant: tenant, ziel: '' }));
+  if (!r.ok) return;
+  laden();
 }
 
 function zielBearbeiten(z) {
@@ -842,16 +932,10 @@ async function zielLoeschen(id, btn) {
   laden();
 }
 
-async function routeHinzufuegen(btn) {
-  const box = document.getElementById('neu-route-result');
-  const domain = feldWert('neu-route-domain');
-  const ziel = document.getElementById('neu-route-ziel').value || '';
-  if (!domain) { showAlert(box, 'error', 'Bitte eine Domäne angeben.'); return; }
-  const r = await knopfAktion(btn, null, () => postJSON('/api/relay/route', { domain: domain, ziel: ziel }));
-  if (!r || !r.ok) { showAlert(box, 'error', (r && esc(r.error)) || 'Speichern fehlgeschlagen.'); return; }
-  showAlert(box, 'success', 'Route gespeichert.');
-  document.getElementById('neu-route-domain').value = '';
-  laden();
+function routeHinzufuegen(btn) {
+  return _routeSpeichern(btn, { box: 'neu-route-result', feld: 'neu-route-domain',
+    auswahl: 'neu-route-ziel', zielPflicht: false, schluessel: 'domain',
+    url: '/api/relay/route', fehlt: 'Bitte eine Domäne angeben.' });
 }
 
 async function routeLoeschen(domain, btn) {

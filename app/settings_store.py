@@ -217,6 +217,7 @@ DEFAULTS: dict = {
     "RELAY_TARGETS": {},      # {"onprem": {"host","port","starttls","user"}}
     "RELAY_TARGET_PW": {},    # {ziel_id: klartext} — Geheimnis; Klartext nötig für SMTP AUTH
     "DOMAIN_ROUTES": {},      # {"contoso.de": "onprem"} — ohne Treffer → EXO
+    "TENANT_ROUTES": {},      # {"<tenant-guid>": "ziel"} — Post fremder Tenants weiterreichen; ohne Treffer → abgewiesen
     # Per-Empfänger-Routing: greift eine Domänen-Route auf ein Nicht-EXO-Ziel,
     # geht dorthin nur, wer WIRKLICH dort liegt — die onprem-Postfächer, die in
     # EXO als MailUser erscheinen (ONPREM_MAILUSERS). Der Rest der Domäne → EXO.

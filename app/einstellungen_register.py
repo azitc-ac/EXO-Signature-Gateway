@@ -163,6 +163,7 @@ REGISTER: dict[str, E] = {
     "RELAY_TARGETS": E(art=STRUKTUR, ort="/api/relay/ziel"),
     "RELAY_TARGET_PW": E(art=GEHEIMNIS),
     "DOMAIN_ROUTES": E(art=STRUKTUR, ort="/api/relay/route"),
+    "TENANT_ROUTES": E(art=STRUKTUR, ort="/api/relay/tenant-route"),
     "COEX_CONFIG": E(art=STRUKTUR, ort="/api/relay/coex"),
     "DOMAIN_ROUTING_ENABLED": E(art=OPTION, ort="advanced.html"),
     "COEX_ENABLED": E(art=OPTION, ort="advanced.html"),
