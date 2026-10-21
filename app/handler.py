@@ -594,6 +594,16 @@ class SignatureHandler:
                 if _fremd_tenant and _fremd_tenant != _eigen_tenant:
                     import domain_routing
                     _tziel = domain_routing.route_fuer_tenant(_fremd_tenant)
+                    if _tziel and domain_routing.ist_schleife(_fremd_tenant, _mid, recipients):
+                        log.warning("Tenant-Weiterleitung %s → %s: mid=%s ging in %d s schon "
+                                    "%d-mal weiter — Schleife, abgewiesen",
+                                    _fremd_tenant, _tziel, _mid,
+                                    domain_routing.SCHLEIFE_FENSTER_S,
+                                    domain_routing.SCHLEIFE_MAX)
+                        _audit("tenant_schleife",
+                               error=f"Schleife Richtung {_tziel} (gleiche Nachricht "
+                                     f"{domain_routing.SCHLEIFE_MAX}× weitergereicht)")
+                        return "554 5.4.14 Routing-Schleife erkannt, Nachricht abgewiesen"
                     if _tziel:
                         import relay_stats
                         try:
@@ -607,6 +617,7 @@ class SignatureHandler:
                                 fehler_text=f"{type(exc).__name__}: {exc}")
                             _audit("error", error=f"Tenant-Weiterleitung→{_tziel}: {exc}")
                             return "451 4.4.0 Weiterleitung voruebergehend nicht moeglich"
+                        domain_routing.merke_weiterleitung(_fremd_tenant, _mid, recipients)
                         relay_stats.merke_routing(_tziel, len(raw), ok=True,
                                                   absender=sender, empfaenger=recipients,
                                                   inhalt=raw)

@@ -4,6 +4,7 @@
   "app/webui/templates/abwesenheit.html": 275,
   "app/webui/templates/advanced.html": 70,
   "app/webui/templates/backup.html": 70,
+  "app/webui/templates/base.html": 128,
   "app/webui/templates/preview.html": 63,
   "app/webui/templates/relay.html": 246,
   "app/webui/templates/self.html": 275,

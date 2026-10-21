@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.19 — 2026-10-22 — Schleifenbremse für die Tenant-Weiterleitung
+
+- **Die Tenant-Weiterleitung aus v1.10.18 hat jetzt eine eigene Schleifenbremse.**
+  Das Gateway reicht die Post eines fremden Tenants unverändert weiter und setzt
+  dabei bewusst keinen eigenen Kopf. Schickt die Gegenseite eine Kopie wieder
+  auf den Connector, etwa weil ihr Gateway den Loop-Kopf nicht setzt oder ihre
+  Transportregel keine Ausnahme dafür hat, entsteht ein Kreis. Bisher beendete
+  ihn erst der Hop-Zähler von Exchange Online nach rund zehn Runden. Jetzt geht
+  dieselbe Nachricht (gleiche Message-ID, gleiche Empfänger) innerhalb von
+  30 Minuten höchstens zweimal weiter. Die nächste Kopie weist das Gateway mit
+  `554 5.4.14` ab, und der Absender erhält einen Unzustellbarkeitsbericht.
+- Teilt Exchange eine Mail auf mehrere Transaktionen mit verschiedenen
+  Empfängern auf (gleiche Message-ID), gilt das nicht als Schleife. Ein
+  gescheiterter Weiterleitungsversuch (451) zählt nicht mit.
+- Im Mailprotokoll steht eine gestoppte Kopie als „Schleife“, rot markiert.
+
+**Zu tun:** nichts.
+
 ## v1.10.18 — 2026-10-21 — Post eines fremden Tenants an ein zweites Gateway weiterreichen
 
 - **Neu: Fremder Tenant → Ziel** (Relay-Seite, Karte *Domänen-Routing*). Teilen

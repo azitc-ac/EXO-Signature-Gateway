@@ -106,6 +106,67 @@ def route_fuer_tenant(tenant_id: str) -> str:
     return ziel_id
 
 
+# ── Schleifenbremse für die Tenant-Weiterleitung ─────────────────────────────
+# Das Gateway reicht fremde Post unverändert weiter und setzt dabei bewusst
+# keinen eigenen Kopf. Schickt die Gegenseite sie wieder auf den Connector
+# zurück (fehlende Regel-Ausnahme drüben), entstünde ein Kreis, den nur der
+# Hop-Zähler von Exchange Online beendet. Deshalb geht dieselbe Nachricht —
+# gleiche Message-ID, gleiche Empfänger — innerhalb des Fensters höchstens
+# SCHLEIFE_MAX-mal weiter. Empfänger gehören zum Schlüssel, weil Exchange eine
+# Nachricht bei der Bifurkation mit DERSELBEN Message-ID in mehrere
+# Transaktionen mit verschiedenen Empfängern teilt; das ist keine Schleife.
+# Nur im Speicher: Nach einem Neustart beginnt die Zählung neu, was eine
+# laufende Schleife um höchstens SCHLEIFE_MAX Runden verlängert.
+SCHLEIFE_FENSTER_S = 1800
+SCHLEIFE_MAX = 2
+_weitergeleitet: dict[tuple, list[float]] = {}
+
+
+def _schleifen_schluessel(tenant_id: str, message_id: str, empfaenger) -> tuple | None:
+    mid = (message_id or "").strip().lower()
+    if not mid:
+        return None
+    return ((tenant_id or "").strip().lower(), mid,
+            tuple(sorted((r or "").strip().lower() for r in empfaenger)))
+
+
+def _frische(schluessel: tuple, jetzt: float) -> list[float]:
+    grenze = jetzt - SCHLEIFE_FENSTER_S
+    zeiten = [t for t in _weitergeleitet.get(schluessel, []) if t > grenze]
+    if zeiten:
+        _weitergeleitet[schluessel] = zeiten
+    else:
+        _weitergeleitet.pop(schluessel, None)
+    return zeiten
+
+
+def ist_schleife(tenant_id: str, message_id: str, empfaenger, jetzt: float | None = None) -> bool:
+    """True, wenn diese Nachricht im Fenster schon SCHLEIFE_MAX-mal weiterging.
+    Ohne Message-ID ist keine Zuordnung möglich → False."""
+    import time
+    schluessel = _schleifen_schluessel(tenant_id, message_id, empfaenger)
+    if schluessel is None:
+        return False
+    return len(_frische(schluessel, time.time() if jetzt is None else jetzt)) >= SCHLEIFE_MAX
+
+
+def merke_weiterleitung(tenant_id: str, message_id: str, empfaenger,
+                        jetzt: float | None = None) -> None:
+    """Eine erfolgreiche Weiterleitung für die Schleifenbremse verbuchen."""
+    import time
+    jetzt = time.time() if jetzt is None else jetzt
+    schluessel = _schleifen_schluessel(tenant_id, message_id, empfaenger)
+    if schluessel is None:
+        return
+    # Abgelaufene Einträge anderer Nachrichten mit aufräumen, damit der
+    # Speicher bei Dauerbetrieb nicht wächst.
+    if len(_weitergeleitet) > 1000:
+        for k in list(_weitergeleitet):
+            _frische(k, jetzt)
+    _weitergeleitet.setdefault(schluessel, []).append(jetzt)
+    _frische(schluessel, jetzt)
+
+
 def _per_empfaenger_aktiv() -> bool:
     """Per-Empfänger-Routing eingeschaltet? (Bool kommt aus JSON als echtes
     True/False; nur explizites True zählt.)"""
