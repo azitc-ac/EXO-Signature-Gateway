@@ -72,8 +72,7 @@ let _banners = [], _groups = [];
 async function ladenK() {
   const r = await getJSON('/api/campaigns');
   if (!r.ok) {
-    document.getElementById('kampagnen-body').innerHTML =
-      '<tr><td colspan="6" style="color:#991b1b">Liste nicht abrufbar: ' + esc(errText(r)) + '</td></tr>';
+    tabelleHinweis('kampagnen-body', 6, 'Liste nicht abrufbar: ' + esc(errText(r)), true);
     return;
   }
   _banners = r.banners || [];
@@ -109,7 +108,7 @@ const _STATUS = {
 function zeichneKampagnen(liste) {
   const tb = document.getElementById('kampagnen-body');
   if (!liste.length) {
-    tb.innerHTML = '<tr><td colspan="6" style="color:#888">Noch keine Kampagne.</td></tr>';
+    tabelleHinweis(tb, 6, 'Noch keine Kampagne.');
     return;
   }
   tb.innerHTML = '';

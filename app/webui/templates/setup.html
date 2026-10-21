@@ -1762,37 +1762,37 @@ function onKvSubscriptionChange() {
   if (!isOther && sel.value) loadKvVaults(sel.value);
 }
 
+// Auswahlliste für Azure-Ressourcen: vorhandene Einträge, Trennstrich, dann
+// „neu anlegen“ (__new__) und „andere“ (__other__). `belegen(opt, eintrag)`
+// setzt Wert, Text und data-* je Eintrag.
+function _azureAuswahl(sel, eintraege, neuText, andereText, belegen) {
+  sel.innerHTML = '';
+  const option = (wert, text) => {
+    const o = document.createElement('option');
+    o.value = wert; o.textContent = text; sel.appendChild(o); return o;
+  };
+  eintraege.forEach(function(x) { belegen(option('', ''), x); });
+  if (eintraege.length) option('', '──────────────').setAttribute('disabled', '');
+  option('__new__', neuText);
+  option('__other__', andereText);
+  sel.disabled = false;
+}
+
 async function loadKvVaults(subscriptionId) {
   const sel = document.getElementById('kv-vault-sel');
   sel.innerHTML = '<option value="">— Lade… —</option>';
   sel.disabled = true;
   try {
     const data = await getJSON('/api/setup/keyvault/vaults?subscription_id=' + encodeURIComponent(subscriptionId));
-    sel.innerHTML = '';
-    if (data.ok && data.vaults && data.vaults.length) {
-      data.vaults.forEach(function(v) {
-        const opt = document.createElement('option');
-        opt.value = v.uri;
-        opt.textContent = v.name;
-        opt.dataset.resourceId = v.resource_id || '';
-        sel.appendChild(opt);
-      });
-      const sep = document.createElement('option');
-      sep.disabled = true; sep.textContent = '──────────────';
-      sel.appendChild(sep);
-    }
-    const newOpt = document.createElement('option');
-    newOpt.value = '__new__'; newOpt.textContent = 'Neu erstellen';
-    sel.appendChild(newOpt);
-    const otherOpt = document.createElement('option');
-    otherOpt.value = '__other__'; otherOpt.textContent = '…andere URL';
-    sel.appendChild(otherOpt);
-    sel.disabled = false;
+    _azureAuswahl(sel, (data.ok && data.vaults) || [], 'Neu erstellen', '…andere URL', function(opt, v) {
+      opt.value = v.uri;
+      opt.textContent = v.name;
+      opt.dataset.resourceId = v.resource_id || '';
+    });
     onKvVaultChange();
   } catch(e) {
     ursache(e, 'setup:1815');
-    sel.innerHTML = '<option value="__new__">Neu erstellen</option><option value="__other__">…andere URL</option>';
-    sel.disabled = false;
+    _azureAuswahl(sel, [], 'Neu erstellen', '…andere URL');
     onKvVaultChange();
   }
 }
@@ -1822,26 +1822,11 @@ async function loadKvResourceGroups(subscriptionId) {
   sel.disabled = true;
   try {
     const data = await getJSON('/api/setup/keyvault/resource-groups?subscription_id=' + encodeURIComponent(subscriptionId));
-    sel.innerHTML = '';
-    if (data.ok && data.resource_groups.length) {
-      data.resource_groups.forEach(function(rg) {
-        const opt = document.createElement('option');
-        opt.value = rg.name;
-        opt.textContent = rg.name;
-        opt.dataset.location = rg.location;
-        sel.appendChild(opt);
-      });
-      const sep = document.createElement('option');
-      sep.disabled = true; sep.textContent = '──────────────';
-      sel.appendChild(sep);
-    }
-    const newOpt = document.createElement('option');
-    newOpt.value = '__new__'; newOpt.textContent = 'Neu: rg-exo-signature';
-    sel.appendChild(newOpt);
-    const otherOpt = document.createElement('option');
-    otherOpt.value = '__other__'; otherOpt.textContent = '…andere';
-    sel.appendChild(otherOpt);
-    sel.disabled = false;
+    _azureAuswahl(sel, (data.ok && data.resource_groups) || [], 'Neu: rg-exo-signature', '…andere', function(opt, rg) {
+      opt.value = rg.name;
+      opt.textContent = rg.name;
+      opt.dataset.location = rg.location;
+    });
     // Vorauswahl: die Ressourcengruppe der VM, wenn sie in der Liste steht.
     const vmRg = sel.dataset.vmRg;
     if (vmRg) {
@@ -1852,8 +1837,7 @@ async function loadKvResourceGroups(subscriptionId) {
     onKvRgChange();
   } catch(e) {
     ursache(e, 'setup:1872');
-    sel.innerHTML = '<option value="__new__">Neu: rg-exo-signature</option><option value="__other__">…andere</option>';
-    sel.disabled = false;
+    _azureAuswahl(sel, [], 'Neu: rg-exo-signature', '…andere');
     onKvRgChange();
   }
 }
@@ -2539,14 +2523,20 @@ function saveAddinBaseUrl() {
 }
 
 // App-Pool
-function updatePoolRecommendation() {
+// Geschätzter Bedarf aus Postfachzahl und Volumen: Spitzenlast je 10 Minuten
+// und daraus empfohlene Zahl der App-Registrierungen (Limit 10.000 / 10 min / App).
+function _poolBedarf() {
   const n = parseInt(document.getElementById('poolMailboxCount').value) || 0;
   const vol = document.getElementById('poolVolume').value;
   const callsPerDay = n * (vol === 'low' ? 20 : vol === 'medium' ? 35 : 70) * 2;
   const callsPer10min = Math.ceil(callsPerDay / 144);
-  const recommended = callsPer10min < 6000 ? 1 : callsPer10min < 9000 ? 2 : 3;
+  return {callsPer10min, recommended: callsPer10min < 6000 ? 1 : callsPer10min < 9000 ? 2 : 3};
+}
+
+function updatePoolRecommendation() {
+  const {callsPer10min, recommended} = _poolBedarf();
   const el = document.getElementById('poolRecommendation');
-  const color = recommended === 1 ? '#27ae60' : recommended === 2 ? '#d97706' : '#e74c3c';
+  const color = recommended === 1 ? '#15803d' : recommended === 2 ? '#d97706' : '#dc2626';
   el.innerHTML = `Geschätzter Peak: <strong>~${callsPer10min} Graph-Calls / 10 min</strong> &nbsp;&rarr;&nbsp;
     <strong style="color:${color}">Empfehlung: ${recommended} App-Registrierung${recommended > 1 ? 'en' : ''}</strong>
     <br><span style="font-size:11px;color:#aaa">Limit: 10.000 Calls / 10 min pro App</span>`;
@@ -2564,11 +2554,7 @@ async function loadPoolStatus() {
     } else {
       el.textContent = `Aktuell: ${total} Apps im Pool (${d.configured} zusätzliche)`;
     }
-    const n = parseInt(document.getElementById('poolMailboxCount').value) || 0;
-    const vol = document.getElementById('poolVolume').value;
-    const callsPerDay = n * (vol === 'low' ? 20 : vol === 'medium' ? 35 : 70) * 2;
-    const callsPer10min = Math.ceil(callsPerDay / 144);
-    const recommended = callsPer10min < 6000 ? 1 : callsPer10min < 9000 ? 2 : 3;
+    const {recommended} = _poolBedarf();
     const addSection = document.getElementById('poolAddSection');
     if (addSection) {
       addSection.style.display = (total < recommended) ? '' : 'none';

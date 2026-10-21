@@ -49,4 +49,6 @@ def test_relay_identitaet_meldet_sichtbar():
     t = (WEBUI / "templates/relay.html").read_text(encoding="utf-8")
     assert "showMsg(cb," not in t
     assert 'id="identitaeten-meldung"' in t
-    assert t.count("showMsg('identitaeten-meldung'") == 2
+    # beide Schalter (extern/aktiv) laufen seit 2026-10-21 über identitaetSchalter()
+    assert t.count("showMsg('identitaeten-meldung'") == 1
+    assert t.count("identitaetSchalter(\\'") == 2

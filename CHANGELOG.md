@@ -5,6 +5,28 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.17 — 2026-10-21 — Hinweiszeilen in Tabellen einheitlich; doppelter Code zusammengeführt
+
+- **Hinweiszeilen in Tabellen** sehen jetzt überall gleich aus, gedämpft oder
+  bei Fehlern rot. Gemeint sind Zeilen wie „Noch keine Kampagne“, „Wird
+  geladen …“ oder „Liste nicht abrufbar“. Bisher gab es vier Stile, und auf
+  der Abwesenheitsseite erschien ein Ladefehler grau wie ein normaler Hinweis.
+  Betroffen sind die Relay-Seite, Kampagnen, Abwesenheit, Gruppen und
+  Gruppen-Regeln bei den Postfächern sowie das Mailprotokoll der Übersicht.
+- **Zusammengeführt:**
+  - In der Einrichtung: der Aufbau der Auswahllisten für Key Vault und
+    Ressourcengruppe sowie die Empfehlung für den App-Pool. Diese hatte zwei
+    Farben außerhalb der Palette, jetzt nutzt sie Palettentöne.
+  - Auf der Relay-Seite: die Schalter einer Identität und die Anzahl über den
+    Tabellen.
+  - Auf der Diagnoseseite: die Zerlegung einer Mail in Kopf und Rumpf.
+  - Im Portal: die Base64-Dekodierung.
+  - In der Hub-Anbindung: die Prüfung einer eingegebenen Domäne.
+  - Im Vorlagen-Editor: die Suche nach der Karte eines Blocks.
+  - Auf der Self-Service-Seite: die Übernahme des Anmeldetokens.
+
+**Zu tun:** nichts.
+
 ## v1.10.16 — 2026-10-21 — Werte von außen maskiert; einheitliche Fehlerbehandlung beim Laden
 
 - **Sicherheit: ungemaskierte Werte in der Oberfläche.** Mehrere Anzeigen

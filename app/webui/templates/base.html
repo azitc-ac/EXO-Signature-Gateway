@@ -311,6 +311,15 @@
         });
       });
 
+      // Eine Zeile über die ganze Tabellenbreite statt Inhalt: „Noch keine …“,
+      // „Wird geladen …“ oder ein Fehler. `html` ist HTML — Werte darin maskiert
+      // der Aufrufer (esc). Gedämpft über .muted, Fehler im Palettenrot.
+      function tabelleHinweis(tb, spalten, html, fehler) {
+        if (typeof tb === 'string') tb = document.getElementById(tb);
+        if (!tb) return;
+        tb.innerHTML = '<tr><td colspan="' + spalten + '"'
+          + (fehler ? ' style="color:#991b1b"' : ' class="muted"') + '>' + html + '</td></tr>';
+      }
       // Wert als Zeichenkette in einem Inline-Handler: onclick="f(\'' + escJsAttr(x) + '\')".
       // Zwei Ebenen: erst für den JS-String (\ und '), dann fürs Attribut — der
       // Browser dekodiert das Attribut (&#39; → ') BEVOR er das Skript liest;

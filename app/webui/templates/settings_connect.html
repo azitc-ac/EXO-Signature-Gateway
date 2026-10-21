@@ -371,10 +371,16 @@ async function dcTest(){
   _dcMsg(d.ok?(d.message||'OK'):errText(d),d.ok);
 }
 let _dcDomainId=null;
+// Domäne aus einem Eingabefeld: klein geschrieben, mit Punkt — sonst Meldung
+// am Feld und null.
+function _domainAusFeld(id){
+  const domain=feldWert(id).toLowerCase();
+  fieldClear(id);
+  if(!domain||!domain.includes('.')){ fieldMsg(id,'Gültige Domain erforderlich (z.B. firma.de).',false); return null; }
+  return domain;
+}
 async function dcDomainSetup(){
-  const domain=feldWert('dc-domain-input').toLowerCase();
-  fieldClear('dc-domain-input');
-  if(!domain||!domain.includes('.')){ fieldMsg('dc-domain-input','Gültige Domain erforderlich (z.B. firma.de).',false); return; }
+  const domain=_domainAusFeld('dc-domain-input'); if(!domain) return;
   const d=await postJSON('/api/digicert/domain/setup',{domain});
   if(!d.ok){ _dcMsg(errText(d),false); return; }
   _dcDomainId=d.domain_id;
@@ -1398,9 +1404,7 @@ async function certSaveBilling() {
   // `acctLoad()` schreibt die Felder neu — danach den Ausgangsstand setzen.
   if(d.ok) setTimeout(() => wacheNeuMessen('cert-billing-btn'), 400); }
 async function certDomainRequest() {
-  const domain=feldWert('cert-domain-input').toLowerCase();
-  fieldClear('cert-domain-input');
-  if(!domain||!domain.includes('.')){ fieldMsg('cert-domain-input','Gültige Domain erforderlich (z.B. firma.de).',false); return; }
+  const domain=_domainAusFeld('cert-domain-input'); if(!domain) return;
   const d=await postJSON('/api/hub/cert/domain/request',{domain});
   if(!d.ok){ _certMsg('Fehler: '+esc(errText(d)),false); return; }
   _pendingDomain=domain;

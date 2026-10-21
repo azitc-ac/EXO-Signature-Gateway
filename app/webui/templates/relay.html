@@ -628,8 +628,7 @@ async function laden(mitNamen) {
   if (!r.ok) {
     // Ein Ausfall darf nicht als leere Liste durchgehen.
     if (r.abrufFehler || r.http) {
-      document.getElementById('geraete-body').innerHTML =
-        '<tr><td colspan="8" style="color:#991b1b">Liste nicht abrufbar: ' + esc(errText(r)) + '</td></tr>';
+      tabelleHinweis('geraete-body', 8, 'Liste nicht abrufbar: ' + esc(errText(r)), true);
     }
     return;
   }
@@ -695,14 +694,18 @@ function zeigeSubmissionHinweis(an) {
   }
 }
 
+// „3 Geräte“ über einer Tabelle; leer bei 0 (dann spricht die Tabelle selbst).
+function _anzahlZeigen(id, n, wort, mehrzahl) {
+  document.getElementById(id).textContent = n ? n + ' ' + wort + (n === 1 ? '' : mehrzahl) : '';
+}
+
 function zeichneIdentitaeten(liste) {
   const tb = document.getElementById('identitaeten-body');
   liste = liste || [];
-  document.getElementById('identitaeten-anzahl').textContent =
-    liste.length ? liste.length + ' Identität' + (liste.length === 1 ? '' : 'en') : '';
+  _anzahlZeigen('identitaeten-anzahl', liste.length, 'Identität', 'en');
   if (!liste.length) {
-    tb.innerHTML = '<tr><td colspan="8" style="color:#888">Noch keine Identität '
-      + 'angelegt.</td></tr>';
+    tabelleHinweis(tb, 8, 'Noch keine Identität '
+      + 'angelegt.');
     return;
   }
   tb.innerHTML = '';
@@ -722,9 +725,9 @@ function zeichneIdentitaeten(liste) {
       + '</td>'
       + '<td style="text-align:center"><input type="checkbox"' + (i.extern ? ' checked' : '')
         + ' title="auch an externe Empfänger senden"'
-        + ' onchange="identitaetExtern(\'' + escJsAttr(i.id) + '\', this)"></td>'
+        + ' onchange="identitaetSchalter(\'' + escJsAttr(i.id) + '\', \'extern\', this)"></td>'
       + '<td style="text-align:center"><input type="checkbox"' + (i.aktiv ? ' checked' : '')
-        + ' onchange="identitaetAktiv(\'' + escJsAttr(i.id) + '\', this)"></td>'
+        + ' onchange="identitaetSchalter(\'' + escJsAttr(i.id) + '\', \'aktiv\', this)"></td>'
       + '<td style="white-space:nowrap">'
         + '<button class="btn secondary btn-sm" onclick="location.href=\'/mailboxes\'"'
           + ' title="Signatur dieser Identität = Signatur ihrer Shared Mailbox; in Postfächer konfigurieren">'
@@ -743,8 +746,8 @@ function zeichneZiele(liste) {
   const tb = document.getElementById('ziele-body');
   liste = liste || [];
   if (!liste.length) {
-    tb.innerHTML = '<tr><td colspan="6" style="color:#888">Kein eigenes Ziel — '
-      + 'alle Post geht an Exchange Online.</td></tr>';
+    tabelleHinweis(tb, 6, 'Kein eigenes Ziel — '
+      + 'alle Post geht an Exchange Online.');
     return;
   }
   tb.innerHTML = '';
@@ -779,8 +782,8 @@ function zeichneRouten(routen, ziele) {
   const tb = document.getElementById('routen-body');
   const domains = Object.keys(routen).sort();
   if (!domains.length) {
-    tb.innerHTML = '<tr><td colspan="3" style="color:#888">Keine Route — '
-      + 'jede Domäne geht an Exchange Online.</td></tr>';
+    tabelleHinweis(tb, 3, 'Keine Route — '
+      + 'jede Domäne geht an Exchange Online.');
     return;
   }
   const bekannt = {};
@@ -920,8 +923,8 @@ function zeichneCoexStats(st) {
   const tb = document.getElementById('coex-fluss-body');
   const ziele = st.je_ziel || [];
   if (!ziele.length) {
-    tb.innerHTML = '<tr><td colspan="5" style="color:#888">Noch keine geroutete '
-      + 'Post im Zeitraum.</td></tr>';
+    tabelleHinweis(tb, 5, 'Noch keine geroutete '
+      + 'Post im Zeitraum.');
     return;
   }
   tb.innerHTML = '';
@@ -968,14 +971,13 @@ async function coexVorgaengeZeigen(knopf) {
   const hinweis = document.getElementById('coex-vorgaenge-hinweis');
   document.getElementById('coex-vorgaenge-titel').textContent =
     (nurFehler ? 'Fehlgeschlagene Zustellungen an ' : 'Zustellungen an ') + ziel;
-  tb.innerHTML = '<tr><td colspan="5" style="color:#888">Wird geladen …</td></tr>';
+  tabelleHinweis(tb, 5, 'Wird geladen …');
   hinweis.textContent = '';
   box.hidden = false;
   const r = await getJSON('/api/relay/routing-ereignisse?ziel='
     + encodeURIComponent(ziel) + (nurFehler ? '&fehler=1' : ''));
   if (!r.ok) {
-    tb.innerHTML = '<tr><td colspan="5" style="color:#991b1b">'
-      + esc(errText(r)) + '</td></tr>';
+    tabelleHinweis(tb, 5, esc(errText(r)), true);
     return;
   }
   const liste = r.ereignisse || [];
@@ -991,7 +993,7 @@ async function coexVorgaengeZeigen(knopf) {
     + 'Gleiche Kennung = dieselbe Mail, erneut versucht.'
     + (r.gekuerzt ? ' Gezeigt werden die neuesten 500.' : '');
   if (!liste.length) {
-    tb.innerHTML = '<tr><td colspan="5" style="color:#888">Keine Einzelvorgänge im Zeitraum.</td></tr>';
+    tabelleHinweis(tb, 5, 'Keine Einzelvorgänge im Zeitraum.');
     return;
   }
   tb.innerHTML = liste.map(function (e) {
@@ -1121,13 +1123,10 @@ async function identitaetHinzufuegen(btn) {
   laden(false);
 }
 
-async function identitaetExtern(id, cb) {
-  const r = await postJSON('/api/relay/identitaet', { id: id, extern: cb.checked });
-  if (!r.ok) { cb.checked = !cb.checked; showMsg('identitaeten-meldung', 'Nicht gespeichert: ' + errText(r), false); }
-}
-
-async function identitaetAktiv(id, cb) {
-  const r = await postJSON('/api/relay/identitaet', { id: id, aktiv: cb.checked });
+// Schalter einer Identität (extern / aktiv) speichert sofort; scheitert das,
+// springt das Kästchen zurück.
+async function identitaetSchalter(id, feld, cb) {
+  const r = await postJSON('/api/relay/identitaet', { id: id, [feld]: cb.checked });
   if (!r.ok) { cb.checked = !cb.checked; showMsg('identitaeten-meldung', 'Nicht gespeichert: ' + errText(r), false); }
 }
 
@@ -1179,11 +1178,10 @@ function zeichneLernmodus(l) {
 
 function zeichneGeraete(liste) {
   const tb = document.getElementById('geraete-body');
-  document.getElementById('geraete-anzahl').textContent =
-    liste.length ? liste.length + ' Gerät' + (liste.length === 1 ? '' : 'e') : '';
+  _anzahlZeigen('geraete-anzahl', liste.length, 'Gerät', 'e');
   if (!liste.length) {
-    tb.innerHTML = '<tr><td colspan="8" style="color:#888">Noch kein Gerät '
-      + 'eingetragen — starte den Lernmodus oder trage eins von Hand ein.</td></tr>';
+    tabelleHinweis(tb, 8, 'Noch kein Gerät '
+      + 'eingetragen — starte den Lernmodus oder trage eins von Hand ein.');
     return;
   }
   tb.innerHTML = '';
@@ -1218,10 +1216,9 @@ function zeichneGeraete(liste) {
 
 function zeichneAbgewiesen(liste) {
   const tb = document.getElementById('abgewiesen-body');
-  document.getElementById('abgewiesen-anzahl').textContent =
-    liste.length ? liste.length + ' Adresse' + (liste.length === 1 ? '' : 'n') : '';
+  _anzahlZeigen('abgewiesen-anzahl', liste.length, 'Adresse', 'n');
   if (!liste.length) {
-    tb.innerHTML = '<tr><td colspan="7" style="color:#888">Nichts abgewiesen.</td></tr>';
+    tabelleHinweis(tb, 7, 'Nichts abgewiesen.');
     return;
   }
   const bekannt = new Set((_stand.geraete || []).map(function (g) { return g.ip; }));
@@ -1374,7 +1371,7 @@ async function statsLaden() {
   // damit lange Listen die Seite nicht sprengen.
   const STATS_TOP = 10;
   function fuelle(el, zeilen) {
-    if (!zeilen.length) { el.innerHTML = '<tr><td colspan="3" style="color:#888">Keine Daten im Zeitraum</td></tr>'; return; }
+    if (!zeilen.length) { tabelleHinweis(el, 3, 'Keine Daten im Zeitraum'); return; }
     function zeile(z, versteckt) {
       return '<tr' + (versteckt ? ' data-stats-mehr style="display:none"' : '') + '>'
         + '<td style="word-break:break-all">' + esc(z.name || '—') + '</td>'
@@ -1411,7 +1408,7 @@ async function protokollLaden() {
   const r = await getJSON('/api/audit/events?nur_relay=1&limit=' + _PROTO_LIMIT
                               + '&offset=' + _protoOffset);
   const tb = document.getElementById('proto-body');
-  if (!r.ok) { tb.innerHTML = '<tr><td colspan="6" style="color:#991b1b">Protokoll nicht abrufbar: ' + esc(errText(r)) + '</td></tr>'; return; }
+  if (!r.ok) { tabelleHinweis(tb, 6, 'Protokoll nicht abrufbar: ' + esc(errText(r)), true); return; }
   const events = r.events || [];
   const total = r.total || 0;
   document.getElementById('proto-info').textContent =
@@ -1422,10 +1419,10 @@ async function protokollLaden() {
   document.getElementById('proto-next').disabled =
     _protoOffset + events.length >= total;
   if (!events.length) {
-    tb.innerHTML = '<tr><td colspan="6" style="color:#888">Noch keine Einlieferung '
+    tabelleHinweis(tb, 6, 'Noch keine Einlieferung '
       + 'über Geräte-Relay oder 587-Submission erfasst. Post über den normalen '
       + 'Exchange-Weg erscheint hier <b>nicht</b> — die liegt im '
-      + '<a href="/dashboard">Dashboard</a>.</td></tr>';
+      + '<a href="/dashboard">Dashboard</a>.');
     return;
   }
   tb.innerHTML = events.map(function (e) {
