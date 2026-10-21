@@ -830,7 +830,7 @@ async function loadAuditPage() {
 function renderAuditTable(events) {
   const tbody = document.getElementById('auditTableBody');
   if (!events.length) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:#888">Keine Einträge</td></tr>';
+    tabelleHinweis(tbody, 6, 'Keine Einträge');
     return;
   }
   tbody.innerHTML = events.map(e => {

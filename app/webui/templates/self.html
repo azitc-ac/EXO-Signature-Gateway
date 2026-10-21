@@ -340,10 +340,7 @@
           try {
             var d = JSON.parse(arg.message || '{}');
             if (d.status === 'ok' && d.token) {
-              TOKEN = d.token;
-              try { localStorage.setItem('exo_addin_session', d.token); } catch (e) { /* egal */ }
-              el('tab-anmelden').hidden = true; el('fehler').hidden = true; el('lade').hidden = false;
-              dlg.close(); loginLaeuft = false; laden();      // mit Token neu laden
+              dlg.close(); loginLaeuft = false; angemeldet(d.token);
               return;
             }
           } catch (e) { /* ignorieren */ }
@@ -400,13 +397,7 @@
         loginLaeuft = false;
         var d = {};
         try { d = JSON.parse(ergebnis || '{}'); } catch (e) { /* unten gemeldet */ }
-        if (d.status === 'ok' && d.token) {
-          TOKEN = d.token;
-          try { localStorage.setItem('exo_addin_session', d.token); } catch (e) { /* egal */ }
-          el('tab-anmelden').hidden = true; el('fehler').hidden = true; el('lade').hidden = false;
-          laden();
-          return;
-        }
+        if (d.status === 'ok' && d.token) { angemeldet(d.token); return; }
         zeigeFehler('Anmeldung nicht abgeschlossen. Bitte erneut auf „Anmelden“ klicken.');
       })
       .catch(function (e) {
@@ -424,6 +415,13 @@
   }
   function el(id) { return document.getElementById(id); }
   function zeigeFehler(t) { el('fehler').textContent = t; el('fehler').hidden = false; el('lade').hidden = true; }
+  // Anmeldung abgeschlossen (Office-Dialog oder Teams): Token merken, neu laden.
+  function angemeldet(token) {
+    TOKEN = token;
+    try { localStorage.setItem('exo_addin_session', token); } catch (e) { /* egal */ }
+    el('tab-anmelden').hidden = true; el('fehler').hidden = true; el('lade').hidden = false;
+    laden();
+  }
 
   async function laden() {
     var r;

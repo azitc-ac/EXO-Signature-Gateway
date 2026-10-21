@@ -1367,7 +1367,7 @@ function _renderGroupsTable() {
   tbody.innerHTML = '';
   var names = _groupNames();
   if (!names.length) {
-    tbody.innerHTML = '<tr><td colspan="3" style="padding:10px 8px;color:#94a3b8;font-size:12px">Keine Gruppen angelegt.</td></tr>';
+    tabelleHinweis(tbody, 3, 'Keine Gruppen angelegt.');
     return;
   }
   names.forEach(function(name) {
@@ -1631,7 +1631,7 @@ function _renderCustomPoliciesTable() {
   if (!tbody) return;
   tbody.innerHTML = '';
   if (!_customPolicies.length) {
-    tbody.innerHTML = '<tr><td colspan="5" style="padding:10px 8px;color:#94a3b8;font-size:12px">Keine Regeln. Klicke "+ Gruppen-Regel" um eine hinzuzufügen.</td></tr>';
+    tabelleHinweis(tbody, 5, 'Keine Regeln. Klicke "+ Gruppen-Regel" um eine hinzuzufügen.');
     return;
   }
   _customPolicies.forEach(function(pol, i) {

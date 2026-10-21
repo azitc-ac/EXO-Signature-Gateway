@@ -164,12 +164,7 @@ body { background: var(--bg); color: var(--text); font-family: -apple-system, Se
 <script>
 (function(){
 function b64uDecode(s) {
-  s = s.replace(/-/g,'+').replace(/_/g,'/');
-  while(s.length%4) s+='=';
-  var bin = atob(s);
-  var bytes = new Uint8Array(bin.length);
-  for(var i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
-  return bytes.buffer;
+  return b64Decode(s.replace(/-/g,'+').replace(/_/g,'/'));
 }
 function b64Decode(s) {
   while(s.length%4) s+='=';

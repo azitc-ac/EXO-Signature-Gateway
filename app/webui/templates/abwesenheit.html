@@ -273,7 +273,7 @@ function abKalender(v) {
 async function abLaden(force) {
   var tbody = document.getElementById('ab-tbody');
   var d = await getJSON('/api/abwesenheit/uebersicht' + (force ? '?force=1' : ''));
-  if (!d.ok) { tbody.innerHTML = '<tr><td colspan="7" class="muted">Fehler: ' + esc(errText(d)) + '</td></tr>'; return; }
+  if (!d.ok) { tabelleHinweis(tbody, 7, 'Fehler: ' + esc(errText(d)), true); return; }
   document.getElementById('ooo-aus-hinweis').style.display = d.ooo_enabled ? 'none' : 'block';
   document.getElementById('ab-summe').textContent = d.abwesend + ' von ' + d.gesamt;
   var stand = document.getElementById('ab-stand');
@@ -281,7 +281,7 @@ async function abLaden(force) {
   else if (d.ts) stand.textContent = '· Stand: ' + new Date(d.ts).toLocaleString('de-DE');
   else stand.textContent = '';
   if (!d.items || !d.items.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="muted">Keine aktivierten Postfächer.</td></tr>'; return;
+    tabelleHinweis(tbody, 7, 'Keine aktivierten Postfächer.'); return;
   }
   AB_ITEMS = d.items;
   tbody.innerHTML = d.items.map(function (it, i) {

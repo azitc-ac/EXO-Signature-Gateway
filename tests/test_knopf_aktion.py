@@ -148,7 +148,6 @@ AUSNAHMEN = {
     ("advanced.html", "wdLoadSubs", "sel"): "Auswahlliste, kein Knopf",
     ("advanced.html", "wdSubGewaehlt", "rg"): "Auswahlliste, kein Knopf",
     ("setup.html", "loadKvSubscriptions", "sel"): "Auswahlliste, kein Knopf",
-    ("setup.html", "onKvSubscriptionChange", "vaultSel"): "Auswahlliste, kein Knopf",
     ("setup.html", "loadKvVaults", "sel"): "Auswahlliste, kein Knopf",
     ("setup.html", "loadKvResourceGroups", "sel"): "Auswahlliste, kein Knopf",
     ("setup.html", "saveModeSelection", "smimeCb"): "Kästchen, Zustand des Modus",

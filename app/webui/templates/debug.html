@@ -363,11 +363,7 @@ async function obsRefreshCaptures() {
   }
   container.innerHTML = captures.map((c, i) => {
     const ts = new Date(c.ts * 1000).toLocaleTimeString('de-DE');
-    const raw = c.raw || '';
-    const sep = raw.indexOf('\r\n\r\n') !== -1 ? '\r\n\r\n' : '\n\n';
-    const sepIdx = raw.indexOf(sep);
-    const headers = sepIdx !== -1 ? raw.substring(0, sepIdx) : raw;
-    const body    = sepIdx !== -1 ? raw.substring(sepIdx + sep.length) : '';
+    const {kopf: headers, rumpf: body} = _mimeTeilen(c.raw || '');
     const headerLines = headers.split(/\r?\n/);
     const interesting = ['content-transfer-encoding','content-type','content-id',
       'from','to','subject','auto-submitted','thread-topic','thread-index',
@@ -410,11 +406,16 @@ async function obsClearCaptures() {
 
 /* ── Schritt D: MIME-Analyse ───────────────────────────────────────────── */
 
-function _obsParseHeaders(raw) {
+// Rohe Mail in Kopf und Rumpf teilen (erste Leerzeile, CRLF oder LF).
+function _mimeTeilen(raw) {
   const sep = raw.indexOf('\r\n\r\n') !== -1 ? '\r\n\r\n' : '\n\n';
-  const sepIdx = raw.indexOf(sep);
-  const headerBlock = sepIdx !== -1 ? raw.substring(0, sepIdx) : raw;
-  const body        = sepIdx !== -1 ? raw.substring(sepIdx + sep.length) : '';
+  const i = raw.indexOf(sep);
+  return i !== -1 ? {kopf: raw.substring(0, i), rumpf: raw.substring(i + sep.length)}
+                  : {kopf: raw, rumpf: ''};
+}
+
+function _obsParseHeaders(raw) {
+  const {kopf: headerBlock, rumpf: body} = _mimeTeilen(raw);
   const map = {};
   const lines = headerBlock.split(/\r?\n/);
   let cur = null;
