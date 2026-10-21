@@ -96,6 +96,32 @@
       // Neustart anstoßen. Die Verbindung bricht dabei erwartungsgemäß ab — das
       // ist kein Fehler; liefert deshalb {ok:true} (für knopfAktion gesperrtLassen:
       // der Pfeil dreht, bis die Seite neu lädt).
+      // Aktion einer Mail im Protokoll (mail_audit, `_audit()` in handler.py) —
+      // Name und Farbgruppe an EINER Stelle für Dashboard und Relay-Seite.
+      // Farbe aus style.css/dark-mode.css über data-art (Dark-Mode-Regel 2);
+      // tests/test_aktion_marke.py prüft, dass jede Aktion des Servers hier steht.
+      const AKTIONEN = {
+        signed:             ['Signiert',       'signiert'],
+        smime_signed:       ['S/MIME sign.',   'smime'],
+        smime_encrypted:    ['S/MIME enc.',    'verschluesselt'],
+        smime_decrypted:    ['S/MIME dec.',    'entschluesselt'],
+        portal:             ['Portal',         'smime'],
+        auto_submitted:     ['Auto-Submit',    'neutral'],
+        calendar:           ['Kalender',       'neutral'],
+        durchgereicht:      ['Durchgereicht',  'neutral'],
+        internal_only_skip: ['Nur intern',     'neutral'],
+        fallback:           ['Fallback',       'warnung'],
+        held:               ['Warteschlange',  'warnung'],
+        error:              ['Fehler',         'fehler'],
+        tenant_fremd:       ['Fremder Tenant', 'fehler'],
+        relay_abgelehnt:    ['Abgewiesen',     'fehler'],
+      };
+      function aktionText(aktion) { return (AKTIONEN[aktion] || [aktion || ''])[0]; }
+      function aktionMarke(aktion) {
+        var a = AKTIONEN[aktion];
+        return '<span class="aktion-marke" data-art="' + (a ? a[1] : 'neutral') + '">'
+          + esc(a ? a[0] : (aktion || '')) + '</span>';
+      }
       // Azure-Zugriffskasten (.arm-box: Einrichtung → Key Vault, Erweitert → Wächter).
       // Zustand als data-arm, Farbe aus style.css/dark-mode.css (Dark-Mode-Regel 2):
       // '' kein Zugriff (gelb) · 'ok' verbunden (blau) · 'fehler' (gelb, Text rot).
