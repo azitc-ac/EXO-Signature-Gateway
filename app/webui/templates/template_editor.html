@@ -145,15 +145,9 @@
 <div id="save-err" class="alert error" style="display:none"></div>
 
 <!-- ── Tabs ─────────────────────────────────────────────────────────────────── -->
-<div style="display:flex;gap:0;margin-bottom:16px;border-bottom:2px solid #e2e8f0">
-  <button id="tab-builder-btn" onclick="switchTab('builder')"
-    style="padding:8px 20px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:3px solid #4f46e5;color:#4f46e5;margin-bottom:-2px">
-    Baukasten
-  </button>
-  <button id="tab-raw-btn" onclick="switchTab('raw')"
-    style="padding:8px 20px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:3px solid transparent;color:#6b7280;margin-bottom:-2px">
-    Quelltext (Erweitert)
-  </button>
+<div style="display:flex;gap:6px;margin-bottom:16px">
+  <button type="button" id="tab-builder-btn" class="btn-toggle active" onclick="switchTab('builder')">Baukasten</button>
+  <button type="button" id="tab-raw-btn" class="btn-toggle" onclick="switchTab('raw')">Quelltext (Erweitert)</button>
 </div>
 
 <!-- ══════════════════════════════════════════════════════════════════════════ -->
@@ -476,13 +470,8 @@ window.switchTab = function(tab) {
   document.getElementById('tab-raw').style.display     = tab === 'raw'     ? 'block' : 'none';
   const bb = document.getElementById('tab-builder-btn');
   const rb = document.getElementById('tab-raw-btn');
-  if (tab === 'builder') {
-    bb.style.borderBottomColor = '#4f46e5'; bb.style.color = '#4f46e5';
-    rb.style.borderBottomColor = 'transparent'; rb.style.color = '#6b7280';
-  } else {
-    rb.style.borderBottomColor = '#4f46e5'; rb.style.color = '#4f46e5';
-    bb.style.borderBottomColor = 'transparent'; bb.style.color = '#6b7280';
-  }
+  bb.classList.toggle('active', tab === 'builder');   // Farbe aus .btn-toggle (style.css)
+  rb.classList.toggle('active', tab !== 'builder');
 };
 
 // ── Block picker ──────────────────────────────────────────────────────────────
@@ -1627,9 +1616,6 @@ function zeigeUmwandlungsHinweis(text, hinweise, ok) {
       hinweise.map(h => `<li>${esc(h)}</li>`).join('') + '</ul>'
     : '';
   box.setAttribute('data-umwandlung', ok ? 'ok' : 'leer');
-  box.style.cssText = 'padding:10px 12px;border-radius:6px;font-size:13px;' +
-    'margin-bottom:10px;line-height:1.5;background:#eff6ff;' +
-    'border:1px solid #bfdbfe;color:#1e40af';
   box.innerHTML = `<strong>Aus HTML übernommen.</strong> ${esc(text)}${liste}
     <div style="margin-top:8px">
       <button class="btn secondary btn-sm" 

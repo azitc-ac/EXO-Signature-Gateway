@@ -1022,13 +1022,6 @@
     "name": "api_create_notification_shared_mailbox"
   },
   {
-    "pfad": "/api/settings/partial",
-    "methoden": [
-      "POST"
-    ],
-    "name": "api_settings_partial"
-  },
-  {
     "pfad": "/api/settings/sender-mailboxes/refresh",
     "methoden": [
       "POST"

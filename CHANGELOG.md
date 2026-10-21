@@ -5,6 +5,43 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.14 — 2026-10-21 — Zustandsfarben aus dem Stylesheet; ein Schreibweg für Einstellungen
+
+- **Kein Skript setzt mehr Farben.** Bisher färbten 39 Stellen ihre Anzeige
+  per JavaScript. Diese Farben greift der Dunkelmodus nicht. Jetzt setzen die
+  Skripte nur noch einen Zustand, und das Stylesheet färbt ihn in beiden Modi.
+  Sichtbar wird das an:
+  - **Azure-Zugriff** (*Einrichtung → Key Vault*, *Erweitert → Wächter*): Der
+    Kasten wechselt bei Verbindung auf Blau. Im Dunkelmodus blieb er bisher in
+    beiden Zuständen gelb. Beide Kästen sind jetzt derselbe Baustein.
+  - **Wartungsmodus und Wächter**: Die Anzeige „Aktiv/Deaktiviert“ war im
+    Dunkelmodus immer grau, auch im aktiven Zustand.
+  - **Fair-Use-Zähler**, **Online-Punkt** und die **Auswahl des Rückwegs**
+    in der Einrichtung.
+  - **Reiter** im Vorlagen-Editor (*Baukasten/Quelltext*) und im
+    Graph-Pool-Fenster der Übersicht nutzen jetzt die gemeinsamen
+    Umschaltknöpfe wie die übrigen Seiten. Sie sehen deshalb anders aus als
+    bisher.
+  - **Ergebnismeldungen**, unter anderem:
+    - Quell-IP-Liste aktualisieren;
+    - Zertifikatsanbieter ein- und ausblenden;
+    - Add-in-Manifest prüfen;
+    - Schlüssel gesammelt in den Key Vault migrieren.
+
+    Sie erscheinen jetzt wie alle anderen Meldungen neben dem Knopf.
+- **Lexware-Korrektur und Quell-IP-Prüfung** speichern beim Umschalten über
+  denselben Weg wie alle anderen Schalter und melden „✓ gespeichert“.
+- **Ein Schreibweg für Einstellungen.** `POST /api/settings/partial` ist
+  entfallen. Die Oberfläche rief ihn nur noch von den zwei eben genannten
+  Schaltern auf, und er prüfte genauso wie `POST /settings`. Rufst du ihn per
+  Skript auf, nimm `POST /settings` mit denselben Schlüsseln.
+- Tests sperren Farben aus JavaScript ganz (vorher nur gegen Zuwachs) und
+  prüfen, dass jeder Zustand, den ein Skript setzt, eine Regel für den hellen
+  und den dunklen Modus hat.
+
+**Zu tun:** nichts. Rufst du `POST /api/settings/partial` selbst auf (Skript,
+Automatisierung), stelle auf `POST /settings` um.
+
 ## v1.10.13 — 2026-10-21 — Knöpfe zeigen, dass sie arbeiten; Uploads und Downloads aus einem Baustein
 
 - **Drehender Pfeil an jedem Knopf mit Aktion.** Bisher hatte ihn nur

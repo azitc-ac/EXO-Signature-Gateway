@@ -303,7 +303,7 @@
 
     <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">
 
-      <label style="display:flex;gap:12px;align-items:flex-start;padding:12px;border-radius:8px;border:2px solid {% if s.REINJECT_MODE == 'smtp' %}#16a34a{% else %}#e2e8f0{% endif %};cursor:pointer" id="mode-label-smtp">
+      <label class="modus-karte" id="mode-label-smtp"{% if s.REINJECT_MODE == 'smtp' or not s.REINJECT_MODE %} data-gewaehlt{% endif %}>
         <input type="radio" name="reinject-mode-wizard" value="smtp" style="margin-top:3px;flex-shrink:0"
           {% if s.REINJECT_MODE == 'smtp' or not s.REINJECT_MODE %}checked{% endif %}
           onchange="updateModeSelection()">
@@ -316,7 +316,7 @@
         </div>
       </label>
 
-      <label style="display:flex;gap:12px;align-items:flex-start;padding:12px;border-radius:8px;border:2px solid {% if s.REINJECT_MODE == 'graph' %}#16a34a{% else %}#e2e8f0{% endif %};cursor:pointer" id="mode-label-graph">
+      <label class="modus-karte" id="mode-label-graph"{% if s.REINJECT_MODE == 'graph' %} data-gewaehlt{% endif %}>
         <input type="radio" name="reinject-mode-wizard" value="graph" style="margin-top:3px;flex-shrink:0"
           {% if s.REINJECT_MODE == 'graph' %}checked{% endif %}
           onchange="updateModeSelection()">
@@ -334,7 +334,7 @@
         </div>
       </label>
 
-      <label style="display:flex;gap:12px;align-items:flex-start;padding:12px;border-radius:8px;border:2px solid {% if s.REINJECT_MODE in ('graph_plus','imap','smtp587') %}#16a34a{% else %}#e2e8f0{% endif %};cursor:pointer" id="mode-label-graph_plus">
+      <label class="modus-karte" id="mode-label-graph_plus"{% if s.REINJECT_MODE in ('graph_plus','imap','smtp587') %} data-gewaehlt{% endif %}>
         <input type="radio" name="reinject-mode-wizard" value="graph_plus" style="margin-top:3px;flex-shrink:0"
           {% if s.REINJECT_MODE in ('graph_plus','imap','smtp587') %}checked{% endif %}
           onchange="updateModeSelection()">
@@ -782,10 +782,10 @@
       </p>
 
       <!-- Azure-Login für ARM-Zugriff -->
-      <div id="kv-arm-box" style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:10px;margin-bottom:14px;font-size:13px">
+      <div id="kv-arm-box" class="arm-box" style="margin-bottom:14px">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <span id="kv-arm-status-icon">🔑</span>
-          <span id="kv-arm-status-text" style="flex:1;color:#374151">Azure-Login erforderlich, um Subscriptions und Vaults zu laden.</span>
+          <span id="kv-arm-status-text" class="arm-text" style="flex:1">Azure-Login erforderlich, um Subscriptions und Vaults zu laden.</span>
           <button type="button" class="btn secondary btn-sm" id="kv-arm-btn" onclick="startArmLogin()"
             style="white-space:nowrap"
             {% if not e.azure_app_created %}disabled{% endif %}>
@@ -1501,7 +1501,7 @@ function updateModeSelection() {
   // Highlight selected radio card border
   ['smtp','graph','graph_plus'].forEach(m => {
     const lbl = document.getElementById('mode-label-' + m);
-    if (lbl) lbl.style.borderColor = (mode === m) ? '#16a34a' : '#e2e8f0';
+    if (lbl) lbl.toggleAttribute('data-gewaehlt', mode === m);
   });
 
   // S/MIME checkbox: disable for graph mode
@@ -1631,10 +1631,8 @@ var _kvLastResourceId = {{ (s.KEYVAULT_RESOURCE_ID or '') | tojson }};  // ARM r
 function _kvSetArmBoxOk(ok) {
   const box = document.getElementById('kv-arm-box');
   const rows = document.getElementById('kv-selection-rows');
-  if (box) {
-    box.style.background = ok ? '#eff6ff' : '#fffbeb';
-    box.style.borderColor = ok ? '#bfdbfe' : '#fde68a';
-  }
+  // 'fehler' bleibt stehen, bis ein Erfolg kommt — sonst verschwände das Rot.
+  if (box && (ok || box.dataset.arm !== 'fehler')) armKasten('kv-arm', ok ? 'ok' : '');
   if (rows) rows.style.display = ok ? '' : 'none';
 }
 
@@ -1646,15 +1644,12 @@ window.addEventListener('message', function(e) {
     _kvSubsLoaded = false;
     _kvSetArmBoxOk(true);
     document.getElementById('kv-arm-paste-section').style.display = 'none';
-    document.getElementById('kv-arm-status-text').textContent = 'Verbunden — lade Subscriptions…';
-    document.getElementById('kv-arm-status-text').style.color = '#16a34a';
-    document.getElementById('kv-arm-status-icon').textContent = '✓';
+    armKasten('kv-arm', 'ok', 'Verbunden — lade Subscriptions…', '✓');
     document.getElementById('kv-arm-btn').textContent = 'Erneut verbinden';
     loadKvSubscriptions();
   } else if (e.data.type === 'arm-auth-fail') {
     _kvSetArmBoxOk(false);
-    document.getElementById('kv-arm-status-text').textContent = '✗ ' + (e.data.msg || 'Fehler');
-    document.getElementById('kv-arm-status-text').style.color = '#dc2626';
+    armKasten('kv-arm', 'fehler', '✗ ' + (e.data.msg || 'Fehler'));
   }
 });
 
@@ -1675,31 +1670,16 @@ async function startArmLogin() {
 async function submitArmPaste() {
   const url = (document.getElementById('kv-arm-paste-url').value || '').trim();
   if (!url) return;
-  const statusText = document.getElementById('kv-arm-status-text');
-  statusText.textContent = 'Verbinde…';
-  try {
-    const r = await fetch('/api/setup/keyvault/arm-paste', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({url}),
-    });
-    if (!r.ok) {
-      const d = await r.json().catch(()=>({}));
-      statusText.textContent = '✗ ' + (d.detail || 'Fehler');
-      return;
-    }
-    _kvArmOk = true;
-    _kvSetArmBoxOk(true);
-    document.getElementById('kv-arm-status-icon').textContent = '✓';
-    document.getElementById('kv-arm-status-text').style.color = '#16a34a';
-    statusText.textContent = 'Azure-Verbindung hergestellt — lade Subscriptions…';
-    document.getElementById('kv-arm-paste-section').style.display = 'none';
-    document.getElementById('kv-arm-btn').textContent = 'Erneut verbinden';
-    _kvSubsLoaded = false;
-    loadKvSubscriptions();
-  } catch(e) {
-    statusText.textContent = 'Netzwerkfehler: ' + e;
-  }
+  armKasten('kv-arm', '', 'Verbinde…');
+  const d = await postJSON('/api/setup/keyvault/arm-paste', {url});
+  if (!d.ok) { armKasten('kv-arm', 'fehler', '✗ ' + errText(d)); return; }
+  _kvArmOk = true;
+  _kvSetArmBoxOk(true);
+  armKasten('kv-arm', 'ok', 'Azure-Verbindung hergestellt — lade Subscriptions…', '✓');
+  document.getElementById('kv-arm-paste-section').style.display = 'none';
+  document.getElementById('kv-arm-btn').textContent = 'Erneut verbinden';
+  _kvSubsLoaded = false;
+  loadKvSubscriptions();
 }
 
 // Vault-Namen sind global über ganz Azure eindeutig — ein generisches
@@ -1735,8 +1715,7 @@ async function loadKvSubscriptions() {
       sel.disabled = false;
       if (!_kvArmOk) {
         _kvSetArmBoxOk(false);
-        const statusText = document.getElementById('kv-arm-status-text');
-        if (statusText) statusText.textContent = 'Kein Azure-Zugriff — bitte oben "Azure-Zugriff holen" klicken.';
+        armKasten('kv-arm', '', 'Kein Azure-Zugriff — bitte oben "Azure-Zugriff holen" klicken.');
       } else {
         // Zugriff besteht, aber keine Subscriptions gefunden — Auswahl trotzdem
         // zeigen, damit "manuell eingeben" erreichbar bleibt.
@@ -1762,9 +1741,7 @@ async function loadKvSubscriptions() {
     _kvSubsLoaded = true;
     _kvSetArmBoxOk(true);
     if (data.delegated) {
-      document.getElementById('kv-arm-status-icon').textContent = '✓';
-      document.getElementById('kv-arm-status-text').textContent = 'Azure-Verbindung aktiv (' + data.subscriptions.length + ' Subscription(s) geladen).';
-      document.getElementById('kv-arm-status-text').style.color = '#16a34a';
+      armKasten('kv-arm', 'ok', 'Azure-Verbindung aktiv (' + data.subscriptions.length + ' Subscription(s) geladen).', '✓');
     }
     onKvSubscriptionChange();
   } catch(e) {
@@ -2240,8 +2217,8 @@ async function saveKeyvault() {
             <button class="btn secondary btn-sm" onclick="copyManifestUrl()">Kopieren</button>
             <a href="{{ addin_manifest_url }}" target="_blank" class="btn secondary btn-sm">Öffnen</a>
             <a href="{{ addin_manifest_url }}" download="exo-signatur-addin.xml" class="btn secondary btn-sm">Herunterladen</a>
-            <button class="btn secondary btn-sm" onclick="validateAddinManifest()">Erreichbarkeit prüfen</button>
-            <span id="addin-validate-result" style="font-size:12px"></span>
+            <button class="btn secondary btn-sm" onclick="validateAddinManifest(this)">Erreichbarkeit prüfen</button>
+            <span id="addin-validate-result" hidden></span>
           </div>
           <span id="addin-copy-ok" style="font-size:11px;color:#16a34a;display:none">Kopiert ✓</span>
           <details style="margin-top:6px">
@@ -2650,26 +2627,20 @@ async function submitPoolAppUrl() {
   if (poolStep) { updatePoolRecommendation(); }
 })();
 
-async function validateAddinManifest() {
-  var el = document.getElementById('addin-validate-result');
-  el.textContent = 'Prüfe…';
-  el.style.color = '#64748b';
-  try {
-    var url = '{{ addin_manifest_url }}';
-    var r = await fetch(url);
-    if (!r.ok) { el.textContent = 'HTTP ' + r.status + ' — nicht erreichbar'; el.style.color = '#dc2626'; return; }
-    var text = await r.text();
-    var parser = new DOMParser();
-    var doc = parser.parseFromString(text, 'application/xml');
-    var err = doc.querySelector('parsererror');
-    if (err) { el.textContent = 'XML-Fehler: ' + err.textContent.slice(0, 80); el.style.color = '#dc2626'; return; }
-    var id = doc.querySelector('Id');
-    el.textContent = 'Erreichbar & valides XML ✓  (ID: ' + (id ? id.textContent : '?') + ')';
-    el.style.color = '#16a34a';
-  } catch(e) {
-    el.textContent = 'Fehler: ' + e.message;
-    el.style.color = '#dc2626';
-  }
+async function validateAddinManifest(btn) {
+  var el = 'addin-validate-result';
+  var d = await knopfAktion(btn, 'Prüfe…', async function() {
+    try {
+      var r = await fetch('{{ addin_manifest_url }}');
+      if (!r.ok) return {ok: false, error: 'HTTP ' + r.status + ' — nicht erreichbar'};
+      var doc = new DOMParser().parseFromString(await r.text(), 'application/xml');
+      var err = doc.querySelector('parsererror');
+      if (err) return {ok: false, error: 'XML-Fehler: ' + err.textContent.slice(0, 80)};
+      var id = doc.querySelector('Id');
+      return {ok: true, id: id ? id.textContent : '?'};
+    } catch(e) { return {ok: false, error: 'Fehler: ' + e.message}; }
+  }, {anzeige: el});
+  showMsg(el, d.ok ? 'Erreichbar & valides XML ✓  (ID: ' + d.id + ')' : d.error, d.ok);
 }
 </script>
 {% endblock %}

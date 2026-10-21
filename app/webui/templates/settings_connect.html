@@ -250,7 +250,7 @@
           <tbody id="cert-catalog-tbody"></tbody>
         </table>
       </div>
-      <span id="cert-catalog-result" style="font-size:12px"></span>
+      <span id="cert-catalog-result" class="fortschritt" hidden></span>
     </div>
     <div class="info-box" style="margin-bottom:12px">
       <strong>Nutzungsbedingungen für den Zertifikatsbezug</strong>
@@ -1544,18 +1544,11 @@ async function certLoadCatalog() {
   } catch(e) { ursache(e, 'settings_connect:937'); /* Katalog nicht erreichbar — Box bleibt aus */ }
 }
 async function certToggleProvider(pid, enabled) {
-  const res = document.getElementById('cert-catalog-result');
-  try {
-    const r = await fetch('/api/cert/catalog/toggle', {method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({provider_id: pid, enabled: enabled})});
-    if (r.ok) {
-      res.textContent = enabled ? '✓ Anbieter aktiviert' : '✓ Anbieter ausgeblendet';
-      res.style.color = '#16a34a';
-      certLoadCatalog();
-    } else { res.textContent = '✗ Fehler'; res.style.color = '#dc2626'; }
-  } catch(e) { res.textContent = '✗ Netzwerkfehler' + ursache(e, 'settings_connect:950'); res.style.color = '#dc2626'; }
-  setTimeout(function(){ res.textContent = ''; }, 3000);
+  const res = 'cert-catalog-result';
+  const d = await postJSON('/api/cert/catalog/toggle', {provider_id: pid, enabled: enabled});
+  showMsg(res, d.ok ? (enabled ? '✓ Anbieter aktiviert' : '✓ Anbieter ausgeblendet') : '✗ ' + errText(d), d.ok);
+  if (d.ok) certLoadCatalog();
+  setTimeout(function(){ laeuftZeigen(res, null); }, 3000);
 }
 
 // ── Fair-Use-Lizenz ──────────────────────────────────────────────────────────

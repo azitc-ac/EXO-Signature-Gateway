@@ -165,6 +165,9 @@ function dismissWelcome() {
 {% endmacro %}
 
 <style>
+/* Pool-Zeile: Hover per CSS statt onmouseover/style.background (Dark-Mode-Regel 2) */
+.pool-zeile:hover { background: #fafaf9; }
+[data-theme="dark"] .pool-zeile:hover { background: #262b3a; }
 @media (max-width: 520px) { .col-m2, .col-m1 { display:none; } }
 @media (max-width: 480px) { .col-y  { display:none; } }
 @media (max-width: 420px) { .col-py { display:none; } }
@@ -354,9 +357,6 @@ function openPoolModal(idx) {
   var statusHtml = throttled
     ? '<span style="color:#dc2626">● gedrosselt (noch ' + remS + 's)</span>'
     : '<span style="color:#16a34a">● verfügbar</span>';
-  var tabStyle = 'padding:5px 12px;border:none;border-radius:4px;cursor:pointer;font-size:12px;margin-right:4px;';
-  var activeStyle = tabStyle + 'background:#1c1917;color:#fff;';
-  var inactiveStyle = tabStyle + 'background:#f0f0f0;color:#555;';
   document.getElementById('poolModalTitle').textContent = label + ' — Graph API Aufrufe';
   document.getElementById('poolModalContent').innerHTML =
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">' +
@@ -365,10 +365,10 @@ function openPoolModal(idx) {
     '</div>' +
     '<div style="margin-bottom:6px;font-size:12px;color:#44403c">Peak heute: <strong>' + peakTxt + '</strong></div>' +
     '<div style="margin-bottom:14px;font-size:12px;color:#44403c">Status: ' + statusHtml + '</div>' +
-    '<div style="margin-bottom:10px">' +
-      '<button id="poolTab_today" data-pool-active="1" style="' + activeStyle + '" onclick="showPoolTab(\'today\',' + idx + ')">Heute</button>' +
-      '<button id="poolTab_7d"    data-pool-active="0" style="' + inactiveStyle + '" onclick="showPoolTab(\'7d\',' + idx + ')">7 Tage</button>' +
-      '<button id="poolTab_30d"   data-pool-active="0" style="' + inactiveStyle + '" onclick="showPoolTab(\'30d\',' + idx + ')">30 Tage</button>' +
+    '<div style="margin-bottom:10px;display:flex;gap:6px">' +
+      '<button type="button" id="poolTab_today" class="btn-toggle active" onclick="showPoolTab(\'today\',' + idx + ')">Heute</button>' +
+      '<button type="button" id="poolTab_7d" class="btn-toggle" onclick="showPoolTab(\'7d\',' + idx + ')">7 Tage</button>' +
+      '<button type="button" id="poolTab_30d" class="btn-toggle" onclick="showPoolTab(\'30d\',' + idx + ')">30 Tage</button>' +
     '</div>' +
     '<div id="poolChartArea"><span style="color:#94a3b8;font-size:12px">Laden…</span></div>';
   document.getElementById('poolModal').style.display = 'flex';
@@ -402,12 +402,9 @@ function _poolRender24hBars(hours, throttled) {
 }
 
 function _poolSetTabStyles(activeTab) {
-  var tabStyle = 'padding:5px 12px;border:none;border-radius:4px;cursor:pointer;font-size:12px;margin-right:4px;';
-  var activeStyle = tabStyle + 'background:#1c1917;color:#fff;';
-  var inactiveStyle = tabStyle + 'background:#f0f0f0;color:#555;';
   ['today','7d','30d'].forEach(function(t) {
     var el = document.getElementById('poolTab_' + t);
-    if (el) { el.style.cssText = (t === activeTab ? activeStyle : inactiveStyle); el.dataset.poolActive = (t === activeTab) ? '1' : '0'; }
+    if (el) el.classList.toggle('active', t === activeTab);   // Farbe aus .btn-toggle (style.css)
   });
 }
 
@@ -667,8 +664,7 @@ function openInFlightInfo(active, maintHeld, dfCount) {
         const statusStr = throttled
           ? '<span style="color:#dc2626">gedrosselt (' + remS + 's)</span>'
           : '<span style="color:#16a34a">verfügbar</span>';
-        poolHtml += '<div onclick="openPoolModal(' + i + ')" style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid #f5f4f3;cursor:pointer;transition:background .15s" ' +
-          'onmouseover="this.style.background=\'#fafaf9\'" onmouseout="this.style.background=\'\'">' +
+        poolHtml += '<div class="pool-zeile" onclick="openPoolModal(' + i + ')" style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid #f5f4f3;cursor:pointer;transition:background .15s">' +
           '<span style="color:' + dotColor + ';font-size:20px;flex-shrink:0">●</span>' +
           '<div style="flex:1;min-width:0">' +
             '<div style="font-size:13px;font-weight:600;color:#1c1917">' + label + '</div>' +

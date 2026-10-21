@@ -356,8 +356,8 @@ async function saveCustomVars() {
     // nicht anlegen — die Zeile wurde beim Speichern still verworfen.
     if (!name) continue;
     if (!/^[a-zA-Z0-9_]+$/.test(name)) {
-      document.getElementById('custom-vars-result').textContent = `Ungültiger Name: "${name}"`;
-      document.getElementById('custom-vars-result').style.color = '#dc2626';
+      // Dieselbe Anzeige, in die savePartial gleich meldet — Zustand statt Farbe
+      wacheFertig('custom-vars-btn', false, `Ungültiger Name: "${name}"`);
       return;
     }
     vars.push({name, entra_field: field});
