@@ -40,8 +40,8 @@
   async function pruefen(hinweis) {
     melde('offen', 'Wird geprüft…');
     await knopfAktion(pruefKnopf, null, async function () { try {
-      var r = await fetch('/api/setup/berechtigungen?nur=' + encodeURIComponent(box.dataset.nur || ''));
-      var d = await r.json();
+      var d = await getJSON('/api/setup/berechtigungen?nur=' + encodeURIComponent(box.dataset.nur || ''));
+      if (!d.ok) throw new Error(errText(d));
       liste.innerHTML = '';
       var fehlt = 0, unbekannt = 0;
       (d.berechtigungen || []).forEach(function (b) {

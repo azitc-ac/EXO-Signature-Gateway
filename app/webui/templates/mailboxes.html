@@ -44,8 +44,8 @@ function _fuInfoToggle() {
   b.style.display = b.style.display === 'none' ? 'block' : 'none';
 }
 function refreshFairUse(){
-  fetch('/api/license/status').then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
-    if (!d) return;
+  getJSON('/api/license/status').then(function(d){
+    if (!d.ok) return;
     // Exceeded banner
     var b = document.getElementById('fairuse-banner');
     if (d.exceeded) {
@@ -653,9 +653,8 @@ function _buildPolicyAddinControl(addinValue) {
 
 async function loadPolicies() {
   try {
-    var r = await fetch('/api/settings/template-policies');
-    if (!r.ok) return;
-    var d = await r.json();
+    var d = await getJSON('/api/settings/template-policies');
+    if (!d.ok) return;
 
     // Standardsignatur
     var sigSel = document.getElementById('policy-sig-tpl');
@@ -718,15 +717,11 @@ async function savePolicies() {
     addin: addinValue,
   };
   try {
-    var r = await fetch('/settings', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({TEMPLATE_POLICIES: policies}),
-    });
+    var d = await postJSON('/settings', {TEMPLATE_POLICIES: policies});
     // Rückmeldung über die Wache: Sie kennt den Unterschied zwischen
     // „gespeichert" und „noch offen" und färbt über `data-zustand` statt
     // über `style.color` — sonst greift der Dunkelmodus nicht (Regel 2).
-    wacheFertig('policy-btn', !!r.ok, r.ok ? undefined : '\u2717 Fehler');
+    wacheFertig('policy-btn', !!d.ok, d.ok ? undefined : '\u2717 ' + errText(d));
   } catch(e) {
     wacheFertig('policy-btn', false, '\u2717 ' + e.message);
   }
@@ -741,7 +736,7 @@ async function saveSelfRechtstexte() {
                  SELF_NUTZUNGSBEDINGUNGEN_URL: 'self-nutzung-url' };
   var werte = {};
   for (var k in felder) {
-    var v = document.getElementById(felder[k]).value.trim();
+    var v = feldWert(felder[k]);
     if (v && v.toLowerCase().indexOf('https://') !== 0) {
       showMsg(document.getElementById('self-recht-result'), '\u2717 Nur https-Adressen', false);
       return;
@@ -783,9 +778,8 @@ async function _postfaecherLaden(silent) {
   try {
     // Refresh template list
     try {
-      var tresp = await fetch('/api/templates');
-      if (tresp.ok) {
-        var tdata = await tresp.json();
+      var tdata = await getJSON('/api/templates');
+      if (tdata.ok) {
         if (tdata.by_kind) _templatesByKind = tdata.by_kind;
         _templateList = (_templatesByKind && _templatesByKind.signatur) || tdata.templates || ['default'];
       }
@@ -795,9 +789,8 @@ async function _postfaecherLaden(silent) {
     // (umgeht den 1h-Cache) — eine gerade angelegte Shared Mailbox erscheint dann
     // ohne Cache-Wartezeit. Stille Aufrufe (Seitenaufruf, nach dem Speichern)
     // nutzen den Cache, damit sie nicht jedes Mal 30–60 s auf EXO warten.
-    var resp = await fetch('/api/mailboxes' + (silent ? '' : '?refresh=1'));
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    var data = await resp.json();
+    var data = await getJSON('/api/mailboxes' + (silent ? '' : '?refresh=1'));
+    if (!data.ok) return {ok: false, error: errText(data)};
     _mbData = data.mailboxes || [];
     await loadPolicies();       // policy selects must be filled before row rendering reads them
     // Status-Spalte immer zeigen: /api/mailboxes liefert den letzten
@@ -833,7 +826,7 @@ async function _postfaecherLaden(silent) {
 var _healthAutoKicked = false;
 async function _kickHealthBackground() {
   try {
-    var r = await fetch('/api/health/mailboxes', {method: 'POST'});
+    var r = await sendJSON('POST', '/api/health/mailboxes');
     if (r.ok) await loadMailboxes(true);
   } catch(_) { /* Scheduler holt es später nach */ }
 }
@@ -969,7 +962,7 @@ function showHealthModal(mb) {
   } else {
     bookingsHtml += '<div style="font-size:11px;color:#888;display:flex;align-items:center;gap:8px">' +
       '<span>Nicht ermittelt</span>' +
-      '<button onclick="fetchOneBookingsUrl(\'' + esc(mb.email) + '\')" id="bk-fetch-btn-modal" ' +
+      '<button onclick="fetchOneBookingsUrl(\'' + escJsAttr(mb.email) + '\')" id="bk-fetch-btn-modal" ' +
       'style="font-size:11px;padding:2px 8px;border:1px solid #d1d5db;border-radius:4px;background:#f8fafc;cursor:pointer">Jetzt ermitteln</button>' +
       '<span id="bk-fetch-modal-result"></span></div>';
   }
@@ -1335,10 +1328,9 @@ async function saveMailboxes() {
 async function _pollDgStatus(result) {
   for (var i = 0; i < 80; i++) {
     await new Promise(function(r) { setTimeout(r, 2000); });
-    var s;
-    try { s = await (await fetch('/api/mailboxes/dg-status')).json(); }
-    catch (e) { continue; }                       // Netzhaken → weiterversuchen
-    if (!s || s.state !== 'done') continue;
+    // Netzhaken/HTTP-Fehler liefern {ok:false, error} ohne `state` → weiterversuchen.
+    var s = await getJSON('/api/mailboxes/dg-status');
+    if (s.state !== 'done') continue;
     // NUR die Statuszeile nachführen — die Wache ist beim lokalen Abschluss schon
     // geschlossen. Sie hier erneut anzufassen würde Änderungen, die der Nutzer
     // WÄHREND der Hintergrund-Aktualisierung gemacht hat, fälschlich als
@@ -1423,7 +1415,7 @@ function _renderGroupsTable() {
           'title="Custom-Variablen für diese Gruppe (z.B. Vertreter)">Variablen (' +
           Object.keys(_groupVars[name] || {}).length + ')</button></td>' +
       '<td style="text-align:center;padding:6px 8px">' +
-        '<button class="btn secondary btn-sm" onclick="removeGroup(\'' + esc(name) + '\')" ' +
+        '<button class="btn secondary btn-sm" onclick="removeGroup(\'' + escJsAttr(name) + '\')" ' +
           '>✕</button></td>';
     tbody.appendChild(tr);
   });
@@ -1614,16 +1606,12 @@ async function loadGroups() {
 // die Modals (sofort speichern) darauf reagieren können.
 async function saveGroups() {
   try {
-    var r = await fetch('/api/settings/internal-groups/save', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({groups: _groups, group_vars: _groupVars}),
-    });
+    var d = await postJSON('/api/settings/internal-groups/save', {groups: _groups, group_vars: _groupVars});
     // Farbe über die Wache, nicht über style.color: JS-gesetzte Farben
     // normalisiert der Browser zu rgb(), die Dark-Mode-Regeln greifen dann
     // nicht mehr. `wacheFertig` setzt `data-zustand`, das CSS färbt.
-    wacheFertig('groups-btn', r.ok, r.ok ? '✓ Gespeichert' : '✗ Fehler');
-    return r.ok;
+    wacheFertig('groups-btn', !!d.ok, d.ok ? '✓ Gespeichert' : '✗ ' + errText(d));
+    return !!d.ok;
   } catch(e) {
     wacheFertig('groups-btn', false, '✗ ' + e.message);
     return false;
@@ -1738,9 +1726,10 @@ function addCustomPolicy() {
 
 async function loadCustomPolicies() {
   try {
-    var r = await fetch('/api/settings/custom-policies');
-    if (!r.ok) return;
-    _customPolicies = await r.json();
+    // Antwort ist eine Liste: im Fehlerfall liefert getJSON ein Objekt.
+    var d = await getJSON('/api/settings/custom-policies');
+    if (!Array.isArray(d)) return;
+    _customPolicies = d;
     _renderCustomPoliciesTable();
     // Der Ausgangsstand steht erst jetzt — die Zeilen kommen per
     // Abruf. Ohne diese Zeile stünde beim Öffnen „noch nicht
@@ -1752,13 +1741,9 @@ async function loadCustomPolicies() {
 async function saveCustomPolicies() {
   var res = document.getElementById('cpol-save-result');
   try {
-    var r = await fetch('/api/settings/custom-policies/save', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({policies: _customPolicies}),
-    });
+    var d = await postJSON('/api/settings/custom-policies/save', {policies: _customPolicies});
     // Farbe über die Wache, nicht über style.color — siehe saveGroups().
-    wacheFertig('cpol-btn', r.ok, r.ok ? '✓ Gespeichert' : '✗ Fehler');
+    wacheFertig('cpol-btn', !!d.ok, d.ok ? '✓ Gespeichert' : '✗ ' + errText(d));
   } catch(e) {
     wacheFertig('cpol-btn', false, '✗ ' + e.message);
   }

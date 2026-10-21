@@ -88,7 +88,7 @@ async function startSsoLogin() {
 }
 
 async function submitSsoPaste() {
-  const url = (document.getElementById('sso-paste-url').value || '').trim();
+  const url = feldWert('sso-paste-url');
   const errEl = document.getElementById('sso-paste-error');
   errEl.style.display = 'none';
   if (!url) { errEl.textContent = 'Bitte URL einfügen'; errEl.style.display = 'block'; return; }
@@ -106,16 +106,11 @@ async function localLogin() {
   var p = document.getElementById('local-pw').value;
   var errEl = document.getElementById('local-error');
   errEl.style.display = 'none';
-  var resp = await fetch('/auth/local', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({username: u, password: p}),
-  });
-  if (resp.ok) {
+  var d = await postJSON('/auth/local', {username: u, password: p});
+  if (d.ok) {
     window.location.href = ANMELDE_ZIEL;
   } else {
-    var d = await resp.json().catch(function() { return {}; });
-    errEl.textContent = d.detail || 'Anmeldung fehlgeschlagen';
+    errEl.textContent = errText(d);
     errEl.style.display = 'block';
   }
 }

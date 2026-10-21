@@ -789,15 +789,15 @@ function _renderAcmeStatus(email, data) {
     + `</div>`
     + (s === 'error'
         ? `<button class="btn secondary btn-sm" style="flex-shrink:0"
-             onclick="clearAcmeOrder('${escAttr(email)}',this)">Zurücksetzen</button>`
+             onclick="clearAcmeOrder('${escJsAttr(email)}',this)">Zurücksetzen</button>`
         : '')
     + `</div>`;
   if (resetEl) resetEl.style.display = (s !== 'error') ? '' : 'none';
 }
 
 async function _fetchAcmeStatus(email) {
-  const resp = await fetch('/api/smime/renewal/status/' + encodeURIComponent(email));
-  return resp.ok ? resp.json() : null;
+  const d = await getJSON('/api/smime/renewal/status/' + encodeURIComponent(email));
+  return d.ok ? d : null;
 }
 
 // ── Laufende Bestellung bei einer Zertifizierungsstelle ─────────────────────
@@ -863,11 +863,8 @@ function _renderHubOrder(email, d) {
 }
 
 async function _pollHubOrder(email, versuch) {
-  let d = null;
-  try {
-    const r = await fetch('/api/smime/hub-order/' + encodeURIComponent(email));
-    d = await r.json();
-  } catch (e) { return; }
+  const d = await getJSON('/api/smime/hub-order/' + encodeURIComponent(email));
+  if (!d.ok) return;
   _renderHubOrder(email, d);
   if (!d || !d.aktiv) { delete _hubTimer[email]; return; }
   // Automatik: EINMAL je Wartezustand auslösen, nicht bei jedem Nachfassen —
@@ -876,14 +873,12 @@ async function _pollHubOrder(email, versuch) {
   // keine Wirkung nach aussen.
   if (d.wartet_auf_nutzer && d.auto_confirm && d.bestaetigungslink && !_hubConfirmed[email]) {
     _hubConfirmed[email] = true;
-    fetch('/api/smime/hub-order/' + encodeURIComponent(email) + '/bestaetigen',
-          {method: 'POST'}).catch(function () {});
+    sendJSON('POST', '/api/smime/hub-order/' + encodeURIComponent(email) + '/bestaetigen');
   }
   if (d.status === 'issued') {
     // Nicht auf den Hintergrundlauf warten (bis zu 15 Minuten): Das Zertifikat
     // liegt bereit, das Einspielen dauert Sekunden.
-    try { await fetch('/api/smime/hub-order/' + encodeURIComponent(email) + '/abholen',
-                      {method: 'POST'}); } catch (e) {}
+    await sendJSON('POST', '/api/smime/hub-order/' + encodeURIComponent(email) + '/abholen');
     setTimeout(() => location.reload(), 1500);
     return;
   }
@@ -915,14 +910,12 @@ async function sammelLaden() {
   // Ohne freigegebene Zertifizierungsstelle wird der Bereich gar nicht erst
   // gezeichnet — dann gibt es hier nichts zu füllen.
   if (!box) return;
-  try {
-    const r = await fetch('/api/smime/sammel/postfaecher');
-    const d = await r.json();
-    _sammelPostfaecher = d.postfaecher || [];
-  } catch (e) {
+  const d = await getJSON('/api/smime/sammel/postfaecher');
+  if (!d.ok) {
     box.innerHTML = '<span class="muted">Postfächer konnten nicht geladen werden.</span>';
     return;
   }
+  _sammelPostfaecher = d.postfaecher || [];
   if (!_sammelPostfaecher.length) {
     box.innerHTML = '<span class="muted">Keine Postfächer eingerichtet.</span>';
     return;
@@ -991,23 +984,15 @@ async function sammelVorschau() {
   if (!auswahl.length) { ziel.textContent = 'Keine Postfächer ausgewählt.'; return; }
   ziel.textContent = 'Wird berechnet…';
 
-  let d;
-  try {
-    const r = await fetch('/api/smime/sammel/vorschau', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({anbieter: document.getElementById('sammel-anbieter').value,
-                            postfaecher: auswahl}),
-    });
-    d = await r.json();
-  } catch (e) {
-    ziel.dataset.zustand = 'warnung';
-    ziel.textContent = 'Vorschau nicht abrufbar.';
-    return;
-  }
+  const d = await postJSON('/api/smime/sammel/vorschau',
+                           {anbieter: document.getElementById('sammel-anbieter').value,
+                            postfaecher: auswahl});
 
   const hind = (d.hindernisse || []).map(function (h) { return '<li>' + esc(h) + '</li>'; }).join('');
   if (!d.ok) {
     ziel.dataset.zustand = 'warnung';
+    // Ohne Hindernisliste (HTTP-/Netzwerkfehler) die Ursache nennen statt einer leeren Liste.
+    if (!hind) { ziel.textContent = 'Vorschau nicht abrufbar: ' + errText(d); return; }
     ziel.innerHTML = '<ul style="margin:0;padding-left:18px">' + hind + '</ul>';
     return;
   }
@@ -1118,11 +1103,8 @@ let _sammelTimer = null;
 async function sammelLaufPollen() {
   const ziel = document.getElementById('sammel-lauf');
   if (!ziel) return;
-  let d;
-  try {
-    const r = await fetch('/api/smime/sammel/lauf');
-    d = await r.json();
-  } catch (e) { return; }
+  const d = await getJSON('/api/smime/sammel/lauf');
+  if (!d.ok) return;
   if (!d.lauf) { ziel.style.display = 'none'; return; }
 
   const l = d.lauf;
@@ -1293,13 +1275,10 @@ async function saveCaConfig(email) {
   // Bezugsweg. Ein hier mitgesendetes `false` würde das Flag bei Altbeständen
   // löschen, bevor die Umstellung beim nächsten Start greifen kann.
   const result  = _lcResultEl(email);
-  const resp = await fetch('/api/smime/ca-config/' + encodeURIComponent(email), {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({backend, portal_url: portal, notify_user: notify, auto_renew, auto_confirm}),
-  });
-  showAlert(result, resp.ok ? 'success' : 'error',
-    resp.ok ? 'Lifecycle-Einstellungen gespeichert.' : 'Fehler beim Speichern.');
+  const d = await postJSON('/api/smime/ca-config/' + encodeURIComponent(email),
+    {backend, portal_url: portal, notify_user: notify, auto_renew, auto_confirm});
+  showAlert(result, d.ok ? 'success' : 'error',
+    d.ok ? 'Lifecycle-Einstellungen gespeichert.' : 'Fehler beim Speichern: ' + esc(errText(d)));
 }
 
 function _onAutoRenewChange(email, checked) {
@@ -1359,8 +1338,8 @@ async function generateToken(email, btn) {
       '<input type="text" readonly value="' + escAttr(d.url) + '" style="flex:1;min-width:200px;font-size:11px;' +
         'border:1px solid #c7d7ff;border-radius:4px;padding:4px 6px;background:#fff" ' +
         'onclick="this.select()">' +
-      '<button class="btn secondary btn-sm" onclick="navigator.clipboard.writeText(\'' + d.url + '\')">Kopieren</button>' +
-      '<button class="btn secondary btn-sm" onclick="generateToken(\'' + email + '\',this)">Erneuern</button>' +
+      '<button class="btn secondary btn-sm" onclick="navigator.clipboard.writeText(\'' + escJsAttr(d.url) + '\')">Kopieren</button>' +
+      '<button class="btn secondary btn-sm" onclick="generateToken(\'' + escJsAttr(email) + '\',this)">Erneuern</button>' +
       '</div>' +
       '<div style="color:#888;font-size:11px;margin-top:4px">Gültig für ' + d.expires_days + ' Tage</div>';
   } else {
@@ -1418,21 +1397,15 @@ async function doImport() {
 // ── Cert actions ──────────────────────────────────────────────────────────────
 async function deleteCertSlot(email, slotId) {
   if (!confirm(`Zertifikat (${slotId}) für ${email} wirklich löschen?`)) return;
-  const resp = await fetch(
-    `/api/smime/delete-slot/${encodeURIComponent(email)}/${slotId}`,
-    {method: 'POST'}
-  );
-  if (resp.ok) location.reload();
-  else alert('Löschen fehlgeschlagen');
+  const d = await sendJSON('POST', `/api/smime/delete-slot/${encodeURIComponent(email)}/${slotId}`);
+  if (d.ok) location.reload();
+  else alert('Löschen fehlgeschlagen: ' + errText(d));
 }
 
 async function setDefaultCert(email, slotId, radio) {
-  const resp = await fetch(
-    `/api/smime/set-default/${encodeURIComponent(email)}/${slotId}`,
-    {method: 'POST'}
-  );
-  if (!resp.ok) {
-    alert('Fehler beim Setzen des Standard-Zertifikats');
+  const d = await sendJSON('POST', `/api/smime/set-default/${encodeURIComponent(email)}/${slotId}`);
+  if (!d.ok) {
+    alert('Fehler beim Setzen des Standard-Zertifikats: ' + errText(d));
     location.reload();
   }
 }
@@ -1445,15 +1418,15 @@ async function showCertDetails(email, kind, slot) {
   try {
     let url = `/api/smime/cert/details?email=${encodeURIComponent(email)}&kind=${kind}`;
     if (slot) url += `&slot=${encodeURIComponent(slot)}`;
-    const resp = await fetch(url);
-    if (!resp.ok) { body.innerHTML = 'Fehler beim Laden.'; return; }
-    const d = await resp.json();
-    const row = (label, val) => val
+    const d = await getJSON(url);
+    if (!d.ok) { body.innerHTML = 'Fehler beim Laden: ' + esc(errText(d)); return; }
+    // Empfängerzertifikate kommen aus eingehender Post: Subject/Aussteller von außen.
+    const row = (label, val, zusatz) => val
       ? `<tr><td style="color:#888;padding:4px 12px 4px 0;white-space:nowrap">${label}</td>` +
-        `<td style="font-family:monospace;word-break:break-all">${val}</td></tr>`
+        `<td style="font-family:monospace;word-break:break-all">${esc(val)}${zusatz || ''}</td></tr>`
       : '';
     body.innerHTML = `
-      <h3 style="margin:0 0 12px">${email}</h3>
+      <h3 style="margin:0 0 12px">${esc(email)}</h3>
       <table style="border-collapse:collapse;width:100%">
         ${row('Ausgestellt für', d.subject)}
         ${row('Aussteller', d.issuer)}
@@ -1461,11 +1434,11 @@ async function showCertDetails(email, kind, slot) {
         ${row('Gültig ab', d.not_before)}
         ${row('Gültig bis', d.not_after)}
         ${row('Schlüssel', d.key)}
-        ${row('Seriennummer', d.serial ? d.serial + copyBtnHtml(d.serial) : '')}
+        ${row('Seriennummer', d.serial, d.serial ? copyBtnHtml(d.serial) : '')}
         ${row('SHA-1 Fingerprint', d.sha1)}
       </table>`;
   } catch(e) {
-    body.innerHTML = 'Fehler: ' + e;
+    body.innerHTML = 'Fehler: ' + esc(String(e));
   }
 }
 
@@ -1480,7 +1453,7 @@ async function wartendFreigeben(fp, auchAussteller) {
   const box = document.getElementById('wartend-result');
   const d = await postJSON('/api/smime/wartend/' + encodeURIComponent(fp) + '/freigeben',
                            { auch_aussteller: !!auchAussteller });
-  showMsg(box, d.ok ? 'Freigegeben: ' + (d.adresse || '') : (d.detail || 'Fehler'), !!d.ok);
+  showMsg(box, d.ok ? 'Freigegeben: ' + (d.adresse || '') : errText(d), !!d.ok);
   if (d.ok) setTimeout(() => location.reload(), 900);
 }
 
@@ -1488,13 +1461,13 @@ async function wartendVerwerfen(fp) {
   if (!confirm('Zertifikat verwerfen?\n\nEs verschwindet aus der Liste. Trifft es erneut ein, '
              + 'steht es wieder hier.')) return;
   const box = document.getElementById('wartend-result');
-  const r = await fetch('/api/smime/wartend/' + encodeURIComponent(fp), { method: 'DELETE' });
-  showMsg(box, r.ok ? 'Verworfen.' : 'Fehler beim Verwerfen', r.ok);
-  if (r.ok) setTimeout(() => location.reload(), 900);
+  const d = await sendJSON('DELETE', '/api/smime/wartend/' + encodeURIComponent(fp));
+  showMsg(box, d.ok ? 'Verworfen.' : 'Fehler beim Verwerfen: ' + errText(d), d.ok);
+  if (d.ok) setTimeout(() => location.reload(), 900);
 }
 
 async function uploadRcptCert(btn) {
-  const email  = (document.getElementById('rcpt-email').value || '').trim();
+  const email  = feldWert('rcpt-email');
   const file   = document.getElementById('rcpt-cert-file').files[0];
   const result = document.getElementById('rcpt-upload-result');
   if (!email || !file) { showAlert(result, 'error', 'E-Mail und Datei sind Pflichtfelder.'); return; }
@@ -1511,12 +1484,9 @@ async function uploadRcptCert(btn) {
 
 async function deleteRcptCert(email) {
   if (!confirm(`Empfänger-Zertifikat für ${email} wirklich löschen?`)) return;
-  const resp = await fetch(
-    '/api/smime/recipient/delete/' + encodeURIComponent(email),
-    {method: 'POST'}
-  );
-  if (resp.ok) location.reload();
-  else alert('Löschen fehlgeschlagen');
+  const d = await sendJSON('POST', '/api/smime/recipient/delete/' + encodeURIComponent(email));
+  if (d.ok) location.reload();
+  else alert('Löschen fehlgeschlagen: ' + errText(d));
 }
 
 // ⚠️ Drei Mängel, alle aus der Meldung des Nutzers („es fehlt das visuelle
@@ -1698,9 +1668,8 @@ async function migrateSlotToKv(email, slotId, btn) {
 <script>
 async function loadPortalAdmin() {
   try {
-    var resp = await fetch('/api/portal/admin/list');
-    if (!resp.ok) return;
-    var d = await resp.json();
+    var d = await getJSON('/api/portal/admin/list');
+    if (!d.ok) return;
 
     var badge = document.getElementById('portal-status-badge');
     badge.textContent = d.enabled ? 'aktiv' : 'inaktiv';
@@ -1722,7 +1691,7 @@ async function loadPortalAdmin() {
     function fmtDate(iso){
       if (!iso) return '–';
       var dt = new Date(iso);
-      return isNaN(dt) ? iso : dt.toLocaleDateString('de-DE') + ' ' +
+      return isNaN(dt) ? esc(iso) : dt.toLocaleDateString('de-DE') + ' ' +
         dt.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
     }
     var tbody = document.getElementById('portal-msg-tbody');
@@ -1739,7 +1708,7 @@ async function loadPortalAdmin() {
         + '<td style="white-space:nowrap">' + fmtDate(m.created_at) + '</td>'
         + '<td style="white-space:nowrap">' + fmtDate(m.expires_at) + '</td>'
         + '<td>' + status + '</td>'
-        + '<td><button class="btn secondary btn-sm" onclick="revokePortalMsg(\'' + esc(m.token) + '\', this)">Widerrufen</button></td>'
+        + '<td><button class="btn secondary btn-sm" onclick="revokePortalMsg(\'' + escJsAttr(m.token) + '\', this)">Widerrufen</button></td>'
         + '</tr>';
     }).join('');
   } catch(e) { /* Seite bleibt ohne Portal-Daten nutzbar */ }

@@ -580,9 +580,9 @@
 
 async function smime_betreffSpeichern() {
   wacheFertig('smime-betreff-btn', await savePartial({
-    SMIME_TAG_ENCRYPTED: (document.getElementById('smime-tag-encrypted').value || '').trim() || 'verschlüsselt',
+    SMIME_TAG_ENCRYPTED: feldWert('smime-tag-encrypted') || 'verschlüsselt',
     SMIME_TAG_ENCRYPTED_ENABLED: document.getElementById('smime-tag-enc-enabled').checked,
-    SMIME_TAG_SIGNED: (document.getElementById('smime-tag-signed').value || '').trim() || 'signiert von {signer}',
+    SMIME_TAG_SIGNED: feldWert('smime-tag-signed') || 'signiert von {signer}',
     SMIME_TAG_SIGNED_ENABLED: document.getElementById('smime-tag-sig-enabled').checked,
     SMIME_TAG_POSITION: document.getElementById('smime-tag-position').value,
     STRIP_SUBJECT_TAGS: document.getElementById('strip-subject-tags').checked,
@@ -593,8 +593,8 @@ async function smime_signierenSpeichern() {
   wacheFertig('smime-signieren-btn', await savePartial({
     SMIME_STRIP_INBOUND: document.getElementById('smime-strip-inbound').checked,
     SMIME_SIGNING_ENABLED: document.getElementById('smime-signing-enabled').checked,
-    NODIGSIG_TRIGGER: (document.getElementById('nodigsig-trigger').value || '').trim() || '#nodigsig',
-    ENC_TRIGGER: (document.getElementById('enc-trigger').value || '').trim() || '#enc',
+    NODIGSIG_TRIGGER: feldWert('nodigsig-trigger') || '#nodigsig',
+    ENC_TRIGGER: feldWert('enc-trigger') || '#enc',
     CRL_CHECK: document.getElementById('crl-check').checked,
   }, 'smime-signieren-btn-result'));
 }
@@ -604,17 +604,17 @@ async function smime_ausstellerSpeichern() {
     TRUST_MS_ROOTS: document.getElementById('trust-ms-roots').checked,
     TRUST_AUTO_KNOWN: document.getElementById('trust-auto-known').checked,
     TRUST_UNKNOWN_MODE: (document.querySelector('input[name="trust-unknown"]:checked') || {}).value || 'manuell',
-    SMIME_HARVEST_RCPT: (document.getElementById('smime-harvest-rcpt').value || '').trim(),
+    SMIME_HARVEST_RCPT: feldWert('smime-harvest-rcpt'),
   }, 'smime-aussteller-btn-result'));
 }
 
 async function smime_portalSpeichern() {
   wacheFertig('smime-portal-btn', await savePartial({
     SECURE_PORTAL_ENABLED: document.getElementById('portal-enabled').checked,
-    SECURE_PORTAL_BASE_URL: (document.getElementById('portal-base-url').value || '').trim(),
+    SECURE_PORTAL_BASE_URL: feldWert('portal-base-url'),
     SECURE_PORTAL_RETENTION_DAYS: parseInt(document.getElementById('portal-retention').value, 10) || 14,
     SECURE_PORTAL_OTP: document.getElementById('portal-otp').checked,
-    PORTAL_BRAND_NAME: (document.getElementById('portal-brand-name').value || '').trim(),
+    PORTAL_BRAND_NAME: feldWert('portal-brand-name'),
   }, 'smime-portal-btn-result'));
 }
 
@@ -796,9 +796,7 @@ async function saveSmimeKeyPassword() {
   if (p1 !== p2) { document.getElementById('key-pw-mismatch').style.display = ''; return; }
   var body = {new_password: p1};
   if (oldEl) body.old_password = oldEl.value;
-  var resp = await fetch('/api/smime/key-password', {
-    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
-  });
+  var d = await postJSON('/api/smime/key-password', body);
   // ⚠️ Die Meldung gehört AN DIE STELLE, an der gehandelt wurde.
   //
   // Vorher: `page-alert` ganz oben, `scrollTo(0,0)` und nach 1,8 s ein
@@ -810,8 +808,7 @@ async function saveSmimeKeyPassword() {
   // sechs Sekunden — lang genug für zwei Sätze. Bei einem FEHLER wird gar
   // nicht neu geladen; sonst verschwände die Begründung mitsamt der Eingabe.
   var ziel = document.getElementById('key-pw-result');
-  var d = await resp.json().catch(function() { return {}; });
-  if (resp.ok) {
+  if (d.ok) {
     var msg = d.warnings && d.warnings.length
       ? 'Passwort gespeichert — neu verschlüsseln fehlgeschlagen für: ' + d.warnings.join(', ')
       : 'Passwort gespeichert. Alle abgelegten Schlüssel wurden neu verschlüsselt.';
@@ -821,7 +818,7 @@ async function saveSmimeKeyPassword() {
     wacheNeuMessen('key-pw-btn');
     setTimeout(function() { location.reload(); }, 6000);
   } else {
-    showAlert(ziel, 'error', 'Fehler: ' + (esc(d.detail) || 'Unbekannt'));
+    showAlert(ziel, 'error', 'Fehler: ' + esc(errText(d)));
     wacheFertig('key-pw-btn', false, '');
   }
 }
@@ -846,17 +843,16 @@ function updateSubjectPreview() {
 }
 
 async function testKvUrl() {
-  const url = document.getElementById('kv-url').value.trim();
+  const url = feldWert('kv-url');
   const el = document.getElementById('kv-url-result');
   el.style.display = 'block';
   el.className = 'alert';
   el.textContent = 'Verbinde...';
   try {
     const params = url ? '?url=' + encodeURIComponent(url) : '';
-    const r = await fetch('/api/setup/keyvault/test' + params);
-    const d = await r.json();
+    const d = await getJSON('/api/setup/keyvault/test' + params);
     el.className = 'alert ' + (d.ok ? 'success' : 'error');
-    el.textContent = d.message;
+    el.textContent = d.ok ? d.message : errText(d);
   } catch (err) {
     el.className = 'alert error';
     el.textContent = 'Netzwerkfehler: ' + err;
@@ -871,20 +867,15 @@ async function saveKvMode() {
 }
 
 async function saveKvUrl() {
-  const url = document.getElementById('kv-url').value.trim();
+  const url = feldWert('kv-url');
   const el = document.getElementById('kv-url-result');
   el.style.display = 'block';
   el.className = 'alert';
   el.textContent = 'Speichere...';
   try {
-    const r = await fetch('/api/setup/keyvault/save', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({url}),
-    });
-    const d = await r.json();
+    const d = await postJSON('/api/setup/keyvault/save', {url});
     el.className = 'alert ' + (d.ok ? 'success' : 'error');
-    el.textContent = d.ok ? 'Key Vault URL gespeichert.' : (d.detail || 'Fehler');
+    el.textContent = d.ok ? 'Key Vault URL gespeichert.' : errText(d);
     if (d.ok) wacheNeuMessen('kv-url-btn');
     else wacheFertig('kv-url-btn', false, '');
   } catch (err) {

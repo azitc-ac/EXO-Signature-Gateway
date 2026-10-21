@@ -339,7 +339,7 @@
 <script>
 async function dcLoadConfig(){
   try{
-    const d=await (await fetch('/api/digicert/config')).json();
+    const d=await getJSON('/api/digicert/config');
     if(!d.ok) return;
     document.getElementById('dc-org-id').value=d.org_id||'';
     document.getElementById('dc-validity').value=d.validity_days||'';
@@ -352,11 +352,11 @@ function _dcMsg(t,ok){ showMsg('dc-msg', t, ok); }   // Farbe aus .field-msg[dat
 async function dcSaveConfig(){
   const body={
     api_key:document.getElementById('dc-api-key').value,
-    org_id:document.getElementById('dc-org-id').value.trim(),
-    validity_days:document.getElementById('dc-validity').value.trim(),
+    org_id:feldWert('dc-org-id'),
+    validity_days:feldWert('dc-validity'),
     payment_method:document.getElementById('dc-payment').value,
   };
-  const d=await (await fetch('/api/digicert/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
+  const d=await postJSON('/api/digicert/config',body);
   _dcMsg(d.ok?'Gespeichert.':'Fehler beim Speichern.',d.ok);
   wacheFertig('dc-config-btn', !!d.ok);
   // ⚠️ NACH `wacheFertig`: `dcLoadConfig()` schreibt die Felder neu, und das
@@ -367,34 +367,34 @@ async function dcSaveConfig(){
 }
 async function dcTest(){
   _dcMsg('Teste…',true);
-  const d=await (await fetch('/api/digicert/test',{method:'POST'})).json();
-  _dcMsg(d.message||(d.ok?'OK':'Fehler'),d.ok);
+  const d=await sendJSON('POST','/api/digicert/test');
+  _dcMsg(d.ok?(d.message||'OK'):errText(d),d.ok);
 }
 let _dcDomainId=null;
 async function dcDomainSetup(){
-  const domain=document.getElementById('dc-domain-input').value.trim().toLowerCase();
+  const domain=feldWert('dc-domain-input').toLowerCase();
   fieldClear('dc-domain-input');
   if(!domain||!domain.includes('.')){ fieldMsg('dc-domain-input','Gültige Domain erforderlich (z.B. firma.de).',false); return; }
-  const d=await (await fetch('/api/digicert/domain/setup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})).json();
-  if(!d.ok){ _dcMsg(d.message||'Fehler',false); return; }
+  const d=await postJSON('/api/digicert/domain/setup',{domain});
+  if(!d.ok){ _dcMsg(errText(d),false); return; }
   _dcDomainId=d.domain_id;
   const rec=document.getElementById('dc-domain-record');
   rec.style.display='block';
   rec.innerHTML='DNS-TXT-Eintrag am <strong>Domain-Apex</strong> anlegen (Name leer bzw. @):<br><br>'
-    +'Name: <code>'+domain+'</code>'+copyBtnHtml(domain)+'<br>'
+    +'Name: <code>'+esc(domain)+'</code>'+copyBtnHtml(domain)+'<br>'
     +'Typ: <code>TXT</code><br>'
-    +'Wert: <code>'+d.token+'</code>'+copyBtnHtml(d.token)
+    +'Wert: <code>'+esc(d.token)+'</code>'+copyBtnHtml(d.token)
     +'<div style="margin-top:10px"><button class="btn secondary" onclick="dcDomainCheck()">Jetzt prüfen</button></div>'
     +'<p class="hint" style="margin:6px 0 0">Token 30 Tage gültig; erfolgreiche Validierung hält 398 Tage.</p>';
   _dcMsg(d.message||'Token erzeugt.',true);
 }
 async function dcDomainCheck(){
   if(!_dcDomainId) return;
-  const d=await (await fetch('/api/digicert/domain/check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain_id:_dcDomainId})})).json();
+  const d=await postJSON('/api/digicert/domain/check',{domain_id:_dcDomainId});
   if(d.ok){ _dcMsg('✓ '+(d.message||'Validiert.'),true);
     const rec=document.getElementById('dc-domain-record'); if(rec) rec.style.display='none';
     const inp=document.getElementById('dc-domain-input'); if(inp) inp.value=''; }
-  else _dcMsg(d.message||'Noch nicht validiert.',false);
+  else _dcMsg(errText(d),false);
 }
 dcLoadConfig();
 _initAdv('digicert');
@@ -655,7 +655,7 @@ function hubEmailModeChanged(keep){
   document.getElementById('hub-email-mode').value='manual';
   inp.style.display=''; if(inp.value===dg.email) inp.value='';
 }
-async function hubLoadConfig() { try { const d=await (await fetch('/api/hub/config')).json();
+async function hubLoadConfig() { try { const d=await getJSON('/api/hub/config'); if(!d.ok) throw new Error(errText(d));
   const b=document.getElementById('hub-base'), e=document.getElementById('hub-email'), n=document.getElementById('hub-name'), co=document.getElementById('hub-company'), sel=document.getElementById('hub-base-select');
   if(e) e.value=d.email||''; if(n) n.value=d.name||''; if(co) co.value=d.company||'';
   _hubEmailModeInit(d.email||'');
@@ -663,31 +663,32 @@ async function hubLoadConfig() { try { const d=await (await fetch('/api/hub/conf
     b.value = d.base_url || HUB_DEFAULT_BASE;
     if(sel){ sel.value = (d.base_url && d.base_url!==HUB_DEFAULT_BASE) ? '__other__' : HUB_DEFAULT_BASE; hubBaseSelectChanged(); }
   }
-  const gw=document.getElementById('hub-gwid'); if(gw && d.gateway_id) gw.innerHTML='Diese Gateway-ID: <code>'+d.gateway_id+'</code>'+copyBtnHtml(d.gateway_id);
+  const gw=document.getElementById('hub-gwid'); if(gw && d.gateway_id) gw.innerHTML='Diese Gateway-ID: <code>'+esc(d.gateway_id)+'</code>'+copyBtnHtml(d.gateway_id);
   if(d.claim_pending){ _startHubPoll(); }
   } catch(e){ ursache(e, 'settings_connect:485'); } }
-async function hubSaveConfig() { const body={base_url:document.getElementById('hub-base').value.trim(),email:document.getElementById('hub-email').value.trim(),company:document.getElementById('hub-company').value.trim(),name:document.getElementById('hub-name').value.trim()};
-  const d=await (await fetch('/api/hub/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
-  _hubMsg(d.ok?'Anbindung gespeichert.':('Fehler: '+(d.error||'')), d.ok);
+async function hubSaveConfig() { const body={base_url:feldWert('hub-base'),email:feldWert('hub-email'),company:feldWert('hub-company'),name:feldWert('hub-name')};
+  const d=await postJSON('/api/hub/config',body);
+  _hubMsg(d.ok?'Anbindung gespeichert.':('Fehler: '+esc(errText(d))), d.ok);
   wacheFertig('hub-config-btn', !!d.ok); }
 let _hubTimer=null;
 const HUB_POLL_SECS=5;   // Auto-Prüfung alle 5s, solange die Seite offen ist
 function _hubWaitMsg(secs, sentTo){
-  const intro = sentTo ? ('📧 Bestätigungsmail an <strong>'+sentTo+'</strong> gesendet. ') : '';
+  const intro = sentTo ? ('📧 Bestätigungsmail an <strong>'+esc(sentTo)+'</strong> gesendet. ') : '';
   _hubMsg(intro+'⏳ Öffne den Link in der Mail — dann verbindet sich das Gateway automatisch. '
     +'Nächste automatische Prüfung in <strong id="hub-cd">'+secs+'</strong>s. '
     +'<button class="btn secondary btn-sm" style="margin-left:6px" onclick="hubPollClaim(true)">Jetzt prüfen</button>', true);
 }
 async function _hubClaimTick(){
   try{
-    const d=await (await fetch('/api/hub/claim',{method:'POST'})).json();
+    const d=await sendJSON('POST','/api/hub/claim');
+    if(d.abrufFehler){ return 'error'; }   // nur ein Takt ausgefallen — weiter warten
     if(d.ok&&d.connected){ clearInterval(_hubTimer);
       _hubMsg('✓ Verbunden! Der Zugang wurde automatisch eingetragen. Seite lädt neu…',true);
       setTimeout(()=>location.reload(),1500); return 'connected'; }
     if(d.status==='pending_confirmation'){ return 'pending'; }   // weiter warten
     // terminal (kein Token / used / invalid / expired) → NICHT weiter loopen
     clearInterval(_hubTimer);
-    const cfg=await (await fetch('/api/hub/config')).json();
+    const cfg=await getJSON('/api/hub/config');
     if(cfg.registered){ _hubMsg('✓ Bereits verbunden. Seite lädt neu…',true); setTimeout(()=>location.reload(),1200); }
     else { _hubMsg('Anbindung nicht abgeschlossen — bitte erneut „Verbinden“ auslösen (Bestätigungslink evtl. abgelaufen).',false); }
     return 'terminal';
@@ -714,19 +715,19 @@ async function hubDisconnect(){
   const full=confirm('Zusätzlich das Konto bei EXO Signature HUB vollständig kündigen (deregistrieren)?\n\n'
     +'Das kündigt auch den Zertifikatsbezug — verbleibendes Guthaben wird erstattet.\n\n'
     +'OK = vollständig kündigen · Abbrechen = nur dieses Gateway trennen (Konto bleibt bestehen, später wieder verbindbar)');
-  const d=await (await fetch('/api/hub/disconnect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({close_remote:full})})).json();
+  const d=await postJSON('/api/hub/disconnect',{close_remote:full});
   if(d.ok){ _hubMsg((full?'Anbindung entfernt und Konto bei EXO Signature HUB gekündigt.':'Anbindung entfernt.')+' Seite lädt neu…',true); setTimeout(()=>location.reload(),1200);} else _hubMsg('Fehler.',false); }
 async function hubSaveKey() { const key=document.getElementById('hub-key').value;
   fieldClear('hub-key');
   if(!key){fieldMsg('hub-key','Bitte API-Key eingeben.',false);return;}
-  const d=await (await fetch('/api/hub/api-key',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({api_key:key})})).json();
+  const d=await postJSON('/api/hub/api-key',{api_key:key});
   if(d.ok){document.getElementById('hub-key').value='';_hubMsg('API-Key gespeichert. Bitte Seite neu laden.',true);} else _hubMsg('Fehler beim Speichern.',false);
   // Das Feld wird beim Erfolg geleert — das ist selbst eine Änderung. Deshalb
   // den Ausgangsstand neu setzen statt nur „fertig" zu melden.
   wacheFertig('hub-key-btn', !!d.ok);
   if(d.ok) setTimeout(() => wacheNeuMessen('hub-key-btn'), 200); }
-async function hubStatus() { _hubMsg('Prüfe Status…',true); const d=await (await fetch('/api/hub/status')).json();
-  if(d.ok)_hubMsg('Freigegeben: Log-Upload <strong>'+(d.log_upload_enabled?'an':'aus')+'</strong>, Kontingent '+d.quota_mb_per_day+' MB/Tag (heute '+d.used_today_mb+' MB genutzt).',true); else _hubMsg('Status: '+(d.error||'nicht verfügbar'),false); }
+async function hubStatus() { _hubMsg('Prüfe Status…',true); const d=await getJSON('/api/hub/status');
+  if(d.ok)_hubMsg('Freigegeben: Log-Upload <strong>'+(d.log_upload_enabled?'an':'aus')+'</strong>, Kontingent '+esc(d.quota_mb_per_day)+' MB/Tag (heute '+esc(d.used_today_mb)+' MB genutzt).',true); else _hubMsg('Status: '+esc(errText(d)),false); }
 // ── Kontoadresse wechseln ───────────────────────────────────────────────────
 // Zweistufig, und das ist der Punkt: Anfordern darf, wer hier Zugang hat —
 // vollziehen nur, wer das ZIELPOSTFACH liest. Sonst wäre der Zugang zu diesem
@@ -852,7 +853,7 @@ async function kontoAdresseLaden(){
   const feld=document.getElementById('hub-konto-mail');
   if(!feld) return;
   try{
-    const d=await (await fetch('/api/hub/status')).json();
+    const d=await getJSON('/api/hub/status');
     if(d.ok && d.email){
       feld.textContent=d.email;
       const r=document.getElementById('hub-rech-mail');
@@ -865,7 +866,7 @@ async function kontoAdresseLaden(){
   }catch(e){ ursache(e,'settings_connect:kontoAdresseLaden'); }
   // Rückfall auf die lokal gespeicherte Adresse — besser als ein leeres Feld.
   try{
-    const c=await (await fetch('/api/hub/config')).json();
+    const c=await getJSON('/api/hub/config');
     feld.textContent=c.email||'—';
     const r=document.getElementById('hub-rech-mail'); if(r) r.textContent='—';
   }catch(e){ feld.textContent='—'; }
@@ -878,8 +879,8 @@ document.addEventListener('DOMContentLoaded', kontoAdresseLaden);
 // (Guthaben aufladen) frei; sobald Guthaben da ist, wird automatisch freigeschaltet.
 function _certMsg(html, ok) { const el=document.getElementById('cert-msg'); el.className='alert '+(ok?'success':'error'); el.innerHTML=html; el.style.display='block'; }
 async function certOptOut() { if(!confirm('Zertifikatsbezug für dieses Konto abbestellen? Verbleibendes Guthaben wird erstattet.'))return;
-  const d=await (await fetch('/api/hub/cert/opt-out',{method:'POST'})).json();
-  if(d.ok){_certMsg('Zertifikatsbezug abbestellt. Verbleibendes Guthaben wird erstattet.',true); certLoadEligibility();} else _certMsg('Fehler: '+(d.error||'Unbekannt'),false); }
+  const d=await sendJSON('POST','/api/hub/cert/opt-out');
+  if(d.ok){_certMsg('Zertifikatsbezug abbestellt. Verbleibendes Guthaben wird erstattet.',true); certLoadEligibility();} else _certMsg('Fehler: '+esc(errText(d)),false); }
 let _termsVersion='1';
 let _termsViewOnly=false;
 async function _openTermsModal(viewOnly) {
@@ -893,9 +894,9 @@ async function _openTermsModal(viewOnly) {
   cancelBtn.textContent = viewOnly ? 'Schließen' : 'Abbrechen';
   txt.textContent='Lade…'; modal.style.display='flex';
   try {
-    const d=await (await fetch('/api/hub/cert/terms')).json();
+    const d=await getJSON('/api/hub/cert/terms');
     if(d.ok){ _setPlainReflow(txt, d.text); _termsVersion=d.version||'1'; }
-    else { txt.textContent='Nutzungsbedingungen konnten nicht geladen werden: '+(d.error||'Unbekannt'); }
+    else { txt.textContent='Nutzungsbedingungen konnten nicht geladen werden: '+errText(d); }
   } catch(e){ txt.textContent='Nutzungsbedingungen konnten nicht geladen werden.' + ursache(e, 'settings_connect:572'); }
 }
 async function certAcceptTerms() { await _openTermsModal(false); }
@@ -903,8 +904,8 @@ async function certViewTerms() { await _openTermsModal(true); }
 function _termsClose(){ document.getElementById('terms-modal').style.display='none'; }
 async function _termsConfirm() {
   _termsClose();
-  const d=await (await fetch('/api/hub/cert/accept-terms',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({version:_termsVersion})})).json();
-  if(d.ok){_certMsg('Nutzungsbedingungen akzeptiert — Antrag gestellt.',true); certLoadEligibility();} else _certMsg('Fehler: '+(d.error||'Unbekannt'),false); }
+  const d=await postJSON('/api/hub/cert/accept-terms',{version:_termsVersion});
+  if(d.ok){_certMsg('Nutzungsbedingungen akzeptiert — Antrag gestellt.',true); certLoadEligibility();} else _certMsg('Fehler: '+esc(errText(d)),false); }
 // ── Konto & Guthaben ────────────────────────────────────────────────────────
 // Eigener Abruf über /api/hub/billing/me statt über die Zertifikatsberechtigung:
 // wer nie ein Zertifikat bezieht, soll seinen Kontostand trotzdem sehen und
@@ -918,9 +919,9 @@ async function acctLoad() {
   const badge = document.getElementById('acct-badge');
   const body = document.getElementById('acct-balance-body');
   let d;
-  try { d = await (await fetch('/api/hub/billing/me')).json(); }
-  catch (e) {
-    body.textContent = 'Kontostand nicht abrufbar.' + ursache(e, 'settings_connect:acctLoad');
+  d = await getJSON('/api/hub/billing/me');
+  if (d.abrufFehler) {
+    body.textContent = 'Kontostand nicht abrufbar (' + errText(d) + ')';
     badge.className = 'conn-badge conn-wait'; badge.textContent = 'nicht abrufbar'; return;
   }
   if (!d || !d.ok) {
@@ -1026,14 +1027,14 @@ const _ZAHLUNG_GEDULD_MS = 3 * 60 * 1000;
 /** Zustand als Zeichenkette, oder null wenn nicht abrufbar. */
 async function _standAbo() {
   try {
-    const d = await (await fetch('/api/license/renewal')).json();
+    const d = await getJSON('/api/license/renewal');
     return (d && d.ok) ? JSON.stringify(d.abo || null) : null;
   } catch (e) { return null; }
 }
 
 async function _standGuthaben() {
   try {
-    const d = await (await fetch('/api/hub/billing/me')).json();
+    const d = await getJSON('/api/hub/billing/me');
     // Saldo UND Zahl der Buchungen: eine Aufladung, die den Saldo rechnerisch
     // nicht verändert (Gutschrift und Abbuchung im selben Takt), bliebe sonst
     // unbemerkt.
@@ -1117,7 +1118,7 @@ async function acctRefund() {
   // erheben wäre unnötig (Art. 5 Abs. 1 lit. c DSGVO) und eine zusätzliche
   // Hürde vor der eigenen Auszahlung.
   let v;
-  try { v = await (await fetch('/api/hub/billing/refund/preview')).json(); }
+  try { v = await getJSON('/api/hub/billing/refund/preview'); }
   catch (e) {
     _acctMsg('Auszahlung nicht vorbereitbar.' + ursache(e, 'settings_connect:acctRefund'), false);
     return;
@@ -1169,12 +1170,12 @@ async function acctRefund() {
 async function certLoadEligibility(manual) {
   const el=document.getElementById('cert-eligibility');
   let d;
-  try { d = await (await fetch('/api/hub/cert/eligibility')).json(); }
-  catch(e){ el.textContent='Berechtigung konnte nicht geprüft werden.' + ursache(e, 'settings_connect:592'); return; }
+  d = await getJSON('/api/hub/cert/eligibility');
+  if(d.abrufFehler){ el.textContent='Berechtigung konnte nicht geprüft werden ('+errText(d)+')'; return; }
   _renderCertSteps(d);
   _renderCertDomains(d);
   if(d.ok){ el.innerHTML='<strong style="color:#166534">✓ Zertifikatsbezug aktiviert.</strong> '
-    +'Kontingent '+(d.used_this_month||0)+'/'+((d.monthly_limit>0)?d.monthly_limit:'∞')+' diesen Monat · Domains: '+((d.verified_domains||[]).join(', ')||'–'); }
+    +'Kontingent '+esc(d.used_this_month||0)+'/'+esc((d.monthly_limit>0)?d.monthly_limit:'∞')+' diesen Monat · Domains: '+esc((d.verified_domains||[]).join(', ')||'–'); }
   else if(d.cert_issuing_enabled){ el.innerHTML='<strong style="color:#92400e">⚠ Freigeschaltet, aber noch nicht bezugsbereit:</strong> '+esc(d.reason||d.error||'unbekannt'); }
   else { el.innerHTML=''; }
   const optBtn=document.getElementById('cert-optout-btn'), optHint=document.getElementById('cert-optout-hint');
@@ -1201,7 +1202,7 @@ async function autoTopupLoad() {
   // Nur sinnvoll mit Anbindung und wenn der Hub Stripe überhaupt konfiguriert hat.
   if(!_HUB_REGISTERED){ box.style.display='none'; return; }
   let d;
-  try { d = await (await fetch('/api/hub/billing/auto')).json(); }
+  try { d = await getJSON('/api/hub/billing/auto'); }
   catch(e){ ursache(e, 'settings_connect:626'); box.style.display='none'; return; }
   if(!d.ok || !d.stripe_enabled){ box.style.display='none'; return; }
   box.style.display='';
@@ -1284,16 +1285,15 @@ async function autoTopupSaveAmount(){
   const v = parseInt(document.getElementById('auto-topup-amount').value, 10);
   fieldClear('auto-topup-amount');
   if(!v){ fieldMsg('auto-topup-amount', 'Bitte einen Betrag angeben.', false); return; }
-  const d = await (await fetch('/api/hub/billing/auto/amount', {method:'POST',
-    headers:{'Content-Type':'application/json'}, body: JSON.stringify({amount_cents: v*100})})).json();
+  const d = await postJSON('/api/hub/billing/auto/amount', {amount_cents: v*100});
   if(d.ok){ _autoMsg('Betrag gespeichert: '+_eur(v*100), true); }
-  else _autoMsg('Fehler: '+(d.error||d.message||'unbekannt'), false);
+  else _autoMsg('Fehler: '+errText(d), false);
 }
 
 async function autoTopupDisable(){
   if(!confirm('Automatische Aufladung beenden und das hinterlegte Zahlungsmittel löschen?')) return;
-  const d = await (await fetch('/api/hub/billing/auto/disable', {method:'POST'})).json();
-  if(d.ok){ autoTopupLoad(); } else _autoMsg('Fehler: '+(d.error||d.message||'unbekannt'), false);
+  const d = await sendJSON('POST', '/api/hub/billing/auto/disable');
+  if(d.ok){ autoTopupLoad(); } else _autoMsg('Fehler: '+errText(d), false);
 }
 
 function _renderCertDomains(d) {
@@ -1384,40 +1384,40 @@ function _pflichtfelder(paare) {
 
 async function certSaveBilling() {
   const body={
-    billing_company:document.getElementById('cert-bill-company').value.trim(),
-    billing_address:document.getElementById('cert-bill-address').value.trim(),
-    billing_vat:document.getElementById('cert-bill-vat').value.trim(),
-    billing_contact:document.getElementById('cert-bill-contact').value.trim(),
-    billing_website:document.getElementById('cert-bill-website').value.trim(),
+    billing_company:feldWert('cert-bill-company'),
+    billing_address:feldWert('cert-bill-address'),
+    billing_vat:feldWert('cert-bill-vat'),
+    billing_contact:feldWert('cert-bill-contact'),
+    billing_website:feldWert('cert-bill-website'),
   };
   if(!_pflichtfelder([['cert-bill-company', body.billing_company],
                      ['cert-bill-address', body.billing_address]])) return;
-  const d=await (await fetch('/api/hub/cert/billing',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
-  if(d.ok){ _billingFilled=true; _acctMsg('Abrechnungsdaten gespeichert.',true); acctLoad(); } else _acctMsg('Fehler: '+(d.error||'Unbekannt'),false);
+  const d=await postJSON('/api/hub/cert/billing',body);
+  if(d.ok){ _billingFilled=true; _acctMsg('Abrechnungsdaten gespeichert.',true); acctLoad(); } else _acctMsg('Fehler: '+errText(d),false);
   wacheFertig('cert-billing-btn', !!d.ok);
   // `acctLoad()` schreibt die Felder neu — danach den Ausgangsstand setzen.
   if(d.ok) setTimeout(() => wacheNeuMessen('cert-billing-btn'), 400); }
 async function certDomainRequest() {
-  const domain=document.getElementById('cert-domain-input').value.trim().toLowerCase();
+  const domain=feldWert('cert-domain-input').toLowerCase();
   fieldClear('cert-domain-input');
   if(!domain||!domain.includes('.')){ fieldMsg('cert-domain-input','Gültige Domain erforderlich (z.B. firma.de).',false); return; }
-  const d=await (await fetch('/api/hub/cert/domain/request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})).json();
-  if(!d.ok){ _certMsg('Fehler: '+(d.error||'Unbekannt'),false); return; }
+  const d=await postJSON('/api/hub/cert/domain/request',{domain});
+  if(!d.ok){ _certMsg('Fehler: '+esc(errText(d)),false); return; }
   _pendingDomain=domain;
   const rec=document.getElementById('cert-domain-record');
   rec.style.display='block';
   const extra=(d.additional_records||[]);
   let html='Bitte folgende'+(extra.length?'n':'n')+' DNS-TXT-Eintr'+(extra.length?'äge':'ag')+' bei deinem Domain-Provider anlegen:<br><br>'
     +'<strong>1. Hub-Verifikation</strong><br>'
-    +'Name: <code>'+d.record_name+'</code>'+copyBtnHtml(d.record_name)+'<br>'
+    +'Name: <code>'+esc(d.record_name)+'</code>'+copyBtnHtml(d.record_name)+'<br>'
     +'Typ: <code>TXT</code><br>'
-    +'Wert: <code>'+d.record_value+'</code>'+copyBtnHtml(d.record_value);
+    +'Wert: <code>'+esc(d.record_value)+'</code>'+copyBtnHtml(d.record_value);
   extra.forEach((r,i)=>{
-    html+='<br><br><strong>'+(i+2)+'. CA-Prevalidierung'+(r.purpose?(' ('+r.purpose+')'):'')+'</strong><br>'
-      +'Name: <code>'+r.record_name+'</code>'+copyBtnHtml(r.record_name)+'<br>'
-      +'Typ: <code>'+(r.record_type||'TXT')+'</code><br>'
-      +'Wert: <code>'+r.record_value+'</code>'+copyBtnHtml(r.record_value)
-      +(r.hint?('<br><span class="hint">'+r.hint+'</span>'):'');
+    html+='<br><br><strong>'+(i+2)+'. CA-Prevalidierung'+(r.purpose?(' ('+esc(r.purpose)+')'):'')+'</strong><br>'
+      +'Name: <code>'+esc(r.record_name)+'</code>'+copyBtnHtml(r.record_name)+'<br>'
+      +'Typ: <code>'+esc(r.record_type||'TXT')+'</code><br>'
+      +'Wert: <code>'+esc(r.record_value)+'</code>'+copyBtnHtml(r.record_value)
+      +(r.hint?('<br><span class="hint">'+esc(r.hint)+'</span>'):'');
   });
   html+='<div style="margin-top:10px"><button class="btn secondary" onclick="certDomainVerify()">Jetzt prüfen</button></div>'
     +'<p class="hint" style="margin:6px 0 0">DNS-Propagation kann einige Minuten dauern.'
@@ -1428,16 +1428,16 @@ let _pendingDomain=null;
 async function certDomainVerify(domainArg) {
   const domain = domainArg || _pendingDomain;
   if(!domain) return;
-  const d=await (await fetch('/api/hub/cert/domain/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain})})).json();
+  const d=await postJSON('/api/hub/cert/domain/verify',{domain});
   if(d.ok){
-    let m='✓ Domain '+domain+' verifiziert.';
+    let m='✓ Domain '+esc(domain)+' verifiziert.';
     if(d.digicert==='validated') m+=' CA-Prevalidierung ebenfalls bestätigt.';
-    else if(d.digicert) m+=' CA-Prevalidierung: '+d.digicert;
+    else if(d.digicert) m+=' CA-Prevalidierung: '+esc(d.digicert);
     _certMsg(m,true);
     const rec=document.getElementById('cert-domain-record'); if(rec) rec.style.display='none';
     const inp=document.getElementById('cert-domain-input'); if(inp) inp.value='';
     certLoadEligibility(); }
-  else { _certMsg('Noch nicht verifiziert ('+domain+'): '+(d.message||d.error||'unbekannt'),false); }
+  else { _certMsg('Noch nicht verifiziert ('+esc(domain)+'): '+esc(errText(d)),false); }
 }
 function _renderCertSteps(d) {
   // Nur noch die Zustimmung zu den ZERTIFIKATSbedingungen. Guthaben, Automatik
@@ -1531,7 +1531,7 @@ async function certLoadCatalog() {
       const dim = on ? '' : 'opacity:.5;';
       return '<tr style="border-bottom:1px solid #f0f0f0;' + dim + '">'
         + '<td style="padding:5px 8px;text-align:center"><input type="checkbox" '
-          + (on ? 'checked' : '') + ' onchange="certToggleProvider(\'' + esc(p.id) + '\', this.checked)"></td>'
+          + (on ? 'checked' : '') + ' onchange="certToggleProvider(\'' + escJsAttr(p.id) + '\', this.checked)"></td>'
         + '<td style="padding:5px 8px;font-weight:600">' + esc(p.label || p.id)
           + (p.preview ? ' <span style="background:#fef3c7;color:#92400e;font-weight:600;font-size:11px;padding:1px 6px;border-radius:6px;margin-left:4px">Vorschau</span>' : '')
           + '</td>'
@@ -1559,7 +1559,8 @@ function _licMsg(text, ok) {
 }
 async function licLoad() {
   try {
-    const d = await (await fetch('/api/license/status')).json();
+    const d = await getJSON('/api/license/status');
+    if (!d.ok) throw new Error(errText(d));
     const badge = document.getElementById('lic-badge');
     const status = document.getElementById('lic-status');
     // Der Fair-Use-Zustand kommt OFFLINE aus dem hinterlegten Schluessel, die
@@ -1615,7 +1616,7 @@ async function licAboLaden() {
   const uebersicht = document.getElementById('lic-uebersicht');
   const actions = document.getElementById('lic-abo-actions');
   let d;
-  try { d = await (await fetch('/api/license/renewal')).json(); }
+  try { d = await getJSON('/api/license/renewal'); }
   catch (e) { ursache(e, 'settings_connect:licAboLaden'); return; }
 
   if (!d || !d.ok) {
@@ -1684,7 +1685,7 @@ async function licAboLaden() {
                                             : 'monatliche Zahlung';
   actions.innerHTML =
       '<button class="btn secondary" onclick="licAboPortal()">Abo verwalten ↗</button>'
-    + '<button class="btn secondary" onclick="licAboZahlungsweise(\'' + anders + '\')">'
+    + '<button class="btn secondary" onclick="licAboZahlungsweise(\'' + escJsAttr(anders) + '\')">'
     + 'Auf ' + andersText + ' umstellen</button>'
     + '<button class="btn secondary" onclick="licAboKuendigen()">Kündigen</button>';
 
@@ -1708,8 +1709,8 @@ async function _licSchluesselAbgleichen(abo) {
   if (lokal === abo.postfaecher) return;          // schon deckungsgleich
   _licAbgleichLaeuft = true;
   try {
-    const r = await fetch('/api/license/fetch-hub', {method: 'POST'});
-    if (!r.ok) return;                            // still bleiben: der Offline-Weg gilt weiter
+    const d = await sendJSON('POST', '/api/license/fetch-hub');
+    if (!d.ok) return;                            // still bleiben: der Offline-Weg gilt weiter
     await licLoad();
   } catch (e) { ursache(e, 'settings_connect:_licSchluesselAbgleichen'); }
 }
@@ -1852,21 +1853,18 @@ async function licAboKuendigen() {
 }
 
 async function licApply() {
-  const key = document.getElementById('lic-key').value.trim();
+  const key = feldWert('lic-key');
   fieldClear('lic-key');
   if (!key) { fieldMsg('lic-key', 'Bitte Lizenzschlüssel eingeben.', false); return; }
-  const r = await fetch('/api/license', {method:'POST',
-    headers:{'Content-Type':'application/json'}, body: JSON.stringify({key})});
-  const d = await r.json().catch(() => ({}));
-  if (r.ok) { _licMsg('✓ Lizenz eingespielt.', true); document.getElementById('lic-key').value=''; licLoad(); }
-  else _licMsg(d.detail || 'Fehler beim Einspielen.', false);
+  const d = await postJSON('/api/license', {key});
+  if (d.ok) { _licMsg('✓ Lizenz eingespielt.', true); document.getElementById('lic-key').value=''; licLoad(); }
+  else _licMsg(errText(d), false);
 }
 async function licFetchHub() {
   _licMsg('Rufe Lizenz vom Hub ab…', true);
-  const r = await fetch('/api/license/fetch-hub', {method:'POST'});
-  const d = await r.json().catch(() => ({}));
-  if (r.ok) { _licMsg('✓ Lizenz vom Hub abgerufen und eingespielt.', true); licLoad(); }
-  else _licMsg(d.detail || 'Abruf fehlgeschlagen.', false);
+  const d = await sendJSON('POST', '/api/license/fetch-hub');
+  if (d.ok) { _licMsg('✓ Lizenz vom Hub abgerufen und eingespielt.', true); licLoad(); }
+  else _licMsg(errText(d), false);
 }
 async function licRemove() {
   // Das Wichtigste stand nicht drin: entfernt wird nur der SCHLÜSSEL in diesem
@@ -1929,7 +1927,7 @@ var _legalStatus = null;
 
 async function legalLoadStatus() {
   try {
-    const d = await (await fetch('/api/legal/status')).json();
+    const d = await getJSON('/api/legal/status');
     if (!d.ok) return;
     _legalStatus = d.documents;
     // `wann`: Rechtstexte mit Zustimmung werden NICHT hier, sondern beim Auslösen
@@ -1958,8 +1956,8 @@ async function legalLoadStatus() {
       return '<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #f0f0f0">'
         + '<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500">' + esc(st.title || doc.label) + ' <span class="muted" style="font-weight:400">v' + (st.version||'1.0') + '</span></div>' + hint + '</div>'
         + badge
-        + '<button class="btn secondary btn-sm" onclick="legalViewDoc(\'' + doc.id + '\')">Lesen</button>'
-        + '<button class="btn secondary btn-sm" onclick="legalPrintDoc(\'' + doc.id + '\')">PDF</button>'
+        + '<button class="btn secondary btn-sm" onclick="legalViewDoc(\'' + escJsAttr(doc.id) + '\')">Lesen</button>'
+        + '<button class="btn secondary btn-sm" onclick="legalPrintDoc(\'' + escJsAttr(doc.id) + '\')">PDF</button>'
         + '</div>';
     }).join('');
   } catch(e) { ursache(e, 'settings_connect:1352'); }
@@ -1968,8 +1966,8 @@ async function legalLoadStatus() {
 var _termsCurrentDoc = null;
 
 async function legalViewDoc(docId) {
-  const d = await (await fetch('/api/legal/doc/' + docId + '?lang=de')).json();
-  if (!d.ok) { alert('Dokument nicht verfügbar: ' + (d.detail||'')); return; }
+  const d = await getJSON('/api/legal/doc/' + docId + '?lang=de');
+  if (!d.ok) { alert('Dokument nicht verfügbar: ' + errText(d)); return; }
   const modal = document.getElementById('terms-modal');
   const txt = document.getElementById('terms-text');
   const confirmBtn = document.getElementById('terms-confirm-btn');
@@ -1994,7 +1992,7 @@ window.legalPrintDoc = async function(docId){
   var win = fensterImKlick('_blank');
   if (!win){ alert(FENSTER_BLOCKIERT); return; }
   try { win.document.write('<!doctype html><meta charset=utf-8><title>Lädt…</title><body style="font:14px sans-serif;padding:24px">Lädt…</body>'); } catch(e){}
-  var d = await (await fetch('/api/legal/doc/' + encodeURIComponent(docId) + '?lang=de')).json();
+  var d = await getJSON('/api/legal/doc/' + encodeURIComponent(docId) + '?lang=de');
   if (!d.ok){ try { win.document.body.textContent = 'Dokument nicht verfügbar.'; } catch(e){} return; }
   var titel = (d.title || d.label || 'Rechtstext') + ' · v' + (d.version || '');
   var seite = '<!doctype html><html lang="de"><head><meta charset="utf-8">'
@@ -2022,7 +2020,7 @@ document.addEventListener('DOMContentLoaded', legalLoadStatus);
 // diese Fassung ersetzt wurde — mitsamt der Pflichtprüfung der Firma, die nur dort
 // stand. Jetzt EINE Fassung, die Prüfung vorn (der Server verlangt die Firma ebenfalls).
 async function hubConnect() {
-  if (!document.getElementById('hub-company').value.trim()) {
+  if (!feldWert('hub-company')) {
     _hubMsg('Firma / Rechtsform ist Pflicht.', false);
     document.getElementById('hub-company').focus();
     return;
@@ -2034,13 +2032,13 @@ async function hubConnect() {
 async function _doHubConnect() {
   await hubSaveConfig();
   _hubMsg('Verbinde… Registrierung wird übermittelt.', true);
-  const d = await (await fetch('/api/hub/register', {method:'POST'})).json();
-  if (!d.ok) { _hubMsg('Fehler: ' + (d.error || d.detail || 'Unbekannt'), false); return; }
+  const d = await sendJSON('POST', '/api/hub/register');
+  if (!d.ok) { _hubMsg('Fehler: ' + esc(errText(d)), false); return; }
   if (d.email_sent) {
-    _startHubPoll(document.getElementById('hub-email') ? document.getElementById('hub-email').value.trim() : '');
+    _startHubPoll(document.getElementById('hub-email') ? feldWert('hub-email') : '');
   } else {
-    _hubMsg('Registrierung übermittelt (Status: <strong>' + (d.status||'pending') + '</strong>). '
-      + (d.message||'Nach Freigabe den API-Key manuell eintragen.'), true);
+    _hubMsg('Registrierung übermittelt (Status: <strong>' + esc(d.status||'pending') + '</strong>). '
+      + esc(d.message||'Nach Freigabe den API-Key manuell eintragen.'), true);
   }
 }
 
@@ -2061,10 +2059,9 @@ async function _doCertRequestInvoice() {
   if(!_pflichtfelder([['inv-req-company', body.billing_company],
                      ['inv-req-address', body.billing_address],
                      ['inv-req-contact', body.billing_contact]])) return;
-  const d = await (await fetch('/api/hub/cert/request-invoice', {method:'POST',
-    headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)})).json();
+  const d = await postJSON('/api/hub/cert/request-invoice', body);
   if (d.ok) { _certMsg('Antrag gestellt — EXO Signature HUB wurde benachrichtigt.', true); certLoadEligibility(); }
-  else { _certMsg('Fehler: ' + (d.detail||d.error||'Unbekannt'), false); }
+  else { _certMsg('Fehler: ' + esc(errText(d)), false); }
 }
 
 </script>

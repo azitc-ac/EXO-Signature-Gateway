@@ -184,8 +184,8 @@
 
       // User initials badge
       (function() {
-        fetch('/api/whoami').then(function(r){ return r.ok ? r.json() : null; }).then(function(d) {
-          if (!d) return;
+        getJSON('/api/whoami').then(function(d) {
+          if (!d.ok) return;
           var upn = d.upn || '';
           if (!upn) {
             // Keine Session — klar als "nicht angemeldet" kennzeichnen
@@ -311,8 +311,15 @@
         });
       });
 
+      // Wert als Zeichenkette in einem Inline-Handler: onclick="f(\'' + escJsAttr(x) + '\')".
+      // Zwei Ebenen: erst für den JS-String (\ und '), dann fürs Attribut — der
+      // Browser dekodiert das Attribut (&#39; → ') BEVOR er das Skript liest;
+      // esc() allein ließe den String dort aufbrechen.
+      function escJsAttr(wert) {
+        return escAttr(String(wert == null ? '' : wert).replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
+      }
       function copyBtnHtml(value) {
-        var v = String(value == null ? '' : value).replace(/"/g, '&quot;');
+        var v = escAttr(value);
         return '<button type="button" class="copy-btn" data-copy="' + v + '" title="Kopieren">' + COPY_ICON + '</button>';
       }
     </script>
@@ -356,10 +363,9 @@
 
       async function _rcLoad() {
         try {
-          const r = await fetch('/api/legal/pending');
-          if (!r.ok) return;                    // nicht angemeldet o.ä. — still bleiben
-          const d = await r.json();
-          _rcPending = (d && d.pending) || [];
+          const d = await getJSON('/api/legal/pending');
+          if (!d.ok) return;                    // nicht angemeldet o.ä. — still bleiben
+          _rcPending = d.pending || [];
           if (!_rcPending.length) return;
           document.getElementById('reconsent-docs').textContent =
             ' Betroffen: ' + _rcPending.map(function(p){ return p.label_de + ' (Fassung ' + p.version + ')'; }).join(', ') + '.';
@@ -394,8 +400,8 @@
         if (_rcText[id]) { el.innerHTML = _mdToHtml(_rcText[id].text); return; }
         el.textContent = 'Lade…';
         try {
-          const d = await (await fetch('/api/legal/doc/' + encodeURIComponent(id) + '?lang=de')).json();
-          if (d && d.ok) { _rcText[id] = d; el.innerHTML = _mdToHtml(d.text); }
+          const d = await getJSON('/api/legal/doc/' + encodeURIComponent(id) + '?lang=de');
+          if (d.ok) { _rcText[id] = d; el.innerHTML = _mdToHtml(d.text); }
           else el.textContent = 'Fehler beim Laden.';
         } catch (e) { el.textContent = 'Netzwerkfehler.' + ursache(e, 'base:287'); }
       }

@@ -181,7 +181,8 @@ async function saveCoex(cb) {
 async function smtpCertLaden() {
   const box = document.getElementById('smtp-cert-status');
   try {
-    const r = await fetch('/api/smtp-cert').then(x => x.json());
+    const r = await getJSON('/api/smtp-cert');
+    if (!r.ok) { box.textContent = 'Status nicht abrufbar: ' + errText(r); return; }
     const rm = document.getElementById('smtp-cert-remove-btn');
     let t;
     if (r.override) { t = '<strong>Separates Zert aktiv.</strong> '; rm.style.display = ''; }
@@ -273,12 +274,8 @@ smtpCertLaden();
   }
 
   window.setMaintenanceMode = async function(enabled) {
-    var r = await fetch('/api/maintenance/mode', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({enabled: enabled})
-    });
-    if (!r.ok) { alert('Fehler beim Speichern'); return; }
+    var r = await postJSON('/api/maintenance/mode', {enabled: enabled});
+    if (!r.ok) { alert('Fehler beim Speichern: ' + errText(r)); return; }
     _applyModeUI(enabled);
     // Immer neu laden: beim Ausschalten kann die Queue wegen Zustellfehlern bleiben.
     window.loadHeldMails();
@@ -286,9 +283,8 @@ smtpCertLaden();
 
   window.loadHeldMails = async function() {
     try {
-      var r = await fetch('/api/maintenance/mails');
-      if (!r.ok) return;
-      var d = await r.json();
+      var d = await getJSON('/api/maintenance/mails');
+      if (!d.ok) return;
       // Update mode UI without recursing
       _applyModeUI(d.maintenance_mode);
       _applyQueueVisibility(d.maintenance_mode, d.mails.length > 0);
@@ -300,16 +296,18 @@ smtpCertLaden();
       }
       var rows = d.mails.map(function(m) {
         var ts = new Date(m.timestamp).toLocaleString('de-DE');
+        // Absender, Empfänger und Betreff stammen aus der Mail — also von außen.
+        var an = (m.to_addrs||[]).join(", "), id = m.id;
         return '<tr>' +
           '<td style="font-size:12px;color:#78716c;white-space:nowrap">' + ts + '</td>' +
-          '<td style="font-size:13px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + m.from_addr + '">' + m.from_addr + '</td>' +
-          '<td style="font-size:13px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (m.to_addrs||[]).join(", ") + '">' + (m.to_addrs||[]).join(", ") + '</td>' +
-          '<td style="font-size:13px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (m.subject||'') + '">' + (m.subject || '(kein Betreff)') + '</td>' +
+          '<td style="font-size:13px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escAttr(m.from_addr) + '">' + esc(m.from_addr) + '</td>' +
+          '<td style="font-size:13px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escAttr(an) + '">' + esc(an) + '</td>' +
+          '<td style="font-size:13px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escAttr(m.subject||'') + '">' + esc(m.subject || '(kein Betreff)') + '</td>' +
           '<td style="font-size:12px;white-space:nowrap">' + (m.reason === 'delivery_failed' ? '⚠ Zustellfehler' : 'Wartung') + '</td>' +
           '<td style="white-space:nowrap">' +
-            '<button class="btn secondary btn-sm" onclick="openPreview(\'' + m.id + '\',this)" style="margin-right:4px">Preview</button>' +
-            '<button class="btn secondary btn-sm" onclick="releaseSingle(\'' + m.id + '\',this)" style="margin-right:4px">Zustellen</button>' +
-            '<button class="btn danger btn-sm" onclick="deleteSingle(\'' + m.id + '\',this)">Löschen</button>' +
+            '<button class="btn secondary btn-sm" onclick="openPreview(\'' + escJsAttr(id) + '\',this)" style="margin-right:4px">Preview</button>' +
+            '<button class="btn secondary btn-sm" onclick="releaseSingle(\'' + escJsAttr(id) + '\',this)" style="margin-right:4px">Zustellen</button>' +
+            '<button class="btn danger btn-sm" onclick="deleteSingle(\'' + escJsAttr(id) + '\',this)">Löschen</button>' +
           '</td>' +
         '</tr>';
       });
@@ -391,10 +389,9 @@ smtpCertLaden();
 
   window.deleteAllHeld = async function() {
     if (!confirm('Alle zurückgehaltenen Mails löschen?')) return;
-    var r = await fetch('/api/maintenance/mails');
-    var d = await r.json();
+    var d = await getJSON('/api/maintenance/mails');
     for (var m of (d.mails || [])) {
-      await fetch('/api/maintenance/mails/' + m.id, {method:'DELETE'});
+      await sendJSON('DELETE', '/api/maintenance/mails/' + m.id);
     }
     window.loadHeldMails();
   };
@@ -610,26 +607,23 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
   };
 
   window.wdCronGenerate = async function(){
-    var name = (document.getElementById('wd-cron-name').value || '').trim();
+    var name = feldWert('wd-cron-name');
     showMsg('wd-cron-result', 'Erzeuge …', true);
-    var r = await fetch('/api/watchdog/cron/generate', {method:'POST',
-      headers:{'Content-Type':'application/json'}, body: JSON.stringify({name: name})});
-    var d = await r.json().catch(function(){ return {}; });
-    if (r.ok && d.ok){
+    var d = await postJSON('/api/watchdog/cron/generate', {name: name});
+    if (d.ok){
       document.getElementById('wd-cron-env').value = d.env || '';
       document.getElementById('wd-cron-box').style.display = 'block';
       showMsg('wd-cron-result', 'Registriert. watchdog.env unten kopieren, AppId/Zertifikat ergänzen.', true);
       loadWatchdogStatus();
     } else {
-      showMsg('wd-cron-result', 'Fehler: ' + (d.detail || r.status), false);
+      showMsg('wd-cron-result', 'Fehler: ' + errText(d), false);
     }
   };
 
   window.setWatchdogEnabled = async function(on){
-    var r = await fetch('/api/watchdog/config', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled:on})});
-    var d = await r.json().catch(function(){ return {}; });
-    if (!r.ok || !d.ok){
-      alert('Fehler: ' + (d.detail || r.status));
+    var d = await postJSON('/api/watchdog/config', {enabled:on});
+    if (!d.ok){
+      alert('Fehler: ' + errText(d));
       var cb = document.getElementById('watchdog-enabled'); if (cb) cb.checked = !on;   // zurücksetzen
       return;
     }
@@ -637,7 +631,7 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
   };
 
   window.grantWatchdogGraph = async function(){
-    var objid = (document.getElementById('wd-mi-objid').value || '').trim();
+    var objid = feldWert('wd-mi-objid');
     if (!objid){ showMsg('wd-graph-result', 'MI Objekt-ID angeben.', false); return; }
     var auf = anmeldeFenster('/api/watchdog/start-grants?mi_object_id=' + encodeURIComponent(objid), 'wd-grants', true);
     showMsg('wd-graph-result', 'Azure-Login geöffnet — bitte im Popup anmelden …', true);
@@ -654,12 +648,10 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
   };
 
   async function _wdRoleForWatcher(id){
-    var r = await fetch('/api/watchdog/grant-role', {method:'POST',
-      headers:{'Content-Type':'application/json'}, body: JSON.stringify({watcher_id: id})});
-    var d = await r.json().catch(function(){ return {}; });
-    if (r.ok && d.ok) alert('Berechtigungen erteilt (App-Rolle + Global Reader + Transport Rules).\n'
+    var d = await postJSON('/api/watchdog/grant-role', {watcher_id: id});
+    if (d.ok) alert('Berechtigungen erteilt (App-Rolle + Global Reader + Transport Rules).\n'
       + 'Propagierung ~15–30 Min, dann verschwindet „EXO: UnAuthorized".');
-    else alert('Rolle zuweisen fehlgeschlagen: ' + (d.detail || d.output || r.status));
+    else alert('Rolle zuweisen fehlgeschlagen: ' + (d.detail || d.output || errText(d)));
     loadWatchdogStatus();
   }
 
@@ -709,8 +701,7 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
     var sel = document.getElementById('wd-sub-sel');
     sel.innerHTML = '<option value="">— Lade… —</option>'; sel.disabled = true;
     try {
-      var r = await fetch('/api/setup/keyvault/subscriptions');
-      var d = await r.json();
+      var d = await getJSON('/api/setup/keyvault/subscriptions');
       if (!d.ok || !d.subscriptions || !d.subscriptions.length){
         sel.innerHTML = '<option value="">— keine gefunden —</option>'; sel.disabled = false; return;
       }
@@ -730,8 +721,7 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
     if (!sub){ rg.innerHTML = ''; return; }
     rg.innerHTML = '<option value="">— Lade… —</option>'; rg.disabled = true;
     try {
-      var r = await fetch('/api/setup/keyvault/resource-groups?subscription_id=' + encodeURIComponent(sub));
-      var d = await r.json();
+      var d = await getJSON('/api/setup/keyvault/resource-groups?subscription_id=' + encodeURIComponent(sub));
       var html = '<option value="">— wählen —</option>';
       (d.resource_groups || []).forEach(function(g){
         html += '<option value="' + esc(g.name) + '" data-loc="' + esc(g.location || '') + '">' + esc(g.name) + '</option>';
@@ -757,9 +747,9 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
     var sub = document.getElementById('wd-sub-sel').value;
     var rgSel = document.getElementById('wd-rg-sel');
     var createRg = (rgSel.value === '__new__');
-    var rg = createRg ? (document.getElementById('wd-rg-name').value || '').trim() : rgSel.value;
+    var rg = createRg ? feldWert('wd-rg-name') : rgSel.value;
     var loc = document.getElementById('wd-region-sel').value;
-    var appName = (document.getElementById('wd-app-name').value || '').trim();
+    var appName = feldWert('wd-app-name');
     if (!sub){ showMsg('wd-deploy-result', 'Bitte ein Abo wählen.', false); return; }
     if (!rg){ showMsg('wd-deploy-result', 'Bitte eine Ressourcengruppe wählen oder benennen.', false); return; }
     if (!appName){ showMsg('wd-deploy-result', 'Bitte einen Namen für die Function-App angeben.', false); return; }
@@ -780,9 +770,10 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
 
   window.wdDeployPoll = async function(){
     try {
-      var r = await fetch('/api/watchdog/deploy/status');
-      if (!r.ok) return;
-      var d = await r.json();
+      var d = await getJSON('/api/watchdog/deploy/status');
+      // Rumpf-`ok` ist hier das Deploy-Ergebnis; HTTP-/Netzwerkfehler (ohne
+      // `running`) wie bisher still übergehen und den nächsten Takt abwarten.
+      if (!('running' in d)) return;
       laeuftZeigen('wd-deploy-progress', d.step || '…');
       if (d.running) return;
       clearInterval(_wdDeployTimer); _wdDeployTimer = null;
@@ -799,17 +790,15 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
   };
 
   window.grantWatchdogRole = async function(){
-    var appid = (document.getElementById('wd-mi-appid').value || '').trim();
-    var objid = (document.getElementById('wd-mi-objid').value || '').trim();
+    var appid = feldWert('wd-mi-appid');
+    var objid = feldWert('wd-mi-objid');
     if (!appid || !objid){ showMsg('wd-grant-result', 'AppId und Objekt-ID angeben.', false); return; }
     showMsg('wd-grant-result', 'Weise Rolle zu … (kann ~30 s dauern)', true);
-    var r = await fetch('/api/watchdog/grant-role', {method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({watchdog_app_id: appid, watchdog_object_id: objid})});
-    var d = await r.json().catch(function(){ return {}; });
-    if (r.ok && d.ok){
+    var d = await postJSON('/api/watchdog/grant-role', {watchdog_app_id: appid, watchdog_object_id: objid});
+    if (d.ok){
       showMsg('wd-grant-result', 'Rolle „Transport Rules" zugewiesen. Schritt 1+2 (App-Rolle + Global Reader) nicht vergessen; danach ~15–30 Min Propagierung.', true);
     } else {
-      showMsg('wd-grant-result', 'Fehler: ' + (d.detail || d.output || r.status), false);
+      showMsg('wd-grant-result', 'Fehler: ' + (d.detail || d.output || errText(d)), false);
     }
   };
 
@@ -847,35 +836,30 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
     if (neu === null) return;                 // abgebrochen
     neu = neu.trim();
     if (!neu || neu === akt) return;
-    var r = await fetch('/api/watchdog/rename', {method:'POST',
-      headers:{'Content-Type':'application/json'}, body: JSON.stringify({id: id, name: neu})});
-    var d = await r.json().catch(function(){ return {}; });
-    if (r.ok && d.ok) loadWatchdogStatus();
-    else alert('Umbenennen fehlgeschlagen: ' + (d.detail || r.status));
+    var d = await postJSON('/api/watchdog/rename', {id: id, name: neu});
+    if (d.ok) loadWatchdogStatus();
+    else alert('Umbenennen fehlgeschlagen: ' + errText(d));
   };
 
   window.wdRemove = async function(id, kind){
     if (!confirm('Wächter „' + id + '" entfernen?' +
         (kind === 'azure' ? '\n\nDie Azure-Ressourcen (Function/Storage/Plan, ggf. Ressourcengruppe) werden gelöscht.' : ''))) return;
-    var r = await fetch('/api/watchdog/remove', {method:'POST',
-      headers:{'Content-Type':'application/json'}, body: JSON.stringify({id: id})});
-    var d = await r.json().catch(function(){ return {}; });
-    if (r.ok && d.ok){
+    var d = await postJSON('/api/watchdog/remove', {id: id});
+    if (d.ok){
       if (d.kind === 'cron' && d.befehle){ alert((d.hinweis || '') + '\n\n' + d.befehle); }
       else if (d.detail){ alert(d.detail); }
       loadWatchdogStatus();
-    } else if (r.status === 400 && /Azure-Zugriff/.test(d.detail || '')){
+    } else if (d.http === 400 && /Azure-Zugriff/.test(d.detail || '')){
       alert('Für den Rückbau eines Azure-Wächters erst Azure-Zugriff holen: „Wächter hinzufügen" → „Azure-Zugriff holen", dann erneut entfernen.');
       var p = document.getElementById('wd-add-panel'); if (p) p.style.display = 'block';
     } else {
-      alert('Fehler: ' + (d.detail || r.status));
+      alert('Fehler: ' + errText(d));
     }
   };
 
   window.loadWatchdogStatus = async function(){
     try{
-      var r = await fetch('/api/watchdog/status'); if(!r.ok) return;
-      var d = await r.json();
+      var d = await getJSON('/api/watchdog/status'); if(!d.ok) return;
       var watchers = d.watchers || [];
       _wdWatchers = watchers;
       document.getElementById('wd-count').textContent = watchers.length;
@@ -902,10 +886,10 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
           if (w.exo_error) fakten.push('<span style="color:#dc2626">EXO: ' + esc(w.exo_error) + '</span>');
           var knoepfe = '';
           if (w.kind === 'azure' && az.principal_id && !az.grants_done){
-            knoepfe += '<button class="btn secondary btn-sm" style="margin-right:6px" onclick="wdGrant(\'' + esc(w.id) + '\')">Berechtigungen erteilen</button>';
+            knoepfe += '<button class="btn secondary btn-sm" style="margin-right:6px" onclick="wdGrant(\'' + escJsAttr(w.id) + '\')">Berechtigungen erteilen</button>';
           }
-          knoepfe += '<button class="btn secondary btn-sm" style="margin-right:6px" onclick="wdRename(\'' + esc(w.id) + '\')">Umbenennen</button>';
-          knoepfe += '<button class="btn secondary btn-sm" onclick="wdRemove(\'' + esc(w.id) + '\',\'' + esc(w.kind) + '\')">Entfernen</button>';
+          knoepfe += '<button class="btn secondary btn-sm" style="margin-right:6px" onclick="wdRename(\'' + escJsAttr(w.id) + '\')">Umbenennen</button>';
+          knoepfe += '<button class="btn secondary btn-sm" onclick="wdRemove(\'' + escJsAttr(w.id) + '\',\'' + escJsAttr(w.kind) + '\')">Entfernen</button>';
           return '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;'
             + 'padding:9px 0;border-bottom:1px solid #f0f0f0">'
             + '<div style="min-width:0"><strong>' + esc(w.name || w.id) + '</strong>'
@@ -959,7 +943,7 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
 </div>
 <script>
 async function saveGatewayName() {
-  const val = (document.getElementById('gateway-name').value || '').trim() || 'EXO Signature Gateway';
+  const val = feldWert('gateway-name') || 'EXO Signature Gateway';
   wacheFertig('gateway-name-btn',
               await savePartial({GATEWAY_NAME: val}, 'gateway-name-result', 'advanced:gatewayName'));
 }
@@ -1224,11 +1208,11 @@ async function saveExoPort() {
 <script>
 async function saveSmtpSubmit() {
   wacheFertig('smtp-submit-btn', await savePartial({
-    SMTP_SUBMIT_HOST: (document.getElementById('smtp-submit-host').value || '').trim()
+    SMTP_SUBMIT_HOST: feldWert('smtp-submit-host')
                       || 'smtp.office365.com',
     SMTP_SUBMIT_PORT: parseInt(document.getElementById('smtp-submit-port').value, 10) || 587,
-    SMTP_SUBMIT_CLIENT_ID: (document.getElementById('smtp-submit-clientid').value || '').trim(),
-    SMTP_SUBMIT_USER: (document.getElementById('smtp-submit-user').value || '').trim(),
+    SMTP_SUBMIT_CLIENT_ID: feldWert('smtp-submit-clientid'),
+    SMTP_SUBMIT_USER: feldWert('smtp-submit-user'),
   }, 'smtp-submit-result', 'advanced:smtpSubmit'));
 }
 </script>
@@ -1280,19 +1264,19 @@ async function saveSmtpSubmit() {
 <script>
 async function aclLoadStatus() {
   try {
-    const r = await fetch('/api/smtp-acl/status'); const d = await r.json();
+    const d = await getJSON('/api/smtp-acl/status'); if (!d.ok) return;
     document.getElementById('acl-count').textContent = d.range_count;
     document.getElementById('acl-refresh').textContent =
       d.last_refresh ? new Date(d.last_refresh).toLocaleString('de-DE') : 'noch nie (Cache/aus)';
     const rj = document.getElementById('acl-rejects');
     rj.innerHTML = d.recent_rejects.length
-      ? d.recent_rejects.map(x => new Date(x.ts).toLocaleString('de-DE') + '  ' + x.ip).join('<br>')
+      ? d.recent_rejects.map(x => new Date(x.ts).toLocaleString('de-DE') + '  ' + esc(x.ip)).join('<br>')
       : 'keine';
   } catch(e) {}
 }
 async function anmLoad() {
   try {
-    const r = await fetch('/api/anmelde-ereignisse'); const d = await r.json();
+    const d = await getJSON('/api/anmelde-ereignisse'); if (!d.ok) return;
     const stand = d.stand || {}, labels = d.labels || {};
     const summe = Object.keys(stand).reduce((a, k) => a + (stand[k] || 0), 0);
     document.getElementById('anm-summe').textContent = summe ? '(' + summe + ' seit Start)' : '';
@@ -1414,8 +1398,8 @@ async function certLoadInfo() {
 
 <script>
 async function acmeMethodLoad() {
-  const r = await fetch('/api/acme/reply-method');
-  const d = await r.json();
+  const d = await getJSON('/api/acme/reply-method');
+  if (!d.ok) return;
   const sel = document.getElementById('acme-method-select');
   if (sel) sel.value = d.method || 'auto';
 }
@@ -1423,17 +1407,12 @@ async function acmeMethodLoad() {
 async function acmeSetMethod() {
   const method = document.getElementById('acme-method-select').value;
   const result = document.getElementById('acme-method-result');
-  const r = await fetch('/api/acme/reply-method', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({method}),
-  });
-  const d = await r.json();
+  const d = await postJSON('/api/acme/reply-method', {method});
   const labels = {auto: 'Automatisch (folgt Gateway-Modus)', graph: 'Graph API erzwingen', direct_smtp: 'Debug: Direktversand zum CA-MX'};
   result.className = d.ok ? 'alert success' : 'alert error';
   result.textContent = d.ok
     ? 'Gespeichert: ' + (labels[d.method] || d.method)
-    : 'Fehler: ' + (d.error || JSON.stringify(d));
+    : 'Fehler: ' + errText(d);
   result.style.display = 'block';
   if (d.ok) wacheNeuMessen('acme-method-btn');
   else wacheFertig('acme-method-btn', false, '');
@@ -1659,8 +1638,8 @@ async function saveLogging() {
 </div>
 <script>
 async function sendTestMail() {
-  const from_email = (document.getElementById('test-from').value || '').trim();
-  const to_email = (document.getElementById('test-to').value || '').trim();
+  const from_email = feldWert('test-from');
+  const to_email = feldWert('test-to');
   const mail_type = document.getElementById('test-type').value;
   const result = document.getElementById('test-result');
 
@@ -1670,17 +1649,12 @@ async function sendTestMail() {
   }
 
   result.style.display = 'none';
-  const resp = await fetch('/api/test-mail', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({from_email, to_email, mail_type}),
-  });
+  const data = await postJSON('/api/test-mail', {from_email, to_email, mail_type});
 
-  if (resp.ok) {
-    showAlert(result, 'success', 'Test-Mail gesendet – prüfe den Posteingang von ' + to_email);
+  if (data.ok) {
+    showAlert(result, 'success', 'Test-Mail gesendet – prüfe den Posteingang von ' + esc(to_email));
   } else {
-    const data = await resp.json().catch(() => ({}));
-    showAlert(result, 'error', 'Fehler: ' + (esc(data.detail) || 'Unbekannt'));
+    showAlert(result, 'error', 'Fehler: ' + esc(errText(data)));
   }
 }
 

@@ -1257,7 +1257,7 @@ async function changePassword() {
 
 async function saveHostname() {
   fieldClear('hostname');
-  const hostname = (document.getElementById('hostname').value || '').trim();
+  const hostname = feldWert('hostname');
   const result = document.getElementById('hostname-result');
   if (!hostname) { fieldMsg('hostname', 'Hostname darf nicht leer sein.', false); return; }
 
@@ -1280,8 +1280,8 @@ async function testGraph() {
 }
 
 async function renewCert() {
-  const domain = (document.getElementById('le-domain').value || '').trim();
-  const email  = (document.getElementById('le-email').value || '').trim();
+  const domain = feldWert('le-domain');
+  const email  = feldWert('le-email');
   const result = document.getElementById('le-result');
 
   if (!domain || !email) { showAlert(result, 'error', 'Domain und E-Mail sind Pflichtfelder.'); return; }
@@ -1328,8 +1328,8 @@ async function dns01Start(btn) {
   const res = document.getElementById('dns01-result');
   hideAlert(res);
   const d = await knopfAktion(btn, 'Fordere an…', () => postJSON('/api/setup/tls/dns01/start', {
-    domain: (document.getElementById('le-domain').value || '').trim(),
-    email: (document.getElementById('le-email').value || '').trim(),
+    domain: feldWert('le-domain'),
+    email: feldWert('le-email'),
     staging: document.getElementById('dns01-staging').checked,
   }));
   if (!d.ok) { showAlert(res, 'error', 'Fehler: ' + esc(errText(d))); return; }
@@ -1371,8 +1371,8 @@ function setupExoConnector() {
 }
 
 async function sendTestMail() {
-  const from_email = (document.getElementById('test-from').value || '').trim();
-  const to_email   = (document.getElementById('test-to').value || '').trim();
+  const from_email = feldWert('test-from');
+  const to_email   = feldWert('test-to');
   const result     = document.getElementById('test-result');
 
   if (!from_email || !to_email) {
@@ -1392,14 +1392,14 @@ async function sendTestMail() {
 }
 
 async function saveWizardGatewayName() {
-  const val = (document.getElementById('wizard-gateway-name').value || '').trim() || 'EXO Signature Gateway';
+  const val = feldWert('wizard-gateway-name') || 'EXO Signature Gateway';
   wacheFertig('wizard-gateway-name-btn',
               await savePartial({GATEWAY_NAME: val}, 'wizard-gateway-name-result', 'setup:gatewayName'));
 }
 
 async function saveBootstrapClientId() {
   fieldClear('bootstrap-client-id');
-  const clientId = (document.getElementById('bootstrap-client-id').value || '').trim();
+  const clientId = feldWert('bootstrap-client-id');
   const result   = document.getElementById('bootstrap-result');
   if (!clientId) { fieldMsg('bootstrap-client-id', 'Client-ID darf nicht leer sein.', false); return; }
 
@@ -1440,7 +1440,7 @@ window.addEventListener('message', function(e) {
 async function submitPastedUrl(pasteInputId, resultId) {
   pasteInputId = pasteInputId || 'auth-url-paste';
   resultId = resultId || 'paste-result';
-  const url    = (document.getElementById(pasteInputId).value || '').trim();
+  const url    = feldWert(pasteInputId);
   const result = document.getElementById(resultId);
 
   if (!url) { showAlert(result, 'error', 'Bitte die URL aus der Adressleiste einfügen.'); return; }
@@ -1560,19 +1560,15 @@ async function saveModeSelection() {
   const abwCb = document.getElementById('abwesenheit-wizard');
   const abwAn = !!(abwCb && abwCb.checked);
 
-  const resp = await fetch('/settings', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({REINJECT_MODE: mode, SMTP_RELAY_ENABLED: relayAn, SMIME_ENABLED: smimeAn,
-                          ABWESENHEIT_AKTIV: abwAn}),
-  });
+  const d = await postJSON('/settings', {REINJECT_MODE: mode, SMTP_RELAY_ENABLED: relayAn, SMIME_ENABLED: smimeAn,
+                                         ABWESENHEIT_AKTIV: abwAn});
 
-  if (resp.ok) {
-    showAlert(result, 'success', 'Modus gespeichert: <strong>' + mode + '</strong>. Assistent wurde angepasst.');
+  if (d.ok) {
+    showAlert(result, 'success', 'Modus gespeichert: <strong>' + esc(mode) + '</strong>. Assistent wurde angepasst.');
     updateModeSelection();
     setTimeout(() => location.reload(), 1500);
   } else {
-    showAlert(result, 'error', 'Fehler beim Speichern.');
+    showAlert(result, 'error', 'Fehler beim Speichern: ' + esc(errText(d)));
   }
 }
 
@@ -1668,7 +1664,7 @@ async function startArmLogin() {
 }
 
 async function submitArmPaste() {
-  const url = (document.getElementById('kv-arm-paste-url').value || '').trim();
+  const url = feldWert('kv-arm-paste-url');
   if (!url) return;
   armKasten('kv-arm', '', 'Verbinde…');
   const d = await postJSON('/api/setup/keyvault/arm-paste', {url});
@@ -1708,8 +1704,7 @@ async function loadKvSubscriptions() {
   sel.innerHTML = '<option value="">— Lade… —</option>';
   sel.disabled = true;
   try {
-    const r = await fetch('/api/setup/keyvault/subscriptions');
-    const data = await r.json();
+    const data = await getJSON('/api/setup/keyvault/subscriptions');
     if (!data.ok || !data.subscriptions || !data.subscriptions.length) {
       sel.innerHTML = '<option value="__other__">— manuell eingeben —</option>';
       sel.disabled = false;
@@ -1772,8 +1767,7 @@ async function loadKvVaults(subscriptionId) {
   sel.innerHTML = '<option value="">— Lade… —</option>';
   sel.disabled = true;
   try {
-    const r = await fetch('/api/setup/keyvault/vaults?subscription_id=' + encodeURIComponent(subscriptionId));
-    const data = await r.json();
+    const data = await getJSON('/api/setup/keyvault/vaults?subscription_id=' + encodeURIComponent(subscriptionId));
     sel.innerHTML = '';
     if (data.ok && data.vaults && data.vaults.length) {
       data.vaults.forEach(function(v) {
@@ -1827,8 +1821,7 @@ async function loadKvResourceGroups(subscriptionId) {
   sel.innerHTML = '<option value="">— Lade… —</option>';
   sel.disabled = true;
   try {
-    const r = await fetch('/api/setup/keyvault/resource-groups?subscription_id=' + encodeURIComponent(subscriptionId));
-    const data = await r.json();
+    const data = await getJSON('/api/setup/keyvault/resource-groups?subscription_id=' + encodeURIComponent(subscriptionId));
     sel.innerHTML = '';
     if (data.ok && data.resource_groups.length) {
       data.resource_groups.forEach(function(rg) {
@@ -1885,14 +1878,14 @@ function onKvRgChange() {
 
 function _kvGetSubscriptionId() {
   const sel = document.getElementById('kv-subscription-sel');
-  if (sel.value === '__other__') return document.getElementById('kv-subscription-id-manual').value.trim();
+  if (sel.value === '__other__') return feldWert('kv-subscription-id-manual');
   return sel.value.trim();
 }
 
 function _kvGetResourceGroup() {
   const val = document.getElementById('kv-rg-sel').value;
-  if (val === '__other__') return document.getElementById('kv-rg-manual').value.trim();
-  if (val === '__new__') return document.getElementById('kv-new-rg-name').value.trim();
+  if (val === '__other__') return feldWert('kv-rg-manual');
+  if (val === '__new__') return feldWert('kv-new-rg-name');
   return val;
 }
 
@@ -1924,7 +1917,7 @@ async function confirmKvSelection() {
   }
 
   if (vaultVal === '__other__') {
-    const manualUrl = (document.getElementById('kv-other-url-input').value || '').trim();
+    const manualUrl = feldWert('kv-other-url-input');
     if (!manualUrl) {
       fieldMsg('kv-other-url-input', 'Bitte eine Vault URL eingeben.', false);
       return;
@@ -1937,7 +1930,7 @@ async function confirmKvSelection() {
   if (vaultVal === '__new__') {
     const subscriptionId = _kvGetSubscriptionId();
     const resourceGroup = _kvGetResourceGroup();
-    const vaultName = document.getElementById('kv-vault-name').value.trim();
+    const vaultName = feldWert('kv-vault-name');
     const location = document.getElementById('kv-location').value;
     if (!subscriptionId || !resourceGroup || !vaultName) {
       resultEl.className = 'alert error';
@@ -1984,7 +1977,7 @@ function onKvUrlInput() {
 }
 
 async function testKeyvault() {
-  const url = document.getElementById('kv-url-input').value.trim();
+  const url = feldWert('kv-url-input');
   const resultEl = document.getElementById('kv-test-result');
   resultEl.style.display = 'block';
   resultEl.className = 'alert';
@@ -1993,10 +1986,9 @@ async function testKeyvault() {
   document.getElementById('kv-save-btn').disabled = true;
   try {
     const params = url ? '?url=' + encodeURIComponent(url) : '';
-    const r = await fetch('/api/setup/keyvault/test' + params);
-    const data = await r.json();
+    const data = await getJSON('/api/setup/keyvault/test' + params);
     resultEl.className = 'alert ' + (data.ok ? 'success' : 'error');
-    resultEl.textContent = data.message;
+    resultEl.textContent = data.ok ? data.message : errText(data);
     const assignBtn = document.getElementById('kv-assign-role-btn');
     if (data.ok) {
       _kvTestPassed = true;
@@ -2018,7 +2010,7 @@ async function assignKvRole() {
   resultEl.style.display = 'block';
   resultEl.className = 'alert';
   resultEl.textContent = 'Rolle wird zugewiesen…';
-  const url = document.getElementById('kv-url-input').value.trim();
+  const url = feldWert('kv-url-input');
   const data = await knopfAktion('kv-assign-role-btn', null, () => postJSON('/api/setup/keyvault/assign-role',
     {resource_id: _kvLastResourceId, vault_url: url}));
   resultEl.className = 'alert ' + (data.ok ? 'success' : 'error');
@@ -2059,20 +2051,15 @@ async function _kvPollAfterAssign() {
 }
 
 async function saveKeyvault() {
-  const url = document.getElementById('kv-url-input').value.trim();
+  const url = feldWert('kv-url-input');
   const resultEl = document.getElementById('kv-test-result');
   resultEl.style.display = 'block';
   resultEl.className = 'alert';
   resultEl.textContent = 'Speichere...';
   try {
-    const r = await fetch('/api/setup/keyvault/save', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({url, resource_id: _kvLastResourceId}),
-    });
-    const data = await r.json();
+    const data = await postJSON('/api/setup/keyvault/save', {url, resource_id: _kvLastResourceId});
     resultEl.className = 'alert ' + (data.ok ? 'success' : 'error');
-    resultEl.textContent = data.ok ? 'Key Vault URL gespeichert.' : (data.detail || 'Fehler');
+    resultEl.textContent = data.ok ? 'Key Vault URL gespeichert.' : errText(data);
     wacheFertig('kv-save-btn', !!data.ok);
     if (data.ok) {
       _kvTestPassed = true;
@@ -2568,8 +2555,8 @@ function updatePoolRecommendation() {
 
 async function loadPoolStatus() {
   try {
-    const r = await fetch('/api/setup/app-pool/status');
-    const d = await r.json();
+    const d = await getJSON('/api/setup/app-pool/status');
+    if (!d.ok) throw new Error(errText(d));
     const total = d.count;
     const el = document.getElementById('poolCurrentStatus');
     if (d.configured === 0) {
@@ -2610,7 +2597,7 @@ async function startPoolAppLogin() {
 }
 
 async function submitPoolAppUrl() {
-  const url = (document.getElementById('pool-auth-url-paste').value || '').trim();
+  const url = feldWert('pool-auth-url-paste');
   const result = document.getElementById('poolPasteResult');
   if (!url) { showAlert(result, 'error', 'Bitte die URL aus der Adressleiste einfügen.'); return; }
   hideAlert(result);

@@ -293,7 +293,7 @@
 async function saveSignatur() {
   const _ok = await savePartial({
     FALLBACK_ON_ERROR: document.getElementById('fallback').checked,
-    LOOP_HEADER: (document.getElementById('loop-header').value || '').trim() || 'X-Sig-Applied',
+    LOOP_HEADER: feldWert('loop-header') || 'X-Sig-Applied',
     SENT_ITEMS_UPDATE: document.getElementById('sent-items').checked,
     SKIP_DUPLICATE_SIG: document.getElementById('skip-duplicate-sig').checked,
     SKIP_SIG_IN_THREAD: document.getElementById('skip-sig-in-thread').checked,
@@ -301,7 +301,7 @@ async function saveSignatur() {
     STRIP_CLIENT_SIGS_DESKTOP: document.getElementById('strip-client-sigs-desktop').checked,
     SIG_STRIP_MIN_MATCH_PCT: parseInt(document.getElementById('sig-strip-pct').value, 10),
     SIG_IMAGE_MODE: document.getElementById('sig-image-mode').value,
-    NOSIG_TRIGGER: (document.getElementById('nosig-trigger').value || '').trim() || '#nosig',
+    NOSIG_TRIGGER: feldWert('nosig-trigger') || '#nosig',
     NOSIG_BEHAELT: document.getElementById('nosig-behaelt').value,
     KETTE_BEHAELT: document.getElementById('kette-behaelt').value,
     ANTWORT_LETZTES_WORT: document.getElementById('antwort-letztes-wort').value,
@@ -466,7 +466,7 @@ async function saveOverrides() {
 }
 
 async function saveWebsiteField() {
-  const url = document.getElementById('website-url').value.trim();
+  const url = feldWert('website-url');
   // Die Meldung kommt aus der Speicherwache (dasselbe Feld, data-wache-hinweis).
   // Vorher stand hier „gespeichert" unbedingt — auch wenn der Server ablehnte.
   wacheFertig('website-btn', await savePartial({ WEBSITE_URL: url }, null));

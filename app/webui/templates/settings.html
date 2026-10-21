@@ -318,7 +318,7 @@
 
 
 async function saveZugangsdaten() {
-  const _ok = await savePartial({ WEBUI_USERNAME: (document.getElementById('webui-username').value || '').trim() }, 'zugangsdaten-result');
+  const _ok = await savePartial({ WEBUI_USERNAME: feldWert('webui-username') }, 'zugangsdaten-result');
   wacheFertig('zugangsdaten-btn', _ok);
 }
 
@@ -348,19 +348,15 @@ async function changePassword() {
   if (!oldPw)        { showAlert(result, 'error', 'Bitte aktuelles Passwort eingeben.'); return; }
   if (pw.length < 8) { showAlert(result, 'error', 'Passwort muss mind. 8 Zeichen haben.'); return; }
   if (pw !== pw2)    { showAlert(result, 'error', 'Passwörter stimmen nicht überein.'); return; }
-  const resp = await fetch('/api/setup/change-password', {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({old_password: oldPw, password: pw}),
-  });
-  if (resp.ok) {
+  const d = await postJSON('/api/setup/change-password', {old_password: oldPw, password: pw});
+  if (d.ok) {
     showAlert(result, 'success', 'Passwort geändert.');
     // Die Felder werden beim Ausblenden geleert — der Ausgangsstand ist
     // danach ein anderer und muss neu gemessen werden.
     hidePwChangeForm();
     wacheNeuMessen('pw-btn');
   } else {
-    const d = await resp.json().catch(() => ({}));
-    showAlert(result, 'error', 'Fehler: ' + (esc(d.detail) || 'Unbekannt'));
+    showAlert(result, 'error', 'Fehler: ' + esc(errText(d)));
     wacheFertig('pw-btn', false, '');
   }
 }
@@ -374,13 +370,10 @@ var _adminHideTimer = null;
 var _adminAllUsers = [];
 
 async function loadAdminUsers() {
-  var resp = await fetch('/api/admin-users');
-  if (!resp.ok) return;
-  var d = await resp.json();
-  try {
-    var me = await fetch('/api/whoami');
-    if (me.ok) { var md = await me.json(); _currentUserUpn = (md.upn || '').toLowerCase(); }
-  } catch(e) { ursache(e, 'settings:346'); }
+  var d = await getJSON('/api/admin-users');
+  if (!d.ok) return;
+  var md = await getJSON('/api/whoami');
+  if (md.ok) _currentUserUpn = (md.upn || '').toLowerCase();
   _adminUsersLocal = (d.users || []).map(function(u) { return Object.assign({}, u); });
   renderAdminUsers(_adminUsersLocal);
   // ⚠️ Erst JETZT ist der Ausgangsstand da. Die Wache misst ihn bei
@@ -399,7 +392,7 @@ function renderAdminUsers(users) {
   }
   var rows = users.map(function(u) {
     var isSelf = u.upn === _currentUserUpn;
-    var select = '<select onchange="updateUserRole(\'' + u.upn.replace(/'/g,"\\'") + '\', this.value)" ' +
+    var select = '<select onchange="updateUserRole(\'' + escJsAttr(u.upn) + '\', this.value)" ' +
       (isSelf ? 'disabled title="Eigene Rolle kann nicht geändert werden"' : '') +
       ' style="height:28px;border:1px solid #cbd5e1;border-radius:4px;padding:0 6px;font-size:12px' +
       (isSelf ? ';opacity:0.5;cursor:not-allowed' : '') + '">' +
@@ -409,9 +402,9 @@ function renderAdminUsers(users) {
       '</select>';
     var removeBtn = isSelf
       ? '<button disabled title="Eigenes Konto" class="btn secondary btn-sm" style="opacity:0.4;cursor:not-allowed">Entfernen</button>'
-      : '<button class="btn danger btn-sm" onclick="removeAdminUser(\'' + u.upn.replace(/'/g,"\\'") + '\')">Entfernen</button>';
+      : '<button class="btn danger btn-sm" onclick="removeAdminUser(\'' + escJsAttr(u.upn) + '\')">Entfernen</button>';
     return '<tr style="' + (isSelf ? 'background:#f8fafc' : '') + '">' +
-      '<td style="padding:6px 10px;font-family:monospace;font-size:12px;white-space:nowrap;cursor:help" title="Objekt-ID: ' + (u.id || '(keine hinterlegt)') + '">' + u.upn + '</td>' +
+      '<td style="padding:6px 10px;font-family:monospace;font-size:12px;white-space:nowrap;cursor:help" title="Objekt-ID: ' + escAttr(u.id || '(keine hinterlegt)') + '">' + esc(u.upn) + '</td>' +
       '<td style="padding:6px 8px;white-space:nowrap">' + select + '</td>' +
       '<td style="padding:6px 8px;white-space:nowrap">' + removeBtn + '</td>' +
       '</tr>';
@@ -426,9 +419,8 @@ function renderAdminUsers(users) {
 
 async function _preloadAdminUsers() {
   try {
-    var resp = await fetch('/api/entra/users');
-    if (!resp.ok) return;
-    var data = await resp.json();
+    var data = await getJSON('/api/entra/users');
+    if (!data.ok) return;
     _adminAllUsers = data.users || [];
   } catch(e) { ursache(e, 'settings:389'); }
 }
@@ -451,8 +443,8 @@ function _renderAdminDropdownItems(users) {
     // rgb() normalisiert, die Dark-Mode-Attribut-Selektoren greifen dann nicht
     // (CLAUDE.md, Regel 2). :hover in CSS ersetzt die beiden Listener gleich mit.
     item.className = 'admin-suggest-item';
-    item.innerHTML = '<span style="font-family:monospace;font-size:12px">' + u.upn + '</span>' +
-      (u.name && u.name !== u.upn ? '<br><span style="font-size:11px;color:#64748b">' + u.name + '</span>' : '');
+    item.innerHTML = '<span style="font-family:monospace;font-size:12px">' + esc(u.upn) + '</span>' +
+      (u.name && u.name !== u.upn ? '<br><span style="font-size:11px;color:#64748b">' + esc(u.name) + '</span>' : '');
     item.addEventListener('mousedown', function(e) { e.preventDefault(); _selectAdminUser(u); });
     dd.appendChild(item);
   });
@@ -474,9 +466,8 @@ function _debounceAdminSearch(q) {
 
 async function _fetchAdminUsers(q) {
   try {
-    var resp = await fetch('/api/entra/users?q=' + encodeURIComponent(q));
-    if (!resp.ok) return;
-    var data = await resp.json();
+    var data = await getJSON('/api/entra/users?q=' + encodeURIComponent(q));
+    if (!data.ok) return;
     var users = data.users || [];
     users.forEach(function(u) {
       if (!_adminAllUsers.some(function(x) { return x.upn === u.upn; })) _adminAllUsers.push(u);
@@ -509,7 +500,7 @@ function _clearAdminPicker() {
 
 function _showAdminDropdown() {
   if (_adminHideTimer) { clearTimeout(_adminHideTimer); _adminHideTimer = null; }
-  var q = (document.getElementById('admin-search-input').value || '').trim().toLowerCase();
+  var q = feldWert('admin-search-input').toLowerCase();
   var available = _adminAvailable();
   if (q) available = available.filter(function(u) {
     return u.upn.toLowerCase().includes(q) || (u.name || '').toLowerCase().includes(q);
@@ -583,19 +574,14 @@ async function saveAdminUsers() {
   //     nicht gespeichert" — genau das fehlte hier.
   var alertEl = document.getElementById('admin-users-alert');
   try {
-    var resp = await fetch('/api/admin-users', {
-      method: 'PUT',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({users: _adminUsersLocal}),
-    });
-    var d = await resp.json().catch(function() { return {}; });
-    if (resp.ok) {
+    var d = await sendJSON('PUT', '/api/admin-users', {users: _adminUsersLocal});
+    if (d.ok) {
       _adminUsersLocal = (d.users || []).map(function(u) { return Object.assign({}, u); });
       renderAdminUsers(_adminUsersLocal);
       alertEl.style.display = 'none';
       wacheFertig('admin-users-btn', true);
     } else {
-      wacheFertig('admin-users-btn', false, '✗ ' + (d.detail || 'Fehler'));
+      wacheFertig('admin-users-btn', false, '✗ ' + errText(d));
     }
   } catch(e) {
     wacheFertig('admin-users-btn', false,
@@ -669,9 +655,8 @@ var _notifAllMailboxes = [];
 
 async function _loadMailboxesForNotif() {
   try {
-    const resp = await fetch('/api/mailboxes');
-    if (!resp.ok) return;
-    const data = await resp.json();
+    const data = await getJSON('/api/mailboxes');
+    if (!data.ok) return;
     _notifAllMailboxes = (data.mailboxes || []).filter(m => !m.type || m.type === 'user' || m.type === 'shared');
     const saved = new Set(_currentNotifRecipients);
     if (_currentNotifMailbox) saved.add(_currentNotifMailbox);
@@ -706,8 +691,8 @@ function _renderNotifDropdownItems(items) {
     group.forEach(function(mb) {
       const item = document.createElement('div');
       item.className = 'vorschlag-zeile';
-      item.innerHTML = '<span style="font-family:monospace;font-size:12px">' + mb.email + '</span>' +
-        (mb.name && mb.name !== mb.email ? '<br><span style="font-size:11px;color:#64748b">' + mb.name + '</span>' : '');
+      item.innerHTML = '<span style="font-family:monospace;font-size:12px">' + esc(mb.email) + '</span>' +
+        (mb.name && mb.name !== mb.email ? '<br><span style="font-size:11px;color:#64748b">' + esc(mb.name) + '</span>' : '');
       item.addEventListener('mousedown', function(e) {
         e.preventDefault();
         addNotifRecipient(mb.email);
@@ -721,7 +706,7 @@ function _renderNotifDropdownItems(items) {
 
 function _showNotifDropdown() {
   if (_notifHideTimer) { clearTimeout(_notifHideTimer); _notifHideTimer = null; }
-  const q = (document.getElementById('notif-search-input').value || '').trim().toLowerCase();
+  const q = feldWert('notif-search-input').toLowerCase();
   _filterNotifDropdown(q);
   document.getElementById('notif-dropdown').style.display = 'block';
 }
@@ -773,8 +758,8 @@ function _renderNotifPicker() {
     const row = document.createElement('div');
     row.className = 'notif-recipient-row';
     row.className = 'empfaenger-zeile';
-    row.innerHTML = '<span style="font-family:monospace;font-size:12px">' + em + '</span>' +
-      '<button type="button" onclick="removeNotifRecipient(\'' + em.replace(/'/g,"\\'") + '\')" ' +
+    row.innerHTML = '<span style="font-family:monospace;font-size:12px">' + esc(em) + '</span>' +
+      '<button type="button" onclick="removeNotifRecipient(\'' + escJsAttr(em) + '\')" ' +
       'style="background:none;border:none;cursor:pointer;color:#dc2626;font-size:16px;padding:0 4px;line-height:1" title="Entfernen">×</button>';
     list.appendChild(row);
   });
@@ -858,11 +843,10 @@ async function sendTestNotification() {
   result.classList.add('speicher-hinweis');
   result.dataset.zustand = '';
   result.textContent = 'Sende…';
-  const resp = await fetch('/api/notification/test', {method: 'POST'});
-  const d = await resp.json().catch(() => ({}));
-  const ok = resp.ok && d.ok;
+  const d = await sendJSON('POST', '/api/notification/test');
+  const ok = d.ok;
   result.dataset.zustand = ok ? 'fertig' : 'fehler';
-  result.textContent = ok ? '✓ gesendet' : ('Fehler: ' + (d.detail || 'Unbekannt'));
+  result.textContent = ok ? '✓ gesendet' : ('Fehler: ' + errText(d));
 }
 
 document.addEventListener('DOMContentLoaded', function() {
