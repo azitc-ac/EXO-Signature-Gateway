@@ -5,6 +5,19 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.15 — 2026-10-21 — Aktionen im Mailprotokoll aus einer Tabelle
+
+- **Mailprotokoll auf der Übersicht und auf der Relay-Seite**: Name und Farbe
+  einer Aktion („Signiert“, „S/MIME enc.“, „Abgewiesen“ …) kommen jetzt aus
+  einer gemeinsamen Tabelle. Bisher hielt jede Seite ihre eigene Tabelle mit
+  Farbwerten. Zwei dieser Farben (S/MIME verschlüsselt und entschlüsselt)
+  hatten keine Entsprechung im Dunkelmodus. Die Farben stehen jetzt im
+  Stylesheet, in sieben Gruppen für hell und dunkel. Verschlüsselt und
+  entschlüsselt erscheinen in Blautönen statt in Türkis.
+- Ein Test gleicht die Tabelle mit den Aktionen ab, die der Mail-Handler ins
+  Protokoll schreibt. Eine neue Aktion ohne Namen fällt damit auf.
+- **Zu tun:** nichts.
+
 ## v1.10.14 — 2026-10-21 — Zustandsfarben aus dem Stylesheet; ein Schreibweg für Einstellungen
 
 - **Kein Skript setzt mehr Farben.** Bisher färbten 39 Stellen ihre Anzeige

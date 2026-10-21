@@ -745,39 +745,6 @@ function openInFlightInfo(active, maintHeld, dfCount) {
 </div>
 
 <script>
-const _ACTION_LABELS = {
-  signed: 'Signiert',
-  smime_signed: 'S/MIME sign.',
-  smime_encrypted: 'S/MIME enc.',
-  smime_decrypted: 'S/MIME dec.',
-  auto_submitted: 'Auto-Submit',
-  calendar: 'Kalender',
-  fallback: 'Fallback',
-  error: 'Fehler',
-  durchgereicht: 'Durchgereicht',
-  internal_only_skip: 'Nur intern',
-  held: 'Warteschlange',
-  portal: 'Portal',
-  tenant_fremd: 'Fremder Tenant',
-  relay_abgelehnt: 'Abgewiesen',
-};
-const _ACTION_COLORS = {
-  signed: '#1c1917',
-  smime_signed: '#0369a1',
-  smime_encrypted: '#0e7490',
-  smime_decrypted: '#0891b2',
-  auto_submitted: '#78716c',
-  calendar: '#78716c',
-  fallback: '#d97706',
-  error: '#dc2626',
-  durchgereicht: '#78716c',
-  internal_only_skip: '#78716c',
-  held: '#d97706',
-  portal: '#0369a1',
-  tenant_fremd: '#dc2626',
-  relay_abgelehnt: '#dc2626',
-};
-
 let _auditParams = {date: '', date_from: '', date_to: '', action: '', offset: 0, limit: 100};
 let _auditTotal = 0;
 
@@ -795,7 +762,7 @@ document.querySelectorAll('.audit-link-3d').forEach(el => {
     _auditParams = {date: '', date_from: '{{ date_3d_from }}', date_to: '{{ today }}', action, offset: 0, limit: 100};
     document.getElementById('auditModal').style.display = 'block';
     document.body.style.overflow = 'hidden';
-    const actionLabel = action ? ' — ' + (_ACTION_LABELS[action] || action) : '';
+    const actionLabel = action ? ' — ' + aktionText(action) : '';
     document.getElementById('auditModalTitle').textContent = 'Mail-Protokoll — Letzte 3 Tage' + actionLabel;
     loadAuditPage();
   });
@@ -816,7 +783,7 @@ function openAuditModal(date, action, hour) {
   _auditParams = {date: date || '', date_from: '', date_to: '', action: action || '', offset: 0, limit: 100};
   document.getElementById('auditModal').style.display = 'block';
   document.body.style.overflow = 'hidden';
-  const actionLabel = action ? (' — ' + (_ACTION_LABELS[action] || action)) : '';
+  const actionLabel = action ? (' — ' + aktionText(action)) : '';
   const hourStr = (hour != null && hour !== 'null' && hour !== '') ? ' — ' + hour + ':00 Uhr' : '';
   document.getElementById('auditModalTitle').textContent =
     'Mail-Protokoll — ' + _fmtPeriod(date) + actionLabel + hourStr;
@@ -870,8 +837,6 @@ function renderAuditTable(events) {
   tbody.innerHTML = events.map(e => {
     const ts = e.ts ? e.ts.replace('T', ' ').replace('Z', '') : '';
     const rcpts = (e.recipients || []).join(', ');
-    const color = _ACTION_COLORS[e.action] || '#555';
-    const label = _ACTION_LABELS[e.action] || e.action || '';
     const subj  = e.subject ? esc(e.subject) : '<span style="color:#aaa">—</span>';
     const err   = e.error   ? '<br><span style="color:#dc2626;font-size:11px">' + esc(e.error) + '</span>' : '';
     return `<tr style="border-bottom:1px solid #f5f5f5">
@@ -879,7 +844,7 @@ function renderAuditTable(events) {
       <td style="padding:5px 8px;word-break:break-all">${esc(e.sender || '')}</td>
       <td style="padding:5px 8px;word-break:break-all;color:#555">${esc(rcpts)}</td>
       <td style="padding:5px 8px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(e.subject||'')}">${subj}${err}</td>
-      <td style="padding:5px 8px;white-space:nowrap"><span style="color:${color};font-weight:600">${esc(label)}</span></td>
+      <td style="padding:5px 8px;white-space:nowrap">${aktionMarke(e.action)}</td>
       <td style="padding:5px 8px;text-align:right;color:#aaa">${e.processing_ms || ''}</td>
     </tr>`;
   }).join('');
