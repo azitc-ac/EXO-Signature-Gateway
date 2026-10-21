@@ -5,6 +5,34 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.18 — 2026-10-21 — Post eines fremden Tenants an ein zweites Gateway weiterreichen
+
+- **Neu: Fremder Tenant → Ziel** (Relay-Seite, Karte *Domänen-Routing*). Teilen
+  sich zwei Gateways eine öffentliche Adresse, kommt Exchange Online für beide
+  über denselben Port 25 an; einen anderen Port kann ein Outbound-Connector
+  nicht wählen. Bisher wies das erste Gateway die Post des zweiten Tenants an
+  der Tenant-Prüfung ab (554). Jetzt lässt sich ein Tenant samt Ziel
+  eintragen, und seine Post geht **vor jeder Verarbeitung unverändert** an das
+  Ziel: keine Signatur, kein Eingriff in DKIM, kein Umweg über den eigenen
+  Rückweg.
+- **Erkennung über die Tenant-Kennung, nicht über die Absenderdomäne.** Maßgeblich
+  ist `X-MS-Exchange-CrossTenant-Id`, die Exchange Online selbst in den Kopf
+  schreibt; eine Absenderdomäne kann jeder setzen. Post von Relay-Geräten und
+  angemeldeten Einlieferungen (587) wird nie weitergereicht, weil dort der Kopf
+  vom Gerät stammt. Der eigene Tenant lässt sich nicht eintragen.
+- **Ohne Eintrag bleibt alles wie bisher:** Post fremder Tenants wird
+  abgewiesen. Zeigt eine Route auf ein gelöschtes Ziel, wird ebenfalls
+  abgewiesen und nicht über den eigenen Smarthost zugestellt. Wer ein Ziel
+  löscht, entfernt auch die Tenant-Routen darauf.
+- **Ist das Ziel nicht erreichbar,** antwortet das Gateway vorläufig (451), und
+  Exchange Online stellt später erneut zu. Eine eigene Warteschlange gibt es
+  dafür bewusst nicht. Jede Weiterleitung erscheint im Mailprotokoll als
+  „Weitergeleitet“ und in der Routing-Statistik der Relay-Seite.
+- Die Weiterleitung wirkt in jedem Rückweg-Modus. Die Routen nach
+  Empfängerdomäne wirken weiterhin nur im Modus „SMTP Port 25“.
+
+**Zu tun:** nichts. Ohne eingetragene Tenant-Route ändert sich nichts.
+
 ## v1.10.17 — 2026-10-21 — Hinweiszeilen in Tabellen einheitlich; doppelter Code zusammengeführt
 
 - **Hinweiszeilen in Tabellen** sehen jetzt überall gleich aus, gedämpft oder

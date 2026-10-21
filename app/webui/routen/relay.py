@@ -79,6 +79,7 @@ async def api_relay_liste(namen: int = 0, user: str = Depends(_require_admin)):
         "identitaeten": _identitaeten_liste(),
         "ziele": domain_routing.oeffentliche_ziele(),
         "routen": domain_routing.routen(),
+        "tenant_routen": domain_routing.tenant_routen(),
         "per_recipient": settings_store.get("PER_RECIPIENT_ROUTING") is True,
         "mailuser": exo_mailusers.stand(),
         "coex": coexistence.ansicht(_gateway_name()),
@@ -279,6 +280,21 @@ async def api_relay_route(request: Request, user: str = Depends(_require_admin))
     log.info("Domänen-Route %s→%s durch %s gesetzt",
              (daten.get("domain") or "").strip().lower(),
              (daten.get("ziel") or "exo").strip().lower(), user)
+    return JSONResponse({"ok": True})
+
+
+@router.post("/api/relay/tenant-route")
+async def api_relay_tenant_route(request: Request, user: str = Depends(_require_admin)):
+    """Post eines fremden Tenants an ein Ziel weiterreichen. Ziel leer entfernt
+    die Route (Post des Tenants wird wieder abgewiesen)."""
+    daten = await request.json()
+    try:
+        domain_routing.setze_tenant_route(daten.get("tenant") or "", daten.get("ziel") or "")
+    except ValueError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    log.info("Tenant-Route %s→%s durch %s gesetzt",
+             (daten.get("tenant") or "").strip().lower(),
+             (daten.get("ziel") or "—").strip().lower(), user)
     return JSONResponse({"ok": True})
 
 

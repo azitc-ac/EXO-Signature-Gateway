@@ -945,6 +945,13 @@
     "name": "api_relay_stats"
   },
   {
+    "pfad": "/api/relay/tenant-route",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_relay_tenant_route"
+  },
+  {
     "pfad": "/api/relay/ziel",
     "methoden": [
       "POST"
