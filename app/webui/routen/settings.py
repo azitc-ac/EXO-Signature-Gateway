@@ -19,10 +19,13 @@ verbindliche Regel in `CLAUDE.md`.
 
 ZUM SPEICHERN
 -------------
-`POST /settings` (`settings_save`) ist der Sammel-Endpunkt des Formulars,
-`POST /api/settings/partial` der Weg fuer einzelne Felder aus dem laufenden
-Betrieb. Beide verlangen die Verwaltungsrolle; `tests/test_wachen.py` fuehrt
-`/settings` deshalb namentlich unter den besonders folgenreichen Adressen.
+`POST /settings` (`settings_save`) ist der EINE allgemeine Schreibweg — für
+das Formular wie für einzelne Felder (`savePartial()` in common.js). Er
+verlangt die Verwaltungsrolle; `tests/test_wachen.py` führt ihn namentlich
+unter den besonders folgenreichen Adressen. Bis 2026-10-21 gab es daneben
+`POST /api/settings/partial` mit derselben Prüfung; zwei Sofort-Schalter
+riefen ihn an savePartial vorbei auf. Nach deren Umstellung hatte er keinen
+Aufrufer mehr und ist entfallen.
 """
 from __future__ import annotations
 
@@ -117,36 +120,6 @@ async def api_save_custom_policies(request: Request, _=Depends(_require_admin)):
         raise HTTPException(400, "policies must be a list")
     settings_store.update({"CUSTOM_POLICIES": policies})
     return JSONResponse({"ok": True})
-
-
-@router.post("/api/settings/partial")
-async def api_settings_partial(request: Request, _: str = Depends(_require_admin)):
-    """Einzelne Einstellungen aus dem laufenden Betrieb schreiben.
-
-    ⚠️ Filtert gegen `settings_store.DEFAULTS` — genau wie `POST /settings`.
-
-    Bis 19.08.2026 stand hier `settings_store.update(body)` ohne Prüfung, mit
-    der Begründung, der Aufrufer sei ohnehin angemeldet. Das ist kein Argument
-    für Beliebigkeit: Der Schwesterendpunkt filtert seit jeher, und zwei Wege
-    zur selben Datei mit unterschiedlicher Strenge sind keine Entscheidung,
-    sondern ein Versehen. Praktisch liess sich so jeder erfundene Schlüssel in
-    `settings.json` schreiben — dauerhaft, denn aufgeräumt wird nur, was in
-    `OBSOLETE_KEYS` steht, und dort steht nur, was jemand kannte.
-    """
-    body = await request.json()
-    if not isinstance(body, dict) or not body:
-        raise HTTPException(400, "Leerer oder ungültiger Request-Body")
-    clean, unbekannt = settings_store.nur_bekannte(body)
-    if unbekannt:
-        # Nicht still verwerfen: Wer einen Schlüssel schickt, den es nicht gibt,
-        # hat sich vertippt oder eine Umbenennung verpasst — beides bleibt sonst
-        # unbemerkt, und die Einstellung wirkt scheinbar nicht.
-        log.warning("settings/partial: unbekannte Schlüssel verworfen: %s", unbekannt)
-    if not clean:
-        raise HTTPException(400, f"Keine bekannten Einstellungen: {unbekannt}")
-    _loop_header_konsequenzen(clean)
-    settings_store.update(clean)
-    return JSONResponse({"ok": True, "gespeichert": sorted(clean)})
 
 
 @router.post("/api/settings/sender-mailboxes/refresh")

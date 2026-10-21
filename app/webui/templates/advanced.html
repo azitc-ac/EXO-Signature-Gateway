@@ -24,7 +24,7 @@
   <label class="checkbox-label" style="font-weight:600 !important">
     <input type="checkbox" id="maintenance-toggle" onchange="setMaintenanceMode(this.checked)">
     Wartungsmodus aktivieren
-    <span id="maintenance-status-text" style="font-weight:400;font-size:13px;color:#57534e;margin-left:8px">Deaktiviert</span>
+    <span id="maintenance-status-text" class="zustand-text">Deaktiviert</span>
   </label>
 
   <!-- Warteschlange -->
@@ -78,15 +78,9 @@
   </div>
 </div>
 <script>
-function saveLexwareFix(enabled) {
-  fetch('/api/settings/partial', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({LEXWARE_FIX_FORMAT: enabled})})
-    .then(r => r.json())
-    .then(d => {
-      const el = document.getElementById('lexware-fix-result');
-      el.textContent = d.ok ? 'Gespeichert.' : ('Fehler: ' + (d.error||'?'));
-      el.style.color = d.ok ? '#16a34a' : '#dc2626';
-      setTimeout(() => { el.textContent = ''; }, 3000);
-    });
+// Sofort-Schalter: speichert über savePartial (Speicher-Linie Regel 4/5)
+async function saveLexwareFix(enabled) {
+  await savePartial({LEXWARE_FIX_FORMAT: enabled}, 'lexware-fix-result', 'advanced:lexware');
 }
 </script>
 
@@ -267,7 +261,7 @@ smtpCertLaden();
     if (toggle) toggle.checked = enabled;
     if (statusText) {
       statusText.textContent = enabled ? 'Aktiv — Mails werden zurückgehalten' : 'Deaktiviert';
-      statusText.style.color = enabled ? '#b45309' : '#57534e';
+      statusText.dataset.zustand = enabled ? 'warnung' : '';
     }
   }
 
@@ -456,7 +450,7 @@ smtpCertLaden();
   <label class="checkbox-label" style="font-weight:600 !important">
     <input type="checkbox" id="watchdog-enabled" onchange="setWatchdogEnabled(this.checked)">
     Bypass-Wächter aktiv
-    <span id="watchdog-enabled-text" style="font-weight:400;font-size:13px;color:#57534e;margin-left:8px">Deaktiviert</span>
+    <span id="watchdog-enabled-text" class="zustand-text">Deaktiviert</span>
   </label>
 
   <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
@@ -490,9 +484,9 @@ smtpCertLaden();
         <code>az</code>/<code>func</code>. Danach nur noch die Berechtigungen erteilen (unten).
       </p>
 
-      <div id="wd-arm-box" style="padding:10px;border:1px solid #fde68a;border-radius:6px;background:#fffbeb;margin-bottom:12px">
+      <div id="wd-arm-box" class="arm-box" style="margin-bottom:12px">
         <span id="wd-arm-status-icon" style="font-weight:700">•</span>
-        <span id="wd-arm-status-text" style="font-size:12px;color:#92400e">Kein Azure-Zugriff — bitte verbinden.</span>
+        <span id="wd-arm-status-text" class="arm-text" style="font-size:12px">Kein Azure-Zugriff — bitte verbinden.</span>
         <button class="btn secondary" id="wd-arm-btn" style="margin-left:8px" onclick="wdArmLogin()">Azure-Zugriff holen</button>
       </div>
 
@@ -604,7 +598,7 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
     var cb = document.getElementById('watchdog-enabled');
     var t = document.getElementById('watchdog-enabled-text');
     if (cb) cb.checked = !!on;
-    if (t){ t.textContent = on ? 'Aktiv' : 'Deaktiviert'; t.style.color = on ? '#166534' : '#57534e'; }
+    if (t){ t.textContent = on ? 'Aktiv' : 'Deaktiviert'; t.dataset.zustand = on ? 'ok' : ''; }
   }
 
   window.watchdogKindGewaehlt = function(){ _applyKindUI(_selectedKind()); };
@@ -687,17 +681,12 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
       else alert('Berechtigungen fehlgeschlagen: ' + (d.msg || 'unbekannt'));
     } else if (t === 'arm-auth-done'){
       _wdArmOk = true;
-      var box = document.getElementById('wd-arm-box');
-      if (box) box.setAttribute('data-wd-arm', 'ok');   // Farbe via CSS (Dark-Mode-Regel 2)
-      document.getElementById('wd-arm-status-icon').textContent = '✓';
-      var st = document.getElementById('wd-arm-status-text');
-      st.textContent = 'Verbunden — lade Abos …'; st.style.color = '#16a34a';
+      armKasten('wd-arm', 'ok', 'Verbunden — lade Abos …', '✓');
       document.getElementById('wd-arm-btn').textContent = 'Erneut verbinden';
       document.getElementById('wd-deploy-rows').style.display = 'block';
       wdLoadSubs();
     } else if (t === 'arm-auth-fail'){
-      var st2 = document.getElementById('wd-arm-status-text');
-      if (st2){ st2.textContent = '✗ ' + (d.msg || 'Fehler'); st2.style.color = '#dc2626'; }
+      armKasten('wd-arm', 'fehler', '✗ ' + (d.msg || 'Fehler'));
     }
   });
 
@@ -730,8 +719,7 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
         html += '<option value="' + esc(s.id) + '">' + esc(s.name || s.id) + '</option>';
       });
       sel.innerHTML = html; sel.disabled = false;
-      var st = document.getElementById('wd-arm-status-text');
-      if (st) st.textContent = 'Verbunden.';
+      armKasten('wd-arm', 'ok', 'Verbunden.');
     } catch(e){ sel.innerHTML = '<option value="">— Fehler —</option>'; sel.disabled = false; }
   };
 
@@ -1273,8 +1261,8 @@ async function saveSmtpSubmit() {
     <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;font-size:13px;margin-bottom:14px">
       <div>Geladene Bereiche: <strong id="acl-count">…</strong></div>
       <div>Letzte Aktualisierung: <strong id="acl-refresh">…</strong></div>
-      <button class="btn secondary btn-sm" onclick="aclRefresh()">Jetzt aktualisieren</button>
-      <span id="acl-refresh-result" style="font-size:12px"></span>
+      <button class="btn secondary btn-sm" onclick="aclRefresh(this)">Jetzt aktualisieren</button>
+      <span id="acl-refresh-result" class="fortschritt" hidden></span>
     </div>
 
 
@@ -1318,21 +1306,16 @@ async function anmLoad() {
   } catch(e) {}
 }
 async function aclToggle() {
-  const el = document.getElementById('acl-enabled-result');
-  const r = await fetch('/api/settings/partial', {method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({SMTP_SOURCE_ACL_ENABLED: document.getElementById('acl-enabled').checked})});
-  el.textContent = r.ok ? '✓' : '✗'; el.style.color = r.ok ? '#16a34a' : '#dc2626';
-  setTimeout(function(){ el.textContent=''; }, 2000);
+  // Sofort-Schalter: speichert über savePartial (Speicher-Linie Regel 4/5)
+  await savePartial({SMTP_SOURCE_ACL_ENABLED: document.getElementById('acl-enabled').checked},
+                    'acl-enabled-result', 'advanced:acl');
 }
-async function aclRefresh() {
-  const el = document.getElementById('acl-refresh-result'); el.textContent = '…';
-  try {
-    const r = await fetch('/api/smtp-acl/refresh', {method:'POST'}); const d = await r.json();
-    el.textContent = r.ok ? ('✓ ' + d.range_count + ' Bereiche') : '✗ Fehler';
-    el.style.color = r.ok ? '#16a34a' : '#dc2626';
-    aclLoadStatus();
-  } catch(e) { el.textContent = '✗ Netzwerkfehler'; el.style.color = '#dc2626'; }
-  setTimeout(function(){ el.textContent=''; }, 3000);
+async function aclRefresh(btn) {
+  const el = 'acl-refresh-result';
+  const d = await knopfAktion(btn, '…', () => postJSON('/api/smtp-acl/refresh'), {anzeige: el});
+  showMsg(el, d.ok ? '✓ ' + d.range_count + ' Bereiche' : '✗ ' + errText(d), d.ok);
+  if (d.ok) aclLoadStatus();
+  setTimeout(function(){ laeuftZeigen(el, null); }, 3000);
 }
 aclLoadStatus();
 anmLoad();

@@ -128,32 +128,19 @@ def test_wachknoepfe_melden_ihr_ergebnis():
     assert not fehler, "Wache ohne Rückmeldung: " + ", ".join(fehler)
 
 
-def test_beide_schreibwege_filtern():
+def test_der_schreibweg_filtert():
     """Gegenprobe zur Endpunktseite — die Einzelheiten prüft
-    `test_einstellungen_schreibwege.py`."""
+    `test_einstellungen_schreibwege.py`. Seit 2026-10-21 gibt es EINEN
+    allgemeinen Schreibweg (POST /settings); der zweite ist entfallen."""
     quelle = (WURZEL / "app" / "webui" / "routen" / "settings.py").read_text("utf-8")
-    assert quelle.count("settings_store.nur_bekannte(") == 2, (
-        "Beide allgemeinen Schreibwege müssen dieselbe Filterung benutzen")
+    assert quelle.count("settings_store.nur_bekannte(") == 1, (
+        "Der allgemeine Schreibweg muss filtern — und es gibt nur einen")
+    assert '@router.post("/api/settings/partial")' not in quelle
 
 
-@pytest.mark.parametrize("vorlage", [p.name for p in TPL.glob("settings*.html")])
-def test_einstellungsseiten_faerben_speichermeldungen_nicht_in_js(vorlage):
-    """Bestandsaufnahme mit Fingerzeig: Wo noch `style.color` steht, ist die
-    Meldung im Dunkelmodus womöglich unlesbar. ⚠️ Kein Freibrief — die Liste
-    ist bewusst klein und soll kleiner werden, nicht wachsen.
-    """
-    # Stand 19.08.2026: Diese Vorlagen tragen noch alte Aktionsmeldungen.
-    # Sie betreffen NICHT das Speichern von Einstellungen (das läuft über
-    # savePartial/speicherWache), sondern Rückmeldungen einzelner Vorgänge.
-    # Gemessen am 19.08.2026 (grep -c "\.style\.color\s*="), nicht geschätzt.
-    BEKANNT = {"settings.html": 14, "settings_connect.html": 6,
-               "settings_smime.html": 10, "settings_signature.html": 1}
-    q = (TPL / vorlage).read_text("utf-8")
-    gefunden = len(re.findall(r"\.style\.color\s*=", q))
-    erlaubt = BEKANNT.get(vorlage, 0)
-    assert gefunden <= erlaubt, (
-        f"{vorlage}: {gefunden} JS-Farbsetzungen, erlaubt sind noch {erlaubt}. "
-        f"Neue Meldungen über data-zustand färben (siehe .speicher-hinweis).")
+# Farben aus JavaScript prüft seit 2026-10-21 test_meldungen_einheitlich::
+# test_keine_farben_aus_javascript für ALLE Vorlagen mit null — die Stand-Liste
+# je Einstellungsseite, die hier stand (bis zu 14 je Seite), ist damit überholt.
 
 
 # ── Mitlaufende Leiste und Kürzung langer Erklärtexte ────────────────────────

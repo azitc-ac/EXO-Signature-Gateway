@@ -59,6 +59,7 @@ body { background: var(--bg); color: var(--text); font-family: -apple-system, Se
 .reply-status { margin-top: 8px; font-size: 13px; }
 .reply-files-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
 .reply-file-list { font-size: 12px; color: var(--muted); }
+.reply-file-list[data-zu-gross] { color: #dc2626; }
 .reply-item { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; margin-bottom: 10px; }
 .reply-item .ri-head { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
 .reply-item .ri-text { font-size: 14px; white-space: pre-wrap; }
@@ -448,10 +449,8 @@ window.updateFileList = function(){
   el.textContent = names.length ? names.join(', ') + ' (' + Math.round(total/1024) + ' KB)' : '';
   if(total > 3*1024*1024){
     el.textContent += ' — zu groß, max. 3 MB gesamt';
-    el.style.color = '#dc2626';
-  } else {
-    el.style.color = '';
   }
+  el.toggleAttribute('data-zu-gross', total > 3*1024*1024);   // Farbe im <style> (Dark-Mode-Regel 2)
 };
 
 window.sendReply = async function(){

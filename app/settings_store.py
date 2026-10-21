@@ -811,8 +811,9 @@ def _coerce(key: str, value):
 def nur_bekannte(daten: dict) -> tuple[dict, list[str]]:
     """Aus einer Eingabe alles herausnehmen, was keine Einstellung ist.
 
-    Gibt (übernommen, verworfen) zurück. ⚠️ Beide Schreibwege der Oberfläche
-    (`POST /settings`, `POST /api/settings/partial`) benutzen DIESE Funktion.
+    Gibt (übernommen, verworfen) zurück. ⚠️ Der Schreibweg der Oberfläche
+    (`POST /settings`) benutzt DIESE Funktion; bis 2026-10-21 auch der
+    entfallene zweite (`POST /api/settings/partial`).
 
     Bis 19.08.2026 filterte nur der erste; der zweite schrieb ungeprüft, was
     ihm geschickt wurde. Zwei Wege zur selben Datei mit unterschiedlicher

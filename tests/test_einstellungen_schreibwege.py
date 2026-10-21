@@ -63,7 +63,8 @@ def klient(monkeypatch):
     wa.app.dependency_overrides.clear()
 
 
-WEGE = ["/settings", "/api/settings/partial"]
+# Seit 2026-10-21 der EINE Weg (der zweite, /api/settings/partial, ist entfallen).
+WEGE = ["/settings"]
 
 
 @pytest.mark.parametrize("weg", WEGE)
@@ -88,3 +89,11 @@ def test_nur_unbekanntes_schreibt_gar_nichts(klient, weg):
     c, geschrieben = klient
     c.post(weg, json={"ERFUNDEN_XYZ": "hallo"})
     assert not any(g for g in geschrieben), "Unbekanntes wurde geschrieben"
+
+
+def test_zweiter_schreibweg_bleibt_weg(klient):
+    """Ein zweiter allgemeiner Schreibweg entsteht nicht wieder unbemerkt."""
+    c, geschrieben = klient
+    antwort = c.post("/api/settings/partial", json={"SMIME_AUTO_ENROLL": True})
+    assert antwort.status_code in (404, 405), antwort.status_code
+    assert geschrieben == []

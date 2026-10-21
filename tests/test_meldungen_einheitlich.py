@@ -13,16 +13,36 @@ from pathlib import Path
 
 VORLAGEN = Path(__file__).parent.parent / "app/webui/templates"
 
-# Bestand an Farben aus JavaScript (style.color/background/… = Wert, Zurücksetzen
-# auf '' ausgenommen) je Vorlage am 2026-10-21. Darf nur SINKEN — sinkt eine Zahl,
-# hier nachziehen. Neue Stellen: data-* setzen und im CSS färben (Dark-Mode-Regel 2).
-JS_FARBEN_STAND = {
-    "advanced.html": 11, "base.html": 1, "dashboard.html": 2, "mailboxes.html": 1,
-    "portal.html": 2, "settings.html": 7, "settings_connect.html": 3,
-    "settings_signature.html": 1, "settings_smime.html": 7, "setup.html": 13,
-    "smime.html": 7, "template_editor.html": 4,
+# Farben aus JavaScript: bis 2026-10-21 als Stand je Vorlage (59), seither null.
+# Erfasst werden Zuweisungen an style.color/background/…Color und style.cssText-
+# Anweisungen (samt Folgezeilen), die eine Farbe enthalten. Zurücksetzen auf ''
+# zählt nicht. Ausnahmen nur mit Grund.
+_JS_FARBE = re.compile(r"\.style\.(color|background|backgroundColor|border\w*Color)\s*=(?!\s*['\"]['\"])")
+_CSSTEXT = re.compile(r"style\.cssText\s*=")
+_FARBANGABE = re.compile(r"(?<![-\w])(color|background(-color)?|border(-\w+)?-color)\s*:")
+AUSNAHMEN = {
+    ("portal.html", "iframe.style.cssText"):
+        "Mailinhalt im Portal: Mails sind auf Weiß gestaltet, auch im Dunkelmodus",
 }
-_JS_FARBE = re.compile(r"\.style\.(color|background|backgroundColor|borderColor)\s*=\s*(?!['\"]['\"])")
+
+
+def _anweisung(text: str, i: int) -> str:
+    """Anweisung ab i bis Zeilenende, über Folgezeilen hinweg, solange eine Zeile mit + endet."""
+    j = text.find("\n", i)
+    teil = text[i:j if j >= 0 else None]
+    while j >= 0 and teil.rstrip().endswith("+"):
+        k = text.find("\n", j + 1)
+        teil += text[j:k if k >= 0 else None]
+        j = k
+    return teil
+
+
+def js_farben(text: str):
+    for m in _JS_FARBE.finditer(text):
+        yield m.start()
+    for m in _CSSTEXT.finditer(text):
+        if _FARBANGABE.search(_anweisung(text, m.start())):
+            yield m.start()
 
 
 def test_show_alert_nur_in_base():
@@ -45,11 +65,25 @@ def test_zustimmungs_dialoge_melden_ueber_showmsg():
     assert "showMsg(" in zs and 'class="field-msg zs-meldung"' in zs and "style.color" not in zs
 
 
-def test_keine_neuen_farben_aus_javascript():
-    zuviel = []
+def test_keine_farben_aus_javascript():
+    funde = []
     for p in sorted(VORLAGEN.glob("*.html")):
-        n = len(_JS_FARBE.findall(p.read_text(encoding="utf-8")))
-        if n > JS_FARBEN_STAND.get(p.name, 0):
-            zuviel.append(f"{p.name}: {JS_FARBEN_STAND.get(p.name, 0)} → {n}")
-    assert not zuviel, ("Farbe per JavaScript gesetzt (Dark-Mode-Regel 2): data-* setzen und "
-                        "im CSS färben, oder showMsg() nutzen:\n" + "\n".join(zuviel))
+        text = p.read_text(encoding="utf-8")
+        for i in js_farben(text):
+            zeile = text[text.rfind("\n", 0, i) + 1:text.find("\n", i)].strip()
+            if any(p.name == d and k in zeile for d, k in AUSNAHMEN):
+                continue
+            funde.append(f"{p.name}:{text.count(chr(10), 0, i) + 1}: {zeile[:100]}")
+    assert not funde, ("Farbe per JavaScript gesetzt (Dark-Mode-Regel 2): data-* setzen und im CSS "
+                       "färben, Ergebnis per showMsg()/savePartial(), Umschalter per .btn-toggle:\n"
+                       + "\n".join(funde))
+
+
+def test_pruefer_erkennt_farben():
+    assert list(js_farben("el.style.color = ok ? '#16a34a' : '#dc2626';"))
+    assert list(js_farben("b.style.borderBottomColor = '#4f46e5';"))
+    assert list(js_farben("x.style.cssText = 'padding:4px;color:#94a3b8';"))       # Farbe hinter ;
+    assert list(js_farben("x.style.cssText = 'padding:4px;' +\n  'background:#eff6ff';"))  # Folgezeile
+    assert not list(js_farben("el.style.color = '';"))
+    assert not list(js_farben("el.style.color = '' ;"))
+    assert not list(js_farben("x.style.cssText = 'display:flex;gap:4px';"))

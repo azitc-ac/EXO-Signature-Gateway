@@ -54,7 +54,7 @@
         </div>
         <button id="theme-toggle" onclick="toggleTheme()" title="Hell/Dunkel wechseln" aria-label="Theme wechseln">☾</button>
         <span id="nav-online" style="display:flex;align-items:center;gap:5px;font-size:12px;color:rgba(255,255,255,0.75);white-space:nowrap;padding:0 8px;flex-shrink:0">
-            <span id="nav-dot" style="width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block;flex-shrink:0;transition:background 0.4s"></span>
+            <span id="nav-dot" style="width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0;transition:background 0.4s"></span>
             <span id="nav-status-text" class="nav-online-text">online</span>
         </span>
         <div id="user-badge" style="position:relative;flex-shrink:0;margin:0 6px">
@@ -96,6 +96,18 @@
       // Neustart anstoßen. Die Verbindung bricht dabei erwartungsgemäß ab — das
       // ist kein Fehler; liefert deshalb {ok:true} (für knopfAktion gesperrtLassen:
       // der Pfeil dreht, bis die Seite neu lädt).
+      // Azure-Zugriffskasten (.arm-box: Einrichtung → Key Vault, Erweitert → Wächter).
+      // Zustand als data-arm, Farbe aus style.css/dark-mode.css (Dark-Mode-Regel 2):
+      // '' kein Zugriff (gelb) · 'ok' verbunden (blau) · 'fehler' (gelb, Text rot).
+      // text/symbol: undefined = unverändert. Elemente: <praefix>-box/-status-text/-status-icon.
+      function armKasten(praefix, zustand, text, symbol) {
+        var box = document.getElementById(praefix + '-box');
+        if (box) box.dataset.arm = zustand;
+        var t = document.getElementById(praefix + '-status-text');
+        if (t && text !== undefined) t.textContent = text;
+        var s = document.getElementById(praefix + '-status-icon');
+        if (s && symbol !== undefined) s.textContent = symbol;
+      }
       // Passwort sichtbar, solange das Auge gedrückt ist (.pw-eye)
       function showPw(id) { var el = document.getElementById(id); if (el) el.type = 'text'; }
       function hidePw(id) { var el = document.getElementById(id); if (el) el.type = 'password'; }
@@ -137,7 +149,7 @@
         function setStatus(v) {
           if (v === isOnline) return;
           isOnline = v;
-          dot.style.background = v ? '#22c55e' : '#ef4444';
+          dot.dataset.online = v ? '1' : '0';   // Farbe in style.css (Dark-Mode-Regel 2)
           txt.textContent = v ? 'online' : 'offline';
         }
         check();

@@ -47,7 +47,7 @@
        Einzelweg bleibt (inkonsistent). #}
     {% if kv_configured and has_any_unmigrated_key %}
     <button class="btn secondary btn-sm" 
-            onclick="migrateAllAndBackup()"
+            onclick="migrateAllAndBackup(this)"
             title="{% if kv_mode == 'strict' %}Alle lokalen Schlüssel zu Azure Key Vault migrieren und lokal löschen{% else %}Alle lokalen Schlüssel zu Azure Key Vault migrieren; lokales key.pem.bak bleibt als Fallback{% endif %}">
       {% if kv_mode == 'strict' %}→ Alle zu KV migrieren &amp; lokal löschen{% else %}→ Alle zu KV migrieren (lokales Backup bleibt){% endif %}
     </button>
@@ -66,7 +66,7 @@
     {% endif %}
     <span id="kv-status-result" class="speicher-hinweis"></span>
     {% endif %}
-    <div id="bulk-migrate-result" style="font-size:12px;display:none"></div>
+    <div id="bulk-migrate-result" hidden></div>
   </div>
   </details>
   {% endif %}
@@ -1556,7 +1556,7 @@ async function refreshKvStatus(btn) {
   setTimeout(() => location.reload(), 4000);
 }
 
-async function migrateAllAndBackup() {
+async function migrateAllAndBackup(btn) {
   if (!confirm(
     'Alle lokalen Schlüssel zu Azure Key Vault migrieren?\n\n' +
     'Die key.pem-Dateien werden gelöscht. Im Fallback-Modus bleibt je eine key.pem.bak ' +
@@ -1564,28 +1564,15 @@ async function migrateAllAndBackup() {
     'Anschließend wird automatisch ein ZIP-Backup aller verbleibenden lokalen Schlüssel heruntergeladen.'
   )) return;
 
-  const resultEl = document.getElementById('bulk-migrate-result');
-  resultEl.style.display = 'inline';
-  resultEl.style.color = '#555';
-  resultEl.textContent = 'Migriere…';
-
-  try {
-    const r = await fetch('/api/smime/migrate-all-to-keyvault', {method: 'POST'});
-    const data = await r.json();
-    if (data.ok) {
-      resultEl.style.color = '#16a34a';
-      resultEl.textContent = `${data.migrated} von ${data.total} Schlüssel migriert.`;
-      // Trigger backup download of remaining local files (key.pem.bak)
-      setTimeout(() => { window.location.href = '/api/smime/backup-all-keys'; }, 400);
-      setTimeout(() => { location.reload(); }, 2500);
-    } else {
-      resultEl.style.color = '#dc2626';
-      resultEl.textContent = data.detail || 'Fehler bei der Migration';
-    }
-  } catch (err) {
-    resultEl.style.color = '#dc2626';
-    resultEl.textContent = 'Netzwerkfehler: ' + err;
-  }
+  const el = 'bulk-migrate-result';
+  // Bei Erfolg gesperrt lassen: Download und Neuladen folgen.
+  const data = await knopfAktion(btn, 'Migriere…', () => postJSON('/api/smime/migrate-all-to-keyvault'),
+                                 {anzeige: el, gesperrtLassen: true});
+  if (!data.ok) { showMsg(el, errText(data) || 'Fehler bei der Migration', false); return; }
+  laeuftZeigen(el, `${data.migrated} von ${data.total} Schlüssel migriert — Backup wird geladen…`);
+  // Trigger backup download of remaining local files (key.pem.bak)
+  setTimeout(() => { window.location.href = '/api/smime/backup-all-keys'; }, 400);
+  setTimeout(() => { location.reload(); }, 2500);
 }
 
 async function migrateSlotToKv(email, slotId, btn) {
