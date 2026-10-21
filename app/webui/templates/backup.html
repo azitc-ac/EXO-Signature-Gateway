@@ -274,8 +274,7 @@ function _updRefreshVersionPicker() {
 async function _updLoadReleaseList() {
   const sel = document.getElementById('upd-target-version');
   try {
-    const r = await fetch('/api/system/update/releases');
-    const d = await r.json();
+    const d = await getJSON('/api/system/update/releases');
     _updReleaseList = d.releases || [];
     sel.innerHTML = '<option value="">Neueste (Standard)</option>' +
       _updReleaseList.map(rel => `<option value="${esc(rel.version)}">v${esc(rel.version)}${rel.published_at ? ' — ' + esc(rel.published_at.slice(0,10)) : ''}</option>`).join('');
@@ -337,10 +336,9 @@ async function checkUpdate() {
   document.getElementById('upd-btn').disabled = true;
   await knopfAktion(checkBtn, 'Prüfe…', async () => {
     try {
-      const r = await fetch(`/api/system/update/check?channel=${encodeURIComponent(_updGetChannel())}`);
-      const d = await r.json();
+      const d = await getJSON(`/api/system/update/check?channel=${encodeURIComponent(_updGetChannel())}`);
       if (!d.ok) {
-        result.innerHTML = `<span style="color:#b45309">⚠ ${esc(d.error)}</span>`;
+        result.innerHTML = `<span style="color:#b45309">⚠ ${esc(errText(d))}</span>`;
       } else if (d.available) {
         _whatsNewEntries = (d.changelog_entries && d.changelog_entries.length) ? d.changelog_entries : null;
         _whatsNewLatest = d.latest;
@@ -394,12 +392,8 @@ async function startUpdate() {
   document.getElementById('upd-status').style.display = 'none';
   clearInterval(_updPollTimer);
   try {
-    const r = await fetch('/api/system/update', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({channel: _updGetChannel(), target_version: _updGetTargetVersion()}),
-    });
-    const d = await r.json();
-    if (!d.ok) { _updShowError(d.error || `HTTP ${r.status}`); _updBtnReset(); return; }
+    const d = await postJSON('/api/system/update', {channel: _updGetChannel(), target_version: _updGetTargetVersion()});
+    if (!d.ok) { _updShowError(errText(d)); _updBtnReset(); return; }
     _updStartPolling();
   } catch(e) { _updShowError(e.message); _updBtnReset(); }
 }
@@ -416,14 +410,11 @@ function _updStartPolling(delayMs) {
 
 async function _updPoll() {
   const TIMEOUT_MS = 10 * 60 * 1000;
-  let d;
-  try {
-    const r = await fetch('/api/system/update/status');
-    d = await r.json();
-  } catch(e) {
-    // NUR hier ist der Container tatsächlich nicht erreichbar. Der Abruf wird
-    // beim nächsten Takt wiederholt, das Polling läuft weiter.
-    ursache(e, 'backup:392');
+  const d = await getJSON('/api/system/update/status');
+  if (d.abrufFehler) {
+    // NUR hier ist der Container tatsächlich nicht erreichbar (keine Verbindung
+    // oder die Fehlerseite des Proxys). Der Abruf wird beim nächsten Takt
+    // wiederholt, das Polling läuft weiter.
     _updLaeuft('Neustart…');
     _updShowRunning('Container wird neu gestartet…');
     if (Date.now() - _updPollStart > TIMEOUT_MS) {
@@ -569,13 +560,13 @@ function _updCopyFallback(fertig) {
 function _updShowError(msg) {
   const el = document.getElementById('upd-status'); el.style.display = 'block';
   el.innerHTML = `<div class="alert" style="background:#fef2f2;border-color:#fca5a5;color:#991b1b;font-size:13px">
-    <strong>Fehler:</strong> ${msg}
+    <strong>Fehler:</strong> ${esc(msg)}
     <div style="margin-top:8px"><button class="btn secondary btn-sm" onclick="_updClear()">Status zurücksetzen</button></div>
   </div>`;
 }
 
 async function _updClear() {
-  try { await fetch('/api/system/update/clear', {method: 'POST'}); } catch(e) { ursache(e, 'backup:457'); }
+  await sendJSON('POST', '/api/system/update/clear');
   document.getElementById('upd-status').style.display = 'none';
   _updBtnReset();
 }
@@ -583,15 +574,14 @@ async function _updClear() {
 // --- Watcher-Badge ---
 async function _updCheckWatcher() {
   const badge = document.getElementById('upd-watcher-badge');
-  try {
-    const r = await fetch('/api/system/update/watcher-status');
-    const d = await r.json();
-    _watcherOk = d.ok;
-    badge.innerHTML = d.ok
-      ? '<span style="color:#16a34a">● Watcher aktiv</span>'
-      : '<span style="color:#b45309">● Watcher nicht erkannt — <a href="/setup#step-watcher" style="color:#b45309">Einrichtung → Update-Watcher</a></span>';
-    if (!d.ok) document.getElementById('upd-btn').disabled = true;
-  } catch(e) { ursache(e, 'backup:473'); }
+  // Hier heißt `ok` „Watcher aktiv“ — ein gescheiterter Abruf sagt darüber nichts.
+  const d = await getJSON('/api/system/update/watcher-status');
+  if (d.abrufFehler) return;
+  _watcherOk = d.ok;
+  badge.innerHTML = d.ok
+    ? '<span style="color:#16a34a">● Watcher aktiv</span>'
+    : '<span style="color:#b45309">● Watcher nicht erkannt — <a href="/setup#step-watcher" style="color:#b45309">Einrichtung → Update-Watcher</a></span>';
+  if (!d.ok) document.getElementById('upd-btn').disabled = true;
 }
 
 // --- Changelog ---
@@ -621,21 +611,19 @@ async function toggleChangelog() {
   _updLoadChannel();
   _updRefreshVersionPicker();
   await _updCheckWatcher();
-  try {
-    const r = await fetch('/api/system/update/status');
-    const d = await r.json();
-    if (d.state === 'running') {
-      _updLaeuft('Aktualisiert…');
-      _updShowRunning(d.log || '');
-      _updStartPolling();
-    } else if (d.state === 'success') {
-      _updShowSuccess(d);
-    } else if (d.state === 'error') {
-      _updShowError(d.log || 'Unbekannter Fehler');
-    } else if (_watcherOk) {
-      checkUpdate();
-    }
-  } catch(e) { /* Container kurzzeitig nicht erreichbar */ }
+  const d = await getJSON('/api/system/update/status');
+  if (d.abrufFehler) return;                  // Container kurzzeitig nicht erreichbar
+  if (d.state === 'running') {
+    _updLaeuft('Aktualisiert…');
+    _updShowRunning(d.log || '');
+    _updStartPolling();
+  } else if (d.state === 'success') {
+    _updShowSuccess(d);
+  } else if (d.state === 'error') {
+    _updShowError(d.log || 'Unbekannter Fehler');
+  } else if (_watcherOk) {
+    checkUpdate();
+  }
 })();
 </script>
 

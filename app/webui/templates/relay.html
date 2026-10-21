@@ -624,8 +624,15 @@ async function mailuserAbgleichen(btn) {
 }
 
 async function laden(mitNamen) {
-  const r = await postJSONGet('/api/relay/liste' + (mitNamen ? '?namen=1' : ''));
-  if (!r || !r.ok) return;
+  const r = await getJSON('/api/relay/liste' + (mitNamen ? '?namen=1' : ''));
+  if (!r.ok) {
+    // Ein Ausfall darf nicht als leere Liste durchgehen.
+    if (r.abrufFehler || r.http) {
+      document.getElementById('geraete-body').innerHTML =
+        '<tr><td colspan="8" style="color:#991b1b">Liste nicht abrufbar: ' + esc(errText(r)) + '</td></tr>';
+    }
+    return;
+  }
   _stand = r;
   zeichneGeraete(r.geraete);
   zeichneAbgewiesen(r.abgewiesen);
@@ -646,21 +653,6 @@ async function laden(mitNamen) {
   // Öffnen „noch nicht gespeichert", und eine leere Liste liesse den Knopf
   // dauerhaft gesperrt. Derselbe Fall wie bei den Entra-Konten.
   wacheNeuMessen('geraete-btn');
-}
-
-// Kleiner Helfer: postJSON() gibt es nur für POST; hier ein GET mit derselben
-// Fehlerbehandlung, damit ein Ausfall nicht als leere Liste durchgeht.
-async function postJSONGet(url) {
-  try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    return await res.json();
-  } catch (e) {
-    document.getElementById('geraete-body').innerHTML =
-      '<tr><td colspan="8" style="color:#991b1b">Liste nicht abrufbar: '
-      + esc(String(e)) + '</td></tr>';
-    return null;
-  }
 }
 
 function zeichneWarnung(r) {
@@ -725,14 +717,14 @@ function zeichneIdentitaeten(liste) {
         + (i.heute || 0) + ' / '
         + '<input type="number" min="0" value="' + (i.kontingent || '') + '" placeholder="∞" style="width:60px"'
           + ' title="Tageskontingent (0/leer = unbegrenzt, nur Warnung)"'
-          + ' onchange="identitaetKontingent(\'' + escAttr(i.id) + '\', this)">'
+          + ' onchange="identitaetKontingent(\'' + escJsAttr(i.id) + '\', this)">'
         + ((i.kontingent && i.heute > i.kontingent) ? ' <span title="Tageskontingent überschritten">⚠</span>' : '')
       + '</td>'
       + '<td style="text-align:center"><input type="checkbox"' + (i.extern ? ' checked' : '')
         + ' title="auch an externe Empfänger senden"'
-        + ' onchange="identitaetExtern(\'' + escAttr(i.id) + '\', this)"></td>'
+        + ' onchange="identitaetExtern(\'' + escJsAttr(i.id) + '\', this)"></td>'
       + '<td style="text-align:center"><input type="checkbox"' + (i.aktiv ? ' checked' : '')
-        + ' onchange="identitaetAktiv(\'' + escAttr(i.id) + '\', this)"></td>'
+        + ' onchange="identitaetAktiv(\'' + escJsAttr(i.id) + '\', this)"></td>'
       + '<td style="white-space:nowrap">'
         + '<button class="btn secondary btn-sm" onclick="location.href=\'/mailboxes\'"'
           + ' title="Signatur dieser Identität = Signatur ihrer Shared Mailbox; in Postfächer konfigurieren">'
@@ -766,7 +758,7 @@ function zeichneZiele(liste) {
       + '<td style="font-size:12px;color:#555">' + (z.user ? esc(z.user) + (z.hat_passwort ? ' 🔒' : '') : '<span style="color:#94a3b8">—</span>') + '</td>'
       + '<td style="white-space:nowrap">'
         + '<button class="btn secondary btn-sm" onclick="zielBearbeiten(' + escAttr(JSON.stringify(z)) + ')">Bearbeiten</button> '
-        + '<button class="btn secondary btn-sm" onclick="zielLoeschen(\'' + escAttr(z.id) + '\', this)">Löschen</button>'
+        + '<button class="btn secondary btn-sm" onclick="zielLoeschen(\'' + escJsAttr(z.id) + '\', this)">Löschen</button>'
       + '</td>';
     tb.appendChild(tr);
   });
@@ -803,7 +795,7 @@ function zeichneRouten(routen, ziele) {
       + '<td style="font-size:12px">' + esc(zid)
         + (gueltig ? ' <span style="color:#94a3b8">(' + esc(bekannt[zid]) + ')</span>'
                    : ' <span style="color:#991b1b" title="Ziel gibt es nicht — Post geht an Exchange Online">⚠ unbekannt</span>') + '</td>'
-      + '<td><button class="btn secondary btn-sm" onclick="routeLoeschen(\'' + escAttr(d) + '\', this)">Entfernen</button></td>';
+      + '<td><button class="btn secondary btn-sm" onclick="routeLoeschen(\'' + escJsAttr(d) + '\', this)">Entfernen</button></td>';
     tb.appendChild(tr);
   });
 }
@@ -820,10 +812,10 @@ function zielBearbeiten(z) {
 
 async function zielHinzufuegen(btn) {
   const box = document.getElementById('neu-ziel-result');
-  const id = (document.getElementById('neu-ziel-id').value || '').trim();
-  const host = (document.getElementById('neu-ziel-host').value || '').trim();
+  const id = feldWert('neu-ziel-id');
+  const host = feldWert('neu-ziel-host');
   const port = parseInt(document.getElementById('neu-ziel-port').value, 10) || 25;
-  const user = (document.getElementById('neu-ziel-user').value || '').trim();
+  const user = feldWert('neu-ziel-user');
   const pw = document.getElementById('neu-ziel-pw').value || '';
   const tls = document.getElementById('neu-ziel-tls').checked;
   if (!id || !host) { showAlert(box, 'error', 'Kürzel und Host sind nötig.'); return; }
@@ -849,7 +841,7 @@ async function zielLoeschen(id, btn) {
 
 async function routeHinzufuegen(btn) {
   const box = document.getElementById('neu-route-result');
-  const domain = (document.getElementById('neu-route-domain').value || '').trim();
+  const domain = feldWert('neu-route-domain');
   const ziel = document.getElementById('neu-route-ziel').value || '';
   if (!domain) { showAlert(box, 'error', 'Bitte eine Domäne angeben.'); return; }
   const r = await knopfAktion(btn, null, () => postJSON('/api/relay/route', { domain: domain, ziel: ziel }));
@@ -891,9 +883,9 @@ function _coexSkripteZeigen(coex) {
 
 async function coexSpeichern(btn) {
   const box = document.getElementById('coex-result');
-  const gw = (document.getElementById('coex-gw').value || '').trim();
-  const ip = (document.getElementById('coex-ip').value || '').trim();
-  const srv = (document.getElementById('coex-server').value || '').trim();
+  const gw = feldWert('coex-gw');
+  const ip = feldWert('coex-ip');
+  const srv = feldWert('coex-server');
   if (!gw || !ip) { showAlert(box, 'error', 'Gateway-Name und Quell-IP sind nötig.'); return; }
   const r = await knopfAktion(btn, null, () => postJSON('/api/relay/coex',
       { gateway_name: gw, source_ip: ip, servers: srv }));
@@ -979,16 +971,11 @@ async function coexVorgaengeZeigen(knopf) {
   tb.innerHTML = '<tr><td colspan="5" style="color:#888">Wird geladen …</td></tr>';
   hinweis.textContent = '';
   box.hidden = false;
-  // Eigener Abruf statt postJSONGet: jener schreibt Fehler in die Gerätetabelle.
-  let r;
-  try {
-    const res = await fetch('/api/relay/routing-ereignisse?ziel='
-      + encodeURIComponent(ziel) + (nurFehler ? '&fehler=1' : ''));
-    r = res.ok ? await res.json() : { ok: false, detail: 'HTTP ' + res.status };
-  } catch (e) { r = { ok: false, detail: String(e) }; }
+  const r = await getJSON('/api/relay/routing-ereignisse?ziel='
+    + encodeURIComponent(ziel) + (nurFehler ? '&fehler=1' : ''));
   if (!r.ok) {
     tb.innerHTML = '<tr><td colspan="5" style="color:#991b1b">'
-      + esc(r.detail || r.error || 'Konnte nicht geladen werden.') + '</td></tr>';
+      + esc(errText(r)) + '</td></tr>';
     return;
   }
   const liste = r.ereignisse || [];
@@ -1061,8 +1048,8 @@ async function idDomaenenLaden(refresh) {
   if (!sel) return;
   const behalten = sel.value;               // aktuelle Auswahl über den Neuaufbau retten
   if (refresh) sel.innerHTML = '<option value="">— aktualisiere …</option>';
-  const r = await postJSONGet('/api/relay/domaenen' + (refresh ? '?refresh=1' : ''));
-  if (!r || !r.ok || !(r.domaenen || []).length) {
+  const r = await getJSON('/api/relay/domaenen' + (refresh ? '?refresh=1' : ''));
+  if (!r.ok || !(r.domaenen || []).length) {
     sel.innerHTML = '<option value="">— keine Domäne abrufbar —</option>';
     idAdressVorschau();
     return;
@@ -1079,7 +1066,7 @@ async function idDomaenenLaden(refresh) {
 function idAdressVorschau() {
   const v = document.getElementById('neu-id-vorschau');
   if (!v) return;
-  const login = (document.getElementById('neu-id-login').value || '').trim().toLowerCase();
+  const login = feldWert('neu-id-login').toLowerCase();
   const sel = document.getElementById('neu-id-domaene');
   const domaene = sel ? (sel.value || '') : '';
   if (login && domaene) {
@@ -1093,8 +1080,8 @@ function idAdressVorschau() {
 
 async function identitaetHinzufuegen(btn) {
   const box = document.getElementById('neu-id-result');
-  const name = (document.getElementById('neu-id-name').value || '').trim();
-  const login = (document.getElementById('neu-id-login').value || '').trim();
+  const name = feldWert('neu-id-name');
+  const login = feldWert('neu-id-login');
   const pw = document.getElementById('neu-id-pw').value || '';
   const sel = document.getElementById('neu-id-domaene');
   const domaene = sel ? (sel.value || '') : '';
@@ -1300,8 +1287,8 @@ async function geraetLoeschen(ip, btn) {
 }
 
 async function geraetHinzufuegen(btn) {
-  const ip = (document.getElementById('neu-ip').value || '').trim();
-  const kommentar = (document.getElementById('neu-kommentar').value || '').trim();
+  const ip = feldWert('neu-ip');
+  const kommentar = feldWert('neu-kommentar');
   const box = document.getElementById('neu-result');
   if (!ip) { showAlert(box, 'error', 'Ohne Adresse geht es nicht.'); return; }
   const r = await knopfAktion(btn, null, () => postJSON('/api/relay/geraet', { ip: ip, kommentar: kommentar }));
@@ -1378,8 +1365,8 @@ function _volumen(bytes) {
 
 async function statsLaden() {
   const tage = document.getElementById('stats-zeitraum').value;
-  const r = await postJSONGet('/api/relay/stats?tage=' + encodeURIComponent(tage));
-  if (!r || !r.ok) return;
+  const r = await getJSON('/api/relay/stats?tage=' + encodeURIComponent(tage));
+  if (!r.ok) return;
   document.getElementById('stats-gesamt').textContent =
     r.gesamt_anzahl + ' Mails · ' + _volumen(r.gesamt_bytes) + ' · '
     + r.geraete + ' Gerät(e) im Zeitraum';
@@ -1421,10 +1408,10 @@ let _protoOffset = 0;
 const _PROTO_LIMIT = 100;
 
 async function protokollLaden() {
-  const r = await postJSONGet('/api/audit/events?nur_relay=1&limit=' + _PROTO_LIMIT
+  const r = await getJSON('/api/audit/events?nur_relay=1&limit=' + _PROTO_LIMIT
                               + '&offset=' + _protoOffset);
   const tb = document.getElementById('proto-body');
-  if (!r) { tb.innerHTML = '<tr><td colspan="6" style="color:#991b1b">Protokoll nicht abrufbar.</td></tr>'; return; }
+  if (!r.ok) { tb.innerHTML = '<tr><td colspan="6" style="color:#991b1b">Protokoll nicht abrufbar: ' + esc(errText(r)) + '</td></tr>'; return; }
   const events = r.events || [];
   const total = r.total || 0;
   document.getElementById('proto-info').textContent =

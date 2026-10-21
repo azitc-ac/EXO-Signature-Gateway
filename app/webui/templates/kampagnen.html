@@ -70,17 +70,12 @@
 let _banners = [], _groups = [];
 
 async function ladenK() {
-  let r;
-  try {
-    const res = await fetch('/api/campaigns');
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    r = await res.json();
-  } catch (e) {
+  const r = await getJSON('/api/campaigns');
+  if (!r.ok) {
     document.getElementById('kampagnen-body').innerHTML =
-      '<tr><td colspan="6" style="color:#991b1b">Liste nicht abrufbar: ' + esc(String(e)) + '</td></tr>';
+      '<tr><td colspan="6" style="color:#991b1b">Liste nicht abrufbar: ' + esc(errText(r)) + '</td></tr>';
     return;
   }
-  if (!r || !r.ok) return;
   _banners = r.banners || [];
   _groups = r.groups || [];
   fuelleAuswahl();
@@ -129,7 +124,7 @@ function zeichneKampagnen(liste) {
       + '<td style="font-weight:600;color:' + st.farbe + '">' + st.text + '</td>'
       + '<td style="white-space:nowrap">'
         + '<button class="btn secondary btn-sm" onclick="kampagneBearbeiten(' + escAttr(JSON.stringify(k)) + ')">Bearbeiten</button> '
-        + '<button class="btn secondary btn-sm" onclick="kampagneLoeschen(\'' + escAttr(k.id) + '\', this)">Löschen</button>'
+        + '<button class="btn secondary btn-sm" onclick="kampagneLoeschen(\'' + escJsAttr(k.id) + '\', this)">Löschen</button>'
       + '</td>';
     tb.appendChild(tr);
   });
@@ -198,7 +193,7 @@ function kampagneFormLeeren() {
 
 async function kampagneSpeichern(btn) {
   const box = document.getElementById('k-result');
-  const name = (document.getElementById('k-name').value || '').trim();
+  const name = feldWert('k-name');
   const banner = document.getElementById('k-banner').value || '';
   if (!name) { showAlert(box, 'error', 'Bitte einen Namen angeben.'); return; }
   if (!banner) { showAlert(box, 'error', 'Bitte eine Banner-Vorlage wählen.'); return; }

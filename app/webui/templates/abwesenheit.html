@@ -272,13 +272,8 @@ function abKalender(v) {
 
 async function abLaden(force) {
   var tbody = document.getElementById('ab-tbody');
-  try {
-    var r = await fetch('/api/abwesenheit/uebersicht' + (force ? '?force=1' : ''));
-    if (!r.ok) { tbody.innerHTML = '<tr><td colspan="7" class="muted">Fehler ' + r.status + '</td></tr>'; return; }
-    var d = await r.json();
-  } catch (e) {
-    tbody.innerHTML = '<tr><td colspan="7" class="muted">Verbindungsfehler</td></tr>'; return;
-  }
+  var d = await getJSON('/api/abwesenheit/uebersicht' + (force ? '?force=1' : ''));
+  if (!d.ok) { tbody.innerHTML = '<tr><td colspan="7" class="muted">Fehler: ' + esc(errText(d)) + '</td></tr>'; return; }
   document.getElementById('ooo-aus-hinweis').style.display = d.ooo_enabled ? 'none' : 'block';
   document.getElementById('ab-summe').textContent = d.abwesend + ' von ' + d.gesamt;
   var stand = document.getElementById('ab-stand');
@@ -373,9 +368,8 @@ async function abOeffne(i) {
   abmZeiten();
   abm('ab-modal').style.display = 'flex';
   // Aktuellen Stand laden
-  var r = await fetch('/api/abwesenheit/postfach?email=' + encodeURIComponent(it.upn));
-  if (!r.ok) { abm('abm-result').textContent = 'Fehler beim Laden (' + r.status + ')'; return; }
-  var d = await r.json();
+  var d = await getJSON('/api/abwesenheit/postfach?email=' + encodeURIComponent(it.upn));
+  if (!d.ok) { abm('abm-result').textContent = 'Fehler beim Laden: ' + errText(d); return; }
   abm('abm-kein-zugriff').style.display = d.zugriff === false ? 'block' : 'none';
   abm('abm-body').style.opacity = d.zugriff === false ? '0.5' : '1';
   var st = (d.ooo && d.ooo.status) || 'disabled';

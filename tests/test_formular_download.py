@@ -33,7 +33,7 @@ const log = {};
 
 
 def _node(szenario: str) -> dict:
-    js = (_FETCH + common_funktion("_anfrage") + "\n" + common_funktion("sendeFormular") + "\n" + common_funktion("dateiHerunterladen")
+    js = (_FETCH + common_funktion("_abrufFehler") + "\n" + common_funktion("_anfrage") + "\n" + common_funktion("sendeFormular") + "\n" + common_funktion("dateiHerunterladen")
           + "\n(async () => {\n" + szenario + "\nconsole.log(JSON.stringify(log));\n})();")
     return json.loads(subprocess.run(["node", "-e", js], capture_output=True, text=True,
                                      check=True).stdout)
@@ -48,8 +48,8 @@ def test_sende_formular_wirft_nie_und_deutet_ok():
       ANTWORT = antwort(200, {ok: false, error: 'n'}); log.falsch = await sendeFormular('/x', {});
       ANTWORT = 'netz';                                log.netz = await sendeFormular('/x', {});""")
     assert log["ok"] == {"imported": 3, "ok": True}
-    assert log["detail"] == {"detail": "kaputt", "ok": False}
-    assert log["html"] == {"ok": False, "error": "HTTP 502"}
+    assert log["detail"] == {"detail": "kaputt", "ok": False, "http": 400}
+    assert log["html"] == {"ok": False, "error": "HTTP 502", "abrufFehler": True, "http": 502}
     assert log["falsch"]["ok"] is False                 # ok aus der Antwort gilt, nicht der Status
     assert log["netz"]["ok"] is False and "offline" in log["netz"]["error"]
 

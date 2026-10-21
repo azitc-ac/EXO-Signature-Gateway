@@ -654,13 +654,13 @@ function fieldSelect(val, name, bid) {
     ? `<optgroup label="Eigene Variablen">` + custom.map(f =>
         `<option value="${escAttr(f)}"${f===val?' selected':''}>${esc(f)}</option>`).join('') + `</optgroup>`
     : '';
-  return `<select name="${esc(name)}" data-bid="${bid}" onchange="blockPropChange(this)">${opts}${cOpts}</select>`;
+  return `<select name="${esc(name)}" data-bid="${escAttr(bid)}" onchange="blockPropChange(this)">${opts}${cOpts}</select>`;
 }
 
 function colorSelect(val, name, bid, extra) {
   const extra_opts = (extra||[]).map(e => `<option value="${e.v}"${e.v===val?' selected':''}>${e.l}</option>`).join('');
   const base_opts = COLOR_OPTIONS.map(o => `<option value="${o.v}"${o.v===val?' selected':''}>${o.l}</option>`).join('');
-  return `<select name="${esc(name)}" data-bid="${bid}" onchange="blockPropChange(this)">${base_opts}${extra_opts}</select>`;
+  return `<select name="${esc(name)}" data-bid="${escAttr(bid)}" onchange="blockPropChange(this)">${base_opts}${extra_opts}</select>`;
 }
 
 // ── Variablen-Autocomplete ──────────────────────────────────────────────────
@@ -748,9 +748,9 @@ function renderCard(b, container, listRef) {
     <span class="block-type-badge">${esc(TYPE_LABELS[b.type] || b.type)}</span>
     <span style="flex:1;font-size:12px;color:#6b7280;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(blockSummary(b))}</span>
     <span style="display:flex;gap:3px">
-      <button onclick="moveBlock(event,'${b.id}',-1)" ${pfeilAttr(idx > 0, 'Nach oben')} style="${pfeilStyle(idx > 0)}">↑</button>
-      <button onclick="moveBlock(event,'${b.id}',1)"  ${pfeilAttr(idx < anzahl - 1, 'Nach unten')} style="${pfeilStyle(idx < anzahl - 1)}">↓</button>
-      <button onclick="deleteBlock(event,'${b.id}')" title="Löschen" style="${iconBtnStyle('#dc2626')}">✕</button>
+      <button onclick="moveBlock(event,'${escJsAttr(b.id)}',-1)" ${pfeilAttr(idx > 0, 'Nach oben')} style="${pfeilStyle(idx > 0)}">↑</button>
+      <button onclick="moveBlock(event,'${escJsAttr(b.id)}',1)"  ${pfeilAttr(idx < anzahl - 1, 'Nach unten')} style="${pfeilStyle(idx < anzahl - 1)}">↓</button>
+      <button onclick="deleteBlock(event,'${escJsAttr(b.id)}')" title="Löschen" style="${iconBtnStyle('#dc2626')}">✕</button>
     </span>`;
   header.addEventListener('click', e => {
     if (e.target.tagName === 'BUTTON') return;
@@ -846,14 +846,14 @@ document.addEventListener('toggle', e => {
 function unterPicker(bid, seite, typen) {
   return `
       <div class="col-picker-wrap" style="margin-top:6px">
-        <button type="button" onclick="toggleColPicker('${bid}','${seite}')"
+        <button type="button" onclick="toggleColPicker('${escJsAttr(bid)}','${escJsAttr(seite)}')"
           style="font-size:11px;padding:3px 8px;border:1px dashed #d1d5db;border-radius:4px;background:none;cursor:pointer;width:100%">
           + Block hinzufügen
         </button>
         <div id="col-picker-${seite}-${bid}"
           style="display:none;background:#fff;border:1px solid #d1d5db;border-radius:6px;padding:8px;box-shadow:0 4px 12px rgba(0,0,0,.12);margin-top:4px">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px">
-            ${typen.map(tp => `<button class="picker-btn" type="button" onclick="addColBlock('${bid}','${seite}','${tp}')">${esc(TYPE_LABELS[tp]||tp)}</button>`).join('')}
+            ${typen.map(tp => `<button class="picker-btn" type="button" onclick="addColBlock('${escJsAttr(bid)}','${escJsAttr(seite)}','${escJsAttr(tp)}')">${esc(TYPE_LABELS[tp]||tp)}</button>`).join('')}
           </div>
         </div>
       </div>`;
@@ -866,23 +866,23 @@ function buildBlockForm(b) {
   const row = (label, input) =>
     `<div class="prop-row"><label>${esc(label)}</label><div>${input}</div></div>`;
   const txt = (name, val, placeholder) =>
-    `<input type="text" name="${esc(name)}" value="${escAttr(val||'')}" placeholder="${escAttr(placeholder||'')}" data-bid="${b.id}" onchange="blockPropChange(this)">`;
+    `<input type="text" name="${esc(name)}" value="${escAttr(val||'')}" placeholder="${escAttr(placeholder||'')}" data-bid="${escAttr(b.id)}" onchange="blockPropChange(this)">`;
   const chk = (name, val) =>
-    `<input type="checkbox" name="${esc(name)}" ${val?' checked':''} data-bid="${b.id}" onchange="blockPropChange(this)">`;
+    `<input type="checkbox" name="${esc(name)}" ${val?' checked':''} data-bid="${escAttr(b.id)}" onchange="blockPropChange(this)">`;
   // Farbe: Waehler und Textfeld nebeneinander, beide schreiben denselben Wert.
   // Der Waehler allein taugt nicht — er kann kein "leer" und keine Palette aus
   // der Zwischenablage; das Textfeld allein ist unbequem.
   const farbFeld = (name, val, bid) =>
     `<span style="display:flex;gap:4px;align-items:center">
-       <input type="color" value="${escAttr(val)}" data-bid="${bid}"
-         onchange="blockFarbSync(this,'${esc(name)}')"
+       <input type="color" value="${escAttr(val)}" data-bid="${escAttr(bid)}"
+         onchange="blockFarbSync(this,'${escJsAttr(name)}')"
          style="width:28px;height:26px;padding:0;border:1px solid #d1d5db;border-radius:3px;cursor:pointer">
-       <input type="text" name="${esc(name)}" value="${escAttr(val)}" data-bid="${bid}"
+       <input type="text" name="${esc(name)}" value="${escAttr(val)}" data-bid="${escAttr(bid)}"
          onchange="blockPropChange(this)"
          style="flex:1;padding:4px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:12px">
      </span>`;
   const ta = (name, val) =>
-    `<textarea name="${esc(name)}" data-bid="${b.id}" onchange="blockPropChange(this)">${esc(val||'')}</textarea>`;
+    `<textarea name="${esc(name)}" data-bid="${escAttr(b.id)}" onchange="blockPropChange(this)">${esc(val||'')}</textarea>`;
 
   // Die zwei Begriffe, die es gibt — und nur diese zwei. Vorher hiess
   // dasselbe je nach Baustein "Praefix", "Beschriftung" oder "Anzeigetext",
@@ -958,17 +958,17 @@ function buildBlockForm(b) {
       <label>Bild-Quelle</label>
       <div>
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:#1e40af">
-          <input type="file" accept="image/*" data-bid="${b.id}" onchange="logoFileUpload(this)" style="display:none">
+          <input type="file" accept="image/*" data-bid="${escAttr(b.id)}" onchange="logoFileUpload(this)" style="display:none">
           📁 Datei einbetten (Base64)
         </label>
         <span style="font-size:11px;color:#6b7280;display:block;margin:2px 0 6px">
           ${isEmbed ? '✓ Eingebettet (Base64 Data-URI)' : 'oder URL eingeben:'}
         </span>
         ${isEmbed ? '' : `<input type="text" name="url" value="${escAttr(b.url||'')}" placeholder="https://…/logo.png"
-          data-bid="${b.id}" onchange="blockPropChange(this)"
+          data-bid="${escAttr(b.id)}" onchange="blockPropChange(this)"
           style="padding:4px 6px;border:1px solid #d1d5db;border-radius:4px;font-size:12px;width:100%;box-sizing:border-box">`}
         ${previewImg}
-        ${isEmbed ? `<button type="button" onclick="logoClear('${b.id}')"
+        ${isEmbed ? `<button type="button" onclick="logoClear('${escJsAttr(b.id)}')"
           style="margin-top:6px;font-size:11px;color:#dc2626;background:none;border:none;cursor:pointer;padding:0">✕ Einbettung entfernen</button>` : ''}
       </div>
     </div>`;
@@ -992,7 +992,7 @@ function buildBlockForm(b) {
     rows += row('Fett', chk('bold', b.bold));
     rows += row('Kursiv', chk('italic', b.italic));
     rows += row('Unterstrichen', chk('underline', b.underline));
-    rows += row('Ausrichtung', `<select name="align" data-bid="${b.id}" onchange="blockPropChange(this)">`
+    rows += row('Ausrichtung', `<select name="align" data-bid="${escAttr(b.id)}" onchange="blockPropChange(this)">`
       + [['','links (Vorgabe)'],['center','zentriert'],['right','rechts']]
         .map(([v,l]) => `<option value="${v}"${(b.align||'')===v?' selected':''}>${esc(l)}</option>`).join('')
       + `</select>`);
@@ -1013,8 +1013,8 @@ function buildBlockForm(b) {
     let ein = '';
     ein += row('Abstand (px)', txt('gap', b.gap, '12'));
     ein += row('Linke Breite', txt('left_width', b.left_width, 'auto oder z.B. 60%'));
-    ein += row('Links ausrichten', `<select name="left_valign" data-bid="${b.id}" onchange="blockPropChange(this)"><option value="top"${(b.left_valign||'top')==='top'?' selected':''}>Oben</option><option value="middle"${b.left_valign==='middle'?' selected':''}>Mitte</option></select>`);
-    ein += row('Rechts ausrichten', `<select name="right_valign" data-bid="${b.id}" onchange="blockPropChange(this)"><option value="middle"${(b.right_valign||'middle')==='middle'?' selected':''}>Mitte</option><option value="top"${b.right_valign==='top'?' selected':''}>Oben</option></select>`);
+    ein += row('Links ausrichten', `<select name="left_valign" data-bid="${escAttr(b.id)}" onchange="blockPropChange(this)"><option value="top"${(b.left_valign||'top')==='top'?' selected':''}>Oben</option><option value="middle"${b.left_valign==='middle'?' selected':''}>Mitte</option></select>`);
+    ein += row('Rechts ausrichten', `<select name="right_valign" data-bid="${escAttr(b.id)}" onchange="blockPropChange(this)"><option value="middle"${(b.right_valign||'middle')==='middle'?' selected':''}>Mitte</option><option value="top"${b.right_valign==='top'?' selected':''}>Oben</option></select>`);
     ein += row('Trennlinie', chk('divider', b.divider));
     rows += behaelterEinstellungen(b.id, 'Aufteilung & Ausrichtung', ein);
     // Spalten UNTEREINANDER stapeln, nicht nebeneinander: der Editor-Bereich ist
@@ -1036,7 +1036,7 @@ function buildBlockForm(b) {
     rows += row('Schriftfarbe', farbFeld('label_color', b.label_color || '#fff', b.id));
     rows += row('Schriftgröße', txt('size', b.size, '8pt'));
     rows += row('Ecken (px)', txt('radius', b.radius, '2'));
-    rows += row('Text dahinter', `<textarea name="html" data-bid="${b.id}" rows="3"
+    rows += row('Text dahinter', `<textarea name="html" data-bid="${escAttr(b.id)}" rows="3"
       onchange="blockPropChange(this)" style="width:100%;font-family:monospace;font-size:12px"
       >${esc(b.html || '')}</textarea>`);
     rows += `<p style="font-size:11px;color:#6b7280;margin:4px 0 8px">
@@ -1044,11 +1044,11 @@ function buildBlockForm(b) {
       oder <code>&lt;a href="…"&gt;</code> für einen Link.</p>`;
   } else if (t === 'box') {
     let ein = '';
-    ein += row('Ecken', `<select name="radius" data-bid="${b.id}" onchange="blockPropChange(this)">`
+    ein += row('Ecken', `<select name="radius" data-bid="${escAttr(b.id)}" onchange="blockPropChange(this)">`
       + [['0','Eckig'],['4','Leicht rund (4px)'],['8','Rund (8px)'],['16','Stark rund (16px)']]
         .map(([v,l]) => `<option value="${v}"${String(b.radius||0)===v?' selected':''}>${esc(l)}</option>`).join('')
       + `</select>`);
-    ein += row('Rahmen an', `<select name="border_side" data-bid="${b.id}" onchange="blockPropChange(this)">`
+    ein += row('Rahmen an', `<select name="border_side" data-bid="${escAttr(b.id)}" onchange="blockPropChange(this)">`
       + [['all','allen Seiten'],['left','nur links'],['top','nur oben'],
          ['right','nur rechts'],['bottom','nur unten']]
         .map(([v,l]) => `<option value="${v}"${(b.border_side||'all')===v?' selected':''}>${esc(l)}</option>`).join('')
@@ -1066,7 +1066,7 @@ function buildBlockForm(b) {
       <strong>feste Breite</strong>. Ohne Breitenangabe bleibt der Kasten in Outlook eckig.
       Die Rundung ist dort angenähert: VML rechnet den Radius gegen die Höhe, die erst
       beim Anzeigen entsteht.</p>`;
-    ein += `<button class="btn secondary btn-sm" type="button" onclick="kastenAufloesen('${b.id}')"
+    ein += `<button class="btn secondary btn-sm" type="button" onclick="kastenAufloesen('${escJsAttr(b.id)}')"
         
         title="Rahmen entfernen, Inhalt behalten">Kasten auflösen (Inhalt behalten)</button>`;
     rows += behaelterEinstellungen(b.id, 'Rahmen, Farben & Abstände', ein);
@@ -1135,11 +1135,11 @@ function renderColBlocks(parent, side) {
     hdr.innerHTML = `
       <span class="block-type-badge">${esc(TYPE_LABELS[b.type]||b.type)}</span>
       <span style="flex:1;min-width:0;font-size:11px;color:#6b7280;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${esc(blockSummary(b))}</span>
-      <button onclick="moveColBlock(event,'${parent.id}','${side}','${b.id}',-1)" ${pfeilAttr(idx > 0, 'Hoch')}
+      <button onclick="moveColBlock(event,'${escJsAttr(parent.id)}','${escJsAttr(side)}','${escJsAttr(b.id)}',-1)" ${pfeilAttr(idx > 0, 'Hoch')}
         style="${pfeilStyle(idx > 0)}">↑</button>
-      <button onclick="moveColBlock(event,'${parent.id}','${side}','${b.id}',1)" ${pfeilAttr(idx < list.length - 1, 'Runter')}
+      <button onclick="moveColBlock(event,'${escJsAttr(parent.id)}','${escJsAttr(side)}','${escJsAttr(b.id)}',1)" ${pfeilAttr(idx < list.length - 1, 'Runter')}
         style="${pfeilStyle(idx < list.length - 1)}">↓</button>
-      <button onclick="deleteColBlock(event,'${parent.id}','${side}','${b.id}')" title="Löschen"
+      <button onclick="deleteColBlock(event,'${escJsAttr(parent.id)}','${escJsAttr(side)}','${escJsAttr(b.id)}')" title="Löschen"
         style="${iconBtnStyle('#dc2626')}">✕</button>`;
 
     const body = document.createElement('div');
@@ -1237,17 +1237,22 @@ window.blockPropChange = function(el) {
   }
   b[name] = val;
   // Update summary in card header (top-level and sub-block)
-  const topCard = document.querySelector(`.block-card[data-bid="${bid}"]`);
-  if (topCard) {
-    const sumEl = topCard.querySelector('.block-card-header span:nth-child(2)');
-    if (sumEl) sumEl.textContent = blockSummary(b);
-  }
-  const subCard = document.querySelector(`.col-block-item[data-bid="${bid}"]`);
-  if (subCard) {
-    const sumEl = subCard.querySelector('div:first-child span:nth-child(2)');
-    if (sumEl) sumEl.textContent = blockSummary(b);
-  }
+  const karte = _blockKarte(bid);
+  if (karte && karte.summe) karte.summe.textContent = blockSummary(b);
 };
+
+// Karte eines Blocks: oben in der Liste (.block-card) oder in einer Spalte
+// (.col-block-item) — mit Formularkörper und Zusammenfassung in der Kopfzeile.
+function _blockKarte(bid) {
+  const sel = CSS.escape(bid);
+  const oben = document.querySelector(`.block-card[data-bid="${sel}"]`);
+  if (oben) return {koerper: oben.querySelector('.block-card-body'),
+                    summe: oben.querySelector('.block-card-header span:nth-child(2)')};
+  const unter = document.querySelector(`.col-block-item[data-bid="${sel}"]`);
+  if (unter) return {koerper: unter.querySelector('div:last-child'),
+                     summe: unter.querySelector('div:first-child span:nth-child(2)')};
+  return null;
+}
 
 // ── Move/delete block ─────────────────────────────────────────────────────────
 window.moveBlock = function(e, id, dir) {
@@ -1314,23 +1319,13 @@ window.logoClear = function(bid) {
 
 function _refreshCardBody(bid, b) {
   // Re-render the form body of a single card without collapsing the whole list.
-  const topCard = document.querySelector(`.block-card[data-bid="${bid}"]`);
-  if (topCard) {
-    const body = topCard.querySelector('.block-card-body');
-    if (body) { body.innerHTML = buildBlockForm(b); body.querySelectorAll('[data-bid]').forEach(el => el.dataset.bid = bid); }
-    const sumEl = topCard.querySelector('.block-card-header span:nth-child(2)');
-    if (sumEl) sumEl.textContent = blockSummary(b);
-    return;
+  const karte = _blockKarte(bid);
+  if (!karte) { renderBlockList(); return; }  // fallback
+  if (karte.koerper) {
+    karte.koerper.innerHTML = buildBlockForm(b);
+    karte.koerper.querySelectorAll('[data-bid]').forEach(el => el.dataset.bid = bid);
   }
-  const subCard = document.querySelector(`.col-block-item[data-bid="${bid}"]`);
-  if (subCard) {
-    const body = subCard.querySelector('div:last-child');
-    if (body) { body.innerHTML = buildBlockForm(b); body.querySelectorAll('[data-bid]').forEach(el => el.dataset.bid = bid); }
-    const sumEl = subCard.querySelector('div:first-child span:nth-child(2)');
-    if (sumEl) sumEl.textContent = blockSummary(b);
-    return;
-  }
-  renderBlockList();  // fallback
+  if (karte.summe) karte.summe.textContent = blockSummary(b);
 };
 
 // ── Global style sync ─────────────────────────────────────────────────────────
@@ -1346,11 +1341,11 @@ window.syncColorText = function(prefix) {
 
 function getGlobal() {
   return {
-    font_family: document.getElementById('g-font').value.trim() || 'Calibri, Arial, sans-serif',
-    font_size:   document.getElementById('g-size').value.trim() || '11pt',
-    base_color:  document.getElementById('g-base-color').value.trim() || '#1f2937',
-    muted_color: document.getElementById('g-muted-color').value.trim() || '#6b7280',
-    link_color:  document.getElementById('g-link-color').value.trim() || '#1e40af',
+    font_family: feldWert('g-font') || 'Calibri, Arial, sans-serif',
+    font_size:   feldWert('g-size') || '11pt',
+    base_color:  feldWert('g-base-color') || '#1f2937',
+    muted_color: feldWert('g-muted-color') || '#6b7280',
+    link_color:  feldWert('g-link-color') || '#1e40af',
   };
 }
 
@@ -1410,9 +1405,8 @@ window.usermailStandard = async function(key) {
   if (!confirm('Betreff und Text auf die mitgelieferte Fassung zurücksetzen?\n\n' +
                'Ihre Änderungen an dieser Nachricht gehen dabei verloren.')) return;
   try {
-    const r = await fetch(`/api/usermails/${encodeURIComponent(key)}/standard`, {method: 'POST'});
-    const d = await r.json();
-    if (!r.ok || !d.ok) throw new Error(d.detail || 'Fehler');
+    const d = await sendJSON('POST', `/api/usermails/${encodeURIComponent(key)}/standard`);
+    if (!d.ok) throw new Error(errText(d));
     location.reload();
   } catch (e) {
     const box = document.getElementById('save-err');
@@ -1506,8 +1500,8 @@ window.refreshPreview = async function() {
   }
   loading.style.display = '';
   try {
-    const r = await fetch(`/api/preview-data?email=${encodeURIComponent(email)}&template=${encodeURIComponent(TEMPLATE_NAME)}`);
-    const d = await r.json();
+    const d = await getJSON(`/api/preview-data?email=${encodeURIComponent(email)}&template=${encodeURIComponent(TEMPLATE_NAME)}`);
+    if (!d.ok) throw new Error(errText(d));
     // Bei einer Nachricht an Postfachinhaber gehört der Betreff dazu — er ist
     // Teil dessen, was der Empfänger sieht, und wird mit denselben Platzhaltern
     // gefüllt.
@@ -1530,8 +1524,7 @@ async function loadMailboxes() {
     // Schlanke Liste (nur Adresse + Name): Der Signatur-Editor braucht keine
     // Betriebssicht auf die Postfächer, und /api/mailboxes ist deshalb der
     // Verwaltung vorbehalten.
-    const r = await fetch('/api/mailboxes/namen');
-    const d = await r.json();
+    const d = await getJSON('/api/mailboxes/namen');
     const sel = document.getElementById('preview-email-sel');
     const adressen = [];
     (d.mailboxes || []).forEach(m => {
@@ -1637,9 +1630,8 @@ async function loadMeta() {
     return;
   }
   try {
-    const r = await fetch(`/api/templates/${encodeURIComponent(TEMPLATE_NAME)}/meta`);
-    if (!r.ok) { renderBlockList(); return; }
-    const meta = await r.json();
+    const meta = await getJSON(`/api/templates/${encodeURIComponent(TEMPLATE_NAME)}/meta`);
+    if (!meta.ok) { renderBlockList(); return; }
     const bf = document.getElementById('um-betreff');
     if (bf) bf.value = meta.betreff || '';
     if (meta.global) applyGlobal(meta.global);
@@ -1726,12 +1718,11 @@ window.renameTemplate = async function(name) {
 };
 window.deleteTemplate = async function(name) {
   if (!confirm('Vorlage "' + name + '" wirklich löschen?\n\nAlle Dateien werden unwiderruflich gelöscht.')) return;
-  const resp = await fetch('/api/templates/' + encodeURIComponent(name), {method: 'DELETE'});
-  if (resp.ok) {
+  const d = await sendJSON('DELETE', '/api/templates/' + encodeURIComponent(name));
+  if (d.ok) {
     window.location.href = '/template?name=default';
   } else {
-    const d = await resp.json().catch(() => ({}));
-    alert('Fehler: ' + (d.detail || 'Unbekannt'));
+    alert('Fehler: ' + errText(d));
   }
 };
 

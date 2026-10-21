@@ -22,7 +22,7 @@
 <script>
 function dismissWelcome() {
   document.getElementById('welcome-banner').style.display = 'none';
-  fetch('/api/welcome/dismiss', {method:'POST'}).catch(function(){});
+  sendJSON('POST', '/api/welcome/dismiss');
 }
 </script>
 {% endif %}
@@ -36,8 +36,8 @@ function dismissWelcome() {
 </div>
 <script>
 (function(){
-  fetch('/api/license/status').then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
-    if (!d || !d.exceeded) return;
+  getJSON('/api/license/status').then(function(d){
+    if (!d.ok || !d.exceeded) return;
     document.getElementById('fairuse-text').textContent =
       d.count + ' Postfächer sind für Signatur/S/MIME aktiviert — ' +
       (d.licensed ? 'das lizenzierte Limit (' + d.limit + ') ist überschritten. '
@@ -449,7 +449,7 @@ function showPoolTab(tabName, appIdx) {
         bars += '<div style="flex:1;background:#93c5fd;height:' + (dr.total > 0 ? Math.max(pct, 3) : 0) + '%;' +
           'border-radius:2px 2px 0 0;min-height:' + (dr.total>0?'3':'0') + 'px;cursor:pointer" ' +
           'title="' + dr.date + ' — ' + dr.total + ' Aufrufe" ' +
-          'onclick="showPoolDayDrill(' + appIdx + ',\'' + dr.date + '\')">' +
+          'onclick="showPoolDayDrill(' + appIdx + ',\'' + escJsAttr(dr.date) + '\')">' +
           '</div>';
       });
       bars += '</div>';
@@ -481,7 +481,7 @@ function showPoolDayDrill(appIdx, date) {
       } else if (data.hours && typeof data.hours === 'object') {
         Object.keys(data.hours).forEach(function(k) { hoursArr[parseInt(k)] = data.hours[k]; });
       }
-      var backBtn = '<button onclick="showPoolTab(\'' + _poolLastHistoryTab + '\',' + appIdx + ')" ' +
+      var backBtn = '<button onclick="showPoolTab(\'' + escJsAttr(_poolLastHistoryTab) + '\',' + appIdx + ')" ' +
         'style="padding:4px 10px;border:1px solid #e2e8f0;border-radius:4px;background:#f8f7f6;cursor:pointer;font-size:12px;margin-bottom:10px">← Zurück</button>';
       var throttled = p ? p.throttled : false;
       area.innerHTML = backBtn +
@@ -489,7 +489,7 @@ function showPoolDayDrill(appIdx, date) {
         _poolRender24hBars(hoursArr, throttled);
     })
     .catch(function(e) {
-      var backBtn = '<button onclick="showPoolTab(\'' + _poolLastHistoryTab + '\',' + appIdx + ')" ' +
+      var backBtn = '<button onclick="showPoolTab(\'' + escJsAttr(_poolLastHistoryTab) + '\',' + appIdx + ')" ' +
         'style="padding:4px 10px;border:1px solid #e2e8f0;border-radius:4px;background:#f8f7f6;cursor:pointer;font-size:12px;margin-bottom:10px">← Zurück</button>';
       area.innerHTML = backBtn + '<span style="color:#dc2626;font-size:12px">Fehler: ' + esc(e.message) + '</span>';
     });
@@ -549,9 +549,8 @@ function openInFlightInfo(active, maintHeld, dfCount) {
     var wrap = document.getElementById('watchdog-dash-banner');
     if (!wrap) return;
     try {
-      var r = await fetch('/api/watchdog/status');
-      if (!r.ok) { wrap.style.display = 'none'; return; }
-      var d = await r.json();
+      var d = await getJSON('/api/watchdog/status');
+      if (!d.ok) { wrap.style.display = 'none'; return; }
       if (!d.enabled) { wrap.style.display = 'none'; return; }   // nicht eingerichtet → nichts
       var kind = d.kind === 'cron' ? 'cron-Host' : (d.kind === 'azure' ? 'Azure Function' : 'Wächter');
       var seenMs = d.last_seen ? Date.parse(d.last_seen) : NaN;
@@ -645,8 +644,8 @@ function openInFlightInfo(active, maintHeld, dfCount) {
     }
     // Pool-Status
     try {
-      const pr = await fetch('/api/setup/app-pool/status');
-      const pd = await pr.json();
+      const pd = await getJSON('/api/setup/app-pool/status');
+      if (!pd.ok) throw new Error(errText(pd));
       _poolData = pd.pool || [];
       const nowH = new Date().getHours();
       let poolHtml = '';
@@ -667,7 +666,7 @@ function openInFlightInfo(active, maintHeld, dfCount) {
         poolHtml += '<div class="pool-zeile" onclick="openPoolModal(' + i + ')" style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid #f5f4f3;cursor:pointer;transition:background .15s">' +
           '<span style="color:' + dotColor + ';font-size:20px;flex-shrink:0">●</span>' +
           '<div style="flex:1;min-width:0">' +
-            '<div style="font-size:13px;font-weight:600;color:#1c1917">' + label + '</div>' +
+            '<div style="font-size:13px;font-weight:600;color:#1c1917">' + esc(label) + '</div>' +
             '<div style="font-size:11px;color:#78716c;margin-top:2px">' +
               '<span title="Aufrufe in dieser Stunde">' + thisH + ' / h</span>' +
               ' &nbsp;·&nbsp; <span title="Peak heute">Peak: ' + peakStr + '</span>' +
@@ -812,8 +811,8 @@ async function loadAuditPage() {
   qs.set('limit',  p.limit);
   qs.set('offset', p.offset);
   try {
-    const resp = await fetch('/api/audit/events?' + qs.toString());
-    const data = await resp.json();
+    const data = await getJSON('/api/audit/events?' + qs.toString());
+    if (!data.ok) throw new Error(errText(data));
     _auditTotal = data.total;
     renderAuditTable(data.events);
     const from = p.offset + 1, to = Math.min(p.offset + data.events.length, data.total);
@@ -902,8 +901,8 @@ async function openLogTailModal() {
   document.getElementById('logTailModal').style.display = 'flex';
   document.getElementById('logTailContent').textContent = 'Laden…';
   try {
-    const r = await fetch('/api/system/log-tail');
-    const d = await r.json();
+    const d = await getJSON('/api/system/log-tail');
+    if (!d.ok) throw new Error(errText(d));
     document.getElementById('logTailContent').textContent = (d.lines || []).join('\n') || '(keine Einträge)';
   } catch(e) {
     document.getElementById('logTailContent').textContent = 'Fehler: ' + e.message;

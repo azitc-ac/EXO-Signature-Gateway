@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.test_knopf_aktion import common_funktion
+from test_knopf_aktion import common_funktion
 
 WURZEL = Path(__file__).parent.parent
 VORLAGEN = WURZEL / "app/webui/templates"

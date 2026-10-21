@@ -75,7 +75,7 @@ function quickSearch(term) {
 }
 
 async function doSearch() {
-  const q    = (document.getElementById('searchInput').value || '').trim();
+  const q    = feldWert('searchInput');
   const from = document.getElementById('searchFrom').value;
   const to   = document.getElementById('searchTo').value;
   if (!q && !from && !to) return;
@@ -86,10 +86,9 @@ async function doSearch() {
   stats.style.display = 'block';
   results.style.display = 'none';
 
-  const resp = await fetch('/api/logs/search?q=' + encodeURIComponent(q)
+  const data = await getJSON('/api/logs/search?q=' + encodeURIComponent(q)
     + '&time_from=' + encodeURIComponent(from) + '&time_to=' + encodeURIComponent(to));
-  if (!resp.ok) { stats.textContent = 'Fehler bei der Suche.'; return; }
-  const data  = await resp.json();
+  if (!data.ok) { stats.textContent = 'Fehler bei der Suche: ' + errText(data); return; }
   const lines = data.results || [];
   stats.textContent = lines.length + ' Treffer' + (lines.length === 500 ? ' (Limit erreicht)' : '');
   pre.innerHTML = '';

@@ -38,25 +38,20 @@
 
 <script>
 async function acmeProxyLoad() {
-  const r = await fetch('/api/acme/http-proxy');
-  const d = await r.json();
+  const d = await getJSON('/api/acme/http-proxy');
+  if (!d.ok) return;
   const el = document.getElementById('acme-proxy-input');
   if (el) el.value = d.proxy || '';
 }
 
 async function acmeProxySave() {
-  const proxy = document.getElementById('acme-proxy-input').value.trim();
+  const proxy = feldWert('acme-proxy-input');
   const result = document.getElementById('acme-proxy-result');
-  const r = await fetch('/api/acme/http-proxy', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({proxy}),
-  });
-  const d = await r.json();
+  const d = await postJSON('/api/acme/http-proxy', {proxy});
   result.className = d.ok ? 'alert success' : 'alert error';
   result.textContent = d.ok
     ? (d.proxy ? 'Gespeichert: ' + d.proxy : 'Gespeichert: Direktverbindung (kein Proxy)')
-    : 'Fehler: ' + (d.error || JSON.stringify(d));
+    : 'Fehler: ' + errText(d);
   result.style.display = 'block';
   if (d.ok) wacheNeuMessen('acme-proxy-btn');
   else wacheFertig('acme-proxy-btn', false, '');
@@ -69,14 +64,13 @@ async function acmeProxyTest() {
   result.style.display = 'block';
   // Speichert vorher, damit der Test die gerade eingegebene URL prüft
   await acmeProxySaveSilent();
-  const r = await fetch('/api/acme/http-proxy/test', {method: 'POST'});
-  const d = await r.json();
+  const d = await sendJSON('POST', '/api/acme/http-proxy/test');
   result.className = 'alert ' + (d.ok ? 'success' : 'error');
-  result.textContent = d.message;
+  result.textContent = d.ok ? d.message : errText(d);
 }
 
 async function acmeProxySaveSilent() {
-  const proxy = document.getElementById('acme-proxy-input').value.trim();
+  const proxy = feldWert('acme-proxy-input');
   // Schlug der Aufruf fehl, blieb es frueher voellig unbemerkt — der Proxy
   // war nicht gesetzt, die Oberflaeche zeigte trotzdem nichts an.
   const d = await postJSON('/api/acme/http-proxy', {proxy});
@@ -135,8 +129,12 @@ async function acmeAccountUsersLoad() {
   const sel    = document.getElementById('acme-reset-user');
   const status = document.getElementById('acme-reset-status');
   try {
-    const r = await fetch('/api/acme/account-users');
-    const d = await r.json();
+    const d = await getJSON('/api/acme/account-users');
+    if (!d.ok) {
+      sel.innerHTML = '<option value="">Fehler beim Laden</option>';
+      status.textContent = errText(d);
+      return;
+    }
     _acmeUsers = d.users || [];
     sel.innerHTML = '';
     if (!_acmeUsers.length) {
@@ -175,16 +173,11 @@ async function acmeAccountReset() {
   if (!confirm(`ACME Account Key für ${email} löschen?\n\nDer nächste Erneuerungsversuch registriert einen neuen Account bei CASTLE.\nBestehende S/MIME-Zertifikate bleiben erhalten.`)) return;
 
   result.style.display = 'none';
-  const r = await fetch('/api/acme/account-reset', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({email}),
-  });
-  const d = await r.json();
+  const d = await postJSON('/api/acme/account-reset', {email});
   result.className = d.ok ? 'alert success' : 'alert error';
   result.textContent = d.ok
     ? 'Gelöscht: ' + (d.deleted.length ? d.deleted.join(', ') : 'keine Dateien vorhanden')
-    : 'Fehler: ' + (d.error || JSON.stringify(d));
+    : 'Fehler: ' + errText(d);
   result.style.display = 'block';
   await acmeAccountUsersLoad();
 }
@@ -343,9 +336,9 @@ let _obsPoller = null;
 async function obsSendTest() {
   const btn = document.getElementById('obs-send-btn');
   const result = document.getElementById('obs-send-result');
-  const from_email = (document.getElementById('obs-from').value||'').trim();
+  const from_email = feldWert('obs-from');
   const to_email   = (document.getElementById('obs-to').value||'acme@castle.cloud').trim();
-  const label      = (document.getElementById('obs-label').value||'').trim() || 'test-' + Date.now();
+  const label      = feldWert('obs-label') || 'test-' + Date.now();
   if (!from_email) { showAlert(result,'error','Absender-Adresse angeben.'); return; }
   hideAlert(result);
   const d = await knopfAktion(btn, 'Sendet…', () => postJSON('/api/test/send-graph-acme', {from_email, to_email, label}));
@@ -684,8 +677,8 @@ async function loadAuditLogInline() {
   wrap.style.display = 'block';
   pre.textContent = 'Lädt…';
   try {
-    const r = await fetch('/api/health/audit-log');
-    const data = await r.json();
+    const data = await getJSON('/api/health/audit-log');
+    if (!Array.isArray(data)) { pre.textContent = 'Fehler: ' + errText(data); return; }
     pre.textContent = (data && data.length) ? JSON.stringify(data, null, 2) : 'Keine Einträge.';
   } catch(e) {
     pre.textContent = 'Fehler: ' + e.message;
@@ -773,9 +766,8 @@ var _selftestData = [];
 
 (async function loadSelftestOptions() {
   try {
-    const r = await fetch('/api/test/mail-processor/options');
-    if (!r.ok) return;
-    const d = await r.json();
+    const d = await getJSON('/api/test/mail-processor/options');
+    if (!d.ok) return;
     const tmplSel = document.getElementById('selftest-template');
     d.templates.forEach(t => {
       const o = document.createElement('option');
@@ -795,15 +787,16 @@ async function runSelfTest() {
   document.getElementById('selftest-result').style.display = 'none';
   const template = document.getElementById('selftest-template').value;
   const email    = document.getElementById('selftest-email').value;
-  const body = (template || email) ? JSON.stringify({template, email}) : undefined;
+  const body = (template || email) ? {template, email} : undefined;
   await knopfAktion('selftest-btn', 'Läuft…', async () => {
     try {
-      const r = await fetch('/api/test/mail-processor', {
-        method: 'POST',
-        headers: body ? {'Content-Type': 'application/json'} : {},
-        body,
-      });
-      const d = await r.json();
+      // Ohne Auswahl ohne Rumpf (Testdaten), wie bisher — sendJSON lässt ihn dann weg.
+      const d = await sendJSON('POST', '/api/test/mail-processor', body);
+      if (!d.ok) {
+        document.getElementById('selftest-summary').innerHTML = `<span style="color:#dc2626">Fehler: ${esc(errText(d))}</span>`;
+        document.getElementById('selftest-result').style.display = '';
+        return;
+      }
       _selftestData = d.results;
       const allPassed = d.failed === 0;
       const sigNote = d.using_real_sig

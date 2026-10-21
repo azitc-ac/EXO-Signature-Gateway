@@ -5,6 +5,52 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.16 — 2026-10-21 — Werte von außen maskiert; einheitliche Fehlerbehandlung beim Laden
+
+- **Sicherheit: ungemaskierte Werte in der Oberfläche.** Mehrere Anzeigen
+  setzten Werte als HTML ein, ohne sie zu maskieren. Ein präparierter Wert
+  konnte so Skript im angemeldeten Browser ausführen. Betroffen waren:
+  - **Warteschlange** (*Erweitert → Wartung*): Absender, Empfänger und Betreff
+    zurückgehaltener Mails. Die Werte stammen aus der Mail selbst, also von
+    außen. Die Vorschau der Mail selbst lief schon vorher abgeschottet.
+  - **Zertifikatsdetails** (*S/MIME*): Inhaber und Aussteller. Bei
+    Empfängerzertifikaten, die das Gateway aus eingehender Post übernimmt,
+    kommen auch diese Werte von außen.
+  - **Vorlagen-Editor**: Block-IDs aus der gespeicherten Vorlage. Die Vorlage
+    schreibt auch die Rolle „Signatur-Editor“, die weniger Rechte hat als ein
+    Admin, der die Vorlage öffnet.
+  - **Knöpfe in Listen** (Gruppen, Admin-Konten, Empfänger der
+    Benachrichtigungen, Relay-Identitäten, Wächter u. a.): Diese Werte waren
+    für HTML maskiert, aber nicht für den Skriptaufruf des Knopfes. Ein
+    Gruppenname mit Apostroph („O'Brien“) brach den Entfernen-Knopf.
+  - Weitere Anzeigen mit Werten vom Hub, von Entra oder aus eigenen Eingaben,
+    darunter DNS-Einträge, Domänen, Fehlermeldungen des Hubs und Update-Fehler.
+
+  **Zu tun:** Aktualisiere das Gateway. Schlüssel oder Zertifikate musst du
+  nicht neu ausstellen.
+- **Fehler beim Laden werden angezeigt statt verschluckt.** 147 Abrufe
+  der Oberfläche liefen bisher über eigenen Code statt über die gemeinsamen
+  Helfer. Antwortete der Server ohne JSON, warf dieser Code, und die Anzeige
+  blieb leer oder zeigte einen falschen Zustand. Das passiert etwa bei der
+  Fehlerseite des Proxys während eines Neustarts oder bei einer abgelaufenen
+  Anmeldung. Beispiele:
+  - „Kein separates Zertifikat“ in der SMTP-Zertifikatsanzeige;
+  - „Keine Benutzer konfiguriert“ bei ACME;
+  - eine leere Vorschau statt einer Fehlermeldung.
+
+  Jetzt laufen alle Abrufe über dieselben Helfer. Die Fehlermeldung des
+  Servers erscheint am Ort. Ein ausgefallener Abruf wird von einer
+  fachlichen Absage unterschieden. Dadurch zeigen der Kontostand, die
+  Zertifikatsberechtigung, das Update-Polling und die Hub-Anbindung bei einem
+  Netzausfall „nicht abrufbar“ oder warten auf den nächsten Takt. Bisher
+  stand dort etwa „keine Anbindung“, oder ein Versuch wurde abgebrochen.
+- Auf der **Relay-Seite** überschreibt ein Fehler beim Laden von Domänen,
+  Statistik oder Protokoll nicht mehr die Geräteliste.
+- Tests sperren neue Abrufe von Hand, Werte in Knopf-Aufrufen ohne
+  Skript-Maskierung und von Hand gelesene Feldwerte.
+
+**Zu tun:** Aktualisiere das Gateway (siehe Sicherheit oben). Sonst nichts.
+
 ## v1.10.15 — 2026-10-21 — Aktionen im Mailprotokoll aus einer Tabelle
 
 - **Mailprotokoll auf der Übersicht und auf der Relay-Seite**: Name und Farbe
@@ -16,7 +62,8 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
   entschlüsselt erscheinen in Blautönen statt in Türkis.
 - Ein Test gleicht die Tabelle mit den Aktionen ab, die der Mail-Handler ins
   Protokoll schreibt. Eine neue Aktion ohne Namen fällt damit auf.
-- **Zu tun:** nichts.
+
+**Zu tun:** nichts.
 
 ## v1.10.14 — 2026-10-21 — Zustandsfarben aus dem Stylesheet; ein Schreibweg für Einstellungen
 

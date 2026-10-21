@@ -149,8 +149,8 @@
         email, template: werte.signatur, banner: werte.banner,
         disclaimer: werte.disclaimer, oof: werte.oof, explizit: '1',
       });
-      const r = await fetch('/api/preview-data?' + p.toString());
-      const d = await r.json();
+      const d = await getJSON('/api/preview-data?' + p.toString());
+      if (!d.ok) throw new Error(errText(d));
 
       if (d.error) showError('Graph-Fehler: ' + d.error);
 
