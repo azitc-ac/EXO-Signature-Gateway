@@ -59,7 +59,12 @@ def test_server_text_in_showalert_maskiert():
 def test_powershell_ausgabe_maskiert():
     t = (VORLAGEN / "setup.html").read_text(encoding="utf-8")
     assert not re.search(r"=\s*\(\s*\w+\.output\s*\|\|", t)
-    assert t.count("esc(d.output || '').replace(/\\n/g, '<br>')") == 3
+    # Die drei Einrichtungsschritte (Connector, S/MIME-Regeln, IMAP) zeigen ihre
+    # Ausgabe über EINEN Helfer — dort wird maskiert, und keiner baut sie selbst.
+    assert t.count("esc(d.output || '').replace(/\\n/g, '<br>')") == 1
+    assert t.count(".output") == 1
+    for url in ("exo-connector", "smime-rules", "imap-access"):
+        assert re.search(r"_skriptSchritt\('/api/setup/" + url + "'", t), url
 
 
 def test_pruefer_erkennt_muster():

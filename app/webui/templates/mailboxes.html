@@ -105,7 +105,7 @@ refreshFairUse();
       Was würde sich ändern?</button>
     <button class="btn secondary btn-sm" id="anker-anwenden-btn" onclick="ankerAnwenden()"
             style="display:none">Umstellen</button>
-    <span id="anker-ergebnis" style="font-size:12px"></span>
+    <span id="anker-ergebnis" class="fortschritt" hidden></span>
   </div>
   <div id="anker-vorschau" style="display:none;margin-top:9px"></div>
 </div>
@@ -113,15 +113,9 @@ refreshFairUse();
 async function ankerVorschau() {
   const knopf = document.getElementById('anker-vorschau-btn');
   const kasten = document.getElementById('anker-vorschau');
-  knopf.disabled = true;
-  showMsg(document.getElementById('anker-ergebnis'), 'Gleiche mit Exchange ab…', true);
-  const d = await getJSON('/api/mailboxes/migrate/preview');
-  knopf.disabled = false;
-  if (!d || !d.ok) {
-    showMsg(document.getElementById('anker-ergebnis'), (d && d.error) || 'Vorschau fehlgeschlagen', false);
-    return;
-  }
-  showMsg(document.getElementById('anker-ergebnis'), '', true);
+  const d = await knopfAktion(knopf, 'Gleiche mit Exchange ab…',
+                              () => getJSON('/api/mailboxes/migrate/preview'), {anzeige: 'anker-ergebnis'});
+  if (!d.ok) { showMsg('anker-ergebnis', d.error || 'Vorschau fehlgeschlagen', false); return; }
   let html = '<ul style="margin:0;padding-left:18px">';
   html += '<li><strong>' + (d.migrated || []).length + '</strong> werden umgestellt</li>';
   if ((d.merges || []).length)
@@ -145,14 +139,13 @@ async function ankerAnwenden() {
   if (!confirm('Die Zuordnung wird auf die unveränderliche Postfachkennung umgestellt.\n\n'
              + 'Einstellungen je Postfach bleiben erhalten. Fortfahren?')) return;
   const knopf = document.getElementById('anker-anwenden-btn');
-  knopf.disabled = true;
-  const d = await postJSON('/api/mailboxes/migrate/apply', {});
-  if (d && d.ok) {
-    showMsg(document.getElementById('anker-ergebnis'), 'Umgestellt — Seite wird neu geladen…', true);
+  const d = await knopfAktion(knopf, null, () => postJSON('/api/mailboxes/migrate/apply'),
+                              {gesperrtLassen: true});
+  if (d.ok) {
+    showMsg('anker-ergebnis', 'Umgestellt — Seite wird neu geladen…', true);
     setTimeout(function(){ location.reload(); }, 1200);
   } else {
-    knopf.disabled = false;
-    showMsg(document.getElementById('anker-ergebnis'), (d && d.error) || 'Fehlgeschlagen', false);
+    showMsg('anker-ergebnis', d.error || 'Fehlgeschlagen', false);
   }
 }
 </script>
@@ -167,7 +160,7 @@ async function ankerAnwenden() {
   <div class="actions" style="margin-bottom:8px">
     <button class="btn secondary btn-sm" id="mb-load-btn" onclick="loadMailboxes()">Postfächer laden</button>
     <button class="btn secondary btn-sm" id="mb-refresh-btn" onclick="refreshMailboxStatus()" style="display:none">Status aktualisieren</button>
-    <span id="mb-load-status" style="font-size:12px;color:#888;margin-left:8px"></span>
+    <span id="mb-load-status" hidden style="margin-left:8px"></span>
   </div>
   <div id="mb-table-wrap" style="display:none">
     <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center">
@@ -777,18 +770,21 @@ async function saveSelfTplGroups() {
 // ── Postfächer ───────────────────────────────────────────────────────────────
 
 async function loadMailboxes(silent) {
-  var btn = document.getElementById('mb-load-btn');
-  var status = document.getElementById('mb-load-status');
-  var slowHint = null;
-  if (!silent) {
-    btn.disabled = true; status.textContent = 'Lade…';
+  if (silent) return _postfaecherLaden(true);
+  var d = await knopfAktion('mb-load-btn', 'Lade…', function(text) {
     // Normally near-instant (Postfachliste ist im Hintergrund vorgewärmt).
     // Falls es doch länger dauert (z.B. kurz nach einem Neustart), erklären
     // statt den Nutzer im Unklaren zu lassen.
-    slowHint = setTimeout(function() {
-      status.textContent = 'Verbinde mit Exchange Online… (kann beim ersten Laden nach einem Neustart bis zu 30s dauern)';
+    var slowHint = setTimeout(function() {
+      text('Verbinde mit Exchange Online… (kann beim ersten Laden nach einem Neustart bis zu 30s dauern)');
     }, 3000);
-  }
+    return _postfaecherLaden(false).finally(function() { clearTimeout(slowHint); });
+  }, {anzeige: 'mb-load-status'});
+  showMsg('mb-load-status', d.ok ? _mbData.length + ' Postfächer geladen' : 'Fehler: ' + d.error, d.ok);
+}
+
+// Liefert {ok} bzw. {ok:false, error} — Anzeige und Knopf führt der Aufrufer.
+async function _postfaecherLaden(silent) {
   try {
     // Refresh template list
     try {
@@ -815,8 +811,6 @@ async function loadMailboxes(silent) {
     _hasHealthData = true;
     renderMailboxTable(_mbData);
     document.getElementById('th-status').style.display = '';
-    if (slowHint) clearTimeout(slowHint);
-    if (!silent) status.textContent = _mbData.length + ' Postfächer geladen';
     document.getElementById('mb-table-wrap').style.display = '';
     // Erst NACH dem Einblenden messen: an einem `display:none`-Element sind
     // alle Masse null, die Hoehe fiele auf die Untergrenze.
@@ -835,11 +829,9 @@ async function loadMailboxes(silent) {
       _healthAutoKicked = true;
       _kickHealthBackground();
     }
+    return {ok: true};
   } catch(e) {
-    if (slowHint) clearTimeout(slowHint);
-    if (!silent) status.textContent = 'Fehler: ' + e.message;
-  } finally {
-    if (!silent) btn.disabled = false;
+    return {ok: false, error: e.message};
   }
 }
 
@@ -852,25 +844,17 @@ async function _kickHealthBackground() {
 }
 
 async function refreshMailboxStatus() {
-  var btn = document.getElementById('mb-refresh-btn');
-  var status = document.getElementById('mb-load-status');
-  btn.disabled = true;
-  status.textContent = 'Prüfe… (kann 60 s dauern)';
-  try {
-    var resp = await fetch('/api/health/mailboxes', {method: 'POST'});
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-  } catch(e) {
-    status.textContent = 'Fehler: ' + e.message;
-    btn.disabled = false;
-    return;
-  }
-  // Bookings URLs gleich mitermitteln
-  try { await fetch('/api/mailboxes/fetch-bookings-urls', {method: 'POST'}); } catch(_) {}
-  await loadMailboxes(true);
+  var d = await knopfAktion('mb-refresh-btn', 'Prüfe… (kann 60 s dauern)', async function() {
+    var r = await postJSON('/api/health/mailboxes');
+    if (!r.ok) return r;
+    // Bookings URLs gleich mitermitteln
+    await postJSON('/api/mailboxes/fetch-bookings-urls');
+    return _postfaecherLaden(true);
+  }, {anzeige: 'mb-load-status'});
+  if (!d.ok) { showMsg('mb-load-status', 'Fehler: ' + errText(d), false); return; }
   document.getElementById('th-status').style.display = '';
-  status.textContent = 'Aktualisiert.';
-  btn.disabled = false;
-  setTimeout(function() { status.textContent = ''; }, 3000);
+  showMsg('mb-load-status', 'Aktualisiert.', true);
+  setTimeout(function() { laeuftZeigen('mb-load-status', null); }, 3000);
 }
 
 // Wahl-Slots (Signatur, Antwort-Signatur, Abwesenheit) gehören dem Nutzer und
@@ -1006,21 +990,13 @@ function showHealthModal(mb) {
 async function fetchOneBookingsUrl(email) {
   var btn = document.getElementById('bk-fetch-btn-modal');
   var res = document.getElementById('bk-fetch-modal-result');
-  if (btn) { btn.disabled = true; btn.textContent = '…'; }
-  try {
-    var r = await fetch('/api/mailboxes/fetch-bookings-urls', {method: 'POST'});
-    var d = await r.json();
-    if (d.ok && d.urls && d.urls[email]) {
-      if (res) showMsg(res, '✓', true);
-      var mb = _mbData.find(function(m) { return m.email === email; });
-      if (mb) { mb.bookings_url = d.urls[email]; showHealthModal(mb); }
-    } else {
-      if (res) showMsg(res, d.error || 'Fehler', false);
-      if (btn) { btn.disabled = false; btn.textContent = 'Jetzt ermitteln'; }
-    }
-  } catch(e) {
-    if (res) showMsg(res, e.message, false);
-    if (btn) { btn.disabled = false; btn.textContent = 'Jetzt ermitteln'; }
+  var d = await knopfAktion(btn, '…', function() { return postJSON('/api/mailboxes/fetch-bookings-urls'); });
+  if (d.ok && d.urls && d.urls[email]) {
+    if (res) showMsg(res, '✓', true);
+    var mb = _mbData.find(function(m) { return m.email === email; });
+    if (mb) { mb.bookings_url = d.urls[email]; showHealthModal(mb); }
+  } else {
+    if (res) showMsg(res, (d.ok ? '' : errText(d)) || 'Fehler', false);
   }
 }
 
@@ -1323,54 +1299,37 @@ async function saveMailboxes() {
   // fünfzig Zertifikate. Was bei der CA liegt, lässt sich nicht zurückholen.
   if (!(await autoEnrollBestaetigt(payload))) return;
 
-  var btn = document.getElementById('mb-save-btn');
-  btn.disabled = true;
-  var origText = btn.textContent;
-  btn.textContent = 'Wird gespeichert… (EXO, kann 2 Min. dauern)';
   result.style.display = 'none';
-  try {
-    var resp = await fetch('/api/mailboxes/save', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({mailboxes: payload, update_dg: true}),
-    });
-    var d = await resp.json().catch(function() { return {}; });
-    if (resp.ok && d.ok && d.dg_running) {
-      // Der LOKALE Teil ist durch → Wache SOFORT schliessen ("noch nicht
-      // gespeichert" weg), damit nicht der Eindruck entsteht, das Speichern
-      // hänge. Die Verteilerlisten-Aktualisierung läuft serverseitig im
-      // Hintergrund weiter — unabhängig davon, was auf der Seite noch passiert
-      // (Weiterarbeiten, Navigieren). Darum _pollDgStatus OHNE await: es führt
-      // nur die Statuszeile nach und fasst die Wache NICHT erneut an (sonst
-      // würden zwischenzeitlich neue Änderungen fälschlich als gespeichert gelten).
-      refreshFairUse();
-      wacheFertig('mb-save-btn', true);
-      result.className = 'alert';
-      result.innerHTML = 'Lokal gespeichert. Die Verteilerliste wird bei EXO im Hintergrund aktualisiert (5–15 Min.) — du kannst weiterarbeiten.';
-      result.style.display = 'block';
-      _pollDgStatus(result);
-    } else if (resp.ok && d.ok) {
-      result.className = 'alert success';
-      result.innerHTML = 'Gespeichert.';
-      result.style.display = 'block';
-      refreshFairUse();
-      wacheFertig('mb-save-btn', true);
-    } else {
-      result.className = 'alert error';
-      result.innerHTML = 'Fehler: ' + esc(d.detail || 'Unbekannt');
-      result.style.display = 'block';
-      wacheFertig('mb-save-btn', false);
-    }
-  } catch (e) {
+  // Knopf-Zustand danach gehört der Wache: Jeder Zweig unten ruft wacheFertig —
+  // NACH knopfAktion, sonst öffnete dessen Freigabe den gesperrten Knopf wieder.
+  var d = await knopfAktion('mb-save-btn', 'Wird gespeichert… (EXO, kann 2 Min. dauern)', function() {
+    return postJSON('/api/mailboxes/save', {mailboxes: payload, update_dg: true});
+  });
+  if (d.ok && d.dg_running) {
+    // Der LOKALE Teil ist durch → Wache SOFORT schliessen ("noch nicht
+    // gespeichert" weg), damit nicht der Eindruck entsteht, das Speichern
+    // hänge. Die Verteilerlisten-Aktualisierung läuft serverseitig im
+    // Hintergrund weiter — unabhängig davon, was auf der Seite noch passiert
+    // (Weiterarbeiten, Navigieren). Darum _pollDgStatus OHNE await: es führt
+    // nur die Statuszeile nach und fasst die Wache NICHT erneut an (sonst
+    // würden zwischenzeitlich neue Änderungen fälschlich als gespeichert gelten).
+    refreshFairUse();
+    wacheFertig('mb-save-btn', true);
+    result.className = 'alert';
+    result.innerHTML = 'Lokal gespeichert. Die Verteilerliste wird bei EXO im Hintergrund aktualisiert (5–15 Min.) — du kannst weiterarbeiten.';
+    result.style.display = 'block';
+    _pollDgStatus(result);
+  } else if (d.ok) {
+    result.className = 'alert success';
+    result.innerHTML = 'Gespeichert.';
+    result.style.display = 'block';
+    refreshFairUse();
+    wacheFertig('mb-save-btn', true);
+  } else {
     result.className = 'alert error';
-    result.innerHTML = 'Speichern fehlgeschlagen: ' + esc(String(e));
+    result.innerHTML = 'Fehler: ' + esc(errText(d));
     result.style.display = 'block';
     wacheFertig('mb-save-btn', false);
-  } finally {
-    // Knopf-Zustand gehört der Wache (jeder Zweig oben ruft wacheFertig): bei
-    // Erfolg gesperrt, bei Fehler wieder offen. Hier daher NICHT disabled=false
-    // setzen — das würde den eben korrekt gesperrten Knopf wieder öffnen.
-    btn.textContent = origText;
   }
 }
 

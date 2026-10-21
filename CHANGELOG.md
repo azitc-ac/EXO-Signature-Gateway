@@ -5,6 +5,50 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.13 — 2026-10-21 — Knöpfe zeigen, dass sie arbeiten; Uploads und Downloads aus einem Baustein
+
+- **Drehender Pfeil an jedem Knopf mit Aktion.** Bisher hatte ihn nur
+  *Jetzt aktualisieren*. Jetzt zeigt jeder Knopf der Verwaltungsoberfläche, der etwas
+  anstößt, während der Arbeit ⟳ und ist so lange gesperrt. Wo neben dem Knopf eine
+  Fortschrittsanzeige steht, dreht der Pfeil dort, und die Anzeige nennt den
+  laufenden Teilschritt. Das gilt etwa für:
+  - Backup erstellen, lesen und wiederherstellen;
+  - Support-Bundle;
+  - Selbsttest;
+  - Postfächer laden;
+  - Container-Neustart;
+  - Watchdog-Bereitstellung.
+
+  Diese Anzeigen sehen jetzt überall gleich aus, im hellen wie im dunklen
+  Modus. Bei längeren Teilschritten ohne Abschlussbericht ist das die einzige
+  Rückmeldung, was gerade läuft.
+- **Knöpfe bleiben nach einem Fehler nicht mehr gesperrt.** Viele Aktionen
+  sperrten ihren Knopf von Hand und gaben ihn bei einem Netzwerkfehler nicht
+  wieder frei. Er blieb dann bis zum Neuladen der Seite tot. Jetzt wird er immer
+  freigegeben. Ausgenommen sind Neustart, Update und Aktionen, nach denen die
+  Seite ohnehin neu lädt: Dort bleibt der Knopf gesperrt und der Pfeil dreht,
+  bis die Seite neu geladen ist.
+- **Fehlermeldungen nennen die Begründung des Servers** statt „Unbekannt“.
+- **Portal-Nachricht widerrufen** meldete „Widerrufen“, sobald der Server
+  antwortete, auch wenn er den Widerruf ablehnte. Jetzt zählt seine Antwort.
+- **Texte vom Server werden maskiert.** An einigen Stellen wurden sie
+  ungeprüft als HTML eingesetzt, unter anderem:
+  - Organisationsname beim Graph-Test;
+  - Dateiname beim Download;
+  - Warnungen bei der Wiederherstellung;
+  - Namen und Details im Selbsttest;
+  - Ticketnummer beim Support-Upload;
+  - Zertifikatsangaben;
+  - Pool-App-Name.
+
+  Die Texte stammen vom eigenen Gateway bzw. aus Eingaben der Administration.
+- **Gemeinsame Bausteine.** Knopfaktionen, Datei-Uploads (zehn Stellen in
+  sechs Seiten) und Downloads laufen über je eine Funktion statt über
+  handgeschriebene Varianten auf jeder Seite. Tests verhindern neue
+  Handarbeit. Der Anteil kopierten UI-JavaScripts sinkt um knapp ein Drittel.
+
+**Zu tun:** nichts.
+
 ## v1.10.12 — 2026-10-21 — Postfächer: Banner und Disclaimer aus einem Baustein
 
 Die Auswahl von Banner und Disclaimer in jeder Postfachzeile war zweimal

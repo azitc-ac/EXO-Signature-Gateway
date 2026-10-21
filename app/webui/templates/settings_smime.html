@@ -366,7 +366,7 @@
           onclick="document.getElementById('portal-logo-file').click()">Logo hochladen…</button>
         <button class="btn secondary btn-sm" type="button" id="portal-logo-remove"
           style="display:none" onclick="removePortalLogo()">Entfernen</button>
-        <span id="portal-logo-result" style="font-size:12px"></span>
+        <span id="portal-logo-result" class="fortschritt" hidden></span>
       </div>
       {# „Sofort wirksam — Speichern-Button nicht nötig" stand hier bis v1.7.186
          und las sich wie eine Aussage über die ganze Karte: Der Knopf darunter
@@ -698,36 +698,26 @@ async function uploadPortalLogo(input) {
   var file = input.files && input.files[0];
   if (!file) return;
   input.value = '';
-  var res = document.getElementById('portal-logo-result');
-  if (file.size > 512 * 1024) {
-    res.textContent = '✗ Zu groß (max. 512 KB)'; res.style.color = '#dc2626'; return;
-  }
-  res.textContent = 'Wird hochgeladen…'; res.style.color = '';
+  var res = 'portal-logo-result';
+  if (file.size > 512 * 1024) { showMsg(res, '✗ Zu groß (max. 512 KB)', false); return; }
   var fd = new FormData();
   fd.append('file', file);
-  try {
-    var resp = await fetch('/api/portal/branding/logo', {method: 'POST', body: fd});
-    if (resp.ok) {
-      res.textContent = '✓ Logo gespeichert'; res.style.color = '#16a34a';
-      refreshPortalLogo();
-    } else {
-      var d = await resp.json().catch(function(){ return {}; });
-      res.textContent = '✗ ' + (d.detail || 'Fehler'); res.style.color = '#dc2626';
-    }
-  } catch(e) { res.textContent = '✗ Netzwerkfehler' + ursache(e, 'settings_smime:520'); res.style.color = '#dc2626'; }
-  setTimeout(function(){ res.textContent = ''; }, 4000);
+  // Kein eigener Knopf: Die Dateiauswahl löst das Hochladen aus.
+  var d = await knopfAktion(null, 'Wird hochgeladen…', function () {
+    return sendeFormular('/api/portal/branding/logo', fd);
+  }, {anzeige: res});
+  if (d.ok) { showMsg(res, '✓ Logo gespeichert', true); refreshPortalLogo(); }
+  else showMsg(res, '✗ ' + errText(d), false);
+  setTimeout(function(){ laeuftZeigen(res, null); }, 4000);
 }
 
 async function removePortalLogo() {
   if (!confirm('Logo entfernen?')) return;
-  var res = document.getElementById('portal-logo-result');
-  try {
-    var resp = await fetch('/api/portal/branding/logo', {method: 'DELETE'});
-    res.textContent = resp.ok ? '✓ Entfernt' : '✗ Fehler';
-    res.style.color = resp.ok ? '#16a34a' : '#dc2626';
-    refreshPortalLogo();
-  } catch(e) { res.textContent = '✗ Netzwerkfehler' + ursache(e, 'settings_smime:532'); res.style.color = '#dc2626'; }
-  setTimeout(function(){ res.textContent = ''; }, 3000);
+  var res = 'portal-logo-result';
+  var d = await sendJSON('DELETE', '/api/portal/branding/logo');
+  showMsg(res, d.ok ? '✓ Entfernt' : '✗ ' + errText(d), d.ok);
+  refreshPortalLogo();
+  setTimeout(function(){ laeuftZeigen(res, null); }, 3000);
 }
 
 function toggleTagField(inputId, enabled) {
@@ -783,8 +773,6 @@ function checkKeyPasswords() {
   if (saveWrap) saveWrap.style.display = (p1.length > 0 && p1 === p2) ? '' : 'none';
 }
 
-function showPw(id) { var el = document.getElementById(id); if (el) el.type = 'text'; }
-function hidePw(id) { var el = document.getElementById(id); if (el) el.type = 'password'; }
 
 function showSmimeKeyPwForm() {
   var s = document.getElementById('smime-key-pw-status');

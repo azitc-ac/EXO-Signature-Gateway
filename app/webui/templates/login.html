@@ -76,25 +76,15 @@
 // selbst aus location.search lesen — dort stünde auch `javascript:` oder
 // `//fremd.example`, und location.href führte es aus.
 const ANMELDE_ZIEL = {{ next | tojson }};
-function showPw(id) { var el = document.getElementById(id); if (el) el.type = 'text'; }
-function hidePw(id) { var el = document.getElementById(id); if (el) el.type = 'password'; }
 
 async function startSsoLogin() {
-  const btn = document.getElementById('btn-ms-login');
-  btn.disabled = true;
-  btn.textContent = 'Öffne Microsoft-Login…';
-  try {
-    const resp = await fetch('/api/auth/sso-url?next=' + encodeURIComponent(ANMELDE_ZIEL));
-    if (!resp.ok) throw new Error((await resp.json().catch(()=>({}))).detail || resp.status);
-    const data = await resp.json();
-    // Same-tab navigation (wie der Hub) — der Button erscheint nur, wenn der
-    // aktuelle Host = SSO-Host ist, daher kommt der Callback sicher hierher zurück.
-    window.location.href = data.auth_url;
-  } catch(e) {
-    alert('Fehler beim Starten des Logins: ' + e.message);
-    btn.disabled = false;
-    btn.textContent = 'Mit Microsoft anmelden';
-  }
+  // Bei Erfolg gesperrt lassen: Die Seite wechselt zu Microsoft.
+  const data = await knopfAktion('btn-ms-login', 'Öffne Microsoft-Login…',
+    () => getJSON('/api/auth/sso-url?next=' + encodeURIComponent(ANMELDE_ZIEL)), {gesperrtLassen: true});
+  if (!data.ok) { alert('Fehler beim Starten des Logins: ' + errText(data)); return; }
+  // Same-tab navigation (wie der Hub) — der Button erscheint nur, wenn der
+  // aktuelle Host = SSO-Host ist, daher kommt der Callback sicher hierher zurück.
+  window.location.href = data.auth_url;
 }
 
 async function submitSsoPaste() {
@@ -103,28 +93,12 @@ async function submitSsoPaste() {
   errEl.style.display = 'none';
   if (!url) { errEl.textContent = 'Bitte URL einfügen'; errEl.style.display = 'block'; return; }
   const btn = document.querySelector('#sso-paste-section .btn.primary');
-  btn.disabled = true;
-  btn.textContent = 'Verarbeite…';
-  try {
-    const resp = await fetch('/api/auth/sso-paste', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({url}),
-    });
-    if (resp.ok) {
-      window.location.href = ANMELDE_ZIEL;
-    } else {
-      const d = await resp.json().catch(()=>({}));
-      errEl.textContent = d.detail || 'Fehler';
-      errEl.style.display = 'block';
-    }
-  } catch(e) {
-    errEl.textContent = 'Verbindungsfehler' + ursache(e, 'login:118');
-    errEl.style.display = 'block';
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Anmelden';
-  }
+  // Bei Erfolg gesperrt lassen: Die Seite wechselt gleich.
+  const d = await knopfAktion(btn, 'Verarbeite…', () => postJSON('/api/auth/sso-paste', {url}),
+                              {gesperrtLassen: true});
+  if (d.ok) { window.location.href = ANMELDE_ZIEL; return; }
+  errEl.textContent = errText(d);
+  errEl.style.display = 'block';
 }
 
 async function localLogin() {

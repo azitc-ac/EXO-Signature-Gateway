@@ -152,11 +152,11 @@
           </select>
           <button type="button" class="btn secondary btn-sm" onclick="refreshSenderMailboxes(this)"
                   title="Postfachliste neu laden">↻</button>
-          <span id="sender-mb-refresh-result" style="font-size:12px;color:#64748b"></span>
+          <span id="sender-mb-refresh-result" hidden></span>
         </div>
         <div id="notif-create-shared-row" style="display:none;margin-top:8px;align-items:center;gap:8px">
           <button type="button" class="btn secondary btn-sm" onclick="createNotificationSharedMailbox(this)">Erstellen</button>
-          <span id="notif-create-shared-status" style="font-size:12px;color:#64748b"></span>
+          <span id="notif-create-shared-status" hidden></span>
         </div>
       </div>
     </div>
@@ -316,8 +316,6 @@
 
 // savePartial() steht in common.js — eine Fassung fuer alle Seiten.
 
-function showPw(id) { var el = document.getElementById(id); if (el) el.type = 'text'; }
-function hidePw(id) { var el = document.getElementById(id); if (el) el.type = 'password'; }
 
 async function saveZugangsdaten() {
   const _ok = await savePartial({ WEBUI_USERNAME: (document.getElementById('webui-username').value || '').trim() }, 'zugangsdaten-result');
@@ -642,48 +640,26 @@ function _populateNotifMailboxSelect(mailboxes, selectedEmail) {
 }
 
 async function createNotificationSharedMailbox(btn) {
-  const status = document.getElementById('notif-create-shared-status');
-  btn.disabled = true;
-  status.style.color = '#64748b';
-  status.textContent = 'Wird angelegt… (kann bis zu einer Minute dauern)';
-  try {
-    const r = await fetch('/api/settings/notification-mailbox/create-shared', {method: 'POST'});
-    const d = await r.json();
-    if (!r.ok || !d.ok) {
-      status.textContent = '✗ Fehler: ' + (d.detail || 'unbekannt');
-      status.style.color = '#dc2626';
-      btn.disabled = false;
-      return;
-    }
-    _populateNotifMailboxSelect(d.mailboxes, d.email);
-    document.getElementById('notif-create-shared-row').style.display = 'none';
-    status.textContent = '';
-  } catch(e) {
-    status.textContent = '✗ Netzwerkfehler' + ursache(e, 'settings:612');
-    status.style.color = '#dc2626';
-    btn.disabled = false;
-  }
+  const status = 'notif-create-shared-status';
+  const d = await knopfAktion(btn, 'Wird angelegt… (kann bis zu einer Minute dauern)',
+    () => postJSON('/api/settings/notification-mailbox/create-shared'), {anzeige: status});
+  if (!d.ok) { showMsg(status, '✗ Fehler: ' + errText(d), false); return; }
+  _populateNotifMailboxSelect(d.mailboxes, d.email);
+  document.getElementById('notif-create-shared-row').style.display = 'none';
 }
 
 async function refreshSenderMailboxes(btn) {
-  const result = document.getElementById('sender-mb-refresh-result');
-  btn.disabled = true;
-  result.textContent = 'Wird geladen…';
-  try {
-    const r = await fetch('/api/settings/sender-mailboxes/refresh', {method: 'POST'});
-    const d = await r.json();
-    if (!r.ok) { result.textContent = '✗ Fehler'; result.style.color = '#dc2626'; return; }
+  const result = 'sender-mb-refresh-result';
+  const d = await knopfAktion(btn, 'Wird geladen…',
+    () => postJSON('/api/settings/sender-mailboxes/refresh'), {anzeige: result});
+  if (d.ok) {
     const prev = document.getElementById('notif-mailbox').value;
     _populateNotifMailboxSelect(d.mailboxes, prev === '__create_shared__' ? '' : prev);
-    result.textContent = '✓ ' + (d.mailboxes || []).length + ' Postfächer';
-    result.style.color = '#16a34a';
-  } catch(e) {
-    result.textContent = '✗ Netzwerkfehler' + ursache(e, 'settings:631');
-    result.style.color = '#dc2626';
-  } finally {
-    btn.disabled = false;
-    setTimeout(function() { result.textContent = ''; }, 4000);
+    showMsg(result, '✓ ' + (d.mailboxes || []).length + ' Postfächer', true);
+  } else {
+    showMsg(result, '✗ Fehler: ' + errText(d), false);
   }
+  setTimeout(function() { laeuftZeigen(result, null); }, 4000);
 }
 
 const _currentNotifMailbox = {{ s.NOTIFICATION_MAILBOX | tojson }};
@@ -822,34 +798,22 @@ function removeNotifRecipient(email) {
 async function saveNotifDg() {
   const btn = document.getElementById('notif-dg-btn');
   const result = document.getElementById('notif-dg-result');
-  btn.disabled = true;
   result.dataset.zustand = '';
   result.textContent = 'Wird in EXO übertragen…';
-  try {
-    const resp = await fetch('/api/setup/notification-dg', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        recipients: _notifRecipients,
-        accept_external: document.getElementById('notif-dg-external').checked,
-      }),
-    });
-    const d = await resp.json().catch(() => ({}));
-    if (resp.ok && d.ok) {
-      _dgExternInExo = document.getElementById('notif-dg-external').checked;
-      result.textContent = 'Gespeichert.' + (d.email ? ' DG: ' + d.email : '')
-        + (_dgExternInExo ? ' Liste nimmt Mail von außen an.'
-                          : ' Liste nimmt nur angemeldete Absender an.');
-      wacheFertig('notif-dg-btn', true, result.textContent);
-    } else {
-      result.textContent = 'Fehler: ' + (d.detail || 'Unbekannt');
-      wacheFertig('notif-dg-btn', false, result.textContent);
-    }
-  } catch(e) {
-    result.textContent = 'Netzwerkfehler' + ursache(e, 'settings:795');
-    result.style.color = '#dc2626';
-  } finally {
-    btn.disabled = false;
+  // wacheFertig erst NACH knopfAktion — dessen Freigabe öffnete sonst den Knopf wieder.
+  const d = await knopfAktion(btn, null, () => postJSON('/api/setup/notification-dg', {
+    recipients: _notifRecipients,
+    accept_external: document.getElementById('notif-dg-external').checked,
+  }));
+  if (d.ok) {
+    _dgExternInExo = document.getElementById('notif-dg-external').checked;
+    result.textContent = 'Gespeichert.' + (d.email ? ' DG: ' + d.email : '')
+      + (_dgExternInExo ? ' Liste nimmt Mail von außen an.'
+                        : ' Liste nimmt nur angemeldete Absender an.');
+    wacheFertig('notif-dg-btn', true, result.textContent);
+  } else {
+    result.textContent = 'Fehler: ' + errText(d);
+    wacheFertig('notif-dg-btn', false, result.textContent);
   }
 }
 

@@ -1434,45 +1434,37 @@ window.usermailStandard = async function(key) {
 
 // ── Save builder ──────────────────────────────────────────────────────────────
 window.saveBuilder = async function() {
-  const btn = document.getElementById('save-builder-btn');
-  btn.disabled = true;
-  btn.textContent = 'Speichern…';
   document.getElementById('save-ok').style.display  = 'none';
   document.getElementById('save-err').style.display = 'none';
-  try {
-    const r = await fetch(`/api/templates/${encodeURIComponent(TEMPLATE_NAME)}/meta`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(buildMeta()),
-    });
-    const d = await r.json();
-    if (!r.ok) throw new Error(d.detail || 'Fehler');
-    document.getElementById('save-ok').style.display = 'block';
-    // ⚠️ Stumm zurücksetzen, NICHT `wacheFertig(…, true)`. Der Kasten darüber
-    // meldet den Erfolg bereits; beides zusammen ergäbe zwei gegeneinander
-    // versetzte „gespeichert"-Hinweise.
-    wacheNeuMessen('save-builder-btn');
-    // Update raw-HTML textarea
-    const ta = document.getElementById('html_content');
-    if (ta) ta.value = d.html || '';
-    const tb = document.getElementById('txt_content');
-    if (tb) tb.value = d.txt || '';
-    // Der Umwandlungs-Hinweis hat sich mit dem Speichern erledigt — er sagt
-    // „erst mit Speichern wird daraus die neue Vorlage" und bietet „Verwerfen,
-    // beim HTML bleiben" an. Blieb er stehen, log er nicht nur: sein Knopf
-    // leerte die Bausteinliste, obwohl die Vorlage bereits als Baukasten
-    // gespeichert war — ein Speichern danach haette sie ausradiert.
-    const hinweis = document.getElementById('umwandlung-hinweis');
-    if (hinweis) hinweis.remove();
-    await refreshPreview();
-  } catch(e) {
+  // Die Wache erst NACH knopfAktion anfassen: dessen Freigabe öffnete sonst
+  // den eben von der Wache gesperrten Knopf wieder.
+  const d = await knopfAktion('save-builder-btn', 'Speichern…', () =>
+    postJSON(`/api/templates/${encodeURIComponent(TEMPLATE_NAME)}/meta`, buildMeta()));
+  if (!d.ok) {
     const box = document.getElementById('save-err');
-    box.textContent = 'Speichern fehlgeschlagen: ' + e.message;
+    box.textContent = 'Speichern fehlgeschlagen: ' + errText(d);
     box.style.display = 'block';
     wacheFertig('save-builder-btn', false, '');
-  } finally {
-    btn.textContent = 'Speichern';
+    return;
   }
+  document.getElementById('save-ok').style.display = 'block';
+  // ⚠️ Stumm zurücksetzen, NICHT `wacheFertig(…, true)`. Der Kasten darüber
+  // meldet den Erfolg bereits; beides zusammen ergäbe zwei gegeneinander
+  // versetzte „gespeichert"-Hinweise.
+  wacheNeuMessen('save-builder-btn');
+  // Update raw-HTML textarea
+  const ta = document.getElementById('html_content');
+  if (ta) ta.value = d.html || '';
+  const tb = document.getElementById('txt_content');
+  if (tb) tb.value = d.txt || '';
+  // Der Umwandlungs-Hinweis hat sich mit dem Speichern erledigt — er sagt
+  // „erst mit Speichern wird daraus die neue Vorlage" und bietet „Verwerfen,
+  // beim HTML bleiben" an. Blieb er stehen, log er nicht nur: sein Knopf
+  // leerte die Bausteinliste, obwohl die Vorlage bereits als Baukasten
+  // gespeichert war — ein Speichern danach haette sie ausradiert.
+  const hinweis = document.getElementById('umwandlung-hinweis');
+  if (hinweis) hinweis.remove();
+  await refreshPreview();
 };
 
 // ── Preview ───────────────────────────────────────────────────────────────────

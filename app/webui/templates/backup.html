@@ -51,7 +51,7 @@
 
   <!-- Buttons -->
   <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
-    <button class="btn secondary" id="upd-btn" onclick="startUpdate()" disabled style="display:flex;align-items:center;gap:6px;min-width:180px;justify-content:center">
+    <button class="btn secondary" id="upd-btn" onclick="startUpdate()" disabled style="display:flex;align-items:center;min-width:180px;justify-content:center">
       Jetzt aktualisieren
     </button>
     <button class="btn secondary" id="cl-btn" onclick="toggleChangelog()" style="display:flex;align-items:center;gap:6px">
@@ -136,7 +136,7 @@
     <button class="btn secondary" id="backup-dl-btn" onclick="backupDownload()">
       Backup herunterladen
     </button>
-    <span id="backup-dl-spinner" style="display:none;font-size:13px;color:#555">Erstelle ZIP…</span>
+    <span id="backup-dl-spinner" hidden></span>
     <span style="font-size:12px;color:#94a3b8">v{{ version }}</span>
   </div>
   <div id="backup-dl-result" style="display:none;margin-top:10px"></div>
@@ -162,9 +162,7 @@
     <input type="file" id="backup-file-input" accept=".zip"
            onchange="backupInhaltLaden()"
            style="font-size:13px;border:1px solid #e2e8f0;border-radius:6px;padding:6px 10px;background:#fff">
-    <span id="backup-inspect-spinner" style="display:none;font-size:13px;color:#555">
-      Inhalt wird gelesen…
-    </span>
+    <span id="backup-inspect-spinner" hidden></span>
   </div>
 
   <!-- Auswahlbaum — erscheint erst, wenn ein Backup gelesen wurde -->
@@ -186,9 +184,7 @@
 >
       Wiederherstellen
     </button>
-    <span id="backup-restore-spinner" style="display:none;font-size:13px;color:#555">
-      Wird wiederhergestellt…
-    </span>
+    <span id="backup-restore-spinner" hidden></span>
   </div>
   <div id="backup-restore-result" style="display:none;margin-top:10px"></div>
 </div>
@@ -328,6 +324,7 @@ function _updOnTargetChange() {
 }
 function _updBtnReset() {
   const b = document.getElementById('upd-btn');
+  laeuftZeigen(b, null);
   b.disabled = !_watcherOk;
   b.innerHTML = 'Jetzt aktualisieren';
 }
@@ -336,32 +333,32 @@ function _updBtnReset() {
 async function checkUpdate() {
   const checkBtn = document.getElementById('upd-check-btn');
   const result = document.getElementById('upd-check-result');
-  checkBtn.disabled = true; checkBtn.textContent = 'Prüfe…';
   result.innerHTML = '<span style="color:#64748b">Verbinde mit GitHub…</span>';
   document.getElementById('upd-btn').disabled = true;
-  try {
-    const r = await fetch(`/api/system/update/check?channel=${encodeURIComponent(_updGetChannel())}`);
-    const d = await r.json();
-    if (!d.ok) {
-      result.innerHTML = `<span style="color:#b45309">⚠ ${esc(d.error)}</span>`;
-    } else if (d.available) {
-      _whatsNewEntries = (d.changelog_entries && d.changelog_entries.length) ? d.changelog_entries : null;
-      _whatsNewLatest = d.latest;
-      const wn = _whatsNewEntries
-        ? ` <a href="#" onclick="showWhatsNew();return false" style="font-size:12px;color:#0369a1;margin-left:6px">Was ist neu? (${_whatsNewEntries.length} Änderung${_whatsNewEntries.length !== 1 ? 'en' : ''})</a>`
-        : '';
-      result.innerHTML = `<span style="color:#16a34a;font-weight:600">▲ Update verfügbar: ${esc(d.latest)}</span>${wn}`;
+  await knopfAktion(checkBtn, 'Prüfe…', async () => {
+    try {
+      const r = await fetch(`/api/system/update/check?channel=${encodeURIComponent(_updGetChannel())}`);
+      const d = await r.json();
+      if (!d.ok) {
+        result.innerHTML = `<span style="color:#b45309">⚠ ${esc(d.error)}</span>`;
+      } else if (d.available) {
+        _whatsNewEntries = (d.changelog_entries && d.changelog_entries.length) ? d.changelog_entries : null;
+        _whatsNewLatest = d.latest;
+        const wn = _whatsNewEntries
+          ? ` <a href="#" onclick="showWhatsNew();return false" style="font-size:12px;color:#0369a1;margin-left:6px">Was ist neu? (${_whatsNewEntries.length} Änderung${_whatsNewEntries.length !== 1 ? 'en' : ''})</a>`
+          : '';
+        result.innerHTML = `<span style="color:#16a34a;font-weight:600">▲ Update verfügbar: ${esc(d.latest)}</span>${wn}`;
+        if (_watcherOk) document.getElementById('upd-btn').disabled = false;
+      } else if (d.note) {
+        result.innerHTML = `<span style="color:#64748b">${esc(d.note)}</span>`;
+      } else {
+        result.innerHTML = `<span style="color:#64748b">✓ Bereits aktuell (${esc(d.latest || '?')})</span>`;
+      }
+    } catch(e) {
+      result.innerHTML = `<span style="color:#dc2626">Fehler: ${esc(e.message)}</span>`;
       if (_watcherOk) document.getElementById('upd-btn').disabled = false;
-    } else if (d.note) {
-      result.innerHTML = `<span style="color:#64748b">${esc(d.note)}</span>`;
-    } else {
-      result.innerHTML = `<span style="color:#64748b">✓ Bereits aktuell (${esc(d.latest || '?')})</span>`;
     }
-  } catch(e) {
-    result.innerHTML = `<span style="color:#dc2626">Fehler: ${esc(e.message)}</span>`;
-    if (_watcherOk) document.getElementById('upd-btn').disabled = false;
-  }
-  checkBtn.disabled = false; checkBtn.textContent = 'Auf Updates prüfen';
+  });
 }
 
 var _whatsNewEntries = null;
@@ -385,11 +382,15 @@ function showWhatsNew() {
 }
 
 // --- Update starten ---
-function _spin(text) { return `<span style="display:inline-block;animation:spin 1s linear infinite">⟳</span> ${text}`; }
+// Der Update-Lauf reicht über viele Abfragetakte und einen Neustart — kein
+// einzelnes await, deshalb nicht knopfAktion(), aber derselbe Pfeil.
+function _updLaeuft(text) {
+  document.getElementById('upd-btn').disabled = true;
+  laeuftZeigen('upd-btn', text);
+}
 
 async function startUpdate() {
-  document.getElementById('upd-btn').disabled = true;
-  document.getElementById('upd-btn').innerHTML = _spin('Wird gestartet…');
+  _updLaeuft('Wird gestartet…');
   document.getElementById('upd-status').style.display = 'none';
   clearInterval(_updPollTimer);
   try {
@@ -423,7 +424,7 @@ async function _updPoll() {
     // NUR hier ist der Container tatsächlich nicht erreichbar. Der Abruf wird
     // beim nächsten Takt wiederholt, das Polling läuft weiter.
     ursache(e, 'backup:392');
-    document.getElementById('upd-btn').innerHTML = _spin('Neustart…');
+    _updLaeuft('Neustart…');
     _updShowRunning('Container wird neu gestartet…');
     if (Date.now() - _updPollStart > TIMEOUT_MS) {
       clearInterval(_updPollTimer);
@@ -435,7 +436,7 @@ async function _updPoll() {
 
   const state = d.state || 'idle';
   if (state === 'running') {
-    document.getElementById('upd-btn').innerHTML = _spin('Aktualisiert…');
+    _updLaeuft('Aktualisiert…');
     _updShowRunning(d.log || '');
     if (Date.now() - _updPollStart > TIMEOUT_MS) {
       clearInterval(_updPollTimer);
@@ -624,8 +625,7 @@ async function toggleChangelog() {
     const r = await fetch('/api/system/update/status');
     const d = await r.json();
     if (d.state === 'running') {
-      document.getElementById('upd-btn').disabled = true;
-      document.getElementById('upd-btn').innerHTML = _spin('Aktualisiert…');
+      _updLaeuft('Aktualisiert…');
       _updShowRunning(d.log || '');
       _updStartPolling();
     } else if (d.state === 'success') {
@@ -638,7 +638,6 @@ async function toggleChangelog() {
   } catch(e) { /* Container kurzzeitig nicht erreichbar */ }
 })();
 </script>
-<style>@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }</style>
 
 <script>
 async function importConfig(input) {
@@ -658,59 +657,34 @@ async function importConfig(input) {
   const result = document.getElementById('import-result');
   const fd = new FormData();
   fd.append('xml_file', file);
-  const resp = await fetch('/api/config/import', {method: 'POST', body: fd});
+  const d = await sendeFormular('/api/config/import', fd);
   // Die Meldung gehört neben den Knopf, nicht an den Seitenanfang: `result`
   // steht hier bereits und blieb leer, während oben etwas aufblitzte.
-  if (resp.ok) {
-    const d = await resp.json();
-    showAlert(result, 'success', `Konfiguration importiert (${d.imported} Einstellungen). Bitte speichern und neu starten.`);
+  if (d.ok) {
+    showAlert(result, 'success', `Konfiguration importiert (${esc(d.imported)} Einstellungen). Bitte speichern und neu starten.`);
     setTimeout(() => location.reload(), 1500);
   } else {
-    const d = await resp.json().catch(() => ({}));
-    showAlert(result, 'error', 'Import-Fehler: ' + (esc(d.detail) || 'Unbekannt'));
-    result.style.display = 'block';
+    showAlert(result, 'error', 'Import-Fehler: ' + esc(errText(d)));
   }
   input.value = '';
 }
 
 async function backupDownload() {
-  const btn     = document.getElementById('backup-dl-btn');
-  const spinner = document.getElementById('backup-dl-spinner');
-  const result  = document.getElementById('backup-dl-result');
-  btn.disabled = true;
-  spinner.style.display = 'inline';
-  result.style.display  = 'none';
-  try {
-    const r = await fetch('/api/backup/download');
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const blob  = await r.blob();
-    const cd    = r.headers.get('Content-Disposition') || '';
-    const match = cd.match(/filename="([^"]+)"/);
-    const fname = match ? match[1] : 'backup.zip';
-    const url   = URL.createObjectURL(blob);
-    const a     = document.createElement('a');
-    a.href = url; a.download = fname; a.click();
-    URL.revokeObjectURL(url);
-    const kb = Math.round(blob.size / 1024);
-    result.innerHTML = `<div class="alert success">
-      <strong>${fname}</strong> heruntergeladen (${kb} KB).
-    </div>`;
-  } catch(e) {
-    result.innerHTML = `<div class="alert error"><strong>Fehler:</strong> ${esc(e.message)}</div>`;
-  } finally {
-    btn.disabled = false;
-    spinner.style.display = 'none';
-    result.style.display  = 'block';
-  }
+  const result = document.getElementById('backup-dl-result');
+  result.style.display = 'none';
+  const d = await knopfAktion('backup-dl-btn', 'Erstelle ZIP…',
+    () => dateiHerunterladen('/api/backup/download', 'backup.zip'), {anzeige: 'backup-dl-spinner'});
+  result.innerHTML = d.ok
+    ? `<div class="alert success"><strong>${esc(d.name)}</strong> heruntergeladen (${Math.round(d.groesse / 1024)} KB).</div>`
+    : `<div class="alert error"><strong>Fehler:</strong> ${esc(d.error)}</div>`;
+  result.style.display = 'block';
 }
 
 async function restartNow() {
   const btn  = document.getElementById('restart-btn');
   const note = document.getElementById('restart-note');
-  if (btn)  { btn.disabled = true; btn.textContent = 'Neustart läuft…'; }
-  try {
-    await fetch('/api/restart', {method: 'POST'});
-  } catch(e) { /* Verbindung bricht beim Neustart erwartungsgemäß ab */ }
+  // Gesperrt lassen: Der Pfeil dreht, bis die Seite neu lädt.
+  await knopfAktion(btn, 'Neustart läuft…', neustartAnstossen, {gesperrtLassen: true});
   let n = 8;
   const tick = () => {
     if (note) note.textContent = `Dienst startet neu — Seite lädt in ${n}s neu…`;
@@ -734,7 +708,6 @@ let _backupGruppen = [];
 
 async function backupInhaltLaden() {
   const input   = document.getElementById('backup-file-input');
-  const spinner = document.getElementById('backup-inspect-spinner');
   const bereich = document.getElementById('backup-auswahl');
   const knopf   = document.getElementById('backup-restore-btn');
   const result  = document.getElementById('backup-restore-result');
@@ -745,25 +718,19 @@ async function backupInhaltLaden() {
   _backupGruppen = [];
   if (!input.files.length) return;
 
-  spinner.style.display = 'inline';
-  try {
-    const fd = new FormData();
-    fd.append('file', input.files[0]);
-    const r = await fetch('/api/backup/inspect', {method: 'POST', body: fd});
-    const d = await r.json();
-    if (!d.ok) {
-      fieldMsg(input, d.error || 'Backup liess sich nicht lesen.', false);
-      return;
-    }
-    _backupGruppen = d.gruppen || [];
-    backupBaumZeichnen();
-    bereich.style.display = '';
-    knopf.disabled = false;
-  } catch(e) {
-    fieldMsg(input, 'Fehler beim Lesen: ' + e.message, false);
-  } finally {
-    spinner.style.display = 'none';
+  // Kein eigener Knopf: Die Dateiauswahl löst das Lesen aus.
+  const fd = new FormData();
+  fd.append('file', input.files[0]);
+  const d = await knopfAktion(null, 'Inhalt wird gelesen…', () => sendeFormular('/api/backup/inspect', fd),
+                              {anzeige: 'backup-inspect-spinner'});
+  if (!d.ok) {
+    fieldMsg(input, errText(d), false);
+    return;
   }
+  _backupGruppen = d.gruppen || [];
+  backupBaumZeichnen();
+  bereich.style.display = '';
+  knopf.disabled = false;
 }
 
 function backupGroesse(n) {
@@ -885,48 +852,37 @@ function backupRestoreConfirm() {
 
 async function backupRestore() {
   const input   = document.getElementById('backup-file-input');
-  const btn     = document.getElementById('backup-restore-btn');
-  const spinner = document.getElementById('backup-restore-spinner');
   const result  = document.getElementById('backup-restore-result');
-  btn.disabled = true;
-  spinner.style.display = 'inline';
   result.style.display  = 'none';
-  try {
-    const fd = new FormData();
-    fd.append('file', input.files[0]);
-    fd.append('auswahl', JSON.stringify(backupGewaehlteDateien()));
-    const r = await fetch('/api/backup/restore', {method: 'POST', body: fd});
-    const d = await r.json();
-    if (d.ok) {
-      const authWarn = (d.warnings || []).find(w => w.startsWith('AUTH_PFX_RESTORED'));
-      const otherWarns = (d.warnings || []).filter(w => !w.startsWith('AUTH_PFX_RESTORED'));
-      const warnItems = otherWarns.map(w => `<li style="color:#92400e">${w}</li>`).join('');
-      const authBanner = authWarn ? `<div style="margin-top:10px;padding:10px 12px;background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;font-size:13px">
-        ⚠ <strong>auth.pfx wurde wiederhergestellt</strong> — bitte in der Entra App-Registrierung prüfen ob das Zertifikat noch hinterlegt ist
-        (<a href="/advanced#exo-ps-cert" style="color:#92400e">Einstellungen → EXO PowerShell Zertifikat</a>).
-        Stimmt es nicht überein, schlägt die EXO PowerShell-Verbindung fehl.
-      </div>` : '';
-      result.innerHTML = `<div class="alert success">
-        <strong>Wiederhergestellt!</strong> ${d.restored_files} Dateien.
-        ${warnItems ? `<ul style="margin:8px 0 0;padding-left:18px">${warnItems}</ul>` : ''}
-        ${authBanner}
-        <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-          <button class="btn secondary" id="restart-btn" onclick="restartNow()">Jetzt neu starten</button>
-          <span id="restart-note" style="font-size:12px;color:#555">Übernimmt die wiederhergestellten Daten. (Alternativ: <code>docker compose restart</code>)</span>
-        </div>
-      </div>`;
-    } else {
-      result.innerHTML = `<div class="alert error">
-        <strong>Fehler:</strong> ${esc(d.error || 'Unbekannter Fehler')}
-      </div>`;
-    }
-  } catch(e) {
-    result.innerHTML = `<div class="alert error"><strong>Netzwerkfehler:</strong> ${esc(e.message)}</div>`;
-  } finally {
-    btn.disabled = false;
-    spinner.style.display = 'none';
-    result.style.display  = 'block';
+  const fd = new FormData();
+  fd.append('file', input.files[0]);
+  fd.append('auswahl', JSON.stringify(backupGewaehlteDateien()));
+  const d = await knopfAktion('backup-restore-btn', 'Wird wiederhergestellt…',
+                              () => sendeFormular('/api/backup/restore', fd), {anzeige: 'backup-restore-spinner'});
+  if (d.ok) {
+    const authWarn = (d.warnings || []).find(w => w.startsWith('AUTH_PFX_RESTORED'));
+    const otherWarns = (d.warnings || []).filter(w => !w.startsWith('AUTH_PFX_RESTORED'));
+    const warnItems = otherWarns.map(w => `<li style="color:#92400e">${esc(w)}</li>`).join('');
+    const authBanner = authWarn ? `<div style="margin-top:10px;padding:10px 12px;background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;font-size:13px">
+      ⚠ <strong>auth.pfx wurde wiederhergestellt</strong> — bitte in der Entra App-Registrierung prüfen ob das Zertifikat noch hinterlegt ist
+      (<a href="/advanced#exo-ps-cert" style="color:#92400e">Einstellungen → EXO PowerShell Zertifikat</a>).
+      Stimmt es nicht überein, schlägt die EXO PowerShell-Verbindung fehl.
+    </div>` : '';
+    result.innerHTML = `<div class="alert success">
+      <strong>Wiederhergestellt!</strong> ${esc(d.restored_files)} Dateien.
+      ${warnItems ? `<ul style="margin:8px 0 0;padding-left:18px">${warnItems}</ul>` : ''}
+      ${authBanner}
+      <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button class="btn secondary" id="restart-btn" onclick="restartNow()">Jetzt neu starten</button>
+        <span id="restart-note" style="font-size:12px;color:#555">Übernimmt die wiederhergestellten Daten. (Alternativ: <code>docker compose restart</code>)</span>
+      </div>
+    </div>`;
+  } else {
+    result.innerHTML = `<div class="alert error">
+      <strong>Fehler:</strong> ${esc(errText(d))}
+    </div>`;
   }
+  result.style.display  = 'block';
 }
 </script>
 {% endblock %}

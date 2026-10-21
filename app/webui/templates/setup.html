@@ -69,7 +69,7 @@
 >
           Wiederherstellen
         </button>
-        <span id="setup-restore-spinner" style="display:none;font-size:13px;color:#555">Wird wiederhergestellt…</span>
+        <span id="setup-restore-spinner" hidden></span>
       </div>
       <div id="setup-restore-result" style="display:none;margin-top:8px"></div>
     </div>
@@ -1247,21 +1247,12 @@ async function changePassword() {
   hideAlert(result);
   const body = {password: pw};
   if (oldEl) body.old_password = oldEl.value;
-  const resp = await fetch('/api/setup/change-password', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(body),
-  });
-
-  if (resp.ok) {
-    // Nach dem Passwortwechsel abmelden → Neu-Anmeldung mit dem neuen Passwort
-    // erzwingen (die alte Sitzung entstand ggf. aus admin/admin).
-    showAlert(result, 'success', 'Passwort geändert. Bitte neu anmelden…');
-    setTimeout(() => { location.href = '/auth/logout'; }, 1500);
-  } else {
-    const d = await resp.json().catch(() => ({}));
-    showAlert(result, 'error', 'Fehler: ' + (esc(d.detail) || 'Unbekannt'));
-  }
+  const d = await postJSON('/api/setup/change-password', body);
+  if (!d.ok) { showAlert(result, 'error', 'Fehler: ' + esc(errText(d))); return; }
+  // Nach dem Passwortwechsel abmelden → Neu-Anmeldung mit dem neuen Passwort
+  // erzwingen (die alte Sitzung entstand ggf. aus admin/admin).
+  showAlert(result, 'success', 'Passwort geändert. Bitte neu anmelden…');
+  setTimeout(() => { location.href = '/auth/logout'; }, 1500);
 }
 
 async function saveHostname() {
@@ -1270,71 +1261,40 @@ async function saveHostname() {
   const result = document.getElementById('hostname-result');
   if (!hostname) { fieldMsg('hostname', 'Hostname darf nicht leer sein.', false); return; }
 
-  const resp = await fetch('/api/setup/hostname', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({hostname}),
-  });
-
-  if (resp.ok) {
-    showAlert(result, 'success', `Hostname gespeichert: ${hostname}`);
+  const d = await postJSON('/api/setup/hostname', {hostname});
+  if (d.ok) {
+    showAlert(result, 'success', 'Hostname gespeichert: ' + esc(hostname));
     setTimeout(() => location.reload(), 1200);
   } else {
-    const d = await resp.json().catch(() => ({}));
-    showAlert(result, 'error', 'Fehler: ' + (esc(d.detail) || 'Unbekannt'));
+    showAlert(result, 'error', 'Fehler: ' + esc(errText(d)));
   }
-  wacheFertig('hostname-btn', !!resp.ok);
+  wacheFertig('hostname-btn', !!d.ok);
 }
 
 async function testGraph() {
   const result = document.getElementById('graph-result');
   hideAlert(result);
-  const resp = await fetch('/api/setup/test-graph', {method: 'POST', headers: {'Content-Type': 'application/json'}});
-  if (resp.ok) {
-    const d = await resp.json();
-    showAlert(result, 'success', 'Graph-Verbindung OK. Organisation: <strong>' + (d.org || '?') + '</strong>');
-  } else {
-    const d = await resp.json().catch(() => ({}));
-    showAlert(result, 'error', 'Fehler: ' + (esc(d.detail) || 'Unbekannt'));
-  }
+  const d = await postJSON('/api/setup/test-graph');
+  if (d.ok) showAlert(result, 'success', 'Graph-Verbindung OK. Organisation: <strong>' + esc(d.org || '?') + '</strong>');
+  else      showAlert(result, 'error', 'Fehler: ' + esc(errText(d)));
 }
 
 async function renewCert() {
   const domain = (document.getElementById('le-domain').value || '').trim();
   const email  = (document.getElementById('le-email').value || '').trim();
   const result = document.getElementById('le-result');
-  const btn    = document.getElementById('le-btn');
 
   if (!domain || !email) { showAlert(result, 'error', 'Domain und E-Mail sind Pflichtfelder.'); return; }
-
-  btn.disabled = true;
-  btn.textContent = 'Läuft… (kann 30 Sek. dauern)';
   hideAlert(result);
 
-  // Persist LE fields first
-  await fetch('/settings', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({LE_DOMAIN: domain, LE_EMAIL: email}),
+  const d = await knopfAktion('le-btn', 'Läuft… (kann 30 Sek. dauern)', async () => {
+    // Persist LE fields first
+    await postJSON('/settings', {LE_DOMAIN: domain, LE_EMAIL: email});
+    return postJSON('/api/letsencrypt', {domain, email});
   });
-
-  const resp = await fetch('/api/letsencrypt', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({domain, email}),
-  });
-
-  btn.disabled = false;
-  btn.textContent = 'Zertifikat erneuern';
-
-  if (resp.ok) {
-    const d = await resp.json();
-    showAlert(result, 'success', (esc(d.detail) || 'Zertifikat erneuert.') + ' Bitte Service neu starten.');
-    setTimeout(() => location.reload(), 3000);
-  } else {
-    const d = await resp.json().catch(() => ({}));
-    showAlert(result, 'error', 'certbot-Fehler: ' + (esc(d.detail) || 'Unbekannt'));
-  }
+  if (!d.ok) { showAlert(result, 'error', 'certbot-Fehler: ' + esc(errText(d))); return; }
+  showAlert(result, 'success', (esc(d.detail) || 'Zertifikat erneuert.') + ' Bitte Service neu starten.');
+  setTimeout(() => location.reload(), 3000);
 }
 
 async function saveLeRenew() {
@@ -1353,21 +1313,13 @@ async function importTlsPfx(btn) {
   fd.append('pfx_file', f);
   fd.append('password', document.getElementById('pfx-pass').value || '');
   fd.append('allow_mismatch', document.getElementById('pfx-force').checked ? 'true' : 'false');
-  btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Importiere…';
   hideAlert(res);
-  try {
-    const r = await fetch('/api/setup/tls/import-pfx', {method: 'POST', body: fd});
-    const d = await r.json().catch(() => ({}));
-    if (r.ok) {
-      let msg = 'Importiert (' + (d.hostnames || []).join(', ') +
-        ', gültig bis ' + (d.not_after || '?').slice(0, 10) + '). <strong>Neustart erforderlich.</strong>';
-      if (d.warnung) msg += '<br>⚠️ ' + esc(d.warnung);
-      showAlert(res, 'success', msg);
-    } else {
-      showAlert(res, 'error', 'Fehler: ' + (esc(d.detail) || 'Import fehlgeschlagen'));
-    }
-  } catch (e) { showAlert(res, 'error', 'Fehler: ' + esc(e.message)); }
-  btn.disabled = false; btn.textContent = orig;
+  const d = await knopfAktion(btn, 'Importiere…', () => sendeFormular('/api/setup/tls/import-pfx', fd));
+  if (!d.ok) { showAlert(res, 'error', 'Fehler: ' + esc(errText(d))); return; }
+  let msg = 'Importiert (' + esc((d.hostnames || []).join(', ')) +
+    ', gültig bis ' + esc((d.not_after || '?').slice(0, 10)) + '). <strong>Neustart erforderlich.</strong>';
+  if (d.warnung) msg += '<br>⚠️ ' + esc(d.warnung);
+  showAlert(res, 'success', msg);
 }
 
 // ── Weg 3: Let's Encrypt DNS-01 (manuell) ────────────────────────────────────
@@ -1375,72 +1327,47 @@ async function dns01Start(btn) {
   const rec = document.getElementById('dns01-record');
   const res = document.getElementById('dns01-result');
   hideAlert(res);
-  btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Fordere an…';
-  try {
-    const r = await fetch('/api/setup/tls/dns01/start', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        domain: (document.getElementById('le-domain').value || '').trim(),
-        email: (document.getElementById('le-email').value || '').trim(),
-        staging: document.getElementById('dns01-staging').checked,
-      }),
-    });
-    const d = await r.json().catch(() => ({}));
-    if (r.ok) {
-      rec.style.display = 'block';
-      rec.innerHTML = 'Setze diesen TXT-Record und warte, bis er propagiert ist:<br>' +
-        '<code>' + esc(d.record_name) + '</code> = <code>' + esc(d.record_value) + '</code>' +
-        '<button class="copy-btn" data-copy="' + escAttr(d.record_value) + '" title="Wert kopieren" type="button">Kopieren</button>';
-      document.getElementById('dns01-finish-btn').style.display = '';
-    } else {
-      showAlert(res, 'error', 'Fehler: ' + (esc(d.detail) || 'Start fehlgeschlagen'));
-    }
-  } catch (e) { showAlert(res, 'error', 'Fehler: ' + esc(e.message)); }
-  btn.disabled = false; btn.textContent = orig;
+  const d = await knopfAktion(btn, 'Fordere an…', () => postJSON('/api/setup/tls/dns01/start', {
+    domain: (document.getElementById('le-domain').value || '').trim(),
+    email: (document.getElementById('le-email').value || '').trim(),
+    staging: document.getElementById('dns01-staging').checked,
+  }));
+  if (!d.ok) { showAlert(res, 'error', 'Fehler: ' + esc(errText(d))); return; }
+  rec.style.display = 'block';
+  rec.innerHTML = 'Setze diesen TXT-Record und warte, bis er propagiert ist:<br>' +
+    '<code>' + esc(d.record_name) + '</code> = <code>' + esc(d.record_value) + '</code>' +
+    '<button class="copy-btn" data-copy="' + escAttr(d.record_value) + '" title="Wert kopieren" type="button">Kopieren</button>';
+  document.getElementById('dns01-finish-btn').style.display = '';
 }
 
 async function dns01Finish(btn) {
   const res = document.getElementById('dns01-result');
   hideAlert(res);
-  btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Stelle aus… (1–2 Min.)';
-  try {
-    const r = await fetch('/api/setup/tls/dns01/finish', {method: 'POST'});
-    const d = await r.json().catch(() => ({}));
-    if (r.ok) {
-      showAlert(res, 'success', 'Zertifikat ausgestellt (' + (d.hostnames || []).join(', ') +
-        '). <strong>Neustart erforderlich.</strong>');
-    } else {
-      showAlert(res, 'error', 'Fehler: ' + (esc(d.detail) || 'Ausstellung fehlgeschlagen'));
-    }
-  } catch (e) { showAlert(res, 'error', 'Fehler: ' + esc(e.message)); }
-  btn.disabled = false; btn.textContent = orig;
+  const d = await knopfAktion(btn, 'Stelle aus… (1–2 Min.)', () => postJSON('/api/setup/tls/dns01/finish'));
+  if (!d.ok) { showAlert(res, 'error', 'Fehler: ' + esc(errText(d))); return; }
+  showAlert(res, 'success', 'Zertifikat ausgestellt (' + esc((d.hostnames || []).join(', ')) +
+    '). <strong>Neustart erforderlich.</strong>');
 }
 
-async function setupExoConnector() {
-  const result = document.getElementById('exo-result');
-  const btn    = document.getElementById('exo-btn');
-
-  btn.disabled = true;
-  btn.textContent = 'Richtet Exchange ein… (kann 2 Min. dauern)';
+// Einrichtungsschritt, der ein PowerShell-Skript laufen lässt und dessen
+// Ausgabe zeigt (Connector, S/MIME-Regeln, IMAP-Zugriff). Bei Erfolg lädt die
+// Seite neu, damit der Schritt als erledigt erscheint.
+async function _skriptSchritt(url, knopfId, arbeitsText, resultId, okText) {
+  const result = document.getElementById(resultId);
   hideAlert(result);
-
-  const resp = await fetch('/api/setup/exo-connector', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-  });
-
-  btn.disabled = false;
-  btn.textContent = 'Connector neu einrichten';
-
-  if (resp.ok) {
-    const d = await resp.json();
-    const output = esc(d.output || '').replace(/\n/g, '<br>');   // erst maskieren, dann <br>
-    showAlert(result, 'success', 'EXO-Connector eingerichtet.<br><br><code style="font-size:11px">' + output + '</code>');
-    setTimeout(() => location.reload(), 3000);
-  } else {
-    const d = await resp.json().catch(() => ({}));
-    showAlert(result, 'error', 'Fehler: <pre style="margin:4px 0;font-size:11px">' + (esc(d.detail) || 'Unbekannt') + '</pre>');
+  const d = await knopfAktion(knopfId, arbeitsText, () => postJSON(url));
+  if (!d.ok) {
+    showAlert(result, 'error', 'Fehler: <pre style="margin:4px 0;font-size:11px">' + esc(errText(d)) + '</pre>');
+    return;
   }
+  const output = esc(d.output || '').replace(/\n/g, '<br>');   // erst maskieren, dann <br>
+  showAlert(result, 'success', okText + '<br><br><code style="font-size:11px">' + output + '</code>');
+  setTimeout(() => location.reload(), 3000);
+}
+
+function setupExoConnector() {
+  return _skriptSchritt('/api/setup/exo-connector', 'exo-btn',
+    'Richtet Exchange ein… (kann 2 Min. dauern)', 'exo-result', 'EXO-Connector eingerichtet.');
 }
 
 async function sendTestMail() {
@@ -1454,23 +1381,14 @@ async function sendTestMail() {
   }
   hideAlert(result);
 
-  const resp = await fetch('/api/test-mail', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({from_email, to_email}),
-  });
-
-  if (resp.ok) {
-    // „Angenommen" ist nicht „zugestellt": Die Test-Mail wird nur an den
-    // Gateway-Listener übergeben; die eigentliche Zustellung läuft danach
-    // asynchron über Exchange und kann noch scheitern.
-    showAlert(result, 'success', 'Test-Mail an das Gateway übergeben &rarr; ' + to_email +
-      '. Das bestätigt noch keine Zustellung — ob sie ankommt, zeigt der Posteingang bzw. die ' +
-      'Exchange-Nachrichtenverfolgung (Message Trace).');
-  } else {
-    const d = await resp.json().catch(() => ({}));
-    showAlert(result, 'error', 'Fehler: ' + (esc(d.detail) || 'Unbekannt'));
-  }
+  const d = await postJSON('/api/test-mail', {from_email, to_email});
+  if (!d.ok) { showAlert(result, 'error', 'Fehler: ' + esc(errText(d))); return; }
+  // „Angenommen" ist nicht „zugestellt": Die Test-Mail wird nur an den
+  // Gateway-Listener übergeben; die eigentliche Zustellung läuft danach
+  // asynchron über Exchange und kann noch scheitern.
+  showAlert(result, 'success', 'Test-Mail an das Gateway übergeben &rarr; ' + esc(to_email) +
+    '. Das bestätigt noch keine Zustellung — ob sie ankommt, zeigt der Posteingang bzw. die ' +
+    'Exchange-Nachrichtenverfolgung (Message Trace).');
 }
 
 async function saveWizardGatewayName() {
@@ -1485,36 +1403,28 @@ async function saveBootstrapClientId() {
   const result   = document.getElementById('bootstrap-result');
   if (!clientId) { fieldMsg('bootstrap-client-id', 'Client-ID darf nicht leer sein.', false); return; }
 
-  const resp = await fetch('/api/setup/bootstrap-client', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({client_id: clientId}),
-  });
-  if (resp.ok) {
+  const d = await postJSON('/api/setup/bootstrap-client', {client_id: clientId});
+  if (d.ok) {
     showAlert(result, 'success', 'Client-ID gespeichert. Seite lädt neu…');
     setTimeout(() => location.reload(), 1200);
   } else {
-    const d = await resp.json().catch(() => ({}));
-    showAlert(result, 'error', 'Fehler: ' + (esc(d.detail) || 'Unbekannt'));
+    showAlert(result, 'error', 'Fehler: ' + esc(errText(d)));
   }
-  wacheFertig('bootstrap-client-id-btn', !!resp.ok);
+  wacheFertig('bootstrap-client-id-btn', !!d.ok);
 }
 
 async function startAzureLogin(btnId, pasteSectionId, forceLocalhost) {
   btnId = btnId || 'btn-azure-login';
   pasteSectionId = pasteSectionId || 'paste-section';
   const btn = document.getElementById(btnId);
-  btn.disabled = true;
-  btn.textContent = 'Öffne Login…';
-  const r = await anmeldeFenster('/auth/start' + (forceLocalhost ? '?localhost=1' : ''));
+  const r = await knopfAktion(btn, 'Öffne Login…',
+    () => anmeldeFenster('/auth/start' + (forceLocalhost ? '?localhost=1' : '')));
   if (r.ok) {
     document.getElementById(pasteSectionId).style.display = 'block';
     btn.textContent = 'Erneut anmelden';
   } else {
     alert('Fehler beim Starten des Logins: ' + r.fehler);
-    btn.textContent = 'Jetzt anmelden →';
   }
-  btn.disabled = false;
 }
 
 // Auto-Close-Login: das HTTPS-Popup meldet Erfolg/Fehler per postMessage zurück
@@ -1534,51 +1444,26 @@ async function submitPastedUrl(pasteInputId, resultId) {
   const result = document.getElementById(resultId);
 
   if (!url) { showAlert(result, 'error', 'Bitte die URL aus der Adressleiste einfügen.'); return; }
-
-  const btn = result.nextElementSibling?.querySelector('button') || document.getElementById('paste-btn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Verarbeite…'; }
   hideAlert(result);
 
-  const resp = await fetch('/api/setup/auth-paste', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({url}),
-  });
-
-  if (btn) { btn.disabled = false; btn.textContent = 'Setup fortsetzen'; }
-
-  if (resp.ok) {
-    showAlert(result, 'success', 'Entra-Login erfolgreich! App-Registrierung eingerichtet. Seite lädt neu…');
-    setTimeout(() => location.reload(), 2500);
-  } else {
-    const d = await resp.json().catch(() => ({}));
-    showAlert(result, 'error', 'Fehler: ' + (esc(d.detail) || 'Unbekannt'));
-  }
+  const btn = result.nextElementSibling?.querySelector('button') || document.getElementById('paste-btn');
+  const d = await knopfAktion(btn, 'Verarbeite…', () => postJSON('/api/setup/auth-paste', {url}));
+  if (!d.ok) { showAlert(result, 'error', 'Fehler: ' + esc(errText(d))); return; }
+  showAlert(result, 'success', 'Entra-Login erfolgreich! App-Registrierung eingerichtet. Seite lädt neu…');
+  setTimeout(() => location.reload(), 2500);
 }
 
 let _certPemGlobal = '';
 
 async function generateAuthCert() {
-  const btn    = document.getElementById('cert-gen-btn');
   const result = document.getElementById('cert-gen-result');
-  btn.disabled = true;
-  btn.textContent = 'Generiere…';
   hideAlert(result);
-
-  const resp = await fetch('/api/setup/gen-auth-cert', {method:'POST', headers:{'Content-Type':'application/json'}});
-  btn.disabled = false;
-  btn.textContent = 'Auth-Zertifikat generieren';
-
-  if (resp.ok) {
-    const d = await resp.json();
-    _certPemGlobal = d.cert_pem || '';
-    document.getElementById('cert-pem-text').textContent = _certPemGlobal;
-    document.getElementById('cert-pem-display').style.display = 'block';
-    showAlert(result, 'success', 'Zertifikat generiert und lokal gespeichert. Bitte jetzt im Entra Admin Center hochladen, dann "Exchange einrichten" klicken.');
-  } else {
-    const d = await resp.json().catch(() => ({}));
-    showAlert(result, 'error', 'Fehler: ' + (esc(d.detail) || 'Unbekannt'));
-  }
+  const d = await knopfAktion('cert-gen-btn', 'Generiere…', () => postJSON('/api/setup/gen-auth-cert'));
+  if (!d.ok) { showAlert(result, 'error', 'Fehler: ' + esc(errText(d))); return; }
+  _certPemGlobal = d.cert_pem || '';
+  document.getElementById('cert-pem-text').textContent = _certPemGlobal;
+  document.getElementById('cert-pem-display').style.display = 'block';
+  showAlert(result, 'success', 'Zertifikat generiert und lokal gespeichert. Bitte jetzt im Entra Admin Center hochladen, dann "Exchange einrichten" klicken.');
 }
 
 function downloadAuthCert() {
@@ -1590,70 +1475,19 @@ function downloadAuthCert() {
   a.click();
 }
 
-async function setupSmimeRules() {
-  const result = document.getElementById('smime-rules-result');
-  const btn    = document.getElementById('smime-rules-btn');
-  btn.disabled = true;
-  btn.textContent = 'Richtet Regeln ein… (kann 2 Min. dauern)';
-  hideAlert(result);
-
-  const resp = await fetch('/api/setup/smime-rules', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-  });
-
-  btn.disabled = false;
-  btn.textContent = 'S/MIME Transport-Regeln neu erstellen';
-
-  if (resp.ok) {
-    const d = await resp.json();
-    const output = esc(d.output || '').replace(/\n/g, '<br>');   // erst maskieren, dann <br>
-    showAlert(result, 'success',
-      'S/MIME Transport-Regeln eingerichtet.<br><br>' +
-      '<code style="font-size:11px">' + output + '</code>');
-    setTimeout(() => location.reload(), 3000);
-  } else {
-    const d = await resp.json().catch(() => ({}));
-    showAlert(result, 'error',
-      'Fehler: <pre style="margin:4px 0;font-size:11px">' + (esc(d.detail) || 'Unbekannt') + '</pre>');
-  }
+function setupSmimeRules() {
+  return _skriptSchritt('/api/setup/smime-rules', 'smime-rules-btn',
+    'Richtet Regeln ein… (kann 2 Min. dauern)', 'smime-rules-result', 'S/MIME Transport-Regeln eingerichtet.');
 }
 
-async function setupImapAccess() {
-  const result = document.getElementById('imap-access-result');
-  const btn    = document.getElementById('imap-access-btn');
-  btn.disabled = true;
-  btn.textContent = 'Richtet IMAP-Zugriff ein… (kann 2 Min. dauern)';
-  hideAlert(result);
-
-  const resp = await fetch('/api/setup/imap-access', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-  });
-
-  btn.disabled = false;
-  btn.textContent = 'IMAP-Zugriff neu konfigurieren';
-
-  if (resp.ok) {
-    const d = await resp.json();
-    const output = esc(d.output || '').replace(/\n/g, '<br>');   // erst maskieren, dann <br>
-    showAlert(result, 'success',
-      'IMAP-Zugriff konfiguriert.<br><br>' +
-      '<code style="font-size:11px">' + output + '</code>');
-    setTimeout(() => location.reload(), 3000);
-  } else {
-    const d = await resp.json().catch(() => ({}));
-    showAlert(result, 'error',
-      'Fehler: <pre style="margin:4px 0;font-size:11px">' + (esc(d.detail) || 'Unbekannt') + '</pre>');
-  }
+function setupImapAccess() {
+  return _skriptSchritt('/api/setup/imap-access', 'imap-access-btn',
+    'Richtet IMAP-Zugriff ein… (kann 2 Min. dauern)', 'imap-access-result', 'IMAP-Zugriff konfiguriert.');
 }
 
 async function markComplete() {
-  const resp = await fetch('/api/setup/mark-complete', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-  });
-  if (resp.ok) {
+  const d = await postJSON('/api/setup/mark-complete');
+  if (d.ok) {
     const a = document.getElementById('wizard-alert');
     showAlert(a, 'success', 'Setup abgeschlossen! Weitergeleitet zur Übersicht…');
     setTimeout(() => { window.location.href = '/'; }, 2000);
@@ -1758,33 +1592,22 @@ async function saveModeSelection() {
 
 async function verifyStep(type, btn) {
   const resultEl = document.getElementById('verify-' + type + '-result');
-  const orig = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = '…';
   if (resultEl) resultEl.innerHTML = '';
-  try {
-    const r = await fetch('/api/setup/verify/' + type);
-    const d = await r.json();
-    if (d.ok) {
-      const label = d.org ? '✓ OK — ' + d.org : '✓ OK';
-      if (resultEl) resultEl.innerHTML = '<span style="color:#16a34a;font-size:12px;font-weight:500">' + label + '</span>';
-    } else {
-      const missing = [];
-      if (d.outbound  === false) missing.push('Outbound Connector');
-      if (d.inbound   === false) missing.push('Inbound Connector');
-      if (d.rule      === false) missing.push('Transport Rule');
-      if (d.signed    === false) missing.push('Signed Rule');
-      if (d.encrypted === false) missing.push('Encrypted Rule');
-      const msg = d.error || (missing.length ? missing.join(', ') + ' fehlt' : 'Nicht gefunden');
-      if (resultEl) resultEl.innerHTML = '<span style="color:#dc2626;font-size:12px;font-weight:500">✗ ' + msg + '</span>';
-    }
-  } catch(e) {
-    if (resultEl) resultEl.innerHTML = '<span style="color:#dc2626;font-size:12px">✗ Verbindungsfehler'
-                                 + esc(ursache(e, 'setup:1601')) + '</span>';
-  } finally {
-    btn.disabled = false;
-    btn.textContent = orig;
+  const d = await knopfAktion(btn, '…', () => getJSON('/api/setup/verify/' + type));
+  if (!resultEl) return;
+  if (d.ok) {
+    const label = d.org ? '✓ OK — ' + d.org : '✓ OK';
+    resultEl.innerHTML = '<span style="color:#16a34a;font-size:12px;font-weight:500">' + esc(label) + '</span>';
+    return;
   }
+  const missing = [];
+  if (d.outbound  === false) missing.push('Outbound Connector');
+  if (d.inbound   === false) missing.push('Inbound Connector');
+  if (d.rule      === false) missing.push('Transport Rule');
+  if (d.signed    === false) missing.push('Signed Rule');
+  if (d.encrypted === false) missing.push('Encrypted Rule');
+  const msg = d.error || (missing.length ? missing.join(', ') + ' fehlt' : 'Nicht gefunden');
+  resultEl.innerHTML = '<span style="color:#dc2626;font-size:12px;font-weight:500">✗ ' + esc(msg) + '</span>';
 }
 
 function rerunAzureSetup() {
@@ -1836,10 +1659,8 @@ window.addEventListener('message', function(e) {
 });
 
 async function startArmLogin() {
-  const btn = document.getElementById('kv-arm-btn');
-  btn.disabled = true;
-  btn.textContent = 'Öffne Azure-Login…';
-  const r = await anmeldeFenster('/api/setup/keyvault/arm-auth-url');
+  const r = await knopfAktion('kv-arm-btn', 'Öffne Azure-Login…',
+                              () => anmeldeFenster('/api/setup/keyvault/arm-auth-url'));
   if (r.ok) {
     // Show paste fallback in case popup blocks postMessage
     setTimeout(function() {
@@ -1849,8 +1670,6 @@ async function startArmLogin() {
   } else {
     alert('Fehler: ' + r.fehler);
   }
-  btn.disabled = false;
-  btn.textContent = 'Azure-Zugriff holen';
 }
 
 async function submitArmPaste() {
@@ -2155,37 +1974,25 @@ async function confirmKvSelection() {
       ? 'Resource Group und Key Vault werden angelegt… (30–60 Sekunden)'
       : 'Key Vault wird angelegt… (30–60 Sekunden)';
     resultEl.style.display = 'block';
-    btn.disabled = true;
-    try {
-      const r = await fetch('/api/setup/keyvault/create', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({subscription_id: subscriptionId, resource_group: resourceGroup,
-                              vault_name: vaultName, location, create_rg: isNewRg}),
-      });
-      const data = await r.json();
-      resultEl.className = 'alert ' + (data.ok ? 'success' : 'error');
-      resultEl.textContent = data.message;
-      if (data.vault_url) {
-        _setUrl(data.vault_url, data.resource_id || '');
-        if (data.ok) {
-          // Azure RBAC braucht 1–2 Min zum Propagieren — erst dann testen
-          const testResult = document.getElementById('kv-test-result');
-          testResult.style.display = 'block';
-          testResult.className = 'alert';
-          testResult.textContent = 'Vault erstellt — Azure RBAC-Rollenzuweisung propagiert (ca. 90 Sek.). Test startet automatisch…';
-          setTimeout(async function() { await testKeyvault(); }, 90000);
-        } else if (_kvLastResourceId) {
-          // Vault existiert, aber Rollenzuweisung schlug fehl — Retry-Button anbieten
-          const assignBtn = document.getElementById('kv-assign-role-btn');
-          if (assignBtn) assignBtn.style.display = 'inline-block';
-        }
+    const data = await knopfAktion(btn, null, () => postJSON('/api/setup/keyvault/create',
+      {subscription_id: subscriptionId, resource_group: resourceGroup,
+       vault_name: vaultName, location, create_rg: isNewRg}));
+    resultEl.className = 'alert ' + (data.ok ? 'success' : 'error');
+    resultEl.textContent = data.message || errText(data);
+    if (data.vault_url) {
+      _setUrl(data.vault_url, data.resource_id || '');
+      if (data.ok) {
+        // Azure RBAC braucht 1–2 Min zum Propagieren — erst dann testen
+        const testResult = document.getElementById('kv-test-result');
+        testResult.style.display = 'block';
+        testResult.className = 'alert';
+        testResult.textContent = 'Vault erstellt — Azure RBAC-Rollenzuweisung propagiert (ca. 90 Sek.). Test startet automatisch…';
+        setTimeout(async function() { await testKeyvault(); }, 90000);
+      } else if (_kvLastResourceId) {
+        // Vault existiert, aber Rollenzuweisung schlug fehl — Retry-Button anbieten
+        const assignBtn = document.getElementById('kv-assign-role-btn');
+        if (assignBtn) assignBtn.style.display = 'inline-block';
       }
-    } catch (err) {
-      resultEl.className = 'alert error';
-      resultEl.textContent = 'Netzwerkfehler: ' + err;
-    } finally {
-      btn.disabled = false;
     }
     return;
   }
@@ -2231,31 +2038,16 @@ async function testKeyvault() {
 
 async function assignKvRole() {
   const resultEl = document.getElementById('kv-assign-role-result');
-  const btn = document.getElementById('kv-assign-role-btn');
   resultEl.style.display = 'block';
   resultEl.className = 'alert';
   resultEl.textContent = 'Rolle wird zugewiesen…';
-  btn.disabled = true;
-  try {
-    const url = document.getElementById('kv-url-input').value.trim();
-    const r = await fetch('/api/setup/keyvault/assign-role', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({resource_id: _kvLastResourceId, vault_url: url}),
-    });
-    const data = await r.json();
-    resultEl.className = 'alert ' + (data.ok ? 'success' : 'error');
-    resultEl.textContent = data.message || (data.ok ? 'Rolle erfolgreich zugewiesen.' : 'Fehler');
-    if (data.resource_id) _kvLastResourceId = data.resource_id;
-    if (data.ok) {
-      _kvPollAfterAssign();
-    }
-  } catch (err) {
-    resultEl.className = 'alert error';
-    resultEl.textContent = 'Netzwerkfehler: ' + err;
-  } finally {
-    btn.disabled = false;
-  }
+  const url = document.getElementById('kv-url-input').value.trim();
+  const data = await knopfAktion('kv-assign-role-btn', null, () => postJSON('/api/setup/keyvault/assign-role',
+    {resource_id: _kvLastResourceId, vault_url: url}));
+  resultEl.className = 'alert ' + (data.ok ? 'success' : 'error');
+  resultEl.textContent = data.message || (data.ok ? 'Rolle erfolgreich zugewiesen.' : errText(data));
+  if (data.resource_id) _kvLastResourceId = data.resource_id;
+  if (data.ok) _kvPollAfterAssign();
 }
 
 async function _kvPollAfterAssign() {
@@ -2619,10 +2411,7 @@ async function abnahmePruefen() {
   const knopf = document.getElementById('abnahme-btn');
   const kurz  = document.getElementById('abnahme-kurz');
   const liste = document.getElementById('abnahme-liste');
-  knopf.disabled = true;
-  showMsg(kurz, 'Prüfe…', true);
-  const d = await getJSON('/api/abnahme');
-  knopf.disabled = false;
+  const d = await knopfAktion(knopf, 'Prüfe…', () => getJSON('/api/abnahme'), {anzeige: kurz});
   // getJSON liefert nie null, sondern {ok:false, error} — maßgeblich ist, ob der Bericht da ist.
   if (!Array.isArray(d.punkte)) { showMsg(kurz, 'Prüfung nicht möglich: ' + errText(d), false); return; }
 
@@ -2650,10 +2439,8 @@ async function ssoPruefen() {
   const knopf = document.getElementById('sso-pruef-btn');
   const meldung = document.getElementById('sso-pruef-ergebnis');
   const liste = document.getElementById('sso-pruef-liste');
-  knopf.disabled = true;
-  showMsg(meldung, 'Frage Microsoft…', true);
-  const d = await getJSON('/api/setup/verify/sso');
-  knopf.disabled = false;
+  const d = await knopfAktion(knopf, 'Frage Microsoft…', () => getJSON('/api/setup/verify/sso'),
+                              {anzeige: meldung});
   // ok:false heißt hier auch „es fehlt etwas“ (mit schritte) — gescheitert ist nur ein Abruf ohne schritte.
   if (!Array.isArray(d.schritte)) { showMsg(meldung, 'Prüfung nicht möglich: ' + errText(d), false); return; }
 
@@ -2749,45 +2536,34 @@ function setupRestoreConfirm() {
 async function setupRestore() {
   var input   = document.getElementById('setup-restore-file');
   var btn     = document.getElementById('setup-restore-btn');
-  var spinner = document.getElementById('setup-restore-spinner');
   var result  = document.getElementById('setup-restore-result');
-  btn.disabled = true;
-  spinner.style.display = 'inline';
   result.style.display  = 'none';
-  try {
-    var fd = new FormData();
-    fd.append('file', input.files[0]);
-    var r = await fetch('/api/backup/restore', {method: 'POST', body: fd});
-    var d = await r.json();
-    result.style.display = 'block';
-    if (d.ok) {
-      _migrationSetDone('Backup wiederhergestellt — ' + d.restored_files + ' Dateien', true);
-      var warns = (d.warnings || []).filter(function(w) { return !w.startsWith('AUTH_PFX_RESTORED'); })
-                                    .map(function(w) { return '<li style="color:#92400e">' + w + '</li>'; }).join('');
-      result.style.display = 'block';
-      result.innerHTML = '<div class="alert success"><strong>Wiederhergestellt!</strong> ' + d.restored_files + ' Dateien.'
-        + (warns ? '<ul style="margin:8px 0 0;padding-left:18px">' + warns + '</ul>' : '')
-        + '<div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">'
-        + '<button class="btn primary" id="setup-restart-btn" onclick="setupRestartNow()">Jetzt neu starten</button>'
-        + '<span id="setup-restart-note" style="font-size:12px;color:#555">Übernimmt die wiederhergestellten Daten.</span>'
-        + '</div></div>';
-    } else {
-      result.innerHTML = '<div class="alert error"><strong>Fehler:</strong> ' + esc(d.error || 'Unbekannter Fehler') + '</div>';
-      btn.disabled = false;
-    }
-  } catch(e) {
-    result.innerHTML = '<div class="alert error"><strong>Netzwerkfehler:</strong> ' + esc(e.message) + '</div>';
-    btn.disabled = false;
+  var fd = new FormData();
+  fd.append('file', input.files[0]);
+  var d = await knopfAktion(btn, 'Wird wiederhergestellt…', function() {
+    return sendeFormular('/api/backup/restore', fd);
+  }, {anzeige: 'setup-restore-spinner'});
+  result.style.display = 'block';
+  if (!d.ok) {
+    result.innerHTML = '<div class="alert error"><strong>Fehler:</strong> ' + esc(errText(d)) + '</div>';
+    return;
   }
-  spinner.style.display = 'none';
+  btn.disabled = true;   // wiederhergestellt — nächster Schritt ist der Neustart
+  _migrationSetDone('Backup wiederhergestellt — ' + d.restored_files + ' Dateien', true);
+  var warns = (d.warnings || []).filter(function(w) { return !w.startsWith('AUTH_PFX_RESTORED'); })
+                                .map(function(w) { return '<li style="color:#92400e">' + esc(w) + '</li>'; }).join('');
+  result.innerHTML = '<div class="alert success"><strong>Wiederhergestellt!</strong> ' + esc(d.restored_files) + ' Dateien.'
+    + (warns ? '<ul style="margin:8px 0 0;padding-left:18px">' + warns + '</ul>' : '')
+    + '<div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">'
+    + '<button class="btn primary" id="setup-restart-btn" onclick="setupRestartNow()">Jetzt neu starten</button>'
+    + '<span id="setup-restart-note" style="font-size:12px;color:#555">Übernimmt die wiederhergestellten Daten.</span>'
+    + '</div></div>';
 }
-
 async function setupRestartNow() {
-  var btn  = document.getElementById('setup-restart-btn');
   var note = document.getElementById('setup-restart-note');
-  if (btn) btn.disabled = true;
   if (note) note.textContent = 'Startet neu…';
-  try { await fetch('/api/restart', {method: 'POST'}); } catch(e) { ursache(e, 'setup:2447'); }
+  // Gesperrt lassen: Der Pfeil dreht, bis die Seite neu lädt.
+  await knopfAktion('setup-restart-btn', null, neustartAnstossen, {gesperrtLassen: true});
   setTimeout(function() { window.location.reload(); }, 4000);
 }
 
@@ -2847,45 +2623,26 @@ async function loadPoolStatus() {
 
 async function startPoolAppLogin() {
   const btn = document.getElementById('btnAddPoolApp');
-  btn.disabled = true;
-  btn.textContent = 'Öffne Login…';
-  const r = await anmeldeFenster('/auth/start');
+  const r = await knopfAktion(btn, 'Öffne Login…', () => anmeldeFenster('/auth/start'));
   if (r.ok) {
     document.getElementById('poolPasteSection').style.display = 'block';
     btn.textContent = 'Erneut anmelden';
   } else {
-    showAlert(document.getElementById('wizard-alert'), 'error', 'Fehler beim Login: ' + r.fehler);
-    btn.textContent = '+ App-Registrierung anlegen';
+    showAlert(document.getElementById('wizard-alert'), 'error', 'Fehler beim Login: ' + esc(r.fehler));
   }
-  btn.disabled = false;
 }
 
 async function submitPoolAppUrl() {
   const url = (document.getElementById('pool-auth-url-paste').value || '').trim();
   const result = document.getElementById('poolPasteResult');
-  const btn = document.getElementById('poolPasteBtn');
   if (!url) { showAlert(result, 'error', 'Bitte die URL aus der Adressleiste einfügen.'); return; }
-  btn.disabled = true;
-  btn.textContent = 'Verarbeite…';
   hideAlert(result);
-  try {
-    const r = await fetch('/api/setup/app-pool/add-from-url', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({url}),
-    });
-    const d = await r.json();
-    if (!r.ok) throw new Error(d.detail || 'Fehler');
-    showAlert(result, 'success', `${d.label} angelegt (Pool jetzt: ${d.pool_size} Apps)`);
-    document.getElementById('poolPasteSection').style.display = 'none';
-    document.getElementById('pool-auth-url-paste').value = '';
-    loadPoolStatus();
-  } catch(e) {
-    showAlert(result, 'error', 'Fehler: ' + esc(e.message));
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Pool-App anlegen';
-  }
+  const d = await knopfAktion('poolPasteBtn', 'Verarbeite…', () => postJSON('/api/setup/app-pool/add-from-url', {url}));
+  if (!d.ok) { showAlert(result, 'error', 'Fehler: ' + esc(errText(d))); return; }
+  showAlert(result, 'success', `${esc(d.label)} angelegt (Pool jetzt: ${esc(d.pool_size)} Apps)`);
+  document.getElementById('poolPasteSection').style.display = 'none';
+  document.getElementById('pool-auth-url-paste').value = '';
+  loadPoolStatus();
 }
 
 (function() {

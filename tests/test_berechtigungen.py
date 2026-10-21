@@ -171,14 +171,14 @@ def test_frisches_app_token_ohne_zugangsdaten(monkeypatch):
 
 def test_erneut_pruefen_meldet_sich_am_ort():
     """Der Knopf zeichnete dieselbe Tabelle neu und wirkte wie tot. Jetzt: Knopf
-    gesperrt + „Wird geprüft…", danach „Geprüft um …". Der Klick darf das Ereignis
+    gesperrt (knopfAktion) + „Wird geprüft…", danach „Geprüft um …". Der Klick darf das Ereignis
     nicht als Hinweis durchreichen, und nach dem Erteilen darf die Prüfung die
     Erfolgsmeldung nicht sofort löschen."""
     from pathlib import Path
     t = (Path(__file__).parent.parent / "app/webui/templates/_berechtigungen.html").read_text()
     assert "melde('offen', 'Wird geprüft…')" in t
     assert "'Geprüft um ' + new Date()" in t
-    assert "pruefKnopf.disabled = true" in t and "pruefKnopf.disabled = false" in t
+    assert "await knopfAktion(pruefKnopf," in t      # gesperrt + Pfeil, Freigabe auch bei Ausnahme
     assert "addEventListener('click', pruefen)" not in t
     assert "addEventListener('click', function () { pruefen(); })" in t
     assert "pruefen(['fertig'," in t

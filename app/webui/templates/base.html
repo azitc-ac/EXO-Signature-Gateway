@@ -93,6 +93,16 @@
       // z. B. Erweitert/Neustart nach dem Auslagern des Observatory auf /debug).
       function showAlert(el, type, html){ if(!el) return; el.className='alert '+type; el.innerHTML=html; el.style.display='block'; }
       function hideAlert(el){ if(el) el.style.display='none'; }
+      // Neustart anstoßen. Die Verbindung bricht dabei erwartungsgemäß ab — das
+      // ist kein Fehler; liefert deshalb {ok:true} (für knopfAktion gesperrtLassen:
+      // der Pfeil dreht, bis die Seite neu lädt).
+      // Passwort sichtbar, solange das Auge gedrückt ist (.pw-eye)
+      function showPw(id) { var el = document.getElementById(id); if (el) el.type = 'text'; }
+      function hidePw(id) { var el = document.getElementById(id); if (el) el.type = 'password'; }
+      async function neustartAnstossen(){
+        try { await fetch('/api/restart', {method: 'POST'}); } catch (e) { /* bricht beim Neustart ab */ }
+        return {ok: true};
+      }
       // Theme toggle
       (function(){
         var btn=document.getElementById('theme-toggle');
@@ -361,24 +371,27 @@
       }
 
       async function _rcConfirm() {
-        var btn = document.getElementById('rc-confirm-btn');
         var msg = document.getElementById('rc-msg');
-        btn.disabled = true;
-        for (var i = 0; i < _rcPending.length; i++) {
-          var p = _rcPending[i];
-          // Prüfsumme aus der Dokumentenabfrage, nicht aus der Liste: zwischen
-          // Anzeige und Klick könnte eine neue Fassung ausgerollt worden sein.
-          if (!_rcText[p.doc_id]) {
-            const d = await (await fetch('/api/legal/doc/' + encodeURIComponent(p.doc_id) + '?lang=de')).json();
-            if (!(d && d.ok)) { showMsg(msg, 'Dokument ' + p.label_de + ' nicht ladbar.', false); btn.disabled = false; return; }
-            _rcText[p.doc_id] = d;
+        // Bei Erfolg gesperrt lassen: Die Seite lädt gleich neu.
+        var erg = await knopfAktion('rc-confirm-btn', null, async function () {
+          for (var i = 0; i < _rcPending.length; i++) {
+            var p = _rcPending[i];
+            // Prüfsumme aus der Dokumentenabfrage, nicht aus der Liste: zwischen
+            // Anzeige und Klick könnte eine neue Fassung ausgerollt worden sein.
+            if (!_rcText[p.doc_id]) {
+              const d = await getJSON('/api/legal/doc/' + encodeURIComponent(p.doc_id) + '?lang=de');
+              if (!d.ok) return {ok: false, error: 'Dokument ' + p.label_de + ' nicht ladbar.'};
+              _rcText[p.doc_id] = d;
+            }
+            var doc = _rcText[p.doc_id];
+            var res = await postJSON('/api/legal/consent', {
+              document_id: p.doc_id, version: doc.version,
+              content_hash: doc.content_hash, context: 'reconsent'});
+            if (!res.ok) return {ok: false, error: 'Fehler beim Speichern: ' + errText(res)};
           }
-          var doc = _rcText[p.doc_id];
-          var res = await postJSON('/api/legal/consent', {
-            document_id: p.doc_id, version: doc.version,
-            content_hash: doc.content_hash, context: 'reconsent'});
-          if (!res.ok) { showMsg(msg, 'Fehler beim Speichern: ' + errText(res), false); btn.disabled = false; return; }
-        }
+          return {ok: true};
+        }, {gesperrtLassen: true});
+        if (!erg.ok) { showMsg(msg, erg.error, false); return; }
         _rcClose();
         document.getElementById('reconsent-bar').style.display = 'none';
         location.reload();

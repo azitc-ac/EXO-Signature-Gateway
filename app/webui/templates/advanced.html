@@ -175,7 +175,7 @@ async function saveCoex(cb) {
     <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <button type="button" class="btn secondary" onclick="smtpCertSpeichern(this)">Zertifikat setzen</button>
       <button type="button" class="btn secondary" id="smtp-cert-remove-btn" style="display:none" onclick="smtpCertEntfernen(this)">Separates Zert entfernen</button>
-      <span id="smtp-cert-result" style="font-size:12px"></span>
+      <span id="smtp-cert-result" class="fortschritt" hidden></span>
     </div>
     <div id="smtp-cert-restart" hidden style="margin-top:12px;padding:10px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;font-size:13px;color:#92400e">
       Gespeichert — wirkt erst nach einem <strong>Neustart</strong> des Dienstes.
@@ -204,17 +204,15 @@ async function smtpCertLaden() {
 }
 
 async function smtpCertSpeichern(btn) {
-  const res = document.getElementById('smtp-cert-result');
+  const res = 'smtp-cert-result';
   const f = document.getElementById('smtp-pfx').files[0];
-  if (!f) { res.textContent = 'Bitte eine PFX-Datei wählen.'; res.style.color = '#dc2626'; return; }
+  if (!f) { showMsg(res, 'Bitte eine PFX-Datei wählen.', false); return; }
   const fd = new FormData();
   fd.append('pfx', f);
   fd.append('password', document.getElementById('smtp-pfx-pw').value || '');
-  btn.disabled = true;
-  const r = await fetch('/api/smtp-cert', {method: 'POST', body: fd}).then(x => x.json());
-  btn.disabled = false;
-  if (!r.ok) { res.textContent = 'Fehler: ' + (r.error || '?'); res.style.color = '#dc2626'; return; }
-  res.textContent = 'gespeichert'; res.style.color = '#16a34a';
+  const r = await knopfAktion(btn, null, () => sendeFormular('/api/smtp-cert', fd));
+  if (!r.ok) { showMsg(res, 'Fehler: ' + errText(r), false); return; }
+  showMsg(res, 'gespeichert', true);
   document.getElementById('smtp-pfx').value = '';
   document.getElementById('smtp-pfx-pw').value = '';
   if (r.restart_needed) document.getElementById('smtp-cert-restart').hidden = false;
@@ -223,16 +221,14 @@ async function smtpCertSpeichern(btn) {
 
 async function smtpCertEntfernen(btn) {
   if (!confirm('Separates SMTP-Zert entfernen? Der Listener nutzt danach wieder das gemeinsame Web-UI-Zert.')) return;
-  btn.disabled = true;
-  const r = await fetch('/api/smtp-cert/remove', {method: 'POST'}).then(x => x.json());
-  btn.disabled = false;
+  const r = await knopfAktion(btn, null, () => postJSON('/api/smtp-cert/remove'));
   if (r.restart_needed) document.getElementById('smtp-cert-restart').hidden = false;
   smtpCertLaden();
 }
 
 async function smtpCertNeustart(btn) {
-  btn.disabled = true; btn.textContent = 'startet neu …';
-  await fetch('/api/restart', {method: 'POST'});
+  // Gesperrt lassen: Der Pfeil dreht, bis die Seite neu lädt.
+  await knopfAktion(btn, 'startet neu …', neustartAnstossen, {gesperrtLassen: true});
   setTimeout(() => location.reload(), 6000);
 }
 smtpCertLaden();
@@ -384,20 +380,18 @@ smtpCertLaden();
 
   window.releaseSingle = async function(id, btn) {
     if (!confirm('Mail jetzt zustellen?')) return;
-    if (btn) { btn.disabled = true; btn.textContent = '...'; }
-    var r = await fetch('/api/maintenance/mails/' + id + '/release', {method:'POST'});
-    if (!r.ok) {
-      try { var d = await r.json(); alert('Fehler: ' + (d.detail || r.status)); } catch(e) { alert('Fehler ' + ursache(e, 'advanced:208') + r.status); }
-      if (btn) { btn.disabled = false; btn.textContent = 'Zustellen'; }
-      return;
-    }
+    var d = await knopfAktion(btn, null, function() {
+      return postJSON('/api/maintenance/mails/' + id + '/release');
+    }, {gesperrtLassen: true});
+    if (!d.ok) { alert('Fehler: ' + errText(d)); return; }
     window.loadHeldMails();
   };
 
   window.deleteSingle = async function(id, btn) {
     if (!confirm('Mail endgültig löschen?')) return;
-    if (btn) btn.disabled = true;
-    await fetch('/api/maintenance/mails/' + id, {method:'DELETE'});
+    await knopfAktion(btn, null, function() {
+      return sendJSON('DELETE', '/api/maintenance/mails/' + id);
+    }, {gesperrtLassen: true});
     window.loadHeldMails();
   };
 
@@ -528,9 +522,7 @@ smtpCertLaden();
           </label>
         </div>
         <button class="btn secondary" id="wd-deploy-btn" onclick="wdDeployStart()">Function anlegen</button>
-        <div id="wd-deploy-progress" style="display:none;margin-top:10px;font-size:12px;color:#334155">
-          <span>⏳</span> <span id="wd-deploy-step">…</span>
-        </div>
+        <div id="wd-deploy-progress" hidden style="margin-top:10px"></div>
         <span id="wd-deploy-result" class="field-msg" style="font-size:12px;display:block;margin-top:8px"></span>
       </div>
     </div>
@@ -717,10 +709,11 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
 
   window.wdArmLogin = async function(){
     var btn = document.getElementById('wd-arm-btn');
-    btn.disabled = true; btn.textContent = 'Öffne Azure-Login…';
-    var r = await anmeldeFenster('/api/setup/keyvault/arm-auth-url', 'wd-arm', true);
+    var r = await knopfAktion(btn, 'Öffne Azure-Login…', function() {
+      return anmeldeFenster('/api/setup/keyvault/arm-auth-url', 'wd-arm', true);
+    });
     if (!r.ok) alert('Fehler: ' + r.fehler);
-    btn.disabled = false; btn.textContent = _wdArmOk ? 'Erneut verbinden' : 'Azure-Zugriff holen';
+    btn.textContent = _wdArmOk ? 'Erneut verbinden' : 'Azure-Zugriff holen';
   };
 
   window.wdLoadSubs = async function(){
@@ -785,15 +778,13 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
     var btn = document.getElementById('wd-deploy-btn');
     btn.disabled = true;
     showMsg('wd-deploy-result', '', true);
-    document.getElementById('wd-deploy-progress').style.display = 'block';
-    document.getElementById('wd-deploy-step').textContent = 'Starte …';
-    var r = await fetch('/api/watchdog/deploy/start', {method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({subscription_id: sub, resource_group: rg, location: loc, app_name: appName, create_rg: createRg})});
-    var d = await r.json().catch(function(){ return {}; });
-    if (!r.ok || !d.ok){
+    laeuftZeigen('wd-deploy-progress', 'Starte …');
+    var d = await postJSON('/api/watchdog/deploy/start',
+      {subscription_id: sub, resource_group: rg, location: loc, app_name: appName, create_rg: createRg});
+    if (!d.ok){
       btn.disabled = false;
-      document.getElementById('wd-deploy-progress').style.display = 'none';
-      showMsg('wd-deploy-result', 'Fehler: ' + (d.detail || r.status), false);
+      laeuftZeigen('wd-deploy-progress', null);
+      showMsg('wd-deploy-result', 'Fehler: ' + errText(d), false);
       return;
     }
     _wdDeployTimer = setInterval(wdDeployPoll, 4000);
@@ -804,10 +795,10 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
       var r = await fetch('/api/watchdog/deploy/status');
       if (!r.ok) return;
       var d = await r.json();
-      document.getElementById('wd-deploy-step').textContent = d.step || '…';
+      laeuftZeigen('wd-deploy-progress', d.step || '…');
       if (d.running) return;
       clearInterval(_wdDeployTimer); _wdDeployTimer = null;
-      document.getElementById('wd-deploy-progress').style.display = 'none';
+      laeuftZeigen('wd-deploy-progress', null);
       document.getElementById('wd-deploy-btn').disabled = false;
       if (d.ok){
         showMsg('wd-deploy-result', (d.msg || 'Function angelegt.')
@@ -1383,17 +1374,13 @@ anmLoad();
 
 <script>
 async function certLoadInfo() {
-  const btn = document.getElementById('cert-info-btn');
   const box = document.getElementById('cert-info-box');
   const result = document.getElementById('cert-info-result');
-  btn.disabled = true; btn.textContent = '…';
-  const r = await fetch('/api/cert/exo-ps-info');
-  const d = await r.json();
-  btn.disabled = false; btn.textContent = 'Zertifikat-Info anzeigen';
+  const d = await knopfAktion('cert-info-btn', '…', () => getJSON('/api/cert/exo-ps-info'));
   if (d.ok) {
     box.innerHTML =
-      '<strong>Subject:</strong>    ' + d.subject + '<br>' +
-      '<strong>Thumbprint:</strong> ' + d.thumbprint + copyBtnHtml(d.thumbprint) + '<br>' +
+      '<strong>Subject:</strong>    ' + esc(d.subject) + '<br>' +
+      '<strong>Thumbprint:</strong> ' + esc(d.thumbprint) + copyBtnHtml(d.thumbprint) + '<br>' +
       '<strong>Gültig ab:</strong>  ' + new Date(d.not_before).toLocaleDateString('de-DE') + '<br>' +
       '<strong>Gültig bis:</strong> ' + new Date(d.not_after).toLocaleDateString('de-DE');
     box.style.display = 'block';
@@ -1401,7 +1388,7 @@ async function certLoadInfo() {
   } else {
     box.style.display = 'none';
     result.className = 'alert error';
-    result.textContent = 'Fehler: ' + (d.error || 'Unbekannt');
+    result.textContent = 'Fehler: ' + errText(d);
     result.style.display = 'block';
   }
 }
@@ -1537,7 +1524,7 @@ document.addEventListener('DOMContentLoaded', acmeMethodLoad);
 
     <div style="display:flex;flex-direction:column;gap:4px;max-width:240px;margin-bottom:16px">
       <button class="btn secondary" id="sup-dl-btn" onclick="supportDownload()">Bundle herunterladen</button>
-      <span id="sup-dl-spinner" style="display:none;font-size:12px;color:#64748b;text-align:center">Erstelle ZIP…</span>
+      <span id="sup-dl-spinner" hidden style="text-align:center"></span>
       <span style="font-size:11px;color:#94a3b8;text-align:center">lokal speichern · per E-Mail senden</span>
     </div>
     <div id="sup-dl-result" style="display:none;margin-bottom:14px"></div>
@@ -1552,7 +1539,7 @@ document.addEventListener('DOMContentLoaded', acmeMethodLoad);
                        padding:6px 8px;border:1px solid #d1d5db;border-radius:6px;resize:vertical;margin-bottom:10px"></textarea>
       <div>
         <button class="btn secondary" id="sup-upload-btn" onclick="supportUpload()">Bundle an Hub senden</button>
-        <span id="sup-upload-spinner" style="display:none;font-size:13px;color:#555;margin-left:8px">Lädt hoch…</span>
+        <span id="sup-upload-spinner" hidden style="margin-left:8px"></span>
       </div>
       {% else %}
       <p class="hint" style="margin:0">
@@ -1564,7 +1551,7 @@ document.addEventListener('DOMContentLoaded', acmeMethodLoad);
               title="Erst unter Einstellungen → Anbindung &amp; Lizenzen registrieren" style="margin-top:8px">
         Bundle an Hub senden
       </button>
-      <span id="sup-upload-spinner" style="display:none;font-size:13px;color:#555;margin-left:8px">Lädt hoch…</span>
+      <span id="sup-upload-spinner" hidden style="margin-left:8px"></span>
       {% endif %}
       <div id="sup-upload-result" style="display:none;margin-top:8px"></div>
     </div>
@@ -1572,87 +1559,46 @@ document.addEventListener('DOMContentLoaded', acmeMethodLoad);
 </div>
 <script>
 async function supportDownload() {
-  const btn     = document.getElementById('sup-dl-btn');
-  const spinner = document.getElementById('sup-dl-spinner');
-  const result  = document.getElementById('sup-dl-result');
-  btn.disabled = true;
-  spinner.style.display = 'block';
-  result.style.display  = 'none';
-  try {
-    const r = await fetch('/api/support/download');
-    if (!r.ok) throw new Error(`HTTP ${r.status}`);
-    const blob = await r.blob();
-    const cd       = r.headers.get('Content-Disposition') || '';
-    const match    = cd.match(/filename="([^"]+)"/);
-    const filename = match ? match[1] : 'support-bundle.zip';
-    const url = URL.createObjectURL(blob);
-    const a   = document.createElement('a');
-    a.href = url; a.download = filename; a.click();
-    URL.revokeObjectURL(url);
-    result.innerHTML = `<div class="alert success" style="font-size:13px">
-      <strong>${filename}</strong> wurde heruntergeladen.
-    </div>`;
-    result.style.display = 'block';
-  } catch(e) {
-    result.innerHTML = `<div class="alert" style="background:#fef2f2;border-color:#fca5a5;color:#991b1b;font-size:13px">
-      <strong>Fehler:</strong> ${esc(e.message)}
-    </div>`;
-    result.style.display = 'block';
-  } finally {
-    btn.disabled = false;
-    spinner.style.display = 'none';
-  }
+  const result = document.getElementById('sup-dl-result');
+  result.style.display = 'none';
+  const d = await knopfAktion('sup-dl-btn', 'Erstelle ZIP…',
+    () => dateiHerunterladen('/api/support/download', 'support-bundle.zip'), {anzeige: 'sup-dl-spinner'});
+  result.innerHTML = d.ok
+    ? `<div class="alert success" style="font-size:13px"><strong>${esc(d.name)}</strong> wurde heruntergeladen.</div>`
+    : `<div class="alert error" style="font-size:13px"><strong>Fehler:</strong> ${esc(d.error)}</div>`;
+  result.style.display = 'block';
 }
 
 async function _doSupportUpload() {
   const btn     = document.getElementById('sup-upload-btn');
-  const spinner = document.getElementById('sup-upload-spinner');
   const result  = document.getElementById('sup-upload-result');
   const noteEl  = document.getElementById('sup-note');
   const note    = noteEl ? noteEl.value.trim() : '';
-  btn.disabled = true;
-  spinner.style.display = 'inline';
-  result.style.display  = 'none';
-  try {
-    const r = await fetch('/api/support/upload', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({note}),
-    });
-    const d = await r.json();
-    spinner.style.display = 'none';
-    result.style.display  = 'block';
-    if (d.ok) {
-      const a = d.analysis || {};
-      const extra = (a.priority ? ` &nbsp;|&nbsp; Analyse: ${a.priority}${a.error_hits ? ' ('+a.error_hits+' Fehler-Treffer)' : ''}` : '');
-      result.innerHTML = `<div class="alert success">
-        <strong>An Hub gesendet!</strong>
-        <code>${d.ticket_id}</code>${copyBtnHtml(d.ticket_id)} &nbsp;|&nbsp; ${d.size_kb} KB${extra}
-      </div>`;
-      // Server limits to 1 upload/minute anyway — mirror that client-side so
-      // the button doesn't just bounce off a 429 on a second click.
-      let remaining = 60;
-      const origText = btn.textContent;
-      btn.disabled = true;
-      btn.textContent = `Bundle an Hub senden (${remaining}s)`;
-      const tick = setInterval(() => {
-        remaining--;
-        if (remaining <= 0) { clearInterval(tick); btn.disabled = false; btn.textContent = origText; return; }
-        btn.textContent = `Bundle an Hub senden (${remaining}s)`;
-      }, 1000);
-    } else {
-      btn.disabled = false;
-      result.innerHTML = `<div class="alert" style="background:#fef2f2;border-color:#fca5a5;color:#991b1b">
-        <strong>Fehler:</strong> ${esc(d.error || 'Unbekannter Fehler')}
-      </div>`;
-    }
-  } catch(e) {
-    btn.disabled = false;
-    spinner.style.display = 'none';
-    result.style.display  = 'block';
-    result.innerHTML = `<div class="alert" style="background:#fef2f2;border-color:#fca5a5;color:#991b1b">
-      <strong>Netzwerkfehler:</strong> ${esc(e.message)}
-    </div>`;
+  result.style.display = 'none';
+  const d = await knopfAktion(btn, 'Lädt hoch…', () => postJSON('/api/support/upload', {note}),
+                              {anzeige: 'sup-upload-spinner'});
+  result.style.display = 'block';
+  if (!d.ok) {
+    result.innerHTML = `<div class="alert error"><strong>Fehler:</strong> ${esc(errText(d))}</div>`;
+    return;
   }
+  const a = d.analysis || {};
+  const extra = (a.priority ? ` &nbsp;|&nbsp; Analyse: ${esc(a.priority)}${a.error_hits ? ' ('+esc(a.error_hits)+' Fehler-Treffer)' : ''}` : '');
+  result.innerHTML = `<div class="alert success">
+    <strong>An Hub gesendet!</strong>
+    <code>${esc(d.ticket_id)}</code>${copyBtnHtml(d.ticket_id)} &nbsp;|&nbsp; ${esc(d.size_kb)} KB${extra}
+  </div>`;
+  // Server limits to 1 upload/minute anyway — mirror that client-side so
+  // the button doesn't just bounce off a 429 on a second click.
+  let remaining = 60;
+  const origText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = `Bundle an Hub senden (${remaining}s)`;
+  const tick = setInterval(() => {
+    remaining--;
+    if (remaining <= 0) { clearInterval(tick); btn.disabled = false; btn.textContent = origText; return; }
+    btn.textContent = `Bundle an Hub senden (${remaining}s)`;
+  }, 1000);
 }
 
 </script>
@@ -1713,7 +1659,7 @@ async function saveLogging() {
         <p style="font-size:12px;color:#64748b;margin:0 0 12px">
           Startet nur den Python-Prozess im Container neu (~2 s). Gut nach Einstellungsänderungen.
         </p>
-        <button class="btn secondary" onclick="restartService()">Prozess neu starten</button>
+        <button class="btn secondary" onclick="restartService(this)">Prozess neu starten</button>
       </div>
       <div style="border:1px solid #e2e8f0;border-radius:8px;padding:14px">
         <div style="font-weight:600;font-size:13px;margin-bottom:4px">Container neu starten</div>
@@ -1725,7 +1671,7 @@ async function saveLogging() {
       </div>
     </div>
     <div id="restart-service-status" style="display:none;margin-top:10px"></div>
-    <div id="restart-container-status" style="display:none;margin-top:10px"></div>
+    <div id="restart-container-status" hidden style="margin-top:10px"></div>
   </div>
 </div>
 <script>
@@ -1755,9 +1701,10 @@ async function sendTestMail() {
   }
 }
 
-async function restartService() {
+async function restartService(btn) {
   if (!confirm('Prozess jetzt neu starten?')) return;
-  await fetch('/api/restart', {method: 'POST'});
+  // Gesperrt lassen: Der Pfeil dreht, bis die Seite neu lädt.
+  await knopfAktion(btn, null, neustartAnstossen, {gesperrtLassen: true});
   const status = document.getElementById('restart-service-status');
   showAlert(status, 'warn', 'Dienst wird neu gestartet… Seite lädt in 5 Sekunden neu.');
   setTimeout(() => location.reload(), 5000);
@@ -1765,25 +1712,14 @@ async function restartService() {
 
 async function restartContainer() {
   if (!confirm('Container jetzt neu starten? Die Seite ist ca. 15 Sekunden nicht erreichbar.')) return;
-  const btn = document.getElementById('restart-container-btn');
-  const status = document.getElementById('restart-container-status');
-  btn.disabled = true;
-  status.style.display = 'block';
-  status.innerHTML = '<span style="color:#64748b;font-size:13px">⏳ Neustart-Befehl wird an Watcher übergeben…</span>';
-  try {
-    const r = await fetch('/api/system/restart-container', {method: 'POST'});
-    const d = await r.json();
-    if (!d.ok) {
-      status.innerHTML = `<span style="color:#dc2626;font-size:13px">Fehler: ${esc(d.error || 'Unbekannt')}</span>`;
-      btn.disabled = false;
-      return;
-    }
-    status.innerHTML = '<span style="color:#0369a1;font-size:13px">⏳ Container wird neu gestartet… Seite lädt in 20 Sekunden neu.</span>';
-    setTimeout(() => location.reload(), 20000);
-  } catch(e) {
-    status.innerHTML = `<span style="color:#dc2626;font-size:13px">Fehler: ${esc(e.message)}</span>`;
-    btn.disabled = false;
-  }
+  const status = 'restart-container-status';
+  // Bei Erfolg gesperrt lassen: Pfeil und Hinweis bleiben bis zum Neuladen.
+  const d = await knopfAktion('restart-container-btn', 'Neustart-Befehl wird an Watcher übergeben…',
+                              () => postJSON('/api/system/restart-container'),
+                              {anzeige: status, gesperrtLassen: true});
+  if (!d.ok) { showMsg(status, 'Fehler: ' + errText(d), false); return; }
+  laeuftZeigen(status, 'Container wird neu gestartet… Seite lädt in 20 Sekunden neu.');
+  setTimeout(() => location.reload(), 20000);
 }
 
 // ── Gate C: AVV vor dem Diagnosepaket-Upload (_zustimmung.html) ──────────────
