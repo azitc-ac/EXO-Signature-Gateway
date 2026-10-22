@@ -1113,6 +1113,7 @@ async function sammelStarten() {
 }
 
 let _sammelTimer = null;
+const _sammelGesehen = {};   // E-Mail → zuletzt gesehene Phase (für den Neulade-Zeitpunkt)
 
 async function sammelLaufPollen() {
   const ziel = document.getElementById('sammel-lauf');
@@ -1164,6 +1165,19 @@ async function sammelLaufPollen() {
     (knoepfe ? '<div style="margin-top:10px">' + knoepfe + '</div>' : '');
 
   clearTimeout(_sammelTimer);
+  // Ausgestellt, während die Seite zusah → Seite neu laden, damit die Zeilen
+  // darunter das Zertifikat zeigen (sie rendert der Server). Nur bei einem
+  // beobachteten Übergang, nicht für Ausstellungen von vor dem Seitenaufruf.
+  const neuAusgestellt = erledigt.some(function (e) {
+    return e.ok && e.phase === 'ausgestellt' && _sammelGesehen[e.email] !== undefined
+           && _sammelGesehen[e.email] !== 'ausgestellt';
+  });
+  erledigt.forEach(function (e) { if (e.ok) _sammelGesehen[e.email] = e.phase; });
+  if (neuAusgestellt && !nochAktiv && st !== 'LAEUFT') {
+    ziel.insertAdjacentHTML('beforeend', '<div style="margin-top:8px">Seite wird aktualisiert…</div>');
+    setTimeout(function () { location.reload(); }, 1500);
+    return;
+  }
   // Weiter nachfragen, solange bestellt wird ODER eine aufgegebene Bestellung
   // noch unterwegs ist (Challenge, Validierung, Ausstellung).
   if (st === 'LAEUFT' || nochAktiv) _sammelTimer = setTimeout(sammelLaufPollen, 3000);
@@ -1214,14 +1228,22 @@ document.addEventListener('DOMContentLoaded', function () {
 function _startAcmePolling(email) {
   const key = _acmeKey(email);
   if (_acmeTimers[key]) return;
+  let warAktiv = false;
   async function tick() {
     const data = await _fetchAcmeStatus(email);
     _renderAcmeStatus(email, data);
     if (data && data.active && _ACME_ACTIVE.has(data.status)) {
+      warAktiv = true;
       _acmeTimers[key] = setTimeout(tick, 5000);
     } else {
       delete _acmeTimers[key];
-      if (data && data.active && data.status !== 'error') location.reload();
+      // ⚠️ Nach erfolgreicher Ausstellung räumt das Gateway die Bestellung ab
+      // (clear_order) — `active` ist dann false. Bis v1.10.33 lud die Seite nur
+      // bei `active && status !== 'error'` neu, also nach dem Erfolg NIE: Die
+      // Zeile blieb bei „kein Zertifikat“, bis man selbst neu lud. Neu laden
+      // beim beobachteten Übergang „lief → fertig“, nicht beim ersten Blick
+      // (sonst Ladeschleife bei einer längst erledigten Bestellung).
+      if (warAktiv && !(data && data.active && data.status === 'error')) location.reload();
     }
   }
   tick();
