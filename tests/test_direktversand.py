@@ -327,6 +327,76 @@ def test_uebergabe_an_postfix_signiert_ohne_tls(werte, monkeypatch):
     ("v=spf1 ip4:10.0.0.1 -all", False),
     ("v=spf1 include:spf.protection.outlook.com -all", None),
     ("", None),
+    # bare `all` enthält „ a“ — darf nicht als a-Mechanismus gelten
+    ("v=spf1 ip4:10.0.0.1 all", False),
+    # Qualifier `-`: die Adresse ist ausdrücklich VERBOTEN, nicht erlaubt
+    ("v=spf1 -ip4:212.117.95.233 ~all", False),
+    ("v=spf1 a:mail.example.com -all", None),
+    ("v=spf1 redirect=_spf.example.com", None),
 ])
 def test_spf_bewertung(eintrag, erwartet):
     assert direktversand._spf_bewerten(eintrag, "212.117.95.233") is erwartet
+
+
+IP = "212.117.95.233"
+
+
+@pytest.mark.parametrize("eintrag,erwartet", [
+    # der Anlassfall: ip4 VOR das abschließende all, Qualifier bleibt
+    ("v=spf1 include:spf.protection.outlook.com ~all",
+     f"v=spf1 include:spf.protection.outlook.com ip4:{IP} ~all"),
+    ("v=spf1 include:spf.protection.outlook.com -all",
+     f"v=spf1 include:spf.protection.outlook.com ip4:{IP} -all"),
+    ("v=spf1 mx ?all", f"v=spf1 mx ip4:{IP} ?all"),
+    # ohne all: vor redirect= (Mechanismen werden vor dem Umleiten geprüft)
+    ("v=spf1 redirect=_spf.example.com", f"v=spf1 ip4:{IP} redirect=_spf.example.com"),
+    # weder all noch redirect: hinten anfügen
+    ("v=spf1 include:x.example", f"v=spf1 include:x.example ip4:{IP}"),
+    # schon ausdrücklich erlaubt (auch per Netz): nichts zu tun
+    (f"v=spf1 ip4:{IP} ~all", ""),
+    ("v=spf1 ip4:212.117.95.0/24 -all", ""),
+    # ausdrücklich verboten zählt nicht als erlaubt → Vorschlag
+    (f"v=spf1 -ip4:{IP} ~all", f"v=spf1 -ip4:{IP} ip4:{IP} ~all"),
+    # kein Eintrag: Exchange Online gehört dazu, sonst fiele dessen Post durch
+    ("", f"v=spf1 ip4:{IP} include:spf.protection.outlook.com ~all"),
+])
+def test_spf_empfehlung(eintrag, erwartet):
+    assert direktversand._spf_empfehlung(eintrag, IP) == erwartet
+
+
+def test_spf_empfehlung_ohne_ip_leer():
+    assert direktversand._spf_empfehlung("v=spf1 ~all", "") == ""
+
+
+def test_spf_empfehlung_ist_selbst_erlaubt():
+    # Empfehlung und Urteil aus derselben Quelle: Wer den Vorschlag einträgt,
+    # muss danach „erlaubt“ sehen — sonst schickt die Oberfläche im Kreis.
+    for eintrag in ("v=spf1 include:spf.protection.outlook.com ~all", "",
+                    "v=spf1 redirect=_spf.example.com", "v=spf1 mx -all"):
+        soll = direktversand._spf_empfehlung(eintrag, IP)
+        assert direktversand._spf_bewerten(soll, IP) is True, soll
+
+
+def test_dns_pruefen_mehrere_spf_eintraege(werte, monkeypatch):
+    werte["DIREKT_AUSSEN_IP"] = ""
+    monkeypatch.setattr(direktversand, "_txt", lambda n: [
+        "v=spf1 include:spf.protection.outlook.com ~all", "google-site-verification=x",
+        f"v=spf1 ip4:{IP} ~all"])
+    werte["DIREKT_AUSSEN_IP"] = IP
+    import dns.resolver
+
+    def _kein_netz(*a, **kw):
+        raise dns.resolver.NoNameservers()
+    monkeypatch.setattr(dns.resolver, "resolve", _kein_netz)   # PTR-Teil ohne Netz
+    spf = direktversand.dns_pruefen("example.com")["spf"]
+    assert len(spf["mehrere"]) == 2
+    assert spf["erlaubt"] is False and spf["soll"] == "", \
+        "zwei SPF-Einträge = permerror: kein Urteil „erlaubt“, kein Vorschlag"
+
+
+def test_dns_pruefen_liefert_soll(werte, monkeypatch):
+    werte["DIREKT_AUSSEN_IP"] = ""
+    monkeypatch.setattr(direktversand, "_txt",
+                        lambda n: ["v=spf1 include:spf.protection.outlook.com ~all"])
+    spf = direktversand.dns_pruefen("example.com")["spf"]
+    assert spf["soll"] == "" and spf["mehrere"] == []

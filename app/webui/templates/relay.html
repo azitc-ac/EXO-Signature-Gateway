@@ -1166,6 +1166,14 @@ async function dnsPruefen(domain, btn) {
         + (spf.ip ? (spf.erlaubt === true ? ' — erlaubt ' + esc(spf.ip)
                      : spf.erlaubt === false ? ' — ' + esc(spf.ip) + ' fehlt' : ' — ob ' + esc(spf.ip) + ' erlaubt ist, hier nicht entscheidbar (include/a/mx)')
                   : ' — Ausgangsadresse oben eintragen'))
+    + (spf.mehrere && spf.mehrere.length
+        ? '<div class="hint">' + spf.mehrere.length + ' SPF-Einträge gefunden — das ist ein Fehler, Empfänger werten '
+          + 'dann keinen davon. Führe sie zu einem zusammen.</div>'
+        : spf.soll && spf.erlaubt !== true
+          ? '<div class="hint">Benötigter SPF-Eintrag: <code>' + esc(spf.soll) + '</code> ' + copyBtnHtml(spf.soll)
+            + '<br>' + (spf.eintrag ? 'Ersetze damit den bestehenden Eintrag — keinen zweiten anlegen, sonst gilt keiner.'
+                                    : 'Neuer TXT-Eintrag auf ' + esc(r.domain) + '.') + '</div>'
+          : '')
     + (p.ip ? _pruefZeile(p.vorwaerts && p.helo_passt, 'PTR ' + esc(p.ip) + ' → ' + esc(p.name || p.fehler || '—')
         + (p.vorwaerts ? '' : ' (zeigt nicht zurück)') + (p.helo_passt ? '' : ' — HELO „' + esc(p.helo) + '" passt nicht'))
            : '');
