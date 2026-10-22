@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.30 — 2026-10-22 — S/MIME-Sammelbestellung: Fortschritt sichtbar
+
+- **Korrektur: Die Anzeige eines Sammellaufs blieb stehen.** Das Gateway meldet
+  den Zustand eines Laufs klein geschrieben (`laeuft`, `pausiert` …), die Seite
+  verglich mit `LAEUFT`. Dadurch stand der Zustand roh da („laeuft“), die
+  Knöpfe *Abbrechen* und *Fortsetzen* erschienen nie, die Farben je Zustand
+  griffen nicht, und vor allem fragte die Seite nicht nach: Es blieb bei
+  „0 von 1 erledigt“, bis man die Seite neu lud.
+- **Neu: Stand je Bestellung.** Im Lauf heißt eine Bestellung erledigt, sobald
+  sie bei der Zertifizierungsstelle aufgegeben ist. Ausgestellt wird danach,
+  bei CASTLE nach Challenge-Mail und Validierung. Die Anzeige sagt jetzt
+  „aufgegeben“ statt „erledigt“ und nennt das Postfach, das gerade bestellt
+  wird. Für jede aufgegebene Bestellung zeigt sie den Stand („Warte auf
+  Challenge-E-Mail…“, „CASTLE validiert…“, „Zertifikat ausgestellt“). Sie
+  fragt weiter nach, bis alle Bestellungen ausgestellt oder gescheitert sind.
+
+**Zu tun:** nichts.
+
 ## v1.10.29 — 2026-10-22 — Einfügefeld: Fehlermeldung bricht um
 
 - Eine Fehlermeldung neben dem Einfügefeld der Admin-Anmeldung wurde auf

@@ -703,3 +703,24 @@ def test_ohne_haken_wird_nichts_gesetzt(lauf, monkeypatch):
     monkeypatch.setattr(settings_store, "update", lambda d: geschrieben.update(d))
     asyncio.run(sb.lauf_starten("hub:certum", ["a@x.de"]))
     assert "CA_USER_CONFIG" not in geschrieben
+
+
+def test_lauf_zustand_zeigt_aktuell_und_stand_je_bestellung(monkeypatch):
+    """„Erledigt“ heisst nur aufgegeben. Der Stand danach (Challenge, Validierung,
+    ausgestellt) kommt je Postfach mit — sonst stand der Lauf auf
+    „abgeschlossen“, während noch nichts ausgestellt war."""
+    import acme_state
+    monkeypatch.setattr(sb, "_gueltige_zertifikate", lambda a: 1 if a == "fertig@x.de" else 0)
+    monkeypatch.setattr(acme_state, "get_order",
+                        lambda a: {"status": "validating"} if a == "unterwegs@x.de" else None)
+    monkeypatch.setattr(sb, "_lauf", {
+        "status": sb.LAEUFT, "offen": ["als.naechstes@x.de"], "gesamt": 4,
+        "erledigt": [{"email": "fertig@x.de", "ok": True, "grund": ""},
+                     {"email": "unterwegs@x.de", "ok": True, "grund": ""},
+                     {"email": "kaputt@x.de", "ok": False, "grund": "CA lehnt ab"}]})
+    z = sb.lauf_zustand()
+    assert z["aktuell"] == "als.naechstes@x.de"
+    assert [e.get("phase") for e in z["erledigt"]] == ["ausgestellt", "validating", None]
+    assert "phase" not in sb._lauf["erledigt"][0], "Zustand des Moduls darf nicht verändert werden"
+    sb._lauf["status"] = sb.FERTIG
+    assert sb.lauf_zustand()["aktuell"] == ""
