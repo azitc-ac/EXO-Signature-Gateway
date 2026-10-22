@@ -310,8 +310,17 @@ def _kopf_und_rumpf(content: bytes) -> tuple[list[bytes], bytes]:
 
 
 def kopf_bereinigen(content: bytes) -> bytes:
-    """Organisationsinterne Exchange-Kopfzeilen entfernen, bevor die Mail das
-    Haus direkt verlässt.
+    """Kopf für den Weg hinaus herrichten: Organisationsinterne
+    Exchange-Kopfzeilen entfernen und fehlende `Date:`/`Message-ID:` ergänzen,
+    bevor die Mail das Haus direkt verlässt.
+
+    `Date:` ist Pflicht (RFC 5322 §3.6), `Message-ID:` braucht jeder Empfänger
+    zum Zuordnen. Über Exchange Online ergänzt Exchange beide. Postfix tut es
+    hier NICHT (`always_add_missing_headers = no`, und das Gateway liefert über
+    das Docker-Netz, nicht örtlich ein) — und es DÜRFTE es auch nicht: Die
+    DKIM-Signatur nennt `date` und `message-id` in h=, eine nachträglich
+    eingefügte Zeile bräche sie. Deshalb hier, vor dem Signieren. Bis v1.10.32
+    ging so die ACME-Challenge-Antwort ohne Datum hinaus.
 
     `X-MS-Exchange-Organization-*` trägt Exchange nur innerhalb der Organisation
     (Spam-Bewertung, interne Kennungen, Absender-Metadaten) und entfernt es auf
@@ -329,7 +338,25 @@ def kopf_bereinigen(content: bytes) -> bytes:
         weg = z.lower().startswith(b"x-ms-exchange-organization-")
         if not weg:
             raus.append(z)
-    return b"".join(raus) + rumpf
+    return b"".join(_kopf_ergaenzen(raus, content)) + rumpf
+
+
+def _kopf_ergaenzen(zeilen: list[bytes], content: bytes) -> list[bytes]:
+    """Fehlende `Date:`/`Message-ID:` vorn einfügen; vorhandene bleiben byte-genau."""
+    import email
+    import email.utils
+    namen = {z.split(b":", 1)[0].strip().lower() for z in zeilen
+             if z[:1] not in (b" ", b"\t") and b":" in z}
+    ende = b"\r\n" if b"\r\n" in content[:2000] else b"\n"
+    neu = []
+    if b"date" not in namen:
+        neu.append(b"Date: " + email.utils.formatdate(usegmt=True).encode() + ende)
+    if b"message-id" not in namen:
+        absender = email.message_from_bytes(b"".join(zeilen)).get("From", "")
+        adresse = email.utils.parseaddr(absender)[1]
+        domain = adresse.rsplit("@", 1)[-1] if "@" in adresse else helo_name()
+        neu.append(b"Message-ID: " + email.utils.make_msgid(domain=domain).encode() + ende)
+    return neu + zeilen
 
 
 def _txt(name: str) -> list[str]:

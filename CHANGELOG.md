@@ -5,6 +5,22 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.33 — 2026-10-22 — Direktversand: fehlende Date- und Message-ID-Zeilen ergänzt
+
+- **Korrektur: Mails vom Gateway gingen im Direktversand ohne `Date:` und
+  `Message-ID:` hinaus.** Einige Mails baut das Gateway selbst, etwa die
+  Antwort auf die ACME-Challenge von CASTLE. Auf dem Weg über Exchange Online
+  ergänzt Exchange beide Kopfzeilen, der eigene Postfix tut das nicht. Mit dem
+  Direktversand (*Externe Empfänger → direkt*) ging deshalb die
+  Challenge-Antwort ohne Datum und ohne Message-ID hinaus. `Date:` ist nach
+  RFC 5322 Pflicht. CASTLE hat solche Antworten dennoch angenommen und
+  Zertifikate ausgestellt. Das Gateway ergänzt fehlende `Date:`- und
+  `Message-ID:`-Zeilen jetzt vor der DKIM-Signatur, für jede Mail im
+  Direktversand. Vorhandene bleiben unverändert. Zusätzlich setzt die
+  Challenge-Antwort beide selbst.
+
+**Zu tun:** nichts.
+
 ## v1.10.32 — 2026-10-22 — Berechtigungen erteilen: bereits erteilte Rollen ohne Warnung
 
 - Beim Erteilen fehlender Berechtigungen versucht das Gateway jede Rolle
