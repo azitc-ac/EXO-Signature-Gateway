@@ -2315,10 +2315,13 @@ async function saveKeyvault() {
       </div>
       {% endif %}
 
-      {% if s.ADDIN_BASE_URL %}
+      {# Dieselbe Adresse wie die Anmeldung (_build_redirect_uri(sso=True)). Bis
+         v1.10.26 nur mit ADDIN_BASE_URL und selbst zusammengesetzt — mit bloßem
+         PUBLIC_HOSTNAME erschien die Warnung nie, obwohl die Adresse fehlte. #}
+      {% if e.sso_redirect_uri and e.sso_redirect_uri.startswith('https://') %}
       <div style="border-top:1px solid #f0f0f0;margin:14px 0 12px"></div>
       <h3 style="margin:0 0 8px;font-size:13px;font-weight:600;color:#374151">SSO Redirect URI</h3>
-      {% set sso_uri = s.ADDIN_BASE_URL.rstrip('/') + '/auth/callback' %}
+      {% set sso_uri = e.sso_redirect_uri %}
       {% set new_uri_registered = sso_uri in (s.BOOTSTRAP_REDIRECT_URIS or []) %}
       {% if new_uri_registered %}
       {# „registriert" ist nicht „funktioniert". Hier stand bis 24.08.2026

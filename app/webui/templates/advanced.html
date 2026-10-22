@@ -440,6 +440,7 @@ smtpCertLaden();
       Aktuelle Wächter: <span id="wd-count">0</span>
     </div>
     <div id="wd-liste" style="font-size:13px;color:#78716c">— wird geladen … —</div>
+    <div id="wd-einfuegen" hidden style="margin-top:8px"></div>
     <div id="watchdog-status" style="font-size:12px;color:#78716c;margin-top:8px"></div>
     <p class="hint" style="margin:8px 0 0"><strong>Berechtigungen erteilen</strong>: gibt dem Azure-Wächter per Azure-Login die nötigen Exchange-Rechte (bis „✓ berechtigt" steht — vorher meldet er „EXO: UnAuthorized"). <strong>Entfernen</strong>: baut den Wächter samt seiner Azure-Ressourcen ab. Öffnet ein Popup — falls nichts passiert, Popups für diese Seite erlauben.</p>
   </div>
@@ -633,7 +634,7 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
   window.grantWatchdogGraph = async function(){
     var objid = feldWert('wd-mi-objid');
     if (!objid){ showMsg('wd-graph-result', 'MI Objekt-ID angeben.', false); return; }
-    var auf = anmeldeFenster('/api/watchdog/start-grants?mi_object_id=' + encodeURIComponent(objid), 'wd-grants', true);
+    var auf = _wdGrantFenster('/api/watchdog/start-grants?mi_object_id=' + encodeURIComponent(objid));
     showMsg('wd-graph-result', 'Azure-Login geöffnet — bitte im Popup anmelden …', true);
     var r = await auf;
     if (!r.ok) showMsg('wd-graph-result', 'Fehler: ' + r.fehler, false);
@@ -643,9 +644,24 @@ az rest --method POST --url "https://graph.microsoft.com/v1.0/roleManagement/dir
   // zieht der Message-Handler automatisch die EXO-Rolle nach. Keine freien Felder.
   window.wdGrant = async function(id){
     _wdGrantWatcher = id;   // nach Erfolg zieht der Message-Handler die EXO-Rolle nach
-    var r = await anmeldeFenster('/api/watchdog/start-grants?watcher_id=' + encodeURIComponent(id), 'wd-grants', true);
+    var r = await _wdGrantFenster('/api/watchdog/start-grants?watcher_id=' + encodeURIComponent(id));
     if (!r.ok){ alert('Fehler: ' + r.fehler); _wdGrantWatcher = null; }
   };
+
+  // Anmeldefenster für die Graph-Zuweisungen. Endet die Anmeldung auf localhost
+  // (Rücksprungadresse fehlt, Server meldet `einfuegen`), Adresse einfügen lassen —
+  // der Ausgang kommt dann als dieselbe watchdog-grants-Nachricht wie vom Popup.
+  async function _wdGrantFenster(quelle){
+    var einfuegen = false;
+    var r = await anmeldeFenster(async function(){
+      var d = await getJSON(quelle);
+      if (!d.ok) throw new Error(errText(d));
+      einfuegen = !!d.einfuegen;
+      return d.auth_url;
+    }, 'wd-grants', true);
+    if (r.ok && einfuegen) anmeldeAdresseEinfuegen('wd-einfuegen', 'watchdog-grants');
+    return r;
+  }
 
   async function _wdRoleForWatcher(id){
     var d = await postJSON('/api/watchdog/grant-role', {watcher_id: id});

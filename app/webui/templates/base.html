@@ -322,6 +322,35 @@
         tb.innerHTML = '<tr><td colspan="' + spalten + '"'
           + (fehler ? ' style="color:#991b1b"' : ' class="muted"') + '>' + html + '</td></tr>';
       }
+      // Admin-Anmeldung endete auf localhost (HTTPS-Rücksprungadresse an der
+      // Bootstrap-App fehlt): Adresse aus der Adresszeile des Anmeldefensters
+      // einfügen lassen. `art` ist der Nachrichtentyp, den sonst das Popup schickt
+      // ('berechtigungen', 'watchdog-grants') — der Ausgang geht als dieselbe
+      // Nachricht (`<art>-done` / `<art>-fail`) an die Seite, damit die
+      // vorhandenen Empfänger unverändert reagieren.
+      function anmeldeAdresseEinfuegen(ziel, art) {
+        if (typeof ziel === 'string') ziel = document.getElementById(ziel);
+        if (!ziel) return;
+        ziel.innerHTML = '<p class="hint" style="margin:6px 0 4px">Das Anmeldefenster endet auf „localhost … '
+          + 'nicht erreichbar“ — das ist hier erwartet. Kopiere die vollständige Adresse aus seiner '
+          + 'Adresszeile (beginnt mit <code>http://localhost</code>) und füge sie ein.</p>'
+          + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
+          + '<input type="url" placeholder="http://localhost:8080/auth/callback?code=…" style="flex:1;min-width:200px">'
+          + '<button type="button" class="btn secondary btn-sm">Übernehmen</button>'
+          + '<span class="speicher-hinweis" style="margin-left:0"></span></div>';
+        ziel.hidden = false;
+        var feld = ziel.querySelector('input'), knopf = ziel.querySelector('button');
+        var hinweis = ziel.querySelector('.speicher-hinweis');
+        knopf.addEventListener('click', async function () {
+          var url = feld.value.trim();
+          if (!url) { hinweis.dataset.zustand = 'fehler'; hinweis.textContent = 'Bitte die Adresse einfügen.'; return; }
+          var d = await knopfAktion(knopf, null, function () { return postJSON('/api/setup/auth-paste', { url: url }); });
+          if (d.ok) { ziel.hidden = true; ziel.innerHTML = ''; }
+          else { hinweis.dataset.zustand = 'fehler'; hinweis.textContent = '✗ ' + errText(d); }
+          window.postMessage(d.ok ? { type: art + '-done', app_id: d.app_id || '' }
+                                  : { type: art + '-fail', msg: errText(d) }, window.location.origin);
+        });
+      }
       // Wert als Zeichenkette in einem Inline-Handler: onclick="f(\'' + escJsAttr(x) + '\')".
       // Zwei Ebenen: erst für den JS-String (\ und '), dann fürs Attribut — der
       // Browser dekodiert das Attribut (&#39; → ') BEVOR er das Skript liest;

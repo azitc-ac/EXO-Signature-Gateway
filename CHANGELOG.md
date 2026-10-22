@@ -5,6 +5,46 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.27 — 2026-10-22 — Admin-Anmeldung: Rücksprung über HTTPS statt localhost
+
+- **Korrektur: falsche Rücksprungadresse an der Bootstrap-App.** Nach der
+  Einrichtung trägt das Gateway an der Bootstrap-App die Adresse ein, über die
+  Admin-Anmeldungen zurückkehren. Ohne gesetzte Add-in-Basisadresse war das
+  `https://<Hostname>:<interner Port>/auth/callback`, bei der Vorgabe also
+  `…:8080/…`. Öffentlich liefert das Gateway aber auf 443 aus, und die
+  Anmeldung erwartet die Adresse ohne Port. Weil beide nie übereinstimmten,
+  endete jede Admin-Anmeldung, etwa *Fehlende Berechtigungen erteilen*, in
+  einem Fenster „localhost … nicht erreichbar“. Eingetragen wird jetzt dieselbe
+  Adresse, die die Anmeldung verwendet.
+- **Korrektur: Einfügen der localhost-Adresse kannte nur die Ersteinrichtung.**
+  Für diesen Fall ist vorgesehen, die Adresse aus dem Anmeldefenster einzufügen.
+  Das Gateway führte dann aber für jeden eingefügten Code die komplette
+  Ersteinrichtung aus, auch wenn er aus *Fehlende Berechtigungen erteilen*
+  stammte. Jetzt entscheidet der Ablauf, der die Anmeldung gestartet hat, über
+  die Wirkung: Berechtigungen erteilen, Zuweisungen für den Bypass-Wächter
+  oder Einrichtung. Eine Anmeldung für die Gateway-Oberfläche (SSO) lässt sich
+  so nicht abschließen.
+- **Neu: Einfügefeld an der Berechtigungsbox und beim Bypass-Wächter.** Endet
+  die Anmeldung auf localhost, erscheint unter dem Knopf ein Feld für die
+  Adresse aus dem Anmeldefenster.
+- **Selbstheilung:** *Fehlende Berechtigungen erteilen* trägt mit derselben
+  Anmeldung auch die fehlende Rücksprungadresse an der Bootstrap-App nach. Die
+  nächste Admin-Anmeldung kehrt dann über HTTPS zurück.
+- Die Karte *SSO Redirect URI* im Abschnitt *Outlook Add-in* erschien bisher
+  nur mit gesetzter Add-in-Basisadresse. Sie richtet sich jetzt nach derselben
+  Adresse wie die Anmeldung und warnt damit auch, wenn nur der öffentliche
+  Hostname gesetzt ist.
+- Noch offen: Der Knopf *Redirect URI in Entra aktualisieren* kehrt über den
+  internen Port zurück. Bei der Vorgabe (Port 443 nach außen) ist der nicht
+  erreichbar. Nutze bis dahin den Weg über die Berechtigungsbox.
+
+**Zu tun:** nur, wenn Admin-Anmeldungen bei dir in einem Fenster „localhost …
+nicht erreichbar“ enden. Klicke unter *Einrichtung* an einer Berechtigungsbox
+auf *Fehlende Berechtigungen erteilen* und füge die Adresse aus dem
+Anmeldefenster in das Feld darunter ein. Danach ist die HTTPS-Rücksprungadresse
+eingetragen. Fehlt keine Berechtigung, ist der Knopf ausgeblendet; dann ist
+bisher nichts zu tun.
+
 ## v1.10.26 — 2026-10-22 — Einrichtung: der Add-in-Schalter speichert sofort
 
 - **Outlook Add-in bereitstellen** speichert jetzt beim Anklicken, wie der Haken

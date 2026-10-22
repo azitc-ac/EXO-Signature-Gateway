@@ -89,6 +89,12 @@ def _setup_redirect_uri() -> str:
             return https_uri
     return _build_redirect_uri()
 
+def _endet_lokal(redirect_uri: str) -> bool:
+    """Kehrt die Anmeldung auf localhost zurück? Dann scheitert die Verbindung im
+    Browser, und die Adresse muss aus der Adresszeile eingefügt werden."""
+    return redirect_uri.startswith("http://localhost")
+
+
 def _setup_callback_page(ok: bool, msg: str = "") -> str:
     """Self-closing page for the popup setup-login (HTTPS-redirect variant).
     Signals the opener (wizard tab) to reload, then closes the popup."""
@@ -199,7 +205,7 @@ async def watchdog_start_grants(mi_object_id: str = "", watcher_id: str = "",
     redirect_uri = _setup_redirect_uri()
     _state, auth_url = pkce_mod.create_session(redirect_uri, flow="watchdog_grants",
                                                extra={"mi_object_id": oid, "watcher_id": wid})
-    return JSONResponse({"auth_url": auth_url})
+    return JSONResponse({"auth_url": auth_url, "einfuegen": _endet_lokal(redirect_uri)})
 
 @router.get("/api/setup/berechtigungen")
 async def setup_berechtigungen_status(nur: str = "", _: str = Depends(_require_admin)):
@@ -217,9 +223,10 @@ async def setup_berechtigungen_erteilen(_: str = Depends(_require_admin)):
     """Startet die Admin-Anmeldung (Popup), um fehlende Anwendungsberechtigungen der
     bestehenden Gateway-App zu erteilen — NUR Rollen, kein neues Secret/Zertifikat
     (setup_wizard.berechtigungen_nachziehen). Liefert die Login-URL."""
-    _state, auth_url = pkce_mod.create_session(_setup_redirect_uri(), flow="berechtigungen",
+    redirect_uri = _setup_redirect_uri()
+    _state, auth_url = pkce_mod.create_session(redirect_uri, flow="berechtigungen",
                                                scopes=pkce_mod.BERECHTIGUNGEN_SCOPES)
-    return JSONResponse({"auth_url": auth_url})
+    return JSONResponse({"auth_url": auth_url, "einfuegen": _endet_lokal(redirect_uri)})
 
 
 def _sitzung_abgelaufen_page() -> str:
@@ -269,6 +276,57 @@ def _berechtigungen_callback_page(ok: bool, msg: str = "") -> str:
   {'setTimeout(function(){window.close();},2500);' if ok else ''}
 </script>
 </body></html>"""
+
+
+# Abläufe, deren Ergebnis eine Wirkung im Tenant ist (nicht eine Sitzung im
+# Browser) — nur sie lassen sich auch über das Einfügen der Adresse abschließen.
+NACHLAUF_ABLAEUFE = ("setup", "berechtigungen", "watchdog_grants", "patch_redirect_uri")
+
+
+async def nachlauf(flow: str, session_obj: dict, access_token: str) -> dict:
+    """Wirkung einer abgeschlossenen Admin-Anmeldung, je Ablauf.
+
+    EIN Ort für beide Rückwege: den Rücksprung `/auth/callback` (Popup kehrt
+    über die HTTPS-Adresse zurück) und das Einfügen der Adresse
+    (`/api/setup/auth-paste`, wenn die Anmeldung auf localhost endet, weil die
+    HTTPS-Rücksprungadresse an der Bootstrap-App fehlt). Bis v1.10.26 kannte
+    das Einfügen nur die Ersteinrichtung: ein eingefügter Code aus „Fehlende
+    Berechtigungen erteilen“ hätte `run_post_auth_setup` ausgelöst.
+
+    Liefert {ok, msg, app_id}; wirft bei unbekanntem Ablauf ValueError.
+    """
+    import setup_wizard
+    if flow == "berechtigungen":
+        # Rollen (kein Secret/Zert). Dazu die Soll-Einträge der Bootstrap-App
+        # (Rücksprungadresse, Implicit, NAA) — nur ergänzend, mit demselben Token
+        # (Application.ReadWrite.All). Ohne die Rücksprungadresse endet JEDE
+        # Admin-Anmeldung auf localhost; so heilt sich das beim ersten Erteilen.
+        res = await setup_wizard.berechtigungen_nachziehen(access_token)
+        await setup_wizard.patch_bootstrap_redirect_uri(
+            access_token, settings_store.get("PUBLIC_HOSTNAME") or "")
+        return {"ok": res["ok"], "msg": "; ".join(res["fehler"]), "app_id": ""}
+    if flow == "watchdog_grants":
+        # Der Wächter-MI die zwei Graph-Zuweisungen erteilen (App-Rolle + Global Reader).
+        extra = session_obj.get("extra") or {}
+        res = await setup_wizard.grant_watchdog_graph_roles(access_token, extra.get("mi_object_id", ""))
+        ok = bool(res.get("app_role") and res.get("global_reader"))
+        msg = "" if ok else ("; ".join(res.get("fehler", [])) or "Teilweise fehlgeschlagen")
+        app_id = res.get("app_id", "")
+        # AppId fest am Wächter hinterlegen (statt nur ins UI-Feld) — dann
+        # braucht die Rollenzuweisung keine freien Felder mehr.
+        if extra.get("watcher_id") and app_id:
+            import waechter_register
+            waechter_register.merke_azure(extra["watcher_id"], app_id=app_id)
+        return {"ok": ok, "msg": msg, "app_id": app_id}
+    if flow == "patch_redirect_uri":
+        await setup_wizard.patch_bootstrap_redirect_uri(
+            access_token, settings_store.get("PUBLIC_HOSTNAME") or "")
+        return {"ok": True, "msg": "", "app_id": ""}
+    if flow == "setup":
+        result = await setup_wizard.run_post_auth_setup(access_token)
+        log.info("Post-auth setup complete: %s", result)
+        return {"ok": True, "msg": "", "app_id": ""}
+    raise ValueError(f"Unbekannter Anmeldeablauf {flow!r}")
 
 
 @router.get("/auth/callback", response_class=HTMLResponse)
@@ -415,66 +473,24 @@ async def auth_callback(
             return HTMLResponse(_arm_callback_page(ok=True))
         return HTMLResponse(_arm_callback_page(ok=False, msg="Kein Token erhalten oder Sitzung abgelaufen."))
 
-    elif flow == "patch_redirect_uri":
+    # Alle übrigen Abläufe: Wirkung über nachlauf() — derselbe Weg wie beim
+    # Einfügen der Adresse. Bisheriges Verhalten je Ablauf bleibt: Ohne Angabe
+    # gilt „setup“.
+    access_token = token_resp.get("access_token", "")
+    try:
+        res = await nachlauf(flow, session_obj, access_token)
+    except Exception as exc:                                   # noqa: BLE001
+        log.error("Anmeldeablauf %s fehlgeschlagen: %s", flow, exc)
+        res = {"ok": False, "msg": str(exc), "app_id": ""}
+    log.info("Anmeldeablauf %s abgeschlossen: ok=%s %s", flow, res["ok"], res["msg"])
+    if flow == "patch_redirect_uri":
         # Triggered from Settings → Add-in → "Redirect URI aktualisieren"
-        access_token = token_resp.get("access_token", "")
-        hostname = settings_store.get("PUBLIC_HOSTNAME") or ""
-        try:
-            import setup_wizard
-            await setup_wizard.patch_bootstrap_redirect_uri(access_token, hostname)
-            log.info("Add-in: Bootstrap redirect URI patched via settings flow")
-        except Exception as exc:
-            log.warning("Add-in redirect URI patch failed: %s", exc)
         return RedirectResponse("/setup?addin_uri_patched=1#step-addin", status_code=303)
-
-    elif flow == "berechtigungen":
-        # Fehlende Anwendungsberechtigungen erteilen — NUR Rollen (kein Secret/Zert).
-        access_token = token_resp.get("access_token", "")
-        try:
-            import setup_wizard
-            res = await setup_wizard.berechtigungen_nachziehen(access_token)
-            ok, msg = res["ok"], "; ".join(res["fehler"])
-            log.info("Berechtigungen nachgezogen: ok=%s %s", ok, msg)
-        except Exception as exc:                               # noqa: BLE001
-            log.error("Berechtigungen nachziehen fehlgeschlagen: %s", exc)
-            ok, msg = False, str(exc)
-        return HTMLResponse(_berechtigungen_callback_page(ok, msg))
-
-    elif flow == "watchdog_grants":
-        # Bypass-Wächter: der MI die zwei Graph-Zuweisungen erteilen (App-Rolle +
-        # Global Reader) mit dem delegierten Admin-Token. Popup meldet dem Opener.
-        access_token = token_resp.get("access_token", "")
-        mi_oid = (session_obj.get("extra") or {}).get("mi_object_id", "")
-        try:
-            import setup_wizard
-            res = await setup_wizard.grant_watchdog_graph_roles(access_token, mi_oid)
-            ok = bool(res.get("app_role") and res.get("global_reader"))
-            msg = "" if ok else ("; ".join(res.get("fehler", [])) or "Teilweise fehlgeschlagen")
-            app_id = res.get("app_id", "")
-            # AppId fest am Wächter hinterlegen (statt nur ins UI-Feld) — dann
-            # braucht die Rollenzuweisung keine freien Felder mehr.
-            wid = (session_obj.get("extra") or {}).get("watcher_id", "")
-            if wid and app_id:
-                import waechter_register
-                waechter_register.merke_azure(wid, app_id=app_id)
-        except Exception as exc:                               # noqa: BLE001
-            log.error("Watchdog-Graph-Grants fehlgeschlagen: %s", exc)
-            ok, msg, app_id = False, str(exc), ""
-        return HTMLResponse(_watchdog_callback_page(ok, msg, app_id))
-
-    else:
-        # Setup flow (popup, HTTPS redirect): run post-auth setup, then self-close
-        # the popup and signal the opener (wizard tab) to reload. The localhost
-        # copy-paste flow (/api/setup/auth-paste) remains as fallback.
-        access_token = token_resp.get("access_token", "")
-        try:
-            import setup_wizard
-            result = await setup_wizard.run_post_auth_setup(access_token)
-            log.info("Post-auth setup complete: %s", result)
-        except Exception as exc:
-            log.error("Post-auth setup failed: %s", exc)
-            return HTMLResponse(_setup_callback_page(ok=False, msg=str(exc)))
-        return HTMLResponse(_setup_callback_page(ok=True))
+    if flow == "berechtigungen":
+        return HTMLResponse(_berechtigungen_callback_page(res["ok"], res["msg"]))
+    if flow == "watchdog_grants":
+        return HTMLResponse(_watchdog_callback_page(res["ok"], res["msg"], res["app_id"]))
+    return HTMLResponse(_setup_callback_page(ok=res["ok"], msg=res["msg"]))
 
 @router.post("/auth/id-callback")
 async def auth_callback_implicit(request: Request):

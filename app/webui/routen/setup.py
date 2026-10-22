@@ -286,20 +286,31 @@ async def api_auth_paste(request: Request, user: str = Depends(_require_admin)):
     if not session:
         raise HTTPException(400, "PKCE-Session abgelaufen — bitte erneut auf 'Anmelden' klicken.")
 
+    # Der Ablauf entscheidet die Wirkung — dieselbe Funktion wie beim Rücksprung.
+    # Bis v1.10.26 lief hier für JEDEN eingefügten Code die Ersteinrichtung, auch
+    # für einen aus „Fehlende Berechtigungen erteilen“. SSO/ARM erzeugen eine
+    # Browser-Sitzung bzw. ein Nutzer-Token — die gehören nicht in diesen Weg.
+    from webui.routen import anmeldung
+    flow = session.get("flow", "setup")
+    if flow not in anmeldung.NACHLAUF_ABLAEUFE:
+        raise HTTPException(400, f"Diese Anmeldung ({flow}) lässt sich nicht über das "
+                                 "Einfügen abschließen — bitte erneut starten.")
+
     try:
-        token_resp = await pkce_mod.exchange_code(code, session["verifier"], session["redirect_uri"])
+        token_resp = await pkce_mod.exchange_code(code, session["verifier"], session["redirect_uri"],
+                                                  scopes=session.get("scopes"))
         access_token = token_resp["access_token"]
     except Exception as exc:
         raise HTTPException(500, f"Token-Austausch fehlgeschlagen: {exc}")
 
     try:
-        import setup_wizard
-        result = await setup_wizard.run_post_auth_setup(access_token)
-        log.info("Post-auth setup complete: %s", result)
-        return JSONResponse({"ok": True})
+        res = await anmeldung.nachlauf(flow, session, access_token)
     except Exception as exc:
-        log.error("Post-auth setup failed: %s", exc)
-        raise HTTPException(500, f"Setup-Fehler nach Login: {exc}")
+        log.error("Anmeldeablauf %s (eingefügt) fehlgeschlagen: %s", flow, exc)
+        raise HTTPException(500, f"Fehler nach dem Login: {exc}")
+    log.info("Anmeldeablauf %s (eingefügt) abgeschlossen: ok=%s %s", flow, res["ok"], res["msg"])
+    return JSONResponse({"ok": res["ok"], "flow": flow, "error": res["msg"],
+                         "app_id": res["app_id"]})
 
 
 # ── Routes: setup API endpoints ────────────────────────────────────────────────

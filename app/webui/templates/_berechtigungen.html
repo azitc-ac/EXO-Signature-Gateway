@@ -23,6 +23,7 @@
     <button class="btn secondary btn-sm ber-pruefen" type="button">Erneut prüfen</button>
     <span class="speicher-hinweis ber-meldung" style="margin-left:0"></span>
   </div>
+  <div class="ber-einfuegen" hidden></div>
 </div>
 <script>
 (function () {
@@ -72,11 +73,20 @@
 
   var wartet = false;   // nur das Kästchen, das die Anmeldung gestartet hat, meldet den Ablauf
   knopf.addEventListener('click', async function () {
-    var auf = anmeldeFenster('/api/setup/berechtigungen/erteilen', 'ber-login', true);
+    // Endet die Anmeldung auf localhost (Rücksprungadresse fehlt), meldet der
+    // Server das mit `einfuegen` — dann die Adresse hier einfügen lassen.
+    var einfuegen = false;
+    var auf = anmeldeFenster(async function () {
+      var d = await getJSON('/api/setup/berechtigungen/erteilen');
+      if (!d.ok) throw new Error(errText(d));
+      einfuegen = !!d.einfuegen;
+      return d.auth_url;
+    }, 'ber-login', true);
     wartet = true;
     melde('offen', 'Admin-Anmeldung im neuen Fenster…');
     var r = await auf;
     if (!r.ok) { wartet = false; melde('fehler', '✗ ' + r.fehler); }
+    else if (einfuegen) anmeldeAdresseEinfuegen(box.querySelector('.ber-einfuegen'), 'berechtigungen');
   });
   pruefKnopf.addEventListener('click', function () { pruefen(); });
 
