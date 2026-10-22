@@ -456,6 +456,24 @@
     <div id="neu-route-result" style="display:none;margin-top:10px"></div>
   </div>
 
+  <h3 style="font-size:14px;margin:20px 0 8px">Externe Empfänger&nbsp;→&nbsp;Ziel</h3>
+  <p class="hint" style="margin:0 0 8px">
+    Empfänger <strong>außerhalb</strong> der eigenen Domänen, für die oben keine
+    Route steht, gehen standardmäßig an Exchange Online. Mit dem Ziel
+    <code>direkt</code> stellt das Gateway sie selbst zu (siehe Karte
+    <em>Direktversand</em>); interne Empfänger bleiben bei Exchange Online.
+  </p>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px 12px;align-items:end">
+    <div>
+      <label for="extern-ziel" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Ziel</label>
+      <select id="extern-ziel" style="width:100%;margin:0;box-sizing:border-box"></select>
+    </div>
+    <div style="padding-bottom:1px">
+      <button type="button" class="btn secondary" onclick="externRouteSpeichern(this)">Route speichern</button>
+    </div>
+  </div>
+  <div id="extern-result" style="display:none;margin-top:10px"></div>
+
   <h3 style="font-size:14px;margin:20px 0 8px">Fremder Tenant&nbsp;→&nbsp;Ziel</h3>
   <p class="hint" style="margin:0 0 8px">
     Post eines <strong>anderen</strong> Microsoft-365-Tenants weist das Gateway
@@ -513,6 +531,103 @@
       <span class="hint" id="mailuser-stand">—</span>
     </div>
     <div id="mailuser-result" style="display:none;margin-top:10px"></div>
+  </div>
+</div>
+
+<!-- ── Direktversand (eigener Postfix) ─────────────────────────────────────── -->
+<!-- Sichtbar wie das Domänen-Routing (Schalter in Einstellungen → Erweitert) -->
+<div class="settings-card" style="margin-bottom:20px{% if not s.DOMAIN_ROUTING_ENABLED %};display:none{% endif %}">
+  <h2 style="margin:0">Direktversand <span class="hint" style="font-weight:400">(eigener Postfix)</span></h2>
+  <p style="font-size:13px;color:#555;margin:10px 0 12px">
+    Das Gateway stellt Post an externe Empfänger <strong>selbst</strong> zu —
+    per MX oder über einen Smarthost —, statt sie an Exchange Online
+    zurückzugeben. Wofür: Tenants, die Exchange Online nicht ins Internet
+    zustellen lässt, und Massenversand ohne Microsofts Sendegrenzen. Welche Post
+    diesen Weg nimmt, legen die Routen auf das Ziel <code>direkt</code> fest.
+  </p>
+  <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;font-size:12.5px;color:#92400e;margin-bottom:14px">
+    ⚠️ <strong>Per MX nur mit offenem Port 25 ausgehend</strong> — in Azure ist er
+    gesperrt; dort bleibt die Betriebsart Smarthost.<br>
+    ⚠️ Damit Empfänger die Post annehmen, braucht jede Absenderdomäne einen
+    <strong>DKIM-Schlüssel</strong> (unten), die Ausgangsadresse im
+    <strong>SPF-Eintrag</strong> und möglichst einen <strong>PTR</strong>, der zum
+    HELO-Namen passt.
+  </div>
+
+  <div id="direkt-status" class="hint" style="margin:0 0 12px">Wird geladen …</div>
+
+  <div style="margin:0 0 10px">
+    <label class="checkbox-label" style="margin:0"><input type="checkbox" id="direkt-aktiv"> Direktversand einschalten</label>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px 12px;align-items:end">
+    <div>
+      <label for="direkt-modus" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Betriebsart</label>
+      <select id="direkt-modus" onchange="direktModusZeigen()" style="width:100%;margin:0;box-sizing:border-box">
+        <option value="mx">Selbst per MX zustellen</option>
+        <option value="smarthost">Über einen Smarthost</option>
+      </select>
+    </div>
+    <div>
+      <label for="direkt-helo" style="display:block;margin:0 0 3px;font-size:12px;color:#555">HELO-Name <span class="hint" style="font-weight:400">(leer = öffentl. Hostname)</span></label>
+      <input type="text" id="direkt-helo" placeholder="mail.example.com" autocomplete="off" style="width:100%;margin:0;box-sizing:border-box">
+    </div>
+    <div>
+      <label for="direkt-ip" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Ausgangsadresse <span class="hint" style="font-weight:400">(für die DNS-Prüfung)</span></label>
+      <input type="text" id="direkt-ip" placeholder="203.0.113.10" autocomplete="off" style="width:100%;margin:0;box-sizing:border-box">
+    </div>
+  </div>
+  <div id="direkt-smarthost" style="display:none;margin-top:10px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px 12px;align-items:end">
+      <div>
+        <label for="direkt-sh-host" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Smarthost</label>
+        <input type="text" id="direkt-sh-host" placeholder="smtp.example.net" autocomplete="off" style="width:100%;margin:0;box-sizing:border-box">
+      </div>
+      <div>
+        <label for="direkt-sh-port" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Port</label>
+        <input type="number" id="direkt-sh-port" value="587" min="1" max="65535" style="width:100%;margin:0;box-sizing:border-box">
+      </div>
+      <div>
+        <label for="direkt-sh-user" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Login <span class="hint" style="font-weight:400">(optional)</span></label>
+        <input type="text" id="direkt-sh-user" placeholder="—" autocomplete="off" style="width:100%;margin:0;box-sizing:border-box">
+      </div>
+      <div>
+        <label for="direkt-sh-pw" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Passwort <span class="hint" style="font-weight:400">(leer = unverändert)</span></label>
+        <input type="password" id="direkt-sh-pw" placeholder="—" autocomplete="new-password" style="width:100%;margin:0;box-sizing:border-box">
+      </div>
+    </div>
+  </div>
+  <div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <button type="button" class="btn secondary" onclick="direktSpeichern(this)">Speichern</button>
+    <button type="button" class="btn secondary" onclick="port25Pruefen(this)">Port 25 prüfen</button>
+  </div>
+  <div id="direkt-result" style="display:none;margin-top:10px"></div>
+
+  <h3 style="font-size:14px;margin:20px 0 8px">DKIM-Schlüssel</h3>
+  <p class="hint" style="margin:0 0 8px">
+    Signiert wird mit der Domäne des <code>From:</code>-Kopfs. Den angezeigten
+    Eintrag als <strong>TXT</strong> ins DNS der Domäne setzen, dann „Prüfen“.
+  </p>
+  <div class="tabellen-rollbereich">
+    <table class="config-table" style="min-width:560px">
+      <thead>
+        <tr><th>Domäne</th><th>DNS-Eintrag</th><th></th></tr>
+      </thead>
+      <tbody id="dkim-body">
+        <tr><td colspan="3" style="color:#888">Wird geladen …</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div style="border-top:1px solid #e2e8f0;margin-top:16px;padding-top:14px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px 12px;align-items:end">
+      <div>
+        <label for="dkim-domain" style="display:block;margin:0 0 3px;font-size:12px;color:#555">Domäne</label>
+        <input type="text" id="dkim-domain" placeholder="example.com" autocomplete="off" style="width:100%;margin:0;box-sizing:border-box">
+      </div>
+      <div style="padding-bottom:1px">
+        <button type="button" class="btn secondary" onclick="dkimErzeugen(this)">Schlüssel erzeugen</button>
+      </div>
+    </div>
+    <div id="dkim-result" style="display:none;margin-top:10px"></div>
   </div>
 </div>
 
@@ -677,8 +792,13 @@ async function laden(mitNamen) {
   zeichneLernmodus(r.lernmodus);
   zeichneIdentitaeten(r.identitaeten);
   zeichneZiele(r.ziele);
-  zeichneRouten(r.routen, r.ziele);
-  zeichneTenantRouten(r.tenant_routen, r.ziele);
+  const waehlbar = (r.ziele || []).concat([{ id: 'direkt',
+    host: (r.direkt && r.direkt.aktiv) ? 'Direktversand' : 'Direktversand, ausgeschaltet' }]);
+  zeichneRouten(r.routen, waehlbar);
+  zeichneTenantRouten(r.tenant_routen, waehlbar);
+  zeichneExternRoute(r.extern_route, waehlbar);
+  zeichneDirekt(r.direkt, r.direkt_status);
+  zeichneDkim(r.dkim);
   const pr = document.getElementById('per-recipient');
   if (pr) pr.checked = !!r.per_recipient;
   zeichneMailuserStand(r.mailuser);
@@ -864,6 +984,23 @@ function zeichneTenantRouten(routen, ziele) {
   });
 }
 
+// Gemeinsamer Ablauf der Routing-/Direktversand-Knöpfe: senden, Ergebnis am Ort
+// melden, bei Erfolg neu laden. Liefert die Antwort (ok:false bei Fehler).
+async function _sendenUndLaden(btn, box, url, daten, erfolg) {
+  const r = await knopfAktion(btn, null, () => postJSON(url, daten));
+  if (!r || !r.ok) { showAlert(box, 'error', (r && esc(r.error)) || 'Speichern fehlgeschlagen.'); return r || {}; }
+  showAlert(box, 'success', erfolg);
+  laden();
+  return r;
+}
+
+// Entfernen nach Rückfrage (frage leer = ohne Rückfrage), dann neu laden.
+async function _entfernenUndLaden(btn, frage, url, daten) {
+  if (frage && !confirm(frage)) return;
+  const r = await knopfAktion(btn, null, () => postJSON(url, daten));
+  if (r.ok) laden();
+}
+
 // Route aus dem Anlege-Formular speichern (Domäne oder Tenant). Ziel leer heißt
 // beim Domänen-Routing „Exchange Online“, beim Tenant ist es Pflicht.
 async function _routeSpeichern(btn, opt) {
@@ -873,11 +1010,9 @@ async function _routeSpeichern(btn, opt) {
   if (!wert || (opt.zielPflicht && !ziel)) { showAlert(box, 'error', opt.fehlt); return; }
   const daten = { ziel: ziel };
   daten[opt.schluessel] = wert;
-  const r = await knopfAktion(btn, null, () => postJSON(opt.url, daten));
-  if (!r || !r.ok) { showAlert(box, 'error', (r && esc(r.error)) || 'Speichern fehlgeschlagen.'); return; }
-  showAlert(box, 'success', 'Route gespeichert.');
-  document.getElementById(opt.feld).value = '';
-  laden();
+  if ((await _sendenUndLaden(btn, box, opt.url, daten, 'Route gespeichert.')).ok) {
+    document.getElementById(opt.feld).value = '';
+  }
 }
 
 function tenantRouteHinzufuegen(btn) {
@@ -886,11 +1021,154 @@ function tenantRouteHinzufuegen(btn) {
     url: '/api/relay/tenant-route', fehlt: 'Bitte Tenant-ID und Ziel angeben.' });
 }
 
-async function tenantRouteLoeschen(tenant, btn) {
-  if (!confirm('Route entfernen? Post dieses Tenants wird dann wieder abgewiesen.')) return;
-  const r = await knopfAktion(btn, null, () => postJSON('/api/relay/tenant-route', { tenant: tenant, ziel: '' }));
-  if (!r.ok) return;
-  laden();
+function tenantRouteLoeschen(tenant, btn) {
+  return _entfernenUndLaden(btn, 'Route entfernen? Post dieses Tenants wird dann wieder abgewiesen.',
+                            '/api/relay/tenant-route', { tenant: tenant, ziel: '' });
+}
+
+function zeichneExternRoute(ziel, ziele) {
+  const sel = document.getElementById('extern-ziel');
+  if (document.activeElement === sel) return;
+  sel.innerHTML = '<option value="">— Exchange Online (Standard) —</option>'
+    + (ziele || []).map(function (z) {
+        return '<option value="' + escAttr(z.id) + '">' + esc(z.id) + ' (' + esc(z.host) + ')</option>';
+      }).join('');
+  sel.value = ziel || '';
+}
+
+function externRouteSpeichern(btn) {
+  return _sendenUndLaden(btn, document.getElementById('extern-result'), '/api/relay/extern-route',
+                         { ziel: document.getElementById('extern-ziel').value || '' }, 'Route gespeichert.');
+}
+
+// ── Direktversand ────────────────────────────────────────────────────────────
+function direktModusZeigen() {
+  document.getElementById('direkt-smarthost').style.display =
+    document.getElementById('direkt-modus').value === 'smarthost' ? '' : 'none';
+}
+
+function zeichneDirekt(e, st) {
+  e = e || {};
+  const felder = { 'direkt-helo': e.helo, 'direkt-ip': e.aussen_ip, 'direkt-sh-host': e.smarthost,
+                   'direkt-sh-port': e.smarthost_port || 587, 'direkt-sh-user': e.smarthost_user };
+  Object.keys(felder).forEach(function (id) {
+    const el = document.getElementById(id);
+    if (document.activeElement !== el) el.value = felder[id] || '';
+  });
+  document.getElementById('direkt-aktiv').checked = !!e.aktiv;
+  document.getElementById('direkt-modus').value = e.modus || 'mx';
+  document.getElementById('direkt-sh-pw').placeholder = e.hat_passwort ? '•••• gesetzt' : '—';
+  direktModusZeigen();
+
+  const box = document.getElementById('direkt-status');
+  st = st || {};
+  const b = st.bericht;
+  let html = st.erreichbar
+    ? '✓ Postfix-Container erreichbar'
+    : '<span style="color:#991b1b">✗ Postfix-Container nicht erreichbar — nach dem Update startet er mit; sonst „docker compose up -d“ im Gateway-Verzeichnis.</span>';
+  if (b) {
+    const h = b.heute || {};
+    html += ' · Postfix ' + esc(b.postfix || '?') + ' · seit Mitternacht (UTC): '
+      + esc(h.gesendet) + ' zugestellt, ' + esc(h.zurueckgestellt) + ' Versuche zurückgestellt, '
+      + esc(h.abgewiesen) + ' abgewiesen · Warteschlange ' + esc(b.warteschlange)
+      + ' (davon ' + esc(b.aufgeschoben) + ' aufgeschoben) · Stand ' + esc(b.stand || '');
+    if (b.letzte_fehler && b.letzte_fehler.length) {
+      html += '<details style="margin-top:6px"><summary>Letzte Zustellprobleme</summary><pre style="white-space:pre-wrap;font-size:11px;margin:6px 0 0">'
+        + esc(b.letzte_fehler.join('\n')) + '</pre></details>';
+    }
+  } else if (st.erreichbar) {
+    html += ' · noch kein Zustandsbericht';
+  }
+  box.innerHTML = html;
+}
+
+async function direktSpeichern(btn) {
+  const box = document.getElementById('direkt-result');
+  const daten = {
+    aktiv: document.getElementById('direkt-aktiv').checked,
+    modus: document.getElementById('direkt-modus').value,
+    helo: feldWert('direkt-helo'),
+    aussen_ip: feldWert('direkt-ip'),
+    smarthost: feldWert('direkt-sh-host'),
+    smarthost_port: parseInt(document.getElementById('direkt-sh-port').value, 10) || 587,
+    smarthost_user: feldWert('direkt-sh-user'),
+    smarthost_passwort: document.getElementById('direkt-sh-pw').value || ''
+  };
+  if ((await _sendenUndLaden(btn, box, '/api/direkt/einstellungen', daten,
+      'Gespeichert. Postfix übernimmt die Einstellung in wenigen Sekunden.')).ok) {
+    document.getElementById('direkt-sh-pw').value = '';
+  }
+}
+
+async function port25Pruefen(btn) {
+  const box = document.getElementById('direkt-result');
+  const r = await knopfAktion(btn, null, () => postJSON('/api/direkt/port25-test', {}));
+  if (r && r.ok) {
+    showAlert(box, 'success', 'Port 25 ausgehend offen — ' + esc(r.host) + ' antwortet: <code>' + esc(r.antwort) + '</code>');
+  } else {
+    showAlert(box, 'error', 'Port 25 ausgehend gesperrt oder keine Gegenstelle erreichbar: ' + esc((r && r.error) || errText(r)));
+  }
+}
+
+function zeichneDkim(liste) {
+  const tb = document.getElementById('dkim-body');
+  liste = liste || [];
+  if (!liste.length) {
+    tabelleHinweis(tb, 3, 'Noch kein Schlüssel — Post geht unsigniert hinaus.');
+    return;
+  }
+  tb.innerHTML = '';
+  liste.forEach(function (d) {
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td><code>' + esc(d.domain) + '</code><div class="hint">Selektor ' + esc(d.selektor) + '</div></td>'
+      + '<td style="font-size:11px;word-break:break-all">'
+        + (d.fehlt ? '<span style="color:#991b1b">Schlüsseldatei fehlt — Domäne entfernen und neu erzeugen</span>'
+                   : '<strong>' + esc(d.name) + '</strong> ' + copyBtnHtml(d.name)
+                     + '<br><code>' + esc(d.wert) + '</code> ' + copyBtnHtml(d.wert))
+        + '<div id="dkim-pruef-' + escAttr(d.domain) + '" style="margin-top:6px"></div></td>'
+      + '<td style="white-space:nowrap">'
+        + '<button class="btn secondary btn-sm" onclick="dnsPruefen(\'' + escJsAttr(d.domain) + '\', this)">Prüfen</button> '
+        + '<button class="btn secondary btn-sm" onclick="dkimEntfernen(\'' + escJsAttr(d.domain) + '\', this)">Entfernen</button>'
+      + '</td>';
+    tb.appendChild(tr);
+  });
+}
+
+async function dkimErzeugen(btn) {
+  const box = document.getElementById('dkim-result');
+  const domain = feldWert('dkim-domain');
+  if (!domain) { showAlert(box, 'error', 'Bitte eine Domäne angeben.'); return; }
+  if ((await _sendenUndLaden(btn, box, '/api/direkt/dkim', { domain: domain },
+      'Schlüssel erzeugt. Jetzt den Eintrag in der Tabelle ins DNS setzen.')).ok) {
+    document.getElementById('dkim-domain').value = '';
+  }
+}
+
+function dkimEntfernen(domain, btn) {
+  return _entfernenUndLaden(btn, 'DKIM für „' + domain + '" entfernen? Der Schlüssel wird gelöscht; '
+                            + 'Post dieser Domäne geht danach unsigniert hinaus.',
+                            '/api/direkt/dkim/loeschen', { domain: domain });
+}
+
+function _pruefZeile(ok, text) {
+  return '<div>' + (ok === true ? '✓ ' : ok === false ? '<span style="color:#991b1b">✗</span> ' : '? ') + text + '</div>';
+}
+
+async function dnsPruefen(domain, btn) {
+  const ziel = document.getElementById('dkim-pruef-' + domain);
+  const r = await knopfAktion(btn, null, () => getJSON('/api/direkt/dns-pruefung?domain=' + encodeURIComponent(domain)));
+  if (!r.ok) { ziel.innerHTML = '<span style="color:#991b1b">Prüfung fehlgeschlagen: ' + esc(errText(r)) + '</span>'; return; }
+  const spf = r.spf || {}, dk = r.dkim || {}, p = r.ptr || {};
+  ziel.innerHTML =
+    _pruefZeile(dk.passt, 'DKIM-Eintrag ' + (dk.passt ? 'stimmt' : (dk.gefunden && dk.gefunden.length ? 'weicht ab' : 'nicht gefunden')))
+    + _pruefZeile(spf.erlaubt, 'SPF: ' + (spf.eintrag ? '<code>' + esc(spf.eintrag) + '</code>' : 'kein Eintrag')
+        + (spf.ip ? (spf.erlaubt === true ? ' — erlaubt ' + esc(spf.ip)
+                     : spf.erlaubt === false ? ' — ' + esc(spf.ip) + ' fehlt' : ' — ob ' + esc(spf.ip) + ' erlaubt ist, hier nicht entscheidbar (include/a/mx)')
+                  : ' — Ausgangsadresse oben eintragen'))
+    + (p.ip ? _pruefZeile(p.vorwaerts && p.helo_passt, 'PTR ' + esc(p.ip) + ' → ' + esc(p.name || p.fehler || '—')
+        + (p.vorwaerts ? '' : ' (zeigt nicht zurück)') + (p.helo_passt ? '' : ' — HELO „' + esc(p.helo) + '" passt nicht'))
+           : '');
 }
 
 function zielBearbeiten(z) {
@@ -912,24 +1190,19 @@ async function zielHinzufuegen(btn) {
   const pw = document.getElementById('neu-ziel-pw').value || '';
   const tls = document.getElementById('neu-ziel-tls').checked;
   if (!id || !host) { showAlert(box, 'error', 'Kürzel und Host sind nötig.'); return; }
-  const r = await knopfAktion(btn, null, () => postJSON('/api/relay/ziel',
-      { id: id, host: host, port: port, starttls: tls, user: user, passwort: pw }));
-  if (!r || !r.ok) { showAlert(box, 'error', (r && esc(r.error)) || 'Speichern fehlgeschlagen.'); return; }
-  showAlert(box, 'success', 'Ziel gespeichert.');
+  const r = await _sendenUndLaden(btn, box, '/api/relay/ziel',
+      { id: id, host: host, port: port, starttls: tls, user: user, passwort: pw }, 'Ziel gespeichert.');
+  if (!r.ok) return;
   ['neu-ziel-id', 'neu-ziel-host', 'neu-ziel-user', 'neu-ziel-pw'].forEach(function (f) {
     document.getElementById(f).value = '';
   });
   document.getElementById('neu-ziel-port').value = 25;
   document.getElementById('neu-ziel-tls').checked = true;
-  laden();
 }
 
-async function zielLoeschen(id, btn) {
-  if (!confirm('Ziel „' + id + '" entfernen? Routen, die darauf zeigen, gehen '
-             + 'wieder an Exchange Online.')) return;
-  const r = await knopfAktion(btn, null, () => postJSON('/api/relay/ziel/loeschen', { id: id }));
-  if (!r.ok) return;
-  laden();
+function zielLoeschen(id, btn) {
+  return _entfernenUndLaden(btn, 'Ziel „' + id + '" entfernen? Routen, die darauf zeigen, gehen '
+                            + 'wieder an Exchange Online.', '/api/relay/ziel/loeschen', { id: id });
 }
 
 function routeHinzufuegen(btn) {
@@ -938,10 +1211,8 @@ function routeHinzufuegen(btn) {
     url: '/api/relay/route', fehlt: 'Bitte eine Domäne angeben.' });
 }
 
-async function routeLoeschen(domain, btn) {
-  const r = await knopfAktion(btn, null, () => postJSON('/api/relay/route', { domain: domain, ziel: '' }));
-  if (!r.ok) return;
-  laden();
+function routeLoeschen(domain, btn) {
+  return _entfernenUndLaden(btn, '', '/api/relay/route', { domain: domain, ziel: '' });
 }
 
 // ── Hybrid-Koexistenz (on-prem-Connector) ────────────────────────────────────

@@ -142,3 +142,6 @@ jobs:
       # etwa ein Paket, das in requirements.txt fehlt.
       - name: Docker build
         run: docker build -t exo-signature-gateway:ci .
+      # Postfix des Direktversands (eigener Container im Compose)
+      - name: Docker build (Direktversand)
+        run: docker build -t exo-signature-gateway-mta:ci mta

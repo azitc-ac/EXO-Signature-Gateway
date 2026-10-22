@@ -484,6 +484,22 @@ def _send_smtp(mail_from: str, rcpt_tos: list[str], content_bytes: bytes) -> Non
         raise
 
 
+def _an_postfix(mail_from: str, rcpt_tos: list[str], content_bytes: bytes,
+                host: str, port: int) -> None:
+    """Übergabe an den eigenen Postfix (Direktversand): Exchange-interne
+    Kopfzeilen entfernen, DKIM-signieren, ohne TLS im internen Docker-Netz
+    einliefern. Zustellen, Wiederholen und Unzustellbarkeitsberichte macht
+    Postfix (siehe `direktversand.py`)."""
+    import direktversand
+    import dkim_signatur
+    inhalt, ergebnis = dkim_signatur.signieren(direktversand.kopf_bereinigen(content_bytes))
+    with smtplib.SMTP(host, port, timeout=30,
+                      local_hostname="exo-signature-gateway") as smtp:
+        smtp.ehlo()
+        smtp.sendmail(mail_from, rcpt_tos, inhalt)
+    log.info("Direktversand übergeben: from=%s to=%s (%s)", mail_from, rcpt_tos, ergebnis)
+
+
 def _relay_to_target(ziel_id: str, mail_from: str, rcpt_tos: list[str],
                      content_bytes: bytes) -> None:
     """Pass-through-Relay an ein konfiguriertes Next-Hop-Ziel (NICHT EXO).
@@ -504,6 +520,10 @@ def _relay_to_target(ziel_id: str, mail_from: str, rcpt_tos: list[str],
     host, port = cfg["host"], cfg["port"]
     if not host:
         raise RuntimeError(f"Routing-Ziel {ziel_id!r} hat keinen Host konfiguriert")
+
+    if ziel_id == domain_routing.DIREKT:
+        _an_postfix(mail_from, rcpt_tos, content_bytes, host, port)
+        return
 
     tls_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
     tls_ctx.check_hostname = False

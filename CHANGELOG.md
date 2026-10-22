@@ -5,6 +5,66 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.20 — 2026-10-22 — Direktversand: externe Post über den eigenen Postfix, mit DKIM
+
+- **Neu: Direktversand** (Relay-Seite, Karte *Direktversand*; sichtbar, wenn das
+  Domänen-Routing unter *Einstellungen → Erweitert* an ist). Das Gateway kann
+  Post an externe Empfänger selbst zustellen, statt sie an Exchange Online
+  zurückzugeben. Dafür gibt es einen eigenen Postfix-Container (`mta`). Er
+  stellt per **MX** zu oder über einen **Smarthost** und übernimmt
+  MX-Ausweichen, Warteschlange und Wiederholung über bis zu fünf Tage sowie
+  Unzustellbarkeitsberichte.
+  - Wofür: Tenants, die Exchange Online nicht ins Internet zustellen lässt
+    (etwa Test-Tenants mit `550 5.7.708`), und Massenversand ohne Microsofts
+    Sendegrenzen.
+  - Welche Post diesen Weg nimmt, legen Routen auf das neue eingebaute Ziel
+    `direkt` fest: die neue Route **„Externe Empfänger → Ziel“** (alle
+    Empfänger außerhalb der eigenen Domänen), eine Domänen-Route oder eine
+    Tenant-Route. Interne Empfänger bleiben bei Exchange Online. Externe Post
+    auf diesem Weg kehrt nie zu Exchange Online zurück, eine Schleife über den
+    Connector ist für sie ausgeschlossen.
+  - Sind die eigenen Domänen noch unbekannt (keine Postfachliste), gilt kein
+    Empfänger als extern.
+  - Wie das übrige Domänen-Routing wirkt der Direktversand nur im Rückweg-Modus
+    „SMTP Port 25“.
+- **DKIM-Signatur im Gateway.** Unter *DKIM-Schlüssel* erzeugst du je
+  Absenderdomäne einen Schlüssel (RSA 2048, abgelegt mit Rechten 600) und
+  bekommst den DNS-Eintrag zum Kopieren. Signiert wird mit der Domäne des
+  `From:`-Kopfs, auf die DMARC die Signatur ausrichtet. Postfix wandelt den
+  Rumpf danach nicht mehr um, sonst bräche die Signatur. Ohne Schlüssel geht
+  die Mail unsigniert hinaus, mit Warnung im Protokoll. Einen bestehenden
+  Schlüssel ersetzt das Gateway nicht stillschweigend: Ein Wechsel würde sofort
+  mit einem Schlüssel signieren, der noch nicht im DNS steht.
+- **„Prüfen“ zeigt je Domäne**, was ein Empfänger sieht: ob der DKIM-Eintrag
+  zum Schlüssel passt, ob der SPF-Eintrag die Ausgangsadresse ausdrücklich
+  erlaubt, und ob der PTR der Ausgangsadresse auf einen Namen zeigt, der
+  zurückzeigt und zum HELO-Namen passt. Löst der SPF-Eintrag die Adresse erst
+  über `include`, `a` oder `mx` auf, steht dort „nicht entscheidbar“ statt einer
+  halben Auswertung.
+- **Exchange-interne Kopfzeilen** (`X-MS-Exchange-Organization-*`) entfernt das
+  Gateway vor dem Direktversand. Auf dem eigenen Weg ins Internet tut Exchange
+  Online das selbst.
+- **Port 25:** Per MX lässt sich der Direktversand nur einschalten, wenn ein
+  Test der ausgehenden Verbindung bestanden ist. Der Knopf *Port 25 prüfen*
+  verbindet sich mit dem MX großer Anbieter und wartet auf deren Begrüßung,
+  ohne eine Mail zu senden. In Azure ist der Port gesperrt, dort bleibt die
+  Betriebsart Smarthost. Zum Smarthost verbindet Postfix immer verschlüsselt,
+  per MX dort, wo die Gegenstelle es anbietet.
+- Die Karte zeigt den Zustand des Containers: Zustellungen, zurückgestellte
+  Versuche und Abweisungen seit Mitternacht (UTC), die Warteschlange und die
+  letzten Zustellprobleme.
+- Der Postfix-Container lauscht nur im internen Docker-Netz, ohne Port nach
+  außen. Solange der Direktversand aus ist, lässt er nichts hinaus.
+
+**Zu tun:** nichts, solange du den Direktversand nicht nutzt. Der Container
+kommt mit dem Update und bleibt untätig. Willst du ihn nutzen:
+1. *Einstellungen → Erweitert*: Domänen-Routing einschalten.
+2. *Relay → Direktversand*: *Port 25 prüfen*, dann Betriebsart wählen und
+   einschalten.
+3. Je Absenderdomäne einen DKIM-Schlüssel erzeugen und den Eintrag ins DNS
+   setzen. Die Ausgangsadresse kommt in den SPF-Eintrag der Domäne.
+4. Bei *Domänen-Routing* die Route *Externe Empfänger* auf `direkt` stellen.
+
 ## v1.10.19 — 2026-10-22 — Schleifenbremse für die Tenant-Weiterleitung
 
 - **Die Tenant-Weiterleitung aus v1.10.18 hat jetzt eine eigene Schleifenbremse.**

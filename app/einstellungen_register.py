@@ -168,6 +168,16 @@ REGISTER: dict[str, E] = {
     "DOMAIN_ROUTING_ENABLED": E(art=OPTION, ort="advanced.html"),
     "COEX_ENABLED": E(art=OPTION, ort="advanced.html"),
     "PER_RECIPIENT_ROUTING": E(art=OPTION, ort="relay.html"),
+    "EXTERN_ROUTE": E(art=STRUKTUR, ort="/api/relay/extern-route"),
+    "DIREKT_ENABLED": E(art=OPTION, ort="/api/direkt/einstellungen"),
+    "DIREKT_MODUS": E(art=OPTION, ort="/api/direkt/einstellungen"),
+    "DIREKT_HELO": E(art=OPTION, ort="/api/direkt/einstellungen"),
+    "DIREKT_SMARTHOST": E(art=OPTION, ort="/api/direkt/einstellungen"),
+    "DIREKT_SMARTHOST_PORT": E(art=OPTION, ort="/api/direkt/einstellungen"),
+    "DIREKT_SMARTHOST_USER": E(art=OPTION, ort="/api/direkt/einstellungen"),
+    "DIREKT_SMARTHOST_PW": E(art=GEHEIMNIS),
+    "DIREKT_AUSSEN_IP": E(art=OPTION, ort="/api/direkt/einstellungen"),
+    "DKIM_DOMAINS": E(art=STRUKTUR, ort="/api/direkt/dkim"),
     "OOO_ENABLED": E(art=OPTION, ort="abwesenheit.html"),  # zentrale Abwesenheitsnotiz
     "ABWESENHEIT_AKTIV": E(art=OPTION, ort="setup.html"),  # Funktion Abwesenheiten (Menü/Spalte/Abgleich)
     "OOO_CALENDAR_READ": E(art=OPTION, ort="abwesenheit.html"),   # Hauptschalter Kalender lesen

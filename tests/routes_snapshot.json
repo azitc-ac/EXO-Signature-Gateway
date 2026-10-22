@@ -399,6 +399,41 @@
     "name": "api_digicert_test"
   },
   {
+    "pfad": "/api/direkt/dkim",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_direkt_dkim"
+  },
+  {
+    "pfad": "/api/direkt/dkim/loeschen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_direkt_dkim_loeschen"
+  },
+  {
+    "pfad": "/api/direkt/dns-pruefung",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_direkt_dns_pruefung"
+  },
+  {
+    "pfad": "/api/direkt/einstellungen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_direkt_einstellungen"
+  },
+  {
+    "pfad": "/api/direkt/port25-test",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_direkt_port25_test"
+  },
+  {
     "pfad": "/api/entra/users",
     "methoden": [
       "GET"
@@ -873,6 +908,13 @@
       "GET"
     ],
     "name": "api_relay_domaenen"
+  },
+  {
+    "pfad": "/api/relay/extern-route",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_relay_extern_route"
   },
   {
     "pfad": "/api/relay/geraet",

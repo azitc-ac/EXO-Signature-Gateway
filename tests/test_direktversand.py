@@ -1,0 +1,322 @@
+"""Direktversand über den eigenen Postfix — Konfiguration, Routing, DKIM.
+
+Was hier gesichert wird (jeder Test schlägt fehl, wenn man den Fehler zurückbaut):
+- Ausgeschaltet lässt Postfix NICHTS hinaus, auch nicht bei kaputter Einstellung.
+- Zum Smarthost immer verschlüsselt; per MX opportunistisch.
+- Keine Einstellung lässt sich über einen Zeilenumbruch einschleusen.
+- Ohne bestandenen Port-25-Test lässt sich der MX-Modus nicht einschalten.
+- Nur Empfänger AUSSERHALB der Tenant-Domänen gehen an `direkt`, und bei
+  unbekannten Tenant-Domänen niemand.
+- Die DKIM-Signatur verifiziert gegen den eigenen öffentlichen Schlüssel und
+  bricht bei verändertem Rumpf; ohne Schlüssel bleibt die Mail unverändert.
+- Postfix wandelt den Rumpf nicht um (sonst bräche DKIM).
+- Exchange-interne Kopfzeilen verlassen das Haus nicht.
+"""
+import base64
+import os
+import stat
+import sys
+from pathlib import Path
+
+import pytest
+
+WURZEL = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(WURZEL / "app"))
+
+import config  # noqa: E402
+import direktversand  # noqa: E402
+import dkim_signatur  # noqa: E402
+import domain_routing  # noqa: E402
+
+
+@pytest.fixture
+def werte(monkeypatch, tmp_path):
+    w = {"DIREKT_ENABLED": False, "DIREKT_MODUS": "mx", "DKIM_DOMAINS": {},
+         "RELAY_TARGETS": {}, "DOMAIN_ROUTES": {}, "TENANT_ROUTES": {},
+         "EXTERN_ROUTE": "", "TENANT_DOMAIN": "contoso.onmicrosoft.com"}
+    import settings_store
+    monkeypatch.setattr(settings_store, "get", lambda k, *a, **kw: w.get(k))
+    monkeypatch.setattr(settings_store, "update", lambda d: w.update(d))
+    monkeypatch.setattr(config, "DATA_DIR", str(tmp_path))
+    import exo_mailboxes
+    monkeypatch.setattr(exo_mailboxes, "known_addresses",
+                        lambda: w.get("_adressen", {"anna@contoso.de"}))
+    return w
+
+
+def _e(**kw):
+    e = {"aktiv": True, "modus": "mx", "smarthost": "", "smarthost_port": 587,
+         "smarthost_user": ""}
+    e.update(kw)
+    return e
+
+
+def _wert(zeilen, schluessel):
+    treffer = [z.split(" = ", 1)[1] if " = " in z else ""
+               for z in zeilen if z.split(" =", 1)[0] == schluessel]
+    assert len(treffer) == 1, (schluessel, treffer)
+    return treffer[0]
+
+
+# ── Postfix-Konfiguration ───────────────────────────────────────────────────
+
+def test_ausgeschaltet_laesst_nichts_hinaus():
+    z = direktversand.postconf_zeilen(_e(aktiv=False), "mail.contoso.de")
+    assert _wert(z, "default_transport").startswith("error:")
+
+
+def test_mx_opportunistisch_ohne_relayhost():
+    z = direktversand.postconf_zeilen(_e(), "mail.contoso.de")
+    assert _wert(z, "default_transport") == "smtp"
+    assert _wert(z, "relayhost") == ""
+    assert _wert(z, "smtp_tls_security_level") == "may"
+
+
+def test_smarthost_immer_verschluesselt():
+    z = direktversand.postconf_zeilen(
+        _e(modus="smarthost", smarthost="smtp.example.net", smarthost_port=2525,
+           smarthost_user="u"), "mail.contoso.de")
+    assert _wert(z, "relayhost") == "[smtp.example.net]:2525"
+    assert _wert(z, "smtp_tls_security_level") == "encrypt"
+    assert _wert(z, "smtp_sasl_auth_enable") == "yes"
+
+
+def test_smarthost_ohne_host_laesst_nichts_hinaus():
+    z = direktversand.postconf_zeilen(_e(modus="smarthost", smarthost=""), "x.de")
+    assert _wert(z, "default_transport").startswith("error:")
+
+
+@pytest.mark.parametrize("e", [_e(), _e(aktiv=False),
+                               _e(modus="smarthost", smarthost="smtp.example.net")])
+def test_keine_mime_umwandlung(e):
+    # Sonst wandelt Postfix 8bit nach der Signatur um, und DKIM bricht.
+    z = direktversand.postconf_zeilen(e, "mail.contoso.de")
+    assert _wert(z, "disable_mime_output_conversion") == "yes"
+
+
+def test_helo_einschleusen_unmoeglich():
+    z = direktversand.postconf_zeilen(_e(), "mail.x.de\nrelayhost = [evil]:25")
+    assert all("\n" not in zeile for zeile in z)
+    assert _wert(z, "myhostname") == "localhost.localdomain"
+    assert _wert(z, "relayhost") == ""
+
+
+def test_sasl_ohne_zeilenumbruch():
+    e = _e(modus="smarthost", smarthost="smtp.example.net", smarthost_user="u")
+    assert direktversand.sasl_zeile(e, "geheim") == "[smtp.example.net]:587 u:geheim\n"
+    with pytest.raises(ValueError):
+        direktversand.sasl_zeile(e, "a\n[x]:25 y:z")
+
+
+def test_schreiben_mit_rechten_600(werte):
+    werte.update(DIREKT_ENABLED=True, DIREKT_MODUS="smarthost",
+                 DIREKT_SMARTHOST="smtp.example.net", DIREKT_SMARTHOST_USER="u",
+                 DIREKT_SMARTHOST_PW="geheim", DIREKT_HELO="mail.contoso.de")
+    direktversand.schreiben()
+    d = Path(config.DATA_DIR) / "mta"
+    for name in ("postconf.cf", "sasl_passwd"):
+        modus = stat.S_IMODE(os.stat(d / name).st_mode)
+        assert modus == 0o600, (name, oct(modus))
+    assert "relayhost = [smtp.example.net]:587" in (d / "postconf.cf").read_text()
+    assert "u:geheim" in (d / "sasl_passwd").read_text()
+
+
+def test_mx_einschalten_braucht_port25(werte, monkeypatch):
+    monkeypatch.setattr(direktversand, "port25_test",
+                        lambda **kw: {"ok": False, "error": "gesperrt"})
+    with pytest.raises(ValueError, match="Port 25"):
+        direktversand.speichern({"aktiv": True, "modus": "mx"})
+    assert werte["DIREKT_ENABLED"] is False, "darf ohne Test nicht einschalten"
+
+
+def test_smarthost_einschalten_ohne_port25(werte, monkeypatch):
+    monkeypatch.setattr(direktversand, "port25_test",
+                        lambda **kw: pytest.fail("Smarthost braucht keinen Port-25-Test"))
+    direktversand.speichern({"aktiv": True, "modus": "smarthost",
+                             "smarthost": "smtp.example.net", "smarthost_port": 587})
+    assert werte["DIREKT_ENABLED"] is True
+
+
+def test_passwort_leer_bleibt_unveraendert(werte, monkeypatch):
+    werte["DIREKT_SMARTHOST_PW"] = "alt"
+    direktversand.speichern({"aktiv": False, "modus": "smarthost",
+                             "smarthost": "smtp.example.net", "smarthost_passwort": ""})
+    assert werte["DIREKT_SMARTHOST_PW"] == "alt"
+
+
+# ── Routing ─────────────────────────────────────────────────────────────────
+
+def test_externe_empfaenger_gehen_direkt(werte):
+    werte.update(DIREKT_ENABLED=True, EXTERN_ROUTE="direkt")
+    g = domain_routing.gruppiere(["kunde@example.com", "anna@contoso.de",
+                                  "x@contoso.onmicrosoft.com"])
+    assert g == {"direkt": ["kunde@example.com"],
+                 "exo": ["anna@contoso.de", "x@contoso.onmicrosoft.com"]}
+
+
+def test_ohne_bekannte_domaenen_gilt_niemand_als_extern(werte):
+    werte.update(DIREKT_ENABLED=True, EXTERN_ROUTE="direkt", TENANT_DOMAIN="",
+                 _adressen=set())
+    assert domain_routing.gruppiere(["kunde@example.com"]) == {"exo": ["kunde@example.com"]}
+
+
+def test_ausgeschalteter_direktversand_faellt_auf_exo(werte):
+    werte.update(DIREKT_ENABLED=False, EXTERN_ROUTE="direkt",
+                 DOMAIN_ROUTES={"partner.de": "direkt"})
+    assert domain_routing.gruppiere(["a@example.com", "b@partner.de"]) == \
+        {"exo": ["a@example.com", "b@partner.de"]}
+
+
+def test_domaenenroute_vor_externroute(werte):
+    werte.update(DIREKT_ENABLED=True, EXTERN_ROUTE="direkt",
+                 RELAY_TARGETS={"onprem": {"host": "h"}},
+                 DOMAIN_ROUTES={"partner.de": "onprem"})
+    assert domain_routing.gruppiere(["b@partner.de"]) == {"onprem": ["b@partner.de"]}
+
+
+def test_tenant_route_auf_ausgeschaltetes_direkt_weist_ab(werte):
+    t = "ca5a81bc-ba86-4b1f-986a-ccb3a5c6b8ea"
+    werte.update(TENANT_ROUTES={t: "direkt"})
+    assert domain_routing.route_fuer_tenant(t) == ""
+    werte["DIREKT_ENABLED"] = True
+    assert domain_routing.route_fuer_tenant(t) == "direkt"
+
+
+def test_direkt_ist_eingebaut(werte):
+    with pytest.raises(ValueError):
+        domain_routing.setze_ziel("direkt", "h", 25, True)
+    domain_routing.setze_extern_route("direkt")          # vorbereitbar, auch wenn aus
+    assert werte["EXTERN_ROUTE"] == "direkt"
+    with pytest.raises(ValueError):
+        domain_routing.setze_extern_route("gibtsnicht")
+    assert domain_routing.aufloesen("direkt")["host"] == direktversand.MTA_HOST
+
+
+def test_ziel_loeschen_nimmt_externroute_mit(werte):
+    werte.update(RELAY_TARGETS={"sh": {"host": "h"}}, EXTERN_ROUTE="sh", RELAY_TARGET_PW={})
+    domain_routing.loesche_ziel("sh")
+    assert werte["EXTERN_ROUTE"] == ""
+
+
+# ── DKIM ────────────────────────────────────────────────────────────────────
+
+_MAIL = (b"From: Anna <anna@contoso.de>\r\nTo: kunde@example.com\r\n"
+         b"Subject: Hallo\r\nMessage-ID: <1@contoso.de>\r\n"
+         b"Content-Type: text/plain; charset=utf-8\r\n"
+         b"Content-Transfer-Encoding: 8bit\r\n\r\nGr\xc3\xbc\xc3\x9fe  aus  K\xc3\xb6ln\r\n")
+
+
+def _dns_aus(eintrag):
+    def dnsfunc(name, timeout=5):
+        assert name.decode().rstrip(".") == eintrag["name"]
+        return eintrag["wert"].encode()
+    return dnsfunc
+
+
+def test_signatur_verifiziert_und_bricht_bei_aenderung(werte):
+    import dkim
+    eintrag = dkim_signatur.schluessel_erzeugen("contoso.de", "test1")
+    signiert, ergebnis = dkim_signatur.signieren(_MAIL)
+    assert ergebnis == "signiert:contoso.de"
+    assert signiert.startswith(b"DKIM-Signature:")
+    assert dkim.verify(signiert, dnsfunc=_dns_aus(eintrag))
+    verfaelscht = signiert.replace(b"K\xc3\xb6ln", b"Bonn")
+    assert not dkim.verify(verfaelscht, dnsfunc=_dns_aus(eintrag))
+
+
+def test_schluessel_mit_rechten_600(werte):
+    dkim_signatur.schluessel_erzeugen("contoso.de", "test1")
+    p = Path(config.DATA_DIR) / "dkim" / "contoso.de.test1.pem"
+    assert stat.S_IMODE(os.stat(p).st_mode) == 0o600
+
+
+def test_dns_eintrag_ist_der_oeffentliche_schluessel(werte):
+    from cryptography.hazmat.primitives import serialization
+    eintrag = dkim_signatur.schluessel_erzeugen("contoso.de", "test1")
+    pem = (Path(config.DATA_DIR) / "dkim" / "contoso.de.test1.pem").read_bytes()
+    erwartet = base64.b64encode(serialization.load_pem_private_key(pem, None)
+                                .public_key().public_bytes(
+                                    serialization.Encoding.DER,
+                                    serialization.PublicFormat.SubjectPublicKeyInfo)).decode()
+    assert eintrag["name"] == "test1._domainkey.contoso.de"
+    assert eintrag["wert"] == f"v=DKIM1; k=rsa; p={erwartet}"
+
+
+def test_ohne_schluessel_unveraendert(werte):
+    inhalt, ergebnis = dkim_signatur.signieren(_MAIL)
+    assert (inhalt, ergebnis) == (_MAIL, "ohne_schluessel")
+
+
+def test_kein_stiller_schluesselwechsel(werte):
+    dkim_signatur.schluessel_erzeugen("contoso.de", "test1")
+    with pytest.raises(ValueError):
+        dkim_signatur.schluessel_erzeugen("contoso.de", "test2")
+    assert werte["DKIM_DOMAINS"] == {"contoso.de": "test1"}
+
+
+def test_entfernen_loescht_schluessel(werte):
+    dkim_signatur.schluessel_erzeugen("contoso.de", "test1")
+    assert dkim_signatur.entfernen("contoso.de")
+    assert not list((Path(config.DATA_DIR) / "dkim").glob("contoso.de.*"))
+    assert werte["DKIM_DOMAINS"] == {}
+
+
+@pytest.mark.parametrize("d", ["", "localhost", "a..de", "x@y.de\n", "-a.de"])
+def test_nur_gueltige_domaenen(werte, d):
+    with pytest.raises(ValueError):
+        dkim_signatur.schluessel_erzeugen(d)
+
+
+# ── Kopfzeilen und Übergabe ─────────────────────────────────────────────────
+
+def test_organisationskoepfe_verlassen_das_haus_nicht():
+    roh = (b"From: a@contoso.de\r\n"
+           b"X-MS-Exchange-Organization-SCL: -1\r\n"
+           b"X-MS-Exchange-Organization-AuthAs: Internal\r\n"
+           b"\tFortsetzung\r\n"
+           b"X-MS-Exchange-CrossTenant-Id: abc\r\n"
+           b"Subject: x\r\n\r\nRumpf\r\nX-MS-Exchange-Organization-SCL: bleibt im Rumpf\r\n")
+    raus = direktversand.kopf_bereinigen(roh)
+    kopf, rumpf = raus.split(b"\r\n\r\n", 1)
+    assert b"organization" not in kopf.lower()
+    assert b"Fortsetzung" not in kopf
+    assert b"X-MS-Exchange-CrossTenant-Id: abc" in kopf
+    assert rumpf == roh.split(b"\r\n\r\n", 1)[1], "Rumpf muss byte-genau bleiben"
+
+
+def test_uebergabe_an_postfix_signiert_ohne_tls(werte, monkeypatch):
+    werte["DIREKT_ENABLED"] = True
+    eintrag = dkim_signatur.schluessel_erzeugen("contoso.de", "test1")
+    gesendet = {}
+
+    class _SMTP:
+        def __init__(self, host, port, **kw):
+            gesendet["ziel"] = (host, port)
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def ehlo(self): pass
+        def starttls(self, **kw): gesendet["tls"] = True
+        def login(self, *a): gesendet["login"] = True
+        def sendmail(self, von, an, inhalt): gesendet.update(von=von, an=an, inhalt=inhalt)
+
+    import reinject
+    monkeypatch.setattr(reinject.smtplib, "SMTP", _SMTP)
+    reinject._relay_to_target("direkt", "anna@contoso.de", ["kunde@example.com"], _MAIL)
+    import dkim
+    assert gesendet["ziel"] == (direktversand.MTA_HOST, direktversand.MTA_PORT)
+    assert "tls" not in gesendet and "login" not in gesendet
+    assert gesendet["an"] == ["kunde@example.com"]
+    assert dkim.verify(gesendet["inhalt"], dnsfunc=_dns_aus(eintrag))
+
+
+# ── SPF-Bewertung ───────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("eintrag,erwartet", [
+    ("v=spf1 ip4:212.117.95.233 -all", True),
+    ("v=spf1 ip4:212.117.95.0/24 ~all", True),
+    ("v=spf1 ip4:10.0.0.1 -all", False),
+    ("v=spf1 include:spf.protection.outlook.com -all", None),
+    ("", None),
+])
+def test_spf_bewertung(eintrag, erwartet):
+    assert direktversand._spf_bewerten(eintrag, "212.117.95.233") is erwartet

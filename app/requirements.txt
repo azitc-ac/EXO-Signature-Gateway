@@ -31,6 +31,10 @@ asn1crypto==1.5.1
 # ── Kryptografie (S/MIME, Zertifikate) ───────────────────────────────────────
 cryptography==49.0.0
 
+# ── Direktversand (DKIM-Signatur, DNS-Prüfung) ───────────────────────────────
+dkimpy==1.1.8
+dnspython==2.9.0
+
 # ── Microsoft-Anbindung ──────────────────────────────────────────────────────
 msal==1.37.0
 

@@ -46,3 +46,20 @@ services:
       USER_WEBSITES: ${USER_WEBSITES:-{}}
       USER_BOOKINGS: ${USER_BOOKINGS:-{}}
       SENT_ITEMS_UPDATE: ${SENT_ITEMS_UPDATE:-false}
+
+  # Direktversand: eigener Postfix (siehe mta/Dockerfile und app/direktversand.py).
+  # Auf jeder Installation vorhanden, aber untätig, solange der Direktversand in
+  # der Oberfläche aus ist. KEIN Port nach außen — erreichbar nur für das Gateway
+  # im Compose-Netz (Dienstname `mta`). Konfiguration schreibt das Gateway nach
+  # data/mta/, die Warteschlange liegt in einem eigenen Volume (überlebt Updates).
+  mta:
+    build: ./mta
+    image: exo-signature-gateway-mta:latest
+    container_name: exo-signature-gateway-mta
+    restart: unless-stopped
+    volumes:
+      - ./data/mta:/gw
+      - mta-spool:/var/spool/postfix
+
+volumes:
+  mta-spool:

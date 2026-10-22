@@ -225,6 +225,17 @@ DEFAULTS: dict = {
     # persistierte, maßgebliche Liste, ersetzt nur durch einen erfolgreichen
     # Abgleich (exo_mailusers.refresh_and_store).
     "PER_RECIPIENT_ROUTING": False,
+    "EXTERN_ROUTE": "",       # Ziel für alle Empfänger AUSSERHALB der Tenant-Domänen ("" = EXO, "direkt" = Postfix)
+    # Direktversand über den eigenen Postfix (direktversand.py, Container `mta`)
+    "DIREKT_ENABLED": False,
+    "DIREKT_MODUS": "mx",     # "mx" = selbst per MX zustellen · "smarthost" = über DIREKT_SMARTHOST
+    "DIREKT_HELO": "",        # leer = PUBLIC_HOSTNAME; sollte zum PTR der Ausgangsadresse passen
+    "DIREKT_SMARTHOST": "",
+    "DIREKT_SMARTHOST_PORT": 587,
+    "DIREKT_SMARTHOST_USER": "",
+    "DIREKT_SMARTHOST_PW": "",
+    "DIREKT_AUSSEN_IP": "",   # öffentliche Ausgangsadresse — nur für die DNS-Prüfung (SPF/PTR)
+    "DKIM_DOMAINS": {},       # {"example.com": "gw202610"} — Schlüssel in data/dkim/<domain>.<selektor>.pem
     "ONPREM_MAILUSERS": [],   # ["max.mustermann@zarenko.net", …] — via EXO Get-MailUser
     "ONPREM_MAILUSERS_TS": "", # ISO8601 des letzten erfolgreichen Abgleichs
     # Parameter des on-prem-Koexistenz-Connectors (Hybrid). NUR zum erneuten
@@ -410,6 +421,7 @@ SECRET_KEYS = frozenset({
     "LICENSE_KEY",                # signierter Lizenzschlüssel
     "RELAY_PASSWORD",
     "RELAY_TARGET_PW",            # {ziel_id: klartext} — SMTP-AUTH-Passwörter der Routing-Ziele
+    "DIREKT_SMARTHOST_PW",        # SMTP-AUTH am Smarthost des Direktversands
     "SMIME_KEY_PASSWORD",         # entschlüsselt die S/MIME-Privatschlüssel
     "SMTP_SUBMIT_CLIENT_SECRET",
     "SMTP_SUBMIT_PASSWORD",
