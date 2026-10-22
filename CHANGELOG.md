@@ -5,6 +5,28 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.22 — 2026-10-22 — Direktversand: die DNS-Prüfung zeigt den nötigen SPF-Eintrag
+
+- **Neu: Vorschlag für den SPF-Eintrag.** *DNS prüfen* in der Karte
+  *Direktversand* nannte bisher nur den vorhandenen Eintrag und ob die
+  Ausgangsadresse darin fehlt — nicht, was einzutragen ist. Jetzt steht darunter
+  der vollständige Eintrag zum Kopieren. Er erweitert den bestehenden:
+  `ip4:<Ausgangsadresse>` kommt unmittelbar vor das abschließende `all` (oder
+  vor `redirect=`), alles andere bleibt, auch der Qualifier (`~all`/`-all`).
+  Gibt es noch keinen SPF-Eintrag, enthält der Vorschlag Exchange Online
+  (`include:spf.protection.outlook.com`), weil der Tenant weiterhin auch darüber
+  verschickt. Ist die Adresse schon ausdrücklich erlaubt, erscheint nichts.
+- **Neu: Warnung bei mehreren SPF-Einträgen.** Zwei `v=spf1`-Einträge auf
+  derselben Domäne sind ein Fehler (RFC 7208, „permerror“): Empfänger werten dann
+  keinen davon. Die Prüfung meldet das und schlägt nichts vor, bis es nur noch
+  einen gibt.
+- **Korrektur der SPF-Bewertung:** Ein `all` ohne Qualifier wurde als
+  `a`-Mechanismus gelesen, die Bewertung lautete dann „nicht entscheidbar“ statt
+  „fehlt“. Die Bewertung zerlegt den Eintrag jetzt in seine Mechanismen.
+
+**Zu tun:** nichts. Für den Direktversand: *Relay → Direktversand → DNS prüfen*
+und den angezeigten SPF-Eintrag anstelle des bisherigen setzen.
+
 ## v1.10.21 — 2026-10-22 — Direktversand: interne Post geht ohne Postfachliste nicht ins Internet
 
 - **Korrektur: „Externe Empfänger → Ziel“ prüfte die falsche Ausfallsicherung.**

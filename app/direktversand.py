@@ -341,24 +341,80 @@ def _txt(name: str) -> list[str]:
     return [b"".join(r.strings).decode("utf-8", "replace") for r in antwort]
 
 
-def _spf_bewerten(eintrag: str, ip: str) -> bool | None:
-    """Erlaubt der SPF-Eintrag die Adresse AUSDRÜCKLICH (ip4:…)? None = nicht
-    entscheidbar ohne Auswertung von include/a/mx — dann zeigt die Oberfläche
-    den Eintrag zum Selbstprüfen. Bewusst keine vollständige SPF-Auswertung:
-    eine halbe wäre schlimmer als ein ehrliches „nicht entscheidbar“."""
+# Mechanismen, deren Erlaubnis erst eine weitere DNS-Abfrage klärt.
+_SPF_INDIREKT = ("include", "a", "mx", "exists", "ptr")
+
+
+def _spf_teile(eintrag: str) -> list[tuple[str, str]]:
+    """SPF-Eintrag in (Qualifier-loser Name, Wert) zerlegen, ohne `v=spf1`.
+    `a`, `a:host`, `a/24` → ("a", …); `redirect=x` → ("redirect", "x")."""
+    out = []
+    for teil in (eintrag or "").split()[1:]:
+        t = teil.lstrip("+-~?").lower()
+        if "=" in t and ":" not in t.split("=", 1)[0]:
+            name, wert = t.split("=", 1)
+        else:
+            name = re.split(r"[:/]", t, 1)[0]
+            wert = t[len(name):].lstrip(":")
+        out.append((name, wert))
+    return out
+
+
+def _ip_ausdruecklich(eintrag: str, ip: str) -> bool:
+    """Steht die Adresse in einem `ip4:`-Mechanismus mit Qualifier `+`/ohne?
+    (`-ip4:`/`~ip4:` beginnen nach `lstrip("+")` nicht mit `ip4:` und zählen
+    damit nicht.)"""
     import ipaddress
-    if not eintrag or not ip:
-        return None
     adresse = ipaddress.ip_address(ip)
-    for teil in eintrag.split()[1:]:
+    for teil in (eintrag or "").split()[1:]:
         t = teil.lstrip("+")
-        if t.startswith("ip4:"):
+        if t.lower().startswith("ip4:"):
             try:
                 if adresse in ipaddress.ip_network(t[4:], strict=False):
                     return True
             except ValueError:
                 continue
-    return None if any(x in eintrag for x in ("include:", " a", " mx", "redirect=")) else False
+    return False
+
+
+def _spf_bewerten(eintrag: str, ip: str) -> bool | None:
+    """Erlaubt der SPF-Eintrag die Adresse AUSDRÜCKLICH (ip4:…)? None = nicht
+    entscheidbar ohne Auswertung von include/a/mx — dann zeigt die Oberfläche
+    den Eintrag zum Selbstprüfen. Bewusst keine vollständige SPF-Auswertung:
+    eine halbe wäre schlimmer als ein ehrliches „nicht entscheidbar“."""
+    if not eintrag or not ip:
+        return None
+    if _ip_ausdruecklich(eintrag, ip):
+        return True
+    indirekt = any(n in _SPF_INDIREKT or n == "redirect" for n, _ in _spf_teile(eintrag))
+    return None if indirekt else False
+
+
+def _spf_empfehlung(eintrag: str, ip: str) -> str:
+    """Der SPF-Eintrag, den der Betreiber setzen soll — "" wenn nichts zu tun.
+
+    Aus derselben Prüfung wie `_spf_bewerten` (`_ip_ausdruecklich`), damit
+    Empfehlung und Urteil nie auseinanderlaufen. Der BESTEHENDE Eintrag wird
+    erweitert, nie ersetzt: `ip4:` kommt unmittelbar vor das abschließende
+    `all` (bzw. vor `redirect=`), Qualifier und alles andere bleiben. Ohne
+    Eintrag: Exchange Online gehört dazu — der Tenant verschickt weiterhin auch
+    über Exchange, ein Eintrag nur mit der eigenen Adresse ließe diese Post
+    durchfallen.
+    """
+    if not ip:
+        return ""
+    if not eintrag:
+        return f"v=spf1 ip4:{ip} include:spf.protection.outlook.com ~all"
+    if _ip_ausdruecklich(eintrag, ip):
+        return ""
+    teile = eintrag.split()
+    namen = [n for n, _ in _spf_teile(eintrag)]
+    pos = len(teile)
+    for ziel in ("all", "redirect"):
+        if ziel in namen:
+            pos = namen.index(ziel) + 1          # +1: teile[0] ist v=spf1
+            break
+    return " ".join(teile[:pos] + [f"ip4:{ip}"] + teile[pos:])
 
 
 def dns_pruefen(domain: str) -> dict:
@@ -373,7 +429,8 @@ def dns_pruefen(domain: str) -> dict:
     domain = (domain or "").strip().lower()
     ip = (settings_store.get("DIREKT_AUSSEN_IP") or "").strip()
     helo = helo_name()
-    spf = next((t for t in _txt(domain) if t.lower().startswith("v=spf1")), "")
+    spf_alle = [t for t in _txt(domain) if t.lower().split()[:1] == ["v=spf1"]]
+    spf = spf_alle[0] if spf_alle else ""
     soll = dkim_signatur.dns_eintrag(domain)
     dkim_ist = _txt(soll["name"]) if soll else []
 
@@ -383,7 +440,12 @@ def dns_pruefen(domain: str) -> dict:
 
     ergebnis = {
         "domain": domain,
-        "spf": {"eintrag": spf, "erlaubt": _spf_bewerten(spf, ip), "ip": ip},
+        # Mehrere SPF-Einträge sind ein Fehler (RFC 7208 §4.5: permerror) —
+        # dann gibt es kein Urteil und keinen Vorschlag, nur die Aufforderung,
+        # sie zu EINEM zusammenzuführen.
+        "spf": {"eintrag": spf, "ip": ip, "mehrere": spf_alle if len(spf_alle) > 1 else [],
+                "erlaubt": _spf_bewerten(spf, ip) if len(spf_alle) <= 1 else False,
+                "soll": _spf_empfehlung(spf, ip) if len(spf_alle) <= 1 else ""},
         "dkim": {"name": soll["name"] if soll else "",
                  "soll": soll["wert"] if soll else "",
                  "gefunden": dkim_ist,
