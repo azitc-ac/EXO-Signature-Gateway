@@ -5,13 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.29 — 2026-10-22 — Einfügefeld: Fehlermeldung bricht um
+
+- Eine Fehlermeldung neben dem Einfügefeld der Admin-Anmeldung wurde auf
+  schmalen Bildschirmen rechts abgeschnitten. Sie bricht jetzt um.
+
+**Zu tun:** nichts.
+
 ## v1.10.28 — 2026-10-22 — Einfügefeld der Admin-Anmeldung: Anleitung ungekürzt
 
 - Die Anleitung über dem Einfügefeld (v1.10.27) wurde auf schmalen
   Bildschirmen wie andere Erklärtexte auf zwei Zeilen mit *mehr* gekürzt. Sie
-  ist der eigentliche Inhalt und steht jetzt immer vollständig da. Eine
-  Fehlermeldung neben dem Feld bricht dort jetzt um, statt abgeschnitten zu
-  werden.
+  ist der eigentliche Inhalt und steht jetzt immer vollständig da.
 
 **Zu tun:** nichts.
 
