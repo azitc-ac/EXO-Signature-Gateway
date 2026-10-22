@@ -319,26 +319,101 @@ def test_uebergabe_an_postfix_signiert_ohne_tls(werte, monkeypatch):
     assert dkim.verify(gesendet["inhalt"], dnsfunc=_dns_aus(eintrag))
 
 
-# ── SPF-Bewertung ───────────────────────────────────────────────────────────
-
-@pytest.mark.parametrize("eintrag,erwartet", [
-    ("v=spf1 ip4:212.117.95.233 -all", True),
-    ("v=spf1 ip4:212.117.95.0/24 ~all", True),
-    ("v=spf1 ip4:10.0.0.1 -all", False),
-    ("v=spf1 include:spf.protection.outlook.com -all", None),
-    ("", None),
-    # bare `all` enthält „ a“ — darf nicht als a-Mechanismus gelten
-    ("v=spf1 ip4:10.0.0.1 all", False),
-    # Qualifier `-`: die Adresse ist ausdrücklich VERBOTEN, nicht erlaubt
-    ("v=spf1 -ip4:212.117.95.233 ~all", False),
-    ("v=spf1 a:mail.example.com -all", None),
-    ("v=spf1 redirect=_spf.example.com", None),
-])
-def test_spf_bewertung(eintrag, erwartet):
-    assert direktversand._spf_bewerten(eintrag, "212.117.95.233") is erwartet
-
+# ── SPF-Auswertung (pyspf, gegen ein erfundenes DNS) ────────────────────────
 
 IP = "212.117.95.233"
+MS = "spf.protection.outlook.com"
+
+
+@pytest.fixture
+def spf_dns(monkeypatch):
+    """Erfundenes DNS: {name: [TXT, …]}. Fremde Namen → leer (NXDOMAIN)."""
+    zonen = {MS: [f"v=spf1 ip4:40.92.0.0/15 -all"]}
+
+    def abfrage(name, qtype, strict=True, timeout=20):
+        if qtype != "TXT":
+            return []
+        return [((name, qtype), (t.encode(),)) for t in zonen.get(name.rstrip("."), [])]
+    monkeypatch.setattr(direktversand, "_spf_dns", abfrage)
+    return zonen
+
+
+@pytest.mark.parametrize("eintrag,ergebnis,erlaubt", [
+    # der Anlassfall: nur per include auf Microsoft — die Gateway-Adresse fehlt
+    (f"v=spf1 include:{MS} ~all", "softfail", False),
+    (f"v=spf1 include:{MS} -all", "fail", False),
+    (f"v=spf1 include:{MS} ip4:{IP} ~all", "pass", True),
+    ("v=spf1 ip4:212.117.95.0/24 -all", "pass", True),
+    # ausdrücklich verboten bleibt verboten, auch wenn die Adresse dasteht
+    (f"v=spf1 -ip4:{IP} +all", "fail", False),
+    # bares `all` (ohne Qualifier) = pass für jeden
+    ("v=spf1 all", "pass", True),
+    ("v=spf1 ?all", "neutral", False),
+    # redirect auf einen Eintrag, der die Adresse erlaubt
+    ("v=spf1 redirect=_spf.example.com", "pass", True),
+])
+def test_spf_auswertung(spf_dns, eintrag, ergebnis, erlaubt):
+    spf_dns["example.com"] = [eintrag]
+    spf_dns["_spf.example.com"] = [f"v=spf1 ip4:{IP} -all"]
+    r = direktversand.spf_auswerten("example.com", IP, "mail.example.com")
+    assert (r["ergebnis"], r["erlaubt"]) == (ergebnis, erlaubt), r
+
+
+def test_spf_ohne_eintrag_ist_none_und_nicht_erlaubt(spf_dns):
+    r = direktversand.spf_auswerten("example.com", IP)
+    assert (r["ergebnis"], r["erlaubt"]) == ("none", False)
+
+
+def test_spf_mehrere_eintraege_permerror(spf_dns):
+    spf_dns["example.com"] = [f"v=spf1 ip4:{IP} -all", f"v=spf1 include:{MS} ~all"]
+    r = direktversand.spf_auswerten("example.com", IP)
+    assert (r["ergebnis"], r["erlaubt"]) == ("permerror", False)
+
+
+def test_spf_dns_stoerung_ist_unentschieden(monkeypatch):
+    import spf
+
+    def gestoert(*a, **kw):
+        raise spf.TempError("DNS timeout")
+    monkeypatch.setattr(direktversand, "_spf_dns", gestoert)
+    r = direktversand.spf_auswerten("example.com", IP)
+    assert r["ergebnis"] == "temperror" and r["erlaubt"] is None
+
+
+def test_spf_absturz_der_bibliothek_ist_unentschieden(monkeypatch):
+    # pyspf fängt DNS-Störungen selbst ab (Test oben); dieser Zweig deckt alles
+    # andere — er darf nicht „nicht erlaubt“ behaupten, was niemand geprüft hat.
+    import spf
+
+    def kaputt(*a, **kw):
+        raise RuntimeError("unerwartet")
+    monkeypatch.setattr(spf, "query", kaputt)
+    r = direktversand.spf_auswerten("example.com", IP)
+    assert (r["ergebnis"], r["erlaubt"]) == ("temperror", None)
+
+
+def test_spf_ohne_ip_keine_auswertung(monkeypatch):
+    monkeypatch.setattr(direktversand, "_spf_dns",
+                        lambda *a, **kw: pytest.fail("ohne Adresse keine DNS-Abfrage"))
+    assert direktversand.spf_auswerten("example.com", "")["erlaubt"] is None
+
+
+def test_spf_dns_ohne_veraltete_abfrage(monkeypatch):
+    # pyspfs eigene Abfrage ruft dns.resolver.query() (veraltet). Unsere muss
+    # resolve() benutzen und beim Auswerten tatsächlich eingesetzt sein.
+    import dns.resolver
+    import spf
+    gerufen = []
+    monkeypatch.setattr(dns.resolver, "query",
+                        lambda *a, **kw: pytest.fail("veraltetes query() benutzt"))
+    monkeypatch.setattr(dns.resolver, "resolve",
+                        lambda name, qtype, **kw: gerufen.append((name, qtype)) or
+                        (_ for _ in ()).throw(dns.resolver.NXDOMAIN()))
+    direktversand.spf_auswerten("example.com", IP)
+    assert ("example.com", "TXT") in gerufen
+    assert spf.DNSLookup is direktversand._spf_dns
+
+
 
 
 @pytest.mark.parametrize("eintrag,erwartet", [
@@ -352,9 +427,6 @@ IP = "212.117.95.233"
     ("v=spf1 redirect=_spf.example.com", f"v=spf1 ip4:{IP} redirect=_spf.example.com"),
     # weder all noch redirect: hinten anfügen
     ("v=spf1 include:x.example", f"v=spf1 include:x.example ip4:{IP}"),
-    # schon ausdrücklich erlaubt (auch per Netz): nichts zu tun
-    (f"v=spf1 ip4:{IP} ~all", ""),
-    ("v=spf1 ip4:212.117.95.0/24 -all", ""),
     # ausdrücklich verboten zählt nicht als erlaubt → Vorschlag
     (f"v=spf1 -ip4:{IP} ~all", f"v=spf1 -ip4:{IP} ip4:{IP} ~all"),
     # kein Eintrag: Exchange Online gehört dazu, sonst fiele dessen Post durch
@@ -368,16 +440,19 @@ def test_spf_empfehlung_ohne_ip_leer():
     assert direktversand._spf_empfehlung("v=spf1 ~all", "") == ""
 
 
-def test_spf_empfehlung_ist_selbst_erlaubt():
-    # Empfehlung und Urteil aus derselben Quelle: Wer den Vorschlag einträgt,
-    # muss danach „erlaubt“ sehen — sonst schickt die Oberfläche im Kreis.
-    for eintrag in ("v=spf1 include:spf.protection.outlook.com ~all", "",
-                    "v=spf1 redirect=_spf.example.com", "v=spf1 mx -all"):
+def test_spf_empfehlung_ergibt_pass(spf_dns):
+    # Wer den Vorschlag einträgt, muss danach `pass` sehen — ausgewertet von
+    # derselben Funktion wie die Anzeige, sonst schickt die Oberfläche im Kreis.
+    spf_dns["_spf.example.com"] = ["v=spf1 -all"]
+    for eintrag in (f"v=spf1 include:{MS} ~all", "", "v=spf1 redirect=_spf.example.com",
+                    "v=spf1 mx -all", f"v=spf1 -all ip4:{IP}"):
         soll = direktversand._spf_empfehlung(eintrag, IP)
-        assert direktversand._spf_bewerten(soll, IP) is True, soll
+        spf_dns["example.com"] = [soll]
+        r = direktversand.spf_auswerten("example.com", IP)
+        assert r["ergebnis"] == "pass", (eintrag, soll, r)
 
 
-def test_dns_pruefen_mehrere_spf_eintraege(werte, monkeypatch):
+def test_dns_pruefen_mehrere_spf_eintraege(werte, monkeypatch, spf_dns):
     werte["DIREKT_AUSSEN_IP"] = ""
     monkeypatch.setattr(direktversand, "_txt", lambda n: [
         "v=spf1 include:spf.protection.outlook.com ~all", "google-site-verification=x",
@@ -394,9 +469,37 @@ def test_dns_pruefen_mehrere_spf_eintraege(werte, monkeypatch):
         "zwei SPF-Einträge = permerror: kein Urteil „erlaubt“, kein Vorschlag"
 
 
-def test_dns_pruefen_liefert_soll(werte, monkeypatch):
+def _ohne_ptr(monkeypatch):
+    import dns.resolver
+
+    def _kein_netz(*a, **kw):
+        raise dns.resolver.NoNameservers()
+    monkeypatch.setattr(dns.resolver, "resolve", _kein_netz)
+
+
+def test_dns_pruefen_ohne_ip_kein_vorschlag(werte, monkeypatch, spf_dns):
     werte["DIREKT_AUSSEN_IP"] = ""
-    monkeypatch.setattr(direktversand, "_txt",
-                        lambda n: ["v=spf1 include:spf.protection.outlook.com ~all"])
+    monkeypatch.setattr(direktversand, "_txt", lambda n: [f"v=spf1 include:{MS} ~all"])
     spf = direktversand.dns_pruefen("example.com")["spf"]
-    assert spf["soll"] == "" and spf["mehrere"] == []
+    assert spf["soll"] == "" and spf["mehrere"] == [] and spf["erlaubt"] is None
+
+
+def test_dns_pruefen_softfail_liefert_vorschlag(werte, monkeypatch, spf_dns):
+    werte["DIREKT_AUSSEN_IP"] = IP
+    spf_dns["example.com"] = [f"v=spf1 include:{MS} ~all"]
+    monkeypatch.setattr(direktversand, "_txt", lambda n: spf_dns.get(n, []))
+    _ohne_ptr(monkeypatch)
+    spf = direktversand.dns_pruefen("example.com")["spf"]
+    assert (spf["ergebnis"], spf["erlaubt"]) == ("softfail", False)
+    assert spf["soll"] == f"v=spf1 include:{MS} ip4:{IP} ~all"
+
+
+def test_dns_pruefen_pass_ohne_vorschlag(werte, monkeypatch, spf_dns):
+    # erlaubt per include (nicht ausdrücklich per ip4): trotzdem nichts zu tun
+    werte["DIREKT_AUSSEN_IP"] = IP
+    spf_dns["example.com"] = ["v=spf1 include:_spf.example.com ~all"]
+    spf_dns["_spf.example.com"] = [f"v=spf1 ip4:{IP} -all"]
+    monkeypatch.setattr(direktversand, "_txt", lambda n: spf_dns.get(n, []))
+    _ohne_ptr(monkeypatch)
+    spf = direktversand.dns_pruefen("example.com")["spf"]
+    assert (spf["ergebnis"], spf["erlaubt"], spf["soll"]) == ("pass", True, "")

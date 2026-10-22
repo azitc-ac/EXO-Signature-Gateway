@@ -1151,6 +1151,17 @@ function dkimEntfernen(domain, btn) {
                             '/api/direkt/dkim/loeschen', { domain: domain });
 }
 
+// Ergebnisse nach RFC 7208 — so, wie ein Empfänger sie sieht
+const SPF_ERGEBNIS = {
+  pass: 'erlaubt',
+  softfail: 'nicht erlaubt — Empfänger werten das meist als verdächtig',
+  fail: 'ausdrücklich verboten — Empfänger lehnen meist ab',
+  neutral: 'weder erlaubt noch verboten',
+  none: 'kein SPF-Eintrag',
+  permerror: 'Eintrag fehlerhaft — Empfänger werten ihn nicht',
+  temperror: 'DNS gestört — später erneut prüfen'
+};
+
 function _pruefZeile(ok, text) {
   return '<div>' + (ok === true ? '✓ ' : ok === false ? '<span style="color:#991b1b">✗</span> ' : '? ') + text + '</div>';
 }
@@ -1163,8 +1174,8 @@ async function dnsPruefen(domain, btn) {
   ziel.innerHTML =
     _pruefZeile(dk.passt, 'DKIM-Eintrag ' + (dk.passt ? 'stimmt' : (dk.gefunden && dk.gefunden.length ? 'weicht ab' : 'nicht gefunden')))
     + _pruefZeile(spf.erlaubt, 'SPF: ' + (spf.eintrag ? '<code>' + esc(spf.eintrag) + '</code>' : 'kein Eintrag')
-        + (spf.ip ? (spf.erlaubt === true ? ' — erlaubt ' + esc(spf.ip)
-                     : spf.erlaubt === false ? ' — ' + esc(spf.ip) + ' fehlt' : ' — ob ' + esc(spf.ip) + ' erlaubt ist, hier nicht entscheidbar (include/a/mx)')
+        + (spf.ip ? ' — für ' + esc(spf.ip) + ': <strong>' + esc(spf.ergebnis) + '</strong> ('
+                    + esc(SPF_ERGEBNIS[spf.ergebnis] || spf.erklaerung || '') + ')'
                   : ' — Ausgangsadresse oben eintragen'))
     + (spf.mehrere && spf.mehrere.length
         ? '<div class="hint">' + spf.mehrere.length + ' SPF-Einträge gefunden — das ist ein Fehler, Empfänger werten '
