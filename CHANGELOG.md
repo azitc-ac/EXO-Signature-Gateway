@@ -5,6 +5,14 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.28 — 2026-10-22 — Einfügefeld der Admin-Anmeldung: Anleitung ungekürzt
+
+- Die Anleitung über dem Einfügefeld (v1.10.27) wurde auf schmalen
+  Bildschirmen wie andere Erklärtexte auf zwei Zeilen mit *mehr* gekürzt. Sie
+  ist der eigentliche Inhalt und steht jetzt immer vollständig da.
+
+**Zu tun:** nichts.
+
 ## v1.10.27 — 2026-10-22 — Admin-Anmeldung: Rücksprung über HTTPS statt localhost
 
 - **Korrektur: falsche Rücksprungadresse an der Bootstrap-App.** Nach der
