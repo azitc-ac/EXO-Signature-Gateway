@@ -341,10 +341,6 @@ def _txt(name: str) -> list[str]:
     return [b"".join(r.strings).decode("utf-8", "replace") for r in antwort]
 
 
-# Mechanismen, deren Erlaubnis erst eine weitere DNS-Abfrage klärt.
-_SPF_INDIREKT = ("include", "a", "mx", "exists", "ptr")
-
-
 def _spf_teile(eintrag: str) -> list[tuple[str, str]]:
     """SPF-Eintrag in (Qualifier-loser Name, Wert) zerlegen, ohne `v=spf1`.
     `a`, `a:host`, `a/24` → ("a", …); `redirect=x` → ("redirect", "x")."""
@@ -360,41 +356,62 @@ def _spf_teile(eintrag: str) -> list[tuple[str, str]]:
     return out
 
 
-def _ip_ausdruecklich(eintrag: str, ip: str) -> bool:
-    """Steht die Adresse in einem `ip4:`-Mechanismus mit Qualifier `+`/ohne?
-    (`-ip4:`/`~ip4:` beginnen nach `lstrip("+")` nicht mit `ip4:` und zählen
-    damit nicht.)"""
-    import ipaddress
-    adresse = ipaddress.ip_address(ip)
-    for teil in (eintrag or "").split()[1:]:
-        t = teil.lstrip("+")
-        if t.lower().startswith("ip4:"):
-            try:
-                if adresse in ipaddress.ip_network(t[4:], strict=False):
-                    return True
-            except ValueError:
-                continue
-    return False
+def _spf_dns(name, qtype, strict=True, timeout=20):
+    """DNS-Abfrage für pyspf, über `dns.resolver.resolve`.
+
+    pyspf 2.0.14 ruft `dns.resolver.query()`, das dnspython 2 nur noch mit
+    Warnung führt. Rückgabeformat wie pyspfs eigene `DNSLookup_dnspython`:
+    Liste von ((name, typ), wert). Tests ersetzen diese Funktion.
+    """
+    import dns.exception
+    import dns.resolver
+    import spf
+    try:
+        antwort = dns.resolver.resolve(name, qtype, lifetime=timeout)
+    except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN):
+        return []
+    except (dns.exception.Timeout, dns.resolver.NoNameservers) as exc:
+        raise spf.TempError(f"DNS {exc}")
+    out = []
+    for r in antwort:
+        if qtype in ("A", "AAAA"):
+            out.append(((name, qtype), r.address))
+        elif qtype == "MX":
+            out.append(((name, qtype), (r.preference, r.exchange)))
+        elif qtype == "PTR":
+            out.append(((name, qtype), r.target.to_text(True)))
+        elif qtype in ("TXT", "SPF"):
+            out.append(((name, qtype), r.strings))
+    return out
 
 
-def _spf_bewerten(eintrag: str, ip: str) -> bool | None:
-    """Erlaubt der SPF-Eintrag die Adresse AUSDRÜCKLICH (ip4:…)? None = nicht
-    entscheidbar ohne Auswertung von include/a/mx — dann zeigt die Oberfläche
-    den Eintrag zum Selbstprüfen. Bewusst keine vollständige SPF-Auswertung:
-    eine halbe wäre schlimmer als ein ehrliches „nicht entscheidbar“."""
-    if not eintrag or not ip:
-        return None
-    if _ip_ausdruecklich(eintrag, ip):
-        return True
-    indirekt = any(n in _SPF_INDIREKT or n == "redirect" for n, _ in _spf_teile(eintrag))
-    return None if indirekt else False
+def spf_auswerten(domain: str, ip: str, helo: str = "") -> dict:
+    """SPF so auswerten, wie ein Empfänger es tut — mit allen `include:`,
+    `a`, `mx`, `redirect=` (pyspf, RFC 7208).
+
+    `erlaubt`: True nur bei `pass`; None bei `temperror` (DNS gestört, später
+    erneut); sonst False — auch `none` (kein Eintrag) und `neutral`, denn dann
+    ist die Adresse nicht autorisiert.
+    """
+    if not ip:
+        return {"ergebnis": "", "erklaerung": "", "erlaubt": None}
+    import spf
+    spf.DNSLookup = _spf_dns
+    try:
+        ergebnis, _code, erklaerung = spf.query(
+            i=ip, s=f"postmaster@{domain}", h=helo or domain, querytime=15).check()
+    except Exception as exc:                              # noqa: BLE001
+        log.warning("SPF-Auswertung für %s fehlgeschlagen: %s", domain, exc)
+        return {"ergebnis": "temperror", "erklaerung": str(exc), "erlaubt": None}
+    return {"ergebnis": ergebnis, "erklaerung": erklaerung,
+            "erlaubt": {"pass": True, "temperror": None}.get(ergebnis, False)}
 
 
 def _spf_empfehlung(eintrag: str, ip: str) -> str:
-    """Der SPF-Eintrag, den der Betreiber setzen soll — "" wenn nichts zu tun.
-
-    Aus derselben Prüfung wie `_spf_bewerten` (`_ip_ausdruecklich`), damit
-    Empfehlung und Urteil nie auseinanderlaufen. Der BESTEHENDE Eintrag wird
+    """Der SPF-Eintrag, den der Betreiber setzen soll, wenn `spf_auswerten`
+    nicht `pass` meldet (der Aufrufer entscheidet das). Ein Test wertet jeden
+    Vorschlag mit `spf_auswerten` aus und verlangt `pass` — Empfehlung und
+    Urteil laufen so nicht auseinander. Der BESTEHENDE Eintrag wird
     erweitert, nie ersetzt: `ip4:` kommt unmittelbar vor das abschließende
     `all` (bzw. vor `redirect=`), Qualifier und alles andere bleiben. Ohne
     Eintrag: Exchange Online gehört dazu — der Tenant verschickt weiterhin auch
@@ -405,8 +422,6 @@ def _spf_empfehlung(eintrag: str, ip: str) -> str:
         return ""
     if not eintrag:
         return f"v=spf1 ip4:{ip} include:spf.protection.outlook.com ~all"
-    if _ip_ausdruecklich(eintrag, ip):
-        return ""
     teile = eintrag.split()
     namen = [n for n, _ in _spf_teile(eintrag)]
     pos = len(teile)
@@ -431,6 +446,7 @@ def dns_pruefen(domain: str) -> dict:
     helo = helo_name()
     spf_alle = [t for t in _txt(domain) if t.lower().split()[:1] == ["v=spf1"]]
     spf = spf_alle[0] if spf_alle else ""
+    spf_urteil = spf_auswerten(domain, ip, helo)
     soll = dkim_signatur.dns_eintrag(domain)
     dkim_ist = _txt(soll["name"]) if soll else []
 
@@ -444,8 +460,9 @@ def dns_pruefen(domain: str) -> dict:
         # dann gibt es kein Urteil und keinen Vorschlag, nur die Aufforderung,
         # sie zu EINEM zusammenzuführen.
         "spf": {"eintrag": spf, "ip": ip, "mehrere": spf_alle if len(spf_alle) > 1 else [],
-                "erlaubt": _spf_bewerten(spf, ip) if len(spf_alle) <= 1 else False,
-                "soll": _spf_empfehlung(spf, ip) if len(spf_alle) <= 1 else ""},
+                **spf_urteil,
+                "soll": _spf_empfehlung(spf, ip)
+                        if len(spf_alle) <= 1 and spf_urteil["erlaubt"] is not True else ""},
         "dkim": {"name": soll["name"] if soll else "",
                  "soll": soll["wert"] if soll else "",
                  "gefunden": dkim_ist,

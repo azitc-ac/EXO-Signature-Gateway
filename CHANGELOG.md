@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.23 — 2026-10-22 — Direktversand: SPF wird ausgewertet wie beim Empfänger
+
+- **SPF-Prüfung mit vollständiger Auswertung.** *DNS prüfen* in der Karte
+  *Direktversand* las bisher nur die `ip4:`-Angaben, die direkt im Eintrag der
+  Domäne stehen. Verwies der Eintrag per `include:` weiter — bei jedem Tenant
+  mindestens auf `spf.protection.outlook.com` —, lautete das Urteil „nicht
+  entscheidbar“. Jetzt wertet das Gateway den Eintrag so aus, wie es ein
+  empfangender Server tut, mit allen `include:`, `a`, `mx` und `redirect=`
+  (Bibliothek pyspf, RFC 7208). Die Anzeige nennt das Ergebnis, das ein
+  Empfänger für die Ausgangsadresse sähe: `pass`, `softfail`, `fail`, `neutral`,
+  `none`, `permerror` oder `temperror`, jeweils mit Erklärung.
+- Der Vorschlag für den SPF-Eintrag erscheint, sobald das Ergebnis nicht `pass`
+  ist. Ist die Adresse über einen Verweis schon erlaubt, erscheint keiner.
+- Neue Abhängigkeit: `pyspf` 2.0.14. Sie fragt DNS über das bereits vorhandene
+  dnspython ab.
+
+**Zu tun:** nichts — das Update bringt die Bibliothek mit.
+
 ## v1.10.22 — 2026-10-22 — Direktversand: die DNS-Prüfung zeigt den nötigen SPF-Eintrag
 
 - **Neu: Vorschlag für den SPF-Eintrag.** *DNS prüfen* in der Karte

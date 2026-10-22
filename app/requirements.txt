@@ -34,6 +34,7 @@ cryptography==49.0.0
 # ── Direktversand (DKIM-Signatur, DNS-Prüfung) ───────────────────────────────
 dkimpy==1.1.8
 dnspython==2.9.0
+pyspf==2.0.14
 
 # ── Microsoft-Anbindung ──────────────────────────────────────────────────────
 msal==1.37.0
