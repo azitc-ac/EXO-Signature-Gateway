@@ -570,3 +570,90 @@ def test_bestellung_ueber_vorgabe_haelt_den_weg_am_postfach_fest(client, monkeyp
     assert r.status_code == 200, r.text
     assert gerufen["email"] == "neu@x.de"
     assert settings_store.get("CA_USER_CONFIG")["neu@x.de"]["backend"] == "castle_acme"
+
+
+# ── Einwilligung: Bestätigungsseite des Postfachinhabers ────────────────────
+
+@pytest.fixture
+def ew_ablage(tmp_path, monkeypatch):
+    import config
+    monkeypatch.setattr(config, "DATA_DIR", str(tmp_path))
+    return tmp_path
+
+
+def test_einwilligung_get_aendert_nichts(client, ew_ablage):
+    """Mail-Scanner öffnen Links vorab — der Aufruf allein darf nicht zustimmen."""
+    import einwilligung
+    token = einwilligung.anfrage_erstellen("inhaber@x.de", "castle_acme")
+    r = client.get(f"/einwilligung/{token}")
+    assert r.status_code == 200 and 'name="lesen"' in r.text and 'name="im_namen"' in r.text
+    assert einwilligung.liegt_vor("inhaber@x.de") is None
+    assert einwilligung.anfrage_lesen(token), "Link durch blosses Öffnen verbraucht"
+
+
+def test_einwilligung_nur_mit_beiden_teilen(client, ew_ablage):
+    import einwilligung
+    token = einwilligung.anfrage_erstellen("inhaber@x.de", "castle_acme")
+    r = client.post(f"/einwilligung/{token}", data={"antwort": "ja", "lesen": "1"})
+    assert r.status_code == 200 and "beiden Punkten" in r.text
+    assert einwilligung.liegt_vor("inhaber@x.de") is None
+    assert einwilligung.anfrage_lesen(token), "Link bei unvollständiger Antwort verbraucht"
+
+
+def test_einwilligung_zustimmung_startet_bestellung(client, ew_ablage, monkeypatch):
+    import ca_backends
+    import einwilligung
+    gestartet = {}
+
+    class _Weg:
+        def get_label(self): return "CASTLE"
+        async def initiate_renewal(self, email, cfg, extra=None):
+            gestartet.update(email=email, extra=extra, backend=cfg.get("backend"))
+    monkeypatch.setattr(ca_backends, "get_backend", lambda name: _Weg())
+    token = einwilligung.anfrage_erstellen("inhaber@x.de", "castle_acme", "2026-10-22T10:00:00Z")
+    r = client.post(f"/einwilligung/{token}", data={"antwort": "ja", "lesen": "1", "im_namen": "1"})
+    assert r.status_code == 200 and "Danke" in r.text
+    assert einwilligung.liegt_vor("inhaber@x.de")["von"] == "nutzer"
+    assert gestartet == {"email": "inhaber@x.de", "backend": "castle_acme",
+                         "extra": {"ca_terms_accepted_at": "2026-10-22T10:00:00Z"}}
+    assert "nicht mehr gültig" in client.get(f"/einwilligung/{token}").text, "einmalig"
+
+
+def test_einwilligung_ablehnen(client, ew_ablage):
+    import einwilligung
+    token = einwilligung.anfrage_erstellen("inhaber@x.de", "castle_acme")
+    r = client.post(f"/einwilligung/{token}", data={"antwort": "nein"})
+    assert "Abgelehnt" in r.text and einwilligung.liegt_vor("inhaber@x.de") is None
+
+
+def test_unbekannter_link(client, ew_ablage):
+    assert "nicht mehr gültig" in client.get("/einwilligung/gibtsnicht").text
+    assert "nicht mehr gültig" in client.post("/einwilligung/gibtsnicht",
+                                              data={"antwort": "ja", "lesen": "1", "im_namen": "1"}).text
+
+
+def test_bestellen_ohne_einwilligung_meldet_409(client, ew_ablage, monkeypatch):
+    import acme_state
+    import ca_backends
+    import settings_store
+    monkeypatch.setitem(settings_store._data, "MAILBOX_CONFIG",
+                        {"g1": {"primary": "neu@x.de", "smime": True}})
+    monkeypatch.setitem(settings_store._data, "CA_USER_CONFIG", {"neu@x.de": {"backend": "castle_acme"}})
+
+    class _Weg:
+        def get_name(self): return "castle_acme"
+        def can_auto_renew(self): return True
+        async def initiate_renewal(self, email, cfg, extra=None):
+            raise acme_state.EinwilligungFehlt("fehlt")
+    monkeypatch.setattr(ca_backends, "get_backend", lambda name: _Weg())
+    r = client.post("/api/smime/renewal/initiate/neu@x.de", json={})
+    assert r.status_code == 409 and r.json()["einwilligung_fehlt"] is True
+
+
+def test_admin_einwilligung_haelt_den_namen_fest(client, ew_ablage):
+    import einwilligung
+    r = client.post("/api/smime/einwilligung/neu@x.de", json={"aktion": "admin"})
+    assert r.status_code == 200 and r.json()["zustand"] == "erteilt"
+    assert einwilligung.liegt_vor("neu@x.de")["von"] == "admin:testadmin"
+    r = client.post("/api/smime/einwilligung/neu@x.de", json={"aktion": "widerrufen"})
+    assert r.json()["zustand"] == "fehlt"

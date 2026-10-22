@@ -283,13 +283,14 @@ async def _auto_enrollment_anstossen(adressen: list[str]) -> dict:
         # die Zertifizierungsstelle gewählt, dort gehört die Zustimmung hin.
         # Ihn hier zu erzeugen hiesse, sie sich selbst auszustellen.
         beleg = (settings_store.get("SMIME_AUTO_ENROLL_TERMS_AT") or "").strip()
-        # Beim automatischen Bestellen sieht niemand zu — ohne die Bestätigung
-        # durch das Gateway bliebe für jedes Postfach eine Mail liegen, die
-        # nie jemand anklickt. Sie ist deshalb Teil derselben Entscheidung:
-        # Wer die Automatik einschaltet, will sie zu Ende laufen sehen.
+        # Einwilligung (Postfach lesen + im Namen bestätigen) nur, wenn sie beim
+        # Einschalten der Automatik BEWUSST erteilt wurde — mit genanntem Umfang
+        # (SMIME_AUTO_ENROLL_EINWILLIGUNG_AT, seit v1.10.35). Bis dahin stand hier
+        # fest `True`. Fehlt sie, fragt der Lauf jeden Postfachinhaber per Mail.
+        einwilligung_at = (settings_store.get("SMIME_AUTO_ENROLL_EINWILLIGUNG_AT") or "").strip()
         ergebnis = await sammelbestellung.lauf_starten(
             weg, adressen, actor="auto-enrollment", ca_terms_accepted_at=beleg,
-            auto_confirm=True)
+            auto_confirm=bool(einwilligung_at))
         if not ergebnis.get("ok"):
             log.warning("Automatische Bestellung für %s nicht gestartet: %s",
                         ", ".join(adressen), ergebnis.get("error"))

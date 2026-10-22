@@ -1414,6 +1414,13 @@
     "name": "api_smime_delete"
   },
   {
+    "pfad": "/api/smime/einwilligung/{email}",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_einwilligung"
+  },
+  {
     "pfad": "/api/smime/hub-order/{email}",
     "methoden": [
       "GET"
@@ -2021,6 +2028,20 @@
       "GET"
     ],
     "name": "debug_page"
+  },
+  {
+    "pfad": "/einwilligung/{token}",
+    "methoden": [
+      "GET"
+    ],
+    "name": "einwilligung_seite"
+  },
+  {
+    "pfad": "/einwilligung/{token}",
+    "methoden": [
+      "POST"
+    ],
+    "name": "einwilligung_antwort"
   },
   {
     "pfad": "/favicon.ico",

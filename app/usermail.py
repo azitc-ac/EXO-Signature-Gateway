@@ -192,6 +192,37 @@ VORLAGEN: dict[str, dict] = {
                  color="#1e293b"),
         ],
     },
+    "einwilligung": {
+        "anzeige": "Zertifikat: Zustimmung erbeten",
+        "gruppe": "intern",
+        "ueberschrift": True,
+        # ⚠️ Der Knopf mit dem Link ist kein Platzhalter, sondern wird angefügt
+        # (notification.send_einwilligung_anfrage) — gelöscht hiesse: keine
+        # Zustimmung möglich, still.
+        "zweck": ("Geht an den Postfachinhaber, wenn für sein Zertifikat seine "
+                  "Zustimmung fehlt: dass das Gateway sein Postfach lesen und in "
+                  "seinem Namen bei der Zertifizierungsstelle bestätigen darf. "
+                  "Der Knopf zur Bestätigungsseite wird unter dem Text angefügt."),
+        "platzhalter": _CERT_PLATZHALTER,
+        "beispiel": _CERT_BEISPIEL,
+        "betreff": "Ihre Zustimmung: Zertifikat für {{ empfaenger }}",
+        "farbe": "#1e40af",
+        "bloecke": [
+            _abs('Für Ihre Adresse **{{ empfaenger }}** soll ein Zertifikat zum '
+                 'digitalen Signieren Ihrer E-Mails bei **{{ ca }}** beantragt werden.'),
+            _abs('Damit das ohne Ihr Zutun klappt, braucht das Gateway Ihre '
+                 'Zustimmung zu zwei Dingen:'),
+            _abs('1. **Ihr Postfach lesen** — nur, um die Mail der '
+                 'Zertifizierungsstelle zu dem Antrag zu finden.'),
+            _abs('2. **In Ihrem Namen antworten** — die Zertifizierungsstelle '
+                 'bestätigt so, dass das Postfach Ihnen gehört.'),
+            _abs('Über den Knopf unten gelangen Sie zu einer Seite, auf der Sie '
+                 'beidem zustimmen oder ablehnen. Ohne Ihre Zustimmung wird nichts '
+                 'beantragt. Der Link gilt 7 Tage.'),
+            _abs('Sollten Sie diese Nachricht unerwartet erhalten oder unsicher '
+                 'sein, wenden Sie sich bitte an Ihre IT.', color="#6b7280", size="13pt"),
+        ],
+    },
     "portal_notification": {
         "anzeige": "Portal: verschlüsselte Nachricht bereit",
         "gruppe": "extern",

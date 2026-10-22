@@ -131,31 +131,29 @@ def hindernisse_blockieren(rechte: dict, fehlt: int, automatik: bool) -> bool:
     return bool(fehlt) and not automatik
 
 
-def _auto_confirm_setzen(adressen: list[str], provider_id: str) -> None:
-    """Für diese Postfächer die Bestätigung dem Gateway überlassen.
+def _auto_confirm_setzen(adressen: list[str], provider_id: str, von: str = "admin") -> None:
+    """Für diese Postfächer die Einwilligung des Administrators festhalten.
 
-    ⚠️ Das ist eine Befugnis, keine Bequemlichkeit: Das Gateway liest dafür die
-    Bestätigungsmail im Postfach des jeweiligen Nutzers. Deshalb wird sie nur
-    gesetzt, wenn der Betreiber sie in der Rückfrage ausdrücklich bestätigt hat
-    — und niemals stillschweigend als Vorgabe im Server.
+    ⚠️ Das ist eine Befugnis, keine Bequemlichkeit: Das Gateway liest dafür das
+    Postfach des jeweiligen Nutzers und handelt in seinem Namen gegenüber der
+    Zertifizierungsstelle. Deshalb nur, wenn der Betreiber es in der Rückfrage
+    ausdrücklich bestätigt hat — und niemals stillschweigend als Vorgabe.
+    Gespeichert in `einwilligung` (seit v1.10.35); das frühere
+    `CA_USER_CONFIG[...].auto_confirm` gilt nicht mehr als Einwilligung.
 
-    Ohne sie bleibt am Ende eines Sammellaufs für jedes Postfach eine Mail
-    liegen, die ein Mensch anklicken muss. Bei hundert Postfächern ist das
-    genau der Engpass, den der Sammellauf abschaffen soll.
-
-    Der Bezugsweg wird mitgeschrieben: Ein Eintrag mit `auto_confirm`, aber
-    ohne Bezugsweg, fiele bei der nächsten Erneuerung auf `assisted_manual`
-    zurück — und dort gibt es nichts automatisch zu bestätigen.
+    Der Bezugsweg wird mitgeschrieben: Ein Postfach ohne Bezugsweg fiele bei
+    der nächsten Erneuerung auf `assisted_manual` zurück.
     """
+    import einwilligung
     import settings_store
     cfg = dict(settings_store.get("CA_USER_CONFIG") or {})
     for adresse in adressen:
+        einwilligung.erteilen(adresse, von)
         eintrag = dict(cfg.get(adresse) or {})
-        eintrag["auto_confirm"] = True
         eintrag.setdefault("backend", provider_id)
         cfg[adresse] = eintrag
     settings_store.update({"CA_USER_CONFIG": cfg})
-    log.info("Sammellauf: automatische Bestätigung für %d Postfächer gesetzt", len(adressen))
+    log.info("Sammellauf: Einwilligung (%s) für %d Postfächer festgehalten", von, len(adressen))
 
 
 def _zustimmung_fehlt(provider_id: str, beleg: str) -> str:
@@ -460,7 +458,8 @@ async def lauf_starten(provider_id: str, adressen: list[str], actor: str = "",
     offen = [a.strip().lower() for a in (adressen or [])
              if a and a.strip().lower() in bestellbar]
     if auto_confirm:
-        _auto_confirm_setzen(offen, provider_id)
+        _auto_confirm_setzen(offen, provider_id,
+                             von="automatik" if actor == "auto-enrollment" else f"admin:{actor or '?'}")
 
     _lauf = {
         "ca_terms_accepted_at": ca_terms_accepted_at,
@@ -553,6 +552,15 @@ async def _eine_bestellung(adresse: str, provider_id: str,
             adresse, cfg, extra={"ca_terms_accepted_at": ca_terms_accepted_at})
         return {"email": adresse, "ok": True, "grund": ""}
     except Exception as exc:
+        import acme_state
+        if isinstance(exc, acme_state.EinwilligungFehlt):
+            # Kein Fehler des Laufs: Der Postfachinhaber wird gefragt; nach
+            # seiner Zustimmung startet die Bestellung von selbst.
+            import einwilligung
+            einwilligung.anfrage_senden(adresse, provider_id, ca_terms_accepted_at,
+                                        von=(_lauf or {}).get("gestartet_von", ""))
+            return {"email": adresse, "ok": False, "angefragt": True,
+                    "grund": "Zustimmung beim Postfachinhaber angefragt — bestellt wird nach seiner Zustimmung."}
         text = str(exc)
         # Guthabenmangel ist der einzige Fehler, der den ganzen Lauf betrifft —
         # alle weiteren Bestellungen scheitern genauso. Deshalb gesondert.

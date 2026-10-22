@@ -201,6 +201,16 @@ def _send_user_renewal_notification(
             except NotImplementedError:
                 log.info("scheduler: %s auto-renewal not implemented", backend_name)
             except Exception as exc:
+                import acme_state
+                if isinstance(exc, acme_state.EinwilligungFehlt):
+                    # Ohne Einwilligung keine Verlängerung im Namen des Inhabers —
+                    # stattdessen ihn fragen (höchstens eine offene Anfrage,
+                    # sonst käme bei jedem Lauf eine neue Mail).
+                    import einwilligung
+                    gesendet = einwilligung.anfrage_senden(email, backend_name, "", von="verlaengerung")
+                    log.warning("scheduler: Verlängerung für %s wartet auf Einwilligung (%s)",
+                                email, "Anfrage verschickt" if gesendet else "Anfrage läuft bereits")
+                    return
                 log.error("scheduler: auto-renewal failed for %s (%s): %s", email, backend_name, exc)
 
     if notify_user:

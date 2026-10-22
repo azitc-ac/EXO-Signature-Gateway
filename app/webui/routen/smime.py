@@ -188,6 +188,7 @@ async def smime_page_v2(request: Request, user: str = Depends(_require_admin)):
         context={
             "smime_users": smime_users,
             "ca_user_config": settings_store.get("CA_USER_CONFIG") or {},
+            "einwilligungen": {em: __import__("einwilligung").zustand(em) for em in all_emails},
             # Bezugsweg je Postfach — EINE Quelle (ca_backends.bezugsweg), statt
             # im Template `ca_cfg.get('backend','assisted_manual')` zu wiederholen.
             "wege": {em: _ca.bezugsweg((settings_store.get("CA_USER_CONFIG") or {}).get(em))
@@ -400,11 +401,10 @@ async def api_ca_config_save(email: str, request: Request, user: str = Depends(_
         # `migriere_staging_flag()` ihn überführen konnte.
         "staging": (bool(data["staging"]) if "staging" in data
                     else bool(bisher.get("staging", False))),
-        # Bestätigung der Zertifizierungsstelle selbst auslösen. Opt-in, nie
-        # Vorgabe: Was hier entfällt, ist die Absicht der Stelle, dass ein
-        # Mensch zustimmt. Wie oben nur überschreiben, wenn mitgeschickt.
-        "auto_confirm": (bool(data["auto_confirm"]) if "auto_confirm" in data
-                         else bool(bisher.get("auto_confirm", False))),
+        # `auto_confirm` entfällt (seit v1.10.35): Ob das Gateway im Namen des
+        # Inhabers lesen und bestätigen darf, hält `einwilligung` fest — mit
+        # Umfang, Zeitpunkt und wer eingewilligt hat. Ein Haken hier wäre ein
+        # zweiter Ort für dieselbe Frage.
     }
     settings_store.update({"CA_USER_CONFIG": cfg})
     return JSONResponse({"ok": True})
@@ -561,6 +561,11 @@ async def api_acme_initiate(request: Request, email: str, user: str = Depends(_r
             alle[email] = {**(alle.get(email) or {}), "backend": backend_name}
             settings_store.update({"CA_USER_CONFIG": alle})
         return JSONResponse({"ok": True})
+    except _acme_state.EinwilligungFehlt as exc:
+        # Kein Fehler, sondern eine Entscheidung: Die Oberfläche bietet an,
+        # bewusst als Administrator einzuwilligen oder den Inhaber zu fragen.
+        return JSONResponse({"ok": False, "einwilligung_fehlt": True, "error": str(exc)},
+                            status_code=409)
     except _acme_state.EnrollmentNotAllowed as exc:
         raise HTTPException(400, str(exc))
     except hub_client.GuthabenReichtNicht as exc:
@@ -569,6 +574,104 @@ async def api_acme_initiate(request: Request, email: str, user: str = Depends(_r
     except Exception as exc:
         log.error("ACME initiate failed for %s: %s", email, exc)
         raise HTTPException(500, str(exc))
+
+
+@router.post("/api/smime/einwilligung/{email}")
+async def api_einwilligung(request: Request, email: str, user: str = Depends(_require_admin)):
+    """Einwilligung für ein Postfach: als Administrator erteilen, beim
+    Postfachinhaber per Mail anfragen, oder widerrufen.
+
+    `admin` ist eine bewusste Erklärung des Administrators (die Oberfläche
+    nennt den Umfang im Dialog); festgehalten wird, wer und wann.
+    """
+    import ca_backends as _ca
+    import einwilligung
+    email = email.lower().strip()
+    data = await request.json()
+    aktion = (data.get("aktion") or "").strip()
+    if aktion == "admin":
+        einwilligung.erteilen(email, f"admin:{user}")
+        return JSONResponse({"ok": True, **einwilligung.zustand(email)})
+    if aktion == "widerrufen":
+        einwilligung.widerrufen(email, von=user)
+        return JSONResponse({"ok": True, **einwilligung.zustand(email)})
+    if aktion == "anfragen":
+        weg = _ca.bezugsweg((settings_store.get("CA_USER_CONFIG") or {}).get(email))
+        ok = einwilligung.anfrage_senden(email, weg, (data.get("ca_terms_accepted_at") or "").strip(),
+                                         von=f"admin:{user}", erneut=True)
+        if not ok:
+            return JSONResponse({"ok": False, "error": "Die Mail an den Postfachinhaber ging nicht hinaus — "
+                                                       "siehe Protokoll (Absender für Benachrichtigungen?)."})
+        return JSONResponse({"ok": True, **einwilligung.zustand(email)})
+    raise HTTPException(400, "aktion: admin, anfragen oder widerrufen")
+
+
+def _einwilligung_seite(request: Request, zustand: str, **werte) -> HTMLResponse:
+    return templates.TemplateResponse(request=request, name="einwilligung.html",
+                                      context={"zustand": zustand, **werte})
+
+
+@router.get("/einwilligung/{token}", response_class=HTMLResponse)
+async def einwilligung_seite(request: Request, token: str):
+    """Bestätigungsseite für den Postfachinhaber. ⚠️ GET ändert nichts — Mail-
+    Scanner öffnen Links vorab; zugestimmt wird nur per POST."""
+    import ca_backends as _ca
+    import einwilligung
+    a = einwilligung.anfrage_lesen(token)
+    if not a:
+        return _einwilligung_seite(request, "ungueltig")
+    try:
+        ca = _ca.get_backend(a.get("anbieter", "")).get_label()
+    except Exception:                                     # noqa: BLE001
+        ca = a.get("anbieter", "")
+    return _einwilligung_seite(request, "frage", token=token, email=a["email"], ca=ca)
+
+
+@router.post("/einwilligung/{token}", response_class=HTMLResponse)
+async def einwilligung_antwort(request: Request, token: str):
+    """Antwort des Postfachinhabers. Zustimmung nur mit BEIDEN Teilen; danach
+    startet die Bestellung von selbst (sie war nur an der Einwilligung
+    gescheitert)."""
+    import asyncio
+    import urllib.parse as _up
+    import ca_backends as _ca
+    import einwilligung
+    form = _up.parse_qs((await request.body()).decode("utf-8", "replace"))
+    antwort = (form.get("antwort", [""])[0]).strip()
+    beide = form.get("lesen", [""])[0] == "1" and form.get("im_namen", [""])[0] == "1"
+    vorab = einwilligung.anfrage_lesen(token)
+    if not vorab:
+        return _einwilligung_seite(request, "ungueltig")
+    if antwort == "ja" and not beide:
+        # Link NICHT verbrauchen — Formular erneut, mit Hinweis.
+        try:
+            ca = _ca.get_backend(vorab.get("anbieter", "")).get_label()
+        except Exception:                                 # noqa: BLE001
+            ca = vorab.get("anbieter", "")
+        return _einwilligung_seite(request, "frage", token=token, email=vorab["email"], ca=ca,
+                                   fehler="Bitte beiden Punkten zustimmen — sonst wird nichts beantragt.")
+    a = einwilligung.anfrage_beantworten(token, zustimmung=(antwort == "ja"))
+    if not a:
+        return _einwilligung_seite(request, "ungueltig")
+    if antwort != "ja":
+        return _einwilligung_seite(request, "abgelehnt", email=a["email"])
+
+    async def _bestellen():
+        email, weg = a["email"], a.get("anbieter", "")
+        try:
+            alle = dict(settings_store.get("CA_USER_CONFIG") or {})
+            cfg = dict(alle.get(email) or {})
+            if not cfg.get("backend") and weg:
+                cfg["backend"] = weg
+                alle[email] = cfg
+                settings_store.update({"CA_USER_CONFIG": alle})
+            await _ca.get_backend(cfg.get("backend") or weg).initiate_renewal(
+                email, cfg, extra={"ca_terms_accepted_at": a.get("terms_at", "")})
+            log.info("Bestellung nach Zustimmung des Inhabers gestartet: %s (%s)", email, weg)
+        except Exception as exc:                          # noqa: BLE001
+            log.error("Bestellung nach Zustimmung für %s gescheitert: %s", email, exc)
+    asyncio.create_task(_bestellen())
+    return _einwilligung_seite(request, "zugestimmt", email=a["email"])
 
 
 @router.post("/api/smime/keyvault/migrate/{email}")
@@ -817,12 +920,13 @@ async def api_hub_order_bestaetigen(email: str, user: str = Depends(_require_adm
     Abfrage ist eine Anzeige und läuft alle paar Sekunden; dies hier greift nach
     aussen und darf nicht als Nebenwirkung eines Blicks passieren.
     """
-    import hub_orders, hub_client, ca_bestaetigung, settings_store as _st
+    import hub_orders, hub_client, ca_bestaetigung
 
+    import einwilligung
     adresse = (email or "").strip().lower()
-    cfg = (_st.get("CA_USER_CONFIG") or {}).get(adresse) or {}
-    if not cfg.get("auto_confirm"):
-        raise HTTPException(400, "Automatische Bestätigung ist für dieses Postfach nicht aktiviert.")
+    if not einwilligung.liegt_vor(adresse):
+        raise HTTPException(400, "Für dieses Postfach fehlt die Einwilligung, in seinem Namen "
+                                 "zu bestätigen — der Postfachinhaber klickt den Link selbst.")
 
     offen = [m for m in hub_orders.list_pending()
              if (m.get("email") or "").lower() == adresse]
@@ -905,8 +1009,7 @@ async def api_hub_order_status(email: str, user: str = Depends(_require_admin)):
         "seit": meta.get("created", ""),
         "wartet_auf_nutzer": wartet,
         "bestaetigungslink": link,
-        "auto_confirm": bool(((settings_store.get("CA_USER_CONFIG") or {})
-                              .get(adresse) or {}).get("auto_confirm")),
+        "einwilligung": bool(__import__("einwilligung").liegt_vor(adresse)),
         "hinweis": res.get("note", "") if status == "rejected" else "",
     })
 

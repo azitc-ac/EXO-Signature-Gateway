@@ -129,6 +129,10 @@ DEFAULTS: dict = {
     # jede Bestellung ab, wenn der Anbieter Bedingungen führt — und zwar erst im
     # Lauf, nicht beim Einschalten.
     "SMIME_AUTO_ENROLL_TERMS_AT": "",
+    # Zeitpunkt der bewussten Admin-Einwilligung beim Einschalten der Automatik:
+    # Postfächer lesen und im Namen der Inhaber bestätigen (einwilligung.py).
+    # Leer = keine; dann wird jeder Inhaber per Mail gefragt.
+    "SMIME_AUTO_ENROLL_EINWILLIGUNG_AT": "",
     "NOSIG_TRIGGER": "#nosig",        # Keyword in subject → suppress HTML auto-signature for this mail
     "NOSIG_BEHAELT": "",              # was bei #nosig bleibt: "" | banner | disclaimer | beide
     "KETTE_BEHAELT": "",              # dasselbe für Antworten in einer schon signierten Kette

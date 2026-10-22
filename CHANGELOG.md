@@ -5,6 +5,55 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.35 — 2026-10-22 — S/MIME: Einwilligung, bevor das Gateway im Namen eines Postfachs handelt
+
+- **Korrektur: Der CASTLE-Weg handelte ohne Einwilligung.** Beim Bezug über
+  CASTLE liest das Gateway die Challenge-Mail im Postfach des Inhabers und
+  antwortet in dessen Namen. Der Haken *Automatische Bestätigung des Besitzes
+  der E-Mail-Adresse* wurde dabei nie geprüft: Auch ohne ihn las und antwortete
+  das Gateway. Er nannte außerdem nicht, was er erlaubt. Bei den Anbietern über
+  den Hub las die Statusanzeige das Postfach ebenfalls ohne Haken.
+- **Neu: Einwilligung mit genanntem Umfang.** Das Gateway liest das Postfach
+  und antwortet bzw. bestätigt im Namen des Inhabers nur mit einer
+  Einwilligung, die beides umfasst. Festgehalten werden Umfang, Zeitpunkt und
+  wer eingewilligt hat. Durchgesetzt wird das an den Stellen, die lesen oder
+  handeln: vor der CASTLE-Bestellung, vor jedem Lesen des Postfachs und vor
+  jeder Antwort. Das gilt auch für bereits laufende Bestellungen und für die
+  automatische Verlängerung.
+- **Zwei Wege zur Einwilligung:**
+  - **Du als Administrator:** in der Zeile des Postfachs unter *… →
+    Einwilligung → Als Administrator einwilligen*, im Sammellauf über den Haken
+    *Ich willige als Administrator ein …* (jetzt standardmäßig aus) oder für
+    die Automatik unter *Einstellungen → S/MIME → Zertifikat bestellen*.
+  - **Der Postfachinhaber:** Er bekommt eine Mail mit einem Link. Auf der
+    Bestätigungsseite stimmt er zwei Punkten getrennt zu, dem Lesen seines
+    Postfachs und dem Antworten in seinem Namen, und zwar per Knopf. Das bloße
+    Öffnen des Links ändert nichts; Mail-Scanner öffnen Links vorab. Der Link
+    gilt 7 Tage und nur einmal. Nach der Zustimmung startet die Bestellung von
+    selbst. Den Text der Mail kannst du wie die übrigen Nutzer-Mails anpassen
+    (*Zertifikat: Zustimmung erbeten*).
+- Fehlt die Einwilligung, bestellt das Gateway über CASTLE nicht. Stattdessen
+  gilt:
+  - *Zertifikat bestellen* bietet dir an, selbst einzuwilligen oder den Inhaber
+    zu fragen.
+  - Sammellauf und Automatik fragen den Inhaber per Mail.
+  - Die Verlängerung fragt ihn ebenfalls, höchstens einmal je offene Anfrage.
+  Bei Anbietern über den Hub klickt der Inhaber ohne Einwilligung den Link der
+  Zertifizierungsstelle selbst.
+
+**Zu tun:**
+1. Der bisherige Haken *Automatische Bestätigung* gilt **nicht** mehr als
+   Einwilligung, weil er den Umfang nicht nannte. Willige für die betroffenen
+   Postfächer neu ein (*S/MIME → … → Einwilligung*) oder frage die Inhaber an.
+   Sonst warten künftige Verlängerungen über CASTLE auf die Zustimmung des
+   Inhabers und schicken ihm dafür eine Mail.
+2. Nutzt du *Automatisch bestellen, sobald ein Postfach für S/MIME aktiviert
+   wird*: Setze unter *Einstellungen → S/MIME → Zertifikat bestellen* den
+   neuen Haken *Ich willige als Administrator ein …*, wenn das Gateway ohne
+   Rückfrage beim Inhaber bestellen soll.
+3. Der Link in der Mail an den Inhaber führt auf die Außenadresse des
+   Gateways. Er muss sie von seinem Rechner aus erreichen.
+
 ## v1.10.34 — 2026-10-22 — S/MIME-Seite: nach der Ausstellung neu laden
 
 - **Korrektur: Nach erfolgreicher Ausstellung blieb die Postfachzeile beim
