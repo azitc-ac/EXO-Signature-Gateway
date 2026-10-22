@@ -2148,11 +2148,12 @@ async function saveKeyvault() {
       <label class="checkbox-label">
         <input type="checkbox" id="addin-enabled"
                {% if s.ADDIN_ENABLED %}checked{% endif %}
-               onchange="toggleAddinSetup(this.checked)">
+               onchange="addinEnabledUmschalten(this)">
         Outlook Add-in bereitstellen
+        <span id="addin-enabled-result" style="font-size:12px;margin-left:8px"></span>
       </label>
-      <span class="hint">Zeigt die Gateway-Signatur beim Verfassen direkt in Outlook — wird einmalig im M365 Admin Center deployt</span>
     </div>
+    <p class="hint" style="margin:0 0 4px">Zeigt die Gateway-Signatur beim Verfassen direkt in Outlook — wird einmalig im M365 Admin Center deployt</p>
 
     <div id="addin-setup" {% if not s.ADDIN_ENABLED %}style="display:none"{% endif %}>
       <div style="border-top:1px solid #f0f0f0;margin:14px 0 14px"></div>
@@ -2247,8 +2248,8 @@ async function saveKeyvault() {
           Teams-App bereitstellen
           <span id="teams-app-aktiv-result" style="font-size:12px;margin-left:8px"></span>
         </label>
-        <span class="hint">Abwesenheit &amp; Signatur als App in der linken Leiste von Outlook und Teams</span>
       </div>
+      <p class="hint" style="margin:0 0 4px">Abwesenheit &amp; Signatur als App in der linken Leiste von Outlook und Teams</p>
 
       <div id="teams-app-setup" {% if not s.TEAMS_APP_AKTIV %}style="display:none"{% endif %}>
         <p class="hint" style="line-height:1.7;margin:8px 0">
@@ -2354,11 +2355,6 @@ async function saveKeyvault() {
       {% endif %}
       {% endif %}
     </div>
-
-    <div class="actions" style="margin-top:8px">
-      <button class="btn secondary" onclick="saveAddinEnabled()">Speichern</button>
-      <span id="addin-enabled-result" style="font-size:12px;margin-left:8px"></span>
-    </div>
   </div>
 </div>
 <script>
@@ -2431,12 +2427,14 @@ async function ssoPruefen() {
   liste.style.display = '';
 }
 
-function toggleAddinSetup(enabled) {
-  document.getElementById('addin-setup').style.display = enabled ? '' : 'none';
-}
-
-function saveAddinEnabled() {
-  savePartial({ ADDIN_ENABLED: document.getElementById('addin-enabled').checked }, 'addin-enabled-result');
+// Reiner Schalter → speichert sofort (Speicher-Linie, Regel 4); scheitert das
+// Speichern, gehen Haken und Sichtbarkeit zurück.
+async function addinEnabledUmschalten(cb) {
+  document.getElementById('addin-setup').style.display = cb.checked ? '' : 'none';
+  if (!await savePartial({ ADDIN_ENABLED: cb.checked }, 'addin-enabled-result')) {
+    cb.checked = !cb.checked;
+    document.getElementById('addin-setup').style.display = cb.checked ? '' : 'none';
+  }
 }
 
 async function teamsAppAktivUmschalten(cb) {
