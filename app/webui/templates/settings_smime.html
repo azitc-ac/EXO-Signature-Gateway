@@ -194,9 +194,25 @@
     Zertifikat hat, löst nichts aus. Die Postfachseite nennt den Betrag vor
     dem Speichern.
   </p>
+  {# Einwilligung (einwilligung.py), bewusst und mit Umfang — Vorgabe aus.
+     Bis v1.10.34 gab die Automatik sie stillschweigend mit. #}
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="auto-enroll-einwilligung" {% if s.SMIME_AUTO_ENROLL_EINWILLIGUNG_AT %}checked{% endif %}>
+      Ich willige als Administrator ein: Das Gateway darf neu aktivierte
+      Postfächer lesen und im Namen der Inhaber bei der Zertifizierungsstelle
+      bestätigen
+    </label>
+  </div>
+  <p class="hint" style="margin:0 0 4px">
+    {% if s.SMIME_AUTO_ENROLL_EINWILLIGUNG_AT %}Erteilt am {{ s.SMIME_AUTO_ENROLL_EINWILLIGUNG_AT[:10] }}. {% endif %}
+    Ohne diesen Haken fragt die Automatik jeden Postfachinhaber per Mail um
+    Zustimmung und bestellt erst danach (CASTLE); bei Anbietern über den Hub
+    klickt der Inhaber den Link der Zertifizierungsstelle selbst.
+  </p>
   <div style="margin-top:8px">
     <button type="button" id="auto-enroll-btn" class="btn secondary btn-sm"
-      data-wache="auto-enroll,auto-enroll-weg" data-wache-hinweis="auto-enroll-result"
+      data-wache="auto-enroll,auto-enroll-weg,auto-enroll-einwilligung" data-wache-hinweis="auto-enroll-result"
       onclick="speichereAutoEnroll()">Speichern</button>
     <span id="auto-enroll-result"></span>
   </div>
@@ -731,6 +747,19 @@ async function speichereAutoEnroll() {
   const sel = document.getElementById('auto-enroll-weg');
   const weg = sel ? sel.value : '';
   const nutzlast = {SMIME_AUTO_ENROLL: an, SMIME_AUTO_ENROLL_CA: weg};
+  // Einwilligung: Zeitpunkt nur beim bewussten SETZEN neu, beim Wegnehmen leer.
+  const ewEl = document.getElementById('auto-enroll-einwilligung');
+  const ewVorher = {{ 'true' if s.SMIME_AUTO_ENROLL_EINWILLIGUNG_AT else 'false' }};
+  if (ewEl && ewEl.checked && !ewVorher) {
+    if (!confirm('Als Administrator einwilligen?\n\nDas Gateway darf jedes künftig für S/MIME ' +
+                 'aktivierte Postfach LESEN (um die Mail der Zertifizierungsstelle zu finden) und ' +
+                 'IM NAMEN des Inhabers bei der Zertifizierungsstelle antworten bzw. bestätigen.')) {
+      wacheFertig('auto-enroll-btn', false, 'Nicht gespeichert'); return;
+    }
+    nutzlast.SMIME_AUTO_ENROLL_EINWILLIGUNG_AT = new Date().toISOString();
+  } else if (ewEl && !ewEl.checked) {
+    nutzlast.SMIME_AUTO_ENROLL_EINWILLIGUNG_AT = '';
+  }
 
   // ⚠️ Die Zustimmung gehört HIERHIN, nicht in den späteren Lauf: Hier wird die
   // Zertifizierungsstelle gewählt, und später bestellt niemand mehr bewusst —

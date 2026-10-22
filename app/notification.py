@@ -640,6 +640,28 @@ def _vorlage_rendern(schluessel: str, kopf: str = "", footer: str | None = None,
                                kopf + rumpf + nachsatz, footer=footer)
 
 
+def send_einwilligung_anfrage(user_email: str, link: str, ca_label: str) -> bool:
+    """An den POSTFACHINHABER: Zustimmung erbeten, dass das Gateway sein
+    Postfach lesen und in seinem Namen bei der CA bestätigen darf.
+
+    Bewusst NICHT abschaltbar über NOTIFY_USER_CERT: Ohne diese Mail gibt es
+    für ein Postfach ohne Admin-Einwilligung keinen Weg zum Zertifikat — sie ist
+    Teil des Bestellablaufs, keine Benachrichtigung.
+    """
+    import html as _html
+    knopf = ('<p style="margin:18px 0"><a href="' + _html.escape(link, quote=True) + '" '
+             'style="background:#0078d4;color:#fff;padding:10px 18px;border-radius:6px;'
+             'text-decoration:none;font-weight:600">Zur Bestätigungsseite</a></p>'
+             '<p style="color:#6b7280;font-size:12px">Falls der Knopf nicht funktioniert: '
+             + _html.escape(link) + '</p>')
+    gerendert = _vorlage_rendern("einwilligung", nachsatz=knopf,
+                                 empfaenger=user_email, ca=ca_label or "")
+    if gerendert is None:
+        return False
+    betreff, html = gerendert
+    return _graph_send(user_email, betreff, html)
+
+
 def send_user_cert_verification_pending(user_email: str, ca_label: str) -> bool:
     """An den POSTFACHINHABER: gleich kommt eine Bestätigungsmail der CA.
 

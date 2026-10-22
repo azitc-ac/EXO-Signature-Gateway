@@ -687,9 +687,13 @@ def test_sammellauf_kann_die_bestaetigung_uebernehmen(lauf, monkeypatch):
     # schrieben.
     monkeypatch.setattr(settings_store, "update", lambda d: geschrieben.update(d))
 
-    asyncio.run(sb.lauf_starten("hub:certum", ["a@x.de", "b@x.de"], auto_confirm=True))
+    import einwilligung
+    erteilt = {}
+    monkeypatch.setattr(einwilligung, "erteilen", lambda email, von: erteilt.setdefault(email, von))
+    asyncio.run(sb.lauf_starten("hub:certum", ["a@x.de", "b@x.de"], auto_confirm=True, actor="chefin"))
     cfg = geschrieben.get("CA_USER_CONFIG", {})
-    assert cfg.get("a@x.de", {}).get("auto_confirm") is True, cfg
+    assert erteilt.get("a@x.de") == "admin:chefin", erteilt
+    assert "auto_confirm" not in cfg.get("a@x.de", {}), "der alte Haken gilt nicht mehr"
     assert cfg.get("a@x.de", {}).get("backend") == "hub:certum", (
         "ohne Bezugsweg fiele der Eintrag bei der nächsten Erneuerung auf "
         "assisted_manual zurück — dort gibt es nichts zu bestätigen")
@@ -701,6 +705,9 @@ def test_ohne_haken_wird_nichts_gesetzt(lauf, monkeypatch):
     import asyncio, settings_store
     geschrieben = {}
     monkeypatch.setattr(settings_store, "update", lambda d: geschrieben.update(d))
+    import einwilligung
+    monkeypatch.setattr(einwilligung, "erteilen",
+                        lambda *a, **kw: pytest.fail("Einwilligung ohne Haken erteilt"))
     asyncio.run(sb.lauf_starten("hub:certum", ["a@x.de"]))
     assert "CA_USER_CONFIG" not in geschrieben
 

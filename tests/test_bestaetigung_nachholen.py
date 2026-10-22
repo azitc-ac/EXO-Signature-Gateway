@@ -39,10 +39,17 @@ def offen(tmp_path, monkeypatch):
             "created": "2026-08-20T10:00:00+00:00", "source": "hub"}))
 
     import settings_store
+    # „ohne“ trägt das ALTE auto_confirm=True (bis v1.10.34): Es gilt nicht mehr
+    # als Einwilligung — nur einwilligung.erteilen() zählt.
     monkeypatch.setattr(settings_store, "get", lambda k, *a, **kw: {
-        "mit@x.de": {"auto_confirm": True, "backend": "hub:certum_test"},
-        "ohne@x.de": {"auto_confirm": False},
+        "mit@x.de": {"backend": "hub:certum_test"},
+        "ohne@x.de": {"auto_confirm": True},
     } if k == "CA_USER_CONFIG" else None)
+    import config
+    import einwilligung
+    (tmp_path / "ew").mkdir()
+    monkeypatch.setattr(config, "DATA_DIR", str(tmp_path / "ew"))
+    einwilligung.erteilen("mit@x.de", "admin:test")
 
     aufgerufen = []
     import ca_bestaetigung

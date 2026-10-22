@@ -566,6 +566,14 @@ async def handle_challenge_email(order: dict, token_part1: str) -> None:
     re_subject = f"Re: ACME: {token_part1}"
     ca_email = order.get("from_address", "")
     internet_message_id = order.get("challenge_internet_msg_id", "")
+    # Vor der Antwort IM NAMEN des Postfachinhabers. Auch der SMTP-Abfangweg
+    # (handler.py) kommt hier vorbei.
+    import einwilligung
+    if not einwilligung.liegt_vor(email):
+        log.warning("[acme:%s] challenge reply for %s NOT sent — keine Einwilligung", fid, email)
+        save_order(email, {**order, "status": "error",
+                           "error": "Einwilligung fehlt oder wurde widerrufen — nicht geantwortet."})
+        return
     log.info("[acme:%s] sending challenge reply from %s to %s", fid, email, ca_email)
     ok = await _send_challenge_reply(email, ca_email, re_subject, digest, internet_message_id)
     if not ok:
@@ -635,6 +643,15 @@ async def _poll_mailbox_for_challenge(email: str) -> None:
         if not order or order.get("status") != "waiting_challenge":
             log.info("[acme:%s] poll for %s stopping (status=%s)", fid, email,
                      order.get("status") if order else "cleared")
+            return
+
+        # Vor JEDEM Lesen: Die Einwilligung kann inzwischen widerrufen sein,
+        # und ein wieder aufgenommener Poll (Neustart) hat sie nie geprüft.
+        import einwilligung
+        if not einwilligung.liegt_vor(email):
+            log.warning("[acme:%s] poll for %s stopped — keine Einwilligung zum Lesen", fid, email)
+            save_order(email, {**order, "status": "error",
+                               "error": "Einwilligung fehlt oder wurde widerrufen — Postfach nicht gelesen."})
             return
 
         token = await graph_client._acquire_token_async()
@@ -711,6 +728,12 @@ class EnrollmentNotAllowed(Exception):
     activated for S/MIME. S/MIME activation is a prerequisite for enrollment."""
 
 
+class EinwilligungFehlt(EnrollmentNotAllowed):
+    """Ohne Einwilligung kein CASTLE-Bezug: Das Gateway müsste das Postfach lesen
+    und in seinem Namen antworten (siehe `einwilligung.py`). Eigene Klasse, damit
+    Aufrufer statt eines Fehlers eine Anfrage an den Postfachinhaber auslösen."""
+
+
 async def initiate_acme_order(
     email: str,
     user_config: dict,
@@ -738,6 +761,19 @@ async def initiate_acme_order(
         log.warning("[acme:%s] enrollment blocked for %s — mailbox not S/MIME-activated", flow_id, email)
         raise EnrollmentNotAllowed(
             f"Postfach {email} ist nicht für S/MIME aktiviert (MAILBOX_CONFIG.smime) — Enrollment abgelehnt.")
+
+    # ── Guard: Einwilligung — VOR jeder Bestellung ─────────────────────────────
+    # Der CASTLE-Weg liest das Postfach (Challenge) und antwortet ALS die Adresse.
+    # Bis v1.10.34 fragte er dafür nichts ab. Ohne Einwilligung keine Order:
+    # Nur das Gateway kann die Challenge beantworten (ACME-Kontoschlüssel), ein
+    # Warten auf den Postfachinhaber gibt es nicht — und eine angelegte Order
+    # liefe sonst ins Leere. Aufrufer fangen EinwilligungFehlt und fragen an.
+    import einwilligung
+    if not einwilligung.liegt_vor(email):
+        log.warning("[acme:%s] enrollment blocked for %s — keine Einwilligung", flow_id, email)
+        raise EinwilligungFehlt(
+            f"Für {email} fehlt die Einwilligung, dass das Gateway das Postfach lesen "
+            f"und in seinem Namen bei der Zertifizierungsstelle antworten darf.")
 
     directory_url = CASTLE_STAGING if staging else CASTLE_DIRECTORY
     log.info("[acme:%s] ENROLLMENT START — %s via %s", flow_id, email, directory_url)

@@ -56,6 +56,9 @@ def postfach(monkeypatch):
     import graph_client
     async def _token(): return "tok"
     monkeypatch.setattr(graph_client, "_acquire_token_async", _token)
+    # Lesen im Postfach braucht eine Einwilligung (seit v1.10.35) — hier erteilt.
+    import einwilligung
+    monkeypatch.setattr(einwilligung, "liegt_vor", lambda email: {"von": "admin:test"})
     return stand
 
 
@@ -125,3 +128,25 @@ def test_ohne_zeitangabe_kein_filter():
 def test_unlesbare_zeitangabe_filtert_nicht_statt_zu_scheitern():
     """Lieber alle 25 Nachrichten durchsehen als gar nicht suchen."""
     assert hub_orders._zeitfilter("kein Datum") == ""
+
+
+
+def test_ohne_einwilligung_wird_das_postfach_nicht_gelesen(monkeypatch):
+    """Ohne Einwilligung liest das Gateway im Postfach eines anderen NICHT —
+    auch nicht für die Anzeige. Bis v1.10.34 las die Statusabfrage immer."""
+    import asyncio
+    import httpx
+    import einwilligung
+    import hub_orders
+    monkeypatch.setattr(einwilligung, "liegt_vor", lambda email: None)
+    import graph_client
+
+    async def _token():
+        pytest.fail("Graph-Token zum Lesen ohne Einwilligung geholt")
+    # ⚠️ Schon beim Token anschlagen: Ohne Zugangsdaten bräche die Funktion sonst
+    # vor dem Lesen ab, und der Test bliebe grün, auch wenn die Sperre fehlt
+    # (Gegenprobe am 22.10. genau so ins Leere gelaufen).
+    monkeypatch.setattr(graph_client, "_acquire_token_async", _token)
+    monkeypatch.setattr(httpx, "AsyncClient",
+                        lambda **kw: pytest.fail("Postfach ohne Einwilligung gelesen"))
+    assert asyncio.run(hub_orders.bestaetigungslink("a@x.de", "REF-1")) == ""

@@ -217,7 +217,16 @@ async def bestaetigungslink(email: str, ref: str, seit: str = "") -> str:
 
     Rein lesend. Der Klick bleibt beim Menschen; diese Funktion sucht nur die
     Adresse heraus.
+
+    ⚠️ Lesen im Postfach eines anderen braucht dessen Einwilligung (oder die
+    bewusste des Administrators) — `einwilligung.liegt_vor`. Hier geprüft, an
+    der EINEN Stelle, die liest: Statusabfrage, Bestätigen-Knopf und
+    `bestaetigungen_nachholen` laufen alle hierüber. Ohne Einwilligung "" —
+    dann klickt der Postfachinhaber den Link der CA selbst.
     """
+    import einwilligung
+    if not einwilligung.liegt_vor(email):
+        return ""
     import httpx as _httpx
     import graph_client
 
@@ -285,16 +294,15 @@ async def bestaetigungen_nachholen() -> int:
     Gibt die Anzahl der ausgelösten Bestätigungen zurück.
     """
     import ca_bestaetigung
+    import einwilligung
     import hub_client
-    import settings_store
 
-    cfg = settings_store.get("CA_USER_CONFIG") or {}
     n = 0
     for meta in list_pending():
         adresse = (meta.get("email") or "").lower()
         if meta.get("bestaetigt_am") or not adresse:
             continue
-        if not (cfg.get(adresse) or {}).get("auto_confirm"):
+        if not einwilligung.liegt_vor(adresse):
             continue
         try:
             res = await hub_client.cert_get_order(meta["order_id"])

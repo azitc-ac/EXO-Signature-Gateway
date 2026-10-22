@@ -148,13 +148,17 @@
         <span class="muted">Wird geladen…</span>
       </div>
       <label style="display:flex;align-items:flex-start;gap:8px;margin-top:10px;font-size:13px;cursor:pointer">
-        <input type="checkbox" id="sammel-autoconfirm" checked style="flex-shrink:0;margin-top:3px">
-        <span>E-Mail-Adressen automatisch bestätigen
+        {# ⚠️ Vorgabe AUS: Der Haken ist eine Einwilligung des Administrators im
+           Namen der Postfachinhaber (einwilligung.py) — nie stillschweigend. #}
+        <input type="checkbox" id="sammel-autoconfirm" style="flex-shrink:0;margin-top:3px">
+        <span>Ich willige als Administrator ein: Das Gateway darf diese Postfächer
+          <strong>lesen</strong> und <strong>im Namen der Inhaber</strong> bei der
+          Zertifizierungsstelle bestätigen
           <span class="muted" style="display:block;font-size:12px">
-            Die Zertifizierungsstelle schickt an jedes Postfach eine
-            Bestätigungsmail; erst danach stellt sie aus. Mit diesem Haken liest
-            das Gateway sie und bestätigt selbst. Ohne ihn muss jeder
-            Postfachinhaber den Link in seiner Mail anklicken.
+            Ohne diesen Haken fragt das Gateway jeden Postfachinhaber per Mail um
+            Zustimmung (CASTLE) bzw. der Inhaber klickt den Link der
+            Zertifizierungsstelle selbst (Anbieter über den Hub). Eine bereits
+            erteilte Einwilligung eines Postfachs gilt weiter.
           </span>
         </span>
       </label>
@@ -435,17 +439,34 @@
               {% endif %}
             </div>
           </div>
-          <!-- Bestätigung selbst auslösen. Opt-in und nie Vorgabe: Was hier
-               entfällt, ist die Absicht der Zertifizierungsstelle, dass ein
-               Mensch zustimmt. Das Gateway weist dieselbe Postfachkontrolle
-               nach — mehr belegt auch der Klick eines Menschen nicht. -->
-          <div class="settings-row" style="margin-bottom:12px">
-            <label class="checkbox-label" style="font-size:13px"
-                   title="Das Gateway liest die Bestätigungsmail im Postfach und löst die Bestätigung selbst aus. Ohne diesen Schalter muss der Postfachinhaber klicken.">
-              <input type="checkbox" class="lc-autoconfirm" data-email="{{ u.email }}"
-                     {% if ca_cfg.get('auto_confirm') %}checked{% endif %}>
-              Automatische Bestätigung des Besitzes der E-Mail-Adresse an die Zertifizierungsstelle
-            </label>
+          <!-- Einwilligung (einwilligung.py): Das Gateway liest das Postfach und
+               bestätigt im Namen des Inhabers. Bis v1.10.34 ein Haken
+               „automatische Bestätigung“, der beim CASTLE-Weg nie geprüft wurde
+               und den Umfang nicht nannte — er gilt nicht mehr. -->
+          {% set ew = einwilligungen.get(u.email, {}) %}
+          <div class="einwilligung" data-email="{{ u.email }}" style="margin-bottom:12px;font-size:13px">
+            <strong>Einwilligung</strong>
+            <span class="muted">— das Gateway darf das Postfach lesen und im Namen des Inhabers bei der Zertifizierungsstelle bestätigen:</span>
+            <div style="margin:4px 0 6px">
+            {% if ew.zustand == 'erteilt' %}
+              <span class="speicher-hinweis" style="margin-left:0" data-zustand="fertig">✓ erteilt
+                {% if ew.von == 'nutzer' %}vom Postfachinhaber{% elif ew.von == 'automatik' %}mit der Automatik beim Aktivieren{% elif ew.von == 'verlaengerung' %}(Verlängerung){% else %}von {{ ew.von | replace('admin:', '') }}{% endif %}
+                am {{ (ew.am or '')[:10] }}</span>
+            {% elif ew.zustand == 'angefragt' %}
+              <span class="speicher-hinweis" style="margin-left:0" data-zustand="offen">Beim Postfachinhaber angefragt am {{ (ew.erstellt or '')[:10] }} — gilt bis {{ (ew.ablauf or '')[:10] }}</span>
+            {% else %}
+              <span class="speicher-hinweis" style="margin-left:0" data-zustand="offen">fehlt — ohne sie bestellt CASTLE nicht, und bei Hub-Anbietern klickt der Inhaber selbst</span>
+            {% endif %}
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            {% if ew.zustand == 'erteilt' %}
+              <button type="button" class="btn danger btn-sm" onclick="einwilligungAktion('{{ u.email }}','widerrufen',this)">Widerrufen</button>
+            {% else %}
+              <button type="button" class="btn secondary btn-sm" onclick="einwilligungAktion('{{ u.email }}','anfragen',this)">{% if ew.zustand == 'angefragt' %}Erneut anfragen{% else %}Beim Postfachinhaber anfragen{% endif %}</button>
+              <button type="button" class="btn secondary btn-sm" onclick="einwilligungAktion('{{ u.email }}','admin',this)">Als Administrator einwilligen</button>
+            {% endif %}
+              <span class="ew-result"></span>
+            </div>
           </div>
           <div class="settings-row" style="margin-bottom:12px">
             <label class="checkbox-label" style="font-size:13px">
@@ -885,7 +906,7 @@ async function _pollHubOrder(email, versuch) {
   // sonst ruft eine offene Seite im Minutentakt bei der Zertifizierungsstelle
   // an. Bewusst hier und nicht in der Textfunktion: Diese erzeugt Anzeige,
   // keine Wirkung nach aussen.
-  if (d.wartet_auf_nutzer && d.auto_confirm && d.bestaetigungslink && !_hubConfirmed[email]) {
+  if (d.wartet_auf_nutzer && d.einwilligung && d.bestaetigungslink && !_hubConfirmed[email]) {
     _hubConfirmed[email] = true;
     sendJSON('POST', '/api/smime/hub-order/' + encodeURIComponent(email) + '/bestaetigen');
   }
@@ -1072,10 +1093,12 @@ async function sammelStarten() {
   }
   const autoBestaetigen = (document.getElementById('sammel-autoconfirm') || {}).checked;
   frage += autoBestaetigen
-    ? '\n\nDie E-Mail-Adressen werden automatisch bestätigt: Das Gateway liest ' +
-      'dafür die Bestätigungsmail im jeweiligen Postfach.'
-    : '\n\nJeder Postfachinhaber muss den Bestätigungslink in seiner Mail ' +
-      'anklicken, sonst wird kein Zertifikat ausgestellt.';
+    ? '\n\nSie willigen als Administrator ein: Das Gateway liest die Postfächer ' +
+      'und bestätigt im Namen der Inhaber bei der Zertifizierungsstelle. ' +
+      'Das wird je Postfach mit Ihrem Namen festgehalten.'
+    : '\n\nOhne Ihre Einwilligung wird jeder Postfachinhaber, der noch nicht ' +
+      'zugestimmt hat, per Mail gefragt (CASTLE) bzw. klickt den Link der ' +
+      'Zertifizierungsstelle selbst.';
   frage += '\n\nBereits erteilte Bestellungen lassen sich nicht zurücknehmen.';
   if (!confirm(frage)) return;
 
@@ -1327,14 +1350,12 @@ async function saveCaConfig(email) {
   const notify  = document.querySelector(`.lc-notify[data-email="${CSS.escape(email)}"]`).checked;
   const autoRenewEl = document.querySelector(`.lc-auto-renew[data-email="${CSS.escape(email)}"]`);
   const auto_renew = autoRenewEl ? autoRenewEl.checked : false;
-  const acEl = document.querySelector(`.lc-autoconfirm[data-email="${CSS.escape(email)}"]`);
-  const auto_confirm = acEl ? acEl.checked : false;
   // `staging` wird NICHT mehr mitgeschickt: Die Testumgebung ist ein eigener
   // Bezugsweg. Ein hier mitgesendetes `false` würde das Flag bei Altbeständen
   // löschen, bevor die Umstellung beim nächsten Start greifen kann.
   const result  = _lcResultEl(email);
   const d = await postJSON('/api/smime/ca-config/' + encodeURIComponent(email),
-    {backend, portal_url: portal, notify_user: notify, auto_renew, auto_confirm});
+    {backend, portal_url: portal, notify_user: notify, auto_renew});
   showAlert(result, d.ok ? 'success' : 'error',
     d.ok ? 'Lifecycle-Einstellungen gespeichert.' : 'Fehler beim Speichern: ' + esc(errText(d)));
 }
@@ -1363,14 +1384,57 @@ async function startAutoEnroll(email, btn) {
     const accepted = await caBedingungenZeigen(email, info.label || backendName,
                                               termsUrl, info.docs || []);
     if (!accepted) return;
+    const termsAt = new Date().toISOString();
     const d = await knopfAktion(btn, 'Starte…', () => postJSON('/api/smime/renewal/initiate/' + encodeURIComponent(email),
-      {ca_terms_accepted_at: new Date().toISOString()}));
-    if (d.ok) { _startAcmePolling(email); _pollHubOrder(email, 0); } else { _showAeError(email, errText(d)); }
+      {ca_terms_accepted_at: termsAt}));
+    if (d.ok) { _startAcmePolling(email); _pollHubOrder(email, 0); }
+    else if (d.einwilligung_fehlt) await _einwilligungFehlt(email, btn, termsAt);
+    else _showAeError(email, errText(d));
   } else {
     if (!confirm('Automatischen Zertifikatsbezug für ' + email + ' starten?')) return;
     const d = await knopfAktion(btn, 'Starte…', () => postJSON('/api/smime/renewal/initiate/' + encodeURIComponent(email)));
-    if (d.ok) { _startAcmePolling(email); } else { _showAeError(email, errText(d)); }
+    if (d.ok) { _startAcmePolling(email); }
+    else if (d.einwilligung_fehlt) await _einwilligungFehlt(email, btn, '');
+    else _showAeError(email, errText(d));
   }
+}
+
+// Umfang der Einwilligung — EIN Wortlaut für alle Rückfragen dieser Seite.
+function _einwilligungsText(email) {
+  return 'Das Gateway darf das Postfach ' + email + ' LESEN (um die Mail der ' +
+    'Zertifizierungsstelle zu finden) und IM NAMEN des Inhabers bei der ' +
+    'Zertifizierungsstelle antworten bzw. bestätigen.';
+}
+
+// Bestellung scheiterte nur an der fehlenden Einwilligung: bewusst als
+// Administrator einwilligen und erneut bestellen — oder den Inhaber fragen.
+async function _einwilligungFehlt(email, btn, termsAt) {
+  if (confirm('Für ' + email + ' fehlt die Einwilligung.\n\n' + _einwilligungsText(email) +
+              '\n\nOK = Sie willigen als Administrator ein (wird mit Ihrem Namen festgehalten) ' +
+              'und die Bestellung startet.\nAbbrechen = andere Möglichkeit wählen.')) {
+    const e = await postJSON('/api/smime/einwilligung/' + encodeURIComponent(email), {aktion: 'admin'});
+    if (!e.ok) { _showAeError(email, errText(e)); return; }
+    const d = await knopfAktion(btn, 'Starte…', () => postJSON('/api/smime/renewal/initiate/' + encodeURIComponent(email),
+      termsAt ? {ca_terms_accepted_at: termsAt} : {}));
+    if (d.ok) { _startAcmePolling(email); _pollHubOrder(email, 0); } else _showAeError(email, errText(d));
+    return;
+  }
+  if (!confirm('Stattdessen den Postfachinhaber per Mail um Zustimmung bitten?\n\n' +
+               'Nach seiner Zustimmung startet die Bestellung von selbst.')) return;
+  const a = await postJSON('/api/smime/einwilligung/' + encodeURIComponent(email),
+                           {aktion: 'anfragen', ca_terms_accepted_at: termsAt});
+  if (a.ok) location.reload(); else _showAeError(email, errText(a));
+}
+
+async function einwilligungAktion(email, aktion, btn) {
+  if (aktion === 'admin' && !confirm('Als Administrator einwilligen?\n\n' + _einwilligungsText(email) +
+      '\n\nDas wird mit Ihrem Namen und dem Zeitpunkt festgehalten.')) return;
+  if (aktion === 'widerrufen' && !confirm('Einwilligung für ' + email + ' widerrufen?\n\n' +
+      'Laufende Bestellungen lesen und antworten danach nicht mehr.')) return;
+  const box = btn.closest('.einwilligung');
+  const d = await knopfAktion(btn, null, () => postJSON('/api/smime/einwilligung/' + encodeURIComponent(email), {aktion}));
+  if (d.ok) location.reload();
+  else showMsg(box.querySelector('.ew-result'), '✗ ' + errText(d), false);
 }
 
 // caBedingungenZeigen() steht in common.js — auch Sammellauf und

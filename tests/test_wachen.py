@@ -75,6 +75,10 @@ ERLAUBT_OHNE_ANMELDUNG: dict[str, str] = {
     # ── S/MIME-Selbstbedienung: der Postfachinhaber hat kein Verwaltungskonto.
     "/smime/renew/{token}":      "Selbstbedienungsseite, Zugang über Einmalmerkmal",
     "/api/smime/renew/{token}":  "Hochladen des Zertifikats, Zugang über Einmalmerkmal",
+    # ── Einwilligung des Postfachinhabers (einwilligung.py): Link aus seiner
+    #    Mail, Zugang über einmaliges Merkmal (nur als Hash gespeichert). GET
+    #    zeigt nur an, zugestimmt wird per POST.
+    "/einwilligung/{token}":     "Zustimmung des Postfachinhabers, Zugang über Einmalmerkmal",
 
     # ── Outlook-Add-in: wird aus Outlook heraus geladen, Signaturen sind nicht
     #    vertraulich. Die Zuordnung zum Postfach unter /api/addin/* prüft sehr wohl.

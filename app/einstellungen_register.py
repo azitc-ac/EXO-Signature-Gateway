@@ -239,6 +239,7 @@ REGISTER: dict[str, E] = {
     "SMIME_AUTO_ENROLL": E(art=OPTION, ort="settings_smime.html"),
     "SMIME_AUTO_ENROLL_CA": E(art=OPTION, ort="settings_smime.html"),
     "SMIME_AUTO_ENROLL_TERMS_AT": E(art=ZUSTAND),
+    "SMIME_AUTO_ENROLL_EINWILLIGUNG_AT": E(art=ZUSTAND),
     "SMIME_AUTO_RULES": E(art=STRUKTUR, ort="settings_smime.html"),
     "SMIME_ENABLED": E(art=OPTION, ort="setup.html"),
     "SMIME_HARVEST_RCPT": E(art=OPTION, ort="settings_smime.html"),
