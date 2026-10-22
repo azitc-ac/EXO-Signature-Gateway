@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.32 — 2026-10-22 — Berechtigungen erteilen: bereits erteilte Rollen ohne Warnung
+
+- Beim Erteilen fehlender Berechtigungen versucht das Gateway jede Rolle
+  zuzuweisen. Für jede schon vorhandene Rolle stand bisher eine Warnung im
+  Protokoll („Could not grant … already exists on the object“), obwohl das kein
+  Fehler ist. Jetzt steht dort ein Hinweis „… bereits erteilt“. Echte
+  Fehlschläge bleiben Warnungen.
+
+**Zu tun:** nichts.
+
 ## v1.10.31 — 2026-10-22 — S/MIME: Standardbezugsweg und Knopf „Zertifikat bestellen“
 
 - **Neu: Standardbezugsweg für neue Postfächer.** Die Karte *Zertifikat

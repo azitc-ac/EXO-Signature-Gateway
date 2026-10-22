@@ -393,8 +393,12 @@ async def _grant_admin_consent(token: str, our_sp_id: str) -> list[str]:
             )
             log.info("Granted Graph role %s", perm["id"])
         except Exception as exc:
-            log.warning("Could not grant Graph role %s: %s", perm["id"], exc)
-            if not _schon_erteilt(exc):
+            # Schon erteilt ist kein Fehlschlag (idempotent) — als WARNING sah es
+            # im Protokoll aus wie einer, bei jedem Erteilen für jede Rolle.
+            if _schon_erteilt(exc):
+                log.info("Graph role %s bereits erteilt", perm["id"])
+            else:
+                log.warning("Could not grant Graph role %s: %s", perm["id"], exc)
                 fehler.append(f"Graph {perm['id']}: {exc}")
 
     try:
@@ -413,8 +417,10 @@ async def _grant_admin_consent(token: str, our_sp_id: str) -> list[str]:
                 )
                 log.info("Granted EXO role %s", perm["id"])
             except Exception as exc:
-                log.warning("Could not grant EXO role %s: %s", perm["id"], exc)
-                if not _schon_erteilt(exc):
+                if _schon_erteilt(exc):
+                    log.info("EXO role %s bereits erteilt", perm["id"])
+                else:
+                    log.warning("Could not grant EXO role %s: %s", perm["id"], exc)
                     fehler.append(f"Exchange {perm['id']}: {exc}")
     except Exception as exc:
         log.warning("Could not find EXO service principal: %s", exc)

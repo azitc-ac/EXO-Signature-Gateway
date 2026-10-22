@@ -49,7 +49,8 @@ def test_token_rollen_liest_jwt():
     assert berechtigungen.token_rollen("kein-jwt") is None
 
 
-def test_nachziehen_erteilt_nur_rollen(monkeypatch):
+def test_nachziehen_erteilt_nur_rollen(monkeypatch, caplog):
+    caplog.set_level("INFO")
     aufrufe = []
 
     async def gh(methode, url, token, json=None):
@@ -68,6 +69,9 @@ def test_nachziehen_erteilt_nur_rollen(monkeypatch):
     monkeypatch.setattr(settings_store, "get", lambda k, d=None: {"CLIENT_ID": "cid"}.get(k, d))
     res = asyncio.run(setup_wizard.berechtigungen_nachziehen("tok"))
     assert res == {"ok": True, "fehler": []}, "bereits erteilt ist kein Fehler"
+    # … und steht auch nicht als Warnung im Protokoll, wo es wie einer aussah
+    assert not [r for r in caplog.records if r.levelname == "WARNING" and "grant" in r.getMessage()]
+    assert any("bereits erteilt" in r.getMessage() for r in caplog.records)
     urls = " ".join("/".join(u) for _, u, _ in aufrufe)
     assert "addPassword" not in urls, "kein neues Secret"
     assert "keyCredentials" not in json.dumps([j for _, _, j in aufrufe if j]), "kein neues Zertifikat"
@@ -76,7 +80,7 @@ def test_nachziehen_erteilt_nur_rollen(monkeypatch):
     assert erteilt == soll
 
 
-def test_nachziehen_meldet_echte_fehler(monkeypatch):
+def test_nachziehen_meldet_echte_fehler(monkeypatch, caplog):
     async def gh(methode, url, token, json=None):
         if methode == "get":
             return {"value": [{"id": "x"}]}
@@ -88,6 +92,8 @@ def test_nachziehen_meldet_echte_fehler(monkeypatch):
     monkeypatch.setattr(settings_store, "get", lambda k, d=None: {"CLIENT_ID": "cid"}.get(k, d))
     res = asyncio.run(setup_wizard.berechtigungen_nachziehen("tok"))
     assert res["ok"] is False and res["fehler"]
+    assert any(r.levelname == "WARNING" and "Could not grant" in r.getMessage()
+               for r in caplog.records), "echte Fehlschläge bleiben Warnungen"
 
 
 def test_doku_nennt_jede_beantragte_rolle():
