@@ -5,6 +5,34 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.31 — 2026-10-22 — S/MIME: Standardbezugsweg und Knopf „Zertifikat bestellen“
+
+- **Neu: Standardbezugsweg für neue Postfächer.** Die Karte *Zertifikat
+  automatisch bestellen* unter *Einstellungen → S/MIME* heißt jetzt
+  *Zertifikat bestellen*. Oben wählst du den *Standardbezugsweg für neue
+  Postfächer*, mit demselben Dropdown wie bisher; darunter steht der Haken
+  *Automatisch bestellen, sobald ein Postfach für S/MIME aktiviert wird*.
+  Der Standardbezugsweg gilt für alle Postfächer, für die noch kein eigener
+  Bezugsweg gewählt ist. Bisher stand ein neues Postfach auf *Assistiert
+  manuell*, und *Auto-Enroll* blieb ausgegraut, bis man den Weg hinter *…* in
+  der Postfachzeile änderte. Mit der neuen Wahl *Keiner — je Postfach wählen*
+  bleibt es bei diesem Verhalten. Die automatische Bestellung verlangt einen
+  Standardbezugsweg.
+- **Neu: Knopf *Zertifikat bestellen*** in den Zeilen der S/MIME-Seite für
+  Postfächer ohne Zertifikat, anstelle von *Auto-Enroll*. Kann der Bezugsweg
+  nicht selbst bestellen, öffnet der Knopf die Einstellungen der Zeile, statt
+  ausgegraut zu sein. Eine Bestellung über den Standardbezugsweg hält den Weg
+  am Postfach fest. Spätere Verlängerungen nutzen ihn auch dann, wenn du den
+  Standard änderst.
+- Die automatische Verlängerung bestehender Zertifikate nutzt den
+  Standardbezugsweg nicht. Sie bleibt beim Weg, der am Postfach eingetragen
+  ist.
+
+**Zu tun:** nichts. Willst du den Standardbezugsweg nutzen, wähle ihn unter
+*Einstellungen → S/MIME → Zertifikat bestellen*. Hattest du die automatische
+Bestellung schon eingeschaltet, ist ihr bisheriger Bezugsweg jetzt der
+Standardbezugsweg.
+
 ## v1.10.30 — 2026-10-22 — S/MIME-Sammelbestellung: Fortschritt sichtbar
 
 - **Korrektur: Die Anzeige eines Sammellaufs blieb stehen.** Das Gateway meldet

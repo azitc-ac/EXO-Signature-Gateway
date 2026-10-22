@@ -504,3 +504,69 @@ def test_abgelaufene_anmeldung_meldet_sich_im_popup(client, monkeypatch):
     assert r.status_code == 200
     assert '"type": "anmeldung-abgelaufen"' in r.text
     assert "location.replace('/auth/login?error=session_expired')" in r.text
+
+
+
+# ── S/MIME: Zertifikat bestellen mit Standardbezugsweg ──────────────────────
+
+import re  # noqa: E402
+
+_WEGE = [{"name": "castle_acme", "label": "CASTLE", "auto": True, "ready": True},
+         {"name": "assisted_manual", "label": "Assistiert manuell", "auto": False, "ready": True}]
+
+
+def _smime_neu(client, monkeypatch, vorgabe):
+    import ca_backends
+    import settings_store
+    monkeypatch.setitem(settings_store._data, "MAILBOX_CONFIG",
+                        {"g1": {"primary": "neu@x.de", "smime": True}})
+    monkeypatch.setitem(settings_store._data, "CA_USER_CONFIG", {})
+    monkeypatch.setitem(settings_store._data, "SMIME_AUTO_ENROLL_CA", vorgabe)
+
+    async def wege():
+        return _WEGE
+    monkeypatch.setattr(ca_backends, "list_backends_aktuell", wege)
+    r = client.get("/smime")
+    assert r.status_code == 200
+    zeile = r.text[r.text.index("<strong style=\"font-size:14px\">neu@x.de</strong>"):]
+    zeile = zeile[:zeile.index("lifecycle-section")]
+    knopf = re.search(r'<button id="ae-btn-neu_x_de"[^>]*>', zeile, re.S).group(0)
+    return r.text, zeile, knopf
+
+
+def test_postfach_ohne_zertifikat_hat_knopf_zertifikat_bestellen(client, monkeypatch):
+    html, zeile, knopf = _smime_neu(client, monkeypatch, "castle_acme")
+    assert "Zertifikat bestellen" in zeile
+    assert "startAutoEnroll('neu@x.de'" in knopf and "disabled" not in knopf
+    # Lifecycle-Auswahl zeigt den Weg aus der Vorgabe
+    auswahl = html[html.index('class="lc-backend" data-email="neu@x.de"'):]
+    auswahl = auswahl[:auswahl.index("</select>")]
+    assert re.search(r'value="castle_acme"\s+selected', auswahl), auswahl
+
+
+def test_ohne_vorgabe_oeffnet_der_knopf_die_einstellungen(client, monkeypatch):
+    html, zeile, knopf = _smime_neu(client, monkeypatch, "")
+    assert "_zeileMehr(event, this)" in knopf and "startAutoEnroll" not in knopf
+    assert "disabled" not in knopf, "ausgegraut war die Sackgasse"
+
+
+def test_bestellung_ueber_vorgabe_haelt_den_weg_am_postfach_fest(client, monkeypatch):
+    import ca_backends
+    import settings_store
+    monkeypatch.setitem(settings_store._data, "MAILBOX_CONFIG",
+                        {"g1": {"primary": "neu@x.de", "smime": True}})
+    monkeypatch.setitem(settings_store._data, "CA_USER_CONFIG", {})
+    monkeypatch.setitem(settings_store._data, "SMIME_AUTO_ENROLL_CA", "castle_acme")
+    gerufen = {}
+
+    class _Weg:
+        def get_name(self): return "castle_acme"
+        def can_auto_renew(self): return True
+        async def initiate_renewal(self, email, cfg, extra=None):
+            gerufen["email"] = email
+
+    monkeypatch.setattr(ca_backends, "get_backend", lambda name: _Weg())
+    r = client.post("/api/smime/renewal/initiate/neu@x.de", json={})
+    assert r.status_code == 200, r.text
+    assert gerufen["email"] == "neu@x.de"
+    assert settings_store.get("CA_USER_CONFIG")["neu@x.de"]["backend"] == "castle_acme"

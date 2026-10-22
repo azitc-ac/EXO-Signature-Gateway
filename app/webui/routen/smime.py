@@ -188,6 +188,10 @@ async def smime_page_v2(request: Request, user: str = Depends(_require_admin)):
         context={
             "smime_users": smime_users,
             "ca_user_config": settings_store.get("CA_USER_CONFIG") or {},
+            # Bezugsweg je Postfach — EINE Quelle (ca_backends.bezugsweg), statt
+            # im Template `ca_cfg.get('backend','assisted_manual')` zu wiederholen.
+            "wege": {em: _ca.bezugsweg((settings_store.get("CA_USER_CONFIG") or {}).get(em))
+                     for em in all_emails},
             "backends": await _ca.list_backends_aktuell(),
             "recipient_certs": smime_store.list_recipient_certs(),
             # Zertifikate, deren Aussteller nicht auf eine bekannte Wurzel
@@ -526,7 +530,7 @@ async def api_acme_initiate(request: Request, email: str, user: str = Depends(_r
     except Exception:
         body = {}
     ca_cfg: dict = (settings_store.get("CA_USER_CONFIG") or {}).get(email, {})
-    backend_name = ca_cfg.get("backend", "assisted_manual")
+    backend_name = _ca.bezugsweg(ca_cfg)
     backend = _ca.get_backend(backend_name)
     if not backend.can_auto_renew():
         raise HTTPException(400, f"Backend '{backend_name}' unterstützt kein Auto-Enroll")
@@ -549,7 +553,13 @@ async def api_acme_initiate(request: Request, email: str, user: str = Depends(_r
 
     try:
         await backend.initiate_renewal(email, ca_cfg, extra=body)
-        log.info("ACME renewal initiated for %s by %s", email, user)
+        log.info("ACME renewal initiated for %s by %s (%s)", email, user, backend_name)
+        # Kam der Weg aus der Vorgabe, am Postfach festhalten: Verlängerung und
+        # Anzeige sollen später denselben Weg sehen, auch wenn die Vorgabe wechselt.
+        if not ca_cfg.get("backend"):
+            alle = dict(settings_store.get("CA_USER_CONFIG") or {})
+            alle[email] = {**(alle.get(email) or {}), "backend": backend_name}
+            settings_store.update({"CA_USER_CONFIG": alle})
         return JSONResponse({"ok": True})
     except _acme_state.EnrollmentNotAllowed as exc:
         raise HTTPException(400, str(exc))

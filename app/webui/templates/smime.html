@@ -193,6 +193,7 @@
     {% set has_certs = u.certs | length > 0 %}
     {% set multi = u.certs | length > 1 %}
     {% set ca_cfg = ca_user_config.get(u.email, {}) %}
+    {% set _weg = wege.get(u.email, 'assisted_manual') %}
     {% set _search = (u.email ~ ' ' ~ (u.certs | map(attribute='subject') | select | join(' ')) ~ ' ' ~ (u.certs | map(attribute='issuer') | select | join(' '))) | lower %}
     <div class="smime-user" data-search="{{ _search }}" style="border:1px solid #e2e8f0;border-radius:6px;margin-bottom:14px;">
       <!-- ⚠️ Der KOPF ist der Umschalter, nicht ein Pfeil daneben.
@@ -215,9 +216,21 @@
         </div>
         <div class="user-hdr-actions">
           <button class="btn secondary btn-sm" onclick="openImportModal('{{ u.email }}')">Importieren</button>
-          {% set _backend_name = ca_cfg.get('backend','assisted_manual') %}
+          {% set _backend_name = _weg %}
           {% set _backend_info = (backends | selectattr('name','equalto',_backend_name) | list | first) or {} %}
           {% set _can_auto = _backend_info.get('auto', false) and _backend_info.get('ready', false) %}
+          {% if not has_certs %}
+          {# Ohne Zertifikat der sichtbare Weg zur Einzelbestellung. Kann der
+             Bezugsweg nicht selbst bestellen, klappt der Knopf die Einstellungen
+             auf, statt ausgegraut zu sein — dort wird der Weg gewählt. #}
+          <button id="ae-btn-{{ u.email | replace('@','_') | replace('.','_') }}"
+                  class="btn secondary btn-sm"
+                  {% if _can_auto %}onclick="startAutoEnroll('{{ u.email }}',this)"
+                  {% else %}onclick="_zeileMehr(event, this)"
+                  title="Erst einen Bezugsweg wählen — „{{ _backend_info.get('label', _backend_name) }}“ bestellt nicht selbst"{% endif %}>
+            Zertifikat bestellen
+          </button>
+          {% else %}
           <button id="ae-btn-{{ u.email | replace('@','_') | replace('.','_') }}"
                   class="btn secondary btn-sm"
                   {% if _can_auto %}onclick="startAutoEnroll('{{ u.email }}',this)"
@@ -225,6 +238,7 @@
                   title="{% if _backend_info.get('auto') and not _backend_info.get('ready') %}{{ _backend_info.get('not_ready_reason') or 'Backend noch nicht vollständig konfiguriert' }}{% else %}Backend „{{ _backend_info.get('label', _backend_name) }}“ unterstützt kein Auto-Enroll{% endif %}"{% endif %}>
             Auto-Enroll
           </button>
+          {% endif %}
           {% if kv_configured %}
             {% set local_keys = u.certs | selectattr("has_local_key") | list %}
             {% if local_keys | length > 0 and (u.certs | length - local_keys | length) > 0 %}
@@ -374,7 +388,7 @@
                     style="width:300px;font-size:13px"
                     onchange="_onBackendChange('{{ u.email }}',this.value)">
               {% for b in backends %}
-              {% set is_selected = ca_cfg.get('backend','assisted_manual') == b.name %}
+              {% set is_selected = _weg == b.name %}
               <option value="{{ b.name }}"
                       {% if is_selected %}selected{% endif %}
                       {% if not b.ready and not is_selected %}disabled{% endif %}
@@ -389,7 +403,7 @@
                liefern ihre Adresse fest aus dem Code, hub_provider hat gar keine
                — dort war es ein Eingabefeld ohne jede Wirkung. -->
           <div class="settings-row lc-portal-row" data-email="{{ u.email }}"
-               style="{% if ca_cfg.get('backend','assisted_manual') != 'assisted_manual' %}display:none;{% endif %}margin-bottom:10px">
+               style="{% if _weg != 'assisted_manual' %}display:none;{% endif %}margin-bottom:10px">
             <label style="width:160px;min-width:160px;font-size:13px">CA-Portal-URL</label>
             <input type="url" class="lc-portal" data-email="{{ u.email }}"
                    value="{{ ca_cfg.get('portal_url','') }}"
@@ -461,7 +475,7 @@
                Postfachinhaber hat keines, das er hochladen könnte, und der Link
                führte ihn auf ein leeres Formular. -->
           <div class="lc-selfservice-box" data-email="{{ u.email }}"
-               style="{% if ca_cfg.get('backend','assisted_manual') != 'assisted_manual' %}display:none;{% endif %}background:#f0f4ff;border:1px solid #c7d7ff;border-radius:6px;padding:10px 14px;font-size:12px">
+               style="{% if _weg != 'assisted_manual' %}display:none;{% endif %}background:#f0f4ff;border:1px solid #c7d7ff;border-radius:6px;padding:10px 14px;font-size:12px">
             <strong style="color:#374151">Self-Service-Upload-Link</strong>
             <span style="color:#888;margin-left:4px">(für Benutzer, ohne Admin-Login)</span>
             <div id="token-area-{{ u.email | replace('@','_') | replace('.','_') }}"

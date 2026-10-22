@@ -52,6 +52,32 @@ def get_backend(name: str) -> CABackend:
     return _STATIC.get(name) or _STATIC["assisted_manual"]
 
 
+def bezugsweg(user_cfg: dict | None) -> str:
+    """Bezugsweg eines Postfachs für eine NEUE Bestellung.
+
+    Eigener Eintrag (CA_USER_CONFIG[...]["backend"]) vor der Vorgabe
+    „Standardbezugsweg für neue Postfächer“ (SMIME_AUTO_ENROLL_CA), sonst
+    „Assistiert manuell“. Die Vorgabe zählt nur, wenn es den Weg gibt und er
+    selbst bestellen kann — ein Weg, der nicht automatisch bestellt, wäre als
+    Vorgabe für „Zertifikat bestellen“ eine Sackgasse.
+
+    ⚠️ Bewusst NICHT für die automatische Verlängerung (scheduler): Ein alter
+    Eintrag ohne Bezugsweg, aber mit „Nutzer benachrichtigen“, gilt dort als
+    auto_renew — mit Vorgabe bestellte er plötzlich, womöglich kostenpflichtig,
+    statt eine Mail zu schicken.
+    """
+    eigener = ((user_cfg or {}).get("backend") or "").strip()
+    if eigener:
+        return eigener
+    import settings_store
+    vorgabe = (settings_store.get("SMIME_AUTO_ENROLL_CA") or "").strip()
+    if vorgabe:
+        b = get_backend(vorgabe)
+        if b.get_name() == vorgabe and b.can_auto_renew():
+            return vorgabe
+    return "assisted_manual"
+
+
 async def list_backends_aktuell() -> list[dict]:
     """Bezugswege MIT frisch geholtem Anbieterkatalog.
 
