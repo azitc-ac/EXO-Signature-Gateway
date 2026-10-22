@@ -227,10 +227,13 @@ def route_fuer_extern(adresse: str) -> str:
     Ist ein Ziel für externe Empfänger gesetzt (typisch `direkt`), geht jeder
     Empfänger außerhalb der Tenant-Domänen dorthin; interne bleiben bei EXO.
 
-    ⚠️ Ausfallrichtung: Ist die Menge der Tenant-Domänen unbekannt (noch keine
-    Postfachliste, kein TENANT_DOMAIN), gilt NIEMAND als extern. Sonst ginge
-    auch interne Post am eigenen Exchange vorbei ins Internet — sie käme zwar
-    über den MX wieder an, aber als Post von außen.
+    ⚠️ Ausfallrichtung: Ist die Postfachliste (noch) unbekannt, gilt NIEMAND
+    als extern. Sonst ginge auch interne Post am eigenen Exchange vorbei ins
+    Internet — sie käme zwar über den MX wieder an, aber als Post von außen.
+    Maßgeblich ist die Adressliste, nicht `_eigene_domaenen()`: Die Menge ist
+    nie leer, sobald TENANT_DOMAIN gesetzt ist, enthält ohne Postfachliste aber
+    keine Aliasdomänen — eine Prüfung darauf wäre tot (dieselbe Falle wie in
+    `smtp_relay.pruefe`).
     """
     ziel = extern_ziel()
     if not ziel or ziel == EXO or not ziel_gueltig(ziel):
@@ -238,9 +241,11 @@ def route_fuer_extern(adresse: str) -> str:
     d = _domain(adresse)
     if not d:
         return EXO
+    import exo_mailboxes
     import smtp_relay
-    eigene = smtp_relay._eigene_domaenen()
-    if not eigene or d in eigene:
+    if not exo_mailboxes.known_addresses():
+        return EXO
+    if d in smtp_relay._eigene_domaenen():
         return EXO
     return ziel
 

@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.21 — 2026-10-22 — Direktversand: interne Post geht ohne Postfachliste nicht ins Internet
+
+- **Korrektur: „Externe Empfänger → Ziel“ prüfte die falsche Ausfallsicherung.**
+  Ob ein Empfänger extern ist, entscheidet das Gateway anhand der Domänen des
+  Tenants. Ohne Postfachliste (etwa solange die Graph-Anmeldung fehlt) sollte
+  niemand als extern gelten. Geprüft wurde aber, ob die Domänenmenge leer ist —
+  und die enthält nach jeder Einrichtung die Startdomäne `…onmicrosoft.com`.
+  Aliasdomänen wie `firma.de` fehlen ihr ohne Postfachliste. Post an Kollegen
+  unter der Aliasdomäne hätte so als extern gegolten und wäre per Direktversand
+  ins Internet gegangen, statt über Exchange Online. Maßgeblich ist jetzt die
+  Postfachliste: Ist sie leer, geht alles an Exchange Online.
+- **Sendeidentitäten (Port 587):** dieselbe Prüfung. Ohne Postfachliste bekam
+  ein Absender unter der Aliasdomäne `550` (endgültig abgelehnt) statt `451`
+  (später erneut versuchen). Jetzt `451`, wie beim Port-25-Relay.
+
+Nichts zu tun: Die Korrektur wirkt mit dem Update.
+
 ## v1.10.20 — 2026-10-22 — Direktversand: externe Post über den eigenen Postfix, mit DKIM
 
 - **Neu: Direktversand** (Relay-Seite, Karte *Direktversand*; sichtbar, wenn das
