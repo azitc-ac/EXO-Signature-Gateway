@@ -62,6 +62,7 @@ const log = {};
 
 def _node(szenario: str) -> dict:
     js = (_DOM + common_funktion("laeuftZeigen") + "\n" + common_funktion("knopfAktion")
+          + "\n" + common_funktion("showMsg")
           + "\n(async () => {\n" + szenario + "\nconsole.log(JSON.stringify(log));\n})();")
     out = subprocess.run(["node", "-e", js], capture_output=True, text=True, check=True).stdout
     return json.loads(out)
@@ -125,6 +126,19 @@ def test_fortschrittsanzeige_neben_dem_knopf():
     assert log["phase"] == "Teilschritt 2"
     k, a = log["danach"]
     assert k["disabled"] is False and a["hidden"] is True and a["laeuft"] is False and a["html"] == ""
+
+
+@node_fehlt
+def test_ergebnis_erscheint_in_der_fortschrittsanzeige():
+    """Das Muster „Fortschritt neben dem Knopf, Ergebnis per showMsg am selben
+    Ort“: knopfAktion() blendet die Anzeige am Ende mit `hidden` aus, und gegen
+    [hidden] { display:none !important } kam style.display nicht an — bis
+    v1.10.36 blieb jedes solche Ergebnis unsichtbar."""
+    log = _node("""
+      await knopfAktion(knopf, 'Prüfe…', async () => ({ok: true}), {anzeige: 'anzeige'});
+      showMsg('anzeige', 'Erreichbar', true);
+      log.a = zustand(anzeige); log.state = anzeige.dataset.state;""")
+    assert log["a"]["hidden"] is False and log["a"]["html"] == "Erreichbar" and log["state"] == "ok"
 
 
 # ── Keine Handarbeit mehr in den Vorlagen ─────────────────────────────────────
