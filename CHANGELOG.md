@@ -5,6 +5,21 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.34 — 2026-10-22 — S/MIME-Seite: nach der Ausstellung neu laden
+
+- **Korrektur: Nach erfolgreicher Ausstellung blieb die Postfachzeile beim
+  alten Stand.** Nach einer Ausstellung räumt das Gateway die Bestellung ab.
+  Die Zeile wartete aber auf eine noch vorhandene Bestellung, um neu zu laden,
+  und lud deshalb nach einem Erfolg nie. Sie zeigte weiter „kein Zertifikat“,
+  „CASTLE validiert…“ oder den Fehler einer älteren Bestellung, bis man die
+  Seite selbst neu lud. Jetzt lädt die Seite neu, sobald sie eine laufende
+  Bestellung enden sieht.
+- Dasselbe beim Sammellauf: Wird eine Bestellung ausgestellt, während die Seite
+  offen ist, lädt sie nach dem Lauf neu. So zeigen die Zeilen das neue
+  Zertifikat.
+
+**Zu tun:** nichts.
+
 ## v1.10.33 — 2026-10-22 — Direktversand: fehlende Date- und Message-ID-Zeilen ergänzt
 
 - **Korrektur: Mails vom Gateway gingen im Direktversand ohne `Date:` und

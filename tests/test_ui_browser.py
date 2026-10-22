@@ -1344,11 +1344,63 @@ def test_sammellauf_anzeige_mit_echten_zustaenden(seite):
     assert timer, "Bestellung noch unterwegs — die Anzeige muss weiter nachfragen"
 
     pg.evaluate("() => { clearTimeout(_sammelTimer); _sammelTimer = null; }")
+    # Ausgestellt, ohne dass die Seite den Lauf vorher gesehen hat: kein Neuladen
     text, zustand, timer = zeige({"status": sb.FERTIG, "gesamt": 1, "aktuell": "", "meldung": "",
-                                  "erledigt": [{"email": "a@x.de", "ok": True, "phase": "ausgestellt"}]})
+                                  "erledigt": [{"email": "neu@x.de", "ok": True, "phase": "ausgestellt"}]})
     assert "Zertifikat ausgestellt" in text and not timer
+    assert "Seite wird aktualisiert" not in text
 
     pg.evaluate("() => { clearTimeout(_sammelTimer); _sammelTimer = null; }")
     text, zustand, timer = zeige({"status": sb.PAUSIERT, "gesamt": 2, "aktuell": "", "meldung": "Guthaben erschöpft.",
                                   "erledigt": []})
     assert "Angehalten" in text and "Fortsetzen" in text and zustand == "PAUSIERT"
+
+
+
+def test_sammellauf_laedt_nach_ausstellung_neu(seite):
+    """Sah die Seite eine Bestellung unterwegs und dann ausgestellt, lädt sie
+    neu — sonst zeigen die Zeilen darunter weiter „kein Zertifikat“."""
+    import sammelbestellung as sb
+    pg = seite("/smime", breite=1280)
+    pg.wait_for_load_state("networkidle")
+    pg.evaluate("""() => {
+      if (!document.getElementById('sammel-lauf')) {
+        const d = document.createElement('div'); d.id = 'sammel-lauf'; document.body.appendChild(d);
+      }
+      const echt = getJSON;
+      window.getJSON = async (url) => url.includes('/api/smime/sammel/lauf')
+        ? {ok: true, lauf: window.__lauf} : echt(url);
+      window.__markiert = true;
+    }""")
+    unterwegs = {"status": sb.FERTIG, "gesamt": 1, "aktuell": "", "meldung": "",
+                 "erledigt": [{"email": "a@x.de", "ok": True, "phase": "validating"}]}
+    pg.evaluate("l => { window.__lauf = l; return sammelLaufPollen(); }", unterwegs)
+    pg.evaluate("() => { clearTimeout(_sammelTimer); }")
+    fertig = {**unterwegs, "erledigt": [{"email": "a@x.de", "ok": True, "phase": "ausgestellt"}]}
+    with pg.expect_navigation(timeout=5000):
+        pg.evaluate("l => { window.__lauf = l; return sammelLaufPollen(); }", fertig)
+    assert pg.evaluate("() => window.__markiert") is None, "Seite wurde neu geladen"
+
+
+def test_zeile_laedt_nach_erfolgreicher_ausstellung_neu(seite):
+    """Nach Erfolg räumt das Gateway die Bestellung ab (active:false). Bis
+    v1.10.33 lud die Zeile dann NICHT neu und zeigte weiter den alten Stand."""
+    pg = seite("/smime", breite=1280)
+    pg.wait_for_load_state("networkidle")
+    pg.evaluate("""() => {
+      window.__antworten = [{active: true, status: 'validating'}, {active: false}];
+      window._fetchAcmeStatus = async () => window.__antworten.shift() || {active: false};
+      window.__markiert = true;
+    }""")
+    with pg.expect_navigation(timeout=9000):
+        pg.evaluate("() => _startAcmePolling('zeile@x.de')")
+    assert pg.evaluate("() => window.__markiert") is None
+
+
+def test_zeile_ohne_laufende_bestellung_laedt_nicht_neu(seite):
+    pg = seite("/smime", breite=1280)
+    pg.wait_for_load_state("networkidle")
+    pg.evaluate("""() => { window._fetchAcmeStatus = async () => ({active: false});
+                          window.__markiert = true; _startAcmePolling('ruhig@x.de'); }""")
+    pg.wait_for_timeout(1500)
+    assert pg.evaluate("() => window.__markiert") is True, "keine Ladeschleife"
