@@ -1166,6 +1166,31 @@ function _pruefZeile(ok, text) {
   return '<div>' + (ok === true ? '✓ ' : ok === false ? '<span style="color:#991b1b">✗</span> ' : '? ') + text + '</div>';
 }
 
+// DMARC: Status, und ohne gültige Richtlinie ein Einstieg zum Kopieren
+function _dmarcZeilen(dm) {
+  const wirkt = dm.ausgerichtet
+    ? ' SPF bzw. DKIM bestehen für diese Domäne bereits — eine Richtlinie greift damit.'
+    : ' Sie greift erst, wenn SPF oder DKIM für diese Domäne besteht (oben).';
+  if (dm.ergebnis === 'ok') {
+    return _pruefZeile(true, 'DMARC: p=' + esc(dm.politik)
+      + (dm.geerbt ? ' (geerbt von <code>' + esc(dm.name) + '</code>)' : '')
+      + (dm.politik === 'none' ? '<div class="hint">Nur Beobachtung. Werte die rua-Berichte aus und hebe dann auf '
+         + 'quarantine/reject an.' + wirkt + '</div>' : ''));
+  }
+  if (dm.ergebnis === 'mehrere') {
+    return _pruefZeile(false, 'DMARC: ' + dm.gefunden.length + ' Einträge unter <code>' + esc(dm.name)
+      + '</code> — Empfänger wenden dann keinen an. Führe sie zu einem zusammen.');
+  }
+  return _pruefZeile(dm.ergebnis === 'ungueltig' ? false : null,
+      'DMARC: ' + (dm.ergebnis === 'ungueltig' ? 'Eintrag nicht lesbar (<code>' + esc((dm.gefunden || [])[0] || '') + '</code>)'
+                                               : 'keine Richtlinie'))
+    + (dm.soll ? '<div class="hint">Empfohlener Einstieg als TXT-Eintrag <strong>' + esc(dm.soll_name) + '</strong> '
+        + copyBtnHtml(dm.soll_name) + '<br><code>' + esc(dm.soll) + '</code> ' + copyBtnHtml(dm.soll)
+        + '<br>Ersetze die Adresse hinter <code>mailto:</code> durch ein Postfach, das dir gehört — dorthin '
+        + 'schicken Empfänger ihre Berichte. Mit p=none beginnen, Berichte auswerten, dann auf quarantine/reject '
+        + 'anheben.' + wirkt + '</div>' : '');
+}
+
 async function dnsPruefen(domain, btn) {
   const ziel = document.getElementById('dkim-pruef-' + domain);
   const r = await knopfAktion(btn, null, () => getJSON('/api/direkt/dns-pruefung?domain=' + encodeURIComponent(domain)));
@@ -1185,6 +1210,7 @@ async function dnsPruefen(domain, btn) {
             + '<br>' + (spf.eintrag ? 'Ersetze damit den bestehenden Eintrag — keinen zweiten anlegen, sonst gilt keiner.'
                                     : 'Neuer TXT-Eintrag auf ' + esc(r.domain) + '.') + '</div>'
           : '')
+    + _dmarcZeilen(r.dmarc || {})
     + (p.ip ? _pruefZeile(p.vorwaerts && p.helo_passt, 'PTR ' + esc(p.ip) + ' → ' + esc(p.name || p.fehler || '—')
         + (p.vorwaerts ? '' : ' (zeigt nicht zurück)') + (p.helo_passt ? '' : ' — HELO „' + esc(p.helo) + '" passt nicht'))
            : '');

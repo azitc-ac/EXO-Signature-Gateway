@@ -432,9 +432,78 @@ def _spf_empfehlung(eintrag: str, ip: str) -> str:
     return " ".join(teile[:pos] + [f"ip4:{ip}"] + teile[pos:])
 
 
+_DMARC_POLITIK = ("none", "quarantine", "reject")
+
+
+def _dmarc_lesen(eintrag: str) -> dict | None:
+    """Einen DMARC-Eintrag in seine Tags zerlegen (RFC 7489 §6.3/§6.4).
+    None = kein gültiger Eintrag: `v=DMARC1` muss das ERSTE Tag sein, `p`
+    muss vorhanden und einer der drei Werte sein."""
+    if not _dmarc_ist_eintrag(eintrag or ""):
+        return None
+    tags = [t.strip() for t in eintrag.split(";") if t.strip()]
+    werte = {}
+    for t in tags[1:]:
+        if "=" in t:
+            k, v = t.split("=", 1)
+            werte[k.strip().lower()] = v.strip()
+    if werte.get("p", "").lower() not in _DMARC_POLITIK:
+        return None
+    return werte
+
+
+def _dmarc_ist_eintrag(txt: str) -> bool:
+    return txt.split(";", 1)[0].replace(" ", "").lower() == "v=dmarc1"
+
+
+def dmarc_pruefen(domain: str) -> dict:
+    """DMARC-Richtlinie der Absenderdomäne, wie ein Empfänger sie findet.
+
+    Kein Eintrag unter `_dmarc.<domain>`: der Empfänger fragt die
+    Organisationsdomäne (RFC 7489 §6.6.3). Hier vereinfacht durch Kürzen auf
+    die letzten zwei Labels — ohne Public-Suffix-Liste; bei `co.uk` & Co.
+    fragt das `_dmarc.co.uk`, das es nicht gibt, und bleibt damit ehrlich bei
+    „keine Richtlinie“.
+
+    `ergebnis`: `ok` | `none` (kein Eintrag) | `mehrere` (mehr als ein
+    v=DMARC1-Eintrag — Empfänger wenden dann KEINEN an, §6.6.3) |
+    `ungueltig` (v=DMARC1 vorhanden, aber nicht lesbar, etwa ohne p=).
+    `soll` nur, wenn kein gültiger Eintrag gilt — und nie bei `mehrere`,
+    dort ist Zusammenführen die Aufgabe, nicht ein dritter Eintrag.
+    """
+    domain = (domain or "").strip().lower()
+    labels = domain.split(".")
+    kandidaten = [domain] + ([".".join(labels[-2:])] if len(labels) > 2 else [])
+    for quelle in kandidaten:
+        eintraege = [t for t in _txt(f"_dmarc.{quelle}") if _dmarc_ist_eintrag(t)]
+        if eintraege:
+            break
+    else:
+        quelle, eintraege = domain, []
+    out = {"name": f"_dmarc.{quelle}", "geerbt": quelle != domain,
+           "gefunden": eintraege, "ergebnis": "none", "politik": "", "soll": ""}
+    if len(eintraege) > 1:
+        out["ergebnis"] = "mehrere"
+        return out
+    werte = _dmarc_lesen(eintraege[0]) if eintraege else None
+    if werte is not None:
+        politik = werte["p"].lower()
+        if out["geerbt"] and werte.get("sp", "").lower() in _DMARC_POLITIK:
+            politik = werte["sp"].lower()          # für Subdomänen gilt sp=
+        out.update(ergebnis="ok", politik=politik, rua=werte.get("rua", ""))
+        return out
+    if eintraege:
+        out["ergebnis"] = "ungueltig"
+    # Einstieg: beobachten, nicht ablehnen. Die rua-Adresse ist ein Vorschlag
+    # — die Oberfläche sagt, dass sie durch ein eigenes Postfach zu ersetzen ist.
+    out["soll"] = f"v=DMARC1; p=none; rua=mailto:dmarc@{domain}"
+    out["soll_name"] = f"_dmarc.{domain}"
+    return out
+
+
 def dns_pruefen(domain: str) -> dict:
     """Was ein Empfänger über diese Absenderdomäne sieht: SPF, DKIM-Eintrag,
-    PTR der Ausgangsadresse und ob der HELO-Name dazu passt.
+    DMARC-Richtlinie, PTR der Ausgangsadresse und ob der HELO-Name dazu passt.
 
     Liest NUR öffentliches DNS. Soll-Werte aus derselben Quelle wie das Signieren
     (`dkim_signatur.dns_eintrag`) — eine Prüfung, die gegen eine eigene Kopie
@@ -454,6 +523,7 @@ def dns_pruefen(domain: str) -> dict:
         teile = dict(x.strip().split("=", 1) for x in wert.split(";") if "=" in x)
         return teile.get("p", "").replace(" ", "")
 
+    dkim_passt = bool(soll) and any(_p(x) == _p(soll["wert"]) for x in dkim_ist)
     ergebnis = {
         "domain": domain,
         # Mehrere SPF-Einträge sind ein Fehler (RFC 7208 §4.5: permerror) —
@@ -466,8 +536,13 @@ def dns_pruefen(domain: str) -> dict:
         "dkim": {"name": soll["name"] if soll else "",
                  "soll": soll["wert"] if soll else "",
                  "gefunden": dkim_ist,
-                 "passt": bool(soll) and any(_p(x) == _p(soll["wert"]) for x in dkim_ist)},
+                 "passt": dkim_passt},
         "ptr": {"ip": ip, "name": "", "vorwaerts": False, "helo": helo, "helo_passt": False},
+        # DMARC greift erst, wenn SPF ODER DKIM für die From-Domäne besteht
+        # (Ausrichtung). Beides prüft diese Funktion bereits für genau diese
+        # Domäne — SPF mit postmaster@<domain>, DKIM mit d=<domain>.
+        "dmarc": {**dmarc_pruefen(domain),
+                  "ausgerichtet": spf_urteil["erlaubt"] is True or dkim_passt},
     }
     if ip:
         import dns.resolver

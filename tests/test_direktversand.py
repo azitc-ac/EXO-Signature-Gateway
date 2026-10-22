@@ -503,3 +503,103 @@ def test_dns_pruefen_pass_ohne_vorschlag(werte, monkeypatch, spf_dns):
     _ohne_ptr(monkeypatch)
     spf = direktversand.dns_pruefen("example.com")["spf"]
     assert (spf["ergebnis"], spf["erlaubt"], spf["soll"]) == ("pass", True, "")
+
+
+# ── DMARC ───────────────────────────────────────────────────────────────────
+
+@pytest.fixture
+def txt(monkeypatch):
+    zonen = {}
+    monkeypatch.setattr(direktversand, "_txt", lambda n: zonen.get(n, []))
+    return zonen
+
+
+def test_dmarc_kein_eintrag_liefert_einstieg(txt):
+    r = direktversand.dmarc_pruefen("azitc.org")
+    assert r["ergebnis"] == "none"
+    assert r["soll"] == "v=DMARC1; p=none; rua=mailto:dmarc@azitc.org"
+    assert r["soll_name"] == "_dmarc.azitc.org"
+
+
+def test_dmarc_vorschlag_ist_selbst_gueltig(txt):
+    # Urteil und Vorschlag aus demselben Parser: wer den Vorschlag einträgt,
+    # muss danach „ok“ sehen.
+    soll = direktversand.dmarc_pruefen("example.com")["soll"]
+    txt["_dmarc.example.com"] = [soll]
+    r = direktversand.dmarc_pruefen("example.com")
+    assert (r["ergebnis"], r["politik"], r["soll"]) == ("ok", "none", "")
+
+
+@pytest.mark.parametrize("eintrag,politik", [
+    ("v=DMARC1; p=reject; rua=mailto:a@example.com", "reject"),
+    ("v=DMARC1;p=quarantine", "quarantine"),
+    ("V = DMARC1 ; P = None", "none"),          # Groß-/Kleinschreibung, Leerraum
+])
+def test_dmarc_gueltig(txt, eintrag, politik):
+    txt["_dmarc.example.com"] = [eintrag, "irgendwas=anderes"]
+    r = direktversand.dmarc_pruefen("example.com")
+    assert (r["ergebnis"], r["politik"], r["soll"]) == ("ok", politik, "")
+
+
+@pytest.mark.parametrize("eintrag", [
+    "v=DMARC1; rua=mailto:a@example.com",        # p fehlt
+    "v=DMARC1; p=blockieren",                     # p unbekannt
+])
+def test_dmarc_ungueltig_liefert_vorschlag(txt, eintrag):
+    txt["_dmarc.example.com"] = [eintrag]
+    r = direktversand.dmarc_pruefen("example.com")
+    assert r["ergebnis"] == "ungueltig" and r["soll"]
+
+
+def test_dmarc_v_nicht_vorn_ist_kein_eintrag(txt):
+    txt["_dmarc.example.com"] = ["p=reject; v=DMARC1"]
+    assert direktversand.dmarc_pruefen("example.com")["ergebnis"] == "none"
+
+
+def test_dmarc_mehrere_eintraege_ohne_vorschlag(txt):
+    txt["_dmarc.example.com"] = ["v=DMARC1; p=none", "v=DMARC1; p=reject"]
+    r = direktversand.dmarc_pruefen("example.com")
+    assert (r["ergebnis"], r["soll"]) == ("mehrere", "")
+
+
+def test_dmarc_subdomaene_erbt_sp(txt):
+    txt["_dmarc.example.com"] = ["v=DMARC1; p=reject; sp=quarantine"]
+    r = direktversand.dmarc_pruefen("mail.example.com")
+    assert (r["ergebnis"], r["politik"], r["geerbt"], r["name"]) == \
+        ("ok", "quarantine", True, "_dmarc.example.com")
+
+
+def test_dmarc_eigener_eintrag_vor_geerbtem(txt):
+    txt["_dmarc.example.com"] = ["v=DMARC1; p=reject"]
+    txt["_dmarc.mail.example.com"] = ["v=DMARC1; p=none"]
+    r = direktversand.dmarc_pruefen("mail.example.com")
+    assert (r["politik"], r["geerbt"]) == ("none", False)
+
+
+def test_dns_pruefen_dmarc_ausrichtung(werte, txt, spf_dns, monkeypatch):
+    # SPF pass für die Domäne → DMARC würde greifen
+    werte["DIREKT_AUSSEN_IP"] = IP
+    spf_dns["example.com"] = [f"v=spf1 ip4:{IP} -all"]
+    txt["example.com"] = spf_dns["example.com"]
+    _ohne_ptr(monkeypatch)
+    dm = direktversand.dns_pruefen("example.com")["dmarc"]
+    assert dm["ergebnis"] == "none" and dm["ausgerichtet"] is True
+    # SPF softfail, kein DKIM-Schlüssel → nicht ausgerichtet
+    spf_dns["example.com"] = [f"v=spf1 include:{MS} ~all"]
+    txt["example.com"] = spf_dns["example.com"]
+    assert direktversand.dns_pruefen("example.com")["dmarc"]["ausgerichtet"] is False
+
+
+def test_dns_pruefen_dmarc_ausrichtung_ueber_dkim(werte, txt, spf_dns, monkeypatch):
+    # SPF besteht NICHT, aber der DKIM-Eintrag stimmt → DMARC würde greifen
+    import dkim_signatur
+    werte["DIREKT_AUSSEN_IP"] = IP
+    spf_dns["example.com"] = [f"v=spf1 include:{MS} ~all"]
+    txt["example.com"] = spf_dns["example.com"]
+    eintrag = {"name": "gw1._domainkey.example.com", "wert": "v=DKIM1; k=rsa; p=ABC"}
+    monkeypatch.setattr(dkim_signatur, "dns_eintrag", lambda d: eintrag)
+    txt[eintrag["name"]] = ["v=DKIM1; k=rsa; p=ABC"]
+    _ohne_ptr(monkeypatch)
+    r = direktversand.dns_pruefen("example.com")
+    assert r["dkim"]["passt"] is True and r["spf"]["erlaubt"] is False
+    assert r["dmarc"]["ausgerichtet"] is True

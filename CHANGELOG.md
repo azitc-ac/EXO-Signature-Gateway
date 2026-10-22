@@ -5,6 +5,29 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.24 — 2026-10-22 — Direktversand: die DNS-Prüfung zeigt die DMARC-Richtlinie
+
+- **Neu: DMARC in der DNS-Prüfung.** *DNS prüfen* in der Karte *Direktversand*
+  zeigt jetzt auch die DMARC-Richtlinie der Absenderdomäne (`_dmarc.<domäne>`):
+  die geltende Politik (`p=none`, `quarantine` oder `reject`) oder, dass es
+  keine gibt. Hat eine Subdomäne keinen eigenen Eintrag, gilt wie beim
+  Empfänger der Eintrag der übergeordneten Domäne, für Subdomänen mit `sp=`.
+- **Vorschlag zum Einstieg**, wenn keine gültige Richtlinie gilt:
+  `v=DMARC1; p=none; rua=mailto:dmarc@<domäne>` samt Name des TXT-Eintrags, beides
+  zum Kopieren. Die Adresse hinter `mailto:` ist ein Platzhalter. Ersetze sie
+  durch ein Postfach, das dir gehört, denn dorthin schicken Empfänger ihre
+  Berichte. `p=none` beobachtet nur; nach Auswertung der Berichte hebst du auf
+  `quarantine` oder `reject` an.
+- Die Prüfung sagt dazu, ob eine Richtlinie überhaupt greifen würde: DMARC wirkt
+  erst, wenn SPF oder DKIM für die Absenderdomäne besteht.
+- Mehrere `v=DMARC1`-Einträge meldet die Prüfung als Fehler, denn Empfänger
+  wenden dann keinen davon an. Einen Vorschlag gibt es in diesem Fall nicht,
+  die Einträge sind zusammenzuführen. Ein Eintrag ohne gültiges `p=` gilt als
+  nicht lesbar.
+
+**Zu tun:** nichts. Ob du die DMARC-Richtlinie setzt, entscheidest du selbst. Der
+Vorschlag erscheint unter *Relay → Direktversand → DNS prüfen*.
+
 ## v1.10.23 — 2026-10-22 — Direktversand: SPF wird ausgewertet wie beim Empfänger
 
 - **SPF-Prüfung mit vollständiger Auswertung.** *DNS prüfen* in der Karte
