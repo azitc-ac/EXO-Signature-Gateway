@@ -20,7 +20,7 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
   ein Absender unter der Aliasdomäne `550` (endgültig abgelehnt) statt `451`
   (später erneut versuchen). Jetzt `451`, wie beim Port-25-Relay.
 
-Nichts zu tun: Die Korrektur wirkt mit dem Update.
+**Zu tun:** nichts — die Korrektur wirkt mit dem Update.
 
 ## v1.10.20 — 2026-10-22 — Direktversand: externe Post über den eigenen Postfix, mit DKIM
 
