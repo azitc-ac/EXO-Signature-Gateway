@@ -1108,36 +1108,51 @@ async function sammelLaufPollen() {
   if (!d.lauf) { ziel.style.display = 'none'; return; }
 
   const l = d.lauf;
+  // ⚠️ Das Backend liefert die Zustände klein ('laeuft', 'pausiert' …). Hier
+  // wurde bis v1.10.29 gegen 'LAEUFT' verglichen: Text roh („laeuft“), keine
+  // Knöpfe, kein Nachladen — und die Farbregeln (großgeschrieben, auch in
+  // dark-mode.css) griffen nie. Einmal umrechnen, überall diesen Wert nehmen.
+  const st = String(l.status || '').toUpperCase();
   ziel.style.display = '';
-  ziel.dataset.zustand = l.status;
-  const fertig = (l.erledigt || []).length;
+  ziel.dataset.zustand = st;
+  const erledigt = l.erledigt || [];
+  const fertig = erledigt.length;
   const anteil = l.gesamt ? Math.round(fertig * 100 / l.gesamt) : 0;
-  const gut = (l.erledigt || []).filter(function (e) { return e.ok; }).length;
+  const gut = erledigt.filter(function (e) { return e.ok; }).length;
   const schlecht = fertig - gut;
 
-  const liste = (l.erledigt || []).filter(function (e) { return !e.ok; })
+  const fehler = erledigt.filter(function (e) { return !e.ok; })
     .map(function (e) { return '<li>' + esc(e.email) + ' — ' + esc(e.grund || '') + '</li>'; })
     .join('');
+  // Aufgegeben ist nicht ausgestellt: den Stand je Postfach zeigen.
+  const stand = erledigt.filter(function (e) { return e.ok; })
+    .map(function (e) { return '<li>' + esc(e.email) + ' — ' + esc(_sammelPhaseText(e.phase)) + '</li>'; })
+    .join('');
+  const nochAktiv = erledigt.some(function (e) { return e.ok && _ACME_ACTIVE.has(e.phase); });
 
   const knoepfe =
-    (l.status === 'PAUSIERT'
+    (st === 'PAUSIERT'
       ? '<button class="btn secondary btn-sm" onclick="sammelFortsetzen()">Fortsetzen</button> '
       : '') +
-    (l.status === 'LAEUFT' || l.status === 'PAUSIERT'
+    (st === 'LAEUFT' || st === 'PAUSIERT'
       ? '<button class="btn secondary btn-sm" onclick="sammelAbbrechen()">Abbrechen</button>'
       : '');
 
   ziel.innerHTML =
-    '<strong>' + esc(_sammelStatusText(l.status)) + '</strong> · ' +
-    fertig + ' von ' + l.gesamt + ' erledigt' +
+    '<strong>' + esc(_sammelStatusText(st)) + '</strong> · ' +
+    fertig + ' von ' + l.gesamt + ' aufgegeben' +
     (schlecht ? ' · ' + gut + ' erfolgreich, ' + schlecht + ' fehlgeschlagen' : '') +
+    (l.aktuell ? '<br>Wird bestellt: ' + esc(l.aktuell) : '') +
     '<div class="sammel-balken"><i style="width:' + anteil + '%"></i></div>' +
     (l.meldung ? esc(l.meldung) : '') +
-    (liste ? '<ul>' + liste + '</ul>' : '') +
+    (stand ? '<ul>' + stand + '</ul>' : '') +
+    (fehler ? '<ul>' + fehler + '</ul>' : '') +
     (knoepfe ? '<div style="margin-top:10px">' + knoepfe + '</div>' : '');
 
   clearTimeout(_sammelTimer);
-  if (l.status === 'LAEUFT') _sammelTimer = setTimeout(sammelLaufPollen, 3000);
+  // Weiter nachfragen, solange bestellt wird ODER eine aufgegebene Bestellung
+  // noch unterwegs ist (Challenge, Validierung, Ausstellung).
+  if (st === 'LAEUFT' || nochAktiv) _sammelTimer = setTimeout(sammelLaufPollen, 3000);
 }
 
 function _sammelStatusText(s) {
@@ -1146,6 +1161,13 @@ function _sammelStatusText(s) {
   if (s === 'FERTIG') return 'Abgeschlossen';
   if (s === 'ABGEBROCHEN') return 'Abgebrochen';
   return s;
+}
+
+function _sammelPhaseText(phase) {
+  if (phase === 'ausgestellt') return '✓ Zertifikat ausgestellt';
+  const lbl = _ACME_LABELS[phase];
+  if (lbl) return lbl.icon + ' ' + lbl.text;
+  return 'aufgegeben — Stand in der Zeile des Postfachs';
 }
 
 async function sammelFortsetzen() {

@@ -363,9 +363,34 @@ ABGEBROCHEN = "abgebrochen"
 _lauf: dict | None = None
 
 
+def _phase(adresse: str) -> str:
+    """Wie weit ist die Bestellung für ein Postfach gediehen?
+
+    „Erledigt“ heisst im Lauf nur: bei der Zertifizierungsstelle AUFGEGEBEN.
+    Ausgestellt wird danach — bei CASTLE nach Challenge-Mail und Validierung,
+    das dauert Minuten. Ohne diesen Stand stand der Lauf auf „abgeschlossen“,
+    während noch nichts ausgestellt war.
+    `ausgestellt` | ACME-Zustand (waiting_challenge, validating, …, error) | "".
+    """
+    if _gueltige_zertifikate(adresse):
+        return "ausgestellt"
+    import acme_state
+    order = acme_state.get_order(adresse) or {}
+    return order.get("status") or ""
+
+
 def lauf_zustand() -> dict | None:
-    """Aktueller Lauf oder None. Kopie — der Aufrufer soll nichts verändern."""
-    return dict(_lauf) if _lauf else None
+    """Aktueller Lauf oder None. Kopie — der Aufrufer soll nichts verändern.
+
+    Dazu: `aktuell` (gerade in Arbeit) und je erfolgreich aufgegebener
+    Bestellung ihre `phase` (siehe `_phase`)."""
+    if not _lauf:
+        return None
+    z = dict(_lauf)
+    z["aktuell"] = _lauf["offen"][0] if _lauf["status"] == LAEUFT and _lauf["offen"] else ""
+    z["erledigt"] = [{**e, "phase": _phase(e["email"])} if e.get("ok") else dict(e)
+                     for e in _lauf["erledigt"]]
+    return z
 
 
 def lauf_abbrechen() -> bool:

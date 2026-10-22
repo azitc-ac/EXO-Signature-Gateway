@@ -1303,3 +1303,52 @@ def test_postfachfilter_signatur_und_smime(seite):
     pg.evaluate("() => { document.querySelectorAll('#mb-tbody tr')[2]"
                 ".querySelector('.mb-sig').checked = true; filterMailboxes(); }")
     assert sichtbar() == []
+
+
+
+def test_sammellauf_anzeige_mit_echten_zustaenden(seite):
+    """Das Backend liefert 'laeuft'/'fertig' klein. Bis v1.10.29 verglich die
+    Anzeige mit 'LAEUFT': Text roh („laeuft“), keine Knöpfe, KEIN Nachladen —
+    der Betreiber sah „0 von 1 erledigt“ bis zum Neuladen der Seite."""
+    import sammelbestellung as sb
+    pg = seite("/smime", breite=1280)
+    pg.wait_for_load_state("networkidle")
+    pg.evaluate("""() => {
+      if (!document.getElementById('sammel-lauf')) {
+        const d = document.createElement('div'); d.id = 'sammel-lauf'; d.className = 'sammel-lauf';
+        document.body.appendChild(d);
+      }
+      window.__lauf = null;
+      const echt = getJSON;
+      window.getJSON = async (url) => url.includes('/api/smime/sammel/lauf')
+        ? {ok: true, lauf: window.__lauf} : echt(url);
+    }""")
+
+    def zeige(lauf):
+        pg.evaluate("l => { window.__lauf = l; return sammelLaufPollen(); }", lauf)
+        return (pg.inner_text("#sammel-lauf"),
+                pg.evaluate("() => document.getElementById('sammel-lauf').dataset.zustand"),
+                pg.evaluate("() => _sammelTimer !== null && _sammelTimer !== undefined"))
+
+    text, zustand, timer = zeige({"status": sb.LAEUFT, "gesamt": 2, "aktuell": "b@x.de", "meldung": "",
+                                  "erledigt": [{"email": "a@x.de", "ok": True, "phase": "waiting_challenge"}]})
+    assert "Läuft" in text and "laeuft" not in text
+    assert "1 von 2 aufgegeben" in text and "Wird bestellt: b@x.de" in text
+    assert "Warte auf Challenge" in text
+    assert "Abbrechen" in text and zustand == "LAEUFT" and timer
+
+    pg.evaluate("() => { clearTimeout(_sammelTimer); _sammelTimer = null; }")
+    text, zustand, timer = zeige({"status": sb.FERTIG, "gesamt": 1, "aktuell": "", "meldung": "1 von 1 bestellt.",
+                                  "erledigt": [{"email": "a@x.de", "ok": True, "phase": "validating"}]})
+    assert "Abgeschlossen" in text and zustand == "FERTIG"
+    assert timer, "Bestellung noch unterwegs — die Anzeige muss weiter nachfragen"
+
+    pg.evaluate("() => { clearTimeout(_sammelTimer); _sammelTimer = null; }")
+    text, zustand, timer = zeige({"status": sb.FERTIG, "gesamt": 1, "aktuell": "", "meldung": "",
+                                  "erledigt": [{"email": "a@x.de", "ok": True, "phase": "ausgestellt"}]})
+    assert "Zertifikat ausgestellt" in text and not timer
+
+    pg.evaluate("() => { clearTimeout(_sammelTimer); _sammelTimer = null; }")
+    text, zustand, timer = zeige({"status": sb.PAUSIERT, "gesamt": 2, "aktuell": "", "meldung": "Guthaben erschöpft.",
+                                  "erledigt": []})
+    assert "Angehalten" in text and "Fortsetzen" in text and zustand == "PAUSIERT"
