@@ -359,8 +359,12 @@ def pruefe(ident: dict, sender: str, recipients: list[str]) -> tuple[bool, str, 
         return False, grund, "553 5.7.1 Absender nicht für diese Anmeldung zugelassen"
 
     # 2. Absenderdomäne muss dem Tenant gehören (Schutz vor offenem Relay)
+    # Ausfallrichtung an der POSTFACHLISTE, nicht an der Domänenmenge: die ist
+    # nie leer, sobald TENANT_DOMAIN gesetzt ist, enthält ohne Postfachliste
+    # aber keine Aliasdomänen — ein Aliasabsender bekäme sonst 550 statt 451.
+    import exo_mailboxes
     domaenen = smtp_relay._eigene_domaenen()
-    if not domaenen:
+    if not domaenen or not exo_mailboxes.known_addresses():
         return (False,
                 f"Identität „{name}“: Tenant-Domänen (noch) nicht bekannt — "
                 "Absender lässt sich nicht prüfen",

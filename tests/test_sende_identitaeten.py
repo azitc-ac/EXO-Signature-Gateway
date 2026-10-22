@@ -172,6 +172,21 @@ def test_pruefe_temporaer_wenn_tenant_domaenen_unbekannt(store, monkeypatch):
     assert antwort.startswith("451")           # im Zweifel NICHT zustellen
 
 
+def test_pruefe_temporaer_ohne_postfachliste_trotz_tenant_domain(store, monkeypatch):
+    # Realfall: TENANT_DOMAIN gesetzt, Postfachliste leer (Graph-Token fehlt).
+    # Die Domänenmenge ist dann {…onmicrosoft.com}, nie leer — die Aliasdomäne
+    # fehlt. Erwartet: 451 (später erneut), nicht 550 (endgültiger Bounce).
+    import exo_mailboxes
+    import settings_store
+    monkeypatch.setattr(exo_mailboxes, "known_addresses", lambda: set())
+    monkeypatch.setattr(settings_store, "get",
+                        lambda k, d=None: "firma.onmicrosoft.com" if k == "TENANT_DOMAIN" else d)
+    ident = si.anlegen("KD", "kd", "passwort1", extern=True)
+    erlaubt, _, antwort = si.pruefe(ident, "kd@firma.de", ["kunde@example.com"])
+    assert erlaubt is False
+    assert antwort.startswith("451"), antwort
+
+
 # ── Ziel intern (Vorgabe) / extern ─────────────────────────────────────────────
 
 def test_extern_flag_gespeichert_vorgabe_intern(store):

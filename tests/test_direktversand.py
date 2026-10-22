@@ -160,6 +160,16 @@ def test_ohne_bekannte_domaenen_gilt_niemand_als_extern(werte):
     assert domain_routing.gruppiere(["kunde@example.com"]) == {"exo": ["kunde@example.com"]}
 
 
+def test_ohne_postfachliste_gilt_niemand_als_extern_trotz_tenant_domain(werte):
+    # Realfall: TENANT_DOMAIN ist nach jeder Einrichtung gesetzt, die
+    # Postfachliste aber leer (Graph-Token fehlt). Die Aliasdomäne contoso.de
+    # ist dann unbekannt — ohne Sicherung ginge interne Post ins Internet.
+    werte.update(DIREKT_ENABLED=True, EXTERN_ROUTE="direkt",
+                 TENANT_DOMAIN="contoso.onmicrosoft.com", _adressen=set())
+    assert domain_routing.gruppiere(["anna@contoso.de", "kunde@example.com"]) == \
+        {"exo": ["anna@contoso.de", "kunde@example.com"]}
+
+
 def test_ausgeschalteter_direktversand_faellt_auf_exo(werte):
     werte.update(DIREKT_ENABLED=False, EXTERN_ROUTE="direkt",
                  DOMAIN_ROUTES={"partner.de": "direkt"})
