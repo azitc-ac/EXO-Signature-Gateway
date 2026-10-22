@@ -5,6 +5,16 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.26 — 2026-10-22 — Einrichtung: der Add-in-Schalter speichert sofort
+
+- **Outlook Add-in bereitstellen** speichert jetzt beim Anklicken, wie der Haken
+  *Teams-App bereitstellen*. Bisher brauchte es dafür den Knopf *Speichern*
+  am Ende des Abschnitts, unter Gateway-URL, Anleitungen und Teams-App. Dort
+  sah er aus, als gehöre er zur Teams-App. Er ist entfallen. Scheitert das
+  Speichern, springt der Haken zurück, und die Meldung steht neben dem Haken.
+
+**Zu tun:** nichts.
+
 ## v1.10.25 — 2026-10-22 — Einrichtung: Outlook-Add-in und Teams-App übersichtlicher
 
 - **Anleitungen eingeklappt.** Im Abschnitt *Outlook Add-in* der Einrichtung
