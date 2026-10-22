@@ -2208,97 +2208,110 @@ async function saveKeyvault() {
         </div>
       </div>
 
-      <div style="border-top:1px solid #f0f0f0;margin:16px 0 14px"></div>
-
-      <!-- Deployment -->
-      <h3 style="margin:0 0 10px;font-size:13px;font-weight:600;color:#374151">Deployment im M365 Admin Center</h3>
-      <p class="hint" style="line-height:1.7;margin-bottom:8px">
-        <strong>Vorher die Admin-Rolle aktivieren</strong> (Globaler Administrator; mit PIM: Rolle
-        aktivieren). Ohne aktive Rolle sind <em>Aktualisieren</em> und <em>Entfernen</em> ausgegraut.
-      </p>
-      <ol style="margin:0 0 0 18px;padding:0;line-height:2.1;font-size:12.5px;color:#374151">
-        <li>
-          <a href="https://admin.microsoft.com" target="_blank" style="color:#0078d4">admin.microsoft.com</a>
-          → <strong>Einstellungen → Integrierte Apps</strong>
-        </li>
-        <li><strong>Apps hochladen</strong> → <em>Office-Add-In</em></li>
-        <li><strong>Link zur Manifestdatei</strong> → obige URL einfügen → <strong>Validieren</strong></li>
-        <li>Benutzer/Gruppen zuweisen (z.&nbsp;B. <em>{{ s.GATEWAY_NAME or 'EXO Signature Gateway' }} – Enabled Mailboxes</em>)</li>
-        <li>Das Add-in erscheint in Outlook nach <strong>24 bis 72 Stunden</strong> (Angabe von Microsoft).
-          Exchange verteilt es Postfach für Postfach; ein Postfach kann früher dran sein als ein anderes.
-          <strong>In der Wartezeit nichts entfernen und neu hochladen</strong> — es ist kein Fehler, dass noch nichts zu sehen ist.</li>
-        <li>Wenn sich das Manifest ändert (neuer Knopf, anderer Text, Abwesenheit ein/aus): Add-in in
-          <strong>Integrierte Apps</strong> auswählen → <strong>Aktualisieren</strong>. Entfernen und neu
-          hinzufügen ist nicht nötig. Die Versionsnummer in <code>/addin/manifest.xml</code> steigt nur
-          dann, nicht bei jedem Gateway-Update — Fehlerbehebungen am Inhalt des Bereichs kommen mit dem
-          Gateway-Update, ohne neues Hochladen.</li>
-      </ol>
-
-      <div style="border-top:1px solid #f0f0f0;margin:14px 0 12px"></div>
-
-      <p class="hint" style="line-height:1.7">
+      <p class="hint" style="line-height:1.7;margin:10px 0 6px">
         <strong>Plattformen:</strong> Outlook Desktop (Windows &amp; Mac), OWA, Outlook Web &nbsp;·&nbsp;
         <strong>Auth:</strong> Nutzer werden beim ersten Öffnen zur Gateway-Anmeldung geleitet
       </p>
 
+      <!-- Deployment Add-in -->
+      <details class="feld-gruppe" style="margin-bottom:4px">
+        <summary>Deployment im M365 Admin Center</summary>
+        <p class="hint" style="line-height:1.7;margin:8px 0">
+          <strong>Vorher die Admin-Rolle aktivieren</strong> (Globaler Administrator; mit PIM: Rolle
+          aktivieren). Ohne aktive Rolle sind <em>Aktualisieren</em> und <em>Entfernen</em> ausgegraut.
+        </p>
+        <ol style="margin:0 0 0 18px;padding:0;line-height:2.1;font-size:12.5px;color:#374151">
+          <li>
+            <a href="https://admin.microsoft.com" target="_blank" style="color:#0078d4">admin.microsoft.com</a>
+            → <strong>Einstellungen → Integrierte Apps</strong>
+          </li>
+          <li><strong>Apps hochladen</strong> → <em>Office-Add-In</em></li>
+          <li><strong>Link zur Manifestdatei</strong> → obige URL einfügen → <strong>Validieren</strong></li>
+          <li>Benutzer/Gruppen zuweisen (z.&nbsp;B. <em>{{ s.GATEWAY_NAME or 'EXO Signature Gateway' }} – Enabled Mailboxes</em>)</li>
+          <li>Das Add-in erscheint in Outlook nach <strong>24 bis 72 Stunden</strong> (Angabe von Microsoft).
+            Exchange verteilt es Postfach für Postfach; ein Postfach kann früher dran sein als ein anderes.
+            <strong>In der Wartezeit nichts entfernen und neu hochladen</strong> — es ist kein Fehler, dass noch nichts zu sehen ist.</li>
+          <li>Wenn sich das Manifest ändert (neuer Knopf, anderer Text, Abwesenheit ein/aus): Add-in in
+            <strong>Integrierte Apps</strong> auswählen → <strong>Aktualisieren</strong>. Entfernen und neu
+            hinzufügen ist nicht nötig. Die Versionsnummer in <code>/addin/manifest.xml</code> steigt nur
+            dann, nicht bei jedem Gateway-Update — Fehlerbehebungen am Inhalt des Bereichs kommen mit dem
+            Gateway-Update, ohne neues Hochladen.</li>
+        </ol>
+      </details>
+
       {% if addin_manifest_url %}
       <div style="border-top:1px solid #f0f0f0;margin:14px 0 12px"></div>
-      <h3 style="margin:0 0 6px;font-size:13px;font-weight:600;color:#374151">Abwesenheit &amp; Signatur in der linken Leiste</h3>
-      <p class="hint" style="line-height:1.7;margin-bottom:8px">
-        Ein eigenes App-Paket legt den Self-Service als App links unter <strong>Apps</strong> ab —
-        unabhängig von einer geöffneten Mail. Laut Microsoft in Outlook im Web, Outlook für Windows
-        (klassisch und neu), Outlook für iOS/Android und Teams; <strong>nicht</strong> in Outlook für Mac
-        (dort bleibt der Knopf beim Lesen einer Mail). Das Add-in oben bleibt daneben bestehen.
-      </p>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
-        <a href="{{ addin_manifest_url | replace('/addin/manifest.xml', '/addin/teams-app.zip') }}"
-           class="btn secondary btn-sm">App-Paket herunterladen (.zip)</a>
-        {% if teams_app %}
-        <span class="hint" id="teams-app-fassung">Fassung {{ teams_app.version }}{% if teams_app.seit %} · seit {{ teams_app.seit }}{% endif %}
-          — ist <em>Last modified</em> in Integrierte Apps älter, lade das Paket erneut hoch.</span>
-        {% endif %}
+      <div class="settings-row" id="teams-app-schalter" style="margin-bottom:4px">
+        <label class="checkbox-label">
+          <input type="checkbox" id="teams-app-aktiv" onchange="teamsAppAktivUmschalten(this)" {% if s.TEAMS_APP_AKTIV %}checked{% endif %}>
+          Teams-App bereitstellen
+          <span id="teams-app-aktiv-result" style="font-size:12px;margin-left:8px"></span>
+        </label>
+        <span class="hint">Abwesenheit &amp; Signatur als App in der linken Leiste von Outlook und Teams</span>
       </div>
-      <label class="checkbox-label" id="teams-app-schalter">
-        <input type="checkbox" id="teams-app-aktiv" onchange="teamsAppAktivUmschalten(this)" {% if s.TEAMS_APP_AKTIV %}checked{% endif %}>
-        Teams-App ist bereitgestellt
-        <span id="teams-app-aktiv-result" style="font-size:12px;margin-left:8px"></span>
-      </label>
-      <p class="hint" style="margin:4px 0 8px;line-height:1.6">
-        Dann liest das Gateway die Fassung im Teams-Katalog des Tenants und vergleicht sie mit
-        dem Paket. Dafür braucht die Gateway-App <code>AppCatalog.Read.All</code> (nur lesend).
-      </p>
-      {% if teams_app and teams_app.katalog %}
-        {% set k = teams_app.katalog %}
-        <p style="margin:0 0 8px;font-size:12.5px">
-        {% if k.zustand == 'ok' and k.aktuell %}
-          <span class="speicher-hinweis" style="margin-left:0;white-space:normal" data-zustand="fertig" id="teams-katalog-stand">✓ Im Teams-Katalog: Fassung {{ k.version }}, aktuell</span>
-        {% elif k.zustand == 'ok' %}
-          <span class="speicher-hinweis" style="margin-left:0;white-space:normal" data-zustand="offen" id="teams-katalog-stand">⚠ Im Teams-Katalog: Fassung {{ k.version }}, das Paket hat {{ teams_app.version }}.
-            Lade es neu hoch: <em>Integrierte Apps</em> → App öffnen → <em>Aktualisieren</em>.</span>
-        {% elif k.zustand == 'nicht_gefunden' %}
-          <span class="speicher-hinweis" style="margin-left:0;white-space:normal" data-zustand="offen" id="teams-katalog-stand">⚠ Nicht im Teams-Katalog. Lade das Paket unter <em>Integrierte Apps</em> hoch.</span>
-        {% elif k.zustand == 'recht_fehlt' %}
-          <span class="speicher-hinweis" style="margin-left:0;white-space:normal" data-zustand="offen" id="teams-katalog-stand">Fassung im Teams-Katalog nicht lesbar: <code>AppCatalog.Read.All</code> fehlt — unten erteilen.</span>
-        {% else %}
-          <span class="speicher-hinweis" style="margin-left:0;white-space:normal" data-zustand="fehler" id="teams-katalog-stand">✗ Teams-Katalog nicht abgefragt (Graph-Fehler, siehe Protokoll).</span>
-        {% endif %}
+
+      <div id="teams-app-setup" {% if not s.TEAMS_APP_AKTIV %}style="display:none"{% endif %}>
+        <p class="hint" style="line-height:1.7;margin:8px 0">
+          Ein eigenes App-Paket legt den Self-Service als App links unter <strong>Apps</strong> ab —
+          unabhängig von einer geöffneten Mail. Laut Microsoft in Outlook im Web, Outlook für Windows
+          (klassisch und neu), Outlook für iOS/Android und Teams; <strong>nicht</strong> in Outlook für Mac
+          (dort bleibt der Knopf beim Lesen einer Mail). Das Add-in oben bleibt daneben bestehen.
         </p>
-      {% endif %}
-      {% if s.TEAMS_APP_AKTIV %}{{ berechtigungen("teams", "AppCatalog.Read.All") }}{% endif %}
-      <ol style="margin:0 0 0 18px;padding:0;line-height:2.1;font-size:12.5px;color:#374151">
-        <li><strong>Einstellungen → Integrierte Apps</strong> → <strong>Apps hochladen</strong> → das .zip wählen</li>
-        <li>Benutzer/Gruppen zuweisen und bereitstellen</li>
-        <li>Wie beim Add-in: Microsoft nennt <strong>24 bis 72 Stunden</strong>, bis die App erscheint</li>
-        <li>Hochgeladen wird eine Datei, keine Adresse — eine neue Fassung erscheint hier mit höherer
-          Versionsnummer im Dateinamen und muss erneut hochgeladen werden.</li>
-        <li>Zeigt das <a href="https://admin.teams.microsoft.com" target="_blank" style="color:#0078d4">Teams Admin Center</a>
-          unter <strong>Teams-Apps → Apps verwalten</strong> danach noch die alte Version: dort die App
-          öffnen → <strong>Neue Version hochladen</strong>. Der Store in Outlook folgt dem Teams-Katalog
-          mit Verzögerung (gemessen rund eine halbe Stunde).</li>
-        <li>Nutzer finden die App in Outlook unter <strong>Weitere Apps → Apps hinzufügen → Für Ihre
-          Organisation erstellt</strong> → <strong>Öffnen</strong>, in Teams ebenso im Store. Rechtsklick
-          auf das Symbol in der Leiste → <strong>Anheften</strong> hält sie dort.</li>
-      </ol>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+          <a href="{{ addin_manifest_url | replace('/addin/manifest.xml', '/addin/teams-app.zip') }}"
+             class="btn secondary btn-sm">App-Paket herunterladen (.zip)</a>
+          {% if teams_app %}
+          <span class="hint" id="teams-app-fassung">Fassung {{ teams_app.version }}{% if teams_app.seit %} · seit {{ teams_app.seit }}{% endif %}
+            — ist <em>Last modified</em> in Integrierte Apps älter, lade das Paket erneut hoch.</span>
+          {% endif %}
+        </div>
+        <p class="hint" style="margin:4px 0 8px;line-height:1.6">
+          Solange der Haken gesetzt ist, liest das Gateway die Fassung im Teams-Katalog des Tenants und
+          vergleicht sie mit dem Paket. Dafür braucht die Gateway-App <code>AppCatalog.Read.All</code> (nur lesend).
+        </p>
+        {% if teams_app and teams_app.katalog %}
+          {% set k = teams_app.katalog %}
+          <p style="margin:0 0 8px;font-size:12.5px">
+          {% if k.zustand == 'ok' and k.aktuell %}
+            <span class="speicher-hinweis" style="margin-left:0;white-space:normal" data-zustand="fertig" id="teams-katalog-stand">✓ Im Teams-Katalog: Fassung {{ k.version }}, aktuell</span>
+          {% elif k.zustand == 'ok' %}
+            <span class="speicher-hinweis" style="margin-left:0;white-space:normal" data-zustand="offen" id="teams-katalog-stand">⚠ Im Teams-Katalog: Fassung {{ k.version }}, das Paket hat {{ teams_app.version }}.
+              Lade es neu hoch: <em>Integrierte Apps</em> → App öffnen → <em>Aktualisieren</em>.</span>
+          {% elif k.zustand == 'nicht_gefunden' %}
+            <span class="speicher-hinweis" style="margin-left:0;white-space:normal" data-zustand="offen" id="teams-katalog-stand">⚠ Nicht im Teams-Katalog. Lade das Paket unter <em>Integrierte Apps</em> hoch.</span>
+          {% elif k.zustand == 'recht_fehlt' %}
+            <span class="speicher-hinweis" style="margin-left:0;white-space:normal" data-zustand="offen" id="teams-katalog-stand">Fassung im Teams-Katalog nicht lesbar: <code>AppCatalog.Read.All</code> fehlt — unten erteilen.</span>
+          {% else %}
+            <span class="speicher-hinweis" style="margin-left:0;white-space:normal" data-zustand="fehler" id="teams-katalog-stand">✗ Teams-Katalog nicht abgefragt (Graph-Fehler, siehe Protokoll).</span>
+          {% endif %}
+          </p>
+        {% endif %}
+        {% if s.TEAMS_APP_AKTIV %}{{ berechtigungen("teams", "AppCatalog.Read.All") }}{% endif %}
+
+        <details class="feld-gruppe" style="margin-bottom:4px">
+          <summary>Deployment im M365 Admin Center</summary>
+          <ol style="margin:8px 0 0 18px;padding:0;line-height:2.1;font-size:12.5px;color:#374151">
+            <li><a href="https://admin.microsoft.com" target="_blank" style="color:#0078d4">admin.microsoft.com</a>
+              → <strong>Einstellungen → Integrierte Apps</strong> → <strong>Apps hochladen</strong> → das .zip wählen</li>
+            <li>Benutzer/Gruppen zuweisen und bereitstellen</li>
+            <li>Wie beim Add-in: Microsoft nennt <strong>24 bis 72 Stunden</strong>, bis die App erscheint</li>
+            <li>Hochgeladen wird eine Datei, keine Adresse — eine neue Fassung erscheint hier mit höherer
+              Versionsnummer im Dateinamen und muss erneut hochgeladen werden.</li>
+            <li>Nutzer finden die App in Outlook unter <strong>Weitere Apps → Apps hinzufügen → Für Ihre
+              Organisation erstellt</strong> → <strong>Öffnen</strong>, in Teams ebenso im Store. Rechtsklick
+              auf das Symbol in der Leiste → <strong>Anheften</strong> hält sie dort.</li>
+          </ol>
+        </details>
+        <details class="feld-gruppe" style="margin-bottom:4px">
+          <summary>Deployment im Teams Admin Center</summary>
+          <p class="hint" style="line-height:1.7;margin:8px 0 0">
+            Nur nötig, wenn nach dem Hochladen noch die alte Fassung erscheint:
+            <a href="https://admin.teams.microsoft.com" target="_blank" style="color:#0078d4">admin.teams.microsoft.com</a>
+            → <strong>Teams-Apps → Apps verwalten</strong> → die App öffnen → <strong>Neue Version hochladen</strong>.
+            Der Store in Outlook folgt dem Teams-Katalog mit Verzögerung (gemessen rund eine halbe Stunde).
+          </p>
+        </details>
+      </div>
       {% endif %}
 
       {% if s.ADDIN_BASE_URL %}
@@ -2427,11 +2440,15 @@ function saveAddinEnabled() {
 }
 
 async function teamsAppAktivUmschalten(cb) {
+  document.getElementById('teams-app-setup').style.display = cb.checked ? '' : 'none';
   // Neu laden: Katalogstand und Berechtigungsbox kommen vom Server.
   if (await savePartial({ TEAMS_APP_AKTIV: cb.checked }, 'teams-app-aktiv-result')) {
     location.hash = 'teams-app-schalter';
     location.reload();
-  } else { cb.checked = !cb.checked; }
+  } else {
+    cb.checked = !cb.checked;
+    document.getElementById('teams-app-setup').style.display = cb.checked ? '' : 'none';
+  }
 }
 
 function copyManifestUrl() {

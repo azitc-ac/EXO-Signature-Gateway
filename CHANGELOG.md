@@ -5,6 +5,24 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.25 — 2026-10-22 — Einrichtung: Outlook-Add-in und Teams-App übersichtlicher
+
+- **Anleitungen eingeklappt.** Im Abschnitt *Outlook Add-in* der Einrichtung
+  standen alle Bereitstellungsschritte ausgeklappt untereinander. Sie liegen
+  jetzt in einklappbaren Bereichen: *Deployment im M365 Admin Center* für das
+  Add-in, und für die Teams-App *Deployment im M365 Admin Center* (Hochladen,
+  Zuweisen) sowie *Deployment im Teams Admin Center* (nur nötig, wenn danach die
+  alte Fassung bleibt).
+- **Teams-App mit eigenem Schalter oben.** Der Haken heißt jetzt *Teams-App
+  bereitstellen* und steht am Anfang des Abschnitts, wie *Outlook Add-in
+  bereitstellen* beim Add-in. Erst darunter folgen Erklärung, App-Paket,
+  Katalogstand und Anleitung. Ohne Haken bleibt der Abschnitt eingeklappt.
+  Bisher stand der Haken (*Teams-App ist bereitgestellt*) mitten im Text.
+  Die Einstellung selbst ist dieselbe: Mit Haken vergleicht das Gateway die
+  Fassung im Teams-Katalog mit dem Paket.
+
+**Zu tun:** nichts.
+
 ## v1.10.24 — 2026-10-22 — Direktversand: die DNS-Prüfung zeigt die DMARC-Richtlinie
 
 - **Neu: DMARC in der DNS-Prüfung.** *DNS prüfen* in der Karte *Direktversand*
