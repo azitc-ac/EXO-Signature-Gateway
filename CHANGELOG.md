@@ -9,7 +9,9 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 - Die Anleitung über dem Einfügefeld (v1.10.27) wurde auf schmalen
   Bildschirmen wie andere Erklärtexte auf zwei Zeilen mit *mehr* gekürzt. Sie
-  ist der eigentliche Inhalt und steht jetzt immer vollständig da.
+  ist der eigentliche Inhalt und steht jetzt immer vollständig da. Eine
+  Fehlermeldung neben dem Feld bricht dort jetzt um, statt abgeschnitten zu
+  werden.
 
 **Zu tun:** nichts.
 

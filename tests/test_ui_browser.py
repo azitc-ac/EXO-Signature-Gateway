@@ -1273,6 +1273,10 @@ def test_postfachfilter_signatur_und_smime(seite):
     """Filter „Signatur“ und „S/MIME“ (v1.9.175): nach dem Haken in der Zeile,
     zusammen mit Text- und Typfilter, Zähler „x von y“."""
     pg = seite("/mailboxes", breite=1280)
+    # Die Seite lädt beim Öffnen ihre eigene (im Test leere) Postfachliste.
+    # Kam die Antwort NACH dem Zeichnen unten, überschrieb sie die Mustertabelle
+    # — zeitabhängig rot, auf langsamen Rechnern meistens.
+    pg.wait_for_load_state("networkidle")
     pg.evaluate("""() => {
       document.getElementById('mb-table-wrap').style.display = 'block';
       renderMailboxTable([
