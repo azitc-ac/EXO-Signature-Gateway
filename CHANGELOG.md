@@ -5,6 +5,18 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.37 — 2026-10-23 — Ergebnismeldung neben Knöpfen wieder sichtbar
+
+- **Korrektur: Ergebnisse neben einem Knopf blieben unsichtbar.** Bei Knöpfen
+  mit Fortschrittsanzeige daneben, etwa *Erreichbarkeit prüfen* an beiden
+  Outlook-Add-ins, erschien kurz *Prüfe…*, danach aber keine Meldung. Am Ende
+  der Aktion blendet die Fortschrittsanzeige sich über das Attribut `hidden`
+  aus. Die Meldung danach schaltete nur die Anzeige ein, und dagegen setzt sich
+  die Regel `[hidden] { display: none !important }` durch. `showMsg()` hebt
+  `hidden` jetzt mit auf. Das betrifft alle 19 Stellen mit diesem Ablauf.
+
+**Zu tun:** nichts — die Korrektur kommt mit dem Update.
+
 ## v1.10.36 — 2026-10-22 — Einrichtung: das Verfassen-Add-in bereitstellen
 
 - **Korrektur: Die Einrichtung bot das Add-in, das die Signatur beim Verfassen
