@@ -2,7 +2,7 @@
 #
 # WARUM ES DIESE DATEI GIBT
 # -------------------------
-# requirements.txt pinnt die 11 DIREKT benutzten Pakete exakt. Alles, was nur
+# requirements.txt pinnt die DIREKT benutzten Pakete exakt. Alles, was nur
 # als deren Abhängigkeit mitkommt, blieb dabei frei — und wanderte. Am
 # 09.08.2026 gemessen, bei identischer requirements.txt:
 #
@@ -50,6 +50,8 @@ cffi==2.1.1
 charset-normalizer==3.4.9
 click==8.4.2
 cryptography==49.0.0
+dkimpy==1.1.8
+dnspython==2.9.0
 fastapi==0.139.0
 h11==0.16.0
 httpcore==1.0.9

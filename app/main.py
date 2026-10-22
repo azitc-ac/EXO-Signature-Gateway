@@ -738,6 +738,15 @@ def main() -> None:
     except Exception as exc:
         log.error("Dateirechte-Härtung fehlgeschlagen: %s", exc)
 
+    # Konfiguration des Postfix-Containers (Direktversand) aus den Einstellungen
+    # ablegen — auch ausgeschaltet, dann steht dort „nichts hinauslassen“. Nur
+    # Dateien, kein settings_store.update().
+    try:
+        import direktversand
+        direktversand.schreiben()
+    except Exception as exc:
+        log.error("Konfiguration des Direktversands nicht geschrieben: %s", exc)
+
     # Verwaiste Einstellungen aus entfernten Funktionen löschen. Betrifft vor
     # allem die CA-Zugangsdaten der ausgebauten Direktanbindung (v1.5.125): sie
     # blieben in settings.json stehen, weil _save() unbekannte Schlüssel

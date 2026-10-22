@@ -93,7 +93,7 @@ RUN pwsh -NoProfile -NonInteractive -Command \
 #
 # Installiert wird aus der LOCK-Datei, nicht aus requirements.txt.
 #
-# requirements.txt pinnt nur die 11 direkt benutzten Pakete; alles, was als
+# requirements.txt pinnt nur die direkt benutzten Pakete; alles, was als
 # deren Abhaengigkeit mitkommt, blieb frei und wanderte zwischen den Umgebungen
 # (am 09.08.2026 gemessen: vier verschiedene Starlette-Fassungen bei
 # identischer requirements.txt — Begruendung und Messwerte stehen im Kopf der

@@ -23,6 +23,9 @@ log = logging.getLogger(__name__)
 
 # Reservierte Ziel-ID für das Standardziel (EXO). Nie in RELAY_TARGETS.
 EXO = "exo"
+# Eingebautes Ziel: der eigene Postfix (Direktversand, `direktversand.py`).
+# Ebenfalls nie in RELAY_TARGETS; gültig nur, solange der Direktversand an ist.
+DIREKT = "direkt"
 
 # Ziel-IDs sind kurze technische Kürzel (kein Anzeigename): eindeutig, URL-fest,
 # als Dict-Schlüssel und in Logzeilen unauffällig.
@@ -51,6 +54,22 @@ def ist_eigenes_ziel(ziel_id: str) -> bool:
     return ziel_id != EXO and ziel_id in ziele()
 
 
+def ziel_gueltig(ziel_id: str) -> bool:
+    """Kann Post jetzt an dieses Ziel gehen? Konfigurierte Ziele immer, das
+    eingebaute `direkt` nur bei eingeschaltetem Direktversand."""
+    if ziel_id == DIREKT:
+        import direktversand
+        return direktversand.aktiv()
+    return ziel_id in ziele()
+
+
+def _waehlbar(ziel_id: str) -> bool:
+    """Darf eine Route auf dieses Ziel gesetzt werden? `direkt` auch im
+    ausgeschalteten Zustand — die Route ist dann vorbereitet, greift aber erst
+    mit dem Einschalten (bis dahin gilt der Rückfall der jeweiligen Route)."""
+    return ziel_id == DIREKT or ziel_id in ziele()
+
+
 def route_fuer(domain: str) -> str:
     """Ziel-ID für eine Empfängerdomäne — `EXO`, wenn keine gültige Route greift.
 
@@ -64,9 +83,9 @@ def route_fuer(domain: str) -> str:
     ziel_id = (_routen().get(d) or "").strip()
     if not ziel_id or ziel_id == EXO:
         return EXO
-    if ziel_id not in ziele():
-        log.warning("Domänen-Route %s → %r zeigt auf ein unbekanntes Ziel — "
-                    "Rückfall auf EXO", d, ziel_id)
+    if not ziel_gueltig(ziel_id):
+        log.warning("Domänen-Route %s → %r zeigt auf ein unbekanntes oder "
+                    "ausgeschaltetes Ziel — Rückfall auf EXO", d, ziel_id)
         return EXO
     return ziel_id
 
@@ -99,9 +118,10 @@ def route_fuer_tenant(tenant_id: str) -> str:
     ziel_id = (_tenant_routen().get(t) or "").strip()
     if not ziel_id:
         return ""
-    if ziel_id not in ziele():
-        log.warning("Tenant-Route %s → %r zeigt auf ein unbekanntes Ziel — "
-                    "Post dieses Tenants wird abgewiesen", t, ziel_id)
+    if not ziel_gueltig(ziel_id):
+        log.warning("Tenant-Route %s → %r zeigt auf ein unbekanntes oder "
+                    "ausgeschaltetes Ziel — Post dieses Tenants wird abgewiesen",
+                    t, ziel_id)
         return ""
     return ziel_id
 
@@ -188,12 +208,49 @@ def route_fuer_empfaenger(adresse: str) -> str:
     """
     ziel = route_fuer(_domain(adresse))
     if ziel == EXO:
-        return EXO
+        return route_fuer_extern(adresse)
     if not _per_empfaenger_aktiv():
         return ziel
     import exo_mailusers
     adr = (adresse or "").strip().lower()
     return ziel if adr in exo_mailusers.adressen_gespeichert() else EXO
+
+
+def extern_ziel() -> str:
+    """Konfiguriertes Ziel für externe Empfänger ("" = keins, also EXO)."""
+    return (settings_store.get("EXTERN_ROUTE") or "").strip().lower()
+
+
+def route_fuer_extern(adresse: str) -> str:
+    """Ziel für einen Empfänger OHNE eigene Domänen-Route.
+
+    Ist ein Ziel für externe Empfänger gesetzt (typisch `direkt`), geht jeder
+    Empfänger außerhalb der Tenant-Domänen dorthin; interne bleiben bei EXO.
+
+    ⚠️ Ausfallrichtung: Ist die Menge der Tenant-Domänen unbekannt (noch keine
+    Postfachliste, kein TENANT_DOMAIN), gilt NIEMAND als extern. Sonst ginge
+    auch interne Post am eigenen Exchange vorbei ins Internet — sie käme zwar
+    über den MX wieder an, aber als Post von außen.
+    """
+    ziel = extern_ziel()
+    if not ziel or ziel == EXO or not ziel_gueltig(ziel):
+        return EXO
+    d = _domain(adresse)
+    if not d:
+        return EXO
+    import smtp_relay
+    eigene = smtp_relay._eigene_domaenen()
+    if not eigene or d in eigene:
+        return EXO
+    return ziel
+
+
+def setze_extern_route(ziel_id: str) -> None:
+    """Ziel für externe Empfänger setzen; leer oder 'exo' = wieder an EXO."""
+    ziel_id = (ziel_id or "").strip().lower()
+    if ziel_id and ziel_id != EXO and not _waehlbar(ziel_id):
+        raise ValueError(f"Ziel {ziel_id!r} gibt es nicht")
+    settings_store.update({"EXTERN_ROUTE": "" if ziel_id == EXO else ziel_id})
 
 
 def gruppiere(rcpt_tos: list[str]) -> dict[str, list[str]]:
@@ -224,6 +281,11 @@ def aufloesen(ziel_id: str) -> dict:
         return {"host": host, "port": int(port), "starttls": True,
                 "user": settings_store.get("RELAY_USER") or "",
                 "pass": settings_store.get("RELAY_PASSWORD") or ""}
+    if ziel_id == DIREKT:
+        import direktversand
+        # Internes Docker-Netz, ohne TLS: Der Hop verlässt den Rechner nicht.
+        return {"host": direktversand.MTA_HOST, "port": direktversand.MTA_PORT,
+                "starttls": False, "user": "", "pass": ""}
     t = ziele().get(ziel_id) or {}
     pw = settings_store.get("RELAY_TARGET_PW")
     pw = pw.get(ziel_id, "") if isinstance(pw, dict) else ""
@@ -269,8 +331,8 @@ def setze_ziel(ziel_id: str, host: str, port: int, starttls: bool,
     ziel_id = (ziel_id or "").strip().lower()
     if not _ID_MUSTER.match(ziel_id):
         raise ValueError("Ziel-Kürzel: a–z, 0–9, _ und -, mit Buchstabe/Ziffer beginnend")
-    if ziel_id == EXO:
-        raise ValueError("'exo' ist das reservierte Standardziel und kann nicht angelegt werden")
+    if ziel_id in (EXO, DIREKT):
+        raise ValueError(f"{ziel_id!r} ist ein eingebautes Ziel und kann nicht angelegt werden")
     host = (host or "").strip()
     if not host:
         raise ValueError("Host darf nicht leer sein")
@@ -309,8 +371,11 @@ def loesche_ziel(ziel_id: str) -> bool:
     pw.pop(ziel_id, None)
     r = {d: zid for d, zid in _routen().items() if zid != ziel_id}
     tr = {t: zid for t, zid in _tenant_routen().items() if zid != ziel_id}
-    settings_store.update({"RELAY_TARGETS": z, "RELAY_TARGET_PW": pw,
-                           "DOMAIN_ROUTES": r, "TENANT_ROUTES": tr})
+    aenderung = {"RELAY_TARGETS": z, "RELAY_TARGET_PW": pw,
+                 "DOMAIN_ROUTES": r, "TENANT_ROUTES": tr}
+    if extern_ziel() == ziel_id:
+        aenderung["EXTERN_ROUTE"] = ""
+    settings_store.update(aenderung)
     return True
 
 
@@ -325,7 +390,7 @@ def setze_route(domain: str, ziel_id: str) -> None:
     if not ziel_id or ziel_id == EXO:
         r.pop(domain, None)
     else:
-        if ziel_id not in ziele():
+        if not _waehlbar(ziel_id):
             raise ValueError(f"Ziel {ziel_id!r} gibt es nicht")
         r[domain] = ziel_id
     settings_store.update({"DOMAIN_ROUTES": r})
@@ -357,7 +422,7 @@ def setze_tenant_route(tenant_id: str, ziel_id: str) -> None:
     if not ziel_id or ziel_id == EXO:
         r.pop(tenant_id, None)
     else:
-        if ziel_id not in ziele():
+        if not _waehlbar(ziel_id):
             raise ValueError(f"Ziel {ziel_id!r} gibt es nicht")
         r[tenant_id] = ziel_id
     settings_store.update({"TENANT_ROUTES": r})
