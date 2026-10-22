@@ -174,6 +174,11 @@ async def setup_wizard(
             "addin_manifest_url": addin_base_url + "/addin/manifest.xml",
             "addin_url_warning": _addin_url_warning(addin_base_url),
             "teams_app": teams_app,
+            # Das Add-in, das beim Verfassen selbst einfügt — bis v1.10.35 bot
+            # die Seite nur den Knopf an.
+            "addin_verfassen": {"url": addin_base_url + "/addin/verfassen/manifest.xml",
+                                **{k: (settings_store.get("_ADDIN_VERFASSEN_STAND") or {}).get(k, "")
+                                   for k in ("version", "seit")}},
             "webui_port": config.WEBUI_PORT,
         },
     )
