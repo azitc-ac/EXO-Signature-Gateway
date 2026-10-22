@@ -294,6 +294,37 @@ def test_organisationskoepfe_verlassen_das_haus_nicht():
     assert rumpf == roh.split(b"\r\n\r\n", 1)[1], "Rumpf muss byte-genau bleiben"
 
 
+def test_fehlende_date_und_message_id_werden_vor_dem_signieren_ergaenzt():
+    """Postfix ergänzt sie im Direktversand nicht (always_add_missing_headers=no,
+    Einlieferung übers Docker-Netz) — und dürfte es nicht, die DKIM-Signatur
+    nennt date/message-id in h=. Live auf einem Gateway: die ACME-Challenge-
+    Antwort ging mit message-id=<> und ohne Date hinaus."""
+    import email
+    roh = b"From: Alex <alexw@azitc.org>\r\nTo: acme@castle.cloud\r\nSubject: Re: ACME: x\r\n\r\nRumpf\r\n"
+    raus = direktversand.kopf_bereinigen(roh)
+    m = email.message_from_bytes(raus)
+    assert m["Date"] and email.utils.parsedate_to_datetime(m["Date"])
+    assert m["Message-ID"].endswith("@azitc.org>")
+    assert raus.endswith(b"\r\n\r\nRumpf\r\n") and b"\n" not in raus.replace(b"\r\n", b"")
+
+
+def test_vorhandene_date_und_message_id_bleiben_unveraendert():
+    roh = (b"Date: Thu, 22 Oct 2026 10:00:00 +0000\nMessage-ID: <eigen@x.de>\n"
+           b"From: a@x.de\n\nRumpf\n")
+    raus = direktversand.kopf_bereinigen(roh)
+    assert raus == roh, "nichts doppelt, nichts umgeschrieben, Zeilenenden wie vorgefunden"
+
+
+def test_acme_antwort_traegt_date_und_message_id():
+    import email
+    import acme_state
+    raw = acme_state._build_challenge_reply_mime(
+        "alexw@azitc.org", "acme@castle.cloud", "Re: ACME: tok", "digest", "<c@castle.cloud>")
+    m = email.message_from_bytes(raw)
+    assert m["Date"] and m["Message-ID"].endswith("@azitc.org>")
+    assert m["In-Reply-To"] == "<c@castle.cloud>" and m["References"] == "<c@castle.cloud>"
+
+
 def test_uebergabe_an_postfix_signiert_ohne_tls(werte, monkeypatch):
     werte["DIREKT_ENABLED"] = True
     eintrag = dkim_signatur.schluessel_erzeugen("contoso.de", "test1")

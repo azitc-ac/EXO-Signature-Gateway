@@ -246,6 +246,11 @@ def _build_challenge_reply_mime(
     mime["From"] = from_email
     mime["To"] = to_email
     mime["Subject"] = re_subject
+    # Date/Message-ID selbst setzen: Über Exchange ergänzte Exchange sie, im
+    # Direktversand (EXTERN_ROUTE=direkt) ging die Antwort sonst ohne beide hinaus.
+    import email.utils as _eu
+    mime["Date"] = _eu.formatdate(usegmt=True)
+    mime["Message-ID"] = _eu.make_msgid(domain=from_email.rsplit("@", 1)[-1])
     mime["Auto-Submitted"] = "auto-generated"
     if internet_message_id:
         mime["In-Reply-To"] = internet_message_id
