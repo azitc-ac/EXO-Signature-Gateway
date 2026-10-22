@@ -678,14 +678,17 @@ async def patch_bootstrap_redirect_uri(token: str, hostname: str) -> None:
     bootstrap_id = settings_store.get("BOOTSTRAP_CLIENT_ID") or ""
     if not bootstrap_id:
         return
-    # Prefer ADDIN_BASE_URL (canonical external URL without port, works behind App Proxy)
-    external_base = (settings_store.get("ADDIN_BASE_URL") or "").rstrip("/")
-    if external_base:
-        public_uri = f"{external_base}/auth/callback"
-    else:
-        port = config.WEBUI_PORT
-        port_suffix = f":{port}" if port and port != 443 else ""
-        public_uri = f"https://{hostname}{port_suffix}/auth/callback"
+    # Dieselbe Quelle wie die Anmeldung (`_build_redirect_uri(sso=True)` →
+    # aussenadresse.konfiguriert()): Die eingetragene Adresse muss ZEICHENGLEICH
+    # sein, sonst nimmt `_setup_redirect_uri()` sie nie und jede Admin-Anmeldung
+    # endet auf localhost. Bis v1.10.26 stand hier ohne ADDIN_BASE_URL
+    # `https://{hostname}:{WEBUI_PORT}` — WEBUI_PORT ist der INTERNE Port (8080),
+    # öffentlich wird auf 443 ausgeliefert; die Adresse passte nie.
+    import aussenadresse
+    extern = aussenadresse.konfiguriert()
+    if not extern:
+        return
+    public_uri = f"{extern}/auth/callback"
     try:
         resp = await _gh(
             "get",

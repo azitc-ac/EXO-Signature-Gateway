@@ -213,3 +213,33 @@ def test_abnahme_entfaellt_ohne_addin_und_self_service(monkeypatch):
 def test_abnahme_fuehrt_den_punkt():
     import abnahme
     assert abnahme._naa in abnahme.PRUEFUNGEN
+
+
+
+def test_eingetragene_rueckadresse_ist_die_der_anmeldung(monkeypatch):
+    """Die Adresse, die patch_bootstrap_redirect_uri an der Bootstrap-App
+    einträgt, muss ZEICHENGLEICH die sein, über die die Admin-Anmeldung
+    zurückkehrt — sonst endet jede Anmeldung auf localhost. Bis v1.10.26 kam
+    ohne ADDIN_BASE_URL der INTERNE Port hinein (https://host:8080/…), während
+    die Anmeldung https://host/… erwartet."""
+    import config
+    from webui import hilfen
+    from webui.routen import anmeldung
+    daten = {"BOOTSTRAP_CLIENT_ID": CID, "PUBLIC_HOSTNAME": "sig.example",
+             "BOOTSTRAP_REDIRECT_URIS": []}
+    monkeypatch.setattr(settings_store, "get", lambda k, *a, **kw: daten.get(k, *a))
+    monkeypatch.setattr(settings_store, "update", lambda p: daten.update(p))
+    monkeypatch.setattr(config, "WEBUI_PORT", 8080)
+    app = {"id": "OBJ", "displayName": "EXO Signature Gateway Login",
+           "publicClient": {"redirectUris": ["http://localhost:8080/auth/callback"]}}
+
+    async def gh(methode, url, token, json=None):
+        return {"value": [app]} if methode == "get" else {}
+    monkeypatch.setattr(setup_wizard, "_gh", gh)
+    assert anmeldung._setup_redirect_uri().startswith("http://localhost"), "Ausgangslage"
+    asyncio.run(setup_wizard.patch_bootstrap_redirect_uri("TOKEN", "sig.example"))
+    erwartet = hilfen._build_redirect_uri(sso=True)
+    assert erwartet == "https://sig.example/auth/callback"
+    assert erwartet in daten["BOOTSTRAP_REDIRECT_URIS"]
+    assert not any(":8080" in u and u.startswith("https://") for u in daten["BOOTSTRAP_REDIRECT_URIS"])
+    assert anmeldung._setup_redirect_uri() == erwartet, "Anmeldung kehrt jetzt über HTTPS zurück"

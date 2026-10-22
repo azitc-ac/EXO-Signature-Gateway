@@ -53,5 +53,14 @@ def test_anmeldefenster_oeffnet_vor_dem_ersten_await():
 
 
 def test_berechtigungen_nutzt_anmeldefenster():
+    # Der Klick-Handler öffnet das Fenster über anmeldeFenster() VOR dem ersten
+    # await — die Adresse holt anmeldeFenster selbst (seit v1.10.27 über eine
+    # Funktion, die zusätzlich meldet, ob die Anmeldung auf localhost endet).
     t = (WURZEL / "templates/_berechtigungen.html").read_text(encoding="utf-8")
-    assert "anmeldeFenster('/api/setup/berechtigungen/erteilen'" in t
+    start = t.index("knopf.addEventListener('click'")
+    rumpf = t[start:t.index("pruefKnopf.addEventListener", start)]
+    assert "anmeldeFenster(" in rumpf
+    vor_fenster = rumpf[:rumpf.index("anmeldeFenster(")]
+    assert "await" not in vor_fenster.replace("async function", ""), \
+        "await vor dem Öffnen — der Klick gilt dann nicht mehr als Nutzergeste"
+    assert "/api/setup/berechtigungen/erteilen" in rumpf[rumpf.index("anmeldeFenster("):]

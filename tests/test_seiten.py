@@ -387,6 +387,95 @@ def test_berechtigungen_erteilen_verlangt_nur_zwei_scopes(client, monkeypatch):
     assert getauscht["scopes"] == pkce.BERECHTIGUNGEN_SCOPES
 
 
+def _eingefuegt(client, monkeypatch, start_url, gerufen):
+    """Anmeldung starten und die localhost-Adresse über /api/setup/auth-paste
+    zurückgeben — wie der Betreiber, wenn die HTTPS-Rücksprungadresse fehlt."""
+    import urllib.parse
+    import pkce
+    import setup_wizard
+    d = client.get(start_url).json()
+    state = urllib.parse.parse_qs(urllib.parse.urlsplit(d["auth_url"]).query)["state"][0]
+
+    async def tausch(code, verifier, redirect_uri, scopes=None):
+        gerufen["scopes"] = scopes
+        return {"access_token": "tok"}
+
+    async def nachziehen(tok):
+        gerufen["nachziehen"] = tok
+        return {"ok": True, "fehler": []}
+
+    async def einrichtung(tok):
+        gerufen["einrichtung"] = tok
+        return {}
+
+    async def rueckadresse(tok, host):
+        gerufen["rueckadresse"] = tok
+
+    async def grants(tok, oid):
+        gerufen["grants"] = oid
+        return {"app_role": True, "global_reader": True, "app_id": "APP"}
+    monkeypatch.setattr(pkce, "exchange_code", tausch)
+    monkeypatch.setattr(setup_wizard, "berechtigungen_nachziehen", nachziehen)
+    monkeypatch.setattr(setup_wizard, "run_post_auth_setup", einrichtung)
+    monkeypatch.setattr(setup_wizard, "patch_bootstrap_redirect_uri", rueckadresse)
+    monkeypatch.setattr(setup_wizard, "grant_watchdog_graph_roles", grants)
+    return d, client.post("/api/setup/auth-paste",
+                          json={"url": f"http://localhost:8080/auth/callback?code=c&state={state}"})
+
+
+def test_eingefuegte_berechtigungs_anmeldung_ist_keine_einrichtung(client, monkeypatch):
+    """Endet „Fehlende Berechtigungen erteilen“ auf localhost, fügt der Betreiber
+    die Adresse ein. Bis v1.10.26 lief dafür die komplette Ersteinrichtung
+    (run_post_auth_setup) — mit Token-Tausch über die Bootstrap-Vorgabe."""
+    import pkce
+    gerufen = {}
+    d, r = _eingefuegt(client, monkeypatch, "/api/setup/berechtigungen/erteilen", gerufen)
+    assert r.status_code == 200 and r.json()["ok"] is True and r.json()["flow"] == "berechtigungen"
+    assert "einrichtung" not in gerufen, "Ersteinrichtung für einen Berechtigungs-Code"
+    assert gerufen["nachziehen"] == "tok"
+    assert gerufen["scopes"] == pkce.BERECHTIGUNGEN_SCOPES
+    # heilt die Ursache gleich mit: Rücksprungadresse an der Bootstrap-App ergänzen
+    assert gerufen["rueckadresse"] == "tok"
+
+
+def test_eingefuegte_waechter_anmeldung_erteilt_zuweisungen(client, monkeypatch):
+    gerufen = {}
+    oid = "11111111-2222-3333-4444-555555555555"
+    d, r = _eingefuegt(client, monkeypatch, f"/api/watchdog/start-grants?mi_object_id={oid}", gerufen)
+    assert r.status_code == 200 and r.json()["ok"] is True and r.json()["app_id"] == "APP"
+    assert gerufen["grants"] == oid and "einrichtung" not in gerufen
+
+
+def test_eingefuegte_einrichtung_bleibt_einrichtung(client, monkeypatch):
+    gerufen = {}
+    d, r = _eingefuegt(client, monkeypatch, "/auth/start?localhost=1", gerufen)
+    assert r.status_code == 200 and r.json()["ok"] is True
+    assert gerufen["einrichtung"] == "tok" and "nachziehen" not in gerufen
+
+
+def test_sso_anmeldung_laesst_sich_nicht_einfuegen(client, monkeypatch):
+    import pkce
+    _state, url = pkce.create_session("http://localhost:8080/auth/callback", flow="sso")
+    gerufen = {}
+
+    async def tausch(*a, **kw):
+        gerufen["tausch"] = True
+        return {"access_token": "tok"}
+    monkeypatch.setattr(pkce, "exchange_code", tausch)
+    r = client.post("/api/setup/auth-paste",
+                    json={"url": f"http://localhost:8080/auth/callback?code=c&state={_state}"})
+    assert r.status_code == 400 and "tausch" not in gerufen
+
+
+def test_erteilen_meldet_localhost_rueckkehr(client, monkeypatch):
+    """Die Box zeigt das Einfügefeld nur, wenn die Anmeldung auf localhost endet."""
+    from webui.routen import anmeldung
+    monkeypatch.setattr(anmeldung, "_setup_redirect_uri", lambda: "http://localhost:8080/auth/callback")
+    assert client.get("/api/setup/berechtigungen/erteilen").json()["einfuegen"] is True
+    monkeypatch.setattr(anmeldung, "_setup_redirect_uri", lambda: "https://sig.example/auth/callback")
+    assert client.get("/api/setup/berechtigungen/erteilen").json()["einfuegen"] is False
+
+
 def test_abgelaufene_anmeldung_meldet_sich_im_popup(client, monkeypatch):
     """Kehrt das Zustimmungs-Popup nach Ablauf der PKCE-Sitzung zurück, landete es
     auf der Gateway-Anmeldung, nichts war erteilt, und das Hauptfenster erfuhr es
