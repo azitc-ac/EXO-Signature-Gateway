@@ -145,60 +145,60 @@
 </div>
 
 <div class="settings-card" id="auto-enroll-card">
-  <h3 style="margin-top:0;margin-bottom:12px">Zertifikat automatisch bestellen</h3>
+  <h3 style="margin-top:0;margin-bottom:12px">Zertifikat bestellen</h3>
+  {# Der Standardbezugsweg ist EINE Einstellung (SMIME_AUTO_ENROLL_CA) für
+     zwei Zwecke: Vorgabe beim Knopf „Zertifikat bestellen“ auf der S/MIME-
+     Seite (ca_backends.bezugsweg) und Weg der automatischen Bestellung. #}
   <div class="settings-row">
-    <div class="settings-control" style="flex-basis:100%">
-      {# ⚠️ KEIN flex-wrap. Mit Umbruch rutscht das Kästchen bei schmaler Anzeige
-         oder grosser Schrift in eine eigene Zeile, und die Beschriftung steht
-         darunter wie eine Überschrift — die Zugehörigkeit ist dann nicht mehr
-         zu sehen. `flex-start` statt `center`, damit das Kästchen bei
-         mehrzeiligem Text oben neben der ersten Zeile bleibt. #}
-      <div style="display:flex;align-items:flex-start;gap:8px">
-        <input type="checkbox" id="auto-enroll" style="flex-shrink:0;margin-top:3px"
-          {% if s.SMIME_AUTO_ENROLL %}checked{% endif %}
-          onchange="autoEnrollUmschalten()">
-        <label for="auto-enroll" style="font-weight:500;cursor:pointer;margin:0">
-          Sobald ein Postfach für S/MIME aktiviert wird
-        </label>
-      </div>
-      <div id="auto-enroll-ca" style="margin-top:8px;display:{% if s.SMIME_AUTO_ENROLL %}block{% else %}none{% endif %}">
-        {% if enroll_wege %}
-        <label for="auto-enroll-weg" style="font-size:13px;font-weight:500;display:block;margin-bottom:4px">
-          Zertifizierungsstelle
-        </label>
-        <select id="auto-enroll-weg" style="font-size:13px;min-width:260px">
-          {% for b in enroll_wege %}
-          <option value="{{ b.name }}"
-            data-terms="{{ b.terms_url or '' }}" data-label="{{ b.label }}"
-            {% if s.SMIME_AUTO_ENROLL_CA == b.name %}selected{% endif %}>{{ b.label }}</option>
-          {% endfor %}
-        </select>
-        <span class="hint" style="display:block;margin-top:6px">
-          Zur Wahl stehen nur Bezugswege, die ohne Zutun des Postfachinhabers
-          bestellen können. Kostenpflichtige Wege belasten das Guthaben —
-          die Postfachseite nennt den Betrag vor dem Speichern.
-        </span>
-        {% else %}
-        <span style="display:block;font-size:12px;color:#92400e;background:#fffbeb;
-                     border:1px solid #fde68a;border-radius:4px;padding:6px 9px">
-          <strong>Kein geeigneter Bezugsweg eingerichtet.</strong> Es wird eine
-          Zertifizierungsstelle benötigt, die ohne Zutun der Postfachinhaber
-          bestellen kann — etwa die CASTLE Platform oder ein Anbieter aus dem
-          Katalog (Reiter „Anbindung &amp; Lizenzen").
-        </span>
-        {% endif %}
-      </div>
-      <span class="hint">
-        Standard: aus. Bereits versorgte Postfächer werden übersprungen; ein
-        Postfach, das schon ein gültiges Zertifikat hat, löst nichts aus.
+    <label for="auto-enroll-weg">Standardbezugsweg für neue Postfächer</label>
+    <div class="settings-control">
+      {% if enroll_wege %}
+      <select id="auto-enroll-weg" style="font-size:13px;min-width:260px">
+        {# „Keiner“ ausdrücklich: Ohne diese Wahl zeigte der Browser bei leerer
+           Einstellung den ersten Weg an, und ein Speichern machte ihn still
+           zur Vorgabe. #}
+        <option value="" {% if not s.SMIME_AUTO_ENROLL_CA %}selected{% endif %}>Keiner — je Postfach wählen</option>
+        {% for b in enroll_wege %}
+        <option value="{{ b.name }}"
+          data-terms="{{ b.terms_url or '' }}" data-label="{{ b.label }}"
+          {% if s.SMIME_AUTO_ENROLL_CA == b.name %}selected{% endif %}>{{ b.label }}</option>
+        {% endfor %}
+      </select>
+      {% else %}
+      <span style="display:block;font-size:12px;color:#92400e;background:#fffbeb;
+                   border:1px solid #fde68a;border-radius:4px;padding:6px 9px">
+        <strong>Kein geeigneter Bezugsweg eingerichtet.</strong> Es wird eine
+        Zertifizierungsstelle benötigt, die ohne Zutun der Postfachinhaber
+        bestellen kann — etwa die CASTLE Platform oder ein Anbieter aus dem
+        Katalog (Reiter „Anbindung &amp; Lizenzen").
       </span>
-      <div style="margin-top:8px">
-        <button type="button" id="auto-enroll-btn" class="btn secondary btn-sm"
-          data-wache="auto-enroll,auto-enroll-weg" data-wache-hinweis="auto-enroll-result"
-          onclick="speichereAutoEnroll()">Speichern</button>
-        <span id="auto-enroll-result"></span>
-      </div>
+      {% endif %}
     </div>
+  </div>
+  <p class="hint" style="margin:0 0 10px">
+    Gilt für Postfächer, für die auf der S/MIME-Seite noch kein eigener
+    Bezugsweg gewählt ist: Ihr Knopf <em>Zertifikat bestellen</em> bestellt
+    dann über diesen Weg. Zur Wahl stehen nur Bezugswege, die ohne Zutun des
+    Postfachinhabers bestellen können. Kostenpflichtige Wege belasten das
+    Guthaben.
+  </p>
+  <div class="settings-row">
+    <label class="checkbox-label">
+      <input type="checkbox" id="auto-enroll" {% if s.SMIME_AUTO_ENROLL %}checked{% endif %}>
+      Automatisch bestellen, sobald ein Postfach für S/MIME aktiviert wird
+    </label>
+  </div>
+  <p class="hint" style="margin:0 0 4px">
+    Standard: aus. Bestellt wird über den Standardbezugsweg. Bereits versorgte
+    Postfächer werden übersprungen; ein Postfach, das schon ein gültiges
+    Zertifikat hat, löst nichts aus. Die Postfachseite nennt den Betrag vor
+    dem Speichern.
+  </p>
+  <div style="margin-top:8px">
+    <button type="button" id="auto-enroll-btn" class="btn secondary btn-sm"
+      data-wache="auto-enroll,auto-enroll-weg" data-wache-hinweis="auto-enroll-result"
+      onclick="speichereAutoEnroll()">Speichern</button>
+    <span id="auto-enroll-result"></span>
   </div>
 
   <div data-adv="smime" style="display:none">
@@ -736,6 +736,12 @@ async function speichereAutoEnroll() {
   // Zertifizierungsstelle gewählt, und später bestellt niemand mehr bewusst —
   // es geschieht beim Aktivieren eines Postfachs. Ohne Beleg lehnt die
   // Zertifizierungsstelle jede Bestellung ab, und zwar erst im Lauf.
+  if (an && !weg) {
+    // Die Automatik bestellt über den Standardbezugsweg — ohne ihn liefe sie
+    // ins Leere (Server: „kein Bezugsweg gewählt“), und zwar erst beim Aktivieren.
+    wacheFertig('auto-enroll-btn', false, 'Erst einen Standardbezugsweg wählen');
+    return;
+  }
   const gewaehlt = sel ? sel.options[sel.selectedIndex] : null;
   const terms = gewaehlt ? (gewaehlt.dataset.terms || '') : '';
   if (an && terms) {
@@ -746,11 +752,6 @@ async function speichereAutoEnroll() {
     nutzlast.SMIME_AUTO_ENROLL_TERMS_AT = new Date().toISOString();
   }
   wacheFertig('auto-enroll-btn', await savePartial(nutzlast));
-}
-
-function autoEnrollUmschalten() {
-  const an = document.getElementById('auto-enroll').checked;
-  document.getElementById('auto-enroll-ca').style.display = an ? 'block' : 'none';
 }
 
 async function toggleKeyEncrypt(checked) {
