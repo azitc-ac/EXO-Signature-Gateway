@@ -331,7 +331,8 @@
       function anmeldeAdresseEinfuegen(ziel, art) {
         if (typeof ziel === 'string') ziel = document.getElementById(ziel);
         if (!ziel) return;
-        ziel.innerHTML = '<p class="hint" style="margin:6px 0 4px">Das Anmeldefenster endet auf „localhost … '
+        // data-clamp="aus": die Anleitung IST der Inhalt — nicht auf „mehr“ kürzen.
+        ziel.innerHTML = '<p class="hint" data-clamp="aus" style="margin:6px 0 4px">Das Anmeldefenster endet auf „localhost … '
           + 'nicht erreichbar“ — das ist hier erwartet. Kopiere die vollständige Adresse aus seiner '
           + 'Adresszeile (beginnt mit <code>http://localhost</code>) und füge sie ein.</p>'
           + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
