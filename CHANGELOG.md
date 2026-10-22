@@ -5,6 +5,33 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.36 — 2026-10-22 — Einrichtung: das Verfassen-Add-in bereitstellen
+
+- **Korrektur: Die Einrichtung bot das Add-in, das die Signatur beim Verfassen
+  selbst einfügt, gar nicht an.** Unter *Einstellungen → Einrichtung →
+  Outlook Add-in* standen nur das Manifest des Knopfs und die Teams-App. Das
+  Verfassen-Add-in (`/addin/verfassen/manifest.xml`, Start-Ereignis bei jeder
+  neuen Mail) lieferte das Gateway zwar aus, die Seite verlinkte es aber
+  nirgends. Der Hinweis *„Zeigt die Gateway-Signatur beim Verfassen direkt in
+  Outlook“* bezog sich auf den Knopf, las sich aber wie das automatische
+  Einfügen. Wer danach vorging, hatte nur den Knopf bereitgestellt. Beim
+  Verfassen fügte dann nichts ein, und die Signatur kam erst beim Versand vom
+  Gateway.
+- **Neu: eigener Abschnitt *Signatur automatisch beim Verfassen*.** Er enthält
+  die Manifest-Adresse zum Kopieren, Öffnen und Herunterladen, die Prüfung der
+  Erreichbarkeit und die ausgelieferte Fassung mit Datum. Er nennt die
+  Voraussetzung an der Anmeldung (NAA, nachzutragen über *Anmeldung prüfen*)
+  und die Schritte in *Integrierte Apps*. Der Knopf hat eine eigene
+  Überschrift; dort steht jetzt ausdrücklich, dass er nicht von selbst einfügt.
+
+**Zu tun:** Soll die Signatur beim Verfassen neuer Mails von selbst
+erscheinen, stelle das Verfassen-Add-in bereit. Öffne dazu *Einstellungen →
+Einrichtung → Outlook Add-in → Signatur automatisch beim Verfassen*, kopiere
+die Manifest-Adresse und lade sie im M365 Admin Center unter *Integrierte
+Apps → Apps hochladen → Office-Add-In* hoch. Weise das Add-in den Postfächern
+zu. Vorher *Anmeldung prüfen* ausführen und fehlende NAA-Einträge in Entra
+ergänzen lassen. Das Knopf-Add-in bleibt daneben bestehen.
+
 ## v1.10.35 — 2026-10-22 — S/MIME: Einwilligung, bevor das Gateway im Namen eines Postfachs handelt
 
 - **Korrektur: Der CASTLE-Weg handelte ohne Einwilligung.** Beim Bezug über

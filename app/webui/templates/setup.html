@@ -2153,11 +2153,17 @@ async function saveKeyvault() {
         <span id="addin-enabled-result" style="font-size:12px;margin-left:8px"></span>
       </label>
     </div>
-    <p class="hint" style="margin:0 0 4px">Zeigt die Gateway-Signatur beim Verfassen direkt in Outlook — wird einmalig im M365 Admin Center deployt</p>
+    {# Bis v1.10.35 stand hier „Zeigt die Gateway-Signatur beim Verfassen direkt
+       in Outlook“ — das las sich wie das automatische Einfügen, gemeint war der
+       Knopf. Das Verfassen-Add-in bot die Seite gar nicht an. #}
+    <p class="hint" style="margin:0 0 4px">Zwei Add-ins, beide einmalig im M365 Admin Center bereitzustellen:
+      der <strong>Knopf</strong> (Signatur und Abwesenheit per Klick) und das <strong>Verfassen-Add-in</strong>,
+      das die Signatur bei neuen Mails selbst einfügt</p>
 
     <div id="addin-setup" {% if not s.ADDIN_ENABLED %}style="display:none"{% endif %}>
       <div style="border-top:1px solid #f0f0f0;margin:14px 0 14px"></div>
 
+      <h3 style="margin:0 0 8px;font-size:13px;font-weight:600;color:#374151">Knopf: Signatur und Abwesenheit per Klick</h3>
       <!-- Gateway-URL -->
       <div class="settings-row" style="align-items:flex-start">
         <label style="padding-top:7px;white-space:nowrap">
@@ -2186,10 +2192,10 @@ async function saveKeyvault() {
           </div>
           {% else %}
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:2px">
-            <button class="btn secondary btn-sm" onclick="copyManifestUrl()">Kopieren</button>
+            <button class="btn secondary btn-sm" onclick="copyManifestUrl('{{ addin_manifest_url }}', 'addin-copy-ok')">Kopieren</button>
             <a href="{{ addin_manifest_url }}" target="_blank" class="btn secondary btn-sm">Öffnen</a>
             <a href="{{ addin_manifest_url }}" download="exo-signatur-addin.xml" class="btn secondary btn-sm">Herunterladen</a>
-            <button class="btn secondary btn-sm" onclick="validateAddinManifest(this)">Erreichbarkeit prüfen</button>
+            <button class="btn secondary btn-sm" onclick="validateAddinManifest(this, '{{ addin_manifest_url }}', 'addin-validate-result')">Erreichbarkeit prüfen</button>
             <span id="addin-validate-result" hidden></span>
           </div>
           <span id="addin-copy-ok" style="font-size:11px;color:#16a34a;display:none">Kopiert ✓</span>
@@ -2211,7 +2217,8 @@ async function saveKeyvault() {
 
       <p class="hint" style="line-height:1.7;margin:10px 0 6px">
         <strong>Plattformen:</strong> Outlook Desktop (Windows &amp; Mac), OWA, Outlook Web &nbsp;·&nbsp;
-        <strong>Auth:</strong> Nutzer werden beim ersten Öffnen zur Gateway-Anmeldung geleitet
+        <strong>Auth:</strong> Nutzer werden beim ersten Öffnen zur Gateway-Anmeldung geleitet &nbsp;·&nbsp;
+        fügt <strong>nicht</strong> von selbst ein — dafür das Verfassen-Add-in unten
       </p>
 
       <!-- Deployment Add-in -->
@@ -2237,6 +2244,50 @@ async function saveKeyvault() {
             hinzufügen ist nicht nötig. Die Versionsnummer in <code>/addin/manifest.xml</code> steigt nur
             dann, nicht bei jedem Gateway-Update — Fehlerbehebungen am Inhalt des Bereichs kommen mit dem
             Gateway-Update, ohne neues Hochladen.</li>
+        </ol>
+      </details>
+
+      {% set av = addin_verfassen %}
+      <div style="border-top:1px solid #f0f0f0;margin:14px 0 12px"></div>
+      <h3 id="addin-verfassen" style="margin:0 0 6px;font-size:13px;font-weight:600;color:#374151">Signatur automatisch beim Verfassen</h3>
+      <p class="hint" style="line-height:1.7;margin:0 0 8px">
+        Ein eigenes Add-in neben dem Knopf: Es fügt beim Öffnen einer <strong>neuen</strong> Mail die
+        Gateway-Signatur selbst ein (Outlook für Windows klassisch und neu, Outlook im Web, iOS/Android).
+        Antworten und Weiterleitungen lässt es aus — die signiert das Gateway beim Versand.
+        <strong>Ohne dieses Add-in fügt beim Verfassen nichts automatisch ein.</strong>
+      </p>
+      <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px">
+        <code style="font-size:12px;background:#f1f5f9;padding:5px 10px;border-radius:4px;border:1px solid #e2e8f0;word-break:break-all;align-self:flex-start">{{ av.url }}</code>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <button class="btn secondary btn-sm" onclick="copyManifestUrl('{{ av.url }}', 'addin-verfassen-copy-ok')">Kopieren</button>
+          <a href="{{ av.url }}" target="_blank" class="btn secondary btn-sm">Öffnen</a>
+          <a href="{{ av.url }}" download="exo-signatur-verfassen.xml" class="btn secondary btn-sm">Herunterladen</a>
+          <button class="btn secondary btn-sm" onclick="validateAddinManifest(this, '{{ av.url }}', 'addin-verfassen-validate-result')">Erreichbarkeit prüfen</button>
+          <span id="addin-verfassen-validate-result" hidden></span>
+        </div>
+        <span id="addin-verfassen-copy-ok" style="font-size:11px;color:#16a34a;display:none">Kopiert ✓</span>
+        <span class="hint" id="addin-verfassen-fassung">{% if av.version %}Fassung {{ av.version }}{% if av.seit %} · seit {{ av.seit }}{% endif %}
+          — ob sie in den Postfächern angekommen ist, zeigt die Spalte <em>Add-in Signatur</em> im Postfach-Status.{% else %}Noch nie abgerufen
+          — die Fassung erscheint hier, sobald das Manifest einmal geladen wurde (etwa über <em>Erreichbarkeit prüfen</em>).{% endif %}</span>
+      </div>
+      <p class="hint" style="line-height:1.7;margin:0 0 8px">
+        <strong>Voraussetzung:</strong> Das Add-in meldet sich ohne Fenster an (NAA, Nested App Authentication).
+        Dafür braucht die Bootstrap-App eine SPA-Adresse <code>brk-multihub://…</code> und den Bereich
+        <code>access_as_user</code>. Neue Installationen bekommen beides bei der Einrichtung; prüfen und
+        nachtragen über <em>Anmeldung prüfen</em> unten bzw. die Abnahme.
+      </p>
+      <details class="feld-gruppe" style="margin-bottom:4px">
+        <summary>Deployment im M365 Admin Center</summary>
+        <ol style="margin:8px 0 0 18px;padding:0;line-height:2.1;font-size:12.5px;color:#374151">
+          <li><a href="https://admin.microsoft.com" target="_blank" style="color:#0078d4">admin.microsoft.com</a>
+            → <strong>Einstellungen → Integrierte Apps</strong> → <strong>Apps hochladen</strong> → <em>Office-Add-In</em></li>
+          <li><strong>Link zur Manifestdatei</strong> → die Adresse oben einfügen (nicht die des Knopfs) → <strong>Validieren</strong></li>
+          <li>Benutzer/Gruppen zuweisen. Das Start-Ereignis unterstützt Microsoft für Add-ins, die der
+            Administrator so bereitstellt — nicht für eine Installation durch den Nutzer.</li>
+          <li>Wie beim Knopf nennt Microsoft <strong>24 bis 72 Stunden</strong>. <code>Get-App</code> meldet
+            dieses Add-in mitunter noch als unbekannt, wenn es schon einfügt.</li>
+          <li>Steigt die Fassung: Add-in in <strong>Integrierte Apps</strong> auswählen → <strong>Aktualisieren</strong>
+            und der Abfrage zustimmen.</li>
         </ol>
       </details>
 
@@ -2452,10 +2503,9 @@ async function teamsAppAktivUmschalten(cb) {
   }
 }
 
-function copyManifestUrl() {
-  var url = '{{ addin_manifest_url }}';
+function copyManifestUrl(url, okId) {
   navigator.clipboard.writeText(url).then(function() {
-    var ok = document.getElementById('addin-copy-ok');
+    var ok = document.getElementById(okId);
     if (ok) { ok.style.display = ''; setTimeout(function() { ok.style.display = 'none'; }, 2000); }
   });
 }
@@ -2618,11 +2668,10 @@ async function submitPoolAppUrl() {
   if (poolStep) { updatePoolRecommendation(); }
 })();
 
-async function validateAddinManifest(btn) {
-  var el = 'addin-validate-result';
+async function validateAddinManifest(btn, url, el) {
   var d = await knopfAktion(btn, 'Prüfe…', async function() {
     try {
-      var r = await fetch('{{ addin_manifest_url }}');
+      var r = await fetch(url);
       if (!r.ok) return {ok: false, error: 'HTTP ' + r.status + ' — nicht erreichbar'};
       var doc = new DOMParser().parseFromString(await r.text(), 'application/xml');
       var err = doc.querySelector('parsererror');

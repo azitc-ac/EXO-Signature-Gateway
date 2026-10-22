@@ -354,6 +354,32 @@ def test_setup_vergleicht_teams_katalog_mit_dem_paket(client, monkeypatch, katal
     ss.update({"ADDIN_ENABLED": False})
 
 
+def test_setup_bietet_das_verfassen_addin_an(client):
+    """Bis v1.10.35 bot die Einrichtung nur den Knopf an; das Add-in, das beim
+    Verfassen selbst einfügt, war gemountet, aber nirgends verlinkt — und der
+    Hinweis am Knopf las sich wie das automatische Einfügen."""
+    import re
+    import settings_store as ss
+    import config as _cfg
+    ss.update({"ADMIN_PASSWORD_HASH": "", "ADDIN_ENABLED": True})
+    try:
+        html = client.get("/setup", auth=("admin", _cfg.WEBUI_PASSWORD or "admin")).text
+        assert 'id="addin-verfassen"' in html
+        assert "Zeigt die Gateway-Signatur beim Verfassen direkt" not in html
+        urls = set(re.findall(r'<code[^>]*>(https?://[^<]*/addin/verfassen/manifest\.xml)</code>', html))
+        assert len(urls) == 1, urls
+        # Die angebotene Adresse liefert wirklich das Add-in mit Start-Ereignis
+        pfad = urls.pop().split("://", 1)[1].split("/", 1)[1]
+        xml = client.get("/" + pfad).text
+        assert 'LaunchEvent Type="OnNewMessageCompose"' in xml
+        # … und deren Fassung steht danach neben der Adresse
+        version = ss.get("_ADDIN_VERFASSEN_STAND")["version"]
+        html = client.get("/setup", auth=("admin", _cfg.WEBUI_PASSWORD or "admin")).text
+        assert f"Fassung {version}" in html.split('id="addin-verfassen-fassung"', 1)[1][:200]
+    finally:
+        ss.update({"ADDIN_ENABLED": False})
+
+
 async def _gleich(version):
     return {"zustand": "ok", "version": version}
 
