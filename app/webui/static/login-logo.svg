@@ -1,21 +1,59 @@
 <svg viewBox="46 36 220 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="EXO Signature Gateway">
 <!-- Anmeldeseite: Entwurf D (grosses Bild — Siegel auf der Spitze der Lasche,
      Schloss unten rechts). Bewusst eine eigene Zeichnung; alle kleinen Symbole
-     (Favicon, Add-ins, Teams) kommen aus favicon.svg (Entwurf C). -->
+     (Favicon, Add-ins, Teams) kommen aus favicon.svg (Entwurf C).
+
+     Einmalige Animation (CSS, läuft auch im <img>): offener Umschlag mit
+     Einschub → Brief fliegt hinein → Lasche schliesst → Unterschrift →
+     Siegel → Schloss. Das Endbild ist das unbewegte Bild; bei
+     prefers-reduced-motion erscheint es sofort. -->
+<style>
+  .an { transform-box: fill-box; animation-fill-mode: both; }
+  #auf     { transform-origin: 50% 100%; animation: weg-y .35s ease-in 1.9s both; }
+  #innen-v { animation: aus .01s linear 2.6s both; }
+  #brief   { transform-origin: 50% 50%; animation: brief 1.5s cubic-bezier(.25,.8,.35,1) .3s both, aus .15s linear 2.55s both; }
+  #einschub { animation: aus .2s linear 2.6s both; }
+  #lasche  { transform-origin: 50% 0%; animation: her-y .35s ease-out 2.25s both; }
+  #zeilen  { animation: ein .3s ease-out 2.75s both; }
+  #unterschrift { stroke-dasharray: 1; animation: zeichnen .9s ease-in-out 2.9s both; }
+  #punkt   { transform-origin: 50% 50%; animation: pop .2s ease-out 3.8s both; }
+  #siegel  { transform-origin: 50% 50%; animation: pop .45s cubic-bezier(.3,.7,.4,1) 4.05s both; }
+  #schloss { transform-origin: 50% 50%; animation: pop .45s cubic-bezier(.3,.7,.4,1) 4.55s both; }
+  @keyframes brief {
+    0%   { opacity: 0; transform: translate(40px,-120px) rotate(14deg); }
+    15%  { opacity: 1; }
+    60%  { transform: translate(0,0) rotate(0deg); }
+    100% { opacity: 1; transform: translate(0,52px) rotate(0deg); } }
+  @keyframes weg-y { from { transform: scaleY(1); } to { transform: scaleY(0); } }
+  @keyframes her-y { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+  @keyframes zeichnen { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+  @keyframes ein { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes aus { from { opacity: 1; } to { opacity: 0; } }
+  @keyframes pop { 0% { opacity: 0; transform: scale(.2); } 70% { opacity: 1; transform: scale(1.12); } 100% { opacity: 1; transform: scale(1); } }
+  @media (prefers-reduced-motion: reduce) { .an { animation: none !important; } #auf, #innen-v, #brief, #einschub { display: none; } }
+</style>
 <defs><linearGradient id="e" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#4f8ef7"/><stop offset="100%" stop-color="#1d4ed8"/></linearGradient>
 <linearGradient id="el" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#7fb0ff"/><stop offset="100%" stop-color="#3b82f6"/></linearGradient>
 <linearGradient id="l" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#4ade80"/><stop offset="100%" stop-color="#059669"/></linearGradient>
 <linearGradient id="s" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#fcd34d"/><stop offset="100%" stop-color="#f59e0b"/></linearGradient>
 <radialGradient id="w" cx="38%" cy="32%" r="75%"><stop offset="0%" stop-color="#c0262d"/><stop offset="60%" stop-color="#991b1b"/><stop offset="100%" stop-color="#6b1010"/></radialGradient>
 <filter id="sh" x="-60%" y="-60%" width="220%" height="220%"><feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#1e3a8a" flood-opacity="0.28"/></filter>
-<filter id="b" x="-80%" y="-80%" width="260%" height="260%"><feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="#1e293b" flood-opacity="0.3"/></filter><clipPath id="c"><rect x="75" y="90" width="150" height="110" rx="20"/></clipPath></defs>
+<filter id="b" x="-80%" y="-80%" width="260%" height="260%"><feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="#1e293b" flood-opacity="0.3"/></filter><clipPath id="c"><rect x="75" y="90" width="150" height="110" rx="20"/></clipPath><linearGradient id="ev" gradientUnits="userSpaceOnUse" x1="75" y1="90" x2="225" y2="200"><stop offset="0%" stop-color="#4f8ef7"/><stop offset="100%" stop-color="#1d4ed8"/></linearGradient><linearGradient id="innen" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#1e3a8a"/><stop offset="100%" stop-color="#1d4ed8"/></linearGradient><filter id="bs" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="#1e293b" flood-opacity="0.25"/></filter></defs>
+<path id="auf" class="an" d="M95,90 L205,90 A20,20 0 0 0 225,70 L150,40 L75,70 A20,20 0 0 0 95,90 Z" fill="url(#el)" stroke="#ffffff" stroke-opacity="0.35" stroke-width="1.5" stroke-linejoin="round"/>
 <g filter="url(#sh)"><rect x="75" y="90" width="150" height="110" rx="20" fill="url(#e)"/></g>
-<g clip-path="url(#c)"><path d="M75,90 L225,90 L150,134 Z" fill="url(#el)" opacity="0.9"/>
+<g id="innen-v" class="an" clip-path="url(#c)"><path d="M75,90 L225,90 L150,134 Z" fill="url(#innen)"/></g>
+<g id="brief" class="an" filter="url(#bs)"><rect x="92" y="44" width="116" height="86" rx="6" fill="#ffffff"/>
+<rect x="104" y="58" width="60" height="5" rx="2.5" fill="#cbd5e1"/><rect x="104" y="70" width="88" height="4" rx="2" fill="#e2e8f0"/>
+<rect x="104" y="80" width="80" height="4" rx="2" fill="#e2e8f0"/><rect x="104" y="90" width="84" height="4" rx="2" fill="#e2e8f0"/></g>
+<g id="einschub" class="an" clip-path="url(#c)"><path d="M75,90 L150,134 L225,90 L225,200 L75,200 Z" fill="url(#ev)"/>
+<path d="M75,90 L150,134 L225,90" fill="none" stroke="#ffffff" stroke-opacity="0.45" stroke-width="1.5" stroke-linejoin="round"/></g>
+<g id="lasche" class="an"><g clip-path="url(#c)"><path d="M75,90 L225,90 L150,134 Z" fill="url(#el)" opacity="0.9"/>
 <path d="M75,90 L150,134" stroke="#ffffff" stroke-opacity="0.35" stroke-width="1.5"/><path d="M225,90 L150,134" stroke="#ffffff" stroke-opacity="0.35" stroke-width="1.5"/>
-<ellipse cx="105" cy="107" rx="28" ry="13" fill="#ffffff" opacity="0.12"/></g>
-<path d="M105,165 C117,148 125,180 137,160 C145,148 155,176 170,158" fill="none" stroke="#fbbf24" stroke-width="4.4" stroke-linecap="round"/><circle cx="174" cy="155" r="2.8" fill="#fbbf24"/>
-<rect x="105" y="176" width="72" height="5.5" rx="2.75" fill="#ffffff" opacity="0.55"/><rect x="105" y="188" width="48" height="5.5" rx="2.75" fill="#ffffff" opacity="0.35"/>
-<g filter="url(#b)"><circle cx="208" cy="192" r="21" fill="url(#l)"/></g>
-<g transform="translate(208,192) scale(1)"><rect x="-7.5" y="-2" width="15" height="12" rx="2.7" fill="#ffffff"/><path d="M-5.3,-2 v-4.3 a5.3,5.3 0 0 1 10.6,0 v4.3" fill="none" stroke="#ffffff" stroke-width="2.6"/></g><g filter="url(#b)"><path d="M150.00,115.81L151.17,116.20L152.22,117.15L153.15,118.15L154.09,118.73L155.19,118.70L156.51,118.29L157.89,118.00L159.09,118.25L159.91,119.17L160.35,120.51L160.65,121.85L161.18,122.82L162.15,123.35L163.49,123.65L164.83,124.09L165.75,124.91L166.00,126.11L165.71,127.49L165.30,128.81L165.27,129.91L165.85,130.85L166.85,131.78L167.80,132.83L168.19,134.00L167.80,135.17L166.85,136.22L165.85,137.15L165.27,138.09L165.30,139.19L165.71,140.51L166.00,141.89L165.75,143.09L164.83,143.91L163.49,144.35L162.15,144.65L161.18,145.18L160.65,146.15L160.35,147.49L159.91,148.83L159.09,149.75L157.89,150.00L156.51,149.71L155.19,149.30L154.09,149.27L153.15,149.85L152.22,150.85L151.17,151.80L150.00,152.19L148.83,151.80L147.78,150.85L146.85,149.85L145.91,149.27L144.81,149.30L143.49,149.71L142.11,150.00L140.91,149.75L140.09,148.83L139.65,147.49L139.35,146.15L138.82,145.18L137.85,144.65L136.51,144.35L135.17,143.91L134.25,143.09L134.00,141.89L134.29,140.51L134.70,139.19L134.73,138.09L134.15,137.15L133.15,136.22L132.20,135.17L131.81,134.00L132.20,132.83L133.15,131.78L134.15,130.85L134.73,129.91L134.70,128.81L134.29,127.49L134.00,126.11L134.25,124.91L135.17,124.09L136.51,123.65L137.85,123.35L138.82,122.82L139.35,121.85L139.65,120.51L140.09,119.17L140.91,118.25L142.11,118.00L143.49,118.29L144.81,118.70L145.91,118.73L146.85,118.15L147.78,117.15L148.83,116.20L150.00,115.81Z" fill="url(#w)"/></g>
+<ellipse cx="105" cy="107" rx="28" ry="13" fill="#ffffff" opacity="0.12"/></g></g>
+<path id="unterschrift" class="an" pathLength="1" d="M105,165 C117,148 125,180 137,160 C145,148 155,176 170,158" fill="none" stroke="#fbbf24" stroke-width="4.4" stroke-linecap="round"/><circle id="punkt" class="an" cx="174" cy="155" r="2.8" fill="#fbbf24"/>
+<g id="zeilen" class="an"><rect x="105" y="176" width="72" height="5.5" rx="2.75" fill="#ffffff" opacity="0.55"/><rect x="105" y="188" width="48" height="5.5" rx="2.75" fill="#ffffff" opacity="0.35"/></g>
+<g id="schloss" class="an"><g filter="url(#b)"><circle cx="208" cy="192" r="21" fill="url(#l)"/></g>
+<g transform="translate(208,192) scale(1)"><rect x="-7.5" y="-2" width="15" height="12" rx="2.7" fill="#ffffff"/><path d="M-5.3,-2 v-4.3 a5.3,5.3 0 0 1 10.6,0 v4.3" fill="none" stroke="#ffffff" stroke-width="2.6"/></g></g>
+<g id="siegel" class="an"><g filter="url(#b)"><path d="M150.00,115.81L151.17,116.20L152.22,117.15L153.15,118.15L154.09,118.73L155.19,118.70L156.51,118.29L157.89,118.00L159.09,118.25L159.91,119.17L160.35,120.51L160.65,121.85L161.18,122.82L162.15,123.35L163.49,123.65L164.83,124.09L165.75,124.91L166.00,126.11L165.71,127.49L165.30,128.81L165.27,129.91L165.85,130.85L166.85,131.78L167.80,132.83L168.19,134.00L167.80,135.17L166.85,136.22L165.85,137.15L165.27,138.09L165.30,139.19L165.71,140.51L166.00,141.89L165.75,143.09L164.83,143.91L163.49,144.35L162.15,144.65L161.18,145.18L160.65,146.15L160.35,147.49L159.91,148.83L159.09,149.75L157.89,150.00L156.51,149.71L155.19,149.30L154.09,149.27L153.15,149.85L152.22,150.85L151.17,151.80L150.00,152.19L148.83,151.80L147.78,150.85L146.85,149.85L145.91,149.27L144.81,149.30L143.49,149.71L142.11,150.00L140.91,149.75L140.09,148.83L139.65,147.49L139.35,146.15L138.82,145.18L137.85,144.65L136.51,144.35L135.17,143.91L134.25,143.09L134.00,141.89L134.29,140.51L134.70,139.19L134.73,138.09L134.15,137.15L133.15,136.22L132.20,135.17L131.81,134.00L132.20,132.83L133.15,131.78L134.15,130.85L134.73,129.91L134.70,128.81L134.29,127.49L134.00,126.11L134.25,124.91L135.17,124.09L136.51,123.65L137.85,123.35L138.82,122.82L139.35,121.85L139.65,120.51L140.09,119.17L140.91,118.25L142.11,118.00L143.49,118.29L144.81,118.70L145.91,118.73L146.85,118.15L147.78,117.15L148.83,116.20L150.00,115.81Z" fill="url(#w)"/></g>
 <circle cx="150" cy="134" r="12.24" fill="none" stroke="#7f1d1d" stroke-width="1.49" opacity="0.7"/>
-<path d="M143.625,134.53125 L148.40625,139.3125 L156.90625,128.6875" fill="none" stroke="#fecaca" stroke-width="2.97" stroke-linecap="round" stroke-linejoin="round" opacity="0.92"/></svg>
+<path d="M143.625,134.53125 L148.40625,139.3125 L156.90625,128.6875" fill="none" stroke="#fecaca" stroke-width="2.97" stroke-linecap="round" stroke-linejoin="round" opacity="0.92"/></g></svg>
