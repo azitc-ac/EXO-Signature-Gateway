@@ -101,20 +101,21 @@ VORLAGEN: dict[str, dict] = {
         "beispiel": _CERT_BEISPIEL,
         "zweck": ("Geht an den Postfachinhaber, BEVOR die Zertifizierungsstelle "
                   "ihre Bestätigungsmail schickt — sonst trifft ihn eine "
-                  "unerwartete, meist englische Mail mit Bestätigungslink."),
-        "betreff": "Bitte bestätigen: Zertifikat für Ihre E-Mail-Adresse",
+                  "unerwartete, meist englische Mail mit Bestätigungslink. "
+                  "Bestätigt wird mit seiner Zustimmung vom Gateway; bestellt "
+                  "wird seit v1.10.40 nur noch mit Zustimmung."),
+        "betreff": "Zertifikat für Ihre E-Mail-Adresse wird eingerichtet",
         "farbe": "#1e40af",
         "bloecke": [
             _abs('Für Ihre Adresse **{{ empfaenger }}** wird ein Zertifikat zum '
-                 'digitalen Signieren Ihrer E-Mails eingerichtet.'),
-            _abs('Dazu erhalten Sie **gleich eine weitere E-Mail von {{ ca }}** — '
-                 'oft in englischer Sprache. **Diese Mail ist echt.** Bitte klicken '
-                 'Sie darin einmal auf den Bestätigungslink.'),
-            _abs('Damit bestätigen Sie ausschließlich, dass dieses Postfach Ihnen '
-                 'gehört. Sie geben dabei **kein Passwort** ein und '
-                 '**installieren nichts**.'),
-            _abs('Der Link ist in der Regel 24 Stunden gültig. Danach ist nichts '
-                 'weiter zu tun — das Signieren übernimmt der Server.'),
+                 'digitalen Signieren Ihrer E-Mails eingerichtet — so, wie Sie '
+                 'zugestimmt haben.'),
+            _abs('Dazu erhalten Sie **gleich eine E-Mail von {{ ca }}** — oft in '
+                 'englischer Sprache. **Diese Mail ist echt.** Sie müssen darin '
+                 '**nichts tun**: Den Bestätigungslink klickt der Server mit Ihrer '
+                 'Zustimmung für Sie.'),
+            _abs('Sie geben dabei **kein Passwort** ein und **installieren '
+                 'nichts**. Das Signieren übernimmt danach der Server.'),
             _abs('Sollten Sie diese Nachricht unerwartet erhalten oder unsicher '
                  'sein, wenden Sie sich bitte an Ihre IT — klicken Sie im Zweifel '
                  'nicht.', color="#6b7280", size="13pt"),

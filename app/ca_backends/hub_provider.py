@@ -89,6 +89,10 @@ veranlassen.</p>
         # ein Schlüssel/CSR und die Meldung ist klar.
         if self._p.get("preview") and not self._p.get("available"):
             raise RuntimeError("Anbieter ist noch in Vorschau — noch nicht bestellbar.")
+        # Erst die Zustimmung, dann die Bestellung — wie bei CASTLE. VOR Schlüssel
+        # und Hub-Aufruf, damit ohne sie nichts entsteht (und nichts kostet).
+        import einwilligung
+        einwilligung.verlangen(email)
         provider_id = self._p.get("id", "")
         ca_terms_accepted_at = (extra or {}).get("ca_terms_accepted_at", "")
         key_pem, csr_pem = _generate_key_and_csr_pem(email)

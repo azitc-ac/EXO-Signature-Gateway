@@ -222,7 +222,10 @@ async def bestaetigungslink(email: str, ref: str, seit: str = "") -> str:
     bewusste des Administrators) — `einwilligung.liegt_vor`. Hier geprüft, an
     der EINEN Stelle, die liest: Statusabfrage, Bestätigen-Knopf und
     `bestaetigungen_nachholen` laufen alle hierüber. Ohne Einwilligung "" —
-    dann klickt der Postfachinhaber den Link der CA selbst.
+    dann klickt der Postfachinhaber den Link der CA selbst. Seit v1.10.40
+    entsteht eine Hub-Bestellung nur noch MIT Einwilligung
+    (`einwilligung.verlangen`); dieser Fall bleibt für ältere Bestellungen und
+    für eine nach der Bestellung widerrufene Einwilligung.
     """
     import einwilligung
     if not einwilligung.liegt_vor(email):

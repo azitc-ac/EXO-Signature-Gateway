@@ -5,6 +5,31 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.40 — 2026-10-23 — Zertifikate: bei allen Anbietern erst die Zustimmung, dann die Bestellung
+
+- **Geändert: Auch über den Hub wird nur noch mit Einwilligung bestellt.** Bei
+  CASTLE galt das schon seit v1.10.35, weil dort nur das Gateway die Challenge
+  beantworten kann. Bei Anbietern über den Hub bestellte das Gateway bisher
+  auch ohne Einwilligung; der Postfachinhaber musste dann den Link in der Mail
+  der Zertifizierungsstelle selbst klicken. Jetzt gilt für alle Anbieter
+  derselbe Ablauf: Fehlt die Einwilligung, bekommt der Inhaber die Anfrage
+  per Mail, und erst nach seiner Zustimmung wird bestellt. Ohne Zustimmung
+  entsteht keine Bestellung und kein Schlüssel. Das gilt für die
+  Einzelbestellung, den Sammellauf, das automatische Bestellen beim
+  Aktivieren und die Verlängerung.
+- **Geändert: Die Ankündigung an den Postfachinhaber fordert nicht mehr zum
+  Klicken auf.** Die Nachricht *Zertifikat: Bestätigung angekündigt* sagt
+  jetzt, dass die Mail der Zertifizierungsstelle echt ist und der Inhaber
+  darin nichts tun muss. Den Bestätigungslink klickt das Gateway mit seiner
+  Zustimmung.
+- Bestellungen, die vor diesem Update ohne Einwilligung angelegt wurden,
+  bleiben wie bisher: Der Inhaber bestätigt sie selbst.
+
+**Zu tun:** Hast du die Nachricht *Zertifikat: Bestätigung angekündigt*
+angepasst, prüfe ihren Wortlaut unter *Signaturen → Vorlagen → Nachrichten an
+Postfachinhaber*. Deine Fassung hat Vorrang vor der neuen Vorgabe und fordert
+womöglich noch zum Klicken auf.
+
 ## v1.10.39 — 2026-10-23 — „#nosig #nodigsig“ führte zu einer voll signierten Mail
 
 - **Korrektur: Wer beide Trigger in den Betreff schrieb, bekam das Gegenteil.**
