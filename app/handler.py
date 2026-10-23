@@ -1347,6 +1347,13 @@ class SignatureHandler:
                     outbound = _smtp_bytes(enc_msg)
                     log.info("Mail encrypted for %s", recipients)
 
+            # Jede Mail, die dieser Weg zurückgibt, trägt die Markierung — nicht
+            # nur eine signierte. Fehlt sie (#nosig UND #nodigsig, oder #nosig bei
+            # abgeschaltetem S/MIME), routet die FromMemberOf-Regel sie erneut
+            # hierher; der Betreff ist dann schon ohne Trigger, und der zweite
+            # Durchlauf signiert voll. Idempotent, wenn inject/S/MIME sie setzten.
+            outbound = loop_detector.mark_as_signed_bytes(outbound)
+
             if settings_store.get("MAINTENANCE_MODE"):
                 held_mails.hold(sender, recipients, outbound, modified)
                 stats.increment("held")
@@ -1426,7 +1433,9 @@ class SignatureHandler:
             if settings_store.get("FALLBACK_ON_ERROR"):
                 log.info("Fallback: forwarding original mail from=%s", sender)
                 try:
-                    reinject.send(sender, recipients, raw)
+                    # Markiert wie jeder Rückweg: sonst kommt die Mail erneut
+                    # hierher, scheitert erneut und kreist.
+                    reinject.send(sender, recipients, loop_detector.mark_as_signed_bytes(raw))
                     stats.increment("fallback")
                     _audit("fallback", error=str(exc))
                 except Exception as fallback_exc:
