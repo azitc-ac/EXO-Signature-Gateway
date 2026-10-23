@@ -926,7 +926,7 @@ async def api_hub_order_bestaetigen(email: str, user: str = Depends(_require_adm
     adresse = (email or "").strip().lower()
     if not einwilligung.liegt_vor(adresse):
         raise HTTPException(400, "Für dieses Postfach fehlt die Einwilligung, in seinem Namen "
-                                 "zu bestätigen — der Postfachinhaber klickt den Link selbst.")
+                                 "zu bestätigen — bei dieser Bestellung klickt der Postfachinhaber den Link selbst.")
 
     offen = [m for m in hub_orders.list_pending()
              if (m.get("email") or "").lower() == adresse]

@@ -81,6 +81,9 @@ def test_hub_provider_wirft_den_betrag_mit(monkeypatch):
                 "error": "Guthaben zu niedrig."}
     monkeypatch.setattr(hub_client, "cert_order", _order)
     monkeypatch.setattr(hub_client, "cert_is_registered", lambda: True)
+    # Bestellt wird nur mit Einwilligung (seit v1.10.40, einwilligung.verlangen).
+    import einwilligung
+    monkeypatch.setattr(einwilligung, "liegt_vor", lambda email: {"von": "test"})
     b = hub_provider.HubProviderBackend({"id": "certum", "label": "Certum"})
     with pytest.raises(hub_client.GuthabenReichtNicht) as exc:
         asyncio.run(b.initiate_renewal("a@x.de", {}))

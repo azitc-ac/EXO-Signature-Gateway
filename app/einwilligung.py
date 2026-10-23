@@ -189,9 +189,20 @@ def zustand(email: str) -> dict:
     return {"zustand": "fehlt"}
 
 
-class EinwilligungFehlt(Exception):
-    """Für diese Handlung fehlt die Einwilligung des Postfachinhabers bzw. des
-    Administrators."""
+def verlangen(email: str) -> None:
+    """Sperre VOR jeder Bestellung, für alle Bezugswege (CASTLE und Hub).
+
+    Bis v1.10.39 bestellte der Hub-Weg auch ohne Einwilligung; der Inhaber
+    klickte dann den Link der Zertifizierungsstelle selbst. Jetzt gilt überall:
+    erst die Zustimmung, dann die Bestellung. Wirft
+    `acme_state.EinwilligungFehlt` — alle Aufrufer (Einzelbestellung,
+    Sammellauf, Verlängerung) fangen sie und fragen den Inhaber an.
+    """
+    if not liegt_vor(email):
+        import acme_state
+        raise acme_state.EinwilligungFehlt(
+            f"Für {email} fehlt die Einwilligung, dass das Gateway das Postfach lesen "
+            f"und in seinem Namen bei der Zertifizierungsstelle bestätigen darf.")
 
 
 def anfrage_senden(email: str, anbieter: str, terms_at: str = "", von: str = "",

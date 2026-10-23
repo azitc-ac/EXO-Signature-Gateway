@@ -239,3 +239,51 @@ def test_automatik_willigt_nur_mit_bewusster_einwilligung_ein(monkeypatch):
     werte["SMIME_AUTO_ENROLL_EINWILLIGUNG_AT"] = "2026-10-22T18:00:00Z"
     asyncio.run(mailboxes._auto_enrollment_anstossen(["a@x.de"]))
     assert gerufen["auto_confirm"] is True
+
+
+# ── Hub-Anbieter: erst Zustimmung, dann Bestellung (seit v1.10.40) ───────────
+
+def _hub_backend(monkeypatch, bestellt):
+    import hub_client
+    from ca_backends import hub_provider
+    monkeypatch.setattr(hub_client, "cert_is_registered", lambda: True)
+
+    async def _order(email, csr, meta, provider="", ca_terms_accepted_at=""):
+        bestellt.append(email)
+        return {"ok": False, "error": "Test-Ende"}
+    monkeypatch.setattr(hub_client, "cert_order", _order)
+    return hub_provider.HubProviderBackend({"id": "certum", "available": True, "label": "Certum"})
+
+
+def test_hub_bestellt_ohne_einwilligung_nicht(ablage, monkeypatch):
+    """Bis v1.10.39 bestellte der Hub-Weg ohne Einwilligung, und der Inhaber
+    klickte den Link der CA selbst."""
+    import acme_state
+    from ca_backends import hub_provider
+    bestellt = []
+    backend = _hub_backend(monkeypatch, bestellt)
+    monkeypatch.setattr(hub_provider, "_generate_key_and_csr_pem",
+                        lambda e: pytest.fail("Schlüssel ohne Einwilligung erzeugt"))
+    with pytest.raises(acme_state.EinwilligungFehlt):
+        asyncio.run(backend.initiate_renewal("a@x.de", {}))
+    assert bestellt == []
+
+
+def test_hub_bestellt_mit_einwilligung(ablage, monkeypatch):
+    from ca_backends import hub_provider
+    bestellt = []
+    backend = _hub_backend(monkeypatch, bestellt)
+    monkeypatch.setattr(hub_provider, "_generate_key_and_csr_pem", lambda e: (b"k", b"c"))
+    einwilligung.erteilen("a@x.de", "nutzer")
+    with pytest.raises(RuntimeError, match="Test-Ende"):
+        asyncio.run(backend.initiate_renewal("a@x.de", {}))
+    assert bestellt == ["a@x.de"]
+
+
+def test_ankuendigung_verlangt_keinen_klick_mehr():
+    """Bestellt wird nur noch mit Einwilligung, bestätigt dann das Gateway —
+    die Ankündigung darf den Inhaber nicht mehr zum Klicken auffordern."""
+    import usermail
+    _, html = usermail.rendern("cert_pending", "erika@example.org", "Certum")
+    assert "nichts tun" in html
+    assert "klicken Sie darin" not in html.lower() and "Bitte klicken" not in html

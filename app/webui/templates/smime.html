@@ -455,7 +455,7 @@
             {% elif ew.zustand == 'angefragt' %}
               <span class="speicher-hinweis" style="margin-left:0" data-zustand="offen">Beim Postfachinhaber angefragt am {{ (ew.erstellt or '')[:10] }} — gilt bis {{ (ew.ablauf or '')[:10] }}</span>
             {% else %}
-              <span class="speicher-hinweis" style="margin-left:0" data-zustand="offen">fehlt — ohne sie bestellt CASTLE nicht, und bei Hub-Anbietern klickt der Inhaber selbst</span>
+              <span class="speicher-hinweis" style="margin-left:0" data-zustand="offen">fehlt — ohne sie wird nicht bestellt</span>
             {% endif %}
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">

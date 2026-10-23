@@ -729,8 +729,9 @@ class EnrollmentNotAllowed(Exception):
 
 
 class EinwilligungFehlt(EnrollmentNotAllowed):
-    """Ohne Einwilligung kein CASTLE-Bezug: Das Gateway müsste das Postfach lesen
-    und in seinem Namen antworten (siehe `einwilligung.py`). Eigene Klasse, damit
+    """Ohne Einwilligung keine Bestellung, bei keinem Bezugsweg: Das Gateway müsste
+    das Postfach lesen und in seinem Namen antworten bzw. bestätigen (siehe
+    `einwilligung.verlangen`). Eigene Klasse, damit
     Aufrufer statt eines Fehlers eine Anfrage an den Postfachinhaber auslösen."""
 
 
@@ -771,9 +772,7 @@ async def initiate_acme_order(
     import einwilligung
     if not einwilligung.liegt_vor(email):
         log.warning("[acme:%s] enrollment blocked for %s — keine Einwilligung", flow_id, email)
-        raise EinwilligungFehlt(
-            f"Für {email} fehlt die Einwilligung, dass das Gateway das Postfach lesen "
-            f"und in seinem Namen bei der Zertifizierungsstelle antworten darf.")
+    einwilligung.verlangen(email)
 
     directory_url = CASTLE_STAGING if staging else CASTLE_DIRECTORY
     log.info("[acme:%s] ENROLLMENT START — %s via %s", flow_id, email, directory_url)
