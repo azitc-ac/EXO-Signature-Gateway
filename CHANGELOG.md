@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.42 — 2026-10-23 — Anmeldeseite: geöffneter Umschlag richtig gezeichnet
+
+- **Korrektur: Die aufgeklappte Lasche knickte an den Seiten ab.** Ihre Kanten
+  laufen jetzt gerade von der Spitze zu den Ecken, als Spiegelbild der dunklen
+  Innenseite samt der Rundung an der Knickkante.
+- **Korrektur: Der Brief schimmerte beim Schließen noch einmal durch.** Er
+  verschwindet jetzt in dem Moment, in dem die Lasche zu ist. Der Einschub
+  wird erst danach ausgeblendet.
+
+**Zu tun:** nichts — die Änderung kommt mit dem Update.
+
 ## v1.10.41 — 2026-10-23 — Anmeldeseite: Logo als Animation
 
 - **Neu: Das Logo der Anmeldeseite spielt beim Laden einmal einen kurzen
