@@ -5,6 +5,17 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.41 — 2026-10-23 — Anmeldeseite: Logo als Animation
+
+- **Neu: Das Logo der Anmeldeseite spielt beim Laden einmal einen kurzen
+  Ablauf.** Ein Brief fliegt in den offenen Umschlag, die Lasche schließt
+  sich, dann erscheinen Unterschrift, Siegel und Schloss. Am Ende steht das
+  bisherige Bild. Die Animation steckt als CSS in der SVG-Datei und braucht
+  kein Skript. Ist im Betriebssystem *Bewegung reduzieren* eingestellt,
+  erscheint sofort das fertige Bild.
+
+**Zu tun:** nichts — die Änderung kommt mit dem Update.
+
 ## v1.10.40 — 2026-10-23 — Zertifikate: bei allen Anbietern erst die Zustimmung, dann die Bestellung
 
 - **Geändert: Auch über den Hub wird nur noch mit Einwilligung bestellt.** Bei
