@@ -5,6 +5,23 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.39 — 2026-10-23 — „#nosig #nodigsig“ führte zu einer voll signierten Mail
+
+- **Korrektur: Wer beide Trigger in den Betreff schrieb, bekam das Gegenteil.**
+  Das Gateway unterdrückte HTML-Signatur und S/MIME und entfernte die Trigger
+  aus dem Betreff. Die Markierung `X-Sig-Applied`, an der die Transportregel
+  bereits bearbeitete Post erkennt, setzte es aber nur beim Signieren. Die
+  Regel schickte die Mail deshalb ein zweites Mal zum Gateway. Dort fehlten
+  die Trigger schon, und die Mail ging mit HTML-Signatur und S/MIME hinaus.
+  Ebenso betroffen waren *#nosig* bei abgeschaltetem oder mangels Zertifikat
+  ausbleibendem S/MIME, im Wartungsmodus zurückgehaltene Mails dieser Art und
+  der Fallback nach einem Verarbeitungsfehler (*Bei Fehler Original
+  zustellen*). Ein Fallback konnte dabei im Kreis laufen. Jede Mail, die das
+  Gateway an Exchange zurückgibt, trägt die Markierung jetzt, ob signiert oder
+  nicht.
+
+**Zu tun:** nichts — die Korrektur kommt mit dem Update.
+
 ## v1.10.38 — 2026-10-23 — Transportregel: alte Empfängerbedingung erkennen und gezielt entfernen
 
 - **Korrektur: Eine alte Empfängerbedingung an der Signatur-Regel blieb
