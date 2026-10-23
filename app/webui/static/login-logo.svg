@@ -3,27 +3,27 @@
      Schloss unten rechts). Bewusst eine eigene Zeichnung; alle kleinen Symbole
      (Favicon, Add-ins, Teams) kommen aus favicon.svg (Entwurf C).
 
-     Einmalige Animation (CSS, läuft auch im <img>): offener Umschlag mit
-     Einschub → Brief fliegt hinein → Lasche schliesst → Unterschrift →
-     Siegel → Schloss. Das Endbild ist das unbewegte Bild; bei
+     Einmalige Animation (CSS, läuft auch im <img>): offener Umschlag,
+     Brief halb im Einschub → rutscht hinein, parallel die Unterschrift →
+     Lasche schliesst → Siegel → Schloss (~2 s). Das Endbild ist das unbewegte Bild; bei
      prefers-reduced-motion erscheint es sofort. -->
 <style>
   .an { transform-box: fill-box; animation-fill-mode: both; }
-  #auf     { transform-origin: 50% 100%; animation: weg-y .35s ease-in 1.9s both; }
-  #innen-v { animation: aus .01s linear 2.6s both; }
-  #brief   { transform-origin: 50% 50%; animation: brief 1.5s cubic-bezier(.25,.8,.35,1) .3s both, aus .01s linear 2.6s both; }
-  #einschub { animation: aus .2s linear 2.65s both; }  /* erst NACH dem Brief — sonst schimmert er beim Ausblenden durch */
-  #lasche  { transform-origin: 50% 0%; animation: her-y .35s ease-out 2.25s both; }
-  #zeilen  { animation: ein .3s ease-out 2.75s both; }
-  #unterschrift { stroke-dasharray: 1; animation: zeichnen .9s ease-in-out 2.9s both; }
-  #punkt   { transform-origin: 50% 50%; animation: pop .2s ease-out 3.8s both; }
-  #siegel  { transform-origin: 50% 50%; animation: pop .45s cubic-bezier(.3,.7,.4,1) 4.05s both; }
-  #schloss { transform-origin: 50% 50%; animation: pop .45s cubic-bezier(.3,.7,.4,1) 4.55s both; }
+  /* Ablauf ~2 s: Brief steckt halb im Umschlag und rutscht hinein, parallel
+     wird unterschrieben; dann Lasche zu, Siegel, Schloss. */
+  #zeilen  { animation: ein .25s ease-out 0s both; }
+  #unterschrift { stroke-dasharray: 1; animation: zeichnen .8s ease-in-out .1s both; }
+  #punkt   { transform-origin: 50% 50%; animation: pop .15s ease-out .9s both; }
+  #brief   { transform-origin: 50% 50%; animation: brief .5s ease-in-out .1s both, aus .01s linear 1.05s both; }
+  #auf     { transform-origin: 50% 100%; animation: weg-y .22s ease-in .6s both; }
+  #lasche  { transform-origin: 50% 0%; animation: her-y .23s ease-out .82s both; }
+  #innen-v { animation: aus .01s linear 1.05s both; }
+  #einschub { animation: aus .15s linear 1.08s both; }  /* erst NACH dem Brief — sonst schimmert er beim Ausblenden durch */
+  #siegel  { transform-origin: 50% 50%; animation: pop .4s cubic-bezier(.3,.7,.4,1) 1.15s both; }
+  #schloss { transform-origin: 50% 50%; animation: pop .4s cubic-bezier(.3,.7,.4,1) 1.6s both; }
   @keyframes brief {
-    0%   { opacity: 0; transform: translate(40px,-120px) rotate(14deg); }
-    15%  { opacity: 1; }
-    60%  { transform: translate(0,0) rotate(0deg); }
-    100% { opacity: 1; transform: translate(0,52px) rotate(0deg); } }
+    from { transform: translate(0,0); }
+    to   { transform: translate(0,52px); } }
   @keyframes weg-y { from { transform: scaleY(1); } to { transform: scaleY(0); } }
   @keyframes her-y { from { transform: scaleY(0); } to { transform: scaleY(1); } }
   @keyframes zeichnen { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }

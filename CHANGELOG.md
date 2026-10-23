@@ -5,6 +5,15 @@ Wichtige Bugfixes werden mit Ursache dokumentiert.
 
 ---
 
+## v1.10.43 — 2026-10-23 — Anmeldeseite: Logo-Animation kürzer
+
+- **Geändert: Der Ablauf dauert rund 2 statt 5 Sekunden.** Der Brief steckt
+  von Anfang an halb im Umschlag und rutscht hinein, die Unterschrift entsteht
+  gleichzeitig. Danach schließt sich die Lasche, und Siegel und Schloss
+  erscheinen.
+
+**Zu tun:** nichts — die Änderung kommt mit dem Update.
+
 ## v1.10.42 — 2026-10-23 — Anmeldeseite: geöffneter Umschlag richtig gezeichnet
 
 - **Korrektur: Die aufgeklappte Lasche knickte an den Seiten ab.** Ihre Kanten
