@@ -815,6 +815,13 @@ async def run_post_auth_setup(token: str) -> dict:
 
 # ── Step: run PowerShell S/MIME transport rules setup ────────────────────────
 
+def _loop_muster() -> str:
+    """Muster der Loop-Ausnahme für alle Gateway-Regeln — je Installation eigen
+    (loop_detector.marker_muster; bis v1.10.43 überall `1`)."""
+    import loop_detector
+    return loop_detector.marker_muster()
+
+
 def run_smime_rules_setup(
     app_id: str,
     tenant_domain: str,
@@ -850,6 +857,7 @@ def run_smime_rules_setup(
         "-GatewayName", gateway_name,
         "-ConnectorName", connector_name,
         "-LoopHeader", loop_header,
+        "-LoopPattern", _loop_muster(),
     ]
 
     try:
@@ -903,6 +911,7 @@ def run_exo_connector_setup(
         "-SmtpProxyHostname", smtp_proxy_hostname,
         "-GatewayName", gateway_name,
         "-LoopHeader", loop_header,
+        "-LoopPattern", _loop_muster(),
         # Regelname aus der EINEN Quelle; Altname fuer die einmalige Migration.
         "-RuleName", waechter_regel.regelname(),
         "-RuleNameOld", waechter_regel.basis_regelname(),
@@ -1125,6 +1134,7 @@ def run_rule_split_setup(app_id: str, tenant_domain: str,
         "-AppId", app_id, "-Organization", tenant_domain,
         "-CertPath", str(_AUTH_CERT_PATH), "-GatewayName", gateway_name,
         "-LoopHeader", loop,
+        "-LoopPattern", _loop_muster(),
         # Regelnamen aus der EINEN Quelle; SigRuleNameOld fuer die Migration.
         "-SigRuleName", regel_split.signatur_regelname(),
         "-SigRuleNameOld", waechter_regel.basis_regelname(),

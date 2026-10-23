@@ -188,6 +188,7 @@ async def settings_signature_page(request: Request, user: str = Depends(_require
             "sender_mailboxes": sender_mailboxes,
             "custom_var_entra_fields": graph_client.CUSTOM_VAR_ENTRA_FIELDS,
             "regel_stand": _regel_stand(),
+            "loop_marker": __import__("loop_detector").marker_wert(),
         },
     )
 

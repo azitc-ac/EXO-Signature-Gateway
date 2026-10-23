@@ -24,7 +24,10 @@ param(
     [Parameter(Mandatory)][string]$CertPath,
     [string]$GatewayName = "EXO Signature Gateway",
     [string]$ConnectorName = "EXO Signature Gateway - Outbound",
-    [string]$LoopHeader = "X-Sig-Applied"
+    [string]$LoopHeader = "X-Sig-Applied",
+    # Muster der Loop-Ausnahme: je Installation eigen (loop_detector.marker_muster).
+    # Vorgabe "1" nur für Aufrufe ohne Parameter (alte Fassung).
+    [string]$LoopPattern = "1"
 )
 
 Set-StrictMode -Version Latest
@@ -83,7 +86,7 @@ if ($existingSigned) {
     Write-Warn "Rule '$signedRuleName' already exists — updating comment + Loop-Header"
     Set-TransportRule -Identity $signedRuleName -Comments $managedBy `
         -ExceptIfHeaderMatchesMessageHeader $LoopHeader `
-        -ExceptIfHeaderMatchesPatterns "1" | Out-Null
+        -ExceptIfHeaderMatchesPatterns $LoopPattern | Out-Null
     Write-OK "Rule comment + Loop-Header ($LoopHeader) updated: $signedRuleName"
 } else {
     New-TransportRule `
@@ -91,7 +94,7 @@ if ($existingSigned) {
         -FromScope NotInOrganization `
         -MessageTypeMatches Signed `
         -ExceptIfHeaderMatchesMessageHeader $LoopHeader `
-        -ExceptIfHeaderMatchesPatterns "1" `
+        -ExceptIfHeaderMatchesPatterns $LoopPattern `
         -RouteMessageOutboundConnector $connectorId `
         -StopRuleProcessing $true `
         -Comments $managedBy `
@@ -108,7 +111,7 @@ if ($existingEnc) {
     Write-Warn "Rule '$encRuleName' already exists — updating comment + Loop-Header"
     Set-TransportRule -Identity $encRuleName -Comments $managedBy `
         -ExceptIfHeaderMatchesMessageHeader $LoopHeader `
-        -ExceptIfHeaderMatchesPatterns "1" | Out-Null
+        -ExceptIfHeaderMatchesPatterns $LoopPattern | Out-Null
     Write-OK "Rule comment + Loop-Header ($LoopHeader) updated: $encRuleName"
 } else {
     New-TransportRule `
@@ -116,7 +119,7 @@ if ($existingEnc) {
         -FromScope NotInOrganization `
         -MessageTypeMatches Encrypted `
         -ExceptIfHeaderMatchesMessageHeader $LoopHeader `
-        -ExceptIfHeaderMatchesPatterns "1" `
+        -ExceptIfHeaderMatchesPatterns $LoopPattern `
         -RouteMessageOutboundConnector $connectorId `
         -StopRuleProcessing $true `
         -Comments $managedBy `

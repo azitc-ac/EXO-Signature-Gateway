@@ -45,6 +45,8 @@ def anlage(monkeypatch):
         "SMIME_SIGNING_ENABLED": True, "SKIP_SIG_IN_THREAD": True,
         "NOSIG_TRIGGER": "#nosig", "NODIGSIG_TRIGGER": "#nodigsig",
         "SIGN_INTERNAL_ONLY_MAIL": True,
+        # Mit Tenant: die je Installation eigene Kennung, nicht die Altform „1“.
+        "TENANT_ID": "aaaaaaaa-1111-2222-3333-444444444444",
     }
     import settings_store
     monkeypatch.setattr(settings_store, "get", lambda k, d=None, *a, **kw: werte.get(k, d))
@@ -81,6 +83,11 @@ def anlage(monkeypatch):
     return werte
 
 
+def _eigene():
+    import loop_detector
+    return loop_detector.marker_wert()
+
+
 def _mail(betreff):
     return (f"From: {ABS}\r\nTo: kunde@extern.de\r\nSubject: {betreff}\r\n"
             "Message-ID: <m1@firma.de>\r\nMIME-Version: 1.0\r\n"
@@ -104,7 +111,7 @@ def _zugestellt(anlage, betreff) -> email.message.Message:
 def test_rueckgabe_ist_markiert(anlage, betreff, smime):
     anlage["SMIME_SIGNING_ENABLED"] = smime
     msg = _zugestellt(anlage, betreff)
-    assert msg.get_all("X-Sig-Applied") == ["1"], "ohne Markierung kommt die Mail zurück"
+    assert msg.get_all("X-Sig-Applied") == [_eigene()], "ohne Markierung kommt die Mail zurück"
     assert "#nosig" not in msg["Subject"] and "#nodigsig" not in msg["Subject"]
 
 
@@ -127,4 +134,18 @@ def test_fallback_ist_markiert(anlage, monkeypatch):
         raise RuntimeError("Vorlage kaputt")
     monkeypatch.setattr(mail_processor, "inject", _kaputt)
     msg = _zugestellt(anlage, "Angebot")
-    assert msg.get_all("X-Sig-Applied") == ["1"]
+    assert msg.get_all("X-Sig-Applied") == [_eigene()]
+
+
+def test_fremde_markierung_verhindert_die_bearbeitung_nicht(anlage):
+    """Bis v1.10.43 trug jede Gateway-Mail `X-Sig-Applied: 1` — Post eines
+    ANDEREN Gateways galt hier als schon bearbeitet und lief unbearbeitet durch
+    (gemessen 23.10.2026: kein Zertifikat übernommen)."""
+    assert _eigene().startswith("1-")
+    roh = b"X-Sig-Applied: 1\r\n" + _mail("Angebot")
+    asyncio.run(handler.SignatureHandler().handle_DATA(None, _Sitzung(), _Umschlag(roh)))
+    daten = next(a for a in anlage["_zugestellt"][0] if isinstance(a, (bytes, bytearray)))
+    msg = email.message_from_bytes(daten)
+    teil = next(t for t in msg.walk() if t.get_content_type() == "text/html")
+    assert "[Sig]" in teil.get_payload(decode=True).decode(), "fremd markierte Mail nicht bearbeitet"
+    assert msg.get_all("X-Sig-Applied") == [_eigene()], "fremde Markierung nicht ersetzt"

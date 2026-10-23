@@ -90,7 +90,8 @@ def test_externe_post_bekommt_externen_text(graph):
     # Graph sendMail verwirft Auto-Submitted (gemessen 11.10.2026); nur X-Köpfe
     # kommen an. Ohne X-Sig-Applied lief die Antwort durchs Gateway und wurde
     # ein zweites Mal signiert.
-    assert m["X-Sig-Applied"] == "1"
+    import loop_detector
+    assert m["X-Sig-Applied"] == loop_detector.marker_wert()
     assert m["X-Auto-Response-Suppress"] == "All"
     assert m["In-Reply-To"] == "<orig-1@extern.de>" == m["References"]
     assert m["Subject"] == "Automatische Antwort: Angebot für Sie"

@@ -24,7 +24,15 @@
     <label for="loop-header">Loop-Detection-Header</label>
     <div class="settings-control">
       <input type="text" id="loop-header" value="{{ s.LOOP_HEADER }}" placeholder="X-Sig-Applied">
-      <span class="hint">Header der gesetzten Mails kennzeichnet (verhindert Doppel-Injektion). Nach einer Änderung den Setup-Assistenten (EXO-Connector) erneut ausführen — sonst prüft die Transportregel weiter den alten Namen.</span>
+      <span class="hint">Header der gesetzten Mails kennzeichnet (verhindert Doppel-Injektion). Nach einer Änderung „Regeln angleichen“ ausführen — sonst prüfen die Transportregeln weiter den alten Namen.</span>
+      {# regel_kennung.py: Wert je Tenant eigen (seit v1.10.44) — bis dahin überall „1“,
+         wodurch Post eines anderen Gateways die eigenen S/MIME-Regeln umging. #}
+      <div id="loop-kennung" style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px">
+        <span id="loop-kennung-stand" class="hint" style="margin:0">Kennung dieser Installation: <code>{{ loop_marker }}</code>. Die Transportregeln müssen genau sie ausnehmen.</span>
+        <button type="button" class="btn secondary btn-sm" id="loop-kennung-pruefen" onclick="loopKennungPruefen(this)">Regeln prüfen</button>
+        <button type="button" class="btn secondary btn-sm" id="loop-kennung-angleichen" onclick="loopKennungAngleichen(this)" hidden>Regeln angleichen</button>
+        <span id="loop-kennung-result" class="fortschritt" hidden></span>
+      </div>
     </div>
   </div>
   </div>
@@ -327,7 +335,49 @@ async function saveSignatur() {
   wacheFertig('signatur-btn', _ok);
 }
 
-// ── Empfängerbedingung an der Transportregel (regel_bedingung.py) ────────────
+// ── Transportregeln: prüfen und gezielt ändern (regel_kennung.py, regel_bedingung.py)
+// Gemeinsames Gerüst: Prüfen liest nur, Ändern fragt vorher nach. Beide melden
+// am Ort (Fortschritt → Ergebnis) und liefern die Antwort oder null.
+async function _regelPruefen(btn, el, url) {
+  const d = await knopfAktion(btn, 'Exchange wird gefragt …', () => getJSON(url), {anzeige: el});
+  if (!d.ok || d.zustand === 'unbekannt') {
+    showMsg(el, '✗ ' + (d.regel ? 'Regel „' + d.regel + '“' : 'Regeln') + ' ließ(en) sich nicht lesen'
+                + (d.ok ? '' : ': ' + errText(d)), false);
+    return null;
+  }
+  return d;
+}
+
+async function _regelAendern(btn, el, url, frage, arbeitsText) {
+  if (!confirm(frage)) return null;
+  const d = await knopfAktion(btn, arbeitsText, () => postJSON(url), {anzeige: el});
+  if (!d.ok) { showMsg(el, '✗ ' + errText(d), false); return null; }
+  return d;
+}
+
+async function loopKennungPruefen(btn) {
+  const el = 'loop-kennung-result';
+  const d = await _regelPruefen(btn, el, '/api/setup/regel/schleifenkennung');
+  if (!d) return;
+  if (d.zustand === 'keine') { showMsg(el, 'keine Gateway-Regel gefunden', true); return; }
+  const falsch = (d.regeln || []).filter(r => !r.ok);
+  document.getElementById('loop-kennung-angleichen').hidden = !falsch.length;
+  showMsg(el, falsch.length
+    ? '✗ ' + falsch.length + ' von ' + d.regeln.length + ' Regel(n) abweichend: ' + falsch.map(r => r.name).join(', ')
+    : '✓ ' + d.regeln.length + ' Regel(n) in Ordnung', !falsch.length);
+}
+
+async function loopKennungAngleichen(btn) {
+  const el = 'loop-kennung-result';
+  const d = await _regelAendern(btn, el, '/api/setup/regel/schleifenkennung-angleichen',
+    'Die Loop-Ausnahme an allen Gateway-Transportregeln auf die Kennung dieser Installation setzen?\n\n'
+    + 'Nur diese Ausnahme wird geändert; Gruppen, Connectoren und übrige Bedingungen bleiben. '
+    + 'Wirksam nach 5–15 Minuten.', 'wird angeglichen …');
+  if (!d) return;
+  document.getElementById('loop-kennung-angleichen').hidden = true;
+  showMsg(el, '✓ ' + (d.regeln || []).length + ' Regel(n) angeglichen — wirkt nach 5–15 Minuten', true);
+}
+
 function _regelBedingungZeigen(scope) {
   document.getElementById('regel-bedingung-entfernen').hidden = !scope;
   document.getElementById('regel-bedingung-stand').innerHTML = scope
@@ -338,25 +388,20 @@ function _regelBedingungZeigen(scope) {
 
 async function regelBedingungPruefen(btn) {
   const el = 'regel-bedingung-result';
-  const d = await knopfAktion(btn, 'Exchange wird gefragt …',
-    () => getJSON('/api/setup/regel/empfaengerbedingung'), {anzeige: el});
-  if (!d.ok || d.zustand === 'unbekannt') {
-    showMsg(el, '✗ Regel „' + (d.regel || '') + '“ ließ sich nicht lesen' + (d.ok ? '' : ': ' + errText(d)), false);
-    return;
-  }
+  const d = await _regelPruefen(btn, el, '/api/setup/regel/empfaengerbedingung');
+  if (!d) return;
   _regelBedingungZeigen(d.sent_to_scope);
   showMsg(el, d.zustand === 'ok' ? '✓ in Ordnung' : '✗ Empfängerbedingung gefunden', d.zustand === 'ok');
 }
 
 async function regelBedingungEntfernen(btn) {
-  if (!confirm('Die Empfängerbedingung an der Transportregel entfernen?\n\n'
-      + 'Danach erreicht auch interne Post der aktivierten Postfächer das Gateway '
-      + '(nach 5–15 Minuten). Ob sie signiert wird, entscheidet „Rein interne Mails auch signieren“. '
-      + 'Andere Bedingungen und die Connectoren bleiben unverändert.')) return;
   const el = 'regel-bedingung-result';
-  const d = await knopfAktion(btn, 'wird entfernt …',
-    () => postJSON('/api/setup/regel/empfaengerbedingung-entfernen'), {anzeige: el});
-  if (!d.ok) { showMsg(el, '✗ ' + errText(d), false); return; }
+  const d = await _regelAendern(btn, el, '/api/setup/regel/empfaengerbedingung-entfernen',
+    'Die Empfängerbedingung an der Transportregel entfernen?\n\n'
+    + 'Danach erreicht auch interne Post der aktivierten Postfächer das Gateway '
+    + '(nach 5–15 Minuten). Ob sie signiert wird, entscheidet „Rein interne Mails auch signieren“. '
+    + 'Andere Bedingungen und die Connectoren bleiben unverändert.', 'wird entfernt …');
+  if (!d) return;
   _regelBedingungZeigen('');
   showMsg(el, d.geaendert ? '✓ entfernt — wirkt nach 5–15 Minuten' : '✓ war schon entfernt', true);
 }

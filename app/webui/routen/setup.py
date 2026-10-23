@@ -895,6 +895,20 @@ async def api_regel_empfaengerbedingung_entfernen(user: str = Depends(_require_a
     return JSONResponse(await asyncio.to_thread(regel_bedingung.entfernen, user))
 
 
+# ── Loop-Kennung an den Gateway-Regeln (regel_kennung.py) ────────────────────
+
+@router.get("/api/setup/regel/schleifenkennung")
+async def api_regel_schleifenkennung(user: str = Depends(_require_admin)):
+    import regel_kennung
+    return JSONResponse({"ok": True, **await asyncio.to_thread(regel_kennung.pruefen)})
+
+
+@router.post("/api/setup/regel/schleifenkennung-angleichen")
+async def api_regel_schleifenkennung_angleichen(user: str = Depends(_require_admin)):
+    import regel_kennung
+    return JSONResponse(await asyncio.to_thread(regel_kennung.angleichen, user))
+
+
 # ── App-Pool API ──────────────────────────────────────────────────────────────
 
 @router.get("/api/setup/app-pool/status")

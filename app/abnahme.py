@@ -397,8 +397,32 @@ def _regel_empfaenger() -> dict:
                               "SentTo, RecipientDomainIs) prüft dieser Punkt nicht.")
 
 
+def _regel_kennung() -> dict:
+    """Nehmen die Gateway-Regeln GENAU die eigene Markierung aus? Bis v1.10.43
+    war sie überall `1` — Post eines anderen Gateways umging dadurch die
+    eingehenden S/MIME-Regeln (kein Zertifikat übernommen, nichts entschlüsselt)."""
+    import regel_kennung
+    name = "Transportregeln mit eigener Loop-Kennung"
+    p = regel_kennung.pruefen()
+    if p["zustand"] == regel_kennung.UNBEKANNT:
+        return _punkt(name, UNBEKANNT, "Die Regeln ließen sich nicht lesen.",
+                      "Exchange-Zugang prüfen (Einrichtung → Connector).")
+    if p["zustand"] == regel_kennung.KEINE:
+        return _punkt(name, ENTFAELLT, "Noch keine Gateway-Regel angelegt.")
+    falsch = [r["name"] for r in p["regeln"] if not r["ok"]]
+    if falsch:
+        return _punkt(name, OFFEN,
+                      f"{len(falsch)} Regel(n) nehmen nicht genau die eigene Kennung "
+                      f"{p['soll']} aus: {', '.join(falsch)}. Post anderer Gateways "
+                      "umgeht dann die eingehenden S/MIME-Regeln.",
+                      "Einstellungen → Signatur → Erweiterte Einstellungen → „Regeln prüfen“ → „Regeln angleichen“.")
+    return _punkt(name, OK, f"{len(p['regeln'])} Regel(n) mit Kennung {p['soll']}",
+                  deckt_nicht="Ob eine Mail die Kennung tatsächlich trägt, zeigt erst "
+                              "der Betrieb (Kopfzeile der zugestellten Mail).")
+
+
 PRUEFUNGEN = (_aussenadresse, _tls, _anmeldung, _naa, _exchange,
-              _postfaecher, _signaturvorlage, _rueckweg, _regel_empfaenger,
+              _postfaecher, _signaturvorlage, _rueckweg, _regel_empfaenger, _regel_kennung,
               _benachrichtigung)
 
 
