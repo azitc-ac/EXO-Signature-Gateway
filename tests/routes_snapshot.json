@@ -1260,6 +1260,20 @@
     "name": "api_setup_notification_dg"
   },
   {
+    "pfad": "/api/setup/regel/empfaengerbedingung",
+    "methoden": [
+      "GET"
+    ],
+    "name": "api_regel_empfaengerbedingung"
+  },
+  {
+    "pfad": "/api/setup/regel/empfaengerbedingung-entfernen",
+    "methoden": [
+      "POST"
+    ],
+    "name": "api_regel_empfaengerbedingung_entfernen"
+  },
+  {
     "pfad": "/api/setup/remote-domain-castle",
     "methoden": [
       "DELETE"

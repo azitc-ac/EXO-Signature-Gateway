@@ -187,8 +187,19 @@ async def settings_signature_page(request: Request, user: str = Depends(_require
             "gateway_name": _gateway_name(),
             "sender_mailboxes": sender_mailboxes,
             "custom_var_entra_fields": graph_client.CUSTOM_VAR_ENTRA_FIELDS,
+            "regel_stand": _regel_stand(),
         },
     )
+
+
+def _regel_stand() -> dict:
+    """Zuletzt gelesene Empfängerbedingung der Signatur-Regel (regel_bedingung.py)
+    — ohne Exchange-Anmeldung beim Seitenaufruf; frisch prüft der Knopf."""
+    import waechter_state
+    st = waechter_state.lesen()
+    if not st.get("rule_checked") or "rule_sent_to_scope" not in st:
+        return {}
+    return {"sent_to_scope": st.get("rule_sent_to_scope") or "", "am": st["rule_checked"]}
 
 
 @router.get("/settings/smime", response_class=HTMLResponse)

@@ -124,6 +124,23 @@
       <span class="hint">Mails, bei denen <strong>alle</strong> Empfänger interne Postfächer sind (kein
         externer Empfänger), werden standardmäßig unverändert durchgereicht — keine HTML-Signatur, kein
         S/MIME. Aktivieren, um auch rein interne Mails wie externe zu behandeln.</span>
+      {# regel_bedingung.py: Regeln aus Installationen vor v1.8.64 tragen noch
+         „Empfänger außerhalb der Organisation“ — dann kommt interne Post hier nie an. #}
+      <div id="regel-bedingung" style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px">
+        <span id="regel-bedingung-stand" class="hint" style="margin:0">
+          {%- if regel_stand and regel_stand.sent_to_scope -%}
+            ⚠️ Die Transportregel trägt die Empfängerbedingung <code>{{ regel_stand.sent_to_scope }}</code> — interne Post erreicht das Gateway nicht, der Schalter wirkt nicht (Stand {{ regel_stand.am }}).
+          {%- elif regel_stand -%}
+            Transportregel ohne Empfängerbedingung (Stand {{ regel_stand.am }}).
+          {%- else -%}
+            Damit interne Post das Gateway erreicht, darf die Transportregel keine Empfängerbedingung tragen.
+          {%- endif -%}
+        </span>
+        <button type="button" class="btn secondary btn-sm" id="regel-bedingung-pruefen" onclick="regelBedingungPruefen(this)">Transportregel prüfen</button>
+        <button type="button" class="btn secondary btn-sm" id="regel-bedingung-entfernen" onclick="regelBedingungEntfernen(this)"
+                {% if not (regel_stand and regel_stand.sent_to_scope) %}hidden{% endif %}>Empfängerbedingung entfernen</button>
+        <span id="regel-bedingung-result" class="fortschritt" hidden></span>
+      </div>
     </div>
   </div>
 
@@ -308,6 +325,40 @@ async function saveSignatur() {
     SIGN_INTERNAL_ONLY_MAIL: document.getElementById('sign-internal-only').checked,
   }, 'signatur-result');
   wacheFertig('signatur-btn', _ok);
+}
+
+// ── Empfängerbedingung an der Transportregel (regel_bedingung.py) ────────────
+function _regelBedingungZeigen(scope) {
+  document.getElementById('regel-bedingung-entfernen').hidden = !scope;
+  document.getElementById('regel-bedingung-stand').innerHTML = scope
+    ? '⚠️ Die Transportregel trägt die Empfängerbedingung <code>' + esc(scope)
+      + '</code> — interne Post erreicht das Gateway nicht, der Schalter wirkt nicht.'
+    : 'Transportregel ohne Empfängerbedingung.';
+}
+
+async function regelBedingungPruefen(btn) {
+  const el = 'regel-bedingung-result';
+  const d = await knopfAktion(btn, 'Exchange wird gefragt …',
+    () => getJSON('/api/setup/regel/empfaengerbedingung'), {anzeige: el});
+  if (!d.ok || d.zustand === 'unbekannt') {
+    showMsg(el, '✗ Regel „' + (d.regel || '') + '“ ließ sich nicht lesen' + (d.ok ? '' : ': ' + errText(d)), false);
+    return;
+  }
+  _regelBedingungZeigen(d.sent_to_scope);
+  showMsg(el, d.zustand === 'ok' ? '✓ in Ordnung' : '✗ Empfängerbedingung gefunden', d.zustand === 'ok');
+}
+
+async function regelBedingungEntfernen(btn) {
+  if (!confirm('Die Empfängerbedingung an der Transportregel entfernen?\n\n'
+      + 'Danach erreicht auch interne Post der aktivierten Postfächer das Gateway '
+      + '(nach 5–15 Minuten). Ob sie signiert wird, entscheidet „Rein interne Mails auch signieren“. '
+      + 'Andere Bedingungen und die Connectoren bleiben unverändert.')) return;
+  const el = 'regel-bedingung-result';
+  const d = await knopfAktion(btn, 'wird entfernt …',
+    () => postJSON('/api/setup/regel/empfaengerbedingung-entfernen'), {anzeige: el});
+  if (!d.ok) { showMsg(el, '✗ ' + errText(d), false); return; }
+  _regelBedingungZeigen('');
+  showMsg(el, d.geaendert ? '✓ entfernt — wirkt nach 5–15 Minuten' : '✓ war schon entfernt', true);
 }
 
 function toggleSigStripConfig(enabled) {
